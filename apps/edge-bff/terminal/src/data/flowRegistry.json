@@ -1823,7 +1823,8 @@
    "unit": "diff",
    "needs_frequency": false,
    "outputs": [
-    "asym"
+    "asym",
+    "avg"
    ],
    "tip": "Keterpusatan sisi beli dikurangi keterpusatan sisi jual.",
    "params": [
@@ -1966,6 +1967,14 @@
       ]
      ],
      "default": "lot"
+    },
+    {
+     "key": "avg",
+     "label": "10-day average line",
+     "status": "DECIDED",
+     "kind": "bool",
+     "default": false,
+     "line": true
     }
    ]
   },
@@ -3210,19 +3219,23 @@
      "kind": "select",
      "options": [
       [
+       "hist",
+       "Histogram"
+      ],
+      [
        "strip",
        "Strip"
       ],
       [
-       "hist",
-       "Histogram"
+       "cells",
+       "Cell columns"
       ],
       [
        "line",
        "Line"
       ]
      ],
-     "default": "strip"
+     "default": "hist"
     }
    ]
   },
@@ -5478,6 +5491,255 @@
      "status": "DECIDED",
      "kind": "levels",
      "default": "0"
+    }
+   ]
+  },
+  {
+   "id": "FL49",
+   "name": "Foreign × Domestic · Daily Quadrant",
+   "family": "Bandar Balance",
+   "place": "pane",
+   "unit": "quadrant",
+   "needs_frequency": false,
+   "outputs": [
+    "value"
+   ],
+   "tip": "Kuadran peta Foreign × Domestic setiap sesi: Top N pembeli dan penjual bersih, net mereka dipecah menjadi transaksi asing dan domestik, dibagi total nilai beli. Satu sel per sesi; warnanya kuadran hari itu (hijau keduanya akumulasi, oranye domestik menyerap, biru asing menyerap, merah keduanya distribusi, abu-abu datar).",
+   "params": [
+    {
+     "key": "top",
+     "label": "Top N",
+     "status": "DECIDED",
+     "kind": "int",
+     "default": 3,
+     "min": 1,
+     "max": 20
+    },
+    {
+     "key": "boards",
+     "label": "Market board",
+     "status": "DECIDED",
+     "kind": "multi",
+     "options": [
+      "Regular",
+      "Nego",
+      "Cash"
+     ],
+     "default": [
+      "Regular"
+     ]
+    },
+    {
+     "key": "window",
+     "label": "Rolling days (1 = daily)",
+     "status": "DECIDED",
+     "kind": "int",
+     "default": 1,
+     "min": 1,
+     "max": 250
+    }
+   ]
+  },
+  {
+   "id": "FL50",
+   "name": "Foreign × Domestic · Rotation",
+   "family": "Bandar Balance",
+   "place": "pane",
+   "unit": "%",
+   "needs_frequency": false,
+   "outputs": [
+    "foreign",
+    "domestic",
+    "verdict"
+   ],
+   "tip": "Porsi asing dan porsi domestik dari net Top N pembeli dan penjual bersih, dalam persen total nilai beli semua broker (periode bergulir). Asing + domestik = verdict Top brokers. Domestik di atas nol dan asing di bawah nol: domestik menyerap barang yang dilepas asing.",
+   "params": [
+    {
+     "key": "top",
+     "label": "Top N",
+     "status": "DECIDED",
+     "kind": "int",
+     "default": 3,
+     "min": 1,
+     "max": 20
+    },
+    {
+     "key": "boards",
+     "label": "Market board",
+     "status": "DECIDED",
+     "kind": "multi",
+     "options": [
+      "Regular",
+      "Nego",
+      "Cash"
+     ],
+     "default": [
+      "Regular"
+     ]
+    },
+    {
+     "key": "window",
+     "label": "Rolling days",
+     "status": "DECIDED",
+     "kind": "int",
+     "default": 5,
+     "min": 1,
+     "max": 250
+    },
+    {
+     "key": "verdict",
+     "label": "Verdict line (Foreign + Domestic)",
+     "status": "DECIDED",
+     "kind": "bool",
+     "default": false,
+     "line": true
+    }
+   ]
+  },
+  {
+   "id": "FL51",
+   "name": "Loaders",
+   "family": "Other",
+   "place": "price",
+   "unit": "price",
+   "needs_frequency": false,
+   "outputs": [
+    "lines"
+   ],
+   "tip": "Kotak di chart: tiga broker yang paling banyak menambah posisi bersih (lot) dan dua penjual bersih terbesar dalam periode, dengan harga pokok, jarak harga sekarang dari harga pokok dan jumlah hari beli bersih. Periode: candle yang terlihat di chart, atau rentang yang dipilih di chart. Harga pokok: harga rata-rata beli, atau perkiraan modal posisi yang masih dipegang. Bukan kepemilikan nasabah sebenarnya.",
+   "params": [
+    {
+     "key": "boards",
+     "label": "Market board",
+     "status": "DECIDED",
+     "kind": "multi",
+     "options": [
+      "Regular",
+      "Nego",
+      "Cash"
+     ],
+     "default": [
+      "Regular"
+     ]
+    },
+    {
+     "key": "investors",
+     "label": "Investor type",
+     "status": "DECIDED",
+     "kind": "multi",
+     "options": [
+      "Foreign",
+      "Domestic"
+     ],
+     "default": [
+      "Foreign",
+      "Domestic"
+     ]
+    },
+    {
+     "key": "cost",
+     "label": "Cost",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "avg",
+       "Average buy price"
+      ],
+      [
+       "model",
+       "Cost of the position held"
+      ]
+     ],
+     "default": "avg"
+    },
+    {
+     "key": "lines",
+     "label": "Cost lines on the price chart",
+     "status": "DECIDED",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "key": "start",
+     "label": "From",
+     "status": "DECIDED",
+     "kind": "date",
+     "default": "view"
+    },
+    {
+     "key": "end",
+     "label": "To",
+     "status": "DECIDED",
+     "kind": "date",
+     "default": "view"
+    }
+   ]
+  },
+  {
+   "id": "FL52",
+   "name": "Broker Inventory · Price Chart",
+   "family": "Other",
+   "place": "price",
+   "unit": "lot|IDR",
+   "needs_frequency": false,
+   "outputs": [
+    "lines"
+   ],
+   "tip": "Posisi bersih kumulatif broker yang dipilih di panel Broker inventory, digambar di chart harga dengan sumbu kanan sendiri (lot atau Rupiah), sejak candle pertama yang terlihat; bukan kepemilikan sebenarnya.",
+   "params": [
+    {
+     "key": "unit",
+     "label": "Unit",
+     "status": "DECIDED",
+     "kind": "select",
+     "options": [
+      [
+       "lot",
+       "Lot"
+      ],
+      [
+       "value",
+       "Value"
+      ]
+     ],
+     "default": "lot"
+    },
+    {
+     "key": "boards",
+     "label": "Market board",
+     "status": "DECIDED",
+     "kind": "multi",
+     "options": [
+      "Regular",
+      "Nego",
+      "Cash"
+     ],
+     "default": [
+      "Regular"
+     ]
+    },
+    {
+     "key": "investors",
+     "label": "Investor type",
+     "status": "DECIDED",
+     "kind": "multi",
+     "options": [
+      "Foreign",
+      "Domestic"
+     ],
+     "default": [
+      "Foreign",
+      "Domestic"
+     ]
+    },
+    {
+     "key": "start",
+     "label": "Counts from",
+     "status": "DECIDED",
+     "kind": "fixed",
+     "text": "The first visible candle",
+     "default": "-"
     }
    ]
   }

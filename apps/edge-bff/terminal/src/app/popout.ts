@@ -10,7 +10,7 @@ import type { Ctx } from './context';
 import { $, keyOf, nfCompact, spin, store, tickCompact, visibleBars } from './context';
 import { longDay, openRangeCalendar } from '../ui/calendar';
 import { getWin, isWinOpen, openWin, type Win } from '../ui/floatwin';
-import { aggregate, avgPrice, FD_DP, fdShown, inventory, invStats, sessionSpan, sidesTable, SPLIT_LEGEND, splitFill, toCsv, type SumKey, type SumRow, type SumSide } from '../data/brokerAgg';
+import { aggregate, avgPrice, FD_DP, fdNomShown, fdNomText, fdNomUnit, fdShown, inventory, invStats, sessionSpan, sidesTable, SPLIT_LEGEND, splitFill, toCsv, type SumKey, type SumRow, type SumSide } from '../data/brokerAgg';
 import { fdTrail, niceTicks } from './broker';
 import { fdCls, fdPct, mapLimit, trailDay, trailDeltas, trailSvg, type TrailPoint } from './fdMap';
 
@@ -288,22 +288,29 @@ export function initPopout(ctx: Ctx) {
     const head = `<div class="pw-ctl">${seg('p', st.p.n, [['1', '1D'], ['5', '5D'], ['20', '20D'], ['custom', 'Custom']], 'Period')}
       ${seg('top', st.top, [['3', 'Top 3'], ['5', 'Top 5'], ['10', 'Top 10']], 'Top N brokers')}
       ${seg('span', st.span, [['5', '5'], ['10', '10'], ['20', '20 sessions']], 'Sessions on the map')}
-      ${seg('view', st.view, [['level', 'Level'], ['delta', 'Change (Δ)']], 'Table view')}${select('board', st.board, BOARDS, 'All boards', 'Board')}</div>`;
+      ${seg('view', st.view, [['level', 'Level'], ['delta', 'Change (Δ)'], ['nominal', 'Nominal (Rp)']], 'Table view')}${select('board', st.board, BOARDS, 'All boards', 'Board')}</div>`;
     const pr = msg ? null : resolve(st.p.n === 'view' ? { n:'5' } : st.p);
     if (msg || !pr) { w.body.innerHTML = head + `<div class="rp-empty">${msg || noSession(st.p)}</div>`; w.setSub(B().label + tf); wireCtl('fd', w, () => renderFD(w)); return }
     const d = B().dates, len = pr[1] - pr[0] + 1, board = st.board;
     /* EXEC-QA5-FIX (QA F4): every session stays in the list; one without buy value shows "—", has no point on the map and
        no change, so a change is never taken across it */
     const T: TrailPoint[] = fdTrail((f, t, inv) => aggregate(B().rows, f, t, inv, board), pr[1], len, span, N)
-      .map(p => ({ d:d[p.t], x:p.x, y:p.y, r:p.r, empty:!(p.total > 0) }));
+      .map(p => ({ d:d[p.t], x:p.x, y:p.y, r:p.r, empty:!(p.total > 0), nf:p.nf, nd:p.nd, total:p.total }));
     w.setSub(`${B().label} · ${T.length ? `${trailDay(T[0].d)} – ${trailDay(T.at(-1)!.d)} · ` : ''}rolling ${len}D · Top ${N} · ${board === 'All' ? 'all boards' : board}${tf}`);
     const nEmpty = T.filter(p => p.empty).length;
     if (!T.length || nEmpty === T.length) { w.body.innerHTML = head + `<div class="rp-empty">No buy value in these sessions</div>`; wireCtl('fd', w, () => renderFD(w)); return }
-    const lim = mapLimit(T.filter(p => !p.empty).flatMap(p => [p.x, p.y])), lv = st.view !== 'delta', to = `${len}D to`;
+    const lim = mapLimit(T.filter(p => !p.empty).flatMap(p => [p.x, p.y])), nom = st.view === 'nominal', lv = st.view === 'level', to = `${len}D to`;
+    /* EXEC-RP-LOOK-2 A1: the same parts in Rupiah, one unit for the table; the map stays in % */
+    const unit = fdNomUnit(T.filter(p => !p.empty).flatMap(p => [p.nf!, p.nd!, p.nf! + p.nd!])), cls = (v: number) => v > 0 ? 'up' : v < 0 ? 'down' : '';
     const tag = (k: 'fx' | 'dm' | null) => k ? `<span class="tag fdw-${k}">${k === 'fx' ? 'Foreign' : 'Domestic'}</span>` : '<span class="fdw-none" data-tip="Driver|The verdict did not change">—</span>';
     const dash = (n: number) => '<td>—</td>'.repeat(n);
     // EXEC-QA5-FIX (QA F1-F3, F10): two decimals as Top brokers, the parts adding up on screen, colours and driver from them
-    const table = lv
+    const table = nom
+      ? `<thead><tr><th>${to}</th><th class="fdw-fx">Foreign</th><th class="fdw-dm">Domestic</th><th>Verdict (net)</th><th>Total buy</th></tr></thead><tbody>${T.map((p, i) => ({ p, i })).reverse().map(({ p, i }) => {
+          if (p.empty) return `<tr data-i="${i}" class="fdw-gap" data-tip="${trailDay(p.d)}|No buy value in this period: no point and no change"><td>${trailDay(p.d)}</td>${dash(4)}</tr>`;
+          const v = fdNomShown(p.nf!, p.nd!, unit);
+          return `<tr data-i="${i}"><td>${trailDay(p.d)}</td><td class="${cls(v.f)}">${v.text.f}</td><td class="${cls(v.d)}">${v.text.d}</td><td class="${cls(v.v)}">${v.text.v}</td><td>${fdNomText(p.total!, unit)}</td></tr>` }).join('')}</tbody>`
+      : lv
       ? `<thead><tr><th>${to}</th><th class="fdw-fx">Foreign</th><th class="fdw-dm">Domestic</th><th>Verdict</th></tr></thead><tbody>${T.map((p, i) => ({ p, i })).reverse().map(({ p, i }) => {
           if (p.empty) return `<tr data-i="${i}" class="fdw-gap" data-tip="${trailDay(p.d)}|No buy value in this period: no point and no change">${'<td>' + trailDay(p.d) + '</td>'}${dash(3)}</tr>`;
           const v = fdShown(p.x, p.y, p.r);
@@ -313,7 +320,8 @@ export function initPopout(ctx: Ctx) {
         : `<tr data-i="${s.i}"${k ? '' : ' class="cur"'}><td>${trailDay(s.d)}</td><td class="${fdCls(s.r!)}">${fdPct(s.r!)}</td><td class="${fdCls(s.dr)}">${pt(s.dr)}</td><td class="${fdCls(s.dx!)}">${pt(s.dx!)}</td><td class="${fdCls(s.dy!)}">${pt(s.dy!)}</td><td>${tag(s.driver)}</td></tr>`).join('')}</tbody>`;
     // re-test N2: whole sentences; the changes counted are the ones with a value
     const nChg = trailDeltas(T).filter(x => x.dr !== null).length, noChg = T.length - 1 - nChg;
-    const cap = lv ? `${T.length} session${T.length > 1 ? 's' : ''}${nEmpty ? `, ${nEmpty} without buy value (—)` : ''}. The list scrolls, newest first.`
+    const cap = nom ? `${T.length} session${T.length > 1 ? 's' : ''}. The net of the Top ${N} buyers and sellers in Rupiah, split by investor type; Verdict (net) = Foreign + Domestic, in ${({ B:'billions', M:'millions' } as Record<string, string>)[unit[1]] ?? 'Rupiah'} with ${FD_DP} decimals. Total buy: every broker's buy value. The map stays in %.`
+      : lv ? `${T.length} session${T.length > 1 ? 's' : ''}${nEmpty ? `, ${nEmpty} without buy value (—)` : ''}. The list scrolls, newest first.`
       : T.length > 1 ? `${nChg} change${nChg === 1 ? '' : 's'}${noChg ? ` (${noChg} row${noChg === 1 ? '' : 's'} without one: no buy value that session or the one before)` : ''}. The list scrolls. Δ = change from the session before, in percentage points. Δ Verdict = Δ Foreign + Δ Domestic.` : 'One session: no change to show yet.';
     w.body.innerHTML = head + `<div class="pw-fdw"><div class="pw-fd"><div class="pw-fd-map">${trailSvg(T, lim)}</div>
       <div class="pw-fd-side"><div class="pw-scroll"><table class="pw-t pw-fdt">${table}</table></div><p class="pw-foot">${cap}</p></div></div></div>`;

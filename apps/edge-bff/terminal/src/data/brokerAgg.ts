@@ -149,6 +149,19 @@ export function fdSplit(buyers: string[], sellers: string[], part: Map<string, {
    x foreign, y domestic, in % of total buy value. EXEC-QA5-FIX (QA 2026-11-07, F1-F3): the map shows two decimals, as Top
    brokers' verdict, and the flat band is derived from that precision */
 export const FD_DP = 2;
+/** EXEC-RP-LOOK-2 A1 (user 2026-11-08: "boleh ditambahkan nominal?"): the F×D parts in Rupiah as shown, in one unit for a
+    whole table (billions, or millions when every part is under Rp 1B) with FD_DP decimals and thousands separators, so a
+    column compares at one precision (Rp 0.60T hid Rp 10B); the verdict is the sum of the shown parts, so a row adds up */
+export const FD_NOM_UNITS: [number, string][] = [[1e9, 'B'], [1e6, 'M'], [1, '']];
+export const fdNomUnit = (vals: number[]): [number, string] => { const m = Math.max(0, ...vals.map(v => Math.abs(v))); return FD_NOM_UNITS.find(([u]) => m >= u) ?? [1, ''] };
+const NOM_NF = new Intl.NumberFormat('en-US', { minimumFractionDigits:FD_DP, maximumFractionDigits:FD_DP });
+/** a Rupiah amount in the table's unit, without a sign (the total buy value beside the parts) */
+export const fdNomText = (v: number, [u, k]: [number, string]) => `Rp ${NOM_NF.format(Math.abs(+(v / u).toFixed(FD_DP)))}${k}`;
+export function fdNomShown(nf: number, nd: number, [u, k]: [number, string]) {
+  const r = (v: number) => +(v / u).toFixed(FD_DP) || 0, f = r(nf), d = r(nd), v = +(f + d).toFixed(FD_DP) || 0;
+  const t = (x: number) => `${x > 0 ? '+' : x < 0 ? '−' : ''}Rp ${NOM_NF.format(Math.abs(x))}${k}`;
+  return { f, d, v, text:{ f:t(f), d:t(d), v:t(v) } };
+}
 export const FD_FLAT = 0.5 / 10 ** FD_DP;
 const rd = (v: number) => { const r = Math.round(v * 10 ** FD_DP) / 10 ** FD_DP; return r === 0 ? 0 : r };
 /** the figures as shown: each rounded to FD_DP decimals, the verdict as Top brokers rounds it, and the two parts adjusted

@@ -14,6 +14,7 @@
    ========================================================================== */
 
 import REG from '../data/flowRegistry.json';
+import { fdQuadrant, fdShown } from '../data/brokerAgg';
 
 export type Num = number | null;
 export type Series = Num[];
@@ -444,6 +445,72 @@ export const classBrokers = (ctx: FlowContext, cls: string) => Object.keys(ctx.c
 const resolveBrokers = (ctx: FlowContext, v: any, fallback: () => string[]): string[] =>
   Array.isArray(v) ? v : typeof v === 'string' && v.startsWith('class:') ? classBrokers(ctx, v.slice(6)) : fallback();
 
+/* ---- EXEC-FLOW-NEW-3 (user 2026-11-08) ---- */
+/** the Foreign × Domestic parts per candle, the map's formula: the Top N net buyers and the Top N net sellers of the window
+    (ranked on every investor type of the chosen boards), their net split into foreign and domestic trades, each over the
+    window's buy value of every broker, in %. x + y = the Bandar Balance % (FL24) of the same Top N, boards and window. */
+/** the mean of the last n values at each point, where all n exist (null otherwise) */
+export function meanOfLast(a: Series, n: number): Series {
+  const out = series(a.length); let sum = 0, run = 0;
+  for (let t = 0; t < a.length; t++) {
+    const v = a[t]; if (v === null) { sum = 0; run = 0; continue }
+    sum += v; run++; if (run > n) { sum -= a[t - n]!; run = n }
+    if (run === n) out[t] = sum / n;
+  }
+  return out;
+}
+export function fdParts(ctx: FlowContext, p: FlowParams): { x: Series; y: Series } {
+  const R = ctx.rows, bds = p.boards ?? null, gA = grid(R, bds, null), gF = grid(R, bds, ['Foreign']), gD = grid(R, bds, ['Domestic']);
+  const N = int(p.top, 3), x = series(R.N), y = series(R.N), Wn = W(p, 1), nets = new Float64Array(gA.B);
+  for (let t = 0; t < R.N; t++) {
+    const a = win(R, t, Wn); if (a === null) continue;
+    const tb = aw(gA, 'bv', a, t); if (!(tb > 0)) continue;
+    for (let b = 0; b < gA.B; b++) nets[b] = bw(gA, 'bv', b, a, t) - bw(gA, 'sv', b, a, t);
+    let f = 0, d = 0;
+    for (const b of [...topOf(R, N, b => nets[b]), ...topOf(R, N, b => -nets[b])]) {
+      f += bw(gF, 'bv', b, a, t) - bw(gF, 'sv', b, a, t); d += bw(gD, 'bv', b, a, t) - bw(gD, 'sv', b, a, t);
+    }
+    x[t] = 100 * f / tb; y[t] = 100 * d / tb;
+  }
+  return { x, y };
+}
+export interface LoaderRow { b: string; lots: number; cost: number | null; dist: number | null; buyDays: number; days: number; line: Series }
+/** FL51 Loaders: over the candles s..e (p.start, p.end: dates; the caller resolves "the view"), each broker's net lots on
+    the chosen boards and investors; the three largest loaders and the two largest net sellers, each with its cost (p.cost
+    'avg': buy value ÷ (buy lots × 100) since s; 'model': FL19's implied cost of the position still held, for that broker
+    alone), the distance of the last close from it, its net-buy days, and its running cost line; `share` = the three
+    loaders' lots over the lots of every broker that added to its position. */
+export function loadersTable(ctx: FlowContext, p: FlowParams): { rows: LoaderRow[]; share: number | null; s: number; e: number } {
+  ctxRows = ctx.rows;                                     // called directly by the Terminal, not only through FLOW
+  const R = ctx.rows, g = grid0(p), s = anchorAt(ctx, p.start);
+  let e = R.N - 1;
+  if (typeof p.end === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.end)) { e = -1; for (let k = 0; k < ctx.dates.length; k++) if (ctx.dates[k] <= p.end) e = k }
+  e = Math.min(e, R.N - 1);
+  if (s > e) return { rows:[], share:null, s, e };
+  const net = new Float64Array(g.B);
+  for (let b = 0; b < g.B; b++) net[b] = bw(g, 'bl', b, s, e) - bw(g, 'sl', b, s, e);
+  const load = topOf(R, 3, b => net[b]), sell = topOf(R, 2, b => -net[b]);
+  let pos = 0; for (let b = 0; b < g.B; b++) if (net[b] > 0) pos += net[b];
+  let last: number | null = null; for (let k = e; k >= s && last === null; k--) if (ctx.close[k] !== null && R.has[k]) last = ctx.close[k] as number;
+  const row = (b: number): LoaderRow => {
+    const line = series(R.N); let BV = 0, BL = 0, Q = 0, K = 0, buyDays = 0, days = 0, cost: number | null = null;
+    for (let k = s; k <= e; k++) {
+      if (!R.has[k]) continue;
+      days++;
+      const bl = bw(g, 'bl', b, k, k), sl = bw(g, 'sl', b, k, k), bv = bw(g, 'bv', b, k, k), q = bl - sl;
+      if (q > 0) buyDays++;
+      BV += bv; BL += bl;
+      if (q > 0) { const price = bl ? bv / bl : 0; K = Q <= 0 ? Math.max(Q + q, 0) * price : K + q * price }
+      else if (q < 0 && Q > 0) K = K * Math.max(Q + q, 0) / Q;
+      Q += q;
+      cost = p.cost === 'model' ? (Q > 0 ? K / (100 * Q) : null) : (BL > 0 ? BV / (100 * BL) : null);
+      line[k] = cost;
+    }
+    return { b:R.brokers[b], lots:net[b], cost, dist:cost && last !== null ? 100 * (last / cost - 1) : null, buyDays, days, line };
+  };
+  return { rows:[...load.map(row), ...sell.map(row)], share:pos > 0 ? 100 * load.reduce((x, b) => x + net[b], 0) / pos : null, s, e };
+}
+
 export const FLOW: Record<string, Fn> = {
   FL01:(c, p) => mirrored(p, (q, side) => sizeLot(c, q, side)),
   FL02:(c, p) => {
@@ -490,7 +557,10 @@ export const FLOW: Record<string, Fn> = {
   FL13:(c, p) => mirrored(p, (q, side) => hhi(c, q, side)),
   /* to-do 5, K2 (user 2026-11-05 "FL14 warisi parameter"; "tiga broker paling atas dikurang tiga broker sisi lainnya"):
      FL13 Buy of the top buyers minus FL13 Sell of the top sellers */
-  FL14:(c, p) => { const b = hhi(c, sideParams(p, 'buy'), 'buy'), s = hhi(c, sideParams(p, 'sell'), 'sell'); return { asym:b.map((x, t) => x === null || s[t] === null ? null : x - s[t]!) } },
+  /* EXEC-FLOW-NEW-3 (user 2026-11-08, FL14 "boleh sebagai opsi di settings"): avg = the mean of the last 10 values, only
+     where all 10 exist (a gap restarts it); drawn while the option is on */
+  FL14:(c, p) => { const b = hhi(c, sideParams(p, 'buy'), 'buy'), s = hhi(c, sideParams(p, 'sell'), 'sell'), asym = b.map((x, t) => x === null || s[t] === null ? null : x - s[t]!);
+    return { asym, avg:meanOfLast(asym, 10) } },
   FL15:(c, p) => {
     const R = c.rows, g = grid0(p), m: Measure = p.unit === 'value' ? 'bv' : 'bl', rank = p.unit === 'value' ? 'gross_buy' : 'gross_buy_lots';
     return { value:each(R, W(p), (a, t) => {
@@ -764,6 +834,16 @@ export const FLOW: Record<string, Fn> = {
       return p.form === 'ratio' ? div(B, S) : div(B - S, B + S);
     }) };
   },
+  /* EXEC-FLOW-NEW-3 (user 2026-11-08): the Foreign × Domestic map's parts per candle. FL49 the quadrant code (fdQuadrant on
+     the figures as shown), FL50 the parts themselves */
+  FL49:(c, p) => { const { x, y } = fdParts(c, p); return { value:x.map((v, t) => v === null || y[t] === null ? null : fdQuadrant(fdShown(v, y[t]!).x, fdShown(v, y[t]!).y)) } },
+  /* FL50: the parts as the map and Top brokers show them (fdShown, two decimals that add up to the verdict) */
+  FL50:(c, p) => { const { x, y } = fdParts(c, p), sh = x.map((v, t) => v === null || y[t] === null ? null : fdShown(v, y[t]!));
+    return { foreign:sh.map(s => s && s.x), domestic:sh.map(s => s && s.y), verdict:sh.map(s => s && s.r) } },
+  /* FL51 Loaders: the cost lines of the period's three largest loaders (the box's table is loadersTable) */
+  FL51:(c, p) => { const T = loadersTable(c, p), out: FlowOut = {}; for (const r of T.rows.filter(r => r.lots > 0)) out[r.b] = r.line; return out },
+  /* FL52: Broker Inventory on the price chart, the brokers the panel holds (given as p.brokers), FL23's own formula */
+  FL52:(c, p) => FLOW.FL23(c, { ...p, brokers:Array.isArray(p.brokers) ? p.brokers : defaultInventoryBrokers(c.rows), view:'cum', total:false }),
 };
 
 for (const id of Object.keys(FLOW)) { const fn = FLOW[id]; FLOW[id] = (c, p) => { ctxRows = c.rows; return fn(c, p) } }

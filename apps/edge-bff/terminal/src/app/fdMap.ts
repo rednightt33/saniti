@@ -89,7 +89,7 @@ export function mapReadout(cur0: MapPoint, all0: MapPoint[], open = true): strin
 /* ---- EXEC-FD-WINDOW (user 2026-11-07: "Peta + jejak 20 sesi (opsi 2) dan ada toggle untuk switch it ke Tabel penggerak
    per sesi (opsi A)"; "pake seperti HTML terlampir", verification/terminal_api/fd_map_expand/aaaa.html): the window's
    map with one point per session, a line through them, older points fainter, the newest larger and named "now" ---- */
-export interface TrailPoint { d: string; x: number; y: number; r: number; empty?: boolean }
+export interface TrailPoint { d: string; x: number; y: number; r: number; empty?: boolean; nf?: number; nd?: number; total?: number }   // nf, nd, total: Rupiah (A1)
 const dayOf = (d: string) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', timeZone:'UTC' }).replace('Sept', 'Sep');
 
 /** each session's change from the session before, in percentage points, on the figures as shown (fdShown), so

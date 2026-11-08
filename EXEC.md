@@ -12575,8 +12575,22 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   panel kanan ikut menambah garis di indikator ini; maksimum seperti panel, 5 broker). DICATAT, BELUM DIJALANKAN (menunggu
   go). FL26 yang sudah tersimpan dengan Plot
   Histogram/Line tetap pilihan tersimpannya.
+- Go user 2026-11-08: "Ok go" (lihat EXEC-FLOW-NEW-3). Dijalankan di branch (belum dirilis ke `main`):
+  - A1: jendela F×D punya tombol ketiga "Nominal (Rp)": kolom Foreign, Domestic, Verdict (net) dan Total buy dalam satu
+    satuan untuk seluruh tabel (miliar, atau juta bila semua di bawah Rp 1 B; Rp 0,60 T akan menyembunyikan Rp 10 B), dua
+    desimal; Verdict = jumlah dua bagian yang tampil. Peta tetap persen. BBRI 3 Nov 2026 5D: −Rp 599,46B, +Rp 354,73B,
+    −Rp 244,73B, Total buy Rp 3.842,60B (contoh FL50 yang dikunci).
+  - B: kotak pilihan/isian aktif di dialog Settings tanpa garis tepi, bayangan lembut seperti kotak pencarian Indicators;
+    daftar pilihan bawaan browser tidak diubah. Dicek di `look_check11.mjs`.
+  - C: Plot FL26 = Histogram (bawaan, seperti `main`), Strip, Cell columns, Line (`PLOT_OPTIONS`; `PLOT_FIRST` dihapus).
+    Cell columns: satu kotak per hari runtun, hijau di atas garis 0, merah di bawah, ukuran kotak = yang lebih kecil dari
+    85% lebar candle dan tinggi yang memuat runtun terpanjang di data (pada zoom jauh kotak menjadi titik kecil).
+  - X: indikator baru FL52 Broker Inventory · Price Chart: garis posisi bersih kumulatif (rumus FL23) broker di panel
+    Broker inventory, di chart harga pada sumbu kanan (lot, atau Rp bila Unit = Value), nama dan angka di ujung garis
+    ("NI 5.8M"); harga tetap di kiri. Mulai candle pertama terlihat. Broker ditambah/dihapus di panel (atau klik di kotak
+    Loaders) = garis ikut berubah, maksimum 5.
 
-## EXEC-FLOW-NEW-3 — tiga indikator Flow baru dari usulan HTML (diterima 2026-11-08, BELUM dijalankan)
+## EXEC-FLOW-NEW-3 — tiga indikator Flow baru dari usulan HTML (diterima 2026-11-08, dijalankan di branch 2026-11-08)
 
 - Kata user 2026-11-08 (dengan tangkapan layar opsi 4 "Daily quadrant" dari `pra_rally_box.html`, opsi 11 dan 13 dari
   `pre_rally_options.html`): "indikator yang di tambahkan sebagai indikator baru adalah "Daily quadrant" jadikan FL
@@ -12613,6 +12627,27 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   keenam broker ÷ total nilai beli semua broker (board terpilih) × 100; Domestic % sama untuk transaksi domestik;
   Foreign + Domestic = verdict Top brokers. Bawaan 5D bergulir, Top 3, Regular; Verdict sebagai opsi. Contoh BBRI
   28 Okt–3 Nov: −599,46 B ÷ 3.842,6 B = −15,60%; +354,73 B ÷ 3.842,6 B = +9,23%; jumlah −6,37%.
+- Go user 2026-11-08: "Ok go" atas daftar "Broker Inventory di grafik harga … Plot FL26 dengan empat pilihan … FL49 Daily
+  quadrant, FL50 Rotasi asing–domestik, FL51 Loaders … garis rata-rata FL14 … A1 (nominal di jendela F×D) … B (garis
+  tepi Settings)". Dijalankan di branch `claude/practical-thompson-2intee` (belum dirilis ke `main`):
+  - FL49 Foreign × Domestic · Daily Quadrant: pita satu sel per sesi di pane pendek, warna kuadran peta (hijau keduanya
+    akumulasi, oranye domestik menyerap, biru asing menyerap, merah keduanya distribusi, abu-abu datar); nama kuadran di
+    legend. Rumus = titik peta F×D (`fdParts`, `fdQuadrant` pada angka yang tampil). Bawaan Top 3, Regular, 1D.
+  - FL50 Foreign × Domestic · Rotation: garis Foreign (biru) dan Domestic (oranye), dua desimal seperti peta (`fdShown`:
+    bagian yang tampil berjumlah sama dengan verdict), garis 0; garis Verdict sebagai opsi (mati). Bawaan Top 3,
+    Regular, 5D bergulir. Dicek di data BBRI 3 Nov 2026: Foreign −15,60%, Domestic +9,23%, Verdict −6,37% (sama dengan
+    contoh yang dikunci).
+  - FL51 Loaders: kotak mengambang di chart harga, digeser dari kepalanya (posisi disimpan bersama indikator, tetap di
+    dalam chart). Baris: 3 penimbun (net lot terbesar) dan 2 penjual bersih terbesar; lot, harga pokok (A rata-rata beli /
+    B modal posisi yang masih dipegang, pilihan "Cost"), jarak harga penutupan terakhir periode dari harga pokok, hari
+    beli bersih dari hari berdata broker; kaki "Top 3 hold X% of total accumulation". Periode bawaan candle pertama sampai
+    terakhir yang terlihat (mengikuti geser/zoom; legend di luar periode: "Period ends …"), tombol "Select on chart"
+    memilih rentang seperti Alt+B, "In view" kembali ke tampilan. Opsi "Cost lines on the price chart" menggambar garis
+    harga pokok berjalan 3 penimbun (warna sendiri, beda dari Broker Inventory). Klik kode broker di kotak = menambah ke
+    Broker Inventory (panel kanan dan semua FL23/FL52).
+  - FL14: opsi "10-day average line" (mati): rata-rata 10 nilai terakhir, hanya bila kesepuluhnya ada.
+- Contoh BBRI di stand-in (data sampai 3 Nov 2026, tampilan penuh): Loaders XL +9,5M lot avg 3.116 (−14,6%), YU +6,6M,
+  NI +5,8M; ZP −19,7M, AK −10,5M; Top 3 hold 39,84%.
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dijalankan di branch 2026-11-08)
 

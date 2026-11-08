@@ -386,3 +386,24 @@ Bagian ini menambah, bukan mengganti, isi di atas. Rincian keputusan: `EXEC.md`,
 - FL23: bawaan `auto_c` (2 net buyer + 1 net seller di periode terlihat, dipilih sekali), tombol Brokers/Board/Investor di
   panelnya (`PANE_FILTERS`), label 0 (`zeroLabel` dari parameter tetap `start`).
 - Panel kanan: lajur Domestic/Foreign/Total di Top brokers dan panel "Foreign × Domestic map" (`fdMap.ts`, `fdSplit`).
+
+## 12. Perubahan EXEC-FLOW-NEW-3 dan EXEC-RP-LOOK-2 (2026-11-08)
+
+Bagian ini menambah, bukan mengganti. Rincian keputusan: `EXEC.md`, EXEC-FLOW-NEW-3 dan EXEC-RP-LOOK-2.
+
+- **Flow sekarang FL01–FL52.** FL49–FL52 tidak ada di spreadsheet: dibangkitkan oleh `extra_indicators()` di
+  `scripts/build_flow_registry.py` (parameter bersama disalin dari FL22/FL23/FL24 agar label dan batas sama).
+  Rumus di `FORMULAS.md`; tes `T/tests/calc/flow_new3.test.ts`. Screener tidak memakai `calc/flow.ts` (tidak berubah).
+- **Garis opsional dari registry**: parameter bool dengan `line: true` (FL14 `avg`, FL50 `verdict`) menambah output
+  bernama sama yang hanya digambar saat parameternya hidup (`o.hidden`, ikut `plotKeyOf`).
+- **Jenis gambar baru**: `strip` dengan warna per kode (`o.quad`, FL49) dan `cells` (kolom kotak, Plot FL26) di
+  `T/src/app/stripSeries.ts`. Pilihan Plot FL26 dari `PLOT_OPTIONS` (bawaan Histogram).
+- **Garis di chart harga dengan sumbu kanan** (`o.scale === 'right'` di pane harga, FL52): tidak dikonversi ke mode Return,
+  tidak memakai format harga. Garis yang namanya dari data memakai slot `b1..b5` + `_labels` (FL23, FL51, FL52).
+- **Mengikuti tampilan**: `def.viewKey(params)` menyatakan candle mana yang diikuti (pertama dan/atau terakhir terlihat);
+  `followView` menghitung ulang bila kuncinya berubah (menggantikan pengecualian id FL23).
+- **Mengikuti panel Broker inventory**: `def.followsInventory` (FL52) dihitung ulang lewat `Ind.inventoryChanged`, yang
+  dipanggil `broker.ts` setiap daftar broker berubah (`notify`).
+- **Kotak mengambang**: `def.box(raw, params)` memberi HTML; mesin (`paintBox`, `placeBox`) menaruhnya di chart, menggeser
+  dari kepala (`[data-drag]`), menyimpan posisi di `style.box`, dan menjalankan `data-broker` (tambah ke Broker Inventory)
+  serta `data-act="view|pick"` (periode di tampilan / pilih di chart). Dicek di `look_check11.mjs`.

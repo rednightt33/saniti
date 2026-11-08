@@ -93,6 +93,7 @@ export interface IndSurface {
   /** EXEC-IND-CARDS: an indicator as the chart has it, for its card */
   /** EXEC-INV-SYNC: a broker picked in the right panel (Broker Inventory indicators take it) */
   brokerPicked?: (code: string) => void;
+  inventoryChanged?: () => void;               // the Broker inventory panel's list changed (FL52 follows it)
   /** EXEC-IND-PRESETS: add an indicator from a preset (one undo step); the chart's indicators of an id, as presets read them;
       the presets module's "save this one" (set by presets.ts) */
   addPreset?: (defId: string, config: any, presetId?: string) => unknown;

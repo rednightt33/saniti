@@ -175,7 +175,7 @@ def outputs(fid, params):
     if any(p['key'] == 'lag' for p in params):          # a change line beside the value (EXEC-TERMINAL-IND-EDIT)
         return ['value', 'change']
     return {'FL06': ['ratio'], 'FL14': ['asym'], 'FL23': ['lines', 'total'], 'FL27': ['value', 'net', 'gross'],
-            'FL29': ['value', 'balance']}.get(fid, ['value'])
+            'FL29': ['value', 'balance']}.get(fid, ['value']) + [p['key'] for p in params if p.get('line')]
 
 
 # The tooltip in plain Indonesian, like the 53 price indicators' tips. FL24-FL39 take the meaning the Screener sheet
@@ -233,9 +233,55 @@ PLAIN = {
 # EXEC-QA5-FIX (QA 2026-11-07, Q8): an option that can never give a value for an indicator. FL09 needs a positive net
 # flow of its cohort; a cohort of net sellers never has one (0 of 180 days on BBRI), so the choice is not offered.
 DROP_OPTIONS = {('FL09', 'rank'): {'net_sell'}}
-# EXEC-RP-LOOK-2 C (user 2026-11-08: "Strip panas satu baris hanya untuk FL26 / jalankan"): Net Flow Streak (a count of
-# days, about -23..+7 on BBRI) reads as a one-row heat strip by default; Histogram and Line stay as choices.
-PLOT_FIRST = {'FL26': ('strip', 'Strip')}
+# EXEC-RP-LOOK-2 C (user 2026-11-08: "Buat 3 opsi... pertama opsi existing di main ... kedua opsi Strip ... yg ketiga Kolom
+# kotak tanpa ruang kosong ... default opsi existing yang di main"; "Empat opsi"): Net Flow Streak's plot choices, the
+# spreadsheet's default (Histogram) kept.
+PLOT_OPTIONS = {'FL26': [['hist', 'Histogram'], ['strip', 'Strip'], ['cells', 'Cell columns'], ['line', 'Line']]}
+# EXEC-FLOW-NEW-3 (user 2026-11-08: FL14 "boleh sebagai opsi di settings"): a 10-day average line over the bars
+# A bool parameter with 'line' adds an output of its own key, drawn only while the parameter is on.
+EXTRA_PARAMS = {'FL14': [{'key': 'avg', 'label': '10-day average line', 'status': 'DECIDED', 'kind': 'bool', 'default': False, 'line': True}]}
+
+
+def extra_indicators(by_id):
+    """EXEC-FLOW-NEW-3, EXEC-RP-LOOK-2 (user 2026-11-08): Flow indicators decided after the spreadsheet, numbered after it.
+    Their shared parameters are copied from the indicators that already have them, so labels, limits and defaults match."""
+    def take(fid, key, **over):
+        q = next(dict(q) for q in by_id[fid]['params'] if q['key'] == key)
+        q.update(over)
+        return q
+    top, boards, investors = take('FL24', 'top'), take('FL24', 'boards'), take('FL23', 'investors')
+    return [
+        {'id': 'FL49', 'name': 'Foreign × Domestic · Daily Quadrant', 'family': 'Bandar Balance', 'place': 'pane', 'unit': 'quadrant',
+         'needs_frequency': False, 'outputs': ['value'],
+         'tip': 'Kuadran peta Foreign × Domestic setiap sesi: Top N pembeli dan penjual bersih, net mereka dipecah menjadi transaksi '
+                'asing dan domestik, dibagi total nilai beli. Satu sel per sesi; warnanya kuadran hari itu (hijau keduanya '
+                'akumulasi, oranye domestik menyerap, biru asing menyerap, merah keduanya distribusi, abu-abu datar).',
+         'params': [top, boards, take('FL22', 'window', default=1)]},
+        {'id': 'FL50', 'name': 'Foreign × Domestic · Rotation', 'family': 'Bandar Balance', 'place': 'pane', 'unit': '%',
+         'needs_frequency': False, 'outputs': ['foreign', 'domestic', 'verdict'],   # verdict: drawn while its parameter is on
+         'tip': 'Porsi asing dan porsi domestik dari net Top N pembeli dan penjual bersih, dalam persen total nilai beli semua broker '
+                '(periode bergulir). Asing + domestik = verdict Top brokers. Domestik di atas nol dan asing di bawah nol: '
+                'domestik menyerap barang yang dilepas asing.',
+         'params': [top, boards, take('FL24', 'window', default=5),
+                    {'key': 'verdict', 'label': 'Verdict line (Foreign + Domestic)', 'status': 'DECIDED', 'kind': 'bool', 'default': False, 'line': True}]},
+        {'id': 'FL51', 'name': 'Loaders', 'family': 'Other', 'place': 'price', 'unit': 'price', 'needs_frequency': False,
+         'outputs': ['lines'],
+         'tip': 'Kotak di chart: tiga broker yang paling banyak menambah posisi bersih (lot) dan dua penjual bersih terbesar dalam '
+                'periode, dengan harga pokok, jarak harga sekarang dari harga pokok dan jumlah hari beli bersih. Periode: candle '
+                'yang terlihat di chart, atau rentang yang dipilih di chart. Harga pokok: harga rata-rata beli, atau perkiraan '
+                'modal posisi yang masih dipegang. Bukan kepemilikan nasabah sebenarnya.',
+         'params': [boards, investors,
+                    {'key': 'cost', 'label': 'Cost', 'status': 'DECIDED', 'kind': 'select',
+                     'options': [['avg', 'Average buy price'], ['model', 'Cost of the position held']], 'default': 'avg'},
+                    {'key': 'lines', 'label': 'Cost lines on the price chart', 'status': 'DECIDED', 'kind': 'bool', 'default': False},
+                    {'key': 'start', 'label': 'From', 'status': 'DECIDED', 'kind': 'date', 'default': 'view'},
+                    {'key': 'end', 'label': 'To', 'status': 'DECIDED', 'kind': 'date', 'default': 'view'}]},
+        {'id': 'FL52', 'name': 'Broker Inventory · Price Chart', 'family': 'Other', 'place': 'price', 'unit': 'lot|IDR',
+         'needs_frequency': False, 'outputs': ['lines'],
+         'tip': 'Posisi bersih kumulatif broker yang dipilih di panel Broker inventory, digambar di chart harga dengan sumbu '
+                'kanan sendiri (lot atau Rupiah), sejak candle pertama yang terlihat; bukan kepemilikan sebenarnya.',
+         'params': [take('FL23', 'unit'), boards, investors, take('FL23', 'start')]},
+    ]
 
 
 def build():
@@ -263,13 +309,13 @@ def build():
             drop = DROP_OPTIONS.get((fid, q['key']))
             if drop:
                 q['options'] = [o for o in q['options'] if o[0] not in drop]
-            first = PLOT_FIRST.get(fid)
-            if first and q['key'] == 'plot':
-                q['options'] = [list(first)] + [o for o in q['options'] if o[0] != first[0]]
-                q['default'] = first[0]
+            if q['key'] == 'plot' and fid in PLOT_OPTIONS:
+                q['options'] = [list(o) for o in PLOT_OPTIONS[fid]]
+        ps = ps + [dict(q) for q in EXTRA_PARAMS.get(fid, [])]
         indicators.append({'id': fid, 'name': name, 'family': family, 'place': PLACE[place.split(' (')[0]],
                            'unit': UNIT[unit], 'needs_frequency': freq == 'Ya', 'outputs': outputs(fid, ps),
                            'tip': PLAIN[fid] if fid in PLAIN else tips[fid], 'params': ps})   # a new id needs one of them
+    indicators += extra_indicators({i['id']: i for i in indicators})
     return {'schema_version': 1, 'generated_by': 'scripts/build_flow_registry.py',
             'source': {'file': str(SPEC.relative_to(ROOT)), 'sha256': hashlib.sha256(SPEC.read_bytes()).hexdigest()},
             'families': FAMILIES, 'indicators': indicators}

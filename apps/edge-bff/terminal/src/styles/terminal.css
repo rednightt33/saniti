@@ -689,7 +689,10 @@ body{font-variant-numeric:tabular-nums}
    it was a 2 px black border) */
 .idlg .idlg-in:focus,.idlg .idlg-in:focus-visible,.idlg select.idlg-in:focus,.idlg select.idlg-in.cs-open,
 .idlg .idlg-fl .fl-btn:focus,.idlg .idlg-fl .fl-btn:focus-visible,.idlg .idlg-fl .fl-btn[aria-expanded="true"],
-.idlg .idlg-cbtn:focus-visible,.idlg .idlg-cbtn.open{outline:none;border-color:#b5b5b5;box-shadow:0 0 0 3px rgba(0,0,0,.05)}
+/* EXEC-RP-LOOK-2 B (user 2026-11-08: "ganti selected state disetiap settings indikacotrs dengan selected state di indicators
+   (C)"; "hanya garis tepi saja"): the selected control looks like the Indicators window's search box, no border line and
+   its soft shadow; the open list itself (the browser's) is unchanged */
+.idlg .idlg-cbtn:focus-visible,.idlg .idlg-cbtn.open{outline:none;border-color:transparent;box-shadow:var(--sel-shadow)}
 .idlg .idlg-in.bad:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(214,40,57,.1)}
 .idlg .idlg-cb:focus-visible{outline:1px solid #b5b5b5;outline-offset:2px}
 .idlg .toggle:has(input:focus-visible) .track{outline:none;box-shadow:0 0 0 3px rgba(0,0,0,.08)}
@@ -1614,3 +1617,24 @@ html .ind-row.in-pane .ind-flt,html .ind-row.in-pane .ind-fltbtn{order:5}
 .legend-fold:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .legend-fold[hidden]{display:none}
 .legend-hidden .chart-legend > .ind-row,.legend-hidden > .ind-row.in-pane,.legend-hidden > .ind-move{display:none !important}
+/* EXEC-FLOW-NEW-3 (user 2026-11-08): FL51 Loaders' box over the price chart, moved by its head */
+.ind-box{position:absolute;z-index:6;width:max-content;max-width:min(420px,calc(100% - 16px));background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.08);font-size:12px;color:var(--text-2);pointer-events:auto}
+.ind-box[hidden]{display:none}
+.ldb-head{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 10px;border-bottom:1px solid var(--border);cursor:move;touch-action:none;user-select:none}
+.ldb-head b{font-weight:var(--fw-semibold);color:var(--text)}
+.ldb-when{color:var(--text-3);font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ldb-acts{margin-left:auto;display:inline-flex;gap:2px}
+.ldb-btn{height:22px;padding:0 7px;border:0;border-radius:5px;background:none;color:var(--text-3);font:inherit;font-size:11px;cursor:pointer;white-space:nowrap}
+.ldb-btn:hover{background:var(--hover);color:var(--text)}.ldb-btn.on{background:var(--sel);color:var(--text)}
+.ldb-t{border-collapse:collapse;margin:2px 2px 0}   /* the first column's text at 10px, under the head's title */
+.ldb-t th{font-weight:500;font-size:11px;color:var(--text-3);text-align:right;padding:4px 8px;white-space:nowrap}
+.ldb-t td{padding:3px 8px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ldb-t th:first-child,.ldb-t td:first-child{text-align:left}
+.ldb-t td.up{color:var(--up)}.ldb-t td.down{color:var(--down)}
+.ldb-t tr.ldb-sell:first-of-type td,.ldb-t tr.ldb-load+tr.ldb-sell td{border-top:1px solid var(--border)}
+.ldb-b{display:inline-flex;align-items:center;gap:5px;padding:1px 4px;margin-left:-4px;border:0;border-radius:4px;background:none;font:600 12px/1.3 var(--mono,ui-monospace,monospace);color:var(--text);cursor:pointer}
+.ldb-b::before{content:'';width:8px;height:2px;border-radius:1px;background:var(--c,var(--border-2))}
+.ldb-b:hover{background:var(--hover)}
+.ldb-b:focus-visible,.ldb-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ldb-foot{margin:2px 0 0;padding:5px 10px 7px;color:var(--text-3);font-size:11px}
+.ldb-empty{padding:10px;color:var(--text-3)}

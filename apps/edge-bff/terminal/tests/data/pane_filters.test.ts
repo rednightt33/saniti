@@ -11,14 +11,15 @@ const keysOf = (r: any) => PANE_FILTER_KEYS.filter(k => r.params.some((q: any) =
 const shown = (FLOW as any).indicators.filter((r: any) => !MENU_HIDDEN.has(r.id));
 
 describe('pane-row choices derived from the registry (the final proposal)', () => {
-  it('27 with a broker scope get Broker, N and Rank by; 7 more get N without a scope; Board 40, Investor 41', () => {
-    expect(shown.length).toBe(45);
+  // EXEC-FLOW-NEW-3 (2026-11-08): FL49-FL52 add 4 (N on FL49 and FL50; Board on all four, Investor on FL51 and FL52)
+  it('27 with a broker scope get Broker, N and Rank by; 9 more get N without a scope; Board 44, Investor 43', () => {
+    expect(shown.length).toBe(49);
     expect(shown.filter((r: any) => keysOf(r).includes('scope')).length).toBe(27);
     expect(shown.filter((r: any) => keysOf(r).includes('scope')).every((r: any) => ['top', 'rank', 'brokers'].every(k => keysOf(r).includes(k as any)))).toBe(true);
     expect(shown.filter((r: any) => keysOf(r).includes('top') && !keysOf(r).includes('scope')).map((r: any) => r.id).sort())
-      .toEqual(['FL15', 'FL16', 'FL24', 'FL25', 'FL29', 'FL42', 'FL48']);
-    expect(shown.filter((r: any) => keysOf(r).includes('boards')).length).toBe(40);
-    expect(shown.filter((r: any) => keysOf(r).includes('investors')).length).toBe(41);
+      .toEqual(['FL15', 'FL16', 'FL24', 'FL25', 'FL29', 'FL42', 'FL48', 'FL49', 'FL50']);
+    expect(shown.filter((r: any) => keysOf(r).includes('boards')).length).toBe(44);
+    expect(shown.filter((r: any) => keysOf(r).includes('investors')).length).toBe(43);
   });
   it('no controls on FL27, FL28, FL31 and the two-sided FL46; Broker Inventory keeps brokers, board, investor', () => {
     for (const id of ['FL27', 'FL28', 'FL31', 'FL46']) expect(keysOf(shown.find((r: any) => r.id === id))).toEqual([]);

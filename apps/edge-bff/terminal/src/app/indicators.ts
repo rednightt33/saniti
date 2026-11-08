@@ -90,7 +90,7 @@ export function initIndicators(ctx: Ctx) {
       if(o.r === 'state') return;
       const s: any = { on:o.vis || /bands_mode/.test(o.cond), width:o.w || 2 };
       if(o.color) s.color = o.color;                                    // fixed by the definition (FL23: the inventory colours)
-      else if(o.r === 'histogram' || o.r === 'strip') { s.color = UP; s.color2 = DOWN; if(/optional_state/.test(o.rule)) s.states = true }
+      else if(o.r === 'histogram' || o.r === 'strip' || o.r === 'cells') { s.color = UP; s.color2 = DOWN; if(/optional_state/.test(o.rule)) s.states = true }
       else if(o.r === 'segmented_line' || o.r === 'dots') { s.color = UP; s.color2 = DOWN }
       else if(o.role === 'signal_line') s.color = base === '#f5a623' ? '#d6409f' : '#f5a623';
       else if(o.role === 'center_line') s.color = base === '#f5a623' ? '#d6409f' : '#f5a623';
@@ -449,7 +449,7 @@ export function initIndicators(ctx: Ctx) {
 
   /* what makes the series: how each output is drawn and, since a choice can change its number format (EXEC-TERMINAL-IND-
      EDIT: count, z-score, points, ratio), the format's name; a change of either rebuilds the series */
-  const plotKeyOf = outs => outs.map(o => `${o.r}:${o.fk || ''}:${o.scale || ''}`).join();
+  const plotKeyOf = outs => outs.map(o => `${o.r}:${o.fk || ''}:${o.scale || ''}:${o.hidden ? 'h' : ''}`).join();
   /* registry indicators: one chart series per plotted output (state outputs only drive colours) */
   function buildParts(inst, intoPane?: number) {
     const r = inst.def.reg, panel = r.zone === 'panel';
@@ -468,7 +468,10 @@ export function initIndicators(ctx: Ctx) {
       /* EXEC-TERMINAL-IND-EDIT (user 2026-11-05, FL34 "sumbu kedua"): an output may have its own number format and, in a
          pane, its own scale on the left (a change in points beside a level in %) */
       const own = { ...(o.fmt ? { priceFormat:{ type:'custom', formatter:o.fmt, minMove:o.minMove ?? inst.def.minMove } } : {}),
-        ...(panel && o.scale === 'left' ? { priceScaleId:'left' } : {}) };
+        ...(panel && o.scale === 'left' ? { priceScaleId:'left' } : {}),
+        /* EXEC-RP-LOOK-2 (X, user 2026-11-08: "menambah sumbu Y axis disebelah kanan dalam satuan XXX lot"): a line on the
+           price chart in another unit has the price pane's right axis, its value and name beside the line's end */
+        ...(!panel && o.scale === 'right' ? { priceScaleId:'right', lastValueVisible:true } : {}) };
       if(panel && o.scale === 'left') left = true;
       const mk = (type, extra) => mk0(type, { ...own, ...extra });
       if(o.r === 'marker') inst.parts.push({ o, kind:'marker', series:null, plugin:null });      // marks under the candles
@@ -479,6 +482,12 @@ export function initIndicators(ctx: Ctx) {
         const s = chart.addCustomSeries(new StripSeries((L as any).customSeriesDefaultOptions), { ...opts, ...own, lastValueVisible:false, priceLineVisible:false,
           priceFormat:{ type:'custom', formatter:() => '', minMove:1 } }, paneIdx);       // the cell's height is no value: no number on the axis
         paneIdx = s.getPane().paneIndex(); inst.parts.push({ o, kind:'strip', series:s });
+      }
+      /* EXEC-RP-LOOK-2 C (user 2026-11-08 "Kolom kotak tanpa ruang kosong"): one square per unit of the value, stacked from 0 */
+      else if(o.r === 'cells') {
+        const s = chart.addCustomSeries(new StripSeries((L as any).customSeriesDefaultOptions, 'cells'), { ...opts, ...own, lastValueVisible:false, priceLineVisible:false,
+          priceFormat:{ type:'custom', formatter:() => '', minMove:1 } }, paneIdx);
+        paneIdx = s.getPane().paneIndex(); inst.parts.push({ o, kind:'cells', series:s });
       }
       else if(o.r === 'segmented_line') inst.parts.push({ o, kind:'seg', series:mk(L.LineSeries, {}), series2:mk(L.LineSeries, { lastValueVisible:false }) });
       else if(o.r === 'dots') inst.parts.push({ o, kind:'dots', series:mk(L.LineSeries, { lineVisible:false, pointMarkersVisible:true }) });
@@ -518,11 +527,14 @@ export function initIndicators(ctx: Ctx) {
     if(inst.raw._labels) inst.parts.forEach(pt => { if(pt.series && pt.kind !== 'marker') pt.series.applyOptions({ title:pt.o.k === 'total' ? 'Total' : pt.o.label || '' }) });
     const breaks = new Set((inst.raw._breaks || []).map(i => i + off));         // calculation restarts here: never draw a line into this bar
     const dir = inst.disp.direction, bandsOff = 'bands_mode' in p && p.bands_mode === 'None', T = i => ohlc[i].time;
-    const shown = pt => drawn(inst) && st.out[pt.o.k].on && !(bandsOff && /bands_mode/.test(pt.o.cond));
+    // EXEC-FLOW-NEW-3: an output a parameter turns off (FL14 avg, FL50 verdict, FL51 cost lines) is not drawn
+    const shown = pt => drawn(inst) && st.out[pt.o.k].on && !pt.o.hidden && !(bandsOff && /bands_mode/.test(pt.o.cond));
+    const own = pt => pt.o.scale === 'right' && r.zone === 'overlay';          // a line on the price pane's right axis
     inst.parts.forEach(pt => {
       const s = st.out[pt.o.k], a = inst.disp[pt.o.k], vis = shown(pt), c1 = alpha(s.color, op), c2 = alpha(s.color2 || s.color, op);
       /* re-test Q2: the axis shows the last value only when the last candle has one (an empty end showed 1.68× of 30 Oct) */
-      if(pt.series && r.zone !== 'overlay' && pt.kind !== 'marker' && pt.kind !== 'strip') pt.series.applyOptions({ lastValueVisible:a ? a[a.length - 1] !== null && a[a.length - 1] !== undefined : false });
+      const cv = own(pt) ? (v => v) : conv;                   // the right axis is not the price: no return conversion
+      if(pt.series && (r.zone !== 'overlay' || own(pt)) && pt.kind !== 'marker' && pt.kind !== 'strip' && pt.kind !== 'cells') pt.series.applyOptions({ lastValueVisible:a ? a[a.length - 1] !== null && a[a.length - 1] !== undefined : false });
       if(pt.kind === 'marker') {
         /* EXEC-TERMINAL-FLOW-IND: a mark under each candle where the indicator holds (FL09, FL27), on the series drawn */
         const host = ctx.chartStyle === 'line' || ctx.displayMode === 'return' ? ctx.mainLine : ctx.candle;
@@ -542,7 +554,13 @@ export function initIndicators(ctx: Ctx) {
         /* the strength: the value's size against the largest size in the data (a fixed scale, so panning does not
            change a cell's shade); at least a faint cell for a value of 1 */
         const m = Math.max(1, ...a.filter(v => v !== null && v !== undefined).map(v => Math.abs(v)));
-        pt.series.setData(a.map((v, i) => v === null || v === undefined ? { time:T(i) } : { time:T(i), value:1, color:alpha(v >= 0 ? s.color : (s.color2 || s.color), op * (.18 + .82 * Math.abs(v) / m)) }));
+        /* EXEC-FLOW-NEW-3 (FL49): a code's own colour (the quadrant), at full strength */
+        const q = pt.o.quad;
+        pt.series.setData(a.map((v, i) => v === null || v === undefined ? { time:T(i) } : { time:T(i), value:1,
+          color:q ? alpha(q[v] || '#8f8f8f', op) : alpha(v >= 0 ? s.color : (s.color2 || s.color), op * (.18 + .82 * Math.abs(v) / m)) }));
+        pt.series.applyOptions({ visible:vis });
+      } else if(pt.kind === 'cells') {
+        pt.series.setData(a.map((v, i) => v === null || v === undefined ? { time:T(i) } : { time:T(i), value:v, color:alpha(v >= 0 ? s.color : (s.color2 || s.color), op) }));
         pt.series.applyOptions({ visible:vis });
       } else if(pt.kind === 'seg') {
         const data = want => gapped(a.map((v, i) => v === null || dir[i] !== want ? { time:T(i) } : { time:T(i), value:conv(v) }));   // a transparent segment at every trend flip (whitespace alone is joined)
@@ -552,10 +570,10 @@ export function initIndicators(ctx: Ctx) {
         pt.series.setData(a.flatMap((v, i) => v === null ? [] : [{ time:T(i), value:conv(v), color:dir && dir[i] === -1 ? c2 : c1 }]));
         pt.series.applyOptions({ visible:vis, color:c1, pointMarkersRadius:Math.max(1, s.width) });
       } else {
-        pt.series.setData(gapped(a.flatMap((v, i) => v === null ? [{ time:T(i) }] : [breaks.has(i + 1) ? { time:T(i), value:conv(v), color:GAP } : { time:T(i), value:conv(v) }])))   // a gap, not a bridge (agent 5 F1);
+        pt.series.setData(gapped(a.flatMap((v, i) => v === null ? [{ time:T(i) }] : [breaks.has(i + 1) ? { time:T(i), value:cv(v), color:GAP } : { time:T(i), value:cv(v) }])))   // a gap, not a bridge (agent 5 F1);
         pt.series.applyOptions({ visible:vis, color:c1, lineWidth:s.width });
       }
-      if(r.zone === 'overlay') [pt.series, pt.series2].filter(Boolean).forEach(se => se.applyOptions({ priceFormat:ctx.formatMode() }));
+      if(r.zone === 'overlay' && !own(pt)) [pt.series, pt.series2].filter(Boolean).forEach(se => se.applyOptions({ priceFormat:ctx.formatMode() }));
     });
     /* reference levels (optional guides from the workbook), drawn on the pane's first series */
     (inst.guideLines || []).forEach(([se, pl]) => { try{ se.removePriceLine(pl) }catch(e){} }); inst.guideLines = [];
@@ -580,6 +598,46 @@ export function initIndicators(ctx: Ctx) {
       inst.fillPrim.set(on ? { breaks, a:inst.disp[ka].map(v => v === null ? null : conv(v)), b:inst.disp[kb].map(v => v === null ? null : conv(v)), color:alpha(st.out[ka].color, st.fill.opacity / 100 * op) } : null);
     }
     paintRow(inst);
+    paintBox(inst);
+  }
+
+  /* EXEC-FLOW-NEW-3 (user 2026-11-08: "ketika indikator ini ditambahkan maka ada floating box di dalam chart"; "letak kotak
+     bisa di geser"): an indicator's box over the price chart, its content from the definition (def.box: HTML). It is
+     moved by its head inside the chart and keeps its place (style.box, saved with the indicator); a broker button adds
+     the broker to Broker Inventory; "In view" puts the period back on the candles in view, "Select on chart" picks it
+     with the range tool (as Alt+B). Hidden with the indicator. */
+  const BOX_M = 8;
+  function placeBox(inst) {
+    const el = inst.box, W = stage.clientWidth, H = stage.clientHeight; if(!el || el.hidden || !W) return;
+    const w = el.offsetWidth, h = el.offsetHeight, axis = chart.priceScale('right').width() || 0;
+    const at = inst.style.box || { x:W - axis - w - 12, y:44 };
+    el.style.left = `${Math.round(Math.min(Math.max(BOX_M, at.x), Math.max(BOX_M, W - w - BOX_M)))}px`;
+    el.style.top = `${Math.round(Math.min(Math.max(BOX_M, at.y), Math.max(BOX_M, H - h - BOX_M)))}px`;
+  }
+  function paintBox(inst) {
+    if(!inst.def.box) return;
+    let el = inst.box;
+    if(!el) {
+      el = inst.box = document.createElement('div'); el.className = 'ind-box'; el.dataset.def = inst.def.id; stage.appendChild(el);
+      el.addEventListener('click', (e: any) => {
+        const b = e.target.closest('button'); if(!b) return;
+        if(b.dataset.broker) { ctx.brokerShared?.pick(b.dataset.broker); return }
+        const ds = inst.def.inputs.filter(f => f.kind === 'date'), set = (v: Record<string, any>) => { inst.params = { ...inst.params, ...v }; recompute(inst); save(); Ind.onChange && Ind.onChange() };
+        if(b.dataset.act === 'view') set(Object.fromEntries(ds.map(f => [f.key, 'view'])));
+        if(b.dataset.act === 'pick') ctx.selectRangeOnChart((f, t) => set({ [ds[0].key]:f, ...(ds[1] ? { [ds[1].key]:t } : {}) }));
+      });
+      el.addEventListener('pointerdown', (e: any) => {
+        if(e.button !== 0 || !e.target.closest('[data-drag]') || e.target.closest('button')) return;
+        e.preventDefault(); el.setPointerCapture(e.pointerId);
+        const x0 = el.offsetLeft - e.clientX, y0 = el.offsetTop - e.clientY;
+        const move = ev => { inst.style.box = { x:ev.clientX + x0, y:ev.clientY + y0 }; placeBox(inst) };
+        const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); save() };
+        el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+      });
+      addEventListener('resize', () => placeBox(inst));
+    }
+    el.hidden = !drawn(inst);
+    if(!el.hidden) { el.innerHTML = inst.def.box(inst.raw, inst.params); placeBox(inst) }
   }
 
   /* flow indicators: one series (histogram or line) */
@@ -667,7 +725,9 @@ export function initIndicators(ctx: Ctx) {
   const followView = () => {
     viewTimer = 0; viewLast = performance.now();
     const fv = firstVisibleIdx();
-    list.forEach(inst => { if(inst.def.viewBound && (inst.def.id === 'FL23' || inst.params.anchor === 'view') && inst.viewAt !== fv) { inst.viewAt = fv; recompute(inst) } });
+    /* EXEC-FLOW-NEW-3: what each indicator follows (its first or last candle in view), from its definition */
+    list.forEach(inst => { if(!inst.def.viewBound) return; const k = inst.def.viewKey ? inst.def.viewKey(inst.params) : inst.params.anchor === 'view' ? String(fv) : null;
+      if(k !== null && inst.viewAt !== k) { inst.viewAt = k; recompute(inst) } });
   };
   chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
     if(viewTimer || !list.some(inst => inst.def.viewBound)) return;
@@ -683,19 +743,19 @@ export function initIndicators(ctx: Ctx) {
       // QA F2-11: an output names itself only beside another visible output ("Silent Accumulation Silent Accumulation No")
       /* re-test R2-02: an output names itself beside another visible output, or when it is the only one shown but not the
          first (the one the title names: FL27's Net trigger, FL29's Balance %) */
-      const onParts = inst.parts.filter(pt => inst.style.out[pt.o.k]?.on), many = onParts.length > 1 || (onParts.length === 1 && onParts[0] !== inst.parts[0]);
+      const onParts = inst.parts.filter(pt => inst.style.out[pt.o.k]?.on && !pt.o.hidden), many = onParts.length > 1 || (onParts.length === 1 && onParts[0] !== inst.parts[0]);
       const reg = inst.def.reg, dir = inst.disp.direction, overlay = reg.zone === 'overlay';
       b.innerHTML = inst.parts.map(pt => {
         const s = inst.style.out[pt.o.k], v = inst.disp[pt.o.k][i];
-        if(!s.on || v === null || v === undefined) return '';
+        if(!s.on || pt.o.hidden || v === null || v === undefined) return '';
         const prev = inst.disp[pt.o.k][i - 1];
-        const c = pt.kind === 'marker' ? (v === 1 ? s.color : 'var(--text-3)') : pt.kind === 'strip' ? (v >= 0 ? s.color : s.color2) : pt.kind === 'seg' || pt.kind === 'dots' ? (dir && dir[i] === -1 ? s.color2 : s.color)
+        const c = pt.kind === 'marker' ? (v === 1 ? s.color : 'var(--text-3)') : pt.o.quad ? pt.o.quad[v] || 'var(--text-3)' : pt.kind === 'strip' || pt.kind === 'cells' ? (v >= 0 ? s.color : s.color2) : pt.kind === 'seg' || pt.kind === 'dots' ? (dir && dir[i] === -1 ? s.color2 : s.color)
                 : pt.kind === 'hist' ? (/rising/.test(pt.o.rule) ? (prev !== null && prev !== undefined && v < prev ? s.color2 : s.color) : /optional_state/.test(pt.o.rule) ? 'var(--text)' : (v >= 0 ? s.color : s.color2)) : s.color;
         /* EXEC-QA5-FIX (agent 5 F8): a line on the price reads in the price's own decimals, as the price axis (2,903 · 3,316) */
-        const txt = overlay && pt.kind !== 'marker' ? (ret ? spec.change((v / closes[0] - 1) * 100) : ctx.priceText ? ctx.priceText(v) : spec.indicator(v)) : (pt.o.fmt || inst.def.format)(v);   // a mark reads Yes/No
+        const txt = overlay && pt.kind !== 'marker' && pt.o.scale !== 'right' ? (ret ? spec.change((v / closes[0] - 1) * 100) : ctx.priceText ? ctx.priceText(v) : spec.indicator(v)) : (pt.o.fmt || inst.def.format)(v);   // a mark reads Yes/No
         return `<span style="color:${c === '#171717' ? 'var(--text)' : c}">${many && pt.kind !== 'seg' ? `<i class="ind-ok">${pt.o.label}</i> ` : ''}${txt}</span>`;
       }).filter(Boolean).join(' &nbsp;');
-      if(!b.innerHTML && inst.def.note && inst.on) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
+      if(!b.innerHTML && inst.def.note && inst.on && inst.parts.some(pt => !pt.o.hidden)) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
       b.title = b.textContent || '';                       // QA R2-M4: the full value or note when the row is narrow
       /* QA round 4 (L2): the panel repeats the full title (shortened on the row) with the value or note */
       const full = r.querySelector('.ind-fltnote'); if(full) { full.textContent = ''; const t = document.createElement('b'); t.textContent = inst.def.title(inst.params); full.append(t, document.createTextNode(b.textContent ? ` · ${b.textContent}` : '')) }
@@ -806,6 +866,7 @@ export function initIndicators(ctx: Ctx) {
     if(inst.rowRO) inst.rowRO.disconnect();
     if(inst.foldBtn) inst.foldBtn.remove();
     if(inst.moveBox) inst.moveBox.remove();
+    if(inst.box) inst.box.remove();
     if(inst.def.multi) inst.parts.forEach(pt => { if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
     else if(inst.def.lines) (inst.lines || []).forEach(l => l.series && chart.removeSeries(l.series)); else chart.removeSeries(inst.series);
     inst.row.remove(); paintLg();
@@ -1093,6 +1154,9 @@ export function initIndicators(ctx: Ctx) {
   };
   /* EXEC-INV-SYNC (user 2026-11-01): a broker picked in the right panel joins every Broker Inventory (FL23) on the chart, by
      the panel's own rule (withPicked: already there, nothing; else added, the oldest leaving past the maximum) */
+  /* EXEC-RP-LOOK-2 (X, user 2026-11-08): the Broker inventory panel's list changed (a broker picked or removed there, new
+     broker data): the indicators drawing that list (FL52 on the price chart) follow it */
+  Ind.inventoryChanged = () => list.filter(i => i.def.followsInventory).forEach(recompute);
   Ind.brokerPicked = (code: string) => {
     let any = false;
     list.filter(inst => inst.def.id === 'FL23').forEach(inst => {

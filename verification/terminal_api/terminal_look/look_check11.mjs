@@ -145,5 +145,30 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
     over:[...document.querySelectorAll('.fdm-row span, .rp-t td, .rp-t th')].filter(e => e.offsetWidth && e.scrollWidth > e.clientWidth + 1).map(e => e.textContent).slice(0, 8) }));
   check('narrow panel cells fit', R.narrow.panel <= 270 && !R.narrow.over.length, R.narrow);
   await ctx.close() }
+/* EXEC-FLOW-NEW-3 (user 2026-11-08): FL51 Loaders' floating box. Its head (title, period, two buttons) is one line with its
+   text in the middle of the band; the box sits inside the chart and stays there after a drag past the chart's edge; the
+   table's first column starts where the head's title starts. EXEC-RP-LOOK-2 B: a settings dialog's open control has no
+   border line, only the soft shadow of the Indicators window's search box. */
+{ const ctx = await b.newContext({ viewport:{ width:1440, height:900 } }), p = await ctx.newPage(); p.on('pageerror', e => errs.push('box ' + e.message));
+  await p.addInitScript(() => { if (!sessionStorage.getItem('s')) { sessionStorage.setItem('s', '1'); localStorage.setItem('ml.ind.v1', JSON.stringify([{ def:'FL51', params:{ lines:true } }])) } });
+  await p.goto(origin + '/terminal-app/'); await p.waitForFunction(() => !document.querySelector('.ml-boot'), null, { timeout:30000 }); await p.waitForTimeout(3000);
+  const geo = () => p.evaluate(() => { const box = document.querySelector('.ind-box'), st = box.parentElement.getBoundingClientRect(), r = box.getBoundingClientRect(), head = box.querySelector('.ldb-head');
+    return { inside:r.left >= st.left && r.top >= st.top && r.right <= st.right && r.bottom <= st.bottom,
+      headLines:new Set([...head.children].map(c => Math.round(c.getBoundingClientRect().top + c.getBoundingClientRect().height / 2))).size,
+      col:(() => { const th = box.querySelector('.ldb-t th'), mk = box.querySelector('.ldb-b'), t0 = head.querySelector('b').getBoundingClientRect().left;
+        return [th.getBoundingClientRect().left + parseFloat(getComputedStyle(th).paddingLeft) - t0, mk.getBoundingClientRect().left + parseFloat(getComputedStyle(mk).paddingLeft) - t0].map(v => +v.toFixed(1)) })(), rows:box.querySelectorAll('.ldb-t tbody tr').length } });
+  R.box = { first:await geo(), head:await ink(p, '.ldb-head b') };
+  const h = await p.locator('.ldb-head b').boundingBox(); await p.mouse.move(h.x + 4, h.y + 4); await p.mouse.down(); await p.mouse.move(h.x + 900, h.y + 900, { steps:5 }); await p.mouse.up();
+  R.box.dragged = await geo();
+  check('loaders box head one line, inside the chart, rows', R.box.first.headLines === 1 && R.box.first.inside && R.box.dragged.inside && R.box.first.rows >= 1, R.box);
+  check('loaders box columns start under the head title', R.box.first.col.every(v => Math.abs(v) <= 1), R.box.first.col);
+  check('loaders box head ink centred', !R.box.head || Math.abs(R.box.head.above - R.box.head.below) <= 1, R.box.head);
+  // B: the open settings control
+  await p.evaluate(() => (document.querySelector('.ind-row[data-def="FL51"] [data-act="cfg"]')).click());
+  await p.waitForSelector('.idlg select.idlg-in, .idlg .idlg-cbtn', { timeout:5000 }).catch(() => {});
+  R.focus = await p.evaluate(() => { const el = document.querySelector('.idlg select.idlg-in, .idlg .idlg-cbtn'); if (!el) return null; el.focus(); const cs = getComputedStyle(el);
+    return { border:cs.borderTopColor, shadow:cs.boxShadow !== 'none', outline:cs.outlineStyle } });
+  check('settings open control: no border line, soft shadow', !!R.focus && /rgba\(0, 0, 0, 0\)|transparent/.test(R.focus.border) && R.focus.shadow && R.focus.outline === 'none', R.focus);
+  await ctx.close() }
 console.log(JSON.stringify(R)); console.log('errs', errs); console.log(bad.length ? 'FAIL\n' + bad.join('\n') : 'PASS');
 await b.close(); close(); process.exit(bad.length || errs.length ? 1 : 0);

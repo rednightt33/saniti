@@ -38,7 +38,7 @@ export function bandarBalance(list: { b: string; bv: number; sv: number }[], n: 
 
 /** the rows of a period, summed per broker for one investor type (the board is the caller's) */
 export type AggOf = (f: number, t: number, inv: string) => { b: string; bv: number; sv: number }[];
-export interface FdPoint { f: number; t: number; x: number; y: number; r: number; total: number }
+export interface FdPoint { f: number; t: number; x: number; y: number; r: number; total: number; nf: number; nd: number }   // nf, nd: the parts in Rupiah
 /** the Foreign × Domestic point of the sessions f..t (EXEC-BROKER-INV-PANEL): the Top `n` net buyers and sellers of all
     investors (the verdict's groups), their net split into foreign (x) and domestic (y) transactions, in % of the period's
     total buy value; x + y = r, the verdict's ratio. One formula for the panel's map and the window's trail. */
@@ -46,7 +46,7 @@ export function fdAt(agg: AggOf, f: number, t: number, n: number): FdPoint {
   const net = (inv: string) => new Map(agg(f, t, inv).map(o => [o.b, o.bv - o.sv]));
   const fm = net('Foreign'), dm = net('Domestic'), bal = bandarBalance(agg(f, t, 'All'), n);
   const sp = fdSplit(bal.buyers, bal.sellers, new Map([...new Set([...fm.keys(), ...dm.keys()])].map(b => [b, { d:dm.get(b) || 0, f:fm.get(b) || 0 }])), bal.total);
-  return { f, t, x:sp.rf * 100, y:sp.rd * 100, r:sp.ratio * 100, total:bal.total };
+  return { f, t, x:sp.rf * 100, y:sp.rd * 100, r:sp.ratio * 100, total:bal.total, nf:sp.net.f, nd:sp.net.d };
 }
 /** EXEC-FD-WINDOW (user 2026-11-07: "Peta + jejak 20 sesi (opsi 2) dan ada toggle ... Tabel penggerak per sesi (opsi A)";
     "pake seperti HTML terlampir"): the trail, one point per session for the last `span` sessions up to `end`, each the
@@ -116,7 +116,9 @@ export function initBroker(ctx: Ctx) {
      redraws the panel (when drawn) and every open window */
   const listeners: (() => void)[] = [];
   let panelRefresh = () => {};
-  const changed = () => { if(rendered) panelRefresh(); listeners.forEach(fn => fn()) };
+  /* the windows and the indicators that draw the inventory list (FL52) follow every change of it */
+  const notify = () => { listeners.forEach(fn => fn()); ctx.Ind?.inventoryChanged?.() };
+  const changed = () => { if(rendered) panelRefresh(); notify() };
   const brokerCodes = () => { const B = M.broker, s = new Set<string>(); for(let d = 0; d < B.dates.length; d++) for(const r of B.rows(d)) s.add(r[0]); return [...s].sort() };
   // no broker chosen: the three biggest net accumulators of the last 20 sessions (the panel's first period)
   const ensureDefaults = () => {
@@ -184,7 +186,7 @@ export function initBroker(ctx: Ctx) {
   }
   /* EXEC-TERMINAL-PANELS B1, EXEC-BROKER-FULL: the panel gets the recent broker years first and the whole history after them; a second
      answer redraws it with the user's choices (periods by date, filters, picked brokers) kept */
-  ctx.setBrokerPanelData = broker => { M.broker = broker; ready = true; rendered = false; ensureDefaults(); renderWhenReady(); listeners.forEach(fn => fn()) };
+  ctx.setBrokerPanelData = broker => { M.broker = broker; ready = true; rendered = false; ensureDefaults(); renderWhenReady(); listeners.forEach(fn => fn()); ctx.Ind?.inventoryChanged?.() };
   ctx.brokerPanelFailed = () => {
     $('rpSub').textContent = `${M.broker.label} · broker data could not be loaded`;
     ['bsBody','accBody','fdBody','invBody', ...(M.hide.bandar ? [] : ['bdBody'])].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = '<div class="rp-empty">Broker data could not be loaded. Reload the page to try again.</div>' });
@@ -599,7 +601,7 @@ export function initBroker(ctx: Ctx) {
       const s = invSeries(b), end = s.at(-1) ? s.at(-1).cum : 0;
       return `<span class="rp-chip" style="--c:${INV_COLORS[k]}"><i></i>${b}<b class="${end>=0?'up':'down'}">${sgn(end)}</b><button type="button" data-rm="${b}" aria-label="Remove ${b}">×</button></span>`;
     }).join('');
-    $('invLegend').querySelectorAll('[data-rm]').forEach(x => x.onclick = () => { invSel.delete(x.dataset.rm); invFilter.refresh(); renderInv() });
+    $('invLegend').querySelectorAll('[data-rm]').forEach(x => x.onclick = () => { invSel.delete(x.dataset.rm); invFilter.refresh(); renderInv(); notify() });
     if(!picks.length){ $('invBody').innerHTML = `<div class="rp-empty">Pilih 1–${INV_MAX} broker untuk melihat pergerakannya.</div>`; return }
     if(n < 2){ $('invBody').innerHTML = `<div class="rp-empty">Pilih periode minimal 2 hari.</div>`; return }
     const all = picks.map(invSeries), W = 272, H = 120;
