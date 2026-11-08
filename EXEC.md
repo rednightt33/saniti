@@ -12693,6 +12693,16 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
     `loaders_data.py`): 1 tombol kecilkan/tutup, 2 pilihan jumlah broker, 3 Net 5D, 4 P/L kertas, 5 % volume, 6 Asing /
     Domestik, 7 beli terakhir + runtun, 8 sparkline posisi, 9 bar porsi akumulasi, 10 harga vs harga pokok. Menunggu
     pilihan user.
+- User 2026-11-08: "OK" atas usul daftar FL52 sendiri: dimulai dari broker panel; setiap klik broker di panel kanan juga
+  menambah ke FL52 sampai 10, yang paling lama keluar bila penuh; broker yang keluar dari panel (ke-6) tetap di FL52.
+  Menghapus broker FL52 lewat tombol Broker di baris FL52 sendiri (hapus di panel tidak ikut menghapus; anggapan dari
+  "tetap ada di FL52", dikonfirmasi bersama pilihan Loaders).
+- User 2026-11-08 atas HTML 10 opsi Loaders: "Saya lebih prefer mungkin seperti opsi 2, tapi bisa di-expand sedikit ...
+  kalau cuma tulisan seperti itu saja mungkin akan sangat sulit bagi para pembaca untuk get the meaning. Mungkin boleh
+  kasih 5 opsi HTML to expand opsi nomor 2." Lima variasi di
+  `verification/terminal_api/flow_dots/loaders_count_options.html`: A baris kendali berlabel (Loaders 3/5/10, Sellers
+  Off/2/5), B satu menu kalimat ("Top 3 loaders + 2 sellers"), C stepper −/+, D seperti A dengan judul kelompok di tabel,
+  E tab sisi (Loaders/Sellers/Both) + Top 3/5/10. Menunggu pilihan user.
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
