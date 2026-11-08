@@ -10,6 +10,7 @@ import { flowControlHtml } from '../param-fields.ts';
 import { cardName, optOf, displayUnit, type Card } from '../forms.ts';
 import { onBuilderField, colorOf } from '../builder.ts';
 import { toast } from '../dialogs.ts';
+import { openCardCustomize } from '../add-condition.ts';
 
 let box: HTMLElement | null = null, id: string | null = null, tip: HTMLElement | null = null, tipT: ReturnType<typeof setTimeout> | undefined;
 const cardOf = (cid: string | null) => S.cards.find(c => c.id === cid);
@@ -138,7 +139,15 @@ function hideTip() { clearTimeout(tipT); tip?.remove(); tip = null }
 let debounce: ReturnType<typeof setTimeout> | undefined;
 export function bindHeaderEdit() {
   const pane = document.getElementById('resPane')!;
-  pane.addEventListener('click', e => { const ch = (e.target as HTMLElement).closest('[data-pedit]') as HTMLElement | null; if (ch) { e.preventDefault(); e.stopPropagation(); openEditor(ch.dataset.pedit!) } }, true);
+  pane.addEventListener('click', e => {
+    const ch = (e.target as HTMLElement).closest('[data-pedit]') as HTMLElement | null; if (!ch) return;
+    e.preventDefault(); e.stopPropagation();
+    /* a flow indicator: the Customize panel of Add a condition, in the middle of the table (user 2026-11-08: "hanya flow",
+       "satu source aja"); the others keep this editor */
+    const c = cardOf(ch.dataset.pedit!), en = c && entryOf(c);
+    if (c && en?.flow) { hideTip(); closeEditor(false); openCardCustomize(c, (pane.querySelector('.tbl-wrap') as HTMLElement | null) ?? pane, ch); return }
+    openEditor(ch.dataset.pedit!);
+  }, true);
   pane.addEventListener('mouseover', e => { const ch = (e.target as HTMLElement).closest('[data-pedit]') as HTMLElement | null; if (!ch || ch.contains(e.relatedTarget as Node)) return; clearTimeout(tipT); tipT = setTimeout(() => showTip(ch), 250) });
   pane.addEventListener('mouseout', e => { const ch = (e.target as HTMLElement).closest('[data-pedit]') as HTMLElement | null; if (!ch || ch.contains(e.relatedTarget as Node)) return; hideTip() });
   document.addEventListener('change', e => { const t = e.target as HTMLInputElement; if (box?.contains(t) && t.matches('[data-c]')) { clearTimeout(debounce); apply(t) } });

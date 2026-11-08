@@ -325,8 +325,9 @@ await at('Flow chip and Operator… (user 2026-11-08): a flow chip in the result
   const fnv = page.locator('#resPane th', { hasText:'Foreign Net Value' }).locator('[data-pedit]');
   expect(await fnv.count() === 1, 'Foreign Net Value has no parameter chip');
   await fnv.click(); await page.waitForTimeout(300);
-  const box = await page.evaluate(() => { const b = document.querySelector('.pe6'); return b && { name:b.querySelector('.pe6-h b')?.textContent, boxes:b.querySelectorAll('.msel input[type="checkbox"]').length } });
-  expect(box && /Foreign Net Value/.test(box.name) && box.boxes > 0, 'the flow chip did not open the header box with its list fields: ' + JSON.stringify(box));
+  // user 2026-11-08: the Customize panel of Add a condition (one copy), in the middle of the table, no "default" column
+  const box = await page.evaluate(() => { const b = document.querySelector('.qhost .qpop'); return b && { name:b.querySelector('strong')?.textContent, boxes:b.querySelectorAll('.msel input[type="checkbox"]').length, defs:b.querySelectorAll('.def').length, old:!!document.querySelector('.pe6') } });
+  expect(box && /Foreign Net Value/.test(box.name) && box.boxes > 0 && box.defs === 0 && !box.old, 'the flow chip did not open the Customize panel with its list fields and no default column: ' + JSON.stringify(box));
   await page.keyboard.press('Escape'); await page.waitForTimeout(150);
   const sel = page.locator('#condList .mc', { has:page.locator('[data-nm]', { hasText:/Simple Moving/ }) }).first().locator('select[data-k="op"]');
   if (!(await sel.isVisible())) { await page.locator('#condList .mc', { has:page.locator('[data-nm]', { hasText:/Simple Moving/ }) }).first().click(); await page.waitForTimeout(200) }

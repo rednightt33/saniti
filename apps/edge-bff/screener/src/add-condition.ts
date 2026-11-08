@@ -25,6 +25,7 @@ import { cardErrors, displayUnit, fromWire, newCard, newCardId, optOf, toWire, t
 import { closeDialog, dialog, toast, toastAction } from './dialogs.ts';
 import { defaultOp, fieldHint, fieldMax, isSignal, measureOf, measuresFor, offersOperators, OP_WORDS, opFieldUnit, operatorTitle, opsFor, opText, plainOffered, secondOptions, seriesList, signalText, testOf, testsFor, withCmp, withMeasure, withTest, type OpState } from './operators.ts';
 import { sideOf } from './texts.ts';
+import { checkCard } from './builder.ts';
 import { flowControlHtml, paramFieldValue, paramTitle } from './param-fields.ts';
 
 export const MY = 'My metrics', ON_SCREEN = '__on', ALL = 'All';
@@ -40,6 +41,7 @@ export interface Rule { opt: string; value: number | ''; value2: number | ''; wi
 export const OP_OPT = '__op';
 const RULE = new Map<string, Rule>();
 export function ruleOf(e: Entry): Rule {
+  if (H && H.e.key === e.key) return H.rule;      // the card opened from the results header (openCardCustomize)
   let r = RULE.get(e.key);
   if (!r) {
     r = { opt:e.def.opt, value:e.def.value, value2:e.def.value2, within:e.def.within, params:defaultParams(e) as Params };
@@ -214,10 +216,14 @@ function ruleHtml(it: AddItem, i: number): [string, string] {
     const x = it.metric && metricCard(it.metric), o = x?.e ? optOf(x.e, x.c) : undefined;
     return [`<span class="rr-fixed" title="Saved with this metric">${esc(o?.label || 'Saved condition')}</span>`, '<span class="rr-none">—</span>'];
   }
-  const e = it.entry!, r = ruleOf(e), o = e.opts.find(x => x.key === r.opt), er = ruleErrors(e);
+  const e = it.entry!;
+  return [`<span class="rr qs">${condSelect(e, i)}</span>`, `<span class="rr qt${W.pop === i ? ' open' : ''}">${settingsHtml(e, i)}</span>`];
+}
+/** the row's condition select: the indicator's conditions, and "Operator…" where it takes one */
+function condSelect(e: Entry, i: number): string {
+  const r = ruleOf(e), er = ruleErrors(e);
   const opOpt = offersOperators(e.ops, e) ? `<option value="${OP_OPT}" ${r.op ? 'selected' : ''} title="${esc(operatorTitle(e.ops!, e, r.params))}">Operator…</option>` : '';
-  const sel = `<select class="sel" data-af="opt" data-ai="${i}" aria-label="Condition for ${esc(e.label)}"${er.op ? ` aria-invalid="true" title="${esc(er.op)}"` : ''}>${e.opts.map(x => `<option value="${esc(x.key)}" ${!r.op && x.key === r.opt ? 'selected' : ''} ${x.disabled ? `disabled title="${esc(x.disabled)}"` : ''}>${esc(x.label)}${x.disabled ? ' — not offered' : ''}</option>`).join('')}${opOpt}</select>`;
-  return [`<span class="rr qs">${sel}</span>`, `<span class="rr qt${W.pop === i ? ' open' : ''}">${settingsHtml(e, i)}</span>`];
+  return `<select class="sel" data-af="opt" data-ai="${i}" aria-label="Condition for ${esc(e.label)}"${er.op ? ` aria-invalid="true" title="${esc(er.op)}"` : ''}>${e.opts.map(x => `<option value="${esc(x.key)}" ${!r.op && x.key === r.opt ? 'selected' : ''} ${x.disabled ? `disabled title="${esc(x.disabled)}"` : ''}>${esc(x.label)}${x.disabled ? ' — not offered' : ''}</option>`).join('')}${opOpt}</select>`;
 }
 
 /* ---- the settings column: every blue box of the row (user 2026-11-06, the HTML of ten options, then "Pokoknya kalau
@@ -309,7 +315,7 @@ function opBoxes(e: Entry, op: OpState, i: number, er: Record<string, string>, p
 }
 /** an operator field changed (data-ao, data-aoa): kept in the rule's operator; a new measure or test takes its defaults */
 function setOpField(el: HTMLInputElement | HTMLSelectElement): boolean {
-  const f = el.dataset.ao, a = el.dataset.aoa, it = W.items[Number(el.dataset.ai)];
+  const f = el.dataset.ao, a = el.dataset.aoa, it = itemAt(el.dataset.ai);
   if ((f == null && a == null) || !it?.entry || it.kind !== 'ind') return false;
   const e = it.entry, r = ruleOf(e); if (!r.op || !e.ops) return false;
   const n = (x: string): number | '' => x.trim() === '' ? '' : Number(x);
@@ -333,14 +339,25 @@ function settingsHtml(e: Entry, i: number): string {
   if (!B.length) return '<span class="rr-none">—</span>';
   const tag = (b: Box) => b.group ? 'span' : 'label';
   if (B.length <= INLINE_BOXES) return B.map(b => `<${tag(b)} class="qbox${b.changed ? ' chg' : ''}${b.thr ? ' thr' : ' qp'}"><span class="lab" title="${esc(b.name)}">${esc(b.name)}</span>${b.control}${b.unit ? `<span class="unit">${esc(b.unit)}</span>` : ''}</${tag(b)}>`).join('');
-  const n = B.filter(b => b.changed).length, open = W.pop === i;
+  const n = B.filter(b => b.changed).length, open = W.pop === i && i !== HOST;
   const btn = `<button type="button" class="qcus${n ? ' chg' : ''}" data-cus="${i}" aria-expanded="${open}" aria-haspopup="dialog" title="${n ? `${n} of ${B.length} fields changed` : `${B.length} fields you can change`}">${ico(IC.gear, 's')}<span class="t">${n ? 'Custom' : 'Customize'}</span><span class="n">${n ? `${n} of ${B.length} changed` : B.length}</span></button>`;
   if (!open) return btn;
+  return btn + popHtml(e, i, B);
+}
+/** The Customize panel (one copy: the window's rows and, with `cond`, a card opened from the results header). On a flow
+    indicator (user 2026-11-08, option 1) it has no "default …" column: a field's unit is in its label, its range and the
+    broker sessions it leaves in its tooltip; Reset to default still brings the defaults back. */
+function popHtml(e: Entry, i: number, B = boxesOf(e, i), cond = false): string {
+  const tag = (b: Box) => b.group ? 'span' : 'label', bare = !!e.flow;
+  const tip = (b: Box) => [b.name, b.hint !== undefined ? b.hint : `${b.unit ? b.unit + ' · ' : ''}${b.def ? 'default ' + b.def : ''}`].filter(Boolean).join(' · ');
   // an operator's line has no catalog default of its own to show: its unit, if any, instead (the select's title explains it)
-  const line = (b: Box) => `<${tag(b)} class="qpl${b.changed ? ' chg' : ''}${b.thr ? ' thr' : ' qp'}"><span class="lab" title="${esc(b.name)}">${esc(b.name)}</span>${b.control}<span class="def">${b.hint !== undefined ? esc(b.hint) : `${b.unit ? esc(b.unit) + ' · ' : ''}default ${esc(b.def)}`}</span></${tag(b)}>`;
+  const line = (b: Box) => bare
+    ? `<${tag(b)} class="qpl${b.changed ? ' chg' : ''}${b.thr ? ' thr' : ' qp'}" title="${esc(tip(b))}"><span class="lab">${esc(b.name.charAt(0).toUpperCase() + b.name.slice(1))}${b.unit ? ` (${esc(b.unit)})` : ''}</span>${b.control}</${tag(b)}>`
+    : `<${tag(b)} class="qpl${b.changed ? ' chg' : ''}${b.thr ? ' thr' : ' qp'}"><span class="lab" title="${esc(b.name)}">${esc(b.name)}</span>${b.control}<span class="def">${b.hint !== undefined ? esc(b.hint) : `${b.unit ? esc(b.unit) + ' · ' : ''}default ${esc(b.def)}`}</span></${tag(b)}>`;
   const ps = B.filter(b => !b.thr), ts = B.filter(b => b.thr);
   const side = sideOf(e);
-  return btn + `<span class="qpop" role="dialog" aria-label="Customize ${esc(e.label)}"><strong>${esc(e.label)}${side ? ` <small class="qside s-${side.side}" title="${esc(side.title)}">${esc(side.word)}</small>` : ''}<button type="button" class="qpop-x" data-cusx="${i}" aria-label="Close" title="Close (Esc)">${ico(IC.x, 's')}</button></strong>${ps.map(line).join('')}${ps.length && ts.length ? '<span class="qsep"></span>' : ''}${ts.map(line).join('')}<span class="qpf"><button type="button" class="link" data-cusreset="${i}">Reset to default</button><button type="button" class="link" data-cusdone="${i}">Done</button></span></span>`;
+  const head = cond ? `<label class="qpl thr"><span class="lab">Condition</span>${condSelect(e, i)}</label>` : '';
+  return `<span class="qpop${bare ? ' bare' : ''}" role="dialog" aria-label="Customize ${esc(e.label)}"><strong>${esc(e.label)}${side ? ` <small class="qside s-${side.side}" title="${esc(side.title)}">${esc(side.word)}</small>` : ''}<button type="button" class="qpop-x" data-cusx="${i}" aria-label="Close" title="Close (Esc)">${ico(IC.x, 's')}</button></strong>${ps.map(line).join('')}${ps.length && (ts.length || head) ? '<span class="qsep"></span>' : ''}${head}${ts.map(line).join('')}<span class="qpf"><button type="button" class="link" data-cusreset="${i}">Reset to default</button><button type="button" class="link" data-cusdone="${i}">Done</button></span></span>`;
 }
 /** Reset to default: the row's parameters and threshold back to the catalog's defaults (its condition stays) */
 export function resetRule(e: Entry) {
@@ -501,6 +518,7 @@ const errSel = (k: string) => k === 'op' ? '[data-af="opt"]' : k.startsWith('o.a
    of this node"). The rule was already updated from that value, so a redraw asked during a redraw is skipped
    (`drawing`, declared with the window state). */
 function drawRow(i: number) {
+  if (i === HOST) { drawHost(); return }
   if (drawing) return;
   drawRest();
   const it = W.items[i], el = $q<HTMLElement>(`#aco${i}`); if (!it || !el) return drawList();
@@ -581,9 +599,11 @@ function onClick(e: Event) {
 /** a parameter field's value as the card reads it (builder.ts onBuilderField): an option, true/false, or a number (NaN
     when empty, so the check names it) */
 const paramValue = (p: EntryParam, el: HTMLInputElement | HTMLSelectElement): ParamValue => paramFieldValue(p, el);
+/** the item a field belongs to: a row of the window, or (index -1) the card opened from the results header */
+const itemAt = (ai: string | undefined): AddItem | undefined => Number(ai) === HOST && H ? H.item : W.items[Number(ai)];
 /** a parameter changed: kept in the rule (the first line's or the second's) */
 function setParam(el: HTMLInputElement | HTMLSelectElement): boolean {
-  const key = el.dataset.ap ?? el.dataset.ap2, it = W.items[Number(el.dataset.ai)];
+  const key = el.dataset.ap ?? el.dataset.ap2, it = itemAt(el.dataset.ai);
   if (key == null || !it?.entry || it.kind !== 'ind') return false;
   const e = it.entry, p = e.params.find(x => x.key === key); if (!p) return false;
   const r = ruleOf(e);
@@ -592,17 +612,17 @@ function setParam(el: HTMLInputElement | HTMLSelectElement): boolean {
   return true;
 }
 function onField(e: Event) {
-  const el = e.target as HTMLInputElement | HTMLSelectElement, f = el.dataset.af, it = W.items[Number(el.dataset.ai)];
+  const el = e.target as HTMLInputElement | HTMLSelectElement, f = el.dataset.af, it = itemAt(el.dataset.ai);
   if (setParam(el) || setOpField(el)) { drawRow(Number(el.dataset.ai)); return }
   if (!f || !it?.entry || it.kind !== 'ind') return;
   if (f === 'opt') setOpt(it.entry, el.value);
   else { const r = ruleOf(it.entry); (r as unknown as Record<string, number | ''>)[f] = el.value.trim() === '' ? '' : Number(el.value) }
-  // an operator is set in the Customize panel: it opens at once
-  if (f === 'opt' && el.value === OP_OPT && ruleOf(it.entry).op) { setPop(Number(el.dataset.ai)); return }
+  // an operator is set in the Customize panel: it opens at once (the header's box is that panel already)
+  if (f === 'opt' && el.value === OP_OPT && ruleOf(it.entry).op && Number(el.dataset.ai) !== HOST) { setPop(Number(el.dataset.ai)); return }
   drawRow(Number(el.dataset.ai));
 }
 function onInput(e: Event) {
-  const el = e.target as HTMLInputElement, f = el.dataset.af, it = W.items[Number(el.dataset.ai)];
+  const el = e.target as HTMLInputElement, f = el.dataset.af, it = itemAt(el.dataset.ai);
   if (el.tagName === 'INPUT' && (setParam(el) || setOpField(el))) return;
   if (!f || f === 'opt' || !it?.entry) return;
   const r = ruleOf(it.entry); (r as unknown as Record<string, number | ''>)[f] = el.value.trim() === '' ? '' : Number(el.value);
@@ -611,14 +631,16 @@ function onInput(e: Event) {
     dikecilkan"), at the size the user gave it and moved by what the user dragged, kept inside the screen. It replaces
     the panel under its button, which was small and could pass the list's edge (QA of unit C item 4). */
 function fitPop(i: number) {
-  const pop = $q<HTMLElement>(`#aco${i} .qpop`); if (!pop) return;
+  const pop = i === HOST ? H?.host.querySelector<HTMLElement>('.qpop') ?? null : $q<HTMLElement>(`#aco${i} .qpop`); if (!pop) return;
   if (!pop.querySelector('[data-prz]')) pop.insertAdjacentHTML('beforeend', ['l', 'r', 'b', 'c'].map(k => `<span class="qpop-rz rz-${k}" data-prz="${k}" aria-hidden="true"></span>`).join(''));
   const B = W.popBox, M = 8;
   pop.style.width = B.w ? `${Math.min(B.w, innerWidth - 2 * M)}px` : '';
   pop.style.height = B.h ? `${Math.min(B.h, innerHeight - 2 * M)}px` : '';
   const w = pop.offsetWidth, h = pop.offsetHeight;
-  pop.style.left = `${Math.round(Math.min(Math.max(M, (innerWidth - w) / 2 + B.dx), innerWidth - w - M))}px`;
-  pop.style.top = `${Math.round(Math.min(Math.max(M, (innerHeight - h) / 2 + B.dy), Math.max(M, innerHeight - h - M)))}px`;
+  // the window's box sits in the middle of the screen; the header's in the middle of the results table (user 2026-11-08)
+  const a = i === HOST ? H?.centre() : null, cx = a ? a.left + a.width / 2 : innerWidth / 2, cy = a ? a.top + a.height / 2 : innerHeight / 2;
+  pop.style.left = `${Math.round(Math.min(Math.max(M, cx - w / 2 + B.dx), innerWidth - w - M))}px`;
+  pop.style.top = `${Math.round(Math.min(Math.max(M, cy - h / 2 + B.dy), Math.max(M, innerHeight - h - M)))}px`;
 }
 /** the Customize box moved by its title or resized from its edges and corner; the window resized from its own edges and
     corner, and its group list's border moved (the Terminal's Indicators window) */
@@ -629,11 +651,12 @@ function winMinWidth(): number {
 }
 function onResize(e: PointerEvent) {
   const t = e.target as HTMLElement, prz = t.closest<HTMLElement>('[data-prz]')?.dataset.prz, wrz = t.closest<HTMLElement>('[data-wrz]')?.dataset.wrz;
-  const head = !prz && !wrz && W.pop != null && t.closest('.qpop>strong') && !t.closest('button,select,input');
+  const host = !!H && !!H.host.contains(t), at = host ? HOST : W.pop;
+  const head = !prz && !wrz && at != null && t.closest('.qpop>strong') && !t.closest('button,select,input');
   if (e.button !== 0 || (!prz && !wrz && !head)) return;
   e.preventDefault(); t.setPointerCapture(e.pointerId);
-  const x0 = e.clientX, y0 = e.clientY, pop = W.pop != null ? $q<HTMLElement>(`#aco${W.pop} .qpop`) : null, B0 = { ...W.popBox };
-  const pw = pop?.offsetWidth || 0, ph = pop?.offsetHeight || 0, win = root!, ww = win.offsetWidth, wh = win.offsetHeight;
+  const x0 = e.clientX, y0 = e.clientY, pop = host ? H!.host.querySelector<HTMLElement>('.qpop') : W.pop != null ? $q<HTMLElement>(`#aco${W.pop} .qpop`) : null, B0 = { ...W.popBox };
+  const pw = pop?.offsetWidth || 0, ph = pop?.offsetHeight || 0, win = (root ?? H?.host)!, ww = win.offsetWidth, wh = win.offsetHeight;
   const nav = $q<HTMLElement>('#acg'), nw = nav?.offsetWidth || 210;
   const move = (ev: PointerEvent) => {
     const dx = ev.clientX - x0, dy = ev.clientY - y0;
@@ -648,7 +671,7 @@ function onResize(e: PointerEvent) {
       if (wrz !== 'b') win.style.width = `${Math.max(minW, Math.min(innerWidth - 40, ww + 2 * (wrz === 'l' ? -dx : dx)))}px`;
       if (wrz === 'b' || wrz === 'c') win.style.height = `${Math.max(420, Math.min(innerHeight - 40, wh + 2 * dy))}px`;
     }
-    if (W.pop != null) fitPop(W.pop);
+    if (at != null) fitPop(at);
   };
   const up = () => { t.removeEventListener('pointermove', move); t.removeEventListener('pointerup', up); t.removeEventListener('pointercancel', up) };
   t.addEventListener('pointermove', move); t.addEventListener('pointerup', up); t.addEventListener('pointercancel', up);
@@ -686,3 +709,66 @@ function onKey(e: KeyboardEvent) {
 /** the window is closed by dialogs.ts (Escape, the close button, the backdrop); forget its root then */
 export const addConditionOpen = () => !!root && document.contains(root);
 export function closeAddCondition() { if (addConditionOpen()) closeDialog(); root = null }
+
+/* ---- the Customize panel opened from the results header (user 2026-11-08: "untuk indikator flow ketika kita klik ... 5
+   maka yang appear adalah seperti pada screenshot ... langsung di tengah ... satu source aja"): the same panel as the
+   window's rows (popHtml, boxesOf, the same handlers), on the card's own rule, in the middle of the results table. Each
+   change is written to the card at once (the table waits for Screen now, as every edit); Done, ×, Escape or a click
+   outside closes it. Flow indicators only (user: "No, hanya flow"); the others keep the header's own editor. ---------- */
+const HOST = -1;
+let H: { host: HTMLElement; c: Card; e: Entry; item: AddItem; rule: Rule; centre: () => DOMRect; back: HTMLElement | null } | null = null;
+/** the card's rule as the panel keeps it */
+const ruleOfCard = (e: Entry, c: Card): Rule => ({ opt:c.op ? OP_OPT : c.opt, value:c.value, value2:c.value2, within:c.within, params:{ ...c.params } as Params,
+  ...(c.second ? { second:{ ...c.second } as Params } : {}), ...(c.op ? { op:{ ...c.op } } : {}) });
+function writeCard() {
+  if (!H) return;
+  const { c, e, rule } = H, f = cardOfRule(e, rule);
+  c.opt = f.opt; c.value = f.value; c.value2 = f.value2; c.within = f.within; c.params = f.params; c.second = f.second;
+  if (f.op) c.op = f.op; else delete c.op;
+  checkCard(c); ui.markDirty(); ui.refresh('conds');
+}
+let hostDrawing = false;
+function drawHost() {
+  if (!H || hostDrawing) return;              // a blur during the redraw sends another change: one redraw at a time
+  const fa = document.activeElement as HTMLElement | null, ff = H.host.contains(fa) ? fieldSel(fa) : null;
+  // inside a row's settings cell (.rr.qt): the panel takes the same rules as in the window
+  hostDrawing = true; try { H.host.innerHTML = `<span class="rr qt open">${popHtml(H.e, HOST, undefined, true)}</span>` } finally { hostDrawing = false }
+  fitPop(HOST);
+  if (ff) H.host.querySelector<HTMLElement>(ff)?.focus();
+}
+export function cardCustomizeOpen() { return !!H }
+export function closeCardCustomize(back = true) {
+  if (!H) return;
+  const b = H.back; H.host.remove(); H = null;
+  if (back) b?.focus({ preventScroll:true });
+}
+/** open the panel for card `c` (its chip `from` gets the focus back); `area`: the element it is centred on */
+export function openCardCustomize(c: Card, area: HTMLElement, from: HTMLElement | null) {
+  const e = entryOf(c); if (!e) return;
+  closeCardCustomize(false);
+  const host = document.createElement('div'); host.className = 'qwin qhost';   // .qwin: the window's panel styles
+  H = { host, c, e, item:{ kind:'ind', entry:e, ok:true, label:e.label, group:e.group, sub:'' } as AddItem, rule:ruleOfCard(e, c), centre:() => area.getBoundingClientRect(), back:from };
+  W.popBox = { w:0, h:0, dx:0, dy:0 };
+  document.body.appendChild(host);
+  host.addEventListener('change', ev => { onField(ev); writeCard() });
+  host.addEventListener('input', ev => { onInput(ev); writeCard() });
+  host.addEventListener('pointerdown', onResize);
+  host.addEventListener('click', ev => {
+    const t = ev.target as HTMLElement;
+    if (t.closest('[data-cusdone],[data-cusx]')) { closeCardCustomize(); return }
+    if (t.closest('[data-cusreset]') && H) { resetRule(H.e); writeCard(); drawHost() }   // H.rule is the rule ruleOf gives
+  });
+  host.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); closeCardCustomize(); return }
+    const t = ev.target as HTMLElement;
+    if (ev.key === 'Enter' && t.tagName === 'INPUT') { ev.preventDefault(); t.dispatchEvent(new Event('change', { bubbles:true })) }
+  });
+  drawHost();
+  host.querySelector<HTMLElement>('.qpop input, .qpop select')?.focus({ preventScroll:true });
+}
+// a press outside the panel applies it (its values are already on the card) and closes it; the broker list over it is
+// part of it
+if (typeof document !== 'undefined') {
+  document.addEventListener('pointerdown', ev => { const t = ev.target as HTMLElement; if (H && !H.host.contains(t) && !t.closest('.bpk-pop')) closeCardCustomize(false) }, true);
+  addEventListener('resize', () => { if (H) fitPop(HOST) });
+}

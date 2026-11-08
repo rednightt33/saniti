@@ -1752,3 +1752,7 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .bpk-o.off{opacity:.45;cursor:not-allowed}
 .bpk-none{padding:12px 6px;color:var(--text-3)}
 .bpk-f{display:flex;justify-content:flex-end;border-top:1px solid var(--border);padding-top:8px}
+/* EXEC-SCREENER-FLOW-CUSTOMIZE (user 2026-11-08): the Customize panel opened from a flow column's chip, over the results
+   table: its host carries .qwin, so the window's panel rules style it (one copy); a flow indicator's panel has no
+   "default …" column (option 1): two columns, the field as wide as its content */
+.qwin .qpop.bare .qpl{grid-template-columns:150px minmax(0,1fr)}

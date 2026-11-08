@@ -12855,6 +12855,29 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   "Transaction Size · Lot (AK + LG, ...)". Tidak ada error halaman.
 - screener vitest 1328 lulus; screener-worker `npm test` 105 lulus (penunjuk baris SCREENER_ONBOARDING.md diperbarui).
 
+## EXEC-SCREENER-FLOW-CUSTOMIZE — klik angka indikator Flow di judul kolom membuka panel Customize (satu sumber), tanpa kolom default (go 2026-11-08)
+
+### Kata user
+- 2026-11-08: "Bisa nggak untuk indikator flow ketika kita klik misalkan dalam screenshot 5 maka yang appear adalah seperti
+  pada screenshot terlampir. Appear-nya langsung di tengah. Di kotak merah ... Kalau bisa sih satu source aja ... ketika
+  di bagian customizable berubah, ya otomatis yang lain juga berubah, konfirmasi."
+- 2026-11-08: "No, hanya flow. Untuk customizeable di indikator flow, hilangkan yang saya X ... Termasuk ketika kita klik
+  "5" di foreign net value"; atas pertanyaan satuan dan batas: "1" (satuan ke label, batas ke tooltip).
+
+### Yang dibangun
+- Panel Customize Add a condition dipakai ulang apa adanya (`add-condition.ts` popHtml, boxesOf, handler yang sama) untuk
+  kartu yang dibuka dari angka judul kolom indikator Flow: di tengah tabel hasil, bisa digeser dan diubah ukurannya,
+  ditambah baris Condition (pilihan kondisi yang sama dengan baris jendela). Setiap perubahan langsung ke kartu; tabel
+  menunggu Screen now. Done, ×, Esc, klik di luar menutup. Indikator non-Flow tetap memakai editor kecil lama.
+- Panel Customize indikator Flow (di jendela dan dari judul kolom) tanpa kolom "default …": satuan di label ("Value (%)",
+  "Value (Rp B)"), batas dan sisa sesi data broker di tooltip baris. Reset to default tetap ada.
+
+### Bukti
+- Chromium (fixture): Net Flow / Turnover Ratio di Add a condition: 0 kolom default, label "Value (%)"; MACD tetap 5.
+  Foreign Net Value dari judul kolom: panel di tengah tabel (selisih 1 px dan 0 px), Sessions 10 → kartu "Foreign Net
+  Value (Sessions 10) > 0 Rp B"; klik di luar menutup; SMA tetap editor lama. Tidak ada error halaman.
+- screener vitest lulus; smoke diperbarui (panel Customize, tanpa kolom default).
+
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
 - Kata user 2026-11-08 (dua tangkapan layar TradingView, tombol ^ di bawah daftar nama indikator ditandai "A"): "next up
