@@ -12576,6 +12576,22 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   go). FL26 yang sudah tersimpan dengan Plot
   Histogram/Line tetap pilihan tersimpannya.
 
+## EXEC-FLOW-NEW-3 — tiga indikator Flow baru dari usulan HTML (diterima 2026-11-08, BELUM dijalankan)
+
+- Kata user 2026-11-08 (dengan tangkapan layar opsi 4 "Daily quadrant" dari `pra_rally_box.html`, opsi 11 dan 13 dari
+  `pre_rally_options.html`): "indikator yang di tambahkan sebagai indikator baru adalah "Daily quadrant" jadikan FL
+  terakhir saja. Opsinya bisa di atur nanti di settings sesuai dengan preset user. Default top 3 net buy saja dulu 1D.
+  Paham?"; "UNtuk rotasi asing-domestic juga ditambahkan jadi indikator baru. Paham?"; "untuk nomor 11, apakah sudah ada
+  ya harusnya ini terkait concentarion HHI kan? Di FL berapa ya?"; "boleh juga tambahkan indikator lagi, terlampir nomor
+  13? ketika indikator in iditambahk maka ada lfoating box di dalam chart. Konfirmasi".
+- Rencana: FL49 Daily quadrant (pita satu sel per sesi, warna kuadran peta F×D, penggambar sel FL26), FL50 Rotasi
+  asing–domestik (garis Foreign dan Domestic dari rumus peta F×D), FL51 Loaders (kotak mengambang di chart: broker
+  dengan kenaikan persediaan bersih terbesar, lot, harga pokok, jarak, hari beli; klik menambah ke Broker Inventory).
+- Opsi 11 (pergeseran konsentrasi) sudah ada sebagai FL14 Concentration HHI · Buy − Sell (histogram); yang belum ada
+  hanya garis rata-rata 10 hari di atasnya.
+- Pertanyaan terbuka (lihat percakapan 2026-11-08): arti "Top 3 net buy" untuk FL49; periode bawaan FL50 dan garis
+  Verdict; rincian FL51 (awal periode, harga pokok, jumlah baris, letak kotak); apakah FL14 diberi garis rata-rata.
+
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
 
 **Kata user, 2026-11-07:** "untuk screenshot A, itu adalah selected state about currently where user scroll. Mungkin bisa
