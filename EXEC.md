@@ -12763,6 +12763,8 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   di atas chart).
   Dijalankan di branch 2026-11-08: ke-27 temuan diperbaiki dan dicek ulang di browser (REPORT.md bagian F, ERRORS M408);
   FL51 mendapat parameter "Show box" (× di kotak = Show box mati, dapat di-undo); laci Broker activity di ≤1100 px.
+- Rilis (user 2026-11-08: "Rilis now."): `main` `3b0f9106`; edge-bff `d3b40e1c` dan screener-worker `8d20974a` SUCCESS
+  (RAILWAY_CHANGELOG 2026-11-08).
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 

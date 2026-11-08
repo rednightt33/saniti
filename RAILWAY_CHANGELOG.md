@@ -1,5 +1,28 @@
 # Railway changelog
 
+## 2026-11-08 — Terminal and Screener UI round on dev: Loaders option E, FL52 up to 10, broker-pick undo, Add a condition in the Terminal design, 27 UI audit fixes
+
+- **Change:**
+  - EXEC-FLOW-NEW-3: Loaders Show / Top N, edge resize, codes at line ends, × hides the box; FL52 has its own list of 10.
+  - EXEC-RP-LOOK-2: a broker pick is one undo step (ERRORS M407); a click outside Settings applies.
+  - Screener: Add a condition in the Terminal Indicators window's design, Customize centred and resizable, and the Screen
+    builder gap closed (ERRORS M406).
+  - The five-agent UI audit's 27 findings fixed (`verification/ui_audit_20261108/REPORT.md`, ERRORS M408), with the
+    Broker activity drawer at 1100 px and below.
+  - No migration, no variable change.
+- **Go:** user 2026-11-08 "Rilis now" (18:30 WIB, outside B6).
+- **Before the push:**
+  - no edge_bff job queued, running or recovering, and no AI turn running;
+  - `scripts/check_image_imports.mjs`: screener-worker 50 modules and backtest-worker 27, all in their images;
+  - backtest tripwire OK.
+- **Push:** `main` `a28d3bda` → `3b0f9106`.
+- **Deployments (Railway API):** edge-bff `d3b40e1c` SUCCESS and screener-worker `8d20974a` SUCCESS (GitHub, 11:33 UTC).
+- **Checks after the deploy:**
+  - edge-bff `/ready` returns 200.
+  - The served Terminal files `index-tfpk9_zc.js`, `style-FCHV_2FU.css` and `worker-DCrRdchN.js` are byte-equal to the build.
+  - The Screener page returns 200 and loads `index-unpS67w3.js`, the same bundle as the build.
+- **Not done:** a signed-in check on dev with real data.
+
 ## 2026-11-08 — Terminal Flow FL49-FL52, FL26 plots, F×D Nominal, legend hide on dev; screener-worker start fix (ERRORS M405)
 
 - **Change:** EXEC-FLOW-NEW-3 and EXEC-RP-LOOK-2 (FL49 Daily Quadrant, FL50 Rotation, FL51 Loaders box, FL52 Broker
