@@ -12602,6 +12602,9 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   rata-rata beli dalam periode, (b) perkiraan modal posisi yang masih dipegang (model FL19 per broker); ditambah opsi
   menggambar harga pokok broker sebagai garis di chart harga. Sisa pertanyaan: broker mana yang diberi garis, garis
   berjalan atau mendatar, bawaan pilihan harga pokok.
+- User 2026-11-08: "3 penimpun, avg price mereka dihitung ada beberapa cara, pertama dari kapan pertama kali chart appear,
+  kedua sesuai dengan range (alt B) bener gak?". Garis harga untuk 3 penimbun. Awal periode: candle pertama yang terlihat
+  (bawaan) atau rentang yang dipilih di chart (Alt + B); cara hitung harga pokok A atau B berlaku untuk keduanya.
 
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
 
