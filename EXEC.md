@@ -12527,6 +12527,27 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - Uji ulang lima agen (ronde 2) dan perbaikannya selesai 2026-11-07; dirilis 2026-11-08 (kata user: "Ok"): `main`
   `81146306`, edge-bff `16aa6dbb` SUCCESS. Rincian di RAILWAY_CHANGELOG dan ERRORS M390.
 
+## EXEC-RP-LOOK-2 — Top brokers lebih ringkas; nominal F×D; garis tepi Settings; bentuk indikator bernilai sempit (2026-11-08)
+
+- Kata user 2026-11-08 (dengan tangkapan layar): "bagian top brokers, tool tipnya sederhana saja -7.31 - Dist (with red
+  badge)"; "liat screenshot A, yang saya otakin di remove saja ya"; "untuk menu foreign x domestic map, saat ini ada
+  level, change, tapi belum ada nominal. boleh ditambahkan nominal?"; "ganti selected state disetiap settings indikacotrs
+  dengan selected state di indicators (C)"; "konfirmasi". Atas pertanyaan balik: "A1 / B tidak usah, hanya garis tepi
+  saja / C usulan dari kamu boleh / masukan exec dl ya jangan jalankan untuk A1 dan B" (dengan contoh grafik kotak
+  bertumpuk "Progress").
+- R9 (dijalankan di branch): tooltip langkah verdict yang ditandai hanya "−7.31% · Dist", kata verdict sebagai badge
+  berwarna (merah Dist/Big Dist, hijau Acc/Big Acc, abu-abu Neutral); rumus tidak lagi di tooltip.
+- R10 (dijalankan di branch): baris angka batas di bawah tangga (−10%, −6%, +6%, +10%) dan keterangan "Investor type of
+  the trades · Top N brokers" dihapus; lajur Domestic/Foreign/Total tetap.
+- A1 (DICATAT, BELUM DIJALANKAN; menunggu go): jendela Foreign × Domestic mendapat tombol ketiga "Nominal (Rp)" di samping
+  Level dan Change (Δ): per sesi Foreign Rp, Domestic Rp, Verdict (net) Rp dan Total buy (penyebut). Peta tetap persen.
+- B (DICATAT, BELUM DIJALANKAN; menunggu go): di dialog Settings setiap indikator, kotak pilihan dan isian yang aktif
+  memakai tampilan kotak pencarian jendela Indicators (tanpa garis tepi gelap, bayangan lembut). Daftar pilihan yang
+  terbuka (bawaan browser) tidak diubah.
+- C (usulan): indikator Flow yang nilainya bilangan bulat dalam rentang sempit (misalnya Net Flow Streak sekitar −20..20)
+  diukur pada data, lalu 10 opsi bentuk dalam satu HTML berangkat dari contoh user (kolom kotak bertumpuk). Menunggu
+  pilihan user.
+
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
 
 **Kata user, 2026-11-07:** "untuk screenshot A, itu adalah selected state about currently where user scroll. Mungkin bisa

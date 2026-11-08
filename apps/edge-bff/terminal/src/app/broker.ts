@@ -62,18 +62,20 @@ export function fdTrail(agg: AggOf, end: number, len: number, span: number, n: n
     as a five-step ladder, Big Dist · Dist · Neutral · Acc · Big Acc, the step the ratio falls in marked, the levels written
     under the steps (FL24's ±6% and ±10%) and a pin at the ratio (±15% fills the ladder). The levels come from the verdict
     rule itself (BANDAR_LEVELS), not a second list. */
-export function verdictLadder(ratio: number, tip: string): string {
+export function verdictLadder(ratio: number): string {
   const [acc, big] = BANDAR_LEVELS.map(v => v / 100), steps: [string, string][] =   // the levels are percent (6, 10); the ratio a share
     [['Big Dist', 'dist big'], ['Dist', 'dist'], ['Neutral', 'neu'], ['Acc', 'acc'], ['Big Acc', 'acc big']];
-  const [cur] = bandarVerdict(ratio), lim = Math.max(big * 1.5, 0.15), x = Math.max(0, Math.min(100, 50 + ratio / lim * 50));
-  const pos = (v: number) => (50 + v / lim * 50).toFixed(2), pctL = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.round(Math.abs(v) * 100)}%`;
+  const [cur, vc] = bandarVerdict(ratio), lim = Math.max(big * 1.5, 0.15), x = Math.max(0, Math.min(100, 50 + ratio / lim * 50));
+  const pos = (v: number) => (50 + v / lim * 50).toFixed(2);
   const edges = [-lim, -big, -acc, acc, big, lim];
+  /* EXEC-RP-LOOK-2 R9 (user 2026-11-08: "tool tipnya sederhana saja -7.31 - Dist (with red badge)"): the tooltip is the
+     ratio and the verdict as its coloured badge, nothing else (the formula is no longer in it); the same on every step */
+  const pct = `${ratio > 0 ? '+' : ''}${minus((ratio * 100).toFixed(2))}%`;
+  const tip = `${pct} · &lt;span class=&quot;tag ${vc}${/^Big /.test(cur) ? ' big' : ''}&quot;&gt;${cur}&lt;/span&gt;`;
   return `<div class="acc-ladder" data-tip="${tip}" role="img" aria-label="Verdict ${cur}: ${minus((ratio * 100).toFixed(2))}% of total buy">`
-    /* EXEC-RP-LOOK R8 (user 2026-11-07: "batch minus 12,99% dihilangkan saja. Tapi hover state ketika mouse ke big dist, maka
-       tooltip yang keluar adalah angka minus 12,99%"): the marked step's own tooltip leads with the ratio */
-    + `<div class="acc-steps">${steps.map(([t, c], k) => `<span class="st-${c.replace(' ', '-')}${t === cur ? ' on' : ''}"${t === cur ? ` data-tip="${ratio > 0 ? '+' : ''}${minus((ratio * 100).toFixed(2))}% · ${t}|${tip.split('|').slice(1).join('|')}"` : ''} style="left:${pos(edges[k])}%;width:${(+pos(edges[k + 1]) - +pos(edges[k])).toFixed(2)}%">${t}</span>`).join('')}`
-    + `<i class="acc-pin" style="left:${x.toFixed(1)}%"></i></div>`
-    + `<div class="acc-lv">${[-big, -acc, acc, big].map(v => `<span style="left:${pos(v)}%">${pctL(v)}</span>`).join('')}</div></div>`;
+    + `<div class="acc-steps">${steps.map(([t, c], k) => `<span class="st-${c.replace(' ', '-')}${t === cur ? ' on' : ''}" style="left:${pos(edges[k])}%;width:${(+pos(edges[k + 1]) - +pos(edges[k])).toFixed(2)}%">${t}</span>`).join('')}`
+    + `<i class="acc-pin" style="left:${x.toFixed(1)}%"></i></div></div>`;
+    /* R10 (user 2026-11-08: the boxed area "di remove saja"): the level labels under the steps are gone */
 }
 
 /** four to seven round tick values covering lo..hi (Broker inventory y-axis, EXEC-TERMINAL-PANELS-2 C) */
@@ -437,11 +439,6 @@ export function initBroker(ctx: Ctx) {
     /* QA round 3 (agent 3 F1): the verdict, the ladder and the header read the ratio as shown (two decimals), so "+6.00%"
        is never called Neutral */
     const shown = r2 / 100, [vt, vc] = bandarVerdict(shown), big = /^Big /.test(vt) ? ' big' : '', onBoard = board === 'All' ? '' : ` · ${board}`;
-    /* EXEC-QA5-FIX (QA F7, F8): the groups as they are (fewer than N when fewer brokers net buy or sell), the levels from
-       the verdict rule itself (BANDAR_LEVELS, FL24) */
-    const grp = (k: number, w: string) => k === N ? `the ${N} largest net ${w}s` : `the ${k} net ${w}${k === 1 ? '' : 's'} (fewer than ${N})`;
-    const why = `Bandar balance · Top ${N}${onBoard}|(net buy of ${grp(bal.buyers.length, 'buyer')} − net sell of ${grp(bal.sellers.length, 'seller')}) ÷ total buy value of every broker`
-      + ` = (Rp ${cv(bal.buy)} − Rp ${cv(bal.sell)}) ÷ Rp ${cv(bal.total)} = ${ratio}. Acc from ${BANDAR_LEVELS[0]}%, Big Acc from ${BANDAR_LEVELS[1]}%; Dist and Big Dist the same below zero.`;
     /* EXEC-BROKER-INV-PANEL (user 2026-11-06, design top_brokers_panel.html "Dua lajur"): three lanes, Domestic, Foreign and
        Total, each the Top N buyers' net against the Top N sellers' net in that investor type; Domestic + Foreign = Total */
     const sp = fdSplit(bal.buyers, bal.sellers, new Map(all.map(x => [x.b, { d:x.d, f:x.f }])), bal.total);
@@ -465,10 +462,10 @@ export function initBroker(ctx: Ctx) {
        row (rebuilt by makeRange when the data arrives, so it is placed on every render), the Board choice on the Top N row */
     /* R8 (user 2026-11-07: the badge "dihilangkan saja"): the ratio is read from the ladder's marked step (its tooltip) */
     $('accRange').querySelector('.acc-ratio')?.remove();
-    const tug = verdictLadder(shown, why)
+    const tug = verdictLadder(shown)
       /* QA M3 (2026-11-06): the lanes split the trades by the investor type of each trade, inside the Top N brokers; the
          dots beside the codes are the broker's own type (live: Foreign or local) */
-      + `<div class="acc-lanes"><div class="acc-cap">Investor type of the trades · Top ${N} brokers</div>${lanes}</div>`;
+      + `<div class="acc-lanes">${lanes}</div>`;            // R10: the caption above the lanes removed
     $('accBody').innerHTML = ctlRow + (n ? tug + `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`
       + Array.from({ length:n }, (_, k) => { const b = buy[k], s = sell[k];
         return `<div class="pa-row${k < N ? ' in-top' : ''}">${cell(b,'buy')}${val(b,'buy')}${bar(b,'buy')}${bar(s,'sell')}${val(s,'sell')}${cell(s,'sell')}</div>` }).join('')

@@ -42,7 +42,7 @@ try {
   for (const d of pts) { const b = await d.boundingBox(); await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await p.waitForTimeout(120);
     R.m4_hover.push(await p.$eval('.st-tip', e => e.hidden ? null : e.textContent.split('·')[0].trim())) }
   await p.focus('.fdm-pt'); await p.waitForTimeout(120); R.m4_focus = await p.$eval('.st-tip', e => e.hidden ? null : e.textContent.slice(0, 40));
-  R.m3_labels = { tag:await p.$eval('.fdm-now .tag', e => e.textContent), ax:await p.$eval('.fdm-x', e => e.textContent), cap:await p.$eval('.acc-cap', e => e.textContent) };
+  R.m3_labels = { tag:await p.$eval('.fdm-now .tag', e => e.textContent), ax:await p.$eval('.fdm-x', e => e.textContent), cap:await p.$eval('.acc-cap', e => e.textContent).catch(() => null) };
   await p.screenshot({ path:join(OUT, 'd_map.png'), clip:await p.locator('.st[data-sec="fdmap"]').boundingBox() });
   // M7: Top brokers on Nego
   await p.selectOption('#accBoard', 'Nego'); await p.waitForTimeout(300);
