@@ -12703,6 +12703,19 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   `verification/terminal_api/flow_dots/loaders_count_options.html`: A baris kendali berlabel (Loaders 3/5/10, Sellers
   Off/2/5), B satu menu kalimat ("Top 3 loaders + 2 sellers"), C stepper −/+, D seperti A dengan judul kelompok di tabel,
   E tab sisi (Loaders/Sellers/Both) + Top 3/5/10. Menunggu pilihan user.
+- User 2026-11-08: "Opsi E sudah oke, tapi saya butuh lagi satu opsi which is untuk meresize, membesarkan dan
+  mengecilkan dengan right-left click, border, terus kemudian di drag kiri kanan." Dicatat (BELUM DIJALANKAN): Loaders
+  memakai opsi E (tab Loaders / Sellers / Both + Top 3 / 5 / 10, judul kelompok di tabel); L1 diperluas: ukuran kotak
+  diubah dengan menekan tepinya (kiri, kanan, bawah) atau sudutnya lalu menyeret, seperti jendela Indicators Terminal.
+- User 2026-11-08: "lihat bagian screener. Di bagian add a condition. Kemudian bandingkan dengan bagian terminal, bagian
+  indikator kita ... Bisa nggak dibuat di bagian screener secara desain sama seperti bagian indikator diterminal? Kalau
+  bisa, tolong kirim HTML assume di bagian add a condition screener sudah dibuat demikian agar saya bisa review sebelum
+  kamu execute." Mock: `verification/screener/add_condition_look/add_condition_terminal_style.html` (178 baris katalog
+  Screener fixture; penjelasan dari registry Terminal dan katalog Screener). Perubahan yang diusulkan: kotak cari
+  bayangan lembut; daftar kiri dengan Favorites (baru) dan judul bagian TECHNICAL / FLOW / FUNDAMENTAL, pilihan aktif
+  bergaris kiri; judul kelompok menempel di daftar; baris dua tingkat (nama + kode + satu kalimat penjelasan) dengan
+  bintang; kontrol tanpa garis tepi; jendela bisa diubah ukurannya dan pemisah daftar kiri bisa digeser. Fungsi Screener
+  (timeframe, kondisi, parameter, Add) tidak berubah. Menunggu review user.
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
