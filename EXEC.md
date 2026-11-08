@@ -12791,6 +12791,12 @@ panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi 
   deploy ditinjau (database, konfigurasi, dependensi, rollback); merge, deploy dan verifikasi sesudah deploy berhasil.
 - P6 (20 pola candle, unit C) dibangun paralel selama unit B menunggu merge (user 2026-11-07: "Parallel, alright").
   Kontrak: `verification/screener/P6_CANDLES.md`.
+  - Dibangun 2026-11-07 di branch unit C (belum QA, belum merge): registry + evaluator di core Backtest
+    (`candle-registry.json`, `candles.ts`), 20 entri katalog Screener digenerate dari registry, catatan persetujuan core
+    di tripwire (`scripts/screener/backtest_core_baseline.json`, keputusan "2A" dan K2 "A" 2026-11-07), tes hasil kondisi
+    lama tetap sama (1.629 digest, direkam pada core sebelum P6). Definisi, frekuensi dan perbandingan Feature 04:
+    P6_CANDLES.md bagian 5-6. Nilai bawaan (min range 3 tick, open piercing dilonggarkan, star overlap 10 %, toleransi
+    tweezer 1 tick, tren aktif kecuali marubozu) menunggu tinjauan user. ERRORS M398 (pola membuka state, bukan event).
 - Uji sebelum merge (user 2026-11-07: "Try to ask maybe 20 questions and see whether the screener actually works.
   Pertanyaan harus dijalankan melalui as if it was run on the front end. Mulai dari screen yang very simple, moderate,
   sampai screener yang involving multiple technical indicators, candle, and flow indicators."): 20 pertanyaan + 1

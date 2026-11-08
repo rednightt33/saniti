@@ -12,6 +12,7 @@
    indicators.ts convention). Worker-side module. */
 import { compare, priceActionCondition } from '../../../backtest/src/core/conditions.ts';
 import type { PriceActionCondition } from '../../../backtest/src/core/conditions.ts';
+import { CANDLES, candleLookback, candleSignal } from '../../../backtest/src/core/candles.ts';
 import { asOf } from '../../../backtest/src/core/datafile.ts';
 import { canonicalJson } from '../../../backtest/src/core/hash.ts';
 import { ema, isN, sma } from '../../../terminal/src/calc/indicators.ts';
@@ -598,6 +599,15 @@ const PATTERNS: Record<string, PatternImpl> = {
     },
     window: p => (p.days as number) + (p.length as number), historyClass: 'window', inputs: () => ['C', 'V'],
   },
+};
+/* EXEC-SCREENER-FLOW-CANDLES P6 (verification/screener/P6_CANDLES.md): the 20 candlestick patterns, one per pattern of
+   the Backtest core's candle registry, each computed by the core's one evaluator (candles.ts candleSignal: the IDX
+   guards, the prior trend and the registry's rules) with the parameters the catalog checked; window = the bars a
+   signal reads (candleLookback: the candles and the trend's or the average body's sessions before them, at least 2);
+   every bar field is an input (the volume decides a day without trades). Nothing here defines a pattern. */
+for (const p of CANDLES.patterns) PATTERNS[p.id] = {
+  signal: (t, params) => candleSignal(t.calc.bars, p.id, params),
+  window: params => candleLookback(p.id, params), historyClass: 'window', inputs: () => ['O', 'H', 'L', 'C', 'V'],
 };
 /** The pattern types this module computes (catalog.ts catalogProblems: every offered pattern type must be here). */
 export const IMPLEMENTED_PATTERNS: readonly string[] = Object.keys(PATTERNS);

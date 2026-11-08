@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "about": "The approved state of apps/edge-bff/backtest/src/core for scripts/screener/check_backtest_untouched.mjs: the tripwire passes a core that differs from origin/main only while its content hash is core_tree (and, while the worker is the base's, the versions are these). Recorded with --record-core and changed only by a deliberate commit (EXEC-SCREENER-FLOW-CANDLES, K2 A).",
+  "base_commit": "4451a31a027c123a3b8b875eee1c558c6ae9bcca",
+  "recorded_on": "b588f5d45b3508de2be8626dd49bed1b3951b1c5",
+  "recorded_at": "2026-11-07",
+  "engine_version": "c95159e8f1dd9224",
+  "base_engine_version": "c3a5f29a3848df7d",
+  "registry_version": "514dc3df60a25aff",
+  "core_tree": "8567f99724b895285c7a3dd231cc6c77308603cc5c8c2c89547e199b17583304",
+  "core_files": 16,
+  "exec": {
+    "section": "EXEC-SCREENER-FLOW-CANDLES",
+    "decision": "User 2026-11-07 (verbatim in EXEC-SCREENER-FLOW-CANDLES): \"2A\" (pola candle dibangun di core Backtest, dipakai Screener dan nanti Backtest; engine_version berubah) and K2 \"A\" (\"Ok A Jalankan\": jalur persetujuan untuk perubahan core Backtest di tripwire, seperti baseline worker, ditambah tes bahwa hasil kondisi lama tetap sama)",
+    "date": "2026-11-07"
+  },
+  "note": "P6 (verification/screener/P6_CANDLES.md): candle-registry.json and candles.ts added to the core, the 20 candlestick patterns as one registry and one evaluator with the IDX guards; conditions.ts and every other core file unchanged, and no Backtest request reads the patterns yet. apps/backtest-worker/tests/conditions-unchanged.test.ts holds every existing condition to its result recorded on the core before the change (engine_version c3a5f29a3848df7d)."
+}
