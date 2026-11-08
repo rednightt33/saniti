@@ -56,6 +56,14 @@ the publication's outcome: two replicas at one publication answer the same bytes
   `flow` and `eval_date_basis` `flow_date`, its cells the date of the stock's last candle with broker data (`eval_date`,
   null with NA `FLOW_UNAVAILABLE` for a stock without broker data in the window). Both codes are among edge-bff's
   relayed ones; no new code.
+- Candlestick patterns (EXEC-SCREENER-FLOW-CANDLES P6; `verification/screener/P6_CANDLES.md`): `metrics[]` holds the 20
+  patterns of the Backtest core's candle registry (`kind` `pattern`, `group` `Candlestick`, the registry's parameters
+  with their meaning, `tests` `state` and `event`, `default_test` an event within 3 sessions). A condition tests one as
+  `{"kind":"state","pattern":...}` (Detected on the evaluated session), `{"kind":"event","within":N,"signal":
+  {"pattern":...}}` (Detected within N sessions) or a window over either (the event with `within` 1); a value test, a
+  measure, a rank or a comparison with a pattern is refused `422 INVALID_CONDITION` naming these tests and a right and a
+  wrong example. The signal is the Backtest core's `candles.ts` on the stock's bars; P6 changed `screener_engine` and
+  `screener_registry`, no route, field or code.
 - `data_version` (optional on run and counts, required on preview) pins a request to a snapshot: the current one, or the
   previous one for `SCREENER_PREVIOUS_GRACE_S` after a swap.
 - A version the replica held and dropped, or one older than both: `409 DATA_VERSION_CHANGED` (the page reads the catalog
@@ -110,4 +118,5 @@ It holds no Postgres or bucket credential; it reads terminal-api only with the g
 batches of at most 16 names, `/manifest`, `/reference/tickers`) and presigned URLs on `SCREENER_FILE_ORIGIN`; it
 downloads at most `SCREENER_MAX_REFRESH_BYTES` per refresh, broker days included (those beyond wait for a follow-up); it writes nothing anywhere but its own
 disk cache; it logs no key, header, body or presigned URL; it computes no formula of its own (every number is the
-screener core's, over the Terminal's `F` through the backtest core's `Calc`).
+screener core's, over the Terminal's `F` through the backtest core's `Calc`, and a candlestick pattern the backtest
+core's `candles.ts`).

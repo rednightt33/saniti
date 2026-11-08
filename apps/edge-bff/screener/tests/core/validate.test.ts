@@ -108,7 +108,8 @@ describe('STATE and EVENT tests', () => {
     expect(why(ev(2.5))).toEqual(['INVALID_CONDITION', 'definition.conditions[0].test.within']);
   });
   it('a pattern is tested on its own, as the catalog offers it (Ichimoku waits for a registry release)', () => {
-    expect(why(def([c({ kind: 'state', lhs: { kind: 'pattern', type: 'breakout' }, op: 'gt', rhs: { value: 0 } })]))).toEqual(['INVALID_CONDITION', 'definition.conditions[0].test']);
+    // the field names the side that is not a series (metrics.ts notSeriesRefusal), not the whole test
+    expect(why(def([c({ kind: 'state', lhs: { kind: 'pattern', type: 'breakout' }, op: 'gt', rhs: { value: 0 } })]))).toEqual(['INVALID_CONDITION', 'definition.conditions[0].test.lhs']);
     const e = refusal(() => validateDefinition(def([c({ kind: 'state', pattern: { kind: 'pattern', type: 'ichimoku_above' } })]), CTX));
     expect([e.code, (e.details as any).availability]).toEqual(['METRIC_UNAVAILABLE', 'REQUIRES_DECISION']);
     expect(why(def([c({ kind: 'event', within: 5, signal: { pattern: { kind: 'pattern', type: 'ichimoku_above' } } })]))[0]).toBe('METRIC_UNAVAILABLE');

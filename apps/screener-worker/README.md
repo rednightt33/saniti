@@ -31,6 +31,7 @@ MULTI-USER SCALE AND COST (versions, caches, gzip relay, per-owner lanes), `08` 
 | `src/snapshot.ts` | `buildSnapshot`: the price file sliced through `priceSeries`, shared-memory bar columns, universe rows and remarks, the broker store (P4), the pinned tails of the 53 defaults (76 outputs), the core's declared derived series (`declaredDerivedSeries`) and the presets' series, `snapshot_digest`; `ThreadSnapshot` (one thread's view; `brokerRows`) |
 | `src/broker.ts` | EXEC-SCREENER-FLOW-CANDLES P4: the broker day files (`broker-YYYY-MM-DD`): the window (newest 60), the document checks (`decodeBrokerDay`), the shared store per ticker (`buildBrokerStore`, days carried from the held snapshot), `flow_data`, `broker_window`, the date-range accessor (`brokerRowsOf`); no formula |
 | (P5a) | the flow indicators FL01-FL48 are computed by the core (`apps/edge-bff/screener/src/core/flowmetrics.ts`, the Terminal's `calc/flow.ts` `computeFlow`, `verification/screener/P5_FLOW.md`) on a request's `TickerView.flow` (`snapshot.ts`: the ticker's broker rows of the window, `desc.brokerClasses`, the thread's `flowMemo` of computeFlow answers); never pinned; cost units over the ticker's broker rows and its brokers x sessions grid in the window (`run.ts` `costUnits`, `verification/screener/BENCHMARK_FLOW_COST.md`) |
+| (P6) | the 20 candlestick patterns (catalog group Candlestick, `kind` `pattern`, generated from the Backtest core's `candle-registry.json` through `screener-registry.json` `candles`; `verification/screener/P6_CANDLES.md`) are computed by the Backtest core's `candles.ts` `candleSignal` on the ticker's bars (the core's `transforms.ts` `PATTERNS`); tested as Detected (state), Detected within N sessions (event) or a window over Detected, every other use refused (`metrics.ts` `notSeriesRefusal`); cost units: a fixed part per bar plus the window the core reads (`candleLookback`; `run.ts` `costUnits`, `verification/screener/BENCHMARK_FLOW_COST.md` section 6) |
 | `src/pool.ts` | the compute threads (`worker_threads`), the builder thread, owner lanes (deficit round robin), the queue, the per-owner budget (P33), deadlines, cancellation and kill |
 | `src/thread.ts` | the code each thread runs: install or drop a snapshot, build, pre-warm, digest, run, counts, preview |
 | `src/run.ts` | request envelopes and normalization, the cost estimate and its tracker, `runTask` (core `runScreen`), gzip and `ETag`, the result cache key |
@@ -133,16 +134,19 @@ TIMEOUT`). A running request past its deadline, or one whose caller left, is ask
 thread that does not stop within 1 s is terminated and restarted with its snapshots installed again.
 
 The cost model is the core's (`plan.ts` `costEstimate`) over the worker's per-series unit costs (`run.ts`
-`costUnits`): indicator cost class and largest length, or a transform's or pattern's largest numeric argument, over the
-ticker's bars; a flow indicator over what computeFlow does on the ticker (its broker rows and its grid of brokers x
+`costUnits`): indicator cost class and largest length, or a transform's largest numeric argument, over the ticker's
+bars; a pattern (P6 and the older ones) as a fixed part per bar (its guards, rules and copies) plus one step per bar and
+session of the window its core reads (`candles.ts` `candleLookback` for a candlestick pattern, `transforms.ts` `PATTERNS`
+for the others; never a parameter value: QA unit C), a recursive one (`macd_divergence`) keeping its earlier unit over
+its largest parameter (M300); a flow indicator over what computeFlow does on the ticker (its broker rows and its grid of brokers x
 (sessions + 1) cells: a large stock holds some 13,000 rows of 100 brokers, a small one 500 rows), an anchored one
 (`anchor_sessions` N) per session it computes over that slice's rows and a grid of brokers x (N + 2), keyed by the
 indicator and its choices (its select and switch parameters: FL23's Top-K holders and its selected brokers are learned
 apart); the broker-data series and the ticker's window context (`CONTEXT_KEY`, built once per view, timed apart by
 `ThreadSnapshot.contexts`) once per ticker of a screen with a flow condition, over its rows. Before a key's first
 measurement its prior is the registry's (`screener-overlay.json` `cost_model`: `ns_per_bar_length` for an indicator,
-`flow.ns_per_unit`, `flow.context_ns_per_row` and `flow.presence_ns_per_row` measured in
-`verification/screener/BENCHMARK_FLOW_COST.md`). Every series a run or a count computes cold teaches the model, whatever
+`flow.ns_per_unit`, `flow.context_ns_per_row` and `flow.presence_ns_per_row`, `pattern.ns_per_bar` and
+`pattern.candle_ns_per_bar_session` (an older pattern's window at `ns_per_bar_length`) measured in `verification/screener/BENCHMARK_FLOW_COST.md`). Every series a run or a count computes cold teaches the model, whatever
 the number of its kernels: the thread sums the time and the bars or rows of each cost signature (`run.ts` `Observation`),
 the main thread shares the time among its kernels in proportion to their predicted cost (`plan.ts` `observeShared`) and
 keeps an exponential average per key (alpha 0.2) per replica. A series that read work made before it (an entry of the
@@ -257,7 +261,7 @@ The image keeps the repository layout under `/app`, because the worker imports t
 
 `npm test` runs every suite with a fake terminal-api (`tests/fake-terminal.mjs`: `/state`, `/xsection` with the proxy key and
 skew, `/manifest`, `/reference/tickers`, presigned bucket URLs, faults per file; P4 broker day files in the publisher's
-format, and at most 16 names per `/xsection` as terminal-api). Last run: 99 of 99 pass (2026-11-07).
+format, and at most 16 names per `/xsection` as terminal-api). Last run: 102 of 103 pass (2026-11-08, QA unit C branch: `onboarding_pointers.test.ts` fails only on the lines this change moved, until `SCREENER_ONBOARDING.md`'s pointers are refreshed).
 
 | Suite | What it locks |
 |---|---|
@@ -274,13 +278,17 @@ format, and at most 16 names per `/xsection` as terminal-api). Last run: 99 of 9
 | `run.test.ts` | VALUE, STATE, EVENT, ALL / ANY / AT LEAST with the near rule, precomputed vs dynamic, pruning never changes the answer: all against F and the backtest core's `compare` directly |
 | `pool.test.ts` | owner inflight, round robin and cost-weighted deficit round robin, queue `BUSY`, same-page replacement, deadline, kill and respawn with reinstall, a caller that leaves, the owner budget (P33) |
 | `server.test.ts` | the key; protocol errors (404, 405, 413, 422); the envelope; catalog limits and `ETag` / `304`; the result cache shared byte for byte across owners; universe-only screens; P4 hidden tickers and remarks; compute and owner budgets (a cache hit is never refused); response and counts caps; counts with per-entry errors; preview; request logs without secrets |
+| `pattern_cost.test.ts` | QA unit C: a pattern's cost units for every candlestick pattern (its fixed part and the window `candleLookback` reads; a parameter that is no length, such as `min_range_ticks`, moves nothing; the trend's sessions only where the trend is read) and every older pattern (the core's `PATTERNS` window; `macd_divergence` keeps its unit, M300), the measured priors, and a run observing both units and teaching the model |
 | `cost.test.ts` | QA unit B, QA4: flow cost units over the rows and the brokers x sessions grid (an anchored one per session it computes over N + 1 sessions), keyed by the indicator and its choices, the registry's flow priors, the broker-data series and the window context once per stock (timed apart), every cold series observed and its time shared among its kernels, a series that reused memo work not observed, counts teach the model too, and the budget refusal naming how to pass |
 
 `tests/bench/flow_cost.bench.ts` (not in `npm test`: minutes, machine-dependent) is the flow cost benchmark on a market
 of 900 stocks and 60 broker days of about 25,000 rows (`tests/bench/market.ts`): `BENCH_MODE=calibrate` measures each
 flow kernel's ns per unit of work, the default mode QA4's cases predicted against measured, cold and learned, and the
 4500 ms budget's refusals (`verification/screener/BENCHMARK_FLOW_COST.md`); `tests/bench/profile_flow.ts` runs one
-flow condition in process (for `--cpu-prof`).
+flow condition in process (for `--cpu-prof`). `tests/bench/pattern_cost.bench.ts` is the pattern cost benchmark on a
+price-only market (`BENCH_STOCKS` x `BENCH_BARS`, default 300 x 1330): `BENCH_MODE=calibrate` measures every available
+pattern's ns per bar at its defaults and at the parameters that move its window or do not, the default mode QA4's unit C
+cases predicted against measured, cold and learned (section 6 of the same note).
 
 ## Durations observed (local, not the service)
 

@@ -43,8 +43,8 @@ import {
   naReason, priceBreakRemark, signalAt, toCell, viewOfSeries, viewOfTail,
 } from './evaluate.ts';
 import type { BarView, Evaluation, Operand, SessionOutcome } from './evaluate.ts';
-import { laggedSeries, missingInput, resolveSeries } from './metrics.ts';
-import type { ResolvedSeries, SeriesSource, Tail, TickerBars } from './metrics.ts';
+import { laggedSeries, missingInput, notSeriesRefusal, resolveSeries } from './metrics.ts';
+import type { ResolvedSeries, SeriesSource, Tail, TestPlace, TickerBars } from './metrics.ts';
 import { canonicalJson } from '../../../backtest/src/core/hash.ts';
 import { operatorTakes, outputType, resolveSignal } from './transforms.ts';
 import { FLOW_BY_ID, FLOW_PRESENCE, FLOW_DESIGN_SESSIONS, depthRefusal, readsFlow, resolveFlowParams } from './flowmetrics.ts';
@@ -69,6 +69,9 @@ export interface BindContext extends ParamOptions {
   flowLazy?: boolean;
   /** set by bindTest from the test when flowLazy (metrics.ts SeriesResolveContext) */
   flowReach?: number | null;
+  /** where the test sits (metrics.ts TestPlace; bindWindow sets 'window' for its inner test, a metric filter's binding
+      'filter'): a refusal of a reference that is not a series says how to pass there. Default a condition. */
+  place?: TestPlace;
 }
 
 /** What evaluating a condition reads for one ticker; the worker answers it from its snapshot. */
@@ -141,13 +144,13 @@ function read(input: TickerInput, r: ResolvedSeries, reach: number): { view: Bar
   return { view: viewOfTail(tail, missingInput(input, r.inputs, input.at) !== null), tail, source };
 }
 
-/** The bound side of a STATE / EVENT comparison. */
-function bindSide(s: Side, field: string, ctx: BindContext): BoundSide {
+/** The bound side of a STATE / EVENT comparison (a side that is not a series: metrics.ts notSeriesRefusal). */
+function bindSide(s: Side, field: string, ctx: BindContext, test: 'state' | 'event'): BoundSide {
   if (isValueSide(s)) {
     if (typeof s.value !== 'number' || !Number.isFinite(s.value)) throw new ScreenerError('INVALID_CONDITION', `${field}.value must be a number.`, `${field}.value`);
     return { kind: 'value', value: s.value };
   }
-  return { kind: 'series', r: resolveSeries(s as MetricRef, field, ctx) };
+  return { kind: 'series', r: resolveSeries(s as MetricRef, field, ctx, { as: 'side', test }) };
 }
 
 /** The display name of a side (report 8.5 conditions[].metric: '<id>.<output>', '<lhs> x <rhs>'). */
@@ -283,7 +286,7 @@ function bindValue(id: string, t: ValueTest, f: string, ctx: BindContext, catalo
     };
   }
   if (m.kind === 'rank') return bindRank(id, m as RankRef, t, f, ctx, catalog);
-  if (m.kind === 'pattern') throw new ScreenerError('INVALID_CONDITION', `${f}.metric: a pattern is a signal, not a value; use it in a state or event test ({"kind":"state","pattern":...}).`, `${f}.metric`);
+  if (m.kind === 'pattern') throw notSeriesRefusal(m, `${f}.metric`, { as: 'value' }, ctx.place, catalog);
   const r = resolveSeries(m, `${f}.metric`, ctx);
   // OPERATORS.md section 4 (operators 1 and 15 by the output type: not on lots per transaction or a price level; no
   // range on a 0/1 signal), then K7
@@ -331,7 +334,7 @@ function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string,
   const ops = kind === 'state' ? ['gt', 'lt'] : ['crosses_above', 'crosses_below'];
   if (!ops.includes(op)) throw new ScreenerError('INVALID_CONDITION', `${f}.op must be ${ops.join(' or ')}.`, `${f}.op`, { allowed: ops });
   if (!isObj(lhs) || !isObj(rhs)) throw new ScreenerError('INVALID_CONDITION', `${f}: lhs and rhs are both required.`, f);
-  const L0 = bindSide(lhs, `${f}.lhs`, ctx), R0 = bindSide(rhs, `${f}.rhs`, ctx);
+  const L0 = bindSide(lhs, `${f}.lhs`, ctx, kind), R0 = bindSide(rhs, `${f}.rhs`, ctx, kind);
   // the lag probe's rule (report 6.8): a bar field compared with a series that same-bar comparisons can never pass
   // reads the series' previous bar. The bar field's direction decides the lag: price gt / crosses_above x reads
   // x.compareLag.gt; with the bar field on the right (x gt price, i.e. price lt x) the direction turns over
@@ -413,7 +416,7 @@ const RANK_LEVELS = RANK_TEST?.not_on_levels !== false;
     lookback, as a VALUE test on it would. */
 function bindRank(id: string, m: RankRef, t: ValueTest, f: string, ctx: BindContext, catalog: MetricsCatalog): RawBound {
   if (!isObj(m.of)) throw new ScreenerError('INVALID_CONDITION', `${f}.metric.of must be the metric reference to rank.`, `${f}.metric.of`);
-  const of = resolveSeries(m.of as MetricRef, `${f}.metric.of`, ctx);
+  const of = resolveSeries(m.of as MetricRef, `${f}.metric.of`, ctx, { as: 'rank' });
   if ((RANK_LEVELS && of.comparableWith !== null) || NOT_RANKED.includes(String(of.unit)))
     throw new ScreenerError('INVALID_CONDITION', `${f}.metric.of: ${of.label} is ${of.comparableWith ? 'a price or volume level' : `in ${of.unit}`}, which depends on each stock's price or size, so ranking it across stocks only orders them by price or size. Rank a series that compares across stocks: a percent, an oscillator, a percentile or a z-score (right: rank of RSI or of a change in %; wrong: rank of the close).`, `${f}.metric.of`);
   typeAllows(of, 'rank', `${f}.metric.of`);
@@ -435,6 +438,20 @@ function bindRank(id: string, m: RankRef, t: ValueTest, f: string, ctx: BindCont
   };
 }
 
+/** The refusal of a window's count (OPERATORS.md operator 9; section 5 "K > N"; AGENTS.md "Gates and evidence"): the
+    rule (a whole number of sessions from 1 to the window's length), what is wrong with the count given, and a right and
+    a wrong example, the wrong one the count given (QA unit C: "0 of 5" was answered with "6 of 5", and a count sent as
+    text with "3 of 5 cannot be met"). A count left out (or null) is "required". */
+function countRefusal(f: string, count: unknown, L: number): ScreenerError {
+  const right = `${Math.min(3, L)} of ${L}`;
+  if (count === undefined || count === null)
+    return new ScreenerError('INVALID_CONDITION', `${f}.count is required with mode at_least: how many of the ${L} sessions must pass, a whole number from 1 to ${L} (right: ${right}; wrong: no count, or 0 of ${L}).`, `${f}.count`);
+  const n = typeof count === 'number' && Number.isFinite(count) ? count : null;
+  const why = n === null ? `${JSON.stringify(count)} is not a number` : !Number.isInteger(n) ? `${n} is not a whole number of sessions`
+    : n < 1 ? `${n} is below 1, so the test would pass without a single passing session` : `${n} is more than the ${L} sessions of the window, so it can never be met`;
+  return new ScreenerError('INVALID_CONDITION', `${f}.count must be a whole number of sessions from 1 to the window length ${L}: ${why} (right: ${right}; wrong: ${n === null ? JSON.stringify(count) : n} of ${L}).`, `${f}.count`);
+}
+
 /** Operators 5, 9, 10 (OPERATORS.md; contract.ts WindowTest): the inner VALUE or STATE comparison, bound once, read on
     each of the `length` sessions ending at the evaluation bar by evaluating it with the evaluation bar moved there (the
     same code, lags and NA reasons as the condition alone; its tails hold within_max + 1 bars, so every session up to
@@ -449,9 +466,7 @@ function bindWindow(id: string, t: WindowTest, f: string, ctx: BindContext): Raw
   let count = 1;
   if (t.mode === 'at_least') {
     count = t.count as number;
-    if (count === undefined) throw new ScreenerError('INVALID_CONDITION', `${f}.count is required with mode at_least: how many of the ${L} sessions must pass (right: 3 of 5).`, `${f}.count`);
-    if (!(Number.isInteger(count) && count >= 1 && count <= L))
-      throw new ScreenerError('INVALID_CONDITION', `${f}.count must be a whole number from 1 to the window length ${L} ("${count} of ${L}" cannot be met; right: 3 of 5; wrong: 6 of 5).`, `${f}.count`);
+    if (!(Number.isInteger(count) && count >= 1 && count <= L)) throw countRefusal(f, t.count, L);
   } else if (t.count !== undefined) throw new ScreenerError('INVALID_CONDITION', `${f}.count is used only with mode at_least; remove it.`, `${f}.count`);
   const it = t.test as unknown as Record<string, unknown>;
   // the inner test (OPERATORS.md 5, 9, 10: "an inner condition"): a value test, a state comparison or pattern, or an event
@@ -460,14 +475,16 @@ function bindWindow(id: string, t: WindowTest, f: string, ctx: BindContext): Raw
     throw new ScreenerError('INVALID_CONDITION', `${f}.test must be a value test, a state test or an event with within 1 on the ticker's bars.`, `${f}.test`, { allowed: ['value', 'state', 'event'] });
   if (it.kind === 'event' && it.within !== 1)
     throw new ScreenerError('INVALID_CONDITION', `${f}.test.within must be 1 inside a window: the window counts the sessions on which the cross or pattern happened (right: crosses above 70 on 3 of the last 10 sessions = an event with within 1 in a window of 10; wrong: within 5 inside it).`, `${f}.test.within`);
-  // an event inside a window is read one session at a time: bound with within_max 1, so its tail read reaches one bar back
-  const inner = bindTest(id, t.test as Test, `${f}.test`, it.kind === 'event' ? { ...ctx, withinMax: 1 } : ctx);
+  // an event inside a window is read one session at a time: bound with within_max 1, so its tail read reaches one bar back;
+  // a refusal of its references says how to pass inside a window (metrics.ts notSeriesRefusal)
+  const inner = bindTest(id, t.test as Test, `${f}.test`, { ...ctx, place: 'window', ...(it.kind === 'event' ? { withinMax: 1 } : {}) });
   // OPERATORS.md section 4: a window mode the catalog does not offer on the inner series' output type (a streak of a run)
   const spec = METRICS_CATALOG.operators.tests.find(x => x.key === t.mode), type = inner.series.length ? outputType(inner.series[0]) : null;
   if (type && spec?.not_on?.includes(type))
     throw new ScreenerError('INVALID_CONDITION', `${f}.mode: ${inner.series[0].label} ${METRICS_CATALOG.operators.types[type].words}, so "${spec.label}" is not offered on it: it already counts sessions in a row. Test the run itself (right: rising run >= 3; wrong: rising run >= 1 for 3 sessions in a row).`, `${f}.mode`, { allowed: WINDOW_MODES.filter(m => m !== t.mode) });
+  // a value per stock at the evaluation date (a universe attribute, a cross-sectional value, a rank) has no sessions to count
   if (inner.xsection || inner.universeAttr !== null)
-    throw new ScreenerError('INVALID_CONDITION', `${f}.test: a window counts sessions of a series on the ticker's bars; ${inner.summary.metric} has one value per ticker at the evaluation date (use it in a value test alone).`, `${f}.test.metric`);
+    throw notSeriesRefusal((t.test as ValueTest).metric, `${f}.test.metric`, { as: 'value' }, 'window', ctx.catalog ?? METRICS_CATALOG);
   const test: WindowTest = { kind: 'window', mode: t.mode, length: L, ...(t.mode === 'at_least' ? { count } : {}), test: inner.test as WindowTest['test'] };
   const word = t.mode === 'ever' ? `ever in ${L}` : t.mode === 'at_least' ? `${count} of ${L}` : `${L} in a row`;
   return {

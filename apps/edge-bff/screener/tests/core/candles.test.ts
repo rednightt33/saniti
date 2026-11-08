@@ -93,7 +93,8 @@ describe('validation: the core\'s ranges, refused with the field and the range',
     e = refusal(() => validateTest(at({ kind: 'pattern', type: 'bullish_engulfing', params: { penetration_pct: 50 } }), 'c', CTX));
     expect([e.code, e.field]).toEqual(['INVALID_CONDITION', 'c.signal.pattern.params.penetration_pct']);
     e = refusal(() => validateTest({ kind: 'value', metric: { kind: 'pattern', type: 'hammer' }, op: 'gt', value: 0 }, 'c', CTX));
-    expect(e.message).toMatch(/a pattern is a signal, not a value/);
+    // the class of a reference that is not a series (metrics.ts notSeriesRefusal; tests/core/not-series.test.ts)
+    expect([e.field, e.message]).toEqual(['c.metric', expect.stringMatching(/^c\.metric: Hammer is a pattern: a 0\/1 signal.*"Detected".*right: Hammer detected within 3 sessions.*wrong: Hammer = 1\)\.$/)]);
   });
 });
 
