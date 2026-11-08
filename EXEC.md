@@ -12607,6 +12607,12 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   (bawaan) atau rentang yang dipilih di chart (Alt + B); cara hitung harga pokok A atau B berlaku untuk keduanya.
 - User 2026-11-08: "oke A" atas akhir periode cara pertama: sampai candle terakhir yang terlihat di layar (seperti periode
   "Chart" jendela Broker summary).
+- FL50 dikunci, user 2026-11-08: "berarti intinya untuk FL50 = dari top 6 broker (3buy dan 3 sell) beraap porsi asing nett
+  as percentage of total transaction (gross buy?)", lalu "Ok, lock ya masukan exec". Rumus: enam broker = Top N pembeli
+  bersih dan Top N penjual bersih periode itu (dipilih dari net semua investor); Foreign % = Σ (beli asing − jual asing)
+  keenam broker ÷ total nilai beli semua broker (board terpilih) × 100; Domestic % sama untuk transaksi domestik;
+  Foreign + Domestic = verdict Top brokers. Bawaan 5D bergulir, Top 3, Regular; Verdict sebagai opsi. Contoh BBRI
+  28 Okt–3 Nov: −599,46 B ÷ 3.842,6 B = −15,60%; +354,73 B ÷ 3.842,6 B = +9,23%; jumlah −6,37%.
 
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
 
