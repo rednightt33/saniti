@@ -12818,6 +12818,11 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 2. C2: chip parameter indikator Flow di judul kolom hasil membuka kartunya di Screen builder (tab Conditions, panel
    dibuka bila terlipat, isian ditampilkan, kartu disorot sebentar, fokus ke isian pertama). Chip indikator lain tetap
    membuka editor cepat.
+2b. Koreksi 2026-11-08 (kata user: "Klik 5 maka harusnya yang nongol adalah seperti versi simple moving average, bukan
+   malah nongol custom di sebelah kiri bagian screenbuilder"): chip Flow kini membuka kotak yang sama dengan SMA, dengan
+   isian Flow (daftar board/investor sebagai kotak centang, tanggal, kode broker; `param-fields.ts` flowControlHtml).
+   Pembukaan kartu di builder dihapus. Juga (kata user: "kenapa malah added jadi begitu?"): tombol "Added ✓" di Add a
+   condition kembali satu baris (kolom tombol 88 px lagi; rilis `63036b07` menyempitkannya ke 72 px).
 3. Garis cost Loaders: diperiksa di stand-in (BBRI, 1440 px), tanpa perubahan kode. Cost lines ON + In view + Alt+B:
    garis tampil dan periode ikut tampilan; Cost lines OFF: tidak ada garis. Ini sudah sesuai kata user.
 

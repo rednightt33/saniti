@@ -5,9 +5,10 @@
    card, so the change is a pending edit that waits for Screen now like any other. Nothing is computed here. */
 import { esc } from '../format.ts';
 import { ctx, entryOf, S } from '../state.ts';
-import { optionText, rangeText, type Entry, type EntryParam } from '../entries.ts';
+import { isFlowType, optionText, rangeText, type Entry, type EntryParam } from '../entries.ts';
+import { flowControlHtml } from '../param-fields.ts';
 import { cardName, optOf, displayUnit, type Card } from '../forms.ts';
-import { onBuilderField, colorOf, openCardToEdit } from '../builder.ts';
+import { onBuilderField, colorOf } from '../builder.ts';
 import { toast } from '../dialogs.ts';
 
 let box: HTMLElement | null = null, id: string | null = null, tip: HTMLElement | null = null, tipT: ReturnType<typeof setTimeout> | undefined;
@@ -40,10 +41,13 @@ function html(c: Card, e: Entry): string {
   const F = fields(e, c), R = rule(e, c), n = S.cards.indexOf(c) + 1, ch = changed(e, c), defO = e.opts.find(x => x.key === e.def.opt);
   const fld = (x: PF) => {
     const a = x.two ? 'data-p2' : 'data-p', q = x.p, lab = (x.two ? '2nd ' : '') + (q.label || q.key);
-    const ctl = q.options ? `<select class="sel" data-c="${c.id}" ${a}="${esc(q.key)}">${q.options.map(v => `<option value="${esc(v)}"${String(v) === String(x.v) ? ' selected' : ''}>${esc(optionText(q, v))}</option>`).join('')}</select>`
+    /* a flow indicator's list, date or broker codes (user 2026-11-08: its chip opens this same box, as SMA's) */
+    const ctl = isFlowType(q) ? flowControlHtml(q, x.v as any, `data-c="${c.id}" ${a}="${esc(q.key)}"`, lab, '', !!x.err)
+      : q.options ? `<select class="sel" data-c="${c.id}" ${a}="${esc(q.key)}">${q.options.map(v => `<option value="${esc(v)}"${String(v) === String(x.v) ? ' selected' : ''}>${esc(optionText(q, v))}</option>`).join('')}</select>`
       : q.type === 'boolean' ? `<select class="sel" data-c="${c.id}" ${a}="${esc(q.key)}"><option value="true"${x.v === true ? ' selected' : ''}>true</option><option value="false"${x.v === false ? ' selected' : ''}>false</option></select>`
       : `<input class="inp" type="number" ${q.min != null ? `min="${q.min}"` : ''} ${q.max != null ? `max="${q.max}"` : ''} step="${q.step ?? (q.integer ? 1 : 'any')}" data-c="${c.id}" ${a}="${esc(q.key)}" value="${esc(x.v)}" aria-invalid="${!!x.err}">`;
-    return `<label class="pf6${x.ch ? ' chg' : ''}" data-pf6="${x.two ? '2.' : ''}${esc(q.key)}"><span>${esc(lab)}</span>${ctl}<small>default ${esc(optionText(q, x.d))}${rangeText(q) ? `<i class="rng"> · ${esc(rangeText(q))}</i>` : ''}</small><em class="pf6-err" role="alert"${x.err ? '' : ' hidden'}>${esc(x.err || '')}</em></label>`;
+    const tag = q.type === 'multi' ? 'div' : 'label';             // a checkbox group is not one labelled control
+    return `<${tag} class="pf6${x.ch ? ' chg' : ''}${q.type === 'multi' ? ' w' : ''}" data-pf6="${x.two ? '2.' : ''}${esc(q.key)}"><span>${esc(lab)}</span>${ctl}<small>default ${esc(optionText(q, x.d))}${rangeText(q) ? `<i class="rng"> · ${esc(rangeText(q))}</i>` : ''}</small><em class="pf6-err" role="alert"${x.err ? '' : ' hidden'}>${esc(x.err || '')}</em></${tag}>`;
   };
   return `<div class="pe6-h"><i class="cdot" style="background:${colorOf(c)}"></i><b>${esc(cardName(e, c))}</b><span class="pe6-st">${ch ? '<span class="st6 on">Changed</span>' : '<span class="st6">Default</span>'}</span></div>
     <div class="pe6-sub">Condition ${n} in the Screen builder</div>
@@ -135,7 +139,6 @@ let debounce: ReturnType<typeof setTimeout> | undefined;
 export function bindHeaderEdit() {
   const pane = document.getElementById('resPane')!;
   pane.addEventListener('click', e => { const ch = (e.target as HTMLElement).closest('[data-pedit]') as HTMLElement | null; if (ch) { e.preventDefault(); e.stopPropagation(); openEditor(ch.dataset.pedit!) } }, true);
-  pane.addEventListener('click', e => { const ch = (e.target as HTMLElement).closest('[data-pcard]') as HTMLElement | null; if (ch) { e.preventDefault(); e.stopPropagation(); closeEditor(false); openCardToEdit(ch.dataset.pcard!) } }, true);
   pane.addEventListener('mouseover', e => { const ch = (e.target as HTMLElement).closest('[data-pedit]') as HTMLElement | null; if (!ch || ch.contains(e.relatedTarget as Node)) return; clearTimeout(tipT); tipT = setTimeout(() => showTip(ch), 250) });
   pane.addEventListener('mouseout', e => { const ch = (e.target as HTMLElement).closest('[data-pedit]') as HTMLElement | null; if (!ch || ch.contains(e.relatedTarget as Node)) return; hideTip() });
   document.addEventListener('change', e => { const t = e.target as HTMLInputElement; if (box?.contains(t) && t.matches('[data-c]')) { clearTimeout(debounce); apply(t) } });

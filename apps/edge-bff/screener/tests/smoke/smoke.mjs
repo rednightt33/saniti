@@ -312,7 +312,7 @@ await at('Add a condition sets the parameters too (user 2026-11-06, option A): L
   expect(await card.locator('[data-p="length"]').inputValue() === '50' && await card.locator('[data-segc].on').count() === 1, 'the card does not hold Length 50 as Custom: ' + await card.innerText());
   expect(await runs() === r0 && await pendingShown(), 'adding ran the screen, or did not mark the table out of date');
 });
-await at('C2 and Operator… on a card (user 2026-11-08): a flow chip in the results header opens its card; a builder card offers Operator… and it opens Add a condition with the operator panel', async () => {
+await at('Flow chip and Operator… (user 2026-11-08): a flow chip in the results header opens the same box as SMA's; a builder card offers Operator… and it opens Add a condition with the operator panel', async () => {
   await fresh(); await ready();
   for (const name of ['Foreign Net Value', 'Simple Moving Average']) {
     await page.click('#pageActs [data-hd="add"]'); await page.waitForTimeout(250);
@@ -321,11 +321,13 @@ await at('C2 and Operator… on a card (user 2026-11-08): a flow chip in the res
     await page.keyboard.press('Escape'); await page.waitForTimeout(150);
   }
   await page.click('.top-screen'); await page.waitForTimeout(2500);
-  const kinds = await page.$$eval('#resPane .pvchip', xs => xs.map(x => x.dataset.pcard ? 'card' : x.dataset.pedit ? 'edit' : '?'));
-  expect(kinds.includes('card') && kinds.includes('edit'), 'the flow chip does not open its card or the SMA chip lost its editor: ' + kinds);
-  await page.locator('#resPane [data-pcard]').first().click(); await page.waitForTimeout(300);
-  const at_ = await page.evaluate(() => { const c = document.activeElement?.closest('[data-card]'); return { nm:c?.querySelector('[data-nm]')?.textContent, grid:!!c?.querySelector('.pgrid') } });
-  expect(/Foreign Net Value/.test(at_.nm || '') && at_.grid, 'the flow chip did not open its card with its fields: ' + JSON.stringify(at_));
+  // user 2026-11-08: the flow chip opens the same box as SMA's, with the flow fields (lists, dates, codes)
+  const fnv = page.locator('#resPane th', { hasText:'Foreign Net Value' }).locator('[data-pedit]');
+  expect(await fnv.count() === 1, 'Foreign Net Value has no parameter chip');
+  await fnv.click(); await page.waitForTimeout(300);
+  const box = await page.evaluate(() => { const b = document.querySelector('.pe6'); return b && { name:b.querySelector('.pe6-h b')?.textContent, boxes:b.querySelectorAll('.msel input[type="checkbox"]').length } });
+  expect(box && /Foreign Net Value/.test(box.name) && box.boxes > 0, 'the flow chip did not open the header box with its list fields: ' + JSON.stringify(box));
+  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
   const sel = page.locator('#condList .mc', { has:page.locator('[data-nm]', { hasText:/Simple Moving/ }) }).first().locator('select[data-k="op"]');
   if (!(await sel.isVisible())) { await page.locator('#condList .mc', { has:page.locator('[data-nm]', { hasText:/Simple Moving/ }) }).first().click(); await page.waitForTimeout(200) }
   expect((await sel.evaluate(s => [...s.options].map(o => o.text))).includes('Operator…'), 'the builder card offers no Operator…');

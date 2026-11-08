@@ -178,20 +178,6 @@ function setBtab(k: BTab) {
   ($('cardC')?.querySelector(`[data-btab="${k}"]`) as HTMLElement | null)?.focus();
   const c = $('cardC'); if (c) c.scrollTop = 0;
 }
-/** C2 (user 2026-11-08): a flow indicator's chip in the results header opens its card in the Screen builder to edit
-    (its lists, dates and broker codes have fields only there): the Conditions tab, the pane open, the card open with its
-    fields shown, scrolled into view, its first field focused. */
-export function openCardToEdit(id: string) {
-  if (!S.cards.some(c => c.id === id)) return;
-  btab = 'cond'; S.bOpen = true; layoutHooks.expandBuilder();
-  openRows.add(id); S.open.add(id);
-  renderConds();
-  const card = $('condList')?.querySelector<HTMLElement>(`[data-card="${CSS.escape(id)}"]`);
-  if (!card) return;
-  card.scrollIntoView({ block:'nearest', inline:'nearest' });
-  card.classList.add('flash'); setTimeout(() => card.classList.remove('flash'), 1200);
-  (card.querySelector('.pgrid :is(input,select)') as HTMLElement | null ?? card)?.focus?.({ preventScroll:true });
-}
 /** a click on a compact condition row (not on one of its controls) opens it to edit, or closes it (wide layout) */
 export function toggleRow(id: string) {
   if (!S.cards.some(c => c.id === id)) return;

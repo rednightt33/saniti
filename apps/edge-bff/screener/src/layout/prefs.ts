@@ -29,8 +29,6 @@ export const layoutHooks = {
   afterDetails: () => {},
   /** the builder's header toggle on a wide screen: collapse the pane to its rail; false when not handled */
   collapseBuilder: (): boolean => false,
-  /** open the builder pane when it is folded to its rail (a card opened to edit from elsewhere) */
-  expandBuilder: (): void => {},
   /** open the More filters dialog at a group (quick filters); false when not handled */
   openFiltersAt: (_group: string): boolean => false,
 };
