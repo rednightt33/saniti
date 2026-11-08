@@ -792,6 +792,9 @@ await at('P4: stale and price-break stocks hidden by default, shown with remarks
   const n0 = Number((await text('#uCount')).match(/In universe ([\d,]+)/)[1]);
   const chips = await page.evaluate(() => document.querySelector('#cardU .chipbar').textContent.replace(/\s+/g, ' '));
   expect(/Traded on 2026-10-23 hides 2/.test(chips) && /No unadjusted price break hides 2/.test(chips), 'P4 chips missing: ' + chips);
+  // user 2026-11-08 (option 9): the filters are round icons; a click opens their list with the × buttons
+  expect(await page.locator('#cardU .chipbar .ficon').count() >= 4 && await page.locator('#uFlist').isHidden(), 'the active filters are not round icons with their list closed');
+  await page.click('#cardU .chipbar .ficon'); await page.waitForTimeout(100);
   await page.click('[data-uclear="traded"]'); await page.waitForTimeout(100);
   await page.click('[data-uclear="breaks"]'); await page.waitForTimeout(100);
   const n1 = Number((await text('#uCount')).match(/In universe ([\d,]+)/)[1]);
@@ -809,7 +812,7 @@ await at('P4: stale and price-break stocks hidden by default, shown with remarks
   expect(/Price break: stock split \(1:5\) ex 2026-/.test(title || ''), `price-break remark: ${title}`);
   await page.fill('#tq', '');
   await page.click('[data-open="p:oversold"]'); await page.waitForTimeout(100);
-  await page.click('[data-uclear="breaks"]').catch(() => {}); await screen();
+  await page.click('#cardU .chipbar .ficon').catch(() => {}); await page.click('[data-uclear="breaks"]').catch(() => {}); await screen();
   // a shown price-break stock keeps its values; a cell whose look-back crosses the ex-date is marked
   await page.evaluate(() => { const n = document.getElementById('nearT'); if (n && !n.checked) n.click() });
   await page.fill('#tq', 'GOTO');

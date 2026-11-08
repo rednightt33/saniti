@@ -34,12 +34,20 @@ export function universeEdited(u = S.universe): boolean {
 }
 
 /** the active-filter chips (scopeChips) */
+/* user 2026-11-08 (the HTML of ten options, "Opsi 9"): each active filter is a small round icon on the bar (its short
+   name, and how many stocks it hides as a count), the full wording in its tooltip; a click opens the list of every
+   filter in full, with its remove (×) or Hide button. The bar stays one line. */
+const ICON_OF: Record<string, string> = { sectors_in:'Sec', sectors_out:'−Sec', industries_in:'Ind', industries_out:'−Ind', include_unclassified:'Unc', adv:'Rp', price:'Px', min_history_bars:'Hist', tickers:'Tkr', traded:'Trd', breaks:'Brk' };
 function scopeChips(): { html: string; removable: number; texts: string[] } {
-  const U = S.universe, out: string[] = [], texts: string[] = []; let n = 0;
-  const add = (label: string, val: string, clear: string | null, title = '') => {
+  const U = S.universe, out: string[] = [], texts: string[] = [], icons: string[] = []; let n = 0;
+  const icon = (key: string, full: string, count: string, cls = '') =>
+    icons.push(`<button type="button" class="ficon ${cls}" data-flist title="${esc(full)}" aria-label="${esc(full)}: show the active filters">${esc(ICON_OF[key] || (key.startsWith('f') ? 'F' + (Number(key.slice(1)) + 1) : '·'))}${count ? `<em>${esc(count)}</em>` : ''}</button>`);
+  const add = (label: string, val: string, clear: string | null, title = '', key = clear || '') => {
     if (clear && clear !== 'traded' && clear !== 'breaks') n++;     // the P4 chips are on by default: not an edit
     texts.push(`${label} ${val}`.trim());
     out.push(`<span class="fchip ${clear ? '' : 'fixed'}"${title ? ` title="${esc(title)}"` : ''}>${esc(label)} <b>${esc(val)}</b>${clear ? `<button data-uclear="${clear}" title="Remove filter" aria-label="Remove ${esc(label)} filter">${ico(IC.x, 's')}</button>` : ''}</span>`);
+    const hides = /^hides (\d+)$/.exec(val)?.[1] || '';
+    icon(key, `${label} ${val}`.trim(), hides);
   };
   const list = (a: string[], one: string, many: string) => a.length > 2 ? `${a.length} ${many}` : a.join(', ') || one;
   if (U.sectors_in?.length) add('Sector', list(U.sectors_in, '', 'sectors'), 'sectors_in');
@@ -48,17 +56,18 @@ function scopeChips(): { html: string; removable: number; texts: string[] } {
   if (U.industries_out?.length) add('Excluding industry', list(U.industries_out, '', 'industries'), 'industries_out');
   if (U.include_unclassified) add('Keeps', 'unclassified', 'include_unclassified', 'Stocks without a sector or industry are kept by the include filters.');
   const ab = advB(U);
-  if (ab != null) add('Avg value ≥', `Rp ${nf(ab, ab % 1 ? 1 : 0)}B`, U.adv20_min_idr === UNIVERSE_DEFAULTS.adv20_min_idr ? null : 'adv', 'Average daily traded value over 20 sessions (close × volume). Default Rp 1B.');
-  if (U.price_min != null) add('Price ≥', `Rp ${nf(U.price_min)}`, U.price_min === UNIVERSE_DEFAULTS.price_min ? null : 'price', 'Last close. Default Rp 50.');
+  if (ab != null) add('Avg value ≥', `Rp ${nf(ab, ab % 1 ? 1 : 0)}B`, U.adv20_min_idr === UNIVERSE_DEFAULTS.adv20_min_idr ? null : 'adv', 'Average daily traded value over 20 sessions (close × volume). Default Rp 1B.', 'adv');
+  if (U.price_min != null) add('Price ≥', `Rp ${nf(U.price_min)}`, U.price_min === UNIVERSE_DEFAULTS.price_min ? null : 'price', 'Last close. Default Rp 50.', 'price');
   if (U.min_history_bars != null) add('History ≥', `${nf(U.min_history_bars)} sessions`, 'min_history_bars');
   if (U.tickers?.length) add('Tickers', U.tickers.length > 3 ? `${U.tickers.length} stocks` : U.tickers.join(', '), 'tickers');
   U.filters.forEach((f, i) => add('Filter', condText(ctx.byKey.get(f.entry || ''), f), 'f' + i));
   const h = hidden(), E = ctx.catalog?.data.evaluation_date || null;
   if (U.traded_on_eval_date) add(chipTraded(E), h ? `hides ${h.stale}` : '', 'traded', 'Hides stale stocks (no trade on the evaluation date). Remove to list them with a remark.');
-  else out.push(`<span class="fchip off" title="Stale stocks are listed with a remark">Stale shown <b>${h ? h.stale : ''}</b><button class="link" data-uhide="traded" style="margin-left:4px">Hide</button></span>`);
+  else { out.push(`<span class="fchip off" title="Stale stocks are listed with a remark">Stale shown <b>${h ? h.stale : ''}</b><button class="link" data-uhide="traded" style="margin-left:4px">Hide</button></span>`); icon('traded', `Stale stocks shown${h ? ` (${h.stale})` : ''}`, '', 'off') }
   if (U.exclude_price_breaks) add(chipNoBreak, h ? `hides ${h.breaks}` : '', 'breaks', 'Hides stocks whose price history crosses an unadjusted corporate action (temporary: until the price history is adjusted for corporate actions). Remove to list them with a remark.');
-  else out.push(`<span class="fchip off" title="Stocks with a price break are listed with a remark; their values are shown and marked">Price breaks shown <b>${h ? h.breaks : ''}</b><button class="link" data-uhide="breaks" style="margin-left:4px">Hide</button></span>`);
-  return { html:out.join(''), removable:n, texts };
+  else { out.push(`<span class="fchip off" title="Stocks with a price break are listed with a remark; their values are shown and marked">Price breaks shown <b>${h ? h.breaks : ''}</b><button class="link" data-uhide="breaks" style="margin-left:4px">Hide</button></span>`); icon('breaks', `Price breaks shown${h ? ` (${h.breaks})` : ''}`, '', 'off') }
+  // the icons on the bar, and the full list they open (its open state survives a redraw)
+  return { html:icons.join('') + `<div class="flist" id="uFlist" role="dialog" aria-label="Active filters"${flistOpen ? '' : ' hidden'}>${out.join('')}</div>`, removable:n, texts };
 }
 
 type QFDef = [key: string, label: string, val: (u: UState) => string, on: (u: UState) => boolean, disabled?: string];
@@ -276,8 +285,16 @@ export function openDrawer(on: boolean) {
 
 const edit = (level: 'universe' | 'universe-light' = 'universe') => { ui.markDirty(); ui.refresh(level) };
 /** delegated clicks of the universe card, popover and drawer (the universe part of the prototype's onClick) */
+let flistOpen = false;
+/** the active filters' list (option 9): opened by any icon, closed by another click on one, Escape or a click outside */
+export function setFlist(open: boolean) { flistOpen = open; const l = document.getElementById('uFlist'); if (l) l.hidden = !open }
+if (typeof document !== 'undefined') {
+  document.addEventListener('pointerdown', e => { const t = e.target as HTMLElement; if (flistOpen && !t.closest('#uFlist, [data-flist]')) setFlist(false) }, true);
+  document.addEventListener('keydown', e => { if (flistOpen && e.key === 'Escape') { setFlist(false); (document.querySelector('[data-flist]') as HTMLElement | null)?.focus() } });
+}
 export function onUniverseClick(b: HTMLElement): boolean {
   const U = S.universe, d = b.dataset;
+  if (d.flist !== undefined) { setFlist(!flistOpen); return true }
   // EXEC-SCREENER-V21: on a wide screen a quick filter opens More filters at its group (reference layout.js 616-626)
   if (d.qf) { if (wide() && (d.qf === 'sector' || d.qf === 'liq') && layoutHooks.openFiltersAt(d.qf)) return true; openPop(d.qf); return true }
   if (d.na != null) { toggleNa(b); return true }

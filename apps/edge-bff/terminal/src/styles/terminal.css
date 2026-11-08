@@ -1695,3 +1695,5 @@ select.idlg-in,.side.right select{-webkit-appearance:none;appearance:none;backgr
 .workspace.chart-max > .side,.workspace.chart-max > .side-resize,.workspace.chart-max .side.right,.workspace.chart-max #statsPanel,.workspace.chart-max #brokerPanel,.workspace.chart-max #flowPanel,.workspace.chart-max .flow-grip,.workspace.chart-max .side-rail{display:none !important}
 .pane-max .max-off,.pane-max[data-max-pane]:not([data-max-pane="0"]) .chart-legend{visibility:hidden}
 .workspace.chart-max .main-col,html.fit .workspace.chart-max .main-col{grid-template-rows:46px minmax(200px,1fr) 0}
+/* user 2026-11-08: a box over the whole Terminal page (placeBox keeps it in the window) */
+.ind-box{position:fixed;max-width:calc(100vw - 16px)}

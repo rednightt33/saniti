@@ -152,14 +152,14 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
 { const ctx = await b.newContext({ viewport:{ width:1440, height:900 } }), p = await ctx.newPage(); p.on('pageerror', e => errs.push('box ' + e.message));
   await p.addInitScript(() => { if (!sessionStorage.getItem('s')) { sessionStorage.setItem('s', '1'); localStorage.setItem('ml.ind.v1', JSON.stringify([{ def:'FL51', params:{ lines:true } }, { def:'FL52', params:{} }])) } });
   await p.goto(origin + '/terminal-app/'); await p.waitForFunction(() => !document.querySelector('.ml-boot'), null, { timeout:30000 }); await p.waitForTimeout(3000);
-  const geo = () => p.evaluate(() => { const box = document.querySelector('.ind-box[data-def="FL51"]'), st = box.parentElement.getBoundingClientRect(), r = box.getBoundingClientRect(), head = box.querySelector('.ldb-head');
-    return { inside:r.left >= st.left && r.top >= st.top && r.right <= st.right && r.bottom <= st.bottom,
+  const geo = () => p.evaluate(() => { const box = document.querySelector('.ind-box[data-def="FL51"]'), st = document.querySelector('.chart-legend').parentElement.getBoundingClientRect(), r = box.getBoundingClientRect(), head = box.querySelector('.ldb-head');
+    return { inside:r.left >= st.left && r.top >= st.top && r.right <= st.right && r.bottom <= st.bottom, inWin:r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
       headLines:new Set([...head.children].map(c => Math.round(c.getBoundingClientRect().top + c.getBoundingClientRect().height / 2))).size,
       col:(() => { const th = box.querySelector('.ldb-t th'), mk = box.querySelector('.ldb-b'), t0 = head.querySelector('b').getBoundingClientRect().left;
         return [th.getBoundingClientRect().left + parseFloat(getComputedStyle(th).paddingLeft) - t0, mk.getBoundingClientRect().left + parseFloat(getComputedStyle(mk).paddingLeft) - t0].map(v => +v.toFixed(1)) })(), rows:box.querySelectorAll('.ldb-t tbody tr').length } });
   R.box = { first:await geo(), head:await ink(p, '.ind-box[data-def="FL51"] .ldb-head b') };
   /* FL52's box (user 2026-11-08): its head on one line, inside the chart, not over the Loaders box, its text start under the title */
-  R.inv = await p.evaluate(() => { const b = document.querySelector('.ind-box[data-def="FL52"]'), l = document.querySelector('.ind-box[data-def="FL51"]'), st = b.parentElement.getBoundingClientRect();
+  R.inv = await p.evaluate(() => { const b = document.querySelector('.ind-box[data-def="FL52"]'), l = document.querySelector('.ind-box[data-def="FL51"]'), st = document.querySelector('.chart-legend').parentElement.getBoundingClientRect();
     const r = b.getBoundingClientRect(), q = l.getBoundingClientRect(), head = b.querySelector('.ldb-head'), t0 = head.querySelector('b').getBoundingClientRect().left, th = b.querySelector('.ldb-t th');
     return { headLines:new Set([...head.children].map(c => Math.round(c.getBoundingClientRect().top + c.getBoundingClientRect().height / 2))).size,
       inside:r.left >= st.left && r.right <= st.right && r.top >= st.top && r.bottom <= st.bottom, apart:r.right <= q.left || r.left >= q.right || r.bottom <= q.top || r.top >= q.bottom,
@@ -167,7 +167,8 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
   check('inventory box head one line, inside the chart, apart from the Loaders box, columns under the title', R.inv.headLines === 1 && R.inv.inside && R.inv.apart && Math.abs(R.inv.col) <= 1, R.inv);
   const h = await p.locator('.ind-box[data-def="FL51"] .ldb-head b').boundingBox(); await p.mouse.move(h.x + 4, h.y + 4); await p.mouse.down(); await p.mouse.move(h.x + 900, h.y + 900, { steps:5 }); await p.mouse.up();
   R.box.dragged = await geo();
-  check('loaders box head one line, inside the chart, rows', R.box.first.headLines === 1 && R.box.first.inside && R.box.dragged.inside && R.box.first.rows >= 1, R.box);
+  /* user 2026-11-08: a box dragged may leave the chart (over the whole Terminal) but never the window */
+  check('loaders box head one line, inside the chart, dragged inside the window, rows', R.box.first.headLines === 1 && R.box.first.inside && R.box.dragged.inWin && !R.box.dragged.inside && R.box.first.rows >= 1, R.box);
   /* option E's row is one line; the box resizes from its right edge and its bottom edge and keeps inside the chart; a box
      smaller than its table scrolls (user 2026-11-08) */
   R.box.ctlLines = await p.$eval('.ind-box[data-def="FL51"] .ldb-ctl', c => new Set([...c.children].map(x => Math.round(x.getBoundingClientRect().top))).size);
@@ -176,7 +177,7 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
     const b2 = await p.locator('.ind-box[data-def="FL51"]').boundingBox();
     await p.mouse.move(b2.x + b2.width / 2, b2.y + b2.height - 2); await p.mouse.down(); await p.mouse.move(b2.x + b2.width / 2, b2.y + b2.height - 122, { steps:4 }); await p.mouse.up();
     const b3 = await p.locator('.ind-box[data-def="FL51"]').boundingBox();
-    R.box.resize = { w:[Math.round(bb.width), Math.round(b2.width)], h:[Math.round(b2.height), Math.round(b3.height)], scrolls:await p.$eval('.ind-box[data-def="FL51"] .ldb-scroll', e => e.scrollHeight > e.clientHeight), inside:(await geo()).inside } }
+    R.box.resize = { w:[Math.round(bb.width), Math.round(b2.width)], h:[Math.round(b2.height), Math.round(b3.height)], scrolls:await p.$eval('.ind-box[data-def="FL51"] .ldb-scroll', e => e.scrollHeight > e.clientHeight), inside:(await geo()).inWin } }
   check('loaders box option E row one line, resizes from right and bottom, scrolls, inside', R.box.ctlLines === 1 && R.box.resize.w[1] < R.box.resize.w[0] - 30
     && R.box.resize.h[1] < R.box.resize.h[0] - 100 && R.box.resize.scrolls && R.box.resize.inside, R.box);
   check('loaders box columns start under the head title', R.box.first.col.every(v => Math.abs(v) <= 1), R.box.first.col);

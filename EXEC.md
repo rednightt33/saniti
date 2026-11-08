@@ -12900,6 +12900,33 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   bawah 13 px. Tidak ada error halaman.
 - look_check11 PASS; terminal vitest 887 lulus.
 
+## EXEC-BOX-FREE-AF9 — kotak Loaders bebas di Terminal, All/Foreign/Domestic di kotak, Active filters opsi 9 (go 2026-11-08)
+
+### Kata user
+- 2026-11-08: "active filter tidak seharusnya stacked up seperti ini.. kasih saya 10 opsi dalam 1 HTML. kemudian liat bagian
+  loaders box, saat ini bisa di hover, tapi terbatas hanya pada area chart. kemudian di box loaders bisa tambahkan opsi
+  lagi, foreign, domestic dan all di kotak merah terlampir konfirmasi"
+- 2026-11-08, atas konfirmasi: "1. Bebas di seluruh area Terminal ... --> OK", usulan All · Foreign · Domestic "--> OK",
+  "Opsi 9".
+
+### Yang dibangun
+- Terminal: kotak indikator (Loaders, Broker Inventory) ada di atas halaman (position fixed): bisa digeser dan diubah
+  ukurannya ke mana saja di Terminal (di atas Flow Timeline, panel kanan), tidak keluar jendela browser. Tempat awal tetap
+  di panel harga; kotak mengikuti grafik saat panel dilipat, diperbesar, atau diubah ukurannya. Kotak hanya mengalah ke
+  kotak yang ditambahkan lebih dulu (tempat stabil saat ditempatkan ulang).
+- Terminal: kotak Loaders punya grup All · Foreign · Domestic (parameter Investor type yang sama dengan Settings; pilihan
+  dibaca dari registry).
+- Screener: Active filters opsi 9: tiap filter ikon bulat (nama pendek: Rp, Px, Trd, Brk, Sec, ...; jumlah saham yang
+  disembunyikan sebagai angka kecil), kalimat lengkap di tooltip; klik membuka daftar semua filter dengan × / Hide. Bar
+  satu baris.
+
+### Bukti
+- Stand-in BBRI 1600×900: kotak Loaders digeser ke y 568 (di atas Flow Timeline), lalu didorong ke luar jendela: berhenti
+  di 1025..1592 × 568..892; Domestic menyala dan tersimpan. look_check11 PASS (cek diperbarui: kotak yang digeser boleh
+  keluar grafik tapi tetap di jendela). terminal vitest lulus.
+- Screener fixture 1920/1440/1100: ikon Rp, Px, Trd 2, Brk 2 satu baris; daftar terbuka, × menghapus. screener vitest 1328
+  lulus; smoke dan shots diperbarui (tidak dijalankan penuh).
+
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
 - Kata user 2026-11-08 (dua tangkapan layar TradingView, tombol ^ di bawah daftar nama indikator ditandai "A"): "next up

@@ -309,7 +309,14 @@ export function initFlowIndicators(ctx: Ctx) {
       .map(([v, t]) => `<button type="button" class="ldb-btn${String(cur) === v ? ' on' : ''}" data-param="${key}" data-v="${v}" aria-pressed="${String(cur) === v}">${esc(t)}</button>`).join('')}</span>`;
     /* user 2026-11-08 ("kasih opsi to display cost line ... di bagian floating"): the same parameter as Settings' */
     const lines = `<button type="button" class="ldb-btn ldb-tg${p.lines ? ' on' : ''}" data-param="lines" data-v="${!p.lines}" aria-pressed="${!!p.lines}" title="Cost lines of the loaders on the price chart">Cost lines</button>`;
-    const ctl = `<div class="ldb-ctl">${seg('side', p.side ?? 'both')}${seg('top', String(p.top ?? '3'))}${lines}</div>`;
+    /* user 2026-11-08 ("tambahkan opsi lagi, foreign, domestic dan all"): the investor types the period counts, the same
+       parameter as Settings' Investor type; All is both (the parameter's own options, read from the registry) */
+    const invOpts = (FLOW_REG.indicators.find(x => x.id === 'FL51')!.params.find(q => q.key === 'investors')?.options || []) as string[];
+    const invNow = (Array.isArray(p.investors) ? p.investors : invOpts) as string[], invAll = invOpts.every(o => invNow.includes(o));
+    const inv = invOpts.length > 1 ? `<span class="ldb-seg" role="group" aria-label="Investor type">${[['All', invOpts], ...invOpts.map(o => [o, [o]])].map(([t, v]) => {
+      const on = t === 'All' ? invAll : !invAll && invNow.length === 1 && invNow[0] === t;
+      return `<button type="button" class="ldb-btn${on ? ' on' : ''}" data-param="investors" data-v="${esc((v as string[]).join(','))}" aria-pressed="${on}">${esc(t as string)}</button>` }).join('')}</span>` : '';
+    const ctl = `<div class="ldb-ctl">${seg('side', p.side ?? 'both')}${seg('top', String(p.top ?? '3'))}${inv}${lines}</div>`;
     if (!T || !T.rows.length) return head + ctl + `<div class="ldb-empty">${!ctx.flowRows ? 'Loading broker data' : !ctx.flowRows.n ? 'No broker data for this ticker' : 'No broker data in this period'}</div>`;
     const costLabel = p.cost === 'model' ? 'Cost held' : 'Avg buy', nl = T.nl ?? 0, ns = T.ns ?? 0;
     /* a broker already in Broker Inventory (the right panel's list) is marked; a click still highlights it there (audit U20) */

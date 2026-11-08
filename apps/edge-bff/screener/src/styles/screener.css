@@ -1756,3 +1756,15 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
    table: its host carries .qwin, so the window's panel rules style it (one copy); a flow indicator's panel has no
    "default …" column (option 1): two columns, the field as wide as its content */
 .qwin .qpop.bare .qpl{grid-template-columns:150px minmax(0,1fr)}
+/* user 2026-11-08 (option 9 of the ten): each active filter a round icon (short name, the stocks it hides as a count);
+   a click opens the full list; the bar stays one line */
+.chipbar{position:relative;flex-wrap:nowrap}
+.ficon{position:relative;flex:none;display:inline-grid;place-items:center;min-width:30px;height:30px;padding:0 6px;border:0;border-radius:999px;background:var(--sel);color:var(--text);font:600 11px/1 var(--sans);cursor:pointer}
+.ficon:hover{background:var(--hover)}
+.ficon:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.ficon.off{background:none;border:1px dashed var(--border-2,#d4d4d4);color:var(--text-3)}
+.ficon em{position:absolute;top:-6px;right:-8px;min-width:18px;height:16px;padding:0 4px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--text-2);font:600 10px/14px var(--sans);font-style:normal;text-align:center}
+.flist{position:absolute;z-index:40;top:calc(100% + 4px);left:var(--s-6);display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:280px;padding:10px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow-lg)}
+.flist[hidden]{display:none}
+#cardU .chipbar{flex:1 1 400px}
+#cardU .chipbar>span:first-child,#cardU .chipbar .ucount{white-space:nowrap;flex:none}

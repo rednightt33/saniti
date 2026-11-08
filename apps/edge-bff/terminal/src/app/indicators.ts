@@ -359,6 +359,10 @@ export function initIndicators(ctx: Ctx) {
     box.style.top = Math.max(8, Math.min(rr.bottom + 4, innerHeight - box.offsetHeight - 8)) + 'px' });
   /* QA round 3 (L1): after a resize the rows move once the panes are laid out again, so the panel follows a frame later */
   addEventListener('resize', () => requestAnimationFrame(() => requestAnimationFrame(fltPlace))); addEventListener('scroll', fltPlace, true);
+  /* the boxes are over the page (placeBox): they follow the chart when it moves or changes size (a side panel folded, the
+     Flow Timeline resized, a pane maximised, the page scrolled) */
+  const placeBoxes = () => list.forEach(i => { if(i.box && !i.box.hidden) placeBox(i) });
+  new ResizeObserver(() => placeBoxes()).observe(stage); addEventListener('scroll', placeBoxes, true);
   function buildPaneFilters(inst) {
     const keys = inst.def.paneFilters as string[] | undefined;
     if(!keys || !keys.length || !ctx.makeFilter) return;
@@ -647,21 +651,29 @@ export function initIndicators(ctx: Ctx) {
     const at = inst.style.box || {}, axis = chart.priceScale('right').width() || 0;
     /* EXEC-FLOW-NEW-3 (user 2026-11-08: "membesarkan dan mengecilkan ... border, terus kemudian di drag kiri kanan"): a size
        the user dragged (w, h) inside the chart, else the content's own size */
-    el.style.width = at.w ? `${Math.round(Math.min(Math.max(BOX_MIN_W, at.w), W - 2 * BOX_M))}px` : '';
-    el.style.height = at.h ? `${Math.round(Math.min(Math.max(BOX_MIN_H, at.h), H - 2 * BOX_M))}px` : '';
+    /* user 2026-11-08 ("Bebas di seluruh area Terminal ... tetapi tidak keluar dari jendela browser"): the box lives over
+       the page (position fixed), its place kept in the chart's coordinates; a dragged size or place may reach anywhere in
+       the window, the default place stays in the price pane */
+    const st = stage.getBoundingClientRect(), VW = innerWidth, VH = innerHeight;
+    el.style.width = at.w ? `${Math.round(Math.min(Math.max(BOX_MIN_W, at.w), VW - 2 * BOX_M))}px` : '';
+    el.style.height = at.h ? `${Math.round(Math.min(Math.max(BOX_MIN_H, at.h), VH - 2 * BOX_M))}px` : '';
     /* audit U4: by default under the price chart's legend rows (their buttons stay reachable), by the right axis; on a
        phone (narrow chart) across the chart's foot, at most 42 % of its height (the box scrolls) */
     const narrow = W < 640 && !at.w;
     if(narrow) { el.style.width = `${W - 2 * BOX_M}px`; if(!at.h) el.style.height = `${Math.min(el.scrollHeight, Math.round(H * 0.42))}px` }
-    const lg = legend.getBoundingClientRect(), st = stage.getBoundingClientRect(), under = Math.round(lg.bottom - st.top) + 8;
+    const lg = legend.getBoundingClientRect(), under = Math.round(lg.bottom - st.top) + 8;
     /* audit U4: by default inside the price pane (the lower panes' rows and buttons stay free); the box scrolls */
     if(!narrow && !at.h && at.y === undefined) { const pane0 = (chart.panes()[0]?.getHeight?.() ?? H) - 8, y0 = Math.max(44, under);
       el.style.height = el.scrollHeight > pane0 - y0 ? `${Math.max(BOX_MIN_H, pane0 - y0)}px` : '' }
     const w = el.offsetWidth, h = el.offsetHeight;
     let x = at.x ?? (narrow ? BOX_M : W - axis - w - 12), y = at.y ?? (narrow ? H - h - BOX_M : Math.max(44, under));
-    if(at.x === undefined && !narrow) for(const o of list) if(o !== inst && o.box && !o.box.hidden && o.box.offsetLeft < x + w && o.box.offsetLeft + o.box.offsetWidth > x) x = o.box.offsetLeft - w - 12;
-    el.style.left = `${Math.round(Math.min(Math.max(BOX_M, x), Math.max(BOX_M, W - w - BOX_M)))}px`;
-    el.style.top = `${Math.round(Math.min(Math.max(BOX_M, y), Math.max(BOX_M, H - h - BOX_M)))}px`;
+    if(at.x === undefined && !narrow) for(const o of list) if(o === inst) break; else if(o.box && !o.box.hidden && Number(o.box.dataset.x) < x + w && Number(o.box.dataset.x) + o.box.offsetWidth > x) x = Number(o.box.dataset.x) - w - 12;
+    // a default place stays in the chart; a place the user gave stays in the window
+    const free = at.x !== undefined || at.y !== undefined;
+    const [x0, x1, y0, y1] = free ? [BOX_M - st.left, VW - st.left - w - BOX_M, BOX_M - st.top, VH - st.top - h - BOX_M] : [BOX_M, W - w - BOX_M, BOX_M, H - h - BOX_M];
+    const bx = Math.round(Math.min(Math.max(x0, x), Math.max(x0, x1))), by = Math.round(Math.min(Math.max(y0, y), Math.max(y0, y1)));
+    el.dataset.x = String(bx); el.dataset.y = String(by);
+    el.style.left = `${Math.round(st.left + bx)}px`; el.style.top = `${Math.round(st.top + by)}px`;
   }
   /* a parameter changed from the box is one step of the chart's undo timeline, as in the settings dialog */
   function setFromBox(inst, v: Record<string, any>) {
@@ -674,14 +686,14 @@ export function initIndicators(ctx: Ctx) {
     if(!inst.def.box) return;
     let el = inst.box;
     if(!el) {
-      el = inst.box = document.createElement('div'); el.className = 'ind-box'; el.dataset.def = inst.def.id; stage.appendChild(el);
+      el = inst.box = document.createElement('div'); el.className = 'ind-box'; el.dataset.def = inst.def.id; document.body.appendChild(el);   // over the page (placeBox)
       inst.boxBody = document.createElement('div'); inst.boxBody.className = 'ind-box-c'; el.appendChild(inst.boxBody);
       for(const k of ['l', 'r', 'b', 'c']) { const h = document.createElement('span'); h.className = `ind-box-rz rz-${k}`; h.dataset.rz = k; h.setAttribute('aria-hidden', 'true'); el.appendChild(h) }
       el.addEventListener('click', (e: any) => {
         const b = e.target.closest('button'); if(!b) return;
         if(b.dataset.broker) { ctx.brokerShared?.pick(b.dataset.broker); return }
         if(b.dataset.rmb) { const now = Array.isArray(inst.params.brokers) ? inst.params.brokers : []; setFromBox(inst, { brokers:now.filter(x => x !== b.dataset.rmb) }); return }
-        if(b.dataset.param) { const f = inst.def.inputs.find(x => x.key === b.dataset.param); if(f) setFromBox(inst, { [f.key]:f.kind === 'bool' ? b.dataset.v === 'true' : b.dataset.v }); return }
+        if(b.dataset.param) { const f = inst.def.inputs.find(x => x.key === b.dataset.param); if(f) setFromBox(inst, { [f.key]:f.kind === 'bool' ? b.dataset.v === 'true' : f.kind === 'multi' ? b.dataset.v.split(',').filter(Boolean) : b.dataset.v }); return }
         const ds = inst.def.inputs.filter(f => f.kind === 'date');
         if(b.dataset.act === 'view') setFromBox(inst, Object.fromEntries(ds.map(f => [f.key, 'view'])));
         if(b.dataset.act === 'pick') ctx.selectRangeOnChart((f, t) => setFromBox(inst, { [ds[0].key]:f, ...(ds[1] ? { [ds[1].key]:t } : {}) }));
@@ -691,7 +703,7 @@ export function initIndicators(ctx: Ctx) {
         const rz = e.target.closest('[data-rz]')?.dataset.rz;
         if(!rz && (!e.target.closest('[data-drag]') || e.target.closest('button'))) return;
         e.preventDefault(); el.setPointerCapture(e.pointerId);
-        const x0 = e.clientX, y0 = e.clientY, L0 = el.offsetLeft, T0 = el.offsetTop, W0 = el.offsetWidth, H0 = el.offsetHeight;
+        const x0 = e.clientX, y0 = e.clientY, L0 = Number(el.dataset.x || 0), T0 = Number(el.dataset.y || 0), W0 = el.offsetWidth, H0 = el.offsetHeight;
         const move = ev => {
           const dx = ev.clientX - x0, dy = ev.clientY - y0, at = inst.style.box || {};
           if(!rz) inst.style.box = { ...at, x:L0 + dx, y:T0 + dy };

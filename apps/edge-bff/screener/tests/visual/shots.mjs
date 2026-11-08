@@ -23,7 +23,7 @@ const browser = await chromium.launch();
 const fails = [], shots = [];
 /* the v21 structure, in every viewport (index.html, src/layout/, src/screen-gate.ts) */
 const STRUCTURE = ['main.page .page-head h1', '#pageActs .top-screen[data-screen]', '#pageActs [data-hd="add"]', '#pageActs [data-hd="export"]',
-  '#cardU .toolbar .qf', '#cardU .toolbar .qf-static', '#cardU .chipbar .fchip', '#cardU .presets .seg', '#cardU .chips-row .pchip', '#cardU .na-btn',
+  '#cardU .toolbar .qf', '#cardU .toolbar .qf-static', '#cardU .chipbar .ficon', '#cardU .presets .seg', '#cardU .chips-row .pchip', '#cardU .na-btn',
   '#cardC .builder-h .tgl', '#cardC .adder .searchbox', '#cardC #screenBar .screen-bar [data-screen]', '#screenHint',
   '#center #pendBar', '#cardR .tbl-meta', '#cardR table.res thead th', '#cardR .tbl-foot', '#resTools [data-act="cols"]', '#preview', '#colPop', '#naPop'];
 /* only where the three panes stand side by side (above 900 px): rails, pane borders, builder tabs */
