@@ -12878,6 +12878,28 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   Value (Sessions 10) > 0 Rp B"; klik di luar menutup; SMA tetap editor lama. Tidak ada error halaman.
 - screener vitest lulus; smoke diperbarui (panel Customize, tanpa kolom default).
 
+## EXEC-CHART-MAX — font legend kiri atas lebih kecil, klik dua kali memperbesar panel, kode broker di tengah labelnya (go 2026-11-08)
+
+### Kata user
+- 2026-11-08: "kecilin font size yang indikator-indikator yang ada di situ. Kemudian kalau saya double klik chart, before
+  adalah A, after adalah B. Konfirmasi aja dulu."
+- 2026-11-08, atas pertanyaan: "tidak, hanya legend kiri atas." dan "Klik dua kali = A" (ukuran tidak disebut; dipakai
+  saran 12 px, baris 20 px).
+- 2026-11-08: "kemudian cek ini nama2 broker di loader sepertinya tidak align center"
+
+### Yang dibangun
+- Legend kiri atas grafik harga 12 px, baris 20 px (sebelumnya 13 px dan 22 px); legend panel bawah tetap 13 px.
+- Klik dua kali pada sebuah panel grafik (harga atau panel bawah) memperbesarnya: panel lain, Flow Timeline, panel
+  Statistics dan Broker activity disembunyikan; toolbar atas tetap. Klik dua kali lagi atau Esc mengembalikan. Tidak saat
+  alat gambar aktif.
+- Kode broker di ujung garis Loaders/Broker Inventory digambar tepat di tengah labelnya (dari ukuran tinta huruf Inter).
+
+### Bukti
+- Stand-in BBRI 1600×900: sebelum grafik 1512×554 (panel harga 371 px, panel bawah 154 px); diperbesar 1600×802 (panel
+  harga 773 px, panel bawah 2 px, Flow Timeline dan panel kanan tidak tampil); Esc kembali 1512×554. Legend 12 px, panel
+  bawah 13 px. Tidak ada error halaman.
+- look_check11 PASS; terminal vitest 887 lulus.
+
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
 - Kata user 2026-11-08 (dua tangkapan layar TradingView, tombol ^ di bawah daftar nama indikator ditandai "A"): "next up

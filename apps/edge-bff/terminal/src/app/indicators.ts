@@ -236,6 +236,8 @@ export function initIndicators(ctx: Ctx) {
   /* an indicator that is not a price overlay lives in its own pane under the candles */
   const layoutPanes = () => {
     const panes = chart.panes(), subs = Math.max(0, panes.length - 1);
+    if(maxPane !== null && maxPane >= panes.length) maxPane = null;
+    if(maxPane !== null) { layoutMax(panes); return }
     /* QA round 3 (H1): a folded pane is as high as its own title row (a row that wraps, a long note, a touch-sized button)
        plus its margins, never a fixed height the row may overflow */
     const folded = new Map<number, number>();
@@ -263,6 +265,35 @@ export function initIndicators(ctx: Ctx) {
       for(const side of ['right', 'left']) try { chart.priceScale(side, k).applyOptions({ textColor:c }) } catch(e) { /* no such scale */ } });
     requestAnimationFrame(() => { volCtl.relabel && volCtl.relabel(); list.forEach(placeRow); fltPlace() });
   };
+  /* EXEC-CHART-MAX (user 2026-11-08, option A, TradingView): a double click on a pane gives it the whole chart: the other
+     panes, the Flow Timeline and the side panels are put away; another double click or Escape brings everything back.
+     Not while a drawing tool is armed (a double click finishes a drawing then). */
+  let maxPane: number | null = null;
+  const layoutMax = (panes) => {
+    panes.forEach((pn, k) => pn.setStretchFactor(k === maxPane ? 1 : 0.0001));
+    const text = (chart.options() as any).layout?.textColor || '#191919';
+    panes.forEach((pn, k) => { if(!k) return; const c = k === maxPane ? text : 'rgba(0,0,0,0)';
+      for(const side of ['right', 'left']) try { chart.priceScale(side, k).applyOptions({ textColor:c }) } catch(e) { /* no such scale */ } });
+    requestAnimationFrame(() => { volCtl.relabel && volCtl.relabel(); list.forEach(placeRow); fltPlace() });
+  };
+  const setMax = (k: number | null) => {
+    maxPane = k;
+    const ws = document.getElementById('workspace');
+    ws?.classList.toggle('chart-max', k !== null);
+    stage.classList.toggle('pane-max', k !== null);
+    stage.dataset.maxPane = k === null ? '' : String(k);
+    list.forEach(i => { if(i.def.pane !== 'sub') return; const off = k !== null && paneOfInst(i)?.paneIndex() !== k; [i.row, i.foldBtn, i.moveBox].forEach(el => el?.classList.toggle('max-off', off)) });
+    layoutPanes(); dispatchEvent(new Event('resize'));
+  };
+  const chartEl = document.getElementById('chart');
+  chartEl?.addEventListener('dblclick', (e: MouseEvent) => {
+    if(document.querySelector('.dr-btn.active[data-tool]:not([data-tool=""])')) return;     // a drawing tool is armed
+    if((e.target as HTMLElement).closest('.ind-row, .ind-box, button, input, select, a, label')) return;
+    if(maxPane !== null) { setMax(null); return }
+    const k = chart.panes().findIndex(pn => { const r = pn.getHTMLElement()?.getBoundingClientRect(); return r && e.clientY >= r.top && e.clientY <= r.bottom });
+    if(k >= 0) setMax(k);
+  });
+  document.addEventListener('keydown', (e: KeyboardEvent) => { if(e.key === 'Escape' && maxPane !== null && !document.querySelector('.fw, .idlg-back:not([hidden]), [role="dialog"]:not([hidden])')) setMax(null) });
   let relayoutAt = 0;
   const relayout = () => { if(relayoutAt) return; relayoutAt = requestAnimationFrame(() => { relayoutAt = 0; layoutPanes() }) };
   const setFold = (inst, on: boolean, keep = true) => {
@@ -716,7 +747,9 @@ export function initIndicators(ctx: Ctx) {
         for(const g of tags) {
           const w = c.measureText(g.t).width + 10, x = Math.min(g.x + 6, mediaSize.width - w - 2), y = Math.min(Math.max(g.y, 9), mediaSize.height - 9);
           c.fillStyle = g.c; c.beginPath(); (c as any).roundRect ? (c as any).roundRect(x, y - 8, w, 16, 3) : c.rect(x, y - 8, w, 16); c.fill();
-          c.fillStyle = '#fff'; c.fillText(g.t, x + 5, y + 0.5);
+          // the code in the middle of its box, from the font's own ink (textBaseline 'middle' sat low in Inter)
+          const m = c.measureText(g.t), asc = m.actualBoundingBoxAscent || 8, desc = m.actualBoundingBoxDescent || 0;
+          c.textBaseline = 'alphabetic'; c.fillStyle = '#fff'; c.fillText(g.t, x + 5, y + (asc - desc) / 2); c.textBaseline = 'middle';
         }
       });
     }
