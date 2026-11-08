@@ -17,6 +17,7 @@ import { sumOverDays } from './flow';
 import { withPicked } from '../data/brokerAgg';
 import { fits, inputsOf, needsOf, splitSaved, withParked, type Input } from '../data/inputs';
 import { newPaneId } from '../data/drawingsApi';
+import { StripSeries, STRIP_PANE_PX } from './stripSeries';
 
 export function initIndicators(ctx: Ctx) {
   const { L, chart, ohlc, volume, N, closes, BOARDS, INVESTORS, allBrokers, makeFilter, IND_REG, Ind, volCtl, Hist, displayHooks, tipHooks } = ctx;
@@ -230,7 +231,7 @@ export function initIndicators(ctx: Ctx) {
      opsi untuk collapse. Sama seperti fungsi collapse flow timeline"): a pane indicator can be folded to its title row; its
      lines are not drawn then (its row keeps the name, value and filters) and the price chart takes the room */
   const drawn = inst => inst.on && !inst.fold;
-  const FOLD_PX = 30, STRIP_PX = 64;
+  const FOLD_PX = 30;
   const paneOfInst = inst => (inst.series || inst.parts?.find(pt => pt.series)?.series || inst.lines?.find(l => l.series)?.series)?.getPane() || null;
   /* an indicator that is not a price overlay lives in its own pane under the candles */
   const layoutPanes = () => {
@@ -243,7 +244,7 @@ export function initIndicators(ctx: Ctx) {
     const stripPx = new Map<number, number>();
     list.forEach(i => { if(i.fold || i.def.pane !== 'sub' || !i.parts?.length || !i.parts.every(pt => pt.kind === 'strip')) return; const k = paneOfInst(i)?.paneIndex(); if(k === undefined || k < 1) return;
       if(list.some(o => o !== i && !o.fold && paneOfInst(o)?.paneIndex() === k)) return;
-      stripPx.set(k, Math.max(STRIP_PX, Math.ceil(i.row?.offsetHeight || 0) + 34)) });
+      stripPx.set(k, STRIP_PANE_PX(i.row?.offsetHeight || 0)) });
     list.forEach(i => { if(!i.fold || i.def.pane !== 'sub') return; const k = paneOfInst(i)?.paneIndex(); if(k === undefined || k < 1) return;
       folded.set(k, Math.max(folded.get(k) || 0, FOLD_PX, (i.restH && i.row.matches(':hover,:focus-within') ? i.restH : (i.restH = Math.ceil(i.row.offsetHeight))) + 12)) });   // the row's height at rest
     /* the price pane keeps at least ~45 % of the height however many panes are open (front-end audit 2026-10-30: 10 panes
@@ -456,9 +457,11 @@ export function initIndicators(ctx: Ctx) {
       else if(o.r === 'histogram') inst.parts.push({ o, kind:'hist', series:mk(L.HistogramSeries, { base:0 }) });
       /* EXEC-RP-LOOK-2 C (user 2026-11-08: "Strip panas satu baris hanya untuk FL26"): one cell per candle at a fixed height,
          its colour the direction and its strength the value's size; the value itself is read in the legend */
-      else if(o.r === 'strip') inst.parts.push({ o, kind:'strip', series:mk(L.HistogramSeries, { base:0, lastValueVisible:false, priceLineVisible:false,
-        priceFormat:{ type:'custom', formatter:() => '', minMove:1 },      // the cell's height is no value: no number on the axis
-        autoscaleInfoProvider:() => ({ priceRange:{ minValue:0, maxValue:1 } }) }) });
+      else if(o.r === 'strip') {                                // a custom series: small rounded cells, not full-height bars
+        const s = chart.addCustomSeries(new StripSeries((L as any).customSeriesDefaultOptions), { ...opts, ...own, lastValueVisible:false, priceLineVisible:false,
+          priceFormat:{ type:'custom', formatter:() => '', minMove:1 } }, paneIdx);       // the cell's height is no value: no number on the axis
+        paneIdx = s.getPane().paneIndex(); inst.parts.push({ o, kind:'strip', series:s });
+      }
       else if(o.r === 'segmented_line') inst.parts.push({ o, kind:'seg', series:mk(L.LineSeries, {}), series2:mk(L.LineSeries, { lastValueVisible:false }) });
       else if(o.r === 'dots') inst.parts.push({ o, kind:'dots', series:mk(L.LineSeries, { lineVisible:false, pointMarkersVisible:true }) });
       else inst.parts.push({ o, kind:'line', series:mk(L.LineSeries, {}) });
@@ -501,7 +504,7 @@ export function initIndicators(ctx: Ctx) {
     inst.parts.forEach(pt => {
       const s = st.out[pt.o.k], a = inst.disp[pt.o.k], vis = shown(pt), c1 = alpha(s.color, op), c2 = alpha(s.color2 || s.color, op);
       /* re-test Q2: the axis shows the last value only when the last candle has one (an empty end showed 1.68× of 30 Oct) */
-      if(pt.series && r.zone !== 'overlay' && pt.kind !== 'marker') pt.series.applyOptions({ lastValueVisible:a ? a[a.length - 1] !== null && a[a.length - 1] !== undefined : false });
+      if(pt.series && r.zone !== 'overlay' && pt.kind !== 'marker' && pt.kind !== 'strip') pt.series.applyOptions({ lastValueVisible:a ? a[a.length - 1] !== null && a[a.length - 1] !== undefined : false });
       if(pt.kind === 'marker') {
         /* EXEC-TERMINAL-FLOW-IND: a mark under each candle where the indicator holds (FL09, FL27), on the series drawn */
         const host = ctx.chartStyle === 'line' || ctx.displayMode === 'return' ? ctx.mainLine : ctx.candle;

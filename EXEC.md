@@ -12551,7 +12551,10 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - Pilihan user 2026-11-08: "Strip panas satu baris hanya untuk FL26 / jalankan". Dijalankan di branch: Plot FL26 bawaan
   "Strip" (Histogram dan Line tetap pilihan; registry `PLOT_FIRST`), satu sel per candle di pane pendek (±64 px), warna
   arah (hijau beli bersih, merah jual bersih), kepekatan = panjang runtun dibanding runtun terpanjang di data; angka
-  runtun di legend, tanpa angka di sumbu. FL12, FL29, FL35 tidak diubah. FL26 yang sudah tersimpan dengan Plot
+  runtun di legend, tanpa angka di sumbu. FL12, FL29, FL35 tidak diubah.
+- User 2026-11-08 (tangkapan layar opsi 5 HTML): "FL26 bisa buat persis seperti di HTML ... jadi tingginya jangan setinggi
+  itu". Sel kini kotak kecil setinggi 18 px, sudut membulat, berjarak, di kaki pane pendek (seri kustom
+  `app/stripSeries.ts`; histogram selalu setinggi pane dan bersudut tajam). FL26 yang sudah tersimpan dengan Plot
   Histogram/Line tetap pilihan tersimpannya.
 
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
