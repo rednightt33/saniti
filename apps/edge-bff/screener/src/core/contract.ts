@@ -519,7 +519,14 @@ export interface CatalogMetric {
   /** additive (EXEC-SCREENER-FLOW-CANDLES P5a): a flow indicator's Terminal setup, generated from flowRegistry.json
       (params is empty on a flow entry: its parameters are these) */
   flow?: CatalogFlow;
+  /** additive and optional (EXEC-SCREENER-FLOW-CANDLES P6, QA of unit C item 2): the side of a pattern, as the Backtest
+      core's candle registry states it (candle-registry.json `side`): bullish, a sign the price may rise, or bearish;
+      absent on every entry that has none */
+  side?: PatternSide;
 }
+/** The side of a pattern (CatalogMetric.side). */
+export type PatternSide = 'bullish' | 'bearish';
+export const PATTERN_SIDES: readonly PatternSide[] = ['bullish', 'bearish'];
 /** A flow entry's setup (P5_FLOW.md sections 2 and 3): the registry's family, place, tip and parameters as they are
     (condition false on the kinds that only draw; screener true on a parameter of the Screener's version, text its
     words), each output with its kind of OPERATORS.md section 4 (a letter, or by a parameter, which may again follow

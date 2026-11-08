@@ -13,7 +13,8 @@
    and the presets read them. P6 (verification/screener/P6_CANDLES.md): before the flow entries, the 20 candlestick
    patterns generated from the Backtest core's candle registry into screener-registry.json (`candles`; candleMetric).
    Worker-side module (the page reads the same entries from GET /catalog and never imports this file). */
-import type { CatalogParam, Definition, MetricKind, ParamMap, ParamValue, Periods, PriceField, SavedView, TestKind } from './contract.ts';
+import type { CatalogParam, Definition, MetricKind, ParamMap, ParamValue, PatternSide, Periods, PriceField, SavedView, TestKind } from './contract.ts';
+import { PATTERN_SIDES } from './contract.ts';
 import { ScreenerError } from './errors.ts';
 import { SCREENER_REGISTRY } from './registry.ts';
 import type { CandleRegistryEntry, FlowRegistryEntry } from './registry.ts';
@@ -63,6 +64,9 @@ export interface MetricDefinition {
       flow indicators, some as the Screener's version, and the Screener's own, P5b; flowmetrics.ts computes them); its
       parameters are flow.params, `params` is empty */
   flow?: FlowRegistryEntry;
+  /** P6 (QA of unit C item 2): a candlestick pattern's side, the core candle registry's (candleMetric); additive, absent
+      on every other entry. The page shows it on the row and the card and searches it (contract.ts CatalogMetric.side). */
+  side?: PatternSide;
 }
 /** The universal operators (EXEC-SCREENER-FLOW-CANDLES; verification/screener/OPERATORS.md, approved K4) as the page
     offers them: a measure is a transform of the series (its arguments are the transform's), a test how the measured
@@ -133,14 +137,15 @@ export const CANDLE_GROUP = 'Candlestick';
     verification/screener/P6_CANDLES.md section 2): kind pattern, group Candlestick, the pattern's name and parameters
     (the core registry's, with their plain meaning), tested on the bar (state) or within N sessions (event, the default:
     within 3), the exact definition as the core's candleFormula writes it, the plain interpretation and misuse words of
-    the registry and its search synonyms. Computed by the Backtest core's candles.ts (transforms.ts PATTERNS). */
+    the registry, its search synonyms and its side (bullish or bearish, QA of unit C item 2). Computed by the Backtest
+    core's candles.ts (transforms.ts PATTERNS). */
 export function candleMetric(c: CandleRegistryEntry): MetricDefinition {
   return {
     id: c.id, group: CANDLE_GROUP, kind: 'pattern', label: c.name, short: c.name, params: c.params as MetricParam[], tests: ['state', 'event'], unit: null,
     formula: c.formula, interpretation: c.interpretation, misuse: c.misuse,
     evidence: 'apps/edge-bff/backtest/src/core/candle-registry.json (the Backtest core\'s candles.ts), verification/screener/P6_CANDLES.md',
     requires: null, decision: null, applies_to: null,
-    synonyms: c.synonyms, default_test: { test: 'event', within: 3 },
+    synonyms: c.synonyms, default_test: { test: 'event', within: 3 }, side: c.side,
   };
 }
 /** screener-metrics.json with the generated candlestick patterns (P6) and flow entries after its own. */
@@ -268,6 +273,7 @@ export function catalogProblems(implemented?: { transforms: readonly string[]; p
     if (m.kind === 'flow' && !m.flow) out.push(`${w}: a flow metric is one of the generated flow entries (screener-registry.json flows), never typed in screener-metrics.json`);
     if (m.kind === 'transform' && !m.ref) out.push(`${w}: a transform-based metric needs its reference template (ref)`);
     if (m.kind === 'pattern' && m.tests.includes('value')) out.push(`${w}: a pattern is a signal, never a VALUE`);
+    if (m.side !== undefined && (m.kind !== 'pattern' || !PATTERN_SIDES.includes(m.side))) out.push(`${w}: side is a pattern's, one of ${PATTERN_SIDES.join(', ')}`);
   }
   // the operators block: every measure a transform of the catalog, every type's transforms too, every not_on a type,
   // the tests the seven of OPERATORS.md with their operators known to the contract

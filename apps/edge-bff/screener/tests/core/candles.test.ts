@@ -31,9 +31,11 @@ describe('catalog: one pattern entry per pattern of the core candle registry', (
       expect([m.interpretation, m.default_test]).toEqual([p.summary, { test: 'event', within: 3 }]);
       expect(m.misuse).toContain(p.misuse);
       expect(m.synonyms).toEqual(p.synonyms);
+      expect(m.side).toBe(p.side);                                     // the side, as the registry states it (QA of unit C item 2)
       expect(IMPLEMENTED_PATTERNS).toContain(p.id);
     }
     expect(METRICS_CATALOG.metrics.filter(m => m.group === CANDLE_GROUP).length).toBe(20);
+    expect(METRICS_CATALOG.metrics.filter(m => m.side !== undefined).map(m => m.id)).toEqual(IDS);   // no other entry has a side
     expect(catalogProblems({ transforms: IMPLEMENTED_TRANSFORMS, patterns: IMPLEMENTED_PATTERNS })).toEqual([]);
     // the search words the page matches: hammer, engulfing and doji find their patterns
     const find = (q: string) => METRICS_CATALOG.metrics.filter(m => m.group === CANDLE_GROUP && `${m.label} ${m.id} ${(m.synonyms || []).join(' ')}`.toLowerCase().includes(q)).map(m => m.id);
