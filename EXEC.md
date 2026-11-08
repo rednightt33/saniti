@@ -12776,6 +12776,10 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
     chart" = posisi dihitung mulai tanggal yang dipilih; "In view" = mulai candle pertama yang terlihat.
   - Screener Add a condition: penanda baris keyboard (`act`) hanya tampil sesudah mengetik di kotak cari atau ↑ ↓
     (sebelumnya baris pertama tampak di-hover).
+  Dicek di browser: tombol Cost lines di kotak menyalakan garis; kotak FL52 "Select on chart" → mulai 28 Jan (CC 4,2M →
+  5,2M), "In view" → 2 Jan; × per broker dan Ctrl+Z; kedua kotak tidak bertumpuk (look_check11 diperluas); penanda baris
+  Screener tidak tampil saat dibuka, tampil setelah mengetik "rsi" atau ↓. Catatan: posisi dihitung dari tanggal mulai,
+  jadi kolom kotak FL52 = "Net since start" dan "5D" (bukan dua kolom berisi angka yang sama).
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 

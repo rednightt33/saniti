@@ -1682,3 +1682,8 @@ select.idlg-in,.side.right select{-webkit-appearance:none;appearance:none;backgr
 @media(max-width:640px){.tvbar{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}}
 /* audit U26 (390 px): the Flow Timeline's legend stays on one line (the "left axis" note is in the toggle's title) */
 @media(max-width:640px){.flow-wrap .flow-legend{gap:10px;white-space:nowrap}.flow-wrap .flow-legend>span{white-space:nowrap}.flow-wrap .flow-legend .pt-sub{display:none}}
+/* user 2026-11-08: the Loaders' "Cost lines" switch in its box; FL52's box (its remove buttons) */
+.ldb-tg{margin-left:auto;border:1px solid var(--border)}
+.ldb-tg.on{border-color:transparent;background:var(--sel);color:var(--text)}
+.ldb-inv td:last-child{width:22px;padding-left:0}
+.ldb-rm{width:20px;height:20px;font-size:13px}

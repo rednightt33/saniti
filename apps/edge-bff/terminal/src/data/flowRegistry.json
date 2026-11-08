@@ -5801,11 +5801,17 @@
     },
     {
      "key": "start",
-     "label": "Counts from",
+     "label": "From",
      "status": "DECIDED",
-     "kind": "fixed",
-     "text": "The first visible candle",
-     "default": "-"
+     "kind": "date",
+     "default": "view"
+    },
+    {
+     "key": "box",
+     "label": "Show box",
+     "status": "DECIDED",
+     "kind": "bool",
+     "default": true
     }
    ]
   }

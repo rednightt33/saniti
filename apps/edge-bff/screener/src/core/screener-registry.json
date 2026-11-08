@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "73177653c7bdab8a",
+  "screener_registry_version": "cf4473b7ceaf08ea",
   "registry_version": "514dc3df60a25aff",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -37,7 +37,7 @@
     {
       "role": "flow_registry",
       "file": "apps/edge-bff/terminal/src/data/flowRegistry.json",
-      "sha256": "2eb4ac034d6f96398452f0fb9970d2dbc1c76def1ebe5d0a3314cf0afb18f305"
+      "sha256": "984ce79e78a8ecda4322573dd67fb6939e9632c9ea683cae65515a0c3aef87ac"
     },
     {
       "role": "flow_kinds",

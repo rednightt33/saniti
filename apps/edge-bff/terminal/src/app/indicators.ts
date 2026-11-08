@@ -626,7 +626,9 @@ export function initIndicators(ctx: Ctx) {
     /* audit U4: by default inside the price pane (the lower panes' rows and buttons stay free); the box scrolls */
     if(!narrow && !at.h && at.y === undefined) { const pane0 = (chart.panes()[0]?.getHeight?.() ?? H) - 8, y0 = Math.max(44, under);
       el.style.height = el.scrollHeight > pane0 - y0 ? `${Math.max(BOX_MIN_H, pane0 - y0)}px` : '' }
-    const w = el.offsetWidth, h = el.offsetHeight, x = at.x ?? (narrow ? BOX_M : W - axis - w - 12), y = at.y ?? (narrow ? H - h - BOX_M : Math.max(44, under));
+    const w = el.offsetWidth, h = el.offsetHeight;
+    let x = at.x ?? (narrow ? BOX_M : W - axis - w - 12), y = at.y ?? (narrow ? H - h - BOX_M : Math.max(44, under));
+    if(at.x === undefined && !narrow) for(const o of list) if(o !== inst && o.box && !o.box.hidden && o.box.offsetLeft < x + w && o.box.offsetLeft + o.box.offsetWidth > x) x = o.box.offsetLeft - w - 12;
     el.style.left = `${Math.round(Math.min(Math.max(BOX_M, x), Math.max(BOX_M, W - w - BOX_M)))}px`;
     el.style.top = `${Math.round(Math.min(Math.max(BOX_M, y), Math.max(BOX_M, H - h - BOX_M)))}px`;
   }
@@ -647,6 +649,7 @@ export function initIndicators(ctx: Ctx) {
       el.addEventListener('click', (e: any) => {
         const b = e.target.closest('button'); if(!b) return;
         if(b.dataset.broker) { ctx.brokerShared?.pick(b.dataset.broker); return }
+        if(b.dataset.rmb) { const now = Array.isArray(inst.params.brokers) ? inst.params.brokers : []; setFromBox(inst, { brokers:now.filter(x => x !== b.dataset.rmb) }); return }
         if(b.dataset.param) { const f = inst.def.inputs.find(x => x.key === b.dataset.param); if(f) setFromBox(inst, { [f.key]:f.kind === 'bool' ? b.dataset.v === 'true' : b.dataset.v }); return }
         const ds = inst.def.inputs.filter(f => f.kind === 'date');
         if(b.dataset.act === 'view') setFromBox(inst, Object.fromEntries(ds.map(f => [f.key, 'view'])));

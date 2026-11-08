@@ -189,7 +189,10 @@ const FIRST_ROWS = 20;
 const W = { q:'', g:ALL as string, sort:'group' as Sort, act:0, pop:null as number | null, items:[] as AddItem[], added:[] as boolean[], spyLock:0, rest:undefined as ReturnType<typeof setTimeout> | undefined, restFrom:0,
   /* user 2026-11-08 ("ketika kita klik customize ... muncul boxnya di tengah, bisa digedein, bisa dikecilin"): the Customize
      box's size and its shift from the middle, kept while the window is open (a row redraw draws the box again) */
-  popBox:{ w:0, h:0, dx:0, dy:0 } };
+  popBox:{ w:0, h:0, dx:0, dy:0 },
+  /* user 2026-11-08 ("c. oke opsi 1"): the keyboard's row (the one Enter adds) is marked only once the keyboard is used
+     (typing in the search, ↑ ↓); with the mouse no row looks hovered */
+  kbd:false };
 let root: HTMLElement | null = null, drawing = false;
 const $q = <T extends HTMLElement>(sel: string) => root?.querySelector<T>(sel) ?? null;
 
@@ -364,7 +367,7 @@ function rowHtml(it: AddItem, i: number, added: boolean): string {
   const code = it.kind === 'ind' && it.entry && /^(I|FL)\d+$/.test(it.entry.key) ? `<small class="qcode">${esc(it.entry.key)}</small>` : '';
   const desc = it.kind === 'ind' && it.ok && it.entry?.desc ? firstSentence(it.entry.desc) : '';
   const sub = side ? `<small class="qside s-${side.side}" title="${esc(side.title)}">${esc(side.line)}</small>` : desc ? `<small class="qdesc" title="${esc(it.entry!.desc)}">${esc(desc)}</small>` : editable ? '' : `<small>${esc(it.sub)}</small>`;
-  return `<div role="option" id="aco${i}" class="qrow${i === W.act ? ' act' : ''}${it.ok ? '' : ' na'}${added ? ' isadd' : ''}" data-ai="${i}" data-rg="${esc(it.group)}" aria-selected="${i === W.act}"${it.ok ? '' : ' aria-disabled="true"'} title="${esc(title)}"><span class="qnm"><span class="qnl"><b>${esc(it.label)}</b>${code}</span>${sub}</span>${it.ok ? tfHtml() : '<span></span>'}${cond}${thr}${act}</div>`;
+  return `<div role="option" id="aco${i}" class="qrow${W.kbd && i === W.act ? ' act' : ''}${it.ok ? '' : ' na'}${added ? ' isadd' : ''}" data-ai="${i}" data-rg="${esc(it.group)}" aria-selected="${i === W.act}"${it.ok ? '' : ' aria-disabled="true"'} title="${esc(title)}"><span class="qnm"><span class="qnl"><b>${esc(it.label)}</b>${code}</span>${sub}</span>${it.ok ? tfHtml() : '<span></span>'}${cond}${thr}${act}</div>`;
 }
 /** a group's section, from its entries: Fundamental when every entry is a fundamental, Flow when one reads the broker
     flow (a Terminal flow indicator, or a metric of the Flow group), Technical otherwise */
@@ -434,6 +437,7 @@ function drawRest() {
 }
 /** the highlighted row (arrow keys): only the two rows change */
 function moveAct(i: number) {
+  W.kbd = true;
   $q(`#aco${W.act}`)?.classList.remove('act'); $q(`#aco${W.act}`)?.setAttribute('aria-selected', 'false');
   W.act = i;
   const r = $q<HTMLElement>(`#aco${i}`); r?.classList.add('act'); r?.setAttribute('aria-selected', 'true');
@@ -508,7 +512,7 @@ function drawRow(i: number) {
 /** Open the window. `q` searches at once (a quick chip, the builder's search box); `g` opens on a panel (My metrics). */
 export function openAddCondition(q = '', g: string = ALL) {
   if (!ctx.catalog) return;
-  W.q = q; W.g = g; W.act = 0; W.pop = null; W.popBox = { w:0, h:0, dx:0, dy:0 };
+  W.q = q; W.g = g; W.act = 0; W.pop = null; W.popBox = { w:0, h:0, dx:0, dy:0 }; W.kbd = !!q;
   dialog(`<div class="dialog qwin" role="dialog" aria-label="Add a condition">
     <div class="qwin-h"><div><strong>Add a condition</strong><small>Pick the condition next to an indicator, then click the row to add it. Click an added row to remove it. The window stays open until you close it.</small></div><button type="button" class="iconbtn sm" data-close aria-label="Close">${ico(IC.x)}</button></div>
     <div class="qwin-t"><label class="searchbox">${ico(IC.search, 's')}<input id="acq" placeholder="RSI, Stochastic, VWAP, Supertrend, breakout…" autocomplete="off" aria-label="Search indicators" role="combobox" aria-controls="acl" aria-expanded="true" value="${esc(q)}"></label>
@@ -519,7 +523,7 @@ export function openAddCondition(q = '', g: string = ALL) {
     root = o.querySelector<HTMLElement>('.qwin');
     const sort = root!.querySelector<HTMLSelectElement>('#acs')!; sort.value = W.sort;
     sort.addEventListener('change', () => { W.sort = sort.value as Sort; drawList() });
-    root!.querySelector<HTMLInputElement>('#acq')!.addEventListener('input', e => { W.q = (e.target as HTMLInputElement).value; W.act = 0; drawList(); const l = $q<HTMLElement>('#acl'); if (l) l.scrollTop = 0 });
+    root!.querySelector<HTMLInputElement>('#acq')!.addEventListener('input', e => { W.q = (e.target as HTMLInputElement).value; W.act = 0; W.kbd = true; drawList(); const l = $q<HTMLElement>('#acl'); if (l) l.scrollTop = 0 });
     root!.querySelector('#acl')!.addEventListener('scroll', spy, { passive:true });
     root!.addEventListener('click', onClick);
     root!.addEventListener('change', onField);

@@ -307,7 +307,9 @@ export function initFlowIndicators(ctx: Ctx) {
        the indicator's own parameter (data-param), the same as in its Settings */
     const seg = (key: string, cur: string) => `<span class="ldb-seg" role="group" aria-label="${key === 'side' ? 'Show' : 'Top N'}">${(FLOW_REG.indicators.find(x => x.id === 'FL51')!.params.find(q => q.key === key)!.options || [])
       .map(([v, t]) => `<button type="button" class="ldb-btn${String(cur) === v ? ' on' : ''}" data-param="${key}" data-v="${v}" aria-pressed="${String(cur) === v}">${esc(t)}</button>`).join('')}</span>`;
-    const ctl = `<div class="ldb-ctl">${seg('side', p.side ?? 'both')}${seg('top', String(p.top ?? '3'))}</div>`;
+    /* user 2026-11-08 ("kasih opsi to display cost line ... di bagian floating"): the same parameter as Settings' */
+    const lines = `<button type="button" class="ldb-btn ldb-tg${p.lines ? ' on' : ''}" data-param="lines" data-v="${!p.lines}" aria-pressed="${!!p.lines}" title="Cost lines of the loaders on the price chart">Cost lines</button>`;
+    const ctl = `<div class="ldb-ctl">${seg('side', p.side ?? 'both')}${seg('top', String(p.top ?? '3'))}${lines}</div>`;
     if (!T || !T.rows.length) return head + ctl + `<div class="ldb-empty">${!ctx.flowRows ? 'Loading broker data' : !ctx.flowRows.n ? 'No broker data for this ticker' : 'No broker data in this period'}</div>`;
     const costLabel = p.cost === 'model' ? 'Cost held' : 'Avg buy', nl = T.nl ?? 0, ns = T.ns ?? 0;
     /* a broker already in Broker Inventory (the right panel's list) is marked; a click still highlights it there (audit U20) */
@@ -321,6 +323,29 @@ export function initFlowIndicators(ctx: Ctx) {
       + (ns ? grp(`Top ${ns} net sellers`) + T.rows.slice(nl).map((x, k) => line(x, nl + k)).join('') : '');
     const foot = T.share === null ? '' : `<p class="ldb-foot">Top ${nl} hold ${NF2.format(T.share)}% of total accumulation</p>`;
     return head + ctl + `<div class="ldb-scroll"><table class="ldb-t"><thead><tr><th>Broker</th><th>Net lot</th><th>${costLabel}</th><th title="The last close against the cost">vs price</th><th title="Net-buy days of the days with broker data">Buy days</th></tr></thead><tbody>${body}</tbody></table>${foot}</div>`;
+  };
+
+  /* user 2026-11-08 ("broker inventory ... muncul kayak semacam box juga ... kalau kita select chart, ya inventory dihitung
+     dari start from that date"; "b. ok"): FL52's box. Its head: the start date, In view / Select on chart, ×; one row per
+     broker: its code in its line's colour, its net position since the start (lots or Rupiah), the change over its last 5
+     candles, and a button that takes the broker off this list. Moved and resized as the Loaders box. */
+  const inventoryBox = (raw: any, p: any): string => {
+    const codes: string[] = raw?._labels || [], inView = (p.start ?? 'view') === 'view';
+    const R = ctx.flowRows, fb = (() => { if (!R) return -1; for (let k = 0; k < R.N; k++) if (R.has[k]) return k; return -1 })();
+    const startDay = inView ? firstVisible() : String(p.start).slice(0, 10), shown = fb >= 0 && dates[fb] && dates[fb].slice(0, 10) > startDay ? dates[fb].slice(0, 10) : startDay;
+    const fmt = (p.unit ?? 'lot') === 'value' || ctx.M.index ? spec.idr : (v: number) => nfCompact.format(Math.abs(v));
+    const sg = (v: number) => (v > 0 ? '+' : v < 0 ? '−' : '') + (fmt === spec.idr ? spec.idr(Math.abs(v)) : fmt(v));
+    const head = `<div class="ldb-head" data-drag="1"><b>Broker Inventory</b><span class="ldb-when">from ${esc(dayText(shown))}</span>
+      <span class="ldb-acts"><button type="button" class="ldb-btn${inView ? ' on' : ''}" data-act="view" title="From the first candle in view">In view</button><button type="button" class="ldb-btn${inView ? '' : ' on'}" data-act="pick" title="Count from a date picked on the chart (as Alt+B)">Select on chart</button>
+      <button type="button" class="ldb-x" data-param="box" data-v="false" aria-label="Hide the box" title="Hide the box (Settings → Show box brings it back; the lines stay)">×</button></span></div>`;
+    if (!codes.length) return head + `<div class="ldb-empty">${!ctx.flowRows ? 'Loading broker data' : 'No broker on this list: pick one in the right panel'}</div>`;
+    const rows = codes.map((b, j) => {
+      const a: (number | null)[] = raw[SLOTS[j]] || []; let i = a.length - 1; while (i >= 0 && (a[i] === null || a[i] === undefined)) i--;
+      const last = i >= 0 ? a[i]! : null; let k = i, n = 0; while (k > 0 && n < 5) { k--; if (a[k] !== null && a[k] !== undefined) n++ }
+      const d5 = last !== null && k >= 0 && a[k] !== null && a[k] !== undefined && k < i ? last - a[k]! : null;
+      return `<tr><td><span class="ldb-b" style="--c:${INV_COLORS[j]}">${esc(b)}</span></td><td class="${last === null ? '' : last >= 0 ? 'up' : 'down'}">${last === null ? '—' : sg(last)}</td>
+        <td class="${d5 === null ? '' : d5 >= 0 ? 'up' : 'down'}">${d5 === null ? '—' : sg(d5)}</td><td><button type="button" class="ldb-x ldb-rm" data-rmb="${esc(b)}" aria-label="Take ${esc(b)} off this list" title="Take ${esc(b)} off this list">×</button></td></tr>` }).join('');
+    return head + `<div class="ldb-scroll"><table class="ldb-t ldb-inv"><thead><tr><th>Broker</th><th title="Net position since the start date">Net since start</th><th title="Change over the last 5 candles">5D</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
   };
 
   return FLOW_REG.indicators.map(r => {
@@ -453,7 +478,7 @@ export function initFlowIndicators(ctx: Ctx) {
         const last = !!byKey.end && (p.end ?? 'view') === 'view';
         return first || last ? `${first ? a : ''}:${last ? b : ''}` : null;
       },
-      ...(byKey.end ? { box:loadersBox } : {}),
+      ...(byKey.end ? { box:loadersBox } : brokerLines && ownAxis ? { box:inventoryBox } : {}),
       pane:r.place === 'pane' ? 'sub' : 'overlay', format:F.fmt, minMove:F.minMove,
       outsOf:(p: any) => outs(fixedPlot ?? (['hist', 'line', 'strip', 'cells'].includes(p.plot) ? plotOf(p.plot) : plotDefault), p),
       compute:(p: any) => {
@@ -461,6 +486,8 @@ export function initFlowIndicators(ctx: Ctx) {
         const q = { ...p };
         if (q.anchor === 'view' || q.anchor == null) { q.anchor = firstVisible(); usedStart = q.anchor }
         if (fixedStart) { q.start = firstVisible(); usedStart = q.start }
+        /* a start date without an end (FL52's box: "In view" or a date picked on the chart) */
+        if (byKey.start?.kind === 'date' && !byKey.end) { if (q.start === 'view' || q.start == null) { q.start = firstVisible(); usedStart = q.start } else usedStart = null }
         /* FL51: a period of dates, each end "view" by default (the first and the last candle in view) */
         if (byKey.end) { if (q.start === 'view' || q.start == null) { q.start = firstVisible(); usedStart = q.start } else usedStart = null;
           if (q.end === 'view' || q.end == null) q.end = lastVisible() }

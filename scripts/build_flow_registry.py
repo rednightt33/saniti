@@ -293,7 +293,10 @@ def extra_indicators(by_id):
                 'pertama yang terlihat; bukan kepemilikan sebenarnya.',
          # its own list of up to 10 (user 2026-11-08: "10 broker hanya untuk indikator broker inventory saja yang overlay"),
          # starting from the panel's brokers ('panel'); a broker picked in the panel joins it
-         'params': [take('FL23', 'brokers', default='panel', max=10), take('FL23', 'unit'), boards, investors, take('FL23', 'start')]},
+         # its box (user 2026-11-08, "a. FL52 / b. ok"): the start is the first candle in view or a date picked on the chart
+         'params': [take('FL23', 'brokers', default='panel', max=10), take('FL23', 'unit'), boards, investors,
+                    {'key': 'start', 'label': 'From', 'status': 'DECIDED', 'kind': 'date', 'default': 'view'},
+                    {'key': 'box', 'label': 'Show box', 'status': 'DECIDED', 'kind': 'bool', 'default': True}]},
     ]
 
 
