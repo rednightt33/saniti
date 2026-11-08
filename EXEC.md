@@ -12570,8 +12570,10 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   kalau indikator ini appear akan menambah sumbu Y axis disebelah kanan dalam satuan XXX lot -- benar gak ya?". Benar
   (dicek di kode: `app/chart.ts:62,75` candle di skala kiri; skala kanan pane harga sekarang kosong). Rancangan: indikator
   baru, garis posisi bersih kumulatif per broker (rumus FL23) di pane harga, pada skala kanan dalam lot (atau Rp bila
-  Unit = Value), label "BK 7.1M" di ujung tiap garis; harga tetap di kiri. Belum go; sisa pertanyaan: daftar broker ikut
-  Broker Inventory atau sendiri. FL26 yang sudah tersimpan dengan Plot
+  Unit = Value), label "BK 7.1M" di ujung tiap garis; harga tetap di kiri.
+  Pilihan user 2026-11-08 atas daftar broker: "X ya masukan exec." = daftar broker ikut Broker Inventory (klik broker di
+  panel kanan ikut menambah garis di indikator ini; maksimum seperti panel, 5 broker). DICATAT, BELUM DIJALANKAN (menunggu
+  go). FL26 yang sudah tersimpan dengan Plot
   Histogram/Line tetap pilihan tersimpannya.
 
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
