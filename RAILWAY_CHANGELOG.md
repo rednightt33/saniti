@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-11-08 — Screener: Operator… on builder cards, flow chip opens its card (C2) on dev
+
+- **Change:** EXEC-SCREENER-CONSIST. Builder cards offer "Operator…" as Add a condition does; a flow indicator's chip in
+  the results header opens its card in the Screen builder. No migration, no variable change.
+- **Go:** user 2026-11-08 "Jalankan yang exactly saya minta barusan." and "C2" (22:03 WIB, outside B6).
+- **Before the push:** no edge_bff job queued, running or recovering, no AI turn running; screener-worker image imports
+  all in the image; backtest tripwire OK; screener vitest 1328 passed; smoke: the new C2 / Operator check passed, the
+  three older failures of ERRORS M410 unchanged.
+- **Push:** `main` `df7165dd` → `f62426be`.
+- **Deployments (Railway API):** edge-bff `07bfe18e` SUCCESS; screener-worker `2704901d` SKIPPED (no worker change).
+- **Checks after the deploy:** `/ready` 200; the served Screener `index-Cv8XmfOS.js` and `style-DG3AjO4z.css` are
+  byte-equal to the build.
+- **Rollback:** redeploy edge-bff `3cb2b1a2` (commit `63036b07`).
+
 ## 2026-11-08 — Screener Add a condition fit and IDR defaults; Loaders cost-line switch, FL52 box on dev
 
 - **Change:**
