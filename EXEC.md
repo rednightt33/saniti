@@ -12797,6 +12797,17 @@ panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi 
     lama tetap sama (1.629 digest, direkam pada core sebelum P6). Definisi, frekuensi dan perbandingan Feature 04:
     P6_CANDLES.md bagian 5-6. Nilai bawaan (min range 3 tick, open piercing dilonggarkan, star overlap 10 %, toleransi
     tweezer 1 tick, tren aktif kecuali marubozu) menunggu tinjauan user. ERRORS M398 (pola membuka state, bukan event).
+  - 2026-11-08 (user: "Push ke branch utama"): P6 di-merge ke branch kerja (`f646370e`), PR #62 ke main. QA unit C
+    (lima agen Sonnet, MASTER PROMPT): kelimanya READY, 0 jawaban salah (QA1 ±2 juta bar 0 selisih; QA2 tanpa
+    look-ahead; QA3 semua kombinasi operator; QA4 160 run lewat worker; QA5 halaman). Perbaikan temuan: ERRORS M399
+    (operator jendela pada semua pola di halaman, sisi bullish/bearish, pencarian per kelompok, select Customize), M400
+    (penolakan bukan-series dengan contoh), M401 (biaya pola dari jendela core, terukur). User 2026-11-08: "Tambah 3
+    agent lagi to help": cek live candle untuk sesudah deploy, 15 pertanyaan candle lewat halaman
+    (`verification/screener/qc15_20261108/`, 15/15 cocok), analisis dampak keputusan.
+  - Pertanyaan terbuka ke user (2026-11-08): (1) rata-rata badan candle dan hari satu harga atau tanpa transaksi
+    (ERRORS M402; rekomendasi A+: tidak ikut dirata-rata dalam jendela yang sama), (2) aksi korporasi yang belum
+    disesuaikan (rekomendasi: cukup tanda price break yang ada), (3) nilai bawaan di atas (rekomendasi: tetap). Terbuka
+    kecil: M403 (penolakan parameter saat Add menutup panel), M404 (bar BBRI di fixture).
 - Uji sebelum merge (user 2026-11-07: "Try to ask maybe 20 questions and see whether the screener actually works.
   Pertanyaan harus dijalankan melalui as if it was run on the front end. Mulai dari screen yang very simple, moderate,
   sampai screener yang involving multiple technical indicators, candle, and flow indicators."): 20 pertanyaan + 1

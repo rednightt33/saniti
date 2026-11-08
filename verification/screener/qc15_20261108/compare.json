@@ -1,0 +1,2336 @@
+{
+ "1": {
+  "title": "Hammer within 3 sessions at the defaults (found through the Candlestick patterns group, no search)",
+  "error": null,
+  "cards": [
+   "Hammer (average, 10, 3, 30, 2, 10): Detected (event) · within 3d"
+  ],
+  "wallMs": 308,
+  "computeMs": 132,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "1 matchmeet all of 1 condition · 90 in universe Near misses 0",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "d5",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "hammer"
+       }
+      },
+      "within": 3
+     }
+    }
+   ],
+   "logic": "all"
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 1,
+   "pageTable": 1,
+   "exp": 1,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "ADRO"
+   ]
+  },
+  "near": {
+   "page": 0,
+   "pageTable": 0,
+   "pageTableDiff": null,
+   "exp": 0,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 1,
+   "exp": 1
+  },
+  "passCounts": [
+   {
+    "id": "d5",
+    "metric": "hammer",
+    "page": 1,
+    "na": 0,
+    "exp": 1,
+    "expNa": 0,
+    "params": {
+     "trend": "average",
+     "trend_length": 10,
+     "min_range_ticks": 3,
+     "body_max_pct": 30,
+     "shadow_ratio": 2,
+     "short_shadow_pct": 10
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 1,
+  "eventCellsChecked": 1,
+  "textChecked": 1,
+  "verdict": "PASS"
+ },
+ "2": {
+  "title": "Tweezer Top \"Detected\" on the evaluation bar",
+  "error": null,
+  "cards": [
+   "Tweezer Top (average, 10, 3, 1): Detected"
+  ],
+  "wallMs": 153,
+  "computeMs": 95,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "9 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "dc",
+     "enabled": true,
+     "test": {
+      "kind": "state",
+      "pattern": {
+       "kind": "pattern",
+       "type": "tweezer_top"
+      }
+     }
+    }
+   ],
+   "logic": "all"
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 9,
+   "pageTable": 9,
+   "exp": 9,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "AMRT",
+    "AUTO",
+    "BUMI",
+    "CTRA",
+    "PGAS",
+    "PGEO",
+    "SMGR",
+    "TINS",
+    "WIKA"
+   ]
+  },
+  "near": {
+   "page": 0,
+   "pageTable": 0,
+   "pageTableDiff": null,
+   "exp": 0,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 1,
+   "exp": 1
+  },
+  "passCounts": [
+   {
+    "id": "dc",
+    "metric": "tweezer_top",
+    "page": 9,
+    "na": 0,
+    "exp": 9,
+    "expNa": 0,
+    "params": {
+     "trend": "average",
+     "trend_length": 10,
+     "min_range_ticks": 3,
+     "tolerance_ticks": 1
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 9,
+  "eventCellsChecked": 0,
+  "verdict": "PASS"
+ },
+ "3": {
+  "title": "a bearish pattern: Shooting Star within 10 sessions",
+  "error": null,
+  "cards": [
+   "Shooting Star (average, 10, 3, 30, 2, 10): Detected (event) · within 10d"
+  ],
+  "wallMs": 145,
+  "computeMs": 98,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "4 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "dg",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "shooting_star"
+       }
+      },
+      "within": 10
+     }
+    }
+   ],
+   "logic": "all"
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 4,
+   "pageTable": 4,
+   "exp": 4,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "JSMR",
+    "MEDC",
+    "MIKA",
+    "SMGR"
+   ]
+  },
+  "near": {
+   "page": 0,
+   "pageTable": 0,
+   "pageTableDiff": null,
+   "exp": 0,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 1,
+   "exp": 1
+  },
+  "passCounts": [
+   {
+    "id": "dg",
+    "metric": "shooting_star",
+    "page": 4,
+    "na": 0,
+    "exp": 4,
+    "expNa": 0,
+    "params": {
+     "trend": "average",
+     "trend_length": 10,
+     "min_range_ticks": 3,
+     "body_max_pct": 30,
+     "shadow_ratio": 2,
+     "short_shadow_pct": 10
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 4,
+  "eventCellsChecked": 4,
+  "textChecked": 4,
+  "verdict": "PASS"
+ },
+ "4": {
+  "title": "a three-candle pattern: Three White Soldiers within 20 sessions (search \"soldiers\")",
+  "error": null,
+  "cards": [
+   "Three White Soldiers (average, 10, 3, 10, 1, 50, 25): Detected (event) · within 20d"
+  ],
+  "wallMs": 200,
+  "computeMs": 131,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "3 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "dg",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "three_white_soldiers"
+       }
+      },
+      "within": 20
+     }
+    }
+   ],
+   "logic": "all"
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 3,
+   "pageTable": 3,
+   "exp": 3,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "ARTO",
+    "BUMI",
+    "EXCL"
+   ]
+  },
+  "near": {
+   "page": 0,
+   "pageTable": 0,
+   "pageTableDiff": null,
+   "exp": 0,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 1,
+   "exp": 1
+  },
+  "passCounts": [
+   {
+    "id": "dg",
+    "metric": "three_white_soldiers",
+    "page": 3,
+    "na": 0,
+    "exp": 3,
+    "expNa": 0,
+    "params": {
+     "trend": "average",
+     "trend_length": 10,
+     "min_range_ticks": 3,
+     "body_avg_length": 10,
+     "long_body": 1,
+     "body_min_pct": 50,
+     "short_shadow_pct": 25
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 3,
+  "eventCellsChecked": 3,
+  "textChecked": 3,
+  "verdict": "PASS"
+ },
+ "5": {
+  "title": "Bullish Engulfing within 3, prior trend switched off (trend none)",
+  "error": null,
+  "cards": [
+   "Bullish Engulfing (none, 10, 3): Detected (event) · within 3d"
+  ],
+  "wallMs": 248,
+  "computeMs": 127,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "16 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "dn",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "bullish_engulfing",
+        "params": {
+         "trend": "none"
+        }
+       }
+      },
+      "within": 3
+     }
+    }
+   ],
+   "logic": "all"
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 16,
+   "pageTable": 16,
+   "exp": 16,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "AKRA",
+    "AMMN",
+    "ANTM",
+    "ARTO",
+    "ASSA",
+    "AUTO",
+    "CTRA",
+    "EMTK",
+    "ICBP",
+    "ITMG",
+    "JSMR",
+    "MAPI",
+    "MEDC",
+    "PANI",
+    "SRTG",
+    "TBIG"
+   ]
+  },
+  "near": {
+   "page": 0,
+   "pageTable": 0,
+   "pageTableDiff": null,
+   "exp": 0,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 1,
+   "exp": 1
+  },
+  "passCounts": [
+   {
+    "id": "dn",
+    "metric": "bullish_engulfing",
+    "page": 16,
+    "na": 0,
+    "exp": 16,
+    "expNa": 0,
+    "params": {
+     "trend": "none",
+     "trend_length": 10,
+     "min_range_ticks": 3
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 16,
+  "eventCellsChecked": 16,
+  "textChecked": 16,
+  "verdict": "PASS"
+ },
+ "6": {
+  "title": "Hammer within 10, minimum range 1 tick",
+  "error": null,
+  "cards": [
+   "Hammer (average, 10, 1, 30, 2, 10): Detected (event) · within 10d"
+  ],
+  "wallMs": 152,
+  "computeMs": 88,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "12 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "dn",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "hammer",
+        "params": {
+         "min_range_ticks": 1
+        }
+       }
+      },
+      "within": 10
+     }
+    }
+   ],
+   "logic": "all"
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 12,
+   "pageTable": 12,
+   "exp": 12,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "ACES",
+    "ADRO",
+    "BREN",
+    "BRIS",
+    "CMRY",
+    "ENRG",
+    "MAPA",
+    "MEDC",
+    "SIDO",
+    "SIMP",
+    "SMRA",
+    "TPIA"
+   ]
+  },
+  "near": {
+   "page": 0,
+   "pageTable": 0,
+   "pageTableDiff": null,
+   "exp": 0,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 1,
+   "exp": 1
+  },
+  "passCounts": [
+   {
+    "id": "dn",
+    "metric": "hammer",
+    "page": 12,
+    "na": 0,
+    "exp": 12,
+    "expNa": 0,
+    "params": {
+     "trend": "average",
+     "trend_length": 10,
+     "min_range_ticks": 1,
+     "body_max_pct": 30,
+     "shadow_ratio": 2,
+     "short_shadow_pct": 10
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 12,
+  "eventCellsChecked": 12,
+  "textChecked": 12,
+  "verdict": "PASS"
+ },
+ "7": {
+  "title": "Shooting Star within 10, a long trend: trend sessions 60",
+  "error": null,
+  "cards": [
+   "Shooting Star (average, 60, 3, 30, 2, 10): Detected (event) · within 10d"
+  ],
+  "wallMs": 122,
+  "computeMs": 88,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "4 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "dk",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "shooting_star",
+        "params": {
+         "trend_length": 60
+        }
+       }
+      },
+      "within": 10
+     }
+    }
+   ],
+   "logic": "all"
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 4,
+   "pageTable": 4,
+   "exp": 4,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "BBCA",
+    "JSMR",
+    "MIKA",
+    "SMGR"
+   ]
+  },
+  "near": {
+   "page": 0,
+   "pageTable": 0,
+   "pageTableDiff": null,
+   "exp": 0,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 1,
+   "exp": 1
+  },
+  "passCounts": [
+   {
+    "id": "dk",
+    "metric": "shooting_star",
+    "page": 4,
+    "na": 0,
+    "exp": 4,
+    "expNa": 0,
+    "params": {
+     "trend": "average",
+     "trend_length": 60,
+     "min_range_ticks": 3,
+     "body_max_pct": 30,
+     "shadow_ratio": 2,
+     "short_shadow_pct": 10
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 4,
+  "eventCellsChecked": 4,
+  "textChecked": 4,
+  "verdict": "PASS"
+ },
+ "8": {
+  "title": "ANY: Hammer within 3 OR Bullish Engulfing within 3",
+  "error": null,
+  "cards": [
+   "Hammer (average, 10, 3, 30, 2, 10): Detected (event) · within 3d",
+   "Bullish Engulfing (average, 10, 3): Detected (event) · within 3d"
+  ],
+  "wallMs": 175,
+  "computeMs": 105,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "6 matchesmeet any of 2 conditions · 90 in universe Near misses 0",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "df",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "hammer"
+       }
+      },
+      "within": 3
+     }
+    },
+    {
+     "id": "e5",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "bullish_engulfing"
+       }
+      },
+      "within": 3
+     }
+    }
+   ],
+   "logic": "any"
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 6,
+   "pageTable": 6,
+   "exp": 6,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "ADRO",
+    "ASSA",
+    "ICBP",
+    "ITMG",
+    "MEDC",
+    "SRTG"
+   ]
+  },
+  "near": {
+   "page": 0,
+   "pageTable": 0,
+   "pageTableDiff": null,
+   "exp": 0,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 1,
+   "exp": 1
+  },
+  "passCounts": [
+   {
+    "id": "df",
+    "metric": "hammer",
+    "page": 1,
+    "na": 0,
+    "exp": 1,
+    "expNa": 0,
+    "params": {
+     "trend": "average",
+     "trend_length": 10,
+     "min_range_ticks": 3,
+     "body_max_pct": 30,
+     "shadow_ratio": 2,
+     "short_shadow_pct": 10
+    }
+   },
+   {
+    "id": "e5",
+    "metric": "bullish_engulfing",
+    "page": 5,
+    "na": 0,
+    "exp": 5,
+    "expNa": 0,
+    "params": {
+     "trend": "average",
+     "trend_length": 10,
+     "min_range_ticks": 3
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 12,
+  "eventCellsChecked": 12,
+  "textChecked": 6,
+  "verdict": "PASS"
+ },
+ "9": {
+  "title": "ALL: Bullish Harami within 15 AND RSI(14) < 30",
+  "error": null,
+  "cards": [
+   "Bullish Harami (average, 10, 3, 10, 1, 50): Detected (event) · within 15d",
+   "Relative Strength Index (14, close) < 30"
+  ],
+  "wallMs": 152,
+  "computeMs": 104,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "1 matchmeet all of 2 conditions · 90 in universe Near misses 10",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "dj",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "bullish_harami"
+       }
+      },
+      "within": 15
+     }
+    },
+    {
+     "id": "ed",
+     "enabled": true,
+     "test": {
+      "kind": "value",
+      "metric": {
+       "kind": "indicator",
+       "indicator": "I13",
+       "output": "rsi"
+      },
+      "op": "lt",
+      "value": 30
+     }
+    }
+   ],
+   "logic": "all"
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 1,
+   "pageTable": 1,
+   "exp": 1,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "CPIN"
+   ]
+  },
+  "near": {
+   "page": 10,
+   "pageTable": 10,
+   "pageTableDiff": {
+    "missing": [],
+    "extra": []
+   },
+   "nearToggleSentRun": false,
+   "exp": 10,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 2,
+   "exp": 2
+  },
+  "passCounts": [
+   {
+    "id": "dj",
+    "metric": "bullish_harami",
+    "page": 10,
+    "na": 0,
+    "exp": 10,
+    "expNa": 0,
+    "params": {
+     "trend": "average",
+     "trend_length": 10,
+     "min_range_ticks": 3,
+     "body_avg_length": 10,
+     "long_body": 1,
+     "inside_max_pct": 50
+    }
+   },
+   {
+    "id": "ed",
+    "metric": "I13.rsi",
+    "page": 2,
+    "na": 0,
+    "exp": 2,
+    "expNa": 0,
+    "params": {
+     "length": 14,
+     "source": "close"
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 22,
+  "eventCellsChecked": 11,
+  "textChecked": 10,
+  "verdict": "PASS"
+ },
+ "10": {
+  "title": "ALL: Bullish Marubozu within 10 AND close above SMA(50)",
+  "error": null,
+  "cards": [
+   "Bullish Marubozu (none, 10, 3, 10, 1, 90): Detected (event) · within 10d",
+   "Simple Moving Average (50, close): Close above SMA"
+  ],
+  "wallMs": 137,
+  "computeMs": 76,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "11 matchesmeet all of 2 conditions · 90 in universe Near misses 55",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "dj",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "bullish_marubozu"
+       }
+      },
+      "within": 10
+     }
+    },
+    {
+     "id": "e1",
+     "enabled": true,
+     "test": {
+      "kind": "state",
+      "lhs": {
+       "kind": "price",
+       "field": "close"
+      },
+      "op": "gt",
+      "rhs": {
+       "kind": "indicator",
+       "indicator": "I01",
+       "params": {
+        "length": 50
+       },
+       "output": "sma"
+      }
+     }
+    }
+   ],
+   "logic": "all"
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 11,
+   "pageTable": 11,
+   "exp": 11,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "AMMN",
+    "ARTO",
+    "BDMN",
+    "BJBR",
+    "BUMI",
+    "ESSA",
+    "HEAL",
+    "HRUM",
+    "ITMG",
+    "MIKA",
+    "MYOR"
+   ]
+  },
+  "near": {
+   "page": 55,
+   "pageTable": 55,
+   "pageTableDiff": {
+    "missing": [],
+    "extra": []
+   },
+   "nearToggleSentRun": false,
+   "exp": 55,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 2,
+   "exp": 2
+  },
+  "passCounts": [
+   {
+    "id": "dj",
+    "metric": "bullish_marubozu",
+    "page": 17,
+    "na": 0,
+    "exp": 17,
+    "expNa": 0,
+    "params": {
+     "trend": "none",
+     "trend_length": 10,
+     "min_range_ticks": 3,
+     "body_avg_length": 10,
+     "long_body": 1,
+     "body_min_pct": 90
+    }
+   },
+   {
+    "id": "e1",
+    "metric": "I01.sma",
+    "page": 60,
+    "na": 0,
+    "exp": 60,
+    "expNa": 0,
+    "params": {
+     "length": 50,
+     "source": "close"
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 132,
+  "eventCellsChecked": 66,
+  "textChecked": 17,
+  "verdict": "PASS"
+ },
+ "11": {
+  "title": "ALL: Tweezer Bottom within 10 AND Bandar Balance (FL24, defaults) >= 6",
+  "error": null,
+  "cards": [
+   "Tweezer Bottom (average, 10, 3, 1): Detected (event) · within 10d",
+   "Bandar Balance · % (Top N 3, Rolling days 10): ≥ 6"
+  ],
+  "wallMs": 119,
+  "computeMs": 78,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "7 matchesmeet all of 2 conditions · 90 in universe Near misses 27",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "dj",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "tweezer_bottom"
+       }
+      },
+      "within": 10
+     }
+    },
+    {
+     "id": "et",
+     "enabled": true,
+     "test": {
+      "kind": "value",
+      "metric": {
+       "kind": "flow",
+       "metric": "FL24",
+       "output": "value"
+      },
+      "op": "ge",
+      "value": 6
+     }
+    }
+   ],
+   "logic": "all"
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 7,
+   "pageTable": 7,
+   "exp": 7,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "BUMI",
+    "HMSP",
+    "ICBP",
+    "ITMG",
+    "PWON",
+    "TLKM",
+    "UNVR"
+   ]
+  },
+  "near": {
+   "page": 27,
+   "pageTable": 27,
+   "pageTableDiff": {
+    "missing": [],
+    "extra": []
+   },
+   "nearToggleSentRun": false,
+   "exp": 27,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 2,
+   "exp": 2
+  },
+  "passCounts": [
+   {
+    "id": "dj",
+    "metric": "tweezer_bottom",
+    "page": 19,
+    "na": 0,
+    "exp": 19,
+    "expNa": 0,
+    "params": {
+     "trend": "average",
+     "trend_length": 10,
+     "min_range_ticks": 3,
+     "tolerance_ticks": 1
+    }
+   },
+   {
+    "id": "et",
+    "metric": "FL24.value — Bandar Balance · %",
+    "page": 22,
+    "na": 2,
+    "exp": 22,
+    "expNa": 2,
+    "params": {
+     "top": 3,
+     "boards": [
+      "Regular"
+     ],
+     "investors": [
+      "Foreign",
+      "Domestic"
+     ],
+     "window": 10
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 68,
+  "eventCellsChecked": 34,
+  "textChecked": 19,
+  "verdict": "PASS"
+ },
+ "12": {
+  "title": "ALL: Bullish Marubozu within 10 AND Volume spike (20)",
+  "error": null,
+  "cards": [
+   "Bullish Marubozu (none, 10, 3, 10, 1, 90): Detected (event) · within 10d",
+   "Volume spike (20, 2): Detected"
+  ],
+  "wallMs": 137,
+  "computeMs": 86,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "1 matchmeet all of 2 conditions · 90 in universe Near misses 16",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "dj",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "bullish_marubozu"
+       }
+      },
+      "within": 10
+     }
+    },
+    {
+     "id": "e1",
+     "enabled": true,
+     "test": {
+      "kind": "state",
+      "pattern": {
+       "kind": "pattern",
+       "type": "volspike"
+      }
+     }
+    }
+   ],
+   "logic": "all"
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 1,
+   "pageTable": 1,
+   "exp": 1,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "ESSA"
+   ]
+  },
+  "near": {
+   "page": 16,
+   "pageTable": 16,
+   "pageTableDiff": {
+    "missing": [],
+    "extra": []
+   },
+   "nearToggleSentRun": false,
+   "exp": 16,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 2,
+   "exp": 2
+  },
+  "passCounts": [
+   {
+    "id": "dj",
+    "metric": "bullish_marubozu",
+    "page": 17,
+    "na": 0,
+    "exp": 17,
+    "expNa": 0,
+    "params": {
+     "trend": "none",
+     "trend_length": 10,
+     "min_range_ticks": 3,
+     "body_avg_length": 10,
+     "long_body": 1,
+     "body_min_pct": 90
+    }
+   },
+   {
+    "id": "e1",
+    "metric": "volspike",
+    "page": 1,
+    "na": 0,
+    "exp": 1,
+    "expNa": 0,
+    "params": {
+     "length": 20,
+     "threshold": 2
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 34,
+  "eventCellsChecked": 17,
+  "textChecked": 17,
+  "verdict": "PASS"
+ },
+ "13": {
+  "title": "AT LEAST 2 of 3: Bullish Engulfing within 10, close above SMA(50), FL24 >= 6",
+  "error": null,
+  "cards": [
+   "Bullish Engulfing (average, 10, 3): Detected (event) · within 10d",
+   "Simple Moving Average (50, close): Close above SMA",
+   "Bandar Balance · % (Top N 3, Rolling days 10): ≥ 6"
+  ],
+  "wallMs": 105,
+  "computeMs": 76,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "24 matchesmeet at least 2 of 3 conditions · 90 in universe Near misses 43",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "dj",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "bullish_engulfing"
+       }
+      },
+      "within": 10
+     }
+    },
+    {
+     "id": "e1",
+     "enabled": true,
+     "test": {
+      "kind": "state",
+      "lhs": {
+       "kind": "price",
+       "field": "close"
+      },
+      "op": "gt",
+      "rhs": {
+       "kind": "indicator",
+       "indicator": "I01",
+       "params": {
+        "length": 50
+       },
+       "output": "sma"
+      }
+     }
+    },
+    {
+     "id": "fb",
+     "enabled": true,
+     "test": {
+      "kind": "value",
+      "metric": {
+       "kind": "flow",
+       "metric": "FL24",
+       "output": "value"
+      },
+      "op": "ge",
+      "value": 6
+     }
+    }
+   ],
+   "logic": "at_least",
+   "at_least": 2
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 24,
+   "pageTable": 24,
+   "exp": 24,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "ADHI",
+    "AMRT",
+    "ANTM",
+    "ASSA",
+    "AUTO",
+    "BBCA",
+    "BREN",
+    "BUMI",
+    "DMAS",
+    "HMSP",
+    "ICBP",
+    "INCO",
+    "INDY",
+    "ITMG",
+    "MAPI",
+    "MNCN",
+    "PANI",
+    "PGAS",
+    "PWON",
+    "SIMP",
+    "TINS",
+    "TKIM",
+    "UNVR",
+    "WIKA"
+   ]
+  },
+  "near": {
+   "page": 43,
+   "pageTable": 43,
+   "pageTableDiff": {
+    "missing": [],
+    "extra": []
+   },
+   "nearToggleSentRun": false,
+   "exp": 43,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 2,
+   "exp": 2
+  },
+  "passCounts": [
+   {
+    "id": "dj",
+    "metric": "bullish_engulfing",
+    "page": 14,
+    "na": 0,
+    "exp": 14,
+    "expNa": 0,
+    "params": {
+     "trend": "average",
+     "trend_length": 10,
+     "min_range_ticks": 3
+    }
+   },
+   {
+    "id": "e1",
+    "metric": "I01.sma",
+    "page": 60,
+    "na": 0,
+    "exp": 60,
+    "expNa": 0,
+    "params": {
+     "length": 50,
+     "source": "close"
+    }
+   },
+   {
+    "id": "fb",
+    "metric": "FL24.value — Bandar Balance · %",
+    "page": 22,
+    "na": 2,
+    "exp": 22,
+    "expNa": 2,
+    "params": {
+     "top": 3,
+     "boards": [
+      "Regular"
+     ],
+     "investors": [
+      "Foreign",
+      "Domestic"
+     ],
+     "window": 10
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 201,
+  "eventCellsChecked": 67,
+  "textChecked": 14,
+  "verdict": "PASS"
+ },
+ "14": {
+  "title": "search \"palu\" and \"doji\" (and \"bintang\", \"engulfing\", \"candlestick\")",
+  "expected": {
+   "palu": [
+    "Candlestick: Hammer",
+    "Candlestick: Inverted Hammer"
+   ],
+   "doji": [
+    "Candlestick: Dragonfly Doji",
+    "Candlestick: Gravestone Doji"
+   ]
+  },
+  "page": {
+   "palu": [
+    "Candlestick: Hammer",
+    "Candlestick: Inverted Hammer"
+   ],
+   "doji": [
+    "Candlestick: Dragonfly Doji",
+    "Candlestick: Gravestone Doji"
+   ]
+  },
+  "verdict": "PASS"
+ },
+ "15": {
+  "title": "out-of-range parameters: refused with a clear message, nothing added",
+  "attempts": [
+   {
+    "name": "Hammer trend_length 1 (range 2-100)",
+    "added": false,
+    "cards": [
+     0,
+     0
+    ],
+    "toast": "Hammer: Trend sessions: Must be at least 2.",
+    "invalidField": [
+     {
+      "field": "trend_length",
+      "title": "Trend sessions: Must be at least 2."
+     }
+    ]
+   },
+   {
+    "name": "Tweezer Bottom tolerance_ticks 11 (range 0-10)",
+    "added": false,
+    "cards": [
+     0,
+     0
+    ],
+    "toast": "Tweezer Bottom: Lows equal within (ticks): Must be at most 10.",
+    "invalidField": [
+     {
+      "field": "tolerance_ticks",
+      "title": "Lows equal within (ticks): Must be at most 10."
+     }
+    ]
+   },
+   {
+    "name": "Hammer within 131 (within_max 130)",
+    "added": false,
+    "cards": [
+     0,
+     0
+    ],
+    "toast": "Hammer: Enter whole sessions from 1 to 130.",
+    "invalidField": [
+     {
+      "field": "within",
+      "title": "Enter whole sessions from 1 to 130."
+     }
+    ]
+   },
+   {
+    "name": "Morning Star star_overlap_pct -60 (range -50..50)",
+    "added": false,
+    "cards": [
+     0,
+     0
+    ],
+    "toast": "Morning Star: Star may reach into the first body (%): Must be at least -50.",
+    "invalidField": [
+     {
+      "field": "star_overlap_pct",
+      "title": "Star may reach into the first body (%): Must be at least -50."
+     }
+    ]
+   },
+   {
+    "name": "Bullish Marubozu body_min_pct 40 (range 50-100)",
+    "added": false,
+    "cards": [
+     0,
+     0
+    ],
+    "toast": "Bullish Marubozu: Body at least (% of range): Must be at least 50.",
+    "invalidField": [
+     {
+      "field": "body_min_pct",
+      "title": "Body at least (% of range): Must be at least 50."
+     }
+    ]
+   },
+   {
+    "name": "Hammer min_range_ticks 0 (range 1-50)",
+    "added": false,
+    "cards": [
+     0,
+     0
+    ],
+    "toast": "Hammer: Minimum range (ticks): Must be at least 1.",
+    "invalidField": [
+     {
+      "field": "min_range_ticks",
+      "title": "Minimum range (ticks): Must be at least 1."
+     }
+    ]
+   },
+   {
+    "name": "Hammer min_range_ticks 1.5 (whole number)",
+    "added": false,
+    "cards": [
+     0,
+     0
+    ],
+    "toast": "Hammer: Minimum range (ticks): Enter a whole number.",
+    "invalidField": [
+     {
+      "field": "min_range_ticks",
+      "title": "Minimum range (ticks): Enter a whole number."
+     }
+    ]
+   },
+   {
+    "name": "Hammer body_max_pct 150 (range 0-100)",
+    "added": false,
+    "cards": [
+     0,
+     0
+    ],
+    "toast": "Hammer: Body at most (% of range): Must be at most 100.",
+    "invalidField": [
+     {
+      "field": "body_max_pct",
+      "title": "Body at most (% of range): Must be at most 100."
+     }
+    ]
+   }
+  ],
+  "runsSent": 0,
+  "verdict": "PASS",
+  "note": "every attempt refused in the row, toast names the pattern, the field and the bound broken; nothing added, no run sent. After the refusal the Customize panel is closed, nothing on the row is marked invalid (aria-invalid count 0) and focus does not reach the field (q15_refused_toast.png)."
+ },
+ "16": {
+  "title": "\"hammer on at least 3 of the last 10 sessions\" (window operator on a pattern): what the page offers",
+  "pageOffers": {
+   "row": [
+    "Detected",
+    "Detected (event)"
+   ],
+   "card": [
+    "Detected",
+    "Detected (event)"
+   ],
+   "operatorOption": false
+  },
+  "expectedOnThisBuild": "not offered",
+  "verdict": "AS EXPECTED (not offered)",
+  "wireLevel": [
+   {
+    "name": "hammer on at least 3 of the last 10",
+    "wire": {
+     "kind": "window",
+     "mode": "at_least",
+     "length": 10,
+     "count": 3,
+     "test": {
+      "kind": "state",
+      "pattern": {
+       "kind": "pattern",
+       "type": "hammer"
+      }
+     }
+    },
+    "page": [],
+    "exp": [],
+    "error": null,
+    "same": true
+   },
+   {
+    "name": "hammer on at least 2 of the last 30",
+    "wire": {
+     "kind": "window",
+     "mode": "at_least",
+     "length": 30,
+     "count": 2,
+     "test": {
+      "kind": "state",
+      "pattern": {
+       "kind": "pattern",
+       "type": "hammer"
+      }
+     }
+    },
+    "page": [
+     [
+      "BREN",
+      2
+     ]
+    ],
+    "exp": [
+     [
+      "BREN",
+      2
+     ]
+    ],
+    "error": null,
+    "same": true
+   }
+  ]
+ },
+ "17": {
+  "title": "\"bullish engulfing every session of the last 2\" (streak on a pattern): what the page offers",
+  "pageOffers": {
+   "row": [
+    "Detected",
+    "Detected (event)"
+   ],
+   "card": [
+    "Detected",
+    "Detected (event)"
+   ],
+   "operatorOption": false
+  },
+  "expectedOnThisBuild": "not offered",
+  "verdict": "AS EXPECTED (not offered)",
+  "wireLevel": [
+   {
+    "name": "bullish engulfing every session of the last 2",
+    "wire": {
+     "kind": "window",
+     "mode": "streak",
+     "length": 2,
+     "test": {
+      "kind": "state",
+      "pattern": {
+       "kind": "pattern",
+       "type": "bullish_engulfing"
+      }
+     }
+    },
+    "page": [],
+    "exp": [],
+    "error": null,
+    "same": true
+   }
+  ],
+  "note": "a Bullish Engulfing on two sessions in a row is impossible by definition (candle 2 of the first is white, candle 1 of the second must be black), so this screen can never match"
+ },
+ "4b": {
+  "title": "a three-candle bearish pattern: Evening Star within 20 sessions (search \"bintang sore\")",
+  "error": null,
+  "cards": [
+   "Evening Star (average, 10, 3, 10, 1, 30, 10, 50): Detected (event) · within 20d"
+  ],
+  "wallMs": 173,
+  "computeMs": 105,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "4 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "dg",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "evening_star"
+       }
+      },
+      "within": 20
+     }
+    }
+   ],
+   "logic": "all"
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 4,
+   "pageTable": 4,
+   "exp": 4,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "BSDE",
+    "MEDC",
+    "MYOR",
+    "SRTG"
+   ]
+  },
+  "near": {
+   "page": 0,
+   "pageTable": 0,
+   "pageTableDiff": null,
+   "exp": 0,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 1,
+   "exp": 1
+  },
+  "passCounts": [
+   {
+    "id": "dg",
+    "metric": "evening_star",
+    "page": 4,
+    "na": 0,
+    "exp": 4,
+    "expNa": 0,
+    "params": {
+     "trend": "average",
+     "trend_length": 10,
+     "min_range_ticks": 3,
+     "body_avg_length": 10,
+     "long_body": 1,
+     "star_body_pct": 30,
+     "star_overlap_pct": 10,
+     "penetration_pct": 50
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 4,
+  "eventCellsChecked": 4,
+  "textChecked": 4,
+  "verdict": "PASS"
+ },
+ "7b": {
+  "title": "Piercing Line within 60, open beyond the low (open_beyond range, the classic gap)",
+  "error": null,
+  "cards": [
+   "Piercing Line (average, 10, 3, 10, 1, range, 50): Detected (event) · within 60d"
+  ],
+  "wallMs": 128,
+  "computeMs": 78,
+  "consoleErrors": [],
+  "csp": [],
+  "offOrigin": [
+   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  ],
+  "meta": "12 matchesmeet all of 1 condition · 90 in universe Near misses 0",
+  "wire": {
+   "universe": {
+    "security_types": [
+     "stock"
+    ],
+    "include_unclassified": false,
+    "price_min": 50,
+    "adv20_min_idr": 1000000000,
+    "min_history_bars": null,
+    "traded_on_eval_date": true,
+    "exclude_price_breaks": true,
+    "tickers": null
+   },
+   "conditions": [
+    {
+     "id": "dk",
+     "enabled": true,
+     "test": {
+      "kind": "event",
+      "signal": {
+       "pattern": {
+        "kind": "pattern",
+        "type": "piercing_line",
+        "params": {
+         "open_beyond": "range"
+        }
+       }
+      },
+      "within": 60
+     }
+    }
+   ],
+   "logic": "all"
+  },
+  "universe": {
+   "page": 90,
+   "exp": 90
+  },
+  "matches": {
+   "page": 12,
+   "pageTable": 12,
+   "exp": 12,
+   "diff": {
+    "missing": [],
+    "extra": []
+   },
+   "diffWire": {
+    "missing": [],
+    "extra": []
+   },
+   "list": [
+    "ADRO",
+    "BBCA",
+    "BRPT",
+    "CLEO",
+    "HRUM",
+    "KLBF",
+    "MIKA",
+    "PGAS",
+    "SCMA",
+    "SMRA",
+    "SRTG",
+    "TPIA"
+   ]
+  },
+  "near": {
+   "page": 0,
+   "pageTable": 0,
+   "pageTableDiff": null,
+   "exp": 0,
+   "diff": {
+    "missing": [],
+    "extra": []
+   }
+  },
+  "need": {
+   "page": 1,
+   "exp": 1
+  },
+  "passCounts": [
+   {
+    "id": "dk",
+    "metric": "piercing_line",
+    "page": 12,
+    "na": 0,
+    "exp": 12,
+    "expNa": 0,
+    "params": {
+     "trend": "average",
+     "trend_length": 10,
+     "min_range_ticks": 3,
+     "body_avg_length": 10,
+     "long_body": 1,
+     "open_beyond": "range",
+     "penetration_pct": 50
+    }
+   }
+  ],
+  "cellMismatch": [],
+  "cellsChecked": 12,
+  "eventCellsChecked": 12,
+  "textChecked": 12,
+  "verdict": "PASS"
+ },
+ "wire_sweep": {
+  "title": "SUPPLEMENTARY, wire level (not the page path): each of the 20 patterns within 130 and on the bar, at the defaults and a looser setup, and window tests on patterns sent directly on the wire, through window.__fixture.run (the same core Screen now calls)",
+  "setups": 40,
+  "allEqual": true,
+  "eventCellsCompared": 2405,
+  "table": [
+   "hammer defaults: within130 29/29 (date, bars_ago, last_event_date mismatches 0); on bar 0/0",
+   "hammer loose: within130 66/66 (date, bars_ago, last_event_date mismatches 0); on bar 2/2",
+   "hanging_man defaults: within130 20/20 (date, bars_ago, last_event_date mismatches 0); on bar 0/0",
+   "hanging_man loose: within130 71/71 (date, bars_ago, last_event_date mismatches 0); on bar 3/3",
+   "inverted_hammer defaults: within130 24/24 (date, bars_ago, last_event_date mismatches 0); on bar 1/1",
+   "inverted_hammer loose: within130 62/62 (date, bars_ago, last_event_date mismatches 0); on bar 0/0",
+   "shooting_star defaults: within130 22/22 (date, bars_ago, last_event_date mismatches 0); on bar 0/0",
+   "shooting_star loose: within130 73/73 (date, bars_ago, last_event_date mismatches 0); on bar 3/3",
+   "dragonfly_doji defaults: within130 9/9 (date, bars_ago, last_event_date mismatches 0); on bar 0/0",
+   "dragonfly_doji loose: within130 77/77 (date, bars_ago, last_event_date mismatches 0); on bar 5/5",
+   "gravestone_doji defaults: within130 10/10 (date, bars_ago, last_event_date mismatches 0); on bar 0/0",
+   "gravestone_doji loose: within130 86/86 (date, bars_ago, last_event_date mismatches 0); on bar 3/3",
+   "bullish_marubozu defaults: within130 87/87 (date, bars_ago, last_event_date mismatches 0); on bar 1/1",
+   "bullish_marubozu loose: within130 74/74 (date, bars_ago, last_event_date mismatches 0); on bar 0/0",
+   "bearish_marubozu defaults: within130 89/89 (date, bars_ago, last_event_date mismatches 0); on bar 2/2",
+   "bearish_marubozu loose: within130 78/78 (date, bars_ago, last_event_date mismatches 0); on bar 2/2",
+   "bullish_engulfing defaults: within130 86/86 (date, bars_ago, last_event_date mismatches 0); on bar 0/0",
+   "bullish_engulfing loose: within130 90/90 (date, bars_ago, last_event_date mismatches 0); on bar 4/4",
+   "bearish_engulfing defaults: within130 89/89 (date, bars_ago, last_event_date mismatches 0); on bar 4/4",
+   "bearish_engulfing loose: within130 90/90 (date, bars_ago, last_event_date mismatches 0); on bar 6/6",
+   "bullish_harami defaults: within130 73/73 (date, bars_ago, last_event_date mismatches 0); on bar 1/1",
+   "bullish_harami loose: within130 90/90 (date, bars_ago, last_event_date mismatches 0); on bar 2/2",
+   "bearish_harami defaults: within130 77/77 (date, bars_ago, last_event_date mismatches 0); on bar 5/5",
+   "bearish_harami loose: within130 90/90 (date, bars_ago, last_event_date mismatches 0); on bar 15/15",
+   "piercing_line defaults: within130 41/41 (date, bars_ago, last_event_date mismatches 0); on bar 0/0",
+   "piercing_line loose: within130 68/68 (date, bars_ago, last_event_date mismatches 0); on bar 0/0",
+   "dark_cloud_cover defaults: within130 47/47 (date, bars_ago, last_event_date mismatches 0); on bar 1/1",
+   "dark_cloud_cover loose: within130 67/67 (date, bars_ago, last_event_date mismatches 0); on bar 3/3",
+   "tweezer_bottom defaults: within130 90/90 (date, bars_ago, last_event_date mismatches 0); on bar 0/0",
+   "tweezer_bottom loose: within130 90/90 (date, bars_ago, last_event_date mismatches 0); on bar 5/5",
+   "tweezer_top defaults: within130 90/90 (date, bars_ago, last_event_date mismatches 0); on bar 9/9",
+   "tweezer_top loose: within130 90/90 (date, bars_ago, last_event_date mismatches 0); on bar 18/18",
+   "morning_star defaults: within130 15/15 (date, bars_ago, last_event_date mismatches 0); on bar 0/0",
+   "morning_star loose: within130 53/53 (date, bars_ago, last_event_date mismatches 0); on bar 0/0",
+   "evening_star defaults: within130 22/22 (date, bars_ago, last_event_date mismatches 0); on bar 1/1",
+   "evening_star loose: within130 55/55 (date, bars_ago, last_event_date mismatches 0); on bar 2/2",
+   "three_white_soldiers defaults: within130 19/19 (date, bars_ago, last_event_date mismatches 0); on bar 1/1",
+   "three_white_soldiers loose: within130 45/45 (date, bars_ago, last_event_date mismatches 0); on bar 1/1",
+   "three_black_crows defaults: within130 16/16 (date, bars_ago, last_event_date mismatches 0); on bar 0/0",
+   "three_black_crows loose: within130 35/35 (date, bars_ago, last_event_date mismatches 0); on bar 0/0"
+  ],
+  "window": [
+   {
+    "name": "hammer on at least 3 of the last 10",
+    "page": [],
+    "exp": [],
+    "same": true
+   },
+   {
+    "name": "hammer on at least 2 of the last 30",
+    "page": [
+     [
+      "BREN",
+      2
+     ]
+    ],
+    "exp": [
+     [
+      "BREN",
+      2
+     ]
+    ],
+    "same": true
+   },
+   {
+    "name": "bullish engulfing every session of the last 2",
+    "page": [],
+    "exp": [],
+    "same": true
+   },
+   {
+    "name": "tweezer top on at least 2 of the last 10",
+    "page": [
+     [
+      "AMRT",
+      2
+     ],
+     [
+      "BSDE",
+      2
+     ],
+     [
+      "BUMI",
+      2
+     ],
+     [
+      "CMRY",
+      2
+     ],
+     [
+      "HEAL",
+      2
+     ],
+     [
+      "HMSP",
+      2
+     ],
+     [
+      "SILO",
+      2
+     ],
+     [
+      "SMGR",
+      2
+     ],
+     [
+      "ULTJ",
+      2
+     ],
+     [
+      "WIKA",
+      2
+     ]
+    ],
+    "exp": [
+     [
+      "AMRT",
+      2
+     ],
+     [
+      "BSDE",
+      2
+     ],
+     [
+      "BUMI",
+      2
+     ],
+     [
+      "CMRY",
+      2
+     ],
+     [
+      "HEAL",
+      2
+     ],
+     [
+      "HMSP",
+      2
+     ],
+     [
+      "SILO",
+      2
+     ],
+     [
+      "SMGR",
+      2
+     ],
+     [
+      "ULTJ",
+      2
+     ],
+     [
+      "WIKA",
+      2
+     ]
+    ],
+    "same": true
+   },
+   {
+    "name": "bearish marubozu on at least 2 of the last 5",
+    "page": [],
+    "exp": [],
+    "same": true
+   }
+  ]
+ },
+ "_meta": {
+  "run": "qc15, 2026-11-08, unit C (P6, 20 candlestick patterns) through the Screener front end; fixture build of branch claude/charming-hamilton-faq25e at HEAD f646370e",
+  "build": "apps/edge-bff/screener: npx vite build --mode fixture --outDir <scratch>/qc15/dist-fixture; served with SCREENER_CSP (tests/smoke/serve.mjs screenerCsp) on 127.0.0.1:47415-47418; Playwright Chromium, viewport 1440x950, deviceScaleFactor 1, Google Fonts requests fulfilled locally with empty CSS (no network)",
+  "data": "fixture market: 94 listed, 90 eligible at the defaults, evaluation date 2026-10-23, broker window 2026-07-31..2026-10-22 (60 sessions)",
+  "expected": "cand.mjs: own brute-force candle evaluator written from verification/screener/P6_CANDLES.md (not candles.ts, not candle-registry.json, not tests/candles-oracle.mjs); RSI, SMA, volume spike and FL24 from the q20 run's independent indep.mjs (unchanged), on raw data re-dumped from this build",
+  "timingMs": {
+   "screenNowToResults": {
+    "min": 105,
+    "median": 152,
+    "max": 308
+   },
+   "fixtureRun": {
+    "min": 76,
+    "median": 95,
+    "max": 132
+   }
+  },
+  "consoleErrors": 0,
+  "cspViolations": 0,
+  "sensitivity": "the questions tell the readings apart: trend average including the session before candle 1 (excluding it changes Q4, Q4b, Q9, Q11, Q13), the piercing close strictly below open1 (<= changes Q7b), the average body over the sessions before candle 1 (shifted by one changes Q4); tick counting band by band vs floored makes no difference on this data (prices on the tick grid). The page agrees with the first reading of each.",
+  "notExercised": "the fixture has no day without trades, no volume 0 and no missing bar; its one inconsistent bar (BBRI 2026-10-23: low 5725 above close 5720) would not form a pattern even without the guard, so the trade and consistency guards are not tested by these screens. The tick-range guard is (Q6 vs Q1).",
+  "fixtureDefect": "BBRI's last bar is inconsistent (o 5850, h 5875, l 5725, c 5720): tests/fixture/data.ts sets the last close to the listing price 5720, off the Rp 25 tick grid, and the low is rounded to the grid (5725)."
+ }
+}

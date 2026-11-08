@@ -5649,6 +5649,105 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   writes `{kind: "event", within: 3}`); the screener vitest suite.
 - **Status:** FIXED on branch (P6, not merged).
 
+### M399 — Screener patterns (P6), page side: no window operator on a pattern, side not shown, search blind to the group heading, Customize selects cut (2026-11-08, fixed on branch)
+
+- **Found by:** QA unit C (QA3 item 4, QA5 items 1, 2 and 4; the 15 candle questions, `verification/screener/qc15_20261108/`).
+- **Symptom:** no "K of N" or "N sessions in a row" on any pattern (breakout, volume spike, the 20 candles), although
+  OPERATORS.md section 4 gives type F (0/1 signal: patterns, candles) operators 5, 9 and 10 and the core accepts them;
+  bullish/bearish shown nowhere (P6_CANDLES.md: each entry shows name, side, parameters); "candlestick", "pattern" and
+  "candle" (the Doji) found nothing in the search; the Customize select "Prior trend measured by" read "avera" at 1440
+  and 1100 px (flow selects were cut too).
+- **Verified cause:** `operators.ts` `offersOperators` admitted only indicators and flow indicators, and `opTest` /
+  `opFromTest` had no wire for a pattern; core `catalog.ts` `candleMetric` dropped the registry's `side`;
+  `entries.ts` `matches` read only label, short name, description, key and synonyms; the settings cell's select rule
+  (84-132 px) reached the panel's selects and its grid squeezed them to 84 px.
+- **Class:** rules hung on an entry's kind or one control's place, not on the series' output type or the component
+  that owns it.
+- **Solution:** every pattern entry is one series of type F; what it takes is read from the catalog's operators block
+  (no measure; the window tests whose `not_on` leaves F); the wire is a window over the pattern's own state test (or its
+  event within 1), read back by `fromWire`; card "Detected on at least 3 of the last 10 sessions", cell "Yes · 4/10".
+  `side` is additive through the catalog (contract, core catalog, worker catalog, fixture) and shown on the row, the
+  card and the tooltips (`texts.ts` `SIDE_TEXT`). The search also matches the group heading and the side, for every
+  group. In the panel a select is as wide as its options; at 640 px and below it takes its own line.
+- **Verified:** `tests/page/pattern-operators.test.ts` (Breakout, Volume spike, Bearish Engulfing, Evening Star, Three
+  Black Crows: validation, read-back, words, refusals, a fixture run where "ever 20" equals "within 20"), worker
+  `tests/operators.test.ts`, two new smoke steps (one fails on the old CSS with the QA symptom), screener vitest
+  1,327 passed, bundle 31/31. Commits 186822e8, 11e86e72.
+- **Status:** FIXED on branch, not released.
+- **Lesson for new data:** a new metric kind states its output type, so the operators it takes follow from the catalog.
+
+### M400 — Screener: refusals of a pattern or another value that is not a series had no reason, way to pass or example (2026-11-08, fixed on branch)
+
+- **Found by:** QA unit C (QA3 items 1 and 2).
+- **Symptom:** `of: a "pattern" reference is not a series on the ticker's bars; use it where its test form allows it.`
+  (no example, no "a pattern is a 0/1 signal"); `ma` or `lag` of a pattern in a value test said "offered in state or
+  event tests", though a state test refuses it too; a window count of 0 got the fixed example "wrong: 6 of 5".
+- **Verified cause:** one generic refusal in core `metrics.ts` `resolveSeries`; validation checked the outer
+  transform's test form before its operand; the count message used fixed examples.
+- **Class:** every refusal of a reference that is not a series (a pattern, the RS rank, a universe attribute, a rank),
+  wherever a series is needed (a transform's series or second series, a rank's series, a comparison side, a value test,
+  inside a window, a universe filter).
+- **Solution:** `metrics.ts` `notSeriesRefusal` (the reference by its catalog name, what it is, how to pass where the
+  test sits, with the test words read from the catalog, a right and a wrong example), used by validation and binding
+  alike; operands checked first; `condition.ts` `countRefusal` (1 to the length, the given count as the wrong example).
+- **Verified:** `tests/core/not-series.test.ts` (every kind x every catalog transform x each place; the right examples
+  pass; binding and validation give the same words), `tests/page/not-series-refusals.test.ts` (errorText renders
+  them). Commit 457f7b6d.
+- **Status:** FIXED on branch, not released. Not covered: other test-form refusals (for example `ma` of a series in a
+  value test) still give no example (a separate class).
+
+### M401 — Screener worker: a pattern's cost length was its largest parameter (2026-11-08, fixed on branch)
+
+- **Found by:** QA unit C (QA4 item 1).
+- **Symptom:** the default Hammer predicted 36 ms for 116-125 ms busy (150 stocks x 1,330 bars); Hammer with
+  trend_length 100 predicted 363-368 ms for 107-115 ms; min_range_ticks 50 inflated the prediction though it costs
+  nothing.
+- **Verified cause:** `apps/screener-worker/src/run.ts` `costUnits` priced a pattern as O(N x n) with n = its largest
+  numeric parameter at the indicators' 5.96 ns.
+- **Class:** a cost length not derived from the work done (as M394).
+- **Solution:** two units per pattern: a fixed O(N) unit plus an O(N x n) unit whose length is the core's own window
+  (`candleLookback`; the `PATTERNS` window for the older patterns); the candle prior measured (492.1 + 1.06 x window ns
+  per bar, 92 runs), in `screener-overlay.json` `cost_model.pattern`, checked by the generator. `macd_divergence` has no
+  finite window and keeps its old unit (M300: lowering its class needs a reviewed reason).
+- **Verified:** `verification/screener/BENCHMARK_FLOW_COST.md` section 6 (candle ratios 0.31-3.39 before, 0.67-1.22
+  after; 91 of 92 runs within 0.5-2), `apps/screener-worker/tests/pattern_cost.test.ts`. Commit e32c4f94.
+- **Status:** FIXED on branch, not released.
+
+### M402 — Candle patterns: one-price and no-trade days in the average body (2026-11-08, open: user decision)
+
+- **Found by:** QA unit C (QA2 D1); measured by the impact analysis of 2026-11-08 (session scratchpad `p6impact/`).
+- **Symptom:** the "long candle" rule (body at least `long_body` x the average body of the `body_avg_length` sessions
+  before candle 1: Marubozu, Harami, Piercing Line / Dark Cloud Cover, Morning / Evening Star, Three White Soldiers /
+  Black Crows) compares with an average that counts days whose body is 0. GOTO 2026-10-02: the 10 sessions before were
+  all one-price days, the average body was 0, and any white candle read as a Bullish Marubozu (26 -> 30). CLAY
+  2020-11-13: a Rp 15 fall counted as long after 8 one-price days in 10.
+- **Verified cause:** `apps/edge-bff/backtest/src/core/candles.ts` (the average body, about lines 276-277) sums
+  |close - open| over every bar of the window; `patternBar` excludes non-traded bars only from the pattern's own candles.
+- **Facts:** days without trades (volume 0) are 40 of 1,330,722 price rows (`verification/screener/AUDIT.md` T11), so
+  excluding them alone changes 0 of 2,908 fixture signals; one-price days that traded are 123,853 rows. Excluding both
+  from the average inside the same window ("A+") removes 28 of 2,908 fixture signals (27 on CLAY and GOTO); reaching
+  further back until 10 moving days ("B+") removes 27 but reads up to 120 sessions back on CLAY, which breaks the fixed
+  lookback the price-break remark relies on.
+- **Status:** OPEN, the user's decision asked 2026-11-08 (recommended A+); unchanged until then.
+
+### M403 — Screener page: a parameter refused at Add closes the panel without marking the field (2026-11-08, open)
+
+- **Found by:** the 15 candle questions (`verification/screener/qc15_20261108/`); QA5 saw the same on ADX.
+- **Symptom:** Add a condition -> Hammer -> Customize -> Trend sessions 1 -> Add: the toast says "Hammer: Trend
+  sessions: Must be at least 2." and nothing is added, but the panel closes, the row marks nothing, focus does not go
+  to the field, and the range 2-100 is only in the field's hover title.
+- **Class:** every entry's parameter refusal at Add (not candle-specific).
+- **Status:** OPEN (minor; the refusal itself is correct and nothing wrong is added).
+
+### M404 — Screener fixture: BBRI's last bar has its low above its close (2026-11-08, open, fixture only)
+
+- **Found by:** the 15 candle questions.
+- **Symptom:** o 5850, h 5875, l 5725, c 5720 on the fixture's last bar of BBRI.
+- **Verified cause (by the questions agent, from `apps/edge-bff/screener/tests/fixture/data.ts`):** the last close is
+  set to the listing price 5720, off the Rp 25 tick grid, while the low is rounded onto the grid.
+- **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
+  inconsistent bar).
+
 ### M377 — Screener "Add a condition": an indicator's parameters could not be set in the window, only on the card (2026-11-06, fixed)
 
 - **Found by:** the user (screenshots: SMA in the window shows the threshold "—"; the SMA card offers Length and
