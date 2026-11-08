@@ -12657,6 +12657,18 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - Rilis (user 2026-11-08: "Ok", lalu "Sudah di main hntuk screener. Push to main and merge"): di `main` `84f1c8f5`
   bersama EXEC-RP-LOOK-2 dan EXEC-LEGEND-HIDE; edge-bff `10e57e56` dan screener-worker `7a41f6d1` SUCCESS (push
   pertama `767c5827` menggagalkan start screener-worker, ERRORS M405, diperbaiki). RAILWAY_CHANGELOG 2026-11-08.
+- Permintaan user 2026-11-08 sesudah rilis: "untuk loaders selain bisa dipindahin kiri kanan, bisa juga untuk di resize";
+  "ini kan broker yang tampil di loaders ini, broker yang melakukan akumulasi lot secara net dalam kurun waktu yang
+  ditandai. Betul?"; "untuk nama broker bisa taruh saja di ujung line-nya. Sekarang kan ada di sebelah kiri, di Y-axis.
+  Kotanya taruh di ujung line. Masukkan exec". DICATAT, BELUM DIJALANKAN (menunggu go):
+  - L1 ukuran kotak Loaders bisa diubah dengan menarik sudut kanan bawahnya (lebar dan tinggi, dibatasi di dalam chart;
+    isi yang tidak muat bisa digulir); ukuran disimpan bersama indikator seperti posisinya. Dicek di `look_check11.mjs`.
+  - L2 kode broker garis harga pokok Loaders ditulis di ujung kanan garisnya sendiri (di chart, warna garis), bukan
+    sebagai label di sumbu Y kiri.
+  - Jawaban atas pertanyaan user: benar. Tiga baris atas = tiga broker dengan net lot (lot beli − lot jual) terbesar di
+    atas nol dalam periode yang ditandai (board dan jenis investor terpilih); dua baris bawah = dua penjual bersih
+    terbesar periode itu, sebagai pembanding. Garis harga pokok hanya untuk tiga penimbun.
+  - Pertanyaan terbuka: apakah L2 juga berlaku untuk FL52 (label "NI 5.8M" sekarang di sumbu kanan).
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
