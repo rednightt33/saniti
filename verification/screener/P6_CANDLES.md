@@ -68,7 +68,7 @@ without volume has none). Candles are numbered 1 (oldest) to n (the signal bar, 
 | Bullish / Bearish Marubozu | white (black); body >= body_min_pct % of range; body >= long_body x average body | 90 %, 1x |
 | Bullish / Bearish Engulfing | 1 black (white), 2 white (black); open2 <= close1 (>=); close2 >= open1 (<=); body2 > body1 | none of its own |
 | Bullish / Bearish Harami | 1 black (white) and long; body2 inside body1 (edges included); body2 <= inside_max_pct % of body1 | 50 % |
-| Piercing Line / Dark Cloud Cover | 1 black (white) and long; 2 white (black); open2 beyond close1 (open_beyond close) or beyond low1 / high1 (range); closes at least penetration_pct % of body1 into it; not past open1 | close, 50 % |
+| Piercing Line / Dark Cloud Cover | 1 black (white) and long; 2 white (black); open2 beyond close1 (open_beyond close) or beyond low1 / high1 (range); closes at least penetration_pct % of body1 into it; not past open1, strictly (close2 < open1; dark cloud close2 > open1: a close equal to open1 does not fire) | close, 50 % |
 | Tweezer Bottom / Top | 1 black (white), 2 white (black); lows (highs) at most tolerance_ticks price ticks apart | 1 tick |
 | Morning / Evening Star | 1 black (white) and long; star body <= star_body_pct % of body1; relaxed gap: star body top <= close1 + star_overlap_pct % of body1 (evening: bottom >= close1 - ...); 3 white (black) closing at least penetration_pct % of body1 into it | 30 %, 10 % (-50..50; negative: a real gap), 50 % |
 | Three White Soldiers / Black Crows | 3 white (black), each body >= body_min_pct % of its range, upper (lower) shadow <= short_shadow_pct %, body >= long_body x average; each opens inside the previous body and closes beyond the previous close | 50 %, 25 %, 1x |
