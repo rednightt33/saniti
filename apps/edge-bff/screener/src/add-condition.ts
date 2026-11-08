@@ -516,7 +516,7 @@ function drawRow(i: number) {
 /** Open the window. `q` searches at once (a quick chip, the builder's search box); `g` opens on a panel (My metrics). */
 export function openAddCondition(q = '', g: string = ALL) {
   if (!ctx.catalog) return;
-  W.q = q; W.g = g; W.act = 0; W.pop = null; W.popBox = { w:0, h:0, dx:0, dy:0 }; W.kbd = !!q;
+  W.q = q; W.g = g; W.act = 0; W.pop = null; W.popBox = { w:0, h:0, dx:0, dy:0 }; W.kbd = false;   // user 2026-11-08: "Hoverstate hanya untuk mouse": no row is marked on opening or typing
   dialog(`<div class="dialog qwin" role="dialog" aria-label="Add a condition">
     <div class="qwin-h"><div><strong>Add a condition</strong><small>Pick the condition next to an indicator, then click the row to add it. Click an added row to remove it. The window stays open until you close it.</small></div><button type="button" class="iconbtn sm" data-close aria-label="Close">${ico(IC.x)}</button></div>
     <div class="qwin-t"><label class="searchbox">${ico(IC.search, 's')}<input id="acq" placeholder="RSI, Stochastic, VWAP, Supertrend, breakout…" autocomplete="off" aria-label="Search indicators" role="combobox" aria-controls="acl" aria-expanded="true" value="${esc(q)}"></label>
@@ -527,7 +527,7 @@ export function openAddCondition(q = '', g: string = ALL) {
     root = o.querySelector<HTMLElement>('.qwin');
     const sort = root!.querySelector<HTMLSelectElement>('#acs')!; sort.value = W.sort;
     sort.addEventListener('change', () => { W.sort = sort.value as Sort; drawList() });
-    root!.querySelector<HTMLInputElement>('#acq')!.addEventListener('input', e => { W.q = (e.target as HTMLInputElement).value; W.act = 0; W.kbd = true; drawList(); const l = $q<HTMLElement>('#acl'); if (l) l.scrollTop = 0 });
+    root!.querySelector<HTMLInputElement>('#acq')!.addEventListener('input', e => { W.q = (e.target as HTMLInputElement).value; W.act = 0; W.kbd = false; drawList(); const l = $q<HTMLElement>('#acl'); if (l) l.scrollTop = 0 });
     root!.querySelector('#acl')!.addEventListener('scroll', spy, { passive:true });
     root!.addEventListener('click', onClick);
     root!.addEventListener('change', onField);

@@ -335,6 +335,16 @@ await at('Flow chip and Operator… (user 2026-11-08): a flow chip in the result
   expect(await page.locator('.dialog.qwin .qpop').count() === 1 && await sel.evaluate(s => s.value) !== '__op', 'Operator… did not open Add a condition with the operator panel, or the card lost its condition');
   await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
 });
+await at('Add a condition marks no row until the arrow keys move (user 2026-11-08: "Hoverstate hanya untuk mouse")', async () => {
+  await fresh(); await ready(); await page.mouse.move(5, 5);
+  await page.click('#pageActs [data-hd="add"]'); await page.waitForTimeout(250); await page.mouse.move(5, 5);
+  expect(await page.locator('#acl .qrow.act').count() === 0, 'a row is marked on opening');
+  await page.keyboard.type('average'); await page.waitForTimeout(250);
+  expect(await page.locator('#acl .qrow.act').count() === 0, 'a row is marked after typing');
+  await page.keyboard.press('ArrowDown'); await page.waitForTimeout(100);
+  expect(await page.locator('#acl .qrow.act').count() === 1, 'the arrow keys mark no row');
+  await page.keyboard.press('Escape');
+});
 await at('Add a condition: more than two blue boxes go behind Customize with their count; Escape closes the panel only; Reset, Done; every row one height', async () => {
   // user 2026-11-06: "kalau ada kotak biru lebih dari 2, berarti masuk customizable ... tinggi kolom setiap indikator
   // harusnya sama. Lalu tambahin juga parameter yang customizable ada berapa"

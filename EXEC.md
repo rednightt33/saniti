@@ -12823,6 +12823,10 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
    isian Flow (daftar board/investor sebagai kotak centang, tanggal, kode broker; `param-fields.ts` flowControlHtml).
    Pembukaan kartu di builder dihapus. Juga (kata user: "kenapa malah added jadi begitu?"): tombol "Added ✓" di Add a
    condition kembali satu baris (kolom tombol 88 px lagi; rilis `63036b07` menyempitkannya ke 72 px).
+2c. Koreksi 2026-11-08 (kata user: "ini sudah saya jelaskan berkali2 seharusnya tidak ada hoverstate di row pertama.
+   Hoverstate hanya untuk mouse."): Add a condition tidak menandai baris saat dibuka atau saat mengetik; hanya hover mouse
+   dan tombol panah (navigasi keyboard yang disengaja) yang menandai. Rilis `524fd50c` masih menandai setelah mengetik.
+   Smoke test sebelumnya tidak memeriksa kasus ini; sekarang ada pemeriksaannya.
 3. Garis cost Loaders: diperiksa di stand-in (BBRI, 1440 px), tanpa perubahan kode. Cost lines ON + In view + Alt+B:
    garis tampil dan periode ikut tampilan; Cost lines OFF: tidak ada garis. Ini sudah sesuai kata user.
 
