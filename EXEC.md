@@ -12735,6 +12735,13 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   tepi dengan bayangan lembut (Terminal). Loaders: gambar statis desain akhir
   `verification/terminal_api/flow_dots/loaders_final.html` (`loaders_final.py`, data BBRI 10 Agu–3 Nov 2026). BELUM
   DIJALANKAN, menunggu go.
+- Go user 2026-11-08: "aight sudah G / favourite di screener tidak usah ikut / kemudian liat SS terlampir yang saya
+  kotakin merah, seperti ada space, tolong di benarkan. / go." (tangkapan layar Screen builder: ruang kosong di bawah
+  kotak "Search indicators to add" sebelum kartu kondisi pertama). Dijalankan: Loaders opsi E + ubah ukuran dari tepi +
+  kode di ujung garis; FL52 daftar sendiri sampai 10 + kode di ujung garis; Ctrl+Z/Y klik broker; Settings Terminal klik
+  di luar = dipakai; "Add a condition" Screener sesuai mock tanpa Favorites, Customize di tengah dan bisa diubah
+  ukurannya dengan tanda terpilih Terminal; ruang kosong Screen builder. Sesudahnya: audit tampilan oleh 5 agen
+  ("assign 5 agents 5.5 sonnet medium to review visual", master prompt QA; mode audit saja).
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
