@@ -1,5 +1,23 @@
 # Railway changelog
 
+## 2026-11-08 — Screener Add a condition fit and IDR defaults; Loaders cost-line switch, FL52 box on dev
+
+- **Change:**
+  - EXEC-SCREENER-ADD-FIT: one compact "Daily" timeframe control, names and descriptions no longer cut, rows one height
+    (ERRORS M410); catalog IDR defaults shown in Rp B (ADV 10 to 100 Rp B, ERRORS M409).
+  - Branch commits `d2a6a0d9`, `524fd50c`: the Loaders box's Cost lines switch, FL52's box (In view / Select on chart
+    start, remove per broker), the Screener keyboard row marker only after keyboard use.
+  - No migration, no variable change.
+- **Go:** user 2026-11-08 "Langsung merge to main biar saya bisa cek kalau sudah" (21:52 WIB, outside B6).
+- **Before the push:** no edge_bff job queued, running or recovering, no AI turn running; screener-worker image imports
+  50 modules, all in the image; backtest tripwire OK; screener vitest 1328 passed.
+- **Push:** `main` `8c9f0bff` → `63036b07`.
+- **Deployments (Railway API):** edge-bff `3cb2b1a2` SUCCESS and screener-worker `46d14a10` SUCCESS (14:52 UTC).
+- **Checks after the deploy:** edge-bff `/ready` 200; the served Screener `index-CEjf-rgA.js` and `style-Bu8tr7zy.css`
+  are byte-equal to the build.
+- **Not done:** a signed-in check on dev with real data.
+- **Rollback:** redeploy edge-bff `d3b40e1c` and screener-worker `8d20974a` (commit `3b0f9106`).
+
 ## 2026-11-08 — Terminal and Screener UI round on dev: Loaders option E, FL52 up to 10, broker-pick undo, Add a condition in the Terminal design, 27 UI audit fixes
 
 - **Change:**

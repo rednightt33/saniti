@@ -12781,7 +12781,7 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   Screener tidak tampil saat dibuka, tampil setelah mengetik "rsi" atau ↓. Catatan: posisi dihitung dari tanggal mulai,
   jadi kolom kotak FL52 = "Net since start" dan "5D" (bukan dua kolom berisi angka yang sama).
 
-## EXEC-SCREENER-ADD-FIT — Add a condition tanpa teks terpotong; default ADV dalam Rp B (go 2026-11-08, dirilis ke dev 2026-11-08)
+## EXEC-SCREENER-ADD-FIT — Add a condition tanpa teks terpotong; default ADV dalam Rp B (go 2026-11-08, dirilis ke dev 2026-11-08, `63036b07`: edge-bff `3cb2b1a2` dan screener-worker `46d14a10` SUCCESS)
 
 ### Kata user
 - 2026-11-08 (tangkapan layar Add a condition): "untuk bagian screener, cek banyak tulisan yang terpotong, solusinya apa ya"
