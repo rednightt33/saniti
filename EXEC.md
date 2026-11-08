@@ -12564,7 +12564,14 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   saat ini Strip masih bawaan: dikembalikan ke Histogram saat dijalankan.
 - Permintaan user 2026-11-08 (BELUM DIPUTUSKAN, menunggu jawaban pertanyaan balik): "broker inventory saat ini kalau kita
   klik, appear di panel bawah right. Mesti buat another indicator dimana kalau kita klik maka broker inventory appear di
-  main chart (linenya seperti moving average) konfirmasi saja dulu". FL26 yang sudah tersimpan dengan Plot
+  main chart (linenya seperti moving average) konfirmasi saja dulu".
+  Lanjutan user 2026-11-08 (contoh grafik neobdm: garis kumulatif BK/RF/PP di atas candle, sumbu lot di satu sisi): "seperti
+  screenshot terlampir, jummlah invenory appear di X axis sebelah kanan"; lalu "Kondisi existing kan harga di kiri, berarti
+  kalau indikator ini appear akan menambah sumbu Y axis disebelah kanan dalam satuan XXX lot -- benar gak ya?". Benar
+  (dicek di kode: `app/chart.ts:62,75` candle di skala kiri; skala kanan pane harga sekarang kosong). Rancangan: indikator
+  baru, garis posisi bersih kumulatif per broker (rumus FL23) di pane harga, pada skala kanan dalam lot (atau Rp bila
+  Unit = Value), label "BK 7.1M" di ujung tiap garis; harga tetap di kiri. Belum go; sisa pertanyaan: daftar broker ikut
+  Broker Inventory atau sendiri. FL26 yang sudah tersimpan dengan Plot
   Histogram/Line tetap pilihan tersimpannya.
 
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
