@@ -12545,8 +12545,14 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   memakai tampilan kotak pencarian jendela Indicators (tanpa garis tepi gelap, bayangan lembut). Daftar pilihan yang
   terbuka (bawaan browser) tidak diubah.
 - C (usulan): indikator Flow yang nilainya bilangan bulat dalam rentang sempit (misalnya Net Flow Streak sekitar −20..20)
-  diukur pada data, lalu 10 opsi bentuk dalam satu HTML berangkat dari contoh user (kolom kotak bertumpuk). Menunggu
-  pilihan user.
+  diukur pada data, lalu 10 opsi bentuk dalam satu HTML berangkat dari contoh user (kolom kotak bertumpuk)
+  (`verification/terminal_api/flow_dots/flow_day_count_options.html`, skrip ukur `scan_ranges.mjs`: FL26, FL12, FL29,
+  FL35 bernilai hitungan hari).
+- Pilihan user 2026-11-08: "Strip panas satu baris hanya untuk FL26 / jalankan". Dijalankan di branch: Plot FL26 bawaan
+  "Strip" (Histogram dan Line tetap pilihan; registry `PLOT_FIRST`), satu sel per candle di pane pendek (±64 px), warna
+  arah (hijau beli bersih, merah jual bersih), kepekatan = panjang runtun dibanding runtun terpanjang di data; angka
+  runtun di legend, tanpa angka di sumbu. FL12, FL29, FL35 tidak diubah. FL26 yang sudah tersimpan dengan Plot
+  Histogram/Line tetap pilihan tersimpannya.
 
 ## EXEC-IND-NAV — grup terpilih di daftar kiri jendela Indicators lebih menonjol (go 2026-11-07)
 

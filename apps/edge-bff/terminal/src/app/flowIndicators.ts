@@ -271,7 +271,9 @@ export function initFlowIndicators(ctx: Ctx) {
   return FLOW_REG.indicators.map(r => {
     const F = flowFormat(r.unit), byKey = Object.fromEntries(r.params.map(q => [q.key, q]));
     const levels = String(byKey.levels?.default ?? '').split(/[,;\s]+/).filter(Boolean).map(Number).filter(Number.isFinite);
-    const plotDefault = byKey.plot?.default === 'hist' ? 'histogram' : 'line';
+    /* EXEC-RP-LOOK-2 C: a plot may be a one-row heat strip (FL26), from the registry's plot choice */
+    const plotOf = (v: any) => v === 'hist' ? 'histogram' : v === 'strip' ? 'strip' : 'line';
+    const plotDefault = plotOf(byKey.plot?.default);
     const outs = (plot: string, p?: any) => {
       const kind = r.place === 'marker' ? 'marker' : plot;
       /* Broker Inventory: the panel's inventory colours, the total in ink (front-end audit 2026-10-30: two orange lines) */
@@ -364,7 +366,7 @@ export function initFlowIndicators(ctx: Ctx) {
     return {
       id:r.id, name:r.name, reg, multi:true, flow:true, single:SINGLE_SECURITY.has(r.id), viewBound, zeroLabel, paneFilters, inputs, style:[], fill:null,
       pane:r.place === 'pane' ? 'sub' : 'overlay', format:F.fmt, minMove:F.minMove,
-      outsOf:(p: any) => outs(p.plot === 'hist' ? 'histogram' : p.plot === 'line' ? 'line' : plotDefault, p),
+      outsOf:(p: any) => outs(p.plot === 'hist' || p.plot === 'line' || p.plot === 'strip' ? plotOf(p.plot) : plotDefault, p),
       compute:(p: any) => {
         if (emptyChoice(p)) return {};                 // nothing chosen: no line (the row says what to choose)
         const q = { ...p };

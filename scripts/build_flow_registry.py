@@ -233,6 +233,9 @@ PLAIN = {
 # EXEC-QA5-FIX (QA 2026-11-07, Q8): an option that can never give a value for an indicator. FL09 needs a positive net
 # flow of its cohort; a cohort of net sellers never has one (0 of 180 days on BBRI), so the choice is not offered.
 DROP_OPTIONS = {('FL09', 'rank'): {'net_sell'}}
+# EXEC-RP-LOOK-2 C (user 2026-11-08: "Strip panas satu baris hanya untuk FL26 / jalankan"): Net Flow Streak (a count of
+# days, about -23..+7 on BBRI) reads as a one-row heat strip by default; Histogram and Line stay as choices.
+PLOT_FIRST = {'FL26': ('strip', 'Strip')}
 
 
 def build():
@@ -260,6 +263,10 @@ def build():
             drop = DROP_OPTIONS.get((fid, q['key']))
             if drop:
                 q['options'] = [o for o in q['options'] if o[0] not in drop]
+            first = PLOT_FIRST.get(fid)
+            if first and q['key'] == 'plot':
+                q['options'] = [list(first)] + [o for o in q['options'] if o[0] != first[0]]
+                q['default'] = first[0]
         indicators.append({'id': fid, 'name': name, 'family': family, 'place': PLACE[place.split(' (')[0]],
                            'unit': UNIT[unit], 'needs_frequency': freq == 'Ya', 'outputs': outputs(fid, ps),
                            'tip': PLAIN[fid] if fid in PLAIN else tips[fid], 'params': ps})   # a new id needs one of them

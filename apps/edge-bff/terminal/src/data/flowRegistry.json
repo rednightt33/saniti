@@ -3210,6 +3210,10 @@
      "kind": "select",
      "options": [
       [
+       "strip",
+       "Strip"
+      ],
+      [
        "hist",
        "Histogram"
       ],
@@ -3218,7 +3222,7 @@
        "Line"
       ]
      ],
-     "default": "hist"
+     "default": "strip"
     }
    ]
   },

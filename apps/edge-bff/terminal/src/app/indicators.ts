@@ -89,7 +89,7 @@ export function initIndicators(ctx: Ctx) {
       if(o.r === 'state') return;
       const s: any = { on:o.vis || /bands_mode/.test(o.cond), width:o.w || 2 };
       if(o.color) s.color = o.color;                                    // fixed by the definition (FL23: the inventory colours)
-      else if(o.r === 'histogram') { s.color = UP; s.color2 = DOWN; if(/optional_state/.test(o.rule)) s.states = true }
+      else if(o.r === 'histogram' || o.r === 'strip') { s.color = UP; s.color2 = DOWN; if(/optional_state/.test(o.rule)) s.states = true }
       else if(o.r === 'segmented_line' || o.r === 'dots') { s.color = UP; s.color2 = DOWN }
       else if(o.role === 'signal_line') s.color = base === '#f5a623' ? '#d6409f' : '#f5a623';
       else if(o.role === 'center_line') s.color = base === '#f5a623' ? '#d6409f' : '#f5a623';
@@ -230,7 +230,7 @@ export function initIndicators(ctx: Ctx) {
      opsi untuk collapse. Sama seperti fungsi collapse flow timeline"): a pane indicator can be folded to its title row; its
      lines are not drawn then (its row keeps the name, value and filters) and the price chart takes the room */
   const drawn = inst => inst.on && !inst.fold;
-  const FOLD_PX = 30;
+  const FOLD_PX = 30, STRIP_PX = 64;
   const paneOfInst = inst => (inst.series || inst.parts?.find(pt => pt.series)?.series || inst.lines?.find(l => l.series)?.series)?.getPane() || null;
   /* an indicator that is not a price overlay lives in its own pane under the candles */
   const layoutPanes = () => {
@@ -238,6 +238,12 @@ export function initIndicators(ctx: Ctx) {
     /* QA round 3 (H1): a folded pane is as high as its own title row (a row that wraps, a long note, a touch-sized button)
        plus its margins, never a fixed height the row may overflow */
     const folded = new Map<number, number>();
+    /* EXEC-RP-LOOK-2 C: a pane that holds only a strip is as high as its title row plus one row of cells (it is laid out
+       as a folded pane, without axis labels: the value is in the legend) */
+    const stripPx = new Map<number, number>();
+    list.forEach(i => { if(i.fold || i.def.pane !== 'sub' || !i.parts?.length || !i.parts.every(pt => pt.kind === 'strip')) return; const k = paneOfInst(i)?.paneIndex(); if(k === undefined || k < 1) return;
+      if(list.some(o => o !== i && !o.fold && paneOfInst(o)?.paneIndex() === k)) return;
+      stripPx.set(k, Math.max(STRIP_PX, Math.ceil(i.row?.offsetHeight || 0) + 34)) });
     list.forEach(i => { if(!i.fold || i.def.pane !== 'sub') return; const k = paneOfInst(i)?.paneIndex(); if(k === undefined || k < 1) return;
       folded.set(k, Math.max(folded.get(k) || 0, FOLD_PX, (i.restH && i.row.matches(':hover,:focus-within') ? i.restH : (i.restH = Math.ceil(i.row.offsetHeight))) + 12)) });   // the row's height at rest
     /* the price pane keeps at least ~45 % of the height however many panes are open (front-end audit 2026-10-30: 10 panes
@@ -245,6 +251,7 @@ export function initIndicators(ctx: Ctx) {
        every one were open, then the height a folded pane gives up goes to the price pane; an open pane keeps its height */
     const f0 = subs ? Math.max(2.4, 0.82 * subs) : 1, H = panes.reduce((t, pn) => t + pn.getHeight(), 0);
     const one = H / (f0 + subs), open = subs - folded.size;
+    stripPx.forEach((h, k) => { if(!folded.has(k)) folded.set(k, h) });
     folded.forEach((h, k) => folded.set(k, Math.min(h, Math.max(FOLD_PX, one))));   // folding never makes a pane taller
     const Hf = [...folded.values()].reduce((t, h) => t + h, 0), price = H - open * one - Hf;
     if(!folded.size || price < 60) panes.forEach((pn, k) => pn.setStretchFactor(k === 0 ? f0 : folded.has(k) ? 0.12 : 1));
@@ -447,6 +454,11 @@ export function initIndicators(ctx: Ctx) {
       const mk = (type, extra) => mk0(type, { ...own, ...extra });
       if(o.r === 'marker') inst.parts.push({ o, kind:'marker', series:null, plugin:null });      // marks under the candles
       else if(o.r === 'histogram') inst.parts.push({ o, kind:'hist', series:mk(L.HistogramSeries, { base:0 }) });
+      /* EXEC-RP-LOOK-2 C (user 2026-11-08: "Strip panas satu baris hanya untuk FL26"): one cell per candle at a fixed height,
+         its colour the direction and its strength the value's size; the value itself is read in the legend */
+      else if(o.r === 'strip') inst.parts.push({ o, kind:'strip', series:mk(L.HistogramSeries, { base:0, lastValueVisible:false, priceLineVisible:false,
+        priceFormat:{ type:'custom', formatter:() => '', minMove:1 },      // the cell's height is no value: no number on the axis
+        autoscaleInfoProvider:() => ({ priceRange:{ minValue:0, maxValue:1 } }) }) });
       else if(o.r === 'segmented_line') inst.parts.push({ o, kind:'seg', series:mk(L.LineSeries, {}), series2:mk(L.LineSeries, { lastValueVisible:false }) });
       else if(o.r === 'dots') inst.parts.push({ o, kind:'dots', series:mk(L.LineSeries, { lineVisible:false, pointMarkersVisible:true }) });
       else inst.parts.push({ o, kind:'line', series:mk(L.LineSeries, {}) });
@@ -459,7 +471,9 @@ export function initIndicators(ctx: Ctx) {
     } });
     if(inst.def.fill) { const host = inst.parts.find(p => p.o.k === inst.def.fill[0]); if(host){ inst.fillPrim = new BandFill(); host.series.attachPrimitive(inst.fillPrim) } }
     if(panel && left) chart.priceScale('left', paneIdx).applyOptions({ visible:true, scaleMargins:{ top:.2, bottom:.06 } });
-    if(panel) { chart.priceScale('right', paneIdx).applyOptions({ scaleMargins:{ top:.2, bottom:.06 } }); layoutPanes() }   // top band is kept free for the legend row
+    /* a strip's cells sit under the legend row of its short pane (EXEC-RP-LOOK-2 C) */
+    const strip = inst.parts.length && inst.parts.every(pt => pt.kind === 'strip');
+    if(panel) { chart.priceScale('right', paneIdx).applyOptions({ scaleMargins:strip ? { top:.5, bottom:.1 } : { top:.2, bottom:.06 } }); layoutPanes() }   // top band is kept free for the legend row
   }
   const guideLevels = inst => { const lv = String(inst.style.guides.levels).split(/[,;|\s]+/).filter(Boolean).map(Number).filter(Number.isFinite); return inst.def.guidesFor ? inst.def.guidesFor(inst.params, lv) : lv };
   const STATE_COLORS = ['#089981', '#8b5a2b', '#0070f3', '#d6409f'];   // Market Facilitation: green, fade, fake, squat
@@ -502,6 +516,12 @@ export function initIndicators(ctx: Ctx) {
         pt.series.setData(a.flatMap((v, i) => v === null ? [{ time:T(i) }] : [{ time:T(i), value:v,
           color: states ? (i && a[i - 1] !== null ? alpha(STATE_COLORS[v >= a[i - 1] ? (V[i] >= V[i - 1] ? 0 : 2) : (V[i] >= V[i - 1] ? 3 : 1)], op) : c1)
                : rising ? (i && a[i - 1] !== null && v < a[i - 1] ? c2 : c1) : (v >= 0 ? c1 : c2) }]));
+        pt.series.applyOptions({ visible:vis });
+      } else if(pt.kind === 'strip') {
+        /* the strength: the value's size against the largest size in the data (a fixed scale, so panning does not
+           change a cell's shade); at least a faint cell for a value of 1 */
+        const m = Math.max(1, ...a.filter(v => v !== null && v !== undefined).map(v => Math.abs(v)));
+        pt.series.setData(a.map((v, i) => v === null || v === undefined ? { time:T(i) } : { time:T(i), value:1, color:alpha(v >= 0 ? s.color : (s.color2 || s.color), op * (.18 + .82 * Math.abs(v) / m)) }));
         pt.series.applyOptions({ visible:vis });
       } else if(pt.kind === 'seg') {
         const data = want => gapped(a.map((v, i) => v === null || dir[i] !== want ? { time:T(i) } : { time:T(i), value:conv(v) }));   // a transparent segment at every trend flip (whitespace alone is joined)
@@ -648,7 +668,7 @@ export function initIndicators(ctx: Ctx) {
         const s = inst.style.out[pt.o.k], v = inst.disp[pt.o.k][i];
         if(!s.on || v === null || v === undefined) return '';
         const prev = inst.disp[pt.o.k][i - 1];
-        const c = pt.kind === 'marker' ? (v === 1 ? s.color : 'var(--text-3)') : pt.kind === 'seg' || pt.kind === 'dots' ? (dir && dir[i] === -1 ? s.color2 : s.color)
+        const c = pt.kind === 'marker' ? (v === 1 ? s.color : 'var(--text-3)') : pt.kind === 'strip' ? (v >= 0 ? s.color : s.color2) : pt.kind === 'seg' || pt.kind === 'dots' ? (dir && dir[i] === -1 ? s.color2 : s.color)
                 : pt.kind === 'hist' ? (/rising/.test(pt.o.rule) ? (prev !== null && prev !== undefined && v < prev ? s.color2 : s.color) : /optional_state/.test(pt.o.rule) ? 'var(--text)' : (v >= 0 ? s.color : s.color2)) : s.color;
         /* EXEC-QA5-FIX (agent 5 F8): a line on the price reads in the price's own decimals, as the price axis (2,903 · 3,316) */
         const txt = overlay && pt.kind !== 'marker' ? (ret ? spec.change((v / closes[0] - 1) * 100) : ctx.priceText ? ctx.priceText(v) : spec.indicator(v)) : (pt.o.fmt || inst.def.format)(v);   // a mark reads Yes/No
