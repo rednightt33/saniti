@@ -277,6 +277,8 @@ def extra_indicators(by_id):
                     {'key': 'cost', 'label': 'Cost', 'status': 'DECIDED', 'kind': 'select',
                      'options': [['avg', 'Average buy price'], ['model', 'Cost of the position held']], 'default': 'avg'},
                     {'key': 'lines', 'label': 'Cost lines on the price chart', 'status': 'DECIDED', 'kind': 'bool', 'default': False},
+                    # the box's × hides the box only (user 2026-11-08: "sembunyikan kotak"); shown again here
+                    {'key': 'box', 'label': 'Show box', 'status': 'DECIDED', 'kind': 'bool', 'default': True},
                     # option E (user 2026-11-08: "Opsi E sudah oke"): which side the box lists, and how many
                     {'key': 'side', 'label': 'Show', 'status': 'DECIDED', 'kind': 'select',
                      'options': [['load', 'Loaders'], ['sell', 'Sellers'], ['both', 'Both']], 'default': 'both'},

@@ -301,7 +301,8 @@ export function initFlowIndicators(ctx: Ctx) {
     const from = T && s0 >= 0 && s0 < dates.length ? dayText(dates[s0].slice(0, 10)) : '', to = T && T.e >= 0 ? dayText(dates[Math.min(T.e, dates.length - 1)].slice(0, 10)) : '';
     const inView = (p.start ?? 'view') === 'view' && (p.end ?? 'view') === 'view';
     const head = `<div class="ldb-head" data-drag="1"><b>Loaders</b><span class="ldb-when">${from && to ? `${esc(from)} – ${esc(to)}` : ''}</span>
-      <span class="ldb-acts"><button type="button" class="ldb-btn${inView ? ' on' : ''}" data-act="view" title="The candles in view">In view</button><button type="button" class="ldb-btn${inView ? '' : ' on'}" data-act="pick" title="Choose a period on the chart (as Alt+B)">Select on chart</button></span></div>`;
+      <span class="ldb-acts"><button type="button" class="ldb-btn${inView ? ' on' : ''}" data-act="view" title="The candles in view">In view</button><button type="button" class="ldb-btn${inView ? '' : ' on'}" data-act="pick" title="Choose a period on the chart (as Alt+B)">Select on chart</button>
+      <button type="button" class="ldb-x" data-param="box" data-v="false" aria-label="Hide the box" title="Hide the box (Settings → Show box brings it back; the cost lines stay)">×</button></span></div>`;
     /* option E (user 2026-11-08: "Opsi E sudah oke"): the side the box lists and how many, as labelled choices; each one is
        the indicator's own parameter (data-param), the same as in its Settings */
     const seg = (key: string, cur: string) => `<span class="ldb-seg" role="group" aria-label="${key === 'side' ? 'Show' : 'Top N'}">${(FLOW_REG.indicators.find(x => x.id === 'FL51')!.params.find(q => q.key === key)!.options || [])
@@ -309,8 +310,10 @@ export function initFlowIndicators(ctx: Ctx) {
     const ctl = `<div class="ldb-ctl">${seg('side', p.side ?? 'both')}${seg('top', String(p.top ?? '3'))}</div>`;
     if (!T || !T.rows.length) return head + ctl + `<div class="ldb-empty">${!ctx.flowRows ? 'Loading broker data' : !ctx.flowRows.n ? 'No broker data for this ticker' : 'No broker data in this period'}</div>`;
     const costLabel = p.cost === 'model' ? 'Cost held' : 'Avg buy', nl = T.nl ?? 0, ns = T.ns ?? 0;
-    const line = (x: LoaderRow, j: number) => { const load = j < nl, col = load && p.lines ? LOADER_COLORS[j] : '';
-      return `<tr class="${load ? 'ldb-load' : 'ldb-sell'}"><td><button type="button" class="ldb-b" data-broker="${esc(x.b)}" title="Add ${esc(x.b)} to Broker Inventory"${col ? ` style="--c:${col}"` : ''}>${esc(x.b)}</button></td>
+    /* a broker already in Broker Inventory (the right panel's list) is marked; a click still highlights it there (audit U20) */
+    const held = ctx.brokerShared?.invSel;
+    const line = (x: LoaderRow, j: number) => { const load = j < nl, col = load && p.lines ? LOADER_COLORS[j] : '', inInv = !!held?.has(x.b);
+      return `<tr class="${load ? 'ldb-load' : 'ldb-sell'}"><td><button type="button" class="ldb-b${inInv ? ' in' : ''}" data-broker="${esc(x.b)}" title="${inInv ? `${esc(x.b)} is in Broker Inventory` : `Add ${esc(x.b)} to Broker Inventory`}"${col ? ` style="--c:${col}"` : ''}>${esc(x.b)}${inInv ? '<i aria-label="in Broker Inventory">✓</i>' : ''}</button></td>
         <td class="${x.lots >= 0 ? 'up' : 'down'}">${x.lots >= 0 ? '+' : '−'}${nfCompact.format(Math.abs(x.lots))}</td><td>${price(x.cost)}</td>
         <td class="${x.dist === null ? '' : x.dist >= 0 ? 'up' : 'down'}">${x.dist === null ? '—' : spec.pctChange(x.dist)}</td><td>${x.buyDays}/${x.days}</td></tr>` };
     const grp = (t: string) => `<tr class="ldb-grp"><td colspan="5">${t}</td></tr>`;
@@ -512,6 +515,8 @@ export function initFlowIndicators(ctx: Ctx) {
         /* EXEC-QA5-FIX (agent 5 F2, F2-07): a value that starts at a date (the anchor, Broker Inventory's start) says so */
         const start = startOf(p);
         if (start && dates[di] && dates[di].slice(0, 10) < start) return `Starts ${dayText(start)} (start date)`;
+        /* FL51: cost lines are the loaders'; with Sellers only there is none (audit U19) */
+        if (byKey.end && p?.side === 'sell') return 'Cost lines are drawn for loaders; Sellers lists none';
         /* FL51: a candle after the period's end (the legend reads the last candle, the period ends at the last one in view) */
         if (byKey.end) { const e = (p?.end ?? 'view') === 'view' ? lastVisible() : String(p.end).slice(0, 10); if (dates[di] && dates[di].slice(0, 10) > e) return `Period ends ${dayText(e)}` }
         /* QA M8, R2-M2 (2026-11-06): a value still empty because the indicator's window reaches before the first broker

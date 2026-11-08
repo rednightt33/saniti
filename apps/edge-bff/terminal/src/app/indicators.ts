@@ -618,7 +618,15 @@ export function initIndicators(ctx: Ctx) {
        the user dragged (w, h) inside the chart, else the content's own size */
     el.style.width = at.w ? `${Math.round(Math.min(Math.max(BOX_MIN_W, at.w), W - 2 * BOX_M))}px` : '';
     el.style.height = at.h ? `${Math.round(Math.min(Math.max(BOX_MIN_H, at.h), H - 2 * BOX_M))}px` : '';
-    const w = el.offsetWidth, h = el.offsetHeight, x = at.x ?? W - axis - w - 12, y = at.y ?? 44;
+    /* audit U4: by default under the price chart's legend rows (their buttons stay reachable), by the right axis; on a
+       phone (narrow chart) across the chart's foot, at most 42 % of its height (the box scrolls) */
+    const narrow = W < 640 && !at.w;
+    if(narrow) { el.style.width = `${W - 2 * BOX_M}px`; if(!at.h) el.style.height = `${Math.min(el.scrollHeight, Math.round(H * 0.42))}px` }
+    const lg = legend.getBoundingClientRect(), st = stage.getBoundingClientRect(), under = Math.round(lg.bottom - st.top) + 8;
+    /* audit U4: by default inside the price pane (the lower panes' rows and buttons stay free); the box scrolls */
+    if(!narrow && !at.h && at.y === undefined) { const pane0 = (chart.panes()[0]?.getHeight?.() ?? H) - 8, y0 = Math.max(44, under);
+      el.style.height = el.scrollHeight > pane0 - y0 ? `${Math.max(BOX_MIN_H, pane0 - y0)}px` : '' }
+    const w = el.offsetWidth, h = el.offsetHeight, x = at.x ?? (narrow ? BOX_M : W - axis - w - 12), y = at.y ?? (narrow ? H - h - BOX_M : Math.max(44, under));
     el.style.left = `${Math.round(Math.min(Math.max(BOX_M, x), Math.max(BOX_M, W - w - BOX_M)))}px`;
     el.style.top = `${Math.round(Math.min(Math.max(BOX_M, y), Math.max(BOX_M, H - h - BOX_M)))}px`;
   }
@@ -639,7 +647,7 @@ export function initIndicators(ctx: Ctx) {
       el.addEventListener('click', (e: any) => {
         const b = e.target.closest('button'); if(!b) return;
         if(b.dataset.broker) { ctx.brokerShared?.pick(b.dataset.broker); return }
-        if(b.dataset.param) { const f = inst.def.inputs.find(x => x.key === b.dataset.param); if(f) setFromBox(inst, { [f.key]:b.dataset.v }); return }
+        if(b.dataset.param) { const f = inst.def.inputs.find(x => x.key === b.dataset.param); if(f) setFromBox(inst, { [f.key]:f.kind === 'bool' ? b.dataset.v === 'true' : b.dataset.v }); return }
         const ds = inst.def.inputs.filter(f => f.kind === 'date');
         if(b.dataset.act === 'view') setFromBox(inst, Object.fromEntries(ds.map(f => [f.key, 'view'])));
         if(b.dataset.act === 'pick') ctx.selectRangeOnChart((f, t) => setFromBox(inst, { [ds[0].key]:f, ...(ds[1] ? { [ds[1].key]:t } : {}) }));
@@ -662,9 +670,17 @@ export function initIndicators(ctx: Ctx) {
       });
       addEventListener('resize', () => placeBox(inst));
     }
-    el.hidden = !drawn(inst);
-    if(!el.hidden) { const sc = inst.boxBody.querySelector('.ldb-scroll')?.scrollTop || 0; inst.boxBody.innerHTML = inst.def.box(inst.raw, inst.params);
-      const s2 = inst.boxBody.querySelector('.ldb-scroll'); if(s2) s2.scrollTop = sc; placeBox(inst) }
+    /* the box's × hides the box only (user 2026-11-08: "sembunyikan kotak"); Settings "Show box" brings it back */
+    el.hidden = !drawn(inst) || inst.params.box === false;
+    if(!el.hidden) {
+      /* audit U18: the content is drawn again on every change; the focused control and the table's scroll are kept */
+      const fa = document.activeElement as HTMLElement | null, keyOf = (b: HTMLElement) => ['param', 'v', 'act', 'broker'].map(k => b.dataset[k] ?? '').join('|');
+      const fk = fa && el.contains(fa) ? keyOf(fa) : null, sc = inst.boxBody.querySelector('.ldb-scroll')?.scrollTop || 0;
+      inst.boxBody.innerHTML = inst.def.box(inst.raw, inst.params);
+      const s2 = inst.boxBody.querySelector('.ldb-scroll'); if(s2) s2.scrollTop = sc;
+      if(fk) ([...inst.boxBody.querySelectorAll('button')] as HTMLElement[]).find(b => keyOf(b) === fk)?.focus();
+      placeBox(inst);
+    }
   }
 
   /* EXEC-FLOW-NEW-3 (user 2026-11-08: "nama broker bisa taruh saja di ujung line-nya ... sekarang ada di sebelah kiri, di
@@ -964,7 +980,12 @@ export function initIndicators(ctx: Ctx) {
       if(def.flow) inp.title = `${f.minExclusive ? 'Above' : 'From'} ${f.min}${f.max < 1e12 ? ` to ${f.max}` : ''}`;              // the range (audit I16), Flow only: the fixture's dialogs stay 1:1
       const okv = v => Number.isFinite(v) && (!isInt || Number.isInteger(v)) && (f.minExclusive ? v > f.min : v >= f.min) && v <= f.max;
       inp.oninput = () => { const v = inp.valueAsNumber; inp.classList.toggle('bad', !okv(v)); if(okv(v)) { store_[f.key] = v; live(recomputes) } };
-      inp.onchange = () => { let v = inp.valueAsNumber; if(!Number.isFinite(v) || f.minExclusive && v <= f.min) v = f.def; v = Math.min(f.max, Math.max(f.min, isInt ? Math.round(v) : v)); inp.value = v; inp.classList.remove('bad'); store_[f.key] = v; live(recomputes) };
+      /* audit U25: a value kept inside the allowed range says so under the field (the rule shown where it acts) */
+      const note = (t: string) => { const r = inp.closest('.idlg-row'); if(!r) return; let n = r.querySelector('.idlg-clamp'); if(!t) { n?.remove(); return }
+        if(!n) { n = document.createElement('small'); n.className = 'idlg-clamp'; n.setAttribute('role', 'status'); r.appendChild(n) } n.textContent = t };
+      inp.addEventListener('input', () => note(''));
+      inp.onchange = () => { const typed = inp.value; let v = inp.valueAsNumber; if(!Number.isFinite(v) || f.minExclusive && v <= f.min) v = f.def; v = Math.min(f.max, Math.max(f.min, isInt ? Math.round(v) : v)); inp.value = v; inp.classList.remove('bad'); store_[f.key] = v; live(recomputes)
+        note(typed !== '' && Number(typed) !== v ? `Set to ${v}: the allowed range is ${f.minExclusive ? 'above ' + f.min : f.min}${f.max < 1e12 ? `–${f.max}` : ' or more'}` : '') };
       return inp;
     };
     let cpop = null;
@@ -1106,7 +1127,11 @@ export function initIndicators(ctx: Ctx) {
           Hist.push({ undo:() => set(snap), redo:() => set(after) });
         }
       }
-      back.hidden = true; document.removeEventListener('keydown', onKey, true); openFor = null; inst.row.querySelector('[data-act="cfg"]').focus({ focusVisible:false } as any);
+      back.hidden = true; document.removeEventListener('keydown', onKey, true); openFor = null;
+      /* audit U18: the focus goes back to the gear after Ok too (after the click that closed the dialog has ended) */
+      /* the row's buttons are hidden unless the row is hovered or holds the focus: shown for the moment the focus moves in */
+      const gear = inst.row.querySelector('[data-act="cfg"]'), had = inst.row.classList.contains('hov');
+      inst.row.classList.add('hov'); gear?.focus({ focusVisible:false } as any); if(!had) inst.row.classList.remove('hov');
     };
     const onKey = (e: any) => {
       if(back.hidden) return;                                            // stepped aside for a pick on the chart: its keys are the chart's

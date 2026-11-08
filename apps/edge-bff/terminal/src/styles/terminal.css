@@ -1618,7 +1618,7 @@ html .ind-row.in-pane .ind-flt,html .ind-row.in-pane .ind-fltbtn{order:5}
 .legend-fold[hidden]{display:none}
 .legend-hidden .chart-legend > .ind-row,.legend-hidden > .ind-row.in-pane,.legend-hidden > .ind-move{display:none !important}
 /* EXEC-FLOW-NEW-3 (user 2026-11-08): FL51 Loaders' box over the price chart, moved by its head */
-.ind-box{position:absolute;z-index:6;width:max-content;max-width:min(420px,calc(100% - 16px));background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.08);font-size:12px;color:var(--text-2);pointer-events:auto}
+.ind-box{position:absolute;z-index:60;width:max-content;max-width:calc(100% - 16px);background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.08);font-size:12px;color:var(--text-2);pointer-events:auto}
 .ind-box[hidden]{display:none}
 .ldb-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:6px 8px 6px 10px;border-bottom:1px solid var(--border);cursor:move;touch-action:none;user-select:none}
 .ldb-head b{font-weight:var(--fw-semibold);color:var(--text)}
@@ -1653,3 +1653,32 @@ html .ind-row.in-pane .ind-flt,html .ind-row.in-pane .ind-fltbtn{order:5}
 .ldb-seg .ldb-btn{height:20px}
 .ldb-t tr.ldb-grp td{padding:7px 8px 2px 8px;font-size:10px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
 .ldb-t tr.ldb-grp+tr td{border-top:0}
+
+/* audit 2026-11-08: the box sits above the chart's own layers (its pane separators, z-index 50: U1); a dragged width is
+   not capped (U6); its table spans the box (U21); the box's × (hide the box); a broker already in Broker Inventory (U20) */
+.ldb-t{width:calc(100% - 4px)}
+.ldb-x{width:22px;height:22px;margin-left:2px;border:0;border-radius:5px;background:none;color:var(--text-3);font-size:15px;line-height:1;cursor:pointer}
+.ldb-x:hover{background:var(--hover);color:var(--text)}
+.ldb-x:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ldb-b i{font-style:normal;font-size:10px;color:var(--up);margin-left:1px}
+.ldb-b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+/* audit U13 (user 2026-11-08: "tambahkan laci"): the Broker activity drawer at 1100 px and below */
+.rp-drawer-btn{display:none}
+@media(max-width:1100px){
+  .rp-drawer-btn{display:inline-flex}
+  .rp-drawer-btn[aria-expanded="true"]{background:var(--sel);color:var(--text)}
+  .workspace.rp-drawer .side.right{display:block;position:fixed;top:46px;right:0;bottom:0;z-index:80;width:min(360px,100vw);box-shadow:-12px 0 40px rgba(0,0,0,.16);border-left:1px solid var(--border)}
+  .workspace.rp-drawer .side.right .side-resize{display:none}
+}
+/* audit U25: the note under a number kept inside its range */
+.idlg-row:has(.idlg-clamp){flex-wrap:wrap;row-gap:2px}
+.idlg-clamp{flex-basis:100%;margin:-10px 0 6px;text-align:right;font-size:11.5px;font-weight:400;color:var(--text-3)}
+/* audit U26: the Layout button at the toolbar's height and radius (30 px, 6 px) */
+.lay-btn{height:30px;border-radius:6px}
+/* audit U11: one dropdown look: the native selects of the Settings dialog and the right panel take the thin chevron of
+   the custom menus (fl-btn) */
+select.idlg-in,.side.right select{-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none' stroke='%238f8f8f' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 3.5l3 3 3-3'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;background-size:10px 10px;padding-right:26px}
+/* audit U14: on a phone the toolbar scrolls sideways; its edge fades to say so */
+@media(max-width:640px){.tvbar{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}}
+/* audit U26 (390 px): the Flow Timeline's legend stays on one line (the "left axis" note is in the toggle's title) */
+@media(max-width:640px){.flow-wrap .flow-legend{gap:10px;white-space:nowrap}.flow-wrap .flow-legend>span{white-space:nowrap}.flow-wrap .flow-legend .pt-sub{display:none}}

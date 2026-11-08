@@ -178,7 +178,19 @@ export function initBroker(ctx: Ctx) {
     store.set('ml.broker.collapsed', c?'1':'0');
     if(!c) renderWhenReady();
   };
-  $('rpCollapse').onclick = () => setRightCollapsed(true);
+  /* audit U13 (user 2026-11-08: "tambahkan laci"): where the layout has no room for the panel (1100 px and below) it opens as
+     a drawer over the chart from the toolbar's Broker activity button; », Esc or a click outside closes it */
+  const drawerMode = () => matchMedia('(max-width:1100px)').matches;
+  const setDrawer = (open: boolean) => {
+    ws.classList.toggle('rp-drawer', open); $('rpDrawerBtn').setAttribute('aria-expanded', String(open));
+    if(open) { if(ws.classList.contains('right-collapsed')) setRightCollapsed(false); renderWhenReady(); ($('rpCollapse') as HTMLElement).focus({ preventScroll:true }) }
+  };
+  $('rpDrawerBtn').onclick = () => setDrawer(!ws.classList.contains('rp-drawer'));
+  document.addEventListener('keydown', (e: KeyboardEvent) => { if(e.key === 'Escape' && ws.classList.contains('rp-drawer') && !document.querySelector('.fw, .idlg-back:not([hidden])')) { setDrawer(false); ($('rpDrawerBtn') as HTMLElement).focus() } });
+  document.addEventListener('pointerdown', (e: PointerEvent) => { const t = e.target as HTMLElement;
+    if(ws.classList.contains('rp-drawer') && !t.closest('#brokerPanel, #rpDrawerBtn, .fw, .rc-pop, .cs-pop, .st-tip, .idlg-back, .lay-pop')) setDrawer(false) });
+  addEventListener('resize', () => { if(!drawerMode() && ws.classList.contains('rp-drawer')) setDrawer(false) });
+  $('rpCollapse').onclick = () => { if(drawerMode() && ws.classList.contains('rp-drawer')) { setDrawer(false); return } setRightCollapsed(true) };
   $('rpExpand').onclick = () => setRightCollapsed(false);
   /* EXEC-TERMINAL-UI-1026 U5: live, the panel starts closed and is filled when it is opened (the user's last choice is
      remembered); the fixture keeps the reference's open panel */

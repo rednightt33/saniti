@@ -5668,6 +5668,13 @@
      "default": false
     },
     {
+     "key": "box",
+     "label": "Show box",
+     "status": "DECIDED",
+     "kind": "bool",
+     "default": true
+    },
+    {
      "key": "side",
      "label": "Show",
      "status": "DECIDED",
