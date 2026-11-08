@@ -12726,6 +12726,15 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   yang diubah tampil di tombol Customize baris itu; pilihan ganda (Market board, Investor type) sebagai dropdown
   bercentang seperti Terminal; tanda terpilih = tanpa garis tepi, bayangan lembut. Isian dari 102 baris Customize
   fixture. Menunggu review user.
+- User 2026-11-08: "No, actually, untuk menu customizable bisa pakai existing di screener, jangan dirubah lagi. Yang saya
+  butuhkan adalah agar ketika kita klik customize, maka menu customize tersebut bisa dibesarkan, dikecilkan, kemudian
+  muncul di center. Jangan lupa untuk selected state, disamakan dengan bagian di terminal juga ... untuk bagian loaders,
+  boleh kirimkan versi static HTML-nya." Mock diubah: kotak Customize = kotak Screener yang ada (label, isian, "default
+  ...", garis putus-putus, Reset to default / Done, kotak centang Board/Investor), hanya muncul di tengah layar, digeser
+  dari judul, diubah ukurannya dari tepi dan sudut; klik di luar = dipakai, Esc / × = dibuang; isian terpilih tanpa garis
+  tepi dengan bayangan lembut (Terminal). Loaders: gambar statis desain akhir
+  `verification/terminal_api/flow_dots/loaders_final.html` (`loaders_final.py`, data BBRI 10 Agu–3 Nov 2026). BELUM
+  DIJALANKAN, menunggu go.
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
