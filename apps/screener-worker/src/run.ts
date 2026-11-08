@@ -271,7 +271,7 @@ export function estimateCost(def: Definition, held: CostView, tracker: CostTrack
   // the metric filters the core evaluates in S0 (universe.ts pending): on every survivor, never pruned
   let filters = 0;
   if (u) for (const i of u.pending) {
-    const b = bindTest(`f${i}`, (def.universe.metric_filters ?? [])[i], `definition.universe.metric_filters[${i}]`, ctx);
+    const b = bindTest(`f${i}`, (def.universe.metric_filters ?? [])[i], `definition.universe.metric_filters[${i}]`, { ...ctx, place: 'filter' });
     if (b.readsFlow) readsFlow = true;
     filters += b.series.filter(r => !pinned(r)).reduce((ms, r) => ms + predictMs(tracker, r, avg, sessions, avgRows), 0) * survivors.length;
   }

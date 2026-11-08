@@ -358,10 +358,12 @@ function resolveTransformCore(ref: TransformRef, field: string, ctx0: ParamOptio
   const refArgs: Record<string, ResolvedSeries> = {};
   for (const k of refKeys) {
     if (!isObj(given[k])) throw new ScreenerError('INVALID_CONDITION', `${field}.args.${k} must be a metric reference (${spec.ref_args.find(a => a.key === k)!.label}).`, `${field}.args.${k}`);
-    refArgs[k] = resolveSeries(given[k] as unknown as MetricRef, `${field}.args.${k}`, ctx);
+    refArgs[k] = resolveSeries(given[k] as unknown as MetricRef, `${field}.args.${k}`, ctx, { as: 'operand', fn: spec.fn, arg: k });
   }
   if (!isObj(ref.of)) throw new ScreenerError('INVALID_CONDITION', `${field}.of must be a metric reference.`, `${field}.of`);
-  const of = resolveSeries(ref.of, `${field}.of`, ctx);
+  // an operand that is not a series (a pattern, a value per stock) is refused naming the transform (metrics.ts
+  // notSeriesRefusal)
+  const of = resolveSeries(ref.of, `${field}.of`, ctx, { as: 'operand', fn: spec.fn });
   operands.push(of, ...refKeys.map(k => refArgs[k]));
   // OPERATORS.md section 4: a measure of the operators block (or a transform it names among its forms) on a series of a
   // type it is not offered on, as the series or as the second series, is refused before anything else of the transform
