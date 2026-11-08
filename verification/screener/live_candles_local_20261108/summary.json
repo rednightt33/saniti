@@ -1,0 +1,187 @@
+{
+ "parts": {
+  "a": {
+   "fixtures_live_sets": {
+    "bars": 1336680,
+    "signals": 20555,
+    "mismatches": 0,
+    "examples": []
+   },
+   "random": {
+    "bars": 728000,
+    "signals": 17487,
+    "mismatches": 0,
+    "examples": []
+   },
+   "boundaries": {
+    "cases": 68,
+    "failed": []
+   },
+   "frequency": {
+    "stocks": 7,
+    "bars": 9014,
+    "differs": []
+   }
+  },
+  "b": {
+   "exit": 0,
+   "verdict": "PASS",
+   "screens": 144,
+   "answered": 144,
+   "catalog_entries": 20,
+   "catalog_problems": [],
+   "relations": 78,
+   "relation_problems": [],
+   "params_checked": 142,
+   "compared": 2698,
+   "equal": 2698,
+   "sample": [
+    "HOLE (asked)",
+    "BBCA (liquid (ADV20 1.58e+12); near the 5000 price band boundary (last 5025))",
+    "GOTO (liquid (ADV20 4.69e+11))",
+    "UNVR (liquid (ADV20 3.06e+10))",
+    "THIN (illiquid (ADV20 2.44e+05))",
+    "CLAY (illiquid (ADV20 4.29e+07))",
+    "ISEA (illiquid (ADV20 1.3e+08))",
+    "BND200 (near the 200 price band boundary (last 198))",
+    "BND2K (near the 2000 price band boundary (last 2000))",
+    "SPLT (corporate action remark (PRICE_BREAK 2026-10-19))",
+    "STALE (stale (last bar 2026-08-21))",
+    "ADJ (shows bearish_engulfing:default_w3)",
+    "DCC (shows dark_cloud_cover:default_state)",
+    "ESTAR (shows evening_star:default_state)",
+    "DEWI (shows piercing_line:default_w3)",
+    "CROW (shows three_black_crows:default_state)",
+    "SOLD (shows three_white_soldiers:default_state)",
+    "BND500 (shows dragonfly_doji:long_trend_w5)",
+    "KOCI (shows tweezer_bottom:own_w10)"
+   ],
+   "uncovered": [],
+   "positives": {
+    "hammer": 15,
+    "hanging_man": 6,
+    "inverted_hammer": 11,
+    "shooting_star": 3,
+    "dragonfly_doji": 5,
+    "gravestone_doji": 1,
+    "bullish_marubozu": 42,
+    "bearish_marubozu": 12,
+    "bullish_engulfing": 22,
+    "bearish_engulfing": 8,
+    "bullish_harami": 10,
+    "bearish_harami": 7,
+    "piercing_line": 4,
+    "dark_cloud_cover": 7,
+    "tweezer_bottom": 19,
+    "tweezer_top": 13,
+    "morning_star": 1,
+    "evening_star": 5,
+    "three_white_soldiers": 6,
+    "three_black_crows": 6
+   },
+   "routes": [
+    "POST /api/v1/auth/sign-in",
+    "GET /api/v1/auth/session",
+    "GET /api/v1/screener/catalog",
+    "GET /api/v1/screener/universe",
+    "POST /api/v1/screener/run",
+    "POST /api/terminal/v1/bundle",
+    "POST /api/v1/auth/sign-out"
+   ],
+   "unexpected_routes": [],
+   "bucket_with_cookie": 0,
+   "secret_leaks": [],
+   "price_break_cells": {
+    "SPLT": 12
+   },
+   "failures": [],
+   "incomplete": []
+  },
+  "c1": {
+   "exit": 1,
+   "verdict": "MISMATCH",
+   "mismatches": 15,
+   "tickers": [
+    "BBCA"
+   ],
+   "example": {
+    "t": "BBCA",
+    "screen": "bullish_engulfing:default_state",
+    "pattern": "bullish_engulfing",
+    "variant": "default_state",
+    "kind": "state",
+    "within": null,
+    "params": {},
+    "screener": {
+     "pass": false
+    },
+    "terminal": {
+     "pass": true,
+     "eval_date": "2026-10-23",
+     "remark": null
+    },
+    "same": false
+   }
+  },
+  "c2": {
+   "exit": 1,
+   "verdict": "MISMATCH",
+   "target": "HOLE hammer:own_w10",
+   "tampered": true,
+   "mismatches": 1,
+   "lines": [
+    "HOLE hammer:own_w10: Screener {\"pass\":true,\"eval_date\":\"2026-10-23\",\"event_date\":\"2026-10-21\",\"bars_ago\":3,\"last_event_date\":\"2026-10-21\",\"remark\":null} / Terminal {\"pass\":true,\"eval_date\":\"2026-10-23\",\"event_date\":\"2026-10-21\",\"bars_ago\":2,\"last_event_date\":\"2026-10-21\",\"remark\":null}"
+   ],
+   "relation_problems": []
+  },
+  "c3": {
+   "exit": 2,
+   "verdict": "PUBLICATION_CHANGED"
+  },
+  "c5": {
+   "exit": 4,
+   "verdict": "LIMIT_REFUSED",
+   "limit_refused": [
+    {
+     "name": "hammer:long_trend_w5",
+     "limit": "compute_budget",
+     "allowed": 20000,
+     "needed": 31000,
+     "costliest": "c"
+    }
+   ],
+   "compared": 2679,
+   "equal": 2679
+  },
+  "c4": {
+   "exit": 3,
+   "verdict": "INCOMPLETE",
+   "incomplete": [
+    "UNVR: bundle 429 quota_exceeded",
+    "the Terminal quota refused a bundle: the rest of the sample was not fetched",
+    "UNVR: bundle answered 429",
+    "THIN: no bars"
+   ],
+   "bundles": 4
+  }
+ },
+ "checks": {
+  "A1 fixtures: independent = core": true,
+  "A2 random bars: independent = core": true,
+  "A3 boundary cases as the document says": true,
+  "A4 frequency table of P6_CANDLES.md": true,
+  "B exit 0, PASS": true,
+  "B every comparison equal": true,
+  "B every screen answered, catalog checked": true,
+  "B only the read routes, no cookie on the bucket": true,
+  "B no secret written or printed": true,
+  "C1 changed Terminal bars: exit 1 on that stock only": true,
+  "B every pattern shown by a sample stock": true,
+  "C2 changed Screener cell: exit 1 on that cell": true,
+  "C3 publication moved: exit 2": true,
+  "C4 Terminal quota: exit 3": true,
+  "C5 a limit refusal: exit 4, the rest equal": true,
+  "B a stock with left-out rows and missing volumes compared": true,
+  "B the price-break cell remark compared on a stock with a split": true
+ }
+}

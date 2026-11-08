@@ -1,0 +1,744 @@
+{
+ "checked_at": "2026-11-08T06:34:14.854Z",
+ "publication": {
+  "versions": {
+   "screener_engine": "bc0935fa32b377c0",
+   "registry": "514dc3df60a25aff",
+   "screener_registry": "d47d2c5116de6421",
+   "price_data": "65dc79642b8196ffa96249bf299d5d8f204723c1a75f936ee49583573130079b",
+   "flow_data": "d47101326bcadbbede197576a685583b5d03e50b1a137eac160f89bf63237349"
+  },
+  "data": {
+   "evaluation_date": "2026-10-23",
+   "price_through": "2026-10-23",
+   "flow_through": "2026-10-21",
+   "broker_behind_sessions": 0,
+   "published_at": "2026-10-23T12:59:56Z",
+   "broker_window": {
+    "first": "2026-07-28",
+    "last": "2026-10-21",
+    "sessions": 60,
+    "complete": true
+   },
+   "refresh": "ready"
+  },
+  "versions_after": {
+   "screener_engine": "bc0935fa32b377c0",
+   "registry": "514dc3df60a25aff",
+   "screener_registry": "d47d2c5116de6421",
+   "price_data": "65dc79642b8196ffa96249bf299d5d8f204723c1a75f936ee49583573130079b",
+   "flow_data": "d47101326bcadbbede197576a685583b5d03e50b1a137eac160f89bf63237349"
+  },
+  "data_after": {
+   "evaluation_date": "2026-10-23",
+   "price_through": "2026-10-23",
+   "flow_through": "2026-10-21",
+   "broker_behind_sessions": 0,
+   "published_at": "2026-10-23T12:59:56Z",
+   "broker_window": {
+    "first": "2026-07-28",
+    "last": "2026-10-21",
+    "sessions": 60,
+    "complete": true
+   },
+   "refresh": "ready"
+  }
+ },
+ "catalog": {
+  "entries": 20,
+  "problems": [],
+  "limits": [
+   {
+    "name": "max_conditions",
+    "value": 20,
+    "unit": "conditions"
+   },
+   {
+    "name": "within_max",
+    "value": 130,
+    "unit": "sessions"
+   },
+   {
+    "name": "compute_budget",
+    "value": 20000,
+    "unit": "ms"
+   },
+   {
+    "name": "owner_cpu_budget",
+    "value": 60000,
+    "unit": "ms per minute"
+   },
+   {
+    "name": "max_response_bytes",
+    "value": 2097152,
+    "unit": "bytes"
+   }
+  ]
+ },
+ "screens": {
+  "count": 144,
+  "answered": 144,
+  "refused": [],
+  "match_counts": {
+   "hammer": {
+    "default_state": 0,
+    "default_w3": 1,
+    "trend_alt_w3": 1,
+    "tick2_w3": 2,
+    "tick1_w3": 3,
+    "long_trend_w5": 2,
+    "own_w10": 6
+   },
+   "hanging_man": {
+    "default_state": 0,
+    "default_w3": 0,
+    "trend_alt_w3": 0,
+    "tick2_w3": 0,
+    "tick1_w3": 0,
+    "long_trend_w5": 1,
+    "own_w10": 6
+   },
+   "inverted_hammer": {
+    "default_state": 0,
+    "default_w3": 0,
+    "trend_alt_w3": 0,
+    "tick2_w3": 1,
+    "tick1_w3": 2,
+    "long_trend_w5": 2,
+    "own_w10": 7
+   },
+   "shooting_star": {
+    "default_state": 0,
+    "default_w3": 0,
+    "trend_alt_w3": 0,
+    "tick2_w3": 0,
+    "tick1_w3": 0,
+    "long_trend_w5": 1,
+    "own_w10": 2
+   },
+   "dragonfly_doji": {
+    "default_state": 0,
+    "default_w3": 0,
+    "trend_alt_w3": 0,
+    "tick2_w3": 1,
+    "tick1_w3": 2,
+    "long_trend_w5": 1,
+    "own_w10": 1
+   },
+   "gravestone_doji": {
+    "default_state": 0,
+    "default_w3": 0,
+    "trend_alt_w3": 0,
+    "tick2_w3": 0,
+    "tick1_w3": 0,
+    "long_trend_w5": 0,
+    "own_w10": 1
+   },
+   "bullish_marubozu": {
+    "default_state": 3,
+    "default_w3": 5,
+    "trend_alt_w3": 5,
+    "tick2_w3": 6,
+    "tick1_w3": 6,
+    "long_trend_w5": 6,
+    "own_w10": 11
+   },
+   "bearish_marubozu": {
+    "default_state": 0,
+    "default_w3": 0,
+    "trend_alt_w3": 0,
+    "tick2_w3": 0,
+    "tick1_w3": 0,
+    "long_trend_w5": 0,
+    "own_w10": 13
+   },
+   "bullish_engulfing": {
+    "default_state": 1,
+    "default_w3": 3,
+    "trend_alt_w3": 3,
+    "tick2_w3": 3,
+    "tick1_w3": 3,
+    "long_trend_w5": 3,
+    "own_w10": 3,
+    "mix_flow": 3
+   },
+   "bearish_engulfing": {
+    "default_state": 0,
+    "default_w3": 1,
+    "trend_alt_w3": 2,
+    "tick2_w3": 1,
+    "tick1_w3": 1,
+    "long_trend_w5": 1,
+    "own_w10": 2
+   },
+   "bullish_harami": {
+    "default_state": 0,
+    "default_w3": 1,
+    "trend_alt_w3": 1,
+    "tick2_w3": 2,
+    "tick1_w3": 2,
+    "long_trend_w5": 2,
+    "own_w10": 2
+   },
+   "bearish_harami": {
+    "default_state": 0,
+    "default_w3": 0,
+    "trend_alt_w3": 3,
+    "tick2_w3": 0,
+    "tick1_w3": 0,
+    "long_trend_w5": 1,
+    "own_w10": 3
+   },
+   "piercing_line": {
+    "default_state": 0,
+    "default_w3": 1,
+    "trend_alt_w3": 1,
+    "tick2_w3": 1,
+    "tick1_w3": 1,
+    "long_trend_w5": 0,
+    "own_w10": 0
+   },
+   "dark_cloud_cover": {
+    "default_state": 1,
+    "default_w3": 1,
+    "trend_alt_w3": 1,
+    "tick2_w3": 1,
+    "tick1_w3": 1,
+    "long_trend_w5": 1,
+    "own_w10": 1
+   },
+   "tweezer_bottom": {
+    "default_state": 0,
+    "default_w3": 3,
+    "trend_alt_w3": 3,
+    "tick2_w3": 3,
+    "tick1_w3": 3,
+    "long_trend_w5": 3,
+    "own_w10": 1,
+    "mix_rsi": 3
+   },
+   "tweezer_top": {
+    "default_state": 0,
+    "default_w3": 1,
+    "trend_alt_w3": 4,
+    "tick2_w3": 1,
+    "tick1_w3": 1,
+    "long_trend_w5": 3,
+    "own_w10": 3
+   },
+   "morning_star": {
+    "default_state": 0,
+    "default_w3": 0,
+    "trend_alt_w3": 1,
+    "tick2_w3": 0,
+    "tick1_w3": 0,
+    "long_trend_w5": 0,
+    "own_w10": 0
+   },
+   "evening_star": {
+    "default_state": 1,
+    "default_w3": 1,
+    "trend_alt_w3": 1,
+    "tick2_w3": 1,
+    "tick1_w3": 1,
+    "long_trend_w5": 0,
+    "own_w10": 0
+   },
+   "three_white_soldiers": {
+    "default_state": 1,
+    "default_w3": 1,
+    "trend_alt_w3": 1,
+    "tick2_w3": 1,
+    "tick1_w3": 1,
+    "long_trend_w5": 0,
+    "own_w10": 1
+   },
+   "three_black_crows": {
+    "default_state": 1,
+    "default_w3": 1,
+    "trend_alt_w3": 1,
+    "tick2_w3": 1,
+    "tick1_w3": 1,
+    "long_trend_w5": 0,
+    "own_w10": 1
+   }
+  },
+  "timings_ms": [
+   0,
+   9,
+   20
+  ],
+  "round_trip_ms": {
+   "min": 2,
+   "median": 12,
+   "max": 25
+  }
+ },
+ "relations": {
+  "checked": 78,
+  "problems": []
+ },
+ "params": {
+  "checked": 142,
+  "problems": []
+ },
+ "sample": [
+  {
+   "ticker": "HOLE",
+   "reasons": [
+    "asked"
+   ],
+   "bars": 692,
+   "dropped_rows": 8,
+   "first": "2023-11-10",
+   "last": "2026-10-23",
+   "one_price_days": 47,
+   "zero_volume_days": 36,
+   "last_close": 845,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "BBCA",
+   "reasons": [
+    "liquid (ADV20 1.58e+12)",
+    "near the 5000 price band boundary (last 5025)"
+   ],
+   "bars": 2123,
+   "dropped_rows": 0,
+   "first": "2018-01-02",
+   "last": "2026-10-23",
+   "one_price_days": 0,
+   "zero_volume_days": 0,
+   "last_close": 5025,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "GOTO",
+   "reasons": [
+    "liquid (ADV20 4.69e+11)"
+   ],
+   "bars": 1082,
+   "dropped_rows": 0,
+   "first": "2022-04-11",
+   "last": "2026-10-23",
+   "one_price_days": 114,
+   "zero_volume_days": 0,
+   "last_close": 25,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "UNVR",
+   "reasons": [
+    "liquid (ADV20 3.06e+10)"
+   ],
+   "bars": 2123,
+   "dropped_rows": 0,
+   "first": "2018-01-02",
+   "last": "2026-10-23",
+   "one_price_days": 0,
+   "zero_volume_days": 0,
+   "last_close": 1400,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "THIN",
+   "reasons": [
+    "illiquid (ADV20 2.44e+05)"
+   ],
+   "bars": 700,
+   "dropped_rows": 0,
+   "first": "2023-11-10",
+   "last": "2026-10-23",
+   "one_price_days": 339,
+   "zero_volume_days": 236,
+   "last_close": 117,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "CLAY",
+   "reasons": [
+    "illiquid (ADV20 4.29e+07)"
+   ],
+   "bars": 1456,
+   "dropped_rows": 0,
+   "first": "2019-01-18",
+   "last": "2026-10-23",
+   "one_price_days": 281,
+   "zero_volume_days": 0,
+   "last_close": 3000,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "ISEA",
+   "reasons": [
+    "illiquid (ADV20 1.3e+08)"
+   ],
+   "bars": 548,
+   "dropped_rows": 0,
+   "first": "2024-07-08",
+   "last": "2026-10-23",
+   "one_price_days": 2,
+   "zero_volume_days": 0,
+   "last_close": 72,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "BND200",
+   "reasons": [
+    "near the 200 price band boundary (last 198)"
+   ],
+   "bars": 700,
+   "dropped_rows": 0,
+   "first": "2023-11-10",
+   "last": "2026-10-23",
+   "one_price_days": 46,
+   "zero_volume_days": 20,
+   "last_close": 198,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "BND2K",
+   "reasons": [
+    "near the 2000 price band boundary (last 2000)"
+   ],
+   "bars": 700,
+   "dropped_rows": 0,
+   "first": "2023-11-10",
+   "last": "2026-10-23",
+   "one_price_days": 46,
+   "zero_volume_days": 23,
+   "last_close": 2000,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "SPLT",
+   "reasons": [
+    "corporate action remark (PRICE_BREAK 2026-10-19)"
+   ],
+   "bars": 700,
+   "dropped_rows": 0,
+   "first": "2023-11-10",
+   "last": "2026-10-23",
+   "one_price_days": 41,
+   "zero_volume_days": 15,
+   "last_close": 775,
+   "remarks": [
+    {
+     "code": "PRICE_BREAK",
+     "action": "STOCK_SPLIT",
+     "ex_date": "2026-10-19",
+     "ratio_old": 1,
+     "ratio_new": 2,
+     "close_ratio": 0.4936708860759494
+    }
+   ],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 12
+  },
+  {
+   "ticker": "STALE",
+   "reasons": [
+    "stale (last bar 2026-08-21)"
+   ],
+   "bars": 500,
+   "dropped_rows": 0,
+   "first": "2024-07-17",
+   "last": "2026-08-21",
+   "one_price_days": 36,
+   "zero_volume_days": 18,
+   "last_close": 595,
+   "remarks": [
+    {
+     "code": "STALE",
+     "last_bar_date": "2026-08-21"
+    }
+   ],
+   "stale": true,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "ADJ",
+   "reasons": [
+    "shows bearish_engulfing:default_w3"
+   ],
+   "bars": 700,
+   "dropped_rows": 0,
+   "first": "2023-11-10",
+   "last": "2026-10-23",
+   "one_price_days": 64,
+   "zero_volume_days": 36,
+   "last_close": 2320,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "DCC",
+   "reasons": [
+    "shows dark_cloud_cover:default_state"
+   ],
+   "bars": 330,
+   "dropped_rows": 0,
+   "first": "2025-06-16",
+   "last": "2026-10-23",
+   "one_price_days": 22,
+   "zero_volume_days": 12,
+   "last_close": 2240,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "ESTAR",
+   "reasons": [
+    "shows evening_star:default_state"
+   ],
+   "bars": 330,
+   "dropped_rows": 0,
+   "first": "2025-06-16",
+   "last": "2026-10-23",
+   "one_price_days": 17,
+   "zero_volume_days": 13,
+   "last_close": 2240,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "DEWI",
+   "reasons": [
+    "shows piercing_line:default_w3"
+   ],
+   "bars": 967,
+   "dropped_rows": 0,
+   "first": "2022-07-18",
+   "last": "2026-10-23",
+   "one_price_days": 15,
+   "zero_volume_days": 0,
+   "last_close": 228,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "CROW",
+   "reasons": [
+    "shows three_black_crows:default_state"
+   ],
+   "bars": 330,
+   "dropped_rows": 0,
+   "first": "2025-06-16",
+   "last": "2026-10-23",
+   "one_price_days": 27,
+   "zero_volume_days": 16,
+   "last_close": 2120,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "SOLD",
+   "reasons": [
+    "shows three_white_soldiers:default_state"
+   ],
+   "bars": 330,
+   "dropped_rows": 0,
+   "first": "2025-06-16",
+   "last": "2026-10-23",
+   "one_price_days": 20,
+   "zero_volume_days": 12,
+   "last_close": 2880,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "BND500",
+   "reasons": [
+    "shows dragonfly_doji:long_trend_w5"
+   ],
+   "bars": 700,
+   "dropped_rows": 0,
+   "first": "2023-11-10",
+   "last": "2026-10-23",
+   "one_price_days": 42,
+   "zero_volume_days": 28,
+   "last_close": 446,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  },
+  {
+   "ticker": "KOCI",
+   "reasons": [
+    "shows tweezer_bottom:own_w10"
+   ],
+   "bars": 715,
+   "dropped_rows": 0,
+   "first": "2023-10-06",
+   "last": "2026-10-23",
+   "one_price_days": 142,
+   "zero_volume_days": 0,
+   "last_close": 82,
+   "remarks": [],
+   "stale": false,
+   "file_problems": [],
+   "price_break_cells": 0
+  }
+ ],
+ "parity": {
+  "compared": 2698,
+  "equal": 2698,
+  "mismatches": 0,
+  "first_mismatches": [],
+  "by_pattern": {
+   "hammer": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 15
+   },
+   "hanging_man": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 6
+   },
+   "inverted_hammer": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 11
+   },
+   "shooting_star": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 3
+   },
+   "dragonfly_doji": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 5
+   },
+   "gravestone_doji": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 1
+   },
+   "bullish_marubozu": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 42
+   },
+   "bearish_marubozu": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 12
+   },
+   "bullish_engulfing": {
+    "compared": 152,
+    "equal": 152,
+    "positives": 22
+   },
+   "bearish_engulfing": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 8
+   },
+   "bullish_harami": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 10
+   },
+   "bearish_harami": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 7
+   },
+   "piercing_line": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 4
+   },
+   "dark_cloud_cover": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 7
+   },
+   "tweezer_bottom": {
+    "compared": 152,
+    "equal": 152,
+    "positives": 19
+   },
+   "tweezer_top": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 13
+   },
+   "morning_star": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 1
+   },
+   "evening_star": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 5
+   },
+   "three_white_soldiers": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 6
+   },
+   "three_black_crows": {
+    "compared": 133,
+    "equal": 133,
+    "positives": 6
+   }
+  }
+ },
+ "coverage": {
+  "patterns_without_a_positive_in_the_sample": []
+ },
+ "fetch_problems": [],
+ "verdict": "PASS",
+ "exit_code": 0,
+ "failures": [],
+ "failure_count": 0,
+ "incomplete": [],
+ "publication_changes": [],
+ "limit_refused": []
+}
