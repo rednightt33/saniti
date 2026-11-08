@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-11-08 — Fonts back to Inter, Screener fixes, broker picker (edge-bff and screener-worker on dev)
+
+- **Releases (each pushed to `main` with the user's words; no active user run before each push; no migration, no
+  variable change):**
+  - `0d02cded` (edge-bff `5bc4c091` SUCCESS) and `388b57ad` (edge-bff `1003dc55` SUCCESS): every non-Inter text back to
+    Inter (ERRORS M411).
+  - `ceb04d79`: a flow chip opens the same header box as SMA's; the Added button on one line.
+  - `e3e3b33c` (edge-bff `0b8cf19a` SUCCESS): no row marked in Add a condition on opening or typing.
+  - `d801d9a0` (edge-bff `6ed214aa` SUCCESS, screener-worker `441e7e09` SUCCESS): EXEC-SCREENER-BROKER-PICK; the worker
+    adds the published broker list to its catalog (`data.brokers`, additive).
+- **Checks:** `/ready` 200; the served Screener files byte-equal to the build after each; screener-worker image imports
+  all in the image; backtest tripwire OK.
+- **Not done:** a signed-in check on dev (the catalog answers 401 without a session), so `data.brokers` on dev is not yet
+  read back.
+- **Rollback:** redeploy edge-bff `07bfe18e` (commit `f62426be`); screener-worker's deployment before `441e7e09`.
+
 ## 2026-11-08 — Screener: Operator… on builder cards, flow chip opens its card (C2) on dev
 
 - **Change:** EXEC-SCREENER-CONSIST. Builder cards offer "Operator…" as Add a condition does; a flow indicator's chip in
