@@ -5753,6 +5753,14 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M411 — Terminal: broker codes in the Loaders and Broker Inventory boxes in a system monospace font, not Inter (2026-11-08, fixed)
+
+- **Symptom (user screenshot):** OD, CC, MG ... in the Broker Inventory box in Consolas / SF Mono.
+- **Verified cause:** the audit fix `80f9645a` added `.ldb-b{font-family:ui-monospace,...}` (terminal.css:1664), overriding the
+  Terminal rule `--mono:var(--sans)` (Inter) that every other number and code uses.
+- **Solution:** the override removed; `.ldb-b` uses `var(--mono)` (Inter) with `tabular-nums`. look_check11 PASS.
+- **Lesson:** a font is set only through the Terminal's tokens (`--sans`, `--mono`), never a literal font list.
+
 ### M409 — Screener: a catalog default in rupiah shown raw in an Rp B field (ADV "> 10000000000 Rp B", 0 matches) (2026-11-08, fixed on branch)
 
 - **Symptom:** Add a condition -> Average daily value (20 sessions) opened at "Greater than 10000000000 Rp B". Added as
