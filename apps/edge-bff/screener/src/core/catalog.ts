@@ -6,17 +6,23 @@
    `fn`, pattern `type`, cross-section and flow `metric` and universe `attr` values are read from here, never from a list
    in code (report 6.9); transforms.ts implements what each fn and pattern type computes, and catalogProblems() fails
    when the two disagree.
+   EXEC-SCREENER-FLOW-CANDLES P5a (verification/screener/P5_FLOW.md section 2): METRICS_CATALOG holds, after the file's
+   own metrics, the 48 flow indicators generated from the Terminal's flowRegistry.json into screener-registry.json
+   (`flows`; flowMetric); P5b (section 3): some as the Screener's version, then the Screener's own flow entries (fnet;
+   ksei_net, REQUIRES_DATA). The file itself holds no flow entry: the old Phase 2 ones were rebuilt on these (FLOW_MAP.md)
+   and the presets read them.
    Worker-side module (the page reads the same entries from GET /catalog and never imports this file). */
 import type { CatalogParam, Definition, MetricKind, ParamMap, ParamValue, Periods, PriceField, SavedView, TestKind } from './contract.ts';
 import { ScreenerError } from './errors.ts';
+import { SCREENER_REGISTRY } from './registry.ts';
+import type { FlowRegistryEntry } from './registry.ts';
 import metricsDoc from './screener-metrics.json' with { type: 'json' };
 import presetsDoc from './presets.json' with { type: 'json' };
 
 /* ---- the documents ---------------------------------------------------------------------------------------------- */
 
-/** A catalog parameter (contract.ts CatalogParam), with an optional source of its options when they come from data
-    (the broker list of a Phase 2 flow metric). */
-export type MetricParam = CatalogParam & { options_source?: string };
+/** A catalog parameter (contract.ts CatalogParam). */
+export type MetricParam = CatalogParam;
 
 /** One transform function (report 6.9): its scalar arguments with ranges and defaults, the arguments that take a metric
     reference (ratio's denominator `by`), the test kinds a condition may use it in, and, for the rolling windows over a
@@ -40,7 +46,7 @@ export interface TransformDefinition {
     'Fundamental'). Additive fields the page reads (report 9.2; tests/fixture/api.ts has the same shape): label, short,
     default_test, synonyms, and `ref`, the reference template of a transform-based metric (hi52 is
     pct_distance(rolling_max(high, 252))). unavailable_reason: the plain sentence availabilityOf gives while the metric is
-    not AVAILABLE; fl: the FLOW INDICATOR PROPOSALS id of a flow metric. */
+    not AVAILABLE. */
 export interface MetricDefinition {
   id: string; group: string; kind: MetricKind;
   params: MetricParam[]; tests: TestKind[]; unit: string | null;
@@ -52,17 +58,26 @@ export interface MetricDefinition {
   default_test?: { op?: string; test?: TestKind; value?: number; value2?: number; within?: number };
   ref?: unknown;
   unavailable_reason?: string;
-  fl?: string;
+  /** EXEC-SCREENER-FLOW-CANDLES P5a: one of the generated flow entries (screener-registry.json `flows`: the Terminal's 48
+      flow indicators, some as the Screener's version, and the Screener's own, P5b; flowmetrics.ts computes them); its
+      parameters are flow.params, `params` is empty */
+  flow?: FlowRegistryEntry;
 }
 /** The universal operators (EXEC-SCREENER-FLOW-CANDLES; verification/screener/OPERATORS.md, approved K4) as the page
     offers them: a measure is a transform of the series (its arguments are the transform's), a test how the measured
     series is tested. types: the output types of OPERATORS.md section 4 a series can have, by the transform that makes
     it. One source for the page and the core (transforms.ts operatorTakes, condition.ts bindRank). unit: the unit of a
     measure's result, fixed or by an argument ('diff' = the unit of a difference of the series). */
-export interface OperatorMeasure { id: number; fn: string; label: string; help: string; unit: string | Record<string, string>; not_on: string[]; second?: boolean; short?: string; default: { cmp: string; value: number; range?: [number, number] } }
+/** forms: the catalog's other transforms that follow this measure's not_on, never offered as a measure themselves
+    (operator 7's: the moving average of a series, which the catalog offers in state and event tests only, as the series
+    another one is compared with, and the ratio of two series, operator 7 in its ratio form). */
+export interface OperatorMeasure { id: number; fn: string; label: string; help: string; unit: string | Record<string, string>; not_on: string[]; second?: boolean; forms?: string[]; short?: string; default: { cmp: string; value: number; range?: [number, number] } }
 export interface OperatorTest {
   id: number; key: 'value' | 'range' | 'cross' | 'ever' | 'at_least' | 'streak' | 'rank'; label: string; help: string; ops: string[];
   within?: boolean; length?: boolean; count?: boolean; not_on_units?: string[]; not_on_levels?: boolean; not_on?: string[];
+  /** the types this test takes only against a second series, not against a constant (OPERATORS.md section 4: lots per
+      transaction cross an average or a series, not a fixed number of lots) */
+  not_against_value?: string[];
   short?: string; default: { cmp?: string; value?: number; value2?: number; n?: number; k?: number; range?: [number, number] };
 }
 export interface OperatorsBlock { note?: string; types: Record<string, { fns: string[]; words: string }>; measures: OperatorMeasure[]; tests: OperatorTest[]; default_measure: string }
@@ -85,7 +100,34 @@ export interface PresetDefinition {
 export const VIEW_SORT_COLUMNS: readonly string[] = ['match', 'sym', 'last', 'd1', 'adv'];
 export interface PresetsDoc { schema_version: number; note?: string; presets: PresetDefinition[] }
 
-export const METRICS_CATALOG = metricsDoc as unknown as MetricsCatalog;
+/** The plain words of a flow entry's unavailability (the catalog's reason and the refusal: no file, code or id). */
+export const FLOW_REASONS = {
+  insider: 'It needs the insider transactions, which are not published to the Screener yet.',
+  ksei: 'It needs the major holders\' position changes reported to KSEI, which are not published to the Screener yet.',
+  none: 'It needs the broker data, which this publication does not carry yet.',
+  loading: (sessions: number): string => `The broker data is still loading (${sessions} session${sessions === 1 ? '' : 's'} loaded so far); flow conditions run once every session of the window is loaded, usually within a few minutes.`,
+  classification: 'It needs the brokers\' classification (institutional or retail), which this publication does not carry yet.',
+};
+/** A flow entry of the generated registry as a catalog entry (P5_FLOW.md sections 2 and 3): group Flow, kind flow, the
+    registry's name, unit and tip, the Feature_Catalog fields in plain words (a screener version's or entry's own formula
+    and misuse words, flow-kinds.json), params empty (its parameters are flow.params). Availability is the broker
+    window's (validate.ts availabilityOf). */
+export function flowMetric(f: FlowRegistryEntry): MetricDefinition {
+  const general = 'The broker data covers the last sessions the Screener loads, and the value follows the setup chosen (the regular board by default, as on the Terminal); a value in rupiah or lots scales with the stock\'s size.';
+  return {
+    id: f.id, group: 'Flow', kind: 'flow', label: f.name, short: f.name, params: [], tests: ['value', 'state', 'event'], unit: f.unit,
+    formula: f.formula ?? `The Terminal's ${f.name} (${f.family}) computed on the stock's broker data of the sessions the Screener loads, on the stock's own trading days.`,
+    interpretation: f.tip || f.name,
+    misuse: f.misuse ? `${f.misuse} ${general}` : general,
+    evidence: f.version === 'screener' ? 'apps/edge-bff/screener/src/core/flow-kinds.json (the Screener\'s version, flowscreener.ts on the Terminal\'s flow.ts), verification/screener/P5_FLOW.md section 3'
+      : 'apps/edge-bff/terminal/src/data/flowRegistry.json (the Terminal\'s flow.ts), verification/screener/P5_FLOW.md',
+    requires: null, decision: null, applies_to: null,
+    unavailable_reason: f.requires ? FLOW_REASONS[f.requires] : FLOW_REASONS.none,
+    flow: f,
+  };
+}
+/** screener-metrics.json with the generated flow entries after its own. */
+export const METRICS_CATALOG = { ...(metricsDoc as unknown as MetricsCatalog), metrics: [...(metricsDoc as unknown as MetricsCatalog).metrics, ...SCREENER_REGISTRY.flows.map(flowMetric)] } as MetricsCatalog;
 export const PRESETS = presetsDoc as unknown as PresetsDoc;
 export const TRANSFORM_FNS: readonly string[] = METRICS_CATALOG.transforms.map(t => t.fn);
 
@@ -131,7 +173,7 @@ export function resolveCatalogParams(specs: readonly MetricParam[], given: unkno
     const f = `${field}.${p.key}`, v = Object.prototype.hasOwnProperty.call(g, p.key) ? g[p.key] : p.default;
     if (p.type === 'enum') {
       if (typeof v !== 'string' || (p.options && !p.options.includes(v)))
-        throw new ScreenerError('INVALID_CONDITION', `${f} must be one of ${(p.options || []).join(', ') || p.options_source}.`, f, { allowed: p.options || [] });
+        throw new ScreenerError('INVALID_CONDITION', `${f} must be one of ${(p.options || []).join(', ')}.`, f, { allowed: p.options || [] });
     } else if (p.type === 'boolean') {
       if (typeof v !== 'boolean') throw new ScreenerError('INVALID_CONDITION', `${f} must be true or false.`, f, { allowed: [true, false] });
     } else {
@@ -171,7 +213,7 @@ function paramProblems(where: string, ps: readonly MetricParam[]): string[] {
     if (seen.has(p.key)) out.push(`${w}: repeated`); seen.add(p.key);
     if (!['integer', 'number', 'enum', 'boolean'].includes(p.type)) out.push(`${w}: type ${p.type}`);
     if (p.integer !== (p.type === 'integer')) out.push(`${w}: integer must say whether the type is integer`);
-    if (p.type === 'enum' && !p.options_source && (!p.options?.length || !p.options.includes(p.default as string))) out.push(`${w}: an enum needs options holding its default`);
+    if (p.type === 'enum' && (!p.options?.length || !p.options.includes(p.default as string))) out.push(`${w}: an enum needs options holding its default`);
     if ((p.type === 'integer' || p.type === 'number')) {
       const d = p.default as number;
       if (typeof d !== 'number' || (p.min !== undefined && (p.exclusive_min ? !(d > p.min) : d < p.min)) || (p.max !== undefined && d > p.max) || (p.integer && !Number.isInteger(d)))
@@ -205,7 +247,7 @@ export function catalogProblems(implemented?: { transforms: readonly string[]; p
     if (m.applies_to !== null && !PREDICATE.test(m.applies_to)) out.push(`${w}: applies_to must be "<Sector|Industry> = <value>" or "!="`);
     if ((m.requires || m.decision) && !m.unavailable_reason && !m.decision) out.push(`${w}: a metric that can be unavailable needs unavailable_reason`);
     out.push(...paramProblems(w, m.params));
-    if (m.kind === 'flow' && !m.params.some(p => p.key === 'window')) out.push(`${w}: a flow metric needs a window parameter (contract FlowRef)`);
+    if (m.kind === 'flow' && !m.flow) out.push(`${w}: a flow metric is one of the generated flow entries (screener-registry.json flows), never typed in screener-metrics.json`);
     if (m.kind === 'transform' && !m.ref) out.push(`${w}: a transform-based metric needs its reference template (ref)`);
     if (m.kind === 'pattern' && m.tests.includes('value')) out.push(`${w}: a pattern is a signal, never a VALUE`);
   }
@@ -215,13 +257,23 @@ export function catalogProblems(implemented?: { transforms: readonly string[]; p
   if (!ob || !Array.isArray(ob.measures) || !Array.isArray(ob.tests) || !ob.types) out.push('operators: measures, tests and types are required');
   else {
     for (const [k, t] of Object.entries(ob.types)) for (const fn of t.fns) if (!fns.has(fn)) out.push(`operators type ${k}: ${fn} is not a transform of the catalog`);
+    const measureFns = new Set(ob.measures.map(m => m.fn)), formOf = new Map<string, string>();
     for (const m of ob.measures) {
       if (!fns.has(m.fn)) out.push(`operators measure ${m.fn}: not a transform of the catalog`);
+      for (const f of m.forms ?? []) {
+        if (!fns.has(f) || measureFns.has(f)) out.push(`operators measure ${m.fn}: form ${f} is not a transform of the catalog outside the measures`);
+        if (formOf.has(f) && formOf.get(f) !== m.fn) out.push(`operators measure ${m.fn}: form ${f} is already a form of ${formOf.get(f)}`);
+        formOf.set(f, m.fn);
+      }
       for (const k of m.not_on) if (!ob.types[k]) out.push(`operators measure ${m.fn}: not_on ${k} is not a type`);
       if (typeof m.unit === 'object') { const arg = c.transforms.find(t => t.fn === m.fn)?.args.find(a => a.key === (m.unit as Record<string, string>).by);
         if (!arg || !(arg.options || []).every(o => typeof (m.unit as Record<string, string>)[o] === 'string')) out.push(`operators measure ${m.fn}: unit by ${(m.unit as Record<string, string>).by} must name a unit for each option`) }
     }
-    for (const t of ob.tests) for (const k of t.not_on || []) if (!ob.types[k]) out.push(`operators test ${t.key}: not_on ${k} is not a type`);
+    for (const t of ob.tests) for (const k of [...(t.not_on || []), ...(t.not_against_value || [])]) if (!ob.types[k]) out.push(`operators test ${t.key}: not_on ${k} is not a type`);
+    // every kind a flow output may have is a type of the block (OPERATORS.md section 4)
+    const kindsOf = (s: unknown): string[] => typeof s === 'string' ? [s] : s && typeof s === 'object' && 'by' in s
+      ? Object.entries(s as Record<string, unknown>).filter(([k]) => k !== 'by').flatMap(([, v]) => kindsOf(v)) : [(s as { kind: string }).kind];
+    for (const f of SCREENER_REGISTRY.flows) for (const o of f.outputs) for (const k of kindsOf(o.kind)) if (!ob.types[k]) out.push(`flow ${f.id}.${o.key}: kind ${k} is not a type of the operators block`);
     const keys = ob.tests.map(t => t.key).sort().join(',');
     if (keys !== 'at_least,cross,ever,range,rank,streak,value') out.push(`operators tests: ${keys} are not the seven tests of OPERATORS.md`);
   }

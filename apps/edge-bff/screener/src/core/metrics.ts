@@ -19,13 +19,20 @@ import { ScreenerError } from './errors.ts';
 import { inputsOf, isDefaultParams, resolveScreenerParams, screenerIndicator, screenerOutput } from './registry.ts';
 import type { BarField, ParamOptions, ScreenerIndicator, ScreenerOutput, Unit } from './registry.ts';
 import { resolveTransform } from './transforms.ts';
+import { resolveFlow } from './flowmetrics.ts';
+import type { FlowBindContext, TickerFlow } from './flowmetrics.ts';
 
 /* ---- a ticker's data ------------------------------------------------------------------------------------------- */
 
 /** One ticker's bars as the snapshot holds them: datafile.priceSeries (its own sessions, oldest first, a row without
     four finite prices dropped), dates 'YYYY-MM-DD' aligned with the bars. `missing` (optional, the worker's snapshot):
     missingInput's answer without reading the bar columns; it must equal scanMissingInput on the same bars. */
-export interface TickerBars { ticker: string; dates: readonly string[]; bars: Bars; missing?(inputs: readonly BarField[], at: number): BarField | null }
+export interface TickerBars {
+  ticker: string; dates: readonly string[]; bars: Bars; missing?(inputs: readonly BarField[], at: number): BarField | null;
+  /** EXEC-SCREENER-FLOW-CANDLES P5a: the ticker's broker rows in the loaded window, its classification and the memo of
+      computeFlow answers (the worker's TickerView); a flow series is computed from it (flowmetrics.ts) */
+  flow?: TickerFlow;
+}
 /** A ticker with the backtest core's per-ticker memo of indicator outputs. A TickerCalc lives for one ticker's work (one
     pre-warm pass or one request) and is then dropped: Calc keeps every full output it computed. */
 export interface TickerCalc extends TickerBars { calc: Calc }
@@ -69,6 +76,20 @@ export interface ResolvedSeries {
   /** True when every value is a whole number (a count: rising_run). "=" and "!=" are offered only on such a series
       (K7, OPERATORS.md operator 1); a series without the flag is read as continuous. */
   readonly integer?: boolean;
+  /** EXEC-SCREENER-FLOW-CANDLES P5a, set exactly on a series that reads a flow indicator (directly or through operators):
+      the sessions of broker data it reads (the indicator's own window, flowmetrics.ts indicatorDepth, plus the operators'
+      N), null when the probe gives no value; flowOwn the flow indicator's own part. A condition on it is evaluated at
+      the stock's last candle with broker data (P10 a) and may read at most the loaded window (K1). */
+  readonly flowDepth?: number | null;
+  readonly flowOwn?: number | null;
+  /** P5b cost: the sessions before the evaluated candle its reader reads, when the series was resolved for a screen
+      (condition.ts BindContext.flowLazy): an anchored flow series under it is computed there only. null: every candle
+      (an operator that reads the whole history); absent: not resolved for a screen. The worker's cost units read it. */
+  readonly flowReach?: number | null;
+  /** The output type of OPERATORS.md section 4 the series has when it is a flow output (K, P, Rp, L, H, D, F, B) or a
+      transform that keeps its operand's level (lag, ma, rolling_max, rolling_min); absent otherwise (transforms.ts
+      outputType then reads the transform). */
+  readonly outputKind?: string;
   full(t: TickerCalc): ArrayLike<Num | undefined>;
 }
 export interface ResolvedIndicator extends ResolvedSeries {
@@ -127,26 +148,36 @@ export function scanMissingInput(t: TickerBars, inputs: readonly BarField[], at:
   return null;
 }
 
+/** What resolving a reference reads besides it: the parameter options (caps), IHSG's bars (vs_index), the loaded broker
+    window (P5a) and, for a screen (P5b), the reach of its reader: the sessions before the evaluated candle the reader
+    reads (condition.ts sets it from the test, transforms.ts adds its operators' N; null: the whole history). */
+export type SeriesResolveContext = ParamOptions & { index?: TickerBars; flow?: FlowBindContext; flowReach?: number | null };
 /** Any metric reference that is a numeric series on the ticker's bars: indicator and price here, transform through
     transforms.ts resolveTransform (which resolves its `of` back through this function; `index` = IHSG's bars, read by
     vs_index when it computes, so validation needs none). A pattern is a 0/1 signal, not a value (transforms.ts
     resolveSignal, read by STATE and EVENT tests only); flow, xsection and universe values are per ticker at E, not bar
     series (flowmetrics.ts in Phase 2, xsection.ts, the snapshot's universe attributes); pattern, flow, xsection and
-    universe are refused here so no caller reads them as a series. */
-export function resolveSeries(ref: MetricRef, field: string, ctx: ParamOptions & { index?: TickerBars }): ResolvedSeries {
+    universe are refused here so no caller reads them as a series. P5a: a flow indicator output is a series of the
+    ticker's bars too (flowmetrics.ts resolveFlow: computed by the Terminal's flow.ts on the window's candles, aligned;
+    `flow` = the loaded broker window, checked when given). */
+export function resolveSeries(ref: MetricRef, field: string, ctx: SeriesResolveContext): ResolvedSeries {
   if (!ref || typeof ref !== 'object' || Array.isArray(ref)) throw new ScreenerError('INVALID_CONDITION', `${field} must be a metric reference.`, field);
+  let r: ResolvedSeries;
   switch (ref.kind) {
-    case 'indicator': return resolveIndicator(ref, field, ctx);
-    case 'price': return resolvePrice(ref, field);
-    case 'transform': return resolveTransform(ref, field, ctx);
+    case 'indicator': r = resolveIndicator(ref, field, ctx); break;
+    case 'price': r = resolvePrice(ref, field); break;
+    case 'transform': r = resolveTransform(ref, field, ctx); break;
+    case 'flow': r = resolveFlow(ref, field, ctx); break;
     default: throw new ScreenerError('INVALID_CONDITION', `${field}: a ${JSON.stringify((ref as { kind?: unknown }).kind)} reference is not a series on the ticker's bars; use it where its test form allows it.`, `${field}.kind`);
   }
+  // P5b cost: a flow-reading series resolved for a screen carries the reach it was resolved under (its cost units)
+  return r.flowDepth !== undefined && ctx.flowReach !== undefined ? { ...r, flowReach: ctx.flowReach } : r;
 }
 
 /** The series `r` read one bar earlier: transform lag(r, 1), resolved like any transform (computed on the full series,
     then tailed; same key as a lag written in a request). A bar-field comparison reads it where the series' compareLag
     says so (Donchian's prior band, report 6.8). */
-export const laggedSeries = (r: ResolvedSeries, field: string, ctx: ParamOptions & { index?: TickerBars }): ResolvedSeries =>
+export const laggedSeries = (r: ResolvedSeries, field: string, ctx: SeriesResolveContext): ResolvedSeries =>
   resolveTransform({ kind: 'transform', fn: 'lag', of: r.ref, args: { bars: 1 } }, field, ctx);
 
 /* ---- universe attributes (report 6.7 "universe attributes", 6.12; API CONTRACT 8.4 universe body) ------------------ */
@@ -180,18 +211,19 @@ export const tailLength = (withinMax: number): number => {
   if (!(Number.isInteger(withinMax) && withinMax >= 1)) throw new RangeError(`tailLength: within_max must be a whole number of at least 1, not ${withinMax}`);
   return withinMax + 1;
 };
-/** The last bars of one ticker's series: values[i - from] is bar i (NaN for no value); n = the ticker's bar count;
+/** The last bars of one ticker's series (`length` of them, or, with everyValue, from its first value if that is
+    earlier): values[i - from] is bar i (NaN for no value); n = the ticker's bar count;
     firstValid / lastValid = the first and last bar of the FULL series with a value (-1 when none), so a reader can tell
     INSUFFICIENT_HISTORY (no value up to the evaluation bar) from NULL_AT_EVALUATION. */
 export interface Tail { readonly n: number; readonly from: number; readonly values: Float64Array; readonly firstValid: number; readonly lastValid: number }
-export function tailOf(s: ArrayLike<Num | undefined>, length: number): Tail {
-  const n = s.length, from = Math.max(0, n - length), values = new Float64Array(n - from);
+export function tailOf(s: ArrayLike<Num | undefined>, length: number, everyValue = false): Tail {
+  const n = s.length, ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
   let firstValid = -1, lastValid = -1;
-  for (let i = 0; i < n; i++) {
-    const v = s[i], ok = typeof v === 'number' && Number.isFinite(v);
-    if (ok) { if (firstValid < 0) firstValid = i; lastValid = i }
-    if (i >= from) values[i - from] = ok ? v as number : NaN;
-  }
+  for (let i = 0; i < n; i++) if (ok(s[i])) { if (firstValid < 0) firstValid = i; lastValid = i }
+  // everyValue: the tail starts no later than the first value (a flow series: its values are the loaded window's, read
+  // at the last candle with broker data, however far behind the prices that is; condition.ts read)
+  const from = Math.max(0, everyValue && firstValid >= 0 ? Math.min(n - length, firstValid) : n - length), values = new Float64Array(n - from);
+  for (let i = from; i < n; i++) { const v = s[i]; values[i - from] = ok(v) ? v : NaN }
   return { n, from, values, firstValid, lastValid };
 }
 const TAIL_OVERHEAD = 64;
@@ -248,12 +280,14 @@ export class SeriesCache {
 export interface SeriesContext { versions: DataVersions; tailLength: number; cache: SeriesCache }
 export type SeriesSource = 'precomputed' | 'dynamic';
 /** THE series path (report 6.7): the cached tail of `r` on ticker `t`, or on a miss its full series through Calc,
-    tailed and cached. `prewarm` pins the entry as part of the publication's snapshot. source: 'precomputed' when the
+    tailed (a flow-reading series from its first value at the latest, so a test at the last candle with broker data
+    reads it whole however far the broker data is behind the prices) and cached. `prewarm` pins the entry as part of the publication's snapshot. source: 'precomputed' when the
     tail comes from a pinned (pre-warmed) entry, else 'dynamic'. */
 export function series(ctx: SeriesContext, t: TickerCalc, r: ResolvedSeries, prewarm = false): { tail: Tail; source: SeriesSource } {
   const key = seriesKey(ctx.versions, r), hit = ctx.cache.get(key, t.ticker);
   if (hit) return { tail: hit.tail, source: hit.pinned ? 'precomputed' : 'dynamic' };
-  const tail = tailOf(r.full(t), ctx.tailLength);
+  // a flow-reading series keeps every value in its tail (it is read at the stock's last candle with broker data, P10 a)
+  const tail = tailOf(r.full(t), ctx.tailLength, r.flowDepth !== undefined);
   ctx.cache.set(key, t.ticker, tail, prewarm);
   return { tail, source: prewarm ? 'precomputed' : 'dynamic' };
 }

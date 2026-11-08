@@ -1,0 +1,155 @@
+{
+ "catalog": {
+  "status": 200,
+  "ms": 435,
+  "engine": "542b1ec8c42c6f52",
+  "data": {
+   "evaluation_date": "2026-11-06",
+   "price_through": "2026-11-06",
+   "flow_through": null,
+   "broker_behind_sessions": 3,
+   "published_at": "2026-11-07T12:07:51.738690+00:00",
+   "refresh": "ready"
+  },
+  "tests": [
+   "at_least",
+   "cross",
+   "ever",
+   "range",
+   "rank",
+   "streak",
+   "value"
+  ],
+  "measures": [
+   "acceleration",
+   "change",
+   "change_pct",
+   "distance_to_extreme",
+   "percentile",
+   "relative",
+   "slope",
+   "vs_average",
+   "zscore"
+  ]
+ },
+ "rsi_percentile60_ge_90": {
+  "status": 200,
+  "ms": 745,
+  "match_count": 29,
+  "error": null,
+  "sample": [
+   [
+    "ASII",
+    96.6666666667
+   ],
+   [
+    "PGAS",
+    96.6666666667
+   ],
+   [
+    "UNVR",
+    96.6666666667
+   ]
+  ]
+ },
+ "rsi_zscore20_gt_2": {
+  "status": 200,
+  "ms": 622,
+  "match_count": 20,
+  "error": null,
+  "sample": [
+   [
+    "BRIS",
+    3.41780891994
+   ],
+   [
+    "INDF",
+    2.09218486738
+   ],
+   [
+    "UNVR",
+    2.78125205787
+   ]
+  ]
+ },
+ "rsi_gt_50_3_of_5": {
+  "status": 200,
+  "ms": 264,
+  "match_count": 73,
+  "error": null,
+  "sample": [
+   [
+    "ASII",
+    5
+   ],
+   [
+    "PGAS",
+    4
+   ],
+   [
+    "AALI",
+    5
+   ]
+  ]
+ },
+ "close_gt_sma20_streak_3": {
+  "status": 200,
+  "ms": 260,
+  "match_count": 69,
+  "error": null,
+  "sample": [
+   [
+    "ASII",
+    3
+   ],
+   [
+    "PGAS",
+    3
+   ],
+   [
+    "AALI",
+    3
+   ]
+  ]
+ },
+ "rsi_rank_ge_90": {
+  "status": 200,
+  "ms": 257,
+  "match_count": 87,
+  "error": null,
+  "sample": [
+   [
+    "ASII",
+    96.5156794425
+   ],
+   [
+    "BBNI",
+    91.0569105691
+   ],
+   [
+    "PGAS",
+    95.2380952381
+   ]
+  ]
+ },
+ "rsi_outside_30_70": {
+  "status": 200,
+  "ms": 230,
+  "match_count": 191,
+  "error": null,
+  "sample": [
+   [
+    "GOTO",
+    25.9783646799
+   ],
+   [
+    "CUAN",
+    17.5372999397
+   ],
+   [
+    "DSSA",
+    28.0057149103
+   ]
+  ]
+ }
+}

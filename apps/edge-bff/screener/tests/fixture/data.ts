@@ -1,9 +1,10 @@
 /* FIXTURE ONLY (never in the production bundle; tests/bundle checks it): the prototype's synthetic market, kept 1:1
-   from screener EDGE layout.html lines 569-710 ("data layer": 94 real IDX tickers with deterministic sample prices,
+   from screener EDGE layout.html lines 569-710 (one change: the bandar brokers are drawn with a seeded shuffle, so
+   every engine gets the same data) ("data layer": 94 real IDX tickers with deterministic sample prices,
    volumes, broker nets and a cap-weighted synthetic IHSG over 400 sessions to 2026-10-23), for the page's visual
    check and the Chromium smoke run against the fixture ScreenerApi (report FRONTEND INTEGRATION 9.1). Sample data,
-   not market data. The prototype's formulas are not used: the fixture computes indicators with the Terminal's module
-   through the Backtest core (tests/fixture/engine.ts), as the worker does. */
+   not market data. The prototype's formulas are not used: the fixture computes every value with the screener core
+   (tests/fixture/engine.ts), as the worker does. */
 /* eslint-disable */
 export const N = 400;                                           // daily sessions per ticker
 const LAST_DAY = Date.UTC(2026, 9, 23);
@@ -138,7 +139,11 @@ function makeTicker(L: any): any {
   const fwd = i => (ret[i + 1] || 0) + (ret[i + 2] || 0) + (ret[i + 3] || 0);
   const foreign = val.map((x, i) => x * (.07 * Math.tanh(fwd(i) / vol) + .04 * Math.tanh(ret[i] / vol) + .05 * regime[i] + g() * .05));
   // broker nets: 2–3 "bandar" brokers per ticker follow the regime, the rest is noise; each day sums to zero
-  const bandar = [...BROKERS.keys()].sort(() => r() - .5).slice(0, 2 + (r() < .5 ? 1 : 0));
+  // a seeded Fisher-Yates shuffle (the prototype's sort with a random comparator gave another order per engine and
+  // warm-up state, so the page and the Node tests saw different broker data; the 20-question test, item A)
+  const order = [...BROKERS.keys()];
+  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [order[i], order[j]] = [order[j], order[i]] }
+  const bandar = order.slice(0, 2 + (r() < .5 ? 1 : 0));
   const net = BROKERS.map(() => new Float64Array(N));
   for(let i = 0; i < N; i++){ let s = 0; BROKERS.forEach((b, j) => { const x = val[i] * ((bandar.includes(j) ? .09 * regime[i] : 0) + (b[2] ? .25 : .15) * (foreign[i] / (val[i] || 1)) * (b[2] ? 1 : -.4) + g() * .03); net[j][i] = x; s += x }); BROKERS.forEach((_, j) => net[j][i] -= s / BROKERS.length) }
   const tp = c.map((x, i) => (x + h[i] + l[i]) / 3);

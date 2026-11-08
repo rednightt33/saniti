@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { describeConfig, loadConfig } from '../src/config.ts';
 import { ENGINE_VERSION, REPO_ROOT, checkStartup, engineVersion } from '../src/version.ts';
 import { PRESETS } from '../../edge-bff/screener/src/core/catalog.ts';
+import { SOURCES } from '../../edge-bff/screener/src/core/registry.ts';
 import { KEY, PROXY, envFor } from './helpers.ts';
 
 const URL0 = 'http://127.0.0.1:9';
@@ -49,7 +50,13 @@ test('screener_engine is a content hash of the files that decide a number, and o
   for (const d of ['apps/edge-bff/screener/src/core', 'apps/screener-worker/src', 'apps/edge-bff/backtest/src/core', 'apps/edge-bff/terminal/src/calc']) fs.cpSync(path.join(REPO_ROOT, d), path.join(tmp, d), { recursive: true });
   fs.mkdirSync(path.join(tmp, 'apps/backtest-worker/src'), { recursive: true });
   fs.copyFileSync(path.join(REPO_ROOT, 'apps/backtest-worker/src/terminal.ts'), path.join(tmp, 'apps/backtest-worker/src/terminal.ts'));
+  // P5a: the flow registry decides the flow indicators' defaults
+  fs.mkdirSync(path.join(tmp, 'apps/edge-bff/terminal/src/data'), { recursive: true });
+  fs.copyFileSync(path.join(REPO_ROOT, 'apps/edge-bff/terminal/src/data/flowRegistry.json'), path.join(tmp, 'apps/edge-bff/terminal/src/data/flowRegistry.json'));
   assert.equal(engineVersion(tmp), ENGINE_VERSION, 'the same files give the same version wherever they are');
+  fs.appendFileSync(path.join(tmp, 'apps/edge-bff/terminal/src/data/flowRegistry.json'), ' ');
+  assert.notEqual(engineVersion(tmp), ENGINE_VERSION, 'a changed flow registry is another engine');
+  fs.copyFileSync(path.join(REPO_ROOT, 'apps/edge-bff/terminal/src/data/flowRegistry.json'), path.join(tmp, 'apps/edge-bff/terminal/src/data/flowRegistry.json'));
   fs.appendFileSync(path.join(tmp, 'apps/edge-bff/screener/src/core/match.ts'), '\n');
   assert.notEqual(engineVersion(tmp), ENGINE_VERSION);
   fs.rmSync(tmp, { recursive: true, force: true });
@@ -59,8 +66,9 @@ test('the start-up check passes on this tree and names a source whose hash diffe
   const ok = await checkStartup();
   assert.deepEqual(ok.problems, []);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'startup-'));
-  for (const f of ['apps/edge-bff/backtest/src/core/backtest-registry.json', 'apps/edge-bff/terminal/src/data/indRegistry.json', 'apps/edge-bff/terminal/src/calc/indicators.ts',
-    'apps/edge-bff/screener/src/core/screener-overlay.json', 'apps/edge-bff/screener/scripts/build-screener-registry.mjs']) {
+  // the image's copy of every source the registry names, the build-only oracle aside (derived from the registry, so a
+  // new source, such as the flow probe's flow.ts and flowprobe.ts, is checked without a list kept here)
+  for (const f of SOURCES.filter(s => s.role !== 'oracle').map(s => s.file)) {
     fs.mkdirSync(path.dirname(path.join(tmp, f)), { recursive: true }); fs.copyFileSync(path.join(REPO_ROOT, f), path.join(tmp, f));
   }
   assert.deepEqual((await checkStartup(tmp)).problems, [], 'the oracle script is build-only');

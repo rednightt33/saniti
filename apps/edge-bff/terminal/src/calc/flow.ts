@@ -13,7 +13,7 @@
    backtest/src/core/datafile.ts brokerRows, so the three show the same numbers.
    ========================================================================== */
 
-import REG from '../data/flowRegistry.json';
+import REG from '../data/flowRegistry.json' with { type: 'json' };
 import { fdQuadrant, fdShown } from '../data/brokerAgg';
 
 export type Num = number | null;

@@ -62,6 +62,10 @@ const go = q => page.goto(`${srv.origin}/screener-app/${q || ''}`);
 const ready = () => page.waitForSelector('#app[data-boot="results"]', { timeout:15000 });
 const text = sel => page.locator(sel).first().innerText();
 const counters = () => page.evaluate(() => ({ ...window.__fixture.counters }));
+/* catalogPicked: a step that reads the fixture's catalog (window.__fixture.catalog) picks what it needs inside the page
+   and returns only that. Playwright serializes an evaluate's return value on the page's main thread, and the whole
+   catalog (about 270 KB as JSON) took one task of 50-80 ms there, which the long-task check counts as the page's own
+   (the fixture's compute is left out through api.busy; this serialization is the smoke's, not the page's). */
 const idle = () => page.waitForFunction(() => !document.querySelector('#resMeta .ml-loading') && !document.querySelector('#pageActs .top-screen[aria-busy]'), null, { timeout:10000 });
 const meta = () => page.locator('#resMeta').textContent();          // textContent: the v21 layout hides its <small> line
 const runs = async () => (await counters()).run || 0;
@@ -393,6 +397,135 @@ await at('Operators (P3): "Operator…" opens Customize with Measure and Test fr
   await page.locator('#resPane tbody tr').first().click(); await page.waitForTimeout(600);
   const why = (await page.locator('#dtb .chk-list > div b').allInnerTexts()).map(t => t.trim());
   expect(JSON.stringify(why) === JSON.stringify(last3), 'the preview does not write the cells as the table: ' + JSON.stringify({ why, table:last3 }));
+});
+await at('Flow (P5c): a flow indicator with its Terminal parameters (a board list, whole numbers), session fields with their broker-data hint, a too-deep operator refused by the worker on its card; cells and the preview name the broker data date', async () => {
+  // EXEC-SCREENER-FLOW-CANDLES P5c (verification/screener/P5_FLOW.md section 4): the fixture's broker data ends a session
+  // before its prices (tests/fixture/broker.ts), so every flow value carries its broker data date
+  await fresh(); await ready();
+  // a flow entry with a board list, a window and a percent output, chosen from the catalog, never by id; picked in the
+  // page, and only it and the broker window come back (catalogPicked)
+  const r0 = await runs(), { last, sessions, e } = await page.evaluate(async () => {
+    const cat = (await window.__fixture.catalog(null)).body;
+    return { last:cat.data.broker_window.last, sessions:cat.data.broker_window.sessions,
+      e:cat.metrics.find(m => m.flow && m.availability === 'AVAILABLE' && m.flow.outputs.length === 1 && m.flow.outputs[0].kind === 'K'
+        && m.flow.params.some(p => p.kind === 'multi' && (p.options || []).includes('Nego')) && m.flow.params.some(p => p.key === 'window' && p.kind === 'int') && m.flow.depth > 1 && m.flow.depth < 30) };
+  });
+  expect(!!e, 'the fixture catalog has no flow entry with a board list and a window');
+  await page.click('#pageActs [data-hd="add"]'); await page.fill('#acq', e.label); await page.waitForTimeout(200);
+  const row = page.locator('#acl .qrow', { has:page.locator('b', { hasText:e.label }) }).first();
+  expect(await row.count() === 1 && /Flow/.test(await row.getAttribute('data-rg')), `${e.label} is not a row of the Flow group`);
+  await row.locator('[data-cus]').click(); await page.waitForTimeout(150);
+  const pop = row.locator('.qpop'), nego = pop.locator('.msel input[data-ap][data-mv="Nego"]');
+  expect(await pop.locator('.msel').count() >= 1 && await nego.count() === 1 && !(await nego.isChecked()) && await pop.locator('input[data-ap="window"]').inputValue() === String(e.flow.params.find(p => p.key === 'window').default),
+    'the panel does not offer the board list (Regular only) and the window at their defaults: ' + await pop.innerText());
+  await nego.check(); await page.waitForTimeout(150);
+  expect(await row.locator('.qpop .msel input[data-mv="Nego"]').isChecked() && /Custom\s*1 of/.test(await row.locator('.qcus').innerText()), 'ticking Nego is not kept as a changed field: ' + await row.locator('.qcus').innerText());
+  // the operator: the percentile opens within half of the sessions the hint leaves; the session fields take at most
+  // the broker sessions held and say about how many the setup leaves (K1: the worker is the authority)
+  await row.locator('[data-af="opt"]').selectOption('__op'); await page.waitForTimeout(200);
+  const left = sessions - e.flow.depth, len = row.locator('.qpop [data-aoa="length"]');
+  expect(await row.locator('.qpop [data-ao="measure"]').inputValue() === 'percentile' && Number(await len.inputValue()) <= Math.floor(left / 2) && await len.getAttribute('max') === String(sessions),
+    `the percentile does not open within half of the ${left} broker sessions left, or its field is not capped at the ${sessions} held: ` + JSON.stringify({ v:await len.inputValue(), max:await len.getAttribute('max') }));
+  await row.locator('.qpop [data-ao="test"]').selectOption('ever'); await page.waitForTimeout(150);
+  const n = row.locator('.qpop [data-ao="n"]'), hint = left - Number(await len.inputValue());
+  expect(await n.getAttribute('max') === String(sessions) && new RegExp(`about ${hint} sessions of broker data left`).test(await row.locator('.qpop').innerText()),
+    'N does not take the broker sessions held with the hint of what the setup leaves: ' + await row.locator('.qpop').innerText());
+  // the percentile's sessions show what the setup leaves, never a default it does not open at (20-question test, item D),
+  // and every label of the panel wraps with its full name as its title (QA5 unit B item 8)
+  const lenDef = await row.locator('.qpop .qpl:has([data-aoa="length"]) .def').innerText();
+  expect(!/default/.test(lenDef) && /about \d+ sessions? of broker data left/.test(lenDef), 'the percentile\'s sessions show a default instead of what the setup leaves: ' + lenDef);
+  const labs = await row.locator('.qpop .qpl .lab').evaluateAll(ls => ls.map(l => ({ t:l.getAttribute('title'), cut:l.scrollWidth > l.clientWidth + 1, ws:getComputedStyle(l).whiteSpace })));
+  expect(labs.length > 0 && labs.every(l => l.t && !l.cut && l.ws !== 'nowrap'), 'a label of the panel is cut off or has no title: ' + JSON.stringify(labs));
+  // one session too deep: not refused in place; the worker refuses it on its card at Screen now
+  await n.fill(String(hint + 1)); await n.dispatchEvent('change'); await page.waitForTimeout(150);
+  expect(await row.locator('.qpop [aria-invalid="true"]').count() === 0, 'a depth the worker judges was refused in place');
+  await row.locator('.qpop [data-ao="value"]').fill('0'); await row.locator('.qpop [data-ao="value"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  const added = await text('#toast');
+  expect(added.startsWith(`${e.label} added · `) && /at least once in the last \d+ sessions/.test(added) && !/·\s*$/.test(added), 'the toast of an operator row does not name its rule: ' + added);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  await screen();
+  const refused = page.locator('#condList .mc[data-card] [data-refused]');
+  expect(await refused.count() === 1 && /broker data the Screener holds.*this one needs \d+ sessions\. Use a shorter window or N\.$/.test(await refused.innerText()) && !/in all/.test(await refused.innerText()),
+    'the worker\'s refusal is not on the too-deep card, or names two counts (QA5 D2): ' + (await refused.count() ? await refused.innerText() : await text('#condList')));
+  // within the hint, and the indicator's own condition (Nego kept); the too-deep card removed
+  await page.click('#pageActs [data-hd="add"]'); await page.fill('#acq', e.label); await page.waitForTimeout(200);
+  await row.locator('[data-cus]').click(); await page.waitForTimeout(150);
+  await row.locator('.qpop [data-ao="n"]').fill('5'); await row.locator('.qpop [data-ao="n"]').dispatchEvent('change'); await page.waitForTimeout(150);
+  await row.locator('[data-cusdone]').click(); await page.waitForTimeout(150);
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  await row.locator('[data-af="opt"]').selectOption({ index:0 }); await page.waitForTimeout(150);
+  await row.locator('[data-qact]').click(); await page.waitForTimeout(200);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+  await page.locator('#condList .mc[data-card]').first().locator('[data-del]').click(); await page.waitForTimeout(150);
+  const sums = await page.locator('#condList .mc[data-card] .msum').allInnerTexts();
+  expect(sums.length === 2 && sums.every(x => x.includes(e.label) && /Regular \+ Nego/.test(x)) && /at least once in the last 5 sessions/.test(sums[0]),
+    'the cards do not state the flow setup and operator: ' + JSON.stringify(sums));
+  expect(await runs() === r0 + 1, 'adding flow conditions ran the screen');
+  await page.click('[data-logic="any"]'); await page.waitForTimeout(150);
+  await screen();
+  expect(!/could not run|not offered|not available/i.test(await text('#resPane')) && /match/.test(await meta()), 'the flow screen did not run: ' + await meta() + ' ' + (await text('#resPane')).slice(0, 300));
+  const first = page.locator('#resPane tbody tr').first(), dates = await first.locator('td .fdate').allInnerTexts();
+  const short = `${Number(last.slice(8))} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(last.slice(5, 7)) - 1]}`;
+  expect(dates.length >= 1 && dates.every(d => d.trim() === short), `the flow cells do not show their broker data date ${short}: ` + JSON.stringify(dates));
+  const tip = await first.locator('td:has(.fdate)').first().getAttribute('title');
+  expect(new RegExp(`Broker data of ${last}`).test(tip || ''), 'a flow cell\'s tooltip does not name its broker data date: ' + tip);
+  await first.click(); await page.waitForTimeout(600);
+  const why = await page.locator('#dtb .chk-list .fdate').allInnerTexts();
+  expect(why.length === 2 && why.every(w => w.includes(`Broker data of ${last}`)), 'the preview does not name the broker data date of both flow conditions: ' + JSON.stringify(why));
+  const cut = await page.locator('#dtb .chk-list .fdate').evaluateAll(es => es.map(x => [x.scrollWidth, x.clientWidth]).filter(([s, c]) => s > c));
+  expect(!cut.length, 'the broker data date of "Why it passed" is cut off at 1440 px (QA5 D1): ' + JSON.stringify(cut));
+  await page.click('[data-hd="export"]'); await page.click('#menu button:has-text("Method & sources")'); await page.waitForTimeout(200);
+  expect(new RegExp(`Broker data through\\s*${last} \\(${sessions} sessions\\)`).test(await text('#dtb')), 'Method & sources does not name the broker data: ' + (await text('#dtb')).slice(0, 600));
+});
+await at('Flow without broker data (QA5 unit B item 5): a stock without broker data reads n/a with its reason; while the broker data loads a flow screen is refused on its card', async () => {
+  await fresh(); await ready();
+  // a flow entry with a value condition, and "Last close above 0" so a stock without broker data is still a row (Any);
+  // picked in the page (catalogPicked)
+  const { e, last } = await page.evaluate(async () => {
+    const cat = (await window.__fixture.catalog(null)).body;
+    return { e:cat.metrics.find(m => m.flow && m.availability === 'AVAILABLE' && m.flow.outputs.length === 1 && m.flow.outputs[0].kind === 'K'), last:cat.metrics.find(m => m.kind === 'universe' && m.id === 'last') };
+  });
+  const add = async (label, pick) => {
+    await page.click('#pageActs [data-hd="add"]'); await page.fill('#acq', label); await page.waitForTimeout(200);
+    const row = page.locator('#acl .qrow', { has:page.locator('b', { hasText:label }) }).first();
+    await pick(row); await row.locator('[data-qact]').click(); await page.waitForTimeout(150); await page.keyboard.press('Escape'); await page.waitForTimeout(100);
+  };
+  await add(e.label, async () => {});
+  await add(last.label, async row => { await row.locator('[data-af="opt"]').selectOption({ label:'Greater than' }); const v = row.locator('[data-af="value"]'); await v.fill('0'); await v.dispatchEvent('change'); await page.waitForTimeout(100) });
+  expect(await page.locator('#condList .mc[data-card]').count() === 2, 'the two conditions were not added: ' + await text('#condList'));
+  await page.click('[data-logic="any"]'); await page.waitForTimeout(150);
+  await screen();
+  await page.fill('#tq', 'BJBR'); await page.waitForTimeout(300);
+  const row = page.locator('#resPane tbody tr', { hasText:'BJBR' }).first();
+  expect(await row.count() === 1, 'the stock without broker data is not a row of the screen: ' + await meta());
+  const na = await row.locator('td').evaluateAll(tds => tds.filter(td => td.textContent.trim() === 'n/a').map(td => td.getAttribute('title') || ''));
+  expect(na.length === 1 && /no broker data in the sessions the Screener holds/.test(na[0]), 'the flow cell of a stock without broker data does not read n/a with its reason: ' + JSON.stringify(na));
+  await row.click(); await page.waitForTimeout(600);
+  const why = await page.locator('#dtb .chk-list > div').evaluateAll(ds => ds.map(d => ({ v:d.querySelector('b')?.textContent.trim(), t:d.getAttribute('title') || '' })));
+  expect(why.some(w => w.v === 'n/a' && /no broker data/.test(w.t)), 'the preview does not show the n/a of the stock without broker data: ' + JSON.stringify(why));
+  await page.fill('#tq', '');
+  // the next publication's broker data is still loading: the page keeps the screen, the worker refuses the flow card
+  // (a new publication: the cached table of the previous one is not the answer)
+  await go('?pub=2&brokerloading=12'); await ready(); await page.waitForTimeout(500); await idle();
+  expect(await page.locator('#condList .mc[data-card]').count() === 2, 'the screen was not kept: ' + await text('#condList'));
+  if (!await page.locator('#pageActs .top-screen[aria-disabled="true"]').count()) await screen();
+  const refused = page.locator('#condList .mc[data-card] [data-refused]');
+  expect(await refused.count() === 1 && /^Condition 1 \(.+\) is not available yet: The broker data is still loading \(12 sessions loaded so far\).*Switch it off or remove it to run the screen\.$/.test(await refused.innerText()),
+    'the flow card is not refused with the broker data still loading: ' + (await refused.count() ? await refused.innerText() : await text('#condList')));
+});
+await at('Why it passed at 1100 and 390 px: the broker data date line wraps inside its column (QA5 D1)', async () => {
+  for (const vp of [{ width:1100, height:760 }, { width:390, height:844 }]) {
+    await open(vp); await fresh(); await ready();
+    const p = await page.evaluate(async () => (await window.__fixture.catalog(null)).body.presets.find(x => x.availability === 'AVAILABLE' && x.match_count && JSON.stringify(x.definition).includes('"kind":"flow"')).id);
+    await page.click('[data-pcat="Bandarmology"]').catch(() => {}); await page.waitForTimeout(150);
+    await page.click(`[data-open="p:${p}"]`); await screen();
+    await page.locator('#resPane tbody tr').first().click(); await page.waitForTimeout(800);
+    const d = await page.locator('#dtb .chk-list .fdate').evaluateAll(es => es.map(x => [x.scrollWidth, x.clientWidth]));
+    expect(d.length >= 1 && d.every(([s, c]) => s <= c), `the broker data date is cut off at ${vp.width} px: ` + JSON.stringify(d));
+  }
+  await open();
 });
 await at('P17: VWAP opens as Custom at anchor Week, without a Default chip, and runs', async () => {
   await fresh(); await ready();
@@ -764,9 +897,9 @@ await at('prototype behaviours kept: repick, preset toast count, local universe 
   await page.keyboard.press('Shift+Tab');
   expect(await page.evaluate(() => !!document.activeElement?.closest('.drawer')), 'Shift+Tab left the drawer');
   await page.keyboard.press('Escape');
-  // Method & sources keeps the prototype's bandar thresholds, disabled with the reason (P9, Phase 3)
+  // Method & sources says the bandar thresholds are each condition's own values (P5), with no disabled global fields
   await page.click('[data-hd="export"]'); await page.click('#menu button:has-text("Method & sources")');
-  expect(/Bandar status thresholds/i.test(await text('#dtb')) && await page.locator('#dtb input[disabled]').count() === 2, 'bandar thresholds not shown disabled');
+  expect(/Bandar thresholds/i.test(await text('#dtb')) && /each condition's own values/i.test(await text('#dtb')) && await page.locator('#dtb input[disabled]').count() === 0, 'the bandar thresholds are not said to be each condition\'s own values');
 });
 await at('phone width: no horizontal page scroll', async () => {
   await open({ width:390, height:844 }); await go(); await ready();

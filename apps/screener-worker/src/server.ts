@@ -55,8 +55,8 @@ import { Refresher, TerminalApi } from './refresh.ts';
 import type { Held, RefreshHost } from './refresh.ts';
 import { countsAnswer, countsEnvelope, estimateCost, newCostTracker, normalize, previewEnvelope, resultKey, runEnvelope, validateEnvelope } from './run.ts';
 import type { CountsEntryOut, CountsTask, Envelope, Estimate, RunOptionsN, RunOutcome, RunTask } from './run.ts';
-import { groupingsOf, materialize, referenceHash } from './snapshot.ts';
-import type { BuildStats, SnapshotDesc, TickerEntry } from './snapshot.ts';
+import { flowContextOf, groupingsOf, materialize, referenceHash } from './snapshot.ts';
+import type { BuildStats, SnapshotDesc, SnapshotReference, TickerEntry } from './snapshot.ts';
 import type { BuildTask } from './thread.ts';
 import { ENGINE_VERSION, REGISTRY_VERSION, SCREENER_REGISTRY_VERSION, checkStartup } from './version.ts';
 
@@ -71,6 +71,7 @@ export interface Snap {
   vctx: ValidateContext; pinned: Set<string>; position: Map<string, number>; index: TickerBars;
   groupings: Grouping[]; availability: Map<string, { availability: Availability; reason: string | null }>;
   presets: CatalogPreset[]; catalog: Doc; universe: Doc; expiresAt: number | null;
+  brokerMissing: number;             // P4: days of the publication's broker window this snapshot could not load (yet)
 }
 
 /* ---- the main thread's half of the engine (the worker's tests replace it; production uses run.ts and the core) ---- */
@@ -86,10 +87,12 @@ export function coreEngine(cfg: Config): Engine {
   return {
     normalize: (definition, snap, field) => normalize(definition, snap.vctx, field),
     estimate: (def, snap, only) => estimateCost(def, snap, tracker, env, only),
-    observe(list) { for (const o of list) tracker.observe(o.key, o.ms, o.bars, o.length) },
+    // QA unit B, QA4: every observation of a cost signature, its time shared among its kernels by their predicted cost
+    observe(list) { for (const o of list) tracker.observeShared(o.units.map((u, k) => ({ ...u, bars: o.bars[k] })), o.ms) },
     validateContext: (desc, groupings, metrics, availability) => ({
       limits: { max_conditions: cfg.limits.max_conditions, max_metric_filters: cfg.limits.max_metric_filters, within_max: cfg.limits.within_max },
       capBudgetMs: cfg.limits.cap_budget_ms, tickers: new Set(desc.rows.map(r => r.ticker)), groupings, metrics, availability,
+      flow: flowContextOf(desc),                 // P5a: the loaded broker window (K1 depth, availability, anchors)
     }),
   };
 }
@@ -180,12 +183,14 @@ function parseJson(body: Buffer | null): unknown {
   const text = body ? body.toString('utf8') : '';
   try { return text ? JSON.parse(text) : null } catch { throw refuse('INVALID_INPUT', 'The request body is not JSON.', 'body') }
 }
-/** compute_budget's refusal: the costliest condition by its number in the definition (details.costliest keeps its id,
-    which the page words as the card) */
+/** compute_budget's refusal (the gate rule: the catalog's limit entry states it before, its example_refused names how to
+    pass): the costliest condition by its number in the definition (details.costliest keeps its id, which the page
+    words as the card), how to pass and a right and a wrong example. A flow condition's cost grows with the broker rows
+    of the stocks it reads and, anchored, with its anchor (run.ts costUnits). */
 const budgetRefusal = (what: string, e: Estimate, max: number, def: Definition) => {
   const at = e.costliest ? def.conditions.findIndex(c => c.id === e.costliest) : -1;
   return refuse('LIMIT_EXCEEDED',
-    `This ${what} is predicted to need ${e.needed_ms} ms of compute, above the ${max} ms budget${at >= 0 ? `; the costliest is condition ${at + 1}` : ''}. Use default parameters, shorter lengths, fewer custom conditions or a narrower universe.`,
+    `This ${what} is predicted to need ${e.needed_ms} ms of compute, above the ${max} ms budget${at >= 0 ? `; the costliest is condition ${at + 1}` : ''}. To pass, use default parameters, fewer custom or flow conditions, shorter lengths, windows or anchors, or a narrower universe (right: one flow condition at its default window on the whole market; wrong: five anchored flow conditions at an anchor of 40 sessions on the whole market).`,
     undefined, { limit: 'compute_budget', allowed: max, needed: e.needed_ms, ...(e.costliest ? { costliest: e.costliest } : {}) });
 };
 
@@ -240,20 +245,23 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     return fromSerial(e.serial);
   };
   const onBuilder = async <T>(work: () => Promise<T>): Promise<T> => { try { return await work() } catch (e) { throw builderError(e) } };
-  let builder: ComputeThread | null = null, staged: { desc: SnapshotDesc; entries: TickerEntry[]; stats: BuildStats; ref: TickerReference } | null = null;
+  let builder: ComputeThread | null = null, staged: { desc: SnapshotDesc; entries: TickerEntry[]; stats: BuildStats; ref: SnapshotReference } | null = null;
   const lruBytes = cacheShare(cfg);
   const host: RefreshHost = {
-    held: (): Held | null => current && { finished_at: current.finished_at, files: current.files, refHash: current.refHash, price_data: current.price_data },
+    held: (): Held | null => current && { finished_at: current.finished_at, files: current.files, refHash: current.refHash, price_data: current.price_data,
+      broker: Object.fromEntries(current.desc.broker.days.map(d => [d.name, { sha256: d.sha256, dropped: d.dropped.length }])), brokerMissing: current.brokerMissing },
     async build(input) {
       builder = pool.builder('builder', { role: 'builder', env, terminal });
-      const task: BuildTask = { kind: 'build', files: input.files, ref: input.ref, state: input.state, engine: engineVersions, tailLength: TAIL, presets: presetDefs };
+      // P4: the days to carry come out of the held snapshot's store (shared columns, nothing copied)
+      const broker = { ...input.broker, from: input.broker.carry.length ? current?.desc.broker ?? null : null };
+      const task: BuildTask = { kind: 'build', files: input.files, broker, ref: input.ref, state: input.state, engine: engineVersions, tailLength: TAIL, presets: presetDefs };
       const { done } = await builder.run(task);
       const out = await onBuilder(() => done) as { desc: SnapshotDesc; entries: TickerEntry[]; stats: BuildStats; download_ms: number; decode_ms: number; download_bytes: number };
       staged = { desc: out.desc, entries: out.entries, stats: out.stats, ref: input.ref };
       const st = out.stats;
       return { entries: out.entries, stats: { download_ms: out.download_ms, decode_ms: out.decode_ms, downloaded_bytes: out.download_bytes, tickers: st.tickers, stocks: st.stocks,
         bars: st.bars, dropped_rows: st.dropped, no_price: st.no_price, actions: st.actions, pinned_series: st.series,
-        pinned_skipped: st.skipped.length, pinned_skipped_first: st.skipped.slice(0, 3) } };
+        pinned_skipped: st.skipped.length, pinned_skipped_first: st.skipped.slice(0, 3), broker_days: { ...st.broker } } };
     },
     async complete(input) {
       if (!staged || !builder) throw new Error('complete: nothing staged');
@@ -276,12 +284,12 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       await pool.install(desc.sid, desc, lruBytes);
       fields.install_ms = Math.round(performance.now() - ti);
       try {
-        const groupings = groupingsOf(ref), availability = metricAvailability(metrics, input.state.xsection, Object.keys(input.files));
+        const groupings = groupingsOf(ref), availability = metricAvailability(metrics, input.state.xsection, Object.keys(input.files), flowContextOf(desc));
         const snap: Snap = {
           sid: desc.sid, desc, price_data: desc.versions.price_data, finished_at: input.state.finished_at, files: input.files, refHash: referenceHash(ref),
           vctx: engine.validateContext(desc, groupings, metrics, availability), pinned: new Set(desc.series.map(s => s.key)),
           position: new Map(desc.tickers.map((t, j) => [t, j])), index: materialize(desc, desc.index), groupings, availability,
-          presets: [], catalog: null as unknown as Doc, universe: universeDoc(desc), expiresAt: null,
+          presets: [], catalog: null as unknown as Doc, universe: universeDoc(desc), expiresAt: null, brokerMissing: desc.broker.missing,
         };
         const tp = performance.now();
         snap.presets = await presets(snap);
@@ -294,14 +302,17 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       return fields;
     },
     abandon() { if (builder) builder.kill().catch(() => {}); builder = null; staged = null },
-    advance(st) {
+    advance(st, broker) {
       if (!current) return;
       const s = current;
       s.finished_at = st.finished_at;
-      s.desc.data = { ...s.desc.data, published_at: st.finished_at, price_through: st.price_through ?? s.desc.data.price_through, broker_behind_sessions: st.broker_behind_sessions };
+      // P4: the same broker days; whether the new index's window is complete with them
+      s.brokerMissing = broker.missing;
+      const window = s.desc.data.broker_window ? { ...s.desc.data.broker_window, complete: broker.missing === 0 } : undefined;
+      s.desc.data = { ...s.desc.data, published_at: st.finished_at, price_through: st.price_through ?? s.desc.data.price_through, broker_behind_sessions: st.broker_behind_sessions, ...(window ? { broker_window: window } : {}) };
       // availability from this publication's index and the files the snapshot read, by the rule of the swap, so the
       // catalog, validation and the presets below never answer by an index the publication no longer has
-      s.availability = metricAvailability(metrics, st.xsection, Object.keys(s.files));
+      s.availability = metricAvailability(metrics, st.xsection, Object.keys(s.files), flowContextOf(s.desc));
       s.vctx = engine.validateContext(s.desc, s.groupings, metrics, s.availability);
       // a cached answer carries the data block it was computed with (published_at): drop this snapshot's answers and
       // counts, so every answer names the publication it is served at (the numbers are the same), and compute the
@@ -329,7 +340,10 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     if (previous) retire(previous);
     current = s; outcome = 'ready'; failure = null;
     if (old) {
-      if (old.price_data === s.price_data) retire(old);    // same price_data (actions or reference changed): nothing to pin
+      // same price_data (actions, reference or, since P4, broker days changed): nothing to pin, but a request already
+      // queued or running on the old snapshot finishes on it; every request ends by its deadline, so the old one goes
+      // SCREENER_DEADLINE_MS + 1 s later (dropped at once, such a request answered 500: P4 review 2026-11-07)
+      if (old.price_data === s.price_data) { const t = setTimeout(() => retire(old), L.deadline_ms + 1000); t.unref?.() }
       else {
         old.expiresAt = now() + L.previous_grace_s * 1000; previous = old;
         if (graceTimer) clearTimeout(graceTimer);
@@ -518,6 +532,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
         const r = await job.promise;
         queue_ms = r.queue_ms;
         computed = (r.outcome as { counts: CountsEntryOut[] }).counts.filter(g => items.some(i => i.item_id === g.item_id));
+        engine.observe((r.outcome as { observe?: RunOutcome['observe'] }).observe ?? []);      // a count teaches the cost model as a run does
         for (const g of computed) {
           if ('match_count' in g) {
             busy += g.busy_ms;
@@ -546,7 +561,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     log(status === 'ok' ? 'info' : 'warn', 'run', {
       definition_hash: hash, data_version: s.price_data, owner_tag: owner, replica: REPLICA, n_conditions: def.conditions.filter(c => c.enabled).length,
       cache_hit: r?.cache_hit ?? false, predicted_ms: r?.predicted_ms ?? null, stages: o?.log.stages ?? [], conditions: o?.log.conditions ?? [], pruned: o?.log.pruned ?? 0,
-      pinned_hits: o?.log.pinned_hits ?? 0, lru_hits: o?.log.lru_hits ?? 0, series_computed: o?.log.computed ?? 0,
+      pinned_hits: o?.log.pinned_hits ?? 0, lru_hits: o?.log.lru_hits ?? 0, series_computed: o?.log.computed ?? 0, series_reused: o?.log.reused ?? 0,
       queue_ms: Math.round(r?.queue_ms ?? 0), busy_ms: o?.busy_ms ?? 0, total_ms: Math.round(total), payload_bytes: r?.gzip.byteLength ?? 0, status,
     });
   }

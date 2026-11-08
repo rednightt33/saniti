@@ -1510,13 +1510,17 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .qpop{position:absolute;z-index:6;top:calc(100% + 6px);left:0;min-width:300px;display:grid;gap:8px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 12px 32px rgba(0,0,0,.18);white-space:normal;cursor:default}
 .qpop>strong{font-size:var(--fs-12)}
 .qpl{display:grid;grid-template-columns:120px auto 1fr;align-items:center;gap:8px}
-.qpl .lab{font-size:var(--fs-xs);color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* a label wraps (the flow indicators' labels run to 44 characters, "Holders that moved: by at least"; cut off with an
+   ellipsis they said nothing, on a phone least of all: QA5 unit B item 8) */
+.qpl .lab{font-size:var(--fs-xs);line-height:1.3;color:var(--text-3);overflow-wrap:anywhere}
 .qpl .sel{min-width:96px}
 /* the universal operators' selects (P3): their options are phrases ("On K of the last N sessions"), not one word */
 .qpl .sel.qop{min-width:240px;max-width:300px}
 /* a tall operator panel scrolls inside itself on a short screen; on a narrow one its selects take the line (QA5 D6) */
 .qpop{max-height:min(80vh,720px);overflow:auto}
-@media (max-width:640px){.qpl{grid-template-columns:96px minmax(0,1fr)}.qpl .def{grid-column:2}.qpl .sel.qop{min-width:0;width:100%}.qpop{max-width:calc(100vw - 24px)}}
+@media (max-width:640px){.qpl{grid-template-columns:96px minmax(0,1fr)}.qpl .def{grid-column:2}.qpl .sel.qop{min-width:0;width:100%}.qpop{max-width:calc(100vw - 24px)}
+  /* a parameter's select takes the line as the operator's do (its options are phrases: "Top-K holders (largest inventory)") */
+  .qpop .qpl .sel{min-width:0;max-width:none;width:100%}.qpop .qpl .def{white-space:normal}}
 .qpl .def{font-size:var(--fs-2xs);color:var(--text-3);white-space:nowrap}
 .qsep{border-top:1px dashed var(--border)}
 .qpf{display:flex;justify-content:space-between;align-items:center}
@@ -1568,3 +1572,17 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
   .qrow>.rr.qt:has(>.rr-none){display:none}
   .qwin-f>span:first-child{display:none}
 }
+
+/* EXEC-SCREENER-FLOW-CANDLES P5c: a flow indicator's parameters (param-fields.ts): a list as a group of checkboxes, an
+   anchor date, broker codes; the broker data date beside a flow value (results.ts, preview.ts) */
+.msel{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 10px;min-width:0}
+.msel .mopt{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-xs);color:var(--text-2);white-space:nowrap;cursor:pointer}
+.pgrid .pf .msel .mopt span{font-size:var(--fs-xs);color:var(--text-2);overflow:visible}
+.msel .mopt input{margin:0;accent-color:var(--blue)}
+.msel[aria-invalid="true"]{outline:1px solid var(--red);outline-offset:2px;border-radius:4px}
+.inp.inp-date{min-width:9.5em}
+.inp.inp-codes{min-width:8em}
+.fdate{margin-left:4px;font-size:var(--fs-2xs);color:var(--text-3);font-weight:var(--fw-regular);white-space:nowrap}
+/* in the preview's "Why it passed" the date line is a sentence under the rule: it wraps (QA5 unit B D1: 434 px of
+   nowrap text in a 253 px column was cut off at every width) */
+.chk-list .fdate{display:block;margin:0;white-space:normal;overflow-wrap:anywhere}

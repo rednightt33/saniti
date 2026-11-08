@@ -5429,6 +5429,64 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   90-bar history); QA2 round 2 at the window's edges.
 - **Status:** FIXED on branch (`58380855`), not released.
 
+### M391 — Screener flow (P4): the broker day sweep stamp missed corrections that keep the value sums (2026-11-07, fixed on branch)
+
+- **Found by:** QA2 unit B (publisher fakes).
+- **Symptom:** after a change of lots, a transaction count, the gap flag, or an investor type or board swap with equal
+  sums, the 07:30 sweep did not rebuild the date; only a finished broker round listing it did.
+- **Verified cause:** `BROKER_DAY_STAMPS_SQL` stamped only count, sum of buy value and sum of sell value.
+- **Class:** change detection by partial aggregates (any dataset stamped by sums alone).
+- **Solution:** the stamp also sums a per-row `hashtextextended` over every column the file carries (order-free, no sort);
+  checked on PostgreSQL 16 (an investor-type swap with equal sums changes the stamp).
+- **Status:** FIXED on branch (`c9064176`), not released. Lesson for new data: stamp every column a file carries.
+
+### M392 — Screener flow (P4): the worker trusted the row order of a broker day file (2026-11-07, fixed on branch)
+
+- **Found by:** QA2 unit B. **Cause:** `decodeBrokerDay` did not check duplicates or the primary-key order inside a ticker.
+- **Solution:** rows strictly increasing in (broker, investor type, board) text order, else DATA_INTEGRITY naming both
+  rows. **Status:** FIXED on branch (`c3e59f6b`), not released.
+
+### M393 — Screener flow: a 0/1 signal took a relative comparison, a two-series state or an average (2026-11-07, fixed on branch)
+
+- **Found by:** QA3 unit B. **Cause:** the output-kind check ran per transform; `relative` and `change` never called it and
+  a STATE of two series had none. **Class:** a type rule applied path by path instead of once.
+- **Solution:** one check for every governed transform and any second series, from flow-kinds.json and the operators
+  block (`forms`, `not_on`), with the gate message. **Status:** FIXED on branch (`8cca8273`), not released.
+
+### M394 — Screener flow: the cost model predicted flow ~1000x too low and never learned composite conditions (2026-11-07, fixed on branch)
+
+- **Found by:** QA4 unit B (900 stocks x 60 sessions). **Symptom:** anchored flow screens admitted at ~29 ms predicted ran
+  16-19 s; the 4,500 ms gate did not protect. **Verified cause:** flow cost counted as 60 sessions at the indicators' rate;
+  `run.ts` learned only from one-unit conditions. **Class:** a cost prior not derived from the work actually done.
+- **Solution:** flow cost from each stock's rows and a brokers x sessions grid, anchored per session computed, learned per
+  indicator and choice from every condition, priors measured (`verification/screener/BENCHMARK_FLOW_COST.md`).
+  **Status:** FIXED on branch (`f610cdaf`), not released.
+
+### M395 — Screener flow: an event or window test on flow failed when broker data lagged the prices (2026-11-07, fixed on branch)
+
+- **Found by:** the P5c fix agent with the real catalog in the fixture ("tail of FL32.buy on BBCA starts at bar 269, but
+  bar 268 is needed"; the freq preset had no count). On dev broker data is 3 sessions behind prices.
+- **Verified cause:** series tails were cut at within_max + 1 bars from the last price bar, while flow conditions read at
+  the last broker candle. **Class:** two evaluation dates sharing one tail rule.
+- **Solution:** flow series keep their whole tail; a read is refused only when it would be inexact; tests with broker
+  data 0, 1 and 3 sessions behind prices against brute force. **Status:** FIXED on branch (`bf8ad89a`), not released.
+
+### M396 — Screener flow page: preview date cut off, contradictory depth text, stale and random fixture, display-only parameters (2026-11-07, fixed on branch)
+
+- **Found by:** QA5 unit B and the 20-question front-end test. **Symptoms:** the preview's broker date line clipped; the
+  depth refusal carried the catalog example's number; "default default brokers"; the fixture served old flow entries and
+  presets, shuffled broker rows with a random comparator (data changed per page load) and ranked over all stocks;
+  Terminal display options (Plot) offered as condition parameters.
+- **Solution:** wrapping line; refusal text from the refusal's own numbers; fixture built from the generated catalog and
+  presets through the core, seeded Fisher-Yates; display-only parameters derived by probing computeFlow at catalog build
+  and removed. **Status:** FIXED on branch (`8448d792`, `eed08608`), not released.
+
+### M397 — Screener worker: a swap with the same price data dropped the old snapshot at once (2026-11-07, fixed on branch)
+
+- **Found by:** P4 review. **Cause:** `retire(old)` at once when price_data is unchanged (actions, reference or broker days
+  changed): a queued request on the old snapshot answered 500. **Solution:** the old one goes after SCREENER_DEADLINE_MS
+  + 1 s. **Status:** FIXED on branch (`6b93c7ac`), not released.
+
 ### M384 — Screener operators: the preview misread operator cells; headers did not name the operator; one range for every measure (2026-11-07, fixed on branch)
 
 - **Found by:** QA5 round 1 (real Chromium on the fixture build).
@@ -5620,6 +5678,14 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   and darkens on hover; failed MACD divergence cells read "No".
 
 ### M375 — Screener smoke run: a page task over 50 ms now and then, in a different step each time (2026-11-06, open)
+
+- **Update 2026-11-07 (unit B, traced in Chromium):** the Flow step's 50-80 ms task was the smoke harness, not the page:
+  `page.evaluate(... __fixture.catalog(null)).body)` returned the ~274 KB catalog to Node, and Playwright serializes a
+  return value on the page's main thread in one task (CPU profile: ~12 ms `innerSerialize`, ~47 ms native conversion).
+  Fixed in `tests/smoke/smoke.mjs` (the Flow steps pick their entries inside the page and return only those; limit
+  unchanged). Remaining occurrences in other steps (5 runs: 60 ms "extra columns", 53 ms, 102 ms): the "extra columns"
+  trace points at the results frame switching to compact density then measuring the pinned columns
+  (`layout/table.ts:39-50`, a second style recalc and layout). Still open.
 
 - **Found by:** the coordinator's smoke runs for M374.
 - **Symptom:** `tests/smoke/smoke.mjs` fails now and then with "[long tasks] the page blocked the main thread for N ms",

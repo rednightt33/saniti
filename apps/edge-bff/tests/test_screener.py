@@ -1289,6 +1289,8 @@ def test_the_image_builds_the_screener_page_beside_the_sources_it_imports():
         mine = f.is_relative_to(page)
         if not mine:
             outside.add(f.relative_to(root).as_posix())
+        if f.suffix == '.json':
+            continue        # data imports nothing (P5a: flowRegistry.json's tips hold "from '...'" prose, not imports)
         for spec in spec_rx.findall(f.read_text()):
             if spec.startswith('.'):
                 if spec.endswith(('.ts', '.json')):

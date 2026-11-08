@@ -1,11 +1,12 @@
-/* EXEC-SCREENER-V21 (ERRORS M355 lesson: "test fixtures must carry the wire's real fields"): the fixture engine's
-   Cell.unit and ConditionSummary.unit (tests/fixture/engine.ts unitOf) equal what the REAL screener core writes
-   (src/core/screen.ts runScreen over tests/core/helpers.ts memoryEnv) for every condition the fixture offers (its
-   presets and the extra columns' auxiliary conditions). So the fixture and smoke builds, and the Chromium checks on
-   them, meet production's coarse units ('dimensionless' for a percent distance, ROC or ATR %), and the page's
-   formatting from the catalog (entries.ts formatOfOpt, format.ts fmtValue) is the path they exercise. */
+/* EXEC-SCREENER-V21 (ERRORS M355 lesson: "test fixtures must carry the wire's real fields"): the fixture's run answer
+   carries the Cell.unit and ConditionSummary.unit the REAL screener core writes (src/core/screen.ts runScreen over
+   tests/core/helpers.ts memoryEnv) for every condition the fixture offers (its presets and the extra columns'
+   auxiliary conditions). The fixture computes with the core itself (tests/fixture/engine.ts, QA5 unit B item 4); this
+   keeps it so. The fixture and smoke builds, and the Chromium checks on them, meet production's coarse units
+   ('dimensionless' for a percent distance, ROC or ATR %), and the page's formatting from the catalog (entries.ts
+   formatOfOpt, format.ts fmtValue) is the path they exercise. */
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { CatalogResponse, ConditionDef, Definition, UniverseRow } from '../../src/core/contract.ts';
+import type { CatalogResponse, Definition, RunResponse, UniverseRow } from '../../src/core/contract.ts';
 import { UNIVERSE_DEFAULTS } from '../../src/core/contract.ts';
 import { runScreen } from '../../src/core/screen.ts';
 import { validateDefinition } from '../../src/core/validate.ts';
@@ -13,7 +14,6 @@ import { entriesOf } from '../../src/entries.ts';
 import { canonical, ctx, rowOfUniverse } from '../../src/state.ts';
 import { availableColumns, nextAuxDefinition, setColumns } from '../../src/extra-columns.ts';
 import { fixtureApi } from '../fixture/api.ts';
-import { unitOf } from '../fixture/engine.ts';
 import { memoryEnv, rowOf, synth, vctx } from '../core/helpers.ts';
 
 const IX = (() => { const t = synth('IHSG', 3, 520, '2024-06-03'); return { ...t, bars: { ...t.bars, V: t.bars.V.map(() => null) } } })();
@@ -22,6 +22,8 @@ const TICKERS = Array.from({ length: 12 }, (_, k) => synth(`U${String(k).padStar
 const rows: UniverseRow[] = TICKERS.map(t => rowOf(t, E, { adv20_idr: 5e9, last: 1000 }));
 const CTX = vctx(TICKERS.map(t => t.ticker));
 const U = { ...UNIVERSE_DEFAULTS, price_min: null, adv20_min_idr: null, traded_on_eval_date: false, exclude_price_breaks: false } as Definition['universe'];
+/** the fixture market's universe for the same definitions (every stock, so every condition has cells) */
+const FX_U = { ...U, include_unclassified: true } as Definition['universe'];
 
 let catalog: CatalogResponse;
 const fx = fixtureApi();
@@ -43,8 +45,8 @@ function coreUnits(def: Definition): Map<string, { summary: string | null; cells
   return out;
 }
 
-describe('the fixture carries the core\'s Cell.unit', () => {
-  it('for every condition of every fixture preset and of the extra columns: equal to the real core', () => {
+describe('the fixture answers with the core\'s Cell.unit', () => {
+  it('for every condition of every fixture preset and of the extra columns: equal to the real core, on every cell and summary', async () => {
     const defs: [string, Definition][] = catalog.presets.map(p => [`preset ${p.id}`, p.definition]);
     // the extra columns' auxiliary definition, every offered column at once (chunked by max_conditions)
     const tableDef: Definition = { universe: U, conditions: [], logic: 'all' };
@@ -57,24 +59,21 @@ describe('the fixture carries the core\'s Cell.unit', () => {
     const diffs: string[] = [];
     for (const [where, def] of defs) {
       const core = coreUnits(def); if (!core) continue;
-      for (const c of def.conditions as ConditionDef[]) {
-        const want = core.get(c.id); if (!want) continue;
-        expect(want.cells.size, `${where} ${c.id}: the core writes one cell unit per condition`).toBeLessThanOrEqual(1);
-        const got = unitOf(c.test), gotS = unitOf(c.test, 'summary');
-        if (gotS !== want.summary) diffs.push(`${where} ${c.id}: summary fixture ${gotS}, core ${want.summary}`);
-        for (const u of want.cells) { if (got !== u) diffs.push(`${where} ${c.id}: cell fixture ${got}, core ${u}`); if (u === 'dimensionless') dimensionless++ }
+      // the fixture's answer on its own market (its universe: the units do not depend on the stocks); a definition
+      // whose leg the fixture's publication lacks (a fundamental) is refused there, as by the worker
+      let got: RunResponse;
+      try { got = (await fx.run({ schema_version: 1, definition: { ...def, universe: FX_U }, options: { exhaustive: true, explain: false } } as never)).body } catch { continue }
+      for (const s of got.conditions) {
+        const want = core.get(s.id); if (!want) continue;
+        expect(want.cells.size, `${where} ${s.id}: the core writes one cell unit per condition`).toBeLessThanOrEqual(1);
+        if ((s.unit ?? null) !== want.summary) diffs.push(`${where} ${s.id}: summary fixture ${s.unit}, core ${want.summary}`);
+        const cells = new Set(got.rows.flatMap(r => r.cells.filter(c => c.id === s.id).map(c => { expect('unit' in c, `${where} ${s.id}: a cell without its unit`).toBe(true); return c.unit ?? null })));
+        for (const u of cells) { if (want.cells.size && !want.cells.has(u)) diffs.push(`${where} ${s.id}: cell fixture ${u}, core ${[...want.cells]}`); if (u === 'dimensionless') dimensionless++ }
         compared++;
       }
     }
     expect(diffs).toEqual([]);
     expect(compared).toBeGreaterThan(20);
     expect(dimensionless, 'the M355 path (a percent arriving as dimensionless) is exercised').toBeGreaterThan(0);
-  });
-  it('the fixture run answer itself carries the unit on cells and summaries', async () => {
-    const p = catalog.presets.find(x => x.availability === 'AVAILABLE' && x.definition.conditions.length)!;
-    const r = (await fx.run({ schema_version: 1, definition: p.definition, options: { exhaustive: false, explain: false } })).body;
-    const byId = new Map(p.definition.conditions.map(c => [c.id, unitOf(c.test)]));
-    for (const s of r.conditions) expect(s.unit, s.id).toBe(unitOf(p.definition.conditions.find(c => c.id === s.id)!.test, 'summary'));
-    for (const row of r.rows.slice(0, 5)) for (const c of row.cells) expect('unit' in c && c.unit === byId.get(c.id), `${row.ticker} ${c.id}`).toBe(true);
   });
 });

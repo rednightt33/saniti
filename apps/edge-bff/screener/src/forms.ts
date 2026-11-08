@@ -6,8 +6,8 @@
 import type {
   ConditionDef, IndicatorRef, MetricRef, ParamMap, ParamValue, Side, Test, TestOp, ValueTest,
 } from './core/contract.ts';
-import { defaultParams, isDefP, OPLABEL, optionText, type Entry, type Opt } from './entries.ts';
-import { opErrors, opFromTest, opShort, opTest, opText, type OpState } from './operators.ts';
+import { defaultParams, flowSessions, flowSetupErrors, isDefP, LIST_SEP, listOf, OPLABEL, optionText, testTakes, type Entry, type Opt } from './entries.ts';
+import { opErrors, opFromTest, opShort, opTest, opText, seriesList, seriesOf, type OpState } from './operators.ts';
 
 export interface Card {
   id: string;                  // ^[0-9a-z]{1,6}$, unique in the screen
@@ -69,6 +69,40 @@ export const isCustom = (e: Entry, c: Card) => !defaultOffered(e) || e.params.so
     the registry default the worker refuses (registry.ts resolveScreenerParams, P17 a). */
 const changed = (e: Entry, p: ParamMap): ParamMap => Object.fromEntries(e.params.filter(x => !defaultOffered(e) || !isDefP(x, p[x.key])).map(x => [x.key, p[x.key]]));
 
+/** A flow indicator's reference (EXEC-SCREENER-FLOW-CANDLES P5a FlowRef; P5c): the entry's id, the output it reads
+    (always stated), and only the parameters that differ from the catalog's defaults (a left-out one takes the core's
+    default, as an indicator's does), in the Terminal's shapes: a list for the boards, investor types and brokers, 'view'
+    or a date for an anchor, the select's value, the number. */
+export function flowRef(e: Entry, params: ParamMap, output: string): MetricRef {
+  const out: Record<string, unknown> = {};
+  for (const p of e.params) {
+    const v = params[p.key]; if (isDefP(p, v)) continue;
+    out[p.key] = p.type === 'multi' || p.type === 'brokers' ? listOf(v) : p.type === 'date' ? (v === '' || v == null ? 'view' : v) : v;
+  }
+  return { kind:'flow', metric:e.key, output, ...(Object.keys(out).length ? { params:out } : {}) } as MetricRef;
+}
+/** A flow reference's parameters as the card keeps them (every key, the catalog defaults where left out), or null when
+    one cannot be kept as it is (an unknown key, a value of the wrong shape, an empty list where the default is not one):
+    the card is then kept raw, never changed. */
+export function flowParamsFromWire(e: Entry, wire: unknown): ParamMap | null {
+  const out = defaultParams(e);
+  if (wire == null) return out;
+  if (typeof wire !== 'object' || Array.isArray(wire)) return null;
+  const listOk = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === 'string' && x !== '' && !x.includes(LIST_SEP));
+  for (const [k, v] of Object.entries(wire as Record<string, unknown>)) {
+    const p = e.params.find(x => x.key === k); if (!p) return null;
+    if (p.type === 'multi') { if (!listOk(v)) return null; out[k] = v.join(LIST_SEP) }
+    else if (p.type === 'brokers') {
+      if (typeof v === 'string') { if (v !== p.wire) return null; out[k] = '' }
+      else if (listOk(v)) { if (!v.length && !(Array.isArray(p.wire) && !p.wire.length) && p.default === '') return null; out[k] = v.join(LIST_SEP) }
+      else return null;
+    }
+    else if (p.type === 'date' || p.type === 'enum') { if (typeof v !== 'string') return null; out[k] = v }
+    else if (p.type === 'boolean') { if (typeof v !== 'boolean') return null; out[k] = v }
+    else { if (typeof v !== 'number') return null; out[k] = v }
+  }
+  return out;
+}
 const ind = (e: Entry, params: ParamMap, output: string): IndicatorRef => {
   const ch = changed(e, params);
   return Object.keys(ch).length ? { kind:'indicator', indicator:e.key, params:ch, output } : { kind:'indicator', indicator:e.key, output };
@@ -99,10 +133,25 @@ const num = (v: number | '' | undefined, scale = 1) => v === '' || v == null ? N
 export function cardErrors(e: Entry | undefined, c: Card, withinMax = 130): Record<string, string> {
   const out: Record<string, string> = {};
   if (!e || c.raw) return out;
-  if (c.op && e.ops) return opErrors(e.ops, e, c.op, withinMax);
+  // a flow indicator's choice of brokers (the core's rule: a scope of selected brokers names one), under its field
+  const setup = e.flow ? flowSetupErrors(e, c.params) : {};
+  if (c.op && e.ops) return { ...setup, ...opErrors(e.ops, e, c.op, withinMax, c.params) };
+  Object.assign(out, setup);
   const o = optOf(e, c);
   if (!o) { out.op = 'Pick a condition.'; return out }
   if (o.disabled) out.op = o.disabled;
+  if (e.flow) {
+    // the line the condition reads is drawn at this setup, and its kind still takes the test (a kind may follow a
+    // parameter: OPERATORS.md section 4); a cross within the broker sessions held (K1; what the setup leaves of them is
+    // the worker's to judge, its refusal shown on the card)
+    const sr = seriesOf(e, o.output || '', c.params), key = o.kind === 'event' ? 'cross' : o.between ? 'range' : 'value';
+    if (!sr || !sr.drawn) out.op = sr?.why || 'Pick a condition.';
+    else if (o.form === 'state_level') { if (!sr.comparable) out.op = `${sr.label} is not a price level at this setup, so "${o.label}" is not offered; pick another condition or an operator.` }
+    else if (!testTakes(e.ops, key, sr.type, key === 'cross')) out.op = `${sr.label} ${e.ops?.types[sr.type!]?.words ?? 'does not take this test'} at this setup, so "${o.label}" is not offered; pick another condition or an operator.`;
+    const S0 = flowSessions(e);
+    if (o.within && S0 != null && Number.isInteger(num(c.within)) && num(c.within) > S0)
+      out.within = `Within: the Screener holds the last ${S0} sessions of broker data, so no condition on it reads more (right: 5; wrong: ${S0 + 1}).`;
+  }
   if (o.value === 'input') {
     if (!Number.isFinite(num(c.value))) out.value = 'Enter a value.';
     if (o.between) {
@@ -121,11 +170,12 @@ export function cardErrors(e: Entry | undefined, c: Card, withinMax = 130): Reco
 export function toWire(e: Entry | undefined, c: Card): ConditionDef {
   const base = { id:c.id, enabled:c.on, ...(c.label ? { label:c.label } : {}) };
   if (!e || c.raw) return { ...base, test:c.raw! };
-  if (c.op && e.ops) return { ...base, test:opTest(e.ops, c.op, c.params, (p, output) => ind(e, p, output)) };
+  if (c.op && e.ops) return { ...base, test:opTest(e.ops, c.op, c.params, (p, output) => e.flow ? flowRef(e, p, output) : ind(e, p, output)) };
   const o = optOf(e, c)!;
   const scale = displayScale(o.unit), v = num(c.value, scale), v2 = num(c.value2, scale), within = Number(c.within);
   if (e.kind !== 'indicator') {
-    const ref = metricRef(e, c.params);
+    const ref = e.flow ? flowRef(e, c.params, o.output!) : metricRef(e, c.params);
+    if (e.flow && o.form === 'state_level') return { ...base, test:{ kind:'state', lhs:{ kind:'price', field:(seriesOf(e, o.output!, c.params)?.comparable || 'close') as 'close' }, op:o.op as 'gt' | 'lt', rhs:ref } };
     if (o.kind === 'value') return { ...base, test:{ kind:'value', metric:ref, op:o.op as ValueTest['op'], value:v, ...(o.between ? { value2:v2 } : {}) } };
     if (ref.kind === 'pattern') return { ...base, test:o.kind === 'state' ? { kind:'state', pattern:ref } : { kind:'event', signal:{ pattern:ref }, within } };
     if (o.kind === 'state') return { ...base, test:{ kind:'state', lhs:ref, op:o.op as 'gt' | 'lt', rhs:{ value:v } } };
@@ -164,6 +214,21 @@ const sortKeys = (v: any): any => Array.isArray(v) ? v.map(sortKeys) : v && type
 const keyOfRef = (r: any): string | null => r?.kind === 'pattern' ? r.type : r?.kind === 'flow' || r?.kind === 'xsection' ? r.metric
   : r?.kind === 'universe' ? r.attr : r?.kind === 'transform' ? r.fn : r?.kind === 'price' ? r.field : null;
 
+/** A catalog metric reference's parameters as its card keeps them (fromWire): the entry's own (its params, and a
+    transform template's top-level args of the same keys); null when the reference carries any other argument that
+    differs from the entry's template (another series under the volume ratio's average, a parameter the entry does not
+    have), which the card cannot hold: it is then kept raw, never changed (QA5 unit B: the generated catalog's volume
+    ratio read its template's own series back as a parameter). */
+function metricParams(e: Entry, r: any): ParamMap | null {
+  const given = { ...(r?.params || {}), ...(r?.kind === 'transform' ? r.args || {} : {}) };
+  const tmpl = (e.metric as any)?.ref, fixed: Record<string, unknown> = { ...(tmpl?.params || {}), ...(tmpl?.kind === 'transform' ? tmpl.args || {} : {}) };
+  const own: ParamMap = {};
+  for (const [k, v] of Object.entries(given)) {
+    if (e.params.some(p => p.key === k)) own[k] = v as ParamValue;
+    else if (!(k in fixed) || JSON.stringify(sortKeys(v)) !== JSON.stringify(sortKeys(fixed[k]))) return null;
+  }
+  return own;
+}
 /** The catalog entry a metric reference names (fromWire): an entry whose catalog template (`ref`) has this shape, its own
     parameters aside; else the entry named by the id. */
 function metricEntryOf(r: any, entries: Map<string, Entry>): Entry | undefined {
@@ -193,12 +258,20 @@ export function fromWire(cd: ConditionDef, entries: Map<string, Entry>): Card {
   if (!card.raw) return card;
   // a test the card's own forms do not hold may be a universal operator's (operators.ts opFromTest)
   for (const e of entries.values()) {
-    if (!e.ops || e.kind !== 'indicator') continue;
+    if (!e.ops || (e.kind !== 'indicator' && !e.flow)) continue;
     const r = opFromTest(e.ops, cd.test);
     if (!r) break;                                   // every indicator entry carries the same operators block
     const ie = entries.get(r.indicator);
-    if (!ie?.ops || !ie.indicator?.outputs.some(o => o.key === r.op.output)) break;
-    return { id:cd.id, on:cd.enabled !== false, entry:ie.key, params:full(ie, r.params), opt:ie.def.opt, value:'', value2:'', within:ie.def.within, second:full(ie), op:r.op, ...(cd.label ? { label:cd.label } : {}) };
+    if (!ie?.ops) break;
+    let params: ParamMap | null = null, op = r.op;
+    if (ie.flow) {
+      // a flow indicator (P5c): its parameters as the card keeps them, an output left out its default
+      params = flowParamsFromWire(ie, r.params);
+      const dflt = ie.flow.default_output;
+      op = { ...op, output:op.output || dflt, by:op.by === 'out:' ? `out:${dflt}` : op.by };
+    } else if (ie.indicator) params = full(ie, r.params);
+    if (!params || !seriesList(ie, params).some(o => o.key === op.output)) break;
+    return { id:cd.id, on:cd.enabled !== false, entry:ie.key, params, opt:ie.def.opt, value:'', value2:'', within:ie.def.within, second:full(ie), op, ...(cd.label ? { label:cd.label } : {}) };
   }
   return card;
 }
@@ -218,6 +291,8 @@ function fromWireForm(cd: ConditionDef, entries: Map<string, Entry>): Card {
       within:typeof t.within === 'number' ? t.within : e.def.within, second:full(e), ...(cd.label ? { label:cd.label } : {}), ...extra };
   };
   const metricEntry = (r: any) => metricEntryOf(r, entries);
+  /** the flow indicator a reference names (P5c), when it is one of the catalog's */
+  const flowEntryOf = (r: any): Entry | undefined => { const e = r?.kind === 'flow' && typeof r.metric === 'string' ? entries.get(r.metric) : undefined; return e?.flow ? e : undefined };
   try {
     if (t?.kind === 'value') {
       const m = t.metric;
@@ -226,15 +301,32 @@ function fromWireForm(cd: ConditionDef, entries: Map<string, Entry>): Card {
         const e = entries.get(m.of.indicator); const form = m.fn === 'pct_distance' ? 'value_pct_distance' : 'value_band_position';
         return (e && mk(e, form, m.of.output, t.op, m.of.params)) || raw();
       }
+      const fe = flowEntryOf(m);
+      if (fe) { const p = flowParamsFromWire(fe, m.params); return (p && mk(fe, 'metric', m.output ?? fe.flow!.default_output, t.op, p)) || raw() }
       const e = metricEntry(m);
-      if (e) return mk(e, 'metric', undefined, t.op, { ...(m.params || {}), ...(m.kind === 'transform' ? m.args || {} : {}) }) || raw();
+      const p = e ? metricParams(e, m) : null;
+      if (e && p) return mk(e, 'metric', undefined, t.op, p) || raw();
       return raw();
     }
-    if (t?.kind === 'state' && t.pattern) { const e = metricEntry(t.pattern); return (e && mk(e, 'metric', undefined, 'gt', t.pattern.params, {})) || raw() }
-    if (t?.kind === 'event' && t.signal?.pattern) { const e = metricEntry(t.signal.pattern); return (e && mk(e, 'metric', undefined, 'gt', t.signal.pattern.params)) || raw() }
+    if (t?.kind === 'state' && t.pattern) { const e = metricEntry(t.pattern), p = e && metricParams(e, t.pattern); return (e && p && mk(e, 'metric', undefined, 'gt', p, {})) || raw() }
+    if (t?.kind === 'event' && t.signal?.pattern) { const e = metricEntry(t.signal.pattern), p = e && metricParams(e, t.signal.pattern); return (e && p && mk(e, 'metric', undefined, 'gt', p)) || raw() }
     const s = t?.kind === 'state' ? t : t?.kind === 'event' ? t.signal : null;
     if (!s) return raw();
     const pre = t.kind === 'state' ? 'state' : 'event', { lhs, rhs, op } = s;
+    // a bar field against a flow price level: the entry's "Close above / below" condition, at the field it compares with
+    const fl = lhs?.kind === 'price' ? flowEntryOf(rhs) : undefined;
+    if (fl) {
+      const p = flowParamsFromWire(fl, rhs.params), output = rhs.output ?? fl.flow!.default_output;
+      return (p && pre === 'state' && seriesOf(fl, output, p)?.comparable === lhs.field && mk(fl, 'state_level', output, op, p)) || raw();
+    }
+    // a flow output crossing a value (P5c): the card's own condition, its value in the field's display scale
+    const fe = flowEntryOf(lhs);
+    if (fe) {
+      if (pre !== 'event' || !rhs || typeof rhs.value !== 'number' || rhs.kind) return raw();
+      const p = flowParamsFromWire(fe, lhs.params), output = lhs.output ?? fe.flow!.default_output;
+      const o = fe.opts.find(x => x.form === 'metric' && x.kind === 'event' && x.output === output && x.op === op);
+      return (p && o && mk(fe, 'metric', output, op, p, { value:rhs.value / displayScale(o.unit) })) || raw();
+    }
     if (lhs?.kind === 'price' && isInd(rhs)) { const e = entries.get(rhs.indicator); return (e && mk(e, pre + '_level', rhs.output, op, rhs.params)) || raw() }
     if (isInd(lhs)) {
       const e = entries.get(lhs.indicator);
@@ -259,23 +351,31 @@ function fromWireForm(cd: ConditionDef, entries: Map<string, Entry>): Card {
       }
       return raw();
     }
-    const e = metricEntry(lhs);
-    if (e && rhs && typeof rhs.value === 'number') return mk(e, 'metric', undefined, op, lhs.params, { value:rhs.value }) || raw();
+    const e = metricEntry(lhs), p = e && metricParams(e, lhs);
+    if (e && p && rhs && typeof rhs.value === 'number' && !rhs.kind) return mk(e, 'metric', undefined, op, p, { value:rhs.value }) || raw();
     return raw();
   } catch { return raw() }
 }
 
 /* ---- words ---------------------------------------------------------------------------------------------- */
-const pv = (e: Entry, c: Card) => e.params.map(p => optionText(p, c.params[p.key])).join(', ');
+/** the parameters a card's name shows: every one (an indicator's few, as the Terminal names them); a flow indicator's
+    numbers by their labels and its other settings only where they differ from the default (it has many: Top 3, Rolling
+    days 10, Nego) */
+const pv = (e: Entry, c: Card) => e.flow
+  ? e.params.filter(p => p.type === 'integer' || p.type === 'number' || !isDefP(p, c.params[p.key])).map(p => p.type === 'integer' || p.type === 'number' ? `${p.label || p.key} ${c.params[p.key]}` : optionText(p, c.params[p.key])).join(', ')
+  : e.params.map(p => optionText(p, c.params[p.key])).join(', ');
 /** the card's name (a My metric's name, else the entry's label) */
 export const cardName = (e: Entry | undefined, c: Card) => c.metric?.name || c.label || e?.label || c.rawName || 'Condition';
 const vtxt = (v: number | '' | undefined) => v === '' || v == null ? '…' : String(v);
 /** The card's rule in words (the prototype's condText). */
 export function condText(e: Entry | undefined, c: Card): string {
   if (!e || c.raw) return `${cardName(e, c)}: ${rawText(c.raw)} (kept as saved; not editable here)`;
-  if (c.op && e.ops) { const p = pv(e, c); return `${cardName(e, c)}${p ? ` (${p})` : ''}: ${opText(e.ops, e, c.op)}` }
-  const o = optOf(e, c); const p = pv(e, c), name = `${cardName(e, c)}${p ? ` (${p})` : ''}`;
-  if (!o) return name;
+  if (c.op && e.ops) { const p = pv(e, c); return `${cardName(e, c)}${p ? ` (${p})` : ''}: ${opText(e.ops, e, c.op, c.params)}` }
+  const o = optOf(e, c); const p = pv(e, c), base = `${cardName(e, c)}${p ? ` (${p})` : ''}`;
+  if (!o) return base;
+  // a flow indicator with several lines names the one the condition reads (Buy, Sell)
+  const line = e.flow && e.flow.outputs.length > 1 ? seriesOf(e, o.output || '', c.params)?.label : undefined;
+  const name = line ? `${base} · ${line}` : base;
   const u = displayUnit(o.unit), us = u === '%' || u === '×' ? u : u ? ' ' + u : '';
   const w = o.within ? ` · within ${vtxt(c.within)}d` : '';
   if (o.value !== 'input') return `${name}: ${o.label}${w}`;
@@ -292,7 +392,7 @@ function rawText(t: any): string {
 /** "Rule only" (the prototype's condRule): the text after the name. */
 export function condRule(e: Entry | undefined, c: Card): string {
   const full = condText(e, c), p = e ? pv(e, c) : '', pre = `${cardName(e, c)}${p ? ` (${p})` : ''}`;
-  return full.slice(pre.length).replace(/^:\s*/, '').trim();
+  return full.slice(pre.length).replace(/^(\s*·\s*)?:?\s*/, '').trim();
 }
 /** parameter summary (the prototype's paramSummary) */
 export const paramSummary = (e: Entry, p: ParamMap) => e.params.map(x => `${x.label || x.key} ${optionText(x, p[x.key])}${String(p[x.key]) !== String(x.default) ? ` (default ${optionText(x, x.default)})` : ''}`).join(' · ');
@@ -303,4 +403,4 @@ export const shortName = (e: Entry | undefined, c: Card) => {
   const op = c.op && e?.ops ? opShort(e.ops, c.op) : '';
   return op ? `${base} · ${op}` : base;
 };
-export const shortPv = (e: Entry | undefined, c: Card) => e ? e.params.filter(p => p.type !== 'enum' && p.type !== 'boolean').map(p => c.params[p.key]).join('/') : '';
+export const shortPv = (e: Entry | undefined, c: Card) => e ? e.params.filter(p => p.type === 'integer' || p.type === 'number').map(p => c.params[p.key]).join('/') : '';

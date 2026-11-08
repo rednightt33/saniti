@@ -1,0 +1,632 @@
+{
+  "schema_version": 1,
+  "note": "EXEC-SCREENER-FLOW-CANDLES P5 (verification/screener/P5_FLOW.md section 2): the output kind of every output of the Terminal's 48 flow indicators (flowRegistry.json), from EXEC.md \"Cakupan flow\" (K continuous normalised, P percentile or z-score, Rp rupiah or another amount, L lots per transaction, H price level, D day count, F 0/1 signal, B broker count) and OPERATORS.md section 4, and the ADV liquidity floor flag (EXEC.md: FL03-FL06, FL08, FL10, FL13-FL15, FL36, FL46). The operators block of screener-metrics.json reads the kinds (measures and tests not offered on a kind: rank and percentile-type measures not on H, = and != only on D, F and B, K7). An output is a kind letter, {\"kind\", \"unit\"} (a unit other than the registry's), or {\"by\": <parameter>, <option>: ...} when the kind follows a parameter. requires: data the Screener does not hold (insider). The screener registry generator (scripts/build-screener-registry.mjs) refuses an indicator or output without a row. P5b (P5_FLOW.md section 3): `screener` on a row is the Screener's version of that indicator (compute: how the core computes it on top of the Terminal's computeFlow; replace: registry parameters replaced in place by the parameters listed, an empty list drops one; add: parameters appended; replace_outputs: the outputs below replace the registry's; formula and misuse: the catalog's words); `screener_params` the parameters several rows share; `screener_entries` the Screener's own flow entries that are not a Terminal indicator. A maximum \"window\" is the broker window (window_sessions), \"window-1\" one less.",
+  "window_sessions": 60,
+  "window_note": "K1 (user 2026-11-07): the broker window the publisher writes (P4 BROKER_DAY_SESSIONS = 60); the window a built-in baseline left out is capped to when the caller names no loaded window (the worker always names its own).",
+  "kinds": {
+    "K": "continuous normalised (%, x, 0-1, -1..1)",
+    "P": "already a percentile or z-score",
+    "Rp": "rupiah or another amount (lots, rupiah per transaction)",
+    "L": "lots per transaction",
+    "H": "price level",
+    "D": "consecutive-day count",
+    "F": "0/1 signal",
+    "B": "broker count"
+  },
+  "indicators": {
+    "FL01": {
+      "outputs": {
+        "buy": "L",
+        "sell": "L"
+      },
+      "adv_floor": false
+    },
+    "FL02": {
+      "outputs": {
+        "buy": "Rp",
+        "sell": "Rp"
+      },
+      "adv_floor": false
+    },
+    "FL03": {
+      "outputs": {
+        "buy": "K",
+        "sell": "K"
+      },
+      "adv_floor": true
+    },
+    "FL04": {
+      "outputs": {
+        "buy": "K",
+        "sell": "K"
+      },
+      "adv_floor": true
+    },
+    "FL05": {
+      "outputs": {
+        "buy": "K",
+        "sell": "K"
+      },
+      "adv_floor": true
+    },
+    "FL06": {
+      "outputs": {
+        "ratio": "K"
+      },
+      "adv_floor": true
+    },
+    "FL07": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL08": {
+      "outputs": {
+        "value": "P"
+      },
+      "adv_floor": true
+    },
+    "FL09": {
+      "outputs": {
+        "value": "F"
+      },
+      "adv_floor": false
+    },
+    "FL10": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": true
+    },
+    "FL11": {
+      "outputs": {
+        "value": "K",
+        "change": "K"
+      },
+      "adv_floor": false
+    },
+    "FL12": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL13": {
+      "outputs": {
+        "buy": "K",
+        "sell": "K"
+      },
+      "adv_floor": true
+    },
+    "FL14": {
+      "outputs": {
+        "asym": "K"
+      },
+      "adv_floor": true
+    },
+    "FL15": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": true
+    },
+    "FL16": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL17": {
+      "outputs": {
+        "value": "H"
+      },
+      "adv_floor": false
+    },
+    "FL18": {
+      "outputs": {
+        "value": "H"
+      },
+      "adv_floor": false,
+      "note": "an anchored price level (H, OPERATORS.md section 4).",
+      "screener": {
+        "compute": "anchored",
+        "replace": {
+          "anchor": [
+            "anchor_sessions"
+          ]
+        },
+        "note": "Screener version (decisions D and E, user 2026-11-07): the date anchor is replaced by anchor_sessions, the anchor N sessions before the evaluated candle; at each candle s the Terminal's computeFlow runs on the candles s - N .. s with the anchor date of candle s - N, so the frozen Top-N cohort is ranked on data up to s only (no look-ahead, FORMULAS.md Reviewer A, A8).",
+        "formula": "The Terminal's Buy VWAP · Anchored with its anchor N sessions before the evaluated candle: at each session the Terminal's own calculation runs from the session N sessions earlier to that session, its broker cohort ranked on those sessions only."
+      }
+    },
+    "FL19": {
+      "outputs": {
+        "value": "H"
+      },
+      "adv_floor": false,
+      "note": "an anchored price level (H, OPERATORS.md section 4).",
+      "screener": {
+        "compute": "anchored",
+        "replace": {
+          "anchor": [
+            "anchor_sessions"
+          ]
+        },
+        "note": "Screener version (decisions D and E, user 2026-11-07): the date anchor is replaced by anchor_sessions, the anchor N sessions before the evaluated candle; at each candle s the Terminal's computeFlow runs on the candles s - N .. s with the anchor date of candle s - N, so the frozen Top-N cohort is ranked on data up to s only (no look-ahead, FORMULAS.md Reviewer A, A8).",
+        "formula": "The Terminal's Implied Cost · Anchored with its anchor N sessions before the evaluated candle: at each session the Terminal's own calculation runs from the session N sessions earlier to that session, its broker cohort ranked on those sessions only."
+      }
+    },
+    "FL20": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false,
+      "note": "a distance in percent from an anchored price level (K).",
+      "screener": {
+        "compute": "anchored",
+        "replace": {
+          "anchor": [
+            "anchor_sessions"
+          ]
+        },
+        "note": "Screener version (decisions D and E, user 2026-11-07): the date anchor is replaced by anchor_sessions, the anchor N sessions before the evaluated candle; at each candle s the Terminal's computeFlow runs on the candles s - N .. s with the anchor date of candle s - N, so the frozen Top-N cohort is ranked on data up to s only (no look-ahead, FORMULAS.md Reviewer A, A8).",
+        "formula": "The Terminal's Implied Cost · Distance % with its anchor N sessions before the evaluated candle: at each session the Terminal's own calculation runs from the session N sessions earlier to that session, its broker cohort ranked on those sessions only."
+      }
+    },
+    "FL21": {
+      "outputs": {
+        "value": "P"
+      },
+      "adv_floor": false
+    },
+    "FL22": {
+      "outputs": {
+        "value": {
+          "by": "measure",
+          "pct": "K",
+          "count": {
+            "kind": "B",
+            "unit": "brokers"
+          }
+        }
+      },
+      "adv_floor": false,
+      "note": "measure count (U6) is the number of net-buying brokers, a whole number (B); pct is a percent (K)."
+    },
+    "FL23": {
+      "outputs": {
+        "value": {
+          "by": "series",
+          "cum": {
+            "by": "unit",
+            "lot": {
+              "kind": "Rp",
+              "unit": "lot"
+            },
+            "value": {
+              "kind": "Rp",
+              "unit": "IDR"
+            }
+          },
+          "daily": {
+            "by": "unit",
+            "lot": {
+              "kind": "Rp",
+              "unit": "lot"
+            },
+            "value": {
+              "kind": "Rp",
+              "unit": "IDR"
+            }
+          },
+          "norm": {
+            "kind": "K",
+            "unit": "%"
+          }
+        },
+        "count": {
+          "kind": "B",
+          "unit": "brokers"
+        }
+      },
+      "adv_floor": false,
+      "note": "The Screener's version of Broker Inventory (decision B, user 2026-11-07; OPERATORS.md section 4 row B): one series over the holders (series a the inventory over the lookback, b the daily net, c the inventory as a percent of the lookback's traded value) and the count of holders that moved (output count, B). The Terminal's one line per broker and their total are not a condition series.",
+      "screener": {
+        "compute": "inventory",
+        "replace_outputs": true,
+        "replace": {
+          "brokers": [
+            {
+              "key": "holders",
+              "label": "Holders",
+              "kind": "select",
+              "options": [
+                [
+                  "top",
+                  "Top-K holders (largest inventory)"
+                ],
+                [
+                  "selected",
+                  "Selected brokers"
+                ],
+                [
+                  "all",
+                  "All brokers"
+                ]
+              ],
+              "default": "top",
+              "text": "Top-K: at each session the K brokers with the largest positive inventory over the lookback (ties by broker code); selected: the brokers named; all: every broker with a row in the loaded window."
+            },
+            {
+              "key": "brokers",
+              "label": "Brokers",
+              "kind": "brokers",
+              "default": [],
+              "min": 0,
+              "max": 5,
+              "text": "Read with holders \"Selected brokers\": 1 to 5 broker codes."
+            },
+            {
+              "key": "top",
+              "label": "Top K",
+              "kind": "int",
+              "min": 1,
+              "max": 5,
+              "default": 3,
+              "text": "Read with holders \"Top-K holders\" (the Terminal draws at most 5 brokers)."
+            }
+          ],
+          "view": [
+            {
+              "key": "series",
+              "label": "Series",
+              "kind": "select",
+              "options": [
+                [
+                  "cum",
+                  "a · Inventory over the lookback"
+                ],
+                [
+                  "daily",
+                  "b · Daily net"
+                ],
+                [
+                  "norm",
+                  "c · Inventory ÷ traded value of the lookback (%)"
+                ]
+              ],
+              "default": "cum",
+              "text": "a: the Terminal's cumulative inventory counted from the first of the lookback's sessions; b: the Terminal's daily net; c: a as a percent of every investor's traded value on the chosen boards over the same sessions."
+            },
+            {
+              "key": "lookback",
+              "label": "Lookback (sessions)",
+              "kind": "int",
+              "min": 1,
+              "max": "window",
+              "default": 20,
+              "text": "The L sessions ending at the evaluated candle: the inventory counts from the first of them; Top-K holders are ranked on it; series c divides by their traded value."
+            }
+          ],
+          "total": [],
+          "start": []
+        },
+        "add": [
+          {
+            "key": "move",
+            "label": "Holders that moved: direction",
+            "kind": "select",
+            "options": [
+              [
+                "up",
+                "Rose by at least"
+              ],
+              [
+                "down",
+                "Fell by at least"
+              ]
+            ],
+            "default": "up",
+            "text": "Read by output count."
+          },
+          {
+            "key": "move_min",
+            "label": "Holders that moved: by at least",
+            "kind": "num",
+            "min": 0,
+            "default": 0,
+            "text": "Read by output count, in the series' unit: lots or rupiah for a and b, percent of the traded value for c; a holder counts when its series is above 0 and at least this (rose) or below 0 and at most minus this (fell)."
+          }
+        ],
+        "formula": "Series a: the Terminal's Broker Inventory (cumulative net lots or rupiah) of each holder, counted from the first of the last L sessions, summed over the holders; b: the Terminal's daily net of the holders; c: 100 x the holders' inventory over the L sessions / every investor's traded value (gross buy) on the chosen boards over the same sessions. Holders: the K brokers with the largest positive inventory over the L sessions, the brokers named, or every broker. Output count: how many holders' series rose (fell) by at least the amount.",
+        "misuse": "An inventory is a net of the broker's clients over the sessions counted, not a holding: it starts at zero on the first of them. Series a and b scale with the stock's size (use c to compare stocks)."
+      }
+    },
+    "FL24": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL25": {
+      "outputs": {
+        "value": "Rp"
+      },
+      "adv_floor": false
+    },
+    "FL26": {
+      "outputs": {
+        "value": "D"
+      },
+      "adv_floor": false
+    },
+    "FL27": {
+      "outputs": {
+        "value": "F",
+        "net": "F",
+        "gross": "F"
+      },
+      "adv_floor": false
+    },
+    "FL28": {
+      "outputs": {
+        "value": "Rp"
+      },
+      "adv_floor": false
+    },
+    "FL29": {
+      "outputs": {
+        "value": "K",
+        "balance": "K"
+      },
+      "adv_floor": false
+    },
+    "FL30": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL31": {
+      "outputs": {
+        "value": "Rp"
+      },
+      "adv_floor": false,
+      "requires": "insider",
+      "note": "Insider net change: the insider transactions are not published to the Screener (no insider file), so it stays REQUIRES_DATA."
+    },
+    "FL32": {
+      "outputs": {
+        "buy": "K",
+        "sell": "K"
+      },
+      "adv_floor": false
+    },
+    "FL33": {
+      "outputs": {
+        "buy": "K",
+        "sell": "K"
+      },
+      "adv_floor": false
+    },
+    "FL34": {
+      "outputs": {
+        "value": "K",
+        "change": "K"
+      },
+      "adv_floor": false,
+      "current_only": true,
+      "note": "Point-in-time guard (old FL19, FLOW_MAP.md item 8; user 2026-11-07 \"pengaman n/a tanggal lampau FL34\"): the broker classification is today's (current-state), so a value is read only at the last date of the loaded broker window; on every earlier session it is missing (n/a), so an operator over its history is n/a too.",
+      "screener": {
+        "misuse": "The brokers' classification is today's, not the one of the day the trades happened: the value is read only at the latest broker date, and is n/a on any earlier session (also inside an operator over its history)."
+      }
+    },
+    "FL35": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL36": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": true
+    },
+    "FL37": {
+      "outputs": {
+        "value": {
+          "by": "stat",
+          "pct": "P",
+          "z": {
+            "kind": "P",
+            "unit": "sd"
+          }
+        }
+      },
+      "adv_floor": false
+    },
+    "FL38": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL39": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL40": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL41": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    },
+    "FL42": {
+      "outputs": {
+        "value": "H"
+      },
+      "adv_floor": false
+    },
+    "FL43": {
+      "outputs": {
+        "value": "H"
+      },
+      "adv_floor": false
+    },
+    "FL44": {
+      "outputs": {
+        "value": "H"
+      },
+      "adv_floor": false,
+      "note": "an anchored price level (H, OPERATORS.md section 4).",
+      "screener": {
+        "compute": "anchored",
+        "replace": {
+          "anchor": [
+            "anchor_sessions"
+          ]
+        },
+        "note": "Screener version (decisions D and E, user 2026-11-07): the date anchor is replaced by anchor_sessions, the anchor N sessions before the evaluated candle; at each candle s the Terminal's computeFlow runs on the candles s - N .. s with the anchor date of candle s - N, so the frozen Top-N cohort is ranked on data up to s only (no look-ahead, FORMULAS.md Reviewer A, A8).",
+        "formula": "The Terminal's Sell VWAP · Anchored with its anchor N sessions before the evaluated candle: at each session the Terminal's own calculation runs from the session N sessions earlier to that session, its broker cohort ranked on those sessions only."
+      }
+    },
+    "FL45": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false,
+      "note": "a distance in percent from an anchored price level (K).",
+      "screener": {
+        "compute": "anchored",
+        "replace": {
+          "anchor": [
+            "anchor_sessions"
+          ]
+        },
+        "note": "Screener version (decisions D and E, user 2026-11-07): the date anchor is replaced by anchor_sessions, the anchor N sessions before the evaluated candle; at each candle s the Terminal's computeFlow runs on the candles s - N .. s with the anchor date of candle s - N, so the frozen Top-N cohort is ranked on data up to s only (no look-ahead, FORMULAS.md Reviewer A, A8).",
+        "formula": "The Terminal's Buy VWAP · Anchored · Distance % with its anchor N sessions before the evaluated candle: at each session the Terminal's own calculation runs from the session N sessions earlier to that session, its broker cohort ranked on those sessions only."
+      }
+    },
+    "FL46": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": true
+    },
+    "FL47": {
+      "outputs": {
+        "value": {
+          "by": "stat",
+          "value": "K",
+          "pct": {
+            "kind": "P",
+            "unit": "0-100"
+          }
+        }
+      },
+      "adv_floor": false,
+      "note": "stat value is a percent (K); stat pct its percentile in the stock's own history (P, EXEC: \"FL47 bila stat = persentil\")."
+    },
+    "FL48": {
+      "outputs": {
+        "value": "K"
+      },
+      "adv_floor": false
+    }
+  },
+  "screener_params": {
+    "anchor_sessions": {
+      "key": "anchor_sessions",
+      "label": "Anchor: sessions before the evaluated candle",
+      "kind": "int",
+      "min": 1,
+      "max": "window-1",
+      "default": 20,
+      "text": "The anchor is the candle N sessions before the candle being evaluated, found per stock on its own sessions; the value reads those N + 1 sessions, ranks a Top-N cohort over them only, and is missing when the anchor falls before the stock's first session with broker data."
+    }
+  },
+  "screener_entries": {
+    "fnet": {
+      "name": "Foreign Net Value",
+      "family": "Foreign",
+      "place": "pane",
+      "unit": "IDR",
+      "compute": "foreign_net",
+      "tip": "Foreign investors' net buying (buy value minus sell value) in rupiah over the last sessions.",
+      "params": [
+        {
+          "key": "window",
+          "label": "Sessions",
+          "kind": "int",
+          "min": 1,
+          "max": "window",
+          "default": 20
+        },
+        {
+          "key": "boards",
+          "label": "Market board",
+          "kind": "multi",
+          "options": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ],
+          "default": [
+            "Regular",
+            "Nego",
+            "Cash"
+          ]
+        }
+      ],
+      "outputs": {
+        "value": {
+          "kind": "Rp",
+          "unit": "IDR"
+        }
+      },
+      "adv_floor": false,
+      "formula": "Sum over the last D sessions of the buy value minus the sell value of every broker row with investor type Foreign on the chosen boards (every board by default), in rupiah; missing unless the session has broker data and the D sessions start at or after the stock's first session with broker data.",
+      "misuse": "Investor type, not broker domicile. A rupiah amount grows with the stock's size (Net Flow / Turnover Ratio with all brokers and Foreign investors compares stocks). One Nego block can dominate on every board.",
+      "note": "Old FL01 fnet (AUDIT.md 16.5), kept as a screener entry (user 2026-11-07, \"Rumus lama\"): no Terminal indicator gives the rupiah foreign net. The board default stays every board (the old definition)."
+    },
+    "ksei_net": {
+      "name": "Major-Holder Net Change (KSEI)",
+      "family": "Ownership",
+      "place": "pane",
+      "unit": "pp",
+      "compute": "none",
+      "requires": "ksei",
+      "tip": "Net change of the 5% holders' stakes reported to KSEI over the last sessions.",
+      "params": [
+        {
+          "key": "window",
+          "label": "Sessions",
+          "kind": "int",
+          "min": 1,
+          "max": "window",
+          "default": 20
+        }
+      ],
+      "outputs": {
+        "value": {
+          "kind": "K",
+          "unit": "pp"
+        }
+      },
+      "adv_floor": false,
+      "formula": "Sum of the KSEI-reported changes (percentage points of the shares) of the stock's major holders with a position date in the last D sessions.",
+      "misuse": "KSEI dates are position-report dates and many prices are estimates; not point-in-time for past dates.",
+      "note": "Old FL20's major-holder part (AUDIT.md 16.5), kept REQUIRES_DATA: no KSEI file is published to the Screener (user 2026-11-07: \"FL31 dan KSEI nanti saja\")."
+    }
+  }
+}

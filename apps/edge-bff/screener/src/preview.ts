@@ -15,7 +15,7 @@ import { activeCards, ctx, definitionOf, entryOf, evalDate, presetOf, S, savedOf
 import { formatOfOpt } from './entries.ts';
 import { dataChanged, screenedCards, screenedDefinition } from './run.ts';
 import { condText, optOf, shortName } from './forms.ts';
-import { cellTitle, dayWord, eventText, methodText, remarkText, remarkTitle, T } from './texts.ts';
+import { brokerDataText, cellTitle, dayWord, eventText, flowDateTitle, methodText, remarkText, remarkTitle, T } from './texts.ts';
 import { colorOf } from './builder.ts';
 import { toast } from './dialogs.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
@@ -26,7 +26,7 @@ import { perfPlot } from './layout/perf.ts';
 import { layoutHooks } from './layout/prefs.ts';
 import { afterPress } from './press.ts';
 import { keepField } from './keep-field.ts';
-import { cellText } from './cell-text.ts';
+import { cellText, readsFlow } from './cell-text.ts';
 import { sameVersions } from './api/boot-cache.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -165,10 +165,12 @@ export function renderDetails() {
   const rmk = remarks.length ? `<div class="chips">${remarks.map(r => `<span class="pill t-warning rbadge" title="${esc(remarkTitle(r))}">${ico(IC.warn, 's')}${esc(remarkText(r))}</span>`).join('')}</div>` : '';
   const why = A.length && a ? `<div class="sec-title">Why it ${a.status === 'match' ? 'passed' : 'did not pass'}</div><div class="chk-list">${A.map(c => {
       // the table's own cell text (cell-text.ts): an operator card in its unit, never by the card's default condition
-      const x = a.cells.find(y => y.id === c.id), e = entryOf(c), txt = cellText(e, c, x);
-      const tip = x ? cellTitle(x, remarks, evalDate()) : '';
+      const x = a.cells.find(y => y.id === c.id), e = entryOf(c), txt = cellText(e, c, x), flow = readsFlow(c, e);
+      const tip = x ? cellTitle(x, remarks, flow ? (lastBar ?? evalDate()) : evalDate(), flow) : '';
       const mark = x?.status === 'pass' ? '<span class="up">✓</span>' : x?.status === 'na' ? '<span class="muted">–</span>' : '<span class="down">✕</span>';
-      return `<div title="${esc(tip)}"><i class="cdot" style="background:${colorOf(c)}"></i><span>${esc(condText(e, c))}</span><b>${esc(txt)}${x?.remark ? ` ${ico(IC.warn, 's')}` : ''}</b>${mark}</div>`;
+      // a flow condition names the date of the broker data it read (P10 a), under its rule
+      const fd = flow && x?.eval_date ? `<small class="fdate">${esc(flowDateTitle(x.eval_date, lastBar ?? evalDate()))}</small>` : '';
+      return `<div title="${esc(tip)}"><i class="cdot" style="background:${colorOf(c)}"></i><span>${esc(condText(e, c))}${fd}</span><b>${esc(txt)}${x?.remark ? ` ${ico(IC.warn, 's')}` : ''}</b>${mark}</div>`;
     }).join('')}</div>` : '';
   // Fundamentals: drawn from the catalog, only the fundamentals it offers as AVAILABLE (user 2026-11-07, "bagian fundamental
   // hapus saja"; EXEC-SCREENER-TIDY). None is available today, so the section is not drawn; it comes back by itself, with
@@ -240,12 +242,12 @@ function renderMethod(): string {
     : `<div class="side-ctx"><b>${esc(s?.name || S.name)}</b><br>${A.length ? A.map(c => esc(condText(entryOf(c), c))).join(' · ') : 'No conditions yet.'}</div>`;
   const limits = (cat?.limits || []).map(l => `<div class="src"><b>${esc(l.rule)}</b><small>✓ ${esc(l.example_ok)}</small><small>✕ ${esc(l.example_refused)}</small></div>`).join('');
   const refresh = d?.refresh === 'failed_keeping_previous' ? 'The latest publication failed its checks; the previous one is kept.' : '';   // 'refreshing' is reported on /health only (report 8.3, 6d.4 rule 4)
-  // the prototype's global bandar thresholds, kept visible and disabled with the reason: they become each bandar
-  // condition's own parameters with the flow definitions (report 9.2 Method & sources; P9, Phase 3)
-  const bandar = `<div class="sec"><h6>Bandar status thresholds</h6><div class="mini2"><label class="fld" title="${esc(T.bandarPhase)}"><span>Accumulation ≥ %</span><input class="inp" type="number" disabled placeholder="Phase 3" aria-label="Accumulation threshold: ${esc(T.bandarPhase)}"></label><label class="fld" title="${esc(T.bandarPhase)}"><span>Big accumulation ≥ %</span><input class="inp" type="number" disabled placeholder="Phase 3" aria-label="Big accumulation threshold: ${esc(T.bandarPhase)}"></label></div><p class="note" style="margin:0">${esc(T.bandarPhase)}</p></div>`;
+  // the prototype's global bandar thresholds are each bandar condition's own values now (the flow indicators' setup and
+  // the condition's threshold, P5): said in one sentence where the disabled fields were
+  const bandar = `<div class="sec"><h6>Bandar thresholds</h6><p class="note" style="margin:0">${esc(T.bandarOwn)}</p></div>`;
   return `${ctxBox}${bandar}
     <div class="sec"><h6>How conditions work</h6><p class="note" style="margin:0">${esc(methodText(d?.evaluation_date || '—'))}</p></div>
-    <div class="sec"><h6>Data</h6><div class="facts"><div><span>Evaluation date</span><b>${esc(d?.evaluation_date || '—')}</b></div><div><span>Prices through</span><b>${esc(d?.price_through || '—')}</b></div><div><span>Flow through</span><b>${esc(d?.flow_through || 'not yet (Phase 2)')}</b></div><div><span>Published</span><b>${esc(timeText(d?.published_at))}</b></div><div><span>Listings</span><b>${nf(ctx.universe?.rows.length)}</b></div></div>${refresh ? `<p class="note">${esc(refresh)}</p>` : ''}
+    <div class="sec"><h6>Data</h6><div class="facts"><div><span>Evaluation date</span><b>${esc(d?.evaluation_date || '—')}</b></div><div><span>Prices through</span><b>${esc(d?.price_through || '—')}</b></div><div><span>Broker data through</span><b>${esc(brokerDataText(d))}</b></div><div><span>Published</span><b>${esc(timeText(d?.published_at))}</b></div><div><span>Listings</span><b>${nf(ctx.universe?.rows.length)}</b></div></div>${refresh ? `<p class="note">${esc(refresh)}</p>` : ''}
       <p class="note" style="margin:0">Fundamentals, market cap, index membership, listing board and special notation have no data yet; they are shown disabled with their reason.</p></div>
     ${limits ? `<div class="sec"><h6>Limits</h6>${limits}</div>` : ''}
     <div class="sec"><h6>Preset sources</h6>${[['Stockbit & Ajaib screeners', 'Bandarmology, valuation and technical categories'], ['Mark Minervini', 'Trend template'], ['Joel Greenblatt', 'Magic Formula: earnings yield + return on capital'], ['Benjamin Graham', 'Defensive investor: P/E × P/B < 22.5'], ['Joseph Piotroski', 'F-score, 9 binary tests'], ['William O’Neil', 'CANSLIM (loosened for IDX)']].map(([x, y]) => `<div class="src"><b>${x}</b><small>${y}</small></div>`).join('')}</div>`;
@@ -294,7 +296,8 @@ export function bindPreview() {
     const a = previewAnswer(), A = screenedCards(), row = ctx.R?.rows.find(r => r.ticker === tk), last = a ? a.bars.c[a.bars.c.length - 1] : row?.last;
     const lines = A.map(c => { const x = a?.cells.find(y => y.id === c.id), e = entryOf(c), o = e && optOf(e, c), kind = o?.kind || (c.raw as any)?.kind;
       const v = !x ? '—' : x.status === 'na' ? 'n/a' : kind === 'event' ? eventText(x) : kind === 'state' ? (x.status === 'pass' ? 'yes' : 'no') : fmtValue(x.value, formatOfOpt(e, o));
-      return `${x?.status === 'pass' ? '✓' : x?.status === 'na' ? '–' : '✕'} ${condText(e, c)} → ${v}` });
+      const fd = readsFlow(c, e) && x?.eval_date ? ` (broker data of ${x.eval_date})` : '';
+      return `${x?.status === 'pass' ? '✓' : x?.status === 'na' ? '–' : '✕'} ${condText(e, c)} → ${v}${fd}` });
     const text = `${tk} ${row?.name || ''} · ${nf(last)} · evaluated ${a?.data.evaluation_date || ctx.catalog?.data.evaluation_date || ''}\n${lines.join('\n')}`;
     try { await navigator.clipboard.writeText(text); toast('Summary copied') } catch { toast('Copy blocked by the browser') }
   };

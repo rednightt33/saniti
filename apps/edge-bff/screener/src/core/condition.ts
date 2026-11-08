@@ -20,11 +20,19 @@
    - a universe attribute is the snapshot row's value (S2, O(1)); a null attribute is NA INSUFFICIENT_HISTORY (it is
      null only for too few bars); a metric whose applies_to excludes the ticker is NA NOT_APPLICABLE;
    - a cross-section value (return_rank) is a population-level value read from the caller (S1, xsection.ts); null is NA
-     INSUFFICIENT_HISTORY (no return over the window at the ticker's bar).
+     INSUFFICIENT_HISTORY (no return over the window at the ticker's bar);
+   - EXEC-SCREENER-FLOW-CANDLES P5a (verification/screener/P5_FLOW.md section 1): a test that reads a flow indicator
+     (flowmetrics.ts) is evaluated at the stock's last candle with broker data on or before its evaluation bar (P10 a;
+     flowBarOf over the broker-data series; none in the window: NA FLOW_UNAVAILABLE), a session of it without broker data
+     is NA FLOW_UNAVAILABLE, its sessions (the indicator's own plus the operators' N, the window's length, the event's
+     within) may not exceed the loaded window (K1, LIMIT_EXCEEDED broker_depth, when ctx.flow names the window), it
+     never carries the price-break remark, and the output types of OPERATORS.md section 4 (typeAllows: no fixed value,
+     range or rank on lots per transaction and price levels, no range, cross or measure on a 0/1 signal; K7 "=" and "!="
+     only on D, F and B) and the same-unit rule of operators 7 and 8 (sameUnit) apply to it.
    Worker-side module (imports the backtest core through metrics.ts). */
 import type { Bars } from '../../../terminal/src/calc/indicators.ts';
 import type {
-  Cell, CellRemark, ConditionDef, MetricRef, ParamMap, PatternRef, RankRef, Side, Test, TestKind, UniverseRow, ValueTest, WindowTest, XsectionRef,
+  Cell, CellRemark, ConditionDef, FlowRef, MetricRef, ParamMap, PatternRef, RankRef, ResolvedParams, Side, Test, TestKind, UniverseRow, ValueTest, WindowTest, XsectionRef,
 } from './contract.ts';
 import { WINDOW_MODES } from './contract.ts';
 import { ScreenerError } from './errors.ts';
@@ -38,7 +46,9 @@ import type { BarView, Evaluation, Operand, SessionOutcome } from './evaluate.ts
 import { laggedSeries, missingInput, resolveSeries } from './metrics.ts';
 import type { ResolvedSeries, SeriesSource, Tail, TickerBars } from './metrics.ts';
 import { canonicalJson } from '../../../backtest/src/core/hash.ts';
-import { outputType, resolveSignal } from './transforms.ts';
+import { operatorTakes, outputType, resolveSignal } from './transforms.ts';
+import { FLOW_BY_ID, FLOW_PRESENCE, FLOW_DESIGN_SESSIONS, depthRefusal, readsFlow, resolveFlowParams } from './flowmetrics.ts';
+import type { FlowBindContext } from './flowmetrics.ts';
 import { INDICATORS, SBY_ID, isDefaultParams } from './registry.ts';
 import type { ParamOptions } from './registry.ts';
 import { priceBreakDates } from './universe.ts';
@@ -49,6 +59,16 @@ export interface BindContext extends ParamOptions {
   index?: TickerBars;
   withinMax: number;
   catalog?: MetricsCatalog;
+  /** EXEC-SCREENER-FLOW-CANDLES P5a: the loaded broker window (the worker's data.broker_window and whether its reference
+      file carries the broker classification). With it a flow condition is checked against the window (K1 depth, the
+      availability rule, an anchor date); without it (the core's own tests, a pre-warm binding) it is not */
+  flow?: FlowBindContext;
+  /** P5b cost: binding for a screen (screen.ts runScreen; the worker's cost estimate): each flow series is resolved
+      under the reach its test reads (an event's within, a window's length and its inner test's), so an anchored series
+      is computed only on the sessions read (flowmetrics.ts resolveFlow). Off for a preview, which draws whole series. */
+  flowLazy?: boolean;
+  /** set by bindTest from the test when flowLazy (metrics.ts SeriesResolveContext) */
+  flowReach?: number | null;
 }
 
 /** What evaluating a condition reads for one ticker; the worker answers it from its snapshot. */
@@ -88,10 +108,16 @@ export interface BoundCondition {
   xsection: XsectionNeed | null;
   universeAttr: string | null;
   /** the per-condition summary fields of report 8.5 conditions[] that do not depend on the run */
-  summary: { metric: string; params_resolved: ParamMap; is_default: boolean; unit: string | null };
+  summary: { metric: string; params_resolved: ResolvedParams; is_default: boolean; unit: string | null };
   /** a window test's inner comparison and window (operators 5, 9, 10): conditionSignal reads them */
   window?: { inner: BoundCondition; mode: WindowTest['mode']; length: number; count: number };
+  /** P5a: the condition reads a flow indicator: evaluate() reads it at the stock's last candle with broker data on or
+      before the evaluation bar (P10 a; eval_date that candle's date, source flow, eval_date_basis flow_date) */
+  readsFlow: boolean;
   evaluate(input: TickerInput): { cell: Cell; source: SeriesSource };
+  /** evaluate() at input.at exactly (a window test reads its inner test on each of its sessions this way); for a
+      condition without flow it is evaluate() */
+  evaluateAt(input: TickerInput): { cell: Cell; source: SeriesSource };
 }
 
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
@@ -101,10 +127,16 @@ const isValueSide = (s: Side): s is { value: number } => isObj(s) && !('kind' in
 const startOf = (r: ResolvedSeries, tail: Tail, at: number, extra: number): number | null =>
   r.window !== undefined ? lookbackStartOfWindow(r.window, at, extra) : lookbackStart(r.historyClass, tail.firstValid, at, extra);
 
-/** Reads a series for one ticker as a view; checks that the tail holds the bars an evaluation at `at` reads. */
+/** Reads a series for one ticker as a view; checks that the tail holds the bars an evaluation at `at` reads. A bar
+    before the tail reads as missing, which is exact when the full series has no value before the tail (its firstValid
+    is in it, or it has none): a flow series, whose values all lie in the loaded broker window (metrics.ts series keeps
+    every one of them in its tail), is read at the stock's last candle with broker data (P10 a), which is behind its
+    last price bar when the broker data is behind the prices, and an event there scans within_max sessions back from it
+    (QA unit B: "tail of FL32.buy on BBCA starts at bar 269, but bar 268 is needed" with the broker data one session
+    behind). A series with values before its tail (a price indicator) is read at its last bar only. */
 function read(input: TickerInput, r: ResolvedSeries, reach: number): { view: BarView; tail: Tail; source: SeriesSource } {
   const { tail, source } = input.series(r);
-  if (input.at - reach < tail.from && tail.from > 0)
+  if (input.at - reach < tail.from && tail.firstValid >= 0 && tail.firstValid < tail.from)
     throw new RangeError(`condition: the tail of ${r.label} on ${input.ticker} starts at bar ${tail.from}, but bar ${input.at - reach} is needed (evaluate at the last bar)`);
   return { view: viewOfTail(tail, missingInput(input, r.inputs, input.at) !== null), tail, source };
 }
@@ -127,8 +159,66 @@ export function bindCondition(def: ConditionDef, field: string, ctx: BindContext
   return bindTest(def.id, def.test, `${field}.test`, ctx);
 }
 /** One test bound to its series under the cell id `id`; `f` is the test's own path (a condition's
-    'definition.conditions[2].test', a metric filter's 'definition.universe.metric_filters[0]'). */
+    'definition.conditions[2].test', a metric filter's 'definition.universe.metric_filters[0]'). A test that reads a
+    flow indicator (P5a) is checked against the loaded window (K1: its sessions plus the test's within or length, when
+    ctx.flow names the window) and evaluated at the stock's last candle with broker data (withFlow). */
 export function bindTest(id: string, test: Test, f: string, ctx: BindContext): BoundCondition {
+  // P5b: for a screen, the series are resolved under the reach of the outermost test (a window's inner test keeps it)
+  const c = ctx.flowLazy && ctx.flowReach === undefined ? { ...ctx, flowReach: readSessions(test) } : ctx;
+  return withFlow(bindTestRaw(id, test, f, c), f, ctx);
+}
+type RawBound = Omit<BoundCondition, 'readsFlow' | 'evaluateAt'>;
+/** The sessions a test reads beyond its series' own (K1, OPERATORS.md section 3): an event's within, a window's
+    length (plus what its inner test reads). */
+const testSessions = (t: Test): number => t.kind === 'event' ? t.within : t.kind === 'window' ? t.length + testSessions(t.test) : 0;
+/** testSessions of a test not yet checked (a malformed one reads none; bindTestRaw refuses it). */
+const readSessions = (t: unknown): number => {
+  if (!isObj(t)) return 0;
+  const n = (v: unknown) => Number.isInteger(v) && (v as number) > 0 ? v as number : 0;
+  return t.kind === 'event' ? n(t.within) : t.kind === 'window' ? n(t.length) + readSessions(t.test) : 0;
+};
+/** The bar of a ticker's last candle with broker data on or before `at` (P10 a), from the broker-data series
+    (flowmetrics.ts FLOW_PRESENCE); -1 when it has none in the window. */
+export function flowBarOf(tail: Tail, at: number): number {
+  for (let i = Math.min(at, tail.n - 1); i >= tail.from && i >= 0; i--) if (tail.values[i - tail.from] === 1) return i;
+  return -1;
+}
+const hasBrokerData = (input: TickerInput, i: number): boolean => { const { tail } = input.series(FLOW_PRESENCE); return i >= tail.from && i < tail.n && tail.values[i - tail.from] === 1 };
+/** The cell of a flow condition on a stock without broker data in the window: NA FLOW_UNAVAILABLE, no evaluation date. */
+function noFlowCell(b: RawBound, input: TickerInput): Cell {
+  const k = b.kind, e: Evaluation = { status: 'na', reason: 'FLOW_UNAVAILABLE',
+    ...(k === 'value' || k === 'window' ? { value: null } : {}), ...(k === 'state' || (k === 'event' && 'lhs' in ((b.test as { signal?: object }).signal ?? {})) ? { lhs: null, rhs: null } : {}),
+    ...(k === 'event' || k === 'window' ? { eventBar: null, barsAgo: null, lastEventBar: null } : {}) };
+  return toCell(b.id, e, { dates: input.dates, at: -1, ihsgCalendar: input.ihsgCalendar, unit: b.summary.unit, remark: null });
+}
+/** A bound test with the flow rules (P5a): without a flow series it is unchanged; with one, the depth check (K1, when the
+    window is known: every flow series' sessions plus the test's within or length at most the loaded sessions), the
+    evaluation at the last candle with broker data (evaluate) or at the given bar (evaluateAt), and FLOW_UNAVAILABLE as
+    the reason of an NA on a session without broker data. */
+function withFlow(b: RawBound, f: string, ctx: BindContext): BoundCondition {
+  const flows = b.series.filter(readsFlow);
+  if (!flows.length) return { ...b, readsFlow: false, evaluateAt: b.evaluate };
+  if (ctx.flow) {
+    const extra = testSessions(b.test);
+    for (const r of flows) {
+      if (typeof r.flowDepth !== 'number') continue;
+      const own = typeof r.flowOwn === 'number' ? r.flowOwn : r.flowDepth, total = r.flowDepth + extra;
+      if (total > ctx.flow.sessions) throw depthRefusal(f, `${r.label}${own !== r.flowDepth ? ' with its operators' : ''}`, own, total - own, ctx.flow.sessions);
+    }
+  }
+  const evaluateAt = (input: TickerInput) => {
+    const r = b.evaluate(input);
+    return r.cell.status === 'na' && r.cell.reason !== 'FLOW_UNAVAILABLE' && !hasBrokerData(input, input.at) ? { ...r, cell: { ...r.cell, reason: 'FLOW_UNAVAILABLE' as const } } : r;
+  };
+  return {
+    ...b, readsFlow: true, evaluateAt,
+    evaluate: input => {
+      const at = flowBarOf(input.series(FLOW_PRESENCE).tail, input.at);
+      return at < 0 ? { cell: noFlowCell(b, input), source: 'dynamic' } : evaluateAt({ ...input, at });
+    },
+  };
+}
+function bindTestRaw(id: string, test: Test, f: string, ctx: BindContext): RawBound {
   const t = test as Test, catalog = ctx.catalog ?? METRICS_CATALOG;
   if (!isObj(t)) throw new ScreenerError('INVALID_CONDITION', `${f} must be a test.`, f);
   if (t.kind === 'value') return bindValue(id, t, f, ctx, catalog);
@@ -150,7 +240,7 @@ export function bindTest(id: string, test: Test, f: string, ctx: BindContext): B
   throw new ScreenerError('INVALID_CONDITION', `${f}.kind must be value, state, event or window.`, `${f}.kind`, { allowed: ['value', 'state', 'event', 'window'] });
 }
 
-function bindValue(id: string, t: ValueTest, f: string, ctx: BindContext, catalog: MetricsCatalog): BoundCondition {
+function bindValue(id: string, t: ValueTest, f: string, ctx: BindContext, catalog: MetricsCatalog): RawBound {
   const m = t.metric as MetricRef;
   if (!isObj(m)) throw new ScreenerError('INVALID_CONDITION', `${f}.metric must be a metric reference.`, `${f}.metric`);
   const rule = { op: t.op, value: t.value, value2: t.value2 };
@@ -193,9 +283,11 @@ function bindValue(id: string, t: ValueTest, f: string, ctx: BindContext, catalo
     };
   }
   if (m.kind === 'rank') return bindRank(id, m as RankRef, t, f, ctx, catalog);
-  if (m.kind === 'flow') throw unavailableFlow(m.metric, `${f}.metric`, catalog);
   if (m.kind === 'pattern') throw new ScreenerError('INVALID_CONDITION', `${f}.metric: a pattern is a signal, not a value; use it in a state or event test ({"kind":"state","pattern":...}).`, `${f}.metric`);
   const r = resolveSeries(m, `${f}.metric`, ctx);
+  // OPERATORS.md section 4 (operators 1 and 15 by the output type: not on lots per transaction or a price level; no
+  // range on a 0/1 signal), then K7
+  typeAllows(r, t.op === 'between' || t.op === 'outside' ? 'range' : 'value', `${f}.op`);
   wholeOnly(r.integer === true, r.label, r.unit as string | null);
   return {
     id, kind: 'value', test: testOf(r.ref), series: [r], xsection: null, universeAttr: null,
@@ -203,12 +295,39 @@ function bindValue(id: string, t: ValueTest, f: string, ctx: BindContext, catalo
     evaluate: input => {
       const { view, tail, source } = read(input, r, 0);
       const e = evaluateValue(view, rule, input.at);
-      return { cell: cellOf(id, e, input, r.unit, [startOf(r, tail, input.at, 0)]), source };
+      return { cell: cellOf(id, e, input, r.unit, readsFlow(r) ? [] : [startOf(r, tail, input.at, 0)]), source };
     },
   };
 }
 
-function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string, rhs: Side, within: number, f: string, ctx: BindContext): BoundCondition {
+/* ---- the output types of OPERATORS.md section 4 (P5a: the flow kinds of flow-kinds.json) ------------------------------ */
+
+const OPS = METRICS_CATALOG.operators;
+/** Refuses a test the operators block does not offer on the series' output type (tests[].not_on; not_against_value: a
+    cross of lots per transaction against a fixed number), naming the series, its type and what it takes, with a right
+    and a wrong example (AGENTS.md "Gates and evidence"). A series without a type takes every test. */
+function typeAllows(r: ResolvedSeries, key: 'value' | 'range' | 'cross' | 'rank', f: string, againstValue = false): void {
+  const type = outputType(r), spec = OPS.tests.find(x => x.key === key);
+  if (!type || !spec) return;
+  if (!(spec.not_on || []).includes(type) && !(againstValue && (spec.not_against_value || []).includes(type))) return;
+  const measures = [...new Set(OPS.measures.filter(m => !m.not_on.includes(type)).map(m => m.label))];
+  const tests = OPS.tests.filter(x => !(x.not_on || []).includes(type)).map(x => x.label);
+  const right = measures.length ? `${measures[0].toLowerCase()} of it, then a value` : tests[0]?.toLowerCase() ?? 'another test';
+  throw new ScreenerError('INVALID_CONDITION', `${f}: ${r.label} ${OPS.types[type]?.words ?? `is of type ${type}`}, so "${spec.label}"${againstValue ? ' against a fixed value' : ''} is not offered on it. It takes ${measures.length ? `the measures ${measures.join(', ')}` : 'no measure'}${tests.length ? ` and the tests ${tests.join(', ')}` : ''} (right: ${right}; wrong: ${r.label} ${key === 'cross' ? 'crossing a fixed value' : key === 'rank' ? 'ranked across stocks' : key === 'range' ? 'inside a range' : 'above a fixed value'}).`,
+    f, { allowed: [...measures, ...tests] });
+}
+/** OPERATORS.md operators 7 and 8 between two series of which one reads a flow indicator: the same unit (a price level
+    with a price level, a percent with a percent, lots with lots), else refused naming both units. */
+function sameUnit(a: ResolvedSeries, b: ResolvedSeries, f: string): void {
+  if (a.unit !== null && a.unit === b.unit && a.comparableWith === b.comparableWith) return;
+  const words = (x: ResolvedSeries) => x.unit === null ? 'without a unit' : x.comparableWith ? `a ${x.comparableWith === 'close' ? 'price' : 'volume'} level` : `in ${x.unit}`;
+  throw new ScreenerError('INVALID_CONDITION', `${f}: ${a.label} is ${words(a)} and ${b.label} is ${words(b)}; a comparison of two series needs the same unit (right: close against Buy VWAP · Rolling, both price levels; wrong: Bandar Balance · % against the close).`, f, { allowed: [String(a.unit)] });
+}
+
+/** The measure that compares a series with a second one (OPERATORS.md operator 7; the operators block's measure with
+    `second`): its not_on decides which output types a STATE between two series takes. */
+const SECOND = OPS.measures.find(m => m.second)?.fn;
+function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string, rhs: Side, within: number, f: string, ctx: BindContext): RawBound {
   const ops = kind === 'state' ? ['gt', 'lt'] : ['crosses_above', 'crosses_below'];
   if (!ops.includes(op)) throw new ScreenerError('INVALID_CONDITION', `${f}.op must be ${ops.join(' or ')}.`, `${f}.op`, { allowed: ops });
   if (!isObj(lhs) || !isObj(rhs)) throw new ScreenerError('INVALID_CONDITION', `${f}: lhs and rhs are both required.`, f);
@@ -221,6 +340,16 @@ function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string,
   const lagged = (s: BoundSide, d: 'gt' | 'lt', field: string): BoundSide => s.kind === 'series' && s.r.compareLag[d] === 1 ? { kind: 'series', r: laggedSeries(s.r, field, ctx) } : s;
   const L = isBar(R0) && !isBar(L0) ? lagged(L0, up ? 'lt' : 'gt', `${f}.lhs`) : L0;
   const R = isBar(L0) && !isBar(R0) ? lagged(R0, up ? 'gt' : 'lt', `${f}.rhs`) : R0;
+  // OPERATORS.md section 4: a STATE between two series is operator 7 read as its sign (lhs - rhs > 0), so a side whose
+  // output type the comparison with a second series is not offered on (a 0/1 signal) is refused, naming that side
+  if (kind === 'state' && L0.kind === 'series' && R0.kind === 'series' && SECOND) for (const [s, side] of [[L0, 'lhs'], [R0, 'rhs']] as const) operatorTakes(SECOND, s.r, `${f}.${side}`);
+  // P5a: a flow series against a value (operators 1 and 8 by its output type) or against a second series (operators 7
+  // and 8: the same unit)
+  if (L0.kind === 'series' && R0.kind === 'series' && (readsFlow(L0.r) || readsFlow(R0.r))) {
+    sameUnit(L0.r, R0.r, `${f}.rhs`);
+    if (kind === 'event') for (const [s, side] of [[L0, 'lhs'], [R0, 'rhs']] as const) typeAllows(s.r, 'cross', `${f}.${side}`);
+  } else for (const [s, other, side] of [[L0, R0, 'lhs'], [R0, L0, 'rhs']] as const)
+    if (s.kind === 'series' && other.kind === 'value') typeAllows(s.r, kind === 'event' ? 'cross' : 'value', `${f}.${side}`, kind === 'event');
   const sides = [L, R];
   const series = sides.flatMap(s => s.kind === 'series' ? [s.r] : []);
   const norm = (s: BoundSide): Side => s.kind === 'value' ? { value: s.value } : s.r.ref;
@@ -244,7 +373,7 @@ function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string,
       const e = kind === 'state'
         ? evaluateState(lv, op as 'gt' | 'lt', rv, input.at)
         : evaluateEvent(crossSignal(lv, op as 'crosses_above' | 'crosses_below', rv), within, ctx.withinMax, input.at, { lhs: lv, rhs: rv });
-      const starts = sides.flatMap((s, k) => s.kind === 'value' ? [] : [startOf(s.r, reads[k]!.tail, input.at, kind === 'event' ? within : 0)]);
+      const starts = sides.flatMap((s, k) => s.kind === 'value' || readsFlow(s.r) ? [] : [startOf(s.r, reads[k]!.tail, input.at, kind === 'event' ? within : 0)]);
       // a bar field is the snapshot itself (never computed for a request), so only the other sides decide the source
       const source: SeriesSource = reads.every((x, k) => !x || x.source === 'precomputed' || (sides[k] as { r: ResolvedSeries }).r.kind === 'price') ? 'precomputed' : 'dynamic';
       return { cell: cellOf(id, e, input, unit, starts), source };
@@ -252,7 +381,7 @@ function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string,
   };
 }
 
-function bindPattern(id: string, kind: 'state' | 'event', p: PatternRef, within: number, f: string, ctx: BindContext): BoundCondition {
+function bindPattern(id: string, kind: 'state' | 'event', p: PatternRef, within: number, f: string, ctx: BindContext): RawBound {
   if (!isObj(p) || (p as { kind?: unknown }).kind !== 'pattern') throw new ScreenerError('INVALID_CONDITION', `${f} must be a pattern reference {"kind":"pattern","type":...}.`, f);
   const r = resolveSignal(p, f, ctx);
   const spec = metricSpec('pattern', r.ref && (r.ref as PatternRef).type, f, ctx.catalog ?? METRICS_CATALOG);
@@ -282,11 +411,12 @@ const RANK_LEVELS = RANK_TEST?.not_on_levels !== false;
     evaluation bar against the filtered universe (the caller's S1 values, screen.ts crossSections, decision C). A
     ticker whose own value is missing is NA with its series' reason; the cell remark follows the ranked series'
     lookback, as a VALUE test on it would. */
-function bindRank(id: string, m: RankRef, t: ValueTest, f: string, ctx: BindContext, catalog: MetricsCatalog): BoundCondition {
+function bindRank(id: string, m: RankRef, t: ValueTest, f: string, ctx: BindContext, catalog: MetricsCatalog): RawBound {
   if (!isObj(m.of)) throw new ScreenerError('INVALID_CONDITION', `${f}.metric.of must be the metric reference to rank.`, `${f}.metric.of`);
   const of = resolveSeries(m.of as MetricRef, `${f}.metric.of`, ctx);
   if ((RANK_LEVELS && of.comparableWith !== null) || NOT_RANKED.includes(String(of.unit)))
     throw new ScreenerError('INVALID_CONDITION', `${f}.metric.of: ${of.label} is ${of.comparableWith ? 'a price or volume level' : `in ${of.unit}`}, which depends on each stock's price or size, so ranking it across stocks only orders them by price or size. Rank a series that compares across stocks: a percent, an oscillator, a percentile or a z-score (right: rank of RSI or of a change in %; wrong: rank of the close).`, `${f}.metric.of`);
+  typeAllows(of, 'rank', `${f}.metric.of`);
   if (t.op === 'eq' || t.op === 'ne') throw new ScreenerError('INVALID_CONDITION', `${f}.op: "=" and "!=" are for whole numbers; a rank is a percent 0-100: use >=, <= or a range (right: rank >= 90; wrong: rank = 90).`, `${f}.op`, { allowed: ['gt', 'lt', 'ge', 'le', 'between', 'outside'] });
   const norm: RankRef = { kind: 'rank', of: of.ref };
   const x: XsectionNeed = { key: canonicalJson(norm), metric: 'rank', params: {}, window: 0, rankOf: of };
@@ -300,7 +430,7 @@ function bindRank(id: string, m: RankRef, t: ValueTest, f: string, ctx: BindCont
       const v = input.xsection(x.key), { view, tail, source } = read(input, of, 0);
       const e: Evaluation = typeof v === 'number' && Number.isFinite(v) ? { status: valuePasses(v, rule) ? 'pass' : 'fail', reason: null, value: v }
         : { status: 'na', reason: naReason(view, input.at) ?? 'NULL_AT_EVALUATION', value: null };
-      return { cell: cellOf(id, e, input, 'percentile', [startOf(of, tail, input.at, 0)]), source };
+      return { cell: cellOf(id, e, input, 'percentile', readsFlow(of) ? [] : [startOf(of, tail, input.at, 0)]), source };
     },
   };
 }
@@ -310,7 +440,7 @@ function bindRank(id: string, m: RankRef, t: ValueTest, f: string, ctx: BindCont
     same code, lags and NA reasons as the condition alone; its tails hold within_max + 1 bars, so every session up to
     within_max back is in them), then evaluate.ts evaluateWindow. The cell's remark is set when the inner cell of any
     session carries one (the union of their lookbacks). */
-function bindWindow(id: string, t: WindowTest, f: string, ctx: BindContext): BoundCondition {
+function bindWindow(id: string, t: WindowTest, f: string, ctx: BindContext): RawBound {
   if (!(WINDOW_MODES as readonly string[]).includes(t.mode as string))
     throw new ScreenerError('INVALID_CONDITION', `${f}.mode must be one of ${WINDOW_MODES.join(', ')}.`, `${f}.mode`, { allowed: [...WINDOW_MODES] });
   const L = t.length;
@@ -349,7 +479,7 @@ function bindWindow(id: string, t: WindowTest, f: string, ctx: BindContext): Bou
       const at = input.at, moved: TickerInput = { ...input, series: r => { let x = memo.get(r); if (!x) { x = input.series(r); memo.set(r, x) } return x } };
       let dynamic = false, remark: CellRemark | null = null;
       const outcome = (i: number): SessionOutcome => {
-        const r = inner.evaluate({ ...moved, at: i });
+        const r = inner.evaluateAt({ ...moved, at: i });
         if (r.source === 'dynamic') dynamic = true;
         remark ??= r.cell.remark;
         return r.cell.status === 'na' ? { status: 'na', reason: r.cell.reason ?? 'NULL_AT_EVALUATION' } : { status: r.cell.status === 'pass' ? 'pass' : 'fail' };
@@ -387,13 +517,20 @@ function refIsDefault(r: unknown, catalog: MetricsCatalog): boolean {
       const m = catalog.metrics.find(x => x.kind === r.kind && x.id === (r.kind === 'pattern' ? r.type : r.metric));
       return !!m && canonicalJson(r.params || {}) === canonicalJson(defaultsOf(m));
     }
+    case 'flow': {
+      // the registry's parameters (flowDefaults; a built-in baseline capped to the 60-session window, K1)
+      const e = FLOW_BY_ID[r.metric as string], f = r as unknown as FlowRef;
+      return !!e && canonicalJson(f.params || {}) === canonicalJson(resolveFlowParams(e, undefined, 'default', FLOW_DESIGN_SESSIONS, f.output));
+    }
   }
   return true;
 }
 /** The first indicator a reference reads, depth first (its parameters are the summary's params_resolved). */
-function firstIndicator(r: unknown): { params: ParamMap } | null {
+function firstIndicator(r: unknown): { params: ResolvedParams; flow?: string } | null {
   if (!isObj(r)) return null;
   if (r.kind === 'indicator') return { params: (r.params || {}) as ParamMap };
+  if (r.kind === 'flow' && FLOW_BY_ID[r.metric as string]) return { params: (r.params || {}) as ResolvedParams, flow: FLOW_BY_ID[r.metric as string].name };
+  if (r.kind === 'rank') return firstIndicator(r.of);
   if (r.kind === 'transform') return firstIndicator(r.of) ?? Object.values((r.args || {}) as Record<string, unknown>).map(firstIndicator).find(Boolean) ?? null;
   return null;
 }
@@ -401,7 +538,8 @@ function summaryOf(sides: BoundSide[], metric: string, unit: string | null, cata
   const refs = sides.flatMap(s => s.kind === 'series' ? [s.r.ref] : []);
   const main = refs.map(firstIndicator).find(Boolean);
   const top = refs.find(r => r.kind === 'transform') as { args?: ParamMap } | undefined;
-  return { metric, params_resolved: main ? main.params : top?.args ? Object.fromEntries(Object.entries(top.args).filter(([, v]) => typeof v !== 'object')) as ParamMap : {},
+  // a flow condition names its indicator: the FL id and output (the label), the Terminal's name, and its parameters (P5a)
+  return { metric: main?.flow ? `${metric} — ${main.flow}` : metric, params_resolved: main ? main.params : top?.args ? Object.fromEntries(Object.entries(top.args).filter(([, v]) => typeof v !== 'object')) as ParamMap : {},
     is_default: refs.every(r => refIsDefault(r, catalog)), unit: unit as string | null };
 }
 function universeSpec(attr: unknown, field: string, catalog: MetricsCatalog): MetricDefinition {
@@ -413,13 +551,6 @@ export function xsectionNeed(m: XsectionRef, field: string, catalog: MetricsCata
   const params = resolveCatalogParams(spec.params, m.params, `${field}.params`);
   return { key: canonicalJson({ kind: 'xsection', metric: spec.id, params }), metric: spec.id, params, window: params.window as number };
 }
-function unavailableFlow(metric: unknown, field: string, catalog: MetricsCatalog): ScreenerError {
-  const spec = metricSpec('flow', metric, `${field}.metric`, catalog);
-  const why = (spec.decision || spec.unavailable_reason || 'Flow arrives with Phase 2').replace(/\.$/, '');
-  return new ScreenerError('METRIC_UNAVAILABLE', `${field}: ${spec.id} is not available yet: ${why}.`, field,
-    { metric: spec.id, availability: spec.decision ? 'REQUIRES_DECISION' : 'REQUIRES_DATA', reason: spec.decision || spec.unavailable_reason || '' });
-}
-
 /* ---- whole-series signals (preview markers and chart; report 8.6) --------------------------------------------------- */
 
 /** The condition's 0/1 outcome on every bar of a ticker's full series (VALUE: the test passes on the bar; STATE: the

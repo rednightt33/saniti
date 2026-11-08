@@ -38,8 +38,24 @@ the publication's outcome: two replicas at one publication answer the same bytes
 
 ## 3. Versions and pinning (06d.4)
 
-- `versions` = `{screener_engine, registry, screener_registry, price_data, flow_data: null}` (+ `definition_hash` on a
+- `versions` = `{screener_engine, registry, screener_registry, price_data, flow_data}` (+ `definition_hash` on a
   run). `price_data` is `datafile.dataVersion` over (ticker, `price`, pack sha256) of every ticker of the publication.
+  `flow_data` (EXEC-SCREENER-FLOW-CANDLES P4, user 2026-11-07; `verification/screener/P4_BROKER_DAYS.md` section 3) is
+  the sha256 over the sorted `name:sha256` of the broker day files the snapshot loaded, null when none.
+- `data` adds, P4: `flow_through` (the newest loaded broker day, null when none) and `broker_window` `{first, last,
+  sessions, complete}` (the loaded broker days; `complete` false while days of the publication's window, its newest 60
+  indexed broker days, wait for a follow-up refresh; `{null, null, 0, true}` when the index names none). It is the last
+  field of `data`. Pinning stays on `price_data`: a change of the broker days alone is a new snapshot at the same
+  `price_data`, which replaces the previous one at once.
+- Flow conditions (EXEC-SCREENER-FLOW-CANDLES P5a; `verification/screener/P5_FLOW.md`): `metrics[]` holds the Terminal's
+  48 flow indicators (`kind` `flow`, `id` `FL01`-`FL48`, their setup in `flow`: parameters, output kinds, the sessions
+  they read at their defaults) and the retired Phase 2 flow entries (`retired`, always unavailable); `limits[]` adds
+  `broker_depth`. A flow condition is refused `422 METRIC_UNAVAILABLE` while the broker window is incomplete (details
+  `reason_code` `FLOW_UNAVAILABLE`, `reason` in plain words) or without broker days, and `422 LIMIT_EXCEEDED {limit:
+  'broker_depth', allowed, needed}` when it reads more sessions than the loaded window holds; its summary has `source`
+  `flow` and `eval_date_basis` `flow_date`, its cells the date of the stock's last candle with broker data (`eval_date`,
+  null with NA `FLOW_UNAVAILABLE` for a stock without broker data in the window). Both codes are among edge-bff's
+  relayed ones; no new code.
 - `data_version` (optional on run and counts, required on preview) pins a request to a snapshot: the current one, or the
   previous one for `SCREENER_PREVIOUS_GRACE_S` after a swap.
 - A version the replica held and dropped, or one older than both: `409 DATA_VERSION_CHANGED` (the page reads the catalog
@@ -71,7 +87,7 @@ In this order, before a computing request reaches a thread:
 ## 5. Caches (8.10, 6d.2)
 
 - Result cache (gzip answer bytes): keyed by the snapshot identity (`price_data` plus the actions and reference
-  contents), `screener_engine`, `registry`, `screener_registry`, `definition_hash` and the options that change the
+  contents and `flow_data`), `screener_engine`, `registry`, `screener_registry`, `flow_data` (P4), `definition_hash` and the options that change the
   bytes (`exhaustive`, `explain`); nothing of the owner, the page or the order is in the key or in the answer. A hit
   returns the first computation's bytes, `timings_ms` included. Each available preset's result is kept in it for the
   publication (computed by the refresh, never evicted until the snapshot is dropped).
@@ -90,7 +106,8 @@ stack, answered without it), and `DATA_VERSION_PENDING` (409).
 
 ## 7. What the worker never does
 
-It holds no Postgres or bucket credential; it reads terminal-api only with the gateway key (`/state`, `/xsection`,
-`/manifest`, `/reference/tickers`) and presigned URLs on `SCREENER_FILE_ORIGIN`; it writes nothing anywhere but its own
+It holds no Postgres or bucket credential; it reads terminal-api only with the gateway key (`/state`, `/xsection` in
+batches of at most 16 names, `/manifest`, `/reference/tickers`) and presigned URLs on `SCREENER_FILE_ORIGIN`; it
+downloads at most `SCREENER_MAX_REFRESH_BYTES` per refresh, broker days included (those beyond wait for a follow-up); it writes nothing anywhere but its own
 disk cache; it logs no key, header, body or presigned URL; it computes no formula of its own (every number is the
 screener core's, over the Terminal's `F` through the backtest core's `Calc`).

@@ -3,7 +3,8 @@
    - screener_engine: a content hash computed here at start, the first 16 hex of the sha256 over the sorted lines
      `<path from the repository root> \t <sha256 of the file>` of every file that decides a number of an answer: the
      screener core (apps/edge-bff/screener/src/core, .ts and .json: contract, evaluation, the generated registry), the
-     worker's own modules, the backtest core and the Terminal's calculation module the screener core imports, the
+     worker's own modules, the backtest core and the Terminal's calculation module the screener core imports (P5a: and
+     the flow registry its flow.ts reads), the
      backtest worker's terminal.ts (it decodes the files), plus the line `node \t <major>` (report 6.8: "and the Node
      major version"). Not a hand-kept number, so it cannot stay the same while the code changes; the image keeps the
      repository layout, so the same files give the same version in the repository and in the image;
@@ -30,6 +31,8 @@ const ENGINE_SOURCES: [string, RegExp][] = [
   ['apps/screener-worker/src', /\.ts$/],
   ['apps/edge-bff/backtest/src/core', /\.(ts|json)$/],
   ['apps/edge-bff/terminal/src/calc', /\.ts$/],
+  // P5a: the flow indicators' registry decides their defaults (calc/flow.ts flowDefaults)
+  ['apps/edge-bff/terminal/src/data/flowRegistry.json', /\.json$/],
   ['apps/backtest-worker/src/terminal.ts', /\.ts$/],
 ];
 /** SOURCES roles the image does not carry: the oracle mapping is read at build time only (registry.ts SOURCES). */

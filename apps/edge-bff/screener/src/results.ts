@@ -10,7 +10,7 @@ import { esc, fmtValue, nf, sectorTag, sgn, slug, tone } from './format.ts';
 import { IC, ico } from './icons.ts';
 import { activeCards, ctx, entryOf, evalDate, freshUniverse, S, ui, type Row } from './state.ts';
 import { condText, isCustom, optOf, paramSummary, shortName, shortPv, type Card } from './forms.ts';
-import { cellTitle, chg1dBreakText, extraCellView, extraColumnTitle, remarkBadge, remarkTitle, staleValueText, T } from './texts.ts';
+import { cellTitle, chg1dBreakText, extraCellView, extraColumnTitle, flowDateShown, remarkBadge, remarkTitle, staleValueText, T } from './texts.ts';
 import { formatOfOpt, formatOfSide } from './entries.ts';
 import { pageCardOf, screenedCards } from './run.ts';
 import { colorOf } from './builder.ts';
@@ -23,7 +23,7 @@ import { applyTable } from './layout/table.ts';
 import { layoutHooks } from './layout/prefs.ts';
 import { afterPress } from './press.ts';
 import { keepField } from './keep-field.ts';
-import { cellText, kindOfCard as kindOf } from './cell-text.ts';
+import { cellText, kindOfCard as kindOf, readsFlow } from './cell-text.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -87,12 +87,17 @@ function cellHtml(r: Row, c: Card): string {
   // 2026-11-06: "Dengan tulisan no"); one that happened, but earlier than the window, keeps "N sessions ago"
   const txt = cellText(e, c, x);
   const side = formatOfSide(e, o);
+  // a flow condition (P5c): of the stock's last session with broker data, the worker's summary says so (flow_date)
+  const flow = ctx.R?.run?.conditions.find(s => s.id === c.id)?.eval_date_basis === 'flow_date' || readsFlow(c, e);
   const tip = [
     kind === 'state' && x.lhs != null ? `${fmtValue(x.lhs, side)} vs ${fmtValue(x.rhs, side)}` : '',
-    cellTitle(x, r.remarks, evalDate()),
+    // a flow value's date against the stock's own prices (a stale stock's are of its last session)
+    cellTitle(x, r.remarks, flow ? (r.last_bar_date || evalDate()) : evalDate(), flow),
   ].filter(Boolean).join('\n');
   const mark = x.remark ? ` <i class="rmk" aria-label="Distorted value">${ico(IC.warn, 's')}</i>` : '';
-  return `<td class="${x.status === 'pass' ? '' : 'fail'}" title="${esc(tip)}"><span>${esc(txt)}</span>${mark}</td>`;
+  const fd = flow ? flowDateShown(x, r.last_bar_date || evalDate()) : null;
+  const date = fd ? ` <small class="fdate" aria-label="broker data of ${esc(x.eval_date)}">${esc(fd)}</small>` : '';
+  return `<td class="${x.status === 'pass' ? '' : 'fail'}" title="${esc(tip)}"><span>${esc(txt)}</span>${date}${mark}</td>`;
 }
 /* ---- EXEC-SCREENER-V21 extra columns: header and cells from extra-columns.ts, nothing computed here ---------- */
 const extraDefs = (): ExtraColumnDef[] => { const all = new Map(availableColumns().map(d => [d.id, d])); return shownColumns().map(id => all.get(id)).filter((d): d is ExtraColumnDef => !!d) };
@@ -156,7 +161,9 @@ export function renderResults() {
       const e = entryOf(c), pv = shortPv(e, c), cus = e && isCustom(e, c) ? 'cus' : '';
       // a card with parameters (not a My metric, whose parameters are its own) gets the editor chip, only when the page
       // has this same condition (pageCardOf: same id, entry and form; a preset reuses ids, QA M1)
-      const ed = !!(e && e.params.length && pageCardOf(c)), lb = pv || (ed ? e!.params.map(p => String(c.params[p.key])).join('/') : '');
+      // a flow indicator's setup is changed on its card or in Add a condition (lists, dates and broker codes have no
+      // field in the header's editor)
+      const ed = !!(e && e.params.length && !e.flow && pageCardOf(c)), lb = pv || (ed ? e!.params.map(p => String(c.params[p.key])).join('/') : '');
       const chip = ed ? `<button type="button" class="pvchip ${cus}" data-pedit="${esc(c.id)}" aria-haspopup="dialog" aria-expanded="false" aria-label="Change parameters: ${esc(paramSummary(e!, c.params))}"><span class="pv ${cus}">${esc(lb)}</span></button>` : '';
       return th('c:' + c.id, `<i class="cdot" style="background:${colorOf(c)}"></i>${esc(shortName(e, c))}${!ed && pv ? ` <span class="pv ${cus}">${esc(pv)}</span>` : ''}`, '', `${condText(e, c)} · ${e?.params.length ? (isCustom(e, c) ? 'custom parameters: ' : 'default parameters: ') + paramSummary(e, c.params) : 'fixed definition'}`, chip);
     }).join('')}${xdefs.map(d => extraTh(d, th)).join('')}</tr></thead>

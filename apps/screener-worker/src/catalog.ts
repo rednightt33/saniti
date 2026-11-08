@@ -9,6 +9,10 @@
    - metrics[], fundamentals[], periods: src/core/screener-metrics.json with availability derived at run time from the
      files the publication indexes and this snapshot read (validate.ts availabilityMap; 6.12), never a list kept here;
    - groupings: the reference file's, by the Backtest's rule (snapshot.ts groupingsOf);
+   - P5a: the Terminal's 48 flow indicators (core catalog.ts METRICS_CATALOG) carry `flow`, their setup with each
+     output's kind and the sessions they read at their defaults against the loaded broker window (contract.ts
+     CatalogFlow), available on a complete window (validate.ts availabilityOf); P5b: the Screener's versions (FL18-FL20,
+     FL23, FL44, FL45) and its own flow entries (fnet; ksei_net REQUIRES_DATA) the same way, with version 'screener';
    - presets[]: src/core/presets.json (core catalog.ts PRESETS); each with its availability (validate.ts
      presetAvailability: available only when every leg is, never run with a leg removed) and, when available, its match and near counts at
      this publication (computed by the refresh, which keeps each available preset's full result in the result cache, so
@@ -19,8 +23,11 @@ import type { Availability, CatalogMetric, CatalogOperators, CatalogParam, Catal
 import type { MetricDefinition, MetricsCatalog } from '../../edge-bff/screener/src/core/catalog.ts';
 import { INDICATORS, capOf, catalogIndicators } from '../../edge-bff/screener/src/core/registry.ts';
 import { availabilityMap } from '../../edge-bff/screener/src/core/validate.ts';
+import { indicatorDepth, resolveFlowParams } from '../../edge-bff/screener/src/core/flowmetrics.ts';
+import type { FlowBindContext } from '../../edge-bff/screener/src/core/flowmetrics.ts';
 import type { Limits } from './config.ts';
 import type { IndexEntry, SnapshotDesc } from './snapshot.ts';
+import { BROKER_DAY_SESSIONS } from './broker.ts';
 
 /* ---- availability (6.12) --------------------------------------------------------------------------------------- */
 
@@ -29,15 +36,23 @@ import type { IndexEntry, SnapshotDesc } from './snapshot.ts';
     refresh downloaded them): a file counts only when it is both indexed and read, so a metric over a file the publisher
     writes before this build reads it shows REQUIRES_DATA ("the Screener does not read it yet"), the reason a run with it
     is refused with, never AVAILABLE and then refused at bind. */
-export const metricAvailability = (m: MetricsCatalog, index: Record<string, IndexEntry> | null, read: Iterable<string>): Map<string, { availability: Availability; reason: string | null }> =>
-  availabilityMap((index ?? {}) as Record<string, { columns?: string[] }>, m, new Set(read));
+export const metricAvailability = (m: MetricsCatalog, index: Record<string, IndexEntry> | null, read: Iterable<string>, flow?: FlowBindContext): Map<string, { availability: Availability; reason: string | null }> =>
+  availabilityMap((index ?? {}) as Record<string, { columns?: string[] }>, m, new Set(read), flow);
 const isFundamental = (x: MetricDefinition) => /fundamental/i.test(x.group);
 /** A catalog entry as the page reads it (contract.ts CatalogMetric plus the additive fields screener-metrics.json
-    carries for the page: label, short, synonyms, default_test, ref, fl; the fixture tests/fixture/api.ts has the same
+    carries for the page: label, short, synonyms, default_test, ref; the fixture tests/fixture/api.ts has the same
     shape); the internal fields (requires, decision, evidence, unavailable_reason) stay in the worker. */
-function catalogMetric(x: MetricDefinition, a: { availability: Availability; reason: string | null }): CatalogMetric {
+function catalogMetric(x: MetricDefinition, a: { availability: Availability; reason: string | null }, sessions: number): CatalogMetric {
   const extra: Record<string, unknown> = {};
-  for (const k of ['label', 'short', 'synonyms', 'default_test', 'ref', 'fl'] as const) if (x[k] !== undefined) extra[k] = x[k];
+  for (const k of ['label', 'short', 'synonyms', 'default_test', 'ref'] as const) if (x[k] !== undefined) extra[k] = x[k];
+  // P5a: a flow indicator's Terminal setup (contract.ts CatalogFlow): the registry's parameters, each output's kind, and
+  // the sessions it reads at its defaults against the loaded window (a built-in baseline shown capped to the window)
+  if (x.flow) {
+    const f = x.flow, defaults = resolveFlowParams(f, undefined, 'catalog', sessions);
+    extra.flow = { family: f.family, place: f.place, tip: f.tip, unit: f.unit, outputs: f.outputs, default_output: f.default_output,
+      params: f.params.map(p => p.key in defaults ? { ...p, default: defaults[p.key] } : p), adv_floor: f.adv_floor, needs_classification: f.needs_classification,
+      version: f.version, depth: f.requires ? null : depthAt(f, defaults), sessions };
+  }
   return { id: x.id, group: x.group, kind: x.kind, params: x.params, tests: x.tests, unit: x.unit, formula: x.formula, interpretation: x.interpretation,
     misuse: x.misuse, availability: a.availability, reason: a.reason, applies_to: x.applies_to, ...extra } as CatalogMetric;
 }
@@ -64,7 +79,7 @@ export function limitEntries(l: Limits): LimitEntry[] {
     e('cap_budget_ms', l.cap_budget_ms, 'ms', `a length parameter is at most its cap (the highest value its field allows): the longest length whose computation over the whole market takes at most ${l.cap_budget_ms} ms on one processor core`,
       capped ? `${capped.name} ${capped.key} ${capped.cap}` : 'a length at its highest allowed value', capped ? `${capped.name} ${capped.key} ${capped.cap + 1} (use ${capped.cap} or less)` : 'a length above its highest allowed value (use a shorter one)'),
     e('compute_budget', l.max_cpu_ms, 'ms', `a screen's predicted worst-case compute is at most ${l.max_cpu_ms} ms; a costlier screen is refused before it runs, naming its costliest condition`,
-      'a screen of indicators at their default parameters (computed in advance for every stock)', `a screen whose custom conditions are predicted at ${l.max_cpu_ms + 1} ms (use fewer custom conditions or shorter lengths)`),
+      'a screen of indicators at their default parameters (computed in advance for every stock)', `a screen whose custom conditions are predicted at ${l.max_cpu_ms + 1} ms (use fewer custom or flow conditions, shorter lengths, windows or anchors, or a narrower universe)`),
     e('deadline_ms', l.deadline_ms, 'ms', `a screen is answered within ${l.deadline_ms} ms, waiting included, or stopped`,
       `a screen answered after ${l.deadline_ms} ms`, `a screen still running after ${l.deadline_ms} ms (use fewer custom conditions or shorter lengths)`),
     e('owner_inflight', l.owner_inflight, 'requests', `at most ${requests(l.owner_inflight)} of one user ${l.owner_inflight === 1 ? 'computes' : 'compute'} at once on one server; the next ones wait their turn`,
@@ -83,9 +98,19 @@ export function limitEntries(l: Limits): LimitEntry[] {
       `a file of ${l.max_file_bytes} bytes`, `a file of ${l.max_file_bytes + 1} bytes (an operator raises the limit)`),
     e('max_inflated_bytes', l.max_inflated_bytes, 'bytes', `a published data file is at most ${l.max_inflated_bytes} bytes uncompressed; a larger one fails the data refresh`,
       `a file of ${l.max_inflated_bytes} bytes uncompressed`, `a file of ${l.max_inflated_bytes + 1} bytes uncompressed (an operator raises the limit)`),
-    e('max_refresh_bytes', l.max_refresh_bytes, 'bytes', `one data refresh downloads at most ${l.max_refresh_bytes} bytes; more fails it`,
+    e('max_refresh_bytes', l.max_refresh_bytes, 'bytes', `one data refresh downloads at most ${l.max_refresh_bytes} bytes; more fails it, except broker day files that do not fit, which wait for the next refresh (it starts at once)`,
       `a refresh of ${l.max_refresh_bytes} bytes`, `a refresh of ${l.max_refresh_bytes + 1} bytes (an operator raises the limit)`),
   ];
+}
+
+/** K1 (EXEC-SCREENER-FLOW-CANDLES P5a): the broker data a flow condition may read, from the loaded window, with the
+    rule, a right and a wrong example (the gate rule; condition.ts refuses beyond it with LIMIT_EXCEEDED broker_depth). */
+export function brokerDepthLimit(sessions: number): LimitEntry {
+  const own = Math.min(10, Math.max(1, sessions - 1)), n = Math.max(1, sessions - own);
+  return { name: 'broker_depth', value: sessions, unit: 'sessions',
+    rule: `a flow condition reads at most the ${sessions} sessions of broker data the Screener holds: the indicator's own window plus the operator's N, length or within`,
+    example_ok: `Bandar Balance · % over ${own} sessions with a percentile over ${n} sessions (${own + n} in all)`,
+    example_refused: `the same with a percentile over ${n + 5} sessions (${own + n + 5} in all; use a shorter window or N)` };
 }
 
 /* ---- documents -------------------------------------------------------------------------------------------------- */
@@ -100,15 +125,21 @@ export interface CatalogInput {
   availability: Map<string, { availability: Availability; reason: string | null }>;
   groupings: Grouping[]; presets: CatalogPreset[];
 }
+/** The sessions a flow entry reads at its defaults (flowmetrics.ts indicatorDepth on its default output); null where it
+    cannot be probed. */
+function depthAt(f: NonNullable<MetricDefinition['flow']>, params: ReturnType<typeof resolveFlowParams>): number | null {
+  try { return indicatorDepth(f, f.default_output, params) } catch { return null }
+}
 export function catalogDoc(c: CatalogInput): Doc {
   const metrics: CatalogMetric[] = [], fundamentals: CatalogMetric[] = [];
+  const sessions = c.desc.data?.broker_window?.sessions || BROKER_DAY_SESSIONS;
   for (const x of c.metrics.metrics) {
     const a = c.availability.get(x.id) ?? { availability: 'REQUIRES_DATA' as Availability, reason: 'Not evaluated.' };
-    (isFundamental(x) ? fundamentals : metrics).push(catalogMetric(x, a));
+    (isFundamental(x) ? fundamentals : metrics).push(catalogMetric(x, a, sessions));
   }
   const body: CatalogResponse = {
     versions: { ...c.desc.versions }, data: { ...c.desc.data, refresh: c.refresh },
-    limits: limitEntries(c.limits),
+    limits: [...limitEntries(c.limits), brokerDepthLimit(sessions)],
     indicators: catalogIndicators({ capBudgetMs: c.limits.cap_budget_ms }),
     metrics, fundamentals, periods: c.metrics.periods as Periods, groupings: c.groupings, presets: c.presets,
     operators: catalogOperators(c.metrics),

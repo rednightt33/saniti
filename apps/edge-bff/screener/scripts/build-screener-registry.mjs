@@ -16,6 +16,12 @@
       cost_class (work ratio at two lengths, counted by V8 block coverage, never timed; a class lowered from the
       committed registry's needs a reviewed reason in the overlay's cost_reviews, see costLowerings), and the Feature 04
       / Feature 01 parity oracle read from `python3 scripts/terminal_indicator_spec.py --json`.
+   EXEC-SCREENER-FLOW-CANDLES P5a (verification/screener/P5_FLOW.md section 2): `flows`, the Terminal's 48 flow
+   indicators generated from apps/edge-bff/terminal/src/data/flowRegistry.json (name, family, unit, place, tip and
+   parameters as they are) with each output's kind from the hand-kept src/core/flow-kinds.json (flowEntries: the build
+   stops when an FL or an output has no row); both files are sources of the version. P5b (section 3): the Screener's
+   versions of FL18-FL20, FL23, FL44, FL45, FL34's point-in-time guard and the Screener's own entries (fnet, ksei_net),
+   from the same file.
    Every derived field is a pure function of the inputs and the code: nothing reads a clock, so the file and its version
    are the same bytes on any machine at any load (ERRORS: the timed cost_class flipped under CPU contention).
    The overlay and the derived narrowing may only narrow the base (report 6.8 narrow-only rule), so every transferable
@@ -33,6 +39,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { computeFlow } from '../../terminal/src/calc/flow.ts';
+import { probeContext, probeLength } from '../src/core/flowprobe.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(here, '../../../..');
@@ -48,6 +56,10 @@ export const PATHS = {
   generator: 'apps/edge-bff/screener/scripts/build-screener-registry.mjs',
   loader: 'apps/backtest-worker/loader/register.mjs',
   out: 'apps/edge-bff/screener/src/core/screener-registry.json',
+  flowRegistry: 'apps/edge-bff/terminal/src/data/flowRegistry.json',
+  flowKinds: 'apps/edge-bff/screener/src/core/flow-kinds.json',
+  flowCalc: 'apps/edge-bff/terminal/src/calc/flow.ts',
+  flowProbe: 'apps/edge-bff/screener/src/core/flowprobe.ts',
 };
 
 const sha256 = buf => crypto.createHash('sha256').update(buf).digest('hex');
@@ -531,8 +543,182 @@ export function overlayProblems(overlay, base) {
   const cm = overlay.cost_model || {};
   for (const k of ['ns_per_bar_length', 'reference_bars']) if (!(isN(cm[k]) && cm[k] > 0)) out.push(`cost_model.${k} must be a positive number`);
   if (typeof cm.evidence !== 'string' || !cm.evidence) out.push('cost_model.evidence is required');
+  // QA unit B, QA4: the flow kernels' prior per broker row, measured (its evidence names the benchmark note)
+  const fl = cm.flow || {};
+  for (const k of ['context_ns_per_row', 'presence_ns_per_row']) if (!(isN(fl[k]) && fl[k] > 0)) out.push(`cost_model.flow.${k} must be a positive number`);
+  // one measured prior per way an entry is computed (FLOW_COMPUTES; none is never computed), no other key
+  const computed = FLOW_COMPUTES.filter(c => c !== 'none'), per = fl.ns_per_unit && typeof fl.ns_per_unit === 'object' ? fl.ns_per_unit : {};
+  for (const c of computed) if (!(isN(per[c]) && per[c] > 0)) out.push(`cost_model.flow.ns_per_unit.${c} must be a positive number`);
+  for (const c of Object.keys(per)) if (!computed.includes(c)) out.push(`cost_model.flow.ns_per_unit.${c} is not a way a flow entry is computed (${computed.join(', ')})`);
+  if (typeof fl.evidence !== 'string' || !fl.evidence) out.push('cost_model.flow.evidence is required');
   out.push(...costReviewProblems(overlay.cost_reviews, base));
   return out;
+}
+
+/* ---- the flow indicators (EXEC-SCREENER-FLOW-CANDLES P5a; verification/screener/P5_FLOW.md section 2) ---------- */
+/** The kinds of OPERATORS.md section 4 an output of flow-kinds.json may name. */
+export const FLOW_KINDS = ['K', 'P', 'Rp', 'L', 'H', 'D', 'F', 'B'];
+/** Registry parameter kinds that only draw (the Terminal's reference lines, its buttons and fixed texts): a condition
+    never takes them (P5_FLOW.md section 1). */
+export const FLOW_DISPLAY_KINDS = ['levels', 'button', 'fixed'];
+/** How the core computes an entry (P5b, P5_FLOW.md section 3; flowscreener.ts): the Terminal's computeFlow as it is
+    (terminal), the anchor N sessions back (anchored, FL18-FL20, FL44, FL45), the Screener's Broker Inventory (inventory,
+    FL23), the foreign net in rupiah (foreign_net, fnet), or never (none: the data is not published, ksei_net). */
+export const FLOW_COMPUTES = ['terminal', 'anchored', 'inventory', 'foreign_net', 'none'];
+/** The parameter kinds a screener parameter may have (the condition kinds of the registry). */
+const SCREENER_PARAM_KINDS = ['int', 'num', 'select', 'multi', 'bool', 'brokers'];
+/** What is wrong with one output's kind row of flow-kinds.json (empty when sound): a kind letter, {kind, unit}, or
+    {by: <select parameter>, <each of its options>: one of these three} (P5b: a kind by a parameter may itself follow
+    another parameter, FL23's value by series, then by unit). `params` are the entry's parameters. */
+function flowKindProblems(where, spec, id, params) {
+  if (typeof spec === 'string') return FLOW_KINDS.includes(spec) ? [] : [`${where}: kind ${spec} is not one of ${FLOW_KINDS.join(', ')}`];
+  if (!spec || typeof spec !== 'object') return [`${where}: not a kind`];
+  if (!('by' in spec)) return FLOW_KINDS.includes(spec.kind) && typeof spec.unit === 'string' && spec.unit ? [] : [`${where}: {kind, unit} needs a kind of ${FLOW_KINDS.join(', ')} and a unit`];
+  const p = params.find(q => q.key === spec.by);
+  if (!p || p.kind !== 'select') return [`${where}: by ${spec.by} is not a select parameter of ${id}`];
+  const options = p.options.map(o => Array.isArray(o) ? o[0] : o);
+  const out = options.filter(o => !(o in spec)).map(o => `${where}: no kind for ${spec.by} = ${o}`);
+  for (const [k, s] of Object.entries(spec)) if (k !== 'by') out.push(...(options.includes(k) ? flowKindProblems(`${where}.${k}`, s, id, params) : [`${where}: ${k} is not an option of ${spec.by}`]));
+  return out;
+}
+/** A screener parameter of flow-kinds.json as an entry parameter (P5b): its key, label, kind, options, default, range
+    and words, condition true and `screener` true (not the Terminal's); a maximum "window" is the broker window, "window-1"
+    one less (K1, derived from window_sessions), never a number typed per parameter. */
+function screenerParam(spec, W, where, problems) {
+  const max = spec.max === 'window' ? W : spec.max === 'window-1' ? W - 1 : spec.max;
+  const p = { key: spec.key, label: spec.label, kind: spec.kind };
+  if (spec.options) p.options = structuredClone(spec.options);
+  p.default = structuredClone(spec.default);
+  if (spec.min !== undefined) p.min = spec.min;
+  if (max !== undefined) p.max = max;
+  if (spec.text) p.text = spec.text;
+  p.condition = true; p.screener = true;
+  const w = `${where}.${spec.key}`;
+  if (!spec.key || !spec.label || !SCREENER_PARAM_KINDS.includes(spec.kind)) problems.push(`${w}: a screener parameter needs a key, a label and a kind of ${SCREENER_PARAM_KINDS.join(', ')}`);
+  if (spec.max !== undefined && typeof max !== 'number') problems.push(`${w}: max must be a number, "window" or "window-1"`);
+  if ((spec.kind === 'int' || spec.kind === 'num') && (typeof p.default !== 'number' || (p.min !== undefined && p.default < p.min) || (max !== undefined && p.default > max) || (spec.kind === 'int' && !Number.isInteger(p.default))))
+    problems.push(`${w}: default ${JSON.stringify(p.default)} is outside its own range`);
+  const values = (p.options || []).map(o => Array.isArray(o) ? o[0] : o);
+  if (spec.kind === 'select' && !values.includes(p.default)) problems.push(`${w}: default ${JSON.stringify(p.default)} is not one of its options`);
+  if (spec.kind === 'multi' && !(Array.isArray(p.default) && p.default.length && p.default.every(v => values.includes(v)))) problems.push(`${w}: default must be a list of its options`);
+  if (spec.kind === 'brokers' && !Array.isArray(p.default)) problems.push(`${w}: a broker list's default is a list`);
+  return p;
+}
+/** The values a select or switch parameter of the registry takes (its options; false and true). */
+const choicesOf = p => p.kind === 'bool' ? [false, true] : (p.options || []).map(o => Array.isArray(o) ? o[0] : o);
+const hasValue = out => Object.values(out).some(s => Array.isArray(s) && s.some(v => typeof v === 'number' && Number.isFinite(v)));
+/** The registry's select and switch parameters of indicator r that change no value computeFlow gives (QA unit B, QA5:
+    the Terminal's display options, such as "Plot" histogram or line). Derived, never listed: on the depth probe's
+    synthetic context (src/core/flowprobe.ts probeContext, as long as any of the contexts' sessions reach), every option
+    of such a parameter gives the same outputs, at the registry defaults and with each other parameter of options set
+    to each of its other values in turn: a select or switch to each option, a list (boards, investor types) to each
+    single option and to all of them (so a choice that matters only beside another, a Top-N ranking under scope topn, a
+    denominator of the chosen investor types against the board's, keeps its place); a parameter whose outputs have no
+    value on any probed context is kept (the probe cannot tell). computeFlow fills a parameter left out with its default
+    (flow.ts flowDefaults), so leaving it out changes no value either. */
+export function displayOnlyParams(r) {
+  const defaults = Object.fromEntries(r.params.filter(p => p.default !== undefined).map(p => [p.key, p.default]));
+  const choosers = r.params.filter(p => (p.kind === 'select' || p.kind === 'bool') && choicesOf(p).length > 1);
+  const lists = r.params.filter(p => p.kind === 'multi' && choicesOf(p).length > 1).map(q => [q.key, [...choicesOf(q).map(o => [o]), choicesOf(q)]]);
+  const others = [...choosers.map(q => [q.key, choicesOf(q)]), ...lists];
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const contexts = [defaults, ...others.flatMap(([k, values]) => values.filter(v => !same(v, defaults[k])).map(v => ({ ...defaults, [k]: v })))];
+  const L = Math.max(...contexts.flatMap(c => choosers.map(p => Math.max(...choicesOf(p).map(v => probeLength(r.params, { ...c, [p.key]: v }))))), probeLength(r.params, defaults));
+  const ctx = probeContext(L), memo = new Map();
+  const outputs = values => {
+    const k = JSON.stringify(values);
+    if (!memo.has(k)) { const out = computeFlow(r.id, ctx, values); memo.set(k, { text: JSON.stringify(out), value: hasValue(out) }) }
+    return memo.get(k);
+  };
+  return choosers.filter(p => {
+    let valued = false;
+    for (const c of contexts) {
+      const outs = choicesOf(p).map(v => outputs({ ...c, [p.key]: v }));
+      if (outs.some(o => o.text !== outs[0].text)) return false;
+      valued ||= outs[0].value;
+    }
+    return valued;
+  }).map(p => p.key);
+}
+/** One entry's parameters: the registry's (every kind; condition false for the kinds that only draw and, with
+    display_only true, for a select or switch that changes no value, displayOnlyParams), with a row's screener version
+    applied (replace: a registry key replaced in place by the listed parameters, a shared one of screener_params by its
+    key, an empty list dropping it; add: appended). */
+function entryParams(r, sv, shared, W, problems) {
+  const params = [], display = new Set(displayOnlyParams(r));
+  for (const p of r.params) {
+    const rep = sv?.replace?.[p.key];
+    if (rep === undefined) { params.push({ ...structuredClone(p), condition: !FLOW_DISPLAY_KINDS.includes(p.kind) && !display.has(p.key), ...(display.has(p.key) ? { display_only: true } : {}) }); continue }
+    for (const x of rep) params.push(screenerParam(typeof x === 'string' ? shared[x] ?? { key: x } : x, W, `flow-kinds.json ${r.id}.screener`, problems));
+  }
+  for (const k of Object.keys(sv?.replace || {})) if (!r.params.some(p => p.key === k)) problems.push(`flow-kinds.json ${r.id}.screener.replace: ${k} is not a parameter of ${r.id}`);
+  for (const x of sv?.add || []) params.push(screenerParam(typeof x === 'string' ? shared[x] ?? { key: x } : x, W, `flow-kinds.json ${r.id}.screener`, problems));
+  const keys = params.map(p => p.key);
+  for (const k of keys.filter((k, i) => keys.indexOf(k) !== i)) problems.push(`flow-kinds.json ${r.id}: parameter ${k} twice`);
+  return params;
+}
+/** The Screener's flow entries (generated, never typed: P5_FLOW.md sections 2 and 3): one per FL of flowRegistry.json,
+    with the registry's name, family, unit, place, tip and parameters as they are, the outputs with their kind from
+    flow-kinds.json (a test fails, and this build stops, when an FL or an output has no row), the default output (the
+    first), the ADV floor flag, the data the Screener does not hold (requires: insider for FL31) and whether a default
+    reads the broker classification (a `class:` broker list, FL34); then the Screener's versions (P5b: a row's
+    `screener`: compute, the parameters it replaces or adds, the outputs it replaces, the catalog's formula and misuse
+    words; version 'screener') and the point-in-time guard (current_only, FL34); then the Screener's own entries
+    (screener_entries: fnet, ksei_net). The board default stays the registry's Regular (G1, user 2026-11-07), except
+    where a screener entry keeps its old definition's (fnet: every board). */
+export function flowEntries(reg, kinds) {
+  const problems = [];
+  if (!reg || !Array.isArray(reg.indicators)) throw new Error('flowRegistry.json has no indicators');
+  const rows = kinds?.indicators || {}, shared = kinds?.screener_params || {}, W = kinds?.window_sessions;
+  if (!Number.isInteger(W) || W < 2) problems.push('flow-kinds.json: window_sessions must be a whole number of at least 2');
+  for (const id of Object.keys(rows)) if (!reg.indicators.some(r => r.id === id)) problems.push(`flow-kinds.json: ${id} is not an indicator of flowRegistry.json`);
+  const common = (row, where) => {
+    if (typeof row.adv_floor !== 'boolean') problems.push(`${where} adv_floor must be true or false`);
+    if (row.requires !== undefined && !['insider', 'ksei'].includes(row.requires)) problems.push(`${where} requires ${row.requires}: only insider and ksei are known`);
+    const compute = row.screener?.compute ?? row.compute ?? 'terminal';
+    if (!FLOW_COMPUTES.includes(compute)) problems.push(`${where} compute ${compute} is not one of ${FLOW_COMPUTES.join(', ')}`);
+    return compute;
+  };
+  const flows = reg.indicators.map(r => {
+    const row = rows[r.id];
+    if (!row) { problems.push(`flow-kinds.json: ${r.id} ${r.name} has no row`); return null }
+    const sv = row.screener, params = entryParams(r, sv, shared, W, problems), outKeys = sv?.replace_outputs ? Object.keys(row.outputs || {}) : r.outputs;
+    const keys = Object.keys(row.outputs || {});
+    for (const o of outKeys) if (!keys.includes(o)) problems.push(`flow-kinds.json: ${r.id} output ${o} has no kind`);
+    for (const o of keys) if (!outKeys.includes(o)) problems.push(`flow-kinds.json: ${r.id} ${o} is not an output`);
+    for (const o of outKeys) if (row.outputs?.[o]) problems.push(...flowKindProblems(`flow-kinds.json ${r.id}.${o}`, row.outputs[o], r.id, params));
+    const compute = common(row, `flow-kinds.json: ${r.id}`);
+    return {
+      id: r.id, name: r.name, family: r.family, unit: r.unit, place: r.place, tip: r.tip ?? null, needs_frequency: !!r.needs_frequency,
+      outputs: outKeys.map(o => ({ key: o, kind: row.outputs?.[o] ?? null })),
+      default_output: outKeys[0],
+      params,
+      adv_floor: !!row.adv_floor,
+      requires: row.requires ?? null,
+      needs_classification: params.some(p => typeof p.default === 'string' && p.default.startsWith('class:')),
+      version: sv && (sv.compute || sv.replace || sv.add || sv.replace_outputs) ? 'screener' : 'terminal', compute,
+      current_only: !!row.current_only,
+      formula: sv?.formula ?? null, misuse: sv?.misuse ?? null,
+    };
+  });
+  for (const [id, e] of Object.entries(kinds?.screener_entries || {})) {
+    const where = `flow-kinds.json screener_entries.${id}`;
+    if (reg.indicators.some(r => r.id === id)) problems.push(`${where}: ${id} is an indicator of flowRegistry.json`);
+    for (const k of ['name', 'family', 'place', 'unit', 'tip', 'formula', 'misuse']) if (typeof e[k] !== 'string' || !e[k]) problems.push(`${where}: ${k} is required`);
+    const params = (e.params || []).map(p => screenerParam(p, W, where, problems)), keys = Object.keys(e.outputs || {});
+    if (!keys.length) problems.push(`${where}: outputs are required`);
+    for (const o of keys) problems.push(...flowKindProblems(`${where}.${o}`, e.outputs[o], id, params));
+    const compute = common(e, `${where}:`);
+    if (compute === 'none' && !e.requires) problems.push(`${where}: an entry that is never computed names the data it requires`);
+    flows.push({
+      id, name: e.name, family: e.family, unit: e.unit, place: e.place, tip: e.tip, needs_frequency: false,
+      outputs: keys.map(o => ({ key: o, kind: e.outputs[o] })), default_output: keys[0], params,
+      adv_floor: !!e.adv_floor, requires: e.requires ?? null, needs_classification: false,
+      version: 'screener', compute, current_only: false, formula: e.formula, misuse: e.misuse,
+    });
+  }
+  if (problems.length) throw new Error(`flow kinds:\n  ${problems.join('\n  ')}`);
+  return flows;
 }
 
 /* ---- the oracle mapping (report 7.3) -------------------------------------------------------------------------- */
@@ -688,11 +874,13 @@ export async function build({ against = null } = {}) {
     screener_registry_version: '',
     registry_version: base.registry_version,
     generated_by: PATHS.generator,
-    sources: Object.entries({ base: PATHS.base, terminal: PATHS.terminal, calc: PATHS.calc, overlay: PATHS.overlay, oracle: PATHS.spec, generator: PATHS.generator })
+    sources: Object.entries({ base: PATHS.base, terminal: PATHS.terminal, calc: PATHS.calc, overlay: PATHS.overlay, oracle: PATHS.spec, generator: PATHS.generator,
+      flow_registry: PATHS.flowRegistry, flow_kinds: PATHS.flowKinds, flow_calc: PATHS.flowCalc, flow_probe: PATHS.flowProbe })
       .map(([role, file]) => ({ role, file, sha256: sha256(fs.readFileSync(at(file))) })),
     probe: PROBE,
     cost_model: overlay.cost_model,
     indicators,
+    flows: flowEntries(readJson(PATHS.flowRegistry), readJson(PATHS.flowKinds)),
   };
   const { screener_registry_version: _v, ...hashed } = doc;
   doc.screener_registry_version = sha256(canonicalJson(hashed)).slice(0, 16);

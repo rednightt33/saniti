@@ -17,7 +17,8 @@ import type {
   Cell, ConditionSummary, Definition, PlanExplain, ResultRow, RowRemark, UniverseCounts, UniverseRow, Warning,
 } from './contract.ts';
 import { ScreenerError } from './errors.ts';
-import { bindCondition, bindTest } from './condition.ts';
+import { bindCondition, bindTest, flowBarOf } from './condition.ts';
+import { FLOW_PRESENCE, readsFlow } from './flowmetrics.ts';
 import type { BindContext, BoundCondition, TickerInput, XsectionNeed } from './condition.ts';
 import { evaluationBar } from './evaluate.ts';
 import { countCells, needOf, previewStatus } from './match.ts';
@@ -92,7 +93,10 @@ function crossSections(env: ScreenEnv, bound: readonly BoundCondition[], populat
       const valueOf = (ticker: string): number | null => {
         const t = env.bars(ticker);
         if (!t) return null;
-        const at = evaluationBar(t.dates, env.evaluationDate), { tail } = env.series(x.rankOf!, t);
+        // a flow series is ranked at each stock's last candle with broker data (P10 a; condition.ts flowBarOf)
+        const bar = evaluationBar(t.dates, env.evaluationDate), at = readsFlow(x.rankOf!) ? flowBarOf(env.series(FLOW_PRESENCE, t).tail, bar) : bar;
+        if (at < 0) return null;
+        const { tail } = env.series(x.rankOf!, t);
         const v = at >= tail.from && at < tail.n ? tail.values[at - tail.from] : NaN;
         return Number.isFinite(v) ? v : null;
       };
@@ -117,7 +121,7 @@ function crossSections(env: ScreenEnv, bound: readonly BoundCondition[], populat
 function stageS0(def: Definition, env: ScreenEnv): { eligible: UniverseRow[]; counts: UniverseCounts } {
   const u = applyUniverse(env.rows, def.universe);
   if (!u.pending.length) return { eligible: u.eligible, counts: u.counts };
-  const filters = u.pending.map(i => bindTest(`f${i}`, def.universe.metric_filters![i], `definition.universe.metric_filters[${i}]`, env));
+  const filters = u.pending.map(i => bindTest(`f${i}`, def.universe.metric_filters![i], `definition.universe.metric_filters[${i}]`, screenBinding(env)));
   const xs = crossSections(env, filters);
   const eligible = u.eligible.filter(row => {
     const t = env.bars(row.ticker);
@@ -129,12 +133,16 @@ function stageS0(def: Definition, env: ScreenEnv): { eligible: UniverseRow[]; co
   return { eligible, counts: { ...u.counts, eligible: eligible.length, filtered_out: u.counts.filtered_out + dropped } };
 }
 
+/** The binding of a screen's conditions and filters (P5b cost): the snapshot's binding context with flowLazy, so an
+    anchored flow series is computed only on the sessions its test reads (condition.ts BindContext). A preview binds
+    with the snapshot's own context (it draws whole series). */
+export const screenBinding = (env: ScreenEnv): BindContext => ({ capBudgetMs: env.capBudgetMs, index: env.index, withinMax: env.withinMax, catalog: env.catalog, flow: env.flow, flowLazy: true });
 /** Runs one normalized definition over the snapshot (stages above). */
 export function runScreen(def: Definition, env: ScreenEnv, options: ScreenOptions = {}): ScreenResult {
   const t0 = now();
   const s0 = stageS0(def, env), ts0 = now();
   const active = def.conditions.filter(c => c.enabled);
-  const bound = active.map(c => bindCondition(c, `definition.conditions[${def.conditions.indexOf(c)}]`, env));
+  const bound = active.map(c => bindCondition(c, `definition.conditions[${def.conditions.indexOf(c)}]`, screenBinding(env)));
   const xs = crossSections(env, bound, s0.eligible), ts1 = now();
   const survivors = s0.eligible.flatMap(row => { const t = env.bars(row.ticker); return t ? [{ row, t }] : [] });
   const avgBars = survivors.length ? survivors.reduce((n, s) => n + s.t.dates.length, 0) / survivors.length : 0;
@@ -155,7 +163,7 @@ export function runScreen(def: Definition, env: ScreenEnv, options: ScreenOption
   if (env.maxCpuMs !== undefined) {
     const est = costEstimate(planConds, survivors.length);
     if (est.needed_ms > env.maxCpuMs)
-      throw new ScreenerError('LIMIT_EXCEEDED', `This screen is costed at ${Math.ceil(est.needed_ms)} ms of compute, above the ${env.maxCpuMs} ms budget; use default parameters, shorter lengths or a narrower universe${est.costliest ? ` (the costliest is condition ${est.costliest})` : ''}.`,
+      throw new ScreenerError('LIMIT_EXCEEDED', `This screen is costed at ${Math.ceil(est.needed_ms)} ms of compute, above the ${env.maxCpuMs} ms budget; use default parameters, fewer custom or flow conditions, shorter lengths, windows or anchors, or a narrower universe${est.costliest ? ` (the costliest is condition ${est.costliest})` : ''}.`,
         'definition.conditions', { limit: 'compute_budget', allowed: env.maxCpuMs, needed: Math.ceil(est.needed_ms), ...(est.costliest ? { costliest: est.costliest } : {}) });
   }
   const plan = runPlan({ tickers: survivors.map(s => s.row.ticker), conditions: planConds, logic: def.logic, atLeast: def.at_least, exhaustive: !!options.exhaustive, cancelled: env.cancelled, cacheHits: env.cacheHits });
@@ -172,9 +180,9 @@ export function runScreen(def: Definition, env: ScreenEnv, options: ScreenOption
   const conditions: ConditionSummary[] = bound.map(b => {
     const s = plan.summaries[b.id], pc = planConds.find(c => c.id === b.id)!, tally = sources.get(b.id)!;
     return {
-      id: b.id, source: pc.stage === 'S1' ? 'xsection' : tally.dynamic > 0 ? 'dynamic' : 'precomputed', metric: b.summary.metric,
+      id: b.id, source: b.readsFlow ? 'flow' : pc.stage === 'S1' ? 'xsection' : tally.dynamic > 0 ? 'dynamic' : 'precomputed', metric: b.summary.metric,
       params_resolved: b.summary.params_resolved, is_default: b.summary.is_default, kind: b.kind, unit: b.summary.unit,
-      evaluated: s.evaluated, passed: s.passed, na: s.na, exhaustive: s.exhaustive, eval_date_basis: 'ticker_last_bar',
+      evaluated: s.evaluated, passed: s.passed, na: s.na, exhaustive: s.exhaustive, eval_date_basis: b.readsFlow ? 'flow_date' : 'ticker_last_bar',
     };
   });
   const warnings: Warning[] = [];
