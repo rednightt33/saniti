@@ -9,6 +9,7 @@
    in this browser's storage under scr.fixture.* (the production page keeps none of them there). `opts` adds latency,
    failures and a broker window still loading for the smoke run (ERRORS M253). Never part of the production bundle
    (tests/bundle). */
+import { BROKERS } from './data.ts';
 import type {
   Availability, CatalogMetric, CatalogOperators, CatalogPreset, CatalogResponse, Definition, ItemKind, LimitEntry, PutItemRequest, SavedItem, UniverseResponse, Versions,
 } from '../../src/core/contract.ts';
@@ -188,7 +189,7 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
       indicators = indicators.map(x => x.id === 'I13' ? { ...x, name:'<b id="xss2">Relative</b> Strength <img src=x onerror="window.__xss=2"> Index', description:'<script>window.__xss=3</script>gains & losses' } : x);
       for (let i = 0; i < presets.length; i++) if (presets[i].id === 'golden') presets[i] = { ...presets[i], name:'<img src=x onerror="window.__xss=4">Golden "Cross"', why:'<u id="xss3">why</u> it matters' };
     }
-    return { versions:v, data:{ ...d, refresh:'ready' }, limits:limitsAt(window.sessions), indicators, metrics, fundamentals, periods:periods as CatalogResponse['periods'],
+    return { versions:v, data:{ ...d, refresh:'ready', brokers:BROKERS.map(([code, name, f]: [string, string, number]) => ({ code, name, type:f ? 'Foreign' : 'Domestic' })) }, limits:limitsAt(window.sessions), indicators, metrics, fundamentals, periods:periods as CatalogResponse['periods'],
       groupings:fx.groupings as CatalogResponse['groupings'], presets, operators:OPERATORS };
   };
   const counters: Record<string, number> = {};

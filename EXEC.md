@@ -12830,6 +12830,31 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 3. Garis cost Loaders: diperiksa di stand-in (BBRI, 1440 px), tanpa perubahan kode. Cost lines ON + In view + Alt+B:
    garis tampil dan periode ikut tampilan; Cost lines OFF: tidak ada garis. Ini sudah sesuai kata user.
 
+## EXEC-SCREENER-BROKER-PICK — kolom Brokers dari daftar broker (kode + nama), Select all dan Clear; label lebih jelas (go 2026-11-08)
+
+### Kata user
+- 2026-11-08: "Kalau broker scope-nya selected brokers, kenapa kalau saya klik brokers tidak ada drop-down yang isinya adalah
+  kode broker dan nama broker? ... sessions before today maksudnya apa? Kemudian "test". Apa itu test?"
+- 2026-11-08: "One thing to note adalah drop-down brokers harus ada opsi selected all dan clear. User bisa pilih multiple
+  brokers. A dengan catatan diatas dan B ok jalankan"
+
+### Yang dibangun
+- A. Kolom Brokers indikator Flow jadi daftar pilihan: cari kode atau nama, centang beberapa broker, Select all (yang
+  tampil di pencarian, dibatasi jumlah maksimum bila ada), Clear, Done; Esc atau klik di luar menutup daftar (pilihan sudah
+  diterapkan). Berlaku di Customize Add a condition, kartu builder, dan kotak di judul kolom hasil (`src/broker-pick.ts`).
+- Sumber daftar: file referensi `brokers` yang sudah diterbitkan publisher (IDX_Broker_Profile: kode, nama, domisili).
+  screener-worker sudah membacanya (klasifikasi FL34); kini juga kode, nama dan domisili, dan dikirim di katalog
+  (`data.brokers`, hanya katalog). Halaman Screener tidak boleh mengambil file bucket (CSP `connect-src 'self'`), jadi
+  daftar lewat katalog di origin yang sama. Broker baru ikut tanpa perubahan kode.
+- B. Label: "Sessions before today" → "Compare with last N sessions" (`screener-metrics.json`, 3 tempat); "Test" →
+  "Check" (Customize Add a condition).
+
+### Bukti
+- Chromium (fixture): daftar 14 broker "kode nama domisili"; pilih 2 → "BK, DR"; cari "sek" → 7; Select all (hasil
+  pencarian) → 8; Clear → 0; Select all → 14; Esc menutup daftar saja. Di kotak judul kolom: pilih AK dan LG → kartu
+  "Transaction Size · Lot (AK + LG, ...)". Tidak ada error halaman.
+- screener vitest 1328 lulus; screener-worker `npm test` 105 lulus (penunjuk baris SCREENER_ONBOARDING.md diperbarui).
+
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
 - Kata user 2026-11-08 (dua tangkapan layar TradingView, tombol ^ di bawah daftar nama indikator ditandai "A"): "next up

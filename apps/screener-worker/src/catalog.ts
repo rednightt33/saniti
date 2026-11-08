@@ -138,7 +138,7 @@ export function catalogDoc(c: CatalogInput): Doc {
     (isFundamental(x) ? fundamentals : metrics).push(catalogMetric(x, a, sessions));
   }
   const body: CatalogResponse = {
-    versions: { ...c.desc.versions }, data: { ...c.desc.data, refresh: c.refresh },
+    versions: { ...c.desc.versions }, data: { ...c.desc.data, refresh: c.refresh, ...(c.desc.brokerList?.length ? { brokers: c.desc.brokerList } : {}) },
     limits: [...limitEntries(c.limits), brokerDepthLimit(sessions)],
     indicators: catalogIndicators({ capBudgetMs: c.limits.cap_budget_ms }),
     metrics, fundamentals, periods: c.metrics.periods as Periods, groupings: c.groupings, presets: c.presets,

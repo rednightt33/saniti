@@ -44,7 +44,7 @@ import { ADJUSTED_HISTORY_BOUNDARY } from '../../edge-bff/backtest/src/core/engi
 import { byTicker } from '../../edge-bff/backtest/src/core/signals.ts';
 import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
 import type { Bars } from '../../edge-bff/terminal/src/calc/indicators.ts';
-import type { DataStatus, Grouping, MetricRef, PatternRef, PriceBreakRemark, RowRemark, UniverseRow, Versions } from '../../edge-bff/screener/src/core/contract.ts';
+import type { BrokerRef, DataStatus, Grouping, MetricRef, PatternRef, PriceBreakRemark, RowRemark, UniverseRow, Versions } from '../../edge-bff/screener/src/core/contract.ts';
 import { METRICS_CATALOG } from '../../edge-bff/screener/src/core/catalog.ts';
 import type { PresetDefinition } from '../../edge-bff/screener/src/core/catalog.ts';
 import { bindCondition, declaredDerivedSeries } from '../../edge-bff/screener/src/core/condition.ts';
@@ -105,10 +105,11 @@ export interface SnapshotDesc {
   digest: string | null;             // set by the pre-warm's last step (snapshotDigest)
   broker: BrokerStore;               // P4: the loaded broker days (broker.ts), per ticker of `tickers`
   brokerClasses: Record<string, string>;   // P5a: broker code -> classification (reference file `brokers`; {} when not published)
+  brokerList: BrokerRef[];                 // EXEC-SCREENER-BROKER-PICK: code, name, domicile of the same file (catalog data.brokers)
 }
 /** The reference the refresh hands the build: the tickers file, and (P5a) the brokers' classification of the reference
     file `brokers` (code -> IDX_Broker_Profile class, as the Terminal reads it), absent when it could not be read. */
-export type SnapshotReference = TickerReference & { brokerClasses?: Record<string, string> };
+export type SnapshotReference = TickerReference & { brokerClasses?: Record<string, string>; brokerList?: BrokerRef[] };
 const FIELDS = ['O', 'H', 'L', 'C', 'V'] as const;
 
 const integrity = (message: string, field = 'price') => new DataError('DATA_INTEGRITY', message, field);
@@ -319,6 +320,7 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
     sid, versions, data, finished_at: input.state.finished_at, tailLength: input.tailLength, ...desc0, rows, series: list,
     tails: shared(Float64Array, S * T * input.tailLength), tailMeta: shared(Int32Array, S * T * 4), digest: null, broker: broker.store,
     brokerClasses: { ...(input.ref.brokerClasses ?? {}) },
+    brokerList: [...(input.ref.brokerList ?? [])],
   };
   const stats: BuildStats = { tickers: T, stocks: rows.length, bars: w, dropped, no_price: input.ref.tickers.filter(r => r.type === 'stock' && !entries.some(e => e.t === r.ticker)).length, actions: nActions, series: S, skipped, broker: broker.stats };
   return { desc, entries, stats };

@@ -7,6 +7,7 @@
 import type { ParamValue } from './core/contract.ts';
 import { isFlowType, LIST_SEP, listOf, optionText, rangeText, type EntryParam } from './entries.ts';
 import { esc } from './format.ts';
+import { brokerPickHtml } from './broker-pick.ts';
 
 /** The control of a parameter of a FlowParamType (null for the catalog's own kinds, which the caller draws). `attrs`:
     the caller's data attributes; `label`: its accessible name; `title`: its tooltip (the rule, the default). */
@@ -22,6 +23,7 @@ export function flowControlHtml(p: EntryParam, v: ParamValue | undefined, attrs:
     const w = p.dates, val = v === 'view' || v == null ? '' : String(v);
     return `<input class="inp inp-date" type="date" ${w?.first ? `min="${esc(w.first)}"` : ''} ${w?.last ? `max="${esc(w.last)}"` : ''} value="${esc(val)}" ${attrs} aria-label="${esc(label)}"${inv} title="${esc([title, 'Empty: the first session of the broker data'].filter(Boolean).join(' · '))}">`;
   }
+  if (p.type === 'brokers') return brokerPickHtml(p, v, attrs, label, title, invalid);
   return `<input class="inp inp-codes" type="text" autocomplete="off" spellcheck="false" placeholder="default" value="${esc(listOf(v).join(', '))}" ${attrs} aria-label="${esc(label)}"${inv} title="${esc([title, 'Broker codes separated by commas, e.g. YP, AK; empty: the default'].filter(Boolean).join(' · '))}">`;
 }
 /** A parameter's tooltip: its range or window, and its default (or the value a card opens with). */

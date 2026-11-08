@@ -289,7 +289,7 @@ function opBoxes(e: Entry, op: OpState, i: number, er: Record<string, string>, p
   }
   if (m?.second) out.push({ name:'Compared with', control:sel('by', 'Compared with', secondOptions(e, op.output, params).map(x => ({ v:x.key, t:x.label })), op.by), unit:'', def:'', changed:false, thr:true, hint:'' });
   // a pattern's tests in its own words ("Detected on at least K of the last N sessions"), the catalog's label as the option
-  out.push({ name:signal ? 'Detected' : 'Test', control:sel('test', signal ? 'Detected' : 'Test', testsFor(ops, e, op, params).map(x => ({ v:x.key, t:x.label })), op.test, signal ? signalText(op.test, 'N', 'K') : t?.help), unit:'', def:'', changed:false, thr:true, hint:'' });
+  out.push({ name:signal ? 'Detected' : 'Check', control:sel('test', signal ? 'Detected' : 'Check', testsFor(ops, e, op, params).map(x => ({ v:x.key, t:x.label })), op.test, signal ? signalText(op.test, 'N', 'K') : t?.help), unit:'', def:'', changed:false, thr:true, hint:'' });
   if (t && !signal) {
     // what the defaults of this measure and test would be: a field set otherwise counts as changed on the Customize button
     const d0 = withTest(ops, e, { ...op, cmp:m ? m.default.cmp : op.cmp }, op.test, params);

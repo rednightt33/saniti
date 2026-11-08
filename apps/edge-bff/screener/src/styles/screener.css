@@ -1733,3 +1733,22 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 @media (max-width:760px){.qrow{grid-template-columns:minmax(0,1fr) auto}.qrow>.tf-add{justify-self:start;width:104px}.qnm{height:auto}.qnm b,.qnm small{-webkit-line-clamp:unset}}
 .qwin .qact{white-space:nowrap}
 .qwin .qact .q-on{display:inline-flex;align-items:center;gap:4px}
+/* EXEC-SCREENER-BROKER-PICK (user 2026-11-08): a flow indicator's brokers chosen from the published list, several at once,
+   with Select all and Clear */
+.bpk{display:inline-flex;min-width:0;max-width:100%}
+.bpk-btn{min-width:140px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;cursor:pointer}
+.bpk-btn.ph{color:var(--text-3)}
+.bpk-pop{position:fixed;z-index:120;width:300px;max-width:calc(100vw - 16px);max-height:min(420px,calc(100vh - 16px));display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);font-size:13px}
+.bpk-q{height:32px}
+.bpk-q input{flex:1;min-width:0;border:0;background:none;font:inherit;color:var(--text);outline:none}
+.bpk-a{display:flex;align-items:center;gap:12px;font-size:12px}
+.bpk-n{margin-left:auto;color:var(--text-3)}
+.bpk-l{flex:1;min-height:60px;overflow:auto;margin:0 -10px;padding:0 4px}
+.bpk-o{display:grid;grid-template-columns:auto 34px minmax(0,1fr) auto;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;cursor:pointer}
+.bpk-o:hover{background:var(--hover)}
+.bpk-o b{font-weight:600}
+.bpk-o span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2)}
+.bpk-o i{font-style:normal;font-size:11px;color:var(--text-3)}
+.bpk-o.off{opacity:.45;cursor:not-allowed}
+.bpk-none{padding:12px 6px;color:var(--text-3)}
+.bpk-f{display:flex;justify-content:flex-end;border-top:1px solid var(--border);padding-top:8px}

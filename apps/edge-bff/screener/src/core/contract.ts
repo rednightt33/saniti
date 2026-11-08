@@ -59,7 +59,11 @@ export interface DataStatus {
   published_at: string;               // state.json finished_at
   broker_window?: BrokerWindow;       // P4 (additive): the broker days the worker holds; set on every worker answer
   refresh?: RefreshState;             // catalog only: the publication's outcome
+  /** catalog only (EXEC-SCREENER-BROKER-PICK, additive): the brokers of the reference file `brokers` (IDX_Broker_Profile:
+      code, name, domicile), for the flow indicators' broker list; absent when the publication has none */
+  brokers?: BrokerRef[];
 }
+export interface BrokerRef { code: string; name: string; type?: string }
 /** EXEC-SCREENER-FLOW-CANDLES P4 (user 2026-11-07, K1 window 60 sessions; verification/screener/P4_BROKER_DAYS.md
     section 3): the loaded broker days, oldest and newest, how many, and whether every day of the publication's window
     (its newest 60 indexed broker days) is loaded; complete is false while days still wait for a follow-up refresh. A

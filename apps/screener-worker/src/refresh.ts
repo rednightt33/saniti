@@ -59,6 +59,7 @@ import type { TerminalClient, TickerReference } from '../../backtest-worker/src/
 import type { Limits } from './config.ts';
 import { errorFields, log } from './log.ts';
 import { PHASE1_FILES, PRICE_FILE, referenceHash } from './snapshot.ts';
+import type { BrokerRef } from '../../edge-bff/screener/src/core/contract.ts';
 import type { IndexEntry, PublicationState, ReadFile, SnapshotReference, TickerEntry } from './snapshot.ts';
 import { brokerWindow } from './broker.ts';
 import type { WindowDay } from './broker.ts';
@@ -425,15 +426,17 @@ export class Refresher {
   /** The reference the build reads: the tickers file, and (P5a) the brokers' classification (brokerClasses). */
   private async reference(): Promise<SnapshotReference> {
     const ref: SnapshotReference = await this.client.reference('tickers');
-    const classes = await this.brokerClasses();
-    return classes ? { ...ref, brokerClasses: classes } : ref;
+    const b = await this.brokerClasses();
+    return b ? { ...ref, brokerClasses: b.classes, brokerList: b.list } : ref;
   }
   /** EXEC-SCREENER-FLOW-CANDLES P5a: the brokers' classification of the reference file `brokers` (code -> its
       `classification`, IDX_Broker_Profile; every row whose classification is a text, as the Terminal's live.ts reads it),
       for FL34. The file is read as every data file is (TerminalClient.file: sha256 and size, the disk cache) from a URL on
       the bucket origin; a publication whose refs index does not name it (no sha256) or a failure leaves it out (null,
       logged broker_classes_unavailable): FL34 is then REQUIRES_DATA, the refresh goes on. */
-  private async brokerClasses(): Promise<Record<string, string> | null> {
+  /* EXEC-SCREENER-BROKER-PICK (user 2026-11-08): the same file's code, name and domicile too, for the page's broker list
+     (catalog data.brokers); a file without a name column gives codes only */
+  private async brokerClasses(): Promise<{ classes: Record<string, string>; list: BrokerRef[] } | null> {
     try {
       const r = await this.api.referenceFile('brokers');
       if (!r.sha256 || !r.bytes) { log('warn', 'broker_classes_unavailable', { reason: 'the publication does not index the brokers reference (no sha256)' }); return null }
@@ -443,7 +446,11 @@ export class Refresher {
       if (!Array.isArray(code) || !Array.isArray(cls)) { log('warn', 'broker_classes_unavailable', { reason: 'the brokers reference has no code or classification column' }); return null }
       const out: Record<string, string> = {};
       for (let k = 0; k < code.length; k++) if (typeof code[k] === 'string' && code[k] && typeof cls[k] === 'string') out[code[k] as string] = cls[k] as string;
-      return out;
+      const nm = (Array.isArray(doc.name) ? doc.name : []) as unknown[], ty = (Array.isArray(doc.type) ? doc.type : []) as unknown[];
+      const list: BrokerRef[] = [];
+      for (let k = 0; k < code.length; k++) if (typeof code[k] === 'string' && code[k])
+        list.push({ code: code[k] as string, name: typeof nm[k] === 'string' ? nm[k] as string : '', ...(typeof ty[k] === 'string' ? { type: ty[k] as string } : {}) });
+      return { classes: out, list };
     } catch (e) { log('warn', 'broker_classes_unavailable', errorFields(e)); return null }
   }
   private succeeded(): void { this.failedFor = null; this.failures = 0; this.retryAt = 0; this.host.outcome('ready', null) }

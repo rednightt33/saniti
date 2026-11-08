@@ -149,7 +149,7 @@ export function bindHeaderEdit() {
     if (t.closest('[data-pe6done]')) closeEditor();
     else if (t.closest('[data-pe6reset]')) reset();
   });
-  document.addEventListener('pointerdown', e => { const t = e.target as HTMLElement; if (box && !box.contains(t) && !t.closest('#resPane [data-pedit]')) closeEditor(false) }, true);
+  document.addEventListener('pointerdown', e => { const t = e.target as HTMLElement; if (box && !box.contains(t) && !t.closest('#resPane [data-pedit], .bpk-pop')) closeEditor(false) }, true);
   document.addEventListener('scroll', () => { placeEditor(); hideTip() }, true);
   addEventListener('resize', placeEditor);
 }

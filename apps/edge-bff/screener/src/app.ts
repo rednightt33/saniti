@@ -13,6 +13,7 @@
    S7  preview, Stock vs IHSG, counts and CSV wait until asked; S8 an edit marks the table out of date and nothing is
        sent until Screen now (EXEC-SCREENER-V21 product decision 6; run.ts, screen-gate.ts).
    ?perf=1 shows the stage marks (the Terminal's perf.ts; performance marks 'terminal:<stage>'). */
+import { bindBrokerPick } from './broker-pick.ts';
 import type { CatalogResponse, RunResponse, UniverseResponse, Versions } from './core/contract.ts';
 import type { FileCache } from '../../terminal/src/data/rack.ts';
 import { fileCache } from '../../terminal/src/data/rack.ts';
@@ -247,6 +248,7 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
   runHooks.mark = mark;
   runHooks.answered = (def, bytes, r) => { if (ctx.login) boot.putResult(ctx.login, def, bytes, r) };
   bind();
+  bindBrokerPick();   // the flow indicators' broker list (EXEC-SCREENER-BROKER-PICK)
   initLayout();   // V21 layout (subagent 1)
   boot = new BootCache(opts.cache ?? fileCache());
   const et = boot.etags();
