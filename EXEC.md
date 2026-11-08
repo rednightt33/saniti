@@ -12716,6 +12716,16 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   bergaris kiri; judul kelompok menempel di daftar; baris dua tingkat (nama + kode + satu kalimat penjelasan) dengan
   bintang; kontrol tanpa garis tepi; jendela bisa diubah ukurannya dan pemisah daftar kiri bisa digeser. Fungsi Screener
   (timeframe, kondisi, parameter, Add) tidak berubah. Menunggu review user.
+- User 2026-11-08: "Di bagian screener, kita klik add indicator, kita klik customize, maka akan muncul box kecil ...
+  sangat sulit untuk dilihat karena kecil ... ketika kita klik customize, maka langsung muncul boxnya di tengah, bisa
+  digedein, bisa dikecilin ... Kita klik top end jadi 2 misalkan. Kemudian kita langsung klik di area outside customize
+  box tersebut. Maka itu langsung applied paramter yang di set. Jangan lupa selected state juga harus disamakan dengan
+  yang di terminal." Mock yang sama diperbarui: Customize membuka dialog di tengah layar dengan desain Settings Terminal
+  (judul, penjelasan, tab Inputs, baris label + isian + "default ...", bagian Threshold, Reset to default / Cancel / Ok),
+  digeser dari judul dan diubah ukurannya dari tepi dan sudut; klik di luar = dipakai, Cancel / × / Esc = dibuang; nilai
+  yang diubah tampil di tombol Customize baris itu; pilihan ganda (Market board, Investor type) sebagai dropdown
+  bercentang seperti Terminal; tanda terpilih = tanpa garis tepi, bayangan lembut. Isian dari 102 baris Customize
+  fixture. Menunggu review user.
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
