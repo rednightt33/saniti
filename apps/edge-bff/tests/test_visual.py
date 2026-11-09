@@ -104,7 +104,9 @@ def saved(page, count=1):
 
 def no_clipping(page):
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Page overflows horizontally'
-    for selector in ('.topbar', '.research-workspace', '.workspace-tools', '.composer'):
+    # EXEC-NAV-LEFT (user 2026-11-09): above a phone the EDGE bar is gone; the left menu holds the pages and the account
+    bar = '.topbar' if page.viewport_size['width'] <= 720 else '.side-nav'
+    for selector in (bar, '.research-workspace', '.workspace-tools', '.composer'):
         if selector == '.workspace-tools' and page.viewport_size['width'] > 720:
             continue  # EXEC-UI-1015C: above a phone the session bar is gone, its buttons sit in the rail
         box = page.locator(selector).bounding_box()
@@ -424,7 +426,8 @@ def test_submit_error_keyboard_disabled_controls_and_resizing(dummy_orc, browser
     assert attempts[0]['message'] == orc.calls[0][2]['message']
     assert not page.locator('.mode-anchor').count()  # EXEC-SHARE-UI: the Research Mode menu is removed
     assert page.get_by_role('button', name='Share latest answer', exact=True).is_enabled()  # MONITOR-REVAMP: the sidebar's Share
-    for label in ('Data scope', 'Attachments are not available yet', 'Support unavailable', 'Notifications unavailable'):
+    # the EDGE bar's placeholders (support, notifications) are on a phone only since EXEC-NAV-LEFT
+    for label in ('Data scope', 'Attachments are not available yet') + (('Support unavailable', 'Notifications unavailable') if page.viewport_size['width'] <= 720 else ()):
         assert page.get_by_role('button', name=label, exact=True).is_disabled()
     page.get_by_role('button', name='Account menu', exact=True).click()
     composer.click()

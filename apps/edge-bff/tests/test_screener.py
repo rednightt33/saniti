@@ -1328,7 +1328,7 @@ def test_screener_tab_in_the_browser(configured, store, worker, monkeypatch, tmp
                 page.locator('#auth-login').fill('owner')
                 page.locator('#auth-password').fill('local-test-password')
                 page.get_by_role('button', name='Sign In', exact=True).click()
-                tabs = page.locator('.side-nav button')   # EXEC-NAV-LEFT: the pages' menu on the left, icons only
+                tabs = page.locator('.side-nav > button[class*="nav-"]')   # EXEC-NAV-LEFT: the pages' menu on the left, icons only
                 tabs.first.wait_for()
                 assert [tabs.nth(k).get_attribute('aria-label') for k in range(tabs.count())] == ['Monitor', 'Terminal', 'Backtest', 'Screener']
                 page.locator('.side-nav button.nav-screener').click()

@@ -157,7 +157,9 @@ def test_submit_history_and_fixed_headers(fixture_server, device_page):
         page.wait_for_timeout(100)
         # MONITOR-REVAMP (AI_revamp.html .sec): Pinned responses grows with its cards (up to half the panel), so it may
         # scroll only a little; the title still never moves
-        assert scroll.evaluate('n=>n.scrollTop') > 0
+        # a section that fits (the page is taller without the EDGE bar, EXEC-NAV-LEFT) has nothing to scroll
+        if scroll.evaluate('n=>n.scrollHeight > n.clientHeight + 1'):
+            assert scroll.evaluate('n=>n.scrollTop') > 0
         after = page.locator(header).bounding_box()['y']
         assert abs(before-after) <= 1, (container, before, after)
         assert page.locator(header + ' button').is_visible()

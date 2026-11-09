@@ -13080,6 +13080,14 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   `EDGE_PAGE` di `serve.mjs`): awal tertutup (lebar 0), klik → panel 300 px dan tombol "Close Statistics", « di Terminal →
   tombol kembali "Open Statistics"; tooltip "Backtest" tampil. look_check11 PASS; terminal vitest 887; edge-bff pytest
   (titles, screener, backtest, terminal, frontend) 119 lulus.
+- 2026-11-09 (kata user: "left panel gone ketika move diluar terminal", lalu pilihan "1"): bar EDGE disembunyikan di semua
+  halaman (bukan hanya Terminal) di atas 720 px; menu kiri sama di semua halaman (logo, 4 halaman, garis, Research, tema,
+  settings, akun); tombol Statistics hanya di Terminal. Halaman mulai dari atas (`--topbar` 0 di `.app.slim-top`). Ponsel:
+  bar EDGE tetap. Tes disesuaikan: tab = `.side-nav > button[class*="nav-"]`; `no_clipping` memeriksa menu kiri di atas
+  720 px; placeholder Support/Notifications hanya di ponsel; panel Pinned yang muat tidak wajib bergulir.
+- Bukti: preview 1440: Monitor, Backtest, Screener, Terminal tanpa bar, halaman y 0 tinggi 900, 4 tombol aksi di menu; 390 px:
+  bar tetap, menu tersembunyi. edge-bff pytest dengan Postgres lokal: 351 lulus; satu tes (sumber jawaban) gagal sekali di
+  putaran penuh dan lulus dua kali saat diulang sendiri.
 
 ### Bukti
 - Preview (`preview/edge_preview.py build`) 1440×900: tidak ada tab di bar atas; menu 56 px dengan 4 tombol, Monitor

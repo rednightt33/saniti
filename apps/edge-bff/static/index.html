@@ -9805,6 +9805,9 @@ html.dark .side-nav>button:hover,html.dark .side-nav .side-actions>button:hover,
 .app>main{margin-left:56px}
 /* option 1: the Terminal page without the EDGE bar; the menu runs the full height with the logo and the account */
 .app.slim-top .side-nav{top:0}
+/* every page starts at the top: the bar's height is 0 for the pages' own heights (calc(100vh - var(--topbar))) */
+.app.slim-top,.app.slim-top:not(.dark):has(.monitor-layout){--topbar:0px;--h-top:0px}
+.app.slim-top .edge-side-chat{top:0}
 .app.slim-top .terminal-page{height:100vh}
 .side-nav .side-brand{margin-bottom:6px}
 .side-nav .side-brand .brand-mark{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:var(--text,#111);color:var(--surface,#fff);font-weight:700}
@@ -11398,23 +11401,23 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) 
         const search = document.querySelector(".conversation-panel .search input");
         if (search && search.offsetParent) { search.focus(); search.select(); } else showMarketSoon();
     } }; document.addEventListener("keydown", onKey); return () => document.removeEventListener("keydown", onKey); }, []);
-    /* EXEC-NAV-LEFT option 1 (user 2026-11-09: "Ok opsi 1"): on the Terminal page the EDGE bar is not shown; its logo, Research,
-       theme, settings and account sit in the left menu, and the Terminal's own toolbar is the top row */
-    // not on a phone (≤ 720 px), where the left menu is hidden and the EDGE bar stays the way to the account
-    const slim = route === "terminal" && !(typeof matchMedia === "function" && matchMedia("(max-width:720px)").matches);
+    /* EXEC-NAV-LEFT option 1 (user 2026-11-09: "Ok opsi 1", then for every page: "1"): the EDGE bar is not shown; its logo,
+       Research, theme, settings and account sit in the left menu, the same on every page. Not on a phone (≤ 720 px), where
+       the left menu is hidden and the EDGE bar stays the way to the pages' actions and the account */
+    const slim = !(typeof matchMedia === "function" && matchMedia("(max-width:720px)").matches);
     /* EXEC-NAV-LEFT (user 2026-11-09: "kalau diterminal dia ada statistics bisa buat seperti terlampir"): the Terminal's
        Statistics button in this menu; the Terminal (same origin, its frame) says whether its panel is open */
     const statsOpen = initialValue(viewRecord, "statsOpen", () => false), setStatsOpen = next => updateValue(viewRecord, "statsOpen", next);
     const termFrame = () => document.querySelector(".terminal-page iframe.terminal-frame");
     onLifecycle(viewRecord, "terminal-stats", () => {
-        if (!slim) return;
+        if (!slim || route !== "terminal") return;
         const onMsg = e => { if (e.origin === location.origin && e.source === termFrame()?.contentWindow && e.data?.source === "terminal" && e.data.type === "stats") setStatsOpen(!!e.data.open); };
         const hello = () => termFrame()?.contentWindow?.postMessage({ source: "edge", type: "rail" }, location.origin);
         addEventListener("message", onMsg);
         const f = termFrame(); f?.addEventListener("load", hello); hello();
         const again = setInterval(hello, 1500); setTimeout(() => clearInterval(again), 9000);   // the Terminal may still be loading
         return () => { removeEventListener("message", onMsg); f?.removeEventListener("load", hello); clearInterval(again); };
-    }, [slim]);
+    }, [slim, route]);
     return element("div", { className: `app ${theme === "dark" ? "dark" : ""} ${chart ? "chart-app" : ""} ${slim ? "slim-top" : ""}` },
         !slim && element("header", { className: "topbar", inert: mobilePanelOpen },
             element("button", { className: "brand", onClick: () => go("monitor") },
@@ -11437,10 +11440,10 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
            tooltip): the four pages in a 56 px menu on the left, under the top bar */
         element("nav", { className: "side-nav", "aria-label": "Pages", inert: mobilePanelOpen },
             slim && element("button", { type: "button", className: "side-brand", "data-tip": "EDGE · Monitor", "aria-label": "EDGE: Monitor", onClick: () => go("monitor") }, element("span", { className: "brand-mark" }, "E")),
-            slim && element("button", { type: "button", className: `side-stats ${statsOpen ? "active" : ""}`, "data-tip": statsOpen ? "Close Statistics" : "Open Statistics", "aria-label": "Statistics", "aria-expanded": statsOpen,
+            slim && route === "terminal" && element("button", { type: "button", className: `side-stats ${statsOpen ? "active" : ""}`, "data-tip": statsOpen ? "Close Statistics" : "Open Statistics", "aria-label": "Statistics", "aria-expanded": statsOpen,
                 onClick: () => termFrame()?.contentWindow?.postMessage({ source: "edge", type: "stats", open: !statsOpen }, location.origin) },
                 element("span", { className: "side-stats-chev" }, statsOpen ? "«" : "»"), element("span", { className: "side-stats-label" }, "Statistics")),
-            slim && element("span", { className: "side-sep", "aria-hidden": true }),
+            slim && route === "terminal" && element("span", { className: "side-sep", "aria-hidden": true }),
             nav.map(([label, r]) => { const active = route === "monitor" ? label === "Monitor" : route === r;
             return element("button", { key: label, type: "button", "aria-current": active ? "page" : undefined, "aria-label": label, "data-tip": label, className: `nav-${label.toLowerCase()} ${active ? "active" : ""}`, onClick: () => go(r) },
                 element(Icon, { name: `nav${r[0].toUpperCase()}${r.slice(1)}`, size: 22 })); }),
