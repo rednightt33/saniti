@@ -13106,6 +13106,8 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   berikutnya), lalu terminal-publisher di luar 07:30/19:00 WIB dan B6. Saat deploy updater: perbarui `Column_Catalog`
   `Monitoring_Stockbit_Update.updated_at` ("Last change of the row" → juga tanda hidup tiap 60 detik selama RUNNING)
   dengan migrasi baru.
+- **Pengganti nomor 3 di masa depan:** `FUTURE_PLAN.md` PUBLISH-PER-TABLE (user 2026-11-09: "Yasudah masukin future plan
+  saja"): publisher menunggu per tabel lewat kunci tulis, bukan status RUNNING.
 - **Belum diubah (kelas yang sama, dugaan):** `"AI_conversation_turn"` RUNNING dipercaya 2 jam oleh
   `scripts/restart_postgres.py` `user_runs()` tanpa tanda hidup.
 

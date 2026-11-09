@@ -5753,6 +5753,21 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M414 — terminal-api /ready answered 503 once after the scheduled Postgres restart (2026-11-09, open)
+
+- **Symptom:** `https://terminal-api-dev.up.railway.app/ready` answered `{"status":"not_ready"}` (503) at 14:16 UTC;
+  a few seconds later `ready` again.
+- **Verified cause (log of deployment `34c46e90`):** at 14:17:01 UTC the pool logged `discarding closed connection:
+  <psycopg.Connection [BAD]>` twice. The connections were dropped by the scheduled Postgres restart at 13:45 UTC
+  (20:45 WIB); the pool handed them out without a check, so the first statement on each failed.
+- **Class:** a connection pool that does not check a connection before use fails the first request after every
+  Postgres restart; any service with a long-lived pool (terminal-api, edge-bff, orc) can show it.
+- **Suspected, not checked:** whether a user request (not only `/ready`) failed in that second, and which other pools
+  lack a check.
+- **Possible fix (not done):** the pool checks a connection before handing it out (psycopg_pool `check=
+  ConnectionPool.check_connection`), in every service that keeps a pool.
+- **Status:** OPEN.
+
 ### M413 — Broker data of 4-6 Nov not published: dead Stockbit rounds stayed RUNNING and the publisher waited on them (2026-11-09, fixed in code, deploy pending)
 
 - **Symptom (user):** the Broker Summary round for 2026-11-04..06 finished, but the Terminal did not show those days;

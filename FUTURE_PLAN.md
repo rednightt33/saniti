@@ -1309,3 +1309,29 @@ Usulan ini disetujui sebagai rencana (user 2026-11-07: "2A ... Jangan jalankan. 
   `flowRegistry.json`). Bila nanti ingin di Screener: FL50 dan rata-rata FL14 berjenis K (persen/kontinu); FL49 (nama
   kuadran) butuh jenis nilai baru yang hanya "sama dengan / tidak sama dengan"; FL51 (kotak per periode) dan FL52 (ikut
   daftar panel kanan) bukan satu nilai per sesi. Perlu keputusan user dan QA Screener.
+
+## PUBLISH-PER-TABLE — publisher menunggu per tabel yang ia baca, bukan per putaran Stockbit (usulan 2026-11-09, user: "Yasudah masukin future plan saja")
+
+**Fakta (dicek di kode 2026-11-09):**
+- Storage diisi hanya oleh `apps/terminal-publisher/publisher.py`, dari 12 tabel. Dari yang ditulis stockbit-updater
+  hanya tiga yang dibaca: `Feature_05_Foreign_Domestic_Broker_Detail`, `Feature_05_Foreign_Domestic_Broker_Detail_INDEX`,
+  `idx_event_annotation`. Feature 02/03/06, tabel INDEX lain, daftar indeks/grup dan `Database_Table_Status` tidak.
+- Sinyal ke publisher dikirim sekali, di akhir putaran (`apps/telegram-monitor/telegram_monitor.py` `publish_changed`),
+  dan publisher menunggu selama ada putaran RUNNING (`loaders_writing`). Putaran `5e252779` (2026-11-09): Feature 05
+  siap 19:41 WIB, putaran selesai 20:32 WIB, jadi broker saham tertunda sekitar 50 menit.
+- Cron harga, obligasi dan intraday sudah memakai kunci tulis bersama (`WRITE_LOCK`) dan sinyal sesudah commit; hanya
+  stockbit-updater memakai status RUNNING (ERRORS M413).
+
+**Usulan:**
+1. stockbit-updater memegang `WRITE_LOCK` (shared) hanya selama menulis tabel yang dibaca publisher, dan mengirim
+   `Terminal_Publish_Request` setelah tiap tabel itu commit (Feature 05, Feature 05 INDEX, event).
+2. Publisher tidak lagi membaca status RUNNING; penahannya hanya kunci tulis (lepas sendiri bila proses mati).
+   `ROUNDS_RUNNING_SQL` dan `ROUND_STALE_MINUTES` (EXEC-ROUND-HEARTBEAT nomor 3) dihapus.
+3. Tes mencocokkan tabel yang dibaca publisher dengan tabel yang dikunci pengisi data, agar tabel baru (lintas aset,
+   makro) tidak terlewat.
+
+**Akibat:** broker saham sekitar 10 menit setelah putaran mulai, IHSG sekitar 45 menit, event sekitar 60 menit;
+publisher jalan 2–3 kali per putaran (hanya yang berubah). Bila putaran gagal di langkah INDEX, broker saham sudah
+terbit dan IHSG menunggu putaran berikutnya.
+
+**Status:** usulan, belum disetujui untuk dieksekusi.
