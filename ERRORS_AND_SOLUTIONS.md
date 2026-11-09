@@ -5775,7 +5775,8 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Solution:**
   1. Data: the six dead rows closed `RUNNING` → `FAILED` (`finished_at` = their last update), four by
      `verification/stockbit_updater_20261109/close_stale_rounds.py`, `c7705209` and `e3331473` by
-     `close_dead_rounds_2.py`; publisher Run Now at 14:02:58 UTC.
+     `close_dead_rounds_2.py`; publisher Run Now at 14:02:58 UTC: `done` 14:15:44, broker 2026-11-04, -05, -06, -09
+     uploaded, `broker_behind_sessions 0`.
   2. Updater: a heartbeat thread on its own connection stamps `updated_at` every 60 s while the round lives; the end
      is written on a new connection when the round's own died, retried for about 4 minutes while Postgres recovers;
      `notify()` is always called; SIGTERM (a redeploy, a removal, a usage-limit stop) ends the round `FAILED` with the
@@ -5789,7 +5790,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   ends the row on a fresh connection; every reader trusts the row only while the heartbeat is fresh.
 - **Status:** data fixed; code fixed on main; deploy of stockbit-updater and terminal-publisher pending (order above).
 
-### M412 — Terminal in EDGE: two Statistics buttons while the Terminal loads (2026-11-09, fixed)
+### M412 — Terminal in EDGE: two Statistics buttons while the Terminal loads (2026-11-09, fixed, on dev `840aecde`)
 
 - **Symptom (user screenshot):** during "Loading SSIA" the left side showed EDGE's "» Statistics" and the Terminal's own
   folded Statistics rail next to it.

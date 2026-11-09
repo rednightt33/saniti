@@ -5,9 +5,14 @@
 - The run started 13:32 UTC by the round's signal waited on dead RUNNING rounds (`waiting_for_loaders
   busy=["broker_round"]`) and was ended at 13:48:40 UTC by the scheduled Postgres restart (`AdminShutdown`).
 - After the rows were closed: Run Now (`deploymentInstanceExecutionCreate`, user "jalankan nomor 1") at 14:02:58 UTC →
-  deployment `690594c1`; plan `files 2604`, `data_through` broker and broker_index `2026-11-09`.
-- edge-bff: the deployment of `9406f28f` (ERRORS M412) started by the agent was cancelled at the user's word ("Cancel
-  saja dulu. Memang lagi ingest data."); dev kept `2ec287f0`.
+  deployment `690594c1`; plan `files 2604`, `data_through` broker and broker_index `2026-11-09`. Result 14:15:44 UTC
+  `done` (616 s, 6,261 files, 108.6 MB, `broker_behind_sessions 0`); `broker_days` built and uploaded 2026-11-04, -05,
+  -06, -09 (`failed []`).
+- edge-bff `840aecde` (contains `9406f28f`, ERRORS M412): the push made a SKIPPED deployment, so the agent started
+  `serviceInstanceDeployV2` → `1199bdf3` SUCCESS (no active run or round before it); `/ready` 200, the served page opens
+  `/terminal-app/?in=edge` and the served Terminal bundle holds `edge-rail`.
+- edge-bff: the earlier deployment of `9406f28f` (ERRORS M412) was cancelled at the user's word ("Cancel saja dulu.
+  Memang lagi ingest data."); released after the ingest as above.
 - No code deployed for stockbit-updater or terminal-publisher yet: the heartbeat (updater) goes first, with the user's
   go for a round, then the publisher gate.
 

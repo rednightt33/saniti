@@ -13095,7 +13095,8 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 
 - **Nomor 1 — data (selesai):** dua baris `Monitoring_Stockbit_Update` yang masih RUNNING tanpa proses (`c7705209`,
   `e3331473`) ditutup FAILED (`verification/stockbit_updater_20261109/close_dead_rounds_2.py`, dibaca balik FAILED);
-  empat lainnya sudah ditutup sesi lain (user "Boleh"). Publisher ditekan Run Now 14:02:58 UTC (deployment `690594c1`).
+  empat lainnya sudah ditutup sesi lain (user "Boleh"). Publisher ditekan Run Now 14:02:58 UTC (deployment `690594c1`): selesai 14:15:44 UTC, broker 4, 5, 6 dan 9 Nov
+  terkirim, `broker_behind_sessions 0`.
 - **Nomor 2 — stockbit-updater (kode selesai, deploy menunggu):** tanda hidup `updated_at` tiap 60 detik dari koneksi
   sendiri; akhir putaran ditulis di koneksi baru bila koneksi putaran putus (dicoba lagi sekitar 4 menit); notifikasi
   Telegram selalu dikirim; SIGTERM dari Railway menutup putaran FAILED dengan alasannya.
