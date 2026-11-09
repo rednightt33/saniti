@@ -13046,6 +13046,21 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   near-miss, 0 pil; klik kanan → baris tombol; ↑ menyortir naik; Remove menghapus kartu dengan toast Undo. Tidak ada error
   halaman. screener vitest 1328 lulus.
 
+## EXEC-NAV-LEFT — tab Monitor, Terminal, Backtest, Screener pindah ke menu kiri dengan ikon (keputusan sebagian 2026-11-09, BELUM dieksekusi)
+
+### Kata user
+- 2026-11-09: "siapkan 4 icon untuk ini, kita akan pindahksan 4 tersebut ke kiri." (tab di atas halaman EDGE)
+- 2026-11-09, atas HTML 4 set ikon: "2 OK" (set 2, "Line, other metaphors").
+
+### Keputusan
+- Ikon: **set 2** (garis 1.6): Monitor = kilau AI, Terminal = jendela grafik, Backtest = stopwatch, Screener = kaca pembesar
+  dengan plus. SVG di `verification/nav_icons_20261109/nav_icons.html` (simbol m2, t2, b2, s2).
+- Terbuka: bentuk menu kiri (A ikon saja 56 px; B ikon dengan nama di bawah 76 px; C ikon dan nama sebaris 186 px).
+
+### Catatan eksekusi
+- Tab dibuat di `apps/edge-bff/static/index.html` (navigasi EDGE) dengan kata dari `static/edge-labels.js` (`nav`); ikon
+  dan menu kiri dibangun di sana setelah bentuk menu dipilih.
+
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
 - Kata user 2026-11-08 (dua tangkapan layar TradingView, tombol ^ di bawah daftar nama indikator ditandai "A"): "next up
