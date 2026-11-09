@@ -6,7 +6,8 @@
    Ctrl/Cmd+Enter run it once); a preset run with per-card counts and cell tooltips; five edits give no run and Screen
    now gives exactly one; a slow run keeps the old rows marked out of date; NOT_READY with Retry-After, BUSY retried;
    the preview ring while a new ticker loads (never the previous ticker's candles); the P4 chips with remarks and cell
-   marks; disabled-with-reason controls; CSV export; saved screens, My metrics and the watchlist through the API, with
+   marks; disabled-with-reason controls; the index and group pickers (EXEC-SCREENER-STOCK-LISTS: search, include,
+   exclude, chips, a run that carries them, a saved screen that keeps them, the lists not published); CSV export; saved screens, My metrics and the watchlist through the API, with
    delete confirmation; the cached paint on a second open (304s, no run when the cached result is current); no
    IndexedDB; a run answer newer than the catalog; keyboard; markup in names, catalog labels, preset names and server
    messages rendered as text; the page runs under edge-bff's production CSP (serve.mjs), any violation fails. Fails on any console
@@ -312,7 +313,7 @@ await at('Add a condition sets the parameters too (user 2026-11-06, option A): L
   expect(await card.locator('[data-p="length"]').inputValue() === '50' && await card.locator('[data-segc].on').count() === 1, 'the card does not hold Length 50 as Custom: ' + await card.innerText());
   expect(await runs() === r0 && await pendingShown(), 'adding ran the screen, or did not mark the table out of date');
 });
-await at('Flow chip and Operator… (user 2026-11-08): a flow chip in the results header opens the same box as SMA's; a builder card offers Operator… and it opens Add a condition with the operator panel', async () => {
+await at('Flow chip and Operator… (user 2026-11-08): a flow chip in the results header opens the same box as SMA\'s; a builder card offers Operator… and it opens Add a condition with the operator panel', async () => {
   await fresh(); await ready();
   for (const name of ['Foreign Net Value', 'Simple Moving Average']) {
     await page.click('#pageActs [data-hd="add"]'); await page.waitForTimeout(250);
@@ -820,14 +821,17 @@ await at('P4: stale and price-break stocks hidden by default, shown with remarks
   expect(cells === 0 || marks > 0, 'no cell remark on a price-break row');
   await page.fill('#tq', '');
 });
-await at('disabled with reason: index, board, market cap, free float, notation, fundamentals', async () => {
-  for (const sel of ['.qf[disabled]']) expect(await page.locator(sel).count() === 3, 'three quick filters should be disabled');
+await at('disabled with reason: board, market cap, free float, notation, fundamentals', async () => {
+  // EXEC-SCREENER-STOCK-LISTS: the fixture publishes the index and group lists, so Index has data (its own steps below)
+  for (const sel of ['.qf[disabled]']) expect(await page.locator(sel).count() === 2, 'two quick filters should be disabled');
+  expect(await page.locator('[data-qf="index"]:not([disabled])').count() === 1, 'the Index quick filter is disabled although the lists are published');
   expect(/No data/.test(await page.locator('.qf[disabled]').first().getAttribute('title')), 'disabled quick filter without its reason');
   // v21: Mkt cap is not a column; it is listed with its reason under "Not available yet" (focus moves in, Escape returns it)
   await page.click('.na-btn'); await page.waitForTimeout(100);
   const na = await page.locator('#naPop').innerText();
-  for (const [name, why] of [['Index membership', 'No data: index'], ['Listing board', 'No data: the listing board'], ['Market cap', 'No data: market cap waits'], ['Free float', 'No data: free float'], ['Special notation', 'No data: special notation']])
+  for (const [name, why] of [['Listing board', 'No data: the listing board'], ['Market cap', 'No data: market cap waits'], ['Free float', 'No data: free float'], ['Special notation', 'No data: special notation']])
     expect(new RegExp(`${name}\\s*${why}`).test(na), `${name} not listed with its reason under Not available yet`);
+  expect(!/Index and group membership/.test(na), 'index and group membership listed as not available although the lists are published');
   expect(await page.evaluate(() => !!document.activeElement?.closest('#naPop')), 'focus did not move into Not available yet');
   await page.keyboard.press('Escape');
   expect(await page.locator('#naPop[hidden]').count() === 1 && await page.evaluate(() => document.activeElement?.classList.contains('na-btn')), 'Escape did not close Not available yet and return focus');
@@ -937,6 +941,112 @@ await at('a run answer newer than the catalog: the catalog is asked again', asyn
   const c = await counters();
   expect(c.catalog >= 2, `catalog not asked again: ${JSON.stringify(c)}`);
   expect(/06:59 WIB/.test(await text('#pageHead')), 'the data line does not show the new publication');
+});
+/* ---- EXEC-SCREENER-STOCK-LISTS (user 2026-11-09, option 1A): Index and Group (konglomerasi) in More filters ---------- */
+/** the fixture's own universe rows (the worker's memberships), the tickers in every one of the given lists */
+const membersOf = (indices, groups) => page.evaluate(async ([ix, gr]) => {
+  const u = await window.__fixture.universe(null);
+  return u.body.rows.filter(r => ix.every(c => (r.indices || []).includes(c)) && gr.every(c => (r.groups || []).includes(c))).map(r => r.ticker).sort();
+}, [indices, groups]);
+const shownTickers = () => page.locator('#resPane tbody tr[data-tk]').evaluateAll(rs => rs.map(r => r.dataset.tk).sort());
+const iconTitles = () => page.locator('#uChips .ficon').evaluateAll(b => b.map(x => x.getAttribute('title')));
+await at('Index and Group: the pickers beside Sector and Industry, each list with its name, stocks and definition; search; include and exclude; the chips; no run before Screen now', async () => {
+  await fresh(); await ready();
+  // wide screen: the Index quick filter opens More filters at its group
+  await page.click('[data-qf="index"]');
+  await page.waitForSelector('.drawer #f-index .lchips [data-list]');
+  const p = await page.evaluate(() => {
+    const at = sel => document.querySelector(sel);
+    return { nav:[...document.querySelectorAll('.drawer .fnav [data-fk]')].map(a => a.dataset.fk), lq:at('.drawer [data-list="INDEX:LQ45"]')?.textContent.trim(),
+      lqTitle:at('.drawer [data-list="INDEX:LQ45"]')?.getAttribute('title'), salim:at('.drawer [data-list="KONGLO:SALIM"]')?.textContent.trim(),
+      salimTitle:at('.drawer [data-list="KONGLO:SALIM"]')?.getAttribute('title'), ct:at('.drawer [data-list="KONGLO:CT-CORP"]')?.textContent.trim(),
+      head:at('.drawer #f-group .k')?.textContent, note:at('.drawer #f-group')?.textContent };
+  });
+  expect(p.nav.slice(0, 4).join() === 'sector,industry,index,group', `More filters groups: ${p.nav}`);
+  expect(/^LQ45\s+\d+$/.test(p.lq) && /45 saham likuid/.test(p.lqTitle), `LQ45 option: ${p.lq} / ${p.lqTitle}`);
+  expect(/^Salim\s+3$/.test(p.salim) && /Salim \(SALIM\): Grup usaha/.test(p.salimTitle) && /3 stocks in the screener's universe/.test(p.salimTitle), `Salim option: ${p.salim} / ${p.salimTitle}`);
+  expect(/^CT Corp\s+0$/.test(p.ct), `a list wholly outside the universe shows 0: ${p.ct}`);
+  expect(/Group \(konglomerasi\)/.test(p.head) && /not proof of ownership/.test(p.note), 'the group picker without its title or its caution');
+  // the search narrows a list in place (no redraw, no edit of the screen)
+  const r0 = await runs();
+  await page.fill('.drawer [data-lsearch="KONGLO"]', 'sar');
+  let vis = await page.locator('.drawer #f-group [data-list]:visible').evaluateAll(b => b.map(x => x.dataset.list));
+  expect(vis.join() === 'KONGLO:SARATOGA', `the group search for "sar" shows ${vis}`);
+  await page.fill('.drawer [data-lsearch="KONGLO"]', 'zzz');
+  expect(await page.locator('.drawer #f-group .lnone:visible').count() === 1, 'no "No group matches." for a search that matches nothing');
+  await page.fill('.drawer [data-lsearch="KONGLO"]', '');
+  expect(await page.locator('.drawer #f-group [data-list]:visible').count() === 7, 'the group list did not come back whole');
+  expect(!await pendingShown(), 'a search marked the screen as changed');
+  // include IDX80 and SARATOGA: the chips say so and the count follows at once
+  await page.click('.drawer [data-list="INDEX:IDX80"]'); await page.click('.drawer [data-list="KONGLO:SARATOGA"]');
+  expect(await page.locator('.drawer [data-list="INDEX:IDX80"].on[aria-pressed="true"]').count() === 1 && await page.locator('.drawer [data-list="KONGLO:SARATOGA"].on').count() === 1, 'a picked list is not shown as included');
+  const both = await membersOf(['IDX80'], ['SARATOGA']);
+  const counted = Number((await text('#uCount')).match(/In universe ([\d,]+)/)[1]);
+  expect(both.length === 5 && counted <= both.length && counted > 0, `In universe ${counted} for IDX80 and SARATOGA (members ${both})`);
+  await page.keyboard.press('Escape');
+  const icons = await iconTitles();
+  expect(icons.includes('Index IDX80') && icons.includes('Group Saratoga'), `the round icons do not name the lists: ${icons}`);
+  expect(await page.locator('#uChips .ficon', { hasText:'Idx' }).count() === 1 && await page.locator('#uChips .ficon', { hasText:'Grp' }).count() === 1, 'no Idx / Grp icon');
+  expect(await runs() === r0 && await pendingShown(), 'a list edit ran the screen, or did not mark it out of date');
+  await screen();
+  const rows = await shownTickers();
+  expect(rows.length === counted && rows.every(t => both.includes(t)), `the table shows ${rows}, members of both: ${both}`);
+  // the list of active filters removes one; a second click on a list excludes it, a third clears it (as a sector chip)
+  await page.click('#cardU .chipbar .ficon'); await page.click('[data-uclear="groups_in"]');
+  expect(!(await iconTitles()).some(t => /^Group /.test(t)), 'the group chip was not removed');
+  await page.click('[data-qf="index"]'); await page.click('.drawer [data-list="INDEX:IDX80"]');
+  expect(await page.locator('.drawer [data-list="INDEX:IDX80"].ex').count() === 1, 'a second click did not exclude the index');
+  await page.keyboard.press('Escape');
+  expect((await iconTitles()).includes('Excluding index IDX80'), 'no chip for the excluded index');
+  await screen();
+  const out = await page.evaluate(async () => (await window.__fixture.universe(null)).body.rows.filter(r => r.indices.includes('IDX80')).map(r => r.ticker));
+  const rows2 = await shownTickers();
+  expect(rows2.length > 0 && rows2.every(t => !out.includes(t)), `an excluded index's member is shown: ${rows2}`);
+  await page.click('[data-qf="index"]'); await page.click('.drawer [data-list="INDEX:IDX80"]');
+  expect(await page.locator('.drawer [data-list="INDEX:IDX80"]:not(.on):not(.ex)').count() === 1, 'a third click did not clear the index');
+  await page.keyboard.press('Escape');
+});
+await at('Index and Group: a run on the worker carries the lists, its rows are in both, and a saved screen keeps them after a reload', async () => {
+  await fresh(); await ready();
+  await page.evaluate(() => { const f = window.__fixture, run = f.run; f.run = async (...a) => { const r = await run.apply(f, a); window.__lastRun = { req:a[0], body:r.body }; return r } });
+  await page.click('[data-open="p:oversold"]'); await page.waitForTimeout(300);
+  await page.click('[data-act="drawer"]'); await page.waitForSelector('.drawer [data-list="INDEX:ISSI"]');
+  await page.click('.drawer [data-list="INDEX:ISSI"]'); await page.click('.drawer [data-list="INDEX:LQ45"]');
+  await page.click('.drawer [data-list="KONGLO:SARATOGA"]'); await page.click('.drawer [data-list="KONGLO:ASTRA"]');
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => { const n = document.getElementById('nearT'); if (n && !n.checked) n.click() });
+  const r0 = await runs();
+  await screen();
+  expect(await runs() === r0 + 1, 'Screen now did not run the screen once');
+  const last = await page.evaluate(() => ({ u:window.__lastRun?.req.definition.universe, rows:window.__lastRun?.body.rows.map(r => r.ticker), eligible:window.__lastRun?.body.universe.eligible }));
+  expect(JSON.stringify([last.u?.indices_in, last.u?.groups_in]) === '[["ISSI","LQ45"],["SARATOGA","ASTRA"]]', `the run carried ${JSON.stringify(last.u)}`);
+  const anyIx = await page.evaluate(async () => (await window.__fixture.universe(null)).body.rows.filter(r => (r.indices.includes('ISSI') || r.indices.includes('LQ45')) && (r.groups.includes('SARATOGA') || r.groups.includes('ASTRA'))).map(r => r.ticker));
+  expect(last.rows.every(t => anyIx.includes(t)) && last.eligible <= anyIx.length && last.eligible > 0, `rows ${last.rows} (eligible ${last.eligible}) not all in an index and a group: ${anyIx}`);
+  expect(Number((await text('#uCount')).match(/In universe ([\d,]+)/)[1]) === last.eligible, 'the page\'s count differs from the run\'s');
+  // saved, reloaded: the filters come back on their chips and pickers
+  await page.click('[data-hd="save"]'); await page.fill('#saveName', 'Lists screen'); await page.click('#saveGo');
+  await page.waitForFunction(() => /saved to My screens/.test(document.getElementById('toast').textContent));
+  await go(); await ready();
+  expect(await page.inputValue('#titleIn') === 'Lists screen', 'the saved screen is not the open screen after reload');
+  const icons = await iconTitles();
+  expect(icons.includes('Index ISSI, LQ45') && icons.includes('Group Saratoga, Astra'), `the reloaded screen lost its lists: ${icons}`);
+  await page.click('[data-act="drawer"]');
+  expect(await page.locator('.drawer [data-list="INDEX:LQ45"].on').count() === 1 && await page.locator('.drawer [data-list="KONGLO:ASTRA"].on').count() === 1, 'the pickers do not show the saved lists');
+  await page.keyboard.press('Escape');
+});
+await at('Index and Group without the lists: the quick filter disabled with the reason, listed under Not available yet, no picker in More filters, the rest runs', async () => {
+  await fresh('?stocklists=none'); await ready();
+  const qf = page.locator('[data-qf="index"]');
+  expect(await qf.count() === 0 || await page.locator('.qf[disabled]', { hasText:'Index' }).count() === 1, 'the Index quick filter is not disabled');
+  expect(/carries no index and group lists/.test(await page.locator('.qf[disabled]', { hasText:'Index' }).getAttribute('title')), 'the disabled Index filter does not name its reason');
+  await page.click('.na-btn'); await page.waitForTimeout(100);
+  expect(/Index and group membership\s*This publication carries no index and group lists/.test(await page.locator('#naPop').innerText()), 'Not available yet does not list index and group membership with its reason');
+  await page.keyboard.press('Escape');
+  await page.click('[data-act="drawer"]');
+  expect(await page.locator('.drawer #f-index, .drawer #f-group').count() === 0, 'More filters shows the Index or Group picker without data');
+  await page.keyboard.press('Escape');
+  await page.click('[data-open="p:oversold"]'); await screen();
+  expect(!/refused|not available/i.test(await meta()), 'a screen without a list filter did not run');
 });
 await at('keyboard: "/" opens Add a condition, Enter adds, rows open the preview, Escape closes', async () => {
   await fresh(); await ready();

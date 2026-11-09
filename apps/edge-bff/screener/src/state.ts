@@ -15,8 +15,12 @@ import { fromWire, toWire, type Card } from './forms.ts';
 export interface UState extends Omit<UniverseDef, 'metric_filters'> { filters: Card[] }
 export const freshUniverse = (): UState => {
   const { metric_filters, ...u } = JSON.parse(JSON.stringify(UNIVERSE_DEFAULTS)) as UniverseDef;
-  return { ...u, sectors_in:[], sectors_out:[], industries_in:[], industries_out:[], filters:[] };
+  return { ...u, sectors_in:[], sectors_out:[], industries_in:[], industries_out:[], ...noLists(), filters:[] };
 };
+/** The universe's include and exclude lists (EXEC-SCREENER-STOCK-LISTS: the index and group filters beside sector and
+    industry): an empty one means no filter and is left out of the wire. */
+export const LIST_KEYS = ['sectors_in', 'sectors_out', 'industries_in', 'industries_out', 'indices_in', 'indices_out', 'groups_in', 'groups_out'] as const;
+const noLists = () => ({ indices_in:[] as string[], indices_out:[] as string[], groups_in:[] as string[], groups_out:[] as string[] });
 
 export type Source = null | { kind: 'preset'; id: string } | { kind: 'saved'; item_id: string; revision: number };
 export type SortKey = 'match' | 'sym' | 'last' | 'd1' | 'adv' | `c:${string}`;
@@ -124,7 +128,7 @@ export function definitionOf(st: { universe: UState; cards: Card[]; logic: Logic
     metric_filters:filters.map(f => toWire(ctx.byKey.get(f.entry || ''), f).test as ValueTest),
   };
   // empty include and exclude lists are left out of the wire (they mean "no filter")
-  for (const k of ['sectors_in', 'sectors_out', 'industries_in', 'industries_out'] as const) if (!universe[k]?.length) delete universe[k];
+  for (const k of LIST_KEYS) if (!universe[k]?.length) delete universe[k];
   if (!universe.metric_filters?.length) delete universe.metric_filters;
   const def: Definition = { universe, conditions:st.cards.map(c => toWire(entryOf(c), c)), logic:st.logic };
   if (st.logic === 'at_least') def.at_least = Math.max(1, Math.round(Number(st.atLeast) || 1));
@@ -144,7 +148,7 @@ export function stateOfDefinition(def: Definition): { universe: UState; cards: C
   const { metric_filters, ...u } = def.universe || ({} as UniverseDef);
   const universe: UState = { ...base, ...JSON.parse(JSON.stringify(u)),
     filters:(metric_filters || []).map((t, i) => fromWire({ id:'f' + i, enabled:true, test:t }, ctx.byKey)) };
-  for (const k of ['sectors_in', 'sectors_out', 'industries_in', 'industries_out'] as const) universe[k] = universe[k] || [];
+  for (const k of LIST_KEYS) universe[k] = universe[k] || [];
   const cards = (def.conditions || []).map(cd => fromWire(cd, ctx.byKey));
   return { universe, cards, logic:def.logic || 'all', atLeast:def.at_least || 2 };
 }

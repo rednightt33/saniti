@@ -26,6 +26,10 @@ const FIXTURE_MARKERS = [
   ['the prototype broker table', /Mirae Asset/],
   ['the fixture ScreenerApi storage', /scr\.fixture\./],
   ['the fixture failure injection', /fixture failure/],
+  // EXEC-SCREENER-STOCK-LISTS: the fixture's sample index and group lists (tests/fixture/stock-lists.ts), and the
+  // worker's stock-lists reader the fixture runs (apps/screener-worker/src/stocklists.ts): the page reads the catalog
+  ['the fixture stock lists', /contoh fixture/],
+  ['the worker stock-lists reasons', /carries no index and group lists/],
 ];
 async function files(dir) {
   const out = [];

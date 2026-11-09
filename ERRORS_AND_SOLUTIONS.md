@@ -5753,6 +5753,23 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M413 — Screener smoke run did not start since 2026-11-08 (a quote in a step name); five steps fail once it runs (2026-11-09, syntax fixed on branch, five steps open)
+
+- **Found by:** EXEC-SCREENER-STOCK-LISTS steps 3-5, running `node tests/smoke/smoke.mjs` on commit 1a28d2ca.
+- **Symptom:** `SyntaxError: missing ) after argument list` at `tests/smoke/smoke.mjs:315`; no step ran.
+- **Verified cause:** commit ceb04d79 (EXEC-SCREENER-CONSIST, 2026-11-08) named a step `'... the same box as SMA's; ...'`
+  in single quotes; the apostrophe ends the string (`node --check` on the file at 1a28d2ca fails the same way).
+- **Solution:** the apostrophe escaped (`SMA\'s`), branch `claude/screener-stock-lists-filter`. With the file running,
+  five steps fail on 1a28d2ca itself, before any stock-list change (run with `SMOKE_ONLY` on a checkout of 1a28d2ca with
+  the same one-character fix): "Add a condition is the one way to add" (an empty threshold not refused with the card's
+  message), "more than two blue boxes go behind Customize" (row height 71, a settings cell overflows), "Patterns (QA of
+  unit C items 1-3)" (the columns do not name the windows and the side), "Customize at 1440, 1100 and 390 px" (broker
+  inventory selects cut "Top-K holders (largest inventory)"), "Flow (P5c)" (N does not take the broker sessions held
+  with its hint). They fail the same with the stock-list branch; the stock-list steps pass.
+- **Class:** a test file that cannot be parsed passes silently in every check that does not run it.
+- **Lesson:** a smoke or check script edited in a commit is run (or at least `node --check`ed) in the same commit.
+- **Status:** syntax fixed on branch; the five failing steps OPEN (not diagnosed here: outside the stock-list scope).
+
 ### M412 — Terminal in EDGE: two Statistics buttons while the Terminal loads (2026-11-09, fixed)
 
 - **Symptom (user screenshot):** during "Loading SSIA" the left side showed EDGE's "» Statistics" and the Terminal's own

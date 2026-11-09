@@ -10,16 +10,23 @@
    Rendering stays in universe-ui.ts; this module gives it the pieces and wires their events. */
 import { esc, nf } from '../format.ts';
 import { ctx, S, type UState } from '../state.ts';
-import { T } from '../texts.ts';
+import { LIST_TEXT, T } from '../texts.ts';
 import { store } from '../storage.ts';
 import { LKEYS } from './prefs.ts';
 
 /* ---- More filters: group list ---------------------------------------------------------------------------- */
-export const FKEYS = ['sector', 'industry', 'liq', 'metric', 'quality'] as const;
+// EXEC-SCREENER-STOCK-LISTS: Index and Group follow Sector and Industry (universe-ui.ts listSec)
+export const FKEYS = ['sector', 'industry', 'index', 'group', 'liq', 'metric', 'quality'] as const;
 export type FKey = typeof FKEYS[number];
+/** the groups More filters shows: Index and Group only with the catalog's lists, or while a list filter is set (a saved
+    screen's, to be removed); without data they are under "Not available yet" like the other groups without data */
+export const shownFKeys = (u: UState = S.universe): FKey[] => FKEYS.filter(k => (k !== 'index' && k !== 'group') || ctx.catalog?.stock_lists?.availability === 'AVAILABLE'
+  || !!(u.indices_in?.length || u.indices_out?.length || u.groups_in?.length || u.groups_out?.length));
 const FICON: Record<FKey, string> = {
   sector:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9l7.8 4.5A9 9 0 1 1 12 3Z"/><path d="M15 3.5A9 9 0 0 1 20.5 12H15Z"/></svg>',
   industry:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21V10l6 3V10l6 3V6l6-3v18Z"/></svg>',
+  index:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4M4 20h16M8 16l4-5 3 3 5-7"/></svg>',
+  group:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6" r="3"/><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M10.5 8.6 7.5 14.4M13.5 8.6l3 5.8M9 17h6"/></svg>',
   liq:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c3 4 6 7 6 11a6 6 0 0 1-12 0c0-4 3-7 6-11Z"/></svg>',
   metric:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M7 15l3-4 3 2 4-6"/></svg>',
   quality:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 4.4 3.4 8 8 9 4.6-1 8-4.6 8-9V6Z"/><path d="m9 12 2 2 4-4"/></svg>',
@@ -29,6 +36,11 @@ const rpB = (v: number) => `Rp ${nf(v / 1e9, v % 1e9 ? 1 : 0)}B`;
 export function fsum(k: FKey, u: UState = S.universe): { l: string; n: number; d: string } {
   if (k === 'sector') { const a = u.sectors_in || [], b = u.sectors_out || []; return { l:'Sectors', n:a.length + b.length, d:[...a, ...b.map(x => 'not ' + x)].join(', ') || 'All sectors' } }
   if (k === 'industry') { const a = u.industries_in || [], b = u.industries_out || []; return { l:'Industries', n:a.length + b.length, d:[...a, ...b.map(x => 'not ' + x)].join(', ') || 'All industries' } }
+  if (k === 'index' || k === 'group') {
+    const kind = k === 'index' ? 'INDEX' : 'KONGLO', a = (k === 'index' ? u.indices_in : u.groups_in) || [], b = (k === 'index' ? u.indices_out : u.groups_out) || [];
+    const name = (c: string) => ctx.catalog?.stock_lists?.lists.find(l => l.kind === kind && l.code === c)?.name || c;
+    return { l:LIST_TEXT[kind].title, n:a.length + b.length, d:[...a.map(name), ...b.map(x => 'not ' + name(x))].join(', ') || `All ${LIST_TEXT[kind].many}` };
+  }
   if (k === 'liq') {
     const p = [u.adv20_min_idr != null ? 'Avg value ≥ ' + rpB(u.adv20_min_idr) : null, u.price_min != null ? 'Price ≥ Rp ' + nf(u.price_min) : null].filter(Boolean) as string[];
     return { l:'Liquidity & price', n:p.length, d:p.join(' · ') || 'No floor' };
@@ -39,7 +51,7 @@ export function fsum(k: FKey, u: UState = S.universe): { l: string; n: number; d
 }
 let setOnly = false;
 export function fnavHtml(): string {
-  const items = FKEYS.map(k => ({ k, ...fsum(k) }));
+  const items = shownFKeys().map(k => ({ k, ...fsum(k) }));
   return `<nav class="fnav" aria-label="Filter groups"><div class="navtop"><span>Groups</span><label><input type="checkbox" data-fonly ${setOnly ? 'checked' : ''}> Set only</label></div>`
     + items.map(t => `<a href="#f-${t.k}" data-fk="${t.k}" class="${t.n ? '' : 'unset'}" title="${esc(t.d)}"><span class="ic">${FICON[t.k]}</span><b>${esc(t.l)}</b><small>${esc(t.d)}</small><i class="n ${t.n ? '' : 'z'}" aria-label="${t.n} set">${t.n}</i></a>`).join('')
     + '<span class="mini" aria-hidden="true"><i></i></span></nav>';
@@ -121,7 +133,9 @@ export function summaryHtml(items: { label: string; value: string; on: boolean }
 type NaGroup = [title: string, rows: [name: string, reason: string][]];
 function naGroups(): NaGroup[] {
   // the universe fields the page shows without data (universe-ui.ts quick filters and More filters), with their reason
-  const out: NaGroup[] = [['Universe filters', [['Index membership', T.noIndex], ['Listing board', T.noBoard], ['Market cap', T.noCap], ['Free float', T.noFreeFloat], ['Special notation', T.noNotation]]]];
+  // EXEC-SCREENER-STOCK-LISTS: index and group membership only while the catalog's lists are not available (its reason)
+  const lists = ctx.catalog?.stock_lists, listsNa: [string, string][] = lists?.availability === 'AVAILABLE' ? [] : [[LIST_TEXT.na, lists?.reason || T.noIndex]];
+  const out: NaGroup[] = [['Universe filters', [...listsNa, ['Listing board', T.noBoard], ['Market cap', T.noCap], ['Free float', T.noFreeFloat], ['Special notation', T.noNotation]]]];
   const by = new Map<string, { group: string; reason: string; names: string[] }>();
   for (const e of ctx.entries) {
     if (e.available) continue;

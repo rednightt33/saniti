@@ -181,7 +181,7 @@ export function renderDetails() {
     ? (a ? perfCard(tk, a) : `<div class="pcard">${PV.error ? `<p class="note down" role="alert">${esc(PV.error)} ${pvRetry}</p>` : spin(`Loading ${esc(tk)}`)}</div>`)
     : `<div><div id="dChart" style="position:relative">${a ? '' : PV.error ? `<div class="pv-err note down" role="alert">${esc(PV.error)} ${pvRetry}</div>` : `<span class="ml-boot">${spin(`Loading ${esc(tk)}`)}</span>`}</div><div class="legend" id="dLegend">${a ? legend(a) : ''}</div></div>`;
   const html = head + `<div class="pquote"><strong>${nf(last)}</strong><span class="${tone(d1)}" style="font-weight:600">${d1 == null ? '' : sgn(d1) + ' ' + dayWord(lastBar, evalDate())}</span>${status}</div>
-    <div class="note" style="margin-top:-6px">${esc(industry || 'Unclassified')} · <span title="${esc(T.noBoard)}">board: no data</span> · <span title="${esc(T.noIndex)}">indexes: no data</span></div>
+    <div class="note" style="margin-top:-6px">${esc(industry || 'Unclassified')} · <span title="${esc(T.noBoard)}">board: no data</span>${ctx.catalog?.stock_lists?.availability === 'AVAILABLE' ? '' : ` · <span title="${esc(ctx.catalog?.stock_lists?.reason || T.noIndex)}">indexes: no data</span>`}</div>
     ${rmk}${pvSeg()}${view}${why}${facts}`;
   const theme = document.documentElement.dataset.theme || '';
   if (drawn && drawn.html === html && drawn.theme === theme && drawn.a === a && $('dtb').querySelector('.preview-head')) { $('dacts').hidden = false; layoutHooks.afterDetails(); return }

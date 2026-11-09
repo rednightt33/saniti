@@ -25,6 +25,9 @@ import { availabilityMap, validateDefinition } from '../../src/core/validate.ts'
 import type { ValidateContext } from '../../src/core/validate.ts';
 import type { FlowBindContext } from '../../src/core/flowmetrics.ts';
 import { tickerFlow } from './broker.ts';
+import type { StockListsBlock } from '../../src/core/contract.ts';
+import { stockListsOf } from '../../../../screener-worker/src/stocklists.ts';
+import type { StockListsRef } from '../../../../screener-worker/src/stocklists.ts';
 
 export interface Tk {
   ticker: string; name: string; sector: string | null; industry: string | null;
@@ -32,9 +35,16 @@ export interface Tk {
   remarks: RowRemark[]; breakAt: number | null;
 }
 export interface Market { tickers: Tk[]; byTicker: Map<string, Tk>; days: string[]; ihsg: number[]; evalDate: string }
-/** What the fixture's publication holds besides the bars: its broker window (complete, or still loading) and the
-    groupings the validation checks sector and industry names against. */
-export interface FixtureData { flow: FlowBindContext; groupings: readonly Grouping[] }
+/** What the fixture's publication holds besides the bars: its broker window (complete, or still loading), the
+    groupings the validation checks sector and industry names against and (EXEC-SCREENER-STOCK-LISTS) the stock-lists
+    file as the worker's refresh reads it (absent: as a publication without it); stockListsBlock gives its catalog block. */
+export interface FixtureData { flow: FlowBindContext; groupings: readonly Grouping[]; lists?: StockListsRef }
+/** The universe rows of a market with the indices and groups of `fx.lists` (the worker's stocklists.ts stockListsOf,
+    as its snapshot build runs it), and the catalog block it gives. */
+export function universeRows(m: Market, fx: FixtureData): { rows: UniverseRow[]; block: StockListsBlock } {
+  const rows = m.tickers.map(t => universeRow(m, t));
+  return { rows, block: stockListsOf(fx.lists, rows) };
+}
 
 /** the worker's limits the fixture's catalog states (tests/fixture/api.ts LIMITS) and its cap budget (the core tests') */
 export const LIMITS = { max_conditions: 20, max_metric_filters: 8, within_max: 130 };
@@ -68,7 +78,7 @@ function envOf(m: Market, fx: FixtureData): ScreenEnv {
   if (!env) {
     const index = indexOf(m);
     env = { capBudgetMs:CAP_BUDGET_MS, withinMax:LIMITS.within_max, index, catalog:METRICS_CATALOG, flow:fx.flow,
-      evaluationDate:m.evalDate, rows:m.tickers.map(t => universeRow(m, t)), ihsgCalendar:index.dates,
+      evaluationDate:m.evalDate, rows:universeRows(m, fx).rows, ihsgCalendar:index.dates,
       bars:tk => { const t = m.byTicker.get(tk); return t ? barsOf(t) : undefined },
       series:(r, t) => series(SCTX, calcOf(t), r), isPrewarmed:() => false };
     ENVS.set(m, env);
@@ -90,7 +100,16 @@ export function groupingsOf(m: Market): Grouping[] {
 /** The worker's validation context on the fixture's publication (apps/screener-worker/src/server.ts vctx). */
 export function validateContext(m: Market, fx: FixtureData): ValidateContext {
   return { limits:LIMITS, capBudgetMs:CAP_BUDGET_MS, tickers:new Set(m.tickers.map(t => t.ticker)), groupings:fx.groupings,
-    metrics:METRICS_CATALOG, availability:availabilityMap({}, METRICS_CATALOG, undefined, fx.flow), flow:fx.flow };
+    metrics:METRICS_CATALOG, availability:availabilityMap({}, METRICS_CATALOG, undefined, fx.flow), flow:fx.flow, stockLists:stockListsBlock(m, fx) };
+}
+/** The catalog's stock_lists block of the fixture's publication (computed once per market and file). */
+const BLOCKS = new WeakMap<Market, { lists: StockListsRef | undefined; block: StockListsBlock }>();
+export function stockListsBlock(m: Market, fx: FixtureData): StockListsBlock {
+  const b = BLOCKS.get(m);
+  if (b && b.lists === fx.lists) return b.block;
+  const block = universeRows(m, fx).block;
+  BLOCKS.set(m, { lists: fx.lists, block });
+  return block;
 }
 /** The worker's normalize: the definition with every default resolved, or the core's ScreenerError (its refusal). */
 export const normalize = (m: Market, fx: FixtureData, def: unknown): Definition => validateDefinition(def, validateContext(m, fx));
