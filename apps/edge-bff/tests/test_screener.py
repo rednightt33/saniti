@@ -1328,17 +1328,17 @@ def test_screener_tab_in_the_browser(configured, store, worker, monkeypatch, tmp
                 page.locator('#auth-login').fill('owner')
                 page.locator('#auth-password').fill('local-test-password')
                 page.get_by_role('button', name='Sign In', exact=True).click()
-                tabs = page.locator('.topbar nav button')
+                tabs = page.locator('.side-nav button')   # EXEC-NAV-LEFT: the pages' menu on the left, icons only
                 tabs.first.wait_for()
-                assert tabs.all_inner_texts() == ['Monitor', 'Terminal', 'Backtest', 'Screener']
-                page.locator('.topbar nav button.nav-screener').click()
+                assert [tabs.nth(k).get_attribute('aria-label') for k in range(tabs.count())] == ['Monitor', 'Terminal', 'Backtest', 'Screener']
+                page.locator('.side-nav button.nav-screener').click()
                 page.wait_for_url(local.origin + '/screener')
-                assert page.locator('.topbar nav button.nav-screener').get_attribute('aria-current') == 'page'
+                assert page.locator('.side-nav button.nav-screener').get_attribute('aria-current') == 'page'
                 page.frame_locator('iframe.terminal-frame').get_by_text('evaluated 2026-10-27', exact=True).wait_for()
                 assert page.locator('iframe.terminal-frame').get_attribute('title') == 'Stock screener'
                 page.reload()
                 page.frame_locator('iframe.terminal-frame').get_by_text('evaluated 2026-10-27', exact=True).wait_for()
-                page.locator('.topbar nav button.nav-backtest').click()
+                page.locator('.side-nav button.nav-backtest').click()
                 page.wait_for_url(local.origin + '/backtest')
                 assert page.locator('iframe.terminal-frame').get_attribute('src').endswith('/backtest-app/')
                 page.go_back()

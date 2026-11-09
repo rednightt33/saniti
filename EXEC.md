@@ -13046,7 +13046,7 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   near-miss, 0 pil; klik kanan → baris tombol; ↑ menyortir naik; Remove menghapus kartu dengan toast Undo. Tidak ada error
   halaman. screener vitest 1328 lulus.
 
-## EXEC-NAV-LEFT — tab Monitor, Terminal, Backtest, Screener pindah ke menu kiri dengan ikon (keputusan sebagian 2026-11-09, BELUM dieksekusi)
+## EXEC-NAV-LEFT — tab Monitor, Terminal, Backtest, Screener pindah ke menu kiri dengan ikon (go 2026-11-09, dirilis ke dev)
 
 ### Kata user
 - 2026-11-09: "siapkan 4 icon untuk ini, kita akan pindahksan 4 tersebut ke kiri." (tab di atas halaman EDGE)
@@ -13055,11 +13055,20 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 ### Keputusan
 - Ikon: **set 2** (garis 1.6): Monitor = kilau AI, Terminal = jendela grafik, Backtest = stopwatch, Screener = kaca pembesar
   dengan plus. SVG di `verification/nav_icons_20261109/nav_icons.html` (simbol m2, t2, b2, s2).
-- Terbuka: bentuk menu kiri (A ikon saja 56 px; B ikon dengan nama di bawah 76 px; C ikon dan nama sebaris 186 px).
+- Bentuk menu: **A** (ikon saja, 56 px, nama di tooltip) dan Screener memakai ikon corong (kata user 2026-11-09: "A untuk
+  screener bisa pakai logo terlampir").
 
-### Catatan eksekusi
-- Tab dibuat di `apps/edge-bff/static/index.html` (navigasi EDGE) dengan kata dari `static/edge-labels.js` (`nav`); ikon
-  dan menu kiri dibangun di sana setelah bentuk menu dipilih.
+### Yang dibangun (2026-11-09)
+- `static/index.html`: tab di bar atas dihapus; `nav.side-nav` tetap di kiri di bawah bar atas (56 px, ikon 22 px, nama di
+  tooltip dan aria-label, halaman aktif dengan garis kiri); halaman (`.app>main`) mulai 56 px dari kiri. Di layar ≤ 720 px
+  menu disembunyikan seperti tab sebelumnya. Ikon di `paths` (navMonitor, navTerminal, navBacktest, navScreener).
+- Tes yang menunjuk tab atas diperbarui ke menu kiri (`test_page_titles.py`, `test_backtest.py`, `test_screener.py`).
+
+### Bukti
+- Preview (`preview/edge_preview.py build`) 1440×900: tidak ada tab di bar atas; menu 56 px dengan 4 tombol, Monitor
+  aktif; halaman mulai di x 56; klik Terminal dan Screener memindahkan tanda aktif. Tidak ada error halaman.
+- edge-bff pytest dengan Postgres lokal: 351 lulus; `test_composer_layout` [mobile] gagal sekali di putaran penuh dan lulus
+  saat diulang, dengan maupun tanpa perubahan ini (tidak terkait).
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 

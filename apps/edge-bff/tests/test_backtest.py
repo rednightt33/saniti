@@ -1994,18 +1994,18 @@ def test_backtest_tab_in_the_browser(configured, store, worker, monkeypatch, tmp
                 page.locator('#auth-login').fill('owner')
                 page.locator('#auth-password').fill('local-test-password')
                 page.get_by_role('button', name='Sign In', exact=True).click()
-                tabs = page.locator('.topbar nav button')
+                tabs = page.locator('.side-nav button')   # EXEC-NAV-LEFT: the pages' menu on the left, icons only
                 tabs.first.wait_for()
-                assert tabs.all_inner_texts() == ['Monitor', 'Terminal', 'Backtest', 'Screener']   # EXEC-SCREENER: Screener last
-                page.locator('.topbar nav button.nav-backtest').click()
+                assert [tabs.nth(k).get_attribute('aria-label') for k in range(tabs.count())] == ['Monitor', 'Terminal', 'Backtest', 'Screener']   # EXEC-SCREENER: Screener last
+                page.locator('.side-nav button.nav-backtest').click()
                 page.wait_for_url(local.origin + '/backtest')
-                assert page.locator('.topbar nav button.nav-backtest').get_attribute('aria-current') == 'page'
+                assert page.locator('.side-nav button.nav-backtest').get_attribute('aria-current') == 'page'
                 frame = page.frame_locator('iframe.terminal-frame')
                 frame.get_by_text('data through 2026-10-23', exact=True).wait_for()
                 assert page.locator('iframe.terminal-frame').get_attribute('title') == 'Backtest'
                 page.reload()
                 page.frame_locator('iframe.terminal-frame').get_by_text('data through 2026-10-23', exact=True).wait_for()
-                page.locator('.topbar nav button.nav-terminal').click()
+                page.locator('.side-nav button.nav-terminal').click()
                 page.wait_for_url(local.origin + '/terminal')
                 assert page.locator('iframe.terminal-frame').get_attribute('src').endswith('/terminal-app/')
                 assert not [e for e in errors if 'Content Security Policy' in e]

@@ -20,7 +20,7 @@ def test_the_tab_title_names_each_page(fixture_server, browser_page):
     assert page.title() == 'EDGE — Monitor'
     for nav, title in (('Terminal', 'EDGE — Terminal'), ('Backtest', 'EDGE — Backtest'), ('Screener', 'EDGE — Screener'),
                        ('Monitor', 'EDGE — Monitor')):
-        page.locator('header.topbar nav').get_by_role('button', name=nav, exact=True).click()
+        page.locator('nav.side-nav').get_by_role('button', name=nav, exact=True).click()
         page.wait_for_function('t => document.title === t', arg=title)
     # a page opened directly by its address gets its own title, and back/forward keeps it in step
     page.goto(origin + '/screener')
