@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-11-09 — edge-bff `5c4fbe6a`: Broker Inventory broker list per ticker (M421, user option A)
+
+- Checked before: no EDGE job or orc turn running. The push deployed `76204edc` SUCCESS 16:37 UTC; `/ready` 200.
+- Live check (FL52 saved with `OD, CC, MG, KZ, BK, KI` and no ticker, as in the user's layout): ACES → `BB, HD, PD`,
+  BBRI → `NI, CC, OD`, back to ACES → `BB, HD, PD`, each equal to the panel's Broker inventory; no page error. Before the
+  deploy the same check kept `OD, CC, MG, KZ, BK, KI` on every ticker.
+- Rollback: `serviceInstanceDeployV2` with `9959b04e`.
+
 ## 2026-11-09 — edge-bff `d1cb965b`: Terminal right panel no longer stuck on "Loading" (M419), one ring speed (M420)
 
 - User: "bagian kanan ... loading terus. Cek kenapa" and "fix masalah ring, beda2 kecepatan putarannya antar device".

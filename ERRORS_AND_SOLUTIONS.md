@@ -5767,7 +5767,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   `brokers_ticker`; on opening another ticker (`dropStale`) or when a list of another ticker arrives (`freezeTokens`) it
   goes back to its token and is resolved for the ticker on screen. Lists saved before (no ticker) go back to the token
   once. Within one ticker the list stays as it was (3B kept).
-- **Status:** fixed; live check after the deploy.
+- **Status:** fixed and live (edge-bff `76204edc`): ACES `BB, HD, PD`, BBRI `NI, CC, OD`, each the panel's own list.
 
 ### M420 — Loading ring turns at different speeds on different devices (2026-11-09, fixed)
 
