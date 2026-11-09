@@ -9812,6 +9812,16 @@ html.dark .side-nav>button:hover,html.dark .side-nav .side-actions>button:hover,
 .side-nav .side-actions>button{width:36px;height:36px}
 .side-nav .side-account{position:relative;display:grid;place-items:center;margin-top:4px}
 .side-nav .side-account .account-menu{left:50px;right:auto;top:0;bottom:auto}
+/* user 2026-11-09 ("Tooltipnya juga harus jelas"): a dark label right of the button, at once on hover or keyboard focus */
+.side-nav [data-tip]{position:relative}
+.side-nav [data-tip]:hover::after,.side-nav [data-tip]:focus-visible::after{content:attr(data-tip);position:absolute;z-index:200;left:calc(100% + 12px);top:50%;transform:translateY(-50%);padding:6px 10px;border-radius:6px;background:#111;color:#fff;font:500 12px/1.2 var(--font-sans,Inter,sans-serif);white-space:nowrap;pointer-events:none;box-shadow:0 4px 12px rgb(0 0 0 / .18)}
+html.dark .side-nav [data-tip]:hover::after,html.dark .side-nav [data-tip]:focus-visible::after{background:#f4f4f5;color:#111}
+/* the Terminal's Statistics in the menu (the picture: » and the word upright), a line under it */
+.side-nav>button.side-stats{height:auto;padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:8px}
+.side-stats-chev{font-size:14px;line-height:1}
+.side-stats-label{writing-mode:vertical-rl;font-size:12px;font-weight:500;letter-spacing:.02em}
+.side-nav .side-sep{width:36px;height:1px;background:var(--border);margin:2px 0}
+.side-nav>button.side-stats.active::before{display:none}
 /* the account menu in the left menu takes the EDGE bar's account menu rules */
 .side-account .account-menu{width:220px;padding:8px;border-radius:8px;}
 .side-account .account-menu>.account-summary{padding:8px 10px 12px;margin-bottom:4px;border-bottom:1px solid var(--border);}
@@ -11392,6 +11402,19 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) 
        theme, settings and account sit in the left menu, and the Terminal's own toolbar is the top row */
     // not on a phone (≤ 720 px), where the left menu is hidden and the EDGE bar stays the way to the account
     const slim = route === "terminal" && !(typeof matchMedia === "function" && matchMedia("(max-width:720px)").matches);
+    /* EXEC-NAV-LEFT (user 2026-11-09: "kalau diterminal dia ada statistics bisa buat seperti terlampir"): the Terminal's
+       Statistics button in this menu; the Terminal (same origin, its frame) says whether its panel is open */
+    const statsOpen = initialValue(viewRecord, "statsOpen", () => false), setStatsOpen = next => updateValue(viewRecord, "statsOpen", next);
+    const termFrame = () => document.querySelector(".terminal-page iframe.terminal-frame");
+    onLifecycle(viewRecord, "terminal-stats", () => {
+        if (!slim) return;
+        const onMsg = e => { if (e.origin === location.origin && e.source === termFrame()?.contentWindow && e.data?.source === "terminal" && e.data.type === "stats") setStatsOpen(!!e.data.open); };
+        const hello = () => termFrame()?.contentWindow?.postMessage({ source: "edge", type: "rail" }, location.origin);
+        addEventListener("message", onMsg);
+        const f = termFrame(); f?.addEventListener("load", hello); hello();
+        const again = setInterval(hello, 1500); setTimeout(() => clearInterval(again), 9000);   // the Terminal may still be loading
+        return () => { removeEventListener("message", onMsg); f?.removeEventListener("load", hello); clearInterval(again); };
+    }, [slim]);
     return element("div", { className: `app ${theme === "dark" ? "dark" : ""} ${chart ? "chart-app" : ""} ${slim ? "slim-top" : ""}` },
         !slim && element("header", { className: "topbar", inert: mobilePanelOpen },
             element("button", { className: "brand", onClick: () => go("monitor") },
@@ -11413,16 +11436,20 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
         /* EXEC-NAV-LEFT (user 2026-11-09: "kita akan pindahkan 4 tersebut ke kiri", menu A: icons only, the name in the
            tooltip): the four pages in a 56 px menu on the left, under the top bar */
         element("nav", { className: "side-nav", "aria-label": "Pages", inert: mobilePanelOpen },
-            slim && element("button", { type: "button", className: "side-brand", title: "EDGE", "aria-label": "EDGE: Monitor", onClick: () => go("monitor") }, element("span", { className: "brand-mark" }, "E")),
+            slim && element("button", { type: "button", className: "side-brand", "data-tip": "EDGE · Monitor", "aria-label": "EDGE: Monitor", onClick: () => go("monitor") }, element("span", { className: "brand-mark" }, "E")),
+            slim && element("button", { type: "button", className: `side-stats ${statsOpen ? "active" : ""}`, "data-tip": statsOpen ? "Close Statistics" : "Open Statistics", "aria-label": "Statistics", "aria-expanded": statsOpen,
+                onClick: () => termFrame()?.contentWindow?.postMessage({ source: "edge", type: "stats", open: !statsOpen }, location.origin) },
+                element("span", { className: "side-stats-chev" }, statsOpen ? "«" : "»"), element("span", { className: "side-stats-label" }, "Statistics")),
+            slim && element("span", { className: "side-sep", "aria-hidden": true }),
             nav.map(([label, r]) => { const active = route === "monitor" ? label === "Monitor" : route === r;
-            return element("button", { key: label, type: "button", "aria-current": active ? "page" : undefined, "aria-label": label, title: label, className: `nav-${label.toLowerCase()} ${active ? "active" : ""}`, onClick: () => go(r) },
+            return element("button", { key: label, type: "button", "aria-current": active ? "page" : undefined, "aria-label": label, "data-tip": label, className: `nav-${label.toLowerCase()} ${active ? "active" : ""}`, onClick: () => go(r) },
                 element(Icon, { name: `nav${r[0].toUpperCase()}${r.slice(1)}`, size: 22 })); }),
             slim && element("div", { className: "side-actions" },
-                element("button", { type: "button", title: "Research", "aria-label": "Research", onClick: () => { sessionStorage.removeItem("edge-research-context"); go("monitor"); } }, element(Icon, { name: "spark", size: 20 })),
-                element("button", { type: "button", title: `Switch to ${theme === "dark" ? "light" : "dark"} theme`, "aria-label": `Switch to ${theme === "dark" ? "light" : "dark"} theme`, onClick: toggle }, element(Icon, { name: "theme", size: 20 })),
-                element("button", { type: "button", ref: settingsRef, title: "Settings", "aria-label": "Settings", className: settingsOpen ? "active" : "", onClick: () => setSettingsOpen(true) }, element(Icon, { name: "settings", size: 20 })),
+                element("button", { type: "button", "data-tip": "Research", "aria-label": "Research", onClick: () => { sessionStorage.removeItem("edge-research-context"); go("monitor"); } }, element(Icon, { name: "spark", size: 20 })),
+                element("button", { type: "button", "data-tip": theme === "dark" ? "Light theme" : "Dark theme", "aria-label": `Switch to ${theme === "dark" ? "light" : "dark"} theme`, onClick: toggle }, element(Icon, { name: "theme", size: 20 })),
+                element("button", { type: "button", ref: settingsRef, "data-tip": "Settings", "aria-label": "Settings", className: settingsOpen ? "active" : "", onClick: () => setSettingsOpen(true) }, element(Icon, { name: "settings", size: 20 })),
                 element("span", { className: "side-account" },
-                    element("button", { ref: avatarRef, className: `avatar ${accountOpen ? "open" : ""}`, onClick: () => setAccountOpen(!accountOpen), "aria-label": "Account menu", "aria-haspopup": "menu", "aria-expanded": accountOpen }, "E"),
+                    element("button", { ref: avatarRef, className: `avatar ${accountOpen ? "open" : ""}`, "data-tip": accountOpen ? undefined : "Account", onClick: () => setAccountOpen(!accountOpen), "aria-label": "Account menu", "aria-haspopup": "menu", "aria-expanded": accountOpen }, "E"),
                     accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } })))),
         children,
         false && element(AccountDialog, { view: accountView, setView: setAccountView, close: () => setAccountView(null), returnFocusRef: avatarRef }),

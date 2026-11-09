@@ -125,6 +125,14 @@ export async function serve(DATA, TICKER) {
     }
     if (path.startsWith('/api/terminal/v1/logo/')) return json({ error:'no_logo' }, 404);
     if (files.has(path)) { res.writeHead(200, { 'Content-Type':'application/gzip', 'Access-Control-Allow-Origin':'*' }); return res.end(files.get(path)) }
+    /* EXEC-NAV-LEFT: the EDGE page preview (apps/edge-bff/preview/edge_preview.py build) on the same origin, so the real
+       Terminal runs in its frame (EDGE_PREVIEW = the built file) */
+    /* EXEC-NAV-LEFT: with EDGE_PAGE set, the EDGE page itself (apps/edge-bff/static: index.html and its scripts) on the
+       same origin, so the real Terminal runs in its frame and the two talk as on dev */
+    if (process.env.EDGE_PAGE && (path === '/' || path === '/terminal' || /^\/edge-[a-z-]+\.js$/.test(path))) {
+      const f = path.endsWith('.js') ? path.slice(1) : 'index.html';
+      res.writeHead(200, { 'Content-Type':f.endsWith('.js') ? 'text/javascript' : 'text/html' }); return res.end(await readFile(join(BUILD, '..', f)));
+    }
     if (path.startsWith('/terminal-app/')) {
       const rel = normalize(path.slice('/terminal-app/'.length) || 'index.html');
       if (!rel.startsWith('..')) try { const b = await readFile(join(BUILD, rel)); res.writeHead(200, { 'Content-Type':TYPES[extname(rel)] || 'application/octet-stream' }); return res.end(b) } catch {}

@@ -13070,6 +13070,16 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - 2026-11-09 (kata user: "tambah hover state bisa? lalu panel kiri bawah instead of ditaruh dibawah taruh diatas saja
   dibawah screener tapi di kasih garis"): hover menu kiri dipertegas (#e6e8ec; gelap: putih 10 %; tombol aktif #dfe2e7);
   Research, tema, settings dan akun pindah tepat di bawah Screener dengan garis pemisah; menu akun terbuka ke bawah.
+- 2026-11-09 (kata user: "Tooltipnya juga harus jelas. Also saat ini kan kalau diterminal dia ada statstics bisa buat seperti
+  terlampir kalau user sedang membuka statistik?"): tooltip menu kiri jadi kotak gelap di samping ikon, langsung saat hover
+  atau fokus keyboard (`data-tip`, bukan `title` browser). Di halaman Terminal tombol "» Statistics" ada di menu kiri di bawah
+  logo (garis di bawahnya); EDGE dan Terminal (origin sama) bertukar pesan: EDGE minta buka/tutup, Terminal memberi tahu
+  keadaannya, jadi « di dalam panel juga menyamakan tombol EDGE. Di dalam EDGE kolom Statistics terlipat milik Terminal
+  tidak memakan tempat; di luar EDGE tidak berubah.
+- Bukti: halaman EDGE asli + Terminal asli di stand-in (`verification/nav_icons_20261109/stats_in_menu.mjs`, rute uji
+  `EDGE_PAGE` di `serve.mjs`): awal tertutup (lebar 0), klik → panel 300 px dan tombol "Close Statistics", « di Terminal →
+  tombol kembali "Open Statistics"; tooltip "Backtest" tampil. look_check11 PASS; terminal vitest 887; edge-bff pytest
+  (titles, screener, backtest, terminal, frontend) 119 lulus.
 
 ### Bukti
 - Preview (`preview/edge_preview.py build`) 1440×900: tidak ada tab di bar atas; menu 56 px dengan 4 tombol, Monitor

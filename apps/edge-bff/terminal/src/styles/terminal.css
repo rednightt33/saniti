@@ -1697,3 +1697,6 @@ select.idlg-in,.side.right select{-webkit-appearance:none;appearance:none;backgr
 .workspace.chart-max .main-col,html.fit .workspace.chart-max .main-col{grid-template-rows:46px minmax(200px,1fr) 0}
 /* user 2026-11-08: a box over the whole Terminal page (placeBox keeps it in the window) */
 .ind-box{position:fixed;max-width:calc(100vw - 16px)}
+/* EXEC-NAV-LEFT: inside EDGE the Statistics button is in EDGE's left menu; the folded panel takes no room here */
+html.edge-rail .workspace.left-collapsed{--left-w:0px}
+html.edge-rail .workspace.left-collapsed .side.left{visibility:hidden;overflow:hidden;min-width:0;width:0;border:0;padding:0}

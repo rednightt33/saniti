@@ -21,9 +21,21 @@ export function initStats(ctx: Ctx) {
     $('statsExpand').setAttribute('aria-expanded', String(!c));
     store.set('ml.stats.collapsed', c?'1':'0');
     if(!c) scheduleStats();
+    tellEdge();
   };
   $('statsCollapse').onclick = () => setLeftCollapsed(true);
   $('statsExpand').onclick = () => setLeftCollapsed(false);
+  /* EXEC-NAV-LEFT (user 2026-11-09: "kalau diterminal dia ada statistics bisa buat seperti terlampir"): inside EDGE the
+     Statistics button sits in EDGE's left menu. EDGE (the same origin) says so with {source:'edge', type:'rail'}; the
+     Terminal then drops its own folded rail, opens or closes the panel when EDGE asks ({type:'stats', open}) and tells
+     EDGE each change, so both show the same state. Outside EDGE nothing changes. */
+  const parentWin = window.parent !== window ? window.parent : null;
+  function tellEdge() { if(parentWin && document.documentElement.classList.contains('edge-rail')) parentWin.postMessage({ source:'terminal', type:'stats', open:!ws.classList.contains('left-collapsed') }, location.origin) }
+  if(parentWin) addEventListener('message', (e: MessageEvent) => {
+    if(e.origin !== location.origin || e.source !== parentWin || e.data?.source !== 'edge') return;
+    if(e.data.type === 'rail') { document.documentElement.classList.add('edge-rail'); tellEdge() }
+    if(e.data.type === 'stats') setLeftCollapsed(!e.data.open);
+  });
 
   {
     const rz = $('statsResize'), side = $('statsPanel');
