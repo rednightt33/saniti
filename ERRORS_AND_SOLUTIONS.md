@@ -5852,7 +5852,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 
 ### M412 — Terminal in EDGE: two Statistics buttons while the Terminal loads (2026-11-09, fixed, on dev `840aecde`)
 
-### M416 — Screener smoke run did not start since 2026-11-08 (a quote in a step name); five steps fail once it runs (2026-11-09; numbered M413 in its branch commit, renumbered at the merge as main had taken M413-M415;, syntax fixed on branch, five steps open)
+### M417 — Screener smoke run did not start since 2026-11-08 (a quote in a step name); five steps fail once it runs (2026-11-09; numbered M413 in its branch commit, renumbered at the merge as main had taken M413-M416;, syntax fixed on branch, five steps open)
 
 - **Found by:** EXEC-SCREENER-STOCK-LISTS steps 3-5, running `node tests/smoke/smoke.mjs` on commit 1a28d2ca.
 - **Symptom:** `SyntaxError: missing ) after argument list` at `tests/smoke/smoke.mjs:315`; no step ran.
