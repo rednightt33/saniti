@@ -5762,8 +5762,17 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   ON_FAILURE`, and the service instance reads `ON_FAILURE` (GraphQL, 2026-11-09). No cron schedule.
 - **Effect:** a round that ends FAILED (exit 1) is started again by Railway with the same token, a new round and a new
   pull. Round `28c3b97f` (2026-11-09) records "container dijalankan ulang oleh Railway".
-- **Suspected, not checked:** why the uploaded `railway.json` is not applied (the service's config-file path or a
-  dashboard setting that overrides it).
+- **Root cause (verified 2026-11-09, GraphQL):**
+  - The service instance's own setting is `restartPolicyType ON_FAILURE`, `restartPolicyMaxRetries 10` (Railway's
+    default). `.railway/railway.ts` gives every other job service an explicit `deploy.restartPolicyType`; the
+    `stockbit-updater` entry has none, so its setting was never set to NEVER.
+  - The uploaded `railway.json` is read (deployment `39ab0f3b` `propertyFileMapping` lists `deploy.restartPolicyType`,
+    and the file's `builder DOCKERFILE` and `dockerfilePath /Dockerfile` are applied over the instance's `RAILPACK`), but
+    the deployed `serviceManifest.deploy.restartPolicyType` is the instance's `ON_FAILURE`: the file's restart policy did
+    not override the setting. `postgres-memory-cron` has the same file and runs NEVER only because its instance setting
+    (from `railway.ts`) is NEVER too. Why Railway applies the file's builder but not its restart policy is not known.
+- **Fix (pending the user's choice on how a round starts):** set the instance setting NEVER (`railway.ts`
+  `stockbit-updater` `deploy: { restartPolicyType: "NEVER" }`, applied and read back), not the file alone.
 - **Class:** a service setting written in a file that the platform does not read; the code's comment then states a
   behaviour the live service does not have. Same check applies to every CLI-uploaded service with a `railway.json`.
 - **Status:** OPEN; part of the decision on how a Stockbit round is started (FUTURE_PLAN / user's choice A or B).
