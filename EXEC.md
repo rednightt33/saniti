@@ -13063,6 +13063,10 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   tooltip dan aria-label, halaman aktif dengan garis kiri); halaman (`.app>main`) mulai 56 px dari kiri. Di layar ≤ 720 px
   menu disembunyikan seperti tab sebelumnya. Ikon di `paths` (navMonitor, navTerminal, navBacktest, navScreener).
 - Tes yang menunjuk tab atas diperbarui ke menu kiri (`test_page_titles.py`, `test_backtest.py`, `test_screener.py`).
+- Opsi 1 untuk Terminal (kata user 2026-11-09: "Ok opsi 1"): di halaman Terminal bar EDGE tidak ditampilkan; logo EDGE di
+  atas menu kiri (klik: Monitor), Research, tema, settings dan akun di bawahnya (menu akun terbuka di samping menu); halaman
+  Terminal setinggi layar. Di layar ≤ 720 px bar EDGE tetap (menu kiri tersembunyi di sana). Preview: Terminal mulai di
+  y 0 tinggi 900; Monitor tetap dengan bar EDGE. edge-bff pytest (titles, screener, backtest, terminal, frontend): 119 lulus.
 
 ### Bukti
 - Preview (`preview/edge_preview.py build`) 1440×900: tidak ada tab di bar atas; menu 56 px dengan 4 tombol, Monitor

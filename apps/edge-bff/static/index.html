@@ -9795,12 +9795,27 @@ html.dark .edge-flow-done{background:#1e9a59;}
 }
 /* EXEC-NAV-LEFT: the left menu (icons only, 56 px); the pages start right of it */
 .side-nav{position:fixed;z-index:29;left:0;top:var(--topbar);bottom:0;width:56px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0;border-right:1px solid var(--border);background:var(--surface,var(--background))}
-.side-nav button{position:relative;display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:10px;background:none;color:var(--text-2,var(--muted-foreground));cursor:pointer}
-.side-nav button:hover{background:var(--hover,var(--secondary));color:var(--text,var(--foreground))}
-.side-nav button.active{background:var(--sel,var(--secondary));color:var(--text,var(--foreground))}
-.side-nav button.active::before{content:"";position:absolute;left:-8px;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--text,var(--foreground))}
-.side-nav button:focus-visible{outline:2px solid var(--blue,#0070f3);outline-offset:2px}
+.side-nav>button,.side-nav .side-actions>button{position:relative;display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:10px;background:none;color:var(--text-2,var(--muted-foreground));cursor:pointer}
+.side-nav>button:hover,.side-nav .side-actions>button:hover{background:var(--hover,var(--secondary));color:var(--text,var(--foreground))}
+.side-nav>button.active,.side-nav .side-actions>button.active{background:var(--sel,var(--secondary));color:var(--text,var(--foreground))}
+.side-nav>button.active::before{content:"";position:absolute;left:-8px;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--text,var(--foreground))}
+.side-nav>button:focus-visible,.side-nav .side-actions>button:focus-visible{outline:2px solid var(--blue,#0070f3);outline-offset:2px}
 .app>main{margin-left:56px}
+/* option 1: the Terminal page without the EDGE bar; the menu runs the full height with the logo and the account */
+.app.slim-top .side-nav{top:0}
+.app.slim-top .terminal-page{height:100vh}
+.side-nav .side-brand{margin-bottom:6px}
+.side-nav .side-brand .brand-mark{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:var(--text,#111);color:var(--surface,#fff);font-weight:700}
+.side-nav .side-actions{margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:4px}
+.side-nav .side-actions>button{width:36px;height:36px}
+.side-nav .side-account{position:relative;display:grid;place-items:center;margin-top:4px}
+.side-nav .side-account .account-menu{left:50px;right:auto;top:auto;bottom:0}
+/* the account menu in the left menu takes the EDGE bar's account menu rules */
+.side-account .account-menu{width:220px;padding:8px;border-radius:8px;}
+.side-account .account-menu>.account-summary{padding:8px 10px 12px;margin-bottom:4px;border-bottom:1px solid var(--border);}
+.side-account .account-menu>.account-summary>strong{font-size:12px;font-weight:500;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.side-account .account-menu>button.sign-out{display:flex;align-items:center;justify-content:flex-start;min-height:36px;padding:8px 10px;white-space:nowrap;font-size:12px;line-height:18px;border-radius:5px;}
+.side-account .account-menu>button.sign-out:is(:focus,:focus-visible,:active){outline:none;border:0;box-shadow:none;}
 @media(max-width:720px) {
  .side-nav{display:none}
  .app>main{margin-left:0}
@@ -11371,8 +11386,12 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) 
         const search = document.querySelector(".conversation-panel .search input");
         if (search && search.offsetParent) { search.focus(); search.select(); } else showMarketSoon();
     } }; document.addEventListener("keydown", onKey); return () => document.removeEventListener("keydown", onKey); }, []);
-    return element("div", { className: `app ${theme === "dark" ? "dark" : ""} ${chart ? "chart-app" : ""}` },
-        element("header", { className: "topbar", inert: mobilePanelOpen },
+    /* EXEC-NAV-LEFT option 1 (user 2026-11-09: "Ok opsi 1"): on the Terminal page the EDGE bar is not shown; its logo, Research,
+       theme, settings and account sit in the left menu, and the Terminal's own toolbar is the top row */
+    // not on a phone (≤ 720 px), where the left menu is hidden and the EDGE bar stays the way to the account
+    const slim = route === "terminal" && !(typeof matchMedia === "function" && matchMedia("(max-width:720px)").matches);
+    return element("div", { className: `app ${theme === "dark" ? "dark" : ""} ${chart ? "chart-app" : ""} ${slim ? "slim-top" : ""}` },
+        !slim && element("header", { className: "topbar", inert: mobilePanelOpen },
             element("button", { className: "brand", onClick: () => go("monitor") },
                 element("span", { className: "brand-mark" }, "E"),
                 element("strong", null, "EDGE")),
@@ -11391,9 +11410,18 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
                 accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } }))),
         /* EXEC-NAV-LEFT (user 2026-11-09: "kita akan pindahkan 4 tersebut ke kiri", menu A: icons only, the name in the
            tooltip): the four pages in a 56 px menu on the left, under the top bar */
-        element("nav", { className: "side-nav", "aria-label": "Pages", inert: mobilePanelOpen }, nav.map(([label, r]) => { const active = route === "monitor" ? label === "Monitor" : route === r;
+        element("nav", { className: "side-nav", "aria-label": "Pages", inert: mobilePanelOpen },
+            slim && element("button", { type: "button", className: "side-brand", title: "EDGE", "aria-label": "EDGE: Monitor", onClick: () => go("monitor") }, element("span", { className: "brand-mark" }, "E")),
+            nav.map(([label, r]) => { const active = route === "monitor" ? label === "Monitor" : route === r;
             return element("button", { key: label, type: "button", "aria-current": active ? "page" : undefined, "aria-label": label, title: label, className: `nav-${label.toLowerCase()} ${active ? "active" : ""}`, onClick: () => go(r) },
-                element(Icon, { name: `nav${r[0].toUpperCase()}${r.slice(1)}`, size: 22 })); })),
+                element(Icon, { name: `nav${r[0].toUpperCase()}${r.slice(1)}`, size: 22 })); }),
+            slim && element("div", { className: "side-actions" },
+                element("button", { type: "button", title: "Research", "aria-label": "Research", onClick: () => { sessionStorage.removeItem("edge-research-context"); go("monitor"); } }, element(Icon, { name: "spark", size: 20 })),
+                element("button", { type: "button", title: `Switch to ${theme === "dark" ? "light" : "dark"} theme`, "aria-label": `Switch to ${theme === "dark" ? "light" : "dark"} theme`, onClick: toggle }, element(Icon, { name: "theme", size: 20 })),
+                element("button", { type: "button", ref: settingsRef, title: "Settings", "aria-label": "Settings", className: settingsOpen ? "active" : "", onClick: () => setSettingsOpen(true) }, element(Icon, { name: "settings", size: 20 })),
+                element("span", { className: "side-account" },
+                    element("button", { ref: avatarRef, className: `avatar ${accountOpen ? "open" : ""}`, onClick: () => setAccountOpen(!accountOpen), "aria-label": "Account menu", "aria-haspopup": "menu", "aria-expanded": accountOpen }, "E"),
+                    accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } })))),
         children,
         false && element(AccountDialog, { view: accountView, setView: setAccountView, close: () => setAccountView(null), returnFocusRef: avatarRef }),
         settingsOpen && element(SettingsDialog, { close: () => setSettingsOpen(false), notify: notify, returnFocusRef: settingsRef }),
