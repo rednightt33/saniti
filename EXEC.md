@@ -11548,6 +11548,78 @@ plan dulu, check PG. inspect database dan infra. Ensure setiap keputusan yang di
 - D3 daftar 66 dan definisinya disemai di migrasi (metadata, tanpa keanggotaan; repo publik) atau ditulis putaran pertama.
 - D4 putaran pertama: saat user mengganti token berikutnya (deploy kode bersamaan) atau segera dengan token yang ada.
 
+**Keputusan user, 2026-11-09:** "D1 OK, D2 OK, D3 OK, D4 OK"; "Untuk LKH, Danatama, PAM group, provident dll keep as
+is"; "Siapkan implementation plan. Inspect dulu database. Keputusan yang diambil dari memory harus di cek kembali dengan
+database." Jadi: nama `Stock_List*`; langkah daftar gagal = putaran SUCCESS dengan peringatan; 66 daftar dan definisinya
+disemai di migrasi; putaran pertama bersama token baru; 33 indeks + 33 grup apa adanya (Lo Kheng Hong, Danatama, PAM
+Group, Provident tetap, deskripsi pemilik yang belum pasti ditulis tanpa nama).
+
+### Inspeksi ulang 2026-11-09 (pgweb read-only, kode `main` 1cbfac2, Railway CLI; tidak ada yang diubah)
+
+- `IDX_Stock_Universe` 908 (stock 862, fund 45, index 1; EXEC-UNIVERSE-BROKER S1, 2026-11-05). Anggota 33 indeks + 33
+  grup (tarikan 2026-11-02): 963 ticker, 859 di universe, 104 tidak (102 di daftar Suspended Stockbit, GOTOM, MKNT).
+  Cakupan Broker Summary per ticker (`AI_data_coverage`, dicek 2026-11-09 00:33 UTC): hanya GOTOM (DBX) tidak pernah
+  ada; 106 anggota berhenti sebelum 2026-10-01 (disuspensi). `Ticker` tetap tidak dikunci ke universe.
+- `IDX_Broker_Summary` sampai 2026-11-03; `Monitoring_Stockbit_Update`: enam putaran 2026-11-05 03:54 UTC FAILED "Token
+  Stockbit kedaluwarsa" (token lama habis 2026-11-04 10:53 UTC). Deployment terakhir `stockbit-updater` `79fa2ee1`
+  (unggahan CLI 2026-11-05 03:53 UTC, CRASHED karena token). Variabel: `UPDATER_MODE=APPLY`, `UPDATER_WORKERS=6`,
+  `RAW_RETENTION_DAYS=3`, `STATE_DIR=/data`.
+- Kode `main` yang belum terpasang di `stockbit-updater`: S2 `refresh.py` (fitur broker hanya universe, `d89212e`) dan
+  L1 `broker_import.py` (kode bukan 4 huruf, `974593f`), disetujui user 2026-11-05 dan menunggu unggahan berikutnya
+  (EXEC-UNIVERSE-BROKER "Hasil L1-L3"). `updater.py` tidak berubah sejak rencana 2026-11-02. Unggahan langkah daftar
+  membawa keduanya.
+- Hak akses: tabel `public` milik `postgres`; `pg_default_acl` memberi `pgweb_reader` SELECT pada setiap relasi baru
+  milik `postgres` (tabel dan view), jadi tidak perlu grant di migrasi. `Monitoring_Stockbit_Update` tidak punya grant
+  tulis lain: updater dan telegram-monitor memakai role pemilik.
+- `Table_Catalog` wajib: `category`, `availability_rule` tidak kosong, `readiness_mode`/`point_in_time_status` dari
+  daftar tetap, definisi atau `NEEDS_REVIEW`; `Column_Catalog` FK ke `Table_Catalog`. Pola riwayat: `20260927_006`
+  (bitemporal, `pit_valid_*` generated, eksklusi GiST, `SAME_DAY_REVISION`).
+- Migrasi live: `verification/screener/jobs/run_migration.sh` (DRYRUN lalu APPLY di `orc-test-runner`, params + probe
+  per migrasi, `check_migration_log.py`, APPLY hanya sesudah DRYRUN lulus dengan sha256 sama, `APPLIED.sha256`).
+- `telegram-monitor`: `fetch_stockbit_update_summary` / `build_stockbit_messages` (`telegram_monitor.py:228-269, 699`).
+- Stockbit dengan token 2026-11-09 (5 GET hanya-baca; token berlaku sampai 2026-11-10 14:21 WIB): 33 grup, id sama
+  dengan 2026-11-02; daftar Indeks 47 (hilang Unsuspended, FCA Out, UMA; baru "Margin"), ke-33 indeks whitelist masih
+  ada; Danantara 39 dan BISNIS-27 27 sama dengan 2026-11-02. Perubahan daftar di luar whitelist hanya dilaporkan.
+- PostgreSQL 16 tersedia di container untuk tes lokal.
+
+### Rencana implementasi (menunggu go eksekusi)
+
+1. **Migrasi `20261109_001_stock_list.sql`** (satu transaksi; preflight menolak bila objek sudah ada; badan rollback di
+   file):
+   - `Stock_List` (66 baris disemai: `list_key` `INDEX:<id>`/`KONGLO:<id>`, `list_kind`, id/kode Stockbit, nama,
+     `definition`, `semantic_review_status` INFERRED/SOURCE_CHECKED, `expected_count` untuk 17 indeks bernomor,
+     `is_enabled`, `first_seen_at`, `last_seen_at`);
+   - `Stock_List_Member` (PK `list_key, "Ticker"`; urutan sumber, nama emiten, `first_seen_date`, `last_seen_date`);
+   - `Stock_List_Member_History` (pola `20260927_006`: `valid_from`/`valid_to`, `recorded_from`/`recorded_to`,
+     `valid_basis`, `available_at`, `pit_valid_*` generated, eksklusi GiST per `list_key, "Ticker"`, `run_id`);
+   - `Stock_List_Load_Log` (satu baris per putaran: status, jumlah, masuk/keluar, daftar di luar whitelist, galat);
+   - view `Stock_List_By_Ticker` (grup, indeks, `in_universe`);
+   - fungsi `apply_stock_list_snapshot(p_snapshot jsonb, p_execution_id uuid)`: satu transaksi, kunci advisory,
+     menolak snapshot yang tidak memuat semua daftar aktif atau gagal cek jumlah; menutup interval anggota yang keluar,
+     membuka yang masuk, revisi hari sama; NO_CHANGE bila sama;
+   - kolom `stock_lists jsonb` di `Monitoring_Stockbit_Update`;
+   - `Table_Catalog` (5 objek) dan `Column_Catalog` (semua kolom), `related_functions`; status `PARTIAL`; tidak ada
+     akses AI; tidak ada indeks besar.
+2. **Runbook migrasi:** `verification/screener/jobs/migration20261109_001_{dryrun,apply}.params.json` + pemeriksaan di
+   `check_migration_log.py` (objek, kolom, 66 baris, katalog, ACL `pgweb_reader`, tidak ada grant PUBLIC, rerun ditolak).
+3. **Kode `stockbit-updater`:** `stock_lists.py` (pakai `StockbitFetcher`; baca daftar aktif dari `Stock_List`; semua
+   halaman grup; cek kosong dan `expected_count`; kirim snapshot ke fungsi SQL; laporkan daftar di luar whitelist) dan
+   satu langkah di `updater.py` sesudah event reload, hanya APPLY; galat langkah ini dicatat di `stock_lists` dan
+   putaran tetap SUCCESS (D2).
+4. **`telegram-monitor`:** baca kolom `stock_lists`; satu bagian ringkasan (jumlah daftar dan anggota, masuk/keluar per
+   daftar yang berubah, daftar baru di Stockbit, peringatan bila langkah gagal).
+5. **Tes lokal (PostgreSQL 16):** migrasi asli + rollback + rerun ditolak; `test_stock_lists.py` (putaran pertama,
+   ulang tanpa perubahan, masuk/keluar, revisi hari sama, snapshot tak lengkap tanpa tulis, jumlah indeks tak cocok,
+   daftar baru dilaporkan, galat langkah tidak menggagalkan putaran); suite updater dan telegram-monitor yang ada;
+   gladi runbook dengan job runner pada database lokal.
+6. **Live:** cek tidak ada job di `orc-test-runner` (M210) dan tidak ada run user; DRYRUN, APPLY, baca balik pgweb;
+   `APPLIED.sha256`, `DATABASE_CHANGELOG.md`.
+7. **Deploy:** `telegram-monitor` (push `main`, tunggu SUCCESS), lalu `stockbit-updater` (`deploy.sh`, membawa S2 + L1 +
+   langkah daftar) dengan `STOCKBIT_TOKEN` baru; satu putaran: broker 2026-11-04 dst, fitur, event, daftar.
+8. **Verifikasi dan catatan:** baris monitoring, 66 daftar, jumlah anggota = Stockbit, riwayat FIRST_CAPTURE, view,
+   pesan Telegram; restart Postgres bila putaran menulis besar (AGENTS); `RAILWAY_CHANGELOG.md`, `UPDATE_TABLE.md`
+   bagian 0, README updater, `DATABASE_SCHEMA.md` (job skema = pekerjaan besar, L2).
+
 ## EXEC-TERMINAL-IND-EDIT — edit indikator Terminal: Flow (FLOW_INDICATOR_REVIEW.md) dan I37, I41 (rencana, belum go, 2026-11-05)
 
 **Permintaan user, 2026-11-05:** "Kita akan edit bunch of termianl indicators" (dengan `INDICATORS_HANDOFF.md`, disusun
