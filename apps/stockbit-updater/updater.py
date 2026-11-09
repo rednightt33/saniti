@@ -6,6 +6,8 @@ The user replaces the Railway variable STOCKBIT_TOKEN and deploys (decision K2 A
 3. refreshes Feature 05 -> 02 -> 03, 05 -> 06 and the INDEX tables for every date that changed (refresh.py),
 4. reloads the Stockbit corporate actions, insider movements and idx_event_annotation (K4,
    apps/stockbit-event-annotation/job.py, its own full pull and reconciliation),
+4b. reloads the stock groups and indices the user chose (stock_lists.py, EXEC-STOCK-CATALOG); a failure of this step is
+   a warning in the stock_lists column, the round stays SUCCESS (decision D2),
 5. refreshes Database_Table_Status and records the round in Monitoring_Stockbit_Update, then asks telegram-monitor
    to send the summary (K5),
 and exits. Restart policy NEVER: a failed round is not retried with the same token.
@@ -35,6 +37,7 @@ from psycopg.types.json import Jsonb
 sys.path[:0] = ['/app/updater', '/app/scripts']
 import broker_import  # noqa: E402
 import refresh  # noqa: E402
+import stock_lists  # noqa: E402
 
 MONITOR = 'public."Monitoring_Stockbit_Update"'
 EVENTS_JOB = Path('/app/events/job.py')
@@ -159,6 +162,8 @@ def main() -> int:
             record(pg, execution_id, index_result=steps['index'])
             steps['events'] = run_events(token)
             record(pg, execution_id, events=steps['events'])
+            steps['stock_lists'] = stock_lists.run(pg, token, execution_id, emit)
+            record(pg, execution_id, stock_lists=steps['stock_lists'])
             steps['table_status'] = {'tables': refresh_table_status()}
     except Exception as exc:  # noqa: BLE001 - every failure ends the round with a recorded, notified status
         status, error = 'FAILED', f'{type(exc).__name__}: {exc}'[:2000]

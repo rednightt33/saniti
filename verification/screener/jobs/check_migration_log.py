@@ -8,7 +8,7 @@ its migration must leave, so the go/no-go after each job is a script's answer, n
 Migrations with checks (MIGRATIONS below): 20261028_001_edge_bff_screener.sql (EXEC-SCREENER migration 1),
 20261028_100_terminal_service_accounts.sql (EXEC-MU-RUNTIME step 1), 20261106_001_edge_bff_terminal_layouts.sql
 (EXEC-TERMINAL-LAYOUTS), 20261106_002_edge_bff_indicator_presets.sql (EXEC-IND-PRESETS) and
-20261107_001_edge_bff_terminal_drawings.sql (EXEC-DRAW-PANES). A log of any other file FAILs; --covers exits 0
+20261107_001_edge_bff_terminal_drawings.sql (EXEC-DRAW-PANES) and 20261109_001_stock_list.sql (EXEC-STOCK-CATALOG). A log of any other file FAILs; --covers exits 0
 only for a file with checks (run_migration.sh asks before it starts a job).
 The log is the one scripts/onboarding/run_job.sh writes (lines `MIG ...`, `OUT {json}`, `ERR {json}`, `JOB_DONE ...`).
 Checks: the job ran the named file with the expected sha256 (DRYRUN: its body ran and was rolled back); every probe
@@ -431,6 +431,62 @@ def check_drawings(check, mode, outs, sha):
                                          'as_runtime_delete')})
 
 
+# ---- 20261109_001_stock_list.sql (EXEC-STOCK-CATALOG, user go 2026-11-09: "D1 OK, D2 OK, D3 OK, D4 OK", "Opsi B") -------
+STOCK_LIST = '20261109_001_stock_list.sql'
+STOCK_LIST_OBJECTS = [['Stock_List', 'r', 'postgres'], ['Stock_List_By_Ticker', 'v', 'postgres'],
+                      ['Stock_List_Load_Log', 'r', 'postgres'], ['Stock_List_Member', 'r', 'postgres'],
+                      ['Stock_List_Member_History', 'r', 'postgres']]
+# pg_default_acl (read live 2026-11-09): postgres's new public relations give pgweb_reader SELECT, nobody else
+STOCK_LIST_GRANTEES = [[name, 'pgweb_reader', 'SELECT'] for name, _, _ in STOCK_LIST_OBJECTS]
+ERR_TEXT_STOCK_LIST = {'expect_err_missing_list': 'stock list snapshot refused: missing enabled list',
+                       'expect_err_count_differs': 'stock list snapshot refused: INDEX:',
+                       'expect_err_reader_write': 'InsufficientPrivilege: permission denied for table Stock_List_Load_Log'}
+STOCK_LIST_PROBES = ['stock_list_objects', 'apply_function', 'monitoring_column', 'seed_lists', 'empty_tables',
+                     'catalog_rows', 'grantees', 'as_reader_reads', 'first_round', 'after_first_round',
+                     'second_round_same', 'third_round_swap', 'after_swap', 'expect_err_missing_list',
+                     'expect_err_count_differs', 'expect_err_reader_write']
+STOCK_LIST_ROLES = (('as_reader_', 'pgweb_reader'), ('expect_err_reader_', 'pgweb_reader'))
+
+
+def check_stock_list(check, mode, outs, errs):
+    check('objects, owned by postgres', outs.get('stock_list_objects') == STOCK_LIST_OBJECTS, outs.get('stock_list_objects'))
+    check('apply function, not SECURITY DEFINER, pinned search_path',
+          outs.get('apply_function') == [['apply_stock_list_snapshot(jsonb,uuid)', False, 'postgres',
+                                          ['search_path=pg_catalog, public']]], outs.get('apply_function'))
+    check('Monitoring_Stockbit_Update.stock_lists jsonb', outs.get('monitoring_column') == [['jsonb', 'YES']],
+          outs.get('monitoring_column'))
+    # kind, lists, expected counts, enabled, VERIFIED (none), with a definition, distinct Stockbit ids
+    check('66 lists seeded: 33 INDEX (18 counts), 33 KONGLO, none VERIFIED',
+          outs.get('seed_lists') == [['INDEX', 33, 18, 33, 0, 33, 33], ['KONGLO', 33, 0, 33, 0, 33, 33]],
+          outs.get('seed_lists'))
+    check('members, history, log empty; no round has stock_lists yet', outs.get('empty_tables') == [[0, 0, 0, 0]],
+          outs.get('empty_tables'))
+    check('catalog: 5 Table_Catalog rows, 58 Column_Catalog rows, none VERIFIED', outs.get('catalog_rows') == [[5, 58, 0]],
+          outs.get('catalog_rows'))
+    check('grantees: pgweb_reader SELECT only (no PUBLIC)', outs.get('grantees') == STOCK_LIST_GRANTEES, outs.get('grantees'))
+    check('pgweb_reader reads the lists and the view', outs.get('as_reader_reads') == [[66, 0, 0]], outs.get('as_reader_reads'))
+    if mode != 'DRYRUN':
+        return
+    first = (outs.get('first_round') or [[None] * 7])[0]
+    want = first[6]
+    check('first round: SUCCESS, 66 lists, every member added, 66 first captures',
+          isinstance(want, int) and want > 66 and first == ['SUCCESS', 66, want, want, 0, 66, want], outs.get('first_round'))
+    after = (outs.get('after_first_round') or [[None] * 7])[0]
+    check('after it: members and open FIRST_CAPTURE history equal, one log row, the view one row per synthetic ticker',
+          after[:4] == [want, want, want, 'SUCCESS'] and after[4] == after[5] and after[6] == 66, outs.get('after_first_round'))
+    check('the same snapshot again: NO_CHANGE', outs.get('second_round_same') == [['NO_CHANGE', 66, want, 0, 0, 0, want]],
+          outs.get('second_round_same'))
+    swap = (outs.get('third_round_swap') or [[None] * 7])[0]
+    lists = (outs.get('after_swap') or [[None] * 6])[0][2]
+    check('a swap in every list without a count: SUCCESS, that many added and removed',
+          isinstance(lists, int) and lists == 66 - 18 and swap == ['SUCCESS', 66, want, lists, lists, 0, want],
+          outs.get('third_round_swap'))
+    check('after it: the new ticker in, the old one out, its same-day version superseded, the new one CHANGE_CAPTURED',
+          outs.get('after_swap') == [[lists, 0, lists, 'SUCCESS,NO_CHANGE,SUCCESS', lists, lists]], outs.get('after_swap'))
+    check('the count refusal names an expected count', ' members, expected ' in (errs.get('expect_err_count_differs') or ''),
+          errs.get('expect_err_count_differs'))
+
+
 # file name -> the expected ERR text per expect_err_* probe, the migration's own checks, the reviewed probes per mode
 # and the role each probe's name gives (first matching prefix; none: the admin connection)
 MIGRATIONS = {
@@ -448,6 +504,8 @@ MIGRATIONS = {
     DRAWINGS: {'err_text': ERR_TEXT_DRAWINGS,
                'checks': lambda check, mode, outs, sha, probes: check_drawings(check, mode, outs, sha),
                'probes': {'DRYRUN': DRAWING_PROBES, 'APPLY': DRAWING_PROBES[:10]}, 'roles': SCREENER_ROLES},
+    STOCK_LIST: {'err_text': ERR_TEXT_STOCK_LIST, 'checks': None,
+                 'probes': {'DRYRUN': STOCK_LIST_PROBES, 'APPLY': STOCK_LIST_PROBES[:8]}, 'roles': STOCK_LIST_ROLES},
 }
 # what a probe statement may be (outside comments, quoted text and $$ bodies): data statements only, so no probe can end
 # the DRYRUN's one transaction (a COMMIT there keeps the migration, ERRORS M230's class) or leave its role (SET ROLE,
@@ -583,7 +641,10 @@ def main(log, params_path, sha):
         if name not in stated:
             check(f'{name} {"refused" if name.startswith("expect_err_") else "answered"}', False,
                   f'a reviewed {mode} probe the params leave out')
-    spec['checks'](check, mode, outs, sha, [p for p in probes if isinstance(p, list) and len(p) == 3])
+    if migration == STOCK_LIST:
+        check_stock_list(check, mode, outs, errs)
+    else:
+        spec['checks'](check, mode, outs, sha, [p for p in probes if isinstance(p, list) and len(p) == 3])
     print('VERDICT', 'PASS' if all(results) else 'FAIL', f'{sum(results)}/{len(results)}')
     return 0 if all(results) else 1
 

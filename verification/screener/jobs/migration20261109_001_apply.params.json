@@ -1,0 +1,49 @@
+{
+ "_note": "EXEC-STOCK-CATALOG (20261109_001_stock_list.sql; user 2026-11-09: \"D1 OK, D2 OK, D3 OK, D4 OK\", \"Opsi B\", \"Ok jalankan opsi B\"). Staged by scripts/onboarding/run_job.sh with the migration file as an extra (verification/screener/jobs/run_migration.sh). Probes named expect_err_* must print ERR; every other probe must print OUT. The DRYRUN rounds use synthetic tickers ZZnnn/ZY001 and are rolled back with the migration.",
+ "mode": "APPLY",
+ "migrations": [
+  "20261109_001_stock_list.sql"
+ ],
+ "probes": [
+  [
+   "stock_list_objects",
+   null,
+   "SELECT c.relname, c.relkind::text, pg_get_userbyid(c.relowner) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname IN ('Stock_List', 'Stock_List_Member', 'Stock_List_Member_History', 'Stock_List_Load_Log', 'Stock_List_By_Ticker') ORDER BY 1"
+  ],
+  [
+   "apply_function",
+   null,
+   "SELECT p.oid::regprocedure::text, p.prosecdef, pg_get_userbyid(p.proowner), p.proconfig FROM pg_proc p WHERE p.oid = to_regprocedure('public.apply_stock_list_snapshot(jsonb, uuid)')"
+  ],
+  [
+   "monitoring_column",
+   null,
+   "SELECT data_type, is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'Monitoring_Stockbit_Update' AND column_name = 'stock_lists'"
+  ],
+  [
+   "seed_lists",
+   null,
+   "SELECT list_kind, count(*), count(expected_count), count(*) FILTER (WHERE is_enabled), count(*) FILTER (WHERE semantic_review_status = 'VERIFIED'), count(*) FILTER (WHERE length(definition) > 40), count(DISTINCT source_id) FROM public.\"Stock_List\" GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "empty_tables",
+   null,
+   "SELECT (SELECT count(*) FROM public.\"Stock_List_Member\"), (SELECT count(*) FROM public.\"Stock_List_Member_History\"), (SELECT count(*) FROM public.\"Stock_List_Load_Log\"), (SELECT count(*) FROM public.\"Monitoring_Stockbit_Update\" WHERE stock_lists IS NOT NULL)"
+  ],
+  [
+   "catalog_rows",
+   null,
+   "SELECT (SELECT count(*) FROM public.\"Table_Catalog\" WHERE table_schema = 'public' AND table_name IN ('Stock_List', 'Stock_List_Member', 'Stock_List_Member_History', 'Stock_List_Load_Log', 'Stock_List_By_Ticker')), (SELECT count(*) FROM public.\"Column_Catalog\" WHERE table_schema = 'public' AND (table_name IN ('Stock_List', 'Stock_List_Member', 'Stock_List_Member_History', 'Stock_List_Load_Log', 'Stock_List_By_Ticker') OR (table_name = 'Monitoring_Stockbit_Update' AND column_name = 'stock_lists'))), (SELECT count(*) FROM public.\"Column_Catalog\" k WHERE k.table_schema = 'public' AND k.table_name IN ('Stock_List', 'Stock_List_Member', 'Stock_List_Member_History', 'Stock_List_Load_Log', 'Stock_List_By_Ticker') AND k.documentation_status = 'VERIFIED')"
+  ],
+  [
+   "grantees",
+   null,
+   "SELECT c.relname, CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END, string_agg(a.privilege_type, ',' ORDER BY a.privilege_type) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a WHERE n.nspname = 'public' AND c.relname IN ('Stock_List', 'Stock_List_Member', 'Stock_List_Member_History', 'Stock_List_Load_Log', 'Stock_List_By_Ticker') AND a.grantee <> c.relowner GROUP BY 1, 2 ORDER BY 1, 2"
+  ],
+  [
+   "as_reader_reads",
+   "pgweb_reader",
+   "SELECT (SELECT count(*) FROM public.\"Stock_List\"), (SELECT count(*) FROM public.\"Stock_List_By_Ticker\"), (SELECT count(*) FROM public.\"Stock_List_Member_History\")"
+  ]
+ ]
+}

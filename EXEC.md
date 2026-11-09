@@ -11620,6 +11620,26 @@ Group, Provident tetap, deskripsi pemilik yang belum pasti ditulis tanpa nama).
    pesan Telegram; restart Postgres bila putaran menulis besar (AGENTS); `RAILWAY_CHANGELOG.md`, `UPDATE_TABLE.md`
    bagian 0, README updater, `DATABASE_SCHEMA.md` (job skema = pekerjaan besar, L2).
 
+### Kemajuan eksekusi (go user 2026-11-09 "Opsi B", "Ok jalankan opsi B")
+
+Langkah 1–5 siap di `main` (belum ada perubahan live):
+- Migrasi `20261109_001_stock_list.sql` sha256 `8a96b547b405a3185668787dde7cb2ff7d0e5227d4371ce7e0fc09e9761c14ab`;
+  `expected_count` ada pada **18** indeks bernomor (bukan 17 seperti tertulis di langkah 1; semua cocok dengan jumlah
+  anggota 2026-11-02). Lokal: terpasang, rerun ditolak, rollback bersih, pasang ulang.
+- Runbook: params DRYRUN (16 probe: 8 baca, 3 putaran sintetis ZZnnn/ZY001, 3 penolakan) dan APPLY (8 probe baca);
+  `check_migration_log.py` entri `STOCK_LIST`. Gladi `migration_job.py` di PostgreSQL lokal: DRYRUN `VERDICT PASS
+  34/34` (lalu rollback, objek tidak ada), APPLY `VERDICT PASS 19/19`; log yang diubah (grant PUBLIC, NO_CHANGE salah)
+  dan sha lain FAIL; log 20261106_001 dan 20261107_001 tetap PASS.
+- `stockbit-updater`: `stock_lists.py` + langkah 4b di `updater.py`; suite 32 lulus (19 lama + 13 baru).
+- `telegram-monitor`: bagian "Indeks & grup" (jumlah, muatan pertama, maks. 8 daftar berubah, daftar baru di Stockbit,
+  peringatan bila langkah gagal); suite 38 lulus. Kolom `stock_lists` dibaca langsung: deploy hanya sesudah APPLY.
+- Live dibaca 2026-11-09 (pgweb read-only): `pg_default_acl` postgres → `pgweb_reader` SELECT saja; baris RUNNING
+  `e3331473…` dari 2026-10-27 adalah sisa lama (bukan putaran berjalan); 11 putaran FAILED 2026-11-05 03:54 UTC (token
+  kedaluwarsa).
+- Urutan live (menunggu go): DRYRUN → APPLY → baca balik → `APPLIED.sha256`/`DATABASE_CHANGELOG.md` → deploy
+  telegram-monitor (SUCCESS) → `STOCKBIT_TOKEN` diset dengan `--stdin --skip-deploys` (perubahan variabel tanpa itu
+  memulai putaran dengan kode lama) → `deploy.sh` (satu putaran) → langkah 8. Token berlaku sampai 2026-11-10 14:21 WIB.
+
 ## EXEC-TERMINAL-IND-EDIT — edit indikator Terminal: Flow (FLOW_INDICATOR_REVIEW.md) dan I37, I41 (rencana, belum go, 2026-11-05)
 
 **Permintaan user, 2026-11-05:** "Kita akan edit bunch of termianl indicators" (dengan `INDICATORS_HANDOFF.md`, disusun

@@ -8,7 +8,7 @@ import json
 import os
 import re
 import socket
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable
@@ -241,6 +241,8 @@ class StockbitUpdateSummary:
     last_error: str | None
     # EXEC-LOADER-M217: the round's broker dates that broker_summary_date_quality marks INCOMPLETE, with their remark
     incomplete: tuple[tuple[str, str], ...] = ()
+    # EXEC-STOCK-CATALOG: the stock list step's result (stock_lists.run); a FAILED step is a warning of the round
+    stock_lists: dict = field(default_factory=dict)
 
 
 def fetch_stockbit_update_summary(
@@ -249,7 +251,7 @@ def fetch_stockbit_update_summary(
     with connection.cursor() as cursor:
         cursor.execute(
             """SELECT mode,status,started_at,finished_at,token_expires_at,broker_dates,broker_rows,
-                      features,index_result,events,broker,last_error
+                      features,index_result,events,broker,last_error,stock_lists
                FROM public."Monitoring_Stockbit_Update" WHERE execution_id=%s::uuid""",
             (execution_id,),
         )
@@ -270,7 +272,7 @@ def fetch_stockbit_update_summary(
         execution_id=execution_id, mode=str(row[0]), status=str(row[1]), started_at=row[2], finished_at=row[3],
         token_expires_at=row[4], broker_dates=tuple(row[5] or ()), broker_rows=row[6], features=row[7] or {},
         index_result=row[8] or {}, events=row[9] or {}, verify=(row[10] or {}).get("verify") or {},
-        last_error=row[11], incomplete=incomplete,
+        last_error=row[11], incomplete=incomplete, stock_lists=row[12] or {},
     )
 
 
@@ -696,6 +698,35 @@ def build_freshness_message(summary: BrokerFreshnessSummary) -> str:
             "baru di service stockbit-updater (UPDATE_TABLE.md bagian 0).")
 
 
+STOCK_LIST_CHANGES_SHOWN = 8
+
+
+def stock_list_lines(result: dict) -> list[str]:
+    """EXEC-STOCK-CATALOG: the indices and groups of the round (decision D2: a failure is a warning, the round stands)."""
+    if not result:
+        return []
+    if result.get("status") == "FAILED":
+        return ["⚠️ Indeks & grup tidak diperbarui (data lama tetap; Broker Summary tidak terpengaruh): "
+                + str(result.get("warning") or "-")[:400]]
+    lines = [f"Indeks & grup: {result.get('lists')} daftar, {result.get('members')} anggota • "
+             f"masuk {result.get('added')}, keluar {result.get('removed')}"]
+    changes = result.get("changes") or {}
+    first = [v for v in changes.values() if v.get("first_capture")]
+    if first:
+        lines.append(f"Muatan pertama: {len(first)} daftar")
+    moved = [v for v in changes.values() if not v.get("first_capture")]
+    for item in moved[:STOCK_LIST_CHANGES_SHOWN]:
+        parts = [f"+{t}" for t in item.get("added") or []] + [f"−{t}" for t in item.get("removed") or []]
+        lines.append(f"• {item.get('name')}: " + " ".join(parts[:12]) + (" …" if len(parts) > 12 else ""))
+    if len(moved) > STOCK_LIST_CHANGES_SHOWN:
+        lines.append(f"…dan {len(moved) - STOCK_LIST_CHANGES_SHOWN} daftar lain berubah")
+    new = result.get("unlisted_new") or []
+    if new:
+        names = ", ".join(str(x.get("name") or x.get("list_key")) for x in new[:10])
+        lines.append(f"ℹ️ Daftar baru di Stockbit (tidak dimuat): {names}" + (" …" if len(new) > 10 else ""))
+    return lines
+
+
 def build_stockbit_messages(summary: StockbitUpdateSummary, max_length: int = MAX_TELEGRAM_TEXT) -> list[str]:
     emoji = STATUS_EMOJI.get(summary.status, "ℹ️")
     duration = format_duration(max(0.0, (summary.finished_at - summary.started_at).total_seconds()))
@@ -718,6 +749,7 @@ def build_stockbit_messages(summary: StockbitUpdateSummary, max_length: int = MA
         if ca and ins:
             lines.append(f"Corporate action: baru {ca.get('new')}, berubah {ca.get('changed')}, hilang {ca.get('removed')} • "
                          f"Insider: baru {ins.get('new')}, berubah {ins.get('changed')}, hilang {ins.get('removed')}")
+        lines += stock_list_lines(summary.stock_lists)
     if summary.token_expires_at:
         lines.append("Token berlaku sampai " + summary.token_expires_at.astimezone(JAKARTA_TZ).strftime("%d %b %Y %H:%M") + " WIB")
     if summary.last_error:

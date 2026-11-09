@@ -236,6 +236,48 @@ class TelegramMonitorTests(unittest.TestCase):
         self.assertIn("FAILED", text)
         self.assertIn("Error: RuntimeError: Token Stockbit kedaluwarsa", text)
 
+    def _with_stock_lists(self, stock_lists):
+        return StockbitUpdateSummary(
+            execution_id="x", mode="APPLY", status="SUCCESS",
+            started_at=datetime(2026, 11, 10, 2, 0, tzinfo=timezone.utc),
+            finished_at=datetime(2026, 11, 10, 3, 0, tzinfo=timezone.utc), token_expires_at=None,
+            broker_dates=(), broker_rows=0, features={}, index_result={}, events={}, verify={}, last_error=None,
+            stock_lists=stock_lists,
+        )
+
+    def test_stock_lists_first_capture_and_changes_are_reported(self):
+        """EXEC-STOCK-CATALOG: counts, first captures, changed lists and new lists Stockbit shows."""
+        text = build_stockbit_messages(self._with_stock_lists({
+            "status": "SUCCESS", "lists": 66, "members": 2100, "added": 3, "removed": 1,
+            "changes": {"INDEX:1": {"name": "LQ45", "added": ["BBRI", "BMRI"], "removed": ["ASII"]},
+                        "KONGLO:9": {"name": "Salim", "first_capture": True, "members": 30},
+                        "KONGLO:7": {"name": "Djarum", "added": ["TOWR"], "removed": []}},
+            "unlisted_new": [{"list_key": "INDEX:500", "name": "IDXNEW30"}]}))[0]
+        self.assertIn("Indeks & grup: 66 daftar, 2100 anggota • masuk 3, keluar 1", text)
+        self.assertIn("Muatan pertama: 1 daftar", text)
+        self.assertIn("• LQ45: +BBRI +BMRI −ASII", text)
+        self.assertIn("• Djarum: +TOWR", text)
+        self.assertNotIn("• Salim", text)
+        self.assertIn("Daftar baru di Stockbit (tidak dimuat): IDXNEW30", text)
+
+    def test_many_changed_stock_lists_are_cut(self):
+        changes = {f"KONGLO:{i}": {"name": f"G{i}", "added": ["AAAA"], "removed": []} for i in range(11)}
+        text = build_stockbit_messages(self._with_stock_lists(
+            {"status": "SUCCESS", "lists": 66, "members": 2000, "added": 11, "removed": 0, "changes": changes}))[0]
+        self.assertIn("• G7: +AAAA", text)
+        self.assertNotIn("• G8:", text)
+        self.assertIn("…dan 3 daftar lain berubah", text)
+
+    def test_a_failed_stock_list_step_is_a_warning_of_a_successful_round(self):
+        text = build_stockbit_messages(self._with_stock_lists(
+            {"status": "FAILED", "run_id": 4, "warning": "StockListError: Stockbit no longer shows INDEX:9 (IDX30)"}))[0]
+        self.assertIn("Stockbit update APPLY SUCCESS", text)
+        self.assertIn("⚠️ Indeks & grup tidak diperbarui", text)
+        self.assertIn("Stockbit no longer shows INDEX:9 (IDX30)", text)
+
+    def test_a_round_without_the_stock_list_step_has_no_section(self):
+        self.assertNotIn("Indeks & grup", build_stockbit_messages(self._with_stock_lists({}))[0])
+
 
 class BrokerFreshnessTests(unittest.TestCase):
     """EXEC-TERMINAL-FRESH (user 2026-10-27): the evening warning when broker data lags the prices."""
