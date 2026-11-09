@@ -62,6 +62,10 @@ class BrokerImport:
         self.state = state_dir
         self.raw = state_dir / 'raw'
         self.raw.mkdir(parents=True, exist_ok=True)
+        # RAW_RETENTION_DAYS=0 (user 2026-11-09: "data yang mentah Stockbit kita nggak perlu simpen juga nggak apa-apa"):
+        # no raw response is written and the kept ones are removed; the checkpoint, the before copies and the issue
+        # files stay on the volume
+        self.keep_raw = raw_retention_days > 0
         self.prune_raw(raw_retention_days)
         self.cache = sqlite3.connect(state_dir / 'checkpoint.sqlite', check_same_thread=False)
         self.cache.execute('PRAGMA journal_mode=WAL')
@@ -125,7 +129,8 @@ class BrokerImport:
     def fetch_symbol_once(self, day: str, symbol: str) -> dict:
         rows, issues = {}, []
         folder = self.raw / day
-        folder.mkdir(exist_ok=True)
+        if self.keep_raw:
+            folder.mkdir(exist_ok=True)
         for inv in ('DOMESTIC', 'FOREIGN'):
             for board in ('REGULER', 'NEGO', 'TUNAI'):
                 if STOP.is_set():
@@ -134,11 +139,12 @@ class BrokerImport:
                                     'market_board': f'MARKET_BOARD_{board}', 'investor_type': f'INVESTOR_TYPE_{inv}',
                                     'limit': '1000', 'from': day, 'to': day, '_': str(time.time_ns())})
                 body, raw, _ = self.fetch.get_json('/marketdetectors/' + symbol + '?' + params)
-                path = folder / f'{symbol}_{inv}_{board}.json.gz'
-                temp = path.with_suffix('.tmp')
-                with gzip.open(temp, 'wb') as f:
-                    f.write(raw)
-                temp.replace(path)
+                if self.keep_raw:
+                    path = folder / f'{symbol}_{inv}_{board}.json.gz'
+                    temp = path.with_suffix('.tmp')
+                    with gzip.open(temp, 'wb') as f:
+                        f.write(raw)
+                    temp.replace(path)
                 data = body.get('data')
                 summary = data.get('broker_summary') if isinstance(data, dict) else None
                 if not isinstance(summary, dict) or data.get('from') != day or data.get('to') != day:

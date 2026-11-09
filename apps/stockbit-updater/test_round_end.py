@@ -22,13 +22,28 @@ class Conn:
         if self.dead:
             raise psycopg.OperationalError('server closed the connection unexpectedly')
         self.log.append((sql, params))
+        return Rows(self.live if sql == updater.LIVE_ROUND_SQL else [])
+
+    live: list = []
 
     def close(self):
         self.closed = True
 
 
+class Rows:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def fetchall(self):
+        return self.rows
+
+
 def ended(log):
     return [p for sql, p in log if 'finished_at' in sql]
+
+
+def started(log):
+    return [p for sql, p in log if sql.lstrip().startswith('INSERT')]
 
 
 def test_the_end_is_written_on_a_new_connection_when_the_rounds_connection_died():
@@ -138,3 +153,36 @@ def test_notify_is_sent_even_when_the_end_cannot_be_written(round_env, monkeypat
     monkeypatch.setattr(updater, 'token_expiry', die)
     assert updater.main() == 1
     assert ended(log) == [] and len(sent) == 1
+
+
+def test_a_round_does_not_start_while_another_rounds_heartbeat_is_fresh(round_env, monkeypatch):
+    """Run Now is not held back by Railway while a round runs (cron docs): the second run refuses, writes no row and
+    calls nothing."""
+    log, sent, conns = round_env
+    monkeypatch.setattr(Conn, 'live', [('fc71e483',)])
+    monkeypatch.setattr(updater, 'token_expiry', lambda t: pytest.fail('a refused round reads no token'))
+    assert updater.main() == 0
+    assert started(log) == [] and sent == [] and conns[0].closed
+    assert [p for sql, p in log if sql == updater.LIVE_ROUND_SQL] == [(updater.LIVE_ROUND_MINUTES,)]
+
+
+def test_check_mode_reports_the_volume_and_writes_nothing(round_env, monkeypatch, tmp_path, capsys):
+    import json, sqlite3
+    log, sent, conns = round_env
+    with sqlite3.connect(tmp_path / 'checkpoint.sqlite') as db:
+        db.execute('CREATE TABLE fetched (day text, symbol text, manifest text, payload text, updated_at text)')
+        db.execute("INSERT INTO fetched VALUES ('2026-11-09', 'BBCA', 'm', '{}', 't')")
+    (tmp_path / 'before_2026-11-06.json.gz').write_bytes(b'')
+    monkeypatch.setenv('UPDATER_MODE', 'CHECK')
+    monkeypatch.setattr(updater.os.path, 'ismount', lambda p: True)
+    assert updater.main() == 0
+    out = [json.loads(l) for l in capsys.readouterr().out.splitlines() if '"check"' in l][0]
+    assert out['writable'] and out['database'] and out['checkpoint_rows'] == 1 and out['before_files'] == 1
+    assert out['checkpoint_last_day'] == '2026-11-09' and out['token_valid'] is False
+    assert started(log) == [] and sent == [] and not (tmp_path / '.check_probe').exists()
+
+
+def test_check_mode_fails_when_the_volume_is_not_mounted(round_env, monkeypatch):
+    monkeypatch.setenv('UPDATER_MODE', 'CHECK')
+    monkeypatch.setattr(updater.os.path, 'ismount', lambda p: False)
+    assert updater.main() == 1

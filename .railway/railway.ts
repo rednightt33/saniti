@@ -196,7 +196,11 @@ export default defineRailway(() => {
     deploy: { restartPolicyType: "ALWAYS" },
     env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve() },
   });
+  // EXEC-STOCKBIT-CRON (user 2026-11-09: "updater dijadikan cron dan uji volume dulu"): a cron job, so a deploy (code, a
+  // variable, a platform restore) runs nothing; a round runs on Run Now. The schedule only satisfies Railway's cron (once a
+  // year, 1 Jan 22:00 WIB). restartPolicyType NEVER on the instance itself: railway.json's does not override it (M416).
   const stockbitUpdater = service("stockbit-updater", {
+    deploy: { cronSchedule: "0 15 1 1 *", restartPolicyType: "NEVER" },
     replicas: { "sfo": 1 },
     volumeMounts: { "/data": stockbitUpdaterVolume },
     env: { DATABASE_URL: preserve(), RAW_RETENTION_DAYS: preserve(), STATE_DIR: preserve(), STOCKBIT_TOKEN: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve(), UPDATER_MODE: preserve(), UPDATER_VERIFY_DATE: preserve(), UPDATER_WORKERS: preserve() },
