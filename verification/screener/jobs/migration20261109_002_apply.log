@@ -1,0 +1,10 @@
+Starting Container
+MIG APPLY 20261109_002_stock_list_definition_en.sql sha256=a3d975707d637baa514429e1109f29aaa257606af41681790db65fdb5667eef8
+OUT {"q": "definition_en_column", "ms": 6, "part": 0, "rows": [["text", "NO"]]}
+OUT {"q": "definition_en_filled", "ms": 2, "part": 0, "rows": [["INDEX", 33, 33, 45, 0], ["KONGLO", 33, 33, 247, 0]]}
+OUT {"q": "definition_en_sample", "ms": 1, "part": 0, "rows": [["INDEX:550", "45 stocks with high liquidity and large market capitalisation, reviewe"], ["KONGLO:11", "Stockbit's list of the holdings of the individual investor Lo Kheng Ho"], ["KONGLO:9", "Stockbit's business group: issuers Stockbit links to the Salim family "]]}
+OUT {"q": "definition_unchanged", "ms": 1, "part": 0, "rows": [[66]]}
+OUT {"q": "catalog_row", "ms": 2, "part": 0, "rows": [["PARTIAL", "Plain English definition of the list, the translation of def"]]}
+OUT {"q": "members_untouched", "ms": 1, "part": 0, "rows": [[4151]]}
+JOB_DONE MIGRATION APPLY
+JOB_EXIT 0

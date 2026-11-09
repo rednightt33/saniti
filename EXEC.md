@@ -13680,3 +13680,7 @@ terminal-publisher, terminal-api SUCCESS. Run publisher 15:36 UTC: file `stock_l
 belum boleh membaca `Stock_List` (ERRORS M418). Perbaikan siap: migrasi `20261109_003_terminal_reader_stock_list.sql`
 (gladi lokal DRYRUN 8/8, APPLY 7/7). Menunggu go user untuk migrasi 002 (definisi Inggris) dan 003 (izin baca) di dev,
 lalu satu run publisher dan cek live dengan login.
+**Live di dev 2026-11-09 (user: "Oke, jalankan perbaikan 3 dan 2"):** migrasi 003 dan 002 diterapkan (APPLY PASS 7/7 dan
+14/14); run publisher 15:55 UTC menerbitkan `stock_lists`; cek live dengan login PASS 10/10 (LQ45 45 saham, LQ45 + Astra
+3, LQ45 tanpa Salim dan Djarum 39, IDX30 atau JII 41, kode salah ditolak); restart Postgres 16:00 UTC. ERRORS M418 tutup.
+Sisa: DATABASE_SCHEMA.md belum memuat tabel Stock_List (refresh skema terjadwal), ERRORS M417 (5 langkah smoke lama).

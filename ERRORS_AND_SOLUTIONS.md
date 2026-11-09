@@ -5753,7 +5753,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
-### M418 — Screener stock lists not published on dev: the publisher's role could not read Stock_List (2026-11-09, open: grant migration ready)
+### M418 — Screener stock lists not published on dev: the publisher's role could not read Stock_List (2026-11-09, fixed, live)
 
 - **Found by:** the first terminal-publisher run with the stock-lists step (Run Now 15:36 UTC after PR #63): log
   `stock_lists_failed error="InsufficientPrivilege"`; `refs` names brokers, fixed_income, logos and tickers only. The
@@ -5771,7 +5771,8 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   rehearsal with the dev job and checker: DRYRUN PASS 8/8, APPLY PASS 7/7. Applying it on dev needs the user's go.
 - **Lesson for new data:** a data-load migration whose table a published file needs grants the reader role in the
   same migration, and the pre-release check runs `has_table_privilege` (or the query itself) as that role.
-- **Status:** OPEN until 20261109_003 is applied and a publisher run publishes `stock_lists`.
+- **Status:** FIXED 2026-11-09 (user "Oke, jalankan perbaikan 3 dan 2"): 20261109_003 applied (APPLY PASS 7/7); the
+  publisher run of 15:55 UTC published `stock_lists`; live check PASS 10/10 (`verification/screener/stock_lists/live_20261109/`).
 
 ### M416 — stockbit-updater runs with restart policy ON_FAILURE, not NEVER: a failed round starts a new round (2026-11-09, open)
 

@@ -1,5 +1,22 @@
 # Railway changelog
 
+## 2026-11-09 — Screener index and group filter live on dev: migrations 003 and 002, publisher run, live check, Postgres restart
+
+- **Go:** user 2026-11-09 "Oke, jalankan perbaikan 3 dan 2".
+- **Migrations on dev (orc-test-runner jobs, DATABASE_URL removed after each, VAR_REMOVED):** 20261109_003 (publisher
+  read grant) DRYRUN/APPLY PASS; 20261109_002 (English definitions) DRYRUN/APPLY PASS (DATABASE_CHANGELOG 2026-11-09).
+  Two transient refusals of the runner guard (`DEPLOYMENT_LIST_FAILED`, then `RUNNER_BUSY` on the finished DRYRUN job
+  `96de7dfe`) and one APPLY that did not start; each retried, nothing half-applied.
+- **terminal-publisher Run Now 15:55 UTC (daily):** `refs` names brokers, fixed_income, logos, stock_lists, tickers;
+  `uploaded=["stock_lists"]`; done in 140 s. screener-worker read it on its next wake (15:58 UTC, 10,069 bytes) and swapped
+  to the publication of 15:57:28 UTC at 15:59:02 UTC.
+- **Live check** (`verification/screener/stock_lists/live_check_dev.py`, signed in, read routes only): PASS 10/10:
+  catalog stock_lists AVAILABLE with 66 lists (33 INDEX, 33 KONGLO) and English definitions; universe rows carry their
+  memberships; runs on the wide universe equal the memberships: LQ45 45 stocks, LQ45 and Astra 3, LQ45 without Salim
+  and Djarum 39, IDX30 or JII 41; an unknown code (LQ46) refused with a plain message.
+- **Postgres restart 16:00 UTC** after the manual publisher run (memory 1.62 GB, guards READY): ready 16:00:05 UTC,
+  edge-bff `/ready` 200.
+
 ## 2026-11-09 — Screener index and group filter (PR #63) on dev: edge-bff, screener-worker, terminal-publisher, terminal-api; Postgres restart
 
 - **Change:** EXEC-SCREENER-STOCK-LISTS: the reference file `stock_lists` (publisher), the Index and Group

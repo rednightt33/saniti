@@ -1,0 +1,12 @@
+Starting Container
+OUT {"q": "definition_en_column", "ms": 2, "part": 0, "rows": [["text", "NO"]]}
+OUT {"q": "definition_en_filled", "ms": 3, "part": 0, "rows": [["INDEX", 33, 33, 45, 0], ["KONGLO", 33, 33, 247, 0]]}
+OUT {"q": "definition_en_sample", "ms": 1, "part": 0, "rows": [["INDEX:550", "45 stocks with high liquidity and large market capitalisation, reviewe"], ["KONGLO:11", "Stockbit's list of the holdings of the individual investor Lo Kheng Ho"], ["KONGLO:9", "Stockbit's business group: issuers Stockbit links to the Salim family "]]}
+OUT {"q": "definition_unchanged", "ms": 1, "part": 0, "rows": [[66]]}
+OUT {"q": "catalog_row", "ms": 2, "part": 0, "rows": [["PARTIAL", "Plain English definition of the list, the translation of def"]]}
+OUT {"q": "members_untouched", "ms": 8, "part": 0, "rows": [[4151]]}
+ERR {"q": "expect_err_empty_definition_en", "error": "CheckViolation: new row for relation \"Stock_List\" violates check constraint \"Stock_List_definition_en_check\"\nDETAIL:  Failing row contains (INDEX:550, INDEX, 550, LQ45, LQ45, 45 saham dengan likuiditas tinggi dan kapitalisasi pasar besar, ..., INFERRED, 45, 2, t, 45, 2026-11-09 11:04:46.969427+00, 2026-11-09 13:31:"}
+JOB_DONE MIGRATION DRYRUN
+JOB_EXIT 0
+MIG DRYRUN 20261109_002_stock_list_definition_en.sql sha256=a3d975707d637baa514429e1109f29aaa257606af41681790db65fdb5667eef8
+MIG DRYRUN_BODY_OK 20261109_002_stock_list_definition_en.sql

@@ -1,5 +1,26 @@
 # Database changelog
 
+## 2026-11-09 — Stock lists for the Screener: publisher read grant (20261109_003) and English definitions (20261109_002) — applied
+
+- **Go:** user 2026-11-09 "Oke, jalankan perbaikan 3 dan 2" (EXEC-SCREENER-STOCK-LISTS; ERRORS M418).
+- **20261109_003_terminal_reader_stock_list.sql** (sha256 `a53bee95b9e8845a…`): GRANT SELECT ON `Stock_List`,
+  `Stock_List_Member` TO `terminal_market_reader` (the publisher's role). DRYRUN PASS 8/8 (job `96de7dfe`), APPLY PASS 7/7
+  (job `ffaa82dd`); read back: terminal_market_reader and terminal_publisher_login read both, not the history; the reader
+  writes nothing. Logs `verification/screener/jobs/migration20261109_003_{dryrun,apply}.log`.
+- **20261109_002_stock_list_definition_en.sql** (sha256 `a3d975707d637baa…`): `Stock_List.definition_en` (text, NOT NULL,
+  non-empty) with the 66 English translations of the seeded definitions, its Column_Catalog row. DRYRUN PASS 16/16 (job
+  `47f2a480`), APPLY PASS 14/14 (job `51935a68`; a first APPLY attempt did not start, `JOB NOT_STARTED`, and changed
+  nothing: the second one's preflight would have refused an existing column). Logs
+  `verification/screener/jobs/migration20261109_002_{dryrun,apply}.log`.
+- **Effect read back live:** the publisher run of 15:55 UTC published the reference file `stock_lists` (refs:
+  brokers, fixed_income, logos, stock_lists, tickers); the Screener's live check (signed in, read routes only,
+  `verification/screener/stock_lists/live_20261109/report.json`): PASS 10/10.
+- **Numbering:** `20261109_002_monitoring_stockbit_heartbeat_catalog.sql` (EXEC-ROUND-HEARTBEAT, another session, applied
+  earlier the same day) shares the number 002 with this file; the names differ, both are applied, neither depends on
+  the other, and an applied migration is never renamed (AGENTS.md History rules). The next free number is 004.
+- **Not yet done:** `DATABASE_SCHEMA.md` does not list the Stock_List tables yet (since 20261109_001); its refresh
+  (`scripts/sync_database_schema.py`) is a large read and is left for a scheduled refresh.
+
 ## 2026-11-09 — `Monitoring_Stockbit_Update.updated_at` is the round's heartbeat (EXEC-ROUND-HEARTBEAT, ERRORS M413) — applied
 
 - **User:** "Ok 1 dan 2.. serta fix M414. Jalankan." (2026-11-09).

@@ -1,0 +1,11 @@
+MIGRATION 20261109_002_stock_list_definition_en.sql dryrun sha256=a3d975707d637baa514429e1109f29aaa257606af41681790db65fdb5667eef8 commit=161fed7bcdd4
+JOB 47f2a480-9426-4288-ab16-2477701f13fd
+6
+ERR {"q": "expect_err_empty_definition_en", "error": "CheckViolation: new row for relation \"Stock_List\" violates check constraint \"Stock_List_definition_en_check\"\nDETAIL:  Failing row contains (INDEX:550, INDEX, 550, LQ45, LQ45, 45 saham dengan likuiditas tinggi dan kapitalisasi pasar besar, ..., INFERRED, 45, 2, t, 45, 2026-11-09 11:04:46.969427+00, 2026-11-09 13:31:"}
+JOB_DONE MIGRATION DRYRUN
+JOB_EXIT 0
+MIG DRYRUN 20261109_002_stock_list_definition_en.sql sha256=a3d975707d637baa514429e1109f29aaa257606af41681790db65fdb5667eef8
+MIG DRYRUN_BODY_OK 20261109_002_stock_list_definition_en.sql
+POSTGRES_MEMORY_CHECK
+KeyError: 'RAILWAY_TOKEN'
+VAR_REMOVED
