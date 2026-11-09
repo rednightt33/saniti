@@ -9796,7 +9796,9 @@ html.dark .edge-flow-done{background:#1e9a59;}
 /* EXEC-NAV-LEFT: the left menu (icons only, 56 px); the pages start right of it */
 .side-nav{position:fixed;z-index:29;left:0;top:var(--topbar);bottom:0;width:56px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0;border-right:1px solid var(--border);background:var(--surface,var(--background))}
 .side-nav>button,.side-nav .side-actions>button{position:relative;display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:10px;background:none;color:var(--text-2,var(--muted-foreground));cursor:pointer}
-.side-nav>button:hover,.side-nav .side-actions>button:hover{background:var(--hover,var(--secondary));color:var(--text,var(--foreground))}
+.side-nav>button:hover,.side-nav .side-actions>button:hover,.side-nav .side-account .avatar:hover{background:#e6e8ec;color:var(--text,var(--foreground))}
+html.dark .side-nav>button:hover,html.dark .side-nav .side-actions>button:hover,html.dark .side-nav .side-account .avatar:hover{background:rgb(255 255 255 / .1)}
+.side-nav>button.active:hover{background:#dfe2e7}
 .side-nav>button.active,.side-nav .side-actions>button.active{background:var(--sel,var(--secondary));color:var(--text,var(--foreground))}
 .side-nav>button.active::before{content:"";position:absolute;left:-8px;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--text,var(--foreground))}
 .side-nav>button:focus-visible,.side-nav .side-actions>button:focus-visible{outline:2px solid var(--blue,#0070f3);outline-offset:2px}
@@ -9806,10 +9808,10 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .app.slim-top .terminal-page{height:100vh}
 .side-nav .side-brand{margin-bottom:6px}
 .side-nav .side-brand .brand-mark{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:var(--text,#111);color:var(--surface,#fff);font-weight:700}
-.side-nav .side-actions{margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:4px}
+.side-nav .side-actions{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:4px;padding-top:10px;border-top:1px solid var(--border);width:36px}
 .side-nav .side-actions>button{width:36px;height:36px}
 .side-nav .side-account{position:relative;display:grid;place-items:center;margin-top:4px}
-.side-nav .side-account .account-menu{left:50px;right:auto;top:auto;bottom:0}
+.side-nav .side-account .account-menu{left:50px;right:auto;top:0;bottom:auto}
 /* the account menu in the left menu takes the EDGE bar's account menu rules */
 .side-account .account-menu{width:220px;padding:8px;border-radius:8px;}
 .side-account .account-menu>.account-summary{padding:8px 10px 12px;margin-bottom:4px;border-bottom:1px solid var(--border);}

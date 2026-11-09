@@ -13067,6 +13067,9 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   atas menu kiri (klik: Monitor), Research, tema, settings dan akun di bawahnya (menu akun terbuka di samping menu); halaman
   Terminal setinggi layar. Di layar ≤ 720 px bar EDGE tetap (menu kiri tersembunyi di sana). Preview: Terminal mulai di
   y 0 tinggi 900; Monitor tetap dengan bar EDGE. edge-bff pytest (titles, screener, backtest, terminal, frontend): 119 lulus.
+- 2026-11-09 (kata user: "tambah hover state bisa? lalu panel kiri bawah instead of ditaruh dibawah taruh diatas saja
+  dibawah screener tapi di kasih garis"): hover menu kiri dipertegas (#e6e8ec; gelap: putih 10 %; tombol aktif #dfe2e7);
+  Research, tema, settings dan akun pindah tepat di bawah Screener dengan garis pemisah; menu akun terbuka ke bawah.
 
 ### Bukti
 - Preview (`preview/edge_preview.py build`) 1440×900: tidak ada tab di bar atas; menu 56 px dengan 4 tombol, Monitor
