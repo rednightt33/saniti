@@ -5647,7 +5647,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Solution:** a default without an operator matches a pattern's condition of the named test.
 - **Verified:** `apps/edge-bff/screener/tests/page/candles.test.ts` (every candle row opens on the event within 3; Add
   writes `{kind: "event", within: 3}`); the screener vitest suite.
-- **Status:** FIXED on branch (P6, not merged).
+- **Status:** FIXED, live on dev 2026-11-08 (PR #62, merge `31572848`).
 
 ### M399 — Screener patterns (P6), page side: no window operator on a pattern, side not shown, search blind to the group heading, Customize selects cut (2026-11-08, fixed on branch)
 
@@ -5673,7 +5673,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   Black Crows: validation, read-back, words, refusals, a fixture run where "ever 20" equals "within 20"), worker
   `tests/operators.test.ts`, two new smoke steps (one fails on the old CSS with the QA symptom), screener vitest
   1,327 passed, bundle 31/31. Commits 186822e8, 11e86e72.
-- **Status:** FIXED on branch, not released.
+- **Status:** FIXED, live on dev 2026-11-08 (PR #62, merge `31572848`).
 - **Lesson for new data:** a new metric kind states its output type, so the operators it takes follow from the catalog.
 
 ### M400 — Screener: refusals of a pattern or another value that is not a series had no reason, way to pass or example (2026-11-08, fixed on branch)
@@ -5693,7 +5693,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Verified:** `tests/core/not-series.test.ts` (every kind x every catalog transform x each place; the right examples
   pass; binding and validation give the same words), `tests/page/not-series-refusals.test.ts` (errorText renders
   them). Commit 457f7b6d.
-- **Status:** FIXED on branch, not released. Not covered: other test-form refusals (for example `ma` of a series in a
+- **Status:** FIXED, live on dev 2026-11-08 (PR #62). Not covered: other test-form refusals (for example `ma` of a series in a
   value test) still give no example (a separate class).
 
 ### M401 — Screener worker: a pattern's cost length was its largest parameter (2026-11-08, fixed on branch)
@@ -5711,7 +5711,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   finite window and keeps its old unit (M300: lowering its class needs a reviewed reason).
 - **Verified:** `verification/screener/BENCHMARK_FLOW_COST.md` section 6 (candle ratios 0.31-3.39 before, 0.67-1.22
   after; 91 of 92 runs within 0.5-2), `apps/screener-worker/tests/pattern_cost.test.ts`. Commit e32c4f94.
-- **Status:** FIXED on branch, not released.
+- **Status:** FIXED, live on dev 2026-11-08 (PR #62).
 
 ### M402 — Candle patterns: one-price and no-trade days in the average body (2026-11-08, kept by user decision)
 
