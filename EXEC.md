@@ -13099,7 +13099,9 @@ bagian kanan, broker inventory, top broker, dan lain sebagainya loading terus. C
   broker; diperbaiki di `data/chartTime.ts` (`safeCharts`) dan `main.ts` (`later`, tiap bagian berdiri sendiri).
 - ERRORS M420: ring melambat 10x di perangkat dengan setelan kurangi-animasi; pengecualian itu dihapus (spin.css,
   index.html).
-- Berikutnya (user, sesudah ini): logika awal broker di Broker Inventory pada chart saat pindah saham (ACES → BBRI).
+- Broker Inventory di chart saat pindah saham (ACES → BBRI), ERRORS M421. **Pilihan user, 2026-11-09:** "A" (semua
+  daftar broker, otomatis maupun pilihan sendiri, hanya berlaku di saham tempat dibuat; di saham lain kembali ke pilihan
+  awal: 3 net buyer terbesar 20 sesi, panel Broker inventory).
 
 ## EXEC-STOCKBIT-CRON — stockbit-updater jadi layanan cron: deploy tidak menarik data, putaran hanya lewat Run Now (go 2026-11-09)
 

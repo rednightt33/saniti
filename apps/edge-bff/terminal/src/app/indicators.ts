@@ -824,13 +824,24 @@ export function initIndicators(ctx: Ctx) {
     old.forEach(pt => { if(pt.series) chart.removeSeries(pt.series); if(pt.series2) chart.removeSeries(pt.series2); if(pt.plugin) pt.plugin.detach() });
     if(inst.def.pane === 'sub') layoutPanes();
   }
-  /* EXEC-BROKER-INV-PANEL (user 2026-11-06, "3B"): a broker list whose default is picked from the screen (FL23 "auto_c")
-     is resolved once, the first time the data can answer it, then kept as codes until the user changes it */
+  /* EXEC-BROKER-INV-PANEL (user 2026-11-06, "3B"): a broker list whose default is picked from the screen (FL23 "auto_c",
+     FL52 "panel") is resolved once, the first time the data can answer it, then kept as codes until the user changes it.
+     EXEC-INV-PER-TICKER (user 2026-11-09, option A, ERRORS M421): such a list, resolved or picked by the user, belongs to
+     the ticker it was made on (`<key>_ticker`); on another ticker it goes back to its token and is resolved there. */
+  const SYMBOL = ctx.SYMBOL;
   const freezeTokens = inst => {
     let changed = false;
-    for(const f of inst.def.inputs || []) if(f.freezeToken && inst.params[f.key] === f.freezeToken && f.resolve) {
-      const codes = f.resolve(f.freezeToken, inst.params);
-      if(Array.isArray(codes) && codes.length) { inst.params = { ...inst.params, [f.key]:codes }; changed = true }
+    for(const f of inst.def.inputs || []) if(f.freezeToken) {
+      const tk = f.key + '_ticker', v = inst.params[f.key];
+      if(Array.isArray(v) && inst.params[tk] && inst.params[tk] !== SYMBOL) {         // a list of another ticker (a preset, an import)
+        inst.params = { ...inst.params, [f.key]:f.freezeToken }; delete inst.params[tk]; changed = true;
+      } else if(Array.isArray(v) && inst.params[tk] !== SYMBOL) {                     // the user's own list on this ticker
+        inst.params = { ...inst.params, [tk]:SYMBOL }; changed = true;
+      }
+      if(inst.params[f.key] === f.freezeToken && f.resolve) {
+        const codes = f.resolve(f.freezeToken, inst.params);
+        if(Array.isArray(codes) && codes.length) { inst.params = { ...inst.params, [f.key]:codes, [tk]:SYMBOL }; changed = true }
+      }
     }
     if(changed && list.includes(inst)) save();
   };
@@ -1338,6 +1349,11 @@ export function initIndicators(ctx: Ctx) {
     const d = defOf(o.def); if(!d) return o;
     const params = { ...(o.params || {}) };
     for (const f of d.inputs || []) { const all = f.allOptions || f.options; if(f.kind === 'select' && Array.isArray(all) && params[f.key] !== undefined && !all.includes(params[f.key])) delete params[f.key] }
+    /* EXEC-INV-PER-TICKER (ERRORS M421): a saved broker list made on another ticker, or saved before lists carried their
+       ticker, goes back to its token on opening (resolved for this ticker once the broker data is there) */
+    for (const f of d.inputs || []) if(f.freezeToken && Array.isArray(params[f.key]) && params[f.key + '_ticker'] !== ctx.SYMBOL) {
+      params[f.key] = f.freezeToken; delete params[f.key + '_ticker'];
+    }
     /* an output renamed (FL32 "value" -> "buy"/"sell", Q4 "A"): a saved style of one line no longer drawn goes to the
        indicator's first line when that one has none, so the user's colour and width stay */
     const outs = (d.reg && d.reg.outs || []).map(x => x.k), st = o.style && o.style.out;

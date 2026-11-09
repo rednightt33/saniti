@@ -5753,6 +5753,22 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M421 — Broker Inventory on the chart kept the brokers of the ticker it was first opened on (2026-11-09, fixed)
+
+- **Symptom (user):** "buka suatu saham: ACES.. broker inventory dari sisi kode broker yang appear sudah sesuai dengan
+  logic. Tp ketika kita switch ke BBRI, maka broker yg di display exactly broker yang ada di ACES".
+- **Verified cause:** FL52 (and FL23) take a token default (`panel`: the Broker inventory panel's picks, by default the
+  top 3 net buyers of the last 20 sessions; `auto_c` for FL23). `app/indicators.ts` `freezeTokens` resolved the token
+  once and saved the codes in the indicator's params (EXEC-BROKER-INV-PANEL 3B), and params are shared by every ticker
+  and saved in the layout. Dev before the fix: FL52 `OD, CC, MG, KZ, BK, KI` on ACES and on BBRI while the panel chose
+  `BB, HD, PD` (ACES) and `NI, CC, OD` (BBRI).
+- **Class:** a value derived from one ticker's data, saved where every ticker reads it.
+- **Solution (user option A, 2026-11-09: every list, automatic or picked, belongs to its ticker):** a list is saved with
+  `brokers_ticker`; on opening another ticker (`dropStale`) or when a list of another ticker arrives (`freezeTokens`) it
+  goes back to its token and is resolved for the ticker on screen. Lists saved before (no ticker) go back to the token
+  once. Within one ticker the list stays as it was (3B kept).
+- **Status:** fixed; live check after the deploy.
+
 ### M420 — Loading ring turns at different speeds on different devices (2026-11-09, fixed)
 
 - **Symptom (user):** "masalah ring, beda2 kecepatan putarannya antar device".
