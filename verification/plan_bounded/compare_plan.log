@@ -1,0 +1,8 @@
+Starting Container
+OUT {"q": "state", "candidates": ["2026-11-09"], "why_full": null, "seconds": 0.0}
+OUT {"q": "full_plan", "changed": [], "index": [], "seconds": 305.2}
+OUT {"q": "bounded_plan", "changed": [], "index": [], "seconds": 1.2}
+OUT {"q": "wide_bounded_plan", "dates": 43, "first": "2026-09-10", "changed": [], "index": [], "full_restricted": [[], []], "seconds": 309.8}
+OUT {"q": "verdict", "verdict": "EQUAL", "checks": [true, true]}
+JOB_DONE PLAN_COMPARE
+JOB_EXIT 0

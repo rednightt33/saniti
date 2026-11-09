@@ -5753,7 +5753,82 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
-### M413 — Screener smoke run did not start since 2026-11-08 (a quote in a step name); five steps fail once it runs (2026-11-09, syntax fixed on branch, five steps open)
+### M415 — orc-test-runner guard: a finished job read as still running (2026-11-09, fixed)
+
+- **Symptom:** after the DRYRUN `37c7a5b6` (`JOB_EXIT 0`, `JOB_DONE`), the next `run_job.sh` refused with
+  `RUNNER_BUSY 37c7a5b6`.
+- **Verified cause:** every line of the job was stamped 15:02:59 and the log listed them as `JOB_EXIT 0`, `MIG`, `OUT`,
+  `JOB_DONE`, then `Starting Container`. The M341 rule dropped a trailing `Starting Container` only when the line right
+  before it was `JOB_EXIT`; here it was `JOB_DONE`, so the guard read a new start with nothing finished after it.
+- **Class:** lines of one second come in any order; any rule that depends on the order of same-second lines is fragile.
+- **Solution:** `scripts/onboarding/runner_guard.sh`: a trailing `Starting Container` is that job's late start when a
+  `JOB_EXIT` line appears anywhere after the start before it. Tests: three cases in `scripts/tests/test_run_job_guard.py`
+  (28 pass). The APPLY `3b14b1d2` then ran.
+- **Not covered:** a fast job whose start is logged in the middle of its own lines, before a JOB_EXIT that has no
+  JOB_DONE after it, still reads as running until the next fetch lists the lines in another order.
+- **Status:** fixed.
+
+### M414 — terminal-api /ready answered 503 once after the scheduled Postgres restart (2026-11-09, fixed)
+
+- **Symptom:** `https://terminal-api-dev.up.railway.app/ready` answered `{"status":"not_ready"}` (503) at 14:16 UTC;
+  a few seconds later `ready` again.
+- **Verified cause (log of deployment `34c46e90`):** at 14:17:01 UTC the pool logged `discarding closed connection:
+  <psycopg.Connection [BAD]>` twice. The connections were dropped by the scheduled Postgres restart at 13:45 UTC
+  (20:45 WIB); the pool handed them out without a check, so the first statement on each failed.
+- **Class:** a connection pool that does not check a connection before use fails the first request after every
+  Postgres restart; any service with a long-lived pool (terminal-api, edge-bff, orc) can show it.
+- **Suspected, not checked:** whether a user request (not only `/ready`) failed in that second, and which other pools
+  lack a check.
+- **Solution:** `apps/terminal-api/app/store.py`: `check=ConnectionPool.check_connection`, as edge-bff has since M246
+  (`apps/edge-bff/app/store.py`). The only other pool in the code, `apps/market-ai-backend/app/db.py`, belongs to a
+  service deleted on 2026-09-26 and was left as is. Test `test_a_connection_the_server_dropped_is_replaced_before_use`
+  (real Postgres: a backend ended by `pg_terminate_backend` is replaced; it fails without the check); terminal-api
+  tests 59 pass. Deployed `06d1ea5b` (CLI upload of `02d79e5b`), `/ready` ready.
+- **Status:** fixed.
+
+### M413 — Broker data of 4-6 Nov not published: dead Stockbit rounds stayed RUNNING and the publisher waited on them (2026-11-09, fixed)
+
+- **Symptom (user):** the Broker Summary round for 2026-11-04..06 finished, but the Terminal did not show those days;
+  the publisher run started by the round's signal published nothing.
+- **Verified cause:**
+  - Postgres backends were killed by signal 9 (out of memory, the limit then 512 MB, since raised to 1 GB) at 08:43,
+    09:26, 09:36 and 09:41 UTC.
+    Each kill puts Postgres into crash recovery and drops every connection.
+  - `apps/stockbit-updater/updater.py` wrote the round's end on the round's own connection. That connection was dead,
+    so the write failed, the exception left `main()` before `notify()`, and the row stayed `RUNNING` with no message.
+    Round `c7705209` (started by Railway's redeploy after the usage-limit stop, removed on the user's "Hentikan
+    putaran" before any write) stayed `RUNNING` the same way: a removed process writes no end;
+    `e3331473` had been `RUNNING` since 2026-10-27.
+  - `apps/terminal-publisher/publisher.py` `loaders_writing` counted every `RUNNING` row younger than 6 hours as a
+    round still writing. The run started 13:32 UTC logged `waiting_for_loaders busy=["broker_round"]` every 30 s.
+  - The scheduled Postgres restart at 20:45 WIB ended that waiting run (`failed`, `AdminShutdown`, 13:48:40 UTC).
+- **Class:** a status row that claims "work in progress" with no sign of life outlives the process that wrote it, and
+  every reader that waits on the claim waits on a dead process. Same mechanism, suspected, not yet changed:
+  `"AI_conversation_turn"` `RUNNING` is trusted for 2 hours by `scripts/restart_postgres.py` `user_runs()` (by
+  `created_at` only). `edge_bff.jobs` already has a lease (`lease_expires_at`) and is not affected.
+- **Solution:**
+  1. Data: the six dead rows closed `RUNNING` → `FAILED` (`finished_at` = their last update), four by
+     `verification/stockbit_updater_20261109/close_stale_rounds.py`, `c7705209` and `e3331473` by
+     `close_dead_rounds_2.py`; publisher Run Now at 14:02:58 UTC: `done` 14:15:44, broker 2026-11-04, -05, -06, -09
+     uploaded, `broker_behind_sessions 0`.
+  2. Updater: a heartbeat thread on its own connection stamps `updated_at` every 60 s while the round lives; the end
+     is written on a new connection when the round's own died, retried for about 4 minutes while Postgres recovers;
+     `notify()` is always called; SIGTERM (a redeploy, a removal, a usage-limit stop) ends the round `FAILED` with the
+     reason instead of leaving it `RUNNING`. Tests: `apps/stockbit-updater/test_round_end.py`.
+  3. Publisher: a `RUNNING` round counts only while its `updated_at` is younger than `ROUND_STALE_MINUTES` (10), still
+     within 6 hours (`ROUNDS_RUNNING_SQL`). Test: `test_a_broker_round_counts_only_while_its_heartbeat_is_fresh`.
+- **Deploy order:** the updater first (its deploy runs a round, so only with the user's go for a round), then the
+  publisher. A publisher with the new gate next to the old updater would see a live round as dead during its long
+  steps (up to an hour between records) and publish before the round ends.
+- **Lesson for new data and services:** every job that writes a `RUNNING` row others wait on stamps a heartbeat and
+  ends the row on a fresh connection; every reader trusts the row only while the heartbeat is fresh.
+- **Status:** fixed and deployed 2026-11-09 (user "Ok 1 dan 2.. serta fix M414. Jalankan."): stockbit-updater
+  `39ab0f3b` (round `fc71e483` stamps `updated_at` every 60 s, read back), then terminal-publisher `f7a731dd` (cron
+  `0,30 0,1,12 * * *` read back, no run at upload). Lasting design: `FUTURE_PLAN.md` PUBLISH-PER-TABLE.
+
+### M412 — Terminal in EDGE: two Statistics buttons while the Terminal loads (2026-11-09, fixed, on dev `840aecde`)
+
+### M416 — Screener smoke run did not start since 2026-11-08 (a quote in a step name); five steps fail once it runs (2026-11-09; numbered M413 in its branch commit, renumbered at the merge as main had taken M413-M415;, syntax fixed on branch, five steps open)
 
 - **Found by:** EXEC-SCREENER-STOCK-LISTS steps 3-5, running `node tests/smoke/smoke.mjs` on commit 1a28d2ca.
 - **Symptom:** `SyntaxError: missing ) after argument list` at `tests/smoke/smoke.mjs:315`; no step ran.

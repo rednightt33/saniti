@@ -418,7 +418,9 @@ SWEEP_SECONDS = 300
 # is started by the loaders' completion signal (telegram-monitor presses Run Now; public.terminal_publish_signal) and
 # by the 07:30 WIB safety run. One run at a time (RUN_LOCK); it waits while a loader still writes: a loader holds
 # pg_advisory_lock_shared(hashtext(WRITE_LOCK)) while it writes (price, fixed income, intraday), and a broker round is
-# RUNNING in Monitoring_Stockbit_Update (a RUNNING row older than ROUND_RUNNING_HOURS is a round that died, ignored).
+# RUNNING in Monitoring_Stockbit_Update. A round stamps its row's updated_at every minute while its process lives
+# (apps/stockbit-updater, ERRORS M413): a RUNNING row not stamped for ROUND_STALE_MINUTES, or older than
+# ROUND_RUNNING_HOURS, is a round whose process died (Postgres killed, deployment removed) and is ignored.
 # A run that waited LOADER_WAIT_MINUTES gives up with the `waiting` alert: the loader still writing signals again when
 # it ends. A signal that arrives during a run makes it run once more (up to RERUNS times): nothing is written twice,
 # the publisher only writes what changed (stamps) under content keys.
@@ -427,6 +429,10 @@ RUN_LOCK = 'terminal_publish_run'
 LOADER_WAIT_MINUTES = 45
 LOADER_POLL_SECONDS = 30
 ROUND_RUNNING_HOURS = 6
+ROUND_STALE_MINUTES = 10
+ROUNDS_RUNNING_SQL = ('SELECT count(*) FROM public."Monitoring_Stockbit_Update" WHERE status = %s '
+                      'AND started_at > now() - make_interval(hours => %s) '
+                      'AND updated_at > now() - make_interval(mins => %s)')
 RERUNS = 3
 SIGNAL_TABLE = 'public.terminal_publish_signal'
 # keys per listing page (the server's default is 1,000); every listing logs one line per prefix (`listed`), and a
@@ -2526,14 +2532,14 @@ def should_run(times, now=None, slack_minutes=20):
 
 def loaders_writing(conn):
     """EXEC-PUBLISH-FLOW: who still writes the tables a publication reads. A loader holds the shared WRITE_LOCK while it
-    writes, so the exclusive try fails ('loader'); a broker round RUNNING within ROUND_RUNNING_HOURS ('broker_round')."""
+    writes, so the exclusive try fails ('loader'); a broker round RUNNING within ROUND_RUNNING_HOURS whose heartbeat is
+    younger than ROUND_STALE_MINUTES ('broker_round', ERRORS M413)."""
     busy = []
     if conn.execute('SELECT pg_try_advisory_lock(hashtext(%s))', (WRITE_LOCK,)).fetchone()[0]:
         conn.execute('SELECT pg_advisory_unlock(hashtext(%s))', (WRITE_LOCK,))
     else:
         busy.append('loader')
-    rounds = conn.execute('SELECT count(*) FROM public."Monitoring_Stockbit_Update" WHERE status = %s '
-                          'AND started_at > now() - make_interval(hours => %s)', ('RUNNING', ROUND_RUNNING_HOURS)).fetchone()[0]
+    rounds = conn.execute(ROUNDS_RUNNING_SQL, ('RUNNING', ROUND_RUNNING_HOURS, ROUND_STALE_MINUTES)).fetchone()[0]
     if rounds:
         busy.append('broker_round')
     return busy

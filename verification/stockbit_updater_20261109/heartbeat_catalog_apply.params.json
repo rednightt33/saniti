@@ -1,0 +1,1 @@
+{"mode": "APPLY", "migrations": ["20261109_002_monitoring_stockbit_heartbeat_catalog.sql"], "probes": [["catalog", null, "SELECT definition, source_code_paths FROM public.\"Column_Catalog\" WHERE table_name = 'Monitoring_Stockbit_Update' AND column_name = 'updated_at'"]]}

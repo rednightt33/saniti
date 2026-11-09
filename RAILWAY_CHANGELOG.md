@@ -1,5 +1,36 @@
 # Railway changelog
 
+## 2026-11-09 — stockbit-updater heartbeat, terminal-publisher gate, terminal-api pool check (EXEC-ROUND-HEARTBEAT, M413, M414)
+
+User: "Ok 1 dan 2.. serta fix M414. Jalankan." (22:00 WIB). Checked before: no RUNNING round, no EDGE job or orc turn
+running, outside B6.
+
+- stockbit-updater `39ab0f3b` SUCCESS 15:08 UTC (`apps/stockbit-updater/deploy.sh`, code of `840aecde`): round
+  `fc71e483` started 15:08:52 UTC; its `updated_at` advanced every 60 s (15:09:52, 15:10:52, 15:11:52).
+- terminal-api `06d1ea5b` SUCCESS 15:09 UTC (CLI upload of `git archive 02d79e5b apps/terminal-api`): pool checks a
+  connection before use (M414); `/ready` ready.
+- terminal-publisher `f7a731dd` SUCCESS 15:12 UTC (CLI upload of `git archive 02d79e5b apps/terminal-publisher`):
+  `cronSchedule "0,30 0,1,12 * * *"`, `restartPolicyType NEVER`, `nextCronRunAt 2026-11-10T00:00Z` read back; no log
+  at upload (M229: a cron service runs on its schedule or Run Now).
+- Rollback: stockbit-updater `deploy.sh` from `67189387` (runs a round); terminal-api and terminal-publisher CLI upload
+  of `e6fdcec6`.
+
+## 2026-11-09 — terminal-publisher Run Now after the dead rounds were closed (EXEC-ROUND-HEARTBEAT, ERRORS M413)
+
+- The run started 13:32 UTC by the round's signal waited on dead RUNNING rounds (`waiting_for_loaders
+  busy=["broker_round"]`) and was ended at 13:48:40 UTC by the scheduled Postgres restart (`AdminShutdown`).
+- After the rows were closed: Run Now (`deploymentInstanceExecutionCreate`, user "jalankan nomor 1") at 14:02:58 UTC →
+  deployment `690594c1`; plan `files 2604`, `data_through` broker and broker_index `2026-11-09`. Result 14:15:44 UTC
+  `done` (616 s, 6,261 files, 108.6 MB, `broker_behind_sessions 0`); `broker_days` built and uploaded 2026-11-04, -05,
+  -06, -09 (`failed []`).
+- edge-bff `840aecde` (contains `9406f28f`, ERRORS M412): the push made a SKIPPED deployment, so the agent started
+  `serviceInstanceDeployV2` → `1199bdf3` SUCCESS (no active run or round before it); `/ready` 200, the served page opens
+  `/terminal-app/?in=edge` and the served Terminal bundle holds `edge-rail`.
+- edge-bff: the earlier deployment of `9406f28f` (ERRORS M412) was cancelled at the user's word ("Cancel saja dulu.
+  Memang lagi ingest data."); released after the ingest as above.
+- No code deployed for stockbit-updater or terminal-publisher yet: the heartbeat (updater) goes first, with the user's
+  go for a round, then the publisher gate.
+
 ## 2026-11-09 — whole project stopped again by the workspace usage limit; restored (ERRORS M346 pattern)
 
 - 11:27:20–11:27:25 UTC: every running deployment REMOVED by Railway (SIGTERM, clean shutdowns: terminal-api, pgweb,

@@ -11698,6 +11698,18 @@ selisih. Cara lama: 61 menit di 1 GB. Gladi pertama di 1 GB memicu OOM 12:12:25 
 limit dinaikkan ke 2 GB (user "Naikkan limit sementara ke 2 GB"; "Limit ram keep 2gb dulu, nanti saya yg rubah").
 Rencana terbatas (nomor 2) dimulai dalam mode bayangan.
 
+**Putaran dengan kode baru (user "Langsung jalaknan putaranbtoksum 9Nov setelah ini"):** stockbit-updater `1c7d5ba2`,
+putaran `5e252779` 12:31–13:32 UTC SUCCESS: broker 2026-11-09 22.733 baris, INDEX inkremental 379 s (jendela dari
+2025-07-01), daftar saham putaran ke-2 NO_CHANGE (66 daftar, 4.151 anggota, riwayat tetap 4.151). Restart terjadwal
+postgres-memory-cron 13:48 UTC.
+
+**Opsi 1, rencana terbatas vs penuh (user "Opsi 1 dulu lalu bayangan 2 putaran"), job read-only
+`verification/plan_bounded/compare_plan_job.py`, 13:57–14:08 UTC:** kandidat `2026-11-09` (tanpa alasan jatuh ke
+penuh); rencana penuh kosong 305,2 s; rencana terbatas kosong 1,2 s; 43 tanggal sejak 2026-09-10 dengan query terbatas =
+rencana penuh di tanggal itu (kosong), 309,8 s; verdict EQUAL. Catatan: query terbatas untuk puluhan tanggal sama
+lambatnya dengan penuh (rencana eksekusi berbeda); untuk 1–3 tanggal harian beberapa detik. Berikutnya: mode bayangan
+dua putaran (ingest 10 dan 11 Nov), lalu `PLAN_MODE=BOUNDED` dengan izin user. Event: ditunda (user).
+
 ## EXEC-TERMINAL-IND-EDIT — edit indikator Terminal: Flow (FLOW_INDICATOR_REVIEW.md) dan I37, I41 (rencana, belum go, 2026-11-05)
 
 **Permintaan user, 2026-11-05:** "Kita akan edit bunch of termianl indicators" (dengan `INDICATORS_HANDOFF.md`, disusun
@@ -13076,6 +13088,35 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
   keluar grafik tapi tetap di jendela). terminal vitest lulus.
 - Screener fixture 1920/1440/1100: ikon Rp, Px, Trd 2, Brk 2 satu baris; daftar terbuka, × menghapus. screener vitest 1328
   lulus; smoke dan shots diperbarui (tidak dijalankan penuh).
+
+## EXEC-ROUND-HEARTBEAT — putaran Stockbit yang mati tidak lagi menahan publisher (go 2026-11-09, dipasang 2026-11-09)
+
+**Go user, 2026-11-09:** "Sync with the latest main branch, jalankan nomor 1, 2, 3." (ERRORS M413)
+
+**Go deploy, 2026-11-09 22:00 WIB:** "Ok 1 dan 2.. serta fix M414. Jalankan." (1 = pasang stockbit-updater, satu
+putaran Stockbit langsung jalan, plus migrasi `Column_Catalog`; 2 = pasang terminal-publisher sesudahnya; M414 =
+terminal-api mengecek koneksi sebelum dipakai.)
+
+- **Nomor 1 — data (selesai):** dua baris `Monitoring_Stockbit_Update` yang masih RUNNING tanpa proses (`c7705209`,
+  `e3331473`) ditutup FAILED (`verification/stockbit_updater_20261109/close_dead_rounds_2.py`, dibaca balik FAILED);
+  empat lainnya sudah ditutup sesi lain (user "Boleh"). Publisher ditekan Run Now 14:02:58 UTC (deployment `690594c1`): selesai 14:15:44 UTC, broker 4, 5, 6 dan 9 Nov
+  terkirim, `broker_behind_sessions 0`.
+- **Nomor 2 — stockbit-updater (kode selesai, deploy menunggu):** tanda hidup `updated_at` tiap 60 detik dari koneksi
+  sendiri; akhir putaran ditulis di koneksi baru bila koneksi putaran putus (dicoba lagi sekitar 4 menit); notifikasi
+  Telegram selalu dikirim; SIGTERM dari Railway menutup putaran FAILED dengan alasannya.
+- **Nomor 3 — terminal-publisher (kode selesai, deploy menunggu):** putaran RUNNING hanya dihitung bila tanda hidupnya
+  lebih muda dari 10 menit (`ROUND_STALE_MINUTES`).
+- **Urutan deploy:** stockbit-updater dulu (setiap deploy menjalankan satu putaran, jadi menunggu go user untuk putaran
+  berikutnya), lalu terminal-publisher di luar 07:30/19:00 WIB dan B6. Saat deploy updater: perbarui `Column_Catalog`
+  `Monitoring_Stockbit_Update.updated_at` ("Last change of the row" → juga tanda hidup tiap 60 detik selama RUNNING)
+  dengan migrasi baru.
+- **Hasil pemasangan (2026-11-09):** migrasi `20261109_002` APPLY `3b14b1d2`; stockbit-updater `39ab0f3b`, putaran
+  `fc71e483` memperbarui `updated_at` tiap 60 detik (dibaca balik); terminal-publisher `f7a731dd`, cron tetap
+  `0,30 0,1,12 * * *`; terminal-api `06d1ea5b` (M414), `/ready` ready.
+- **Pengganti nomor 3 di masa depan:** `FUTURE_PLAN.md` PUBLISH-PER-TABLE (user 2026-11-09: "Yasudah masukin future plan
+  saja"): publisher menunggu per tabel lewat kunci tulis, bukan status RUNNING.
+- **Belum diubah (kelas yang sama, dugaan):** `"AI_conversation_turn"` RUNNING dipercaya 2 jam oleh
+  `scripts/restart_postgres.py` `user_runs()` tanpa tanda hidup.
 
 ## EXEC-SCREENER-TABLE-LOOK — tanda near-miss, judul kolom kondisi dua baris, baris tombol klik kanan judul kolom (go 2026-11-09, dirilis ke dev)
 

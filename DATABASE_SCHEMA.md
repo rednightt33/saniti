@@ -4150,7 +4150,7 @@ One row per round of the stockbit-updater service: mode, status, token expiry, B
 | `index_result` | `jsonb` | Yes | — | INDEX tables refresh result or why it was skipped. |
 | `events` | `jsonb` | Yes | — | Stockbit corporate action and insider reconcile counts. |
 | `last_error` | `text` | Yes | — | Error that ended the round. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | Last change of the row. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | Last change of the row; while status is RUNNING also the round's heartbeat, stamped every 60 seconds by the live updater process (a RUNNING row not stamped for 10 minutes is a round whose process died). |
 
 ### Constraints
 
