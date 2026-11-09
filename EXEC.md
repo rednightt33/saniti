@@ -12999,6 +12999,23 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - Screener fixture 1920/1440/1100: ikon Rp, Px, Trd 2, Brk 2 satu baris; daftar terbuka, × menghapus. screener vitest 1328
   lulus; smoke dan shots diperbarui (tidak dijalankan penuh).
 
+## EXEC-SCREENER-TABLE-LOOK — tanda near-miss, lebar kolom kondisi, menu klik kanan judul kolom (keputusan sebagian 2026-11-08, BELUM dieksekusi)
+
+### Kata user
+- 2026-11-08: "bagaimana caranya agar near ini tidak seperti ini karena mengganggu visual kemudian juga untuk lebar kolom
+  sepertinya lebar karna header ... bisa kasih opsi maybe wrapped text atau apa? kemudian minta opsi kalau klik kanan di
+  header, maka ada opsi salah satu fungsinya adalah remove column filter?"
+- 2026-11-09: "Small dot after the ticker lock ya masukan exec. Kasih more option untuk B dan C. Harus align middle dan
+  center untuk B"
+
+### Keputusan
+- A (tanda near-miss): **opsi 2, titik kecil setelah ticker** (pil abu-abu "near" dihapus; tooltip menamai). TERKUNCI.
+- B (judul kolom kondisi): menunggu pilihan dari opsi tambahan; syarat user: judul rata tengah, vertikal dan horizontal.
+- C (menu klik kanan judul kolom): menunggu pilihan dari opsi tambahan.
+
+### Catatan eksekusi
+- Belum dibangun; A dibangun bersama B dan C setelah pilihan (satu rilis).
+
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 
 - Kata user 2026-11-08 (dua tangkapan layar TradingView, tombol ^ di bawah daftar nama indikator ditandai "A"): "next up
