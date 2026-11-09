@@ -1,4 +1,8 @@
-"""stockbit-updater (EXEC-STOCKBIT-UPDATER, user go 2026-10-25): one round per deployment.
+"""stockbit-updater (EXEC-STOCKBIT-UPDATER, user go 2026-10-25): one round per run.
+
+Since EXEC-STOCKBIT-CRON (user 2026-11-09) the service is a Railway cron job: a deploy (code, a variable, a platform
+restore) does not run it; a round runs on the schedule or when the user presses Run Now, after replacing
+STOCKBIT_TOKEN. Restart policy NEVER is set on the service instance (.railway/railway.ts, ERRORS M416).
 
 The user replaces the Railway variable STOCKBIT_TOKEN and deploys (decision K2 A); this process then
 1. checks the token's expiry (the JWT `exp`, never printed),
@@ -13,7 +17,8 @@ The user replaces the Railway variable STOCKBIT_TOKEN and deploys (decision K2 A
 and exits. Restart policy NEVER: a failed round is not retried with the same token.
 
 UPDATER_MODE=VERIFY with UPDATER_VERIFY_DATE fetches one stored date and compares it with the table, writing nothing
-but the monitoring row. A secret is never printed.
+but the monitoring row. UPDATER_MODE=CHECK calls no Stockbit endpoint and writes nothing: it reports the volume, the
+checkpoint, the database and the token's expiry (`check`). A secret is never printed.
 """
 from __future__ import annotations
 
@@ -51,6 +56,12 @@ EVENTS_JOB = Path('/app/events/job.py')
 HEARTBEAT_SECONDS = 60
 HEARTBEAT_SQL = f"UPDATE {MONITOR} SET updated_at = now() WHERE execution_id = %s AND status = 'RUNNING'"
 FINISH_WAITS = (10, 20, 40, 60, 60, 60)
+# PLAN/EXEC STOCKBIT-CRON (user 2026-11-09): the service is a cron job, a round starts only by its schedule or Run Now,
+# and Railway does not stop a Run Now while another round runs. A round refuses to start while another round's
+# heartbeat is younger than LIVE_ROUND_MINUTES (terminal-publisher's ROUND_STALE_MINUTES).
+LIVE_ROUND_MINUTES = 10
+LIVE_ROUND_SQL = (f"SELECT execution_id::text FROM {MONITOR} WHERE status = 'RUNNING' "
+                  "AND updated_at > now() - make_interval(mins => %s)")
 
 
 class Stopped(Exception):
@@ -148,6 +159,47 @@ def _on_sigterm(signum, frame):
     raise Stopped('Round dihentikan: Railway menghentikan deployment (redeploy, dihapus atau batas pemakaian)')
 
 
+def check(state: Path, token: str, open_conn) -> dict:
+    """UPDATER_MODE=CHECK: what a round needs, without calling Stockbit and without writing data: the volume at
+    STATE_DIR mounted and writable, the checkpoint readable, the database answering, the token's expiry. Prints one
+    `check` line; ok is False when the volume or the database fails."""
+    out = {'state_dir': str(state), 'mounted': os.path.ismount(state)}
+    try:
+        probe = state / '.check_probe'
+        probe.write_text(datetime.now(timezone.utc).isoformat())
+        out['writable'] = probe.read_text() != ''
+        probe.unlink()
+    except OSError as exc:
+        out['writable'], out['volume_error'] = False, type(exc).__name__
+    checkpoint = state / 'checkpoint.sqlite'
+    out['checkpoint_exists'] = checkpoint.exists()
+    if checkpoint.exists():
+        import sqlite3
+        with sqlite3.connect(f'file:{checkpoint}?mode=ro', uri=True) as db:
+            out['checkpoint_rows'], out['checkpoint_last_day'] = db.execute(
+                'SELECT count(*), max(day) FROM fetched').fetchone()
+    out['before_files'] = len(list(state.glob('before_*.json.gz')))
+    out['issue_files'] = len(list(state.glob('issues_*.json')))
+    out['raw_days'] = len([d for d in (state / 'raw').iterdir() if d.is_dir()]) if (state / 'raw').is_dir() else 0
+    try:
+        conn = open_conn()
+        try:
+            out['live_rounds'] = len(conn.execute(LIVE_ROUND_SQL, (LIVE_ROUND_MINUTES,)).fetchall())
+            out['database'] = True
+        finally:
+            _close(conn)
+    except Exception as exc:  # noqa: BLE001
+        out['database'], out['database_error'] = False, type(exc).__name__
+    try:
+        expires = token_expiry(token)
+        out['token_expires_at'], out['token_valid'] = expires.isoformat(), expires > datetime.now(timezone.utc)
+    except Exception as exc:  # noqa: BLE001 - the token is never printed
+        out['token_valid'], out['token_error'] = False, type(exc).__name__
+    out['ok'] = bool(out['mounted'] and out['writable'] and out['database'])
+    emit('check', **out)
+    return out
+
+
 def run_events(token: str) -> dict:
     """The event loader's own job (full pull + reconcile + refresh_idx_event_annotation, one transaction)."""
     with tempfile.TemporaryDirectory() as work:
@@ -209,8 +261,15 @@ def main() -> int:
     retention = int(os.environ.get('RAW_RETENTION_DAYS', '3'))
     workers = int(os.environ.get('UPDATER_WORKERS', '6'))
     token = os.environ.get('STOCKBIT_TOKEN', '')
+    if mode == 'CHECK':
+        return 0 if check(state, token, lambda: connect('stockbit-updater-check', 30000))['ok'] else 1
     execution_id = str(uuid.uuid4())
     pg = connect()
+    live = [r[0] for r in pg.execute(LIVE_ROUND_SQL, (LIVE_ROUND_MINUTES,)).fetchall()]
+    if live:
+        emit('round_refused', reason='another round is running', running=live)
+        _close(pg)
+        return 0
     pg.execute(f"""INSERT INTO {MONITOR} (execution_id, mode, status, started_at, deployment_id)
                    VALUES (%s, %s, 'RUNNING', now(), %s)""",
                (execution_id, mode, os.environ.get('RAILWAY_DEPLOYMENT_ID')))
