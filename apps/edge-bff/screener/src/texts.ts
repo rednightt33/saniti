@@ -29,6 +29,8 @@ export const T = {
   // EXEC-SCREENER-STOCK-LISTS: shown only while the catalog carries no index and group lists (an older screener service);
   // when it carries them but they are not available, the catalog's own reason is shown
   noIndex: 'No data: index and group membership is not loaded on this screener service yet.',
+  // the preview's membership line (EXEC-SCREENER-STOCK-LISTS, user 2026-11-09 "2. A")
+  listsIndices: 'Indices:', listsGroups: 'Groups:', listsNone: 'none',
   // (plain words: no decision, plan, field or code name; tests/page/plain-words.test.ts walks every T entry)
   noBoard: 'No data: the listing board (Main, Development) is not in the market database; the board a trade is made on (Regular, Nego, Tunai) is a different thing.',
   noCap: 'No data: market cap waits for its shares-outstanding data, which is planned but not yet approved.',

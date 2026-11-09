@@ -139,3 +139,18 @@ describe('the refusals as the page shows them: where, how to pass, a right and a
       .toBe('The universe, included groups: index and group membership is not available yet: This publication carries no index and group lists. Switch it off or remove it to run the screen.');
   });
 });
+
+describe('the preview names the stock\'s indices and groups (user 2026-11-09 "2. A")', () => {
+  it('lists each by its catalog name with its definition as the tooltip, "none" for a kind it is in no list of, nothing while the lists are unavailable', async () => {
+    const { listsLine } = await import('../../src/preview.ts');
+    useCatalog(catalog);
+    const towr = universe.rows.find(r => r.ticker === 'TOWR')!;
+    const html = listsLine(towr), name = (code: string) => catalog.stock_lists!.lists.find(l => l.code === code)!;
+    expect(html).toContain(T.listsIndices); expect(html).toContain(T.listsGroups);
+    for (const code of towr.groups!) expect(html).toContain(`title="${name(code).definition.replace(/"/g, '&quot;')}">${name(code).name}</span>`);
+    const outside = { indices: [], groups: [] };
+    expect(listsLine(outside).match(new RegExp(`>${T.listsNone}<`, 'g'))!.length).toBe(2);
+    useCatalog(bare);
+    expect(listsLine(towr)).toBe('');                                         // the line above says "indexes: no data"
+  });
+});

@@ -13623,3 +13623,13 @@ filter universe -> halaman. Tanpa migrasi; database hanya dibaca.
 
 **Urutan:** (1) lapisan database dulu: query publisher + job read-only di dev (isi, jumlah, irisan dengan universe,
 EXPLAIN); (2) publisher; (3) kontrak, core, worker; (4) halaman; (5) tes, lalu PR. Deploy hanya dengan go user.
+
+**Keputusan user 2026-11-09 atas tiga pertanyaan sesudah langkah 3-5** ("1. Inggris", "2. A", "3. A"):
+1. Definisi daftar ditampilkan dalam bahasa Inggris: kolom baru `Stock_List.definition_en` (migrasi
+   `20261109_002_stock_list_definition_en.sql`, 66 terjemahan dari definisi yang disemai 20261109_001, fakta dan catatan
+   sama); `definition` bahasa Indonesia tetap untuk orang dan AI. Publisher membaca `definition_en` lewat `to_jsonb`,
+   sehingga query juga jalan sebelum migrasi (definisi Indonesia dipakai). Gladi lokal (PostgreSQL 16, job dan
+   pemeriksa yang sama dengan dev): DRYRUN PASS 16/16, APPLY PASS 14/14, ulang ditolak. Penerapan di dev menunggu go
+   user (`verification/screener/jobs/run_migration.sh dryrun|apply <sha256> 20261109_002_stock_list_definition_en.sql`).
+2. Panel preview menyebut indeks dan grup saham (nama daftar, definisi sebagai tooltip; "none" bila tidak ada).
+3. Saham yang tidak ada di daftar mana pun tidak lolos filter "masuk indeks/grup", apa pun saklar unclassified (tetap).

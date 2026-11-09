@@ -229,7 +229,11 @@ UNIVERSE_SQL = ('SELECT "Ticker", "Company Name", "Security Type", "Sector", "In
 # current members (Stock_List_Member: the last complete stockbit-updater round; a member that left is deleted, its
 # history kept in Stock_List_Member_History, which this file does not read). A list before its first round has no
 # member (an empty array). Ordered by kind, then the list's own order, members by ticker, so equal tables give equal bytes.
-STOCK_LISTS_SQL = ('SELECT l.list_key, l.list_kind, l.code, l.name, l.definition, l.last_seen_at, '
+# The definition is the English one (Stock_List.definition_en, migration 20261109_002; user 2026-11-09 "1. Inggris": the
+# Screener page is English) read through to_jsonb, so the statement also runs before that migration (then the
+# Indonesian definition stands in).
+STOCK_LISTS_SQL = ('SELECT l.list_key, l.list_kind, l.code, l.name, '
+                   "coalesce(to_jsonb(l) ->> 'definition_en', l.definition) AS definition, l.last_seen_at, "
                    'coalesce(array_agg(m."Ticker" ORDER BY m."Ticker") FILTER (WHERE m."Ticker" IS NOT NULL), '
                    "'{}'::text[]) AS members "
                    'FROM public."Stock_List" l LEFT JOIN public."Stock_List_Member" m ON m.list_key = l.list_key '
