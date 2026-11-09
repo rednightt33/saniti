@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Approved INDEX-only historical bootstrap. Default rollback; no daily routing or source writes.
 
+EXEC-INDEX-INCREMENTAL (user 2026-11-09 "Opsi 1"): with from_date (prepare/apply_chunks) the broker features (2, 3, 5,
+6) are staged from the WARMUP_SESSIONS-th market session before from_date (window_start) and only dates >= from_date
+are written; their windows are at most 312 sessions (F02 311, F06 252 + 60, frequency masks 25), so the rows are the
+full rebuild's rows. F06's cumulative nets continue from the stored INDEX rows before the window (anchors seeded into
+calc6, as refresh_feature_06 does for a ticker). Prices (1, 4: EMA 200 needs all history) are always staged in full.
+Without enough sessions before from_date the run is the full rebuild.
+
 Reads monthly raw slices once, computes aggregate history once, validates accepted samples before
 public writes, and applies idempotent year chunks. Temporary stages survive chunk commits.
 """
@@ -34,6 +41,8 @@ BASE={1:'Feature_01_Stock_Daily',2:'Feature_02_Broker_Rolling',3:'Feature_03_Sto
 4:'Feature_04_Technical_Indicator',5:'Feature_05_Foreign_Domestic_Broker_Detail',6:'Feature_06_Foreign_Domestic'}
 COVER=('frequency_source_rows','buy_freq_known_rows','sell_freq_known_rows','buy_freq_missing_rows','sell_freq_missing_rows')
 MIGRATION='database/migrations/20261025_001_index_feature05_remove_frequency_coverage.sql'
+WARMUP_SESSIONS=330  # >= 312 (F06 252 + 60; F02 311), with a margin
+BROKER=(2,3,5,6)
 
 def emit(event,**kw):
     print(json.dumps(dict(event=event,**kw),default=str),flush=True)
@@ -46,6 +55,14 @@ def equal(a,b,tolerance=1e-7):
 
 def cols(db,table,schema='public'):
     return [r['column_name'] for r in db.execute('SELECT column_name FROM information_schema.columns WHERE table_schema=%s AND table_name=%s ORDER BY ordinal_position',(schema,table))]
+
+def window_start(db,ticker,from_date,sessions=WARMUP_SESSIONS):
+    """The first market session of an incremental run: the sessions-th stored INDEX session before from_date, or None
+    (a full rebuild) when fewer exist."""
+    if from_date is None:return None
+    r=db.execute('''SELECT count(*) AS n,min(d) AS w FROM (SELECT DISTINCT date AS d FROM public."Feature_03_Stock_Broker_Daily_INDEX"
+     WHERE ticker=%s AND date<%s ORDER BY d DESC LIMIT %s) x''',(ticker,from_date,sessions)).fetchone()
+    return r['w'] if r['n']==sessions else None
 
 def month_ranges(first,last):
     cur=date(first.year,first.month,1)
@@ -122,7 +139,7 @@ def stage2(db,ticker):
     db.execute('SELECT pg_temp.bulk_compute3(NULL,ARRAY[%s])',(ticker,))
     db.execute('UPDATE calc3 SET broker_concentration_hhi=NULL')
 
-def stage6(db,ticker):
+def stage6(db,ticker,from_date=None,first=None):
     legacy_cols=cols(db,BASE[5])
     names=sql.SQL(',').join(map(sql.Identifier,legacy_cols))
     db.execute(sql.SQL('INSERT INTO calc5 ({}) SELECT {} FROM bulk5').format(names,names))
@@ -130,7 +147,15 @@ def stage6(db,ticker):
     expressions=[sql.SQL('CASE WHEN {}=frequency_source_rows THEN {} END').format(sql.Identifier(side+'_freq_known_rows'),sql.Identifier(side+'_freq')) if c in ('buy_freq','sell_freq') and (side:=c.split('_')[0]) else sql.Identifier(c) for c in legacy_cols]
     db.execute(sql.SQL('INSERT INTO strict5 ({}) SELECT {} FROM bulk5').format(names,sql.SQL(',').join(expressions)))
     clone_writer(db,'public.refresh_feature_06(text,date)','bulk_compute6',{BASE[5]:'strict5',BASE[6]:'calc6'})
-    db.execute('SELECT pg_temp.bulk_compute6(%s,NULL)',(ticker,))
+    if from_date is not None:
+        # incremental: the stored rows before from_date are the anchors of the cumulative nets (refresh_feature_06
+        # reads the last row before its range start); they are compared, never written (apply_chunks writes >= from_date)
+        temp={r['attname'] for r in db.execute("SELECT attname FROM pg_attribute WHERE attrelid='pg_temp.calc6'::regclass AND attnum>0 AND NOT attisdropped")}
+        common=[c for c in cols(db,BASE[6]+'_INDEX') if c in temp]
+        ci=sql.SQL(',').join(map(sql.Identifier,common))
+        db.execute(sql.SQL('INSERT INTO calc6 ({}) SELECT {} FROM public.{} WHERE ticker=%s AND trade_date<%s AND trade_date>=(SELECT max(trade_date) FROM public.{} WHERE ticker=%s AND trade_date<%s)').format(
+            ci,ci,sql.Identifier(BASE[6]+'_INDEX'),sql.Identifier(BASE[6]+'_INDEX')),(ticker,from_date,ticker,first))
+    db.execute('SELECT pg_temp.bulk_compute6(%s,%s)',(ticker,from_date))
     db.execute('''CREATE TEMP TABLE frequency_daily ON COMMIT PRESERVE ROWS AS SELECT trade_date,market_board,
      SUM(frequency_source_rows)::bigint AS frequency_source_rows,SUM(buy_freq_known_rows)::bigint AS buy_freq_known_rows,
      SUM(sell_freq_known_rows)::bigint AS sell_freq_known_rows,SUM(buy_freq_missing_rows)::bigint AS buy_freq_missing_rows,
@@ -195,17 +220,23 @@ def validate2(db):
                 checks+=1
     emit('feature2_independent_validated',comparisons=checks,sampled_dates=len(sample_days))
 
-def validate6(db,frequency):
+def validate6(db,frequency,from_date=None,first=None):
     rows=db.execute('SELECT trade_date,market_board,investor_type,SUM(buy_value) AS buy_value,SUM(sell_value) AS sell_value,SUM(buy_lots) AS buy_lots,SUM(sell_lots) AS sell_lots,SUM(buy_freq) AS buy_freq,SUM(sell_freq) AS sell_freq,bool_or(source_balance_gap) AS source_balance_gap FROM strict5 GROUP BY 1,2,3').fetchall()
     expected=reference6(pd.DataFrame(rows));expected=expected.set_index(['trade_date','market_board'])
     masks={(r['trade_date'],r['market_board']):r for r in db.execute('SELECT * FROM frequency_masks')}
     daily={(r['trade_date'],r['market_board']):r for r in db.execute('SELECT * FROM frequency_daily')}
     checks=0
-    for actual in db.execute('SELECT * FROM calc6 ORDER BY trade_date,market_board'):
+    # incremental: the reference starts at the window, so its cumulative nets continue from the stored row before it
+    anchor={}
+    if from_date is not None:
+        anchor={r['market_board']:r for r in db.execute('SELECT DISTINCT ON (market_board) market_board,foreign_cumulative_net,domestic_cumulative_net FROM calc6 WHERE trade_date<%s ORDER BY market_board,trade_date DESC',(first,))}
+    for actual in db.execute('SELECT * FROM calc6 WHERE trade_date>=%s ORDER BY trade_date,market_board',(from_date or date.min,)):
         key=(actual['trade_date'],actual['market_board']);row=expected.loc[key];mask=masks[key]
         for c in expected.columns:
             value=row[c]
             if pd.isna(value):value=None
+            if c in ('foreign_cumulative_net','domestic_cumulative_net') and value is not None and key[1] in anchor:
+                value=value+float(anchor[key[1]][c] or 0)
             if c in frequency and mask['bad25' if 'vs_prev20d' in c else 'bad20' if '_20d' in c else 'bad']:value=None
             if c in ('foreign_buy_freq_1d','foreign_sell_freq_1d','domestic_buy_freq_1d','domestic_sell_freq_1d'):value=daily[key][c]
             if not equal(actual[c],value,1e-6):raise RuntimeError(f'F06 independent mismatch {key}/{c}: {actual[c]} vs {value}')
@@ -253,7 +284,9 @@ def compare_sample(db,ticker,day,features=None):
                 total+=1
     emit('accepted_sample_validated',date=day,comparisons=total)
 
-def prepare(db,ticker,sample,smoke=False):
+def prepare(db,ticker,sample,smoke=False,from_date=None):
+    """from_date: EXEC-INDEX-INCREMENTAL (see the module text); returns the manifest, and with from_date the window
+    actually used as manifest_window (None: full)."""
     u=db.execute('SELECT "Security Type" AS kind FROM public."IDX_Stock_Universe" WHERE "Ticker"=%s',(ticker,)).fetchone()
     if not u or u['kind']!='index':raise ValueError('Target is not a universe-classified index')
     if db.execute('SELECT 1 FROM public."Universe_Fixed_income" WHERE ticker=%s',(ticker,)).fetchone():raise ValueError('Ambiguous index/bond identity')
@@ -261,7 +294,9 @@ def prepare(db,ticker,sample,smoke=False):
     for f,base in BASE.items():
         db.execute(sql.SQL('CREATE TEMP TABLE {} (LIKE public.{} INCLUDING ALL) ON COMMIT PRESERVE ROWS').format(sql.Identifier('calc'+str(f)),sql.Identifier(base+'_INDEX' if f==4 else base)))
     for c in COVER:db.execute(sql.SQL('ALTER TABLE calc6 ADD COLUMN {} bigint NOT NULL DEFAULT 0').format(sql.Identifier(c)))
-    manifest=stage_raw(db,ticker,sample if smoke else bounds['first'],sample if smoke else bounds['last'])
+    first=None if smoke else window_start(db,ticker,from_date)
+    if first is None:from_date=None  # too few sessions before it: the full rebuild
+    manifest=stage_raw(db,ticker,sample if smoke else (first or bounds['first']),sample if smoke else bounds['last'])
     if smoke:
         # Integration fixture only, session-local and always rolled back: exercises complete
         # 252+60-session warmups without another full historical raw scan.
@@ -273,10 +308,15 @@ def prepare(db,ticker,sample,smoke=False):
          FROM fixture_seed CROSS JOIN generate_series(0,329)g''',(sample,))
         db.execute('INSERT INTO index_market_calendar SELECT DISTINCT trade_date FROM bulk5')
         db.execute('ANALYZE bulk5');emit('smoke_fixture_ready',sessions=330,public_writes=False)
-    stage2(db,ticker);freq=stage6(db,ticker);history=stage_prices(db,ticker)
-    validate2(db);validate3(db);validate6(db,freq);compare_sample(db,ticker,sample,{1,4} if smoke else None)
-    emit('dry_run_validated',ticker=ticker,broker_range=bounds,price_rows=len(history),manifest=manifest)
-    return manifest
+    stage2(db,ticker);freq=stage6(db,ticker,from_date,first);history=stage_prices(db,ticker)
+    if from_date is not None:
+        # the accepted sample is the last stored session before from_date: its rows were not changed, the window
+        # must reproduce them exactly (a check of the warmup on every incremental run)
+        sample=db.execute('SELECT max(date) AS d FROM index_market_calendar WHERE date<%s',(from_date,)).fetchone()['d']
+    validate2(db);validate3(db);validate6(db,freq,from_date,first);compare_sample(db,ticker,sample,{1,4} if smoke else None)
+    emit('dry_run_validated',ticker=ticker,broker_range=bounds,price_rows=len(history),manifest=manifest,
+         from_date=from_date,window_first=first)
+    return {'manifest':manifest,'from_date':from_date,'window_first':first,'sample':sample}
 
 def archive_and_migrate(db,ticker,snapshot):
     for base in BASE.values():
@@ -293,7 +333,8 @@ def archive_and_migrate(db,ticker,snapshot):
     db.execute((ROOT/MIGRATION).read_text(),prepare=False)
     emit('schema_cleanup_verified',snapshot_id=snapshot,feature5_columns=len(cols(db,BASE[5]+'_INDEX')))
 
-def apply_chunks(db,ticker,snapshot):
+def apply_chunks(db,ticker,snapshot,from_date=None):
+    """from_date (EXEC-INDEX-INCREMENTAL): broker features written for dates >= from_date only; prices in full."""
     summary={}
     for f,base in BASE.items():
         target=base+'_INDEX';stage='calc'+str(f);dc='date' if f in (1,2,3) else 'trade_date'
@@ -304,8 +345,12 @@ def apply_chunks(db,ticker,snapshot):
         after=sql.SQL(',').join(sql.SQL('EXCLUDED.{}').format(sql.Identifier(c)) for c in analytical)
         command=sql.SQL('INSERT INTO public.{} AS t ({}) SELECT {} FROM {} WHERE ticker=%s AND {}>=%s AND {}<%s ON CONFLICT ({}) DO UPDATE SET {} WHERE ROW({}) IS DISTINCT FROM ROW({})').format(sql.Identifier(target),ident,ident,sql.Identifier(stage),sql.Identifier(dc),sql.Identifier(dc),sql.SQL(',').join(map(sql.Identifier,keys)),assignments,before,after)
         years=[r['y'] for r in db.execute(sql.SQL('SELECT DISTINCT EXTRACT(YEAR FROM {})::int AS y FROM {} ORDER BY y').format(sql.Identifier(dc),sql.Identifier(stage)))]
+        start=from_date if (from_date is not None and f in BROKER) else None
         for y in years:
             lo,hi=date(y,1,1),date(y+1,1,1)
+            if start is not None:
+                if hi<=start:continue
+                lo=max(lo,start)
             with db.transaction():
                 written=db.execute(command,(ticker,lo,hi)).rowcount
                 rerun=db.execute(command,(ticker,lo,hi)).rowcount

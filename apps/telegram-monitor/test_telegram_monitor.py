@@ -275,6 +275,20 @@ class TelegramMonitorTests(unittest.TestCase):
         self.assertIn("⚠️ Indeks & grup tidak diperbarui", text)
         self.assertIn("Stockbit no longer shows INDEX:9 (IDX30)", text)
 
+    def test_a_bounded_plan_difference_and_the_index_start_are_shown(self):
+        value = StockbitUpdateSummary(
+            execution_id="x", mode="APPLY", status="SUCCESS",
+            started_at=datetime(2026, 11, 10, 2, 0, tzinfo=timezone.utc),
+            finished_at=datetime(2026, 11, 10, 3, 0, tzinfo=timezone.utc), token_expires_at=None,
+            broker_dates=(), broker_rows=0, verify={}, last_error=None, events={},
+            features={"changed_dates": [], "plan_shadow_equal": False,
+                      "plan_shadow_bounded": {"changed": ["2026-11-09"], "index": []}},
+            index_result={"from_date": "2026-11-10", "newest": {}},
+        )
+        text = build_stockbit_messages(value)[0]
+        self.assertIn("⚠️ Rencana refresh terbatas beda dari rencana penuh", text)
+        self.assertIn("INDEX: di-refresh dari 2026-11-10", text)
+
     def test_a_round_without_the_stock_list_step_has_no_section(self):
         self.assertNotIn("Indeks & grup", build_stockbit_messages(self._with_stock_lists({}))[0])
 

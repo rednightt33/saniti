@@ -1,0 +1,8 @@
+Starting Container
+2026-11-09T12:11:28.859564248Z [INFO]  event="bounded_source_plan" month="2025-06-25" plan={"QUERY PLAN":[{"Plan":{"Node Type":"Aggregate","Strategy":"Hashed","Partial Mode":"Simple","Parallel Aware":false,"Async Capable":false,"Startup Cost":228258.67,"Total Cost":229177.17,"Plan Rows":73480,"Plan Width":54,"Disabled":false,"Group Key":["\"Date\"","\"Broker\"","\"Investor Type\"","\"Market Board\""],"Planned Partitions":0,"Plans":[{"Node Type":"Bitmap Heap Scan","Parent Relationship":"Outer","Parallel Aware":false,"Async Capable":false,"Relation Name":"IDX_Broker_Summary","Alias":"IDX_Broker_Summary","Startup Cost":4073.84,"Total Cost":227320.54,"Plan Rows":75051,"Plan Width":28,"Disabled":false,"Recheck Cond":"((\"Date\" >= '2025-06-25'::date) AND (\"Date\" < '2025-07-01'::date))","Plans":[{"Node Type":"Bitmap Index Scan","Parent Relationship":"Outer","Parallel Aware":false,"Async Capable":false,"Index Name":"IDX_Broker_Summary_pkey","Startup Cost":0,"Total Cost":4055.08,"Plan Rows":75051,"Plan Width":0,"Disabled":false,"Index Cond":"((\"Date\" >= '2025-06-25'::date) AND (\"Date\" < '2025-07-01'::date))"}]}]},"JIT":{"Functions":6,"Options":{"Inlining":false,"Optimization":false,"Expressions":true,"Deforming":true}}}]}
+2026-11-09T12:11:31.843267551Z [INFO]  event="raw_month_staged" start="2025-06-25" groups=621 source_rows="66329" seconds=3.73
+2026-11-09T12:12:11.680425349Z [INFO]  event="raw_month_staged" start="2025-07-01" groups=5461 source_rows="534144" seconds=30.86
+ERR {"q": "from_date", "from_date": "2026-11-04", "error": "OperationalError: consuming input failed: SSL SYSCALL error: EOF detected"}
+OUT {"q": "verdict", "gap_total": 1, "verdict": "GAP"}
+JOB_DONE INDEX_INCREMENTAL_COMPARE
+JOB_EXIT 0

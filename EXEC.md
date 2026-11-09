@@ -11681,7 +11681,22 @@ ada perubahan universe sejak watermark (`IDX_Stock_Universe_History`), watermark
   live mode bayangan 5 putaran (rencana penuh tetap dipakai, beda dilaporkan), baru dipakai sesudah 0 beda.
 - Limit Postgres tetap 1 GB sampai gladi menunjukkan 512 MB cukup.
 
-**Status:** belum ada kode; mulai sesudah putaran `325f4864` (SUCCESS 11:05 UTC).
+**Status 2026-11-09:** kode di `scripts/backfill_index_features.py` (`from_date`, `window_start`, jangkar F06) dan
+`apps/stockbit-updater/refresh.py` (`index_from_date`, `PLAN_MODE` SHADOW default, `INDEX_FULL=1` = cara lama); tes
+updater 42/42 (10 baru `test_plan_bounded.py`), telegram-monitor 39/39. Gladi DRYRUN live
+(`verification/index_incremental/compare_job.py`, user "Gladi gausah jauh2, 1 bulan kebelakang saja"), dibanding isi
+INDEX hasil proses lama (putaran `325f4864`):
+
+| D | Jendela dari | F02 | F03 | F05 | F06 | F01/F04 | Waktu |
+|---|---|---|---|---|---|---|---|
+| 2026-11-04 | 2025-06-25 | 571 / 0 beda | 9 / 0 | 571 / 0 | 9 / 0 | 2.135 sama, +1 baris 2026-11-09 | 190 s |
+| 2026-11-02 | 2025-06-23 | 974 / 0 | 15 / 0 | 974 / 0 | 15 / 0 | sama, +1 baris 2026-11-09 | 194 s |
+| 2026-10-09 | 2025-05-26 | 4.942 / 0 | 63 / 0 | 4.942 / 0 | 63 / 0 | sama, +1 baris 2026-11-09 | 238 s |
+
+Baris +1 = harga IHSG 2026-11-09 (idx-price-cron 10:00 UTC) yang datang sesudah INDEX terakhir: data baru, bukan
+selisih. Cara lama: 61 menit di 1 GB. Gladi pertama di 1 GB memicu OOM 12:12:25 UTC (semua koneksi putus ±10 s);
+limit dinaikkan ke 2 GB (user "Naikkan limit sementara ke 2 GB"; "Limit ram keep 2gb dulu, nanti saya yg rubah").
+Rencana terbatas (nomor 2) dimulai dalam mode bayangan.
 
 ## EXEC-TERMINAL-IND-EDIT — edit indikator Terminal: Flow (FLOW_INDICATOR_REVIEW.md) dan I37, I41 (rencana, belum go, 2026-11-05)
 

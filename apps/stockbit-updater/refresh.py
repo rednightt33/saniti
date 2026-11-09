@@ -32,20 +32,20 @@ UNIVERSE = '(SELECT "Ticker" FROM public."IDX_Stock_Universe")'
 
 # One pass over the source: the universe totals of each date (compared with Feature 05) and the all-symbol totals
 # (compared with the IHSG INDEX table). Columns: date, Feature 05 differs, source has no universe row, INDEX differs.
-PER_DATE = f"""
+PER_DATE_TEMPLATE = f"""
 WITH s AS (SELECT "Date" AS d,
                   count(*) FILTER (WHERE u) n, sum("Buy Value") FILTER (WHERE u) bv, sum("Sell Value") FILTER (WHERE u) sv,
                   sum("Buy Lots") FILTER (WHERE u) bl, sum("Sell Lots") FILTER (WHERE u) sl,
                   count(buy_freq) FILTER (WHERE u) fr, sum(buy_freq) FILTER (WHERE u) bf, sum(sell_freq) FILTER (WHERE u) sf,
                   sum("Buy Value") abv, sum("Sell Value") asv, sum("Buy Lots") abl, sum("Sell Lots") asl,
                   sum(buy_freq) abf, sum(sell_freq) asf
-           FROM (SELECT b.*, b."Symbol" IN {UNIVERSE} AS u FROM {SRC} b) x GROUP BY 1),
+           FROM (SELECT b.*, b."Symbol" IN {UNIVERSE} AS u FROM {SRC} b WHERE {{dates}}) x GROUP BY 1),
      f AS (SELECT trade_date AS d, count(*) n, sum(buy_value) bv, sum(sell_value) sv, sum(buy_lots) bl,
                   sum(sell_lots) sl, count(buy_freq) fr, sum(buy_freq) bf, sum(sell_freq) sf
-           FROM {F05} WHERE ticker IN {UNIVERSE} GROUP BY 1),
+           FROM {F05} WHERE ticker IN {UNIVERSE} AND {{f_dates}} GROUP BY 1),
      i AS (SELECT trade_date AS d, sum(buy_value) bv, sum(sell_value) sv, sum(buy_lots) bl, sum(sell_lots) sl,
                   sum(buy_freq) bf, sum(sell_freq) sf
-           FROM {F05_INDEX} WHERE ticker = 'IHSG' GROUP BY 1),
+           FROM {F05_INDEX} WHERE ticker = 'IHSG' AND {{f_dates}} GROUP BY 1),
      j AS (SELECT coalesce(s.d, f.d, i.d) AS d,
                   (coalesce(s.n, 0) > 0 OR f.d IS NOT NULL) AND (f.d IS NULL OR coalesce(s.n, 0) = 0
                    OR (s.n, s.bv, s.sv, s.bl, s.sl, s.fr, coalesce(s.bf, 0), coalesce(s.sf, 0))
@@ -55,6 +55,24 @@ WITH s AS (SELECT "Date" AS d,
                     IS DISTINCT FROM (i.bv, i.sv, i.bl, i.sl, coalesce(i.bf, 0), coalesce(i.sf, 0)) AS idx
            FROM s FULL JOIN f ON f.d = s.d FULL JOIN i ON i.d = coalesce(s.d, f.d))
 SELECT d, f05, source_missing, idx FROM j WHERE f05 OR idx ORDER BY 1"""
+# EXEC-INDEX-INCREMENTAL (2): the full plan reads the three tables whole; the bounded plan only the candidate dates
+PER_DATE_FULL = PER_DATE = PER_DATE_TEMPLATE.format(dates='true', f_dates='true')
+PER_DATE_BOUNDED = PER_DATE_TEMPLATE.format(dates='"Date" = ANY(%(dates)s)', f_dates='trade_date = ANY(%(dates)s)')
+PLAN_FULL_EVERY = timedelta(days=7)
+# The last round whose refresh succeeded (its start is the watermark), the last full plan, the dates written since the
+# watermark (every write statement on IDX_Broker_Summary stamps broker_summary_date_quality.checked_at per date,
+# trigger broker_summary_remark_new; TRUNCATE does not, the weekly full plan covers it) and any universe change since.
+PLAN_STATE = """
+WITH w AS (SELECT max(started_at) AS mark FROM public."Monitoring_Stockbit_Update"
+            WHERE mode = 'APPLY' AND status = 'SUCCESS' AND features IS NOT NULL),
+     f AS (SELECT max(started_at) AS mark FROM public."Monitoring_Stockbit_Update"
+            WHERE mode = 'APPLY' AND status = 'SUCCESS' AND features ->> 'plan_used' = 'FULL')
+SELECT w.mark, f.mark,
+       (SELECT coalesce(array_agg(trade_date ORDER BY trade_date), '{}') FROM public.broker_summary_date_quality q
+         WHERE q.checked_at > w.mark),
+       EXISTS (SELECT 1 FROM public."IDX_Stock_Universe_History" h
+                WHERE h.recorded_from > w.mark OR h.recorded_to > w.mark)
+FROM w, f"""
 
 ROW_DIFF = f"""SELECT (SELECT count(*) FROM {SRC} WHERE "Date" = %(d)s AND "Symbol" IN {UNIVERSE}),
   (SELECT count(*) FROM {F05} WHERE trade_date = %(d)s AND ticker IN {UNIVERSE}),
@@ -113,22 +131,68 @@ def plan(rows) -> tuple[list[date], list[date]]:
     return [d for d, f05, _, _ in rows if f05], [d for d, _, _, idx in rows if idx]
 
 
+PLAN_INFO: dict = {}  # how the last plan was made (kept in Monitoring_Stockbit_Update.features)
+
+
+def bounded_candidates(c, now=None):
+    """(candidate dates, None) for the bounded plan, or (None, why the full plan is needed)."""
+    mark, full_mark, dates, universe_changed = c.execute(PLAN_STATE).fetchone()
+    if mark is None:
+        return None, 'no earlier successful refresh'
+    if universe_changed:
+        return None, 'IDX_Stock_Universe changed since the last refresh'
+    now = now or c.execute('SELECT now()').fetchone()[0]
+    if full_mark is None or now - full_mark > PLAN_FULL_EVERY:
+        return None, 'no full plan in the last 7 days'
+    return list(dates), None
+
+
 def changed_dates(emit) -> list[date]:
+    """PLAN_MODE: SHADOW (default: both plans, the full one is used, a difference is reported), BOUNDED (the bounded
+    plan when it may be used), FULL (the full plan only)."""
+    mode = os.environ.get('PLAN_MODE', 'SHADOW').upper()
     t0 = time.monotonic()
     with connect() as c:
         c.execute("SET LOCAL statement_timeout = '30min'")
-        rows = c.execute(PER_DATE).fetchall()
-    dates, index_dates = plan(rows)
+        candidates, why_full, bounded_rows, bounded_s = None, 'PLAN_MODE=FULL', None, None
+        if mode != 'FULL':
+            try:  # the bounded plan never stops a round: any error means the full plan (savepoint keeps the transaction)
+                with c.transaction():
+                    candidates, why_full = bounded_candidates(c)
+                    if candidates is not None:
+                        b0 = time.monotonic()
+                        bounded_rows = c.execute(PER_DATE_BOUNDED, {'dates': candidates}).fetchall() if candidates else []
+                        bounded_s = round(time.monotonic() - b0, 1)
+            except psycopg.Error as exc:
+                candidates, bounded_rows, why_full = None, None, f'bounded plan unavailable: {type(exc).__name__}'
+        if bounded_rows is None:
+            candidates = None
+        full_rows = full_s = None
+        if candidates is None or mode != 'BOUNDED':
+            f0 = time.monotonic()
+            full_rows = c.execute(PER_DATE_FULL).fetchall()
+            full_s = round(time.monotonic() - f0, 1)
+    used = full_rows if full_rows is not None else bounded_rows
+    dates, index_dates = plan(used)
     INDEX_DUE[:] = index_dates
+    info = {'plan_mode': mode, 'plan_used': 'FULL' if full_rows is not None else 'BOUNDED', 'plan_why_full': why_full,
+            'plan_candidates': [str(d) for d in candidates] if candidates is not None else None,
+            'plan_full_seconds': full_s, 'plan_bounded_seconds': bounded_s}
+    if full_rows is not None and bounded_rows is not None:
+        info['plan_shadow_equal'] = plan(bounded_rows) == (dates, index_dates)
+        if not info['plan_shadow_equal']:
+            b_dates, b_index = plan(bounded_rows)
+            info['plan_shadow_bounded'] = {'changed': [str(d) for d in b_dates], 'index': [str(d) for d in b_index]}
+    PLAN_INFO.clear(); PLAN_INFO.update(info)
     emit('refresh_plan', changed_dates=[str(d) for d in dates], index_dates=[str(d) for d in index_dates],
-         seconds=round(time.monotonic() - t0, 1))
+         seconds=round(time.monotonic() - t0, 1), **info)
     return dates
 
 
 def refresh_broker_features(emit) -> dict:
     dates = changed_dates(emit)
     if not dates:
-        return {'changed_dates': [], 'f05_rows': 0, 'f02_tickers': 0, 'f03_dates': 0, 'f06_tickers': 0}
+        return {'changed_dates': [], 'f05_rows': 0, 'f02_tickers': 0, 'f03_dates': 0, 'f06_tickers': 0, **PLAN_INFO}
     started, first = time.monotonic(), dates[0]
     f05_rows = 0
     for d in dates:  # F05 one date at a time, checked row by row against the source before commit
@@ -175,7 +239,8 @@ def refresh_broker_features(emit) -> dict:
         raise RefreshFailed(f'Feature 06 reconcile: groups {groups6}, rows {f06_n}, differing {differing6}')
     emit('f06_done', tickers=len(tickers), rows=f06_n)
     return {'changed_dates': [str(d) for d in dates], 'f05_rows': f05_rows, 'f02_tickers': len(tickers),
-            'f03_dates': len(f03_dates), 'f06_tickers': len(tickers), 'seconds': round(time.monotonic() - started, 1)}
+            'f03_dates': len(f03_dates), 'f06_tickers': len(tickers), 'seconds': round(time.monotonic() - started, 1),
+            **PLAN_INFO}
 
 
 def index_needed(broker_changed: bool) -> bool:
@@ -186,8 +251,20 @@ def index_needed(broker_changed: bool) -> bool:
             > (SELECT max(date) FROM public."Feature_01_Stock_Daily_INDEX")""").fetchone()[0] or False
 
 
+def index_from_date(c) -> date:
+    """EXEC-INDEX-INCREMENTAL: the first date the IHSG broker INDEX rows must be recomputed from: the earliest date whose
+    all-symbol totals differ (INDEX_DUE), else (a newer IHSG price only) the day after the newest stored INDEX session."""
+    if INDEX_DUE:
+        return min(INDEX_DUE)
+    newest = c.execute("""SELECT max(date) FROM public."Feature_03_Stock_Broker_Daily_INDEX" WHERE ticker = 'IHSG'""").fetchone()
+    newest = newest['max'] if isinstance(newest, dict) else newest[0]
+    return (newest + timedelta(days=1)) if newest else None
+
+
 def refresh_index(emit, ticker: str = 'IHSG', sample: date = date(2026, 8, 31)) -> dict:
-    """scripts/backfill_index_features.py prepare + apply_chunks (UPDATE_TABLE.md step 5), as the 2026-10-25 run."""
+    """scripts/backfill_index_features.py prepare + apply_chunks (UPDATE_TABLE.md step 5). EXEC-INDEX-INCREMENTAL: the
+    broker INDEX features from the first changed date (warmup window before it), prices in full; INDEX_FULL=1 forces
+    the full rebuild of the 2026-10-25 run."""
     sys.path.insert(0, '/app/scripts')
     import backfill_index_features as b
     from psycopg.rows import dict_row
@@ -200,13 +277,17 @@ def refresh_index(emit, ticker: str = 'IHSG', sample: date = date(2026, 8, 31)) 
         db.execute('SET max_parallel_workers_per_gather=0')
         if not db.execute('SELECT pg_try_advisory_lock(hashtextextended(%s,0)) AS ok', ('index-bulk:' + ticker,)).fetchone()['ok']:
             raise RefreshFailed('Another INDEX writer is active')
+        from_date = None if os.environ.get('INDEX_FULL') == '1' else index_from_date(db)
         with db.transaction():
             db.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
-            b.prepare(db, ticker, sample, False)
-        b.apply_chunks(db, ticker, uuid.uuid4())
+            info = b.prepare(db, ticker, sample, False, from_date=from_date)
+        b.apply_chunks(db, ticker, uuid.uuid4(), from_date=info['from_date'])
         newest = {f: str(db.execute(f'SELECT max({"date" if f in (1, 2, 3) else "trade_date"}) AS d '
                                     f'FROM public."{t}_INDEX"').fetchone()['d']) for f, t in b.BASE.items()}
         for t in b.BASE.values():
             db.execute(f'ANALYZE public."{t}_INDEX"')
-    emit('index_done', newest=newest, seconds=round(time.monotonic() - t0, 1))
-    return {'newest': newest, 'seconds': round(time.monotonic() - t0, 1)}
+    emit('index_done', newest=newest, from_date=info['from_date'], window_first=info['window_first'],
+         seconds=round(time.monotonic() - t0, 1))
+    return {'newest': newest, 'from_date': str(info['from_date']) if info['from_date'] else None,
+            'window_first': str(info['window_first']) if info['window_first'] else None,
+            'seconds': round(time.monotonic() - t0, 1)}

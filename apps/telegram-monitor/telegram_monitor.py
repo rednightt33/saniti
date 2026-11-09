@@ -743,8 +743,14 @@ def build_stockbit_messages(summary: StockbitUpdateSummary, max_length: int = MA
         changed = summary.features.get("changed_dates")
         if changed is not None:
             lines.append(f"Feature 02/03/05/06: {len(changed)} tanggal di-refresh" + (f" (dari {changed[0]})" if changed else ""))
+        if summary.features.get("plan_shadow_equal") is False:  # EXEC-INDEX-INCREMENTAL: the bounded plan differs
+            other = summary.features.get("plan_shadow_bounded") or {}
+            lines.append("⚠️ Rencana refresh terbatas beda dari rencana penuh (penuh dipakai): terbatas "
+                         f"{other.get('changed')} / INDEX {other.get('index')}")
         if summary.index_result:
-            lines.append("INDEX: " + ("dilewati" if "skipped" in summary.index_result else "di-refresh"))
+            frm = summary.index_result.get("from_date")
+            lines.append("INDEX: " + ("dilewati" if "skipped" in summary.index_result
+                                      else f"di-refresh dari {frm}" if frm else "di-refresh"))
         ca, ins = summary.events.get("reconcile_corporate_action"), summary.events.get("reconcile_insider")
         if ca and ins:
             lines.append(f"Corporate action: baru {ca.get('new')}, berubah {ca.get('changed')}, hilang {ca.get('removed')} • "

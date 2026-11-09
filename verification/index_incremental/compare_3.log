@@ -1,0 +1,127 @@
+Starting Container
+2026-11-09T12:22:01.792195232Z [INFO]  event="bounded_source_plan" month="2025-06-23" plan={"QUERY PLAN":[{"Plan":{"Node Type":"Aggregate","Strategy":"Hashed","Partial Mode":"Simple","Parallel Aware":false,"Async Capable":false,"Startup Cost":284031.28,"Total Cost":285228.9,"Plan Rows":95809,"Plan Width":54,"Disabled":false,"Group Key":["\"Date\"","\"Broker\"","\"Investor Type\"","\"Market Board\""],"Planned Partitions":0,"Plans":[{"Node Type":"Bitmap Heap Scan","Parent Relationship":"Outer","Parallel Aware":false,"Async Capable":false,"Relation Name":"IDX_Broker_Summary","Alias":"IDX_Broker_Summary","Startup Cost":5342.23,"Total Cost":282799.98,"Plan Rows":98504,"Plan Width":28,"Disabled":false,"Recheck Cond":"((\"Date\" >= '2025-06-23'::date) AND (\"Date\" < '2025-07-01'::date))","Plans":[{"Node Type":"Bitmap Index Scan","Parent Relationship":"Outer","Parallel Aware":false,"Async Capable":false,"Index Name":"IDX_Broker_Summary_pkey","Startup Cost":0,"Total Cost":5317.6,"Plan Rows":98504,"Plan Width":0,"Disabled":false,"Index Cond":"((\"Date\" >= '2025-06-23'::date) AND (\"Date\" < '2025-07-01'::date))"}]}]},"JIT":{"Functions":6,"Options":{"Inlining":false,"Optimization":false,"Expressions":true,"Deforming":true}}}]}
+2026-11-09T12:22:04.282203659Z [INFO]  event="raw_month_staged" start="2025-06-23" groups=1022 source_rows="112092" seconds=4.94
+2026-11-09T12:22:24.231320183Z [INFO]  event="raw_month_staged" start="2025-07-01" groups=5461 source_rows="534144" seconds=16.95
+2026-11-09T12:22:30.327216028Z [INFO]  event="raw_month_staged" start="2025-08-01" groups=4358 source_rows="528993" seconds=8.25
+2026-11-09T12:22:49.696359795Z [INFO]  event="raw_month_staged" start="2025-09-01" groups=4606 source_rows="581733" seconds=16.21
+2026-11-09T12:22:53.602296354Z [INFO]  event="raw_month_staged" start="2025-10-01" groups=5077 source_rows="644876" seconds=8.15
+2026-11-09T12:23:02.166629439Z [INFO]  event="raw_month_staged" start="2025-11-01" groups=4505 source_rows="552712" seconds=7.73
+2026-11-09T12:23:10.097000086Z [INFO]  event="raw_month_staged" start="2025-12-01" groups=4663 source_rows="569958" seconds=8.81
+2026-11-09T12:23:30.245185146Z [INFO]  event="raw_month_staged" start="2026-01-01" groups=4893 source_rows="634145" seconds=16.56
+2026-11-09T12:23:38.263346766Z [INFO]  event="raw_month_staged" start="2026-02-01" groups=3697 source_rows="518553" seconds=11.05
+2026-11-09T12:23:41.190609508Z [INFO]  event="raw_month_staged" start="2026-03-01" groups=3431 source_rows="451793" seconds=3.2
+2026-11-09T12:24:01.182115199Z [INFO]  event="raw_month_staged" start="2026-04-01" groups=4167 source_rows="575398" seconds=18.63
+2026-11-09T12:24:09.584936281Z [INFO]  event="raw_month_staged" start="2026-05-01" groups=3234 source_rows="437748" seconds=9.45
+2026-11-09T12:24:13.820679825Z [INFO]  event="raw_month_staged" start="2026-06-01" groups=3977 source_rows="512969" seconds=4.23
+2026-11-09T12:24:21.410978969Z [INFO]  event="raw_month_staged" start="2026-07-01" groups=5397 source_rows="566589" seconds=7.26
+2026-11-09T12:24:28.381007749Z [INFO]  event="raw_month_staged" start="2026-08-01" groups=3804 source_rows="495775" seconds=7.55
+2026-11-09T12:24:38.067578693Z [INFO]  event="raw_month_staged" start="2026-09-01" groups=4608 source_rows="592571" seconds=9.16
+2026-11-09T12:24:40.272493441Z [INFO]  event="raw_month_staged" start="2026-10-01" groups=5353 source_rows="564883" seconds=2.99
+2026-11-09T12:24:42.396904479Z [INFO]  event="raw_month_staged" start="2026-11-01" groups=974 source_rows="118423" seconds=0.94
+2026-11-09T12:24:46.878924233Z [INFO]  event="feature2_progress" pairs=20 total_pairs=470
+2026-11-09T12:24:48.762645560Z [INFO]  event="feature2_progress" pairs=40 total_pairs=470
+2026-11-09T12:24:48.762653680Z [INFO]  event="feature2_progress" pairs=60 total_pairs=470
+2026-11-09T12:24:48.762661747Z [INFO]  event="feature2_progress" pairs=80 total_pairs=470
+2026-11-09T12:24:50.675499481Z [INFO]  event="feature2_progress" pairs=100 total_pairs=470
+2026-11-09T12:24:50.675509215Z [INFO]  event="feature2_progress" pairs=120 total_pairs=470
+2026-11-09T12:24:52.408550469Z [INFO]  event="feature2_progress" pairs=180 total_pairs=470
+2026-11-09T12:24:52.411113577Z [INFO]  event="feature2_progress" pairs=140 total_pairs=470
+2026-11-09T12:24:52.411120230Z [INFO]  event="feature2_progress" pairs=160 total_pairs=470
+2026-11-09T12:24:54.221103974Z [INFO]  event="feature2_progress" pairs=200 total_pairs=470
+2026-11-09T12:24:54.221108535Z [INFO]  event="feature2_progress" pairs=220 total_pairs=470
+2026-11-09T12:24:54.221137918Z [INFO]  event="feature2_progress" pairs=240 total_pairs=470
+2026-11-09T12:24:56.689285538Z [INFO]  event="feature2_progress" pairs=340 total_pairs=470
+2026-11-09T12:24:56.689326802Z [INFO]  event="feature2_progress" pairs=260 total_pairs=470
+2026-11-09T12:24:56.689333614Z [INFO]  event="feature2_progress" pairs=280 total_pairs=470
+2026-11-09T12:24:56.689340520Z [INFO]  event="feature2_progress" pairs=300 total_pairs=470
+2026-11-09T12:24:56.689346916Z [INFO]  event="feature2_progress" pairs=320 total_pairs=470
+2026-11-09T12:24:58.977228635Z [INFO]  event="feature2_progress" pairs=360 total_pairs=470
+2026-11-09T12:24:58.977235826Z [INFO]  event="feature2_progress" pairs=380 total_pairs=470
+2026-11-09T12:24:58.977243279Z [INFO]  event="feature2_progress" pairs=400 total_pairs=470
+2026-11-09T12:24:58.977250131Z [INFO]  event="feature2_progress" pairs=420 total_pairs=470
+2026-11-09T12:25:02.076345480Z [INFO]  event="feature2_progress" pairs=440 total_pairs=470
+2026-11-09T12:25:02.076353547Z [INFO]  event="feature2_progress" pairs=460 total_pairs=470
+2026-11-09T12:25:02.076361650Z [INFO]  event="feature2_progress" pairs=470 total_pairs=470
+2026-11-09T12:25:02.076369347Z [INFO]  event="formula_snapshot" routine="public.refresh_feature_03_stock_broker_daily(date,text[])" sha256="8590668bf4dcb1fa797196ad43fc711ba8952db94d25f75511bea4e5e750af66"
+2026-11-09T12:25:04.881741150Z [INFO]  event="formula_snapshot" routine="public.refresh_feature_06(text,date)" sha256="061e6cb4818aa7c3245c0320484d8395f6defef1fc945d51a7ddf1a93ada70cb"
+2026-11-09T12:25:04.881751620Z [INFO]  event="formula_snapshot" routine="public.refresh_feature_01_stock_daily(date,text[])" sha256="2c8e70d8b1477bd2e3138661ddc91c5b401fe978d09d9aeabaa779e8f81b02a3"
+2026-11-09T12:25:10.080597754Z [INFO]  event="feature2_independent_validated" comparisons=43550 sampled_dates=9
+2026-11-09T12:25:12.445979524Z [INFO]  event="feature3_independent_validated" comparisons=19900 rows=995
+/job/scripts/check_feature_06_sample.py:46: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  d["gap"] = act.gap.reindex(d.index).fillna(False).astype(bool)
+2026-11-09T12:25:12.446001425Z [INFO]  event="feature6_independent_validated" comparisons=1245 rows=995
+2026-11-09T12:25:12.446009239Z [INFO]  event="accepted_sample_validated" date="2026-10-30" comparisons=13315
+2026-11-09T12:25:12.446018148Z [INFO]  event="dry_run_validated" ticker="IHSG" broker_range={"first":"2016-01-04","last":"2026-11-06"} price_rows=2136 manifest=[{"start":"2025-06-23","end_exclusive":"2025-07-01","groups":1022,"source_rows":"112092","buy_value":"66350542859083","sell_value":"66350542859083"},{"start":"2025-07-01","end_exclusive":"2025-08-01","groups":5461,"source_rows":"534144","buy_value":"323183973359784","sell_value":"323183973359784"},{"start":"2025-08-01","end_exclusive":"2025-09-01","groups":4358,"source_rows":"528993","buy_value":"405202860764411","sell_value":"405202860764411"},{"start":"2025-09-01","end_exclusive":"2025-10-01","groups":4606,"source_rows":"581733","buy_value":"505320309306608","sell_value":"505320309306608"},{"start":"2025-10-01","end_exclusive":"2025-11-01","groups":5077,"source_rows":"644876","buy_value":"577001768995266","sell_value":"577001768995266"},{"start":"2025-11-01","end_exclusive":"2025-12-01","groups":4505,"source_rows":"552712","buy_value":"463907949015310","sell_value":"463907949181710"},{"start":"2025-12-01","end_exclusive":"2026-01-01","groups":4663,"source_rows":"569958","buy_value":"545810077534733","sell_value":"545810077534733"},{"start":"2026-01-01","end_exclusive":"2026-02-01","groups":4893,"source_rows":"634145","buy_value":"701225059357476","sell_value":"701225059357476"},{"start":"2026-02-01","end_exclusive":"2026-03-01","groups":3697,"source_rows":"518553","buy_value":"462350770292766","sell_value":"462350770292766"},{"start":"2026-03-01","end_exclusive":"2026-04-01","groups":3431,"source_rows":"451793","buy_value":"351846129130675","sell_value":"351846130144675"},{"start":"2026-04-01","end_exclusive":"2026-05-01","groups":4167,"source_rows":"575398","buy_value":"389445132563043","sell_value":"389445132563043"},{"start":"2026-05-01","end_exclusive":"2026-06-01","groups":3234,"source_rows":"437748","buy_value":"366149971766998","sell_value":"366149971766998"},{"start":"2026-06-01","end_exclusive":"2026-07-01","groups":3977,"source_rows":"512969","buy_value":"445164718804738","sell_value":"445164718804738"},{"start":"2026-07-01","end_exclusive":"2026-08-01","groups":5397,"source_rows":"566589","buy_value":"330041770250114","sell_value":"330041769396914"},{"start":"2026-08-01","end_exclusive":"2026-09-01","groups":3804,"source_rows":"495775","buy_value":"301777772558454","sell_value":"301777772558454"},{"start":"2026-09-01","end_exclusive":"2026-10-01","groups":4608,"source_rows":"592571","buy_value":"329270123671856","sell_value":"329270123671856"},{"start":"2026-10-01","end_exclusive":"2026-11-01","groups":5353,"source_rows":"564883","buy_value":"359666166809712","sell_value":"359666166809712"},{"start":"2026-11-01","end_exclusive":"2026-11-07","groups":974,"source_rows":"118423","buy_value":"55187297778484","sell_value":"55187297778484"}] from_date="2026-11-02" window_first="2025-06-23"
+OUT {"q": "window", "from_date": "2026-11-02", "window_first": "2025-06-23", "full_rebuild": false, "expected_full": false, "accepted_sample": "2026-10-30", "stage_seconds": 193.6}
+OUT {"q": "compare", "from_date": "2026-11-02", "feature": 1, "scope": "all rows", "staged_rows": 2136, "stored_rows": 2135, "exact_only_staged": 1, "exact_only_stored": 0, "unmatched_keys": 1, "column_differences": {}, "examples": [{"only": "staged", "key": {"ticker": "IHSG", "date": "2026-11-09"}}], "gap": 1}
+OUT {"q": "compare", "from_date": "2026-11-02", "feature": 2, "scope": ">= from_date", "staged_rows": 974, "stored_rows": 974, "exact_only_staged": 0, "exact_only_stored": 0, "unmatched_keys": 0, "column_differences": {}, "examples": [], "gap": 0}
+OUT {"q": "compare", "from_date": "2026-11-02", "feature": 3, "scope": ">= from_date", "staged_rows": 15, "stored_rows": 15, "exact_only_staged": 0, "exact_only_stored": 0, "unmatched_keys": 0, "column_differences": {}, "examples": [], "gap": 0}
+OUT {"q": "compare", "from_date": "2026-11-02", "feature": 4, "scope": "all rows", "staged_rows": 2136, "stored_rows": 2135, "exact_only_staged": 1, "exact_only_stored": 0, "unmatched_keys": 1, "column_differences": {}, "examples": [{"only": "staged", "key": {"ticker": "IHSG", "trade_date": "2026-11-09", "timeframe": "Daily", "asset_type": "index"}}], "gap": 1}
+OUT {"q": "compare", "from_date": "2026-11-02", "feature": 5, "scope": ">= from_date", "staged_rows": 974, "stored_rows": 974, "exact_only_staged": 0, "exact_only_stored": 0, "unmatched_keys": 0, "column_differences": {}, "examples": [], "gap": 0}
+OUT {"q": "compare", "from_date": "2026-11-02", "feature": 6, "scope": ">= from_date", "staged_rows": 15, "stored_rows": 15, "exact_only_staged": 0, "exact_only_stored": 0, "unmatched_keys": 0, "column_differences": {}, "examples": [], "gap": 0}
+OUT {"q": "result", "from_date": "2026-11-02", "gap": 2, "seconds": 194.3}
+2026-11-09T12:25:16.442050478Z [INFO]  event="bounded_source_plan" month="2025-05-26" plan={"QUERY PLAN":[{"Plan":{"Node Type":"Aggregate","Strategy":"Hashed","Partial Mode":"Simple","Parallel Aware":false,"Async Capable":false,"Startup Cost":216422.22,"Total Cost":217284.44,"Plan Rows":68978,"Plan Width":54,"Disabled":false,"Group Key":["\"Date\"","\"Broker\"","\"Investor Type\"","\"Market Board\""],"Planned Partitions":0,"Plans":[{"Node Type":"Bitmap Heap Scan","Parent Relationship":"Outer","Parallel Aware":false,"Async Capable":false,"Relation Name":"IDX_Broker_Summary","Alias":"IDX_Broker_Summary","Startup Cost":3817.76,"Total Cost":215542.72,"Plan Rows":70360,"Plan Width":28,"Disabled":false,"Recheck Cond":"((\"Date\" >= '2025-05-26'::date) AND (\"Date\" < '2025-06-01'::date))","Plans":[{"Node Type":"Bitmap Index Scan","Parent Relationship":"Outer","Parallel Aware":false,"Async Capable":false,"Index Name":"IDX_Broker_Summary_pkey","Startup Cost":0,"Total Cost":3800.16,"Plan Rows":70360,"Plan Width":0,"Disabled":false,"Index Cond":"((\"Date\" >= '2025-05-26'::date) AND (\"Date\" < '2025-06-01'::date))"}]}]},"JIT":{"Functions":6,"Options":{"Inlining":false,"Optimization":false,"Expressions":true,"Deforming":true}}}]}
+2026-11-09T12:25:18.285999162Z [INFO]  event="raw_month_staged" start="2025-05-26" groups=622 source_rows="70767" seconds=4.1
+2026-11-09T12:25:38.188664681Z [INFO]  event="raw_month_staged" start="2025-06-01" groups=3779 source_rows="420195" seconds=16.66
+2026-11-09T12:26:08.734431135Z [INFO]  event="raw_month_staged" start="2025-07-01" groups=5461 source_rows="534144" seconds=23.75
+2026-11-09T12:26:29.056207519Z [INFO]  event="raw_month_staged" start="2025-08-01" groups=4358 source_rows="528993" seconds=25.12
+2026-11-09T12:26:50.153664039Z [INFO]  event="raw_month_staged" start="2025-09-01" groups=4606 source_rows="581733" seconds=17.73
+2026-11-09T12:26:52.008976715Z [INFO]  event="raw_month_staged" start="2025-10-01" groups=5077 source_rows="644876" seconds=10.86
+2026-11-09T12:27:01.772993396Z [INFO]  event="raw_month_staged" start="2025-11-01" groups=4505 source_rows="552712" seconds=9.64
+2026-11-09T12:27:11.052416430Z [INFO]  event="raw_month_staged" start="2025-12-01" groups=4663 source_rows="569958" seconds=8.31
+2026-11-09T12:27:30.965489923Z [INFO]  event="raw_month_staged" start="2026-01-01" groups=4893 source_rows="634145" seconds=16.47
+2026-11-09T12:27:30.965495944Z [INFO]  event="raw_month_staged" start="2026-02-01" groups=3697 source_rows="518553" seconds=4.59
+2026-11-09T12:27:38.763140184Z [INFO]  event="raw_month_staged" start="2026-03-01" groups=3431 source_rows="451793" seconds=7.89
+2026-11-09T12:27:57.919902810Z [INFO]  event="raw_month_staged" start="2026-04-01" groups=4167 source_rows="575398" seconds=15.75
+2026-11-09T12:28:02.159863350Z [INFO]  event="raw_month_staged" start="2026-05-01" groups=3234 source_rows="437748" seconds=7.47
+2026-11-09T12:28:10.649818198Z [INFO]  event="raw_month_staged" start="2026-06-01" groups=3977 source_rows="512969" seconds=8.35
+2026-11-09T12:28:30.661043348Z [INFO]  event="raw_month_staged" start="2026-08-01" groups=3804 source_rows="495775" seconds=4.36
+2026-11-09T12:28:30.661144735Z [INFO]  event="raw_month_staged" start="2026-07-01" groups=5397 source_rows="566589" seconds=11.64
+2026-11-09T12:28:35.653173636Z [INFO]  event="raw_month_staged" start="2026-09-01" groups=4608 source_rows="592571" seconds=9.35
+2026-11-09T12:28:38.950789540Z [INFO]  event="raw_month_staged" start="2026-10-01" groups=5353 source_rows="564883" seconds=2.71
+2026-11-09T12:28:38.950798093Z [INFO]  event="raw_month_staged" start="2026-11-01" groups=974 source_rows="118423" seconds=0.96
+2026-11-09T12:28:44.659327756Z [INFO]  event="feature2_progress" pairs=20 total_pairs=470
+2026-11-09T12:28:44.659335913Z [INFO]  event="feature2_progress" pairs=40 total_pairs=470
+2026-11-09T12:28:46.524911841Z [INFO]  event="feature2_progress" pairs=60 total_pairs=470
+2026-11-09T12:28:46.524918673Z [INFO]  event="feature2_progress" pairs=80 total_pairs=470
+2026-11-09T12:28:46.524925324Z [INFO]  event="feature2_progress" pairs=100 total_pairs=470
+2026-11-09T12:28:48.071045703Z [INFO]  event="feature2_progress" pairs=120 total_pairs=470
+2026-11-09T12:28:48.071054637Z [INFO]  event="feature2_progress" pairs=140 total_pairs=470
+2026-11-09T12:28:49.645578158Z [INFO]  event="feature2_progress" pairs=160 total_pairs=470
+2026-11-09T12:28:49.645582210Z [INFO]  event="feature2_progress" pairs=180 total_pairs=470
+2026-11-09T12:28:51.059552776Z [INFO]  event="feature2_progress" pairs=200 total_pairs=470
+2026-11-09T12:28:51.059559007Z [INFO]  event="feature2_progress" pairs=220 total_pairs=470
+2026-11-09T12:28:52.639415457Z [INFO]  event="feature2_progress" pairs=240 total_pairs=470
+2026-11-09T12:28:52.639428788Z [INFO]  event="feature2_progress" pairs=260 total_pairs=470
+2026-11-09T12:28:54.286880206Z [INFO]  event="feature2_progress" pairs=280 total_pairs=470
+2026-11-09T12:28:54.287029295Z [INFO]  event="feature2_progress" pairs=300 total_pairs=470
+2026-11-09T12:28:54.287036687Z [INFO]  event="feature2_progress" pairs=320 total_pairs=470
+2026-11-09T12:28:55.848656204Z [INFO]  event="feature2_progress" pairs=340 total_pairs=470
+2026-11-09T12:28:55.848662260Z [INFO]  event="feature2_progress" pairs=360 total_pairs=470
+2026-11-09T12:28:57.003451039Z [INFO]  event="feature2_progress" pairs=380 total_pairs=470
+2026-11-09T12:28:57.003455349Z [INFO]  event="feature2_progress" pairs=400 total_pairs=470
+2026-11-09T12:28:58.180106380Z [INFO]  event="feature2_progress" pairs=420 total_pairs=470
+2026-11-09T12:28:58.180111029Z [INFO]  event="feature2_progress" pairs=440 total_pairs=470
+2026-11-09T12:28:59.924258331Z [INFO]  event="feature2_progress" pairs=460 total_pairs=470
+2026-11-09T12:28:59.924265183Z [INFO]  event="feature2_progress" pairs=470 total_pairs=470
+2026-11-09T12:28:59.924271605Z [INFO]  event="formula_snapshot" routine="public.refresh_feature_03_stock_broker_daily(date,text[])" sha256="8590668bf4dcb1fa797196ad43fc711ba8952db94d25f75511bea4e5e750af66"
+2026-11-09T12:29:02.265446975Z [INFO]  event="formula_snapshot" routine="public.refresh_feature_06(text,date)" sha256="061e6cb4818aa7c3245c0320484d8395f6defef1fc945d51a7ddf1a93ada70cb"
+2026-11-09T12:29:02.265452795Z [INFO]  event="formula_snapshot" routine="public.refresh_feature_01_stock_daily(date,text[])" sha256="2c8e70d8b1477bd2e3138661ddc91c5b401fe978d09d9aeabaa779e8f81b02a3"
+2026-11-09T12:29:07.939292425Z [INFO]  event="feature2_independent_validated" comparisons=43650 sampled_dates=9
+2026-11-09T12:29:10.004336941Z [INFO]  event="feature3_independent_validated" comparisons=20860 rows=1043
+/job/scripts/check_feature_06_sample.py:46: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  d["gap"] = act.gap.reindex(d.index).fillna(False).astype(bool)
+2026-11-09T12:29:10.004357513Z [INFO]  event="feature6_independent_validated" comparisons=5229 rows=1043
+2026-11-09T12:29:10.004364684Z [INFO]  event="accepted_sample_validated" date="2026-10-08" comparisons=13621
+2026-11-09T12:29:10.004371379Z [INFO]  event="dry_run_validated" ticker="IHSG" broker_range={"first":"2016-01-04","last":"2026-11-06"} price_rows=2136 manifest=[{"start":"2025-05-26","end_exclusive":"2025-06-01","groups":622,"source_rows":"70767","buy_value":"50382801373176","sell_value":"50382801373176"},{"start":"2025-06-01","end_exclusive":"2025-07-01","groups":3779,"source_rows":"420195","buy_value":"275107106147451","sell_value":"275107106147451"},{"start":"2025-07-01","end_exclusive":"2025-08-01","groups":5461,"source_rows":"534144","buy_value":"323183973359784","sell_value":"323183973359784"},{"start":"2025-08-01","end_exclusive":"2025-09-01","groups":4358,"source_rows":"528993","buy_value":"405202860764411","sell_value":"405202860764411"},{"start":"2025-09-01","end_exclusive":"2025-10-01","groups":4606,"source_rows":"581733","buy_value":"505320309306608","sell_value":"505320309306608"},{"start":"2025-10-01","end_exclusive":"2025-11-01","groups":5077,"source_rows":"644876","buy_value":"577001768995266","sell_value":"577001768995266"},{"start":"2025-11-01","end_exclusive":"2025-12-01","groups":4505,"source_rows":"552712","buy_value":"463907949015310","sell_value":"463907949181710"},{"start":"2025-12-01","end_exclusive":"2026-01-01","groups":4663,"source_rows":"569958","buy_value":"545810077534733","sell_value":"545810077534733"},{"start":"2026-01-01","end_exclusive":"2026-02-01","groups":4893,"source_rows":"634145","buy_value":"701225059357476","sell_value":"701225059357476"},{"start":"2026-02-01","end_exclusive":"2026-03-01","groups":3697,"source_rows":"518553","buy_value":"462350770292766","sell_value":"462350770292766"},{"start":"2026-03-01","end_exclusive":"2026-04-01","groups":3431,"source_rows":"451793","buy_value":"351846129130675","sell_value":"351846130144675"},{"start":"2026-04-01","end_exclusive":"2026-05-01","groups":4167,"source_rows":"575398","buy_value":"389445132563043","sell_value":"389445132563043"},{"start":"2026-05-01","end_exclusive":"2026-06-01","groups":3234,"source_rows":"437748","buy_value":"366149971766998","sell_value":"366149971766998"},{"start":"2026-06-01","end_exclusive":"2026-07-01","groups":3977,"source_rows":"512969","buy_value":"445164718804738","sell_value":"445164718804738"},{"start":"2026-07-01","end_exclusive":"2026-08-01","groups":5397,"source_rows":"566589","buy_value":"330041770250114","sell_value":"330041769396914"},{"start":"2026-08-01","end_exclusive":"2026-09-01","groups":3804,"source_rows":"495775","buy_value":"301777772558454","sell_value":"301777772558454"},{"start":"2026-09-01","end_exclusive":"2026-10-01","groups":4608,"source_rows":"592571","buy_value":"329270123671856","sell_value":"329270123671856"},{"start":"2026-10-01","end_exclusive":"2026-11-01","groups":5353,"source_rows":"564883","buy_value":"359666166809712","sell_value":"359666166809712"},{"start":"2026-11-01","end_exclusive":"2026-11-07","groups":974,"source_rows":"118423","buy_value":"55187297778484","sell_value":"55187297778484"}] from_date="2026-10-09" window_first="2025-05-26"
+OUT {"q": "window", "from_date": "2026-10-09", "window_first": "2025-05-26", "full_rebuild": false, "expected_full": false, "accepted_sample": "2026-10-08", "stage_seconds": 236.8}
+OUT {"q": "compare", "from_date": "2026-10-09", "feature": 1, "scope": "all rows", "staged_rows": 2136, "stored_rows": 2135, "exact_only_staged": 1, "exact_only_stored": 0, "unmatched_keys": 1, "column_differences": {}, "examples": [{"only": "staged", "key": {"ticker": "IHSG", "date": "2026-11-09"}}], "gap": 1}
+OUT {"q": "compare", "from_date": "2026-10-09", "feature": 2, "scope": ">= from_date", "staged_rows": 4942, "stored_rows": 4942, "exact_only_staged": 0, "exact_only_stored": 0, "unmatched_keys": 0, "column_differences": {}, "examples": [], "gap": 0}
+OUT {"q": "compare", "from_date": "2026-10-09", "feature": 3, "scope": ">= from_date", "staged_rows": 63, "stored_rows": 63, "exact_only_staged": 0, "exact_only_stored": 0, "unmatched_keys": 0, "column_differences": {}, "examples": [], "gap": 0}
+OUT {"q": "compare", "from_date": "2026-10-09", "feature": 4, "scope": "all rows", "staged_rows": 2136, "stored_rows": 2135, "exact_only_staged": 1, "exact_only_stored": 0, "unmatched_keys": 1, "column_differences": {}, "examples": [{"only": "staged", "key": {"ticker": "IHSG", "trade_date": "2026-11-09", "timeframe": "Daily", "asset_type": "index"}}], "gap": 1}
+OUT {"q": "compare", "from_date": "2026-10-09", "feature": 5, "scope": ">= from_date", "staged_rows": 4942, "stored_rows": 4942, "exact_only_staged": 0, "exact_only_stored": 0, "unmatched_keys": 0, "column_differences": {}, "examples": [], "gap": 0}
+OUT {"q": "compare", "from_date": "2026-10-09", "feature": 6, "scope": ">= from_date", "staged_rows": 63, "stored_rows": 63, "exact_only_staged": 0, "exact_only_stored": 0, "unmatched_keys": 0, "column_differences": {}, "examples": [], "gap": 0}
+OUT {"q": "result", "from_date": "2026-10-09", "gap": 2, "seconds": 237.5}
+OUT {"q": "verdict", "gap_total": 4, "verdict": "GAP"}
+JOB_DONE INDEX_INCREMENTAL_COMPARE
+JOB_EXIT 0

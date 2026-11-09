@@ -1,0 +1,12 @@
+Starting Container
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/psycopg/connection.py", line 98, in connect
+    attempts = conninfo_attempts(params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+Traceback (most recent call last):
+  File "/job/job.py", line 91, in <module>
+    with psycopg.connect(os.environ['DATABASE_URL'], row_factory=dict_row, autocommit=True,
+  File "/usr/local/lib/python3.12/site-packages/psycopg/_conninfo_attempts.py", line 55, in conninfo_attempts
+    raise last_exc
+psycopg.OperationalError: failed to resolve host 'postgres.railway.internal': [Errno -2] Name or service not known
+JOB_EXIT 1
