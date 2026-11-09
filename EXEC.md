@@ -11698,6 +11698,18 @@ selisih. Cara lama: 61 menit di 1 GB. Gladi pertama di 1 GB memicu OOM 12:12:25 
 limit dinaikkan ke 2 GB (user "Naikkan limit sementara ke 2 GB"; "Limit ram keep 2gb dulu, nanti saya yg rubah").
 Rencana terbatas (nomor 2) dimulai dalam mode bayangan.
 
+**Putaran dengan kode baru (user "Langsung jalaknan putaranbtoksum 9Nov setelah ini"):** stockbit-updater `1c7d5ba2`,
+putaran `5e252779` 12:31–13:32 UTC SUCCESS: broker 2026-11-09 22.733 baris, INDEX inkremental 379 s (jendela dari
+2025-07-01), daftar saham putaran ke-2 NO_CHANGE (66 daftar, 4.151 anggota, riwayat tetap 4.151). Restart terjadwal
+postgres-memory-cron 13:48 UTC.
+
+**Opsi 1, rencana terbatas vs penuh (user "Opsi 1 dulu lalu bayangan 2 putaran"), job read-only
+`verification/plan_bounded/compare_plan_job.py`, 13:57–14:08 UTC:** kandidat `2026-11-09` (tanpa alasan jatuh ke
+penuh); rencana penuh kosong 305,2 s; rencana terbatas kosong 1,2 s; 43 tanggal sejak 2026-09-10 dengan query terbatas =
+rencana penuh di tanggal itu (kosong), 309,8 s; verdict EQUAL. Catatan: query terbatas untuk puluhan tanggal sama
+lambatnya dengan penuh (rencana eksekusi berbeda); untuk 1–3 tanggal harian beberapa detik. Berikutnya: mode bayangan
+dua putaran (ingest 10 dan 11 Nov), lalu `PLAN_MODE=BOUNDED` dengan izin user. Event: ditunda (user).
+
 ## EXEC-TERMINAL-IND-EDIT — edit indikator Terminal: Flow (FLOW_INDICATOR_REVIEW.md) dan I37, I41 (rencana, belum go, 2026-11-05)
 
 **Permintaan user, 2026-11-05:** "Kita akan edit bunch of termianl indicators" (dengan `INDICATORS_HANDOFF.md`, disusun
