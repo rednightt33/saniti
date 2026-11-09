@@ -411,4 +411,6 @@ export const shortName = (e: Entry | undefined, c: Card) => {
   const op = c.op && e?.ops ? opShort(e.ops, c.op, e) : '';
   return op ? `${base} · ${op}` : base;
 };
+/** the header's two lines (user 2026-11-08, option 2): the name, and the rule (an operator's measure and test) */
+export const shortParts = (e: Entry | undefined, c: Card) => ({ base:c.metric?.name || (e ? e.short : cardName(e, c)), rule:c.op && e?.ops ? opShort(e.ops, c.op, e) : '' });
 export const shortPv = (e: Entry | undefined, c: Card) => e ? e.params.filter(p => p.type === 'integer' || p.type === 'number').map(p => c.params[p.key]).join('/') : '';

@@ -12999,7 +12999,7 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - Screener fixture 1920/1440/1100: ikon Rp, Px, Trd 2, Brk 2 satu baris; daftar terbuka, × menghapus. screener vitest 1328
   lulus; smoke dan shots diperbarui (tidak dijalankan penuh).
 
-## EXEC-SCREENER-TABLE-LOOK — tanda near-miss, lebar kolom kondisi, menu klik kanan judul kolom (keputusan sebagian 2026-11-08, BELUM dieksekusi)
+## EXEC-SCREENER-TABLE-LOOK — tanda near-miss, judul kolom kondisi dua baris, baris tombol klik kanan judul kolom (go 2026-11-09, dirilis ke dev)
 
 ### Kata user
 - 2026-11-08: "bagaimana caranya agar near ini tidak seperti ini karena mengganggu visual kemudian juga untuk lebar kolom
@@ -13010,11 +13010,21 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 
 ### Keputusan
 - A (tanda near-miss): **opsi 2, titik kecil setelah ticker** (pil abu-abu "near" dihapus; tooltip menamai). TERKUNCI.
-- B (judul kolom kondisi): menunggu pilihan dari opsi tambahan; syarat user: judul rata tengah, vertikal dan horizontal.
-- C (menu klik kanan judul kolom): menunggu pilihan dari opsi tambahan.
+- B (judul kolom kondisi): **opsi 2, "Name, then rule and chip"** (user 2026-11-09), rata tengah vertikal dan horizontal.
+- C (klik kanan judul kolom): **opsi 7, "Small toolbar instead of a menu"** (user 2026-11-09): ↑ ↓ ✎ Off ✕ Remove.
 
-### Catatan eksekusi
-- Belum dibangun; A dibangun bersama B dan C setelah pilihan (satu rilis).
+### Yang dibangun (2026-11-09)
+- A: pil "near" diganti titik amber 6 px setelah ticker (tooltip "Near miss: N of M conditions met"); garis kiri baris
+  near-miss tetap.
+- B: judul kolom kondisi dua baris di tengah sel: warna dan nama (klik: sort), lalu aturan abu-abu (operator) dan angka
+  parameter; semua judul tabel rata tengah vertikal.
+- C: klik kanan judul kolom kondisi membuka baris tombol di bawahnya: sort naik, sort turun, ubah parameter (editor angka
+  yang sama), Off/On (kartu tetap), Remove (Undo di notifikasi). Tutup dengan klik di luar, Esc, atau gulir tabel.
+
+### Bukti
+- Fixture 1440: judul Foreign Net Value, SMA, RSI dua baris, tengah (selisih 0 px horizontal dan vertikal); 25 titik
+  near-miss, 0 pil; klik kanan → baris tombol; ↑ menyortir naik; Remove menghapus kartu dengan toast Undo. Tidak ada error
+  halaman. screener vitest 1328 lulus.
 
 ## EXEC-LEGEND-HIDE — sembunyikan nama indikator seperti TradingView (dirilis ke dev 2026-11-08, `84f1c8f5`)
 

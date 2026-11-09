@@ -1768,3 +1768,18 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .flist[hidden]{display:none}
 #cardU .chipbar{flex:1 1 400px}
 #cardU .chipbar>span:first-child,#cardU .chipbar .ucount{white-space:nowrap;flex:none}
+/* EXEC-SCREENER-TABLE-LOOK (user 2026-11-08/09): A, a near-miss row marked by a small dot after its ticker; B, a
+   condition's header on two lines centred both ways (name, then rule and chip); C, the header's toolbar */
+.neard{display:inline-block;width:6px;height:6px;margin-left:5px;border-radius:50%;background:var(--amber,#f59e0b);vertical-align:middle}
+.res th.cond2{vertical-align:middle;white-space:nowrap}
+.res th.cond2 .hs2{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:5px 10px;min-height:36px}
+.res th.cond2 .hs2>button{display:inline-flex;align-items:center;justify-content:center;gap:4px;width:auto;height:auto;padding:0;line-height:1.25}
+.res th.cond2 .hs2b{display:inline-flex;align-items:center;justify-content:center;gap:5px;line-height:1.2}
+.res th.cond2 .hr{font-size:var(--fs-xs);font-weight:var(--fw-medium);color:var(--text-3)}
+.res th{vertical-align:middle}
+.hbar{position:fixed;z-index:80;display:inline-flex;gap:2px;padding:3px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);box-shadow:var(--shadow-lg)}
+.hbar button{display:inline-flex;align-items:center;gap:4px;min-width:28px;height:28px;padding:0 8px;border:0;border-radius:6px;background:none;color:var(--text-2);font:500 12px var(--sans);cursor:pointer;justify-content:center}
+.hbar button:hover{background:var(--hover);color:var(--text)}
+.hbar button:disabled{opacity:.4;cursor:default}
+.hbar button.del{color:var(--red)}
+.hbar button:focus-visible{outline:2px solid var(--blue);outline-offset:1px}

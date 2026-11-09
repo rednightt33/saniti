@@ -9,7 +9,8 @@ import type { Cell } from './core/contract.ts';
 import { esc, fmtValue, nf, sectorTag, sgn, slug, tone } from './format.ts';
 import { IC, ico } from './icons.ts';
 import { activeCards, ctx, entryOf, evalDate, freshUniverse, S, ui, type Row } from './state.ts';
-import { condText, isCustom, optOf, paramSummary, shortName, shortPv, type Card } from './forms.ts';
+import { condText, isCustom, optOf, paramSummary, shortName, shortParts, shortPv, type Card } from './forms.ts';
+import { onBuilderClick } from './builder.ts';
 import { cellTitle, chg1dBreakText, extraCellView, extraColumnTitle, flowDateShown, remarkBadge, remarkTitle, sideOf, staleValueText, T } from './texts.ts';
 import { formatOfOpt, formatOfSide } from './entries.ts';
 import { pageCardOf, screenedCards } from './run.ts';
@@ -133,6 +134,9 @@ export function renderResults() {
     const on = S.sort.key === key, sortAttr = on ? (S.sort.dir === 'desc' ? 'descending' : 'ascending') : 'none';
     const ar = `<span class="ar ${on ? 'on' : ''}">${ico(on ? (S.sort.dir === 'desc' ? IC.down : IC.up) : IC.sort, 's')}</span>`;
     // EXEC-SCREENER-V21: an indicator header is [name: sort] [parameters chip: edit] [arrow: sort] (reference 1102-1343)
+    /* user 2026-11-08 (option 2 of the header options): a condition's header on two lines, centred both ways: its colour
+       and name (sorts), then its rule in grey and its parameters chip; the column as wide as its values need */
+    if (cls === 'cond2') { const [l1, l2] = label.split('\u0001'); return `<th class="cond2" data-hcond="${esc(key.slice(2))}" aria-sort="${sortAttr}"><div class="hs2"><button data-sort="${esc(key)}" title="${esc(title || 'Sort')}">${l1}${ar}</button>${l2 || chip ? `<span class="hs2b">${l2 ? `<span class="hr">${l2}</span>` : ''}${chip}</span>` : ''}</div></th>` }
     if (chip) return `<th class="${cls} hsplit" aria-sort="${sortAttr}"><div class="hs"><button data-sort="${esc(key)}" title="${esc(title || 'Sort')}">${label}</button>${chip}<button class="hs-ar" data-sort="${esc(key)}" title="Sort" aria-label="Sort">${ar}</button></div></th>`;
     return `<th class="${cls}" aria-sort="${sortAttr}"><button data-sort="${esc(key)}" title="${esc(title || 'Sort')}">${label}${ar}</button></th>`;
   };
@@ -167,12 +171,13 @@ export function renderResults() {
       // 2026-11-08: "Klik 5 maka harusnya yang nongol adalah seperti versi simple moving average")
       const ed = !!(e && e.params.length && pageCardOf(c)), lb = pv || (ed ? e!.params.map(p => String(c.params[p.key])).join('/') : '');
       const chip = ed ? `<button type="button" class="pvchip ${cus}" data-pedit="${esc(c.id)}" aria-haspopup="dialog" aria-expanded="false" aria-label="Change parameters: ${esc(paramSummary(e!, c.params))}"><span class="pv ${cus}">${esc(lb)}</span></button>` : '';
-      return th('c:' + c.id, `<i class="cdot" style="background:${colorOf(c)}"></i>${esc(shortName(e, c))}${!ed && pv ? ` <span class="pv ${cus}">${esc(pv)}</span>` : ''}`, '', `${sideOf(e) ? sideOf(e)!.title + '\n' : ''}${condText(e, c)} · ${e?.params.length ? (isCustom(e, c) ? 'custom parameters: ' : 'default parameters: ') + paramSummary(e, c.params) : 'fixed definition'}`, chip);
+      const sp = shortParts(e, c);
+      return th('c:' + c.id, `<i class="cdot" style="background:${colorOf(c)}"></i>${esc(sp.base)}\u0001${esc(sp.rule)}${!ed && pv ? ` <span class="pv ${cus}">${esc(pv)}</span>` : ''}`, 'cond2', `${sideOf(e) ? sideOf(e)!.title + '\n' : ''}${condText(e, c)} · ${e?.params.length ? (isCustom(e, c) ? 'custom parameters: ' : 'default parameters: ') + paramSummary(e, c.params) : 'fixed definition'}`, chip);
     }).join('')}${xdefs.map(d => extraTh(d, th)).join('')}</tr></thead>
       <tbody>${pr.map(r => {
         const w = ctx.watch?.has(r.ticker) ?? false, nearRow = r.status === 'near';
         return `<tr data-tk="${esc(r.ticker)}" tabindex="0" class="${nearRow ? 'near' : ''} ${S.pick === r.ticker && S.preview ? 'picked' : ''}${r.stale ? ' stale' : ''}"><td class="l"><input type="checkbox" data-sel="${esc(r.ticker)}" ${S.sel.has(r.ticker) ? 'checked' : ''} aria-label="Select ${esc(r.ticker)}"></td><td class="l"><button class="watch-dot ${w ? 'on' : ''}" data-watch="${esc(r.ticker)}" ${watchOk ? `title="${w ? 'In Watchlist — click to remove' : 'Add to Watchlist'}"` : watchNo} aria-label="${w ? 'Remove ' + esc(r.ticker) + ' from' : 'Add ' + esc(r.ticker) + ' to'} Watchlist" aria-pressed="${w}">${ico(w ? IC.check : IC.plus, 's')}</button></td>
-          <td class="l"><span class="sym">${esc(r.ticker)}</span>${nearRow ? ' <span class="pill nearp">near</span>' : ''}</td><td class="l co" title="${esc(r.name || '')}">${esc(r.name || '')}</td><td class="l">${sectorTag(r.sector)}</td>${lastTd(r)}${d1Td(r)}<td title="Rp ${r.adv20_idr == null ? '—' : nf(r.adv20_idr / 1e9, 1) + ' billion'} a session (20-session average)">${r.adv20_idr == null ? '—' : nf(r.adv20_idr / 1e9, 1) + 'B'}</td>
+          <td class="l"><span class="sym">${esc(r.ticker)}</span>${nearRow ? `<span class="neard" role="img" aria-label="Near miss" title="Near miss: ${r.met} of ${conds.length} conditions met"></span>` : ''}</td><td class="l co" title="${esc(r.name || '')}">${esc(r.name || '')}</td><td class="l">${sectorTag(r.sector)}</td>${lastTd(r)}${d1Td(r)}<td title="Rp ${r.adv20_idr == null ? '—' : nf(r.adv20_idr / 1e9, 1) + ' billion'} a session (20-session average)">${r.adv20_idr == null ? '—' : nf(r.adv20_idr / 1e9, 1) + 'B'}</td>
           ${remarkCol ? `<td class="l">${r.remarks.map(x => `<span class="pill t-warning rbadge" title="${esc(remarkTitle(x))}">${ico(IC.warn, 's')}${esc(remarkBadge(x))}</span> <small class="muted">${esc(x.code === 'STALE' ? x.last_bar_date : x.ex_date)}</small>`).join(' ')}</td>` : ''}
           ${conds.length ? `<td><span class="dots">${conds.map(c => `<i class="${cellOf(r, c.id)?.status === 'pass' ? 'y' : ''}" style="--c:${colorOf(c)}"></i>`).join('')}</span> <b style="margin-left:4px">${r.met}/${conds.length}</b></td>` : ''}${conds.map(c => cellHtml(r, c)).join('')}${xdefs.map(d => extraTd(r, d)).join('')}</tr>`;
       }).join('')}</tbody></table></div>
@@ -256,6 +261,43 @@ export function download(name: string, text: string, type = 'text/csv') {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+/* user 2026-11-08 (option 7 of the header menu): a right click on a condition's header opens a small toolbar under it:
+   sort up, sort down, change its parameters (the chip's own editor), turn it off (its card stays), remove it (Undo in
+   the toast). The table follows at Screen now, as every edit. */
+let hbar: HTMLElement | null = null, hbarAt = 0;
+export function closeHeaderBar() { hbar?.remove(); hbar = null }
+export function openHeaderBar(th: HTMLElement, x: number) {
+  closeHeaderBar();
+  const id = th.dataset.hcond!, c = S.cards.find(k => k.id === id), chip = th.querySelector<HTMLElement>('[data-pedit]');
+  hbar = document.createElement('div'); hbar.className = 'hbar'; hbar.setAttribute('role', 'toolbar'); hbar.setAttribute('aria-label', 'Column');
+  hbar.innerHTML = `<button type="button" data-hb="asc" title="Sort ascending" aria-label="Sort ascending">${ico(IC.up, 's')}</button><button type="button" data-hb="desc" title="Sort descending" aria-label="Sort descending">${ico(IC.down, 's')}</button>`
+    + `<button type="button" data-hb="edit" title="Change parameters" aria-label="Change parameters"${chip ? '' : ' disabled'}>✎</button>`
+    + `<button type="button" data-hb="off" title="${c?.on === false ? 'Turn the condition on' : 'Turn the condition off (its card stays)'}"${c ? '' : ' disabled'}>${c?.on === false ? 'On' : 'Off'}</button>`
+    + `<button type="button" class="del" data-hb="remove" title="Remove the condition"${c ? '' : ' disabled'}>${ico(IC.x, 's')} Remove</button>`;
+  document.body.appendChild(hbar); hbarAt = performance.now();
+  const r = th.getBoundingClientRect(), w = hbar.offsetWidth;
+  hbar.style.left = `${Math.round(Math.min(Math.max(8, x - w / 2), innerWidth - w - 8))}px`; hbar.style.top = `${Math.round(r.bottom + 4)}px`;
+  hbar.addEventListener('click', ev => {
+    const b = (ev.target as HTMLElement).closest<HTMLElement>('[data-hb]'); if (!b || (b as HTMLButtonElement).disabled) return;
+    const k = b.dataset.hb, key = ('c:' + id) as typeof S.sort.key;
+    closeHeaderBar();
+    if (k === 'asc' || k === 'desc') { S.sort = { key, dir:k }; renderResults(); return }
+    if (k === 'edit') { document.querySelector<HTMLElement>(`#resPane th[data-hcond="${CSS.escape(id)}"] [data-pedit]`)?.click(); return }
+    if (k === 'off' && c) { c.on = !c.on; ui.markDirty(); ui.refresh('conds'); toast(`${shortName(entryOf(c) ?? undefined, c)} turned ${c.on ? 'on' : 'off'}`); return }
+    if (k === 'remove') { const d = document.createElement('button'); d.dataset.del = id; onBuilderClick(d) }
+  });
+  hbar.querySelector<HTMLElement>('button')?.focus();
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('contextmenu', e => {
+    const th = (e.target as HTMLElement).closest<HTMLElement>('#resPane th[data-hcond]'); if (!th) return;
+    e.preventDefault(); openHeaderBar(th, e.clientX);
+  });
+  document.addEventListener('pointerdown', e => { if (hbar && !hbar.contains(e.target as Node)) closeHeaderBar() }, true);
+  document.addEventListener('keydown', e => { if (hbar && e.key === 'Escape') closeHeaderBar() });
+  // a scroll moves the header away: the bar closes (not the scroll the opening click itself may cause)
+  document.addEventListener('scroll', e => { if (hbar && !hbar.contains(e.target as Node) && performance.now() - hbarAt > 400) closeHeaderBar() }, true);
+}
 export function onResultsClick(e: Event) {
   const t = e.target as HTMLElement;
   const s = t.closest('[data-sort]') as HTMLElement | null;
