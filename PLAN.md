@@ -20,6 +20,32 @@ Aturan:
 
 Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
+## STOCKBIT-CRON — stockbit-updater jadi layanan cron: deploy tidak menarik data, putaran hanya lewat Run Now (disetujui sebagai arah, 2026-11-09)
+
+**Kata user, 2026-11-09:** "kalau redeploy maka akan men-trigger proses ingestion data regardless tokennya aktif atau
+tidak. Ini harus diberhentikan." Lalu: "Pilihan opsinya adalah stockbit updater jadikan cron. Tapi ingat, cek dulu.
+Jangan kamu kasih saran yang nggak bisa di-execute."
+
+**Alur yang diminta:** ganti `STOCKBIT_TOKEN` di stockbit-updater → Railway deploy (tanpa menarik data) → user klik
+Run Now → satu putaran dengan token baru.
+
+**Sudah dicek (2026-11-09):**
+- Layanan cron tidak jalan saat deploy: terbukti di proyek ini (ERRORS M229; upload terminal-publisher `f7a731dd`
+  2026-11-09 tanpa log).
+- Run Now pada layanan cron: terbukti (`deploymentInstanceExecutionCreate`, terminal-publisher `690594c1` 2026-11-09).
+- Volume pada layanan cron: menurut staf Railway di forum "The volume is mounted correctly" (thread "Mounted volume
+  doesn't seem to persist between cron runs"); belum diuji di proyek ini, karena belum ada layanan cron kita yang
+  memakai volume.
+- Docs Railway: jadwal yang terlambat dilewati bila run sebelumnya masih jalan; Run Now tidak lewat penjadwal, jadi
+  dua putaran bisa tumpang tindih tanpa penjaga dari kode.
+
+**Rencana (belum dieksekusi):** jadwal cron + `restartPolicyType NEVER` di `railway.ts` (juga perbaikan M416); mode
+`UPDATER_MODE=CHECK` (cek volume, database, masa berlaku token; tidak menarik dan tidak menulis apa pun) untuk menguji
+cron + volume dengan Run Now sebelum kembali ke APPLY; penjaga di kode: berhenti bila ada putaran lain yang tanda
+hidupnya masih baru.
+
+**Pertanyaan terbuka:** jadwal cron (hampir tidak pernah jalan, atau harian di jam WIB tertentu); go eksekusi.
+
 ## SCREENER-FLOW-FROM-TERMINAL — preset bandar aktif dan screener flow dari indikator Terminal (disetujui sebagai arah, 2026-11-06)
 
 **Kata user, 2026-11-06:** "Iya, maksud saya screener-screener di bagian bandar tersebut semuanya menggunakan
