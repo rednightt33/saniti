@@ -220,10 +220,18 @@ export const CONDITION_ID = /^[0-9a-z]{1,6}$/;
       bar); false lists them with the row remark PRICE_BREAK and the cell remark PRICE_BREAK_IN_LOOKBACK on affected
       cells (P4.1 A: values shown);
     - tickers: an explicit list, each must be in the universe (unknown tickers refused by name);
-    - metric_filters: VALUE tests only, at most max_metric_filters. */
+    - metric_filters: VALUE tests only, at most max_metric_filters;
+    - indices_in / indices_out, groups_in / groups_out (additive, EXEC-SCREENER-STOCK-LISTS, user 2026-11-09 options 1A,
+      2, 3): the `code` of a list of catalog.stock_lists (kind INDEX for indices, KONGLO for groups; "LQ45", "SALIM"),
+      on the current members only. _in keeps a stock in at least one chosen list of that kind ("any of them"), _out
+      drops a stock in any chosen list; Index and Group combine with AND, and with sector and industry as before. A stock
+      in no list is not "unclassified": include_unclassified does not touch these filters. Empty lists are left out of
+      the normalized definition, so a definition without them hashes as before; one with them is refused while the
+      stock-lists file is not available (validate.ts). */
 export interface UniverseDef {
   security_types: ['stock'];
   sectors_in?: string[]; sectors_out?: string[]; industries_in?: string[]; industries_out?: string[];
+  indices_in?: string[]; indices_out?: string[]; groups_in?: string[]; groups_out?: string[];
   include_unclassified?: boolean;
   price_min?: number | null; adv20_min_idr?: number | null; min_history_bars?: number | null;
   traded_on_eval_date?: boolean;      // absent: true (P4)
@@ -565,6 +573,9 @@ export interface CatalogResponse {
   periods: Periods;
   groupings: Grouping[];             // the Backtest's groupingsOf over ref/tickers.json.gz; unclassified counted apart
   presets: CatalogPreset[];
+  /** additive (EXEC-SCREENER-STOCK-LISTS): the indices and stock groups of the reference file `stock_lists`, the values
+      of the universe's indices_* and groups_*; absent from an older worker, whose page offers no list filter */
+  stock_lists?: StockListsBlock;
   /** additive (EXEC-SCREENER-FLOW-CANDLES P3): the universal operators the page offers (screener-metrics.json
       operators, each measure with its transform's arguments); absent from an older worker, whose page offers none */
   operators?: CatalogOperators;
@@ -580,13 +591,30 @@ export interface CatalogOperators {
   default_measure: string;
 }
 export type OperatorTestKey = 'value' | 'range' | 'cross' | 'ever' | 'at_least' | 'streak' | 'rank';
+/** EXEC-SCREENER-STOCK-LISTS (user 2026-11-09): a list's kind as the publisher writes it (Stock_List.list_kind): INDEX
+    a Stockbit Indeks list, KONGLO a Stockbit stock group (konglomerasi; set by Stockbit, not a proof of ownership). */
+export type StockListKind = 'INDEX' | 'KONGLO';
+export const STOCK_LIST_KINDS: readonly StockListKind[] = ['INDEX', 'KONGLO'];
+/** One list of catalog.stock_lists: key the publisher's list_key ('INDEX:550'), code the value a filter names ('LQ45'),
+    name and definition as Stock_List holds them (the definition is the source's words, in Indonesian), tickers the
+    listed stocks of this publication in it (its members outside the Screener's universe, and non-stocks, are not
+    counted), as_of the last complete stockbit-updater round that loaded its members (null before the first). */
+export interface StockListEntry { key: string; kind: StockListKind; code: string; name: string; definition: string; tickers: number; as_of: string | null }
+/** catalog.stock_lists: AVAILABLE with the lists in the file's order (indices, then groups, each in Stockbit's order),
+    or REQUIRES_DATA with no list and the plain reason (the publication has no stock-lists file, or it could not be
+    read): an index or group filter is then refused, and the rest of the Screener works as before. as_of: the newest
+    as_of of the lists (null when none has one). */
+export interface StockListsBlock { availability: 'AVAILABLE' | 'REQUIRES_DATA'; reason: string | null; as_of: string | null; lists: StockListEntry[] }
 /** One ticker of the universe, for the page's popover counts (it runs universe.ts on these rows, the worker runs the
     same function in S0; report 8.4). Every listed stock is in it, hidden ones included, so the chips can count what
-    they hide (P4). */
+    they hide (P4). indices / groups (additive, EXEC-SCREENER-STOCK-LISTS): the codes of the INDEX and KONGLO lists the
+    stock is a current member of, in catalog.stock_lists order; absent while the stock-lists file is not available
+    (an older worker sends none either). */
 export interface UniverseRow {
   ticker: string; name: string | null; sector: string | null; industry: string | null;
   last: number | null; chg_1d_pct: number | null; adv20_idr: number | null;
   first_bar: string; last_bar: string; bars: number; stale: boolean; remarks: RowRemark[];
+  indices?: string[]; groups?: string[];
 }
 export interface UniverseResponse { versions: Versions; data: DataStatus; rows: UniverseRow[] }
 

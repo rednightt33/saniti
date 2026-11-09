@@ -10,7 +10,10 @@
      lower1 at bands_mode None), naming that parameter, so no cell is NA for a reason that is not the ticker's; a within
      that is not a whole number of at least 1; a duplicate or malformed condition id; logic at_least without a whole
      at_least >= 1 (and at_least with another logic); an unknown sector, industry or ticker (refused by name, with the
-     allowed list); a value on the left of a comparison (the metric goes left, never reordered); a reference that is
+     allowed list); EXEC-SCREENER-STOCK-LISTS: an index or group code that is not a list of that kind in
+     catalog.stock_lists, one listed twice, or one both included and excluded (each with a right and a wrong example);
+     a non-empty index or group filter while the stock-lists file is not available is METRIC_UNAVAILABLE {metric
+     'stock_lists', availability REQUIRES_DATA, reason} (remove the filter to run); a value on the left of a comparison (the metric goes left, never reordered); a reference that is
      not a series where a series is needed (a pattern or a value per stock as a transform's series, a rank's series, a
      side of a comparison, a pattern in a value test; metrics.ts notSeriesRefusal: the reason, how to pass where the
      test sits, a right and a wrong example);
@@ -37,7 +40,7 @@
    Worker-side module (imports the registry and the backtest core through condition.ts). */
 import { canonicalJson, sha256Hex } from '../../../backtest/src/core/hash.ts';
 import type {
-  Availability, ConditionDef, Definition, Grouping, MetricKind, MetricRef, Side, Test, TestForm, TestKind, UniverseDef, ValueTest,
+  Availability, ConditionDef, Definition, Grouping, MetricKind, MetricRef, Side, StockListKind, StockListsBlock, Test, TestForm, TestKind, UniverseDef, ValueTest,
 } from './contract.ts';
 import { CONDITION_ID, VALUE_OPS, WINDOW_MODES } from './contract.ts';
 import { ScreenerError } from './errors.ts';
@@ -102,6 +105,9 @@ export interface ValidateContext {
   /** P5a: the loaded broker window (the worker's data.broker_window and its reference file's classification): a flow
       condition's depth (K1), availability and anchor are checked against it; absent, they are not */
   flow?: FlowBindContext;
+  /** EXEC-SCREENER-STOCK-LISTS: the lists an index or group filter may name (the catalog's stock_lists block); absent,
+      or not AVAILABLE, a non-empty list filter is refused METRIC_UNAVAILABLE */
+  stockLists?: StockListsBlock;
 }
 
 /* ---- JSON shape --------------------------------------------------------------------------------------------------- */
@@ -430,8 +436,9 @@ function sides(t: Record<string, unknown>, field: string, refs: (ref: unknown, f
 
 /* ---- the universe ---------------------------------------------------------------------------------------------------- */
 
-const UNIVERSE_KEYS = ['security_types', 'sectors_in', 'sectors_out', 'industries_in', 'industries_out', 'include_unclassified', 'price_min',
-  'adv20_min_idr', 'min_history_bars', 'traded_on_eval_date', 'exclude_price_breaks', 'tickers', 'metric_filters'] as const;
+const UNIVERSE_KEYS = ['security_types', 'sectors_in', 'sectors_out', 'industries_in', 'industries_out', 'indices_in', 'indices_out', 'groups_in',
+  'groups_out', 'include_unclassified', 'price_min', 'adv20_min_idr', 'min_history_bars', 'traded_on_eval_date', 'exclude_price_breaks', 'tickers',
+  'metric_filters'] as const;
 function stringList(x: unknown, field: string, allowed: readonly string[], what: string): string[] {
   if (!Array.isArray(x)) throw new ScreenerError('INVALID_INPUT', `${field} must be a list of ${what}.`, field);
   const seen = new Set<string>();
@@ -443,6 +450,41 @@ function stringList(x: unknown, field: string, allowed: readonly string[], what:
     seen.add(v);
   });
   return x as string[];
+}
+/* EXEC-SCREENER-STOCK-LISTS (user 2026-11-09): the index and group filters. Each refusal names where (the field), how
+   to pass (the code as the Index or Group list shows it; remove the filter while the lists are not available) and a
+   right and a wrong example (AGENTS.md "Gates and evidence"). */
+export const STOCK_LIST_KEYS = [['indices_in', 'INDEX'], ['indices_out', 'INDEX'], ['groups_in', 'KONGLO'], ['groups_out', 'KONGLO']] as const;
+const LIST_WORDS: Record<StockListKind, { one: string; a: string; list: string; example: string }> = {
+  INDEX: { one: 'index', a: 'an index', list: 'Index', example: 'LQ45' }, KONGLO: { one: 'group', a: 'a group', list: 'Group', example: 'SALIM' },
+};
+/** The reason a list filter cannot run, the block's own or, without a block, that the lists are not loaded. */
+export const STOCK_LISTS_MISSING = 'The index and group lists are not loaded on this server.';
+function listCodes(x: unknown, field: string, kind: StockListKind, ctx: ValidateContext): string[] {
+  const w = LIST_WORDS[kind];
+  if (!Array.isArray(x)) throw new ScreenerError('INVALID_INPUT', `${field} must be a list of ${w.one} codes, for example ["${w.example}"].`, field);
+  if (!x.length) return [];
+  const block = ctx.stockLists;
+  if (!block || block.availability !== 'AVAILABLE') {
+    const reason = (block?.reason || STOCK_LISTS_MISSING).trim();
+    throw new ScreenerError('METRIC_UNAVAILABLE', `${field}: ${w.a} filter needs the index and group lists, which are not available: ${reason.replace(/[.\s]+$/, '')}. Remove the ${w.list} filter to run the screen (the same screen without it runs; with ${w.list} "${w.example}" it waits for the lists).`,
+      field, { metric: 'stock_lists', availability: 'REQUIRES_DATA', reason });
+  }
+  const allowed = block.lists.filter(l => l.kind === kind).map(l => l.code);
+  const ex = allowed.includes(w.example) ? w.example : allowed[0] ?? w.example;
+  const seen = new Set<string>();
+  x.forEach((v, i) => {
+    const f = `${field}[${i}]`;
+    if (typeof v !== 'string') throw new ScreenerError('INVALID_INPUT', `${f} must be the code of ${w.a} as a string, for example "${ex}".`, f);
+    if (!allowed.includes(v)) {
+      const near = allowed.find(c => c.toLowerCase() === v.trim().toLowerCase());
+      throw new ScreenerError('INVALID_CONDITION', `${f}: ${JSON.stringify(v)} is not the code of ${w.a} the Screener holds. ${near ? `Write it as the ${w.list} list shows it: "${near}" is accepted, ${JSON.stringify(v)} is refused.` : `Pick it from the ${w.list} list, which shows each by its code: "${ex}" is accepted, ${JSON.stringify(v)} is refused.`}`,
+        f, { allowed: [...allowed] });
+    }
+    if (seen.has(v)) throw new ScreenerError('INVALID_CONDITION', `${f}: "${v}" is listed twice; list it once ("${v}" once is accepted, "${v}" twice is refused).`, f);
+    seen.add(v);
+  });
+  return [...x as string[]];
 }
 const bound = (x: unknown, field: string, integer: boolean, min: number): number | null => {
   if (x === undefined || x === null) return null;
@@ -469,6 +511,19 @@ export function validateUniverse(input: unknown, field: string, ctx: ValidateCon
     if (u[k] === undefined) continue;
     const list = stringList(u[k], `${field}.${k}`, values(g), g === 'sector' ? 'sectors' : 'industries');
     if (list.length) out[k] = [...list];
+  }
+  // EXEC-SCREENER-STOCK-LISTS: the index and group filters, empty ones left out (so a definition without them hashes as
+  // before); a code both included and excluded leaves no stock of that kind, so it is refused
+  for (const [k, kind] of STOCK_LIST_KEYS) {
+    if (u[k] === undefined) continue;
+    const list = listCodes(u[k], `${field}.${k}`, kind, ctx);
+    if (list.length) out[k] = list;
+  }
+  for (const [inc, exc, kind] of [['indices_in', 'indices_out', 'INDEX'], ['groups_in', 'groups_out', 'KONGLO']] as const) {
+    const j = (out[exc] ?? []).findIndex(c => out[inc]?.includes(c));
+    if (j < 0) continue;
+    const c = out[exc]![j], other = ctx.stockLists?.lists.find(l => l.kind === kind && l.code !== c)?.code, w = LIST_WORDS[kind];
+    throw new ScreenerError('INVALID_CONDITION', `${field}.${exc}[${j}]: "${c}" is both included and excluded, which leaves no stock; keep it on one side (include "${c}"${other ? ` and exclude "${other}"` : ''} is accepted; include and exclude "${c}" is refused). Each ${w.one} is either included or excluded.`, `${field}.${exc}[${j}]`);
   }
   out.include_unclassified = bool(u.include_unclassified, `${field}.include_unclassified`, false);
   out.price_min = bound(u.price_min, `${field}.price_min`, false, 0);

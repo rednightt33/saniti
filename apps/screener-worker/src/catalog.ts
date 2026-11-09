@@ -9,6 +9,8 @@
    - metrics[], fundamentals[], periods: src/core/screener-metrics.json with availability derived at run time from the
      files the publication indexes and this snapshot read (validate.ts availabilityMap; 6.12), never a list kept here;
    - groupings: the reference file's, by the Backtest's rule (snapshot.ts groupingsOf);
+   - stock_lists (EXEC-SCREENER-STOCK-LISTS): the indices and groups of the reference file `stock_lists`, each with its
+     listed stocks at this snapshot, or REQUIRES_DATA with the reason (snapshot.ts desc.stockLists, stocklists.ts);
    - P5a: the Terminal's 48 flow indicators (core catalog.ts METRICS_CATALOG) carry `flow`, their setup with each
      output's kind and the sessions they read at their defaults against the loaded broker window (contract.ts
      CatalogFlow), available on a complete window (validate.ts availabilityOf); P5b: the Screener's versions (FL18-FL20,
@@ -143,6 +145,7 @@ export function catalogDoc(c: CatalogInput): Doc {
     indicators: catalogIndicators({ capBudgetMs: c.limits.cap_budget_ms }),
     metrics, fundamentals, periods: c.metrics.periods as Periods, groupings: c.groupings, presets: c.presets,
     operators: catalogOperators(c.metrics),
+    ...(c.desc.stockLists ? { stock_lists: c.desc.stockLists } : {}),
   };
   return doc(body);
 }

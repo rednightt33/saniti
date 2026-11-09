@@ -24,8 +24,8 @@ CONTRACT (approval-gate report, EXEC-SCREENER).
 |---|---|---|
 | `GET /health` | `WorkerHealth {ok, versions, published_at, snapshot_age_seconds, refresh}`; `versions` null and `refresh` `loading` before the first snapshot; `refreshing` while a publication is built; else `ready` or `failed_keeping_previous`. `snapshot_age_seconds` = now − `published_at` | JSON |
 | `GET /ready` | `200 {ready: true}` with a snapshot; else `503 {ready: false, retry_after_seconds, error: {code: SCREENER_NOT_READY}}` with `Retry-After` | JSON |
-| `GET /v1/catalog` | `CatalogResponse` (8.4): `versions`, `data` (with `refresh`), `limits[]`, `indicators[]`, `metrics[]`, `fundamentals[]`, `periods`, `groupings`, `presets[]` | gzip when accepted; `ETag`; `If-None-Match` → `304` |
-| `GET /v1/universe` | `UniverseResponse`: every listed stock, hidden ones included, with remarks | gzip when accepted; `ETag`; `304` |
+| `GET /v1/catalog` | `CatalogResponse` (8.4): `versions`, `data` (with `refresh`), `limits[]`, `indicators[]`, `metrics[]`, `fundamentals[]`, `periods`, `groupings`, `presets[]`; additive `stock_lists` (EXEC-SCREENER-STOCK-LISTS: `StockListsBlock`, the indices and groups of the reference file `stock_lists` with the listed stocks in each, or `REQUIRES_DATA` with the reason) | gzip when accepted; `ETag`; `If-None-Match` → `304` |
+| `GET /v1/universe` | `UniverseResponse`: every listed stock, hidden ones included, with remarks; additive `indices` and `groups` per row (the codes of its current lists; absent while the stock-lists file is not available) | gzip when accepted; `ETag`; `304` |
 | `POST /v1/run` | `RunRequest` → `RunResponse` (8.5) | gzip (`Content-Encoding: gzip`), `ETag` |
 | `POST /v1/preview` | `PreviewRequest` → `PreviewResponse` (8.6); each overlay carries its series' `unit` (registry scaling class, additive, EXEC-SCREENER-ADD) | gzip, `ETag` |
 | `POST /v1/counts` | `CountsRequest` → `CountsResponse`; an entry whose definition is refused carries `{item_id, error}` | gzip, `ETag` |

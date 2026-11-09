@@ -36,7 +36,12 @@
    (brokerRows), the brokers' classification of the reference file `brokers` (desc.brokerClasses, read by the refresh
    beside `tickers`; FL34) and the thread's memo of computeFlow answers (one call per ticker, indicator and parameters
    per snapshot, FLOW_MEMO_KEEP of them). Flow series are computed on request, never pinned (the pre-warm views have no
-   broker rows). */
+   broker rows).
+   EXEC-SCREENER-STOCK-LISTS (user 2026-11-09): the reference file `stock_lists` as the refresh read it
+   (SnapshotReference.stockLists, stocklists.ts): each universe row carries the codes of the indices and groups it is a
+   current member of (row.indices, row.groups), restricted to this snapshot's listed stocks, and desc.stockLists is the
+   catalog's block (each list with its listed stocks, or REQUIRES_DATA with the reason); its sha256 is part of
+   referenceHash, so a changed file is another snapshot (sid) and a refresh rebuilds on it. */
 import crypto from 'node:crypto';
 import { DataError, PRICE_ACTION_TYPES, dataVersion, priceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
 import type { Columnar } from '../../edge-bff/backtest/src/core/datafile.ts';
@@ -44,7 +49,7 @@ import { ADJUSTED_HISTORY_BOUNDARY } from '../../edge-bff/backtest/src/core/engi
 import { byTicker } from '../../edge-bff/backtest/src/core/signals.ts';
 import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
 import type { Bars } from '../../edge-bff/terminal/src/calc/indicators.ts';
-import type { BrokerRef, DataStatus, Grouping, MetricRef, PatternRef, PriceBreakRemark, RowRemark, UniverseRow, Versions } from '../../edge-bff/screener/src/core/contract.ts';
+import type { BrokerRef, DataStatus, Grouping, MetricRef, PatternRef, PriceBreakRemark, RowRemark, StockListsBlock, UniverseRow, Versions } from '../../edge-bff/screener/src/core/contract.ts';
 import { METRICS_CATALOG } from '../../edge-bff/screener/src/core/catalog.ts';
 import type { PresetDefinition } from '../../edge-bff/screener/src/core/catalog.ts';
 import { bindCondition, declaredDerivedSeries } from '../../edge-bff/screener/src/core/condition.ts';
@@ -64,6 +69,8 @@ import { readsFlow } from '../../edge-bff/screener/src/core/flowmetrics.ts';
 import type { FlowBindContext, TickerFlow } from '../../edge-bff/screener/src/core/flowmetrics.ts';
 import type { FlowOut } from '../../edge-bff/terminal/src/calc/flow.ts';
 import type { BrokerDay, BrokerRows, BrokerStats, BrokerStore } from './broker.ts';
+import { stockListsOf } from './stocklists.ts';
+import type { StockListsRef } from './stocklists.ts';
 
 export const INDEX_TICKER = 'IHSG';
 export const PRICE_FILE = 'price';
@@ -106,10 +113,13 @@ export interface SnapshotDesc {
   broker: BrokerStore;               // P4: the loaded broker days (broker.ts), per ticker of `tickers`
   brokerClasses: Record<string, string>;   // P5a: broker code -> classification (reference file `brokers`; {} when not published)
   brokerList: BrokerRef[];                 // EXEC-SCREENER-BROKER-PICK: code, name, domicile of the same file (catalog data.brokers)
+  stockLists: StockListsBlock;             // EXEC-SCREENER-STOCK-LISTS: catalog stock_lists (REQUIRES_DATA without a readable file)
 }
 /** The reference the refresh hands the build: the tickers file, and (P5a) the brokers' classification of the reference
-    file `brokers` (code -> IDX_Broker_Profile class, as the Terminal reads it), absent when it could not be read. */
-export type SnapshotReference = TickerReference & { brokerClasses?: Record<string, string>; brokerList?: BrokerRef[] };
+    file `brokers` (code -> IDX_Broker_Profile class, as the Terminal reads it), absent when it could not be read; and
+    (EXEC-SCREENER-STOCK-LISTS) the lists of the reference file `stock_lists`, or the reason they are not available
+    (absent: as not indexed). */
+export type SnapshotReference = TickerReference & { brokerClasses?: Record<string, string>; brokerList?: BrokerRef[]; stockLists?: StockListsRef };
 const FIELDS = ['O', 'H', 'L', 'C', 'V'] as const;
 
 const integrity = (message: string, field = 'price') => new DataError('DATA_INTEGRITY', message, field);
@@ -136,7 +146,10 @@ export function groupingsOf(ref: TickerReference): Grouping[] {
 export const referenceHash = (ref: SnapshotReference): string =>
   crypto.createHash('sha256').update(JSON.stringify([ref.groupings, ref.tickers.map(r => [r.ticker, r.name, r.type, ref.groupings.map(g => r.groups[g] ?? null)]),
     // P5a: the brokers' classification too (a changed class changes FL34, so it is another snapshot); absent: as before
-    ...(ref.brokerClasses ? [Object.entries(ref.brokerClasses).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)] : [])])).digest('hex').slice(0, 16);
+    ...(ref.brokerClasses ? [Object.entries(ref.brokerClasses).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)] : []),
+    // EXEC-SCREENER-STOCK-LISTS: the stock-lists file's content key (a changed membership is another snapshot); absent or
+    // not available: as before
+    ...(ref.stockLists && 'sha256' in ref.stockLists ? [['stock_lists', ref.stockLists.sha256]] : [])])).digest('hex').slice(0, 16);
 
 /* ---- decoding ---------------------------------------------------------------------------------------------------- */
 
@@ -280,6 +293,8 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
   for (let i = 0; i < w; i++) Tix[i] = renum[Tix[i]];
   const dates = order.map(([d]) => d);
   rows.sort((a, b) => byTicker(a.ticker, b.ticker));
+  // EXEC-SCREENER-STOCK-LISTS: each listed stock's indices and groups, and the catalog block (stocklists.ts)
+  const stockLists = stockListsOf(input.ref.stockLists, rows);
 
   const price_data = await dataVersion(entries.map(e => ({ ticker: e.t, dataset: 'price', sha256: e.pack_sha256 })));
   // P4: the broker store per ticker of this snapshot, and the versions and data it gives (broker_window last, so
@@ -321,6 +336,7 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
     tails: shared(Float64Array, S * T * input.tailLength), tailMeta: shared(Int32Array, S * T * 4), digest: null, broker: broker.store,
     brokerClasses: { ...(input.ref.brokerClasses ?? {}) },
     brokerList: [...(input.ref.brokerList ?? [])],
+    stockLists,
   };
   const stats: BuildStats = { tickers: T, stocks: rows.length, bars: w, dropped, no_price: input.ref.tickers.filter(r => r.type === 'stock' && !entries.some(e => e.t === r.ticker)).length, actions: nActions, series: S, skipped, broker: broker.stats };
   return { desc, entries, stats };

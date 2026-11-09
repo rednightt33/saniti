@@ -14,6 +14,10 @@
    - exclude_price_breaks (default true, P4; absent means true as above): drop rows with a PRICE_BREAK remark; counted
      in price_break_hidden (a row both stale and broken is counted once, as stale: the chips are applied in that
      order, so the counts form one funnel: listed = eligible + stale_hidden + price_break_hidden + filtered_out);
+   - indices_in / groups_in (EXEC-SCREENER-STOCK-LISTS, user 2026-11-09 option 2): keep a row that is a current member
+     of at least one chosen list of that kind (row.indices, row.groups: list codes; a row without them is in no list);
+     indices_out / groups_out: drop a row that is a member of any chosen list. Index, Group, sector and industry
+     combine with AND. A stock in no list is not unclassified: include_unclassified never keeps it in;
    - tickers: keep only the listed tickers (validate.ts has refused unknown ones by name);
    - metric_filters on a universe attribute ({kind: 'universe', attr} naming a numeric field of the row: last,
      chg_1d_pct, adv20_idr, bars) are applied here with the VALUE rule (gt, lt strict; between inclusive; a null value
@@ -33,6 +37,10 @@ const inList = (v: string | null, list: readonly string[] | undefined): boolean 
 /** A classification include filter: a value in the list, or no classification with include_unclassified (P15). */
 const included = (v: string | null, list: readonly string[] | undefined, unclassified: boolean): boolean =>
   !list || !list.length || inList(v, list) || (v === null && unclassified);
+/** A list filter (EXEC-SCREENER-STOCK-LISTS): the row's memberships of one kind against the chosen codes. */
+const anyOf = (codes: readonly string[] | undefined, list: readonly string[] | undefined): boolean => !!codes && !!list && codes.some(c => list.includes(c));
+const listsPass = (codes: readonly string[] | undefined, inc: readonly string[] | undefined, exc: readonly string[] | undefined): boolean =>
+  (!inc || !inc.length || anyOf(codes, inc)) && !anyOf(codes, exc);
 const atLeast = (v: number | null, bound: number | null | undefined): boolean => bound === null || bound === undefined || (v !== null && Number.isFinite(v) && v >= bound);
 
 /** THE VALUE rule on one number (OPERATORS.md operators 1 and 15), the one copy every reader uses: evaluate.ts
@@ -60,7 +68,7 @@ function rowAttr(t: ValueTest, sample: UniverseRow | undefined): string | null {
   const m = t.metric;
   if (!m || m.kind !== 'universe' || typeof m.attr !== 'string') return null;
   if (sample && !(m.attr in sample)) return null;
-  return ['ticker', 'name', 'sector', 'industry', 'first_bar', 'last_bar', 'stale', 'remarks'].includes(m.attr) ? null : m.attr;
+  return ['ticker', 'name', 'sector', 'industry', 'first_bar', 'last_bar', 'stale', 'remarks', 'indices', 'groups'].includes(m.attr) ? null : m.attr;
 }
 
 /** S0 (rules above), in row order. */
@@ -77,6 +85,7 @@ export function applyUniverse(rows: readonly UniverseRow[], def: UniverseDef): U
     if (tickers && !tickers.has(r.ticker)) continue;
     if (!included(r.sector, def.sectors_in, unclassified) || inList(r.sector, def.sectors_out)) continue;
     if (!included(r.industry, def.industries_in, unclassified) || inList(r.industry, def.industries_out)) continue;
+    if (!listsPass(r.indices, def.indices_in, def.indices_out) || !listsPass(r.groups, def.groups_in, def.groups_out)) continue;
     if (!atLeast(r.last, def.price_min) || !atLeast(r.adv20_idr, def.adv20_min_idr) || !atLeast(r.bars, def.min_history_bars)) continue;
     if (filters.some(f => f.attr !== null && !attrPasses((r as unknown as Record<string, unknown>)[f.attr], f.t))) continue;
     eligible.push(r);

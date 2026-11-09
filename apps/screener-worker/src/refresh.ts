@@ -50,7 +50,12 @@
    check_ms, defaults_ms, install_ms, presets_ms, orphans, snapshot_digest, rss, broker_days {window, loaded, carried,
    cached, granted, missing, bytes, first, last, read, rows, dropped_tickers, dropped_rows, store_bytes}} (6.16; P4
    broker_days: days, except bytes, the gzip bytes of the broker days downloaded); REFRESH_FAILED adds the
-   failure, integrity_failures (DATA_INTEGRITY failures since the start), keeping_previous and retry_in_ms. */
+   failure, integrity_failures (DATA_INTEGRITY failures since the start), keeping_previous and retry_in_ms.
+   EXEC-SCREENER-STOCK-LISTS (user 2026-11-09): the reference the build reads includes the file `stock_lists` (the
+   indices and stock groups), read as `brokers` is (stockLists below); its sha256 is part of referenceHash, so rule 3
+   rebuilds when it changes and skips when it is the same. A file that is not indexed, missing, off the bucket origin,
+   of another sha256 or size, or not in the publisher's shape never fails the refresh: the lists are unavailable with a
+   plain reason (catalog stock_lists REQUIRES_DATA), logged stock_lists_unavailable. */
 import { DataError } from '../../edge-bff/backtest/src/core/datafile.ts';
 import type { FileEntry } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { isIsoDate } from '../../edge-bff/backtest/src/core/signals.ts';
@@ -63,6 +68,8 @@ import type { BrokerRef } from '../../edge-bff/screener/src/core/contract.ts';
 import type { IndexEntry, PublicationState, ReadFile, SnapshotReference, TickerEntry } from './snapshot.ts';
 import { brokerWindow } from './broker.ts';
 import type { WindowDay } from './broker.ts';
+import { STOCK_LISTS_REASONS, StockListsBroken, parseStockLists } from './stocklists.ts';
+import type { StockListsRef } from './stocklists.ts';
 
 export const API = '/api/terminal/v1';
 export const PROXY_HEADER = 'x-terminal-proxy-key';
@@ -423,11 +430,32 @@ export class Refresher {
     const loaded: Record<string, string> = Object.fromEntries([...carried, ...cached, ...granted].map(w => [w.name, w.entry.sha256]));
     return { carried, cached, granted, missing, bytes, loaded };
   }
-  /** The reference the build reads: the tickers file, and (P5a) the brokers' classification (brokerClasses). */
+  /** The reference the build reads: the tickers file, (P5a) the brokers' classification (brokerClasses) and
+      (EXEC-SCREENER-STOCK-LISTS) the indices and groups (stockLists). */
   private async reference(): Promise<SnapshotReference> {
     const ref: SnapshotReference = await this.client.reference('tickers');
     const b = await this.brokerClasses();
-    return b ? { ...ref, brokerClasses: b.classes, brokerList: b.list } : ref;
+    const stockLists = await this.stockLists();
+    return { ...(b ? { ...ref, brokerClasses: b.classes, brokerList: b.list } : ref), stockLists };
+  }
+  /** EXEC-SCREENER-STOCK-LISTS: the reference file `stock_lists` (publisher.py stock_lists_doc), read as `brokers` is
+      (TerminalClient.file: sha256 and size, the disk cache; a URL on the bucket origin) and checked (stocklists.ts
+      parseStockLists). Never throws: a publication whose refs index does not name it (no sha256), a failed read or a
+      broken file gives the plain reason the catalog and the refusal show, logged stock_lists_unavailable. */
+  private async stockLists(): Promise<StockListsRef> {
+    const unavailable = (reason: string, fields: Record<string, unknown>): StockListsRef => { log('warn', 'stock_lists_unavailable', fields); return { reason } };
+    try {
+      const r = await this.api.referenceFile('stock_lists');
+      if (!r.sha256 || !r.bytes) return unavailable(STOCK_LISTS_REASONS.not_indexed, { reason: 'the publication does not index the stock_lists reference (no sha256)' });
+      if (!this.fileOrigin(r.url)) throw new DataError('DATA_INTEGRITY', 'terminal-api /reference/stock_lists answered a URL that is not on the bucket origin (SCREENER_FILE_ORIGIN).', 'stock_lists');
+      const { doc } = await this.client.file({ url: r.url, sha256: r.sha256, bytes: r.bytes }, 'The stock_lists reference', 'stock_lists');
+      return { sha256: r.sha256, lists: parseStockLists(doc as Record<string, unknown>) };
+    } catch (e) {
+      if (e instanceof StockListsBroken) return unavailable(STOCK_LISTS_REASONS.unreadable, { reason: `the stock_lists reference is broken: ${e.message}` });
+      // terminal-api answers 404 for a reference it does not know (an older publication or service): not indexed
+      if (e instanceof DataError && e.code === 'DATA_MISSING' && e.field === 'stock_lists' && /answered 404/.test(e.message)) return unavailable(STOCK_LISTS_REASONS.not_indexed, errorFields(e));
+      return unavailable(STOCK_LISTS_REASONS.unreadable, errorFields(e));
+    }
   }
   /** EXEC-SCREENER-FLOW-CANDLES P5a: the brokers' classification of the reference file `brokers` (code -> its
       `classification`, IDX_Broker_Profile; every row whose classification is a text, as the Terminal's live.ts reads it),
