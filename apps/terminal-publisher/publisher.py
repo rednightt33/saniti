@@ -225,6 +225,20 @@ BROKERS_SQL = ('SELECT broker_code, broker_name, broker_type, broker_classificat
 # TradingView's type detail (common, etf): the page's label and a backtest grouping.
 UNIVERSE_SQL = ('SELECT "Ticker", "Company Name", "Security Type", "Sector", "Industry", "Type Specs" '
                 'FROM public."IDX_Stock_Universe" ORDER BY 1')
+# EXEC-SCREENER-STOCK-LISTS (user 2026-11-09): the Stockbit indices and stock groups (KONGLO) of Stock_List with their
+# current members (Stock_List_Member: the last complete stockbit-updater round; a member that left is deleted, its
+# history kept in Stock_List_Member_History, which this file does not read). A list before its first round has no
+# member (an empty array). Ordered by kind, then the list's own order, members by ticker, so equal tables give equal bytes.
+# The definition is the English one (Stock_List.definition_en, migration 20261109_002; user 2026-11-09 "1. Inggris": the
+# Screener page is English) read through to_jsonb, so the statement also runs before that migration (then the
+# Indonesian definition stands in).
+STOCK_LISTS_SQL = ('SELECT l.list_key, l.list_kind, l.code, l.name, '
+                   "coalesce(to_jsonb(l) ->> 'definition_en', l.definition) AS definition, l.last_seen_at, "
+                   'coalesce(array_agg(m."Ticker" ORDER BY m."Ticker") FILTER (WHERE m."Ticker" IS NOT NULL), '
+                   "'{}'::text[]) AS members "
+                   'FROM public."Stock_List" l LEFT JOIN public."Stock_List_Member" m ON m.list_key = l.list_key '
+                   'WHERE l.is_enabled GROUP BY l.list_key ORDER BY l.list_kind, l.sort_order, l.list_key')
+STOCK_LIST_COLUMNS = ['list_key', 'kind', 'code', 'name', 'definition', 'as_of', 'members']
 
 
 def data_kind(security_type):
@@ -340,7 +354,7 @@ REF_KEY = indexed_key('ref')
 SHA256 = re.compile(r'[0-9a-f]{64}')
 # The reference files the publisher writes under fixed keys, the ones terminal-api main.py REF_FILES serves (a test keeps
 # the two equal). Each is also stored under its content key and listed in state.json `refs` (index_refs).
-REF_NAMES = ('tickers', 'brokers', 'logos', 'fixed_income')
+REF_NAMES = ('tickers', 'brokers', 'logos', 'fixed_income', 'stock_lists')
 
 
 def ref_key(name):
@@ -1495,10 +1509,32 @@ class Publisher:
                        'type_means': 'broker domicile (label only; the Foreign figures use investor type)',
                        'classification_means': 'observed usage profile of IDX_Broker_Profile (current, applied to every date)',
                        **columnar(brokers, ['code', 'name', 'type', 'classification'])}
-        for name, doc in (('tickers', tickers), ('brokers', brokers_doc)):
+        docs = [('tickers', tickers), ('brokers', brokers_doc)]
+        lists_doc = self.stock_lists_doc()
+        if lists_doc is not None:
+            docs.append(('stock_lists', lists_doc))
+        for name, doc in docs:
             body, _ = encode(doc)
             self.bucket.put(ref_key(name), body, 'application/gzip')
             self.ref_written[name] = body                       # its content-keyed copy: index_refs
+
+    def stock_lists_doc(self):
+        """EXEC-SCREENER-STOCK-LISTS (user 2026-11-09): the reference file `stock_lists`, one row per enabled Stock_List
+        (list_key, kind INDEX or KONGLO, code, name, definition, as_of = the last complete round that loaded it, members =
+        its current tickers), for the Screener's index and group filters. Read-only and small (66 lists, about 4,200
+        members; 5.9 ms on dev, verification/screener/stock_lists/inspect.log). A failure (the tables missing on an
+        older database) leaves this file out of the run, logged: index_refs keeps the previous entry, the other
+        reference files are written as usual."""
+        try:
+            rows = self.conn.execute(STOCK_LISTS_SQL).fetchall()
+        except Exception as e:  # noqa: BLE001 - the class only; the other reference files do not depend on it
+            log('stock_lists_failed', error=type(e).__name__)
+            return None
+        out = [(r[0], r[1], r[2], r[3], r[4], r[5].isoformat() if r[5] is not None else None, list(r[6] or [])) for r in rows]
+        return {'schema_version': SCHEMA_VERSION, 'columns': STOCK_LIST_COLUMNS,
+                'kind_means': {'INDEX': 'a Stockbit Indeks list', 'KONGLO': 'a Stockbit stock group (konglomerasi)'},
+                'members_means': 'current members (the last complete stockbit-updater round, as_of); history not included',
+                **columnar(out, STOCK_LIST_COLUMNS)}
 
     def index_refs(self, previous):
         """EXEC-MU-RUNTIME T5 (user chose option A, 2026-10-28): every reference file of REF_NAMES also under its content

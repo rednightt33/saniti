@@ -25,8 +25,10 @@ import { availabilityMap, definitionHash, presetAvailability, presetDefinitions 
 import { indicatorDepth, resolveFlowParams } from '../../src/core/flowmetrics.ts';
 import type { FlowBindContext } from '../../src/core/flowmetrics.ts';
 import { DAYS, IHSG, LISTINGS, T as TK } from './data.ts';
-import { CAP_BUDGET_MS, LIMITS as L, groupingsOf, normalize, preview as pv, run as runDef, universeRow, type FixtureData, type Market, type Tk } from './engine.ts';
+import { CAP_BUDGET_MS, LIMITS as L, groupingsOf, normalize, preview as pv, run as runDef, stockListsBlock, universeRows, type FixtureData, type Market, type Tk } from './engine.ts';
+import { FIXTURE_STOCK_LISTS } from './stock-lists.ts';
 import { BROKER_SESSIONS, BROKER_WINDOW, FLOW_CTX } from './broker.ts';
+import { STOCK_LISTS_REASONS } from '../../../../screener-worker/src/stocklists.ts';
 
 /** the catalog's operators block as the worker sends it (screener-worker catalog.ts catalogOperators): each measure with
     its transform's arguments */
@@ -155,6 +157,10 @@ export interface FixtureOpts {
       flow entry and every preset with a flow leg is unavailable, and a screen with a flow condition is refused
       METRIC_UNAVAILABLE with reason code FLOW_UNAVAILABLE on its card, as the worker does */
   brokerLoading?: number;
+  /** EXEC-SCREENER-STOCK-LISTS: the publication's stock-lists file: the fixture's (default), none (a publication without
+      it: the catalog block REQUIRES_DATA with the worker's reason, a list filter refused METRIC_UNAVAILABLE) or a broken
+      one (the reason of an unreadable file) */
+  stockLists?: 'fixture' | 'none' | 'broken';
 }
 
 export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Market; counters: Record<string, number>; busy: [number, number][] } {
@@ -164,7 +170,8 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
   // the broker window the publication holds: complete, or still loading (opts.brokerLoading sessions so far)
   const window = opts.brokerLoading != null ? { ...BROKER_WINDOW, sessions:opts.brokerLoading, complete:false } : { ...BROKER_WINDOW };
   const flow: FlowBindContext = { ...FLOW_CTX, ...window };
-  const fx: FixtureData = { flow, groupings:groupingsOf(m) };
+  const lists = opts.stockLists === 'none' ? { reason:STOCK_LISTS_REASONS.not_indexed } : opts.stockLists === 'broken' ? { reason:STOCK_LISTS_REASONS.unreadable } : FIXTURE_STOCK_LISTS;
+  const fx: FixtureData = { flow, groupings:groupingsOf(m), lists };
   const avail = availabilityMap({}, METRICS_CATALOG, undefined, flow);
   const versions = (): Versions => ({ screener_engine:'0a1b2c3d4e5f6071', registry:R.registry_version, screener_registry:R.screener_registry_version, price_data:'fixture-' + String(pub).padStart(58, '0'), flow_data:'fixture-flow-' + '0'.repeat(51) });
   // the broker data ends a session before the prices (broker.ts): a flow value carries its own date (P10 a)
@@ -190,7 +197,7 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
       for (let i = 0; i < presets.length; i++) if (presets[i].id === 'golden') presets[i] = { ...presets[i], name:'<img src=x onerror="window.__xss=4">Golden "Cross"', why:'<u id="xss3">why</u> it matters' };
     }
     return { versions:v, data:{ ...d, refresh:'ready', brokers:BROKERS.map(([code, name, f]: [string, string, number]) => ({ code, name, type:f ? 'Foreign' : 'Domestic' })) }, limits:limitsAt(window.sessions), indicators, metrics, fundamentals, periods:periods as CatalogResponse['periods'],
-      groupings:fx.groupings as CatalogResponse['groupings'], presets, operators:OPERATORS };
+      groupings:fx.groupings as CatalogResponse['groupings'], presets, operators:OPERATORS, stock_lists:stockListsBlock(m, fx) };
   };
   const counters: Record<string, number> = {};
   /** the fixture's own main-thread compute ([start, end] in performance.now() ms): the worker's work in production,
@@ -226,7 +233,7 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
     kind:'fixture', market:m, counters, busy,
     async session() { count('session'); await wait('session'); return { login:'fixture', csrf:'fixture-csrf' } },
     async catalog(inm) { count('catalog'); await wait('catalog'); failing('catalog'); const c = timed(catalog); await later(); return conditional('catalog', c, inm) },
-    async universe(inm) { count('universe'); await wait('universe'); return conditional<UniverseResponse>('universe', { versions:versions(), data:data(), rows:m.tickers.map(t => universeRow(m, t)) }, inm) },
+    async universe(inm) { count('universe'); await wait('universe'); return conditional<UniverseResponse>('universe', { versions:versions(), data:data(), rows:universeRows(m, fx).rows }, inm) },
     async run(req, o: CallOpts = {}) {
       count(o.lane === 'aux' ? 'aux' : 'run'); await wait('run', o.signal);      // the extra columns' lane counted apart
       if (o.signal?.aborted) throw new DOMException('aborted', 'AbortError');

@@ -175,7 +175,7 @@ const sameV = (a: Partial<Versions>, b: Partial<Versions>) => VERSION_FIELDS.eve
 /** the universe in one canonical form: defaults filled (an absent P4 flag means true), empty lists left out, lists sorted */
 export function normalizedUniverse(u: UniverseDef): UniverseDef {
   const out: Record<string, unknown> = { ...UNIVERSE_DEFAULTS, ...u };
-  for (const k of ['sectors_in', 'sectors_out', 'industries_in', 'industries_out', 'tickers'] as const) {
+  for (const k of ['sectors_in', 'sectors_out', 'industries_in', 'industries_out', 'indices_in', 'indices_out', 'groups_in', 'groups_out', 'tickers'] as const) {
     const v = out[k] as string[] | null | undefined;
     if (Array.isArray(v) && v.length) out[k] = [...v].sort(); else if (k === 'tickers') out[k] = null; else delete out[k];
   }

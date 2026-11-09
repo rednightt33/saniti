@@ -1,18 +1,25 @@
 /* Card 1: the universe (the prototype's renderUniverse, scopeChips, QF, usec, renderPop, renderDrawer), on the wire
    universe of report 8.5. Kept: Sector and Industry (lists and counts from catalog.groupings, unclassified stocks
    counted apart, P15), Liquidity (ADV20 ≥ Rp B and price ≥ Rp; defaults 1 B and 50). Shown disabled with their reason
-   (P11 a): Index, Board, Market cap, Free float, Special notation (off, its chip removed). New (P4): the chips
+   (P11 a): Board, Market cap, Free float, Special notation (off, its chip removed). New (P4): the chips
    "Traded on E" and "No unadjusted price break", on by default, each naming how many tickers it hides. One rule for
-   "Clear all" and both liquidity clears: back to the documented defaults (report 9.2). */
+   "Clear all" and both liquidity clears: back to the documented defaults (report 9.2).
+   EXEC-SCREENER-STOCK-LISTS (user 2026-11-09, option 1A): Index and Group (konglomerasi) beside Sector and Industry, from
+   catalog.stock_lists: each list a chip with its name and its stocks in the universe (the definition as its tooltip),
+   click to include, again to exclude, again to clear, as the sectors; a search box narrows each list; the active ones
+   are chips and round icons like the other filters. While the lists are not available the pickers show the reason and
+   the Index quick filter is disabled with it; a list filter already set (a saved screen) stays on its chip to be
+   removed, since a run with it is refused until the lists are back. */
 import { UNIVERSE_DEFAULTS, type Grouping } from './core/contract.ts';
-import { esc, nf } from './format.ts';
+import { esc, nf, timeText } from './format.ts';
 import { IC, ico } from './icons.ts';
 import { ctx, definitionOf, freshUniverse, S, ui, type UState } from './state.ts';
-import { chipNoBreak, chipTraded, T } from './texts.ts';
+import { chipNoBreak, chipTraded, LIST_TEXT, T } from './texts.ts';
+import type { StockListEntry, StockListKind } from './core/contract.ts';
 import { condText, displayUnit, newCard, optOf, type Card } from './forms.ts';
 import { byGroup, OPLABEL } from './entries.ts';
 import { hiddenCounts, universeView } from './universe-view.ts';
-import { bindPopResize, dressPop, drawerClass, fnavHtml, FKEYS, indScopeHtml, naButtonHtml, scopeIndustries, spy, summaryHtml, toggleNa, unsetClass, jumpTo, bindFilterDialog } from './layout/filters.ts';
+import { bindPopResize, dressPop, drawerClass, fnavHtml, FKEYS, shownFKeys, indScopeHtml, naButtonHtml, scopeIndustries, spy, summaryHtml, toggleNa, unsetClass, jumpTo, bindFilterDialog } from './layout/filters.ts';
 import { filtersFolded, setFiltersFolded, syncRails } from './layout/panes.ts';
 import { layoutHooks, wide } from './layout/prefs.ts';
 import { afterPress } from './press.ts';
@@ -27,9 +34,58 @@ const advB = (u: UState) => u.adv20_min_idr == null ? null : u.adv20_min_idr / 1
 const isDefaultLiq = (u: UState) => u.adv20_min_idr === UNIVERSE_DEFAULTS.adv20_min_idr && u.price_min === UNIVERSE_DEFAULTS.price_min;
 const hidden = () => ctx.universe ? hiddenCounts(ctx.universe.rows) : null;
 
+/* ---- EXEC-SCREENER-STOCK-LISTS: the index and group lists of the catalog ---------------------------------------- */
+const LIST_KEY: Record<StockListKind, { in: 'indices_in' | 'groups_in'; out: 'indices_out' | 'groups_out' }> = {
+  INDEX: { in:'indices_in', out:'indices_out' }, KONGLO: { in:'groups_in', out:'groups_out' },
+};
+/** the catalog's lists are available (an older worker's catalog has no block: not available, with T.noIndex) */
+export const listsOn = () => ctx.catalog?.stock_lists?.availability === 'AVAILABLE';
+/** why the lists are not available, as the catalog says it */
+export const listsReason = () => ctx.catalog?.stock_lists?.reason || T.noIndex;
+const listsOf = (kind: StockListKind): StockListEntry[] => listsOn() ? ctx.catalog!.stock_lists!.lists.filter(l => l.kind === kind) : [];
+/** a list's name on the page (its code where the catalog does not name it: a saved screen's list that is gone) */
+export const listName = (kind: StockListKind, code: string) => ctx.catalog?.stock_lists?.lists.find(l => l.kind === kind && l.code === code)?.name || code;
+const listsSet = (u: UState) => !!(u.indices_in?.length || u.indices_out?.length || u.groups_in?.length || u.groups_out?.length);
+/** what each picker's search box holds (kept across redraws; the chips it hides are hidden in place, no redraw) */
+const listQuery: Record<StockListKind, string> = { INDEX:'', KONGLO:'' };
+const listMatch = (l: StockListEntry, q: string) => !q || l.code.toLowerCase().includes(q) || l.name.toLowerCase().includes(q);
+/** hide the chips of a picker that do not match its search (a chosen one always stays) */
+function applyListQuery(root: ParentNode, kind: StockListKind) {
+  const q = listQuery[kind].trim().toLowerCase();
+  root.querySelectorAll(`.lchips[data-lkind="${kind}"]`).forEach(box => {
+    let shown = 0;
+    box.querySelectorAll<HTMLElement>('[data-list]').forEach(b => {
+      const code = b.dataset.list!.slice(kind.length + 1), l = listsOf(kind).find(x => x.code === code);
+      const ok = !l || b.classList.contains('on') || b.classList.contains('ex') || listMatch(l, q);
+      b.hidden = !ok; if (ok) shown++;
+    });
+    const none = box.querySelector('.lnone') as HTMLElement | null; if (none) none.hidden = shown > 0;
+  });
+  root.querySelectorAll<HTMLInputElement>(`[data-lsearch="${kind}"]`).forEach(i => { if (i.value !== listQuery[kind]) i.value = listQuery[kind] });
+}
+/** one picker (Index or Group): the lists as chips, name and stocks in the universe, the definition as the tooltip */
+function listSec(kind: StockListKind): string {
+  const W = LIST_TEXT[kind], U = S.universe, k = LIST_KEY[kind], b = ctx.catalog?.stock_lists;
+  if (!ctx.catalog) return `<div class="k">${esc(W.title)}</div><div class="note">${T.loadingIndicators}</div>`;
+  const head = `<div class="k">${esc(W.title)} <small>· ${listsOn() ? LIST_TEXT.hint : 'no data'}</small></div>`;
+  if (!listsOn()) return `${head}<div class="note">${esc(listsReason())}</div>`;
+  const chips = listsOf(kind).map(l => {
+    const st = U[k.in]?.includes(l.code) ? 'on' : U[k.out]?.includes(l.code) ? 'ex' : '';
+    return `<button class="chip ${st}" data-list="${esc(kind + ':' + l.code)}" aria-pressed="${st ? 'true' : 'false'}" title="${esc(`${l.name}${l.name !== l.code ? ` (${l.code})` : ''}: ${l.definition} ${LIST_TEXT.count(l.tickers)}.`)}" aria-label="${esc(`${l.name}, ${LIST_TEXT.count(l.tickers)}: ${st === 'on' ? 'included' : st === 'ex' ? 'excluded' : 'no filter'}`)}">${esc(l.name)} <small>${nf(l.tickers)}</small></button>`;
+  }).join('');
+  const asOf = b?.as_of ? `<div class="note">${esc(LIST_TEXT.asOf(timeText(b.as_of)))}${kind === 'KONGLO' ? ' ' + esc(LIST_TEXT.groups) : ''}</div>` : kind === 'KONGLO' ? `<div class="note">${esc(LIST_TEXT.groups)}</div>` : '';
+  return `${head}<input class="inp lsearch" type="search" data-lsearch="${kind}" placeholder="${esc(W.search)}" aria-label="${esc(W.search)}" value="${esc(listQuery[kind])}" autocomplete="off">
+    <div class="chips lchips" data-lkind="${kind}">${chips}<span class="note lnone" hidden>${esc(W.none)}</span></div>${asOf}${kind === 'KONGLO' ? `<div class="note">${esc(LIST_TEXT.rule)}</div>` : ''}`;
+}
+/** the Index quick filter's value: the first chosen index or group, how many more, or All */
+const listVal = (u: UState) => {
+  const a = [...(u.indices_in || []).map(c => listName('INDEX', c)), ...(u.groups_in || []).map(c => listName('KONGLO', c))], x = (u.indices_out?.length || 0) + (u.groups_out?.length || 0);
+  return a.length ? a[0] + (a.length > 1 ? ` +${a.length - 1}` : '') : x ? `All but ${x}` : 'All';
+};
+
 /** whether the universe differs from the documented defaults (Clear all is shown then) */
 export function universeEdited(u = S.universe): boolean {
-  return !!(u.sectors_in?.length || u.sectors_out?.length || u.industries_in?.length || u.industries_out?.length || u.include_unclassified
+  return !!(u.sectors_in?.length || u.sectors_out?.length || u.industries_in?.length || u.industries_out?.length || listsSet(u) || u.include_unclassified
     || !isDefaultLiq(u) || u.min_history_bars != null || u.tickers?.length || u.filters.length || !u.traded_on_eval_date || !u.exclude_price_breaks);
 }
 
@@ -37,7 +93,8 @@ export function universeEdited(u = S.universe): boolean {
 /* user 2026-11-08 (the HTML of ten options, "Opsi 9"): each active filter is a small round icon on the bar (its short
    name, and how many stocks it hides as a count), the full wording in its tooltip; a click opens the list of every
    filter in full, with its remove (×) or Hide button. The bar stays one line. */
-const ICON_OF: Record<string, string> = { sectors_in:'Sec', sectors_out:'−Sec', industries_in:'Ind', industries_out:'−Ind', include_unclassified:'Unc', adv:'Rp', price:'Px', min_history_bars:'Hist', tickers:'Tkr', traded:'Trd', breaks:'Brk' };
+const ICON_OF: Record<string, string> = { sectors_in:'Sec', sectors_out:'−Sec', industries_in:'Ind', industries_out:'−Ind',
+  indices_in:LIST_TEXT.INDEX.icon, indices_out:'−' + LIST_TEXT.INDEX.icon, groups_in:LIST_TEXT.KONGLO.icon, groups_out:'−' + LIST_TEXT.KONGLO.icon, include_unclassified:'Unc', adv:'Rp', price:'Px', min_history_bars:'Hist', tickers:'Tkr', traded:'Trd', breaks:'Brk' };
 function scopeChips(): { html: string; removable: number; texts: string[] } {
   const U = S.universe, out: string[] = [], texts: string[] = [], icons: string[] = []; let n = 0;
   const icon = (key: string, full: string, count: string, cls = '') =>
@@ -54,6 +111,14 @@ function scopeChips(): { html: string; removable: number; texts: string[] } {
   if (U.sectors_out?.length) add('Excluding', list(U.sectors_out, '', 'sectors'), 'sectors_out');
   if (U.industries_in?.length) add('Industry', list(U.industries_in, '', 'industries'), 'industries_in');
   if (U.industries_out?.length) add('Excluding industry', list(U.industries_out, '', 'industries'), 'industries_out');
+  // EXEC-SCREENER-STOCK-LISTS: by name (a code the catalog no longer has, by its code); while the lists are not
+  // available the chip says so, so the filter a run refuses can be removed here
+  const lists = (kind: StockListKind, codes: string[]) => list(codes.map(c => listName(kind, c)), '', LIST_TEXT[kind].many);
+  const naTitle = listsOn() ? '' : `${listsReason()} Remove this filter to run the screen.`;
+  if (U.indices_in?.length) add(LIST_TEXT.INDEX.title, lists('INDEX', U.indices_in), 'indices_in', naTitle);
+  if (U.indices_out?.length) add(LIST_TEXT.INDEX.exclude, lists('INDEX', U.indices_out), 'indices_out', naTitle);
+  if (U.groups_in?.length) add('Group', lists('KONGLO', U.groups_in), 'groups_in', naTitle);
+  if (U.groups_out?.length) add(LIST_TEXT.KONGLO.exclude, lists('KONGLO', U.groups_out), 'groups_out', naTitle);
   if (U.include_unclassified) add('Keeps', 'unclassified', 'include_unclassified', 'Stocks without a sector or industry are kept by the include filters.');
   const ab = advB(U);
   if (ab != null) add('Avg value ≥', `Rp ${nf(ab, ab % 1 ? 1 : 0)}B`, U.adv20_min_idr === UNIVERSE_DEFAULTS.adv20_min_idr ? null : 'adv', 'Average daily traded value over 20 sessions (close × volume). Default Rp 1B.', 'adv');
@@ -70,10 +135,14 @@ function scopeChips(): { html: string; removable: number; texts: string[] } {
   return { html:icons.join('') + `<div class="flist" id="uFlist" role="dialog" aria-label="Active filters"${flistOpen ? '' : ' hidden'}>${out.join('')}</div>`, removable:n, texts };
 }
 
-type QFDef = [key: string, label: string, val: (u: UState) => string, on: (u: UState) => boolean, disabled?: string];
+/** disabled: the reason the quick filter has no data (a function: the Index filter's depends on the catalog) */
+type QFDef = [key: string, label: string, val: (u: UState) => string, on: (u: UState) => boolean, disabled?: string | (() => string | null)];
+const disOf = (q: QFDef): string | null => typeof q[4] === 'function' ? q[4]() : q[4] ?? null;
 const sectorVal = (u: UState) => u.sectors_in?.length ? u.sectors_in[0] + (u.sectors_in.length > 1 ? ` +${u.sectors_in.length - 1}` : '') : u.sectors_out?.length ? `All but ${u.sectors_out.length}` : u.industries_in?.length ? `${u.industries_in.length} industr${u.industries_in.length > 1 ? 'ies' : 'y'}` : 'All';
 const QF: QFDef[] = [
-  ['index', 'Index', () => 'No data', () => false, T.noIndex],
+  // EXEC-SCREENER-STOCK-LISTS: with data once the catalog carries the lists; disabled with the reason while it does not,
+  // unless a list filter is set (it must stay reachable to be removed)
+  ['index', 'Index', u => listsOn() || listsSet(u) ? listVal(u) : 'No data', listsSet, () => !ctx.catalog || listsOn() || listsSet(S.universe) ? null : listsReason()],
   ['sector', 'Sector', sectorVal, u => !!(u.sectors_in?.length || u.sectors_out?.length || u.industries_in?.length || u.industries_out?.length)],
   ['cap', 'Market Cap', () => 'No data', () => false, T.noCap],
   ['liq', 'Liquidity', u => `ADV ≥ Rp ${nf(advB(u) ?? 0, (advB(u) ?? 0) % 1 ? 1 : 0)}B`, u => !isDefaultLiq(u)],
@@ -95,7 +164,8 @@ const metricOpts = (cur: string | null) => {
 function usec(k: string): string {
   const U = S.universe;
   switch (k) {
-    case 'index': return `<div class="k">Index <small>· no data</small></div><div class="chips">${['LQ45', 'IDX30', 'IDX80', 'ISSI'].map(i => `<button class="chip" disabled title="${esc(T.noIndex)}">${i}</button>`).join('')}</div><div class="note">${esc(T.noIndex)}</div>`;
+    case 'index': return listSec('INDEX');
+    case 'group': return listSec('KONGLO');
     case 'board': return `<div class="k">Listing board <small>· no data</small></div><div class="chips">${['Main', 'Development'].map(b => `<button class="chip" disabled title="${esc(T.noBoard)}">${b}</button>`).join('')}</div><div class="note">${esc(T.noBoard)}</div>`;
     case 'liq': {
       const ab = advB(U);
@@ -153,7 +223,7 @@ export const uCountTxt = () => {
 /** EXEC-SCREENER-V21 product decision 2026-11-06: screener data is daily; the timeframe is shown as "Daily" only,
     as a label (no 5m / 15m / 1h / 4h choice) */
 const TF_STATIC = `<span class="qf qf-static" title="Screener data is daily: every condition is calculated on daily bars."><span>Timeframe</span><b>Daily</b></span>`;
-const qfHtml = () => QF.map(([k, label, val, on, dis]) => dis
+const qfHtml = () => QF.map(q => [q[0], q[1], q[2], q[3], disOf(q)] as const).map(([k, label, val, on, dis]) => dis
   ? `<button class="qf" disabled title="${esc(dis)}" aria-disabled="true"><span>${label}</span><b>${esc(val(S.universe))}</b>${ico(IC.chev, 's')}</button>`
   : `<button class="qf ${on(S.universe) ? 'on' : ''} ${S.pop === k ? 'open' : ''}" data-qf="${k}" aria-expanded="${S.pop === k}" aria-haspopup="dialog" ${ctx.catalog ? '' : 'disabled title="Loading…"'}><span>${label}</span><b>${esc(val(S.universe))}</b>${ico(IC.chev, 's')}</button>${k === 'liq' ? TF_STATIC : ''}`).join('');
 
@@ -172,7 +242,7 @@ export function renderUniverse() {
   syncRails(); layoutHooks.afterUniverse();
 }
 /** the quick filters that can be set, as the folded bar's summary line shows them */
-const summaryItems = () => QF.filter(q => !q[4]).map(([, label, val, on]) => ({ label, value:val(S.universe), on:on(S.universe) }));
+const summaryItems = () => QF.filter(q => !disOf(q)).map(([, label, val, on]) => ({ label, value:val(S.universe), on:on(S.universe) }));
 export function updateUniverseLight() {
   const c = scopeChips(), n = c.removable;
   $('uQf').innerHTML = qfHtml(); $('uChips').innerHTML = c.html; $('uCount').innerHTML = uCountTxt();
@@ -188,7 +258,7 @@ export function updateUniverseLight() {
 }
 
 /** the control a re-render replaces, found again by its data attributes (focus stays on it for keyboard users) */
-const FOCUS_KEYS = ['u', 'sector', 'tog', 'f', 'fdel', 'uqclear', 'act'] as const;
+const FOCUS_KEYS = ['u', 'sector', 'list', 'lsearch', 'tog', 'f', 'fdel', 'uqclear', 'act'] as const;
 function focusSel(a: Element | null): string | null {
   if (!(a instanceof HTMLElement)) return null;
   const d = a.dataset, k = FOCUS_KEYS.find(x => d[x] != null);
@@ -197,10 +267,10 @@ function focusSel(a: Element | null): string | null {
   return attr(k, d[k]!) + (d.fk != null ? attr('fk', d.fk) : '') + (d.v != null ? attr('v', d.v) : '');
 }
 const keepScroll = (el: HTMLElement, fn: () => void) => {
-  const s = [...el.querySelectorAll<HTMLElement>('.drawer-b,.indlist')].map(x => x.scrollTop), top = el.scrollTop;
+  const s = [...el.querySelectorAll<HTMLElement>('.drawer-b,.indlist,.lchips')].map(x => x.scrollTop), top = el.scrollTop;
   const a = document.activeElement, sel = a && el.contains(a) ? focusSel(a) : null;
   keepField(el, fn); el.scrollTop = top;
-  [...el.querySelectorAll<HTMLElement>('.drawer-b,.indlist')].forEach((x, i) => { x.scrollTop = s[i] || 0 });
+  [...el.querySelectorAll<HTMLElement>('.drawer-b,.indlist,.lchips')].forEach((x, i) => { x.scrollTop = s[i] || 0 });
   if (sel) (el.querySelector(sel) as HTMLElement | null)?.focus({ preventScroll:true });
 };
 /** the drawer is modal (aria-modal): Tab and Shift+Tab stay inside it (report 9.2 accessibility, as the dialogs) */
@@ -219,15 +289,17 @@ let trapBound = false;
 const QCLEAR: Record<string, (u: UState) => void> = {
   sector:u => { u.sectors_in = []; u.sectors_out = []; u.industries_in = []; u.industries_out = []; u.include_unclassified = false },
   liq:u => { u.adv20_min_idr = FRESH.adv20_min_idr; u.price_min = FRESH.price_min },
+  index:u => { u.indices_in = []; u.indices_out = []; u.groups_in = []; u.groups_out = [] },
 };
 export function renderPop() {
   const el = $('pop');
   if (!S.pop) { el.hidden = true; el.innerHTML = ''; return }
-  const q = QF.find(x => x[0] === S.pop)!, extra = S.pop === 'sector' ? 'industry' : null;
+  const q = QF.find(x => x[0] === S.pop)!, extra = S.pop === 'sector' ? 'industry' : S.pop === 'index' ? 'group' : null;
   keepScroll(el, () => { el.innerHTML = `<div class="dsec" style="padding:0;border:0">${usec(S.pop!)}</div>${extra ? `<div class="dsec" style="padding:8px 0 0;border-bottom:0;border-top:1px solid var(--border)">${usec(extra)}</div>` : ''}
     <div class="pf"><span class="note" data-ucount>${uCountTxt()}</span><span class="acts" style="gap:6px"><button class="btn sm" data-uqclear="${S.pop}" ${q[3](S.universe) ? '' : 'disabled'}>Clear</button><button class="btn sm primary" data-act="popclose">Done</button></span></div>` });
   el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', q[1]);
   el.hidden = false; dressPop(el, S.pop); placePop();
+  for (const kind of ['INDEX', 'KONGLO'] as const) applyListQuery(el, kind);
 }
 export function placePop() {
   const el = $('pop'), t = document.querySelector(`[data-qf="${S.pop}"]`);
@@ -253,10 +325,10 @@ export function renderDrawer() {
   // scroll (layout/filters.ts). Index, board, market cap, free float and special notation have no data: they are listed
   // with their reasons under "Not available yet" in the filter bar.
   const body = () => `<div class="drawer-wrap" data-dwrap><aside class="drawer ${drawerClass()}" role="dialog" aria-modal="true" aria-label="More filters"><div class="drawer-h"><div style="flex:1"><strong>More filters</strong><small>Who is eligible before any condition runs. Indicator tests live in the Screen builder.</small></div><button class="iconbtn sm" data-act="drawerclose" title="Close" aria-label="Close">${ico(IC.x)}</button></div>
-    ${fnavHtml()}<div class="drawer-b">${FKEYS.map(k => `<div class="dsec ${unsetClass(k)}" data-k="${k}" id="f-${k}">${k === 'industry' ? usec(k).replace('</small></div>', `</small>${indScopeHtml()}</div>`) : usec(k)}</div>`).join('')}</div>
+    ${fnavHtml()}<div class="drawer-b">${shownFKeys().map(k => `<div class="dsec ${unsetClass(k)}" data-k="${k}" id="f-${k}">${k === 'industry' ? usec(k).replace('</small></div>', `</small>${indScopeHtml()}</div>`) : usec(k)}</div>`).join('')}</div>
     <div class="drawer-f"><button class="btn" data-act="resetU">${ico(IC.reset, 's')}Reset universe</button><span class="note" style="align-self:center" data-ucount>${uCountTxt()}</span><button class="btn primary" data-act="drawerclose">Done</button></div></aside></div>`;
   if (h.firstChild) keepScroll(h, () => { h.innerHTML = body() }); else h.innerHTML = body();
-  const dr = h.querySelector('.drawer'); if (dr) { scopeIndustries(dr); requestAnimationFrame(() => spy(dr)) }
+  const dr = h.querySelector('.drawer'); if (dr) { scopeIndustries(dr); for (const kind of ['INDEX', 'KONGLO'] as const) applyListQuery(dr, kind); requestAnimationFrame(() => spy(dr)) }
 }
 /** open More filters scrolled to a group (the quick filters on a wide screen) */
 export function openDrawerAt(group: string) {
@@ -269,6 +341,12 @@ let filterDialogBound = false;
 export function bindUniverseLayout() {
   if (filterDialogBound) return; filterDialogBound = true;
   bindFilterDialog($('drawerHost')); bindPopResize($('pop'), () => S.pop);
+  // EXEC-SCREENER-STOCK-LISTS: a picker's search narrows its chips in place (no redraw, no edit of the screen)
+  for (const host of [$('pop'), $('drawerHost')]) host.addEventListener('input', e => {
+    const t = e.target as HTMLInputElement, kind = t.dataset?.lsearch as StockListKind | undefined;
+    if (kind !== 'INDEX' && kind !== 'KONGLO') return;
+    listQuery[kind] = t.value; applyListQuery(host, kind);
+  });
   layoutHooks.openFiltersAt = g => { if (!ctx.catalog) return false; openDrawerAt(g); return true };
 }
 export function openDrawer(on: boolean) {
@@ -296,7 +374,7 @@ export function onUniverseClick(b: HTMLElement): boolean {
   const U = S.universe, d = b.dataset;
   if (d.flist !== undefined) { setFlist(!flistOpen); return true }
   // EXEC-SCREENER-V21: on a wide screen a quick filter opens More filters at its group (reference layout.js 616-626)
-  if (d.qf) { if (wide() && (d.qf === 'sector' || d.qf === 'liq') && layoutHooks.openFiltersAt(d.qf)) return true; openPop(d.qf); return true }
+  if (d.qf) { if (wide() && (d.qf === 'sector' || d.qf === 'liq' || d.qf === 'index') && layoutHooks.openFiltersAt(d.qf)) return true; openPop(d.qf); return true }
   if (d.na != null) { toggleNa(b); return true }
   if (d.act === 'uopen') { setFiltersFolded(false); return true }
   if (d.uqclear) { QCLEAR[d.uqclear]?.(U); edit(); return true }
@@ -305,6 +383,16 @@ export function onUniverseClick(b: HTMLElement): boolean {
     if (U.sectors_in.includes(s)) { U.sectors_in = U.sectors_in.filter(x => x !== s); U.sectors_out.push(s) }
     else if (U.sectors_out.includes(s)) U.sectors_out = U.sectors_out.filter(x => x !== s);
     else U.sectors_in.push(s);
+    edit(); return true;
+  }
+  if (d.list) {
+    // EXEC-SCREENER-STOCK-LISTS: no filter -> included -> excluded -> no filter, as a sector chip
+    const i = d.list.indexOf(':'), kind = d.list.slice(0, i) as StockListKind, code = d.list.slice(i + 1), k = LIST_KEY[kind];
+    if (!k) return true;
+    const inc = U[k.in] ||= [], exc = U[k.out] ||= [];
+    if (inc.includes(code)) { U[k.in] = inc.filter(x => x !== code); exc.push(code) }
+    else if (exc.includes(code)) U[k.out] = exc.filter(x => x !== code);
+    else inc.push(code);
     edit(); return true;
   }
   if (d.fdel != null) { U.filters.splice(+d.fdel, 1); edit(); return true }
@@ -335,6 +423,7 @@ export function onUniverseClick(b: HTMLElement): boolean {
 /** field edits of the universe (the universe part of the prototype's applyField); invalid numbers are refused in place */
 export function onUniverseField(el: HTMLInputElement | HTMLSelectElement): boolean {
   const U = S.universe, d = el.dataset;
+  if (d.lsearch) return true;                     // a picker's search box edits no filter (bindUniverseLayout)
   if (d.tog) {
     const key = d.tog as 'industries_in', arr = U[key] || [], v = d.v!;
     U[key] = (el as HTMLInputElement).checked ? [...new Set([...arr, v])] : arr.filter(x => x !== v);

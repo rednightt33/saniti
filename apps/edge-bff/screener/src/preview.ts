@@ -108,6 +108,21 @@ export function pickStock(tk: string) {
   renderDetails();
 }
 
+/** The stock's indices and stock groups (EXEC-SCREENER-STOCK-LISTS, user 2026-11-09 "2. A"): each list by its catalog
+    name, its English definition as the tooltip; "none" when it is in no list of that kind. Drawn only while the
+    catalog's stock lists are AVAILABLE (otherwise the line above says "indexes: no data" with the reason). */
+export function listsLine(row: { indices?: string[]; groups?: string[] } | null | undefined): string {
+  const block = ctx.catalog?.stock_lists;
+  if (!block || block.availability !== 'AVAILABLE' || !row) return '';
+  const byCode = new Map(block.lists.map(l => [`${l.kind}:${l.code}`, l]));
+  const part = (label: string, kind: 'INDEX' | 'KONGLO', codes: string[] | undefined) => {
+    const items = (codes || []).map(c => byCode.get(`${kind}:${c}`)).filter((l): l is NonNullable<typeof l> => !!l);
+    return `<span class="pv-lists-k">${esc(label)}</span> ${items.length
+      ? items.map(l => `<span class="pv-list" title="${esc(l.definition)}">${esc(l.name)}</span>`).join(', ')
+      : `<span class="muted">${esc(T.listsNone)}</span>`}`;
+  };
+  return `<div class="note pv-lists">${part(T.listsIndices, 'INDEX', row.indices)} · ${part(T.listsGroups, 'KONGLO', row.groups)}</div>`;
+}
 const pvSeg = () => `<span class="seg sm pvseg" role="tablist" aria-label="Panel view"><button class="${S.pvView !== 'perf' ? 'on' : ''}" data-pvv="chart" role="tab" aria-selected="${S.pvView !== 'perf'}" tabindex="${S.pvView !== 'perf' ? 0 : -1}">${ico(IC.chart, 's')}Chart</button><button class="${S.pvView === 'perf' ? 'on' : ''}" data-pvv="perf" role="tab" aria-selected="${S.pvView === 'perf'}" tabindex="${S.pvView === 'perf' ? 0 : -1}">${ico(IC.trend, 's')}Stock vs IHSG</button></span>`;
 const plines = (series: { v: number[]; color: string; dash?: string; wd?: number }[], { w = 292, h = 120 } = {}) => {
   const v = series.flatMap(s => s.v), lo = Math.min(...v), hi = Math.max(...v), sp = (hi - lo) || 1;
@@ -181,7 +196,7 @@ export function renderDetails() {
     ? (a ? perfCard(tk, a) : `<div class="pcard">${PV.error ? `<p class="note down" role="alert">${esc(PV.error)} ${pvRetry}</p>` : spin(`Loading ${esc(tk)}`)}</div>`)
     : `<div><div id="dChart" style="position:relative">${a ? '' : PV.error ? `<div class="pv-err note down" role="alert">${esc(PV.error)} ${pvRetry}</div>` : `<span class="ml-boot">${spin(`Loading ${esc(tk)}`)}</span>`}</div><div class="legend" id="dLegend">${a ? legend(a) : ''}</div></div>`;
   const html = head + `<div class="pquote"><strong>${nf(last)}</strong><span class="${tone(d1)}" style="font-weight:600">${d1 == null ? '' : sgn(d1) + ' ' + dayWord(lastBar, evalDate())}</span>${status}</div>
-    <div class="note" style="margin-top:-6px">${esc(industry || 'Unclassified')} · <span title="${esc(T.noBoard)}">board: no data</span> · <span title="${esc(T.noIndex)}">indexes: no data</span></div>
+    <div class="note" style="margin-top:-6px">${esc(industry || 'Unclassified')} · <span title="${esc(T.noBoard)}">board: no data</span>${ctx.catalog?.stock_lists?.availability === 'AVAILABLE' ? '' : ` · <span title="${esc(ctx.catalog?.stock_lists?.reason || T.noIndex)}">indexes: no data</span>`}</div>${listsLine(urow)}
     ${rmk}${pvSeg()}${view}${why}${facts}`;
   const theme = document.documentElement.dataset.theme || '';
   if (drawn && drawn.html === html && drawn.theme === theme && drawn.a === a && $('dtb').querySelector('.preview-head')) { $('dacts').hidden = false; layoutHooks.afterDetails(); return }

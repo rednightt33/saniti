@@ -93,6 +93,7 @@ export function coreEngine(cfg: Config): Engine {
       limits: { max_conditions: cfg.limits.max_conditions, max_metric_filters: cfg.limits.max_metric_filters, within_max: cfg.limits.within_max },
       capBudgetMs: cfg.limits.cap_budget_ms, tickers: new Set(desc.rows.map(r => r.ticker)), groupings, metrics, availability,
       flow: flowContextOf(desc),                 // P5a: the loaded broker window (K1 depth, availability, anchors)
+      stockLists: desc.stockLists,               // EXEC-SCREENER-STOCK-LISTS: the codes an index or group filter may name
     }),
   };
 }

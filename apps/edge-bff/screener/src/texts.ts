@@ -26,7 +26,11 @@ export const T = {
   // QA M3: a preview or a column refused twice for a newer publication than the table's rows (run.ts dataChanged)
   dataBehind: 'New data is still reaching part of the screener service, so this cannot be shown at the date of the table yet. Try again in a minute.',
   // fixed reasons for what has no data (report 9.2 D rows; P11 a: shown disabled with the reason, not removed)
-  noIndex: 'No data: index membership (LQ45, IDX30, IDX80, ISSI) is not in the market database.',
+  // EXEC-SCREENER-STOCK-LISTS: shown only while the catalog carries no index and group lists (an older screener service);
+  // when it carries them but they are not available, the catalog's own reason is shown
+  noIndex: 'No data: index and group membership is not loaded on this screener service yet.',
+  // the preview's membership line (EXEC-SCREENER-STOCK-LISTS, user 2026-11-09 "2. A")
+  listsIndices: 'Indices:', listsGroups: 'Groups:', listsNone: 'none',
   // (plain words: no decision, plan, field or code name; tests/page/plain-words.test.ts walks every T entry)
   noBoard: 'No data: the listing board (Main, Development) is not in the market database; the board a trade is made on (Regular, Nego, Tunai) is a different thing.',
   noCap: 'No data: market cap waits for its shares-outstanding data, which is planned but not yet approved.',
@@ -40,6 +44,19 @@ export const T = {
   // P17 consequence (catalog default_offered false: I43 VWAP, whose registry default anchor Session is not offered)
   noDefault: 'The screener does not offer this indicator\'s standard default, so the card opens at the starting parameters shown; change them here.',
   noWatchlistPage: 'Saved in your EDGE watchlist.',
+} as const;
+
+/** EXEC-SCREENER-STOCK-LISTS (user 2026-11-09, option 1A): the index and group pickers of More filters (universe-ui.ts),
+    beside Sector and Industry. A list is named by its code on the wire ("LQ45", "SALIM") and by its name on the page. */
+export const LIST_TEXT = {
+  INDEX: { title:'Index', many:'indices', one:'index', icon:'Idx', search:'Search indices', none:'No index matches.', exclude:'Excluding index' },
+  KONGLO: { title:'Group (konglomerasi)', many:'groups', one:'group', icon:'Grp', search:'Search groups', none:'No group matches.', exclude:'Excluding group' },
+  hint:'click to include, again to exclude, again to clear',
+  rule:'Several in one list: a stock in any of them. Index and group together: a stock in both.',
+  groups:'Groups are Stockbit\'s: a group is not proof of ownership, control or affiliation, and a stock can be in several.',
+  asOf:(t: string) => `Current members as of ${t}; stocks outside the screener's universe are not counted.`,
+  count:(n: number) => `${n} stock${n === 1 ? '' : 's'} in the screener's universe`,
+  na:'Index and group membership',
 } as const;
 
 /** A pattern's side (the catalog's `side`, P6; QA of unit C item 2: shown nowhere before), as its row, its card and the
@@ -130,6 +147,8 @@ const FIELD_WORDS: Record<string, string> = {
   within:'within (sessions)', value2:'upper value', op:'operator', logic:'match logic', at_least:'match logic (at least)',
   enabled:'on/off switch', body:'request', view:'table view', revision:'saved version', item_id:'saved item',
   client_order:'page order', data_version:'data shown', traded_on_eval_date:chipTraded(null), exclude_price_breaks:chipNoBreak,
+  // EXEC-SCREENER-STOCK-LISTS: the metric a list filter's METRIC_UNAVAILABLE names (validate.ts listCodes)
+  stock_lists:'index and group membership',
 };
 const AFFIX: Record<string, string> = { in:'included', out:'excluded', min:'minimum', max:'maximum' };
 /** A field name in words: underscores to spaces, in/out/min/max first as adjectives, the unit suffix idr dropped, a

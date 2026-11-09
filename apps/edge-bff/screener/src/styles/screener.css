@@ -941,6 +941,11 @@ input[type=number]:hover::-webkit-inner-spin-button{opacity:.8}
 .ind-scope.off{color:var(--text-3)}
 .ind-note{margin:0;font-size:var(--fs-sm);color:var(--text-3)}
 .ind-note[hidden],.indlist label[hidden]{display:none}
+/* EXEC-SCREENER-STOCK-LISTS: the Index and Group pickers (universe-ui.ts listSec): a search box over a scrolling list of chips */
+.lsearch{width:100%;margin:0 0 6px}
+.lchips{max-height:180px;overflow:auto;align-content:flex-start;padding:1px}
+.drawer .lchips{max-height:260px}
+.lchips .chip[hidden],.lchips .lnone[hidden]{display:none}
 
 /* ---------- builder: "Add indicator" reads as an action ---------- */
 #cardC .mc.madd{display:flex!important;align-items:center;justify-content:center;gap:var(--s-3);min-height:38px;border:1px solid var(--border-2);border-style:solid;background:var(--surface-2);color:var(--text);font-size:var(--fs-12);font-weight:var(--fw-semibold);border-radius:var(--r-md);transition:box-shadow .15s,transform .15s,background .15s}

@@ -1,0 +1,2 @@
+{"statement_timeout_ms": 60000, "large_write": false,
+ "note": "EXEC-SCREENER-STOCK-LISTS (user 2026-11-09): read-only check of Stock_List / Stock_List_Member before the publisher writes the stock_lists reference file; about 4,200 rows, no large read"}

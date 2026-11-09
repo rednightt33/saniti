@@ -24,7 +24,12 @@
    EXEC-SCREENER-FLOW-CANDLES P5a: publication.brokers = [[code, name, type, classification], ...] serves the reference
    file `brokers` (publisher.py brokers_doc: code, name, type, classification) at GET /api/terminal/v1/reference/brokers
    with its sha256, bytes and rows, as terminal-api answers for a file its refs index names; without it the route is a
-   404 (a publication without the file). */
+   404 (a publication without the file).
+   EXEC-SCREENER-STOCK-LISTS: publication.stockLists = [[list_key, kind, code, name, definition, as_of, members], ...]
+   serves the reference file `stock_lists` (publisher.py stock_lists_doc) at GET /api/terminal/v1/reference/stock_lists
+   the same way; publication.stockListsRef overrides what the answer claims ({sha256: null} as a publication whose refs
+   index does not name it, a wrong sha256 or size, a url off the bucket) and publication.stockListsDoc replaces the
+   document (a broken one); without stockLists the route is a 404. */
 import crypto from 'node:crypto';
 import http from 'node:http';
 import zlib from 'node:zlib';
@@ -180,9 +185,18 @@ export async function startFakeTerminal({ key, publication, ttl = 120, delayMs =
       objects.set(key, { body: e.body });
       brokersRef = { key, sha256: e.sha256, bytes: e.body.length, rows: p.brokers.length };
     }
+    let stockListsRef = null;
+    if (p.stockLists) {
+      const cols = ['list_key', 'kind', 'code', 'name', 'definition', 'as_of', 'members'];
+      const doc = p.stockListsDoc ?? { schema_version: 1, columns: cols, kind_means: { INDEX: 'a Stockbit Indeks list', KONGLO: 'a Stockbit stock group (konglomerasi)' },
+        members_means: 'current members (the last complete stockbit-updater round, as_of); history not included', ...Object.fromEntries(cols.map((c, i) => [c, p.stockLists.map(r => r[i])])) };
+      const e = encode(doc), key = `v1/ref/stock_lists.${e.sha256.slice(0, 16)}.json.gz`;
+      objects.set(key, { body: e.body });
+      stockListsRef = { key, sha256: e.sha256, bytes: e.body.length, rows: p.stockLists.length, ...(p.stockListsRef ?? {}) };
+    }
     const state = { finished_at: p.finished_at, price_through: p.price_through ?? Object.values(p.prices).reduce((m, r) => r[r.length - 1][0] > m ? r[r.length - 1][0] : m, ''),
       broker_through: p.broker_through ?? null, broker_behind_sessions: p.broker_behind_sessions ?? 0, xsection: p.noIndex ? null : files };
-    return { state, manifests, refKey, brokersRef };
+    return { state, manifests, refKey, brokersRef, stockListsRef };
   }
   pubs.push(build(publication));
   const latest = () => pubs[pubs.length - 1];
@@ -236,6 +250,9 @@ export async function startFakeTerminal({ key, publication, ttl = 120, delayMs =
       if (req.method === 'GET' && u.pathname === '/api/terminal/v1/reference/brokers') return pub.brokersRef
         ? send(res, 200, { url: presign(pub.brokersRef.key), expires_in_seconds: ttl, encoding: 'gzip json', sha256: pub.brokersRef.sha256, bytes: pub.brokersRef.bytes, rows: pub.brokersRef.rows })
         : send(res, 404, { error: 'unknown_reference', message: 'Reference files: tickers.' });
+      if (req.method === 'GET' && u.pathname === '/api/terminal/v1/reference/stock_lists') { const r = pub.stockListsRef; return r
+        ? send(res, 200, { url: r.url ?? presign(r.key), expires_in_seconds: ttl, encoding: 'gzip json', sha256: r.sha256, bytes: r.bytes, rows: r.rows })
+        : send(res, 404, { error: 'unknown_reference', message: 'Reference files: tickers.' }) }
       return send(res, 404, { detail: 'Not Found' });
     } catch (e) { send(res, 500, { error: 'fake_error', message: String(e) }) }
   });

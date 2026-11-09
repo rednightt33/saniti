@@ -5647,7 +5647,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Solution:** a default without an operator matches a pattern's condition of the named test.
 - **Verified:** `apps/edge-bff/screener/tests/page/candles.test.ts` (every candle row opens on the event within 3; Add
   writes `{kind: "event", within: 3}`); the screener vitest suite.
-- **Status:** FIXED on branch (P6, not merged).
+- **Status:** FIXED, live on dev 2026-11-08 (PR #62, merge `31572848`).
 
 ### M399 — Screener patterns (P6), page side: no window operator on a pattern, side not shown, search blind to the group heading, Customize selects cut (2026-11-08, fixed on branch)
 
@@ -5673,7 +5673,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   Black Crows: validation, read-back, words, refusals, a fixture run where "ever 20" equals "within 20"), worker
   `tests/operators.test.ts`, two new smoke steps (one fails on the old CSS with the QA symptom), screener vitest
   1,327 passed, bundle 31/31. Commits 186822e8, 11e86e72.
-- **Status:** FIXED on branch, not released.
+- **Status:** FIXED, live on dev 2026-11-08 (PR #62, merge `31572848`).
 - **Lesson for new data:** a new metric kind states its output type, so the operators it takes follow from the catalog.
 
 ### M400 — Screener: refusals of a pattern or another value that is not a series had no reason, way to pass or example (2026-11-08, fixed on branch)
@@ -5693,7 +5693,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Verified:** `tests/core/not-series.test.ts` (every kind x every catalog transform x each place; the right examples
   pass; binding and validation give the same words), `tests/page/not-series-refusals.test.ts` (errorText renders
   them). Commit 457f7b6d.
-- **Status:** FIXED on branch, not released. Not covered: other test-form refusals (for example `ma` of a series in a
+- **Status:** FIXED, live on dev 2026-11-08 (PR #62). Not covered: other test-form refusals (for example `ma` of a series in a
   value test) still give no example (a separate class).
 
 ### M401 — Screener worker: a pattern's cost length was its largest parameter (2026-11-08, fixed on branch)
@@ -5711,7 +5711,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   finite window and keeps its old unit (M300: lowering its class needs a reviewed reason).
 - **Verified:** `verification/screener/BENCHMARK_FLOW_COST.md` section 6 (candle ratios 0.31-3.39 before, 0.67-1.22
   after; 91 of 92 runs within 0.5-2), `apps/screener-worker/tests/pattern_cost.test.ts`. Commit e32c4f94.
-- **Status:** FIXED on branch, not released.
+- **Status:** FIXED, live on dev 2026-11-08 (PR #62).
 
 ### M402 — Candle patterns: one-price and no-trade days in the average body (2026-11-08, kept by user decision)
 
@@ -5851,6 +5851,25 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   `0,30 0,1,12 * * *` read back, no run at upload). Lasting design: `FUTURE_PLAN.md` PUBLISH-PER-TABLE.
 
 ### M412 — Terminal in EDGE: two Statistics buttons while the Terminal loads (2026-11-09, fixed, on dev `840aecde`)
+
+### M417 — Screener smoke run did not start since 2026-11-08 (a quote in a step name); five steps fail once it runs (2026-11-09; numbered M413 in its branch commit, renumbered at the merge as main had taken M413-M416;, syntax fixed on branch, five steps open)
+
+- **Found by:** EXEC-SCREENER-STOCK-LISTS steps 3-5, running `node tests/smoke/smoke.mjs` on commit 1a28d2ca.
+- **Symptom:** `SyntaxError: missing ) after argument list` at `tests/smoke/smoke.mjs:315`; no step ran.
+- **Verified cause:** commit ceb04d79 (EXEC-SCREENER-CONSIST, 2026-11-08) named a step `'... the same box as SMA's; ...'`
+  in single quotes; the apostrophe ends the string (`node --check` on the file at 1a28d2ca fails the same way).
+- **Solution:** the apostrophe escaped (`SMA\'s`), branch `claude/screener-stock-lists-filter`. With the file running,
+  five steps fail on 1a28d2ca itself, before any stock-list change (run with `SMOKE_ONLY` on a checkout of 1a28d2ca with
+  the same one-character fix): "Add a condition is the one way to add" (an empty threshold not refused with the card's
+  message), "more than two blue boxes go behind Customize" (row height 71, a settings cell overflows), "Patterns (QA of
+  unit C items 1-3)" (the columns do not name the windows and the side), "Customize at 1440, 1100 and 390 px" (broker
+  inventory selects cut "Top-K holders (largest inventory)"), "Flow (P5c)" (N does not take the broker sessions held
+  with its hint). They fail the same with the stock-list branch; the stock-list steps pass.
+- **Class:** a test file that cannot be parsed passes silently in every check that does not run it.
+- **Lesson:** a smoke or check script edited in a commit is run (or at least `node --check`ed) in the same commit.
+- **Status:** syntax fixed on branch; the five failing steps OPEN (not diagnosed here: outside the stock-list scope).
+
+### M412 — Terminal in EDGE: two Statistics buttons while the Terminal loads (2026-11-09, fixed)
 
 - **Symptom (user screenshot):** during "Loading SSIA" the left side showed EDGE's "» Statistics" and the Terminal's own
   folded Statistics rail next to it.

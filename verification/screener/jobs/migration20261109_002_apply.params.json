@@ -1,0 +1,39 @@
+{
+ "_note": "EXEC-SCREENER-STOCK-LISTS (20261109_002_stock_list_definition_en.sql; user 2026-11-09 \"1. Inggris\"): an English definition beside the Indonesian one for the 66 Stock_List rows. Staged by scripts/onboarding/run_job.sh with the migration file as an extra (verification/screener/jobs/run_migration.sh). Probes named expect_err_* must print ERR; every other probe must print OUT. DRYRUN rolls everything back.",
+ "mode": "APPLY",
+ "migrations": [
+  "20261109_002_stock_list_definition_en.sql"
+ ],
+ "probes": [
+  [
+   "definition_en_column",
+   null,
+   "SELECT data_type, is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'Stock_List' AND column_name = 'definition_en'"
+  ],
+  [
+   "definition_en_filled",
+   null,
+   "SELECT list_kind, count(*), count(definition_en), min(length(definition_en)), count(*) FILTER (WHERE definition_en = definition) FROM public.\"Stock_List\" GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "definition_en_sample",
+   null,
+   "SELECT list_key, left(definition_en, 70) FROM public.\"Stock_List\" WHERE list_key IN ('INDEX:550', 'KONGLO:9', 'KONGLO:11') ORDER BY 1"
+  ],
+  [
+   "definition_unchanged",
+   null,
+   "SELECT count(*) FILTER (WHERE definition ~ ' saham| dengan| emiten') FROM public.\"Stock_List\""
+  ],
+  [
+   "catalog_row",
+   null,
+   "SELECT documentation_status, left(definition, 60) FROM public.\"Column_Catalog\" WHERE table_schema = 'public' AND table_name = 'Stock_List' AND column_name = 'definition_en'"
+  ],
+  [
+   "members_untouched",
+   null,
+   "SELECT count(*) FROM public.\"Stock_List_Member\""
+  ]
+ ]
+}

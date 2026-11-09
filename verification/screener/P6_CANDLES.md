@@ -41,7 +41,7 @@ Morning Star / Evening Star; Three White Soldiers / Three Black Crows.
   cdl_engulfing): the differences are explained, not forced to zero.
 - Screener catalog, validation and page offer (Add a condition).
 
-## 5. Built (2026-11-07, branch of unit C, not merged)
+## 5. Built (2026-11-07; merged in PR #62 and live on dev 2026-11-08)
 
 Files: `apps/edge-bff/backtest/src/core/candle-registry.json` (the registry: every pattern a list of rules over the
 candle primitives, its parameters with default, meaning, min and max, and the IDX tick bands), `candles.ts` (the one

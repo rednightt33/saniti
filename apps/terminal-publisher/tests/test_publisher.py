@@ -76,6 +76,8 @@ class FakeConn:
         # EXEC-SCREENER-FLOW-CANDLES P4: Monitoring_Stockbit_Update rows (finished_at, mode, status, changed_dates), and
         # every statement with its parameters
         self.broker_rounds, self.calls = [], []
+        # EXEC-SCREENER-STOCK-LISTS: Stock_List rows as STOCK_LISTS_SQL answers them (None: the tables are missing)
+        self.stock_lists = list(STOCK_LISTS)
 
     def execute(self, sql, params=()):
         self.statements.append(sql)
@@ -184,6 +186,10 @@ class FakeConn:
             return [a for a in reversed(self.actions) if a[2] in types and a[1] >= since]
         if sql == pub.UNIVERSE_SQL:
             return self.universe
+        if sql == pub.STOCK_LISTS_SQL:
+            if self.stock_lists is None:
+                raise RuntimeError('relation "Stock_List" does not exist')
+            return self.stock_lists
         if sql == pub.PRICE_SQL:                           # ORDER BY date
             t, lo, hi = params
             return sorted((r[1:] for r in self.prices if r[0] == t and lo <= r[1] <= hi), key=lambda r: r[0])
@@ -248,6 +254,12 @@ EVENTS = [('BBCA', '2026-03-10', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND', None
           ('GONE', '2026-01-02', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND', None, None, None, None, None, None, None,
            None, None, 10.0, None, None, None, {}, None, None)]
 UNIVERSE = [('BBCA', 'Bank Central Asia', 'stock', 'Finance', 'Banks', 'common'), ('IHSG', 'Composite', 'index', None, None, 'Undefined')]
+# EXEC-SCREENER-STOCK-LISTS: Stock_List rows as STOCK_LISTS_SQL returns them (list_key, kind, code, name, definition,
+# last_seen_at, members); a list before its first round has no member
+SEEN = dt.datetime(2026, 11, 9, 13, 31, 48, tzinfo=dt.timezone.utc)
+STOCK_LISTS = [('INDEX:550', 'INDEX', 'LQ45', 'LQ45', 'The 45 most liquid stocks.', SEEN, ['BBCA', 'BBRI']),
+               ('KONGLO:1', 'KONGLO', 'DJARUM', 'Djarum', 'Companies of the Djarum group.', SEEN, ['BBCA']),
+               ('KONGLO:2', 'KONGLO', 'NEW', 'New group', 'Not loaded yet.', None, [])]
 # XSECTION_ACTIONS_SQL rows: ticker, ex date, type, ratio_old, ratio_new, amount_per_share, currency, event_key
 ACTIONS = [('BBCA', '2026-03-10', 'DIVIDEND', None, None, 250.0, 'IDR', 'k1'),
            ('BBCA', '2026-10-14', 'STOCK_SPLIT', 1.0, 5.0, None, None, 'k2'),
@@ -1320,7 +1332,7 @@ def test_fixed_key_reference_files_are_written_byte_identical_to_before(mode, ar
     p.run(mode, *args)
     fixed = [k for k in bucket.puts if k in FIXED_REFS]
     # EXEC-FI-TERMINAL: the bond list after the ticker and broker lists (empty here: the fixture has no bond)
-    assert fixed == ['ref/tickers.json.gz', 'ref/brokers.json.gz', 'ref/fixed_income.json.gz'] + (['ref/logos.json.gz'] if logos else [])
+    assert fixed == ['ref/tickers.json.gz', 'ref/brokers.json.gz', 'ref/stock_lists.json.gz', 'ref/fixed_income.json.gz'] + (['ref/logos.json.gz'] if logos else [])
     for name, sha in BEFORE_T5_RAW_SHA256.items():
         body = bucket.objects[f'ref/{name}.json.gz']
         raw = gzip.decompress(body)
@@ -1362,7 +1374,7 @@ def test_a_refs_entry_that_is_not_a_content_keyed_reference_object_is_neither_ca
            'short': {**good, 'key': f'v1/ref/short.{"0" * 16}.json.gz'}, 'odd': {**good, 'bytes': True},
            'upper': {**good, 'sha256': good['sha256'].upper()},
            'xs': {**good, 'key': f'v1/xsection/xs.{good["sha256"][:16]}.json.gz'}}       # another family's object
-    assert sorted(pub.ref_entries(raw)) == ['brokers', 'fixed_income', 'tickers']   # the well-formed entries of the run
+    assert sorted(pub.ref_entries(raw)) == ['brokers', 'fixed_income', 'stock_lists', 'tickers']   # the well-formed entries of the run
     state = bucket.get_json('state.json')
     state['refs'] = raw
     bucket.put('state.json', json.dumps(state).encode(), 'application/json')
@@ -2811,3 +2823,31 @@ def test_the_broker_days_mode_rebuilds_every_window_date_and_the_other_modes_car
     spec.loader.exec_module(reader)
     assert not {'broker_days_checked_at', 'broker_day_stamps'} & set(reader.STATE_FIELDS)
     assert reader.xsection_index(state['xsection']) == state['xsection']               # every broker day entry served
+
+
+# ---- EXEC-SCREENER-STOCK-LISTS: the stock_lists reference file ----------------------------------------------------------
+def test_the_stock_lists_reference_file_holds_every_enabled_list_with_its_current_members_and_is_indexed():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    doc = bucket.get_json('ref/stock_lists.json.gz')
+    assert doc['columns'] == ['list_key', 'kind', 'code', 'name', 'definition', 'as_of', 'members']
+    assert doc['list_key'] == ['INDEX:550', 'KONGLO:1', 'KONGLO:2'] and doc['kind'] == ['INDEX', 'KONGLO', 'KONGLO']
+    assert doc['members'] == [['BBCA', 'BBRI'], ['BBCA'], []]                  # a list before its first round: none
+    assert doc['as_of'] == ['2026-11-09T13:31:48+00:00', '2026-11-09T13:31:48+00:00', None]
+    e = refs(bucket)['stock_lists']
+    assert e['rows'] == 3 and bucket.objects[e['key'][len(pub.PREFIX) + 1:]] == bucket.objects['ref/stock_lists.json.gz']
+    # the statement is read-only and names only the two tables (no history, no write)
+    assert 'Stock_List_Member_History' not in pub.STOCK_LISTS_SQL and pub.STOCK_LISTS_SQL.lstrip().startswith('SELECT')
+
+
+def test_missing_stock_list_tables_leave_that_file_out_and_the_other_reference_files_unchanged():
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    conn.stock_lists = None                                                    # an older database without the tables
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    assert 'ref/stock_lists.json.gz' not in bucket.objects and 'stock_lists' not in refs(bucket)
+    assert {'tickers', 'brokers'} <= set(refs(bucket))
+    ok = FakeBucket()
+    at(ok, FakeConn(PRICES, BROKERS, UNIVERSE), 'backfill', 0)
+    assert bucket.objects['ref/tickers.json.gz'] == ok.objects['ref/tickers.json.gz']

@@ -487,6 +487,28 @@ def check_stock_list(check, mode, outs, errs):
           errs.get('expect_err_count_differs'))
 
 
+# ---- 20261109_002_stock_list_definition_en.sql (EXEC-SCREENER-STOCK-LISTS, user 2026-11-09 "1. Inggris") -----------------
+DEFINITION_EN = '20261109_002_stock_list_definition_en.sql'
+ERR_TEXT_DEFINITION_EN = {'expect_err_empty_definition_en': 'Stock_List_definition_en_check'}
+DEFINITION_EN_PROBES = ['definition_en_column', 'definition_en_filled', 'definition_en_sample', 'definition_unchanged',
+                        'catalog_row', 'members_untouched', 'expect_err_empty_definition_en']
+
+
+def check_definition_en(check, mode, outs, sha, probes):
+    check('Stock_List.definition_en text, NOT NULL', outs.get('definition_en_column') == [['text', 'NO']],
+          outs.get('definition_en_column'))
+    filled = outs.get('definition_en_filled') or []
+    # kind, lists, with an English definition, shortest, equal to the Indonesian one (none: each is a translation)
+    check('33 INDEX and 33 KONGLO lists, every one with an English definition other than the Indonesian one',
+          [r[:3] for r in filled] == [['INDEX', 33, 33], ['KONGLO', 33, 33]] and all(r[3] >= 20 and r[4] == 0 for r in filled),
+          filled)
+    check('the Indonesian definitions are still there', (outs.get('definition_unchanged') or [[0]])[0][0] >= 60,
+          outs.get('definition_unchanged'))
+    check('Column_Catalog row for definition_en', bool(outs.get('catalog_row')), outs.get('catalog_row'))
+    check('members untouched', bool(outs.get('members_untouched')) and outs['members_untouched'][0][0] >= 0,
+          outs.get('members_untouched'))
+
+
 # file name -> the expected ERR text per expect_err_* probe, the migration's own checks, the reviewed probes per mode
 # and the role each probe's name gives (first matching prefix; none: the admin connection)
 MIGRATIONS = {
@@ -506,6 +528,8 @@ MIGRATIONS = {
                'probes': {'DRYRUN': DRAWING_PROBES, 'APPLY': DRAWING_PROBES[:10]}, 'roles': SCREENER_ROLES},
     STOCK_LIST: {'err_text': ERR_TEXT_STOCK_LIST, 'checks': None,
                  'probes': {'DRYRUN': STOCK_LIST_PROBES, 'APPLY': STOCK_LIST_PROBES[:8]}, 'roles': STOCK_LIST_ROLES},
+    DEFINITION_EN: {'err_text': ERR_TEXT_DEFINITION_EN, 'checks': check_definition_en,
+                    'probes': {'DRYRUN': DEFINITION_EN_PROBES, 'APPLY': DEFINITION_EN_PROBES[:6]}, 'roles': ()},
 }
 # what a probe statement may be (outside comments, quoted text and $$ bodies): data statements only, so no probe can end
 # the DRYRUN's one transaction (a COMMIT there keeps the migration, ERRORS M230's class) or leave its role (SET ROLE,
