@@ -1,0 +1,12 @@
+Starting Container
+JOB_DONE MIGRATION APPLY
+JOB_EXIT 0
+OUT {"q": "empty_tables", "ms": 3, "part": 0, "rows": [[0, 0, 0, 0]]}
+OUT {"q": "catalog_rows", "ms": 3, "part": 0, "rows": [[5, 58, 0]]}
+OUT {"q": "grantees", "ms": 9, "part": 0, "rows": [["Stock_List", "pgweb_reader", "SELECT"], ["Stock_List_By_Ticker", "pgweb_reader", "SELECT"], ["Stock_List_Load_Log", "pgweb_reader", "SELECT"], ["Stock_List_Member", "pgweb_reader", "SELECT"], ["Stock_List_Member_History", "pgweb_reader", "SELECT"]]}
+MIG APPLY 20261109_001_stock_list.sql sha256=8a96b547b405a3185668787dde7cb2ff7d0e5227d4371ce7e0fc09e9761c14ab
+OUT {"q": "stock_list_objects", "ms": 3, "part": 0, "rows": [["Stock_List", "r", "postgres"], ["Stock_List_By_Ticker", "v", "postgres"], ["Stock_List_Load_Log", "r", "postgres"], ["Stock_List_Member", "r", "postgres"], ["Stock_List_Member_History", "r", "postgres"]]}
+OUT {"q": "apply_function", "ms": 2, "part": 0, "rows": [["apply_stock_list_snapshot(jsonb,uuid)", false, "postgres", ["search_path=pg_catalog, public"]]]}
+OUT {"q": "monitoring_column", "ms": 7, "part": 0, "rows": [["jsonb", "YES"]]}
+OUT {"q": "as_reader_reads", "ms": 3, "part": 0, "rows": [[66, 0, 0]]}
+OUT {"q": "seed_lists", "ms": 5, "part": 0, "rows": [["INDEX", 33, 18, 33, 0, 33, 33], ["KONGLO", 33, 0, 33, 0, 33, 33]]}

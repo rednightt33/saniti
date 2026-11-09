@@ -1,0 +1,9 @@
+MIGRATION 20261109_001_stock_list.sql apply sha256=8a96b547b405a3185668787dde7cb2ff7d0e5227d4371ce7e0fc09e9761c14ab commit=dc16b03b878d
+JOB caa74201-8b8a-4e29-bc78-ff194a34a90a
+8
+JOB_DONE MIGRATION APPLY
+JOB_EXIT 0
+MIG APPLY 20261109_001_stock_list.sql sha256=8a96b547b405a3185668787dde7cb2ff7d0e5227d4371ce7e0fc09e9761c14ab
+POSTGRES_MEMORY_CHECK
+{"now": "2026-11-09T08:06:00+00:00", "refusals": ["memory 0.442273792 GB is below 0.8 GB: nothing to free"], "reasons": ["memory_low"], "postgres_memory_gb": 0.442273792, "active_statements": 0, "user_runs": {"edge_jobs": 0, "orc_turns": 0}, "verdict": "REFUSED"}
+VAR_REMOVED

@@ -1,0 +1,13 @@
+MIGRATION 20261109_001_stock_list.sql dryrun sha256=8a96b547b405a3185668787dde7cb2ff7d0e5227d4371ce7e0fc09e9761c14ab commit=dc16b03b878d
+JOB 30248fb2-118a-45a3-a83b-5168bb70efac
+13
+MIG DRYRUN 20261109_001_stock_list.sql sha256=8a96b547b405a3185668787dde7cb2ff7d0e5227d4371ce7e0fc09e9761c14ab
+MIG DRYRUN_BODY_OK 20261109_001_stock_list.sql
+ERR {"q": "expect_err_missing_list", "error": "RaiseException: stock list snapshot refused: missing enabled list KONGLO:52; missing enabled list KONGLO:2; missing enabled list INDEX:1000003583; missing enabled list KONGLO:57; missing enabled list INDEX:554; missing enabled list KONGLO:54; missing enabled list INDEX:1000003847; missing enabled list KONGLO:56; mi"}
+ERR {"q": "expect_err_count_differs", "error": "RaiseException: stock list snapshot refused: INDEX:1890 has 17 members, expected 18; INDEX:1000002393 has 29 members, expected 30; INDEX:1000004998 has 27 members, expected 28; INDEX:1000000010 has 19 members, expected 20; INDEX:554 has 26 members, expected 27; INDEX:1000002398 has 29 members, expected 30; INDEX:18"}
+ERR {"q": "expect_err_reader_write", "error": "InsufficientPrivilege: permission denied for table Stock_List_Load_Log"}
+JOB_DONE MIGRATION DRYRUN
+JOB_EXIT 0
+POSTGRES_MEMORY_CHECK
+{"now": "2026-11-09T08:05:00+00:00", "refusals": ["memory 0.426952192 GB is below 0.8 GB: nothing to free"], "reasons": ["memory_low"], "postgres_memory_gb": 0.426952192, "active_statements": 0, "user_runs": {"edge_jobs": 0, "orc_turns": 0}, "verdict": "REFUSED"}
+VAR_REMOVED

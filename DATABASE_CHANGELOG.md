@@ -1,5 +1,23 @@
 # Database changelog
 
+## 2026-11-09 — Stockbit stock lists: 66 indices and KONGLO groups with point-in-time members (EXEC-STOCK-CATALOG) — applied
+
+- **User:** "Struktur tabel terpisah + view", PIT history "yes", runner in stockbit-updater "yes" (2026-11-02);
+  "D1 OK, D2 OK, D3 OK, D4 OK", "keep as is", "Opsi B", "Ok jalankan opsi B", "Ok Jalankan" (2026-11-09).
+- **`20261109_001_stock_list.sql`** (sha256 `8a96b547b405a3185668787dde7cb2ff7d0e5227d4371ce7e0fc09e9761c14ab`):
+  `Stock_List` (66 lists seeded: 33 indices, 18 with an expected member count, and 33 KONGLO groups; definitions
+  INFERRED), `Stock_List_Member`, `Stock_List_Member_History` (bitemporal, pattern of `20260927_006`), `Stock_List_Load_Log`,
+  view `Stock_List_By_Ticker`, function `apply_stock_list_snapshot(jsonb, uuid)` (all lists or none),
+  `Monitoring_Stockbit_Update.stock_lists jsonb`; `Table_Catalog` 5 rows and `Column_Catalog` 58 rows (PARTIAL);
+  pgweb_reader SELECT only; not exposed to the AI. Source of the seed: Stockbit `/emitten/catalog` and
+  `/emitten/sectors/88/subsectors` read 2026-11-02, ids re-read 2026-11-09 (no rows in Git).
+- **Applied 2026-11-09 15:05 WIB** through `verification/screener/jobs/run_migration.sh` (no user run in flight, 0 active
+  statements): DRYRUN job `30248fb2` `VERDICT PASS 34/34` (with three synthetic rounds, rolled back), APPLY job `caa74201`
+  `VERDICT PASS 19/19`; `DATABASE_URL` removed after each (VAR_REMOVED). Read back through pgweb: 33 INDEX (18 counts,
+  sum 652) and 33 KONGLO lists, members/history/log/view empty, `stock_lists` jsonb, the function present.
+  `APPLIED.sha256` lists it. Empty tables and a seed of 66 rows: no Postgres restart. The members load with the next
+  stockbit-updater round.
+
 ## 2026-11-08 — Read-only EXPLAIN of the publisher's broker day statements (P4 release; job `2dfb932a`)
 
 - Read only (`default_transaction_read_only=on`), no write. Feature 05: the 60 newest trade dates by an index skip scan
