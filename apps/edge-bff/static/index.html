@@ -11408,14 +11408,18 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) 
     /* EXEC-NAV-LEFT (user 2026-11-09: "kalau diterminal dia ada statistics bisa buat seperti terlampir"): the Terminal's
        Statistics button in this menu; the Terminal (same origin, its frame) says whether its panel is open */
     const statsOpen = initialValue(viewRecord, "statsOpen", () => false), setStatsOpen = next => updateValue(viewRecord, "statsOpen", next);
+    const statsReady = initialValue(viewRecord, "statsReady", () => false), setStatsReady = next => updateValue(viewRecord, "statsReady", next);
     const termFrame = () => document.querySelector(".terminal-page iframe.terminal-frame");
     onLifecycle(viewRecord, "terminal-stats", () => {
         if (!slim || route !== "terminal") return;
-        const onMsg = e => { if (e.origin === location.origin && e.source === termFrame()?.contentWindow && e.data?.source === "terminal" && e.data.type === "stats") setStatsOpen(!!e.data.open); };
+        /* the Terminal answers once its chart is up (ERRORS M412: it may load longer than any fixed wait): EDGE says hello
+           until the first answer, and its Statistics button works from then on */
+        let again = 0; setStatsReady(false);                      // a Terminal opened again answers again
+        const onMsg = e => { if (e.origin === location.origin && e.source === termFrame()?.contentWindow && e.data?.source === "terminal" && e.data.type === "stats") { clearInterval(again); setStatsReady(true); setStatsOpen(!!e.data.open); } };
         const hello = () => termFrame()?.contentWindow?.postMessage({ source: "edge", type: "rail" }, location.origin);
         addEventListener("message", onMsg);
         const f = termFrame(); f?.addEventListener("load", hello); hello();
-        const again = setInterval(hello, 1500); setTimeout(() => clearInterval(again), 9000);   // the Terminal may still be loading
+        again = setInterval(hello, 1000);
         return () => { removeEventListener("message", onMsg); f?.removeEventListener("load", hello); clearInterval(again); };
     }, [slim, route]);
     return element("div", { className: `app ${theme === "dark" ? "dark" : ""} ${chart ? "chart-app" : ""} ${slim ? "slim-top" : ""}` },
@@ -11440,8 +11444,8 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
            tooltip): the four pages in a 56 px menu on the left, under the top bar */
         element("nav", { className: "side-nav", "aria-label": "Pages", inert: mobilePanelOpen },
             slim && element("button", { type: "button", className: "side-brand", "data-tip": "EDGE · Monitor", "aria-label": "EDGE: Monitor", onClick: () => go("monitor") }, element("span", { className: "brand-mark" }, "E")),
-            slim && route === "terminal" && element("button", { type: "button", className: `side-stats ${statsOpen ? "active" : ""}`, "data-tip": statsOpen ? "Close Statistics" : "Open Statistics", "aria-label": "Statistics", "aria-expanded": statsOpen,
-                onClick: () => termFrame()?.contentWindow?.postMessage({ source: "edge", type: "stats", open: !statsOpen }, location.origin) },
+            slim && route === "terminal" && element("button", { type: "button", className: `side-stats ${statsOpen ? "active" : ""}`, "data-tip": !statsReady ? "Statistics: loading…" : statsOpen ? "Close Statistics" : "Open Statistics", "aria-label": "Statistics", "aria-expanded": statsOpen, "aria-disabled": !statsReady,
+                onClick: () => statsReady && termFrame()?.contentWindow?.postMessage({ source: "edge", type: "stats", open: !statsOpen }, location.origin) },
                 element("span", { className: "side-stats-chev" }, statsOpen ? "«" : "»"), element("span", { className: "side-stats-label" }, "Statistics")),
             slim && route === "terminal" && element("span", { className: "side-sep", "aria-hidden": true }),
             nav.map(([label, r]) => { const active = route === "monitor" ? label === "Monitor" : route === r;
@@ -11586,7 +11590,7 @@ const conversationGroup = (iso) => { const days = Math.floor((Date.now() - new D
 function TerminalPage({ go }) {
     return element(Shell, { route: "terminal", go: go, chart: true },
         element("main", { className: "terminal-page" },
-            element("iframe", { className: "terminal-frame", src: "/terminal-app/", title: EdgeLabels.terminal.frameTitle })));
+            element("iframe", { className: "terminal-frame", src: "/terminal-app/?in=edge", title: EdgeLabels.terminal.frameTitle })));
 }
 // EDGE backtest (CONTRACT.md section 10): the backtest is its own page (/backtest-app/, built from apps/edge-bff/backtest)
 // in the same kind of same-origin frame as the terminal; its jobs and data go through /api/v1/backtests and

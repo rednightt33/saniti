@@ -1,13 +1,15 @@
 import { createRequire } from 'node:module';
 import { serve } from '/home/user/saniti/verification/terminal_api/terminal_look/serve.mjs';
 const { chromium } = createRequire('/home/user/saniti/verification/terminal_api/terminal_look/')('playwright');
-const SP = process.argv[2];   // usage: node verification/nav_icons_20261109/stats_in_menu.mjs <scratchpad with look/ data>
+const SP = process.argv[2];
 process.env.EDGE_PAGE = '1';
 const { origin, close } = await serve(SP + '/look', 'BBRI');
 const b = await chromium.launch(), p = await (await b.newContext({ viewport:{ width:1600, height:900 } })).newPage();
 const errs = []; p.on('pageerror', e => errs.push(e.message));
 await p.goto(origin + '/'); await p.waitForTimeout(2500);
-await p.click('.side-nav button[data-tip="Terminal"]'); await p.waitForTimeout(500);
+await p.click('.side-nav button[data-tip="Terminal"]');
+// while the Terminal still loads: its own rail must not show (ERRORS M412)
+for (const ms of [150, 400, 900]) { await p.waitForTimeout(ms); console.log('loading +' + ms, JSON.stringify(await p.evaluate(() => { const d = document.querySelector('.terminal-page iframe')?.contentDocument; const sp = d?.getElementById('statsPanel'); return d && sp ? { src:document.querySelector('.terminal-page iframe').getAttribute('src'), boot:!!d.querySelector('.ml-boot'), edgeRail:d.documentElement.classList.contains('edge-rail'), railW:Math.round(sp.getBoundingClientRect().width), ready:document.querySelector('.side-stats')?.getAttribute('aria-disabled') } : 'frame not ready' }))) }
 // the preview points its frames at itself; here the frame gets the real Terminal of this server
 await p.waitForTimeout(7000);
 const fr = p.frameLocator('.terminal-page iframe');

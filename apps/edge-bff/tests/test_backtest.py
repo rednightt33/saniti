@@ -2007,7 +2007,7 @@ def test_backtest_tab_in_the_browser(configured, store, worker, monkeypatch, tmp
                 page.frame_locator('iframe.terminal-frame').get_by_text('data through 2026-10-23', exact=True).wait_for()
                 page.locator('.side-nav button.nav-terminal').click()
                 page.wait_for_url(local.origin + '/terminal')
-                assert page.locator('iframe.terminal-frame').get_attribute('src').endswith('/terminal-app/')
+                assert page.locator('iframe.terminal-frame').get_attribute('src').endswith('/terminal-app/?in=edge')   # EXEC-NAV-LEFT: the Terminal knows it is in EDGE from its address
                 assert not [e for e in errors if 'Content Security Policy' in e]
             finally:
                 browser.close()

@@ -31,6 +31,7 @@ export function initStats(ctx: Ctx) {
      EDGE each change, so both show the same state. Outside EDGE nothing changes. */
   const parentWin = window.parent !== window ? window.parent : null;
   function tellEdge() { if(parentWin && document.documentElement.classList.contains('edge-rail')) parentWin.postMessage({ source:'terminal', type:'stats', open:!ws.classList.contains('left-collapsed') }, location.origin) }
+  tellEdge();                                                // the panel's state as soon as the Terminal can act on it
   if(parentWin) addEventListener('message', (e: MessageEvent) => {
     if(e.origin !== location.origin || e.source !== parentWin || e.data?.source !== 'edge') return;
     if(e.data.type === 'rail') { document.documentElement.classList.add('edge-rail'); tellEdge() }

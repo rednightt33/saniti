@@ -179,6 +179,9 @@ const fail = (message: string) => notice(message, 'alert');
 function boot() {
   const stored = store.get('ml.symbol');
   const params = new URLSearchParams(location.search);
+  /* EXEC-NAV-LEFT (ERRORS M412): opened by EDGE (?in=edge) the Statistics button is EDGE's; known from the first paint, so
+     the Terminal's own folded rail is never drawn while the data loads (the message hand-shake only starts with the chart) */
+  if (params.get('in') === 'edge') document.documentElement.classList.add('edge-rail');
   if (params.get('fixture') === 'reference') {
     /* the 1:1 check keeps the reference's fixed heights; &fit=1 shows the fixture in the screen-filling layout */
     if (params.get('fit') !== '1') document.documentElement.classList.remove('fit');

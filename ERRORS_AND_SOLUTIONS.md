@@ -5753,6 +5753,24 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M412 — Terminal in EDGE: two Statistics buttons while the Terminal loads (2026-11-09, fixed)
+
+- **Symptom (user screenshot):** during "Loading SSIA" the left side showed EDGE's "» Statistics" and the Terminal's own
+  folded Statistics rail next to it.
+- **Verified cause:** the Terminal learned it sits in EDGE only from a message, and its listener is set up in `initStats`
+  (`terminal/src/app/stats.ts`), called from `start()` (`src/main.ts`) after `liveData` resolves. Until the chart was up the
+  Terminal drew its own rail; EDGE said hello for 9 s only, so a load longer than that kept both for good.
+- **Class:** a state an embedded app must know at its first paint, passed only by a message whose listener starts late.
+- **Solution:** EDGE opens the frame at `/terminal-app/?in=edge`; the Terminal sets `edge-rail` in `boot()` from its own
+  address, before any data. EDGE says hello every second until the first answer (no fixed limit) and its Statistics
+  button works from that answer on ("Statistics: loading…" before).
+- **Evidence:** EDGE page + Terminal on the stand-in: 150 ms after opening (spinner shown) `edge-rail` on, the Terminal's
+  rail 0 px wide, EDGE's button aria-disabled; after the load it opens 300 px and the « inside closes it. look_check11 PASS,
+  terminal vitest 887, edge-bff pytest (titles, screener, backtest, terminal, frontend, visual) 140.
+- **Lesson:** what decides an embedded page's layout travels in its address (or the first paint), never only in a later
+  message.
+- **Status:** fixed.
+
 ### M411 — Terminal: broker codes in the Loaders and Broker Inventory boxes in a system monospace font, not Inter (2026-11-08, fixed)
 
 - **Symptom (user screenshot):** OD, CC, MG ... in the Broker Inventory box in Consolas / SF Mono.
