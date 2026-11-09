@@ -13710,3 +13710,13 @@ EXPLAIN); (2) publisher; (3) kontrak, core, worker; (4) halaman; (5) tes, lalu P
    user (`verification/screener/jobs/run_migration.sh dryrun|apply <sha256> 20261109_002_stock_list_definition_en.sql`).
 2. Panel preview menyebut indeks dan grup saham (nama daftar, definisi sebagai tooltip; "none" bila tidak ada).
 3. Saham yang tidak ada di daftar mana pun tidak lolos filter "masuk indeks/grup", apa pun saklar unclassified (tetap).
+
+**Rilis dev 2026-11-09 (user: "sync with main, merge. push to dev."):** PR #63 merge `98de386c`; edge-bff, screener-worker,
+terminal-publisher, terminal-api SUCCESS. Run publisher 15:36 UTC: file `stock_lists` belum terbit karena role publisher
+belum boleh membaca `Stock_List` (ERRORS M418). Perbaikan siap: migrasi `20261109_003_terminal_reader_stock_list.sql`
+(gladi lokal DRYRUN 8/8, APPLY 7/7). Menunggu go user untuk migrasi 002 (definisi Inggris) dan 003 (izin baca) di dev,
+lalu satu run publisher dan cek live dengan login.
+**Live di dev 2026-11-09 (user: "Oke, jalankan perbaikan 3 dan 2"):** migrasi 003 dan 002 diterapkan (APPLY PASS 7/7 dan
+14/14); run publisher 15:55 UTC menerbitkan `stock_lists`; cek live dengan login PASS 10/10 (LQ45 45 saham, LQ45 + Astra
+3, LQ45 tanpa Salim dan Djarum 39, IDX30 atau JII 41, kode salah ditolak); restart Postgres 16:00 UTC. ERRORS M418 tutup.
+Sisa: DATABASE_SCHEMA.md belum memuat tabel Stock_List (refresh skema terjadwal), ERRORS M417 (5 langkah smoke lama).

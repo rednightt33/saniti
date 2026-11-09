@@ -1,0 +1,6 @@
+Starting Container
+OUT {"q": "reader_cannot_write", "ms": 0, "part": 0, "rows": [[false, false]]}
+JOB_DONE MIGRATION APPLY
+JOB_EXIT 0
+MIG APPLY 20261109_003_terminal_reader_stock_list.sql sha256=a53bee95b9e8845aede542fa82f447247d23b47924f6561748e779e90c227884
+OUT {"q": "reader_privileges", "ms": 1, "part": 0, "rows": [["terminal_market_reader", true, true, false], ["terminal_publisher_login", true, true, false]]}

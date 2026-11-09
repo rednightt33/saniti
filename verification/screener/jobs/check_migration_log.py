@@ -509,6 +509,18 @@ def check_definition_en(check, mode, outs, sha, probes):
           outs.get('members_untouched'))
 
 
+# ---- 20261109_003_terminal_reader_stock_list.sql (EXEC-SCREENER-STOCK-LISTS: the publisher may read the stock lists) ---
+READER_STOCK_LIST = '20261109_003_terminal_reader_stock_list.sql'
+READER_STOCK_LIST_PROBES = ['reader_privileges', 'reader_cannot_write']
+
+
+def check_reader_stock_list(check, mode, outs, sha, probes):
+    check('terminal_market_reader and terminal_publisher_login read Stock_List and Stock_List_Member, not the history',
+          outs.get('reader_privileges') == [['terminal_market_reader', True, True, False],
+                                            ['terminal_publisher_login', True, True, False]], outs.get('reader_privileges'))
+    check('the reader writes nothing', outs.get('reader_cannot_write') == [[False, False]], outs.get('reader_cannot_write'))
+
+
 # file name -> the expected ERR text per expect_err_* probe, the migration's own checks, the reviewed probes per mode
 # and the role each probe's name gives (first matching prefix; none: the admin connection)
 MIGRATIONS = {
@@ -528,6 +540,8 @@ MIGRATIONS = {
                'probes': {'DRYRUN': DRAWING_PROBES, 'APPLY': DRAWING_PROBES[:10]}, 'roles': SCREENER_ROLES},
     STOCK_LIST: {'err_text': ERR_TEXT_STOCK_LIST, 'checks': None,
                  'probes': {'DRYRUN': STOCK_LIST_PROBES, 'APPLY': STOCK_LIST_PROBES[:8]}, 'roles': STOCK_LIST_ROLES},
+    READER_STOCK_LIST: {'err_text': {}, 'checks': check_reader_stock_list,
+                        'probes': {'DRYRUN': READER_STOCK_LIST_PROBES, 'APPLY': READER_STOCK_LIST_PROBES}, 'roles': ()},
     DEFINITION_EN: {'err_text': ERR_TEXT_DEFINITION_EN, 'checks': check_definition_en,
                     'probes': {'DRYRUN': DEFINITION_EN_PROBES, 'APPLY': DEFINITION_EN_PROBES[:6]}, 'roles': ()},
 }

@@ -20,6 +20,44 @@ Telegram notify accepted.
   and no new round: a variable change no longer pulls data.
 - Rollback: `serviceInstanceUpdate cronSchedule null` (a deploy then runs a round again); restart NEVER stays.
 
+## 2026-11-09 — Screener index and group filter live on dev: migrations 003 and 002, publisher run, live check, Postgres restart
+
+- **Go:** user 2026-11-09 "Oke, jalankan perbaikan 3 dan 2".
+- **Migrations on dev (orc-test-runner jobs, DATABASE_URL removed after each, VAR_REMOVED):** 20261109_003 (publisher
+  read grant) DRYRUN/APPLY PASS; 20261109_002 (English definitions) DRYRUN/APPLY PASS (DATABASE_CHANGELOG 2026-11-09).
+  Two transient refusals of the runner guard (`DEPLOYMENT_LIST_FAILED`, then `RUNNER_BUSY` on the finished DRYRUN job
+  `96de7dfe`) and one APPLY that did not start; each retried, nothing half-applied.
+- **terminal-publisher Run Now 15:55 UTC (daily):** `refs` names brokers, fixed_income, logos, stock_lists, tickers;
+  `uploaded=["stock_lists"]`; done in 140 s. screener-worker read it on its next wake (15:58 UTC, 10,069 bytes) and swapped
+  to the publication of 15:57:28 UTC at 15:59:02 UTC.
+- **Live check** (`verification/screener/stock_lists/live_check_dev.py`, signed in, read routes only): PASS 10/10:
+  catalog stock_lists AVAILABLE with 66 lists (33 INDEX, 33 KONGLO) and English definitions; universe rows carry their
+  memberships; runs on the wide universe equal the memberships: LQ45 45 stocks, LQ45 and Astra 3, LQ45 without Salim
+  and Djarum 39, IDX30 or JII 41; an unknown code (LQ46) refused with a plain message.
+- **Postgres restart 16:00 UTC** after the manual publisher run (memory 1.62 GB, guards READY): ready 16:00:05 UTC,
+  edge-bff `/ready` 200.
+
+## 2026-11-09 — Screener index and group filter (PR #63) on dev: edge-bff, screener-worker, terminal-publisher, terminal-api; Postgres restart
+
+- **Change:** EXEC-SCREENER-STOCK-LISTS: the reference file `stock_lists` (publisher), the Index and Group
+  (konglomerasi) universe filters (core, worker, page). Migrations 20261109_002 (English definitions) and 20261109_003
+  (publisher read grant) committed, NOT applied (waiting for the user's go).
+- **Go:** user 2026-11-09 "sync with main, merge. push to dev." with the pre-merge checklist; PR rednightt33/saniti#63
+  merged (merge commit `98de386c`).
+- **Deployments (Railway API), all SUCCESS:** edge-bff `48c8b9e1-f91a-4dea-9ba3-7913ac86dec2` and screener-worker
+  `b04b0582-3b21-49c9-90b0-5a1249886ebf` (GitHub, `98de386c`, 15:33 UTC); terminal-publisher
+  `900cf118-e093-4f20-9afd-ac7f9d7f934c` and terminal-api `52bb1350-7801-4001-98a5-5690dc5da032` (CLI upload of
+  `git archive 98de386c apps/<service>`, 15:34 UTC; the publisher was not running, its crons are 00:00-01:30 and
+  12:00-12:30 UTC).
+- **Publisher Run Now 15:36 UTC (daily):** done in 153 s, no file to write, broker days carried; `stock_lists_failed
+  InsufficientPrivilege` (ERRORS M418): the stock-lists file is not published yet, the Screener shows the Index and Group
+  filters as not available with the reason, everything else unchanged.
+- **Postgres restart 15:41 UTC** after the manual publisher run (memory 1.94 GB, guards READY; `scripts/restart_postgres.py
+  --apply` through the session's proxy wrapper): "database system is ready" 15:41:06 UTC; edge-bff `/ready` 200. The
+  wrapper failed afterwards reading the edge-bff domain through the Railway CLI (token clash), not the restart.
+- **Rollback:** edge-bff `9b6f0f3e`, screener-worker `79baa13c`, terminal-publisher `f7a731dd`, terminal-api
+  `06d1ea5b` (redeploy), or revert merge `98de386c`.
+
 ## 2026-11-09 — stockbit-updater heartbeat, terminal-publisher gate, terminal-api pool check (EXEC-ROUND-HEARTBEAT, M413, M414)
 
 User: "Ok 1 dan 2.. serta fix M414. Jalankan." (22:00 WIB). Checked before: no RUNNING round, no EDGE job or orc turn

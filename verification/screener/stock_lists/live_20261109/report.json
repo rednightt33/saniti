@@ -1,0 +1,276 @@
+{
+ "checked_at": "2026-11-09T15:59:26Z",
+ "catalog": {
+  "status": 200,
+  "ms": 426,
+  "availability": "AVAILABLE",
+  "reason": null,
+  "as_of": "2026-11-09T13:31:48.255552+00:00",
+  "lists": 66
+ },
+ "lists_sample": [
+  {
+   "code": "IHSG",
+   "kind": "INDEX",
+   "name": "IHSG",
+   "tickers": 859
+  },
+  {
+   "code": "LQ45",
+   "kind": "INDEX",
+   "name": "LQ45",
+   "tickers": 45
+  },
+  {
+   "code": "JII",
+   "kind": "INDEX",
+   "name": "JII",
+   "tickers": 30
+  },
+  {
+   "code": "ASTRA",
+   "kind": "KONGLO",
+   "name": "Astra",
+   "tickers": 10
+  }
+ ],
+ "runs": [
+  {
+   "name": "LQ45",
+   "status": 200,
+   "ms": 252,
+   "matched": 45,
+   "expected": 45,
+   "sample": [
+    "AADI",
+    "ADMR",
+    "ADRO",
+    "AKRA",
+    "AMMN",
+    "AMRT",
+    "ANTM",
+    "ASII"
+   ]
+  },
+  {
+   "name": "LQ45 and Astra",
+   "status": 200,
+   "ms": 218,
+   "matched": 3,
+   "expected": 3,
+   "sample": [
+    "ASII",
+    "GOTO",
+    "UNTR"
+   ]
+  },
+  {
+   "name": "LQ45 without Salim and Djarum",
+   "status": 200,
+   "ms": 226,
+   "matched": 39,
+   "expected": 39,
+   "sample": [
+    "AADI",
+    "ADMR",
+    "ADRO",
+    "AKRA",
+    "AMRT",
+    "ANTM",
+    "ASII",
+    "BBNI"
+   ]
+  },
+  {
+   "name": "IDX30 or JII",
+   "status": 200,
+   "ms": 218,
+   "matched": 41,
+   "expected": 41,
+   "sample": [
+    "AADI",
+    "ADMR",
+    "ADRO",
+    "AMRT",
+    "ANTM",
+    "ARCI",
+    "ASII",
+    "BBCA"
+   ]
+  }
+ ],
+ "refusal": {
+  "status": 422,
+  "message": "{\"error\": {\"code\": \"INVALID_CONDITION\", \"field\": \"definition.universe.indices_in[0]\", \"message\": \"definition.universe.indices_in[0]: \\\"LQ46\\\" is not the code of an index the Screener holds. Pick it from the Index list, which shows each by its code: \\\"LQ45\\\" is accepted, \\\"LQ46\\\" is refused.\", \"details\": {\"allowed\": [\"IHSG\", \"LQ45\", \"JII\", \"MBX\", \"DBX\", \"BISNIS-27\", \"KOMPAS100\", \"SRI-KEHATI\", \"ISSI"
+ },
+ "checks": [
+  {
+   "check": "catalog stock_lists AVAILABLE",
+   "ok": true,
+   "detail": {
+    "status": 200,
+    "ms": 426,
+    "availability": "AVAILABLE",
+    "reason": null,
+    "as_of": "2026-11-09T13:31:48.255552+00:00",
+    "lists": 66
+   }
+  },
+  {
+   "check": "66 lists: 33 INDEX and 33 KONGLO",
+   "ok": true,
+   "detail": 66
+  },
+  {
+   "check": "definitions in English (LQ45, Astra)",
+   "ok": true,
+   "detail": [
+    "45 stocks with high liquidity and large market capitalisation, reviewed periodically by the IDX.",
+    "Stockbit's business group: issuers Stockbit links to Astra International (Jardine Matheson). Membership is set by Stockbit (catalog CATALOG_TYPE_KONGLO), not by the IDX, and is not proof of ownership, control or official affiliation; one stock can belong to several groups."
+   ]
+  },
+  {
+   "check": "universe rows carry indices and groups",
+   "ok": true,
+   "detail": {
+    "status": 200,
+    "rows": 862
+   }
+  },
+  {
+   "check": "LQ45 count in the catalog = universe rows in LQ45",
+   "ok": true,
+   "detail": [
+    45,
+    45
+   ]
+  },
+  {
+   "check": "run LQ45: 45 stocks",
+   "ok": true,
+   "detail": {
+    "status": 200,
+    "got": [
+     "AADI",
+     "ADMR",
+     "ADRO",
+     "AKRA",
+     "AMMN",
+     "AMRT",
+     "ANTM",
+     "ASII",
+     "BBCA",
+     "BBNI"
+    ],
+    "expected": [
+     "AADI",
+     "ADMR",
+     "ADRO",
+     "AKRA",
+     "AMMN",
+     "AMRT",
+     "ANTM",
+     "ASII",
+     "BBCA",
+     "BBNI"
+    ],
+    "missing": [],
+    "extra": []
+   }
+  },
+  {
+   "check": "run LQ45 and Astra: 3 stocks",
+   "ok": true,
+   "detail": {
+    "status": 200,
+    "got": [
+     "ASII",
+     "GOTO",
+     "UNTR"
+    ],
+    "expected": [
+     "ASII",
+     "GOTO",
+     "UNTR"
+    ],
+    "missing": [],
+    "extra": []
+   }
+  },
+  {
+   "check": "run LQ45 without Salim and Djarum: 39 stocks",
+   "ok": true,
+   "detail": {
+    "status": 200,
+    "got": [
+     "AADI",
+     "ADMR",
+     "ADRO",
+     "AKRA",
+     "AMRT",
+     "ANTM",
+     "ASII",
+     "BBNI",
+     "BBRI",
+     "BBTN"
+    ],
+    "expected": [
+     "AADI",
+     "ADMR",
+     "ADRO",
+     "AKRA",
+     "AMRT",
+     "ANTM",
+     "ASII",
+     "BBNI",
+     "BBRI",
+     "BBTN"
+    ],
+    "missing": [],
+    "extra": []
+   }
+  },
+  {
+   "check": "run IDX30 or JII: 41 stocks",
+   "ok": true,
+   "detail": {
+    "status": 200,
+    "got": [
+     "AADI",
+     "ADMR",
+     "ADRO",
+     "AMRT",
+     "ANTM",
+     "ARCI",
+     "ASII",
+     "BBCA",
+     "BBNI",
+     "BBRI"
+    ],
+    "expected": [
+     "AADI",
+     "ADMR",
+     "ADRO",
+     "AMRT",
+     "ANTM",
+     "ARCI",
+     "ASII",
+     "BBCA",
+     "BBNI",
+     "BBRI"
+    ],
+    "missing": [],
+    "extra": []
+   }
+  },
+  {
+   "check": "unknown code LQ46 refused with a plain message",
+   "ok": true,
+   "detail": {
+    "status": 422,
+    "message": "{\"error\": {\"code\": \"INVALID_CONDITION\", \"field\": \"definition.universe.indices_in[0]\", \"message\": \"definition.universe.indices_in[0]: \\\"LQ46\\\" is not the code of an index the Screener holds. Pick it from the Index list, which shows each by its code: \\\"LQ45\\\" is accepted, \\\"LQ46\\\" is refused.\", \"details\": {\"allowed\": [\"IHSG\", \"LQ45\", \"JII\", \"MBX\", \"DBX\", \"BISNIS-27\", \"KOMPAS100\", \"SRI-KEHATI\", \"ISSI"
+   }
+  }
+ ],
+ "verdict": "PASS"
+}
