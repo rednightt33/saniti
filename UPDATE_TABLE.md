@@ -39,6 +39,9 @@ DESC LIMIT 20`.
    untuk setiap tanggal ≥ tanggal ubah pertama, lalu cek dan rekonsiliasi F06. Tanggal tanpa perubahan dilewati.
 3. INDEX: hanya bila ada tanggal broker berubah atau harga IHSG lebih baru (`index_needed`).
 4. Event: muat ulang penuh corporate action dan insider, lalu `idx_event_annotation` (`events/job.py` APPLY; ±13 menit).
+4b. Indeks dan grup Stockbit (`stock_lists.py`, EXEC-STOCK-CATALOG): 66 daftar `Stock_List` yang aktif dan anggotanya,
+   semua atau tidak sama sekali (`apply_stock_list_snapshot`); riwayat di `Stock_List_Member_History`, per putaran
+   `Stock_List_Load_Log`. Gagal = peringatan di kolom `stock_lists`, putaran tetap SUCCESS (keputusan D2). ±1 menit.
 5. `Database_Table_Status` (`scripts/sync_database_schema.py`).
 6. Satu baris `Monitoring_Stockbit_Update` (status, langkah, jumlah, galat) dan ringkasan Telegram lewat
    `telegram-monitor`.
@@ -50,6 +53,12 @@ yang sudah tersimpan dan membandingkan 15 kolom dua arah; beda apa pun membuat s
 **Membaca hasil:** `SELECT * FROM public."Monitoring_Stockbit_Update" ORDER BY started_at DESC LIMIT 1;` dan log deploy
 (`event="round_finished"`). Putaran pertama 2026-10-25: VERIFY `70aa6c1b` (2026-10-23: 23.711 = 23.711, 0 beda), APPLY
 `a02b83df` SUCCESS (tidak ada tanggal broker baru; event 123.047 baris).
+
+**Memori Postgres (2026-11-09):** dengan limit 512 MB, rebuild INDEX (setiap bulan sejak 2016) membuat Postgres OOM
+dan container dijalankan ulang berkali-kali; dengan 1 GB putaran selesai (INDEX ±61 menit). Jangan turunkan limit di
+bawah 1 GB sebelum INDEX inkremental (EXEC-STOCK-CATALOG) dipakai. Ganti token dengan
+`railway variable set STOCKBIT_TOKEN --stdin --skip-deploys` lalu `deploy.sh`: perubahan variabel tanpa `--skip-deploys`
+memulai putaran dengan kode yang sedang terpasang.
 
 **Deploy kode:** `apps/stockbit-updater/deploy.sh` (unggah folder yang disusun; tidak ada sumber GitHub, jadi push tidak
 memicu putaran). Bagian A dan B di bawah tetap berlaku untuk perbaikan manual dan riwayat.

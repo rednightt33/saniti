@@ -1,5 +1,21 @@
 # Database changelog
 
+## 2026-11-09 — Stockbit round: Broker Summary 2026-11-04..06, stock lists first capture, four cut rounds closed
+
+- **Broker Summary:** 2026-11-04 23,458, 2026-11-05 23,370, 2026-11-06 22,324 rows (69,152; long codes checked 353, 378,
+  349), then Feature 05 (65,542 universe rows), 02, 03, 06 for those dates and the six IHSG INDEX tables through
+  2026-11-06 (every year chunk `mismatches=0`, `rerun_modified=0`).
+- **Events:** insider pulled 104,998 (323 new, 89 changed, 1 removed and kept); `idx_event_annotation` 124,380 rows;
+  run `sbev-20261109T104938Z-2b816e`.
+- **Stock lists (first capture, `Stock_List_Load_Log` run 1 SUCCESS):** 66 lists, 4,151 members (33 indices 3,812, 33
+  KONGLO groups 339); every list non-empty and the 18 numbered indices exactly at their count; 4,151 FIRST_CAPTURE
+  history rows; `Stock_List_By_Ticker` 963 tickers, 104 outside IDX_Stock_Universe (as on 2026-11-02); 14 Stockbit lists
+  outside the 66 reported in `unlisted`, not loaded (ABX, IDXCMDTY20, AKSELERASI-SYARIAH and 11 non-index lists).
+- **Four cut rounds closed** (user "Boleh"): `Monitoring_Stockbit_Update` rows `65a2b6cb`, `552c9a44`, `12372c4d`,
+  `28c3b97f` RUNNING → FAILED, `finished_at` = their last update, `last_error` names the Postgres out-of-memory cut;
+  job `verification/stockbit_updater_20261109/close_stale_rounds.py` on orc-test-runner (refuses unless exactly those four
+  are RUNNING), read back through pgweb. The older RUNNING row `e3331473` (2026-10-27) is left as it was.
+
 ## 2026-11-09 — Stockbit stock lists: 66 indices and KONGLO groups with point-in-time members (EXEC-STOCK-CATALOG) — applied
 
 - **User:** "Struktur tabel terpisah + view", PIT history "yes", runner in stockbit-updater "yes" (2026-11-02);

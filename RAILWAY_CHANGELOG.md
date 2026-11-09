@@ -1,5 +1,31 @@
 # Railway changelog
 
+## 2026-11-09 — stockbit-updater round with the stock lists; Postgres memory limit 512 MB → 1 GB (EXEC-STOCK-CATALOG)
+
+- **User:** "Ok jalankan opsi B", "Ok Jalankan"; on the out-of-memory loop "Naikkan ke 1 GB"; "Boleh" (stale rows,
+  restart).
+- **telegram-monitor:** the push of `dc16b03` (its "Indeks & grup" section) deployed it from GitHub, `ba0b517f` SUCCESS
+  07:55 UTC, before migration `20261109_001` (planned after); it reads `Monitoring_Stockbit_Update.stock_lists`, so only
+  a Stockbit notification could have failed in between, and no round ran then.
+- **stockbit-updater:** `STOCKBIT_TOKEN` replaced with `railway variable set --stdin --skip-deploys` (expiry
+  2026-11-10 14:21 WIB; no value printed or written), then `deploy.sh` of `b65cf2b`: deployment `0f1fe43c` SUCCESS 08:07
+  UTC. Five round starts in that one deployment (the container was started again after each failure although
+  `railway.json` says restart policy NEVER; the same happened on 2026-11-05):
+  `65a2b6cb` (08:08, broker 2026-11-04..06 committed, cut at 08:43), `552c9a44` (cut at 09:26 in INDEX),
+  `12372c4d`, `28c3b97f` (cut in INDEX), `325f4864` (09:41–11:05 **SUCCESS**: INDEX 61 min, events, stock lists 66
+  lists / 4,151 members, Telegram accepted). The four cut rows were closed as FAILED afterwards (DATABASE_CHANGELOG).
+- **Postgres out of memory:** the limit was 512 MB (set by the user in the dashboard 2026-11-07 ~17:00 UTC; not recorded
+  before). Backends were killed by signal 9 at 08:43:03, 09:26:37, 09:36:49 and 09:41:45 UTC (crash recovery ~2 s each,
+  every client connection cut; postmaster start unchanged 2026-11-07 16:16). The INDEX rebuild (every month since 2016)
+  did not fit. With the user's choice the limit was set to 1 GB through the Railway API `serviceInstanceLimitsUpdate`
+  (memoryGB 1, vCPUs 1) at 09:42 UTC because `scripts/set_postgres_memory.py` refused (cron within 45 minutes) and
+  `railway config plan` failed in the session (the `railway/iac` package asks for a newer CLI); 0 EDGE jobs and 0 orc
+  turns before. Read back `memoryBytes` 1000000000; the metric limit became 1 GB at 09:42:30 without a restart; no
+  kill after it. `.railway/railway.ts` already says 1000000000. A planned INDEX change (incremental, EXEC) is to make
+  the round fit again.
+- **Postgres restart:** the check at 11:24 UTC refused (crons within 45 minutes); the scheduled postgres-memory-cron run
+  at 20:45 WIB (mode apply) is due to restart it; to be confirmed.
+
 ## 2026-11-08 — Fonts back to Inter, Screener fixes, broker picker (edge-bff and screener-worker on dev)
 
 - **Releases (each pushed to `main` with the user's words; no active user run before each push; no migration, no

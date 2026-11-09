@@ -11640,6 +11640,49 @@ Langkah 1–5 siap di `main` (belum ada perubahan live):
   telegram-monitor (SUCCESS) → `STOCKBIT_TOKEN` diset dengan `--stdin --skip-deploys` (perubahan variabel tanpa itu
   memulai putaran dengan kode lama) → `deploy.sh` (satu putaran) → langkah 8. Token berlaku sampai 2026-11-10 14:21 WIB.
 
+**Live 2026-11-09 (user "Ok Jalankan"):** migrasi DRYRUN `30248fb2` PASS 34/34, APPLY `caa74201` PASS 19/19, dibaca
+balik; telegram-monitor `ba0b517f` SUCCESS; token diganti tanpa deploy; stockbit-updater `0f1fe43c`. Postgres (limit 512
+MB, diset user 2026-11-07) OOM empat kali saat rebuild INDEX; limit 1 GB (user "Naikkan ke 1 GB") lewat API; putaran
+`325f4864` SUCCESS 11:05 UTC: 66 daftar, 4.151 anggota (indeks 3.812, KONGLO 339), 18 indeks bernomor tepat, riwayat
+FIRST_CAPTURE 4.151, view 963 ticker (104 di luar universe), 14 daftar di luar pilihan dilaporkan. Empat baris putaran
+terputus ditutup FAILED (user "Boleh"). Restart Postgres: jadwal postgres-memory-cron 20:45 WIB (dicek).
+
+**Lanjutan (user 2026-11-09 "Opsi 1", "Ok, propose untuk nomor 7 dan 2", "jangan lupa dibandingkan before after",
+"jalankan setelah putaran ini selesai"):** EXEC-INDEX-INCREMENTAL di bawah.
+
+## EXEC-INDEX-INCREMENTAL — INDEX broker dihitung dari tanggal yang berubah; rencana refresh tanpa baca penuh (rencana, go 2026-11-09)
+
+**User 2026-11-09:** "Opsi 1"; "Ok, propose untuk nomor 7 dan 2"; "Ok, jangan lupa dibandingkan before after. Goal,
+jangan sampai dengan flow yang baru malah data di database jadi salah ... just need to run with proposed process and
+detect where the gap"; "Ok, jalankan setelah putaran ini selesai".
+
+**Fakta (kode + database live 2026-11-09):** setiap putaran membaca ulang seluruh `IDX_Broker_Summary` (45 juta baris,
+10 GB) dua kali: rencana refresh `PER_DATE` (±5–6,5 menit) dan rebuild INDEX sejak 2016 (61 menit di 1 GB, 6–9 menit
+di 4 GB, OOM di 512 MB). F05/F02/F03/F06 saham sudah inkremental (F02 311, F06 312 sesi pemanasan). INDEX: F05/F03
+per tanggal, F02 311 sesi, F06 312 sesi (+ mask frekuensi 25 sesi): jendela tetap, jadi inkremental bisa identik; F01
+dan F04 INDEX hanya dari harga IHSG (±2.100 baris; EMA 200 butuh seluruh riwayat) tetap dihitung penuh. Setiap tulis ke
+`IDX_Broker_Summary` mencap `broker_summary_date_quality.checked_at` per tanggal (trigger statement
+`broker_summary_remark_new`; TRUNCATE tidak).
+
+**Nomor 7 (INDEX inkremental):** D = tanggal INDEX berubah paling awal (`index_dates`); W = D mundur 312 sesi pasar;
+stage dan hitung F05/F02/F03/F06 INDEX dari W, tulis hanya tanggal ≥ D (upsert seperti sekarang); D < 312 sesi dari
+awal data = hitung penuh; validasi independen dibatasi ke rentang itu.
+
+**Nomor 2 (rencana terbatas):** kandidat = tanggal dengan `checked_at` > watermark (mulai putaran terakhir yang
+refresh-nya sukses) + tanggal yang dimuat putaran ini; `PER_DATE` hanya untuk kandidat. Kembali ke rencana penuh bila:
+ada perubahan universe sejak watermark (`IDX_Stock_Universe_History`), watermark tidak ada, atau rencana penuh terakhir
+> 7 hari.
+
+**Bukti sebelum dipakai (before–after, tanpa menulis):**
+- nomor 7: DRYRUN live (rollback) dengan beberapa D dipaksa (tanggal terakhir, awal bulan, awal 2025, awal 2023, D < 312
+  sesi); semua baris ≥ D di empat tabel broker INDEX dibandingkan kolom per kolom dengan isi sekarang (hasil proses
+  lama, putaran `325f4864`); uang/lot persis, pecahan 1e-9; target 0 selisih; waktu dan RAM dicatat;
+- nomor 2: tes lokal (unggahan tanggal lama, koreksi satu baris, ticker baru di universe, TRUNCATE) = rencana penuh;
+  live mode bayangan 5 putaran (rencana penuh tetap dipakai, beda dilaporkan), baru dipakai sesudah 0 beda.
+- Limit Postgres tetap 1 GB sampai gladi menunjukkan 512 MB cukup.
+
+**Status:** belum ada kode; mulai sesudah putaran `325f4864` (SUCCESS 11:05 UTC).
+
 ## EXEC-TERMINAL-IND-EDIT — edit indikator Terminal: Flow (FLOW_INDICATOR_REVIEW.md) dan I37, I41 (rencana, belum go, 2026-11-05)
 
 **Permintaan user, 2026-11-05:** "Kita akan edit bunch of termianl indicators" (dengan `INDICATORS_HANDOFF.md`, disusun
