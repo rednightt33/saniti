@@ -10,11 +10,13 @@
 #   - or its deployment ended (FAILED, CRASHED, REMOVED, SKIPPED).
 
 # the log lines from the latest "Starting Container" on (the whole log when there is none). A "Starting Container" that
-# is the log's last line right after a JOB_EXIT line is the start of that same job logged late, not a new start: Railway
-# stamps it after the output of a job that ends within its first second (ERRORS M341: 4bee3798, JOB_EXIT 0 at
-# 15:44:59.582294, "Starting Container" at 15:44:59.591851, nothing after it).
+# is the log's last line, with a JOB_EXIT line after the start before it, is the start of that same job logged late, not
+# a new start: Railway stamps it after the output of a job that ends within its first second, and lines of one second
+# come in any order (ERRORS M341: 4bee3798, right after JOB_EXIT; M415: 37c7a5b6, JOB_EXIT 0 then MIG, OUT, JOB_DONE,
+# then the start, all at 15:02:59).
 last_start() { awk '{all[++m]=$0}
-  END{if (m > 1 && all[m] ~ /Starting Container/ && all[m-1] ~ /JOB_EXIT [0-9]*$/) m--
+  END{if (m > 1 && all[m] ~ /Starting Container/)
+        for (j = m - 1; j >= 1 && all[j] !~ /Starting Container/; j--) if (all[j] ~ /JOB_EXIT [0-9]*$/) { m--; break }
       for(i=1;i<=m;i++){ if (all[i] ~ /Starting Container/) n=0; l[++n]=all[i] }
       for(i=1;i<=n;i++) print l[i]}'; }
 # stdin is a job's log: has its latest start finished?

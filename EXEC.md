@@ -13093,6 +13093,10 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 
 **Go user, 2026-11-09:** "Sync with the latest main branch, jalankan nomor 1, 2, 3." (ERRORS M413)
 
+**Go deploy, 2026-11-09 22:00 WIB:** "Ok 1 dan 2.. serta fix M414. Jalankan." (1 = pasang stockbit-updater, satu
+putaran Stockbit langsung jalan, plus migrasi `Column_Catalog`; 2 = pasang terminal-publisher sesudahnya; M414 =
+terminal-api mengecek koneksi sebelum dipakai.)
+
 - **Nomor 1 — data (selesai):** dua baris `Monitoring_Stockbit_Update` yang masih RUNNING tanpa proses (`c7705209`,
   `e3331473`) ditutup FAILED (`verification/stockbit_updater_20261109/close_dead_rounds_2.py`, dibaca balik FAILED);
   empat lainnya sudah ditutup sesi lain (user "Boleh"). Publisher ditekan Run Now 14:02:58 UTC (deployment `690594c1`): selesai 14:15:44 UTC, broker 4, 5, 6 dan 9 Nov

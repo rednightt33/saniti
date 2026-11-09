@@ -1,0 +1,6 @@
+JOB_EXIT 0
+MIG DRYRUN 20261109_002_monitoring_stockbit_heartbeat_catalog.sql sha256=1bab248e5d7406c9a12e2a496fc149fa74f46e2613a051d49057f1aa598fcd52
+MIG DRYRUN_BODY_OK 20261109_002_monitoring_stockbit_heartbeat_catalog.sql
+OUT {"q": "catalog", "ms": 1, "part": 0, "rows": [["Last change of the row; while status is RUNNING also the round's heartbeat, stamped every 60 seconds by the live updater process (a RUNNING row not stamped for 10 minutes is a round whose process died).", ["apps/stockbit-updater/updater.py", "apps/stockbit-updater/broker_import.py", "apps/terminal-publisher/publisher.py", "database/migrations/20261109_002_monitoring_stockbit_heartbeat_catalog.sql"]]]}
+JOB_DONE MIGRATION DRYRUN
+Starting Container

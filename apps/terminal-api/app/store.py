@@ -32,8 +32,11 @@ READY = ('SELECT 1 FROM terminal.quota LIMIT 1',
 class Store:
     def __init__(self, url, max_size=8):
         """max_size: TERMINAL_POOL_MAX (config.py; EXEC-MU-RUNTIME T9), connections per process."""
+        # check: a connection the server dropped (a Postgres restart, ERRORS M414) is replaced before it is handed out,
+        # as edge-bff does since M246; without it the first request after a restart fails and /ready answers 503
         self.pool = ConnectionPool(url, min_size=1, max_size=max_size, open=False,
-                                   kwargs={'row_factory': dict_row, 'connect_timeout': 5})
+                                   kwargs={'row_factory': dict_row, 'connect_timeout': 5},
+                                   check=ConnectionPool.check_connection)
 
     def open(self):
         self.pool.open(wait=True, timeout=30)

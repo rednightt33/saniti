@@ -1276,3 +1276,25 @@ def test_account_cache_is_dropped_where_this_process_changes_the_account():
     r = client.post(f'{API}/auth/change-password', headers=BACKTEST, json={
         'current_password': 'a service never signs in', 'new_password': 'a new service password'})
     assert r.status_code == 403 and r.json()['error'] == 'not_for_service_accounts' and store.subs[2]['hash'] == before
+
+
+def test_a_connection_the_server_dropped_is_replaced_before_use():
+    """ERRORS M414: after a Postgres restart the pool handed out dead connections and the first request (and /ready)
+    failed. Needs a real server: TERMINAL_TEST_POSTGRES_URL (skipped without it)."""
+    import os
+    import psycopg
+    url = os.environ.get('TERMINAL_TEST_POSTGRES_URL')
+    if not url:
+        pytest.skip('TERMINAL_TEST_POSTGRES_URL is not set')
+    from app.store import Store
+    store = Store(url, max_size=1)
+    store.open()
+    try:
+        with store.tx() as c:
+            pid = c.execute('SELECT pg_backend_pid() AS pid').fetchone()['pid']
+        with psycopg.connect(url, autocommit=True) as admin:          # the restart: the server ends the backend
+            admin.execute('SELECT pg_terminate_backend(%s)', (pid,))
+        with store.tx() as c:
+            assert c.execute('SELECT pg_backend_pid() AS pid').fetchone()['pid'] != pid
+    finally:
+        store.close()

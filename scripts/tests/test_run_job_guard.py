@@ -35,6 +35,9 @@ def is_finished(log: str) -> bool:
     ('Starting Container\nOUT 1\nJOB_EXIT 0\nStarting Container\n', True),          # M341: a fast job's start logged late
     ('OUT 1\nJOB_EXIT 0\nStarting Container\n', True),                               # the same with no earlier start line
     ('Starting Container\nJOB_EXIT 0\nStarting Container\nOUT 1\n', False),         # a real later start is running
+    ('Starting Container\nJOB_EXIT 0\nMIG x\nJOB_DONE X\nStarting Container\n', True),  # M415: one second, any order
+    ('OUT 1\nJOB_EXIT 0\nOUT 2\nStarting Container\n', True),                       # the same with no earlier start line
+    ('Starting Container\nOUT 1\nStarting Container\n', False),                     # no JOB_EXIT: a start, not late
 ])
 def test_guard_reads_the_latest_start(log, done):
     assert is_finished(log) is done
