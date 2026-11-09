@@ -5753,7 +5753,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
-### M416 — stockbit-updater runs with restart policy ON_FAILURE, not NEVER: a failed round starts a new round (2026-11-09, open)
+### M416 — stockbit-updater runs with restart policy ON_FAILURE, not NEVER: a failed round starts a new round (2026-11-09, fixed)
 
 - **Found by:** the check of what starts a Stockbit pull (user 2026-11-09: "proses pengupdatean data dari Stockbit ke
   database dijalankan oleh apa? Apakah ada cron job spesifik?").
@@ -5771,11 +5771,14 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
     the deployed `serviceManifest.deploy.restartPolicyType` is the instance's `ON_FAILURE`: the file's restart policy did
     not override the setting. `postgres-memory-cron` has the same file and runs NEVER only because its instance setting
     (from `railway.ts`) is NEVER too. Why Railway applies the file's builder but not its restart policy is not known.
-- **Fix (pending the user's choice on how a round starts):** set the instance setting NEVER (`railway.ts`
-  `stockbit-updater` `deploy: { restartPolicyType: "NEVER" }`, applied and read back), not the file alone.
+- **Fix (2026-11-09, EXEC-STOCKBIT-CRON):** `serviceInstanceUpdate` restartPolicyType NEVER and cronSchedule
+  `0 15 1 1 *`, read back; `.railway/railway.ts` `stockbit-updater` `deploy: { cronSchedule, restartPolicyType: "NEVER" }`.
+  Deployment `bd54aebc` manifest: `restartPolicyType NEVER`, `cronSchedule 0 15 1 1 *`.
 - **Class:** a service setting written in a file that the platform does not read; the code's comment then states a
   behaviour the live service does not have. Same check applies to every CLI-uploaded service with a `railway.json`.
-- **Status:** OPEN; part of the decision on how a Stockbit round is started (FUTURE_PLAN / user's choice A or B).
+- **Lesson:** a service setting lives on the service instance (`railway.ts`, read back from the live service); a file
+  in the upload is not proof of the live behaviour.
+- **Status:** fixed.
 
 ### M415 — orc-test-runner guard: a finished job read as still running (2026-11-09, fixed)
 

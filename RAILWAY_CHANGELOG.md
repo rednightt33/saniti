@@ -1,5 +1,25 @@
 # Railway changelog
 
+## 2026-11-09 — stockbit-updater is a cron job: deploys run nothing, a round runs on Run Now (EXEC-STOCKBIT-CRON, M416)
+
+User: "Oke, updater dijadikan cron dan uji volume dulu. Sebenarnya nggak perlu sih kalau data yang mentah Stockbit kita
+nggak perlu simpen juga nggak apa-apa." Round `fc71e483` (started by the 15:08 deploy, nothing new to load) was stopped
+first at the user's word ("Hentikan dulu putarannya"): `deploymentRemove 39ab0f3b`, the row FAILED "Round dihentikan",
+Telegram notify accepted.
+
+- `serviceInstanceUpdate` (service `c197c9c5`, instance `23531bd7`): `cronSchedule "0 15 1 1 *"`, `restartPolicyType
+  NEVER` (was ON_FAILURE with 10 retries, M416); read back, `nextCronRunAt 2027-01-01T15:00Z`. `.railway/railway.ts`
+  updated by hand (no `config pull --force`, M341); `railway config plan` refuses without a linked project.
+- Variables with `--skip-deploys`: `RAW_RETENTION_DAYS=0`, `UPDATER_MODE=CHECK` (read back).
+- Code `84414adc` uploaded (`deploy.sh`) → `bd54aebc` SUCCESS 15:46 UTC: no log, no `Monitoring_Stockbit_Update` row;
+  manifest cron `0 15 1 1 *`, restart NEVER.
+- Run Now (`deploymentInstanceExecutionCreate`, instance `23531bd7`) 15:47 UTC, CHECK: volume mounted at `/data` and
+  writable, `checkpoint.sqlite` 12,337 rows (last day 2026-11-09), 11 `issues_*`, 4 raw days, database answers, no live
+  round, token valid until 2026-11-10 07:21 UTC; nothing fetched or written.
+- `UPDATER_MODE=APPLY` set without `--skip-deploys` (the token-change path) → `773f10df` SUCCESS 15:49 UTC with no log
+  and no new round: a variable change no longer pulls data.
+- Rollback: `serviceInstanceUpdate cronSchedule null` (a deploy then runs a round again); restart NEVER stays.
+
 ## 2026-11-09 — stockbit-updater heartbeat, terminal-publisher gate, terminal-api pool check (EXEC-ROUND-HEARTBEAT, M413, M414)
 
 User: "Ok 1 dan 2.. serta fix M414. Jalankan." (22:00 WIB). Checked before: no RUNNING round, no EDGE job or orc turn

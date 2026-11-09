@@ -13119,6 +13119,9 @@ salinan baris lama, dan catatan anomali."
 
 - Data mentah Stockbit tidak disimpan lagi: `RAW_RETENTION_DAYS=0` (kode: `broker_import.py` `keep_raw`), mengganti
   keputusan K3 "3 hari" (EXEC-STOCKBIT-UPDATER). Checkpoint, salinan `before_*` dan `issues_*` tetap di volume.
+- **Hasil (2026-11-09, RAILWAY_CHANGELOG):** cron `0 15 1 1 *` + restart NEVER (dibaca balik); upload kode `bd54aebc`
+  tanpa run; Run Now mode CHECK: volume terpasang dan bisa ditulis, checkpoint 12.337 baris, tidak ada data ditarik;
+  perubahan variabel (`773f10df`) tanpa run. Status: selesai.
 - Jadwal: tidak dipilih user; alur yang user jelaskan hanya Run Now, jadi jadwal setahun sekali (`0 15 1 1 *`, 1 Januari
   22:00 WIB) yang hanya memenuhi syarat cron Railway. Bisa diganti kapan saja.
 

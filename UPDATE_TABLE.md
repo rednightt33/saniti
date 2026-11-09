@@ -4,20 +4,26 @@ Panduan memperbarui tabel yang diisi dari Stockbit. Setiap kelompok tabel punya 
 
 | Bagian | Tabel | Cara |
 |---|---|---|
-| **0. Cara biasa: service `stockbit-updater`** | semua tabel A dan B dalam satu putaran | Ganti `STOCKBIT_TOKEN` di service; Railway deploy ulang dan menjalankan satu putaran |
+| **0. Cara biasa: service `stockbit-updater`** | semua tabel A dan B dalam satu putaran | Ganti `STOCKBIT_TOKEN` di service, lalu tekan **Run Now** (deploy tidak menjalankan putaran sejak 2026-11-09) |
 | **A. Tabel broker** (nomor 1–7 di bawah) | `IDX_Broker_Summary` → Feature 05, 02, 03, 06, `_INDEX` | Loader lokal + job refresh di `orc-test-runner` |
 | **B. Corporate action, insider dan anotasi** (B1–B7) | `stockbit_corporate_action`, `stockbit_insider_transaction`, `idx_event_annotation` | Satu job di `orc-test-runner` dengan token dari user |
 
 # Bagian 0 — service `stockbit-updater` (cara biasa sejak 2026-10-25)
 
 Keputusan user 2026-10-25 (EXEC-STOCKBIT-UPDATER, EXEC-GO-1025): satu service di Railway, token Stockbit sebagai variabel,
-dan Feature 02, 03, 05, 06 serta tiga tabel event ikut terbarui. K2 A: putaran berjalan saat service di-deploy. K3: respons
-mentah disimpan 3 hari. K4: ya. K5: ringkasan dikirim ke Telegram. Kode: `apps/stockbit-updater/` (README di folder itu).
-Service `c197c9c5-99e7-492c-9c10-be0c165acf31`, restart `NEVER`, volume di `/data`.
+dan Feature 02, 03, 05, 06 serta tiga tabel event ikut terbarui. K2 A (putaran saat deploy) diganti 2026-11-09 oleh
+EXEC-STOCKBIT-CRON: service ini layanan cron, deploy (kode, variabel, pemulihan Railway) tidak menjalankan apa pun.
+K3 (respons mentah 3 hari) diganti 2026-11-09: `RAW_RETENTION_DAYS=0`, respons mentah tidak disimpan; checkpoint,
+salinan `before_*` dan `issues_*` tetap di volume. K4: ya. K5: ringkasan dikirim ke Telegram. Kode:
+`apps/stockbit-updater/` (README di folder itu). Service `c197c9c5-99e7-492c-9c10-be0c165acf31`, cron `0 15 1 1 *`
+(hanya syarat cron Railway, 1 Januari 22:00 WIB), restart `NEVER` di setelan service (ERRORS M416), volume di `/data`.
 
 **Menjalankan satu putaran:** ganti variabel `STOCKBIT_TOKEN` di service `stockbit-updater` dengan JWT baru (dashboard
 Railway → service → Variables, atau `railway variable set STOCKBIT_TOKEN --stdin -s stockbit-updater` dengan token
-lewat stdin). Railway men-deploy ulang dan deploy itu menjalankan satu putaran. Token tidak pernah ditulis ke Git, log
+lewat stdin). Railway men-deploy ulang tanpa menjalankan putaran. Lalu tekan **Run Now** di service itu (dashboard
+Railway → stockbit-updater → Cron → Run now): satu putaran berjalan. Run Now saat putaran lain masih hidup (tanda hidup
+`updated_at` < 10 menit) langsung berhenti tanpa menarik data (`round_refused`). `UPDATER_MODE=CHECK` lalu Run Now
+memeriksa volume, database dan masa berlaku token tanpa menghubungi Stockbit. Token tidak pernah ditulis ke Git, log
 atau tabel; yang disimpan hanya waktu kedaluwarsanya (`token_expires_at`). Token kedaluwarsa menghentikan putaran
 dengan pesan yang menyebutnya.
 
@@ -57,11 +63,10 @@ yang sudah tersimpan dan membandingkan 15 kolom dua arah; beda apa pun membuat s
 **Memori Postgres (2026-11-09):** dengan limit 512 MB, rebuild INDEX (setiap bulan sejak 2016) membuat Postgres OOM
 dan container dijalankan ulang berkali-kali; dengan 1 GB putaran selesai (INDEX ±61 menit). Jangan turunkan limit di
 bawah 1 GB sebelum INDEX inkremental (EXEC-STOCK-CATALOG) dipakai. Ganti token dengan
-`railway variable set STOCKBIT_TOKEN --stdin --skip-deploys` lalu `deploy.sh`: perubahan variabel tanpa `--skip-deploys`
-memulai putaran dengan kode yang sedang terpasang.
+`railway variable set STOCKBIT_TOKEN --stdin` lalu Run Now (sejak 2026-11-09 perubahan variabel tidak memulai putaran).
 
-**Deploy kode:** `apps/stockbit-updater/deploy.sh` (unggah folder yang disusun; tidak ada sumber GitHub, jadi push tidak
-memicu putaran). Bagian A dan B di bawah tetap berlaku untuk perbaikan manual dan riwayat.
+**Deploy kode:** `apps/stockbit-updater/deploy.sh` (unggah folder yang disusun; tidak ada sumber GitHub). Sejak
+2026-11-09 deploy tidak memicu putaran (layanan cron, dicek: upload `bd54aebc` dan deploy variabel `773f10df` tanpa log). Bagian A dan B di bawah tetap berlaku untuk perbaikan manual dan riwayat.
 
 # Bagian A — tabel broker
 
@@ -231,8 +236,8 @@ besar. Sesudah pemeriksaan hasilnya:
 - ~~**Loader frekuensi di Git.**~~ Selesai 2026-10-25: `apps/stockbit-updater/broker_import.py` (Bagian 0).
 - **Satu job update di repo.** Langkah 3–6 digabung menjadi satu skrip berparameter (`p_from` diturunkan dari
   data), bukan salinan per putaran.
-- ~~**Pembaruan harian otomatis**~~ Diganti 2026-10-25 oleh service `stockbit-updater` (Bagian 0). Putaran berjalan saat
-  token diganti, bukan terjadwal (K2 A).
+- ~~**Pembaruan harian otomatis**~~ Diganti 2026-10-25 oleh service `stockbit-updater` (Bagian 0). Putaran berjalan
+  lewat Run Now (EXEC-STOCKBIT-CRON, 2026-11-09).
 
 # Bagian B — corporate action, insider dan anotasi
 
