@@ -44,7 +44,7 @@ MAX_YEARS_PER_CALL = 6
 MAX_PRICE_HISTORY_DAYS = 3660
 MAX_BROKER_HISTORY_DAYS = 366
 REF_FILES = {'tickers': 'v1/ref/tickers.json.gz', 'brokers': 'v1/ref/brokers.json.gz', 'logos': 'v1/ref/logos.json.gz',
-             'fixed_income': 'v1/ref/fixed_income.json.gz'}
+             'fixed_income': 'v1/ref/fixed_income.json.gz', 'stock_lists': 'v1/ref/stock_lists.json.gz'}
 LOGO_CACHE_SECONDS = 7 * 24 * 3600
 ACCESS_LOG_DAYS = 90            # EXEC-TERMINAL-SPEED (user 2026-10-26): audit rows are kept 90 days
 PRUNE_EVERY_SECONDS = 6 * 3600

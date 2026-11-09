@@ -1036,7 +1036,7 @@ def test_state_lists_refs_and_reference_presigns_only_indexed_keys():
         assert store.access[-1]['key'] == f'v1/ref/{name}.json.gz' and store.access[-1]['bytes'] == 0
     assert 'v1/ref/sectors.4444' in client.get(f'{API}/reference/sectors', headers=GATEWAY).json()['url']
     r = client.get(f'{API}/reference/manifest', headers=GATEWAY)
-    assert r.status_code == 404 and r.json()['message'] == 'Reference files: brokers, fixed_income, logos, sectors, tickers.'
+    assert r.status_code == 404 and r.json()['message'] == 'Reference files: brokers, fixed_income, logos, sectors, stock_lists, tickers.'
     rows = len(store.access)
     del state['refs']                                                             # a publication before the index
     old, _ = gateway_client(s3_bucket(state))

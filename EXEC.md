@@ -13598,3 +13598,28 @@ panah naik dan turun bisa di taruh di screenshot yang saya kotakin merah" (sisi 
 - E2E lokal dengan file format publisher; DRYRUN migrasi.
 - Live: satu putaran broker -> ukuran dan waktu run sebelum/sesudah, `verify` storage = SQL untuk saham yang tersentuh,
   chart Terminal sama dengan sebelumnya.
+
+## EXEC-SCREENER-STOCK-LISTS — Screener memilih saham menurut indeks dan grup (KONGLO) dari `Stock_List*` (go 2026-11-09)
+
+**Permintaan user, 2026-11-09:** "Sync with the latest main branch, kemudian inspect table terlampir. Ini adalah table-table
+group dan index yang sebelumnya kita tidak punya. Ini akan ditambahkan ke screener. Jadi kita juga bisa screen
+saham-saham yang fall into the selected index atau group pada table terlampir. Konfirmasi dulu."
+
+**Usulan yang dikonfirmasi** (pesan 2026-11-09; user: "Ok, siapkan codenya di branch ini. Lalukan impementasi db
+terlebih dahulu to ensure that all plans carried out, if coming from ur memory, should also Be verified by reading the
+code."):
+1. A — filter universe di "More filters" seperti Sektor dan Industri: masuk indeks/grup dan kecualikan indeks/grup
+   (kolom hasil per saham, opsi B, tidak termasuk; bisa diusulkan sesudahnya).
+2. Dalam satu jenis (Indeks, atau Grup) pilihan berarti "salah satu"; antar jenis berarti "keduanya" (sama seperti
+   Sektor + Industri).
+3. Keanggotaan saat ini (putaran stockbit-updater terakhir yang lengkap); riwayat (`Stock_List_Member_History`, mulai
+   2026-11-09) belum dipakai; saham di luar universe Screener tidak ikut.
+
+**Jalur (diperiksa dari kode 2026-11-09, `main` 301c987b):** Postgres `Stock_List` + `Stock_List_Member` (anggota yang
+keluar dihapus, riwayat disimpan: `database/migrations/20261109_001_stock_list.sql:485`) -> terminal-publisher file
+referensi baru `stock_lists` (REF_NAMES, diindeks di state.json `refs`) -> terminal-api melayani nama referensi apa pun
+yang diindeks (`apps/terminal-api/app/main.py:425`, tanpa perubahan kode) -> screener-worker -> katalog `groupings` dan
+filter universe -> halaman. Tanpa migrasi; database hanya dibaca.
+
+**Urutan:** (1) lapisan database dulu: query publisher + job read-only di dev (isi, jumlah, irisan dengan universe,
+EXPLAIN); (2) publisher; (3) kontrak, core, worker; (4) halaman; (5) tes, lalu PR. Deploy hanya dengan go user.
