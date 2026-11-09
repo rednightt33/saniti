@@ -1,5 +1,15 @@
 # Database changelog
 
+## 2026-11-09 — `Monitoring_Stockbit_Update.updated_at` is the round's heartbeat (EXEC-ROUND-HEARTBEAT, ERRORS M413) — applied
+
+- **User:** "Ok 1 dan 2.. serta fix M414. Jalankan." (2026-11-09).
+- **Migration:** `20261109_002_monitoring_stockbit_heartbeat_catalog.sql` (metadata only): the `Column_Catalog` row of
+  `updated_at` says it is stamped every 60 seconds while the round is RUNNING, and lists the updater and the publisher.
+  DRYRUN `37c7a5b6`, APPLY `3b14b1d2` (orc-test-runner, `JOB_EXIT 0`); sha256 `1bab248e…` in `APPLIED.sha256`; read back
+  through pgweb. `DATABASE_SCHEMA.md` updated.
+- **Live check:** round `fc71e483` (started 15:08:52 UTC by the deploy of stockbit-updater `39ab0f3b`): `updated_at`
+  15:09:52, 15:10:52, 15:11:52 UTC while RUNNING.
+
 ## 2026-11-09 — Two more dead Stockbit rounds closed (EXEC-ROUND-HEARTBEAT, ERRORS M413)
 
 - **User:** "jalankan nomor 1, 2, 3" (2026-11-09).

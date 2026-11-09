@@ -1,5 +1,20 @@
 # Railway changelog
 
+## 2026-11-09 — stockbit-updater heartbeat, terminal-publisher gate, terminal-api pool check (EXEC-ROUND-HEARTBEAT, M413, M414)
+
+User: "Ok 1 dan 2.. serta fix M414. Jalankan." (22:00 WIB). Checked before: no RUNNING round, no EDGE job or orc turn
+running, outside B6.
+
+- stockbit-updater `39ab0f3b` SUCCESS 15:08 UTC (`apps/stockbit-updater/deploy.sh`, code of `840aecde`): round
+  `fc71e483` started 15:08:52 UTC; its `updated_at` advanced every 60 s (15:09:52, 15:10:52, 15:11:52).
+- terminal-api `06d1ea5b` SUCCESS 15:09 UTC (CLI upload of `git archive 02d79e5b apps/terminal-api`): pool checks a
+  connection before use (M414); `/ready` ready.
+- terminal-publisher `f7a731dd` SUCCESS 15:12 UTC (CLI upload of `git archive 02d79e5b apps/terminal-publisher`):
+  `cronSchedule "0,30 0,1,12 * * *"`, `restartPolicyType NEVER`, `nextCronRunAt 2026-11-10T00:00Z` read back; no log
+  at upload (M229: a cron service runs on its schedule or Run Now).
+- Rollback: stockbit-updater `deploy.sh` from `67189387` (runs a round); terminal-api and terminal-publisher CLI upload
+  of `e6fdcec6`.
+
 ## 2026-11-09 — terminal-publisher Run Now after the dead rounds were closed (EXEC-ROUND-HEARTBEAT, ERRORS M413)
 
 - The run started 13:32 UTC by the round's signal waited on dead RUNNING rounds (`waiting_for_loaders

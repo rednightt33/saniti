@@ -13089,7 +13089,7 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - Screener fixture 1920/1440/1100: ikon Rp, Px, Trd 2, Brk 2 satu baris; daftar terbuka, × menghapus. screener vitest 1328
   lulus; smoke dan shots diperbarui (tidak dijalankan penuh).
 
-## EXEC-ROUND-HEARTBEAT — putaran Stockbit yang mati tidak lagi menahan publisher (go 2026-11-09, kode di main, deploy menunggu)
+## EXEC-ROUND-HEARTBEAT — putaran Stockbit yang mati tidak lagi menahan publisher (go 2026-11-09, dipasang 2026-11-09)
 
 **Go user, 2026-11-09:** "Sync with the latest main branch, jalankan nomor 1, 2, 3." (ERRORS M413)
 
@@ -13110,6 +13110,9 @@ terminal-api mengecek koneksi sebelum dipakai.)
   berikutnya), lalu terminal-publisher di luar 07:30/19:00 WIB dan B6. Saat deploy updater: perbarui `Column_Catalog`
   `Monitoring_Stockbit_Update.updated_at` ("Last change of the row" → juga tanda hidup tiap 60 detik selama RUNNING)
   dengan migrasi baru.
+- **Hasil pemasangan (2026-11-09):** migrasi `20261109_002` APPLY `3b14b1d2`; stockbit-updater `39ab0f3b`, putaran
+  `fc71e483` memperbarui `updated_at` tiap 60 detik (dibaca balik); terminal-publisher `f7a731dd`, cron tetap
+  `0,30 0,1,12 * * *`; terminal-api `06d1ea5b` (M414), `/ready` ready.
 - **Pengganti nomor 3 di masa depan:** `FUTURE_PLAN.md` PUBLISH-PER-TABLE (user 2026-11-09: "Yasudah masukin future plan
   saja"): publisher menunggu per tabel lewat kunci tulis, bukan status RUNNING.
 - **Belum diubah (kelas yang sama, dugaan):** `"AI_conversation_turn"` RUNNING dipercaya 2 jam oleh
