@@ -5753,6 +5753,21 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M416 — stockbit-updater runs with restart policy ON_FAILURE, not NEVER: a failed round starts a new round (2026-11-09, open)
+
+- **Found by:** the check of what starts a Stockbit pull (user 2026-11-09: "proses pengupdatean data dari Stockbit ke
+  database dijalankan oleh apa? Apakah ada cron job spesifik?").
+- **Verified:** `apps/stockbit-updater/railway.json` says `restartPolicyType NEVER` and `updater.py` documents "Restart
+  policy NEVER", but the deployments `1c7d5ba2` and `39ab0f3b` ran with `serviceManifest.deploy.restartPolicyType
+  ON_FAILURE`, and the service instance reads `ON_FAILURE` (GraphQL, 2026-11-09). No cron schedule.
+- **Effect:** a round that ends FAILED (exit 1) is started again by Railway with the same token, a new round and a new
+  pull. Round `28c3b97f` (2026-11-09) records "container dijalankan ulang oleh Railway".
+- **Suspected, not checked:** why the uploaded `railway.json` is not applied (the service's config-file path or a
+  dashboard setting that overrides it).
+- **Class:** a service setting written in a file that the platform does not read; the code's comment then states a
+  behaviour the live service does not have. Same check applies to every CLI-uploaded service with a `railway.json`.
+- **Status:** OPEN; part of the decision on how a Stockbit round is started (FUTURE_PLAN / user's choice A or B).
+
 ### M415 — orc-test-runner guard: a finished job read as still running (2026-11-09, fixed)
 
 - **Symptom:** after the DRYRUN `37c7a5b6` (`JOB_EXIT 0`, `JOB_DONE`), the next `run_job.sh` refused with
