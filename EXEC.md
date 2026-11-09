@@ -13089,6 +13089,18 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - Screener fixture 1920/1440/1100: ikon Rp, Px, Trd 2, Brk 2 satu baris; daftar terbuka, × menghapus. screener vitest 1328
   lulus; smoke dan shots diperbarui (tidak dijalankan penuh).
 
+## EXEC-TERMINAL-PANEL-LOAD — panel kanan tidak lagi macet "Loading"; ring sama cepat di semua perangkat (2026-11-09)
+
+**Kata user, 2026-11-09:** "kalau saya buka terminal, semua data sudah muncul di chart, di indikator bawah. Namun pada
+bagian kanan, broker inventory, top broker, dan lain sebagainya loading terus. Cek kenapa ini bisa terjadi." Lalu:
+"Afterthat please fix masalah ring, beda2 kecepatan putarannya antar device."
+
+- ERRORS M419: crosshair yang disalin ke Flow Timeline tanpa bar di waktu itu melempar error dan memutus pemuatan data
+  broker; diperbaiki di `data/chartTime.ts` (`safeCharts`) dan `main.ts` (`later`, tiap bagian berdiri sendiri).
+- ERRORS M420: ring melambat 10x di perangkat dengan setelan kurangi-animasi; pengecualian itu dihapus (spin.css,
+  index.html).
+- Berikutnya (user, sesudah ini): logika awal broker di Broker Inventory pada chart saat pindah saham (ACES → BBRI).
+
 ## EXEC-STOCKBIT-CRON — stockbit-updater jadi layanan cron: deploy tidak menarik data, putaran hanya lewat Run Now (go 2026-11-09)
 
 **Kata user, 2026-11-09:** "kalau redeploy maka akan men-trigger proses ingestion data regardless tokennya aktif atau

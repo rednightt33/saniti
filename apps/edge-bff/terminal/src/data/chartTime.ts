@@ -50,3 +50,24 @@ export function anchorTimeScale(L: any, chart: any, times: any[], scale = 'right
 
 /** series markers with candle keys */
 export const keyedMarkers = (markers: any[]) => markers.map(point);
+
+/** ERRORS M419 (2026-11-09): a crosshair copied to a chart that has no bar at that time (the Flow Timeline before its
+    broker rows arrive, or with fewer sessions than the candles) makes lightweight-charts throw "Value is null". The copy
+    runs inside the chart's own event, so the throw also broke whatever redrew the chart under a resting pointer: the
+    broker load stopped and the right panel stayed on "Loading". Every chart's setCrosshairPosition clears the crosshair
+    instead of throwing. */
+export function safeCrosshair<C>(chart: C): C {
+  const c: any = chart;
+  if (c.__safeCross) return chart;
+  c.__safeCross = true;
+  const cross = c.setCrosshairPosition.bind(c);
+  c.setCrosshairPosition = (price: number, time: any, s: any) => {
+    try { cross(price, time, s) } catch { try { c.clearCrosshairPosition() } catch { /* a removed chart */ } }
+  };
+  return chart;
+}
+
+/** the lightweight-charts module whose every chart has the safe crosshair (main.ts, around keyedCharts) */
+export function safeCharts<T extends { createChart: (...a: any[]) => any }>(L: T): T {
+  return { ...L, createChart:(...a: any[]) => safeCrosshair(L.createChart(...a)) };
+}

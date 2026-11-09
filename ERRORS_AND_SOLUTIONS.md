@@ -5753,6 +5753,44 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M420 — Loading ring turns at different speeds on different devices (2026-11-09, fixed)
+
+- **Symptom (user):** "masalah ring, beda2 kecepatan putarannya antar device".
+- **Verified cause:** `apps/edge-bff/terminal/src/styles/spin.css` (the ring of the Terminal, Screener and Backtest) and
+  `static/index.html` (EDGE's run ring) turned once in 0.15 s, but in 1.6 s under `@media (prefers-reduced-motion:
+  reduce)`: a device with the system's reduce-motion setting (Windows "Animation effects" off, macOS/iOS "Reduce
+  motion") showed a ring about ten times slower.
+- **Suspected, not checked:** at 0.15 s a turn is 9 frames on a 60 Hz screen and 18 on a 120 Hz one, so the ring can also
+  look different between refresh rates (stroboscopic effect); not changed, the speed is the user's decision (0.15 s).
+- **Class:** a style that depends on a device setting the user does not see changes the look per device.
+- **Solution:** the reduce-motion slow-down removed from both rings; `tests/test_answer_view.py` now expects 0.15 s with
+  reduce-motion too.
+- **Status:** fixed.
+
+### M419 — Terminal: the right panel stayed on "Loading" when the pointer rested on the price chart while broker data arrived (2026-11-09, fixed)
+
+- **Symptom (user screenshot, BBCA, layout "Ok"):** the Flow Timeline drawn but its note "Loading broker data", the right
+  panel "BBCA · loading" in every section; the console: "Uncaught (in promise) Error: Value is null" at
+  `setCrosshairPosition`.
+- **Verified cause:**
+  - `app/flow.ts` copies the price chart's crosshair to the Flow Timeline (`flowChart.setCrosshairPosition`). When the Flow
+    Timeline has no bar at that time, lightweight-charts 5.2.1 throws "Value is null".
+  - The copy runs inside the chart's own crosshair event, which the chart fires when it is redrawn under a resting
+    pointer. While broker data arrived (`main.ts` `later`), the redraw threw inside the promise that fills the Flow
+    Timeline, then the right panel, then the whole history: the throw stopped the rest, nothing caught it.
+  - Reproduced on dev (pointer held on the price chart during the load): "BBCA · loading", "Loading broker data",
+    three "Value is null" page errors; also with only three indicators on, so not the layout's content. A new layout
+    worked for the user because the pointer was elsewhere.
+- **Class:** an exception in a chart event handler propagates into whatever redrew the chart; and one part of the broker
+  load failing stopped every later part.
+- **Solution:**
+  - `data/chartTime.ts` `safeCrosshair`/`safeCharts`: every chart the page creates (`main.ts` `L:safeCharts(...)`)
+    clears its crosshair instead of throwing (covers `flow.ts`, `assets.ts`, `rangeSelect.ts` and any later caller).
+  - `main.ts` `later`: each part (Flow Timeline, Broker activity) runs on its own; a part that throws logs it and says so
+    in its place, the others and the whole history still load.
+  - Tests `tests/data/crosshair.test.ts` (3); Terminal 890 pass, build passes.
+- **Status:** fixed on main; live check with the pointer on the chart after the deploy.
+
 ### M418 — Screener stock lists not published on dev: the publisher's role could not read Stock_List (2026-11-09, fixed, live)
 
 - **Found by:** the first terminal-publisher run with the stock-lists step (Run Now 15:36 UTC after PR #63): log

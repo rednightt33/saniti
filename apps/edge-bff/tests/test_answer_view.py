@@ -417,12 +417,13 @@ def test_a_running_answer_shows_its_steps_from_orc(fixture_server, browser_page)
         progress = page.locator('.edge-run-progress')
         progress.wait_for(timeout=10000)
         assert progress.locator('.edge-run-progress-time').inner_text() == '42s'
-        # user 2026-10-30: the card says "Running" once, and its ring turns like the Terminal's (0.15 s; 1.6 s with less motion)
+        # user 2026-10-30: the card says "Running" once, and its ring turns like the Terminal's (0.15 s); the same speed on
+        # every device, the reduce-motion setting included (user 2026-11-09, ERRORS M420)
         assert page.locator('.edge-run-card .edge-inline-progress').is_hidden()
         ring = progress.locator('.edge-run-step.now .edge-run-step-mark')
         assert ring.evaluate('n => getComputedStyle(n).animationDuration') == '0.15s'
         page.emulate_media(reduced_motion='reduce')
-        assert ring.evaluate('n => getComputedStyle(n).animationDuration') == '1.6s'
+        assert ring.evaluate('n => getComputedStyle(n).animationDuration') == '0.15s'
         page.emulate_media(reduced_motion='no-preference')
         # MONITOR-REVAMP (AI_revamp.html running card): the finished steps are listed, then the step running now
         assert progress.locator('.edge-run-step.now').inner_text() == 'Kode analisis\u2026'

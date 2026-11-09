@@ -32,7 +32,7 @@ import { initLayouts } from './app/layouts';
 import { initPresets } from './app/presets';
 import { initAssets } from './app/assets';
 import { asTimeframe, isIntraday, periodsPerYear, tfLabel, tfTitle, type Timeframe } from './data/timeframe';
-import { keyedCharts } from './data/chartTime';
+import { keyedCharts, safeCharts } from './data/chartTime';
 
 /* EXEC-TERMINAL-WM (user 2026-10-27: "time frame ditambah weekly dan monthly"), live: D, W and M. The page's sections
    take the candles once when they start, so another timeframe is remembered and the page loads again (its files come
@@ -91,7 +91,7 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   if (!container) return null;
   const ohlc = M.ohlc;
   const ctx = {
-    M, L:M.intraday ? keyedCharts(L) : L, SYMBOL:M.symbol, INSTRUMENTS:M.instruments, container,
+    M, L:safeCharts(M.intraday ? keyedCharts(L) : L), SYMBOL:M.symbol, INSTRUMENTS:M.instruments, container,
     dates:ohlc.map(b => b.time), ohlc, volume:M.volume, lineData:M.lineData,
     closes:ohlc.map(b => b.close), N:ohlc.length, idxByTime:new Map(ohlc.map((b, i) => [b.time, i])),
     active:new Map(), catalog:M.catalog, rawSeries, IND_REG
@@ -150,17 +150,25 @@ function later(ctx: Ctx, M: MarketData) {
   const failed = () => { ctx.brokerFailed = true; ctx.redrawFlow?.();      // QA round 3 (R2-M3): "—" and no zero line at once
     const note = $('flowNote'); note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.hidden = false;
     ctx.refreshFlowIndicators?.(); ctx.brokerPanelFailed?.() };
+  /* ERRORS M419: each part that takes the broker rows runs on its own; a part that throws says so in its place and the
+     others (and the whole history after them) still load, instead of one throw leaving everything on "Loading" */
+  const step = (name: string, run: () => void, onFail?: () => void) => {
+    try { run() } catch (e) { console.error(`Broker data: ${name} could not be drawn`, e); onFail?.() }
+  };
   /* F5: the recent years first (Flow and Broker activity), then the whole history replaces them in the Flow Timeline */
   M.later.broker.then(b => {
     ctx.flowRows = b.flow;                                 // EXEC-TERMINAL-FLOW-IND: read by the Flow indicators on setFlowData
-    ctx.setFlowData(b.combos, b.flowFrom, true, b.flowTo); ctx.setBrokerPanelData(b.broker); mark('flow: recent years');
+    step('Flow Timeline', () => ctx.setFlowData(b.combos, b.flowFrom, true, b.flowTo));
+    step('Broker activity', () => ctx.setBrokerPanelData(b.broker), () => ctx.brokerPanelFailed?.());
+    mark('flow: recent years');
     M.later!.brokerAll.then(all => {
       ctx.flowRows = all.flow;
-      ctx.setFlowData(all.combos, all.flowFrom, false, all.flowTo); mark('flow: every year');
+      step('Flow Timeline', () => ctx.setFlowData(all.combos, all.flowFrom, false, all.flowTo)); mark('flow: every year');
       (window as any).__flowAll = true;                    // the whole broker history is in (live checks wait for it)
-      if (all.broker.dates.length > b.broker.dates.length) ctx.setBrokerPanelData(all.broker);   // EXEC-BROKER-FULL: the whole history
+      if (all.broker.dates.length > b.broker.dates.length)   // EXEC-BROKER-FULL: the whole history
+        step('Broker activity', () => ctx.setBrokerPanelData(all.broker), () => ctx.brokerPanelFailed?.());
     }, failed);
-  }, () => { ctx.setFlowData([], ctx.N); failed() });
+  }, () => { step('Flow Timeline', () => ctx.setFlowData([], ctx.N)); failed() });
 }
 
 /* a message on the chart, in the reference's own panel style: the loading notice, or a load failure (role alert) */
