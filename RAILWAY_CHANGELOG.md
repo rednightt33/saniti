@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-11-09 — edge-bff `d1cb965b`: Terminal right panel no longer stuck on "Loading" (M419), one ring speed (M420)
+
+- User: "bagian kanan ... loading terus. Cek kenapa" and "fix masalah ring, beda2 kecepatan putarannya antar device".
+- Checked before: no EDGE job or orc turn running, 23:29 WIB (outside B6).
+- The push started `749d2da6`; the agent also started `serviceInstanceDeployV2` → `b3a5ad09` SUCCESS 16:30 UTC (same
+  commit). `/ready` 200; the served Terminal bundle is `index-DovvTOt6.js` (was `index-vroHaJV4.js`).
+- Live check (pointer held on the price chart while the page loads, layout "Ok" with every indicator on): BBCA and ACES
+  "· 09 Nov 2026", no page error (before: "BBCA · loading", three "Value is null").
+- Rollback: `serviceInstanceDeployV2` with `cb38518c`.
+
 ## 2026-11-09 — stockbit-updater is a cron job: deploys run nothing, a round runs on Run Now (EXEC-STOCKBIT-CRON, M416)
 
 User: "Oke, updater dijadikan cron dan uji volume dulu. Sebenarnya nggak perlu sih kalau data yang mentah Stockbit kita

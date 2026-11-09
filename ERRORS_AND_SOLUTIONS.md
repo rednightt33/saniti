@@ -5789,7 +5789,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
   - `main.ts` `later`: each part (Flow Timeline, Broker activity) runs on its own; a part that throws logs it and says so
     in its place, the others and the whole history still load.
   - Tests `tests/data/crosshair.test.ts` (3); Terminal 890 pass, build passes.
-- **Status:** fixed on main; live check with the pointer on the chart after the deploy.
+- **Status:** fixed and live (edge-bff `b3a5ad09`, `d1cb965b`): the same pointer check loads BBCA and ACES with no page error.
 
 ### M418 — Screener stock lists not published on dev: the publisher's role could not read Stock_List (2026-11-09, fixed, live)
 
