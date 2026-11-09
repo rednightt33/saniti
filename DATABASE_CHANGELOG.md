@@ -1,5 +1,15 @@
 # Database changelog
 
+## 2026-11-09 — Two more dead Stockbit rounds closed (EXEC-ROUND-HEARTBEAT, ERRORS M413)
+
+- **User:** "jalankan nomor 1, 2, 3" (2026-11-09).
+- **Change:** `Monitoring_Stockbit_Update` rows `c7705209-f09a-4bf3-805c-596984c11ae4` (deployment `33e76340`, started by
+  Railway's redeploy after the usage-limit stop, removed on the user's "Hentikan putaran" before any write) and `e3331473-678d-453c-acb3-122855c64fee`
+  (2026-10-27) RUNNING → FAILED, `finished_at` = their last update, `last_error` says they were closed by hand.
+- **How:** `verification/stockbit_updater_20261109/close_dead_rounds_2.py` with `scripts/onboarding/run_job.sh` on
+  orc-test-runner (refuses unless exactly those two are RUNNING); `OUT` listed both; read back through pgweb: no
+  RUNNING row left in the last 2 days (5 FAILED, 2 SUCCESS).
+
 ## 2026-11-09 — Stockbit round: Broker Summary 2026-11-04..06, stock lists first capture, four cut rounds closed
 
 - **Broker Summary:** 2026-11-04 23,458, 2026-11-05 23,370, 2026-11-06 22,324 rows (69,152; long codes checked 353, 378,

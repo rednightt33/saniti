@@ -13089,6 +13089,25 @@ align? Kemudian lihat screenshot top blockers yang saya bulletin, kemudian saya 
 - Screener fixture 1920/1440/1100: ikon Rp, Px, Trd 2, Brk 2 satu baris; daftar terbuka, × menghapus. screener vitest 1328
   lulus; smoke dan shots diperbarui (tidak dijalankan penuh).
 
+## EXEC-ROUND-HEARTBEAT — putaran Stockbit yang mati tidak lagi menahan publisher (go 2026-11-09, kode di main, deploy menunggu)
+
+**Go user, 2026-11-09:** "Sync with the latest main branch, jalankan nomor 1, 2, 3." (ERRORS M413)
+
+- **Nomor 1 — data (selesai):** dua baris `Monitoring_Stockbit_Update` yang masih RUNNING tanpa proses (`c7705209`,
+  `e3331473`) ditutup FAILED (`verification/stockbit_updater_20261109/close_dead_rounds_2.py`, dibaca balik FAILED);
+  empat lainnya sudah ditutup sesi lain (user "Boleh"). Publisher ditekan Run Now 14:02:58 UTC (deployment `690594c1`).
+- **Nomor 2 — stockbit-updater (kode selesai, deploy menunggu):** tanda hidup `updated_at` tiap 60 detik dari koneksi
+  sendiri; akhir putaran ditulis di koneksi baru bila koneksi putaran putus (dicoba lagi sekitar 4 menit); notifikasi
+  Telegram selalu dikirim; SIGTERM dari Railway menutup putaran FAILED dengan alasannya.
+- **Nomor 3 — terminal-publisher (kode selesai, deploy menunggu):** putaran RUNNING hanya dihitung bila tanda hidupnya
+  lebih muda dari 10 menit (`ROUND_STALE_MINUTES`).
+- **Urutan deploy:** stockbit-updater dulu (setiap deploy menjalankan satu putaran, jadi menunggu go user untuk putaran
+  berikutnya), lalu terminal-publisher di luar 07:30/19:00 WIB dan B6. Saat deploy updater: perbarui `Column_Catalog`
+  `Monitoring_Stockbit_Update.updated_at` ("Last change of the row" → juga tanda hidup tiap 60 detik selama RUNNING)
+  dengan migrasi baru.
+- **Belum diubah (kelas yang sama, dugaan):** `"AI_conversation_turn"` RUNNING dipercaya 2 jam oleh
+  `scripts/restart_postgres.py` `user_runs()` tanpa tanda hidup.
+
 ## EXEC-SCREENER-TABLE-LOOK — tanda near-miss, judul kolom kondisi dua baris, baris tombol klik kanan judul kolom (go 2026-11-09, dirilis ke dev)
 
 ### Kata user

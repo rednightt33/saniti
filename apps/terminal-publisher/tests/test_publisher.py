@@ -2092,6 +2092,22 @@ def test_a_daily_run_waits_while_a_loader_writes_and_gives_up_with_an_alert(monk
     assert pub.loaders_writing(conn) == ['broker_round']
 
 
+def test_a_broker_round_counts_only_while_its_heartbeat_is_fresh():
+    """ERRORS M413: rounds whose process died (Postgres killed for memory, deployment removed) stayed RUNNING and
+    kept the publisher waiting for up to six hours. Only a row stamped within ROUND_STALE_MINUTES counts; the updater
+    stamps every HEARTBEAT_SECONDS, well inside it."""
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    pub.loaders_writing(conn)
+    (sql, params), = [(q, p) for q, p in conn.calls if 'Monitoring_Stockbit_Update' in q]
+    assert sql == pub.ROUNDS_RUNNING_SQL and params == ('RUNNING', pub.ROUND_RUNNING_HOURS, pub.ROUND_STALE_MINUTES)
+    assert 'updated_at > now() - make_interval(mins => %s)' in sql
+    import pathlib
+    path = pathlib.Path(__file__).resolve().parents[2] / 'stockbit-updater/updater.py'
+    source = path.read_text()
+    beat = int(source.split('HEARTBEAT_SECONDS = ')[1].split()[0])
+    assert beat * 3 <= pub.ROUND_STALE_MINUTES * 60      # three missed beats (a Postgres restart) still count as live
+
+
 def test_a_loader_that_ends_while_the_run_waits_lets_it_publish():
     conn = FakeConn(PRICES, BROKERS, UNIVERSE)
     conn.held.add(pub.WRITE_LOCK)

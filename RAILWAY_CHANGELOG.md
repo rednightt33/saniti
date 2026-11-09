@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-11-09 — terminal-publisher Run Now after the dead rounds were closed (EXEC-ROUND-HEARTBEAT, ERRORS M413)
+
+- The run started 13:32 UTC by the round's signal waited on dead RUNNING rounds (`waiting_for_loaders
+  busy=["broker_round"]`) and was ended at 13:48:40 UTC by the scheduled Postgres restart (`AdminShutdown`).
+- After the rows were closed: Run Now (`deploymentInstanceExecutionCreate`, user "jalankan nomor 1") at 14:02:58 UTC →
+  deployment `690594c1`; plan `files 2604`, `data_through` broker and broker_index `2026-11-09`.
+- edge-bff: the deployment of `9406f28f` (ERRORS M412) started by the agent was cancelled at the user's word ("Cancel
+  saja dulu. Memang lagi ingest data."); dev kept `2ec287f0`.
+- No code deployed for stockbit-updater or terminal-publisher yet: the heartbeat (updater) goes first, with the user's
+  go for a round, then the publisher gate.
+
 ## 2026-11-09 — whole project stopped again by the workspace usage limit; restored (ERRORS M346 pattern)
 
 - 11:27:20–11:27:25 UTC: every running deployment REMOVED by Railway (SIGTERM, clean shutdowns: terminal-api, pgweb,

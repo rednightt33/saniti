@@ -5753,6 +5753,42 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M413 — Broker data of 4-6 Nov not published: dead Stockbit rounds stayed RUNNING and the publisher waited on them (2026-11-09, fixed in code, deploy pending)
+
+- **Symptom (user):** the Broker Summary round for 2026-11-04..06 finished, but the Terminal did not show those days;
+  the publisher run started by the round's signal published nothing.
+- **Verified cause:**
+  - Postgres backends were killed by signal 9 (out of memory at the 1 GB limit) at 08:43, 09:26, 09:36 and 09:41 UTC.
+    Each kill puts Postgres into crash recovery and drops every connection.
+  - `apps/stockbit-updater/updater.py` wrote the round's end on the round's own connection. That connection was dead,
+    so the write failed, the exception left `main()` before `notify()`, and the row stayed `RUNNING` with no message.
+    Round `c7705209` (started by Railway's redeploy after the usage-limit stop, removed on the user's "Hentikan
+    putaran" before any write) stayed `RUNNING` the same way: a removed process writes no end;
+    `e3331473` had been `RUNNING` since 2026-10-27.
+  - `apps/terminal-publisher/publisher.py` `loaders_writing` counted every `RUNNING` row younger than 6 hours as a
+    round still writing. The run started 13:32 UTC logged `waiting_for_loaders busy=["broker_round"]` every 30 s.
+  - The scheduled Postgres restart at 20:45 WIB ended that waiting run (`failed`, `AdminShutdown`, 13:48:40 UTC).
+- **Class:** a status row that claims "work in progress" with no sign of life outlives the process that wrote it, and
+  every reader that waits on the claim waits on a dead process. Same mechanism, suspected, not yet changed:
+  `"AI_conversation_turn"` `RUNNING` is trusted for 2 hours by `scripts/restart_postgres.py` `user_runs()` (by
+  `created_at` only). `edge_bff.jobs` already has a lease (`lease_expires_at`) and is not affected.
+- **Solution:**
+  1. Data: the six dead rows closed `RUNNING` → `FAILED` (`finished_at` = their last update), four by
+     `verification/stockbit_updater_20261109/close_stale_rounds.py`, `c7705209` and `e3331473` by
+     `close_dead_rounds_2.py`; publisher Run Now at 14:02:58 UTC.
+  2. Updater: a heartbeat thread on its own connection stamps `updated_at` every 60 s while the round lives; the end
+     is written on a new connection when the round's own died, retried for about 4 minutes while Postgres recovers;
+     `notify()` is always called; SIGTERM (a redeploy, a removal, a usage-limit stop) ends the round `FAILED` with the
+     reason instead of leaving it `RUNNING`. Tests: `apps/stockbit-updater/test_round_end.py`.
+  3. Publisher: a `RUNNING` round counts only while its `updated_at` is younger than `ROUND_STALE_MINUTES` (10), still
+     within 6 hours (`ROUNDS_RUNNING_SQL`). Test: `test_a_broker_round_counts_only_while_its_heartbeat_is_fresh`.
+- **Deploy order:** the updater first (its deploy runs a round, so only with the user's go for a round), then the
+  publisher. A publisher with the new gate next to the old updater would see a live round as dead during its long
+  steps (up to an hour between records) and publish before the round ends.
+- **Lesson for new data and services:** every job that writes a `RUNNING` row others wait on stamps a heartbeat and
+  ends the row on a fresh connection; every reader trusts the row only while the heartbeat is fresh.
+- **Status:** data fixed; code fixed on main; deploy of stockbit-updater and terminal-publisher pending (order above).
+
 ### M412 — Terminal in EDGE: two Statistics buttons while the Terminal loads (2026-11-09, fixed)
 
 - **Symptom (user screenshot):** during "Loading SSIA" the left side showed EDGE's "» Statistics" and the Terminal's own

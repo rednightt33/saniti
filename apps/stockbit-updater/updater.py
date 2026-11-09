@@ -20,9 +20,11 @@ from __future__ import annotations
 import base64
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import traceback
 import uuid
@@ -41,6 +43,18 @@ import stock_lists  # noqa: E402
 
 MONITOR = 'public."Monitoring_Stockbit_Update"'
 EVENTS_JOB = Path('/app/events/job.py')
+# ERRORS M413: a RUNNING row is a claim that a round is working; terminal-publisher waits while one is fresh. The round
+# stamps updated_at every HEARTBEAT_SECONDS from a connection of its own (the steps run up to an hour between their own
+# records), so a round whose process died stops stamping and its row goes stale within minutes. The end of a round is
+# written on a new connection when the round's own died (Postgres restarted or killed for memory), retried while
+# Postgres recovers, and telegram-monitor is always asked to send the summary.
+HEARTBEAT_SECONDS = 60
+HEARTBEAT_SQL = f"UPDATE {MONITOR} SET updated_at = now() WHERE execution_id = %s AND status = 'RUNNING'"
+FINISH_WAITS = (10, 20, 40, 60, 60, 60)
+
+
+class Stopped(Exception):
+    """SIGTERM: Railway stops the deployment (a redeploy, a removal, a usage limit)."""
 
 
 def emit(event: str, **fields) -> None:
@@ -63,6 +77,75 @@ def record(pg, execution_id: str, **fields) -> None:
     sets = ', '.join(f'{k} = %({k})s' for k in fields)
     pg.execute(f'UPDATE {MONITOR} SET {sets}, updated_at = now() WHERE execution_id = %(id)s',
                {**{k: Jsonb(v) if isinstance(v, (dict, list)) else v for k, v in fields.items()}, 'id': execution_id})
+
+
+def connect(purpose: str = 'stockbit-updater', timeout_ms: int = 900000):
+    return psycopg.connect(os.environ['DATABASE_URL'], autocommit=True, connect_timeout=30, application_name=purpose,
+                           options=f'-c statement_timeout={timeout_ms}')
+
+
+class Heartbeat:
+    """Stamps the RUNNING row's updated_at every `every` seconds while the round lives (ERRORS M413). Its own
+    connection, opened again after a failure, so a Postgres restart costs at most a few missed beats."""
+
+    def __init__(self, execution_id: str, open_conn, every: float = HEARTBEAT_SECONDS):
+        self.execution_id, self.open_conn, self.every = execution_id, open_conn, every
+        self.done = threading.Event()
+        self.thread = threading.Thread(target=self._run, name='heartbeat', daemon=True)
+
+    def start(self) -> 'Heartbeat':
+        self.thread.start()
+        return self
+
+    def stop(self) -> None:
+        self.done.set()
+        self.thread.join(timeout=10)
+
+    def _run(self) -> None:
+        conn = None
+        while not self.done.wait(self.every):
+            try:
+                if conn is None or conn.closed:
+                    conn = self.open_conn()
+                conn.execute(HEARTBEAT_SQL, (self.execution_id,))
+            except Exception as exc:  # noqa: BLE001 - a missed beat is logged; the next one reconnects
+                emit('heartbeat_failed', error=type(exc).__name__)
+                conn = _close(conn)
+        _close(conn)
+
+
+def _close(conn) -> None:
+    try:
+        if conn is not None:
+            conn.close()
+    except Exception:  # noqa: BLE001 - closing a dead connection
+        pass
+
+
+def finish(pg, execution_id: str, open_conn, sleep=time.sleep, **fields) -> bool:
+    """Writes the round's end. When the round's connection is dead, on a new one, retried over FINISH_WAITS while
+    Postgres recovers (ERRORS M413). False when every try failed; the caller still notifies."""
+    try:
+        record(pg, execution_id, **fields)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        emit('finish_retry', attempt=0, error=type(exc).__name__)
+    for attempt, wait in enumerate(FINISH_WAITS, 1):
+        try:
+            conn = open_conn()
+            try:
+                record(conn, execution_id, **fields)
+            finally:
+                _close(conn)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            emit('finish_retry', attempt=attempt, error=type(exc).__name__)
+            sleep(wait)
+    return False
+
+
+def _on_sigterm(signum, frame):
+    raise Stopped('Round dihentikan: Railway menghentikan deployment (redeploy, dihapus atau batas pemakaian)')
 
 
 def run_events(token: str) -> dict:
@@ -127,12 +210,13 @@ def main() -> int:
     workers = int(os.environ.get('UPDATER_WORKERS', '6'))
     token = os.environ.get('STOCKBIT_TOKEN', '')
     execution_id = str(uuid.uuid4())
-    pg = psycopg.connect(os.environ['DATABASE_URL'], autocommit=True, connect_timeout=30,
-                         application_name='stockbit-updater', options='-c statement_timeout=900000')
+    pg = connect()
     pg.execute(f"""INSERT INTO {MONITOR} (execution_id, mode, status, started_at, deployment_id)
                    VALUES (%s, %s, 'RUNNING', now(), %s)""",
                (execution_id, mode, os.environ.get('RAILWAY_DEPLOYMENT_ID')))
     emit('round_started', execution_id=execution_id, mode=mode)
+    signal.signal(signal.SIGTERM, _on_sigterm)
+    beat = Heartbeat(execution_id, lambda: connect('stockbit-updater-heartbeat', 30000)).start()
     status, error, steps = 'SUCCESS', None, {}
     try:
         expires = token_expiry(token)
@@ -168,10 +252,16 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001 - every failure ends the round with a recorded, notified status
         status, error = 'FAILED', f'{type(exc).__name__}: {exc}'[:2000]
         emit('round_failed', error=error, trace=traceback.format_exc()[-3000:])
-    record(pg, execution_id, status=status, last_error=error, finished_at=datetime.now(timezone.utc))
-    emit('round_finished', execution_id=execution_id, status=status, steps=list(steps))
-    pg.close()
-    notify(execution_id)
+    finally:
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)     # the end is written and sent before Railway's SIGKILL
+        beat.stop()
+    try:
+        recorded = finish(pg, execution_id, lambda: connect('stockbit-updater', 30000), status=status,
+                          last_error=error, finished_at=datetime.now(timezone.utc))
+        emit('round_finished', execution_id=execution_id, status=status, steps=list(steps), recorded=recorded)
+    finally:
+        _close(pg)
+        notify(execution_id)
     return 0 if status == 'SUCCESS' else 1
 
 
