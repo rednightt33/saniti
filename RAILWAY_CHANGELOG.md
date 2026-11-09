@@ -1,5 +1,23 @@
 # Railway changelog
 
+## 2026-11-09 — whole project stopped again by the workspace usage limit; restored (ERRORS M346 pattern)
+
+- 11:27:20–11:27:25 UTC: every running deployment REMOVED by Railway (SIGTERM, clean shutdowns: terminal-api, pgweb,
+  Postgres "database system is shut down"), as on 2026-11-04. Not caused by a push (the 11:26 push of `93c71cb` only made
+  SKIPPED deployments). Database down 11:27–11:51 UTC.
+- 11:51 UTC: Postgres `c4413162` redeployed by the agent (user: "Ya, redeploy sekarang") → `ffabccbf` SUCCESS.
+- The user raised the usage limit ("Saya cek/naikkan limit dulu"); 11:53 UTC every service redeployed by Railway
+  (Postgres `fcf7cf58`, start 11:53:54; edge-bff and terminal-api /ready 200). Data intact (IDX_Broker_Summary through
+  2026-11-06, 4,151 stock list members).
+- db-ops-runner `d98af717` CRASHED (`ERR_POSTGRES_CONNECTION_TIMEOUT`, started before Postgres); redeployed (user: "Ya,
+  redeploy") → `4da460e0` SUCCESS.
+- stockbit-updater `33e76340` (the platform redeploy started round `c7705209`, broker 2026-11-09 fetching) removed by the
+  agent (user: "Hentikan putaran") before any write: 0 rows for 2026-11-09; its monitoring row stays RUNNING and
+  `stockbit_full_broker_import_status` 2026-11-09 `fetching` (the next round resumes it).
+- No cron fell in the outage window (fixed-income-price-recovery-cron 11:00 ran before; terminal-publisher 12:00 after).
+- The 11:29 and 11:32 orc-test-runner compare jobs (EXEC-INDEX-INCREMENTAL, read-only) failed on the database name
+  during the outage; nothing written.
+
 ## 2026-11-09 — stockbit-updater round with the stock lists; Postgres memory limit 512 MB → 1 GB (EXEC-STOCK-CATALOG)
 
 - **User:** "Ok jalankan opsi B", "Ok Jalankan"; on the out-of-memory loop "Naikkan ke 1 GB"; "Boleh" (stale rows,
