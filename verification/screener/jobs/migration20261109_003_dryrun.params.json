@@ -1,0 +1,19 @@
+{
+ "_note": "EXEC-SCREENER-STOCK-LISTS (20261109_003_terminal_reader_stock_list.sql): terminal_market_reader (the publisher's role) may SELECT Stock_List and Stock_List_Member. Staged by scripts/onboarding/run_job.sh with the migration file as an extra (verification/screener/jobs/run_migration.sh). DRYRUN rolls everything back.",
+ "mode": "DRYRUN",
+ "migrations": [
+  "20261109_003_terminal_reader_stock_list.sql"
+ ],
+ "probes": [
+  [
+   "reader_privileges",
+   null,
+   "SELECT r, has_table_privilege(r, 'public.\"Stock_List\"', 'SELECT'), has_table_privilege(r, 'public.\"Stock_List_Member\"', 'SELECT'), has_table_privilege(r, 'public.\"Stock_List_Member_History\"', 'SELECT') FROM unnest(ARRAY['terminal_market_reader', 'terminal_publisher_login']) r ORDER BY 1"
+  ],
+  [
+   "reader_cannot_write",
+   null,
+   "SELECT has_table_privilege('terminal_market_reader', 'public.\"Stock_List\"', 'UPDATE'), has_table_privilege('terminal_market_reader', 'public.\"Stock_List_Member\"', 'INSERT')"
+  ]
+ ]
+}

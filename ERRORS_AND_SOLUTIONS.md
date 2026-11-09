@@ -5753,6 +5753,26 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M418 — Screener stock lists not published on dev: the publisher's role could not read Stock_List (2026-11-09, open: grant migration ready)
+
+- **Found by:** the first terminal-publisher run with the stock-lists step (Run Now 15:36 UTC after PR #63): log
+  `stock_lists_failed error="InsufficientPrivilege"`; `refs` names brokers, fixed_income, logos and tickers only. The
+  other files were written as usual (the step leaves only its own file out, as designed).
+- **Verified cause (code):** the publisher connects as `terminal_publisher_login`, a member of `terminal_market_reader`,
+  which holds SELECT only on tables granted to it by name (`20261025_100_create_terminal_schema.sql:115`,
+  `20261101_003_terminal_reader_fixed_income.sql`); `20261109_001_stock_list.sql` granted the new tables to
+  `pgweb_reader` only. Reproduced locally with the same roles: InsufficientPrivilege before, 66 lists after the grant.
+- **Why the read-only check missed it:** `verification/screener/stock_lists/inspect_job.py` ran as the database owner
+  (orc-test-runner's `DATABASE_URL`), not as the publisher's role.
+- **Class:** a new public table read by a service whose role is granted table by table (terminal_market_reader:
+  publisher and terminal-api) is invisible to it until granted; a check run as the owner proves nothing for it.
+- **Solution:** `database/migrations/20261109_003_terminal_reader_stock_list.sql` grants SELECT on Stock_List and
+  Stock_List_Member to terminal_market_reader (the 20261101_003 pattern; history, load log and view stay unread). Local
+  rehearsal with the dev job and checker: DRYRUN PASS 8/8, APPLY PASS 7/7. Applying it on dev needs the user's go.
+- **Lesson for new data:** a data-load migration whose table a published file needs grants the reader role in the
+  same migration, and the pre-release check runs `has_table_privilege` (or the query itself) as that role.
+- **Status:** OPEN until 20261109_003 is applied and a publisher run publishes `stock_lists`.
+
 ### M416 — stockbit-updater runs with restart policy ON_FAILURE, not NEVER: a failed round starts a new round (2026-11-09, open)
 
 - **Found by:** the check of what starts a Stockbit pull (user 2026-11-09: "proses pengupdatean data dari Stockbit ke
