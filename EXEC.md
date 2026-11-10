@@ -13111,7 +13111,11 @@ gerakin kiri kanan, tapi tidak bisa atas bawah ... Ini berlaku juga buat horizon
 
 - Drag naik-turun: ERRORS M422, diperbaiki.
 - Fitur (Price range, Date range, Date and price range, Rectangle Alt + Shift + R, Parallel channel): tersedia di
-  pustaka gambar; penempatan di toolbar menunggu pilihan user.
+  pustaka gambar. **Pilihan user, 2026-11-10:** "A" (seperti TradingView, tanpa tombol baru) dan "hanya d chart" (tidak
+  di Flow Timeline). Dibuat: Parallel channel di menu garis (paling bawah); menu Shapes di tombol Brush (Brush,
+  Rectangle Alt + Shift + R); menu alat ukur di tombol Long position (Long position, Price range, Date range, Date and
+  price range). Warna: garis hitam seperti gambar lain, isian hitam tipis (transparansi 85), label alat ukur teks putih.
+  Short position tidak ditambahkan (user tidak menjawab).
 
 ## EXEC-STOCKBIT-CRON — stockbit-updater jadi layanan cron: deploy tidak menarik data, putaran hanya lewat Run Now (go 2026-11-09)
 

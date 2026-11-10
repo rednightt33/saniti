@@ -173,6 +173,10 @@ export function initDrawings(ctx: Ctx) {
   LibAny.setDefaultStyleOverride((kind: string) => {
     const base = LibAny.factoryStyleFor(kind), o: any = { color:INK, textColor:INK };
     if(Array.isArray(base.levels)){ o.levels = base.levels.map((l: any) => ({ ...l, color:INK })); o.fillBackground = false }   // black bands would stack into a grey slab
+    /* EXEC-DRAW-DRAG-TOOLS (2026-11-10): a filled tool (Rectangle, the measurers) fills with the ink, light (a black fill
+       at the library's 50% would hide the candles), and a label drawn on the ink (the measurers' white text) stays white:
+       black text on its black label could not be read */
+    if(base.backgroundColor){ o.backgroundColor = INK; o.transparency = Math.max(base.transparency ?? 0, 85); if(base.textColor === '#ffffff') o.textColor = '#ffffff' }
     return o;
   });
   const dm = new LibAny.DrawingManager(chart, candle, { magnet: prefs.magnet ? 'weak' : 'off', stayInDrawingMode: false });
@@ -296,7 +300,9 @@ export function initDrawings(ctx: Ctx) {
 
   function syncTool(kind: string | null) {
     if(LINES.some(l => l.id === kind)){ lineType = kind as string; store.set('ml.draw.line', kind as string); syncLineButton() }
-    const inGroup = (id: string | undefined) => id === 'trend-line' && LINES.some(l => l.id === kind);
+    groups.forEach(g => { if(kind && g.items.some(i => i.id === kind)){ g.type = kind; store.set(g.key, kind); syncGroup(g) } });
+    const inGroup = (id: string | undefined) => (id === 'trend-line' && LINES.some(l => l.id === kind))
+      || groups.some(g => g.tool === id && g.items.some(i => i.id === kind));
     bar.querySelectorAll<HTMLElement>('.dr-btn[data-tool]').forEach(b => { const on = b.dataset.tool === (kind || '') || inGroup(b.dataset.tool); b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)) });
     wrap.classList.toggle('dr-tool', !!kind);
     hosts.forEach(h => { if(h.kind !== 'pane') h.wrap.classList.toggle('dr-tool', !!kind && FLOW_TOOLS.has(kind)) });   // the Flow takes FLOW_TOOLS only
@@ -433,7 +439,11 @@ export function initDrawings(ctx: Ctx) {
        runs on past the second; live layout only, the fixture's menu stays the reference's (1:1 check) */
     ...(document.documentElement.classList.contains('fit')
       ? [{ id:'ray', label:'Ray', keys:'', icon:svg('<circle cx="7" cy="21" r="2.2"/><circle cx="14" cy="14" r="2.2"/><path d="M8.6 19.4l3.8-3.8M15.6 12.4L23 5"/>') }] : []),
-    { id:'vertical-line',   label:'Vertical line',   keys:'Alt + V', icon:svg('<path d="M14 5v6.8M14 16.2V23"/><circle cx="14" cy="14" r="2.2"/>') }
+    { id:'vertical-line',   label:'Vertical line',   keys:'Alt + V', icon:svg('<path d="M14 5v6.8M14 16.2V23"/><circle cx="14" cy="14" r="2.2"/>') },
+    /* EXEC-DRAW-DRAG-TOOLS (user 2026-11-10, "A", "hanya d chart"): TradingView's Channels group sits with the lines; the
+       price chart only (not in FLOW_TOOLS) */
+    ...(document.documentElement.classList.contains('fit')
+      ? [{ id:'parallel-channel', label:'Parallel channel', keys:'', icon:svg('<path d="M6 17.5L17.5 6M10.5 22L22 10.5"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17.5" cy="6" r="1.8"/><circle cx="22" cy="10.5" r="1.8"/>') }] : [])
   ];
   let lineType = store.get('ml.draw.line') as string; if(!LINES.some(l => l.id === lineType)) lineType = 'trend-line';
   const lb = bar.querySelector('.dr-btn[data-tool="trend-line"]') as HTMLElement;
@@ -441,6 +451,37 @@ export function initDrawings(ctx: Ctx) {
   function syncLineButton() {
     const l = LINES.find(x => x.id === lineType)!;
     lb.innerHTML = l.icon; lb.dataset.label = l.label; lb.setAttribute('aria-label', l.label); lineMenu.check(lineType);
+  }
+  /* EXEC-DRAW-DRAG-TOOLS (user 2026-11-10: "Tambahkan fitur terlampir", option "A", "hanya d chart"): TradingView's
+     groups on the buttons that hold them, live layout only (the fixture keeps the reference's toolbar): the Brush button
+     holds Shapes (Rectangle, Alt + Shift + R), the Long position button the Measurers (Price range, Date range, Date and
+     price range). A group's button shows its last tool, like the line button; none of them is offered on the Flow. */
+  interface Group { tool: string; items: MenuItem[]; key: string; type: string; btn: HTMLElement; menu: Menu }
+  const groups: Group[] = [];
+  const syncGroup = (g: Group) => {
+    const it = g.items.find(x => x.id === g.type)!;
+    g.btn.innerHTML = it.icon; g.btn.dataset.label = it.label; g.btn.setAttribute('aria-label', it.label); g.menu.check(g.type);
+  };
+  function toolGroup(tool: string, items: MenuItem[], key: string, label: string) {
+    const btn = bar.querySelector(`.dr-btn[data-tool="${tool}"]`) as HTMLElement | null;
+    if(!btn) return;
+    const saved = store.get(key) as string;
+    const g: Group = { tool, items, key, type:items.some(i => i.id === saved) ? saved : tool, btn,
+      menu:popMenu(btn, items, { label, wide:true, pick: it => dm.setTool(it.id) }) };
+    groups.push(g); syncGroup(g);
+  }
+  if(document.documentElement.classList.contains('fit')){
+    const icon = (kind: string) => TOOLBAR.find(t => t.kind === kind)!.icon;
+    toolGroup('brush', [
+      { id:'brush', label:'Brush', icon:icon('brush') },
+      { id:'rectangle', label:'Rectangle', keys:'Alt + Shift + R', icon:svg('<rect x="7" y="8" width="14" height="12" rx=".5"/><circle cx="7" cy="8" r="1.8"/><circle cx="21" cy="20" r="1.8"/>') }
+    ], 'ml.draw.shape', 'Shapes');
+    toolGroup('long-position', [
+      { id:'long-position', label:'Long position', icon:icon('long-position') },
+      { id:'price-range', label:'Price range', icon:svg('<path d="M7 7h14M7 21h14M14 10.5v7M11.5 13L14 10.5l2.5 2.5"/>') },
+      { id:'date-range', label:'Date range', icon:svg('<path d="M7 7v14M21 7v14M10.5 14h7M15 11.5l2.5 2.5-2.5 2.5"/>') },
+      { id:'date-and-price-range', label:'Date and price range', icon:svg('<rect x="7" y="7" width="14" height="14" rx=".5"/><path d="M14 10.5v7M10.5 14h7"/>') }
+    ], 'ml.draw.measure', 'Forecasting and measurement');
   }
   /* the reference subscribes these after its menus exist; events before then cannot happen (no tool is armed yet) */
   dm.on('tool', syncTool); dm.on('selection', syncRemove); dm.on('change', syncRemove);
@@ -454,7 +495,7 @@ export function initDrawings(ctx: Ctx) {
      Brush and Text approved, Fib / XABCD / Long position stay on the price chart): Brush and Text join the line tools, and
      every added asset's Flow Timeline gets a manager too (attachFlowDrawings), its drawings kept under that asset's ticker
      (the same key as when it is the chart's own ticker). */
-  const FLOW_TOOLS = new Set([...LINES.map(l => l.id), 'brush', 'text']);
+  const FLOW_TOOLS = new Set([...LINES.map(l => l.id).filter(id => id !== 'parallel-channel'), 'brush', 'text']);
   function attachFlow(fchart: any, fseries: any, fEl: HTMLElement, fkey: string) {
     const fwrap = fEl.parentElement as HTMLElement;
     const fdm = new LibAny.DrawingManager(fchart, fseries, { magnet:'off', stayInDrawingMode:false });
@@ -526,11 +567,12 @@ export function initDrawings(ctx: Ctx) {
   let lastPtr: { x: number; y: number; t: number } | null = null;
   document.addEventListener('keydown', (e: any) => {
     if(!e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
-    const hit = ({ KeyT:'trend-line', KeyH:'horizontal-line', KeyJ:'horizontal-ray', KeyV:'vertical-line' } as Record<string, string>)[e.code];
+    const hit = e.shiftKey ? (e.code === 'KeyR' && groups.length ? 'rectangle' : undefined)
+      : ({ KeyT:'trend-line', KeyH:'horizontal-line', KeyJ:'horizontal-ray', KeyV:'vertical-line' } as Record<string, string>)[e.code];
     if(!hit) return;
     e.preventDefault(); dm.setTool(hit);
-    /* one-click lines are placed straight away at the pointer, like TradingView; Alt+T just arms the tool */
-    if(hit !== 'trend-line' && lastPtr && Date.now() - lastPtr.t < 60000){
+    /* one-click lines are placed straight away at the pointer, like TradingView; Alt+T and Alt+Shift+R just arm the tool */
+    if(hit !== 'trend-line' && hit !== 'rectangle' && lastPtr && Date.now() - lastPtr.t < 60000){
       const el = document.elementFromPoint(lastPtr.x, lastPtr.y);
       if(el && container.contains(el)){
         const o: any = { bubbles:true, cancelable:true, composed:true, view:window, clientX:lastPtr.x, clientY:lastPtr.y, button:0, buttons:1, pointerId:1, pointerType:'mouse', isPrimary:true };
