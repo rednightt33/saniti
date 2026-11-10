@@ -33,7 +33,7 @@ dan angka KSEI berharga perkiraan.
 |---|---|---|
 | G1 Kesegaran | Semua sumber di tanggal yang sama (as-of); bila ada yang tertinggal, screener menyebutnya | Usulan |
 | G2 Universe | Saham yang ada di `Feature_06` dan punya ≥ 5 sesi Regular di 16 tanggal bursa terakhir | Usulan |
-| G3 Likuiditas (materialitas) | Total beli bruto 5 sesi tiap saham, dibuang menurut persentil. **"Luas":** buang 50% terbawah. **"Likuid":** buang 80% terbawah | **Usulan; tingkat bawaan belum diputuskan** |
+| G3 Likuiditas (materialitas) | Total beli bruto 5 sesi tiap saham, dibuang menurut persentil. **"Luas":** buang 50% terbawah. **"Likuid":** buang 80% terbawah | **Ukuran diputuskan 2026-11-10 (bagian 6 nomor 10); tingkat bawaan belum diputuskan** |
 | G4 Jumlah broker | Untuk blok konsentrasi: minimal 10 broker net beli | Pilihan AI, belum diputuskan |
 | G5 Materialitas asing | Rasio net asing minimum agar blok asing tidak meloloskan net yang sangat kecil | **Terbuka** (lihat bagian 6) |
 
@@ -56,7 +56,7 @@ Batas Rp pada 3 Nov 2026 (total beli bruto 5 sesi): buang 20% = Rp0,3 miliar, 50
 - **Pertanyaan:** saham mana yang arus beli asingnya naik tajam dibanding 5 sesi sebelumnya?
 - **Blok:** `M-FF-INC` (net asing > 0; Δ rasio net asing terhadap 5 sesi sebelumnya > 0; peringkat Δ antar saham net beli).
 - **Parameter:** Longgar: Δ persentil ≥ 75. Standar: ≥ 90. Ketat: ≥ 95.
-- **Pembanding persentil:** antar saham pada tanggal yang sama (jenis B), hanya saham yang net beli asing 5 sesi **dan** lolos gerbang likuiditas (terverifikasi pada hitung ulang 2026-11-10; belum diputuskan sebagai aturan, bagian 6 nomor 9). Hitungan: bagian 9.4.
+- **Pembanding persentil:** antar saham pada tanggal yang sama (jenis B), hanya saham yang net beli asing 5 sesi **dan** lolos gerbang likuiditas (diputuskan user 2026-11-10, bagian 6 nomor 9; terverifikasi pada hitung ulang). Hitungan: bagian 9.4.
 - **Peringkat:** Δ menurun.
 - **Kolom:** net asing, rasio sekarang, rasio 5 sesi lalu, Δ, persentil Δ.
 - **Peringatan:** Δ besar sering berarti pemulihan dari net jual besar (MYOR, PGAS, UNVR), bukan pembelian besar.
@@ -162,9 +162,9 @@ S3 (delapan dari 11):
 6. Aturan S4: dedup IDX–KSEI, label repo, definisi opportunistic (ERRORS M241, FUTURE_PLAN).
 7. Penyimpanan: tetap dokumen ini, atau dimasukkan ke tabel kamus di database kelak.
 8. Apakah S1 sampai S5 menjadi preset di Screener yang sudah ada (bagian 7) atau library terpisah.
-9. Persentil S2 dan S3 dihitung **sesudah** gerbang likuiditas (pembandingnya hanya saham yang lolos gerbang); itu yang cocok dengan angka bagian 4 pada hitung ulang 2026-11-10. Apakah itu menjadi aturan resmi, atau persentil dihitung di seluruh universe lalu gerbang diterapkan (bagian 9.6).
-10. Ukuran likuiditas G3: total beli bruto 5 sesi (library ini) atau median nilai transaksi 60 sesi (`METHODOLOGY_DICTIONARY.md`, baris "Likuiditas cukup"). Dua ukuran memilih saham yang berbeda.
-11. Tampilan di FE: ditentukan setelah butir 8.
+9. ~~Persentil S2 dan S3 dihitung sesudah gerbang atau di seluruh universe.~~ **Diputuskan user 2026-11-10** ("Go dengan usulan untuk nomor 9 sampai 11. Masukan screener docs."): persentil S2 dan S3 dihitung **sesudah** gerbang likuiditas, pembandingnya hanya saham yang lolos gerbang. Bacaan AI atas "usulan": usulan yang ada di dokumen ini adalah cara itu (cocok dengan angka bagian 4 pada hitung ulang 2026-11-10, bagian 9.6); sebelum jawaban user belum ada usulan tertulis yang eksplisit. Akibat: pada gerbang ketat pembandingnya kecil (S2: 70 saham, satu saham = ±1,4 poin).
+10. ~~Ukuran likuiditas G3.~~ **Diputuskan user 2026-11-10** (jawaban yang sama): G3 memakai **total beli bruto 5 sesi** (ukuran yang dipakai semua angka library ini). Entri "Likuiditas cukup" di `METHODOLOGY_DICTIONARY.md` (median nilai transaksi 60 sesi, buang 20%) belum disamakan dan tidak berlaku untuk library ini.
+11. **Tampilan di FE: tetap terbuka.** Tidak ada usulan konkret sebelum jawaban user; bergantung pada butir 8 (preset di Screener yang ada atau library terpisah).
 
 ## 7. Hubungan dengan Screener yang sudah ada di repo
 
