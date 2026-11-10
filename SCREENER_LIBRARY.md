@@ -84,6 +84,9 @@ Aset yang muncul di S1 dan (S2 atau S3). Daftar pendek dengan jumlah bukti terti
 
 ### S6 — Akumulasi asing, rasio 5 sesi (rancangan, struktur versi terkunci 2026-11-10; jendela 5 sesi sejak 2026-11-10)
 Empat versi (V1 absolut, V1Δ perubahan absolut terhadap T−5, V2 persentil riwayat, V2Δ perubahan persentil), bebas dicentang; tanpa peringkat antar saham (V3). Rincian dan hitungan: bagian 11. S7 dan S8 menyusul dengan struktur yang sama.
+
+### S7 — Institusi masuk, ritel keluar (rancangan, disetujui user 2026-11-10)
+Indikator FL34 (selisih net broker institusi dan ritel, jendela 5 sesi) dengan keadaan perubahan terhadap T−5 (membaik, pembalikan, menguat dan cerminnya), besar Δ sebagai syarat, dan penjaga net institusi > 0. V2 dan V2Δ menunggu keputusan data. Rincian: bagian 12.
 ## 4. Contoh keluaran, as-of 3 Nov 2026 (semua sumber di tanggal itu)
 
 Contoh parameter dan jumlah, bukan rekomendasi. Jendela = 5 sesi Regular terakhir tiap saham.
@@ -661,3 +664,95 @@ Selisihnya tidak konstan (3,4 sampai 8,2 kali), karena bergantung pada isi 15 se
 **Hubungan dengan S1 dan S2:** V2 mirip S1 (persentil terhadap riwayat sendiri) tetapi atas rasio, bukan Rupiah, dan tanpa syarat 3 dari 5 hari net beli. V1Δ sama dengan Δ S2 tetapi dipakai dengan ambang, bukan diperingkat antar saham.
 
 **Yang bukan artinya:** bukan sinyal beli; hanya jenis investor Foreign di seluruh broker (bukan broker tertentu); tidak membedakan satu transaksi blok dari pembelian yang tersebar (kecuali syarat persistensi opsional dicentang).
+
+## 12. S7 Institusi masuk, ritel keluar (rancangan disetujui 2026-11-10, belum dibangun)
+
+**Keputusan user 2026-11-10:** "Ok default 5 sesi tidak apa sebenarnya. Yang mau di detect adalah apabila value ini negatif tapi jadi less negative compare to X session, negative to positive, atau positive to even stronger positive. Kemudian magnitude perubahannya juga." Atas usulan AI (penjaga per keadaan, ambang, cerminnya): "bisa disetujui. Dan oke lah kita masuk ... ke usulan tersebut dan itu bisa dipakai."
+Angka dihitung dari `IDX_Broker_Summary` (papan Regular, kedua jenis investor), as-of 3 Nov 2026, universe 859 saham `Feature_06`. Ambang adalah usulan awal; sensitivitas belum diuji.
+
+### 12.1 Ukuran
+
+**FL34** (kode `main`, `flow.ts`): `100 × (net broker institusi − net broker ritel) ÷ total beli bruto semua broker`, dijumlahkan selama jendela W sesi yang berakhir hari itu (W = "Rolling days", bawaan 20; **di S7 dipakai 5**). Keluaran `change` = nilai hari ini − nilai pada 1, 5, atau 20 sesi lalu (di S7: 5, sehingga dua blok 5 sesi berurutan dan tidak tumpang tindih).
+Daftar broker: `Institutional-heavy` dan `Retail-heavy` dari `IDX_Broker_Profile` (yang dibaca BFF; 112 broker: 25 institusi-heavy, 19 ritel-heavy, 23 Mixed, 45 Niche). Label identik dengan `Feature_02_Broker_Rolling` untuk 89 broker yang sama, dan hasil S7 identik pada kedua daftar (3 Nov, jendela 5 sesi). Klasifikasi terkini dipakai untuk semua tanggal. Broker yang ada di kedua daftar membuat nilai kosong.
+
+**Penguraian (identitas):** FL34 = % institusi − % ritel, dengan % = net kelompok ÷ total beli semua broker. Perubahan Δ = dI + dR, dI = perubahan % institusi, dR = −(perubahan % ritel); identitas diuji pada semua saham (selisih terbesar 1,4·10⁻¹⁴). Net institusi + net ritel + net "lainnya" (Mixed dan Niche) = 0, sehingga net "lainnya" dapat diturunkan.
+
+### 12.2 Keadaan perubahan dan besar Δ
+
+| Kode | FL34 sebelumnya → sekarang | Nama | Jumlah ("Likuid" 172 / "Luas" 430) |
+|---|---|---|---:|
+| A | negatif → kurang negatif | Dominasi ritel mereda | 28 / 64 |
+| B | negatif → positif | Pembalikan | 23 / 87 |
+| C | positif → lebih positif | Menguat | 33 / 73 |
+| x | negatif → lebih negatif | Memburuk | 26 / 67 |
+| y | positif → kurang positif | Melemah | 21 / 44 |
+| z | positif → negatif | Berbalik turun | 41 / 95 |
+
+A, B, C adalah arah naik; x, y, z cerminnya (arah turun, bacaan AI). Keadaan saja tidak selektif (A + B + C = 49% saham pada "Likuid"), karena FL34 5 sesi bergejolak: sebaran seluruh saham P10 −23,4, P50 −0,5, P90 +26,6; Δ P10 −29,5, P50 0,0, P90 +30,0. **Besar Δ wajib menjadi syarat.**
+
+| Tingkat | Δ ≥ (poin FL34) |
+|---|---:|
+| Longgar | 10 |
+| **Standar** | **20** |
+| Ketat | 40 |
+
+Jumlah per keadaan menurut ambang ("Likuid" / "Luas"):
+
+| Keadaan | Δ ≥ 10 | Δ ≥ 20 | Δ ≥ 40 | Sebaran Δ P50 / P75 / P90 ("Likuid") |
+|---|---:|---:|---:|---|
+| A | 13 / 23 | 9 / 13 | 4 / 5 | 7,5 / 24,1 / 45,4 |
+| B | 17 / 63 | 12 / 34 | 4 / 9 | 22,0 / 32,7 / 42,0 |
+| C | 14 / 32 | 6 / 14 | 0 / 2 | 7,4 / 14,5 / 22,7 |
+
+### 12.3 Penjaga (disetujui)
+
+| # | Aturan |
+|---|---|
+| 1 | Keadaan dan Δ ≥ ambang menggantikan penjaga level V1 (aturan S6 "Δ wajib disertai V1 atau V2" tidak berlaku, karena A dan B justru lolos saat level negatif). |
+| 2 | **Net institusi 5 sesi > 0** wajib untuk B dan C ("masuk"), bawaan aktif; **tidak** berlaku untuk A. |
+| 3 | Net ritel 5 sesi < 0: penjaga opsional. |
+| 4 | Hasil selalu menampilkan net institusi, net ritel, net "lainnya" (turunan), % tiap kelompok, Δ, dI dan dR. |
+| 5 | G2 universe dan G3 likuiditas eksplisit (bawaan "Luas"); persistensi opsional: net institusi positif di ≥ 3 dari 5 sesi (padanan aturan 6 S6). |
+| 6 | V2 dan V2Δ (persentil terhadap 252 nilai FL34 saham itu sendiri) **menunggu keputusan data**: butuh tabel turunan (net institusi, net ritel, total beli per saham per hari); hanya `Feature_06` yang menyimpan persentil riwayat. Pemindaian 272 sesi data broker ke semua saham ditunda (membaca jutaan baris). |
+
+Pengaruh penjaga net institusi > 0 pada Δ ≥ 20 ("Likuid" / "Luas"):
+
+| Keadaan | Lolos Δ ≥ 20 | Dengan net institusi > 0 | Net institusi > 0 dan net ritel < 0 | "Lainnya" net beli lebih besar dari net institusi |
+|---|---:|---:|---:|---:|
+| A | 9 / 13 | 1 / 1 | 0 / 0 | 8 / 12 |
+| B | 12 / 34 | 10 / 25 | 10 / 25 | 8 / 26 |
+| C | 6 / 14 | 6 / 13 | 6 / 13 | 2 / 6 |
+
+### 12.4 Cara membaca FL34 (jawaban atas pertanyaan user 2026-11-10)
+
+**Pertanyaan:** bila FL34 sangat negatif lalu mendadak positif atau kurang negatif, apakah itu berarti institusi masuk atau net buy? **Jawaban:** tidak otomatis. Ritel net beli **menurunkan** FL34 (dikurangkan di pembilang); kenaikan FL34 datang dari institusi yang lebih banyak membeli dan/atau ritel yang lebih banyak menjual (atau kurang membeli). Net institusi positif hanya terlihat dari level kaki institusi, bukan dari tanda FL34.
+
+Saham yang FL34-nya sebelumnya ≤ −30 lalu naik ≥ 20 poin:
+
+| | "Likuid" | "Luas" |
+|---|---|---|
+| Jumlah | 8 | 13 |
+| **Tetap negatif ("membaik")** | 6 | 10 |
+| ... net institusi sekarang > 0 | **0 dari 6** | **0 dari 10** |
+| ... kontribusi institusi (dI) > kontribusi ritel (dR) | 4 | 6 |
+| ... kontribusi institusi positif (institusi kurang menjual) | 5 | 9 |
+| **Menjadi positif ("pembalikan")** | 2 | 3 |
+| ... net institusi sekarang > 0 | 2 dari 2 | 2 dari 3 |
+| ... dI > dR | 2 | 2 |
+
+Contoh ("Likuid"; Rp miliar untuk net institusi):
+
+| Saham | FL34 sebelumnya → sekarang | Δ | dI | dR | Net institusi sekarang |
+|---|---|---:|---:|---:|---:|
+| CNMA | −83,5 → −6,6 | +76,9 | +39,8 | +37,0 | −2,86 |
+| UNVR | −38,8 → +16,7 | +55,5 | +35,2 | +20,3 | **+22,76** |
+| MIKA | −81,8 → −31,6 | +50,2 | +36,3 | +13,9 | −14,93 |
+| SCMA | −35,9 → +6,3 | +42,2 | +22,1 | +20,1 | +1,51 |
+| TCPI | −38,9 → −9,0 | +29,9 | −0,3 | +30,2 | −8,77 |
+| TLKM | −40,2 → −15,7 | +24,6 | +5,0 | +19,6 | **−595,55** |
+
+TLKM: FL34 membaik 24,6 poin padahal institusi masih net jual Rp595,55 miliar; seluruh perbaikan datang dari kaki ritel. BTPS (pembalikan ke +35,3) positif karena ritel menjual Rp19,77 miliar, sementara institusi net jual Rp4,08 miliar dan net "lainnya" +Rp23,85 miliar (54% dari total beli).
+
+### 12.5 Keterbatasan
+
+Satu tanggal dan satu jendela 5 sesi; sampel "sangat negatif lalu naik" kecil (8 dan 13 saham); ambang belum diuji sensitivitasnya; FL34 tidak memperlihatkan konsentrasi di dalam kelompok (CBDK: satu broker institusi, KI, memegang 99,7% net institusi 5 sesi); label broker adalah kecenderungan klien, bukan jenis investor transaksi; Mixed dan Niche (68 dari 112 broker) tidak masuk pembilang.
