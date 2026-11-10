@@ -83,7 +83,7 @@ Aset yang muncul di S1 dan (S2 atau S3). Daftar pendek dengan jumlah bukti terti
 
 
 ### S6 — Akumulasi asing, rasio 20 sesi (rancangan, struktur versi terkunci 2026-11-10)
-Empat dasar (nilai mutlak, perubahan terhadap T−5, persentil riwayat, perubahan persentil) dan dua peringkat antar saham, bebas dicentang. Rincian dan hitungan: bagian 11. S7 dan S8 menyusul dengan struktur yang sama.
+Empat versi (V1 absolut, V1Δ perubahan absolut terhadap T−5, V2 persentil riwayat, V2Δ perubahan persentil), bebas dicentang; tanpa peringkat antar saham (V3). Rincian dan hitungan: bagian 11. S7 dan S8 menyusul dengan struktur yang sama.
 ## 4. Contoh keluaran, as-of 3 Nov 2026 (semua sumber di tanggal itu)
 
 Contoh parameter dan jumlah, bukan rekomendasi. Jendela = 5 sesi Regular terakhir tiap saham.
@@ -542,7 +542,7 @@ Batas: satu tanggal (3 Nov 2026) dan satu jendela 5 sesi; kestabilan hari ke har
 
 ## 11. S6 Akumulasi asing: struktur versi (terkunci 2026-11-10, belum dibangun)
 
-**Keputusan user 2026-11-10:** "V1 absolute / V1 delta: delta absolute terhadap T-5 / V2 riwayat percentile absolute value / V2 delta: riwayat percentile absolute value vs. riwayat percentile absolute value T-5" dan "Ok lock ya rekomendasi kamu." Sebelumnya: "Leave S1 S2 S3 dulu as is karena sudah OK", V3 dipecah menjadi V3 absolut dan V3 persentil, subset bebas dicentang (iii). S1 sampai S3 tidak berubah. S7 dan S8 belum disusun.
+**Keputusan user 2026-11-10:** "V1 absolute / V1 delta: delta absolute terhadap T-5 / V2 riwayat percentile absolute value / V2 delta: riwayat percentile absolute value vs. riwayat percentile absolute value T-5" dan "Ok lock ya rekomendasi kamu." Sebelumnya: "Leave S1 S2 S3 dulu as is karena sudah OK", subset bebas dicentang (iii). **Koreksi user 2026-11-10: "tidak ada V3. yang ada adalah V1 dan V1-delta, V2 dan V2-delta"**; versi peringkat antar saham (V3-abs, V3-pct) yang sempat tercatat dihapus. S1 sampai S3 tidak berubah. S7 dan S8 belum disusun.
 Ambang masih usulan yang belum diuji sensitivitasnya; semua angka dihitung dari `Feature_06_Foreign_Domestic`, as-of 3 Nov 2026, papan Regular.
 
 ### 11.1 Ukuran dan versi
@@ -555,10 +555,8 @@ Ambang masih usulan yang belum diuji sensitivitasnya; semua angka dihitung dari 
 | V1Δ Perubahan absolut | rasio hari ini − rasio T−5 ≥ (poin) | 3 | **5** | 13 |
 | V2 Persentil riwayat | persentil rasio hari ini terhadap 252 nilai rasio saham itu sendiri ≥ | 90 | **95** | 98 |
 | V2Δ Perubahan persentil | persentil hari ini − persentil T−5 ≥ (poin); persentil T−5 dihitung dengan riwayat 252 nilai sebelum T−5 | 5 | **13** | 25 |
-| V3-abs | peringkat rasio mentah antar saham eligible ≥ | 80 | **90** | 95 |
-| V3-pct | peringkat persentil V2 antar saham eligible (yang punya riwayat 252 sesi) ≥ | 80 | **90** | 95 |
 
-Persentil riwayat = 100 × (jumlah dari 252 nilai sebelumnya yang lebih kecil dari nilai hari ini) ÷ 252. Peringkat antar saham = 100 × (jumlah saham pembanding lain yang lebih kecil) ÷ (jumlah pembanding − 1). Pembanding V3 adalah semua saham yang lolos gerbang likuiditas (keputusan 9), tanpa syarat arah.
+Persentil riwayat = 100 × (jumlah dari 252 nilai sebelumnya yang lebih kecil dari nilai hari ini) ÷ 252.
 
 **Aturan yang terkunci:**
 
@@ -568,7 +566,7 @@ Persentil riwayat = 100 × (jumlah dari 252 nilai sebelumnya yang lebih kecil da
 | 2 | V1Δ dan V2Δ tidak boleh dicentang tanpa V1 atau V2. Alasan: Δ sendirian meloloskan terlalu banyak saham (V1Δ 36% dan V2Δ 38% dari 168 saham pada ambang awal), termasuk yang rasionya rendah atau negatif (GOTO 1,8% dari −14,5; BBYB −10,1%). |
 | 3 | Arah Δ dapat dipilih naik atau turun; "turun" (Δ ≤ −ambang) dipakai untuk mencari momentum yang melambat. Bacaan AI atas "naik atau menurun". |
 | 4 | Jarak tetap T−5 (5 sesi sebelum hari ini). |
-| 5 | V3-abs dan V3-pct tidak punya versi Δ. |
+| 5 | Tidak ada versi peringkat antar saham (V3). V2 dan V2Δ hanya terhadap riwayat saham itu sendiri; satu-satunya pembanding antar saham adalah gerbang likuiditas. |
 | 6 | Syarat persistensi (net beli beberapa sesi berturut-turut) tidak termasuk ketiga versi. |
 | 7 | Bawaan subset (bacaan AI): V1 + V2; versi Δ mati. |
 
@@ -587,7 +585,7 @@ Persentil riwayat = 100 × (jumlah dari 252 nilai sebelumnya yang lebih kecil da
 | V1 + V2 + V2Δ | 5 | 8 | 8 |
 | V1 + V2 + V1Δ + V2Δ | 4 | 6 | 6 |
 
-V1Δ sendiri 17 / 35 / 46 dan V2Δ sendiri 35 / 81 / 108 (hanya untuk dokumentasi; aturan 2 melarangnya sendirian). V3-abs dan V3-pct meloloskan sekitar 10% pembanding menurut definisi (V3-pct: 17 dari 168 pada "Likuid"). Tingkat lain pada "Likuid": Longgar V1 44, V2 25, V1 + V2 22, keempat versi 9; Ketat V1 18, V2 9, V1 + V2 6, keempat versi 2.
+V1Δ sendiri 17 / 35 / 46 dan V2Δ sendiri 35 / 81 / 108 (hanya untuk dokumentasi; aturan 2 melarangnya sendirian). Tingkat lain pada "Likuid": Longgar V1 44, V2 25, V1 + V2 22, keempat versi 9; Ketat V1 18, V2 9, V1 + V2 6, keempat versi 2.
 
 ### 11.3 Contoh: 11 saham yang lolos V1 + V2 pada gerbang "Likuid", Standar
 
@@ -607,16 +605,37 @@ V1Δ sendiri 17 / 35 / 46 dan V2Δ sendiri 35 / 81 / 108 (hanya untuk dokumentas
 
 PWON dan CTRA lolos level tetapi gagal kedua Δ: kasus "melambat". Penelusuran dua saham:
 
-| Saham | V1 rasio | rasio T−5 | V1Δ | V2: nilai riwayat lebih kecil | V2 T−5 | V2Δ | V3-pct: persentil V2 saham lain yang lebih kecil |
-|---|---:|---:|---:|---|---:|---:|---|
-| BOGA | 97,6 | −0,7 | +98,3 | 248 dari 252 = 98,4 | 71,4 | +27,0 | 160 dari 167 = 95,8 |
-| DKFT | 21,9 | −0,5 | +22,5 | 252 dari 252 = 100,0 | 56,7 | +43,3 | 165 dari 167 = 98,8 |
+| Saham | V1 rasio | rasio T−5 | V1Δ | V2: nilai riwayat lebih kecil | V2 T−5 | V2Δ |
+|---|---:|---:|---:|---|---:|---:|
+| BOGA | 97,6 | −0,7 | +98,3 | 248 dari 252 = 98,4 | 71,4 | +27,0 |
+| DKFT | 21,9 | −0,5 | +22,5 | 252 dari 252 = 100,0 | 56,7 | +43,3 |
 
 ### 11.4 Keterbatasan
 
 - V2 jenuh di 100 (3 saham persis 100,0): MAPA dan SSMS naik +4,7 dan +3,2 poin di V1Δ tetapi V2Δ hampir nol. Itu alasan kedua Δ dipertahankan.
 - Rasio hari ini dan rasio T−5 berbagi 15 dari 20 sesi: V1Δ adalah selisih 5 sesi yang masuk dan 5 sesi yang keluar. BOGA: 5 sesi masuk (28 Okt sampai 3 Nov) net asing +Rp61,77 miliar dari total beli Rp62,89 miliar = 98,2%; 5 sesi keluar (30 Sep sampai 6 Okt) −9,6% dari Rp0,04 miliar.
-- V2 memakai persentil rasio (bukan Rupiah); riwayat kurang dari 252 sesi (4 saham pada "Likuid") tidak diikutkan di V2, V2Δ, dan V3-pct.
+- V2 memakai persentil rasio (bukan Rupiah); riwayat kurang dari 252 sesi (4 saham pada "Likuid") tidak diikutkan di V2 dan V2Δ.
 - Tumpang tindih dengan S1: pada "Likuid" hanya BOGA dan DKFT yang ada di S1 dan lolos ketiga versi S6; 9 dari 11 saham tidak ada di S1 (horizon 20 sesi dan rasio, bukan 5 sesi dan Rupiah).
 - Di BFF `main`, persentil riwayat 252 sesi dan peringkat Flow antar saham belum dapat dibuat persis (baseline dibatasi jendela broker 60 sesi; peringkat antar saham Flow masih Phase 2); bagian 7.
 - Satu tanggal; ambang Δ dibulatkan dari sebaran sampel kecil (n = 32 sampai 56); sensitivitas belum diuji.
+
+### 11.5 Kepekaan V1Δ dibanding S2 (hitungan 2026-11-10)
+
+V1Δ memakai rasio 20 sesi yang digeser 5 sesi (berbagi 15 sesi), sedangkan Δ S2 membandingkan dua blok 5 sesi berurutan. Akibatnya V1Δ jauh kurang peka: ia hanya melihat selisih 5 sesi yang masuk dan 5 sesi yang keluar, dan di dalam jendela 20 sesi selisih itu diencerkan oleh 15 sesi yang sama. Penelusuran DKFT (Rp miliar, papan Regular):
+
+| Blok | Sesi | Net asing | Total beli | Rasio |
+|---|---|---:|---:|---:|
+| Keluar | 30 Sep s.d. 6 Okt | −0,635 | 11,831 | −5,37% |
+| Bersama (15 sesi) | 7 Okt s.d. 27 Okt | +0,368 | 36,946 | 1,00% |
+| Masuk | 28 Okt s.d. 3 Nov | +14,834 | 32,328 | 45,89% |
+| Blok sebelumnya (S2) | 21 Okt s.d. 27 Okt | −1,869 | 6,258 | −29,87% |
+
+r20 hari ini = (0,368 + 14,834) ÷ (36,946 + 32,328) = 21,95%; r20 pada T−5 = (0,368 − 0,635) ÷ (36,946 + 11,831) = −0,55%; **V1Δ = +22,49 poin**. Δ S2 = 45,89 − (−29,87) = **+75,75 poin**.
+
+| Saham | Δ S2 (blok 5 sesi) | V1Δ (rasio 20 sesi, T−5) | Selisih |
+|---|---:|---:|---:|
+| DKFT | +75,75 | +22,49 | 3,4 kali |
+| MYOR | +46,25 | +8,24 | 5,6 kali |
+| UNVR | +28,08 | +3,44 | 8,2 kali |
+
+Selisihnya tidak konstan (3,4 sampai 8,2 kali), karena bergantung pada isi 15 sesi yang sama. **Belum diputuskan:** apakah jendela rasio untuk V1Δ dan V2Δ dapat dipilih (5 atau 20 sesi); dengan jendela 5 sesi dan T−5, V1Δ identik dengan Δ S2.
