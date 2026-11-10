@@ -82,7 +82,7 @@ transfer, tanpa kembar IDX–KSEI, dan dengan ukuran relatif terhadap saham bere
 Aset yang muncul di S1 dan (S2 atau S3). Daftar pendek dengan jumlah bukti tertinggi, tetapi juga paling sedikit anggotanya.
 
 
-### S6 — Akumulasi asing, rasio 20 sesi (rancangan, struktur versi terkunci 2026-11-10)
+### S6 — Akumulasi asing, rasio 5 sesi (rancangan, struktur versi terkunci 2026-11-10; jendela 5 sesi sejak 2026-11-10)
 Empat versi (V1 absolut, V1Δ perubahan absolut terhadap T−5, V2 persentil riwayat, V2Δ perubahan persentil), bebas dicentang; tanpa peringkat antar saham (V3). Rincian dan hitungan: bagian 11. S7 dan S8 menyusul dengan struktur yang sama.
 ## 4. Contoh keluaran, as-of 3 Nov 2026 (semua sumber di tanggal itu)
 
@@ -547,7 +547,9 @@ Ambang masih usulan yang belum diuji sensitivitasnya; semua angka dihitung dari 
 
 ### 11.1 Ukuran dan versi
 
-**Ukuran:** rasio net asing 20 sesi = Σ(beli asing − jual asing) ÷ Σ(beli asing + beli domestik), 20 sesi terakhir saham itu (`foreign_net_turnover_ratio_20d`; setara FL11 asing, jendela 20). Positif berarti net beli.
+**Jendela: 5 sesi** (keputusan user 2026-11-10: "jadikan saja dulu 5 hari"; sebelumnya 20 sesi). **Ukuran:** rasio net asing 5 sesi = Σ(beli asing − jual asing) ÷ Σ(beli asing + beli domestik), 5 sesi terakhir saham itu (`foreign_net_turnover_ratio_5d`; setara FL11 asing, jendela 5). Positif berarti net beli. Dengan jendela 5 dan T−5, V1Δ membandingkan dua blok 5 sesi berurutan yang tidak tumpang tindih, sama dengan Δ S2 (bagian 11.5).
+
+**Peringatan:** ambang, jumlah lolos, dan contoh di bagian 11.1 sampai 11.3 dihitung untuk rasio **20 sesi** dan belum dihitung ulang untuk jendela 5 sesi. Rasio 5 sesi lebih bergejolak (contoh DKFT: −29,87% lalu +45,89% pada dua blok 5 sesi), jadi ambang kemungkinan perlu disesuaikan; itu belum diuji.
 
 | Versi | Yang diuji | Longgar | **Standar** | Ketat |
 |---|---|---:|---:|---:|
@@ -613,7 +615,7 @@ PWON dan CTRA lolos level tetapi gagal kedua Δ: kasus "melambat". Penelusuran d
 ### 11.4 Keterbatasan
 
 - V2 jenuh di 100 (3 saham persis 100,0): MAPA dan SSMS naik +4,7 dan +3,2 poin di V1Δ tetapi V2Δ hampir nol. Itu alasan kedua Δ dipertahankan.
-- Rasio hari ini dan rasio T−5 berbagi 15 dari 20 sesi: V1Δ adalah selisih 5 sesi yang masuk dan 5 sesi yang keluar. BOGA: 5 sesi masuk (28 Okt sampai 3 Nov) net asing +Rp61,77 miliar dari total beli Rp62,89 miliar = 98,2%; 5 sesi keluar (30 Sep sampai 6 Okt) −9,6% dari Rp0,04 miliar.
+- (Berlaku untuk jendela 20 sesi; pada jendela 5 sesi blok berurutan dan tidak tumpang tindih.) Rasio hari ini dan rasio T−5 berbagi 15 dari 20 sesi: V1Δ adalah selisih 5 sesi yang masuk dan 5 sesi yang keluar. BOGA: 5 sesi masuk (28 Okt sampai 3 Nov) net asing +Rp61,77 miliar dari total beli Rp62,89 miliar = 98,2%; 5 sesi keluar (30 Sep sampai 6 Okt) −9,6% dari Rp0,04 miliar.
 - V2 memakai persentil rasio (bukan Rupiah); riwayat kurang dari 252 sesi (4 saham pada "Likuid") tidak diikutkan di V2 dan V2Δ.
 - Tumpang tindih dengan S1: pada "Likuid" hanya BOGA dan DKFT yang ada di S1 dan lolos ketiga versi S6; 9 dari 11 saham tidak ada di S1 (horizon 20 sesi dan rasio, bukan 5 sesi dan Rupiah).
 - Di BFF `main`, persentil riwayat 252 sesi dan peringkat Flow antar saham belum dapat dibuat persis (baseline dibatasi jendela broker 60 sesi; peringkat antar saham Flow masih Phase 2); bagian 7.
@@ -638,4 +640,21 @@ r20 hari ini = (0,368 + 14,834) ÷ (36,946 + 32,328) = 21,95%; r20 pada T−5 = 
 | MYOR | +46,25 | +8,24 | 5,6 kali |
 | UNVR | +28,08 | +3,44 | 8,2 kali |
 
-Selisihnya tidak konstan (3,4 sampai 8,2 kali), karena bergantung pada isi 15 sesi yang sama. **Belum diputuskan:** apakah jendela rasio untuk V1Δ dan V2Δ dapat dipilih (5 atau 20 sesi); dengan jendela 5 sesi dan T−5, V1Δ identik dengan Δ S2.
+Selisihnya tidak konstan (3,4 sampai 8,2 kali), karena bergantung pada isi 15 sesi yang sama. **Diputuskan user 2026-11-10: jendela 5 sesi dulu** ("jadikan saja dulu 5 hari"). Apakah jendela dapat dipilih (5 atau 20 sesi) belum diputuskan. Dengan jendela 5 sesi dan T−5, V1Δ identik dengan Δ S2 sebelum diperingkat.
+
+### 11.6 Arti sebuah saham lolos tiap versi (jendela 5 sesi; penjelasan, belum dihitung ulang)
+
+**Apa yang dihitung:** untuk tiap saham, rasio net asing 5 sesi = (beli asing − jual asing) ÷ (beli asing + beli domestik) selama 5 sesi terakhir saham itu, papan Regular, jenis investor Foreign melawan Domestic. Positif berarti asing menyerap pembelian saham itu secara bersih.
+
+| Versi | Pertanyaan yang dijawab | Arti bila saham lolos | Yang tidak dikatakan |
+|---|---|---|---|
+| V1 | Seberapa besar asing menyerap pembelian saham ini secara bersih dalam 5 sesi terakhir? | Net beli asing ≥ ambang persen dari seluruh nilai beli saham itu. Dapat dibandingkan antar saham (relatif terhadap transaksi), dan menjaga ukuran minimum. | Tidak berarti tidak biasa bagi saham itu, dan bukan jumlah Rupiah yang besar. |
+| V1Δ | Apakah net beli asing minggu ini lebih besar daripada minggu lalu? | Rasio 5 sesi terakhir lebih tinggi ≥ ambang poin dibanding 5 sesi tepat sebelumnya (blok berurutan; sama dengan Δ S2). | Bisa berarti pemulihan dari net jual (minggu lalu negatif) dan tidak menjamin level tinggi; karena itu wajib disertai V1 atau V2. |
+| V2 | Apakah rasio minggu ini tinggi menurut kebiasaan saham itu sendiri? | Rasio lebih besar daripada ≥ persentil ambang dari 252 nilai rasio 5 sesi sebelumnya milik saham itu. | Tidak berarti besar dibanding saham lain. Nilai riwayat berurutan berbagi 4 dari 5 sesi, jadi 252 nilai itu tidak independen (bacaan AI). Jenuh di 100. |
+| V2Δ | Apakah rasio itu menjadi lebih tidak biasa dibanding minggu lalu? | Persentil minggu ini naik ≥ ambang poin dibanding persentil minggu lalu, masing-masing terhadap riwayatnya saat itu. | Persentil jenuh di atas (100 menjadi 100 = nol), dan tidak sama dengan arus Rupiah yang menguat. |
+
+**Arti kombinasi:** V1 + V2 = besar dan tidak biasa bagi saham itu; V1 + V1Δ = besar dan menguat; V2 + V2Δ = tidak biasa dan makin tidak biasa; keempatnya = besar, tidak biasa, dan menguat. Dengan arah Δ "turun", lolos level tetapi nilainya lebih rendah daripada 5 sesi lalu berarti momentum melambat.
+
+**Hubungan dengan S1 dan S2:** V2 mirip S1 (persentil terhadap riwayat sendiri) tetapi atas rasio, bukan Rupiah, dan tanpa syarat 3 dari 5 hari net beli. V1Δ sama dengan Δ S2 tetapi dipakai dengan ambang, bukan diperingkat antar saham.
+
+**Yang bukan artinya:** bukan sinyal beli; hanya jenis investor Foreign di seluruh broker (bukan broker tertentu); tidak membedakan satu transaksi blok dari pembelian yang tersebar (syarat persistensi tidak termasuk).
