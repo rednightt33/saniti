@@ -86,7 +86,7 @@ Aset yang muncul di S1 dan (S2 atau S3). Daftar pendek dengan jumlah bukti terti
 Empat versi (V1 absolut, V1Δ perubahan absolut terhadap T−5, V2 persentil riwayat, V2Δ perubahan persentil), bebas dicentang; tanpa peringkat antar saham (V3). Rincian dan hitungan: bagian 11. S7 dan S8 menyusul dengan struktur yang sama.
 
 ### S7 — Institusi masuk, ritel keluar (rancangan, disetujui user 2026-11-10)
-Indikator FL34 (selisih net broker institusi dan ritel, jendela 5 sesi) dengan keadaan perubahan terhadap T−5 (membaik, pembalikan, menguat dan cerminnya), besar Δ sebagai syarat, dan penjaga net institusi > 0. V2 dan V2Δ menunggu keputusan data. Rincian: bagian 12.
+Indikator FL34 (selisih net broker institusi dan ritel, jendela 5 sesi) dengan keadaan perubahan terhadap T−5 (membaik, pembalikan, menguat dan cerminnya), besar Δ sebagai syarat, dan penjaga net institusi > 0 serta ukuran kaki institusi ≥ 5% dari total beli. V2 dan V2Δ menunggu keputusan data. Rincian dan kriteria masuk: bagian 12 (12.6).
 ## 4. Contoh keluaran, as-of 3 Nov 2026 (semua sumber di tanggal itu)
 
 Contoh parameter dan jumlah, bukan rekomendasi. Jendela = 5 sesi Regular terakhir tiap saham.
@@ -713,6 +713,7 @@ Jumlah per keadaan menurut ambang ("Likuid" / "Luas"):
 | 3 | Net ritel 5 sesi < 0: penjaga opsional. |
 | 4 | Hasil selalu menampilkan net institusi, net ritel, net "lainnya" (turunan), % tiap kelompok, Δ, dI dan dR. |
 | 5 | G2 universe dan G3 likuiditas eksplisit (bawaan "Luas"); persistensi opsional: net institusi positif di ≥ 3 dari 5 sesi (padanan aturan 6 S6). |
+| 6a | **Gerbang ukuran kaki institusi** untuk B dan C: % institusi = net institusi ÷ total beli semua broker (5 sesi) ≥ **2 / 5 / 10** (Longgar / Standar / Ketat). Alasan: net institusi positif bisa sangat kecil (JARR +0,6%, KIJA +1,0%, ISAT +2,2% dari total beli) sementara FL34 berbalik karena ritel menjual. Disetujui user 2026-11-10 ("Okay"). |
 | 6 | V2 dan V2Δ (persentil terhadap 252 nilai FL34 saham itu sendiri) **menunggu keputusan data**: butuh tabel turunan (net institusi, net ritel, total beli per saham per hari); hanya `Feature_06` yang menyimpan persentil riwayat. Pemindaian 272 sesi data broker ke semua saham ditunda (membaca jutaan baris). |
 
 Pengaruh penjaga net institusi > 0 pada Δ ≥ 20 ("Likuid" / "Luas"):
@@ -756,3 +757,35 @@ TLKM: FL34 membaik 24,6 poin padahal institusi masih net jual Rp595,55 miliar; s
 ### 12.5 Keterbatasan
 
 Satu tanggal dan satu jendela 5 sesi; sampel "sangat negatif lalu naik" kecil (8 dan 13 saham); ambang belum diuji sensitivitasnya; FL34 tidak memperlihatkan konsentrasi di dalam kelompok (CBDK: satu broker institusi, KI, memegang 99,7% net institusi 5 sesi); label broker adalah kecenderungan klien, bukan jenis investor transaksi; Mixed dan Niche (68 dari 112 broker) tidak masuk pembilang.
+
+### 12.6 Kriteria sebuah saham masuk S7 (Standar)
+
+**Jendela dan perbandingan:** FL34 dihitung pada jendela bergulir 5 sesi (5 sesi terakhir saham itu, papan Regular, Foreign + Domestic). Perbandingannya hanya **hari ini dikurangi T−5**, yaitu FL34 dari 5 sesi yang berakhir hari ini dikurangi FL34 dari 5 sesi yang berakhir 5 sesi sebelumnya. Dua blok itu berurutan dan tidak tumpang tindih (blok sekarang = sesi ke-1 sampai ke-5 mundur, blok sebelumnya = sesi ke-6 sampai ke-10 mundur). FL34 `change` di BFF menyediakan jarak 1, 5, atau 20; S7 memakai 5 saja.
+
+**"Institusi masuk"** (semua harus terpenuhi):
+
+| # | Kriteria | Ambang Standar |
+|---|---|---|
+| 1 | Lolos G2 (ada di `Feature_06`, ≥ 5 sesi Regular di 16 tanggal bursa terakhir) dan G3 (total beli bruto 5 sesi di atas batas; bawaan "Luas") | buang 50% terbawah |
+| 2 | FL34 sekarang dan FL34 pada T−5 sama-sama punya nilai | |
+| 3 | Keadaan **B** (sebelumnya < 0, sekarang ≥ 0) atau **C** (sebelumnya ≥ 0, sekarang lebih besar) | |
+| 4 | Δ = FL34 sekarang − FL34 T−5 | ≥ 20 poin |
+| 5 | Net institusi 5 sesi | > 0 |
+| 6 | % institusi = net institusi ÷ total beli semua broker (5 sesi) | ≥ 5% |
+
+Opsional: net ritel 5 sesi < 0 ("ritel keluar"); persistensi: net institusi positif di ≥ 3 dari 5 sesi.
+
+**"Dominasi ritel mereda"** (keadaan A): kriteria 1, 2, dan 4 ditambah keadaan A (sebelumnya < 0, sekarang < 0 tetapi lebih tinggi); **tanpa** kriteria 5 dan 6, karena pada keadaan A institusi umumnya masih net jual. **Arah turun** memakai cerminnya (x, y, z) dengan Δ ≤ −ambang; penjaganya belum ditetapkan.
+
+**Jumlah lolos "institusi masuk" (Standar):** 11 pada gerbang "Likuid" (B 5 + C 6) dan 23 pada "Luas" (B 11 + C 12); tanpa kriteria 6: 16 dan 38.
+
+Contoh ("Likuid", 3 Nov 2026; FL34 sebelumnya → sekarang, Δ, net institusi dalam Rp miliar, % institusi):
+
+| Saham | Keadaan | FL34 | Δ | Net institusi | % institusi | Hasil |
+|---|---|---|---:|---:|---:|---|
+| CBDK | C | +57,0 → +79,8 | +22,8 | +13,19 | 42,2 | **masuk** |
+| UNVR | B | −38,8 → +16,7 | +55,5 | +22,76 | 11,1 | **masuk** |
+| KOTA | B | −6,2 → +19,0 | +25,2 | +9,79 | 13,4 | **masuk** |
+| JARR | B | −10,2 → +21,5 | +31,7 | +0,31 | 0,6 | gagal kriteria 6 |
+| ISAT | B | −15,0 → +18,4 | +33,4 | +16,19 | 2,2 | gagal kriteria 6 |
+| BTPS | B | −9,7 → +35,3 | +45,0 | −4,08 | −9,2 | gagal kriteria 5 dan 6 |
