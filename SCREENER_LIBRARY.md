@@ -154,45 +154,46 @@ S3 (delapan dari 11):
 
 ## 6. Keputusan yang terbuka
 
-1. Tingkat gerbang likuiditas bawaan: "Luas" (buang 50%), "Likuid" (buang 80%), atau keduanya sebagai pilihan.
-2. G5: rasio net asing minimum untuk S1 (usulan contoh: ≥ 5%) atau nilai minimum.
+1. Tingkat gerbang likuiditas bawaan: "Luas" (buang 50%), "Likuid" (buang 80%), atau keduanya sebagai pilihan. **Rekomendasi AI: bagian 10 nomor 1.**
+2. G5: rasio net asing minimum untuk S1 (usulan contoh: ≥ 5%) atau nilai minimum. **Rekomendasi AI: bagian 10 nomor 2.**
 3. G4: angka 10 broker sudah tepat atau perlu diubah.
-4. Nama S3 yang lebih tepat ("pembelian terkonsentrasi") dan apakah S3 hanya asing atau semua investor.
+4. Nama S3 yang lebih tepat ("pembelian terkonsentrasi") dan apakah S3 hanya asing atau semua investor. **Rekomendasi AI: bagian 10 nomor 4.**
 5. Ambang tiap tingkat (Longgar, Standar, Ketat) yang dipakai sebagai bawaan.
 6. Aturan S4: dedup IDX–KSEI, label repo, definisi opportunistic (ERRORS M241, FUTURE_PLAN).
 7. Penyimpanan: tetap dokumen ini, atau dimasukkan ke tabel kamus di database kelak.
-8. Apakah S1 sampai S5 menjadi preset di Screener yang sudah ada (bagian 7) atau library terpisah.
+8. Apakah S1 sampai S5 menjadi preset di Screener yang sudah ada (bagian 7) atau library terpisah. **Koreksi 2026-11-10:** jawaban awal AI ("library terpisah, karena metrik Flow Screener belum tersedia") memakai katalog Screener lama dan tidak berlaku; keadaan di `main` ada di bagian 7. Butir ini tetap terbuka.
 9. ~~Persentil S2 dan S3 dihitung sesudah gerbang atau di seluruh universe.~~ **Diputuskan user 2026-11-10** ("Go dengan usulan untuk nomor 9 sampai 11. Masukan screener docs."): persentil S2 dan S3 dihitung **sesudah** gerbang likuiditas, pembandingnya hanya saham yang lolos gerbang. Bacaan AI atas "usulan": usulan yang ada di dokumen ini adalah cara itu (cocok dengan angka bagian 4 pada hitung ulang 2026-11-10, bagian 9.6); sebelum jawaban user belum ada usulan tertulis yang eksplisit. Akibat: pada gerbang ketat pembandingnya kecil (S2: 70 saham, satu saham = ±1,4 poin).
 10. ~~Ukuran likuiditas G3.~~ **Diputuskan user 2026-11-10** (jawaban yang sama): G3 memakai **total beli bruto 5 sesi** (ukuran yang dipakai semua angka library ini). Entri "Likuiditas cukup" di `METHODOLOGY_DICTIONARY.md` (median nilai transaksi 60 sesi, buang 20%) belum disamakan dan tidak berlaku untuk library ini.
 11. **Tampilan di FE: tetap terbuka.** Tidak ada usulan konkret sebelum jawaban user; bergantung pada butir 8 (preset di Screener yang ada atau library terpisah).
 
-## 7. Hubungan dengan Screener yang sudah ada di repo
+## 7. Hubungan dengan Screener yang sudah ada di repo (diperbarui 2026-11-10 dari `origin/main` commit `f0519350`)
 
-Repo sudah punya aplikasi Screener (`apps/edge-bff/screener`) dengan katalog 75 metrik
-(`src/core/screener-metrics.json`) dan UI preset (`src/presets-ui.ts`). Dua puluh metrik Flow di katalog itu (kode `fl`
-FL01 sampai FL20) berstatus **belum tersedia**: `unavailable_reason` "Flow metrics arrive with Phase 2". Library ini bisa
-menjadi isi preset untuk fase itu.
+**Koreksi:** versi bagian ini yang dipublikasikan sebelumnya memakai katalog Screener lama (75 metrik; dua puluh metrik Flow "belum tersedia, Fase 2") dan tidak berlaku lagi di `main`. Penyebabnya: salinan lokal `origin/main` di sandbox basi saat itu (ketinggalan 412 commit); angka di bagian ini dibaca ulang dari `main` yang baru di-fetch.
 
-Padanan konsep (terverifikasi dari rumus di katalog; keduanya belum dicocokkan angkanya):
+**Keadaan di `main`:**
 
-| Konsep di library ini | Metrik screener yang serupa | Catatan |
+| Hal | Keadaan | Bukti |
 |---|---|---|
-| `M-FF-HEAVY` (persentil 252 sesi net asing) | `fsurprise` (FL05): persentil net asing 20 sesi terhadap 252 nilai sebelumnya | Jendela berbeda (5 sesi vs 20 sesi) |
-| Net dan rasio asing | `fnet`, `fpct` (FL01, FL02) | Rasio net asing terhadap nilai transaksi |
-| HHI pembeli net (kandidat kamus) | `net_buy_hhi` (FL10) | Rumus sama dengan "HHI hanya net buyer" |
-| Top-N net beli terhadap net jual | `topacc`, `bandar` (FL07, FL09) | Mirip `M-TOPN-RATIO` |
-| Persistensi pembeli terbesar | `dominant_persistence` (FL14) | Belum ada di kamus |
-| Insider | `insider_net` (FL20) | Padanan S4 |
+| Indikator Flow di terminal | 52 (FL01 sampai FL52) | `apps/edge-bff/terminal/src/data/flowRegistry.json` |
+| Metrik Flow di Screener | 48 indikator terminal sebagai metrik; FL49 sampai FL52 dan garis rata-rata FL14 tidak ikut (`terminal_only`); FL31 butuh data insider | commit `cc991d2a` (2026-11-07, P5a), `bbda1f2e`; header `core/flowmetrics.ts` |
+| Cara dihitung | `computeFlow` terminal yang sama, per saham, pada jendela broker 60 sesi (K1) | header `core/flowmetrics.ts` |
+| Kode FL | Screener memakai kode FL yang sama dengan terminal; dua puluh entri lama diganti. **Bentrokan kode FL yang tertulis di versi lama sudah tidak ada.** | commit `cc991d2a`; `core/screener-metrics.json` (grup Flow tinggal `silent` dan `adv20_idr`) |
+| "Intensitas" | FL47 Net Buy Intensity memakai rumus `M-NET-INTENSITY` (100 × Σ max(net, 0) ÷ Σ beli bruto), jadi tidak ada lagi dua arti istilah | `terminal/src/calc/flow.ts` (FL47) |
+| Preset Bandarmology yang sudah ada | Big Accumulation (FL24), Foreign Accumulation Streak (FL26), Silent Accumulation, Frequency Spike (FL32), Near Bandar Average Price (FL39 + FL24), Broker Follow (FL23); gabungan: Quality + Foreign Inflow, Value + Accumulation | `core/presets.json` |
+| Universe bawaan preset | harga ≥ 50, ADV20 ≥ Rp1 miliar, diperdagangkan pada tanggal evaluasi, tanpa PRICE_BREAK | `core/presets.json` |
+| Peringkat antar saham | Hanya `return_rank`; peringkat Flow antar saham (berkas xsection Flow) berstatus Phase 2, diusulkan | header `core/xsection.ts`; `SCREENER_ONBOARDING.md` |
 
-**Dua bentrokan nama yang harus diwaspadai:**
-1. Kode: FL01 sampai FL20 di screener berarti hal lain daripada FL01 sampai FL20 di terminal
-   (`FLOW_INDICATOR_REVIEW.md`, bagian 6; berkas itu ada di branch kerja `claude/intelligent-mccarthy-70imcn` dan belum di `main`).
-2. Istilah: `buy_intensity` (FL08) di screener adalah `100 × B_N / nilai transaksi` (nilai net beli top-N sebagai % nilai
-   transaksi), sedangkan "intensitas net beli" di kamus (`M-NET-INTENSITY`) adalah net beli broker bernet positif dibagi
-   beli bruto. Keduanya berbeda.
+**Padanan S1 sampai S3 dengan indikator Flow di BFF** (bacaan dari registry dan kode; angkanya belum dicocokkan):
 
-Belum diputuskan: apakah S1 sampai S5 ditulis sebagai preset di Screener yang sudah ada (memakai metriknya) atau tetap
-sebagai library terpisah yang dihitung dari data mentah.
+| Bagian library | Indikator BFF terdekat | Batas |
+|---|---|---|
+| S1 net asing 5 sesi luar biasa terhadap riwayat | FL37 (investor Foreign, scope all, window 5) | Baseline persentil dibatasi jendela broker 60 sesi dikurangi jendela indikator (K1), jadi tidak bisa 252 sesi |
+| S1 net beli di ≥ 3 dari 5 sesi | FL12 (Foreign, scope all, window 5) | Persentase hari net beli; 3 dari 5 = 60% |
+| S2 Δ rasio dan persentil antar saham | FL11 (Foreign, window 5) dan perubahannya | Persentil antar saham untuk Flow belum ada; apakah perubahan FL11 dapat dipakai sebagai kondisi belum diperiksa |
+| S3 CR3 − 3/k | FL16 (Top 3, window 5, `even` aktif) | Persentil dalam kelompok k belum ada |
+| S3 intensitas | FL47 (window 5) | `stat` persentil membandingkan dengan riwayat sendiri, bukan antar saham |
+
+Akibatnya (bacaan AI): S1 sampai S3 persis seperti bagian 9 belum dapat dibuat sebagai preset Screener, karena butuh peringkat Flow antar saham dan baseline lebih dari 60 sesi. Versi dengan ambang mutlak dapat dibuat dari indikator di atas. Belum diputuskan apakah S1 sampai S5 ditulis sebagai preset (dengan versi pendekatan) atau tetap library terpisah yang dihitung dari data mentah (bagian 6 nomor 8).
 
 ## 8. Batas
 
@@ -523,3 +524,15 @@ Keterbatasan: satu tanggal dan satu jendela 5 sesi; kestabilan hari ke hari belu
 sangat sensitif pada gerbang ketat karena pembandingnya hanya sekitar 70 sampai 170 saham (satu saham = ±1,4 poin pada S2);
 cara pembentukan kelompok k (kuantil k) adalah bacaan dari angka bagian 4 yang tidak dituliskan di dokumen ini sebelumnya.
 Nama perusahaan dari `Price_Stock_Indonesia_IDX.company_name`.
+
+## 10. Rekomendasi AI (bukan keputusan user; permintaan 2026-11-10)
+
+User meminta nomor 1, 2, dan 4 dari tabel usulan dimasukkan ke dokumen sebagai rekomendasi, lengkap dengan alasannya. Nomor merujuk bagian 6.
+
+| # | Butir | Rekomendasi | Alasan |
+|---|---|---|---|
+| 1 | Tingkat gerbang likuiditas bawaan (G3) | Sediakan dua tingkat; bawaan **"Luas" (buang 50%)**, "Likuid" (buang 80%) sebagai pilihan | (a) Jumlah lolos S1 / S2 / S3 pada "Luas" 16 / 19 / 30, pada "Likuid" hanya 6 / 7 / 11 dan konfluensi S5 hanya 3 saham (bagian 4). (b) Pada gerbang 20% daftar teratas dipenuhi saham mikro dengan net asing Rp0 sampai 3 miliar (bagian 5 nomor 1). (c) Preset Screener yang sudah ada memakai lantai ADV20 ≥ Rp1 miliar (bagian 7); perkiraan dari total beli broker 20 sesi ÷ 20, lantai itu meloloskan 385 dari 858 saham, mendekati "Luas" (430 saham, batas Rp2,3 miliar per 5 sesi), jadi bawaan "Luas" konsisten dengan preset yang ada. Perkiraan ini bukan metrik `adv20_idr` resmi. |
+| 2 | G5, net asing minimum untuk S1 dan S2 | Rasio net asing 5 sesi **≥ 5%** (net asing ÷ total beli 5 sesi), berlaku untuk S1 dan S2 | Persentil terhadap riwayat sendiri tidak memandang ukuran (NATO: simpangan baku riwayat Rp10 miliar, net sekarang Rp0,3 miliar, 0,4% dari pembelian). Hitungan 2026-11-10: pada "Luas" S1 turun dari 16 ke 6 dan S2 dari 19 ke 17; pada "Likuid" S1 dari 6 ke 3 (BINA 3,2%, NATO 0,4%, FORU 3,4% gugur) dan S2 dari 7 ke 6 (PGAS 0,8% gugur). Yang bertahan material: S1 BOGA 98,2%, DKFT 45,9%, SQMI 6,4%; S2 MSIN 77,2%, RANS 43,8%, MYOR 22,6%, UNVR 7,2%. Angka 5% adalah usulan awal dokumen ini; belum diuji sensitivitasnya di sekitar 3% sampai 10%. |
+| 4 | Nama dan cakupan S3 | Cakupan **semua investor**; nama **"Pembelian bersih terkonsentrasi"** (bukan "akumulasi asing") | S3 dihitung dari net per broker semua investor (bagian 9.5), dan 8 dari 11 kandidat pada "Likuid" justru net jual asing (ITMG −Rp87,8 miliar, ADRO −Rp134,7 miliar, UNTR −Rp108,9 miliar). Nama yang menyebut asing akan menyesatkan. Contoh ekstrem BTPS: satu broker (CC) memegang 97,2% net beli, jadi "terkonsentrasi" menggambarkan hasilnya dengan benar. Membatasi ke asing akan mengubah pertanyaan menjadi net asing per broker, yang bukan yang diukur. |
+
+Batas: satu tanggal (3 Nov 2026) dan satu jendela 5 sesi; kestabilan hari ke hari belum diukur; rekomendasi ini menunggu keputusan user.
