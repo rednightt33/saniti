@@ -5753,6 +5753,29 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M422 — Terminal: a long position, horizontal line or ray could not be dragged up or down; the chart moved instead (2026-11-10, fixed)
+
+- **Symptom (user screenshot, BBRI long position):** "bisa di gerakin kiri kanan, tapi tidak bisa atas bawah. Kalau saya
+  klik kiri pada long position ... yang bergerak adalah posisi chart instead of long/ short position. Ini berlaku juga buat
+  horizontal ray".
+- **Verified cause (stand-in, the left price axis dragged once so it is manual):**
+  - `app/drawings.ts` pans the left (candle) scale on a vertical drag once that axis is manual. Its pointerdown listener
+    ran in the capture phase, before the drawing library could claim the press, and never checked for a drawing: the
+    scale moved with the pointer while the library dragged the drawing, so the drawing stayed with the candles (a selected
+    horizontal line dragged 100 px down: 110 px on screen, price 3,085 → 3,043 only). Left/right worked: the library holds
+    the chart's own horizontal scroll.
+  - The library drags a drawing's body only when it is already selected (`selectionDown`, `canDrag`); a first press on
+    an unselected drawing only selected it, so the drag went to the chart (price unchanged, chart 100 px down).
+- **Class:** a page-level gesture handler that takes presses before the layer that owns them.
+- **Solution:** the left-scale pan is armed in the capture phase and starts only when the press bubbles back to the chart
+  container; a press the drawing layer takes (it stops the event) never starts it. A press on an unselected drawing
+  (`hoveredId`, no Ctrl/Cmd, not locked) selects it first so the same press drags it, as TradingView does (price chart and
+  every Flow Timeline).
+- **Evidence (stand-in, left axis manual, dragged 100 px down):** horizontal line, horizontal ray and long position,
+  selected or not, move 100 px with their price (3,085 → 2,663; long position 3,084 → 2,617); a drag on an empty area
+  still pans the chart 100 px. Terminal tests 890 pass.
+- **Status:** fixed; live after the deploy.
+
 ### M421 — Broker Inventory on the chart kept the brokers of the ticker it was first opened on (2026-11-09, fixed)
 
 - **Symptom (user):** "buka suatu saham: ACES.. broker inventory dari sisi kode broker yang appear sudah sesuai dengan

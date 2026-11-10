@@ -218,6 +218,19 @@ export function initDrawings(ctx: Ctx) {
     });
   }
   dragFinish(dm, container);
+  /* ERRORS M422: TradingView moves a drawing pressed and dragged at once; the drawing library drags a body only when its
+     drawing is already selected (a first press only selected it, and the drag went to the chart). A press on an
+     unselected drawing (the one under the pointer, without Ctrl/Cmd for multi-select) selects it before the library
+     reads the press, so the same press drags it. */
+  function grabOnPress(mgr: () => any, el: HTMLElement) {
+    el.addEventListener('pointerdown', (e: PointerEvent) => {
+      const m = mgr();
+      if(e.button !== 0 || e.ctrlKey || e.metaKey || !m || m.tool()) return;
+      const id = m.hoveredId?.();
+      if(id && !m.selection().includes(id) && !m.get(id)?.locked) m.select([id]);
+    }, true);
+  }
+  grabOnPress(() => dm, container);
 
   /* ---- text editor ---- */
   const input = document.createElement('input');
@@ -466,6 +479,7 @@ export function initDrawings(ctx: Ctx) {
     const onUp = () => { if(fpressed){ fpressed = false; fqueue() } };
     window.addEventListener('pointerup', onUp);
     dragFinish(fdm, fEl);
+    grabOnPress(() => fdm, fEl);
     fdm.on('tool', (k: any) => { if(!k && !dm.tool() && !flowArmed()) syncTool(null) });
     fdm.on('selection', syncRemove);
     /* the Text tool's editor, as on the price chart */
@@ -535,7 +549,14 @@ export function initDrawings(ctx: Ctx) {
   {
     let pan: { y: number; from: number; to: number; h: number } | null = null;
     const leftManual = () => { const o: any = chart.priceScale('left').options(); return o.autoScale === false && o.mode === 0 };
+    /* ERRORS M422 (user 2026-11-09: a long position or horizontal line "bisa di gerakin kiri kanan, tapi tidak bisa atas
+       bawah ... yang bergerak adalah posisi chart"): the pan is only armed here (capture phase, before the drawing layer)
+       and starts when the press bubbles back to the container. A press the drawing layer takes (a drawing or its anchor:
+       it stops the event) never bubbles, so the chart no longer moves under a dragged drawing. */
+    let armed: typeof pan = null;
+    container.addEventListener('pointerdown', () => { if(armed){ pan = armed; armed = null } });
     container.addEventListener('pointerdown', e => {
+      armed = null;
       /* pressing the left axis freezes its current range (auto-fit off) — what a press on the right axis does for the lines */
       if(e.button === 0 && !dm.tool()){
         const ps0 = chart.priceScale('left'), r0 = container.getBoundingClientRect(), o0: any = ps0.options(), v0 = ps0.getVisibleRange();
@@ -546,14 +567,14 @@ export function initDrawings(ctx: Ctx) {
       if(!pane || !v || e.clientY - r.top > pane.getHeight()) return;                // axis strips / time axis keep their own behaviour
       const rightW = chart.priceScale('right').width(), leftW = ps.width();
       if(e.clientX - r.left < leftW || r.right - e.clientX < rightW) return;
-      pan = { y:e.clientY, from:v.from, to:v.to, h:pane.getHeight() };
+      armed = { y:e.clientY, from:v.from, to:v.to, h:pane.getHeight() };
     }, true);
     window.addEventListener('pointermove', e => {
       if(!pan) return;
       const m: any = chart.priceScale('left').options().scaleMargins, inner = pan.h * (1 - m.top - m.bottom), d = (e.clientY - pan.y) / inner * (pan.to - pan.from);
       chart.priceScale('left').setVisibleRange({ from:pan.from + d, to:pan.to + d });
     });
-    ['pointerup', 'pointercancel'].forEach(t => window.addEventListener(t, () => { pan = null }));
+    ['pointerup', 'pointercancel'].forEach(t => window.addEventListener(t, () => { pan = null; armed = null }));
   }
 
   /* ---- right-click menu: Reset chart view / Remove drawings / Remove indicators ---- */

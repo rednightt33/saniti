@@ -13103,6 +13103,16 @@ bagian kanan, broker inventory, top broker, dan lain sebagainya loading terus. C
   daftar broker, otomatis maupun pilihan sendiri, hanya berlaku di saham tempat dibuat; di saham lain kembali ke pilihan
   awal: 3 net buyer terbesar 20 sesi, panel Broker inventory).
 
+## EXEC-DRAW-DRAG-TOOLS — gambar bisa digeser naik-turun; alat ukur, Rectangle dan Parallel channel (2026-11-10)
+
+**Kata user, 2026-11-10:** "Tambahkan fitur terlampir bisa? Cek dulu di tradingview what this feature does. Feel free to
+confirm w me if needed. Also sepertinya ada masalah dengan horizontal line saat ini dan long position ... bisa di
+gerakin kiri kanan, tapi tidak bisa atas bawah ... Ini berlaku juga buat horizontal ray"
+
+- Drag naik-turun: ERRORS M422, diperbaiki.
+- Fitur (Price range, Date range, Date and price range, Rectangle Alt + Shift + R, Parallel channel): tersedia di
+  pustaka gambar; penempatan di toolbar menunggu pilihan user.
+
 ## EXEC-STOCKBIT-CRON — stockbit-updater jadi layanan cron: deploy tidak menarik data, putaran hanya lewat Run Now (go 2026-11-09)
 
 **Kata user, 2026-11-09:** "kalau redeploy maka akan men-trigger proses ingestion data regardless tokennya aktif atau
