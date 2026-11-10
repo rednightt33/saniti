@@ -789,3 +789,19 @@ Contoh ("Likuid", 3 Nov 2026; FL34 sebelumnya → sekarang, Δ, net institusi da
 | JARR | B | −10,2 → +21,5 | +31,7 | +0,31 | 0,6 | gagal kriteria 6 |
 | ISAT | B | −15,0 → +18,4 | +33,4 | +16,19 | 2,2 | gagal kriteria 6 |
 | BTPS | B | −9,7 → +35,3 | +45,0 | −4,08 | −9,2 | gagal kriteria 5 dan 6 |
+
+### 12.7 Hasil contoh resep "Dominasi ritel mereda" (3 Nov 2026)
+
+Menerapkan kriteria 12.6 (G2, G3, FL34 punya nilai, keadaan A, Δ ≥ 20) pada data 3 Nov 2026 menghasilkan:
+
+| Pengaturan | Saham |
+|---|---|
+| "Likuid", Standar (Δ ≥ 20): **9** | CNMA, MIKA, ACES, SIDO, TCPI, INCO, TLKM, TKIM, BRIS |
+| "Luas", Standar: **13** | kesembilan di atas + AGII, JECX, STAA, JRPT |
+| "Likuid", Ketat (Δ ≥ 40): 4 | CNMA, MIKA, ACES, SIDO |
+| "Luas", Ketat: 5 | keempat di atas + AGII |
+| Longgar (Δ ≥ 10) | "Likuid" 13, "Luas" 23 |
+
+Detail ("Likuid"; Rp miliar): CNMA −83,5 → −6,6 (Δ +76,9; net institusi −2,86), MIKA −81,8 → −31,6 (+50,2; −14,93), ACES −48,6 → −2,3 (+46,4; −5,47), SIDO −63,3 → −18,4 (+45,0; −6,64), TCPI −38,9 → −9,0 (+29,9; −8,77), INCO −28,1 → −2,4 (+25,7; −13,25), TLKM −40,2 → −15,7 (+24,6; −595,55), TKIM −24,6 → −0,6 (+24,0; +1,60), BRIS −21,6 → −0,5 (+21,1; −20,97). Delapan dari sembilan masih net jual institusi: keadaan A berarti dominasi ritel mereda, bukan institusi mulai membeli. Hanya TKIM yang net institusinya positif (+1,60 miliar, 2,6% dari total beli), dan ia tidak lolos ukuran 5%, jadi tidak masuk "Institusi masuk".
+
+Catatan: daftar ini adalah posisi 3 Nov 2026 dan dihitung dari sesi data broker tiap saham; kode BFF memakai tanggal harga sebagai candle (`FORMULAS.md`), sehingga saham dengan hari tanpa data harga dapat berbeda sedikit. Screener S7 belum dibangun; apakah BFF dapat membentuk keadaan A, B, C belum diverifikasi.
