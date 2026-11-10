@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-11-10 — edge-bff: drawings drag up and down (M422), new drawing tools (EXEC-DRAW-DRAG-TOOLS)
+
+- `4bb10dd5` → `ae07aa89` SUCCESS 14:27 UTC (M422); `e02066c1` → `566502b0` SUCCESS 14:45 UTC (Parallel channel, Shapes
+  with Rectangle, Measurers; price chart only). Both deployed by the push (GitHub).
+- The active-run check and the live check could not run: the agent's requests to `*.up.railway.app` (edge-bff, pgweb)
+  answered 429 "rate limited" from 14:00 UTC after many checks; AGENTS asks the check before orc deploys and Postgres
+  restarts only. Verified on the stand-in with the same build: drags (M422), every new tool drawn, Alt+Shift+R, the Flow
+  not taking them, look_check11 PASS, Terminal tests 890.
+- Rollback: `serviceInstanceDeployV2` with `816cce2d`.
+
 ## 2026-11-09 — edge-bff `5c4fbe6a`: Broker Inventory broker list per ticker (M421, user option A)
 
 - Checked before: no EDGE job or orc turn running. The push deployed `76204edc` SUCCESS 16:37 UTC; `/ready` 200.

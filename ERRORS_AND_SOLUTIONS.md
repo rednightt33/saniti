@@ -5774,7 +5774,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Evidence (stand-in, left axis manual, dragged 100 px down):** horizontal line, horizontal ray and long position,
   selected or not, move 100 px with their price (3,085 → 2,663; long position 3,084 → 2,617); a drag on an empty area
   still pans the chart 100 px. Terminal tests 890 pass.
-- **Status:** fixed; live after the deploy.
+- **Status:** fixed, deployed (edge-bff `ae07aa89`); checked on the stand-in with the same build (dev answered 429 to the agent).
 
 ### M421 — Broker Inventory on the chart kept the brokers of the ticker it was first opened on (2026-11-09, fixed)
 
