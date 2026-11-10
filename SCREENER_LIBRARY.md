@@ -569,8 +569,11 @@ Persentil riwayat = 100 × (jumlah dari 252 nilai sebelumnya yang lebih kecil da
 | 3 | Arah Δ dapat dipilih naik atau turun; "turun" (Δ ≤ −ambang) dipakai untuk mencari momentum yang melambat. Bacaan AI atas "naik atau menurun". |
 | 4 | Jarak tetap T−5 (5 sesi sebelum hari ini). |
 | 5 | Tidak ada versi peringkat antar saham (V3). V2 dan V2Δ hanya terhadap riwayat saham itu sendiri; satu-satunya pembanding antar saham adalah gerbang likuiditas. |
-| 6 | Syarat persistensi (net beli beberapa sesi berturut-turut) tidak termasuk ketiga versi. |
+| 6 | Persistensi "net beli di ≥ 3 dari 5 sesi" (seperti S1) kembali sebagai **syarat opsional**, di luar keempat versi (keputusan user 2026-11-10: "Ok" atas usulan AI). Streak berturut-turut tidak dipakai. |
 | 7 | Bawaan subset (bacaan AI): V1 + V2; versi Δ mati. |
+| 8 | **Syarat tetap (bukan versi):** net asing 5 sesi > 0, seperti S1 dan S2, supaya V2 atau V2Δ sendirian tidak meloloskan saham yang asingnya menjual (contoh rasio 20 sesi: HEAL persentil riwayat 94,8 dengan rasio −2,1%, lolos pada tingkat Longgar). Keputusan user 2026-11-10: "Ok". |
+| 9 | **Gerbang global ditulis eksplisit:** G2 universe dan G3 likuiditas (total beli bruto 5 sesi); tingkat bawaan "Luas" sesuai rekomendasi bagian 10 nomor 1 (disetujui untuk S6 oleh "Ok" 2026-11-10; belum menjadi keputusan global). |
+| 10 | Aturan 6, 8, dan 9 juga berlaku untuk S7 dan S8 saat disusun, dengan padanan sisi masing-masing. |
 
 **Dasar ambang Δ:** sebaran Δ pada saham yang lolos V1 (rasio ≥ 5%), gerbang "Luas" (n = 56): V1Δ P50 2,9, P75 5,5, P90 13,7 poin; V2Δ P50 4,6, P75 12,6, P90 27,6 poin. Longgar ≈ P50, Standar ≈ P75, Ketat ≈ P90, dibulatkan. Pada gerbang "Likuid" (n = 32): V1Δ 2,6 / 5,0 / 13,5; V2Δ 1,0 / 12,6 / 20,8.
 
@@ -657,4 +660,4 @@ Selisihnya tidak konstan (3,4 sampai 8,2 kali), karena bergantung pada isi 15 se
 
 **Hubungan dengan S1 dan S2:** V2 mirip S1 (persentil terhadap riwayat sendiri) tetapi atas rasio, bukan Rupiah, dan tanpa syarat 3 dari 5 hari net beli. V1Δ sama dengan Δ S2 tetapi dipakai dengan ambang, bukan diperingkat antar saham.
 
-**Yang bukan artinya:** bukan sinyal beli; hanya jenis investor Foreign di seluruh broker (bukan broker tertentu); tidak membedakan satu transaksi blok dari pembelian yang tersebar (syarat persistensi tidak termasuk).
+**Yang bukan artinya:** bukan sinyal beli; hanya jenis investor Foreign di seluruh broker (bukan broker tertentu); tidak membedakan satu transaksi blok dari pembelian yang tersebar (kecuali syarat persistensi opsional dicentang).
