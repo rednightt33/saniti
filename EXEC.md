@@ -13103,6 +13103,22 @@ bagian kanan, broker inventory, top broker, dan lain sebagainya loading terus. C
   daftar broker, otomatis maupun pilihan sendiri, hanya berlaku di saham tempat dibuat; di saham lain kembali ke pilihan
   awal: 3 net buyer terbesar 20 sesi, panel Broker inventory).
 
+## EXEC-XABCD-PREVIEW — XABCD saat menaruh titik tampil seperti TradingView (diminta 2026-11-11, menunggu go)
+
+**Kata user, 2026-11-11:** "X A B C D yang biru adalah tradingview, sedangkan yang hitam adalah punya kita. masukan exec
+untuk di benarkan."
+
+- **Fakta (server lokal, build `e02066c1`):** XABCD yang sudah lima titik tampil seperti TradingView (label X/A/B/C/D,
+  isian, garis titik-titik dengan rasio 0.571, 1.25, 1.2, 0.714). Selama titik masih ditaruh (contoh user: X, A, B),
+  tampilan kita hanya garis dan titik kecil, tanpa label, isian, dan rasio; TradingView sudah menampilkannya sejak titik
+  ketiga (0.557 di contoh user). Pratinjau penempatan digambar pustaka `lightweight-charts-drawing` sebagai garis biasa.
+- **Rencana:** pratinjau memakai gambar akhir yang sama dari titik yang sudah ditaruh ditambah kursor (kelas yang sama:
+  setiap alat pola dengan banyak titik, mis. ABCD, Cypher, Head and shoulders, bila nanti ditambahkan). Lapisan yang
+  dipakai (pustaka atau lapisan kita di atasnya) dipastikan saat eksekusi.
+- **Catatan:** sebelum rilis 2026-11-10 label XABCD yang sudah jadi juga tidak terbaca (teks hitam di label hitam); sudah
+  benar sejak aturan warna EXEC-DRAW-DRAG-TOOLS (teks putih pada label).
+- **Status:** menunggu go user.
+
 ## EXEC-DRAW-DRAG-TOOLS — gambar bisa digeser naik-turun; alat ukur, Rectangle dan Parallel channel (2026-11-10)
 
 **Kata user, 2026-11-10:** "Tambahkan fitur terlampir bisa? Cek dulu di tradingview what this feature does. Feel free to
