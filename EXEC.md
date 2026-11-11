@@ -13111,7 +13111,7 @@ ada karena tidak ada indikator yang membutuhkan 2 axis currently added"
 - ERRORS M423: indikator yang disembunyikan (ikon mata) tetap menempel di sumbu kanan; sekarang dilepas saat disembunyikan
   dan dikembalikan saat ditampilkan. Sumbu kanan tetap ada sebagai ruang kosong (lebarnya sama dengan Flow Timeline).
 
-## EXEC-XABCD-PREVIEW — XABCD saat menaruh titik tampil seperti TradingView (diminta 2026-11-11, menunggu go)
+## EXEC-XABCD-PREVIEW — XABCD saat menaruh titik tampil seperti TradingView (go 2026-11-11, selesai)
 
 **Kata user, 2026-11-11:** "X A B C D yang biru adalah tradingview, sedangkan yang hitam adalah punya kita. masukan exec
 untuk di benarkan."
@@ -13125,7 +13125,12 @@ untuk di benarkan."
   dipakai (pustaka atau lapisan kita di atasnya) dipastikan saat eksekusi.
 - **Catatan:** sebelum rilis 2026-11-10 label XABCD yang sudah jadi juga tidak terbaca (teks hitam di label hitam); sudah
   benar sejak aturan warna EXEC-DRAW-DRAG-TOOLS (teks putih pada label).
-- **Status:** menunggu go user.
+- **Go user, 2026-11-11:** "Ini" (balasan pada butir XABCD), "Once done, sekalian kerjakan exec yang saya remark."
+- **Dikerjakan 2026-11-11:** `app/drawings.ts` `patternPreview`: pratinjau alat pola (XABCD, ABCD, Cypher, Head and
+  shoulders, Triangle pattern, Three drives, Elliott) memakai `sceneOf` pustaka atas titik yang sudah ditaruh + titik
+  bidik, dengan lingkaran di titik yang sudah ditaruh; alat lain dan titik di luar layar tetap memakai pratinjau
+  pustaka. Bukti (server lokal): setelah X, A, B dan kursor di C tampil label X/A/B/C, isian XAB, rasio 0.571 dan 0.75.
+- **Status:** selesai, dirilis bersama M423.
 
 ## EXEC-DRAW-DRAG-TOOLS — gambar bisa digeser naik-turun; alat ukur, Rectangle dan Parallel channel (2026-11-10)
 
