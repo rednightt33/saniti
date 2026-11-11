@@ -87,6 +87,9 @@ Empat versi (V1 absolut, V1Δ perubahan absolut terhadap T−5, V2 persentil riw
 
 ### S7 — Institusi masuk, ritel keluar (rancangan, disetujui user 2026-11-10)
 Indikator FL34 (selisih net broker institusi dan ritel, jendela 5 sesi) dengan keadaan perubahan terhadap T−5 (membaik, pembalikan, menguat dan cerminnya), besar Δ sebagai syarat, dan penjaga net institusi > 0 serta ukuran kaki institusi ≥ 5% dari total beli. V2 dan V2Δ menunggu keputusan data. Rincian dan kriteria masuk: bagian 12 (12.6).
+
+### S8 — Lonjakan net beli asing 1 hari (rancangan, disetujui user 2026-11-11)
+Net asing sehari yang tidak biasa terhadap riwayat saham itu sendiri: tiga ukuran (rasio, Rupiah, terhadap ADV20), pemicu salah satu skala, tiga gerbang, dan dua tingkat keluaran (Kuat, Perhatian). Rincian dan backtest November 2025: bagian 13.
 ## 4. Contoh keluaran, as-of 3 Nov 2026 (semua sumber di tanggal itu)
 
 Contoh parameter dan jumlah, bukan rekomendasi. Jendela = 5 sesi Regular terakhir tiap saham.
@@ -805,3 +808,86 @@ Menerapkan kriteria 12.6 (G2, G3, FL34 punya nilai, keadaan A, Δ ≥ 20) pada d
 Detail ("Likuid"; Rp miliar): CNMA −83,5 → −6,6 (Δ +76,9; net institusi −2,86), MIKA −81,8 → −31,6 (+50,2; −14,93), ACES −48,6 → −2,3 (+46,4; −5,47), SIDO −63,3 → −18,4 (+45,0; −6,64), TCPI −38,9 → −9,0 (+29,9; −8,77), INCO −28,1 → −2,4 (+25,7; −13,25), TLKM −40,2 → −15,7 (+24,6; −595,55), TKIM −24,6 → −0,6 (+24,0; +1,60), BRIS −21,6 → −0,5 (+21,1; −20,97). Delapan dari sembilan masih net jual institusi: keadaan A berarti dominasi ritel mereda, bukan institusi mulai membeli. Hanya TKIM yang net institusinya positif (+1,60 miliar, 2,6% dari total beli), dan ia tidak lolos ukuran 5%, jadi tidak masuk "Institusi masuk".
 
 Catatan: daftar ini adalah posisi 3 Nov 2026 dan dihitung dari sesi data broker tiap saham; kode BFF memakai tanggal harga sebagai candle (`FORMULAS.md`), sehingga saham dengan hari tanpa data harga dapat berbeda sedikit. Screener S7 belum dibangun; apakah BFF dapat membentuk keadaan A, B, C belum diverifikasi.
+
+## 13. S8 Lonjakan net beli asing 1 hari (rancangan disetujui 2026-11-11, belum dibangun)
+
+**Keputusan user:** "saya sebenarnya ingin mendeteksi ... meskipun 1 atau 2 hari, di mana net beli asing itu sangat outlier atau cukup outlier dibandingkan dengan historical dia"; "persentile 95 alright"; "Oke kalau casenya kaya gitu, kita masukan as filter ya.. S berapa?" (2026-11-11) setelah SRTG diuji dan backtest November 2025. Penjaga materialitas relatif (N ≥ 10% ADV20 menggantikan Rp1 miliar atas keberatan user bahwa Rp1 miliar tidak setara antar saham) dipakai sejak 2026-11-10 tanpa keberatan; bacaan AI atas persetujuan.
+Angka dihitung dari `Feature_06_Foreign_Domestic` (papan Regular, sesi saham itu sendiri). Ambang adalah usulan awal; daya prediksi terhadap harga belum terbukti.
+
+### 13.1 Besaran dasar dan tiga ukuran
+
+| Simbol | Definisi |
+|---|---|
+| FB, FS | Σ nilai beli dan jual investor **Foreign** (semua broker) |
+| DB | Σ nilai beli investor **Domestic** |
+| N | FB − FS (net asing, Rp miliar) |
+| TBV | FB + DB (total beli **semua investor**; bukan beli bruto asing saja) |
+| ADV20 | rata-rata TBV pada 20 sesi **sebelum** hari t (t tidak ikut) |
+
+| Ukuran | Rumus |
+|---|---|
+| U1 rasio r | 100 × N ÷ TBV |
+| U2 net Rupiah | N |
+| U3 terhadap aktivitas x | 100 × N ÷ ADV20 |
+
+### 13.2 Penilaian terhadap riwayat saham itu sendiri
+
+Baseline = **252 sesi sebelum t** (t tidak ikut); syarat kecukupan data: ≥ 200 nilai dan MAD > 0, jika tidak saham itu tidak dinilai.
+- **z robust** (U1 dan U3): (nilai − median) ÷ (1,4826 × MAD).
+- **Persentil N** (U2): 100 × (jumlah dari 252 N sebelumnya yang lebih kecil dari N hari ini) ÷ 252.
+
+### 13.3 Aturan dan tingkat keluaran
+
+| Bagian | Isi |
+|---|---|
+| **Pemicu** (salah satu) | z robust U1 ≥ 3 **atau** z robust U3 ≥ 3 |
+| **Penjaga 1** (materialitas relatif) | N ≥ 10% × ADV20 (x ≥ 10%) |
+| **Penjaga 2** (ukuran relatif riwayat) | persentil N ≥ 95 |
+| **G3 "Luas"** (likuiditas) | TBV 5 sesi sampai t ≥ **median TBV 5 sesi seluruh ticker yang bertransaksi pada tanggal itu** (9 Nov 2026: Rp1,85 miliar dari 857 saham; Nov 2025: Rp1,44 sampai Rp1,90 miliar dari 1.149 sampai 1.207 ticker) |
+
+| Tingkat | Syarat |
+|---|---|
+| **Kuat** | pemicu + penjaga 1 + penjaga 2 + G3 |
+| **Perhatian** | pemicu + penjaga 1 + G3, tetapi gagal penjaga 2 |
+
+Ukuran U2 hanya dipakai lewat persentilnya (penjaga 2), bukan sebagai pemicu: ukuran Rupiah membengkak bila aktivitas saham naik (pada DOOH, keempat hari dengan z ≥ 4 pada ukuran Rupiah jatuh dalam 3 bulan terakhir). Jendela dasar 1 sesi; jumlah 2 sesi belum diputuskan.
+
+### 13.4 Penelusuran (Rp miliar)
+
+DOOH:
+
+| Tanggal | FB | FS | DB | N | TBV | ADV20 | r | x | z₁ | z₃ | Persentil N | Hasil |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| 5 Agu 2026 | 12,70 | 2,40 | 27,64 | +10,30 | 40,33 | 25,10 | +25,53% | +41,02% | +2,58 | +5,56 | 98,8 | **Kuat** |
+| 2 Nov 2026 | 12,97 | 7,29 | 30,87 | +5,68 | 43,84 | 54,53 | +12,95% | +10,41% | +1,44 | +1,60 | 96,4 | tidak (pemicu) |
+| 9 Nov 2026 | 20,42 | 10,42 | 58,02 | +10,00 | 78,44 | 48,29 | +12,75% | +20,71% | +1,46 | +3,34 | 98,4 | **Kuat** |
+
+Pada 9 Nov rasio saja tidak cukup (z₁ +1,46); pemicunya z₃ +3,34. Persentil N pada 9 Nov: 248 dari 252 net harian sebelumnya lebih kecil.
+
+SRTG, 9 Nov 2026: FB 6,974; FS 3,773; DB 7,655; N +3,201; TBV 14,629; ADV20 4,857; r +21,88% (z₁ +1,21); x +65,91% (z₃ **+4,99**); persentil N **88,5** (223 dari 252) → pemicu, penjaga 1, dan G3 lolos, **penjaga 2 gagal → Perhatian, bukan Kuat**. Persentil Rupiah menghukum saham yang aktivitasnya lebih sepi sekarang (29 dari 252 hari sebelumnya net asing ≥ Rp3,2 miliar), kebalikan dari DOOH yang aktivitasnya naik.
+Pada 9 Nov 2026: 5 saham Kuat (DOOH, DRMA, GEMS, GDST, BOBA) dan 18 Perhatian (termasuk SRTG, MSIN, TRIN, MSJA, FUTR); tanpa penjaga 2 ada 23.
+
+### 13.5 Seberapa sering menyala
+
+Pada 728 saham selama 104 hari bursa (tanpa G3): pemicu + penjaga 1 + persentil ≥ 95 menyala sekitar 6,0 hari per tahun per saham (1.030 stock-hari, sekitar 10 saham per hari). Persentil ≥ 95 sendirian: 11,0 hari per tahun per saham; ≥ 98: 5,4; ≥ 99: 3,0.
+
+**Backtest November 2025** (20 hari bursa, aturan Kuat, G3 sesuai definisi): **438 sinyal** dari **233 saham unik**, per hari 10 sampai 45 (rata-rata 21,9). Hasil harga dari tutup hari sinyal (median / rata-rata / % positif; sinyal pertama per saham):
+
+| Kelompok | n | +1 sesi | +5 | +10 | +20 |
+|---|---:|---|---|---|---|
+| Kuat | 233 | 0,00 / +1,01 / 41% | 0,00 / +2,41 / 46% | +0,75 / +5,63 / 53% | +1,16 / +10,43 / 54% |
+| Pembanding: eligible G3 tanpa sinyal | 8.064 | 0,00 / +0,22 / 37% | 0,00 / +1,81 / 45% | 0,00 / +3,94 / 48% | 0,00 / +7,09 / 49% |
+
+10 saham acak (benih tetap 11) dari sinyal Kuat pertama: BSSR (3 Nov), TLKM (4 Nov), PTMP (5 Nov), FUTR (5 Nov), PANI (14 Nov), DSSA (17 Nov), DILD (17 Nov), BMRI (20 Nov), NICL (20 Nov), BACA (28 Nov). Empat dari sepuluh punya net asing < Rp1 miliar (BSSR 0,64; PTMP 0,32; DILD 0,91; BACA 0,18).
+Catatan koreksi: backtest pertama memakai batas G3 Rp7,56 sampai Rp10,44 miliar (median di antara saham yang dinilai, bukan semua ticker), sehingga lebih ketat dari definisi; hasil di atas memakai definisi yang benar. Sinyal tambahan (123) berasal dari saham kecil (median net asing Rp0,23 miliar berbanding Rp2,16 miliar).
+
+### 13.6 Keterbatasan dan butir terbuka
+
+| # | Butir |
+|---|---|
+| 1 | Ambang z ≥ 3, x ≥ 10%, persentil ≥ 95 adalah usulan; satu bulan dan satu rezim pasar; tanpa uji signifikansi; return dihitung dari tutup hari sinyal (entri nyata lebih lambat satu sesi); rata-rata dikuasai pencilan (11 saham dengan |return +20| > 60%), pakai median. |
+| 2 | Saham kecil dengan arus asing kecil masih lolos penjaga relatif dan G3 "Luas"; perlu keputusan lantai Rupiah atau penjaga lain. |
+| 3 | Sinyal bergerombol pada hari tertentu (Nov 2025: 39 dan 28 sinyal pada 24 dan 17 Nov), jadi observasi tidak independen. |
+| 4 | Jendela 1 hari atau jumlah 2 hari; panjang baseline 252 dan minimum 200 belum diuji. |
+| 5 | Di BFF, persentil riwayat dibatasi baseline 60 sesi dan peringkat Flow antar saham belum ada; aturan ini butuh tabel turunan atau dukungan baru. |
+| 6 | Kaitan dengan S6: S8 pada dasarnya S6 versi jendela 1 hari dengan z robust dan skala ADV20; belum diputuskan apakah digabung. |
