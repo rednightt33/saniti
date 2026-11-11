@@ -1,5 +1,12 @@
 # Railway changelog
 
+## 2026-11-11 — edge-bff and screener-worker `c098efb4`: Implied Cost no-position note (EXEC-IC-NOPOS)
+
+- Push deployed edge-bff `9a767abd` and screener-worker `9c8c5ee1`, both SUCCESS 17:20 UTC; `/ready` 200. screener-worker
+  passed its start-up registry check (new `calc/flow.ts` hash) and swapped to the publication of 12:06 UTC (`swap`,
+  `refresh` 60 broker days). The Screener's behaviour is unchanged: only the registry hash moved.
+- Rollback: `serviceInstanceDeployV2` with `a22f0972` on both.
+
 ## 2026-11-11 — edge-bff: empty right axis without a crosshair price (M423), pattern preview (EXEC-XABCD-PREVIEW)
 
 - `f87d6816` → `e5ce180f` SUCCESS 15:57 UTC (M423); `86c0a2b6` → `453ceb5d` SUCCESS 16:00 UTC (pattern preview). Deployed by
