@@ -75,7 +75,7 @@ describe('screener-metrics.json', () => {
     for (const m of flows) expect([m.id, ready.get(m.id)!]).toEqual([m.id, needs[m.id] ? { availability: 'REQUIRES_DATA', reason: needs[m.id] } : { availability: 'AVAILABLE', reason: null }]);
     // the catalog's words of a screener version are its own (flow-kinds.json), of a Terminal indicator the general ones
     const fl23 = METRICS_CATALOG.metrics.find(m => m.id === 'FL23')!, fl24 = METRICS_CATALOG.metrics.find(m => m.id === 'FL24')!;
-    expect([fl23.formula, fl24.formula]).toEqual([expect.stringMatching(/^Series a: the Terminal's Broker Inventory/), expect.stringMatching(/^The Terminal's Bandar Balance · %/)]);
+    expect([fl23.formula, fl24.formula]).toEqual([expect.stringMatching(/^Series a: the Terminal's Broker Inventory/), expect.stringMatching(/^The Terminal's Top Brokers · %/)]);
     expect([noClass.get('FL34'), noClass.get('FL24')!.availability]).toEqual([{ availability: 'REQUIRES_DATA', reason: FLOW_REASONS.classification }, 'AVAILABLE']);
     const pe = METRICS_CATALOG.metrics.find(m => m.id === 'pe')!;
     expect(availabilityOf(pe, { [pe.requires!.file]: { columns: ['d'] } }).reason).toMatch(/\. It needs data that this publication does not carry\.$/);

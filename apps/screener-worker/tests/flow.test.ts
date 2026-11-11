@@ -75,11 +75,11 @@ test('the catalog: the 48 flow indicators with their Terminal setup and the Scre
   assert.deepEqual([fl23.flow.outputs.map((o: any) => o.key), fl23.flow.depth, fl18.flow.depth, fl18.flow.params.find((p: any) => p.key === 'anchor_sessions')],
     [['value', 'count'], 20, 21, { key: 'anchor_sessions', label: 'Anchor: sessions before the evaluated candle', kind: 'int', default: 20, min: 1, max: 59, text: fl18.flow.params.find((p: any) => p.key === 'anchor_sessions').text, condition: true, screener: true }]);
   const fl24 = flows.find(m => m.id === 'FL24'), fl37 = flows.find(m => m.id === 'FL37');
-  assert.deepEqual([fl24.label, fl24.unit, fl24.params, fl24.flow.default_output, fl24.flow.depth, fl24.flow.sessions, fl24.flow.outputs], ['Bandar Balance · %', '%', [], 'value', 10, 60, [{ key: 'value', kind: 'K' }]]);
+  assert.deepEqual([fl24.label, fl24.unit, fl24.params, fl24.flow.default_output, fl24.flow.depth, fl24.flow.sessions, fl24.flow.outputs], ['Top Brokers · %', '%', [], 'value', 10, 60, [{ key: 'value', kind: 'K' }]]);
   assert.deepEqual([fl37.flow.params.find((p: any) => p.key === 'baseline').default, fl37.flow.depth], [40, 60], 'the built-in baseline capped to the window less its own (K1)');
   // the limit is published with its rule and examples before a user meets it (the gate rule)
   const limit = (cat.limits as any[]).find(l => l.name === 'broker_depth');
-  assert.deepEqual([limit.value, limit.unit, limit.example_ok], [60, 'sessions', 'Bandar Balance · % over 10 sessions with a percentile over 50 sessions (60 in all)']);
+  assert.deepEqual([limit.value, limit.unit, limit.example_ok], [60, 'sessions', 'Top Brokers · % over 10 sessions with a percentile over 50 sessions (60 in all)']);
   // the eight bandar presets read the flow entries: available on the loaded window, with their counts computed
   for (const id of ['bigacc', 'fstreak', 'silent', 'freq', 'bavg', 'follow']) {
     const p = (cat.presets as any[]).find(x => x.id === id);

@@ -30,6 +30,6 @@ describe('Design Spec v1.2 numbers', () => {
   it('parameters in parentheses: RSI (14)', () => {
     expect(titled('RSI', [14, 'close'])).toBe('RSI (14, close)');
     expect(titled('OBV', [])).toBe('OBV');
-    expect(titled('Bandar Balance · %', ['Top 3', '10D'])).toBe('Bandar Balance · % (Top 3, 10D)');
+    expect(titled('Top Brokers · %', ['Top 3', '10D'])).toBe('Top Brokers · % (Top 3, 10D)');
   });
 });

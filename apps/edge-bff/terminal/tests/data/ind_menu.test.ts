@@ -11,7 +11,7 @@ describe('indicator menu rows', () => {
     expect(all.length).toBe((IND as any[]).length + (FLOW as any).indicators.length + 1 - MENU_HIDDEN.size);
     expect(new Set(all.map(i => i.id)).size).toBe(all.length);
     expect(all.find(i => i.id === 'VOL')).toMatchObject({ kind:'Base', group:'Volume' });
-    expect(all.find(i => i.id === 'FL24')).toMatchObject({ kind:'Flow', group:'Bandar Balance', place:'Panel', unit:'%' });
+    expect(all.find(i => i.id === 'FL24')).toMatchObject({ kind:'Flow', group:'Top Brokers', place:'Panel', unit:'%' });
     expect(all.find(i => i.id === 'I01')).toMatchObject({ kind:'Technical', group:'Trend', place:'Overlay' });
     // EXEC-IND-CARDS IC2: a Flow line on the price axis (FL17 Buy VWAP) and a mark under the candles (FL27) sit on the price chart
     expect(all.find(i => i.id === 'FL17')?.place).toBe('Overlay');
@@ -39,7 +39,7 @@ describe('indicator menu rows', () => {
     for (const id of ['FL40', 'FL41', 'FL46', 'FL47', 'FL48']) expect(flow).toContain(id);
   });
   it('groups, favorites and search', () => {
-    expect(visibleItems(all, 'f:Bandar Balance', '', new Set()).every(i => i.group === 'Bandar Balance' && i.kind === 'Flow')).toBe(true);
+    expect(visibleItems(all, 'f:Top Brokers', '', new Set()).every(i => i.group === 'Top Brokers' && i.kind === 'Flow')).toBe(true);
     expect(visibleItems(all, 't:Volume', '', new Set())[0].id).toBe('VOL');
     expect(visibleItems(all, 'fav', '', new Set(['FL24', 'I01'])).map(i => i.id).sort()).toEqual(['FL24', 'I01']);
     // QA round 3: words match from their start; "rsi" finds RSI, not "Net Buy Persistence"; "pers" still does

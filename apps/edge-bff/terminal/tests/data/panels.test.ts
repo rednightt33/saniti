@@ -97,7 +97,7 @@ describe('Flow indicators raw rows (EXEC-TERMINAL-FLOW-IND, worker.ts flowRowsOf
 });
 
 describe('Bandar panel verdict (EXEC-TERMINAL-FLOW-IND, user 2026-10-30: 6/10%, Top 3)', () => {
-  it('reads its levels and Top N from Bandar Balance · % (FL24)', () => {
+  it('reads its levels and Top N from Top Brokers · % (FL24)', () => {
     expect(BANDAR_LEVELS).toEqual([6, 10]);
     expect(BANDAR_TOP).toBe(3);
   });

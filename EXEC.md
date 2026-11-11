@@ -13103,6 +13103,19 @@ bagian kanan, broker inventory, top broker, dan lain sebagainya loading terus. C
   daftar broker, otomatis maupun pilihan sendiri, hanya berlaku di saham tempat dibuat; di saham lain kembali ke pilihan
   awal: 3 net buyer terbesar 20 sesi, panel Broker inventory).
 
+## EXEC-TOPBROKERS-NAME — "Bandar Balance" menjadi "Top Brokers" (2026-11-11)
+
+**Kata user, 2026-11-11:** "Bandar balance % ini perlu diganti indicator namenya agar jelas bahwa ini refer juga ke top
+broker." lalu "Ganti Top Brokers saja deh".
+
+- Keluarga indikator dan namanya: FL24 Top Brokers · %, FL25 Top Brokers · Rupiah, FL27 Top Brokers · Accumulation Days,
+  FL48 Top Brokers · Imbalance; FL49/FL50 (Foreign × Domestic) masuk keluarga Top Brokers. Kode (FL24 dst.) tidak
+  berubah, jadi indikator, preset dan layout yang tersimpan tetap terbaca.
+- Sumber: `verification/terminal_api/flow_indicators/build_spec_workbook.py` (workbook dibuat ulang),
+  `scripts/build_flow_registry.py`, registry Terminal dan Screener dibuat ulang; teks Screener, contoh screener-worker,
+  placeholder pencarian Indicators, tes. Label parameter "Ambang Bandar Balance harian (%)" di workbook masukan tetap.
+- Tes: Terminal 893, Screener 1.353, screener-worker 112, `test_registries_current.py` lulus, look_check11 PASS.
+
 ## EXEC-IC-NOPOS — Implied Cost: periode tanpa posisi dijelaskan, bukan garis putus tanpa keterangan (2026-11-11)
 
 **Kata user, 2026-11-11:** "Ini ada 1 error di implied cost distance %" lalu "garis putus, opsi A".

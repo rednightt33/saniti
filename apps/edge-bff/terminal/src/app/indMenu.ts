@@ -125,7 +125,7 @@ export function initIndMenu(ctx: Ctx) {
       <div class="im-head"><div class="t"><h3>Indicators</h3><p>Click a row to add it to the chart. Remove an indicator from its line on the chart. The window stays open until you close it.</p></div>
         <button type="button" class="im-x" aria-label="Close indicators">×</button></div>
       <label class="im-search"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2 17 17"/></svg>
-        <input type="search" id="imSearch" placeholder="RSI, MACD, Bandar Balance, Broker Inventory…" autocomplete="off" aria-label="Search indicators"></label>
+        <input type="search" id="imSearch" placeholder="RSI, MACD, Top Brokers, Broker Inventory…" autocomplete="off" aria-label="Search indicators"></label>
       <div class="im-body"><nav class="im-nav" aria-label="Indicator groups"></nav><div class="im-split" role="separator" aria-orientation="vertical" aria-label="Resize the group list" tabindex="0"></div>
         <div class="im-main"><div class="im-cols" aria-hidden="true"><span></span><span>Indicator</span><span></span></div><div class="im-list" role="list"></div></div></div>
       <div class="im-foot"><span>/ to search · ↑ ↓ to move · Enter to add · Esc to close</span><b class="im-count"></b></div>

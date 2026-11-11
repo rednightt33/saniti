@@ -163,7 +163,7 @@ describe('the eight bandar presets keep their meaning: each rewritten leg gives 
       for (const f of flows) expect([id, c.id, f.includes('"boards":["Regular"]')]).toEqual([id, c.id, true]);
     }
   });
-  it('bigacc: Bandar Balance · % (top 3, 10 sessions) inside 10..100 is old FL09 Big Acc (>= 10), on the regular board; on every board when both sides read every board', () => {
+  it('bigacc: Top Brokers · % (top 3, 10 sessions) inside 10..100 is old FL09 Big Acc (>= 10), on the regular board; on every board when both sides read every board', () => {
     sameVerdicts('bigacc.a', presetTest('bigacc', 'a'), 9, (rows, k) => oldBandar(rows, k, 10, 3, REG) >= 10);
     const all = { kind: 'value', metric: { kind: 'flow', metric: 'FL24', params: { top: 3, window: 10, boards: ['Regular', 'Nego', 'Cash'] } }, op: 'between', value: 10, value2: 100 };
     sameVerdicts('bigacc.a every board', all, 9, (rows, k) => oldBandar(rows, k, 10, 3, ALL) >= 10);
@@ -211,12 +211,12 @@ describe('the other old formulas of "Rumus lama" (user 2026-11-07), rebuilt on t
     for (const k0 of [3, 5]) sameVerdicts(`1/H >= ${k0}`, { kind: 'value', metric: F('FL38', { scope: 'all', window: 20, unit: 'value', boards: ['Regular', 'Nego', 'Cash'] }), op: 'le', value: 1 / k0 }, 19,
       (rows, k) => { const h = oldHhi(rows, k, 20, ALL); return h !== null && 1 / h >= k0 });
   });
-  it('the named Bandar states as ranges of Bandar Balance · % (top 3, 10 sessions, every board): Big Acc 10..100, Acc or better 6..100, Dist or worse -100..-6, Big Dist -100..-10', () => {
+  it('the named Bandar states as ranges of Top Brokers · % (top 3, 10 sessions, every board): Big Acc 10..100, Acc or better 6..100, Dist or worse -100..-6, Big Dist -100..-10', () => {
     const bandar = F('FL24', { top: 3, window: 10, boards: ['Regular', 'Nego', 'Cash'] });
     for (const [name, lo, hi, old] of [['Big Acc', 10, 100, (v: number) => v >= 10], ['Acc or better', 6, 100, (v: number) => v >= 6], ['Dist or worse', -100, -6, (v: number) => v <= -6], ['Big Dist', -100, -10, (v: number) => v <= -10]] as const)
       sameVerdicts(name, { kind: 'value', metric: bandar, op: 'between', value: lo, value2: hi }, 9, (rows, k) => old(oldBandar(rows, k, 10, 3, ALL)));
   });
-  it('distribution days: at least K of the last 20 sessions with a daily top-3 balance below -x is Persistence (at least K of 20) of Bandar Balance · % over 1 session below -x', () => {
+  it('distribution days: at least K of the last 20 sessions with a daily top-3 balance below -x is Persistence (at least K of 20) of Top Brokers · % over 1 session below -x', () => {
     for (const [K, x] of [[3, 0], [6, 0], [2, 8]] as const)
       sameVerdicts(`dist days >= ${K} (x ${x})`, { kind: 'window', mode: 'at_least', length: 20, count: K, test: { kind: 'value', metric: F('FL24', { top: 3, window: 1, boards: ['Regular', 'Nego', 'Cash'] }), op: 'lt', value: -x } }, 19,
         (rows, k) => oldDistDays(rows, k, 20, 3, x, ALL) >= K);

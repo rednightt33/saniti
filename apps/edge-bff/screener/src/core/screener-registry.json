@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "566cbb7f7f357e74",
+  "screener_registry_version": "bd2b449fe371a885",
   "registry_version": "514dc3df60a25aff",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -37,7 +37,7 @@
     {
       "role": "flow_registry",
       "file": "apps/edge-bff/terminal/src/data/flowRegistry.json",
-      "sha256": "984ce79e78a8ecda4322573dd67fb6939e9632c9ea683cae65515a0c3aef87ac"
+      "sha256": "693448d2a40980170b3b8e97f56f147049b147e140c71ad799aee3ab5a447f7b"
     },
     {
       "role": "flow_kinds",
@@ -12370,8 +12370,8 @@
     },
     {
       "id": "FL24",
-      "name": "Bandar Balance · %",
-      "family": "Bandar Balance",
+      "name": "Top Brokers · %",
+      "family": "Top Brokers",
       "unit": "%",
       "place": "pane",
       "tip": "Apakah broker besar di sisi beli lebih kuat dari broker besar di sisi jual: (net beli N pembeli terbesar − net jual N penjual terbesar) ÷ nilai beli semua broker pada papan dan jenis investor yang dipilih (dengan satu jenis investor, penyebutnya hanya jenis itu).",
@@ -12454,11 +12454,11 @@
     },
     {
       "id": "FL25",
-      "name": "Bandar Balance · Rupiah",
-      "family": "Bandar Balance",
+      "name": "Top Brokers · Rupiah",
+      "family": "Top Brokers",
       "unit": "IDR",
       "place": "pane",
-      "tip": "Sama dengan Bandar Balance, tetapi dalam Rupiah, tidak dibagi nilai transaksi.",
+      "tip": "Sama dengan Top Brokers · %, tetapi dalam Rupiah, tidak dibagi nilai transaksi.",
       "needs_frequency": false,
       "outputs": [
         {
@@ -12862,8 +12862,8 @@
     },
     {
       "id": "FL29",
-      "name": "Bandar Balance · Accumulation Days",
-      "family": "Bandar Balance",
+      "name": "Top Brokers · Accumulation Days",
+      "family": "Top Brokers",
       "unit": "%",
       "place": "pane",
       "tip": "Seberapa sering akumulasi bandar terjadi dalam periode (persen hari), dan seberapa besar akumulasinya terhadap nilai beli pada papan dan jenis investor yang dipilih (persen).",
@@ -15326,8 +15326,8 @@
     },
     {
       "id": "FL48",
-      "name": "Bandar Balance · Imbalance",
-      "family": "Bandar Balance",
+      "name": "Top Brokers · Imbalance",
+      "family": "Top Brokers",
       "unit": "-1..1",
       "place": "pane",
       "tip": "Pembeli bersih terbesar dibanding penjual bersih terbesar selama jendela: (B − S) ÷ (B + S) dari -1 sampai 1, atau B ÷ S.",

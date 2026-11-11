@@ -40,7 +40,7 @@ export const T = {
   operatorCardNote: 'To change this operator, open Add a condition, set it again and add it; then remove this card.',
   sendPhase: 'Send to Backtest comes with Phase 1b, once its rules are confirmed.',
   // the prototype's global bandar thresholds are each condition's own values since the flow indicators (P5)
-  bandarOwn: 'The bandar thresholds are each condition\'s own values, set on its card: for example Bandar Balance at 6% or more for accumulation and 10% or more for big accumulation, as the bandar presets use.',
+  bandarOwn: 'The bandar thresholds are each condition\'s own values, set on its card: for example Top Brokers · % at 6% or more for accumulation and 10% or more for big accumulation, as the bandar presets use.',
   // P17 consequence (catalog default_offered false: I43 VWAP, whose registry default anchor Session is not offered)
   noDefault: 'The screener does not offer this indicator\'s standard default, so the card opens at the starting parameters shown; change them here.',
   noWatchlistPage: 'Saved in your EDGE watchlist.',
