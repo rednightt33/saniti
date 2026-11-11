@@ -78,8 +78,9 @@ Insider IDX yang membeli dengan pola opportunistic (bukan pola bulan yang sama b
 transfer, tanpa kembar IDX–KSEI, dan dengan ukuran relatif terhadap saham beredar. Bergantung pada keputusan aturan dedup
 (ERRORS M241) dan label repo. Dasar riset: Cohen, Malloy, Pomorski (2012).
 
-### S5 — Konfluensi
-Aset yang muncul di S1 dan (S2 atau S3). Daftar pendek dengan jumlah bukti tertinggi, tetapi juga paling sedikit anggotanya.
+### S5 — (dibatalkan 2026-11-11; slot diganti screener dari indikator checklist FL, belum ditetapkan)
+**Keputusan user 2026-11-11:** "Drop S5, kita ganti dengan indikator lain (yang ada di checklist)". Aturan lama (konfluensi: aset yang muncul di S1 dan (S2 atau S3)) tidak berlaku lagi. Alasan yang tercatat sebelumnya: bukti S1 dan S2 tidak independen (sama-sama net asing), S3 mengukur semua investor sehingga S1 ∩ S3 menggabungkan dua pertanyaan berbeda, dan aturan itu belum disesuaikan dengan S6 sampai S8. Hasil konfluensi lama (BOGA, DKFT, BINA pada gerbang "Likuid"; tabel jumlah di bagian 4) dan butir 5 di bagian 5 tetap sebagai catatan historis.
+Calon isi slot: indikator checklist FL38, FL39, FL20, FL24, FL22, Silent Accumulation (FL27), dan Block Money Candidate (FL09). Perilakunya pada periode pra-rally FUTR (15 Apr sampai 8 Jun 2026) sedang diamati; bentuk screener-nya belum diputuskan.
 
 
 ### S6 — Akumulasi asing, rasio 5 sesi (rancangan, struktur versi terkunci 2026-11-10; jendela 5 sesi sejak 2026-11-10)
