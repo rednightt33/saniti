@@ -13116,6 +13116,9 @@ Tapi perlu dibuatkan legend agar tahu apa maksudnya apa arti dari warna bar".
 - Nilai FL49 (kode kuadran) dan rumus di `calc/flow.ts` tidak berubah: tinggi batang dihitung di lapisan Terminal dari
   `fdParts`; Screener tidak tersentuh. Kode: `app/flowIndicators.ts`, `app/indicators.ts`, `styles/terminal.css`.
 - Tes: Terminal 893, look_check11 PASS; server lokal (BBRI): batang, legend dan kunci tampil.
+- **Revisi user, 2026-11-11:** "Both accumulate sampai dengan both leave dipindah ke paling kiri, kemudian 1 pindah ke
+  posisi 2, 2 existing (flat = heigh dll) di hapus": urutan baris legend sekarang empat kunci warna, lalu bacaan sesi;
+  kunci "Flat" dan keterangan tinggi batang dihapus.
 
 ## EXEC-TOPBROKERS-NAME — "Bandar Balance" menjadi "Top Brokers" (2026-11-11)
 

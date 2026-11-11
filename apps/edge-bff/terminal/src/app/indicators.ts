@@ -902,7 +902,7 @@ export function initIndicators(ctx: Ctx) {
         return `<span style="color:${c === '#171717' ? 'var(--text)' : c}">${many && pt.kind !== 'seg' ? `<i class="ind-ok">${pt.o.label}</i> ` : ''}${txt}</span>`;
       }).filter(Boolean).join(' &nbsp;');
       if(!b.innerHTML && inst.def.note && inst.on && inst.parts.some(pt => !pt.o.hidden)) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
-      if(inst.def.key && inst.on) b.innerHTML += `<span class="ind-keys">${inst.def.key}</span>`;   // EXEC-DQ-SIZE: the colour key (FL49)
+      if(inst.def.key && inst.on) b.innerHTML = `<span class="ind-keys">${inst.def.key}</span>` + b.innerHTML;   // EXEC-DQ-SIZE: the colour key (FL49) before the reading
       b.title = b.textContent || '';                       // QA R2-M4: the full value or note when the row is narrow
       /* QA round 4 (L2): the panel repeats the full title (shortened on the row) with the value or note */
       const full = r.querySelector('.ind-fltnote'); if(full) { full.textContent = ''; const t = document.createElement('b'); t.textContent = inst.def.title(inst.params); full.append(t, document.createTextNode(b.textContent ? ` · ${b.textContent}` : '')) }

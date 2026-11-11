@@ -1701,6 +1701,6 @@ select.idlg-in,.side.right select{-webkit-appearance:none;appearance:none;backgr
 html.edge-rail .workspace.left-collapsed{--left-w:0px}
 html.edge-rail .workspace.left-collapsed .side.left{visibility:hidden;overflow:hidden;min-width:0;width:0;border:0;padding:0}
 /* EXEC-DQ-SIZE (user 2026-11-11: "perlu dibuatkan legend"): Daily Quadrant's colour key on its legend row */
-.ind-keys{display:inline-flex;flex-wrap:wrap;gap:4px 12px;margin-left:12px;font-weight:400;font-size:11.5px;color:var(--text-2)}
+.ind-keys{display:inline-flex;flex-wrap:wrap;gap:4px 12px;margin-right:14px;font-weight:400;font-size:11.5px;color:var(--text-2)}
 .ind-key{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .ind-key i{display:inline-block;width:9px;height:9px;border-radius:2px}

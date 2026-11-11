@@ -479,9 +479,9 @@ export function initFlowIndicators(ctx: Ctx) {
       /* the brokers' codes are written at the end of their lines (user 2026-11-08), not on the axis */
       endLabels:brokerLines,
       /* EXEC-DQ-SIZE: what the colours and the height mean, always on the legend row */
-      ...(r.unit === 'quadrant' ? { key:[[0, 'Both accumulate'], [2, 'Foreign absorbs'], [1, 'Domestic absorbs'], [3, 'Both leave'], [4, 'Flat']]
-        .map(([k, t]) => `<span class="ind-key"><i style="background:${QUAD_COLORS[k as number]}"></i>${t}</span>`).join('')
-        + '<span class="ind-key">height = |Foreign| + |Domestic| % of buy value</span>' } : {}),
+      /* user 2026-11-11: the four colours first, the session's reading after them; no Flat, no height note */
+      ...(r.unit === 'quadrant' ? { key:[[0, 'Both accumulate'], [2, 'Foreign absorbs'], [1, 'Domestic absorbs'], [3, 'Both leave']]
+        .map(([k, t]) => `<span class="ind-key"><i style="background:${QUAD_COLORS[k as number]}"></i>${t}</span>`).join('') } : {}),
       /* a broker picked in the right panel joins this indicator's list (FL23, FL52: a list with no broker scope) */
       joinsPicks:!!byKey.brokers && !byKey.scope,
       /* what of the view a value follows, as a key that changes when it must be recomputed: the first candle in view (an
