@@ -5766,7 +5766,7 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Solution:** `data/chartTime.ts` `parkHiddenSeries` on the main chart (`app/chart.ts`): every hidden series moves to an
   overlay scale of its own (no axis) and back to its scale when shown. Tests in `tests/data/crosshair.test.ts` (892 pass);
   stand-in: hidden → no label, shown → labels back, eye off and on again in the same page → the same.
-- **Status:** fixed; live after the deploy.
+- **Status:** fixed and live (edge-bff `e5ce180f`; served bundle equal to the checked build).
 
 ### M422 — Terminal: a long position, horizontal line or ray could not be dragged up or down; the chart moved instead (2026-11-10, fixed)
 

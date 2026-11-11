@@ -1,5 +1,12 @@
 # Railway changelog
 
+## 2026-11-11 — edge-bff: empty right axis without a crosshair price (M423), pattern preview (EXEC-XABCD-PREVIEW)
+
+- `f87d6816` → `e5ce180f` SUCCESS 15:57 UTC (M423); `86c0a2b6` → `453ceb5d` SUCCESS 16:00 UTC (pattern preview). Deployed by
+  the push (GitHub). `/ready` 200; the served Terminal bundle is the local build checked on the stand-in (right axis
+  with FL52 hidden and shown, eye off and on; XABCD preview; Terminal tests 892; look_check11 PASS).
+- Rollback: `serviceInstanceDeployV2` with `1d8c9d51`.
+
 ## 2026-11-10 — edge-bff: drawings drag up and down (M422), new drawing tools (EXEC-DRAW-DRAG-TOOLS)
 
 - `4bb10dd5` → `ae07aa89` SUCCESS 14:27 UTC (M422); `e02066c1` → `566502b0` SUCCESS 14:45 UTC (Parallel channel, Shapes
