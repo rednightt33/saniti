@@ -1,5 +1,12 @@
 # Railway changelog
 
+## 2026-11-11 — edge-bff: Top Brokers names, Daily Quadrant bars (EXEC-TOPBROKERS-NAME, EXEC-DQ-SIZE)
+
+- `1daccc8a` → edge-bff `63a1f091` and screener-worker `4695622f` (the rename; registry rebuilt); `19ad0822` → edge-bff
+  `8c40a644` SUCCESS 17:47 UTC (Daily Quadrant bars and colour key). `/ready` 200; the served Terminal bundle is the local
+  build checked on the stand-in.
+- Rollback: `serviceInstanceDeployV2` with `5f9e35f5`.
+
 ## 2026-11-11 — edge-bff and screener-worker `c098efb4`: Implied Cost no-position note (EXEC-IC-NOPOS)
 
 - Push deployed edge-bff `9a767abd` and screener-worker `9c8c5ee1`, both SUCCESS 17:20 UTC; `/ready` 200. screener-worker
