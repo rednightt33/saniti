@@ -13103,6 +13103,14 @@ bagian kanan, broker inventory, top broker, dan lain sebagainya loading terus. C
   daftar broker, otomatis maupun pilihan sendiri, hanya berlaku di saham tempat dibuat; di saham lain kembali ke pilihan
   awal: 3 net buyer terbesar 20 sesi, panel Broker inventory).
 
+## EXEC-RIGHT-AXIS-HIDDEN — sumbu kanan tanpa angka bila tidak ada indikator yang tampil di sana (2026-11-11)
+
+**Kata user, 2026-11-11:** "lihat screnshot terlampir yang saya buletin warna merah sebelah kanan, seharusnya itu tidak
+ada karena tidak ada indikator yang membutuhkan 2 axis currently added"
+
+- ERRORS M423: indikator yang disembunyikan (ikon mata) tetap menempel di sumbu kanan; sekarang dilepas saat disembunyikan
+  dan dikembalikan saat ditampilkan. Sumbu kanan tetap ada sebagai ruang kosong (lebarnya sama dengan Flow Timeline).
+
 ## EXEC-XABCD-PREVIEW — XABCD saat menaruh titik tampil seperti TradingView (diminta 2026-11-11, menunggu go)
 
 **Kata user, 2026-11-11:** "X A B C D yang biru adalah tradingview, sedangkan yang hitam adalah punya kita. masukan exec

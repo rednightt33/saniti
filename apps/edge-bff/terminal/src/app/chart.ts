@@ -3,6 +3,7 @@ import type { Ctx } from './context';
 import { $, hasLogos, logoHtml, store } from './context';
 import type { Point } from '../data/types';
 import { barDecimals, priceText } from '../data/priceFormat';
+import { parkHiddenSeries } from '../data/chartTime';
 
 export function initChart(ctx: Ctx) {
   const { L, container, SYMBOL, ohlc, lineData, volume, dates, active } = ctx;
@@ -48,6 +49,7 @@ export function initChart(ctx: Ctx) {
     kineticScroll: { mouse:true, touch:true },
     localization: { locale:'en-US' }
   } as any);
+  parkHiddenSeries(chart);                                   // ERRORS M423: a hidden indicator leaves no price on an empty axis
 
   /* Auto-fit with headroom: widen the series' own range by the usual top/bottom share instead of using scale margins.
      Same picture as before, but the price axis then draws labels over the full pane height, like the right axis. */

@@ -5753,6 +5753,21 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M423 — Terminal: the right price axis showed a crosshair price with no indicator on it (2026-11-11, fixed)
+
+- **Symptom (user screenshots, BBRI, layout "Ok"):** a value ("-0.4", "0.1") on the right axis at the crosshair,
+  "seharusnya itu tidak ada karena tidak ada indikator yang membutuhkan 2 axis currently added". Every indicator of the
+  layout was hidden (the eye); Broker Inventory on the price chart (FL52) draws on the right axis.
+- **Verified cause (stand-in, crosshair at the same point):** no indicator → empty right axis; FL52 hidden → a "0" label
+  on the right axis; FL52 shown → its own labels. A hidden series stays attached to its price scale, so the axis still
+  shows the crosshair price of an empty range. The right axis itself stays (its width matches the Flow Timeline's, so
+  candles sit over their bars).
+- **Class:** anything hidden that keeps a scale alive (any indicator, part or compared line on the main chart).
+- **Solution:** `data/chartTime.ts` `parkHiddenSeries` on the main chart (`app/chart.ts`): every hidden series moves to an
+  overlay scale of its own (no axis) and back to its scale when shown. Tests in `tests/data/crosshair.test.ts` (892 pass);
+  stand-in: hidden → no label, shown → labels back, eye off and on again in the same page → the same.
+- **Status:** fixed; live after the deploy.
+
 ### M422 — Terminal: a long position, horizontal line or ray could not be dragged up or down; the chart moved instead (2026-11-10, fixed)
 
 - **Symptom (user screenshot, BBRI long position):** "bisa di gerakin kiri kanan, tapi tidak bisa atas bawah. Kalau saya
