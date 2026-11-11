@@ -4,7 +4,7 @@
    scripts/build_flow_registry.py); the numbers come from calc/flow.ts on the raw broker rows the worker sends
    (ctx.flowRows). Rules of the spreadsheet that need the chart: the default anchor and Broker Inventory's start are the
    first visible candle; "days" are the chart's candles (user 2026-10-30: "2-3 OK"). */
-import { autoInventoryBrokers, boardIndex, classBrokers, computeFlow, defaultInventoryBrokers, investorIndex, loadersTable, type FlowContext, type FlowRows, type InsiderRow, type LoaderRow } from '../calc/flow';
+import { autoInventoryBrokers, boardIndex, classBrokers, computeFlow, defaultInventoryBrokers, fdParts, investorIndex, loadersTable, type FlowContext, type FlowRows, type InsiderRow, type LoaderRow } from '../calc/flow';
 import { FD_QUADRANTS } from '../data/brokerAgg';
 import { fdPct } from './fdMap';
 import REG from '../data/flowRegistry.json';
@@ -362,7 +362,9 @@ export function initFlowIndicators(ctx: Ctx) {
     /* EXEC-RP-LOOK-2 C (user 2026-11-08 "Empat opsi"): or columns of cells, one per unit of the value (FL26) */
     const plotOf = (v: any) => v === 'hist' ? 'histogram' : v === 'strip' ? 'strip' : v === 'cells' ? 'cells' : 'line';
     /* EXEC-FLOW-NEW-3: FL49 is a strip of quadrant cells; a line output of a bool parameter is a line whatever the plot */
-    const fixedPlot = r.unit === 'quadrant' ? 'strip' : null;
+    /* EXEC-DQ-SIZE (user 2026-11-11: "Opsi D ok ... perlu dibuatkan legend"): FL49 is a bar per session, its colour the
+       quadrant (who), its height |Foreign| + |Domestic| (how much moved, % of the session's buy value) */
+    const fixedPlot = r.unit === 'quadrant' ? 'histogram' : null;
     const plotDefault = fixedPlot ?? plotOf(byKey.plot?.default);
     /* EXEC-RP-LOOK-2 (X), EXEC-FLOW-NEW-3: lines on the price chart named by their broker. Broker Inventory · Price Chart
        (place price, unit lot|IDR) on its own right axis in lots or Rupiah, the price staying on the left; Loaders' cost
@@ -383,8 +385,9 @@ export function initFlowIndicators(ctx: Ctx) {
       const extra: Record<string, any> = { net:{ label:'Net trigger', vis:false, color:'#0070f3' }, gross:{ label:'Gross trigger', vis:false, color:'#d6409f' },
         /* FL29's size (a few %) on its own left scale, beside the days (0-100) on the right, so it does not read flat */
         balance:{ label:'Balance %', scale:'left', fmt:spec.pctLevel, fk:'pct', minMove:.01, color:'#8b5cf6' } };
-      if (r.unit === 'quadrant') return [{ k:'value', label:'Quadrant', r:'strip', role:'numeric_line', vis:true, w:2, rule:'', cond:'', quad:QUAD_COLORS,
-        fmt:(v: number) => FD_QUADRANTS[v] ?? '', fk:'quad' }];
+      if (r.unit === 'quadrant') return [{ k:'value', label:'Quadrant', r:'histogram', role:'numeric_line', vis:true, w:2, rule:'', cond:'', quad:QUAD_COLORS, size:'_size',
+        /* the axis reads the bar (the size, %); the legend names the quadrant beside it */
+        qname:(v: number) => FD_QUADRANTS[v] ?? '', fmt:(v: number) => `${(Math.round(v * 100) / 100).toFixed(2)}%`, minMove:.01, fk:'pct' }];
       return r.outputs.map(k => lineParam(r, k) ? { k, label:lineParam(r, k)!.label.split(' (')[0].replace(/ line$/, ''), r:'line', role:'numeric_line', vis:true, w:2, rule:'', cond:'',
           color:PART_COLORS[k] ?? '#7928ca', hidden:p ? !p[k] : !lineParam(r, k)!.default, ...(PART_COLORS[k] ? { fmt:fdPct, fk:'fd', minMove:.01 } : {}) }
         : PART_COLORS[k] ? { k, label:k[0].toUpperCase() + k.slice(1), r:kind, role:'numeric_line', vis:true, w:2, rule:'', cond:'', color:PART_COLORS[k], fmt:fdPct, fk:'fd', minMove:.01 }
@@ -475,6 +478,10 @@ export function initFlowIndicators(ctx: Ctx) {
       id:r.id, name:r.name, reg, multi:true, flow:true, single:SINGLE_SECURITY.has(r.id), viewBound, zeroLabel, paneFilters, inputs, style:[], fill:null,
       /* the brokers' codes are written at the end of their lines (user 2026-11-08), not on the axis */
       endLabels:brokerLines,
+      /* EXEC-DQ-SIZE: what the colours and the height mean, always on the legend row */
+      ...(r.unit === 'quadrant' ? { key:[[0, 'Both accumulate'], [2, 'Foreign absorbs'], [1, 'Domestic absorbs'], [3, 'Both leave'], [4, 'Flat']]
+        .map(([k, t]) => `<span class="ind-key"><i style="background:${QUAD_COLORS[k as number]}"></i>${t}</span>`).join('')
+        + '<span class="ind-key">height = |Foreign| + |Domestic| % of buy value</span>' } : {}),
       /* a broker picked in the right panel joins this indicator's list (FL23, FL52: a list with no broker scope) */
       joinsPicks:!!byKey.brokers && !byKey.scope,
       /* what of the view a value follows, as a key that changes when it must be recomputed: the first candle in view (an
@@ -503,6 +510,9 @@ export function initFlowIndicators(ctx: Ctx) {
         noLot(q);
         if (usesInsider(r) && insiderState !== 'ready') return {};      // QA F2-03: no "Rp 0" while the events are missing
         const o: any = toCandles(computeFlow(r.id, context(), q), r.place === 'marker');
+        /* EXEC-DQ-SIZE: the bar's height, from the same parts the quadrant is read from (calc/flow.ts fdParts) */
+        if (r.unit === 'quadrant') { const { x, y } = fdParts(context(), q);
+          o._size = toCandles({ s:x.map((v, t) => v === null || y[t] === null ? null : Math.abs(v) + Math.abs(y[t] as number)) }, false).s }
         /* QA M2 (2026-11-06, user "go with your advice"): every broker over both investor types nets to 0 (each buy has a
            seller), so a net reading of that cohort carries no information; read from the result, not a list of indicators.
            EXEC-QA5-FIX (agent 5 F4, F5): also an indicator of the whole market (FL40), and the message says the constant */

@@ -13103,6 +13103,20 @@ bagian kanan, broker inventory, top broker, dan lain sebagainya loading terus. C
   daftar broker, otomatis maupun pilihan sendiri, hanya berlaku di saham tempat dibuat; di saham lain kembali ke pilihan
   awal: 3 net buyer terbesar 20 sesi, panel Broker inventory).
 
+## EXEC-DQ-SIZE — Daily Quadrant opsi D: warna = siapa, tinggi = seberapa besar, dengan kunci warna (2026-11-11)
+
+**Kata user, 2026-11-11:** "boleh kasih opsi lain? Apa yang sebenarnya kita sedang coba untuk measure di daily quadrant
+panel yang bawah ini? Coba kasih angle, dan come up dengan design" lalu (HTML 5 sudut pandang, data FUTR) "Opsi D ok.
+Tapi perlu dibuatkan legend agar tahu apa maksudnya apa arti dari warna bar".
+
+- FL49 digambar sebagai batang per sesi: warna = kuadran (hijau keduanya mengumpulkan, biru asing menyerap, jingga
+  domestik menyerap, merah keduanya keluar, abu-abu datar), tinggi = |Foreign| + |Domestic| dalam % nilai beli sesi itu.
+- Baris legend: nama kuadran dan besarnya ("Domestic absorbing, foreign leaving · 51.68%"), lalu kunci warna yang selalu
+  tampil dan arti tinggi batang.
+- Nilai FL49 (kode kuadran) dan rumus di `calc/flow.ts` tidak berubah: tinggi batang dihitung di lapisan Terminal dari
+  `fdParts`; Screener tidak tersentuh. Kode: `app/flowIndicators.ts`, `app/indicators.ts`, `styles/terminal.css`.
+- Tes: Terminal 893, look_check11 PASS; server lokal (BBRI): batang, legend dan kunci tampil.
+
 ## EXEC-TOPBROKERS-NAME — "Bandar Balance" menjadi "Top Brokers" (2026-11-11)
 
 **Kata user, 2026-11-11:** "Bandar balance % ini perlu diganti indicator namenya agar jelas bahwa ini refer juga ke top

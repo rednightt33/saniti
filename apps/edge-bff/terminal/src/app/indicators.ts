@@ -581,7 +581,13 @@ export function initIndicators(ctx: Ctx) {
         pt.plugin.setMarkers(keyedMarkers(vis ? a.flatMap((v, i) => v === 1 ? [{ time:T(i), position:'belowBar', color:c1, shape:'arrowUp', size:1 }] : []) : []));
         return;
       }
-      if(pt.kind === 'hist') {
+      if(pt.kind === 'hist' && pt.o.quad) {
+        /* EXEC-DQ-SIZE (FL49): the quadrant's colour, the bar as tall as |Foreign| + |Domestic| */
+        const size = (inst.raw && inst.raw[pt.o.size]) || [];
+        pt.series.setData(a.flatMap((v, i) => v === null || v === undefined || size[i - off] == null ? [{ time:T(i) }]
+          : [{ time:T(i), value:size[i - off], color:alpha(pt.o.quad[v] || '#8f8f8f', op) }]));
+        pt.series.applyOptions({ visible:vis });
+      } else if(pt.kind === 'hist') {
         const rising = /rising/.test(pt.o.rule), states = s.states && /optional_state/.test(pt.o.rule), V = BARS.V;
         /* EXEC-QA5-FIX (QA 2026-11-07, agent 5 F1): a day without a value is a gap (whitespace), never bridged */
         pt.series.setData(a.flatMap((v, i) => v === null ? [{ time:T(i) }] : [{ time:T(i), value:v,
@@ -889,10 +895,14 @@ export function initIndicators(ctx: Ctx) {
         const c = pt.kind === 'marker' ? (v === 1 ? s.color : 'var(--text-3)') : pt.o.quad ? pt.o.quad[v] || 'var(--text-3)' : pt.kind === 'strip' || pt.kind === 'cells' ? (v >= 0 ? s.color : s.color2) : pt.kind === 'seg' || pt.kind === 'dots' ? (dir && dir[i] === -1 ? s.color2 : s.color)
                 : pt.kind === 'hist' ? (/rising/.test(pt.o.rule) ? (prev !== null && prev !== undefined && v < prev ? s.color2 : s.color) : /optional_state/.test(pt.o.rule) ? 'var(--text)' : (v >= 0 ? s.color : s.color2)) : s.color;
         /* EXEC-QA5-FIX (agent 5 F8): a line on the price reads in the price's own decimals, as the price axis (2,903 · 3,316) */
-        const txt = overlay && pt.kind !== 'marker' && pt.o.scale !== 'right' ? (ret ? spec.change((v / closes[0] - 1) * 100) : ctx.priceText ? ctx.priceText(v) : spec.indicator(v)) : (pt.o.fmt || inst.def.format)(v);   // a mark reads Yes/No
+        /* EXEC-DQ-SIZE (FL49): the quadrant's name and the bar's size */
+        const sz = pt.o.quad ? inst.raw?.[pt.o.size]?.[i - (inst.style.offset | 0)] : null;
+        const txt = pt.o.quad ? `${pt.o.qname(v)}${sz != null ? ` · ${pt.o.fmt(sz)}` : ''}`
+          : overlay && pt.kind !== 'marker' && pt.o.scale !== 'right' ? (ret ? spec.change((v / closes[0] - 1) * 100) : ctx.priceText ? ctx.priceText(v) : spec.indicator(v)) : (pt.o.fmt || inst.def.format)(v);   // a mark reads Yes/No
         return `<span style="color:${c === '#171717' ? 'var(--text)' : c}">${many && pt.kind !== 'seg' ? `<i class="ind-ok">${pt.o.label}</i> ` : ''}${txt}</span>`;
       }).filter(Boolean).join(' &nbsp;');
       if(!b.innerHTML && inst.def.note && inst.on && inst.parts.some(pt => !pt.o.hidden)) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
+      if(inst.def.key && inst.on) b.innerHTML += `<span class="ind-keys">${inst.def.key}</span>`;   // EXEC-DQ-SIZE: the colour key (FL49)
       b.title = b.textContent || '';                       // QA R2-M4: the full value or note when the row is narrow
       /* QA round 4 (L2): the panel repeats the full title (shortened on the row) with the value or note */
       const full = r.querySelector('.ind-fltnote'); if(full) { full.textContent = ''; const t = document.createElement('b'); t.textContent = inst.def.title(inst.params); full.append(t, document.createTextNode(b.textContent ? ` · ${b.textContent}` : '')) }
