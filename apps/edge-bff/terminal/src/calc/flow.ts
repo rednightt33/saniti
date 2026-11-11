@@ -403,7 +403,9 @@ function anchoredVwap(ctx: FlowContext, p: FlowParams): Series {        // FL18
   for (let t = a; t < R.N; t++) if (R.has[t]) out[t] = div(cw(g, C, 'bv', a, t), 100 * cw(g, C, 'bl', a, t));
   return out;
 }
-function impliedCost(ctx: FlowContext, p: FlowParams): Series {         // FL19
+/* EXEC-IC-NOPOS (user 2026-11-11, "garis putus, opsi A"): `noPos` marks the candles with data where the cohort holds no
+   net position since the anchor (Q <= 0): no implied cost there, and the legend says why instead of a silent gap */
+function impliedCost(ctx: FlowContext, p: FlowParams, noPos?: number[]): Series {         // FL19
   const R = ctx.rows, g = grid0(p), a = anchorAt(ctx, p.anchor), C = frozen(ctx, p, g, a), out = series(R.N);
   let Q = 0, K = 0;
   for (let k = a; k < R.N; k++) {
@@ -413,6 +415,7 @@ function impliedCost(ctx: FlowContext, p: FlowParams): Series {         // FL19
     else if (q < 0 && Q > 0) K = K * Math.max(Q + q, 0) / Q;
     Q += q;
     out[k] = Q > 0 ? K / (100 * Q) : null;
+    if (noPos && !(Q > 0)) noPos[k] = 1;
   }
   return out;
 }
@@ -586,8 +589,8 @@ export const FLOW: Record<string, Fn> = {
   },
   FL17:(c, p) => ({ value:rollingVwap(c, p, 20) }),
   FL18:(c, p) => ({ value:anchoredVwap(c, p) }),
-  FL19:(c, p) => ({ value:impliedCost(c, p) }),
-  FL20:(c, p) => ({ value:distance(c.close, impliedCost(c, p)) }),
+  FL19:(c, p) => { const z = new Array(c.rows.N).fill(0); return { value:impliedCost(c, p, z), _noPos:z } },
+  FL20:(c, p) => { const z = new Array(c.rows.N).fill(0); return { value:distance(c.close, impliedCost(c, p, z)), _noPos:z } },
   FL21:(c, p) => ({ value:percentile(flowTurnover(c, { ...p, denom:'board' }), int(p.baseline, 250)) }),
   FL22:(c, p) => {
     const R = c.rows, g = grid0(p);

@@ -549,6 +549,9 @@ export function initFlowIndicators(ctx: Ctx) {
         /* EXEC-QA5-FIX (agent 5 F2, F2-07): a value that starts at a date (the anchor, Broker Inventory's start) says so */
         const start = startOf(p);
         if (start && dates[di] && dates[di].slice(0, 10) < start) return `Starts ${dayText(start)} (start date)`;
+        /* EXEC-IC-NOPOS (user 2026-11-11, option A): Implied Cost and its distance are empty where the cohort holds no net
+           position since the anchor (it sold at least what it bought): said, not a silent gap */
+        if (raw?._noPos?.[i]) return `Top ${Number(p?.top) || 3} hold no net position since ${dayText(String(startOf(p) ?? ''))}: they sold at least what they bought, so there is no cost`;
         /* FL51: cost lines are the loaders'; with Sellers only there is none (audit U19) */
         if (byKey.end && p?.side === 'sell') return 'Cost lines are drawn for loaders; Sellers lists none';
         /* FL51: a candle after the period's end (the legend reads the last candle, the period ends at the last one in view) */

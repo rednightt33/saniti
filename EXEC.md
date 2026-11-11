@@ -13103,6 +13103,19 @@ bagian kanan, broker inventory, top broker, dan lain sebagainya loading terus. C
   daftar broker, otomatis maupun pilihan sendiri, hanya berlaku di saham tempat dibuat; di saham lain kembali ke pilihan
   awal: 3 net buyer terbesar 20 sesi, panel Broker inventory).
 
+## EXEC-IC-NOPOS — Implied Cost: periode tanpa posisi dijelaskan, bukan garis putus tanpa keterangan (2026-11-11)
+
+**Kata user, 2026-11-11:** "Ini ada 1 error di implied cost distance %" lalu "garis putus, opsi A".
+
+- **Fakta (database, FUTR Regular, anchor 2023-12-08):** Top 3 net buyer dari anchor sampai sekarang XL, IF, YP; posisi
+  bersih mereka sejak anchor <= 0 selama 179 hari (Agustus-September 2024, November 2024 sampai awal September 2025,
+  terendah sekitar -730 ribu lot Maret 2025). FL19/FL20 kosong di sana sesuai rumus: tidak ada barang dipegang, tidak ada
+  harga modal; harga modal dihitung ulang saat posisi positif lagi.
+- **Opsi A (dipilih):** garis tetap putus; legend/tooltip di periode itu menulis "Top N hold no net position since <anchor>:
+  they sold at least what they bought, so there is no cost". Kode: `calc/flow.ts` `impliedCost` menandai `_noPos`;
+  `app/flowIndicators.ts` `note`. Registry Screener dibuat ulang (sidik `calc/flow.ts`).
+- **Tes:** Terminal 893 (tes baru EXEC-IC-NOPOS), Screener 1.353, screener-worker 112, look_check11 PASS.
+
 ## EXEC-RIGHT-AXIS-HIDDEN — sumbu kanan tanpa angka bila tidak ada indikator yang tampil di sana (2026-11-11)
 
 **Kata user, 2026-11-11:** "lihat screnshot terlampir yang saya buletin warna merah sebelah kanan, seharusnya itu tidak
