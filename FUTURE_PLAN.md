@@ -235,6 +235,15 @@ Untuk 100 pengguna bersamaan tetap perlu bagian 2.
   menganggur) dan pool koneksi database (dipinjam, lalu dikembalikan di akhir permintaan).
 - **Keputusan user yang masih terbuka:** tambahan biaya server dan perubahan arsitektur untuk no. 3–4.
 
+## PRE-RALLY — Terminal: panel untuk mengenali fase pra-reli (usulan 2026-11-07, menunggu pilihan user)
+
+- Kata user, 2026-11-07: "bisa siapkan lagi kira-kira, just using a dummy data, mungkin 20 opsi dalam satu HTML, yang
+  kira-kira panel bisa kita tambahkan sebagai indikator terpisah atau panel di sebelah kanan. Benchmark dulu terhadap
+  research dulu supaya ... rekomendasi yang kamu kasih relevan. Take into account data yang saat ini ada di indikator
+  flow. Goalnya dari user tahu fase-fase yang menjadi potensial pre-rally."
+- Usulan: `verification/terminal_api/pre_rally_panels/pre_rally_options.html` (20 opsi, data contoh, acuan riset dan
+  sumber data per opsi: indikator Flow yang ada, harga, atau hitungan baru). Menunggu pilihan user; belum ada go.
+
 ## FI-SPEED — Terminal: sisa waktu muat di sisi server (usulan 2026-11-01, menunggu keputusan user)
 
 User 2026-11-01: "untuk load data obligasi kayaknya lama banget deh ... Coba cek deh, kenapa bisa selama ini ya?". Dua
@@ -1289,6 +1298,18 @@ Ditemukan oleh Reviewer A dan B. Angka di bawah dibaca langsung dari modul dan d
   - Dikerjakan 06:10 UTC: 60% terpakai, sisa sekitar 40 GB, cukup untuk sekitar 3 tahun pada laju sekarang.
   - Retensi dan merapikan ruang kosong tetap usulan.
 
+## SCREENER-FLOW-CANDLES — dipindah ke EXEC.md (2026-11-07)
+
+Usulan ini disetujui sebagai rencana (user 2026-11-07: "2A ... Jangan jalankan. Masukan exec.") dan kini ada di
+`EXEC.md` EXEC-SCREENER-FLOW-CANDLES.
+
+## Screener: indikator flow khusus Terminal (dicatat 2026-11-08)
+
+- User 2026-11-08 memilih "A": FL49–FL52 dan garis rata-rata FL14 hanya di Terminal (`terminal_only` di
+  `flowRegistry.json`). Bila nanti ingin di Screener: FL50 dan rata-rata FL14 berjenis K (persen/kontinu); FL49 (nama
+  kuadran) butuh jenis nilai baru yang hanya "sama dengan / tidak sama dengan"; FL51 (kotak per periode) dan FL52 (ikut
+  daftar panel kanan) bukan satu nilai per sesi. Perlu keputusan user dan QA Screener.
+
 ## Kamus metodologi discovery: akumulasi dan indikator pre-rally (usulan user 2026-11-03, menunggu keputusan)
 
 Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](METHODOLOGY_DICTIONARY.md). Ringkasan:
@@ -1312,7 +1333,7 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
 - **Belum dibangun, belum disetujui sebagai pekerjaan.** Skema tabel kamus belum dirancang; tidak ada migrasi.
   Daya prediksi ("pre-rally") belum diuji.
 
-**Keputusan user yang masih terbuka:**
+**Keputusan user yang masih terbuka** (keadaan 2026-11-04; belum ditinjau ulang 2026-11-12):
 1. Akumulasi heavy: ukuran A saja (`M-FF-HEAVY`), B saja (`M-TOPN-RATIO`), atau keduanya; satu daftar atau dua.
 2. Ambang "heavy": persentil 90 (bawaan EDGE, ±75 saham pada 2026-11-02), persentil 95, atau z-score ≥ 2 (±18 saham).
 3. `M-TOPN-RATIO`: cakupan semua investor atau hanya asing; nilai N (usulan 3); rasio mentah atau imbalance.
@@ -1324,40 +1345,48 @@ Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](M
 7. `M-CR3X-NET`: peringkat di dalam kelompok jumlah broker (usulan), angka gerbang (10), dan pasangan `M-NET-INTENSITY` (sudah masuk kamus).
 8. Tafsir "HHI top 3" di `M-HHI3-*` sudah sesuai maksud user atau perlu dikoreksi.
 
-## Library screener dan tinjauan indikator Flow (usulan user 2026-11-04, menunggu keputusan)
+## Library screener (usulan user 2026-11-04, menunggu keputusan; diperbarui 2026-11-12)
 
-- **Library screener:** [`SCREENER_LIBRARY.md`](SCREENER_LIBRARY.md). Kata user 2026-11-04: "Goalnya adalah bukan database
-  testing. Ini membuat library of screener, agar potential asset can appear when we applied these filters." dan
-  "Tambahkan dulu ke repo." Keputusan terbuka: tingkat gerbang likuiditas ("Luas" buang 50%, "Likuid" buang 80%), rasio net asing
-  minimum untuk S1, angka gerbang 10 broker, nama dan cakupan S3, ambang bawaan Longgar/Standar/Ketat, aturan S4 (insider),
-  tempat penyimpanan library.
-- **Tinjauan indikator Flow:** [`FLOW_INDICATOR_REVIEW.md`](FLOW_INDICATOR_REVIEW.md). Kata user 2026-11-04: "Goalnya adalah apakah
-  indikator ini perlu di eliminate, perlu di edit metric, visualnya perlu diganti atau tidak." Kartu pertama: FL03 Share ·
-  Volume. Temuan: garis Buy selalu di atas Sell (252 dari 252 sesi, sirkularitas pemilihan cohort), identitas cohort berganti
-  hampir tiap hari, FL07 identik dengan garis Buy FL03 pada bawaan, papan Nego dan Cash menggeser hingga 14,7 poin pada
-  hari tertentu, dan kode "FL03" bentrok dengan FL03 di screener. Keputusan terbuka: pilihan untuk FL03 (pertahankan, edit
-  metrik, ganti visual, gabung, hapus), nasib FL07 dan FL04, bawaan papan, penyatuan penomoran FL.
-  FL07: dicatat user 2026-11-04 sebagai to-do untuk dipensiunkan atau disembunyikan ("Maaf, maksud saya FL07 yang di
-  sembunyikan"); lihat `FLOW_INDICATOR_REVIEW.md` (Daftar to-do dan bagian 5b). Catatan FL17 sebelumnya dicabut (salah ketik pada permintaan).
-  Juga to-do (2026-11-04): FL32 diedit menjadi Activity Spike (parameter ukuran dan sisi) dan indikator baru Spike Balance; lihat
-  `FLOW_INDICATOR_REVIEW.md` bagian 5c. Participation Shift diusulkan, belum diputuskan. Keputusan 2026-11-04: pilihan Keduanya disediakan, FL32 diedit di tempat, skala Spike Balance linear dengan garis netral 1.
-  Juga to-do (2026-11-04): FL33 mendapat parameter pemilihan kelompok broker (Top N, broker terpilih, dan sejenisnya, sama seperti FL01); lihat
-  `FLOW_INDICATOR_REVIEW.md` bagian 5d. Pertanyaan terbuka: cara menentukan kelompok untuk dua periode, bawaan scope, dan parameter Side.
-  Juga to-do (2026-11-04): FL13, FL14 dan FL38 (HHI) mendapat pilihan broker terpilih dan Top-N cohort dengan N yang dipilih, sama seperti FL01; lihat
-  `FLOW_INDICATOR_REVIEW.md` bagian 5e. Pertanyaan terbuka: arti HHI pada kelompok (di dalam kelompok, sumbangan terhadap HHI total, atau seluruh broker).
-  Juga to-do (2026-11-04): FL15 (gross) dan FL16 (net) tetap dua indikator, keduanya diberi parameter Satuan (Lot atau Rupiah); lihat `FLOW_INDICATOR_REVIEW.md`
-  bagian 5f. FL13 dan FL38 ikut diberi parameter Satuan yang sama (user 2026-11-04: "Yes, tambahkan juga untuk FL13 dan FL38").
-  Juga (2026-11-04): FL11 hanya satu penyebut, opsi A ("Okay pakai A"), dan indikator baru yang sama dengan FL11 tetapi penyebutnya rata-rata turnover N sesi (bawaan 20, bisa diatur; menunggu konfirmasi); lihat
-  `FLOW_INDICATOR_REVIEW.md` bagian 5g.
-  Juga to-do (2026-11-04): FL35 disembunyikan dari menu ("Hide saja FL35, masukan ke review"); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5h.
-  Juga to-do (2026-11-05): FL21 diberi parameter ukuran (gross beli, gross jual, net beli); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5i.
-  FL25 diberi visual penyebab kenaikan dan penurunan: **dibatalkan 2026-11-05**, FL25 dibiarkan apa adanya (user: "we leave it as is saja"); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5j.
-  Juga to-do (2026-11-05): FL29 diberi ukuran besarnya akumulasi (persen atau persentil, di panel yang sama atau indikator baru yang berpasangan); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5k.
-  Juga to-do (2026-11-05): indikator baru Buy VWAP bergulir dengan Top-N per hari (cara B), terpisah dari FL17; lihat `FLOW_INDICATOR_REVIEW.md` bagian 5l.
-  Juga to-do (2026-11-05): harga rata-rata penjualan (gross jual) untuk FL17 dan FL18 (bentuk menunggu user); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5m.
-  Juga to-do (2026-11-05): indikator jarak harga terhadap Buy VWAP beranchor dalam persen (sejajar FL20); jarak rolling sudah ada sebagai FL39 (bacaan menunggu konfirmasi); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5n.
-  Juga to-do (2026-11-05): FL39 dihitung dengan parameter FL17 (FL17 harga, FL39 jarak); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5o.
-  Juga to-do (2026-11-05): FL34 diberi ukuran perubahan (daily to daily dan lainnya; bacaan menunggu konfirmasi); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5p.
-  Juga to-do (2026-11-05): FL27 tetap, ditambah pemicu akumulasi berbasis broker (definisi menunggu konfirmasi); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5q.
-  Juga to-do (2026-11-05): FL36 disembunyikan dari menu ("hide saja indikatornya untuk FL36"); lihat `FLOW_INDICATOR_REVIEW.md` bagian 5r.
-  Juga to-do (2026-11-05): indikator tambahan Flow Ratio fleksibel (pembilang dan penyebut dipilih: ukuran, oleh siapa, pembatas; "Ini indikator tambahan ya, bukan untuk mengganti yang lain-lain"); gambaran dialog di `verification/terminal_api/flow_indicators/RATIO_SETTINGS_MOCKUP.html`; lihat `FLOW_INDICATOR_REVIEW.md` bagian 5s.
+- **Dokumen:** [`SCREENER_LIBRARY.md`](SCREENER_LIBRARY.md) (screener S1 sampai S3, S6, S7, S8; S5 dibatalkan 2026-11-11; S4, insider, belum dirancang)
+  dan kamusnya [`METHODOLOGY_DICTIONARY.md`](METHODOLOGY_DICTIONARY.md). Keduanya sudah ada di `main`.
+- **Kata user:** 2026-11-04: "Goalnya adalah bukan database testing. Ini membuat library of screener, agar potential asset can appear when we applied these
+  filters." dan "Tambahkan dulu ke repo." 2026-11-10: "Go dengan usulan untuk nomor 9 sampai 11. Masukan screener docs." 2026-11-11: "Drop S5, kita ganti
+  dengan indikator lain (yang ada di checklist)". 2026-11-12: "By the way, untuk screener MD sekarang beserta pending item bisa kita push dulu ke main before we move
+  on to another task."
+- **Keputusan terbuka** (`SCREENER_LIBRARY.md` bagian 6): (1) tingkat gerbang likuiditas bawaan, rekomendasi AI "Luas" (bagian 10 nomor 1); (2) G5, rasio net asing
+  minimum untuk S1; (3) G4, angka 10 broker; (4) nama dan cakupan S3; (5) ambang bawaan Longgar, Standar, Ketat; (6) aturan S4 (dedup IDX-KSEI, label repo, definisi
+  opportunistic; ERRORS M241); (7) tempat penyimpanan library; (8) preset di Screener yang sudah ada atau library terpisah; (11) tampilan di FE.
+  Sudah diputuskan 2026-11-10: nomor 9 (persentil dihitung sesudah gerbang) dan nomor 10 (G3 memakai total beli bruto 5 sesi).
+- **Butir terbuka per screener:** S6 (ambang dihitung untuk rasio 20 sesi dan belum dihitung ulang untuk 5 sesi; tumpang tindih dengan S1, S2, S8; bagian 11);
+  S7 (data untuk V2 dan V2Δ, yaitu persentil riwayat, butuh tabel turunan; kelayakan di BFF; bagian 12); S8 (bagian 13.6: lantai Rupiah untuk saham kecil, jendela
+  1 atau 2 hari, ambang belum diuji, dukungan persentil 252 sesi di BFF, kaitan dengan S6).
+- **Slot S5 (pengganti):** screener dari indikator checklist FL38, FL39, FL20, FL24, FL22, Silent Accumulation (FL27), dan Block Money Candidate (FL09), dibahas satu per
+  satu sampai jelas dengan format: apa itu, cara kerja dengan angka yang bisa ditelusuri, apa yang diminta user, dan apa yang belum jelas. Bentuk screener belum ditetapkan.
+- **Tinjauan indikator Flow** tidak diulang di sini: daftar to-do dan keputusan terbukanya ada di [`FLOW_INDICATOR_REVIEW.md`](FLOW_INDICATOR_REVIEW.md) ("Daftar to-do
+  (catatan user)") dan di `EXEC.md`.
+
+## PUBLISH-PER-TABLE — publisher menunggu per tabel yang ia baca, bukan per putaran Stockbit (usulan 2026-11-09, user: "Yasudah masukin future plan saja")
+
+**Fakta (dicek di kode 2026-11-09):**
+- Storage diisi hanya oleh `apps/terminal-publisher/publisher.py`, dari 12 tabel. Dari yang ditulis stockbit-updater
+  hanya tiga yang dibaca: `Feature_05_Foreign_Domestic_Broker_Detail`, `Feature_05_Foreign_Domestic_Broker_Detail_INDEX`,
+  `idx_event_annotation`. Feature 02/03/06, tabel INDEX lain, daftar indeks/grup dan `Database_Table_Status` tidak.
+- Sinyal ke publisher dikirim sekali, di akhir putaran (`apps/telegram-monitor/telegram_monitor.py` `publish_changed`),
+  dan publisher menunggu selama ada putaran RUNNING (`loaders_writing`). Putaran `5e252779` (2026-11-09): Feature 05
+  siap 19:41 WIB, putaran selesai 20:32 WIB, jadi broker saham tertunda sekitar 50 menit.
+- Cron harga, obligasi dan intraday sudah memakai kunci tulis bersama (`WRITE_LOCK`) dan sinyal sesudah commit; hanya
+  stockbit-updater memakai status RUNNING (ERRORS M413).
+
+**Usulan:**
+1. stockbit-updater memegang `WRITE_LOCK` (shared) hanya selama menulis tabel yang dibaca publisher, dan mengirim
+   `Terminal_Publish_Request` setelah tiap tabel itu commit (Feature 05, Feature 05 INDEX, event).
+2. Publisher tidak lagi membaca status RUNNING; penahannya hanya kunci tulis (lepas sendiri bila proses mati).
+   `ROUNDS_RUNNING_SQL` dan `ROUND_STALE_MINUTES` (EXEC-ROUND-HEARTBEAT nomor 3) dihapus.
+3. Tes mencocokkan tabel yang dibaca publisher dengan tabel yang dikunci pengisi data, agar tabel baru (lintas aset,
+   makro) tidak terlewat.
+
+**Akibat:** broker saham sekitar 10 menit setelah putaran mulai, IHSG sekitar 45 menit, event sekitar 60 menit;
+publisher jalan 2–3 kali per putaran (hanya yang berubah). Bila putaran gagal di langkah INDEX, broker saham sudah
+terbit dan IHSG menunggu putaran berikutnya.
+
+**Status:** usulan, belum disetujui untuk dieksekusi.
