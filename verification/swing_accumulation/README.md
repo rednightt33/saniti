@@ -13,23 +13,27 @@ sekaligus, dari data mentah harian. Ini folder kerja riset (bukan kode produk, t
 | Cukup liquid | Lantai Screener (close ≥ 50, ADV20 ≥ Rp1 miliar) dan ADV60 di atas median sektor (di antara yang lolos lantai); ADV = close × volume |
 | Pemilihan | Acak benih tetap 11 di antara saham liquid yang punya sedikitnya satu pola swing HIGH → LOW → HIGH (BEEF dikecualikan sebagai kasus acuan) |
 | Periode | 24 bulan (mulai 2024-11-01) |
-| Ambang swing | 5 × median rentang harian saham itu, dibulatkan ke 5%, dibatasi 15% sampai 50% (BEEF tetap 35%) |
+| Ambang swing | 5 × median rentang harian saham itu, dibulatkan ke 5%, dibatasi 15% sampai 50% (BEEF: 30% pada basis 24 bulan studi lintas saham; `BEEF_CASE.md` memakai 35% pada 17 bulan) |
 
 ## Satu saham per sektor (seleksi dengan data sampai 2026-11-10; `select_stocks.py`)
 
 | Sektor | Saham | Status |
 |---|---|---|
 | Basic Materials | PSAB | selesai: `PSAB_CASE.md` |
-| Consumer Cyclicals | MAPA | berikutnya |
-| Consumer Non-Cyclicals | JPFA (BEEF = kasus acuan terpisah: `BEEF_CASE.md`) | |
-| Energy | ITMG | |
-| Financials | BFIN | |
-| Healthcare | MEDS | |
-| Industrials | SMIL | |
-| Infrastructures | KETR | |
-| Properties & Real Estate | PWON | |
-| Technology | IRSX | |
-| Transportation & Logistic | SMDR | |
+| Consumer Cyclicals | MAPA | selesai (`reports/MAPA_report.txt`) |
+| Consumer Non-Cyclicals | JPFA (BEEF = kasus acuan terpisah: `BEEF_CASE.md`) | selesai (`reports/JPFA_report.txt`) |
+| Energy | ITMG | selesai (`reports/ITMG_report.txt`) |
+| Financials | BFIN | selesai (`reports/BFIN_report.txt`) |
+| Healthcare | MEDS | selesai (`reports/MEDS_report.txt`) |
+| Industrials | SMIL | selesai (`reports/SMIL_report.txt`) |
+| Infrastructures | KETR | selesai (`reports/KETR_report.txt`) |
+| Properties & Real Estate | PWON | selesai (`reports/PWON_report.txt`) |
+| Technology | IRSX | selesai (`reports/IRSX_report.txt`) |
+| Transportation & Logistic | SMDR | selesai (`reports/SMDR_report.txt`) |
+
+## Hasil lintas saham
+
+Lihat `COMPARISON.md` (12 saham, 95 kaki turun pra-rally, uji per hari tanpa hindsight). Tujuan user 2026-11-12: menemukan pola yang mendahului rally.
 
 ## Alur per saham
 
@@ -53,4 +57,4 @@ sekaligus, dari data mentah harian. Ini folder kerja riset (bukan kode produk, t
 
 ## Berkas
 
-`pull_stock.py`, `select_stocks.py`, `analyze_stock.py`, `stock_swings.py` (versi awal untuk BEEF), `BEEF_CASE.md`, `BEEF_swings.png`, `PSAB_CASE.md`, `PSAB_swings.png`.
+`pull_stock.py`, `select_stocks.py`, `analyze_stock.py`, `aggregate_swings.py`, `realtime_lift.py`, `stock_swings.py` (versi awal untuk BEEF), `COMPARISON.md`, `reports/` (laporan per saham), `BEEF_CASE.md`, `BEEF_swings.png`, `PSAB_CASE.md`, `PSAB_swings.png`.

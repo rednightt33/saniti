@@ -1,0 +1,118 @@
+KETR: 481 candle harian 2024-11-01 .. 2026-11-12 | median rentang harian 6.6% -> ambang swing 35% | 14 pivot terkonfirmasi + 1 sementara (L 2026-11-04)
+
+== 1. Pivot (data mentah harian)
+ #    tanggal      jenis  harga pivot   open   high    low  close dikonfirmasi jeda candle gerak
+ 1 2024-11-18  swing LOW        164.0  180.0  180.0  164.0  168.0   2024-11-21           3      
+ 2 2024-11-22 swing HIGH        248.0  246.0  248.0  197.0  210.0   2025-04-08          82  +51%
+ 3 2025-04-24  swing LOW        158.0  162.0  162.0  158.0  161.0   2025-05-06           7  -36%
+ 4 2025-09-01 swing HIGH        760.0  565.0  760.0  540.0  610.0   2025-09-18          12 +381%
+ 5 2025-09-19  swing LOW        422.0  488.0  488.0  422.0  482.0   2025-09-29           6  -44%
+ 6 2025-10-08 swing HIGH        695.0  695.0  695.0  605.0  615.0   2025-11-03          18  +65%
+ 7 2025-11-05  swing LOW        386.0  416.0  416.0  386.0  412.0   2025-11-17           8  -44%
+ 8 2025-12-12 swing HIGH       1595.0 1550.0 1595.0 1260.0 1260.0   2025-12-16           2 +313%
+ 9 2025-12-22  swing LOW        855.0  935.0 1080.0  855.0 1055.0   2025-12-23           1  -46%
+10 2026-01-05 swing HIGH       1315.0 1090.0 1315.0 1065.0 1190.0   2026-01-27          15  +54%
+11 2026-02-03  swing LOW        575.0  575.0  750.0  575.0  740.0   2026-02-04           1  -56%
+12 2026-02-04 swing HIGH        795.0  795.0  795.0  685.0  700.0   2026-03-02          16  +38%
+13 2026-03-16  swing LOW        364.0  392.0  408.0  364.0  388.0   2026-04-17          18  -54%
+14 2026-09-17 swing HIGH       1060.0  935.0 1060.0  930.0  990.0   2026-10-16          21 +191%
+15 2026-11-04  swing LOW        434.0  434.0  448.0  434.0  440.0    sementara              -59%
+
+== 2. Broker per kaki (Regular, lot)
+
+Kaki 1 NAIK: 2024-11-18 (164) -> 2024-11-22 (248)  +51%, 4 candle | total lot 249,341
+   3 pembeli bersih : CP (Retail-heavy) 34,095; XL (Retail-heavy) 6,062; FS (Niche) 2,400 | porsi lot 17.1%
+   3 penjual bersih : PD (Retail-heavy) -6,238; SQ (Mixed) -4,401; CC (Mixed) -3,836 | porsi lot 5.8%
+   asimetri +11.3 poin | pembeli terbesar net beli 50% hari | hari akumulasi (FL29) 75% | 11 broker net beli | HHI net beli 0.62 (merata 0.09) | top-1 77% dan top-3 97% dari net beli | tipe investor pembeli terbesar {'Domestic': 34095.0}
+
+Kaki 2 TURUN: 2024-11-22 (248) -> 2025-04-24 (158)  -36%, 93 candle | total lot 431,693
+   3 pembeli bersih : FS (Niche) 27,388; YP (Retail-heavy) 13,044; HP (Mixed) 6,154 | porsi lot 10.8%
+   3 penjual bersih : IF (Mixed) -40,382; CP (Retail-heavy) -33,089; PD (Retail-heavy) -7,854 | porsi lot 18.8%
+   asimetri -8.0 poin | pembeli terbesar net beli 10% hari | hari akumulasi (FL29) 30% | 25 broker net beli | HHI net beli 0.14 (merata 0.04) | top-1 31% dan top-3 54% dari net beli | tipe investor pembeli terbesar {'Domestic': 27388.0}
+
+Kaki 3 NAIK: 2025-04-24 (158) -> 2025-09-01 (760)  +381%, 83 candle | total lot 3,427,108
+   3 pembeli bersih : XL (Retail-heavy) 86,270; CP (Retail-heavy) 58,398; CC (Mixed) 36,074 | porsi lot 5.3%
+   3 penjual bersih : AH (Mixed) -193,382; IF (Mixed) -63,154; FS (Niche) -35,376 | porsi lot 8.5%
+   asimetri -3.2 poin | pembeli terbesar net beli 41% hari | hari akumulasi (FL29) 49% | 29 broker net beli | HHI net beli 0.10 (merata 0.03) | top-1 22% dan top-3 46% dari net beli | tipe investor pembeli terbesar {'Domestic': 86270.0} | papan lain: AH net -237,720 lot (hanya jual)
+
+Kaki 4 TURUN: 2025-09-01 (760) -> 2025-09-19 (422)  -44%, 13 candle | total lot 2,191,392
+   3 pembeli bersih : YP (Retail-heavy) 67,221; YB (Niche) 43,153; YU (Retail-heavy) 26,328 | porsi lot 6.2%
+   3 penjual bersih : AI (Institutional-heavy) -110,037; AH (Mixed) -69,328; DH (Retail-heavy) -58,812 | porsi lot 10.9%
+   asimetri -4.6 poin | pembeli terbesar net beli 77% hari | hari akumulasi (FL29) 31% | 35 broker net beli | HHI net beli 0.09 (merata 0.03) | top-1 21% dan top-3 43% dari net beli | tipe investor pembeli terbesar {'Domestic': 62421.0, 'Foreign': 4800.0}
+
+Kaki 5 NAIK: 2025-09-19 (422) -> 2025-10-08 (695)  +65%, 13 candle | total lot 2,079,445
+   3 pembeli bersih : CC (Mixed) 30,090; AK (Institutional-heavy) 28,475; NI (Mixed) 26,916 | porsi lot 4.1%
+   3 penjual bersih : AH (Mixed) -91,750; AI (Institutional-heavy) -43,887; YB (Niche) -29,114 | porsi lot 7.9%
+   asimetri -3.8 poin | pembeli terbesar net beli 54% hari | hari akumulasi (FL29) 31% | 33 broker net beli | HHI net beli 0.07 (merata 0.03) | top-1 12% dan top-3 35% dari net beli | tipe investor pembeli terbesar {'Domestic': 4828.0, 'Foreign': 25262.0} | papan lain: FZ net +0 lot @ 622
+
+Kaki 6 TURUN: 2025-10-08 (695) -> 2025-11-05 (386)  -44%, 20 candle | total lot 3,221,464
+   3 pembeli bersih : XL (Retail-heavy) 194,867; YP (Retail-heavy) 51,799; CC (Mixed) 42,860 | porsi lot 9.0%
+   3 penjual bersih : AH (Mixed) -476,089; AI (Institutional-heavy) -84,946; MG (Mixed) -23,329 | porsi lot 18.1%
+   asimetri -9.2 poin | pembeli terbesar net beli 80% hari | hari akumulasi (FL29) 25% | 43 broker net beli | HHI net beli 0.13 (merata 0.02) | top-1 31% dan top-3 47% dari net beli | tipe investor pembeli terbesar {'Domestic': 194513.0, 'Foreign': 354.0}
+
+Kaki 7 NAIK: 2025-11-05 (386) -> 2025-12-12 (1595)  +313%, 26 candle | total lot 20,130,152
+   3 pembeli bersih : AI (Institutional-heavy) 310,843; XL (Retail-heavy) 264,343; AK (Institutional-heavy) 238,360 | porsi lot 4.0%
+   3 penjual bersih : BB (Institutional-heavy) -1,401,072; AH (Mixed) -938,060; AZ (Retail-heavy) -194,731 | porsi lot 12.6%
+   asimetri -8.5 poin | pembeli terbesar net beli 50% hari | hari akumulasi (FL29) 4% | 54 broker net beli | HHI net beli 0.06 (merata 0.02) | top-1 12% dan top-3 31% dari net beli | tipe investor pembeli terbesar {'Domestic': 210303.0, 'Foreign': 100540.0}
+
+Kaki 8 TURUN: 2025-12-12 (1595) -> 2025-12-22 (855)  -46%, 6 candle | total lot 7,618,849
+   3 pembeli bersih : XL (Retail-heavy) 177,691; XC (Retail-heavy) 104,577; PD (Retail-heavy) 102,776 | porsi lot 5.1%
+   3 penjual bersih : AZ (Retail-heavy) -233,247; AI (Institutional-heavy) -156,959; GR (Retail-heavy) -94,717 | porsi lot 6.4%
+   asimetri -1.3 poin | pembeli terbesar net beli 67% hari | hari akumulasi (FL29) 50% | 36 broker net beli | HHI net beli 0.10 (merata 0.03) | top-1 19% dan top-3 42% dari net beli | tipe investor pembeli terbesar {'Domestic': 177691.0} | papan lain: AZ net +0 lot @ 301
+
+Kaki 9 NAIK: 2025-12-22 (855) -> 2026-01-05 (1315)  +54%, 6 candle | total lot 2,850,456
+   3 pembeli bersih : LG (Mixed) 68,729; XL (Retail-heavy) 65,978; PD (Retail-heavy) 61,980 | porsi lot 6.9%
+   3 penjual bersih : AZ (Retail-heavy) -207,345; AK (Institutional-heavy) -94,165; ZP (Retail-heavy) -54,382 | porsi lot 12.5%
+   asimetri -5.6 poin | pembeli terbesar net beli 83% hari | hari akumulasi (FL29) 17% | 39 broker net beli | HHI net beli 0.09 (merata 0.03) | top-1 15% dan top-3 43% dari net beli | tipe investor pembeli terbesar {'Domestic': 69299.0, 'Foreign': -570.0} | papan lain: LG net +0 lot @ 1
+
+Kaki 10 TURUN: 2026-01-05 (1315) -> 2026-02-03 (575)  -56%, 20 candle | total lot 8,392,596
+   3 pembeli bersih : CC (Mixed) 194,338; XL (Retail-heavy) 180,056; AK (Institutional-heavy) 156,243 | porsi lot 6.3%
+   3 penjual bersih : AZ (Retail-heavy) -335,921; MG (Mixed) -190,583; YU (Retail-heavy) -63,928 | porsi lot 7.0%
+   asimetri -0.7 poin | pembeli terbesar net beli 65% hari | hari akumulasi (FL29) 55% | 31 broker net beli | HHI net beli 0.14 (merata 0.03) | top-1 22% dan top-3 59% dari net beli | tipe investor pembeli terbesar {'Domestic': 98209.0, 'Foreign': 96129.0} | papan lain: AZ net -142,063 lot (hanya jual)
+
+Kaki 11 NAIK: 2026-02-03 (575) -> 2026-02-04 (795)  +38%, 1 candle | total lot 183,612
+   3 pembeli bersih : YP (Retail-heavy) 13,527; GR (Retail-heavy) 11,530; XL (Retail-heavy) 5,097 | porsi lot 16.4%
+   3 penjual bersih : BK (Institutional-heavy) -44,679; AK (Institutional-heavy) -31,879; GA (Niche) -1,500 | porsi lot 42.5%
+   asimetri -26.1 poin | pembeli terbesar net beli 100% hari | hari akumulasi (FL29) 0% | 39 broker net beli | HHI net beli 0.08 (merata 0.03) | top-1 17% dan top-3 38% dari net beli | tipe investor pembeli terbesar {'Domestic': 13527.0}
+
+Kaki 12 TURUN: 2026-02-04 (795) -> 2026-03-16 (364)  -54%, 26 candle | total lot 5,052,900
+   3 pembeli bersih : AK (Institutional-heavy) 237,659; XL (Retail-heavy) 165,532; LG (Mixed) 147,438 | porsi lot 10.9%
+   3 penjual bersih : AZ (Retail-heavy) -1,101,759; MG (Mixed) -145,863; RF (Institutional-heavy) -9,800 | porsi lot 24.9%
+   asimetri -14.0 poin | pembeli terbesar net beli 65% hari | hari akumulasi (FL29) 27% | 46 broker net beli | HHI net beli 0.10 (merata 0.02) | top-1 19% dan top-3 43% dari net beli | tipe investor pembeli terbesar {'Foreign': 237659.0} | papan lain: CP net +149 lot @ 431
+
+Kaki 13 NAIK: 2026-03-16 (364) -> 2026-09-17 (1060)  +191%, 118 candle | total lot 55,687,459
+   3 pembeli bersih : PD (Retail-heavy) 797,199; XL (Retail-heavy) 340,724; YP (Retail-heavy) 336,209 | porsi lot 2.6%
+   3 penjual bersih : AZ (Retail-heavy) -2,284,204; XC (Retail-heavy) -160,258; TP (Retail-heavy) -81,349 | porsi lot 4.5%
+   asimetri -1.9 poin | pembeli terbesar net beli 60% hari | hari akumulasi (FL29) 37% | 43 broker net beli | HHI net beli 0.13 (merata 0.02) | top-1 28% dan top-3 52% dari net beli | tipe investor pembeli terbesar {'Domestic': 797599.0, 'Foreign': -400.0} | papan lain: AH net +0 lot @ 200
+
+Kaki 14 TURUN: 2026-09-17 (1060) -> 2026-11-04 (434)  -59%, 34 candle [belum selesai] | total lot 14,252,179
+   3 pembeli bersih : CC (Mixed) 256,421; XL (Retail-heavy) 195,622; XC (Retail-heavy) 182,884 | porsi lot 4.5%
+   3 penjual bersih : CP (Retail-heavy) -174,286; LG (Mixed) -140,786; YJ (Mixed) -88,715 | porsi lot 2.8%
+   asimetri +1.6 poin | pembeli terbesar net beli 59% hari | hari akumulasi (FL29) 41% | 40 broker net beli | HHI net beli 0.17 (merata 0.03) | top-1 28% dan top-3 69% dari net beli | tipe investor pembeli terbesar {'Domestic': 127915.0, 'Foreign': 128506.0} | papan lain: CD net +0 lot @ 746
+
+== 3. Tafsir 1: VWAP beli kohort top-3 dari puncak pra-rally sampai swing low (anchor = puncak, tidak ikut)
+
+Puncak 2024-11-22 (248) -> swing low 2025-04-24 (close 161, low 158), 93 candle, turun -36% | rally sesudahnya +381% dalam 83 candle
+   kohort top-3: FS net 27,388 @ 195.0; YP net 13,044 @ 181.5; HP net 6,154 @ 184.1 | net kohort 46,586 lot = 10.8% dari 431,693 lot
+   VWAP beli kohort 185.9 | underwater pada close swing low -13.4% (pada low -15.0%) | pembanding VWAP seluruh pasar 183.3 (-12.2%)
+
+Puncak 2025-09-01 (760) -> swing low 2025-09-19 (close 482, low 422), 13 candle, turun -44% | rally sesudahnya +65% dalam 13 candle
+   kohort top-3: YP net 67,221 @ 598.6; YB net 43,153 @ 556.9; YU net 26,328 @ 589.3 | net kohort 136,702 lot = 6.2% dari 2,191,392 lot
+   VWAP beli kohort 589.7 | underwater pada close swing low -18.3% (pada low -28.4%) | pembanding VWAP seluruh pasar 598.7 (-19.5%)
+
+Puncak 2025-10-08 (695) -> swing low 2025-11-05 (close 412, low 386), 20 candle, turun -44% | rally sesudahnya +313% dalam 26 candle
+   kohort top-3: XL net 194,867 @ 545.0; YP net 51,799 @ 546.1; CC net 42,860 @ 546.1 | net kohort 289,526 lot = 9.0% dari 3,221,464 lot
+   VWAP beli kohort 545.5 | underwater pada close swing low -24.5% (pada low -29.2%) | pembanding VWAP seluruh pasar 545.6 (-24.5%)
+
+Puncak 2025-12-12 (1595) -> swing low 2025-12-22 (close 1055, low 855), 6 candle, turun -46% | rally sesudahnya +54% dalam 6 candle
+   kohort top-3: XL net 177,691 @ 1101.7; XC net 104,577 @ 1094.2; PD net 102,776 @ 1088.1 | net kohort 385,044 lot = 5.1% dari 7,618,849 lot
+   VWAP beli kohort 1098.2 | underwater pada close swing low -3.9% (pada low -22.1%) | pembanding VWAP seluruh pasar 1103.1 (-4.4%)
+
+Puncak 2026-01-05 (1315) -> swing low 2026-02-03 (close 740, low 575), 20 candle, turun -56% | rally sesudahnya +38% dalam 1 candle
+   kohort top-3: CC net 194,338 @ 951.4; XL net 180,056 @ 996.1; AK net 156,243 @ 916.7 | net kohort 530,637 lot = 6.3% dari 8,392,596 lot
+   VWAP beli kohort 969.3 | underwater pada close swing low -23.7% (pada low -40.7%) | pembanding VWAP seluruh pasar 991.4 (-25.4%)
+
+Puncak 2026-02-04 (795) -> swing low 2026-03-16 (close 388, low 364), 26 candle, turun -54% | rally sesudahnya +191% dalam 118 candle
+   kohort top-3: AK net 237,659 @ 528.6; XL net 165,532 @ 575.6; LG net 147,438 @ 556.5 | net kohort 550,629 lot = 10.9% dari 5,052,900 lot
+   VWAP beli kohort 559.7 | underwater pada close swing low -30.7% (pada low -35.0%) | pembanding VWAP seluruh pasar 553.8 (-29.9%)
+
