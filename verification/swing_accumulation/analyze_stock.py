@@ -32,6 +32,7 @@ def zigzag(h, l, th):
 
 
 piv, last = zigzag(h, l, TH); prov = last is not None and (not piv or last[0] != piv[-1][0]); allp = piv + ([last] if prov else [])
+LAB = lambda k: chr(65 + k) if k < 26 else chr(65 + k // 26 - 1) + chr(65 + k % 26)   # pivot letters A, B, C ... in time order (shown on the chart and in every table)
 print(f'{TK}: {n} candle harian {dates[0]} .. {dates[-1]} | median rentang harian {100 * RNG:.1f}% -> ambang swing {TH:.0%} | {len(piv)} pivot terkonfirmasi' + (f' + 1 sementara ({last[1]} {dates[last[0]]})' if prov else ''))
 
 # ---- Regular board per candle, aggregated over investor types
@@ -72,11 +73,11 @@ print('\n== 1. Pivot (data mentah harian)')
 rows = []
 for k, (i, t, p, ci) in enumerate(allp):
     prev = allp[k - 1] if k else None
-    rows.append([k + 1, dates[i], 'swing HIGH' if t == 'H' else 'swing LOW', p, o[i], h[i], l[i], c[i], (dates[ci] if ci is not None else 'sementara'), (ci - i if ci is not None else ''), (f'{100 * (p / prev[2] - 1):+.0f}%' if prev else '')])
-print(pd.DataFrame(rows, columns=['#', 'tanggal', 'jenis', 'harga pivot', 'open', 'high', 'low', 'close', 'dikonfirmasi', 'jeda candle', 'gerak']).to_string(index=False))
+    rows.append([LAB(k), dates[i], 'swing HIGH' if t == 'H' else 'swing LOW', p, o[i], h[i], l[i], c[i], (dates[ci] if ci is not None else 'sementara'), (ci - i if ci is not None else ''), (f'{100 * (p / prev[2] - 1):+.0f}%' if prev else '')])
+print(pd.DataFrame(rows, columns=['titik', 'tanggal', 'jenis', 'harga pivot', 'open', 'high', 'low', 'close', 'dikonfirmasi', 'jeda candle', 'gerak']).to_string(index=False))
 print('\n== 2. Broker per kaki (Regular, lot)')
 for L in legs:
-    print(f"\nKaki {L['leg']} {L['kind']}: {L['d0']} ({L['p0']:.0f}) -> {L['d1']} ({L['p1']:.0f})  {L['chg']:+.0f}%, {L['days']} candle{' [belum selesai]' if L['prov'] else ''} | total lot {L['tot']:,.0f}")
+    print(f"\nKaki {LAB(L['leg'] - 1)}→{LAB(L['leg'])} {L['kind']}: {L['d0']} ({L['p0']:.0f}) -> {L['d1']} ({L['p1']:.0f})  {L['chg']:+.0f}%, {L['days']} candle{' [belum selesai]' if L['prov'] else ''} | total lot {L['tot']:,.0f}")
     print('   3 pembeli bersih :', '; '.join(f"{nm(b)} {x:,.0f}" for b, x in L['buy']) or '-', f"| porsi lot {L['buy_share']:.1f}%")
     print('   3 penjual bersih :', '; '.join(f"{nm(b)} {x:,.0f}" for b, x in L['sell']) or '-', f"| porsi lot {L['sell_share']:.1f}%")
     print(f"   asimetri {L['buy_share'] - L['sell_share']:+.1f} poin | pembeli terbesar net beli {L['persist1']:.0f}% hari | hari akumulasi (FL29) {L['fl29']:.0f}% | {L['kpos']} broker net beli | HHI net beli {L['hhi']:.2f} (merata {L['even']:.2f}) | top-1 {L['top1_net']:.0f}% dan top-3 {L['top3_net']:.0f}% dari net beli | tipe investor pembeli terbesar {L['inv']}" + (f" | papan lain: {L['other'][0]} net {L['other'][1]:+,.0f} lot" + (f" @ {L['other'][2]:.0f}" if np.isfinite(L['other'][2]) else ' (hanya jual)') if L['other'] else ''))
@@ -91,10 +92,11 @@ for k in range(len(allp) - 2):
     cb, cl = BV[a:b_ + 1][:, od].sum(), BL[a:b_ + 1][:, od].sum(); vw = cb / (100 * cl); mv = BV[a:b_ + 1].sum() / (100 * BL[a:b_ + 1].sum()); tot = BL[a:b_ + 1].sum()
     mem = '; '.join(f"{brokers[x]} net {nl[x]:,.0f} @ {BV[a:b_ + 1, x].sum() / (100 * BL[a:b_ + 1, x].sum()):.1f}" for x in od)
     ob = OT[(OT.d >= dates[a]) & (OT.d <= dates[b_]) & (OT.b.isin([brokers[x] for x in od])) & (OT.bl > 0)]; ng = (ob.bv.sum() / (100 * ob.bl.sum()), ob.bl.sum()) if len(ob) else None
-    rec = dict(anchor=dates[iH], pH=pH, low_date=dates[iL], pL=pL, close=c[iL], low=l[iL], window=b_ - iH, vwap=vw, mkt_vwap=mv, uw_close=100 * (c[iL] / vw - 1), uw_low=100 * (l[iL] / vw - 1), uw_mkt=100 * (c[iL] / mv - 1),
+    rec = dict(lab=f'{LAB(k)}→{LAB(k + 1)}', buy_lots=float(cl), buy_value=float(cb), first=dates[a], anchor=dates[iH], pH=pH, low_date=dates[iL], pL=pL, close=c[iL], low=l[iL], window=b_ - iH, vwap=vw, mkt_vwap=mv, uw_close=100 * (c[iL] / vw - 1), uw_low=100 * (l[iL] / vw - 1), uw_mkt=100 * (c[iL] / mv - 1),
                net=float(nl[od].sum()), share=100 * float(nl[od].sum()) / tot, members=mem, rally=100 * (pN / pL - 1), rally_days=iN - iL, nego=ng, drop=100 * (pL / pH - 1)); t1.append(rec)
-    print(f"\nPuncak {rec['anchor']} ({pH:.0f}) -> swing low {rec['low_date']} (close {c[iL]:.0f}, low {l[iL]:.0f}), {rec['window']} candle, turun {rec['drop']:+.0f}% | rally sesudahnya {rec['rally']:+.0f}% dalam {rec['rally_days']} candle")
+    print(f"\n[{rec['lab']}] Puncak {rec['anchor']} ({pH:.0f}) -> swing low {rec['low_date']} (close {c[iL]:.0f}, low {l[iL]:.0f}), {rec['window']} candle, turun {rec['drop']:+.0f}% | rally sesudahnya {rec['rally']:+.0f}% dalam {rec['rally_days']} candle")
     print(f"   kohort top-3: {mem} | net kohort {rec['net']:,.0f} lot = {rec['share']:.1f}% dari {tot:,.0f} lot")
+    print(f"   hitung: jendela {rec['first']}..{rec['low_date']} ({b_ - a + 1} candle), beli kotor kohort {cl:,.0f} lot, nilai Rp{cb:,.0f} -> VWAP = nilai / (100 x lot) = {vw:.2f}")
     print(f"   VWAP beli kohort {vw:.1f} | underwater pada close swing low {rec['uw_close']:+.1f}% (pada low {rec['uw_low']:+.1f}%) | pembanding VWAP seluruh pasar {mv:.1f} ({rec['uw_mkt']:+.1f}%)" + (f" | papan lain: kohort membeli {ng[1]:,.0f} lot @ {ng[0]:.1f}" if ng else ''))
 json.dump(dict(ticker=TK, th=TH, rng=RNG, pivots=[(dates[i], t, p, (dates[ci] if ci is not None else None)) for i, t, p, ci in allp], legs=legs, tafsir1=t1), open(S + f'{TK.lower()}_result.json', 'w'), default=lambda x: float(x) if isinstance(x, (np.floating, np.integer)) else str(x), ensure_ascii=False)
 
@@ -113,10 +115,10 @@ for k in range(len(allp) - 1):
     if i1 - i0 >= 6: ax[0].annotate(f'{100 * (p1 / p0 - 1):+.0f}%', ((i0 + i1) / 2, np.sqrt(p0 * p1)), fontsize=8, ha='center', va='center', bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.75))
 for k, (i, t, p, ci) in enumerate(allp):
     hollow = ci is None; ax[0].scatter(i, p, marker='v' if t == 'H' else '^', s=60, facecolor='white' if hollow else ('#d6403a' if t == 'H' else '#1b9e77'), edgecolor='#d6403a' if t == 'H' else '#1b9e77', linewidth=1.6 if hollow else 0.8, zorder=5)
-    off = (10 + 9 * (k % 2)) if t == 'H' else -(20 + 9 * (k % 2)); ax[0].annotate(f'{dates[i][2:7]} {p:g}', (i, p), textcoords='offset points', xytext=(0, off), ha='center', fontsize=7, bbox=dict(boxstyle='round,pad=0.1', fc='white', ec='none', alpha=0.6))
+    off = (10 + 9 * (k % 2)) if t == 'H' else -(20 + 9 * (k % 2)); ax[0].annotate(f'{LAB(k)}  {dates[i][2:7]} {p:g}', (i, p), textcoords='offset points', xytext=(0, off), ha='center', fontsize=8, fontweight='bold', bbox=dict(boxstyle='round,pad=0.12', fc='white', ec='none', alpha=0.7))
 for r in t1:
     ia, ib = di[r['anchor']], di[r['low_date']]; ax[0].hlines(r['vwap'], ia, ib, colors='#7b3fbf', lw=2.2, zorder=4)
-    if ib - ia >= 6: ax[0].annotate((f"VWAP {r['vwap']:.0f}  " if ib - ia >= 15 else '') + f"{r['uw_close']:+.0f}%", ((ia + ib) / 2, r['vwap']), textcoords='offset points', xytext=(0, 6), ha='center', fontsize=7.5, color='#5a2a99', fontweight='bold', bbox=dict(boxstyle='round,pad=0.12', fc='white', ec='none', alpha=0.8), zorder=6)
+    if ib - ia >= 6: ax[0].annotate(f"{r['lab']} " + (f"VWAP {r['vwap']:.0f}  " if ib - ia >= 15 else '') + f"{r['uw_close']:+.0f}%", ((ia + ib) / 2, r['vwap']), textcoords='offset points', xytext=(0, 6), ha='center', fontsize=7.5, color='#5a2a99', fontweight='bold', bbox=dict(boxstyle='round,pad=0.12', fc='white', ec='none', alpha=0.8), zorder=6)
 ax[0].yaxis.set_major_locator(LogLocator(subs=(1, 2, 3, 5))); ax[0].yaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:g}')); ax[0].yaxis.set_minor_formatter(NullFormatter()); ax[0].grid(alpha=0.2, which='both')
 ax[0].set_title(f'{TK} harian (skala log): swing ZigZag {TH:.0%} dari high/low mentah. Ungu = VWAP beli kohort top-3 dari puncak (anchor) ke swing low; angka = underwater pada close swing low', fontsize=11.5); ax[0].set_ylabel('harga (skala log)')
 ax[0].text(0.995, 0.012, 'segitiga merah = swing high, hijau = swing low, kosong = pivot sementara (belum terkonfirmasi)', transform=ax[0].transAxes, ha='right', fontsize=8, color='#555')
