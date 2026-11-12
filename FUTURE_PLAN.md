@@ -1310,61 +1310,6 @@ Usulan ini disetujui sebagai rencana (user 2026-11-07: "2A ... Jangan jalankan. 
   kuadran) butuh jenis nilai baru yang hanya "sama dengan / tidak sama dengan"; FL51 (kotak per periode) dan FL52 (ikut
   daftar panel kanan) bukan satu nilai per sesi. Perlu keputusan user dan QA Screener.
 
-## Kamus metodologi discovery: akumulasi dan indikator pre-rally (usulan user 2026-11-03, menunggu keputusan)
-
-Isi lengkap, rumus, bukti, dan batasannya ada di [`METHODOLOGY_DICTIONARY.md`](METHODOLOGY_DICTIONARY.md). Ringkasan:
-
-- **Kata user 2026-11-03:** "ini adalah metodologi discovery, dimana kalau ada yang tanya accumulation atau indicator
-  pre-rally, then we'll have this disctionary combinations. save ya untuk nanti kita masukan ke database."
-- **Tersimpan sebagai entri:** `M-FF-INC` (peningkatan foreign flow 5 sesi), `M-FF-HEAVY` (akumulasi heavy terhadap
-  riwayat sendiri), `M-TOPN-RATIO` (rasio top N pembeli ÷ top N penjual). Kandidat dari riset HHI dan tren share top 3
-  buyer dicatat terpisah di dokumen itu.
-- **Ditambahkan atas permintaan user 2026-11-03** ("masukan Cr3 - 3/k_net dan CR3- 3/k_gross ke dalam MD + HHI top 3 net
-  dan HHI top 3 sell"): `M-CR3X-NET`, `M-CR3X-GROSS`, `M-HHI3-NETBUY`, `M-HHI3-NETSELL`. Tafsir AI atas "HHI top 3":
-  porsi 3 teratas dari HHI sisi pembeli atau penjual net; hasil ujinya jenuh dan sangat berkorelasi dengan CR3.
-- **Ditambahkan 2026-11-03:** entri `M-NET-INTENSITY` (intensitas net beli) dan bagian "Penjelasan dan contoh (untuk
-  pembaca)" di setiap entri, atas permintaan user: "Tolong setiap metode dijelaskan dengan contoh. Walk through the
-  readers agar mereka paham dan mengerti indikator tersebut bicara soal apa." `M-FF-INC` dan `M-FF-HEAVY` sudah ada
-  sejak penyimpanan pertama; yang ditambahkan adalah penjelasan dan contohnya.
-- **Ditambahkan 2026-11-03 (permintaan user: "Kalau bisa semua metric dikasih persentil sebagai perbandingan juga"):**
-  tabel "Posisi sebagai persentil" (saham lain dan riwayat sendiri) di setiap entri, walkthrough intensitas dengan tiga
-  ticker, dan **koreksi jendela per saham**: angka lintas saham awal memakai 5 tanggal bursa bersama; 36 dari 872 simbol
-  tidak bertransaksi di kelima tanggal (prinsip 11 di dokumen kamus). Tabel korelasi di "Rincian teknis" belum diulang.
-- **Belum dibangun, belum disetujui sebagai pekerjaan.** Skema tabel kamus belum dirancang; tidak ada migrasi.
-  Daya prediksi ("pre-rally") belum diuji.
-
-**Keputusan user yang masih terbuka** (keadaan 2026-11-04; belum ditinjau ulang 2026-11-12):
-1. Akumulasi heavy: ukuran A saja (`M-FF-HEAVY`), B saja (`M-TOPN-RATIO`), atau keduanya; satu daftar atau dua.
-2. Ambang "heavy": persentil 90 (bawaan EDGE, ±75 saham pada 2026-11-02), persentil 95, atau z-score ≥ 2 (±18 saham).
-3. `M-TOPN-RATIO`: cakupan semua investor atau hanya asing; nilai N (usulan 3); rasio mentah atau imbalance.
-4. Query lintas saham ke `Feature_02` (±15 GB) untuk riwayat 252 sesi: perkiraan ukuran dan izin sebelum dijalankan.
-5. Kandidat `M-HHI` (HHI fitur) dan `M-TOP3-SHARE-TREND`: dibuang, diganti, atau dipertahankan (empat entri `M-CR3X-*` dan
-   `M-HHI3-*` sudah masuk).
-6. Uji peristiwa (forward return bersyarat) sebelum kata "pre-rally" dipakai. Percontohan 30 saham (2026-11-04) sudah ada: intensitas tidak menunjukkan hubungan positif;
-   konsentrasi pembeli berhubungan negatif (belum konklusif). Uji penuh ±850 saham (±6 juta baris, ±1,4 GB) menunggu izin.
-7. `M-CR3X-NET`: peringkat di dalam kelompok jumlah broker (usulan), angka gerbang (10), dan pasangan `M-NET-INTENSITY` (sudah masuk kamus).
-8. Tafsir "HHI top 3" di `M-HHI3-*` sudah sesuai maksud user atau perlu dikoreksi.
-
-## Library screener (usulan user 2026-11-04, menunggu keputusan; diperbarui 2026-11-12)
-
-- **Dokumen:** [`SCREENER_LIBRARY.md`](SCREENER_LIBRARY.md) (screener S1 sampai S3, S6, S7, S8; S5 dibatalkan 2026-11-11; S4, insider, belum dirancang)
-  dan kamusnya [`METHODOLOGY_DICTIONARY.md`](METHODOLOGY_DICTIONARY.md). Keduanya sudah ada di `main`.
-- **Kata user:** 2026-11-04: "Goalnya adalah bukan database testing. Ini membuat library of screener, agar potential asset can appear when we applied these
-  filters." dan "Tambahkan dulu ke repo." 2026-11-10: "Go dengan usulan untuk nomor 9 sampai 11. Masukan screener docs." 2026-11-11: "Drop S5, kita ganti
-  dengan indikator lain (yang ada di checklist)". 2026-11-12: "By the way, untuk screener MD sekarang beserta pending item bisa kita push dulu ke main before we move
-  on to another task."
-- **Keputusan terbuka** (`SCREENER_LIBRARY.md` bagian 6): (1) tingkat gerbang likuiditas bawaan, rekomendasi AI "Luas" (bagian 10 nomor 1); (2) G5, rasio net asing
-  minimum untuk S1; (3) G4, angka 10 broker; (4) nama dan cakupan S3; (5) ambang bawaan Longgar, Standar, Ketat; (6) aturan S4 (dedup IDX-KSEI, label repo, definisi
-  opportunistic; ERRORS M241); (7) tempat penyimpanan library; (8) preset di Screener yang sudah ada atau library terpisah; (11) tampilan di FE.
-  Sudah diputuskan 2026-11-10: nomor 9 (persentil dihitung sesudah gerbang) dan nomor 10 (G3 memakai total beli bruto 5 sesi).
-- **Butir terbuka per screener:** S6 (ambang dihitung untuk rasio 20 sesi dan belum dihitung ulang untuk 5 sesi; tumpang tindih dengan S1, S2, S8; bagian 11);
-  S7 (data untuk V2 dan V2Δ, yaitu persentil riwayat, butuh tabel turunan; kelayakan di BFF; bagian 12); S8 (bagian 13.6: lantai Rupiah untuk saham kecil, jendela
-  1 atau 2 hari, ambang belum diuji, dukungan persentil 252 sesi di BFF, kaitan dengan S6).
-- **Slot S5 (pengganti):** screener dari indikator checklist FL38, FL39, FL20, FL24, FL22, Silent Accumulation (FL27), dan Block Money Candidate (FL09), dibahas satu per
-  satu sampai jelas dengan format: apa itu, cara kerja dengan angka yang bisa ditelusuri, apa yang diminta user, dan apa yang belum jelas. Bentuk screener belum ditetapkan.
-- **Tinjauan indikator Flow** tidak diulang di sini: daftar to-do dan keputusan terbukanya ada di [`FLOW_INDICATOR_REVIEW.md`](FLOW_INDICATOR_REVIEW.md) ("Daftar to-do
-  (catatan user)") dan di `EXEC.md`.
-
 ## PUBLISH-PER-TABLE — publisher menunggu per tabel yang ia baca, bukan per putaran Stockbit (usulan 2026-11-09, user: "Yasudah masukin future plan saja")
 
 **Fakta (dicek di kode 2026-11-09):**
