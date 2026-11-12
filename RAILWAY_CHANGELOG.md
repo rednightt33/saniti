@@ -1,5 +1,11 @@
 # Railway changelog
 
+## 2026-11-12 — edge-bff: Daily Quadrant colours in Settings (EXEC-DQ-COLORS)
+
+- `a5b6c862` → edge-bff `3ec43aad` SUCCESS 07:40 UTC. `/ready` 200; the served Terminal bundle holds the four quadrant
+  colour buttons.
+- Rollback: `serviceInstanceDeployV2` with `b68502cd`'s commit `0f0d127e`.
+
 ## 2026-11-11 — edge-bff: Top Brokers names, Daily Quadrant bars (EXEC-TOPBROKERS-NAME, EXEC-DQ-SIZE)
 
 - `1daccc8a` → edge-bff `63a1f091` and screener-worker `4695622f` (the rename; registry rebuilt); `19ad0822` → edge-bff
