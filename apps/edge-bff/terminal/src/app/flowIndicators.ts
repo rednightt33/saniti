@@ -480,8 +480,8 @@ export function initFlowIndicators(ctx: Ctx) {
       endLabels:brokerLines,
       /* EXEC-DQ-SIZE: what the colours and the height mean, always on the legend row */
       /* user 2026-11-11: the four colours first, the session's reading after them; no Flat, no height note */
-      ...(r.unit === 'quadrant' ? { key:[[0, 'Both accumulate'], [2, 'Foreign absorbs'], [1, 'Domestic absorbs'], [3, 'Both leave']]
-        .map(([k, t]) => `<span class="ind-key"><i style="background:${QUAD_COLORS[k as number]}"></i>${t}</span>`).join('') } : {}),
+      ...(r.unit === 'quadrant' ? { key:(col: ((v: number) => string) | null) => ([[0, 'Both accumulate'], [2, 'Foreign absorbs'], [1, 'Domestic absorbs'], [3, 'Both leave']] as [number, string][])
+        .map(([k, t]) => `<span class="ind-key"><i style="background:${col ? col(k) : QUAD_COLORS[k]}"></i>${t}</span>`).join('') } : {}),
       /* a broker picked in the right panel joins this indicator's list (FL23, FL52: a list with no broker scope) */
       joinsPicks:!!byKey.brokers && !byKey.scope,
       /* what of the view a value follows, as a key that changes when it must be recomputed: the first candle in view (an

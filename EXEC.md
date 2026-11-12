@@ -13120,6 +13120,21 @@ Tapi perlu dibuatkan legend agar tahu apa maksudnya apa arti dari warna bar".
   posisi 2, 2 existing (flat = heigh dll) di hapus": urutan baris legend sekarang empat kunci warna, lalu bacaan sesi;
   kunci "Flat" dan keterangan tinggi batang dihapus.
 
+## EXEC-DQ-COLORS — Daily Quadrant: warna tiap kuadran bisa diganti di Settings (2026-11-12)
+
+**Kata user, 2026-11-12:** "Minta opsi di setting untuk ganti tiap warnanya. Atau kamu kasih rekoemnedasi ya.."
+
+- Settings → Style FL49 sekarang punya empat tombol warna (urutan sama dengan kunci): Both accumulate, Foreign absorbs,
+  Domestic absorbs, Both leave. Warna dipakai batang, kunci warna di legend dan warna bacaan sesi; tersimpan per
+  indikator (`style.out.value.quad`) sehingga ikut layout dan preset; Reset kembali ke bawaan.
+- Rekomendasi bawaan tetap: hijau `#089981`, biru `#0070f3`, jingga `#d98a0b`, merah `#f23645` (hijau/merah searah
+  warna naik/turun chart; biru dan jingga terpisah jelas untuk mata buta warna merah-hijau).
+- Lapisan Terminal saja: `app/indicators.ts` (`quadColor`, `regStyle`, `styleMulti`), `app/flowIndicators.ts` (kunci
+  dibuat dari warna indikator). Rumus FL49, registry dan Screener tidak berubah.
+- Batas: teks penjelasan FL49 di dialog (dari registry) masih menyebut warna bawaan.
+- Tes: Terminal 893, look_check11 PASS; server lokal (BBRI): ganti "Foreign absorbs" ke ungu → batang, kunci dan
+  bacaan ungu, tersimpan dan tetap ungu sesudah muat ulang.
+
 ## EXEC-TOPBROKERS-NAME — "Bandar Balance" menjadi "Top Brokers" (2026-11-11)
 
 **Kata user, 2026-11-11:** "Bandar balance % ini perlu diganti indicator namenya agar jelas bahwa ini refer juga ke top

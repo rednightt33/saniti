@@ -83,6 +83,8 @@ export function initIndicators(ctx: Ctx) {
       title:p => spec.titled(r.short, r.params.filter(q => q.type !== 'fixed' && q.type !== 'boolean').map(q => p[q.k]))   // "RSI (14, close)" (Design Spec v1.2)
     };
   }
+  /* EXEC-DQ-COLORS: a quadrant code's colour, the user's own (style) first, else the definition's (a flat part grey) */
+  const quadColor = (s: any, o: any, v: number) => (v >= 0 && v < 4 && s?.quad?.[v]) || o.quad[v] || '#8f8f8f';
   /* default look per output, from its renderer / visual role / colour rule */
   function regStyle(def, base) {
     const r = def.reg, out = {}; let n = 0;
@@ -90,6 +92,7 @@ export function initIndicators(ctx: Ctx) {
       if(o.r === 'state') return;
       const s: any = { on:o.vis || /bands_mode/.test(o.cond), width:o.w || 2 };
       if(o.color) s.color = o.color;                                    // fixed by the definition (FL23: the inventory colours)
+      if(o.quad) s.quad = o.quad.slice(0, 4);                           // EXEC-DQ-COLORS: FL49's four quadrant colours, editable
       else if(o.r === 'histogram' || o.r === 'strip' || o.r === 'cells') { s.color = UP; s.color2 = DOWN; if(/optional_state/.test(o.rule)) s.states = true }
       else if(o.r === 'segmented_line' || o.r === 'dots') { s.color = UP; s.color2 = DOWN }
       else if(o.role === 'signal_line') s.color = base === '#f5a623' ? '#d6409f' : '#f5a623';
@@ -585,7 +588,7 @@ export function initIndicators(ctx: Ctx) {
         /* EXEC-DQ-SIZE (FL49): the quadrant's colour, the bar as tall as |Foreign| + |Domestic| */
         const size = (inst.raw && inst.raw[pt.o.size]) || [];
         pt.series.setData(a.flatMap((v, i) => v === null || v === undefined || size[i - off] == null ? [{ time:T(i) }]
-          : [{ time:T(i), value:size[i - off], color:alpha(pt.o.quad[v] || '#8f8f8f', op) }]));
+          : [{ time:T(i), value:size[i - off], color:alpha(quadColor(s, pt.o, v), op) }]));
         pt.series.applyOptions({ visible:vis });
       } else if(pt.kind === 'hist') {
         const rising = /rising/.test(pt.o.rule), states = s.states && /optional_state/.test(pt.o.rule), V = BARS.V;
@@ -601,7 +604,7 @@ export function initIndicators(ctx: Ctx) {
         /* EXEC-FLOW-NEW-3 (FL49): a code's own colour (the quadrant), at full strength */
         const q = pt.o.quad;
         pt.series.setData(a.map((v, i) => v === null || v === undefined ? { time:T(i) } : { time:T(i), value:1,
-          color:q ? alpha(q[v] || '#8f8f8f', op) : alpha(v >= 0 ? s.color : (s.color2 || s.color), op * (.18 + .82 * Math.abs(v) / m)) }));
+          color:q ? alpha(quadColor(s, pt.o, v), op) : alpha(v >= 0 ? s.color : (s.color2 || s.color), op * (.18 + .82 * Math.abs(v) / m)) }));
         pt.series.applyOptions({ visible:vis });
       } else if(pt.kind === 'cells') {
         pt.series.setData(a.map((v, i) => v === null || v === undefined ? { time:T(i) } : { time:T(i), value:v, color:alpha(v >= 0 ? s.color : (s.color2 || s.color), op) }));
@@ -892,7 +895,7 @@ export function initIndicators(ctx: Ctx) {
         const s = inst.style.out[pt.o.k], v = inst.disp[pt.o.k][i];
         if(!s.on || pt.o.hidden || v === null || v === undefined) return '';
         const prev = inst.disp[pt.o.k][i - 1];
-        const c = pt.kind === 'marker' ? (v === 1 ? s.color : 'var(--text-3)') : pt.o.quad ? pt.o.quad[v] || 'var(--text-3)' : pt.kind === 'strip' || pt.kind === 'cells' ? (v >= 0 ? s.color : s.color2) : pt.kind === 'seg' || pt.kind === 'dots' ? (dir && dir[i] === -1 ? s.color2 : s.color)
+        const c = pt.kind === 'marker' ? (v === 1 ? s.color : 'var(--text-3)') : pt.o.quad ? quadColor(s, pt.o, v) : pt.kind === 'strip' || pt.kind === 'cells' ? (v >= 0 ? s.color : s.color2) : pt.kind === 'seg' || pt.kind === 'dots' ? (dir && dir[i] === -1 ? s.color2 : s.color)
                 : pt.kind === 'hist' ? (/rising/.test(pt.o.rule) ? (prev !== null && prev !== undefined && v < prev ? s.color2 : s.color) : /optional_state/.test(pt.o.rule) ? 'var(--text)' : (v >= 0 ? s.color : s.color2)) : s.color;
         /* EXEC-QA5-FIX (agent 5 F8): a line on the price reads in the price's own decimals, as the price axis (2,903 · 3,316) */
         /* EXEC-DQ-SIZE (FL49): the quadrant's name and the bar's size */
@@ -902,7 +905,8 @@ export function initIndicators(ctx: Ctx) {
         return `<span style="color:${c === '#171717' ? 'var(--text)' : c}">${many && pt.kind !== 'seg' ? `<i class="ind-ok">${pt.o.label}</i> ` : ''}${txt}</span>`;
       }).filter(Boolean).join(' &nbsp;');
       if(!b.innerHTML && inst.def.note && inst.on && inst.parts.some(pt => !pt.o.hidden)) { const n = inst.def.note(i, inst.raw, inst.params); if(n) b.innerHTML = `<span class="flow-nodata-tip">${n}</span>` }   // Flow: why it is empty
-      if(inst.def.key && inst.on) b.innerHTML = `<span class="ind-keys">${inst.def.key}</span>` + b.innerHTML;   // EXEC-DQ-SIZE: the colour key (FL49) before the reading
+      if(inst.def.key && inst.on) { const qp = inst.parts.find(pt => pt.o.quad);
+        b.innerHTML = `<span class="ind-keys">${inst.def.key(qp ? (v: number) => quadColor(inst.style.out[qp.o.k], qp.o, v) : null)}</span>` + b.innerHTML }   // EXEC-DQ-SIZE: the colour key (FL49) before the reading
       b.title = b.textContent || '';                       // QA R2-M4: the full value or note when the row is narrow
       /* QA round 4 (L2): the panel repeats the full title (shortened on the row) with the value or note */
       const full = r.querySelector('.ind-fltnote'); if(full) { full.textContent = ''; const t = document.createElement('b'); t.textContent = inst.def.title(inst.params); full.append(t, document.createTextNode(b.textContent ? ` · ${b.textContent}` : '')) }
@@ -1152,7 +1156,11 @@ export function initIndicators(ctx: Ctx) {
         left.append(checkbox(s.on, v => { s.on = v; refresh(inst) }, 'Show ' + pt.o.label), document.createTextNode(pt.o.label));
         const right = document.createElement('span'); right.className = 'idlg-ctl';
         const pair = pt.kind === 'hist' ? (/rising/.test(pt.o.rule) ? ['Rising', 'Falling'] : /optional_state/.test(pt.o.rule) ? null : ['Positive', 'Negative']) : pt.kind === 'seg' || pt.kind === 'dots' ? ['Up trend', 'Down trend'] : null;
-        if(pair) right.append(colorBtn(() => s.color, c => { s.color = c }, pair[0]), colorBtn(() => s.color2, c => { s.color2 = c }, pair[1]));
+        /* EXEC-DQ-COLORS (user 2026-11-12: "opsi di setting untuk ganti tiap warnanya"): one colour per quadrant (FL49) */
+        if(pt.o.quad) { if(!s.quad) s.quad = pt.o.quad.slice(0, 4);
+          ([[0, 'Both accumulate'], [2, 'Foreign absorbs'], [1, 'Domestic absorbs'], [3, 'Both leave']] as [number, string][])
+            .forEach(([k, t]) => right.append(colorBtn(() => s.quad[k], c => { s.quad = s.quad.map((x: string, j: number) => j === k ? c : x) }, t))) }
+        else if(pair) right.append(colorBtn(() => s.color, c => { s.color = c }, pair[0]), colorBtn(() => s.color2, c => { s.color2 = c }, pair[1]));
         else if(/optional_state/.test(pt.o.rule)) {
           const lab = document.createElement('label'); lab.className = 'idlg-mini';
           lab.append(checkbox(!!s.states, v => { s.states = v; refresh(inst) }, 'State colours'), document.createTextNode('State colours'));
