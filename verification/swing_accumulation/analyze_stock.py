@@ -98,24 +98,31 @@ for k in range(len(allp) - 2):
     print(f"   VWAP beli kohort {vw:.1f} | underwater pada close swing low {rec['uw_close']:+.1f}% (pada low {rec['uw_low']:+.1f}%) | pembanding VWAP seluruh pasar {mv:.1f} ({rec['uw_mkt']:+.1f}%)" + (f" | papan lain: kohort membeli {ng[1]:,.0f} lot @ {ng[0]:.1f}" if ng else ''))
 json.dump(dict(ticker=TK, th=TH, rng=RNG, pivots=[(dates[i], t, p, (dates[ci] if ci is not None else None)) for i, t, p, ci in allp], legs=legs, tafsir1=t1), open(S + f'{TK.lower()}_result.json', 'w'), default=lambda x: float(x) if isinstance(x, (np.floating, np.integer)) else str(x), ensure_ascii=False)
 
-# ---- chart
+# ---- chart (price axis on a LOG scale so stocks with huge ranges stay readable; labels are thinned so they do not collide)
+from matplotlib.ticker import FuncFormatter, NullFormatter, LogLocator
 acc = {}
 for L in legs:
     if L['kind'] == 'TURUN':
         for b, x in L['buy']: acc[b] = acc.get(b, 0) + abs(x)
 pick = [b for b, _ in sorted(acc.items(), key=lambda z: -z[1])[:4]]
-fig, ax = plt.subplots(3, 1, figsize=(17, 12), sharex=True, gridspec_kw={'height_ratios': [5, 1.3, 2.4]}); x = np.arange(n)
+fig, ax = plt.subplots(3, 1, figsize=(19, 13), sharex=True, gridspec_kw={'height_ratios': [5.5, 1.2, 2.3]}); x = np.arange(n); ax[0].set_yscale('log')
 for i in range(n):
-    col = '#1b9e77' if c[i] >= o[i] else '#d6403a'; ax[0].vlines(i, l[i], h[i], color=col, lw=0.8); ax[0].add_patch(Rectangle((i - 0.32, min(o[i], c[i])), 0.64, max(abs(c[i] - o[i]), 0.001 * c[i]), color=col))
+    col = '#1b9e77' if c[i] >= o[i] else '#d6403a'; ax[0].vlines(i, l[i], h[i], color=col, lw=0.8); ax[0].add_patch(Rectangle((i - 0.32, min(o[i], c[i])), 0.64, max(abs(c[i] - o[i]), 0.003 * c[i]), color=col))
 for k in range(len(allp) - 1):
-    (i0, _, p0, _), (i1, _, p1, _) = allp[k], allp[k + 1]; ax[0].axvspan(i0, i1, color='#d6403a' if p1 < p0 else '#1b9e77', alpha=0.07); ax[0].plot([i0, i1], [p0, p1], color='#444', lw=1.4, ls='--'); ax[0].annotate(f'{100 * (p1 / p0 - 1):+.0f}%', ((i0 + i1) / 2, (p0 + p1) / 2), fontsize=9, ha='center', backgroundcolor='#ffffffcc')
-for k, (i, t, p, _) in enumerate(allp): ax[0].scatter(i, p, marker='v' if t == 'H' else '^', s=70, color='#d6403a' if t == 'H' else '#1b9e77', zorder=5, edgecolor='k'); ax[0].annotate(f'{dates[i][2:7]}\n{p:g}', (i, p), textcoords='offset points', xytext=(0, 12 if t == 'H' else -26), ha='center', fontsize=8)
+    (i0, _, p0, _), (i1, _, p1, _) = allp[k], allp[k + 1]; ax[0].axvspan(i0, i1, color='#d6403a' if p1 < p0 else '#1b9e77', alpha=0.07); ax[0].plot([i0, i1], [p0, p1], color='#444', lw=1.4, ls='--')
+    if i1 - i0 >= 6: ax[0].annotate(f'{100 * (p1 / p0 - 1):+.0f}%', ((i0 + i1) / 2, np.sqrt(p0 * p1)), fontsize=8, ha='center', va='center', bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.75))
+for k, (i, t, p, ci) in enumerate(allp):
+    hollow = ci is None; ax[0].scatter(i, p, marker='v' if t == 'H' else '^', s=60, facecolor='white' if hollow else ('#d6403a' if t == 'H' else '#1b9e77'), edgecolor='#d6403a' if t == 'H' else '#1b9e77', linewidth=1.6 if hollow else 0.8, zorder=5)
+    off = (10 + 9 * (k % 2)) if t == 'H' else -(20 + 9 * (k % 2)); ax[0].annotate(f'{dates[i][2:7]} {p:g}', (i, p), textcoords='offset points', xytext=(0, off), ha='center', fontsize=7, bbox=dict(boxstyle='round,pad=0.1', fc='white', ec='none', alpha=0.6))
 for r in t1:
-    ia, ib = di[r['anchor']], di[r['low_date']]; ax[0].hlines(r['vwap'], ia, ib, colors='#7b3fbf', lw=2.2); ax[0].annotate(f"VWAP top-3 {r['vwap']:.0f}\n{r['uw_close']:+.0f}% di swing low", ((ia + ib) / 2, r['vwap']), textcoords='offset points', xytext=(0, 8), ha='center', fontsize=8, color='#7b3fbf', backgroundcolor='#ffffffcc')
-ax[0].set_title(f'{TK} harian: swing (ZigZag {TH:.0%}) dan VWAP beli kohort top-3 dari puncak pra-rally ke swing low (ungu)', fontsize=13); ax[0].set_ylabel('harga'); ax[0].grid(alpha=0.2)
+    ia, ib = di[r['anchor']], di[r['low_date']]; ax[0].hlines(r['vwap'], ia, ib, colors='#7b3fbf', lw=2.2, zorder=4)
+    if ib - ia >= 6: ax[0].annotate((f"VWAP {r['vwap']:.0f}  " if ib - ia >= 15 else '') + f"{r['uw_close']:+.0f}%", ((ia + ib) / 2, r['vwap']), textcoords='offset points', xytext=(0, 6), ha='center', fontsize=7.5, color='#5a2a99', fontweight='bold', bbox=dict(boxstyle='round,pad=0.12', fc='white', ec='none', alpha=0.8), zorder=6)
+ax[0].yaxis.set_major_locator(LogLocator(subs=(1, 2, 3, 5))); ax[0].yaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:g}')); ax[0].yaxis.set_minor_formatter(NullFormatter()); ax[0].grid(alpha=0.2, which='both')
+ax[0].set_title(f'{TK} harian (skala log): swing ZigZag {TH:.0%} dari high/low mentah. Ungu = VWAP beli kohort top-3 dari puncak (anchor) ke swing low; angka = underwater pada close swing low', fontsize=11.5); ax[0].set_ylabel('harga (skala log)')
+ax[0].text(0.995, 0.012, 'segitiga merah = swing high, hijau = swing low, kosong = pivot sementara (belum terkonfirmasi)', transform=ax[0].transAxes, ha='right', fontsize=8, color='#555')
 ax[1].bar(x, v / 1e6, color=['#1b9e77' if c[i] >= o[i] else '#d6403a' for i in range(n)], width=0.8); ax[1].set_ylabel('volume (juta lembar)'); ax[1].grid(alpha=0.2); cm = plt.get_cmap('tab10')
 for j, b in enumerate(pick): ax[2].plot(x, np.cumsum(NL[:, bi[b]]), label=nm(b), color=cm(j), lw=1.6)
 ax[2].axhline(0, color='k', lw=0.6); ax[2].set_ylabel('posisi bersih kumulatif\n(lot, Regular)'); ax[2].legend(loc='upper left', fontsize=8, ncol=2); ax[2].grid(alpha=0.2)
 for (i, _, _, _) in allp: ax[2].axvline(i, color='#999', lw=0.6, ls=':')
 ticks = [i for i in range(n) if i == 0 or dates[i][:7] != dates[i - 1][:7]]; ax[2].set_xticks(ticks); ax[2].set_xticklabels([dates[i][:7] for i in ticks], fontsize=8); ax[2].set_xlim(-2, n + 1)
-plt.tight_layout(); plt.savefig(S + f'{TK}_swings.png', dpi=110); print('\ngrafik:', S + f'{TK}_swings.png')
+plt.tight_layout(); plt.savefig(S + f'{TK}_swings.png', dpi=100); print('\ngrafik:', S + f'{TK}_swings.png')
