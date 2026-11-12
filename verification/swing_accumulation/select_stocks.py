@@ -1,5 +1,5 @@
 """One stock per sector for the swing / broker-accumulation study (rules: user 2026-11-12).
-Usage: python3 select_stocks.py [until_date, default = all data]      Read-only through pgq (pgweb); two bounded queries (universe; 24 months of daily OHLCV).
+Usage: python3 select_stocks.py [until_date, default = all data] [picks_per_sector, default 1] [comma list of tickers to exclude]      Read-only through pgq (pgweb); two bounded queries (universe; 24 months of daily OHLCV).
 Rules: sector != Undefined; common stock; Screener floor (last close >= 50 and ADV20 >= Rp1 bn, ADV = close x volume) AND ADV60 above the median ADV60 of the floor-passers of that sector;
 at least one HIGH -> LOW -> HIGH swing sequence in the window (ZigZag threshold = 5 x the stock's median daily range, rounded to 5%, limited to 15%..50%); BEEF excluded (reference case);
 pick = random.Random(11).choice over the sorted candidates of each sector."""
@@ -8,8 +8,9 @@ from pathlib import Path
 import numpy as np, pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'terminal_api')); import pgq
 UNTIL = sys.argv[1] if len(sys.argv) > 1 else '2999-12-31'; SINCE = '2024-11-01'
+PER = int(sys.argv[2]) if len(sys.argv) > 2 else 1; EXCLUDE = set(sys.argv[3].split(',')) if len(sys.argv) > 3 else set()   # picks per sector; tickers to leave out (earlier picks)
 u = pgq.q('select "Ticker" t, "Company Name" nm, "Security Type" st, "Is Common Stock" cs, "Sector" sec from public."IDX_Stock_Universe"'); U = pd.DataFrame(u['rows'], columns=u['columns'])
-U = U[(U.st == 'stock') & (U.cs == 'Yes') & (U.sec != 'Undefined') & (U.t != 'BEEF')]
+U = U[(U.st == 'stock') & (U.cs == 'Yes') & (U.sec != 'Undefined') & (U.t != 'BEEF') & (~U.t.isin(EXCLUDE))]
 q = pgq.q(f"""SELECT ticker t, date::text d, open o, high h, low l, close c, volume v FROM public."Price_Stock_Indonesia_IDX" WHERE timeframe='Daily' AND is_final AND date >= date '{SINCE}' AND date <= date '{UNTIL}' ORDER BY ticker, date""")
 if 'error' in q: sys.exit('query refused: ' + q['error'])
 P = pd.DataFrame(q['rows'], columns=q['columns'])
@@ -43,7 +44,9 @@ D = pd.DataFrame(rows).merge(U[['t', 'nm', 'sec']], on='t'); D['floor'] = (D.clo
 D = D.join(D[D.floor].groupby('sec').adv60.median().rename('med60'), on='sec'); D['cand'] = D.floor & (D.adv60 > D.med60) & (D.pairs >= 1)
 out = []
 for sec, g in sorted(D.groupby('sec')):
-    c = sorted(g[g.cand].t); pick = random.Random(11).choice(c) if c else None; r = g[g.t == pick].iloc[0] if pick else None
-    out.append([sec, len(c), pick, r.nm[:34] if pick else '', round(r.adv20 / 1e9, 2) if pick else '', round(r.adv60 / 1e9, 2) if pick else '', r.th if pick else ''])
+    c = sorted(g[g.cand].t); picks = ([random.Random(11).choice(c)] if PER == 1 else random.Random(11).sample(c, min(PER, len(c)))) if c else [None]
+    for pick in picks:
+        r = g[g.t == pick].iloc[0] if pick else None
+        out.append([sec, len(c), pick, r.nm[:34] if pick else '', round(r.adv20 / 1e9, 2) if pick else '', round(r.adv60 / 1e9, 2) if pick else '', r.th if pick else ''])
 print(f'data terakhir {latest} | jendela {SINCE}..{UNTIL if UNTIL < "2999" else latest}')
 print(pd.DataFrame(out, columns=['sektor', 'kandidat', 'terpilih', 'nama', 'ADV20 (Rp mi)', 'ADV60 (Rp mi)', 'ambang swing']).to_string(index=False))
