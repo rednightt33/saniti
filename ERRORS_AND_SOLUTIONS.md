@@ -7577,3 +7577,21 @@ restarted. Restored helpers from /workspace/artifacts/index-bulk, observed unint
 progress and verified final committed data. Keep one-off job IDs/recovery scripts in the persistent
 workspace and save logs before replacing a temporary deployment; never assume a local executor
 restart stopped an external database job.
+
+### M424 — Every dev service stopped: the Railway workspace reached its hard usage limit (2026-11-13, open)
+
+- **Symptom:** the user, 2026-11-13 ("boleh cek kondisi backend, sepertinya timeout ya"): the Terminal does not load.
+  `https://edge-bff-dev.up.railway.app/ready` answers 404 "Application not found"; pgweb the same.
+- **Verified cause (Railway API, 2026-11-13 ~15:00 UTC):** every running deployment went REMOVED within three seconds,
+  14:20:17-14:20:20 UTC (edge-bff, terminal-api, terminal-publisher, screener-worker, stockbit-updater, telegram-monitor,
+  orc-test-runner; terminal-api log: "Stopping Container", SIGTERM). No commit or deploy at that time. The workspace
+  customer reads `usageLimit.hardLimit` 30, `currentUsage` 29.71, billing period 2026-10-21 to 2026-11-21: Railway stops
+  every service when the hard limit is reached. The project's estimated usage is mostly memory (96,519 GB-minutes against
+  3,280 vCPU-minutes).
+- **Class:** any cost limit or billing state of the workspace stops the whole project at once, with no warning in our own
+  monitoring (telegram-monitor is stopped with it).
+- **Solution (open, the user's decision):** raise or remove the hard limit in the Railway workspace settings (Usage), then
+  redeploy the services and read each back at SUCCESS; Postgres first. Pending: a warning before the limit (soft limit 0
+  today) and a look at what holds memory.
+- **Not the cause of the 2026-11-12 BBTN screenshot:** the older broker years failed then while every service ran
+  (terminal-api read of the bucket cancelled at 07:41:09 UTC, 30 seconds after an edge-bff release).
