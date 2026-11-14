@@ -548,8 +548,8 @@
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL14": {
-   "formula": "FL13 Buy of the top buyers − FL13 Sell of the top sellers (same scope, unit, filter, window; K2)",
-   "outputs": "asym",
+   "formula": "FL13 Buy of the top buyers − FL13 Sell of the top sellers (same scope, unit, filter, window; K2); avg (option, EXEC-FLOW-NEW-3) = mean of the last 10 asym, null unless all 10 exist",
+   "outputs": "asym, avg",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   },
   "FL15": {
@@ -720,6 +720,26 @@
   "FL48": {
    "formula": "each broker's net n_b = BV(b)-SV(b) over the window first; B = Σ of the N largest positive n_b, S = Σ |n_b| of the N largest negative; (B - S) / (B + S) or B / S; null unless N brokers on each side",
    "outputs": "value",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL49": {
+   "formula": "the F×D map's point over the window (EXEC-FLOW-NEW-3): the N largest net buyers and N largest net sellers by BV-SV of all investors; x = 100 Σ (BV_F-SV_F) / TBV, y = 100 Σ (BV_D-SV_D) / TBV over those 2N brokers, TBV = every broker's buy value (board filter); value = the quadrant code of fdShown(x, y) (0 both up, 1 domestic absorbing, 2 foreign absorbing, 3 both down, 4-8 a part flat under 0.005); null when TBV <= 0",
+   "outputs": "value",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL50": {
+   "formula": "x, y as FL49 (formula locked 2026-11-08), shown with two decimals that add up to verdict = x + y (fdShown) = Top brokers' verdict; default rolling 5 candles, Top 3, Regular; verdict line an option",
+   "outputs": "foreign, domestic, verdict",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL51": {
+   "formula": "over the candles s..e (default the first and last candle in view; or a range picked on the chart): n_b = BL-SL (boards, investors); loaders = the 3 largest positive n_b, sellers = the 2 largest negative; cost A = BV / (100 BL) since s, B = FL19's implied cost of the broker's own position (Q, K as FL19, null when Q <= 0); distance 100 (close_e' / cost - 1), close_e' the last close with broker data in the period; buy days = candles with n_b,k > 0 of the candles with broker data; share = 100 Σ loaders n_b / Σ max(n_b, 0); the cost line is the running cost from s; option E (2026-11-08): Show side (loaders / sellers / both) and Top N top (3, 5, 10): N loaders, N sellers (both sides: at most 5), the share over the N loaders shown",
+   "outputs": "per broker (cost line) + box",
+   "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
+  },
+  "FL52": {
+   "formula": "FL23 cumulative net position (view cum, no total) of its own list of up to 10 brokers (starting from the Broker inventory panel's; a broker picked in the panel joins it), from the first candle in view, lots or Rupiah; drawn on the price pane's right axis, each code at its line's end",
+   "outputs": "per broker",
    "source": "verification/terminal_api/flow_indicators/FORMULAS.md"
   }
  }

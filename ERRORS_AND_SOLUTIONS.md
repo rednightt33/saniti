@@ -7765,3 +7765,52 @@ in its staleness check.
   first, so its path is unchanged); the next `deploy.sh` upload carries the new code.
 - **Lesson:** a guard step that cannot run must say "not run" in one line the job's reader sees, never end in a
   traceback after the job's success line.
+
+### M434 — The indicator notes file drifted from its sources for six days; its check runs only by hand (2026-11-14, regenerated; cause open)
+
+- **Symptom:** on `main` `a936653` (2026-11-14) `scripts/tests/test_indicator_notes.py` fails:
+  "apps/edge-bff/terminal/src/data/indNotes.json differs from its sources: run scripts/build_indicator_notes.py".
+  Running the generator changes the file by +22/−2 lines: FL14 gains its `avg` output (the 10-day average option) and
+  FL49–FL52 are added at the end of the Flow list. The 53 technical entries do not change.
+- **Verified cause (Git and code, 2026-11-14):**
+  1. The file has had no reader since 2026-11-06. EXEC-TERMINAL-LOOK 2B (user 2026-11-06: "hilangkan semua indikator
+     card yang ada"; recorded as "Kartu (D), 2B: dihapus total, kode dan tesnya") removed the cards in `353776f`, and
+     with them the file's only readers, `app/indCard.ts:14` and `tests/data/ind_card.test.ts:6` (`git grep indNotes`
+     at `353776f^` and at `353776f`). The generator `scripts/build_indicator_notes.py`, its output and
+     `scripts/tests/test_indicator_notes.py` stayed.
+  2. On 2026-11-08 `b8fa1ea` (FL14 average, FL49–FL52; EXEC-FLOW-NEW-3, go "Ok go") and `0132bda` (FL51 option E,
+     FL52's own list of 10; go "aight sudah G / … / go.") changed the formula table of
+     `verification/terminal_api/flow_indicators/FORMULAS.md` without running the generator. `a78818f` (2026-11-06)
+     changed a paragraph outside the table, which the generator does not read. The last commit that touched the file is
+     `62eb212` (2026-11-05); `5bbebb3` only looks like one in a 50-commit clone, where it is the shallow boundary.
+  3. Nothing ran the check. With no reader, no Terminal test or build can fail. The repository's only GitHub workflow is
+     `.github/workflows/database-schema-docs.yml` (the daily schema snapshot), and there is no pre-commit hook
+     (`core.hooksPath` unset, no hook configuration). The Python check fails only when someone runs it.
+- **Source text is the approved one:** the new rows match the approvals in `EXEC.md` (EXEC-FLOW-NEW-3; the go of
+  2026-11-08 for Loaders option E and FL52's own list) and the code. In `apps/edge-bff/terminal/src/calc/flow.ts`:
+  - FL14 returns `{ asym, avg: meanOfLast(asym, 10) }` (lines 569–570);
+  - FL49 and FL50 come from `fdParts` and `fdShown` (846–849);
+  - FL51 is `loadersTable` with `side` and `top` (481–519);
+  - FL52 is FL23 with `view: 'cum', total: false` (853).
+  `flowRegistry.json` has the same 52 Flow ids and the same outputs (FL14 `asym, avg`; FL50 `foreign, domestic,
+  verdict`). EXEC-DQ-SIZE and EXEC-DQ-COLORS (2026-11-11) changed only how FL49 is drawn, not its value.
+- **Effect:** none for users. The Terminal build (`npm run build`) before and after the rebuild is byte-identical
+  (sha256 of all four files in `apps/edge-bff/static/terminal-app`), so this change needs no deploy. The look check
+  (`look_check11.mjs`) does not apply: no style, markup or layout changed, and the file is not in the page.
+- **Solution (this task):** `python3 scripts/build_indicator_notes.py` ("53 technical, 52 flow"). Checks:
+  - `--check` exit 0, and `scripts/tests/test_indicator_notes.py` passes;
+  - Terminal vitest: 893 passed; `npm run build` OK.
+  The other drift checks are current the same day: `scripts/tests/test_registries_current.py` (Backtest and Screener
+  registries), `scripts/build_flow_registry.py --check`, `scripts/terminal_indicator_spec.py --check`.
+- **Class:** every generated file whose only guard is a check someone must run by hand:
+  - `indNotes.json` and `flowRegistry.json`;
+  - the Backtest and Screener registries (M329 added their test; it is still run by hand);
+  - `INDICATOR_SPEC.md` and its migration (a `--check` without a test);
+  - `AI_TOOLS.md`, `AI_MODELS.md`, `AI_ROUTER.md` and the system-prompt snapshots (tests in `apps/market-ai-orc/tests`).
+  A sub-class: a generated file left behind when its reader is removed keeps a check that can fail but protects
+  nothing.
+- **Status:** MITIGATED. The file equals its sources again. The cause remains: no check runs automatically, and the file
+  has no reader. Open user decisions: FUTURE_PLAN GEN-CHECK.
+- **Lesson:** a generated file needs its check in CI or a pre-commit step, so that a source change without the rebuild
+  fails before it reaches `main`. Removing a reader removes its generator chain (generator, output, test, handoff rows)
+  in the same commit, or records why the chain stays.

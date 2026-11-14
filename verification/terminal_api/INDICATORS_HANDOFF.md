@@ -380,6 +380,9 @@ Bagian ini menambah, bukan mengganti, isi di atas. Rincian keputusan: `EXEC.md`,
 
 - Kartu indikator dihapus (user "2B"): `indCard.ts`, `calc/explain*.ts` dan tesnya tidak ada lagi; rujukan ke file itu di
   atas adalah sejarah. Tooltip hover (nama + `tip`) tetap.
+- `T/src/data/indNotes.json` tidak dibaca kode mana pun sejak penghapusan itu. Skrip dan tesnya masih ada, jadi file ini
+  tetap dibangun ulang bila `FORMULAS.md` atau `terminal_indicator_spec.py` berubah (ERRORS M434). Simpan atau hapus:
+  FUTURE_PLAN GEN-CHECK.
 - Jendela Indicators bergaya "Add a condition" Screener (`indMenu.ts`): baris abu-abu = setting bawaan dari registry
   (`defaultsText`), klik selalu menambah dengan notifikasi "added".
 - Sumbu harga: desimal diturunkan dari harga instrumen (`data/priceFormat.ts`).

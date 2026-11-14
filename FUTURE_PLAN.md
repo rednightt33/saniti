@@ -1335,3 +1335,37 @@ publisher jalan 2–3 kali per putaran (hanya yang berubah). Bila putaran gagal 
 terbit dan IHSG menunggu putaran berikutnya.
 
 **Status:** usulan, belum disetujui untuk dieksekusi.
+
+## GEN-CHECK — file turunan diperiksa otomatis; file catatan indikator tanpa pembaca (temuan 2026-11-14, ERRORS M434; menunggu keputusan user)
+
+**Fakta (dicek 2026-11-14):**
+- Banyak file di repo dibuat oleh skrip dari file lain (file turunan), misalnya registry indikator Terminal, Backtest
+  dan Screener, `INDICATOR_SPEC.md`, `AI_TOOLS.md`, `AI_MODELS.md`. Setiap skrip punya pemeriksaan `--check` atau tes
+  yang gagal bila file turunannya tertinggal dari sumbernya.
+- Pemeriksaan itu hanya jalan bila ada yang menjalankannya. Satu-satunya workflow GitHub adalah snapshot skema harian
+  (`.github/workflows/database-schema-docs.yml`), dan tidak ada pre-commit hook. Kejadian: M329 (2026-11-01,
+  screener-worker gagal start karena registry tertinggal) dan M434 (2026-11-14, `indNotes.json` tertinggal 6 hari).
+- `apps/edge-bff/terminal/src/data/indNotes.json` (teks rumus untuk kartu indikator) tidak dibaca kode mana pun sejak
+  kartu dihapus 2026-11-06 (EXEC-TERMINAL-LOOK 2B, "dihapus total, kode dan tesnya", commit `353776f`). Pembuatnya
+  (`scripts/build_indicator_notes.py`) dan tesnya (`scripts/tests/test_indicator_notes.py`) masih ada. File sudah
+  dibangun ulang 2026-11-14; hasil build Terminal sebelum dan sesudahnya sama persis.
+
+**Keputusan 1 — file catatan indikator:**
+- A. Simpan: tetap dibangun dan diperiksa, sebagai teks rumus siap pakai bila kartu dibuat lagi. Akibat: setiap
+  perubahan rumus Flow atau teknikal harus ikut menjalankan skripnya, walau tidak ada yang tampil.
+- B. Hapus: skrip, file dan tesnya dihapus, sesuai keputusan 2B; baris tentang file ini di
+  `verification/terminal_api/INDICATORS_HANDOFF.md` (bagian 4 dan 7.3) diperbarui. Riwayatnya tetap di Git. Akibat:
+  bila kartu dibuat lagi, skrip diambil kembali dari Git.
+
+**Keputusan 2 — pemeriksaan otomatis untuk semua file turunan:**
+- A. Workflow GitHub pada setiap push dan PR: menjalankan semua pemeriksaan yang tidak butuh database atau rahasia.
+  Akibat: kesalahan terlihat di GitHub beberapa menit sesudah push. Biaya: menit GitHub Actions. Catatan: Railway
+  men-deploy dari push yang sama. Apakah deploy bisa menunggu hasil pemeriksaan adalah setelan Railway yang perlu dicek
+  dulu.
+- B. Pre-commit hook di repo, dipasang oleh setup script environment. Akibat: commit yang lupa membangun ulang ditolak
+  sebelum dibuat. Batasnya: hanya berlaku di sesi yang hook-nya terpasang, dan bisa dilewati.
+- C. Keduanya.
+- D. Tetap manual seperti sekarang.
+- Yang tidak tercakup: file yang dibuat dari database (`DATABASE_SCHEMA.md`); file itu sudah diperbarui workflow harian.
+
+**Status:** usulan, belum disetujui.
