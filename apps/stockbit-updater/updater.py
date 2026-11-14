@@ -307,6 +307,9 @@ def main() -> int:
             record(pg, execution_id, events=steps['events'])
             steps['stock_lists'] = stock_lists.run(pg, token, execution_id, emit)
             record(pg, execution_id, stock_lists=steps['stock_lists'])
+            # EXEC-RADAR R2: last of the data steps, so the round's events are in its outlier notes; kept in `features`
+            steps['radar'] = refresh.refresh_radar(emit)
+            record(pg, execution_id, features={**steps['features'], 'radar': steps['radar']})
             steps['table_status'] = {'tables': refresh_table_status()}
     except Exception as exc:  # noqa: BLE001 - every failure ends the round with a recorded, notified status
         status, error = 'FAILED', f'{type(exc).__name__}: {exc}'[:2000]

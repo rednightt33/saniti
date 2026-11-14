@@ -14013,6 +14013,19 @@ latest R10".
 - **Go user 2026-11-14: "Ok go".** Eksekusi dimulai dari R1 di branch `claude/keen-turing-56vw7y`. Sesuai rencana,
   merge ke `main`, migrasi dan backfill di database dev, dan setiap deploy ditanyakan dulu satu per satu.
 
+### Kemajuan (branch saja; belum ada yang dipasang di dev)
+
+- **2026-11-14, R1-R4 dibangun dan digladi lokal** (PostgreSQL 16, salinan data dev yang dibaca read-only):
+  migrasi `20261114_001_feature_07_radar.sql` (tabel ukuran, gerbang, filter, aturan, hasil; fungsi per saham dan per
+  tanggal), katalog `20261114_002_catalog_feature_07_radar.sql` (dari `scripts/generate_feature_07_catalog.py`; kamus
+  `FEATURE_07_RADAR.md`), langkah ronde `refresh_radar` di `apps/stockbit-updater` (sesudah events, sebelum status
+  tabel; tes `test_radar_step.py`), job backfill `verification/radar/backfill_job.py`, validator independen
+  `verification/radar/validate_radar.py`. Bukti: `verification/radar/REHEARSAL.md` (APPLY 250 sesi 2 menit 55 detik;
+  validator 0 selisih di 7 tanggal; hitung ulang harian = hitung penuh).
+- Cacat yang ditemukan dan diperbaiki sebelum rilis: ERRORS M427, M429, M430. Dicatat terbuka: M425 (Open in Terminal
+  Screener), M426 (baris non-universe lama di F06), M428 (arti "5 sesi" di library; keputusan user).
+- Belum: R4 ambang S6Δ dari 20 tanggal (butuh data dev penuh, sesudah backfill dev), R5-R10.
+
 ### Keputusan yang perlu user sebelum go
 
 - **D1 Konvensi persentil:** semua persentil riwayat sendiri memakai "lebih kecil ÷ 252" seperti library (S1 dihitung

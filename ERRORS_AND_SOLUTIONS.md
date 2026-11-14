@@ -7603,3 +7603,78 @@ restart stopped an external database job.
   chart showed 0.95 GB flat. The chart is not the bill; Postgres is the largest billed memory (about 0.94 GB on average then).
 - **Not the cause of the 2026-11-12 BBTN screenshot:** the older broker years failed then while every service ran
   (terminal-api read of the bucket cancelled at 07:41:09 UTC, 30 seconds after an edge-bff release).
+
+### M425 — Screener: "Open in Terminal" never opens the Terminal (2026-11-14, open; fix planned in EXEC-RADAR R7)
+
+- **Symptom:** in EDGE, a Screener row's Open in Terminal sets the ticker but the shell stays on the Screener.
+- **Verified cause (code, 2026-11-14):** the Screener posts an `edge-nav` message to its parent
+  (`apps/edge-bff/screener/src/preview.ts`), but the shell's only `message` listener is the Statistics one
+  (`apps/edge-bff/static/index.html:11419`); nothing in the shell reads `edge-nav`.
+- **Class:** every sub-app in an iframe that asks the shell to switch page (Screener now, Radar next, Backtest later).
+- **Solution (planned, EXEC-RADAR R7):** one shell listener for `edge-nav` that checks the sender is one of the shell's
+  own iframes and the target is a known page, used by Screener and Radar alike; a test for both.
+- **Lesson:** a message one frame sends needs a test that the receiving frame acts on it.
+
+### M426 — Feature 06 held rows of codes outside the universe until 2026-11-05 (2026-11-14, mitigated for the Radar)
+
+- **Symptom:** a count of Feature 06 tickers per day drops from about 1,240-1,320 to about 857 on 2026-11-05.
+- **Verified cause (pgweb, 2026-11-14):** before 2026-11-05 Feature 06 has 383-462 codes a day that are not in
+  `IDX_Stock_Universe` (warrants, rights); since the universe-only refresh (EXEC-UNIVERSE-BROKER S2, 2026-11-05) none.
+  The older rows were not removed.
+- **Class:** any cross-section over Feature 05/06 (or 02/03) that takes "every ticker of the date" changes its population
+  on 2026-11-05: percentiles, medians, gate cut-offs, counts.
+- **Solution:** the Radar's universe G2 reads only `IDX_Stock_Universe` tickers (migration `20261114_001`,
+  `refresh_feature_07_day`); the same rule is in its catalog rows. Removing or flagging the old rows is not decided.
+- **Lesson:** a cross-section names its universe table; it never takes "all tickers present".
+
+### M427 — Radar day step: a plan made on missing statistics ran over ten minutes for one date (2026-11-14, fixed before release)
+
+- **Symptom (local rehearsal, PostgreSQL 16):** `refresh_feature_07_day` took 0.4 s per date after ANALYZE but more than
+  10 minutes for one date inside the backfill's DRYRUN transaction (cancelled), and 2 minutes in the first draft's
+  result step.
+- **Verified cause (EXPLAIN):** the date's rows were written moments before; `pg_class.reltuples` was 0, so the planner
+  estimated one row and chose nested loops that re-ran the 16-date activity count (and its DISTINCT over the whole
+  table) for every stock.
+- **Class:** every PL/pgSQL step that joins rows it or its caller has just written (Feature refreshes, publishers, any
+  job that inserts then reads in one transaction).
+- **Solution (migration `20261114_001` before it was applied):** the step reads the table only by index (the date, or the
+  16 dates found by one index probe each) into temporary tables, ANALYZEs them before any join, and writes back once by
+  primary key. Rehearsal: 0.35 s per date with reltuples 0, 0.22 s in the 250-date backfill.
+- **Lesson:** a step must not depend on statistics of rows written in the same run; analyze what it builds.
+
+### M428 — Screener library: "5 sessions" meant two different windows in one calculation (2026-11-14, open; user decision)
+
+- **Symptom:** the Radar reproduces the library's counts of 3 Nov 2026 exactly for the gate (859; 687/430/258/172 kept),
+  S1, S3 "Likuid" (the same 11 tickers) and S7 (11/23), but not its gate cut-offs (Rp8.62/25.50 bn against 8.68/25.64)
+  nor two lists: S2 "Likuid" has KOTA where the library has MSIN, S6 "Likuid" 12 against 13 (MSIN).
+- **Verified cause (local rehearsal):** the library took the ratio from Feature 06 (its 5 sessions are the dates the
+  stock traded on any board, a Nego-only day counting zero on Regular), but the gate's 5 sessions and the "5 sessions
+  before" from the stock's last Regular rows. With that mix the library's cut-offs are reproduced to the cent
+  (0.30/2.30/8.68/25.64). MSIN traded only Nego on 27-30 Oct: one window holds Rp5.36 bn of Regular buying, the other
+  Rp60.0 bn. On 69 dates 1.9 stocks a day (at most 6) of about 857 are affected.
+- **Class:** every measure over "N sessions" of one board when a stock trades on other boards only (Nego, Tunai) or is
+  suspended.
+- **Solution (built, to confirm):** the Radar uses Feature 06's sessions for every window, lag and baseline (one
+  convention, the ratios equal Feature 06's stored ones). The user decides whether to keep it or to count only Regular
+  sessions everywhere.
+- **Lesson:** a window's sessions are defined once, and every value in one formula uses that definition.
+
+### M429 — Radar: an own-year rank went missing for a whole year after one week without Regular buying (2026-11-14, fixed before release)
+
+- **Symptom (rehearsal):** ARKO and BNBR had no ratio rank on 2026-11-03 although they traded every day for a year.
+- **Verified cause:** five sessions in a row without a Regular trade (Nego only) give a ratio with a zero denominator
+  (NULL); the first draft required 252 complete values, so one NULL voided the rank for the next 252 sessions.
+- **Class:** every own-history rank or z-score over a ratio whose denominator can be zero.
+- **Solution (migration `20261114_001`):** the ratio's history is the 252 most recent previous sessions that have a
+  ratio, as a suspension is skipped (user "A1 ok"); a daily refresh reads 400 prior sessions so it equals a full one
+  (rehearsal: 63 tickers, 3,003 rows identical).
+- **Lesson:** a missing value from a zero denominator is skipped like a gap, not counted as missing data.
+
+### M430 — Radar result: a stock that left and was one condition short was written twice (2026-11-14, fixed before release)
+
+- **Symptom (rehearsal):** `duplicate key value violates unique constraint "Feature_07_Radar_Result_pkey"` on the second
+  result date.
+- **Verified cause:** "near" (one condition short) and "left" (a hit the date before, not now) overlap.
+- **Solution:** stored once, as left, with its met conditions (so the page still sees it is one condition away); near is
+  "one short and not a hit the date before". The independent validator applies the same rule (0 differences).
+- **Lesson:** statuses written to one key must be exclusive by definition, and the definition says which one wins.

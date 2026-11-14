@@ -1,5 +1,6 @@
 """Feature refresh of the stockbit-updater service: IDX_Broker_Summary -> F05 -> F02 -> F03, F05 -> F06, then the
-INDEX tables (UPDATE_TABLE.md part A, section 4; the routines are the database's own, unchanged).
+INDEX tables (UPDATE_TABLE.md part A, section 4; the routines are the database's own, unchanged), and at the end of
+the round the Radar tables of Feature 07 (refresh_radar, EXEC-RADAR).
 
 What to refresh is derived from the data, not from the dates the loader wrote: every date whose per-date totals in
 IDX_Broker_Summary differ from Feature 05 (rows, buy, sell, lots, known frequency rows and frequency). A manual upload
@@ -95,6 +96,27 @@ SELECT count(*), count(*) FILTER (WHERE f.ticker IS NULL OR f.foreign_buy_1d<>s.
            OR f.domestic_net_1d<>s.db-s.ds),
        (SELECT count(*) FROM {F06} WHERE trade_date >= %(a)s)
 FROM s LEFT JOIN {F06} f USING (trade_date, ticker, market_board)"""
+
+
+# EXEC-RADAR R2: what the Radar must recalculate is derived from the data, as the broker plan is. A Regular Feature 06 row
+# of a universe ticker newer than its Radar measure row (or without one), from the first Radar date on, marks the ticker
+# from that date; a date whose measures are newer than its gate row (a day step that did not finish) marks the dates.
+F07 = 'public."Feature_07_Radar_Measure"'
+F07_GATE = 'public."Feature_07_Radar_Gate"'
+F07_RESULT = 'public."Feature_07_Radar_Result"'
+RADAR_TICKERS = f"""SELECT f.ticker, min(f.trade_date) FROM {F06} f
+LEFT JOIN {F07} m ON m.ticker = f.ticker AND m.trade_date = f.trade_date
+WHERE f.market_board = 'Regular' AND f.ticker IN {UNIVERSE} AND f.trade_date >= %(first)s
+  AND (m.ticker IS NULL OR f.calculated_at > m.calculated_at)
+GROUP BY 1 ORDER BY 1"""
+RADAR_STALE_DAY = f"""SELECT min(m.trade_date) FROM (SELECT trade_date, max(calculated_at) AS at FROM {F07} GROUP BY 1) m
+LEFT JOIN {F07_GATE} g USING (trade_date) WHERE g.trade_date IS NULL OR m.at > g.calculated_at"""
+# rows: every Regular session of a universe ticker from the first recalculated date has a measure row, and every
+# measure date has its gate row (universe 0 only before any stock has 5 sessions)
+RECON07 = f"""SELECT (SELECT count(*) FROM {F06} WHERE market_board = 'Regular' AND trade_date >= %(a)s AND ticker IN {UNIVERSE}),
+       (SELECT count(*) FROM {F07} WHERE trade_date >= %(a)s AND ticker IN {UNIVERSE}),
+       (SELECT count(*) FROM {F07_GATE} WHERE trade_date >= %(a)s),
+       (SELECT count(DISTINCT trade_date) FROM {F07} WHERE trade_date >= %(a)s)"""
 
 
 class RefreshFailed(RuntimeError):
@@ -241,6 +263,49 @@ def refresh_broker_features(emit) -> dict:
     return {'changed_dates': [str(d) for d in dates], 'f05_rows': f05_rows, 'f02_tickers': len(tickers),
             'f03_dates': len(f03_dates), 'f06_tickers': len(tickers), 'seconds': round(time.monotonic() - started, 1),
             **PLAN_INFO}
+
+
+def refresh_radar(emit) -> dict:
+    """EXEC-RADAR R2: after Feature 03 and 06 (and the round's events, which the outlier note reads), recalculate the
+    Radar measures of every ticker whose Feature 06 rows are newer, then every date from the first one, in date order
+    (a run of days reads the date before). Skipped until the backfill has written the first rows."""
+    started = time.monotonic()
+    with connect() as c:
+        if c.execute('SELECT to_regclass(%s)', (F07,)).fetchone()[0] is None:
+            emit('radar_skipped', reason='Feature 07 is not created yet')
+            return {'skipped': 'Feature 07 is not created yet'}
+        first = c.execute(f'SELECT min(trade_date) FROM {F07}').fetchone()[0]
+        if first is None:
+            emit('radar_skipped', reason='Feature 07 has no rows; the Radar backfill writes the first ones')
+            return {'skipped': 'not backfilled'}
+        tickers = c.execute(RADAR_TICKERS, {'first': first}).fetchall()
+    for i, (t, d) in enumerate(tickers, 1):
+        run_in('SELECT public.refresh_feature_07(%s, %s)', (t, d))
+        if i % 200 == 0 or i == len(tickers):
+            emit('radar_progress', done=i, of=len(tickers), seconds=round(time.monotonic() - started, 1))
+    if tickers:
+        analyze(F07)
+    with connect() as c:
+        stale = c.execute(RADAR_STALE_DAY).fetchone()[0]
+    starts = [d for d in [min((d for _, d in tickers), default=None), stale] if d is not None]
+    if not starts:
+        emit('radar_done', tickers=0, dates=0, seconds=round(time.monotonic() - started, 1))
+        return {'tickers': 0, 'dates': [], 'seconds': round(time.monotonic() - started, 1)}
+    since = min(starts)
+    with connect() as c:
+        days = [r[0] for r in c.execute(f'SELECT DISTINCT trade_date FROM {F07} WHERE trade_date >= %s ORDER BY 1',
+                                        (since,))]
+    for d in days:
+        run_in('SELECT public.refresh_feature_07_day(%s)', (d,))
+    analyze(F07_RESULT)
+    regular, measured, gates, dated = run_in(RECON07, {'a': since}, '60min')
+    if regular != measured or gates != dated:
+        raise RefreshFailed(f'Feature 07 reconcile from {since}: Regular rows {regular}, measure rows {measured}, '
+                            f'gate rows {gates} for {dated} dates')
+    emit('radar_done', tickers=len(tickers), dates=len(days), since=str(since), rows=measured,
+         seconds=round(time.monotonic() - started, 1))
+    return {'tickers': len(tickers), 'since': str(since), 'dates': [str(d) for d in days], 'rows': measured,
+            'seconds': round(time.monotonic() - started, 1)}
 
 
 def index_needed(broker_changed: bool) -> bool:
