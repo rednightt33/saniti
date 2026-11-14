@@ -14102,6 +14102,8 @@ latest R10".
   di folder `scripts`, atau yang memakai `--check`) dan gagal bila ada yang tanpa pemeriksaan dan tanpa alasan di
   `EXEMPT`. Aturan di `AGENTS.md` (Mandatory workflow, Generated files).
 - Repo publik, jadi menit GitHub Actions gratis.
+- Bukti: GitHub run `43616675930` (commit `7fb0bde6`) SUCCESS dalam 41 detik: skrip repo 7 lulus, market-ai-orc 11 lulus,
+  market-python-sandbox 2 lulus; sebelum tanda dipasang, pemeriksa pembuat file gagal dan menyebut 12 pembuat.
 
 **Temuan:** `FEATURE_05_06_FOREIGN_DOMESTIC.md` berbeda dari pembuatnya (ERRORS M435, OPEN); pembuatnya dikecualikan
 sementara.

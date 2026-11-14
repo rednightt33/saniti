@@ -7821,12 +7821,13 @@ in its staleness check.
     named build/generate/snapshot, or taking `--check`: 20 today) and fails when one has no marked test and no reason
     in `EXEMPT` (8: five applied-migration writers, a reader of a database export, the restart dry run, and
     `generate_feature_05_06_catalog`, TEMPORARY for M435). Before the marks were added it failed and named 12.
-  - Local runs as in CI: scripts 7 passed, orc 11 passed, sandbox 2 passed.
+  - Local runs as in CI: scripts 7 passed, orc 11 passed, sandbox 2 passed. GitHub run `43616675930` (commit
+    `7fb0bde6`, branch `claude/affectionate-shannon-qmsxxb`): SUCCESS in 41 s, the same counts in its three jobs.
 - **Not covered:** a generator outside a `scripts` folder or named otherwise without `--check`; a file whose source is the
   live database (`DATABASE_SCHEMA.md`, kept by the daily workflow). Railway still deploys a push without waiting for the
   check (`checkSuites: false` on every service in `.railway/railway.ts`); changing that is a separate user decision.
-- **Status:** FIXED: the file and its chain are gone, and every generated file with a check is now checked
-  automatically.
+- **Status:** FIXED on the branch: the file and its chain are gone, and every generated file with a check is checked on
+  each push of a branch that holds the workflow (every branch once it is merged to `main`).
 - **Lesson:** a generated file needs its check in CI or a pre-commit step, so that a source change without the rebuild
   fails before it reaches `main`. Removing a reader removes its generator chain (generator, output, test, handoff rows)
   in the same commit, or records why the chain stays.
