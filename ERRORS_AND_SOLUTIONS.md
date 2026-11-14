@@ -7765,3 +7765,23 @@ in its staleness check.
   first, so its path is unchanged); the next `deploy.sh` upload carries the new code.
 - **Lesson:** a guard step that cannot run must say "not run" in one line the job's reader sees, never end in a
   traceback after the job's success line.
+
+### M434 — Radar: the first result dates have no universe, the G2 window reads the Radar's own history (2026-11-14, open)
+
+- **Symptom (live check on dev, 2026-11-14):** `radar-days` lists 250 dates, but `Feature_07_Radar_Result` has rows on 246:
+  the gate rows of 2025-10-24, 10-27, 10-28 and 10-29 read universe 0, Broad 0, Liquid 0. The next 11 dates (2025-10-30
+  to 11-13) read a universe of 834-853 against about 855 afterwards.
+- **Verified cause (code, migration `20261114_003`, lines 40-52):** G2 counts each stock's sessions among "the last 16
+  market dates", and both the 16 dates and the counts are read from `Feature_07_Radar_Measure`, whose rows start at the
+  first fill's first date (2025-10-24). On the k-th date of that history only k dates exist, so no stock reaches 5
+  sessions before the 5th date, and up to the 16th date the window is shorter than 16. The newest 20 dates (the date
+  picker) and every date from 2025-11-14 on are unaffected; the independent recalculation did not see it because its
+  checked dates start in June 2026.
+- **Class:** every window measure whose history is read from the derived table it fills, at the start of that table: the
+  G2 window now; any later "N of the last M dates" rule of the Radar or a Feature table filled from a chosen start.
+- **Proposed fix (needs the user's go):** the day step reads the 16 market dates and each stock's Regular sessions from
+  Feature 06 (the session source, M428), not from the Radar's own rows, so the window is whole from the first date;
+  then `refresh_feature_07_day` again for the first 16 dates (about 15 s). A new migration with a measured plan; the
+  validator checks the first dates too.
+- **Lesson:** a rolling window reads its history from the source table, never from a table whose first row is the
+  start of a fill; validate the first dates of a fill, not only recent ones.

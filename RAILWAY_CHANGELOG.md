@@ -1,5 +1,27 @@
 # Railway changelog
 
+## 2026-11-14 — Radar released on dev: five services from `main` `f69eb9e` (EXEC-RADAR R9, user "2 OK")
+
+- **Before (16:17 UTC):** no cron within 45 minutes, outside B6, 0 running statements, 0 user runs (edge jobs 0, orc
+  turns 0), no RUNNING broker round (last round 2026-11-09). `main` was `a936653` (the branch's base): fast-forward to
+  `f69eb9e`.
+- **Deployments, all SUCCESS (16:18-16:19 UTC):** telegram-monitor `eab6b4b5` and edge-bff `e48a7b86` (GitHub, the
+  push); terminal-api `ff9d708c` and terminal-publisher `8a49b4c8` (CLI upload of `git archive f69eb9e apps/<service>`);
+  stockbit-updater `16fba518` (`apps/stockbit-updater/deploy.sh` from the same tree; a cron job, no round ran).
+  screener-worker SKIPPED (no watched path changed). Read back: publisher cron `0,30 0,1,12 * * *`, NEVER, next run
+  2026-11-15 00:00 UTC; stockbit-updater cron `0 15 1 1 *`, NEVER. edge-bff `/ready` 200, `/radar` and `/radar-app/`
+  200, `/api/v1/radar/index` 401 without a session; terminal-api `/ready` 200, `/api/terminal/v1/radar` 403
+  `gateway_only` without the gateway key.
+- **Publisher Run Now (daily) 16:20 UTC** (`deploymentInstanceExecutionCreate`): done in 205.7 s; `radar` built, 31
+  files, 3.62 MB, 50.3 s; nothing else to write (price, broker days, refs unchanged).
+- **Live check** (`verification/radar/live_check_dev.py`, signed in as the owner): 11/11 PASS
+  (`verification/radar/live_20261114/report.json`); the page renders the 9 Nov board without console errors
+  (`radar_live_1440.png`).
+- **Postgres** after the run: 0.48 GB, below 0.8 GB, no restart (`restart_postgres.py` check, 16:30 UTC).
+- **Rollback:** revert the Radar commits on `main` (edge-bff and telegram-monitor redeploy from GitHub), terminal-api and
+  terminal-publisher CLI upload of `git archive a936653 apps/<service>`, stockbit-updater `deploy.sh` from `a936653`;
+  the Radar files and tables are inert without the page.
+
 ## 2026-11-14 — Postgres restart after the Radar first fill (user "3 perbaiki, once done restart progress"; ERRORS M433)
 
 - **Script:** `scripts/restart_postgres.py` with the M433 fix, run unchanged from this session (credential
