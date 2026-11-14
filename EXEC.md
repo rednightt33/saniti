@@ -14010,7 +14010,8 @@ latest R10".
   jendela 5 sesi atas **20 tanggal bursa** (nilai tengah per persentil) di fase R4; sampai itu angka 3 Nov berlaku
   sementara: V1Δ 12 / 20 / 35, V2Δ 40 / 65 / 90 poin. Angka hasil 20 tanggal dilaporkan ke user untuk disetujui sebelum
   dipakai.
-- Belum "go" eksekusi.
+- **Go user 2026-11-14: "Ok go".** Eksekusi dimulai dari R1 di branch `claude/keen-turing-56vw7y`. Sesuai rencana,
+  merge ke `main`, migrasi dan backfill di database dev, dan setiap deploy ditanyakan dulu satu per satu.
 
 ### Keputusan yang perlu user sebelum go
 
