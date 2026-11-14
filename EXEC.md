@@ -14005,7 +14005,11 @@ latest R10".
 - D6: "One-day block" bila satu hari ≥ 80% net asing 5 sesi; "Corporate action" bila ada aksi korporasi dalam jendela.
 - D7: halaman dibangun langsung dari R10 terakhir (`verification/radar/index-r10.html`) dan spesifikasinya, tanpa
   menunggu HTML dari AI lain.
-- D2: ditanyakan balik (penjelasan di percakapan 2026-11-14); masih terbuka.
+- D2 (user 2026-11-14, sesudah penjelasan A vs C: "Ya udah, kita opsi C"): ambang S6Δ dengan cara yang terkunci di
+  library 11.1 (Loose ≈ P50, Standard ≈ P75, Strict ≈ P90 dari kenaikan di antara saham yang lolos V1) diterapkan pada
+  jendela 5 sesi atas **20 tanggal bursa** (nilai tengah per persentil) di fase R4; sampai itu angka 3 Nov berlaku
+  sementara: V1Δ 12 / 20 / 35, V2Δ 40 / 65 / 90 poin. Angka hasil 20 tanggal dilaporkan ke user untuk disetujui sebelum
+  dipakai.
 - Belum "go" eksekusi.
 
 ### Keputusan yang perlu user sebelum go
