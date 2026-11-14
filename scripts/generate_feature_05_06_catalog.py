@@ -9,10 +9,20 @@ requires it), a Column_Catalog row, and both tables a Table_Catalog row; IDX_Bro
 for buy_freq/sell_freq and sync_broker_summary_freq in related_functions; Feature 05 -> Feature 06 is registered in
 Feature_Relationship_Catalog. IDX_Broker_Summary_Freq and IDX_Net_Foreign_Summary stay unregistered (their loader is
 outside this repository; open item since 2026-10-20).
+
+ERRORS M435 (2026-11-14): `migration` reproduces the applied 20261022_004 (the v1 text, frozen; never write it to a new
+file). `dictionary` writes the text Feature_Catalog holds now: the v1 text with the corrections of every applied
+migration that carries an `m_vocab` correction table (20261025_012 today), read from those files, plus NOTES. A later
+change to these texts is a new forward migration with such a table; the dictionary then follows it without an edit here.
+scripts/tests/test_generated_files.py checks both outputs.
 """
 from __future__ import annotations
 
+import re
 import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
 
 F05 = "Feature_05_Foreign_Domestic_Broker_Detail"
 F06 = "Feature_06_Foreign_Domestic"
@@ -378,6 +388,77 @@ VALUES ({q(F05)}, {q(F06)}, ARRAY['ticker','market_board','trade_date'], ARRAY['
     return "\n".join(out)
 
 
+# m_vocab field -> dictionary key (20261025_012: null_rule, minimum_history, calculation, unit)
+CORRECTED_FIELDS = {"calculation": "calculation", "null_rule": "null_rule", "unit": "unit", "minimum_history": "minimum"}
+_TEXT = r"'((?:[^']|'')*)'"
+_ROW = re.compile(r"\(\s*" + r",\s*".join([_TEXT] * 5) + r"\s*\)")
+
+
+def catalog_corrections() -> dict:
+    """(feature table, column, field) -> (old text, new text), from every applied migration with an m_vocab table."""
+    out = {}
+    for path in sorted((ROOT / "database" / "migrations").glob("*.sql")):
+        text = path.read_text(encoding="utf-8")
+        if "CREATE TEMP TABLE m_vocab" not in text:
+            continue
+        block = re.search(r"INSERT INTO m_vocab VALUES(.*?)'\);[ \t]*$", text, re.S | re.M)
+        if not block:
+            raise SystemExit(f"{path.name}: m_vocab table without its INSERT ... VALUES rows")
+        for m in _ROW.finditer(block.group(1) + "')"):
+            table, column, field, old, new = (g.replace("''", "'") for g in m.groups())
+            out[(table, column, field)] = (old, new)
+    return out
+
+
+def corrected(table: str, cols: list[dict]) -> list[dict]:
+    """The migration's own rule: a text is replaced only where it still equals the old text."""
+    fixes, out = catalog_corrections(), []
+    for x in cols:
+        x = dict(x)
+        for field, key in CORRECTED_FIELDS.items():
+            fix = fixes.get((table, x["name"], field))
+            if fix and x[key] == fix[0]:
+                x[key] = fix[1]
+        out.append(x)
+    return out
+
+
+NOTES = """## IHSG one-date aggregate validation (2026-10-24)
+
+`scripts/upsert_index_broker_feature_sample.py` shares the daily aggregation/calculation/NULL contract
+intended for later approved bulk upsert. Feature05 index rows aggregate raw symbols by date, broker,
+investor type and board. Feature06 uses the aggregate's observed session calendar and recomputes rolling,
+cumulative and nonlinear metrics from daily totals; it does not sum ticker-level z-scores or ratios.
+Each source symbol's balance-gap flag survives through BOOL_OR. Frequency totals require complete
+contributing rows; the conservative aggregate rule leaves frequency-derived outputs NULL if any
+required side/type/session is incomplete. Missing frequency is never replaced by zero.
+
+The first approved date is 2026-08-31. Index flow is a market-wide proxy including all raw source symbols,
+not an official historical constituent basket. The standard ticker refresh functions and stock-only AI
+views are unchanged; they do not implement this explicit aggregate path. Histories remain temporary
+calculation context during the one-date write; no index bulk load is authorized by this sample.
+
+## Dedicated INDEX history and vocabulary — completed 2026-10-25
+
+The later approved bulk supersedes the single-date-only availability described above. Dedicated
+Feature05 INDEX now has 576,648 rows and Feature06 INDEX 7,128 rows, 2016-01-04..2026-08-31.
+Feature05 INDEX sums **available known** raw frequencies across symbols; all-unknown stays NULL.
+Its five coverage columns were removed; completeness is computed internally and retained in
+Feature06 INDEX. Frequency-dependent ratios/tickets/windows remain NULL when input is incomplete.
+Stock table calculations/source values are unchanged. No new automatic updater is enabled.
+
+Use scripts/backfill_index_features.py for an explicitly approved historical INDEX load, not the old
+shared-table sample helper. Full counts, source reconciliation, snapshots and idempotence evidence
+are in verification/ihsg_feature_aggregation/bulk/. FEATURE_VOCABULARY.md documents the shared
+391-entry stock/non-INDEX and INDEX presentation dictionary; no frontend API/UI is implemented.
+
+**2026-10-25 (EXEC-INDEX-1, `20261025_007`):** `IDX_Broker_Summary_Freq`, its 12 partitions and `sync_broker_summary_freq`
+were dropped. `buy_freq`/`sell_freq` up to 2026-08-31 were copied from that staging table. From 2026-09-01 the Broker
+Summary load writes them with the row (every re-downloaded row carries them). Refresh after a new load:
+`refresh_feature_05(from, to, tickers)` → `refresh_feature_06(ticker, from)`.
+"""
+
+
 def dictionary() -> str:
     lines = ["# Feature 05 and Feature 06: foreign/domestic flow and frequency", "",
              "Generated by `scripts/generate_feature_05_06_catalog.py` (EXEC-F05-F06). The same text is in "
@@ -385,7 +466,7 @@ def dictionary() -> str:
              "Sessions: " + SESSION + ". A window is NULL until it is full; a ratio with a zero denominator is "
              "NULL; the nine dates missing from IDX_Broker_Summary (2016-2017) are not sessions. " + GAP_NOTE + ".",
              ""]
-    for t, cols in ((F05, f05_columns()), (F06, f06_columns())):
+    for t, cols in ((F05, corrected(F05, f05_columns())), (F06, corrected(F06, f06_columns()))):
         lines += [f"## `{t}` ({len(cols)} columns)", "",
                   "| Column | Type | Category | Definition | Formula | Unit | NULL rule | Minimum history |",
                   "|---|---|---|---|---|---|---|---|"]
@@ -394,7 +475,7 @@ def dictionary() -> str:
                      x["null_rule"], x["minimum"]]
             lines.append("| " + " | ".join(str(v).replace("|", "\\|") for v in cells) + " |")
         lines.append("")
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n" + NOTES
 
 
 if __name__ == "__main__":

@@ -7819,8 +7819,8 @@ in its staleness check.
     (`INDICATOR_SPEC.md`, `FEATURE_07_RADAR.md`).
   - `scripts/tests/test_generated_files.py` finds the generators instead of listing them (a script in a `scripts` folder
     named build/generate/snapshot, or taking `--check`: 20 today) and fails when one has no marked test and no reason
-    in `EXEMPT` (8: five applied-migration writers, a reader of a database export, the restart dry run, and
-    `generate_feature_05_06_catalog`, TEMPORARY for M435). Before the marks were added it failed and named 12.
+    in `EXEMPT` (8 at first; 7 since M435 was settled the same day: five applied-migration writers, a reader of a
+    database export, the restart dry run). Before the marks were added it failed and named 12.
   - Local runs as in CI: scripts 7 passed, orc 11 passed, sandbox 2 passed. GitHub run `43616675930` (commit
     `7fb0bde6`, branch `claude/affectionate-shannon-qmsxxb`): SUCCESS in 41 s, the same counts in its three jobs.
 - **Not covered:** a generator outside a `scripts` folder or named otherwise without `--check`; a file whose source is the
@@ -7832,19 +7832,29 @@ in its staleness check.
   fails before it reaches `main`. Removing a reader removes its generator chain (generator, output, test, handoff rows)
   in the same commit, or records why the chain stays.
 
-### M435 — FEATURE_05_06_FOREIGN_DOMESTIC.md differs from its generator (2026-11-14, OPEN)
+### M435 — FEATURE_05_06_FOREIGN_DOMESTIC.md differs from its generator (2026-11-14, fixed)
 
 - **Found by:** the inventory for EXEC-GEN-CHECK (M434): `python3 scripts/generate_feature_05_06_catalog.py dictionary`
-  differs from the committed `FEATURE_05_06_FOREIGN_DOMESTIC.md` in 58 table rows.
+  differs from the committed `FEATURE_05_06_FOREIGN_DOMESTIC.md` in 58 table rows, and the file has 33 lines of notes
+  (the IHSG validation of 2026-10-24, the INDEX history and `20261025_007`) that the generator does not write.
 - **Symptom (examples):** `buy_freq` / `sell_freq` source "from IDX_Broker_Summary_Freq" in the generator, "stored with
   each Broker Summary row" in the file; the unit of the `foreign_net_percentile_*` columns "percent" in the generator,
   "Percentile 0-100" in the file.
-- **Suspected cause (Git, not verified against the database):** the file was edited by hand on 2026-10-24/25, with
-  applied catalog migrations (`b6819b4e` dropped `IDX_Broker_Summary_Freq`, 20261025_007; `8967bdfd`, 20261025_012,
-  Feature_Vocabulary corrections). The generator's last change is `0c888cbf` (2026-10-22), and it still names the
-  dropped table, so the generator is the likely stale side.
-- **Check that settles it:** read `Column_Catalog` for `Feature_05_Foreign_Domestic_Broker_Detail` and
-  `Feature_06_Foreign_Domestic_Broker_Abnormality` (read-only) and compare it with both texts.
-- **Status:** OPEN. The generator is in `EXEMPT` of `scripts/tests/test_generated_files.py` (TEMPORARY); its check is
-  added when the generator writes the catalog's text.
-- **Lesson:** a hand edit of a generated file is made in its generator, or the file stops being generated.
+- **Verified cause (dev, read-only through pgweb, `default_transaction_read_only` on, 2026-11-14 about 16:50 UTC):** the active
+  `Feature_Catalog` rows of both tables (102, all `v1`, last change 2026-10-25 15:21 UTC) equal the committed file in
+  all 612 cells compared (category, definition, formula, unit, NULL rule, minimum history). The generator differs in
+  26 cells (formula 2, NULL rule 16, unit 8), each one a correction of migration `20261025_012` (its comment: "The
+  texts are corrected at their owner, Feature_Catalog"). That migration changed the catalog and the file but not the
+  generator, whose v1 text is also the text of the applied `20261022_004`.
+- **Solution:** `scripts/generate_feature_05_06_catalog.py`:
+  - `migration` still writes the v1 text (byte-identical to the applied `20261022_004`);
+  - `dictionary` applies the corrections of every applied migration that carries an `m_vocab` correction table, read
+    from those files (63 rows in `20261025_012`, 26 of them for Feature 05/06; counted independently: 63), with the
+    migration's own rule (a text is replaced only where it still equals the old text), and appends the notes, now
+    kept in the generator as `NOTES`. Its output equals the committed file; no database row and no document changed.
+  - Two checks in `scripts/tests/test_generated_files.py`: the dictionary equals the file, and the migration output
+    equals the applied migration. Both fail when a v1 text is edited by hand in the generator; the first fails when the
+    file is edited by hand. The generator left `EXEMPT`.
+- **Status:** FIXED (branch `claude/affectionate-shannon-qmsxxb`).
+- **Lesson:** a correction migration that changes a generated text also changes what the generator writes, in the same
+  commit; a generator derives later corrections from the migrations rather than copying them.

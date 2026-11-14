@@ -25,9 +25,6 @@ EXEMPT = {
     'generate_feature04_v3_migration': FROZEN,
     'generate_high_alert_tool_migration': FROZEN,
     'generate_warehouse_summary_tool_migration': FROZEN,
-    # TEMPORARY (ERRORS M435, OPEN): FEATURE_05_06_FOREIGN_DOMESTIC.md differs from its generator; which side is right
-    # is checked against the live catalog first. Its check is added when M435 is settled.
-    'generate_feature_05_06_catalog': 'TEMPORARY: its dictionary differs from the file (ERRORS M435, open)',
     'restart_postgres': '--check is a dry run of a Railway restart, not a file comparison',
 }
 
@@ -86,3 +83,25 @@ def test_feature_07_dictionary_is_current():
     assert run.returncode == 0, run.stderr
     assert (ROOT / 'FEATURE_07_RADAR.md').read_text() == run.stdout, \
         'FEATURE_07_RADAR.md differs: run python3 scripts/generate_feature_07_catalog.py dictionary > FEATURE_07_RADAR.md'
+
+
+def test_feature_05_06_dictionary_is_current():
+    """ERRORS M435: the dictionary is the v1 text with the corrections of the applied m_vocab migrations (Feature_Catalog
+    as it is on dev, read back 2026-11-14) plus the notes kept in the generator."""
+    run = subprocess.run([sys.executable, 'scripts/generate_feature_05_06_catalog.py', 'dictionary'], cwd=ROOT,
+                         capture_output=True, text=True, timeout=300)
+    assert run.returncode == 0, run.stderr
+    assert (ROOT / 'FEATURE_05_06_FOREIGN_DOMESTIC.md').read_text() == run.stdout, (
+        'FEATURE_05_06_FOREIGN_DOMESTIC.md differs: change the text in scripts/generate_feature_05_06_catalog.py (a catalog '
+        'text by a new migration with an m_vocab table), then run it with `dictionary > FEATURE_05_06_FOREIGN_DOMESTIC.md`')
+
+
+def test_feature_05_06_migration_output_is_the_applied_migration():
+    """The generator's v1 text stays what 20261022_004 applied; a correction goes in a new migration, not here."""
+    run = subprocess.run([sys.executable, 'scripts/generate_feature_05_06_catalog.py', 'migration'], cwd=ROOT,
+                         capture_output=True, text=True, timeout=300)
+    assert run.returncode == 0, run.stderr
+    applied = ROOT / 'database/migrations/20261022_004_catalog_feature_05_06.sql'
+    assert applied.read_text() == run.stdout, (
+        'the v1 text in scripts/generate_feature_05_06_catalog.py changed: an applied migration is frozen, so restore it '
+        'and write the correction as a new migration with an m_vocab table')

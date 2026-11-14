@@ -14105,8 +14105,11 @@ latest R10".
 - Bukti: GitHub run `43616675930` (commit `7fb0bde6`) SUCCESS dalam 41 detik: skrip repo 7 lulus, market-ai-orc 11 lulus,
   market-python-sandbox 2 lulus; sebelum tanda dipasang, pemeriksa pembuat file gagal dan menyebut 12 pembuat.
 
-**Temuan:** `FEATURE_05_06_FOREIGN_DOMESTIC.md` berbeda dari pembuatnya (ERRORS M435, OPEN); pembuatnya dikecualikan
-sementara.
+**Temuan:** `FEATURE_05_06_FOREIGN_DOMESTIC.md` berbeda dari pembuatnya (ERRORS M435). User 2026-11-14: "Cek dulu saja
+M435 sekalian". Dicek di dev (hanya baca): dokumen sama dengan `Feature_Catalog` di 612 sel; pembuatnya tertinggal 26
+sel, semuanya koreksi migrasi `20261025_012`. Pembuatnya kini membaca koreksi itu dari migrasi dan menulis catatan
+tambahan dokumen; keluaran SQL-nya tetap sama dengan migrasi `20261022_004` yang sudah diterapkan. Tidak ada baris
+database atau dokumen yang berubah. Pembuatnya keluar dari pengecualian; dua cek baru. M435 FIXED.
 
 **Terbuka (menunggu user):**
 - go untuk merge ke `main` (push `main` memicu deploy; halaman tidak berubah);
