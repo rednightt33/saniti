@@ -20,6 +20,61 @@ Aturan:
 
 Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
+## RADAR — halaman Radar untuk library screener S1-S8 (desain disetujui 2026-11-12 s.d. 2026-11-14; rancangan, belum "go")
+
+**Kata user:** "saya mau screener ini dijadikan page baru" (2026-11-12); "Sekarang kita akan fokus ke S1 sampai S7 tadi.
+Saya akan nampilkan HTML untuk kita integrasikan ke front ke back-end. Bisa rancang atau desain terlebih dahulu karena
+saya aware S1 dan S7 belum dibuild" (2026-11-14, dengan prototipe `index-r9.html`: papan kanban per filter dan halaman
+detail filter). Kartu dan hitungan: `SCREENER_LIBRARY.md`.
+
+- **Keputusan library (2026-11-12/13; belum tertulis di `SCREENER_LIBRARY.md`, ditulis saat eksekusi):**
+  - Gerbang likuiditas bawaan "Luas" (buang 50% total beli 5 sesi terkecil), "Likuid" sebagai pilihan: "Ok pilihan A".
+  - S1: syarat net asing 5 sesi ≥ 5% dari total beli 5 sesi: "1 ok pakai 5%".
+  - S2 tetap kartu sendiri (peringkat Δ antar saham): "S2 ok A".
+  - S3 dibandingkan di dalam 5 kelompok jumlah pembeli net (k), minimal 10 broker sementara: "S3 ok pakai kelompok".
+  - S4 dan S5 ditunda: "S4 skip dulu", "S5 skip dulu".
+  - S6: riwayat 252 sesi boleh melompati jeda ("A1 ok"); saham tanpa riwayat setahun hanya dibuang dari V2/V2Δ
+    ("B1 ok"); S6 = V1 + V2 sebagai paket tetap ("V1 dan V2 adalah filter sendiri"; "1 benar").
+  - S6Δ: satu kartu yang dibangun dari hasil S6 dengan pilihan V1Δ, V2Δ atau keduanya ("2 pilih A satu kartu").
+- **Keputusan halaman (2026-11-14, atas klarifikasi R9):**
+  - Kolom S1, S2, S3, S6, S6Δ, S7, S8; nama halaman tetap "Radar" ("A1 S8 ikut, dan halaman tetap bernama Radar").
+  - Nama kartu bahasa Inggris (Heavy foreign accumulation, Strengthening foreign flow, Concentrated net buying, Foreign
+    accumulation (5D), Foreign accumulation strengthening, Institutions in retail out, One-day foreign buying spike): "OK".
+  - Pilihan Index/Group (`Stock_List`) adalah saringan tampilan atas hasil, bawaan Semua; persentil antar saham S2/S3
+    tetap pada seluruh saham yang lolos gerbang: "B3 OK".
+  - Kontrol likuiditas = Luas / Likuid dengan batas Rupiah hari itu sebagai keterangan: "B4 OK".
+  - Tombol tingkat Longgar / Standar / Ketat, bawaan Standar: "B5 OK".
+  - Pill tanggal data per sumber (harga, broker) menggantikan pill intraday; hasil pada tanggal yang dimiliki semua
+    sumber: "B6 OK".
+  - Kolom "Score" diganti ukuran urut milik tiap filter, tanpa skor gabungan: "C7 OK".
+  - Kondisi A-D dan near miss seperti R9: "C8 as is tidak dirubah". Bacaan AI: syarat 5% tidak ditambahkan ke S2.
+  - Ringkasan backtest dihapus: "C9 hapus dulu".
+  - Follow tetap "Coming soon": "C10 ... nothing to do anything about it".
+  - Tanpa ekspor CSV; Open in Terminal tanpa indikator padanan; peringatan baca per filter, penanda pencilan/aksi
+    korporasi dan tata letak ponsel ditambahkan: "D11 ... Yang lain sudah OK".
+- **Masih terbuka:**
+  - Ambang V1Δ dan V2Δ S6Δ untuk jendela 5 sesi. Usulan dari hitung ulang 3 Nov: V1Δ 12 / 20 / 35 dan V2Δ 40 / 65 / 90
+    poin (Longgar / Standar / Ketat); ambang lama dihitung untuk rasio 20 sesi dan tidak menyaring apa pun pada 5 sesi.
+  - Ukuran urut S6 dan S7 (usulan: rasio, FL34).
+  - Jalur data ke halaman dan rancangan tabel ukuran harian (usulan dibahas 2026-11-14).
+- **Data yang dibutuhkan:** tabel ukuran harian per saham untuk semua filter (juga membuka S7 V2/V2Δ, library 12.3 #6),
+  backfill ≥ 250 sesi ditambah baseline 252 (update besar: restart Postgres sesudahnya), job harian setelah data broker,
+  pendaftaran katalog, aplikasi halaman baru di frame EDGE seperti Screener.
+
+## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
+
+**Kata user, 2026-11-14:** "Ini semua dimasukkan ke to-do list ya. Jadi goal dari yang saya minta adalah nanti akan
+dibuatkan page di mana saya akan minta ke kamu rekapan, kira-kira detail page-nya seperti apa." Spesifikasi:
+[`LEADERBOARD_SPEC.md`](LEADERBOARD_SPEC.md). Diputuskan: F6 = Institusi vs Ritel ("F6 boleh institusi vs ritel",
+2026-11-13). Terbuka: halaman (sendiri atau digabung), tanggal data, gerbang, slot T6, sudut tambahan (bagian 4 spesifikasi).
+
+## ROTATION-MAP — halaman rotasi sektor dan panel Analisis Sektor (masuk to-do list 2026-11-14)
+
+**Kata user:** "Ini akan menjadi page sendiri di luar screener yang tadi kita buat" (2026-11-13); "Ini semua dimasukkan
+ke to-do list ya" (2026-11-14). Spesifikasi dan semua keputusan (lensa Harga / Breadth / Arus asing, median, pembanding
+pasar sama bobot, excess return, sumbu asing nol mutlak, toggle median sektor/pasar, bawaan 60D): [`ROTATION_SPEC.md`](ROTATION_SPEC.md).
+Terbuka: anggota minimum kelompok, kelompok Indeks/Grup dari `Stock_List` (bagian 8 spesifikasi).
+
 ## SCREENER-FLOW-FROM-TERMINAL — preset bandar aktif dan screener flow dari indikator Terminal (disetujui sebagai arah, 2026-11-06)
 
 **Kata user, 2026-11-06:** "Iya, maksud saya screener-screener di bagian bandar tersebut semuanya menggunakan
