@@ -62,5 +62,7 @@ median of each percentile over the 20 newest result dates (2026-10-13 to 11-09; 
 
 The day-to-day spread is wide (V1Δ P90 16.3 on 26 Oct, 43.5 on 14 Oct; V2Δ P50 7.9 on 27 Oct, 48.4 on 4 Nov). Average
 hits a day over the 20 dates, Broad, Standard: S6 28.6; ratio 10.3 with either set; rank 9.6 (provisional) or 10.4
-(rounded 30 / 60 / 80); both 5.0 or 5.5. The thresholds stay provisional until the user approves numbers; a change is a
-new rule version (a new migration of `Feature_07_Radar_Rule` and `feature_07_rule_version()`).
+(rounded 30 / 60 / 80); both 5.0 or 5.5. **User decision 2026-11-14 ("1A"): the thresholds stay 12 / 20 / 35 and
+40 / 65 / 90**, now decided; no new rule version. The rows' `provisional` label is replaced by migration
+`proposed/20261114_004_feature_07_radar_s6d_decided.sql` (tested locally; moved to `database/migrations/` and run on
+dev once the user gives its go).

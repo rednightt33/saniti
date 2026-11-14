@@ -7736,7 +7736,7 @@ in its staleness check.
 - **Lesson:** before a job runs on dev, EXPLAIN each statement that reads a large table on dev itself (read-only), not
   only on a rehearsal copy; a join on a per-row range is written as a per-key lookup.
 
-### M433 — A job's automatic Postgres restart never runs in an agent session (2026-11-14, open)
+### M433 — A job's automatic Postgres restart never runs in an agent session (2026-11-14, fixed)
 
 - **Symptom:** `scripts/onboarding/run_job.sh` with `"large_write": true` prints `POSTGRES_RESTART (large_write)` and then
   `KeyError: 'RAILWAY_TOKEN'`; the job still ends `JOB_EXIT 0`. The same line on 2026-11-06 and 2026-11-07
@@ -7749,9 +7749,19 @@ in its staleness check.
   `set_postgres_memory.py`, `set_postgres_restart_times.py` (and the cron's `deploy.sh`), whichever session runs them.
 - **Workaround used:** `restart_postgres.py` run unchanged except its authentication (the proxy's credential), every guard
   kept: refused at 15:42 and 15:54 UTC for memory 0.475 and 0.497 GB (below 0.8 GB, nothing to free).
-- **Proposed fix (needs the user's go):** one Railway authentication helper for these scripts that uses a project token
-  when one is set and the session's account credential otherwise, and that prints `POSTGRES_RESTART NOT_RUN: <reason>`
-  with the command to run by hand instead of a traceback. It does not change the postgres-memory-cron service (it has
-  `RAILWAY_RESTART_TOKEN`).
+- **Fixed (user 2026-11-14: "3 perbaiki, once done restart progress"):** `scripts/restart_postgres.py` `gql` tries the
+  credentials set where it runs, in order (`CREDENTIALS`): `RAILWAY_RESTART_TOKEN`, `RAILWAY_TOKEN` (project-token
+  header), `RAILWAY_API_TOKEN` (Bearer); one Railway refuses (401/403 or an authentication error) is skipped and the one
+  that worked is kept for the run; its name (never its value) is printed as `railway_credential`. None working is one
+  line `POSTGRES_RESTART NOT_RUN: …` and exit 4 (a cron run reports it as failed, as before). The same credential reads
+  edge-bff's domain (`edge_domain`, no CLI), and `cli_env()` gives the `railway` CLI of `set_postgres_memory.py` and
+  `set_postgres_restart_times.py` the environment without a refused `RAILWAY_TOKEN`; `verification/terminal_api/pgq.py`
+  reads its Railway credential only when its login cache is missing. Tests: `scripts/tests/test_restart_postgres.py`
+  (20 passed: fallback, order, a non-credential error not retried, the NOT_RUN line naming variables only).
+- **Verified live (2026-11-14):** run unchanged in this session (its `RAILWAY_TOKEN` refused) the check fell back to
+  `RAILWAY_API_TOKEN`; `--apply --min-gb 0` at 16:10 UTC (the user asked for the restart; every other guard kept: no
+  cron within 45 minutes, outside B6, 0 statements, 0 user runs) restarted Postgres in 10 s (start 10:17:21 → 16:10:17
+  UTC), edge-bff `/ready` 200; memory 0.49 → 0.08 GB. postgres-memory-cron keeps its uploaded copy (its own token comes
+  first, so its path is unchanged); the next `deploy.sh` upload carries the new code.
 - **Lesson:** a guard step that cannot run must say "not run" in one line the job's reader sees, never end in a
   traceback after the job's success line.

@@ -1,15 +1,20 @@
 """Read-only query through the pgweb service (role pgweb, default_transaction_read_only=on).
 Secrets are read from Railway into memory only and never printed."""
 import json, os, subprocess, sys, urllib.request, urllib.parse, base64, time
-TOK = os.environ['RAILWAY_TOKEN']  # Railway project token for lucid-patience; never committed
 CACHE = os.path.expanduser('~/.pgweb_auth')  # mode 0600, outside the repository
 def auth():
     if os.path.exists(CACHE):
         return json.load(open(CACHE))
-    env = dict(os.environ, RAILWAY_TOKEN=TOK)
-    out = subprocess.run(['railway', 'variables', '--service', 'pgweb', '--environment',
-                          '4d3e5af2-302b-4a2e-84e2-7d7476d6ff49', '--json'], capture_output=True, text=True, env=env, check=True).stdout
-    v = json.loads(out)
+    # ERRORS M433: the Railway CLI's credential is RAILWAY_TOKEN (a project token) when it works, else the session's own
+    # (RAILWAY_TOKEN unset: the account token or the agent proxy); read only when the cache is missing, never printed
+    cmd = ['railway', 'variables', '--service', 'pgweb', '--environment', '4d3e5af2-302b-4a2e-84e2-7d7476d6ff49', '--json']
+    run = subprocess.run(cmd, capture_output=True, text=True, env=dict(os.environ))
+    if run.returncode != 0 and os.environ.get('RAILWAY_TOKEN'):
+        run = subprocess.run(cmd, capture_output=True, text=True,
+                             env={k: v for k, v in os.environ.items() if k != 'RAILWAY_TOKEN'})
+    if run.returncode != 0:
+        raise SystemExit('pgq: the pgweb login could not be read from Railway (no working Railway credential)')
+    v = json.loads(run.stdout)
     a = {'u': v['PGWEB_AUTH_USER'], 'p': v['PGWEB_AUTH_PASS'], 'd': v['RAILWAY_PUBLIC_DOMAIN']}
     fd = os.open(CACHE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600); os.write(fd, json.dumps(a).encode()); os.close(fd)
     return a

@@ -14050,8 +14050,19 @@ latest R10".
 - **R4 ambang S6Δ, 20 tanggal (13 Okt–9 Nov), belum dipakai:** median P50/P75/P90 di gerbang Luas: V1Δ 10,4 / 18,2 /
   28,6; V2Δ 32,1 / 59,3 / 77,6 (sementara 12 / 20 / 35 dan 40 / 65 / 90). Menunggu persetujuan angka dari user; angka
   baru = versi aturan baru (migrasi baru).
-- Belum: persetujuan angka S6Δ; R8 sisanya (`DATABASE_SCHEMA.md` lewat refresh terjadwal); R9 (merge ke `main` dan
-  deploy telegram-monitor, terminal-api, terminal-publisher, stockbit-updater, edge-bff, go per langkah).
+- **Keputusan user 2026-11-14: "1A / 2 OK / 3 perbaiki, once done restart progress".**
+  - 1A: ambang S6Δ tetap V1Δ 12 / 20 / 35 dan V2Δ 40 / 65 / 90 (angka 3 Nov menjadi keputusan; tidak ada versi aturan
+    baru). Di dev, 9 baris aturan D masih berstatus `provisional` dan tiga teks peringatan S6Δ masih menulis "Thresholds
+    are provisional."; migrasi pengganti label (angka dan hasil tidak berubah) disiapkan di
+    `verification/radar/proposed/20261114_004_feature_07_radar_s6d_decided.sql`, diuji di lokal, belum dijalankan di
+    dev: menunggu go user (lalu dipindah ke `database/migrations/`). Stamp publisher kini ikut membaca baris aturan
+    dan filter, jadi perubahan label membangun ulang `radar-meta` tanpa versi baru.
+  - 2 OK: merge ke `main` lalu deploy sesuai urutan R9 (telegram-monitor, terminal-api, terminal-publisher + mode
+    `radar`, stockbit-updater, edge-bff), tiap langkah dilaporkan.
+  - 3: M433 diperbaiki (`scripts/restart_postgres.py`, ERRORS M433); "restart progress" dibaca sebagai restart Postgres:
+    dijalankan 16:10 UTC dengan skrip yang sudah diperbaiki (semua pengaman kecuali batas memori, atas permintaan user),
+    10 detik, memori 0,49 → 0,08 GB.
+- Belum: go migrasi 004 (label S6Δ); R8 sisanya (`DATABASE_SCHEMA.md` lewat refresh terjadwal); R9 berjalan.
 
 ### Keputusan yang perlu user sebelum go
 

@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-11-14 — Postgres restart after the Radar first fill (user "3 perbaiki, once done restart progress"; ERRORS M433)
+
+- **Script:** `scripts/restart_postgres.py` with the M433 fix, run unchanged from this session (credential
+  `RAILWAY_API_TOKEN` after `RAILWAY_TOKEN` was refused). `--apply --min-gb 0`: the user asked for the restart, so the
+  0.8 GB memory threshold was not applied; every other guard was: no cron within 45 minutes, outside B6, 0 running
+  statements, 0 user runs (edge jobs 0, orc turns 0).
+- **Result:** Postgres deployment `96161400` restarted at 16:10 UTC in 10 s (start 2026-11-14 10:17:21 → 16:10:17 UTC);
+  edge-bff `/ready` 200 (domain read through the same credential). Memory 0.49 GB before, 0.08 GB at 16:11 UTC.
+- postgres-memory-cron was not redeployed: it keeps its uploaded copy of the script, whose first credential is its own
+  `RAILWAY_RESTART_TOKEN`, so its behaviour is unchanged. `.railway/railway.ts` unchanged.
+
 ## 2026-11-14 — orc-test-runner: Radar migrations and first fill on dev (EXEC-RADAR, go "1 A, 2 A 3 A go")
 
 - **CLI:** Railway CLI 5.74.0 installed in the session's scratch folder (the preinstalled 4.68 has no `-p`); run with

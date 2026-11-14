@@ -14,13 +14,12 @@ scripts/restart_postgres.py. Steps:
   3. with --apply: the variable (--skip-deploys), `railway config apply --yes`, then a new upload
      (apps/postgres-memory-cron/deploy.sh): a variable reaches a cron service only through a new deployment, and a
      redeploy keeps the old one (ERRORS M229). Then the cron and the variable are read back.
-Ask the user first; record the change in RAILWAY_CHANGELOG.md and EXEC.md. Needs RAILWAY_TOKEN; prints no secret.
+Ask the user first; record the change in RAILWAY_CHANGELOG.md and EXEC.md. Needs a Railway credential (restart_postgres.py CREDENTIALS, ERRORS M433); prints no secret.
 """
 import argparse
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import time
@@ -35,7 +34,6 @@ SERVICE = 'postgres-memory-cron'
 RAILWAY_TS = ROOT / '.railway/railway.ts'
 BLOCK = re.compile(r'(const postgresMemoryCron = service\("postgres-memory-cron", \{.*?cronSchedule: ")([^"]*)(")',
                    re.S)
-CLI_ENV = dict(os.environ, _=shutil.which('railway') or 'railway')
 MARGIN = 45
 
 
@@ -77,7 +75,7 @@ def main():
         raise SystemExit('refused: the postgres-memory-cron cronSchedule was not found in .railway/railway.ts')
     if m.group(2) != cron:
         RAILWAY_TS.write_text(text[:m.start(2)] + cron + text[m.end(2):])
-    shown = subprocess.run(['railway', 'config', 'plan'], cwd=ROOT, capture_output=True, text=True, env=CLI_ENV).stdout
+    shown = subprocess.run(['railway', 'config', 'plan'], cwd=ROOT, capture_output=True, text=True, env=rp.cli_env()).stdout
     up_to_date = 'up to date' in shown
     one_change = '0 to add, 1 to change, 0 to destroy' in shown and 'deploy.cronSchedule' in shown \
         and f'→ "{cron}")' in shown and 'postgres-memory-cron' in shown
@@ -89,12 +87,12 @@ def main():
         return 0
     base = ['-p', rp.PID, '-e', rp.ENV, '-s', SERVICE]
     subprocess.run(['railway', 'variable', 'set', *base, '--skip-deploys', f'PG_RESTART_TIMES_WIB={value}'],
-                   check=True, capture_output=True, text=True)
+                   check=True, capture_output=True, text=True, env=rp.cli_env())
     if not up_to_date:
         subprocess.run(['railway', 'config', 'apply', '--yes'], cwd=ROOT, check=True, capture_output=True, text=True,
-                       env=CLI_ENV)
+                       env=rp.cli_env())
     subprocess.run(['bash', 'apps/postgres-memory-cron/deploy.sh'], cwd=ROOT, check=True, capture_output=True,
-                   text=True)
+                   text=True, env=rp.cli_env())
     status, started = None, time.monotonic()
     while time.monotonic() - started < 600:
         time.sleep(15)
@@ -105,7 +103,7 @@ def main():
             break
     live_cron = rp.cron_schedules({SERVICE: services[SERVICE]}).get(SERVICE)
     live_var = json.loads(subprocess.run(['railway', 'variable', 'list', *base, '--json'], capture_output=True,
-                                         text=True).stdout).get('PG_RESTART_TIMES_WIB')
+                                         text=True, env=rp.cli_env()).stdout).get('PG_RESTART_TIMES_WIB')
     print(json.dumps({'deployment': dep['id'], 'status': status, 'cron_live': live_cron, 'times_live': live_var}))
     return 0 if status == 'SUCCESS' and live_cron == cron and live_var == value else 1
 

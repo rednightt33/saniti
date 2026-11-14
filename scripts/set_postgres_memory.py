@@ -14,13 +14,12 @@ Steps:
   3. `railway config plan` must show exactly that one change, else nothing is applied;
   4. with --apply: `railway config apply --yes`, then wait for the new Postgres deployment to reach SUCCESS, read the
      limit back (serviceInstanceLimits), Postgres's new start time and edge-bff /ready.
-Record the change in RAILWAY_CHANGELOG.md and the user's words in EXEC.md. Needs RAILWAY_TOKEN; prints no secret.
+Record the change in RAILWAY_CHANGELOG.md and the user's words in EXEC.md. Needs a Railway credential (restart_postgres.py CREDENTIALS, ERRORS M433); prints no secret.
 """
 import argparse
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import time
@@ -38,11 +37,10 @@ LINE = re.compile(r'(Postgres\.deploy = \{ limitOverride: \{ containers: \{ memo
 
 
 # the Railway SDK reads the CLI version through $_ (the shell's last command): point it at the railway binary
-CLI_ENV = dict(os.environ, _=shutil.which('railway') or 'railway')
 
 
 def plan() -> str:
-    return subprocess.run(['railway', 'config', 'plan'], cwd=ROOT, capture_output=True, text=True, env=CLI_ENV).stdout
+    return subprocess.run(['railway', 'config', 'plan'], cwd=ROOT, capture_output=True, text=True, env=rp.cli_env()).stdout
 
 
 def main() -> int:
@@ -83,7 +81,7 @@ def main() -> int:
 
     before = pgq.q('SELECT pg_postmaster_start_time()::text')['rows'][0][0]
     applied = subprocess.run(['railway', 'config', 'apply', '--yes'], cwd=ROOT, capture_output=True, text=True,
-                             env=CLI_ENV)
+                             env=rp.cli_env())
     print(applied.stdout[-400:])
     if applied.returncode != 0:
         raise SystemExit('railway config apply failed')
@@ -100,8 +98,7 @@ def main() -> int:
     limits = rp.gql('query($s:String!,$e:String!){serviceInstanceLimits(serviceId:$s,environmentId:$e)}',
                     {'s': services['Postgres'], 'e': rp.ENV})['serviceInstanceLimits']
     after = pgq.q('SELECT pg_postmaster_start_time()::text')['rows'][0][0]
-    domain = json.loads(subprocess.run(['railway', 'variables', '--service', 'edge-bff', '--environment', 'dev', '--json'],
-                                       capture_output=True, text=True).stdout)['RAILWAY_PUBLIC_DOMAIN']
+    domain = rp.edge_domain()
     try:
         ready = urllib.request.urlopen(f'https://{domain}/ready', timeout=30).status
     except urllib.error.HTTPError as e:

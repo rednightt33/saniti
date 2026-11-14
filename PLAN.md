@@ -63,9 +63,9 @@ detail filter). Kartu dan hitungan: `SCREENER_LIBRARY.md`.
   - Jumlah saham ditampilkan sebagai titik per saham (opsi 8 dari `verification/radar/radar_count_options.html`): "Opsi 8".
   - Jalur data: halaman membaca file harian yang ditulis publisher, bukan query per permintaan: "2. Ok".
 - **Masih terbuka:**
-  - Ambang V1Δ dan V2Δ S6Δ: diputuskan cara (opsi C, 2026-11-14: "Ya udah, kita opsi C"); sementara 12 / 20 / 35 dan
-    40 / 65 / 90. Hasil 20 tanggal di dev (13 Okt–9 Nov 2026, `verification/radar/DEV_RUN.md`): V1Δ 10,4 / 18,2 / 28,6,
-    V2Δ 32,1 / 59,3 / 77,6; menunggu persetujuan angka dari user.
+  - ~~Ambang V1Δ dan V2Δ S6Δ~~: diputuskan 2026-11-14 ("1A", sesudah melihat hasil 20 tanggal di dev: V1Δ 10,4 / 18,2 /
+    28,6, V2Δ 32,1 / 59,3 / 77,6, `verification/radar/DEV_RUN.md`): tetap 12 / 20 / 35 dan 40 / 65 / 90. Label
+    "provisional" di dev dihapus lewat migrasi 004 setelah go (EXEC-RADAR).
   - ~~Ukuran urut S6 dan S7~~: diputuskan 2026-11-14 (D3 "ok"): S6 rasio asing, S7 FL34 sekarang, S8 z robust.
   - Rencana implementasi lengkap: `EXEC.md` EXEC-RADAR (ditulis 2026-11-14; D1-D7 dijawab 2026-11-14; menunggu go).
 - **Data yang dibutuhkan:** tabel ukuran harian per saham untuk semua filter (juga membuka S7 V2/V2Δ, library 12.3 #6),

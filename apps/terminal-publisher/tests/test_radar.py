@@ -43,19 +43,20 @@ class RadarConn(FakeConn):
         super().__init__(*a, **kw)
         self.tables, self.gates, self.results, self.version = tables, list(GATES), list(RESULTS), 'radar-v1'
         self.closes_after = 2
+        self.rules_md5, self.rules = 'rules', list(RULES)
 
     def _rows(self, sql, params):
         if sql == radar.PROBE_SQL:
             return [(self.tables,)]
         if sql == radar.STAMP_SQL:
             return [(f'stamp-{len(self.results)}-{self.results[-1][11]}', len(self.gates), PRICE_DATES[-1], self.version,
-                     self.closes_after, 'lists')]
+                     self.closes_after, 'lists', self.rules_md5)]
         if sql == radar.GATES_SQL:
             return sorted(self.gates, reverse=True)[:params[0]]
         if sql == radar.FILTERS_SQL:
             return FILTERS
         if sql == radar.RULES_SQL:
-            return RULES
+            return self.rules
         if sql == radar.COUNTS_SQL:
             out = {}
             for r in self.results:
@@ -90,7 +91,7 @@ def test_every_radar_file_is_content_keyed_and_written_before_the_state_json_tha
     state = bucket.get_json('state.json')
     names = sorted(state['radar'])
     assert names == sorted(['radar-meta', 'radar-days', *(f'radar-board-{d}' for d in DATES), 'radar-f-s1', 'radar-f-s8'])
-    assert state['radar_stamp'][1:] == ['3', PRICE_DATES[-1], 'radar-v1', '2', 'lists']   # strings: stable in JSON
+    assert state['radar_stamp'][1:] == ['3', PRICE_DATES[-1], 'radar-v1', '2', 'lists', 'rules']   # strings: stable in JSON
     for name, e in state['radar'].items():
         key = e['key'][len('v1/'):]
         assert re.fullmatch(rf'radar/{name}\.{e["sha256"][:16]}\.json\.gz', key) and key in bucket.puts[:-1]
@@ -144,6 +145,17 @@ def test_the_files_are_deterministic_and_an_unchanged_stamp_carries_the_index_fo
     changed = sorted(n for n in now if now[n]['sha256'] != first[n]['sha256'])
     assert changed == ['radar-board-2026-11-06']
     assert [k for k in bucket.puts[n:] if k.startswith('radar/')] == [now['radar-board-2026-11-06']['key'][3:]]
+
+
+def test_a_changed_rule_row_rebuilds_the_meta_file_without_a_new_rule_version():
+    """2026-11-14 (user "1A"): a threshold's status or a filter's warning is part of the stamp; only radar-meta moves."""
+    p, conn, bucket = run()
+    first = bucket.get_json('state.json')['radar']
+    conn.rules = [r[:6] + ('decided',) for r in conn.rules] + [('S1', 'C', 'loose', 'C at loose', 90, None, 'decided')]
+    conn.rules_md5 = 'rules-2'
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    now = bucket.get_json('state.json')['radar']
+    assert sorted(n for n in now if now[n]['sha256'] != first[n]['sha256']) == ['radar-meta']
 
 
 def test_modes_that_do_not_maintain_the_radar_carry_it_and_the_cleanup_keeps_it():

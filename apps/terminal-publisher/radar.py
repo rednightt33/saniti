@@ -47,12 +47,17 @@ BACKFILL_RELEASE_SQL = 'SELECT pg_advisory_unlock(hashtext(%s))'
 # QA 2026-11-14: plus the final daily closes from the newest result date on (a close that arrives after IHSG's is a
 # change of the board's price line) and the stock lists' membership (the universe menu of radar-meta). Older price
 # corrections are not watched: the manual mode `radar` republishes after one.
+# 2026-11-14 (user "1A": the S6-delta thresholds become decided): plus the current version's filter and rule rows, so a
+# change of a label, warning, threshold or status (radar-meta) rebuilds the files without a new rule version.
 STAMP_SQL = (f'SELECT (SELECT max(calculated_at)::text FROM {G}), (SELECT count(*) FROM {G}), '
              f"(SELECT max(date)::text FROM {PRICE} WHERE ticker = '{INDEX_TICKER}' AND timeframe = 'Daily' AND is_final), "
              'public.feature_07_rule_version(), '
              f"(SELECT count(*) FROM {PRICE} WHERE timeframe = 'Daily' AND is_final AND date >= (SELECT max(trade_date) FROM {G})), "
              '(SELECT md5(coalesce(string_agg(list_key || \':\' || "Ticker", \',\' ORDER BY list_key, "Ticker"), \'\')) '
-             'FROM public."Stock_List_Member")')
+             'FROM public."Stock_List_Member"), '
+             f'(SELECT md5(coalesce(string_agg(x, \',\' ORDER BY x), \'\')) FROM (SELECT f::text AS x FROM {F} AS f '
+             'WHERE f.rule_version = public.feature_07_rule_version() UNION ALL SELECT r::text FROM '
+             f'{R} AS r WHERE r.rule_version = public.feature_07_rule_version()) AS rules)')
 GATES_SQL = (f'SELECT trade_date::text, universe_n, broad_cut::float8, liquid_cut::float8, broad_n, liquid_n FROM {G} '
              'ORDER BY trade_date DESC LIMIT %s')
 FILTERS_SQL = ('SELECT filter_id, position, column_id, column_label, variant_label, is_default_variant, name, question, '
@@ -95,7 +100,8 @@ def backfill_running(conn):
 
 def stamp(conn):
     """What the publication of the Radar depends on: [gate max calculated_at, gate rows, newest IHSG price date, rule
-    version]. A run whose stamp equals state.json `radar_stamp` carries the index forward."""
+    version, final closes from the newest result date, the lists' membership, the version's filter and rule rows]. A
+    run whose stamp equals state.json `radar_stamp` carries the index forward."""
     return [None if v is None else str(v) for v in conn.execute(STAMP_SQL).fetchone()]
 
 
