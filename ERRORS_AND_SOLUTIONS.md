@@ -7578,7 +7578,7 @@ progress and verified final committed data. Keep one-off job IDs/recovery script
 workspace and save logs before replacing a temporary deployment; never assume a local executor
 restart stopped an external database job.
 
-### M424 — Every dev service stopped: the Railway workspace reached its hard usage limit (2026-11-13, open)
+### M424 — Every dev service stopped: the Railway workspace reached its hard usage limit (2026-11-13, restored 2026-11-14)
 
 - **Symptom:** the user, 2026-11-13 ("boleh cek kondisi backend, sepertinya timeout ya"): the Terminal does not load.
   `https://edge-bff-dev.up.railway.app/ready` answers 404 "Application not found"; pgweb the same.
@@ -7593,5 +7593,13 @@ restart stopped an external database job.
 - **Solution (open, the user's decision):** raise or remove the hard limit in the Railway workspace settings (Usage), then
   redeploy the services and read each back at SUCCESS; Postgres first. Pending: a warning before the limit (soft limit 0
   today) and a look at what holds memory.
+- **Restored 2026-11-14:** the user raised the limit; Railway restarted every service at 10:17 UTC by itself (28
+  SUCCESS, telegram-monitor SLEEPING by design, web-governor-test-runner REMOVED since 2026-11-04). screener-worker
+  failed its 300 s health check (terminal-api not up yet at its start, two bucket downloads 408); redeployed 10:22 UTC,
+  SUCCESS in one minute.
+- **screener-worker memory (user 2026-11-14: "cek RAM screener worker"):** awake it holds about 1.15 GB by design (the
+  snapshot and caches stay until it sleeps). The memory chart keeps its last value while it sleeps (1.15 GB flat from
+  10:34 UTC, status SLEEPING); the billed usage reads 0 GB-minutes for 2026-11-12 08:00 to 2026-11-13 14:20, when the
+  chart showed 0.95 GB flat. The chart is not the bill; Postgres is the largest billed memory (about 0.94 GB on average then).
 - **Not the cause of the 2026-11-12 BBTN screenshot:** the older broker years failed then while every service ran
   (terminal-api read of the bucket cancelled at 07:41:09 UTC, 30 seconds after an edge-bff release).

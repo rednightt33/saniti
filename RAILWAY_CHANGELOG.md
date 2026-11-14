@@ -1,5 +1,11 @@
 # Railway changelog
 
+## 2026-11-14 — dev restored after the usage limit (ERRORS M424)
+
+- 2026-11-13 14:20 UTC every service stopped at the workspace hard limit; the user raised it 2026-11-14 and Railway
+  restarted the services at 10:17 UTC. screener-worker `6e9e5fa9` FAILED (health check); `deploymentRedeploy` →
+  `eb9d30e1` SUCCESS 10:23 UTC, SLEEPING 10:34 UTC. edge-bff `/ready` 200; Postgres started 10:17:21 UTC.
+
 ## 2026-11-12 — edge-bff: Daily Quadrant colours in Settings (EXEC-DQ-COLORS)
 
 - `a5b6c862` → edge-bff `3ec43aad` SUCCESS 07:40 UTC. `/ready` 200; the served Terminal bundle holds the four quadrant
