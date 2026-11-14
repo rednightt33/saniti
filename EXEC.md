@@ -13835,3 +13835,182 @@ lalu satu run publisher dan cek live dengan login.
 14/14); run publisher 15:55 UTC menerbitkan `stock_lists`; cek live dengan login PASS 10/10 (LQ45 45 saham, LQ45 + Astra
 3, LQ45 tanpa Salim dan Djarum 39, IDX30 atau JII 41, kode salah ditolak); restart Postgres 16:00 UTC. ERRORS M418 tutup.
 Sisa: DATABASE_SCHEMA.md belum memuat tabel Stock_List (refresh skema terjadwal), ERRORS M417 (5 langkah smoke lama).
+
+## EXEC-RADAR — halaman Radar: tabel ukuran harian S1-S8, hasil per hari, file publisher, halaman admin (rencana 2026-11-14, BELUM dieksekusi; menunggu go)
+
+**Kata user, 2026-11-14:** "Setelah itu done, inspect database, inspect kondisi backend secara keseluruhan untuk membuat
+implementation plan. Ensure implementation plan dibuat secara holistik, dan apabila ada keputusan yang diambil
+berdasarkan memori, harap diverifikasi terlebih dahulu menggunakan kode. Setelah implementation, harap sertakan juga what
+success and finish should look like di implementation plan before we decide to go. Also include 5 Sonnet 5.5 high
+submissions to verify your work." Keputusan desain: `PLAN.md` RADAR; desain final `verification/radar/index-r10.html`;
+spesifikasi halaman `verification/radar/RADAR_PAGE_SPEC.md`; definisi filter `SCREENER_LIBRARY.md`.
+
+### Gambaran besar
+
+Satu alur, empat lapis, masing-masing punya satu tugas:
+
+```
+stockbit-updater (Run Now)          Postgres                         terminal-publisher        terminal-api   edge-bff          halaman Radar
+broker round ─► F05, F03, F06 ─► refresh_feature_07 (ukuran) ─► Radar_Result (lolos/gagal) ─► file radar/*.json.gz ─► POST /radar ─► /api/v1/radar ─► /radar-app/
+                                 per saham per hari              per filter, tingkat, gerbang   (hanya diterbitkan)   (kunci gateway)  (hanya pemilik)
+```
+
+- **Hitung di database, satu kali per hari.** Ukuran (rasio, persentil, z, k, CR3, FL34, ADV20) dan hasil aturan
+  (lolos, kondisi terpenuhi, near miss, hari beruntun) dihitung setelah data broker masuk dan disimpan. Halaman tidak
+  menghitung aturan; ia hanya menampilkan dan menyaring.
+- **Publisher hanya menerbitkan**, sesuai prinsipnya ("P4 computes no indicator", `apps/terminal-publisher/publisher.py:300`).
+- **Akses hanya pemilik.** Hasil Radar tidak lewat `reference/` karena rute itu terbuka bagi setiap pelanggan Terminal
+  (`apps/terminal-api/app/main.py:417`, `granted`). Sesi EDGE hari ini hanya pemilik (`apps/edge-bff/app/main.py:274-279`).
+
+### Fakta yang diverifikasi di kode (2026-11-14, `main` `4235cb7`) dan di database (pgweb, read-only)
+
+| Fakta | Bukti |
+|---|---|
+| Ronde broker hanya berjalan lewat Run Now (cron sekali setahun sebagai pengisi) | `.railway/railway.ts:199-203` |
+| Urutan refresh: F05 → F02 → F03 → F06, langkah terakhir `f06_done` | `apps/stockbit-updater/refresh.py:192-240` |
+| Persentil F06 = midrank (lebih kecil + setengah sama) atas 252 sesi milik saham itu, jeda dilompati | `database/migrations/20261022_003...sql:26-48, 309-311` |
+| Library memakai "lebih kecil ÷ 252" (tanpa setengah sama) | `SCREENER_LIBRARY.md` 9.1, 11.1, 13.2 |
+| Nama tabel Feature wajib `^Feature_[0-9]{2}_...$`; 01-06 terpakai | `database/migrations/20260913_009...sql:120` |
+| Publisher membaca dengan role `terminal_publisher_login` ∈ `terminal_market_reader`, SELECT hanya tabel yang diberi nama; tabel baru butuh migrasi GRANT | `20261109_003_terminal_reader_stock_list.sql:1-21` |
+| Publisher: keluarga file berindeks (`INDEXED`), kunci konten sha16, state.json, gzip JSON kolumnar | `publisher.py:62-99, 344-353, 501-508, 881, 1806-1816` |
+| terminal-api hanya menyajikan `STATE_FIELDS`; `/xsection` hanya kunci gateway dan screener-worker | `apps/terminal-api/app/bucket.py:11`; `main.py:299-313, 573-596` |
+| Shell EDGE tidak punya penerima `edge-nav`: tombol "Open in Terminal" Screener tidak berpindah halaman | `apps/edge-bff/static/index.html:11419` (satu-satunya `message`, untuk Statistics); `screener/src/preview.ts:323` |
+| Aplikasi halaman: Vite, IIFE di akhir body, build di Docker, tidak di-commit | `apps/edge-bff/screener/vite.config.ts`, `apps/edge-bff/Dockerfile:27-46`, `.gitignore:19-23` |
+| Job besar: `scripts/onboarding/run_job.sh` dengan `"large_write": true` me-restart Postgres sesudahnya | `scripts/onboarding/run_job.sh:14, 71-74` |
+| Riwayat sumber mulai 2016-01-04 (2.610 hari bursa); F05 9,9 GB (~21 ribu baris Regular per hari), F06 1,4 GB (857 saham/hari), F03 1,1 GB; broker terakhir 9 Nov, harga 13 Nov | query pgweb 2026-11-14 |
+
+### Fase (setiap fase: kode di branch, tes, review; merge dan deploy dev hanya dengan go user)
+
+**R1 — Tabel ukuran harian `Feature_07_Radar_Measure`** (satu baris per saham per hari, papan Regular)
+- Migrasi baru + fungsi `refresh_feature_07(ticker, from_date)` dan `refresh_feature_07_xsection(date)`.
+- Kolom per saham (deret waktu milik saham):
+  - G2/G3: `active_sessions_16`, `buy5_idr` (Σ5 beli asing + domestik);
+  - S1: `foreign_net_5d`, `ratio_5d`, `pct_net5_252`, `z_net5_252`, `buy_days_5`;
+  - S2/S6/S6Δ: `ratio_5d_prev` (T−5), `ratio_delta`, `pct_ratio5_252`, `pct_ratio5_252_prev`, `pct_delta`;
+  - S3: `net_buyers_k`, `cr3`, `cr3_minus_even`, `intensity` (dari F05, 5 sesi, semua jenis investor dijumlah);
+  - S7: `fl34_5d`, `fl34_5d_prev`, `inst_net_5d`, `retail_net_5d`, `inst_share_5d`, `inst_buy_days_5`;
+  - S8: `foreign_net_1d`, `tbv_1d`, `adv20_prev`, `u1_ratio_1d`, `u3_vs_adv20`, `rz_u1`, `rz_u3`, `pct_net1_252`,
+    `baseline_n`;
+  - tampilan: `close`, `chg_1d`, `spark20` (20 harga penutupan) atau dibaca dari harga saat menerbitkan.
+- Kolom penampang per tanggal (bergantung gerbang): `in_broad`, `in_liquid`, `s2_rank_broad/liquid`,
+  `s3_group_broad/liquid`, `s3_group_rank_broad/liquid`, `s3_int_rank_broad/liquid`; batas gerbang per tanggal di
+  `Feature_07_Radar_Gate` (tanggal, populasi, batas Luas, batas Likuid).
+- Konvensi (D1 di bawah): persentil riwayat sendiri "lebih kecil ÷ 252" untuk semua filter, riwayat 252 sesi saham itu
+  sendiri dengan jeda dilompati ("A1 ok"); tanpa riwayat 252 → V2/V2Δ kosong, V1 tetap dinilai ("B1 ok").
+- Indeks: (trade_date), (ticker, trade_date) — diukur dengan `scripts/onboarding/measure_indexes.py` sebelum dibuat.
+- GRANT SELECT ke `terminal_market_reader` dan `pgweb_reader`.
+
+**R2 — Evaluasi aturan `Radar_Result`** (satu tempat aturan)
+- Modul aturan berversi (`rule_version`) yang memuat semua kondisi dan ambang Loose/Standard/Strict per filter, persis
+  `RADAR_PAGE_SPEC.md` bagian 5 dan keputusan `PLAN.md`.
+- Per tanggal × filter × tingkat × gerbang: baris untuk saham yang lolos dan near miss: `met` (bitmask), `pass`,
+  `near_miss`, `run_day` (hari beruntun di setelan itu), `entered`, `left_reason` (kondisi yang gagal), `sort_value`,
+  `flag` (pencilan, D6).
+- Dijalankan sebagai langkah `radar_done` setelah `f06_done` di `refresh.py`, untuk tanggal yang berubah.
+
+**R3 — Backfill** 250 sesi hasil (+ 252 baseline + jendela): job read-heavy (~12 juta baris F05 untuk S3) lewat
+`run_job.sh` dengan `large_write: true`; work_mem 64 MB, satu job, tanpa paralel; restart Postgres sesudahnya; dicatat
+di `RAILWAY_CHANGELOG.md`. Gladi lokal (PostgreSQL 16) dulu: DRYRUN lalu APPLY.
+
+**R4 — Validasi independen**
+- Hitung ulang mandiri (pandas, dari `IDX_Broker_Summary`/F06/F03, tanpa membaca fungsi SQL) pada ≥ 5 tanggal dan ≥ 30
+  saham acak (benih tetap): semua kolom sama (toleransi 1e-9 relatif; NULL = NULL).
+- Contoh library dan hitung ulang 12 Nov direproduksi: gerbang 3 Nov (859 / Rp0,30-2,30-8,68-25,64 miliar), S1 "Likuid"
+  6 saham (BOGA, BINA, DKFT, FORU, SQMI, NATO sebelum syarat 5%), S2 "Likuid" 7 (KOTA 89,9), S3 "Likuid" 11, S6
+  jendela 5 sesi "Likuid" V1+V2 13, S7 "institusi masuk" 11/23, S8 9 Nov 5 Kuat / 18 Perhatian.
+
+**R5 — Publisher dan terminal-api**
+- Keluarga file berindeks baru `radar/` (kunci konten sha16, gzip JSON):
+  - `radar-board-YYYY-MM-DD`: papan satu tanggal (semua filter, baris pada setelan terlonggar dengan `pass`/`met` per
+    tingkat dan gerbang, hari beruntun, +N, nilai kolom, spark harga 20 sesi, jumlah 20 hari per setelan, batas
+    gerbang, tanggal sumber, daftar indeks/grup);
+  - `radar-filter-<ID>-YYYY-MM-DD`: detail satu filter (jumlah 250 hari per setelan, anggota harian, masuk/keluar
+    beserta alasan, near miss);
+  - jendela bergulir 20 tanggal terakhir (pemilih tanggal), dirawat seperti `publish_broker_days`.
+- `INDEXED`, `PUT_STEPS`, `state.json` field `radar`; perintah `verify`; alert `partial` sudah mencakup.
+- terminal-api: `STATE_FIELDS` + indeks `radar` + rute `POST /radar {names}` hanya untuk kunci gateway; kuota di bawah REF.
+- Uji: paritas indeks publisher ↔ terminal-api; dokumen kolumnar; garbage collection.
+
+**R6 — edge-bff**
+- `owner_only` (sesi + `owner_key == settings.owner`), `GET /api/v1/radar/state`, `GET /api/v1/radar/file/<name>`:
+  edge-bff mengambil file dari terminal-api dan meneruskan byte-nya dengan ETag = sha256 (CSP `connect-src 'self'`,
+  seperti Screener); 304 bila tidak berubah.
+- `capabilities.radar` di `/api/v1/auth/session`; shell menyembunyikan menu bila false.
+- Rute halaman `/radar`, `/radar-app/`, `/radar-app/assets/{name}`, `RADAR_CSP`.
+
+**R7 — Halaman**
+- Aplikasi baru `apps/edge-bff/radar` (Vite, pola Screener): HTML statis dari AI lain berdasarkan
+  `RADAR_PAGE_SPEC.md` dipindahkan ke modul TypeScript; data dari `/api/v1/radar`; cache browser per tanggal (IndexedDB
+  `terminal-files`, sha256 diverifikasi); tema mengikuti shell lewat `localStorage` + event `storage`.
+- Shell: menu Radar setelah Screener, ikon `navRadar` (path di spesifikasi 2), `RadarPage`, routing, label di
+  `edge-labels.js`.
+- **Penerima `edge-nav`** di shell (asal sama, frame sendiri, rute `terminal` dan `backtest` saja): "Open in Terminal"
+  Radar berfungsi, sekaligus memperbaiki tombol yang sama di Screener (dicatat sebagai error baru).
+- Dockerfile stage `radar`, `.dockerignore`, `.gitignore`.
+- Tes: bundle, smoke (Playwright, gagal pada error konsol, long task > 50 ms, pelanggaran CSP), visual (1440, 1100, 390;
+  terang dan gelap), `tests/test_radar.py`, `tests/test_page_titles.py`.
+
+**R8 — Dokumentasi dan katalog**
+- `Table_Catalog`, `Column_Catalog`, `Feature_Catalog` (rumus, makna, penggunaan, peringatan, status review, bukti),
+  `scripts/audit_feature_catalog_semantics.py`; `DATABASE_SCHEMA.md`, `DATABASE_CHANGELOG.md`, `RAILWAY_CHANGELOG.md`.
+- `SCREENER_LIBRARY.md`: keputusan library 2026-11-12/13 ditulis di kartunya (gerbang Luas, S1 5%, S2, S3 kelompok,
+  S6 paket V1+V2, S6Δ, A1, B1) dan ambang S6Δ 5 sesi.
+- `UPDATE_TABLE.md` (langkah `radar_done`), `apps/edge-bff/README.md` (tab Radar), `ERRORS_AND_SOLUTIONS.md` (edge-nav dan
+  temuan lain), `PLAN.md` RADAR dipindah keluar saat selesai.
+
+**R9 — Rilis dev bertahap** (setiap langkah dengan go user; deploy dianggap berhasil hanya pada `SUCCESS` deployment itu):
+migrasi R1 → backfill R3 + restart Postgres → stockbit-updater (langkah `radar_done`) → terminal-publisher (unggah CLI,
+satu run `daily`) → terminal-api → edge-bff (halaman + API) → cek live dengan login.
+
+**R10 — QA lima agen Sonnet 5.5 high** (setelah R9, sesuai permintaan user; masing-masing menulis temuan dengan file:baris
+atau run ID, dan hitung ulang sendiri; temuan diperbaiki lalu diuji ulang oleh agen yang sama):
+
+| Agen | Cakupan |
+|---|---|
+| 1. Kebenaran data | Hitung ulang mandiri ukuran dan hasil dari `IDX_Broker_Summary`/F06/F03 pada tanggal dan saham acak; contoh library (R4); konvensi persentil dan baseline |
+| 2. Aturan dan keputusan | Setiap kondisi, ambang, tingkat, gerbang, near miss, hari beruntun, alasan keluar, pencilan dibandingkan `PLAN.md` RADAR, `RADAR_PAGE_SPEC.md` 5 dan `SCREENER_LIBRARY.md` |
+| 3. Jalur dan akses | Publisher → terminal-api → edge-bff: hanya pemilik, tidak bocor lewat `reference/`, ETag/304, kegagalan (file hilang, sumber tertinggal, tanggal belum siap), alert, `verify` |
+| 4. Halaman | Sesuai R10 dan spesifikasi: tata letak, keadaan kosong/muat/galat, mode gelap, ponsel 375-390 px, fokus dan keyboard, Open in Terminal, angka sama dengan file |
+| 5. Operasi dan dokumen | Beban dan waktu job, memori Postgres dan restart, urutan rilis, katalog lengkap, changelog, aturan AGENTS.md (Gates and evidence, Questions to the user) |
+
+### Seperti apa "sukses" dan "selesai"
+
+**Sukses (diukur):**
+1. Untuk tanggal hasil terbaru, setiap angka di halaman sama dengan hitung ulang mandiri (R4) dan dengan file yang
+   diterbitkan; 0 selisih di luar toleransi pada sampel agen 1.
+2. Contoh library dan hitung ulang 12 Nov direproduksi persis (daftar di R4), atau setiap selisih dijelaskan dan dicatat.
+3. Setelah satu ronde broker (Run Now), hasil tanggal baru terbit tanpa langkah manual lain; papan menampilkan tanggal itu
+   dan pill sumber benar.
+4. Halaman terbuka dalam ≤ 1 dtk dari cache dan ≤ 3 dtk tanpa cache pada koneksi dev; ganti kontrol tidak mengunduh ulang;
+   tidak ada long task > 50 ms (smoke).
+5. Hanya sesi pemilik yang mendapat data Radar (uji: sesi lain/terminal subscriber ditolak; `reference/radar*` tidak ada).
+6. Open in Terminal membuka Terminal pada ticker itu, dari Radar dan dari Screener.
+7. Backfill selesai dalam satu job, memori Postgres kembali < 0,8 GB sesudah restart, tidak ada job lain terganggu.
+
+**Selesai (definisi of done):**
+- Semua fase R1-R9 di-merge ke `main`, setiap deployment dev pada `SUCCESS`, cek live dengan login lulus.
+- QA lima agen (R10): semua temuan diperbaiki atau dicatat sebagai keputusan user; uji ulang lulus.
+- Tes lokal lulus: migrasi beku, unit/paritas publisher dan terminal-api, edge-bff (pytest), halaman (bundle, smoke,
+  visual), validasi independen.
+- Katalog dan dokumen diperbarui (R8); `ERRORS_AND_SOLUTIONS.md` mencatat setiap error; `PLAN.md` RADAR dipindah keluar.
+
+### Keputusan yang perlu user sebelum go
+
+- **D1 Konvensi persentil:** semua persentil riwayat sendiri memakai "lebih kecil ÷ 252" seperti library (S1 dihitung
+  ulang, tidak memakai persentil midrank F06). Usulan: ya, satu konvensi.
+- **D2 Ambang S6Δ 5 sesi:** V1Δ 12 / 20 / 35, V2Δ 40 / 65 / 90 poin (hitung ulang 12 Nov). Masih terbuka di `PLAN.md`.
+- **D3 Urutan S6, S7, S8:** rasio asing, FL34 sekarang, z robust (di spesifikasi, belum dikonfirmasi).
+- **D4 Kedalaman:** riwayat hasil 250 sesi; pemilih tanggal 20 tanggal terakhir.
+- **D5 Pemicu:** Radar diperbarui di ronde broker (Run Now), jadi hasil tertinggal sejauh data broker (hari ini 9 Nov
+  terhadap harga 13 Nov).
+- **D6 Aturan "Outlier":** usulan "One-day block" bila satu hari menyumbang ≥ 80% net asing 5 sesi, dan "Corporate
+  action" bila ada aksi korporasi (`idx_event_annotation`) dalam jendela filter.
+- **D7 HTML statis dari AI lain:** fase R7 menunggu HTML itu, atau kami membangun langsung dari R10 dan spesifikasi.
+
+### Risiko
+
+- Backfill membaca jutaan baris pada Postgres 1 GB: satu job, work_mem 64 MB, di luar jam cron dan B6, restart sesudahnya.
+- Aturan di dua tempat akan bergeser: karena itu aturan hanya di R2; halaman tidak mengevaluasi aturan.
+- Data broker tertinggal (Run Now manual): ditampilkan jujur lewat pill sumber; bukan bagian rencana ini untuk diubah.
+- Kunci gateway untuk `/xsection` ditandai sementara di terminal-api (`main.py:37-39`); rute `/radar` baru harus punya
+  pemeriksaan pemanggil sendiri, bukan bergantung pada akses sementara itu.
