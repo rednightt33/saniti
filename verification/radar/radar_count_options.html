@@ -1,0 +1,941 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Radar count options</title><style>
+/* =====================================================================
+   EDGE / Market Lab — Design Spec v1  (sumber: EDGE v6, screener.html)
+   ---------------------------------------------------------------------
+   Cara pakai
+   1. Pasang file ini paling awal (sebelum CSS halaman) + font Inter:
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+      <link rel="stylesheet" href="edge-design-spec.css">
+   2. Elemen polos (table, button, input, select, h1–h3, a) langsung
+      ikut gaya EDGE lewat layer "edge-base".
+   3. Komponen siap pakai: .card .btn .seg .tabs .pill .tog .inp .field
+      .tbl .kpi .kv .dialog .note .eyebrow .empty .switch
+   4. Mode gelap: <html class="dark"> atau <html data-theme="dark">.
+   Urutan layer: edge-base < edge-components < edge-utilities, jadi CSS
+   halaman (di luar layer) selalu menang tanpa perlu !important.
+   ===================================================================== */
+
+@layer edge-tokens, edge-base, edge-components, edge-utilities;
+
+/* ---------------------------------------------------------------------
+   1. TOKENS
+   --------------------------------------------------------------------- */
+@layer edge-tokens {
+:root{
+  /* Permukaan */
+  --bg:#fafafa;            /* latar halaman */
+  --surface:#ffffff;       /* kartu, tabel, input */
+  --surface-2:#f7f7f7;     /* hover baris tabel, kbd */
+  --hover:#f3f3f3;         /* hover tombol/menu */
+  --sel:#efefef;           /* item terpilih (seg, tab, pill netral) */
+  --border:#eaeaea;        /* semua garis 1px */
+  --border-2:#dcdcdc;      /* garis saat hover */
+
+  /* Teks */
+  --text:#171717;          /* utama, angka penting */
+  --text-2:#4d4d4d;        /* sekunder, label tombol */
+  --text-3:#8f8f8f;        /* keterangan, header tabel */
+
+  /* Semantik pasar (IDX: hijau naik, merah turun) */
+  --green:#087f5b;  --green-bg:rgba(8,153,129,.10);   /* teks naik / pill positif */
+  --red:#d62839;    --red-bg:rgba(242,54,69,.09);     /* teks turun / pill negatif */
+  --up:#089981;     --down:#f23645;                  /* candle, bar, garis chart */
+  --blue:#0070f3;   --blue-bg:rgba(0,112,243,.08);    /* fokus, link, nilai Custom */
+  --amber:#b45309;  --amber-bg:rgba(245,166,35,.14);  /* peringatan */
+  --violet:#7928ca; --navy:#17348c;                  /* aksen chart, broker lokal */
+
+  /* Seri chart (urutan tetap) */
+  --c1:#0070f3; --c2:#7928ca; --c3:#f5a623; --c4:#089981; --c5:#e5484d; --c6:#17348c;
+
+  /* Tipografi */
+  --sans:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
+  --fs-2xs:10.5px;  /* label kecil uppercase, badge */
+  --fs-xs:11px;     /* pill, catatan kecil */
+  --fs-sm:11.5px;   /* label field, note */
+  --fs-12:12px;     /* tombol kecil, sel tabel padat */
+  --fs-md:12.5px;   /* tabel, seg, menu */
+  --fs-base:13px;   /* teks body default */
+  --fs-lg:14px;     /* judul kartu */
+  --fs-xl:15px;     /* judul dialog */
+  --fs-2xl:18px;    /* angka KPI besar */
+  --fs-3xl:22px;    /* judul halaman (h1) */
+  --fw-regular:400; --fw-medium:500; --fw-semibold:600; --fw-bold:700;
+  --lh-base:1.5; --lh-tight:1.35;
+  --ls-caps:.05em;  /* letter-spacing teks uppercase */
+  --ls-title:-.01em;
+
+  /* Jarak (kelipatan 2/4) */
+  --s-1:2px; --s-2:4px; --s-3:6px; --s-4:8px; --s-5:10px; --s-6:12px;
+  --s-7:14px; --s-8:16px; --s-9:20px; --s-10:24px; --s-11:32px;
+
+  /* Radius */
+  --r-xs:4px;   /* kbd, input kecil */
+  --r-sm:6px;   /* item menu, tombol di dalam seg, ikon kecil */
+  --r-md:8px;   /* tombol, input, seg, search */
+  --r-lg:10px;  /* popover, kartu kecil */
+  --r-xl:12px;  /* kartu / panel */
+  --r-2xl:14px; /* dialog */
+  --r-pill:999px;
+
+  /* Ukuran kontrol */
+  --h-xs:22px;  /* seg kecil */
+  --h-sm:28px;  /* tombol kecil */
+  --h-md:32px;  /* tombol, input, select, tab */
+  --h-th:36px;  /* header tabel */
+  --h-row:44px; /* baris tabel normal (padat: 36px) */
+  --h-top:52px; /* top bar */
+
+  /* Bayangan & fokus */
+  --shadow:0 1px 2px rgba(0,0,0,.06),0 8px 20px -8px rgba(0,0,0,.22);          /* hover tombol/kartu */
+  --shadow-lg:0 12px 40px -12px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.06);   /* popover, dialog */
+  --ring:0 0 0 3px var(--blue-bg);
+
+  /* Lapisan */
+  --z-sticky:40; --z-pop:60; --z-modal:80; --z-toast:99;
+  color-scheme:light;
+}
+:root.dark,:root[data-theme="dark"]{
+  --bg:#0a0a0a; --surface:#111111; --surface-2:#161616; --hover:#1c1c1c; --sel:#232323;
+  --border:#262626; --border-2:#333333;
+  --text:#ededed; --text-2:#b4b4b4; --text-3:#7c7c7c;
+  --green:#3ecf8e; --green-bg:rgba(62,207,142,.12); --red:#ff6369; --red-bg:rgba(255,99,105,.12);
+  --blue:#52a8ff; --blue-bg:rgba(82,168,255,.12); --amber:#f5b041; --amber-bg:rgba(245,176,65,.14);
+  --violet:#bf7af0; --navy:#7d9bff;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 8px 24px -8px rgba(0,0,0,.7);
+  --shadow-lg:0 16px 48px -12px rgba(0,0,0,.8),0 0 0 1px #2a2a2a;
+  color-scheme:dark;
+}
+}
+
+/* ---------------------------------------------------------------------
+   2. BASE — elemen HTML polos langsung bergaya EDGE
+   --------------------------------------------------------------------- */
+@layer edge-base {
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:var(--fw-regular) var(--fs-base)/var(--lh-base) var(--sans);
+  font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+h1{margin:0;font-size:var(--fs-3xl);font-weight:var(--fw-semibold);letter-spacing:var(--ls-title);line-height:1.25}
+h2{margin:0;font-size:var(--fs-xl);font-weight:var(--fw-semibold);line-height:1.3}
+h3{margin:0;font-size:var(--fs-lg);font-weight:var(--fw-semibold);line-height:1.35}
+p{margin:0}
+small{font-size:var(--fs-sm);color:var(--text-3)}
+a{color:var(--blue);font-weight:var(--fw-medium);text-decoration:none}
+a:hover{text-decoration:underline}
+hr{border:0;border-top:1px solid var(--border);margin:var(--s-6) 0}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+::selection{background:var(--blue-bg)}
+
+/* tombol polos = tombol sekunder */
+button{font:inherit;color:inherit;cursor:pointer;height:var(--h-md);padding:0 var(--s-6);border-radius:var(--r-md);
+  border:1px solid var(--border);background:var(--surface);font-weight:var(--fw-medium);
+  display:inline-flex;align-items:center;justify-content:center;gap:var(--s-3);white-space:nowrap}
+button:hover:not(:disabled){border-color:transparent;box-shadow:var(--shadow)}
+button:disabled{cursor:not-allowed;opacity:.45}
+
+/* input polos */
+input:where([type="text"],[type="number"],[type="search"],[type="email"],[type="password"],[type="date"],:not([type])),select,textarea{
+  font:inherit;color:var(--text);height:var(--h-md);min-width:0;border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--surface);padding:0 var(--s-5);font-size:var(--fs-base);outline:none}
+textarea{height:auto;padding:var(--s-4) var(--s-5);resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}
+input[type="checkbox"],input[type="radio"],input[type="range"]{accent-color:var(--text)}
+label{font-size:var(--fs-sm);color:var(--text-3);font-weight:var(--fw-medium)}
+
+/* tabel polos */
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:var(--fs-md);background:var(--surface)}
+th{height:var(--h-th);padding:0 var(--s-5);text-align:right;font-weight:var(--fw-medium);color:var(--text-3);
+  border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface)}
+td{height:var(--h-row);padding:0 var(--s-5);text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+tbody tr:hover td{background:var(--surface-2)}
+caption{caption-side:top;text-align:left;padding:0 0 var(--s-4);font-weight:var(--fw-semibold)}
+kbd{font:var(--fw-medium) var(--fs-2xs) var(--sans);border:1px solid var(--border);border-radius:var(--r-xs);padding:1px 5px;color:var(--text-3);background:var(--surface-2)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;background:var(--hover);border-radius:var(--r-xs);padding:1px 4px}
+}
+
+/* ---------------------------------------------------------------------
+   3. KOMPONEN
+   --------------------------------------------------------------------- */
+@layer edge-components {
+/* Kartu / panel: border 1px, radius 12, tanpa bayangan */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);min-width:0}
+.card-h{display:flex;align-items:center;gap:var(--s-4);padding:var(--s-7) var(--s-8) var(--s-5)}
+.card-h h3,.card-h strong{font-size:var(--fs-lg);font-weight:var(--fw-semibold)}
+.card-b{padding:0 var(--s-8) var(--s-8)}
+.card-f{display:flex;gap:var(--s-4);justify-content:flex-end;padding:var(--s-6) var(--s-8);border-top:1px solid var(--border)}
+
+/* Teks pendukung */
+.eyebrow{display:block;font-size:var(--fs-xs);font-weight:var(--fw-semibold);color:var(--text-3);text-transform:uppercase;letter-spacing:var(--ls-caps)}
+.note{font-size:var(--fs-sm);color:var(--text-3);line-height:var(--lh-tight)}
+
+/* Tombol */
+.btn{height:var(--h-md);padding:0 var(--s-6);border-radius:var(--r-md);border:1px solid var(--border);background:var(--surface);color:var(--text);
+  font-weight:var(--fw-medium);font-size:var(--fs-base);display:inline-flex;align-items:center;justify-content:center;gap:var(--s-3);white-space:nowrap}
+.btn:hover:not(:disabled){border-color:transparent;box-shadow:var(--shadow)}
+.btn.primary{background:var(--text);color:var(--surface);border-color:var(--text)}
+.btn.ghost{border-color:transparent;background:none;box-shadow:none}
+.btn.ghost:hover:not(:disabled){background:var(--hover);box-shadow:none}
+.btn.danger{color:var(--red)}
+.btn.sm{height:var(--h-sm);padding:0 9px;font-size:var(--fs-12)}
+.btn.block{width:100%}
+.iconbtn{width:var(--h-md);height:var(--h-md);padding:0;border:0;background:none;border-radius:var(--r-md);display:inline-grid;place-items:center;color:var(--text-2);box-shadow:none}
+.iconbtn.sm{width:26px;height:26px;border-radius:var(--r-sm)}
+.iconbtn:hover:not(:disabled){background:var(--hover);color:var(--text);box-shadow:none}
+
+/* Segmented control (pilihan 2–5) */
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--border);border-radius:var(--r-md);padding:2px;gap:2px;background:var(--surface)}
+.seg button{height:26px;padding:0 var(--s-5);border:0;border-radius:var(--r-sm);background:none;box-shadow:none;font-size:var(--fs-md);font-weight:var(--fw-medium);color:var(--text-2)}
+.seg button:hover{color:var(--text);box-shadow:none}
+.seg button.on,.seg button[aria-pressed="true"]{background:var(--sel);color:var(--text)}
+.seg.sm button{height:var(--h-xs);padding:0 var(--s-4);font-size:var(--fs-sm)}
+
+/* Tabs (navigasi antar-view) */
+.tabs{display:flex;flex-wrap:wrap;gap:2px}
+.tabs button{height:var(--h-md);padding:0 var(--s-6);border:0;border-radius:7px;background:none;box-shadow:none;font-weight:var(--fw-medium);color:var(--text-2)}
+.tabs button:hover{color:var(--text);background:var(--hover);box-shadow:none}
+.tabs button.on,.tabs button[aria-selected="true"]{background:var(--sel);color:var(--text)}
+
+/* Pill (status/angka) dan Tog (chip filter yang bisa diklik) */
+.pill{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 var(--s-4);border-radius:var(--r-pill);font-size:var(--fs-xs);font-weight:var(--fw-semibold);background:var(--sel);color:var(--text-2);white-space:nowrap}
+.pill.pos{background:var(--green-bg);color:var(--green)}
+.pill.neg{background:var(--red-bg);color:var(--red)}
+.pill.warn{background:var(--amber-bg);color:var(--amber)}
+.pill.info{background:var(--blue-bg);color:var(--blue)}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.tog{height:26px;padding:0 var(--s-5);border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);box-shadow:none;font-size:var(--fs-12);font-weight:var(--fw-medium);color:var(--text-2)}
+.tog:hover:not(:disabled){border-color:var(--border-2);box-shadow:none;color:var(--text)}
+.tog.on,.tog[aria-pressed="true"]{background:var(--text);border-color:var(--text);color:var(--surface)}
+
+/* Field (label + input) */
+.field{display:grid;gap:var(--s-2)}
+.field>span,.field>label{font-size:var(--fs-sm);color:var(--text-3);font-weight:var(--fw-medium)}
+.field small{font-size:var(--fs-2xs);color:var(--text-3)}
+.inp,.sel{height:var(--h-md);width:100%;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);padding:0 var(--s-5);font-size:var(--fs-base);outline:none;min-width:0}
+.inp.sm,.sel.sm{height:var(--h-sm);font-size:var(--fs-12);padding:0 var(--s-4)}
+.inp:focus,.sel:focus,.inp.is-focus,.sel.is-focus{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}
+.inp.custom{border-color:var(--blue);color:var(--blue);font-weight:var(--fw-semibold)}  /* nilai ≠ default */
+.inp.custom:focus,.inp.custom.is-focus{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}  /* saat fokus: border abu seperti input lain, teks tetap biru */
+
+/* Tabel data */
+.tbl-wrap{overflow:auto;border-radius:inherit}
+.tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:var(--fs-md)}
+.tbl th{position:sticky;top:0;z-index:2;height:var(--h-th);padding:0 var(--s-5);background:var(--surface);font-weight:var(--fw-medium);color:var(--text-3);text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl th.sort{cursor:pointer;user-select:none}
+.tbl th.sort:hover{color:var(--text)}
+.tbl td{height:var(--h-row);padding:0 var(--s-5);text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl th.l,.tbl td.l,.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl.compact td{height:var(--h-th)}
+.tbl tbody tr{cursor:pointer}
+.tbl tbody tr:hover td{background:var(--surface-2)}
+.tbl tbody tr.sel td{background:var(--blue-bg)}
+.tbl tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--text)}
+.tbl .sym{font-weight:var(--fw-semibold);color:var(--text)}
+.tbl .sub{display:block;font-size:var(--fs-xs);color:var(--text-3);max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.tbl td.miss{color:var(--text-3);background:repeating-linear-gradient(135deg,transparent 0 6px,var(--surface-2) 6px 7px)}
+
+/* KPI & baris label–nilai */
+.kpi{border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-4) var(--s-5)}
+.kpi span{display:block;font-size:var(--fs-xs);color:var(--text-3)}
+.kpi b{font-size:var(--fs-lg);font-weight:var(--fw-semibold)}
+.kpi.lg b{font-size:var(--fs-2xl)}
+.kv{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s-4);padding:var(--s-3) 0;font-size:var(--fs-md);color:var(--text-2);border-bottom:1px solid var(--border)}
+.kv:last-child{border-bottom:0}
+.kv b{color:var(--text);font-weight:var(--fw-medium)}
+
+/* Popover, dialog, toast */
+.pop{position:absolute;z-index:var(--z-pop);min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);padding:var(--s-3)}
+.menu-item{width:100%;height:auto;white-space:normal;line-height:var(--lh-tight);display:flex;align-items:center;gap:var(--s-4);padding:7px var(--s-4);border:0;border-radius:var(--r-sm);background:none;box-shadow:none;font-size:var(--fs-md);font-weight:var(--fw-regular);text-align:left;justify-content:flex-start}
+.menu-item:hover{background:var(--hover);box-shadow:none}
+.menu-title{font-size:var(--fs-2xs);font-weight:var(--fw-bold);color:var(--text-3);text-transform:uppercase;letter-spacing:var(--ls-caps);padding:var(--s-3) var(--s-4) var(--s-2)}
+.backdrop{position:fixed;inset:0;z-index:var(--z-modal);background:rgba(0,0,0,.32);display:grid;place-items:center;padding:var(--s-9)}
+.dialog{width:min(520px,100%);max-height:calc(100vh - 40px);display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-2xl);box-shadow:var(--shadow-lg)}
+.dialog-head{padding:var(--s-8) 18px var(--s-6);border-bottom:1px solid var(--border)}
+.dialog-head strong{display:block;font-size:var(--fs-xl);font-weight:var(--fw-semibold)}
+.dialog-body{padding:var(--s-8) 18px;overflow:auto;display:grid;gap:var(--s-7)}
+.dialog-foot{display:flex;justify-content:flex-end;gap:var(--s-4);padding:var(--s-6) 18px;border-top:1px solid var(--border)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:var(--z-toast);background:var(--text);color:var(--surface);border-radius:var(--r-pill);padding:var(--s-4) var(--s-7);font-size:var(--fs-md);box-shadow:var(--shadow-lg)}
+
+/* Lain-lain */
+.switch{position:relative;width:32px;height:18px;padding:0;border:0;border-radius:var(--r-pill);background:var(--border-2);box-shadow:none;flex:0 0 auto}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.2);transition:.15s}
+.switch.on{background:var(--text)} .switch.on::after{left:16px}
+.empty{padding:36px var(--s-9);text-align:center;color:var(--text-3)}
+.empty strong{display:block;color:var(--text);font-size:var(--fs-lg);margin-bottom:var(--s-2)}
+}
+
+/* ---------------------------------------------------------------------
+   4. UTILITAS
+   --------------------------------------------------------------------- */
+@layer edge-utilities {
+.up{color:var(--green)} .down{color:var(--red)} .muted{color:var(--text-3)} .strong{color:var(--text);font-weight:var(--fw-semibold)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.custom-val{color:var(--blue);font-weight:var(--fw-semibold)}  /* parameter yang diubah dari default */
+.row{display:flex;align-items:center;gap:var(--s-4)} .stack{display:grid;gap:var(--s-4)} .grow{flex:1;min-width:0}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+}
+
+/* =====================================================================
+   v1.1 — PERLUASAN: skala warna, tema aksen, palet chart, katalog button
+   v1.2 — State fokus input: border abu (--focus-border) + bayangan (--focus-shadow)
+   ---------------------------------------------------------------------
+   Semua bersifat TAMBAHAN (opt-in). Tanpa atribut/kelas baru, tampilan
+   halaman lama sama persis dengan v1.
+   Pilihan global (pasang di <html>):
+     data-accent="blue|green|violet|navy"   warna tombol .primary, .tog.on, .switch.on
+     data-market="tv|cb"                    pasangan naik/turun: TradingView / ramah buta warna
+     data-palette="cb|muted"                seri chart --c1…--c6 (boleh di elemen mana pun)
+   Button = gaya × warna × ukuran, bebas dikombinasikan:
+     <button class="btn solid tone-blue lg">
+     gaya  : solid | soft | outline | ghost | link
+     warna : tone-blue | tone-green | tone-red | tone-amber | tone-violet | tone-navy  (kosong = netral)
+     ukuran: xs | sm | (default) | lg | xl      bentuk: round | icon
+     state : loading | disabled | aria-busy
+   ===================================================================== */
+
+/* ---------------------------------------------------------------------
+   5. TOKEN TAMBAHAN
+   --------------------------------------------------------------------- */
+@layer edge-tokens {
+:root{
+  /* Skala warna 50–900 (tetap di terang & gelap; dipakai untuk solid, ilustrasi, heatmap) */
+  --gray-50:#fafafa; --gray-100:#f3f3f3; --gray-200:#eaeaea; --gray-300:#dcdcdc; --gray-400:#bdbdbd;
+  --gray-500:#8f8f8f; --gray-600:#6b6b6b; --gray-700:#4d4d4d; --gray-800:#2e2e2e; --gray-900:#171717;
+
+  --blue-50:#eef6ff; --blue-100:#d9eaff; --blue-200:#b8d8ff; --blue-300:#86bdff; --blue-400:#4a9bff;
+  --blue-500:#0070f3; --blue-600:#005fd1; --blue-700:#004cab; --blue-800:#003b86; --blue-900:#002b63;
+
+  --green-50:#e8f8f4; --green-100:#c6efe5; --green-200:#93e0cd; --green-300:#5ccbb0; --green-400:#26b194;
+  --green-500:#089981; --green-600:#087f5b; --green-700:#076a4d; --green-800:#07523d; --green-900:#063d2e;
+
+  --red-50:#fff0f1; --red-100:#ffdde0; --red-200:#ffbcc2; --red-300:#ff8e98; --red-400:#f85d6b;
+  --red-500:#f23645; --red-600:#d62839; --red-700:#b01e2e; --red-800:#8a1724; --red-900:#65111b;
+
+  --amber-50:#fff8eb; --amber-100:#ffecc7; --amber-200:#ffd98f; --amber-300:#fbc157; --amber-400:#f5a623;
+  --amber-500:#d9890e; --amber-600:#b45309; --amber-700:#8f4108; --amber-800:#6e3207; --amber-900:#502406;
+
+  --violet-50:#f6efff; --violet-100:#ebdcff; --violet-200:#d9bdfb; --violet-300:#c096f2; --violet-400:#a46be4;
+  --violet-500:#8a43d6; --violet-600:#7928ca; --violet-700:#621fa6; --violet-800:#4c1a82; --violet-900:#38145f;
+
+  --navy-50:#eef2fc; --navy-100:#dbe3f8; --navy-200:#b9c8f0; --navy-300:#8fa5e0; --navy-400:#5c7bd0;
+  --navy-500:#2a4bb5; --navy-600:#17348c; --navy-700:#122b75; --navy-800:#0e215a; --navy-900:#0a1740;
+
+  /* Alias semantik (ikut tema) */
+  --success:var(--green); --danger:var(--red); --warning:var(--amber); --info:var(--blue);
+  --violet-bg:rgba(121,40,202,.09); --navy-bg:rgba(23,52,140,.09);
+  --up-bg:rgba(8,153,129,.18); --down-bg:rgba(242,54,69,.18);  /* volume bar, area chart */
+
+  /* Aksen: warna tombol .primary & kontrol aktif. Default = hitam/putih (v1) */
+  --accent:var(--text); --accent-fg:var(--surface); --accent-hover:color-mix(in srgb,var(--text) 82%,var(--surface));
+
+  /* Animasi kontrol */
+  --dur:.12s; --ease:cubic-bezier(.2,.6,.2,1);
+
+  /* v1.2 — State fokus input/select/textarea: border abu tipis + bayangan lembut (menggantikan cincin biru).
+     --fk = pengali bayangan (gelap = 3 supaya tetap terlihat di latar hitam) */
+  --fk:1;
+  --focus-border:color-mix(in srgb,var(--text) 38%,transparent);
+  --focus-shadow:0 1px 2px rgba(0,0,0,calc(.06*var(--fk))),0 6px 14px -4px rgba(0,0,0,calc(.14*var(--fk)));
+}
+:root.dark,:root[data-theme="dark"]{
+  --fk:3;
+  --violet-bg:rgba(191,122,240,.13); --navy-bg:rgba(125,155,255,.13);
+  --up-bg:rgba(8,153,129,.28); --down-bg:rgba(242,54,69,.28);
+}
+
+/* Aksen — pasang data-accent di <html> atau pembungkus mana pun */
+[data-accent="blue"]  {--accent:var(--blue-600);  --accent-fg:#fff; --accent-hover:var(--blue-700)}
+[data-accent="green"] {--accent:var(--green-600); --accent-fg:#fff; --accent-hover:var(--green-700)}
+[data-accent="violet"]{--accent:var(--violet-600);--accent-fg:#fff; --accent-hover:var(--violet-700)}
+[data-accent="navy"]  {--accent:var(--navy-600);  --accent-fg:#fff; --accent-hover:var(--navy-700)}
+
+/* Seri chart alternatif — boleh di elemen mana pun */
+[data-palette="cb"]   {--c1:#0072b2; --c2:#e69f00; --c3:#009e73; --c4:#cc79a7; --c5:#d55e00; --c6:#56b4e9}  /* Okabe–Ito, aman buta warna */
+[data-palette="muted"]{--c1:#4c78a8; --c2:#f58518; --c3:#54a24b; --c4:#b279a2; --c5:#e45756; --c6:#72b7b2}  /* redup, cocok untuk banyak seri */
+
+/* Pasangan naik/turun alternatif — pasang di <html> saja */
+:root[data-market="tv"]{--up:#26a69a; --down:#ef5350; --green:#12857a; --green-bg:rgba(38,166,154,.12); --red:#d6403f; --red-bg:rgba(239,83,80,.10);
+  --up-bg:rgba(38,166,154,.20); --down-bg:rgba(239,83,80,.20)}
+:root.dark[data-market="tv"]{--green:#4dd0c4; --green-bg:rgba(77,208,196,.13); --red:#ff7a77; --red-bg:rgba(255,122,119,.13)}
+:root[data-market="cb"]{--up:#0072b2; --down:#e69f00; --green:#0a63a0; --green-bg:rgba(0,114,178,.10); --red:#a85d00; --red-bg:rgba(230,159,0,.15);
+  --up-bg:rgba(0,114,178,.20); --down-bg:rgba(230,159,0,.24)}
+:root.dark[data-market="cb"]{--green:#56b4e9; --green-bg:rgba(86,180,233,.14); --red:#f0b030; --red-bg:rgba(240,176,48,.14)}
+}
+
+/* ---------------------------------------------------------------------
+   6. BUTTON — katalog (menambah, tidak mengganti .btn v1)
+   --------------------------------------------------------------------- */
+@keyframes edge-spin{to{transform:rotate(360deg)}}
+
+@layer edge-components {
+/* .primary kini mengikuti --accent (default tetap hitam/putih) */
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+[data-accent] .btn.primary:hover:not(:disabled),[data-accent].btn.primary:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
+[data-accent] .tog.on,[data-accent] .tog[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+[data-accent] .switch.on{background:var(--accent)}
+
+/* Variabel warna per tombol (netral = default) */
+.btn{--bc:var(--text); --bc-hover:color-mix(in srgb,var(--text) 82%,var(--surface)); --bc-fg:var(--surface);
+  --bc-ink:var(--text); --bc-line:var(--border-2);
+  --bc-soft:color-mix(in srgb,var(--bc-ink) 8%,transparent); --bc-soft-2:color-mix(in srgb,var(--bc-ink) 15%,transparent);
+  transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease),color var(--dur) var(--ease)}
+.btn.tone-blue  {--bc:var(--blue-600);  --bc-hover:var(--blue-700);  --bc-fg:#fff; --bc-ink:var(--blue);  --bc-line:color-mix(in srgb,var(--blue) 45%,transparent)}
+.btn.tone-green {--bc:var(--green-600); --bc-hover:var(--green-700); --bc-fg:#fff; --bc-ink:var(--green); --bc-line:color-mix(in srgb,var(--green) 45%,transparent)}
+.btn.tone-red   {--bc:var(--red-600);   --bc-hover:var(--red-700);   --bc-fg:#fff; --bc-ink:var(--red);   --bc-line:color-mix(in srgb,var(--red) 45%,transparent)}
+.btn.tone-amber {--bc:var(--amber-600); --bc-hover:var(--amber-700); --bc-fg:#fff; --bc-ink:var(--amber); --bc-line:color-mix(in srgb,var(--amber) 45%,transparent)}
+.btn.tone-violet{--bc:var(--violet-600);--bc-hover:var(--violet-700);--bc-fg:#fff; --bc-ink:var(--violet);--bc-line:color-mix(in srgb,var(--violet) 45%,transparent)}
+.btn.tone-navy  {--bc:var(--navy-600);  --bc-hover:var(--navy-700);  --bc-fg:#fff; --bc-ink:var(--navy);  --bc-line:color-mix(in srgb,var(--navy) 45%,transparent)}
+
+/* Gaya */
+.btn.solid{background:var(--bc);color:var(--bc-fg);border-color:var(--bc)}
+.btn.solid:is(:hover:not(:disabled),.is-hover){background:var(--bc-hover);border-color:var(--bc-hover);box-shadow:var(--shadow)}
+.btn.soft{background:var(--bc-soft);color:var(--bc-ink);border-color:transparent}
+.btn.soft:is(:hover:not(:disabled),.is-hover){background:var(--bc-soft-2);border-color:transparent;box-shadow:none}
+.btn.outline{background:transparent;color:var(--bc-ink);border-color:var(--bc-line)}
+.btn.outline:is(:hover:not(:disabled),.is-hover){background:var(--bc-soft);border-color:var(--bc-line);box-shadow:none}
+.btn.ghost{color:var(--bc-ink)}
+.btn.ghost:is(:hover:not(:disabled),.is-hover){background:var(--bc-soft);box-shadow:none}
+.btn.link{height:auto;padding:0 1px;border:0;border-radius:var(--r-xs);background:none;box-shadow:none;color:var(--bc-ink);text-decoration:underline;text-underline-offset:3px;text-decoration-color:color-mix(in srgb,var(--bc-ink) 35%,transparent)}
+.btn.link:is(:hover:not(:disabled),.is-hover){border:0;box-shadow:none;text-decoration-color:currentColor}
+
+/* State umum (kelas .is-* hanya untuk dokumentasi / uji visual) */
+.btn:is(:active:not(:disabled),.is-active){transform:translateY(.5px);filter:brightness(.96)}
+.btn.is-focus{outline:2px solid var(--blue);outline-offset:2px}
+.btn.loading,.btn[aria-busy="true"]{pointer-events:none;opacity:.78}
+.btn.loading::before,.btn[aria-busy="true"]::before{content:"";width:12px;height:12px;flex:none;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:edge-spin .7s linear infinite}
+
+/* Ukuran & bentuk */
+.btn.xs{height:24px;padding:0 7px;font-size:var(--fs-sm);border-radius:var(--r-sm);gap:var(--s-2)}
+.btn.lg{height:40px;padding:0 var(--s-8);font-size:var(--fs-lg)}
+.btn.xl{height:48px;padding:0 var(--s-10);font-size:var(--fs-xl);border-radius:var(--r-lg)}
+.btn.round{border-radius:var(--r-pill)}
+.btn.icon{width:var(--h-md);padding:0}
+.btn.icon.xs{width:24px} .btn.icon.sm{width:var(--h-sm)} .btn.icon.lg{width:40px} .btn.icon.xl{width:48px}
+.btn svg{width:1.15em;height:1.15em;flex:none}
+.btn .kbd,.btn kbd{margin-left:var(--s-2);background:color-mix(in srgb,currentColor 10%,transparent);border-color:color-mix(in srgb,currentColor 18%,transparent);color:inherit;opacity:.8}
+
+/* Transisi halus untuk perubahan state fokus input (v1.2) */
+.inp,.sel{transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+
+/* Grup tombol */
+.btn-group{display:inline-flex;vertical-align:middle}
+.btn-group>.btn{border-radius:0;position:relative}
+.btn-group>.btn+.btn{margin-left:-1px}
+.btn-group>.btn:first-child{border-radius:var(--r-md) 0 0 var(--r-md)}
+.btn-group>.btn:last-child{border-radius:0 var(--r-md) var(--r-md) 0}
+.btn-group>.btn:only-child{border-radius:var(--r-md)}
+.btn-group>.btn:is(:hover,:focus-visible,.on){z-index:1}
+.btn-group>.btn.on{background:var(--sel);border-color:var(--border-2)}
+}
+
+/* shell bersama (sidebar + top bar) — hanya memakai token EDGE spec */
+html,body{width:1600px;height:var(--vh,1000px);overflow:hidden}
+svg{display:block;flex:none}
+.ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ic-sm{width:14px;height:14px}
+.ic.filled{fill:currentColor}
+.app{display:grid;grid-template-columns:220px 1fr;grid-template-rows:minmax(0,1fr);height:var(--vh,1000px);overflow:hidden}
+.side{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:var(--s-7) var(--s-6)}
+.brand{display:flex;align-items:center;gap:var(--s-5);padding:var(--s-2) var(--s-4) var(--s-8)}
+.logo{width:26px;height:26px;border-radius:var(--r-sm);background:var(--text);color:var(--surface);display:grid;place-items:center;font-weight:var(--fw-bold);font-size:13px}
+.brand b{font-size:var(--fs-lg);font-weight:var(--fw-bold);letter-spacing:.04em}
+.nav .eyebrow{padding:var(--s-8) var(--s-5) var(--s-3)}
+.nav .eyebrow:first-child{padding-top:var(--s-2)}
+.nav a{display:flex;align-items:center;gap:var(--s-5);height:var(--h-md);padding:0 var(--s-5);border-radius:var(--r-md);color:var(--text-2);font-weight:var(--fw-medium);font-size:var(--fs-base)}
+.nav a .ic{color:var(--text-3)}
+.nav a:hover{background:var(--hover);color:var(--text);text-decoration:none}
+.nav a.on{background:var(--sel);color:var(--text)}
+.nav a.on .ic{color:var(--text)}
+.nav .n{margin-left:auto;font-size:var(--fs-xs);color:var(--text-3);font-weight:var(--fw-medium)}
+.side-foot{margin-top:auto;display:flex;align-items:center;gap:var(--s-5);padding:var(--s-5) var(--s-4) 0;border-top:1px solid var(--border)}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--sel);color:var(--text-2);display:grid;place-items:center;font-size:var(--fs-xs);font-weight:var(--fw-semibold)}
+.side-foot b{display:block;font-weight:var(--fw-medium);line-height:1.3}
+.side-foot small{display:block}
+
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+
+.page{flex:1;min-height:0;display:flex;flex-direction:column;padding:var(--s-9) var(--s-10)}
+.head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:var(--s-8)}
+.head p{margin-top:var(--s-1)}
+.head .actions{display:flex;align-items:center;gap:var(--s-4)}
+.sp-fill{flex:1}
+
+/* Radar + detail filter — hanya token spec */
+.page{overflow:hidden}
+.card-h .grow{flex:1}
+.card-h .hint{color:var(--text-3);font-size:var(--fs-12);font-weight:var(--fw-regular)}
+.lbl{font-size:var(--fs-12);color:var(--text-3);white-space:nowrap}
+.bar-t{display:flex;align-items:center;gap:var(--s-7);padding:0 var(--s-7);height:52px;margin-bottom:var(--s-8);flex:none}
+.bar-t .f{display:flex;align-items:center;gap:var(--s-4)}
+.bar-t .sp{flex:1}
+.bar-t .seg{flex-wrap:nowrap}.bar-t .seg button{white-space:nowrap}
+.bar-t .btn .m{color:var(--text-3);font-weight:var(--fw-regular)}
+.bar-t .srch{width:240px;display:flex;align-items:center;gap:var(--s-4);height:var(--h-sm);border:1px solid var(--border);border-radius:var(--r-md);padding:0 var(--s-4);color:var(--text-3);font-size:var(--fs-12)}
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:var(--s-8);margin-bottom:var(--s-8);flex:none}
+.k{height:76px;padding:var(--s-5) var(--s-7);display:flex;flex-direction:column;justify-content:space-between}
+.k .lb{font-size:var(--fs-xs);color:var(--text-3);font-weight:var(--fw-medium);line-height:18px}
+.k .v{font-size:var(--fs-2xl);font-weight:var(--fw-semibold);line-height:22px}
+.k .v small{font-size:var(--fs-md);font-weight:var(--fw-regular);color:var(--text-3);margin-left:var(--s-3)}
+.k .s{font-size:var(--fs-12);line-height:16px;color:var(--text-3)}
+.sym{font-weight:var(--fw-semibold)}
+.tag{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:var(--r-xs);font-size:var(--fs-2xs);font-weight:var(--fw-semibold);background:var(--sel);color:var(--text-2);white-space:nowrap}
+.tag.new{background:var(--blue-bg);color:var(--blue)}
+.tag.warn{background:var(--amber-bg);color:var(--amber)}
+
+/* ---------- Radar ---------- */
+.rg{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:var(--s-8)}
+.fgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:var(--s-8);min-height:0}
+.fc{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.fc .card-h{padding-bottom:var(--s-2);gap:var(--s-4)}
+.fc .card-h h3{font-size:var(--fs-base)}
+.fc .ds{padding:0 var(--s-7);font-size:var(--fs-12);color:var(--text-3);line-height:16px;height:32px;overflow:hidden}
+.fc .cnt{display:flex;align-items:flex-end;justify-content:space-between;padding:var(--s-4) var(--s-7) var(--s-3)}
+.fc .cnt b{font-size:var(--fs-2xl);font-weight:var(--fw-semibold);line-height:22px}
+.fc .cnt b small{font-size:var(--fs-12);font-weight:var(--fw-regular);color:var(--text-3);margin-left:var(--s-3)}
+.fc .cnt svg{display:block}
+.fc .rows{flex:1;min-height:0;border-top:1px solid var(--border)}
+.fr{display:grid;grid-template-columns:52px minmax(0,1fr) 58px;gap:var(--s-4);align-items:center;height:30px;padding:0 var(--s-7);font-size:var(--fs-12);border-bottom:1px solid var(--border)}
+.fr:last-child{border-bottom:0}
+.fr .r{text-align:right}
+.fr .t{display:flex;gap:var(--s-3);align-items:center;min-width:0}
+.fc .ft{padding:var(--s-4) var(--s-7) var(--s-5);display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-12);color:var(--text-3);border-top:1px solid var(--border)}
+.fc .ft a{color:var(--text);font-weight:var(--fw-medium);display:inline-flex;align-items:center;gap:var(--s-2)}
+.ms{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.mr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--s-2) var(--s-4);padding:var(--s-4) var(--s-8);border-top:1px solid var(--border)}
+.mr .sym{font-size:var(--fs-md)}
+.mr .n{font-size:var(--fs-12);color:var(--text-3)}
+.mr .c{text-align:right;font-size:var(--fs-12);font-weight:var(--fw-medium)}
+.mr .fs{grid-column:1/3;display:flex;gap:var(--s-2);flex-wrap:wrap}
+.cust{padding:var(--s-5) var(--s-8);border-top:1px solid var(--border);margin-top:auto}
+.cust .eyebrow{margin-bottom:var(--s-3)}
+.cust .ci{display:flex;justify-content:space-between;font-size:var(--fs-12);padding:3px 0;color:var(--text-2)}
+.cust .ci b{font-weight:var(--fw-medium);color:var(--text)}
+
+/* ---------- Detail ---------- */
+.rule{display:flex;align-items:center;flex-wrap:nowrap;gap:var(--s-4);padding:var(--s-5) var(--s-7);margin-bottom:var(--s-8);flex:none;overflow:hidden}
+.rule>*{flex:none}.rule .sp{flex:1}
+.chip{display:inline-flex;align-items:center;gap:var(--s-3);height:30px;padding:0 var(--s-4) 0 var(--s-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-size:var(--fs-md);color:var(--text);white-space:nowrap}
+.chip .bd{width:18px;height:18px;border-radius:var(--r-xs);background:var(--sel);color:var(--text-2);font-size:var(--fs-2xs);font-weight:var(--fw-bold);display:grid;place-items:center}
+.chip .op{color:var(--text-3)}
+.chip b{font-weight:var(--fw-semibold)}
+.chip b.cu{color:var(--blue)}
+.chip.plain{padding:0 var(--s-4)}
+.top3{display:grid;grid-template-columns:minmax(0,1fr) var(--rail-w);gap:var(--s-8);margin-bottom:var(--s-8);flex:none}
+.hist{padding:0 var(--s-7) var(--s-5);position:relative;flex:1;min-height:150px}
+.hist>svg{position:absolute;left:var(--s-7);top:0;display:block}
+.top3>.card:first-child{display:flex;flex-direction:column}
+.hs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s-5);padding:0 var(--s-8)}
+.hs .v{font-size:var(--fs-xl);font-weight:var(--fw-semibold)}
+.hs .l{font-size:var(--fs-xs);color:var(--text-3)}
+.hnote{padding:var(--s-5) var(--s-8) var(--s-6);font-size:var(--fs-12);color:var(--text-3);display:flex;justify-content:space-between;align-items:center}
+.dg{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) var(--rail-w);gap:var(--s-8)}
+.ct{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ct .tbl th,.ct .tbl td{font-size:var(--fs-12)}
+.ct .tbl td{height:40px}
+.ct .tbl th:first-child,.ct .tbl td:first-child{padding-left:var(--s-8)}
+.ct .tbl th:last-child,.ct .tbl td:last-child{padding-right:var(--s-8)}
+.ct .tk b{display:block;font-weight:var(--fw-semibold);font-size:var(--fs-md);line-height:15px}
+.ct .tk small{color:var(--text-3);font-size:var(--fs-xs)}
+.dots{display:inline-flex;gap:3px;vertical-align:middle}
+.dots i{width:16px;height:16px;border-radius:var(--r-xs);display:grid;place-items:center;font-style:normal;font-size:9.5px;font-weight:var(--fw-bold);background:var(--text);color:var(--surface)}
+.dots i.off{background:var(--gray-100);color:var(--text-3)}
+.pb{display:inline-flex;align-items:center;gap:var(--s-3);justify-content:flex-end}
+.pb .tr{width:56px;height:5px;border-radius:3px;background:var(--gray-200);position:relative}
+.pb .tr i{position:absolute;top:-2px;width:3px;height:9px;border-radius:1px;background:var(--gray-500)}
+.pb.hi .tr i{background:var(--text)}
+.pb.hi b{font-weight:var(--fw-semibold)}
+.pv{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.pv .sec{padding:0 var(--s-8) var(--s-6)}
+.pv .sec+.sec{border-top:1px solid var(--border);padding-top:var(--s-6)}
+.pv .eyebrow{margin-bottom:var(--s-4)}
+.chk{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:var(--s-4);align-items:center;padding:4px 0;font-size:var(--fs-12)}
+.chk .ok{color:var(--green)}
+.chk span{color:var(--text-2)}
+.chk b{font-weight:var(--fw-medium)}
+.kv2{display:flex;justify-content:space-between;padding:4px 0;font-size:var(--fs-12);color:var(--text-2)}
+.kv2 b{font-weight:var(--fw-medium);color:var(--text)}
+.acts{display:grid;grid-template-columns:1fr;gap:var(--s-3);margin-top:var(--s-4)}
+.acts .btn{justify-content:center}
+/* universe picker — sama dengan Market Overview */
+.uni{width:240px;justify-content:flex-start;gap:var(--s-4);padding:0 var(--s-5);font-weight:var(--fw-regular);color:var(--text-3)}
+.uni .ic{color:var(--text-3)}
+.uni .uv{flex:1;text-align:left;display:flex;align-items:center;gap:var(--s-4);color:var(--text)}
+.uni .uv b{font-weight:var(--fw-semibold)}
+.uni .uv span{color:var(--text-3)}
+.ct td.l .tag+.tag{margin-left:3px}
+.fc .ft span,.fc .ft a{white-space:nowrap}.fc .cnt b small{white-space:nowrap}.fc .cnt{gap:var(--s-4)}
+
+/* opsi layout Radar — tambahan di atas radar.css */
+.tbl th,.tbl td{font-size:var(--fs-12)}
+.card .tbl th:first-child,.card .tbl td:first-child{padding-left:var(--s-8)}
+.card .tbl th:last-child,.card .tbl td:last-child{padding-right:var(--s-8)}
+.card .tbl tbody tr:last-child td{border-bottom:0}
+.tbl td.l small,.tk small{display:block;color:var(--text-3);font-size:var(--fs-xs);line-height:14px}
+.tk b,.fn{display:block;font-weight:var(--fw-semibold);font-size:var(--fs-md);line-height:16px}
+.big{font-size:var(--fs-lg);font-weight:var(--fw-semibold)}
+.tkc{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;margin:0 4px 0 0;border:1px solid var(--border);border-radius:var(--r-sm);font-size:var(--fs-12);font-weight:var(--fw-semibold);background:var(--surface);white-space:nowrap}
+.tkc.nw{border-color:var(--blue);color:var(--blue);background:var(--blue-bg)}
+.tkc.out{color:var(--text-3);text-decoration:line-through;text-decoration-color:var(--gray-400)}
+.tkc.out i{font-style:normal;text-decoration:none;display:inline-grid;place-items:center;width:15px;height:15px;border-radius:var(--r-xs);background:var(--red-bg);color:var(--red);font-size:9.5px;font-weight:var(--fw-bold)}
+.tkc i{font-style:normal;font-weight:var(--fw-medium)}
+.tkc.lg{height:28px;padding:0 9px;margin:0 6px 6px 0;font-size:var(--fs-md)}
+.more{font-size:var(--fs-12);color:var(--text-3)}
+.ft1 .tbl td{height:58px}
+.ft1,.ct,.mxc,.chg,.feed,.act{overflow:hidden;min-height:0}
+/* 2 */
+.tabsc{padding:var(--s-3);margin-bottom:var(--s-8);flex:none}
+.ftabs{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:var(--s-2)}
+.ftabs button{height:52px;border:0;border-radius:var(--r-md);background:none;box-shadow:none;display:grid;grid-template-columns:1fr auto;align-items:center;text-align:left;padding:0 var(--s-5);gap:0 var(--s-3)}
+.ftabs button span{font-size:var(--fs-12);color:var(--text-2);font-weight:var(--fw-medium)}
+.ftabs button b{font-size:var(--fs-xl);font-weight:var(--fw-semibold);grid-row:1/3;grid-column:2}
+.ftabs button i{font-style:normal;font-size:var(--fs-xs);color:var(--blue)}
+.ftabs button.on{background:var(--sel)}
+.rg2{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:var(--s-8)}
+.ct .tbl td{height:40px}
+/* 3 */
+.mtx td,.mtx th{height:28px!important}
+.mtx th.c,.mtx td.c{text-align:center;padding:0 2px;width:46px}
+.dt{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--text);vertical-align:middle}
+.dt.nw{background:var(--blue);box-shadow:0 0 0 3px var(--blue-bg)}
+.dt.off{background:none;box-shadow:inset 0 0 0 1px var(--gray-300);width:7px;height:7px}
+.lg2{padding:0 var(--s-8) var(--s-6);display:flex;flex-direction:column;gap:var(--s-4);font-size:var(--fs-12);color:var(--text-2)}
+.lg2 div{display:flex;align-items:center;gap:var(--s-4)}
+.dist{padding:0 var(--s-8) var(--s-6)}
+.dr{display:grid;grid-template-columns:70px 1fr 28px;gap:var(--s-4);align-items:center;font-size:var(--fs-12);color:var(--text-2);padding:3px 0}
+.dr .b{height:10px;background:var(--gray-100);border-radius:2px;overflow:hidden}.dr .b i{display:block;height:100%;background:var(--gray-600)}
+.dr b{text-align:right;font-weight:var(--fw-medium)}
+/* 4 */
+.rg4{flex:1;min-height:0;display:grid;grid-template-columns:280px minmax(0,1fr);gap:var(--s-8)}
+.side{display:flex;flex-direction:column}
+.fl{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:var(--s-4);align-items:center;padding:var(--s-4) var(--s-7);border-top:1px solid var(--border)}
+.fl b{display:block;font-weight:var(--fw-semibold);font-size:var(--fs-md)}.fl small{display:block;color:var(--text-3);font-size:var(--fs-xs)}
+.fl em{font-style:normal;font-weight:var(--fw-semibold)}
+.cb{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--gray-400);display:grid;place-items:center}
+.cb.on{background:var(--text);border-color:var(--text);color:var(--surface)}.cb .ic{width:12px;height:12px}
+.side-f{margin-top:auto;border-top:1px solid var(--border);padding:var(--s-5) var(--s-7)}
+.opt2{display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-12);color:var(--text-2);padding:5px 0}
+.grp{display:flex;align-items:center;gap:var(--s-4);padding:var(--s-4) var(--s-8);background:var(--gray-50);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:var(--fs-xs);font-weight:var(--fw-semibold);letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.grp span{color:var(--text)}.grp a{display:inline-flex;align-items:center;gap:3px;text-transform:none;letter-spacing:0;color:var(--text);font-weight:var(--fw-medium)}
+.fd{display:grid;grid-template-columns:220px minmax(0,1fr) 70px 70px 70px 120px;gap:var(--s-5);align-items:center;height:42px;padding:0 var(--s-8);border-bottom:1px solid var(--border);font-size:var(--fs-12)}
+.fd .ft{display:flex;gap:4px}.fd .r{text-align:right}.fd .acts2{display:flex;gap:var(--s-2);justify-content:flex-end}
+/* 5 */
+.act{margin-bottom:var(--s-8);flex:none}
+.hm2{width:100%;border-collapse:separate;border-spacing:3px;padding:0 var(--s-6) var(--s-6)}
+.hm2 th{font-size:var(--fs-xs);color:var(--text-3);font-weight:var(--fw-medium);text-align:center;height:28px;line-height:12px}
+.hm2 th small{display:block;font-size:9.5px}
+.hm2 th.l,.hm2 td.l{text-align:left;padding-left:var(--s-3);width:210px}
+.hm2 td.l b{display:block;font-weight:var(--fw-semibold);font-size:var(--fs-md)}.hm2 td.l small{display:block;color:var(--text-3);font-size:var(--fs-xs)}
+.hm2 td{text-align:center;font-size:var(--fs-12);height:38px}
+.hm2 td span{display:grid;place-items:center;height:32px;border-radius:var(--r-xs);font-weight:var(--fw-medium)}
+.hm2 td.td span{box-shadow:inset 0 0 0 2px var(--blue)}
+.hm2 th.td{color:var(--blue);font-weight:var(--fw-semibold)}
+.hm2 tr.on td.l b{text-decoration:underline;text-underline-offset:3px}
+.rg5{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) var(--rail-w);gap:var(--s-8)}
+.chips2{padding:0 var(--s-8) var(--s-6);display:flex;flex-wrap:wrap}
+/* 6 */
+.kb{flex:1;min-height:0;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:var(--s-5)}
+.kc{display:flex;flex-direction:column;min-height:0;overflow:hidden;background:var(--gray-50)}
+.kc.on{border-color:var(--border-2);box-shadow:var(--shadow)}
+.kh{padding:var(--s-5) var(--s-5) var(--s-4);background:var(--surface);border-bottom:1px solid var(--border);border-radius:var(--r-xl) var(--r-xl) 0 0}
+.kh b{font-weight:var(--fw-semibold)}.kh em{font-style:normal;font-weight:var(--fw-semibold);font-size:var(--fs-lg)}
+.kh small{display:block;color:var(--text-3);font-size:var(--fs-xs);line-height:14px;height:28px;overflow:hidden;margin-top:2px}
+.kl{padding:var(--s-4);display:flex;flex-direction:column;gap:var(--s-3)}
+.ki{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-3) var(--s-4)}
+.ki .t{display:flex;justify-content:space-between;font-size:var(--fs-12)}.ki .t b{font-weight:var(--fw-semibold);font-size:var(--fs-md)}
+.ki .t2{display:flex;gap:3px;margin-top:3px}
+/* 7 */
+.sx td span{height:30px}.sx td span.sel{box-shadow:0 0 0 2px var(--blue)}
+/* 8 */
+.kpis.k3{grid-template-columns:repeat(4,minmax(0,1fr))}
+.chg .tbl td{height:50px}
+/* 9 */
+.rg9{flex:1;min-height:0;display:grid;grid-template-columns:260px minmax(0,1fr) 330px;gap:var(--s-8)}
+.nav9{overflow:hidden}
+.ni{display:flex;justify-content:space-between;gap:var(--s-4);padding:var(--s-4) var(--s-7);border-top:1px solid var(--border)}
+.ni.on{background:var(--sel)}
+.ni b{display:block;font-weight:var(--fw-semibold);font-size:var(--fs-md)}.ni small{display:block;color:var(--text-3);font-size:var(--fs-xs);line-height:14px}
+.ni .r{display:flex;flex-direction:column;align-items:flex-end;gap:3px}.ni em{font-style:normal;font-weight:var(--fw-semibold);font-size:var(--fs-lg)}
+.rule2{display:flex;flex-wrap:wrap;gap:var(--s-3);padding:0 var(--s-8) var(--s-5)}
+/* 10 */
+.tmc2{display:flex;flex-direction:column;min-height:0}
+.tm2{position:relative;flex:1;min-height:0;margin:0 var(--s-7) var(--s-5);border-radius:var(--r-md);overflow:hidden}
+.sh2{position:absolute;padding:1px 4px;font-size:var(--fs-2xs);font-weight:var(--fw-semibold);color:var(--text-2);white-space:nowrap;overflow:hidden;line-height:15px}
+.tl2{position:absolute;padding:4px 5px;box-shadow:inset 0 0 0 1px var(--surface);font-size:var(--fs-xs);line-height:1.25;overflow:hidden}
+.tl2 b{display:block;font-weight:var(--fw-semibold)}.tl2 span{font-size:var(--fs-2xs);opacity:.9}
+.tl2.nw{box-shadow:inset 0 0 0 1px var(--surface),inset 0 0 0 3px var(--blue)}
+.legend{display:flex;gap:var(--s-7);padding:0 var(--s-8) var(--s-6);font-size:var(--fs-12);color:var(--text-3);align-items:center}
+.legend i{display:inline-block;vertical-align:middle;margin-right:var(--s-3)}.legend .sw{width:14px;height:10px;border-radius:2px}
+.rg5 .card{overflow:hidden}
+
+/* prototype layer: makes the static mockup scroll and respond; reuses EDGE tokens */
+html,body{width:auto;height:100%;overflow:hidden}
+.app{height:100vh}
+.page{overflow:auto}
+.nav a{cursor:pointer}
+.side-foot{cursor:pointer;border-radius:var(--r-md)}
+.side-foot:hover{background:var(--hover)}
+/* kanban as real controls */
+.kb{min-height:560px}
+.kc{display:flex;flex-direction:column;min-height:0}
+.kc .kh{display:block;width:100%;height:auto;text-align:left;border:0;border-bottom:1px solid var(--border);border-radius:var(--r-xl) var(--r-xl) 0 0;box-shadow:none;cursor:pointer;font:inherit;color:var(--text)}
+.kc .kh:hover{background:var(--hover)}
+.kl{overflow:auto;flex:1;min-height:0}
+.ki{display:block;width:100%;height:auto;text-align:left;font:inherit;color:var(--text);cursor:pointer;box-shadow:none}
+.ki:hover{border-color:var(--border-2);box-shadow:var(--shadow)}
+.empty-col{color:var(--text-3);font-size:var(--fs-12);text-align:center;margin:var(--s-6) 0}
+.kb{position:relative}
+.kb-empty{position:absolute;left:50%;top:120px;transform:translateX(-50%);padding:var(--s-8);display:flex;flex-direction:column;gap:var(--s-4);align-items:center;text-align:center;box-shadow:var(--shadow-lg)}
+.bar-t .srch{position:relative}.bar-t .srch input{border:0;outline:none;background:none;font:inherit;font-size:var(--fs-12);color:var(--text);flex:1;min-width:0}
+.bar-t .srch:focus-within{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}
+.clr{width:20px;height:20px;padding:0;border:0;background:none;box-shadow:none;color:var(--text-3);display:grid;place-items:center;cursor:pointer;border-radius:var(--r-xs)}
+.clr:hover{background:var(--hover);color:var(--text)}
+.seg button[disabled]{opacity:.45;cursor:not-allowed}
+/* menus */
+.menu{padding:var(--s-3)}
+.menu-item{justify-content:space-between;cursor:pointer}
+.menu-item.on{background:var(--sel);font-weight:var(--fw-medium)}
+.menu-item[disabled]{color:var(--text-3);cursor:not-allowed}
+.menu-item .mr{color:var(--text-3);font-size:var(--fs-xs)}
+.menu-item:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.menu-note{padding:var(--s-3) var(--s-4) var(--s-2);font-size:var(--fs-xs);color:var(--text-3);line-height:15px}
+/* detail */
+.chip{cursor:pointer;height:30px;box-shadow:none;font:inherit;font-size:var(--fs-md)}
+.chip:hover{border-color:var(--border-2)}
+.ct{min-height:0}.dg{flex:none}.ct .tbl-wrap{overflow:auto}
+.ct .tbl tbody tr[data-s]{cursor:pointer}
+.ct .tbl tbody tr[data-s]:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.ct .tbl tr.sep td{height:30px;background:var(--gray-50);color:var(--text-3);font-size:var(--fs-xs);font-weight:var(--fw-semibold);letter-spacing:.04em}
+.btn.on-follow{background:var(--sel)}
+.lk{background:none;border:0;box-shadow:none;height:auto;padding:0;font:inherit;font-weight:var(--fw-medium);color:var(--text);display:inline-flex;align-items:center;gap:2px;cursor:pointer}
+.lk:hover{text-decoration:underline;text-underline-offset:3px}
+.chk .no{color:var(--red)}
+.blk{display:inline-flex;gap:2px;vertical-align:middle;margin-right:var(--s-3)}.blk i{width:5px;height:11px;border-radius:1px;background:var(--text)}
+.acts{padding:0 var(--s-8) var(--s-6)}
+/* modal + toast */
+.backdrop{position:fixed}
+.dialog{width:480px}
+.dialog-head{display:flex;align-items:flex-start;gap:var(--s-5)}
+.dialog-head p{color:var(--text-3);margin:var(--s-2) 0 0;font-size:var(--fs-md);line-height:18px}
+.dialog-head .x{margin-left:auto;width:28px;height:28px;padding:0;justify-content:center;color:var(--text-3)}
+.dialog-foot{justify-content:space-between}.dialog-foot .r{display:flex;gap:var(--s-4)}
+.note2{display:flex;gap:var(--s-4);padding:var(--s-5) var(--s-6);background:var(--gray-50);border:1px solid var(--border);border-radius:var(--r-lg);font-size:var(--fs-12);color:var(--text-2);line-height:17px}
+.note2 .ic{color:var(--text-3);margin-top:1px}
+.err{font-size:var(--fs-xs);color:var(--red)}
+.inp.bad{border-color:var(--red)}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:var(--z-toast);background:var(--text);color:var(--surface);border-radius:var(--r-pill);padding:var(--s-4) var(--s-7);font-size:var(--fs-md);box-shadow:var(--shadow-lg);max-width:80vw}
+#toast[hidden]{display:none}
+.missing{max-width:520px;margin:80px auto;padding:var(--s-10);display:grid;gap:var(--s-5);justify-items:start}
+.missing h1{margin:0}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+@media (max-width:1200px){.kb{grid-template-columns:repeat(4,minmax(200px,1fr))}.kc{min-height:420px}.top3,.dg{grid-template-columns:1fr}.rule{flex-wrap:wrap}}
+.kc .kh small{white-space:normal}
+.ki,.kc .kh{white-space:normal}
+
+/* sidebar removed */
+.app{grid-template-columns:minmax(0,1fr)}
+/* clickable histogram */
+#h60{outline:none;border-radius:var(--r-md)}#h60:focus-visible{box-shadow:0 0 0 2px var(--blue)}
+#h60 .hb{cursor:pointer}#h60 .hb:hover{fill:color-mix(in srgb,var(--text) 6%,transparent)}
+.dayp{margin:var(--s-4) var(--s-8) 0;border-top:1px solid var(--border);padding:var(--s-5) 0 var(--s-6)}
+.dayp .dh{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-2) var(--s-5);font-size:var(--fs-md);margin-bottom:var(--s-4)}
+.dayp .dh b{font-weight:var(--fw-semibold)}
+.dchips{display:flex;flex-wrap:wrap;gap:6px;max-height:96px;overflow-y:auto;align-content:flex-start}
+.dchips .tkc{cursor:pointer;margin:0;font:inherit;font-size:var(--fs-12);font-weight:var(--fw-semibold);box-shadow:none}
+.dchips .tkc:not(.nw):hover{border-color:var(--border-2)}
+.tkc.gone{color:var(--text-3);background:var(--gray-50);border-style:dashed}
+.dleg{margin:var(--s-4) 0 0;font-size:var(--fs-xs);color:var(--text-3);display:flex;align-items:center;gap:6px}
+.dleg .tkc{height:18px;font-size:var(--fs-2xs);margin:0}
+/* today card */
+.tdy .hs{margin-bottom:var(--s-4)}
+.tdl{display:grid;grid-template-columns:96px minmax(0,1fr);gap:var(--s-4);align-items:center;padding:var(--s-3) var(--s-8);font-size:var(--fs-12)}
+.tdl .tk3{display:flex;flex-wrap:wrap;gap:4px}.tdl .tkc{margin:0;height:20px;font-size:var(--fs-xs)}
+.tdy .hnote{border-top:1px solid var(--border);margin-top:var(--s-4);padding-top:var(--s-4)}
+
+/* candidates: Table | Cards */
+.vt-seg{margin-left:var(--s-5)}.vt-seg button{display:inline-flex;align-items:center;gap:5px}.vt-seg .ic{width:13px;height:13px}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:var(--s-6);padding:0 var(--s-7) var(--s-7);align-content:start}
+.cc2{padding:var(--s-5) var(--s-6);display:flex;flex-direction:column;gap:var(--s-3);cursor:pointer;min-width:0;border-radius:var(--r-lg)}
+.cc2:hover{border-color:var(--border-2);box-shadow:var(--shadow)}
+.cc2.picked{border-color:var(--border-2);box-shadow:var(--shadow)}
+.cc2:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.cc2.nm{background:var(--gray-50)}.cc2.nm .t b,.cc2.nm .pr b{color:var(--text-2)}
+.cc2 .t{display:flex;align-items:center;gap:var(--s-3)}.cc2 .t b{font-size:var(--fs-lg);font-weight:var(--fw-semibold)}.cc2 .t .sp{flex:1}
+.cc2 .nm2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:var(--fs-xs)}
+.cc2 .pr{display:flex;gap:var(--s-4);align-items:baseline;font-size:var(--fs-12)}.cc2 .pr b{font-size:var(--fs-md);font-weight:var(--fw-semibold)}
+.cspark{display:block;width:100%;height:40px}
+.cc2 .kvs2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px var(--s-4);font-size:var(--fs-xs);color:var(--text-3)}
+.cc2 .kvs2 span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cc2 .kvs2 b{color:var(--text);font-weight:var(--fw-medium)}
+.cc2 .ft{display:flex;align-items:center;gap:3px;flex-wrap:wrap;font-size:var(--fs-xs);border-top:1px solid var(--border);padding-top:var(--s-3)}.cc2 .ft .sp{flex:1}
+.rk{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--sel);font-size:var(--fs-2xs);font-weight:var(--fw-bold);color:var(--text-2)}
+.cg-sep{grid-column:1/-1;font-size:var(--fs-xs);font-weight:var(--fw-semibold);letter-spacing:.04em;color:var(--text-3);padding-top:var(--s-3);border-top:1px solid var(--border)}
+.cg-empty{grid-column:1/-1;text-align:center;padding:var(--s-9) 0;margin:0}
+
+/* preview hugs its content and stays in view while the candidate list scrolls */
+.dg{align-items:start}.dg>.pv{position:sticky;top:0}
+
+
+.cc2 .kvs2 span.full{grid-column:1/-1}
+
+/* ---------- State layer: selaras Market Screener v21 ----------
+   Satu bahasa state untuk semua komponen, diturunkan dari token (terang/gelap otomatis).
+   Aturan lama yang bentrok (hover baris, tepi chip terbuka, dsb.) sudah dihapus, bukan ditimpa. */
+:root{
+  --focus-border:var(--text-3);--focus-shadow:none;               /* fokus input & search: garis abu 1px, tanpa bayangan */
+  --shadow-sm:0 1px 2px rgba(0,0,0,.06),0 2px 8px -2px rgba(0,0,0,.10);
+  --pick:color-mix(in srgb,var(--blue) 6%,var(--surface));        /* baris terpilih */
+  --pick-hover:color-mix(in srgb,var(--blue) 9%,var(--surface));  /* baris terpilih + hover */
+  --raise:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border-2);    /* pilihan aktif di segmented */
+}
+:root.dark,:root[data-theme="dark"]{--shadow-sm:0 1px 2px rgba(0,0,0,.45),0 2px 8px -2px rgba(0,0,0,.55)}
+/* Terpilih */
+.seg{background:var(--surface-2)}
+.seg button.on,.seg button[aria-pressed="true"],.seg button[aria-selected="true"],.seg button[aria-checked="true"]{background:var(--surface);color:var(--text);box-shadow:var(--raise)}
+.tbl tbody tr.on td{background:var(--pick)}
+.tbl tbody tr.on td:first-child{box-shadow:inset 3px 0 0 var(--text)}
+/* Hover */
+.tbl tbody tr.on:hover td{background:var(--pick-hover)}
+.bar-t .srch:hover:not(:focus-within){border-color:var(--border-2)}
+.uni:hover:not(:disabled){border-color:var(--border-2);box-shadow:none}
+/* Pemicu menu yang sedang terbuka (berlaku untuk semua elemen dengan aria-haspopup) */
+[aria-haspopup][aria-expanded="true"],[aria-haspopup][aria-expanded="true"]:hover:not(:disabled){background:var(--sel);border-color:transparent;box-shadow:var(--shadow-sm)}
+
+
+/* scrollbars: thin, neutral, theme-aware */
+*::-webkit-scrollbar{width:4px;height:4px}
+*::-webkit-scrollbar-track,*::-webkit-scrollbar-corner{background:transparent}
+*::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--text-3) 40%,transparent);border-radius:999px}
+*::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--text-3) 65%,transparent)}
+@supports not selector(::-webkit-scrollbar){*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--text-3) 45%,transparent) transparent}}
+
+/* layout: one width for the right-hand column everywhere (Radar, detail top row, detail candidates row) */
+:root{--rail-w:380px;--ihsg:#1f3a68}
+:root.dark,:root[data-theme="dark"]{--ihsg:#8fb0e6}
+/* chart legend */
+.chart-h{flex-wrap:wrap;row-gap:var(--s-2)}
+.lg{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-12);color:var(--text-3);margin-left:var(--s-4)}
+.lg .sw{display:inline-block;flex:none}
+.lg .sw.bar{width:8px;height:10px;border-radius:1px;background:var(--gray-300)}
+.lg .sw.ln{width:14px;height:0;border-top:1.5px solid var(--ihsg)}
+/* candidates: title row, then one toolbar row (search | universe | liquidity | sort) */
+.ct .card-h>:not(.grow){flex:none;white-space:nowrap}
+.ct{container-type:inline-size}
+.ct-head{display:grid;grid-template-columns:1fr;grid-template-areas:"l" "r";align-items:center;gap:var(--s-5) var(--s-4);padding:var(--s-7) var(--s-8) var(--s-6)}
+.ct-head .card-h{grid-area:l;padding:0}
+.ct-head .srch{width:240px;display:flex;align-items:center;gap:var(--s-4);height:var(--h-sm);border:1px solid var(--border);border-radius:var(--r-md);padding:0 var(--s-4);color:var(--text-3);font-size:var(--fs-12);background:var(--surface);position:relative;min-width:0}
+.ct-head .srch input{border:0;outline:none;background:none;font:inherit;font-size:var(--fs-12);color:var(--text);flex:1;min-width:0}
+.ct-head .srch:hover:not(:focus-within){border-color:var(--border-2)}
+.ct-head .srch:focus-within{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}
+.ct-r{grid-area:r;display:flex;align-items:center;justify-content:flex-end;gap:var(--s-4);flex-wrap:wrap}
+.ct-r .uni{width:152px}
+.ct-r .sortg{display:flex;align-items:center;gap:var(--s-4)}.ct-r .seg button{white-space:nowrap}
+/* wide card: one row (title group | search + filters + sort). Narrower: title row, then toolbar row. */
+@container (min-width:1220px){.ct-head{grid-template-columns:1fr auto;grid-template-areas:"l r"}}
+/* preview: price chart hover */
+.pvw{position:relative}
+.ptip{position:absolute;top:0;pointer-events:none;z-index:2;display:flex;align-items:center;gap:var(--s-4);padding:5px 8px;background:var(--surface);border:1px solid var(--border-2);border-radius:var(--r-md);box-shadow:var(--shadow);font-size:var(--fs-12);white-space:nowrap}
+.ptip[hidden]{display:none}.ptip .tp{font-variant-numeric:tabular-nums;font-weight:var(--fw-semibold)}
+.pvh{cursor:crosshair}
+.pv .acts{margin-top:0;padding-top:var(--s-6);border-top:1px solid var(--border)}
+
+/* ===== R10 additions ===== */
+/* EDGE shell rail (apps/edge-bff/static/index.html .side-nav, EXEC-NAV-LEFT): 56 px, 40 px buttons, 22 px icons at
+   stroke 1.7; shown here only so the new Radar icon can be judged in place. In EDGE the rail belongs to the shell and
+   the Radar page runs in its frame. */
+.app{grid-template-columns:56px minmax(0,1fr)}
+.side-nav{grid-column:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0;border-right:1px solid var(--border);background:var(--surface);min-height:0}
+.side-nav>button,.side-nav .side-actions>button{position:relative;display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:10px;background:none;color:var(--text-2);cursor:pointer;padding:0}
+.side-nav .side-actions>button{width:36px;height:36px}
+.side-nav>button:hover,.side-nav .side-actions>button:hover{background:var(--hover);color:var(--text)}
+.side-nav>button.active{background:var(--sel);color:var(--text)}
+.side-nav>button.active::before{content:"";position:absolute;left:-8px;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--text)}
+.side-nav button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.side-nav .brand-mark{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:var(--text);color:var(--surface);font-weight:700;margin-bottom:6px}
+.side-nav .side-actions{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:auto;padding-top:10px;border-top:1px solid var(--border);width:36px}
+.side-nav .side-actions>button.avatar{width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);font-weight:600;font-size:12px;margin-top:4px;cursor:pointer}
+.side-nav svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.side-nav .side-actions svg{width:20px;height:20px}
+.side-nav [data-tip]:hover::after,.side-nav [data-tip]:focus-visible::after{content:attr(data-tip);position:absolute;z-index:200;left:calc(100% + 12px);top:50%;transform:translateY(-50%);padding:6px 10px;border-radius:6px;background:#111;color:#fff;font:500 12px/1.2 var(--sans);white-space:nowrap;pointer-events:none;box-shadow:0 4px 12px rgb(0 0 0 / .18)}
+:root[data-theme="dark"] .side-nav [data-tip]:hover::after,:root[data-theme="dark"] .side-nav [data-tip]:focus-visible::after{background:#f4f4f5;color:#111}
+.side-nav .new-dot{position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--blue)}
+.main{grid-column:2}
+/* board: seven filters */
+.kb{grid-template-columns:repeat(7,minmax(0,1fr))}
+.bar-t .gh{font-size:var(--fs-xs);margin-left:calc(-1 * var(--s-3));white-space:nowrap}
+.kc .kh small{min-height:2.7em}
+/* detail */
+.crumb{margin:0 0 var(--s-2)}.crumb .lk{display:inline-flex;align-items:center;gap:2px;color:var(--text-3)}
+.note-read{display:flex;gap:var(--s-4);align-items:flex-start;padding:var(--s-5) var(--s-8);margin-bottom:var(--s-8);color:var(--text-2);font-size:var(--fs-md);line-height:var(--lh-tight)}
+.note-read .ic{flex:none;margin-top:1px;color:var(--text-3)}.note-read b{color:var(--text);font-weight:var(--fw-semibold)}
+.conds{display:flex;flex-wrap:wrap;gap:var(--s-3) var(--s-8);padding:0 var(--s-8) var(--s-5);font-size:var(--fs-xs);color:var(--text-2)}
+.conds span{display:inline-flex;align-items:center;gap:var(--s-3)}
+.conds i,.ck{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:3px;background:var(--text);color:var(--surface);font-style:normal;font-size:9.5px;font-weight:700}
+.ck{margin-right:var(--s-3)}.ck.off{background:var(--sel);color:var(--text-3)}
+.tbl tr.nm td{color:var(--text-3)}
+.eyebrow2{display:block;font-size:var(--fs-xs);font-weight:var(--fw-semibold);color:var(--text-3);margin-bottom:var(--s-3)}
+.flagnote{display:flex;gap:var(--s-4);margin:0 var(--s-8) var(--s-5);padding:var(--s-4) var(--s-5);border-radius:var(--r-md);background:var(--amber-bg);color:var(--amber);font-size:var(--fs-xs);line-height:var(--lh-tight)}
+.flagnote .ic{flex:none}
+/* phone: EDGE hides its rail below 720 px; the board scrolls sideways one filter at a time */
+@media (max-width:720px){
+ .app{grid-template-columns:minmax(0,1fr)}.side-nav{display:none}.main{grid-column:1}
+ .page{padding:var(--s-8)}
+ .head{flex-direction:column;align-items:flex-start;gap:var(--s-5)}.head .actions{flex-wrap:wrap}
+ .bar-t{flex-wrap:wrap;gap:var(--s-4)}.bar-t .srch{width:100%}
+ .kb{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:var(--s-5);min-height:0}
+ .kb>.kc{flex:0 0 82%;scroll-snap-align:start;min-height:360px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.ct-r{flex-wrap:wrap;row-gap:var(--s-4)}
+.ct-r .btn.uni{width:auto;min-width:0}
+/* dark theme: the grays R9 defined only for light (column bodies, chart bars, price line) */
+:root[data-theme="dark"]{--gray-50:#0f0f0f;--gray-100:#1a1a1a;--gray-300:#3a3a3a;--gray-500:#6f6f6f;--gray-900:#ededed}
+@media (max-width:720px){
+ .bar-t{height:auto;flex-wrap:wrap;padding:var(--s-5) var(--s-7)}
+ .bar-t .btn.uni{width:100%}
+ .bar-t .gh{margin-left:0}
+ .bar-t .sp{display:none}
+}
+/* board card: tags left, the 20-session price line at the bottom right */
+.ki .t2{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap;row-gap:var(--s-2)}
+.ki .ksp{margin-left:auto;display:inline-flex;flex:none;opacity:.9}
+/* selected option of every segmented control: ink fill, surface text (user 2026-11-14); in the dark theme the ink is
+   light and the text dark, so the selected option stays the strongest mark in both themes */
+.seg button.on,.seg button[aria-checked="true"]{background:var(--text);color:var(--surface)}
+.seg button.on:hover{color:var(--surface)}
+/* each column is as tall as its stocks (user 2026-11-14); a long column stops at the screen's height and scrolls inside */
+.kb{align-items:start;min-height:0;flex:none}
+.kb>.kc{min-height:0;max-height:calc(100vh - 210px)}
+.kb>.kc .kl{flex:0 1 auto}
+.kb>.kb-empty{position:static;transform:none;grid-column:1/-1;justify-self:center;margin-top:var(--s-4);box-shadow:none}
+@media (max-width:720px){.kb>.kc{min-height:0;max-height:70vh}}
+
+
+html,body{height:auto!important;overflow:auto!important;background:var(--bg)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 24px 64px}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px}
+.top h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em}.top p{margin:4px 0 0;color:var(--text-3);max-width:70ch}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.opt{padding:16px;display:flex;flex-direction:column;gap:12px}
+.opt h2{margin:0;font-size:14px;font-weight:600;display:flex;gap:8px;align-items:baseline}.opt h2 span{color:var(--text-3);font-weight:500}
+.opt p{margin:0;color:var(--text-2);font-size:12.5px;line-height:1.4}
+.trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.trio .kc{min-height:0;background:var(--gray-50)}.trio .kh{border-bottom:0;cursor:default}.trio .kh:hover{background:none}
+.trio .kh small{min-height:0;display:block;margin-top:2px}
+.cnt{display:inline-flex;font-variant-numeric:tabular-nums}
+.c1,.c3,.c7{display:inline-flex;align-items:center;justify-content:center;background:var(--text);color:var(--surface);font-weight:600;font-size:12px}
+.c1{min-width:22px;height:20px;padding:0 7px;border-radius:999px}
+.c2{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:var(--text);color:var(--surface);font-size:11px;font-weight:600;white-space:nowrap}
+.c3{width:24px;height:24px;border-radius:50%}
+.c4{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--text);font-size:12px;font-weight:600}
+.c5{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:var(--sel);color:var(--text);font-size:11px;font-weight:600;white-space:nowrap}
+.c6{display:inline-flex;flex-direction:column;align-items:flex-end;line-height:1}.c6 b{font-size:20px;font-weight:600}.c6 small{font-size:10.5px;color:var(--text-3);margin-top:2px}
+.c7{gap:4px;height:20px;padding:0 8px 0 6px;border-radius:999px}.c7 svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.4}
+.c8{display:inline-flex;align-items:center;gap:2px}.c8 i{width:5px;height:5px;border-radius:50%;background:var(--text)}.c8 em{font-style:normal;font-size:10px;color:var(--text-3);margin-left:1px}.c8 b{margin-left:6px;font-size:14px;font-weight:600}
+.c9{display:inline-flex;align-items:baseline;gap:4px;height:20px;padding:0 8px;border-radius:999px;background:var(--text);color:var(--surface);align-items:center}.c9 b{font-size:12px}.c9 span{font-size:10.5px;opacity:.75}
+.row10{display:flex;align-items:flex-end;gap:6px;margin-top:var(--s-3);white-space:nowrap}.row10 svg{flex:none;width:56px}
+.c10{font-size:20px;line-height:16px;font-weight:600;letter-spacing:-.01em}
+.cnt.z .c1,.cnt.z .c2,.cnt.z .c3,.cnt.z .c7,.cnt.z .c9{background:var(--sel);color:var(--text-3)}
+.cnt.z .c4{border-color:var(--border-2);color:var(--text-3)}.cnt.z .c5{color:var(--text-3)}.cnt.z .c6 b{color:var(--text-3)}.cnt.z .c8 b{color:var(--text-3)}
+.grow{flex:1}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+@media (max-width:520px){.trio{grid-template-columns:1fr}}
+</style></head><body><div class="wrap"><div class="top"><div><h1>How a filter shows its stock count</h1><p>Ten ways to mark the number of stocks a filter found, each shown on three column heads of the Radar board: a normal day (6), a busy filter (13) and an empty one (0).</p></div><button class="btn" id="th">Dark theme</button></div><div class="grid"><section class="card opt" aria-label="Option 1"><h2>1. Black pill, white number</h2><p>The count as a solid ink pill. Strongest mark in the header; zero turns grey.</p><div class="trio"><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S1</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c1">6</span></span></div><small>Heavy foreign accumulation</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+3 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S6</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c1">13</span></span></div><small>Foreign accumulation (5D)</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="4.5" width="2.0" height="13.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+8 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S7</b><span class="grow" style="flex:1"></span><span class="cnt z"><span class="c1">0</span></span></div><small>Institutions in, retail out</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--text)"/></svg><span class="down" style="font-size:var(--fs-xs)">−2 vs yday</span></div></div></div></div></section><section class="card opt" aria-label="Option 2"><h2>2. Black pill with the word</h2><p>"6 stocks" in the pill, so the number cannot be read as a score or a rank.</p><div class="trio"><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S1</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c2">6 stocks</span></span></div><small>Heavy foreign accumulation</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+3 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S6</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c2">13 stocks</span></span></div><small>Foreign accumulation (5D)</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="4.5" width="2.0" height="13.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+8 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S7</b><span class="grow" style="flex:1"></span><span class="cnt z"><span class="c2">0 stocks</span></span></div><small>Institutions in, retail out</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--text)"/></svg><span class="down" style="font-size:var(--fs-xs)">−2 vs yday</span></div></div></div></div></section><section class="card opt" aria-label="Option 3"><h2>3. Black circle</h2><p>A round badge, like a notification count. Fixed circle up to two digits.</p><div class="trio"><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S1</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c3">6</span></span></div><small>Heavy foreign accumulation</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+3 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S6</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c3">13</span></span></div><small>Foreign accumulation (5D)</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="4.5" width="2.0" height="13.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+8 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S7</b><span class="grow" style="flex:1"></span><span class="cnt z"><span class="c3">0</span></span></div><small>Institutions in, retail out</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--text)"/></svg><span class="down" style="font-size:var(--fs-xs)">−2 vs yday</span></div></div></div></div></section><section class="card opt" aria-label="Option 4"><h2>4. Outlined circle</h2><p>Same circle, ink outline and ink number. Quieter than 3.</p><div class="trio"><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S1</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c4">6</span></span></div><small>Heavy foreign accumulation</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+3 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S6</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c4">13</span></span></div><small>Foreign accumulation (5D)</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="4.5" width="2.0" height="13.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+8 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S7</b><span class="grow" style="flex:1"></span><span class="cnt z"><span class="c4">0</span></span></div><small>Institutions in, retail out</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--text)"/></svg><span class="down" style="font-size:var(--fs-xs)">−2 vs yday</span></div></div></div></div></section><section class="card opt" aria-label="Option 5"><h2>5. Grey pill with the word</h2><p>"6 stocks" on the tag grey used by Day N and +N. Calm, matches the card tags.</p><div class="trio"><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S1</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c5">6 stocks</span></span></div><small>Heavy foreign accumulation</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+3 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S6</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c5">13 stocks</span></span></div><small>Foreign accumulation (5D)</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="4.5" width="2.0" height="13.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+8 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S7</b><span class="grow" style="flex:1"></span><span class="cnt z"><span class="c5">0 stocks</span></span></div><small>Institutions in, retail out</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--text)"/></svg><span class="down" style="font-size:var(--fs-xs)">−2 vs yday</span></div></div></div></div></section><section class="card opt" aria-label="Option 6"><h2>6. Number with a caption</h2><p>Large number with "stocks" under it, like a small KPI. Takes more height.</p><div class="trio"><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S1</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c6"><b>6</b><small>stocks</small></span></span></div><small>Heavy foreign accumulation</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+3 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S6</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c6"><b>13</b><small>stocks</small></span></span></div><small>Foreign accumulation (5D)</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="4.5" width="2.0" height="13.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+8 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S7</b><span class="grow" style="flex:1"></span><span class="cnt z"><span class="c6"><b>0</b><small>stocks</small></span></span></div><small>Institutions in, retail out</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--text)"/></svg><span class="down" style="font-size:var(--fs-xs)">−2 vs yday</span></div></div></div></div></section><section class="card opt" aria-label="Option 7"><h2>7. Pill with a list icon</h2><p>Ink pill with a small stack icon before the number: reads as "items in this column".</p><div class="trio"><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S1</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c7"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="3" rx="1"/><rect x="2.5" y="6.5" width="11" height="3" rx="1"/><rect x="2.5" y="10.5" width="11" height="3" rx="1"/></svg>6</span></span></div><small>Heavy foreign accumulation</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+3 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S6</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c7"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="3" rx="1"/><rect x="2.5" y="6.5" width="11" height="3" rx="1"/><rect x="2.5" y="10.5" width="11" height="3" rx="1"/></svg>13</span></span></div><small>Foreign accumulation (5D)</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="4.5" width="2.0" height="13.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+8 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S7</b><span class="grow" style="flex:1"></span><span class="cnt z"><span class="c7"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="3" rx="1"/><rect x="2.5" y="6.5" width="11" height="3" rx="1"/><rect x="2.5" y="10.5" width="11" height="3" rx="1"/></svg>0</span></span></div><small>Institutions in, retail out</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--text)"/></svg><span class="down" style="font-size:var(--fs-xs)">−2 vs yday</span></div></div></div></div></section><section class="card opt" aria-label="Option 8"><h2>8. Dots, one per stock</h2><p>One dot per stock (up to 10, then +N) beside the number: the size is seen before it is read.</p><div class="trio"><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S1</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c8" aria-label="6 stocks"><i></i><i></i><i></i><i></i><i></i><i></i><b>6</b></span></span></div><small>Heavy foreign accumulation</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+3 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S6</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c8" aria-label="13 stocks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><em>+3</em><b>13</b></span></span></div><small>Foreign accumulation (5D)</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="4.5" width="2.0" height="13.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+8 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S7</b><span class="grow" style="flex:1"></span><span class="cnt z"><span class="c8" aria-label="0 stocks"><b>0</b></span></span></div><small>Institutions in, retail out</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--text)"/></svg><span class="down" style="font-size:var(--fs-xs)">−2 vs yday</span></div></div></div></div></section><section class="card opt" aria-label="Option 9"><h2>9. Count of the gated universe</h2><p>"6 of 428": how many of the stocks that passed the gate this filter found.</p><div class="trio"><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S1</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c9"><b>6</b><span>of 428</span></span></span></div><small>Heavy foreign accumulation</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+3 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S6</b><span class="grow" style="flex:1"></span><span class="cnt"><span class="c9"><b>13</b><span>of 428</span></span></span></div><small>Foreign accumulation (5D)</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="4.5" width="2.0" height="13.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--text)"/></svg><span class="up" style="font-size:var(--fs-xs)">+8 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>S7</b><span class="grow" style="flex:1"></span><span class="cnt z"><span class="c9"><b>0</b><span>of 428</span></span></span></div><small>Institutions in, retail out</small><div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--text)"/></svg><span class="down" style="font-size:var(--fs-xs)">−2 vs yday</span></div></div></div></div></section><section class="card opt" aria-label="Option 10"><h2>10. Count on the sparkline</h2><p>The number sits at the end of the 20-day bars, in the same ink as today’s bar, so number and bar are one reading.</p><div class="trio"><div class="card kc"><div class="kh"><div style="display:flex;align-items:center"><b>S1</b></div><small>Heavy foreign accumulation</small><div class="row10"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="13.4" width="2.0" height="4.6" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="11.1" width="2.0" height="6.9" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="6.6" width="2.0" height="11.4" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="8.9" width="2.0" height="9.1" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="4.3" width="2.0" height="13.7" rx="1" fill="var(--text)"/></svg><span class="c10">6</span><span class="grow"></span><span class="up" style="font-size:var(--fs-xs)">+3 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center"><b>S6</b></div><small>Foreign accumulation (5D)</small><div class="row10"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="5.7" width="2.0" height="12.3" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="8.2" width="2.0" height="9.8" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="4.5" width="2.0" height="13.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="6.9" width="2.0" height="11.1" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="9.4" width="2.0" height="8.6" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="10.6" width="2.0" height="7.4" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="3.2" width="2.0" height="14.8" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--text)"/></svg><span class="c10">13</span><span class="grow"></span><span class="up" style="font-size:var(--fs-xs)">+8 vs yday</span></div></div></div><div class="card kc"><div class="kh"><div style="display:flex;align-items:center"><b>S7</b></div><small>Institutions in, retail out</small><div class="row10"><svg width="70" height="18" viewBox="0 0 70 18" aria-hidden="true"><rect x="0.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="4.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="7.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="11.0" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="14.5" y="7.3" width="2.0" height="10.7" rx="1" fill="var(--gray-300)"/><rect x="18.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="21.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="25.0" y="2.0" width="2.0" height="16.0" rx="1" fill="var(--gray-300)"/><rect x="28.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="32.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="35.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="39.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="42.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="46.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="49.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="53.0" y="12.7" width="2.0" height="5.3" rx="1" fill="var(--gray-300)"/><rect x="56.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="60.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="63.5" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--gray-300)"/><rect x="67.0" y="16.5" width="2.0" height="1.5" rx="1" fill="var(--text)"/></svg><span class="c10">0</span><span class="grow"></span><span class="down" style="font-size:var(--fs-xs)">−2 vs yday</span></div></div></div></div></section></div></div><script>document.getElementById('th').onclick=e=>{const d=document.documentElement.dataset.theme!=='dark';document.documentElement.dataset.theme=d?'dark':'light';e.currentTarget.textContent=d?'Light theme':'Dark theme'}</script></body></html>

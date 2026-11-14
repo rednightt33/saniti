@@ -52,11 +52,21 @@ detail filter). Kartu dan hitungan: `SCREENER_LIBRARY.md`.
   - Follow tetap "Coming soon": "C10 ... nothing to do anything about it".
   - Tanpa ekspor CSV; Open in Terminal tanpa indikator padanan; peringatan baca per filter, penanda pencilan/aksi
     korporasi dan tata letak ponsel ditambahkan: "D11 ... Yang lain sudah OK".
+- **Keputusan tampilan atas R10 (2026-11-14):** desain final = `verification/radar/index-r10.html` ("Versi final yang
+  dipakai adalah R10 yang terakhir ya"); spesifikasi untuk pembangun front end: `verification/radar/RADAR_PAGE_SPEC.md`.
+  - Ikon Radar di rail kiri EDGE setelah Screener: "Untuk icon sudah oke".
+  - Garis harga 20 sesi di setiap kartu; tanpa blok "Why it is here" di pratinjau; titik terakhir sparkline kolom
+    hitam; pilihan terpilih isi hitam teks putih ("kembalikan jadi hitam ya ... boleh dibuat fillnya hitam, teksnya putih?").
+  - Halaman ini menu admin (pemilik); aturan filter boleh terlihat; versi pengguna biasa dibuat terpisah nanti: "tidak
+    usah for now. Ini adalah menu admin (which owner) nanti kita buat lagi saja khusus untuk user normal."
+  - Tinggi kolom mengikuti jumlah saham: "tinggi kotaknya itu menyesuaikan jumlah saham yang muncul di suatu filter".
+  - Jumlah saham ditampilkan sebagai titik per saham (opsi 8 dari `verification/radar/radar_count_options.html`): "Opsi 8".
+  - Jalur data: halaman membaca file harian yang ditulis publisher, bukan query per permintaan: "2. Ok".
 - **Masih terbuka:**
   - Ambang V1Δ dan V2Δ S6Δ untuk jendela 5 sesi. Usulan dari hitung ulang 3 Nov: V1Δ 12 / 20 / 35 dan V2Δ 40 / 65 / 90
     poin (Longgar / Standar / Ketat); ambang lama dihitung untuk rasio 20 sesi dan tidak menyaring apa pun pada 5 sesi.
   - Ukuran urut S6 dan S7 (usulan: rasio, FL34).
-  - Jalur data ke halaman dan rancangan tabel ukuran harian (usulan dibahas 2026-11-14).
+  - Rancangan tabel ukuran harian dan rencana implementasi: disusun di `EXEC.md` EXEC-RADAR (menunggu go).
 - **Data yang dibutuhkan:** tabel ukuran harian per saham untuk semua filter (juga membuka S7 V2/V2Δ, library 12.3 #6),
   backfill ≥ 250 sesi ditambah baseline 252 (update besar: restart Postgres sesudahnya), job harian setelah data broker,
   pendaftaran katalog, aplikasi halaman baru di frame EDGE seperti Screener.
