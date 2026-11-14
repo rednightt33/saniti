@@ -1,0 +1,10 @@
+Starting Container
+OUT {"q": "plan", "mode": "DRYRUN", "start": "2025-10-24", "newest": "2026-11-09", "result_sessions": 250, "tickers": 901, "existing_measure_rows": 0}
+OUT {"q": "sample_tickers", "tickers": 20, "rows": 4882, "seconds_per_ticker": 0.66}
+OUT {"q": "sample_day", "date": "2026-11-05", "result_rows": 3383, "universe": 858, "broad": 429, "liquid": 172, "broad_cut": "1917037550", "liquid_cut": "21319222120"}
+OUT {"q": "sample_day", "date": "2026-11-06", "result_rows": 3201, "universe": 852, "broad": 426, "liquid": 171, "broad_cut": "1943941950", "liquid_cut": "19334381000"}
+OUT {"q": "sample_day", "date": "2026-11-09", "result_rows": 3031, "universe": 855, "broad": 428, "liquid": 171, "broad_cut": "1846339100", "liquid_cut": "17610768200"}
+OUT {"q": "estimate", "tickers_minutes": 9.9, "days_minutes": 359.5, "tail_tickers_seconds": 62.3}
+VERDICT DRYRUN_OK (rolled back)
+JOB_DONE
+JOB_EXIT 0

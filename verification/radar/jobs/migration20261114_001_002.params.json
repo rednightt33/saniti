@@ -1,0 +1,7 @@
+{"mode": "DRYRUN", "migrations": ["20261114_001_feature_07_radar.sql", "20261114_002_catalog_feature_07_radar.sql"],
+ "probes": [["rules", null, "SELECT filter_id, count(*) FROM public.\"Feature_07_Radar_Rule\" GROUP BY 1 ORDER BY 1"],
+            ["s7_d", null, "SELECT level, threshold FROM public.\"Feature_07_Radar_Rule\" WHERE filter_id = 'S7' AND cond_key = 'D' ORDER BY 1"],
+            ["catalog", null, "SELECT (SELECT count(*) FROM public.\"Table_Catalog\" WHERE table_name LIKE 'Feature_07%'), (SELECT count(*) FROM public.\"Column_Catalog\" WHERE table_name LIKE 'Feature_07%'), (SELECT count(*) FROM public.\"Feature_Catalog\" WHERE feature_table LIKE 'Feature_07%' AND is_active)"],
+            ["publisher_reader", "terminal_market_reader", "SELECT count(*) FROM public.\"Feature_07_Radar_Filter\""],
+            ["pgweb_reader", "pgweb_reader", "SELECT count(*) FROM public.\"Feature_07_Radar_Rule\""],
+            ["functions", null, "SELECT proname FROM pg_proc WHERE proname LIKE '%feature_07%' ORDER BY 1"]]}

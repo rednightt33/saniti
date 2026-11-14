@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-11-14 — orc-test-runner: Radar migrations and first fill on dev (EXEC-RADAR, go "1 A, 2 A 3 A go")
+
+- **CLI:** Railway CLI 5.74.0 installed in the session's scratch folder (the preinstalled 4.68 has no `-p`); run with
+  `RAILWAY_TOKEN` unset so the proxy's account credential is used (a project-token header and that credential cannot
+  be combined, as on 2026-11-07). Nothing was changed in the project's configuration; no service was deployed.
+- **Jobs** (`scripts/onboarding/run_job.sh`, orc-test-runner, `DATABASE_URL` set as the reference
+  `${{Postgres.DATABASE_URL}}` with `--skip-deploys` for each run and removed after it: `VAR_REMOVED` every time):
+  migrations 001 + 002 DRYRUN `b1ffba1e` and APPLY `0d9f6fe9`; backfill DRYRUN `57232933`; migration 003 DRYRUN
+  `70b5cc98` and APPLY `d85c7cb9`; backfill DRYRUN `475022cd`; backfill APPLY `72049533` (405 s). All `JOB_EXIT 0`.
+  Transient CLI refusals (`DEPLOYMENT_LIST_FAILED`, runner busy) were retried; one variable read after `475022cd`
+  returned no JSON and was retried until `VAR_REMOVED`. Results: `DATABASE_CHANGELOG.md` 2026-11-14.
+- **Postgres restart:** the `large_write` step of the APPLY could not read Railway (`KeyError: 'RAILWAY_TOKEN'`, ERRORS
+  M433). `scripts/restart_postgres.py` run with the proxy's credential (its guards unchanged) refused it at 15:42 and
+  15:54 UTC: `memory_low`, 0.475 and 0.497 GB (below 0.8 GB, nothing to free), 0 statements, 0 user runs. No restart.
+  `.railway/railway.ts` unchanged.
+
 ## 2026-11-14 — dev restored after the usage limit (ERRORS M424)
 
 - 2026-11-13 14:20 UTC every service stopped at the workspace hard limit; the user raised it 2026-11-14 and Railway

@@ -1,0 +1,5 @@
+Starting Container
+MIG APPLY 20261114_003_feature_07_radar_s3_lookup.sql sha256=8bce1a3f49d01357d50b3686a4acb6acd500500f3311a4dd4ba5131df28faac8
+OUT {"q": "function", "ms": 1, "part": 0, "rows": [[true]]}
+JOB_DONE MIGRATION APPLY
+JOB_EXIT 0

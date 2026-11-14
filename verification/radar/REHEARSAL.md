@@ -1,6 +1,7 @@
 # EXEC-RADAR R1-R4: local rehearsal of the Radar tables (2026-11-14)
 
 Nothing here ran on the dev database. The dev data was only read (pgweb, read-only role) to build the rehearsal copy.
+The run on dev itself (2026-11-14) is in `DEV_RUN.md`.
 
 ## Setup
 

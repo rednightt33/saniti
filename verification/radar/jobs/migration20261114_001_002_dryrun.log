@@ -1,0 +1,14 @@
+Starting Container
+MIG DRYRUN 20261114_001_feature_07_radar.sql sha256=0b0808bcffcdb8bb72c6a94dfe3ebf4e4ddf0449493d2230900f0b39663852d3
+MIG DRYRUN_BODY_OK 20261114_001_feature_07_radar.sql
+MIG DRYRUN 20261114_002_catalog_feature_07_radar.sql sha256=da46d238df449e90062795b11faab20ed8a481a1042a542c088d49432ab3e6a0
+MIG DRYRUN_BODY_OK 20261114_002_catalog_feature_07_radar.sql
+OUT {"q": "rules", "ms": 1, "part": 0, "rows": [["S1", 12], ["S2", 9], ["S3", 9], ["S6", 9], ["S6D_BOTH", 12], ["S6D_RANK", 12]]}
+OUT {"q": "rules", "ms": 1, "part": 1, "rows": [["S6D_RATIO", 12], ["S7", 12], ["S8", 3]]}
+OUT {"q": "s7_d", "ms": 0, "part": 0, "rows": [["loose", 2.0], ["standard", 5.0], ["strict", 10.0]]}
+OUT {"q": "catalog", "ms": 11, "part": 0, "rows": [[5, 88, 68]]}
+OUT {"q": "publisher_reader", "ms": 0, "part": 0, "rows": [[9]]}
+OUT {"q": "pgweb_reader", "ms": 0, "part": 0, "rows": [[90]]}
+OUT {"q": "functions", "ms": 1, "part": 0, "rows": [["feature_07_below_percentile"], ["feature_07_robust_z"], ["feature_07_rule_version"], ["refresh_feature_07"], ["refresh_feature_07_day"]]}
+JOB_DONE MIGRATION DRYRUN
+JOB_EXIT 0

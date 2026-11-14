@@ -7647,7 +7647,7 @@ restart stopped an external database job.
   primary key. Rehearsal: 0.35 s per date with reltuples 0, 0.22 s in the 250-date backfill.
 - **Lesson:** a step must not depend on statistics of rows written in the same run; analyze what it builds.
 
-### M428 — Screener library: "5 sessions" meant two different windows in one calculation (2026-11-14, open; user decision)
+### M428 — Screener library: "5 sessions" meant two different windows in one calculation (2026-11-14, decided: Feature 06 sessions)
 
 - **Symptom:** the Radar reproduces the library's counts of 3 Nov 2026 exactly for the gate (859; 687/430/258/172 kept),
   S1, S3 "Likuid" (the same 11 tickers) and S7 (11/23), but not its gate cut-offs (Rp8.62/25.50 bn against 8.68/25.64)
@@ -7659,9 +7659,9 @@ restart stopped an external database job.
   Rp60.0 bn. On 69 dates 1.9 stocks a day (at most 6) of about 857 are affected.
 - **Class:** every measure over "N sessions" of one board when a stock trades on other boards only (Nego, Tunai) or is
   suspended.
-- **Solution (built, to confirm):** the Radar uses Feature 06's sessions for every window, lag and baseline (one
-  convention, the ratios equal Feature 06's stored ones). The user decides whether to keep it or to count only Regular
-  sessions everywhere.
+- **Solution (built; user 2026-11-14 "1 A"):** the Radar uses Feature 06's sessions for every window, lag and baseline
+  (one convention, the ratios equal Feature 06's stored ones); the library's figures that used Regular rows differ for
+  the few stocks with Nego- or Tunai-only days, accepted.
 - **S8 too (QA 2026-11-14):** the library's S8 trace (13.4, DOOH 9 Nov: z1 1.46, z3 3.34) reproduces exactly on the
   last 252 Regular rows; the Radar on Feature 06 sessions gives z1 1.38, z3 3.52 (percentile 98.4 both). A z near the
   cut-off of 3 can flip between the two conventions.
@@ -7710,8 +7710,48 @@ read commit `60d610c` without the author's conclusions. No blocker. Fixed on the
 | edge-bff | no size bound on the relayed read; a quota refusal read as an outage; each view took a grant | streamed up to the published size; `RADAR_QUOTA`; bytes kept by sha (32 MB) and 304 |
 | Page | seven columns below 1200 px (a later CSS rule won); the Universe menu closed on its own scroll; date and file errors silent; axis labels overlapped; values not escaped | four columns; menu scroll kept; messages; round axis steps; every value escaped |
 
-Open, for the user: the session convention (M428); the outlier note counts every corporate action type, RUPS and
-warrant trading included (12% of 9 Nov's Standard hits; an allow-list is a decision). Not exercised against dev data:
-S3 over 250 live dates, a ticker added or removed, the stamp with real late prices. Lesson: a threshold is copied from
+Decided by the user 2026-11-14 ("1 A, 2 A"): the session convention stays Feature 06's (M428); the outlier note keeps
+every corporate action type, RUPS and warrant trading included (12% of 9 Nov's Standard hits; no allow-list). S3 over
+250 live dates is now exercised on dev (M432; `verification/radar/DEV_RUN.md`, 0 differences); not yet exercised: a
+ticker added or removed, the stamp with real late prices. Lesson: a threshold is copied from
 the decision document, never from a summary table, and every derived row that reads a second source needs that source
 in its staleness check.
+
+### M432 — Radar day step: the S3 read scanned all of Feature 05 on dev, about 86 s a date (2026-11-14, fixed before release)
+
+- **Symptom:** the first fill's DRYRUN on dev (job `57232933`) estimated 359.5 minutes for the 250 day steps; the local
+  rehearsal had taken 0.22 s a date.
+- **Verified cause (read-only EXPLAIN on dev, 2026-11-14):** `refresh_feature_07_day` (migration `20261114_001`) joined
+  the gated stocks to `Feature_05_Foreign_Domestic_Broker_Detail` on the ticker and a per-stock date range
+  (`trade_date BETWEEN d.s5_from AND p_date`). A range that differs per row cannot become one index condition of a hash
+  join, so the planner hashed the stocks and read Feature 05 sequentially (45 M rows). The rehearsal's copy held
+  Feature 05 on 9 dates only (200,659 rows), where a sequential read costs nothing, so the plan did not show there.
+- **Class:** every read of a large Feature table (Feature 02, 03, 05, 06, the `_INDEX` tables) joined on a per-row
+  range or window: Radar S3 now, any later per-stock window over broker rows (S7 from Feature 05, the leaderboard and
+  rotation specs). A rehearsal on a cut copy cannot show the plan of the full table.
+- **Solution (migration `20261114_003`, applied on dev, jobs `70b5cc98` and `d85c7cb9`):** a `CROSS JOIN LATERAL` per
+  stock with `OFFSET 0` reads each stock's rows through the primary key (ticker, date). Read-only EXPLAIN ANALYZE: 0.6 s
+  for one date; the second DRYRUN (`475022cd`) estimated 3.9 minutes for 250 dates; the APPLY took 405 s in all. The
+  results are identical (locally 9,417 rows; on dev 0 differences in the independent recalculation, DEV_RUN.md).
+- **Lesson:** before a job runs on dev, EXPLAIN each statement that reads a large table on dev itself (read-only), not
+  only on a rehearsal copy; a join on a per-row range is written as a per-key lookup.
+
+### M433 — A job's automatic Postgres restart never runs in an agent session (2026-11-14, open)
+
+- **Symptom:** `scripts/onboarding/run_job.sh` with `"large_write": true` prints `POSTGRES_RESTART (large_write)` and then
+  `KeyError: 'RAILWAY_TOKEN'`; the job still ends `JOB_EXIT 0`. The same line on 2026-11-06 and 2026-11-07
+  (RAILWAY_CHANGELOG) and on every Radar job of 2026-11-14 (`verification/radar/jobs/`).
+- **Verified cause (code):** `scripts/restart_postgres.py:67-68` reads `RAILWAY_RESTART_TOKEN` or `RAILWAY_TOKEN` and sends
+  it as a `Project-Access-Token` header (line 74). An agent session has neither: its Railway access is the proxy's
+  account credential, which works only without a project token (RAILWAY_CHANGELOG 2026-11-07). So the restart after a
+  large write depends on someone noticing the traceback and running the check by hand.
+- **Class:** every script that calls Railway's API with its own token reading: `restart_postgres.py`,
+  `set_postgres_memory.py`, `set_postgres_restart_times.py` (and the cron's `deploy.sh`), whichever session runs them.
+- **Workaround used:** `restart_postgres.py` run unchanged except its authentication (the proxy's credential), every guard
+  kept: refused at 15:42 and 15:54 UTC for memory 0.475 and 0.497 GB (below 0.8 GB, nothing to free).
+- **Proposed fix (needs the user's go):** one Railway authentication helper for these scripts that uses a project token
+  when one is set and the session's account credential otherwise, and that prints `POSTGRES_RESTART NOT_RUN: <reason>`
+  with the command to run by hand instead of a traceback. It does not change the postgres-memory-cron service (it has
+  `RAILWAY_RESTART_TOKEN`).
+- **Lesson:** a guard step that cannot run must say "not run" in one line the job's reader sees, never end in a
+  traceback after the job's success line.

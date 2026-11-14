@@ -14032,8 +14032,26 @@ latest R10".
 - **2026-11-14, R10 bagian QA:** 5 agen peninjau independen (satu per bagian) membaca `60d610c`; tidak ada blocker.
   Semua temuan major dan minor yang bukan keputusan user diperbaiki di branch (ERRORS M431), gladi dan validator diulang
   (0 selisih di 8 tanggal). Terbuka untuk user: M428 (arti "5 sesi") dan jenis aksi korporasi untuk catatan Outlier.
-- Belum: R4 ambang S6Δ dari 20 tanggal (butuh data dev penuh, sesudah backfill dev), R8 sisanya (DATABASE_SCHEMA dan
-  changelog saat dipasang), R9 (rilis dev bertahap dengan go per langkah).
+- **Keputusan user 2026-11-14: "1 A, 2 A 3 A go".**
+  - 1 A (M428): "5 sesi" = sesi Feature 06 untuk semua jendela, jeda dan riwayat (yang sudah terpasang); selisih dengan
+    angka library (MSIN 3 Nov, sekitar 1,9 saham per hari) diterima.
+  - 2 A: catatan "Corporate action" memakai semua jenis `CORPORATE_ACTION` di `idx_event_annotation` (termasuk RUPS,
+    public expose, mulai diperdagangkannya waran); tidak ada daftar jenis.
+  - 3 A, go: pasang Railway CLI di container ini, lalu di database dev: migrasi `20261114_001` dan `20261114_002`
+    (DRYRUN lalu APPLY), pengisian awal `verification/radar/backfill_job.py` (DRYRUN lalu APPLY, `large_write`, restart
+    Postgres sesudahnya), tiap langkah dilaporkan. Merge ke `main` dan deploy layanan belum termasuk.
+- **2026-11-14, langkah 3 A di dev (selesai):** Railway CLI 5.74.0 terpasang; migrasi 001 + 002 DRYRUN `b1ffba1e`, APPLY
+  `0d9f6fe9`. DRYRUN pengisian awal `57232933` memperkirakan 6 jam untuk langkah harian: pembacaan S3 menyapu seluruh
+  Feature 05 (ERRORS M432); diperbaiki dengan migrasi baru `20261114_003` (DRYRUN `70b5cc98`, APPLY `d85c7cb9`; hasil
+  sama), DRYRUN ulang `475022cd` 3,9 menit. APPLY `72049533`: 405 detik, VERDICT APPLY_OK, 214.992 baris = Feature 06
+  Regular. Validasi independen semua saham pada 6 tanggal: 0 selisih. Restart Postgres ditolak pemeriksaannya (memori
+  0,475 dan 0,497 GB, di bawah 0,8 GB); langkah otomatis job tidak jalan (ERRORS M433, usulan perbaikan perlu go).
+  Bukti: `verification/radar/DEV_RUN.md`, `verification/radar/jobs/`.
+- **R4 ambang S6Δ, 20 tanggal (13 Okt–9 Nov), belum dipakai:** median P50/P75/P90 di gerbang Luas: V1Δ 10,4 / 18,2 /
+  28,6; V2Δ 32,1 / 59,3 / 77,6 (sementara 12 / 20 / 35 dan 40 / 65 / 90). Menunggu persetujuan angka dari user; angka
+  baru = versi aturan baru (migrasi baru).
+- Belum: persetujuan angka S6Δ; R8 sisanya (`DATABASE_SCHEMA.md` lewat refresh terjadwal); R9 (merge ke `main` dan
+  deploy telegram-monitor, terminal-api, terminal-publisher, stockbit-updater, edge-bff, go per langkah).
 
 ### Keputusan yang perlu user sebelum go
 

@@ -12,7 +12,7 @@ Inputs (a directory, header-less CSV, columns in this order):
   events.csv    ticker, annotation_date, event_family, event_type, annotation_date_role
   out_measure.csv, out_gate.csv, out_result.csv   COPY ... WITH CSV HEADER of the three Feature_07 tables
 
-Usage: python3 -I validate_radar.py <dir> --dates 2026-11-03,2026-11-09 [--tickers 40 --seed 7]
+Usage: python3 -I validate_radar.py <dir> --dates 2026-11-03,2026-11-09 [--tickers 40 --seed 7]   (--tickers 0: all)
 Sessions follow Feature 06: the dates a ticker traded on any board; a session without a Regular trade counts zero.
 """
 import argparse
@@ -310,8 +310,11 @@ def main():
         for k, v in gate.items():
             if k != 'trade_date' and not close(float(v), fnum(db_g[day][k])):
                 bad += 1; print('GATE', day, k, v, db_g[day][k])
-        sample = rnd.sample(sorted(tk for tk, x in X.items() if x['g2_eligible']), a.tickers)
-        sample += sorted(tk for tk in X if X[tk]['gate_liquid'])[:20]
+        if a.tickers > 0:
+            sample = rnd.sample(sorted(tk for tk, x in X.items() if x['g2_eligible']), a.tickers)
+            sample += sorted(tk for tk in X if X[tk]['gate_liquid'])[:20]
+        else:                                   # --tickers 0: every ticker with a measure row that date
+            sample = sorted(X)
         for tk in sorted(set(sample)):
             row = db_m.get((tk, day))
             if row is None:
