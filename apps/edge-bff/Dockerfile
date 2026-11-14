@@ -33,6 +33,16 @@ COPY backtest/src /build/backtest/src
 COPY screener/ ./
 RUN npm run build
 
+# EXEC-RADAR R7 (user go 2026-11-14): the Radar page (radar/, TypeScript + Vite, the R10 design) is built here into its
+# dist/ and copied into static/radar-app. It shares no source with the other pages and carries no rule: every result is
+# Feature 07's, relayed by /api/v1/radar (app/radar.py). The build output is not kept in git.
+FROM node:22-slim AS radar
+WORKDIR /build/radar
+COPY radar/package.json radar/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY radar/ ./
+RUN npm run build
+
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
@@ -44,6 +54,7 @@ COPY static ./static
 COPY --from=terminal /build/static/terminal-app ./static/terminal-app
 COPY --from=backtest /build/backtest/dist ./static/backtest-app
 COPY --from=screener /build/screener/dist ./static/screener-app
+COPY --from=radar /build/radar/dist ./static/radar-app
 RUN useradd --uid 10001 --create-home edge && chmod -R a+rX /app/app /app/static
 USER edge
 CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--no-access-log", "--no-proxy-headers"]

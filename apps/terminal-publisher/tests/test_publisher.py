@@ -186,6 +186,9 @@ class FakeConn:
             return [a for a in reversed(self.actions) if a[2] in types and a[1] >= since]
         if sql == pub.UNIVERSE_SQL:
             return self.universe
+        # EXEC-RADAR R5: the Feature 07 tables are absent here (tests/test_radar.py answers them)
+        if sql == pub.radar.PROBE_SQL:
+            return [(False,)]
         if sql == pub.STOCK_LISTS_SQL:
             if self.stock_lists is None:
                 raise RuntimeError('relation "Stock_List" does not exist')
@@ -1128,7 +1131,8 @@ def test_the_cleanup_lists_each_folder_and_the_indexed_files_their_prefix_only()
     prefixes = [p for p, _ in asked]
     assert prefixes[:4] == ['state.json', 'manifest/', 'xsection/', 'ref/'] and asked[0][1] == asked[1][1] == n
     assert prefixes[4:6] == ['manifest/', 'state.json']
-    assert sorted(prefixes[6:]) == ['broker/', 'events/', 'pack/', 'price/', 'ref/', 'xsection/'] and '' not in prefixes
+    # EXEC-RADAR R5: the Radar's indexed family is swept like the others
+    assert sorted(prefixes[6:]) == ['broker/', 'events/', 'pack/', 'price/', 'radar/', 'ref/', 'xsection/'] and '' not in prefixes
     assert all(at_put == len(bucket.puts) for _, at_put in asked[4:]) and bucket.puts[-1] == 'state.json'
 
 # ---- bucket retries (ERRORS M263; M253 on PR #41's branch) ----------------------------------------------------------
@@ -1698,7 +1702,7 @@ def test_the_cleanup_comes_after_state_json_so_a_slow_or_failed_listing_never_ho
     assert names.index('done') < names.index('replaced') < names.index('gc_failed')
     assert 'price/IHSG/2019.json.gz' in bucket.objects and bucket.modified['state.json'] == bucket.clock
     done = [e for e in out if e['event'] == 'done'][0]
-    assert set(done['phases']) == {'plan', 'files', 'packs', 'intraday', 'xsection', 'manifests', 'refs', 'state'}
+    assert set(done['phases']) == {'plan', 'files', 'packs', 'intraday', 'xsection', 'radar', 'manifests', 'refs', 'state'}
 
 
 def test_after_the_run_a_ticker_whose_manifest_a_run_that_did_not_finish_wrote_keeps_its_objects(capsys):

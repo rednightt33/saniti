@@ -7604,7 +7604,7 @@ restart stopped an external database job.
 - **Not the cause of the 2026-11-12 BBTN screenshot:** the older broker years failed then while every service ran
   (terminal-api read of the bucket cancelled at 07:41:09 UTC, 30 seconds after an edge-bff release).
 
-### M425 — Screener: "Open in Terminal" never opens the Terminal (2026-11-14, open; fix planned in EXEC-RADAR R7)
+### M425 — Screener: "Open in Terminal" never opens the Terminal (2026-11-14, fixed on the branch; not deployed)
 
 - **Symptom:** in EDGE, a Screener row's Open in Terminal sets the ticker but the shell stays on the Screener.
 - **Verified cause (code, 2026-11-14):** the Screener posts an `edge-nav` message to its parent
@@ -7613,6 +7613,11 @@ restart stopped an external database job.
 - **Class:** every sub-app in an iframe that asks the shell to switch page (Screener now, Radar next, Backtest later).
 - **Solution (planned, EXEC-RADAR R7):** one shell listener for `edge-nav` that checks the sender is one of the shell's
   own iframes and the target is a known page, used by Screener and Radar alike; a test for both.
+- **Built (branch `claude/keen-turing-56vw7y`, 2026-11-14):** one module-level listener in `static/index.html` (origin, a
+  frame of this document, a rail page) calls the shell's page switch; Chromium test `apps/edge-bff/tests/test_radar.py`
+  (from the Radar frame to the Terminal; from the top page or to `login`: nothing). First placed as a component
+  lifecycle of the app view, it broke the Sources list of an answer (`test_answer_view.py`, `.edge-source-ref` empty;
+  cause not traced); as one listener for the page's life the whole suite passes.
 - **Lesson:** a message one frame sends needs a test that the receiving frame acts on it.
 
 ### M426 — Feature 06 held rows of codes outside the universe until 2026-11-05 (2026-11-14, mitigated for the Radar)

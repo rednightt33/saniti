@@ -1272,7 +1272,8 @@ def test_the_image_builds_the_screener_page_beside_the_sources_it_imports():
     import re
     text = (Path(__file__).resolve().parents[1] / 'Dockerfile').read_text()
     stage = text.split('FROM node:22-slim AS screener', 1)[1].split('\nFROM ', 1)[0]
-    assert [line for line in stage.strip().splitlines() if not line.startswith('#')] == [
+    # blank lines and comments are not instructions (EXEC-RADAR R7 added a stage after this one)
+    assert [line for line in stage.strip().splitlines() if line.strip() and not line.startswith('#')] == [
         'WORKDIR /build/screener', 'COPY screener/package.json screener/package-lock.json ./',
         'RUN npm ci --no-audit --no-fund', 'COPY terminal/src /build/terminal/src',
         'COPY backtest/src /build/backtest/src', 'COPY screener/ ./', 'RUN npm run build']

@@ -139,8 +139,10 @@ window.EdgeLabels = {
   backtest: { nav:"Backtest", frameTitle:"Backtest" },
   // EXEC-SCREENER (report FRONTEND INTEGRATION 9.7): the Screener tab next to Backtest
   screener: { nav:"Screener", frameTitle:"Stock screener" },
+  // EXEC-RADAR R7 (user 2026-11-14: "A1 S8 ikut, dan halaman tetap bernama Radar"): the Radar tab after Screener
+  radar: { nav:"Radar", frameTitle:"Radar" },
   // EXEC-TERMINAL-IND-EDIT (user 2026-11-05: "apapun tabnya selalu tulisannya Edge, Sign In, and Monitor. Boleh diganti
   // misalkan Edge, - terminal, backtest, screener"): the browser tab's title on each page
   pages: { loading:"EDGE", signIn:"EDGE — Sign In", monitor:"EDGE — Monitor", terminal:"EDGE — Terminal",
-    backtest:"EDGE — Backtest", screener:"EDGE — Screener" }
+    backtest:"EDGE — Backtest", screener:"EDGE — Screener", radar:"EDGE — Radar" }
 };

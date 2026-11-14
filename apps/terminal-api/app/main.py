@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from . import quota
 from .accounts import AccountCache, Caller
-from .bucket import REF_NAME, XSECTION_NAME, refs_index, xsection_index
+from .bucket import REF_NAME, XSECTION_NAME, radar_index, refs_index, xsection_index
 from .config import Settings, service_email, service_variable
 from .security import client_ip, new_token, password_verifier, same_secret, token_hash, verify_password
 
@@ -102,6 +102,12 @@ class BundleRequest(Strict):
 class XsectionRequest(Strict):
     """EXEC-SCREENER (P1 a, user 2026-10-28): cross-sectional files of the current publication by their index names
     (state.json `xsection`, shown on /state); a client never names a key."""
+    names: list[Annotated[str, Field(pattern=XSECTION_NAME.pattern)]] = Field(min_length=1,
+                                                                              max_length=MAX_XSECTION_NAMES)
+
+
+class RadarRequest(Strict):
+    """EXEC-RADAR R5: the Radar's files of the current publication by their index names (GET /radar lists them)."""
     names: list[Annotated[str, Field(pattern=XSECTION_NAME.pattern)]] = Field(min_length=1,
                                                                               max_length=MAX_XSECTION_NAMES)
 
@@ -311,6 +317,19 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                                    f'({service_variable("screener-worker")}). One ticker\'s files: POST '
                                    f'{API}/bundle. Example: {PROXY_HEADER}: '
                                    f'${{{{terminal-api.{service_variable("screener-worker")}}}}}.')
+
+    def radar_caller(request: Request) -> Caller:
+        """EXEC-RADAR R5 (user 2026-11-14: the Radar is an admin page, the owner's only): the Radar's files go to the EDGE
+        gateway key only (edge-bff relays them to the owner's session); a subscriber session or any service key is
+        refused with 403, a wrong key 401 as on every route."""
+        caller = identify(request) if PROXY_HEADER in request.headers else None
+        if caller and caller.kind == 'gateway':
+            return known(request)[0]
+        who = f'the service key of {caller.name}' if caller else 'a subscriber session'
+        error(403, 'gateway_only', f'{API}/radar serves the Radar\'s files to the EDGE gateway key only, sent in the '
+                                   f'{PROXY_HEADER} header; {who} cannot ask for them. Fix: open the Radar in EDGE '
+                                   f'(edge-bff /api/v1/radar). Example: {PROXY_HEADER}: '
+                                   f'${{{{terminal-api.TERMINAL_PROXY_KEY}}}} from edge-bff.')
 
     def service_only_files(caller: Caller, route: str):
         """T1: a service account reads published files; the PostgreSQL fallback and password routes are a person's."""
@@ -592,6 +611,35 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         chosen = [('xsection', n, index[n]) for n in names]
         ttl = grant(request, caller, quota.REF, chosen, one_row=True, row_dataset='xsection')
         return {'finished_at': state.get('finished_at'), 'expires_in_seconds': ttl, 'encoding': 'gzip json',
+                'files': [{'name': n, 'url': bucket.presign(f['key'], ttl), 'sha256': f['sha256'], 'bytes': f['bytes'],
+                           'rows': f['rows'], 'as_of': f['as_of']} for _, n, f in chosen]}
+
+    @app.get(f'{API}/radar')
+    def radar_files(request: Request, caller=Depends(radar_caller)):
+        """EXEC-RADAR R5: the Radar's file index of the current publication ({name: {sha256, bytes, rows, as_of}}; no
+        key, nothing granted), for the EDGE gateway only (radar_caller). Empty before the publisher writes one."""
+        finished, index = bucket.radar()
+        if finished is None:
+            error(503, 'state_unavailable', 'The publication state could not be read; try again shortly.')
+        return {'finished_at': finished, 'files': {n: {k: e[k] for k in ('sha256', 'bytes', 'rows', 'as_of')}
+                                                   for n, e in sorted((index or {}).items())}}
+
+    @app.post(f'{API}/radar')
+    def radar_grant(body: RadarRequest, request: Request, caller=Depends(radar_caller)):
+        """EXEC-RADAR R5: presigned URLs for Radar files of the current publication by their index names, for the EDGE
+        gateway only. Counted under the REF pseudo-ticker with one audit row (dataset 'radar'), as /xsection."""
+        finished, index = bucket.radar()
+        if finished is None:
+            error(503, 'state_unavailable', 'The publication state could not be read; try again shortly.')
+        index = index or {}
+        names = list(dict.fromkeys(body.names))
+        missing = [n for n in names if n not in index]
+        if missing:
+            error(404, 'radar_not_published', f'No Radar file {missing} in the publication of {finished}; '
+                                              f'GET {API}/radar lists the published ones.')
+        chosen = [('radar', n, index[n]) for n in names]
+        ttl = grant(request, caller, quota.REF, chosen, one_row=True, row_dataset='radar')
+        return {'finished_at': finished, 'expires_in_seconds': ttl, 'encoding': 'gzip json',
                 'files': [{'name': n, 'url': bucket.presign(f['key'], ttl), 'sha256': f['sha256'], 'bytes': f['bytes'],
                            'rows': f['rows'], 'as_of': f['as_of']} for _, n, f in chosen]}
 

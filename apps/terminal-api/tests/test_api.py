@@ -188,6 +188,12 @@ class FakeBucket:
     def state(self):
         return self.state_doc
 
+    def radar(self):
+        """EXEC-RADAR R5: as Bucket.radar, from the same state document."""
+        from app.bucket import radar_index
+        s = self.state_doc
+        return (None, None) if not isinstance(s, dict) else (s.get('finished_at'), radar_index(s.get('radar')))
+
     def presign(self, key, ttl):
         return f'https://bucket.example/{key}?X-Amz-Expires={ttl}&sig=x'
 
@@ -1298,3 +1304,71 @@ def test_a_connection_the_server_dropped_is_replaced_before_use():
             assert c.execute('SELECT pg_backend_pid() AS pid').fetchone()['pid'] != pid
     finally:
         store.close()
+
+
+# ---- EXEC-RADAR R5: the Radar's files go to the EDGE gateway only (user 2026-11-14: an admin page) -------------------
+SHA_BOARD, SHA_META = '1' * 64, '2' * 64
+RADAR = {'radar-board-2026-11-09': {'key': f'v1/radar/radar-board-2026-11-09.{SHA_BOARD[:16]}.json.gz', 'sha256': SHA_BOARD,
+                                    'bytes': 90_000, 'rows': 3101, 'as_of': '2026-11-09'},
+         'radar-meta': {'key': f'v1/radar/radar-meta.{SHA_META[:16]}.json.gz', 'sha256': SHA_META, 'bytes': 30_000,
+                        'rows': 105, 'as_of': '2026-11-09'}}
+
+
+def radar_rack(bucket=None):
+    bucket = bucket or FakeBucket()
+    bucket.state_doc = {**FakeBucket.state_doc, 'xsection': json.loads(json.dumps(XSECTION)),
+                        'radar': json.loads(json.dumps(RADAR)), 'radar_stamp': ['x']}
+    return bucket
+
+
+def test_radar_lists_and_grants_its_files_to_the_gateway_in_one_audit_row():
+    bucket = radar_rack()
+    client, store = gateway_client(bucket)
+    r = client.get(f'{API}/radar', headers=GATEWAY)
+    assert r.status_code == 200, r.text
+    assert r.json() == {'finished_at': '2026-10-27T13:03:17Z', 'files': {
+        n: {k: e[k] for k in ('sha256', 'bytes', 'rows', 'as_of')} for n, e in sorted(RADAR.items())}}
+    assert store.access == []                                                  # the index grants nothing
+    r = client.post(f'{API}/radar', headers=GATEWAY, json={'names': ['radar-meta', 'radar-board-2026-11-09']})
+    assert r.status_code == 200, r.text
+    files = r.json()['files']
+    assert [f['name'] for f in files] == ['radar-meta', 'radar-board-2026-11-09']
+    assert files[0]['url'] == f'https://bucket.example/{RADAR["radar-meta"]["key"]}?X-Amz-Expires=120&sig=x'
+    row = store.access[-1]
+    assert (row['ticker'], row['dataset'], row['files'], row['bytes']) == (quota.REF, 'radar', 2, 120_000)
+
+
+def test_radar_refuses_a_subscriber_session_and_every_service_key():
+    bucket = radar_rack()
+    client, store, _ = services_client(bucket)
+    for headers in (SCREENER, BACKTEST):
+        for call in (lambda h: client.get(f'{API}/radar', headers=h),
+                     lambda h: client.post(f'{API}/radar', headers=h, json={'names': ['radar-meta']})):
+            r = call(headers)
+            assert r.status_code == 403 and r.json()['error'] == 'gateway_only', r.text
+            assert 'EDGE gateway key only' in r.json()['message'] and 'Fix:' in r.json()['message']
+    direct = TestClient(client.app, headers={'origin': ORIGIN})
+    assert sign_in(direct).status_code == 200
+    assert direct.get(f'{API}/radar').json()['error'] == 'gateway_only'
+    assert direct.post(f'{API}/radar', json={'names': ['radar-meta']}).json()['error'] == 'gateway_only'
+    r = direct.get(f'{API}/radar', headers={'x-terminal-proxy-key': 'x' * 40})
+    assert r.status_code == 401 and r.json()['error'] == 'proxy_key_rejected'
+    assert all(a['dataset'] != 'radar' for a in store.access)
+
+
+def test_radar_names_outside_the_index_and_other_families_are_refused():
+    bucket = radar_rack()
+    bucket.state_doc['radar']['radar-evil'] = {**RADAR['radar-meta'], 'key': 'v1/xsection/price.' + SHA_META[:16] + '.json.gz'}
+    client, store = gateway_client(bucket)
+    for name in ('radar-evil', 'price', 'radar-f-s1'):
+        r = client.post(f'{API}/radar', headers=GATEWAY, json={'names': [name]})
+        assert r.status_code == 404 and r.json()['error'] == 'radar_not_published', name
+    assert client.post(f'{API}/radar', headers=GATEWAY, json={'names': ['Radar!']}).status_code == 400
+    assert store.access == []
+
+
+def test_state_never_shows_the_radar_index():
+    from app.bucket import STATE_FIELDS
+    b = s3_bucket({**FakeBucket.state_doc, 'radar': RADAR, 'radar_stamp': ['x']})
+    assert 'radar' not in STATE_FIELDS and 'radar' not in b.state() and 'radar_stamp' not in b.state()
+    assert b.radar() == ('2026-10-27T13:03:17Z', RADAR)

@@ -59,6 +59,13 @@ def xsection_index(raw):
     return content_index(raw, 'xsection', XSECTION_FIELDS)
 
 
+def radar_index(raw):
+    """EXEC-RADAR R5: state.json `radar` = {name: {key, sha256, bytes, rows, as_of}}, the Radar's files under content
+    keys v1/radar/<name>.<first 16 hex of sha256>.json.gz, validated by the same rules (content_index). Never part of
+    /state (STATE_FIELDS): only POST /radar, for the EDGE gateway key, reads it (Bucket.radar)."""
+    return content_index(raw, 'radar', XSECTION_FIELDS)
+
+
 def refs_index(raw):
     """EXEC-MU-RUNTIME T5: state.json `refs` = {name: {key, sha256, bytes, rows}}, the publication's reference files
     (tickers, brokers, logos) under content keys v1/ref/<name>.<first 16 hex of sha256>.json.gz, validated by the same
@@ -115,6 +122,15 @@ class Bucket:
         out['xsection'] = xsection_index(out['xsection'])
         out['refs'] = refs_index(out['refs'])
         return out
+
+    def radar(self):
+        """EXEC-RADAR R5: (finished_at, the `radar` index of the same state.json read) for POST /radar; (None, None) while
+        state.json was never readable, (finished_at, None) before the publisher writes the index."""
+        self._fresh()
+        s = self._state
+        if not isinstance(s, dict):
+            return None, None
+        return s.get('finished_at'), radar_index(s.get('radar'))
 
     def manifest(self, ticker):
         self._fresh()

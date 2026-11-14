@@ -14024,7 +14024,13 @@ latest R10".
   validator 0 selisih di 7 tanggal; hitung ulang harian = hitung penuh).
 - Cacat yang ditemukan dan diperbaiki sebelum rilis: ERRORS M427, M429, M430. Dicatat terbuka: M425 (Open in Terminal
   Screener), M426 (baris non-universe lama di F06), M428 (arti "5 sesi" di library; keputusan user).
-- Belum: R4 ambang S6Δ dari 20 tanggal (butuh data dev penuh, sesudah backfill dev), R5-R10.
+- **2026-11-14, R5-R7 dibangun di branch:** publisher `apps/terminal-publisher/radar.py` (31 file `radar/`, indeks
+  `state.json` `radar`, mode manual `radar`; gladi SQL: 3 detik, 2,9 MB), terminal-api `GET/POST /radar` (kunci gateway
+  saja; `/state` tidak menampilkan indeks), edge-bff `app/radar.py` (`/api/v1/radar/index`, `/api/v1/radar/file/<nama>`,
+  hanya sesi pemilik, byte diteruskan dan dicek sha), halaman `apps/edge-bff/radar` dari R10 (data sungguhan), tab Radar
+  di shell, listener `edge-nav` (M425), tahap "file Radar" di telegram-monitor. Kontrak: `verification/radar/FILES.md`.
+- Belum: R4 ambang S6Δ dari 20 tanggal (butuh data dev penuh, sesudah backfill dev), R8 sisanya (DATABASE_SCHEMA dan
+  changelog saat dipasang), R9-R10 (rilis dev bertahap dengan go per langkah, 5 agen QA).
 
 ### Keputusan yang perlu user sebelum go
 

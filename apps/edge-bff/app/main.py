@@ -22,6 +22,7 @@ from .config import Settings
 from .layouts import Layouts
 from .presets import Presets
 from .drawings import Drawings
+from .radar import Radar
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .security import csrf_token, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
@@ -58,6 +59,10 @@ BACKTEST_CSP = TERMINAL_CSP
 # preview is computed by the screener-worker and every answer comes from /api/v1/screener on this origin, so it reads no
 # rack file and connect-src is 'self' only.
 SCREENER_APP = STATIC / 'screener-app'
+# EXEC-RADAR R6 (user go 2026-11-14): the built Radar page (apps/edge-bff/radar -> static/radar-app), the Radar tab's
+# frame. Its data comes from /api/v1/radar on this origin (the bytes are relayed, app/radar.py), so it takes the
+# Screener page's policy (connect-src 'self').
+RADAR_APP = STATIC / 'radar-app'
 SCREENER_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
                 "img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; "
@@ -184,6 +189,7 @@ def create_app(settings=None, store=None, orc=None):
     layouts = Layouts(settings, store)
     presets = Presets(settings, store)
     drawings = Drawings(settings, store)
+    radar = Radar(settings)
     ready = {'value': False}
     failures = defaultdict(deque)
     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
@@ -268,7 +274,7 @@ def create_app(settings=None, store=None, orc=None):
             return response
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard)
-        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else SCREENER_CSP if request.url.path.startswith('/screener-app/') else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/')) else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
         return response
 
     async def session(request: Request):
@@ -313,6 +319,7 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/terminal')
     @app.get('/backtest')
     @app.get('/screener')
+    @app.get('/radar')
     @app.get('/login')
     async def index():
         return FileResponse(STATIC / 'index.html', media_type='text/html')
@@ -406,6 +413,21 @@ def create_app(settings=None, store=None, orc=None):
             return error('NOT_FOUND', 404)
         return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
 
+    # EXEC-RADAR R6: the Radar page, served like the Screener page (no data in it; its hashed assets never change)
+    @app.get('/radar-app/')
+    async def radar_page():
+        target = RADAR_APP / 'index.html'
+        if not target.is_file():
+            return error('NOT_FOUND', 404)
+        return FileResponse(target, media_type='text/html')
+
+    @app.get('/radar-app/assets/{name}')
+    async def radar_asset(name: str):
+        target = RADAR_APP / 'assets' / name
+        if not TERMINAL_ASSET.fullmatch(name) or not target.is_file():
+            return error('NOT_FOUND', 404)
+        return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
+
     # EXEC-TERMINAL-API T4 (user 2026-10-25: "edge-bff meneruskan /api/terminal/... ke terminal-api --> OK"): the owner's
     # EDGE session reaches terminal-api as its one terminal account (quotas and audit there); writes keep EDGE's
     # same-origin and CSRF checks. Only the data routes are forwarded.
@@ -451,6 +473,8 @@ def create_app(settings=None, store=None, orc=None):
     presets.routes(app, session, write)
     # EXEC-DRAW-PANES (user 2026-11-07: "semua gambar harus di simpan di akun EDGE"): the Terminal's drawings, /api/v1/terminal/drawings
     drawings.routes(app, session, write)
+    # EXEC-RADAR R6: /api/v1/radar (index and files) for this session, the owner's only
+    radar.routes(app, session)
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):
@@ -474,16 +498,23 @@ def create_app(settings=None, store=None, orc=None):
             await asyncio.to_thread(store.revoke, token_hash(old))
         token = secrets.token_hex(32)
         await asyncio.to_thread(store.session_create, token_hash(token), settings.owner, settings.session_seconds)
-        response = JSONResponse({'authenticated': True, 'login': settings.login, 'csrf_token': csrf_token(token, settings.session_secret)})
+        # EXEC-RADAR R7: the capabilities come with the sign-in too, so the shell's menu is right before any reload
+        response = JSONResponse({'authenticated': True, 'login': settings.login, 'csrf_token': csrf_token(token, settings.session_secret),
+                                 'capabilities': capabilities()})
         response.set_cookie(COOKIE, token, max_age=settings.session_seconds, httponly=True,
                             secure=settings.secure_cookie, samesite='strict', path='/')
         return response
 
+    def capabilities():
+        return {'deep_research': False, 'model_selection': True, 'cancel': True, 'tool_progress': False,
+                'retention_days_default': 30,
+                # EXEC-RADAR R6: the Radar tab shows only when its data can be read
+                'radar': bool(settings.terminal_url)}
+
     @app.get('/api/v1/auth/session')
     async def get_session(token=Depends(session)):
         return {'authenticated': True, 'login': settings.login, 'csrf_token': csrf_token(token, settings.session_secret),
-                'capabilities': {'deep_research': False, 'model_selection': True, 'cancel': True, 'tool_progress': False,
-                                 'retention_days_default': 30}}
+                'capabilities': capabilities()}
 
     @app.post('/api/v1/auth/sign-out')
     async def sign_out(token=Depends(write)):

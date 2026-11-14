@@ -277,6 +277,21 @@ checks both). No market data.
 Tests: `tests/test_screener.py` (fake worker as a local HTTP server, disposable Postgres, the migration's verify block
 and the provisioning script's reach, one Chromium check of the tab, and the screener stage of the image).
 
+## Radar tab (EXEC-RADAR, 2026-11-14)
+
+The screener library's filters S1, S2, S3, S6, S6Δ, S7 and S8 as a board and a filter detail, for the owner (an admin
+page: the rules and thresholds are shown). Design: R10 (`verification/radar/index-r10.html`, user D7) and
+`verification/radar/RADAR_PAGE_SPEC.md`; data contract: `verification/radar/FILES.md`. The page `radar/` (TypeScript +
+Vite, no dependency) is built by the Dockerfile's `radar` stage into `static/radar-app/` (not kept in git) and shown in a
+frame at `/radar` (Radar tab after Screener, wording in `static/edge-labels.js`; the tab shows only when
+`/api/v1/auth/session` and the sign-in say `capabilities.radar`). `/radar-app/` takes the Screener page's CSP
+(`connect-src 'self'`): `app/radar.py` lists the Radar files (`GET /api/v1/radar/index`) and relays their bytes
+(`GET /api/v1/radar/file/<name>?sha=`) from terminal-api, which presigns them for the gateway key only. The page picks
+Feature 07's rows (`radar/src/model.ts`) and evaluates no rule. Open in Terminal stores the symbol (`ml.symbol`) and
+posts `edge-nav`; the shell's one listener accepts it from its own frames only, for a page of the rail (ERRORS M425,
+also the Screener's). Tests: `tests/test_radar.py` (routes, refusals, the tab and edge-nav in Chromium),
+`radar/tests/` (`npm test`).
+
 ## Front-end structure: editing the page without touching the API (EXEC-X, 2026-10-08)
 
 The browser tab names the page (EXEC-TERMINAL-IND-EDIT, user 2026-11-05): `App()` in `static/index.html` sets

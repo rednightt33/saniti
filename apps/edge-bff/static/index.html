@@ -11276,6 +11276,8 @@ const paths = {
     navTerminal: element(fragment, null, element("rect", { x: "3", y: "4", width: "18", height: "16", rx: "2" }), element("path", { d: "M6.5 15.5l3.5-4 3 2.5 4.5-6" })),
     navBacktest: element(fragment, null, element("circle", { cx: "12", cy: "13", r: "7.5" }), element("path", { d: "M12 9.5V13l2.5 1.5M9.5 3h5M12 3v2.5" })),
     navScreener: element("path", { d: "M4 5h16l-6 7.5V19l-4 1.5v-8z" }),
+    // EXEC-RADAR R7: the Radar icon of R10 (user 2026-11-14: "Untuk icon sudah oke")
+    navRadar: element(fragment, null, element("path", { d: "M4 4a16 16 0 0 1 16 16" }), element("path", { d: "M4 10.5a9.5 9.5 0 0 1 9.5 9.5" }), element("path", { d: "M4 20 13 11" }), element("circle", { cx: "16.3", cy: "8.2", r: "1.3" }), element("circle", { cx: "4", cy: "20", r: ".6" })),
     export: element(fragment, null,
         element("path", { d: "M12 15V3m-4 4 4-4 4 4" }),
         element("path", { d: "M5 13v7h14v-7" })), save: element(fragment, null,
@@ -11364,7 +11366,19 @@ function SectionTitle({ children, action }) { return element("div", { className:
     action); }
 // EXEC-TERMINAL-API T3 (user 2026-10-25: "buat tab terpisah di sebelah monitor"): the financial terminal tab
 // EDGE backtest (CONTRACT.md section 10): the Backtest tab next to Terminal; EXEC-SCREENER: the Screener tab next to Backtest
-const nav = [["Monitor", "monitor"], [EdgeLabels.terminal.nav, "terminal"], [EdgeLabels.backtest.nav, "backtest"], [EdgeLabels.screener.nav, "screener"]];
+const nav = [["Monitor", "monitor"], [EdgeLabels.terminal.nav, "terminal"], [EdgeLabels.backtest.nav, "backtest"], [EdgeLabels.screener.nav, "screener"], [EdgeLabels.radar.nav, "radar"]];
+// EXEC-RADAR R7: the Radar shows only when the session says its data can be read (/api/v1/auth/session capabilities)
+const navShown = ([, r]) => r !== "radar" || Edge.auth?.capabilities?.radar === true;
+// ERRORS M425 (EXEC-RADAR R7): a sub-app page in one of this shell's frames (Screener, Radar) asks for another page with
+// {type:"edge-nav", route}; only this origin, only from a frame of this document, only to a page of the rail. One
+// listener for the page's life; shellGo is the current page switch (set by the app on every render).
+let shellGo = null;
+addEventListener("message", e => {
+    if (e.origin !== location.origin || e.data?.type !== "edge-nav" || !shellGo) return;
+    const frames = [...document.querySelectorAll("iframe.terminal-frame")].map(f => f.contentWindow);
+    if (!frames.includes(e.source) || !["terminal", "backtest", "screener", "radar"].includes(e.data.route)) return;
+    shellGo(e.data.route);
+});
 function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) {
     const viewRecord = currentView;
     const { theme, toggle } = themeState;
@@ -11447,7 +11461,7 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
                 onClick: () => statsReady && termFrame()?.contentWindow?.postMessage({ source: "edge", type: "stats", open: !statsOpen }, location.origin) },
                 element("span", { className: "side-stats-chev" }, statsOpen ? "«" : "»"), element("span", { className: "side-stats-label" }, "Statistics")),
             slim && route === "terminal" && element("span", { className: "side-sep", "aria-hidden": true }),
-            nav.map(([label, r]) => { const active = route === "monitor" ? label === "Monitor" : route === r;
+            nav.filter(navShown).map(([label, r]) => { const active = route === "monitor" ? label === "Monitor" : route === r;
             return element("button", { key: label, type: "button", "aria-current": active ? "page" : undefined, "aria-label": label, "data-tip": label, className: `nav-${label.toLowerCase()} ${active ? "active" : ""}`, onClick: () => go(r) },
                 element(Icon, { name: `nav${r[0].toUpperCase()}${r.slice(1)}`, size: 22 })); }),
             slim && element("div", { className: "side-actions" },
@@ -11606,6 +11620,13 @@ function ScreenerPage({ go }) {
     return element(Shell, { route: "screener", go: go, chart: true },
         element("main", { className: "terminal-page" },
             element("iframe", { className: "terminal-frame", src: "/screener-app/", title: EdgeLabels.screener.frameTitle })));
+}
+// EXEC-RADAR R7 (user go 2026-11-14): the Radar is its own page (/radar-app/, built from apps/edge-bff/radar) in the same
+// kind of same-origin frame; its data comes from /api/v1/radar with this EDGE session (the owner's only).
+function RadarPage({ go }) {
+    return element(Shell, { route: "radar", go: go, chart: true },
+        element("main", { className: "terminal-page" },
+            element("iframe", { className: "terminal-frame", src: "/radar-app/", title: EdgeLabels.radar.frameTitle })));
 }
 function Monitor({ go }) {
     const viewRecord = currentView;
@@ -13309,7 +13330,7 @@ function Flow({ run }) {
 
 function App() {
     const viewRecord = currentView;
-    const currentPath = () => ["/terminal","/backtest","/screener"].includes(routeLocation().pathname) ? routeLocation().pathname : ["/monitor","/markets"].includes(routeLocation().pathname) || routeLocation().pathname.startsWith("/c/") ? "/monitor" : "/login";
+    const currentPath = () => ["/terminal","/backtest","/screener","/radar"].includes(routeLocation().pathname) ? routeLocation().pathname : ["/monitor","/markets"].includes(routeLocation().pathname) || routeLocation().pathname.startsWith("/c/") ? "/monitor" : "/login";
     const authenticated=initialValue(viewRecord,"authenticated",()=>false),checked=initialValue(viewRecord,"checked",()=>false);
     onLifecycle(viewRecord,"auth",()=>{const sync=()=>updateValue(viewRecord,"authenticated",Boolean(Edge.auth));addEventListener("edge-auth",sync);Edge.session().then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
     const path = initialValue(viewRecord, "path", currentPath), setPath = next => updateValue(viewRecord, "path", next);
@@ -13326,11 +13347,11 @@ function App() {
     // EXEC-TERMINAL-IND-EDIT (user 2026-11-05): the browser tab names the page; the words are in edge-labels.js (pages)
     onLifecycle(viewRecord, "title", () => {
         const P = EdgeLabels.pages;
-        document.title = !checked ? P.loading : !authenticated ? P.signIn : path === "/terminal" ? P.terminal : path === "/backtest" ? P.backtest : path === "/screener" ? P.screener : P.monitor;
+        document.title = !checked ? P.loading : !authenticated ? P.signIn : path === "/terminal" ? P.terminal : path === "/backtest" ? P.backtest : path === "/screener" ? P.screener : path === "/radar" ? P.radar : P.monitor;
     }, [checked, authenticated, path]);
     const go = route => {
-        if (!["monitor", "markets", "terminal", "backtest", "screener", "/monitor", "/markets", "/terminal", "/backtest", "/screener", "/login", "/"].includes(route)) return;
-        const nextPath = ["terminal","/terminal"].includes(route) ? "/terminal" : ["backtest","/backtest"].includes(route) ? "/backtest" : ["screener","/screener"].includes(route) ? "/screener" : ["markets","/markets","monitor","/monitor"].includes(route) ? "/monitor" : "/login";
+        if (!["monitor", "markets", "terminal", "backtest", "screener", "radar", "/monitor", "/markets", "/terminal", "/backtest", "/screener", "/radar", "/login", "/"].includes(route)) return;
+        const nextPath = ["terminal","/terminal"].includes(route) ? "/terminal" : ["backtest","/backtest"].includes(route) ? "/backtest" : ["screener","/screener"].includes(route) ? "/screener" : ["radar","/radar"].includes(route) ? "/radar" : ["markets","/markets","monitor","/monitor"].includes(route) ? "/monitor" : "/login";
         // EXEC-CHAT-URL: signing in at /c/<id> stays on that conversation
         if (!(nextPath === "/monitor" && routeLocation().pathname.startsWith("/c/"))) routeHistory.pushState({}, "", nextPath);
         setPath(nextPath);
@@ -13342,7 +13363,8 @@ function App() {
         return next;
     });
     themeState = { theme, toggle };
-    return !checked ? element("div",{className:"auth-page"},"Checking session…") : authenticated ? (path === "/terminal" ? element(TerminalPage,{go}) : path === "/backtest" ? element(BacktestPage,{go}) : path === "/screener" ? element(ScreenerPage,{go}) : element(Monitor,{go})) : element(AuthPage,{mode:"login",go});
+    shellGo = go;                                     // the edge-nav listener (below nav) switches pages with it
+    return !checked ? element("div",{className:"auth-page"},"Checking session…") : authenticated ? (path === "/terminal" ? element(TerminalPage,{go}) : path === "/backtest" ? element(BacktestPage,{go}) : path === "/screener" ? element(ScreenerPage,{go}) : path === "/radar" ? element(RadarPage,{go}) : element(Monitor,{go})) : element(AuthPage,{mode:"login",go});
 }
 
 refresh();
