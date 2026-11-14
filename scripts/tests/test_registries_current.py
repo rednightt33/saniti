@@ -7,6 +7,9 @@ from pathlib import Path
 
 import pytest
 
+# EXEC-GEN-CHECK: checks of a generated file, run on every push by .github/workflows/generated-files.yml
+pytestmark = pytest.mark.generated_file
+
 ROOT = Path(__file__).resolve().parents[2]
 CHECKS = [('apps/backtest-worker', 'scripts/build-registry.mjs', './loader/register.mjs'),
           ('apps/edge-bff/screener', 'scripts/build-screener-registry.mjs', '../../backtest-worker/loader/register.mjs')]

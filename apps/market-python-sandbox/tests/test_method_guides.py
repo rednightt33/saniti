@@ -67,6 +67,7 @@ def test_the_orchestrator_copy_is_identical() -> None:
         assert other.read_bytes() == (HERE / "app" / "method_guides.py").read_bytes()
 
 
+@pytest.mark.generated_file  # EXEC-GEN-CHECK
 def test_the_migration_holds_the_guides_of_the_code() -> None:
     repo = HERE.parents[1]
     script = repo / "scripts" / "generate_ai_method_guide_migration.py"

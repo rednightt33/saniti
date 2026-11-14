@@ -7766,7 +7766,7 @@ in its staleness check.
 - **Lesson:** a guard step that cannot run must say "not run" in one line the job's reader sees, never end in a
   traceback after the job's success line.
 
-### M434 — The indicator notes file drifted from its sources for six days; its check runs only by hand (2026-11-14, regenerated; cause open)
+### M434 — The indicator notes file drifted from its sources for six days; its check runs only by hand (2026-11-14, fixed)
 
 - **Symptom:** on `main` `a936653` (2026-11-14) `scripts/tests/test_indicator_notes.py` fails:
   "apps/edge-bff/terminal/src/data/indNotes.json differs from its sources: run scripts/build_indicator_notes.py".
@@ -7797,7 +7797,7 @@ in its staleness check.
 - **Effect:** none for users. The Terminal build (`npm run build`) before and after the rebuild is byte-identical
   (sha256 of all four files in `apps/edge-bff/static/terminal-app`), so this change needs no deploy. The look check
   (`look_check11.mjs`) does not apply: no style, markup or layout changed, and the file is not in the page.
-- **Solution (this task):** `python3 scripts/build_indicator_notes.py` ("53 technical, 52 flow"). Checks:
+- **Solution, step 1 (commit `911882d`):** `python3 scripts/build_indicator_notes.py` ("53 technical, 52 flow"). Checks:
   - `--check` exit 0, and `scripts/tests/test_indicator_notes.py` passes;
   - Terminal vitest: 893 passed; `npm run build` OK.
   The other drift checks are current the same day: `scripts/tests/test_registries_current.py` (Backtest and Screener
@@ -7809,8 +7809,41 @@ in its staleness check.
   - `AI_TOOLS.md`, `AI_MODELS.md`, `AI_ROUTER.md` and the system-prompt snapshots (tests in `apps/market-ai-orc/tests`).
   A sub-class: a generated file left behind when its reader is removed keeps a check that can fail but protects
   nothing.
-- **Status:** MITIGATED. The file equals its sources again. The cause remains: no check runs automatically, and the file
-  has no reader. Open user decisions: FUTURE_PLAN GEN-CHECK.
+- **Solution, step 2 (user 2026-11-14: "1. B / 2. A", EXEC-GEN-CHECK):**
+  - 1 B: `scripts/build_indicator_notes.py`, `indNotes.json` and `scripts/tests/test_indicator_notes.py` removed; the
+    handoff rows that named them updated. The Terminal build is still byte-identical; Terminal vitest 893 passed.
+  - 2 A: `.github/workflows/generated-files.yml` runs every test marked `generated_file` on each push and pull request,
+    in three jobs (repository scripts, market-ai-orc, market-python-sandbox; no database, no secrets). Marked: the
+    registry checks, the orc's AI_TOOLS / AI_MODELS / AI_ROUTER / prompt-history tests and its Tool_Catalog and
+    method-guide rows, the sandbox's method-guide and research-library migrations, and two new checks
+    (`INDICATOR_SPEC.md`, `FEATURE_07_RADAR.md`).
+  - `scripts/tests/test_generated_files.py` finds the generators instead of listing them (a script in a `scripts` folder
+    named build/generate/snapshot, or taking `--check`: 20 today) and fails when one has no marked test and no reason
+    in `EXEMPT` (8: five applied-migration writers, a reader of a database export, the restart dry run, and
+    `generate_feature_05_06_catalog`, TEMPORARY for M435). Before the marks were added it failed and named 12.
+  - Local runs as in CI: scripts 7 passed, orc 11 passed, sandbox 2 passed.
+- **Not covered:** a generator outside a `scripts` folder or named otherwise without `--check`; a file whose source is the
+  live database (`DATABASE_SCHEMA.md`, kept by the daily workflow). Railway still deploys a push without waiting for the
+  check (`checkSuites: false` on every service in `.railway/railway.ts`); changing that is a separate user decision.
+- **Status:** FIXED: the file and its chain are gone, and every generated file with a check is now checked
+  automatically.
 - **Lesson:** a generated file needs its check in CI or a pre-commit step, so that a source change without the rebuild
   fails before it reaches `main`. Removing a reader removes its generator chain (generator, output, test, handoff rows)
   in the same commit, or records why the chain stays.
+
+### M435 — FEATURE_05_06_FOREIGN_DOMESTIC.md differs from its generator (2026-11-14, OPEN)
+
+- **Found by:** the inventory for EXEC-GEN-CHECK (M434): `python3 scripts/generate_feature_05_06_catalog.py dictionary`
+  differs from the committed `FEATURE_05_06_FOREIGN_DOMESTIC.md` in 58 table rows.
+- **Symptom (examples):** `buy_freq` / `sell_freq` source "from IDX_Broker_Summary_Freq" in the generator, "stored with
+  each Broker Summary row" in the file; the unit of the `foreign_net_percentile_*` columns "percent" in the generator,
+  "Percentile 0-100" in the file.
+- **Suspected cause (Git, not verified against the database):** the file was edited by hand on 2026-10-24/25, with
+  applied catalog migrations (`b6819b4e` dropped `IDX_Broker_Summary_Freq`, 20261025_007; `8967bdfd`, 20261025_012,
+  Feature_Vocabulary corrections). The generator's last change is `0c888cbf` (2026-10-22), and it still names the
+  dropped table, so the generator is the likely stale side.
+- **Check that settles it:** read `Column_Catalog` for `Feature_05_Foreign_Domestic_Broker_Detail` and
+  `Feature_06_Foreign_Domestic_Broker_Abnormality` (read-only) and compare it with both texts.
+- **Status:** OPEN. The generator is in `EXEMPT` of `scripts/tests/test_generated_files.py` (TEMPORARY); its check is
+  added when the generator writes the catalog's text.
+- **Lesson:** a hand edit of a generated file is made in its generator, or the file stops being generated.

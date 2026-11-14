@@ -5,6 +5,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 from app import research_library as L
 from app.research_methods import METHODS, OPTIONAL_USES, USES
 
@@ -56,6 +58,7 @@ def test_the_orchestrator_copy_is_identical() -> None:
         assert other.read_bytes() == (HERE / "app" / "research_library.py").read_bytes()
 
 
+@pytest.mark.generated_file  # EXEC-GEN-CHECK
 def test_the_migration_holds_the_library_of_the_code() -> None:
     repo = HERE.parents[1]
     migration = repo / "database" / "migrations" / "20260930_001_create_ai_research_library.sql"

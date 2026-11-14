@@ -141,8 +141,7 @@ Aturan hitung bersama (fungsi `def()`, `T/src/calc/indicators.ts:244-273`):
 4. Kalau teks rumusnya berubah: ubah baris indikator itu di `scripts/terminal_indicator_spec.py` (`I`, baris 31-185),
    lalu jalankan:
    - `python3 scripts/terminal_indicator_spec.py`: menulis ulang `INDICATOR_SPEC.md` **dan migrasi** (lihat jebakan
-     7.3);
-   - `python3 scripts/build_indicator_notes.py`: menulis ulang `T/src/data/indNotes.json`.
+     7.3).
 5. Bangun ulang registry turunan, **di commit yang sama** (ERRORS M329):
    - `cd apps/backtest-worker && npm run registry`
    - `cd apps/edge-bff/screener && npm run registry` (butuh python3)
@@ -248,7 +247,6 @@ Contoh lengkap yang sudah ditulis di repo: `SCREENER_ONBOARDING.md:1338-1414` (b
 | `REGISTRY` di `T/tests/calc/edge.test.ts` | salinan tangan kedua | edit bersama registry |
 | `verification/terminal_api/INDICATOR_SPEC.md` | generate ("jangan edit tangan") | `python3 scripts/terminal_indicator_spec.py` |
 | `database/migrations/20261025_102_terminal_indicator_formulas.sql` | generate oleh skrip yang sama, **sudah diterapkan** | lihat peringatan di bawah |
-| `T/src/data/indNotes.json` | generate | `python3 scripts/build_indicator_notes.py` |
 | `T/src/data/flowRegistry.json` | generate | `python3 scripts/build_flow_registry.py` |
 | `FLOW_INDICATORS_SPEC.xlsx` | sumber kontrak Flow | edit spreadsheet |
 | `apps/edge-bff/backtest/src/core/backtest-registry.json` | generate | `npm run registry` di `apps/backtest-worker` |
@@ -328,8 +326,8 @@ Tidak satu pun diperbaiki di sini; semuanya kandidat untuk audit indikator.
 | `apps/edge-bff/backtest` | `npm run typecheck`; `npm test` |
 | `apps/edge-bff/screener` | `npm run registry`; `npm run registry:check`; `npm test`; `npm run tripwire` |
 | `apps/screener-worker` | `npm test` |
-| root repo | `python3 scripts/terminal_indicator_spec.py [--check]`; `python3 scripts/build_indicator_notes.py [--check]`; `python3 scripts/build_flow_registry.py [--check]` |
-| root repo (Python tests) | `python3 -m pytest scripts/tests/test_indicator_notes.py scripts/tests/test_registries_current.py` |
+| root repo | `python3 scripts/terminal_indicator_spec.py [--check]`; `python3 scripts/build_flow_registry.py [--check]` |
+| root repo (Python tests) | `python3 -m pytest -m generated_file scripts/tests` (semua cek file turunan; juga dijalankan GitHub, `.github/workflows/generated-files.yml`) |
 
 Tes Terminal yang mengunci apa:
 - `tests/calc/parity.test.ts`: rumus vs Feature 04, TA-Lib, referensi HTML.
@@ -380,9 +378,8 @@ Bagian ini menambah, bukan mengganti, isi di atas. Rincian keputusan: `EXEC.md`,
 
 - Kartu indikator dihapus (user "2B"): `indCard.ts`, `calc/explain*.ts` dan tesnya tidak ada lagi; rujukan ke file itu di
   atas adalah sejarah. Tooltip hover (nama + `tip`) tetap.
-- `T/src/data/indNotes.json` tidak dibaca kode mana pun sejak penghapusan itu. Skrip dan tesnya masih ada, jadi file ini
-  tetap dibangun ulang bila `FORMULAS.md` atau `terminal_indicator_spec.py` berubah (ERRORS M434). Simpan atau hapus:
-  FUTURE_PLAN GEN-CHECK.
+- `T/src/data/indNotes.json`, pembuatnya `scripts/build_indicator_notes.py` dan tesnya dihapus 2026-11-14 (user "1. B",
+  EXEC-GEN-CHECK, ERRORS M434): sejak kartu dihapus tidak ada kode yang membacanya. Riwayatnya di Git.
 - Jendela Indicators bergaya "Add a condition" Screener (`indMenu.ts`): baris abu-abu = setting bawaan dari registry
   (`defaultsText`), klik selalu menambah dengan notifikasi "added".
 - Sumbu harga: desimal diturunkan dari harga instrumen (`data/priceFormat.ts`).

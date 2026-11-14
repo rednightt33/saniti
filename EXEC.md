@@ -14084,3 +14084,29 @@ latest R10".
 - Data broker tertinggal (Run Now manual): ditampilkan jujur lewat pill sumber; bukan bagian rencana ini untuk diubah.
 - Kunci gateway untuk `/xsection` ditandai sementara di terminal-api (`main.py:37-39`); rute `/radar` baru harus punya
   pemeriksaan pemanggil sendiri, bukan bergantung pada akses sementara itu.
+
+## EXEC-GEN-CHECK — file turunan diperiksa otomatis; file catatan indikator dihapus (keputusan 2026-11-14, dijalankan di branch)
+
+**Kata user, 2026-11-14:** "1. B / 2. A", atas dua keputusan (ERRORS M434):
+- 1 (file catatan indikator `indNotes.json`, tanpa pembaca sejak kartu dihapus 2026-11-06): B = hapus skrip, file dan
+  tesnya, sesuai keputusan 2B; riwayat tetap di Git.
+- 2 (pemeriksaan otomatis file turunan): A = workflow GitHub pada setiap push dan PR, menjalankan semua pemeriksaan yang
+  tidak butuh database atau rahasia.
+
+**Dijalankan di branch `claude/affectionate-shannon-qmsxxb` (belum di `main`):**
+- 1 B: `scripts/build_indicator_notes.py`, `apps/edge-bff/terminal/src/data/indNotes.json`,
+  `scripts/tests/test_indicator_notes.py` dihapus; baris handoff diperbarui. Build Terminal tetap sama byte demi byte,
+  tes Terminal 893 lulus.
+- 2 A: `.github/workflows/generated-files.yml`, tiga job (skrip repo, market-ai-orc, market-python-sandbox), tes bertanda
+  `generated_file`. `scripts/tests/test_generated_files.py` mencari pembuat file sendiri (nama build/generate/snapshot
+  di folder `scripts`, atau yang memakai `--check`) dan gagal bila ada yang tanpa pemeriksaan dan tanpa alasan di
+  `EXEMPT`. Aturan di `AGENTS.md` (Mandatory workflow, Generated files).
+- Repo publik, jadi menit GitHub Actions gratis.
+
+**Temuan:** `FEATURE_05_06_FOREIGN_DOMESTIC.md` berbeda dari pembuatnya (ERRORS M435, OPEN); pembuatnya dikecualikan
+sementara.
+
+**Terbuka (menunggu user):**
+- go untuk merge ke `main` (push `main` memicu deploy; halaman tidak berubah);
+- Railway menunggu hasil pemeriksaan sebelum deploy (`checkSuites`, sekarang `false` di semua layanan,
+  `.railway/railway.ts`): keputusan terpisah.
