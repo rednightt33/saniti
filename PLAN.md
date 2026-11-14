@@ -66,7 +66,7 @@ detail filter). Kartu dan hitungan: `SCREENER_LIBRARY.md`.
   - Ambang V1Δ dan V2Δ S6Δ untuk jendela 5 sesi. Usulan dari hitung ulang 3 Nov: V1Δ 12 / 20 / 35 dan V2Δ 40 / 65 / 90
     poin (Longgar / Standar / Ketat); ambang lama dihitung untuk rasio 20 sesi dan tidak menyaring apa pun pada 5 sesi.
   - Ukuran urut S6 dan S7 (usulan: rasio, FL34).
-  - Rencana implementasi lengkap: `EXEC.md` EXEC-RADAR (ditulis 2026-11-14, menunggu go dan keputusan D1-D7).
+  - Rencana implementasi lengkap: `EXEC.md` EXEC-RADAR (ditulis 2026-11-14; D1, D3-D7 dijawab 2026-11-14; D2 terbuka; menunggu go).
 - **Data yang dibutuhkan:** tabel ukuran harian per saham untuk semua filter (juga membuka S7 V2/V2Δ, library 12.3 #6),
   backfill ≥ 250 sesi ditambah baseline 252 (update besar: restart Postgres sesudahnya), job harian setelah data broker,
   pendaftaran katalog, aplikasi halaman baru di frame EDGE seperti Screener.

@@ -13994,6 +13994,20 @@ atau run ID, dan hitung ulang sendiri; temuan diperbaiki lalu diuji ulang oleh a
   visual), validasi independen.
 - Katalog dan dokumen diperbarui (R8); `ERRORS_AND_SOLUTIONS.md` mencatat setiap error; `PLAN.md` RADAR dipindah keluar.
 
+### Jawaban user 2026-11-14 atas keputusan sebelum go
+
+"D1 ok / D2 maksudnya gimana? ini deviate dari spek yg sudah di agree? / D3 ok / D4 ok / D5 ok / D6 ok / D7 bangun dari
+latest R10".
+- D1: satu konvensi persentil "lebih kecil ÷ 252" untuk semua filter (S1 dihitung ulang).
+- D3: urutan S6 rasio asing, S7 FL34 sekarang, S8 z robust.
+- D4: riwayat hasil 250 sesi, pemilih tanggal 20 tanggal terakhir.
+- D5: Radar diperbarui pada ronde broker (Run Now); hasil tertinggal sejauh data broker.
+- D6: "One-day block" bila satu hari ≥ 80% net asing 5 sesi; "Corporate action" bila ada aksi korporasi dalam jendela.
+- D7: halaman dibangun langsung dari R10 terakhir (`verification/radar/index-r10.html`) dan spesifikasinya, tanpa
+  menunggu HTML dari AI lain.
+- D2: ditanyakan balik (penjelasan di percakapan 2026-11-14); masih terbuka.
+- Belum "go" eksekusi.
+
 ### Keputusan yang perlu user sebelum go
 
 - **D1 Konvensi persentil:** semua persentil riwayat sendiri memakai "lebih kecil ÷ 252" seperti library (S1 dihitung
