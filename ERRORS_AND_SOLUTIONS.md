@@ -7766,7 +7766,7 @@ in its staleness check.
 - **Lesson:** a guard step that cannot run must say "not run" in one line the job's reader sees, never end in a
   traceback after the job's success line.
 
-### M434 — Radar: the first result dates have no universe, the G2 window reads the Radar's own history (2026-11-14, open)
+### M434 — Radar: the first result dates have no universe, the G2 window reads the Radar's own history (2026-11-14, fixed)
 
 - **Symptom (live check on dev, 2026-11-14):** `radar-days` lists 250 dates, but `Feature_07_Radar_Result` has rows on 246:
   the gate rows of 2025-10-24, 10-27, 10-28 and 10-29 read universe 0, Broad 0, Liquid 0. The next 11 dates (2025-10-30
@@ -7779,9 +7779,18 @@ in its staleness check.
   checked dates start in June 2026.
 - **Class:** every window measure whose history is read from the derived table it fills, at the start of that table: the
   G2 window now; any later "N of the last M dates" rule of the Radar or a Feature table filled from a chosen start.
-- **Proposed fix (needs the user's go):** the day step reads the 16 market dates and each stock's Regular sessions from
-  Feature 06 (the session source, M428), not from the Radar's own rows, so the window is whole from the first date;
-  then `refresh_feature_07_day` again for the first 16 dates (about 15 s). A new migration with a measured plan; the
-  validator checks the first dates too.
+- **Fixed (user 2026-11-14: "2 perbaiki sekarang"):** migration `20261114_005_feature_07_radar_g2_window.sql` (DRYRUN
+  `750b0e5f`, APPLY `36714ab7`): `refresh_feature_07_day` reads the 16 market dates (a Regular session of any ticker)
+  and each stock's Regular sessions from Feature 06 (read-only EXPLAIN ANALYZE on dev: 18,804 index rows, 27 ms); the
+  catalog row of `g2_eligible` names the new source. Every result date was then computed again in date order
+  (`verification/radar/redo_days_job.py`, DRYRUN `9caa52d3`, APPLY `478abe05`, 244 s, APPLY_OK), because a run of days
+  carries from one date to the next: universe 856 / 855 / 854 / 853 on 2025-10-24..29, 853-855 to 2025-11-13; the gate
+  rows from the 16th date on unchanged; result rows changed on 21 dates (2025-10-24 to 11-21), none later (3 and 9 Nov
+  2026 as before). The publisher republished the files (Run Now 17:13 UTC); live check 13/13
+  (`verification/radar/live_20261114_m434/`).
+- **Verified independently:** `validate_radar.py` (now taking the previous result date from the gate rows, as the SQL)
+  on every ticker of 2025-10-24, 10-27, 10-30, 11-05, 11-13, 11-14 and of six dates of 2026: 0 differences
+  (`verification/radar/validation_20261114/`). A first run differed for PJHB only: listed 2025-11-06, its broker rows
+  were missing from the extract (the extract's own window started before its listing), not from dev.
 - **Lesson:** a rolling window reads its history from the source table, never from a table whose first row is the
   start of a fill; validate the first dates of a fill, not only recent ones.

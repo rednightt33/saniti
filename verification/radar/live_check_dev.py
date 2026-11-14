@@ -126,6 +126,15 @@ def main():
               {(f, lv, {'S6D_RANK': rk}.get(f, rt), {'S6D_BOTH': rk}.get(f))
                for f in ('S6D_RATIO', 'S6D_RANK', 'S6D_BOTH')
                for lv, rt, rk in (('loose', 12, 40), ('standard', 20, 65), ('strict', 35, 90))}), s6d)
+    # 2026-11-14 (user "1 go", migration 004): no threshold or warning is provisional any more
+    prov = [(r['filter'], r['cond'], r['level']) for r in meta.get('rules') or [] if r.get('status') != 'decided']
+    warn = [f['id'] for f in meta.get('filters') or [] if 'provisional' in (f.get('warning') or '').lower()]
+    check('radar-meta: every rule decided, no warning calls a threshold provisional', not prov and not warn,
+          {'rules': prov[:9], 'warnings': warn})
+    # ERRORS M434 (migration 005): every result date has a G2 universe, the oldest ones included
+    empty = [d for d, n in zip(days.get('dates') or [], (days.get('gate') or {}).get('universe_n') or []) if not n]
+    rep['oldest_universe'] = list(zip((days.get('dates') or [])[:5], ((days.get('gate') or {}).get('universe_n') or [])[:5]))
+    check('radar-days: every date has a G2 universe (M434)', not empty and days.get('dates'), {'empty': empty[:10]})
     st, raw, hd = fetch(edge, 'radar-meta', '0' * 64)
     err = body(raw, hd).get('error') or {}
     check('an older sha: 409 RADAR_FILE_REPLACED with the current sha', st == 409 and err.get('code') == 'RADAR_FILE_REPLACED',

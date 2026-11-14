@@ -1,0 +1,8 @@
+JOB 36714ab7-9b8c-4e10-97e9-a438291539cc
+3
+MIG APPLY 20261114_005_feature_07_radar_g2_window.sql sha256=081d1f56b48d35c5da06a428ecab265f049b15bfc2c84adc1dab4dd290021ef4
+JOB_DONE MIGRATION APPLY
+JOB_EXIT 0
+POSTGRES_MEMORY_CHECK
+{"now": "2026-11-14T16:59:00+00:00", "refusals": ["memory 0.428211712 GB is below 0.8 GB: nothing to free"], "reasons": ["memory_low"], "postgres_memory_gb": 0.428211712, "active_statements": 0, "user_runs": {"edge_jobs": 0, "orc_turns": 0}, "verdict": "REFUSED", "railway_credential": "RAILWAY_API_TOKEN"}
+VAR_REMOVED

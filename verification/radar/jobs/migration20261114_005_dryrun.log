@@ -1,0 +1,8 @@
+Starting Container
+OUT {"q": "catalog_g2", "ms": 2, "part": 0, "rows": [["Feature_06_Foreign_Domestic, Feature_07_Radar_Measure", "ticker in IDX_Stock_Universe and count of its Regular sessions in Feature_06_Foreign_Domestic among the last 16 market d"]]}
+MIG DRYRUN 20261114_005_feature_07_radar_g2_window.sql sha256=081d1f56b48d35c5da06a428ecab265f049b15bfc2c84adc1dab4dd290021ef4
+MIG DRYRUN_BODY_OK 20261114_005_feature_07_radar_g2_window.sql
+OUT {"q": "function_reads_f06", "ms": 1, "part": 0, "rows": [[true, true]]}
+OUT {"q": "g2_preview_2025_10_24", "ms": 1681, "part": 0, "rows": [[856]]}
+JOB_DONE MIGRATION DRYRUN
+JOB_EXIT 0

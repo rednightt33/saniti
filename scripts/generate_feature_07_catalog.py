@@ -162,9 +162,10 @@ def measure_columns():
             "sessions.", OWN, "percentile", "NULL without 252 previous sessions.", **RANK,
             lookback="252 previous sessions", minimum="253 sessions", source=F06S),
         col("g2_eligible", "Universe", "G2: universe stock with at least 5 Regular sessions in the last 16 market "
-            "dates and a full 5-session window.", "ticker in IDX_Stock_Universe and count of its rows among the last "
-            "16 dates >= 5 and total_buy_5d IS NOT NULL", "flag", "false before the date's refresh_feature_07_day.",
-            **FLAG, lookback="16 market dates", source=M),
+            "dates and a full 5-session window.", "ticker in IDX_Stock_Universe and count of its Regular sessions in "
+            "Feature_06_Foreign_Domestic among the last 16 market dates (dates with a Regular session of any ticker) "
+            ">= 5 and total_buy_5d IS NOT NULL", "flag", "false before the date's refresh_feature_07_day.",
+            **FLAG, lookback="16 market dates", source="Feature_06_Foreign_Domestic, Feature_07_Radar_Measure"),
         col("gate_broad", "Universe", "G3 Broad: in G2 and total_buy_5d at or above the date's median (top 50%).",
             f"total_buy_5d >= {G}.broad_cut", "flag", "false outside G2.", **FLAG, source=M),
         col("gate_liquid", "Universe", "G3 Liquid: in G2 and total_buy_5d at or above the date's P80 (top 20%).",

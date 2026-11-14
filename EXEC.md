@@ -14069,7 +14069,17 @@ latest R10".
   (`verification/radar/live_20261114/`). Memori Postgres sesudahnya 0,48 GB (tidak perlu restart).
 - **Temuan baru, ERRORS M434:** 4 tanggal tertua (24-29 Okt 2025) tanpa universe dan 11 tanggal berikutnya sedikit lebih
   kecil, karena jendela G2 membaca riwayat tabel Radar sendiri. Usulan perbaikan perlu go.
-- Belum: go migrasi 004 (label S6Δ) dan perbaikan M434; R8 sisanya (`DATABASE_SCHEMA.md` lewat refresh terjadwal).
+- **Keputusan user 2026-11-14: "1 go, 2 perbaiki sekarang".** 1: migrasi 004 (label S6Δ `provisional` → `decided`,
+  angka tetap) dijalankan di dev, DRYRUN lalu APPLY. 2: M434 diperbaiki sekarang: jendela G2 (16 tanggal terakhir dan
+  sesi Regular tiap saham) dibaca dari Feature 06, lalu langkah harian dihitung ulang dan file Radar diterbitkan ulang.
+- **2026-11-14, "1 go" dan "2 perbaiki sekarang" selesai di dev:** migrasi 004 (DRYRUN `44590053`, APPLY `51d17917`):
+  0 aturan `provisional`, angka S6Δ tetap. Migrasi 005 (DRYRUN `750b0e5f`, APPLY `36714ab7`): jendela G2 dari
+  Feature 06; hitung ulang 250 tanggal `redo_days_job.py` (DRYRUN `9caa52d3`, APPLY `478abe05`, 244 detik, APPLY_OK):
+  tanggal 24-29 Okt 2025 kini 853-856 saham, gerbang sejak tanggal ke-16 tidak berubah, hasil berubah hanya di 21 tanggal
+  tertua. Validasi independen semua saham pada 12 tanggal: 0 selisih. Audit katalog Feature PASS (job `b81bb354`).
+  Publisher Run Now 17:13 UTC menerbitkan ulang Radar; cek live 13/13 PASS. Memori Postgres 0,50 GB (tidak perlu
+  restart; langkah restart otomatis job kini berjalan, M433).
+- Belum: R8 sisanya (`DATABASE_SCHEMA.md` lewat refresh terjadwal).
 
 ### Keputusan yang perlu user sebelum go
 

@@ -64,5 +64,23 @@ The day-to-day spread is wide (V1Δ P90 16.3 on 26 Oct, 43.5 on 14 Oct; V2Δ P50
 hits a day over the 20 dates, Broad, Standard: S6 28.6; ratio 10.3 with either set; rank 9.6 (provisional) or 10.4
 (rounded 30 / 60 / 80); both 5.0 or 5.5. **User decision 2026-11-14 ("1A"): the thresholds stay 12 / 20 / 35 and
 40 / 65 / 90**, now decided; no new rule version. The rows' `provisional` label is replaced by migration
-`proposed/20261114_004_feature_07_radar_s6d_decided.sql` (tested locally; moved to `database/migrations/` and run on
-dev once the user gives its go).
+`database/migrations/20261114_004_feature_07_radar_s6d_decided.sql`, applied on dev the same day after the user's go
+(below).
+
+## Label and G2 window fixes (2026-11-14, user "1 go, 2 perbaiki sekarang")
+
+| UTC | Job | What | Result |
+|---|---|---|---|
+| 16:55-16:57 | `44590053`, `51d17917` | migration `20261114_004` (S6Δ labels), DRYRUN then APPLY | 9 rule rows `decided`, 0 `provisional`, three warnings without "Thresholds are provisional."; thresholds unchanged |
+| 16:58-17:00 | `750b0e5f`, `36714ab7` | migration `20261114_005` (G2 window from Feature 06, ERRORS M434), DRYRUN then APPLY | the function reads Feature 06; catalog row of `g2_eligible` updated; G2 preview for 2025-10-24: 856 |
+| 17:00-17:06 | `9caa52d3`, `478abe05` | `redo_days_job.py`: every result date again, in order | DRYRUN 6 dates (0 → 856 ...); APPLY 244 s, APPLY_OK: no date without a universe, gate rows from the 16th date unchanged, result rows changed on 21 dates (2025-10-24 to 11-21) only; sums equal to Feature 06 |
+| 17:13 | publisher Run Now | daily | Radar rebuilt: 31 files, 11 new objects, 29 s |
+| 17:17 | live check | `live_check_dev.py` (2 checks added) | 13/13 PASS (`live_20261114_m434/report.json`) |
+| 17:20 | `b81bb354` | `scripts/audit_feature_catalog_semantics.py` | PASS: 660 active definitions, 0 incomplete |
+
+Independent recalculation after the fix (`validation_20261114/`): every ticker of 2025-10-24, 10-27, 10-30, 11-05, 11-13
+and 11-14 (the extract extended with the broker rows of those windows) and of the six 2026 dates above: **0
+differences**. The validator now takes the previous result date from the gate rows, as `refresh_feature_07_day` does,
+so the first date of a fill holds no left rows. The 2025 extract first missed PJHB's broker rows (listed 2025-11-06,
+after the extract's window start); with them, 0 differences. Postgres memory after the runs: 0.43-0.50 GB, no restart
+needed (the jobs' own restart step now runs and reports it, ERRORS M433).

@@ -1,0 +1,7 @@
+Starting Container
+OUT {"q": "plan", "mode": "DRYRUN", "dates": 250, "first": "2025-10-24", "last": "2026-11-09", "empty_before": ["2025-10-24", "2025-10-27", "2025-10-28", "2025-10-29"]}
+OUT {"q": "sample", "dates": [["2025-10-24", 0, 856], ["2025-10-27", 0, 855], ["2025-10-28", 0, 854], ["2025-10-29", 0, 853], ["2025-10-30", 834, 853], ["2025-10-31", 843, 850]]}
+OUT {"q": "estimate", "minutes": 8.2, "seconds_per_date": 1.96}
+VERDICT DRYRUN_OK (rolled back)
+JOB_DONE
+JOB_EXIT 0

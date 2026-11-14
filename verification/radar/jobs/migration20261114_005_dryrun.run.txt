@@ -1,0 +1,9 @@
+JOB 750b0e5f-01cd-4fbf-9dbc-7896fa151ecb
+3
+MIG DRYRUN 20261114_005_feature_07_radar_g2_window.sql sha256=081d1f56b48d35c5da06a428ecab265f049b15bfc2c84adc1dab4dd290021ef4
+MIG DRYRUN_BODY_OK 20261114_005_feature_07_radar_g2_window.sql
+JOB_DONE MIGRATION DRYRUN
+JOB_EXIT 0
+POSTGRES_MEMORY_CHECK
+{"now": "2026-11-14T16:58:00+00:00", "refusals": ["memory 0.425263104 GB is below 0.8 GB: nothing to free"], "reasons": ["memory_low"], "postgres_memory_gb": 0.425263104, "active_statements": 0, "user_runs": {"edge_jobs": 0, "orc_turns": 0}, "verdict": "REFUSED", "railway_credential": "RAILWAY_API_TOKEN"}
+VAR_REMOVED

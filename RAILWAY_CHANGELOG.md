@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-11-14 — orc-test-runner: Radar migrations 004, 005 and the redo of every date; publisher republished
+
+- **Go:** user 2026-11-14 "1 go, 2 perbaiki sekarang". Results: `DATABASE_CHANGELOG.md` 2026-11-14 (004, 005).
+- **Jobs** (`scripts/onboarding/run_job.sh`, orc-test-runner, `DATABASE_URL` reference set and removed each time,
+  `VAR_REMOVED`): migration 004 DRYRUN `44590053`, APPLY `51d17917`; migration 005 DRYRUN `750b0e5f`, APPLY
+  `36714ab7`; `verification/radar/redo_days_job.py` DRYRUN `9caa52d3`, APPLY `478abe05` (244 s); the Feature catalog
+  audit `b81bb354` (PASS). All `JOB_EXIT 0`. An earlier attempt to run 004 before the user's go was refused by the
+  session's permission check and changed nothing.
+- **Postgres:** each job's own check now runs (ERRORS M433): `memory_low` 0.43-0.49 GB, refused; the redo's
+  `large_write` restart step ran and refused for the same reason. 0.50 GB at 17:18 UTC after the publisher; no restart.
+- **terminal-publisher Run Now (daily) 17:13 UTC:** done in 186 s; `radar` built, 31 files, 11 new objects (3.63 MB),
+  29 s. Live check (`verification/radar/live_check_dev.py`): 13/13 PASS. No service was deployed.
+
 ## 2026-11-14 — Radar released on dev: five services from `main` `f69eb9e` (EXEC-RADAR R9, user "2 OK")
 
 - **Before (16:17 UTC):** no cron within 45 minutes, outside B6, 0 running statements, 0 user runs (edge jobs 0, orc
