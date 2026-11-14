@@ -732,3 +732,13 @@ class PublishSignalTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_the_radar_step_is_one_line_and_its_failure_a_warning():
+    """EXEC-RADAR R2: features.radar of the round (QA 2026-11-14: a Radar failure no longer fails the round)."""
+    import telegram_monitor as tm
+    assert tm.radar_lines(None) == [] and tm.radar_lines({"skipped": "not backfilled"}) == []
+    assert tm.radar_lines({"tickers": 2, "since": "2026-11-06", "dates": ["2026-11-06", "2026-11-09"]}) == [
+        "Radar: 2 tanggal dihitung ulang (dari 2026-11-06)"]
+    line = tm.radar_lines({"failed": "RefreshFailed: Feature 07 reconcile"})[0]
+    assert line.startswith("⚠️ Radar tidak diperbarui") and "RefreshFailed" in line

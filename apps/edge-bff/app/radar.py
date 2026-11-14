@@ -20,12 +20,15 @@ import re
 import time
 
 import httpx
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.responses import JSONResponse, Response
 
-NAME = re.compile(r'radar-(?:meta|days|board-\d{4}-\d{2}-\d{2}|f-[a-z0-9_]{1,24})')   # publisher radar.NAME
+NAME = re.compile(r'radar-(?:meta|days|board-[0-9]{4}-[0-9]{2}-[0-9]{2}|f-[a-z0-9_]{1,24})')   # publisher radar.NAME
 SHA = re.compile(r'[0-9a-f]{64}')
 INDEX_SECONDS = 30          # the index is read again at most this often (terminal-api caches state.json for 60 s)
+# QA 2026-11-14: bytes already relayed are kept by sha256 (a file never changes under its sha), so a reload of the page
+# asks terminal-api for no grant (each grant counts against the owner's terminal quota); RADAR_CACHE_BYTES at most
+RADAR_CACHE_BYTES = 32 * 1024 * 1024
 MESSAGES = {
     'RADAR_UNAVAILABLE': 'The Radar data could not be read from the terminal service. Try again in a minute; nothing '
                          'on this page changed.',
@@ -33,6 +36,10 @@ MESSAGES = {
                             '(EDGE_TERMINAL_URL and TERMINAL_PROXY_KEY on edge-bff).',
     'RADAR_INVALID_NAME': 'That is not a Radar file name. Names: radar-meta, radar-days, radar-board-YYYY-MM-DD, '
                           'radar-f-<filter>; GET /api/v1/radar/index lists the published ones.',
+    'RADAR_INVALID_SHA': 'The sha parameter must be the 64 lowercase hexadecimal characters of the file\'s sha256 as '
+                         'GET /api/v1/radar/index lists it; leave it out to get the current file.',
+    'RADAR_QUOTA': 'The terminal account reached its file quota (shared with the Terminal). The Radar files already '
+                   'shown stay; try again later in the hour.',
     'RADAR_FILE_NOT_PUBLISHED': 'This Radar file is not in the current publication. Read GET /api/v1/radar/index for '
                                 'the published files and dates.',
     'RADAR_FILE_REPLACED': 'A newer Radar publication replaced this file. Read GET /api/v1/radar/index again and ask '
@@ -52,6 +59,30 @@ class Radar:
         self.settings, self.clock = settings, clock
         self.http = None
         self.cached, self.cached_at = None, None
+        self.bodies: dict[str, bytes] = {}                # sha256 -> gzip bytes relayed (oldest first)
+
+    async def aclose(self):
+        if self.http is not None:
+            await self.http.aclose()
+            self.http = None
+
+    def keep(self, sha, body):
+        self.bodies.pop(sha, None)
+        self.bodies[sha] = body
+        while sum(len(b) for b in self.bodies.values()) > RADAR_CACHE_BYTES and len(self.bodies) > 1:
+            self.bodies.pop(next(iter(self.bodies)))
+
+    async def fetch(self, url, size):
+        """The object's bytes, read as a stream and never more than its published size (None if it is larger)."""
+        out = bytearray()
+        async with self.client().stream('GET', url) as r:
+            if r.status_code != 200:
+                return None
+            async for chunk in r.aiter_bytes():
+                out += chunk
+                if len(out) > size:
+                    return None
+        return bytes(out)
 
     def client(self):
         if self.http is None:
@@ -90,11 +121,13 @@ class Radar:
             return JSONResponse({'finished_at': data.get('finished_at'), 'files': data['files']})
 
         @app.get('/api/v1/radar/file/{name}')
-        async def radar_file(name: str, sha: str = '', _=Depends(session)):
+        async def radar_file(name: str, request: Request, sha: str = '', _=Depends(session)):
             if not self.settings.terminal_url:
                 return failure('RADAR_NOT_CONFIGURED', 503)
-            if not NAME.fullmatch(name) or (sha and not SHA.fullmatch(sha)):
+            if not NAME.fullmatch(name):
                 return failure('RADAR_INVALID_NAME', 400, {'name': name[:64]})
+            if sha and not SHA.fullmatch(sha):
+                return failure('RADAR_INVALID_SHA', 400, {'sha': sha[:80]})
             data = await self.index()
             if data is None:
                 return failure('RADAR_UNAVAILABLE', 503)
@@ -106,19 +139,31 @@ class Radar:
                 return failure('RADAR_FILE_NOT_PUBLISHED', 404, {'name': name})
             if sha and entry.get('sha256') != sha:
                 return failure('RADAR_FILE_REPLACED', 409, {'name': name, 'sha256': entry.get('sha256')})
-            try:
-                granted = await self.terminal('POST', 'radar', body=f'{{"names": ["{name}"]}}'.encode())
-                if granted.status_code == 404:
-                    return failure('RADAR_FILE_REPLACED', 409, {'name': name})
-                if granted.status_code != 200:
+            current = entry.get('sha256')
+            if not sha and request.headers.get('if-none-match') == f'"{str(current)[:32]}"':
+                return Response(status_code=304, headers={'ETag': f'"{str(current)[:32]}"', 'Cache-Control': 'private, no-cache'})
+            body = self.bodies.get(current)
+            if body is None:
+                try:
+                    granted = await self.terminal('POST', 'radar', body=f'{{"names": ["{name}"]}}'.encode())
+                    if granted.status_code == 404:
+                        return failure('RADAR_FILE_REPLACED', 409, {'name': name})
+                    if granted.status_code == 429:
+                        return failure('RADAR_QUOTA', 429)
+                    if granted.status_code != 200:
+                        return failure('RADAR_UNAVAILABLE', 503)
+                    f = granted.json()['files'][0]
+                    # QA 2026-11-14: the grant names the file of the publication terminal-api reads now; when that is
+                    # not the one this answer is for, the page reads the index again (never new bytes under an old sha)
+                    if f.get('sha256') != current:
+                        self.cached = None
+                        return failure('RADAR_FILE_REPLACED', 409, {'name': name, 'sha256': f.get('sha256')})
+                    body = await self.fetch(f['url'], int(f.get('bytes') or entry.get('bytes') or 0))
+                except (httpx.HTTPError, httpx.InvalidURL, ValueError, KeyError, IndexError, TypeError):
                     return failure('RADAR_UNAVAILABLE', 503)
-                f = granted.json()['files'][0]
-                stored = await self.client().request('GET', f['url'])
-            except (httpx.HTTPError, ValueError, KeyError, IndexError):
-                return failure('RADAR_UNAVAILABLE', 503)
-            body = stored.content
-            if stored.status_code != 200 or hashlib.sha256(body).hexdigest() != f.get('sha256'):
-                return failure('RADAR_FILE_DAMAGED', 502, {'name': name})
+                if body is None or hashlib.sha256(body).hexdigest() != current:
+                    return failure('RADAR_FILE_DAMAGED', 502, {'name': name})
+                self.keep(current, body)
             return Response(body, media_type='application/json', headers={
-                'Content-Encoding': 'gzip', 'ETag': f'"{f["sha256"][:32]}"',
-                'Cache-Control': 'private, max-age=31536000, immutable' if sha else 'private, no-cache'})
+                'Content-Encoding': 'gzip', 'ETag': f'"{current[:32]}"',
+                'Cache-Control': 'private, max-age=31536000, immutable' if sha == current else 'private, no-cache'})

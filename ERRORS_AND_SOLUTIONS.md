@@ -7662,6 +7662,9 @@ restart stopped an external database job.
 - **Solution (built, to confirm):** the Radar uses Feature 06's sessions for every window, lag and baseline (one
   convention, the ratios equal Feature 06's stored ones). The user decides whether to keep it or to count only Regular
   sessions everywhere.
+- **S8 too (QA 2026-11-14):** the library's S8 trace (13.4, DOOH 9 Nov: z1 1.46, z3 3.34) reproduces exactly on the
+  last 252 Regular rows; the Radar on Feature 06 sessions gives z1 1.38, z3 3.52 (percentile 98.4 both). A z near the
+  cut-off of 3 can flip between the two conventions.
 - **Lesson:** a window's sessions are defined once, and every value in one formula uses that definition.
 
 ### M429 — Radar: an own-year rank went missing for a whole year after one week without Regular buying (2026-11-14, fixed before release)
@@ -7683,3 +7686,32 @@ restart stopped an external database job.
 - **Solution:** stored once, as left, with its met conditions (so the page still sees it is one condition away); near is
   "one short and not a hit the date before". The independent validator applies the same rule (0 differences).
 - **Lesson:** statuses written to one key must be exclusive by definition, and the definition says which one wins.
+
+### M431 — Radar: findings of the five independent reviews of the branch (2026-11-14, fixed before release unless noted)
+
+Five reviewers (one per part: migration, round step and backfill, publisher and terminal-api, edge-bff and shell, page)
+read commit `60d610c` without the author's conclusions. No blocker. Fixed on the branch (each with a test or a rerun):
+
+| Part | Defect (class) | Fix |
+|---|---|---|
+| Rules | S7 condition D was 5/5/5; the approved library says 2/5/10 (SCREENER_LIBRARY.md 12.3 6a, user 2026-11-10) — a threshold copied from the page spec's Standard column only | rule rows 2/5/10; validator holds them |
+| Results | S8 "near" counted only A and B, so a stock two checks short was listed (spec: "all but one") | near = every condition but one; validator mirrors it |
+| Measures | a Regular session without its Feature 03 row made FL34 from a partial window (silent gap) | broker-class measures NULL unless the window's every session has its row |
+| Day step | a date without measure rows was written as an empty date (every previous hit "left") | refused with a message |
+| Day step | the S3 floor of 10 net buyers was hard-coded beside the rule table | read from rule S3:A |
+| Round | a Radar failure failed the whole broker round, hiding its changed dates from the publisher | a warning in `features.radar` and Telegram, the round stays SUCCESS (as the stock lists, D2) |
+| Round | corporate actions loaded later never refreshed the outlier note | events that changed redo the 20 newest result dates |
+| Round, job | the round check counted rows only | also the daily sums against Feature 06 and rows without their cross-section |
+| Job | no guard against a running round or a second job; publisher could publish half-filled tables | advisory lock `feature_07_radar_backfill` read by the round and the publisher; a running round refuses the job |
+| Publisher | the sweep's baseline did not name the Radar index, so its orphans were never swept | named; a test plants an orphan |
+| Publisher | an empty build or missing stock lists replaced the published Radar with nothing; a partial index was carried; a failure raised no alert | kept, rebuilt, `partial` alert with file `radar` |
+| Publisher | results of an older rule version could be read; the stamp missed late closes and list changes | version filter; stamp adds final closes from the newest date and the lists' membership |
+| edge-bff | a file replaced between the index and the grant could be cached for a year under the old sha | the grant's sha must equal the index's, else 409; immutable only when the URL's sha is served |
+| edge-bff | no size bound on the relayed read; a quota refusal read as an outage; each view took a grant | streamed up to the published size; `RADAR_QUOTA`; bytes kept by sha (32 MB) and 304 |
+| Page | seven columns below 1200 px (a later CSS rule won); the Universe menu closed on its own scroll; date and file errors silent; axis labels overlapped; values not escaped | four columns; menu scroll kept; messages; round axis steps; every value escaped |
+
+Open, for the user: the session convention (M428); the outlier note counts every corporate action type, RUPS and
+warrant trading included (12% of 9 Nov's Standard hits; an allow-list is a decision). Not exercised against dev data:
+S3 over 250 live dates, a ticker added or removed, the stamp with real late prices. Lesson: a threshold is copied from
+the decision document, never from a summary table, and every derived row that reads a second source needs that source
+in its staleness check.

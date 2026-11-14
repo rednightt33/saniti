@@ -42,12 +42,14 @@ class RadarConn(FakeConn):
     def __init__(self, *a, tables=True, **kw):
         super().__init__(*a, **kw)
         self.tables, self.gates, self.results, self.version = tables, list(GATES), list(RESULTS), 'radar-v1'
+        self.closes_after = 2
 
     def _rows(self, sql, params):
         if sql == radar.PROBE_SQL:
             return [(self.tables,)]
         if sql == radar.STAMP_SQL:
-            return [(f'stamp-{len(self.results)}-{self.results[-1][11]}', len(self.gates), PRICE_DATES[-1], self.version)]
+            return [(f'stamp-{len(self.results)}-{self.results[-1][11]}', len(self.gates), PRICE_DATES[-1], self.version,
+                     self.closes_after, 'lists')]
         if sql == radar.GATES_SQL:
             return sorted(self.gates, reverse=True)[:params[0]]
         if sql == radar.FILTERS_SQL:
@@ -88,7 +90,7 @@ def test_every_radar_file_is_content_keyed_and_written_before_the_state_json_tha
     state = bucket.get_json('state.json')
     names = sorted(state['radar'])
     assert names == sorted(['radar-meta', 'radar-days', *(f'radar-board-{d}' for d in DATES), 'radar-f-s1', 'radar-f-s8'])
-    assert state['radar_stamp'][1:] == ['3', PRICE_DATES[-1], 'radar-v1']         # strings: stable in JSON
+    assert state['radar_stamp'][1:] == ['3', PRICE_DATES[-1], 'radar-v1', '2', 'lists']   # strings: stable in JSON
     for name, e in state['radar'].items():
         key = e['key'][len('v1/'):]
         assert re.fullmatch(rf'radar/{name}\.{e["sha256"][:16]}\.json\.gz', key) and key in bucket.puts[:-1]
@@ -193,3 +195,67 @@ def test_terminal_api_reads_the_radar_index_as_written():
     raw = {**index, 'radar-x': {**good}, 'radar-y': {**good, 'key': good['key'].replace('radar/', 'xsection/')}}
     assert pub.radar_entries(raw) == reader.radar_index(raw) == index
     assert 'radar' not in reader.STATE_FIELDS                                   # /state never shows it
+
+
+# ---- QA 2026-11-14 (review of 60d610c) --------------------------------------------------------------------------------
+from test_publisher import HOUR, at  # noqa: E402
+
+
+def test_a_sweeping_run_deletes_a_radar_object_no_index_names():
+    """The daily sweep's baseline names the Radar index: an orphan (a put of a run that stopped) older than the last
+    finished run goes, every named file stays."""
+    conn, bucket = RadarConn(PRICES, BROKERS, UNIVERSE), FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    bucket.put('radar/radar-meta.0123456789abcdef.json.gz', b'orphan', 'application/gzip')
+    bucket.modified['radar/radar-meta.0123456789abcdef.json.gz'] = bucket.clock - HOUR
+    at(bucket, conn, 'daily', 2, None, None, None, True)
+    assert 'radar/radar-meta.0123456789abcdef.json.gz' not in bucket.objects
+    for e in bucket.get_json('state.json')['radar'].values():
+        assert e['key'][3:] in bucket.objects
+
+
+def test_no_result_date_keeps_the_published_radar_and_reports_it(capsys):
+    p, conn, bucket = run()
+    first = bucket.get_json('state.json')['radar']
+    conn.gates = []
+    conn.results[-1] = (*conn.results[-1][:11], 7.7, None)          # the stamp moves
+    p2 = pub.Publisher(conn, bucket, today=TODAY)
+    p2.run('daily')
+    assert bucket.get_json('state.json')['radar'] == first and p2.radar_failed == 'empty'
+    assert all(e['key'][3:] in bucket.objects for e in first.values())
+
+
+def test_missing_stock_lists_fail_the_build_instead_of_publishing_an_empty_menu():
+    p, conn, bucket = run()
+    first = bucket.get_json('state.json')['radar']
+    conn.stock_lists = None                                          # STOCK_LISTS_SQL fails
+    conn.results[-1] = (*conn.results[-1][:11], 8.8, None)
+    p2 = pub.Publisher(conn, bucket, today=TODAY)
+    p2.run('daily')
+    assert bucket.get_json('state.json')['radar'] == first and p2.radar_failed == 'build'
+
+
+def test_a_named_object_missing_from_the_bucket_is_put_again_under_an_unchanged_stamp():
+    p, conn, bucket = run()
+    first = bucket.get_json('state.json')['radar']
+    gone = first['radar-days']['key'][3:]
+    del bucket.objects[gone]
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    assert gone in bucket.objects and bucket.get_json('state.json')['radar'] == first
+
+
+def test_a_radar_failure_is_a_partial_publication(monkeypatch):
+    sent = []
+    monkeypatch.setattr(pub, 'notify_publication', lambda status, *a, **kw: sent.append((status, kw.get('files'))))
+
+    class Failed:
+        xsection_failed, refs_failed, radar_failed, broker_behind = [], [], 'build', 0
+    assert ['radar'] == sorted([] + [] + (['radar'] if Failed.radar_failed else []))
+    src = Path(pub.__file__).read_text()
+    assert "if pub.xsection_failed or pub.refs_failed or pub.radar_failed:" in src
+    assert "(['radar'] if pub.radar_failed else [])" in src
+
+
+def test_results_are_read_for_the_current_rule_version_only():
+    for sql in (radar.COUNTS_SQL, radar.HISTORY_SQL, radar.BOARD_SQL):
+        assert 'rule_version = public.feature_07_rule_version()' in sql

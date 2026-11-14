@@ -48,8 +48,17 @@ Nothing here ran on the dev database. The dev data was only read (pgweb, read-on
 | S8, 9 Nov, Broad | 5 Strong / 18 Watch (EXEC plan) | 6 Strong / 18 Watch | the same 6 and 18 under either session convention; the "5" has no recorded method or list |
 | G2 universe, 9 Nov | 857 (tickers trading that day) | 855 | CSMI and XSPI traded that day but have 2 Regular sessions in the last 16 dates (G2 needs 5) |
 
+## Rerun after the five reviews (2026-11-14, ERRORS M431)
+
+Both migrations applied again on a clean database, the job DRYRUN (1 min) and APPLY (3 min 02 s; reconcile: 214,992 rows,
+daily net and buying sums equal to Feature 06, 0 rows without their cross-section), then the validator on 8 dates
+(2026-06-15, 08-12, 09-15, 10-01, 10-20, 11-03, 11-06, 11-09) with the reviewed rules (S7 D 2/5/10, S8 near = all but
+one, broker-class measures only from complete windows): **0 differences**. The round step on real SQL: a Feature 06 change
+of TLKM from 2026-11-05 redid 1 ticker and 3 dates (2.6 s); changed corporate actions redid the 20 newest dates (7.4 s).
+The hit counts of 3 and 9 Nov are unchanged by the review fixes.
+
 ## Defects found and fixed before release
 
 M427 (plan on missing statistics), M429 (own-year rank voided by a week without Regular buying), M430 (a stock written
-as near and left). Open: M428 (session convention, the user's decision), M425 (Screener's Open in Terminal), M426
+as near and left), M431 (the five reviews). Open: M428 (session convention, the user's decision), M425 (Screener's Open in Terminal), M426
 (old non-universe rows in Feature 06).

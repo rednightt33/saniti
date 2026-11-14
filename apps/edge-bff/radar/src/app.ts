@@ -17,7 +17,10 @@ const num = (x: number | null, d = 1) => (x == null ? '—' : x.toFixed(d));
 const px = (x: number | null) => (x == null ? '—' : Math.round(x).toLocaleString('en-US'));
 const sg = (x: number | null, d = 2) => (x == null ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x).toFixed(d) + '%');
 const pt = (x: number | null, d = 1) => (x == null ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x).toFixed(d) + ' pt');
-const rp = (x: number | null) => (x == null ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + 'Rp ' + Math.abs(x / 1e9).toFixed(1) + 'B');
+const rp = (x: number | null) => (x == null ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + 'Rp ' + Math.abs(x / 1e9).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'B');
+const plural = (n: number, one: string, many = one + 's') => `${n} ${n === 1 ? one : many}`;
+/* an axis of at most `most` round steps between 0 (or lo) and hi */
+const niceStep = (span: number, most: number) => { const raw = span / Math.max(1, most), mag = Math.pow(10, Math.floor(Math.log10(raw || 1))); return [1, 2, 2.5, 5, 10].map(n => n * mag).find(x => x >= raw) || mag * 10 };
 const pc = (x: number | null) => (x == null ? '—' : 'P' + x.toFixed(x >= 99.95 || x === Math.round(x) ? 0 : 1));
 const cl = (x: number | null) => (x == null ? '' : x > 0 ? 'up' : x < 0 ? 'down' : '');
 
@@ -68,10 +71,19 @@ export function start(api: RadarApi, view: HTMLElement) {
   let toastT = 0;
   const toast = (m: string) => { const t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = window.setTimeout(() => (t.hidden = true), 3200) };
 
-  const get = <T>(name: string) => {
+  const get = async <T>(name: string, again = true): Promise<T> => {
     const e = index.files[name];
-    if (!e) return Promise.reject(new RadarError('RADAR_FILE_NOT_PUBLISHED', `The Radar file ${name} is not published.`, 404));
-    return files.file<T>(name, e.sha256);
+    try {
+      if (!e) throw new RadarError('RADAR_FILE_NOT_PUBLISHED', `The Radar file ${name} is not published.`, 404);
+      return await files.file<T>(name, e.sha256);
+    } catch (err) {
+      // QA 2026-11-14: a newer publication replaced the file (409) or renamed the dates (404): read the index again once
+      if (again && err instanceof RadarError && (err.status === 409 || err.status === 404)) {
+        index = await files.index();
+        return get<T>(name, false);
+      }
+      throw err;
+    }
   };
   const variantOf = (c: Column) => c.variants.find(v => v.id === ST.variant) || c.variants[0];
   const filterOf = (c: Column) => (c.variants.length > 1 ? variantOf(c) : c.variants[0]);
@@ -118,7 +130,9 @@ export function start(api: RadarApi, view: HTMLElement) {
   }
   function closeMenus() { $$<any>('.menu').forEach(m => { m._btn?.setAttribute('aria-expanded', 'false'); m.remove() }) }
   document.addEventListener('mousedown', e => { const t = e.target as HTMLElement; if (!t.closest('.menu') && !t.closest('[aria-haspopup]')) closeMenus() });
-  addEventListener('resize', closeMenus); addEventListener('scroll', closeMenus, true);
+  addEventListener('resize', closeMenus);
+  // QA 2026-11-14: scrolling a long menu (about 68 stock lists) must not close it; any other scroll does
+  addEventListener('scroll', e => { const t = e.target as Element; if (!(t instanceof Element && t.closest('.menu'))) closeMenus() }, true);
 
   function uniMenu(btn: HTMLElement, after: () => void) {
     const of = (kind: string) => meta.lists.filter(l => l.kind === kind).map(l => ({ v: l.key, label: esc(l.name || l.code), on: l.key === ST.uni }));
@@ -135,7 +149,7 @@ export function start(api: RadarApi, view: HTMLElement) {
   function bindDate(after: () => void) {
     const b = $('[data-act=date]');
     if (b) b.onclick = e => dropdown(e.currentTarget as HTMLElement, [...[...days.boards].reverse().map(d => ({ v: d, label: `${dayLabel(d)} · after close`, on: d === ST.date })),
-      { note: 'A date has results once prices and broker data for it are both loaded.' }], v => { void pickDate(v).then(after) }, { w: 300 });
+      { note: 'A date has results once prices and broker data for it are both loaded.' }], v => { pickDate(v).then(after, e => toast((e as Error).message)) }, { w: 300 });
   }
   async function pickDate(d: string) {
     if (d === ST.date) return;
@@ -176,11 +190,11 @@ export function start(api: RadarApi, view: HTMLElement) {
       });
       const h = counts(days, f, ST.lv, ST.gate, di, 20), d = h.length > 1 ? h[h.length - 1] - h[h.length - 2] : 0;
       tot += hs.length;
-      return `<section class="card kc ${c.id === ST.last ? 'on' : ''}" aria-label="${c.label} ${esc(f.name)}"><button class="kh" data-open="${c.id}" aria-label="Open ${c.label}, ${esc(f.name)}, ${hs.length} stocks"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>${c.label}</b><span class="grow" style="flex:1"></span>${countMark(hs.length)}</div><small>${esc(f.name)}${c.variants.length > 1 ? ` · ${esc(f.variant)}` : ''}</small>
+      return `<section class="card kc ${c.id === ST.last ? 'on' : ''}" aria-label="${esc(c.label)} ${esc(f.name)}"><button class="kh" data-open="${esc(c.id)}" aria-label="Open ${esc(c.label)}, ${esc(f.name)}, ${hs.length} stocks"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>${esc(c.label)}</b><span class="grow" style="flex:1"></span>${countMark(hs.length)}</div><small>${esc(f.name)}${c.variants.length > 1 ? ` · ${esc(f.variant)}` : ''}</small>
        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)">${sparkBars(h, 70, 18)}<span class="${isDefault() ? cl(d) : ''}" style="font-size:var(--fs-xs)">${f.own_levels && ST.lv !== 1 ? '<span class="muted" title="S8 has its own levels: Strong and Watch">own levels</span>' : isDefault() ? `${d >= 0 ? '+' : '−'}${Math.abs(d)} vs yday` : '<span class="muted">filtered</span>'}</span></div></button>
       <div class="kl">${hs.map(hr => {
         const o = alsoIn(c, hr.t, sets), lvl = f.own_levels && !hr.strong ? '<span class="tag" title="Large and unusual, below the top 5% of its own history">Watch</span>' : '';
-        return `<button class="ki" data-open="${c.id}" data-stock="${hr.t}" aria-label="${hr.t}, ${sg(F.chg(hr.t))}"><div class="t"><b>${hr.t}</b><span class="${cl(F.chg(hr.t))}">${sg(F.chg(hr.t))}</span></div><div class="t2">${dayTag(hr.run)}${lvl}${o.length ? `<span class="tag" title="Also in ${o.map(g => g.label).join(', ')}">+${o.length}</span>` : ''}${flagTag(hr)}<span class="ksp" title="Price, last 20 sessions">${priceSpark(hr.t)}</span></div></button>`;
+        return `<button class="ki" data-open="${esc(c.id)}" data-stock="${esc(hr.t)}" aria-label="${esc(hr.t)}, ${sg(F.chg(hr.t))}"><div class="t"><b>${esc(hr.t)}</b><span class="${cl(F.chg(hr.t))}">${sg(F.chg(hr.t))}</span></div><div class="t2">${dayTag(hr.run)}${lvl}${o.length ? `<span class="tag" title="Also in ${o.map(g => g.label).join(', ')}">+${o.length}</span>` : ''}${flagTag(hr)}<span class="ksp" title="Price, last 20 sessions">${priceSpark(hr.t)}</span></div></button>`;
       }).join('') || `<p class="empty-col">${emptyCol()}</p>`}</div></section>`;
     }).join('');
     if (!tot) kb.insertAdjacentHTML('beforeend', `<div class="kb-empty card"><b>No stocks match these settings.</b><span class="muted">Try All stocks, the Broad gate or the Loose level.</span><button class="btn sm" id="rst">Reset settings</button></div>`);
@@ -204,7 +218,7 @@ export function start(api: RadarApi, view: HTMLElement) {
     if (ST.detail.sort === 'new') rows.sort((a, b) => (a.run ?? 0) - (b.run ?? 0) || (b.sort ?? -Infinity) - (a.sort ?? -Infinity));
     const sel = rows.find(r => r.t === stock) || nr.find(r => r.t === stock) || rows[0];
     const sets = hitSets();
-    view.innerHTML = `<div class="head"><div><p class="crumb"><button class="lk" data-go="#/radar">${ic('chevl')}Radar</button></p><h1 style="display:flex;align-items:center;gap:var(--s-5)">${c.label} · ${esc(f.name)}</h1><p class="muted">${esc(f.question)}</p></div>
+    view.innerHTML = `<div class="head"><div><p class="crumb"><button class="lk" data-go="#/radar">${ic('chevl')}Radar</button></p><h1 style="display:flex;align-items:center;gap:var(--s-5)">${esc(c.label)} · ${esc(f.name)}</h1><p class="muted">${esc(f.question)}</p></div>
      <div class="actions">${statusPills()}${dateBtn()}<button class="btn" data-act="follow">${ic('saved')}Follow</button></div></div>
     <div class="note-read card">${ic('info')}<span><b>How to read it.</b> ${esc(f.warning)} ${f.own_levels ? 'S8 uses its own levels, so the Level switch does not change it.' : ''}</span></div>
     <div class="top3"><div class="card"><div class="card-h chart-h"><h3>Stocks found per day</h3><span class="lg"><i class="sw bar"></i>Stocks found (left)</span><span class="lg"><i class="sw ln"></i>IHSG (right)</span><span class="grow"></span><span class="hint">Last ${days.dates.length} sessions · select a bar to see that day</span></div><div class="hist" id="h60"></div></div>
@@ -213,18 +227,18 @@ export function start(api: RadarApi, view: HTMLElement) {
       <div class="ct-r">${c.variants.length > 1 ? `<div class="sortg"><span class="lbl" id="dmL">Change in</span><div class="seg sm" role="radiogroup" aria-labelledby="dmL" data-dseg="variant">${c.variants.map(v => `<button role="radio" aria-checked="${v.id === f.id}" class="${v.id === f.id ? 'on' : ''}" data-v="${v.id}">${esc(v.variant)}</button>`).join('')}</div></div>` : ''}
        <label class="srch">${ic('search')}<input id="cq" placeholder="Find a ticker or name" value="${esc(ST.detail.q)}" aria-label="Find a candidate" autocomplete="off"></label>${uniBtn('btn sm uni', true)}
        <div class="sortg"><span class="lbl" id="soL">Sort</span><div class="seg sm" role="radiogroup" aria-labelledby="soL" data-dseg="sort">${[['own', 'By ' + f.sort_label], ['new', 'New first']].map(([v, l]) => `<button role="radio" aria-checked="${ST.detail.sort === v}" class="${ST.detail.sort === v ? 'on' : ''}" data-v="${v}">${esc(l)}</button>`).join('')}</div></div></div></div>
-      <div class="conds">${C.map(r => `<span><i>${r.cond}</i>${esc(r.label)}</span>`).join('')}</div>
+      <div class="conds">${C.map(r => `<span><i>${esc(r.cond)}</i>${esc(r.label)}</span>`).join('')}</div>
       <div class="tbl-wrap"><table class="tbl" id="tb"></table></div></div>
      <div class="card pv" id="pv" aria-live="polite"></div></div>`;
     const dots = (r: Row) => { const m = metBits(r.met, C.length); return `<span class="dots" aria-label="${m.filter(Boolean).length} of ${m.length} conditions met">${m.map((x, k) => `<i class="${x ? '' : 'off'}" title="${esc(C[k]?.label)}: ${x ? 'met' : 'not met'}">${COND_KEYS[k]}</i>`).join('')}</span>` };
-    const also = (t: string) => alsoIn(c, t, sets).map(g => `<span class="tag">${g.label}</span>`).join('') || '<span class="muted">—</span>';
-    const row = (r: Row, nm = false) => `<tr tabindex="0" data-s="${r.t}" class="${r === sel ? 'on' : ''} ${nm ? 'nm' : ''}" aria-selected="${r === sel}"><td class="l tk"><b>${r.t}</b><small>${esc(F.name(r.t))}</small></td><td>${dots(r)}</td><td class="${nm ? '' : cl(F.chg(r.t))}">${sg(F.chg(r.t))}</td>
+    const also = (t: string) => alsoIn(c, t, sets).map(g => `<span class="tag">${esc(g.label)}</span>`).join('') || '<span class="muted">—</span>';
+    const row = (r: Row, nm = false) => `<tr tabindex="0" data-s="${esc(r.t)}" class="${r === sel ? 'on' : ''} ${nm ? 'nm' : ''}" aria-selected="${r === sel}"><td class="l tk"><b>${esc(r.t)}</b><small>${esc(F.name(r.t))}</small></td><td>${dots(r)}</td><td class="${nm ? '' : cl(F.chg(r.t))}">${sg(F.chg(r.t))}</td>
       ${own.map(oc => `<td class="${oc[2] && !nm ? oc[2](r.t, ST.gate) : ''}">${oc[1](r.t, ST.gate, r)}</td>`).join('')}<td class="l">${nm ? '<span class="tag">Near miss</span>' : dayTag(r.run)}${flagTag(r)}</td><td class="l">${also(r.t)}</td></tr>`;
     $('#tb').innerHTML = `<thead><tr><th class="l">Stock</th><th>Conditions</th><th>1D</th>${own.map(oc => `<th>${oc[0]}</th>`).join('')}<th class="l">In radar</th><th class="l">Also in</th></tr></thead><tbody>` +
       (rows.map(r => row(r)).join('') || `<tr><td colspan="${own.length + 5}" class="l muted" style="height:80px;text-align:center">${qn ? `No candidate matches “${esc(ST.detail.q.trim())}”.` : `No stock passes at the ${LEVEL_LABEL[ST.lv]} level with this gate and universe.`}</td></tr>`) +
       (nr.length ? `<tr class="sep"><td colspan="${own.length + 5}" class="l">Near misses · all but one condition met</td></tr>` + nr.map(r => row(r, true)).join('') : '') + '</tbody>';
     $$('#tb tr[data-s]').forEach(tr => {
-      const pick = () => { history.replaceState(null, '', `#/filter/${colId}?s=${tr.dataset.s}`); renderDetail(colId, tr.dataset.s); ($(`#tb tr[data-s="${tr.dataset.s}"]`) as HTMLElement)?.focus() };
+      const pick = () => { history.replaceState(null, '', `#/filter/${encodeURIComponent(colId)}?s=${encodeURIComponent(tr.dataset.s)}`); renderDetail(colId, tr.dataset.s); ($(`#tb tr[data-s="${tr.dataset.s}"]`) as HTMLElement)?.focus() };
       tr.onclick = pick;
       tr.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick() } if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); let n = (e.key === 'ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling) as HTMLElement; while (n && !n.dataset.s) n = (e.key === 'ArrowDown' ? n.nextElementSibling : n.previousElementSibling) as HTMLElement; n?.focus() } };
     });
@@ -247,7 +261,9 @@ export function start(api: RadarApi, view: HTMLElement) {
       const file = await get<FilterFile>(`radar-f-${f.id.toLowerCase()}`);
       fileCache.set(f.id, file); then(file);
     } catch (e) {
-      const p = $('#dayp'); if (p) p.innerHTML = `<span class="muted">${esc((e as Error).message)}</span>`;
+      const m = `<span class="muted">${esc((e as Error).message)}</span>`;
+      const p = $('#dayp'); if (p) p.innerHTML = m;
+      const pv = $('#pv .sec p.muted'); if (pv) pv.outerHTML = `<p>${m}</p>`;
     }
   }
 
@@ -259,9 +275,9 @@ export function start(api: RadarApi, view: HTMLElement) {
     const selI = dateIndex() - ST.detail.day, valid = IH.filter(v => !isNaN(v)),
       lo = (valid.length ? Math.min(...valid) : 0) - 40, hi = (valid.length ? Math.max(...valid) : 1) + 40, yI = (v: number) => 6 + (1 - (v - lo) / (hi - lo)) * (H - 24);
     let s = `<line x1="${PL}" x2="${W - PR}" y1="${H - 18}" y2="${H - 18}" stroke="var(--border)"/>`;
-    const step = m > 12 ? 5 : m > 6 ? 2 : 1;
+    const most = Math.max(2, Math.floor((H - 26) / 22)), step = Math.max(1, niceStep(m, most));   // QA: no overlapping labels
     for (let v = 0; v <= m; v += step) s += `<text x="20" y="${H - 14 - v / m * (H - 26)}" text-anchor="end" font-size="10.5" fill="var(--text-3)">${v}</text>`;
-    if (valid.length) for (let t = Math.ceil(Math.min(...valid) / 250) * 250; t <= Math.max(...valid); t += 250) s += `<text x="${W - PR + 8}" y="${yI(t) + 3.5}" font-size="10.5" fill="var(--text-3)">${t.toLocaleString('en-US')}</text>`;
+    if (valid.length) { const ist = niceStep(Math.max(...valid) - Math.min(...valid), most); for (let t = Math.ceil(Math.min(...valid) / ist) * ist; t <= Math.max(...valid); t += ist) s += `<text x="${W - PR + 8}" y="${yI(t) + 3.5}" font-size="10.5" fill="var(--text-3)">${t.toLocaleString('en-US')}</text>` }
     H60.forEach((v, i) => { const h = v / m * (H - 26); s += `<rect x="${PL + i * bw + (bw > 3 ? 1 : 0)}" y="${H - 18 - h}" width="${Math.max(1, bw - (bw > 3 ? 2 : .5))}" height="${h}" rx="${bw > 3 ? 1 : 0}" fill="${i === selI ? 'var(--text)' : i === dateIndex() ? 'var(--gray-500)' : 'var(--gray-300)'}"/>` });
     const pts = IH.map((v, i) => (isNaN(v) ? null : `${(PL + (i + .5) * bw).toFixed(1)},${yI(v).toFixed(1)}`)).filter(Boolean).join(' ');
     if (pts) s += `<polyline fill="none" stroke="var(--ihsg)" stroke-width="1.5" stroke-linejoin="round" points="${pts}"/>`;
@@ -284,10 +300,10 @@ export function start(api: RadarApi, view: HTMLElement) {
     const fi = file.dates.indexOf(d), mem = fi >= 0 ? membersOn(file, f, ST.lv, ST.gate, fi) : new Map<string, number>();
     const now = new Set(lists(board, f, ST.lv, ST.gate).hits.map(h => h.t));
     const ts = [...mem.keys()].filter(keepUni).sort();
-    p.innerHTML = `<div class="dh"><b>${dayLabel(d)}${today ? ' · result date' : ''}</b><span class="muted">${ts.length} stocks</span>${today ? '' : `<button class="lk" data-today>Back to ${dayLabel(ST.date, false)}</button>`}</div>
-     <div class="dchips">${ts.map(t => `<button class="tkc ${now.has(t) ? (today && mem.get(t) === 1 ? 'nw' : '') : 'gone'}" data-t="${t}">${t}</button>`).join('') || '<span class="muted">No stocks this day.</span>'}</div>${today ? '' : '<p class="dleg"><span class="tkc">BBCA</span> still in on the result date <span class="tkc gone">BBCA</span> no longer in</p>'}`;
+    p.innerHTML = `<div class="dh"><b>${dayLabel(d)}${today ? ' · result date' : ''}</b><span class="muted">${plural(ts.length, 'stock')}</span>${today ? '' : `<button class="lk" data-today>Back to ${dayLabel(ST.date, false)}</button>`}</div>
+     <div class="dchips">${ts.map(t => `<button class="tkc ${now.has(t) ? (today && mem.get(t) === 1 ? 'nw' : '') : 'gone'}" data-t="${esc(t)}">${esc(t)}</button>`).join('') || '<span class="muted">No stocks this day.</span>'}</div>${today ? '' : '<p class="dleg"><span class="tkc">BBCA</span> still in on the result date <span class="tkc gone">BBCA</span> no longer in</p>'}`;
     const bt = $('[data-today]', p) as HTMLElement; if (bt) bt.onclick = () => { ST.detail.day = 0; drawHist(c, f) };
-    $$('.dchips .tkc', p).forEach(ch => (ch.onclick = () => { const t = ch.dataset.t; if (!now.has(t)) { toast(`${t} is not in ${c.label} on ${dayLabel(ST.date, false)}, so it has no row in Candidates.`); return } history.replaceState(null, '', `#/filter/${c.id}?s=${t}`); renderDetail(c.id, t) }));
+    $$('.dchips .tkc', p).forEach(ch => (ch.onclick = () => { const t = ch.dataset.t; if (!now.has(t)) { toast(`${t} is not in ${c.label} on ${dayLabel(ST.date, false)}, so it has no row in Candidates.`); return } history.replaceState(null, '', `#/filter/${encodeURIComponent(c.id)}?s=${encodeURIComponent(t)}`); renderDetail(c.id, t) }));
   }
 
   function drawToday(c: Column, f: FilterMeta, L: ReturnType<typeof lists>, sets: Map<string, Set<string>>) {
@@ -296,10 +312,11 @@ export function start(api: RadarApi, view: HTMLElement) {
     const avg = cont.length ? cont.reduce((a, h) => a + (h.run ?? 0), 0) / cont.length : 0;
     const ov = cols.filter(g => g !== c).map(g => [g, hs.filter(h => sets.get(g.id)?.has(h.t)).length] as [Column, number]).sort((a, b) => b[1] - a[1])[0];
     const why = (k: string | null) => k === 'gate' ? 'Fell out of the gate' : k === 'no_data' ? 'No Regular trade on the date' : `${esc(C.find(r => r.cond === k)?.label || k)} no longer met`;
-    el.innerHTML = `<div class="card-h"><h3>${dayLabel(ST.date, false)} in ${c.label}</h3><span class="hint">vs the previous session</span></div>
+    const newest = ST.date === days.boards[days.boards.length - 1];
+    el.innerHTML = `<div class="card-h"><h3>${newest ? 'Today' : dayLabel(ST.date, false)} in ${esc(c.label)}</h3><span class="hint">vs the previous session</span></div>
      <div class="hs"><div><div class="v">${nw.length}</div><div class="l">entered</div></div><div><div class="v">${cont.length}</div><div class="l">stayed · avg ${avg.toFixed(1)} days</div></div><div><div class="v">${L.left.length}</div><div class="l">left</div></div></div>
-     <div class="tdl"><span class="muted">Left</span><span class="tk3">${L.left.map(o => `<span class="tkc out" title="${why(o.why)}">${o.t}<i>${o.why && o.why.length === 1 ? o.why : '·'}</i></span>`).join('') || '<span class="muted">none</span>'}</span></div>
-     <div class="tdl"><span class="muted">Most overlap</span><span>${ov && ov[1] ? `<b>${ov[0].label}</b> · ${ov[1]} of ${hs.length} stocks also there` : '<span class="muted">none</span>'}</span></div>
+     <div class="tdl"><span class="muted">Left</span><span class="tk3">${L.left.map(o => `<span class="tkc out" title="${why(o.why)}">${esc(o.t)}<i>${o.why && o.why.length === 1 ? o.why : '·'}</i></span>`).join('') || '<span class="muted">none</span>'}</span></div>
+     <div class="tdl"><span class="muted">Most overlap</span><span>${ov && ov[1] ? `<b>${esc(ov[0].label)}</b> · ${ov[1]} of ${hs.length} stocks also there` : '<span class="muted">none</span>'}</span></div>
      <div class="dayp" id="dayp" aria-live="polite"><span class="ml-loading" role="status"><span class="ml-spin" aria-hidden="true"></span>Loading the filter's history</span></div>`;
   }
 
@@ -325,16 +342,16 @@ export function start(api: RadarApi, view: HTMLElement) {
         g += `<polyline fill="none" stroke="var(--text)" stroke-width="1.3" stroke-linejoin="round" points="${cc.map((x, k) => (x == null ? null : xf(k).toFixed(1) + ',' + yf(x).toFixed(1))).filter(Boolean).join(' ')}"/><rect x="${PL}" y="${H + 6}" width="${W - PL}" height="${BH}" rx="3" fill="var(--gray-50)"/>`;
         vis.forEach(e => { const a = Math.max(e[0], I0); g += `<rect x="${PL + (a - I0) * bw}" y="${H + 9}" width="${Math.max(2, (e[1] - a + 1) * bw)}" height="${BH - 6}" fill="var(--text)"/>` });
         let lx = -99;
-        for (let k = 0; k < len; k++) { const i = I0 + k; if (k === 0 || monthOf(file.dates[i]) !== monthOf(file.dates[i - 1])) { const x = PL + k * bw; if (x - lx > 40) { g += `<text x="${x}" y="${H + BH + 20}" font-size="10" fill="var(--text-3)">${monthOf(file.dates[i])}</text>`; lx = x } } }
+        for (let k = 0; k < len; k++) { const i = I0 + k; if (k === 0 || monthOf(file.dates[i]) !== monthOf(file.dates[i - 1])) { const x = PL + k * bw; if (x - lx > 40 && x < W - 18) { g += `<text x="${x}" y="${H + BH + 20}" font-size="10" fill="var(--text-3)">${monthOf(file.dates[i])}</text>`; lx = x } } }
         const recent = vis.slice(-3).reverse().map(e => { const L2 = e[1] - e[0] + 1; return `<div class="kv2"><span>${dayLabel(file.dates[e[0]], false)}${L2 > 1 ? ' – ' + dayLabel(file.dates[e[1]], false) : ''}</span><b>${e[1] === di && sel.status === 'hit' ? '<span class="tag new">Active · day ' + (sel.run ?? L2) + '</span>' : L2 + ' day' + (L2 > 1 ? 's' : '')}</b></div>` }).join('');
         chart = `<svg width="${W}" height="${H + BH + 24}" viewBox="0 0 ${W} ${H + BH + 24}" role="img" aria-label="Price of ${t} with the days ${c.label} found it">${g}</svg>
-          <div class="kv2" style="margin-top:var(--s-3)"><span><b style="color:var(--text)">${act}</b> days found · <b style="color:var(--text)">${vis.length}</b> runs in ${ST.detail.prev}</span></div><div style="margin-top:var(--s-3)">${recent}</div>`;
+          <div class="kv2" style="margin-top:var(--s-3)"><span><b style="color:var(--text)">${act}</b> ${act === 1 ? 'day' : 'days'} found · <b style="color:var(--text)">${vis.length}</b> ${vis.length === 1 ? 'run' : 'runs'} in ${ST.detail.prev}</span></div><div style="margin-top:var(--s-3)">${recent}</div>`;
       } else chart = `<p class="muted">${t} has no price line in ${c.label}'s history${sel.status === 'near' ? ' (a near miss is not in the filter yet)' : ''}.</p>`;
     }
-    pv.innerHTML = `<div class="card-h"><h3>${t}</h3><span class="hint">${esc(F.name(t))}</span><span class="grow"></span><b style="font-weight:var(--fw-semibold)">${px(close)}</b><span class="${cl(chg)}" style="font-size:var(--fs-12)">${sg(chg)}</span></div>
+    pv.innerHTML = `<div class="card-h"><h3>${esc(t)}</h3><span class="hint">${esc(F.name(t))}</span><span class="grow"></span><b style="font-weight:var(--fw-semibold)">${px(close)}</b><span class="${cl(chg)}" style="font-size:var(--fs-12)">${sg(chg)}</span></div>
      ${sel.flag ? `<div class="flagnote">${ic('info')}<span>${esc(sel.flag)}. Check for a block trade or corporate action before reading the flow.</span></div>` : ''}
-     <div class="sec"><div style="display:flex;align-items:center;gap:var(--s-4);margin-bottom:var(--s-4)"><span class="eyebrow2" style="margin:0">When ${c.label} found it</span><span style="flex:1"></span><div class="seg sm" role="radiogroup" aria-label="Range" data-pv>${['3M', '6M', '1Y'].map(r => `<button role="radio" aria-checked="${ST.detail.prev === r}" class="${ST.detail.prev === r ? 'on' : ''}" data-v="${r}">${r}</button>`).join('')}</div></div>${chart}</div>
-     <div class="acts"><button class="btn sm primary" data-act="term">Open ${t} in Terminal</button></div>`;
+     <div class="sec"><div style="display:flex;align-items:center;gap:var(--s-4);margin-bottom:var(--s-4)"><span class="eyebrow2" style="margin:0">When ${esc(c.label)} found it</span><span style="flex:1"></span><div class="seg sm" role="radiogroup" aria-label="Range" data-pv>${['3M', '6M', '1Y'].map(r => `<button role="radio" aria-checked="${ST.detail.prev === r}" class="${ST.detail.prev === r ? 'on' : ''}" data-v="${r}">${r}</button>`).join('')}</div></div>${chart}</div>
+     <div class="acts"><button class="btn sm primary" data-act="term">Open ${esc(t)} in Terminal</button></div>`;
     ($('[data-act=term]', pv) as HTMLElement).onclick = () => openTerminal(t);
     ($('[data-pv]', pv) as HTMLElement).onclick = e => { const b = (e.target as HTMLElement).closest('button') as HTMLButtonElement; if (!b) return; ST.detail.prev = b.dataset.v as any; preview(c, f, sel, fileCache.get(f.id) || null) };
   }
@@ -375,6 +392,10 @@ export function start(api: RadarApi, view: HTMLElement) {
       [meta, days] = await Promise.all([get<Meta>('radar-meta'), get<Days>('radar-days')]);
       cols = columns(meta);
       ST.variant = cols.find(c => c.variants.length > 1)?.variants[0].id || '';
+      if (!days.boards.length) {
+        view.innerHTML = `<div class="boot"><span>Results are not ready yet: the Radar has no result date published. They appear after the next broker update.</span></div>`;
+        return;
+      }
       ST.date = days.boards[days.boards.length - 1];
       board = await get<Board>(`radar-board-${ST.date}`);
       F = stockFacts(meta, board);

@@ -38,11 +38,21 @@ PRICE = 'public."Price_Stock_Indonesia_IDX"'
 INDEX_TICKER = 'IHSG'
 
 PROBE_SQL = "SELECT to_regclass('public.\"Feature_07_Radar_Result\"') IS NOT NULL"
+# a first fill (verification/radar/backfill_job.py) holds this lock while it writes: no publication of half-filled tables
+BACKFILL_LOCK = 'feature_07_radar_backfill'
+BACKFILL_FREE_SQL = 'SELECT pg_try_advisory_lock(hashtext(%s))'
+BACKFILL_RELEASE_SQL = 'SELECT pg_advisory_unlock(hashtext(%s))'
 # the publication is rebuilt when a result date was (re)computed (every refresh_feature_07_day rewrites its gate row) or
 # a newer final price date arrived (the card's price line and the page's price pill)
+# QA 2026-11-14: plus the final daily closes from the newest result date on (a close that arrives after IHSG's is a
+# change of the board's price line) and the stock lists' membership (the universe menu of radar-meta). Older price
+# corrections are not watched: the manual mode `radar` republishes after one.
 STAMP_SQL = (f'SELECT (SELECT max(calculated_at)::text FROM {G}), (SELECT count(*) FROM {G}), '
              f"(SELECT max(date)::text FROM {PRICE} WHERE ticker = '{INDEX_TICKER}' AND timeframe = 'Daily' AND is_final), "
-             'public.feature_07_rule_version()')
+             'public.feature_07_rule_version(), '
+             f"(SELECT count(*) FROM {PRICE} WHERE timeframe = 'Daily' AND is_final AND date >= (SELECT max(trade_date) FROM {G})), "
+             '(SELECT md5(coalesce(string_agg(list_key || \':\' || "Ticker", \',\' ORDER BY list_key, "Ticker"), \'\')) '
+             'FROM public."Stock_List_Member")')
 GATES_SQL = (f'SELECT trade_date::text, universe_n, broad_cut::float8, liquid_cut::float8, broad_n, liquid_n FROM {G} '
              'ORDER BY trade_date DESC LIMIT %s')
 FILTERS_SQL = ('SELECT filter_id, position, column_id, column_label, variant_label, is_default_variant, name, question, '
@@ -50,12 +60,13 @@ FILTERS_SQL = ('SELECT filter_id, position, column_id, column_label, variant_lab
                'ORDER BY position')
 RULES_SQL = ('SELECT filter_id, cond_key, level, label, threshold, threshold2, status '
              f'FROM {R} WHERE rule_version = public.feature_07_rule_version() ORDER BY filter_id, level, cond_key')
+VERSION = 'rule_version = public.feature_07_rule_version()'
 COUNTS_SQL = (f"SELECT trade_date::text, filter_id, level, gate, count(*) FROM {RES} WHERE status = 'hit' "
-              'AND trade_date >= %s GROUP BY 1, 2, 3, 4')
+              f'AND trade_date >= %s AND {VERSION} GROUP BY 1, 2, 3, 4')
 HISTORY_SQL = ('SELECT trade_date::text, filter_id, level, gate, ticker, status, run_day, left_reason '
-               f"FROM {RES} WHERE status IN ('hit', 'left') AND trade_date >= %s")
+               f"FROM {RES} WHERE status IN ('hit', 'left') AND trade_date >= %s AND {VERSION}")
 BOARD_SQL = ('SELECT trade_date::text, filter_id, level, gate, ticker, status, met, cond_n, run_day, left_reason, strong, '
-             f'sort_value, flag FROM {RES} WHERE trade_date = ANY(%s::date[])')
+             f'sort_value, flag FROM {RES} WHERE trade_date = ANY(%s::date[]) AND {VERSION}')
 # the measures the Candidates table and the cards show (RADAR_PAGE_SPEC.md section 5, own columns)
 MEASURES = ('foreign_net_5d', 'total_buy_5d', 'foreign_ratio_5d', 'buy_days_5d', 'foreign_net_5d_pct252',
             'foreign_net_5d_z252', 'foreign_ratio_5d_pct252', 'foreign_ratio_5d_prev', 'foreign_ratio_5d_change',
@@ -72,6 +83,14 @@ PRICES_SQL = (f"SELECT ticker, date::text, close::float8 FROM {PRICE} WHERE time
 
 def available(conn):
     return bool(conn.execute(PROBE_SQL).fetchone()[0])
+
+
+def backfill_running(conn):
+    """True while the first fill holds its lock (the lock is taken and given back at once otherwise)."""
+    if not conn.execute(BACKFILL_FREE_SQL, (BACKFILL_LOCK,)).fetchone()[0]:
+        return True
+    conn.execute(BACKFILL_RELEASE_SQL, (BACKFILL_LOCK,))
+    return False
 
 
 def stamp(conn):

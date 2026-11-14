@@ -48,6 +48,12 @@ DESC LIMIT 20`.
 4b. Indeks dan grup Stockbit (`stock_lists.py`, EXEC-STOCK-CATALOG): 66 daftar `Stock_List` yang aktif dan anggotanya,
    semua atau tidak sama sekali (`apply_stock_list_snapshot`); riwayat di `Stock_List_Member_History`, per putaran
    `Stock_List_Load_Log`. Gagal = peringatan di kolom `stock_lists`, putaran tetap SUCCESS (keputusan D2). ±1 menit.
+4c. Radar (`refresh.refresh_radar`, EXEC-RADAR, migrasi `20261114_001`): `refresh_feature_07` per ticker universe yang
+   baris Regular F06-nya lebih baru dari baris ukuran Radar-nya, lalu `refresh_feature_07_day` per tanggal dari tanggal
+   ubah terkecil, berurutan; bila muatan event mengubah aksi korporasi, juga 20 tanggal hasil terbaru (catatan Outlier).
+   Dilewati sebelum migrasi ada, sebelum backfill pertama (`verification/radar/backfill_job.py`), dan selama backfill
+   memegang kuncinya. Cek: baris, jumlah harian net asing dan beli sama dengan F06, satu baris gerbang per tanggal.
+   Gagal = peringatan di `features.radar`, putaran tetap SUCCESS (seperti 4b). ±5 menit per putaran harian.
 5. `Database_Table_Status` (`scripts/sync_database_schema.py`).
 6. Satu baris `Monitoring_Stockbit_Update` (status, langkah, jumlah, galat) dan ringkasan Telegram lewat
    `telegram-monitor`.

@@ -14029,8 +14029,11 @@ latest R10".
   saja; `/state` tidak menampilkan indeks), edge-bff `app/radar.py` (`/api/v1/radar/index`, `/api/v1/radar/file/<nama>`,
   hanya sesi pemilik, byte diteruskan dan dicek sha), halaman `apps/edge-bff/radar` dari R10 (data sungguhan), tab Radar
   di shell, listener `edge-nav` (M425), tahap "file Radar" di telegram-monitor. Kontrak: `verification/radar/FILES.md`.
+- **2026-11-14, R10 bagian QA:** 5 agen peninjau independen (satu per bagian) membaca `60d610c`; tidak ada blocker.
+  Semua temuan major dan minor yang bukan keputusan user diperbaiki di branch (ERRORS M431), gladi dan validator diulang
+  (0 selisih di 8 tanggal). Terbuka untuk user: M428 (arti "5 sesi") dan jenis aksi korporasi untuk catatan Outlier.
 - Belum: R4 ambang S6Δ dari 20 tanggal (butuh data dev penuh, sesudah backfill dev), R8 sisanya (DATABASE_SCHEMA dan
-  changelog saat dipasang), R9-R10 (rilis dev bertahap dengan go per langkah, 5 agen QA).
+  changelog saat dipasang), R9 (rilis dev bertahap dengan go per langkah).
 
 ### Keputusan yang perlu user sebelum go
 

@@ -476,7 +476,7 @@ INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordi
     source_code_paths, documentation_status)
 SELECT 'public', 'Feature_07_Radar_Measure', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
-    'S7: net buy value of institution-class brokers over 5 sessions.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until 5 sessions.',
+    'S7: net buy value of institution-class brokers over 5 sessions.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until 5 sessions or when a Regular session of the window has no Feature 03 row.',
     ARRAY['database/migrations/20261114_001_feature_07_radar.sql','verification/radar/validate_radar.py','verification/radar/REHEARSAL.md']::text[], 'VERIFIED'
 FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_07_Radar_Measure' AND c.column_name = 'inst_net_5d';
 
@@ -487,7 +487,7 @@ INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feat
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
 VALUES ('Feature_07_Radar_Measure', 'inst_net_5d', 'Date x ticker (Regular sessions)', 'Broker Classification', 'S7: net buy value of institution-class brokers over 5 sessions.', 'sum of Feature_03_Stock_Broker_Daily.institutional_net_value (Regular) over 5 sessions',
     'Feature_03_Stock_Broker_Daily', 'Feature_03_Stock_Broker_Daily columns per calculation', '5 sessions', '5 sessions',
-    'IDR', 'NULL until 5 sessions.', 'refresh_feature_07(ticker, first changed date) after refresh_feature_06; reads the 400 sessions before; stockbit-updater refresh_radar at the end of a broker round',
+    'IDR', 'NULL until 5 sessions or when a Regular session of the window has no Feature 03 row.', 'refresh_feature_07(ticker, first changed date) after refresh_feature_06; reads the 400 sessions before; stockbit-updater refresh_radar at the end of a broker round',
     'Requires Features 03, 05 and 06 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['SUM','AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
     false, 'Use only through the last broker round that ran the Radar step.', true,
@@ -499,7 +499,7 @@ INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordi
     source_code_paths, documentation_status)
 SELECT 'public', 'Feature_07_Radar_Measure', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
-    'S7: net buy value of retail-class brokers over 5 sessions.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until 5 sessions.',
+    'S7: net buy value of retail-class brokers over 5 sessions.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until 5 sessions or when a Regular session of the window has no Feature 03 row.',
     ARRAY['database/migrations/20261114_001_feature_07_radar.sql','verification/radar/validate_radar.py','verification/radar/REHEARSAL.md']::text[], 'VERIFIED'
 FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_07_Radar_Measure' AND c.column_name = 'retail_net_5d';
 
@@ -510,7 +510,7 @@ INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feat
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
 VALUES ('Feature_07_Radar_Measure', 'retail_net_5d', 'Date x ticker (Regular sessions)', 'Broker Classification', 'S7: net buy value of retail-class brokers over 5 sessions.', 'sum of Feature_03_Stock_Broker_Daily.retail_net_value (Regular) over 5 sessions',
     'Feature_03_Stock_Broker_Daily', 'Feature_03_Stock_Broker_Daily columns per calculation', '5 sessions', '5 sessions',
-    'IDR', 'NULL until 5 sessions.', 'refresh_feature_07(ticker, first changed date) after refresh_feature_06; reads the 400 sessions before; stockbit-updater refresh_radar at the end of a broker round',
+    'IDR', 'NULL until 5 sessions or when a Regular session of the window has no Feature 03 row.', 'refresh_feature_07(ticker, first changed date) after refresh_feature_06; reads the 400 sessions before; stockbit-updater refresh_radar at the end of a broker round',
     'Requires Features 03, 05 and 06 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['SUM','AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
     false, 'Use only through the last broker round that ran the Radar step.', true,
@@ -522,7 +522,7 @@ INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordi
     source_code_paths, documentation_status)
 SELECT 'public', 'Feature_07_Radar_Measure', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
-    'S7 FL34 over 5 sessions: institution net minus retail net as a percent of all broker buying.', 'Feature_Catalog active semantic version', 'percent', 'NULL until 5 sessions or when the broker buying is 0.',
+    'S7 FL34 over 5 sessions: institution net minus retail net as a percent of all broker buying.', 'Feature_Catalog active semantic version', 'percent', 'NULL until 5 sessions, when the broker buying is 0, or when a Regular session of the window has no Feature 03 row.',
     ARRAY['database/migrations/20261114_001_feature_07_radar.sql','verification/radar/validate_radar.py','verification/radar/REHEARSAL.md']::text[], 'VERIFIED'
 FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_07_Radar_Measure' AND c.column_name = 'fl34_5d';
 
@@ -533,7 +533,7 @@ INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feat
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
 VALUES ('Feature_07_Radar_Measure', 'fl34_5d', 'Date x ticker (Regular sessions)', 'Broker Classification', 'S7 FL34 over 5 sessions: institution net minus retail net as a percent of all broker buying.', '100 x (inst_net_5d - retail_net_5d) / sum of Feature_03_Stock_Broker_Daily.total_buy_value over 5 sessions',
     'Feature_03_Stock_Broker_Daily', 'Feature_03_Stock_Broker_Daily columns per calculation', '5 sessions', '5 sessions',
-    'percent', 'NULL until 5 sessions or when the broker buying is 0.', 'refresh_feature_07(ticker, first changed date) after refresh_feature_06; reads the 400 sessions before; stockbit-updater refresh_radar at the end of a broker round',
+    'percent', 'NULL until 5 sessions, when the broker buying is 0, or when a Regular session of the window has no Feature 03 row.', 'refresh_feature_07(ticker, first changed date) after refresh_feature_06; reads the 400 sessions before; stockbit-updater refresh_radar at the end of a broker round',
     'Requires Features 03, 05 and 06 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
     false, 'Use only through the last broker round that ran the Radar step.', true,
@@ -568,7 +568,7 @@ INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordi
     source_code_paths, documentation_status)
 SELECT 'public', 'Feature_07_Radar_Measure', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
-    'S7 D: institution net as a percent of all broker buying over 5 sessions.', 'Feature_Catalog active semantic version', 'percent', 'NULL until 5 sessions or when the broker buying is 0.',
+    'S7 D: institution net as a percent of all broker buying over 5 sessions.', 'Feature_Catalog active semantic version', 'percent', 'NULL until 5 sessions, when the broker buying is 0, or when a Regular session of the window has no Feature 03 row.',
     ARRAY['database/migrations/20261114_001_feature_07_radar.sql','verification/radar/validate_radar.py','verification/radar/REHEARSAL.md']::text[], 'VERIFIED'
 FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_07_Radar_Measure' AND c.column_name = 'inst_share_5d';
 
@@ -579,7 +579,7 @@ INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feat
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
 VALUES ('Feature_07_Radar_Measure', 'inst_share_5d', 'Date x ticker (Regular sessions)', 'Broker Classification', 'S7 D: institution net as a percent of all broker buying over 5 sessions.', '100 x inst_net_5d / sum of Feature_03_Stock_Broker_Daily.total_buy_value over 5 sessions',
     'Feature_03_Stock_Broker_Daily', 'Feature_03_Stock_Broker_Daily columns per calculation', '5 sessions', '5 sessions',
-    'percent', 'NULL until 5 sessions or when the broker buying is 0.', 'refresh_feature_07(ticker, first changed date) after refresh_feature_06; reads the 400 sessions before; stockbit-updater refresh_radar at the end of a broker round',
+    'percent', 'NULL until 5 sessions, when the broker buying is 0, or when a Regular session of the window has no Feature 03 row.', 'refresh_feature_07(ticker, first changed date) after refresh_feature_06; reads the 400 sessions before; stockbit-updater refresh_radar at the end of a broker round',
     'Requires Features 03, 05 and 06 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
     false, 'Use only through the last broker round that ran the Radar step.', true,
@@ -591,7 +591,7 @@ INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordi
     source_code_paths, documentation_status)
 SELECT 'public', 'Feature_07_Radar_Measure', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
-    'Sessions with a positive institution net among the 5.', 'Feature_Catalog active semantic version', 'sessions', 'NULL until 5 sessions.',
+    'Sessions with a positive institution net among the 5.', 'Feature_Catalog active semantic version', 'sessions', 'NULL until 5 sessions or when a Regular session of the window has no Feature 03 row.',
     ARRAY['database/migrations/20261114_001_feature_07_radar.sql','verification/radar/validate_radar.py','verification/radar/REHEARSAL.md']::text[], 'VERIFIED'
 FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_07_Radar_Measure' AND c.column_name = 'inst_buy_days_5d';
 
@@ -602,7 +602,7 @@ INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feat
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
 VALUES ('Feature_07_Radar_Measure', 'inst_buy_days_5d', 'Date x ticker (Regular sessions)', 'Broker Classification', 'Sessions with a positive institution net among the 5.', 'count(Feature_03_Stock_Broker_Daily.institutional_net_value > 0) over 5 sessions',
     'Feature_03_Stock_Broker_Daily', 'Feature_03_Stock_Broker_Daily columns per calculation', '5 sessions', '5 sessions',
-    'sessions', 'NULL until 5 sessions.', 'refresh_feature_07(ticker, first changed date) after refresh_feature_06; reads the 400 sessions before; stockbit-updater refresh_radar at the end of a broker round',
+    'sessions', 'NULL until 5 sessions or when a Regular session of the window has no Feature 03 row.', 'refresh_feature_07(ticker, first changed date) after refresh_feature_06; reads the 400 sessions before; stockbit-updater refresh_radar at the end of a broker round',
     'Requires Features 03, 05 and 06 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
     false, 'Use only through the last broker round that ran the Radar step.', true,
@@ -1396,7 +1396,7 @@ INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordi
     source_code_paths, documentation_status)
 SELECT 'public', 'Feature_07_Radar_Result', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
-    'hit: every condition met (S8: A and B); near: exactly one short and not a hit the date before; left: a hit on the previous result date that is not one now.', 'Feature_Catalog active semantic version', 'category', 'Never NULL.',
+    'hit: every condition met (S8: A and B); near: every condition but one met and not a hit the date before; left: a hit on the previous result date that is not one now.', 'Feature_Catalog active semantic version', 'category', 'Never NULL.',
     ARRAY['database/migrations/20261114_001_feature_07_radar.sql','verification/radar/validate_radar.py','verification/radar/REHEARSAL.md']::text[], 'VERIFIED'
 FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_07_Radar_Result' AND c.column_name = 'status';
 
@@ -1405,13 +1405,13 @@ INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feat
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('Feature_07_Radar_Result', 'status', 'Date x filter x level x gate x ticker', 'Metadata', 'hit: every condition met (S8: A and B); near: exactly one short and not a hit the date before; left: a hit on the previous result date that is not one now.', 'rule evaluation of Feature_07_Radar_Rule against Feature_07_Radar_Measure',
+VALUES ('Feature_07_Radar_Result', 'status', 'Date x filter x level x gate x ticker', 'Metadata', 'hit: every condition met (S8: A and B); near: every condition but one met and not a hit the date before; left: a hit on the previous result date that is not one now.', 'rule evaluation of Feature_07_Radar_Rule against Feature_07_Radar_Measure',
     'Feature_07_Radar_Measure, Feature_07_Radar_Rule', 'Feature_07_Radar_Measure, Feature_07_Radar_Rule columns per calculation', '1 session', '1 session',
     'category', 'Never NULL.', 'refresh_feature_07_day(date) for every date from the first changed one, in date order',
     'Requires Features 03, 05 and 06 refreshed for the same dates',
     'v1', true, 'DIMENSION', ARRAY['COUNT']::text[], 'NOT_APPLICABLE', true,
     true, 'Use only through the last broker round that ran the Radar step.', true,
-    'The universe is IDX_Stock_Universe as of the refresh, not as of the trade date.', 'hit: every condition met (S8: A and B); near: exactly one short and not a hit the date before; left: a hit on the previous result date that is not one now.',
+    'The universe is IDX_Stock_Universe as of the refresh, not as of the trade date.', 'hit: every condition met (S8: A and B); near: every condition but one met and not a hit the date before; left: a hit on the previous result date that is not one now.',
     'Read one date, filter, level and gate as the Radar board shows it.', 'A hit is a candidate to examine, not a recommendation; thresholds marked provisional in Feature_07_Radar_Rule.status may change.', 'CALCULATION_VERIFIED', ARRAY['database/migrations/20261114_001_feature_07_radar.sql','verification/radar/validate_radar.py','verification/radar/REHEARSAL.md','FEATURE_07_RADAR.md','SCREENER_LIBRARY.md','DATABASE_CHANGELOG.md']::text[]);
 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,

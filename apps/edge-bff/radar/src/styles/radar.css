@@ -919,3 +919,8 @@ html,body{width:auto;height:100%;overflow:hidden}
 /* the loading and error states of the live page */
 .boot{display:flex;align-items:center;gap:var(--s-4);padding:var(--s-10);color:var(--text-2)}
 .boot .err{color:var(--down)}
+/* QA 2026-11-14: below 1200 px four columns a row (RADAR_PAGE_SPEC.md 3.3); the R10 rule for seven columns came later
+   in the sheet and won. The phone layout (720 px and below) keeps its scrolling row. */
+@media (max-width:1200px) and (min-width:721px){.kb{grid-template-columns:repeat(4,minmax(200px,1fr))}}
+/* members of a past day that are no longer in the filter are struck through (RADAR_PAGE_SPEC.md 4) */
+.dchips .tkc.gone{text-decoration:line-through}

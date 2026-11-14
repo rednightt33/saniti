@@ -111,12 +111,22 @@ WHERE f.market_board = 'Regular' AND f.ticker IN {UNIVERSE} AND f.trade_date >= 
 GROUP BY 1 ORDER BY 1"""
 RADAR_STALE_DAY = f"""SELECT min(m.trade_date) FROM (SELECT trade_date, max(calculated_at) AS at FROM {F07} GROUP BY 1) m
 LEFT JOIN {F07_GATE} g USING (trade_date) WHERE g.trade_date IS NULL OR m.at > g.calculated_at"""
-# rows: every Regular session of a universe ticker from the first recalculated date has a measure row, and every
-# measure date has its gate row (universe 0 only before any stock has 5 sessions)
-RECON07 = f"""SELECT (SELECT count(*) FROM {F06} WHERE market_board = 'Regular' AND trade_date >= %(a)s AND ticker IN {UNIVERSE}),
-       (SELECT count(*) FROM {F07} WHERE trade_date >= %(a)s AND ticker IN {UNIVERSE}),
-       (SELECT count(*) FROM {F07_GATE} WHERE trade_date >= %(a)s),
-       (SELECT count(DISTINCT trade_date) FROM {F07} WHERE trade_date >= %(a)s)"""
+# from the first recalculated date: every Regular session of a universe ticker has a measure row with the same daily
+# foreign net and buying as Feature 06 (sums, exact numerics), every measure date has its gate row (universe 0 only
+# before any stock has 5 sessions) and no measure row was left without its date's cross-section (QA 2026-11-14)
+RECON07 = f"""WITH f AS (SELECT count(*) AS n, sum(foreign_buy_1d - foreign_sell_1d) AS net, sum(foreign_buy_1d + domestic_buy_1d) AS buy
+                FROM {F06} WHERE market_board = 'Regular' AND trade_date >= %(a)s AND ticker IN {UNIVERSE}),
+     m AS (SELECT count(*) AS n, sum(foreign_net_1d) AS net, sum(total_buy_1d) AS buy,
+                  count(*) FILTER (WHERE g2_eligible IS NULL) AS no_xs, count(DISTINCT trade_date) AS dates
+           FROM {F07} WHERE trade_date >= %(a)s AND ticker IN {UNIVERSE})
+SELECT f.n, m.n, (SELECT count(*) FROM {F07_GATE} WHERE trade_date >= %(a)s), m.dates,
+       f.net IS NOT DISTINCT FROM m.net AND f.buy IS NOT DISTINCT FROM m.buy, m.no_xs
+FROM f, m"""
+# a first fill (verification/radar/backfill_job.py) holds this lock while it writes; a round leaves the Radar to it
+RADAR_BACKFILL_LOCK = 'feature_07_radar_backfill'
+# the outlier note of a result reads the corporate actions in its stock's 5 sessions: when the round's event load
+# changed any, the result dates of the boards the page offers are computed again (publisher radar.BOARD_DATES)
+RADAR_EVENT_DATES = 20
 
 
 class RefreshFailed(RuntimeError):
@@ -265,20 +275,29 @@ def refresh_broker_features(emit) -> dict:
             **PLAN_INFO}
 
 
-def refresh_radar(emit) -> dict:
+def refresh_radar(emit, events_changed: bool = False) -> dict:
     """EXEC-RADAR R2: after Feature 03 and 06 (and the round's events, which the outlier note reads), recalculate the
     Radar measures of every ticker whose Feature 06 rows are newer, then every date from the first one, in date order
-    (a run of days reads the date before). Skipped until the backfill has written the first rows."""
+    (a run of days reads the date before); when the round's event load changed a corporate action, also the
+    RADAR_EVENT_DATES newest dates. Skipped until the backfill has written the first rows, and while a backfill runs."""
     started = time.monotonic()
     with connect() as c:
         if c.execute('SELECT to_regclass(%s)', (F07,)).fetchone()[0] is None:
             emit('radar_skipped', reason='Feature 07 is not created yet')
             return {'skipped': 'Feature 07 is not created yet'}
+        if not c.execute('SELECT pg_try_advisory_lock(hashtext(%s))', (RADAR_BACKFILL_LOCK,)).fetchone()[0]:
+            emit('radar_skipped', reason='the Radar backfill is running')
+            return {'skipped': 'backfill running'}
+        c.execute('SELECT pg_advisory_unlock(hashtext(%s))', (RADAR_BACKFILL_LOCK,))
         first = c.execute(f'SELECT min(trade_date) FROM {F07}').fetchone()[0]
         if first is None:
             emit('radar_skipped', reason='Feature 07 has no rows; the Radar backfill writes the first ones')
             return {'skipped': 'not backfilled'}
         tickers = c.execute(RADAR_TICKERS, {'first': first}).fetchall()
+        event_from = None
+        if events_changed:
+            event_from = c.execute(f"""SELECT min(d) FROM (SELECT DISTINCT trade_date AS d FROM {F07_GATE}
+                                       ORDER BY 1 DESC LIMIT %s) x""", (RADAR_EVENT_DATES,)).fetchone()[0]
     for i, (t, d) in enumerate(tickers, 1):
         run_in('SELECT public.refresh_feature_07(%s, %s)', (t, d))
         if i % 200 == 0 or i == len(tickers):
@@ -287,7 +306,7 @@ def refresh_radar(emit) -> dict:
         analyze(F07)
     with connect() as c:
         stale = c.execute(RADAR_STALE_DAY).fetchone()[0]
-    starts = [d for d in [min((d for _, d in tickers), default=None), stale] if d is not None]
+    starts = [d for d in [min((d for _, d in tickers), default=None), stale, event_from] if d is not None]
     if not starts:
         emit('radar_done', tickers=0, dates=0, seconds=round(time.monotonic() - started, 1))
         return {'tickers': 0, 'dates': [], 'seconds': round(time.monotonic() - started, 1)}
@@ -298,10 +317,11 @@ def refresh_radar(emit) -> dict:
     for d in days:
         run_in('SELECT public.refresh_feature_07_day(%s)', (d,))
     analyze(F07_RESULT)
-    regular, measured, gates, dated = run_in(RECON07, {'a': since}, '60min')
-    if regular != measured or gates != dated:
+    regular, measured, gates, dated, sums_equal, no_xs = run_in(RECON07, {'a': since}, '60min')
+    if regular != measured or gates != dated or not sums_equal or no_xs:
         raise RefreshFailed(f'Feature 07 reconcile from {since}: Regular rows {regular}, measure rows {measured}, '
-                            f'gate rows {gates} for {dated} dates')
+                            f'gate rows {gates} for {dated} dates, daily sums equal to Feature 06 {sums_equal}, '
+                            f'rows without their cross-section {no_xs}')
     emit('radar_done', tickers=len(tickers), dates=len(days), since=str(since), rows=measured,
          seconds=round(time.monotonic() - started, 1))
     return {'tickers': len(tickers), 'since': str(since), 'dates': [str(d) for d in days], 'rows': measured,

@@ -727,6 +727,20 @@ def stock_list_lines(result: dict) -> list[str]:
     return lines
 
 
+def radar_lines(result) -> list[str]:
+    """EXEC-RADAR R2: the Radar step of the round (refresh_radar, kept in features.radar). A failure is a warning, the round
+    stands (as the stock lists', decision D2); the next round redoes what the data says is stale."""
+    if not isinstance(result, dict) or not result:
+        return []
+    if result.get("failed"):
+        return ["⚠️ Radar tidak diperbarui (hasil lama tetap; Broker Summary tidak terpengaruh, diulang di ronde berikut): "
+                + str(result["failed"])[:400]]
+    if result.get("skipped"):
+        return []
+    dates = result.get("dates") or []
+    return [f"Radar: {len(dates)} tanggal dihitung ulang" + (f" (dari {result.get('since')})" if dates else "")]
+
+
 def build_stockbit_messages(summary: StockbitUpdateSummary, max_length: int = MAX_TELEGRAM_TEXT) -> list[str]:
     emoji = STATUS_EMOJI.get(summary.status, "ℹ️")
     duration = format_duration(max(0.0, (summary.finished_at - summary.started_at).total_seconds()))
@@ -756,6 +770,7 @@ def build_stockbit_messages(summary: StockbitUpdateSummary, max_length: int = MA
             lines.append(f"Corporate action: baru {ca.get('new')}, berubah {ca.get('changed')}, hilang {ca.get('removed')} • "
                          f"Insider: baru {ins.get('new')}, berubah {ins.get('changed')}, hilang {ins.get('removed')}")
         lines += stock_list_lines(summary.stock_lists)
+        lines += radar_lines(summary.features.get("radar"))
     if summary.token_expires_at:
         lines.append("Token berlaku sampai " + summary.token_expires_at.astimezone(JAKARTA_TZ).strftime("%d %b %Y %H:%M") + " WIB")
     if summary.last_error:

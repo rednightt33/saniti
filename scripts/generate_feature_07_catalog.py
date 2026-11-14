@@ -118,24 +118,29 @@ def measure_columns():
             "trade_date of the largest foreign_net_1d in the window", "date", "NULL until 5 sessions.",
             role="IDENTITY", aggs=("COUNT",), ranking="NOT_APPLICABLE", **w5, source=F06S),
         col("inst_net_5d", "Broker Class Flow", "S7: net buy value of institution-class brokers over 5 sessions.",
-            f"sum of {F03S}.institutional_net_value (Regular) over 5 sessions", "IDR", "NULL until 5 sessions.",
+            f"sum of {F03S}.institutional_net_value (Regular) over 5 sessions", "IDR", "NULL until 5 sessions or when a Regular session of the window has no Feature 03 row.",
             aggs=SUMS, **w5, source=F03S, misuse="Broker class describes each broker's usual clients, not the "
             "investor of each trade; one broker can make up the whole side. Regular board only."),
         col("retail_net_5d", "Broker Class Flow", "S7: net buy value of retail-class brokers over 5 sessions.",
-            f"sum of {F03S}.retail_net_value (Regular) over 5 sessions", "IDR", "NULL until 5 sessions.", aggs=SUMS,
+            f"sum of {F03S}.retail_net_value (Regular) over 5 sessions", "IDR",
+            "NULL until 5 sessions or when a Regular session of the window has no Feature 03 row.", aggs=SUMS,
             **w5, source=F03S, misuse="Broker class describes each broker's usual clients, not the investor of each "
             "trade. Regular board only."),
         col("fl34_5d", "Broker Class Flow", "S7 FL34 over 5 sessions: institution net minus retail net as a percent "
             "of all broker buying.", f"100 x (inst_net_5d - retail_net_5d) / sum of {F03S}.total_buy_value over 5 "
-            "sessions", "percent", "NULL until 5 sessions or when the broker buying is 0.", **w5, source=F03S),
+            "sessions", "percent",
+            "NULL until 5 sessions, when the broker buying is 0, or when a Regular session of the window has no Feature 03 row.",
+            **w5, source=F03S),
         col("fl34_5d_prev", "Broker Class Flow", "fl34_5d five sessions before (previous block).",
             "fl34_5d of the session 5 sessions before", "percent", "NULL until 10 sessions.", lookback="10 sessions",
             minimum="10 sessions", source=F03S),
         col("inst_share_5d", "Broker Class Flow", "S7 D: institution net as a percent of all broker buying over 5 "
             "sessions.", f"100 x inst_net_5d / sum of {F03S}.total_buy_value over 5 sessions", "percent",
-            "NULL until 5 sessions or when the broker buying is 0.", **w5, source=F03S),
+            "NULL until 5 sessions, when the broker buying is 0, or when a Regular session of the window has no Feature 03 row.",
+            **w5, source=F03S),
         col("inst_buy_days_5d", "Broker Class Flow", "Sessions with a positive institution net among the 5.",
-            f"count({F03S}.institutional_net_value > 0) over 5 sessions", "sessions", "NULL until 5 sessions.", **w5,
+            f"count({F03S}.institutional_net_value > 0) over 5 sessions", "sessions",
+            "NULL until 5 sessions or when a Regular session of the window has no Feature 03 row.", **w5,
             source=F03S),
         col("adv20_prev", "Liquidity", "S8 ADV20: mean total_buy_1d of the 20 sessions before the day (the day "
             "excluded).", "avg(total_buy_1d) over the 20 previous sessions", "IDR", "NULL until 21 sessions.",
@@ -235,8 +240,8 @@ def result_columns():
         col("gate", "Identity", "Liquidity gate: broad or liquid.", "G3 gate", "category", "Never NULL.", **IDENT,
             source=M),
         col("ticker", "Identity", "Stock code.", f"{M}.ticker", "code", "Never NULL.", **IDENT, source=M),
-        col("status", "Result", "hit: every condition met (S8: A and B); near: exactly one short and not a hit the "
-            "date before; left: a hit on the previous result date that is not one now.", "rule evaluation of "
+        col("status", "Result", "hit: every condition met (S8: A and B); near: every condition but one met and not a "
+            "hit the date before; left: a hit on the previous result date that is not one now.", "rule evaluation of "
             f"{R} against {M}", "category", "Never NULL.", **FLAG, **r),
         col("met", "Result", "Conditions met as a bitmask: 1 = A, 2 = B, 4 = C, 8 = D.", "sum of the bits of the met "
             "conditions", "bitmask", "NULL for left when the stock is outside the gate or has no data.", **FLAG, **r),

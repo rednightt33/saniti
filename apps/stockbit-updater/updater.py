@@ -12,6 +12,8 @@ The user replaces the Railway variable STOCKBIT_TOKEN and deploys (decision K2 A
    apps/stockbit-event-annotation/job.py, its own full pull and reconciliation),
 4b. reloads the stock groups and indices the user chose (stock_lists.py, EXEC-STOCK-CATALOG); a failure of this step is
    a warning in the stock_lists column, the round stays SUCCESS (decision D2),
+4c. recalculates the Radar tables (Feature 07, refresh.refresh_radar, EXEC-RADAR) of the tickers and dates the data
+   says are stale; a failure of this step is a warning in features.radar, the round stays SUCCESS (as 4b),
 5. refreshes Database_Table_Status and records the round in Monitoring_Stockbit_Update, then asks telegram-monitor
    to send the summary (K5),
 and exits. Restart policy NEVER: a failed round is not retried with the same token.
@@ -307,8 +309,16 @@ def main() -> int:
             record(pg, execution_id, events=steps['events'])
             steps['stock_lists'] = stock_lists.run(pg, token, execution_id, emit)
             record(pg, execution_id, stock_lists=steps['stock_lists'])
-            # EXEC-RADAR R2: last of the data steps, so the round's events are in its outlier notes; kept in `features`
-            steps['radar'] = refresh.refresh_radar(emit)
+            # EXEC-RADAR R2: last of the data steps, so the round's events are in its outlier notes; kept in `features`.
+            # A failure is a warning of the round, as the stock lists' (decision D2; QA 2026-11-14): the round stays
+            # SUCCESS so the publisher still reads its changed dates, and the next round redoes what the data says is
+            # stale (refresh_radar derives it from the tables)
+            ca = (steps['events'] or {}).get('reconcile_corporate_action') or {}
+            try:
+                steps['radar'] = refresh.refresh_radar(emit, events_changed=any(ca.get(k) for k in ('new', 'changed', 'removed')))
+            except Exception as exc:  # noqa: BLE001 - recorded and sent as a warning; the round's data steps are done
+                steps['radar'] = {'failed': f'{type(exc).__name__}: {exc}'[:400]}
+                emit('radar_failed', error=steps['radar']['failed'])
             record(pg, execution_id, features={**steps['features'], 'radar': steps['radar']})
             steps['table_status'] = {'tables': refresh_table_status()}
     except Exception as exc:  # noqa: BLE001 - every failure ends the round with a recorded, notified status

@@ -16,7 +16,10 @@ ordered by the publisher, so equal tables give equal bytes. Dates are `YYYY-MM-D
 
 In the modes `daily` and `backfill` the files are rebuilt when `radar.stamp` changes (the newest gate row's
 `calculated_at` and the gate row count: every `refresh_feature_07_day` rewrites its gate row; the newest final IHSG price
-date; the rule version). The manual mode `radar` rebuilds them whatever the stamp. Every other mode carries the index
+date; the rule version; the final closes from the newest result date on; the stock lists' membership), or when the
+index in state.json is not whole (an unusable entry, an object missing from the bucket). Older price corrections are not
+watched: the manual mode `radar` republishes after one. While the first fill runs (advisory lock
+`feature_07_radar_backfill`) nothing is built. The manual mode `radar` rebuilds them whatever the stamp. Every other mode carries the index
 forward. A failure keeps the previous index (logged `radar_failed` with the step and the error class only); the rest
 of the publication goes on. The cleanup (`collect_garbage`, `delete_replaced`) treats `radar` like `xsection` and `ref`.
 
@@ -30,7 +33,8 @@ of the publication goes on. The cleanup (`collect_garbage`, `delete_replaced`) t
 | `radar-f-<filter>` | one filter (lower-case id: s1, s2, s3, s6, s6d_ratio, s6d_rank, s6d_both, s7, s8) over every result date: `dates`, `stocks` (ticker, close on every date), `hits` (date index, stock index, level, gate, run_day), `left` (date index, stock index, level, gate, left_reason) | 64-258 KB |
 
 All 31 files: 2.9 MB in the rehearsal of 2026-11-14 (built in 3 s). `met` is a bitmask (1 = A, 2 = B, 4 = C, 8 = D);
-S8 is stored at level `standard` only (its own levels: `strong` true = Strong, false = Watch). A stock that left and is
+S8 is stored at level `standard` only (its own levels: `strong` true = Strong, false = Watch). `near` is every condition
+but one met (S8: one of A and B missing, C met). A stock that left and is
 one condition short is a `left` row with its `met` (ERRORS M430). `left_reason` is the first condition no longer met,
 `gate` or `no_data`.
 

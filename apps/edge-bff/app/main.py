@@ -222,6 +222,7 @@ def create_app(settings=None, store=None, orc=None):
             await asyncio.to_thread(store.close)
         if terminal_http['client'] is not None and hasattr(terminal_http['client'], 'aclose'):
             await terminal_http['client'].aclose()
+        await radar.aclose()                          # EXEC-RADAR R6 (QA 2026-11-14): its client too
 
     app = FastAPI(title='EDGE private gateway', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.worker, app.state.store, app.state.backtests = worker, store, backtests

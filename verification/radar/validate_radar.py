@@ -85,6 +85,7 @@ def measures(ticker, reg, sess, f3):
     f = [R[d][0] - R[d][1] if d in R else 0.0 for d in dates]
     t = [R[d][0] + R[d][2] if d in R else 0.0 for d in dates]
     tb3 = [C[d][0] if d in C else 0.0 for d in dates]
+    no3 = [d in R and d not in C for d in dates]          # a Regular session without its Feature 03 row
     inst = [C[d][1] if d in C else 0.0 for d in dates]
     ret = [C[d][2] if d in C else 0.0 for d in dates]
     f5 = [None] * n; t5 = [None] * n; r5 = [None] * n; fl34 = [None] * n; u1 = [None] * n; u3 = [None] * n
@@ -94,7 +95,8 @@ def measures(ticker, reg, sess, f3):
             f5[i] = sum(f[i - 4:i + 1]); t5[i] = sum(t[i - 4:i + 1])
             r5[i] = 100 * f5[i] / t5[i] if t5[i] > 0 else None
             tb = sum(tb3[i - 4:i + 1])
-            fl34[i] = 100 * (sum(inst[i - 4:i + 1]) - sum(ret[i - 4:i + 1])) / tb if tb > 0 else None
+            whole = not any(no3[i - 4:i + 1])
+            fl34[i] = 100 * (sum(inst[i - 4:i + 1]) - sum(ret[i - 4:i + 1])) / tb if tb > 0 and whole else None
         u1[i] = 100 * f[i] / t[i] if t[i] > 0 else None
         if i >= 20:
             adv = sum(t[i - 20:i]) / 20
@@ -116,9 +118,12 @@ def measures(ticker, reg, sess, f3):
             m['foreign_net_5d_max_day'] = max(w)
             m['foreign_net_5d_max_date'] = max((dates[i - 4 + k] for k in range(5) if w[k] == max(w)))
             tb = sum(tb3[i - 4:i + 1])
-            m['inst_net_5d'] = sum(inst[i - 4:i + 1]); m['retail_net_5d'] = sum(ret[i - 4:i + 1])
-            m['inst_share_5d'] = 100 * m['inst_net_5d'] / tb if tb > 0 else None
-            m['inst_buy_days_5d'] = sum(1 for x in inst[i - 4:i + 1] if x > 0)
+            if any(no3[i - 4:i + 1]):
+                m['inst_net_5d'] = m['retail_net_5d'] = m['inst_share_5d'] = m['inst_buy_days_5d'] = None
+            else:
+                m['inst_net_5d'] = sum(inst[i - 4:i + 1]); m['retail_net_5d'] = sum(ret[i - 4:i + 1])
+                m['inst_share_5d'] = 100 * m['inst_net_5d'] / tb if tb > 0 else None
+                m['inst_buy_days_5d'] = sum(1 for x in inst[i - 4:i + 1] if x > 0)
         else:
             for k in ('buy_days_5d', 'foreign_net_5d_max_day', 'foreign_net_5d_max_date', 'inst_net_5d', 'retail_net_5d',
                       'inst_share_5d', 'inst_buy_days_5d'):
@@ -226,7 +231,7 @@ TH = {
     'S6D_RATIO': {'B': (3, 5, 10), 'C': (90, 95, 98), 'D': (12, 20, 35)},
     'S6D_RANK': {'B': (3, 5, 10), 'C': (90, 95, 98), 'D': (40, 65, 90)},
     'S6D_BOTH': {'B': (3, 5, 10), 'C': (90, 95, 98), 'D': (12, 20, 35), 'D2': (40, 65, 90)},
-    'S7': {'A': (10, 20, 40)},
+    'S7': {'A': (10, 20, 40), 'D': (2, 5, 10)},      # D: SCREENER_LIBRARY.md 12.3 6a
 }
 
 
@@ -255,7 +260,7 @@ def conditions(fid, li, m, x, g):
         return base + [ge(m['foreign_ratio_5d_change'], th('D')) and ge(m['foreign_ratio_5d_pct252_change'], th('D2'))]
     if fid == 'S7':
         a = m['fl34_5d'] is not None and m['fl34_5d_prev'] is not None and m['fl34_5d'] - m['fl34_5d_prev'] >= th('A')
-        return [a, ge(m['fl34_5d'], 0), m['inst_net_5d'] is not None and m['inst_net_5d'] > 0, ge(m['inst_share_5d'], 5)]
+        return [a, ge(m['fl34_5d'], 0), m['inst_net_5d'] is not None and m['inst_net_5d'] > 0, ge(m['inst_share_5d'], th('D'))]
     if fid == 'S8':
         z = [v for v in (m['rz_foreign_ratio_1d'], m['rz_net_vs_adv20']) if v is not None]
         return [bool(z) and max(z) >= 3, ge(m['net_vs_adv20'], 10), ge(m['net_1d_pct252'], 95)]
@@ -278,9 +283,9 @@ def results(day, M, X):
                         continue
                     c = conditions(fid, 1 if fid == 'S8' else li, m, x, g)
                     req = c[:2] if fid == 'S8' else c
-                    missing = sum(1 for v in req if not v)
-                    if missing <= 1:
-                        out[(fid, lv, g, tk)] = ('hit' if missing == 0 else 'near', sum(1 << k for k, v in enumerate(c) if v))
+                    hit = all(req)
+                    if hit or sum(1 for v in c if not v) == 1:     # near: every condition but one (S8: one of A, B)
+                        out[(fid, lv, g, tk)] = ('hit' if hit else 'near', sum(1 << k for k, v in enumerate(c) if v))
     return out
 
 

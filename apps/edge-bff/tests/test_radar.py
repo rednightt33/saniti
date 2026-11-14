@@ -26,10 +26,31 @@ def login(c):
 
 class FakeHttp:
     """terminal-api's GET/POST /radar and the bucket's presigned GET, recorded."""
-    calls, files, stored = [], {}, {}
+    calls, files, stored, granted_sha, grant_status = [], {}, {}, None, 200
 
     def __init__(self, timeout):
         pass
+
+    async def aclose(self):
+        pass
+
+    def stream(self, method, url):
+        FakeHttp.calls.append((method, url, {}, None))
+        body = FakeHttp.stored.get(url.rsplit('/', 1)[1], b'')
+
+        class Answer:
+            status_code = 200 if url.startswith('https://bucket.example/') else 404
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def aiter_bytes(self):
+                for i in range(0, len(body), 7):
+                    yield body[i:i + 7]
+        return Answer()
 
     async def request(self, method, url, params=None, content=None, headers=None):
         FakeHttp.calls.append((method, url, dict(headers or {}), content))
@@ -37,10 +58,13 @@ class FakeHttp:
             return httpx.Response(200, json={'finished_at': '2026-11-14T10:00:00Z', 'files': FakeHttp.files})
         if url.endswith('/api/terminal/v1/radar') and method == 'POST':
             name = json.loads(content)['names'][0]
+            if FakeHttp.grant_status != 200:
+                return httpx.Response(FakeHttp.grant_status, json={'error': 'quota_exceeded'})
             if name not in FakeHttp.files:
                 return httpx.Response(404, json={'error': 'radar_not_published'})
             return httpx.Response(200, json={'files': [{'name': name, 'url': f'https://bucket.example/{name}',
-                                                        'sha256': FakeHttp.files[name]['sha256']}]})
+                                                        'sha256': FakeHttp.granted_sha or FakeHttp.files[name]['sha256'],
+                                                        'bytes': FakeHttp.files[name]['bytes']}]})
         if url.startswith('https://bucket.example/'):
             return httpx.Response(200, content=FakeHttp.stored.get(url.rsplit('/', 1)[1], b''))
         return httpx.Response(404, json={})
@@ -56,6 +80,7 @@ def gw(settings, store, monkeypatch, tmp_path):
     FakeHttp.calls = []
     FakeHttp.files = {'radar-days': {'sha256': SHA, 'bytes': len(BODY), 'rows': 1, 'as_of': '2026-11-09'}}
     FakeHttp.stored = {'radar-days': BODY}
+    FakeHttp.granted_sha, FakeHttp.grant_status = None, 200
     configured = dataclasses.replace(settings, terminal_url='http://terminal-api.railway.internal:8080', terminal_proxy_key=KEY)
     with TestClient(create_app(configured, store, FakeOrc())) as c:
         yield c
@@ -84,7 +109,7 @@ def test_index_and_file_bytes_are_relayed_with_the_gateway_key(gw):
 def test_refusals_name_the_cause_and_the_way_out(gw):
     login(gw)
     for path, status, code in (('/api/v1/radar/file/secrets', 400, 'RADAR_INVALID_NAME'),
-                               ('/api/v1/radar/file/radar-days?sha=xyz', 400, 'RADAR_INVALID_NAME'),
+                               ('/api/v1/radar/file/radar-days?sha=xyz', 400, 'RADAR_INVALID_SHA'),
                                ('/api/v1/radar/file/radar-meta', 404, 'RADAR_FILE_NOT_PUBLISHED'),
                                (f'/api/v1/radar/file/radar-days?sha={"0" * 64}', 409, 'RADAR_FILE_REPLACED')):
         r = gw.get(path)
@@ -93,6 +118,30 @@ def test_refusals_name_the_cause_and_the_way_out(gw):
     FakeHttp.stored['radar-days'] = b'other bytes'
     r = gw.get('/api/v1/radar/file/radar-days')
     assert r.status_code == 502 and r.json()['error']['code'] == 'RADAR_FILE_DAMAGED'
+    FakeHttp.stored['radar-days'] = BODY + b'x' * 100                        # larger than published: never read whole
+    assert gw.get('/api/v1/radar/file/radar-days').json()['error']['code'] == 'RADAR_FILE_DAMAGED'
+    FakeHttp.grant_status = 429
+    r = gw.get('/api/v1/radar/file/radar-days')
+    assert r.status_code == 429 and r.json()['error']['code'] == 'RADAR_QUOTA' and 'quota' in r.json()['error']['message']
+
+
+def test_a_file_replaced_between_the_index_and_the_grant_is_never_cached_under_the_old_sha(gw):
+    """QA 2026-11-14: the grant names a newer publication's file: 409, so the page reads the index again."""
+    login(gw)
+    FakeHttp.granted_sha = 'f' * 64
+    r = gw.get(f'/api/v1/radar/file/radar-days?sha={SHA}')
+    assert r.status_code == 409 and r.json()['error']['code'] == 'RADAR_FILE_REPLACED'
+    assert 'immutable' not in r.headers.get('cache-control', '')
+
+
+def test_relayed_bytes_are_kept_by_sha_and_an_unchanged_file_answers_304(gw):
+    login(gw)
+    assert gw.get(f'/api/v1/radar/file/radar-days?sha={SHA}').status_code == 200
+    grants = lambda: len([c for c in FakeHttp.calls if c[0] == 'POST'])
+    before = grants()
+    assert gw.get(f'/api/v1/radar/file/radar-days?sha={SHA}').status_code == 200 and grants() == before   # no new grant
+    r = gw.get('/api/v1/radar/file/radar-days', headers={'If-None-Match': f'"{SHA[:32]}"'})
+    assert r.status_code == 304 and grants() == before
 
 
 def test_the_radar_page_and_its_csp_and_the_capability(gw, settings, store):

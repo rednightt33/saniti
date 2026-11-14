@@ -20,7 +20,9 @@ with psycopg.connect(os.environ['DATABASE_URL'], autocommit=True) as c:
     try:
         lists = [tuple(r[:4]) + (list(r[6] or []),) for r in c.execute(pub.STOCK_LISTS_SQL).fetchall()]
     except Exception:  # noqa: BLE001 - the rehearsal database may have no stock lists: a saved copy (LISTS_JSON)
-        lists = [tuple(r[:4]) + (list(r[6] or []),) for r in json.load(open(os.environ['LISTS_JSON']))] if os.environ.get('LISTS_JSON') else []
+        # a saved copy read through pgweb holds the members as PostgreSQL array text ('{AALI,BBCA}'), not a list
+        arr = lambda v: v if isinstance(v, list) else [x for x in str(v or '').strip('{}').split(',') if x]
+        lists = [tuple(r[:4]) + (arr(r[6]),) for r in json.load(open(os.environ['LISTS_JSON']))] if os.environ.get('LISTS_JSON') else []
     files = radar.build(c, names, lists, stream=lambda sql, params: list(pub.stream_rows(c, sql, params)))
 index = {}
 for name, doc, rows, as_of in files:

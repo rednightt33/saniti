@@ -280,7 +280,7 @@ FROM (VALUES
     ('S7', 'A', 'FL34 up ≥ {t} pt vs 5 sessions ago', '10', '20', '40', NULL, NULL, NULL, 'decided'),
     ('S7', 'B', 'FL34 now at 0 or above', '0', '0', '0', NULL, NULL, NULL, 'decided'),
     ('S7', 'C', 'Institutional net above 0', '0', '0', '0', NULL, NULL, NULL, 'decided'),
-    ('S7', 'D', 'Institutional side ≥ 5% of buying', '5', '5', '5', NULL, NULL, NULL, 'decided'),
+    ('S7', 'D', 'Institutional side ≥ {t}% of buying', '2', '5', '10', NULL, NULL, NULL, 'decided'),   -- library 12.3 6a
     ('S8', 'A', 'Robust z ≥ 3 on the foreign ratio or on net vs ADV20', '3', '3', '3', NULL, NULL, NULL, 'decided'),
     ('S8', 'B', 'Net ≥ 10% of the 20-day average value', '10', '10', '10', NULL, NULL, NULL, 'decided'),
     ('S8', 'C', 'Net ≥ P95 of its own days', '95', '95', '95', NULL, NULL, NULL, 'decided')
@@ -334,6 +334,7 @@ BEGIN
         WHERE ticker = p_ticker AND market_board = 'Regular' AND (v_range_start IS NULL OR date >= v_range_start)
     ), daily AS (
         SELECT ss.trade_date, ss.s, r.trade_date IS NOT NULL AS active,
+               (r.trade_date IS NOT NULL AND c.trade_date IS NULL) AS no_f3,
                coalesce(r.fb, 0) - coalesce(r.fs, 0) AS f, coalesce(r.fb, 0) + coalesce(r.db, 0) AS t,
                coalesce(c.tb3, 0) AS tb3, coalesce(c.inst, 0) AS inst, coalesce(c.ret, 0) AS ret
         FROM sess AS ss
@@ -348,10 +349,12 @@ BEGIN
                CASE WHEN d.s >= 5 THEN max(d.f) OVER w5 END AS fmax5,
                CASE WHEN d.s >= 5 THEN array_agg(d.f) OVER w5 END AS fw5,
                CASE WHEN d.s >= 5 THEN array_agg(d.trade_date) OVER w5 END AS dw5,
-               CASE WHEN d.s >= 5 THEN sum(d.inst) OVER w5 END AS inst5,
-               CASE WHEN d.s >= 5 THEN sum(d.ret) OVER w5 END AS ret5,
-               CASE WHEN d.s >= 5 THEN sum(d.tb3) OVER w5 END AS tb35,
-               CASE WHEN d.s >= 5 THEN count(*) FILTER (WHERE d.inst > 0) OVER w5 END AS ibuy5,
+               -- QA 2026-11-14: the broker-class measures only from a window whose every Regular session has its
+               -- Feature 03 row (a missing row would make a partial window look whole)
+               CASE WHEN d.s >= 5 AND NOT bool_or(d.no_f3) OVER w5 THEN sum(d.inst) OVER w5 END AS inst5,
+               CASE WHEN d.s >= 5 AND NOT bool_or(d.no_f3) OVER w5 THEN sum(d.ret) OVER w5 END AS ret5,
+               CASE WHEN d.s >= 5 AND NOT bool_or(d.no_f3) OVER w5 THEN sum(d.tb3) OVER w5 END AS tb35,
+               CASE WHEN d.s >= 5 AND NOT bool_or(d.no_f3) OVER w5 THEN count(*) FILTER (WHERE d.inst > 0) OVER w5 END AS ibuy5,
                CASE WHEN d.s >= 21 THEN avg(d.t) OVER p20 END AS adv20
         FROM daily AS d
         WINDOW w5 AS (ORDER BY d.s ROWS BETWEEN 4 PRECEDING AND CURRENT ROW),
@@ -422,6 +425,7 @@ DECLARE
     v_prev date;
     v_last16 date[];
     v_version text := public.feature_07_rule_version();
+    v_s3_floor double precision;
     v_rows integer;
     g text;
 BEGIN
@@ -429,6 +433,8 @@ BEGIN
         RAISE EXCEPTION 'refresh_feature_07_day needs a date';
     END IF;
     PERFORM pg_advisory_xact_lock(hashtextextended('refresh_feature_07_day', 0));
+    SELECT threshold INTO v_s3_floor FROM public."Feature_07_Radar_Rule"
+    WHERE rule_version = v_version AND filter_id = 'S3' AND cond_key = 'A' AND level = 'standard';
 
     -- The date's rows were written moments ago, so the planner may hold no statistics for them (none at all inside the
     -- first fill's transaction: on an estimate of one row the G2 step rescanned the table for every stock, over ten
@@ -455,6 +461,9 @@ BEGIN
            NULL::smallint AS g3b, NULL::double precision AS gr3b, NULL::double precision AS ir3b,
            NULL::smallint AS g3l, NULL::double precision AS gr3l, NULL::double precision AS ir3l
     FROM public."Feature_07_Radar_Measure" AS m WHERE m.trade_date = p_date;
+    IF NOT EXISTS (SELECT 1 FROM f07_day) THEN    -- QA 2026-11-14: never replace a date's results with nothing
+        RAISE EXCEPTION 'refresh_feature_07_day(%): no measure row for this date; run refresh_feature_07 for its tickers first', p_date;
+    END IF;
     ANALYZE f07_day;
 
     -- G2: universe stocks with at least 5 Regular sessions in the last 16 market dates and a full 5-session window
@@ -513,9 +522,9 @@ BEGIN
             s2l = CASE WHEN g = 'liquid' THEN rk.r ELSE d.s2l END
         FROM rk WHERE d.ticker = rk.ticker;
 
-        WITH pop AS (
+        WITH pop AS (   -- G4: the floor of net buyers is S3 condition A of the rule table
             SELECT ticker, k, cr3x AS e, intensity AS i FROM f07_day
-            WHERE k >= 10 AND cr3x IS NOT NULL AND intensity IS NOT NULL AND CASE g WHEN 'broad' THEN gb ELSE gl END
+            WHERE k >= v_s3_floor AND cr3x IS NOT NULL AND intensity IS NOT NULL AND CASE g WHEN 'broad' THEN gb ELSE gl END
         ), edges AS (
             SELECT percentile_cont(ARRAY[0.2, 0.4, 0.6, 0.8]) WITHIN GROUP (ORDER BY k) AS e FROM pop
         ), grp AS (
@@ -607,6 +616,7 @@ BEGIN
            sum(CASE WHEN met THEN (CASE cond_key WHEN 'A' THEN 1 WHEN 'B' THEN 2 WHEN 'C' THEN 4 ELSE 8 END) ELSE 0 END)::smallint AS met,
            count(*)::smallint AS cond_n,
            count(*) FILTER (WHERE required AND NOT met)::smallint AS missing,
+           count(*) FILTER (WHERE NOT met)::smallint AS missing_all,
            bool_or(met) FILTER (WHERE cond_key = 'C') AS c_met
     FROM ev GROUP BY ticker, gate, filter_id, level;
     ANALYZE f07_today;
@@ -645,7 +655,8 @@ BEGIN
     FROM f07_today AS t
     JOIN f07_mg AS mg ON mg.ticker = t.ticker AND mg.gate = t.gate
     LEFT JOIN f07_prev AS p ON p.ticker = t.ticker AND p.gate = t.gate AND p.filter_id = t.filter_id AND p.level = t.level
-    WHERE t.missing = 0 OR (t.missing = 1 AND p.ticker IS NULL)
+    -- near (RADAR_PAGE_SPEC.md 4: "meet all conditions but one"): one condition short of all of them, not a hit
+    WHERE t.missing = 0 OR (t.missing_all = 1 AND p.ticker IS NULL)
     UNION ALL
     -- left: a hit on the previous result date that is not a hit today, with the first condition it no longer meets; a
     -- stock that left and misses one condition is stored once, as left (its met bits still show it is one away)

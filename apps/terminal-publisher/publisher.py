@@ -1524,20 +1524,36 @@ class Publisher:
             if not radar.available(self.conn):
                 log('radar', built=False, reason='Feature 07 not created')
                 return
+            if radar.backfill_running(self.conn):            # QA 2026-11-14: never publish half-filled tables
+                log('radar', built=False, reason='the Radar backfill is running', kept=len(previous))
+                return
             now = radar.stamp(self.conn)
-            if mode != 'radar' and now == state.get('radar_stamp') and previous:
+            # QA 2026-11-14: the index is carried only when it is whole: every entry of state.json was usable and every
+            # object it names is in the bucket (else it is rebuilt, as an xsection file is put again)
+            present = self.present_keys('radar', previous)
+            whole = (len(previous) == len(state.get('radar') or {})
+                     and all(e['key'][len(PREFIX) + 1:] in present for e in previous.values()))
+            if mode != 'radar' and now == state.get('radar_stamp') and previous and whole:
                 log('radar', built=False, reason='unchanged', files=len(previous))
                 return
             names = {t: n for t, n, *_ in universe}
-            lists_doc = self.stock_lists_doc() or {}
+            lists_doc = self.stock_lists_doc()
+            if lists_doc is None:                         # QA 2026-11-14: never publish a meta without the lists
+                raise RuntimeError('stock lists unavailable')
             lists = list(zip(*(lists_doc.get(c, []) for c in ('list_key', 'kind', 'code', 'name', 'members'))))
             files = radar.build(self.conn, names, lists, stream=lambda sql, params: list(stream_rows(self.conn, sql, params)))
         except Exception as e:  # noqa: BLE001 - the class only: a driver error may carry connection details
             self.radar_failed = 'build'
             log('radar_failed', step='build', error=type(e).__name__, kept=len(previous))
             return
+        if not files:                                     # QA 2026-11-14: no result date (the gate table emptied by a
+            if previous:                                  # repair): keep what is published rather than wipe it
+                self.radar_failed = 'empty'
+                log('radar_failed', step='empty', error='NoResultDates', kept=len(previous))
+            else:
+                log('radar', built=False, reason='no result date')
+            return
         try:
-            present = self.present_keys('radar', previous)
             index = {}
             for name, doc, rows, as_of in files:
                 body, sha = encode(doc)
@@ -1748,7 +1764,7 @@ class Publisher:
                 threads=self.threads)
         if before is not None:
             before['named'] = {t: named_keys(m) for t, m in self.manifests.items()}
-            before['indexes'] = {'xsection': previous, 'ref': previous_refs}
+            before['indexes'] = {'xsection': previous, 'ref': previous_refs, 'radar': previous_radar}
         todo = []  # (dataset, ticker, year, stamp)
         years = range(self.broker_first_year, self.last_year + 1)
         if mode == 'backfill':
@@ -2716,8 +2732,10 @@ def main(argv):
         notify_broker_behind(started.astimezone(WIB).date().isoformat())
     # EXEC-SCREENER: a failed xsection file fails the run visibly once everything else is published (exit 3); so does a
     # reference file whose content-keyed copy failed (EXEC-MU-RUNTIME T5; its fixed-key copy was written)
-    if pub.xsection_failed or pub.refs_failed:
-        notify_publication('partial', slot, manual, files=sorted(pub.xsection_failed + pub.refs_failed))
+    # EXEC-RADAR R5 (QA 2026-11-14): a Radar build or put that failed is a partial publication too (file `radar`)
+    if pub.xsection_failed or pub.refs_failed or pub.radar_failed:
+        notify_publication('partial', slot, manual, files=sorted(pub.xsection_failed + pub.refs_failed
+                                                                 + (['radar'] if pub.radar_failed else [])))
         return 3
     return 0
 
