@@ -1,0 +1,9 @@
+JOB 2445a6ae-71b5-4db5-8c31-33299ee470f2
+6
+MIG DRYRUN 20261115_001_feature_index_entity.sql sha256=5aabff765287921281e14774d45d78f20f1bcc629118ea718ce61240099397af
+MIG DRYRUN_BODY_OK 20261115_001_feature_index_entity.sql
+JOB_DONE MIGRATION DRYRUN
+JOB_EXIT 0
+POSTGRES_MEMORY_CHECK
+{"now": "2026-11-15T07:45:00+00:00", "refusals": [], "reasons": [], "postgres_memory_gb": 1.0555810702222221, "active_statements": 0, "user_runs": {"edge_jobs": 0, "orc_turns": 0}, "verdict": "READY", "railway_credential": "RAILWAY_API_TOKEN"}
+VAR_REMOVED
