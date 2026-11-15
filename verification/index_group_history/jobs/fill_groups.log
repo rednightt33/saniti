@@ -18,3 +18,12 @@ TICKERS {"kinds": ["GROUP"], "count": 33, "tickers": ["GAGOES", "GAGUAN", "GASTR
 2026-11-15T12:14:25.797391488Z [INFO]  event="raw_month_staged" start="2017-02-01" detail_entities=0 collapsed_entities=33 seconds=15.87
 2026-11-15T12:14:35.101119816Z [INFO]  event="raw_month_staged" start="2017-03-01" detail_entities=0 collapsed_entities=33 seconds=9.51
 2026-11-15T12:14:39.099994469Z [INFO]  event="raw_month_staged" start="2017-04-01" detail_entities=0 collapsed_entities=33 seconds=3.69
+2026-11-15T12:14:43.041175472Z [INFO]  event="raw_month_staged" start="2017-05-01" detail_entities=0 collapsed_entities=33 seconds=4.27
+2026-11-15T12:14:47.201616906Z [INFO]  event="raw_month_staged" start="2017-06-01" detail_entities=0 collapsed_entities=33 seconds=4.5
+2026-11-15T12:14:49.482627565Z [INFO]  event="raw_month_staged" start="2017-07-01" detail_entities=0 collapsed_entities=33 seconds=2.28
+2026-11-15T12:14:53.310376399Z [INFO]  event="raw_month_staged" start="2017-08-01" detail_entities=0 collapsed_entities=33 seconds=3.85
+2026-11-15T12:14:58.548982870Z [INFO]  event="raw_month_staged" start="2017-09-01" detail_entities=0 collapsed_entities=33 seconds=5.19
+2026-11-15T12:15:07.236633104Z [INFO]  event="raw_month_staged" start="2017-10-01" detail_entities=0 collapsed_entities=33 seconds=8.11
+2026-11-15T12:15:26.832248908Z [INFO]  event="raw_month_staged" start="2017-11-01" detail_entities=0 collapsed_entities=33 seconds=13.19
+2026-11-15T12:15:32.225773332Z [INFO]  event="raw_month_staged" start="2017-12-01" detail_entities=0 collapsed_entities=33 seconds=11.21
+2026-11-15T12:15:53.200763516Z [INFO]  event="raw_month_staged" start="2018-01-01" detail_entities=0 collapsed_entities=33 seconds=18.74
