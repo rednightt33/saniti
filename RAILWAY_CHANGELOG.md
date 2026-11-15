@@ -8,6 +8,9 @@
   terminal-publisher's code `f69eb9e3` = deployed `8a49b4c8`, its bucket and database variables as references):
   `broker-range` 2024-2026 for the 43 indexes, 129 files planned, 172 written (101.6 MB); `verify` 442 files 0
   mismatches. A first publish attempt stopped at SET_FAILED (CLI), nothing ran, no variable left.
+- Postgres restart by the user (Telegram "🔄 Restart Postgres", 2026-11-15) after the read-only reviews of BACKTEST-REVAMP
+  Stages A-B (memory had been 1.84-2.0 GB of 2.0 GB since 15:00 UTC): `pg_postmaster_start_time` 18:58:27 UTC; memory
+  0.09 GB at 19:00 UTC (Railway metrics, read back by the main agent).
 - Postgres restarts by `run_job.sh` (`"large_write": true`): 18:13:38 UTC after the fill, 18:41:38 UTC after the
   publish (memory 1.97 and 1.99 GB, 0 user runs, edge-bff ready 200). The scheduled restart ran at 13:47 UTC.
 - stockbit-updater CLI upload `bbd5aa7f` (deploy.sh from `78d95ad4`) SUCCESS: after IHSG each round runs every other
