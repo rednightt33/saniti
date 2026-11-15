@@ -796,4 +796,3 @@ svg{display:block;flex:none}
 .chb,:is(.secp,.brp) .cv{touch-action:pan-y}
 /* P4: the tile tooltip (the KPI tooltip's look), placed by app.ts */
 .ttip{position:fixed;z-index:var(--z-pop);pointer-events:none;max-width:260px}
-
