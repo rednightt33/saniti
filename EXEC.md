@@ -14141,3 +14141,136 @@ database atau dokumen yang berubah. Pembuatnya keluar dari pengecualian; dua cek
   tidak berubah). Pemeriksaan hanya memberi tanda merah di GitHub sesudah push.
 - Nomor error: `main` sudah memakai M434 untuk Radar, jadi entri ini menjadi M435 (file catatan indikator) dan M436
   (kamus Feature 05/06).
+
+## EXEC-OVERVIEW — halaman Market Overview (tab baru): ringkasan pasar harian dari file publisher, halaman admin (rencana 2026-11-15, BELUM dieksekusi; menunggu go)
+
+**Kata user, 2026-11-15 (dengan desain `market-overview-target-c-ihsg-flow.html`):** "Kita akan menambahkan new page.
+Jalankan proses seperti sebelumnya ... Inspect dulu database dan lain-lain. Dan klarifikasi ke saya apabila ada yang perlu
+diklarifikasi ... Untuk indeks, kamu bisa refer ke table price stock ID Indonesia IDX, di mana yang tikernya bukan 4
+digit, maka itu termasuk indeks. Ada juga table di backend yang kita ambil dari Stockbit dipecah group dan index."
+Jawaban atas klarifikasi: "1 OK / 2 OK, nanti akan ditambahkan data saham beredar, make sure saja ini bisa di re-direct
+nanti dari sisi source data / 3 pakai EMA saja 50 dan 200, ada di fitur 4 kan? / 4 OK / 5 OK / 6 tidak, abaikan ucapan
+saya itu / 7 OK / 8 semua harus inggris". Lalu: "siapkan implementation plan, dan design bagaimana proses data ini di
+load ketika user visit the page ... setiap harinya data apa yang dipindahkan dari PG ke storage. Ini berlaku juga untuk
+radar".
+
+### Keputusan (2026-11-15)
+
+| # | Keputusan |
+|---|---|
+| 1 | Data per penutupan terakhir, bukan live. Dua penanda tanggal: harga ("Prices to …") dan broker ("Broker data to …"). Grafik 1D = intraday 5 menit sesi terakhir yang sudah dimuat. |
+| 2 | Ukuran kotak peta pasar = rata-rata nilai transaksi 20 hari, lewat **satu sumber yang bisa dialihkan** (fungsi database, di bawah): saat data saham beredar masuk, ukuran berganti ke kapitalisasi pasar tanpa mengubah halaman. |
+| 3 | Panel "% di atas MA" memakai **EMA50 dan EMA200** dari Feature 04 (`ema_50`, `ema_200`); pilihan 20 dihapus. |
+| 4 | Semua angka asing memakai papan **Regular**. |
+| 5 | Sektor "Undefined" (110 baris di `IDX_Stock_Universe`) tampil sebagai "Other" di peta pasar; Kinerja Sektor memakai 11 indeks sektor resmi IDX. |
+| 6 | Tidak ada panel Radar di halaman ini. |
+| 7 | Halaman hanya untuk pemilik (seperti Radar); nama tab **Overview**, paling atas di menu kiri. |
+| 8 | Semua teks halaman berbahasa Inggris (desain mencampur "Arus Asing", "Beli asing", "Naik / turun": semuanya diterjemahkan). |
+
+### Fakta data dev (pgweb, hanya baca, 2026-11-15)
+
+- `Price_Stock_Indonesia_IDX`: 41 kode bukan 4 huruf yang aktif November 2026, **semuanya** ada di `Feature_Index_Entity`
+  (IHSG, 30 indeks termasuk LQ45, 11 indeks sektor IDX*); harian IHSG sejak 2018-01-02, terakhir 2026-11-13.
+- Intraday: `price_stock_idx_intraday_5m` IHSG 2026-07-06 s/d 2026-11-13, dimuat sesudah penutupan (bukan live).
+- Broker/asing: Feature 06 (saham) dan Feature 06 _INDEX (IHSG, total pasar per papan) sampai **2026-11-09**; harga sampai
+  2026-11-13. Contoh 9 Nov, IHSG Regular: beli asing Rp 3.258,2 M, jual Rp 3.141,6 M, net +Rp 116,6 M.
+- Feature 01 (`return_1d/5d/20d/60d_pct`, volatilitas 5/20/60 hari) dan Feature 04 (`ema_50`, `ema_200`) sampai 13 Nov;
+  13 Nov: 862 saham punya EMA50, 166 di atasnya; 850 punya EMA200, 154 di atasnya.
+- `Stock_List`/`Stock_List_Member`: 66 daftar (33 indeks, 33 grup), sudah diterbitkan sebagai `ref/stock_lists`.
+- Tidak ada kolom jumlah saham beredar atau kapitalisasi pasar di skema `public`.
+- Indeks yang dibutuhkan sudah ada: Feature 01/04 `(date)`/`(trade_date)`, Feature 06 _INDEX `(trade_date, market_board)`.
+
+### Gambaran besar (sama dengan Radar)
+
+```
+loader harga (sore) dan ronde broker ─► Postgres (Feature 01/04/06, harga, daftar) ─► terminal-publisher (overview.py)
+  ─► file overview/*.json.gz di bucket ─► terminal-api (kunci gateway) ─► edge-bff (sesi pemilik) ─► halaman /overview-app/
+```
+
+Semua angka dihitung **sekali** oleh publisher dari Postgres dan disimpan sebagai file. Saat pemilik membuka halaman,
+tidak ada satu pun kueri ke Postgres.
+
+### Alur saat pemilik membuka halaman
+
+1. Menu kiri menampilkan "Overview" bila sesi berkata `capabilities.overview = true` (seperti Radar).
+2. Halaman memanggil `GET /api/v1/overview/index` (edge-bff menyimpan indeks 30 detik; terminal-api membacanya dari
+   `state.json`): daftar file dengan sha256-nya.
+3. Halaman mengambil 3 file sekaligus: `overview-meta`, `overview-series` dan file hari terbaru
+   `overview-day-YYYY-MM-DD`, lewat `GET /api/v1/overview/file/<nama>?sha=<sha256>`. edge-bff mengambil byte dari bucket
+   (presign terminal-api), mencocokkan sha256, menyimpannya di memori (per sha), dan browser menyimpannya selamanya karena
+   URL-nya memuat sha. Kunjungan berikutnya di hari yang sama tidak mengunduh ulang apa pun.
+4. Semua interaksi (ganti universe, periode 1D/5D/1M, metrik, urutan) dihitung di browser dari tiga file itu. Hanya
+   pemilih tanggal yang mengambil satu file hari lain.
+5. Kalau publikasi baru terbit saat halaman terbuka, permintaan dengan sha lama dijawab 409 dan halaman membaca indeks
+   lagi (pola Radar).
+
+### File di storage (keluarga `overview/`, kunci isi `overview/<nama>.<sha16>.json.gz`, diindeks `state.json` `overview`)
+
+| File | Isi | Perkiraan ukuran |
+|---|---|---|
+| `overview-meta` | sektor tiap saham (Undefined → Other), nama, daftar indeks/grup dan anggotanya, label dasar ukuran kotak (`size_basis`), tanggal yang tersedia | ~40 KB |
+| `overview-series` | per tanggal, 1 tahun + YTD: penutupan IHSG, LQ45 dan 11 indeks sektor; % saham di atas EMA50/EMA200; naik/turun/tetap; nilai transaksi Regular; beli/jual/net asing pasar; volatilitas IHSG dan persentilnya terhadap 1 tahun sendiri | ~25 KB |
+| `overview-day-YYYY-MM-DD` (20 tanggal terbaru) | per saham: harga, return 1D/5D/1M, nilai ukuran kotak, net asing 1D/5D/1M/3M, di atas EMA50/EMA200; bar IHSG 5 menit sesi itu dan 1 jam 5 sesi | ~40 KB |
+
+Di storage sudah ada untuk Terminal: file harga per ticker (termasuk indeks), intraday per ticker, `xsection/price`
+(12 MB, untuk Screener). Overview tidak memakai file besar itu di browser; ia mendapat file kecil khusus yang sudah
+diolah.
+
+### Data yang dipindahkan dari PG ke storage setiap hari
+
+| Kapan | Pemicu | Overview | Radar (sudah berjalan) |
+|---|---|---|---|
+| Sesudah loader harga sore | sinyal loader → telegram-monitor → Run Now publisher | `overview-day` tanggal baru, `overview-series` (bagian harga), `overview-meta` bila daftar/sektor berubah | tidak berubah (Radar menunggu data broker) |
+| Sesudah ronde broker (Run Now user) | sinyal `Monitoring_Stockbit_Update` → Run Now publisher (`telegram_monitor.py:50-55`) | `overview-day` yang tanggal brokernya bertambah, `overview-series` (bagian asing) | ronde menghitung Radar (`refresh_radar`), lalu publisher menulis ulang file Radar yang stempelnya berubah: `radar-days`, papan tanggal baru, file filter (31 file, ±3,6 MB total, biasanya ±10 file baru) |
+| 07:30 dan 19:00 WIB | jadwal cron publisher | hanya bila stempel berubah (pengaman) | sama |
+
+- **Stempel** Overview: tanggal harga terakhir, tanggal broker terakhir, tanggal Feature 04, isi daftar indeks/grup,
+  sumber ukuran kotak, versi rumus. File yang isinya sama tidak ditulis ulang (kunci isi).
+- File yang tidak lagi diacu dihapus oleh pembersihan yang sudah ada (`collect_garbage`, `delete_replaced`).
+- **Radar:** sudah beres dan terbukti di dev. Ada 31 file di storage; cek live 13/13 pada 2026-11-14; terbit ulang
+  otomatis sesudah setiap ronde broker. Satu-satunya batas: papan harian tersedia untuk 20 tanggal terakhir, riwayat
+  hitungan 250 tanggal (keputusan D4).
+
+### Sumber ukuran kotak yang bisa dialihkan (keputusan 2)
+
+Migrasi baru: fungsi `public.overview_stock_size(p_date date)` → `(ticker, size_value, size_basis)`. Sekarang:
+`size_basis = 'adv20_value'`, `size_value` = rata-rata 20 sesi `close × volume` dari tabel harga (semua papan, sesuai
+sumber harga; dicatat di `OVERVIEW_FORMULAS.md`). Saat tabel saham beredar ada:
+fungsi diganti (migrasi baru) menjadi `close × shares_outstanding` dengan `size_basis = 'market_cap'`, file menulis
+labelnya, dan halaman menampilkan "Size: market cap" tanpa perubahan kode halaman. Fungsi dicatat di `Table_Catalog`
+`related_functions`.
+
+### Fase (kode di branch, tes, review; merge dan deploy dev dengan go per langkah)
+
+1. **O1 — Rumus dan sumber.** `apps/terminal-publisher/overview.py` (SQL baca saja), migrasi fungsi ukuran kotak,
+   `EXPLAIN (ANALYZE, BUFFERS)` tiap kueri di dev (hanya baca), `OVERVIEW_FORMULAS.md` (bahasa sederhana + contoh asli)
+   dengan pengaman sinkron seperti `RADAR_FORMULAS.md`.
+2. **O2 — File publisher.** keluarga `overview/`, stempel, indeks `state.json`, pembersihan, tes.
+3. **O3 — terminal-api.** `GET`/`POST /api/terminal/v1/overview`, hanya kunci gateway EDGE, tes.
+4. **O4 — edge-bff.** `/api/v1/overview/index` dan `/file/<nama>`, `capabilities.overview`, rute `/overview`, menu
+   "Overview" paling atas, tes.
+5. **O5 — Halaman.** Aplikasi Vite dari desain (semua Inggris): KPI, peta pasar (universe dari daftar Stockbit, warna
+   Performance/Foreign buy, periode 1D/5D/1M), grafik IHSG 1D/5D/1M/1Y, Kinerja Sektor 20D/60D/YTD/1Y, % above
+   EMA50/EMA200, Top Movers, Foreign Flow 1D/5D/1M/3M, "Open in Terminal". Build fixture, tes, cek tampilan 1440/1100/375.
+6. **O6 — Verifikasi independen.** Hitung ulang dalam Python beberapa angka per panel dari sumber dan bandingkan dengan
+   file; tinjauan independen.
+7. **O7 — Rilis dev** (go per langkah): migrasi, merge `main`, deploy, publisher Run Now, cek live sebagai pemilik.
+8. **O8 — Catatan.** changelog, ERRORS bila ada temuan, `RADAR_FORMULAS`-style dokumen, `DATABASE_SCHEMA.md`.
+
+### Keputusan kecil (default saya; ubah bila tidak setuju)
+
+- **Nilai transaksi (KPI Turnover):** dari Feature 06 (beli asing + beli domestik, papan Regular), jadi angkanya tepat,
+  tetapi bertanggal broker (9 Nov). Alternatif: perkiraan `close × volume` dari harga, bertanggal 13 Nov.
+- **Volatilitas:** volatilitas 20 hari IHSG (Feature 01) dengan persentil terhadap 1 tahun sendiri; label "20D", bukan
+  "30D" seperti desain.
+- **Pemilih tanggal:** 20 tanggal terakhir (seperti Radar). Pada tanggal yang belum punya data broker, panel asing
+  menulis tanggal broker terakhir yang dipakai.
+- **Top Movers dan peta pasar:** saham universe yang punya harga pada tanggal itu; default universe LQ45.
+
+### Seperti apa "selesai"
+
+- Tab "Overview" muncul untuk pemilik, memuat ≤ 3 file pada kunjungan pertama dan 0 unduhan ulang pada kunjungan kedua.
+- Setiap angka di halaman sama dengan hitungan ulang independen dari Postgres pada minimal 3 tanggal.
+- File diperbarui sendiri sesudah loader harga dan ronde broker, tanpa langkah manual.
+- `OVERVIEW_FORMULAS.md` menjelaskan setiap rumus, dijaga oleh tes dan workflow harian seperti Radar.
+- Mengganti sumber ukuran kotak ke kapitalisasi pasar hanya butuh satu migrasi.
