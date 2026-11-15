@@ -30,6 +30,10 @@
   Performance colour is gray only at 0.00% (user choice "3"; EXEC-OVERVIEW). Only edge-bff deployed (the only changed
   service folder). Read back on the live page as the owner: BBCA and ANTM light green, BMRI, PGEO and HRTA gray
   (`verification/overview/live_20261115/overview_live_1440_choice3.png`).
+- **edge-bff `960ef248` SUCCESS (13:57 UTC, `main` `5b8f85b1`, user "Foreign buy samakan juga, go deploy"):** the
+  Foreign buy colour follows the same rule (gray only when a tile reads 0, a net under Rp 1 million). Only edge-bff
+  deployed. Read back on the live page as the owner, 1D: LQ45 15 light green, 28 light red, 2 darker, none gray; all
+  stocks 250 gray, 324 light green, 260 light red (`overview_live_1440_foreign_buy.png`).
 
 ## 2026-11-15 — orc-test-runner jobs of EXEC-INDEX-GROUP-HISTORY step 3 (no service deployed)
 
