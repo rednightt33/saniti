@@ -1,0 +1,49 @@
+name: Backtest look-ahead gate
+
+# EXEC-BACKTEST-REVAMP P6 (user decision 3, 2026-11-15: the look-ahead test is a mandatory CI gate; ERRORS M445): a value
+# on day t may use only data up to t. apps/backtest-worker/tests/lookahead.test.ts checks every series the backtest can
+# read (derived from the registries) and the engine as a whole on synthetic data; the worker suite also holds the version,
+# entry-point and hash golden checks. The Screener golden (tests/core/golden-grammar.test.ts) and the page's worker-only
+# import check run with their suites. No database, no secrets, read-only. Whether a red run blocks a deploy is set on
+# Railway (EXEC-BACKTEST-REVAMP K10: checkSuites on edge-bff and screener-worker; the worker upload records a green run).
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backtest-lookahead-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backtest-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/backtest-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm run registry:check
+      - run: npm test
+
+  screener-and-backtest-page:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Screener (typecheck, build, tests incl. the grammar golden)
+        working-directory: apps/edge-bff/screener
+        run: npm ci && npm run build && npx vitest run
+      - name: Backtest page (typecheck, build, tests incl. the worker-only import check)
+        working-directory: apps/edge-bff/backtest
+        run: npm ci && npm run build && npx vitest run
