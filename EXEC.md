@@ -14194,6 +14194,14 @@ dengan sidik data preflight; tidak menimpa baris yang ada), job `verification/in
   sekaligus = per pasangan, F06 ringkas = per broker, anggota per tanggal sesuai, lanjutan = isi penuh, data rusak
   ditolak. Cacat ditemukan dan diperbaiki sebelum rilis: ERRORS M439. Aturan sektor (3A): baris pertama tiap saham di
   riwayat universe juga berlaku ke belakang. Berikutnya: tahap 5 (uji coba dev LQ45 + GPRAJOGO, rollback).
+- Hasil tahap 5 (2026-11-15, dev hanya baca, tidak ada tulisan ke tabel publik): job `e27be83e`
+  (`verification/index_group_history/jobs/entities_trial.*`) VERDICT PASS dalam 889 s: baca data broker 131 bulan untuk 2
+  entitas 700 s (tabel sementara 82 MB), GPRAJOGO 78 s (F02 65 s; akan ditulis F02/F05 76.925, F03/F06 1.456 baris),
+  LQ45 107 s (F02/F05 109.083, F03/F06 1.888, F01/F04 681). Semua cek lulus: F05 anggota universe = F05 saham per bulan,
+  ringkasan = detail, F02/F03/F06 independen. Percobaan 1 dan 2 tidak berjalan (Railway CLI tidak di PATH, lalu pembungkus
+  job salah mencetak angka Decimal; tidak ada yang ditulis). Perkiraan isi penuh 75 entitas: baca ±1-1,5 jam + hitung
+  ±2 jam. Dijadwalkan sesudah restart terjadwal Postgres 13:45 UTC (pemeriksa restart hanya melihat statement aktif,
+  sehingga bisa jatuh di sela statement job panjang; skrip juga bisa melanjutkan dari tabel fitur yang tertinggal).
 
 ## EXEC-OVERVIEW — halaman Market Overview (tab baru): ringkasan pasar harian dari file publisher, halaman admin (rencana 2026-11-15, BELUM dieksekusi; menunggu go)
 
