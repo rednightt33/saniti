@@ -32,7 +32,8 @@ import { byTicker, isIsoDate, requestConditions } from '../../edge-bff/backtest/
 import type { ActiveCondition } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from './config.ts';
 import { invalid } from './errors.ts';
-import { installBacktestGrammar } from './grammar.ts';
+import { checkTest, flowRefs, installBacktestGrammar } from './grammar.ts';
+import { canonicalJson } from '../../edge-bff/backtest/src/core/hash.ts';
 import type { BrokerRef, TickerRef } from './terminal.ts';
 
 // EXEC-BACKTEST-REVAMP P1: conditions in the Screener's grammar (kind 'test') are computed by the Screener core
@@ -131,10 +132,34 @@ function withinConditions(lists: [readonly ActiveCondition[], string][], max: nu
   for (const [list, field] of lists) if (list.length > max)
     throw invalid('LIMIT_EXCEEDED', field, `${field} has ${list.length} enabled conditions; the limit is ${max}.`, { limit: 'max_conditions', allowed: max, needed: list.length });
 }
-function checkConditions(list: readonly Listed[], flow: Config['flow'], brokers: readonly BrokerRef[]): boolean {
-  let needsBroker = false;
+/** What the conditions read besides the prices: the broker files (a flow condition, a Flow indicator in the grammar),
+    and the broker rows as columns (a Flow indicator in the grammar, EXEC-BACKTEST-REVAMP P3). */
+interface Reads { broker: boolean; columns: boolean }
+/** The broker codes a Flow reference names (params brokers, num_brokers, den_brokers: lists of codes) must be brokers of
+    the published broker list (UNKNOWN_BROKER, naming the entry). */
+function flowBrokers(ref: Record<string, unknown>, field: string, brokers: readonly BrokerRef[]): void {
+  const params = ref.params && typeof ref.params === 'object' ? ref.params as Record<string, unknown> : {};
+  for (const [k, v] of Object.entries(params)) if (/(^|_)brokers$/.test(k) && Array.isArray(v))
+    v.forEach((code, j) => { if (typeof code === 'string' && !brokers.some(b => b.code === code)) fail('UNKNOWN_BROKER', `${field}.params.${k}[${j}]`, `${field}.params.${k}[${j}]: ${code} is not a broker of the published broker list.`) });
+}
+function checkConditions(list: readonly Listed[], flow: Config['flow'], brokers: readonly BrokerRef[], maxFlow = Number.MAX_SAFE_INTEGER): Reads {
+  let needsBroker = false, columns = false;
+  const series = new Set<string>();
   for (const { field, cond: c, enabled } of list) {
     if (!CONDITION_ID.test(c.id)) fail('INVALID_CONDITION', `${field}.id`, `${field}.id must be 1 to 6 lowercase letters or digits, as the page makes it.`);
+    if (c.kind === 'test' && enabled) {
+      const refs = flowRefs((c as { test?: unknown }).test, `${field}.test`);
+      if (refs.length) {
+        if (!flow.enabled) fail('FLOW_UNAVAILABLE', refs[0].field, `${refs[0].field}: the Flow indicators need the broker data, which is not available. ${flow.reason ?? ''}`.trim());
+        for (const r of refs) flowBrokers(r.ref, r.field, brokers);
+        // distinct by their completed form (the Screener's validation fills the parameters)
+        for (const r of flowRefs(checkTest(c, field), `${field}.test`)) series.add(canonicalJson({ metric: r.ref.metric, output: r.ref.output ?? null, params: r.ref.params ?? {} }));
+        if (series.size > maxFlow)
+          throw invalid('FLOW_BUDGET_EXCEEDED', field, `This request reads ${series.size} distinct Flow series; the limit is ${maxFlow} (catalog limits.max_flow_series). Remove some Flow conditions, or read the same Flow indicator with the same settings in several conditions.`,
+            { limit: 'max_flow_series', allowed: maxFlow, needed: series.size });
+        needsBroker = columns = true;
+      }
+    }
     if (c.kind === 'flow') {
       if (enabled && !flow.enabled) fail('FLOW_UNAVAILABLE', field, `${field}: flow and broker conditions are not available. ${flow.reason ?? ''}`.trim());
       const { broker } = flowConditionShape(c as FlowCondition, field);
@@ -147,7 +172,7 @@ function checkConditions(list: readonly Listed[], flow: Config['flow'], brokers:
     try { conditionSeries(new Calc(EMPTY), c, field) }                // an unknown kind is UNKNOWN_CONDITION here
     catch (e) { if (!(e instanceof ValidationError && e.code === 'INDICATOR_OUTPUT_EMPTY')) throw e }   // needs the ticker's bars
   }
-  return needsBroker;
+  return { broker: needsBroker, columns };
 }
 
 /* ---- the fields the chosen modes do not read ----------------------------------------------------------------------- */
@@ -172,6 +197,7 @@ function unreadTypes(q: BacktestRequest): void {
 export interface CheckedRequest {
   tickers: string[];            // single: [ticker]; portfolio: the picked stocks, ticker order (PF3)
   broker: boolean;              // the run reads the broker files (a flow condition, or rank_by 'fnet')
+  columns: boolean;             // the run keeps the broker rows as columns (a Flow indicator in the grammar, P3)
 }
 
 /** A backtest request checked as far as it can be without market data; ValidationError (422) otherwise. */
@@ -220,8 +246,8 @@ export function checkRequest(input: unknown, refs: References, cfg: Pick<Config,
   const active = requestConditions(q);
   unreadTypes(q);
   withinConditions([[active.entry, 'entry.conditions'], [active.exit, 'exit.signals.conditions']], cfg.limits.max_conditions);
-  if (checkConditions([...listed(q.entry.conditions, 'entry.conditions'), ...listed(q.exit.signals.conditions, 'exit.signals.conditions')], cfg.flow, refs.brokers)) broker = true;
-  return { tickers, broker };
+  const reads = checkConditions([...listed(q.entry.conditions, 'entry.conditions'), ...listed(q.exit.signals.conditions, 'exit.signals.conditions')], cfg.flow, refs.brokers, cfg.limits.max_flow_series);
+  return { tickers, broker: broker || reads.broker, columns: reads.columns };
 }
 
 /** A signals preview request (SignalsPreviewRequest) checked the same way. */
@@ -238,5 +264,6 @@ export function checkSignalsRequest(input: unknown, refs: References, cfg: Pick<
   const active = requestConditions({ entry: q.entry });
   entryTypes(q.entry);
   withinConditions([[active.entry, 'entry.conditions']], cfg.limits.max_conditions);
-  return { tickers, broker: checkConditions(listed(q.entry.conditions, 'entry.conditions'), cfg.flow, refs.brokers) };
+  const reads = checkConditions(listed(q.entry.conditions, 'entry.conditions'), cfg.flow, refs.brokers, cfg.limits.max_flow_series);
+  return { tickers, broker: reads.broker, columns: reads.columns };
 }

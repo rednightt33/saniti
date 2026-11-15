@@ -125,7 +125,7 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
   const q = canonicalRequest(request as BacktestRequest), single = q.mode === 'single', { from, to } = q.period;
   const datasets: Dataset[] = checked.broker ? ['price', 'events', 'broker'] : ['price', 'events'];
   const field = single ? 'single.ticker' : 'portfolio.tickers';
-  const loaded = await loadMarket(env.client, [{ tickers: [INDEX_TICKER], datasets: ['price'] }, { tickers: checked.tickers, datasets, skipUnpublished: !single }],
+  const loaded = await loadMarket(env.client, [{ tickers: [INDEX_TICKER], datasets: ['price'] }, { tickers: checked.tickers, datasets, skipUnpublished: !single, brokerColumns: checked.columns }],
     limits, field, env.config.terminal.concurrency, {
       shouldStop: hooks.shouldStop, progress: (d, t) => report('loading', d, t),
       planned: checked.broker ? b => flowThroughOf(new Map([...b].filter(([t]) => t !== INDEX_TICKER)), to, refs, env, hooks.shouldStop) : undefined,
@@ -135,8 +135,8 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
   checkAfterData(ihsgLast, to);
   const stocks = checked.tickers.filter(t => loaded.tickers.has(t)).map(t => loaded.tickers.get(t) as LoadedTicker);
   if (single) checkPriceRange(stocks[0], from, to);
-  const market: MarketData = { ihsg, tickers: {}, excluded: loaded.excluded };
-  for (const t of stocks) market.tickers[t.ticker] = { prices: t.prices!, corporate_actions: t.corporate_actions ?? [], ...(t.flow ? { flow: t.flow } : {}) };
+  const market: MarketData = { ihsg, tickers: {}, excluded: loaded.excluded, classification: classificationOf(refs) };
+  for (const t of stocks) market.tickers[t.ticker] = { prices: t.prices!, corporate_actions: t.corporate_actions ?? [], ...(t.flow ? { flow: t.flow } : {}), ...(t.broker_columns ? { broker: t.broker_columns } : {}) };
   const dataThrough = [ihsgLast, ...stocks.map(t => lastOf(t.prices!.dates))].sort();
   stop();
 
@@ -193,6 +193,11 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
   return result;
 }
 
+/** The brokers' classification of the reference list (IDX_Broker_Profile; today's labels, used on every date: user
+    decision 5, 2026-11-15), for FL34 and the class: broker scopes of the Flow indicators. */
+const classificationOf = (refs: Refs): Record<string, string> =>
+  Object.fromEntries(refs.brokers.filter(b => typeof b.classification === 'string' && b.classification).map(b => [b.code, b.classification as string]));
+
 /** A sensitivity cell's threshold the grammar's validation accepts (a grammar condition; the others are checked by the
     plan itself, robustness.ts accepted). */
 export function gridAccepts(c: Condition, value: number): boolean {
@@ -213,19 +218,20 @@ export async function runSignals(request: unknown, refs: Refs, env: RunEnv, hook
   const q = request as SignalsPreviewRequest;
   // IHSG's prices too, as a run loads them: a grammar condition may compare with the index (vs_index), and a preview
   // never fails where the matching run succeeds (EXEC-BACKTEST-REVAMP P2)
-  const loaded = await loadMarket(env.client, [{ tickers: [INDEX_TICKER], datasets: ['price'] }, { tickers: checked.tickers, datasets: checked.broker ? ['price', 'broker'] : ['price'], skipUnpublished: true }], env.config.limits, 'tickers',
+  const loaded = await loadMarket(env.client, [{ tickers: [INDEX_TICKER], datasets: ['price'] }, { tickers: checked.tickers, datasets: checked.columns ? ['price', 'broker', 'events'] : checked.broker ? ['price', 'broker'] : ['price'], skipUnpublished: true, brokerColumns: checked.columns }], env.config.limits, 'tickers',
     env.config.terminal.concurrency, {
       shouldStop: hooks.shouldStop, progress: (d, t) => hooks.progress?.({ phase: 'loading', done: d, total: t }),
       planned: checked.broker ? b => flowThroughOf(new Map([...b].filter(([t]) => t !== INDEX_TICKER)), q.period.to, refs, env, hooks.shouldStop) : undefined,
     });
-  const ihsg = (loaded.tickers.get(INDEX_TICKER) as LoadedTicker).prices!;
+  const ihsg = (loaded.tickers.get(INDEX_TICKER) as LoadedTicker).prices!, classification = classificationOf(refs);
   const req = { entry: q.entry }, active = requestConditions(req), rows: SignalsPreview['rows'] = [], excluded = [...loaded.excluded];
   let done = 0;
   for (const ticker of checked.tickers) {
     stop();
     const t = loaded.tickers.get(ticker);
     if (t) {
-      const calc = new Calc(t.prices!.bars, t.flow ?? undefined, { ticker, dates: t.prices!.dates, index: { dates: ihsg.dates, bars: ihsg.bars } });
+      const calc = new Calc(t.prices!.bars, t.flow ?? undefined, { ticker, dates: t.prices!.dates, index: { dates: ihsg.dates, bars: ihsg.bars },
+        ...(t.broker_columns ? { broker: { columns: t.broker_columns, classification, actions: (t.corporate_actions ?? []).map(a => a.date) } } : {}) });
       const row = unlessLeftOut(ticker, excluded, () => previewRow(calc, t.prices!.dates, req, q.period.from, q.period.to, active));
       if (row) rows.push({ ticker, ...row });
     }

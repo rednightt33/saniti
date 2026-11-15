@@ -60,7 +60,14 @@ export const FLOW_DESIGN_SESSIONS: number = (kindsDoc as { window_sessions: numb
 
 /** The loaded broker window a binding is checked against (the worker's data.broker_window and its reference file):
     its sessions and dates, whether every day of it is loaded, and whether the broker classification is published. */
-export interface FlowBindContext { sessions: number; first: string | null; last: string | null; complete: boolean; classification: boolean }
+export interface FlowBindContext {
+  sessions: number; first: string | null; last: string | null; complete: boolean; classification: boolean;
+  /** EXEC-BACKTEST-REVAMP P3: the caller reads every candle of the ticker's whole broker history (the Backtest worker,
+      per bar): an entry kept on the last date only (current_only, FL34's guard on today's classification) keeps every
+      date, because the Backtest uses today's classification on every date (user decision 5, 2026-11-15). The Screener
+      never sets it. */
+  allDates?: boolean;
+}
 
 /** The flow entry of a reference, or INVALID_CONDITION with the 48 ids. */
 export function flowEntry(id: unknown, field: string): FlowRegistryEntry {
@@ -460,7 +467,7 @@ export function resolveFlow(ref: FlowRef, field: string, ctx: { flow?: FlowBindC
     full: (t: TickerCalc) => {
       if (reach !== undefined) { const { lo, s } = lazyOutOf(t, e, params, key, reach); return aligned(t.dates.length, lo, s) }
       const { lo, out } = flowOutOf(t, e, params);
-      return aligned(t.dates.length, lo, e.current_only ? currentOnly(t, lo, out[key]) : out[key]);
+      return aligned(t.dates.length, lo, e.current_only && !w?.allDates ? currentOnly(t, lo, out[key]) : out[key]);
     },
   };
 }

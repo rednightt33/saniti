@@ -179,20 +179,27 @@ export interface BrokerGap { d: string; m: string }
     broker code, investor and board among the Feature 05 values, four finite values >= 0 (Feature 05 CHECK), dates
     non-decreasing within and across files, and one row per (date, broker, investor, board) (the Feature 05 key; a row
     in two files, e.g. a stale archive overlapping a yearly file, is DATA_INTEGRITY, where the Terminal would add it
-    twice). All documents must belong to one ticker. */
-export function brokerRows(docs: Columnar[]): BrokerRow[] {
+    twice). All documents must belong to one ticker. The transaction counts bf and sf (EXEC-BACKTEST-REVAMP P3) are read
+    by name where a file has them: a number of at least 0, or null; a row without one has NaN (never 0). */
+function eachBrokerRow(docs: Columnar[], visit: (d: string, b: string, i: string, m: string, bv: number, sv: number, bl: number, sl: number, bf: number, sf: number) => void): void {
   const isDate = dateCheck(), keys = new Set<string>(), owners = new Set<unknown>();
   const parts = docs.map((doc, k) => {
     const what = `broker file ${k + 1}${doc && typeof doc.ticker === 'string' ? ` of ${doc.ticker}` : ''}`;
     kind(doc, ['broker', 'broker-archive'], null, what);
     if (doc.ticker !== undefined) owners.add(doc.ticker);
-    return { what, first: Array.isArray(doc.d) && doc.d.length ? String(doc.d[0]) : '', c: cols(doc, BROKER_COLUMNS, what) };
+    const opt = (c: string) => Array.isArray(doc.columns) && doc.columns.includes(c) && Array.isArray(doc[c]) ? doc[c] as unknown[] : null;
+    return { what, first: Array.isArray(doc.d) && doc.d.length ? String(doc.d[0]) : '', c: cols(doc, BROKER_COLUMNS, what), bf: opt('bf'), sf: opt('sf') };
   }).filter(p => p.c[0].length);
   if (owners.size > 1) throw integrity(`The broker files belong to different tickers (${[...owners].join(', ')}).`);
-  const out: BrokerRow[] = [];
   let prev = '';
   for (const p of byFirstDate(parts)) {
     const [d, b, i, m, bv, sv, bl, sl] = p.c;
+    const count = (col: unknown[] | null, k: number, at: () => string, name: string): number => {
+      const x = col ? col[k] : null;
+      if (x === null || x === undefined) return NaN;
+      if (!fin(x) || (x as number) < 0) throw integrity(`${at()}: ${name} must be a number of at least 0 or null.`);
+      return x as number;
+    };
     for (let k = 0; k < d.length; k++) {
       const day = d[k], at = () => `${p.what}, row ${k + 1}`;
       if (!isDate(day)) throw integrity(`${at()}: ${JSON.stringify(day)} is not a date.`);
@@ -206,10 +213,41 @@ export function brokerRows(docs: Columnar[]): BrokerRow[] {
       const key = `${prev}|${b[k]}|${i[k]}|${m[k]}`;
       if (keys.has(key)) throw integrity(`${p.what}: the broker row ${key} appears twice in the published files.`);
       keys.add(key);
-      out.push({ d: prev, b: b[k] as string, i: i[k] as string, m: m[k] as string, bv: v[0] as number, sv: v[1] as number, bl: v[2] as number, sl: v[3] as number });
+      visit(prev, b[k] as string, i[k] as string, m[k] as string, v[0] as number, v[1] as number, v[2] as number, v[3] as number,
+        count(p.bf, k, at, 'bf'), count(p.sf, k, at, 'sf'));
     }
   }
+}
+export function brokerRows(docs: Columnar[]): BrokerRow[] {
+  const out: BrokerRow[] = [];
+  eachBrokerRow(docs, (d, b, i, m, bv, sv, bl, sl) => { out.push({ d, b, i, m, bv, sv, bl, sl }) });
   return out;
+}
+
+/** EXEC-BACKTEST-REVAMP P3: a ticker's broker rows as columns, the shape the Screener's flow series read
+    (screener/src/core/flowmetrics.ts BrokerRowsLike; brokerFlowRows turns it into the Terminal's FlowRows): D indexes
+    dates, B brokers, I investor_types, M boards; ordered by date, then the files' order; bf and sf NaN where the file
+    has no count. About 56 bytes a row, against an object per row in brokerRows (K9 b memory budget), so a run keeps it
+    for every ticker whose conditions read the Flow indicators. Same checks as brokerRows. */
+export interface BrokerColumns {
+  rows: number; dates: string[]; brokers: string[]; investor_types: string[]; boards: string[];
+  D: Int32Array; B: Int32Array; I: Uint8Array; M: Uint8Array;
+  BV: Float64Array; SV: Float64Array; BL: Float64Array; SL: Float64Array; BF: Float64Array; SF: Float64Array;
+}
+export function brokerColumns(docs: Columnar[]): BrokerColumns {
+  const dates: string[] = [], brokers: string[] = [], bAt = new Map<string, number>();
+  const investor_types = [...INVESTORS] as string[], boards = [...BOARDS] as string[];
+  const D: number[] = [], B: number[] = [], I: number[] = [], M: number[] = [], V: number[][] = [[], [], [], [], [], []];
+  eachBrokerRow(docs, (d, b, i, m, bv, sv, bl, sl, bf, sf) => {
+    if (dates[dates.length - 1] !== d) dates.push(d);
+    let j = bAt.get(b);
+    if (j === undefined) { j = brokers.length; brokers.push(b); bAt.set(b, j) }
+    D.push(dates.length - 1); B.push(j); I.push(investor_types.indexOf(i)); M.push(boards.indexOf(m));
+    V[0].push(bv); V[1].push(sv); V[2].push(bl); V[3].push(sl); V[4].push(bf); V[5].push(sf);
+  });
+  const f = (a: number[]) => Float64Array.from(a);
+  return { rows: D.length, dates, brokers, investor_types, boards, D: Int32Array.from(D), B: Int32Array.from(B), I: Uint8Array.from(I), M: Uint8Array.from(M),
+    BV: f(V[0]), SV: f(V[1]), BL: f(V[2]), SL: f(V[3]), BF: f(V[4]), SF: f(V[5]) };
 }
 
 /** The publisher's gap markers of broker documents ([[date, board], ...]); a document without `gap` has none. */

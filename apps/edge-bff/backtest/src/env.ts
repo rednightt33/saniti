@@ -18,7 +18,7 @@ export const PROVISIONAL: Catalog = {
   schema_version: 1, engine_version: '', registry_version: '', data_through: '', first_date: '',
   tickers: [], groupings: [], flow: { available: true, reason: null, brokers: [], data_through: null },
   limits: { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS,
-            max_download_bytes: Infinity, max_broker_rows: Infinity, timeout_seconds: Infinity, queued_per_owner: Infinity, max_conditions: Infinity },
+            max_download_bytes: Infinity, max_broker_rows: Infinity, timeout_seconds: Infinity, queued_per_owner: Infinity, max_conditions: Infinity, max_flow_series: Infinity },
 };
 let READY = false;
 /** whether the catalog has answered (else the page runs on PROVISIONAL) */

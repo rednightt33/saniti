@@ -68,7 +68,7 @@ const NOPX: TickerRef = { ticker: 'NOPX', name: 'NOPX (test name)', type: 'stock
 const SECTOR_A = ['BBCA', 'GOTO', 'UNVR'];
 
 const KEY = 'run-test-proxy-key-'.padEnd(48, 'x');
-const LIMITS: Config['limits'] = { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 600, queued_per_owner: 3, max_conditions: 20 };
+const LIMITS: Config['limits'] = { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 600, queued_per_owner: 3, max_conditions: 20, max_flow_series: 8 };
 const OFF: Config['flow'] = { enabled: false, reason: 'flow is off in this test' };
 let fake: Awaited<ReturnType<typeof startFakeTerminal>>;
 let refs: References;
@@ -645,4 +645,36 @@ test('grammar conditions: the preview reads IHSG for vs_index; refusals name the
   assert.deepEqual(await refusal(runJob({ ...q, entry: universe }, { prior_trials: [] }, refs, env())), ['CONDITION_UNAVAILABLE', 'entry.conditions[0].test.metric']);
   const bad = { ...entry, conditions: [{ id: 'b1', kind: 'test', test: { kind: 'value', metric: RSI, op: 'between', value: 70, value2: 30 } }] } as BacktestRequest['entry'];
   assert.deepEqual(await refusal(runJob({ ...q, entry: bad }, { prior_trials: [] }, refs, env())), ['INVALID_CONDITION', 'entry.conditions[0].test.value2']);
+});
+
+test('P3: a job with a Flow indicator in the grammar reads the broker rows as columns; refusals name the field', async () => {
+  // test rows: brokers YU and ZP trading UNVR on its last 60 sessions (not published values)
+  const days = FX.get('UNVR')!.T.slice(-60);
+  const rows = days.flatMap((d, k) => [[d, 'YU', 'Foreign', 'Regular', 1e9 * (1 + (k % 4)), 4e8 * (1 + (k % 3)), 1e4 * (1 + (k % 4)), 5e3, false],
+    [d, 'ZP', 'Domestic', 'Regular', 3e8 * (1 + (k % 5)), 9e8, 3e3, 9e3 * (1 + (k % 2)), false]]);
+  const doc = brokerArchive('UNVR', rows, [2026, 2026]);
+  const flowFake = await startFakeTerminal({ key: KEY, tickers: market({ UNVR: { broker: { data_through: THROUGH, doc } }, BBCA: { broker: { data_through: THROUGH, doc: brokerArchive('BBCA', [], [2026, 2026]) } } }), refs: REFS });
+  try {
+    const on: Config['flow'] = { enabled: true, reason: null };
+    const fl = (params: Record<string, unknown> = {}) => ({ id: 'f1', kind: 'test', test: { kind: 'event', within: 2, signal: { lhs: { kind: 'flow', metric: 'FL11', params }, op: 'crosses_above', rhs: { value: 0 } } } });
+    const q = { ...pageDefault('UNVR'), entry: { logic: 'all', at_least: 1, window_bars: 5, conditions: [fl()] } } as BacktestRequest;
+    q.period.from = days[0];
+    const r = await runJob(q, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }));
+    assert.equal(r.meta.data_version, await dataVersion([priceFile('IHSG'), priceFile('UNVR'), { ticker: 'UNVR', dataset: 'broker', sha256: encode(doc).sha256 }]));
+    assert.ok(r.events.entries.UNVR.on.length > 0, 'the Flow condition switches on');
+    // flow off: refused before any download; a broker code outside the reference list; a ticker without broker rows
+    assert.deepEqual(await refusal(runJob(q, { prior_trials: [] }, refs, env({ url: flowFake.url }))), ['FLOW_UNAVAILABLE', 'entry.conditions[0].test.signal.lhs']);
+    const named = { ...q, entry: { ...q.entry, conditions: [fl({ scope: 'selected', brokers: ['QQ'] })] } } as BacktestRequest;
+    assert.deepEqual(await refusal(runJob(named, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['UNKNOWN_BROKER', 'entry.conditions[0].test.signal.lhs.params.brokers[0]']);
+    // the Flow budget: two distinct series (another window) over a limit of 1; the same series twice is one
+    const two = { ...q, entry: { ...q.entry, conditions: [fl(), { ...fl({ window: 5 }), id: 'f2' }] } } as BacktestRequest;
+    assert.deepEqual(await refusal(runJob(two, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on, limits: { max_flow_series: 1 } }))), ['FLOW_BUDGET_EXCEEDED', 'entry.conditions[1]']);
+    const twice = { ...q, entry: { ...q.entry, conditions: [fl(), { ...fl({ window: 1 }), id: 'f2' }] } } as BacktestRequest;
+    await runJob(twice, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on, limits: { max_flow_series: 1 } }));
+    const bbca = { ...q, single: { ticker: 'BBCA', benchmark: 'buy_and_hold' } } as BacktestRequest;
+    assert.deepEqual(await refusal(runJob(bbca, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['FLOW_OUTPUT_EMPTY', 'entry.conditions[0].test']);
+    // the preview reads the same
+    const p = await runSignals({ schema_version: 1, tickers: ['UNVR'], period: { from: q.period.from, to: q.period.to }, entry: q.entry }, refs, env({ url: flowFake.url, flow: on }));
+    assert.ok(p.rows[0].entry_signals > 0, 'the preview finds the same Flow signals');
+  } finally { await flowFake.close() }
 });

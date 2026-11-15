@@ -14634,6 +14634,49 @@ skrip restart butuh Railway CLI yang tidak ada di sesi ini. *Saran:* tekan "🔄
   - **Bar 0** tidak pernah benar, termasuk di dalam window dan event.
 
   Belum termasuk P2 (pindah fase): sumbu grid D (P4), dan hak akses di titik resolusi seri (P5).
+- **Pelaksanaan P3 (2026-11-15).** Flow A–C masuk bahasa kondisi yang sama (`{"kind":"flow","metric":"FL11",...}`). Di
+  backtest, setiap seri Flow dihitung per hari dari seluruh riwayat broker dengan rumus Terminal apa adanya. Bedanya dengan
+  Screener: baseline registry tidak diturunkan, dan FL34 punya nilai di semua tanggal dengan klasifikasi sekarang
+  (keputusan 5). Untuk itu Screener mendapat satu opsi `FlowBindContext.allDates` yang hanya diset oleh worker Backtest;
+  perilaku Screener sendiri tidak berubah.
+  - **Yang bisa dipakai: 41 indikator**, yaitu entri Screener yang dihitung modul Terminal dengan id FL dan tanpa data
+    yang belum terbit; daftarnya diturunkan dari registry.
+  - **Yang ditolak dengan alasan** (`CONDITION_UNAVAILABLE`):
+    - FL31 (insider bertanggal transaksi);
+    - FL18, FL19, FL20, FL23, FL44 dan FL45 versi jendela Screener (versi titik-waktu menyusul di P4);
+    - entri `fnet` dan `ksei_net` milik Screener;
+    - FL49–FL52 memang tidak ada di registry Screener (terminal-only), jadi tidak tersedia.
+
+    Angka "43" di judul P3 ternyata 41 + FL49/FL50 yang ditolak.
+  - **Data.** Ada `datafile.ts brokerColumns`: kolom bertipe sekitar 56 byte per baris, `bf`/`sf` dibaca menurut nama
+    (null menjadi NaN, bukan 0). Kolom ini disimpan hanya bila kondisi Flow membacanya. Klasifikasi broker dibaca dari
+    referensi `brokers`, dan pratinjau ikut memuat event bila membaca Flow.
+  - **Ukuran nyata** (pgweb, read-only): BBCA 24.286 baris broker di 2025, GOTO 21.452; sekitar 250 ribu baris per saham
+    untuk 10 tahun, kira-kira 14 MB kolom per saham.
+  - **K3a, temuan baru yang diverifikasi:** pada COCO, VWAP broker dibanding harga penutupan bernilai 1,766, 1,743, 1,768
+    dan 1,824 pada 3 Nov 2025, 2 Mar 2026, 15 Jun 2026 dan 8 Jul 2026, lalu 1,018 sesudah rights issue 9 Jul 2026.
+    Selisih basis berlaku untuk **semua** hari sebelum aksi yang harganya disesuaikan mundur, bukan hanya jendela yang
+    memuat aksi. Yang dibangun: nilai indikator harga-broker (family registry "Buy VWAP & Implied Cost" atau unit price)
+    dikosongkan bila jendelanya membaca hari sebelum aksi bertanggal ≤ 2026-09-12, atau melintasi aksi sesudah tanggal
+    itu. Aturan ini lebih ketat dari bunyi harfiah K3a ("jendela yang memuat aksi"). **Pertanyaan untuk Gerbang 2:**
+    setuju dengan aturan yang lebih ketat ini? Batas muat ulang PBSA tidak tercakup karena tidak ada penanda di file
+    terbit; itu milik perbaikan data (EXEC terpisah).
+  - **Peringatan per saham atas sesi yang dibaca:**
+    - `FLOW_PRE_2021`: sesi yang dibaca mulai sebelum 2021 (keputusan 4);
+    - `FLOW_BASIS_CHANGE`;
+    - `FLOW_SOURCE_GAP`: penanda gap publisher;
+    - `FLOW_ROWS_DROPPED`: baris di hari tanpa bar harga, per papan.
+  - **Anggaran.** `limits.max_flow_series` (bawaan 8, `BACKTEST_MAX_FLOW_SERIES`) dengan penolakan `FLOW_BUDGET_EXCEEDED`
+    (`allowed`/`needed`); muncul di katalog. `UNKNOWN_BROKER` berlaku untuk kode broker di parameter Flow.
+  - **Tes:**
+    - 526 seri Flow (semua indikator, output, dan opsi satu per satu) sama persis dengan `computeFlow` Terminal di setiap
+      bar;
+    - uji potong data lewat jalur ini bersih;
+    - mask dan keempat peringatan diuji;
+    - job end-to-end dengan file broker palsu.
+  - **Sisa K9b, dipindah ke verifikasi sebelum Gerbang 2:** pengukuran RSS puncak (pratinjau + job 12 saham), penurunan
+    `BACKTEST_CACHE_BYTES`/`BACKTEST_MAX_BROKER_ROWS` (variabel Railway, dengan persetujuan Gerbang 2), dan antrean broker
+    antar-thread (butir 4).
 
 **P2 — Backtest menerima tata bahasa bersama (per saham, non-flow)**
 1. Adapter: `conditionSignal` + `within` per kondisi, bar 0 = 0, galat EMPTY, sisi price→volume, IHSG untuk `vs_index`

@@ -8200,6 +8200,17 @@ in its staleness check.
 - **Status:** OPEN.
 - **Lesson for new data:** two series compared in one formula must be on one basis, and the loader records the basis
   (the fetch date against the ex-dates) of every row.
+- **Verified further (2026-11-15, pgweb read-only):** the basis difference covers every date before an action whose
+  adjustment the published prices carry, not only the days around it: COCO Regular VWAP / close 1.766 (2025-11-03),
+  1.743 (2026-03-02), 1.768 (2026-06-15), 1.824 (2026-07-08), 1.018 after the 2026-07-09 rights issue; price volume /
+  (broker lots x 100) 1.74 on 2025-11-03.
+- **Interim solution (built on branch, EXEC-BACKTEST-REVAMP P3, K3 a; stricter than K3 a's wording, asked at Gate 2):**
+  the Backtest leaves a broker-price Flow value empty (the registry's family "Buy VWAP & Implied Cost" or a price unit)
+  where its window reads a session before an action dated on or before 2026-09-12 or across a later one, and warns per
+  stock: `FLOW_BASIS_CHANGE`, `FLOW_SOURCE_GAP` (the publisher's gap markers), `FLOW_ROWS_DROPPED` (rows on days
+  without a price bar, per board), and `FLOW_PRE_2021`. `bf`/`sf` are read by name. Not covered: a range re-downloaded
+  after an action (PBSA), which has no marker in the published files; the data-layer fix stays open.
+- **Status:** OPEN (data layer); interim Backtest guard built on branch, awaiting Gate 2.
 
 ### M449 — Backtest: "close crosses above (or is above) the Donchian upper band" can never be true (2026-11-15, open)
 

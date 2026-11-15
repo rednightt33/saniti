@@ -351,4 +351,7 @@ export interface Limits {
   max_download_bytes: number; max_broker_rows: number; timeout_seconds: number; queued_per_owner: number;
   max_conditions: number;                                // enabled conditions one list may have (entry.conditions,
                                                          // exit.signals.conditions); more is LIMIT_EXCEEDED
+  /** EXEC-BACKTEST-REVAMP P3: distinct Flow series (indicator, output and parameters, completed) a request's enabled
+      conditions may read, each computed on every picked stock; more is FLOW_BUDGET_EXCEEDED */
+  max_flow_series: number;
 }

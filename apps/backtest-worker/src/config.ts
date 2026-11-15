@@ -38,6 +38,9 @@ import type { TerminalOptions } from './terminal.ts';
 export const DEFAULT_PORT = 8080;
 export const DEFAULT_MONTE_CARLO_RUNS = 1000;       // backtest.html monteCarlo(T, cap0, runs = 1000)
 export const DEFAULT_QUEUED_PER_OWNER = 3;          // edge-bff config.py backtest_queued_per_owner
+/** EXEC-BACKTEST-REVAMP P3 (K9 b: the worker keeps 1 GB): distinct Flow series one request may read (each is one
+    computeFlow per picked stock over its whole broker history). */
+export const DEFAULT_MAX_FLOW_SERIES = 8;
 export const KEY_MIN_LENGTH = 32;                   // edge-bff config.py: BACKTEST_WORKER_KEY must be at least 32 characters
 export const FLOW_OFF_REASON = 'The flow and broker conditions are switched off on this worker (BACKTEST_FLOW_ENABLED is not 1).';
 
@@ -80,6 +83,7 @@ export function loadConfig(env: Env = process.env): Config {
     timeout_seconds: whole('BACKTEST_TIMEOUT_SECONDS', 1),
     queued_per_owner: whole('BACKTEST_QUEUED_PER_OWNER', 1, Number.MAX_SAFE_INTEGER, DEFAULT_QUEUED_PER_OWNER),
     max_conditions: whole('BACKTEST_MAX_CONDITIONS', 1),
+    max_flow_series: whole('BACKTEST_MAX_FLOW_SERIES', 1, Number.MAX_SAFE_INTEGER, DEFAULT_MAX_FLOW_SERIES),
   };
   const maxResultBytes = whole('BACKTEST_MAX_RESULT_BYTES', 1);
   return { port, workerKey, terminal, limits, maxResultBytes, flow: { enabled, reason: enabled ? null : FLOW_OFF_REASON } };

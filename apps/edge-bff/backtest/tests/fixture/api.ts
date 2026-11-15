@@ -25,7 +25,7 @@ export const CATALOG: Catalog = {
   groupings:[{ key:'sector', values:[{ value:'Banks', tickers:BANKS.length }], unclassified:DEMO_10.length - BANKS.length }],
   flow:{ available:true, reason:null, brokers:M.BROKERS, data_through:M.DAYS[M.N - 1] },
   limits:{ max_positions:MAX_POSITIONS, window_bars:{ min:1, max:20 }, monte_carlo_runs:1000, max_portfolio_tickers:MAX_PORTFOLIO_TICKERS,
-           max_download_bytes:0, max_broker_rows:0, timeout_seconds:600, queued_per_owner:1, max_conditions:Infinity },
+           max_download_bytes:0, max_broker_rows:0, timeout_seconds:600, queued_per_owner:1, max_conditions:Infinity, max_flow_series:Infinity },
 };
 
 /* the reference's words (backtest.html: the header, the Robustness warning box, "Variants tried this session") */

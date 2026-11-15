@@ -236,7 +236,7 @@ test('catalog: the published tickers with their groups, the groupings, the broke
   assert.equal('universes' in c, false);
   assert.deepEqual(c.flow, { available: false, reason: FLOW_OFF_REASON, brokers: ['YU', 'ZP'], data_through: null });
   const manifests = () => fake.requests.filter(r => r.path.startsWith('/api/terminal/v1/manifest/')).length, m0 = manifests();
-  assert.deepEqual(c.limits, { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 60, queued_per_owner: 3, max_conditions: 20 });
+  assert.deepEqual(c.limits, { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 60, queued_per_owner: 3, max_conditions: 20, max_flow_series: 8 });
   assert.equal(manifests(), m0, 'flow off: no manifest is asked');
   // flow on: available, no reason, and the newest broker data_through of every stock's manifest
   const on = createApp(loadConfig(ENV({ BACKTEST_FLOW_ENABLED: '1' })));

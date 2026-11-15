@@ -13,8 +13,8 @@
    - a series a condition reads without any value on the ticker's bars up to `last` is INDICATOR_OUTPUT_EMPTY, the
      error the Backtest raises for its own indicator conditions (a portfolio then leaves the ticker out, signals.ts);
    - refused, because they have no per-day value without look-ahead: universe attributes (a snapshot at the evaluation
-     date), cross-section values and ranks (a population fixed at the evaluation date), the Screener's flow entries (a
-     window of the last 60 broker sessions); Flow indicators come in through the Backtest's own Flow conditions.
+     date), cross-section values and ranks (a population fixed at the evaluation date); the Flow indicators are read
+     on every bar from the whole broker history (P3, flowRefusal below for the ones refused).
    Series are kept per ticker under their resolved key (Calc.seriesMemo), so the sensitivity grid's cells reuse them. */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -27,7 +27,14 @@ import type { BoundCondition } from '../../edge-bff/screener/src/core/condition.
 import { METRICS_CATALOG, catalogProblems } from '../../edge-bff/screener/src/core/catalog.ts';
 import type { ConditionDef, Test } from '../../edge-bff/screener/src/core/contract.ts';
 import { ScreenerError } from '../../edge-bff/screener/src/core/errors.ts';
+import { resolveSeries } from '../../edge-bff/screener/src/core/metrics.ts';
 import type { ResolvedSeries, TickerBars } from '../../edge-bff/screener/src/core/metrics.ts';
+import { FLOW_BY_ID, indicatorDepth, readsFlow, seriesKeyOf } from '../../edge-bff/screener/src/core/flowmetrics.ts';
+import type { FlowBindContext, TickerFlow } from '../../edge-bff/screener/src/core/flowmetrics.ts';
+import type { FlowParamValue } from '../../edge-bff/screener/src/core/contract.ts';
+import { ADJUSTED_HISTORY_BOUNDARY } from '../../edge-bff/backtest/src/core/engine.ts';
+import FLOW_REGISTRY from '../../edge-bff/terminal/src/data/flowRegistry.json' with { type: 'json' };
+import type { FlowOut } from '../../edge-bff/terminal/src/calc/flow.ts';
 import { SOURCES as SCREENER_SOURCES, registryProblems } from '../../edge-bff/screener/src/core/registry.ts';
 import { IMPLEMENTED_PATTERNS, IMPLEMENTED_TRANSFORMS } from '../../edge-bff/screener/src/core/transforms.ts';
 import { availabilityMap, validateTest } from '../../edge-bff/screener/src/core/validate.ts';
@@ -42,15 +49,31 @@ const NOT_PER_DAY: Record<string, string> = {
   universe: 'a universe attribute is a value on the screen date only, so a backtest cannot read it on earlier days',
   xsection: 'a cross-section value ranks the stocks listed on the screen date, so a backtest cannot read it on earlier days without look-ahead',
   rank: 'a rank across stocks uses the stocks listed on the screen date, so a backtest cannot read it on earlier days without look-ahead',
-  flow: 'the Screener\'s flow entries read its last 60 broker sessions; in a backtest use the Flow conditions of the backtest',
 };
 
+/* EXEC-BACKTEST-REVAMP P3: the Flow indicators in the grammar ({"kind":"flow","metric":"FL01",...}). A backtest reads
+   each on every bar from the ticker's whole broker history with the Terminal's formula as it is (calc/flow.ts
+   computeFlow, through the Screener's flow series): the registry's baselines (the Screener lowers a baseline to fit its
+   60-session window; here nothing is lowered) and today's broker classification on every date (FL34, user decision 5).
+   Refused, with the reason: an entry the Screener computes its own way (its window versions of the anchored and
+   inventory indicators FL18, FL19, FL20, FL23, FL44, FL45, whose point-in-time versions are the worker's own, P4; its
+   foreign-net and KSEI entries), and an entry that needs data not published (FL31 insider, KSEI). */
+function flowRefusal(metric: unknown): string | null {
+  const e = typeof metric === 'string' ? FLOW_BY_ID[metric] : undefined;
+  if (!e) return null;                                               // the Screener's validation names the ids
+  if (e.requires === 'insider') return `${e.id} needs insider transactions with the date they were made public; the published insider rows carry the transaction date only, so a backtest would read them before anyone could know them`;
+  if (e.requires) return `${e.id} needs data that is not published yet (${e.requires})`;
+  if (e.compute === 'anchored' || e.compute === 'inventory') return `${e.id} chooses its brokers from the data up to the last candle; its point-in-time version for a backtest is not available yet`;
+  if (e.compute !== 'terminal') return `${e.id} is the Screener's own entry on its broker window, not a Terminal Flow indicator a backtest can read on every bar`;
+  return null;
+}
+
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
-/** Every metric reference kind inside a test, with the field it sits at. */
-function refKinds(x: unknown, field: string, out: [string, string][] = []): [string, string][] {
+/** Every metric reference inside a test: its kind, the field it sits at, the reference. */
+function refKinds(x: unknown, field: string, out: [string, string, Record<string, unknown>][] = []): [string, string, Record<string, unknown>][] {
   if (Array.isArray(x)) x.forEach((v, k) => refKinds(v, `${field}[${k}]`, out));
   else if (isObj(x)) {
-    if (typeof x.kind === 'string' && !['value', 'state', 'event', 'window'].includes(x.kind)) out.push([x.kind, field]);
+    if (typeof x.kind === 'string' && !['value', 'state', 'event', 'window'].includes(x.kind)) out.push([x.kind, field, x]);
     for (const [k, v] of Object.entries(x)) if (k !== 'kind') refKinds(v, `${field}.${k}`, out);
   }
   return out;
@@ -62,18 +85,90 @@ function asValidation(e: unknown, field: string): unknown {
   return e;
 }
 
+/** The metrics' availability as the Screener's validation reads it: every metric a backtest has no file for is
+    unavailable as on a publication without files, except the Flow indicators, whose broker files the worker loads and
+    whose availability (catalog.flow.available) it checks itself (validate.ts). */
+const AVAILABILITY = (() => {
+  const m = new Map(availabilityMap({}));
+  for (const x of METRICS_CATALOG.metrics) if ((x as { flow?: unknown }).flow) m.set(x.id, { availability: 'AVAILABLE', reason: null });
+  return m;
+})();
 function validateContext(limits: GrammarLimits, tickers: Iterable<string>): ValidateContext {
   return { limits: { max_conditions: 64, max_metric_filters: 8, within_max: limits.withinMax }, capBudgetMs: limits.capBudgetMs, tickers: new Set(tickers),
-    groupings: [], metrics: METRICS_CATALOG, availability: availabilityMap({}) };
+    groupings: [], metrics: METRICS_CATALOG, availability: AVAILABILITY };
 }
+
+/** The Flow references of a test with their field (validate.ts: broker files, FLOW_UNAVAILABLE, broker codes). */
+export function flowRefs(test: unknown, field: string): { field: string; ref: Record<string, unknown> }[] {
+  return refKinds(test, field).filter(([k]) => k === 'flow').map(([, f, ref]) => ({ field: f, ref }));
+}
+
+/* EXEC-BACKTEST-REVAMP P3 (K3 a, ERRORS M448; verified 2026-11-15 on COCO: broker VWAP / close 1.74-1.82 on every
+   date before its rights issue of 2026-07-09, 1.02 after): the published prices before ADJUSTED_HISTORY_BOUNDARY are
+   back-adjusted for each later split, bonus share and rights issue, the broker lots are not. A Flow value that compares
+   a broker price with the close (the registry's family "Buy VWAP & Implied Cost", or a price unit) is therefore left
+   empty where its window reads a session on another basis than the prices: before an action whose adjustment the prices
+   carry (ex-date on or before the boundary), or across one after it (the window mixes lots before and after). Derived
+   from the registry and the ticker's events; a new indicator of that family is covered without a code change. Not
+   covered (no published marker): a broker range re-downloaded after an action (PBSA, M448), which the data fix owns. */
+const BROKER_PRICE = new Set((FLOW_REGISTRY as { indicators: { id: string; family: string; unit: string }[] }).indicators
+  .filter(r => r.family === 'Buy VWAP & Implied Cost' || r.unit === 'price').map(r => r.id));
+/** The bars [lo, lo + N) of the flow window whose value must stay empty, for a series that reads `depth` sessions up to
+    its bar (null: the whole history). */
+function basisMask(dates: readonly string[], lo: number, N: number, depth: number | null, actions: readonly string[]): Uint8Array {
+  const mask = new Uint8Array(N);
+  if (!actions.length) return mask;
+  for (let k = 0; k < N; k++) {
+    const i = lo + k, start = depth === null ? 0 : Math.max(0, i - depth + 1), s = dates[start], at = dates[i];
+    mask[k] = +actions.some(d => s < d && (d <= ADJUSTED_HISTORY_BOUNDARY || at >= d));
+  }
+  return mask;
+}
+
+/* The ticker's broker data as the Screener's flow series read it (flowmetrics.ts TickerFlow): the whole history, one
+   object per Calc so its FlowContext and computeFlow answers are built once per ticker (the grid's cells reuse them).
+   Its memo is where every computeFlow answer passes (flowmetrics.ts memoCall), so the basis mask applies to a Flow
+   series wherever it is read (directly or inside a transform), and the notes for the run's warnings are kept there. */
+const FLOWS_OF = new WeakMap<Calc, TickerFlow>();
+function tickerFlow(c: Calc): TickerFlow | undefined {
+  const b = c.meta.broker;
+  if (!b) return undefined;
+  let f = FLOWS_OF.get(c);
+  if (!f) {
+    const cols = b.columns, first = cols.rows ? cols.dates[0] : null, last = cols.rows ? cols.dates[cols.dates.length - 1] : null, memo = new Map<string, FlowOut>();
+    const dates = c.meta.dates ?? [], lo = first === null ? 0 : (() => { let i = 0; while (i < dates.length && dates[i] < first) i++; return i })();
+    const notes = c.flowNotes ??= { depth: 0, masked: new Set<number>() };
+    const set = (k: string, out: FlowOut) => {
+      const [, id, params] = JSON.parse(k) as [string, string, Record<string, FlowParamValue>], e = FLOW_BY_ID[id];
+      for (const o of e?.outputs ?? []) {
+        const d = indicatorDepth(e, o.key, params);
+        if (notes.depth !== null) notes.depth = d === null ? null : Math.max(notes.depth, d);
+        if (!BROKER_PRICE.has(id)) continue;
+        const key = seriesKeyOf(e, o.key, params, 'mask'), s = out[key];
+        if (!s) continue;
+        const m = basisMask(dates, lo, s.length, d, b.actions ?? []);
+        for (let j = 0; j < s.length; j++) if (m[j] && s[j] !== null) { s[j] = null; notes.masked.add(lo + j) }
+      }
+      memo.set(k, out);
+    };
+    f = { first, last, rows: () => cols, classification: b.classification, memo: { get: k => memo.get(k), set } };
+    FLOWS_OF.set(c, f);
+  }
+  return f;
+}
+const flowBind = (f: TickerFlow | undefined): FlowBindContext | undefined => f && ({ sessions: Number.MAX_SAFE_INTEGER, first: f.first, last: f.last, complete: true,
+  classification: Object.keys(f.classification).length > 0, allDates: true });
 
 /** The test of a kind-'test' condition checked by the Screener's validation and normalized (parameters complete), or
     the refusal. A reference kind without a per-day value is refused with its reason (CONDITION_UNAVAILABLE). */
 export function checkTest(cond: unknown, field: string, limits: GrammarLimits = GRAMMAR_DEFAULTS, tickers: Iterable<string> = []): Test {
   if (!isObj(cond)) throw new ValidationError('INVALID_CONDITION', field, `${field} must be an object.`);
   const enabled = cond.enabled !== false;
-  for (const [kind, at] of refKinds(cond.test, `${field}.test`))
+  for (const [kind, at, ref] of refKinds(cond.test, `${field}.test`)) {
     if (NOT_PER_DAY[kind]) throw new ValidationError('CONDITION_UNAVAILABLE', at, `${at}: ${NOT_PER_DAY[kind]}.`);
+    const why = kind === 'flow' ? flowRefusal(ref.metric) : null;
+    if (why) throw new ValidationError('CONDITION_UNAVAILABLE', at, `${at}: ${why}.`);
+  }
   try { return validateTest(cond.test, `${field}.test`, validateContext(limits, tickers), enabled) }
   catch (e) { throw asValidation(e, `${field}.test`) }
 }
@@ -118,9 +213,10 @@ export function grammarEvaluator(limits: GrammarLimits = GRAMMAR_DEFAULTS): Gram
       const n = c.n, test = checkTest(cond, field, limits);
       const index: TickerBars | undefined = c.meta.index ? { ticker: 'IHSG', dates: [...c.meta.index.dates], bars: c.meta.index.bars } : undefined;
       let b: BoundCondition;
-      try { b = bindCondition({ id: cond.id, enabled: true, test } as ConditionDef, field, { capBudgetMs: limits.capBudgetMs, withinMax: limits.withinMax, catalog: METRICS_CATALOG, index }) }
+      const flow = tickerFlow(c);
+      try { b = bindCondition({ id: cond.id, enabled: true, test } as ConditionDef, field, { capBudgetMs: limits.capBudgetMs, withinMax: limits.withinMax, catalog: METRICS_CATALOG, index, flow: flowBind(flow) }) }
       catch (e) { throw asValidation(e, `${field}.test`) }
-      const tc = { ticker: c.meta.ticker ?? '', dates: [...(c.meta.dates ?? [])], bars: c.bars, calc: c };
+      const tc = { ticker: c.meta.ticker ?? '', dates: [...(c.meta.dates ?? [])], bars: c.bars, calc: c, ...(flow ? { flow } : {}) };
       const full = (r: ResolvedSeries) => {
         let s = c.seriesMemo.get(r.key);
         if (!s) {
@@ -133,12 +229,24 @@ export function grammarEvaluator(limits: GrammarLimits = GRAMMAR_DEFAULTS): Gram
       // a series without any value on the bars up to `last` (later bars never decide it): the Backtest's refusal; on no
       // bars at all (the request check, validate.ts) nothing is computed
       if (!n) throw new ValidationError('INDICATOR_OUTPUT_EMPTY', `${field}.test`, `${field}: there are no bars to compute this condition on.`);
+      if (!flow && seriesOf(b).some(readsFlow))
+        throw new ValidationError('FLOW_UNAVAILABLE', `${field}.test`, `${field}: this condition reads the broker data, which is not loaded for this ticker.`);
+      // the sessions a Flow condition reads before its bar: its series' own (an operator's included) and the test's
+      // within or window length (FlowNotes.depth, the run's FLOW_PRE_2021)
+      if (flow && c.flowNotes && c.flowNotes.depth !== null) {
+        const extra = (test.kind === 'event' ? (test as { within: number }).within : test.kind === 'window' ? (test as { length: number }).length : 1) - 1;
+        for (const r of seriesOf(b)) if (readsFlow(r)) {
+          const d = (r as { flowDepth?: number | null }).flowDepth;
+          c.flowNotes.depth = d === null || d === undefined ? null : Math.max(c.flowNotes.depth ?? 0, d + extra);
+          if (c.flowNotes.depth === null) break;
+        }
+      }
       const upTo = last === undefined ? n - 1 : Math.min(last, n - 1);
       for (const r of seriesOf(b)) {
         const s = full(r);
         let any = false;
         for (let i = 0; i <= upTo && !any; i++) { const v = s[i]; any = typeof v === 'number' && Number.isFinite(v) }
-        if (!any) throw new ValidationError('INDICATOR_OUTPUT_EMPTY', `${field}.test`, `${field}: ${r.label} has no value on this ticker's bars${last === undefined ? '' : ' up to the end of the period'}.`);
+        if (!any) throw new ValidationError(readsFlow(r) ? 'FLOW_OUTPUT_EMPTY' : 'INDICATOR_OUTPUT_EMPTY', `${field}.test`, `${field}: ${r.label} has no value on this ticker's bars${last === undefined ? '' : ' up to the end of the period'}.`);
       }
       const out = perBar(b, full, n);
       if (!out) throw new ValidationError('CONDITION_UNAVAILABLE', `${field}.test`, `${field}: this test has no per-day value.`);
@@ -161,6 +269,23 @@ export function grammarProblems(root: string): string[] {
     if (got !== s.sha256) problems.push(`${s.file} (${s.role}) has sha256 ${got.slice(0, 16)}..., screener-registry.json was built from ${s.sha256.slice(0, 16)}...: run npm run registry in apps/edge-bff/screener`);
   }
   return problems;
+}
+
+/** One reference's series on every bar of a ticker as a condition reads it (tests, and the worker's chart series):
+    resolved with the backtest's context (IHSG, the whole broker history), memoized in the Calc. */
+export function seriesOfRef(c: Calc, ref: unknown, field: string, limits: GrammarLimits = GRAMMAR_DEFAULTS): ArrayLike<number | null | undefined> {
+  const flow = tickerFlow(c), index: TickerBars | undefined = c.meta.index ? { ticker: 'IHSG', dates: [...c.meta.index.dates], bars: c.meta.index.bars } : undefined;
+  let r: ResolvedSeries;
+  try { r = resolveSeries(ref as never, field, { capBudgetMs: limits.capBudgetMs, index, flow: flowBind(flow), catalog: METRICS_CATALOG }) }
+  catch (e) { throw asValidation(e, field) }
+  let s = c.seriesMemo.get(r.key);
+  if (!s) {
+    const tc = { ticker: c.meta.ticker ?? '', dates: [...(c.meta.dates ?? [])], bars: c.bars, calc: c, ...(flow ? { flow } : {}) };
+    try { s = r.full(tc as never) as ArrayLike<number | null> } catch (e) { throw asValidation(e, field) }
+    grammarStats.computed++;
+    c.seriesMemo.set(r.key, s);
+  }
+  return s;
 }
 
 /** Installs the grammar into the shared core (the worker's main thread and each compute thread). */

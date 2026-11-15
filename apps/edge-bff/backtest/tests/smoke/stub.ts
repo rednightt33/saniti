@@ -94,7 +94,7 @@ function market(stocks: StockRow[], hostile: boolean, flow = false, unserved: St
     flow:flow ? { available:true, reason:null, brokers:['YU', 'CC', 'PD', 'AK'], data_through:DATES[DATES.length - 21] }
       : { available:false, reason:hostile ? XSS('flow reason') : 'Broker data not verified yet', brokers:['YU', 'CC', 'PD', ...(hostile ? [XSS('broker')] : ['AK'])], data_through:null },
     limits:{ max_positions:MAX_POSITIONS, window_bars:{ min:1, max:20 }, monte_carlo_runs:1000, max_portfolio_tickers:MAX_PORTFOLIO_TICKERS,
-             max_download_bytes:5e8, max_broker_rows:5e6, timeout_seconds:600, queued_per_owner:2, max_conditions:4 },
+             max_download_bytes:5e8, max_broker_rows:5e6, timeout_seconds:600, queued_per_owner:2, max_conditions:4, max_flow_series:8 },
   };
   const calcs = new Map<string, Calc>(), left = new Set(unserved.map(s => s[0]));
   /* a stock the market leaves out: the error the worker gives a stock without price files, or without any value of

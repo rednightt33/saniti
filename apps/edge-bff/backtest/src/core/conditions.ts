@@ -13,6 +13,7 @@
 import { F, isN } from '../../../terminal/src/calc/indicators.ts';
 import type { Bars, Num, Out, Params } from '../../../terminal/src/calc/indicators.ts';
 import type { FlowData } from './flow.ts';
+import type { BrokerColumns } from './datafile.ts';
 import { brokerNet, rollingSum, top5Accumulation } from './flow.ts';
 import { ValidationError, indicator, resolveParams } from './registry.ts';
 import lagDoc from './compare-lag.json' with { type: 'json' };
@@ -32,7 +33,17 @@ export type Signal = Uint8Array;
 
 /** What the grammar needs besides the bars: the ticker, its bar dates and the index's bars (vs_index), when the caller
     has them (the engine and the worker's preview do). */
-export interface CalcMeta { ticker?: string; dates?: readonly string[]; index?: { dates: readonly string[]; bars: Bars } }
+export interface CalcMeta {
+  ticker?: string; dates?: readonly string[]; index?: { dates: readonly string[]; bars: Bars };
+  /** EXEC-BACKTEST-REVAMP P3: the ticker's broker rows as columns and the brokers' classification (IDX_Broker_Profile,
+      today's labels used on every date: user decision 5, 2026-11-15), for the Flow indicators in the grammar */
+  broker?: { columns: BrokerColumns; classification: Readonly<Record<string, string>>; actions?: readonly string[] };
+}
+/** What the grammar noted while it read the ticker's broker data (EXEC-BACKTEST-REVAMP P3; the engine turns it into the
+    run's FLOW_* warnings for the period): the most sessions a Flow series read before its bar (null: its whole
+    history), and the bars where a broker-price value was left empty because its window reads broker rows on another
+    basis than the prices (FLOW_BASIS_CHANGE, ERRORS M448). */
+export interface FlowNotes { depth: number | null; masked: Set<number> }
 
 /** The per-bar evaluation of a TestCondition: a 0/1 series on the Calc's bars, with the grammar's own rules (EVENT
     `within` per condition, bar 0 false, a series without a value up to `last` refused as INDICATOR_OUTPUT_EMPTY). */
@@ -52,6 +63,8 @@ export class Calc {
   /** series of the grammar and of the worker's Flow indicators, keyed by the resolved series (no threshold), so the
       sensitivity grid's cells reuse them (EXEC-BACKTEST-REVAMP: Stage B Agent 6) */
   seriesMemo = new Map<string, ArrayLike<number | null | undefined>>();
+  /** set by the grammar when a condition reads the Flow indicators (FlowNotes) */
+  flowNotes: FlowNotes | null = null;
   constructor(bars: Bars, flow?: FlowData, meta: CalcMeta = {}) {
     this.bars = bars; this.n = bars.C.length;
     if (flow && flow.fnet.length !== this.n) throw new RangeError(`Calc: flow data has ${flow.fnet.length} bars, the prices ${this.n}.`);
