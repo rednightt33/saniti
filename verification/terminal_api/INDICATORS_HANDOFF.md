@@ -379,7 +379,7 @@ Bagian ini menambah, bukan mengganti, isi di atas. Rincian keputusan: `EXEC.md`,
 - Kartu indikator dihapus (user "2B"): `indCard.ts`, `calc/explain*.ts` dan tesnya tidak ada lagi; rujukan ke file itu di
   atas adalah sejarah. Tooltip hover (nama + `tip`) tetap.
 - `T/src/data/indNotes.json`, pembuatnya `scripts/build_indicator_notes.py` dan tesnya dihapus 2026-11-14 (user "1. B",
-  EXEC-GEN-CHECK, ERRORS M434): sejak kartu dihapus tidak ada kode yang membacanya. Riwayatnya di Git.
+  EXEC-GEN-CHECK, ERRORS M435): sejak kartu dihapus tidak ada kode yang membacanya. Riwayatnya di Git.
 - Jendela Indicators bergaya "Add a condition" Screener (`indMenu.ts`): baris abu-abu = setting bawaan dari registry
   (`defaultsText`), klik selalu menambah dengan notifikasi "added".
 - Sumbu harga: desimal diturunkan dari harga instrumen (`data/priceFormat.ts`).

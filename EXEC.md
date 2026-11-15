@@ -14087,7 +14087,7 @@ latest R10".
 
 ## EXEC-GEN-CHECK — file turunan diperiksa otomatis; file catatan indikator dihapus (keputusan 2026-11-14, dijalankan di branch)
 
-**Kata user, 2026-11-14:** "1. B / 2. A", atas dua keputusan (ERRORS M434):
+**Kata user, 2026-11-14:** "1. B / 2. A", atas dua keputusan (ERRORS M435):
 - 1 (file catatan indikator `indNotes.json`, tanpa pembaca sejak kartu dihapus 2026-11-06): B = hapus skrip, file dan
   tesnya, sesuai keputusan 2B; riwayat tetap di Git.
 - 2 (pemeriksaan otomatis file turunan): A = workflow GitHub pada setiap push dan PR, menjalankan semua pemeriksaan yang
@@ -14105,13 +14105,15 @@ latest R10".
 - Bukti: GitHub run `43616675930` (commit `7fb0bde6`) SUCCESS dalam 41 detik: skrip repo 7 lulus, market-ai-orc 11 lulus,
   market-python-sandbox 2 lulus; sebelum tanda dipasang, pemeriksa pembuat file gagal dan menyebut 12 pembuat.
 
-**Temuan:** `FEATURE_05_06_FOREIGN_DOMESTIC.md` berbeda dari pembuatnya (ERRORS M435). User 2026-11-14: "Cek dulu saja
-M435 sekalian". Dicek di dev (hanya baca): dokumen sama dengan `Feature_Catalog` di 612 sel; pembuatnya tertinggal 26
+**Temuan:** `FEATURE_05_06_FOREIGN_DOMESTIC.md` berbeda dari pembuatnya (ERRORS M436). User 2026-11-14: "Cek dulu saja
+M436 sekalian". Dicek di dev (hanya baca): dokumen sama dengan `Feature_Catalog` di 612 sel; pembuatnya tertinggal 26
 sel, semuanya koreksi migrasi `20261025_012`. Pembuatnya kini membaca koreksi itu dari migrasi dan menulis catatan
 tambahan dokumen; keluaran SQL-nya tetap sama dengan migrasi `20261022_004` yang sudah diterapkan. Tidak ada baris
-database atau dokumen yang berubah. Pembuatnya keluar dari pengecualian; dua cek baru. M435 FIXED.
+database atau dokumen yang berubah. Pembuatnya keluar dari pengecualian; dua cek baru. M436 FIXED.
 
-**Terbuka (menunggu user):**
-- go untuk merge ke `main` (push `main` memicu deploy; halaman tidak berubah);
-- Railway menunggu hasil pemeriksaan sebelum deploy (`checkSuites`, sekarang `false` di semua layanan,
-  `.railway/railway.ts`): keputusan terpisah.
+**Keputusan user, 2026-11-14/15:** "Ok merge / 2 B".
+- Merge ke `main`: dijalankan (hasil deploy di bawah dan di RAILWAY_CHANGELOG).
+- 2 B: Railway tidak menunggu hasil pemeriksaan; `checkSuites` tetap `false` di semua layanan (`.railway/railway.ts`
+  tidak berubah). Pemeriksaan hanya memberi tanda merah di GitHub sesudah push.
+- Nomor error: `main` sudah memakai M434 untuk Radar, jadi entri ini menjadi M435 (file catatan indikator) dan M436
+  (kamus Feature 05/06).

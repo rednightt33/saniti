@@ -80,7 +80,7 @@ A question that only makes sense to someone who has read the earlier turns or EX
    - Data: append source metadata and verification results to `DATABASE_CHANGELOG.md`.
    - Railway infrastructure/config/deployment: update `.railway/railway.ts` if applicable and append `RAILWAY_CHANGELOG.md`.
    - Documentation/process: update the relevant Markdown file.
-   - Generated files (user decision 2026-11-14, EXEC-GEN-CHECK, ERRORS M434): a file written by a script is rebuilt in
+   - Generated files (user decision 2026-11-14, EXEC-GEN-CHECK, ERRORS M435): a file written by a script is rebuilt in
      the same commit as its source and has a test marked `generated_file` that compares it with what the script writes
      now. `.github/workflows/generated-files.yml` runs those tests on every push and pull request.
      `scripts/tests/test_generated_files.py` fails when a script in a `scripts` folder named build/generate/snapshot, or

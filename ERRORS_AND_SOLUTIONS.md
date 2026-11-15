@@ -7766,7 +7766,7 @@ in its staleness check.
 - **Lesson:** a guard step that cannot run must say "not run" in one line the job's reader sees, never end in a
   traceback after the job's success line.
 
-### M434 — The indicator notes file drifted from its sources for six days; its check runs only by hand (2026-11-14, fixed)
+### M435 — The indicator notes file drifted from its sources for six days; its check runs only by hand (2026-11-14, fixed)
 
 - **Symptom:** on `main` `a936653` (2026-11-14) `scripts/tests/test_indicator_notes.py` fails:
   "apps/edge-bff/terminal/src/data/indNotes.json differs from its sources: run scripts/build_indicator_notes.py".
@@ -7819,7 +7819,7 @@ in its staleness check.
     (`INDICATOR_SPEC.md`, `FEATURE_07_RADAR.md`).
   - `scripts/tests/test_generated_files.py` finds the generators instead of listing them (a script in a `scripts` folder
     named build/generate/snapshot, or taking `--check`: 20 today) and fails when one has no marked test and no reason
-    in `EXEMPT` (8 at first; 7 since M435 was settled the same day: five applied-migration writers, a reader of a
+    in `EXEMPT` (8 at first; 7 since M436 was settled the same day: five applied-migration writers, a reader of a
     database export, the restart dry run). Before the marks were added it failed and named 12.
   - Local runs as in CI: scripts 7 passed, orc 11 passed, sandbox 2 passed. GitHub run `43616675930` (commit
     `7fb0bde6`, branch `claude/affectionate-shannon-qmsxxb`): SUCCESS in 41 s, the same counts in its three jobs.
@@ -7832,9 +7832,9 @@ in its staleness check.
   fails before it reaches `main`. Removing a reader removes its generator chain (generator, output, test, handoff rows)
   in the same commit, or records why the chain stays.
 
-### M435 — FEATURE_05_06_FOREIGN_DOMESTIC.md differs from its generator (2026-11-14, fixed)
+### M436 — FEATURE_05_06_FOREIGN_DOMESTIC.md differs from its generator (2026-11-14, fixed)
 
-- **Found by:** the inventory for EXEC-GEN-CHECK (M434): `python3 scripts/generate_feature_05_06_catalog.py dictionary`
+- **Found by:** the inventory for EXEC-GEN-CHECK (M435): `python3 scripts/generate_feature_05_06_catalog.py dictionary`
   differs from the committed `FEATURE_05_06_FOREIGN_DOMESTIC.md` in 58 table rows, and the file has 33 lines of notes
   (the IHSG validation of 2026-10-24, the INDEX history and `20261025_007`) that the generator does not write.
 - **Symptom (examples):** `buy_freq` / `sell_freq` source "from IDX_Broker_Summary_Freq" in the generator, "stored with

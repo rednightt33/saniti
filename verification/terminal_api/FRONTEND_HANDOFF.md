@@ -185,7 +185,7 @@ Auth and admin routes are not forwarded. The presigned downloads go straight fro
   explanation has `expr`, `terms` (keys, values, units), `combine(terms)`, `steps` (text and tables) and `span`. Its
   value equals the chart's (`tests/calc/explain.test.ts`).
 - Formula text: `data/indNotes.json` (`scripts/build_indicator_notes.py`, from the T1 spec and FORMULAS.md); both
-  removed 2026-11-14 (ERRORS M434).
+  removed 2026-11-14 (ERRORS M435).
 - Drawings: one set per ticker (`ml.drawings.<ticker>`, Flow Timeline `ml.drawings.flow.<ticker>`) for every timeframe.
   Each point keeps its own time (a date from D/W/M, an intraday chart time from 5M-4H) and each timeframe shows it on its
   candle (`onDailyCandles`, `onIntradayCandles`); saving keeps the stored time of every point the user did not move.

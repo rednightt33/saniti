@@ -10,7 +10,7 @@ for buy_freq/sell_freq and sync_broker_summary_freq in related_functions; Featur
 Feature_Relationship_Catalog. IDX_Broker_Summary_Freq and IDX_Net_Foreign_Summary stay unregistered (their loader is
 outside this repository; open item since 2026-10-20).
 
-ERRORS M435 (2026-11-14): `migration` reproduces the applied 20261022_004 (the v1 text, frozen; never write it to a new
+ERRORS M436 (2026-11-14): `migration` reproduces the applied 20261022_004 (the v1 text, frozen; never write it to a new
 file). `dictionary` writes the text Feature_Catalog holds now: the v1 text with the corrections of every applied
 migration that carries an `m_vocab` correction table (20261025_012 today), read from those files, plus NOTES. A later
 change to these texts is a new forward migration with such a table; the dictionary then follows it without an edit here.

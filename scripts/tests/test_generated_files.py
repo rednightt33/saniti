@@ -1,4 +1,4 @@
-"""EXEC-GEN-CHECK (user 2026-11-14: "2. A"; ERRORS M434): every generated file in the repository has a check that it
+"""EXEC-GEN-CHECK (user 2026-11-14: "2. A"; ERRORS M435): every generated file in the repository has a check that it
 equals what its generator writes now, and `.github/workflows/generated-files.yml` runs those checks (the tests marked
 `generated_file`) on each push and pull request.
 
@@ -86,7 +86,7 @@ def test_feature_07_dictionary_is_current():
 
 
 def test_feature_05_06_dictionary_is_current():
-    """ERRORS M435: the dictionary is the v1 text with the corrections of the applied m_vocab migrations (Feature_Catalog
+    """ERRORS M436: the dictionary is the v1 text with the corrections of the applied m_vocab migrations (Feature_Catalog
     as it is on dev, read back 2026-11-14) plus the notes kept in the generator."""
     run = subprocess.run([sys.executable, 'scripts/generate_feature_05_06_catalog.py', 'dictionary'], cwd=ROOT,
                          capture_output=True, text=True, timeout=300)
