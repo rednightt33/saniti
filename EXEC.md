@@ -14202,6 +14202,10 @@ dengan sidik data preflight; tidak menimpa baris yang ada), job `verification/in
   job salah mencetak angka Decimal; tidak ada yang ditulis). Perkiraan isi penuh 75 entitas: baca ±1-1,5 jam + hitung
   ±2 jam. Dijadwalkan sesudah restart terjadwal Postgres 13:45 UTC (pemeriksa restart hanya melihat statement aktif,
   sehingga bisa jatuh di sela statement job panjang; skrip juga bisa melanjutkan dari tabel fitur yang tertinggal).
+- Tahap 6 percobaan 1 (2026-11-15 12:12 UTC, job `4dd6f307`, 33 grup): berhenti sebelum menulis apa pun (0 baris baru,
+  dibaca balik): cek F06 independen menolak nilai yang benar (GAGOES 2022-04-01 Nego, momentum 0 eksak vs -2,96e-05 dari
+  jumlah berjalan float). Diperbaiki di lapisan pemeriksa: ERRORS M441. Isi ulang untuk 75 entitas sekaligus dijadwalkan
+  sesudah restart terjadwal Postgres 13:45 UTC (`jobs/fill_all.*`, batch 15, large_write).
 
 ## EXEC-OVERVIEW — halaman Market Overview (tab baru): ringkasan pasar harian dari file publisher, halaman admin (rencana 2026-11-15, BELUM dieksekusi; menunggu go)
 
