@@ -1,6 +1,6 @@
 # Rumus Market Overview (dev)
 
-<!-- explained-for: overview.py=ec4d588d48d5767519cbcf16e808d746, model.ts=f807be497cd316b11d7fad04f98c41f8, overview_stock_size=f451fc552b78a6174bc47b4e2a217293 -->
+<!-- explained-for: overview.py=ec4d588d48d5767519cbcf16e808d746, model.ts=3f70951ae870121cf646b87fe63c9411, overview_stock_size=f451fc552b78a6174bc47b4e2a217293 -->
 
 Dokumen ini menjelaskan **setiap angka di halaman Market Overview** (tab "Overview" di EDGE) dengan bahasa sederhana
 dan contoh angka asli dev. Pakai dokumen ini saat ingin mengubah rumus, atau saat bertanya dari mana sebuah angka
@@ -189,7 +189,9 @@ ETF dan kode indeks tidak dihitung.
   - Foreign buy: **jumlah** net asingnya;
   - saham tanpa nilai tidak ikut.
 - **Universe** = semua saham, atau satu daftar indeks/grup Stockbit (`Stock_List` dan anggotanya, sama dengan Screener).
-  Bawaan: **LQ45**. Universe juga menentukan Top Movers.
+  Bawaan: **LQ45**.
+- **Universe hanya untuk peta pasar** (keputusan user 2026-11-15: "treemap itu hanya kalau toggle ke LQ45 misalkan,
+  maka hanya isolated di treemap saja, tidak merubah % Above EMA, Top Movers dll"). Panel lain selalu seluruh pasar.
 - Klik kotak: popover dengan return dan net asing periode itu. Bila data broker tertinggal, ada catatan tanggal
   brokernya. Tombol "Open in Terminal" membuka saham itu di Terminal.
 
@@ -198,14 +200,17 @@ ETF dan kode indeks tidak dihitung.
 | Periode | Titik | Pembanding (garis putus-putus / persen) |
 |---|---|---|
 | 1D | bar 5 menit sesi itu (`price_stock_idx_intraday`) | penutupan sesi sebelumnya |
-| 5D | bar 1 jam dari 5 sesi yang berakhir di tanggal itu | titik pertama |
+| 5D | bar 1 jam dari 5 sesi yang berakhir di tanggal itu | penutupan sesi sebelum 5 sesi itu (seperti setiap angka 5D lain) |
 | 1M | 21 penutupan harian (20 sesi ke belakang + titik awal) | titik pertama |
 | 1Y | 253 penutupan harian (252 sesi ke belakang + titik awal) | titik pertama |
 
 - Baris Open/High/Low/Close:
   - **1D:** angka resmi hari itu dari tabel harga;
-  - **periode lain:** "Start/High/Low/End" dari penutupan pada periode itu. High = penutupan tertinggi, bukan harga
+  - **periode lain:** "Start / High close / Low close / Last". Start = penutupan pembanding (kolom kanan tabel). High
+    close dan Low close = penutupan tertinggi dan terendah pada periode itu (5D: penutupan per jam), bukan harga
     tertinggi intraday.
+- Contoh 13 Nov, 5D: Start 5.050,43 (penutupan 6 Nov), Last 5.344,41 → **+293,98 (+5,82%)**. Sebelum perbaikan QA
+  2026-11-15, 5D diukur dari bar jam pertama 9 Nov (5.081,53) dan tertulis +5,17%.
 - Contoh 13 Nov, 1D: Open 5.265,67, High 5.361,94, Low 5.215,15, Close 5.344,41; +93,51 (+1,78%) dari penutupan
   sebelumnya.
 - Tiga kotak di bawah grafik mengulang Breadth, Turnover dan Foreign net 1D (dengan tanggal broker bila tertinggal).
@@ -251,12 +256,13 @@ ETF dan kode indeks tidak dihitung.
 
 ## 11. Top Movers
 
-- Dari saham universe yang punya return pada periode pilihan (1D/5D/1M, Feature 01):
+- Dari **semua saham** yang punya return pada periode pilihan (1D/5D/1M, Feature 01). Universe peta pasar tidak
+  berpengaruh (keputusan user 2026-11-15):
   - **5 naik terbesar**: return di atas 0, diurutkan dari terbesar;
-  - **5 turun terbesar**: return di bawah 0.
+  - **5 turun terbesar**: return di bawah 0, diurutkan dari penurunan terdalam.
 - Panjang batang = return ÷ return absolut terbesar di daftar itu.
 - Baris bawah = jumlah saham, berapa naik, berapa turun.
-- Contoh 13 Nov, LQ45, 1D: WIFI +19,59% teratas; 45 saham, 37 naik, 5 turun.
+- Contoh 13 Nov, semua saham, 1D: ESIP +34,72% teratas, FLMC −9,88% turun terdalam; 836 saham, 564 naik, 143 turun.
 
 ## 12. Foreign Flow
 
@@ -357,7 +363,7 @@ Ditulis oleh `scripts/overview_formulas_doc.py --write` dari kode di repo; janga
 | Kode | Sumber | Sidik jari (md5) |
 |---|---|---|
 | `overview.py` | `apps/terminal-publisher/overview.py` (= `CODE` publisher) | `ec4d588d48d5767519cbcf16e808d746` |
-| `model.ts` | `apps/edge-bff/overview/src/model.ts` | `f807be497cd316b11d7fad04f98c41f8` |
+| `model.ts` | `apps/edge-bff/overview/src/model.ts` | `3f70951ae870121cf646b87fe63c9411` |
 | `overview_stock_size` | isi fungsi di `database/migrations/20261115_020_overview_stock_size.sql` | `f451fc552b78a6174bc47b4e2a217293` |
 
 <!-- overview-live:end -->

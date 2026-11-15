@@ -91,6 +91,15 @@ export function start(api: OverviewApi, view: HTMLElement) {
     if (!open) return;
     const ds = dayDates().slice().reverse();
     pop.innerHTML = '<div class="menu-title">Data as of</div>' + ds.map(d => `<button class="menu-item${d === ST.date ? ' on' : ''}" data-d="${d}"><span class="l"><svg class="ic ic-sm ck">${d === ST.date ? '<use href="#i-check"/>' : ''}</svg>${esc(M.dateLabel(d, true))}</span><span class="n">Close</span></button>`).join('');
+    placeMenu(pop, btn);
+  }
+  /* QA 2026-11-15 (class A): a menu is placed from its measured size: right-aligned to its button unless that leaves the
+     screen (a phone: the date menu started at x = -43 px), and never taller than the room below it (it scrolls) */
+  function placeMenu(pop: HTMLElement, anchor: HTMLElement) {
+    pop.style.left = pop.style.right = pop.style.maxHeight = '';
+    const a = anchor.getBoundingClientRect(), G = 8;
+    if (a.right - pop.offsetWidth < G) { pop.style.right = 'auto'; pop.style.left = '0' }
+    pop.style.maxHeight = Math.max(160, innerHeight - a.bottom - 6 - G) + 'px';
   }
   async function pickDate(d: string) {
     if (d === ST.date) return;
@@ -154,11 +163,13 @@ export function start(api: OverviewApi, view: HTMLElement) {
 
   /* ===================== market map ===================== */
   const tm = () => $('#tm');
-  const seg = (k: keyof State, arr: [string, string][]) => `<div class="seg sm" data-k="${k}" role="group">${arr.map(([v, l]) => `<button type="button" data-v="${v}" class="${ST[k] === v ? 'on' : ''}" aria-pressed="${ST[k] === v}">${l}</button>`).join('')}</div>`;
+  const seg = (k: keyof State, arr: [string, string][], label: string) => `<div class="seg sm" data-k="${k}" role="group" aria-label="${label}">${arr.map(([v, l]) => `<button type="button" data-v="${v}" class="${ST[k] === v ? 'on' : ''}" aria-pressed="${ST[k] === v}">${l}</button>`).join('')}</div>`;
   function renderMapBar() {
     const u = uni(), n = inUni().filter(r => r.size != null && r.size > 0).length;
-    $('#tbar').innerHTML = `<span>Metric</span>${seg('mm', [['perf', 'Performance'], ['fb', 'Foreign buy']])}<span class="sp"></span><span class="sum">${n} stocks${DOT}size: <b>${esc(M.sizeLabel(day.size_basis))}</b></span>`;
-    $('#tper').innerHTML = `<span>Period</span>${seg('cl', [['1D', '1D'], ['5D', '5D'], ['1M', '1M']])}`;
+    // the foreign figures are of the broker date: named when it lags the price date (QA 2026-11-15)
+    const md = marketDate(), fbNote = ST.mm === 'fb' && lagging() && md ? `foreign net to ${esc(M.dateLabel(md))}${DOT}` : '';
+    $('#tbar').innerHTML = `<span>Metric</span>${seg('mm', [['perf', 'Performance'], ['fb', 'Foreign buy']], 'Market map metric')}<span class="sp"></span><span class="sum">${fbNote}${n} stocks${DOT}size: <b>${esc(M.sizeLabel(day.size_basis))}</b></span>`;
+    $('#tper').innerHTML = `<span>Period</span>${seg('cl', [['1D', '1D'], ['5D', '5D'], ['1M', '1M']], 'Market map period')}`;
     $('#univ').innerHTML = `<b>${esc(u.label)}</b><span>${esc(u.kind)}</span>`;
     $('#uni').setAttribute('aria-expanded', String(ST.open));
   }
@@ -168,20 +179,25 @@ export function start(api: OverviewApi, view: HTMLElement) {
     const groups = M.mapGroups(inUni(), ST.mm, ST.cl);
     if (!groups.length) { el.innerHTML = `<div class="tm-empty">No stock of ${esc(uni().label)} has a size on ${esc(M.dateLabel(day.date))}. Pick another universe.</div>`; return }
     const fb = ST.mm === 'fb', aggTxt = (v: number | null) => (fb ? M.amount(v) : M.pct(v));
-    let html = '', onK: M.Rect<M.Tile> | null = null;
+    let html = '', onK: M.Rect<M.Tile> | null = null, count = 0;
+    tiles.clear();
+    // one tab stop for the whole map (QA 2026-11-15: 836 tiles were 836 Tab presses); arrows move between tiles
+    const focusT = ST.sel || tileFocus;
     for (const r of M.squarify(groups.map(g => ({ v: g.size, item: g })), 0, 0, W, H)) {
-      const g = r.item, hh = r.h > 40 && r.w > 70 ? 17 : 0;
-      if (hh) html += `<div class="sh" style="left:${r.x}px;top:${r.y}px;width:${r.w}px">${esc(M.MAP_SHORT[g.name] || g.name)}${r.w >= 118 ? `<i class="${M.cls(g.agg)}">${aggTxt(g.agg)}</i>` : ''}</div>`;
+      const g = r.item, hh = r.h > 40 && r.w > 70 ? 17 : 0, name = M.SHORT[g.name] || g.name;
+      // the sector's figure has priority over its name; the name ends in "…" when the heading is narrow (QA 2026-11-15)
+      if (hh) html += `<div class="sh" style="left:${r.x}px;top:${r.y}px;width:${r.w}px" title="${esc(g.name)}"><span class="shn">${esc(name)}</span>${r.w >= 80 ? `<i class="${M.cls(g.agg)}">${aggTxt(g.agg)}</i>` : ''}</div>`;
       for (const k of M.squarify(g.tiles.map(t => ({ v: t.r.size as number, item: t })), r.x + 1, r.y + hh, r.w - 2, r.h - hh - 1)) {
         const t = k.item, [bg, fg] = t.col, showT = k.w >= 34 && k.h >= 18, showC = k.w >= 46 && k.h >= 34, isOn = t.r.t === ST.sel;
         if (isOn) onK = k;
-        html += `<div class="tile${isOn && !ST.open ? ' on' : ''}" data-t="${esc(t.r.t)}" tabindex="0" role="button" aria-label="${esc(t.r.t)}, ${esc(t.r.name)}, ${esc(t.text)}" style="left:${k.x}px;top:${k.y}px;width:${k.w}px;height:${k.h}px;background:${bg};color:${fg}">${showT ? `<b>${esc(t.r.t)}</b>` : ''}${showC ? `<span>${esc(t.text)}</span>` : ''}${k.h >= 70 && k.w >= 90 ? `<span style="display:block;opacity:.8">${esc(M.sizeText(day.size_basis, t.r.size))}</span>` : ''}</div>`;
+        tiles.set(t.r.t, t);
+        const tab = (focusT ? t.r.t === focusT : count === 0) ? 0 : -1; count++;
+        html += `<div class="tile${isOn && !ST.open ? ' on' : ''}" data-t="${esc(t.r.t)}" tabindex="${tab}" role="button" aria-label="${esc(t.r.t)}, ${esc(t.r.name)}, ${esc(t.text)}" style="left:${k.x}px;top:${k.y}px;width:${k.w}px;height:${k.h}px;background:${bg};color:${fg}">${showT ? `<b>${esc(t.r.t)}</b>` : ''}${showC ? `<span>${esc(t.text)}</span>` : ''}${k.h >= 70 && k.w >= 90 ? `<span style="display:block;opacity:.8">${esc(M.sizeText(day.size_basis, t.r.size))}</span>` : ''}</div>`;
       }
     }
     if (onK && !ST.open) {
-      const r = onK.item.r, p = ST.cl, rv = r.ret[p], fv = r.fnet[p], md = marketDate(), lag = lagging() && !!md, PW = 224, PH = lag ? 150 : 130;
-      const left = Math.max(4, Math.min(onK.x + Math.min(54, onK.w / 2), W - PW - 4)), top = Math.max(4, Math.min(onK.y + 30, H - PH - 4));
-      html += `<div class="pop" role="dialog" aria-label="${esc(r.t)}" style="left:${left}px;top:${top}px">
+      const r = onK.item.r, p = ST.cl, rv = r.ret[p], fv = r.fnet[p], md = marketDate(), lag = lagging() && !!md;
+      html += `<div class="pop" role="dialog" aria-label="${esc(r.t)}">
         <div class="ph"><b>${esc(r.t)}</b><span class="muted" title="${esc(M.sizeLabel(day.size_basis))}">${esc(M.sizeText(day.size_basis, r.size))}</span></div>
         <div class="kv"><span>Return (${p})</span><b class="${M.cls(rv)}">${M.pct(rv)}</b></div>
         <div class="kv"><span title="Regular board">Foreign net (${p})</span><b class="${M.cls(fv)}">${M.rp(fv, true)}</b></div>${lag ? `
@@ -189,6 +205,38 @@ export function start(api: OverviewApi, view: HTMLElement) {
         <div class="btns"><button class="btn sm primary" data-act="term">Open in Terminal</button></div></div>`;
     }
     el.innerHTML = html;
+    el.setAttribute('role', 'group');
+    el.setAttribute('aria-label', `Market map, ${count} stocks of ${uni().label}. Arrow keys move between tiles; Enter opens one.`);
+    const pop = el.querySelector('.pop') as HTMLElement | null;
+    if (pop && onK) placePop(pop, onK, W, H);
+  }
+  /* QA 2026-11-15 (class A, "kepotong"): the popover is placed from its measured size: below the tile's label, above the
+     tile when it does not fit below, always inside the map (which clips) */
+  function placePop(pop: HTMLElement, k: M.Rect<M.Tile>, W: number, H: number) {
+    const pw = pop.offsetWidth, ph = pop.offsetHeight, G = 4;
+    let top = k.y + Math.min(30, k.h);
+    if (top + ph > H - G) top = k.y - ph - G;
+    pop.style.left = Math.max(G, Math.min(k.x + Math.min(54, k.w / 2), W - pw - G)) + 'px';
+    pop.style.top = Math.max(G, Math.min(top, H - ph - G)) + 'px';
+  }
+  /* P4 (user 2026-11-15: "tambah hoverstate ... untuk kotak yang tickernya tidak ter-detect"): a mouse over a tile shows
+     its ticker, name, both figures of the period and its size */
+  const tiles = new Map<string, M.Tile>();
+  let tileFocus: string | null = null;
+  const tileTip = document.createElement('div');
+  tileTip.className = 'ktt ttip'; tileTip.setAttribute('role', 'tooltip'); tileTip.hidden = true; document.body.append(tileTip);
+  const hideTileTip = () => (tileTip.hidden = true);
+  function showTileTip(t: string, x: number, y: number) {
+    const k = tiles.get(t); if (!k || t === ST.sel) return hideTileTip();
+    const r = k.r, p = ST.cl, md = marketDate();
+    tileTip.innerHTML = `<span class="t">${esc(r.t)}${DOT}${esc(r.name)}</span>`
+      + `<div class="r"><span>Return (${p})</span><b class="${M.cls(r.ret[p])}">${M.pct(r.ret[p])}</b></div>`
+      + `<div class="r"><span>Foreign net (${p}${lagging() && md ? ', ' + esc(M.dateLabel(md)) : ''})</span><b class="${M.cls(r.fnet[p])}">${M.rp(r.fnet[p], true)}</b></div>`
+      + `<div class="r"><span>Size</span><b>${esc(M.sizeText(day.size_basis, r.size))}</b></div>`;
+    tileTip.hidden = false;
+    const w = tileTip.offsetWidth, h = tileTip.offsetHeight, G = 8;
+    tileTip.style.left = Math.max(G, Math.min(innerWidth - w - G, x + 14)) + 'px';
+    tileTip.style.top = Math.max(G, y + 18 + h > innerHeight - G ? y - h - 12 : y + 18) + 'px';
   }
   function uniMenu() {
     const box = $('#unipop');
@@ -198,13 +246,23 @@ export function start(api: OverviewApi, view: HTMLElement) {
       const n = u.members ? [...u.members].filter(t => have.has(t)).length : have.size;
       return `<button class="menu-item ${u.key === ST.u ? 'on' : ''}" data-u="${esc(u.key)}"><span class="l"><svg class="ic ic-sm ck">${u.key === ST.u ? '<use href="#i-check"/>' : ''}</svg>${esc(u.label)}</span><span class="n">${n} stocks</span></button>`;
     };
+    // P2 (user 2026-11-15): the list scrolls inside the menu; the search field stays on top
     box.innerHTML = `<div class="unipop"><input class="inp sm" type="text" placeholder="Search index or group" aria-label="Search index or group" value="">
-      <div class="menu-title">Market</div>${U.filter(u => u.kind === 'Market').map(item).join('')}
+      <div class="unilist"><div class="menu-title">Market</div>${U.filter(u => u.kind === 'Market').map(item).join('')}
       <div class="menu-title">Index</div>${U.filter(u => u.kind === 'Index').map(item).join('')}
-      <div class="menu-title">Group</div>${U.filter(u => u.kind === 'Group').map(item).join('')}</div>`;
-    const inp = $<HTMLInputElement>('input', box), items = $$('.menu-item', box);
-    inp.oninput = () => { const v = inp.value.toLowerCase(); items.forEach(b => (b.style.display = b.textContent!.toLowerCase().includes(v) ? '' : 'none')) };
-    inp.focus();                                   // at once: the menu was just drawn by this click
+      <div class="menu-title">Group</div>${U.filter(u => u.kind === 'Group').map(item).join('')}</div></div>`;
+    const inp = $<HTMLInputElement>('input', box), items = $$('.menu-item', box), titles = $$('.menu-title', box);
+    inp.oninput = () => {
+      const v = inp.value.toLowerCase();
+      items.forEach(b => (b.style.display = b.textContent!.toLowerCase().includes(v) ? '' : 'none'));
+      titles.forEach(t => {                          // a section without a match hides its title
+        let n = t.nextElementSibling as HTMLElement | null, any = false;
+        while (n && !n.classList.contains('menu-title')) { if (n.style.display !== 'none') any = true; n = n.nextElementSibling as HTMLElement | null }
+        t.style.display = any ? '' : 'none';
+      });
+    };
+    // a touch screen does not get the field focused (its keyboard would cover the list, QA 2026-11-15)
+    if (!matchMedia('(pointer: coarse)').matches) inp.focus();
   }
   function setUniMenu(open: boolean) { ST.open = open; if (open) ST.sel = null; renderMapBar(); uniMenu(); renderTree() }
 
@@ -238,7 +296,7 @@ export function start(api: OverviewApi, view: HTMLElement) {
     ihGeo = { X, Y, t, H, W };
   }
   const hideIh = () => { const el = $('#ihc'); ($('.xh', el)).hidden = ($('.xd', el)).hidden = ($('.tip', el)).hidden = true };
-  function moveIh(e: MouseEvent) {
+  function moveIh(e: PointerEvent | MouseEvent) {
     const el = $('#ihc'); if (!ihGeo || !ih) return;
     const r = el.getBoundingClientRect(), mx = e.clientX - r.left, g = ihGeo, pts = ih.pts, n = pts.length - 1;
     if (mx < 0 || mx > g.X(n) + 10) return hideIh();
@@ -259,12 +317,17 @@ export function start(api: OverviewApi, view: HTMLElement) {
     const v = ih.pts.map(p => p.v), o = day.index[mk()];
     const cells: [string, number | null | undefined][] = ST.per === '1D'
       ? [['Open', o?.open], ['High', o?.high], ['Low', o?.low], ['Close', o?.close]]
-      : [['Start', v[0]], ['High', v.length ? Math.max(...v) : null], ['Low', v.length ? Math.min(...v) : null], ['End', v[v.length - 1]]];
-    $('#ohlc').innerHTML = cells.map(([k, x]) => `<span${ST.per === '1D' ? '' : ' title="From the closes of the period"'}>${k}<b>${x == null ? '—' : f0(x, 2)}</b></span>`).join('');
+      // QA 2026-11-15: a multi-day period shows closes (5D: hourly closes), so its labels say so; Start is the close
+      // the change is measured from
+      : [['Start', ih.ref], ['High close', v.length ? Math.max(...v) : null], ['Low close', v.length ? Math.min(...v) : null], ['Last', v[v.length - 1]]];
+    $('#ohlc').innerHTML = cells.map(([k, x]) => `<span>${k}<b>${x == null ? '—' : f0(x, 2)}</b></span>`).join('');
     const lastV = ST.per === '1D' ? o?.close ?? v[v.length - 1] : v[v.length - 1], ref = ih.ref, d = lastV != null && ref != null ? lastV - ref : null;
     $('#ihq').innerHTML = lastV == null ? '' : `<b>${f0(lastV, 2)}</b>${d == null ? '' : `<span class="pill ${d > 0 ? 'pos' : d < 0 ? 'neg' : ''}">${M.sign(d)}${f0(Math.abs(d), 2)}${DOT}${M.pct((d / (ref as number)) * 100)}</span>`}`;
-    const m = day.market, md = marketDate(), at = lagging() && md ? ` (${esc(M.dateLabel(md))})` : '';
-    $('#ihk').innerHTML = `<div class="kpi"><span>Advancers / decliners</span><b>${day.breadth.advancers} / ${day.breadth.decliners}</b></div><div class="kpi"><span>Turnover${at}</span><b>${M.rp(m?.turnover)}</b></div><div class="kpi"><span>Foreign net${at}</span><b class="${M.cls(m?.foreign_net_1d)}">${M.rp(m?.foreign_net_1d, true)}</b></div>`;
+    // always 1D whatever the chart's period; the broker date when it lags the price date (QA 2026-11-15)
+    const m = day.market, md = marketDate(), at = lagging() && md ? `, ${esc(M.dateLabel(md))}` : '';
+    $('#ihk').innerHTML = `<div class="kpi"><span>Advancers / decliners (1D)</span><b>${day.breadth.advancers} / ${day.breadth.decliners}</b></div><div class="kpi"><span>Turnover (1D${at})</span><b>${M.rp(m?.turnover)}</b></div><div class="kpi"><span>Foreign net (1D${at})</span><b class="${M.cls(m?.foreign_net_1d)}">${M.rp(m?.foreign_net_1d, true)}</b></div>`;
+    $('#ihc').setAttribute('aria-label', `${mk()} ${ih.sub.toLowerCase()}: ` + (lastV != null && ref != null
+      ? `${f0(lastV, 2)}, ${M.sign(lastV - ref)}${f0(Math.abs(lastV - ref), 2)} (${M.pct(((lastV - ref) / ref) * 100)}) from ${f0(ref, 2)}` : 'no data'));
     $$('#ihp button').forEach(x => { const on = x.dataset.v === ST.per; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)) });
     drawIhsg(true);
   }
@@ -274,7 +337,7 @@ export function start(api: OverviewApi, view: HTMLElement) {
   const tw = (t: string, f = '600 10.5px Inter, sans-serif') => { if (!ctx) return t.length * 6; ctx.font = f; return ctx.measureText(t).width };
   const ticksOf = (lo: number, hi: number, n = 4) => { const raw = (hi - lo) / n || 1, p = 10 ** Math.floor(Math.log10(raw)), st = [1, 2, 2.5, 5, 10].map(m => m * p).find(m => m >= raw) as number; const t: number[] = []; for (let v = Math.ceil(lo / st) * st; v <= hi + 1e-9; v += st) t.push(+v.toFixed(6)); return t };
   interface Line { n: string; a: (number | null)[]; c: string; w?: number; z?: number; dash?: boolean; tip?: boolean; tn?: string }
-  interface LineCfg { dates: string[]; series: Line[]; base?: number; range?: [number, number]; ticks?: number[]; fy?: (v: number) => string; ft?: (v: number) => string; bands?: { lo: (number | null)[]; hi: (number | null)[]; fill: string }[] }
+  interface LineCfg { label?: string; dates: string[]; series: Line[]; base?: number; range?: [number, number]; ticks?: number[]; fy?: (v: number) => string; ft?: (v: number) => string; bands?: { lo: (number | null)[]; hi: (number | null)[]; fill: string }[] }
   function lineChart(el: HTMLElement, cfg: LineCfg) {
     const W = el.clientWidth, H = el.clientHeight;
     if (!W || !H) return;
@@ -289,7 +352,8 @@ export function start(api: OverviewApi, view: HTMLElement) {
     const X = (i: number) => L + (i / n) * (R - L), Y = (v: number) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
     let o = ticks.map(t => `<line x1="${L}" x2="${R}" y1="${Y(t)}" y2="${Y(t)}" stroke="${Math.abs(t - base) < 1e-9 ? 'var(--ov-base)' : 'var(--ov-grid)'}"/><text x="${L - 6}" y="${Y(t) + 3.5}" text-anchor="end" class="ax">${fy(t)}</text>`).join('');
     const XF = R - L < 170 ? [0, 1] : R - L < 260 ? [0, 0.5, 1] : [0, 1 / 3, 2 / 3, 1];
-    XF.forEach((f, k) => { const i = Math.round(f * n); o += `<text x="${X(i)}" y="${H - 4}" text-anchor="${k === 0 ? 'start' : k === XF.length - 1 ? 'end' : 'middle'}" class="ax">${M.dateLabel(cfg.dates[i])}</text>` });
+    const yAxis = cfg.dates[0].slice(0, 4) !== cfg.dates[n].slice(0, 4);     // a range across years names the first year
+    XF.forEach((f, k) => { const i = Math.round(f * n); o += `<text x="${X(i)}" y="${H - 4}" text-anchor="${k === 0 ? 'start' : k === XF.length - 1 ? 'end' : 'middle'}" class="ax">${M.dateLabel(cfg.dates[i], false, yAxis && k === 0)}</text>` });
     const P = (a: (number | null)[]) => { let d = '', pen = false; a.forEach((v, i) => { if (v == null) { pen = false; return } d += (pen ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1); pen = true }); return d };
     (cfg.bands || []).forEach(b => {
       const hiP = b.hi.map((v, i) => [i, v] as const).filter(([, v]) => v != null), loP = b.lo.map((v, i) => [i, v] as const).filter(([, v]) => v != null).reverse();
@@ -297,15 +361,17 @@ export function start(api: OverviewApi, view: HTMLElement) {
     });
     [...ser].sort((a, b) => (a.z || 0) - (b.z || 0)).forEach(s => (o += `<path d="${P(s.a)}" fill="none" stroke="${s.c}" stroke-width="${s.w || 1.6}" ${s.dash ? 'stroke-dasharray="4 3"' : ''} stroke-linejoin="round"/>`));
     el.innerHTML = `<svg aria-hidden="true">${o}</svg><i class="xh" hidden></i><div class="tip" hidden></div>`;
+    if (cfg.label) { el.setAttribute('role', 'img'); el.setAttribute('aria-label', cfg.label) }
     const xh = $('.xh', el), tip = $('.tip', el), ft = cfg.ft || ((v: number) => M.pct(v, 1));
-    el.onmouseleave = () => { xh.hidden = tip.hidden = true };
-    el.onmousemove = e => {
+    const yr = cfg.dates[0].slice(0, 4) !== cfg.dates[n].slice(0, 4);
+    el.onpointerleave = e => { if (e.pointerType === 'mouse') xh.hidden = tip.hidden = true };
+    el.onpointerdown = el.onpointermove = e => {
       const r = el.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
       if (mx < L || mx > R) { xh.hidden = tip.hidden = true; return }
       const i = Math.max(0, Math.min(n, Math.round(((mx - L) / (R - L)) * n)));
       xh.style.cssText = `left:${X(i)}px;top:${T}px;height:${H - T - B}px`; xh.hidden = false;
       const rows = ser.filter(s => s.tip).map(s => ({ n: s.tn || s.n, c: s.c, v: s.a[i] })).filter(x => x.v != null).sort((a, b) => (b.v as number) - (a.v as number));
-      tip.innerHTML = `<span class="d">${esc(M.dateLabel(cfg.dates[i], true))}${DOT}day ${i} of ${n}</span>` + rows.map(x => `<div class="r"><i style="background:${x.c}"></i><span>${esc(x.n)}</span><b class="${(x.v as number) >= base ? 'up' : 'down'}">${ft(x.v as number)}</b></div>`).join('');
+      tip.innerHTML = `<span class="d">${esc(M.dateLabel(cfg.dates[i], true, yr))}${DOT}day ${i} of ${n}</span>` + rows.map(x => `<div class="r"><i style="background:${x.c}"></i><span>${esc(x.n)}</span><b class="${(x.v as number) >= base ? 'up' : 'down'}">${ft(x.v as number)}</b></div>`).join('');
       tip.hidden = false;
       const tw2 = tip.offsetWidth, th = tip.offsetHeight;
       tip.style.left = Math.max(0, Math.min(W - tw2, mx > W / 2 ? mx - tw2 - 12 : mx + 12)) + 'px';
@@ -322,15 +388,18 @@ export function start(api: OverviewApi, view: HTMLElement) {
     box.innerHTML = `<div class="cb"><div class="cv"></div><div class="bl">${lines.map(x => {
       const v = x.last, w = v == null ? 0 : (Math.abs(v) / mx) * 50;
       return `<div class="r" data-n="${esc(x.name)}"><span title="${esc(x.name)}">${esc(M.SHORT[x.name] || x.name)}</span><div class="tr"><i style="${(v ?? 0) >= 0 ? 'left:50%' : 'right:50%'};width:${w}%;background:${(v ?? 0) >= 0 ? 'var(--up)' : 'var(--down)'}"></i></div><b class="${M.cls(v)}">${M.pct(v, 1)}</b></div>`;
-    }).join('')}</div></div><div class="sfoot"><span>${esc(M.dateLabel(dates[0]))} – ${esc(M.dateLabel(dates[dates.length - 1]))}</span><span>Hover a sector to highlight its line</span></div>`;
+    }).join('')}</div></div><div class="sfoot"><span>${esc(M.rangeLabel(dates[0], dates[dates.length - 1]))}</span><span>Point at a sector to highlight its line</span></div>`;
     $$('.bl .r', box).forEach(row => {
       row.onmouseenter = () => { hl = row.dataset.n || null; row.classList.add('on'); drawSectors() };
       row.onmouseleave = () => { hl = null; row.classList.remove('on'); drawSectors() };
     });
     const known = lines.filter(x => x.last != null), focus = known.length >= 4 ? new Set([known[0].name, known[1].name, known[known.length - 2].name, known[known.length - 1].name]) : new Set(known.map(x => x.name));
+    const mkLast = M.lastKnown(sl.market);
+    const label = `Sector Performance ${ST.sp}, ${M.rangeLabel(dates[0], dates[dates.length - 1])}: ` + known.map(x => `${x.name} ${M.pct(x.last, 1)}`).join(', ')
+      + `; ${mk()} ${M.pct(mkLast, 1)}`;
     drawSectors = () => {
       const h = hl ? new Set([hl]) : focus; let ci = 0;
-      lineChart($('.cv', box), { dates, series: [
+      lineChart($('.cv', box), { label, dates, series: [
         ...lines.map(x => (h.has(x.name) ? { n: x.name, a: x.a, c: hl ? 'var(--text)' : PAL[ci++ % PAL.length], w: hl ? 2 : 1.6, z: 3, tip: true } : { n: x.name, a: x.a, c: 'var(--ov-dim)', w: 1, tip: false })),
         { n: mk(), a: sl.market, c: 'var(--text)', dash: true, w: 1.3, z: 2, tip: true }] });
     };
@@ -348,18 +417,21 @@ export function start(api: OverviewApi, view: HTMLElement) {
     $$('#brpk button').forEach(x => { const on = x.dataset.k === ST.brk; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)) });
     $$('#brpp button').forEach(x => { const on = x.dataset.p === ST.brp; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)) });
     const fl = (x: number) => Array(a.length).fill(x);
-    drawBreadth = () => lineChart($('.cv', box), { dates, range: [0, 100], ticks: [0, 30, 50, 70, 100], base: 50, fy: x => x + '%', ft: x => x.toFixed(1) + '%',
+    const label = `Stocks above ${ST.brk}, ${M.rangeLabel(dates[0], dates[dates.length - 1])}: ${v == null ? 'no data' : v.toFixed(1) + '%'} on ${M.dateLabel(day.date)}`
+      + (d == null ? '' : `, ${M.sign(d)}${Math.abs(d).toFixed(1)} points against 5 sessions before`);
+    drawBreadth = () => lineChart($('.cv', box), { label, dates, range: [0, 100], ticks: [0, 30, 50, 70, 100], base: 50, fy: x => x + '%', ft: x => x.toFixed(1) + '%',
       bands: [{ lo: fl(70), hi: fl(100), fill: 'rgba(8,153,129,.07)' }, { lo: fl(0), hi: fl(30), fill: 'rgba(242,54,69,.07)' }, { lo: fl(0), hi: a, fill: 'rgba(23,52,140,.08)' }],
       series: [{ n: ST.brk, a, c: col, w: 1.8, tip: true }] });
     requestAnimationFrame(() => drawBreadth());
   }
 
-  /* ===================== Top Movers: 5 up and 5 down in the market map's universe ===================== */
+  /* ===================== Top Movers: 5 up and 5 down of the whole market (user 2026-11-15: "treemap itu hanya kalau toggle
+     ke LQ45 ... hanya isolated di treemap saja, tidak merubah % Above EMA, Top Movers dll") ===================== */
   function renderMovers() {
-    const u = uni(), m = M.movers(inUni(), ST.tmp), mx = Math.max(...[...m.up, ...m.down].map(r => Math.abs(r.ret[ST.tmp] as number))) || 1;
-    const row = (r: M.Row) => { const v = r.ret[ST.tmp] as number; return `<div class="tmv-r" tabindex="0" data-t="${esc(r.t)}" title="${esc(r.t)}${DOT}${esc(r.name)}${DOT}${M.pct(v)}"><span class="tk">${esc(r.t)}</span><div class="tmv-t"><i class="${v >= 0 ? 'pos' : 'neg'}" style="width:${Math.max(1.5, (Math.abs(v) / mx) * 50)}%"></i></div><b class="${v >= 0 ? 'pos' : 'neg'}">${M.pct(v)}</b></div>` };
-    $('#tmvb').innerHTML = `<div class="tmv-l"><div class="tmv-g" aria-label="Top gainers">${m.up.map(row).join('') || '<div class="tmv-none">No stock up</div>'}</div><div class="tmv-g" aria-label="Top losers">${m.down.map(row).join('') || '<div class="tmv-none">No stock down</div>'}</div></div><div class="tmv-f"><span>${m.count} stocks${DOT}${m.ups} up / ${m.downs} down</span><span>${esc(u.label)}</span></div>`;
-    $('#tmvs').textContent = u.label + DOT + 'by return';
+    const m = M.movers(R, ST.tmp), mx = Math.max(...[...m.up, ...m.down].map(r => Math.abs(r.ret[ST.tmp] as number))) || 1;
+    const row = (r: M.Row) => { const v = r.ret[ST.tmp] as number; return `<div class="tmv-r" tabindex="0" role="button" data-t="${esc(r.t)}" aria-label="${esc(r.t)}, ${esc(r.name)}, ${M.pct(v)}, open in Terminal" title="${esc(r.t)}${DOT}${esc(r.name)}${DOT}${M.pct(v)}"><span class="tk">${esc(r.t)}</span><div class="tmv-t"><i class="${v >= 0 ? 'pos' : 'neg'}" style="width:${Math.max(1.5, (Math.abs(v) / mx) * 50)}%"></i></div><b class="${v >= 0 ? 'pos' : 'neg'}">${M.pct(v)}</b></div>` };
+    $('#tmvb').innerHTML = `<div class="tmv-l"><div class="tmv-g" aria-label="Top gainers">${m.up.map(row).join('') || '<div class="tmv-none">No stock up</div>'}</div><div class="tmv-g" aria-label="Top losers">${m.down.map(row).join('') || '<div class="tmv-none">No stock down</div>'}</div></div><div class="tmv-f"><span>${m.count} stocks${DOT}${m.ups} up / ${m.downs} down</span><span>All stocks</span></div>`;
+    $('#tmvs').textContent = 'All stocks' + DOT + 'by return';
     $$('#tmvp button').forEach(x => { const on = x.dataset.p === ST.tmp; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)) });
   }
 
@@ -390,6 +462,29 @@ export function start(api: OverviewApi, view: HTMLElement) {
     R = M.rows(meta, day);
     end = M.seriesEnd(series, day.date);
     renderHead(); renderKpis(); renderMapBar(); uniMenu(); renderTree(); renderIhsg(); renderSectors(); renderBreadth(); renderMovers(); renderFlow();
+    fit();
+  }
+  /* B2 (user 2026-11-15, zoom 125%: the controls dropped to a second row, right-aligned): derived from what is drawn,
+     not from a width table. A card header first hides its "Period"/"EMA" words; if its controls still do not fit beside
+     the title they go on their own row under it, left-aligned. The OHLC row turns 2 x 2 when a value is wider than its
+     cell (a phone: up to 13 px). */
+  function fit() {
+    for (const h of $$('.card-h:not(.tmc .card-h)')) {        // the map's header keeps the design's own phone layout
+      const seg = h.querySelector('.seg') as HTMLElement | null, first = h.firstElementChild as HTMLElement | null;
+      if (!seg || !first) continue;
+      h.classList.remove('tight', 'wrapped');
+      const bad = () => h.scrollWidth > h.clientWidth + 1 || seg.getBoundingClientRect().top >= first.getBoundingClientRect().bottom - 2;
+      if (!bad()) continue;
+      h.classList.add('tight');
+      if (!bad()) continue;
+      // on their own row the controls get their words back when the row holds them on one line
+      h.classList.add('wrapped'); h.classList.remove('tight');
+      const segs = [...h.querySelectorAll('.seg')].map(x => x.getBoundingClientRect().top);
+      if (h.scrollWidth > h.clientWidth + 1 || Math.max(...segs) - Math.min(...segs) > 2) h.classList.add('tight');
+    }
+    const ohlc = $('#ohlc');
+    ohlc.classList.remove('two');
+    if ($$('b', ohlc).some(b => b.scrollWidth > b.clientWidth + 1)) ohlc.classList.add('two');
   }
 
   /* ===================== events (bound once; the containers stay, their content is redrawn) ===================== */
@@ -405,11 +500,12 @@ export function start(api: OverviewApi, view: HTMLElement) {
     $('#unipop').addEventListener('click', e => {
       e.stopPropagation();
       const b = (e.target as HTMLElement).closest('.menu-item') as HTMLElement; if (!b) return;
-      ST.u = b.dataset.u || M.ALL; persist(); setUniMenu(false); renderMovers(); $('#uni').focus();
+      ST.u = b.dataset.u || M.ALL; persist(); setUniMenu(false); $('#uni').focus();
     });
     const select = (t: string, kb = false) => {
-      ST.sel = ST.sel === t ? null : t; renderTree();
-      if (kb && ST.sel) (tm().querySelector(`.tile[data-t="${CSS.escape(ST.sel)}"]`) as HTMLElement | null)?.focus({ preventScroll: true });
+      ST.sel = ST.sel === t ? null : t; tileFocus = t; hideTileTip(); renderTree();
+      // from the keyboard the popover's action takes the focus (QA 2026-11-15); Escape returns to the tile
+      if (kb && ST.sel) (tm().querySelector('.pop [data-act=term]') as HTMLElement | null)?.focus({ preventScroll: true });
     };
     tm().addEventListener('click', e => {
       const el = e.target as HTMLElement;
@@ -418,9 +514,24 @@ export function start(api: OverviewApi, view: HTMLElement) {
       const t = el.closest('.tile') as HTMLElement;
       if (t) select(t.dataset.t as string); else if (ST.sel) { ST.sel = null; renderTree() }
     });
-    tm().addEventListener('keydown', e => { const t = (e.target as HTMLElement).closest('.tile') as HTMLElement; if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(t.dataset.t as string, true) } });
+    tm().addEventListener('keydown', e => {
+      const t = (e.target as HTMLElement).closest('.tile') as HTMLElement; if (!t) return;
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(t.dataset.t as string, true); return }
+      const all = $$('.tile', tm()), i = all.indexOf(t);
+      const to = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: all.length - 1 }[e.key];
+      if (to == null) return;
+      e.preventDefault();
+      const next = all[Math.max(0, Math.min(all.length - 1, to))];
+      t.tabIndex = -1; next.tabIndex = 0; next.focus({ preventScroll: false }); tileFocus = next.dataset.t || null;
+    });
+    tm().addEventListener('pointermove', e => {
+      if (e.pointerType !== 'mouse') return;
+      const t = (e.target as HTMLElement).closest('.tile') as HTMLElement | null;
+      if (t && !(e.target as HTMLElement).closest('.pop')) showTileTip(t.dataset.t as string, e.clientX, e.clientY); else hideTileTip();
+    });
+    tm().addEventListener('pointerleave', hideTileTip);
     $('#tmvb').addEventListener('click', e => { const r = (e.target as HTMLElement).closest('.tmv-r') as HTMLElement; if (r) openTerminal(r.dataset.t as string) });
-    $('#tmvb').addEventListener('keydown', e => { const r = (e.target as HTMLElement).closest('.tmv-r') as HTMLElement; if (r && e.key === 'Enter') openTerminal(r.dataset.t as string) });
+    $('#tmvb').addEventListener('keydown', e => { const r = (e.target as HTMLElement).closest('.tmv-r') as HTMLElement; if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTerminal(r.dataset.t as string) } });
     $('#termbtn').addEventListener('click', () => openTerminal(ST.sel));
     $('#datebtn').addEventListener('click', e => { e.stopPropagation(); dateMenu($('#datepop').hidden) });
     $('#datepop').addEventListener('click', e => {
@@ -431,20 +542,30 @@ export function start(api: OverviewApi, view: HTMLElement) {
       const b = (e.target as HTMLElement).closest('button') as HTMLElement; if (!b) return;
       (ST as any)[k] = b.dataset[attr]; persist(); after();
     });
-    periodClick('#ihp', 'per', 'v', renderIhsg);
+    periodClick('#ihp', 'per', 'v', () => { renderIhsg(); fit() });
     periodClick('#spp', 'sp', 'p', renderSectors);
     periodClick('#brpk', 'brk', 'k', renderBreadth);
     periodClick('#brpp', 'brp', 'p', renderBreadth);
     periodClick('#tmvp', 'tmp', 'p', renderMovers);
     periodClick('#ffp', 'ff', 'v', renderFlow);
     const ihc = $('#ihc');
-    ihc.addEventListener('mousemove', moveIh);
-    ihc.addEventListener('mouseleave', hideIh);
+    // pointer events: a mouse moves the crosshair; a finger taps a point or drags sideways along the line (QA 2026-11-15)
+    ihc.addEventListener('pointermove', moveIh);
+    ihc.addEventListener('pointerdown', moveIh);
+    ihc.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hideIh() });
     $('#kpis').addEventListener('mouseover', e => { const k = (e.target as HTMLElement).closest('.k[data-k]') as HTMLElement; if (k) showTip(k) });
     $('#kpis').addEventListener('mouseout', e => { const k = (e.target as HTMLElement).closest('.k[data-k]'); if (k && !k.contains(e.relatedTarget as Node)) hideTip() });
     $('#kpis').addEventListener('focusin', e => { const k = (e.target as HTMLElement).closest('.k[data-k]') as HTMLElement; if (k) showTip(k) });
     $('#kpis').addEventListener('focusout', hideTip);
-    view.addEventListener('scroll', hideTip, { passive: true });
+    view.addEventListener('scroll', () => { hideTip(); hideTileTip() }, { passive: true });
+    // a tap in the shell around this frame closes this page's menus too (QA 2026-11-15)
+    const closeAll = () => { hideTip(); hideTileTip(); if (!$('#datepop').hidden) dateMenu(false); if (ST.open) setUniMenu(false); if (ST.sel) { ST.sel = null; renderTree() } };
+    if (parent !== window) {
+      try {
+        parent.document.addEventListener('pointerdown', closeAll);
+        addEventListener('pagehide', () => { try { parent.document.removeEventListener('pointerdown', closeAll) } catch { /* the shell is gone */ } });
+      } catch { /* another origin: nothing to listen to */ }
+    }
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
       hideTip();
@@ -458,6 +579,8 @@ export function start(api: OverviewApi, view: HTMLElement) {
       if (ST.sel && !e.composedPath().includes(tm())) { ST.sel = null; renderTree() }   // a click outside the map closes its popover
     });
     // the charts and the map follow their box (every breakpoint); the state stays
+    // QA 2026-11-15 (B2): card headers and the OHLC row fit what they hold, measured on every size change
+    new ResizeObserver(() => fit()).observe($('#body'));
     let mapSize = '', mapT = 0;
     new ResizeObserver(() => { const el = tm(), k = el.clientWidth + 'x' + el.clientHeight; if (k === mapSize) return; mapSize = k; clearTimeout(mapT); mapT = window.setTimeout(renderTree, 80) }).observe(tm());
     new ResizeObserver(() => drawIhsg(false)).observe(ihc);

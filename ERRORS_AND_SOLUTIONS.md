@@ -8041,3 +8041,48 @@ in its staleness check.
   by the manual mode `overview` (AGENTS.md, after a large update, step 4; OVERVIEW_FORMULAS.md section 13).
 - **Lesson:** a cached output is keyed on the content of what it read, at least for the part of history that loaders
   still write; a file that refers to another file by position is rebuilt whenever that file's order changes.
+
+### M443 — Market Overview on a phone: menus and popovers outgrew the screen, labels were cut or misleading, and no page menu existed (2026-11-15, fixed in the branch)
+
+- **Found by:** the user (screenshots: values not aligned, the universe list running off the page, the tile popover cut,
+  no hover on unlabelled tiles, controls on a second row at 125% zoom) and a mobile QA by five reviewers (user
+  2026-11-15: "Jalankan 5 subagents sonnet 5.5 high to review"); each finding measured again on dev before it was listed
+  (EXEC-OVERVIEW, "Daftar perbaikan"). Figures were right: 13,119 values on a phone equal an independent recalculation.
+- **Verified causes, by class:**
+  - **A, floating elements sized by assumption or not at all:** the tile popover was placed for a height of 130/150 px
+    (`app.ts`) while it measured 188 px in a map that clips (`.tm{overflow:hidden}`): 32 of 45 tiles clipped it on an
+    iPhone 13; the universe menu had no height limit (2,005 px for 67 lists); the date menu was anchored to the right of
+    a button at the left of a phone screen (x = -43 px).
+  - **B, text in narrow cells:** the values under the IHSG chart followed labels of one or two lines; OHLC values were
+    6-13 px wider than their cells at 390-360 px; KPI labels and "129 unchanged" were cut; sector headings cut without
+    "…"; dates split over two lines ("9 / Nov").
+  - **C, rounding at a unit boundary:** the unit was chosen before rounding ("+1000M", "Rp 1000.0B"); trillions had 1 or
+    2 decimals side by side.
+  - **D, labels:** IHSG 5D was measured from the first hourly bar (+5.17%) instead of the close before the period
+    (+5.82%, as every other 5D figure); a 1Y range had no year; foreign figures of the broker date carried no date;
+    Top Movers' losers were listed mildest first; sector short names differed between panels.
+  - **E, mouse only:** no hover on tiles; chart crosshairs only on `mousemove`; the universe search took the focus on a
+    phone (its keyboard covers the list); a tap in the shell did not close the page's menus.
+  - **F, accessibility:** each of up to 836 tiles was a Tab stop; five period groups had no group name; charts had no
+    text summary.
+  - **Shell:** at 720 px or less the left menu is hidden (`static/index.html`) and nothing replaced it: on a phone every
+    page but Monitor was reachable only by typing its address (before the Overview too).
+  - **Header controls on a second row, right-aligned** (user, zoom 125%): the design's own behaviour when a card is
+    narrower than its title plus its controls (the design file renders the same at 1152, 1280 and 1440 px).
+- **Solution (branch `claude/keen-turing-56vw7y`; user decisions 2026-11-15 "1B, 2B, 3 no hanya IHSG saja", "go,
+  kerjakan 1 lalu 2"):** popover and menus placed from their measured size, menus bounded with an inner scroll;
+  `fit()` derives each header's layout from what is drawn (words hidden first, then a left-aligned row of their own,
+  the words back when that row holds them) and turns OHLC 2 x 2 when a value overflows; bottom-aligned values,
+  wrapping labels, ellipsis headings, no-break dates; units chosen after rounding; 5D from the close before the
+  period, years on cross-year ranges, broker dates named; deepest fall first; one name table; tile hover tooltip;
+  pointer events on charts (`touch-action: pan-y`); no auto-focus on touch; one tab stop for the map with arrow keys;
+  named groups and chart summaries; Top Movers on the whole market (the universe is for the map only); the shell's
+  pages menu (☰) on a phone (1B). Not changed: the grey text token (2B).
+- **Checks:** page tests 17 passed; edge-bff suite 368 passed (a new phone test of the pages menu); fixture checks at
+  1440, 1152, 390 and 360 px: P1 values on one line, no OHLC overflow, no label cut, every header fits, one tab stop,
+  universe menu 440 px with an inner scroll, date menu inside the screen, 0 of 45 popovers clipped, hover on an
+  unlabelled tile, IHSG 5D +5.82%; interaction checks 33 passed.
+- **Status:** FIXED in the branch; deployed with edge-bff after the user's go (RAILWAY_CHANGELOG).
+- **Lesson:** a floating element is placed from its measured size inside the box that clips it; a layout rule that
+  depends on text length is derived from the rendered result, not from a width table; a value's unit is chosen after
+  rounding.

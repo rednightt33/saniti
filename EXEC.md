@@ -14400,7 +14400,9 @@ toggle ke LQ45 misalkan, maka hanya isoalted di treemap saja, tidak merubah % Ab
 - 3: Foreign Flow tetap seluruh pasar (IHSG), tidak mengikuti universe.
 - Universe hanya untuk peta pasar: Top Movers juga tidak lagi mengikuti universe (seluruh pasar); % Above EMA sudah
   seluruh pasar.
-Eksekusi daftar A–F, B2, G(1B) dan F1 menunggu go.
+Eksekusi daftar A–F, B2, G(1B) dan F1: **go user 2026-11-15: "go, kerjakan 1 lalu 2"** (1 = perbaikan A–F, B2, menu ☰,
+Top Movers seluruh pasar; 2 = F1 Custom). Dikerjakan di branch; setiap deploy ditanyakan dulu.
+Kemajuan: perbaikan 1 selesai di branch (ERRORS M443; halaman 17 tes, edge-bff 368 tes, cek fixture di 1440/1152/390/360 px); deploy edge-bff menunggu go. Lalu F1.
 
 Temuan selama O1 (sudah ditangani di kode):
 - Login publisher di dev punya `statement_timeout=120s`. Hitungan EMA lari pertama (300 tanggal) dalam satu kueri ±86

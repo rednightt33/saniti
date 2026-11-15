@@ -6,11 +6,18 @@ import type { Day, Meta, Series } from './types.ts';
 export const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const utc = (iso: string) => new Date(iso + 'T00:00:00Z');
-/** "13 Nov"; with the weekday "Fri 13 Nov". */
-export const dateLabel = (iso: string | null | undefined, weekday = false) => {
+const NB = '\u00a0';   // a date never breaks over two lines (QA 2026-11-15: "Turnover (9 / Nov)")
+/** "13 Nov"; with the weekday "Fri 13 Nov"; with the year "13 Nov 2026" (no-break spaces). */
+export const dateLabel = (iso: string | null | undefined, weekday = false, year = false) => {
   if (!iso) return '—';
   const d = utc(iso);
-  return (weekday ? WD[d.getUTCDay()] + ' ' : '') + d.getUTCDate() + ' ' + MON[d.getUTCMonth()];
+  return (weekday ? WD[d.getUTCDay()] + NB : '') + d.getUTCDate() + NB + MON[d.getUTCMonth()] + (year ? NB + d.getUTCFullYear() : '');
+};
+/** "20 Aug – 13 Nov"; both ends carry their year when the range crosses a year (QA 2026-11-15: a 1Y range read
+    "27 Oct – 13 Nov"). */
+export const rangeLabel = (a: string, b: string) => {
+  const y = !!a && !!b && a.slice(0, 4) !== b.slice(0, 4);
+  return a === b ? dateLabel(b, false, y) : `${dateLabel(a, false, y)} – ${dateLabel(b, false, y)}`;
 };
 /** WIB (UTC+7) clock time of an epoch second, "10:35". */
 export const wibTime = (t: number) => {
@@ -25,21 +32,27 @@ const MINUS = '−';
 export const sign = (v: number) => (v > 0 ? '+' : v < 0 ? MINUS : '');
 export const num = (v: number, d = 2) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 export const pct = (v: number | null | undefined, d = 2) => (v == null ? '—' : sign(v) + Math.abs(v).toFixed(d) + '%');
-/** Rupiah in trillions (T), billions (B) or millions (M): "Rp 8.15T", "Rp 116.6B". */
+/** The unit of an amount is chosen after rounding (QA 2026-11-15: 999.6 million read "1000M"): the largest of T, B and
+    M whose rounded value is at least 1. decimals(unit, value) gives the digits. */
+function scaled(a: number, decimals: (unit: string, x: number) => number): string | null {
+  for (const [u, f] of [['T', 1e12], ['B', 1e9], ['M', 1e6]] as const) {
+    const x = a / f, d = decimals(u, x), r = Number(x.toFixed(d));
+    if (r >= 1) return r.toFixed(d) + u;
+  }
+  return null;
+}
+/** Rupiah in trillions (T, 2 decimals), billions (B) or millions (M, 1 decimal): "Rp 8.15T", "Rp 111.70T", "Rp 116.6B". */
 export function rp(v: number | null | undefined, signed = false) {
   if (v == null) return '—';
   const a = Math.abs(v), s = signed ? sign(v) : v < 0 ? MINUS : '';
-  const body = a >= 1e12 ? (a / 1e12).toFixed(a >= 1e14 ? 1 : 2) + 'T' : a >= 1e9 ? (a / 1e9).toFixed(1) + 'B'
-    : a >= 1e6 ? (a / 1e6).toFixed(1) + 'M' : Math.round(a).toLocaleString('en-US');
-  return s + 'Rp ' + body;
+  return s + 'Rp ' + (scaled(a, u => (u === 'T' ? 2 : 1)) ?? Math.round(a).toLocaleString('en-US'));
 }
-/** The short form inside a tile or a bar row: "+1.2T", "−523B". */
+/** The short form inside a tile or a bar row: "+1.23T", "+12.3T", "−523B", "+1B"; under Rp 1 million "0" without a sign. */
 export function amount(v: number | null | undefined) {
   if (v == null) return '—';
   const a = Math.abs(v);
-  if (a < 1e6) return '0';                          // under Rp 1 million it reads 0, without a sign
-  return sign(v) + (a >= 1e12 ? (a / 1e12).toFixed(a >= 1e13 ? 1 : 2) + 'T' : a >= 1e9 ? Math.round(a / 1e9) + 'B'
-    : a >= 1e6 ? Math.round(a / 1e6) + 'M' : '0');
+  if (a < 1e6) return '0';                          // the gray tile's rule (user 2026-11-15): under Rp 1 million reads 0
+  return sign(v) + scaled(a, (u, x) => (u === 'T' ? (x >= 9.995 ? 1 : 2) : 0));
 }
 export const cls = (v: number | null | undefined) => (v == null ? '' : v > 0 ? 'up' : v < 0 ? 'down' : '');
 
@@ -162,8 +175,9 @@ export function squarify<T>(items: { v: number; item: T }[], x: number, y: numbe
 /* ---------- top movers and foreign flow ---------- */
 export function movers(rs: Row[], p: TilePeriod, n = 5) {
   const known = rs.filter(r => r.ret[p] != null).sort((a, b) => (b.ret[p] as number) - (a.ret[p] as number) || a.t.localeCompare(b.t));
-  const up = known.filter(r => (r.ret[p] as number) > 0), down = known.filter(r => (r.ret[p] as number) < 0);
-  return { up: up.slice(0, n), down: down.slice(-n), count: known.length, ups: up.length, downs: down.length };
+  // the deepest fall first (QA 2026-11-15: the losers were listed mildest first)
+  const up = known.filter(r => (r.ret[p] as number) > 0), down = known.filter(r => (r.ret[p] as number) < 0).reverse();
+  return { up: up.slice(0, n), down: down.slice(0, n), count: known.length, ups: up.length, downs: down.length };
 }
 /** The n largest net foreign buyers and sellers of the period (Regular board, every stock of the day file). */
 export function foreignTop(rs: Row[], p: FlowPeriod, n = 4) {
@@ -206,10 +220,6 @@ export const SHORT: Record<string, string> = {
   'Basic Materials': 'Basic Mat.', 'Consumer Cyclicals': 'Cons. Cyc', 'Consumer Non-Cyclicals': 'Non-Cyc', 'Infrastructures': 'Infra',
   'Properties & Real Estate': 'Property', 'Transportation & Logistic': 'Transport', 'Healthcare': 'Health', 'Technology': 'Tech',
 };
-export const MAP_SHORT: Record<string, string> = {
-  'Consumer Non-Cyclicals': 'Cons. Non-Cyc.', 'Consumer Cyclicals': 'Cons. Cyclicals', 'Properties & Real Estate': 'Properties',
-  'Transportation & Logistic': 'Transportation',
-};
 
 /* ---------- the IHSG chart ---------- */
 export type IhsgPeriod = '1D' | '5D' | '1M' | '1Y';
@@ -227,7 +237,11 @@ export function ihsgChart(series: Series, day: Day, market: string, end: number,
       const d = wibDate(t), hm = wibTime(t);
       pts.push({ v, tip: p === '1D' ? `${dateLabel(d)}, ${hm} WIB` : `${dateLabel(d, true)}, ${hm} WIB` });
     });
-    const prior = p === '1D' ? day.index[market]?.prior_close ?? null : null;
+    // the reference is the close before the period, as every other 5D figure (QA 2026-11-15: 5D measured from the
+    // first hourly bar read +5.17% where the close-to-close move was +5.82%)
+    let prior: number | null = null;
+    if (p === '1D') prior = day.index[market]?.prior_close ?? null;
+    else if (b.t.length) { const i0 = series.dates.indexOf(wibDate(b.t[0])); prior = i0 > 0 ? (series.index[market] || [])[i0 - 1] ?? null : null }
     return { sub: p === '1D' ? 'Intraday' : '5 days', pts, ref: prior ?? (pts[0]?.v ?? null), prior: prior != null, daily: false };
   }
   const n = p === '1M' ? 20 : YEAR, start = periodStart(series.dates, end, n), c = series.index[market] || [];
