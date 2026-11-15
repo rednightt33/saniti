@@ -244,3 +244,19 @@ def test_volatility_is_feature_01s_formula_and_its_rank_counts_previous_values_b
     assert overview.volatility(closes, 24) == pytest.approx(want)
     assert overview.volatility(closes, 19) is None and overview.volatility(closes[:5] + [None] + closes[6:], 24) is None
     assert overview.below_rank(5.0, [1, 2, 5, 7]) == 50.0 and overview.below_rank(5.0, [1, None]) is None
+
+
+def test_terminal_api_reads_every_page_index_as_written_and_serves_the_same_families(small):
+    import importlib.util
+    root = Path(__file__).resolve().parents[3]
+    spec = importlib.util.spec_from_file_location('terminal_api_bucket', root / 'apps/terminal-api/app/bucket.py')
+    reader = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(reader)
+    assert tuple(pub.PAGES) == reader.PAGE_FAMILIES                              # one list of page families
+    _, _, bucket = run()
+    index = bucket.get_json('state.json')['overview']
+    assert reader.page_index(index, 'overview') == index == pub.overview_entries(index)
+    good = index['overview-meta']
+    raw = {**index, 'overview-x': {**good}, 'overview-y': {**good, 'key': good['key'].replace('overview/', 'radar/')}}
+    assert pub.overview_entries(raw) == reader.page_index(raw, 'overview') == index
+    assert not {'overview', 'overview_carry', 'overview_stamp'} & set(reader.STATE_FIELDS)

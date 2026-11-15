@@ -188,11 +188,11 @@ class FakeBucket:
     def state(self):
         return self.state_doc
 
-    def radar(self):
-        """EXEC-RADAR R5: as Bucket.radar, from the same state document."""
-        from app.bucket import radar_index
+    def page(self, family):
+        """EXEC-RADAR R5, EXEC-OVERVIEW: as Bucket.page, from the same state document."""
+        from app.bucket import page_index
         s = self.state_doc
-        return (None, None) if not isinstance(s, dict) else (s.get('finished_at'), radar_index(s.get('radar')))
+        return (None, None) if not isinstance(s, dict) else (s.get('finished_at'), page_index(s.get(family), family))
 
     def presign(self, key, ttl):
         return f'https://bucket.example/{key}?X-Amz-Expires={ttl}&sig=x'
@@ -1372,3 +1372,55 @@ def test_state_never_shows_the_radar_index():
     b = s3_bucket({**FakeBucket.state_doc, 'radar': RADAR, 'radar_stamp': ['x']})
     assert 'radar' not in STATE_FIELDS and 'radar' not in b.state() and 'radar_stamp' not in b.state()
     assert b.radar() == ('2026-10-27T13:03:17Z', RADAR)
+
+
+# ---- EXEC-OVERVIEW: the Market Overview's files go the same way (decision 7: owner only, through the EDGE gateway) ---
+SHA_DAY = '3' * 64
+OVERVIEW = {'overview-day-2026-11-13': {'key': f'v1/overview/overview-day-2026-11-13.{SHA_DAY[:16]}.json.gz',
+                                        'sha256': SHA_DAY, 'bytes': 31_000, 'rows': 836, 'as_of': '2026-11-13'},
+            'overview-meta': {'key': f'v1/overview/overview-meta.{SHA_META[:16]}.json.gz', 'sha256': SHA_META,
+                              'bytes': 21_000, 'rows': 862, 'as_of': '2026-11-13'}}
+
+
+def overview_rack(bucket=None):
+    bucket = radar_rack(bucket)
+    bucket.state_doc = {**bucket.state_doc, 'overview': json.loads(json.dumps(OVERVIEW)), 'overview_stamp': ['x'],
+                        'overview_carry': {'breadth': {}}}
+    return bucket
+
+
+def test_overview_lists_and_grants_its_files_to_the_gateway_and_never_another_familys():
+    client, store = gateway_client(overview_rack())
+    r = client.get(f'{API}/overview', headers=GATEWAY)
+    assert r.status_code == 200 and r.json()['files'] == {
+        n: {k: e[k] for k in ('sha256', 'bytes', 'rows', 'as_of')} for n, e in sorted(OVERVIEW.items())}
+    r = client.post(f'{API}/overview', headers=GATEWAY, json={'names': ['overview-meta', 'overview-day-2026-11-13']})
+    assert r.status_code == 200, r.text
+    assert [f['url'] for f in r.json()['files']] == [
+        f'https://bucket.example/{OVERVIEW[n]["key"]}?X-Amz-Expires=120&sig=x' for n in ('overview-meta', 'overview-day-2026-11-13')]
+    row = store.access[-1]
+    assert (row['ticker'], row['dataset'], row['files'], row['bytes']) == (quota.REF, 'overview', 2, 52_000)
+    for name in ('radar-meta', 'price', 'overview-day-2026-11-12'):          # another family's or an unpublished file
+        r = client.post(f'{API}/overview', headers=GATEWAY, json={'names': [name]})
+        assert r.status_code == 404 and r.json()['error'] == 'overview_not_published', name
+        assert f'GET {API}/overview lists' in r.json()['message']
+
+
+def test_overview_refuses_a_subscriber_session_and_every_service_key():
+    client, store, _ = services_client(overview_rack())
+    for headers in (SCREENER, BACKTEST):
+        r = client.get(f'{API}/overview', headers=headers)
+        assert r.status_code == 403 and r.json()['error'] == 'gateway_only'
+        assert 'the Market Overview' in r.json()['message'] and '/api/v1/overview' in r.json()['message']
+    direct = TestClient(client.app, headers={'origin': ORIGIN})
+    assert sign_in(direct).status_code == 200
+    assert direct.post(f'{API}/overview', json={'names': ['overview-meta']}).json()['error'] == 'gateway_only'
+    assert all(a['dataset'] != 'overview' for a in store.access)
+
+
+def test_state_never_shows_the_overview_index_or_its_carry():
+    from app.bucket import STATE_FIELDS
+    hidden = {'overview', 'overview_stamp', 'overview_carry'}
+    b = s3_bucket({**FakeBucket.state_doc, 'overview': OVERVIEW, 'overview_stamp': ['x'], 'overview_carry': {}})
+    assert not hidden & set(STATE_FIELDS) and not hidden & set(b.state())
+    assert b.page('overview') == ('2026-10-27T13:03:17Z', OVERVIEW)
