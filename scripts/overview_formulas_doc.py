@@ -49,6 +49,8 @@ CONSTANTS = (('DAY_DATES', 'tanggal yang bisa dipilih (file harian)'),
              ('FOREIGN_SUM', 'net asing KPI "10D" (tanggal broker)'),
              ('FLOW_PERIODS', 'periode Foreign Flow (nama, tanggal broker)'),
              ('INTRADAY_5D', 'sesi grafik IHSG 5D (bar 1 jam)'),
+             ('RECHECK_SESSIONS', 'tanggal pasar terbaru yang isi inputnya dicek setiap lari'),
+             ('BREADTH_CHUNK', 'tanggal per kueri hitungan Feature 04'),
              ('BENCHMARK', 'indeks pembanding (KPI kedua)'),
              ('OTHER', 'nama sektor untuk "Undefined"'))
 PAGE_VALUES = (('PERF_SCALE', r"PERF_SCALE: Record<TilePeriod, number> = (\{[^}]*\})", 'pembagi return sebelum langkah warna'),

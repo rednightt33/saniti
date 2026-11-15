@@ -30,6 +30,7 @@ after large updates").
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import re
 from pathlib import Path
@@ -43,6 +44,9 @@ TURNOVER_BASE = 20          # turnover against the average of the 20 broker date
 FOREIGN_SUM = 10            # the KPI's 10-session foreign net
 FLOW_PERIODS = (('1D', 1), ('5D', 5), ('1M', 20), ('3M', 60))
 INTRADAY_5D = 5             # the 5D chart: 1-hour bars of the 5 sessions ending on the date
+RECHECK_SESSIONS = 3        # ERRORS M442: the newest market dates whose input rows are fingerprinted by content on every
+                            # run (late intraday bars, a Feature 01/04 fill in progress, a price recovery, a broker round
+                            # rewriting its date); older dates change only by a repair job, published by mode `overview`
 BREADTH_CHUNK = 20          # dates per Feature 04 count: a first run's 300 dates in one statement would take ~55 s cold
                             # (60 dates read 14,102 pages in 11 s on dev) against the publisher login's 120 s timeout
 BENCHMARK = 'LQ45'          # the design's second KPI card (an INDEX entity of Feature_Index_Entity)
@@ -87,6 +91,26 @@ BREADTH_SQL = (f'SELECT t.trade_date::text, count(t.ema_50), count(*) FILTER (WH
                "WHERE t.trade_date = ANY(%s::date[]) AND t.timeframe = 'Daily' AND t.asset_type = 'equity' "
                f'AND t.ticker IN {STOCK_SET} GROUP BY 1')
 SIZE_FN_SQL = "SELECT md5(prosrc) FROM pg_proc WHERE oid = to_regprocedure('public.overview_stock_size(date)')"
+# ERRORS M442: content fingerprints of the input rows dated within the newest RECHECK_SESSIONS market dates (one statement
+# per source; measured on dev for 21 dates: Feature 01 0.8 s, Feature 04 0.5 s, Feature 06 3.0 s, bars 0.5 s, prices 0.9 s,
+# so a few dates cost about 1 s)
+FP_PRICE_SQL = (f"SELECT date::text, md5(string_agg(ticker || ':' || coalesce(open::text, '') || ':' || coalesce(high::text, '') "
+                f"|| ':' || coalesce(low::text, '') || ':' || coalesce(close::text, '') || ':' || coalesce(volume::text, ''), ',' "
+                f"ORDER BY ticker)) FROM {PRICE} WHERE date = ANY(%s::date[]) AND timeframe = 'Daily' AND is_final GROUP BY 1")
+FP_F01_SQL = (f"SELECT date::text, md5(string_agg(ticker || ':' || coalesce(close::text, '') || ':' || coalesce(return_1d_pct::text, '') "
+              f"|| ':' || coalesce(return_5d_pct::text, '') || ':' || coalesce(return_20d_pct::text, ''), ',' ORDER BY ticker)) "
+              f'FROM {F01} WHERE date = ANY(%s::date[]) AND ticker IN {STOCK_SET} GROUP BY 1')
+FP_F04_SQL = (f'SELECT trade_date::text, count(ema_50), count(*) FILTER (WHERE close > ema_50), count(ema_200), '
+              f"count(*) FILTER (WHERE close > ema_200), md5(string_agg(ticker || ':' || coalesce((close > ema_50)::text, '') "
+              f"|| ':' || coalesce((close > ema_200)::text, ''), ',' ORDER BY ticker)) FROM {F04} WHERE trade_date = ANY(%s::date[]) "
+              f"AND timeframe = 'Daily' AND asset_type = 'equity' AND ticker IN {STOCK_SET} GROUP BY 1")
+FP_F06_SQL = (f"SELECT trade_date::text, md5(string_agg(ticker || ':' || coalesce(foreign_net_1d::text, '') || ':' "
+              f"|| coalesce(foreign_net_5d::text, '') || ':' || coalesce(foreign_net_20d::text, '') || ':' "
+              f"|| coalesce(foreign_net_60d::text, ''), ',' ORDER BY ticker)) FROM {F06} WHERE trade_date = ANY(%s::date[]) "
+              f"AND market_board = 'Regular' AND ticker IN {STOCK_SET} GROUP BY 1")
+FP_BARS_SQL = (f"SELECT session_date::text, timeframe, md5(string_agg(extract(epoch FROM bar_time)::bigint || ':' || close::text, "
+               f"',' ORDER BY bar_time)) FROM {INTRADAY} WHERE ticker = %s AND timeframe IN ('5m', '1h') "
+               f'AND session_date = ANY(%s::date[]) GROUP BY 1, 2')
 INTRADAY_SQL = (f'SELECT session_date::text, extract(epoch FROM bar_time)::bigint, close::float8 FROM {INTRADAY} '
                 'WHERE ticker = %s AND timeframe = %s AND session_date BETWEEN %s AND %s ORDER BY bar_time')
 # what the publication depends on: the newest market price date, broker (Feature 06 _INDEX) date, Feature 01 and 04
@@ -125,6 +149,57 @@ def market(conn):
     return row[0] if row else None
 
 
+def digest(value):
+    """md5 of a JSON value (equal inputs give equal text: keys sorted, floats as Python writes them)."""
+    return hashlib.md5(json.dumps(value, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def broker_date_of(flow, d):
+    """The newest broker date of the market flow (MARKET_FLOW_SQL rows, oldest first) not after d, or None."""
+    return next((r[0] for r in reversed(flow) if r[0] <= d), None)
+
+
+FLOW_ROWS = lambda: max(max(n for _, n in FLOW_PERIODS), TURNOVER_BASE + 1, FOREIGN_SUM)   # rows market_figures reads
+
+
+def window_inputs(run, m, flow):
+    """ERRORS M442: (window, fingerprints, Feature 04 counts) of the newest RECHECK_SESSIONS market dates. fingerprints:
+    {'price:<d>', 'bars:<d>:<5m|1h>', 'f01:<d>', 'f04:<d>', 'f06:<broker date>': md5 of those rows}; a key that is absent
+    has no row yet (a late load). run(sql, params) -> rows."""
+    window = sorted(r[0] for r in run(DATES_SQL, (m, RECHECK_SESSIONS)))
+    fp, counts = {}, {}
+    if not window:
+        return window, fp, counts
+    fp.update((f'price:{d}', h) for d, h in run(FP_PRICE_SQL, (window,)))
+    fp.update((f'bars:{d}:{tf}', h) for d, tf, h in run(FP_BARS_SQL, (m, window)))
+    fp.update((f'f01:{d}', h) for d, h in run(FP_F01_SQL, (window,)))
+    for d, n50, a50, n200, a200, h in run(FP_F04_SQL, (window,)):
+        fp[f'f04:{d}'], counts[d] = h, (n50, a50, n200, a200)
+    brokers = sorted({b for b in (broker_date_of(flow, d) for d in window) if b})
+    if brokers:
+        fp.update((f'f06:{b}', h) for b, h in run(FP_F06_SQL, (brokers,)))
+    return window, fp, counts
+
+
+def day_key(d, broker_date, has_f04, tickers, flow, fp):
+    """What a day file was built from: its base (broker date, Feature 04 present, the stock list it indexes, the market
+    flow rows its figures read) and the fingerprints of its inputs within the recheck window."""
+    rows = [r for r in flow if broker_date and r[0] <= broker_date][-FLOW_ROWS():]
+    base = [broker_date, has_f04, tickers, digest(rows)]
+
+    def relevant(k):
+        kind, day = k.split(':')[:2]
+        return day <= d if kind in ('price', 'bars') else day == d if kind in ('f01', 'f04') else day == broker_date
+    return {'base': base, 'win': {k: v for k, v in fp.items() if relevant(k)}}
+
+
+def still_valid(old, new):
+    """A carried day file stays when its base is equal and every input of the window it reads now was read, unchanged,
+    when it was built (a key that left the window is not compared; a key that appeared, a late load, rebuilds it)."""
+    return (isinstance(old, dict) and old.get('base') == new['base']
+            and all((old.get('win') or {}).get(k) == v for k, v in new['win'].items()))
+
+
 def stamp(conn):
     """The stamp of the publication (STAMP_SQL and the code fingerprint). A run whose stamp equals state.json
     `overview_stamp` carries the index forward."""
@@ -132,7 +207,14 @@ def stamp(conn):
     dates = [r[0] for r in conn.execute(DATES_SQL, (m, DAY_DATES)).fetchall()] if m else []
     lo = dates[-1] if dates else '9999-12-31'
     row = conn.execute(STAMP_SQL, {'m': m, 'lo': lo}).fetchone()
-    return [None if v is None else str(v) for v in row] + [CODE]
+    inputs = None
+    if m:                                  # ERRORS M442: late and rewritten rows of the newest dates, the market flow
+        run = lambda sql, params: conn.execute(sql, params).fetchall()
+        need = SERIES_SESSIONS + VOL_BASE + VOL_WINDOW + 1
+        first = [r[0] for r in run(DATES_SQL, (m, need))]
+        flow = run(MARKET_FLOW_SQL, (m, first[-1])) if first else []
+        inputs = digest([window_inputs(run, m, flow)[1], flow])
+    return [None if v is None else str(v) for v in row] + [inputs, CODE]
 
 
 def num(v, digits=6):
@@ -290,11 +372,14 @@ def files(conn, names, lists, stream=None, carry=None, previous=None, present=No
     for t, d, o, h, lo, c in stream(CLOSES_SQL, ([m, BENCHMARK, *(t for t, _ in sectors)], market_dates[0], market_dates[-1])):
         closes.setdefault(t, {})[d] = (o, h, lo, c)
     with_f04 = {r[0] for r in stream(F04_DATES_SQL, (series_dates,))}
+    flow = stream(MARKET_FLOW_SQL, (m, market_dates[0]))
+    window, fp, window_counts = window_inputs(stream, m, flow)
     breadth = {d: tuple(v) for d, v in ((carry or {}).get('breadth') or {}).items() if d in with_f04}
+    breadth.update((d, tuple(v)) for d, v in window_counts.items() if d in with_f04)   # M442: never a partial fill's
+    tickers = digest([t for t, _, _ in stocks])      # the positions day files hold (M442: a new or removed stock)
     todo = [d for d in series_dates if d in with_f04 and d not in breadth]
     for k in range(0, len(todo), BREADTH_CHUNK):     # bounded statements, whatever the number of dates to count
         breadth.update({r[0]: tuple(r[1:]) for r in stream(BREADTH_SQL, (todo[k:k + BREADTH_CHUNK],))})
-    flow = stream(MARKET_FLOW_SQL, (m, market_dates[0]))
     mc = [closes.get(m, {}).get(d, (None,) * 4)[3] for d in market_dates]
     vols = [volatility(mc, i) for i in range(len(mc))]
     at = {d: i for i, d in enumerate(market_dates)}
@@ -304,9 +389,9 @@ def files(conn, names, lists, stream=None, carry=None, previous=None, present=No
         figs = market_figures(flow, d)
         broker_date = figs['date'] if figs else None
         name = f'overview-day-{d}'
-        day_stamps[d] = [broker_date, d in with_f04]
+        day_stamps[d] = day_key(d, broker_date, d in with_f04, tickers, flow, fp)
         entry = previous.get(name)
-        if (carry and (carry.get('days') or {}).get(d) == day_stamps[d] and entry
+        if (carry and still_valid((carry.get('days') or {}).get(d), day_stamps[d]) and entry
                 and entry['key'][len('v1/'):] in present):
             kept.append(name)
             continue

@@ -48,14 +48,27 @@ export function start(api: OverviewApi, view: HTMLElement) {
       if (!e) throw new OverviewError('OVERVIEW_FILE_NOT_PUBLISHED', `The market overview file ${name} is not published. Reload the page.`, 404);
       return await files.file<T>(name, e.sha256);
     } catch (err) {
-      // a newer publication replaced the file (409) or dropped the date (404): read the index again once (the Radar's way)
+      // a newer publication replaced the file (409) or dropped the date (404): read the index again once (the Radar's
+      // way), and with it the meta and series of that publication, so a day file never meets another publication's
+      // stock positions or flow dates (review 2026-11-15, finding 3)
       if (again && err instanceof OverviewError && (err.status === 409 || err.status === 404)) {
-        index = await files.index();
+        await reindex();
         return get<T>(name, false);
       }
       throw err;
     }
   };
+  async function reindex() {
+    const was = index;
+    index = await files.index();
+    const sha = (i: OverviewIndex | undefined, n: string) => i?.files?.[n]?.sha256;
+    if (meta && series && (sha(was, 'overview-meta') !== sha(index, 'overview-meta') || sha(was, 'overview-series') !== sha(index, 'overview-series'))) {
+      [meta, series] = await Promise.all([files.file<Meta>('overview-meta', sha(index, 'overview-meta') as string),
+                                          files.file<Series>('overview-series', sha(index, 'overview-series') as string)]);
+      U = M.universes(meta);
+      if (!U.some(u => u.key === ST.u)) ST.u = M.defaultUniverse(meta);
+    }
+  }
   const dayDates = () => meta.dates.filter(d => index.files[`overview-day-${d}`]);
   const uni = () => U.find(u => u.key === ST.u) || U[0];
   const inUni = () => R.filter(M.inUniverse(uni()));
@@ -191,7 +204,7 @@ export function start(api: OverviewApi, view: HTMLElement) {
       <div class="menu-title">Group</div>${U.filter(u => u.kind === 'Group').map(item).join('')}</div>`;
     const inp = $<HTMLInputElement>('input', box), items = $$('.menu-item', box);
     inp.oninput = () => { const v = inp.value.toLowerCase(); items.forEach(b => (b.style.display = b.textContent!.toLowerCase().includes(v) ? '' : 'none')) };
-    setTimeout(() => inp.focus(), 30);
+    inp.focus();                                   // at once: the menu was just drawn by this click
   }
   function setUniMenu(open: boolean) { ST.open = open; if (open) ST.sel = null; renderMapBar(); uniMenu(); renderTree() }
 
@@ -210,7 +223,9 @@ export function start(api: OverviewApi, view: HTMLElement) {
     const s = ih, rr = 46, t = 8, b = 8, W = w - rr, H = h - t - b;
     if (s.pts.length < 2) { svg.innerHTML = ''; ihGeo = null; el.dataset.empty = s.daily ? 'No closes for this period.' : 'No intraday bars for this session.'; return }
     delete el.dataset.empty;
-    const v = s.pts.map(p => p.v), lo0 = Math.min(...v, ...(s.prior && s.ref != null ? [s.ref] : [])), hi = Math.max(...v), lo = lo0 - (hi - lo0) * 0.12;
+    // the prior close is inside the range on a day that trades wholly below it too (review 2026-11-15, finding 4)
+    const v = s.pts.map(p => p.v), withRef = [...v, ...(s.prior && s.ref != null ? [s.ref] : [])];
+    const lo0 = Math.min(...withRef), hi = Math.max(...withRef), lo = lo0 - (hi - lo0) * 0.12;
     const n = s.pts.length - 1, X = (i: number) => (i / n) * W, Y = (y: number) => t + (hi - y) / ((hi - lo) || 1) * H;
     let o = '';
     const step = niceStep((hi - lo) / 4 || 1), dp = step < 1 ? 1 : 0;

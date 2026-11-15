@@ -243,6 +243,10 @@ After a large update and its reader checks:
    `"large_write": true`. Every other job prints a `POSTGRES_MEMORY_CHECK` line at its end: when that line says
    `READY`, run step 1.
 3. Record the restart in `RAILWAY_CHANGELOG.md`.
+4. Market Overview (ERRORS M442): the publisher rechecks by content only the newest 3 market dates
+   (`RECHECK_SESSIONS`). When the update rewrote older dates of the price table, the IHSG bars, Feature 01, 04 or 06,
+   republish the Overview with the manual mode: `TERMINAL_PUBLISH_MODE=overview` on terminal-publisher, Run Now, then
+   back to `daily` (with the user's approval; it reads about 1.2 GB of Feature 04, so step 1 follows it).
 
 Before a deploy of `market-ai-orc` or a Postgres restart, check that no user run is active (`edge_bff.jobs` QUEUED,
 RUNNING or RECOVERING; `AI_conversation_turn` RUNNING); wait until none is (ERRORS M340).

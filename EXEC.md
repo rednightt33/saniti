@@ -14355,7 +14355,7 @@ migrasi di dev, merge ke `main` dan setiap deploy ditanyakan dulu satu per satu.
 | O3 terminal-api | selesai | tes 65 lulus |
 | O4 edge-bff | selesai | `app/pages.py`, `app/overview.py`; suite edge-bff 351 lulus |
 | O5 halaman | selesai | `apps/edge-bff/overview/`; cek tampilan 1440/1100/375/gelap, 33 cek interaksi |
-| O6 verifikasi independen | berikutnya | |
+| O6 verifikasi independen | selesai | `verification/overview/validate_overview.py`: 3 tanggal + tampilan halaman, 27.817 perbandingan, 0 beda; tinjauan kode independen: 4 temuan, semua diperbaiki (ERRORS M442) |
 | O7 rilis dev | menunggu go per langkah | |
 
 Temuan selama O1 (sudah ditangani di kode):

@@ -1,6 +1,6 @@
 # Rumus Market Overview (dev)
 
-<!-- explained-for: overview.py=33a4e87c2e88c97800515afb7dc5f6dc, model.ts=0952776c651a0e03a282086ff9792888, overview_stock_size=f451fc552b78a6174bc47b4e2a217293 -->
+<!-- explained-for: overview.py=ec4d588d48d5767519cbcf16e808d746, model.ts=adef7eb892919843c00391ec5b580678, overview_stock_size=f451fc552b78a6174bc47b4e2a217293 -->
 
 Dokumen ini menjelaskan **setiap angka di halaman Market Overview** (tab "Overview" di EDGE) dengan bahasa sederhana
 dan contoh angka asli dev. Pakai dokumen ini saat ingin mengubah rumus, atau saat bertanya dari mana sebuah angka
@@ -275,17 +275,42 @@ ETF dan kode indeks tidak dihitung.
   - jumlah baris Feature 01 pada 20 tanggal pemilih;
   - isi sektor saham dan anggota daftar saham;
   - isi fungsi ukuran kotak;
+  - **sidik jari isi** setiap baris input yang bertanggal di **3 tanggal pasar terbaru** (`RECHECK_SESSIONS`): harga
+    semua kode, bar IHSG 5 menit dan 1 jam, Feature 01, Feature 04, dan Feature 06 pada tanggal broker yang dipakai
+    tanggal-tanggal itu;
+  - seluruh deret arus asing pasar (Feature 06 _INDEX, IHSG, Regular);
   - sidik jari `overview.py`.
-- **Feature 04 itu besar** (2,5 GB). Jadi jumlah saham di atas EMA per tanggal dan file harian **dibawa dari publikasi
-  sebelumnya** (carry). Lari harian hanya membaca Feature 04 untuk tanggal yang belum dihitung, dan hitungan banyak
-  tanggal dipecah per 20 tanggal (`BREADTH_CHUNK`) agar setiap kueri tetap jauh di bawah batas waktu login publisher
+- **Kenapa 3 tanggal terbaru dicek isinya:** loader harian menulis tanggal terbaru dan bisa terlambat atau bertahap:
+  - publisher jalan pada sinyal harga pukul 17:00 WIB, sedangkan bar intraday IHSG baru dimuat 17:30 WIB;
+  - Feature 01 dan 04 diisi per saham oleh worker antrean;
+  - pemulihan harga pagi menulis ulang tanggal kemarin;
+  - ronde broker bisa menulis ulang tanggalnya.
+
+  Dengan sidik jari isi, setiap baris yang datang terlambat atau berubah di jendela itu membuat file yang membacanya
+  ditulis ulang. Biaya di dev ±0,6 detik per lari.
+- **Feature 04 itu besar** (2,5 GB). Jumlah saham di atas EMA untuk tanggal di luar jendela **dibawa dari publikasi
+  sebelumnya** (carry); untuk 3 tanggal terbaru selalu dihitung segar. Hitungan banyak tanggal (lari pertama, mode
+  manual) dipecah per 20 tanggal (`BREADTH_CHUNK`) agar setiap kueri jauh di bawah batas waktu login publisher
   (120 detik).
-- File harian ditulis ulang hanya bila tanggal brokernya atau ketersediaan Feature 04-nya berubah. Contoh: sesudah ronde
-  broker, file 10–13 Nov ditulis ulang karena data broker 10 Nov dan seterusnya masuk.
+- **File harian ditulis ulang** bila:
+  - tanggal brokernya berubah;
+  - Feature 04 tanggal itu muncul;
+  - **daftar saham berubah** (saham baru atau hilang). File harian menyimpan *posisi* saham di daftar meta, jadi
+    semua file harian dibangun ulang bersama meta yang baru;
+  - baris arus asing pasar yang dibacanya berubah;
+  - input di jendela 3 tanggal yang dibacanya berubah atau baru datang.
+
+  Contoh: sesudah ronde broker, file 10–13 Nov ditulis ulang karena data broker 10 Nov dan seterusnya masuk. Tanggal
+  yang keluar dari jendela tidak memicu apa pun.
+- **Halaman:** kalau publikasi baru terbit saat halaman terbuka, permintaan file lama dijawab 409. Halaman membaca indeks
+  lagi, dan bila meta atau series ikut berganti, memuat keduanya lagi sebelum file hari itu. File dari publikasi yang
+  berbeda tidak pernah dicampur.
 - Perubahan rumus (`overview.py`) atau fungsi ukuran kotak membuat publisher menghitung **semua** file lagi. Itu
-  pembacaan besar: ikuti aturan restart Postgres sesudahnya (AGENTS.md).
-- Koreksi Feature 04 untuk tanggal lama **tidak** terdeteksi stempel. Jalankan mode manual `overview` untuk
-  menerbitkannya.
+  pembacaan besar (±1,2 GB Feature 04): ikuti aturan restart Postgres sesudahnya (AGENTS.md).
+- **Perbaikan data tanggal lama** (di luar 3 tanggal terbaru) tidak terdeteksi stempel. Contoh: backfill atau hitung
+  ulang Feature 01/04/06, koreksi harga, atau isi ulang bar intraday lama. Sesudahnya jalankan publisher mode manual
+  `overview`: variabel `TERMINAL_PUBLISH_MODE=overview`, Run Now, lalu kembalikan ke `daily` (AGENTS.md, langkah
+  sesudah update besar).
 
 ---
 
@@ -305,6 +330,8 @@ Ditulis oleh `scripts/overview_formulas_doc.py --write` dari kode di repo; janga
 | `FOREIGN_SUM` | 10 | net asing KPI "10D" (tanggal broker) |
 | `FLOW_PERIODS` | 1D = 1, 5D = 5, 1M = 20, 3M = 60 | periode Foreign Flow (nama, tanggal broker) |
 | `INTRADAY_5D` | 5 | sesi grafik IHSG 5D (bar 1 jam) |
+| `RECHECK_SESSIONS` | 3 | tanggal pasar terbaru yang isi inputnya dicek setiap lari |
+| `BREADTH_CHUNK` | 20 | tanggal per kueri hitungan Feature 04 |
 | `BENCHMARK` | LQ45 | indeks pembanding (KPI kedua) |
 | `OTHER` | Other | nama sektor untuk "Undefined" |
 
@@ -317,8 +344,8 @@ Ditulis oleh `scripts/overview_formulas_doc.py --write` dari kode di repo; janga
 
 | Kode | Sumber | Sidik jari (md5) |
 |---|---|---|
-| `overview.py` | `apps/terminal-publisher/overview.py` (= `CODE` publisher) | `33a4e87c2e88c97800515afb7dc5f6dc` |
-| `model.ts` | `apps/edge-bff/overview/src/model.ts` | `0952776c651a0e03a282086ff9792888` |
+| `overview.py` | `apps/terminal-publisher/overview.py` (= `CODE` publisher) | `ec4d588d48d5767519cbcf16e808d746` |
+| `model.ts` | `apps/edge-bff/overview/src/model.ts` | `adef7eb892919843c00391ec5b580678` |
 | `overview_stock_size` | isi fungsi di `database/migrations/20261115_020_overview_stock_size.sql` | `f451fc552b78a6174bc47b4e2a217293` |
 
 <!-- overview-live:end -->

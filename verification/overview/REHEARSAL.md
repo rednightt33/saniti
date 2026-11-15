@@ -30,7 +30,10 @@ dev it waits for the user's go (EXEC-OVERVIEW O7).
 | Dev examples (read-only) against the files | IHSG 5,344.41 / prior 5,250.90; breadth 564/143/129 of 836; EMA50 162/836 = 19.38%, EMA200 152/828 = 18.36%; turnover 9 Nov Rp 8,153.2 bn, average Rp 13,459.5 bn; foreign net 1D +Rp 116.6 bn, 10D -Rp 2,813.3 bn; volatility 35.98%, rank 80.95; BBCA size Rp 1,685.2 bn: **equal** |
 | Independent recalculation (`validate_overview.py`: own SQL and arithmetic from OVERVIEW_FORMULAS.md, dev read-only) | dates 2026-10-20, 2026-11-05, 2026-11-13: meta (862 stocks, 66 lists, dates), every stock's close/returns/EMA flags/size/foreign net, market figures, volatility, bars, series; plus the page's default view (KPI strip, LQ45 Top Movers, Financials heading, Foreign Flow lists): **27,817 comparisons, 0 differences** |
 | The validator catches errors | 5 values broken on purpose in a copy (breadth, volatility rank, 5D net, one stock's 1D return, % above EMA50): all 5 reported, plus the page KPI |
-| Publisher tests | 192 passed (12 Overview tests incl. the chunked count) |
+| Independent code review (a separate agent, 2026-11-15) | 4 findings, each verified and fixed: ERRORS M442 (day files kept on proxies: a new stock, late IHSG bars, a Feature 01/04 fill in progress; the page mixing publications; the 1D range) |
+| After the M442 fix | rehearsal files byte-equal; a second run with the carry rebuilds nothing; stamp 0.05 s locally |
+| Republication while the page is open (production build, mock server answering 409 for the old shas) | the page read the index again, fetched meta and series with the new shas, then the day: 12 Nov shown, no page error |
+| Publisher tests | 196 passed (16 Overview tests incl. the chunked count, late bars, a fill or rewrite in the window, a new stock, a date leaving the window) |
 | terminal-api tests | 65 passed |
 | Page (`apps/edge-bff/overview`) | 14 tests, typecheck, production bundle test; look check at 1440, 1100, 375 and dark, no page overflow, no console error; 33 interaction checks |
 
@@ -55,6 +58,11 @@ same 265 pages read).
 | INTRADAY 5m (1 session) | 281.164 ms | shared read=132 | none |
 | INTRADAY 1h (5 sessions) | 190.769 ms | shared read=144 | none |
 | STAMP | 401.614 ms | shared hit=6842 read=3297 | "IDX_Stock_Universe" |
+| FP_PRICE (window, M442) | 23.910 ms | shared hit=1 read=130 | none |
+| FP_F01 (window) | 6.244 ms | shared hit=1823 | "IDX_Stock_Universe" |
+| FP_F04 (window) | 230.316 ms | shared hit=94 read=1306 | "IDX_Stock_Universe" |
+| FP_F06 (broker date 9 Nov) | 14.171 ms | shared hit=88 read=84 | "IDX_Stock_Universe" |
+| FP_BARS (window) | 341.019 ms | shared read=276 | none |
 
 - The sequential scans are of the small tables only (`IDX_Stock_Universe`, about 1,000 rows; `Feature_Index_Entity`, 43
   rows). Every large table is read through its index.

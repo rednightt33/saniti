@@ -33,10 +33,19 @@ cases = {
   'INTRADAY 5m (1 session)': o.INTRADAY_SQL % ("'IHSG'", "'5m'", "'2026-11-13'", "'2026-11-13'"),
   'INTRADAY 1h (5 sessions)': o.INTRADAY_SQL % ("'IHSG'", "'1h'", lit(series[-5]), "'2026-11-13'"),
   'STAMP': o.STAMP_SQL % {'m': "'IHSG'", 'lo': lit(dates[-o.DAY_DATES])},
+  # ERRORS M442: the content fingerprints of the newest RECHECK_SESSIONS dates (stamp and every run)
+  'FP_PRICE (window)': o.FP_PRICE_SQL % (arr(dates[-o.RECHECK_SESSIONS:]),),
+  'FP_F01 (window)': o.FP_F01_SQL % (arr(dates[-o.RECHECK_SESSIONS:]),),
+  'FP_F04 (window)': o.FP_F04_SQL % (arr(dates[-o.RECHECK_SESSIONS:]),),
+  'FP_F06 (broker date 9 Nov)': o.FP_F06_SQL % (arr(['2026-11-09']),),
+  'FP_BARS (window)': o.FP_BARS_SQL % ("'IHSG'", arr(dates[-o.RECHECK_SESSIONS:])),
 }
 print('| Statement | Execution | Buffers (top node) | Seq scans |')
 print('|---|---:|---|---|')
+only = sys.argv[1:]
 for name, sql in cases.items():
+    if only and not any(name.startswith(x) for x in only):
+        continue
     r = q('EXPLAIN (ANALYZE, BUFFERS) ' + sql)
     if 'error' in r:
         print(f'| {name} | ERROR | {str(r["error"])[:120]} | |'); continue

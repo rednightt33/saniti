@@ -7999,3 +7999,45 @@ in its staleness check.
   filter; `OVERVIEW_FORMULAS.md` section 10 names the filter.
 - **Status:** CORRECTED. No code used the wrong number.
 - **Lesson:** a count quoted as evidence names its filter (table, timeframe, asset type, universe) next to the number.
+
+### M442 — Market Overview: carried day files and counts were judged current by proxies, not by the rows they read (2026-11-15, fixed before release)
+
+- **Found by:** the independent code review of EXEC-OVERVIEW O6 (a separate agent, given the code and the formulas, not
+  my conclusions); each finding then verified against the code, the schedules in `.railway/railway.ts` and a test.
+- **Verified cause:** `overview.py` kept a day file when `[broker date, Feature 04 present]` was unchanged and carried the
+  stocks above EMA per date forever. The global stamp held maximum dates and counts. None of these is the content the
+  file was built from:
+  1. day files hold positions in `meta.stocks`. A new or removed stock changes the stamp (universe md5), the meta is
+     rebuilt, but the day files were kept: with one stock listed ahead of BBCA, every older day showed BBCA's figures
+     under the new ticker (test `test_a_new_stock_rebuilds_every_day_file_so_positions_match_the_meta`);
+  2. the publisher runs on the price signal (idx-price-cron 17:00 WIB); the IHSG bars load at 17:30 WIB
+     (idx-intraday-cron) and do not signal it. The stamp had no intraday part, so the newest day kept an empty 1D
+     chart until the next broker round;
+  3. Feature 01 and 04 are filled ticker by ticker by queue workers. A run during the fill built a partial day file
+     and a partial % above EMA; the next run (Feature 01 count changed) kept both;
+  4. page: a 409 made the page re-read the index only, so a day file of a newer publication could meet the old meta
+     (positions) and series (flow dates);
+  5. page: the 1D chart's range left out the prior close on a day trading wholly below it (the dashed line fell outside).
+- **Class:** an incremental output reused on a proxy key (maximum date, existence, count) instead of the content of its
+  inputs; and a file that references another file's positions published without it. Checked for the Radar: not
+  exposed (it rebuilds every file when its stamp, `max(calculated_at)` of the gate table, changes; nothing is carried).
+  The publisher's other carried files (broker days) were not checked in this task.
+- **Solution (`apps/terminal-publisher/overview.py`, `apps/edge-bff/overview/src/`):**
+  - content fingerprints (md5 of the rows) of every input dated within the newest `RECHECK_SESSIONS = 3` market
+    dates: prices of every code, IHSG 5m/1h bars, Feature 01, Feature 04 (with its counts) and Feature 06 at the broker
+    dates those days read. They enter the stamp, and each day file records the ones it read; a changed or newly
+    arrived one rebuilds exactly the days that read it;
+  - the counts above EMA of the window dates are always the fresh ones;
+  - every day key holds the md5 of the ticker list it indexes and of the market flow rows its figures read;
+  - the page reloads meta and series when the index names new ones (mock server: a republication mid-session, the
+    page fetched meta, series and the day again with the new shas); `rows()` skips a position the meta does not hold;
+    the 1D range includes the prior close.
+  - Cost on dev (EXPLAIN, read-only): the window statements 0.6 s, about 3,700 pages per run. All 20 dates by content
+    would be about 5.7 s and 23,000 pages, so older dates rely on the rule below.
+  - Tests: publisher 196 passed (4 new: late bars, fill and rewrite in the window, new stock, a date leaving the window
+    rebuilds nothing); page 15 passed. The rehearsal files are byte-equal; a second run rebuilds nothing.
+- **Status:** FIXED before release (branch `claude/keen-turing-56vw7y`).
+- **Rule for older dates:** a repair of dates older than the window (backfill, recompute, price correction) is published
+  by the manual mode `overview` (AGENTS.md, after a large update, step 4; OVERVIEW_FORMULAS.md section 13).
+- **Lesson:** a cached output is keyed on the content of what it read, at least for the part of history that loaders
+  still write; a file that refers to another file by position is rebuilt whenever that file's order changes.

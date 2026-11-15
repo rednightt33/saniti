@@ -37,12 +37,15 @@ class OverviewConn(FakeConn):
         self.flow = [(d, 3.0e12 + i * 1e10, 2.9e12, 5.0e12) for i, d in enumerate(MARKET_DATES[:-2])]
         self.asked = []
         self.fail_day = False
+        self.stocks = list(STOCKS)
+        self.no_bars = set()            # sessions whose IHSG bars are not loaded yet (ERRORS M442)
+        self.ver = {}                   # (source, date) -> a version: a rewritten row changes its fingerprint
 
     def _rows(self, sql, params):
         o = overview
         if sql in (o.PROBE_SQL, o.MARKET_SQL, o.DATES_SQL, o.STAMP_SQL, o.FEATURE_DATES_SQL, o.F04_DATES_SQL, o.SIZE_FN_SQL,
                    o.STOCKS_SQL, o.SECTORS_SQL, o.CLOSES_SQL, o.BREADTH_SQL, o.MARKET_FLOW_SQL, o.DAY_SQL, o.SIZE_SQL,
-                   o.STOCK_FLOW_SQL, o.INTRADAY_SQL):
+                   o.STOCK_FLOW_SQL, o.INTRADAY_SQL, o.FP_PRICE_SQL, o.FP_F01_SQL, o.FP_F04_SQL, o.FP_F06_SQL, o.FP_BARS_SQL):
             self.asked.append((sql, params))
         if sql == o.PROBE_SQL:
             return [(self.ov_tables,)]
@@ -51,14 +54,25 @@ class OverviewConn(FakeConn):
         if sql == o.DATES_SQL:
             return [(d,) for d in reversed(self.dates)][:params[1]]
         if sql == o.STAMP_SQL:
-            return [(self.dates[-1], self.flow[-1][0], self.dates[-1], self.dates[-1], len(self.dates), 'stocks', 'lists',
-                     self.size_fn)]
+            return [(self.dates[-1], self.flow[-1][0], self.dates[-1], self.dates[-1], len(self.dates),
+                     ','.join(f'{t}:{sec}' for t, _, sec in self.stocks), 'lists', self.size_fn)]   # as STAMP_SQL's md5
         if sql in (o.FEATURE_DATES_SQL, o.F04_DATES_SQL):
             return [(d,) for d in params[0] if d in self.dates]
         if sql == o.SIZE_FN_SQL:
             return [(self.size_fn,)]
         if sql == o.STOCKS_SQL:
-            return list(STOCKS)
+            return list(self.stocks)
+        v = lambda kind, d: f'{kind}-{d}-{self.ver.get((kind, d), 0)}'
+        if sql in (o.FP_PRICE_SQL, o.FP_F01_SQL):
+            kind = 'price' if sql == o.FP_PRICE_SQL else 'f01'
+            return [(d, v(kind, d)) for d in params[0] if d in self.dates]
+        if sql == o.FP_F04_SQL:
+            return [(d, 800, 400 + i + self.ver.get(('f04', d), 0), 790, 300, v('f04', d))
+                    for i, d in enumerate(self.dates) if d in params[0]]
+        if sql == o.FP_F06_SQL:
+            return [(b, v('f06', b)) for b in params[0]]
+        if sql == o.FP_BARS_SQL:
+            return [(d, tf, v('bars', d)) for d in params[1] if d in self.dates and d not in self.no_bars for tf in ('5m', '1h')]
         if sql == o.SECTORS_SQL:
             return list(SECTORS)
         if sql == o.CLOSES_SQL:
@@ -66,7 +80,7 @@ class OverviewConn(FakeConn):
             return [(t, d, close_of(t, i) - 1, close_of(t, i) + 5, close_of(t, i) - 5, close_of(t, i))
                     for t in tickers for i, d in enumerate(self.dates) if lo <= d <= hi]
         if sql == o.BREADTH_SQL:
-            return [(d, 800, 400 + i, 790, 300) for i, d in enumerate(self.dates) if d in params[0]]
+            return [(d, 800, 400 + i + self.ver.get(('f04', d), 0), 790, 300) for i, d in enumerate(self.dates) if d in params[0]]
         if sql == o.MARKET_FLOW_SQL:
             return [r for r in self.flow if r[0] >= params[1]]
         if sql == o.DAY_SQL:
@@ -81,7 +95,8 @@ class OverviewConn(FakeConn):
         if sql == o.INTRADAY_SQL:
             m, tf, lo, hi = params
             step = 300 if tf == '5m' else 3600
-            return [(d, 1_700_000_000 + i * step, 7000.0 + i) for d in self.dates if lo <= d <= hi for i in range(3)]
+            return [(d, 1_700_000_000 + i * step, 7000.0 + i) for d in self.dates if lo <= d <= hi and d not in self.no_bars
+                    for i in range(3)]
         return super()._rows(sql, params)
 
     def count(self, sql):
@@ -123,7 +138,11 @@ def test_every_file_is_content_keyed_and_indexed_with_what_the_next_run_reuses(s
     carry = state['overview_carry']
     assert carry['code'] == overview.CODE and carry['size_fn'] == 'size-fn-1'
     assert sorted(carry['breadth']) == MARKET_DATES[-10:]
-    assert carry['days'][MARKET_DATES[-1]] == [MARKET_DATES[-3], True]       # its broker date is two sessions older
+    newest = carry['days'][MARKET_DATES[-1]]
+    assert newest['base'][:2] == [MARKET_DATES[-3], True]                    # its broker date is two sessions older
+    assert sorted(newest['win']) == sorted([*(f'price:{d}' for d in MARKET_DATES[-3:]), *(f'bars:{d}:{tf}' for d in MARKET_DATES[-3:]
+                                                                                             for tf in ('5m', '1h')),
+                                            f'f01:{MARKET_DATES[-1]}', f'f04:{MARKET_DATES[-1]}', f'f06:{MARKET_DATES[-3]}'])
     assert state['overview_stamp'][-1] == overview.CODE
     assert pub.overview_entries(index) == {n: {**e} for n, e in index.items()}
 
@@ -182,8 +201,9 @@ def test_a_new_date_reads_and_writes_only_what_changed(small):
     conn.asked.clear()
     pub.Publisher(conn, bucket, today=TODAY).run('daily')
     now = bucket.get_json('state.json')['overview']
-    breadth = [p for s, p in conn.asked if s == overview.BREADTH_SQL]
-    assert breadth == [(['2026-10-29'],)]                 # only the date not counted yet
+    assert conn.count(overview.BREADTH_SQL) == 0          # the new date is in the recheck window: counted with its fingerprint
+    series = doc(bucket, now['overview-series'])
+    assert series['dates'][-1] == '2026-10-29' and series['above_ema50'][-1] == round(100 * (400 + 20) / 800, 2)
     assert conn.count(overview.DAY_SQL) == 1               # only the new day file is built
     assert 'overview-day-2026-10-29' in now and f'overview-day-{MARKET_DATES[-5]}' not in now   # the oldest leaves
     for d in MARKET_DATES[-4:]:
@@ -208,7 +228,7 @@ def test_the_manual_mode_and_a_new_formula_count_and_build_everything_again(smal
     _, conn, bucket = run()
     conn.asked.clear()
     pub.Publisher(conn, bucket, today=TODAY).run('overview')
-    assert conn.count(overview.DAY_SQL) == 5 and [p for s, p in conn.asked if s == overview.BREADTH_SQL] == [(MARKET_DATES[-10:],)]
+    assert conn.count(overview.DAY_SQL) == 5 and [p for s, p in conn.asked if s == overview.BREADTH_SQL] == [(MARKET_DATES[-10:-3],)]
     monkeypatch.setattr(overview, 'CODE', 'another-formula')
     conn.asked.clear()
     pub.Publisher(conn, bucket, today=TODAY).run('daily')
@@ -268,7 +288,70 @@ def test_a_full_count_reads_feature_04_in_bounded_chunks_each_date_once(small, m
     monkeypatch.setattr(overview, 'BREADTH_CHUNK', 4)
     _, conn, bucket = run()
     chunks = [p[0] for s, p in conn.asked if s == overview.BREADTH_SQL]
-    assert [len(c) for c in chunks] == [4, 4, 2]
-    assert sum(chunks, []) == MARKET_DATES[-10:]
+    assert [len(c) for c in chunks] == [4, 3]                   # the 3 newest dates come with their fingerprints
+    assert sum(chunks, []) == MARKET_DATES[-10:-3]
     series = doc(bucket, bucket.get_json('state.json')['overview']['overview-series'])
     assert all(v is not None for v in series['above_ema50'])
+
+
+def built(conn):
+    return sorted(p[0] for s, p in conn.asked if s == overview.DAY_SQL)
+
+
+def test_late_intraday_bars_rebuild_the_day_that_had_none(small):
+    """ERRORS M442: the publisher runs on the price signal (17:00 WIB), the IHSG bars load at 17:30 WIB."""
+    conn = OverviewConn(PRICES, BROKERS, UNIVERSE)
+    conn.no_bars = {MARKET_DATES[-1]}
+    _, conn, bucket = run(conn=conn)
+    first = bucket.get_json('state.json')['overview']
+    assert doc(bucket, first[f'overview-day-{MARKET_DATES[-1]}'])['intraday']['5m'] == {'t': [], 'c': []}
+    conn.no_bars, conn.asked = set(), []
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')                 # the stamp sees the bars: a run, not 'unchanged'
+    now = bucket.get_json('state.json')['overview']
+    assert built(conn) == [MARKET_DATES[-1]]
+    assert len(doc(bucket, now[f'overview-day-{MARKET_DATES[-1]}'])['intraday']['5m']['c']) == 3
+
+
+def test_a_feature_fill_or_rewrite_in_the_window_rebuilds_its_days_and_recounts_breadth(small):
+    _, conn, bucket = run()
+    conn.ver[('f01', MARKET_DATES[-1])] = 1                                  # the Feature 01 fill completed after the run
+    conn.ver[('f04', MARKET_DATES[-2])] = 7                                  # 7 more stocks above EMA50 on the day before
+    conn.asked = []
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    now = bucket.get_json('state.json')['overview']
+    assert built(conn) == MARKET_DATES[-2:]
+    series = doc(bucket, now['overview-series'])
+    assert series['above_ema50'][-2] == round(100 * (400 + 18 + 7) / 800, 2)
+    assert conn.count(overview.BREADTH_SQL) == 0
+    conn.ver[('price', MARKET_DATES[-3])] = 1                                # a price recovery of the oldest window date:
+    conn.asked = []                                                          # every day that reads it (sizes, closes)
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    assert built(conn) == MARKET_DATES[-3:]
+    conn.ver[('f06', MARKET_DATES[-3])] = 1                                  # the broker round rewrote its date
+    conn.asked = []
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    assert built(conn) == MARKET_DATES[-3:]                                  # the days whose broker date it is (22 and 23 Oct read their own)
+
+
+def test_a_new_stock_rebuilds_every_day_file_so_positions_match_the_meta(small):
+    """ERRORS M442 (review finding 1): day files hold positions in meta.stocks; a stock listed ahead of others moves them."""
+    _, conn, bucket = run()
+    conn.stocks = [('AAAA', 'New Listing', 'Financials'), *STOCKS]
+    conn.asked = []
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    now = bucket.get_json('state.json')['overview']
+    assert built(conn) == MARKET_DATES[-5:]
+    meta = doc(bucket, now['overview-meta'])
+    for d in MARKET_DATES[-5:]:
+        day = doc(bucket, now[f'overview-day-{d}'])
+        assert [meta['stocks']['ticker'][i] for i in day['stocks']['i']] == ['BBCA', 'TLKM', 'ZZZZ']
+
+
+def test_a_date_leaving_the_window_rebuilds_nothing(small):
+    _, conn, bucket = run()
+    conn.dates.append('2026-10-29')
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    conn.dates.append('2026-10-30')
+    conn.asked = []
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    assert built(conn) == ['2026-10-30']

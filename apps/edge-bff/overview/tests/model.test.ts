@@ -57,7 +57,11 @@ describe('stocks, universes and the market map', () => {
   it('joins the day rows with the meta names and sectors', () => {
     expect(R.map(r => `${r.t}:${r.sector}:${r.ret['1D']}`)).toEqual(['AAAA:Financials:2', 'BBBB:Financials:-1', 'CCCC:Energy:0', 'DDDD:Other:null']);
   });
-  it('defaults to the benchmark list and offers every stock first', () => {
+  it('skips a position the meta does not hold instead of making a row without a ticker', () => {
+    const other = { ...day, stocks: { ...day.stocks, i: [0, 9] } };
+    expect(M.rows(meta, other).map(r => r.t)).toEqual(['AAAA']);
+  });
+    it('defaults to the benchmark list and offers every stock first', () => {
     const U = M.universes(meta);
     expect(U.map(u => `${u.key}:${u.kind}`)).toEqual(['all:Market', 'INDEX:1:Index', 'KONGLO:2:Group']);
     expect(M.defaultUniverse(meta)).toBe('INDEX:1');
