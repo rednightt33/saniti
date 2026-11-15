@@ -82,6 +82,15 @@ describe('stocks, universes and the market map', () => {
     expect(M.tile(R[1], 'fb', '5D').col[0]).toBe('var(--red-300)');          // -300 bn / (120 bn x sqrt 5) = -1.12
     expect(M.tile(R[2], 'perf', '1D').col[0]).toBe('var(--ov-flat)');        // 0%: the neutral step
   });
+  it('colours Performance gray only when the return reads 0.00% (user 2026-11-15, choice 3)', () => {
+    const at = (r1d: number) => M.tile({ ...M.rows(meta, day)[0], ret: { '1D': r1d, '5D': null, '1M': null } }, 'perf', '1D').col[0];
+    expect(at(0.46)).toBe('var(--green-300)');                               // BBCA 13 Nov: light green, no longer gray
+    expect(at(-0.2)).toBe('var(--red-300)');
+    expect(at(0.004)).toBe('var(--ov-flat)');                                // written "+0.00%": gray
+    expect(at(0)).toBe('var(--ov-flat)');
+    expect(M.tile({ ...M.rows(meta, day)[0], fnet: { '1D': 3e10, '5D': null, '1M': null, '3M': null } }, 'fb', '1D').col[0])
+      .toBe('var(--ov-flat)');                                               // Foreign buy keeps the design's band
+  });
   it('lays a squarified treemap whose areas follow the values', () => {
     const rects = M.squarify([{ v: 6, item: 'a' }, { v: 3, item: 'b' }, { v: 1, item: 'c' }], 0, 0, 100, 50);
     const area = (k: string) => rects.filter(r => r.item === k).reduce((s, r) => s + r.w * r.h, 0);

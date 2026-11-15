@@ -48,11 +48,14 @@ export const sizeLabel = (basis: string | null) => (basis ? SIZE_BASIS[basis] ||
 export const sizeText = (basis: string | null, v: number | null) => (v == null ? '—' : rp(v) + (basis === 'adv20_value' ? '/day' : ''));
 
 /* ---------- colours: the design's seven steps ---------- */
-export function colorOf(c: number): [string, string] {
+/** signed (user 2026-11-15, choice 3: "Hanya return persis 0% yang abu-abu"): any value above 0 takes at least the light
+    green step and any below 0 at least the light red one; only 0 itself stays neutral. Without it, the design's band
+    (-0.5, 0.5) is neutral (Foreign buy). */
+export function colorOf(c: number, signed = false): [string, string] {
   if (c >= 3) return ['var(--green-600)', '#fff'];
   if (c >= 1.5) return ['var(--green-500)', '#fff'];
-  if (c >= 0.5) return ['var(--green-300)', 'var(--gray-900)'];
-  if (c > -0.5) return ['var(--ov-flat)', 'var(--ov-flat-fg)'];   // the design's gray-200; a token so the dark theme dims it
+  if (c >= 0.5 || (signed && c > 0)) return ['var(--green-300)', 'var(--gray-900)'];
+  if (c > -0.5 && !(signed && c < 0)) return ['var(--ov-flat)', 'var(--ov-flat-fg)'];   // the design's gray-200 (a token: dark theme)
   if (c > -1.5) return ['var(--red-300)', 'var(--gray-900)'];
   if (c > -3) return ['var(--red-500)', '#fff'];
   return ['var(--red-600)', '#fff'];
@@ -103,8 +106,9 @@ export function tile(r: Row, metric: MapMetric, p: TilePeriod): Tile {
     const v = r.fnet[p];
     return { r, v, text: amount(v), col: v == null ? colorOf(0) : colorOf(v / foreignScale(p)) };
   }
-  const v = r.ret[p];
-  return { r, v, text: pct(v), col: v == null ? colorOf(0) : colorOf(v / PERF_SCALE[p]) };
+  // the colour follows the return as written on the tile (2 decimals): gray exactly when it reads 0.00%
+  const v = r.ret[p], shown = v == null ? 0 : Math.round(v * 100) / 100;
+  return { r, v, text: pct(v), col: colorOf(shown / PERF_SCALE[p], true) };
 }
 export interface SectorGroup { name: string; size: number; agg: number | null; tiles: Tile[] }
 /** The universe's stocks with a size, grouped by sector, largest first; a sector's figure is its size-weighted return

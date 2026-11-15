@@ -14358,6 +14358,12 @@ migrasi di dev, merge ke `main` dan setiap deploy ditanyakan dulu satu per satu.
 | O6 verifikasi independen | selesai | `verification/overview/validate_overview.py`: 3 tanggal + tampilan halaman, 27.817 perbandingan, 0 beda; tinjauan kode independen: 4 temuan, semua diperbaiki (ERRORS M442) |
 | O7 rilis dev | selesai; **go user 2026-11-15: "Ok, jalankan semua."** | migrasi 020 DRYRUN `f53eff40` / APPLY `52e4a5f9`; `main` `28c41268` → `41699d9f`; edge-bff `af280efd`, telegram-monitor `bdbbca08`, terminal-api `8dab3b1c`, terminal-publisher `a856f67c` SUCCESS; Run Now 13:20 UTC: Overview 22 file, 0,67 MB, 37,4 s; cek live 8/8 (`verification/overview/live_20261115/`), 27.833 perbandingan 0 beda; RAILWAY_CHANGELOG 2026-11-15 |
 
+**Keputusan user 2026-11-15 sesudah rilis ("3"):** warna Performance di peta pasar abu-abu hanya untuk return 0
+(angka yang tertulis 0,00%); naik sekecil apa pun hijau muda, turun merah muda. Pertanyaannya: kotak "putih" BBCA
+(+0,46%), BMRI, ANTM, HRTA, PGEO pada 13 Nov adalah pita netral desain (−0,5% s/d +0,5%). Foreign buy tetap memakai pita
+desain. Kode: `apps/edge-bff/overview/src/model.ts` (`colorOf(..., signed)`); `OVERVIEW_FORMULAS.md` bagian 7. Deploy
+edge-bff menunggu go.
+
 Temuan selama O1 (sudah ditangani di kode):
 - Login publisher di dev punya `statement_timeout=120s`. Hitungan EMA lari pertama (300 tanggal) dalam satu kueri ±86
   detik saat cache dingin, terlalu dekat batas. Sekarang dipecah per 20 tanggal (`BREADTH_CHUNK`; satu kelompok 5,7
