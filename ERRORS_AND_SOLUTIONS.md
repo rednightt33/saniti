@@ -7963,3 +7963,39 @@ in its staleness check.
 - **Status:** FIXED before release.
 - **Lesson:** a table stored from a later date than its source history cannot take its running totals from its own
   earlier rows; derive them from the last stored value and the source, and test a continuation against a full rebuild.
+
+### M440 — Market Overview: the first run's Feature 04 count was one statement near the publisher's 120 s timeout (2026-11-15, fixed before release)
+
+- **Found by:** the EXEC-OVERVIEW O1 measurement on dev (read-only EXPLAIN ANALYZE, `verification/overview/explain_dev.py`)
+  before the first publisher run; nothing has failed on dev.
+- **Verified cause:**
+  - `overview.py` counted the stocks above EMA50/EMA200 for every date not yet counted in one statement
+    (`BREADTH_SQL` with all dates). A first run, or the manual mode `overview`, has 300 such dates.
+  - Feature 04 is 2.5 GB and the rows of one older date are spread over the whole table (correlation of `trade_date`
+    -0.04). One statement of 20 older dates read 10,622 pages in 5.7 s on dev, so 300 dates take about 86 s cold.
+  - The publisher login `terminal_publisher_login` has `statement_timeout=120s` (`pg_db_role_setting`, dev,
+    2026-11-15). A slower disk or a busier database would have cancelled the first run.
+- **Class:** a publisher statement whose cost grows with the number of dates it covers, on a table whose rows are not
+  clustered by date (Feature 04, and any large Feature table loaded ticker by ticker). A daily run with one new date hides
+  it; only a first run, a manual rebuild or a formula change reaches it.
+- **Solution:** `BREADTH_CHUNK = 20` dates per statement (`apps/terminal-publisher/overview.py`), so no statement
+  grows with the number of dates. Test `test_a_full_count_reads_feature_04_in_bounded_chunks_each_date_once`. The 22
+  rehearsal files are byte-equal to the single-statement build.
+- **Status:** FIXED before release (branch `claude/keen-turing-56vw7y`, commit `fa4f093e`); the first run on dev (O7)
+  reads about 1.2 GB of Feature 04 and is followed by the Postgres restart check.
+- **Lesson for new data:** before a job reads "every date" of a large table, measure one bounded chunk of older dates
+  with EXPLAIN (ANALYZE, BUFFERS), multiply by the number of chunks, and compare with the role's `statement_timeout`.
+  Read in chunks whose size does not depend on how much history exists.
+
+### M441 — EXEC-OVERVIEW plan fact counted Feature 04 rows without the common-stock filter (2026-11-15, corrected)
+
+- **Found by:** the independent recalculation of O6 (`verification/overview/validate_overview.py`).
+- **Verified cause:** the plan's data fact "13 Nov: 862 stocks have EMA50, 166 above it" came from a count of
+  `Feature_04_Technical_Indicator` (Daily, equity) without `IDX_Stock_Universe."Security Type" = 'stock'`. With the
+  filter, as the page counts: 836 with EMA50, 162 above (19.38%); 828 with EMA200, 152 above (18.36%).
+- **Class:** a fact about "stocks" quoted from a Feature table that also holds other securities (funds, warrants,
+  indexes): the number depends on the universe filter, which the fact did not state.
+- **Solution:** EXEC.md (EXEC-OVERVIEW progress) and `verification/overview/REHEARSAL.md` state the corrected count and its
+  filter; `OVERVIEW_FORMULAS.md` section 10 names the filter.
+- **Status:** CORRECTED. No code used the wrong number.
+- **Lesson:** a count quoted as evidence names its filter (table, timeframe, asset type, universe) next to the number.

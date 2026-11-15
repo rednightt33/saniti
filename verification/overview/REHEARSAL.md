@@ -28,6 +28,8 @@ dev it waits for the user's go (EXEC-OVERVIEW O7).
 | Second run with the carry | 0.06 s; no Feature 04 count and no day file rebuilt; meta and series equal to the first run |
 | Breadth count split per 20 dates (`BREADTH_CHUNK`) | 15 statements for 300 dates; the 22 files byte-equal to the single-statement build |
 | Dev examples (read-only) against the files | IHSG 5,344.41 / prior 5,250.90; breadth 564/143/129 of 836; EMA50 162/836 = 19.38%, EMA200 152/828 = 18.36%; turnover 9 Nov Rp 8,153.2 bn, average Rp 13,459.5 bn; foreign net 1D +Rp 116.6 bn, 10D -Rp 2,813.3 bn; volatility 35.98%, rank 80.95; BBCA size Rp 1,685.2 bn: **equal** |
+| Independent recalculation (`validate_overview.py`: own SQL and arithmetic from OVERVIEW_FORMULAS.md, dev read-only) | dates 2026-10-20, 2026-11-05, 2026-11-13: meta (862 stocks, 66 lists, dates), every stock's close/returns/EMA flags/size/foreign net, market figures, volatility, bars, series; plus the page's default view (KPI strip, LQ45 Top Movers, Financials heading, Foreign Flow lists): **27,817 comparisons, 0 differences** |
+| The validator catches errors | 5 values broken on purpose in a copy (breadth, volatility rank, 5D net, one stock's 1D return, % above EMA50): all 5 reported, plus the page KPI |
 | Publisher tests | 192 passed (12 Overview tests incl. the chunked count) |
 | terminal-api tests | 65 passed |
 | Page (`apps/edge-bff/overview`) | 14 tests, typecheck, production bundle test; look check at 1440, 1100, 375 and dark, no page overflow, no console error; 33 interaction checks |

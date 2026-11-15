@@ -292,6 +292,20 @@ posts `edge-nav`; the shell's one listener accepts it from its own frames only, 
 also the Screener's). Tests: `tests/test_radar.py` (routes, refusals, the tab and edge-nav in Chromium),
 `radar/tests/` (`npm test`).
 
+## Overview tab (EXEC-OVERVIEW, 2026-11-15)
+
+The Market Overview for the owner: KPI strip, market map, IHSG chart, Sector Performance, % above EMA50/EMA200, Top
+Movers and Foreign Flow, every text in English (decision 8). Design: `market-overview-target-c-ihsg-flow.html` (the
+user's attachment, 2026-11-15); every figure is explained in `OVERVIEW_FORMULAS.md`. The page `overview/` (TypeScript +
+Vite, no dependency) is built by the Dockerfile's `overview` stage into `static/overview-app/` (not kept in git) and
+shown in a frame at `/overview` (the first tab of the rail, decision 7; wording in `static/edge-labels.js`; the tab
+shows only with `capabilities.overview`). `app/pages.py` is the relay both owner pages share (`app/radar.py`,
+`app/overview.py`): `GET /api/v1/overview/index` lists the files and `GET /api/v1/overview/file/<name>?sha=` relays their
+bytes from terminal-api, immutable per sha. The page computes no figure: `overview/src/model.ts` only picks the user's
+universe, period and metric and sums, weights or orders the publisher's rows. Open in Terminal works as the Radar's.
+Tests: `tests/test_overview.py` (routes, refusals, the tab first in the rail and edge-nav in Chromium, the image stage),
+`overview/tests/` (`npm test`); look check and independent recalculation in `verification/overview/REHEARSAL.md`.
+
 ## Front-end structure: editing the page without touching the API (EXEC-X, 2026-10-08)
 
 The browser tab names the page (EXEC-TERMINAL-IND-EDIT, user 2026-11-05): `App()` in `static/index.html` sets
