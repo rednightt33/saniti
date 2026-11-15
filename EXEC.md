@@ -14377,7 +14377,20 @@ Permintaan user (kata-katanya), dengan penyebab yang sudah dicek di kode:
 | P4 | "Untuk market map tambah hoverstate. Harusnya berguna untuk kotak yang tickernya tidak ter-detect." | kotak kecil tidak diberi label (lebar < 34 px atau tinggi < 18 px) dan tidak ada tooltip | tooltip saat kursor di atas kotak: ticker, nama, nilai periode, ukuran |
 | F1 | "yang berkaitan dengan period, kecuali IHSG, tambahkan "Custom" which user bisa pilih periode, maksimal 1 tahun." | panel pasar (Sector, % EMA, total Foreign Flow) cukup dengan `overview-series` (300 sesi); panel per saham (peta, Top Movers, daftar Foreign Flow) hanya punya periode tetap di file harian | **jawaban user 2026-11-15: "1A Rentang tanggal “dari–sampai” (rekomendasi). 2 A — Semua 5 panel, termasuk panel per saham"**: rentang dari–sampai, maks 1 tahun, di 5 panel (bukan IHSG); file per saham baru (±0,9 MB gzip, hanya saat Custom). Rencana eksekusi menunggu go |
 
-Temuan QA mobile (5 reviewer Sonnet, 2026-11-15) ditambahkan ke daftar ini sesudah dicek ulang.
+Temuan QA mobile (5 reviewer Sonnet, permintaan user 2026-11-15 "Jalankan 5 subagents sonnet 5.5 high to review"),
+dicek ulang di dev sebelum dicatat. Angka: 13.119 nilai di ponsel = hitungan ulang independen dari file (0 beda). Usulan,
+dikelompokkan per penyebab (menunggu go):
+
+| Kelas | Temuan (bukti) | Usulan |
+|---|---|---|
+| A. Elemen mengambang dengan ukuran diasumsikan atau tak dibatasi | P2, P3; menu tanggal di x = −43 px pada iPhone 13 (`.ddpop{right:0}`, `overview.css:721`); menu universe 2.005 px | satu cara penempatan: ukur sesudah tampil, jepit di dalam layar/wadah, tinggi maks dengan gulir di dalam |
+| B. Teks di sel sempit | P1; angka OHLC lebih lebar dari selnya (13/10/6 px pada 360/375/390); label "Foreign net (1D)" dan "129 unchanged" terpotong pada 360–390; judul sektor terpotong tanpa elipsis | nilai di dasar sel; OHLC 2×2 di ponsel; label lebih pendek atau boleh terlipat |
+| C. Pembulatan di batas satuan | "+1000M", "−1000B", "Rp 1000.0B"; "Rp 95.89T" di samping "Rp 111.7T" (`model.ts:27-42`) | pilih satuan sesudah membulatkan; desimal T seragam |
+| D. Label periode/tanggal yang bisa menyesatkan | IHSG 5D dihitung dari bar 1 jam pertama (+5,17%) bukan penutupan 6 Nov (+5,82%); High 5D (5.344,41) < High 1D (5.361,94); "1Y" tanpa tahun ("27 Oct – 13 Nov"); angka asing (tanggal broker) tanpa tanggal di peta; Foreign Flow tidak mengikuti universe tanpa label; Top Movers turun diurutkan dari yang teringan; nama sektor singkat beda antarpanel; "Hover a sector" di ponsel | perubahan 5D dari penutupan sebelum 5 sesi; tahun pada rentang lintas tahun; tanggal broker di label; label "All stocks"; urutan turun terdalam dulu; satu tabel nama singkat |
+| E. Interaksi khusus mouse | P4; crosshair grafik hanya `mousemove`; kolom cari universe langsung fokus (keyboard iOS); menu tidak tertutup oleh ketukan di shell | tooltip hover kotak; crosshair dengan pointer (geser jari); tanpa fokus otomatis di layar sentuh |
+| F. Aksesibilitas | 836 kotak masing-masing satu Tab; 5 dari 8 grup tombol tanpa `role=group`/label; grafik tanpa ringkasan teks; teks abu `--text-3` 3,2:1 (token EDGE, semua halaman); putih di hijau-500 3,6:1 (palet desain) | satu titik Tab untuk peta (panah untuk pindah kotak); label grup; ringkasan teks grafik; token warna menunggu keputusan |
+| G. Shell (sudah ada sebelum Overview, semua tab) | di ≤720 px menu kiri disembunyikan tanpa pengganti (`static/index.html:9834-9838`): tab hanya bisa dibuka dengan mengetik alamat; bingkai `100vh` bukan `100dvh`; status halaman hilang saat pindah tab | menunggu keputusan user |
+| Performa | 4G cepat 1,6–2,0 s pertama, 0,9 s kunjungan ulang; 3G lambat 5,3 s / 1,3 s; kunjungan ulang 0 file data (cache bekerja); "All stocks" satu tugas 160 ms pada CPU 4× lebih lambat | tidak perlu tindakan |
 
 Temuan selama O1 (sudah ditangani di kode):
 - Login publisher di dev punya `statement_timeout=120s`. Hitungan EMA lari pertama (300 tanggal) dalam satu kueri ±86
