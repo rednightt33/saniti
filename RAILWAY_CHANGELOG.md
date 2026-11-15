@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-11-15 — orc-test-runner jobs of EXEC-INDEX-GROUP-HISTORY step 3 (no service deployed)
+
+- **Go:** user 2026-11-15 "go langkah 3", then "A".
+- Jobs (`scripts/onboarding/run_job.sh`, `DATABASE_URL` reference set and removed each time, `VAR_REMOVED`): migration
+  20261115_002 DRYRUN `1076602d`, APPLY `3f68c3fa`; price PREFLIGHT, APPLY (5 stored, 38 refused, ERRORS M438); migration
+  20261115_003 DRYRUN `9fcbdbf4`, APPLY `a96ff014`; price APPLY `7331078f` (38). One start refused before running by the
+  runner check (`DEPLOYMENT_LIST_FAILED`), retried. Railway CLI 5.74.0, `RAILWAY_TOKEN` unset.
+- Postgres not restarted: the last check (09:50 UTC) refused it, memory 0.73 GB (below 0.8 GB) and crons within 45
+  minutes. `.railway/railway.ts` unchanged.
+
 ## 2026-11-15 — idx-price-cron, idx-price-recovery-cron, idx-intraday-cron deployed (EXEC-INDEX-GROUP-HISTORY stage 1); Postgres restart
 
 - **Go:** user 2026-11-15 "Ok jalankan", "go langkah 1 dan 2".

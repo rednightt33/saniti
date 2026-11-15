@@ -12,7 +12,14 @@
   bar, 0 gaps, 0 extra dates; 71,509 rows). APPLY stored **DBX, ISSI, JII, LQ45, MBX**, 2,140 rows each, read back equal
   to the BBCA sessions. The 38 others were refused by the database: `Price_Stock_Indonesia_IDX.ticker` is `varchar(4)`
   (ERRORS M438); each ticker's transaction rolled back, nothing partial was stored.
-- Prepared, not applied (needs the user's go): `20261115_003_price_ticker_varchar12.sql` (ticker `varchar(12)`; rehearsed).
+- **20261115_003_price_ticker_varchar12.sql** (sha256 `bc9d71ef629e9823…`, user go "A", ERRORS M438): `ticker`
+  `varchar(4)` → `varchar(12)`; the trigger `idx_price_optional_volume_guard` dropped and re-created unchanged. DRYRUN job
+  `9fcbdbf4`, APPLY job `a96ff014`: table file unchanged (16638, no rewrite), 1,411,819 rows unchanged, three indexes
+  valid, four triggers enabled.
+- **Prices of the other 38** (job `7331078f`, same fingerprints as the preflight; a first start was refused before
+  running by the runner check, `DEPLOYMENT_LIST_FAILED`, nothing ran): 38 of 38 complete, 60,809 rows. Read back
+  (pgweb): 43 indexes, **71,509 rows**, all final, volume NULL (index), 2018-01-02 to 2026-11-13; closes of 2026-11-13 as
+  TradingView (LQ45 550.368, IDXENERGY 2,518.519, BISNIS27 390.905). The stock Feature 01/04 queues skip indexes.
 
 ## 2026-11-15 — Feature_Index_Entity, the INDEX guard and the intraday calendar (20261115_001) — applied on dev
 

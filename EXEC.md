@@ -14178,3 +14178,5 @@ dengan sidik data preflight; tidak menimpa baris yang ada), job `verification/in
   migrasi `20261115_003` (ticker `varchar(12)`, digladi), menunggu go user.
 - Go user 2026-11-15: "A" (lebarkan ticker menjadi 12 karakter): migrasi `20261115_003` DRYRUN lalu APPLY, lalu harga 38
   indeks sisanya dengan sidik preflight yang sama.
+- Hasil 2026-11-15: migrasi C DRYRUN `9fcbdbf4`, APPLY `a96ff014`; harga 38 indeks job `7331078f` (60.809 baris). Total 43
+  indeks, 71.509 baris, dibaca balik. Tahap 3 selesai. Berikutnya: tahap 4 (skrip INDEX dan F02 sekaligus, di branch).
