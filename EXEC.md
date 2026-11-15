@@ -14176,3 +14176,5 @@ dengan sidik data preflight; tidak menimpa baris yang ada), job `verification/in
 - Hasil 2026-11-15: migrasi B diterapkan (job `3f68c3fa`); harga: preflight 43/43 lengkap, apply masuk 5 (DBX, ISSI, JII,
   LQ45, MBX), 38 ditolak karena `Price_Stock_Indonesia_IDX.ticker` `varchar(4)` (ERRORS M438). Perbaikan disiapkan:
   migrasi `20261115_003` (ticker `varchar(12)`, digladi), menunggu go user.
+- Go user 2026-11-15: "A" (lebarkan ticker menjadi 12 karakter): migrasi `20261115_003` DRYRUN lalu APPLY, lalu harga 38
+  indeks sisanya dengan sidik preflight yang sama.

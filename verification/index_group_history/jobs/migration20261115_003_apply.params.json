@@ -1,0 +1,28 @@
+{
+ "mode": "APPLY",
+ "migrations": [
+  "20261115_003_price_ticker_varchar12.sql"
+ ],
+ "probes": [
+  [
+   "ticker_type_and_trigger",
+   null,
+   "SELECT (SELECT format_type(atttypid, atttypmod) FROM pg_attribute WHERE attrelid = 'public.\"Price_Stock_Indonesia_IDX\"'::regclass AND attname = 'ticker'), (SELECT pg_get_triggerdef(oid) FROM pg_trigger WHERE tgrelid = 'public.\"Price_Stock_Indonesia_IDX\"'::regclass AND tgname = 'idx_price_optional_volume_guard')"
+  ],
+  [
+   "table_file_and_rows",
+   null,
+   "SELECT pg_relation_filenode('public.\"Price_Stock_Indonesia_IDX\"'), (SELECT count(*) FROM public.\"Price_Stock_Indonesia_IDX\")"
+  ],
+  [
+   "indexes_valid",
+   null,
+   "SELECT indexrelid::regclass::text, indisvalid AND indisready FROM pg_index WHERE indrelid = 'public.\"Price_Stock_Indonesia_IDX\"'::regclass ORDER BY 1"
+  ],
+  [
+   "triggers",
+   null,
+   "SELECT tgname, tgenabled FROM pg_trigger WHERE tgrelid = 'public.\"Price_Stock_Indonesia_IDX\"'::regclass AND NOT tgisinternal ORDER BY 1"
+  ]
+ ]
+}
