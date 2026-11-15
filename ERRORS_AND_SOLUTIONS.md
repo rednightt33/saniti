@@ -8096,7 +8096,7 @@ in its staleness check.
 - **Status:** KNOWN, not fixed (user 2026-11-16). Until then: before a restart by hand or a `large_write` job, check running jobs with a query as the main account (or look at orc-test-runner and the cron services), not only the guard's verdict.
 - **Lesson:** a guard must read with the same view of the system in every path that runs it.
 
-### M446 — Market Overview on a phone: menus and popovers outgrew the screen, labels were cut or misleading, and no page menu existed (2026-11-15, fixed in the branch)
+### M446 — Market Overview on a phone: menus and popovers outgrew the screen, labels were cut or misleading, and no page menu existed (2026-11-15, fixed, deployed)
 
 - **Found by:** the user (screenshots: values not aligned, the universe list running off the page, the tile popover cut,
   no hover on unlabelled tiles, controls on a second row at 125% zoom) and a mobile QA by five reviewers (user
@@ -8136,7 +8136,24 @@ in its staleness check.
   1440, 1152, 390 and 360 px: P1 values on one line, no OHLC overflow, no label cut, every header fits, one tab stop,
   universe menu 440 px with an inner scroll, date menu inside the screen, 0 of 45 popovers clipped, hover on an
   unlabelled tile, IHSG 5D +5.82%; interaction checks 33 passed.
-- **Status:** FIXED in the branch; deployed with edge-bff after the user's go (RAILWAY_CHANGELOG).
+- **Status:** FIXED and deployed: edge-bff `0c882d2d` SUCCESS 2026-11-15 19:56 UTC (`main` `724d130c`, user "Oke,
+  jalankan."); measured on the live page as the owner at 1440 px and on a 390 px phone, 33/33 ok
+  (`verification/overview/live_20261115/live_page_check.txt`, RAILWAY_CHANGELOG).
 - **Lesson:** a floating element is placed from its measured size inside the box that clips it; a layout rule that
   depends on text length is derived from the rendered result, not from a width table; a value's unit is chosen after
   rounding.
+
+### M447 — Market Overview: a rupiah amount can break between "Rp" and its number (2026-11-15, known: not fixed)
+
+- **Found by:** the live page check after the second release (1440 px, Foreign Flow, Custom 1 Oct-13 Nov): the footer
+  reads "Market net −Rp" on one line and "19.85T" on the next (`verification/overview/live_20261115/live_custom_1440.png`).
+- **Verified cause:** `rp()` joins the currency and the number with an ordinary space (`apps/edge-bff/overview/src/model.ts:48`,
+  `'Rp ' + ...`), so the browser may wrap there whenever the text does not fit its box. The dates had the same problem
+  and use a no-break space since M446.
+- **Class:** every amount the page writes through `rp()` (KPI tiles, map tiles "Rp 1.69T/day", popovers, Foreign Flow
+  rows and footer, Custom); any future unit written as "word number" with a plain space.
+- **Proposed solution (waiting for the user):** a no-break space inside `rp()` (one change covers every amount), with a
+  page test that no amount contains a breakable space; checked at 1440/1152/390/360 px.
+- **Status:** KNOWN, not fixed; the figure itself is right. Recorded in EXEC-OVERVIEW.
+- **Lesson:** a value and its unit are one word for the line breaker: join them with a no-break space where the text is
+  built, not per label.

@@ -14420,6 +14420,14 @@ Eksekusi daftar A–F, B2, G(1B) dan F1: **go user 2026-11-15: "go, kerjakan 1 l
 Top Movers seluruh pasar; 2 = F1 Custom). Dikerjakan di branch; setiap deploy ditanyakan dulu.
 Kemajuan: perbaikan 1 selesai di branch (ERRORS M446; halaman 17 tes, edge-bff 368 tes, cek fixture di 1440/1152/390/360 px); deploy edge-bff menunggu go. Lalu F1.
 Kemajuan F1: selesai di branch. Publisher menulis `overview-stocks` (penutupan dan net asing harian per saham, dipakai ulang antar-lari; penuh hanya pada lari pertama/mode manual: ±1,6 GB Feature 06), halaman punya tombol Custom di 5 panel (rentang dari–sampai, maks 365 hari). Tes: publisher 199, halaman 22, edge-bff Overview 18; 16 cek browser Custom (BBCA 1 Okt–13 Nov −9,47%). Urutan rilis yang diusulkan: deploy publisher → Run Now (lari pertama membangun riwayat) → cek restart Postgres → push `main` (edge-bff: perbaikan 1 + Custom) → cek live. Menunggu go.
+**Rilis 2026-11-15, go user: "Oke, jalankan."** (langkah 1–5, berhenti bila ada yang gagal; tidak ada yang gagal):
+publisher `65c25a7b` SUCCESS; Run Now 195,6 s, Overview 23 file (pertama kali `overview-stocks`: 862 saham × 300
+tanggal), 1,78 MB; restart Postgres 19:55:23 UTC (1,93 GB sebelumnya); `main` `724d130c`, edge-bff `0c882d2d` SUCCESS;
+cek live pemilik 8/8 (33.870 perbandingan, 0 beda) dan cek halaman 33/33 di 1440 px dan ponsel 390 px
+(`verification/overview/live_20261115/`, RAILWAY_CHANGELOG). Perbaikan 1 dan F1 selesai.
+Temuan terbuka (ERRORS M447; belum diperbaiki, menunggu user): di 1440 px kaki Foreign Flow memecah "Market net −Rp / 19.85T" di
+antara "Rp" dan angkanya (hanya tampilan; angkanya benar). Usulan: spasi tak-terputus di dalam setiap jumlah Rp, seperti
+tanggal (`model.ts`), berlaku untuk semua teks jumlah di halaman.
 
 Temuan selama O1 (sudah ditangani di kode):
 - Login publisher di dev punya `statement_timeout=120s`. Hitungan EMA lari pertama (300 tanggal) dalam satu kueri ±86
