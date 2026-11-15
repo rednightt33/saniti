@@ -256,16 +256,15 @@ def test_a_named_object_missing_from_the_bucket_is_put_again_under_an_unchanged_
     assert gone in bucket.objects and bucket.get_json('state.json')['radar'] == first
 
 
-def test_a_radar_failure_is_a_partial_publication(monkeypatch):
-    sent = []
-    monkeypatch.setattr(pub, 'notify_publication', lambda status, *a, **kw: sent.append((status, kw.get('files'))))
-
-    class Failed:
-        xsection_failed, refs_failed, radar_failed, broker_behind = [], [], 'build', 0
-    assert ['radar'] == sorted([] + [] + (['radar'] if Failed.radar_failed else []))
-    src = Path(pub.__file__).read_text()
-    assert "if pub.xsection_failed or pub.refs_failed or pub.radar_failed:" in src
-    assert "(['radar'] if pub.radar_failed else [])" in src
+def test_a_page_failure_is_a_partial_publication():
+    """EXEC-RADAR R5 (QA 2026-11-14), EXEC-OVERVIEW: a page family whose build or put failed is named in the partial
+    alert, beside the failed xsection and reference files."""
+    p, conn, bucket = run()
+    assert pub.partial_files(p) == []
+    p.pages['radar']['failed'] = 'build'
+    p.pages['overview']['failed'] = 'put'
+    p.xsection_failed.append('price')
+    assert pub.partial_files(p) == ['overview', 'price', 'radar']
 
 
 def test_results_are_read_for_the_current_rule_version_only():

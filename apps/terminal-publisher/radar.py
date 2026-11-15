@@ -86,8 +86,17 @@ PRICES_SQL = (f"SELECT ticker, date::text, close::float8 FROM {PRICE} WHERE time
               'AND date BETWEEN %s AND %s AND ticker = ANY(%s)')
 
 
+MAINTAINED_BY = ('daily', 'backfill', 'radar')        # the modes that rebuild the files when their stamp changed
+UNAVAILABLE = 'Feature 07 not created'
+
+
 def available(conn):
     return bool(conn.execute(PROBE_SQL).fetchone()[0])
+
+
+def busy(conn):
+    """A reason not to publish now, or None: the first fill holds its lock (QA 2026-11-14: never half-filled tables)."""
+    return 'the Radar backfill is running' if backfill_running(conn) else None
 
 
 def backfill_running(conn):
@@ -258,3 +267,8 @@ def build(conn, names, lists, stream=None):
         doc = filter_doc(f, dates, by_filter.get(f, []), prices)
         out.append((filter_name(f), doc, len(doc['hits']['date']) + len(doc['left']['date']), newest))
     return out
+
+
+def files(conn, names, lists, stream=None, carry=None, previous=None, present=None):
+    """The publisher's page interface (publisher.PAGES): every Radar file is built again; nothing is kept or carried."""
+    return build(conn, names, lists, stream=stream), [], None
