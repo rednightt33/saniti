@@ -14079,6 +14079,13 @@ latest R10".
   tertua. Validasi independen semua saham pada 12 tanggal: 0 selisih. Audit katalog Feature PASS (job `b81bb354`).
   Publisher Run Now 17:13 UTC menerbitkan ulang Radar; cek live 13/13 PASS. Memori Postgres 0,50 GB (tidak perlu
   restart; langkah restart otomatis job kini berjalan, M433).
+- **Permintaan user 2026-11-15:** "Can you ensure that all formulas regarding the radar has properly documented? ...
+  Jelaskan as simple as posibble, kasih contoh kalau bisa di MD tersebut. MEsti ensure juga formula2 yang live saat ini
+  di DEV harus selalu terupdate MDnya, at least untuk agian radar dulu." Dikerjakan: `RADAR_FORMULAS.md` (penjelasan
+  Bahasa Indonesia dengan contoh 9 Nov dari dev, plus bagian angka dan sidik jari kode yang ditulis dari dev),
+  `scripts/radar_formulas_doc.py` (`--write`, `--check` ke dev, `--repo` tanpa database), tes
+  `scripts/tests/test_radar_formulas_doc.py` (setiap push), langkah harian di `database-schema-docs.yml`, aturan di
+  AGENTS.md.
 - Belum: R8 sisanya (`DATABASE_SCHEMA.md` lewat refresh terjadwal).
 
 ### Keputusan yang perlu user sebelum go
