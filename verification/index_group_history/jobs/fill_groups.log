@@ -27,3 +27,135 @@ TICKERS {"kinds": ["GROUP"], "count": 33, "tickers": ["GAGOES", "GAGUAN", "GASTR
 2026-11-15T12:15:26.832248908Z [INFO]  event="raw_month_staged" start="2017-11-01" detail_entities=0 collapsed_entities=33 seconds=13.19
 2026-11-15T12:15:32.225773332Z [INFO]  event="raw_month_staged" start="2017-12-01" detail_entities=0 collapsed_entities=33 seconds=11.21
 2026-11-15T12:15:53.200763516Z [INFO]  event="raw_month_staged" start="2018-01-01" detail_entities=0 collapsed_entities=33 seconds=18.74
+2026-11-15T12:16:12.281792786Z [INFO]  event="raw_month_staged" start="2018-02-01" detail_entities=0 collapsed_entities=33 seconds=15.16
+2026-11-15T12:16:14.321941018Z [INFO]  event="raw_month_staged" start="2018-03-01" detail_entities=0 collapsed_entities=33 seconds=8.62
+2026-11-15T12:16:22.810681143Z [INFO]  event="raw_month_staged" start="2018-04-01" detail_entities=0 collapsed_entities=33 seconds=9.3
+2026-11-15T12:16:30.512922894Z [INFO]  event="raw_month_staged" start="2018-05-01" detail_entities=0 collapsed_entities=33 seconds=7.74
+2026-11-15T12:16:35.521353961Z [INFO]  event="raw_month_staged" start="2018-06-01" detail_entities=0 collapsed_entities=33 seconds=4.53
+2026-11-15T12:16:54.688679414Z [INFO]  event="raw_month_staged" start="2018-07-01" detail_entities=0 collapsed_entities=33 seconds=11.53
+2026-11-15T12:16:54.688691294Z [INFO]  event="raw_month_staged" start="2018-08-01" detail_entities=0 collapsed_entities=33 seconds=4.1
+2026-11-15T12:16:56.994703343Z [INFO]  event="raw_month_staged" start="2018-09-01" detail_entities=0 collapsed_entities=33 seconds=5.38
+2026-11-15T12:17:17.217932214Z [INFO]  event="raw_month_staged" start="2018-10-01" detail_entities=0 collapsed_entities=33 seconds=12.95
+2026-11-15T12:17:17.217943787Z [INFO]  event="raw_month_staged" start="2018-11-01" detail_entities=0 collapsed_entities=33 seconds=4.82
+2026-11-15T12:17:21.336480180Z [INFO]  event="raw_month_staged" start="2018-12-01" detail_entities=0 collapsed_entities=33 seconds=7.1
+2026-11-15T12:17:41.156200128Z [INFO]  event="raw_month_staged" start="2019-01-01" detail_entities=0 collapsed_entities=33 seconds=10.45
+2026-11-15T12:17:44.834034213Z [INFO]  event="raw_month_staged" start="2019-02-01" detail_entities=0 collapsed_entities=33 seconds=12.36
+2026-11-15T12:18:03.655944227Z [INFO]  event="raw_month_staged" start="2019-03-01" detail_entities=0 collapsed_entities=33 seconds=14.44
+2026-11-15T12:18:10.003291549Z [INFO]  event="raw_month_staged" start="2019-04-01" detail_entities=0 collapsed_entities=33 seconds=11.88
+2026-11-15T12:18:29.600734305Z [INFO]  event="raw_month_staged" start="2019-05-01" detail_entities=0 collapsed_entities=33 seconds=14.2
+2026-11-15T12:18:36.340669491Z [INFO]  event="raw_month_staged" start="2019-06-01" detail_entities=0 collapsed_entities=33 seconds=11.47
+2026-11-15T12:18:56.500873195Z [INFO]  event="raw_month_staged" start="2019-07-01" detail_entities=0 collapsed_entities=33 seconds=13.73
+2026-11-15T12:19:03.619538177Z [INFO]  event="raw_month_staged" start="2019-08-01" detail_entities=0 collapsed_entities=33 seconds=12.87
+2026-11-15T12:19:13.224422442Z [INFO]  event="raw_month_staged" start="2019-09-01" detail_entities=0 collapsed_entities=33 seconds=10.79
+2026-11-15T12:19:33.260636240Z [INFO]  event="raw_month_staged" start="2019-10-01" detail_entities=0 collapsed_entities=33 seconds=13.88
+2026-11-15T12:19:34.822692149Z [INFO]  event="raw_month_staged" start="2019-11-01" detail_entities=0 collapsed_entities=33 seconds=6.51
+2026-11-15T12:19:53.824865646Z [INFO]  event="raw_month_staged" start="2019-12-01" detail_entities=0 collapsed_entities=33 seconds=10.19
+2026-11-15T12:19:53.824872477Z [INFO]  event="raw_month_staged" start="2020-01-01" detail_entities=0 collapsed_entities=33 seconds=9.5
+2026-11-15T12:20:13.990114207Z [INFO]  event="raw_month_staged" start="2020-02-01" detail_entities=0 collapsed_entities=33 seconds=12.19
+2026-11-15T12:20:15.848695170Z [INFO]  event="raw_month_staged" start="2020-03-01" detail_entities=0 collapsed_entities=33 seconds=10.42
+2026-11-15T12:20:35.838921617Z [INFO]  event="raw_month_staged" start="2020-04-01" detail_entities=0 collapsed_entities=33 seconds=12.67
+2026-11-15T12:20:38.421129411Z [INFO]  event="raw_month_staged" start="2020-05-01" detail_entities=0 collapsed_entities=33 seconds=9.69
+2026-11-15T12:20:57.719255017Z [INFO]  event="raw_month_staged" start="2020-06-01" detail_entities=0 collapsed_entities=33 seconds=16.21
+2026-11-15T12:21:05.068635590Z [INFO]  event="raw_month_staged" start="2020-07-01" detail_entities=0 collapsed_entities=33 seconds=10.1
+2026-11-15T12:21:12.894869915Z [INFO]  event="raw_month_staged" start="2020-08-01" detail_entities=0 collapsed_entities=33 seconds=8.26
+2026-11-15T12:21:32.741672323Z [INFO]  event="raw_month_staged" start="2020-09-01" detail_entities=0 collapsed_entities=33 seconds=11.74
+2026-11-15T12:21:32.741678266Z [INFO]  event="raw_month_staged" start="2020-10-01" detail_entities=0 collapsed_entities=33 seconds=7.13
+2026-11-15T12:21:53.170845664Z [INFO]  event="raw_month_staged" start="2020-11-01" detail_entities=0 collapsed_entities=33 seconds=12.65
+2026-11-15T12:21:56.700159617Z [INFO]  event="raw_month_staged" start="2020-12-01" detail_entities=0 collapsed_entities=33 seconds=12.33
+2026-11-15T12:22:16.773375612Z [INFO]  event="raw_month_staged" start="2021-01-01" detail_entities=0 collapsed_entities=33 seconds=11.54
+2026-11-15T12:22:19.101328859Z [INFO]  event="raw_month_staged" start="2021-02-01" detail_entities=0 collapsed_entities=33 seconds=10.75
+2026-11-15T12:22:38.910956057Z [INFO]  event="raw_month_staged" start="2021-03-01" detail_entities=0 collapsed_entities=33 seconds=11.79
+2026-11-15T12:22:45.209532484Z [INFO]  event="raw_month_staged" start="2021-04-01" detail_entities=0 collapsed_entities=33 seconds=13.66
+2026-11-15T12:22:55.149771215Z [INFO]  event="raw_month_staged" start="2021-05-01" detail_entities=0 collapsed_entities=33 seconds=10.72
+2026-11-15T12:23:16.067260571Z [INFO]  event="raw_month_staged" start="2021-06-01" detail_entities=0 collapsed_entities=33 seconds=13.68
+2026-11-15T12:23:21.422831188Z [INFO]  event="raw_month_staged" start="2021-07-01" detail_entities=0 collapsed_entities=33 seconds=12.59
+2026-11-15T12:23:41.117677866Z [INFO]  event="raw_month_staged" start="2021-08-01" detail_entities=0 collapsed_entities=33 seconds=14.38
+2026-11-15T12:23:48.173487202Z [INFO]  event="raw_month_staged" start="2021-09-01" detail_entities=0 collapsed_entities=33 seconds=11.81
+2026-11-15T12:24:06.792474723Z [INFO]  event="raw_month_staged" start="2021-10-01" detail_entities=0 collapsed_entities=33 seconds=14.26
+2026-11-15T12:24:16.623649281Z [INFO]  event="raw_month_staged" start="2021-11-01" detail_entities=0 collapsed_entities=33 seconds=14.17
+2026-11-15T12:24:37.402099000Z [INFO]  event="raw_month_staged" start="2021-12-01" detail_entities=0 collapsed_entities=33 seconds=11.48
+2026-11-15T12:24:42.645596569Z [INFO]  event="raw_month_staged" start="2022-01-01" detail_entities=0 collapsed_entities=33 seconds=15.29
+2026-11-15T12:25:02.179352996Z [INFO]  event="raw_month_staged" start="2022-02-01" detail_entities=0 collapsed_entities=33 seconds=10.73
+2026-11-15T12:25:09.756111306Z [INFO]  event="raw_month_staged" start="2022-03-01" detail_entities=0 collapsed_entities=33 seconds=15.34
+2026-11-15T12:25:29.647768057Z [INFO]  event="raw_month_staged" start="2022-04-01" detail_entities=0 collapsed_entities=33 seconds=12.31
+2026-11-15T12:25:31.242826423Z [INFO]  event="raw_month_staged" start="2022-05-01" detail_entities=0 collapsed_entities=33 seconds=9.28
+2026-11-15T12:25:50.723595118Z [INFO]  event="raw_month_staged" start="2022-06-01" detail_entities=0 collapsed_entities=33 seconds=11.89
+2026-11-15T12:25:56.315886037Z [INFO]  event="raw_month_staged" start="2022-07-01" detail_entities=0 collapsed_entities=33 seconds=13.89
+2026-11-15T12:26:16.084689572Z [INFO]  event="raw_month_staged" start="2022-08-01" detail_entities=17 collapsed_entities=33 seconds=13.27
+2026-11-15T12:26:22.312099884Z [INFO]  event="raw_month_staged" start="2022-09-01" detail_entities=17 collapsed_entities=33 seconds=12.49
+2026-11-15T12:26:41.130866154Z [INFO]  event="raw_month_staged" start="2022-10-01" detail_entities=17 collapsed_entities=33 seconds=14.38
+2026-11-15T12:26:49.806509657Z [INFO]  event="raw_month_staged" start="2022-11-01" detail_entities=17 collapsed_entities=33 seconds=13.04
+2026-11-15T12:27:08.608501147Z [INFO]  event="raw_month_staged" start="2022-12-01" detail_entities=17 collapsed_entities=33 seconds=11.75
+2026-11-15T12:27:17.647255553Z [INFO]  event="raw_month_staged" start="2023-01-01" detail_entities=17 collapsed_entities=33 seconds=16.5
+2026-11-15T12:27:37.327457417Z [INFO]  event="raw_month_staged" start="2023-02-01" detail_entities=17 collapsed_entities=33 seconds=13.24
+2026-11-15T12:27:43.211797027Z [INFO]  event="raw_month_staged" start="2023-03-01" detail_entities=17 collapsed_entities=33 seconds=12.37
+2026-11-15T12:28:04.722521144Z [INFO]  event="raw_month_staged" start="2023-04-01" detail_entities=17 collapsed_entities=33 seconds=10.47
+2026-11-15T12:28:06.149843395Z [INFO]  event="raw_month_staged" start="2023-05-01" detail_entities=17 collapsed_entities=33 seconds=11.26
+2026-11-15T12:28:26.486962089Z [INFO]  event="raw_month_staged" start="2023-06-01" detail_entities=17 collapsed_entities=33 seconds=11.11
+2026-11-15T12:28:32.633905804Z [INFO]  event="raw_month_staged" start="2023-07-01" detail_entities=17 collapsed_entities=33 seconds=16.26
+2026-11-15T12:28:53.007112046Z [INFO]  event="raw_month_staged" start="2023-08-01" detail_entities=17 collapsed_entities=33 seconds=16.01
+2026-11-15T12:29:12.300591139Z [INFO]  event="raw_month_staged" start="2023-09-01" detail_entities=17 collapsed_entities=33 seconds=14.4
+2026-11-15T12:29:18.535001934Z [INFO]  event="raw_month_staged" start="2023-10-01" detail_entities=17 collapsed_entities=33 seconds=14.59
+2026-11-15T12:29:38.486194352Z [INFO]  event="raw_month_staged" start="2023-11-01" detail_entities=17 collapsed_entities=33 seconds=15
+2026-11-15T12:29:44.048481044Z [INFO]  event="raw_month_staged" start="2023-12-01" detail_entities=17 collapsed_entities=33 seconds=11.61
+2026-11-15T12:30:06.016566215Z [INFO]  event="raw_month_staged" start="2024-01-01" detail_entities=17 collapsed_entities=33 seconds=12.41
+2026-11-15T12:30:09.755736033Z [INFO]  event="raw_month_staged" start="2024-02-01" detail_entities=17 collapsed_entities=33 seconds=12.05
+2026-11-15T12:30:28.011305277Z [INFO]  event="raw_month_staged" start="2024-03-01" detail_entities=17 collapsed_entities=33 seconds=13.82
+2026-11-15T12:30:33.705073015Z [INFO]  event="raw_month_staged" start="2024-04-01" detail_entities=17 collapsed_entities=33 seconds=10.71
+2026-11-15T12:30:53.644031852Z [INFO]  event="raw_month_staged" start="2024-05-01" detail_entities=17 collapsed_entities=33 seconds=11.17
+2026-11-15T12:30:57.068548848Z [INFO]  event="raw_month_staged" start="2024-06-01" detail_entities=17 collapsed_entities=33 seconds=11.47
+2026-11-15T12:31:17.920320824Z [INFO]  event="raw_month_staged" start="2024-07-01" detail_entities=17 collapsed_entities=33 seconds=16.37
+2026-11-15T12:31:27.642052456Z [INFO]  event="raw_month_staged" start="2024-08-01" detail_entities=17 collapsed_entities=33 seconds=15.29
+2026-11-15T12:31:47.826524962Z [INFO]  event="raw_month_staged" start="2024-09-01" detail_entities=17 collapsed_entities=33 seconds=14.79
+2026-11-15T12:32:08.037352637Z [INFO]  event="raw_month_staged" start="2024-10-01" detail_entities=17 collapsed_entities=33 seconds=17.4
+2026-11-15T12:32:28.052111275Z [INFO]  event="raw_month_staged" start="2024-11-01" detail_entities=17 collapsed_entities=33 seconds=19.81
+2026-11-15T12:32:32.147472029Z [INFO]  event="raw_month_staged" start="2024-12-01" detail_entities=17 collapsed_entities=33 seconds=12.21
+2026-11-15T12:32:51.523620862Z [INFO]  event="raw_month_staged" start="2025-01-01" detail_entities=17 collapsed_entities=33 seconds=14.04
+2026-11-15T12:33:00.892721909Z [INFO]  event="raw_month_staged" start="2025-02-01" detail_entities=17 collapsed_entities=33 seconds=14.21
+2026-11-15T12:33:20.539924883Z [INFO]  event="raw_month_staged" start="2025-03-01" detail_entities=17 collapsed_entities=33 seconds=14.33
+2026-11-15T12:33:28.174576687Z [INFO]  event="raw_month_staged" start="2025-04-01" detail_entities=17 collapsed_entities=33 seconds=13.64
+2026-11-15T12:33:48.967808426Z [INFO]  event="raw_month_staged" start="2025-05-01" detail_entities=17 collapsed_entities=33 seconds=12.41
+2026-11-15T12:33:53.833255653Z [INFO]  event="raw_month_staged" start="2025-06-01" detail_entities=17 collapsed_entities=33 seconds=12.76
+2026-11-15T12:34:13.523265799Z [INFO]  event="raw_month_staged" start="2025-07-01" detail_entities=17 collapsed_entities=33 seconds=15.9
+2026-11-15T12:34:33.736289149Z [INFO]  event="raw_month_staged" start="2025-08-01" detail_entities=17 collapsed_entities=33 seconds=14.42
+2026-11-15T12:34:38.717928716Z [INFO]  event="raw_month_staged" start="2025-09-01" detail_entities=17 collapsed_entities=33 seconds=15.01
+2026-11-15T12:34:58.433281776Z [INFO]  event="raw_month_staged" start="2025-10-01" detail_entities=17 collapsed_entities=33 seconds=15.51
+2026-11-15T12:35:08.241506354Z [INFO]  event="raw_month_staged" start="2025-11-01" detail_entities=17 collapsed_entities=33 seconds=14.19
+2026-11-15T12:35:27.908995553Z [INFO]  event="raw_month_staged" start="2025-12-01" detail_entities=17 collapsed_entities=33 seconds=16.09
+2026-11-15T12:35:48.252807160Z [INFO]  event="raw_month_staged" start="2026-01-01" detail_entities=17 collapsed_entities=33 seconds=22.4
+2026-11-15T12:36:09.008765809Z [INFO]  event="raw_month_staged" start="2026-02-01" detail_entities=17 collapsed_entities=33 seconds=12.88
+2026-11-15T12:36:15.087276446Z [INFO]  event="raw_month_staged" start="2026-03-01" detail_entities=17 collapsed_entities=33 seconds=15.35
+2026-11-15T12:36:36.387733137Z [INFO]  event="raw_month_staged" start="2026-04-01" detail_entities=17 collapsed_entities=33 seconds=15.76
+2026-11-15T12:36:45.072734912Z [INFO]  event="raw_month_staged" start="2026-05-01" detail_entities=17 collapsed_entities=33 seconds=14.1
+2026-11-15T12:37:05.671482446Z [INFO]  event="raw_month_staged" start="2026-06-01" detail_entities=17 collapsed_entities=33 seconds=13.44
+2026-11-15T12:37:13.554366243Z [INFO]  event="raw_month_staged" start="2026-07-01" detail_entities=17 collapsed_entities=33 seconds=14.69
+2026-11-15T12:37:33.442856202Z [INFO]  event="raw_month_staged" start="2026-08-01" detail_entities=17 collapsed_entities=33 seconds=12.25
+2026-11-15T12:37:39.526362821Z [INFO]  event="raw_month_staged" start="2026-09-01" detail_entities=17 collapsed_entities=33 seconds=13.05
+2026-11-15T12:37:58.430171262Z [INFO]  event="raw_month_staged" start="2026-10-01" detail_entities=17 collapsed_entities=33 seconds=11.18
+2026-11-15T12:37:58.430178061Z [INFO]  event="raw_month_staged" start="2026-11-01" detail_entities=17 collapsed_entities=33 seconds=4.36
+TEMP_SIZE {"seconds": 1498.5, "mb": "449.9", "rows": {"detail": 1395623, "collapsed": 262956}, "tables": "bulk5_all=258310144 bulk5_universe_all=130260992 entity_member=57344 hist6=57729024 hist_universe=25354240"}
+2026-11-15T12:39:12.442418908Z [INFO]  event="feature2_progress" pairs=269 total_pairs=269 statements=1
+2026-11-15T12:39:12.442426449Z [INFO]  event="formula_snapshot" routine="public.refresh_feature_03_stock_broker_daily(date,text[])" sha256="8590668bf4dcb1fa797196ad43fc711ba8952db94d25f75511bea4e5e750af66"
+2026-11-15T12:39:12.442433181Z [INFO]  event="formula_snapshot" routine="public.refresh_feature_06(text,date)" sha256="061e6cb4818aa7c3245c0320484d8395f6defef1fc945d51a7ddf1a93ada70cb"
+2026-11-15T12:39:18.790407312Z [INFO]  event="feature2_independent_validated" comparisons=22450 sampled_dates=12
+2026-11-15T12:39:22.209447029Z [INFO]  event="feature3_independent_validated" comparisons=38460 rows=1923
+/job/scripts/check_feature_06_sample.py:46: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  d["gap"] = act.gap.reindex(d.index).fillna(False).astype(bool)
+/job/scripts/check_feature_06_sample.py:46: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  d["gap"] = act.gap.reindex(d.index).fillna(False).astype(bool)
+  File "/job/job.py", line 50, in <module>
+Traceback (most recent call last):
+    result = x.run(db, tickers, bool(p.get('apply')), int(p.get('batch') or 10), until, since)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/job/scripts/backfill_index_entities.py", line 413, in run
+    staged = stage_entity(db, e, p['window_first'], e['from_date'], e['mode'], p['first'], history_first)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/job/scripts/backfill_index_entities.py", line 329, in stage_entity
+    b.validate6(db, freq, anchored, s0)
+  File "/job/scripts/backfill_index_features.py", line 258, in validate6
+    if not equal(actual[c],value,1e-6):raise RuntimeError(f'F06 independent mismatch {key}/{c}: {actual[c]} vs {value}')
+                                       ^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: F06 independent mismatch (datetime.date(2022, 4, 1), 'Nego')/foreign_strength_momentum_5d: 0.0 vs -2.9579048089090065e-05
+JOB_EXIT 1

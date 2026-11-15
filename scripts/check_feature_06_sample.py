@@ -60,9 +60,21 @@ def expected(f05: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(rows), boards
 
 
+def wsum(series: pd.Series, n: int, min_periods: int | None = None) -> pd.Series:
+    """The sum of each window of n values, summed from that window's own values (ERRORS M441). pandas' rolling sum is a
+    running sum: it keeps the rounding remainder of values that left the window (about 1e-16 of their size), which
+    dominates a window of near-zero values, so a ratio of two such sums (the foreign strength) was off by 3e-7 while the
+    stored SQL value is exact. Same rules as rolling(n, min_periods).sum(): missing values are skipped and a window
+    needs min_periods (default n) present values."""
+    v = series.to_numpy(dtype=float)
+    win = np.lib.stride_tricks.sliding_window_view(np.concatenate([np.full(n - 1, np.nan), v]), n)
+    present = (~np.isnan(win)).sum(axis=1)
+    total = np.nansum(win, axis=1)
+    return pd.Series(np.where(present >= (n if min_periods is None else min_periods), total, np.nan), index=series.index)
+
+
 def roll(series: pd.Series, n: int, s: pd.Series) -> pd.Series:
-    out = series.rolling(n, min_periods=n).sum()
-    return out.where(s >= n)
+    return wsum(series, n).where(s >= n)
 
 
 def midrank(cur: float, hist: np.ndarray) -> float:
@@ -119,12 +131,12 @@ def compute(f05: pd.DataFrame) -> pd.DataFrame:
             e[f"foreign_net_zscore_{n}d_base252d"], e[f"foreign_net_percentile_{n}d_base252d"] = baseline(fN[n], 252)
         for n in (5, 10, 20):
             e[f"foreign_net_zscore_{n}d_base60d"], e[f"foreign_net_percentile_{n}d_base60d"] = baseline(fN[n], 60)
-        e["foreign_flow_vs_prev_20d"] = (fN[20] - F.shift(20).rolling(20, min_periods=20).sum()).where(s >= 40)
-        e["foreign_flow_vs_prev_40d"] = (fN[40] - F.shift(40).rolling(40, min_periods=40).sum()).where(s >= 80)
+        e["foreign_flow_vs_prev_20d"] = (fN[20] - wsum(F.shift(20), 20)).where(s >= 40)
+        e["foreign_flow_vs_prev_40d"] = (fN[40] - wsum(F.shift(40), 40)).where(s >= 80)
         R = div(F, T).where(T > 0)
         def strength(n):
-            num = R.rolling(n, min_periods=1).sum().where(s >= n)
-            den = R.abs().rolling(n, min_periods=1).sum().where(s >= n)
+            num = wsum(R, n, 1).where(s >= n)
+            den = wsum(R.abs(), n, 1).where(s >= n)
             return (100 * num / den).where(den > 0)
         st20 = strength(20)
         e["foreign_strength_20d"], e["foreign_strength_50d"] = st20, strength(50)
@@ -142,8 +154,8 @@ def compute(f05: pd.DataFrame) -> pd.DataFrame:
             e[f"{p}_buy_sell_ticket_ratio_1d"] = div(div(VB, B), div(VS, S)).where((B > 0) & (S > 0) & (VS > 0))
             e[f"{p}_avg_buy_lots_per_freq_1d"] = div(LB, B)
             e[f"{p}_avg_sell_lots_per_freq_1d"] = div(LS, S)
-        c5 = lambda v: v.rolling(5, min_periods=5).sum().where(s >= 25)
-        p20 = lambda v: v.shift(5).rolling(20, min_periods=20).sum().where(s >= 25)
+        c5 = lambda v: wsum(v, 5).where(s >= 25)
+        p20 = lambda v: wsum(v.shift(5), 20).where(s >= 25)
         for side, Fq, Dq, Fv, Dv in (("buy", BF, DBF, FB, DB), ("sell", SF, DSF, FS, DS)):
             cur_tot, prev_tot = c5(Fq) + c5(Dq), p20(Fq) + p20(Dq)
             e[f"domestic_{side}_freq_share_change_5d_vs_prev20d"] = 100 * div(c5(Dq), cur_tot) - 100 * div(p20(Dq), prev_tot)
