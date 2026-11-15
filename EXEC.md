@@ -14168,3 +14168,8 @@ terhubung GitHub), (2) migrasi A di dev. Migrasi B dan tahap 3 menunggu go terpi
 - Hasil 2026-11-15: (1) idx-price-cron `a81179a3`, idx-price-recovery-cron `d2a15423`, idx-intraday-cron `1cddf79c` SUCCESS;
   (2) migrasi A DRYRUN `2445a6ae`, APPLY `b4f43a1e`, dibaca balik (DATABASE_CHANGELOG); restart Postgres 07:47 UTC.
   Berikutnya (go terpisah): migrasi B + isi harga 43 indeks sejak 2018 (tahap 3); tahap 4 di branch.
+
+**Go user 2026-11-15:** "go langkah 3": migrasi B (`20261115_002`) lalu isi harga harian 43 indeks dari TradingView sejak
+2018-01-02 (atau bar pertama indeks) s.d. 2026-11-13 dengan `scripts/backfill_idx_price_ticker.py` (preflight, lalu apply
+dengan sidik data preflight; tidak menimpa baris yang ada), job `verification/index_group_history/price_job.py`
+(indeks: celah di tengah riwayat ditolak).
