@@ -1,6 +1,6 @@
 # Rumus Market Overview (dev)
 
-<!-- explained-for: overview.py=ec4d588d48d5767519cbcf16e808d746, model.ts=c7b06dbf6874b7f43becafee947ebca1, overview_stock_size=f451fc552b78a6174bc47b4e2a217293 -->
+<!-- explained-for: overview.py=ec4d588d48d5767519cbcf16e808d746, model.ts=f807be497cd316b11d7fad04f98c41f8, overview_stock_size=f451fc552b78a6174bc47b4e2a217293 -->
 
 Dokumen ini menjelaskan **setiap angka di halaman Market Overview** (tab "Overview" di EDGE) dengan bahasa sederhana
 dan contoh angka asli dev. Pakai dokumen ini saat ingin mengubah rumus, atau saat bertanya dari mana sebuah angka
@@ -159,7 +159,8 @@ ETF dan kode indeks tidak dihitung.
 - **Abu-abu hanya untuk return 0** (keputusan user 2026-11-15, pilihan 3: "Hanya return persis 0% yang abu-abu").
   - Return yang naik sekecil apa pun hijau muda; yang turun sekecil apa pun merah muda.
   - "0" dihitung dari angka yang tertulis di kotak (2 desimal), jadi kotak abu-abu selalu bertulisan 0,00%.
-  - Desain semula memakai pita netral −0,5 sampai +0,5; pita itu masih dipakai warna Foreign buy (di bawah).
+  - Desain semula memakai pita netral −0,5 sampai +0,5; pita itu tidak dipakai lagi (Foreign buy juga mengikuti aturan
+    ini, di bawah).
 - Artinya untuk 1M batasnya 0, ±6%, ±12% (return sebulan wajar lebih besar dari return sehari).
 - Contoh 13 Nov, 1D:
   - BBCA +0,46% → **hijau muda** (dulu abu-abu);
@@ -170,12 +171,15 @@ ETF dan kode indeks tidak dihitung.
 
 - Nilai = net asing saham (papan Regular, Feature 06) pada tanggal broker: 1D = `foreign_net_1d`, 5D = `foreign_net_5d`,
   1M = `foreign_net_20d`.
-- Pembagi = **Rp 120 M × √(jumlah sesi)**: 1D Rp 120 M, 5D Rp 268 M, 1M Rp 537 M. Langkahnya langkah desain, dengan
-  pita netral: hasil bagi di atas −0,5 sampai di bawah 0,5 abu-abu. Jadi untuk 1D: abu-abu bila net di antara −Rp 60 M
-  dan +Rp 60 M, lalu ±Rp 180 M dan ±Rp 360 M.
+- Pembagi = **Rp 120 M × √(jumlah sesi)**: 1D Rp 120 M, 5D Rp 268 M, 1M Rp 537 M. Langkahnya sama dengan tabel
+  Performance di atas (keputusan user 2026-11-15: "Foreign buy samakan juga"):
+  - abu-abu hanya bila kotak bertulisan **0**, yaitu net di bawah Rp 1 juta (jumlah sekecil itu ditulis "0");
+  - net beli lain → paling tidak hijau muda; net jual lain → paling tidak merah muda;
+  - untuk 1D: hijau/merah mulai ±Rp 180 M, paling tua mulai ±Rp 360 M.
 - Contoh 9 Nov, 1D:
   - BBCA +Rp 523,1 M ÷ 120 = 4,36 → **hijau paling tua**;
-  - BMRI −Rp 134,5 M ÷ 120 = −1,12 → **merah muda**.
+  - BMRI −Rp 134,5 M ÷ 120 = −1,12 → **merah muda**;
+  - net +Rp 30 M → **hijau muda** (dulu abu-abu); saham tanpa transaksi asing (net 0) → **abu-abu**.
 
 ### Judul sektor dan universe
 
@@ -353,7 +357,7 @@ Ditulis oleh `scripts/overview_formulas_doc.py --write` dari kode di repo; janga
 | Kode | Sumber | Sidik jari (md5) |
 |---|---|---|
 | `overview.py` | `apps/terminal-publisher/overview.py` (= `CODE` publisher) | `ec4d588d48d5767519cbcf16e808d746` |
-| `model.ts` | `apps/edge-bff/overview/src/model.ts` | `c7b06dbf6874b7f43becafee947ebca1` |
+| `model.ts` | `apps/edge-bff/overview/src/model.ts` | `f807be497cd316b11d7fad04f98c41f8` |
 | `overview_stock_size` | isi fungsi di `database/migrations/20261115_020_overview_stock_size.sql` | `f451fc552b78a6174bc47b4e2a217293` |
 
 <!-- overview-live:end -->

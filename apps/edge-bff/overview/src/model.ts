@@ -37,6 +37,7 @@ export function rp(v: number | null | undefined, signed = false) {
 export function amount(v: number | null | undefined) {
   if (v == null) return '—';
   const a = Math.abs(v);
+  if (a < 1e6) return '0';                          // under Rp 1 million it reads 0, without a sign
   return sign(v) + (a >= 1e12 ? (a / 1e12).toFixed(a >= 1e13 ? 1 : 2) + 'T' : a >= 1e9 ? Math.round(a / 1e9) + 'B'
     : a >= 1e6 ? Math.round(a / 1e6) + 'M' : '0');
 }
@@ -48,9 +49,9 @@ export const sizeLabel = (basis: string | null) => (basis ? SIZE_BASIS[basis] ||
 export const sizeText = (basis: string | null, v: number | null) => (v == null ? '—' : rp(v) + (basis === 'adv20_value' ? '/day' : ''));
 
 /* ---------- colours: the design's seven steps ---------- */
-/** signed (user 2026-11-15, choice 3: "Hanya return persis 0% yang abu-abu"): any value above 0 takes at least the light
-    green step and any below 0 at least the light red one; only 0 itself stays neutral. Without it, the design's band
-    (-0.5, 0.5) is neutral (Foreign buy). */
+/** signed (user 2026-11-15, choice 3: "Hanya return persis 0% yang abu-abu"; then "Foreign buy samakan juga"): any
+    value above 0 takes at least the light green step and any below 0 at least the light red one; only 0 itself stays
+    neutral. Without it, the design's band (-0.5, 0.5) is neutral. */
 export function colorOf(c: number, signed = false): [string, string] {
   if (c >= 3) return ['var(--green-600)', '#fff'];
   if (c >= 1.5) return ['var(--green-500)', '#fff'];
@@ -103,8 +104,9 @@ export type MapMetric = 'perf' | 'fb';
 export interface Tile { r: Row; v: number | null; text: string; col: [string, string] }
 export function tile(r: Row, metric: MapMetric, p: TilePeriod): Tile {
   if (metric === 'fb') {
-    const v = r.fnet[p];
-    return { r, v, text: amount(v), col: v == null ? colorOf(0) : colorOf(v / foreignScale(p)) };
+    // as Performance: gray exactly when the tile reads 0 (a net under Rp 1 million), else at least the light step
+    const v = r.fnet[p], shown = v == null || Math.abs(v) < 1e6 ? 0 : v;
+    return { r, v, text: amount(v), col: colorOf(shown / foreignScale(p), true) };
   }
   // the colour follows the return as written on the tile (2 decimals): gray exactly when it reads 0.00%
   const v = r.ret[p], shown = v == null ? 0 : Math.round(v * 100) / 100;

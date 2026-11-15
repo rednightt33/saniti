@@ -88,8 +88,11 @@ describe('stocks, universes and the market map', () => {
     expect(at(-0.2)).toBe('var(--red-300)');
     expect(at(0.004)).toBe('var(--ov-flat)');                                // written "+0.00%": gray
     expect(at(0)).toBe('var(--ov-flat)');
-    expect(M.tile({ ...M.rows(meta, day)[0], fnet: { '1D': 3e10, '5D': null, '1M': null, '3M': null } }, 'fb', '1D').col[0])
-      .toBe('var(--ov-flat)');                                               // Foreign buy keeps the design's band
+    const fb = (n: number) => M.tile({ ...M.rows(meta, day)[0], fnet: { '1D': n, '5D': null, '1M': null, '3M': null } }, 'fb', '1D');
+    expect(fb(3e10).col[0]).toBe('var(--green-300)');                       // Foreign buy the same (user "samakan juga")
+    expect(fb(-2e7).col[0]).toBe('var(--red-300)');
+    expect([fb(5e5).col[0], fb(5e5).text, fb(0).col[0]]).toEqual(['var(--ov-flat)', '0', 'var(--ov-flat)']);
+    expect(fb(2e11).col[0]).toBe('var(--green-500)');                       // the steps above stay: 200 bn / 120 bn = 1.67
   });
   it('lays a squarified treemap whose areas follow the values', () => {
     const rects = M.squarify([{ v: 6, item: 'a' }, { v: 3, item: 'b' }, { v: 1, item: 'c' }], 0, 0, 100, 50);
