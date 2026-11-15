@@ -23,8 +23,13 @@
   owner: Overview first in the rail, Fri 13 Nov, KPIs equal to the recalculation, 45 LQ45 tiles
   (`overview_live_1440.png`).
 - **Postgres:** 1.99 GB after the run (13:27 UTC); the manual restart was refused by its guard (the scheduled
-  postgres-memory-cron run at 13:45 UTC is within 45 minutes), so that scheduled run is the restart; its result is
-  recorded below when read back.
+  postgres-memory-cron run at 13:45 UTC is within 45 minutes), so that scheduled run was the restart: start time
+  2026-11-15 07:47:21 → **13:47:00 UTC** (`pg_postmaster_start_time`, pgweb), memory **0.10 GB** at 13:53 UTC
+  (`restart_postgres.py` check). The live page signed in normally at 13:47:38.
+- **edge-bff `a3083980` SUCCESS (13:40 UTC, `main` `649c1173`, user "go, deploy edge-bff"):** the market map's
+  Performance colour is gray only at 0.00% (user choice "3"; EXEC-OVERVIEW). Only edge-bff deployed (the only changed
+  service folder). Read back on the live page as the owner: BBCA and ANTM light green, BMRI, PGEO and HRTA gray
+  (`verification/overview/live_20261115/overview_live_1440_choice3.png`).
 
 ## 2026-11-15 — orc-test-runner jobs of EXEC-INDEX-GROUP-HISTORY step 3 (no service deployed)
 

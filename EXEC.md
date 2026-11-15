@@ -14362,7 +14362,7 @@ migrasi di dev, merge ke `main` dan setiap deploy ditanyakan dulu satu per satu.
 (angka yang tertulis 0,00%); naik sekecil apa pun hijau muda, turun merah muda. Pertanyaannya: kotak "putih" BBCA
 (+0,46%), BMRI, ANTM, HRTA, PGEO pada 13 Nov adalah pita netral desain (−0,5% s/d +0,5%). Foreign buy tetap memakai pita
 desain. Kode: `apps/edge-bff/overview/src/model.ts` (`colorOf(..., signed)`); `OVERVIEW_FORMULAS.md` bagian 7. Deploy
-edge-bff menunggu go.
+edge-bff `a3083980` SUCCESS 2026-11-15 13:40 UTC (go user: "go, deploy edge-bff"); terlihat di halaman live.
 
 Temuan selama O1 (sudah ditangani di kode):
 - Login publisher di dev punya `statement_timeout=120s`. Hitungan EMA lari pertama (300 tanggal) dalam satu kueri ±86
