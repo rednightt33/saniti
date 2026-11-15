@@ -14180,3 +14180,5 @@ dengan sidik data preflight; tidak menimpa baris yang ada), job `verification/in
   indeks sisanya dengan sidik preflight yang sama.
 - Hasil 2026-11-15: migrasi C DRYRUN `9fcbdbf4`, APPLY `a96ff014`; harga 38 indeks job `7331078f` (60.809 baris). Total 43
   indeks, 71.509 baris, dibaca balik. Tahap 3 selesai. Berikutnya: tahap 4 (skrip INDEX dan F02 sekaligus, di branch).
+- Go user 2026-11-15: "Langsung jalankan", "go tahap 4": skrip INDEX untuk 76 entitas (anggota per tanggal, satu baca data
+  broker, F02 sekaligus, tulis hanya >= rows_from), di branch, diuji lokal; dev tidak disentuh.
