@@ -1131,3 +1131,29 @@ Coba saja di explore pakai benchmark yang best practice."
 ## TERMINAL-IND-CARDS — dipindah ke `EXEC.md` EXEC-IND-CARDS (go 2026-11-01: "jalankan TERMINAL-IND-CARDS as well")
 
 ## FI-TERMINAL — dipindah ke `EXEC.md` EXEC-FI-TERMINAL (go 2026-11-01; audit dan koreksi data selesai, EXEC-FI-DATE)
+
+## INDEX-GROUP-HISTORY — riwayat 32 indeks dan 33 grup (KONGLO) untuk grafik kinerja (disetujui arahnya 2026-11-15; rencana eksekusi belum)
+
+**Kata user, 2026-11-15:** "Harga bisa disimpan di price stock Indonesia IDX saja. Karena di sana juga sudah ada IHSG.
+Dari 2018 enough terkait dengan riwayat." Lalu (tangkapan layar enam tabel `Feature_0x_..._INDEX`): indeks yang sudah ada
+harganya dimasukkan ke Feature 1; "group tidak usah dimasukkan ke fitur 1 karena kita tidak bisa menghitung base
+price-nya. Tapi kita bisa mulai dari fitur 2 sampai fitur 6"; contoh: net buy asing grup = kumulatif dari semua saham
+grup; "saya tidak mau ada proses yang menghitung ulang dari awal yang sudah existing. Jadi kita hanya insert saja
+sifatnya."
+
+**Fakta (dev hanya baca, kode `main` 63f334e1, 2026-11-15):**
+- `Stock_List`: 33 INDEX dan 33 KONGLO, dimuat dari Stockbit 2026-11-09; riwayat anggota baru sejak 2026-11-09.
+- Harga: hanya IHSG (`Price_Stock_Indonesia_IDX`, 2018-01-02..2026-11-13). TradingView punya ke-32 indeks lain (data
+  harian, tanpa volume), mulai 1990 (IHSG) s.d. 2024-09 (IDXVESTA28); lima nama berbeda: `BISNIS_27`, `SRI_KEHATI`,
+  `IDXSMC_LIQ`, `IDXSMC_COM`, `I_GRADE`. IHSG TradingView = database 10-13 Nov (OHLC sama).
+- Indeks dikenali dari `IDX_Stock_Universe."Security Type" = 'index'` (`is_universe_index`, migrasi 20261025_011): pipa
+  Feature 01/04 saham melewatinya, jadi baris harga indeks baru tidak memicu hitung ulang fitur saham.
+- `scripts/backfill_index_features.py` menulis per ticker (`apply_chunks`: `WHERE ticker=%s ... ON CONFLICT`); ticker baru
+  hanya menambah baris; IHSG tidak tersentuh. Agregat broker IHSG = semua simbol `IDX_Broker_Summary`; grup butuh
+  parameter daftar saham.
+- Pembaruan harian `_INDEX` hanya IHSG (`apps/stockbit-updater/refresh.py:330-349`).
+- Tidak ada kode indeks/grup yang bentrok dengan ticker saham.
+
+**Pertanyaan terbuka (2026-11-15):** Feature 04 INDEX untuk indeks; Feature 02-06 untuk indeks juga; dasar keanggotaan
+masa lalu (anggota hari ini); pembaruan harian sesudah isi riwayat; "Barito" = grup Prajogo Pangestu (BRPT, TPIA, PTRO,
+BREN, CUAN, SINI, RATU, SSIA, CDIA).
