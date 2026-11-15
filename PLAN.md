@@ -172,10 +172,23 @@ adalah tanggal yang ditetapkan admin; (2) FL52 tidak menjadi kondisi tersendiri 
 mekanisme hak akses disiapkan sekarang (edge-bff menentukan hak sesi, mengirimnya ke worker, worker menolak D tanpa hak,
 katalog menandai D), dengan owner = admin sampai EDGE-MULTIUSER.
 
-**Pertanyaan terbuka:** (d) FL34: klasifikasi bertanggal, dihitung dari data sampai t, atau ditahan; (e) Part A ERRORS
-ditambah syarat "tanggal tersedia"; dan daftar konfirmasi yang dikirim ke user 2026-11-15 (bawaan anchor bila admin
-tidak mengisi, perubahan kode Screener untuk tata bahasa bersama, uji look-ahead sebagai gerbang CI, peringatan data
-broker 2016-2020, jalur ke `main`).
+**Jawaban konfirmasi user, 2026-11-15:** "1A / 2 OK / 3 OK / 4 OK / 5 tidak apa2, leave as is untuk klasifikasinya karena
+tidak ada perubahan. / 7B". Jadi: (1A) tanggal awal FL51 dan anchor FL18, FL19, FL20, FL44, FL45 wajib diisi admin; tanpa
+itu permintaan ditolak; (2) internal Screener boleh diubah untuk tata bahasa bersama (Terminal tetap tidak); (3) uji
+look-ahead menjadi gerbang CI wajib; (4) hasil yang memakai kondisi Flow dan periodenya mencakup 2016-2020 diberi
+peringatan data broker tidak lengkap; (5) FL34 memakai klasifikasi `IDX_Broker_Profile` apa adanya untuk semua tanggal
+(user: klasifikasi tidak berubah; dicatat sebagai batasan yang diterima di ERRORS M443); (7B) dokumen dan kode digabung
+ke `main` bersama, lewat PR di Gerbang 2.
+
+**Cara kerja yang disetujui user, 2026-11-15:** "use a workflow — user secara eksplisit mengizinkan orkestrasi
+multi-agent untuk BACKTEST-REVAMP." Roadmap empat tahap: A (review rancangan, agent 1-4) lalu draft EXEC-BACKTEST-REVAMP;
+B (review rencana, agent 5-8) lalu revisi EXEC dan Gerbang 1 (berhenti, tunggu "go"); eksekusi back end; C (code review
+adversarial, agent 9) lalu Gerbang 2 (persetujuan PR, merge, deploy); D (port tampilan, agent 10) lalu Gerbang 3. Subagent
+opus effort high, read-only, paling banyak 4 paralel; prompt dari file user `111.txt` (Bagian Umum + Agent 1-10); laporan
+subagent diverifikasi ulang sebelum dipakai.
+
+**Pertanyaan terbuka:** (6) Part A `ERRORS_AND_SOLUTIONS.md` ditambah syarat "setiap data untuk sinyal wajib membawa
+tanggal tersedia" (belum dijawab).
 
 ## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
 

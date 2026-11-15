@@ -8081,7 +8081,9 @@ in its staleness check.
   so a new indicator is covered) and an engine-level test (trades closed up to t unchanged) as a CI gate.
 - **User decision 2026-11-15:** "Terminal jangan disentuh"; the eight enter the Backtest as point-in-time versions in
   the Backtest core (admin only), FL31 skipped. Prototypes of all eight (re-selection at each t from data up to t) pass
-  the truncation test on BBRI (243,810 broker rows): about 95 ms per stock together.
+  the truncation test on BBRI (243,810 broker rows): about 95 ms per stock together. FL34 (user 2026-11-15: "leave as
+  is untuk klasifikasinya karena tidak ada perubahan"): the current `IDX_Broker_Profile` classification is used for
+  every date, an accepted limitation; item 2 above stays recorded.
 - **Status:** OPEN. The Backtest does not offer any Flow indicator of the Terminal yet, so no published backtest result
   read these eight; the Terminal chart draws them. Whether the Screener reads them on past bars (its preview arrows)
   was not checked in this task.
