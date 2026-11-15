@@ -71,7 +71,7 @@ export function requestConditions(req: SignalRequest): { entry: ActiveCondition[
 /* ---- one ticker ------------------------------------------------------------------------------------------- */
 
 export interface TickerSignals {
-  entryConditions: { id: string; s: Signal }[];        // enabled entry conditions, request order
+  entryConditions: { id: string; s: Signal; w: number }[];   // enabled entry conditions, request order; w = its window
   exitConditions: { id: string; s: Signal }[];         // enabled exit conditions, request order
   entry: Signal;                                       // combined entry state
   exit: Signal;                                        // combined exit-signal state (all 0 without exit conditions)
@@ -90,19 +90,21 @@ export interface TickerSignals {
 export function tickerSignals(calc: Calc, req: SignalRequest, active = requestConditions(req), last?: number, portfolio = false): TickerSignals {
   const n = calc.n, empty: ValidationError[] = [];
   // conditions.ts names its own Condition union (page shapes); the wire conditions of contract.ts are the same objects
+  // a condition of the grammar (kind test) applies its own EVENT `within`: its window in the entry rule is 1 bar
+  const w = (a: ActiveCondition) => (a.cond as { kind?: string }).kind === 'test' ? 1 : req.entry.window_bars;
   const series = (list: ActiveCondition[], entry: boolean) => list.map(a => {
-    try { return { id: a.id, s: conditionSeries(calc, a.cond as Parameters<typeof conditionSeries>[1], a.field, last) } }
+    try { return { id: a.id, s: conditionSeries(calc, a.cond as Parameters<typeof conditionSeries>[1], a.field, last), w: w(a) } }
     catch (e) {
       if (!portfolio || !(e instanceof ValidationError) || !EXCLUDED_CODES.includes(e.code)) throw e;
       if (entry) empty.push(e);
-      return { id: a.id, s: new Uint8Array(n) };
+      return { id: a.id, s: new Uint8Array(n), w: w(a) };
     }
   });
   const entryConditions = series(active.entry, true), exitConditions = series(active.exit, false);
   if (empty.length && entryConditions.length - empty.length < entryNeed(req.entry.logic, req.entry.at_least, entryConditions.length)) throw empty[0];
   return {
     entryConditions, exitConditions,
-    entry: combineEntry(entryConditions.map(x => x.s), req.entry.logic, req.entry.at_least, req.entry.window_bars, n),
+    entry: combineEntry(entryConditions.map(x => x.s), req.entry.logic, req.entry.at_least, req.entry.window_bars, n, entryConditions.map(x => x.w)),
     exit: req.exit ? combineExit(exitConditions.map(x => x.s), req.exit.signals.logic, n) : new Uint8Array(n),
     window: req.entry.window_bars,
   };
@@ -131,8 +133,8 @@ export function periodSignals(calc: Calc, tickerDates: readonly string[], req: S
 /** The entry conditions true within the window on bar j (true on one of the bars j-W+1..j), the rule combineEntry
     counts: the conditions that made the entry event, in request order. */
 export function conditionsWithin(sig: TickerSignals, j: number): string[] {
-  const from = Math.max(0, j - sig.window + 1), ids: string[] = [];
-  for (const c of sig.entryConditions) for (let t = j; t >= from; t--) if (c.s[t]) { ids.push(c.id); break }
+  const ids: string[] = [];
+  for (const c of sig.entryConditions) for (let t = j, from = Math.max(0, j - (c.w ?? sig.window) + 1); t >= from; t--) if (c.s[t]) { ids.push(c.id); break }
   return ids;
 }
 

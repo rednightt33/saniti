@@ -19,8 +19,24 @@ export interface Side { type: 'price' | 'output' | 'value'; output?: string; val
 export interface IndicatorCondition { id: string; enabled?: boolean; kind: 'indicator'; indicator: string; params?: Params; lhs: Side; op: Op; rhs: Side }
 export interface PriceActionCondition { id: string; enabled?: boolean; kind: 'price_action'; type: string; params?: Params; op?: string; value?: number }
 export interface FlowCondition { id: string; enabled?: boolean; kind: 'flow'; type: string; params?: { length?: unknown; broker?: unknown; [key: string]: unknown }; op?: string; value?: number }
-export type Condition = IndicatorCondition | PriceActionCondition | FlowCondition;
+/** EXEC-BACKTEST-REVAMP P1-P2: a condition in the Screener's grammar (its `test`: VALUE, STATE, EVENT or window over
+    metric references, transforms and patterns; screener core contract.ts Test), evaluated per bar by the grammar the
+    worker installs (installGrammar). The core never imports the Screener core (it imports this core: one direction,
+    no module cycle, Stage A Agent 3); a page or a process without the grammar refuses such a condition. */
+export interface TestCondition { id: string; enabled?: boolean; kind: 'test'; test: unknown }
+export type Condition = IndicatorCondition | PriceActionCondition | FlowCondition | TestCondition;
 export type Signal = Uint8Array;
+
+/** What the grammar needs besides the bars: the ticker, its bar dates and the index's bars (vs_index), when the caller
+    has them (the engine and the worker's preview do). */
+export interface CalcMeta { ticker?: string; dates?: readonly string[]; index?: { dates: readonly string[]; bars: Bars } }
+
+/** The per-bar evaluation of a TestCondition: a 0/1 series on the Calc's bars, with the grammar's own rules (EVENT
+    `within` per condition, bar 0 false, a series without a value up to `last` refused as INDICATOR_OUTPUT_EMPTY). */
+export interface GrammarEvaluator { signal(c: Calc, cond: TestCondition, field: string, last?: number): Signal }
+let GRAMMAR: GrammarEvaluator | null = null;
+/** Installs the grammar (the backtest worker at start, in every compute thread); null removes it (tests). */
+export function installGrammar(g: GrammarEvaluator | null): void { GRAMMAR = g }
 
 const OPS: Op[] = ['gt', 'lt', 'crosses_above', 'crosses_below'];
 type Series = ReadonlyArray<Num | undefined>;
@@ -29,11 +45,15 @@ const val = (s: Series | null, v: number, i: number): number => s ? (isN(s[i]) ?
 /** Per-ticker memo of indicator outputs, keyed by function and parameters, and of flow series (the ticker's flow
     data, flow.ts flowData on the same bars, when its broker files were loaded). */
 export class Calc {
-  bars: Bars; n: number; memo = new Map<string, Out>(); flow?: FlowData; flowMemo = new Map<string, Float64Array>();
-  constructor(bars: Bars, flow?: FlowData) {
+  bars: Bars; n: number; memo = new Map<string, Out>(); flow?: FlowData; flowMemo = new Map<string, Float64Array>(); meta: CalcMeta;
+  /** series of the grammar and of the worker's Flow indicators, keyed by the resolved series (no threshold), so the
+      sensitivity grid's cells reuse them (EXEC-BACKTEST-REVAMP: Stage B Agent 6) */
+  seriesMemo = new Map<string, ArrayLike<number | null | undefined>>();
+  constructor(bars: Bars, flow?: FlowData, meta: CalcMeta = {}) {
     this.bars = bars; this.n = bars.C.length;
     if (flow && flow.fnet.length !== this.n) throw new RangeError(`Calc: flow data has ${flow.fnet.length} bars, the prices ${this.n}.`);
-    this.flow = flow;
+    if (meta.dates && meta.dates.length !== this.n) throw new RangeError(`Calc: ${meta.dates.length} dates for ${this.n} bars.`);
+    this.flow = flow; this.meta = meta;
   }
   out(key: string, params: Params): Out {
     const id = key + JSON.stringify(params);
@@ -251,7 +271,11 @@ export function conditionSeries(c: Calc, cond: Condition, field = 'condition', l
   if (cond.kind === 'indicator') return indicatorCondition(c, cond, field, last);
   if (cond.kind === 'price_action') return priceActionCondition(c, cond, field);
   if (cond.kind === 'flow') return flowCondition(c, cond, field, last);
-  throw new ValidationError('UNKNOWN_CONDITION', `${field}.kind`, `${field}.kind must be indicator, price_action or flow.`);
+  if (cond.kind === 'test') {
+    if (!GRAMMAR) throw new ValidationError('CONDITION_UNAVAILABLE', `${field}.kind`, `${field}: a condition in the Screener's form (kind test) is computed by the backtest worker, not here.`);
+    return GRAMMAR.signal(c, cond, field, last);
+  }
+  throw new ValidationError('UNKNOWN_CONDITION', `${field}.kind`, `${field}.kind must be indicator, price_action, flow or test.`);
 }
 
 export type EntryLogic = 'all' | 'any' | 'at_least';
@@ -266,7 +290,7 @@ export const entryNeed = (logic: EntryLogic, atLeast: number | undefined, count:
 /** The combined entry state (page `signalsFor`). Inputs outside the page's controls are refused, never adjusted:
     logic all/any/at_least, a whole window of 1-20 bars, and at_least a whole number of at least 1. As on the page, an
     at_least above the number of active conditions means all of them (a condition switched off keeps the rule usable). */
-export function combineEntry(series: Signal[], logic: EntryLogic, atLeast: number | undefined, windowBars: number, n: number): Signal {
+export function combineEntry(series: Signal[], logic: EntryLogic, atLeast: number | undefined, windowBars: number, n: number, windows?: readonly number[]): Signal {
   if (!['all', 'any', 'at_least'].includes(logic)) throw new ValidationError('INVALID_ENTRY', 'entry.logic', 'entry.logic must be all, any or at_least.');
   if (!Number.isInteger(windowBars) || windowBars < WINDOW_BARS.min || windowBars > WINDOW_BARS.max)
     throw new ValidationError('INVALID_ENTRY', 'entry.window_bars', `entry.window_bars must be a whole number from ${WINDOW_BARS.min} to ${WINDOW_BARS.max}.`);
@@ -275,10 +299,12 @@ export function combineEntry(series: Signal[], logic: EntryLogic, atLeast: numbe
   const entry = new Uint8Array(n);
   if (!series.length) return entry;
   const need = entryNeed(logic, atLeast, series.length);
-  const W = windowBars, recent = series.map(() => -1e9);
+  // EXEC-BACKTEST-REVAMP P2: a condition of the grammar applies its own EVENT `within` and is not widened again by the
+  // entry window (windows[k] = 1); every other condition keeps the page's window
+  const W = series.map((_, k) => windows?.[k] ?? windowBars), recent = series.map(() => -1e9);
   for (let i = 0; i < n; i++) {
     let met = 0;
-    for (let k = 0; k < series.length; k++) { if (series[k][i]) recent[k] = i; if (i - recent[k] < W) met++ }
+    for (let k = 0; k < series.length; k++) { if (series[k][i]) recent[k] = i; if (i - recent[k] < W[k]) met++ }
     entry[i] = met >= need ? 1 : 0;
   }
   return entry;

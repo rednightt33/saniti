@@ -28,7 +28,8 @@
    Errors: {"error": {code, field?, message?, details?}} with errors.ts statuses (validation 422, data 424, BUSY and
    NOT_FINISHED 409, UNKNOWN_JOB 404, TIMEOUT 504). A job, a preview, a validation and a catalog each get
    limits.timeout_seconds; a job or preview over it has its thread terminated (FAILED TIMEOUT / 504 TIMEOUT).
-   Start: the registry artifact must match the files in the image (version.ts checkRegistry), else exit 1. Logs are
+   Start: the registry artifact must match the files in the image (version.ts checkRegistry), and the Screener's
+   registry and catalog too (grammar.ts grammarProblems, the conditions in its grammar), else exit 1. Logs are
    JSON lines without secrets (no header, body, key or presigned URL). */
 import crypto from 'node:crypto';
 import http from 'node:http';
@@ -47,7 +48,8 @@ import { checkPublished } from './run.ts';
 import { TerminalClient } from './terminal.ts';
 import { checkRequest } from './validate.ts';
 import type { CheckedRequest, References } from './validate.ts';
-import { ENGINE_VERSION, REGISTRY_VERSION, checkRegistry } from './version.ts';
+import { grammarProblems } from './grammar.ts';
+import { ENGINE_VERSION, REGISTRY_VERSION, REPO_ROOT, checkRegistry } from './version.ts';
 
 export const KEY_HEADER = 'x-backtest-worker-key';
 export const JOB_ID = /^bt_[0-9a-f]{32}$/;            // edge-bff backtest.py JOB_ID ('bt_' + secrets.token_hex(16))
@@ -401,6 +403,8 @@ async function main(): Promise<void> {
   try { cfg = loadConfig() } catch (e) { log('error', 'config_invalid', { message: (e as Error).message }); process.exit(1) }
   const reg = await checkRegistry();
   if (!reg.ok) { log('error', 'registry_mismatch', { registry_version: reg.expected, sources_hash: reg.found }); process.exit(1) }
+  const grammar = grammarProblems(REPO_ROOT);                     // EXEC-BACKTEST-REVAMP P1: the Screener's grammar
+  if (grammar.length) { log('error', 'grammar_mismatch', { problems: grammar }); process.exit(1) }
   const app = createApp(cfg);
   const port = await app.listen();
   log('info', 'start', { ...describeConfig(cfg), port, engine_version: ENGINE_VERSION, registry_version: REGISTRY_VERSION, node: process.version });

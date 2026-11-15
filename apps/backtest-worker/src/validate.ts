@@ -32,7 +32,13 @@ import { byTicker, isIsoDate, requestConditions } from '../../edge-bff/backtest/
 import type { ActiveCondition } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from './config.ts';
 import { invalid } from './errors.ts';
+import { installBacktestGrammar } from './grammar.ts';
 import type { BrokerRef, TickerRef } from './terminal.ts';
+
+// EXEC-BACKTEST-REVAMP P1: conditions in the Screener's grammar (kind 'test') are computed by the Screener core
+// (grammar.ts). Every path that checks or runs a request imports this module (server.ts on the main thread, run.ts in
+// each compute thread), so the grammar is installed once per thread here, before any condition is read.
+installBacktestGrammar();
 
 export const OOS_FRACTIONS = [0, 0.2, 0.3, 0.4];         // the page's Out-of-sample select: none, last 20 / 30 / 40 %
 /** A condition id as the page makes it, Math.random().toString(36).slice(2, 8) (state.ts mkCond, reg.ts mkReg,

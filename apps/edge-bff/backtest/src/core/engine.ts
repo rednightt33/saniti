@@ -100,8 +100,9 @@ function prepared(ctx: Context, ticker: string, field: string): Prepared {
   if (!d || !d.prices) throw new EngineDataError('DATA_MISSING', `No price data was loaded for ${ticker}.`, field);
   checkSeries(d.prices, ticker, true);
   const b = d.prices.bars;
-  // conditions.ts Calc takes the ticker's flow data as its second argument (flow conditions, kind 'flow')
-  const calc = new Calc(b, d.flow);
+  // conditions.ts Calc takes the ticker's flow data as its second argument (flow conditions, kind 'flow'), and the
+  // ticker, its bar dates and IHSG's bars for the grammar (kind test: vs_index)
+  const calc = new Calc(b, d.flow, { ticker, dates: d.prices.dates, index: { dates: ctx.data.ihsg.dates, bars: ctx.data.ihsg.bars } });
   p = { ticker, data: d, calc, O: b.O as number[], H: b.H as number[], L: b.L as number[], C: b.C as number[], scores: {}, liq: null, maps: new Map() };
   ctx.tickers.set(ticker, p);
   return p;

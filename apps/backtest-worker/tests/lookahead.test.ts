@@ -1,4 +1,4 @@
-/* EXEC-BACKTEST-REVAMP P6 (user decision 3, 2026-11-15: the look-ahead test is a mandatory CI gate; ERRORS M445): a value
+/* EXEC-BACKTEST-REVAMP P6 (user decision 3, 2026-11-15: the look-ahead test is a mandatory CI gate; ERRORS M446): a value
    on day t may use only data up to t. For every series the backtest can read, the value computed on the full data and the
    value computed on the data cut at t must be equal on every day up to t. The series are derived from the registries
    (the 53 indicators with short, long and extreme parameters and every option; the transform functions and pattern
@@ -23,7 +23,7 @@ import { SCREENER_REGISTRY } from '../../edge-bff/screener/src/core/registry.ts'
 import { head, market, type Row, type Ticker } from './lookahead/fixture.ts';
 
 const M = market(), A = M.stocks[0], N = A.dates.length, CUTS = [150, 260, 390, 520];
-const TERMINAL_HINDSIGHT = ['FL18', 'FL19', 'FL20', 'FL23', 'FL44', 'FL45', 'FL51', 'FL52'];   // ERRORS M445; the backtest uses point-in-time versions
+const TERMINAL_HINDSIGHT = ['FL18', 'FL19', 'FL20', 'FL23', 'FL44', 'FL45', 'FL51', 'FL52'];   // ERRORS M446; the backtest uses point-in-time versions
 
 type Out = Record<string, unknown> | null;
 const num = (v: unknown) => typeof v === 'number' && Number.isFinite(v) ? v : null;
@@ -126,7 +126,7 @@ test('the shared grammar: every transform function and every pattern type it imp
   assert.deepEqual(leaks, []);
 });
 
-test('Flow FL01-FL52 with every option: only the Terminal hindsight group reads future data (ERRORS M445)', () => {
+test('Flow FL01-FL52 with every option: only the Terminal hindsight group reads future data (ERRORS M446)', () => {
   const ctxAt = (t: Ticker, rows: Row[], n: number): TF.FlowContext => {
     const d = t.dates.slice(0, n), at = new Map(d.map((x, k) => [x, k])), b = head(t, n).bars;
     return { rows: TF.flowRows(rows.filter(r => r.d <= d[d.length - 1]), n, x => at.get(x) ?? -1), dates: d, close: b.C as number[], volume: b.V as number[],

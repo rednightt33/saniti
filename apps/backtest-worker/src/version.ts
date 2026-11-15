@@ -6,8 +6,9 @@
      the shared core (apps/edge-bff/backtest/src/core, .ts and .json, subfolders included), the worker's own modules
      (apps/backtest-worker/src, subfolders included), the Terminal's calculation module the core imports
      (apps/edge-bff/terminal/src/calc: indicators.ts, flow.ts, fd.ts) and the flow registry calc/flow.ts reads its
-     defaults from (EXEC-BACKTEST-REVAMP P0.2, ERRORS M450: a Flow formula or default could change a result while
-     the version stayed the same). Not a hand-kept number, so it cannot stay the same while the code changes; the
+     defaults from (EXEC-BACKTEST-REVAMP P0.2, ERRORS M451: a Flow formula or default could change a result while
+     the version stayed the same), and the Screener core with its catalog and registries (EXEC-BACKTEST-REVAMP P1: the
+     conditions in the Screener's grammar, kind 'test', are computed by it, grammar.ts). Not a hand-kept number, so it cannot stay the same while the code changes; the
      image keeps the repository layout, so the same files give the same version in the repository and in the image.
      The indicator formulas are also in registry_version (indicators.ts and indRegistry.json). */
 import crypto from 'node:crypto';
@@ -24,6 +25,8 @@ export const SOURCES: [entry: string, pattern: RegExp][] = [
   ['apps/backtest-worker/src', /\.ts$/],
   ['apps/edge-bff/terminal/src/calc', /\.ts$/],
   ['apps/edge-bff/terminal/src/data/flowRegistry.json', /\.json$/],
+  // EXEC-BACKTEST-REVAMP P1: the Screener's grammar computes the conditions of kind 'test' (grammar.ts)
+  ['apps/edge-bff/screener/src/core', /\.(ts|json)$/],
 ];
 
 const sha256 = (b: Buffer | string) => crypto.createHash('sha256').update(b).digest('hex');

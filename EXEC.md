@@ -14589,6 +14589,29 @@ skrip restart butuh Railway CLI yang tidak ada di sesi ini. *Saran:* tekan "🔄
    yang sama.
 3. Tes: golden Screener byte-identik; `registry:check`; screener-worker start lokal; vitest + typecheck Screener; typecheck,
    vitest, smoke dan pembanding visual halaman Backtest (halaman dibangun dari inti yang sama).
+- **Pelaksanaan P1 (2026-11-15) — menyimpang dari butir 1-2: kait, bukan pindah (dilaporkan di Gerbang 2).** Kode tata
+  bahasa tetap di inti Screener dan tidak diubah satu baris pun. Inti Backtest hanya menyediakan kait `installGrammar()`
+  (`conditions.ts`, kind kondisi baru `test`); worker Backtest memasang evaluator yang memakai kode Screener itu sendiri
+  (`apps/backtest-worker/src/grammar.ts`, dipasang sekali per thread saat `validate.ts` dimuat). Arah impor: worker →
+  inti Screener → inti Backtest, jadi tidak ada siklus modul (bahaya TDZ, Agent 3 Tahap A). Alasan: Agent 3 menawarkan
+  dua cara; memindahkan kode berarti membangun ulang `screener-registry.json` dan menyentuh Screener yang sedang live,
+  sedangkan kait memberi satu sumber rumus yang sama tanpa risiko itu. Akibatnya: golden Screener tetap sama karena
+  Screener tidak diubah; registry Screener tidak dibangun ulang; halaman Backtest di browser menolak kondisi `test`
+  dengan `CONDITION_UNAVAILABLE` karena halaman tidak memasang tata bahasa, dan hitungannya hanya di worker (sesuai
+  M454). Yang sudah dibangun:
+  - evaluator: validasi Screener (`validateTest`, normalisasi parameter), `conditionSignal` per bar, EVENT `within`
+    sebagai jendela bergulir, bar 0 = 0, `INDICATOR_OUTPUT_EMPTY`, memo seri per saham (`Calc.seriesMemo`);
+  - penolakan `CONDITION_UNAVAILABLE` untuk referensi tanpa nilai harian (atribut universe, cross-section, rank, flow
+    Screener) beserta alasannya;
+  - IHSG untuk `vs_index` di run job (`engine.ts prepared`);
+  - Dockerfile meng-COPY inti Screener dan generator registry-nya;
+  - `engine_version` mencakup inti Screener (menjadi sumber kelima);
+  - cek start worker: registry, katalog dan file sumber Screener (`grammarProblems`, keluar bila tidak cocok);
+  - tes `tests/grammar.test.ts`: paritas dengan `runScreen` Screener pada data yang dipotong di tiap hari sampel (62
+    hari lolos, 154 tidak lolos, 9 bentuk uji termasuk Donchian dan `vs_index`), sekaligus uji look-ahead.
+
+  Sisa P2: pratinjau memuat IHSG, validasi worker untuk kind `test`, hash (K7a), grid, Donchian lama (K5a), dan
+  edge-bff.
 
 **P2 — Backtest menerima tata bahasa bersama (per saham, non-flow)**
 1. Adapter: `conditionSignal` + `within` per kondisi, bar 0 = 0, galat EMPTY, sisi price→volume, IHSG untuk `vs_index`

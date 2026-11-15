@@ -1,9 +1,9 @@
 name: Backtest look-ahead gate
 
-# EXEC-BACKTEST-REVAMP P6 (user decision 3, 2026-11-15: the look-ahead test is a mandatory CI gate; ERRORS M445): a value
+# EXEC-BACKTEST-REVAMP P6 (user decision 3, 2026-11-15: the look-ahead test is a mandatory CI gate; ERRORS M446): a value
 # on day t may use only data up to t. apps/backtest-worker/tests/lookahead.test.ts checks every series the backtest can
 # read (derived from the registries) and the engine as a whole on synthetic data; the worker suite also holds the version,
-# entry-point and hash golden checks. The Screener golden (tests/core/golden-grammar.test.ts) and the page's worker-only
+# entry-point and hash golden checks. The Screener golden (tests/core/golden-grammar.test.mjs) and the page's worker-only
 # import check run with their suites. No database, no secrets, read-only. Whether a red run blocks a deploy is set on
 # Railway (EXEC-BACKTEST-REVAMP K10: checkSuites on edge-bff and screener-worker; the worker upload records a green run).
 
