@@ -14372,209 +14372,298 @@ Temuan selama O1 (sudah ditangani di kode):
 - Lari pertama membaca ±1,2 GB Feature 04: termasuk "update besar" (restart Postgres sesudahnya, aturan AGENTS.md).
 - Fakta "862 saham ber-EMA50, 166 di atasnya" di atas dihitung tanpa saringan saham biasa; hitungan halaman 836/162.
 
-## EXEC-BACKTEST-REVAMP — satu tata bahasa kondisi Screener-Backtest, Flow FL01-FL52 di Backtest (8 indikator D titik-waktu, khusus admin), gerbang look-ahead (DRAFT 2026-11-15; belum "go")
 
-**Status:** draft setelah Tahap A, sebelum review Tahap B. Tidak ada kode yang ditulis. Semua keputusan user dengan kata-katanya
-ada di `PLAN.md` BACKTEST-REVAMP; temuan dan buktinya di ERRORS M443-M447. Eksekusi baru dimulai setelah "go" user
-(Gerbang 1). Tampilan baru (desain user) adalah tahap D, sesudah back end live.
+## EXEC-BACKTEST-REVAMP — satu tata bahasa kondisi Screener-Backtest, Flow FL01-FL52 di Backtest (8 indikator D titik-waktu, khusus admin), gerbang look-ahead (revisi 2 setelah Tahap B, 2026-11-15; belum "go")
+
+**Status:** rencana setelah review Tahap A (agent 1-4) dan Tahap B (agent 5-8); semua temuan yang dipakai diverifikasi ulang oleh
+main agent (kode, query read-only, run). Tidak ada kode yang ditulis. Keputusan user dengan kata-katanya: `PLAN.md`
+BACKTEST-REVAMP. Cacat dan buktinya: ERRORS M443-M452. Eksekusi baru dimulai setelah "go" (Gerbang 1); merge dan deploy
+setelah Gerbang 2; tampilan baru (desain user) adalah tahap D, sesudah back end live.
 
 ### Gambaran besar
 
 ```
-inti bersama (apps/edge-bff/backtest/src/core)            dipakai oleh
-  grammar/   kondisi VALUE/STATE/EVENT, transform, pola     ◄── Screener (core + worker), Backtest (worker + halaman)
-  flowpit/   Flow FL01-FL52 dari file broker; 8 D titik-waktu ◄── Backtest saja (Terminal tidak disentuh)
-  rights     hak akses per kondisi (admin)                   ◄── edge-bff mengirim hak sesi; worker menegakkan
-tes look-ahead (potong data) atas setiap seri ──► gerbang CI wajib
+inti bersama (apps/edge-bff/backtest/src/core)          dipakai oleh
+  grammar/   kondisi VALUE/STATE/EVENT, transform, pola  ◄── Screener (core + worker), Backtest (worker + halaman)
+  flow A-C   rumus Terminal (calc/flow.ts) apa adanya     ◄── Backtest worker (halaman: hanya bila tidak khusus admin)
+worker-only (apps/backtest-worker/src/pit/)
+  D          8 indikator titik-waktu, khusus admin        ◄── Backtest worker saja; tidak pernah masuk bundle halaman
+edge-bff     owner dan hak dari sesi, dikirim ke worker; worker menolak tanpa hak (gagal tertutup)
+gerbang      uji potong data atas setiap seri + uji tingkat mesin (CI)
 ```
 
 - **Satu arah impor:** Screener sudah mengimpor inti Backtest (`screener/src/core/transforms.ts:13-17`). Tata bahasa bersama
-  tinggal **di inti Backtest**, Screener mengimpornya dari sana. Inti Backtest tidak pernah mengimpor modul Screener
-  (Agent 3 F1: arah sebaliknya mematikan screener-worker saat start, diulang main agent).
-- **Terminal tidak disentuh:** `calc/flow.ts` dan `calc/indicators.ts` hanya dibaca (impor). Versi titik-waktu 8 indikator D
-  ditulis di inti Backtest; uji kesetaraan menjaga bahwa dengan broker pilihan user hasilnya sama persis dengan `computeFlow`.
-- **Guarantee di kode, bukan di halaman:** hak admin, anchor wajib, larangan jenis kondisi yang belum bisa per hari, dan
-  look-ahead ditegakkan di worker; halaman hanya menampilkan apa yang katalog katakan.
+  pindah ke inti Backtest; inti Backtest tidak pernah mengimpor modul Screener (arah sebaliknya mematikan screener-worker,
+  `ReferenceError ... SCREENER_REGISTRY`, diulang main agent).
+- **D hanya di worker:** halaman menghitung kondisi di browser (`backtest/src/api/compute.ts:10, 61-72`) dan asetnya bisa
+  diunduh tanpa sesi (`app/main.py:394-406`; live 200). Kode D tidak boleh terjangkau dari modul yang diimpor halaman (M451).
+- **Terminal tidak disentuh:** `calc/flow.ts` dan `calc/indicators.ts` hanya diimpor; uji `git diff main -- apps/edge-bff/terminal`
+  kosong.
+- **Penjaga di back end:** hak, anchor, jenis yang belum per hari, biaya, dan look-ahead ditegakkan di worker/edge-bff.
 
-### Fakta yang diverifikasi (2026-11-15, branch `claude/hopeful-shannon-bqgb1a` = `main` `fff296a7` + dokumen)
+### Fakta yang diverifikasi (2026-11-15)
 
 | Fakta | Bukti |
 |---|---|
-| Mesin Backtest hanya menerima kind `indicator`, `price_action`, `flow` (fnet, broker, top5) | `backtest/src/core/conditions.ts:19-21, 194-200, 249-254` |
-| Screener: per hari tersedia lewat `conditionSignal` (seri penuh), `evaluate()` hanya di bar terakhir | `screener/src/core/condition.ts:576-608, 140-145` (Agent 3 exp1/exp3) |
-| 20 pola candle sudah di inti Backtest, belum menjadi jenis kondisi | `backtest/src/core/candles.ts` (keputusan 2A 2026-11-07) |
-| Bentuk lineage hanya `indicator` dan `price_action`; lainnya `{kind, type, op}` | `backtest/src/core/hash.ts:94-98` (M447) |
-| Versi mesin meng-hash `backtest/src/core` dan `backtest-worker/src` tanpa subfolder | `apps/backtest-worker/src/version.ts:18-30`; screener `version.ts:43-48` sama |
-| Image worker Backtest tidak menyalin `flowRegistry.json` (dibaca `calc/flow.ts`) | `apps/backtest-worker/Dockerfile` (COPY: core, calc, indRegistry.json) |
-| Kolom broker yang dibaca Backtest tanpa `bf`/`sf` | `backtest/src/core/datafile.ts:166` |
-| `gap_bars`, `unmatched_rows` tak punya pembaca | grep `apps/edge-bff/backtest/src`, `apps/backtest-worker/src` |
-| Uji potong data: 53 indikator, 8 operator pola harga, 20 candle, 17 transform, 44 Flow bersih; 8 D bocor (FL18, FL19, FL20, FL23, FL44, FL45, FL51, FL52) | M443; Agent 1 (4 ticker, 69.908 perbandingan) |
-| Uji tingkat mesin bersih (5 permintaan × 4 potong; beda hanya `period_end` di hari potong) | Agent 1 `t_engine.ts`, diulang main agent |
-| Broker bawaan FL23 di registry = `auto_c` (2 pembeli + 1 penjual, awal sampai candle terakhir) | `terminal/src/data/flowRegistry.json` FL23; `calc/flow.ts:438-446, 603` |
-| Anchor salah format menjadi candle pertama; broker tak dikenal = 0 | `calc/flow.ts:389-393, 609` |
-| Donchian upper termasuk high hari itu; Backtest tanpa compare lag | `calc/indicators.ts:345-347`; M446 |
-| Harga disesuaikan mundur; peringatan hanya bila melewati 2026-09-12; PBSA dimuat ulang 2026-10-31 | M444 |
-| Lot broker beda basis (rights issue, PBSA, PSSI) | M445 |
-| EDGE: sesi hanya owner (`owner_key == EDGE_OWNER`), belum ada peran | `apps/edge-bff/app/main.py:287-291`; `app/config.py` |
-| CI hanya `generated-files.yml` dan `database-schema-docs.yml`; tidak ada tes Backtest di CI | `.github/workflows/` |
-| Deploy: edge-bff dan screener-worker dari GitHub `main`; backtest-worker CLI upload (`git archive` konteks build, `--path-as-root`) | `.railway/railway.ts:216-219`; `RAILWAY_CHANGELOG.md:6150-6155` |
-| Deployment aktif (rollback): backtest-worker `d9acefda` (CLI, 2026-11-14, SLEEPING, `sleepApplication` true); edge-bff `960ef248` (`5b8f85b1`); screener-worker `eb9d30e1` (`1daccc8a`, SLEEPING) | Railway GraphQL, read-only |
+| Mesin Backtest: kind `indicator`, `price_action`, `flow` (fnet, broker, top5) | `backtest/src/core/conditions.ts:19-21, 194-200, 249-254` |
+| Screener: seri per hari lewat `conditionSignal`; `evaluate()` hanya bar terakhir | `screener/src/core/condition.ts:576-608, 140-145` |
+| 20 candle di inti Backtest, belum jenis kondisi | `backtest/src/core/candles.ts` |
+| Lineage: hanya `indicator`/`price_action`; ticker single ada di lineage; variant = isi mentah | `hash.ts:46, 63, 94-125` (M447, M452) |
+| Versi worker: dua folder tanpa subfolder; tanpa `calc/flow.ts`, `flowRegistry.json`; image tanpa `flowRegistry.json` | M448 |
+| `BROKER_COLUMNS` tanpa `bf`/`sf`; worker tidak membaca `classification` broker | `datafile.ts:166`; `backtest-worker/src/terminal.ts:621-626` |
+| 53 indikator, 8 operator pola harga, 20 candle, transform, 44 Flow bersih; 8 D bocor; mesin bersih | M443; Agent 1 (4 ticker) |
+| Broker bawaan FL23 = `auto_c` (2 pembeli + 1 penjual, start sampai candle terakhir), `start` di registry `fixed` | `flowRegistry.json` FL23; `calc/flow.ts:435-446, 603` |
+| FL49, FL50, FL51, FL52 `terminal_only`; FL09, FL27 `place: marker`; FL49 keluaran kategori | `flowRegistry.json`; `calc/flow.ts:847-849` |
+| Screener sudah menawarkan FL18, FL19, FL20, FL23, FL31, FL44, FL45 (versinya sendiri) ke setiap sesi | `screener/src/core/screener-registry.json` `flows` |
+| Harga disesuaikan mundur (look-ahead), PBSA dimuat ulang | M444 |
+| Lot broker beda basis (rights, PBSA, PSSI); `gap_bars`/`unmatched_rows` tak terbaca | M445 |
+| Donchian vs harga tak pernah benar di Backtest | M446 |
+| edge-bff: semua rute memakai `settings.owner` konstan; sesi hanya owner | `app/backtest.py:1249`; `app/main.py:287-291` |
+| /signals: badan user diteruskan sebagai badan worker (minus `client_order`) | `app/backtest.py:1276-1280` |
+| Worker menolak kunci badan asing (`{request}` saja; context hanya `job_id`, `prior_trials`) | `backtest-worker/src/server.ts:214, 299` |
+| `checkSuites: false` edge-bff dan screener-worker; worker CLI upload | `.railway/railway.ts:218, 233`; M450 |
+| Batas memori live: backtest-worker 1 GB (tak tercatat), Postgres 2 GB (config 1 GB) | Railway `serviceInstanceLimits`; M450 |
+| Memo hanya untuk keluaran registry dan 3 flow lama; grid 25 sel memanggil `run` ulang | `conditions.ts:39-44, 234-236`; `run.ts:162` |
+| Deployment aktif (rollback): backtest-worker `d9acefda` (CLI, SLEEPING); edge-bff `960ef248` (`5b8f85b1`); screener-worker `eb9d30e1` (`1daccc8a`) | Railway GraphQL |
 
 ### Keputusan user yang dipegang (kata-kata lengkap di PLAN.md)
 
-Back end dulu, tampilan kemudian; Terminal tidak disentuh; satu tata bahasa kondisi bersama (permanen); Flow A-C ikut
-rumus Terminal; 8 indikator D titik-waktu, khusus admin, ditegakkan di back end; FL31 di-skip; FL52 dilebur ke FL23; anchor
+Back end dulu, tampilan kemudian; Terminal tidak disentuh; satu tata bahasa kondisi bersama (permanen); Flow A-C ikut rumus
+Terminal; 8 indikator D titik-waktu, khusus admin, ditegakkan di back end; FL31 di-skip; FL52 dilebur ke FL23; anchor
 FL51/FL18/FL19/FL20/FL44/FL45 wajib diisi admin (1A); internal Screener boleh diubah (2); uji look-ahead gerbang CI wajib (3);
 peringatan data broker 2016-2020 (4); FL34 memakai klasifikasi apa adanya (5); dokumen dan kode ke `main` lewat satu PR (7B);
 subagent opus effort medium.
 
-### Keputusan yang dibutuhkan (rencana dirancang supaya jawaban mana pun tidak merombaknya)
+### Keputusan yang dibutuhkan (konteks, fakta, dampak; rencana menyebut langkah tambahan tiap pilihan)
 
-| # | Keputusan | Pilihan | Rekomendasi | Bagian rencana yang bergantung |
-|---|---|---|---|---|
-| K1 | Part A: syarat "tanggal tersedia" (pertanyaan 6) | ya / tidak | ya | hanya dokumen (Part A) |
-| K2 | Makna FL23 titik-waktu (Agent 2: versi yang disetujui tidak layak sebagai sinyal) | (a) kelompok dipilih dari 20 sesi yang berakhir di t−2, seri = aliran kelompok itu di hari t−1..t plus "posisi" kumulatif sejak start wajib; (b) FL23 di Backtest hanya dengan broker pilihan user; (c) seperti disetujui + peringatan | (a) | P4 FL23 saja |
-| K3 | Basis lot broker vs harga (M445) | (a) di EXEC ini: peringatan + nilai kosong untuk FL harga-broker pada jendela yang memuat aksi korporasi; perbaikan data jadi EXEC terpisah; (b) perbaikan data (view broker disesuaikan) masuk EXEC ini | (a) | P3 peringatan; data layer terpisah |
-| K4 | Harga disesuaikan mundur (M444) | (a) peringatan diperluas di EXEC ini, seri as-traded jadi EXEC data terpisah; (b) juga menolak kondisi level absolut (ATR, volume) sampai data diperbaiki | (a) | P6 |
-| K5 | Donchian (M446) | (a) adopsi aturan compare lag Screener (hasil strategi Donchian tersimpan berubah); (b) tolak harga vs Donchian | (a) | P2 |
-| K6 | Kondisi lama dan bentuk barunya satu lineage? | (a) ya, lewat terjemahan kanonik sebelum hash; (b) dua lineage | (a) | P2 hash |
-| K7 | Postgres 1,84-1,99 GB dari 2,0 GB sejak 15:00 UTC (sebelum agent) | tekan "🔄 Restart Postgres" di Telegram / tunggu jadwal 09:45 WIB | Telegram (skrip butuh Railway CLI yang tidak ada di sesi ini) | operasional |
+**K1 — Standar data "tanggal tersedia".** *Apa:* Part A di `ERRORS_AND_SOLUTIONS.md` adalah syarat yang harus dipenuhi setiap
+sumber data baru. *Fakta:* empat masukan sinyal sekarang tidak membawa tanggal kapan informasinya tersedia: insider (104.998
+baris, hanya tanggal transaksi), klasifikasi broker (label sekarang untuk semua tanggal), harga yang disesuaikan mundur
+(BBCA 2021), ambang bawaan halaman (median seluruh riwayat). *Pilihan:* (a) tambah syarat "setiap data untuk sinyal membawa
+tanggal tersedia"; (b) tidak. *Dampak:* (a) hanya dokumen sekarang; sumber data baru (makro, fundamental) wajib membawanya.
+*Saran:* (a).
 
-Aturan yang tidak perlu ditanya (penjaga kebenaran, AGENTS "Judgement principle" butir 1): EVENT `within` berlaku per
-kondisi dan tidak digulung lagi oleh `window_bars` (kondisi lama diterjemahkan dengan `within = window_bars`, makna sama
-dengan `combineEntry`); bar 0 tidak pernah benar; seri tanpa nilai sampai `period.to` memberi `INDICATOR_OUTPUT_EMPTY` /
-`FLOW_OUTPUT_EMPTY` seperti sekarang; sisi "price" indikator volume diterjemahkan ke volume; jenis yang belum bisa per hari
-(atribut universe, return_rank, rank lintas saham, flow Screener berjendela 60 sesi) ditolak dengan pesan yang menyebut
-alasannya.
+**K2 — Arti FL23 di Backtest.** *Apa:* FL23 Broker Inventory = posisi bersih kumulatif beberapa broker sejak tanggal awal. Di
+Terminal brokernya `auto_c`: 2 pembeli + 1 penjual terbesar dari awal grafik sampai candle terakhir. *Fakta:* versi yang
+disetujui sebelumnya ("top 3 pembeli 20 sesi terakhir sampai t") ternyata aturan FL52, dan pada data nyata tidak layak:
+BBRI kelompoknya berganti pada 32% hari, tiap pergantian menggeser garis ±36× aliran harian, dan "naik dalam 20 sesi" benar
+pada 100% hari karena kelompok memang dipilih sebagai pembeli terbesar (diulang main agent). *Pilihan:* (a) `auto_c`
+titik-waktu: 2 pembeli + 1 penjual terbesar atas [start, t], dipilih ulang tiap hari, start wajib (paling dekat dengan
+Terminal; perilakunya seperti FL18: BBRI 72 pergantian dari 677 hari); (b) kelompok dari 20 sesi yang berakhir di t−2, seri =
+aliran kelompok itu di hari t−1..t plus posisi sejak start wajib; (c) FL23 di Backtest hanya dengan broker pilihan user (sudah
+bersih; tidak perlu khusus admin). *Dampak:* (a)/(b) masuk P4; (c) FL23 pindah ke A-C. *Saran:* (a).
 
-### Fase (urut; setiap fase: kode di branch kerja, tes hijau, catatan; tidak ada merge atau deploy sebelum Gerbang 2)
+**K3 — Lot broker beda basis dengan harga (M445).** *Apa:* indikator yang membandingkan harga beli broker dengan harga
+penutupan (FL17-FL20, FL39, FL42-FL45, FL51) butuh lot dan harga pada skala yang sama. *Fakta:* sebelum rights issue lot broker
+masih skala asli tetapi harga sudah disesuaikan: COCO 8 Juli 2026 harga beli rata-rata 290,9 vs penutupan 159,5 (1,82×); 12
+kejadian 1,26-19,5×; 293 rights issue sejak 2016. PBSA patah skala 1 September 2026; PSSI lot pecahan 4-5 November. *Pilihan:*
+(a) EXEC ini: peringatan per saham dan nilai kosong untuk indikator harga-broker pada jendela yang memuat aksi atau batas muat
+ulang; perbaikan data jadi EXEC terpisah; (b) perbaikan data masuk EXEC ini: view broker pada basis harga (lot × faktor rights
+dari `idx_event_annotation`), migrasi, katalog, publisher, restart Postgres sesudahnya. *Dampak:* (b) menambah fase data
+(migrasi, `DATABASE_SCHEMA.md`, `DATABASE_CHANGELOG.md`, Table/Column_Catalog, publisher, uji ulang). *Saran:* (a).
+
+**K4 — Harga disesuaikan mundur (M444).** *Apa:* harga lama diubah dengan faktor split/rights yang baru diketahui kemudian.
+*Fakta:* BBCA 2019-2020 dengan modal Rp 2 juta: 12 transaksi pada harga terbit, 0 pada harga yang benar-benar diperdagangkan;
+peringatan sekarang hanya muncul bila periode melewati 12 September 2026. *Pilihan:* (a) peringatan per saham kapan pun ada aksi
+harga sesudah bar yang dibaca, seri harga as-traded jadi EXEC data terpisah; (b) juga menolak kondisi level absolut (ATR,
+volume, harga) sampai data diperbaiki (penolakan baru `ABSOLUTE_LEVEL_ADJUSTED`). *Saran:* (a).
+
+**K5 — Donchian (M446).** *Apa:* "harga menembus garis atas Donchian" di Backtest tidak pernah terpicu karena garisnya sudah
+memuat harga tertinggi hari itu. Screener membandingkan dengan garis hari sebelumnya. *Fakta:* BBCA 2025: 0 hari vs 8 hari. Jumlah
+strategi tersimpan yang memakainya tidak bisa dihitung (pgweb tidak punya akses ke `edge_bff`). *Pilihan:* (a) pakai aturan
+Screener (hasil strategi Donchian berubah; golden dicatat ulang; versi mesin baru); (b) tolak harga vs Donchian (penolakan baru
+`DONCHIAN_SAME_BAR` dengan saran memakai kondisi `breakout`). *Saran:* (a).
+
+**K6 — Cara menghitung percobaan (trial) untuk deflated Sharpe.** *Apa:* deflated Sharpe mengoreksi hasil terbaik terhadap
+banyaknya percobaan. Sekarang percobaan dihitung per "lini" (bentuk strategi + saham pada mode single). *Fakta:* mencoba saham
+atau indikator lain memulai lini baru dengan 1 percobaan; terbaik dari 178 strategi acak: DSR 0,994 di lininya sendiri, 0,550 bila
+dihitung bersama (Agent 7, diperiksa di kode `hash.ts:94-125`). Dengan 178+ kondisi baru, celah ini membesar. *Pilihan:* (a)
+pertahankan DSR per lini dan tambah hitungan pencarian per owner (90 hari terakhir); halaman menampilkan yang lebih ketat;
+(b) tetap seperti sekarang. *Saran:* (a).
+
+**K7 — Hash percobaan yang dinormalkan.** *Apa:* dua permintaan yang sama tetapi ditulis berbeda (parameter bawaan dikosongkan
+vs ditulis, bentuk kondisi lama vs bentuk baru) sekarang dihitung dua percobaan. *Fakta:* RSI `params {}` dan `{length:14}`
+memberi hash berbeda (M447). *Pilihan:* (a) normalkan (bawaan diisi, terjemahan kanonik) untuk hash baru; hash lama yang
+ditulis dengan parameter kosong berubah sekali (hitungan percobaan lama bisa menyatu); (b) normalkan hanya kondisi baru, kondisi
+lama tetap mentah. *Saran:* (a).
+
+**K8 — Eksklusif admin juga di Screener?** *Apa:* "indikator D hanya untuk admin" (keputusan 2026-11-15). *Fakta:* Screener
+sudah menawarkan versinya sendiri dari FL18, FL19, FL20, FL23, FL44, FL45 kepada setiap sesi (`screener-registry.json`). Hari
+ini hanya ada satu pengguna (owner = admin), jadi belum ada yang terekspos. *Pilihan:* (a) eksklusivitas hanya untuk versi
+titik-waktu Backtest; Screener tetap; (b) tabel hak yang sama juga menyaring katalog dan validasi Screener. *Dampak:* (b) menambah
+langkah P5 untuk screener-worker dan rute Screener edge-bff. *Saran:* (b) bila tujuannya eksklusivitas penuh, (a) bila hanya
+Backtest.
+
+**K9 — Batas memori worker Backtest.** *Fakta:* batas live 1 GB (dipasang 7 November, tidak tercatat), di bawah puncak terukur
+1,31 GB (portofolio 12 saham dengan flow, 27 Oktober); rencana menambah 0,25-0,65 GB per thread. Railway menagih memori yang
+dipakai, bukan batasnya, dan worker tidur saat menganggur. *Pilihan:* (a) naikkan ke 3 GB dan catat di `railway.ts`; (b) tetap
+1 GB dan batasi isi job (jumlah saham dan kondisi flow lebih kecil). *Saran:* (a).
+
+**K10 — Gerbang CI menahan deploy.** *Fakta:* edge-bff dan screener-worker men-deploy setiap push ke `main` apa pun hasil CI;
+worker di-upload dari komputer. *Pilihan:* (a) `checkSuites: true` untuk kedua layanan (deploy menunggu CI hijau) dan upload worker
+mensyaratkan run CI hijau untuk commit itu (ID run dicatat); (b) aturan GitHub (ruleset) yang mewajibkan cek di `main` (user
+memasangnya; sesi ini tidak punya hak admin repo). *Saran:* (a), (b) bila ingin juga menahan push langsung.
+
+**K11 — Operasional (tanpa perubahan kode).** Postgres 1,84-1,99 GB dari batas 2,0 GB sejak 15:00 UTC (sebelum agent membaca);
+skrip restart butuh Railway CLI yang tidak ada di sesi ini. *Saran:* tekan "🔄 Restart Postgres" di Telegram atau tunggu jadwal
+09:45 WIB.
+
+### Aturan yang tidak ditanyakan (penjaga kebenaran dan biaya; AGENTS "Judgement principle" butir 1)
+
+- EVENT `within` berlaku per kondisi; kondisi lama diterjemahkan dengan `within = window_bars` (makna sama dengan
+  `combineEntry`); kondisi tata bahasa tidak digulung lagi. Bar 0 tidak pernah benar. Seri tanpa nilai sampai `period.to` →
+  `INDICATOR_OUTPUT_EMPTY`/`FLOW_OUTPUT_EMPTY`. Sisi "price" indikator volume = volume.
+- Ditolak dengan alasan: atribut universe, return_rank, rank lintas saham, flow Screener berjendela 60 sesi, FL31, FL49/FL50
+  (`terminal_only`, kategori), keluaran yang tidak numerik. FL09/FL27 (`marker`) sebagai EVENT 0/1.
+- D: anchor/start wajib; tanggal ketat (format dan tanggal sah); tidak sebelum data broker pertama ticker itu; null sebelum
+  anchor, pada hari tanpa data, dan sebelum 5 sesi berdata sejak anchor; ranking dan nilai pada papan dan jenis investor yang
+  sama; broker yang tidak ada di daftar broker ticker ditolak; FL19/FL20 hanya `rank net_buy`; top N FL18/19/20/44/45 ≤ 10
+  (biaya: jalan ulang FL19 kuadratik, top 20 = 223 ms per saham dan tumbuh tiap tahun); peringatan untuk papan Nego/Cash.
+- Peringatan statistik baru: `FEW_TRADES` (< 30 transaksi; < 10 di OOS → DSR/PSR ditandai tidak andal), `OOS_ALREADY_SEEN`
+  (jendela OOS sudah terlihat oleh varian sebelumnya di lini yang sama), `OOS_STRADDLE` (transaksi melintasi titik potong),
+  `ANCHOR_INSIDE_PERIOD` (anchor sesudah awal periode; lebih keras bila sesudah titik potong OOS), `SURVIVORSHIP` juga di mode
+  single, `DSR_SAMPLE_RULE` (satu percobaan).
+- Biaya: memo per saham untuk setiap seri yang di-resolve (kunci = seri tanpa ambang), dipakai bersama run dan 25 sel grid;
+  kelima anchored D dihitung dalam satu lintasan per kunci kelompok; anggaran per job (jumlah kondisi flow berbeda dan waktu
+  CPU) dengan penolakan bernama; antrean edge-bff bergilir per owner.
+
+### Fase (urut; kode di branch kerja; tes hijau tiap fase; tidak ada merge atau deploy sebelum Gerbang 2)
 
 **P0 — Garis dasar dan kemasan (tanpa perubahan perilaku)**
-1. Bekukan golden: sel Screener untuk setiap preset `presets.json` dan uji bawaan setiap metrik katalog pada ticker
-   fixture (status, nilai dibulatkan, tanggal, alasan, remark); hash absolut lineage/variant/request untuk sekumpulan
-   permintaan lama; `conditions-golden.json` apa adanya (M447: kini tidak ada golden hash absolut).
-2. `version.ts` (backtest-worker dan screener-worker) membaca subfolder secara rekursif; daftar SOURCES diperluas ke folder
-   baru. Tes: mengubah satu file di subfolder mengubah `ENGINE_VERSION`.
-3. `apps/backtest-worker/Dockerfile`: COPY `terminal/src/data/flowRegistry.json`. `scripts/check_image_imports.mjs` untuk
-   kedua image; tes impor setiap modul inti sebagai titik masuk (menangkap siklus TDZ, Agent 3 F1).
-4. Harness look-ahead (P6) dibuat lebih dulu agar setiap fase berikutnya diuji olehnya.
+1. Golden beku: sel Screener untuk setiap preset dan uji bawaan setiap metrik (ticker fixture); hash absolut lineage/variant/
+   request permintaan lama; `conditions-golden.json`.
+2. `version.ts` worker Backtest rekursif dan mencakup `terminal/src/calc` dan `flowRegistry.json` (seperti screener-worker); tes:
+   mengubah satu file di tiap sumber mengubah `ENGINE_VERSION` (M448).
+3. Dockerfile worker: COPY `flowRegistry.json`; tes impor image yang sudah ada (`tests/image-imports.test.ts`,
+   `scripts/check_image_imports.mjs`) diperluas; tes impor tiap modul inti sebagai titik masuk (siklus TDZ).
+4. Tes graf impor: tidak ada modul yang terjangkau dari `backtest/src/main.ts` (halaman) mengimpor `backtest-worker/src/pit/`;
+   build halaman diperiksa bebas penanda D (M451).
+5. Harness look-ahead P6 dibuat lebih dulu.
 
 **P1 — Tata bahasa bersama pindah ke inti Backtest (perilaku Screener identik)**
-1. `backtest/src/core/grammar/`: transform (`transforms.ts`), pola, evaluasi VALUE/STATE/EVENT/window, katalog metrik yang
-   dibutuhkan. Modul ini tidak mengimpor `flowmetrics.ts` kecuali untuk kind flow (rantai `transforms → metrics → flowmetrics
-   → calc/flow.ts` diputus untuk penggunaan non-flow).
-2. Screener mengimpor dari sana (ekspor ulang di lokasi lama selama migrasi). `screener-registry.json` dibangun ulang di commit
-   yang sama (ia mem-pin sha256 `candles.ts`, `candle-registry.json`, `backtest-registry.json`).
-3. Tes: golden Screener byte-identik; `npm run registry:check` Screener; screener-worker start lokal (`/ready`); vitest
-   Screener; bundle halaman Backtest dan Screener tidak menarik modul yang tidak dipakai (cek ukuran bundle).
+1. `backtest/src/core/grammar/`: transform, pola, VALUE/STATE/EVENT/window, katalog metrik yang dibutuhkan; rantai
+   `transforms → metrics → flowmetrics → calc/flow.ts` diputus untuk penggunaan non-flow.
+2. Screener mengimpor dari sana (ekspor ulang di lokasi lama selama migrasi); `screener-registry.json` dibangun ulang di commit
+   yang sama.
+3. Tes: golden Screener byte-identik; `registry:check`; screener-worker start lokal; vitest + typecheck Screener; typecheck,
+   vitest, smoke dan pembanding visual halaman Backtest (halaman dibangun dari inti yang sama).
 
 **P2 — Backtest menerima tata bahasa bersama (per saham, non-flow)**
-1. Adapter: `conditionSignal` + `within` per kondisi (rolling OR), bar 0 = 0, galat EMPTY, terjemahan sisi price→volume,
-   IHSG untuk `vs_index` (tanpa IHSG: galat field, bukan 500).
-2. Kondisi lama diterjemahkan ke bentuk baru; `conditions-golden.json` tetap byte-identik untuk semua kondisi lama kecuali
-   Donchian bila K5 = (a) (golden direkam ulang dengan persetujuan itu; `engine_version` berubah).
-3. `hash.ts`: bentuk rekursif per kind (kind, op, jenis sisi, id indikator, output, fn transform, tipe pola; tanpa angka); hash
-   atas bentuk ternormalisasi; bentuk lama byte-identik; K6 menentukan terjemahan kanonik.
-4. `validate.ts` (worker): FIELDS dan pemeriksaan untuk kind baru; penolakan untuk kind yang belum per hari.
-5. Grid sensitivitas: `threshold()`/`withThreshold()` mengenal kind baru (nilai di `test.value`).
-6. Tes: paritas adapter vs `evaluate()` Screener dengan tail penuh di setiap bar (semua kind per saham, ticker fixture);
-   kondisi lama tidak berubah; uji potong data (P6) atas semua kind.
+1. Adapter: `conditionSignal` + `within` per kondisi, bar 0 = 0, galat EMPTY, sisi price→volume, IHSG untuk `vs_index`
+   (pratinjau memuat IHSG; tanpa IHSG: galat field).
+2. Kondisi lama diterjemahkan; `conditions-golden.json` byte-identik kecuali Donchian bila K5 = (a) (golden dicatat ulang
+   dengan persetujuan itu); K5 = (b) menambah penolakan `DONCHIAN_SAME_BAR`.
+3. `hash.ts`: bentuk rekursif per kind tanpa angka; normalisasi menurut K7; hash lama tidak berubah kecuali yang K7 (a)
+   ubah secara sadar (dicatat dan diuji dengan golden).
+4. Akses dan validasi diperiksa di satu tempat resolusi seri (`resolveSeries`/pengikatan flow), di kedalaman mana pun (lhs, rhs,
+   transform `of`/`args`, uji window, daftar exit, sel grid).
+5. Grid sensitivitas: tiap definisi kondisi punya spesifikasi grid (sumbu, langkah sadar-satuan, batas); `sensitivity.axis`
+   di hasil; untuk D sumbu bawaan anchor ±10/20 sesi atau top N ±1/2.
+6. Memo seri per saham (kunci seri tanpa ambang), tes: run 25 sel menghitung tiap seri sekali (penghitung).
+7. Tes: paritas adapter vs `evaluate()` Screener dengan tail penuh di setiap bar; kondisi lama tidak berubah; look-ahead (P6).
 
-**P3 — Flow A-C di Backtest (rumus Terminal apa adanya)**
-1. `datafile.ts`: baca `bf`/`sf` menurut nama, null berbeda dari 0 (M445); `FlowRows` dibangun dari `brokerRows` dengan
-   bentuk yang sama dengan `terminal/src/data/worker.ts flowRows`.
-2. Klasifikasi broker (FL34) dari file referensi broker yang sudah dibaca worker (kolom `classification`); FL31 ditolak
-   ("data insider belum tersedia").
-3. Aturan per hari: nilai di bar t dari data broker sampai t; baseline tetap sesuai registry (bukan dipotong jendela, beda dari
-   Screener `flowmetrics.ts:151-170`); `FLOW_DATA_THROUGH` seperti sekarang.
-4. Peringatan baru (kode, field, pesan polos): `FLOW_SOURCE_GAP` (hari `gap_bars` di periode, per saham; keputusan 4: juga
-   untuk 2016-2020); `FLOW_ROWS_DROPPED` (baris tanpa bar harga, per papan); `FLOW_BASIS_CHANGE` (jendela atau anchor memuat
-   aksi korporasi atau batas muat ulang; K3); FL harga-broker bernilai kosong pada jendela itu bila K3 = (a).
-5. Tes: paritas dengan `computeFlow` untuk ke-44 FL bersih (ticker fixture, semua opsi parameter); uji potong data.
+**P3 — Flow A-C di Backtest (43 indikator: 52 − 8 D − FL31; rumus Terminal apa adanya)**
+1. `datafile.ts`: `bf`/`sf` menurut nama (null ≠ 0); `FlowRows` disimpan (bukan objek baris) dengan bentuk
+   `terminal/src/data/worker.ts flowRows`; baris dilepas per saham; `BACKTEST_MAX_BROKER_ROWS` diturunkan agar menjaga memori
+   (K9).
+2. Worker membaca `classification` dari referensi broker (FL34, keputusan 5).
+3. Aturan per hari: nilai di bar t dari data broker sampai t; baseline tetap registry (bukan dipotong jendela seperti
+   `flowmetrics.ts:151-170`); `FLOW_DATA_THROUGH` seperti sekarang.
+4. Peringatan: `FLOW_PRE_2021` bila jendela atau anchor flow mana pun menyentuh 2016-01-01..2020-12-31 (keputusan 4, berdasarkan
+   periode, bukan `gap_bars`); `FLOW_SOURCE_GAP` (hari `gap_bars`); `FLOW_ROWS_DROPPED` (baris tanpa bar harga, per papan);
+   `FLOW_BASIS_CHANGE` dan nilai kosong untuk indikator harga-broker pada jendela yang memuat aksi atau batas muat ulang (K3 (a);
+   penyimpangan yang disetujui dari "rumus Terminal apa adanya").
+5. Tes: paritas dengan `computeFlow` untuk ke-43 A-C pada jendela tanpa perubahan basis (semua opsi parameter); look-ahead.
 
-**P4 — 8 indikator D titik-waktu (`backtest/src/core/flowpit/`)**
-1. FL18, FL44: kelompok C_t = top N menurut `rank` atas [anchor, t] di papan dan jenis investor terpilih, re-rank harian; nilai
-   Σbv/(100·Σbl) (FL44: sv/sl) C_t atas [anchor, t]. FL45, FL20: 100·(close_t/nilai − 1).
-2. FL19: `impliedCost` dijalankan ulang dari anchor untuk C_t setiap kali kelompok berganti (paritas dengan Terminal); null bila
-   posisi ≤ 0; `rank net_sell` ditolak untuk FL19/FL20 (Agent 2: 615 dari 677 hari tanpa posisi).
-3. FL51: loaders = top N lot bersih atas [start, t] harian; seri utama = harga pokok tertimbang lot top N, jarak %, porsi %;
-   garis per peringkat hanya sebagai opsi.
-4. FL23 menurut K2. FL52 bukan kondisi tersendiri.
-5. Semua D: anchor/start wajib, format `YYYY-MM-DD` ketat, tidak sebelum data broker pertama (ditolak, bukan digeser diam-diam);
-   null sebelum anchor dan pada hari tanpa data; minimal 5 sesi berdata sejak anchor sebelum ada nilai; ranking dan nilai di
-   papan yang sama; broker yang tidak ada di daftar broker ticker ditolak; papan Nego/Cash diberi peringatan.
-6. Seri tambahan `cohort_changed` (0/1) tersedia sebagai kondisi.
-7. Tes: uji potong data (P6) atas setiap D dan setiap opsi; kesetaraan dengan `computeFlow` pada broker pilihan user dan pada hari
-   terakhir data; kasus tepi Agent 2 (anchor sesudah t, sebelum data, tanpa pembeli positif, broker baru/hilang, lot ganjil).
+**P4 — 8 indikator D titik-waktu (`apps/backtest-worker/src/pit/`, hanya diimpor worker)**
+1. FL18/FL44: C_t = top N menurut `rank` atas [anchor, t], re-rank harian; Σbv/(100·Σbl) (FL44 sv/sl) atas [anchor, t]. FL45/FL20:
+   100·(close/nilai − 1). FL19: `impliedCost` dijalankan ulang dari anchor untuk C_t saat kelompok berganti; null bila posisi ≤ 0.
+   Satu lintasan bersama untuk kelima seri per kunci kelompok.
+2. FL51: loaders = top N lot bersih atas [start, t]; seri utama harga pokok tertimbang lot, jarak %, porsi %; per peringkat sebagai
+   opsi.
+3. FL23 menurut K2; FL52 bukan kondisi sendiri. Seri `cohort_changed` (0/1).
+4. Aturan D di bagian "Aturan yang tidak ditanyakan". Kunci parameter memakai nama registry (FL51 `start`/`end`, FL18-45
+   `anchor`); FL51 `end` tidak diterima di Backtest (selalu t).
+5. Tes: look-ahead setiap D dan opsi; kesetaraan dengan `computeFlow` pada broker pilihan user dan di hari terakhir data; kasus
+   tepi (anchor sesudah t, sebelum data, tanpa pembeli positif, broker baru/hilang, lot ganjil, Nego/Cash).
 
-**P5 — Hak akses (siap multi-user)**
-1. edge-bff: hak sesi dari satu fungsi (`rights_of(owner)`); hari ini owner = `{"admin"}`; pengaturan `EDGE_ADMIN_OWNERS`
-   (bawaan: `EDGE_OWNER`). Hak dikirim ke worker di `context.rights` pada `/v1/validate`, `/v1/signals`, `/v1/jobs`; badan
-   permintaan user tidak bisa membawa hak (field asing → `UNKNOWN_FIELD`).
-2. Worker: setiap definisi kondisi punya `access` (`all`/`admin`) yang diturunkan dari satu tabel (8 D = admin); kondisi admin
-   tanpa hak → `CONDITION_RESTRICTED` (422, field kondisi itu); grid sensitivitas dan pratinjau memakai jalur yang sama.
-3. Katalog: worker menandai `access`; edge-bff menyaring katalog per hak (cache katalog dikunci per himpunan hak).
-4. Hasil, event, trial, daftar job: sudah per owner (`backtest.py`); tes bahwa owner lain tidak bisa membaca (disiapkan dengan
-   dua owner di tes walau produksi satu).
-5. Tes: non-admin + D ditolak di worker meski halaman dilewati (panggil worker langsung dengan kunci, tanpa hak); admin jalan;
-   Flow A-C terbuka untuk semua.
+**P5 — Owner dan hak dari sesi (siap multi-user)**
+1. edge-bff: `session()` mengembalikan `{token, owner, rights}`; setiap rute Backtest memakai owner dan hak dari sesi (bukan
+   `settings.owner`, `backtest.py:1249`); `rights_of(owner)`; `EDGE_ADMIN_OWNERS` (bawaan `EDGE_OWNER`) divalidasi saat start
+   (kosong, spasi, "a,,b" ditolak). Loop antrean menghitung hak saat dispatch dari `row['owner_key']`, tidak disimpan.
+2. Format kabel: /v1/signals menjadi `{request, context}` seperti /v1/jobs; /v1/validate `{request, context}`; edge-bff menolak
+   badan user yang memuat `context` (422 `UNKNOWN_FIELD`) dan selalu mengirim `context.rights` (juga `[]`).
+3. Worker: `context.rights` hilang → ditolak (gagal tertutup); nilai hak tak dikenal ditolak; kondisi khusus admin ditolak walau
+   `enabled: false`; `CONDITION_RESTRICTED` diperiksa di resolusi seri (P2.4).
+4. Katalog: worker menandai `access`; edge-bff menyimpan katalog utuh sekali dan menyaring per permintaan di setiap jalur,
+   termasuk cadangan saat worker mati.
+5. `BacktestStore.part`/`has` digabung dengan `owner_key`; tes dua owner (admin dan bukan) di tingkat rute.
+6. Halaman: seri D (pratinjau dan grafik) diminta dari worker, tidak dihitung di browser.
+7. K8 (b): tabel hak yang sama di screener-worker dan rute Screener.
+8. Tes: non-admin + D ditolak di worker meski halaman dilewati (panggilan langsung dengan kunci worker, tanpa hak); hak dari
+   badan user tidak pernah diterima; admin jalan; A-C terbuka; job D antre lalu admin diturunkan → `CONDITION_RESTRICTED`.
 
-**P6 — Gerbang look-ahead (CI wajib, keputusan 3)**
-1. `apps/backtest-worker/tests/lookahead.test.ts`: daftar seri diturunkan dari registry (53 indikator × parameter
-   default/pendek/panjang/ekstrem; semua kind tata bahasa; 20 candle; semua FL titik-waktu dan A-C dengan setiap opsi), data
-   fixture sintetis yang di-commit (harga dan baris broker deterministik, termasuk hari tanpa bar, papan Nego/Cash, broker
-   baru/hilang); pembanding seri penuh vs dipotong di beberapa t; uji tingkat mesin (transaksi sebelum t identik).
-2. Self-test: sebuah seri "SMA terpusat" yang sengaja bocor harus membuat tes merah.
-3. `.github/workflows/backtest-lookahead.yml` (push dan PR; tanpa database dan rahasia): `npm test` worker (atau subset
-   look-ahead) dan typecheck/vitest inti.
-4. `verification/backtest/lookahead/real_data.ts`: versi data nyata (read-only lewat pgweb, terbatas per ticker), dijalankan
-   manual sebelum Gerbang 2; hasil dicatat.
+**P6 — Gerbang look-ahead (CI wajib)**
+1. `apps/backtest-worker/tests/lookahead.test.ts`: daftar seri diturunkan dari registry (53 indikator × default/pendek/panjang/
+   ekstrem; semua kind tata bahasa; 20 candle; 43 A-C dan 8 D dengan setiap opsi); fixture sintetis kecil di-commit (≤ 600 bar,
+   ≤ 40 broker; hari tanpa bar, Nego/Cash, broker baru/hilang); uji tingkat mesin.
+2. Self-test: seri "SMA terpusat" yang sengaja bocor membuat tes merah.
+3. `.github/workflows/backtest-lookahead.yml` (push dan PR; tanpa database/rahasia); efektif menahan deploy menurut K10.
+4. `verification/backtest/lookahead/real_data.ts`: versi data nyata (pgweb read-only, per ticker per tahun), sebelum Gerbang 2.
 
-**P7 — Peringatan harga (M444, K4)**
-`ADJUSTED_HISTORY_BOUNDARY` diganti/ditambah peringatan per ticker bila periode memiliki aksi harga (split, bonus, rights)
-sesudah bar yang dibaca, dengan pesan yang menjelaskan efek kilas balik; batas per ticker dari tanggal muat ulang
-(`ingestion_time`) bila tersedia di file; CONTRACT bagian 7 diperbarui.
+**P7 — Peringatan harga (M444, K4)** peringatan per ticker bila ada aksi harga sesudah bar yang dibaca; pesan menjelaskan efek
+kilas balik; CONTRACT bagian 7.
 
-**P8 — Dokumen dan file hasil generator (commit yang sama dengan kodenya)**
-CONTRACT.md bagian 2, 3, 5, 7, 8, 9, 11, 12 (keputusan baru); `BACKTEST_END_TO_END.md` bagian 7, 9, 11, 13, 14;
-`apps/backtest-worker/README.md`, `apps/screener-worker/README.md`/`CONTRACT.md`, `apps/edge-bff/README.md` (Backtest);
-`screener-registry.json` (+ tesnya); M443-M447 status; `RAILWAY_CHANGELOG.md` saat deploy; `AGENTS.md` (gerbang look-ahead di
-Mandatory workflow); setiap generator baru punya tes `generated_file` (EXEC-GEN-CHECK).
+**P8 — Dokumen, konfigurasi, file hasil generator (commit yang sama dengan kodenya)**
+CONTRACT 2, 3, 5, 7, 8, 9, 10, 11, 12; `BACKTEST_END_TO_END.md` 7, 8, 9, 11, 13, 14 (termasuk latensi bangun 3-15 detik);
+README worker, screener-worker, edge-bff; `screener-registry.json` dan tes `generated_file`-nya; `.railway/railway.ts` (batas memori
+worker K9, `checkSuites` K10, batas Postgres 2 GB) + `RAILWAY_CHANGELOG.md`; AGENTS.md (gerbang look-ahead; batas Postgres 2 GB);
+status ERRORS M443-M452; catatan "go" user di EXEC; saat selesai: butir dihapus dari PLAN/EXEC dan dicatat di changelog.
 
-### Penolakan baru (AGENTS "Gates and evidence": aturan terlihat dulu, cara lolos, contoh benar/salah, pesan yang menyebut perbaikan)
+### Penolakan baru (aturan terlihat dulu, cara lolos, contoh benar/salah, pesan yang menyebut perbaikan)
 
-| Kode | Aturan yang terlihat dulu (katalog/CONTRACT) | Contoh benar / salah | Pesan |
+| Kode | Aturan terlihat dulu | Benar / salah | Pesan |
 |---|---|---|---|
-| `ANCHOR_REQUIRED` | D menyebut "tanggal awal wajib" | `anchor: "2024-01-02"` / tanpa anchor | "FL18 needs a start date (YYYY-MM-DD) from which brokers are ranked; add params.anchor." |
-| `INVALID_ANCHOR` | format `YYYY-MM-DD` | `2024-01-02` / `2024-1-2` | "params.anchor must be a date YYYY-MM-DD, e.g. 2024-01-02." |
-| `ANCHOR_BEFORE_DATA` | katalog `flow.first_date` | ≥ data broker pertama / sebelum | "Broker data for BBCA starts on 2016-01-04; choose an anchor on or after it." |
-| `CONDITION_RESTRICTED` | katalog `access: admin` | admin / non-admin | "This Flow indicator is available to admins only." |
-| `CONDITION_UNAVAILABLE` | katalog `available: false` + alasan | FL26 / FL31, rank lintas saham | "FL31 needs insider data with a publication date, which is not published yet." |
-| `RANK_NOT_ALLOWED` | FL19/FL20 rank net_buy saja | net_buy / net_sell | "FL19 is computed for net buyers only; use rank net_buy." |
-| `UNKNOWN_BROKER` (diperluas) | daftar broker katalog | YP / ZZ | sudah ada, ditambah untuk daftar broker D |
+| `ANCHOR_REQUIRED` | katalog D: "tanggal awal wajib" | FL18 `anchor: "2024-01-02"`; FL51 `start: "2024-01-02"` / kosong | "entry.conditions[1]: FL18 needs params.anchor, a date YYYY-MM-DD from which brokers are ranked." |
+| `INVALID_ANCHOR` | format dan tanggal sah | `2024-01-02` / `2024-1-2`, `2024-13-45` | "entry.conditions[1].params.anchor must be a real date YYYY-MM-DD, e.g. 2024-01-02." |
+| `ANCHOR_BEFORE_DATA` | katalog per ticker `broker_first_date` (baru) | ≥ tanggal itu / sebelum | "BBCA has broker data from 2016-01-04; set params.anchor on or after it." (portofolio: ticker itu dikeluarkan dengan alasan ini) |
+| `CONDITION_RESTRICTED` | katalog admin `access: admin`; non-admin tidak melihat D; permintaan tersimpan tampil sebagai kartu terkunci | admin / non-admin | "entry.conditions[1]: FL18 (point in time) is available to admins only; remove this condition to run the strategy." |
+| `CONDITION_UNAVAILABLE` | katalog `available: false` + alasan | FL26 / FL31, FL49, rank lintas saham | "entry.conditions[2]: FL31 needs insider data with a publication date, which is not published yet." |
+| `RANK_NOT_ALLOWED` | FL19/FL20 rank `net_buy` saja | net_buy / net_sell | "entry.conditions[1]: FL19 is computed for net buyers only; set params.rank to net_buy." |
+| `TOP_N_LIMIT` | katalog batas top N | 3 / 20 | "entry.conditions[1]: params.top may be at most 10 for FL19 in a backtest." |
+| `FLOW_BUDGET_EXCEEDED` | katalog `limits` (kondisi flow berbeda per job, waktu CPU) | ≤ batas / lebih | "This run asks for N distinct Flow series; the limit is M. Remove some Flow conditions or picked stocks." |
+| `UNKNOWN_FIELD` `context` | CONTRACT bagian 9 | badan tanpa `context` / dengan | "context is set by EDGE; remove it from the request." |
+| `UNKNOWN_BROKER` (diperluas) | daftar broker ticker | YP / ZZ | "entry.conditions[1].params.brokers[0]: ZZ has no broker rows for BBCA." |
+| Galat field IHSG `vs_index` | CONTRACT bagian 3 | IHSG termuat / tidak | "vs_index needs IHSG prices, which are not published for this period." |
+| `DONCHIAN_SAME_BAR` (hanya K5 b) | katalog | `breakout` / harga vs I10 upper | "Close cannot exceed a Donchian band that includes today's high; use the breakout condition." |
+| `ABSOLUTE_LEVEL_ADJUSTED` (hanya K4 b) | katalog | RSI / ATR > 400 | "ATR levels before a later split are restated; use a ratio condition or a period after the last action." |
 
 ### Deploy (hanya setelah Gerbang 2) dan rollback
 
-1. PR branch → `main` (7B), CI hijau (termasuk gerbang look-ahead baru).
-2. Merge; cek deploy edge-bff dan screener-worker untuk commit merge (M252: `SKIPPED` "No changes to watched files" → deploy
-   commit itu secara eksplisit); klaim hanya pada `SUCCESS`; screener-worker `/ready` dan `engine_version` = repo.
-3. backtest-worker: pasang Railway CLI (`npm i -g @railway/cli`, tidak ada di sesi ini), `git archive` konteks build sesuai
-   Dockerfile, `railway up --path-as-root`; `SUCCESS`; log start `engine_version`/`registry_version` = repo.
-4. Verifikasi dev: `verification/backtest/e2e_dev.py` (single, portofolio, pratinjau, cancel) + satu run dengan FL A-C dan satu
-   D sebagai admin; satu panggilan worker tanpa hak ditolak; real-data look-ahead P6.4.
-5. Rollback: redeploy `d9acefda` (backtest-worker), `960ef248` (edge-bff), `eb9d30e1` (screener-worker); revert merge di `main`.
-   Hasil lama tetap terjelaskan lewat `engine_version` yang tersimpan per job; trial tidak di-reset.
+1. PR branch → `main` (7B); CI hijau termasuk gerbang look-ahead; tidak ada job Backtest aktif (cek status job sebelum upload).
+2. **Worker lebih dulu:** worker baru menerima `{request, context}` maupun bentuk lama dan menganggap `context.rights` yang hilang
+   dari edge-bff lama sebagai tanpa hak (D ditolak, A-C jalan). Pasang Railway CLI (`npm i -g @railway/cli`), `git archive`
+   konteks build sesuai Dockerfile, `railway up --path-as-root`; klaim hanya pada `SUCCESS`; log start `engine_version` =
+   repo; bila K9 (a), batas memori dinaikkan sebelumnya dan dicatat.
+3. Merge; edge-bff dan screener-worker men-deploy dari `main` (K10: menunggu CI); M252: deploy `SKIPPED` → deploy commit itu
+   eksplisit; `SUCCESS`; screener-worker `/ready` dan `engine_version` = repo.
+4. Verifikasi dev: `verification/backtest/e2e_dev.py`; satu run A-C; satu run D sebagai admin; panggilan worker tanpa hak ditolak;
+   P6.4 data nyata; ukuran memori dan waktu dicatat (run 12 saham + pratinjau).
+5. **Rollback urutan terbalik:** edge-bff `960ef248` dulu, lalu screener-worker `eb9d30e1`, lalu backtest-worker `d9acefda`;
+   revert merge di `main`. Hasil lama tetap terjelaskan lewat `engine_version` per job; trial tidak di-reset.
 
 ### Selesai berarti
 
-- Kondisi tata bahasa Screener (per saham, non-flow) dan Flow A-C dapat dipakai di Backtest; D hanya untuk admin; FL31 dan
-  jenis yang belum per hari ditolak dengan pesan yang jelas.
-- Gerbang look-ahead hijau di CI dan merah pada seri bocor uji diri; real-data look-ahead bersih pada ≥ 4 ticker berbeda jenis.
-- Golden Screener byte-identik; kondisi lama Backtest identik (kecuali keputusan K5); hash lama tidak berubah.
-- Semua deploy `SUCCESS`; e2e dev lulus; dokumen dan ERRORS diperbarui; Terminal tanpa diff (`git diff main -- apps/edge-bff/terminal` kosong).
+- Tata bahasa Screener (per saham, non-flow) dan 43 Flow A-C dapat dipakai di Backtest; 8 D hanya untuk admin, dihitung di worker
+  saja; FL31 dan jenis yang belum per hari ditolak dengan pesan yang jelas.
+- Gerbang look-ahead hijau di CI, merah pada seri bocor uji diri; data nyata bersih pada ≥ 4 ticker berbeda jenis.
+- Golden Screener byte-identik; kondisi lama Backtest identik (kecuali K5); perubahan hash hanya yang K7 setujui.
+- Bundle halaman bebas kode D; dua owner terpisah di tes rute; hak tidak bisa dipalsukan dari badan.
+- Semua deploy `SUCCESS`; e2e dev lulus; memori run terberat di bawah batas; dokumen, konfigurasi, ERRORS diperbarui; Terminal tanpa
+  diff.
 
 ### Di luar ruang lingkup
 
-Terminal; FL31; Ichimoku (registry ada di folder Terminal); RS rank lintas saham; atribut universe dan riwayat sektor;
-fundamental, KSEI, konstituen indeks; perbaikan lapisan data M444/M445 (EXEC terpisah bila K3/K4 = (a)); tampilan baru
-(tahap D); ambang bawaan halaman (`regMedian`, bersama tahap D).
+Terminal; FL31; Ichimoku; RS rank lintas saham; atribut universe dan riwayat sektor; fundamental, KSEI, konstituen indeks; perbaikan
+lapisan data M444/M445 (EXEC terpisah bila K3/K4 = (a)); tampilan baru (tahap D, termasuk `regMedian`); pendaftaran user
+(EDGE-MULTIUSER).

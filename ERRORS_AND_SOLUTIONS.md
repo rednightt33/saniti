@@ -8175,3 +8175,71 @@ in its staleness check.
   operators, side kinds, ids; no numbers), the normalized form hashed, golden absolute hashes for legacy requests so a
   refactor cannot rekey stored lineages silently.
 - **Status:** OPEN (latent for today's three kinds except the parameter-default duplicate).
+
+### M448 — Backtest versions do not cover what the worker computes with: subfolders, the Flow formulas and flowRegistry.json; the worker image lacks flowRegistry.json (2026-11-15, open)
+
+- **Found by:** BACKTEST-REVAMP Stage A (Agent 3) and Stage B (Agent 8); verified by the main agent.
+- **Verified:** `apps/backtest-worker/src/version.ts:18-30` hashes only the files directly in `apps/edge-bff/backtest/src/core`
+  and `apps/backtest-worker/src` (non-recursive `readdirSync`); `registry_version` covers `indRegistry.json` and
+  `calc/indicators.ts` only (`scripts/build-registry.mjs`). The screener worker also hashes `terminal/src/calc` and
+  `flowRegistry.json` (`apps/screener-worker/src/version.ts:29-37`). `apps/backtest-worker/Dockerfile` does not copy
+  `terminal/src/data/flowRegistry.json`, which `calc/flow.ts` imports.
+- **Class:** a reproducibility stamp that does not list every input of the computation; an image that does not copy
+  every file a module it may load imports (M405).
+- **Proposed solution:** worker: recursive SOURCES including `terminal/src/calc` and `flowRegistry.json`; Dockerfile COPY;
+  tests that an edit in each source changes ENGINE_VERSION; `check_image_imports` for both images (BACKTEST-REVAMP P0).
+- **Status:** OPEN (latent: the backtest does not read calc/flow.ts today).
+
+### M449 — Terminal Flow helpers fail silently: a malformed anchor becomes the first candle, an unknown broker draws 0, FL23 ranks on all boards but sums on the chosen ones (2026-11-15, open; Terminal untouched by user decision)
+
+- **Found by:** BACKTEST-REVAMP Stage A (Agent 2); verified by the main agent.
+- **Verified:** `apps/edge-bff/terminal/src/calc/flow.ts:389-393` `anchorAt`: a value that is not `^\d{4}-\d{2}-\d{2}$` (and a
+  well-formed impossible date such as 2024-13-45) falls back to `ctx.dates[0]`; `:609` a broker missing from the rows gives
+  `d = 0` on every candle (a line of zeros, not null); `:429-434` `defaultInventoryBrokers` ranks on `grid(R, null, null)`
+  (all boards, investors) while the FL23 lines use `grid0(p)` (Regular by default).
+- **Class:** a guard that substitutes a default for an invalid input instead of refusing it.
+- **Proposed solution:** the Backtest's own point-in-time versions validate strictly and refuse (BACKTEST-REVAMP P4); the
+  Terminal stays as it is (user 2026-11-15: "Terminal jangan disentuh").
+- **Status:** OPEN for the Terminal.
+
+### M450 — EDGE deploy and runtime configuration drift: CI does not gate deploys, backtest-worker runs under an undocumented 1 GB memory limit, Postgres runs at 2 GB while the config says 1 GB (2026-11-15, open)
+
+- **Found by:** BACKTEST-REVAMP Stage B (Agents 6 and 8); verified by the main agent (Railway GraphQL, read-only).
+- **Verified:**
+  - `.railway/railway.ts:218, 233`: edge-bff and screener-worker `checkSuites: false` (Railway deploys a push to `main`
+    whatever CI says); backtest-worker is a CLI upload (`RAILWAY_CHANGELOG.md:6150-6155`), outside CI.
+  - `serviceInstanceLimits` backtest-worker = 1,000,000,000 bytes (deployment `limitOverride` since 2026-11-07, Agent 6);
+    `railway.ts` has no limit for it. The measured peak of a 12-stock flow preview plus run was 1.31 GB
+    (`apps/backtest-worker/README.md:440`, 2026-10-27, before the limit). `BACKTEST_CACHE_BYTES` is 1.5 GB per thread.
+  - `serviceInstanceLimits` Postgres = 2,000,000,000 bytes; `railway.ts` and AGENTS.md say 1 GB (EXEC.md records the user's
+    raise to 2 GB).
+- **Class:** live configuration changed outside the config file (AGENTS step 5: `railway config pull` after a dashboard
+  change).
+- **Proposed solution:** `railway config pull` and record both limits; decide the worker limit with the user before the
+  Flow work ships; decide whether CI gates deploys (`checkSuites: true` or a required check on `main`).
+- **Status:** OPEN.
+
+### M451 — Backtest page bundle and broker files are reachable outside the worker: the page computes conditions in the browser, and its assets need no session (2026-11-15, design constraint)
+
+- **Found by:** BACKTEST-REVAMP Stage B (Agent 5); verified by the main agent.
+- **Verified:** `apps/edge-bff/backtest/src/api/compute.ts:10, 61-72` evaluates `conditionSeries` in the browser on broker
+  files the page downloads through `/api/terminal/v1/bundle` (session only); `apps/edge-bff/app/main.py:394-406` serves
+  `/backtest-app/` and its assets without a session (live: `/backtest-app/` 200 without a cookie, catalog 401).
+- **Effect:** any formula placed in a core module the page imports ships to every visitor; an access rule enforced only in
+  the worker does not cover browser computation.
+- **Proposed solution:** admin-only series (BACKTEST-REVAMP D) live in modules only worker entry points import; an
+  import-graph test and a build check keep them out of the page bundle; the page asks the worker for their series.
+- **Status:** OPEN (constraint for BACKTEST-REVAMP P4/P5).
+
+### M452 — Backtest statistics: trials counted per line only, out-of-sample not a holdout, no minimum trade count, survivorship warned only in portfolio mode (2026-11-15, open)
+
+- **Found by:** BACKTEST-REVAMP Stage B (Agent 7); verified by the main agent.
+- **Verified:** `apps/edge-bff/backtest/src/core/hash.ts:94-125` lineage includes the single-mode ticker and each
+  condition's indicator/output, so trying another stock or indicator starts a new line with one trial (Agent 7: the best of
+  178 noise strategies has DSR 0.994 in its own line, 0.550 counted together); `hash.ts:46` leaves `oos_fraction` out of the
+  variant and nothing records that an OOS window was already seen; no minimum trade count exists (grep
+  MIN_TRADES|FEW_TRADES: none; Agent 7: 4 trades over 1,500 days give PSR 0.84); `engine.ts:536` emits SURVIVORSHIP only
+  `if (!single)`; `result.ts:197-200` OOS equity includes P&L of trades entered in-sample.
+- **Proposed solution:** BACKTEST-REVAMP: an owner-wide search count beside the per-line DSR, warnings (`FEW_TRADES`,
+  `OOS_ALREADY_SEEN`, `ANCHOR_INSIDE_PERIOD`, `OOS_STRADDLE`, `SURVIVORSHIP` in single mode), a grid spec per condition.
+- **Status:** OPEN.

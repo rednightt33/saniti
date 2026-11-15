@@ -217,9 +217,31 @@ subagent diverifikasi ulang sebelum dipakai.
 - Operasional: memori Postgres 1,84-1,99 GB dari batas 2,0 GB sejak 15:00 UTC (sebelum agent membaca); skrip restart
   butuh Railway CLI yang tidak ada di sesi ini; dilaporkan ke user di Gerbang 1.
 
-**Pertanyaan terbuka:** (6) Part A `ERRORS_AND_SOLUTIONS.md` ditambah syarat "setiap data untuk sinyal wajib membawa
-tanggal tersedia" (belum dijawab); keputusan baru dari Tahap A ada di `EXEC.md` EXEC-BACKTEST-REVAMP bagian
-"Keputusan yang dibutuhkan".
+**Tahap B selesai, 2026-11-15** (workflow `wf_066acb26-8c2`, agent 5-8 opus medium, read-only; laporan di scratchpad sesi
+`stageB/r0-r3.md`; temuan dipakai setelah diverifikasi main agent):
+- Agent 5 (keamanan hak): halaman menghitung kondisi di browser dan asetnya terbuka tanpa sesi (live 200; M451), jadi D harus
+  hanya di worker; rute edge-bff memakai `settings.owner` konstan (`backtest.py:1249`); /signals meneruskan badan user, jadi
+  hak bisa dipalsukan tanpa amplop `{request, context}`; akses harus diperiksa di resolusi seri (kedalaman mana pun); Screener
+  sudah menawarkan versinya sendiri dari FL18/19/20/23/44/45 ke semua sesi (K8).
+- Agent 6 (performa): klaim 95 ms berlaku di setelan bawaan; top 20 = 291 ms per saham dan FL19 kuadratik; A-C 29 ms median per
+  indikator, sampai 401 ms; grid 25 sel menghitung ulang seri baru tanpa memo; batas memori live worker 1 GB tak tercatat, di
+  bawah puncak 1,31 GB (M450); biaya Railway ±USD 0,07-1,2 per 1.000 run; bangun dari tidur 3-15 detik.
+- Agent 7 (statistik): rumus PSR/DSR benar; percobaan dihitung per lini sehingga pencarian lintas saham/indikator lolos dari
+  DSR; OOS hanya pemisahan laporan; tanpa batas minimal transaksi; SURVIVORSHIP hanya portofolio; anchor yang dipilih admin
+  adalah hindsight yang tidak terdeteksi uji potong data (M452).
+- Agent 8 (kesesuaian rencana): urutan deploy draft mematikan semua backtest (worker lama menolak `context.rights`); versi
+  tidak mencakup `calc/flow.ts`/`flowRegistry.json` (M448); CI tidak menahan deploy (M450); peringatan 2016-2020 salah
+  diikat ke `gap_bars`; K1-K7 tanpa konteks; opsi K3(b)/K4(b)/K5(b)/K2 tanpa langkah; K2 tanpa opsi `auto_c` titik-waktu;
+  penolakan belum empat bagian; A-C = 43 (bukan 44); cacat baru belum di ERRORS (M448-M452 dicatat).
+- Tidak dipakai apa adanya: Agent 7 F1 "keluarkan ticker dari lineage" (membalik keputusan K3/PF4 di CONTRACT); diganti opsi
+  K6 hitungan pencarian per owner. Agent 7 F9 (Monte Carlo menganggap transaksi independen): SUSPECTED, ditunda (belum diukur
+  pada D). Agent 6 F6 (latensi bangun): hanya dokumen.
+- EXEC-BACKTEST-REVAMP direvisi (revisi 2): D pindah ke `apps/backtest-worker/src/pit/`; owner dan hak dari sesi; amplop
+  `{request, context}` untuk semua panggilan worker; worker dulu, edge-bff kemudian, rollback terbalik; memo seri dan satu
+  lintasan untuk anchored D; anggaran flow per job; peringatan statistik; K1-K11 ditulis ulang dengan konteks dan dampak.
+
+**Pertanyaan terbuka:** K1-K11 di `EXEC.md` EXEC-BACKTEST-REVAMP bagian "Keputusan yang dibutuhkan" (K1 = pertanyaan 6
+tentang Part A), menunggu Gerbang 1.
 
 ## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
 
