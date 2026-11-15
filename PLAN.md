@@ -105,9 +105,24 @@ sejak `bf2381d`, jadi salinan asli = halaman live kecuali datanya; uji di Chromi
   terakhir), anchored dengan cakupan Top-N (`frozen`: FL18, FL19, FL20, FL44, FL45). Persentil (`percentile`) hanya
   memakai data sebelum t, aman. Audit lengkap tiap FL untuk look-ahead belum dibuat.
 
-**Pertanyaan terbuka (dikirim ke user 2026-11-15):** (1) aturan 1:1 dengan `backtest.html` (CONTRACT.md bagian 10)
-diganti desain ini sebagai acuan; (2) temuan tampilan di atas diperbaiki saat eksekusi atau desain diikuti apa adanya;
-(3) tema mengikuti tema EDGE; (4) indikator Flow mana yang masuk dulu dan aturan untuk yang berisiko look-ahead.
+**Keputusan user, 2026-11-15:** "1 setuju, 2a": (1) desain ini menggantikan `backtest.html` sebagai acuan 1:1
+(CONTRACT.md bagian 10 dan tes pembanding visual dipindah ke desain ini); (2a) temuan tampilan di atas diperbaiki saat
+eksekusi (builder di ponsel bisa ditutup, tema mengikuti tema EDGE `edge-auth-monitor-theme`, kontras sakelar gelap,
+label pencarian, catatan sumber data kembali, header kiri dibangun di sumber, bukan skrip penyalin teks).
+
+**Pemeriksaan lanjutan, 2026-11-15 (akar masalah kondisi yang belum bisa dijalankan):** mesin Backtest hanya menerima
+tiga jenis kondisi (`conditions.ts` 19-21, 251-254: indicator `lhs op rhs` dengan gt/lt/crosses, price_action, flow);
+Screener punya tata bahasa kondisi yang lebih luas (VALUE/STATE/EVENT atas `screener/src/core/transforms.ts`:
+pct_distance, band_position, rising, vs average, between, percentile, z-score, dan pola) yang dihitung atas seluruh
+riwayat lalu dinilai di satu hari (`evaluate.ts`). 20 pola candlestick sudah ada di inti Backtest
+(`backtest/src/core/candles.ts`, keputusan 2A 2026-11-07 "dipakai Screener dan nanti Backtest") tetapi belum dibuka
+sebagai jenis kondisi. Baris "Not in backtest yet" per akar masalah: tata bahasa kondisi (102 pilihan + 20 candlestick +
+15 teknikal Screener), aliran broker (51, sama dengan pertanyaan 3), data belum ada (32 fundamental, KSEI, konstituen
+indeks, papan, notasi khusus), indikator belum di registry (Ichimoku 2), lintas saham (RS rank 1).
+
+**Pertanyaan terbuka:** (3) indikator Flow mana yang masuk dulu dan aturan untuk yang berisiko look-ahead; (4) cara
+menangani kondisi "Not in backtest yet" (usulan: satu tata bahasa kondisi bersama Screener-Backtest di inti, ditambah
+uji "potong data" untuk look-ahead pada semua kondisi).
 
 ## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
 
