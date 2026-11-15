@@ -922,3 +922,18 @@ def test_the_date_only_key_form_of_the_sandbox_is_the_governors() -> None:
     assert keys == {"left_columns": [], "right_columns": []}
     item = ex.Restriction.model_validate({**date_only(1, "EXACT_DATE", "x", ALL, right_time="date"), **keys})
     assert item.pairs == []
+
+
+def test_an_index_table_refuses_a_sum_across_its_overlapping_entities() -> None:
+    """EXEC-INDEX-GROUP-HISTORY: on a table of entity_type INDEX the entities (the composite, indexes, sectors, groups)
+    each sum their overlapping member stocks, so a SUM that drops ticker is refused with how to pass; the same SUM per
+    ticker is bound."""
+    catalog = summary_contract()
+    catalog["tables"][PRICE]["entity_type"] = "INDEX"
+    with pytest.raises(ex.ExtractStop) as caught:
+        bind(summary(), catalog)
+    assert (caught.value.status, caught.value.code) == ("REJECTED_POLICY", "AGGREGATION_NOT_ADDITIVE")
+    assert "overlap" in str(caught.value) and "Keep ticker in group_by" in str(caught.value)
+    assert ex.overlapping_entity(catalog["tables"][PRICE], ["ticker"]) == "ticker"
+    assert ex.overlapping_entity(catalog["tables"][PRICE], ["market_board"]) is None
+    assert ex.overlapping_entity(summary_contract()["tables"][PRICE], ["ticker"]) is None  # a stock table sums

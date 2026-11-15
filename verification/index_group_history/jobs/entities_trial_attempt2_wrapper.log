@@ -1,0 +1,159 @@
+Starting Container
+2026-11-15T11:06:02.052286599Z [INFO]  event="plan" broker_first="2016-01-04" last="2026-11-09" window_first="2022-08-26" entities=2 up_to_date=[] modes={"GPRAJOGO":["first","2024-01-02"],"LQ45":["first","2024-01-02"]} apply=false
+2026-11-15T11:06:02.052293316Z [INFO]  event="members_staged" entities=2 periods=54 dated_periods={}
+2026-11-15T11:06:06.086979504Z [INFO]  event="raw_month_staged" start="2016-01-04" detail_entities=0 collapsed_entities=2 seconds=4.05
+2026-11-15T11:06:07.973240846Z [INFO]  event="raw_month_staged" start="2016-02-01" detail_entities=0 collapsed_entities=2 seconds=1.79
+2026-11-15T11:06:12.255176904Z [INFO]  event="raw_month_staged" start="2016-03-01" detail_entities=0 collapsed_entities=2 seconds=5.09
+2026-11-15T11:06:15.092626758Z [INFO]  event="raw_month_staged" start="2016-04-01" detail_entities=0 collapsed_entities=2 seconds=1.9
+2026-11-15T11:06:16.535401444Z [INFO]  event="raw_month_staged" start="2016-05-01" detail_entities=0 collapsed_entities=2 seconds=1.21
+2026-11-15T11:06:19.830743954Z [INFO]  event="raw_month_staged" start="2016-06-01" detail_entities=0 collapsed_entities=2 seconds=4.41
+2026-11-15T11:06:22.960463666Z [INFO]  event="raw_month_staged" start="2016-07-01" detail_entities=0 collapsed_entities=2 seconds=2.04
+2026-11-15T11:06:25.843099907Z [INFO]  event="raw_month_staged" start="2016-08-01" detail_entities=0 collapsed_entities=2 seconds=3.89
+2026-11-15T11:06:29.484093067Z [INFO]  event="raw_month_staged" start="2016-09-01" detail_entities=0 collapsed_entities=2 seconds=3.05
+2026-11-15T11:06:34.327455851Z [INFO]  event="raw_month_staged" start="2016-10-01" detail_entities=0 collapsed_entities=2 seconds=5.4
+2026-11-15T11:06:38.060234328Z [INFO]  event="raw_month_staged" start="2016-11-01" detail_entities=0 collapsed_entities=2 seconds=2.67
+2026-11-15T11:06:38.060243007Z [INFO]  event="raw_month_staged" start="2016-12-01" detail_entities=0 collapsed_entities=2 seconds=0.78
+2026-11-15T11:06:45.638588045Z [INFO]  event="raw_month_staged" start="2017-01-01" detail_entities=0 collapsed_entities=2 seconds=7.96
+2026-11-15T11:06:49.513372705Z [INFO]  event="raw_month_staged" start="2017-02-01" detail_entities=0 collapsed_entities=2 seconds=3.78
+2026-11-15T11:06:54.649652970Z [INFO]  event="raw_month_staged" start="2017-03-01" detail_entities=0 collapsed_entities=2 seconds=5.25
+2026-11-15T11:06:56.574844208Z [INFO]  event="raw_month_staged" start="2017-04-01" detail_entities=0 collapsed_entities=2 seconds=1.6
+2026-11-15T11:07:00.729353054Z [INFO]  event="raw_month_staged" start="2017-05-01" detail_entities=0 collapsed_entities=2 seconds=4.53
+2026-11-15T11:07:04.712863087Z [INFO]  event="raw_month_staged" start="2017-06-01" detail_entities=0 collapsed_entities=2 seconds=3.52
+2026-11-15T11:07:08.825859384Z [INFO]  event="raw_month_staged" start="2017-07-01" detail_entities=0 collapsed_entities=2 seconds=4.19
+2026-11-15T11:07:10.830917609Z [INFO]  event="raw_month_staged" start="2017-08-01" detail_entities=0 collapsed_entities=2 seconds=1.8
+2026-11-15T11:07:14.117254133Z [INFO]  event="raw_month_staged" start="2017-09-01" detail_entities=0 collapsed_entities=2 seconds=3.8
+2026-11-15T11:07:18.860451455Z [INFO]  event="raw_month_staged" start="2017-10-01" detail_entities=0 collapsed_entities=2 seconds=4.34
+2026-11-15T11:07:20.952918888Z [INFO]  event="raw_month_staged" start="2017-11-01" detail_entities=0 collapsed_entities=2 seconds=1.8
+2026-11-15T11:07:24.054424100Z [INFO]  event="raw_month_staged" start="2017-12-01" detail_entities=0 collapsed_entities=2 seconds=3.09
+2026-11-15T11:07:33.174024310Z [INFO]  event="raw_month_staged" start="2018-01-01" detail_entities=0 collapsed_entities=2 seconds=9.59
+2026-11-15T11:07:38.397610177Z [INFO]  event="raw_month_staged" start="2018-02-01" detail_entities=0 collapsed_entities=2 seconds=5.11
+2026-11-15T11:07:42.245952680Z [INFO]  event="raw_month_staged" start="2018-03-01" detail_entities=0 collapsed_entities=2 seconds=3.62
+2026-11-15T11:07:46.404553235Z [INFO]  event="raw_month_staged" start="2018-04-01" detail_entities=0 collapsed_entities=2 seconds=4.81
+2026-11-15T11:08:06.027250586Z [INFO]  event="raw_month_staged" start="2018-05-01" detail_entities=0 collapsed_entities=2 seconds=12.48
+2026-11-15T11:08:06.027256047Z [INFO]  event="raw_month_staged" start="2018-06-01" detail_entities=0 collapsed_entities=2 seconds=1.64
+2026-11-15T11:08:06.027262118Z [INFO]  event="raw_month_staged" start="2018-07-01" detail_entities=0 collapsed_entities=2 seconds=3.15
+2026-11-15T11:08:10.391933488Z [INFO]  event="raw_month_staged" start="2018-08-01" detail_entities=0 collapsed_entities=2 seconds=6.51
+2026-11-15T11:08:13.662935111Z [INFO]  event="raw_month_staged" start="2018-09-01" detail_entities=0 collapsed_entities=2 seconds=3.03
+2026-11-15T11:08:17.101740685Z [INFO]  event="raw_month_staged" start="2018-10-01" detail_entities=0 collapsed_entities=2 seconds=3.61
+2026-11-15T11:08:21.446916028Z [INFO]  event="raw_month_staged" start="2018-11-01" detail_entities=0 collapsed_entities=2 seconds=3.89
+2026-11-15T11:08:22.728914107Z [INFO]  event="raw_month_staged" start="2018-12-01" detail_entities=0 collapsed_entities=2 seconds=1.07
+2026-11-15T11:08:27.365530436Z [INFO]  event="raw_month_staged" start="2019-01-01" detail_entities=0 collapsed_entities=2 seconds=5.42
+2026-11-15T11:08:32.345668591Z [INFO]  event="raw_month_staged" start="2019-02-01" detail_entities=0 collapsed_entities=2 seconds=4.58
+2026-11-15T11:08:36.855612601Z [INFO]  event="raw_month_staged" start="2019-03-01" detail_entities=0 collapsed_entities=2 seconds=4.3
+2026-11-15T11:08:40.144200290Z [INFO]  event="raw_month_staged" start="2019-04-01" detail_entities=0 collapsed_entities=2 seconds=3.13
+2026-11-15T11:08:44.504517662Z [INFO]  event="raw_month_staged" start="2019-05-01" detail_entities=0 collapsed_entities=2 seconds=4.59
+2026-11-15T11:08:45.613226727Z [INFO]  event="raw_month_staged" start="2019-06-01" detail_entities=0 collapsed_entities=2 seconds=1.34
+2026-11-15T11:08:53.940194182Z [INFO]  event="raw_month_staged" start="2019-07-01" detail_entities=0 collapsed_entities=2 seconds=8.35
+2026-11-15T11:08:59.796340714Z [INFO]  event="raw_month_staged" start="2019-08-01" detail_entities=0 collapsed_entities=2 seconds=5.41
+2026-11-15T11:09:02.819436168Z [INFO]  event="raw_month_staged" start="2019-09-01" detail_entities=0 collapsed_entities=2 seconds=3.17
+2026-11-15T11:09:05.964924369Z [INFO]  event="raw_month_staged" start="2019-10-01" detail_entities=0 collapsed_entities=2 seconds=3.89
+2026-11-15T11:09:09.038169730Z [INFO]  event="raw_month_staged" start="2019-11-01" detail_entities=0 collapsed_entities=2 seconds=2.81
+2026-11-15T11:09:10.973893627Z [INFO]  event="raw_month_staged" start="2019-12-01" detail_entities=0 collapsed_entities=2 seconds=2.2
+2026-11-15T11:09:17.035976142Z [INFO]  event="raw_month_staged" start="2020-01-01" detail_entities=0 collapsed_entities=2 seconds=5.69
+2026-11-15T11:09:18.940000251Z [INFO]  event="raw_month_staged" start="2020-02-01" detail_entities=0 collapsed_entities=2 seconds=2.01
+2026-11-15T11:09:27.139968274Z [INFO]  event="raw_month_staged" start="2020-03-01" detail_entities=0 collapsed_entities=2 seconds=7.74
+2026-11-15T11:09:33.208133451Z [INFO]  event="raw_month_staged" start="2020-04-01" detail_entities=0 collapsed_entities=2 seconds=6.78
+2026-11-15T11:09:36.661568713Z [INFO]  event="raw_month_staged" start="2020-05-01" detail_entities=0 collapsed_entities=2 seconds=3.4
+2026-11-15T11:09:44.560161982Z [INFO]  event="raw_month_staged" start="2020-06-01" detail_entities=0 collapsed_entities=2 seconds=7.68
+2026-11-15T11:09:47.520858419Z [INFO]  event="raw_month_staged" start="2020-07-01" detail_entities=0 collapsed_entities=2 seconds=2.72
+2026-11-15T11:09:50.684352808Z [INFO]  event="raw_month_staged" start="2020-08-01" detail_entities=0 collapsed_entities=2 seconds=3.01
+2026-11-15T11:09:54.707299914Z [INFO]  event="raw_month_staged" start="2020-09-01" detail_entities=0 collapsed_entities=2 seconds=4.45
+2026-11-15T11:09:57.602373597Z [INFO]  event="raw_month_staged" start="2020-10-01" detail_entities=0 collapsed_entities=2 seconds=2.68
+2026-11-15T11:10:04.266673528Z [INFO]  event="raw_month_staged" start="2020-11-01" detail_entities=0 collapsed_entities=2 seconds=6.47
+2026-11-15T11:10:08.412007807Z [INFO]  event="raw_month_staged" start="2020-12-01" detail_entities=0 collapsed_entities=2 seconds=4.76
+2026-11-15T11:10:15.558821747Z [INFO]  event="raw_month_staged" start="2021-01-01" detail_entities=0 collapsed_entities=2 seconds=7.01
+2026-11-15T11:10:18.829238081Z [INFO]  event="raw_month_staged" start="2021-02-01" detail_entities=0 collapsed_entities=2 seconds=2.75
+2026-11-15T11:10:22.408676814Z [INFO]  event="raw_month_staged" start="2021-03-01" detail_entities=0 collapsed_entities=2 seconds=3.92
+2026-11-15T11:10:28.278142881Z [INFO]  event="raw_month_staged" start="2021-04-01" detail_entities=0 collapsed_entities=2 seconds=5.55
+2026-11-15T11:10:31.705667823Z [INFO]  event="raw_month_staged" start="2021-05-01" detail_entities=0 collapsed_entities=2 seconds=2.81
+2026-11-15T11:10:38.411016739Z [INFO]  event="raw_month_staged" start="2021-06-01" detail_entities=0 collapsed_entities=2 seconds=7.82
+2026-11-15T11:10:42.140046313Z [INFO]  event="raw_month_staged" start="2021-07-01" detail_entities=0 collapsed_entities=2 seconds=3.04
+2026-11-15T11:10:50.512515337Z [INFO]  event="raw_month_staged" start="2021-08-01" detail_entities=0 collapsed_entities=2 seconds=7.98
+2026-11-15T11:10:53.215992570Z [INFO]  event="raw_month_staged" start="2021-09-01" detail_entities=0 collapsed_entities=2 seconds=3.74
+2026-11-15T11:10:59.595335715Z [INFO]  event="raw_month_staged" start="2021-10-01" detail_entities=0 collapsed_entities=2 seconds=5.92
+2026-11-15T11:11:04.570406108Z [INFO]  event="raw_month_staged" start="2021-11-01" detail_entities=0 collapsed_entities=2 seconds=5.08
+2026-11-15T11:11:07.621980190Z [INFO]  event="raw_month_staged" start="2021-12-01" detail_entities=0 collapsed_entities=2 seconds=3.63
+2026-11-15T11:11:14.880483789Z [INFO]  event="raw_month_staged" start="2022-01-01" detail_entities=0 collapsed_entities=2 seconds=6.7
+2026-11-15T11:11:16.652350722Z [INFO]  event="raw_month_staged" start="2022-02-01" detail_entities=0 collapsed_entities=2 seconds=2.03
+2026-11-15T11:11:21.766229199Z [INFO]  event="raw_month_staged" start="2022-03-01" detail_entities=0 collapsed_entities=2 seconds=4.81
+2026-11-15T11:11:24.756152273Z [INFO]  event="raw_month_staged" start="2022-04-01" detail_entities=0 collapsed_entities=2 seconds=3.31
+2026-11-15T11:11:34.171697379Z [INFO]  event="raw_month_staged" start="2022-05-01" detail_entities=0 collapsed_entities=2 seconds=8.81
+2026-11-15T11:11:37.794033108Z [INFO]  event="raw_month_staged" start="2022-06-01" detail_entities=0 collapsed_entities=2 seconds=4.29
+2026-11-15T11:11:44.051281319Z [INFO]  event="raw_month_staged" start="2022-07-01" detail_entities=0 collapsed_entities=2 seconds=5.68
+2026-11-15T11:11:49.203032091Z [INFO]  event="raw_month_staged" start="2022-08-01" detail_entities=2 collapsed_entities=2 seconds=5.13
+2026-11-15T11:11:53.028888788Z [INFO]  event="raw_month_staged" start="2022-09-01" detail_entities=2 collapsed_entities=2 seconds=3.92
+2026-11-15T11:11:59.059346128Z [INFO]  event="raw_month_staged" start="2022-10-01" detail_entities=2 collapsed_entities=2 seconds=6.26
+2026-11-15T11:12:02.022308924Z [INFO]  event="raw_month_staged" start="2022-11-01" detail_entities=2 collapsed_entities=2 seconds=3.1
+2026-11-15T11:12:05.338820679Z [INFO]  event="raw_month_staged" start="2022-12-01" detail_entities=2 collapsed_entities=2 seconds=3.46
+2026-11-15T11:12:13.712528400Z [INFO]  event="raw_month_staged" start="2023-01-01" detail_entities=2 collapsed_entities=2 seconds=8.3
+2026-11-15T11:12:17.032382620Z [INFO]  event="raw_month_staged" start="2023-02-01" detail_entities=2 collapsed_entities=2 seconds=3.43
+2026-11-15T11:12:19.279718656Z [INFO]  event="raw_month_staged" start="2023-03-01" detail_entities=2 collapsed_entities=2 seconds=2.27
+2026-11-15T11:12:23.305013235Z [INFO]  event="raw_month_staged" start="2023-04-01" detail_entities=2 collapsed_entities=2 seconds=3.1
+2026-11-15T11:12:26.945108189Z [INFO]  event="raw_month_staged" start="2023-05-01" detail_entities=2 collapsed_entities=2 seconds=4.11
+2026-11-15T11:12:29.122000960Z [INFO]  event="raw_month_staged" start="2023-06-01" detail_entities=2 collapsed_entities=2 seconds=1.87
+2026-11-15T11:12:32.899450076Z [INFO]  event="raw_month_staged" start="2023-07-01" detail_entities=2 collapsed_entities=2 seconds=4.44
+2026-11-15T11:12:38.375856079Z [INFO]  event="raw_month_staged" start="2023-08-01" detail_entities=2 collapsed_entities=2 seconds=5.36
+2026-11-15T11:12:42.958148599Z [INFO]  event="raw_month_staged" start="2023-09-01" detail_entities=2 collapsed_entities=2 seconds=4.69
+2026-11-15T11:12:49.781728313Z [INFO]  event="raw_month_staged" start="2023-10-01" detail_entities=2 collapsed_entities=2 seconds=6.33
+2026-11-15T11:12:58.146384761Z [INFO]  event="raw_month_staged" start="2023-11-01" detail_entities=2 collapsed_entities=2 seconds=8.55
+2026-11-15T11:13:03.471955159Z [INFO]  event="raw_month_staged" start="2023-12-01" detail_entities=2 collapsed_entities=2 seconds=5.75
+2026-11-15T11:13:11.675493655Z [INFO]  event="raw_month_staged" start="2024-01-01" detail_entities=2 collapsed_entities=2 seconds=7.84
+2026-11-15T11:13:15.571793603Z [INFO]  event="raw_month_staged" start="2024-02-01" detail_entities=2 collapsed_entities=2 seconds=4.22
+2026-11-15T11:13:19.157594207Z [INFO]  event="raw_month_staged" start="2024-03-01" detail_entities=2 collapsed_entities=2 seconds=3.16
+2026-11-15T11:13:24.448292302Z [INFO]  event="raw_month_staged" start="2024-04-01" detail_entities=2 collapsed_entities=2 seconds=5.88
+2026-11-15T11:13:29.656176849Z [INFO]  event="raw_month_staged" start="2024-05-01" detail_entities=2 collapsed_entities=2 seconds=4.44
+2026-11-15T11:13:34.605870083Z [INFO]  event="raw_month_staged" start="2024-06-01" detail_entities=2 collapsed_entities=2 seconds=5.06
+2026-11-15T11:13:40.662477789Z [INFO]  event="raw_month_staged" start="2024-07-01" detail_entities=2 collapsed_entities=2 seconds=6.55
+2026-11-15T11:13:46.005916043Z [INFO]  event="raw_month_staged" start="2024-08-01" detail_entities=2 collapsed_entities=2 seconds=5.53
+2026-11-15T11:13:51.883409042Z [INFO]  event="raw_month_staged" start="2024-09-01" detail_entities=2 collapsed_entities=2 seconds=5.87
+2026-11-15T11:13:54.963233985Z [INFO]  event="raw_month_staged" start="2024-10-01" detail_entities=2 collapsed_entities=2 seconds=2.76
+2026-11-15T11:14:01.890111458Z [INFO]  event="raw_month_staged" start="2024-11-01" detail_entities=2 collapsed_entities=2 seconds=6.81
+2026-11-15T11:14:05.472256704Z [INFO]  event="raw_month_staged" start="2024-12-01" detail_entities=2 collapsed_entities=2 seconds=3.8
+2026-11-15T11:14:12.366916048Z [INFO]  event="raw_month_staged" start="2025-01-01" detail_entities=2 collapsed_entities=2 seconds=6.58
+2026-11-15T11:14:14.805465619Z [INFO]  event="raw_month_staged" start="2025-02-01" detail_entities=2 collapsed_entities=2 seconds=2.91
+2026-11-15T11:14:19.221986516Z [INFO]  event="raw_month_staged" start="2025-03-01" detail_entities=2 collapsed_entities=2 seconds=4.28
+2026-11-15T11:14:21.916047484Z [INFO]  event="raw_month_staged" start="2025-04-01" detail_entities=2 collapsed_entities=2 seconds=1.99
+2026-11-15T11:14:26.961481596Z [INFO]  event="raw_month_staged" start="2025-05-01" detail_entities=2 collapsed_entities=2 seconds=4.99
+2026-11-15T11:14:29.824704613Z [INFO]  event="raw_month_staged" start="2025-06-01" detail_entities=2 collapsed_entities=2 seconds=3.17
+2026-11-15T11:14:34.445965534Z [INFO]  event="raw_month_staged" start="2025-07-01" detail_entities=2 collapsed_entities=2 seconds=4.87
+2026-11-15T11:14:40.377555477Z [INFO]  event="raw_month_staged" start="2025-08-01" detail_entities=2 collapsed_entities=2 seconds=5.8
+2026-11-15T11:14:46.662835290Z [INFO]  event="raw_month_staged" start="2025-09-01" detail_entities=2 collapsed_entities=2 seconds=6.82
+2026-11-15T11:14:52.803919760Z [INFO]  event="raw_month_staged" start="2025-10-01" detail_entities=2 collapsed_entities=2 seconds=5.64
+2026-11-15T11:14:56.850387444Z [INFO]  event="raw_month_staged" start="2025-11-01" detail_entities=2 collapsed_entities=2 seconds=4.27
+2026-11-15T11:15:03.597278667Z [INFO]  event="raw_month_staged" start="2025-12-01" detail_entities=2 collapsed_entities=2 seconds=5.77
+2026-11-15T11:15:11.925600204Z [INFO]  event="raw_month_staged" start="2026-01-01" detail_entities=2 collapsed_entities=2 seconds=9.36
+2026-11-15T11:15:17.732010350Z [INFO]  event="raw_month_staged" start="2026-02-01" detail_entities=2 collapsed_entities=2 seconds=4.87
+2026-11-15T11:15:22.466429733Z [INFO]  event="raw_month_staged" start="2026-03-01" detail_entities=2 collapsed_entities=2 seconds=5.51
+2026-11-15T11:15:30.745395409Z [INFO]  event="raw_month_staged" start="2026-04-01" detail_entities=2 collapsed_entities=2 seconds=7.8
+2026-11-15T11:15:37.215404209Z [INFO]  event="raw_month_staged" start="2026-05-01" detail_entities=2 collapsed_entities=2 seconds=6.86
+2026-11-15T11:15:42.206024085Z [INFO]  event="raw_month_staged" start="2026-06-01" detail_entities=2 collapsed_entities=2 seconds=5.22
+2026-11-15T11:15:47.711569162Z [INFO]  event="raw_month_staged" start="2026-07-01" detail_entities=2 collapsed_entities=2 seconds=5.21
+2026-11-15T11:15:53.476801190Z [INFO]  event="raw_month_staged" start="2026-08-01" detail_entities=2 collapsed_entities=2 seconds=5.85
+2026-11-15T11:16:01.342214087Z [INFO]  event="raw_month_staged" start="2026-09-01" detail_entities=2 collapsed_entities=2 seconds=8.31
+2026-11-15T11:16:06.934813201Z [INFO]  event="raw_month_staged" start="2026-10-01" detail_entities=2 collapsed_entities=2 seconds=5.06
+2026-11-15T11:16:07.794324078Z [INFO]  event="raw_month_staged" start="2026-11-01" detail_entities=2 collapsed_entities=2 seconds=1.39
+Traceback (most recent call last):
+  File "/job/job.py", line 44, in <module>
+    result = x.run(db, p.get('tickers'), bool(p.get('apply')), int(p.get('batch') or 10), until, since)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^
+  File "/job/scripts/backfill_index_entities.py", line 401, in run
+    read_months(db, history_first if k == 0 else p['window_first'], p['last'], names,
+  File "/job/job.py", line 32, in measured_read
+    print('TEMP_SIZE ' + json.dumps({'seconds': round(time.monotonic() - started, 1), 'mb': round(size['bytes'] / 2**20, 1),
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  File "/usr/local/lib/python3.12/json/__init__.py", line 231, in dumps
+    return _default_encoder.encode(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/json/encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/json/encoder.py", line 258, in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/json/encoder.py", line 180, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+TypeError: Object of type Decimal is not JSON serializable
+JOB_EXIT 1

@@ -266,3 +266,20 @@ def test_a_raw_request_on_additive_columns_says_a_summary_is_available(env) -> N
     prices_only = approval(env, spec(flows(aggregate=None, columns=["broker", "buy_avg_price"])),
                            request_id="req_hint_3")
     assert "summary_available" not in prices_only["approved"]["requests"][0]
+
+
+def test_an_index_table_refuses_a_sum_across_its_overlapping_entities() -> None:
+    """EXEC-INDEX-GROUP-HISTORY: on a table of entity_type INDEX a SUM that drops ticker is refused (the indexes and
+    groups overlap); summing its brokers and boards per ticker is approved."""
+    index_catalog = copy.deepcopy(CATALOG)
+    index_catalog["tables"][F2].update(entity_type="INDEX", asset_type="IDX_INDEX")
+
+    def run_index(raw):
+        raw["subject"] = {**raw["subject"], "entity_type": "INDEX", "asset_type": "IDX_INDEX"}
+        return validate(raw, subset(index_catalog, [F2]), REF)
+
+    refused = run_index(spec(flows()))
+    assert codes(refused) == ["AGGREGATION_NOT_ADDITIVE"]
+    assert "keep ticker in group_by" in refused.issues[0]["rejected_value"]
+    per_ticker = run_index(spec(flows(group_by=("date", "ticker"))))
+    assert per_ticker.status == "APPROVED", per_ticker.issues

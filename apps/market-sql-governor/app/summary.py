@@ -158,6 +158,9 @@ def bind_summary(spec: SummarySpec, contract: dict[str, Any], *, max_in_values: 
             if dropped and info.get("cross_entity_aggregation") != "SUM":
                 raise ex.policy("AGGREGATION_NOT_ADDITIVE", f"{label}: the catalog has no SUM rule across "
                                                             f"{', '.join(dropped)}; group by them.", dropped=dropped)
+            overlap = ex.overlapping_entity(meta, dropped)
+            if overlap:
+                raise ex.policy("AGGREGATION_NOT_ADDITIVE", ex.overlap_message(label, table, overlap), dropped=[overlap])
         elif measure.function in ("FIRST", "LAST"):
             if over_time != measure.function:
                 raise ex.policy("AGGREGATION_NOT_ALLOWED", f"{label}: the catalog's rule over time is {over_time}.")

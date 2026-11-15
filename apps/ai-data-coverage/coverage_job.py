@@ -58,8 +58,14 @@ STOCK_UNIVERSE_FILTER = (
 INDEX_CODES = 'SELECT u."Ticker" FROM public."IDX_Stock_Universe" AS u WHERE u."Security Type" = \'index\''
 INDEX_FILTER = "AND source.entity_id IN (" + INDEX_CODES + ")"
 NOT_INDEX_FILTER = "AND source.entity_id NOT IN (" + INDEX_CODES + ")"
-# INDEX Features of the index price (one row per index and price date) and of market-wide broker flows (one row per
-# index and Broker Summary date: every source symbol of the date, so the expected range is the Broker Summary range)
+# EXEC-INDEX-GROUP-HISTORY (2026-11-15): the INDEX tables hold the entities of Feature_Index_Entity (the composite, the other
+# indexes and sectors, the KONGLO groups), read at run time; an entity's rows start at its rows_from (NULL: the
+# whole source range), so its expected range starts at the later of the source's first date and rows_from. Only the
+# priced entities (has_price, universe indexes) have Feature 01/04 rows.
+INDEX_ENTITIES = 'SELECT e.ticker, e.rows_from, e.has_price FROM public."Feature_Index_Entity" AS e'
+# INDEX Features of the index price (one row per index and price date) and of index-wide broker flows (one row per
+# entity and Broker Summary date: the sum of its member symbols of the date, so the expected range is the Broker
+# Summary range from the entity's rows_from)
 PRICE_INDEX_FEATURES = ("Feature_01_Stock_Daily_INDEX", "Feature_04_Technical_Indicator_INDEX")
 MARKET_WIDE_INDEX_FEATURES = (
     "Feature_02_Broker_Rolling_INDEX",
@@ -591,7 +597,8 @@ def upsert_price_index_expectations(
     feature_table: str,
     checked_at: datetime,
 ) -> None:
-    """An INDEX price Feature expects the price range of each index code; its refresh is manual (EXEC-INDEX-1)."""
+    """An INDEX price Feature expects the price range of each priced entity from its rows_from; its refresh is manual
+    (EXEC-INDEX-1, EXEC-INDEX-GROUP-HISTORY)."""
     connection.execute(
         """
         INSERT INTO public."AI_data_coverage" (
@@ -606,11 +613,12 @@ def upsert_price_index_expectations(
         SELECT
             %s, 'ENTITY', source.entity_id,
             'Price_Stock_Indonesia_IDX', 'EXPECTED_DERIVED',
-            NULL, NULL, source.actual_min_date, source.actual_max_date,
+            NULL, NULL, GREATEST(source.actual_min_date, entity.rows_from), source.actual_max_date,
             source.source_row_count, source.source_key_count,
             'MANUAL_REFRESH_REQUIRED', 'UNVERIFIED', 'WARNING',
             NULL, %s, source.last_full_checked_at
         FROM public."AI_data_coverage" AS source
+        JOIN (""" + INDEX_ENTITIES + """) AS entity ON entity.ticker = source.entity_id AND entity.has_price
         WHERE source.dataset_name = 'Price_Stock_Indonesia_IDX'
           AND source.coverage_scope = 'ENTITY'
         """ + INDEX_FILTER + """
@@ -639,9 +647,9 @@ def upsert_market_wide_index_expectations(
     feature_table: str,
     checked_at: datetime,
 ) -> None:
-    """A market-wide INDEX broker Feature aggregates every source symbol of a date, so each index code expects the
-    whole Broker Summary range (its DATASET row); the refresh is manual (EXEC-INDEX-1). Index codes no longer in the
-    universe are dropped."""
+    """An INDEX broker Feature sums an entity's member symbols of a date (the composite: every source symbol), so each entity
+    expects the Broker Summary range (its DATASET row) from its rows_from; the refresh is manual (EXEC-INDEX-1,
+    EXEC-INDEX-GROUP-HISTORY). Codes no longer in Feature_Index_Entity are dropped."""
     connection.execute(
         """
         INSERT INTO public."AI_data_coverage" (
@@ -654,14 +662,14 @@ def upsert_market_wide_index_expectations(
             check_error, last_checked_at, last_full_checked_at
         )
         SELECT
-            %s, 'ENTITY', codes."Ticker",
+            %s, 'ENTITY', entity.ticker,
             'IDX_Broker_Summary', 'EXPECTED_DERIVED',
-            NULL, NULL, source.actual_min_date, source.actual_max_date,
+            NULL, NULL, GREATEST(source.actual_min_date, entity.rows_from), source.actual_max_date,
             source.source_row_count, source.source_key_count,
             'MANUAL_REFRESH_REQUIRED', 'UNVERIFIED', 'WARNING',
             NULL, %s, source.last_full_checked_at
         FROM public."AI_data_coverage" AS source
-        CROSS JOIN (""" + INDEX_CODES + """) AS codes
+        CROSS JOIN (""" + INDEX_ENTITIES + """) AS entity
         WHERE source.dataset_name = 'IDX_Broker_Summary'
           AND source.coverage_scope = 'DATASET'
         ON CONFLICT (dataset_name, coverage_scope, (COALESCE(entity_id, ''))) DO UPDATE SET
@@ -686,7 +694,7 @@ def upsert_market_wide_index_expectations(
         """
         DELETE FROM public."AI_data_coverage"
         WHERE dataset_name = %s AND coverage_scope = 'ENTITY'
-          AND entity_id NOT IN (""" + INDEX_CODES + """)
+          AND entity_id NOT IN (SELECT ticker FROM (""" + INDEX_ENTITIES + """) AS entity)
         """,
         (feature_table,),
     )

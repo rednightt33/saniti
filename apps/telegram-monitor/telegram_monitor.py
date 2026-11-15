@@ -741,6 +741,18 @@ def radar_lines(result) -> list[str]:
     return [f"Radar: {len(dates)} tanggal dihitung ulang" + (f" (dari {result.get('since')})" if dates else "")]
 
 
+def index_entity_lines(result) -> list[str]:
+    """EXEC-INDEX-GROUP-HISTORY stage 8: the indexes, sectors and groups after IHSG (index_result.entities). A failure is
+    a warning, the round stands (as the Radar's); the next round continues each one from its newest stored row."""
+    if not isinstance(result, dict) or not result:
+        return []
+    if result.get("failed"):
+        return ["⚠️ Indeks, sektor dan grup tidak diperbarui (IHSG sudah; diulang di ronde berikut): "
+                + str(result["failed"])[:400]]
+    count = result.get("entities") or 0
+    return [f"Indeks, sektor dan grup: {count} entitas diperbarui" if count else "Indeks, sektor dan grup: sudah terbaru"]
+
+
 def build_stockbit_messages(summary: StockbitUpdateSummary, max_length: int = MAX_TELEGRAM_TEXT) -> list[str]:
     emoji = STATUS_EMOJI.get(summary.status, "ℹ️")
     duration = format_duration(max(0.0, (summary.finished_at - summary.started_at).total_seconds()))
@@ -765,6 +777,7 @@ def build_stockbit_messages(summary: StockbitUpdateSummary, max_length: int = MA
             frm = summary.index_result.get("from_date")
             lines.append("INDEX: " + ("dilewati" if "skipped" in summary.index_result
                                       else f"di-refresh dari {frm}" if frm else "di-refresh"))
+            lines += index_entity_lines(summary.index_result.get("entities"))
         ca, ins = summary.events.get("reconcile_corporate_action"), summary.events.get("reconcile_insider")
         if ca and ins:
             lines.append(f"Corporate action: baru {ca.get('new')}, berubah {ca.get('changed')}, hilang {ca.get('removed')} • "
