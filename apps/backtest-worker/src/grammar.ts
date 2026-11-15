@@ -34,6 +34,10 @@ import type { FlowBindContext, TickerFlow } from '../../edge-bff/screener/src/co
 import type { FlowParamValue } from '../../edge-bff/screener/src/core/contract.ts';
 import { ADJUSTED_HISTORY_BOUNDARY } from '../../edge-bff/backtest/src/core/engine.ts';
 import FLOW_REGISTRY from '../../edge-bff/terminal/src/data/flowRegistry.json' with { type: 'json' };
+import { checkDTest, dSignal, hasD } from './pit/evaluate.ts';
+import { dSeries, namedWithoutRows } from './pit/series.ts';
+import { checkDRef, isD } from './pit/spec.ts';
+import type { DRef } from './pit/spec.ts';
 import type { FlowOut } from '../../edge-bff/terminal/src/calc/flow.ts';
 import { SOURCES as SCREENER_SOURCES, registryProblems } from '../../edge-bff/screener/src/core/registry.ts';
 import { IMPLEMENTED_PATTERNS, IMPLEMENTED_TRANSFORMS } from '../../edge-bff/screener/src/core/transforms.ts';
@@ -55,15 +59,15 @@ const NOT_PER_DAY: Record<string, string> = {
    each on every bar from the ticker's whole broker history with the Terminal's formula as it is (calc/flow.ts
    computeFlow, through the Screener's flow series): the registry's baselines (the Screener lowers a baseline to fit its
    60-session window; here nothing is lowered) and today's broker classification on every date (FL34, user decision 5).
-   Refused, with the reason: an entry the Screener computes its own way (its window versions of the anchored and
-   inventory indicators FL18, FL19, FL20, FL23, FL44, FL45, whose point-in-time versions are the worker's own, P4; its
-   foreign-net and KSEI entries), and an entry that needs data not published (FL31 insider, KSEI). */
+   The eight that choose their brokers with later data (FL18, FL19, FL20, FL23, FL44, FL45, FL51, FL52) are read in
+   their point-in-time versions (pit/, P4, admins only: validate.ts). Refused, with the reason: the Screener's own
+   entries (foreign net, KSEI) and an entry that needs data not published (FL31 insider). */
 function flowRefusal(metric: unknown): string | null {
+  if (isD(metric)) return null;                                      // the worker's point-in-time versions (pit/), P4
   const e = typeof metric === 'string' ? FLOW_BY_ID[metric] : undefined;
   if (!e) return null;                                               // the Screener's validation names the ids
   if (e.requires === 'insider') return `${e.id} needs insider transactions with the date they were made public; the published insider rows carry the transaction date only, so a backtest would read them before anyone could know them`;
   if (e.requires) return `${e.id} needs data that is not published yet (${e.requires})`;
-  if (e.compute === 'anchored' || e.compute === 'inventory') return `${e.id} chooses its brokers from the data up to the last candle; its point-in-time version for a backtest is not available yet`;
   if (e.compute !== 'terminal') return `${e.id} is the Screener's own entry on its broker window, not a Terminal Flow indicator a backtest can read on every bar`;
   return null;
 }
@@ -169,6 +173,12 @@ export function checkTest(cond: unknown, field: string, limits: GrammarLimits = 
     const why = kind === 'flow' ? flowRefusal(ref.metric) : null;
     if (why) throw new ValidationError('CONDITION_UNAVAILABLE', at, `${at}: ${why}.`);
   }
+  // P4: a test that reads a point-in-time Flow indicator is checked by the worker (pit/evaluate.ts), with the Screener
+  // resolving every other side
+  if (hasD(cond.test)) return checkDTest(cond.test, `${field}.test`, (ref, f) => {
+    try { const r = resolveSeries(ref as never, f, { capBudgetMs: limits.capBudgetMs, catalog: METRICS_CATALOG }); return { unit: r.unit ?? null, comparableWith: r.comparableWith ?? null } }
+    catch (e) { throw asValidation(e, f) }
+  }, limits.withinMax) as unknown as Test;
   try { return validateTest(cond.test, `${field}.test`, validateContext(limits, tickers), enabled) }
   catch (e) { throw asValidation(e, `${field}.test`) }
 }
@@ -211,6 +221,7 @@ export function grammarEvaluator(limits: GrammarLimits = GRAMMAR_DEFAULTS): Gram
   return {
     signal(c: Calc, cond: TestCondition, field: string, last?: number): Signal {
       const n = c.n, test = checkTest(cond, field, limits);
+      if (hasD(test)) return pitSignal(c, test as unknown as Record<string, unknown>, `${field}.test`, field, n, last, limits);
       const index: TickerBars | undefined = c.meta.index ? { ticker: 'IHSG', dates: [...c.meta.index.dates], bars: c.meta.index.bars } : undefined;
       let b: BoundCondition;
       const flow = tickerFlow(c);
@@ -271,9 +282,29 @@ export function grammarProblems(root: string): string[] {
   return problems;
 }
 
+/** A test with a point-in-time Flow reference on every bar (pit/evaluate.ts dSignal): its sides' series, the
+    Backtest's EMPTY refusals up to `last`, no computation on empty bars. */
+function pitSignal(c: Calc, test: Record<string, unknown>, field: string, cfield: string, n: number, last: number | undefined, limits: GrammarLimits): Signal {
+  if (!n) throw new ValidationError('INDICATOR_OUTPUT_EMPTY', field, `${cfield}: there are no bars to compute this condition on.`);
+  const upTo = last === undefined ? n - 1 : Math.min(last, n - 1), until = c.meta.dates?.[upTo] ?? '9999-12-31';
+  return dSignal(test, field, n, (side, f) => {
+    const d = isObj(side) && side.kind === 'flow' && isD(side.metric);
+    if (d) {
+      const miss = namedWithoutRows(c, side as unknown as DRef, until);
+      if (miss) throw new ValidationError('UNKNOWN_BROKER', `${f}.params.brokers[${miss[1]}]`, `${f}.params.brokers[${miss[1]}]: ${miss[0]} has no broker rows for ${c.meta.ticker ?? 'this stock'}${last === undefined ? '' : ' up to the end of the period'}.`);
+    }
+    const s = d ? dSeries(c, side as unknown as DRef, f) : seriesOfRef(c, side, f, limits);
+    let any = false;
+    for (let i = 0; i <= upTo && !any; i++) { const v = s[i]; any = typeof v === 'number' && Number.isFinite(v) }
+    if (!any) throw new ValidationError(d ? 'FLOW_OUTPUT_EMPTY' : 'INDICATOR_OUTPUT_EMPTY', f, `${cfield}: ${d ? `${(side as { metric: string }).metric}.${(side as { output: string }).output}` : 'a side'} has no value on this ticker's bars${last === undefined ? '' : ' up to the end of the period'}.`);
+    return s;
+  });
+}
+
 /** One reference's series on every bar of a ticker as a condition reads it (tests, and the worker's chart series):
     resolved with the backtest's context (IHSG, the whole broker history), memoized in the Calc. */
 export function seriesOfRef(c: Calc, ref: unknown, field: string, limits: GrammarLimits = GRAMMAR_DEFAULTS): ArrayLike<number | null | undefined> {
+  if (isObj(ref) && ref.kind === 'flow' && isD(ref.metric)) return dSeries(c, checkDRef(ref, field), field);
   const flow = tickerFlow(c), index: TickerBars | undefined = c.meta.index ? { ticker: 'IHSG', dates: [...c.meta.index.dates], bars: c.meta.index.bars } : undefined;
   let r: ResolvedSeries;
   try { r = resolveSeries(ref as never, field, { capBudgetMs: limits.capBudgetMs, index, flow: flowBind(flow), catalog: METRICS_CATALOG }) }

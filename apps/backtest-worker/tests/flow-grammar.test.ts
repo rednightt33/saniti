@@ -100,9 +100,12 @@ test('a Flow condition: per-bar test, FLOW_UNAVAILABLE without broker data, the 
   assert.ok(conditionSeries(c, cond('FL01'), 'f').some(Boolean));
   const bare = new Calc(A.bars as never, undefined, { ticker: A.ticker, dates: A.dates });
   assert.throws(() => conditionSeries(bare, cond('FL01'), 'f'), (e: unknown) => e instanceof ValidationError && e.code === 'FLOW_UNAVAILABLE');
-  for (const id of ['FL31', 'FL18', 'FL19', 'FL20', 'FL23', 'FL44', 'FL45', 'fnet', 'ksei_net'])
-    assert.throws(() => conditionSeries(c, { id: 'f1', kind: 'test', test: { kind: 'value', metric: { kind: 'flow', metric: id, params: {} }, op: 'gt', value: 0 } } as never, 'f'),
-      (e: unknown) => e instanceof ValidationError && e.code === 'CONDITION_UNAVAILABLE' && /test\.metric$/.test(e.field ?? ''), id);
+  const refused = (id: string) => () => conditionSeries(c, { id: 'f1', kind: 'test', test: { kind: 'value', metric: { kind: 'flow', metric: id, params: {} }, op: 'gt', value: 0 } } as never, 'f');
+  for (const id of ['FL31', 'fnet', 'ksei_net', 'FL52'])
+    assert.throws(refused(id), (e: unknown) => e instanceof ValidationError && e.code === 'CONDITION_UNAVAILABLE' && /test\.metric$/.test(e.field ?? ''), id);
+  // P4: the point-in-time versions need their anchor or start date
+  for (const [id, key] of [['FL18', 'anchor'], ['FL19', 'anchor'], ['FL20', 'anchor'], ['FL44', 'anchor'], ['FL45', 'anchor'], ['FL23', 'start'], ['FL51', 'start']])
+    assert.throws(refused(id), (e: unknown) => e instanceof ValidationError && e.code === 'ANCHOR_REQUIRED' && e.field === `f.test.metric.params.${key}`, id);
 });
 
 /* ---- P3 (K3 a, ERRORS M448): broker prices on another basis than the prices, and the Flow data warnings ---------- */

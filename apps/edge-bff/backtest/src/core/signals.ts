@@ -254,7 +254,10 @@ export function previewRow(calc: Calc, tickerDates: readonly string[], req: Sign
     condition is false on every bar). A request error (a parameter, an indicator, a field) fails the run in either
     mode; in single mode these fail it too. The loader leaves out a ticker without published files the same way
     (DATA_MISSING). */
-export const EXCLUDED_CODES: readonly string[] = ['INDICATOR_OUTPUT_EMPTY', 'FLOW_OUTPUT_EMPTY', 'FLOW_UNAVAILABLE'];
+export const EXCLUDED_CODES: readonly string[] = ['INDICATOR_OUTPUT_EMPTY', 'FLOW_OUTPUT_EMPTY', 'FLOW_UNAVAILABLE',
+  // EXEC-BACKTEST-REVAMP P4: a point-in-time Flow condition's anchor before the stock's broker data, or a named broker
+  // without rows for it: a portfolio leaves that stock out, with the reason
+  'ANCHOR_BEFORE_DATA', 'UNKNOWN_BROKER'];
 /** A picked stock of a portfolio that is left out, with the error its data gave (TICKERS_EXCLUDED reasons). */
 export interface Exclusion { ticker: string; code: string; field?: string; message: string }
 

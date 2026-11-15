@@ -74,7 +74,6 @@ test('reference kinds without a per-day value are refused with their reason, bef
     ['rank', { kind: 'value', metric: { kind: 'rank', of: rsi }, op: 'gt', value: 50 }],
     // P3: Flow indicators are read per bar; refused are the ones without a point-in-time value yet, with their reason
     ['flow FL31', { kind: 'value', metric: { kind: 'flow', metric: 'FL31', params: {} }, op: 'gt', value: 0 }],
-    ['flow FL18', { kind: 'value', metric: { kind: 'flow', metric: 'FL18', params: {} }, op: 'gt', value: 0 }],
     ['flow fnet', { kind: 'value', metric: { kind: 'flow', metric: 'fnet', params: {} }, op: 'gt', value: 0 }],
   ];
   for (const [kind, t] of refused) {

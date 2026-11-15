@@ -678,3 +678,27 @@ test('P3: a job with a Flow indicator in the grammar reads the broker rows as co
     assert.ok(p.rows[0].entry_signals > 0, 'the preview finds the same Flow signals');
   } finally { await flowFake.close() }
 });
+
+test('P4: a point-in-time Flow condition runs for a context with the right, and is CONDITION_RESTRICTED without it', async () => {
+  const days = FX.get('UNVR')!.T.slice(-80);
+  const rows = days.flatMap((d, k) => [[d, 'YU', 'Foreign', 'Regular', 1e9 * (1 + (k % 4)), 4e8 * (1 + (k % 3)), 1e4 * (1 + (k % 4)), 5e3, false],
+    [d, 'ZP', 'Domestic', 'Regular', 3e8 * (1 + (k % 5)), 9e8, 3e3, 9e3 * (1 + (k % 2)), false]]);
+  const doc = brokerArchive('UNVR', rows, [2026, 2026]);
+  const flowFake = await startFakeTerminal({ key: KEY, tickers: market({ UNVR: { broker: { data_through: THROUGH, doc } } }), refs: REFS });
+  try {
+    const on: Config['flow'] = { enabled: true, reason: null };
+    const d = { id: 'd1', kind: 'test', test: { kind: 'state', lhs: { kind: 'price', field: 'close' }, op: 'gt', rhs: { kind: 'flow', metric: 'FL18', params: { anchor: days[0] } } } };
+    const q = { ...pageDefault('UNVR'), entry: { logic: 'all', at_least: 1, window_bars: 5, conditions: [d] } } as BacktestRequest;
+    q.period.from = days[0];                                            // the first value comes after the warm-up, inside the period
+    assert.deepEqual(await refusal(runJob(q, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['CONDITION_RESTRICTED', 'entry.conditions[0].test.rhs']);
+    assert.deepEqual(await refusal(runJob(q, { prior_trials: [], rights: ['something_else'] }, refs, env({ url: flowFake.url, flow: on }))), ['CONDITION_RESTRICTED', 'entry.conditions[0].test.rhs']);
+    const r = await runJob(q, { prior_trials: [], rights: ['flow_point_in_time'] }, refs, env({ url: flowFake.url, flow: on }));
+    assert.ok(r.events.entries.UNVR.on.length > 0, 'the point-in-time condition switches on');
+    const p = await runSignals({ schema_version: 1, tickers: ['UNVR'], period: { from: q.period.from, to: q.period.to }, entry: q.entry }, refs, env({ url: flowFake.url, flow: on }), {}, { rights: ['flow_point_in_time'] });
+    assert.ok(p.rows[0].entry_signals > 0);
+    assert.deepEqual(await refusal(runSignals({ schema_version: 1, tickers: ['UNVR'], period: { from: q.period.from, to: q.period.to }, entry: q.entry }, refs, env({ url: flowFake.url, flow: on }))), ['CONDITION_RESTRICTED', 'entry.conditions[0].test.rhs']);
+    // the anchor before the stock's broker data
+    const early = clone(q); ((early.entry.conditions[0] as unknown as { test: { rhs: { params: { anchor: string } } } }).test.rhs.params.anchor = '2019-01-02');
+    assert.deepEqual(await refusal(runJob(early, { prior_trials: [], rights: ['flow_point_in_time'] }, refs, env({ url: flowFake.url, flow: on }))), ['ANCHOR_BEFORE_DATA', 'entry.conditions[0].test.rhs.params.anchor']);
+  } finally { await flowFake.close() }
+});

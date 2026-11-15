@@ -167,12 +167,14 @@ export const ADJUSTED_HISTORY_BOUNDARY = '2026-09-12';
      window reads broker lots on another basis than the prices (the grammar's mask, FlowNotes);
    - FLOW_SOURCE_GAP: days the publisher marks as a source gap (buy and sell totals differ) among those sessions;
    - FLOW_ROWS_DROPPED: broker rows on a day without a price bar, which no Flow value reads (as on the Terminal), per
-     board. A stock counts when a condition of the run reads its broker data (a flow condition, or the grammar noted it). */
+     board;
+   - FLOW_CROSSING_BOARDS (P4): a point-in-time cohort reads the Nego or Cash board.
+   A stock counts when a condition of the run reads its broker data (a flow condition, or the grammar noted it). */
 export const FLOW_PRE_2021 = '2021-01-01';
 function flowWarnings(prep: readonly Prepared[], active: ReturnType<typeof requestConditions>, from: string, to: string): Ledger['warnings'] {
   const legacy = [...active.entry, ...active.exit].filter(c => c.cond.kind === 'flow').map(c => Number((c.cond as { params?: { length?: unknown } }).params?.length) || 1);
   const legacyDepth = legacy.length ? Math.max(...legacy) : -1;
-  const pre: string[] = [], basis: string[] = [], gap = new Map<string, number>(), dropped = { Regular: 0, Nego: 0, Cash: 0 }, droppedTickers = new Set<string>();
+  const pre: string[] = [], basis: string[] = [], crossing: string[] = [], gap = new Map<string, number>(), dropped = { Regular: 0, Nego: 0, Cash: 0 }, droppedTickers = new Set<string>();
   for (const p of prep) {
     const notes = p.calc.flowNotes;
     if (legacyDepth < 0 && !notes) continue;
@@ -182,7 +184,8 @@ function flowWarnings(prep: readonly Prepared[], active: ReturnType<typeof reque
     if (i0 > iEnd) continue;
     const depth = notes && notes.depth === null ? Infinity : Math.max(legacyDepth, notes?.depth ?? 0);
     const start = depth === Infinity ? 0 : Math.max(0, i0 - depth), startDate = dates[start], endDate = dates[iEnd];
-    if (startDate < FLOW_PRE_2021) pre.push(p.ticker);
+    if (startDate < FLOW_PRE_2021 || (notes?.first !== undefined && notes.first < FLOW_PRE_2021 && notes.first <= endDate)) pre.push(p.ticker);
+    if (notes?.crossing) crossing.push(p.ticker);
     if (notes && [...notes.masked].some(i => i >= i0 && i <= iEnd)) basis.push(p.ticker);
     const g = (p.data.flow?.gap_bars ?? []).filter(i => i >= start && i <= iEnd).length;
     if (g) gap.set(p.ticker, g);
@@ -200,6 +203,8 @@ function flowWarnings(prep: readonly Prepared[], active: ReturnType<typeof reque
   if (gap.size) { const days = [...gap.values()].reduce((a, b) => a + b, 0);
     out.push({ code: 'FLOW_SOURCE_GAP', count: days, tickers: list([...gap.keys()]),
       message: `On ${days === 1 ? '1 trading day' : `${days} trading days`} the Flow conditions read (counted per stock), the broker source's buy and sell totals differ: some brokers are missing from those days.` }) }
+  if (crossing.length) out.push({ code: 'FLOW_CROSSING_BOARDS', count: crossing.length, tickers: list(crossing),
+    message: `A point-in-time broker cohort reads the Nego or Cash board for ${stocks(crossing.length)}: trades there are negotiated crossings between two parties, so one block can make a broker the largest buyer or seller of the whole span.` });
   const nd = dropped.Regular + dropped.Nego + dropped.Cash;
   if (nd) out.push({ code: 'FLOW_ROWS_DROPPED', count: nd, tickers: list([...droppedTickers]),
     message: `Broker rows on days without a price bar are not read by any Flow value (as on the Terminal): ${(['Regular', 'Nego', 'Cash'] as const).filter(b => dropped[b]).map(b => `${dropped[b]} day${dropped[b] === 1 ? '' : 's'} on the ${b} board`).join(', ')} (counted per stock).` });

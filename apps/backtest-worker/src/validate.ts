@@ -33,6 +33,7 @@ import type { ActiveCondition } from '../../edge-bff/backtest/src/core/signals.t
 import type { Config } from './config.ts';
 import { invalid } from './errors.ts';
 import { checkTest, flowRefs, installBacktestGrammar } from './grammar.ts';
+import { D_RIGHT, isD } from './pit/spec.ts';
 import { canonicalJson } from '../../edge-bff/backtest/src/core/hash.ts';
 import type { BrokerRef, TickerRef } from './terminal.ts';
 
@@ -142,13 +143,19 @@ function flowBrokers(ref: Record<string, unknown>, field: string, brokers: reado
   for (const [k, v] of Object.entries(params)) if (/(^|_)brokers$/.test(k) && Array.isArray(v))
     v.forEach((code, j) => { if (typeof code === 'string' && !brokers.some(b => b.code === code)) fail('UNKNOWN_BROKER', `${field}.params.${k}[${j}]`, `${field}.params.${k}[${j}]: ${code} is not a broker of the published broker list.`) });
 }
-function checkConditions(list: readonly Listed[], flow: Config['flow'], brokers: readonly BrokerRef[], maxFlow = Number.MAX_SAFE_INTEGER): Reads {
+/** The rights a request's context carries (P5: set by edge-bff from the session; none when absent: fail closed). */
+export type Rights = ReadonlySet<string>;
+export const NO_RIGHTS: Rights = new Set();
+function checkConditions(list: readonly Listed[], flow: Config['flow'], brokers: readonly BrokerRef[], maxFlow = Number.MAX_SAFE_INTEGER, rights: Rights = NO_RIGHTS): Reads {
   let needsBroker = false, columns = false;
   const series = new Set<string>();
   for (const { field, cond: c, enabled } of list) {
     if (!CONDITION_ID.test(c.id)) fail('INVALID_CONDITION', `${field}.id`, `${field}.id must be 1 to 6 lowercase letters or digits, as the page makes it.`);
     if (c.kind === 'test' && enabled) {
       const refs = flowRefs((c as { test?: unknown }).test, `${field}.test`);
+      // EXEC-BACKTEST-REVAMP P4: the point-in-time indicators are for admins only, enforced here (CONDITION_RESTRICTED)
+      for (const r of refs) if (isD(r.ref.metric) && !rights.has(D_RIGHT))
+        fail('CONDITION_RESTRICTED', r.field, `${field}: ${r.ref.metric} (point in time) is available to admins only; remove this condition to run the strategy.`);
       if (refs.length) {
         if (!flow.enabled) fail('FLOW_UNAVAILABLE', refs[0].field, `${refs[0].field}: the Flow indicators need the broker data, which is not available. ${flow.reason ?? ''}`.trim());
         for (const r of refs) flowBrokers(r.ref, r.field, brokers);
@@ -201,7 +208,7 @@ export interface CheckedRequest {
 }
 
 /** A backtest request checked as far as it can be without market data; ValidationError (422) otherwise. */
-export function checkRequest(input: unknown, refs: References, cfg: Pick<Config, 'limits' | 'flow'>): CheckedRequest {
+export function checkRequest(input: unknown, refs: References, cfg: Pick<Config, 'limits' | 'flow'>, rights: Rights = NO_RIGHTS): CheckedRequest {
   if (!isObject(input)) fail('INVALID_REQUEST', 'request', 'The request must be a JSON object.');
   const q = input as unknown as BacktestRequest;
   only(q, 'request', '');
@@ -246,12 +253,12 @@ export function checkRequest(input: unknown, refs: References, cfg: Pick<Config,
   const active = requestConditions(q);
   unreadTypes(q);
   withinConditions([[active.entry, 'entry.conditions'], [active.exit, 'exit.signals.conditions']], cfg.limits.max_conditions);
-  const reads = checkConditions([...listed(q.entry.conditions, 'entry.conditions'), ...listed(q.exit.signals.conditions, 'exit.signals.conditions')], cfg.flow, refs.brokers, cfg.limits.max_flow_series);
+  const reads = checkConditions([...listed(q.entry.conditions, 'entry.conditions'), ...listed(q.exit.signals.conditions, 'exit.signals.conditions')], cfg.flow, refs.brokers, cfg.limits.max_flow_series, rights);
   return { tickers, broker: broker || reads.broker, columns: reads.columns };
 }
 
 /** A signals preview request (SignalsPreviewRequest) checked the same way. */
-export function checkSignalsRequest(input: unknown, refs: References, cfg: Pick<Config, 'limits' | 'flow'>): CheckedRequest {
+export function checkSignalsRequest(input: unknown, refs: References, cfg: Pick<Config, 'limits' | 'flow'>, rights: Rights = NO_RIGHTS): CheckedRequest {
   if (!isObject(input)) fail('INVALID_REQUEST', 'request', 'The request must be a JSON object.');
   const q = input as unknown as SignalsPreviewRequest;
   only(q, 'preview', ''); only(q.period, 'preview_period', 'period'); entryFields(q.entry, 'entry');
@@ -264,6 +271,6 @@ export function checkSignalsRequest(input: unknown, refs: References, cfg: Pick<
   const active = requestConditions({ entry: q.entry });
   entryTypes(q.entry);
   withinConditions([[active.entry, 'entry.conditions']], cfg.limits.max_conditions);
-  const reads = checkConditions(listed(q.entry.conditions, 'entry.conditions'), cfg.flow, refs.brokers, cfg.limits.max_flow_series);
+  const reads = checkConditions(listed(q.entry.conditions, 'entry.conditions'), cfg.flow, refs.brokers, cfg.limits.max_flow_series, rights);
   return { tickers, broker: reads.broker, columns: reads.columns };
 }

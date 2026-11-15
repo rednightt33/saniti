@@ -113,7 +113,10 @@ export async function checkPublished(request: BacktestRequest, checked: CheckedR
   checkAfterData(last, to);
 }
 
-export async function runJob(request: unknown, context: Pick<JobContext, 'prior_trials'>, refs: Refs, env: RunEnv, hooks: RunHooks = {}): Promise<BacktestResult> {
+/** The run's context besides the request: the prior trials (edge-bff), and the rights (P4-P5: from the session; none
+    when absent, fail closed). */
+export interface RunContext extends Pick<JobContext, 'prior_trials'> { rights?: readonly string[] }
+export async function runJob(request: unknown, context: RunContext, refs: Refs, env: RunEnv, hooks: RunHooks = {}): Promise<BacktestResult> {
   const now = env.now ?? (() => performance.now()), t0 = now();
   const stop = () => { if (hooks.shouldStop?.()) throw new Cancelled() };
   const report = (phase: JobProgress['phase'], done: number, total: number) => hooks.progress?.({ phase, done, total });
@@ -121,7 +124,7 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
 
   /* 1. loading */
   report('loading', 0, 0);
-  const checked = checkRequest(request, refs, env.config);
+  const checked = checkRequest(request, refs, env.config, new Set(context.rights ?? []));
   const q = canonicalRequest(request as BacktestRequest), single = q.mode === 'single', { from, to } = q.period;
   const datasets: Dataset[] = checked.broker ? ['price', 'events', 'broker'] : ['price', 'events'];
   const field = single ? 'single.ticker' : 'portfolio.tickers';
@@ -212,9 +215,9 @@ export function gridAccepts(c: Condition, value: number): boolean {
     published files (load.ts skipUnpublished) or whose own data cannot serve the strategy (signals.ts EXCLUDED_CODES)
     is left out and listed in the warning TICKERS_EXCLUDED, none left is UNIVERSE_EMPTY, and a preview that reads the
     broker files is held to FLOW_DATA_THROUGH. */
-export async function runSignals(request: unknown, refs: Refs, env: RunEnv, hooks: RunHooks = {}): Promise<SignalsPreview> {
+export async function runSignals(request: unknown, refs: Refs, env: RunEnv, hooks: RunHooks = {}, context: { rights?: readonly string[] } = {}): Promise<SignalsPreview> {
   const stop = () => { if (hooks.shouldStop?.()) throw new Cancelled() };
-  const checked = checkSignalsRequest(request, refs, env.config);
+  const checked = checkSignalsRequest(request, refs, env.config, new Set(context.rights ?? []));
   const q = request as SignalsPreviewRequest;
   // IHSG's prices too, as a run loads them: a grammar condition may compare with the index (vs_index), and a preview
   // never fails where the matching run succeeds (EXEC-BACKTEST-REVAMP P2)

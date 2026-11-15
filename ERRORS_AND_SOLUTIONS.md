@@ -8138,9 +8138,19 @@ in its staleness check.
   the truncation test on BBRI (243,810 broker rows): about 95 ms per stock together. FL34 (user 2026-11-15: "leave as
   is untuk klasifikasinya karena tidak ada perubahan"): the current `IDX_Broker_Profile` classification is used for
   every date, an accepted limitation; item 2 above stays recorded.
-- **Status:** OPEN. The Backtest does not offer any Flow indicator of the Terminal yet, so no published backtest result
-  read these eight; the Terminal chart draws them. Whether the Screener reads them on past bars (its preview arrows)
-  was not checked in this task.
+- **Solution (built on branch `claude/hopeful-shannon-bqgb1a`, 2026-11-15, EXEC-BACKTEST-REVAMP P3-P4):** the Backtest
+  reads the 41 clean Flow indicators per bar from the whole broker history (526 series equal computeFlow) and the
+  eight in point-in-time versions (`apps/backtest-worker/src/pit/`, worker-only): the brokers chosen again on each
+  candle from the anchor (start) to that candle with the Terminal's own choice, the Terminal's formula for them; equal
+  to the Terminal with named brokers on every candle after a 5-session warm-up and with chosen brokers on the last
+  candle; truncation clean on more than 300 cuts (`tests/pit.test.ts`). The anchor or start is required (user 1A),
+  top N at most 10, FL19/FL20 net buyers only, FL52 read as FL23, FL51 without `end`; admins only (right
+  `flow_point_in_time`, CONDITION_RESTRICTED otherwise; the session's rights arrive in P5). A named broker without rows
+  is decided on the rows up to the period's end (the first version read later rows; the gate caught it). FL34 reads
+  today's classification on every date (user decision 5, accepted limit).
+- **Status:** OPEN until Gate 2 (merge and deploy). The Terminal chart still draws its versions (the Terminal is not
+  changed, user decision). Whether the Screener reads them on past bars (its preview arrows) was not checked in this
+  task.
 - **Lesson for new data:** a table that feeds signals carries the date each row became known, not only the date it
   describes; a classification used on past dates is dated too (Part A update proposed to the user 2026-11-15).
 

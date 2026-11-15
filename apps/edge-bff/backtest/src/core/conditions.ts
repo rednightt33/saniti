@@ -43,7 +43,13 @@ export interface CalcMeta {
     run's FLOW_* warnings for the period): the most sessions a Flow series read before its bar (null: its whole
     history), and the bars where a broker-price value was left empty because its window reads broker rows on another
     basis than the prices (FLOW_BASIS_CHANGE, ERRORS M448). */
-export interface FlowNotes { depth: number | null; masked: Set<number> }
+export interface FlowNotes {
+  depth: number | null; masked: Set<number>;
+  /** the earliest date a point-in-time Flow series reads (its anchor or start; P4) */
+  first?: string;
+  /** a point-in-time cohort reads the Nego or Cash board (negotiated crossings; P4, FLOW_CROSSING_BOARDS) */
+  crossing?: boolean;
+}
 
 /** The per-bar evaluation of a TestCondition: a 0/1 series on the Calc's bars, with the grammar's own rules (EVENT
     `within` per condition, bar 0 false, a series without a value up to `last` refused as INDICATOR_OUTPUT_EMPTY). */

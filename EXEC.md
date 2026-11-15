@@ -14677,6 +14677,36 @@ skrip restart butuh Railway CLI yang tidak ada di sesi ini. *Saran:* tekan "🔄
   - **Sisa K9b, dipindah ke verifikasi sebelum Gerbang 2:** pengukuran RSS puncak (pratinjau + job 12 saham), penurunan
     `BACKTEST_CACHE_BYTES`/`BACKTEST_MAX_BROKER_ROWS` (variabel Railway, dengan persetujuan Gerbang 2), dan antrean broker
     antar-thread (butir 4).
+- **Pelaksanaan P4 (2026-11-15).** Delapan indikator D dibuat dalam versi titik-waktu di `apps/backtest-worker/src/pit/`,
+  yang hanya diimpor worker. Bundle halaman diperiksa bersih dari `pit/`, `flow_point_in_time` dan `ANCHOR_REQUIRED`.
+  - **Aturan bersama.** Pada setiap hari t, broker dipilih ulang dari anchor (atau start) sampai t dengan aturan pilih
+    Terminal sendiri (skor > 0, seri imbang menurut kode), dan nilainya memakai rumus Terminal. FL19 dihitung ulang dari
+    anchor bila kelompok berganti. FL23 memakai `auto_c` titik-waktu (K2a). FL51 memakai pengumpul top N dengan harga
+    pokok tertimbang lot, jarak %, porsi %, dan satu pengumpul menurut peringkat (`loader`). Ada keluaran
+    `cohort_changed`. Lima sesi pertama berdata sejak anchor dibiarkan kosong.
+  - **Penolakan baru (sesuai tabel):**
+    - `ANCHOR_REQUIRED` dan `INVALID_ANCHOR`;
+    - `ANCHOR_BEFORE_DATA`: per saham; portofolio mengeluarkan saham itu;
+    - `RANK_NOT_ALLOWED`: FL19/FL20;
+    - `TOP_N_LIMIT`: ≤ 10;
+    - `CONDITION_UNAVAILABLE`: FL52 (pakai FL23), dan `end` pada FL51;
+    - `UNKNOWN_BROKER` per saham: diputuskan dari baris sampai akhir periode. Versi pertama membaca baris sesudahnya dan
+      tertangkap uji potong data;
+    - `CONDITION_RESTRICTED`: tanpa hak `flow_point_in_time`. Gagal tertutup; hak dari sesi dipasang di P5.
+  - **Peringatan.** `FLOW_CROSSING_BOARDS` bila kelompok D membaca papan Nego/Cash. K3a juga berlaku untuk D: nilai
+    harga/% dikosongkan bila ada aksi harga sesudah anchor.
+  - **Bentuk uji.** VALUE, STATE, EVENT dan window dengan sisi D, harga, konstanta, atau referensi lain, dinilai dengan
+    `valuePasses`/`compareAt` Screener; satuannya diperiksa. D di dalam transform ditolak untuk sekarang
+    (`CONDITION_UNAVAILABLE`).
+  - **Tes:**
+    - uji potong data pada setiap D dan opsinya, lebih dari 300 titik potong;
+    - sama dengan `computeFlow`/`loadersTable` Terminal: untuk broker pilihan user di setiap hari sesudah pemanasan, dan
+      untuk broker terpilih di hari terakhir;
+    - kasus tepi: anchor sesudah atau sebelum data, tanpa pembeli positif, broker yang muncul belakangan, lot pecahan,
+      Nego/Cash, aksi sesudah anchor;
+    - job dengan dan tanpa hak.
+  - **Belum dibangun (dilaporkan di Gerbang 2):** sumbu grid khusus D (anchor ±10/20 sesi, top N ±1/2). Grid ambang
+    sudah berlaku untuk uji D yang punya angka (mis. FL45 > 5).
 
 **P2 — Backtest menerima tata bahasa bersama (per saham, non-flow)**
 1. Adapter: `conditionSignal` + `within` per kondisi, bar 0 = 0, galat EMPTY, sisi price→volume, IHSG untuk `vs_index`
