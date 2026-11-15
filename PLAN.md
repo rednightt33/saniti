@@ -1221,3 +1221,23 @@ Yang bergantung pada titik mulai riwayat, bukan hanya rumus (Feature_Catalog `mi
 - D3 Ticker grup (<= 12 huruf/angka, tanpa tanda hubung, tidak bentrok saham), mis. `GSALIM`, `GPRAJOGO`.
 - D4 Anggota berubah sesudah isi riwayat: hari baru memakai anggota terbaru, riwayat tidak dihitung ulang (insert saja),
   perubahan dicatat.
+
+**Jawaban user, 2026-11-15:** "D1 A / D2 OK / D3 OK / D4 OK"; lalu: daftar grup diperbarui tiap putaran stockbit-updater,
+"Misalkan hari ini ada update di grup Barito di mana ada penambahan satu saham. Hari ini tanggal 28. Berarti start tanggal
+29. Table-table yang mengikutsertakan grup juga akan menambahkan satu saham tersebut per tanggal 29"; dan indeks sektor
+IDX (IDXINFRA, IDXENERGY, IDXFINANCE, ...) ditambahkan (daftar Excel user, 24 indeks).
+- D1 A: hitung dari titik mulai yang sama dengan IHSG (harga 2018-01-02 atau bar pertama indeks, broker 2016-01-04) di
+  staging, tulis baris >= 2022-01-03; harga indeks 2018 dst. tersimpan di `Price_Stock_Indonesia_IDX`.
+- D2: rencana ini data saja; tampilan grup jalur terpisah. D3: ticker grup berawalan G (<= 12, huruf/angka). D4: setuju.
+- **Aturan anggota per tanggal (dicek 2026-11-15):** sudah ada di database sebagai kolom turunan
+  `Stock_List_Member_History.pit_valid_from = greatest(valid_from, tanggal tercatat WIB + 1)` dan `pit_valid_to` (migrasi
+  20261109_001:121-124): tercatat tanggal 28 -> dihitung mulai 29, keluar juga mulai hari berikutnya. Entitas pada tanggal
+  d = saham dengan `pit_valid_from <= d < pit_valid_to`; sebelum catatan pertama (pit 2026-11-10) = anggota catatan pertama
+  (3A). Hitung harian inkremental membaca aturan yang sama untuk hari pemanasan, jadi baris lama tidak berubah dan tidak
+  ditulis ulang (`apply_chunks` hanya >= from_date).
+- **Indeks sektor (11, dicek di TradingView 2026-11-15):** IDX:IDXBASIC, IDXCYCLIC, IDXNONCYC, IDXENERGY, IDXFINANCE,
+  IDXHEALTH, IDXINDUST, IDXINFRA, IDXPROPERT, IDXTECHNO, IDXTRANS; semuanya ada sejak 2021-01-04 (klasifikasi IDX-IC). Ke-13
+  indeks lain di daftar user sudah ada di 32. Total 43 indeks + 33 grup. Anggota sektor untuk F02-06 diturunkan dari
+  `IDX_Stock_Universe."Sector"` (11 nilai = 11 sektor, 21 saham "Undefined" tidak masuk sektor mana pun) dengan aturan
+  per tanggal yang sama dari `IDX_Stock_Universe_History.pit_valid_from/pit_valid_to` (dicatat sejak 2026-09-28).
+- Belum ada go eksekusi.
