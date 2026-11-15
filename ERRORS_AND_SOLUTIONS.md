@@ -8215,7 +8215,14 @@ in its staleness check.
 - **Proposed solution:** core engine: the Screener's compare-lag rule in the shared condition grammar (BACKTEST-REVAMP),
   with the user's approval because results of saved Donchian strategies change; or refuse price against Donchian
   upper/lower until then. The `breakout` price-action condition (prior N bars) is unaffected.
-- **Status:** OPEN.
+- **Solution (built on branch `claude/hopeful-shannon-bqgb1a`, 2026-11-15, user K5 a):** fixed at the catalog layer.
+  The Screener's registry generator writes its lag probe's verdict to `apps/edge-bff/backtest/src/core/compare-lag.json`
+  (every output a comparison with a bar field must read one bar late; today I10 upper and lower), checked by
+  `scripts/tests/test_registries_current.py`. The core's `indicatorCondition` reads it (`conditions.ts comparedOutput`),
+  so the page and the worker read the prior band, and an output the probe marks later is covered without a code
+  change. `tests/conditions-golden.json` was recorded again: exactly the eight Donchian price comparisons changed,
+  every other digest is the same; the oracle test applies the probe's file.
+- **Status:** FIXED ON BRANCH, awaiting Gate 2 (merge and deploy).
 
 ### M450 — Trial hashes: unknown condition kinds share one lineage shape, and the variant hash reads parameters as sent (2026-11-15, open)
 
@@ -8228,7 +8235,18 @@ in its staleness check.
 - **Proposed solution:** core engine: a recursive shape for every condition kind of the shared grammar (kinds,
   operators, side kinds, ids; no numbers), the normalized form hashed, golden absolute hashes for legacy requests so a
   refactor cannot rekey stored lineages silently.
-- **Status:** OPEN (latent for today's three kinds except the parameter-default duplicate).
+- **Solution (built on branch, 2026-11-15, user K7 a):** `hash.ts testShape` gives a grammar condition the shape of its
+  test at every depth (numbers become `n`, `params` left out, only references kept from `args`); the worker hashes the
+  request's hash form (`apps/backtest-worker/src/canonical.ts`: parameters completed, and a grammar condition that says
+  exactly what an indicator condition says written as that condition), at `/v1/validate` and in the job alike.
+  `tests/hash-golden.test.ts`: no lineage key changes; the variant and request hash change once for exactly the
+  requests whose conditions leave a parameter out (7 of the 20 golden requests, listed in `hash-golden-k7a.json`,
+  because the page's own Stochastic, Bollinger and Dip cards send partial parameters). `tests/canonical.test.ts`: 426
+  indicator-condition forms give the same entry signal on every bar of 8 real tickers in both forms and hash as one
+  trial.
+- **Lesson for new data:** a new condition kind or source reaches the hash only through its normalized form and a
+  recursive shape; a hash change is recorded in a golden on purpose.
+- **Status:** FIXED ON BRANCH, awaiting Gate 2 (merge and deploy).
 
 ### M451 — Backtest versions do not cover what the worker computes with: subfolders, the Flow formulas and flowRegistry.json; the worker image lacks flowRegistry.json (2026-11-15, open)
 

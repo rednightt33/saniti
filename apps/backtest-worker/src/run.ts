@@ -45,12 +45,16 @@ import type { CellRun, ResultInput } from '../../edge-bff/backtest/src/core/ledg
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { buildResult } from '../../edge-bff/backtest/src/core/result.ts';
 import { sensitivityPlan } from '../../edge-bff/backtest/src/core/robustness.ts';
+import { withThreshold } from '../../edge-bff/backtest/src/core/catalog.ts';
+import type { Condition } from '../../edge-bff/backtest/src/core/contract.ts';
 import { leftOut, previewRow, requestConditions, unlessLeftOut } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from './config.ts';
 import { brokerDataThrough, loadMarket } from './load.ts';
 import type { Bundle, PlannedClient } from './load.ts';
 import { checkPriceRange } from './terminal.ts';
 import type { Dataset, LoadedTicker, TerminalClient } from './terminal.ts';
+import { hashForm } from './canonical.ts';
+import { checkTest } from './grammar.ts';
 import { checkRequest, checkSignalsRequest, stocksOf } from './validate.ts';
 import type { CheckedRequest, References } from './validate.ts';
 
@@ -141,9 +145,11 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
   const ledger = run(ctx, q, { shouldStop: hooks.shouldStop, progress: (done, total) => done < nT ? report('signals', done, nT) : report('backtest', done - nT, total - nT) });
   stop();
 
-  /* 4. sensitivity */
-  const variant_hash = await variantHash(q);
-  const plan = sensitivityPlan(q);
+  /* 4. sensitivity (the hashes read the request's hash form, canonical.ts: the same strategy written two ways is one
+     trial, EXEC-BACKTEST-REVAMP K7 a; a grammar condition's cell whose threshold the Screener's validation refuses is
+     not run) */
+  const variant_hash = await variantHash(hashForm(q));
+  const plan = sensitivityPlan(q, gridAccepts);
   let sensitivity: ResultInput['sensitivity'] = null;
   if (plan) {
     const runs = new Map<string, CellRun>([[variant_hash, { ledger, variant_hash }]]);   // a cell equal to the run is the run
@@ -156,7 +162,7 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
       for (const cq of row) {
         if (!cq) { out.push(null); continue }
         stop();
-        const h = await variantHash(cq);
+        const h = await variantHash(hashForm(cq));
         let c = runs.get(h);
         if (!c) { c = { ledger: run(ctx, cq, { shouldStop: hooks.shouldStop }), variant_hash: h }; runs.set(h, c) }
         out.push(c);
@@ -172,7 +178,7 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
   /* 5. statistics, tables, trials, Monte Carlo */
   const data_version = loaded.data_version;
   const [lineage_key, request_hash] = await Promise.all([
-    lineageKey(q), requestHash(q, { engine_version: env.versions.engine_version, registry_version: env.versions.registry_version, data_version })]);
+    lineageKey(hashForm(q)), requestHash(hashForm(q), { engine_version: env.versions.engine_version, registry_version: env.versions.registry_version, data_version })]);
   if (q.robustness.monte_carlo_runs > 0) report('monte_carlo', 0, q.robustness.monte_carlo_runs);
   else report('finalizing', 0, 1);
   const result = buildResult({
@@ -187,6 +193,14 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
   return result;
 }
 
+/** A sensitivity cell's threshold the grammar's validation accepts (a grammar condition; the others are checked by the
+    plan itself, robustness.ts accepted). */
+export function gridAccepts(c: Condition, value: number): boolean {
+  if (c.kind !== 'test') return true;
+  try { checkTest(withThreshold(c, value), 'cell'); return true }
+  catch (e) { if (e instanceof ValidationError) return false; throw e }
+}
+
 /** The portfolio table's entry signals before a run (no backtest, no trial): each picked stock's entry events on its
     own bars inside the period, as the backtest counts them (signals.ts previewRow), with the run's checks and
     exclusions (lead decision 2026-10-26: a preview never fails where the matching run succeeds): a ticker without
@@ -197,18 +211,21 @@ export async function runSignals(request: unknown, refs: Refs, env: RunEnv, hook
   const stop = () => { if (hooks.shouldStop?.()) throw new Cancelled() };
   const checked = checkSignalsRequest(request, refs, env.config);
   const q = request as SignalsPreviewRequest;
-  const loaded = await loadMarket(env.client, [{ tickers: checked.tickers, datasets: checked.broker ? ['price', 'broker'] : ['price'], skipUnpublished: true }], env.config.limits, 'tickers',
+  // IHSG's prices too, as a run loads them: a grammar condition may compare with the index (vs_index), and a preview
+  // never fails where the matching run succeeds (EXEC-BACKTEST-REVAMP P2)
+  const loaded = await loadMarket(env.client, [{ tickers: [INDEX_TICKER], datasets: ['price'] }, { tickers: checked.tickers, datasets: checked.broker ? ['price', 'broker'] : ['price'], skipUnpublished: true }], env.config.limits, 'tickers',
     env.config.terminal.concurrency, {
       shouldStop: hooks.shouldStop, progress: (d, t) => hooks.progress?.({ phase: 'loading', done: d, total: t }),
-      planned: checked.broker ? b => flowThroughOf(b, q.period.to, refs, env, hooks.shouldStop) : undefined,
+      planned: checked.broker ? b => flowThroughOf(new Map([...b].filter(([t]) => t !== INDEX_TICKER)), q.period.to, refs, env, hooks.shouldStop) : undefined,
     });
+  const ihsg = (loaded.tickers.get(INDEX_TICKER) as LoadedTicker).prices!;
   const req = { entry: q.entry }, active = requestConditions(req), rows: SignalsPreview['rows'] = [], excluded = [...loaded.excluded];
   let done = 0;
   for (const ticker of checked.tickers) {
     stop();
     const t = loaded.tickers.get(ticker);
     if (t) {
-      const calc = new Calc(t.prices!.bars, t.flow ?? undefined);
+      const calc = new Calc(t.prices!.bars, t.flow ?? undefined, { ticker, dates: t.prices!.dates, index: { dates: ihsg.dates, bars: ihsg.bars } });
       const row = unlessLeftOut(ticker, excluded, () => previewRow(calc, t.prices!.dates, req, q.period.from, q.period.to, active));
       if (row) rows.push({ ticker, ...row });
     }

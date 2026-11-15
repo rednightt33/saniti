@@ -78,8 +78,39 @@ export function checkTest(cond: unknown, field: string, limits: GrammarLimits = 
   catch (e) { throw asValidation(e, `${field}.test`) }
 }
 
+/** The condition on every bar with the Backtest's rules: bar 0 is never true, for a window's inner test too (the page
+    starts every comparison at bar 1, conditions.ts compare), and an EVENT is true on its marker and the next within-1
+    bars (the Screener's evaluateEvent at each bar). A window test counts its inner test's passes as condition.ts
+    conditionSignal does (ever: one in the last `length` bars; at_least: `count`; always: a run of `length`), on the
+    inner series with bar 0 false. */
+function perBar(b: BoundCondition, full: (r: ResolvedSeries) => ArrayLike<number | null | undefined>, n: number): Signal | null {
+  if (b.window) {
+    const p = perBar(b.window.inner, full, n), { mode, length, count } = b.window, out = new Uint8Array(n);
+    if (!p) return null;
+    let sum = 0, run = 0;
+    for (let i = 0; i < n; i++) {
+      sum += p[i]; if (i >= length) sum -= p[i - length];
+      run = p[i] ? run + 1 : 0;
+      out[i] = +(mode === 'ever' ? sum >= 1 : mode === 'at_least' ? sum >= count : run >= length);
+    }
+    if (n) out[0] = 0;
+    return out;
+  }
+  const raw = conditionSignal(b, full, n);
+  if (!raw) return null;
+  if (n) raw[0] = 0;
+  if (b.test.kind !== 'event') return raw;
+  const w = (b.test as { within: number }).within, out = new Uint8Array(n);
+  for (let i = 0, lastOn = -1e9; i < n; i++) { if (raw[i]) lastOn = i; out[i] = +(i - lastOn < w) }
+  return out;
+}
+
 /** Every series a bound condition reads, a window's inner test included. */
 const seriesOf = (b: BoundCondition): ResolvedSeries[] => [...b.series, ...(b.window ? seriesOf(b.window.inner) : [])];
+
+/** How many series the grammar computed in this thread (a memo miss); tests read it to prove the memo serves the
+    sensitivity grid's cells. */
+export const grammarStats = { computed: 0 };
 
 export function grammarEvaluator(limits: GrammarLimits = GRAMMAR_DEFAULTS): GrammarEvaluator {
   return {
@@ -94,11 +125,14 @@ export function grammarEvaluator(limits: GrammarLimits = GRAMMAR_DEFAULTS): Gram
         let s = c.seriesMemo.get(r.key);
         if (!s) {
           try { s = r.full(tc as never) as ArrayLike<number | null> } catch (e) { throw asValidation(e, `${field}.test`) }
+          grammarStats.computed++;
           c.seriesMemo.set(r.key, s);
         }
         return s;
       };
-      // a series without any value on the bars up to `last` (later bars never decide it): the Backtest's refusal
+      // a series without any value on the bars up to `last` (later bars never decide it): the Backtest's refusal; on no
+      // bars at all (the request check, validate.ts) nothing is computed
+      if (!n) throw new ValidationError('INDICATOR_OUTPUT_EMPTY', `${field}.test`, `${field}: there are no bars to compute this condition on.`);
       const upTo = last === undefined ? n - 1 : Math.min(last, n - 1);
       for (const r of seriesOf(b)) {
         const s = full(r);
@@ -106,15 +140,8 @@ export function grammarEvaluator(limits: GrammarLimits = GRAMMAR_DEFAULTS): Gram
         for (let i = 0; i <= upTo && !any; i++) { const v = s[i]; any = typeof v === 'number' && Number.isFinite(v) }
         if (!any) throw new ValidationError('INDICATOR_OUTPUT_EMPTY', `${field}.test`, `${field}: ${r.label} has no value on this ticker's bars${last === undefined ? '' : ' up to the end of the period'}.`);
       }
-      const raw = conditionSignal(b, full, n);
-      if (!raw) throw new ValidationError('CONDITION_UNAVAILABLE', `${field}.test`, `${field}: this test has no per-day value.`);
-      let out: Signal = raw;
-      if (test.kind === 'event') {                                       // EVENT within: true on the marker and the next within-1 bars
-        const w = (test as { within: number }).within ?? 1;
-        out = new Uint8Array(n);
-        for (let i = 0, lastOn = -1e9; i < n; i++) { if (raw[i]) lastOn = i; out[i] = +(i - lastOn < w) }
-      }
-      if (n) out[0] = 0;
+      const out = perBar(b, full, n);
+      if (!out) throw new ValidationError('CONDITION_UNAVAILABLE', `${field}.test`, `${field}: this test has no per-day value.`);
       return out;
     },
   };

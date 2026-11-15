@@ -10,6 +10,9 @@
    computation recorded with the core as it was before P6 (`recorded_with` names that core's engine_version, the
    version every Backtest result carries; origin/main 4451a31a had it). A digest covers the 0/1 series (or the values)
    of all eight tickers, or the refusal code where the core refuses the condition on a ticker.
+   Recorded again on 2026-11-15 for EXEC-BACKTEST-REVAMP K5 a (user "K9 B / yg lain ok": price against an output the
+   Screener's lag probe marks reads its prior bar, ERRORS M449): exactly the eight Donchian price comparisons changed
+   (I10 upper gt and crosses_above, lower lt and crosses_below, at both parameter sets); every other digest is the same.
    Record again only for a deliberate change of an existing condition, with its own approval:
      CONDITIONS_GOLDEN=record node --experimental-strip-types --import ./loader/register.mjs --test tests/conditions-unchanged.test.ts
    (from apps/backtest-worker). */

@@ -3,6 +3,8 @@
    outputs instead of the page's demo formulas. A condition is a 0/1 series aligned with the bars:
    - bar 0 is never true (the page starts every comparison at bar 1);
    - a bar where either side is not a finite number is false, and a cross also needs both sides on the bar before;
+   - price against an output the lag probe marks (compare-lag.json, e.g. Donchian's bands, which hold today's high and
+     low) reads that output on the prior bar, as the Screener does (EXEC-BACKTEST-REVAMP K5 a, ERRORS M449);
    - "within N bars" keeps, per condition, the last bar it was true; the entry is true on bar i when at least `need`
      conditions were true on one of the bars i-N+1..i (they need not be true on the same bar).
    Flow and broker conditions (kind 'flow': CATALOG fnet, broker, top5) read the ticker's broker files through
@@ -13,6 +15,7 @@ import type { Bars, Num, Out, Params } from '../../../terminal/src/calc/indicato
 import type { FlowData } from './flow.ts';
 import { brokerNet, rollingSum, top5Accumulation } from './flow.ts';
 import { ValidationError, indicator, resolveParams } from './registry.ts';
+import lagDoc from './compare-lag.json' with { type: 'json' };
 
 export type Op = 'gt' | 'lt' | 'crosses_above' | 'crosses_below';
 export interface Side { type: 'price' | 'output' | 'value'; output?: string; value?: number }
@@ -108,6 +111,19 @@ function anyValue(s: ArrayLike<Num | undefined>, last: number, ok: (v: Num | und
    then never depends on its bars after that day either. */
 const upTo = (last: number | undefined) => last === undefined ? '' : ' up to the end of the period';
 
+/** The outputs a comparison with a bar field reads one bar late, by indicator id and output (compare-lag.json, written
+    by the Screener's registry generator from its lag probe: one derivation for both). */
+type Lag = { field: 'close' | 'volume'; gt: 0 | 1; lt: 0 | 1 };
+const COMPARE_LAG = (lagDoc as { price_compare_lag: Record<string, Record<string, Lag>> }).price_compare_lag;
+/** The series one bar later (bar i holds bar i-1; bar 0 has no value). */
+const priorBar = (s: Series): Series => { const o: (Num | undefined)[] = new Array(s.length); for (let i = 1; i < s.length; i++) o[i] = s[i - 1]; return o };
+/** The output side a price comparison reads: on the prior bar where the probe says the output holds today's bar
+    (price gt / crosses_above reads the gt entry, lt / crosses_below the lt entry; the price is always the left side). */
+export function comparedOutput(id: string, output: string, priceInput: 'close' | 'volume', op: Op, s: Series): Series {
+  const lag = COMPARE_LAG[id]?.[output], dir = op === 'gt' || op === 'crosses_above' ? 'gt' : 'lt';
+  return lag && lag.field === priceInput && lag[dir] === 1 ? priorBar(s) : s;
+}
+
 export function indicatorCondition(c: Calc, cond: IndicatorCondition, field = 'condition', last?: number): Signal {
   const r = indicator(cond.indicator, `${field}.indicator`), params = resolveParams(r, cond.params, `${field}.params`);
   if (!OPS.includes(cond.op)) throw new ValidationError('INVALID_CONDITION', `${field}.op`, `${field}.op must be one of ${OPS.join(', ')}.`);
@@ -118,7 +134,8 @@ export function indicatorCondition(c: Calc, cond: IndicatorCondition, field = 'c
   // than the history, a volume indicator on an index); that is an error, not a condition that is silently never true
   for (const [s, f] of [[a, `${field}.lhs`], [b, `${field}.rhs`]] as [Series | null, string][])
     if (s && !anyValue(s, last ?? c.n - 1, isN)) throw new ValidationError('INDICATOR_OUTPUT_EMPTY', f, `${f}: ${r.id} with these parameters has no value on this ticker's bars${upTo(last)}.`);
-  return compare(a as Series, cond.op, b, b ? 0 : cond.rhs.value as number, c.n);
+  const rhs = b && cond.lhs.type === 'price' && cond.rhs.type === 'output' ? comparedOutput(r.id, cond.rhs.output as string, r.price_input, cond.op, b) : b;
+  return compare(a as Series, cond.op, rhs, b ? 0 : cond.rhs.value as number, c.n);
 }
 
 /* ---- price-action and pattern conditions of the page (CATALOG: dip, breakout, volspike, macross, macd) ---- */

@@ -57,6 +57,8 @@ export const PATHS = {
   generator: 'apps/edge-bff/screener/scripts/build-screener-registry.mjs',
   loader: 'apps/backtest-worker/loader/register.mjs',
   out: 'apps/edge-bff/screener/src/core/screener-registry.json',
+  // EXEC-BACKTEST-REVAMP P2 (K5 a, ERRORS M449): the lag probe's verdict for the Backtest core's own conditions
+  compareLag: 'apps/edge-bff/backtest/src/core/compare-lag.json',
   flowRegistry: 'apps/edge-bff/terminal/src/data/flowRegistry.json',
   flowKinds: 'apps/edge-bff/screener/src/core/flow-kinds.json',
   flowCalc: 'apps/edge-bff/terminal/src/calc/flow.ts',
@@ -923,6 +925,26 @@ export async function build({ against = null } = {}) {
 
 export const serialize = doc => JSON.stringify(doc, null, 2) + '\n';
 
+/** EXEC-BACKTEST-REVAMP P2 (user K5 a, 2026-11-15; ERRORS M449): the outputs the lag probe reads one bar late against
+    a bar field (price_compare_lag gt or lt 1, e.g. Donchian's bands, which hold today's high and low), written for the
+    Backtest core (conditions.ts indicatorCondition): its "price above / crosses above the upper band" then reads the
+    band of the prior bar, as the Screener does, instead of a comparison that can never be true. One derivation (this
+    probe) for both; an output the probe marks later is covered without a code change. The Backtest core cannot read
+    screener-registry.json itself (its generator reads the Backtest registry; the page would also carry 0.46 MB). */
+export function compareLagDoc(doc) {
+  const lag = {};
+  for (const i of doc.indicators) for (const o of i.outputs) {
+    const l = o.price_compare_lag;
+    if (l && (l.gt || l.lt)) (lag[i.id] ??= {})[o.key] = { field: o.comparable_with, gt: l.gt, lt: l.lt };
+  }
+  return {
+    schema_version: 1,
+    about: 'Indicator outputs a comparison with a bar field reads one bar late (the lag probe of build-screener-registry.mjs, report 6.8): price gt / crosses_above the output reads its gt entry, lt / crosses_below its lt entry. Generated: do not edit.',
+    generated_by: PATHS.generator,
+    price_compare_lag: lag,
+  };
+}
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   if (process.argv.includes('--cost-work')) {
     try {
@@ -934,20 +956,24 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   } else {
     const k = process.argv.indexOf('--against'), against = k > 0 ? process.argv[k + 1] : null;
     if (k > 0 && (!against || !process.argv.includes('--check'))) { console.error('--against <registry file> is for --check only: a regeneration that writes is compared with the committed registry (a lowered cost_class needs its cost_reviews entry)'); process.exit(2) }
-    let text;
-    try { text = serialize(await build({ against })) }
+    let text, doc;
+    try { doc = await build({ against }); text = serialize(doc) }
     catch (e) {                 // a refusal of the build is its message (rule, fix and examples); anything else keeps its stack
       if (!(e instanceof Error && e.message.startsWith('cost_class lowered'))) throw e;
       console.error(e.message);
       process.exit(1);
     }
+    const files = [[PATHS.out, text], [PATHS.compareLag, serialize(compareLagDoc(doc))]];
     if (process.argv.includes('--check')) {
-      const current = fs.existsSync(at(PATHS.out)) ? fs.readFileSync(at(PATHS.out), 'utf8') : '';
-      if (current !== text) { console.error(`${PATHS.out} is stale: run npm run registry (in apps/edge-bff/screener)`); process.exit(1) }
-      console.log(`${PATHS.out} is current`);
+      let stale = false;
+      for (const [file, want] of files) {
+        const current = fs.existsSync(at(file)) ? fs.readFileSync(at(file), 'utf8') : '';
+        if (current !== want) { console.error(`${file} is stale: run npm run registry (in apps/edge-bff/screener)`); stale = true }
+        else console.log(`${file} is current`);
+      }
+      if (stale) process.exit(1);
     } else {
-      fs.writeFileSync(at(PATHS.out), text);
-      console.log(`wrote ${PATHS.out}`);
+      for (const [file, want] of files) { fs.writeFileSync(at(file), want); console.log(`wrote ${file}`) }
     }
   }
 }

@@ -48,6 +48,7 @@ import { checkPublished } from './run.ts';
 import { TerminalClient } from './terminal.ts';
 import { checkRequest } from './validate.ts';
 import type { CheckedRequest, References } from './validate.ts';
+import { hashForm } from './canonical.ts';
 import { grammarProblems } from './grammar.ts';
 import { ENGINE_VERSION, REGISTRY_VERSION, REPO_ROOT, checkRegistry } from './version.ts';
 
@@ -303,7 +304,8 @@ export function createApp(cfg: Config): WorkerApp {
         const list = await refs(), checked = checkRequest(body.request, list, cfg);
         const q = canonicalRequest(body.request as BacktestRequest);        // the picked stocks in ticker order (PF3)
         await checkPublished(q, checked, list, { client, config: cfg });
-        const [lineage_key, variant_hash] = await Promise.all([lineageKey(q), variantHash(q)]);
+        const h = hashForm(q);                                             // the hash form (canonical.ts, K7 a), as the job hashes
+        const [lineage_key, variant_hash] = await Promise.all([lineageKey(h), variantHash(h)]);
         return { ok: true, lineage_key, variant_hash, tickers: checked.tickers };
       })());
       return send(res, 200, out);

@@ -179,7 +179,7 @@ function sensitivity(input: ResultInput, variants: RunVariant[]): Sensitivity | 
     variants.push({ variant_hash: c.variant_hash, sharpe_daily: trialSharpe(cell), kind: 'sensitivity' });
     return cell;
   }));
-  return { condition_id: plan.condition_id, x_param: 'value', xs: plan.xs, xs_display: plan.xs_display, y_key: plan.y_key, ys: plan.ys, ys_display: plan.ys_display,
+  return { condition_id: plan.condition_id, x_param: 'value', x_field: plan.x_field, xs: plan.xs, xs_display: plan.xs_display, y_key: plan.y_key, ys: plan.ys, ys_display: plan.ys_display,
     base_x: plan.base_x, base_y: plan.base_y, cells };
 }
 

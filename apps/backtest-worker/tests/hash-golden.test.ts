@@ -58,3 +58,25 @@ test('legacy requests keep their absolute lineage, variant and request hashes (E
   if (process.env.GOLDEN_UPDATE === '1') fs.writeFileSync(FILE, JSON.stringify(got, null, 1) + '\n');
   assert.deepEqual(got, JSON.parse(fs.readFileSync(FILE, 'utf8')));
 });
+
+/* EXEC-BACKTEST-REVAMP P2 (user K7 a, 2026-11-15): the worker hashes a request's hash form (src/canonical.ts: every
+   condition's parameters complete). The legacy requests whose conditions leave a parameter out change their variant
+   and request hash once, and only those; no lineage key changes (parameters are not part of the strategy shape). The
+   list below is that one change, recorded on purpose; a request sent with every parameter keeps its hashes. */
+import { hashForm } from '../src/canonical.ts';
+const K7A_CHANGED: string[] = JSON.parse(fs.readFileSync(new URL('./hash-golden-k7a.json', import.meta.url).pathname, 'utf8'));
+
+test('K7 a: the hash form changes the variant and request hash of exactly the requests that left parameters out, never a lineage', async () => {
+  const frozen = JSON.parse(fs.readFileSync(FILE, 'utf8')) as Record<string, [string, string, string]>, changed: string[] = [];
+  for (const [k, q0] of Object.entries(requests())) {
+    const q = hashForm(q0), got = [await lineageKey(q), await variantHash(q), await requestHash(q, VERSIONS)];
+    assert.equal(got[0], frozen[k][0], `${k}: the lineage key changed`);
+    if (got[1] !== frozen[k][1] || got[2] !== frozen[k][2]) changed.push(k);
+    // the request with its parameters written out hashes as the hash form: one trial
+    assert.deepEqual([await variantHash(hashForm(q)), await requestHash(hashForm(q), VERSIONS)], got.slice(1), `${k}: the hash form is not stable`);
+  }
+  if (process.env.GOLDEN_UPDATE === '1') fs.writeFileSync(new URL('./hash-golden-k7a.json', import.meta.url).pathname, JSON.stringify(changed, null, 1) + '\n');
+  assert.deepEqual(changed, K7A_CHANGED);
+  const f = Object.fromEntries(await Promise.all(['rsi:params-empty', 'rsi:params-full'].map(async k => [k, await variantHash(hashForm(requests()[k]))])));
+  assert.equal(f['rsi:params-empty'], f['rsi:params-full'], 'RSI with params {} and with its defaults written is one trial');
+});

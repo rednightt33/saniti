@@ -14612,6 +14612,28 @@ skrip restart butuh Railway CLI yang tidak ada di sesi ini. *Saran:* tekan "🔄
 
   Sisa P2: pratinjau memuat IHSG, validasi worker untuk kind `test`, hash (K7a), grid, Donchian lama (K5a), dan
   edge-bff.
+- **Pelaksanaan P2 (2026-11-15).** Yang dibangun:
+  - **K5a, aturan Donchian.** Diperbaiki di lapisan katalog, bukan dengan kode khusus Donchian. Generator registry
+    Screener menulis hasil probe lag ke `backtest/src/core/compare-lag.json`, dan inti Backtest membacanya. Halaman dan
+    worker sama-sama membaca garis hari sebelumnya. Golden kondisi lama dicatat ulang: tepat 8 perbandingan harga
+    dengan Donchian yang berubah (M449). Karena file generator berubah, `screener_registry_version` ikut berubah
+    (bd2b449f → ccbc17d9); isi registry lainnya sama.
+  - **K7a, hash percobaan.** `canonical.ts` di worker dipakai di `/v1/validate` dan di job. Isinya: parameter
+    dilengkapi, dan kondisi bahasa Screener yang sama persis dengan kondisi indikator lama ditulis sebagai kondisi lama
+    itu. Shape rekursif ada di `hash.ts`, dan `window_bars` hanya dihitung bila ada kondisi lain yang membacanya.
+    Dampaknya: tidak ada lineage yang berubah. Variant hash berubah satu kali untuk 7 dari 20 permintaan golden, yaitu
+    kartu Stochastic, Bollinger dan Dip halaman yang mengirim parameter tidak lengkap. Strategi tersimpan dengan kartu
+    itu mendapat satu percobaan tambahan sekali saja di lininya.
+  - **Satu bahasa.** 426 bentuk kondisi indikator lama memberi sinyal identik di setiap hari pada 8 saham nyata dan
+    dihitung sebagai satu percobaan dengan padanannya dalam bahasa Screener. 1.094 bentuk lama tidak ditawarkan
+    Screener (misalnya RSI dibandingkan dengan harga) dan tetap memakai jalur lama.
+  - **Grid sensitivitas.** Grid bisa memakai ambang kondisi bahasa Screener: langkah 20% dari nilai dasar tanpa batas
+    bawah 1, dan sel yang ditolak validasi Screener menjadi null. Hasilnya membawa `x_field` (mis. `test.value`). Memo
+    seri terbukti: satu seri dihitung sekali untuk run dan 25 sel grid.
+  - **Pratinjau** kini memuat IHSG, untuk `vs_index`.
+  - **Bar 0** tidak pernah benar, termasuk di dalam window dan event.
+
+  Belum termasuk P2 (pindah fase): sumbu grid D (P4), dan hak akses di titik resolusi seri (P5).
 
 **P2 — Backtest menerima tata bahasa bersama (per saham, non-flow)**
 1. Adapter: `conditionSignal` + `within` per kondisi, bar 0 = 0, galat EMPTY, sisi price→volume, IHSG untuk `vs_index`

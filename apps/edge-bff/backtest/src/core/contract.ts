@@ -49,7 +49,17 @@ export interface FlowCondition {
   op: 'gt' | 'lt';                                     // fnet: gt | lt; broker, top5: gt
   value: number;                                       // IDR
 }
-export type Condition = IndicatorCondition | PriceActionCondition | FlowCondition;
+/** EXEC-BACKTEST-REVAMP P1-P2: a condition in the Screener's grammar (the Screener's contract.ts Test: VALUE, STATE,
+    EVENT or window over indicators, bar fields, transforms and patterns), computed per bar by the worker with the
+    Screener core (apps/backtest-worker/src/grammar.ts). EVENT `within` is the condition's own window (the entry rule's
+    window_bars does not widen it); references without a per-day value (universe attributes, cross-section values and
+    ranks, the Screener's flow entries) are CONDITION_UNAVAILABLE. The page does not compute it (CONDITION_UNAVAILABLE
+    in the browser). */
+export interface TestCondition {
+  id: string; enabled?: boolean; kind: 'test';
+  test: Record<string, unknown>;                       // the Screener's Test, checked and completed by its validation
+}
+export type Condition = IndicatorCondition | PriceActionCondition | FlowCondition | TestCondition;
 
 /** A price line a stop or a trailing stop can sit on: an output of an overlay indicator (the page's LEVEL_LINES). */
 export interface LineRef { indicator: string; output: string; params?: ParamMap }
@@ -195,6 +205,7 @@ export interface SensitivityCell { sharpe: number; cagr: number; profit_factor: 
 export interface Sensitivity {
   condition_id: string;              // the first enabled entry condition with a numeric threshold
   x_param: 'value';                  // what varies on x: the condition's threshold
+  x_field: string;                   // where it sits in that condition: 'rhs.value', 'value', 'test.signal.rhs.value' (EXEC-BACKTEST-REVAMP P2)
   xs: number[]; xs_display: number[];                       // wire units and the page's display units
   y_key: 'stop_pct' | 'stop_atr_mult' | 'stop_reward_risk_x' | 'max_hold_bars';
   ys: number[]; ys_display: number[];

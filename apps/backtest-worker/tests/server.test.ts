@@ -18,7 +18,11 @@ import type { BacktestRequest, BacktestResult, Catalog, JobProgress, JobStatus, 
 import { DEFAULT_ENTRY, LEGACY, legacyCard, legacyToCondition } from '../../edge-bff/backtest/src/core/catalog.ts';
 import type { LegacyCard } from '../../edge-bff/backtest/src/core/catalog.ts';
 import { MAX_PORTFOLIO_TICKERS, MAX_POSITIONS } from '../../edge-bff/backtest/src/core/engine.ts';
-import { lineageKey, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { lineageKey as coreLineageKey, variantHash as coreVariantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { hashForm } from '../src/canonical.ts';
+// the worker hashes a request's hash form (canonical.ts, EXEC-BACKTEST-REVAMP K7 a)
+const lineageKey = (q: BacktestRequest) => coreLineageKey(hashForm(q));
+const variantHash = (q: BacktestRequest) => coreVariantHash(hashForm(q));
 import { packResult } from '../src/compute.ts';
 import { FLOW_OFF_REASON, loadConfig } from '../src/config.ts';
 import { PlannedClient } from '../src/load.ts';
@@ -631,7 +635,7 @@ test('a caller that leaves while the worker waits for the reference lists queues
     assert.deepEqual(previews, [['UNVR'], ['GOTO']], 'the abandoned preview never reached the preview thread, so the next one waited for nothing');
     // and it loaded no data: the bundles asked since are the two previews' own (a fresh thread: nothing is cached)
     const bundled = fake.requests.slice(b0).filter(x => x.path === '/api/terminal/v1/bundle').map(x => JSON.parse(x.body).ticker);
-    assert.deepEqual([...new Set(bundled)].sort(), ['GOTO', 'UNVR']);
+    assert.deepEqual([...new Set(bundled)].sort(), ['GOTO', 'IHSG', 'UNVR']);              // a preview reads IHSG too (P2)
     // a job: the abandoned POST /v1/jobs never starts (edge-bff finds the id unknown and posts it again)
     const left = newId();
     await leave('/v1/jobs', jobBody(left, pageDefault('BBCA')), at);

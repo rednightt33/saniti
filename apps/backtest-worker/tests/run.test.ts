@@ -17,7 +17,8 @@ import { DataError, dataVersion } from '../../edge-bff/backtest/src/core/datafil
 import type { PriceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { Cancelled, MAX_PORTFOLIO_TICKERS, MAX_POSITIONS, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { Exclusion } from '../../edge-bff/backtest/src/core/engine.ts';
-import { lineageKey, requestHash, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { lineageKey as coreLineageKey, requestHash as coreRequestHash, variantHash as coreVariantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { hashForm } from '../src/canonical.ts';
 import type { CellRun } from '../../edge-bff/backtest/src/core/ledger.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { assertFiniteJson, buildResult } from '../../edge-bff/backtest/src/core/result.ts';
@@ -26,7 +27,8 @@ import { previewRow, requestConditions } from '../../edge-bff/backtest/src/core/
 import type { Config } from '../src/config.ts';
 import { WorkerError } from '../src/errors.ts';
 import { PlannedClient } from '../src/load.ts';
-import { runJob, runSignals } from '../src/run.ts';
+import { gridAccepts, runJob, runSignals } from '../src/run.ts';
+import { grammarStats } from '../src/grammar.ts';
 import type { RunEnv } from '../src/run.ts';
 import type { TickerRef } from '../src/terminal.ts';
 import { checkRequest } from '../src/validate.ts';
@@ -118,10 +120,15 @@ const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
 /** The oracle: the shared core run on the fixture bars directly (no terminal-api, no worker), as CONTRACT.md sections
     4-7 compose it: prepare, run, one run per sensitivity cell, buildResult with the hashes and versions. */
+// the worker hashes a request's hash form (canonical.ts, EXEC-BACKTEST-REVAMP K7 a), so the reference does too
+const variantHash = (q: BacktestRequest) => coreVariantHash(hashForm(q));
+const lineageKey = (q: BacktestRequest) => coreLineageKey(hashForm(q));
+const requestHash = (q: BacktestRequest, v: Parameters<typeof coreRequestHash>[1]) => coreRequestHash(hashForm(q), v);
+
 async function direct(q: BacktestRequest, tickers: string[], files: { ticker: string; dataset: string; sha256: string }[], prior: { variant_hash: string; sharpe_daily: number }[] = [],
   excluded?: Exclusion[]): Promise<BacktestResult> {
   const ctx = prepare({ ihsg: series('IHSG'), tickers: Object.fromEntries(tickers.map(t => [t, { prices: series(t), corporate_actions: [] }])), ...(excluded ? { excluded } : {}) });
-  const ledger = run(ctx, q), plan = sensitivityPlan(q);
+  const ledger = run(ctx, q), plan = sensitivityPlan(q, gridAccepts);
   let sensitivity = null;
   if (plan) {
     const cells: (CellRun | null)[][] = [];
@@ -530,7 +537,8 @@ test('signals preview: each picked stock as previewRow on its own bars, data_ver
   const p = await runSignals({ schema_version: 1, tickers: STOCKS, period, entry }, refs, env());
   const active = requestConditions({ entry });
   assert.deepEqual(p.rows, STOCKS.map(t => ({ ticker: t, ...previewRow(new Calc(series(t).bars), FX.get(t)!.T, { entry }, period.from, period.to, active) })));
-  assert.equal(p.data_version, await dataVersion(STOCKS.map(priceFile)));
+  // IHSG's prices are read too, as by the run (EXEC-BACKTEST-REVAMP P2: a grammar condition may compare with the index)
+  assert.equal(p.data_version, await dataVersion([priceFile('IHSG'), ...STOCKS.map(priceFile)]));
   assert.ok(p.rows.some(r => r.entry_signals > 0));
   const s = await runSignals({ schema_version: 1, tickers: ['UNVR', 'BBCA', 'GOTO'], period, entry }, refs, env());
   assert.deepEqual(s.rows.map(r => r.ticker), SECTOR_A, 'ticker order, whatever the order picked');
@@ -599,4 +607,42 @@ test('signals preview: the run\'s exclusions in the run\'s warning, UNIVERSE_EMP
     assert.deepEqual(ok.warnings[0].reasons, jr.meta.warnings.find(x => x.code === 'TICKERS_EXCLUDED')!.reasons);
     assert.deepEqual(ok.warnings[0].reasons!.map(x => [x.ticker, x.code, x.field]), [['BBCA', 'DATA_MISSING', 'BBCA.broker'], ['GOTO', 'DATA_MISSING', 'GOTO.broker']]);
   } finally { await stale.close() }
+});
+
+/* ---- EXEC-BACKTEST-REVAMP P2: conditions in the Screener's grammar ---------------------------------------------- */
+const RSI = { kind: 'indicator', indicator: 'I13', output: 'rsi', params: {} };
+const grammarEntry = (): BacktestRequest['entry'] => ({ logic: 'all', at_least: 1, window_bars: 5, conditions: [
+  { id: 'g1', kind: 'test', test: { kind: 'value', metric: RSI, op: 'lt', value: 45 } },
+  { id: 'g2', kind: 'test', test: { kind: 'value', metric: { kind: 'transform', fn: 'vs_index', of: { kind: 'price', field: 'close' }, args: {} }, op: 'gt', value: 0 } },
+  { id: 'g3', kind: 'test', test: { kind: 'event', within: 10, signal: { lhs: RSI, op: 'crosses_below', rhs: { value: 50 } } } },
+] as BacktestRequest['entry']['conditions'] });
+
+test('a single job with grammar conditions: the core result, a grid on the grammar threshold, each series computed once for the run and its 25 cells', async () => {
+  const q = { ...pageDefault('UNVR'), entry: grammarEntry() };
+  const before = grammarStats.computed;
+  const r = await runJob(q, { prior_trials: [] }, refs, env());
+  // RSI(14) and the close relative to IHSG: each computed once on UNVR for the run and every cell
+  assert.ok(grammarStats.computed - before <= 2, `${grammarStats.computed - before} series computations`);
+  assert.deepStrictEqual(noDuration(r), noDuration(await direct(q, ['UNVR'], [priceFile('IHSG'), priceFile('UNVR')])));
+  const s = r.robustness.sensitivity!;
+  assert.equal(s.condition_id, 'g1'); assert.equal(s.x_field, 'test.value');
+  assert.deepEqual(s.xs, [27, 36, 45, 54, 63]);                      // 20 % of 45 per step, no floor of 1
+  assert.equal(s.cells.flat().filter(Boolean).length, 25);
+  assert.ok(r.trades.length > 0, 'the grammar conditions trade');
+  // the same strategy with its parameters written out is the same trial
+  const full = clone(q); (full.entry.conditions[0] as { test: { metric: { params: object } } }).test.metric.params = { length: 14, source: 'close' };
+  const r2 = await runJob(full, { prior_trials: [] }, refs, env());
+  assert.equal(r2.meta.trials.variants[0].variant_hash, r.meta.trials.variants[0].variant_hash);
+  assert.equal(r2.meta.lineage_key, r.meta.lineage_key);
+});
+
+test('grammar conditions: the preview reads IHSG for vs_index; refusals name the field', async () => {
+  const q = pageDefault('UNVR'), entry = grammarEntry();
+  const p = await runSignals({ schema_version: 1, tickers: ['UNVR', 'BBCA'], period: { from: q.period.from, to: q.period.to }, entry }, refs, env());
+  assert.deepEqual(p.rows.map(x => x.ticker), ['BBCA', 'UNVR']);                    // ticker order
+  assert.ok(p.rows.some(x => x.entry_signals > 0), 'the preview finds signals');
+  const universe = { ...entry, conditions: [{ id: 'u1', kind: 'test', test: { kind: 'value', metric: { kind: 'universe', attribute: 'adv20_idr' }, op: 'gt', value: 1e9 } }] } as BacktestRequest['entry'];
+  assert.deepEqual(await refusal(runJob({ ...q, entry: universe }, { prior_trials: [] }, refs, env())), ['CONDITION_UNAVAILABLE', 'entry.conditions[0].test.metric']);
+  const bad = { ...entry, conditions: [{ id: 'b1', kind: 'test', test: { kind: 'value', metric: RSI, op: 'between', value: 70, value2: 30 } }] } as BacktestRequest['entry'];
+  assert.deepEqual(await refusal(runJob({ ...q, entry: bad }, { prior_trials: [] }, refs, env())), ['INVALID_CONDITION', 'entry.conditions[0].test.value2']);
 });
