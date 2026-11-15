@@ -14389,7 +14389,7 @@ Temuan selama O1 (sudah ditangani di kode):
 - Fakta "862 saham ber-EMA50, 166 di atasnya" di atas dihitung tanpa saringan saham biasa; hitungan halaman 836/162.
 
 
-## EXEC-BACKTEST-REVAMP — satu tata bahasa kondisi Screener-Backtest, Flow FL01-FL52 di Backtest (8 indikator D titik-waktu, khusus admin), gerbang look-ahead (revisi 3: keputusan Gerbang 1 terjawab 2026-11-15; menunggu "go")
+## EXEC-BACKTEST-REVAMP — satu tata bahasa kondisi Screener-Backtest, Flow FL01-FL52 di Backtest (8 indikator D titik-waktu, khusus admin), gerbang look-ahead (revisi 3; "go" user 2026-11-15, eksekusi back end berjalan di branch)
 
 **Status:** rencana setelah review Tahap A (agent 1-4) dan Tahap B (agent 5-8); semua temuan yang dipakai diverifikasi ulang oleh
 main agent (kode, query read-only, run). Tidak ada kode yang ditulis. Keputusan user dengan kata-katanya: `PLAN.md`
@@ -14403,7 +14403,8 @@ pencarian per owner di samping DSR per lini; K7 (a) hash dinormalkan untuk semua
 dikonfirmasi user ("1B", 2026-11-15): tabel hak yang sama juga untuk Screener; **K9 (b): batas memori worker tetap 1 GB, isi job dibatasi**
 (lihat "Anggaran memori K9 (b)"); K10 (a) `checkSuites: true` untuk edge-bff dan screener-worker, upload worker mensyaratkan run
 CI hijau (perubahan konfigurasi Railway dilakukan di tahap deploy, setelah Gerbang 2); K11 restart Postgres oleh user
-(Telegram, 18:58:27 UTC, memori 2,0 → 0,09 GB). Status: keputusan terjawab, menunggu "go" eksekusi.
+(Telegram, 18:58:27 UTC, memori 2,0 → 0,09 GB). Status: keputusan terjawab. **"Go" user, 2026-11-15:** "Go" (setelah K8 "1B"). Eksekusi P0-P8 di branch
+`claude/hopeful-shannon-bqgb1a`; merge dan deploy menunggu Gerbang 2.
 
 **Anggaran memori K9 (b)** (worker 1 GB; puncak terukur 2026-10-27 1,31 GB untuk pratinjau + run 12 saham ber-flow, sebelum batas
 dipasang; rencana menambah 0,25-0,65 GB per thread, Agent 6):

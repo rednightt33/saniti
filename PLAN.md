@@ -248,7 +248,8 @@ K1-K8, K10, K11 mengikuti saran (rincian di `EXEC.md` EXEC-BACKTEST-REVAMP, "Jaw
 Postgres di-restart user lewat Telegram (dibaca ulang: `pg_postmaster_start_time` 18:58:27 UTC, memori 2,0 → 0,09 GB pukul 19:00
 UTC).
 
-**Pertanyaan terbuka:** "go" eksekusi back end (AGENTS: persetujuan rencana bukan perintah eksekusi).
+**"Go" user, 2026-11-15:** "Go". Eksekusi back end dipindah ke `EXEC.md` EXEC-BACKTEST-REVAMP (P0-P8, di branch; merge dan
+deploy menunggu Gerbang 2).
 
 ## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
 
