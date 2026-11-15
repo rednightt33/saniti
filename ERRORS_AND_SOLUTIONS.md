@@ -8089,3 +8089,89 @@ in its staleness check.
   was not checked in this task.
 - **Lesson for new data:** a table that feeds signals carries the date each row became known, not only the date it
   describes; a classification used on past dates is dated too (Part A update proposed to the user 2026-11-15).
+
+### M444 — Back-adjusted price history is a look-ahead; the backtest warns only when a period crosses 2026-09-12, and PBSA was restated after it (2026-11-15, open)
+
+- **Found by:** BACKTEST-REVAMP Stage A, Agent 1 (independent look-ahead audit); verified by the main agent the same day.
+- **Verified:**
+  - `Price_Stock_Indonesia_IDX` BBCA: close 7,255 / 7,320 on 2021-10-11/12, 7,525 on 2021-10-13, the ex-date of the 1:5
+    split (`idx_event_annotation` STOCK_SPLIT 2021-10-13). The series runs on without a break, so the bars before the split
+    carry the split factor that was known only on 2021-10-13 (the traded price was about five times higher).
+  - Feature 05 lots are on the same adjusted basis for splits and bonus shares (Agent 4: Regular VWAP/close 0.985-1.009 on
+    20 such events), so lot counts before a later split are restated too.
+  - `apps/edge-bff/backtest/src/core/engine.ts:532-533` warns `ADJUSTED_HISTORY_BOUNDARY` only when
+    `from < 2026-09-12 && to >= 2026-09-12`; a period wholly before the boundary gets no warning.
+  - PBSA: all 1,813 final daily rows before 2026-09-12 have `ingestion_time` 2026-10-31 13:18 UTC; PBSA split 1:2 on
+    2026-10-14. Prices after the boundary are therefore back-adjusted too, against the boundary's statement (`engine.ts:157`).
+  - Effect through the engine (Agent 1 run, BBCA 2019-01-02..2020-12-30, published bars against bars rebuilt as traded):
+    breakout with capital Rp 2 m gives 12 trades on the published bars and 0 as traded (22 `insufficient_cash`);
+    `I35 volume_sma(20) > 60M` 9 entries against 0; `I30 ATR(14) > 400` 1 trade against 3; candle tick guard
+    (`min_range_ticks` 4) bullish engulfing 21 days against 43.
+- **Class:** a price or volume series restated with information from after its date (a later split, bonus or rights
+  factor, or a later re-download). Rules on ratios (RSI, returns, value in IDR) are unaffected; rules on absolute price or
+  share levels, lot sizing, cash feasibility and tick bands read levels the trader never saw.
+- **Proposed solution:** data layer (decision K4): an as-traded series beside the adjusted one, with a dated factor
+  table, so the engine can size and price on as-traded levels and compare across time on adjusted ones. Until then
+  (core engine and docs): a warning on every period with a later price-affecting action of a traded ticker, not only on a
+  crossing of 2026-09-12; CONTRACT section 7 states the hindsight effect; the boundary statement is corrected per ticker
+  (`ingestion_time` after the boundary).
+- **Status:** OPEN. Corrects M443 item 4 ("known and warned").
+- **Lesson for new data:** a restated series carries the date of each restatement; "final" means final for that load,
+  not as traded.
+
+### M445 — Broker lots and prices on different bases: rights issues, a re-downloaded range (PBSA) and a post-ex-date fetch (PSSI); gap and dropped-row markers never surfaced (2026-11-15, open)
+
+- **Found by:** BACKTEST-REVAMP Stage A, Agent 4 (Flow data quality); verified by the main agent the same day.
+- **Verified:**
+  - Rights issues: Stockbit lots are not adjusted for rights, TradingView prices are. COCO (RIGHT_ISSUE 2026-07-09):
+    Regular VWAP Σbv/(100·Σbl) 290.9 against close 159.5 on 2026-07-08 (1.82×), 192.4 against 173 on 07-09, 157.8 against
+    155 on 07-13. Agent 4 measured 12 events at 1.26× to 19.5× before the ex-date; 293 RIGHT_ISSUE events on 187 tickers
+    since 2016 (`idx_event_annotation`).
+  - PBSA: Regular VWAP 841.1 against close 422.5 on 2026-08-31, 410.5 against 415 on 2026-09-01; lots 7,404 then 25,714.
+    The broker range 2026-09-01..10-23 was re-downloaded after the 1:2 split, the rows before it were not.
+  - PSSI (bonus 30:1, ex-date 2026-11-06): Regular buy lots 831.317007 and 793.57386 on 2026-11-04/05 (fractional;
+    whole numbers on 11-02/03), fetched after the ex-date.
+  - `gap_bars` and `unmatched_rows` (core `flow.ts`) have no reader outside tests; days with only Nego/Cash rows have no
+    price bar and their broker rows are dropped silently (Agent 4: PPGL 38 Nego days after its last price, Rp 94.95 bn).
+  - `BROKER_COLUMNS` (`apps/edge-bff/backtest/src/core/datafile.ts:166`) has no `bf`/`sf`, although the publisher writes them.
+- **Class:** any broker date fetched before or after a price-affecting action of its ticker on a basis other than the
+  price series, and any marker the core computes but never shows. Affects every indicator that compares a broker price with
+  the close (FL17-FL20, FL39, FL42-FL45, FL51 cost and distance) and every lot-based one across the event.
+- **Proposed solution:** data layer: a derived broker view on the price series' basis (lots × the cumulative factor of
+  each later rights issue, from `idx_event_annotation` ratios and exercise price, which are filled on every RIGHT_ISSUE
+  row), and a re-fetch or rescale of a ticker's broker history after a price-affecting action; a check comparing daily
+  Σlots·100 with price volume and Avg Buy/Sell with the day's range. Until then (core engine, worker): per-ticker warnings
+  for a broker window or anchor that contains a price-affecting action, for `gap_bars` inside the period
+  (`FLOW_SOURCE_GAP`) and for dropped rows by board.
+- **Status:** OPEN.
+- **Lesson for new data:** two series compared in one formula must be on one basis, and the loader records the basis
+  (the fetch date against the ex-dates) of every row.
+
+### M446 — Backtest: "close crosses above (or is above) the Donchian upper band" can never be true (2026-11-15, open)
+
+- **Found by:** BACKTEST-REVAMP Stage A, Agent 3; verified by the main agent.
+- **Verified:** `apps/edge-bff/terminal/src/calc/indicators.ts:345-347` Donchian upper = `kMax(H, length)`, which includes
+  the same bar's high, so the close never exceeds it; the backtest compares on the same bar
+  (`apps/edge-bff/backtest/src/core/conditions.ts:52-61`) and reads no compare lag (no `compare_lag` in
+  `apps/edge-bff/backtest/src` or `apps/backtest-worker/src`). The page's default card for an overlay indicator is
+  `price crosses_above out[0]` (`backtest/src/reg.ts:42`), and I10's first output is `upper`. The Screener reads the prior
+  band (`screener-registry.json` compare lag on I10 upper/lower). Agent 3: BBCA 2025, 0 days against 8 with the prior band.
+- **Class:** a comparison of a bar field with a band built from that bar's own extreme (any rolling max/min that includes
+  the current bar).
+- **Proposed solution:** core engine: the Screener's compare-lag rule in the shared condition grammar (BACKTEST-REVAMP),
+  with the user's approval because results of saved Donchian strategies change; or refuse price against Donchian
+  upper/lower until then. The `breakout` price-action condition (prior N bars) is unaffected.
+- **Status:** OPEN.
+
+### M447 — Trial hashes: unknown condition kinds share one lineage shape, and the variant hash reads parameters as sent (2026-11-15, open)
+
+- **Found by:** BACKTEST-REVAMP Stage A, Agent 3; verified by the main agent.
+- **Verified:** `apps/edge-bff/backtest/src/core/hash.ts:94-98` `conditionShape` knows `indicator` and `price_action`;
+  any other kind becomes `{kind, type, op}`, so conditions in the Screener's form (no `type`, no top-level `op`) would
+  all share one lineage shape. The variant hash reads conditions as sent (Agent 3: RSI with `params {}` and with
+  `{length: 14}` give two variant hashes for the same strategy).
+- **Class:** a trial key built from a closed list of shapes and from raw input rather than its normalized form.
+- **Proposed solution:** core engine: a recursive shape for every condition kind of the shared grammar (kinds,
+  operators, side kinds, ids; no numbers), the normalized form hashed, golden absolute hashes for legacy requests so a
+  refactor cannot rekey stored lineages silently.
+- **Status:** OPEN (latent for today's three kinds except the parameter-default duplicate).

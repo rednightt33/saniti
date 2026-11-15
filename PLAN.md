@@ -188,8 +188,38 @@ opus effort medium (user 2026-11-15: "Ganti saja jadi opus 5.5 medium ya untuk s
 banyak 4 paralel; prompt dari file user `111.txt` (Bagian Umum + Agent 1-10); laporan
 subagent diverifikasi ulang sebelum dipakai.
 
+**Tahap A selesai, 2026-11-15** (workflow `wf_44e981c7-788`, 4 agent opus medium, read-only; laporan di scratchpad sesi
+`stageA/r0-r3.md`; setiap temuan dipakai di bawah diverifikasi ulang oleh main agent dengan kode, query pgweb atau run):
+- Agent 1 (look-ahead, independen): 53 indikator (default + parameter pendek, panjang, ekstrem), kondisi inti, 20 candle,
+  transform Screener, rank dan likuiditas bersih pada BBCA, ALKA, BTEK, IHSG; Flow: tepat 8 bocor (sama dengan M443); uji
+  tingkat mesin (5 permintaan × 4 titik potong) bersih, diulang main agent: 0 beda selain `period_end` di hari potong.
+  Baru: harga yang disesuaikan mundur adalah look-ahead dan peringatannya hanya saat melewati 2026-09-12; PBSA dimuat
+  ulang setelah batas (ERRORS M444).
+- Agent 2 (makna titik-waktu D): FL18/19/20/44/45 dengan re-rank harian layak (lompatan nyata, persilangan palsu 0-6 dari
+  59-156; di hari terakhir sama persis dengan Terminal). FL23 titik-waktu "top 3 pembeli 20 sesi sampai t, posisi
+  kumulatif" tidak layak sebagai sinyal: kelompok berganti 32-35% hari, lompatan 25-36× aliran harian, perubahan 20 sesi
+  > 0 pada 100% hari (diulang main agent pada BBRI dan ACES). Koreksi main agent: broker bawaan FL23 di registry adalah
+  `auto_c` (2 pembeli + 1 penjual dari awal sampai candle terakhir, `flow.ts` `autoInventoryBrokers`), bukan "top 3 pembeli
+  20 sesi" (itu FL52, `defaultInventoryBrokers`); penjelasan ke user sebelumnya keliru. Juga: anchor yang salah format
+  diam-diam menjadi candle pertama (`flow.ts:389-393`), broker tak dikenal digambar 0 (`flow.ts:609`), FL23 me-ranking di
+  semua papan tetapi menjumlah di papan terpilih, Nego/Cash merusak VWAP, broker yang berhenti tetap di kelompok.
+- Agent 3 (tata bahasa bersama): layak untuk kondisi per saham non-flow (`conditionSignal` cocok dengan `evaluate()` di
+  setiap bar); impor dari inti Backtest ke Screener membuat siklus modul yang mematikan screener-worker saat start
+  (diulang main agent: `ReferenceError ... SCREENER_REGISTRY`); bentuk lineage runtuh untuk jenis baru (M447); versi mesin
+  tidak meng-hash subfolder; Donchian di Backtest tidak pernah terpicu (M446); perbedaan makna EVENT within vs jendela
+  masuk, bar 0, NA vs INDICATOR_OUTPUT_EMPTY, sisi "price" = volume; atribut universe, return_rank, rank lintas saham dan
+  flow Screener (jendela 60 sesi) belum bisa per hari tanpa look-ahead.
+- Agent 4 (data Flow): premis BBCA keliru (penurunan 2024-2026 nyata, tanpa aksi korporasi); rights issue: lot broker
+  skala asli, harga disesuaikan (COCO 1,82× sebelum ex-date, diulang main agent; 12 kejadian 1,26-19,5×); PBSA patah
+  skala 2026-09-01; PSSI lot pecahan; `gap_bars`/`unmatched_rows` tak pernah ditampilkan; `bf`/`sf` belum dibaca (M445).
+- Ditolak: Agent 2 F10 (lompatan garis Flow sebagai stop): stop dan trailing hanya boleh indikator overlay registry
+  (`engine.ts:111-119`, CONTRACT bagian 3), jadi tidak berlaku.
+- Operasional: memori Postgres 1,84-1,99 GB dari batas 2,0 GB sejak 15:00 UTC (sebelum agent membaca); skrip restart
+  butuh Railway CLI yang tidak ada di sesi ini; dilaporkan ke user di Gerbang 1.
+
 **Pertanyaan terbuka:** (6) Part A `ERRORS_AND_SOLUTIONS.md` ditambah syarat "setiap data untuk sinyal wajib membawa
-tanggal tersedia" (belum dijawab).
+tanggal tersedia" (belum dijawab); keputusan baru dari Tahap A ada di `EXEC.md` EXEC-BACKTEST-REVAMP bagian
+"Keputusan yang dibutuhkan".
 
 ## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
 
