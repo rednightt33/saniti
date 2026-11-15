@@ -166,10 +166,16 @@ kelimanya 27 ms. Kedelapan D bersama-sama sekitar 95 ms per saham (termasuk juml
 yang ada (`apps/edge-bff/app/radar.py:1`). Hak admin untuk indikator D butuh mekanisme hak akses (edge-bff mengirim hak
 ke worker, worker menolak D tanpa hak, katalog menandai D) yang juga dipakai EDGE-MULTIUSER nanti.
 
-**Pertanyaan terbuka:** (a) jendela titik-waktu FL51 dan anchor FL18-FL20/FL44/FL45 (N sesi terakhir, sejak awal periode
-backtest, atau sejak tanggal yang user tetapkan); (b) FL52 digabung ke FL23 di Backtest; (c) mekanisme admin dibuat
-sekarang atau bersama EDGE-MULTIUSER; (d) FL34: klasifikasi bertanggal, dihitung dari data sampai t, atau ditahan; (e)
-Part A ERRORS ditambah syarat "tanggal tersedia".
+**Keputusan user, 2026-11-15:** "1C / 2 OK / 3 OK prepare saja dulu, agar nanti persiapan multiuser tidak perlu tweak
+arsitektur backtest terlalu banyak." Jadi: (1C) titik awal pemilihan broker FL51 dan anchor FL18, FL19, FL20, FL44, FL45
+adalah tanggal yang ditetapkan admin; (2) FL52 tidak menjadi kondisi tersendiri di Backtest, FL23 saja (rumus sama); (3)
+mekanisme hak akses disiapkan sekarang (edge-bff menentukan hak sesi, mengirimnya ke worker, worker menolak D tanpa hak,
+katalog menandai D), dengan owner = admin sampai EDGE-MULTIUSER.
+
+**Pertanyaan terbuka:** (d) FL34: klasifikasi bertanggal, dihitung dari data sampai t, atau ditahan; (e) Part A ERRORS
+ditambah syarat "tanggal tersedia"; dan daftar konfirmasi yang dikirim ke user 2026-11-15 (bawaan anchor bila admin
+tidak mengisi, perubahan kode Screener untuk tata bahasa bersama, uji look-ahead sebagai gerbang CI, peringatan data
+broker 2016-2020, jalur ke `main`).
 
 ## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
 
