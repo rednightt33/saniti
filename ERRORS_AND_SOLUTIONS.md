@@ -8285,7 +8285,7 @@ in its staleness check.
   every file a module it may load imports (M405).
 - **Proposed solution:** worker: recursive SOURCES including `terminal/src/calc` and `flowRegistry.json`; Dockerfile COPY;
   tests that an edit in each source changes ENGINE_VERSION; `check_image_imports` for both images (BACKTEST-REVAMP P0).
-- **Status:** OPEN (latent: the backtest does not read calc/flow.ts today).
+- **Status:** FIXED ON BRANCH (P0-P1: `version.ts` walks subfolders and covers `calc/`, `flowRegistry.json` and the Screener core; the image copies `flowRegistry.json`, the Screener core and its generator; `tests/version.test.ts`, `tests/image-imports.test.ts`), awaiting Gate 2.
 
 ### M452 — Terminal Flow helpers fail silently: a malformed anchor becomes the first candle, an unknown broker draws 0, FL23 ranks on all boards but sums on the chosen ones (2026-11-15, open; Terminal untouched by user decision)
 
@@ -8297,7 +8297,7 @@ in its staleness check.
 - **Class:** a guard that substitutes a default for an invalid input instead of refusing it.
 - **Proposed solution:** the Backtest's own point-in-time versions validate strictly and refuse (BACKTEST-REVAMP P4); the
   Terminal stays as it is (user 2026-11-15: "Terminal jangan disentuh").
-- **Status:** OPEN for the Terminal.
+- **Status:** OPEN for the Terminal (not changed, user decision). The Backtest does not inherit it: its point-in-time versions refuse a malformed anchor (`INVALID_ANCHOR`), "view" or none (`ANCHOR_REQUIRED`) and a named broker without rows (`UNKNOWN_BROKER`), and rank and sum on the same boards (`apps/backtest-worker/src/pit/`).
 
 ### M453 — EDGE deploy and runtime configuration drift: CI does not gate deploys, backtest-worker runs under an undocumented 1 GB memory limit, Postgres runs at 2 GB while the config says 1 GB (2026-11-15, open)
 
@@ -8314,7 +8314,7 @@ in its staleness check.
   change).
 - **Proposed solution:** `railway config pull` and record both limits; decide the worker limit with the user before the
   Flow work ships; decide whether CI gates deploys (`checkSuites: true` or a required check on `main`).
-- **Status:** OPEN.
+- **Status:** RECORDED ON BRANCH: `.railway/railway.ts` holds the live limits (backtest-worker 1 GB, K9 b; Postgres 2 GB) and `checkSuites: true` for edge-bff and screener-worker (K10 a); the CI change takes effect when the config is applied with the deploy after Gate 2 (`railway config plan`, then apply, with approval).
 
 ### M454 — Backtest page bundle and broker files are reachable outside the worker: the page computes conditions in the browser, and its assets need no session (2026-11-15, design constraint)
 
@@ -8326,7 +8326,7 @@ in its staleness check.
   the worker does not cover browser computation.
 - **Proposed solution:** admin-only series (BACKTEST-REVAMP D) live in modules only worker entry points import; an
   import-graph test and a build check keep them out of the page bundle; the page asks the worker for their series.
-- **Status:** OPEN (constraint for BACKTEST-REVAMP P4/P5).
+- **Status:** HELD ON BRANCH: no module the page imports reaches `apps/backtest-worker/` (`apps/edge-bff/backtest/tests/worker-only.test.mjs`), the built bundle has no `pit/`, `flow_point_in_time` or `ANCHOR_REQUIRED` (checked 2026-11-15), and the point-in-time indicators are refused by the worker without the right; the page assets still need no session (unchanged).
 
 ### M455 — Backtest statistics: trials counted per line only, out-of-sample not a holdout, no minimum trade count, survivorship warned only in portfolio mode (2026-11-15, open)
 

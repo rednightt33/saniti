@@ -439,3 +439,28 @@ project folder `backtest/e2e-2026-10-27/`):
   against 166 ms). The worker stays in `sfo`.
 - **Memory.** Railway's one-minute peak was 1.31 GB while a 12-stock preview, its run and a cancel ran within the
   minute; 0.32 GB for the cold API sequence alone. CPU peaked at 0.43 vCPU (one-minute average).
+
+## EXEC-BACKTEST-REVAMP (2026-11-15)
+
+The rules are in `apps/edge-bff/backtest/CONTRACT.md` section 13. The modules:
+
+- `src/grammar.ts`: conditions in the Screener's grammar (kind `test`), computed with the Screener core (installed into
+  the shared core once per thread by `validate.ts`); the Flow indicators per bar from the whole broker history;
+  `grammarProblems` (the start-up check of the Screener registry, catalog and sources).
+- `src/canonical.ts`: the form the hashes are taken over (K7 a).
+- `src/pit/`: the eight point-in-time Flow indicators (`compute.ts`, `spec.ts`, `evaluate.ts`, `series.ts`), worker-only,
+  admins only (right `flow_point_in_time` in `context.rights`).
+- `src/catalog.ts flowIndicators`: the catalog's `flow_indicators`.
+
+The image copies the Screener core and its registry generator, and `engine_version` covers them. New tests:
+
+| Test | What it checks |
+|---|---|
+| `grammar.test.ts` | parity with the Screener on the data cut at each sampled day |
+| `canonical.test.ts` | one language, one trial |
+| `flow-grammar.test.ts` | 526 Flow series equal `computeFlow`; the basis mask and the Flow warnings |
+| `pit.test.ts` | truncation and Terminal equality of every point-in-time indicator |
+| `hash-golden.test.ts` | the K7 a once-change in `hash-golden-k7a.json` |
+
+The real-data check is in `verification/backtest/lookahead/`. New variable: `BACKTEST_MAX_FLOW_SERIES` (default 8).
+Memory: K9 b keeps the 1 GB limit; the budgets are set with the deploy after Gate 2.

@@ -631,3 +631,18 @@ page tells the two apart by whether its scripts came from the server.
 (no server, no AI; model logos included). It shows the same views as the live page, Branch and side chat included. A
 redesigned copy returns to the sources with `python preview/edge_preview.py import edge-standalone.html`; change only
 the look (markup and CSS), not the behaviour, and the tests run as usual.
+
+## Rights from the session (EXEC-BACKTEST-REVAMP P5, 2026-11-15)
+
+`app/rights.py`:
+- `rights_of(settings, owner)` gives every admin right to an owner in `EDGE_ADMIN_OWNERS` (comma list; default
+  `EDGE_OWNER`; a blank entry, a space or a duplicate stops the start).
+- `refuse_context` refuses a page body that carries `context` (422 `UNKNOWN_FIELD`).
+- `catalog_for` leaves `access: 'admin'` entries out of a session's catalog.
+
+Where it applies:
+- The Backtest routes read the owner from the session (`request.state.owner`, set by `main.py session`).
+- The worker calls carry `context.rights`; a queued job computes them at dispatch, together with the owner's trials of
+  the last 90 days (`owner_trials`, K6 a).
+- Result parts are joined on `owner_key`.
+- The Screener routes carry the same rights and filter the Screener catalog per session (its own ETag).

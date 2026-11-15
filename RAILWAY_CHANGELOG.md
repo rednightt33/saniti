@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-11-15 — EXEC-BACKTEST-REVAMP: `.railway/railway.ts` records the live limits and the CI gate (not applied yet)
+
+- Recorded from the live project (ERRORS M453, Railway `serviceInstanceLimits`, read-only): backtest-worker
+  `limitOverride` 1,000,000,000 bytes (set 2026-11-07, kept by user K9 b), Postgres 2,000,000,000 bytes (user 2026-11-09
+  "Limit ram keep 2gb dulu"). `railway.ts` said none and 1 GB.
+- K10 a (user 2026-11-15): `checkSuites: true` for edge-bff and screener-worker, so a push to `main` deploys only on green
+  checks (the look-ahead gate among them). Not applied: it takes effect with `railway config plan` and apply at the
+  deploy after Gate 2, with approval. No variable, service or deployment was changed in this step.
+
 ## 2026-11-15 — stockbit-updater deployed (index entities each round); orc-test-runner fill, catalog, publish; two Postgres restarts
 
 - orc-test-runner (DATABASE_URL set per run, removed: VAR_REMOVED each time): fill job `6f934738` (76 entities, PASS,

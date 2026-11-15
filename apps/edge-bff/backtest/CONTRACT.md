@@ -23,6 +23,8 @@ not in the path.
 
 ## 2. Market data
 
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.2.*
+
 - Datasets: `price` (`d,o,h,l,c,v`), `broker` (`d,b,i,m,bv,sv,bl,sl,bf,sf`; `bf`/`sf` buy and sell transactions since 2026-10-30, read by name), `events` (corporate actions), from
   `POST /api/terminal/v1/bundle {ticker, datasets, packs: true}` (header `x-terminal-proxy-key` with the worker's
   `TERMINAL_PROXY_KEY` **[D-U1]**: since EXEC-MU-RUNTIME T1 (2026-10-28) a reference to terminal-api's
@@ -107,6 +109,8 @@ not in the path.
   manifests before any download, so none of its bars is read and it adds no day.
 
 ## 3. Request validation (worker `validate.ts`, before any download)
+
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.1, 13.4.*
 
 - edge-bff calls the worker's `POST /v1/validate` before it queues a job (`POST /api/v1/backtests`) and relays a
   refusal as it is (422, 424): a refused request never becomes a job **[D-L2]**. The worker checks the request again
@@ -231,6 +235,8 @@ What the period and the picked stocks become on the data (`engine.ts` run, after
 
 ## 5. Signals
 
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.1-13.3.*
+
 - Condition series as `conditions.ts` (page semantics, verified formulas). The combined entry state is
   `combineEntry`; the **entry event** is a bar where the combined state switches from false to true on the ticker's
   own bars **[D-E1]**. Only events are orders; a state that stays true does not re-enter after an exit.
@@ -300,6 +306,8 @@ bar's intraday stop/target, so it never takes a price from later in the day **[D
 
 ## 7. Results (numbers only; the page owns layout, labels, colours, charts)
 
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.5, 13.6.*
+
 All statistics reproduce the page's formulas (`seriesStats`, `tradeStats`, `dsr`, `monteCarlo`, and the tables the
 renderers derive: monthly, annual, weekday, rolling Sharpe 126 (window excludes the current return), five deepest
 drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` shows for the same ledger.
@@ -366,6 +374,8 @@ drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` sho
 
 ## 8. Worker private API (shared secret header `x-backtest-worker-key`)
 
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.7.*
+
 - `GET /health` (no key) · `GET /v1/catalog` → `Catalog` (`catalog.ts buildCatalog`) **[D-PF6]**:
   - `tickers`: every row of terminal-api's reference ticker file, `{ticker, name, type, groups}`; `groups` (in place
     of the former `sector`) holds the row's value of every grouping by its key, null when it is unclassified: a value
@@ -408,6 +418,8 @@ drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` sho
   synchronous call answers 504 `TIMEOUT`; a job or preview over it has its thread terminated.
 
 ## 9. edge-bff public API (session cookie; POST needs CSRF like `/api/v1/runs`)
+
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.8.*
 
 `GET /api/v1/backtests/catalog` (the worker's `Catalog`, kept 60 s; the last one while the worker does not answer) ·
 `POST /api/v1/backtests` (body = request + optional `client_request_id`, edge-bff's submission key, taken out before
@@ -493,6 +505,8 @@ the job is `FINISHED`, 410 `RESULT_EXPIRED` once the parts are pruned, 404 `EVEN
 not have.
 
 ## 10. Page
+
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.9.*
 
 `/backtest` (EDGE tab "Backtest", iframe) → `/backtest-app/`. Markup and CSS of `backtest.html` verbatim, the
 portfolio stock picker aside (below, PF7); behaviour ported to TS modules. Preview signals in the browser with the
@@ -625,6 +639,8 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 
 ## 11. Errors
 
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.4.*
+
 `{error:{code, field?, message?, details?}}`.
 
 - Request 422: the worker's validation codes (section 3), `LIMIT_EXCEEDED` (`details.limit`, `allowed`, `needed`;
@@ -659,6 +675,8 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
   `WORKER_FAILED` (the worker reports `FAILED` without an error). Cancel → `CANCELLED`, without an error.
 
 ## 12. Decisions taken for the user (2026-10-26; PF1–PF8 and LA-1 2026-10-27)
+
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13 (K1-K11).*
 
 | Id | Question | Options | Chosen | Why |
 |---|---|---|---|---|
@@ -707,3 +725,90 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 | PF6 | What the picker filters by | an enumerated sector + industry list / groupings derived from the reference file | derived: every column of terminal-api's ticker reference file but ticker, name and type is a grouping (`groups` per ticker, `groupings` in file order, stocks counted, an index not); null, `''` and `Undefined` are unclassified, counted apart and never a value; sector no longer a required column (lead 2026-10-27) | the picker filters by sector and industry (user N), and the publisher writes both (`ref/tickers`); a column the file gains becomes a filter without a code change; `DATABASE_SCHEMA.md`: `Undefined` is no classification |
 | PF7 | The page's portfolio stock picker | the reference's Universe select (1:1) / a picker | the picker (section 10): a search combobox, one select per catalog grouping listing its stocks with an add control (groupings combined with AND), removable chips with "n / max"; the limit toast, Run refused with no stock, nothing picked by default in the live page; the fixture's "Demo 10" and "Banks" as picked sets (user N, lead 2026-10-27) | user N asked for search and group filters; the one approved departure from the 1:1 rule, in the reference's own styles; the server's rule stays authoritative |
 | PF8 | Calendar when a stock is left out | the stocks that run / every requested stock with bars | IHSG and every picked stock whose bars were read, left out by the engine or not (`engine.ts` run); a stock the loader leaves out has no bars read (section 2) (lead 2026-10-27) | which stocks trade can no longer change another stock's next calendar day (the last look-ahead path of the adversarial check, the former known limit of section 2); 0 stock bars on a day without an IHSG bar in `public."Price_Stock_Indonesia_IDX"` (lead, 2026-10-27), so published results do not change |
+
+## 13. EXEC-BACKTEST-REVAMP (2026-11-15): one condition language, Flow, point-in-time, rights, look-ahead gate
+
+User decisions in `PLAN.md` BACKTEST-REVAMP and `EXEC.md` EXEC-BACKTEST-REVAMP (K1-K11, the "go" of 2026-11-15). The
+sections above stay true for the conditions they describe; this section adds what the revamp changed, each point with
+the section it belongs to.
+
+**13.1 Conditions (sections 3, 5).** A fourth condition kind, `{"id","enabled","kind":"test","test":<the Screener's
+Test>}`: VALUE, STATE, EVENT or window tests over indicators, bar fields, transforms, patterns and Flow indicators, as
+the Screener writes them (`screener/src/core/contract.ts`). It is computed by the worker only
+(`apps/backtest-worker/src/grammar.ts`, installed into the core with `conditions.ts installGrammar`; the page answers
+`CONDITION_UNAVAILABLE`), with the Screener core's own validation and series (one language, no second implementation):
+- per bar with `condition.ts conditionSignal`; EVENT `within` is the condition's own rolling window, and the entry
+  rule's `window_bars` does not widen it (`combineEntry` windows = 1); bar 0 is never true, inside a window and an event
+  too; a series without a value up to the period's end is `INDICATOR_OUTPUT_EMPTY` (`FLOW_OUTPUT_EMPTY` for Flow);
+- refused with the reason (`CONDITION_UNAVAILABLE`): universe attributes, cross-section values and ranks (no per-day
+  value without look-ahead), FL31 (insider rows carry the transaction date only), the Screener's own `fnet` and
+  `ksei_net` entries, FL52 (use FL23), a point-in-time indicator inside a transform;
+- the preview loads IHSG (for `vs_index`), and events and broker rows when a Flow indicator needs them.
+
+The legacy kinds are unchanged except K5 a: price against an output the Screener's lag probe marks (today Donchian's
+bands) reads the output's prior bar (`compare-lag.json`, written by the Screener's registry generator; ERRORS M449). 426
+legacy indicator forms give the same entry signal in both languages on 8 real tickers and hash as one trial
+(`apps/backtest-worker/tests/canonical.test.ts`).
+
+**13.2 Flow indicators (sections 2, 3, 5).** `{"kind":"flow","metric":"FL11","output":...,"params":...}` inside a test.
+The 41 clean ones are read on every bar from the stock's whole broker history with the Terminal's formula as it is
+(`calc/flow.ts computeFlow` through the Screener's flow series; 526 series equal it), the registry's baselines (nothing
+lowered) and today's broker classification on every date (FL34, user decision 5). Data: `datafile.ts brokerColumns`
+(about 56 bytes a row, `bf`/`sf` by name, null as NaN), kept only when a Flow reference reads them; the classification
+from terminal-api's `brokers` reference. A broker-price value (family "Buy VWAP & Implied Cost" or a price unit) is
+empty where its window reads a session on another basis than the prices: before an action dated on or before
+2026-09-12 (the prices are back-adjusted for it) or across a later one (K3 a; ERRORS M448).
+
+**13.3 Point-in-time indicators (sections 3, 5).** FL18, FL19, FL20, FL23, FL44, FL45, FL51 (`apps/backtest-worker/src/pit/`,
+worker-only, admins only): the brokers chosen again on each candle from the anchor (FL18-FL20, FL44, FL45: `anchor`) or
+start (FL23, FL51: `start`) to that candle with the Terminal's own choice, the Terminal's formula for them; FL23 is the
+Terminal's `auto_c` chosen each day (K2 a); FL51 the top N loaders (lots-weighted cost, distance, share, one loader by
+rank); every value empty for the first 5 sessions with data from the anchor; output `cohort_changed` (0/1). Equal to the
+Terminal with named brokers on every candle after the warm-up, and with chosen brokers on the last candle. Forms: VALUE,
+STATE, EVENT, window with a point-in-time side, a price, a constant or any other reference, checked by unit.
+
+**13.4 Refusals (section 11).** All 422 with `field` and a message naming the fix:
+
+| Code | When |
+|---|---|
+| `ANCHOR_REQUIRED` | a point-in-time indicator without its `anchor` / `start` date (or `"view"`) |
+| `INVALID_ANCHOR` | not a real date YYYY-MM-DD |
+| `ANCHOR_BEFORE_DATA` | before the stock's first broker day (a portfolio leaves the stock out) |
+| `RANK_NOT_ALLOWED` | FL19 / FL20 with another rank than `net_buy` |
+| `TOP_N_LIMIT` | more than 10 brokers |
+| `CONDITION_RESTRICTED` | a point-in-time indicator without the right `flow_point_in_time`, enabled or not, at any depth |
+| `CONDITION_UNAVAILABLE` | see 13.1; FL51 `end` |
+| `FLOW_BUDGET_EXCEEDED` | more distinct Flow series than `limits.max_flow_series` (default 8) |
+| `UNKNOWN_BROKER` | a broker code outside the reference list; for a stock, a named broker without rows up to the period's end |
+| `UNKNOWN_FIELD` `context` | a body from the page that carries `context` (edge-bff) |
+| `INVALID_CONTEXT` | rights that are not a list of distinct known rights |
+
+**13.5 Results (section 7).** New warnings: `PRICES_RESTATED` (K4 a, M447), `FLOW_PRE_2021` (decision 4),
+`FLOW_BASIS_CHANGE`, `FLOW_SOURCE_GAP`, `FLOW_ROWS_DROPPED`, `FLOW_CROSSING_BOARDS`, `FEW_TRADES`, `OOS_STRADDLE`,
+`DSR_SAMPLE_RULE`, `ANCHOR_INSIDE_PERIOD`, and `SURVIVORSHIP` in single mode too. The sensitivity grid can vary a grammar
+threshold (`x_field`, e.g. `test.value`; 20 % steps of its base, cells the validation refuses are null). K6 a:
+`meta.trials.owner {total, days}` and `robustness.deflated_owner`, a deflated Sharpe over the owner's distinct trials of
+the last 90 days across every line, beside the line's; the page shows the stricter.
+
+**13.6 Hashes (section 7).** K7 a: the worker hashes the request's hash form (`apps/backtest-worker/src/canonical.ts`):
+parameters completed; a grammar condition equal to an indicator condition written as that condition; `window_bars` only
+where a condition reads it; a grammar condition's lineage shape is its test at every depth without numbers
+(`hash.ts testShape`). No lineage key changed; 7 of the 20 golden requests changed their variant and request hash once
+(partial parameters of the page's Stochastic, Bollinger and Dip cards; `tests/hash-golden-k7a.json`).
+
+**13.7 Worker API (section 8).** `/v1/validate {request, context}`, `/v1/signals {request, context}` (the bare request
+still read: the worker deploys first), `/v1/jobs {job_id, request, context}` with `context {job_id, prior_trials,
+owner_trials?, rights?}`; `context.rights` absent = none (fail closed). The catalog adds `flow_indicators` (`access` all
+or admin, `available`, `reason`, `date_param`) and `limits.max_flow_series`. `engine_version` covers the Screener core.
+
+**13.8 edge-bff (section 9).** Owner and rights from the session (`app/rights.py`; `EDGE_ADMIN_OWNERS`, default
+`EDGE_OWNER`); every worker call carries `context.rights`, a queued job's computed at dispatch; the catalog filtered per
+session (the kept one too); result parts joined on `owner_key`. The Screener (K8 b): its anchored and inventory entries
+marked `access: admin`, refused by screener-worker without the right, filtered from its catalog per session.
+
+**13.9 Page (section 10).** Unchanged in this step (back end first): the page does not compute grammar or point-in-time
+conditions and no module it imports reaches `apps/backtest-worker/` (`tests/worker-only.test.mjs`, M454). The new page
+(Stage D) asks the worker for their series.
+
+**13.10 Look-ahead gate.** `.github/workflows/backtest-lookahead.yml` (AGENTS.md "Backtest look-ahead gate"); real data:
+`verification/backtest/lookahead/` (BBRI, GOTO, COCO, ALKA: 0 leaks, 2026-11-15).
