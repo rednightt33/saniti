@@ -1,5 +1,33 @@
 # Railway changelog
 
+## 2026-11-15 — stockbit-updater deployed (index entities each round); orc-test-runner fill, catalog, publish; two Postgres restarts
+
+- orc-test-runner (DATABASE_URL set per run, removed: VAR_REMOVED each time): fill job `6f934738` (76 entities, PASS,
+  13:58-18:13 UTC; started by hand after a scheduler of mine missed the 13:47 restart: it compared `True` with `true`);
+  read-back job (PASS); catalog APPLY (PASS); publish job `f64de936` (`verification/index_group_history/publish_job.py`,
+  terminal-publisher's code `f69eb9e3` = deployed `8a49b4c8`, its bucket and database variables as references):
+  `broker-range` 2024-2026 for the 43 indexes, 129 files planned, 172 written (101.6 MB); `verify` 442 files 0
+  mismatches. A first publish attempt stopped at SET_FAILED (CLI), nothing ran, no variable left.
+- Postgres restarts by `run_job.sh` (`"large_write": true`): 18:13:38 UTC after the fill, 18:41:38 UTC after the
+  publish (memory 1.97 and 1.99 GB, 0 user runs, edge-bff ready 200). The scheduled restart ran at 13:47 UTC.
+- stockbit-updater CLI upload `bbd5aa7f` (deploy.sh from `78d95ad4`) SUCCESS: after IHSG each round runs every other
+  entity of Feature_Index_Entity (`refresh.refresh_index_entities`); a failure is a round warning. A cron service: the
+  deploy ran no round (0 RUNNING). The next round needs a new STOCKBIT_TOKEN (expired 2026-11-10).
+- Rollback: stockbit-updater `deploy.sh` from `28c41268`; the INDEX rows of the 76 entities are separate tickers
+  (`DELETE ... WHERE ticker <> 'IHSG'` on the six tables, only with the user's approval).
+
+## 2026-11-15 — market-sql-governor, market-python-sandbox, ai-data-coverage, telegram-monitor deployed (EXEC-INDEX-GROUP-HISTORY stages 7-8 code); orc-test-runner trial and catalog dry run
+
+- Merge of `claude/affectionate-shannon-qmsxxb` to `main` (`28c41268`, fast-forward; user go 2026-11-15 "Langsung go
+  tahap 4-9"), no user run active before (restart check: 0 EDGE jobs, 0 orc turns). GitHub deployments SUCCESS:
+  market-sql-governor `0b8db885`, market-python-sandbox `a6513801` (a SUM across the entity column of an INDEX table is
+  refused: the entities overlap), ai-data-coverage `10e033c8` (INDEX expectations per entity of Feature_Index_Entity),
+  telegram-monitor `04be07ae` (the round's line for the indexes, sectors and groups). market-ai-orc was not redeployed
+  (no watched path changed). stockbit-updater (stage 8) is not deployed yet: CLI upload after the fill.
+- orc-test-runner: stage 5 trial `e27be83e` (dry run LQ45 + GPRAJOGO, VERDICT PASS, 889 s, nothing written; attempts
+  1-2 did not run or stopped before any write: the Railway CLI was not on PATH, then the job wrapper printed a Decimal);
+  catalog migration 20261115_004 + vocabulary sync DRYRUN `77a5b9c6` (VERDICT PASS, rolled back). DATABASE_URL set only
+  for each run and removed (VAR_REMOVED).
 ## 2026-11-15 — Market Overview released on dev: four services from `main` `41699d9f` (EXEC-OVERVIEW O7, user "Ok, jalankan semua.")
 
 - **Before (13:18 UTC):** 0 running statements, 0 user runs (edge jobs 0, orc turns 0); `main` was `28c41268`
@@ -34,7 +62,6 @@
   Foreign buy colour follows the same rule (gray only when a tile reads 0, a net under Rp 1 million). Only edge-bff
   deployed. Read back on the live page as the owner, 1D: LQ45 15 light green, 28 light red, 2 darker, none gray; all
   stocks 250 gray, 324 light green, 260 light red (`overview_live_1440_foreign_buy.png`).
-
 ## 2026-11-15 — orc-test-runner jobs of EXEC-INDEX-GROUP-HISTORY step 3 (no service deployed)
 
 - **Go:** user 2026-11-15 "go langkah 3", then "A".

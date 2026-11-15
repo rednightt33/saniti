@@ -1132,7 +1132,7 @@ Coba saja di explore pakai benchmark yang best practice."
 
 ## FI-TERMINAL — dipindah ke `EXEC.md` EXEC-FI-TERMINAL (go 2026-11-01; audit dan koreksi data selesai, EXEC-FI-DATE)
 
-## INDEX-GROUP-HISTORY — riwayat 43 indeks dan 33 grup (KONGLO) untuk grafik kinerja (go tahap 1-2 2026-11-15: dieksekusi di EXEC.md EXEC-INDEX-GROUP-HISTORY; rencana lengkap di bawah)
+## INDEX-GROUP-HISTORY — riwayat 43 indeks dan 33 grup (KONGLO) untuk grafik kinerja (SELESAI 2026-11-15: tahap 1-9 dijalankan, hasil di EXEC.md EXEC-INDEX-GROUP-HISTORY; rencana di bawah sebagai catatan)
 
 **Kata user, 2026-11-15:** "Harga bisa disimpan di price stock Indonesia IDX saja. Karena di sana juga sudah ada IHSG.
 Dari 2018 enough terkait dengan riwayat." Lalu (tangkapan layar enam tabel `Feature_0x_..._INDEX`): indeks yang sudah ada

@@ -2,7 +2,7 @@
 orc-test-runner (user go 2026-11-15: "Langsung go tahap 4-9, kecuali ada perubahan arah material dan butuh decision
 saya"). Extras: scripts, features, apps/stockbit-updater/requirements.txt.
 
-params.json: {"tickers": [..] or null (every entity but IHSG), "apply": false, "batch": 10, "until": null,
+params.json: {"tickers": [..] or null (every entity but IHSG), "kinds": [..] (instead of tickers: GROUP, INDEX, SECTOR), "apply": false, "batch": 10, "until": null,
               "since": null, "large_write": false}
 Prints the script's events, TEMP_SIZE after each read, READBACK per entity (apply) and SUMMARY, then JOB_DONE."""
 import json
@@ -41,7 +41,13 @@ with psycopg.connect(os.environ['DATABASE_URL'], row_factory=dict_row, autocommi
     db.execute("SET lock_timeout='10s'")
     db.execute("SET work_mem='64MB'")
     db.execute('SET max_parallel_workers_per_gather=0')
-    result = x.run(db, p.get('tickers'), bool(p.get('apply')), int(p.get('batch') or 10), until, since)
+    tickers = p.get('tickers')
+    if p.get('kinds'):  # e.g. ["GROUP"]: the entities of those kinds, read from Feature_Index_Entity
+        tickers = [r['ticker'] for r in db.execute(
+            'SELECT ticker FROM public."Feature_Index_Entity" WHERE entity_kind = ANY(%s) '
+            "AND member_source <> 'ALL_SOURCE_SYMBOLS' ORDER BY ticker", (p['kinds'],))]
+        print('TICKERS ' + json.dumps({'kinds': p['kinds'], 'count': len(tickers), 'tickers': tickers}), flush=True)
+    result = x.run(db, tickers, bool(p.get('apply')), int(p.get('batch') or 10), until, since)
     if p.get('apply'):
         for t in sorted(result['written']):
             counts = {}
