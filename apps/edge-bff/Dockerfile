@@ -43,6 +43,17 @@ RUN npm ci --no-audit --no-fund
 COPY radar/ ./
 RUN npm run build
 
+# EXEC-OVERVIEW O5 (user go 2026-11-15): the Market Overview page (overview/, TypeScript + Vite, the design
+# market-overview-target-c-ihsg-flow.html) is built here into its dist/ and copied into static/overview-app. It shares no
+# source with the other pages and computes no figure: every number is the publisher's (overview/*.json.gz), relayed by
+# /api/v1/overview (app/overview.py). The build output is not kept in git.
+FROM node:22-slim AS overview
+WORKDIR /build/overview
+COPY overview/package.json overview/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY overview/ ./
+RUN npm run build
+
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
@@ -55,6 +66,7 @@ COPY --from=terminal /build/static/terminal-app ./static/terminal-app
 COPY --from=backtest /build/backtest/dist ./static/backtest-app
 COPY --from=screener /build/screener/dist ./static/screener-app
 COPY --from=radar /build/radar/dist ./static/radar-app
+COPY --from=overview /build/overview/dist ./static/overview-app
 RUN useradd --uid 10001 --create-home edge && chmod -R a+rX /app/app /app/static
 USER edge
 CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--no-access-log", "--no-proxy-headers"]

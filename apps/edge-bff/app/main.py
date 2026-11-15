@@ -22,6 +22,7 @@ from .config import Settings
 from .layouts import Layouts
 from .presets import Presets
 from .drawings import Drawings
+from .overview import Overview
 from .radar import Radar
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .security import csrf_token, token_hash, verify_password
@@ -63,6 +64,9 @@ SCREENER_APP = STATIC / 'screener-app'
 # frame. Its data comes from /api/v1/radar on this origin (the bytes are relayed, app/radar.py), so it takes the
 # Screener page's policy (connect-src 'self').
 RADAR_APP = STATIC / 'radar-app'
+# EXEC-OVERVIEW O4 (user go 2026-11-15): the built Market Overview page (apps/edge-bff/overview -> static/overview-app),
+# the Overview tab's frame; its data comes from /api/v1/overview on this origin, so the same policy as the Radar's
+OVERVIEW_APP = STATIC / 'overview-app'
 SCREENER_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
                 "img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; "
@@ -190,6 +194,7 @@ def create_app(settings=None, store=None, orc=None):
     presets = Presets(settings, store)
     drawings = Drawings(settings, store)
     radar = Radar(settings)
+    overview = Overview(settings)                       # EXEC-OVERVIEW O4
     ready = {'value': False}
     failures = defaultdict(deque)
     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
@@ -223,6 +228,7 @@ def create_app(settings=None, store=None, orc=None):
         if terminal_http['client'] is not None and hasattr(terminal_http['client'], 'aclose'):
             await terminal_http['client'].aclose()
         await radar.aclose()                          # EXEC-RADAR R6 (QA 2026-11-14): its client too
+        await overview.aclose()
 
     app = FastAPI(title='EDGE private gateway', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.worker, app.state.store, app.state.backtests = worker, store, backtests
@@ -275,7 +281,7 @@ def create_app(settings=None, store=None, orc=None):
             return response
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard)
-        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/')) else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
         return response
 
     async def session(request: Request):
@@ -321,6 +327,7 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/backtest')
     @app.get('/screener')
     @app.get('/radar')
+    @app.get('/overview')
     @app.get('/login')
     async def index():
         return FileResponse(STATIC / 'index.html', media_type='text/html')
@@ -414,20 +421,26 @@ def create_app(settings=None, store=None, orc=None):
             return error('NOT_FOUND', 404)
         return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
 
-    # EXEC-RADAR R6: the Radar page, served like the Screener page (no data in it; its hashed assets never change)
-    @app.get('/radar-app/')
-    async def radar_page():
-        target = RADAR_APP / 'index.html'
-        if not target.is_file():
-            return error('NOT_FOUND', 404)
-        return FileResponse(target, media_type='text/html')
+    # EXEC-RADAR R6, EXEC-OVERVIEW O4: the Radar and Market Overview pages, served like the Screener page (no data in
+    # them; their hashed assets never change)
+    def page_app(prefix, folder):
+        async def page():
+            target = folder / 'index.html'
+            if not target.is_file():
+                return error('NOT_FOUND', 404)
+            return FileResponse(target, media_type='text/html')
 
-    @app.get('/radar-app/assets/{name}')
-    async def radar_asset(name: str):
-        target = RADAR_APP / 'assets' / name
-        if not TERMINAL_ASSET.fullmatch(name) or not target.is_file():
-            return error('NOT_FOUND', 404)
-        return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
+        async def asset(name: str):
+            target = folder / 'assets' / name
+            if not TERMINAL_ASSET.fullmatch(name) or not target.is_file():
+                return error('NOT_FOUND', 404)
+            return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
+
+        app.get(f'/{prefix}/', name=f'{prefix}_page')(page)
+        app.get(f'/{prefix}/assets/{{name}}', name=f'{prefix}_asset')(asset)
+
+    page_app('radar-app', RADAR_APP)
+    page_app('overview-app', OVERVIEW_APP)
 
     # EXEC-TERMINAL-API T4 (user 2026-10-25: "edge-bff meneruskan /api/terminal/... ke terminal-api --> OK"): the owner's
     # EDGE session reaches terminal-api as its one terminal account (quotas and audit there); writes keep EDGE's
@@ -474,8 +487,9 @@ def create_app(settings=None, store=None, orc=None):
     presets.routes(app, session, write)
     # EXEC-DRAW-PANES (user 2026-11-07: "semua gambar harus di simpan di akun EDGE"): the Terminal's drawings, /api/v1/terminal/drawings
     drawings.routes(app, session, write)
-    # EXEC-RADAR R6: /api/v1/radar (index and files) for this session, the owner's only
+    # EXEC-RADAR R6, EXEC-OVERVIEW O4: /api/v1/radar and /api/v1/overview (index and files), the owner's only
     radar.routes(app, session)
+    overview.routes(app, session)
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):
@@ -509,8 +523,8 @@ def create_app(settings=None, store=None, orc=None):
     def capabilities():
         return {'deep_research': False, 'model_selection': True, 'cancel': True, 'tool_progress': False,
                 'retention_days_default': 30,
-                # EXEC-RADAR R6: the Radar tab shows only when its data can be read
-                'radar': bool(settings.terminal_url)}
+                # EXEC-RADAR R6, EXEC-OVERVIEW O4: the Radar and Overview tabs show only when their data can be read
+                'radar': bool(settings.terminal_url), 'overview': bool(settings.terminal_url)}
 
     @app.get('/api/v1/auth/session')
     async def get_session(token=Depends(session)):
