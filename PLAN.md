@@ -1264,3 +1264,10 @@ apa-apa sedikit belang-belentong, IHSG sudah dari 2018, tapi indeks-indeks ini k
   (diukur di uji coba). Mulai 2024 tidak mengubah biaya harian: pembaruan harian menghitung ulang 330 sesi pemanasan.
 - Usulan pembaruan harian: langkah INDEX dipisah dari putaran stockbit-updater (job sendiri sesudah data broker hari itu
   masuk), dan F01/F04 indeks sesudah cron harga, tidak menunggu putaran Stockbit.
+
+**Ukuran nyata (dev hanya baca, 2026-11-15, data 2025):** kombinasi broker x jenis investor x papan dan baris per hari:
+Prajogo Pangestu 277 kombinasi, 121 baris/hari; LQ45 319, 164/hari; IHSG 449, 216/hari. Perkiraan 7-14 menit per entitas
+sebelumnya memakai 619 kombinasi IHSG 2016-2026, jadi terlalu besar. Koreksi (kode sekarang, F02 satu SQL per kombinasi
+±0,4-1,2 s): mulai 2022 ±4-8 jam, mulai 2024 ±2,5-5 jam; F02 dan F05 masing-masing ±12 juta baris (2022) atau ±7 juta (2024)
+untuk 76 entitas. Penyebab jam-jaman: ±23.000 SQL F02 terpisah (76 x ±300 kombinasi), bukan banyaknya data. F02 dihitung
+sekaligus untuk semua kombinasi dan entitas diusulkan sebagai langkah pertama (dibuktikan 0 beda dengan IHSG, diukur).
