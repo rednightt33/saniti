@@ -7916,7 +7916,7 @@ in its staleness check.
 - **Lesson:** a second instance of something the code has known only once (an index, a market, a calendar) is a schema
   change: search every reader of its identifying predicate for a count, sum or union over it before adding it.
 
-### M438 — Price_Stock_Indonesia_IDX.ticker is varchar(4); 38 index tickers were refused (2026-11-15, OPEN)
+### M438 — Price_Stock_Indonesia_IDX.ticker is varchar(4); 38 index tickers were refused (2026-11-15, fixed)
 
 - **Symptom:** the price history job of EXEC-INDEX-GROUP-HISTORY (APPLY, 2026-11-15 08:07 UTC) stored DBX, ISSI, JII, LQ45
   and MBX and was refused for the other 38 indexes on `COPY idx_history_stage ... column ticker` (value too long).
@@ -7934,5 +7934,9 @@ in its staleness check.
   trigger that names the column, `ALTER ... TYPE varchar(12)`; rehearsed: the table is not rewritten, the partial index
   `Price_Stock_Indonesia_IDX_final_idx` is rebuilt, a 10-letter index row is stored, the volume guard still refuses a
   non-index without volume). Then the price APPLY for the 38 again (same fingerprints).
+- **Status:** FIXED 2026-11-15 (user "A"): migration 20261115_003 applied (DRYRUN `9fcbdbf4`, APPLY `a96ff014`), the 38
+  stored (job `7331078f`, 60,809 rows; 43 indexes 71,509 rows read back). The scheduled daily price run of 10:03 UTC
+  (`Monitoring_Price_ALL`, 2026-11-13 session) SUCCESS: index 44 of 44 updated, stock 836 of 862 and fund 27 of 45
+  updated, 0 missing.
 - **Lesson:** a rehearsal writes one row of every new key shape into every table the flow writes, not only the tables the
   migration changes.
