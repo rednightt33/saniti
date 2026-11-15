@@ -4,7 +4,7 @@
 
 - **Go:** user 2026-11-15 "go langkah 3" (EXEC-INDEX-GROUP-HISTORY).
 - **20261115_002_universe_index_rows.sql** (sha256 `e300a06eec721a97…`): 43 `Security Type` index rows (32 Stockbit
-  indexes, 11 IDX sector indexes) with their TradingView symbols. DRYRUN `09a5…`/APPLY job `3f68c3fa`
+  indexes, 11 IDX sector indexes) with their TradingView symbols. DRYRUN job `1076602d`, APPLY job `3f68c3fa`
   (`verification/index_group_history/jobs/`). Read back: 44 universe indexes, 44 priced entities are universe indexes,
   history capture 954 open rows (44 index), stocks 862 and funds 45 unchanged.
 - **Prices** (`verification/index_group_history/price_job.py` with `scripts/backfill_idx_price_ticker.py`, TradingView,
