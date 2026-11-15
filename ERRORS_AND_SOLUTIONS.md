@@ -7963,3 +7963,22 @@ in its staleness check.
 - **Status:** FIXED before release.
 - **Lesson:** a table stored from a later date than its source history cannot take its running totals from its own
   earlier rows; derive them from the last stored value and the source, and test a continuation against a full rebuild.
+
+### M440 — The scheduled Postgres restart can fall between two statements of a long job (2026-11-15, open)
+
+- **Symptom (found while planning EXEC-INDEX-GROUP-HISTORY stage 6, nothing broke):** a multi-hour job on
+  orc-test-runner (the index and group fill, about 3 hours) would overlap the 13:45 UTC run of postgres-memory-cron.
+- **Verified cause (code):** `scripts/restart_postgres.py` counts only client statements in state `active`
+  (`restart_postgres.py:299-303`) and waits up to 60 minutes until there is none. A long job that commits per chunk or
+  computes in Python between statements is `idle` or `idle in transaction` for a few seconds many times, so the restart
+  can start in such a gap: the job's connection and its temporary tables are lost and its last entity may be half
+  written.
+- **Class:** every long job of many statements (Feature backfills, publisher backfills, onboarding jobs) and the
+  scheduled restart; also an `idle in transaction` session of a user run.
+- **Mitigation now:** the fill starts after the 13:45 UTC restart (next 02:45 UTC); `backfill_index_entities.py`
+  continues an entity from its least advanced feature table, so a stopped run is resumed by running it again.
+- **Proposed general fix (not built; needs the user's decision):** the guard also refuses while a client session is
+  `idle in transaction`, or while a job holds a declared session lock (one advisory lock key that long jobs take);
+  the refusal message names the session's application_name and start time.
+- **Status:** OPEN (proposal).
+- **Lesson:** a guard that checks one instant cannot see work that pauses; work that must not be cut declares itself.
