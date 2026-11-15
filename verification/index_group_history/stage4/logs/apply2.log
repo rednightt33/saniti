@@ -1,0 +1,107 @@
+{"event": "plan", "broker_first": "2024-01-02", "last": "2025-10-31", "window_first": "2024-05-14", "entities": 6, "up_to_date": [], "modes": {"GAGOES": ["continue", "2025-10-01"], "GCTCORP": ["continue", "2025-10-01"], "GHARITA": ["continue", "2025-10-01"], "GRAJAWALI": ["continue", "2025-10-01"], "IDXBASIC": ["continue", "2025-10-01"], "LQ45": ["continue", "2025-10-01"]}, "apply": true}
+{"event": "members_staged", "entities": 6, "periods": 19, "dated_periods": {"IDXBASIC": 1, "LQ45": 2}}
+{"event": "raw_month_staged", "start": "2024-05-14", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.11}
+{"event": "raw_month_staged", "start": "2024-06-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.16}
+{"event": "raw_month_staged", "start": "2024-07-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.19}
+{"event": "raw_month_staged", "start": "2024-08-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.18}
+{"event": "raw_month_staged", "start": "2024-09-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.18}
+{"event": "raw_month_staged", "start": "2024-10-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.22}
+{"event": "raw_month_staged", "start": "2024-11-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.18}
+{"event": "raw_month_staged", "start": "2024-12-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.16}
+{"event": "raw_month_staged", "start": "2025-01-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.17}
+{"event": "raw_month_staged", "start": "2025-02-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.18}
+{"event": "raw_month_staged", "start": "2025-03-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.17}
+{"event": "raw_month_staged", "start": "2025-04-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.16}
+{"event": "raw_month_staged", "start": "2025-05-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.17}
+{"event": "raw_month_staged", "start": "2025-06-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.19}
+{"event": "raw_month_staged", "start": "2025-07-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.24}
+{"event": "raw_month_staged", "start": "2025-08-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.22}
+{"event": "raw_month_staged", "start": "2025-09-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.24}
+{"event": "raw_month_staged", "start": "2025-10-01", "detail_entities": 4, "collapsed_entities": 6, "seconds": 0.22}
+{"event": "feature2_independent_validated", "comparisons": 17975, "sampled_dates": 9}
+{"event": "feature3_independent_validated", "comparisons": 14280, "rows": 714}
+{"event": "feature6_independent_validated", "comparisons": 3901, "rows": 680}
+{"event": "accepted_sample_validated", "date": "2025-09-30", "comparisons": 5726}
+{"event": "entity_validated", "ticker": "GAGOES", "mode": "continue", "from_date": "2025-10-01", "window_first": "2024-05-14", "sessions_before": 330, "price_rows": 0, "rows_to_write": {"2": 2449, "3": 47, "5": 2449, "6": 47}, "f02_seconds": 9.3, "seconds": 12.6}
+{"event": "chunk_committed", "feature": 2, "year": 2025, "written": 2449, "rerun_modified": 0, "mismatches": 0, "rows": 2449, "hash": "3e96115ab93812fd095027547a8770b8"}
+{"event": "chunk_committed", "feature": 3, "year": 2025, "written": 47, "rerun_modified": 0, "mismatches": 0, "rows": 47, "hash": "93e36904ffaa234a28e8cac1231f9f7d"}
+{"event": "chunk_committed", "feature": 5, "year": 2025, "written": 2449, "rerun_modified": 0, "mismatches": 0, "rows": 2449, "hash": "51aee0411ab9032fe2c29be4e9d02933"}
+{"event": "chunk_committed", "feature": 6, "year": 2025, "written": 47, "rerun_modified": 0, "mismatches": 0, "rows": 47, "hash": "c2aa69b2a9762e5eb6e2b9bdd1fc9c13"}
+{"event": "bulk_complete", "snapshot_id": "caaf0eeb-8295-458c-947d-8f8054f2694b", "ticker": "GAGOES", "summary": {"2": {"rows": 8723, "first": "2025-07-01", "last": "2025-10-31"}, "3": {"rows": 179, "first": "2025-07-01", "last": "2025-10-31"}, "5": {"rows": 8723, "first": "2025-07-01", "last": "2025-10-31"}, "6": {"rows": 179, "first": "2025-07-01", "last": "2025-10-31"}}, "from_date": "2025-10-01"}
+{"event": "feature2_independent_validated", "comparisons": 6950, "sampled_dates": 9}
+{"event": "feature3_independent_validated", "comparisons": 9680, "rows": 484}
+{"event": "feature6_independent_validated", "comparisons": 2407, "rows": 460}
+{"event": "accepted_sample_validated", "date": "2025-09-30", "comparisons": 1748}
+{"event": "entity_validated", "ticker": "GCTCORP", "mode": "continue", "from_date": "2025-10-01", "window_first": "2024-05-14", "sessions_before": 330, "price_rows": 0, "rows_to_write": {"2": 785, "3": 29, "5": 785, "6": 29}, "f02_seconds": 4.5, "seconds": 6.1}
+{"event": "chunk_committed", "feature": 2, "year": 2025, "written": 785, "rerun_modified": 0, "mismatches": 0, "rows": 785, "hash": "17dffce6b80e9290341f1c0977dd8d52"}
+{"event": "chunk_committed", "feature": 3, "year": 2025, "written": 29, "rerun_modified": 0, "mismatches": 0, "rows": 29, "hash": "39f49b5ab81692360c1042d3225f3ae8"}
+{"event": "chunk_committed", "feature": 5, "year": 2025, "written": 785, "rerun_modified": 0, "mismatches": 0, "rows": 785, "hash": "3ea501a99fef780135ff81f057bf9c15"}
+{"event": "chunk_committed", "feature": 6, "year": 2025, "written": 29, "rerun_modified": 0, "mismatches": 0, "rows": 29, "hash": "b289a8f2750a6b62cd5d065df7c94ccd"}
+{"event": "bulk_complete", "snapshot_id": "caaf0eeb-8295-458c-947d-8f8054f2694b", "ticker": "GCTCORP", "summary": {"2": {"rows": 3303, "first": "2025-07-01", "last": "2025-10-31"}, "3": {"rows": 122, "first": "2025-07-01", "last": "2025-10-31"}, "5": {"rows": 3303, "first": "2025-07-01", "last": "2025-10-31"}, "6": {"rows": 122, "first": "2025-07-01", "last": "2025-10-31"}}, "from_date": "2025-10-01"}
+{"event": "feature2_independent_validated", "comparisons": 10900, "sampled_dates": 9}
+{"event": "feature3_independent_validated", "comparisons": 9380, "rows": 469}
+{"event": "feature6_independent_validated", "comparisons": 2822, "rows": 446}
+{"event": "accepted_sample_validated", "date": "2025-09-30", "comparisons": 3169}
+{"event": "entity_validated", "ticker": "GHARITA", "mode": "continue", "from_date": "2025-10-01", "window_first": "2024-05-14", "sessions_before": 330, "price_rows": 0, "rows_to_write": {"2": 1461, "3": 34, "5": 1461, "6": 34}, "f02_seconds": 5.5, "seconds": 7.4}
+{"event": "chunk_committed", "feature": 2, "year": 2025, "written": 1461, "rerun_modified": 0, "mismatches": 0, "rows": 1461, "hash": "a38c4e8401a15b99de9adc5687085409"}
+{"event": "chunk_committed", "feature": 3, "year": 2025, "written": 34, "rerun_modified": 0, "mismatches": 0, "rows": 34, "hash": "0c0eae17f42346a2a2d13774c23e1f86"}
+{"event": "chunk_committed", "feature": 5, "year": 2025, "written": 1461, "rerun_modified": 0, "mismatches": 0, "rows": 1461, "hash": "8370b85595460d8c229552889f871978"}
+{"event": "chunk_committed", "feature": 6, "year": 2025, "written": 34, "rerun_modified": 0, "mismatches": 0, "rows": 34, "hash": "d5038b94ea05189620561a90f3ca03e3"}
+{"event": "bulk_complete", "snapshot_id": "caaf0eeb-8295-458c-947d-8f8054f2694b", "ticker": "GHARITA", "summary": {"2": {"rows": 5325, "first": "2025-07-01", "last": "2025-10-31"}, "3": {"rows": 118, "first": "2025-07-01", "last": "2025-10-31"}, "5": {"rows": 5325, "first": "2025-07-01", "last": "2025-10-31"}, "6": {"rows": 118, "first": "2025-07-01", "last": "2025-10-31"}}, "from_date": "2025-10-01"}
+{"event": "feature2_independent_validated", "comparisons": 10075, "sampled_dates": 9}
+{"event": "feature3_independent_validated", "comparisons": 8760, "rows": 438}
+{"event": "feature6_independent_validated", "comparisons": 3071, "rows": 416}
+{"event": "accepted_sample_validated", "date": "2025-09-30", "comparisons": 4808}
+{"event": "entity_validated", "ticker": "GRAJAWALI", "mode": "continue", "from_date": "2025-10-01", "window_first": "2024-05-14", "sessions_before": 330, "price_rows": 0, "rows_to_write": {"2": 1916, "3": 37, "5": 1916, "6": 37}, "f02_seconds": 6.5, "seconds": 8.5}
+{"event": "chunk_committed", "feature": 2, "year": 2025, "written": 1916, "rerun_modified": 0, "mismatches": 0, "rows": 1916, "hash": "2487db1f1419d12c87735979643f6262"}
+{"event": "chunk_committed", "feature": 3, "year": 2025, "written": 37, "rerun_modified": 0, "mismatches": 0, "rows": 37, "hash": "eb26623aa551d2b73c81472b52da911b"}
+{"event": "chunk_committed", "feature": 5, "year": 2025, "written": 1916, "rerun_modified": 0, "mismatches": 0, "rows": 1916, "hash": "4b12d60b8e33593f006866c1ccce97ca"}
+{"event": "chunk_committed", "feature": 6, "year": 2025, "written": 37, "rerun_modified": 0, "mismatches": 0, "rows": 37, "hash": "776d3b4de671b149eabba28b3cd60a1d"}
+{"event": "bulk_complete", "snapshot_id": "caaf0eeb-8295-458c-947d-8f8054f2694b", "ticker": "GRAJAWALI", "summary": {"2": {"rows": 6302, "first": "2025-07-01", "last": "2025-10-31"}, "3": {"rows": 127, "first": "2025-07-01", "last": "2025-10-31"}, "5": {"rows": 6302, "first": "2025-07-01", "last": "2025-10-31"}, "6": {"rows": 127, "first": "2025-07-01", "last": "2025-10-31"}}, "from_date": "2025-10-01"}
+{"event": "raw_month_staged", "start": "2024-05-14", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.05}
+{"event": "raw_month_staged", "start": "2024-06-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.07}
+{"event": "raw_month_staged", "start": "2024-07-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.1}
+{"event": "raw_month_staged", "start": "2024-08-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.08}
+{"event": "raw_month_staged", "start": "2024-09-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.08}
+{"event": "raw_month_staged", "start": "2024-10-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.11}
+{"event": "raw_month_staged", "start": "2024-11-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.08}
+{"event": "raw_month_staged", "start": "2024-12-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.07}
+{"event": "raw_month_staged", "start": "2025-01-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.07}
+{"event": "raw_month_staged", "start": "2025-02-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.08}
+{"event": "raw_month_staged", "start": "2025-03-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.1}
+{"event": "raw_month_staged", "start": "2025-04-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.11}
+{"event": "raw_month_staged", "start": "2025-05-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.08}
+{"event": "raw_month_staged", "start": "2025-06-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.09}
+{"event": "raw_month_staged", "start": "2025-07-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.1}
+{"event": "raw_month_staged", "start": "2025-08-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.11}
+{"event": "raw_month_staged", "start": "2025-09-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.11}
+{"event": "raw_month_staged", "start": "2025-10-01", "detail_entities": 2, "collapsed_entities": 0, "seconds": 0.18}
+{"event": "feature2_independent_validated", "comparisons": 19450, "sampled_dates": 9}
+{"event": "feature3_independent_validated", "comparisons": 14420, "rows": 721}
+{"event": "feature6_independent_validated", "comparisons": 3901, "rows": 685}
+{"event": "accepted_sample_validated", "date": "2025-09-30", "comparisons": 6423}
+{"event": "entity_validated", "ticker": "IDXBASIC", "mode": "continue", "from_date": "2025-10-01", "window_first": "2024-05-14", "sessions_before": 330, "price_rows": 1398, "rows_to_write": {"1": 271, "2": 2687, "3": 47, "4": 271, "5": 2687, "6": 47}, "f02_seconds": 9.4, "seconds": 13.4}
+{"event": "chunk_committed", "feature": 1, "year": 2025, "written": 0, "rerun_modified": 0, "mismatches": 0, "rows": 63, "hash": "4178fb1c7cbd4a1682b9ba6e15afdc62"}
+{"event": "chunk_committed", "feature": 1, "year": 2026, "written": 0, "rerun_modified": 0, "mismatches": 0, "rows": 208, "hash": "6c6e414646b2720398d76eb37a08160f"}
+{"event": "chunk_committed", "feature": 2, "year": 2025, "written": 2687, "rerun_modified": 0, "mismatches": 0, "rows": 2687, "hash": "36d93261371ec649e3ca1c17a0c86ebe"}
+{"event": "chunk_committed", "feature": 3, "year": 2025, "written": 47, "rerun_modified": 0, "mismatches": 0, "rows": 47, "hash": "3a90825270df797f8999eac2c1a69a96"}
+{"event": "chunk_committed", "feature": 4, "year": 2025, "written": 0, "rerun_modified": 0, "mismatches": 0, "rows": 63, "hash": "da83007ea0424a00bc45a9ae8de0fdcb"}
+{"event": "chunk_committed", "feature": 4, "year": 2026, "written": 0, "rerun_modified": 0, "mismatches": 0, "rows": 208, "hash": "f46c0da99533423cc7acf421524d9565"}
+{"event": "chunk_committed", "feature": 5, "year": 2025, "written": 2687, "rerun_modified": 0, "mismatches": 0, "rows": 2687, "hash": "8bec4a176e54d558a9d4021d65d0523c"}
+{"event": "chunk_committed", "feature": 6, "year": 2025, "written": 47, "rerun_modified": 0, "mismatches": 0, "rows": 47, "hash": "b25512558a2681f56cefaa3cda5ff15d"}
+{"event": "bulk_complete", "snapshot_id": "caaf0eeb-8295-458c-947d-8f8054f2694b", "ticker": "IDXBASIC", "summary": {"1": {"rows": 335, "first": "2025-07-01", "last": "2026-11-13"}, "2": {"rows": 9507, "first": "2025-07-01", "last": "2025-10-31"}, "3": {"rows": 182, "first": "2025-07-01", "last": "2025-10-31"}, "4": {"rows": 335, "first": "2025-07-01", "last": "2026-11-13"}, "5": {"rows": 9507, "first": "2025-07-01", "last": "2025-10-31"}, "6": {"rows": 182, "first": "2025-07-01", "last": "2025-10-31"}}, "from_date": "2025-10-01"}
+{"event": "feature2_independent_validated", "comparisons": 18175, "sampled_dates": 9}
+{"event": "feature3_independent_validated", "comparisons": 14320, "rows": 716}
+{"event": "feature6_independent_validated", "comparisons": 3901, "rows": 682}
+{"event": "accepted_sample_validated", "date": "2025-09-30", "comparisons": 5964}
+{"event": "entity_validated", "ticker": "LQ45", "mode": "continue", "from_date": "2025-10-01", "window_first": "2024-05-14", "sessions_before": 330, "price_rows": 2140, "rows_to_write": {"1": 271, "2": 2524, "3": 47, "4": 271, "5": 2524, "6": 47}, "f02_seconds": 10.4, "seconds": 14.5}
+{"event": "chunk_committed", "feature": 1, "year": 2025, "written": 0, "rerun_modified": 0, "mismatches": 0, "rows": 63, "hash": "91946fbd3d8e270d277f02fcb13afce3"}
+{"event": "chunk_committed", "feature": 1, "year": 2026, "written": 0, "rerun_modified": 0, "mismatches": 0, "rows": 208, "hash": "b0ec68f700c05c42f39718fca0e121c1"}
+{"event": "chunk_committed", "feature": 2, "year": 2025, "written": 2524, "rerun_modified": 0, "mismatches": 0, "rows": 2524, "hash": "4743adbafcf210279251af4eaa056356"}
+{"event": "chunk_committed", "feature": 3, "year": 2025, "written": 47, "rerun_modified": 0, "mismatches": 0, "rows": 47, "hash": "762ec6e958c1aa40e1b2e10b21acd842"}
+{"event": "chunk_committed", "feature": 4, "year": 2025, "written": 0, "rerun_modified": 0, "mismatches": 0, "rows": 63, "hash": "82513ffc3e7c6d001b8dc1a15a62e858"}
+{"event": "chunk_committed", "feature": 4, "year": 2026, "written": 0, "rerun_modified": 0, "mismatches": 0, "rows": 208, "hash": "e44e7689dc246dfd43243f36da4710f7"}
+{"event": "chunk_committed", "feature": 5, "year": 2025, "written": 2524, "rerun_modified": 0, "mismatches": 0, "rows": 2524, "hash": "191f458debb266b2d015884fa489e948"}
+{"event": "chunk_committed", "feature": 6, "year": 2025, "written": 47, "rerun_modified": 0, "mismatches": 0, "rows": 47, "hash": "4e0fd4ef2c5f683a1077733ffe7d448e"}
+{"event": "bulk_complete", "snapshot_id": "caaf0eeb-8295-458c-947d-8f8054f2694b", "ticker": "LQ45", "summary": {"1": {"rows": 335, "first": "2025-07-01", "last": "2026-11-13"}, "2": {"rows": 9056, "first": "2025-07-01", "last": "2025-10-31"}, "3": {"rows": 181, "first": "2025-07-01", "last": "2025-10-31"}, "4": {"rows": 335, "first": "2025-07-01", "last": "2026-11-13"}, "5": {"rows": 9056, "first": "2025-07-01", "last": "2025-10-31"}, "6": {"rows": 181, "first": "2025-07-01", "last": "2025-10-31"}}, "from_date": "2025-10-01"}
+{"event": "complete", "committed": true, "entities": 6, "snapshot_id": "caaf0eeb-8295-458c-947d-8f8054f2694b"}

@@ -7940,3 +7940,26 @@ in its staleness check.
   updated, 0 missing.
 - **Lesson:** a rehearsal writes one row of every new key shape into every table the flow writes, not only the tables the
   migration changes.
+
+### M439 — Feature 06 of a continuing index or group restarted its cumulative nets at 0 (2026-11-15, fixed before release)
+
+- **Symptom:** the local test of `scripts/backfill_index_entities.py` (EXEC-INDEX-GROUP-HISTORY stage 4): the continuation
+  run (stored rows to 2025-09-30, new rows from 2025-10-01) failed its own independent Feature 06 check, foreign
+  cumulative net 4,494,742,260,373 instead of 4,595,392,466,603 (GAGOES, 2025-10-01, Nego). Nothing was written.
+- **Verified cause (code and the local run):** `refresh_feature_06(ticker, from)` continues from the stored row before
+  its range start (312 sessions before `from`); the IHSG incremental run seeds those rows from its stored history, which
+  reaches 2016. An entity's stored rows start at its `rows_from` (2024-01-02 on dev), so there was no stored row before
+  the range start and the cumulative started from 0.
+- **Class:** an incremental step that reads its starting state from earlier stored rows, reused for a table whose rows
+  start later than the source history (any entity of Feature_Index_Entity; later macro or cross-asset series stored
+  from a chosen date would meet the same).
+- **Fix (`backfill_index_entities.seed_anchors`, the layer that owns the cumulative):** the starting state is derived,
+  not looked up: per board the stored cumulative of the last row before the run minus the daily nets from the range
+  start (exact numeric), as an unwritten row before the range start. A board traded in the window with no stored row
+  (its cumulative before `rows_from` is not stored) makes that entity's Feature 06 read its whole broker history instead.
+- **Verified (local, `verification/index_group_history/stage4/README.md`):** first fill plus continuation equals one
+  first fill (all six tables, 0 differing); recompute from 2025-10-15 changes 0 rows; the board fallback equals the first
+  fill. IHSG unchanged (old vs branch script, 0 differing).
+- **Status:** FIXED before release.
+- **Lesson:** a table stored from a later date than its source history cannot take its running totals from its own
+  earlier rows; derive them from the last stored value and the source, and test a continuation against a full rebuild.

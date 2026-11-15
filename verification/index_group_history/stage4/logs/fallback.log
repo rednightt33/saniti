@@ -1,0 +1,37 @@
+{"event": "plan", "broker_first": "2024-01-02", "last": "2025-10-31", "window_first": "2024-05-30", "entities": 1, "up_to_date": [], "modes": {"GCTCORP": ["continue", "2025-10-15"]}, "apply": true}
+{"event": "members_staged", "entities": 1, "periods": 2, "dated_periods": {}}
+{"event": "raw_month_staged", "start": "2024-05-30", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.01}
+{"event": "raw_month_staged", "start": "2024-06-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.02}
+{"event": "raw_month_staged", "start": "2024-07-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.02}
+{"event": "raw_month_staged", "start": "2024-08-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.02}
+{"event": "raw_month_staged", "start": "2024-09-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.02}
+{"event": "raw_month_staged", "start": "2024-10-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.03}
+{"event": "raw_month_staged", "start": "2024-11-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.02}
+{"event": "raw_month_staged", "start": "2024-12-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.02}
+{"event": "raw_month_staged", "start": "2025-01-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.02}
+{"event": "raw_month_staged", "start": "2025-02-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.02}
+{"event": "raw_month_staged", "start": "2025-03-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.02}
+{"event": "raw_month_staged", "start": "2025-04-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.02}
+{"event": "raw_month_staged", "start": "2025-05-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.02}
+{"event": "raw_month_staged", "start": "2025-06-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.02}
+{"event": "raw_month_staged", "start": "2025-07-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.03}
+{"event": "raw_month_staged", "start": "2025-08-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.03}
+{"event": "raw_month_staged", "start": "2025-09-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.03}
+{"event": "raw_month_staged", "start": "2025-10-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.03}
+{"event": "feature6_full_history", "ticker": "GCTCORP", "boards_without_stored_rows": ["Tunai"]}
+{"event": "raw_month_staged", "start": "2024-01-02", "detail_entities": 0, "collapsed_entities": 1, "seconds": 0.02}
+{"event": "raw_month_staged", "start": "2024-02-01", "detail_entities": 0, "collapsed_entities": 1, "seconds": 0.01}
+{"event": "raw_month_staged", "start": "2024-03-01", "detail_entities": 0, "collapsed_entities": 1, "seconds": 0.01}
+{"event": "raw_month_staged", "start": "2024-04-01", "detail_entities": 0, "collapsed_entities": 1, "seconds": 0.01}
+{"event": "raw_month_staged", "start": "2024-05-01", "detail_entities": 0, "collapsed_entities": 1, "seconds": 0.01}
+{"event": "feature2_independent_validated", "comparisons": 6700, "sampled_dates": 9}
+{"event": "feature3_independent_validated", "comparisons": 9420, "rows": 471}
+{"event": "feature6_independent_validated", "comparisons": 49053, "rows": 591}
+{"event": "accepted_sample_validated", "date": "2025-10-14", "comparisons": 2251}
+{"event": "entity_validated", "ticker": "GCTCORP", "mode": "continue", "from_date": "2025-10-15", "window_first": "2024-05-30", "sessions_before": 330, "price_rows": 0, "rows_to_write": {"2": 394, "3": 15, "5": 394, "6": 15}, "f02_seconds": 4.2, "seconds": 6.7}
+{"event": "chunk_committed", "feature": 2, "year": 2025, "written": 0, "rerun_modified": 0, "mismatches": 0, "rows": 394, "hash": "aa1fff841db8ba593b1f214146bf898b"}
+{"event": "chunk_committed", "feature": 3, "year": 2025, "written": 0, "rerun_modified": 0, "mismatches": 0, "rows": 15, "hash": "79e33f00dd3c919d790ce0dab11995e4"}
+{"event": "chunk_committed", "feature": 5, "year": 2025, "written": 0, "rerun_modified": 0, "mismatches": 0, "rows": 394, "hash": "4a48445c4326a3f2bed64da358906f21"}
+{"event": "chunk_committed", "feature": 6, "year": 2025, "written": 0, "rerun_modified": 0, "mismatches": 0, "rows": 15, "hash": "d088bf54804850ee4c09bcbe65afd4e8"}
+{"event": "bulk_complete", "snapshot_id": "0c65825f-4c6e-464a-9d0f-c75fd2200f46", "ticker": "GCTCORP", "summary": {"2": {"rows": 3303, "first": "2025-07-01", "last": "2025-10-31"}, "3": {"rows": 122, "first": "2025-07-01", "last": "2025-10-31"}, "5": {"rows": 3303, "first": "2025-07-01", "last": "2025-10-31"}, "6": {"rows": 121, "first": "2025-07-01", "last": "2025-10-31"}}, "from_date": "2025-10-15"}
+{"event": "complete", "committed": true, "entities": 1, "snapshot_id": "0c65825f-4c6e-464a-9d0f-c75fd2200f46"}

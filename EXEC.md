@@ -14182,3 +14182,15 @@ dengan sidik data preflight; tidak menimpa baris yang ada), job `verification/in
   indeks, 71.509 baris, dibaca balik. Tahap 3 selesai. Berikutnya: tahap 4 (skrip INDEX dan F02 sekaligus, di branch).
 - Go user 2026-11-15: "Langsung jalankan", "go tahap 4": skrip INDEX untuk 76 entitas (anggota per tanggal, satu baca data
   broker, F02 sekaligus, tulis hanya >= rows_from), di branch, diuji lokal; dev tidak disentuh.
+- Go user 2026-11-15: "Langsung go tahap 4-9, kecuali ada perubahan arah material dan butuh decision saya." Tahap 4-9
+  (PLAN.md INDEX-GROUP-HISTORY C) dijalankan berurutan tanpa go per tahap; berhenti dan bertanya hanya bila arah berubah
+  secara material. Aturan tetap berlaku: cek sebelum mutasi, DRYRUN sebelum APPLY, restart Postgres sesudah pembaruan
+  besar, tidak ada user run aktif sebelum deploy/restart (M340), di luar B6 dan jadwal cron.
+- Hasil tahap 4 (2026-11-15, branch, dev tidak diubah): `scripts/backfill_index_entities.py` (indeks, sektor, grup;
+  anggota per tanggal; satu baca data broker per bulan untuk semua entitas; F06 dari ringkasan per hari/papan/jenis
+  investor sejak tanggal broker pertama; detail broker hanya untuk jendela pemanasan; F02 satu SQL per entitas; tulis hanya
+  >= tanggal awal entitas) dan opsi berdefault di `scripts/backfill_index_features.py` (jalur IHSG tidak berubah). Uji
+  lokal (`verification/index_group_history/stage4/README.md`): IHSG lama vs baru 0 beda (penuh dan inkremental), F02
+  sekaligus = per pasangan, F06 ringkas = per broker, anggota per tanggal sesuai, lanjutan = isi penuh, data rusak
+  ditolak. Cacat ditemukan dan diperbaiki sebelum rilis: ERRORS M439. Aturan sektor (3A): baris pertama tiap saham di
+  riwayat universe juga berlaku ke belakang. Berikutnya: tahap 5 (uji coba dev LQ45 + GPRAJOGO, rollback).
