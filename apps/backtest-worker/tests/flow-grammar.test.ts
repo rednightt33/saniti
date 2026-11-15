@@ -108,7 +108,7 @@ test('a Flow condition: per-bar test, FLOW_UNAVAILABLE without broker data, the 
     assert.throws(refused(id), (e: unknown) => e instanceof ValidationError && e.code === 'ANCHOR_REQUIRED' && e.field === `f.test.metric.params.${key}`, id);
 });
 
-/* ---- P3 (K3 a, ERRORS M448): broker prices on another basis than the prices, and the Flow data warnings ---------- */
+/* ---- P3 (K3 a, ERRORS M450): broker prices on another basis than the prices, and the Flow data warnings ---------- */
 import { flowData } from '../../edge-bff/backtest/src/core/flow.ts';
 import { prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import { sessions, ticker as mkTicker, brokerRows as mkRows } from './lookahead/fixture.ts';
@@ -159,7 +159,7 @@ test("the run's Flow warnings: before 2021, basis change, source gaps and droppe
   assert.deepEqual(w.FLOW_SOURCE_GAP, [2, ['WARN']]);
   assert.deepEqual(w.FLOW_ROWS_DROPPED, [2, ['WARN']]);
   assert.match(a.warnings.find(x => x.code === 'FLOW_ROWS_DROPPED')!.message, /1 day on the Regular board, 1 day on the Nego board/);
-  // P7 (K4 a, M447): the rights issue inside the period restates the published prices before it
+  // P7 (K4 a, M449): the rights issue inside the period restates the published prices before it
   assert.deepEqual(a.warnings.filter(x => x.code === 'PRICES_RESTATED').map(x => [x.count, x.tickers]), [[1, ['WARN']]]);
   assert.deepEqual(run(market([]), req(dates.find(d => d >= '2021-03-01')!, 'FL17')).warnings.filter(x => x.code === 'PRICES_RESTATED'), []);
   // from 2020: FLOW_PRE_2021; FL11 is no broker price, so no basis change

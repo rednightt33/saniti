@@ -2,7 +2,7 @@
 
 ## 2026-11-15 — EXEC-BACKTEST-REVAMP: `.railway/railway.ts` records the live limits and the CI gate (not applied yet)
 
-- Recorded from the live project (ERRORS M453, Railway `serviceInstanceLimits`, read-only): backtest-worker
+- Recorded from the live project (ERRORS M455, Railway `serviceInstanceLimits`, read-only): backtest-worker
   `limitOverride` 1,000,000,000 bytes (set 2026-11-07, kept by user K9 b), Postgres 2,000,000,000 bytes (user 2026-11-09
   "Limit ram keep 2gb dulu"). `railway.ts` said none and 1 GB.
 - K10 a (user 2026-11-15): `checkSuites: true` for edge-bff and screener-worker, so a push to `main` deploys only on green

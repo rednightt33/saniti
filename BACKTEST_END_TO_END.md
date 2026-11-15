@@ -948,7 +948,7 @@ The rules are in `apps/edge-bff/backtest/CONTRACT.md` section 13; this is where 
   "Backtest look-ahead gate"). The real-data check is in `verification/backtest/lookahead/`. edge-bff and
   screener-worker deploy only on green checks (K10 a, applied with the deploy after Gate 2).
 - **Known open items (section 13).**
-  - The data-layer fixes M447/M448: an as-traded price series, and broker lots on the price basis.
+  - The data-layer fixes M449/M450: an as-traded price series, and broker lots on the price basis.
   - `OOS_ALREADY_SEEN`.
   - The point-in-time grid axes (anchor ±10/20 sessions, top N ±1/2).
   - A point-in-time indicator inside a transform.

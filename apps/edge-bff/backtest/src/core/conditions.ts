@@ -4,7 +4,7 @@
    - bar 0 is never true (the page starts every comparison at bar 1);
    - a bar where either side is not a finite number is false, and a cross also needs both sides on the bar before;
    - price against an output the lag probe marks (compare-lag.json, e.g. Donchian's bands, which hold today's high and
-     low) reads that output on the prior bar, as the Screener does (EXEC-BACKTEST-REVAMP K5 a, ERRORS M449);
+     low) reads that output on the prior bar, as the Screener does (EXEC-BACKTEST-REVAMP K5 a, ERRORS M451);
    - "within N bars" keeps, per condition, the last bar it was true; the entry is true on bar i when at least `need`
      conditions were true on one of the bars i-N+1..i (they need not be true on the same bar).
    Flow and broker conditions (kind 'flow': CATALOG fnet, broker, top5) read the ticker's broker files through
@@ -42,7 +42,7 @@ export interface CalcMeta {
 /** What the grammar noted while it read the ticker's broker data (EXEC-BACKTEST-REVAMP P3; the engine turns it into the
     run's FLOW_* warnings for the period): the most sessions a Flow series read before its bar (null: its whole
     history), and the bars where a broker-price value was left empty because its window reads broker rows on another
-    basis than the prices (FLOW_BASIS_CHANGE, ERRORS M448). */
+    basis than the prices (FLOW_BASIS_CHANGE, ERRORS M450). */
 export interface FlowNotes {
   depth: number | null; masked: Set<number>;
   /** the earliest date a point-in-time Flow series reads (its anchor or start; P4) */

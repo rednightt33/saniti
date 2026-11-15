@@ -1,4 +1,4 @@
-/* EXEC-BACKTEST-REVAMP P0.4 (ERRORS M454): the page computes conditions in the browser with the shared core, and its
+/* EXEC-BACKTEST-REVAMP P0.4 (ERRORS M456): the page computes conditions in the browser with the shared core, and its
    assets are served without a session (app/main.py /backtest-app/). Admin-only series (the point-in-time Flow
    indicators) therefore live in modules only the worker imports (apps/backtest-worker/src/pit). This walks every module
    the page's entry reaches, as Vite resolves relative imports (as written, then .ts, then /index.ts), and refuses any

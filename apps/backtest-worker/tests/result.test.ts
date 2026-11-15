@@ -535,7 +535,7 @@ test('no NaN or Infinity on the wire: a flat run without trades, a one-day perio
   assert.doesNotThrow(() => assertFiniteJson({ a: undefined, b: [null, 'x', 0, { c: -1 }] }));
 });
 
-test('statistical warnings (ERRORS M455): few trades, trades across the cut, one trial, a point-in-time anchor inside the period', async () => {
+test('statistical warnings (ERRORS M457): few trades, trades across the cut, one trial, a point-in-time anchor inside the period', async () => {
   const { statWarnings } = await import('../../edge-bff/backtest/src/core/result.ts');
   const dates = Array.from({ length: 100 }, (_, k) => `2025-${String(1 + Math.floor(k / 28)).padStart(2, '0')}-${String(1 + (k % 28)).padStart(2, '0')}`);
   const t = (e: number, x: number) => ({ entry_bar: e, exit_bar: x }) as never;

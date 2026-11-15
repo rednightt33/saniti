@@ -107,14 +107,14 @@ export function flowRefs(test: unknown, field: string): { field: string; ref: Re
   return refKinds(test, field).filter(([k]) => k === 'flow').map(([, f, ref]) => ({ field: f, ref }));
 }
 
-/* EXEC-BACKTEST-REVAMP P3 (K3 a, ERRORS M448; verified 2026-11-15 on COCO: broker VWAP / close 1.74-1.82 on every
+/* EXEC-BACKTEST-REVAMP P3 (K3 a, ERRORS M450; verified 2026-11-15 on COCO: broker VWAP / close 1.74-1.82 on every
    date before its rights issue of 2026-07-09, 1.02 after): the published prices before ADJUSTED_HISTORY_BOUNDARY are
    back-adjusted for each later split, bonus share and rights issue, the broker lots are not. A Flow value that compares
    a broker price with the close (the registry's family "Buy VWAP & Implied Cost", or a price unit) is therefore left
    empty where its window reads a session on another basis than the prices: before an action whose adjustment the prices
    carry (ex-date on or before the boundary), or across one after it (the window mixes lots before and after). Derived
    from the registry and the ticker's events; a new indicator of that family is covered without a code change. Not
-   covered (no published marker): a broker range re-downloaded after an action (PBSA, M448), which the data fix owns. */
+   covered (no published marker): a broker range re-downloaded after an action (PBSA, M450), which the data fix owns. */
 const BROKER_PRICE = new Set((FLOW_REGISTRY as { indicators: { id: string; family: string; unit: string }[] }).indicators
   .filter(r => r.family === 'Buy VWAP & Implied Cost' || r.unit === 'price').map(r => r.id));
 /** The bars [lo, lo + N) of the flow window whose value must stay empty, for a series that reads `depth` sessions up to

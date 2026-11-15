@@ -3,7 +3,7 @@
    Screener's validation accepts that form, gives the same entry signal on every bar of the Terminal parity fixtures
    (the old form with the entry window W, the grammar form with its own window: EVENT within W for a cross, a window
    "ever" over W sessions for gt / lt) and hashes as the same trial (src/canonical.ts, K7 a). Also: grammar forms
-   without an indicator equivalent keep a shape of their own at every depth (ERRORS M450), and window_bars counts only
+   without an indicator equivalent keep a shape of their own at every depth (ERRORS M452), and window_bars counts only
    where a condition reads it. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

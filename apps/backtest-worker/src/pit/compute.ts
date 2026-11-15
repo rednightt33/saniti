@@ -1,8 +1,8 @@
 /* EXEC-BACKTEST-REVAMP P4 (user 2026-11-15: "Kita include saja untuk seluruh indikator D ... indikator D ini akan hanya
    avail untuk admin saja"; "1A": the anchor or start date is required, set by the admin; K2 a for FL23): point-in-time
    versions of the eight Terminal Flow indicators that choose their brokers with the data up to the last candle (ERRORS
-   M446: calc/flow.ts frozen, autoInventoryBrokers, defaultInventoryBrokers, loadersTable). Worker-only: no module the
-   page imports reaches this folder (tests/worker-only.test.mjs, M454).
+   M448: calc/flow.ts frozen, autoInventoryBrokers, defaultInventoryBrokers, loadersTable). Worker-only: no module the
+   page imports reaches this folder (tests/worker-only.test.mjs, M456).
 
    One rule for all of them: on each candle t the brokers are chosen again from the rows from the anchor (or start) to t
    only, with the Terminal's own choice (score > 0, ties by broker code: calc/flow.ts topOf), and the value at t is the

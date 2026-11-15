@@ -1,5 +1,5 @@
 /* EXEC-BACKTEST-REVAMP P2 (user K7 a, 2026-11-15: "normalkan (bawaan diisi, terjemahan kanonik) untuk hash baru"; ERRORS
-   M450): the form of a request its hashes are taken over (variant hash = one trial, lineage key, request hash), so the
+   M452): the form of a request its hashes are taken over (variant hash = one trial, lineage key, request hash), so the
    same strategy written two ways is one trial. The run itself reads the request as sent (the numbers are the same:
    every filled-in value is the default the run applies anyway); only the hashes read this form.
    - every condition's parameters complete: an indicator condition's with the registry defaults (registry.ts

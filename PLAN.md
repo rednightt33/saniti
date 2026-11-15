@@ -127,7 +127,7 @@ diperbaiki." Dan: "Kalau A B C D mau di rilis bersama, tapi tidak ada lookahead 
 back end lebih dulu, tampilan menyusul; satu tata bahasa kondisi bersama (permanen) disetujui; indikator Flow A-D
 dirilis bersama dengan syarat tanpa look-ahead.
 
-**Uji look-ahead, 2026-11-15** (ERRORS M446; uji potong data atas data BBCA dev): bersih 53 indikator, 8 operator pola
+**Uji look-ahead, 2026-11-15** (ERRORS M448; uji potong data atas data BBCA dev): bersih 53 indikator, 8 operator pola
 harga, 20 candlestick, 17 transform Screener, 44 dari 52 Flow; look-ahead hanya FL18, FL19, FL20, FL23, FL44, FL45,
 FL51, FL52 (524 variasi parameter), semuanya karena pemilihan broker otomatis sampai candle terakhir. Di luar rumus:
 FL31 (insider bertanggal transaksi, bukan pengumuman), FL34 (klasifikasi broker sekarang dipakai untuk semua tanggal),
@@ -177,7 +177,7 @@ tidak ada perubahan. / 7B". Jadi: (1A) tanggal awal FL51 dan anchor FL18, FL19, 
 itu permintaan ditolak; (2) internal Screener boleh diubah untuk tata bahasa bersama (Terminal tetap tidak); (3) uji
 look-ahead menjadi gerbang CI wajib; (4) hasil yang memakai kondisi Flow dan periodenya mencakup 2016-2020 diberi
 peringatan data broker tidak lengkap; (5) FL34 memakai klasifikasi `IDX_Broker_Profile` apa adanya untuk semua tanggal
-(user: klasifikasi tidak berubah; dicatat sebagai batasan yang diterima di ERRORS M446); (7B) dokumen dan kode digabung
+(user: klasifikasi tidak berubah; dicatat sebagai batasan yang diterima di ERRORS M448); (7B) dokumen dan kode digabung
 ke `main` bersama, lewat PR di Gerbang 2.
 
 **Cara kerja yang disetujui user, 2026-11-15:** "use a workflow — user secara eksplisit mengizinkan orkestrasi
@@ -191,10 +191,10 @@ subagent diverifikasi ulang sebelum dipakai.
 **Tahap A selesai, 2026-11-15** (workflow `wf_44e981c7-788`, 4 agent opus medium, read-only; laporan di scratchpad sesi
 `stageA/r0-r3.md`; setiap temuan dipakai di bawah diverifikasi ulang oleh main agent dengan kode, query pgweb atau run):
 - Agent 1 (look-ahead, independen): 53 indikator (default + parameter pendek, panjang, ekstrem), kondisi inti, 20 candle,
-  transform Screener, rank dan likuiditas bersih pada BBCA, ALKA, BTEK, IHSG; Flow: tepat 8 bocor (sama dengan M446); uji
+  transform Screener, rank dan likuiditas bersih pada BBCA, ALKA, BTEK, IHSG; Flow: tepat 8 bocor (sama dengan M448); uji
   tingkat mesin (5 permintaan × 4 titik potong) bersih, diulang main agent: 0 beda selain `period_end` di hari potong.
   Baru: harga yang disesuaikan mundur adalah look-ahead dan peringatannya hanya saat melewati 2026-09-12; PBSA dimuat
-  ulang setelah batas (ERRORS M447).
+  ulang setelah batas (ERRORS M449).
 - Agent 2 (makna titik-waktu D): FL18/19/20/44/45 dengan re-rank harian layak (lompatan nyata, persilangan palsu 0-6 dari
   59-156; di hari terakhir sama persis dengan Terminal). FL23 titik-waktu "top 3 pembeli 20 sesi sampai t, posisi
   kumulatif" tidak layak sebagai sinyal: kelompok berganti 32-35% hari, lompatan 25-36× aliran harian, perubahan 20 sesi
@@ -205,13 +205,13 @@ subagent diverifikasi ulang sebelum dipakai.
   semua papan tetapi menjumlah di papan terpilih, Nego/Cash merusak VWAP, broker yang berhenti tetap di kelompok.
 - Agent 3 (tata bahasa bersama): layak untuk kondisi per saham non-flow (`conditionSignal` cocok dengan `evaluate()` di
   setiap bar); impor dari inti Backtest ke Screener membuat siklus modul yang mematikan screener-worker saat start
-  (diulang main agent: `ReferenceError ... SCREENER_REGISTRY`); bentuk lineage runtuh untuk jenis baru (M450); versi mesin
-  tidak meng-hash subfolder; Donchian di Backtest tidak pernah terpicu (M449); perbedaan makna EVENT within vs jendela
+  (diulang main agent: `ReferenceError ... SCREENER_REGISTRY`); bentuk lineage runtuh untuk jenis baru (M452); versi mesin
+  tidak meng-hash subfolder; Donchian di Backtest tidak pernah terpicu (M451); perbedaan makna EVENT within vs jendela
   masuk, bar 0, NA vs INDICATOR_OUTPUT_EMPTY, sisi "price" = volume; atribut universe, return_rank, rank lintas saham dan
   flow Screener (jendela 60 sesi) belum bisa per hari tanpa look-ahead.
 - Agent 4 (data Flow): premis BBCA keliru (penurunan 2024-2026 nyata, tanpa aksi korporasi); rights issue: lot broker
   skala asli, harga disesuaikan (COCO 1,82× sebelum ex-date, diulang main agent; 12 kejadian 1,26-19,5×); PBSA patah
-  skala 2026-09-01; PSSI lot pecahan; `gap_bars`/`unmatched_rows` tak pernah ditampilkan; `bf`/`sf` belum dibaca (M448).
+  skala 2026-09-01; PSSI lot pecahan; `gap_bars`/`unmatched_rows` tak pernah ditampilkan; `bf`/`sf` belum dibaca (M450).
 - Ditolak: Agent 2 F10 (lompatan garis Flow sebagai stop): stop dan trailing hanya boleh indikator overlay registry
   (`engine.ts:111-119`, CONTRACT bagian 3), jadi tidak berlaku.
 - Operasional: memori Postgres 1,84-1,99 GB dari batas 2,0 GB sejak 15:00 UTC (sebelum agent membaca); skrip restart
@@ -219,20 +219,20 @@ subagent diverifikasi ulang sebelum dipakai.
 
 **Tahap B selesai, 2026-11-15** (workflow `wf_066acb26-8c2`, agent 5-8 opus medium, read-only; laporan di scratchpad sesi
 `stageB/r0-r3.md`; temuan dipakai setelah diverifikasi main agent):
-- Agent 5 (keamanan hak): halaman menghitung kondisi di browser dan asetnya terbuka tanpa sesi (live 200; M454), jadi D harus
+- Agent 5 (keamanan hak): halaman menghitung kondisi di browser dan asetnya terbuka tanpa sesi (live 200; M456), jadi D harus
   hanya di worker; rute edge-bff memakai `settings.owner` konstan (`backtest.py:1249`); /signals meneruskan badan user, jadi
   hak bisa dipalsukan tanpa amplop `{request, context}`; akses harus diperiksa di resolusi seri (kedalaman mana pun); Screener
   sudah menawarkan versinya sendiri dari FL18/19/20/23/44/45 ke semua sesi (K8).
 - Agent 6 (performa): klaim 95 ms berlaku di setelan bawaan; top 20 = 291 ms per saham dan FL19 kuadratik; A-C 29 ms median per
   indikator, sampai 401 ms; grid 25 sel menghitung ulang seri baru tanpa memo; batas memori live worker 1 GB tak tercatat, di
-  bawah puncak 1,31 GB (M453); biaya Railway ±USD 0,07-1,2 per 1.000 run; bangun dari tidur 3-15 detik.
+  bawah puncak 1,31 GB (M455); biaya Railway ±USD 0,07-1,2 per 1.000 run; bangun dari tidur 3-15 detik.
 - Agent 7 (statistik): rumus PSR/DSR benar; percobaan dihitung per lini sehingga pencarian lintas saham/indikator lolos dari
   DSR; OOS hanya pemisahan laporan; tanpa batas minimal transaksi; SURVIVORSHIP hanya portofolio; anchor yang dipilih admin
-  adalah hindsight yang tidak terdeteksi uji potong data (M455).
+  adalah hindsight yang tidak terdeteksi uji potong data (M457).
 - Agent 8 (kesesuaian rencana): urutan deploy draft mematikan semua backtest (worker lama menolak `context.rights`); versi
-  tidak mencakup `calc/flow.ts`/`flowRegistry.json` (M451); CI tidak menahan deploy (M453); peringatan 2016-2020 salah
+  tidak mencakup `calc/flow.ts`/`flowRegistry.json` (M453); CI tidak menahan deploy (M455); peringatan 2016-2020 salah
   diikat ke `gap_bars`; K1-K7 tanpa konteks; opsi K3(b)/K4(b)/K5(b)/K2 tanpa langkah; K2 tanpa opsi `auto_c` titik-waktu;
-  penolakan belum empat bagian; A-C = 43 (bukan 44); cacat baru belum di ERRORS (M451-M455 dicatat).
+  penolakan belum empat bagian; A-C = 43 (bukan 44); cacat baru belum di ERRORS (M453-M457 dicatat).
 - Tidak dipakai apa adanya: Agent 7 F1 "keluarkan ticker dari lineage" (membalik keputusan K3/PF4 di CONTRACT); diganti opsi
   K6 hitungan pencarian per owner. Agent 7 F9 (Monte Carlo menganggap transaksi independen): SUSPECTED, ditunda (belum diukur
   pada D). Agent 6 F6 (latensi bangun): hanya dokumen.

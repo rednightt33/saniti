@@ -57,7 +57,7 @@ export const PATHS = {
   generator: 'apps/edge-bff/screener/scripts/build-screener-registry.mjs',
   loader: 'apps/backtest-worker/loader/register.mjs',
   out: 'apps/edge-bff/screener/src/core/screener-registry.json',
-  // EXEC-BACKTEST-REVAMP P2 (K5 a, ERRORS M449): the lag probe's verdict for the Backtest core's own conditions
+  // EXEC-BACKTEST-REVAMP P2 (K5 a, ERRORS M451): the lag probe's verdict for the Backtest core's own conditions
   compareLag: 'apps/edge-bff/backtest/src/core/compare-lag.json',
   flowRegistry: 'apps/edge-bff/terminal/src/data/flowRegistry.json',
   flowKinds: 'apps/edge-bff/screener/src/core/flow-kinds.json',
@@ -925,7 +925,7 @@ export async function build({ against = null } = {}) {
 
 export const serialize = doc => JSON.stringify(doc, null, 2) + '\n';
 
-/** EXEC-BACKTEST-REVAMP P2 (user K5 a, 2026-11-15; ERRORS M449): the outputs the lag probe reads one bar late against
+/** EXEC-BACKTEST-REVAMP P2 (user K5 a, 2026-11-15; ERRORS M451): the outputs the lag probe reads one bar late against
     a bar field (price_compare_lag gt or lt 1, e.g. Donchian's bands, which hold today's high and low), written for the
     Backtest core (conditions.ts indicatorCondition): its "price above / crosses above the upper band" then reads the
     band of the prior bar, as the Screener does, instead of a comparison that can never be true. One derivation (this

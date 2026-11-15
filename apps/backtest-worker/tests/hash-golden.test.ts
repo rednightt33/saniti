@@ -1,4 +1,4 @@
-/* EXEC-BACKTEST-REVAMP P0.1 (ERRORS M450): the absolute lineage key, variant hash and request hash of a set of legacy
+/* EXEC-BACKTEST-REVAMP P0.1 (ERRORS M452): the absolute lineage key, variant hash and request hash of a set of legacy
    requests, frozen. Trials are counted per (owner, lineage) and keyed by variant hash in edge_bff.backtest_trials, so a
    refactor of hash.ts that changes any of these values silently splits or merges stored trial lines. A change is made
    only on purpose (user decision K7 a, 2026-11-15) and then recorded here: GOLDEN_UPDATE=1 npm test. */

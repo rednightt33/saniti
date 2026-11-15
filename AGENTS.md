@@ -206,7 +206,7 @@ Why it matters:
 - The container limit is 2 GB since 2026-11-09 (user: "Naikkan limit sementara ke 2 GB"; "Limit ram keep 2gb dulu,
   nanti saya yg rubah"), after 1 GB from 2026-11-06 (user: "minta tolong untuk memory progress di cap jadi 1 GB..
   sekarang 4GB") stopped a rebuild for memory; `.railway/railway.ts`, `Postgres.deploy.limitOverride` (recorded from the
-  live limit 2026-11-15, ERRORS M453). The 1 GB test of 2026-11-03 made year-wide queries take
+  live limit 2026-11-15, ERRORS M455). The 1 GB test of 2026-11-03 made year-wide queries take
   3–6 minutes (AI-shaped queries 0.1 s); 4 GB was used 2026-11-03 to 2026-11-06. Postgres itself uses about 0.1–0.3 GB at rest (`shared_buffers` 128 MB);
   the rest is cache.
 - To change the limit, run `python3 scripts/set_postgres_memory.py --gb N` (check: guards, the `railway.ts` edit, the

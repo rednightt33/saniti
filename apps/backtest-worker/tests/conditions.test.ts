@@ -46,7 +46,7 @@ function indicatorCases() {
   }
   return cases;
 }
-/* EXEC-BACKTEST-REVAMP K5 a (ERRORS M449): price against an output the Screener's lag probe marks reads the output's
+/* EXEC-BACKTEST-REVAMP K5 a (ERRORS M451): price against an output the Screener's lag probe marks reads the output's
    prior bar (the page's regEval compared with today's band, which a Donchian close can never exceed); the oracle reads
    the probe's file, not the core's code */
 const LAG = (lagDoc as { price_compare_lag: Record<string, Record<string, { field: string; gt: number; lt: number }>> }).price_compare_lag;

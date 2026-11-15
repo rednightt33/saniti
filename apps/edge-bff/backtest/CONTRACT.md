@@ -746,7 +746,7 @@ the Screener writes them (`screener/src/core/contract.ts`). It is computed by th
 - the preview loads IHSG (for `vs_index`), and events and broker rows when a Flow indicator needs them.
 
 The legacy kinds are unchanged except K5 a: price against an output the Screener's lag probe marks (today Donchian's
-bands) reads the output's prior bar (`compare-lag.json`, written by the Screener's registry generator; ERRORS M449). 426
+bands) reads the output's prior bar (`compare-lag.json`, written by the Screener's registry generator; ERRORS M451). 426
 legacy indicator forms give the same entry signal in both languages on 8 real tickers and hash as one trial
 (`apps/backtest-worker/tests/canonical.test.ts`).
 
@@ -757,7 +757,7 @@ lowered) and today's broker classification on every date (FL34, user decision 5)
 (about 56 bytes a row, `bf`/`sf` by name, null as NaN), kept only when a Flow reference reads them; the classification
 from terminal-api's `brokers` reference. A broker-price value (family "Buy VWAP & Implied Cost" or a price unit) is
 empty where its window reads a session on another basis than the prices: before an action dated on or before
-2026-09-12 (the prices are back-adjusted for it) or across a later one (K3 a; ERRORS M448).
+2026-09-12 (the prices are back-adjusted for it) or across a later one (K3 a; ERRORS M450).
 
 **13.3 Point-in-time indicators (sections 3, 5).** FL18, FL19, FL20, FL23, FL44, FL45, FL51 (`apps/backtest-worker/src/pit/`,
 worker-only, admins only): the brokers chosen again on each candle from the anchor (FL18-FL20, FL44, FL45: `anchor`) or
@@ -783,7 +783,7 @@ STATE, EVENT, window with a point-in-time side, a price, a constant or any other
 | `UNKNOWN_FIELD` `context` | a body from the page that carries `context` (edge-bff) |
 | `INVALID_CONTEXT` | rights that are not a list of distinct known rights |
 
-**13.5 Results (section 7).** New warnings: `PRICES_RESTATED` (K4 a, M447), `FLOW_PRE_2021` (decision 4),
+**13.5 Results (section 7).** New warnings: `PRICES_RESTATED` (K4 a, M449), `FLOW_PRE_2021` (decision 4),
 `FLOW_BASIS_CHANGE`, `FLOW_SOURCE_GAP`, `FLOW_ROWS_DROPPED`, `FLOW_CROSSING_BOARDS`, `FEW_TRADES`, `OOS_STRADDLE`,
 `DSR_SAMPLE_RULE`, `ANCHOR_INSIDE_PERIOD`, and `SURVIVORSHIP` in single mode too. The sensitivity grid can vary a grammar
 threshold (`x_field`, e.g. `test.value`; 20 % steps of its base, cells the validation refuses are null). K6 a:
@@ -807,7 +807,7 @@ session (the kept one too); result parts joined on `owner_key`. The Screener (K8
 marked `access: admin`, refused by screener-worker without the right, filtered from its catalog per session.
 
 **13.9 Page (section 10).** Unchanged in this step (back end first): the page does not compute grammar or point-in-time
-conditions and no module it imports reaches `apps/backtest-worker/` (`tests/worker-only.test.mjs`, M454). The new page
+conditions and no module it imports reaches `apps/backtest-worker/` (`tests/worker-only.test.mjs`, M456). The new page
 (Stage D) asks the worker for their series.
 
 **13.10 Look-ahead gate.** `.github/workflows/backtest-lookahead.yml` (AGENTS.md "Backtest look-ahead gate"); real data:

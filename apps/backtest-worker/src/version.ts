@@ -6,7 +6,7 @@
      the shared core (apps/edge-bff/backtest/src/core, .ts and .json, subfolders included), the worker's own modules
      (apps/backtest-worker/src, subfolders included), the Terminal's calculation module the core imports
      (apps/edge-bff/terminal/src/calc: indicators.ts, flow.ts, fd.ts) and the flow registry calc/flow.ts reads its
-     defaults from (EXEC-BACKTEST-REVAMP P0.2, ERRORS M451: a Flow formula or default could change a result while
+     defaults from (EXEC-BACKTEST-REVAMP P0.2, ERRORS M453: a Flow formula or default could change a result while
      the version stayed the same), and the Screener core with its catalog and registries (EXEC-BACKTEST-REVAMP P1: the
      conditions in the Screener's grammar, kind 'test', are computed by it, grammar.ts). Not a hand-kept number, so it cannot stay the same while the code changes; the
      image keeps the repository layout, so the same files give the same version in the repository and in the image.

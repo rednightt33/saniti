@@ -159,7 +159,7 @@ export type RunLimits = Pick<Limits, 'max_positions' | 'max_portfolio_tickers'>;
 const CEILINGS: RunLimits = { max_positions: MAX_POSITIONS, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS };
 export const ADJUSTED_HISTORY_BOUNDARY = '2026-09-12';
 
-/* EXEC-BACKTEST-REVAMP P3 (user decision 4 and K3 a, 2026-11-15; ERRORS M157, M448): what the run's Flow conditions read
+/* EXEC-BACKTEST-REVAMP P3 (user decision 4 and K3 a, 2026-11-15; ERRORS M157, M450): what the run's Flow conditions read
    from the broker data, per stock, over the sessions they read (the period, and before it as many sessions as the
    longest Flow series reads: its window or baseline; the whole history for a series that reads all of it):
    - FLOW_PRE_2021: those sessions start before 2021 (the 2016-2020 source misses some brokers on some days);
@@ -585,7 +585,7 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
     warnings.push({ code: 'DATA_GAP', count, tickers: [...gapTickers].sort(byTicker),
       message: `A held or signalled stock had no bar on ${count === 1 ? '1 trading day' : `${count} trading days`} (counted per stock): a position held through such a day was valued at its last close, and an entry signal on the day before it was skipped instead of filled at a stale price.` });
   }
-  // EXEC-BACKTEST-REVAMP P7 (user K4 a, 2026-11-15; ERRORS M447): a stock with a split, bonus share or rights issue after
+  // EXEC-BACKTEST-REVAMP P7 (user K4 a, 2026-11-15; ERRORS M449): a stock with a split, bonus share or rights issue after
   // the period's start and on or before the boundary has its published prices inside the period restated with a
   // factor the market learned only on that day (look back); listed per stock, whatever the period's end
   const restated = signalled.filter(r => r.p.data.corporate_actions.some(a => a.date > from && a.date <= ADJUSTED_HISTORY_BOUNDARY)).map(r => r.p.ticker).sort(byTicker);
@@ -597,7 +597,7 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
   warnings.push({ code: 'ARB_NOT_MODELLED', message: 'Auto-rejection limits are not modelled: a stop fills at the lower of the open and the stop level, with no lower-limit lock; entries are only skipped when the open gaps up by the ARA gap fraction or more (when that option is on).' });
   warnings.push({ code: 'TICK_NOT_MODELLED', message: 'Fills are not rounded to the IDX tick size.' });
   if (!single) warnings.push({ code: 'SURVIVORSHIP', message: 'The stocks are picked from today\'s list of published tickers: stocks delisted before today cannot be picked, which can flatter past results.' });
-  // EXEC-BACKTEST-REVAMP (ERRORS M455): a single stock is chosen from today's list too
+  // EXEC-BACKTEST-REVAMP (ERRORS M457): a single stock is chosen from today's list too
   else warnings.push({ code: 'SURVIVORSHIP', message: 'The stock is chosen from today\'s list of published tickers: a strategy tried on stocks that are still listed today looks better than it would have on the stocks of its time, some of which were delisted since.' });
 
   return {

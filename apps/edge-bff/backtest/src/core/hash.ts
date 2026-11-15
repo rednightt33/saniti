@@ -95,7 +95,7 @@ export const variantHash = (q: BacktestRequest): Promise<string> => sha256Hex(ca
    enum or broker choices that tune them) are left out. Only enabled conditions count (a disabled one is not part of
    the tested strategy), and their order does not (the same set of rules is the same strategy). */
 const sideShape = (s: { type: string; output?: string }) => s.type === 'output' ? { type: 'output', output: s.output } : { type: s.type };
-/* EXEC-BACKTEST-REVAMP P2 (ERRORS M450): a condition in the Screener's grammar has the shape of its test at every depth,
+/* EXEC-BACKTEST-REVAMP P2 (ERRORS M452): a condition in the Screener's grammar has the shape of its test at every depth,
    numbers left out as for the other kinds: every number becomes 'n' (thresholds, within, window lengths and counts),
    `params` are left out (an indicator's or pattern's tuning, numbers and enum options) and of a transform's `args`
    only the references stay (ratio's `by`: another series is another strategy; a length or a moving-average type is

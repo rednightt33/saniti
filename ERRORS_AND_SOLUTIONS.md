@@ -8096,7 +8096,7 @@ in its staleness check.
 - **Status:** OPEN (plan, waiting for the user's go).
 - **Lesson:** a guard must read with the same view of the system in every path that runs it.
 
-### M446 — Look-ahead: eight Terminal Flow indicators choose their brokers with data up to the last candle; four data inputs carry no availability date (2026-11-15, open)
+### M448 — Look-ahead: eight Terminal Flow indicators choose their brokers with data up to the last candle; four data inputs carry no availability date (2026-11-15, open)
 
 - **Found by:** BACKTEST-REVAMP (PLAN.md), before the Terminal Flow indicators enter the Backtest. User 2026-11-15:
   "bisa mengintip masa depan, seharusnya tidak terjadi ... Jika berlaku untuk seluruh indikator, maka ini perlu
@@ -8154,7 +8154,7 @@ in its staleness check.
 - **Lesson for new data:** a table that feeds signals carries the date each row became known, not only the date it
   describes; a classification used on past dates is dated too (Part A update proposed to the user 2026-11-15).
 
-### M447 — Back-adjusted price history is a look-ahead; the backtest warns only when a period crosses 2026-09-12, and PBSA was restated after it (2026-11-15, open)
+### M449 — Back-adjusted price history is a look-ahead; the backtest warns only when a period crosses 2026-09-12, and PBSA was restated after it (2026-11-15, open)
 
 - **Found by:** BACKTEST-REVAMP Stage A, Agent 1 (independent look-ahead audit); verified by the main agent the same day.
 - **Verified:**
@@ -8183,11 +8183,11 @@ in its staleness check.
   (`PRICES_RESTATED`, listed tickers) whenever a split, bonus share or rights issue dated after the period's start and on
   or before the boundary restates the prices inside the period, whatever the period's end; the as-traded price series
   stays a separate data EXEC.
-- **Status:** OPEN. Corrects M446 item 4 ("known and warned").
+- **Status:** OPEN. Corrects M448 item 4 ("known and warned").
 - **Lesson for new data:** a restated series carries the date of each restatement; "final" means final for that load,
   not as traded.
 
-### M448 — Broker lots and prices on different bases: rights issues, a re-downloaded range (PBSA) and a post-ex-date fetch (PSSI); gap and dropped-row markers never surfaced (2026-11-15, open)
+### M450 — Broker lots and prices on different bases: rights issues, a re-downloaded range (PBSA) and a post-ex-date fetch (PSSI); gap and dropped-row markers never surfaced (2026-11-15, open)
 
 - **Found by:** BACKTEST-REVAMP Stage A, Agent 4 (Flow data quality); verified by the main agent the same day.
 - **Verified:**
@@ -8226,7 +8226,7 @@ in its staleness check.
   after an action (PBSA), which has no marker in the published files; the data-layer fix stays open.
 - **Status:** OPEN (data layer); interim Backtest guard built on branch, awaiting Gate 2.
 
-### M449 — Backtest: "close crosses above (or is above) the Donchian upper band" can never be true (2026-11-15, open)
+### M451 — Backtest: "close crosses above (or is above) the Donchian upper band" can never be true (2026-11-15, open)
 
 - **Found by:** BACKTEST-REVAMP Stage A, Agent 3; verified by the main agent.
 - **Verified:** `apps/edge-bff/terminal/src/calc/indicators.ts:345-347` Donchian upper = `kMax(H, length)`, which includes
@@ -8249,7 +8249,7 @@ in its staleness check.
   every other digest is the same; the oracle test applies the probe's file.
 - **Status:** FIXED ON BRANCH, awaiting Gate 2 (merge and deploy).
 
-### M450 — Trial hashes: unknown condition kinds share one lineage shape, and the variant hash reads parameters as sent (2026-11-15, open)
+### M452 — Trial hashes: unknown condition kinds share one lineage shape, and the variant hash reads parameters as sent (2026-11-15, open)
 
 - **Found by:** BACKTEST-REVAMP Stage A, Agent 3; verified by the main agent.
 - **Verified:** `apps/edge-bff/backtest/src/core/hash.ts:94-98` `conditionShape` knows `indicator` and `price_action`;
@@ -8273,7 +8273,7 @@ in its staleness check.
   recursive shape; a hash change is recorded in a golden on purpose.
 - **Status:** FIXED ON BRANCH, awaiting Gate 2 (merge and deploy).
 
-### M451 — Backtest versions do not cover what the worker computes with: subfolders, the Flow formulas and flowRegistry.json; the worker image lacks flowRegistry.json (2026-11-15, open)
+### M453 — Backtest versions do not cover what the worker computes with: subfolders, the Flow formulas and flowRegistry.json; the worker image lacks flowRegistry.json (2026-11-15, open)
 
 - **Found by:** BACKTEST-REVAMP Stage A (Agent 3) and Stage B (Agent 8); verified by the main agent.
 - **Verified:** `apps/backtest-worker/src/version.ts:18-30` hashes only the files directly in `apps/edge-bff/backtest/src/core`
@@ -8287,7 +8287,7 @@ in its staleness check.
   tests that an edit in each source changes ENGINE_VERSION; `check_image_imports` for both images (BACKTEST-REVAMP P0).
 - **Status:** FIXED ON BRANCH (P0-P1: `version.ts` walks subfolders and covers `calc/`, `flowRegistry.json` and the Screener core; the image copies `flowRegistry.json`, the Screener core and its generator; `tests/version.test.ts`, `tests/image-imports.test.ts`), awaiting Gate 2.
 
-### M452 — Terminal Flow helpers fail silently: a malformed anchor becomes the first candle, an unknown broker draws 0, FL23 ranks on all boards but sums on the chosen ones (2026-11-15, open; Terminal untouched by user decision)
+### M454 — Terminal Flow helpers fail silently: a malformed anchor becomes the first candle, an unknown broker draws 0, FL23 ranks on all boards but sums on the chosen ones (2026-11-15, open; Terminal untouched by user decision)
 
 - **Found by:** BACKTEST-REVAMP Stage A (Agent 2); verified by the main agent.
 - **Verified:** `apps/edge-bff/terminal/src/calc/flow.ts:389-393` `anchorAt`: a value that is not `^\d{4}-\d{2}-\d{2}$` (and a
@@ -8299,7 +8299,7 @@ in its staleness check.
   Terminal stays as it is (user 2026-11-15: "Terminal jangan disentuh").
 - **Status:** OPEN for the Terminal (not changed, user decision). The Backtest does not inherit it: its point-in-time versions refuse a malformed anchor (`INVALID_ANCHOR`), "view" or none (`ANCHOR_REQUIRED`) and a named broker without rows (`UNKNOWN_BROKER`), and rank and sum on the same boards (`apps/backtest-worker/src/pit/`).
 
-### M453 — EDGE deploy and runtime configuration drift: CI does not gate deploys, backtest-worker runs under an undocumented 1 GB memory limit, Postgres runs at 2 GB while the config says 1 GB (2026-11-15, open)
+### M455 — EDGE deploy and runtime configuration drift: CI does not gate deploys, backtest-worker runs under an undocumented 1 GB memory limit, Postgres runs at 2 GB while the config says 1 GB (2026-11-15, open)
 
 - **Found by:** BACKTEST-REVAMP Stage B (Agents 6 and 8); verified by the main agent (Railway GraphQL, read-only).
 - **Verified:**
@@ -8316,7 +8316,7 @@ in its staleness check.
   Flow work ships; decide whether CI gates deploys (`checkSuites: true` or a required check on `main`).
 - **Status:** RECORDED ON BRANCH: `.railway/railway.ts` holds the live limits (backtest-worker 1 GB, K9 b; Postgres 2 GB) and `checkSuites: true` for edge-bff and screener-worker (K10 a); the CI change takes effect when the config is applied with the deploy after Gate 2 (`railway config plan`, then apply, with approval).
 
-### M454 — Backtest page bundle and broker files are reachable outside the worker: the page computes conditions in the browser, and its assets need no session (2026-11-15, design constraint)
+### M456 — Backtest page bundle and broker files are reachable outside the worker: the page computes conditions in the browser, and its assets need no session (2026-11-15, design constraint)
 
 - **Found by:** BACKTEST-REVAMP Stage B (Agent 5); verified by the main agent.
 - **Verified:** `apps/edge-bff/backtest/src/api/compute.ts:10, 61-72` evaluates `conditionSeries` in the browser on broker
@@ -8328,7 +8328,7 @@ in its staleness check.
   import-graph test and a build check keep them out of the page bundle; the page asks the worker for their series.
 - **Status:** HELD ON BRANCH: no module the page imports reaches `apps/backtest-worker/` (`apps/edge-bff/backtest/tests/worker-only.test.mjs`), the built bundle has no `pit/`, `flow_point_in_time` or `ANCHOR_REQUIRED` (checked 2026-11-15), and the point-in-time indicators are refused by the worker without the right; the page assets still need no session (unchanged).
 
-### M455 — Backtest statistics: trials counted per line only, out-of-sample not a holdout, no minimum trade count, survivorship warned only in portfolio mode (2026-11-15, open)
+### M457 — Backtest statistics: trials counted per line only, out-of-sample not a holdout, no minimum trade count, survivorship warned only in portfolio mode (2026-11-15, open)
 
 - **Found by:** BACKTEST-REVAMP Stage B (Agent 7); verified by the main agent.
 - **Verified:** `apps/edge-bff/backtest/src/core/hash.ts:94-125` lineage includes the single-mode ticker and each

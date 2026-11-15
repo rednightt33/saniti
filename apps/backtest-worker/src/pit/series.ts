@@ -4,7 +4,7 @@
    cohort rule in one pass), kept per ticker. Checked per ticker: the anchor not before its first broker day
    (ANCHOR_BEFORE_DATA; a portfolio leaves such a stock out, signals.ts EXCLUDED_CODES). A named broker without rows
    is checked up to the period's end by the caller (namedWithoutRows): rows after it never decide a run. A price or percentage value is left empty where its span from the anchor reads broker
-   lots on another basis than the prices (K3 a, ERRORS M448: an action on or before ADJUSTED_HISTORY_BOUNDARY after the
+   lots on another basis than the prices (K3 a, ERRORS M450: an action on or before ADJUSTED_HISTORY_BOUNDARY after the
    anchor, or a later one inside the span), noted for FLOW_BASIS_CHANGE; FLOW_PRE_2021 reads the anchor's date. */
 import type { Calc } from '../../../edge-bff/backtest/src/core/conditions.ts';
 import { ADJUSTED_HISTORY_BOUNDARY } from '../../../edge-bff/backtest/src/core/engine.ts';
