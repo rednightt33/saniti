@@ -361,8 +361,15 @@ def plan(db, ents, until=None, since=None):
     bounds = db.execute('SELECT MIN("Date") AS first, MAX("Date") AS last FROM public."IDX_Broker_Summary"').fetchone()
     last = min(bounds['last'], until) if until else bounds['last']
     for e in ents:
-        newest = db.execute('SELECT max(date) AS d FROM public."Feature_03_Stock_Broker_Daily_INDEX" WHERE ticker=%s',
-                            (e['ticker'],)).fetchone()['d']
+        # the least advanced of its feature tables: a run stopped between two tables (a restart, a failure) leaves one
+        # behind, and the next run recomputes from there (writes are idempotent upserts); a table without any row of
+        # the entity means a first fill
+        ends = []
+        for f in features_of(e):
+            dc = 'date' if f in (1, 2, 3) else 'trade_date'
+            ends.append(db.execute(sql.SQL('SELECT max({}) AS d FROM public.{} WHERE ticker=%s').format(
+                sql.Identifier(dc), sql.Identifier(b.BASE[f] + '_INDEX')), (e['ticker'],)).fetchone()['d'])
+        newest = None if None in ends else min(ends)
         e['mode'] = 'continue' if newest else 'first'
         nxt = newest + timedelta(days=1) if newest else None
         e['from_date'] = max(min(since, nxt) if since else nxt, e['rows_from']) if newest else e['rows_from']
