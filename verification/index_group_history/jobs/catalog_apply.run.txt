@@ -1,0 +1,8 @@
+JOB 870deb11-a997-4734-a5a0-4057a72d66d4
+4
+VERDICT PASS
+JOB_DONE APPLY
+JOB_EXIT 0
+POSTGRES_MEMORY_CHECK
+{"now": "2026-11-15T18:26:00+00:00", "refusals": [], "reasons": [], "postgres_memory_gb": 1.9208383146666668, "active_statements": 0, "user_runs": {"edge_jobs": 0, "orc_turns": 0}, "verdict": "READY", "railway_credential": "RAILWAY_API_TOKEN"}
+VAR_REMOVED

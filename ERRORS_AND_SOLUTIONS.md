@@ -8041,6 +8041,45 @@ in its staleness check.
   by the manual mode `overview` (AGENTS.md, after a large update, step 4; OVERVIEW_FORMULAS.md section 13).
 - **Lesson:** a cached output is keyed on the content of what it read, at least for the part of history that loaders
   still write; a file that refers to another file by position is rebuilt whenever that file's order changes.
+### M443 — The scheduled Postgres restart can fall between two statements of a long job (2026-11-15, open)
+
+- **Symptom (found while planning EXEC-INDEX-GROUP-HISTORY stage 6, nothing broke):** a multi-hour job on
+  orc-test-runner (the index and group fill, about 3 hours) would overlap the 13:45 UTC run of postgres-memory-cron.
+- **Verified cause (code):** `scripts/restart_postgres.py` counts only client statements in state `active`
+  (`restart_postgres.py:299-303`) and waits up to 60 minutes until there is none. A long job that commits per chunk or
+  computes in Python between statements is `idle` or `idle in transaction` for a few seconds many times, so the restart
+  can start in such a gap: the job's connection and its temporary tables are lost and its last entity may be half
+  written.
+- **Class:** every long job of many statements (Feature backfills, publisher backfills, onboarding jobs) and the
+  scheduled restart; also an `idle in transaction` session of a user run.
+- **Mitigation now:** the fill starts after the 13:45 UTC restart (next 02:45 UTC); `backfill_index_entities.py`
+  continues an entity from its least advanced feature table, so a stopped run is resumed by running it again.
+- **Proposed general fix (not built; needs the user's decision):** the guard also refuses while a client session is
+  `idle in transaction`, or while a job holds a declared session lock (one advisory lock key that long jobs take);
+  the refusal message names the session's application_name and start time.
+- **Status:** OPEN (proposal).
+- **Lesson:** a guard that checks one instant cannot see work that pauses; work that must not be cut declares itself.
+
+### M444 — The independent Feature 06 check refused an exact value: running float sums near zero (2026-11-15, fixed)
+
+- **Symptom:** the groups fill (EXEC-INDEX-GROUP-HISTORY stage 6, job `4dd6f307`) stopped before writing anything:
+  `F06 independent mismatch (2022-04-01, 'Nego')/foreign_strength_momentum_5d: 0.0 vs -2.9579048089090065e-05` (GAGOES,
+  the first group). Nothing was written (the check runs before `apply_chunks`).
+- **Verified cause (dev data, exact Decimal, `strength_exact.py` in the session; the test below):** in GAGOES's 20-session
+  Nego window the only non-zero daily foreign share is -7.5e-10 (all others 0), so the strength is exactly -100 on both
+  dates and the momentum exactly 0, the stored SQL (numeric) value. The check (`scripts/check_feature_06_sample.py`)
+  used pandas `rolling().sum()`, a running sum that keeps the rounding remainder (about 2e-16) of a -1 that had left the
+  window; against a window sum of 7.5e-10 the remainder made the strength -100.0000296.
+- **Class:** an independent float check of ratios of window sums (foreign strength, net-to-turnover, frequency shares)
+  where a window holds values far smaller than earlier ones: small groups and thin boards, any stock (the stock Feature
+  06 check and `apps/feature-05-06-job` use the same module); IHSG never reached it (its Nego shares are never tiny).
+- **Fix (the checking layer, not the data):** `wsum` sums each window from its own values (`sliding_window_view`,
+  `nansum`), with `rolling().sum()`'s rules for missing values; every rolling sum of the check uses it.
+  `scripts/tests/test_check_feature_06_sample.py`: same results as `rolling().sum()` on random data with gaps; on the
+  dev window shape the direct sum is off by rounding only (1.4e-14) while the running sum is off by 2.8e-06. Local IHSG
+  and entity checks pass with it.
+- **Status:** FIXED (the fill is run again).
+- **Lesson:** an independent check must be at least as exact as what it checks; a running sum is not.
 
 ### M445 — Look-ahead: eight Terminal Flow indicators choose their brokers with data up to the last candle; four data inputs carry no availability date (2026-11-15, open)
 

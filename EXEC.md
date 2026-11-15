@@ -14202,6 +14202,22 @@ dengan sidik data preflight; tidak menimpa baris yang ada), job `verification/in
   job salah mencetak angka Decimal; tidak ada yang ditulis). Perkiraan isi penuh 75 entitas: baca ±1-1,5 jam + hitung
   ±2 jam. Dijadwalkan sesudah restart terjadwal Postgres 13:45 UTC (pemeriksa restart hanya melihat statement aktif,
   sehingga bisa jatuh di sela statement job panjang; skrip juga bisa melanjutkan dari tabel fitur yang tertinggal).
+- Tahap 6 percobaan 1 (2026-11-15 12:12 UTC, job `4dd6f307`, 33 grup): berhenti sebelum menulis apa pun (0 baris baru,
+  dibaca balik): cek F06 independen menolak nilai yang benar (GAGOES 2022-04-01 Nego, momentum 0 eksak vs -2,96e-05 dari
+  jumlah berjalan float). Diperbaiki di lapisan pemeriksa: ERRORS M444. Isi ulang untuk 75 entitas sekaligus dijadwalkan
+  sesudah restart terjadwal Postgres 13:45 UTC (`jobs/fill_all.*`, batch 15, large_write).
+- **Hasil tahap 6-9 (2026-11-15/16 WIB) — SELESAI:**
+  - Tahap 6: job `6f934738` (13:58-18:13 UTC) 76 entitas lulus semua cek dan tertulis: F01/F04 29.008 baris, F02/F05
+    6.045.057, F03/F06 116.616; mulai 2024-01-02, broker s.d. 2026-11-09 (token Stockbit kedaluwarsa 10 Nov), harga
+    s.d. 2026-11-13. Cek independen dari data mentah: akumulasi asing sejak 2016 dan F05 harian sama persis (4 sampel).
+    Restart Postgres 18:13 UTC.
+  - Tahap 7: migrasi `20261115_004` + vocabulary (198 entri) diterapkan, audit Feature PASS; pengaman Governor/sandbox
+    (tidak boleh menjumlah antar-ticker INDEX) dan coverage per entitas aktif sejak 11:38 UTC (`28c41268`).
+  - Tahap 8: stockbit-updater `bbd5aa7f`: setiap ronde sesudah IHSG memperbarui 76 entitas (lanjut dari baris terbaru;
+    gagal = peringatan). Belum teruji di ronde nyata: ronde berikut menunggu token Stockbit baru.
+  - Tahap 9: file broker 2024-2026 43 indeks terbit di Terminal (job `f64de936`, verify 442 file 0 selisih); restart
+    Postgres 18:41 UTC. Grup tidak tampil di Terminal (D2: jalur terpisah).
+  - Terbuka: ERRORS M443 (usulan penjaga restart untuk job panjang, menunggu keputusan user).
 
 ## EXEC-OVERVIEW — halaman Market Overview (tab baru): ringkasan pasar harian dari file publisher, halaman admin (go 2026-11-15; dirilis di dev 2026-11-15, `main` `41699d9f`)
 
