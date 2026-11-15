@@ -144,3 +144,20 @@ TEMP_SIZE {"seconds": 700.5, "mb": "82.1", "rows": {"detail": 272556, "collapsed
   d["gap"] = act.gap.reindex(d.index).fillna(False).astype(bool)
 2026-11-15T11:33:34.395360378Z [INFO]  event="feature6_independent_validated" comparisons=412759 rows=4973
 2026-11-15T11:33:34.395364078Z [INFO]  event="entity_validated" ticker="GPRAJOGO" mode="first" from_date="2024-01-02" window_first="2022-08-26" sessions_before=330 price_rows=0 rows_to_write={"2":76925,"3":1456,"5":76925,"6":1456} f02_seconds=65.3 seconds=78
+2026-11-15T11:35:14.972994846Z [INFO]  event="feature2_progress" pairs=383 total_pairs=383 statements=1
+2026-11-15T11:35:14.972999136Z [INFO]  event="formula_snapshot" routine="public.refresh_feature_03_stock_broker_daily(date,text[])" sha256="8590668bf4dcb1fa797196ad43fc711ba8952db94d25f75511bea4e5e750af66"
+2026-11-15T11:35:14.973003486Z [INFO]  event="formula_snapshot" routine="public.refresh_feature_06(text,date)" sha256="061e6cb4818aa7c3245c0320484d8395f6defef1fc945d51a7ddf1a93ada70cb"
+2026-11-15T11:35:14.973008046Z [INFO]  event="formula_snapshot" routine="public.refresh_feature_01_stock_daily(date,text[])" sha256="2c8e70d8b1477bd2e3138661ddc91c5b401fe978d09d9aeabaa779e8f81b02a3"
+2026-11-15T11:35:17.728040626Z [INFO]  event="feature2_independent_validated" comparisons=43925 sampled_dates=12
+2026-11-15T11:35:19.312353954Z [INFO]  event="feature3_independent_validated" comparisons=55900 rows=2795
+/job/scripts/check_feature_06_sample.py:46: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  d["gap"] = act.gap.reindex(d.index).fillna(False).astype(bool)
+/job/scripts/check_feature_06_sample.py:46: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  d["gap"] = act.gap.reindex(d.index).fillna(False).astype(bool)
+2026-11-15T11:35:23.130939061Z [INFO]  event="feature6_independent_validated" comparisons=544978 rows=6566
+2026-11-15T11:35:23.173658847Z [INFO]  event="entity_validated" ticker="LQ45" mode="first" from_date="2024-01-02" window_first="2022-08-26" sessions_before=330 price_rows=2140 rows_to_write={"1":681,"2":109083,"3":1888,"4":681,"5":109083,"6":1888} f02_seconds=90.5 seconds=107.2
+2026-11-15T11:35:23.316695741Z [INFO]  event="complete" committed=false entities=2 snapshot_id="c1af1a2c-8ff1-43dc-aa58-55c46654fb19"
+SUMMARY {"entities": 2, "apply": false, "seconds": 889.3}
+VERDICT PASS
+JOB_DONE
+JOB_EXIT 0
