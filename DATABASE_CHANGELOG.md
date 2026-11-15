@@ -1,5 +1,24 @@
 # Database changelog
 
+## 2026-11-15 — Market Overview tile size function (20261115_020) — applied on dev
+
+- **Go:** user 2026-11-15 "1 ok, 2 ok, 3 ok, go" (EXEC-OVERVIEW), then "Ok, jalankan semua." (release steps 1-5).
+- **20261115_020_overview_stock_size.sql** (sha256 `b38bde7dda476ef2…`):
+  - `public.overview_stock_size(p_date date) -> (ticker, size_value, size_basis)`: the market map's tile size, today
+    `adv20_value` = sum(close x volume) of the final daily rows over the market's 20 newest sessions up to `p_date`,
+    divided by 20 (decision 2: one source, replaced by market cap when shares outstanding exist);
+  - EXECUTE to `terminal_market_reader`, and SELECT on `Feature_01_Stock_Daily`, `Feature_04_Technical_Indicator`,
+    `Feature_06_Foreign_Domestic`, `Feature_06_Foreign_Domestic_INDEX` and `Feature_Index_Entity` (the publisher's
+    role read none of them before: `has_table_privilege` false for all five, read 2026-11-15);
+  - `Table_Catalog` of `Price_Stock_Indonesia_IDX` names the function in `related_functions`.
+- DRYRUN job `f53eff40`, APPLY job `52e4a5f9` (`verification/overview/jobs/`). Read back through pgweb: the function's
+  `md5(prosrc)` = `f451fc552b78a6174bc47b4e2a217293` (= the migration body and `OVERVIEW_FORMULAS.md`;
+  `scripts/overview_formulas_doc.py --check` OK); 887 rows for 2026-11-13, BBCA Rp 1,685.24 bn and BMRI Rp 824.79 bn
+  per day; the five SELECT grants and EXECUTE true; the publisher role reads every source (probe `publisher_reads`).
+- Measured before (read-only EXPLAIN ANALYZE): the body 0.4-1.4 s for one date, no scan of a large table
+  (`verification/overview/REHEARSAL.md`). `DATABASE_SCHEMA.md` is refreshed by the daily schema workflow (a full read of
+  the large tables, ERRORS M350), not by hand here.
+
 ## 2026-11-15 — 43 indexes in IDX_Stock_Universe (20261115_002); price history of 5 of them — applied on dev
 
 - **Go:** user 2026-11-15 "go langkah 3" (EXEC-INDEX-GROUP-HISTORY).
