@@ -184,7 +184,8 @@ ke `main` bersama, lewat PR di Gerbang 2.
 multi-agent untuk BACKTEST-REVAMP." Roadmap empat tahap: A (review rancangan, agent 1-4) lalu draft EXEC-BACKTEST-REVAMP;
 B (review rencana, agent 5-8) lalu revisi EXEC dan Gerbang 1 (berhenti, tunggu "go"); eksekusi back end; C (code review
 adversarial, agent 9) lalu Gerbang 2 (persetujuan PR, merge, deploy); D (port tampilan, agent 10) lalu Gerbang 3. Subagent
-opus effort high, read-only, paling banyak 4 paralel; prompt dari file user `111.txt` (Bagian Umum + Agent 1-10); laporan
+opus effort medium (user 2026-11-15: "Ganti saja jadi opus 5.5 medium ya untuk subagentsnya"), read-only, paling
+banyak 4 paralel; prompt dari file user `111.txt` (Bagian Umum + Agent 1-10); laporan
 subagent diverifikasi ulang sebelum dipakai.
 
 **Pertanyaan terbuka:** (6) Part A `ERRORS_AND_SOLUTIONS.md` ditambah syarat "setiap data untuk sinyal wajib membawa
