@@ -1,5 +1,19 @@
 # Database changelog
 
+## 2026-11-15 — 43 indexes in IDX_Stock_Universe (20261115_002); price history of 5 of them — applied on dev
+
+- **Go:** user 2026-11-15 "go langkah 3" (EXEC-INDEX-GROUP-HISTORY).
+- **20261115_002_universe_index_rows.sql** (sha256 `e300a06eec721a97…`): 43 `Security Type` index rows (32 Stockbit
+  indexes, 11 IDX sector indexes) with their TradingView symbols. DRYRUN `09a5…`/APPLY job `3f68c3fa`
+  (`verification/index_group_history/jobs/`). Read back: 44 universe indexes, 44 priced entities are universe indexes,
+  history capture 954 open rows (44 index), stocks 862 and funds 45 unchanged.
+- **Prices** (`verification/index_group_history/price_job.py` with `scripts/backfill_idx_price_ticker.py`, TradingView,
+  2018-01-02 or the index's first bar to 2026-11-13): PREFLIGHT 43 of 43 complete (bars = BBCA sessions from the first
+  bar, 0 gaps, 0 extra dates; 71,509 rows). APPLY stored **DBX, ISSI, JII, LQ45, MBX**, 2,140 rows each, read back equal
+  to the BBCA sessions. The 38 others were refused by the database: `Price_Stock_Indonesia_IDX.ticker` is `varchar(4)`
+  (ERRORS M438); each ticker's transaction rolled back, nothing partial was stored.
+- Prepared, not applied (needs the user's go): `20261115_003_price_ticker_varchar12.sql` (ticker `varchar(12)`; rehearsed).
+
 ## 2026-11-15 — Feature_Index_Entity, the INDEX guard and the intraday calendar (20261115_001) — applied on dev
 
 - **Go:** user 2026-11-15 "Ok jalankan", "go langkah 1 dan 2" (EXEC-INDEX-GROUP-HISTORY step 2).

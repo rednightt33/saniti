@@ -14173,3 +14173,6 @@ terhubung GitHub), (2) migrasi A di dev. Migrasi B dan tahap 3 menunggu go terpi
 2018-01-02 (atau bar pertama indeks) s.d. 2026-11-13 dengan `scripts/backfill_idx_price_ticker.py` (preflight, lalu apply
 dengan sidik data preflight; tidak menimpa baris yang ada), job `verification/index_group_history/price_job.py`
 (indeks: celah di tengah riwayat ditolak).
+- Hasil 2026-11-15: migrasi B diterapkan (job `3f68c3fa`); harga: preflight 43/43 lengkap, apply masuk 5 (DBX, ISSI, JII,
+  LQ45, MBX), 38 ditolak karena `Price_Stock_Indonesia_IDX.ticker` `varchar(4)` (ERRORS M438). Perbaikan disiapkan:
+  migrasi `20261115_003` (ticker `varchar(12)`, digladi), menunggu go user.

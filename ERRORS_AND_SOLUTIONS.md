@@ -7915,3 +7915,24 @@ in its staleness check.
   and read back (DATABASE_CHANGELOG 2026-11-15). Its first scheduled intraday run (Monday 10:30 UTC) exercises the code.
 - **Lesson:** a second instance of something the code has known only once (an index, a market, a calendar) is a schema
   change: search every reader of its identifying predicate for a count, sum or union over it before adding it.
+
+### M438 — Price_Stock_Indonesia_IDX.ticker is varchar(4); 38 index tickers were refused (2026-11-15, OPEN)
+
+- **Symptom:** the price history job of EXEC-INDEX-GROUP-HISTORY (APPLY, 2026-11-15 08:07 UTC) stored DBX, ISSI, JII, LQ45
+  and MBX and was refused for the other 38 indexes on `COPY idx_history_stage ... column ticker` (value too long).
+- **Verified cause (live schema):** `Price_Stock_Indonesia_IDX.ticker` is `character varying(4)`; the INDEX ticker rule
+  chosen in the plan (`Feature_Index_Entity_ticker_check`, letters and digits, at most 12, the terminal-api rule) allows
+  longer codes (BISNIS27, IDXENERGY, IDXLQ45LCL). The local rehearsal held the column's type but did not write a price
+  row for a long ticker, so the mismatch only showed on dev.
+- **Effect now:** the 43 rows of migration 20261115_002 are in the universe, and the daily price cron writes the whole
+  universe in one COPY (`price_update.py bulk_upsert_prices`), so its next run that queries the 38 fails for every
+  ticker until the column is widened or the 38 rows leave the universe: 2026-11-15 17:00 WIB (Friday's session, already
+  stored: a FAILED run and an alert, no data lost), then 2026-11-16 06:00 and 17:00 WIB (Monday's prices).
+- **Class:** a key a new kind of entity reuses (here the price table's ticker) with a width chosen for the first kind
+  (four-letter IDX stocks); the other tables of the INDEX flow use text, the broker summary varchar(32).
+- **Fix prepared (not applied, needs the user's go):** `20261115_003_price_ticker_varchar12.sql` (drop and re-create the one
+  trigger that names the column, `ALTER ... TYPE varchar(12)`; rehearsed: the table is not rewritten, the partial index
+  `Price_Stock_Indonesia_IDX_final_idx` is rebuilt, a 10-letter index row is stored, the volume guard still refuses a
+  non-index without volume). Then the price APPLY for the 38 again (same fingerprints).
+- **Lesson:** a rehearsal writes one row of every new key shape into every table the flow writes, not only the tables the
+  migration changes.

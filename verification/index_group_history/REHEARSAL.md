@@ -27,3 +27,4 @@ Nothing here ran on the dev database. Dev was only read (pgweb, read-only role) 
 | B after A | COMMIT: 44 universe indexes; history capture recorded 43 new versions (911 -> 954 open rows); symbols and URLs as checked on TradingView (BISNIS27 -> IDX:BISNIS_27, IGRADE -> IDX:I_GRADE, ...) |
 | B a second time | refused: "a Feature_Index_Entity ticker is already an IDX_Stock_Universe row" |
 | `apps/idx-price-cron` tests (stage 1 code) | 41 passed, 5 skipped (38 passed before; 3 new: new index not loaded, naming one refused, calendar from the intraday index only) |
+| Migration C `20261115_003` (ticker varchar(12)) | without dropping the trigger: refused ("cannot alter type of a column used in a trigger definition"); with drop and re-create: COMMIT, table file unchanged (no rewrite), `final_idx` rebuilt, a 10-letter index row stored, a non-index without volume still refused; a second run refused |
