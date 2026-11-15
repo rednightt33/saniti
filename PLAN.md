@@ -72,6 +72,43 @@ detail filter). Kartu dan hitungan: `SCREENER_LIBRARY.md`.
   backfill ≥ 250 sesi ditambah baseline 252 (update besar: restart Postgres sesudahnya), job harian setelah data broker,
   pendaftaran katalog, aplikasi halaman baru di frame EDGE seperti Screener.
 
+## BACKTEST-REVAMP — tampilan Backtest mengikuti desain user, dan indikator Flow Terminal masuk Backtest (disetujui sebagai arah 2026-11-15; belum "go")
+
+**Kata user, 2026-11-15:** "Hanya halaman backtest saja kita revive." Lalu, dengan file desain
+`backtest-standalone.html` (unggahan user, 774.557 byte, dibuat di atas salinan statis halaman Backtest dari `main`
+`bf2381d`): "terlampir untuk backtest HTML yang akan kita jadikan desain untuk front-end di bagian backtest ... coba kamu
+cek di terminal mana indikator yang belum ada di backtest, karna kita juga akan tambahkan itu on this instance as well."
+
+**Hasil pemeriksaan, 2026-11-15** (kode `main` `fff296a7`; edge-bff live `5b8f85b1` SUCCESS; halaman Backtest tidak berubah
+sejak `bf2381d`, jadi salinan asli = halaman live kecuali datanya; uji di Chromium 1440 px dan 390 px, terang dan gelap):
+- Desain = salinan asli + 6 blok CSS baru (Builder v2, Signals v3/v4, EDGE Design Spec v1 type A, jendela kondisi,
+  header) + perubahan pada bundel JS hasil build (43 tempat, ~42 ribu karakter) + katalog `window.CWDATA` (178 baris,
+  diambil dari Screener) + 2 skrip kecil. Desain dibuat pada kode hasil build, bukan sumber TypeScript, jadi eksekusi =
+  menulis ulang di `apps/edge-bff/backtest/src` (markup `index.html`, `styles/backtest.css`, perender).
+- Fungsi yang diuji jalan tanpa error: Run (single dan portfolio), tab hasil, jendela "Add a condition" (cari, Esc),
+  tab builder Universe/Entry/Exit/Sizing/Costs, pemilih saham portfolio (PF7: combobox + filter Sector), tema gelap.
+- Jendela kondisi: 53 indikator registry punya 332 pilihan kondisi, 230 bisa dijalankan mesin sekarang; 102 tidak
+  (`between` 37, `rising` 11, `% distance` 27, `vs MA` 10, `band position` 9, lainnya 8) dan tidak bisa dipilih. 125
+  baris lain (candlestick 20, flow FL 48+3, fundamental 32, teknikal Screener 21) diberi label "Not in backtest yet".
+- Temuan tampilan: geser horizontal 58 px di ponsel hilang (asli: 58 px); di ponsel builder menutupi hasil sampai
+  disembunyikan, lalu kartu statistik terpotong di kanan; tombol tema disembunyikan dan halaman tidak membaca tema EDGE
+  (`edge-auth-monitor-theme`); di gelap kenop sakelar putih di atas lintasan terang; header kiri (`xsHd`) diisi skrip yang
+  menyalin teks elemen tersembunyi; label "Search 53 indicators" padahal jendela berisi 192 baris; catatan sumber data
+  ("Published data · long-only") disembunyikan.
+- Indikator Terminal yang belum ada di Backtest: teknikal tidak ada (53 sama; Terminal hanya menyembunyikan I37, I41 dari
+  menunya); Flow FL01-FL52 semuanya belum (menu Terminal menampilkan 49, FL07/FL35/FL36 disembunyikan). Backtest hanya
+  punya 3 kondisi flow sendiri (fnet, broker, top5). Rumusnya ada di `terminal/src/calc/flow.ts`, murni dan dibuat untuk
+  dipakai bersama. Yang perlu disiapkan: 9 indikator butuh jumlah transaksi `bf`/`sf` (FL01, FL02, FL04, FL05, FL06,
+  FL08, FL09, FL10, FL33) yang sudah diterbitkan publisher tetapi tidak dibaca `backtest/src/core/datafile.ts`
+  `brokerRows`; FL31 butuh baris insider dari file events. Risiko look-ahead (memilih broker dengan data sampai hari
+  terakhir): FL51 (`loadersTable`, akhir = candle terakhir), FL23/FL52 bawaan (`defaultInventoryBrokers`, 20 sesi
+  terakhir), anchored dengan cakupan Top-N (`frozen`: FL18, FL19, FL20, FL44, FL45). Persentil (`percentile`) hanya
+  memakai data sebelum t, aman. Audit lengkap tiap FL untuk look-ahead belum dibuat.
+
+**Pertanyaan terbuka (dikirim ke user 2026-11-15):** (1) aturan 1:1 dengan `backtest.html` (CONTRACT.md bagian 10)
+diganti desain ini sebagai acuan; (2) temuan tampilan di atas diperbaiki saat eksekusi atau desain diikuti apa adanya;
+(3) tema mengikuti tema EDGE; (4) indikator Flow mana yang masuk dulu dan aturan untuk yang berisiko look-ahead.
+
 ## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
 
 **Kata user, 2026-11-14:** "Ini semua dimasukkan ke to-do list ya. Jadi goal dari yang saya minta adalah nanti akan
