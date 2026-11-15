@@ -137,9 +137,23 @@ campuran K4).
 **Keputusan user, 2026-11-15:** "FL31 skip saja dulu karna kita belum ada data insider." FL31 tidak masuk Backtest
 pada rilis ini (tetap berlabel "Not in backtest yet"); dibuka lagi bila data insider dengan tanggal tersedia ada.
 
-**Pertanyaan terbuka:** (a) delapan indikator Flow di Terminal: tetap tampilan "hindsight" atau ikut aturan titik-waktu;
-(c) FL34: klasifikasi bertanggal, dihitung dari data sampai t, atau ditahan; (d) Part A ERRORS ditambah syarat "tanggal
-tersedia".
+**Keputusan user, 2026-11-15:** "Kelompok 1 di drop saja, tapi kelompok 2 dan 3 di retain, dan harus disiapkan
+workaround supaya tidak ada luka head bias." Jadi: FL18, FL19, FL20, FL44, FL45 (kelompok broker beku) tidak masuk
+Backtest; FL23, FL52 (broker bawaan 20 sesi) dan FL51 (Loaders) masuk dengan versi titik-waktu (pemilihan broker pada
+hari t hanya dari data sampai t).
+
+**Prototipe dan ukuran, 2026-11-15** (scratchpad, bukan kode repo; data BBRI dev: 243.810 baris broker 2016-2026, 111
+broker, 2.140 bar harga): FL23 titik-waktu (top 3 pembeli bersih 20 sesi sampai t; nilai = posisi kumulatif kelompok) dan
+FL51 titik-waktu (top 3 penambah lot dari awal sampai t; nilai = harga beli rata-rata dan jarak close) lolos uji potong
+data (5 titik potong). Waktu hitung per saham: jumlah harian per broker 27 ms + FL23 20 ms + FL51 20 ms = 68 ms (Xeon
+2,1 GHz, sandbox), tanpa unduhan tambahan (file broker yang sama dengan kondisi flow sekarang). Rujukan run dev
+2026-10-27 (`apps/backtest-worker/README.md`): single dengan flow 1,31 s dingin / 0,45-0,58 s hangat; portofolio 12
+saham terbesar 7,05 s / 5,5 s. FL52 = rumus FL23 kumulatif di grafik harga (`calc/flow.ts:852-853`), jadi sebagai
+kondisi backtest identik dengan FL23.
+
+**Pertanyaan terbuka:** (a) FL51: jendela titik-waktu (N sesi terakhir, sejak awal periode backtest, atau sejak tanggal
+yang user tetapkan); (b) FL52 digabung ke FL23 di Backtest; (c) kelompok 1 di Terminal tetap seperti sekarang; (d) FL34:
+klasifikasi bertanggal, dihitung dari data sampai t, atau ditahan; (e) Part A ERRORS ditambah syarat "tanggal tersedia".
 
 ## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
 
