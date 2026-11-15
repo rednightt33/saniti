@@ -1,5 +1,31 @@
 # Railway changelog
 
+## 2026-11-15 — Market Overview released on dev: four services from `main` `41699d9f` (EXEC-OVERVIEW O7, user "Ok, jalankan semua.")
+
+- **Before (13:18 UTC):** 0 running statements, 0 user runs (edge jobs 0, orc turns 0); `main` was `28c41268`
+  (already merged into the branch): fast-forward to `41699d9f`. orc-test-runner ran the migration 20261115_020 jobs
+  first (DRYRUN `f53eff40`, APPLY `52e4a5f9`, `DATABASE_URL` reference set and removed, `VAR_REMOVED`;
+  `DATABASE_CHANGELOG.md`).
+- **Deployments, all SUCCESS (13:18-13:19 UTC):** edge-bff `af280efd` and telegram-monitor `bdbbca08` (GitHub, the
+  push); terminal-api `8dab3b1c` and terminal-publisher `a856f67c` (CLI upload of `git archive 41699d9f apps/<service>`).
+  screener-worker SKIPPED (no watched path changed). Read back: edge-bff `/ready` 200, `/overview` and
+  `/overview-app/` 200, `/api/v1/overview/index` 401 without a session; terminal-api `/ready` 200,
+  `/api/terminal/v1/overview` 403 `gateway_only` without the gateway key; publisher cron `0,30 0,1,12 * * *`, NEVER,
+  next 2026-11-16 00:00 UTC (unchanged). The uploaded `overview.py` (md5 `ec4d588d…`) equals `OVERVIEW_FORMULAS.md`.
+- **Publisher Run Now (daily) 13:20 UTC** (`deploymentInstanceExecutionCreate`): done in 191.3 s; `overview` built
+  22 files (meta, series, 20 days 2026-10-19..11-13), 0.67 MB, 37.4 s, the first count of 300 Feature 04 dates
+  included; `radar` unchanged (31 files carried).
+- **Live check** (`verification/overview/live_check_dev.py`, signed in as the owner): 8/8 PASS at 13:25:48 UTC
+  (`verification/overview/live_20261115/report.json`): 22 files with their sha256, immutable caching, 409/400
+  refusals, and the independent recalculation on 2026-10-20, 11-02 and 11-13: 27,833 comparisons, 0 differences. The
+  two runs before it (30 and 50 s after the publication) read the previous index: terminal-api reads state.json at most
+  every 60 s and edge-bff keeps the index 30 s (by design; the script's docstring says to wait 90 s). The page as the
+  owner: Overview first in the rail, Fri 13 Nov, KPIs equal to the recalculation, 45 LQ45 tiles
+  (`overview_live_1440.png`).
+- **Postgres:** 1.99 GB after the run (13:27 UTC); the manual restart was refused by its guard (the scheduled
+  postgres-memory-cron run at 13:45 UTC is within 45 minutes), so that scheduled run is the restart; its result is
+  recorded below when read back.
+
 ## 2026-11-15 — orc-test-runner jobs of EXEC-INDEX-GROUP-HISTORY step 3 (no service deployed)
 
 - **Go:** user 2026-11-15 "go langkah 3", then "A".

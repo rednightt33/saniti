@@ -14203,7 +14203,7 @@ dengan sidik data preflight; tidak menimpa baris yang ada), job `verification/in
   ±2 jam. Dijadwalkan sesudah restart terjadwal Postgres 13:45 UTC (pemeriksa restart hanya melihat statement aktif,
   sehingga bisa jatuh di sela statement job panjang; skrip juga bisa melanjutkan dari tabel fitur yang tertinggal).
 
-## EXEC-OVERVIEW — halaman Market Overview (tab baru): ringkasan pasar harian dari file publisher, halaman admin (go 2026-11-15; O1–O5 di branch, rilis dev menunggu go per langkah)
+## EXEC-OVERVIEW — halaman Market Overview (tab baru): ringkasan pasar harian dari file publisher, halaman admin (go 2026-11-15; dirilis di dev 2026-11-15, `main` `41699d9f`)
 
 **Kata user, 2026-11-15 (dengan desain `market-overview-target-c-ihsg-flow.html`):** "Kita akan menambahkan new page.
 Jalankan proses seperti sebelumnya ... Inspect dulu database dan lain-lain. Dan klarifikasi ke saya apabila ada yang perlu
@@ -14356,7 +14356,7 @@ migrasi di dev, merge ke `main` dan setiap deploy ditanyakan dulu satu per satu.
 | O4 edge-bff | selesai | `app/pages.py`, `app/overview.py`; suite edge-bff 351 lulus |
 | O5 halaman | selesai | `apps/edge-bff/overview/`; cek tampilan 1440/1100/375/gelap, 33 cek interaksi |
 | O6 verifikasi independen | selesai | `verification/overview/validate_overview.py`: 3 tanggal + tampilan halaman, 27.817 perbandingan, 0 beda; tinjauan kode independen: 4 temuan, semua diperbaiki (ERRORS M442) |
-| O7 rilis dev | **go user 2026-11-15: "Ok, jalankan semua."** (langkah 1–5 berurutan: migrasi 020, merge `main`, deploy terminal-api dan publisher, Run Now + cek restart Postgres, cek live; berhenti bila ada yang gagal) | |
+| O7 rilis dev | selesai; **go user 2026-11-15: "Ok, jalankan semua."** | migrasi 020 DRYRUN `f53eff40` / APPLY `52e4a5f9`; `main` `28c41268` → `41699d9f`; edge-bff `af280efd`, telegram-monitor `bdbbca08`, terminal-api `8dab3b1c`, terminal-publisher `a856f67c` SUCCESS; Run Now 13:20 UTC: Overview 22 file, 0,67 MB, 37,4 s; cek live 8/8 (`verification/overview/live_20261115/`), 27.833 perbandingan 0 beda; RAILWAY_CHANGELOG 2026-11-15 |
 
 Temuan selama O1 (sudah ditangani di kode):
 - Login publisher di dev punya `statement_timeout=120s`. Hitungan EMA lari pertama (300 tanggal) dalam satu kueri ±86

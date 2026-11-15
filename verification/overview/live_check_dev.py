@@ -8,6 +8,10 @@ never printed), through the public EDGE API only:
      read-only pgweb) on three dates (the second, the middle and the newest picker date);
   5. refusals name their cause: an older sha 409 OVERVIEW_FILE_REPLACED, a wrong name 400 OVERVIEW_INVALID_NAME.
 Writes the files (decoded) and report.json to OUT; nothing is saved in EDGE. Exit 0 only when every check holds.
+Run it at least 90 s after a publication: terminal-api reads state.json at most every 60 s and edge-bff keeps the index
+30 s, so an earlier run reads the previous index (2026-11-15: the first two runs, 30 and 50 s after the publication,
+saw the 12:04 UTC index; the third, 2 min after, 8/8 PASS). The decoded files go to OUT for the check; keep only
+report.json in the repository (the files are market data).
 Usage: python3 verification/overview/live_check_dev.py OUT"""
 import gzip
 import hashlib
