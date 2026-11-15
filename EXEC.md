@@ -14390,7 +14390,17 @@ dikelompokkan per penyebab (menunggu go):
 | E. Interaksi khusus mouse | P4; crosshair grafik hanya `mousemove`; kolom cari universe langsung fokus (keyboard iOS); menu tidak tertutup oleh ketukan di shell | tooltip hover kotak; crosshair dengan pointer (geser jari); tanpa fokus otomatis di layar sentuh |
 | F. Aksesibilitas | 836 kotak masing-masing satu Tab; 5 dari 8 grup tombol tanpa `role=group`/label; grafik tanpa ringkasan teks; teks abu `--text-3` 3,2:1 (token EDGE, semua halaman); putih di hijau-500 3,6:1 (palet desain) | satu titik Tab untuk peta (panah untuk pindah kotak); label grup; ringkasan teks grafik; token warna menunggu keputusan |
 | G. Shell (sudah ada sebelum Overview, semua tab) | di ≤720 px menu kiri disembunyikan tanpa pengganti (`static/index.html:9834-9838`): tab hanya bisa dibuka dengan mengetik alamat; bingkai `100vh` bukan `100dvh`; status halaman hilang saat pindah tab | menunggu keputusan user |
+| B2. Kontrol header turun ke baris kedua | user 2026-11-15 (zoom 125%): "kotak biru ... harusnya tidak demikian right?". Dicek: desain asli sama persis pada 1152/1280/1440 px; kontrol turun baris setiap kartu lebih sempit dari judul + kontrol (Sector, % EMA, Top Movers pada 1440 px pun sudah turun) | kontrol tetap di baris judul selama muat (label kata "Period"/"EMA" disembunyikan dulu saat sempit); bila tetap tidak muat, baris kedua rata kiri di bawah judul |
 | Performa | 4G cepat 1,6–2,0 s pertama, 0,9 s kunjungan ulang; 3G lambat 5,3 s / 1,3 s; kunjungan ulang 0 file data (cache bekerja); "All stocks" satu tugas 160 ms pada CPU 4× lebih lambat | tidak perlu tindakan |
+
+**Keputusan user 2026-11-15 atas daftar QA:** "1B, 2B, 3 no hanya IHSG saja. Kindly note ya, treemap itu hanya kalau
+toggle ke LQ45 misalkan, maka hanya isoalted di treemap saja, tidak merubah % Above EMA, Top Movers dll".
+- 1B: navigasi ponsel di shell = tombol menu ☰ di bilah atas yang membuka daftar tab (≤720 px; berlaku semua halaman).
+- 2B: token warna teks abu-abu EDGE dibiarkan.
+- 3: Foreign Flow tetap seluruh pasar (IHSG), tidak mengikuti universe.
+- Universe hanya untuk peta pasar: Top Movers juga tidak lagi mengikuti universe (seluruh pasar); % Above EMA sudah
+  seluruh pasar.
+Eksekusi daftar A–F, B2, G(1B) dan F1 menunggu go.
 
 Temuan selama O1 (sudah ditangani di kode):
 - Login publisher di dev punya `statement_timeout=120s`. Hitungan EMA lari pertama (300 tanggal) dalam satu kueri ±86
