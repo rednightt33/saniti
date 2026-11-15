@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-11-15 — edge-bff `e8686596`: Radar column scrollbar only on hover
+
+- User 2026-11-15: a board column's scrollbar showed at rest; it now shows only while the pointer is over the column (or
+  a card in it has the keyboard focus), its 4 px kept so nothing moves. CSS only (`apps/edge-bff/radar/src/styles/radar.css`).
+- Before: 0 EDGE jobs, 0 orc turns, 0 statements. `main` `2c2832f` (the branch merged with main's EXEC-GEN-CHECK work;
+  generated-file checks and script tests pass) → edge-bff `e8686596` SUCCESS 04:10 UTC; `/ready` 200; the served Radar
+  stylesheet holds the hover rule. Checked in Chromium on the fixture build: hidden at rest, shown on hover, width unchanged.
+- Rollback: redeploy edge-bff `e48a7b86`.
+
 ## 2026-11-15 — edge-bff, market-ai-orc, market-python-sandbox redeployed by the EXEC-GEN-CHECK merge (no behaviour change)
 
 - **Go:** user 2026-11-15 "Ok merge / 2 B". `main` fast-forwarded `0546ce38` → `2ee7e9fa` (ERRORS M435, M436).
