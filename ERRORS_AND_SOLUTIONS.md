@@ -7890,3 +7890,27 @@ in its staleness check.
 - **Status:** FIXED, on `main` `2ee7e9fa` (GitHub run `43667398337`: success).
 - **Lesson:** a correction migration that changes a generated text also changes what the generator writes, in the same
   commit; a generator derives later corrections from the migrations rather than copying them.
+
+### M437 — Code that assumes the universe holds one index (2026-11-15, OPEN: fix on the branch, not deployed)
+
+- **Found by:** the dependency map of EXEC-INDEX-GROUP-HISTORY (43 more indexes in `IDX_Stock_Universe`), before any
+  change on dev; nothing has failed yet.
+- **Verified cause (code and live functions, 2026-11-15):**
+  - `apps/idx-price-cron/intraday_update.py:279` loaded every universe row, so every new index would get 5m-4h bars;
+  - `remark_intraday_sessions` (live, md5 06a47619...) sums the bars of every universe index into `index_bars`, and
+    `intraday_bars_per_year` (the annualisation of the intraday features) is 252 x their mean: one more index with bars
+    doubles it, 43 more multiply it about 44-fold; its session calendar (and `intraday_update.py sessions_behind`) is the
+    union of every universe index's daily candles, so one stray candle adds a session (rehearsed: 45 instead of 44);
+  - `validate_index_feature_identity` accepted only universe indexes, so a group (not a universe row) could never be
+    written to the *_INDEX tables.
+- **Class:** every reader of `is_universe_index` that aggregates over "the" index (a calendar, a count, a sum) rather
+  than skipping indexes; readers that only skip indexes (`recovery_window.py:157`, `intraday_features.py:272`, the Feature
+  01/04 queues) are safe for any number.
+- **Solution (branch `claude/affectionate-shannon-qmsxxb`):** stage 1 `intraday_indexes` (an index is loaded and makes the
+  calendar only when it already has intraday bars; a new one named in `--tickers` is refused with its reason); migration
+  `20261115_001` (the same rule for `remark_intraday_sessions`' calendar; the guard reads `Feature_Index_Entity`).
+  Rehearsal: `verification/index_group_history/REHEARSAL.md` (identical output on today's data; the stray candle no
+  longer counts).
+- **Status:** OPEN until the code is deployed and the migration applied (EXEC-INDEX-GROUP-HISTORY).
+- **Lesson:** a second instance of something the code has known only once (an index, a market, a calendar) is a schema
+  change: search every reader of its identifying predicate for a count, sum or union over it before adding it.

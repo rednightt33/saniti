@@ -187,9 +187,31 @@ def write_rows(conn: psycopg.Connection, rows: list[dict]) -> int:
         return n
 
 
-def sessions_behind(conn, universe, timeframe: str, latest: date) -> dict[str, int | None]:
-    """Per ticker: calendar sessions (dates of the universe index daily candles) after its newest stored bar, up to
-    `latest`; None when the series has no bar."""
+def intraday_indexes(conn, universe) -> set[str]:
+    """EXEC-INDEX-GROUP-HISTORY stage 1: the universe indexes that already have intraday bars (today IHSG).
+    remark_intraday_sessions sums the bars of the session-calendar indexes into index_bars, and intraday_bars_per_year
+    (the annualisation of the intraday features) is 252 x their mean: one more index with bars would raise it about
+    twofold, 43 more about 44-fold. So an index enters intraday only through this set, derived from the stored bars, not a
+    list; one PK lookup per universe index."""
+    return {s.ticker for s in universe if s.asset_type == "index" and conn.execute(
+        f"SELECT EXISTS (SELECT 1 FROM {TABLE} WHERE ticker = %s)", (s.ticker,)).fetchone()[0]}
+
+
+def intraday_scope(universe, indexes: set[str], wanted: set[str]) -> tuple[list, list[str]]:
+    """The symbols to load: every non-index universe row and the indexes in `indexes`, narrowed to `wanted` when given.
+    Returns (symbols, refused): the indexes named in `wanted` that have no intraday bars are refused, not loaded."""
+    scope = [s for s in universe if s.asset_type != "index" or s.ticker in indexes]
+    refused = sorted(s.ticker for s in universe if s.asset_type == "index" and s.ticker not in indexes
+                     and s.ticker in wanted)
+    if wanted:
+        scope = [s for s in scope if s.ticker in wanted]
+    return scope, refused
+
+
+def sessions_behind(conn, universe, timeframe: str, latest: date, indexes: set[str]) -> dict[str, int | None]:
+    """Per ticker: calendar sessions (dates of the daily candles of the intraday indexes, today IHSG) after its newest
+    stored bar, up to `latest`; None when the series has no bar. The calendar is not every universe index: a daily-only
+    index (EXEC-INDEX-GROUP-HISTORY) must not change the intraday session count."""
     newest = dict(conn.execute(
         f"SELECT ticker, max(session_date) FROM {TABLE} WHERE timeframe = %s GROUP BY ticker", (timeframe,)
     ).fetchall())
@@ -197,16 +219,17 @@ def sessions_behind(conn, universe, timeframe: str, latest: date) -> dict[str, i
         return {s.ticker: None for s in universe}
     calendar = [r[0] for r in conn.execute(
         """SELECT DISTINCT p.date FROM public."Price_Stock_Indonesia_IDX" p
-           WHERE public.is_universe_index(p.ticker) AND p.timeframe = 'Daily' AND p.is_final
+           WHERE p.ticker = ANY(%s) AND p.timeframe = 'Daily' AND p.is_final
              AND p.date > %s AND p.date <= %s ORDER BY 1""",
-        (min(newest.values()), latest),
+        (sorted(indexes), min(newest.values()), latest),
     ).fetchall()]
     return {s.ticker: (None if s.ticker not in newest else sum(1 for d in calendar if d > newest[s.ticker]))
             for s in universe}
 
 
-def load_timeframe(conn, fetcher: Fetcher, universe, timeframe: str, args, latest: date, query_date: date) -> dict:
-    behind = (sessions_behind(conn, universe, timeframe, latest) if args.mode == "daily"
+def load_timeframe(conn, fetcher: Fetcher, universe, timeframe: str, args, latest: date, query_date: date,
+                   indexes: set[str]) -> dict:
+    behind = (sessions_behind(conn, universe, timeframe, latest, indexes) if args.mode == "daily"
               else {s.ticker: None for s in universe})
     stats = {"timeframe": timeframe, "symbols": len(universe), "bars_fetched": 0, "rows_written": 0, "invalid": 0,
              "no_bars": [], "errors": [], "scale_changed": [], "revised_bars": 0, "first": None, "last": None}
@@ -278,8 +301,16 @@ def main() -> int:
         latest = pu.latest_completed_session(schedule, now)
         universe = pu.read_universe(conn)
         wanted = {t.strip().upper() for t in args.tickers.split(",") if t.strip()}
-        if wanted:
-            universe = [s for s in universe if s.ticker in wanted]
+        indexes = intraday_indexes(conn, universe)
+        universe, refused = intraday_scope(universe, indexes, wanted)
+        if refused:
+            # EXEC-INDEX-GROUP-HISTORY: the session quality and the intraday annualisation count the bars of every index
+            # that has them; a new one would change both (intraday_indexes). Nothing is loaded.
+            emit("run_refused", reason="index without intraday bars", tickers=refused,
+                 intraday_indexes=sorted(indexes),
+                 fix="load intraday bars only for the indexes listed in intraday_indexes; adding an index first needs "
+                     "remark_intraday_sessions and intraday_bars_per_year to count one calendar index")
+            return 2
         if not conn.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (LOCK_KEY,)).fetchone()[0]:
             emit("run_skipped", reason="another intraday run holds the lock")
             return 0
@@ -291,7 +322,7 @@ def main() -> int:
             pu.hold_publish_write_lock(conn)              # EXEC-PUBLISH-FLOW: the publisher waits while the bars are written
         written = 0
         for timeframe in args.timeframes:
-            stats = load_timeframe(conn, fetcher, universe, timeframe, args, latest, query_date)
+            stats = load_timeframe(conn, fetcher, universe, timeframe, args, latest, query_date, indexes)
             emit("timeframe_done", **stats)
             written += int(stats.get("rows_written") or 0)
             if stats["scale_changed"]:

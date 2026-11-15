@@ -14141,3 +14141,23 @@ database atau dokumen yang berubah. Pembuatnya keluar dari pengecualian; dua cek
   tidak berubah). Pemeriksaan hanya memberi tanda merah di GitHub sesudah push.
 - Nomor error: `main` sudah memakai M434 untuk Radar, jadi entri ini menjadi M435 (file catatan indikator) dan M436
   (kamus Feature 05/06).
+
+## EXEC-INDEX-GROUP-HISTORY — riwayat 43 indeks dan 33 grup di tabel *_INDEX (go tahap 1-2 2026-11-15; dijalankan di branch)
+
+**Kata user, 2026-11-15:** "2024 saja, go mulai tahap 1–2" (rencana lengkap dan semua keputusan: PLAN.md
+INDEX-GROUP-HISTORY: harga di `Price_Stock_Indonesia_IDX`, indeks F01-F06, grup F02/03/05/06, anggota hari ini untuk masa
+lalu, diperbarui harian, D1 A, D2-D4, baris mulai 2024-01-02).
+
+**Tahap 1 (kode, branch `claude/affectionate-shannon-qmsxxb`, belum deploy):** `apps/idx-price-cron/intraday_update.py`
+`intraday_indexes`/`intraday_scope`: intraday hanya untuk indeks yang sudah punya bar intraday (hari ini IHSG), diturunkan
+dari data; indeks baru yang diminta lewat `--tickers` ditolak dengan alasannya; kalender sesi dari indeks itu saja.
+Tes 41 lulus (3 baru).
+
+**Tahap 2 (migrasi, belum dijalankan di dev; gladi lokal `verification/index_group_history/REHEARSAL.md`):**
+- A `20261115_001_feature_index_entity.sql`: tabel `Feature_Index_Entity` (77 entitas dan sumber anggotanya), penjaga
+  `validate_index_feature_identity` membaca tabel itu (grup hanya F02/03/05/06, F01/04 hanya entitas berharga, tidak ada
+  baris sebelum `rows_from`), kalender `remark_intraday_sessions` dari indeks yang punya bar intraday; katalog.
+- B `20261115_002_universe_index_rows.sql`: 43 baris indeks di `IDX_Stock_Universe` (simbol TradingView).
+
+**Urutan sesudahnya (masing-masing dengan go):** deploy tahap 1 (idx-intraday-cron) -> migrasi A -> migrasi B tepat
+sebelum isi harga tahap 3 -> tahap 3-10 (PLAN.md).
