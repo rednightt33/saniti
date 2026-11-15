@@ -4,7 +4,8 @@
 
    GET  /health                   {ok: true, engine_version, registry_version}
    GET  /v1/catalog               Catalog (catalog.ts)
-   POST /v1/validate {request}    200 {ok: true, lineage_key, variant_hash, tickers} | 422 (validate.ts on the reference
+   POST /v1/validate {request, context}
+                                  200 {ok: true, lineage_key, variant_hash, tickers} | 422 (validate.ts on the reference
                                   ticker and broker lists, then run.ts checkPublished on terminal-api's manifests:
                                   FLOW_DATA_THROUGH, PERIOD_AFTER_DATA; no /bundle, no file)
    POST /v1/signals               SignalsPreviewRequest -> SignalsPreview, computed on the preview thread while the
@@ -47,12 +48,33 @@ import { errorFields, log } from './log.ts';
 import { checkPublished } from './run.ts';
 import { TerminalClient } from './terminal.ts';
 import { checkRequest } from './validate.ts';
+import { D_RIGHT } from './pit/spec.ts';
 import type { CheckedRequest, References } from './validate.ts';
 import { hashForm } from './canonical.ts';
 import { grammarProblems } from './grammar.ts';
 import { ENGINE_VERSION, REGISTRY_VERSION, REPO_ROOT, checkRegistry } from './version.ts';
 
 export const KEY_HEADER = 'x-backtest-worker-key';
+
+/* EXEC-BACKTEST-REVAMP P5 (user 2026-11-15: "mekanisme hak akses disiapkan sekarang"): the rights edge-bff sets from the
+   session (context.rights). Absent: none (fail closed: the point-in-time indicators are refused, everything else
+   runs); a value outside KNOWN_RIGHTS, or anything but a list of distinct strings, is refused (INVALID_CONTEXT). */
+export const KNOWN_RIGHTS: readonly string[] = [D_RIGHT];
+export function rightsOf(v: unknown, field = 'context.rights'): string[] {
+  if (v === undefined) return [];
+  if (!Array.isArray(v) || v.some(x => typeof x !== 'string') || new Set(v).size !== v.length)
+    throw invalid('INVALID_CONTEXT', field, `${field} must be a list of distinct rights (${KNOWN_RIGHTS.join(', ')}).`);
+  const unknown = v.find(x => !KNOWN_RIGHTS.includes(x));
+  if (unknown !== undefined) throw invalid('INVALID_CONTEXT', field, `${field}: ${JSON.stringify(unknown)} is not a right the worker knows (${KNOWN_RIGHTS.join(', ')}).`);
+  return v as string[];
+}
+/** The rights of a {request, context} body's context ({rights} only; absent: none). */
+function contextRights(c: unknown): string[] {
+  if (c === undefined) return [];
+  if (!c || typeof c !== 'object' || Array.isArray(c)) throw invalid('INVALID_CONTEXT', 'context', 'context must be an object {rights}.');
+  for (const k of Object.keys(c)) if (k !== 'rights') throw invalid('UNKNOWN_FIELD', `context.${k}`, `context.${k} is not a field of this context.`);
+  return rightsOf((c as { rights?: unknown }).rights);
+}
 export const JOB_ID = /^bt_[0-9a-f]{32}$/;            // edge-bff backtest.py JOB_ID ('bt_' + secrets.token_hex(16))
 const HEX64 = /^[0-9a-f]{64}$/;
 const ENDED: JobState[] = ['FINISHED', 'FAILED', 'CANCELLED'];
@@ -206,7 +228,7 @@ export function createApp(cfg: Config): WorkerApp {
     return j;
   }
 
-  function checkJobBody(b: unknown): { job_id: string; request: unknown; prior_trials: { variant_hash: string; sharpe_daily: number }[] } {
+  function checkJobBody(b: unknown): { job_id: string; request: unknown; prior_trials: { variant_hash: string; sharpe_daily: number }[]; rights: string[] } {
     if (!b || typeof b !== 'object' || Array.isArray(b)) throw invalid('INVALID_REQUEST', 'body', 'The body must be {job_id, request, context}.');
     const { job_id, request, context, ...rest } = b as Record<string, unknown>;
     const extra = Object.keys(rest)[0];
@@ -214,7 +236,7 @@ export function createApp(cfg: Config): WorkerApp {
     if (typeof job_id !== 'string' || !JOB_ID.test(job_id)) throw invalid('INVALID_JOB_ID', 'job_id', 'job_id must be bt_ followed by 32 lowercase hex characters.');
     if (!context || typeof context !== 'object' || Array.isArray(context)) throw invalid('INVALID_CONTEXT', 'context', 'context is required.');
     const c = context as Record<string, unknown>;
-    for (const k of Object.keys(c)) if (k !== 'job_id' && k !== 'prior_trials') throw invalid('UNKNOWN_FIELD', `context.${k}`, `context.${k} is not a field of the job context.`);
+    for (const k of Object.keys(c)) if (k !== 'job_id' && k !== 'prior_trials' && k !== 'rights') throw invalid('UNKNOWN_FIELD', `context.${k}`, `context.${k} is not a field of the job context.`);
     if (c.job_id !== job_id) throw invalid('INVALID_CONTEXT', 'context.job_id', 'context.job_id must equal job_id.');
     if (!Array.isArray(c.prior_trials)) throw invalid('INVALID_CONTEXT', 'context.prior_trials', 'context.prior_trials must be a list.');
     const prior_trials = c.prior_trials.map((t: unknown, k: number) => {
@@ -225,7 +247,7 @@ export function createApp(cfg: Config): WorkerApp {
       if (typeof x.sharpe_daily !== 'number' || !Number.isFinite(x.sharpe_daily)) throw invalid('INVALID_CONTEXT', `${f}.sharpe_daily`, `${f}.sharpe_daily must be a finite number.`);
       return { variant_hash: x.variant_hash, sharpe_daily: x.sharpe_daily };
     });
-    return { job_id, request, prior_trials };
+    return { job_id, request, prior_trials, rights: rightsOf(c.rights) };
   }
 
   /* ---- previews: one at a time on the preview thread, the next ones wait in arrival order ---- */
@@ -298,10 +320,11 @@ export function createApp(cfg: Config): WorkerApp {
     if (path === '/v1/catalog') { allow('GET'); return send(res, 200, await within('The catalog', catalog.get())) }
     if (path === '/v1/validate') {
       allow('POST');
-      const body = parseJson(raw) as { request?: unknown } | null;
-      if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(k => k !== 'request')) throw invalid('INVALID_REQUEST', 'body', 'The body must be {request}.');
+      const body = parseJson(raw) as { request?: unknown; context?: unknown } | null;
+      if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(k => k !== 'request' && k !== 'context')) throw invalid('INVALID_REQUEST', 'body', 'The body must be {request, context}.');
+      const rights = contextRights(body.context);
       const out = await within('The validation', (async () => {
-        const list = await refs(), checked = checkRequest(body.request, list, cfg);
+        const list = await refs(), checked = checkRequest(body.request, list, cfg, new Set(rights));
         const q = canonicalRequest(body.request as BacktestRequest);        // the picked stocks in ticker order (PF3)
         await checkPublished(q, checked, list, { client, config: cfg });
         const h = hashForm(q);                                             // the hash form (canonical.ts, K7 a), as the job hashes
@@ -312,11 +335,16 @@ export function createApp(cfg: Config): WorkerApp {
     }
     if (path === '/v1/signals') {
       allow('POST');
-      const body = parseJson(raw), left = callerWatch(res), asked = performance.now();
+      // EXEC-BACKTEST-REVAMP P5: {request, context} as /v1/jobs (the bare request of an edge-bff from before P5 is still
+      // read, with no rights: the deploy order puts the worker first)
+      const raw0 = parseJson(raw), wrapped = !!raw0 && typeof raw0 === 'object' && !Array.isArray(raw0) && 'request' in raw0;
+      if (wrapped && Object.keys(raw0 as object).some(k => k !== 'request' && k !== 'context')) throw invalid('INVALID_REQUEST', 'body', 'The body must be {request, context}.');
+      const body = wrapped ? (raw0 as { request: unknown }).request : raw0, rights = wrapped ? contextRights((raw0 as { context?: unknown }).context) : [];
+      const left = callerWatch(res), asked = performance.now();
       const list = await within('The reference list', refs());
       if (left()) return;                                                // nobody waits for it: never queued
       const picked = (body as { tickers?: unknown } | null)?.tickers;
-      const o = await preview({ kind: 'signals', request: body, refs: list }, res,
+      const o = await preview({ kind: 'signals', request: body, refs: list, rights }, res,
         { refs_ms: Math.round(performance.now() - asked), tickers: Array.isArray(picked) ? picked.length : null });
       return send(res, 200, o.kind === 'signals' ? o.preview : null);
     }
@@ -328,12 +356,12 @@ export function createApp(cfg: Config): WorkerApp {
       starting = true;
       const left = callerWatch(res);
       let list: References, checked: CheckedRequest;
-      try { list = await within('The validation', refs()); checked = checkRequest(b.request, list, cfg) }
+      try { list = await within('The validation', refs()); checked = checkRequest(b.request, list, cfg, new Set(b.rights)) }
       finally { starting = false }
       if (left()) return;                                                // nobody waits for its 202: never started
       if (job && running(job)) return fail(res, 409, { code: 'BUSY', message: 'Another backtest is running.' });
       replaced = job && job.status.state === 'FINISHED' ? job.id : null;
-      job = startJob(b.job_id, { kind: 'job', request: b.request, context: { prior_trials: b.prior_trials }, refs: list },   // the previous job and its result are dropped
+      job = startJob(b.job_id, { kind: 'job', request: b.request, context: { prior_trials: b.prior_trials, rights: b.rights }, refs: list },   // the previous job and its result are dropped
         { mode: (b.request as { mode?: unknown }).mode, tickers: checked.tickers.length, broker: checked.broker });
       return send(res, 202, { job_id: b.job_id });
     }

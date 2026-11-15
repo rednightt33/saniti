@@ -338,6 +338,11 @@ export interface Catalog {
                                                          // flow run can reach (period.to after it: FLOW_DATA_THROUGH); null while flow is off
   };
   limits: Limits;
+  /** EXEC-BACKTEST-REVAMP P3-P5: the Flow indicators a condition in the grammar may read ({"kind":"flow","metric":id}),
+      derived from the registries: access 'admin' for the point-in-time versions (edge-bff leaves them out of the catalog
+      of a session without the right flow_point_in_time; the worker refuses them without it, CONDITION_RESTRICTED),
+      date_param their required anchor or start; available false with the reason for one a backtest cannot read */
+  flow_indicators?: { id: string; name: string; access: 'all' | 'admin'; available: boolean; reason: string | null; date_param: 'anchor' | 'start' | null }[];
 }
 /** A classification the portfolio picker filters by: a column of terminal-api's ticker reference file other than
     ticker, name and type (today sector and industry; derived from the file, never listed here). values: each value

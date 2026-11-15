@@ -104,6 +104,7 @@ class FakeScreenerWorker:
         self.max_length = 1000         # /v1/validate refuses an indicator length above it (PARAM_OUT_OF_RANGE)
         self.validate_versions = True  # /v1/validate answers carry versions (report 8.3: every worker answer)
         self.rows = 3                  # rows of a run answer
+        self.metrics = []              # the catalog's metrics (EXEC-BACKTEST-REVAMP P5: an admin entry in one test)
         self.published = '2026-10-27T13:03:23Z'   # data.published_at of every answer (state.json finished_at)
         self.pending = {}              # path -> how many more calls answer the worker-only 409 DATA_VERSION_PENDING
         self.sent = {}                 # path -> the last body bytes the route sent (gzip when it packed them)
@@ -191,7 +192,7 @@ class FakeScreenerWorker:
                 route = (method, self.path)
                 if route == ('GET', '/v1/catalog'):
                     return self.answer(200, {'versions': v, 'data': {**self.data(), 'refresh': worker.refresh},
-                                             'limits': worker.limits, 'indicators': [], 'metrics': [], 'fundamentals': [],
+                                             'limits': worker.limits, 'indicators': [], 'metrics': worker.metrics, 'fundamentals': [],
                                              'periods': {'1M': 21, '3M': 63, '6M': 126, '1Y': 252}, 'groupings': [],
                                              'presets': []})
                 if route == ('GET', '/v1/universe'):
@@ -391,8 +392,10 @@ def test_run_preview_validate_and_counts_are_relayed_as_sent(app, worker):
     c = app
     body = run_body()
     r = c.post('/api/v1/screener/run', headers=c.headers_for, json=body)
-    assert r.status_code == 200 and r.headers['content-encoding'] == 'gzip' and r.json()['echo'] == body
-    assert worker.called('/v1/run')[0]['body'] == body and worker.called('/v1/run')[0]['key'] == KEY
+    # EXEC-BACKTEST-REVAMP P5 (K8 b): edge-bff adds the session's rights as the body's context (this owner: none)
+    sent = {**body, 'context': {'rights': []}}
+    assert r.status_code == 200 and r.headers['content-encoding'] == 'gzip' and r.json()['echo'] == sent
+    assert worker.called('/v1/run')[0]['body'] == sent and worker.called('/v1/run')[0]['key'] == KEY
     p = c.post('/api/v1/screener/preview', headers=c.headers_for, json=preview_body(ticker='TLKM'))
     assert p.status_code == 200 and p.json()['ticker'] == 'TLKM'
     v = c.post('/api/v1/screener/validate', headers=c.headers_for, json={'schema_version': 1, 'definition': definition()})
@@ -830,14 +833,14 @@ def test_saved_items_are_validated_created_replaced_and_deleted(app, worker):
     assert r.status_code == 200, r.text
     item = r.json()
     sent = worker.called('/v1/validate')[0]['body']
-    assert sent == {'schema_version': 1, 'definition': definition()}
+    assert sent == {'schema_version': 1, 'definition': definition(), 'context': {'rights': []}}
     assert item['definition'] == screen_item()['definition'] and item['revision'] == 1 and item['needs_review'] == []
     assert (item['registry_version'], item['screener_registry_version']) == ('registry-a', 'sregistry-a')
     assert item['definition_hash'] == sha(json.dumps(definition(), sort_keys=True)) and item['schema_version'] == 1
     m = put(c, 2, metric_item())
     assert m.status_code == 200 and m.json()['kind'] == 'metric'
     assert worker.called('/v1/validate')[1]['body'] == {'schema_version': 1, 'definition': {
-        'universe': screener.METRIC_UNIVERSE, 'conditions': [{'id': 'm', 'enabled': True, 'test': rsi_test()}], 'logic': 'all'}}
+        'universe': screener.METRIC_UNIVERSE, 'conditions': [{'id': 'm', 'enabled': True, 'test': rsi_test()}], 'logic': 'all'}, 'context': {'rights': []}}
     listed = c.get('/api/v1/screener/items?kind=screen').json()['items']
     assert [x['item_id'] for x in listed] == [item_id(1)] and listed[0] == item
     assert {x['item_id'] for x in c.get('/api/v1/screener/items').json()['items']} == {item_id(1), item_id(2)}
@@ -1351,3 +1354,25 @@ def test_screener_tab_in_the_browser(configured, store, worker, monkeypatch, tmp
     finally:
         stop()
     assert [c['path'] for c in worker.calls] == ['/health', '/v1/catalog']   # the reload: from edge-bff's kept catalog
+
+
+def test_screener_rights_from_the_session_and_the_catalog_per_session(configured, store, worker):
+    """EXEC-BACKTEST-REVAMP P5 (user K8 b): every worker call carries the session owner's rights; a body with context is
+    refused before the worker; the catalog's admin entries reach an admin only, with an ETag of their own."""
+    worker.metrics = [{'id': 'FL11', 'group': 'Flow', 'kind': 'flow'}, {'id': 'FL18', 'group': 'Flow', 'kind': 'flow', 'access': 'admin'}]
+    seen = {}
+    for admins, rights in [((), []), ((configured.owner,), ['flow_point_in_time'])]:
+        application = create_app(dataclasses.replace(configured, admin_owners=admins), store, FakeOrc())
+        with TestClient(application) as c:
+            c.headers_for = login(c)
+            cat = c.get('/api/v1/screener/catalog')
+            assert cat.status_code == 200
+            ids = [m['id'] for m in cat.json().get('metrics', [])]
+            assert ('FL18' in ids) == bool(rights) and 'FL11' in ids
+            seen[bool(rights)] = cat.headers['etag']
+            before = len(worker.calls)
+            r = c.post('/api/v1/screener/run', headers=c.headers_for, json={**run_body(seq=7), 'context': {'rights': ['flow_point_in_time']}})
+            assert r.status_code == 422 and r.json()['error']['code'] == 'UNKNOWN_FIELD' and len(worker.calls) == before
+            c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body(seq=8))
+            assert worker.called('/v1/run')[-1]['body']['context'] == {'rights': rights}
+    assert seen[True] != seen[False]

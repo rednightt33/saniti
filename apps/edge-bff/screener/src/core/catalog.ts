@@ -67,7 +67,16 @@ export interface MetricDefinition {
   /** P6 (QA of unit C item 2): a candlestick pattern's side, the core candle registry's (candleMetric); additive, absent
       on every other entry. The page shows it on the row and the card and searches it (contract.ts CatalogMetric.side). */
   side?: PatternSide;
+  /** EXEC-BACKTEST-REVAMP P5 (user K8 b, 2026-11-15): 'admin' for an entry only admins may read (a session's rights,
+      set by edge-bff; the worker refuses it without them, CONDITION_RESTRICTED, and edge-bff leaves it out of the
+      catalog); absent for every other entry */
+  access?: 'admin';
 }
+/** The rights a session needs for an entry (user K8 b): the Screener's own versions of the Terminal Flow indicators
+    that choose their brokers with later data (FL18, FL19, FL20, FL23, FL44, FL45: computed 'anchored' or 'inventory'),
+    as the Backtest's point-in-time versions are for admins only. Derived from the registry's compute kind. */
+export const POINT_IN_TIME_RIGHT = 'flow_point_in_time';
+export const flowAdminOnly = (f: Pick<FlowRegistryEntry, 'compute'>): boolean => f.compute === 'anchored' || f.compute === 'inventory';
 /** The universal operators (EXEC-SCREENER-FLOW-CANDLES; verification/screener/OPERATORS.md, approved K4) as the page
     offers them: a measure is a transform of the series (its arguments are the transform's), a test how the measured
     series is tested. types: the output types of OPERATORS.md section 4 a series can have, by the transform that makes
@@ -129,6 +138,7 @@ export function flowMetric(f: FlowRegistryEntry): MetricDefinition {
     requires: null, decision: null, applies_to: null,
     unavailable_reason: f.requires ? FLOW_REASONS[f.requires] : FLOW_REASONS.none,
     flow: f,
+    ...(flowAdminOnly(f) ? { access: 'admin' as const } : {}),
   };
 }
 /** The group the candlestick patterns are offered in (the page's group order holds it after Technical). */

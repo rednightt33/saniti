@@ -221,7 +221,8 @@ class FakeWorker:
                     return self.answer(200, {'ok': True, 'lineage_key': lineage_of(request), 'variant_hash': variant_of(request),
                                              'tickers': tickers_of(request)})
                 if route == ('POST', '/v1/signals'):
-                    for k, t in enumerate(body.get('tickers') or []):
+                    # EXEC-BACKTEST-REVAMP P5: {request, context}
+                    for k, t in enumerate((body.get('request') or {}).get('tickers') or []):
                         if t == 'NOPE':           # the worker's refusal of a picked stock it does not publish (validate.ts)
                             return self.answer(422, {'error': {'code': 'UNKNOWN_TICKER', 'field': f'tickers[{k}]',
                                                                'message': 'NOPE is not a published stock.'}})
@@ -368,7 +369,7 @@ def test_single_run_progress_result_and_events(app, worker):
     assert c.get(f'/api/v1/backtests/{job_id}/result').json()['error']['code'] == 'NOT_FINISHED'
     run_next(c)
     handed = worker.posted('/v1/jobs')[0]['body']
-    assert handed == {'job_id': job_id, 'request': single(), 'context': {'job_id': job_id, 'prior_trials': []}}
+    assert handed == {'job_id': job_id, 'request': single(), 'context': {'job_id': job_id, 'prior_trials': [], 'rights': []}}
     assert all(call['key'] == KEY for call in worker.calls)
     # progress of the previous read is stored while the job runs (the hook reads before the answer is stored)
     assert seen[1] == {'phase': 'backtest', 'done': 1, 'total': 2}
@@ -521,7 +522,7 @@ def test_a_number_beyond_a_double_is_invalid_input_and_reaches_no_worker(configu
         assert worker.calls == []
         edges = b'{"tickers":["BBCA"],"x":[1.7976931348623157e308,-5e-324,%d,-%d]}' % (least - 1, least - 1)
         assert c.post('/api/v1/backtests/signals', headers=headers, content=edges).status_code == 200
-        assert worker.posted('/v1/signals')[0]['body'] == loads(edges)
+        assert worker.posted('/v1/signals')[0]['body']['request'] == loads(edges)
     for raw in (b'1e400', b'-1e999', b'[1E400]', b'1' + b'0' * 400, b'[-%d]' % least):   # every caller of loads (a
         with pytest.raises(ValueError):                                                    # worker answer too) refuses it
             loads(raw)
@@ -542,7 +543,7 @@ def test_a_string_utf8_cannot_encode_is_invalid_input_and_reaches_no_worker(conf
         assert worker.calls == []
         pair = rb'{"tickers":["BBCA"],"x":"\ud83d\ude00"}'
         assert c.post('/api/v1/backtests/signals', headers=headers, content=pair).status_code == 200
-        assert worker.posted('/v1/signals')[0]['body'] == loads(pair) == {'tickers': ['BBCA'], 'x': '\U0001f600'}
+        assert worker.posted('/v1/signals')[0]['body']['request'] == loads(pair) == {'tickers': ['BBCA'], 'x': '\U0001f600'}
     for raw in (rb'"\ud800"', rb'["\udc00"]', b'"\xed\xb0\x80"'):   # every caller of loads (a worker answer too) refuses it
         with pytest.raises(ValueError):
             loads(raw)
@@ -583,13 +584,13 @@ def test_client_request_id_stays_here_and_every_other_key_reaches_the_worker_as_
     sent = {**single(), 'extra': {'list': [1, 2.5, None, True, 'Rp ✓'], 'big': 12345678901234567890, 'tiny': 5e-324,
                                   'sum': 0.1 + 0.2, 'empty': {}}}
     job_id = submit(c, sent, 'strip-1').json()['request_id']
-    assert worker.posted('/v1/validate')[0]['body'] == {'request': sent}       # sent without client_request_id
+    assert worker.posted('/v1/validate')[0]['body'] == {'request': sent, 'context': {'rights': []}}       # sent without client_request_id
     run_next(c)
     assert handed(worker, job_id)['request'] == sent                           # the stored request, as sent
     assert c.get('/api/v1/backtests').json()['items'][0]['request'] == sent
     # an explicit null key is taken out too (a new job under a generated key)
     r = c.post('/api/v1/backtests', headers=c.headers_for, json={**single(), 'client_request_id': None})
-    assert r.status_code == 202 and worker.posted('/v1/validate')[1]['body'] == {'request': single()}
+    assert r.status_code == 202 and worker.posted('/v1/validate')[1]['body'] == {'request': single(), 'context': {'rights': []}}
     assert all('client_request_id' not in json.dumps(x['body']) for x in worker.calls if x['body'])
 
 
@@ -1118,7 +1119,7 @@ def test_trials_are_the_reported_variants_and_go_to_the_next_run_in_first_record
     second_request = {**single(), 'entry': {**single()['entry'], 'window_bars': 5}}
     second = submit(c, second_request).json()['request_id']
     run_next(c)
-    assert handed(worker, second)['context'] == {'job_id': second, 'prior_trials': as_prior(reported)}
+    assert handed(worker, second)['context'] == {'job_id': second, 'prior_trials': as_prior(reported), 'rights': []}
     assert db(c, 'SELECT count(*) AS n FROM edge_bff.backtest_trials')[0]['n'] == 6
     # the first variant again on other data: nothing new is counted; the row holds what this run reported (its Sharpe,
     # kind and request) and keeps its first-recorded place
@@ -1362,7 +1363,7 @@ def test_catalog_is_cached_and_signals_are_proxied_without_a_trial(app, worker):
     preview = preview_of()
     r = c.post('/api/v1/backtests/signals', headers=c.headers_for, json=preview)
     assert r.status_code == 200 and r.json()['rows'][0] == {'ticker': 'BBCA', 'entry_signals': 4, 'last_signal': '2026-10-20'}
-    assert worker.posted('/v1/signals')[0]['body'] == preview               # as sent: the picked order is the worker's to drop
+    assert worker.posted('/v1/signals')[0]['body']['request'] == preview               # as sent: the picked order is the worker's to drop
     refused = c.post('/api/v1/backtests/signals', headers=c.headers_for, json=preview_of(['BBCA', 'NOPE']))
     assert refused.status_code == 422 and refused.json() == {'error': {'code': 'UNKNOWN_TICKER', 'field': 'tickers[1]',
                                                                        'message': 'NOPE is not a published stock.'}}
@@ -1757,7 +1758,7 @@ def test_a_newer_preview_of_the_owner_ends_the_one_in_flight(configured, store, 
             assert ended.status_code == 409 and ended.json() == REPLACED
             answered = second.result()
             assert answered.status_code == 200 and answered.json()['rows'] == ROWS
-        assert [c['body'] for c in worker.posted('/v1/signals')] == [older, newer]
+        assert [c['body']['request'] for c in worker.posted('/v1/signals')] == [older, newer]
         assert worker.abandoned == ['/v1/signals']                           # the older one's call, closed by edge-bff
         assert seen == {'open': 0, 'most': 1}
     finally:
@@ -1792,7 +1793,7 @@ def test_overlapping_previews_of_the_owner_leave_one_in_flight_and_hold_up_nothi
             assert listed.status_code == 200 and catalog.status_code == 200
             [latest] = [k for k, f in enumerate(pending) if not f.done()]
             assert seen['open'] == 1 and pending[latest].result().json()['rows'] == ROWS
-        sent = [x['body']['k'] for x in worker.posted('/v1/signals')]
+        sent = [x['body']['request']['k'] for x in worker.posted('/v1/signals')]
         assert latest in sent and len(worker.abandoned) == len(sent) - 1 and seen == {'open': 0, 'most': 1}
     finally:
         stop()
@@ -1883,7 +1884,7 @@ def test_a_preview_its_page_sent_before_a_newer_one_that_arrived_first_replaces_
             assert not current.done()
             answered = current.result()
             assert answered.status_code == 200 and answered.json()['rows'] == ROWS
-        assert [c['body'] for c in worker.posted('/v1/signals')] == [newer]   # without client_order: edge-bff's own
+        assert [c['body']['request'] for c in worker.posted('/v1/signals')] == [newer]   # without client_order: edge-bff's own
         assert worker.abandoned == [] and seen == {'open': 0, 'most': 1}
     finally:
         stop()
@@ -1917,7 +1918,7 @@ def test_between_pages_arrival_decides_and_a_late_preview_ends_no_other_page(con
             assert not second.done()
             answered = second.result()
             assert answered.status_code == 200 and answered.json()['rows'] == ROWS
-        assert [c['body'] for c in worker.posted('/v1/signals')] == [a2, b1]
+        assert [c['body']['request'] for c in worker.posted('/v1/signals')] == [a2, b1]
         assert worker.abandoned == ['/v1/signals'] and seen == {'open': 0, 'most': 1}   # page A's call, closed by edge-bff
     finally:
         stop()
@@ -1936,7 +1937,7 @@ def test_a_page_order_is_kept_after_its_preview_answered_and_for_the_latest_page
     assert late.status_code == 409 and late.json() == REPLACED
     assert [post(ordered('page-1', 2)).status_code, post(ordered('page-1', 3)).status_code, post(preview_of()).status_code] == [200] * 3
     assert len(worker.posted('/v1/signals')) == 4
-    assert all('client_order' not in x['body'] for x in worker.posted('/v1/signals')) and bt.previews == {}
+    assert all('client_order' not in x['body']['request'] for x in worker.posted('/v1/signals')) and bt.previews == {}
     monkeypatch.setattr(backtest, 'PREVIEW_PAGES', 2)
     assert post(ordered('page-2', 5)).status_code == 200                  # kept: page-1 (seq 3), page-2
     assert post(ordered('page-1', 4)).status_code == 200                  # page-1 arrived last: page-2, page-1
@@ -2223,3 +2224,67 @@ def test_a_cancelled_preview_is_logged_as_cancelled_not_ok(app, monkeypatch, cap
     (line,) = logged(caplog, 'backtest_preview')
     assert (line['outcome'], line['tickers'], line['replaced_older']) == ('CancelledError', 2, False)
     assert bt.settings.owner not in bt.previews
+
+
+# ---- EXEC-BACKTEST-REVAMP P5: owner and rights from the session ---------------------------------------------------------
+
+def test_rights_come_from_the_session_owner_never_from_a_body(configured, store, worker):
+    """An admin owner (EDGE_ADMIN_OWNERS) sends context.rights to every worker call; any other owner sends []; a body
+    that carries context is refused before the worker; the catalog shows an admin entry to an admin only (the kept
+    catalog too, while the worker cannot answer)."""
+    worker.catalog = {**worker.catalog, 'flow_indicators': [
+        {'id': 'FL11', 'name': 'Net Flow / Turnover Ratio', 'access': 'all', 'available': True, 'reason': None, 'date_param': None},
+        {'id': 'FL18', 'name': 'Buy VWAP · Anchored', 'access': 'admin', 'available': True, 'reason': None, 'date_param': 'anchor'}]}
+    for admins, rights, ids in [((), [], ['FL11']), ((configured.owner,), ['flow_point_in_time'], ['FL11', 'FL18'])]:
+        worker.calls.clear()
+        application = create_app(dataclasses.replace(configured, admin_owners=admins), store, FakeOrc())
+        with TestClient(application) as c:
+            c.headers_for = login(c)
+            assert [x['id'] for x in c.get('/api/v1/backtests/catalog').json()['flow_indicators']] == ids
+            worker.timeout_paths, worker.timeout_error = {'/v1/catalog'}, True
+            application.state.backtests.catalog['at'] = -1e9                 # stale: asked again, the worker fails, kept one served
+            assert [x['id'] for x in c.get('/api/v1/backtests/catalog').json()['flow_indicators']] == ids
+            worker.timeout_paths = set()
+            for path, body in [('/api/v1/backtests', {**single(), 'context': {'rights': ['flow_point_in_time']}}),
+                               ('/api/v1/backtests/signals', {**preview_of(), 'context': {'rights': ['flow_point_in_time']}})]:
+                r = c.post(path, headers=c.headers_for, json=body)
+                assert r.status_code == 422 and r.json()['error'] == {'code': 'UNKNOWN_FIELD', 'field': 'context', 'message': 'context is set by EDGE; remove it from the request.'}
+            assert not worker.posted('/v1/validate') and not worker.posted('/v1/signals')
+            assert c.post('/api/v1/backtests/signals', headers=c.headers_for, json=preview_of()).status_code == 200
+            assert worker.posted('/v1/signals')[-1]['body']['context'] == {'rights': rights}
+            assert submit(c, single(), f'r{len(admins)}').status_code == 202
+            assert worker.posted('/v1/validate')[-1]['body']['context'] == {'rights': rights}
+            run_next(c)
+            assert worker.posted('/v1/jobs')[-1]['body']['context']['rights'] == rights
+
+
+def test_a_queued_job_reads_its_owners_rights_when_it_is_dispatched(configured, store, worker):
+    """Queued as an admin, dispatched after the right was taken away: the worker gets no right (it refuses a
+    point-in-time condition, CONDITION_RESTRICTED)."""
+    application = create_app(dataclasses.replace(configured, admin_owners=(configured.owner,)), store, FakeOrc())
+    with TestClient(application) as c:
+        c.headers_for = login(c)
+        assert submit(c, single(), 'later').status_code == 202
+        run_next(c, dataclasses.replace(c.app.state.backtests.settings, admin_owners=()))
+        assert worker.posted('/v1/jobs')[-1]['body']['context']['rights'] == []
+
+
+def test_result_parts_are_read_for_their_owner_only(app, worker):
+    """BacktestStore.part / has join the job's owner: another owner's stored result is not found, even by its id."""
+    c = app
+    assert submit(c, single(), 'own').status_code == 202
+    job_id = run_next(c)
+    store = c.app.state.backtests.store
+    assert store.part(c.app.state.backtests.settings.owner, job_id, 'core') is not None
+    assert store.part('another-owner', job_id, 'core') is None and not store.has('another-owner', job_id, 'core')
+    db(c, "UPDATE edge_bff.backtest_jobs SET owner_key='another-owner' WHERE request_id=%s", job_id)
+    assert c.get(f'/api/v1/backtests/{job_id}/result').status_code == 404
+
+
+def test_admin_owners_are_checked_at_start():
+    from app.config import admin_owners_of
+    assert admin_owners_of(None, 'me') == ('me',)
+    assert admin_owners_of('me,you', 'me') == ('me', 'you')
+    for bad in ['', 'a,,b', ' me', 'me, you', 'me,me', 'a b']:
+        with pytest.raises(ValueError):
+            admin_owners_of(bad, 'me')

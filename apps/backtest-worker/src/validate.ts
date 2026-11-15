@@ -151,11 +151,13 @@ function checkConditions(list: readonly Listed[], flow: Config['flow'], brokers:
   const series = new Set<string>();
   for (const { field, cond: c, enabled } of list) {
     if (!CONDITION_ID.test(c.id)) fail('INVALID_CONDITION', `${field}.id`, `${field}.id must be 1 to 6 lowercase letters or digits, as the page makes it.`);
+    // EXEC-BACKTEST-REVAMP P4-P5: the point-in-time indicators are for admins only, enforced here at every depth of the
+    // test and on a switched-off condition too (it is stored with the job and kept by the page): CONDITION_RESTRICTED
+    if (c.kind === 'test') for (const r of flowRefs((c as { test?: unknown }).test, `${field}.test`))
+      if (isD(r.ref.metric) && !rights.has(D_RIGHT))
+        fail('CONDITION_RESTRICTED', r.field, `${field}: ${r.ref.metric} (point in time) is available to admins only; remove this condition to run the strategy.`);
     if (c.kind === 'test' && enabled) {
       const refs = flowRefs((c as { test?: unknown }).test, `${field}.test`);
-      // EXEC-BACKTEST-REVAMP P4: the point-in-time indicators are for admins only, enforced here (CONDITION_RESTRICTED)
-      for (const r of refs) if (isD(r.ref.metric) && !rights.has(D_RIGHT))
-        fail('CONDITION_RESTRICTED', r.field, `${field}: ${r.ref.metric} (point in time) is available to admins only; remove this condition to run the strategy.`);
       if (refs.length) {
         if (!flow.enabled) fail('FLOW_UNAVAILABLE', refs[0].field, `${refs[0].field}: the Flow indicators need the broker data, which is not available. ${flow.reason ?? ''}`.trim());
         for (const r of refs) flowBrokers(r.ref, r.field, brokers);

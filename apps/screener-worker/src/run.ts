@@ -22,7 +22,7 @@
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
 import type { CountsEntry, DataStatus, Definition, MetricRef, PatternRef, RunResponse, UniverseCounts, UniverseDef, Versions } from '../../edge-bff/screener/src/core/contract.ts';
-import { METRICS_CATALOG } from '../../edge-bff/screener/src/core/catalog.ts';
+import { METRICS_CATALOG, POINT_IN_TIME_RIGHT, flowAdminOnly } from '../../edge-bff/screener/src/core/catalog.ts';
 import { bindCondition, bindTest } from '../../edge-bff/screener/src/core/condition.ts';
 import type { BindContext } from '../../edge-bff/screener/src/core/condition.ts';
 import { series, seriesKey, tickerCalc } from '../../edge-bff/screener/src/core/metrics.ts';
@@ -56,7 +56,35 @@ function closed(v: Record<string, unknown>, allowed: readonly string[], at: stri
   for (const k of Object.keys(v)) if (!allowed.includes(k)) throw bad(at ? `${at}.${k}` : k, `${at ? `${at}.` : ''}${k} is not a field of this request; send only ${allowed.join(', ')}.`);
 }
 export interface RunOptionsN { exhaustive: boolean; explain: boolean }
-export interface Envelope { client_order: { page: string; seq: number } | null; data_version: string | null; definition: unknown; options: RunOptionsN; ticker?: string; definitions?: { item_id: string; definition: unknown }[] }
+export interface Envelope { client_order: { page: string; seq: number } | null; data_version: string | null; definition: unknown; options: RunOptionsN; ticker?: string; definitions?: { item_id: string; definition: unknown }[]; rights: string[] }
+
+/* EXEC-BACKTEST-REVAMP P5 (user K8 b, 2026-11-15): the rights edge-bff sets from the session, in the body's `context`
+   ({rights}); absent: none (fail closed). The Screener's versions of the indicators that choose their brokers with
+   later data in the Terminal (catalog.ts flowAdminOnly) need POINT_IN_TIME_RIGHT; read anywhere in a definition
+   without it, CONDITION_RESTRICTED names the field. */
+export const KNOWN_RIGHTS: readonly string[] = [POINT_IN_TIME_RIGHT];
+function contextRights(c: unknown): string[] {
+  if (c === undefined) return [];
+  if (!obj(c)) throw bad('context', 'context must be {rights}.');
+  closed(c, ['rights'], 'context');
+  const v = c.rights;
+  if (v === undefined) return [];
+  if (!Array.isArray(v) || v.some(x => typeof x !== 'string' || !KNOWN_RIGHTS.includes(x)) || new Set(v).size !== v.length)
+    throw refuse('INVALID_CONTEXT', `context.rights must be a list of distinct rights (${KNOWN_RIGHTS.join(', ')}).`, 'context.rights');
+  return v as string[];
+}
+/** The definition's references to an admin-only flow entry, refused without the right (CONDITION_RESTRICTED). */
+export function restrict(definition: unknown, rights: readonly string[], field = 'definition'): void {
+  if (rights.includes(POINT_IN_TIME_RIGHT)) return;
+  const walk = (x: unknown, f: string): void => {
+    if (Array.isArray(x)) { x.forEach((v, k) => walk(v, `${f}[${k}]`)); return }
+    if (!obj(x)) return;
+    const e = x.kind === 'flow' && typeof x.metric === 'string' ? FLOW_BY_ID[x.metric] : undefined;
+    if (e && flowAdminOnly(e)) throw refuse('CONDITION_RESTRICTED', `${f}: ${e.id} ${e.name} (the Screener's version) is available to admins only; remove this condition to run the screen.`, f);
+    for (const [k, v] of Object.entries(x)) walk(v, `${f}.${k}`);
+  };
+  walk(definition, field);
+}
 
 function schema(b: Record<string, unknown>): void {
   if (b.schema_version !== 1) throw bad('schema_version', 'schema_version must be 1.');
@@ -76,7 +104,7 @@ function version(v: unknown, required: boolean): string | null {
 /** POST /v1/run {schema_version, client_order, data_version?, definition, options?}. */
 export function runEnvelope(b: unknown): Envelope {
   if (!obj(b)) throw bad('body', 'The body must be a run request {schema_version, client_order, definition, options}.');
-  closed(b, ['schema_version', 'client_order', 'data_version', 'definition', 'options'], '');
+  closed(b, ['schema_version', 'client_order', 'data_version', 'definition', 'options', 'context'], '');
   schema(b);
   let options: RunOptionsN = { exhaustive: false, explain: false };
   if (b.options !== undefined) {
@@ -85,20 +113,20 @@ export function runEnvelope(b: unknown): Envelope {
     for (const k of ['exhaustive', 'explain'] as const) if (b.options[k] !== undefined && typeof b.options[k] !== 'boolean') throw bad(`options.${k}`, `options.${k} must be true or false.`);
     options = { exhaustive: b.options.exhaustive === true, explain: b.options.explain === true };
   }
-  return { client_order: order(b.client_order), data_version: version(b.data_version, false), definition: b.definition, options };
+  return { client_order: order(b.client_order), data_version: version(b.data_version, false), definition: b.definition, options, rights: contextRights(b.context) };
 }
 /** POST /v1/preview {schema_version, client_order, definition, ticker, data_version}. */
 export function previewEnvelope(b: unknown): Envelope {
   if (!obj(b)) throw bad('body', 'The body must be a preview request {schema_version, client_order, definition, ticker, data_version}.');
-  closed(b, ['schema_version', 'client_order', 'data_version', 'definition', 'ticker'], '');
+  closed(b, ['schema_version', 'client_order', 'data_version', 'definition', 'ticker', 'context'], '');
   schema(b);
   if (typeof b.ticker !== 'string' || !/^[A-Z0-9]{1,12}$/.test(b.ticker)) throw bad('ticker', 'ticker must be a listed ticker (1-12 capital letters or digits).');
-  return { client_order: order(b.client_order), data_version: version(b.data_version, true), definition: b.definition, options: { exhaustive: true, explain: false }, ticker: b.ticker };
+  return { client_order: order(b.client_order), data_version: version(b.data_version, true), definition: b.definition, options: { exhaustive: true, explain: false }, ticker: b.ticker, rights: contextRights(b.context) };
 }
 /** POST /v1/counts {schema_version, data_version?, definitions: [{item_id, definition}]} (at most max_counts). */
 export function countsEnvelope(b: unknown, maxCounts: number): Envelope {
   if (!obj(b)) throw bad('body', 'The body must be a counts request {schema_version, definitions}.');
-  closed(b, ['schema_version', 'data_version', 'definitions'], '');
+  closed(b, ['schema_version', 'data_version', 'definitions', 'context'], '');
   schema(b);
   if (!Array.isArray(b.definitions)) throw bad('definitions', 'definitions must be a list of {item_id, definition}.');
   if (b.definitions.length > maxCounts)
@@ -112,14 +140,14 @@ export function countsEnvelope(b: unknown, maxCounts: number): Envelope {
     seen.add(d.item_id);
     return { item_id: d.item_id, definition: d.definition };
   });
-  return { client_order: null, data_version: version(b.data_version, false), definition: null, options: { exhaustive: false, explain: false }, definitions };
+  return { client_order: null, data_version: version(b.data_version, false), definition: null, options: { exhaustive: false, explain: false }, definitions, rights: contextRights(b.context) };
 }
 /** POST /v1/validate {schema_version, definition}. */
 export function validateEnvelope(b: unknown): Envelope {
   if (!obj(b)) throw bad('body', 'The body must be {schema_version, definition}.');
-  closed(b, ['schema_version', 'definition'], '');
+  closed(b, ['schema_version', 'definition', 'context'], '');
   schema(b);
-  return { client_order: null, data_version: null, definition: b.definition, options: { exhaustive: false, explain: false } };
+  return { client_order: null, data_version: null, definition: b.definition, options: { exhaustive: false, explain: false }, rights: contextRights(b.context) };
 }
 
 /* ================================================================================================================ */

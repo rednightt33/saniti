@@ -78,8 +78,10 @@ describe('contract', () => {
       LIMIT_EXCEEDED: 422, DATA_UNAVAILABLE: 424, DATA_INTEGRITY: 424, BUSY: 409, SCREEN_REPLACED: 409, PREVIEW_REPLACED: 409,
       DATA_VERSION_CHANGED: 409, REVISION_CONFLICT: 409, NAME_TAKEN: 409, NOT_FOUND: 404, REQUEST_TOO_LARGE: 413,
       SCREENER_DISABLED: 503, SCREENER_NOT_READY: 503, SCREENER_UNAVAILABLE: 503, TIMEOUT: 504,
+      // EXEC-BACKTEST-REVAMP P5 (user K8 b): an admin-only entry without the session's right; a context not formed by edge-bff
+      CONDITION_RESTRICTED: 422, INVALID_CONTEXT: 422,
     });
-    expect(ERROR_CODES.length).toBe(20);
+    expect(ERROR_CODES.length).toBe(22);
     expect(WORKER_ERROR_STATUS.DATA_VERSION_PENDING).toBe(409);                   // worker-only (report 8.8 note, 6d.4)
     expect(Object.keys(ERROR_STATUS)).not.toContain('DATA_VERSION_PENDING');
     const e = new ScreenerError('PARAM_OUT_OF_RANGE', 'p.length must be at most 252.', 'p.length', { field: 'p.length', max: 252 });

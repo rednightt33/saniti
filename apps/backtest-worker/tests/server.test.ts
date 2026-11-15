@@ -759,3 +759,18 @@ test('preview_end: each preview\'s wait in the queue (preview_wait_ms), its comp
 /* ---- what was observed (durations on this machine, for the report; not asserted) ---------------------------------- */
 const observed: Record<string, unknown> = {};
 after(() => { process.stdout.write(`# observed ${JSON.stringify(observed)}\n`) });
+
+test('P5: rights from the context only, fail closed; unknown rights and fields refused; D refused even switched off', async () => {
+  const { rightsOf } = await import('../src/server.ts');
+  assert.deepEqual(rightsOf(undefined), []);
+  assert.deepEqual(rightsOf(['flow_point_in_time']), ['flow_point_in_time']);
+  for (const bad of [['admin'], 'flow_point_in_time', ['flow_point_in_time', 'flow_point_in_time'], [1]])
+    assert.throws(() => rightsOf(bad), (e: unknown) => (e as { code?: string }).code === 'INVALID_CONTEXT', JSON.stringify(bad));
+  const { checkRequest } = await import('../src/validate.ts');
+  const q = pageDefault('UNVR');
+  const d = { id: 'd1', enabled: false, kind: 'test', test: { kind: 'value', metric: { kind: 'flow', metric: 'FL45', params: { anchor: '2026-01-02' } }, op: 'gt', value: 5 } };
+  const withD = { ...q, entry: { ...q.entry, conditions: [...q.entry.conditions, d] } };
+  assert.throws(() => checkRequest(withD, refs, { limits: loadConfig(ENV()).limits, flow: { enabled: true, reason: null } }),
+    (e: unknown) => (e as { code?: string; field?: string }).code === 'CONDITION_RESTRICTED' && (e as { field?: string }).field === `entry.conditions[${q.entry.conditions.length}].test.metric`);
+  checkRequest(withD, refs, { limits: loadConfig(ENV()).limits, flow: { enabled: true, reason: null } }, new Set(['flow_point_in_time']));
+});

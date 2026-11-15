@@ -14707,6 +14707,32 @@ skrip restart butuh Railway CLI yang tidak ada di sesi ini. *Saran:* tekan "🔄
     - job dengan dan tanpa hak.
   - **Belum dibangun (dilaporkan di Gerbang 2):** sumbu grid khusus D (anchor ±10/20 sesi, top N ±1/2). Grid ambang
     sudah berlaku untuk uji D yang punya angka (mis. FL45 > 5).
+- **Pelaksanaan P5 (2026-11-15).**
+  - **edge-bff:** `app/rights.py` (`rights_of`, `refuse_context`, `catalog_for`). Ada `EDGE_ADMIN_OWNERS`, bawaannya
+    `EDGE_OWNER`; isian kosong, "a,,b", spasi atau duplikat menghentikan start. `session()` mencatat owner sesi di
+    `request.state`, lalu setiap rute Backtest membaca owner dan hak dari sesi.
+    - Badan dari user yang memuat `context` ditolak (422 `UNKNOWN_FIELD`).
+    - `/v1/validate`, `/v1/signals` dan `/v1/jobs` selalu membawa `context.rights`. Antrean menghitung hak saat dispatch
+      dari `owner_key`, jadi admin yang diturunkan langsung terdampak.
+    - Katalog Backtest disimpan utuh lalu disaring per sesi, termasuk katalog cadangan saat worker mati.
+    - `BacktestStore.part`/`has` digabung dengan `owner_key`.
+  - **Worker Backtest:** menerima bentuk `{request, context}` maupun bentuk lama (urutan deploy: worker dulu).
+    - Hak yang hilang dianggap kosong (gagal tertutup), dan hak yang tidak dikenal ditolak `INVALID_CONTEXT`.
+    - D ditolak walaupun kondisinya `enabled: false`.
+    - Katalog mendapat `flow_indicators`: 41 indikator `access: all`, D dengan `access: admin`, dan yang tidak tersedia
+      beserta alasannya.
+  - **K8b Screener:** entri Screener `anchored`/`inventory` (FL18–FL20, FL23, FL44, FL45) ditandai `access: admin` di
+    katalog. screener-worker menolaknya tanpa hak di validate, run, preview dan counts (`CONDITION_RESTRICTED`, 422; kode
+    ini dan `INVALID_CONTEXT` ditambahkan ke tabel error Screener dan relay edge-bff). edge-bff mengirim hak di setiap
+    panggilan Screener, termasuk saat menyimpan dan meninjau item, dan menyaring katalog Screener per sesi dengan ETag
+    sendiri.
+  - **Tes:** worker (hak, konteks, D yang dimatikan); edge-bff dengan dua jenis owner (admin dan bukan), dispatch
+    sesudah hak dicabut, bagian hasil milik owner lain, dan validasi `EDGE_ADMIN_OWNERS`; Screener (katalog per sesi,
+    `context` ditolak, hak terkirim).
+  - **Risiko deploy (untuk Gerbang 2):** edge-bff baru mengirim `context` ke screener-worker. screener-worker lama menolak
+    field itu, jadi kalau edge-bff selesai deploy lebih dulu, Screener menolak permintaan selama beberapa menit. Usul:
+    deploy screener-worker dulu sampai `SUCCESS`, baru edge-bff.
+  - **Halaman (P5.6):** halaman sekarang tidak menawarkan D, jadi permintaan seri D ke worker masuk port tampilan (Tahap D).
 
 **P2 — Backtest menerima tata bahasa bersama (per saham, non-flow)**
 1. Adapter: `conditionSignal` + `within` per kondisi, bar 0 = 0, galat EMPTY, sisi price→volume, IHSG untuk `vs_index`

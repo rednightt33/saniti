@@ -26,8 +26,8 @@ import { runJob, runSignals } from './run.ts';
 import type { References } from './validate.ts';
 
 export type Task =
-  | { kind: 'job'; request: unknown; context: Pick<JobContext, 'prior_trials'>; refs: References }
-  | { kind: 'signals'; request: unknown; refs: References };
+  | { kind: 'job'; request: unknown; context: Pick<JobContext, 'prior_trials'> & { rights?: string[] }; refs: References }
+  | { kind: 'signals'; request: unknown; refs: References; rights?: string[] };
 export type Outcome =
   | { kind: 'job'; gzip: Uint8Array; json_bytes: number; duration_ms: number }
   | { kind: 'signals'; preview: SignalsPreview };
@@ -138,7 +138,7 @@ function startThread(d: ThreadData): void {
         if (hooks.shouldStop()) throw new Cancelled();             // a cancel that came while the result was packed
         port.postMessage({ seq, type: 'done', outcome: { kind: 'job', gzip, json_bytes, duration_ms: result.meta.duration_ms } }, [gzip.buffer]);
       } else {
-        port.postMessage({ seq, type: 'done', outcome: { kind: 'signals', preview: await runSignals(task.request, task.refs, env, hooks) } });
+        port.postMessage({ seq, type: 'done', outcome: { kind: 'signals', preview: await runSignals(task.request, task.refs, env, hooks, { rights: task.rights ?? [] }) } });
       }
     } catch (e) {
       const s = serialError(e);
