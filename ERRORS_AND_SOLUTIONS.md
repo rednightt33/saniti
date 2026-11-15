@@ -8041,7 +8041,7 @@ in its staleness check.
   by the manual mode `overview` (AGENTS.md, after a large update, step 4; OVERVIEW_FORMULAS.md section 13).
 - **Lesson:** a cached output is keyed on the content of what it read, at least for the part of history that loaders
   still write; a file that refers to another file by position is rebuilt whenever that file's order changes.
-### M443 — The scheduled Postgres restart can fall between two statements of a long job (2026-11-15, open)
+### M443 — The scheduled Postgres restart can fall between two statements of a long job (2026-11-15, known: not fixed)
 
 - **Symptom (found while planning EXEC-INDEX-GROUP-HISTORY stage 6, nothing broke):** a multi-hour job on
   orc-test-runner (the index and group fill, about 3 hours) would overlap the 13:45 UTC run of postgres-memory-cron.
@@ -8054,10 +8054,10 @@ in its staleness check.
   scheduled restart; also an `idle in transaction` session of a user run.
 - **Mitigation now:** the fill starts after the 13:45 UTC restart (next 02:45 UTC); `backfill_index_entities.py`
   continues an entity from its least advanced feature table, so a stopped run is resumed by running it again.
-- **Planned fix:** PLAN.md RESTART-GUARD (2026-11-16, waiting for go). Earlier proposal: the guard also refuses while a client session is
+- **Proposal (declined, 2026-11-16):** the guard also refuses while a client session is
   `idle in transaction`, or while a job holds a declared session lock (one advisory lock key that long jobs take);
   the refusal message names the session's application_name and start time.
-- **Status:** OPEN (proposal).
+- **Status:** KNOWN, not fixed (user 2026-11-16: "Ya udah, masukin aja ke known error. Tidak usah diperbaiki."). Long jobs keep the mitigation: start them after a scheduled restart (09:45 / 20:45 WIB) or far from it, and make them resumable.
 - **Lesson:** a guard that checks one instant cannot see work that pauses; work that must not be cut declares itself.
 
 ### M444 — The independent Feature 06 check refused an exact value: running float sums near zero (2026-11-15, fixed)
@@ -8080,7 +8080,7 @@ in its staleness check.
   and entity checks pass with it.
 - **Status:** FIXED (the fill is run again).
 - **Lesson:** an independent check must be at least as exact as what it checks; a running sum is not.
-### M445 — The restart guard's hand path cannot see other accounts' sessions (2026-11-16, open)
+### M445 — The restart guard's hand path cannot see other accounts' sessions (2026-11-16, known: not fixed)
 
 - **Symptom (found while planning the fix of M443):** run by hand or at the end of a `run_job.sh` job,
   `scripts/restart_postgres.py` reads `pg_stat_activity` as `pgweb`; a session of another account shows no state
@@ -8092,6 +8092,6 @@ in its staleness check.
   reads as the main account (`${{Postgres.DATABASE_URL}}`) and sees every session.
 - **Class:** every check that reads other sessions through a reader role (the restart guard by hand, `run_job.sh`'s
   restart after a large write, any agent check of "is something running").
-- **Planned fix:** PLAN.md RESTART-GUARD step 2 (one read-only SECURITY DEFINER function for both paths, no query text).
-- **Status:** OPEN (plan, waiting for the user's go).
+- **Proposal (declined, 2026-11-16):** one read-only SECURITY DEFINER function for both paths, no query text (FUTURE_PLAN.md RESTART-GUARD).
+- **Status:** KNOWN, not fixed (user 2026-11-16). Until then: before a restart by hand or a `large_write` job, check running jobs with a query as the main account (or look at orc-test-runner and the cron services), not only the guard's verdict.
 - **Lesson:** a guard must read with the same view of the system in every path that runs it.
