@@ -14365,6 +14365,20 @@ desain. Kode: `apps/edge-bff/overview/src/model.ts` (`colorOf(..., signed)`); `O
 edge-bff `a3083980` SUCCESS 2026-11-15 13:40 UTC (go user: "go, deploy edge-bff"); terlihat di halaman live. Lalu user 2026-11-15: **"Foreign buy samakan juga, go deploy"**: warna Foreign buy abu-abu hanya bila kotak
 bertulisan 0 (net di bawah Rp 1 juta); net lain paling tidak hijau muda atau merah muda. Deploy edge-bff `960ef248` SUCCESS 13:57 UTC; terlihat di halaman live.
 
+### Daftar perbaikan dan tambahan sesudah rilis (2026-11-15; dikerjakan sesudah go)
+
+Permintaan user (kata-katanya), dengan penyebab yang sudah dicek di kode:
+
+| # | Permintaan user | Penyebab terverifikasi | Arah perbaikan |
+|---|---|---|---|
+| P1 | "Ini gak align, harusnya sejajar dengan 564 dan 116.6 B" (kotak kecil di bawah grafik IHSG: nilai Turnover lebih tinggi) | `.pd-kpis .kpi` (`overview.css:700-703`): nilai mengikuti label; "Advancers / decliners" dan "Foreign net (9 Nov)" terlipat 2 baris, "Turnover (9 Nov)" 1 baris | nilai di dasar setiap sel (berlaku juga untuk kotak Foreign Flow) |
+| P2 | "ini di list kalo scrollable kenapa bisa seperti pada SS" (menu universe memanjang keluar halaman) | `.unipop` (`overview.css:610`) tanpa batas tinggi; 67 daftar; menu tanggal `.ddpop` (`:721`) sama | tinggi dibatasi, daftar bergulir di dalam, kolom cari tetap di atas |
+| P3 | "Terlampir bug juga kepotong" (popover kotak peta pasar terpotong di bawah) | posisi popover memakai tinggi perkiraan 130/150 px (`app.ts:182`), padahal catatan tanggal broker terlipat; `.tm` memotong (`overflow:hidden`, `overview.css:567`) | ukur popover sesudah digambar, taruh di dalam peta (di atas kotak bila di bawah tidak muat) |
+| P4 | "Untuk market map tambah hoverstate. Harusnya berguna untuk kotak yang tickernya tidak ter-detect." | kotak kecil tidak diberi label (lebar < 34 px atau tinggi < 18 px) dan tidak ada tooltip | tooltip saat kursor di atas kotak: ticker, nama, nilai periode, ukuran |
+| F1 | "yang berkaitan dengan period, kecuali IHSG, tambahkan "Custom" which user bisa pilih periode, maksimal 1 tahun." | panel pasar (Sector, % EMA, total Foreign Flow) cukup dengan `overview-series` (300 sesi); panel per saham (peta, Top Movers, daftar Foreign Flow) hanya punya periode tetap di file harian | menunggu jawaban user atas pertanyaan bentuk dan cakupan (perkiraan file per saham 1 tahun: ±0,9 MB gzip, diunduh hanya saat Custom dipilih) |
+
+Temuan QA mobile (5 reviewer Sonnet, 2026-11-15) ditambahkan ke daftar ini sesudah dicek ulang.
+
 Temuan selama O1 (sudah ditangani di kode):
 - Login publisher di dev punya `statement_timeout=120s`. Hitungan EMA lari pertama (300 tanggal) dalam satu kueri ±86
   detik saat cache dingin, terlalu dekat batas. Sekarang dipecah per 20 tanggal (`BREADTH_CHUNK`; satu kelompok 5,7
