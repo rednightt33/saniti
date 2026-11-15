@@ -14165,3 +14165,6 @@ sebelum isi harga tahap 3 -> tahap 3-10 (PLAN.md).
 **Go user 2026-11-15:** "Ok jalankan", lalu "go langkah 1 dan 2": (1) deploy tahap 1 (merge `main`: idx-price-cron dan
 idx-price-recovery-cron ter-deploy ulang dari watch path; idx-intraday-cron lewat `deploy_intraday.sh` karena tidak
 terhubung GitHub), (2) migrasi A di dev. Migrasi B dan tahap 3 menunggu go terpisah.
+- Hasil 2026-11-15: (1) idx-price-cron `a81179a3`, idx-price-recovery-cron `d2a15423`, idx-intraday-cron `1cddf79c` SUCCESS;
+  (2) migrasi A DRYRUN `2445a6ae`, APPLY `b4f43a1e`, dibaca balik (DATABASE_CHANGELOG); restart Postgres 07:47 UTC.
+  Berikutnya (go terpisah): migrasi B + isi harga 43 indeks sejak 2018 (tahap 3); tahap 4 di branch.

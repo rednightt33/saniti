@@ -7891,7 +7891,7 @@ in its staleness check.
 - **Lesson:** a correction migration that changes a generated text also changes what the generator writes, in the same
   commit; a generator derives later corrections from the migrations rather than copying them.
 
-### M437 — Code that assumes the universe holds one index (2026-11-15, OPEN: fix on the branch, not deployed)
+### M437 — Code that assumes the universe holds one index (2026-11-15, fixed)
 
 - **Found by:** the dependency map of EXEC-INDEX-GROUP-HISTORY (43 more indexes in `IDX_Stock_Universe`), before any
   change on dev; nothing has failed yet.
@@ -7911,6 +7911,7 @@ in its staleness check.
   `20261115_001` (the same rule for `remark_intraday_sessions`' calendar; the guard reads `Feature_Index_Entity`).
   Rehearsal: `verification/index_group_history/REHEARSAL.md` (identical output on today's data; the stray candle no
   longer counts).
-- **Status:** OPEN until the code is deployed and the migration applied (EXEC-INDEX-GROUP-HISTORY).
+- **Status:** FIXED 2026-11-15: idx-intraday-cron `1cddf79c` SUCCESS (HEAD `63da5cf3`), migration 20261115_001 applied
+  and read back (DATABASE_CHANGELOG 2026-11-15). Its first scheduled intraday run (Monday 10:30 UTC) exercises the code.
 - **Lesson:** a second instance of something the code has known only once (an index, a market, a calendar) is a schema
   change: search every reader of its identifying predicate for a count, sum or union over it before adding it.

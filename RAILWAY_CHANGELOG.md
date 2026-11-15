@@ -1,5 +1,20 @@
 # Railway changelog
 
+## 2026-11-15 — idx-price-cron, idx-price-recovery-cron, idx-intraday-cron deployed (EXEC-INDEX-GROUP-HISTORY stage 1); Postgres restart
+
+- **Go:** user 2026-11-15 "Ok jalankan", "go langkah 1 dan 2".
+- `main` fast-forwarded to `63da5cf3`: idx-price-cron `a81179a3` and idx-price-recovery-cron `d2a15423` SUCCESS (watch
+  path `/apps/idx-price-cron/**`; their code is unchanged in behaviour). idx-intraday-cron is a CLI upload:
+  `apps/idx-price-cron/deploy_intraday.sh` from HEAD `63da5cf3`, deployment `1cddf79c` SUCCESS (rollback reference
+  `eb2a184f`). Its next run is the schedule (Monday 10:30 UTC); intraday now loads only indexes that already have
+  intraday bars (ERRORS M437). Railway CLI 5.74.0 with `RAILWAY_TOKEN` unset (the proxy's credential), as on 2026-11-14.
+- Jobs on orc-test-runner (migration 20261115_001, DATABASE_CHANGELOG): DRYRUN `2445a6ae`, APPLY `b4f43a1e`, `VAR_REMOVED`.
+- **Postgres restart:** the jobs' `POSTGRES_MEMORY_CHECK` said READY (1.07 GB): `scripts/restart_postgres.py --apply` at
+  07:47 UTC, every guard passed (no cron within 45 minutes, outside B6, 0 statements, 0 user runs), 10 s, edge-bff
+  `/ready` 200.
+- Seen, not caused here: Postgres had a new deployment `147e89af` created at 06:58:47 UTC (replacing `96161400`), before
+  this session touched Railway; a new deployment, not a crash restart, so not a memory kill. `.railway/railway.ts` unchanged.
+
 ## 2026-11-15 — edge-bff `e8686596`: Radar column scrollbar only on hover
 
 - User 2026-11-15: a board column's scrollbar showed at rest; it now shows only while the pointer is over the column (or

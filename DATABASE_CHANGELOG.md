@@ -1,5 +1,22 @@
 # Database changelog
 
+## 2026-11-15 — Feature_Index_Entity, the INDEX guard and the intraday calendar (20261115_001) — applied on dev
+
+- **Go:** user 2026-11-15 "Ok jalankan", "go langkah 1 dan 2" (EXEC-INDEX-GROUP-HISTORY step 2).
+- **20261115_001_feature_index_entity.sql** (sha256 `5aabff765287921281e1…`, ERRORS M437):
+  - new table `Feature_Index_Entity`: 77 entities of the *_INDEX tables (IHSG MARKET, 32 INDEX, 11 SECTOR, 33 GROUP),
+    each with its member source (every source symbol / Stockbit list / universe sector) and `rows_from` 2024-01-02 (IHSG
+    NULL); Table_Catalog 1 row, Column_Catalog 10 rows; SELECT for `pgweb_reader`;
+  - `validate_index_feature_identity` reads the registry: a group only in Feature 02/03/05/06, Feature 01/04 only for a
+    priced universe index, no row before `rows_from`, fixed-income tickers refused (md5 `e8d0fb84…` → `0bfc1bff…`);
+  - `remark_intraday_sessions`: session calendar from the indexes that have intraday bars (md5 `06a47619…` →
+    `f538af94…`); identical output on today's data (rehearsal, `verification/index_group_history/REHEARSAL.md`).
+- DRYRUN job `2445a6ae`, APPLY job `b4f43a1e` (`verification/index_group_history/jobs/`), both `JOB_EXIT 0`, `VAR_REMOVED`.
+- Read back (pgweb, read-only): 77 entities by kind 1/32/11/33; both function md5s as above; `IHSG` → `INDEX:467`,
+  `GPRAJOGO` → `KONGLO:57`; the six *_INDEX tables unchanged (IHSG only; Feature 01 INDEX 2,136 and Feature 06 INDEX
+  7,278 rows); `IDX_Stock_Universe` still 1 index (migration B 20261115_002 not applied).
+- `DATABASE_SCHEMA.md`: the new table appears with the scheduled refresh (`.github/workflows/database-schema-docs.yml`).
+
 ## 2026-11-14 — Feature 07 Radar: S6Δ labels decided (004), G2 window from Feature 06 (005), every date redone — applied on dev
 
 - **Go:** user 2026-11-14 "1A" (S6Δ thresholds stay 12 / 20 / 35 and 40 / 65 / 90), then "1 go, 2 perbaiki sekarang".
