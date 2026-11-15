@@ -14161,3 +14161,7 @@ Tes 41 lulus (3 baru).
 
 **Urutan sesudahnya (masing-masing dengan go):** deploy tahap 1 (idx-intraday-cron) -> migrasi A -> migrasi B tepat
 sebelum isi harga tahap 3 -> tahap 3-10 (PLAN.md).
+
+**Go user 2026-11-15:** "Ok jalankan", lalu "go langkah 1 dan 2": (1) deploy tahap 1 (merge `main`: idx-price-cron dan
+idx-price-recovery-cron ter-deploy ulang dari watch path; idx-intraday-cron lewat `deploy_intraday.sh` karena tidak
+terhubung GitHub), (2) migrasi A di dev. Migrasi B dan tahap 3 menunggu go terpisah.
