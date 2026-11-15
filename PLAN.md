@@ -120,9 +120,23 @@ sebagai jenis kondisi. Baris "Not in backtest yet" per akar masalah: tata bahasa
 15 teknikal Screener), aliran broker (51, sama dengan pertanyaan 3), data belum ada (32 fundamental, KSEI, konstituen
 indeks, papan, notasi khusus), indikator belum di registry (Ichimoku 2), lintas saham (RS rank 1).
 
-**Pertanyaan terbuka:** (3) indikator Flow mana yang masuk dulu dan aturan untuk yang berisiko look-ahead; (4) cara
-menangani kondisi "Not in backtest yet" (usulan: satu tata bahasa kondisi bersama Screener-Backtest di inti, ditambah
-uji "potong data" untuk look-ahead pada semua kondisi).
+**Keputusan user, 2026-11-15 (lanjutan):** "Saya sebenarnya tidak terlalu important untuk rilis dalam waktu dekat front
+end. Kita bisa bereskan saja dulu kondisi back end. Setuju untuk usulanmu Usulan perbaikan: satu bahasa kondisi bersama
+(permanen)". Tentang look-ahead: "seharusnya tidak terjadi ... Jika berlaku untuk seluruh indikator, maka ini perlu
+diperbaiki." Dan: "Kalau A B C D mau di rilis bersama, tapi tidak ada lookahead bias, apa yang mesti kita buat?" Jadi:
+back end lebih dulu, tampilan menyusul; satu tata bahasa kondisi bersama (permanen) disetujui; indikator Flow A-D
+dirilis bersama dengan syarat tanpa look-ahead.
+
+**Uji look-ahead, 2026-11-15** (ERRORS M443; uji potong data atas data BBCA dev): bersih 53 indikator, 8 operator pola
+harga, 20 candlestick, 17 transform Screener, 44 dari 52 Flow; look-ahead hanya FL18, FL19, FL20, FL23, FL44, FL45,
+FL51, FL52 (524 variasi parameter), semuanya karena pemilihan broker otomatis sampai candle terakhir. Di luar rumus:
+FL31 (insider bertanggal transaksi, bukan pengumuman), FL34 (klasifikasi broker sekarang dipakai untuk semua tanggal),
+ambang bawaan halaman (`regMedian`, median seluruh riwayat), serta yang sudah diperingatkan (survivorship K6, harga
+campuran K4).
+
+**Pertanyaan terbuka:** (a) delapan indikator Flow di Terminal: tetap tampilan "hindsight" atau ikut aturan titik-waktu;
+(b) FL31: tanggal pengumuman dari sumber data, atau jeda konservatif sementara, atau ditahan; (c) FL34: klasifikasi
+bertanggal, dihitung dari data sampai t, atau ditahan; (d) Part A ERRORS ditambah syarat "tanggal tersedia".
 
 ## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
 

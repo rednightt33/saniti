@@ -8041,3 +8041,46 @@ in its staleness check.
   by the manual mode `overview` (AGENTS.md, after a large update, step 4; OVERVIEW_FORMULAS.md section 13).
 - **Lesson:** a cached output is keyed on the content of what it read, at least for the part of history that loaders
   still write; a file that refers to another file by position is rebuilt whenever that file's order changes.
+
+### M443 — Look-ahead: eight Terminal Flow indicators choose their brokers with data up to the last candle; four data inputs carry no availability date (2026-11-15, open)
+
+- **Found by:** BACKTEST-REVAMP (PLAN.md), before the Terminal Flow indicators enter the Backtest. User 2026-11-15:
+  "bisa mengintip masa depan, seharusnya tidak terjadi ... Jika berlaku untuk seluruh indikator, maka ini perlu
+  diperbaiki."
+- **Check (truncation test, read-only):** every series computed on the full data and on the data cut at day t; every
+  value on days up to t must be equal. Data: BBCA from dev (2,140 final daily bars 2018-01-02 to 2026-11-13; 67,190
+  Feature 05 rows from 2024-01-02 with `buy_freq`/`sell_freq`; 85 insider rows; `IDX_Broker_Profile` classes), read
+  through pgweb as `pgweb_reader`. Cuts: 6 dates for prices, 4 for flow. Result:
+  - clean: the 53 registry indicators (default parameters), the 8 price-action operators (`conditions.ts`
+    `PRICE_ACTION`), the 20 candlestick patterns (`candles.ts`), 17 Screener transforms (`transforms.ts`);
+  - look-ahead: 8 of 52 Flow indicators, and only these in a sweep of 524 parameter variants (every option of every
+    select, bool and multi parameter): FL18, FL19, FL20, FL44, FL45 (scope Top-N: `terminal/src/calc/flow.ts` `frozen`
+    ranks brokers from the anchor to `lastData`), FL23 and FL52 (default brokers: `defaultInventoryBrokers`, the last
+    20 sessions of the data), FL51 (`loadersTable`, end = the last candle). Example: FL18 on 2024-01-02 reads 9,396.67
+    with the data to 2026 and 9,396.53 with the data cut at 2024-07-15; FL51 lists broker SQ only with the full data.
+    The same indicators with brokers the user names (scope "selected") are clean.
+- **Not caught by a truncation test (data without an availability date):**
+  1. FL31 Insider Net Change: `idx_event_annotation` insider rows carry only `TRANSACTION_DATE` (104,998 rows; IDX
+     22,809 and KSEI 82,189; no disclosure date in `source_payload`), so a transaction is read on its trade date, before
+     it was reported;
+  2. FL34 Institutional vs Retail: `IDX_Broker_Profile.broker_classification` is the current observed profile, applied
+     to every date (`apps/terminal-publisher/publisher.py:1631`);
+  3. the Backtest page's default threshold of a new panel indicator is the median of the ticker's whole published
+     history (`apps/edge-bff/backtest/src/reg.ts:40-42` `regMedian`), dates after the test period included;
+  4. known and warned: today's ticker list and sectors (`SURVIVORSHIP`, decision K6), the back-adjusted history before
+     2026-09-12 (`ADJUSTED_HISTORY_BOUNDARY`, decision K4).
+- **Class:** a value at day t that depends on information not available at t: (a) in the calculation, a selection
+  (Top-N cohort, default broker list, loaders, a threshold) made over a window that reaches past t; (b) in the data, a
+  row dated by when the event happened rather than when it became known, or a static label applied to past dates. The
+  Terminal draws a chart of the past with hindsight; the Backtest must not. Any new data source (macro, cross-asset,
+  fundamentals) can carry (b).
+- **Proposed solution (not executed; PLAN.md BACKTEST-REVAMP):** one rule, value at t = function of the data available
+  at t: selections recomputed at each t from data up to t (or fixed by the user before the test); data with an
+  availability date beside the event date (or a stated conservative lag, TEMPORARY, until the source gives one);
+  defaults from data before the test period; a truncation test over every registry entry (derived from the registries,
+  so a new indicator is covered) and an engine-level test (trades closed up to t unchanged) as a CI gate.
+- **Status:** OPEN. The Backtest does not offer any Flow indicator of the Terminal yet, so no published backtest result
+  read these eight; the Terminal chart draws them. Whether the Screener reads them on past bars (its preview arrows)
+  was not checked in this task.
+- **Lesson for new data:** a table that feeds signals carries the date each row became known, not only the date it
+  describes; a classification used on past dates is dated too (Part A update proposed to the user 2026-11-15).
