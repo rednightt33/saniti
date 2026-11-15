@@ -7,6 +7,7 @@
    Sector names and company names of the fake reference list are test labels, not published values; the broker rows
    and the corporate action of the flow and events tests are test rows, marked where they are made. */
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { loadFixtures } from '../../edge-bff/terminal/tests/calc/fixtures.mjs';
 import type { BacktestRequest, BacktestResult, Condition, JobProgress } from '../../edge-bff/backtest/src/core/contract.ts';
@@ -17,8 +18,8 @@ import { DataError, dataVersion } from '../../edge-bff/backtest/src/core/datafil
 import type { PriceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { Cancelled, MAX_PORTFOLIO_TICKERS, MAX_POSITIONS, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { Exclusion } from '../../edge-bff/backtest/src/core/engine.ts';
-import { lineageKey as coreLineageKey, requestHash as coreRequestHash, variantHash as coreVariantHash } from '../../edge-bff/backtest/src/core/hash.ts';
-import { hashForm } from '../src/canonical.ts';
+import { canonicalJson, lineageKey as coreLineageKey, requestHash as coreRequestHash, variantHash as coreVariantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { hashForm, lineageForm } from '../src/canonical.ts';
 import type { CellRun } from '../../edge-bff/backtest/src/core/ledger.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { assertFiniteJson, buildResult } from '../../edge-bff/backtest/src/core/result.ts';
@@ -122,7 +123,7 @@ const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
     4-7 compose it: prepare, run, one run per sensitivity cell, buildResult with the hashes and versions. */
 // the worker hashes a request's hash form (canonical.ts, EXEC-BACKTEST-REVAMP K7 a), so the reference does too
 const variantHash = (q: BacktestRequest) => coreVariantHash(hashForm(q));
-const lineageKey = (q: BacktestRequest) => coreLineageKey(hashForm(q));
+const lineageKey = (q: BacktestRequest) => coreLineageKey(lineageForm(q));
 const requestHash = (q: BacktestRequest, v: Parameters<typeof coreRequestHash>[1]) => coreRequestHash(hashForm(q), v);
 
 async function direct(q: BacktestRequest, tickers: string[], files: { ticker: string; dataset: string; sha256: string }[], prior: { variant_hash: string; sharpe_daily: number }[] = [],
@@ -660,7 +661,13 @@ test('P3: a job with a Flow indicator in the grammar reads the broker rows as co
     const q = { ...pageDefault('UNVR'), entry: { logic: 'all', at_least: 1, window_bars: 5, conditions: [fl()] } } as BacktestRequest;
     q.period.from = days[0];
     const r = await runJob(q, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }));
-    assert.equal(r.meta.data_version, await dataVersion([priceFile('IHSG'), priceFile('UNVR'), { ticker: 'UNVR', dataset: 'broker', sha256: encode(doc).sha256 }]));
+    // the brokers' classification the grammar's Flow conditions read is part of the data (Stage C F7): its hash beside the files
+    const cls = (b: Record<string, string>) => ({ ticker: 'REFERENCE', dataset: 'broker_classification', sha256: crypto.createHash('sha256').update(canonicalJson(b)).digest('hex') });
+    assert.equal(r.meta.data_version, await dataVersion([priceFile('IHSG'), priceFile('UNVR'), { ticker: 'UNVR', dataset: 'broker', sha256: encode(doc).sha256 }, cls({})]));
+    const relabelled = { ...refs, brokers: refs.brokers.map(b => ({ ...b, classification: b.code === 'YU' ? 'Institutional-heavy' : null })) };
+    const r2 = await runJob(q, { prior_trials: [] }, relabelled, env({ url: flowFake.url, flow: on }));
+    assert.equal(r2.meta.data_version, await dataVersion([priceFile('IHSG'), priceFile('UNVR'), { ticker: 'UNVR', dataset: 'broker', sha256: encode(doc).sha256 }, cls({ YU: 'Institutional-heavy' })]));
+    assert.notEqual(r2.meta.request_hash, r.meta.request_hash, 'a relabelled broker list is a new request hash');
     assert.ok(r.events.entries.UNVR.on.length > 0, 'the Flow condition switches on');
     // flow off: refused before any download; a broker code outside the reference list; a ticker without broker rows
     assert.deepEqual(await refusal(runJob(q, { prior_trials: [] }, refs, env({ url: flowFake.url }))), ['FLOW_UNAVAILABLE', 'entry.conditions[0].test.signal.lhs']);

@@ -13,7 +13,7 @@ import { Calc, combineEntry, conditionSeries } from '../../edge-bff/backtest/src
 import type { BacktestRequest, Condition, IndicatorCondition } from '../../edge-bff/backtest/src/core/contract.ts';
 import { lineageKey, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
 import { REGISTRY, ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
-import { hashForm } from '../src/canonical.ts';
+import { hashForm, lineageForm } from '../src/canonical.ts';
 import { checkTest, installBacktestGrammar } from '../src/grammar.ts';
 
 installBacktestGrammar();
@@ -92,4 +92,40 @@ test('grammar forms without an indicator equivalent: a shape of their own at eve
   assert.equal(await V(z(20, 1)), await variantHash(hashForm(request([z(20, 1)], 7))));
   const legacy: Condition = { id: 'r', kind: 'indicator', indicator: 'I13', params: {}, lhs: { type: 'output', output: 'rsi' }, op: 'lt', rhs: { type: 'value', value: 30 } } as Condition;
   assert.notEqual(await variantHash(hashForm(request([legacy, z(20, 1)], 1))), await variantHash(hashForm(request([legacy, z(20, 1)], 7))));
+});
+
+test('Stage C F4: an unused window_bars never splits a grammar strategy into two lines or two trials', async () => {
+  const rsi = { kind: 'indicator', indicator: 'I13', output: 'rsi', params: {} };
+  const cross = (within: number): Condition => ({ id: 'g', kind: 'test', test: { kind: 'event', within, signal: { lhs: rsi, op: 'crosses_above', rhs: { value: 50 } } } } as never);
+  const legacy: Condition = { id: 'l', kind: 'indicator', indicator: 'I13', params: {}, lhs: { type: 'output', output: 'rsi' }, op: 'crosses_above', rhs: { type: 'value', value: 50 } } as never;
+  const keys = async (q: BacktestRequest) => [await lineageKey(lineageForm(q)), await variantHash(hashForm(q))];
+  // grammar only: "RSI crosses above 50 within 3" is the indicator condition under window 3, whatever window_bars says
+  const ref = await keys(request([legacy], 3));
+  for (const W of [1, 2, 3, 5, 20]) assert.deepEqual(await keys(request([cross(3)], W)), ref, `window_bars ${W}`);
+  // another within is another variant of the same line
+  const [line5, var5] = await keys(request([cross(5)], 2));
+  assert.equal(line5, ref[0]); assert.notEqual(var5, ref[1]);
+  // two grammar conditions with different own windows: no common window, so no translation and no window_bars in the trial
+  const rsi2 = (w: number) => ({ ...cross(w), id: 'h', test: { kind: 'event', within: w, signal: { lhs: rsi, op: 'crosses_below', rhs: { value: 70 } } } } as never);
+  const mixed = await Promise.all([1, 3, 5].map(W => keys(request([cross(3), rsi2(5)], W))));
+  assert.ok(mixed.every(k => k[0] === mixed[0][0] && k[1] === mixed[0][1]), 'window_bars decides neither the line nor the trial');
+  // with an indicator condition window_bars is read: the grammar condition is translated only at that window, and its line is the same either way
+  const both = async (W: number) => keys(request([legacy, { ...cross(3), id: 'g2' } as Condition], W));
+  assert.equal((await both(3))[0], (await both(5))[0]);
+  assert.notEqual((await both(3))[1], (await both(5))[1]);
+});
+
+test('Stage C F10: a price comparison with an output the core reads one bar late (Donchian) is another trial than before K5 a, in the same line', async () => {
+  const don = (output: string, op: string): Condition => ({ id: 'd', kind: 'indicator', indicator: 'I10', params: {}, lhs: { type: 'price' }, op, rhs: { type: 'output', output } } as never);
+  const form = (c: Condition) => hashForm(request([c], 1)).entry.conditions[0] as unknown as Record<string, unknown>;
+  assert.equal(form(don('upper', 'crosses_above')).compare_lag, 1);
+  assert.equal(form(don('lower', 'crosses_below')).compare_lag, 1);
+  assert.equal(form(don('upper', 'lt')).compare_lag, undefined, 'the lt side of upper reads the same bar');
+  const rsi: Condition = { id: 'r', kind: 'indicator', indicator: 'I13', params: {}, lhs: { type: 'output', output: 'rsi' }, op: 'gt', rhs: { type: 'value', value: 50 } } as never;
+  assert.equal(form(rsi).compare_lag, undefined);
+  // the same line as the condition without the mark (hash.ts conditionShape)
+  const { compare_lag: _drop, ...bare } = form(don('upper', 'crosses_above'));
+  const q = (c: unknown) => ({ ...request([], 1), entry: { ...request([], 1).entry, conditions: [c] } }) as BacktestRequest;
+  assert.equal(await lineageKey(q(bare)), await lineageKey(q(form(don('upper', 'crosses_above')))));
+  assert.notEqual(await variantHash(q(bare)), await variantHash(q(form(don('upper', 'crosses_above')))));
 });

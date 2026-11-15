@@ -215,7 +215,9 @@ export function statWarnings(q: BacktestRequest, T: readonly LedgerTrade[], cutD
   }
   if (trials <= 1) out.push({ code: 'DSR_SAMPLE_RULE', message: 'This is the only trial of the strategy line so far, so the deflated Sharpe uses the variance of this run\'s own returns instead of the spread of several trials.' });
   const cutDate = oos && cutDay !== null ? dates[cutDay] : null;
-  const late = [...new Set(anchorsOf([q.entry.conditions, q.exit.signals.conditions]))].filter(d => d > q.period.from).sort();
+  // the enabled conditions only: a switched-off one is kept by the page but not run (Stage C F10)
+  const on = (cs: readonly { enabled?: boolean }[]) => cs.filter(c => c.enabled !== false);
+  const late = [...new Set(anchorsOf([on(q.entry.conditions), on(q.exit.signals.conditions)]))].filter(d => d > q.period.from).sort();
   if (late.length) {
     const inOos = cutDate !== null && late.some(d => d > cutDate);
     out.push({ code: 'ANCHOR_INSIDE_PERIOD', count: late.length, message: `A point-in-time Flow condition starts choosing its brokers on ${late.join(', ')}, after the period's start: it has no value before then${inOos ? ', and it starts after the out-of-sample cut, so its brokers are chosen inside the part the strategy is tested on' : ''}.` });

@@ -8287,6 +8287,8 @@ in its staleness check.
   without a price bar, per board), and `FLOW_PRE_2021`. `bf`/`sf` are read by name. Not covered: a range re-downloaded
   after an action (PBSA), which has no marker in the published files; the data-layer fix stays open.
 - **Status:** OPEN (data layer); interim Backtest guard built on branch, awaiting Gate 2.
+- **Stage C (M458 item 2):** the interim mask empties the bars before a pre-boundary action too, so a value's
+  availability depends on a later event; the choice of fix is open for the user (EXEC-BACKTEST-REVAMP, Gate 2).
 
 ### M451 — Backtest: "close crosses above (or is above) the Donchian upper band" can never be true (2026-11-15, open)
 
@@ -8309,6 +8311,8 @@ in its staleness check.
   so the page and the worker read the prior band, and an output the probe marks later is covered without a code
   change. `tests/conditions-golden.json` was recorded again: exactly the eight Donchian price comparisons changed,
   every other digest is the same; the oracle test applies the probe's file.
+- **Stage C (M458 item 10):** the Donchian price comparisons carry `compare_lag: 1` in their hash form, so a run after
+  K5 a is a trial of its own in the same line.
 - **Status:** FIXED ON BRANCH, awaiting Gate 2 (merge and deploy).
 
 ### M452 — Trial hashes: unknown condition kinds share one lineage shape, and the variant hash reads parameters as sent (2026-11-15, open)
@@ -8408,3 +8412,67 @@ in its staleness check.
   line's DSR (the page shows the stricter, Stage D). Not built: `OOS_ALREADY_SEEN` (needs the periods of earlier
   variants, which edge-bff does not keep).
 - **Status:** BUILT ON BRANCH (except OOS_ALREADY_SEEN), awaiting Gate 2.
+
+### M458 — Backtest revamp, Stage C review: the look-ahead gate missed two planted leaks, a named broker trading after the period decided a run, and smaller contract gaps (2026-11-15, open: item 2)
+
+- **Found by:** BACKTEST-REVAMP Stage C, Agent 9 (independent adversarial review of the diff, read-only); each item
+  re-verified by the main agent in code and by test the same day. Agent 9 found the admin gate unbypassable in 16 forms,
+  the golden hashes of the base unchanged, 265 selected-broker Flow series and 24 point-in-time ones exactly equal to the
+  Terminal.
+- **Verified, with root cause and solution (fixed on branch `claude/hopeful-shannon-bqgb1a` unless marked):**
+  1. *Gate holes.* A leak planted in the point-in-time comparison (`pit/evaluate.ts dSignal` reading bar i+1) and one
+     in the empty-series decision (`signals.ts` passing no `last` for kind `test`) left all 243 worker tests green. Root
+     cause: the engine-level case of `tests/lookahead.test.ts` ran legacy conditions only; `pit.test.ts` cut `dSeries`,
+     never `dSignal`. Fix (tests): the engine case runs grammar, Flow (selected brokers too) and point-in-time conditions
+     in entry and exit, single and portfolio, and a series whose first value comes after the first cuts, comparing
+     refusals as outcomes; `pit.test.ts` cuts seven point-in-time conditions at five days with `last`. Re-planted: both
+     leaks now turn the suite red (worker 249 tests otherwise green).
+  2. *Broker-price mask reads a later action (OPEN, user decision).* `grammar.ts basisMask` and `pit/series.ts` empty a
+     broker-price value on every bar whose window starts before an action dated on or before 2026-09-12, bars before
+     the action included: the value's availability on day t depends on an action after t (a portfolio leaves the stock
+     out, a single run is refused, a rights issue after the period empties the period). Root cause: the published
+     prices before the boundary carry each later action's factor and the broker prices do not (M450), so the honest
+     value needs that factor, which no published file holds. Agent 9: 69 differences on a fixture with an action;
+     `verification/backtest/lookahead/real_data.ts` passed no actions, so its "0 leaks on COCO" did not reach this path.
+     Options and the recommendation are in `EXEC.md` EXEC-BACKTEST-REVAMP, Gate 2.
+  3. *A named broker trading only after the period.* The Terminal builds a stock's broker set from every row it is given
+     (`calc/flow.ts flowRows`, `cohort`), so a broker named in a Flow reference is 0 before its first row with the whole
+     history and empty (FL13: "no member: no value") on the data cut at t; a run ending before that broker's first row
+     was decided by later rows (FL13 `lt 1`: true on 149 bars against `FLOW_OUTPUT_EMPTY`). Fix (worker `grammar.ts
+     refuseLaterBrokers`): per stock, `UNKNOWN_BROKER` naming the broker, its first date and the fix, for every list of
+     the registry's kind `brokers` where it is in use (its `<prefix>scope` is `selected`, or it has none); a broker the
+     stock never traded keeps the Terminal's value. The gate's Flow variants now include the selected scope (78).
+  4. *window_bars split a strategy.* `canonical.ts` translated a grammar EVENT to an indicator condition only when its
+     `within` equalled `window_bars`, which reads no grammar condition: one strategy had two lines and two trials. Fix:
+     with grammar conditions only, the hash form translates at their common own window or not at all; the lineage key
+     is taken over `lineageForm` (each grammar condition that is an indicator condition at its own window written as one).
+  5. *The worker upload was not held by CI.* `.railway/railway.ts` sets `checkSuites` for edge-bff and screener-worker;
+     backtest-worker is a CLI upload, and the workflow's comment said the upload "records a green run" though no code
+     does. Fix (process, K10 a as decided): `apps/backtest-worker/README.md` Deploy (a green run on the uploaded commit,
+     its ID recorded); the comment corrected.
+  6. *A Screener preset non-admins see but cannot run.* `presets.json` "Broker Follow" reads FL23 (admin, inventory);
+     edge-bff filtered the catalog's `metrics` only. Fix (edge-bff `screener.py catalog_for`): a preset that reads an
+     admin entry at any depth is left out of a session without the right, derived from the catalog's own marks.
+  7. *Broker classification not in data_version.* FL34 and the `class:` scopes read today's labels; a relabelled list
+     gave other numbers under the same request hash. Fix (worker `run.ts versionOf`): when a grammar Flow condition reads
+     the broker rows, `data_version` covers the classification's hash (other runs keep theirs).
+  8. *FL34 inst / retail skipped the broker-list check* (a name pattern). Fix: the lists are the registry's kind `brokers`.
+  9. *Screener refusal details dropped* (`grammar.ts asValidation`). Fix: carried into the 422 answer.
+  10. *Smaller:* `ANCHOR_INSIDE_PERIOD` read switched-off conditions (fixed); CONTRACT 13.5 said the page shows the
+      stricter deflated Sharpe, which only Stage D will do (corrected); K5 a changed the trades of Donchian price
+      comparisons under the same variant hash (fixed: `compare_lag: 1` in their hash form, derived from the core's
+      `comparedOutput`, same line). Rejected: "`EDGE_ADMIN_OWNERS` empty refuses the start" is the intended guard against
+      a typo turning every right off; "no admins" is not needed while owner = admin (user, P5).
+  11. *Found while verifying:* the Screener build's tripwire (`scripts/screener/check_backtest_untouched.mjs`) stopped
+      with ENOENT because P0 widened `engine_version`'s sources (Terminal calc, flow registry, Screener core) and the
+      tripwire kept its own list. Fix: the list is the worker's `SOURCES`; the revamp's core and worker trees are recorded
+      as approved (EXEC-BACKTEST-REVAMP, "Go" 2026-11-15). The tripwire confirms the Terminal's indicators, Feature 04 and
+      the Stockbit updater unchanged; `git diff origin/main -- apps/edge-bff/terminal` is empty.
+- **Class:** a test that cuts the data at t only where the series is computed, not where its decisions are made (the
+  comparison, the empty-series refusal, the membership of a broker set), lets a later row decide a run; and a hash or
+  version that leaves out an input the run reads (a window, a reference label, a changed rule) merges what differs or
+  splits what is one.
+- **Status:** items 1, 3-11 FIXED ON BRANCH, awaiting Gate 2; item 2 OPEN (user decision).
+- **Lesson for new data:** every input a run reads, a reference list included, enters `data_version`; a series built from
+  a set of members must take its members from the rows up to the period's end; a look-ahead test cuts the data at t at
+  every step that decides something, the refusal included.

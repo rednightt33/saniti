@@ -105,6 +105,7 @@ class FakeScreenerWorker:
         self.validate_versions = True  # /v1/validate answers carry versions (report 8.3: every worker answer)
         self.rows = 3                  # rows of a run answer
         self.metrics = []              # the catalog's metrics (EXEC-BACKTEST-REVAMP P5: an admin entry in one test)
+        self.presets = []              # the catalog's presets (Stage C F6: one reading an admin entry in one test)
         self.published = '2026-10-27T13:03:23Z'   # data.published_at of every answer (state.json finished_at)
         self.pending = {}              # path -> how many more calls answer the worker-only 409 DATA_VERSION_PENDING
         self.sent = {}                 # path -> the last body bytes the route sent (gzip when it packed them)
@@ -194,7 +195,7 @@ class FakeScreenerWorker:
                     return self.answer(200, {'versions': v, 'data': {**self.data(), 'refresh': worker.refresh},
                                              'limits': worker.limits, 'indicators': [], 'metrics': worker.metrics, 'fundamentals': [],
                                              'periods': {'1M': 21, '3M': 63, '6M': 126, '1Y': 252}, 'groupings': [],
-                                             'presets': []})
+                                             'presets': worker.presets})
                 if route == ('GET', '/v1/universe'):
                     return self.answer(200, {'versions': v, 'data': self.data(), 'rows': [
                         {'ticker': 'BBCA', 'name': 'Example Tbk', 'sector': 'Financials', 'industry': 'Banks', 'last': 1234,
@@ -1360,6 +1361,8 @@ def test_screener_rights_from_the_session_and_the_catalog_per_session(configured
     """EXEC-BACKTEST-REVAMP P5 (user K8 b): every worker call carries the session owner's rights; a body with context is
     refused before the worker; the catalog's admin entries reach an admin only, with an ETag of their own."""
     worker.metrics = [{'id': 'FL11', 'group': 'Flow', 'kind': 'flow'}, {'id': 'FL18', 'group': 'Flow', 'kind': 'flow', 'access': 'admin'}]
+    flow = lambda metric: {'conditions': [{'id': 'a', 'enabled': True, 'test': {'kind': 'value', 'metric': {'kind': 'flow', 'metric': metric, 'params': {}}, 'op': 'gt', 'value': 0}}]}
+    worker.presets = [{'id': 'plain', 'definition': flow('FL11')}, {'id': 'admin', 'definition': {'conditions': [{'id': 'b', 'test': {'kind': 'window', 'test': flow('FL18')['conditions'][0]['test']}}]}}]
     seen = {}
     for admins, rights in [((), []), ((configured.owner,), ['flow_point_in_time'])]:
         application = create_app(dataclasses.replace(configured, admin_owners=admins), store, FakeOrc())
@@ -1369,6 +1372,8 @@ def test_screener_rights_from_the_session_and_the_catalog_per_session(configured
             assert cat.status_code == 200
             ids = [m['id'] for m in cat.json().get('metrics', [])]
             assert ('FL18' in ids) == bool(rights) and 'FL11' in ids
+            # Stage C F6: a preset reading an admin entry (at any depth) only with the right
+            assert [p['id'] for p in cat.json()['presets']] == (['plain', 'admin'] if rights else ['plain'])
             seen[bool(rights)] = cat.headers['etag']
             before = len(worker.calls)
             r = c.post('/api/v1/screener/run', headers=c.headers_for, json={**run_body(seq=7), 'context': {'rights': ['flow_point_in_time']}})

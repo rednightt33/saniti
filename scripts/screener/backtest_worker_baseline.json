@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "about": "The approved state of apps/backtest-worker for scripts/screener/check_backtest_untouched.mjs: the tripwire passes a worker that differs from origin/main only while its content hash is worker_tree and the versions are these. Recorded with --record and changed only by a deliberate commit (EXEC-MU-RUNTIME).",
-  "base_commit": "98ba272d8add04f1be23c1cea7a9a1bab8e248b9",
-  "recorded_on": "f5743053656177e909270502032ccd3b3ca610f7",
-  "recorded_at": "2026-11-08",
-  "engine_version": "e2205249ffdb5e9b",
-  "base_engine_version": "c3a5f29a3848df7d",
+  "base_commit": "f90b037e5dfbbd215a95e0cf1779f04e299af262",
+  "recorded_on": "f90f240f5f10993c1e25670c383087edf45fe87f",
+  "recorded_at": "2026-11-15",
+  "engine_version": "af16f03c90e0cf6c",
+  "base_engine_version": "b85c67c25f6a707b",
   "registry_version": "514dc3df60a25aff",
-  "worker_tree": "60473d1cf800cfce6671baa1c77063356134c01cf60f277f9cfc0cb46f6e3df9",
-  "worker_files": 43,
+  "worker_tree": "cdca17bed1a4a3858cf849c4c20cc16d8c7308ed68d15e335e5df11a7de0c71f",
+  "worker_files": 62,
   "exec": {
-    "section": "EXEC-SCREENER-FLOW-CANDLES",
-    "decision": "User 2026-11-08: \"Hilangkan syarat tren aktif.\" and \"Ok opsi A\" (syarat tren mati secara bawaan untuk 14 pola yang menawarkan none; keluarga Hammer tetap wajib tren); the P6 tests of 2026-11-07 (\"2A\", K2 \"A\")"
+    "section": "EXEC-BACKTEST-REVAMP",
+    "decision": "User 2026-11-15 (verbatim in EXEC-BACKTEST-REVAMP): \"Setuju untuk usulanmu ... satu bahasa kondisi bersama (permanen)\", \"Terminal jangan disentuh ... indikator D ini akan hanya avail untuk admin saja\", decisions 1A, K1-K11 (K8 \"1B\"), and \"Go\" (Gerbang 1); merge and deploy wait for Gerbang 2"
   },
-  "note": "tests/candles.test.ts only: the trend test reads the new default (none) and sets average where it checks the trend on; the frequency sanity bound 6 % -> 8 % (tweezers 6.5 % with the trend off); apps/backtest-worker/src unchanged"
+  "note": "P0-P8 and Stage C: grammar.ts, canonical.ts, pit/, rights, owner trials, broker columns, Flow budget, the look-ahead gate tests"
 }

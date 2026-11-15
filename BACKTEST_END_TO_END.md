@@ -946,7 +946,16 @@ The rules are in `apps/edge-bff/backtest/CONTRACT.md` section 13; this is where 
   - The sensitivity grid takes a grammar threshold.
 - **Cross-cutting (section 11).** Look-ahead is a CI gate (`.github/workflows/backtest-lookahead.yml`, AGENTS.md
   "Backtest look-ahead gate"). The real-data check is in `verification/backtest/lookahead/`. edge-bff and
-  screener-worker deploy only on green checks (K10 a, applied with the deploy after Gate 2).
+  screener-worker deploy only on green checks (K10 a, applied with the deploy after Gate 2); the worker, a CLI upload,
+  only after a green run on the uploaded commit, its ID recorded (`apps/backtest-worker/README.md`, Deploy).
+- **Stage C review (ERRORS M458).** An independent review found what the gate did not test; fixed on the branch: the
+  engine-level look-ahead case runs grammar, Flow and point-in-time conditions and a late series; `dSignal` is
+  truncation-tested; a named broker whose first row is after the period's end is refused per stock; an unused
+  `window_bars` no longer splits a line; the Donchian compare lag marks the trial; the brokers' classification is in
+  `data_version`; FL34's broker lists are checked; the Screener's refusal details pass through; a Screener preset that
+  reads an admin entry is hidden from other sessions. Open, for the user: the broker-price mask before a split, bonus
+  or rights issue dated before 2026-09-12 empties the bars before the action too, so their availability depends on a
+  later event (M458 item 2).
 - **Known open items (section 13).**
   - The data-layer fixes M449/M450: an as-traded price series, and broker lots on the price basis.
   - `OOS_ALREADY_SEEN`.

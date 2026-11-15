@@ -19,9 +19,9 @@ import { DEFAULT_ENTRY, LEGACY, legacyCard, legacyToCondition } from '../../edge
 import type { LegacyCard } from '../../edge-bff/backtest/src/core/catalog.ts';
 import { MAX_PORTFOLIO_TICKERS, MAX_POSITIONS } from '../../edge-bff/backtest/src/core/engine.ts';
 import { lineageKey as coreLineageKey, variantHash as coreVariantHash } from '../../edge-bff/backtest/src/core/hash.ts';
-import { hashForm } from '../src/canonical.ts';
+import { hashForm, lineageForm } from '../src/canonical.ts';
 // the worker hashes a request's hash form (canonical.ts, EXEC-BACKTEST-REVAMP K7 a)
-const lineageKey = (q: BacktestRequest) => coreLineageKey(hashForm(q));
+const lineageKey = (q: BacktestRequest) => coreLineageKey(lineageForm(q));
 const variantHash = (q: BacktestRequest) => coreVariantHash(hashForm(q));
 import { packResult } from '../src/compute.ts';
 import { FLOW_OFF_REASON, loadConfig } from '../src/config.ts';

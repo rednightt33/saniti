@@ -779,22 +779,34 @@ STATE, EVENT, window with a point-in-time side, a price, a constant or any other
 | `CONDITION_RESTRICTED` | a point-in-time indicator without the right `flow_point_in_time`, enabled or not, at any depth |
 | `CONDITION_UNAVAILABLE` | see 13.1; FL51 `end` |
 | `FLOW_BUDGET_EXCEEDED` | more distinct Flow series than `limits.max_flow_series` (default 8) |
-| `UNKNOWN_BROKER` | a broker code outside the reference list; for a stock, a named broker without rows up to the period's end |
+| `UNKNOWN_BROKER` | a broker code outside the reference list (every list of kind `brokers`: `brokers`, `num_brokers`, `den_brokers`, FL34 `inst` / `retail`); for a stock, a named broker of a point-in-time indicator without rows up to the period's end, and a named broker of any Flow indicator (where its list is in use) whose first row is after the period's end (Stage C, M458: later rows would decide the run); a portfolio leaves the stock out |
 | `UNKNOWN_FIELD` `context` | a body from the page that carries `context` (edge-bff) |
 | `INVALID_CONTEXT` | rights that are not a list of distinct known rights |
+
+A refusal of the Screener's own validation of a grammar condition (for example `LIMIT_EXCEEDED`, `UNKNOWN_INDICATOR`,
+`PARAM_OUT_OF_RANGE`, `METRIC_UNAVAILABLE`) reaches the client with the Screener's code, field, message and `details`
+(Stage C, M458), as the Screener's contract lists them.
 
 **13.5 Results (section 7).** New warnings: `PRICES_RESTATED` (K4 a, M449), `FLOW_PRE_2021` (decision 4),
 `FLOW_BASIS_CHANGE`, `FLOW_SOURCE_GAP`, `FLOW_ROWS_DROPPED`, `FLOW_CROSSING_BOARDS`, `FEW_TRADES`, `OOS_STRADDLE`,
 `DSR_SAMPLE_RULE`, `ANCHOR_INSIDE_PERIOD`, and `SURVIVORSHIP` in single mode too. The sensitivity grid can vary a grammar
 threshold (`x_field`, e.g. `test.value`; 20 % steps of its base, cells the validation refuses are null). K6 a:
 `meta.trials.owner {total, days}` and `robustness.deflated_owner`, a deflated Sharpe over the owner's distinct trials of
-the last 90 days across every line, beside the line's; the page shows the stricter.
+the last 90 days across every line, beside the line's; the new page (Stage D) is to show the stricter of the two, and the
+page today does not read `deflated_owner` yet. `ANCHOR_INSIDE_PERIOD` reads the enabled conditions only.
 
 **13.6 Hashes (section 7).** K7 a: the worker hashes the request's hash form (`apps/backtest-worker/src/canonical.ts`):
 parameters completed; a grammar condition equal to an indicator condition written as that condition; `window_bars` only
 where a condition reads it; a grammar condition's lineage shape is its test at every depth without numbers
 (`hash.ts testShape`). No lineage key changed; 7 of the 20 golden requests changed their variant and request hash once
-(partial parameters of the page's Stochastic, Bollinger and Dip cards; `tests/hash-golden-k7a.json`).
+(partial parameters of the page's Stochastic, Bollinger and Dip cards; `tests/hash-golden-k7a.json`). Stage C (M458):
+with grammar conditions only, `window_bars` reads none of them, so it never decides the hash form (they are translated at
+their common own window, or not at all); the lineage key is taken over `lineageForm` (each grammar condition that is an
+indicator condition at its own window written as one), so one strategy keeps one line however its windows are set; an
+indicator condition comparing the price with an output read one bar late (`compare-lag.json`, K5 a: the Donchian bands)
+carries `compare_lag: 1` in its hash form, so a run after K5 a is another trial (same line) than one before it; and
+`data_version` covers the brokers' classification when a grammar Flow condition reads the broker rows (FL34, `class:`
+scopes).
 
 **13.7 Worker API (section 8).** `/v1/validate {request, context}`, `/v1/signals {request, context}` (the bare request
 still read: the worker deploys first), `/v1/jobs {job_id, request, context}` with `context {job_id, prior_trials,

@@ -14883,6 +14883,36 @@ status ERRORS M448-M457; catatan "go" user di EXEC; saat selesai: butir dihapus 
 | `DONCHIAN_SAME_BAR` (hanya K5 b) | katalog | `breakout` / harga vs I10 upper | "Close cannot exceed a Donchian band that includes today's high; use the breakout condition." |
 | `ABSOLUTE_LEVEL_ADJUSTED` (hanya K4 b) | katalog | RSI / ATR > 400 | "ATR levels before a later split are restated; use a ratio condition or a period after the last action." |
 
+### Tahap C dan Gerbang 2 (2026-11-15)
+
+**Tahap C (Agent 9, tinjauan independen atas diff, read-only).** Sepuluh temuan, masing-masing diverifikasi ulang oleh agen
+utama di kode dan dengan tes; rincian, akar masalah, dan perbaikan di ERRORS M458. Diperbaiki di branch: gerbang look-ahead
+kini menangkap dua kebocoran yang sengaja ditanam (perbandingan titik-waktu membaca bar besok; keputusan "seri kosong"
+membaca bar sesudah akhir periode), broker bernama yang baru bertransaksi sesudah akhir periode ditolak per saham,
+`window_bars` yang tidak dibaca tidak lagi memecah satu strategi menjadi dua lini, perbandingan harga dengan pita Donchian
+(K5 a) menjadi trial tersendiri, klasifikasi broker masuk `data_version`, daftar broker FL34 diperiksa, detail penolakan
+Screener diteruskan, preset Screener yang membaca indikator admin disembunyikan dari sesi lain, peringatan anchor hanya
+membaca kondisi aktif, upload worker hanya sesudah CI hijau (langkah manual K10 a, README worker). Ditemukan saat
+verifikasi: tripwire Screener (`scripts/screener/check_backtest_untouched.mjs`) berhenti sejak P0; daftar sumbernya kini
+diturunkan dari `SOURCES` worker dan pohon core/worker revamp direkam sebagai disetujui. Ditolak (dengan alasan, M458 butir
+10): `EDGE_ADMIN_OWNERS` kosong menghentikan start (penjaga salah ketik, sesuai rancangan P5).
+
+**Gerbang 2: keputusan user yang terbuka (M458 butir 2).** Masker harga broker (K3 a) mengosongkan nilai harga broker pada
+setiap bar yang jendelanya mulai sebelum aksi (split, bonus, rights) bertanggal sebelum 2026-09-12, termasuk bar sebelum
+aksi itu terjadi, sehingga ada-tidaknya nilai pada hari t bergantung pada aksi sesudah t. Pilihan:
+- (A, permanen, lapisan data) faktor penyesuaian tiap aksi diterbitkan bersama data broker (dari rasio dan harga pelaksanaan
+  `idx_event_annotation`, dicek terhadap lonjakan VWAP/close di tanggal ex), harga broker dikalikan faktor itu, masker hanya
+  untuk jendela yang melintasi aksi; EXEC terpisah (publisher dan worker), sejalan dengan usulan M450.
+- (B, SEMENTARA, tanpa ubah data) masker hanya dari yang sudah diketahui pada hari t: jendela yang melintasi aksi bertanggal
+  ≤ t, dan bar yang VWAP brokernya jatuh di luar rentang harga hari itu (beda basis terlihat dari data hari itu sendiri:
+  COCO VWAP 290,9 lawan close 159,5). Diukur 2026-11-15 pada ekspor data nyata (`verification/backtest/lookahead`, board
+  Regular, toleransi 1 %, 2023-01-02 s.d. 2026-11-13): BBRI 0 dari 916 hari, GOTO 0 dari 916, ALKA 0 dari 891 di luar
+  rentang; COCO 799 dari 885, yaitu setiap hari sebelum rights issue 2026-07-09 (2023-01-02: VWAP 264,4 lawan rentang
+  55,5-56,7), sesudahnya di dalam rentang. Sebelum dipakai: diukur juga pada lebih banyak saham (split dan bonus yang
+  sudah disesuaikan di data broker harus tetap di dalam rentang).
+- (C, SEMENTARA) dibiarkan seperti sekarang, dengan peringatan `FLOW_BASIS_CHANGE`.
+Saran: B sebelum deploy, A sebagai EXEC lanjutan.
+
 ### Deploy (hanya setelah Gerbang 2) dan rollback
 
 1. PR branch → `main` (7B); CI hijau termasuk gerbang look-ahead; tidak ada job Backtest aktif (cek status job sebelum upload).

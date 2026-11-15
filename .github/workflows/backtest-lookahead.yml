@@ -5,8 +5,10 @@ name: Backtest look-ahead gate
 # read (derived from the registries) and the engine as a whole on synthetic data; the worker suite also holds the version,
 # entry-point and hash golden checks, the point-in-time, Flow and grammar tests (pit, flow-grammar, grammar, canonical),
 # and the Screener worker's suite. The Screener golden (tests/core/golden-grammar.test.mjs) and the page's worker-only
-# import check run with their suites. No database, no secrets, read-only. Whether a red run blocks a deploy is set on
-# Railway (EXEC-BACKTEST-REVAMP K10: checkSuites on edge-bff and screener-worker; the worker upload records a green run).
+# import check run with their suites. No database, no secrets, read-only. Whether a red run blocks a deploy (EXEC-BACKTEST-
+# REVAMP K10 a): Railway's checkSuites on edge-bff and screener-worker (.railway/railway.ts); backtest-worker is a CLI
+# upload, which no Railway setting holds, so its upload is a manual step taken only after this workflow is green on the
+# commit uploaded, with the run ID recorded in RAILWAY_CHANGELOG.md (apps/backtest-worker/README.md, Deploy).
 
 on:
   push:

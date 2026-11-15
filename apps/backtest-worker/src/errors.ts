@@ -25,7 +25,7 @@ const body = (code: string, field?: string, message?: string, details?: Record<s
 /** The status and body of an error; `known` false = an unexpected error (the caller logs it). */
 export function toApiError(e: unknown): { status: number; error: ErrorBody; known: boolean } {
   if (e instanceof WorkerError) return { status: e.status, error: body(e.code, e.field, e.message, e.details), known: true };
-  if (e instanceof ValidationError) return { status: 422, error: body(e.code, e.field, e.message), known: true };
+  if (e instanceof ValidationError) return { status: 422, error: body(e.code, e.field, e.message, (e as { details?: Record<string, unknown> }).details), known: true };
   if (e instanceof DataError) return { status: 424, error: body(e.code, e.field, e.message, e.details), known: true };
   if (e instanceof EngineDataError) return { status: 424, error: body(e.code, e.field, e.message), known: true };
   if (e instanceof Cancelled) return { status: 409, error: body('CANCELLED'), known: true };

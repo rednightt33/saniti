@@ -113,6 +113,18 @@ def failure(code, status, field=None, message=None, details=None, headers=None):
     return ScreenerError(status, error, headers)
 
 
+def reads_any(x, ids):
+    """Whether a preset's definition reads a metric of `ids` anywhere: a reference {"kind": ..., "metric": id} at any
+    depth (Stage C F6, ERRORS M458)."""
+    if isinstance(x, list):
+        return any(reads_any(v, ids) for v in x)
+    if isinstance(x, dict):
+        if isinstance(x.get('metric'), str) and x['metric'] in ids and isinstance(x.get('kind'), str):
+            return True
+        return any(reads_any(v, ids) for v in x.values())
+    return False
+
+
 class ScreenerError(Exception):
     """An answer in the contract's error shape {"error": {code, field?, message?, details?}} with its HTTP status (and
     headers: Retry-After of 503 SCREENER_NOT_READY)."""
@@ -769,7 +781,12 @@ class Screeners:
         if hit is None:
             data = loads(doc.raw)
             if isinstance(data, dict) and isinstance(data.get('metrics'), list):
+                admin = {m.get('id') for m in data['metrics'] if isinstance(m, dict) and m.get('access') == 'admin'}
                 data = {**data, 'metrics': [m for m in data['metrics'] if not (isinstance(m, dict) and m.get('access') == 'admin')]}
+                # Stage C F6 (ERRORS M458): a preset that reads an admin entry would be refused when run
+                # (CONDITION_RESTRICTED), so it is left out too; the entries are the catalog's own admin marks
+                if isinstance(data.get('presets'), list):
+                    data['presets'] = [p for p in data['presets'] if not reads_any(p.get('definition') if isinstance(p, dict) else None, admin)]
             raw = dumps(data)
             hit = Doc(key=doc.key, raw=raw, gz=gzip.compress(raw, 6, mtime=0), etag='"' + hashlib.sha256(raw).hexdigest() + '"',
                       price_data=doc.price_data, published_at=doc.published_at)

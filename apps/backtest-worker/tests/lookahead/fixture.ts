@@ -70,3 +70,19 @@ export function head(t: Ticker, n: number): Ticker {
   const k = Math.min(n, t.dates.length), cut = <T,>(a: ArrayLike<T>) => Array.from(a).slice(0, k);
   return { ticker: t.ticker, dates: t.dates.slice(0, k), bars: { O: cut(t.bars.O), H: cut(t.bars.H), L: cut(t.bars.L), C: cut(t.bars.C), V: cut(t.bars.V), T: t.dates.slice(0, k) } as Ticker['bars'] };
 }
+
+/** Fixture rows as the published broker columns (datafile.ts brokerColumns' shape; the fixture's Cash board is the files'
+    Tunai), for the engine-level cases of the gate. */
+export function brokerColumns(rows: readonly Row[]): import('../../../edge-bff/backtest/src/core/datafile.ts').BrokerColumns {
+  const dates: string[] = [], brokers: string[] = [], at = new Map<string, number>(), inv = ['Foreign', 'Domestic'], brd = ['Regular', 'Nego', 'Tunai'];
+  const D: number[] = [], B: number[] = [], I: number[] = [], Mm: number[] = [], V: number[][] = [[], [], [], [], [], []];
+  for (const r of rows) {
+    if (dates[dates.length - 1] !== r.d) dates.push(r.d);
+    if (!at.has(r.b)) { at.set(r.b, brokers.length); brokers.push(r.b) }
+    D.push(dates.length - 1); B.push(at.get(r.b)!); I.push(inv.indexOf(r.i)); Mm.push(brd.indexOf(r.m === 'Cash' ? 'Tunai' : r.m));
+    [r.bv, r.sv, r.bl, r.sl, r.bf, r.sf].forEach((x, k) => V[k].push(x));
+  }
+  const f = (a: number[]) => Float64Array.from(a);
+  return { rows: D.length, dates, brokers, investor_types: inv, boards: brd, D: Int32Array.from(D), B: Int32Array.from(B), I: Uint8Array.from(I), M: Uint8Array.from(Mm),
+    BV: f(V[0]), SV: f(V[1]), BL: f(V[2]), SL: f(V[3]), BF: f(V[4]), SF: f(V[5]) };
+}

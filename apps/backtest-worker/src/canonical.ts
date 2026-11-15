@@ -16,7 +16,7 @@
    its defaults written: its variant hash and request hash change once (K7 a), its lineage key does not (parameters
    are not part of the strategy shape, hash.ts lineageShape). */
 import type { BacktestRequest, Condition, IndicatorCondition, TestCondition } from '../../edge-bff/backtest/src/core/contract.ts';
-import { PRICE_ACTION } from '../../edge-bff/backtest/src/core/conditions.ts';
+import { PRICE_ACTION, comparedOutput } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { canonicalJson, canonicalRequest } from '../../edge-bff/backtest/src/core/hash.ts';
 import { BY_ID, resolveParams } from '../../edge-bff/backtest/src/core/registry.ts';
 import { checkTest } from './grammar.ts';
@@ -63,13 +63,25 @@ export function asIndicatorCondition(c: TestCondition, test: Obj, W: number): In
   return { id: c.id, ...(c.enabled === false ? { enabled: false } : {}), kind: 'indicator', indicator: r.id, params, lhs: L as IndicatorCondition['lhs'], op, rhs: R as IndicatorCondition['rhs'] };
 }
 
-/** One condition in its hash form. `W` is the window the rule applies to an indicator condition (entry: window_bars;
-    exit: 1). A disabled condition is left as sent (no hash reads it). */
-export function canonicalCondition(c: Condition, W: number, field: string): Condition {
+/** An indicator condition that compares the price with an output the core reads one bar late (conditions.ts
+    comparedOutput, compare-lag.json: K5 a, ERRORS M451, the Donchian bands) carries `compare_lag: 1` in its hash form:
+    its trades changed when the lag was introduced, so a run after it is another trial than a run before it under the
+    same request (Stage C F10, ERRORS M458). Derived from the core's own rule, so an output the probe marks later is
+    covered; its lineage is unchanged (hash.ts conditionShape reads no such field). */
+function withCompareLag(c: IndicatorCondition): IndicatorCondition {
+  const r = BY_ID[c.indicator];
+  if (!r || c.lhs.type !== 'price' || c.rhs.type !== 'output') return c;
+  const probe: number[] = [1, 2];
+  return comparedOutput(r.id, c.rhs.output as string, r.price_input, c.op, probe) !== probe ? { ...c, compare_lag: 1 } as IndicatorCondition : c;
+}
+
+/** One condition in its hash form. `W` is the window a grammar condition is translated at (entry: entryWindow; exit: 1,
+    an exit reads the bar itself), null for none. A disabled condition is left as sent (no hash reads it). */
+export function canonicalCondition(c: Condition, W: number | null, field: string): Condition {
   if (c.enabled === false) return c;
   if (c.kind === 'indicator') {
     const r = BY_ID[c.indicator];
-    return r ? { ...c, params: resolveParams(r, c.params, `${field}.params`) } : c;
+    return r ? withCompareLag({ ...c, params: resolveParams(r, c.params, `${field}.params`) }) : c;
   }
   if (c.kind === 'price_action') {
     const pa = PRICE_ACTION[c.type];
@@ -77,18 +89,59 @@ export function canonicalCondition(c: Condition, W: number, field: string): Cond
   }
   if (c.kind === 'test') {
     const test = checkTest(c, field) as unknown as Obj;
-    return asIndicatorCondition(c, test, W) ?? { ...c, test };
+    const k = W !== null ? asIndicatorCondition(c, test, W) : null;
+    return k ? withCompareLag(k) : { ...c, test };
   }
   return c;
 }
 
-/** The request in the form its hashes are taken over (canonicalRequest first: the picked stocks in ticker order). Only
-    for a request the worker's validation accepted. */
+/** The window a grammar test reads by itself, as an indicator condition reads the entry rule's window: an EVENT's
+    within, an "ever" window's length, 1 for a value or state test; null for another form. */
+function ownWindow(t: Obj): number | null {
+  if (t.kind === 'event') return Number.isInteger(t.within) ? t.within as number : null;
+  if (t.kind === 'window') return t.mode === 'ever' && Number.isInteger(t.length) ? t.length as number : null;
+  return t.kind === 'value' || t.kind === 'state' ? 1 : null;
+}
+
+/** The window the entry's grammar conditions are translated at. With an enabled indicator, price-action or flow
+    condition, the entry rule's window_bars (it reads them, and a grammar test equals an indicator condition only at that
+    window). With grammar conditions only, window_bars reads none of them (conditions.ts combineEntry gives each its own
+    window), so it must not decide the hash form (Stage C F4, ERRORS M458: "RSI crosses above 50 within 3" had one
+    lineage with window_bars 3 and another with any other window_bars): their common own window when every one of them
+    is an indicator condition at it (the list is then the indicator conditions under that window), otherwise none
+    (null: no translation). */
+function entryWindow(q: BacktestRequest): number | null {
+  const on = q.entry.conditions.map((c, k) => [c, k] as const).filter(([c]) => c.enabled !== false);
+  if (!on.length || on.some(([c]) => c.kind !== 'test')) return q.entry.window_bars;
+  const tests = on.map(([c, k]) => checkTest(c, `entry.conditions[${k}]`) as unknown as Obj), own = new Set(tests.map(ownWindow));
+  const w = own.size === 1 ? [...own][0] : null;
+  return w !== null && on.every(([c], j) => asIndicatorCondition(c as TestCondition, tests[j], w)) ? w : null;
+}
+
+/** The request in the form its variant and request hashes are taken over (canonicalRequest first: the picked stocks in
+    ticker order). Only for a request the worker's validation accepted. */
 export function hashForm(request: BacktestRequest): BacktestRequest {
-  const q = canonicalRequest(request), W = q.entry.window_bars;
+  const q = canonicalRequest(request), W = entryWindow(q);
   return {
     ...q,
-    entry: { ...q.entry, conditions: q.entry.conditions.map((c, k) => canonicalCondition(c, W, `entry.conditions[${k}]`)) },
+    entry: { ...q.entry, ...(W !== null ? { window_bars: W } : {}), conditions: q.entry.conditions.map((c, k) => canonicalCondition(c, W, `entry.conditions[${k}]`)) },
     exit: { ...q.exit, signals: { ...q.exit.signals, conditions: q.exit.signals.conditions.map((c, k) => canonicalCondition(c, 1, `exit.signals.conditions[${k}]`)) } },
+  };
+}
+
+/** The request in the form its lineage key is taken over (hash.ts lineageShape, which reads no number): the hash form
+    with each grammar condition that is an indicator condition at its own window written as that condition, whatever
+    window_bars is, so a strategy keeps one line however its windows are set (Stage C F4). */
+export function lineageForm(request: BacktestRequest): BacktestRequest {
+  const q = hashForm(request);
+  const own = (c: Condition, field: string): Condition => {
+    if (c.kind !== 'test' || c.enabled === false) return c;
+    const t = (c as TestCondition).test as unknown as Obj, w = ownWindow(t);
+    return (w !== null ? asIndicatorCondition(c as TestCondition, t, w) : null) ?? c;
+  };
+  return {
+    ...q,
+    entry: { ...q.entry, conditions: q.entry.conditions.map((c, k) => own(c, `entry.conditions[${k}]`)) },
+    exit: { ...q.exit, signals: { ...q.exit.signals, conditions: q.exit.signals.conditions.map((c, k) => own(c, `exit.signals.conditions[${k}]`)) } },
   };
 }

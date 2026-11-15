@@ -35,6 +35,7 @@ import { invalid } from './errors.ts';
 import { checkTest, flowRefs, installBacktestGrammar } from './grammar.ts';
 import { D_RIGHT, isD } from './pit/spec.ts';
 import { canonicalJson } from '../../edge-bff/backtest/src/core/hash.ts';
+import { FLOW_BY_ID } from '../../edge-bff/screener/src/core/flowmetrics.ts';
 import type { BrokerRef, TickerRef } from './terminal.ts';
 
 // EXEC-BACKTEST-REVAMP P1: conditions in the Screener's grammar (kind 'test') are computed by the Screener core
@@ -136,11 +137,14 @@ function withinConditions(lists: [readonly ActiveCondition[], string][], max: nu
 /** What the conditions read besides the prices: the broker files (a flow condition, a Flow indicator in the grammar),
     and the broker rows as columns (a Flow indicator in the grammar, EXEC-BACKTEST-REVAMP P3). */
 interface Reads { broker: boolean; columns: boolean }
-/** The broker codes a Flow reference names (params brokers, num_brokers, den_brokers: lists of codes) must be brokers of
-    the published broker list (UNKNOWN_BROKER, naming the entry). */
+/** The broker codes a Flow reference names must be brokers of the published broker list (UNKNOWN_BROKER, naming the
+    entry). Its lists are the registry's parameters of kind 'brokers' (brokers, num_brokers, den_brokers, FL34's inst and
+    retail; Stage C F8: a name pattern missed inst and retail), so a new one is covered. */
 function flowBrokers(ref: Record<string, unknown>, field: string, brokers: readonly BrokerRef[]): void {
   const params = ref.params && typeof ref.params === 'object' ? ref.params as Record<string, unknown> : {};
-  for (const [k, v] of Object.entries(params)) if (/(^|_)brokers$/.test(k) && Array.isArray(v))
+  const e = typeof ref.metric === 'string' ? FLOW_BY_ID[ref.metric] : undefined;
+  const lists = (k: string) => e ? e.params.some(p => p.key === k && p.kind === 'brokers') : /(^|_)brokers$/.test(k);
+  for (const [k, v] of Object.entries(params)) if (lists(k) && Array.isArray(v))
     v.forEach((code, j) => { if (typeof code === 'string' && !brokers.some(b => b.code === code)) fail('UNKNOWN_BROKER', `${field}.params.${k}[${j}]`, `${field}.params.${k}[${j}]: ${code} is not a broker of the published broker list.`) });
 }
 /** The rights a request's context carries (P5: set by edge-bff from the session; none when absent: fail closed). */

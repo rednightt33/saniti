@@ -170,3 +170,22 @@ test("the run's Flow warnings: before 2021, basis change, source gaps and droppe
   const plain = run(market([]), { ...(req(dates[25], 'FL11') as object), entry: { logic: 'all', at_least: 1, window_bars: 1, conditions: [{ id: 'r', kind: 'indicator', indicator: 'I13', params: {}, lhs: { type: 'output', output: 'rsi' }, op: 'lt', rhs: { type: 'value', value: 40 } }] } } as never);
   assert.deepEqual(codes(plain), {});
 });
+
+test('Stage C F3: a named broker whose first row is after the period is refused per stock; one the stock never traded keeps the Terminal value', () => {
+  const rows = M.rows[A.ticker], c = calcAt(A, rows, A.dates.length), firstLate = A.dates.indexOf(rows.find(r => r.b === 'LATE')!.d);
+  const cond = (params: Record<string, unknown>, metric = 'FL13', output = 'buy') => ({ id: 'f', kind: 'test', test: { kind: 'value', metric: { kind: 'flow', metric, output, params }, op: 'lt', value: 1 } }) as never;
+  const late = cond({ scope: 'selected', brokers: ['AA', 'LATE'] });
+  // the period ends before LATE's first row: refused (the value on those days would be decided by LATE's later rows)
+  assert.throws(() => conditionSeries(c, late, 'f', firstLate - 1), (e: unknown) => e instanceof ValidationError && e.code === 'UNKNOWN_BROKER'
+    && e.field === 'f.test.metric.params.brokers[1]' && new RegExp(`its first is on ${A.dates[firstLate]}`).test(e.message));
+  // on or after it: computed, and the same on the data cut at the period's end (no later row decides it)
+  for (const last of [firstLate, firstLate + 40]) {
+    const full = conditionSeries(c, late, 'f', last), cut = conditionSeries(calcAt(A, rows, last + 1), late, 'f', last);
+    for (let i = 0; i <= last; i++) assert.equal(full[i], cut[i], `bar ${i} (period to ${last})`);
+  }
+  // a list not in use (scope topn) and a broker the stock never traded (ZZ: in neither set) are not refused
+  assert.doesNotThrow(() => conditionSeries(c, cond({ scope: 'topn', brokers: ['LATE'] }), 'f', 10));
+  assert.doesNotThrow(() => conditionSeries(c, cond({ scope: 'selected', brokers: ['AA', 'ZZ'] }), 'f', 10));
+  // FL34's inst and retail lists (no scope) are read too
+  assert.throws(() => conditionSeries(c, cond({ inst: ['LATE'], retail: ['BK'] }, 'FL34', 'value'), 'f', firstLate - 1), (e: unknown) => e instanceof ValidationError && e.code === 'UNKNOWN_BROKER' && e.field === 'f.test.metric.params.inst[0]');
+});

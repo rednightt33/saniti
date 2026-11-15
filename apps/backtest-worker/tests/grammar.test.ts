@@ -14,6 +14,7 @@ import { runScreen } from '../../edge-bff/screener/src/core/screen.ts';
 import { headBars, memoryEnv, rowOf, synth } from '../../edge-bff/screener/tests/core/helpers.ts';
 import { GRAMMAR_DEFAULTS, checkTest, grammarProblems, installBacktestGrammar } from '../src/grammar.ts';
 import { REPO_ROOT } from '../src/version.ts';
+import { toApiError } from '../src/errors.ts';
 
 installBacktestGrammar();
 
@@ -115,4 +116,24 @@ test('series are kept per ticker under their resolved key: two conditions on one
 
 test('start-up: the Screener registry, catalog and their sources agree in this tree', () => {
   assert.deepEqual(grammarProblems(REPO_ROOT), []);
+});
+
+test('Stage C F9: a refusal of the Screener\'s validation keeps its details in the worker\'s answer', () => {
+  const rsi = { kind: 'indicator', indicator: 'I13', output: 'rsi', params: {} };
+  let err: unknown;
+  try { checkTest({ id: 'a', kind: 'test', test: { kind: 'event', within: 500, signal: { lhs: rsi, op: 'crosses_above', rhs: { value: 50 } } } }, 'entry.conditions[0]') } catch (e) { err = e }
+  assert.ok(err instanceof ValidationError);
+  const { status, error } = toApiError(err);
+  assert.equal(status, 422); assert.equal(error.code, 'LIMIT_EXCEEDED'); assert.equal(error.field, 'entry.conditions[0].test.within');
+  assert.ok(error.details && typeof error.details === 'object' && Object.keys(error.details).length > 0, JSON.stringify(error));
+});
+
+test('Stage C F1: the empty-series refusal is decided on the bars up to the period\'s end only', () => {
+  const s = synth('AAAA', 3, 400), c = new Calc(s.bars as never, undefined, { ticker: 'AAAA', dates: s.dates });
+  const cond = { id: 'a', kind: 'test', test: { kind: 'state', lhs: { kind: 'price', field: 'close' }, op: 'gt', rhs: { kind: 'indicator', indicator: 'I01', output: 'sma', params: { length: 200 } } } } as never;
+  // the SMA(200) has its first value on bar 199: a period ending before it is refused, whatever the later bars hold
+  assert.throws(() => conditionSeries(c, cond, 'f', 150), (e: unknown) => e instanceof ValidationError && e.code === 'INDICATOR_OUTPUT_EMPTY' && /up to the end of the period/.test(e.message));
+  const h = headBars(s, 151);
+  assert.throws(() => conditionSeries(new Calc(h.bars as never, undefined, { ticker: 'AAAA', dates: h.dates }), cond, 'f', 150), (e: unknown) => e instanceof ValidationError && e.code === 'INDICATOR_OUTPUT_EMPTY');
+  assert.ok(conditionSeries(c, cond, 'f', 250).some(Boolean));
 });

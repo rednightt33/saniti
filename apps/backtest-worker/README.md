@@ -327,6 +327,17 @@ cd apps/backtest-worker && npm start
 
 `npm start` needs the variables above.
 
+### Deploy
+
+The worker is not connected to GitHub: it is uploaded with the Railway CLI from a clean tree of the commit to deploy
+(`git archive`, as `RAILWAY_CHANGELOG.md` records each upload). No Railway setting can hold a CLI upload back, so the CI
+gate is a manual step (EXEC-BACKTEST-REVAMP K10 a, ERRORS M458):
+
+1. the workflow `Backtest look-ahead gate` (`.github/workflows/backtest-lookahead.yml`) has a green run on exactly the
+   commit uploaded (the worker suite, the Screener worker's suite, the Screener and page suites);
+2. the upload names that commit and the run ID, recorded in `RAILWAY_CHANGELOG.md` with the deployment ID;
+3. success is claimed only when that deployment is `SUCCESS` and `/health` answers the new `engine_version`.
+
 ## Tests
 
 Run `npm test` (`node --experimental-strip-types --import ./loader/register.mjs --test tests/*.test.ts`). It needs no dependency and no network.
@@ -456,10 +467,11 @@ The image copies the Screener core and its registry generator, and `engine_versi
 
 | Test | What it checks |
 |---|---|
-| `grammar.test.ts` | parity with the Screener on the data cut at each sampled day |
-| `canonical.test.ts` | one language, one trial |
-| `flow-grammar.test.ts` | 526 Flow series equal `computeFlow`; the basis mask and the Flow warnings |
-| `pit.test.ts` | truncation and Terminal equality of every point-in-time indicator |
+| `grammar.test.ts` | parity with the Screener on the data cut at each sampled day; the Screener's refusal details; the empty-series refusal up to the period's end |
+| `canonical.test.ts` | one language, one trial; an unused `window_bars` never splits a line or a trial; the compare-lag mark |
+| `flow-grammar.test.ts` | the Flow series equal `computeFlow` (selected-broker variants included); the basis mask and the Flow warnings; a named broker whose first row is after the period |
+| `pit.test.ts` | truncation and Terminal equality of every point-in-time indicator, and of their conditions (`dSignal`) |
+| `lookahead.test.ts` | the engine as a whole on the data cut at t, with grammar, Flow and point-in-time conditions and a late series |
 | `hash-golden.test.ts` | the K7 a once-change in `hash-golden-k7a.json` |
 
 The real-data check is in `verification/backtest/lookahead/`. New variable: `BACKTEST_MAX_FLOW_SERIES` (default 8).

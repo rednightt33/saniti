@@ -13,6 +13,9 @@ export const FLOWS = SCREENER_FLOWS.filter(e => e.compute === 'terminal' && !e.r
     const vs = p.kind === 'select' ? (p.options ?? []).map(opt) : p.kind === 'bool' ? [true, false] : p.kind === 'multi' ? (p.options ?? []).map(o => [opt(o)])
       : p.kind === 'brokers' ? [['AA'], ['AA', 'BK']] : [];
     for (const v of vs) variants.push({ [p.key]: v });
+    // a broker list is read only where its scope selects it (Stage C F3: the lists were never in use in the gate)
+    const scope = p.kind === 'brokers' && p.key.endsWith('brokers') ? e.params.find(q => q.key === `${p.key.slice(0, -'brokers'.length)}scope`) : undefined;
+    if (scope && (scope.options ?? []).map(opt).includes('selected')) for (const v of vs) variants.push({ [scope.key]: 'selected', [p.key]: v });
   }
   const normalized = (v: Record<string, unknown>) => resolveFlowParams(e, v, 'f', Number.MAX_SAFE_INTEGER) as Record<string, unknown>;
   return { id: e.id, outputs: e.outputs.map(o => o.key), variants, normalized, defaults: flowDefaults(e.id) as Record<string, unknown>,

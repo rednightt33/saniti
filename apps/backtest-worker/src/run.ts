@@ -35,12 +35,13 @@
      checkPriceRange); a period.from before its first bar starts the run there (engine.ts PERIOD_CLIPPED);
    - PERIOD_BEFORE_DATA (engine.ts): the primary benchmark has no close on or before the first day of the result
      calendar (result.ts cannot scale a benchmark without a first close). */
+import crypto from 'node:crypto';
 import type { BacktestRequest, BacktestResult, JobContext, JobProgress, SignalsPreview, SignalsPreviewRequest } from '../../edge-bff/backtest/src/core/contract.ts';
 import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
-import { DataError, INDEX_TICKER } from '../../edge-bff/backtest/src/core/datafile.ts';
+import { DataError, INDEX_TICKER, dataVersion } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { Cancelled, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { MarketData } from '../../edge-bff/backtest/src/core/engine.ts';
-import { canonicalRequest, lineageKey, requestHash, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { canonicalJson, canonicalRequest, lineageKey, requestHash, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
 import type { CellRun, ResultInput } from '../../edge-bff/backtest/src/core/ledger.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { buildResult } from '../../edge-bff/backtest/src/core/result.ts';
@@ -53,7 +54,7 @@ import { brokerDataThrough, loadMarket } from './load.ts';
 import type { Bundle, PlannedClient } from './load.ts';
 import { checkPriceRange } from './terminal.ts';
 import type { Dataset, LoadedTicker, TerminalClient } from './terminal.ts';
-import { hashForm } from './canonical.ts';
+import { hashForm, lineageForm } from './canonical.ts';
 import { checkTest } from './grammar.ts';
 import { checkRequest, checkSignalsRequest, stocksOf } from './validate.ts';
 import type { CheckedRequest, References } from './validate.ts';
@@ -179,9 +180,9 @@ export async function runJob(request: unknown, context: RunContext, refs: Refs, 
   stop();
 
   /* 5. statistics, tables, trials, Monte Carlo */
-  const data_version = loaded.data_version;
+  const data_version = await versionOf(loaded, checked.columns, market.classification ?? {});
   const [lineage_key, request_hash] = await Promise.all([
-    lineageKey(hashForm(q)), requestHash(hashForm(q), { engine_version: env.versions.engine_version, registry_version: env.versions.registry_version, data_version })]);
+    lineageKey(lineageForm(q)), requestHash(hashForm(q), { engine_version: env.versions.engine_version, registry_version: env.versions.registry_version, data_version })]);
   if (q.robustness.monte_carlo_runs > 0) report('monte_carlo', 0, q.robustness.monte_carlo_runs);
   else report('finalizing', 0, 1);
   const result = buildResult({
@@ -194,6 +195,16 @@ export async function runJob(request: unknown, context: RunContext, refs: Refs, 
   stop();                                             // compute.ts checks once more after packing the result
   result.meta.duration_ms = Math.round(now() - t0);   // after buildResult, so the duration covers the whole computation
   return result;
+}
+
+/** The run's data_version: datafile.ts dataVersion over every file read and, when a grammar Flow condition reads the
+    broker rows (their columns), the brokers' classification it reads (FL34, the class: scopes): a relabelled broker list
+    is new data for the same files, so it is a new data_version and a new request hash (Stage C F7, ERRORS M458). Other
+    runs keep the version of their files. */
+async function versionOf(loaded: { files: readonly { ticker: string; dataset: string; sha256: string }[]; data_version: string }, columns: boolean, classification: Record<string, string>): Promise<string> {
+  if (!columns) return loaded.data_version;
+  const sha256 = crypto.createHash('sha256').update(canonicalJson(classification)).digest('hex');
+  return dataVersion([...loaded.files, { ticker: 'REFERENCE', dataset: 'broker_classification', sha256 }]);
 }
 
 /** The brokers' classification of the reference list (IDX_Broker_Profile; today's labels, used on every date: user
@@ -241,5 +252,5 @@ export async function runSignals(request: unknown, refs: Refs, env: RunEnv, hook
     hooks.progress?.({ phase: 'signals', done: ++done, total: checked.tickers.length });
   }
   const left = leftOut(excluded, rows.length, 'tickers', 'preview');                        // UNIVERSE_EMPTY when none is left
-  return { data_version: loaded.data_version, rows, warnings: left ? [left] : [] };
+  return { data_version: await versionOf(loaded, checked.columns, classification), rows, warnings: left ? [left] : [] };
 }

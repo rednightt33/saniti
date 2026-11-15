@@ -83,10 +83,53 @@ function refKinds(x: unknown, field: string, out: [string, string, Record<string
   return out;
 }
 
-/** A ScreenerError (or any error of the Screener core) as the Backtest's ValidationError: same code, field and words. */
+/** A ScreenerError (or any error of the Screener core) as the Backtest's ValidationError: same code, field, words and
+    details (the limit, allowed and needed values CONTRACT section 3 promises; errors.ts answers them; Stage C F9). */
 function asValidation(e: unknown, field: string): unknown {
-  if (e instanceof ScreenerError) return new ValidationError(e.code, e.field ?? field, e.message);
+  if (e instanceof ScreenerError) return Object.assign(new ValidationError(e.code, e.field ?? field, e.message), e.details ? { details: e.details } : {});
   return e;
+}
+
+/* Stage C (Agent 9 F3, ERRORS M458): a Flow reference that names its brokers reads them as the Terminal does. A named
+   broker is in the stock's broker set when it has a row anywhere in the rows the formula is given (calc/flow.ts flowRows
+   and cohort), so before its first row its value is 0 (in the set) or empty (not in it, FL13: "no member: no value").
+   A named broker whose first row for the stock is after the end of the period would therefore decide the run from later
+   data: it is refused per stock (UNKNOWN_BROKER, which a portfolio reads as a reason to leave the stock out, signals.ts
+   EXCLUDED_CODES), as a point-in-time indicator refuses a named broker (pit/series.ts namedWithoutRows). A broker the
+   stock never traded is in neither set, so it keeps the Terminal's value. The lists are the registry's broker
+   parameters (kind 'brokers': brokers, inst, retail, num_brokers, den_brokers), each read only where it is in use (its
+   `<prefix>scope` set to 'selected', or no scope of its prefix), so a new parameter of that kind is covered. */
+const FIRST_ROW = new WeakMap<Calc, Map<string, string>>();
+function firstRowOf(c: Calc, code: string): string | undefined {
+  let m = FIRST_ROW.get(c);
+  if (!m) {
+    m = new Map();
+    const cols = c.meta.broker?.columns;
+    if (cols) for (let k = 0; k < cols.rows; k++) {
+      const b = cols.brokers[cols.B[k]], d = cols.dates[cols.D[k]], seen = m.get(b);
+      if (seen === undefined || d < seen) m.set(b, d);
+    }
+    FIRST_ROW.set(c, m);
+  }
+  return m.get(code);
+}
+/** UNKNOWN_BROKER for the first named broker of a (completed) Flow reference whose first row for the stock is after
+    `until` (the period's last bar), naming the field and the fix. */
+function refuseLaterBrokers(c: Calc, ref: Record<string, unknown>, field: string, until: string, inPeriod: boolean): void {
+  const e = FLOW_BY_ID[ref.metric as string], params = isObj(ref.params) ? ref.params : {};
+  if (!e || !c.meta.broker) return;
+  for (const p of e.params) {
+    const v = params[p.key];
+    if (p.kind !== 'brokers' || !Array.isArray(v)) continue;
+    const scope = `${p.key.slice(0, p.key.length - 'brokers'.length)}scope`;
+    const sp = p.key.endsWith('brokers') ? e.params.find(q => q.key === scope) : undefined;
+    if (sp && (params[scope] ?? sp.default) !== 'selected') continue;
+    v.forEach((code, j) => {
+      const first = typeof code === 'string' ? firstRowOf(c, code) : undefined;
+      if (first !== undefined && first > until)
+        throw new ValidationError('UNKNOWN_BROKER', `${field}.params.${p.key}[${j}]`, `${field}.params.${p.key}[${j}]: ${code} has no broker rows for ${c.meta.ticker ?? 'this stock'}${inPeriod ? ' up to the end of the period' : ''} (its first is on ${first}), so later data would decide this condition; remove ${code}, or end the period on or after ${first}.`);
+    });
+  }
 }
 
 /** The metrics' availability as the Screener's validation reads it: every metric a backtest has no file for is
@@ -252,7 +295,8 @@ export function grammarEvaluator(limits: GrammarLimits = GRAMMAR_DEFAULTS): Gram
           if (c.flowNotes.depth === null) break;
         }
       }
-      const upTo = last === undefined ? n - 1 : Math.min(last, n - 1);
+      const upTo = last === undefined ? n - 1 : Math.min(last, n - 1), until = c.meta.dates?.[upTo];
+      if (until !== undefined) for (const r of flowRefs(test, `${field}.test`)) refuseLaterBrokers(c, r.ref, r.field, until, last !== undefined);
       for (const r of seriesOf(b)) {
         const s = full(r);
         let any = false;
@@ -293,6 +337,7 @@ function pitSignal(c: Calc, test: Record<string, unknown>, field: string, cfield
       const miss = namedWithoutRows(c, side as unknown as DRef, until);
       if (miss) throw new ValidationError('UNKNOWN_BROKER', `${f}.params.brokers[${miss[1]}]`, `${f}.params.brokers[${miss[1]}]: ${miss[0]} has no broker rows for ${c.meta.ticker ?? 'this stock'}${last === undefined ? '' : ' up to the end of the period'}.`);
     }
+    else if (c.meta.dates?.[upTo] !== undefined) for (const r of flowRefs(side, f)) refuseLaterBrokers(c, r.ref, r.field, until, last !== undefined);
     const s = d ? dSeries(c, side as unknown as DRef, f) : seriesOfRef(c, side, f, limits);
     let any = false;
     for (let i = 0; i <= upTo && !any; i++) { const v = s[i]; any = typeof v === 'number' && Number.isFinite(v) }

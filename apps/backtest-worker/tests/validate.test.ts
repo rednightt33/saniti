@@ -300,3 +300,12 @@ test('a lowered limit is the one every refusal names, over the core\'s ceiling t
   assert.deepEqual(msg(() => checkRequest(portfolioRequest(['S01'], 13), MANY, CFG)), ['INVALID_PORTFOLIO', 'portfolio.max_positions', 'portfolio.max_positions must be a whole number from 1 to 12.']);
   assert.equal(msg(() => checkRequest(portfolioRequest(picked(5), 5), MANY, five)), null);
 });
+
+test('Stage C F8: every broker list of a Flow reference is checked against the broker list, FL34 inst and retail included', () => {
+  const fl = (metric: string, params: Record<string, unknown>) => ({ id: 'f', kind: 'test', test: { kind: 'value', metric: { kind: 'flow', metric, params }, op: 'gt', value: 0 } }) as unknown as Condition;
+  assert.deepEqual(codeOf(() => checkRequest(pageRequest([fl('FL34', { inst: ['YU'], retail: ['QQ'] })]), REFS, CFG)), ['UNKNOWN_BROKER', 'entry.conditions[0].test.metric.params.retail[0]']);
+  assert.deepEqual(codeOf(() => checkRequest(pageRequest([fl('FL46', { num_scope: 'selected', num_brokers: ['ZZ'] })]), REFS, CFG)), ['UNKNOWN_BROKER', 'entry.conditions[0].test.metric.params.num_brokers[0]']);
+  assert.equal(codeOf(() => checkRequest(pageRequest([fl('FL34', { inst: ['YU'], retail: ['YU'] })]), REFS, CFG)), null);
+  // a class scope is not a list of codes
+  assert.equal(codeOf(() => checkRequest(pageRequest([fl('FL34', {})]), REFS, CFG)), null);
+});

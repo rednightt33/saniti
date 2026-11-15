@@ -151,3 +151,27 @@ test('refusals name the field and the fix', () => {
   // completed: the same condition with and without its defaults is one form (one trial)
   assert.deepEqual(checkDRef(ref('FL18', { anchor: '2024-01-02' }) as never, 'f'), checkDRef(ref('FL18', { anchor: '2024-01-02', top: 3, rank: 'net_buy', boards: ['Regular'] }) as never, 'f'));
 });
+
+test('Stage C F1: no look-ahead in the point-in-time conditions themselves (dSignal and the empty-series decision), on the data cut at t', () => {
+  const close = { kind: 'price', field: 'close' }, sma = { kind: 'indicator', indicator: 'I01', output: 'sma', params: { length: 20 } };
+  const conds: [string, unknown][] = [
+    ['state close gt FL18', { kind: 'state', lhs: close, op: 'gt', rhs: ref('FL18', { anchor: ANCHOR }) }],
+    ['state FL44 lt sma', { kind: 'state', lhs: ref('FL44', { anchor: ANCHOR }), op: 'lt', rhs: sma }],
+    ['event FL45 crosses above 2', { kind: 'event', within: 3, signal: { lhs: ref('FL45', { anchor: ANCHOR }), op: 'crosses_above', rhs: { value: 2 } } }],
+    ['event close crosses below FL19', { kind: 'event', within: 1, signal: { lhs: close, op: 'crosses_below', rhs: ref('FL19', { anchor: ANCHOR }) } }],
+    ['value FL51 distance', { kind: 'value', metric: ref('FL51', { start: START }, 'distance'), op: 'between', value: -5, value2: 5 }],
+    ['window FL23 cohort changed', { kind: 'window', mode: 'at_least', length: 10, count: 1, test: { kind: 'value', metric: ref('FL23', { start: START }, 'cohort_changed'), op: 'gt', value: 0 } }],
+    ['window always FL20', { kind: 'window', mode: 'always', length: 3, test: { kind: 'value', metric: ref('FL20', { anchor: ANCHOR }), op: 'gt', value: 0 } }],
+  ];
+  const full = calcAt(A, ROWS, A.dates.length);
+  let compared = 0;
+  for (const [name, t] of conds) for (const k of [110, 150, 260, 390, 520]) {
+    const cond = { id: 'p', kind: 'test', test: t } as never, cut = calcAt(A, ROWS, k + 1);
+    const at = (c: Calc) => { try { return Array.from(conditionSeries(c, cond, 'f', k)) } catch (e) { if (e instanceof ValidationError) return e.code; throw e } };
+    const a = at(full), b = at(cut);
+    if (typeof a === 'string' || typeof b === 'string') { assert.equal(b, a, `${name} cut ${k}: the same refusal`); continue }
+    for (let i = 0; i <= k; i++) assert.equal(b[i], a[i], `${name} cut ${k} bar ${i}`);
+    compared++;
+  }
+  assert.ok(compared >= 25, `${compared} cases compared`);
+});

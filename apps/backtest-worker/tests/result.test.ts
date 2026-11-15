@@ -553,6 +553,8 @@ test('statistical warnings (ERRORS M457): few trades, trades across the cut, one
   const d = { id: 'd', kind: 'test', test: { kind: 'value', metric: { kind: 'flow', metric: 'FL45', params: { anchor: dates[80] } }, op: 'gt', value: 5 } };
   const a = statWarnings(q([d]), many, 69, true, 5, dates).find(x => x.code === 'ANCHOR_INSIDE_PERIOD')!;
   assert.match(a.message, /after the out-of-sample cut/);
+  // a switched-off point-in-time condition is not run, so it raises no warning (Stage C F10)
+  assert.equal(statWarnings(q([{ ...d, enabled: false }]), many, 69, true, 5, dates).find(x => x.code === 'ANCHOR_INSIDE_PERIOD'), undefined);
 });
 
 test('K6 a: the owner\'s trials across lines give a second, stricter deflated Sharpe beside the line\'s', async () => {

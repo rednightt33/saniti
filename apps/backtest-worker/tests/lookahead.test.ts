@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import { F } from '../../edge-bff/terminal/src/calc/indicators.ts';
 import * as TF from '../../edge-bff/terminal/src/calc/flow.ts';
 import FLOW_REG from '../../edge-bff/terminal/src/data/flowRegistry.json' with { type: 'json' };
-import { REGISTRY, resolveParams } from '../../edge-bff/backtest/src/core/registry.ts';
+import { REGISTRY, ValidationError, resolveParams } from '../../edge-bff/backtest/src/core/registry.ts';
 import { Calc, FLOW, PRICE_ACTION, flowCondition, priceActionCondition } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { CANDLE_IDS, candleSignal } from '../../edge-bff/backtest/src/core/candles.ts';
 import { flowData } from '../../edge-bff/backtest/src/core/flow.ts';
@@ -20,8 +20,10 @@ import { prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import { IMPLEMENTED_PATTERNS, IMPLEMENTED_TRANSFORMS, resolveSignal } from '../../edge-bff/screener/src/core/transforms.ts';
 import { resolveSeries, tickerCalc } from '../../edge-bff/screener/src/core/metrics.ts';
 import { SCREENER_REGISTRY } from '../../edge-bff/screener/src/core/registry.ts';
-import { head, market, type Row, type Ticker } from './lookahead/fixture.ts';
+import { brokerColumns, head, market, type Row, type Ticker } from './lookahead/fixture.ts';
+import { installBacktestGrammar } from '../src/grammar.ts';
 
+installBacktestGrammar();
 const M = market(), A = M.stocks[0], N = A.dates.length, CUTS = [150, 260, 390, 520];
 const TERMINAL_HINDSIGHT = ['FL18', 'FL19', 'FL20', 'FL23', 'FL44', 'FL45', 'FL51', 'FL52'];   // ERRORS M448; the backtest uses point-in-time versions
 
@@ -151,14 +153,15 @@ test('Flow FL01-FL52 with every option: only the Terminal hindsight group reads 
 test('the engine as a whole: the same request on the full data and on the data cut at t gives the same ledger', () => {
   const tickerData = (t: Ticker, n: number | null, flow: boolean) => {
     const k = n ?? t.dates.length, h = head(t, k), d = h.dates;
+    const rows = M.rows[t.ticker].filter(r => r.d <= d[d.length - 1]);
     return { prices: { ticker: t.ticker, dates: d, bars: h.bars, dropped: 0 }, corporate_actions: [],
-      ...(flow ? { flow: flowData(M.rows[t.ticker].filter(r => r.d <= d[d.length - 1]), d) } : {}) };
+      ...(flow ? { flow: flowData(rows, d), broker: brokerColumns(rows) } : {}) };
   };
   const cutDate = (k: number) => A.dates[k];
   const marketAt = (to: string | null, flow: boolean) => {
     const n = (t: Ticker) => to === null ? null : t.dates.filter(d => d <= to).length;
     return { ihsg: { ticker: 'IHSG', dates: head(M.ihsg, n(M.ihsg) ?? N).dates, bars: head(M.ihsg, n(M.ihsg) ?? N).bars, dropped: 0 },
-      tickers: Object.fromEntries(M.stocks.map(t => [t.ticker, tickerData(t, n(t), flow)])) };
+      tickers: Object.fromEntries(M.stocks.map(t => [t.ticker, tickerData(t, n(t), flow)])), classification: { AA: 'Institutional-heavy', BK: 'Retail-heavy', YP: 'Retail-heavy' } };
   };
   const base = (over: Record<string, unknown>) => ({
     schema_version: 1, period: { from: A.dates[60], to: A.dates[N - 1], oos_fraction: 0 },
@@ -173,15 +176,39 @@ test('the engine as a whole: the same request on the full data and on the data c
   const RSI = { id: 'rsi', kind: 'indicator', indicator: 'I13', params: { length: 14 }, lhs: { type: 'output', output: 'rsi' }, op: 'crosses_above', rhs: { type: 'value', value: 40 } };
   const BRK = { id: 'brk', kind: 'price_action', type: 'breakout', params: { length: 20 }, op: 'close_above_high' };
   const FNET = { id: 'fn', kind: 'flow', type: 'fnet', op: 'gt', params: { length: 5 }, value: 0 };
+  // Stage C F1 (ERRORS M458): the grammar, its Flow indicators and the point-in-time indicators through the engine too
+  // (a leak in the point-in-time comparison or in the empty-series decision left every other case green)
+  const test_ = (id: string, t: unknown) => ({ id, kind: 'test', test: t });
+  const rsi = { kind: 'indicator', indicator: 'I13', output: 'rsi', params: {} }, close = { kind: 'price', field: 'close' };
+  const G_EVENT = test_('ge', { kind: 'event', within: 2, signal: { lhs: { kind: 'flow', metric: 'FL11', params: {} }, op: 'crosses_above', rhs: { value: 0 } } });
+  const G_Z = test_('gz', { kind: 'window', mode: 'at_least', length: 10, count: 3, test: { kind: 'value', metric: { kind: 'transform', fn: 'zscore', of: close, args: { length: 40 } }, op: 'gt', value: 0.5 } });
+  const G_SEL = test_('gs', { kind: 'state', lhs: { kind: 'flow', metric: 'FL11', params: { scope: 'selected', brokers: ['AA', 'BK'] } }, op: 'gt', rhs: { value: 0 } });
+  const D_STATE = test_('ds', { kind: 'state', lhs: close, op: 'gt', rhs: { kind: 'flow', metric: 'FL18', params: { anchor: A.dates[120] } } });
+  const D_EVENT = test_('de', { kind: 'event', within: 3, signal: { lhs: { kind: 'flow', metric: 'FL45', params: { anchor: A.dates[100] } }, op: 'crosses_above', rhs: { value: 2 } } });
+  const D_VALUE = test_('dv', { kind: 'value', metric: { kind: 'flow', metric: 'FL51', output: 'distance', params: { start: A.dates[90] } }, op: 'lt', value: 0 });
   const cases: [string, Record<string, unknown>, boolean][] = [
     ['single', base({ mode: 'single', single: { ticker: 'AAAA', benchmark: 'buy_and_hold' }, entry: { logic: 'any', at_least: 1, window_bars: 3, conditions: [RSI, BRK] } }), false],
     ['portfolio fnet', base({ mode: 'portfolio', portfolio: { tickers: ['AAAA', 'BBBB', 'SUSP'], max_positions: 2, rank_by: 'fnet', min_avg_value_20d_idr: 0 },
       entry: { logic: 'any', at_least: 1, window_bars: 2, conditions: [RSI, FNET] } }), true],
+    ['single grammar and Flow', base({ mode: 'single', single: { ticker: 'AAAA', benchmark: 'buy_and_hold' }, entry: { logic: 'any', at_least: 1, window_bars: 3, conditions: [G_EVENT, G_Z, G_SEL] } }), true],
+    ['single point in time', base({ mode: 'single', single: { ticker: 'AAAA', benchmark: 'buy_and_hold' }, entry: { logic: 'any', at_least: 1, window_bars: 1, conditions: [D_STATE, D_EVENT, D_VALUE] },
+      exit: { ...(base({}).exit as object), signals: { logic: 'any', conditions: [test_('xe', { kind: 'state', lhs: close, op: 'lt', rhs: { kind: 'flow', metric: 'FL19', params: { anchor: A.dates[120] } } })] } } }), true],
+    ['portfolio grammar and point in time', base({ mode: 'portfolio', portfolio: { tickers: ['AAAA', 'BBBB', 'SUSP'], max_positions: 2, rank_by: 'fnet', min_avg_value_20d_idr: 0 },
+      entry: { logic: 'at_least', at_least: 1, window_bars: 2, conditions: [{ ...test_('pg', { kind: 'event', within: 3, signal: { lhs: rsi, op: 'crosses_above', rhs: { value: 45 } } }) },
+        test_('pd', { kind: 'value', metric: { kind: 'flow', metric: 'FL51', output: 'share', params: { start: A.dates[90] } }, op: 'gt', value: 20 })] } }), true],
+    // a series whose first value comes after the first cuts (SMA 200): refused or left out on the bars up to the period's
+    // end only, never decided by later bars
+    ...(['single', 'portfolio'] as const).map(mode => [`${mode} late series`, base({ mode, ...(mode === 'single' ? { single: { ticker: 'AAAA', benchmark: 'buy_and_hold' } }
+      : { portfolio: { tickers: ['AAAA', 'BBBB', 'SUSP'], max_positions: 2, rank_by: 'fnet', min_avg_value_20d_idr: 0 } }),
+      entry: { logic: 'all', at_least: 1, window_bars: 1, conditions: [test_('ls', { kind: 'state', lhs: close, op: 'gt', rhs: { kind: 'indicator', indicator: 'I01', output: 'sma', params: { length: 200 } } })] } }), true] as [string, Record<string, unknown>, boolean]),
   ];
   const strip = (x: unknown) => JSON.parse(JSON.stringify(x, (k, v) => k === 'duration_ms' ? undefined : v));
   for (const [name, q, flow] of cases) for (const k of CUTS) {
     const req = { ...q, period: { ...(q.period as object), to: cutDate(k) } } as never;
-    const a = strip(run(prepare(marketAt(null, flow) as never), req)), b = strip(run(prepare(marketAt(cutDate(k), flow) as never), req));
+    // a refusal is part of the outcome: the same on both, with the same code
+    const go = (to: string | null) => { try { return strip(run(prepare(marketAt(to, flow) as never), req)) } catch (e) { if (e instanceof ValidationError) return { refused: e.code }; throw e } };
+    const a = go(null), b = go(cutDate(k));
     assert.deepEqual(b, a, `${name} cut ${cutDate(k)}`);
+    if (k === CUTS[CUTS.length - 1]) assert.ok(a.trades?.length > 0, `${name}: the case trades (${a.trades?.length})`);
   }
 });
