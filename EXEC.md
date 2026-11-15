@@ -14389,12 +14389,38 @@ Temuan selama O1 (sudah ditangani di kode):
 - Fakta "862 saham ber-EMA50, 166 di atasnya" di atas dihitung tanpa saringan saham biasa; hitungan halaman 836/162.
 
 
-## EXEC-BACKTEST-REVAMP — satu tata bahasa kondisi Screener-Backtest, Flow FL01-FL52 di Backtest (8 indikator D titik-waktu, khusus admin), gerbang look-ahead (revisi 2 setelah Tahap B, 2026-11-15; belum "go")
+## EXEC-BACKTEST-REVAMP — satu tata bahasa kondisi Screener-Backtest, Flow FL01-FL52 di Backtest (8 indikator D titik-waktu, khusus admin), gerbang look-ahead (revisi 3: keputusan Gerbang 1 terjawab 2026-11-15; menunggu "go")
 
 **Status:** rencana setelah review Tahap A (agent 1-4) dan Tahap B (agent 5-8); semua temuan yang dipakai diverifikasi ulang oleh
 main agent (kode, query read-only, run). Tidak ada kode yang ditulis. Keputusan user dengan kata-katanya: `PLAN.md`
 BACKTEST-REVAMP. Cacat dan buktinya: ERRORS M445-M454. Eksekusi baru dimulai setelah "go" (Gerbang 1); merge dan deploy
 setelah Gerbang 2; tampilan baru (desain user) adalah tahap D, sesudah back end live.
+
+**Jawaban user di Gerbang 1, 2026-11-15:** "K9 B / yg lain ok". Jadi: K1 (a) syarat "tanggal tersedia" masuk Part A; K2 (a)
+FL23 = `auto_c` titik-waktu atas [start, t], start wajib; K3 (a) peringatan + nilai kosong, perbaikan data jadi EXEC terpisah;
+K4 (a) peringatan per saham, seri as-traded jadi EXEC terpisah; K5 (a) aturan compare lag Screener untuk Donchian; K6 (a) hitungan
+pencarian per owner di samping DSR per lini; K7 (a) hash dinormalkan untuk semua kondisi (perubahan sekali dicatat); K8 dibaca
+(b), karena arah user "eksklutivitas, indikator D ini akan hanya avail untuk admin saja": tabel hak yang sama juga untuk
+Screener (dikonfirmasi ulang ke user bersama permintaan "go"); **K9 (b): batas memori worker tetap 1 GB, isi job dibatasi**
+(lihat "Anggaran memori K9 (b)"); K10 (a) `checkSuites: true` untuk edge-bff dan screener-worker, upload worker mensyaratkan run
+CI hijau (perubahan konfigurasi Railway dilakukan di tahap deploy, setelah Gerbang 2); K11 restart Postgres oleh user
+(Telegram) atau jadwal. Status: keputusan terjawab, menunggu "go" eksekusi.
+
+**Anggaran memori K9 (b)** (worker 1 GB; puncak terukur 2026-10-27 1,31 GB untuk pratinjau + run 12 saham ber-flow, sebelum batas
+dipasang; rencana menambah 0,25-0,65 GB per thread, Agent 6):
+1. P0: ukur dulu, bukan menebak: RSS puncak lokal untuk pratinjau + job 12 saham broker terbanyak dengan dan tanpa kondisi flow
+   (data dev yang sudah diunduh); dari situ tetapkan nilai di bawah.
+2. `BACKTEST_CACHE_BYTES` (sekarang 1,5 GB per thread, di atas batas container) diturunkan; `BACKTEST_MAX_BROKER_ROWS` (20 juta)
+   diturunkan ke nilai yang menjaga memori (± 59,5 byte per baris FlowRows yang disimpan); penolakan yang sudah ada
+   `LIMIT_EXCEEDED` `max_broker_rows` dipakai (aturan terlihat di `catalog.limits`, field, `allowed`, `needed`).
+3. Worker: FlowRows ringkas, dokumen broker dilepas per saham setelah diubah; grid per job dibatasi; anggaran flow per job
+   (`FLOW_BUDGET_EXCEEDED`).
+4. Thread pratinjau dan job tidak memuat broker bersamaan bila jumlah baris keduanya melewati anggaran (yang datang kemudian
+   menunggu), diukur dan dites.
+5. Verifikasi dev sebelum Gerbang 2 selesai: pratinjau + run portofolio 12 saham terberat dengan flow di bawah 1 GB (metrik
+   Railway dan `max_rss_bytes` di log job); bila tidak, batas di butir 2 diturunkan dan ditolak dengan pesan yang jelas.
+6. Batas 1 GB dicatat di `.railway/railway.ts` dan `RAILWAY_CHANGELOG.md` (keadaan live, M452); perubahan variabel Railway
+   dilakukan di tahap deploy dengan persetujuan Gerbang 2.
 
 ### Gambaran besar
 
@@ -14580,8 +14606,8 @@ skrip restart butuh Railway CLI yang tidak ada di sesi ini. *Saran:* tekan "🔄
 
 **P3 — Flow A-C di Backtest (43 indikator: 52 − 8 D − FL31; rumus Terminal apa adanya)**
 1. `datafile.ts`: `bf`/`sf` menurut nama (null ≠ 0); `FlowRows` disimpan (bukan objek baris) dengan bentuk
-   `terminal/src/data/worker.ts flowRows`; baris dilepas per saham; `BACKTEST_MAX_BROKER_ROWS` diturunkan agar menjaga memori
-   (K9).
+   `terminal/src/data/worker.ts flowRows`; baris dilepas per saham; `BACKTEST_MAX_BROKER_ROWS` dan `BACKTEST_CACHE_BYTES` diturunkan menurut "Anggaran memori K9
+   (b)" (worker tetap 1 GB).
 2. Worker membaca `classification` dari referensi broker (FL34, keputusan 5).
 3. Aturan per hari: nilai di bar t dari data broker sampai t; baseline tetap registry (bukan dipotong jendela seperti
    `flowmetrics.ts:151-170`); `FLOW_DATA_THROUGH` seperti sekarang.
@@ -14633,7 +14659,7 @@ kilas balik; CONTRACT bagian 7.
 **P8 — Dokumen, konfigurasi, file hasil generator (commit yang sama dengan kodenya)**
 CONTRACT 2, 3, 5, 7, 8, 9, 10, 11, 12; `BACKTEST_END_TO_END.md` 7, 8, 9, 11, 13, 14 (termasuk latensi bangun 3-15 detik);
 README worker, screener-worker, edge-bff; `screener-registry.json` dan tes `generated_file`-nya; `.railway/railway.ts` (batas memori
-worker K9, `checkSuites` K10, batas Postgres 2 GB) + `RAILWAY_CHANGELOG.md`; AGENTS.md (gerbang look-ahead; batas Postgres 2 GB);
+worker 1 GB K9 (b), `checkSuites` K10, batas Postgres 2 GB) + `RAILWAY_CHANGELOG.md`; AGENTS.md (gerbang look-ahead; batas Postgres 2 GB);
 status ERRORS M445-M454; catatan "go" user di EXEC; saat selesai: butir dihapus dari PLAN/EXEC dan dicatat di changelog.
 
 ### Penolakan baru (aturan terlihat dulu, cara lolos, contoh benar/salah, pesan yang menyebut perbaikan)
@@ -14660,7 +14686,7 @@ status ERRORS M445-M454; catatan "go" user di EXEC; saat selesai: butir dihapus 
 2. **Worker lebih dulu:** worker baru menerima `{request, context}` maupun bentuk lama dan menganggap `context.rights` yang hilang
    dari edge-bff lama sebagai tanpa hak (D ditolak, A-C jalan). Pasang Railway CLI (`npm i -g @railway/cli`), `git archive`
    konteks build sesuai Dockerfile, `railway up --path-as-root`; klaim hanya pada `SUCCESS`; log start `engine_version` =
-   repo; bila K9 (a), batas memori dinaikkan sebelumnya dan dicatat.
+   repo; variabel anggaran memori K9 (b) diterapkan bersama upload (dengan persetujuan Gerbang 2) dan dicatat.
 3. Merge; edge-bff dan screener-worker men-deploy dari `main` (K10: menunggu CI); M252: deploy `SKIPPED` → deploy commit itu
    eksplisit; `SUCCESS`; screener-worker `/ready` dan `engine_version` = repo.
 4. Verifikasi dev: `verification/backtest/e2e_dev.py`; satu run A-C; satu run D sebagai admin; panggilan worker tanpa hak ditolak;

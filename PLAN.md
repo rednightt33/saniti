@@ -240,8 +240,11 @@ subagent diverifikasi ulang sebelum dipakai.
   `{request, context}` untuk semua panggilan worker; worker dulu, edge-bff kemudian, rollback terbalik; memo seri dan satu
   lintasan untuk anchored D; anggaran flow per job; peringatan statistik; K1-K11 ditulis ulang dengan konteks dan dampak.
 
-**Pertanyaan terbuka:** K1-K11 di `EXEC.md` EXEC-BACKTEST-REVAMP bagian "Keputusan yang dibutuhkan" (K1 = pertanyaan 6
-tentang Part A), menunggu Gerbang 1.
+**Jawaban user di Gerbang 1, 2026-11-15:** "K9 B / yg lain ok": K9 (b) batas memori worker tetap 1 GB dengan isi job dibatasi;
+K1-K8, K10, K11 mengikuti saran (rincian di `EXEC.md` EXEC-BACKTEST-REVAMP, "Jawaban user di Gerbang 1"). K8 dibaca (b)
+(eksklusif admin juga di Screener) dari kata user "eksklutivitas, indikator D ini akan hanya avail untuk admin saja".
+
+**Pertanyaan terbuka:** konfirmasi K8 (b) dan "go" eksekusi back end (AGENTS: persetujuan rencana bukan perintah eksekusi).
 
 ## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
 
