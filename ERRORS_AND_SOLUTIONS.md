@@ -7855,8 +7855,11 @@ in its staleness check.
 - **Not covered:** a generator outside a `scripts` folder or named otherwise without `--check`; a file whose source is the
   live database (`DATABASE_SCHEMA.md`, kept by the daily workflow). Railway still deploys a push without waiting for the
   check (`checkSuites: false` on every service in `.railway/railway.ts`); changing that is a separate user decision.
-- **Status:** FIXED on the branch: the file and its chain are gone, and every generated file with a check is checked on
-  each push of a branch that holds the workflow (every branch once it is merged to `main`).
+- **Status:** FIXED, on `main` `2ee7e9fa` (user 2026-11-15 "Ok merge"): the file and its chain are gone, and every
+  generated file with a check is checked on each push and pull request (GitHub run `43667398337` on `main`: success).
+  Deployed with no change in behaviour: edge-bff `a7f5cda0`, market-ai-orc `9ce82005`, market-python-sandbox `2db92783`
+  SUCCESS; edge-bff `/ready` 200. Railway keeps deploying without waiting for the check (user "2 B": `checkSuites`
+  stays `false`).
 - **Lesson:** a generated file needs its check in CI or a pre-commit step, so that a source change without the rebuild
   fails before it reaches `main`. Removing a reader removes its generator chain (generator, output, test, handoff rows)
   in the same commit, or records why the chain stays.
@@ -7884,6 +7887,6 @@ in its staleness check.
   - Two checks in `scripts/tests/test_generated_files.py`: the dictionary equals the file, and the migration output
     equals the applied migration. Both fail when a v1 text is edited by hand in the generator; the first fails when the
     file is edited by hand. The generator left `EXEMPT`.
-- **Status:** FIXED (branch `claude/affectionate-shannon-qmsxxb`).
+- **Status:** FIXED, on `main` `2ee7e9fa` (GitHub run `43667398337`: success).
 - **Lesson:** a correction migration that changes a generated text also changes what the generator writes, in the same
   commit; a generator derives later corrections from the migrations rather than copying them.
