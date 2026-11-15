@@ -26,7 +26,7 @@ import { runJob, runSignals } from './run.ts';
 import type { References } from './validate.ts';
 
 export type Task =
-  | { kind: 'job'; request: unknown; context: Pick<JobContext, 'prior_trials'> & { rights?: string[] }; refs: References }
+  | { kind: 'job'; request: unknown; context: Pick<JobContext, 'prior_trials' | 'owner_trials' | 'rights'>; refs: References }
   | { kind: 'signals'; request: unknown; refs: References; rights?: string[] };
 export type Outcome =
   | { kind: 'job'; gzip: Uint8Array; json_bytes: number; duration_ms: number }

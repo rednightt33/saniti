@@ -585,11 +585,20 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
     warnings.push({ code: 'DATA_GAP', count, tickers: [...gapTickers].sort(byTicker),
       message: `A held or signalled stock had no bar on ${count === 1 ? '1 trading day' : `${count} trading days`} (counted per stock): a position held through such a day was valued at its last close, and an entry signal on the day before it was skipped instead of filled at a stale price.` });
   }
+  // EXEC-BACKTEST-REVAMP P7 (user K4 a, 2026-11-15; ERRORS M447): a stock with a split, bonus share or rights issue after
+  // the period's start and on or before the boundary has its published prices inside the period restated with a
+  // factor the market learned only on that day (look back); listed per stock, whatever the period's end
+  const restated = signalled.filter(r => r.p.data.corporate_actions.some(a => a.date > from && a.date <= ADJUSTED_HISTORY_BOUNDARY)).map(r => r.p.ticker).sort(byTicker);
+  if (restated.length)
+    warnings.push({ code: 'PRICES_RESTATED', count: restated.length, tickers: restated,
+      message: `${restated.length === 1 ? '1 stock' : `${restated.length} stocks`} had a split, bonus share or rights issue after the start of the period: the published prices before it are restated with a factor that was known only on that day, so absolute levels on those days (a price, an ATR or a volume threshold) differ from what was traded; ratios and percentages are not affected.` });
   if (from < ADJUSTED_HISTORY_BOUNDARY && to >= ADJUSTED_HISTORY_BOUNDARY)
     warnings.push({ code: 'ADJUSTED_HISTORY_BOUNDARY', message: `The period crosses ${ADJUSTED_HISTORY_BOUNDARY}: published prices before it are back-adjusted for splits, bonus shares and rights issues, prices after it are raw. Trades held through a corporate action are marked with it.` });
   warnings.push({ code: 'ARB_NOT_MODELLED', message: 'Auto-rejection limits are not modelled: a stop fills at the lower of the open and the stop level, with no lower-limit lock; entries are only skipped when the open gaps up by the ARA gap fraction or more (when that option is on).' });
   warnings.push({ code: 'TICK_NOT_MODELLED', message: 'Fills are not rounded to the IDX tick size.' });
   if (!single) warnings.push({ code: 'SURVIVORSHIP', message: 'The stocks are picked from today\'s list of published tickers: stocks delisted before today cannot be picked, which can flatter past results.' });
+  // EXEC-BACKTEST-REVAMP (ERRORS M455): a single stock is chosen from today's list too
+  else warnings.push({ code: 'SURVIVORSHIP', message: 'The stock is chosen from today\'s list of published tickers: a strategy tried on stocks that are still listed today looks better than it would have on the stocks of its time, some of which were delisted since.' });
 
   return {
     dates: dates.slice(), equity, exposure, benchmark_close,

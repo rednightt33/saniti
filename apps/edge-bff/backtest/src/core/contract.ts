@@ -106,7 +106,14 @@ export interface JobContext {
   /** Trials already recorded for this strategy line (K3): every distinct variant evaluated before, with its daily
       Sharpe; the worker adds this run's variants and computes the Deflated Sharpe from the union. */
   prior_trials: { variant_hash: string; sharpe_daily: number }[];
+  /** EXEC-BACKTEST-REVAMP (user K6 a, 2026-11-15): every distinct variant the owner evaluated in the last
+      OWNER_TRIAL_DAYS days, across every strategy line (a search over many lines is still a search); the worker reports
+      a second deflated Sharpe over them beside the line's (robustness.deflated_owner); the page shows the stricter */
+  owner_trials?: { variant_hash: string; sharpe_daily: number }[];
+  /** P5: the session owner's rights, set by edge-bff (none when absent) */
+  rights?: string[];
 }
+export const OWNER_TRIAL_DAYS = 90;
 
 /* ------------------------------------------------------------------------------------------------------------ */
 /* result                                                                                                        */
@@ -233,12 +240,16 @@ export interface BacktestResult {
     tickers: string[];               // single: [ticker]; portfolio: the picked stocks the run ran on, ticker order (TICKERS_EXCLUDED lists the others)
     benchmark: { kind: 'buy_and_hold' | 'ihsg'; ticker: string };
     data_through: string;            // the latest published bar the run could see
-    warnings: Warning[];             // PERIOD_CLIPPED, TICKERS_EXCLUDED, DATA_GAP, ADJUSTED_HISTORY_BOUNDARY, ARB_NOT_MODELLED, TICK_NOT_MODELLED, SURVIVORSHIP
+    warnings: Warning[];             // PERIOD_CLIPPED, TICKERS_EXCLUDED, DATA_GAP, PRICES_RESTATED, ADJUSTED_HISTORY_BOUNDARY, ARB_NOT_MODELLED, TICK_NOT_MODELLED, SURVIVORSHIP,
+                                     // FLOW_PRE_2021, FLOW_BASIS_CHANGE, FLOW_SOURCE_GAP, FLOW_ROWS_DROPPED, FLOW_CROSSING_BOARDS (EXEC-BACKTEST-REVAMP)
     trials: {
       prior: number; this_run: number; total: number;
       /** The distinct variants this run evaluated (the run itself and the sensitivity cells), which edge-bff records
           in edge_bff.backtest_trials for the next run of the same lineage (K3). */
       variants: { variant_hash: string; sharpe_daily: number; kind: 'run' | 'sensitivity' }[];
+      /** K6 a: the owner's distinct trials of the last OWNER_TRIAL_DAYS days (this run's included); null when edge-bff
+          sent none (an edge-bff from before K6 a) */
+      owner?: { total: number; days: number } | null;
     };
   };
   dates: string[];                   // result calendar: exchange days from the first to the last day of the period
@@ -277,6 +288,8 @@ export interface BacktestResult {
     monte_carlo: MonteCarlo | null;                    // null with fewer than 3 trades (page rule)
     sensitivity: Sensitivity | null;                   // null without a numeric threshold or when switched off
     deflated: { sr0: number | null; dsr: number | null; trials: number; sharpe_variance_from: 'trials' | 'sample' };   // null: page NaN
+    /** K6 a: the same over the owner's trials of the last OWNER_TRIAL_DAYS days; null without them */
+    deflated_owner?: { sr0: number | null; dsr: number | null; trials: number; sharpe_variance_from: 'trials' | 'sample' } | null;
   };
 }
 

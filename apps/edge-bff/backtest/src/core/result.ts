@@ -6,7 +6,8 @@
    (tests/stats-oracle.mjs). Nothing non-finite leaves: '—' on the page is null here, an infinite profit factor 'inf',
    and assertFiniteJson refuses a result that would still carry NaN or ±Infinity.
    Pure module: no DOM and no Node API. */
-import type { AnnualRow, BacktestResult, DrawdownPeriod, ExitReason, MonthlyRow, Sensitivity, SensitivityCell, Trade, WeekdayRow } from './contract.ts';
+import { OWNER_TRIAL_DAYS } from './contract.ts';
+import type { AnnualRow, BacktestRequest, BacktestResult, DrawdownPeriod, ExitReason, MonthlyRow, Sensitivity, SensitivityCell, Trade, Warning, WeekdayRow } from './contract.ts';
 import type { Ledger, LedgerTrade, ResultInput } from './ledger.ts';
 import { finiteOrNull, mean, quant, sd, seriesStats, skew, toSeriesStats, toTradeStats, tradeStats } from './stats.ts';
 import { cellStats, deflatedSharpe, monteCarlo, monteCarloScale, sensitivityPlan, trialSet, trialSharpe } from './robustness.ts';
@@ -183,6 +184,45 @@ function sensitivity(input: ResultInput, variants: RunVariant[]): Sensitivity | 
     base_x: plan.base_x, base_y: plan.base_y, cells };
 }
 
+/* EXEC-BACKTEST-REVAMP (rules not asked, "Peringatan statistik baru"; ERRORS M455): what the statistics can and cannot
+   say about this run, as warnings beside the numbers (the numbers are unchanged):
+   - FEW_TRADES: fewer than 30 trades, or fewer than 10 after the out-of-sample cut (then the out-of-sample Sharpe and
+     the deflated Sharpe rest on too few returns to trust);
+   - OOS_STRADDLE: trades entered before the cut and closed after it (their return mixes both parts);
+   - DSR_SAMPLE_RULE: one trial in the line, so the deflated Sharpe takes the variance of the sample, not of trials;
+   - ANCHOR_INSIDE_PERIOD: a point-in-time Flow anchor or start after the period's start (the days before it have no
+     value), stronger when it is after the out-of-sample cut (the cohort was chosen inside the part it is tested on).
+   Not here (needs what edge-bff keeps of earlier variants): whether the out-of-sample window was already seen by an
+   earlier variant of the line (OOS_ALREADY_SEEN). */
+export const MIN_TRADES = 30, MIN_OOS_TRADES = 10;
+function anchorsOf(x: unknown, out: string[] = []): string[] {
+  if (Array.isArray(x)) x.forEach(v => anchorsOf(v, out));
+  else if (x && typeof x === 'object') {
+    const o = x as Record<string, unknown>, p = o.params as Record<string, unknown> | undefined;
+    if (o.kind === 'flow' && p) for (const k of ['anchor', 'start']) if (typeof p[k] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p[k] as string)) out.push(p[k] as string);
+    for (const v of Object.values(o)) anchorsOf(v, out);
+  }
+  return out;
+}
+export function statWarnings(q: BacktestRequest, T: readonly LedgerTrade[], cutDay: number | null, oos: boolean, trials: number, dates: readonly string[]): Warning[] {
+  const out: Warning[] = [];
+  const after = oos && cutDay !== null ? T.filter(t => t.entry_bar > cutDay).length : null;
+  if (T.length < MIN_TRADES || (after !== null && after < MIN_OOS_TRADES))
+    out.push({ code: 'FEW_TRADES', count: T.length, message: `The run has ${T.length} trade${T.length === 1 ? '' : 's'}${after !== null ? `, ${after} of them after the out-of-sample cut` : ''}: below ${MIN_TRADES} (${MIN_OOS_TRADES} out of sample) the Sharpe ratios, the deflated Sharpe and the probabilistic Sharpe rest on too few returns to be relied on.` });
+  if (oos && cutDay !== null) {
+    const k = T.filter(t => t.entry_bar <= cutDay && t.exit_bar > cutDay).length;
+    if (k) out.push({ code: 'OOS_STRADDLE', count: k, message: `${k === 1 ? '1 trade was' : `${k} trades were`} entered before the out-of-sample cut and closed after it: ${k === 1 ? 'its' : 'their'} return mixes the two parts.` });
+  }
+  if (trials <= 1) out.push({ code: 'DSR_SAMPLE_RULE', message: 'This is the only trial of the strategy line so far, so the deflated Sharpe uses the variance of this run\'s own returns instead of the spread of several trials.' });
+  const cutDate = oos && cutDay !== null ? dates[cutDay] : null;
+  const late = [...new Set(anchorsOf([q.entry.conditions, q.exit.signals.conditions]))].filter(d => d > q.period.from).sort();
+  if (late.length) {
+    const inOos = cutDate !== null && late.some(d => d > cutDate);
+    out.push({ code: 'ANCHOR_INSIDE_PERIOD', count: late.length, message: `A point-in-time Flow condition starts choosing its brokers on ${late.join(', ')}, after the period's start: it has no value before then${inOos ? ', and it starts after the out-of-sample cut, so its brokers are chosen inside the part the strategy is tested on' : ''}.` });
+  }
+  return out;
+}
+
 /* ---- the result ------------------------------------------------------------------------------------------------- */
 export function buildResult(input: ResultInput): BacktestResult {
   const q = input.request, L = input.ledger;
@@ -202,16 +242,19 @@ export function buildResult(input: ResultInput): BacktestResult {
   const variants: RunVariant[] = [{ variant_hash: input.variant_hash, sharpe_daily: trialSharpe(st), kind: 'run' }];
   const grid = sensitivity(input, variants);
   const tset = trialSet(input.prior_trials, variants);
+  // K6 a: the owner's trials across lines (the variants list is complete only after the grid's cells, so after sensitivity())
+  const oset = input.owner_trials ? trialSet(input.owner_trials, variants) : null;
   const rets = T.map(t => t.return), cal = calendarTables(dates, vals, bench, T), roll = rolling(st.r);
 
+  const warnings = [...L.warnings, ...statWarnings(q, T, cutDay, oos !== null, tset.total, dates)];
   const result: BacktestResult = {
     schema_version: 1,
     meta: {
       engine_version: input.versions.engine_version, registry_version: input.versions.registry_version,
       data_version: input.versions.data_version, request_hash: input.request_hash, lineage_key: input.lineage_key,
       seed: q.robustness.seed, duration_ms: input.duration_ms, mode: q.mode, tickers: input.tickers,
-      benchmark: L.benchmark, data_through: input.versions.data_through, warnings: L.warnings,
-      trials: { prior: tset.prior, this_run: tset.this_run, total: tset.total, variants: tset.variants },
+      benchmark: L.benchmark, data_through: input.versions.data_through, warnings,
+      trials: { prior: tset.prior, this_run: tset.this_run, total: tset.total, variants: tset.variants, owner: oset ? { total: oset.total, days: OWNER_TRIAL_DAYS } : null },
     },
     dates, equity: vals, benchmark: bench, drawdown: st.dd, exposure: L.exposure, daily_returns: st.r,
     oos: { fraction: f, cut, cut_date: cutDay != null ? dates[cutDay] : null },
@@ -229,6 +272,7 @@ export function buildResult(input: ResultInput): BacktestResult {
       monte_carlo: monteCarlo(T, monteCarloScale(q), q.robustness.monte_carlo_runs, q.robustness.seed),
       sensitivity: grid,
       deflated: deflatedSharpe(st, tset.srs),
+      deflated_owner: oset ? deflatedSharpe(st, oset.srs) : null,
     },
   };
   assertFiniteJson(result);

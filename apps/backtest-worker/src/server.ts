@@ -228,7 +228,7 @@ export function createApp(cfg: Config): WorkerApp {
     return j;
   }
 
-  function checkJobBody(b: unknown): { job_id: string; request: unknown; prior_trials: { variant_hash: string; sharpe_daily: number }[]; rights: string[] } {
+  function checkJobBody(b: unknown): { job_id: string; request: unknown; prior_trials: { variant_hash: string; sharpe_daily: number }[]; owner_trials?: { variant_hash: string; sharpe_daily: number }[]; rights: string[] } {
     if (!b || typeof b !== 'object' || Array.isArray(b)) throw invalid('INVALID_REQUEST', 'body', 'The body must be {job_id, request, context}.');
     const { job_id, request, context, ...rest } = b as Record<string, unknown>;
     const extra = Object.keys(rest)[0];
@@ -236,18 +236,22 @@ export function createApp(cfg: Config): WorkerApp {
     if (typeof job_id !== 'string' || !JOB_ID.test(job_id)) throw invalid('INVALID_JOB_ID', 'job_id', 'job_id must be bt_ followed by 32 lowercase hex characters.');
     if (!context || typeof context !== 'object' || Array.isArray(context)) throw invalid('INVALID_CONTEXT', 'context', 'context is required.');
     const c = context as Record<string, unknown>;
-    for (const k of Object.keys(c)) if (k !== 'job_id' && k !== 'prior_trials' && k !== 'rights') throw invalid('UNKNOWN_FIELD', `context.${k}`, `context.${k} is not a field of the job context.`);
+    for (const k of Object.keys(c)) if (!['job_id', 'prior_trials', 'owner_trials', 'rights'].includes(k)) throw invalid('UNKNOWN_FIELD', `context.${k}`, `context.${k} is not a field of the job context.`);
     if (c.job_id !== job_id) throw invalid('INVALID_CONTEXT', 'context.job_id', 'context.job_id must equal job_id.');
     if (!Array.isArray(c.prior_trials)) throw invalid('INVALID_CONTEXT', 'context.prior_trials', 'context.prior_trials must be a list.');
-    const prior_trials = c.prior_trials.map((t: unknown, k: number) => {
-      const f = `context.prior_trials[${k}]`, x = t as Record<string, unknown>;
+    if (c.owner_trials !== undefined && !Array.isArray(c.owner_trials)) throw invalid('INVALID_CONTEXT', 'context.owner_trials', 'context.owner_trials must be a list.');
+    const trialsOf = (list: unknown[], name: string) => list.map((t: unknown, k: number) => {
+      const f = `context.${name}[${k}]`, x = t as Record<string, unknown>;
       if (!t || typeof t !== 'object' || Array.isArray(t) || Object.keys(x).some(n => n !== 'variant_hash' && n !== 'sharpe_daily'))
         throw invalid('INVALID_CONTEXT', f, `${f} must be {variant_hash, sharpe_daily}.`);
       if (typeof x.variant_hash !== 'string' || !HEX64.test(x.variant_hash)) throw invalid('INVALID_CONTEXT', `${f}.variant_hash`, `${f}.variant_hash must be a sha256 hex string.`);
       if (typeof x.sharpe_daily !== 'number' || !Number.isFinite(x.sharpe_daily)) throw invalid('INVALID_CONTEXT', `${f}.sharpe_daily`, `${f}.sharpe_daily must be a finite number.`);
       return { variant_hash: x.variant_hash, sharpe_daily: x.sharpe_daily };
     });
-    return { job_id, request, prior_trials, rights: rightsOf(c.rights) };
+    const prior_trials = trialsOf(c.prior_trials, 'prior_trials');
+    // K6 a: the owner's trials across lines (absent from an edge-bff before it: no owner-wide deflated Sharpe)
+    const owner_trials = c.owner_trials === undefined ? undefined : trialsOf(c.owner_trials as unknown[], 'owner_trials');
+    return { job_id, request, prior_trials, owner_trials, rights: rightsOf(c.rights) };
   }
 
   /* ---- previews: one at a time on the preview thread, the next ones wait in arrival order ---- */
@@ -361,7 +365,7 @@ export function createApp(cfg: Config): WorkerApp {
       if (left()) return;                                                // nobody waits for its 202: never started
       if (job && running(job)) return fail(res, 409, { code: 'BUSY', message: 'Another backtest is running.' });
       replaced = job && job.status.state === 'FINISHED' ? job.id : null;
-      job = startJob(b.job_id, { kind: 'job', request: b.request, context: { prior_trials: b.prior_trials, rights: b.rights }, refs: list },   // the previous job and its result are dropped
+      job = startJob(b.job_id, { kind: 'job', request: b.request, context: { prior_trials: b.prior_trials, ...(b.owner_trials ? { owner_trials: b.owner_trials } : {}), rights: b.rights }, refs: list },   // the previous job and its result are dropped
         { mode: (b.request as { mode?: unknown }).mode, tickers: checked.tickers.length, broker: checked.broker });
       return send(res, 202, { job_id: b.job_id });
     }

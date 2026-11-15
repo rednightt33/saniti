@@ -369,7 +369,7 @@ def test_single_run_progress_result_and_events(app, worker):
     assert c.get(f'/api/v1/backtests/{job_id}/result').json()['error']['code'] == 'NOT_FINISHED'
     run_next(c)
     handed = worker.posted('/v1/jobs')[0]['body']
-    assert handed == {'job_id': job_id, 'request': single(), 'context': {'job_id': job_id, 'prior_trials': [], 'rights': []}}
+    assert handed == {'job_id': job_id, 'request': single(), 'context': {'job_id': job_id, 'prior_trials': [], 'owner_trials': [], 'rights': []}}
     assert all(call['key'] == KEY for call in worker.calls)
     # progress of the previous read is stored while the job runs (the hook reads before the answer is stored)
     assert seen[1] == {'phase': 'backtest', 'done': 1, 'total': 2}
@@ -1119,7 +1119,7 @@ def test_trials_are_the_reported_variants_and_go_to_the_next_run_in_first_record
     second_request = {**single(), 'entry': {**single()['entry'], 'window_bars': 5}}
     second = submit(c, second_request).json()['request_id']
     run_next(c)
-    assert handed(worker, second)['context'] == {'job_id': second, 'prior_trials': as_prior(reported), 'rights': []}
+    assert handed(worker, second)['context'] == {'job_id': second, 'prior_trials': as_prior(reported), 'owner_trials': as_prior(reported), 'rights': []}
     assert db(c, 'SELECT count(*) AS n FROM edge_bff.backtest_trials')[0]['n'] == 6
     # the first variant again on other data: nothing new is counted; the row holds what this run reported (its Sharpe,
     # kind and request) and keeps its first-recorded place
@@ -2288,3 +2288,22 @@ def test_admin_owners_are_checked_at_start():
     for bad in ['', 'a,,b', ' me', 'me, you', 'me,me', 'a b']:
         with pytest.raises(ValueError):
             admin_owners_of(bad, 'me')
+
+
+def test_owner_trials_cross_every_line_of_the_owner_within_90_days(app, worker):
+    """K6 a: the next job's owner_trials hold the owner's variants of every line recorded in the last 90 days (another
+    line's too), each once; an older one is left out."""
+    c = app
+    first = submit(c, single('BBCA'), 'k6a').json()['request_id']
+    run_next(c)
+    other = submit(c, single('BMRI'), 'k6b').json()['request_id']     # another stock: another line in single mode
+    run_next(c)
+    lines = db(c, 'SELECT DISTINCT lineage_key FROM edge_bff.backtest_trials')
+    assert len(lines) == 2, 'two strategy lines'
+    recorded = db(c, 'SELECT variant_hash FROM edge_bff.backtest_trials ORDER BY recorded_seq')
+    db(c, "UPDATE edge_bff.backtest_trials SET updated_at = now() - interval '91 days' WHERE request_id=%s", first)
+    third = submit(c, single('BBCA', period={'from': '2020-01-02', 'to': '2026-10-23', 'oos_fraction': 0.3}), 'k6c').json()['request_id']
+    run_next(c)
+    sent = [t['variant_hash'] for t in handed(worker, third)['context']['owner_trials']]
+    kept = [r['variant_hash'] for r in db(c, 'SELECT variant_hash FROM edge_bff.backtest_trials WHERE request_id=%s ORDER BY recorded_seq', other)]
+    assert sent == kept and len(set(sent)) == len(sent) and len(recorded) > len(kept)

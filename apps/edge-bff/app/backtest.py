@@ -26,6 +26,8 @@ from psycopg.types.json import Jsonb
 
 from .client import public_data
 from .rights import catalog_for, refuse_context, rights_of
+
+OWNER_TRIAL_DAYS = 90        # contract.ts OWNER_TRIAL_DAYS (K6 a)
 from .store import StoreError
 from . import wake
 
@@ -687,6 +689,17 @@ class BacktestStore:
                 WHERE owner_key=%s AND lineage_key=%s ORDER BY recorded_seq''', (owner, lineage_key)).fetchall()
         return [{'variant_hash': r['variant_hash'], 'sharpe_daily': r['sharpe_daily']} for r in rows]
 
+    def owner_trials(self, owner, days=OWNER_TRIAL_DAYS):
+        """EXEC-BACKTEST-REVAMP (user K6 a, 2026-11-15): JobContext.owner_trials: every distinct variant the owner had a
+        Sharpe recorded for in the last `days` days, across every strategy line (first-recorded order); the worker reports
+        a second deflated Sharpe over them, and the page shows the stricter of the two."""
+        with self.connect() as c:
+            rows = c.execute('''SELECT variant_hash, sharpe_daily FROM (
+                    SELECT DISTINCT ON (variant_hash) variant_hash, sharpe_daily, recorded_seq FROM edge_bff.backtest_trials
+                    WHERE owner_key=%s AND updated_at > now() - make_interval(days => %s) ORDER BY variant_hash, recorded_seq) t
+                ORDER BY recorded_seq''', (owner, days)).fetchall()
+        return [{'variant_hash': r['variant_hash'], 'sharpe_daily': r['sharpe_daily']} for r in rows]
+
     def end(self, row, state, error=None, duration_ms=None):
         """FAILED (with its error) or CANCELLED, fenced by the lease; None when the lease was lost."""
         with self.connect() as c:
@@ -900,6 +913,7 @@ class BacktestLoop:
                     await self.end_job(row, deadline, 'CANCELLED')
                     return False
                 prior = await self.call(self.store.prior_trials, row['owner_key'], row['lineage_key'])
+                owner_trials = await self.call(self.store.owner_trials, row['owner_key'])
             except psycopg.OperationalError as e:
                 self.store_failed('dispatch', job_id, e)
                 await self.sleep(self.settings.poll_seconds)
@@ -907,7 +921,8 @@ class BacktestLoop:
             # EXEC-BACKTEST-REVAMP P5: the owner's rights as they are now (an admin right taken away while the job
             # waited: the worker refuses it, CONDITION_RESTRICTED)
             body = {'job_id': job_id, 'request': row['request'],
-                    'context': {'job_id': job_id, 'prior_trials': prior, 'rights': rights_of(self.settings, row['owner_key'])}}
+                    'context': {'job_id': job_id, 'prior_trials': prior, 'owner_trials': owner_trials,
+                                'rights': rights_of(self.settings, row['owner_key'])}}
             timing.fields['prior_trials'] = len(prior)
             try:
                 sent = time.monotonic()

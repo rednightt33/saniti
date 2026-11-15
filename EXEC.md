@@ -14733,6 +14733,17 @@ skrip restart butuh Railway CLI yang tidak ada di sesi ini. *Saran:* tekan "🔄
     field itu, jadi kalau edge-bff selesai deploy lebih dulu, Screener menolak permintaan selama beberapa menit. Usul:
     deploy screener-worker dulu sampai `SUCCESS`, baru edge-bff.
   - **Halaman (P5.6):** halaman sekarang tidak menawarkan D, jadi permintaan seri D ke worker masuk port tampilan (Tahap D).
+- **Pelaksanaan P6.4, P7, peringatan statistik dan K6a (2026-11-15).**
+  - **P6.4 (data nyata):** `verification/backtest/lookahead/` berisi `export.sh` (read-only lewat pgweb; kredensial dari
+    environment) dan `real_data.ts`. Diuji pada BBRI, GOTO, COCO dan ALKA (2023–2026, 4 titik potong). Tiap saham 168
+    seri: 76 output indikator, 8 price action, 20 candle, 4 uji bahasa kondisi, 44 Flow A–C, dan 16 seri titik-waktu.
+    Hasilnya **0 kebocoran** (`results_2026-11-15.json`).
+  - **P7 (K4a):** peringatan `PRICES_RESTATED` per saham.
+  - **Peringatan statistik** (M455): `FEW_TRADES`, `OOS_STRADDLE`, `DSR_SAMPLE_RULE`, `ANCHOR_INSIDE_PERIOD`, dan
+    `SURVIVORSHIP` juga di mode single. `OOS_ALREADY_SEEN` belum dibangun, karena butuh periode varian lama yang tidak
+    disimpan edge-bff.
+  - **K6a:** edge-bff mengirim `owner_trials` (varian owner 90 hari terakhir, semua lini). Hasil membawa
+    `meta.trials.owner` dan `robustness.deflated_owner`; DSR per lini tidak berubah.
 
 **P2 — Backtest menerima tata bahasa bersama (per saham, non-flow)**
 1. Adapter: `conditionSignal` + `within` per kondisi, bar 0 = 0, galat EMPTY, sisi price→volume, IHSG untuk `vs_index`

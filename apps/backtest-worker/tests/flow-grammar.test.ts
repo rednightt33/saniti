@@ -159,6 +159,9 @@ test("the run's Flow warnings: before 2021, basis change, source gaps and droppe
   assert.deepEqual(w.FLOW_SOURCE_GAP, [2, ['WARN']]);
   assert.deepEqual(w.FLOW_ROWS_DROPPED, [2, ['WARN']]);
   assert.match(a.warnings.find(x => x.code === 'FLOW_ROWS_DROPPED')!.message, /1 day on the Regular board, 1 day on the Nego board/);
+  // P7 (K4 a, M447): the rights issue inside the period restates the published prices before it
+  assert.deepEqual(a.warnings.filter(x => x.code === 'PRICES_RESTATED').map(x => [x.count, x.tickers]), [[1, ['WARN']]]);
+  assert.deepEqual(run(market([]), req(dates.find(d => d >= '2021-03-01')!, 'FL17')).warnings.filter(x => x.code === 'PRICES_RESTATED'), []);
   // from 2020: FLOW_PRE_2021; FL11 is no broker price, so no basis change
   const b = codes(run(market([action]), req(dates[25], 'FL11')));
   assert.deepEqual(b.FLOW_PRE_2021, [1, ['WARN']]);

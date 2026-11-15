@@ -104,7 +104,7 @@ test('a signal at the close fills at the next open; slippage, fees and whole lot
   assert.deepEqual(l.benchmark_close, [100, 100, 100, 100, 102, 102, 102, 102, 102, 102]);
   assert.deepEqual(l.benchmark, { kind: 'buy_and_hold', ticker: 'AAA' });
   assert.deepEqual(l.per_ticker_signals, [{ ticker: 'AAA', entry_signals: 1, last_signal: DAYS[3] }]);
-  assert.deepEqual(l.warnings.map(w => w.code), ['ARB_NOT_MODELLED', 'TICK_NOT_MODELLED']);
+  assert.deepEqual(l.warnings.map(w => w.code), ['ARB_NOT_MODELLED', 'TICK_NOT_MODELLED', 'SURVIVORSHIP']);   // single mode too (M455)
 });
 
 /* a random walk (test-only) for the look-ahead test */

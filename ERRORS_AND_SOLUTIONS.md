@@ -8179,6 +8179,10 @@ in its staleness check.
   (core engine and docs): a warning on every period with a later price-affecting action of a traded ticker, not only on a
   crossing of 2026-09-12; CONTRACT section 7 states the hindsight effect; the boundary statement is corrected per ticker
   (`ingestion_time` after the boundary).
+- **Interim solution (built on branch, 2026-11-15, EXEC-BACKTEST-REVAMP P7, user K4 a):** the engine warns per stock
+  (`PRICES_RESTATED`, listed tickers) whenever a split, bonus share or rights issue dated after the period's start and on
+  or before the boundary restates the prices inside the period, whatever the period's end; the as-traded price series
+  stays a separate data EXEC.
 - **Status:** OPEN. Corrects M446 item 4 ("known and warned").
 - **Lesson for new data:** a restated series carries the date of each restatement; "final" means final for that load,
   not as traded.
@@ -8335,4 +8339,10 @@ in its staleness check.
   `if (!single)`; `result.ts:197-200` OOS equity includes P&L of trades entered in-sample.
 - **Proposed solution:** BACKTEST-REVAMP: an owner-wide search count beside the per-line DSR, warnings (`FEW_TRADES`,
   `OOS_ALREADY_SEEN`, `ANCHOR_INSIDE_PERIOD`, `OOS_STRADDLE`, `SURVIVORSHIP` in single mode), a grid spec per condition.
-- **Status:** OPEN.
+- **Solution (built on branch, 2026-11-15, EXEC-BACKTEST-REVAMP, user K6 a):** `result.ts statWarnings`: `FEW_TRADES`
+  (< 30, or < 10 out of sample), `OOS_STRADDLE`, `DSR_SAMPLE_RULE`, `ANCHOR_INSIDE_PERIOD` (stronger after the cut);
+  `SURVIVORSHIP` in single mode too (engine). K6 a: edge-bff sends `context.owner_trials` (the owner's distinct variants
+  of the last 90 days, every line); the result carries `meta.trials.owner` and `robustness.deflated_owner` beside the
+  line's DSR (the page shows the stricter, Stage D). Not built: `OOS_ALREADY_SEEN` (needs the periods of earlier
+  variants, which edge-bff does not keep).
+- **Status:** BUILT ON BRANCH (except OOS_ALREADY_SEEN), awaiting Gate 2.

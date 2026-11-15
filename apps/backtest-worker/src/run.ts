@@ -115,7 +115,7 @@ export async function checkPublished(request: BacktestRequest, checked: CheckedR
 
 /** The run's context besides the request: the prior trials (edge-bff), and the rights (P4-P5: from the session; none
     when absent, fail closed). */
-export interface RunContext extends Pick<JobContext, 'prior_trials'> { rights?: readonly string[] }
+export interface RunContext extends Pick<JobContext, 'prior_trials' | 'owner_trials'> { rights?: readonly string[] }
 export async function runJob(request: unknown, context: RunContext, refs: Refs, env: RunEnv, hooks: RunHooks = {}): Promise<BacktestResult> {
   const now = env.now ?? (() => performance.now()), t0 = now();
   const stop = () => { if (hooks.shouldStop?.()) throw new Cancelled() };
@@ -187,7 +187,7 @@ export async function runJob(request: unknown, context: RunContext, refs: Refs, 
   const result = buildResult({
     request: q, ledger,
     versions: { engine_version: env.versions.engine_version, registry_version: env.versions.registry_version, data_version, data_through: lastOf(dataThrough) },
-    tickers: single ? [...checked.tickers] : ledger.per_ticker_signals.map(t => t.ticker), prior_trials: context.prior_trials, variant_hash, lineage_key, request_hash, sensitivity, duration_ms: 0,
+    tickers: single ? [...checked.tickers] : ledger.per_ticker_signals.map(t => t.ticker), prior_trials: context.prior_trials, ...(context.owner_trials ? { owner_trials: context.owner_trials } : {}), variant_hash, lineage_key, request_hash, sensitivity, duration_ms: 0,
   });
   stop();
   report('finalizing', 0, 1);
