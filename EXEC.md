@@ -14318,3 +14318,8 @@ labelnya, dan halaman menampilkan "Size: market cap" tanpa perubahan kode halama
 - File diperbarui sendiri sesudah loader harga dan ronde broker, tanpa langkah manual.
 - `OVERVIEW_FORMULAS.md` menjelaskan setiap rumus, dijaga oleh tes dan workflow harian seperti Radar.
 - Mengganti sumber ukuran kotak ke kapitalisasi pasar hanya butuh satu migrasi.
+
+**Go user 2026-11-15: "1 ok, 2 ok, 3 ok, go".** Keputusan kecil disetujui apa adanya: Turnover dari Feature 06 (papan
+Regular, bertanggal broker); volatilitas 20 hari dengan label "20D"; fitur tambahan (tren arus asing 10 sesi, kalender
+aksi korporasi, broker teraktif) tidak dimasukkan. Eksekusi mulai dari O1 di branch `claude/keen-turing-56vw7y`;
+migrasi di dev, merge ke `main` dan setiap deploy ditanyakan dulu satu per satu.
