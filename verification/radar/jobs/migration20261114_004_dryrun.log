@@ -1,0 +1,9 @@
+MIG DRYRUN 20261114_004_feature_07_radar_s6d_decided.sql sha256=98abfc6d6244a4078bcf5b580ca1d9f1af114f7cbe512fd1e95838d348874609
+MIG DRYRUN_BODY_OK 20261114_004_feature_07_radar_s6d_decided.sql
+OUT {"q": "provisional_rules", "ms": 3, "part": 0, "rows": [[0]]}
+OUT {"q": "s6d_rules", "ms": 4, "part": 0, "rows": [["S6D_BOTH", "loose", "decided", 12.0, 40.0], ["S6D_BOTH", "standard", "decided", 20.0, 65.0], ["S6D_BOTH", "strict", "decided", 35.0, 90.0], ["S6D_RANK", "loose", "decided", 40.0, null], ["S6D_RANK", "standard", "decided", 65.0, null], ["S6D_RANK", "strict", "decided", 90.0, null]]}
+OUT {"q": "s6d_rules", "ms": 4, "part": 1, "rows": [["S6D_RATIO", "loose", "decided", 12.0, null], ["S6D_RATIO", "standard", "decided", 20.0, null], ["S6D_RATIO", "strict", "decided", 35.0, null]]}
+OUT {"q": "warnings", "ms": 2, "part": 0, "rows": [["S6D_BOTH", "Built on S6. A rise can start from net selling; read it together with S6's level."], ["S6D_RANK", "Built on S6. A rise can start from net selling; read it together with S6's level."], ["S6D_RATIO", "Built on S6. A rise can start from net selling; read it together with S6's level."]]}
+JOB_DONE MIGRATION DRYRUN
+JOB_EXIT 0
+Starting Container

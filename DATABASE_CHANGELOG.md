@@ -1,5 +1,25 @@
 # Database changelog
 
+## 2026-11-14 — Feature 07 Radar: S6Δ labels decided (004), G2 window from Feature 06 (005), every date redone — applied on dev
+
+- **Go:** user 2026-11-14 "1A" (S6Δ thresholds stay 12 / 20 / 35 and 40 / 65 / 90), then "1 go, 2 perbaiki sekarang".
+- **20261114_004_feature_07_radar_s6d_decided.sql** (sha256 `98abfc6d6244a407…`): the 9 rule rows of condition D of
+  S6D_RATIO, S6D_RANK and S6D_BOTH `provisional` → `decided`; the three filters' warning loses "Thresholds are
+  provisional.". Preflight requires the approved thresholds. DRYRUN `44590053`, APPLY `51d17917`; read back: 0
+  provisional rows, thresholds unchanged.
+- **20261114_005_feature_07_radar_g2_window.sql** (sha256 `081d1f56b48d35c5…`, ERRORS M434): `refresh_feature_07_day`
+  reads G2's 16 market dates and each stock's Regular sessions from `Feature_06_Foreign_Domestic` (not from the Radar's
+  own rows, which start at the first fill); `Feature_Catalog` and `Column_Catalog` of `g2_eligible` name the new source.
+  Measured on dev (read-only EXPLAIN ANALYZE): index-only scans, 18,804 rows, 27 ms. DRYRUN `750b0e5f`, APPLY
+  `36714ab7`; read back: the function reads Feature 06, the catalog row updated, G2 for 2025-10-24 = 856.
+- **Every result date redone** (`verification/radar/redo_days_job.py`, APPLY `478abe05`, 244 s, `large_write`):
+  universe on 2025-10-24..29 0 → 856 / 855 / 854 / 853; gate rows from the 16th date on unchanged; result rows changed on
+  21 dates (2025-10-24 to 11-21) and on no later date; 214,992 measure rows unchanged, sums equal to Feature 06.
+- **Verified:** independent recalculation of every ticker on 12 dates (6 of the first weeks, 6 of 2026): 0 differences;
+  `scripts/audit_feature_catalog_semantics.py` PASS (job `b81bb354`, 660 active definitions); live check 13/13.
+  Evidence: `verification/radar/DEV_RUN.md`, `verification/radar/jobs/`, `verification/radar/validation_20261114/`.
+- `FEATURE_07_RADAR.md` regenerated (`scripts/generate_feature_07_catalog.py dictionary`) with the new G2 text.
+
 ## 2026-11-14 — Feature 07 Radar tables, catalog and first fill (EXEC-RADAR R1-R4) — applied on dev
 
 - **Go:** user 2026-11-14 "Ok go" (EXEC-RADAR from R1) and "1 A, 2 A 3 A go" (3 A: migrations 001 and 002 DRYRUN then

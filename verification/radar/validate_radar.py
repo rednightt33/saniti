@@ -333,8 +333,10 @@ def main():
                     if bad < 60:
                         print('DIFF', day, tk, k, v, got)
         mine = results(day, M, X)
-        market = sorted({d for rows in M.values() for d in rows if d < day})
-        prev_day = market[-1] if market else None
+        # the previous result date (the gate rows' dates, as refresh_feature_07_day's v_prev): the first date of a fill
+        # has none, so nothing is left and no near is held back
+        older = sorted(d for d in db_g if d < day)
+        prev_day = older[-1] if older else None
         prev_hits = set()
         if prev_day:
             Xp, _ = cross_section(prev_day, M, uni, f5)

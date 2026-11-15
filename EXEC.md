@@ -14062,7 +14062,24 @@ latest R10".
   - 3: M433 diperbaiki (`scripts/restart_postgres.py`, ERRORS M433); "restart progress" dibaca sebagai restart Postgres:
     dijalankan 16:10 UTC dengan skrip yang sudah diperbaiki (semua pengaman kecuali batas memori, atas permintaan user),
     10 detik, memori 0,49 → 0,08 GB.
-- Belum: go migrasi 004 (label S6Δ); R8 sisanya (`DATABASE_SCHEMA.md` lewat refresh terjadwal); R9 berjalan.
+- **2026-11-14, R9 (go "2 OK") selesai:** `main` = `f69eb9e` (fast-forward dari branch); deploy SUCCESS: telegram-monitor
+  `eab6b4b5` dan edge-bff `e48a7b86` (GitHub), terminal-api `ff9d708c` dan terminal-publisher `8a49b4c8` (unggah CLI
+  `git archive f69eb9e`), stockbit-updater `16fba518` (`deploy.sh`, tidak menjalankan ronde). Publisher Run Now (harian)
+  16:20 UTC: Radar 31 file, 3,62 MB. Cek live sebagai pemilik `verification/radar/live_check_dev.py`: 11/11 PASS
+  (`verification/radar/live_20261114/`). Memori Postgres sesudahnya 0,48 GB (tidak perlu restart).
+- **Temuan baru, ERRORS M434:** 4 tanggal tertua (24-29 Okt 2025) tanpa universe dan 11 tanggal berikutnya sedikit lebih
+  kecil, karena jendela G2 membaca riwayat tabel Radar sendiri. Usulan perbaikan perlu go.
+- **Keputusan user 2026-11-14: "1 go, 2 perbaiki sekarang".** 1: migrasi 004 (label S6Δ `provisional` → `decided`,
+  angka tetap) dijalankan di dev, DRYRUN lalu APPLY. 2: M434 diperbaiki sekarang: jendela G2 (16 tanggal terakhir dan
+  sesi Regular tiap saham) dibaca dari Feature 06, lalu langkah harian dihitung ulang dan file Radar diterbitkan ulang.
+- **2026-11-14, "1 go" dan "2 perbaiki sekarang" selesai di dev:** migrasi 004 (DRYRUN `44590053`, APPLY `51d17917`):
+  0 aturan `provisional`, angka S6Δ tetap. Migrasi 005 (DRYRUN `750b0e5f`, APPLY `36714ab7`): jendela G2 dari
+  Feature 06; hitung ulang 250 tanggal `redo_days_job.py` (DRYRUN `9caa52d3`, APPLY `478abe05`, 244 detik, APPLY_OK):
+  tanggal 24-29 Okt 2025 kini 853-856 saham, gerbang sejak tanggal ke-16 tidak berubah, hasil berubah hanya di 21 tanggal
+  tertua. Validasi independen semua saham pada 12 tanggal: 0 selisih. Audit katalog Feature PASS (job `b81bb354`).
+  Publisher Run Now 17:13 UTC menerbitkan ulang Radar; cek live 13/13 PASS. Memori Postgres 0,50 GB (tidak perlu
+  restart; langkah restart otomatis job kini berjalan, M433).
+- Belum: R8 sisanya (`DATABASE_SCHEMA.md` lewat refresh terjadwal).
 
 ### Keputusan yang perlu user sebelum go
 

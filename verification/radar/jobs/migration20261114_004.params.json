@@ -1,0 +1,4 @@
+{"mode": "DRYRUN", "migrations": ["20261114_004_feature_07_radar_s6d_decided.sql"],
+ "probes": [["provisional_rules", null, "SELECT count(*) FROM public.\"Feature_07_Radar_Rule\" WHERE status = 'provisional'"],
+            ["s6d_rules", null, "SELECT filter_id, level, status, threshold, threshold2 FROM public.\"Feature_07_Radar_Rule\" WHERE filter_id LIKE 'S6D%' AND cond_key = 'D' ORDER BY 1, 2"],
+            ["warnings", null, "SELECT filter_id, warning FROM public.\"Feature_07_Radar_Filter\" WHERE filter_id LIKE 'S6D%' ORDER BY 1"]]}

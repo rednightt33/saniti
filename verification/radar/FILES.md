@@ -16,7 +16,8 @@ ordered by the publisher, so equal tables give equal bytes. Dates are `YYYY-MM-D
 
 In the modes `daily` and `backfill` the files are rebuilt when `radar.stamp` changes (the newest gate row's
 `calculated_at` and the gate row count: every `refresh_feature_07_day` rewrites its gate row; the newest final IHSG price
-date; the rule version; the final closes from the newest result date on; the stock lists' membership), or when the
+date; the rule version; the final closes from the newest result date on; the stock lists' membership; the version's
+filter and rule rows, so a label, warning, threshold or status change rebuilds `radar-meta`), or when the
 index in state.json is not whole (an unusable entry, an object missing from the bucket). Older price corrections are not
 watched: the manual mode `radar` republishes after one. While the first fill runs (advisory lock
 `feature_07_radar_backfill`) nothing is built. The manual mode `radar` rebuilds them whatever the stamp. Every other mode carries the index
