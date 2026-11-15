@@ -134,9 +134,12 @@ FL31 (insider bertanggal transaksi, bukan pengumuman), FL34 (klasifikasi broker 
 ambang bawaan halaman (`regMedian`, median seluruh riwayat), serta yang sudah diperingatkan (survivorship K6, harga
 campuran K4).
 
+**Keputusan user, 2026-11-15:** "FL31 skip saja dulu karna kita belum ada data insider." FL31 tidak masuk Backtest
+pada rilis ini (tetap berlabel "Not in backtest yet"); dibuka lagi bila data insider dengan tanggal tersedia ada.
+
 **Pertanyaan terbuka:** (a) delapan indikator Flow di Terminal: tetap tampilan "hindsight" atau ikut aturan titik-waktu;
-(b) FL31: tanggal pengumuman dari sumber data, atau jeda konservatif sementara, atau ditahan; (c) FL34: klasifikasi
-bertanggal, dihitung dari data sampai t, atau ditahan; (d) Part A ERRORS ditambah syarat "tanggal tersedia".
+(c) FL34: klasifikasi bertanggal, dihitung dari data sampai t, atau ditahan; (d) Part A ERRORS ditambah syarat "tanggal
+tersedia".
 
 ## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
 
