@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-11-15 — market-sql-governor, market-python-sandbox, ai-data-coverage, telegram-monitor deployed (EXEC-INDEX-GROUP-HISTORY stages 7-8 code); orc-test-runner trial and catalog dry run
+
+- Merge of `claude/affectionate-shannon-qmsxxb` to `main` (`28c41268`, fast-forward; user go 2026-11-15 "Langsung go
+  tahap 4-9"), no user run active before (restart check: 0 EDGE jobs, 0 orc turns). GitHub deployments SUCCESS:
+  market-sql-governor `0b8db885`, market-python-sandbox `a6513801` (a SUM across the entity column of an INDEX table is
+  refused: the entities overlap), ai-data-coverage `10e033c8` (INDEX expectations per entity of Feature_Index_Entity),
+  telegram-monitor `04be07ae` (the round's line for the indexes, sectors and groups). market-ai-orc was not redeployed
+  (no watched path changed). stockbit-updater (stage 8) is not deployed yet: CLI upload after the fill.
+- orc-test-runner: stage 5 trial `e27be83e` (dry run LQ45 + GPRAJOGO, VERDICT PASS, 889 s, nothing written; attempts
+  1-2 did not run or stopped before any write: the Railway CLI was not on PATH, then the job wrapper printed a Decimal);
+  catalog migration 20261115_004 + vocabulary sync DRYRUN `77a5b9c6` (VERDICT PASS, rolled back). DATABASE_URL set only
+  for each run and removed (VAR_REMOVED).
+
 ## 2026-11-15 — orc-test-runner jobs of EXEC-INDEX-GROUP-HISTORY step 3 (no service deployed)
 
 - **Go:** user 2026-11-15 "go langkah 3", then "A".
