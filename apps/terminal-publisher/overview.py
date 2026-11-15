@@ -24,7 +24,8 @@ of its older history are spread over the whole table (correlation of trade_date 
 11 s and 300 timed out. The stocks above EMA50/EMA200 per date and the day files are therefore carried from the previous
 publication (`files`, carry): a run reads Feature 04 only for dates it has not counted yet (one recent date: 0.4 s) and
 rebuilds a day file only when its broker date or its Feature 04 rows changed. The first run, or the manual mode
-`overview`, counts every series date once (a large read: AGENTS.md "Postgres memory after large updates").
+`overview`, counts every series date once, BREADTH_CHUNK dates per statement (a large read: AGENTS.md "Postgres memory
+after large updates").
 """
 from __future__ import annotations
 
@@ -42,6 +43,8 @@ TURNOVER_BASE = 20          # turnover against the average of the 20 broker date
 FOREIGN_SUM = 10            # the KPI's 10-session foreign net
 FLOW_PERIODS = (('1D', 1), ('5D', 5), ('1M', 20), ('3M', 60))
 INTRADAY_5D = 5             # the 5D chart: 1-hour bars of the 5 sessions ending on the date
+BREADTH_CHUNK = 20          # dates per Feature 04 count: a first run's 300 dates in one statement would take ~55 s cold
+                            # (60 dates read 14,102 pages in 11 s on dev) against the publisher login's 120 s timeout
 BENCHMARK = 'LQ45'          # the design's second KPI card (an INDEX entity of Feature_Index_Entity)
 OTHER = 'Other'             # decision 5: a stock whose sector is "Undefined"
 NAME = re.compile(r'overview-(?:meta|series|day-\d{4}-\d{2}-\d{2})')
@@ -289,8 +292,8 @@ def files(conn, names, lists, stream=None, carry=None, previous=None, present=No
     with_f04 = {r[0] for r in stream(F04_DATES_SQL, (series_dates,))}
     breadth = {d: tuple(v) for d, v in ((carry or {}).get('breadth') or {}).items() if d in with_f04}
     todo = [d for d in series_dates if d in with_f04 and d not in breadth]
-    if todo:
-        breadth.update({r[0]: tuple(r[1:]) for r in stream(BREADTH_SQL, (todo,))})
+    for k in range(0, len(todo), BREADTH_CHUNK):     # bounded statements, whatever the number of dates to count
+        breadth.update({r[0]: tuple(r[1:]) for r in stream(BREADTH_SQL, (todo[k:k + BREADTH_CHUNK],))})
     flow = stream(MARKET_FLOW_SQL, (m, market_dates[0]))
     mc = [closes.get(m, {}).get(d, (None,) * 4)[3] for d in market_dates]
     vols = [volatility(mc, i) for i in range(len(mc))]

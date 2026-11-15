@@ -260,3 +260,15 @@ def test_terminal_api_reads_every_page_index_as_written_and_serves_the_same_fami
     raw = {**index, 'overview-x': {**good}, 'overview-y': {**good, 'key': good['key'].replace('overview/', 'radar/')}}
     assert pub.overview_entries(raw) == reader.page_index(raw, 'overview') == index
     assert not {'overview', 'overview_carry', 'overview_stamp'} & set(reader.STATE_FIELDS)
+
+
+def test_a_full_count_reads_feature_04_in_bounded_chunks_each_date_once(small, monkeypatch):
+    """The publisher login's statement timeout is 120 s on dev; a first run's breadth count is split so no statement
+    grows with the number of dates (BREADTH_CHUNK)."""
+    monkeypatch.setattr(overview, 'BREADTH_CHUNK', 4)
+    _, conn, bucket = run()
+    chunks = [p[0] for s, p in conn.asked if s == overview.BREADTH_SQL]
+    assert [len(c) for c in chunks] == [4, 4, 2]
+    assert sum(chunks, []) == MARKET_DATES[-10:]
+    series = doc(bucket, bucket.get_json('state.json')['overview']['overview-series'])
+    assert all(v is not None for v in series['above_ema50'])

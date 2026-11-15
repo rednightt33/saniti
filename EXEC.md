@@ -14181,7 +14181,7 @@ dengan sidik data preflight; tidak menimpa baris yang ada), job `verification/in
 - Hasil 2026-11-15: migrasi C DRYRUN `9fcbdbf4`, APPLY `a96ff014`; harga 38 indeks job `7331078f` (60.809 baris). Total 43
   indeks, 71.509 baris, dibaca balik. Tahap 3 selesai. Berikutnya: tahap 4 (skrip INDEX dan F02 sekaligus, di branch).
 
-## EXEC-OVERVIEW — halaman Market Overview (tab baru): ringkasan pasar harian dari file publisher, halaman admin (rencana 2026-11-15, BELUM dieksekusi; menunggu go)
+## EXEC-OVERVIEW — halaman Market Overview (tab baru): ringkasan pasar harian dari file publisher, halaman admin (go 2026-11-15; O1–O5 di branch, rilis dev menunggu go per langkah)
 
 **Kata user, 2026-11-15 (dengan desain `market-overview-target-c-ihsg-flow.html`):** "Kita akan menambahkan new page.
 Jalankan proses seperti sebelumnya ... Inspect dulu database dan lain-lain. Dan klarifikasi ke saya apabila ada yang perlu
@@ -14323,3 +14323,22 @@ labelnya, dan halaman menampilkan "Size: market cap" tanpa perubahan kode halama
 Regular, bertanggal broker); volatilitas 20 hari dengan label "20D"; fitur tambahan (tren arus asing 10 sesi, kalender
 aksi korporasi, broker teraktif) tidak dimasukkan. Eksekusi mulai dari O1 di branch `claude/keen-turing-56vw7y`;
 migrasi di dev, merge ke `main` dan setiap deploy ditanyakan dulu satu per satu.
+
+### Kemajuan (branch `claude/keen-turing-56vw7y`)
+
+| Fase | Status 2026-11-15 | Bukti |
+|---|---|---|
+| O1 rumus dan sumber | selesai di branch; migrasi 020 **belum** dipasang di dev | `OVERVIEW_FORMULAS.md` + `scripts/overview_formulas_doc.py` (tes tiap push, cek harian); `verification/overview/REHEARSAL.md` (EXPLAIN dev, hanya baca) |
+| O2 publisher | selesai | `apps/terminal-publisher/overview.py`; tes publisher 192 lulus |
+| O3 terminal-api | selesai | tes 65 lulus |
+| O4 edge-bff | selesai | `app/pages.py`, `app/overview.py`; suite edge-bff 351 lulus |
+| O5 halaman | selesai | `apps/edge-bff/overview/`; cek tampilan 1440/1100/375/gelap, 33 cek interaksi |
+| O6 verifikasi independen | berikutnya | |
+| O7 rilis dev | menunggu go per langkah | |
+
+Temuan selama O1 (sudah ditangani di kode):
+- Login publisher di dev punya `statement_timeout=120s`. Hitungan EMA lari pertama (300 tanggal) dalam satu kueri ±86
+  detik saat cache dingin, terlalu dekat batas. Sekarang dipecah per 20 tanggal (`BREADTH_CHUNK`; satu kelompok 5,7
+  detik). File hasilnya identik.
+- Lari pertama membaca ±1,2 GB Feature 04: termasuk "update besar" (restart Postgres sesudahnya, aturan AGENTS.md).
+- Fakta "862 saham ber-EMA50, 166 di atasnya" di atas dihitung tanpa saringan saham biasa; hitungan halaman 836/162.
