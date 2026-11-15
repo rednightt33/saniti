@@ -14204,7 +14204,7 @@ dengan sidik data preflight; tidak menimpa baris yang ada), job `verification/in
   sehingga bisa jatuh di sela statement job panjang; skrip juga bisa melanjutkan dari tabel fitur yang tertinggal).
 - Tahap 6 percobaan 1 (2026-11-15 12:12 UTC, job `4dd6f307`, 33 grup): berhenti sebelum menulis apa pun (0 baris baru,
   dibaca balik): cek F06 independen menolak nilai yang benar (GAGOES 2022-04-01 Nego, momentum 0 eksak vs -2,96e-05 dari
-  jumlah berjalan float). Diperbaiki di lapisan pemeriksa: ERRORS M441. Isi ulang untuk 75 entitas sekaligus dijadwalkan
+  jumlah berjalan float). Diperbaiki di lapisan pemeriksa: ERRORS M444. Isi ulang untuk 75 entitas sekaligus dijadwalkan
   sesudah restart terjadwal Postgres 13:45 UTC (`jobs/fill_all.*`, batch 15, large_write).
 - **Hasil tahap 6-9 (2026-11-15/16 WIB) — SELESAI:**
   - Tahap 6: job `6f934738` (13:58-18:13 UTC) 76 entitas lulus semua cek dan tertulis: F01/F04 29.008 baris, F02/F05
@@ -14217,9 +14217,9 @@ dengan sidik data preflight; tidak menimpa baris yang ada), job `verification/in
     gagal = peringatan). Belum teruji di ronde nyata: ronde berikut menunggu token Stockbit baru.
   - Tahap 9: file broker 2024-2026 43 indeks terbit di Terminal (job `f64de936`, verify 442 file 0 selisih); restart
     Postgres 18:41 UTC. Grup tidak tampil di Terminal (D2: jalur terpisah).
-  - Terbuka: ERRORS M440 (usulan penjaga restart untuk job panjang, menunggu keputusan user).
+  - Terbuka: ERRORS M443 (usulan penjaga restart untuk job panjang, menunggu keputusan user).
 
-## EXEC-OVERVIEW — halaman Market Overview (tab baru): ringkasan pasar harian dari file publisher, halaman admin (rencana 2026-11-15, BELUM dieksekusi; menunggu go)
+## EXEC-OVERVIEW — halaman Market Overview (tab baru): ringkasan pasar harian dari file publisher, halaman admin (go 2026-11-15; dirilis di dev 2026-11-15, `main` `41699d9f`)
 
 **Kata user, 2026-11-15 (dengan desain `market-overview-target-c-ihsg-flow.html`):** "Kita akan menambahkan new page.
 Jalankan proses seperti sebelumnya ... Inspect dulu database dan lain-lain. Dan klarifikasi ke saya apabila ada yang perlu
@@ -14356,3 +14356,34 @@ labelnya, dan halaman menampilkan "Size: market cap" tanpa perubahan kode halama
 - File diperbarui sendiri sesudah loader harga dan ronde broker, tanpa langkah manual.
 - `OVERVIEW_FORMULAS.md` menjelaskan setiap rumus, dijaga oleh tes dan workflow harian seperti Radar.
 - Mengganti sumber ukuran kotak ke kapitalisasi pasar hanya butuh satu migrasi.
+
+**Go user 2026-11-15: "1 ok, 2 ok, 3 ok, go".** Keputusan kecil disetujui apa adanya: Turnover dari Feature 06 (papan
+Regular, bertanggal broker); volatilitas 20 hari dengan label "20D"; fitur tambahan (tren arus asing 10 sesi, kalender
+aksi korporasi, broker teraktif) tidak dimasukkan. Eksekusi mulai dari O1 di branch `claude/keen-turing-56vw7y`;
+migrasi di dev, merge ke `main` dan setiap deploy ditanyakan dulu satu per satu.
+
+### Kemajuan (branch `claude/keen-turing-56vw7y`)
+
+| Fase | Status 2026-11-15 | Bukti |
+|---|---|---|
+| O1 rumus dan sumber | selesai di branch; migrasi 020 **belum** dipasang di dev | `OVERVIEW_FORMULAS.md` + `scripts/overview_formulas_doc.py` (tes tiap push, cek harian); `verification/overview/REHEARSAL.md` (EXPLAIN dev, hanya baca) |
+| O2 publisher | selesai | `apps/terminal-publisher/overview.py`; tes publisher 192 lulus |
+| O3 terminal-api | selesai | tes 65 lulus |
+| O4 edge-bff | selesai | `app/pages.py`, `app/overview.py`; suite edge-bff 351 lulus |
+| O5 halaman | selesai | `apps/edge-bff/overview/`; cek tampilan 1440/1100/375/gelap, 33 cek interaksi |
+| O6 verifikasi independen | selesai | `verification/overview/validate_overview.py`: 3 tanggal + tampilan halaman, 27.817 perbandingan, 0 beda; tinjauan kode independen: 4 temuan, semua diperbaiki (ERRORS M442) |
+| O7 rilis dev | selesai; **go user 2026-11-15: "Ok, jalankan semua."** | migrasi 020 DRYRUN `f53eff40` / APPLY `52e4a5f9`; `main` `28c41268` → `41699d9f`; edge-bff `af280efd`, telegram-monitor `bdbbca08`, terminal-api `8dab3b1c`, terminal-publisher `a856f67c` SUCCESS; Run Now 13:20 UTC: Overview 22 file, 0,67 MB, 37,4 s; cek live 8/8 (`verification/overview/live_20261115/`), 27.833 perbandingan 0 beda; RAILWAY_CHANGELOG 2026-11-15 |
+
+**Keputusan user 2026-11-15 sesudah rilis ("3"):** warna Performance di peta pasar abu-abu hanya untuk return 0
+(angka yang tertulis 0,00%); naik sekecil apa pun hijau muda, turun merah muda. Pertanyaannya: kotak "putih" BBCA
+(+0,46%), BMRI, ANTM, HRTA, PGEO pada 13 Nov adalah pita netral desain (−0,5% s/d +0,5%). Foreign buy tetap memakai pita
+desain. Kode: `apps/edge-bff/overview/src/model.ts` (`colorOf(..., signed)`); `OVERVIEW_FORMULAS.md` bagian 7. Deploy
+edge-bff `a3083980` SUCCESS 2026-11-15 13:40 UTC (go user: "go, deploy edge-bff"); terlihat di halaman live. Lalu user 2026-11-15: **"Foreign buy samakan juga, go deploy"**: warna Foreign buy abu-abu hanya bila kotak
+bertulisan 0 (net di bawah Rp 1 juta); net lain paling tidak hijau muda atau merah muda. Deploy edge-bff `960ef248` SUCCESS 13:57 UTC; terlihat di halaman live.
+
+Temuan selama O1 (sudah ditangani di kode):
+- Login publisher di dev punya `statement_timeout=120s`. Hitungan EMA lari pertama (300 tanggal) dalam satu kueri ±86
+  detik saat cache dingin, terlalu dekat batas. Sekarang dipecah per 20 tanggal (`BREADTH_CHUNK`; satu kelompok 5,7
+  detik). File hasilnya identik.
+- Lari pertama membaca ±1,2 GB Feature 04: termasuk "update besar" (restart Postgres sesudahnya, aturan AGENTS.md).
+- Fakta "862 saham ber-EMA50, 166 di atasnya" di atas dihitung tanpa saringan saham biasa; hitungan halaman 836/162.

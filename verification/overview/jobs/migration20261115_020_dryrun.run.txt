@@ -1,0 +1,9 @@
+JOB f53eff40-ddc3-4ae5-84a3-bd98e41ef299
+5
+MIG DRYRUN 20261115_020_overview_stock_size.sql sha256=b38bde7dda476ef254b72647371d1d87e65bc105d7df25a519ba3b1cc9eaf618
+MIG DRYRUN_BODY_OK 20261115_020_overview_stock_size.sql
+JOB_DONE MIGRATION DRYRUN
+JOB_EXIT 0
+POSTGRES_MEMORY_CHECK
+{"now": "2026-11-15T13:14:00+00:00", "refusals": ["inside the B6 window 12:00-13:20 UTC", "a cron runs within the margin: terminal-publisher (0,30 0,1,12 * * *) at 12:30 UTC; postgres-memory-cron (45 2,13 * * *) at 13:45 UTC"], "reasons": ["b6_window", "cron_due"], "postgres_memory_gb": 1.653008384, "active_statements": 0, "user_runs": {"edge_jobs": 0, "orc_turns": 0}, "verdict": "REFUSED", "railway_credential": "RAILWAY_API_TOKEN"}
+VAR_REMOVED

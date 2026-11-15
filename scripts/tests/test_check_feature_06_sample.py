@@ -1,4 +1,4 @@
-"""ERRORS M441: the independent Feature 06 check sums each window from its own values, so a window of near-zero values
+"""ERRORS M444: the independent Feature 06 check sums each window from its own values, so a window of near-zero values
 after a large one gives the exact ratio the stored SQL (numeric) gives; the missing-value rules stay pandas'."""
 import sys
 from pathlib import Path

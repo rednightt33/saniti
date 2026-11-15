@@ -29,6 +29,9 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
                 (AGENTS.md, Postgres memory after large updates).
   radar         EXEC-RADAR R5: rebuild the Radar files (radar.py) whatever their stamp; daily and backfill rebuild them when
                 the stamp changed (verification/radar/FILES.md).
+  overview      EXEC-OVERVIEW: rebuild every Market Overview file (overview.py) whatever its stamp, counting the stocks
+                above EMA50/EMA200 of every series date again (a large read of Feature 04); daily and backfill rebuild
+                them when the stamp changed, carrying what did not change (OVERVIEW_FORMULAS.md).
   verify        compare every published file with SQL (row count, sums, first and last date); prints mismatches.
 The cross-sectional files (below) are rebuilt by the modes in XSECTION_REBUILT_BY: daily, backfill and packs rebuild
 `price` and `actions`, events rebuilds `actions`; every other mode carries the previous index entries forward. The broker
@@ -102,6 +105,9 @@ Objects (all under v1/; <sha> is the sha256 of the object's gzip bytes, ERRORS M
   radar/{name}.<sha16>.json.gz     EXEC-RADAR R5 (user go 2026-11-14): the Radar's files (radar.py: radar-meta,
                                    radar-days, radar-board-YYYY-MM-DD, radar-f-<filter>), indexed in state.json `radar`
                                    (radar_entries; terminal-api serves the index to the EDGE gateway only, never on /state)
+  overview/{name}.<sha16>.json.gz  EXEC-OVERVIEW (user go 2026-11-15): the Market Overview's files (overview.py:
+                                   overview-meta, overview-series, overview-day-YYYY-MM-DD), indexed in state.json
+                                   `overview`; `overview_carry` (publisher-private) holds what the next run reuses
 EXEC-TERMINAL-SPEED (user 2026-10-26): a ticker is five objects for the page instead of 21 (ERRORS M240: the bucket's
 cost is per object, ~0.8 s each, HTTP/1.1); the packs are listed in manifest `packs` with their sha256.
 Data files are written before the manifest that names them, and the xsection and content-keyed reference files before
@@ -135,6 +141,7 @@ from zoneinfo import ZoneInfo
 
 import psycopg
 
+import overview
 import radar
 
 SCHEMA_VERSION = 1
@@ -407,7 +414,7 @@ RUN_ALERT_MINUTES = 30
 HEALTH_SOURCE = 'Terminal_Publisher_Health'
 # the step a failed put belongs to, by its key's first part (a failed run's alert names it)
 PUT_STEPS = {'price': 'files', 'yield': 'files', 'broker': 'files', 'events': 'files', 'pack': 'packs', 'intraday': 'intraday', 'xsection': 'xsection',
-             'manifest': 'manifests', 'logo': 'refs', 'ref': 'refs', 'radar': 'radar'}
+             'manifest': 'manifests', 'logo': 'refs', 'ref': 'refs', 'radar': 'radar', 'overview': 'overview'}
 # cleanup_baseline gives up after this long and the run publishes without a cleanup (one hung listing page must not
 # hold the publication; the two listings take about 2 s on dev)
 BASELINE_SECONDS = 60
@@ -886,23 +893,39 @@ def ref_entries(raw):
 RADAR_KEY = indexed_key('radar')
 
 
-def radar_entries(raw):
-    """EXEC-RADAR R5: the usable entries of a state.json `radar` index, read as the xsection index is (index_entries
-    plus `as_of`); terminal-api's radar_index keeps exactly these (a test holds the two equal)."""
+def page_entries(raw, family):
+    """EXEC-RADAR R5, EXEC-OVERVIEW: the usable entries of a page family's state.json index (radar, overview), read as
+    the xsection index is (index_entries plus `as_of`); terminal-api's page index keeps exactly these (a test holds the
+    two equal)."""
     out = {}
-    for name, (entry, e) in index_entries(raw, RADAR_KEY, 'radar_entry_dropped').items():
+    for name, (entry, e) in index_entries(raw, PAGE_KEYS[family], f'{family}_entry_dropped').items():
         as_of = e.get('as_of')
         out[name] = {**entry, 'as_of': as_of if isinstance(as_of, str) and len(as_of) <= 64 else None}
     return out
 
 
+def radar_entries(raw):
+    return page_entries(raw, 'radar')
+
+
+def overview_entries(raw):
+    return page_entries(raw, 'overview')
+
+
+# The EDGE pages whose files the publisher builds from the database (one mechanism, publish_page): family -> module.
+# A module gives MAINTAINED_BY, UNAVAILABLE, available(conn), busy(conn), stamp(conn) and files(conn, names, lists,
+# stream, carry, previous, present) -> (files, kept names, carry).
+PAGES = {'radar': radar, 'overview': overview}
+OVERVIEW_KEY = indexed_key('overview')
+PAGE_KEYS = {'radar': RADAR_KEY, 'overview': OVERVIEW_KEY}
+
+
 # The families whose objects a state.json index names instead of a manifest: family -> (state.json field, key pattern,
 # entries reader). collect_garbage treats every one alike (one mechanism). radar: EXEC-RADAR R5.
 INDEXED = {'xsection': ('xsection', XSECTION_KEY, xsection_entries), 'ref': ('refs', REF_KEY, ref_entries),
-           'radar': ('radar', RADAR_KEY, radar_entries)}
-# EXEC-RADAR R5: the modes that rebuild the Radar files when their stamp changed (radar.stamp; the manual mode `radar`
-# rebuilds them whatever the stamp); every other mode carries the index forward unchanged
-RADAR_MAINTAINED_BY = ('daily', 'backfill', 'radar')
+           'radar': ('radar', RADAR_KEY, radar_entries), 'overview': ('overview', OVERVIEW_KEY, overview_entries)}
+# the modes that rebuild a page's files are the module's MAINTAINED_BY (radar.py, overview.py); every other mode
+# carries its index forward unchanged
 
 
 def transient(error):
@@ -1097,9 +1120,9 @@ class Publisher:
         self.ref_written = {}                               # name -> the bytes put under its fixed key this run
         self.refs = {}                                      # the `refs` index written into state.json (index_refs)
         self.refs_failed = []                               # reference files whose content copy failed (entry kept)
-        self.radar = {}                                     # EXEC-RADAR R5: the `radar` index written into state.json
-        self.radar_stamp = None                             # what that index was built from (radar.stamp)
-        self.radar_failed = None                            # the step that failed (the previous index is kept)
+        # EXEC-RADAR R5, EXEC-OVERVIEW: per page family, the index written into state.json, what it was built from,
+        # the step that failed (the previous index is kept) and what the next run may reuse (publish_page)
+        self.pages = {f: {'index': {}, 'stamp': None, 'failed': None, 'carry': None} for f in PAGES}
         self.threads = threads or bucket_threads()          # EXEC-PUBLISHER-SPEED: bucket requests in parallel
         self.delete_after = max(MIN_DELETE_AFTER_SECONDS, int(delete_after or os.environ.get('TERMINAL_DELETE_AFTER_SECONDS')
                                                               or DELETE_AFTER_SECONDS))
@@ -1509,63 +1532,76 @@ class Publisher:
             seconds=round(time.monotonic() - started, 1), reasons=by_reason, rounds=len(rounds), stamps_checked=check,
             checked_at=checked_at)
 
-    def publish_radar(self, mode, state, previous, universe):
-        """EXEC-RADAR R5 (user go 2026-11-14): the Radar files (radar.py) under content keys `radar/<name>.<16 hex>.json.gz`,
-        indexed in state.json `radar`. In RADAR_MAINTAINED_BY they are rebuilt when radar.stamp differs from state.json
-        `radar_stamp` (a result date was recomputed, a newer price date, another rule version) or in the manual mode
-        `radar`; otherwise, or before migration 20261114_001 exists, the previous index is carried forward. A failure
-        keeps the previous index and logs the class only; the run goes on (the Terminal's publication does not depend on
-        the Radar)."""
-        self.radar, self.radar_stamp, self.radar_failed = dict(previous), state.get('radar_stamp'), None
-        if mode not in RADAR_MAINTAINED_BY:
+    def publish_page(self, family, mode, state, previous, universe):
+        """EXEC-RADAR R5 (user go 2026-11-14), EXEC-OVERVIEW (user go 2026-11-15): a page family's files (PAGES: radar.py,
+        overview.py) under content keys `<family>/<name>.<16 hex>.json.gz`, indexed in state.json `<family>`. In the
+        module's MAINTAINED_BY modes they are rebuilt when its stamp differs from state.json `<family>_stamp` or in the
+        manual mode of the family's name (which also drops what a run may carry); otherwise, or before the module's
+        tables exist, the previous index is carried forward. The module may keep a previous entry (kept) and gives what
+        the next run may reuse (state.json `<family>_carry`). A failure keeps the previous index and logs the class
+        only; the run goes on (the Terminal's publication does not depend on a page)."""
+        mod, page = PAGES[family], self.pages[family]
+        page.update(index=dict(previous), stamp=state.get(f'{family}_stamp'), failed=None,
+                    carry=state.get(f'{family}_carry'))
+        if mode not in mod.MAINTAINED_BY:
             return
         started = time.monotonic()
         try:
-            if not radar.available(self.conn):
-                log('radar', built=False, reason='Feature 07 not created')
+            if not mod.available(self.conn):
+                log(family, built=False, reason=mod.UNAVAILABLE)
                 return
-            if radar.backfill_running(self.conn):            # QA 2026-11-14: never publish half-filled tables
-                log('radar', built=False, reason='the Radar backfill is running', kept=len(previous))
+            reason = mod.busy(self.conn)
+            if reason:                                # QA 2026-11-14: never publish half-filled tables
+                log(family, built=False, reason=reason, kept=len(previous))
                 return
-            now = radar.stamp(self.conn)
+            now = mod.stamp(self.conn)
             # QA 2026-11-14: the index is carried only when it is whole: every entry of state.json was usable and every
             # object it names is in the bucket (else it is rebuilt, as an xsection file is put again)
-            present = self.present_keys('radar', previous)
-            whole = (len(previous) == len(state.get('radar') or {})
+            present = self.present_keys(family, previous)
+            whole = (len(previous) == len(state.get(family) or {})
                      and all(e['key'][len(PREFIX) + 1:] in present for e in previous.values()))
-            if mode != 'radar' and now == state.get('radar_stamp') and previous and whole:
-                log('radar', built=False, reason='unchanged', files=len(previous))
+            if mode != family and now == state.get(f'{family}_stamp') and previous and whole:
+                log(family, built=False, reason='unchanged', files=len(previous))
                 return
             names = {t: n for t, n, *_ in universe}
             lists_doc = self.stock_lists_doc()
             if lists_doc is None:                         # QA 2026-11-14: never publish a meta without the lists
                 raise RuntimeError('stock lists unavailable')
             lists = list(zip(*(lists_doc.get(c, []) for c in ('list_key', 'kind', 'code', 'name', 'members'))))
-            files = radar.build(self.conn, names, lists, stream=lambda sql, params: list(stream_rows(self.conn, sql, params)))
+            files, kept, carry = mod.files(self.conn, names, lists,
+                                           stream=lambda sql, params: list(stream_rows(self.conn, sql, params)),
+                                           carry=None if mode == family else page['carry'], previous=previous,
+                                           present=present)
         except Exception as e:  # noqa: BLE001 - the class only: a driver error may carry connection details
-            self.radar_failed = 'build'
-            log('radar_failed', step='build', error=type(e).__name__, kept=len(previous))
+            page['failed'] = 'build'
+            log(f'{family}_failed', step='build', error=type(e).__name__, kept=len(previous))
             return
-        if not files:                                     # QA 2026-11-14: no result date (the gate table emptied by a
-            if previous:                                  # repair): keep what is published rather than wipe it
-                self.radar_failed = 'empty'
-                log('radar_failed', step='empty', error='NoResultDates', kept=len(previous))
+        if not files and not kept:                        # QA 2026-11-14: no data date (a table emptied by a repair):
+            if previous:                                  # keep what is published rather than wipe it
+                page['failed'] = 'empty'
+                log(f'{family}_failed', step='empty', error='NoDataDates', kept=len(previous))
             else:
-                log('radar', built=False, reason='no result date')
+                log(family, built=False, reason='no data date')
             return
         try:
-            index = {}
+            index = {name: previous[name] for name in kept if name in previous}
             for name, doc, rows, as_of in files:
                 body, sha = encode(doc)
-                key, _ = self.store(previous.get(name, {}), 'radar', None, name, body, sha, present, now=True)
+                key, _ = self.store(previous.get(name, {}), family, None, name, body, sha, present, now=True)
                 index[name] = {'key': key, 'sha256': sha, 'bytes': len(body), 'rows': rows, 'as_of': as_of}
         except Exception as e:  # noqa: BLE001 - the class only
-            self.radar_failed = 'put'
-            log('radar_failed', step='put', error=type(e).__name__, kept=len(previous))
+            page['failed'] = 'put'
+            log(f'{family}_failed', step='put', error=type(e).__name__, kept=len(previous))
             return
-        self.radar, self.radar_stamp = index, now
-        log('radar', built=True, files=len(index), mb=round(sum(e['bytes'] for e in index.values()) / 1e6, 2),
-            seconds=round(time.monotonic() - started, 1))
+        page.update(index=index, stamp=now, carry=carry)
+        log(family, built=True, files=len(index), written=len(files), kept=len(kept),
+            mb=round(sum(e['bytes'] for e in index.values()) / 1e6, 2), seconds=round(time.monotonic() - started, 1))
+
+    radar = property(lambda self: self.pages['radar']['index'])
+    radar_stamp = property(lambda self: self.pages['radar']['stamp'])
+    radar_failed = property(lambda self: self.pages['radar']['failed'])
+    overview = property(lambda self: self.pages['overview']['index'])
+    overview_failed = property(lambda self: self.pages['overview']['failed'])
 
     def present_keys(self, family, previous):
         """The keys under `<family>/` of an indexed family (xsection, ref; one listing of that prefix; no cleanup runs
@@ -1754,7 +1790,7 @@ class Publisher:
         self.previous_finished = state.get('finished_at')
         previous = xsection_entries(state.get('xsection'))        # the index terminal-api serves (EXEC-SCREENER)
         previous_refs = ref_entries(state.get('refs'))            # EXEC-MU-RUNTIME T5
-        previous_radar = radar_entries(state.get('radar'))        # EXEC-RADAR R5
+        previous_pages = {f: page_entries(state.get(f), f) for f in PAGES}     # EXEC-RADAR R5, EXEC-OVERVIEW
         # the full cleanup after state.json needs what the bucket held before this run wrote anything (collect_garbage)
         before = self.cleanup_baseline() if sweep else None
         if mode in ('daily', 'backfill', 'packs', 'events', 'intraday', 'fixed_income'):   # the modes that read every manifest
@@ -1764,7 +1800,7 @@ class Publisher:
                 threads=self.threads)
         if before is not None:
             before['named'] = {t: named_keys(m) for t, m in self.manifests.items()}
-            before['indexes'] = {'xsection': previous, 'ref': previous_refs, 'radar': previous_radar}
+            before['indexes'] = {'xsection': previous, 'ref': previous_refs, **previous_pages}
         todo = []  # (dataset, ticker, year, stamp)
         years = range(self.broker_first_year, self.last_year + 1)
         if mode == 'backfill':
@@ -1791,7 +1827,7 @@ class Publisher:
                 todo += [('broker', t, y, None) for t, y in new if kind.get(t) == 'index' and y >= self.broker_first_year]
         elif mode == 'events':
             todo = self.changed_events(kind)
-        elif mode in ('logos', 'packs', 'intraday', 'fixed_income', 'broker-days', 'radar'):
+        elif mode in ('logos', 'packs', 'intraday', 'fixed_income', 'broker-days', *PAGES):
             todo = []
         elif mode == 'broker-range':
             tickers = only or [t for t, typ in kind.items() if typ in BROKER_TABLES]
@@ -1855,9 +1891,11 @@ class Publisher:
                 log('xsection_failed', name=name, error=type(e).__name__, kept=self.xsection.get(name, {}).get('key'))
         # EXEC-SCREENER-FLOW-CANDLES P4: the broker day files, put at once (a failed date keeps its entry), before state.json
         self.publish_broker_days(mode, kind, state, previous, present, sweep)
-        # EXEC-RADAR R5: the Radar files, put at once; a failure keeps the previous index (the rest is published)
-        self.step('radar')
-        self.publish_radar(mode, state, previous_radar, universe)
+        # EXEC-RADAR R5, EXEC-OVERVIEW: each page's files, put at once; a failure keeps its previous index (the rest is
+        # published)
+        for family in PAGES:
+            self.step(family)
+            self.publish_page(family, mode, state, previous_pages[family], universe)
         # barrier: every data file, pack and xsection file is in the bucket before a manifest names it
         self.uploads.wait()
         self.step('manifests')
@@ -1899,8 +1937,10 @@ class Publisher:
             'window': [self.first_year, self.last_year], 'price_first_year': self.price_first_year,
             'broker_first_year': self.broker_first_year, 'last_mode': mode, 'xsection': self.xsection,
             'refs': self.refs,
-            # EXEC-RADAR R5: the Radar's index (terminal-api serves it to the EDGE gateway only, never on /state)
-            'radar': self.radar, 'radar_stamp': self.radar_stamp,
+            # EXEC-RADAR R5, EXEC-OVERVIEW: each page's index (terminal-api serves it to the EDGE gateway only, never
+            # on /state), its stamp and what the next run may reuse (publisher-private)
+            **{k: v for f, page in self.pages.items()
+               for k, v in ((f, page['index']), (f'{f}_stamp', page['stamp']), (f'{f}_carry', page['carry']))},
             'intraday_change_seen': self.intraday_seen.isoformat() if self.intraday_seen else state.get('intraday_change_seen'),
             # EXEC-SCREENER-FLOW-CANDLES P4: publisher-private (terminal-api STATE_FIELDS does not serve them)
             'broker_days_checked_at': self.broker_days_checked_at, 'broker_day_stamps': self.broker_day_stamps,
@@ -1911,12 +1951,13 @@ class Publisher:
             broker_behind_sessions=self.broker_behind,
             xsection=sorted(self.xsection), xsection_failed=self.xsection_failed,
             broker_days_failed=self.broker_days_failed, refs=sorted(self.refs),
-            refs_failed=self.refs_failed, radar=len(self.radar), radar_failed=self.radar_failed, phases=self.phases,
+            refs_failed=self.refs_failed, **{f: len(p['index']) for f, p in self.pages.items()},
+            **{f'{f}_failed': p['failed'] for f, p in self.pages.items()}, phases=self.phases,
             threads=self.threads)
         # EXEC-PUBLISHER-SPEED (user 2026-10-29, "Ok setuju"): the objects this publication stopped naming go once no
         # reader can still use them, by name, without a listing of the bucket (delete_replaced)
-        indexes = {'xsection': self.xsection, 'ref': self.refs, 'radar': self.radar}
-        self.delete_replaced({'xsection': previous, 'ref': previous_refs, 'radar': previous_radar}, indexes)
+        indexes = {'xsection': self.xsection, 'ref': self.refs, **{f: p['index'] for f, p in self.pages.items()}}
+        self.delete_replaced({'xsection': previous, 'ref': previous_refs, **previous_pages}, indexes)
         if sweep:
             # ERRORS M301: the full cleanup, the safety net for what a crashed or stopped run left, once a day; after
             # the publication, never in front of it, given up after SWEEP_SECONDS; a failure only logs
@@ -2664,6 +2705,12 @@ def stale_alert_due(now):
     return local.hour * 60 + local.minute >= h * 60 + m
 
 
+def partial_files(pub):
+    """The files a partial publication names: failed xsection and content-keyed reference files, and each page family
+    (radar, overview) whose build or put failed (its previous index was kept)."""
+    return sorted(pub.xsection_failed + pub.refs_failed + [f for f, p in pub.pages.items() if p['failed']])
+
+
 def main(argv):
     mode = (argv[1] if len(argv) > 1 else os.environ.get('TERMINAL_PUBLISH_MODE', 'daily')).strip()
     times = run_times(os.environ.get('TERMINAL_RUN_TIMES_WIB'))
@@ -2732,10 +2779,11 @@ def main(argv):
         notify_broker_behind(started.astimezone(WIB).date().isoformat())
     # EXEC-SCREENER: a failed xsection file fails the run visibly once everything else is published (exit 3); so does a
     # reference file whose content-keyed copy failed (EXEC-MU-RUNTIME T5; its fixed-key copy was written)
-    # EXEC-RADAR R5 (QA 2026-11-14): a Radar build or put that failed is a partial publication too (file `radar`)
-    if pub.xsection_failed or pub.refs_failed or pub.radar_failed:
-        notify_publication('partial', slot, manual, files=sorted(pub.xsection_failed + pub.refs_failed
-                                                                 + (['radar'] if pub.radar_failed else [])))
+    # EXEC-RADAR R5 (QA 2026-11-14), EXEC-OVERVIEW: a page build or put that failed is a partial publication too (file
+    # named by its family)
+    partial = partial_files(pub)
+    if partial:
+        notify_publication('partial', slot, manual, files=partial)
         return 3
     return 0
 

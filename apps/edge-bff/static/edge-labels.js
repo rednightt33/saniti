@@ -141,8 +141,11 @@ window.EdgeLabels = {
   screener: { nav:"Screener", frameTitle:"Stock screener" },
   // EXEC-RADAR R7 (user 2026-11-14: "A1 S8 ikut, dan halaman tetap bernama Radar"): the Radar tab after Screener
   radar: { nav:"Radar", frameTitle:"Radar" },
+  // EXEC-OVERVIEW O4 (decision 7, 2026-11-15): the Overview tab, first in the rail
+  overview: { nav:"Overview", frameTitle:"Market overview" },
   // EXEC-TERMINAL-IND-EDIT (user 2026-11-05: "apapun tabnya selalu tulisannya Edge, Sign In, and Monitor. Boleh diganti
   // misalkan Edge, - terminal, backtest, screener"): the browser tab's title on each page
   pages: { loading:"EDGE", signIn:"EDGE — Sign In", monitor:"EDGE — Monitor", terminal:"EDGE — Terminal",
-    backtest:"EDGE — Backtest", screener:"EDGE — Screener", radar:"EDGE — Radar" }
+    backtest:"EDGE — Backtest", screener:"EDGE — Screener", radar:"EDGE — Radar",
+    overview:"EDGE — Overview" }
 };

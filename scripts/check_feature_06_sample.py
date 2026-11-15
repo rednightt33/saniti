@@ -61,7 +61,7 @@ def expected(f05: pd.DataFrame) -> pd.DataFrame:
 
 
 def wsum(series: pd.Series, n: int, min_periods: int | None = None) -> pd.Series:
-    """The sum of each window of n values, summed from that window's own values (ERRORS M441). pandas' rolling sum is a
+    """The sum of each window of n values, summed from that window's own values (ERRORS M444). pandas' rolling sum is a
     running sum: it keeps the rounding remainder of values that left the window (about 1e-16 of their size), which
     dominates a window of near-zero values, so a ratio of two such sums (the foreign strength) was off by 3e-7 while the
     stored SQL value is exact. Same rules as rolling(n, min_periods).sum(): missing values are skipped and a window

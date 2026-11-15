@@ -1,0 +1,19 @@
+{
+  "name": "edge-overview",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "EDGE Market Overview page (EXEC-OVERVIEW O5, user go 2026-11-15): the market's day before picking a stock, built from the design market-overview-target-c-ihsg-flow.html. It shows the Overview files edge-bff relays (/api/v1/overview); every figure that does not depend on the viewer's choice is the publisher's (apps/terminal-publisher/overview.py).",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "build:fixture": "vite build --mode fixture",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.1.9",
+    "vitest": "3.2.4"
+  }
+}

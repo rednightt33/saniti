@@ -130,6 +130,12 @@ jobs:
       - name: Check that RADAR_FORMULAS.md explains the Radar code on dev
         run: python scripts/radar_formulas_doc.py --check
 
+      # EXEC-OVERVIEW O1: red when OVERVIEW_FORMULAS.md no longer explains the Overview code, or when the tile-size function
+      # on dev (public.overview_stock_size) differs from its newest migration; the message names the way to fix it
+      - name: Check that OVERVIEW_FORMULAS.md explains the Overview code on dev
+        if: always() && steps.database.outcome == 'success'
+        run: python scripts/overview_formulas_doc.py --check
+
       - name: Close temporary Railway database connection
         if: always() && steps.database.outputs.created == 'true'
         shell: bash

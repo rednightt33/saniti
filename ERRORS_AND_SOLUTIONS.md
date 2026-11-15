@@ -7964,7 +7964,84 @@ in its staleness check.
 - **Lesson:** a table stored from a later date than its source history cannot take its running totals from its own
   earlier rows; derive them from the last stored value and the source, and test a continuation against a full rebuild.
 
-### M440 — The scheduled Postgres restart can fall between two statements of a long job (2026-11-15, open)
+### M440 — Market Overview: the first run's Feature 04 count was one statement near the publisher's 120 s timeout (2026-11-15, fixed before release)
+
+- **Found by:** the EXEC-OVERVIEW O1 measurement on dev (read-only EXPLAIN ANALYZE, `verification/overview/explain_dev.py`)
+  before the first publisher run; nothing has failed on dev.
+- **Verified cause:**
+  - `overview.py` counted the stocks above EMA50/EMA200 for every date not yet counted in one statement
+    (`BREADTH_SQL` with all dates). A first run, or the manual mode `overview`, has 300 such dates.
+  - Feature 04 is 2.5 GB and the rows of one older date are spread over the whole table (correlation of `trade_date`
+    -0.04). One statement of 20 older dates read 10,622 pages in 5.7 s on dev, so 300 dates take about 86 s cold.
+  - The publisher login `terminal_publisher_login` has `statement_timeout=120s` (`pg_db_role_setting`, dev,
+    2026-11-15). A slower disk or a busier database would have cancelled the first run.
+- **Class:** a publisher statement whose cost grows with the number of dates it covers, on a table whose rows are not
+  clustered by date (Feature 04, and any large Feature table loaded ticker by ticker). A daily run with one new date hides
+  it; only a first run, a manual rebuild or a formula change reaches it.
+- **Solution:** `BREADTH_CHUNK = 20` dates per statement (`apps/terminal-publisher/overview.py`), so no statement
+  grows with the number of dates. Test `test_a_full_count_reads_feature_04_in_bounded_chunks_each_date_once`. The 22
+  rehearsal files are byte-equal to the single-statement build.
+- **Status:** FIXED before release (branch `claude/keen-turing-56vw7y`, commit `fa4f093e`); the first run on dev (O7)
+  reads about 1.2 GB of Feature 04 and is followed by the Postgres restart check.
+- **Lesson for new data:** before a job reads "every date" of a large table, measure one bounded chunk of older dates
+  with EXPLAIN (ANALYZE, BUFFERS), multiply by the number of chunks, and compare with the role's `statement_timeout`.
+  Read in chunks whose size does not depend on how much history exists.
+
+### M441 — EXEC-OVERVIEW plan fact counted Feature 04 rows without the common-stock filter (2026-11-15, corrected)
+
+- **Found by:** the independent recalculation of O6 (`verification/overview/validate_overview.py`).
+- **Verified cause:** the plan's data fact "13 Nov: 862 stocks have EMA50, 166 above it" came from a count of
+  `Feature_04_Technical_Indicator` (Daily, equity) without `IDX_Stock_Universe."Security Type" = 'stock'`. With the
+  filter, as the page counts: 836 with EMA50, 162 above (19.38%); 828 with EMA200, 152 above (18.36%).
+- **Class:** a fact about "stocks" quoted from a Feature table that also holds other securities (funds, warrants,
+  indexes): the number depends on the universe filter, which the fact did not state.
+- **Solution:** EXEC.md (EXEC-OVERVIEW progress) and `verification/overview/REHEARSAL.md` state the corrected count and its
+  filter; `OVERVIEW_FORMULAS.md` section 10 names the filter.
+- **Status:** CORRECTED. No code used the wrong number.
+- **Lesson:** a count quoted as evidence names its filter (table, timeframe, asset type, universe) next to the number.
+
+### M442 — Market Overview: carried day files and counts were judged current by proxies, not by the rows they read (2026-11-15, fixed before release)
+
+- **Found by:** the independent code review of EXEC-OVERVIEW O6 (a separate agent, given the code and the formulas, not
+  my conclusions); each finding then verified against the code, the schedules in `.railway/railway.ts` and a test.
+- **Verified cause:** `overview.py` kept a day file when `[broker date, Feature 04 present]` was unchanged and carried the
+  stocks above EMA per date forever. The global stamp held maximum dates and counts. None of these is the content the
+  file was built from:
+  1. day files hold positions in `meta.stocks`. A new or removed stock changes the stamp (universe md5), the meta is
+     rebuilt, but the day files were kept: with one stock listed ahead of BBCA, every older day showed BBCA's figures
+     under the new ticker (test `test_a_new_stock_rebuilds_every_day_file_so_positions_match_the_meta`);
+  2. the publisher runs on the price signal (idx-price-cron 17:00 WIB); the IHSG bars load at 17:30 WIB
+     (idx-intraday-cron) and do not signal it. The stamp had no intraday part, so the newest day kept an empty 1D
+     chart until the next broker round;
+  3. Feature 01 and 04 are filled ticker by ticker by queue workers. A run during the fill built a partial day file
+     and a partial % above EMA; the next run (Feature 01 count changed) kept both;
+  4. page: a 409 made the page re-read the index only, so a day file of a newer publication could meet the old meta
+     (positions) and series (flow dates);
+  5. page: the 1D chart's range left out the prior close on a day trading wholly below it (the dashed line fell outside).
+- **Class:** an incremental output reused on a proxy key (maximum date, existence, count) instead of the content of its
+  inputs; and a file that references another file's positions published without it. Checked for the Radar: not
+  exposed (it rebuilds every file when its stamp, `max(calculated_at)` of the gate table, changes; nothing is carried).
+  The publisher's other carried files (broker days) were not checked in this task.
+- **Solution (`apps/terminal-publisher/overview.py`, `apps/edge-bff/overview/src/`):**
+  - content fingerprints (md5 of the rows) of every input dated within the newest `RECHECK_SESSIONS = 3` market
+    dates: prices of every code, IHSG 5m/1h bars, Feature 01, Feature 04 (with its counts) and Feature 06 at the broker
+    dates those days read. They enter the stamp, and each day file records the ones it read; a changed or newly
+    arrived one rebuilds exactly the days that read it;
+  - the counts above EMA of the window dates are always the fresh ones;
+  - every day key holds the md5 of the ticker list it indexes and of the market flow rows its figures read;
+  - the page reloads meta and series when the index names new ones (mock server: a republication mid-session, the
+    page fetched meta, series and the day again with the new shas); `rows()` skips a position the meta does not hold;
+    the 1D range includes the prior close.
+  - Cost on dev (EXPLAIN, read-only): the window statements 0.6 s, about 3,700 pages per run. All 20 dates by content
+    would be about 5.7 s and 23,000 pages, so older dates rely on the rule below.
+  - Tests: publisher 196 passed (4 new: late bars, fill and rewrite in the window, new stock, a date leaving the window
+    rebuilds nothing); page 15 passed. The rehearsal files are byte-equal; a second run rebuilds nothing.
+- **Status:** FIXED before release (branch `claude/keen-turing-56vw7y`).
+- **Rule for older dates:** a repair of dates older than the window (backfill, recompute, price correction) is published
+  by the manual mode `overview` (AGENTS.md, after a large update, step 4; OVERVIEW_FORMULAS.md section 13).
+- **Lesson:** a cached output is keyed on the content of what it read, at least for the part of history that loaders
+  still write; a file that refers to another file by position is rebuilt whenever that file's order changes.
+### M443 — The scheduled Postgres restart can fall between two statements of a long job (2026-11-15, open)
 
 - **Symptom (found while planning EXEC-INDEX-GROUP-HISTORY stage 6, nothing broke):** a multi-hour job on
   orc-test-runner (the index and group fill, about 3 hours) would overlap the 13:45 UTC run of postgres-memory-cron.
@@ -7983,7 +8060,7 @@ in its staleness check.
 - **Status:** OPEN (proposal).
 - **Lesson:** a guard that checks one instant cannot see work that pauses; work that must not be cut declares itself.
 
-### M441 — The independent Feature 06 check refused an exact value: running float sums near zero (2026-11-15, fixed)
+### M444 — The independent Feature 06 check refused an exact value: running float sums near zero (2026-11-15, fixed)
 
 - **Symptom:** the groups fill (EXEC-INDEX-GROUP-HISTORY stage 6, job `4dd6f307`) stopped before writing anything:
   `F06 independent mismatch (2022-04-01, 'Nego')/foreign_strength_momentum_5d: 0.0 vs -2.9579048089090065e-05` (GAGOES,
