@@ -742,3 +742,13 @@ def test_the_radar_step_is_one_line_and_its_failure_a_warning():
         "Radar: 2 tanggal dihitung ulang (dari 2026-11-06)"]
     line = tm.radar_lines({"failed": "RefreshFailed: Feature 07 reconcile"})[0]
     assert line.startswith("⚠️ Radar tidak diperbarui") and "RefreshFailed" in line
+
+
+def test_the_index_entity_step_is_one_line_and_its_failure_a_warning():
+    """EXEC-INDEX-GROUP-HISTORY stage 8: index_result.entities of the round; a failure is a warning, IHSG stands."""
+    import telegram_monitor as tm
+    assert tm.index_entity_lines(None) == []
+    assert tm.index_entity_lines({"entities": 76, "since": None}) == ["Indeks, sektor dan grup: 76 entitas diperbarui"]
+    assert tm.index_entity_lines({"entities": 0}) == ["Indeks, sektor dan grup: sudah terbaru"]
+    line = tm.index_entity_lines({"failed": "RuntimeError: members raw/Feature 05 mismatch"})[0]
+    assert line.startswith("⚠️ Indeks, sektor dan grup tidak diperbarui") and "mismatch" in line

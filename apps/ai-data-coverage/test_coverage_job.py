@@ -88,3 +88,17 @@ def test_index_codes_come_from_the_universe_and_stock_features_leave_them_out():
     assert "NOT_INDEX_FILTER" in one and "NOT_INDEX_FILTER" in four
     for table in coverage_job.PRICE_INDEX_FEATURES + coverage_job.MARKET_WIDE_INDEX_FEATURES:
         assert table.endswith("_INDEX") and table in coverage_job.FORBIDDEN_FEATURE_TABLES
+
+
+def test_index_expectations_start_at_each_entitys_rows_from():
+    """EXEC-INDEX-GROUP-HISTORY: the INDEX expectations are the entities of Feature_Index_Entity (groups are not in the
+    universe), each from the later of the source's first date and its rows_from; the price ones only for priced
+    entities; codes that left Feature_Index_Entity are dropped."""
+    source = Path(coverage_job.__file__).read_text(encoding="utf-8")
+    price = source[source.index("def upsert_price_index_expectations"):source.index("def upsert_market_wide_index_expectations")]
+    wide = source[source.index("def upsert_market_wide_index_expectations"):source.index("def upsert_derived_dataset_summary")]
+    assert 'public."Feature_Index_Entity"' in coverage_job.INDEX_ENTITIES
+    for part in (price, wide):
+        assert "INDEX_ENTITIES" in part and "GREATEST(source.actual_min_date, entity.rows_from)" in part
+    assert "entity.has_price" in price
+    assert "INDEX_CODES" not in wide

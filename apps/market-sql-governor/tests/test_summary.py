@@ -254,3 +254,15 @@ def test_the_newest_date_of_a_joining_view_keeps_the_date_index(governed_db) -> 
             assert got == expected, name
     finally:
         admin(governed_db, 'DROP VIEW IF EXISTS public."m207_joined_view"')
+
+
+def test_an_index_table_keeps_its_entity_in_a_sum() -> None:
+    """EXEC-INDEX-GROUP-HISTORY: the entities of an INDEX table overlap, so a SUM across ticker is refused even with a
+    cross-entity rule; per ticker it is bound."""
+    catalog = unit_contract()
+    catalog["columns"][PRICE]["volume"]["cross_entity_aggregation"] = "SUM"
+    catalog["tables"][PRICE]["entity_type"] = "INDEX"
+    with pytest.raises(ex.ExtractStop) as caught:
+        bind(spec(group_by=(), measures=[{"column": "volume", "function": "SUM", "as": "s"}]), catalog)
+    assert caught.value.code == "AGGREGATION_NOT_ADDITIVE" and "Keep ticker in group_by" in str(caught.value)
+    assert bind(spec(measures=[{"column": "volume", "function": "SUM", "as": "s"}]), catalog).dropped == []

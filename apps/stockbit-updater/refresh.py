@@ -376,3 +376,33 @@ def refresh_index(emit, ticker: str = 'IHSG', sample: date = date(2026, 8, 31)) 
     return {'newest': newest, 'from_date': str(info['from_date']) if info['from_date'] else None,
             'window_first': str(info['window_first']) if info['window_first'] else None,
             'seconds': round(time.monotonic() - t0, 1)}
+
+
+def refresh_index_entities(emit, batch: int | None = None) -> dict:
+    """EXEC-INDEX-GROUP-HISTORY stage 8 (user go 2026-11-15): after IHSG, every other entity of Feature_Index_Entity
+    (the indexes, the IDX-IC sectors, the KONGLO groups) with scripts/backfill_index_entities.py: each continues from
+    the day after its newest stored row, or from the earliest date whose broker totals changed (INDEX_DUE); members by
+    date from the recorded lists, so a list change of a round counts from the next day. Rows before an entity's
+    rows_from are never written. INDEX_ENTITY_BATCH: entities read by broker at a time (default 25)."""
+    sys.path.insert(0, '/app/scripts')
+    import backfill_index_entities as x
+    from psycopg.rows import dict_row
+    t0 = time.monotonic()
+    batch = batch or int(os.environ.get('INDEX_ENTITY_BATCH', '25'))
+    since = min(INDEX_DUE) if INDEX_DUE else None
+    with psycopg.connect(os.environ['DATABASE_URL'], row_factory=dict_row, autocommit=True,
+                         application_name='stockbit-updater-index-entities') as db:
+        db.execute("SET statement_timeout='30min'")
+        db.execute("SET lock_timeout='10s'")
+        db.execute("SET work_mem='64MB'")
+        db.execute('SET max_parallel_workers_per_gather=0')
+        result = x.run(db, None, apply=True, batch=batch, since=since)
+        if result['entities']:
+            for t in x.b.BASE.values():
+                db.execute(f'ANALYZE public."{t}_INDEX"')
+    out = {'entities': result['entities'], 'since': str(since) if since else None,
+           'window_first': str(result.get('window_first')) if result.get('window_first') else None,
+           'last': str(result.get('last')) if result.get('last') else None,
+           'seconds': round(time.monotonic() - t0, 1)}
+    emit('index_entities_done', **out)
+    return out

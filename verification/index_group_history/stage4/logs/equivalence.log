@@ -1,0 +1,58 @@
+{"event": "members_staged", "entities": 6, "periods": 19, "dated_periods": {"IDXBASIC": 1, "LQ45": 2}}
+{"event": "raw_month_staged", "start": "2024-01-02", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.18}
+{"event": "raw_month_staged", "start": "2024-02-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.12}
+{"event": "raw_month_staged", "start": "2024-03-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.14}
+{"event": "raw_month_staged", "start": "2024-04-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.13}
+{"event": "raw_month_staged", "start": "2024-05-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.14}
+{"event": "raw_month_staged", "start": "2024-06-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.13}
+{"event": "raw_month_staged", "start": "2024-07-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.16}
+{"event": "raw_month_staged", "start": "2024-08-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.16}
+{"event": "raw_month_staged", "start": "2024-09-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.21}
+{"event": "raw_month_staged", "start": "2024-10-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.23}
+{"event": "raw_month_staged", "start": "2024-11-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.25}
+{"event": "raw_month_staged", "start": "2024-12-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.23}
+{"event": "raw_month_staged", "start": "2025-01-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.23}
+{"event": "raw_month_staged", "start": "2025-02-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.25}
+{"event": "raw_month_staged", "start": "2025-03-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.23}
+{"event": "raw_month_staged", "start": "2025-04-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.21}
+{"event": "raw_month_staged", "start": "2025-05-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.19}
+{"event": "raw_month_staged", "start": "2025-06-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.21}
+{"event": "raw_month_staged", "start": "2025-07-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.27}
+{"event": "raw_month_staged", "start": "2025-08-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.22}
+{"event": "raw_month_staged", "start": "2025-09-01", "detail_entities": 6, "collapsed_entities": 6, "seconds": 0.25}
+{"event": "feature2_independent_validated", "comparisons": 17175, "sampled_dates": 9}
+{"event": "feature3_independent_validated", "comparisons": 15780, "rows": 789}
+{"event": "feature6_independent_validated", "comparisons": 67977, "rows": 819}
+{"event": "entity_validated", "ticker": "GAGOES", "mode": "first", "from_date": "2025-07-01", "window_first": "2024-01-24", "sessions_before": 330, "price_rows": 0, "rows_to_write": {"2": 6274, "3": 132, "5": 6274, "6": 132}, "f02_seconds": 12.1, "seconds": 16.1}
+F02 GAGOES differing=0 whole=34529 per_pair=34529
+F06 GAGOES differing=0 collapsed=789 broker=789
+{"event": "feature2_independent_validated", "comparisons": 5900, "sampled_dates": 9}
+{"event": "feature3_independent_validated", "comparisons": 10820, "rows": 541}
+{"event": "feature6_independent_validated", "comparisons": 46646, "rows": 562}
+{"event": "entity_validated", "ticker": "GCTCORP", "mode": "first", "from_date": "2025-07-01", "window_first": "2024-01-24", "sessions_before": 330, "price_rows": 0, "rows_to_write": {"2": 2518, "3": 93, "5": 2518, "6": 93}, "f02_seconds": 5.3, "seconds": 7.2}
+F02 GCTCORP differing=0 whole=12698 per_pair=12698
+F06 GCTCORP differing=0 collapsed=541 broker=541
+{"event": "feature2_independent_validated", "comparisons": 10450, "sampled_dates": 9}
+{"event": "feature3_independent_validated", "comparisons": 10380, "rows": 519}
+{"event": "feature6_independent_validated", "comparisons": 45069, "rows": 543}
+{"event": "entity_validated", "ticker": "GHARITA", "mode": "first", "from_date": "2025-07-01", "window_first": "2024-01-24", "sessions_before": 330, "price_rows": 0, "rows_to_write": {"2": 3864, "3": 84, "5": 3864, "6": 84}, "f02_seconds": 8.9, "seconds": 11.3}
+F02 GHARITA differing=0 whole=20502 per_pair=20502
+F06 GHARITA differing=0 collapsed=519 broker=519
+{"event": "feature2_independent_validated", "comparisons": 10100, "sampled_dates": 9}
+{"event": "feature3_independent_validated", "comparisons": 9440, "rows": 472}
+{"event": "feature6_independent_validated", "comparisons": 40587, "rows": 489}
+{"event": "entity_validated", "ticker": "GRAJAWALI", "mode": "first", "from_date": "2025-07-01", "window_first": "2024-01-24", "sessions_before": 330, "price_rows": 0, "rows_to_write": {"2": 4386, "3": 90, "5": 4386, "6": 90}, "f02_seconds": 6.7, "seconds": 9.2}
+F02 GRAJAWALI differing=0 whole=18733 per_pair=18733
+F06 GRAJAWALI differing=0 collapsed=472 broker=472
+{"event": "feature2_independent_validated", "comparisons": 18675, "sampled_dates": 9}
+{"event": "feature3_independent_validated", "comparisons": 15980, "rows": 799}
+{"event": "feature6_independent_validated", "comparisons": 68890, "rows": 830}
+{"event": "entity_validated", "ticker": "IDXBASIC", "mode": "first", "from_date": "2025-07-01", "window_first": "2024-01-24", "sessions_before": 330, "price_rows": 1398, "rows_to_write": {"1": 335, "2": 6820, "3": 135, "4": 335, "5": 6820, "6": 135}, "f02_seconds": 13.2, "seconds": 17.9}
+F02 IDXBASIC differing=0 whole=36810 per_pair=36810
+F06 IDXBASIC differing=0 collapsed=799 broker=799
+{"event": "feature2_independent_validated", "comparisons": 17275, "sampled_dates": 9}
+{"event": "feature3_independent_validated", "comparisons": 15840, "rows": 792}
+{"event": "feature6_independent_validated", "comparisons": 68226, "rows": 822}
+{"event": "entity_validated", "ticker": "LQ45", "mode": "first", "from_date": "2025-07-01", "window_first": "2024-01-24", "sessions_before": 330, "price_rows": 2140, "rows_to_write": {"1": 335, "2": 6532, "3": 134, "4": 335, "5": 6532, "6": 134}, "f02_seconds": 13.1, "seconds": 17.4}
+F02 LQ45 differing=0 whole=34864 per_pair=34864
+F06 LQ45 differing=0 collapsed=792 broker=792

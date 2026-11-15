@@ -223,6 +223,21 @@ class ExtractStop(Exception):
         self.details = details
 
 
+def overlapping_entity(meta: dict[str, Any], dropped: list[str]) -> str | None:
+    """EXEC-INDEX-GROUP-HISTORY (2026-11-15): the entities of a table of entity_type INDEX (the composite, the other
+    indexes and sectors, the KONGLO groups) each already sum their member stocks, and the members overlap (a stock is in
+    the composite, its sector, several indexes, perhaps a group), so a SUM that drops the entity column counts a stock
+    more than once. Returns that column when a summary would drop it on such a table, else None."""
+    entity = meta.get("entity_column")
+    return entity if entity and entity in dropped and str(meta.get("entity_type") or "").upper() == "INDEX" else None
+
+
+def overlap_message(label: str, table: str, entity: str) -> str:
+    return (f"{label}: the {entity} values of {table} are indexes and groups whose member stocks overlap, so a SUM "
+            f"across {entity} counts a stock more than once. Keep {entity} in group_by (one value per index or group; "
+            f"brokers and boards of one {entity} may still be summed).")
+
+
 def policy(code: str, message: str, **details: Any) -> ExtractStop:
     return ExtractStop("REJECTED_POLICY", code, message, **details)
 
@@ -535,6 +550,9 @@ def _bind_aggregate(spec: ExtractionSpec, meta: dict[str, Any], known: dict[str,
         if measure.function == "SUM" and info.get("cross_entity_aggregation") != "SUM":
             raise policy("AGGREGATION_NOT_ADDITIVE", f"{label}: the catalog has no SUM rule across "
                                                      f"{', '.join(dropped)}.", dropped=dropped)
+        overlap = overlapping_entity(meta, dropped) if measure.function == "SUM" else None
+        if overlap:
+            raise policy("AGGREGATION_NOT_ADDITIVE", overlap_message(label, table, overlap), dropped=[overlap])
         if measure.function in ("MIN", "MAX") and (kind not in NUMERIC or semantic != "MEASURE"):
             raise policy("AGGREGATION_NOT_ALLOWED", f"{label}: MIN and MAX apply to numeric measures.")
         if measure.function == "COUNT_DISTINCT" and semantic not in ("IDENTIFIER", "DIMENSION", "TIME"):

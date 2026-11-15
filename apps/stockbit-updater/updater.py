@@ -302,6 +302,14 @@ def main() -> int:
             record(pg, execution_id, features=steps['features'])
             if refresh.index_needed(bool(steps['features']['changed_dates'])):
                 steps['index'] = refresh.refresh_index(emit)
+                # EXEC-INDEX-GROUP-HISTORY stage 8: the other indexes, sectors and groups after IHSG. A failure is a
+                # warning of the round, as the Radar's (decision D2): IHSG is stored, and the next round continues each
+                # entity from its newest stored row
+                try:
+                    steps['index']['entities'] = refresh.refresh_index_entities(emit)
+                except Exception as exc:  # noqa: BLE001 - recorded and sent as a warning; the round's data steps go on
+                    steps['index']['entities'] = {'failed': f'{type(exc).__name__}: {exc}'[:400]}
+                    emit('index_entities_failed', error=steps['index']['entities']['failed'])
             else:
                 steps['index'] = {'skipped': 'no changed broker date and no newer IHSG price'}
             record(pg, execution_id, index_result=steps['index'])
