@@ -3,9 +3,12 @@ after a large one gives the exact ratio the stored SQL (numeric) gives; the miss
 import sys
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
 import pytest
+
+# the generated-file job (.github/workflows/generated-files.yml) collects every module here without numpy and pandas:
+# skip this one there, as the other tests with an optional package do (pytest.importorskip)
+np = pytest.importorskip('numpy')
+pd = pytest.importorskip('pandas')
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from check_feature_06_sample import wsum  # noqa: E402
