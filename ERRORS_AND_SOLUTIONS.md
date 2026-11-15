@@ -7890,3 +7890,53 @@ in its staleness check.
 - **Status:** FIXED, on `main` `2ee7e9fa` (GitHub run `43667398337`: success).
 - **Lesson:** a correction migration that changes a generated text also changes what the generator writes, in the same
   commit; a generator derives later corrections from the migrations rather than copying them.
+
+### M437 — Code that assumes the universe holds one index (2026-11-15, fixed)
+
+- **Found by:** the dependency map of EXEC-INDEX-GROUP-HISTORY (43 more indexes in `IDX_Stock_Universe`), before any
+  change on dev; nothing has failed yet.
+- **Verified cause (code and live functions, 2026-11-15):**
+  - `apps/idx-price-cron/intraday_update.py:279` loaded every universe row, so every new index would get 5m-4h bars;
+  - `remark_intraday_sessions` (live, md5 06a47619...) sums the bars of every universe index into `index_bars`, and
+    `intraday_bars_per_year` (the annualisation of the intraday features) is 252 x their mean: one more index with bars
+    doubles it, 43 more multiply it about 44-fold; its session calendar (and `intraday_update.py sessions_behind`) is the
+    union of every universe index's daily candles, so one stray candle adds a session (rehearsed: 45 instead of 44);
+  - `validate_index_feature_identity` accepted only universe indexes, so a group (not a universe row) could never be
+    written to the *_INDEX tables.
+- **Class:** every reader of `is_universe_index` that aggregates over "the" index (a calendar, a count, a sum) rather
+  than skipping indexes; readers that only skip indexes (`recovery_window.py:157`, `intraday_features.py:272`, the Feature
+  01/04 queues) are safe for any number.
+- **Solution (branch `claude/affectionate-shannon-qmsxxb`):** stage 1 `intraday_indexes` (an index is loaded and makes the
+  calendar only when it already has intraday bars; a new one named in `--tickers` is refused with its reason); migration
+  `20261115_001` (the same rule for `remark_intraday_sessions`' calendar; the guard reads `Feature_Index_Entity`).
+  Rehearsal: `verification/index_group_history/REHEARSAL.md` (identical output on today's data; the stray candle no
+  longer counts).
+- **Status:** FIXED 2026-11-15: idx-intraday-cron `1cddf79c` SUCCESS (HEAD `63da5cf3`), migration 20261115_001 applied
+  and read back (DATABASE_CHANGELOG 2026-11-15). Its first scheduled intraday run (Monday 10:30 UTC) exercises the code.
+- **Lesson:** a second instance of something the code has known only once (an index, a market, a calendar) is a schema
+  change: search every reader of its identifying predicate for a count, sum or union over it before adding it.
+
+### M438 — Price_Stock_Indonesia_IDX.ticker is varchar(4); 38 index tickers were refused (2026-11-15, fixed)
+
+- **Symptom:** the price history job of EXEC-INDEX-GROUP-HISTORY (APPLY, 2026-11-15 08:07 UTC) stored DBX, ISSI, JII, LQ45
+  and MBX and was refused for the other 38 indexes on `COPY idx_history_stage ... column ticker` (value too long).
+- **Verified cause (live schema):** `Price_Stock_Indonesia_IDX.ticker` is `character varying(4)`; the INDEX ticker rule
+  chosen in the plan (`Feature_Index_Entity_ticker_check`, letters and digits, at most 12, the terminal-api rule) allows
+  longer codes (BISNIS27, IDXENERGY, IDXLQ45LCL). The local rehearsal held the column's type but did not write a price
+  row for a long ticker, so the mismatch only showed on dev.
+- **Effect now:** the 43 rows of migration 20261115_002 are in the universe, and the daily price cron writes the whole
+  universe in one COPY (`price_update.py bulk_upsert_prices`), so its next run that queries the 38 fails for every
+  ticker until the column is widened or the 38 rows leave the universe: 2026-11-15 17:00 WIB (Friday's session, already
+  stored: a FAILED run and an alert, no data lost), then 2026-11-16 06:00 and 17:00 WIB (Monday's prices).
+- **Class:** a key a new kind of entity reuses (here the price table's ticker) with a width chosen for the first kind
+  (four-letter IDX stocks); the other tables of the INDEX flow use text, the broker summary varchar(32).
+- **Fix prepared (not applied, needs the user's go):** `20261115_003_price_ticker_varchar12.sql` (drop and re-create the one
+  trigger that names the column, `ALTER ... TYPE varchar(12)`; rehearsed: the table is not rewritten, the partial index
+  `Price_Stock_Indonesia_IDX_final_idx` is rebuilt, a 10-letter index row is stored, the volume guard still refuses a
+  non-index without volume). Then the price APPLY for the 38 again (same fingerprints).
+- **Status:** FIXED 2026-11-15 (user "A"): migration 20261115_003 applied (DRYRUN `9fcbdbf4`, APPLY `a96ff014`), the 38
+  stored (job `7331078f`, 60,809 rows; 43 indexes 71,509 rows read back). The scheduled daily price run of 10:03 UTC
+  (`Monitoring_Price_ALL`, 2026-11-13 session) SUCCESS: index 44 of 44 updated, stock 836 of 862 and fund 27 of 45
+  updated, 0 missing.
+- **Lesson:** a rehearsal writes one row of every new key shape into every table the flow writes, not only the tables the
+  migration changes.

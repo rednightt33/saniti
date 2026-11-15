@@ -1,5 +1,43 @@
 # Database changelog
 
+## 2026-11-15 — 43 indexes in IDX_Stock_Universe (20261115_002); price history of 5 of them — applied on dev
+
+- **Go:** user 2026-11-15 "go langkah 3" (EXEC-INDEX-GROUP-HISTORY).
+- **20261115_002_universe_index_rows.sql** (sha256 `e300a06eec721a97…`): 43 `Security Type` index rows (32 Stockbit
+  indexes, 11 IDX sector indexes) with their TradingView symbols. DRYRUN job `1076602d`, APPLY job `3f68c3fa`
+  (`verification/index_group_history/jobs/`). Read back: 44 universe indexes, 44 priced entities are universe indexes,
+  history capture 954 open rows (44 index), stocks 862 and funds 45 unchanged.
+- **Prices** (`verification/index_group_history/price_job.py` with `scripts/backfill_idx_price_ticker.py`, TradingView,
+  2018-01-02 or the index's first bar to 2026-11-13): PREFLIGHT 43 of 43 complete (bars = BBCA sessions from the first
+  bar, 0 gaps, 0 extra dates; 71,509 rows). APPLY stored **DBX, ISSI, JII, LQ45, MBX**, 2,140 rows each, read back equal
+  to the BBCA sessions. The 38 others were refused by the database: `Price_Stock_Indonesia_IDX.ticker` is `varchar(4)`
+  (ERRORS M438); each ticker's transaction rolled back, nothing partial was stored.
+- **20261115_003_price_ticker_varchar12.sql** (sha256 `bc9d71ef629e9823…`, user go "A", ERRORS M438): `ticker`
+  `varchar(4)` → `varchar(12)`; the trigger `idx_price_optional_volume_guard` dropped and re-created unchanged. DRYRUN job
+  `9fcbdbf4`, APPLY job `a96ff014`: table file unchanged (16638, no rewrite), 1,411,819 rows unchanged, three indexes
+  valid, four triggers enabled.
+- **Prices of the other 38** (job `7331078f`, same fingerprints as the preflight; a first start was refused before
+  running by the runner check, `DEPLOYMENT_LIST_FAILED`, nothing ran): 38 of 38 complete, 60,809 rows. Read back
+  (pgweb): 43 indexes, **71,509 rows**, all final, volume NULL (index), 2018-01-02 to 2026-11-13; closes of 2026-11-13 as
+  TradingView (LQ45 550.368, IDXENERGY 2,518.519, BISNIS27 390.905). The stock Feature 01/04 queues skip indexes.
+
+## 2026-11-15 — Feature_Index_Entity, the INDEX guard and the intraday calendar (20261115_001) — applied on dev
+
+- **Go:** user 2026-11-15 "Ok jalankan", "go langkah 1 dan 2" (EXEC-INDEX-GROUP-HISTORY step 2).
+- **20261115_001_feature_index_entity.sql** (sha256 `5aabff765287921281e1…`, ERRORS M437):
+  - new table `Feature_Index_Entity`: 77 entities of the *_INDEX tables (IHSG MARKET, 32 INDEX, 11 SECTOR, 33 GROUP),
+    each with its member source (every source symbol / Stockbit list / universe sector) and `rows_from` 2024-01-02 (IHSG
+    NULL); Table_Catalog 1 row, Column_Catalog 10 rows; SELECT for `pgweb_reader`;
+  - `validate_index_feature_identity` reads the registry: a group only in Feature 02/03/05/06, Feature 01/04 only for a
+    priced universe index, no row before `rows_from`, fixed-income tickers refused (md5 `e8d0fb84…` → `0bfc1bff…`);
+  - `remark_intraday_sessions`: session calendar from the indexes that have intraday bars (md5 `06a47619…` →
+    `f538af94…`); identical output on today's data (rehearsal, `verification/index_group_history/REHEARSAL.md`).
+- DRYRUN job `2445a6ae`, APPLY job `b4f43a1e` (`verification/index_group_history/jobs/`), both `JOB_EXIT 0`, `VAR_REMOVED`.
+- Read back (pgweb, read-only): 77 entities by kind 1/32/11/33; both function md5s as above; `IHSG` → `INDEX:467`,
+  `GPRAJOGO` → `KONGLO:57`; the six *_INDEX tables unchanged (IHSG only; Feature 01 INDEX 2,136 and Feature 06 INDEX
+  7,278 rows); `IDX_Stock_Universe` still 1 index (migration B 20261115_002 not applied).
+- `DATABASE_SCHEMA.md`: the new table appears with the scheduled refresh (`.github/workflows/database-schema-docs.yml`).
+
 ## 2026-11-14 — Feature 07 Radar: S6Δ labels decided (004), G2 window from Feature 06 (005), every date redone — applied on dev
 
 - **Go:** user 2026-11-14 "1A" (S6Δ thresholds stay 12 / 20 / 35 and 40 / 65 / 90), then "1 go, 2 perbaiki sekarang".

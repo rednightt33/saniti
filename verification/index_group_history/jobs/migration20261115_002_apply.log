@@ -1,0 +1,9 @@
+Starting Container
+MIG APPLY 20261115_002_universe_index_rows.sql sha256=e300a06eec721a97942229b6a71ce3df4d0d8471560d8cbee7aeac972a7c87b6
+OUT {"q": "universe_indexes", "ms": 1, "part": 0, "rows": [[44, 44, "BISNIS27=IDX:BISNIS_27,IDXENERGY=IDX:IDXENERGY,IDXSMCCOM=IDX:IDXSMC_COM,IDXSMCLIQ=IDX:IDXSMC_LIQ,IGRADE=IDX:I_GRADE,LQ45=IDX:LQ45,SRIKEHATI=IDX:SRI_KEHATI"]]}
+OUT {"q": "priced_entities_are_universe_indexes", "ms": 0, "part": 0, "rows": [[44, 44]]}
+OUT {"q": "history_capture", "ms": 0, "part": 0, "rows": [[954, 44]]}
+OUT {"q": "stock_and_fund_rows_unchanged", "ms": 0, "part": 0, "rows": [["fund", 45], ["index", 44], ["stock", 862]]}
+OUT {"q": "no_prices_yet", "ms": 1, "part": 0, "rows": [[0]]}
+JOB_DONE MIGRATION APPLY
+JOB_EXIT 0

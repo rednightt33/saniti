@@ -1131,3 +1131,143 @@ Coba saja di explore pakai benchmark yang best practice."
 ## TERMINAL-IND-CARDS — dipindah ke `EXEC.md` EXEC-IND-CARDS (go 2026-11-01: "jalankan TERMINAL-IND-CARDS as well")
 
 ## FI-TERMINAL — dipindah ke `EXEC.md` EXEC-FI-TERMINAL (go 2026-11-01; audit dan koreksi data selesai, EXEC-FI-DATE)
+
+## INDEX-GROUP-HISTORY — riwayat 43 indeks dan 33 grup (KONGLO) untuk grafik kinerja (go tahap 1-2 2026-11-15: dieksekusi di EXEC.md EXEC-INDEX-GROUP-HISTORY; rencana lengkap di bawah)
+
+**Kata user, 2026-11-15:** "Harga bisa disimpan di price stock Indonesia IDX saja. Karena di sana juga sudah ada IHSG.
+Dari 2018 enough terkait dengan riwayat." Lalu (tangkapan layar enam tabel `Feature_0x_..._INDEX`): indeks yang sudah ada
+harganya dimasukkan ke Feature 1; "group tidak usah dimasukkan ke fitur 1 karena kita tidak bisa menghitung base
+price-nya. Tapi kita bisa mulai dari fitur 2 sampai fitur 6"; contoh: net buy asing grup = kumulatif dari semua saham
+grup; "saya tidak mau ada proses yang menghitung ulang dari awal yang sudah existing. Jadi kita hanya insert saja
+sifatnya."
+
+**Fakta (dev hanya baca, kode `main` 63f334e1, 2026-11-15):**
+- `Stock_List`: 33 INDEX dan 33 KONGLO, dimuat dari Stockbit 2026-11-09; riwayat anggota baru sejak 2026-11-09.
+- Harga: hanya IHSG (`Price_Stock_Indonesia_IDX`, 2018-01-02..2026-11-13). TradingView punya ke-32 indeks lain (data
+  harian, tanpa volume), mulai 1990 (IHSG) s.d. 2024-09 (IDXVESTA28); lima nama berbeda: `BISNIS_27`, `SRI_KEHATI`,
+  `IDXSMC_LIQ`, `IDXSMC_COM`, `I_GRADE`. IHSG TradingView = database 10-13 Nov (OHLC sama).
+- Indeks dikenali dari `IDX_Stock_Universe."Security Type" = 'index'` (`is_universe_index`, migrasi 20261025_011): pipa
+  Feature 01/04 saham melewatinya, jadi baris harga indeks baru tidak memicu hitung ulang fitur saham.
+- `scripts/backfill_index_features.py` menulis per ticker (`apply_chunks`: `WHERE ticker=%s ... ON CONFLICT`); ticker baru
+  hanya menambah baris; IHSG tidak tersentuh. Agregat broker IHSG = semua simbol `IDX_Broker_Summary`; grup butuh
+  parameter daftar saham.
+- Pembaruan harian `_INDEX` hanya IHSG (`apps/stockbit-updater/refresh.py:330-349`).
+- Tidak ada kode indeks/grup yang bentrok dengan ticker saham.
+
+**Jawaban user, 2026-11-15:** "Dari 2022 saja ya / 1A / 2A / 3A / 4A / 5 yes", lalu "Buat implementation plan dulu.
+Inspect database, script, ensure semua dependensi termap. Bagaimana formula dihitung pada setiap fitur. Jangan sampai kita
+menginsert data yang formula wise berbeda dengan data existing." Artinya: riwayat mulai 2022; Feature 04 INDEX juga untuk
+indeks (1A); Feature 02-06 untuk indeks juga (2A); masa lalu memakai anggota hari ini (3A); diperbarui setiap hari (4A);
+Barito = grup Prajogo Pangestu (5). Belum ada go eksekusi.
+
+### Rencana implementasi (draft untuk review, 2026-11-15; diperiksa dari kode `main` 5d66612e dan dev hanya baca)
+
+**A. Cara setiap fitur dihitung sekarang (IHSG) — dipakai apa adanya, hanya masukannya berbeda**
+
+| Fitur | Fungsi yang menghitung (sama dengan fitur saham) | Masukan IHSG | Masukan baru |
+|---|---|---|---|
+| F01 | `refresh_feature_01_stock_daily`, disalin ke staging (`backfill_index_features.py:183-186`) | harga IHSG di `Price_Stock_Indonesia_IDX` | harga indeks dari TradingView di tabel yang sama |
+| F04 | `features/feature04/engine.py` `calculate` (`:187-191`), `asset_type='index'` | sama | sama |
+| F05 | jumlah `IDX_Broker_Summary` per tanggal, broker, jenis investor, papan (`:78-121`) | semua simbol | hanya anggota daftar (Stock_List) |
+| F02 | SQL `INSERT_TICKER` Feature 02 saham, kalender = tanggal F05 agregat (`:124-136`) | dari F05 agregat | sama |
+| F03 | `refresh_feature_03_stock_broker_daily`, HHI dikosongkan (kebijakan INDEX) (`:137-140`) | dari F02 | sama |
+| F06 | `refresh_feature_06`; frekuensi hanya bila semua baris punya frekuensi (`:142-181`) | dari F05 | sama |
+
+Yang bergantung pada titik mulai riwayat, bukan hanya rumus (Feature_Catalog `minimum_history`):
+- F04: EMA 200, SMI, swing state rekursif dari bar pertama ("Full available ordered ticker history"). IHSG mulai 2018-01-02.
+- F06: net kumulatif asing/domestik dijumlah sejak tanggal broker pertama (IHSG 2016-01-04); persentil butuh s.d. 312 sesi;
+  F02 s.d. 312 sesi; F01 s.d. 121 observasi.
+- Maka "dari 2022" yang sama rumusnya dengan IHSG = dihitung dari titik mulai yang sama (harga 2018-01-02, broker
+  2016-01-04) di staging, lalu yang ditulis ke tabel hanya baris >= 2022-01-03. Bila dihitung mulai 2022, rumus sama tetapi
+  nilai awal berbeda (EMA/SMI dimulai ulang, kumulatif mulai 0, persentil kosong s.d. 2023). Keputusan D1.
+
+**B. Peta dependensi (dicek)**
+
+| Bagian | Fakta | Akibat untuk rencana |
+|---|---|---|
+| `IDX_Stock_Universe` `Security Type='index'` | `is_universe_index()` (20261025_011): Feature 01/04 saham, recovery, intraday features melewati indeks | baris harga indeks tidak memicu hitung ulang fitur saham |
+| Trigger `validate_index_feature_identity` di tabel `_INDEX` | menolak ticker yang bukan indeks di universe | grup akan DITOLAK: perlu migrasi (izinkan kode grup Stock_List, hanya F02/03/05/06) |
+| `validate_idx_optional_volume` | volume kosong hanya untuk indeks universe | indeks TradingView tanpa volume: lolos |
+| price cron (`price_update.py read_universe`) | membaca seluruh universe | harga harian 32 indeks otomatis (4A) |
+| intraday (`intraday_update.py:279`) + `remark_intraday_sessions` | mengambil 5m-4h untuk semua universe; `index_bars` = jumlah bar SEMUA indeks; `intraday_bars_per_year` = 252 x rata-rata itu | WAJIB: intraday tetap hanya IHSG (filter di kode) sebelum indeks masuk universe, kalau tidak angka tahunan intraday salah ~33x |
+| terminal-publisher (`publisher.py:233,251`) | tiap ticker universe `index` = grafik harga + broker dari F05 INDEX | 32 indeks otomatis tampil di Terminal sesudah run publisher (pembaruan besar); grup tidak (bukan universe) |
+| terminal-api / edge-bff ticker `^[A-Z0-9]{1,12}$` (`terminal-api/app/main.py:40`) | tanda hubung dan >12 huruf ditolak | ticker indeks tanpa tanda hubung; ticker grup pendek (D3) |
+| Screener (`snapshot.ts:133`), Radar, Backtest | hanya `type='stock'` / IHSG disebut eksplisit | tidak berubah |
+| AI catalog `_INDEX` (20261025_005) | deskripsi "IHSG"; 43 kolom `cross_entity_aggregation = SUM` | migrasi katalog: SUM antar-ticker dilarang (IHSG + LQ45 + grup = dobel hitung), deskripsi ticker baru, versi semantik Feature_Catalog untuk himpunan simbol per ticker |
+| ai-data-coverage (`coverage_job.py:637-666`) | tiap kode indeks diharapkan sejak 2016; grup tidak dikenal | ubah harapan per ticker (mulai riwayatnya), tambahkan grup |
+| stockbit-updater `refresh_index` (`refresh.py:330-349`) | harian hanya IHSG | 4A: loop semua entitas, satu baca data untuk semua, inkremental (hanya hari baru) |
+
+**C. Tahap (setiap tahap dicek sebelum tahap berikut; deploy/migrasi/job hanya dengan go)**
+1. Kode intraday: hanya stok + IHSG (kalender). Tes. Sebelum langkah 2.
+2. Migrasi: 32 baris universe `index` (nama dan simbol TradingView, tabel pemetaan); kolom penghubung `Stock_List` -> ticker
+   INDEX (D3); trigger identitas menerima kode grup untuk F02/03/05/06 saja.
+3. Job harga sekali jalan: 32 indeks dari TradingView (cara ambil `price_update.py`), mulai sesuai D1, `is_final`, OHLC.
+   Cek: tanggal sama dengan kalender IHSG, sampel OHLC = TradingView.
+4. `backfill_index_features.py`: himpunan simbol per entitas dari Stock_List, banyak entitas dalam satu baca, tulis hanya
+   >= 2022-01-03 (D1); jalur IHSG tidak berubah (uji: IHSG dihitung ulang di staging = baris tersimpan, 0 beda, tidak ditulis).
+5. Uji coba (rollback) LQ45 + Prajogo Pangestu: (a) F05 grup = jumlah F05 saham anggota (persis); (b) F06 harian = jumlah F06
+   saham anggota per tanggal/papan; (c) sampel F02/F06 = hitung independen (`check_feature_06_sample.compute`);
+   (d) F01/F04 LQ45 = hitung ulang independen; (e) hash baris IHSG sebelum = sesudah. Ukur waktu dan baris -> perkiraan penuh.
+6. Isi penuh: job `run_job.sh` `large_write` (di luar B6 dan jadwal cron, cek M340), restart Postgres, baca balik jumlah.
+7. Migrasi katalog AI dan coverage (B); `AI_TOOLS.md` tidak berubah (tidak ada tool baru).
+8. Harian (4A): stockbit-updater semua entitas inkremental; deploy `deploy.sh` dengan go.
+9. Publisher: run untuk 32 indeks (pembaruan besar, restart sesudahnya); cek Terminal LQ45.
+10. Catatan: DATABASE_CHANGELOG, RAILWAY_CHANGELOG, ERRORS (bila ada), EXEC.
+
+**D. Keputusan yang masih terbuka**
+- D1 Titik mulai hitung: staging dari 2018 (harga) / 2016 (broker) dan tulis >= 2022 (sama dengan IHSG; harga 2018-2021
+  32 indeks ikut tersimpan, ±30 ribu baris) ATAU semua dari 2022 (nilai awal berbeda dari cara IHSG).
+- D2 Grafik grup di Terminal: rencana ini hanya data; tampilan grup jalur terpisah.
+- D3 Ticker grup (<= 12 huruf/angka, tanpa tanda hubung, tidak bentrok saham), mis. `GSALIM`, `GPRAJOGO`.
+- D4 Anggota berubah sesudah isi riwayat: hari baru memakai anggota terbaru, riwayat tidak dihitung ulang (insert saja),
+  perubahan dicatat.
+
+**Jawaban user, 2026-11-15:** "D1 A / D2 OK / D3 OK / D4 OK"; lalu: daftar grup diperbarui tiap putaran stockbit-updater,
+"Misalkan hari ini ada update di grup Barito di mana ada penambahan satu saham. Hari ini tanggal 28. Berarti start tanggal
+29. Table-table yang mengikutsertakan grup juga akan menambahkan satu saham tersebut per tanggal 29"; dan indeks sektor
+IDX (IDXINFRA, IDXENERGY, IDXFINANCE, ...) ditambahkan (daftar Excel user, 24 indeks).
+- D1 A: hitung dari titik mulai yang sama dengan IHSG (harga 2018-01-02 atau bar pertama indeks, broker 2016-01-04) di
+  staging, tulis baris >= 2022-01-03; harga indeks 2018 dst. tersimpan di `Price_Stock_Indonesia_IDX`.
+- D2: rencana ini data saja; tampilan grup jalur terpisah. D3: ticker grup berawalan G (<= 12, huruf/angka). D4: setuju.
+- **Aturan anggota per tanggal (dicek 2026-11-15):** sudah ada di database sebagai kolom turunan
+  `Stock_List_Member_History.pit_valid_from = greatest(valid_from, tanggal tercatat WIB + 1)` dan `pit_valid_to` (migrasi
+  20261109_001:121-124): tercatat tanggal 28 -> dihitung mulai 29, keluar juga mulai hari berikutnya. Entitas pada tanggal
+  d = saham dengan `pit_valid_from <= d < pit_valid_to`; sebelum catatan pertama (pit 2026-11-10) = anggota catatan pertama
+  (3A). Hitung harian inkremental membaca aturan yang sama untuk hari pemanasan, jadi baris lama tidak berubah dan tidak
+  ditulis ulang (`apply_chunks` hanya >= from_date).
+- **Indeks sektor (11, dicek di TradingView 2026-11-15):** IDX:IDXBASIC, IDXCYCLIC, IDXNONCYC, IDXENERGY, IDXFINANCE,
+  IDXHEALTH, IDXINDUST, IDXINFRA, IDXPROPERT, IDXTECHNO, IDXTRANS; semuanya ada sejak 2021-01-04 (klasifikasi IDX-IC). Ke-13
+  indeks lain di daftar user sudah ada di 32. Total 43 indeks + 33 grup. Anggota sektor untuk F02-06 diturunkan dari
+  `IDX_Stock_Universe."Sector"` (11 nilai = 11 sektor, 21 saham "Undefined" tidak masuk sektor mana pun) dengan aturan
+  per tanggal yang sama dari `IDX_Stock_Universe_History.pit_valid_from/pit_valid_to` (dicatat sejak 2026-09-28).
+- Belum ada go eksekusi.
+
+**Perkiraan waktu (2026-11-15, dari log, bukan ukuran baru):**
+- IHSG isi penuh 2026-10-24 (`verification/ihsg_feature_aggregation/bulk/apply_logs.jsonl`): 29,9 menit = baca broker
+  2016-2026 15 menit (128 bulan, 903 s) + F02 11,7 menit (619 pasangan broker/jenis/papan, satu SQL per pasangan) + cek dan
+  tulis 2,5 menit. Isi penuh IHSG 2026-11-09 sesudah batas memori 1 GB: 61 menit (`Monitoring_Stockbit_Update.index_result`
+  3.672,8 s); pembaruan inkremental harian IHSG 6,3 menit (379,3 s).
+- 76 entitas (43 indeks + 33 grup), F02 dihitung dari 330 sesi sebelum 2022 (cukup untuk jendela terpanjang 312; hanya
+  kumulatif F06 butuh 2016): perkiraan 7-14 menit per entitas -> 9-18 jam hitung untuk isi riwayat, dijalankan bertahap.
+  Harga 43 indeks dan F01/F04: menit. Ukuran pasti dari uji coba tahap 5 (LQ45 + Prajogo Pangestu).
+- Risiko 4A: dengan cara sekarang, pembaruan harian 76 entitas x ±6 menit = ±7-8 jam per putaran stockbit-updater (putaran
+  sekarang 61-84 menit). Perlu dipercepat dulu (F02 dihitung sekaligus untuk semua pasangan, bukan satu per satu; dibuktikan
+  0 beda dengan IHSG) sebelum harian diaktifkan.
+
+**Kata user, 2026-11-15:** "Apa hubungannya pembaharuan harian stok updater dengan bagaimana kita mengkalkulate harga dan
+fitur? ... Menurut saya terlalu lama untuk prosesnya. Kita bisa mulai dari 2024 saja untuk pengupdatean indeks. Jadi nggak
+apa-apa sedikit belang-belentong, IHSG sudah dari 2018, tapi indeks-indeks ini kita bisa mulai dari 2024."
+- Baris fitur indeks dan grup ditulis mulai 2024-01-02 (bukan 2022-01-03). IHSG tetap.
+- Yang tidak berubah (D1 A, menunggu konfirmasi): harga indeks tetap disimpan dari 2018 sebagai titik mulai EMA/SMI (murah);
+  F02/F06 dihitung dari 330 sesi sebelum 2024 (±September 2022); kumulatif F06 dari 2016 (hanya baca data broker sekali).
+- Perkiraan isi riwayat dengan kode sekarang: ±3,5-7 menit per entitas -> ±4,5-9 jam; lebih cepat bila F02 dihitung sekaligus
+  (diukur di uji coba). Mulai 2024 tidak mengubah biaya harian: pembaruan harian menghitung ulang 330 sesi pemanasan.
+- Usulan pembaruan harian: langkah INDEX dipisah dari putaran stockbit-updater (job sendiri sesudah data broker hari itu
+  masuk), dan F01/F04 indeks sesudah cron harga, tidak menunggu putaran Stockbit.
+
+**Ukuran nyata (dev hanya baca, 2026-11-15, data 2025):** kombinasi broker x jenis investor x papan dan baris per hari:
+Prajogo Pangestu 277 kombinasi, 121 baris/hari; LQ45 319, 164/hari; IHSG 449, 216/hari. Perkiraan 7-14 menit per entitas
+sebelumnya memakai 619 kombinasi IHSG 2016-2026, jadi terlalu besar. Koreksi (kode sekarang, F02 satu SQL per kombinasi
+±0,4-1,2 s): mulai 2022 ±4-8 jam, mulai 2024 ±2,5-5 jam; F02 dan F05 masing-masing ±12 juta baris (2022) atau ±7 juta (2024)
+untuk 76 entitas. Penyebab jam-jaman: ±23.000 SQL F02 terpisah (76 x ±300 kombinasi), bukan banyaknya data. F02 dihitung
+sekaligus untuk semua kombinasi dan entitas diusulkan sebagai langkah pertama (dibuktikan 0 beda dengan IHSG, diukur).

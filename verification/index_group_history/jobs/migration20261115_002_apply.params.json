@@ -1,0 +1,33 @@
+{
+ "mode": "APPLY",
+ "migrations": [
+  "20261115_002_universe_index_rows.sql"
+ ],
+ "probes": [
+  [
+   "universe_indexes",
+   null,
+   "SELECT count(*), count(*) FILTER (WHERE \"TradingView Symbol\" ~ '^IDX:[A-Z0-9_]+$'), string_agg(\"Ticker\" || '=' || \"TradingView Symbol\", ',' ORDER BY \"Ticker\") FILTER (WHERE \"Ticker\" IN ('BISNIS27','SRIKEHATI','IDXSMCLIQ','IDXSMCCOM','IGRADE','LQ45','IDXENERGY')) FROM public.\"IDX_Stock_Universe\" WHERE \"Security Type\" = 'index'"
+  ],
+  [
+   "priced_entities_are_universe_indexes",
+   null,
+   "SELECT count(*) FILTER (WHERE public.is_universe_index(ticker)), count(*) FROM public.\"Feature_Index_Entity\" WHERE has_price"
+  ],
+  [
+   "history_capture",
+   null,
+   "SELECT count(*) FILTER (WHERE recorded_to IS NULL), count(*) FILTER (WHERE recorded_to IS NULL AND \"Security Type\" = 'index') FROM public.\"IDX_Stock_Universe_History\""
+  ],
+  [
+   "stock_and_fund_rows_unchanged",
+   null,
+   "SELECT \"Security Type\", count(*) FROM public.\"IDX_Stock_Universe\" GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "no_prices_yet",
+   null,
+   "SELECT count(*) FROM public.\"Price_Stock_Indonesia_IDX\" p JOIN public.\"Feature_Index_Entity\" e ON e.ticker = p.ticker WHERE e.ticker <> 'IHSG'"
+  ]
+ ]
+}

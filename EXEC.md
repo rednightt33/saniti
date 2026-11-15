@@ -14142,6 +14142,45 @@ database atau dokumen yang berubah. Pembuatnya keluar dari pengecualian; dua cek
 - Nomor error: `main` sudah memakai M434 untuk Radar, jadi entri ini menjadi M435 (file catatan indikator) dan M436
   (kamus Feature 05/06).
 
+## EXEC-INDEX-GROUP-HISTORY — riwayat 43 indeks dan 33 grup di tabel *_INDEX (go tahap 1-2 2026-11-15; dijalankan di branch)
+
+**Kata user, 2026-11-15:** "2024 saja, go mulai tahap 1–2" (rencana lengkap dan semua keputusan: PLAN.md
+INDEX-GROUP-HISTORY: harga di `Price_Stock_Indonesia_IDX`, indeks F01-F06, grup F02/03/05/06, anggota hari ini untuk masa
+lalu, diperbarui harian, D1 A, D2-D4, baris mulai 2024-01-02).
+
+**Tahap 1 (kode, branch `claude/affectionate-shannon-qmsxxb`, belum deploy):** `apps/idx-price-cron/intraday_update.py`
+`intraday_indexes`/`intraday_scope`: intraday hanya untuk indeks yang sudah punya bar intraday (hari ini IHSG), diturunkan
+dari data; indeks baru yang diminta lewat `--tickers` ditolak dengan alasannya; kalender sesi dari indeks itu saja.
+Tes 41 lulus (3 baru).
+
+**Tahap 2 (migrasi, belum dijalankan di dev; gladi lokal `verification/index_group_history/REHEARSAL.md`):**
+- A `20261115_001_feature_index_entity.sql`: tabel `Feature_Index_Entity` (77 entitas dan sumber anggotanya), penjaga
+  `validate_index_feature_identity` membaca tabel itu (grup hanya F02/03/05/06, F01/04 hanya entitas berharga, tidak ada
+  baris sebelum `rows_from`), kalender `remark_intraday_sessions` dari indeks yang punya bar intraday; katalog.
+- B `20261115_002_universe_index_rows.sql`: 43 baris indeks di `IDX_Stock_Universe` (simbol TradingView).
+
+**Urutan sesudahnya (masing-masing dengan go):** deploy tahap 1 (idx-intraday-cron) -> migrasi A -> migrasi B tepat
+sebelum isi harga tahap 3 -> tahap 3-10 (PLAN.md).
+
+**Go user 2026-11-15:** "Ok jalankan", lalu "go langkah 1 dan 2": (1) deploy tahap 1 (merge `main`: idx-price-cron dan
+idx-price-recovery-cron ter-deploy ulang dari watch path; idx-intraday-cron lewat `deploy_intraday.sh` karena tidak
+terhubung GitHub), (2) migrasi A di dev. Migrasi B dan tahap 3 menunggu go terpisah.
+- Hasil 2026-11-15: (1) idx-price-cron `a81179a3`, idx-price-recovery-cron `d2a15423`, idx-intraday-cron `1cddf79c` SUCCESS;
+  (2) migrasi A DRYRUN `2445a6ae`, APPLY `b4f43a1e`, dibaca balik (DATABASE_CHANGELOG); restart Postgres 07:47 UTC.
+  Berikutnya (go terpisah): migrasi B + isi harga 43 indeks sejak 2018 (tahap 3); tahap 4 di branch.
+
+**Go user 2026-11-15:** "go langkah 3": migrasi B (`20261115_002`) lalu isi harga harian 43 indeks dari TradingView sejak
+2018-01-02 (atau bar pertama indeks) s.d. 2026-11-13 dengan `scripts/backfill_idx_price_ticker.py` (preflight, lalu apply
+dengan sidik data preflight; tidak menimpa baris yang ada), job `verification/index_group_history/price_job.py`
+(indeks: celah di tengah riwayat ditolak).
+- Hasil 2026-11-15: migrasi B diterapkan (job `3f68c3fa`); harga: preflight 43/43 lengkap, apply masuk 5 (DBX, ISSI, JII,
+  LQ45, MBX), 38 ditolak karena `Price_Stock_Indonesia_IDX.ticker` `varchar(4)` (ERRORS M438). Perbaikan disiapkan:
+  migrasi `20261115_003` (ticker `varchar(12)`, digladi), menunggu go user.
+- Go user 2026-11-15: "A" (lebarkan ticker menjadi 12 karakter): migrasi `20261115_003` DRYRUN lalu APPLY, lalu harga 38
+  indeks sisanya dengan sidik preflight yang sama.
+- Hasil 2026-11-15: migrasi C DRYRUN `9fcbdbf4`, APPLY `a96ff014`; harga 38 indeks job `7331078f` (60.809 baris). Total 43
+  indeks, 71.509 baris, dibaca balik. Tahap 3 selesai. Berikutnya: tahap 4 (skrip INDEX dan F02 sekaligus, di branch).
+
 ## EXEC-OVERVIEW — halaman Market Overview (tab baru): ringkasan pasar harian dari file publisher, halaman admin (rencana 2026-11-15, BELUM dieksekusi; menunggu go)
 
 **Kata user, 2026-11-15 (dengan desain `market-overview-target-c-ihsg-flow.html`):** "Kita akan menambahkan new page.
@@ -14179,6 +14218,11 @@ radar".
 - `Stock_List`/`Stock_List_Member`: 66 daftar (33 indeks, 33 grup), sudah diterbitkan sebagai `ref/stock_lists`.
 - Tidak ada kolom jumlah saham beredar atau kapitalisasi pasar di skema `public`.
 - Indeks yang dibutuhkan sudah ada: Feature 01/04 `(date)`/`(trade_date)`, Feature 06 _INDEX `(trade_date, market_board)`.
+- Sesi lain menjalankan **EXEC-INDEX-GROUP-HISTORY** pada hari yang sama (bagian di atas): harga harian 43 indeks sejak
+  2018 (71.509 baris, ticker kini `varchar(12)`), lalu baris indeks dan grup di tabel `*_INDEX` (Feature 01-06). Overview
+  membaca hasilnya bila sudah ada (misalnya arus asing per grup nanti), tetapi tidak bergantung padanya: semua panel di
+  rencana ini hanya butuh IHSG, LQ45, 11 indeks sektor, Feature 01/04/06 saham dan Feature 06 _INDEX IHSG, yang sudah
+  ada. Sebelum O1 fakta ini diperiksa ulang di dev.
 
 ### Gambaran besar (sama dengan Radar)
 
