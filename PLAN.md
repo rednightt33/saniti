@@ -1241,3 +1241,15 @@ IDX (IDXINFRA, IDXENERGY, IDXFINANCE, ...) ditambahkan (daftar Excel user, 24 in
   `IDX_Stock_Universe."Sector"` (11 nilai = 11 sektor, 21 saham "Undefined" tidak masuk sektor mana pun) dengan aturan
   per tanggal yang sama dari `IDX_Stock_Universe_History.pit_valid_from/pit_valid_to` (dicatat sejak 2026-09-28).
 - Belum ada go eksekusi.
+
+**Perkiraan waktu (2026-11-15, dari log, bukan ukuran baru):**
+- IHSG isi penuh 2026-10-24 (`verification/ihsg_feature_aggregation/bulk/apply_logs.jsonl`): 29,9 menit = baca broker
+  2016-2026 15 menit (128 bulan, 903 s) + F02 11,7 menit (619 pasangan broker/jenis/papan, satu SQL per pasangan) + cek dan
+  tulis 2,5 menit. Isi penuh IHSG 2026-11-09 sesudah batas memori 1 GB: 61 menit (`Monitoring_Stockbit_Update.index_result`
+  3.672,8 s); pembaruan inkremental harian IHSG 6,3 menit (379,3 s).
+- 76 entitas (43 indeks + 33 grup), F02 dihitung dari 330 sesi sebelum 2022 (cukup untuk jendela terpanjang 312; hanya
+  kumulatif F06 butuh 2016): perkiraan 7-14 menit per entitas -> 9-18 jam hitung untuk isi riwayat, dijalankan bertahap.
+  Harga 43 indeks dan F01/F04: menit. Ukuran pasti dari uji coba tahap 5 (LQ45 + Prajogo Pangestu).
+- Risiko 4A: dengan cara sekarang, pembaruan harian 76 entitas x ±6 menit = ±7-8 jam per putaran stockbit-updater (putaran
+  sekarang 61-84 menit). Perlu dipercepat dulu (F02 dihitung sekaligus untuk semua pasangan, bukan satu per satu; dibuktikan
+  0 beda dengan IHSG) sebelum harian diaktifkan.
