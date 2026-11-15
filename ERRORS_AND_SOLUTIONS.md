@@ -7794,3 +7794,99 @@ in its staleness check.
   were missing from the extract (the extract's own window started before its listing), not from dev.
 - **Lesson:** a rolling window reads its history from the source table, never from a table whose first row is the
   start of a fill; validate the first dates of a fill, not only recent ones.
+
+### M435 — The indicator notes file drifted from its sources for six days; its check runs only by hand (2026-11-14, fixed)
+
+- **Symptom:** on `main` `a936653` (2026-11-14) `scripts/tests/test_indicator_notes.py` fails:
+  "apps/edge-bff/terminal/src/data/indNotes.json differs from its sources: run scripts/build_indicator_notes.py".
+  Running the generator changes the file by +22/−2 lines: FL14 gains its `avg` output (the 10-day average option) and
+  FL49–FL52 are added at the end of the Flow list. The 53 technical entries do not change.
+- **Verified cause (Git and code, 2026-11-14):**
+  1. The file has had no reader since 2026-11-06. EXEC-TERMINAL-LOOK 2B (user 2026-11-06: "hilangkan semua indikator
+     card yang ada"; recorded as "Kartu (D), 2B: dihapus total, kode dan tesnya") removed the cards in `353776f`, and
+     with them the file's only readers, `app/indCard.ts:14` and `tests/data/ind_card.test.ts:6` (`git grep indNotes`
+     at `353776f^` and at `353776f`). The generator `scripts/build_indicator_notes.py`, its output and
+     `scripts/tests/test_indicator_notes.py` stayed.
+  2. On 2026-11-08 `b8fa1ea` (FL14 average, FL49–FL52; EXEC-FLOW-NEW-3, go "Ok go") and `0132bda` (FL51 option E,
+     FL52's own list of 10; go "aight sudah G / … / go.") changed the formula table of
+     `verification/terminal_api/flow_indicators/FORMULAS.md` without running the generator. `a78818f` (2026-11-06)
+     changed a paragraph outside the table, which the generator does not read. The last commit that touched the file is
+     `62eb212` (2026-11-05); `5bbebb3` only looks like one in a 50-commit clone, where it is the shallow boundary.
+  3. Nothing ran the check. With no reader, no Terminal test or build can fail. The repository's only GitHub workflow is
+     `.github/workflows/database-schema-docs.yml` (the daily schema snapshot), and there is no pre-commit hook
+     (`core.hooksPath` unset, no hook configuration). The Python check fails only when someone runs it.
+- **Source text is the approved one:** the new rows match the approvals in `EXEC.md` (EXEC-FLOW-NEW-3; the go of
+  2026-11-08 for Loaders option E and FL52's own list) and the code. In `apps/edge-bff/terminal/src/calc/flow.ts`:
+  - FL14 returns `{ asym, avg: meanOfLast(asym, 10) }` (lines 569–570);
+  - FL49 and FL50 come from `fdParts` and `fdShown` (846–849);
+  - FL51 is `loadersTable` with `side` and `top` (481–519);
+  - FL52 is FL23 with `view: 'cum', total: false` (853).
+  `flowRegistry.json` has the same 52 Flow ids and the same outputs (FL14 `asym, avg`; FL50 `foreign, domestic,
+  verdict`). EXEC-DQ-SIZE and EXEC-DQ-COLORS (2026-11-11) changed only how FL49 is drawn, not its value.
+- **Effect:** none for users. The Terminal build (`npm run build`) before and after the rebuild is byte-identical
+  (sha256 of all four files in `apps/edge-bff/static/terminal-app`), so this change needs no deploy. The look check
+  (`look_check11.mjs`) does not apply: no style, markup or layout changed, and the file is not in the page.
+- **Solution, step 1 (commit `911882d`):** `python3 scripts/build_indicator_notes.py` ("53 technical, 52 flow"). Checks:
+  - `--check` exit 0, and `scripts/tests/test_indicator_notes.py` passes;
+  - Terminal vitest: 893 passed; `npm run build` OK.
+  The other drift checks are current the same day: `scripts/tests/test_registries_current.py` (Backtest and Screener
+  registries), `scripts/build_flow_registry.py --check`, `scripts/terminal_indicator_spec.py --check`.
+- **Class:** every generated file whose only guard is a check someone must run by hand:
+  - `indNotes.json` and `flowRegistry.json`;
+  - the Backtest and Screener registries (M329 added their test; it is still run by hand);
+  - `INDICATOR_SPEC.md` and its migration (a `--check` without a test);
+  - `AI_TOOLS.md`, `AI_MODELS.md`, `AI_ROUTER.md` and the system-prompt snapshots (tests in `apps/market-ai-orc/tests`).
+  A sub-class: a generated file left behind when its reader is removed keeps a check that can fail but protects
+  nothing.
+- **Solution, step 2 (user 2026-11-14: "1. B / 2. A", EXEC-GEN-CHECK):**
+  - 1 B: `scripts/build_indicator_notes.py`, `indNotes.json` and `scripts/tests/test_indicator_notes.py` removed; the
+    handoff rows that named them updated. The Terminal build is still byte-identical; Terminal vitest 893 passed.
+  - 2 A: `.github/workflows/generated-files.yml` runs every test marked `generated_file` on each push and pull request,
+    in three jobs (repository scripts, market-ai-orc, market-python-sandbox; no database, no secrets). Marked: the
+    registry checks, the orc's AI_TOOLS / AI_MODELS / AI_ROUTER / prompt-history tests and its Tool_Catalog and
+    method-guide rows, the sandbox's method-guide and research-library migrations, and two new checks
+    (`INDICATOR_SPEC.md`, `FEATURE_07_RADAR.md`).
+  - `scripts/tests/test_generated_files.py` finds the generators instead of listing them (a script in a `scripts` folder
+    named build/generate/snapshot, or taking `--check`: 20 today) and fails when one has no marked test and no reason
+    in `EXEMPT` (8 at first; 7 since M436 was settled the same day: five applied-migration writers, a reader of a
+    database export, the restart dry run). Before the marks were added it failed and named 12.
+  - Local runs as in CI: scripts 7 passed, orc 11 passed, sandbox 2 passed. GitHub run `43616675930` (commit
+    `7fb0bde6`, branch `claude/affectionate-shannon-qmsxxb`): SUCCESS in 41 s, the same counts in its three jobs.
+- **Not covered:** a generator outside a `scripts` folder or named otherwise without `--check`; a file whose source is the
+  live database (`DATABASE_SCHEMA.md`, kept by the daily workflow). Railway still deploys a push without waiting for the
+  check (`checkSuites: false` on every service in `.railway/railway.ts`); changing that is a separate user decision.
+- **Status:** FIXED, on `main` `2ee7e9fa` (user 2026-11-15 "Ok merge"): the file and its chain are gone, and every
+  generated file with a check is checked on each push and pull request (GitHub run `43667398337` on `main`: success).
+  Deployed with no change in behaviour: edge-bff `a7f5cda0`, market-ai-orc `9ce82005`, market-python-sandbox `2db92783`
+  SUCCESS; edge-bff `/ready` 200. Railway keeps deploying without waiting for the check (user "2 B": `checkSuites`
+  stays `false`).
+- **Lesson:** a generated file needs its check in CI or a pre-commit step, so that a source change without the rebuild
+  fails before it reaches `main`. Removing a reader removes its generator chain (generator, output, test, handoff rows)
+  in the same commit, or records why the chain stays.
+
+### M436 — FEATURE_05_06_FOREIGN_DOMESTIC.md differs from its generator (2026-11-14, fixed)
+
+- **Found by:** the inventory for EXEC-GEN-CHECK (M435): `python3 scripts/generate_feature_05_06_catalog.py dictionary`
+  differs from the committed `FEATURE_05_06_FOREIGN_DOMESTIC.md` in 58 table rows, and the file has 33 lines of notes
+  (the IHSG validation of 2026-10-24, the INDEX history and `20261025_007`) that the generator does not write.
+- **Symptom (examples):** `buy_freq` / `sell_freq` source "from IDX_Broker_Summary_Freq" in the generator, "stored with
+  each Broker Summary row" in the file; the unit of the `foreign_net_percentile_*` columns "percent" in the generator,
+  "Percentile 0-100" in the file.
+- **Verified cause (dev, read-only through pgweb, `default_transaction_read_only` on, 2026-11-14 about 16:50 UTC):** the active
+  `Feature_Catalog` rows of both tables (102, all `v1`, last change 2026-10-25 15:21 UTC) equal the committed file in
+  all 612 cells compared (category, definition, formula, unit, NULL rule, minimum history). The generator differs in
+  26 cells (formula 2, NULL rule 16, unit 8), each one a correction of migration `20261025_012` (its comment: "The
+  texts are corrected at their owner, Feature_Catalog"). That migration changed the catalog and the file but not the
+  generator, whose v1 text is also the text of the applied `20261022_004`.
+- **Solution:** `scripts/generate_feature_05_06_catalog.py`:
+  - `migration` still writes the v1 text (byte-identical to the applied `20261022_004`);
+  - `dictionary` applies the corrections of every applied migration that carries an `m_vocab` correction table, read
+    from those files (63 rows in `20261025_012`, 26 of them for Feature 05/06; counted independently: 63), with the
+    migration's own rule (a text is replaced only where it still equals the old text), and appends the notes, now
+    kept in the generator as `NOTES`. Its output equals the committed file; no database row and no document changed.
+  - Two checks in `scripts/tests/test_generated_files.py`: the dictionary equals the file, and the migration output
+    equals the applied migration. Both fail when a v1 text is edited by hand in the generator; the first fails when the
+    file is edited by hand. The generator left `EXEMPT`.
+- **Status:** FIXED, on `main` `2ee7e9fa` (GitHub run `43667398337`: success).
+- **Lesson:** a correction migration that changes a generated text also changes what the generator writes, in the same
+  commit; a generator derives later corrections from the migrations rather than copying them.

@@ -5,6 +5,11 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+import pytest
+
+# EXEC-GEN-CHECK: checks of a generated file, run on every push by .github/workflows/generated-files.yml
+pytestmark = pytest.mark.generated_file
+
 ROOT = Path(__file__).resolve().parents[3]
 
 

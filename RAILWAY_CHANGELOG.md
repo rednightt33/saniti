@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-11-15 — edge-bff, market-ai-orc, market-python-sandbox redeployed by the EXEC-GEN-CHECK merge (no behaviour change)
+
+- **Go:** user 2026-11-15 "Ok merge / 2 B". `main` fast-forwarded `0546ce38` → `2ee7e9fa` (ERRORS M435, M436).
+- **Before the push (ERRORS M340):** 0 EDGE jobs QUEUED/RUNNING/RECOVERING and 0 orc turns RUNNING (the query of
+  `scripts/restart_postgres.py` `user_runs`, through pgweb, read-only). Rollback references: edge-bff `e48a7b86`,
+  market-ai-orc `53bce7bd`, market-python-sandbox `0ae51eb4`.
+- **Deployments** (each service's watch path; the changed files are tests, `pytest.ini` and the deleted, unread
+  `apps/edge-bff/terminal/src/data/indNotes.json`): edge-bff `a7f5cda0`, market-ai-orc `9ce82005`,
+  market-python-sandbox `2db92783`, all SUCCESS at 02:22–02:24 UTC; edge-bff `/ready` 200.
+- **GitHub:** new workflow `.github/workflows/generated-files.yml` (generated-file checks on every push and pull
+  request, read-only, no secrets); run `43667398337` on `main`: success.
+- **Not changed (user "2 B"):** Railway does not wait for the GitHub check; `checkSuites: false` stays on every service.
+  `.railway/railway.ts` unchanged.
+
 ## 2026-11-14 — orc-test-runner: Radar migrations 004, 005 and the redo of every date; publisher republished
 
 - **Go:** user 2026-11-14 "1 go, 2 perbaiki sekarang". Results: `DATABASE_CHANGELOG.md` 2026-11-14 (004, 005).

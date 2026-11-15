@@ -7,7 +7,11 @@ import importlib.util
 import json
 from pathlib import Path
 
+import pytest
 import test_prompt_pass2 as pass2
+
+# EXEC-GEN-CHECK: checks of a generated file, run on every push by .github/workflows/generated-files.yml
+pytestmark = pytest.mark.generated_file
 
 ROOT = Path(__file__).resolve().parents[3]
 SPEC = importlib.util.spec_from_file_location("snapshot_system_prompt", ROOT / "scripts" / "snapshot_system_prompt.py")

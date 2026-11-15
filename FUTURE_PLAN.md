@@ -1335,3 +1335,7 @@ publisher jalan 2–3 kali per putaran (hanya yang berubah). Bila putaran gagal 
 terbit dan IHSG menunggu putaran berikutnya.
 
 **Status:** usulan, belum disetujui untuk dieksekusi.
+
+## GEN-CHECK — dipindah ke EXEC.md (2026-11-14)
+
+Diputuskan user 2026-11-14 ("1. B / 2. A"): lihat `EXEC.md`, EXEC-GEN-CHECK.
