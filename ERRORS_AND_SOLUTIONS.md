@@ -8054,7 +8054,7 @@ in its staleness check.
   scheduled restart; also an `idle in transaction` session of a user run.
 - **Mitigation now:** the fill starts after the 13:45 UTC restart (next 02:45 UTC); `backfill_index_entities.py`
   continues an entity from its least advanced feature table, so a stopped run is resumed by running it again.
-- **Proposed general fix (not built; needs the user's decision):** the guard also refuses while a client session is
+- **Planned fix:** PLAN.md RESTART-GUARD (2026-11-16, waiting for go). Earlier proposal: the guard also refuses while a client session is
   `idle in transaction`, or while a job holds a declared session lock (one advisory lock key that long jobs take);
   the refusal message names the session's application_name and start time.
 - **Status:** OPEN (proposal).
@@ -8080,3 +8080,18 @@ in its staleness check.
   and entity checks pass with it.
 - **Status:** FIXED (the fill is run again).
 - **Lesson:** an independent check must be at least as exact as what it checks; a running sum is not.
+### M445 — The restart guard's hand path cannot see other accounts' sessions (2026-11-16, open)
+
+- **Symptom (found while planning the fix of M443):** run by hand or at the end of a `run_job.sh` job,
+  `scripts/restart_postgres.py` reads `pg_stat_activity` as `pgweb`; a session of another account shows no state
+  (2026-11-15 11:07 UTC: the trial job's session `index-entities-backfill` had an empty state and
+  `<insufficient privilege>`).
+- **Verified cause (dev, 2026-11-16):** `pgweb` is not a member of `pg_read_all_stats`
+  (`pg_has_role(current_user,'pg_read_all_stats','member')` = false), so `state = 'active'` counts only its own session;
+  the guard at `restart_postgres.py:299-303` then reads 0 running statements while another job runs. The cron service
+  reads as the main account (`${{Postgres.DATABASE_URL}}`) and sees every session.
+- **Class:** every check that reads other sessions through a reader role (the restart guard by hand, `run_job.sh`'s
+  restart after a large write, any agent check of "is something running").
+- **Planned fix:** PLAN.md RESTART-GUARD step 2 (one read-only SECURITY DEFINER function for both paths, no query text).
+- **Status:** OPEN (plan, waiting for the user's go).
+- **Lesson:** a guard must read with the same view of the system in every path that runs it.
