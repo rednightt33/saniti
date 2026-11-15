@@ -1253,3 +1253,14 @@ IDX (IDXINFRA, IDXENERGY, IDXFINANCE, ...) ditambahkan (daftar Excel user, 24 in
 - Risiko 4A: dengan cara sekarang, pembaruan harian 76 entitas x ±6 menit = ±7-8 jam per putaran stockbit-updater (putaran
   sekarang 61-84 menit). Perlu dipercepat dulu (F02 dihitung sekaligus untuk semua pasangan, bukan satu per satu; dibuktikan
   0 beda dengan IHSG) sebelum harian diaktifkan.
+
+**Kata user, 2026-11-15:** "Apa hubungannya pembaharuan harian stok updater dengan bagaimana kita mengkalkulate harga dan
+fitur? ... Menurut saya terlalu lama untuk prosesnya. Kita bisa mulai dari 2024 saja untuk pengupdatean indeks. Jadi nggak
+apa-apa sedikit belang-belentong, IHSG sudah dari 2018, tapi indeks-indeks ini kita bisa mulai dari 2024."
+- Baris fitur indeks dan grup ditulis mulai 2024-01-02 (bukan 2022-01-03). IHSG tetap.
+- Yang tidak berubah (D1 A, menunggu konfirmasi): harga indeks tetap disimpan dari 2018 sebagai titik mulai EMA/SMI (murah);
+  F02/F06 dihitung dari 330 sesi sebelum 2024 (±September 2022); kumulatif F06 dari 2016 (hanya baca data broker sekali).
+- Perkiraan isi riwayat dengan kode sekarang: ±3,5-7 menit per entitas -> ±4,5-9 jam; lebih cepat bila F02 dihitung sekaligus
+  (diukur di uji coba). Mulai 2024 tidak mengubah biaya harian: pembaruan harian menghitung ulang 330 sesi pemanasan.
+- Usulan pembaruan harian: langkah INDEX dipisah dari putaran stockbit-updater (job sendiri sesudah data broker hari itu
+  masuk), dan F01/F04 indeks sesudah cron harga, tidak menunggu putaran Stockbit.
