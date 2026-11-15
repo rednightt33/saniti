@@ -804,6 +804,12 @@ html,body{width:auto;height:100%;overflow:hidden}
 *::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--text-3) 40%,transparent);border-radius:999px}
 *::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--text-3) 65%,transparent)}
 @supports not selector(::-webkit-scrollbar){*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--text-3) 45%,transparent) transparent}}
+/* user 2026-11-15: a board column's scrollbar shows only while the pointer is over that column (or a card in it has the
+   keyboard focus); its 4 px stay reserved, so nothing moves when it appears */
+.kl::-webkit-scrollbar-thumb{background:transparent}
+.kl:hover::-webkit-scrollbar-thumb,.kl:focus-within::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--text-3) 40%,transparent)}
+.kl:hover::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--text-3) 65%,transparent)}
+@supports not selector(::-webkit-scrollbar){.kl{scrollbar-color:transparent transparent}.kl:hover,.kl:focus-within{scrollbar-color:color-mix(in srgb,var(--text-3) 45%,transparent) transparent}}
 
 /* layout: one width for the right-hand column everywhere (Radar, detail top row, detail candidates row) */
 :root{--rail-w:380px;--ihsg:#1f3a68}
