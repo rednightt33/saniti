@@ -151,9 +151,25 @@ data (5 titik potong). Waktu hitung per saham: jumlah harian per broker 27 ms + 
 saham terbesar 7,05 s / 5,5 s. FL52 = rumus FL23 kumulatif di grafik harga (`calc/flow.ts:852-853`), jadi sebagai
 kondisi backtest identik dengan FL23.
 
-**Pertanyaan terbuka:** (a) FL51: jendela titik-waktu (N sesi terakhir, sejak awal periode backtest, atau sejak tanggal
-yang user tetapkan); (b) FL52 digabung ke FL23 di Backtest; (c) kelompok 1 di Terminal tetap seperti sekarang; (d) FL34:
-klasifikasi bertanggal, dihitung dari data sampai t, atau ditahan; (e) Part A ERRORS ditambah syarat "tanggal tersedia".
+**Keputusan user, 2026-11-15 (menggantikan "kelompok 1 di drop"):** "Terminal jangan disentuh. Kit ainclude saja untuk
+seluruh indikator D, tapi artinya A-C dihitung berbeda dengan D kan? Arahnya adalah eksklutivitas, indikator D ini akan
+hanya avail untuk admin saja." Jadi: Terminal (`apps/edge-bff/terminal/`, termasuk `src/calc/flow.ts`) tidak diubah; kedelapan
+indikator D (FL18, FL19, FL20, FL23, FL44, FL45, FL51, FL52) masuk Backtest dalam versi titik-waktu yang tinggal di inti
+Backtest; indikator D hanya tersedia untuk admin, ditegakkan di back end (worker menolak tanpa hak), bukan hanya
+disembunyikan di halaman.
+
+**Prototipe kelompok 1, 2026-11-15** (scratchpad; BBRI dev): FL18, FL19, FL20, FL44, FL45 titik-waktu (top 3 pembeli
+bersih dari anchor sampai t; FL19 berjalan ulang saat kelompok berganti, 181 kali dalam 2.140 bar) lolos uji potong data;
+kelimanya 27 ms. Kedelapan D bersama-sama sekitar 95 ms per saham (termasuk jumlah harian 27 ms).
+
+**Catatan teknis:** EDGE belum punya peran; satu owner (`EDGE_OWNER`), Radar disebut "admin page" karena hanya owner
+yang ada (`apps/edge-bff/app/radar.py:1`). Hak admin untuk indikator D butuh mekanisme hak akses (edge-bff mengirim hak
+ke worker, worker menolak D tanpa hak, katalog menandai D) yang juga dipakai EDGE-MULTIUSER nanti.
+
+**Pertanyaan terbuka:** (a) jendela titik-waktu FL51 dan anchor FL18-FL20/FL44/FL45 (N sesi terakhir, sejak awal periode
+backtest, atau sejak tanggal yang user tetapkan); (b) FL52 digabung ke FL23 di Backtest; (c) mekanisme admin dibuat
+sekarang atau bersama EDGE-MULTIUSER; (d) FL34: klasifikasi bertanggal, dihitung dari data sampai t, atau ditahan; (e)
+Part A ERRORS ditambah syarat "tanggal tersedia".
 
 ## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
 

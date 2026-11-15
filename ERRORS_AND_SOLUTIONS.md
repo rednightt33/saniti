@@ -8079,6 +8079,9 @@ in its staleness check.
   availability date beside the event date (or a stated conservative lag, TEMPORARY, until the source gives one);
   defaults from data before the test period; a truncation test over every registry entry (derived from the registries,
   so a new indicator is covered) and an engine-level test (trades closed up to t unchanged) as a CI gate.
+- **User decision 2026-11-15:** "Terminal jangan disentuh"; the eight enter the Backtest as point-in-time versions in
+  the Backtest core (admin only), FL31 skipped. Prototypes of all eight (re-selection at each t from data up to t) pass
+  the truncation test on BBRI (243,810 broker rows): about 95 ms per stock together.
 - **Status:** OPEN. The Backtest does not offer any Flow indicator of the Terminal yet, so no published backtest result
   read these eight; the Terminal chart draws them. Whether the Screener reads them on past bars (its preview arrows)
   was not checked in this task.
