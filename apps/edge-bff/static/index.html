@@ -9805,6 +9805,14 @@ html.dark .side-nav>button:hover,html.dark .side-nav .side-actions>button:hover,
 .app>main{margin-left:56px}
 /* option 1: the Terminal page without the EDGE bar; the menu runs the full height with the logo and the account */
 .app.slim-top .side-nav{top:0}
+/* EXEC-OVERVIEW QA (user 2026-11-15: "1B"): the phone's pages menu (the header exists on a phone only) */
+html .app .topbar .pages-btn{display:inline-grid;place-items:center;flex:none;width:36px;height:36px;margin-right:-4px;padding:0;border:0;border-radius:var(--r-md,8px);background:none;color:var(--text,var(--foreground));box-shadow:none}
+html .app .topbar .pages-btn:hover,html .app .topbar .pages-btn.open{background:var(--hover,var(--secondary))}
+html .app .topbar .pages-btn:focus-visible,.pages-menu>button:focus-visible{outline:2px solid var(--blue,#0070f3);outline-offset:2px}
+.pages-menu{position:fixed;z-index:130;top:calc(var(--topbar) + 4px);left:8px;min-width:220px;max-width:calc(100vw - 16px);max-height:calc(100dvh - var(--topbar) - 16px);overflow-y:auto;padding:6px;border:1px solid var(--border);border-radius:var(--r-lg,10px);background:var(--surface,var(--background));box-shadow:var(--shadow-lg,0 16px 48px -12px rgb(0 0 0 / .25))}
+.pages-menu>button{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:0 12px;border:0;border-radius:var(--r-md,8px);background:none;box-shadow:none;color:var(--text,var(--foreground));font:400 14px/1.2 var(--sans,inherit);text-align:left;cursor:pointer}
+.pages-menu>button:hover{background:var(--hover,var(--secondary))}
+.pages-menu>button.active{background:var(--sel,var(--secondary));font-weight:600}
 /* every page starts at the top: the bar's height is 0 for the pages' own heights (calc(100vh - var(--topbar))) */
 .app.slim-top,.app.slim-top:not(.dark):has(.monitor-layout){--topbar:0px;--h-top:0px}
 .app.slim-top .edge-side-chat{top:0}
@@ -11395,6 +11403,10 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) 
     const globalSearchOpen = initialValue(viewRecord, "globalSearchOpen", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setGlobalSearchOpen = next => updateValue(viewRecord, "globalSearchOpen", next);
     const notificationsOpen = initialValue(viewRecord, "notificationsOpen", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setNotificationsOpen = next => updateValue(viewRecord, "notificationsOpen", next);
     const notificationsRead = initialValue(viewRecord, "notificationsRead", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setNotificationsRead = next => updateValue(viewRecord, "notificationsRead", next);
+    // EXEC-OVERVIEW QA (user 2026-11-15: "1B"): the pages menu of the phone's EDGE bar
+    const pagesOpen = initialValue(viewRecord, "pagesOpen", () => false), setPagesOpen = next => updateValue(viewRecord, "pagesOpen", next);
+    const pagesRef = (viewRecord.refs.pagesRef ??= { current: null });
+    const closePages = (restoreFocus=true) => { setPagesOpen(false); if(restoreFocus)requestAnimationFrame(() => pagesRef.current?.focus()); };
     const supportRef = (viewRecord.refs.supportRef ??= { current: null });
     const avatarRef = (viewRecord.refs.avatarRef ??= { current: null });
     const settingsRef = (viewRecord.refs.settingsRef ??= { current: null });
@@ -11442,6 +11454,10 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) 
     }, [slim, route]);
     return element("div", { className: `app ${theme === "dark" ? "dark" : ""} ${chart ? "chart-app" : ""} ${slim ? "slim-top" : ""}` },
         !slim && element("header", { className: "topbar", inert: mobilePanelOpen },
+            element("button", { type: "button", ref: pagesRef, className: `pages-btn ${pagesOpen ? "open" : ""}`, onClick: () => setPagesOpen(!pagesOpen),
+                "aria-label": pagesOpen ? EdgeLabels.shell.closePages : EdgeLabels.shell.openPages, "aria-haspopup": "menu", "aria-expanded": pagesOpen },
+                element(Icon, { name: "menu", size: 20 })),
+            pagesOpen && element(PagesMenu, { route: route, go: go, trigger: pagesRef, close: closePages }),
             element("button", { className: "brand", onClick: () => go("monitor") },
                 element("span", { className: "brand-mark" }, "E"),
                 element("strong", null, "EDGE")),
@@ -11485,6 +11501,30 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
         toast && element("div", { className: "toast", role: "status" },
             element(Icon, { name: "check" }),
             toast));
+}
+
+/* EXEC-OVERVIEW QA (user 2026-11-15: "1B"): the pages of the left menu, for a phone, where that menu is hidden. The same
+   list and rule (nav, navShown); closes on a choice, a tap outside or Escape; arrows move between the pages */
+function PagesMenu({ route, go, close, trigger }) {
+ const view = currentView, menu = (view.refs.menu ??= { current: null });
+ onLifecycle(view, "dismiss", () => {
+   const outside = e => { if (!menu.current?.contains(e.target) && !trigger.current?.contains(e.target)) close(false); };
+   const key = e => {
+     if (e.key === "Escape") { e.preventDefault(); close(); return; }
+     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+     const items = [...(menu.current?.querySelectorAll("button") || [])], i = items.indexOf(document.activeElement);
+     if (!items.length) return;
+     e.preventDefault(); items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
+   };
+   document.addEventListener("pointerdown", outside); document.addEventListener("keydown", key);
+   requestAnimationFrame(() => (menu.current?.querySelector('[aria-current="page"]') || menu.current?.querySelector("button"))?.focus());
+   return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", key); };
+ }, []);
+ return element("div", { ref: menu, className: "pages-menu", role: "menu", "aria-label": EdgeLabels.shell.pagesMenu },
+   nav.filter(navShown).map(([label, r]) => { const active = route === "monitor" ? label === "Monitor" : route === r;
+     return element("button", { key: label, type: "button", role: "menuitem", "aria-current": active ? "page" : undefined,
+       className: `pages-${r} ${active ? "active" : ""}`, onClick: () => { close(false); go(r); } },
+       element(Icon, { name: `nav${r[0].toUpperCase()}${r.slice(1)}`, size: 18 }), element("span", null, label)); }));
 }
 
 function AccountMenu({signOut,close,trigger,openSettings}) {

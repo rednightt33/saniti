@@ -33,7 +33,11 @@ const series: Series = {
 
 describe('labels and numbers', () => {
   it('names dates and WIB times', () => {
-    expect(M.dateLabel('2026-11-13', true)).toBe('Fri 13 Nov');
+    expect(M.dateLabel('2026-11-13', true)).toBe('Fri\u00a013\u00a0Nov');                // no-break spaces: a date never splits
+    expect(M.dateLabel('2026-11-13', false, true)).toBe('13\u00a0Nov\u00a02026');
+    expect(M.rangeLabel('2025-10-27', '2026-11-13')).toBe('27\u00a0Oct\u00a02025 – 13\u00a0Nov\u00a02026');
+    expect(M.rangeLabel('2026-08-20', '2026-11-13')).toBe('20\u00a0Aug – 13\u00a0Nov');
+    expect(M.rangeLabel('2026-11-09', '2026-11-09')).toBe('9\u00a0Nov');
     expect(M.wibTime(1794535200)).toBe('09:00');          // 02:00 UTC
     expect(M.wibDate(1794535200)).toBe('2026-11-13');
   });
@@ -44,6 +48,9 @@ describe('labels and numbers', () => {
     expect(M.amount(-523e9)).toBe('−523B');
     expect(M.pct(-1.234)).toBe('−1.23%');
     expect(M.rp(null)).toBe('—');
+    // the unit is chosen after rounding (QA 2026-11-15: "+1000M"); trillions always with 2 decimals
+    expect([M.amount(999.6e6), M.amount(-999.7e9), M.amount(12.34e12), M.amount(5e5)]).toEqual(['+1B', '\u22121.00T', '+12.3T', '0']);
+    expect([M.rp(999.96e9), M.rp(111.7e12), M.rp(95.89e12), M.rp(999.96e6)]).toEqual(['Rp 1.00T', 'Rp 111.70T', 'Rp 95.89T', 'Rp 1.0B']);
   });
   it('names the size basis the files carry, so a market cap source needs no page change', () => {
     expect(M.sizeLabel('adv20_value')).toBe('20-day average value traded');
@@ -102,6 +109,10 @@ describe('stocks, universes and the market map', () => {
     expect(rects.every(r => r.x >= -1e-9 && r.y >= -1e-9 && r.x + r.w <= 100 + 1e-9 && r.y + r.h <= 50 + 1e-9)).toBe(true);
     expect(M.squarify([], 0, 0, 10, 10)).toEqual([]);
   });
+  it('lists the deepest fall first among the losers (QA 2026-11-15)', () => {
+    const rs = [-1, -5, -3, 2].map((v, i) => ({ ...R[0], t: 'T' + i, ret: { '1D': v, '5D': null, '1M': null } }));
+    expect(M.movers(rs, '1D', 2).down.map(r => r.ret['1D'])).toEqual([-5, -3]);
+  });
   it('picks movers and the largest net foreign buyers and sellers', () => {
     const m = M.movers(R, '5D', 2);
     expect(m.up.map(r => r.t)).toEqual(['AAAA', 'DDDD']);
@@ -134,10 +145,55 @@ describe('series up to the chosen date', () => {
   });
   it('draws IHSG 1D against the prior close and 1M from the daily closes', () => {
     const d1 = M.ihsgChart(series, day, 'IHSG', 4, '1D');
-    expect([d1.ref, d1.prior, d1.pts.length, d1.pts[0].tip]).toEqual([100, true, 2, '13 Nov, 09:00 WIB']);
+    expect([d1.ref, d1.prior, d1.pts.length, d1.pts[0].tip]).toEqual([100, true, 2, '13\u00a0Nov, 09:00 WIB']);
+    // 5D is measured from the close before its first session, as every other 5D figure (QA 2026-11-15)
+    const ser5 = { ...series, dates: ['2026-11-04', '2026-11-05', '2026-11-06', '2026-11-09', '2026-11-13'], index: { IHSG: [90, 95, 96, 97, 103] } };
+    const d5 = M.ihsgChart(ser5, day, 'IHSG', 4, '5D');                       // the first 1h bar is on 9 Nov
+    expect([d5.ref, d5.prior]).toEqual([96, true]);
     const m1 = M.ihsgChart(series, day, 'IHSG', 4, '1M');
     expect(m1.pts.map(p => p.v)).toEqual([100, 101, 102, 110]);               // the missing close is skipped
     expect([m1.ref, m1.prior]).toEqual([100, false]);
     expect(M.ihsgChart(series, { ...day, intraday: {} }, 'IHSG', 4, '5D').pts).toEqual([]);
+  });
+});
+
+describe('Custom periods (F1, user 2026-11-15 "1A ... 2 A")', () => {
+  const st = {
+    schema: 1, ticker: ['CCCC', 'AAAA'], dates: ['2026-11-04', '2026-11-05', '2026-11-06', '2026-11-09'],
+    fnet_dates: ['2026-11-04', '2026-11-05', '2026-11-06'],
+    close: [[100, 110, 121, 133.1], [50, null, 55, 60]], fnet: [[1e9, 2e9, null], [-1e9, null, null]],
+  };
+  const R0 = M.rows(meta, day);
+  it('finds the trading days of a range and the base before it', () => {
+    expect(M.rangeIn(st.dates, { a: '2026-11-05', b: '2026-11-08' })).toEqual({ first: 1, last: 2, base: 0, n: 2 });
+    expect(M.rangeIn(st.dates, { a: '2026-11-07', b: '2026-11-08' })).toBeNull();      // a weekend holds no trading day
+  });
+  it('measures a stock from the close before the range and sums its daily foreign net', () => {
+    const rows = M.customRows(R0, st, { a: '2026-11-05', b: '2026-11-06' });
+    const c = rows.find(r => r.t === 'CCCC')!, a = rows.find(r => r.t === 'AAAA')!, b = rows.find(r => r.t === 'BBBB')!;
+    expect(c.ret.C).toBeCloseTo(21);                                                     // 121 / 100 - 1
+    expect(c.fnet.C).toBe(2e9);                                                          // 5 Nov only; 6 Nov null
+    expect(a.ret.C).toBeCloseTo(10);                                                     // 55 / 50 - 1 (5 Nov missing: not used)
+    expect(a.fnet.C).toBeNull();                                                         // no row in the range
+    expect([b.ret.C, b.fnet.C]).toEqual([null, null]);                                   // not in the history
+    expect(c.ret['1D']).toBe(0);                                                         // the fixed periods stay
+  });
+  it('refuses a range longer than a year, reversed or outside the data, with the way out', () => {
+    expect(M.rangeProblem({ a: '2025-11-01', b: '2026-11-13' }, '2025-08-20', '2026-11-13')).toMatch(/at most 1 year/);
+    expect(M.rangeProblem({ a: '2026-11-13', b: '2026-11-01' }, '2025-08-20', '2026-11-13')).toMatch(/Swap them/);
+    expect(M.rangeProblem({ a: '2025-01-01', b: '2025-06-01' }, '2025-08-20', '2026-11-13')).toMatch(/Pick dates from/);
+    expect(M.rangeProblem({ a: '2025-11-13', b: '2026-11-13' }, '2025-08-20', '2026-11-13')).toBeNull();   // 365 days
+  });
+  it('sums the market flow and draws sectors from the session before the range', () => {
+    const f = M.flowRange({ ...series, flow: { dates: ['2026-01-02', '2026-01-05'], foreign_buy: [3, 4], foreign_sell: [1, 1], turnover: [5, 6] } }, { a: '2026-01-01', b: '2026-01-31' });
+    expect(f).toEqual({ buy: 7, sell: 2, net: 5, from: '2026-01-02', to: '2026-01-05', n: 2 });
+    const sl = M.sectorLinesRange(series, 'IHSG', { a: '2026-01-02', b: '2026-01-06' })!;
+    expect([sl.start, sl.end]).toEqual([1, 4]);
+    expect(sl.lines[0].name).toBe('Energy');
+    expect(sl.lines[0].last).toBeCloseTo(32);                                            // 66 / 50 - 1
+  });
+  it('scales a Custom colour by its trading days', () => {
+    expect(M.perfScale('C', 4)).toBe(2);
+    expect(M.foreignScale('C', 9)).toBeCloseTo(360e9);
   });
 });

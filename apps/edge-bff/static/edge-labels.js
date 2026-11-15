@@ -143,6 +143,9 @@ window.EdgeLabels = {
   radar: { nav:"Radar", frameTitle:"Radar" },
   // EXEC-OVERVIEW O4 (decision 7, 2026-11-15): the Overview tab, first in the rail
   overview: { nav:"Overview", frameTitle:"Market overview" },
+  // EXEC-OVERVIEW QA (user 2026-11-15: "1B"): on a phone (the left menu is hidden at 720 px or less) a menu button in the
+  // EDGE bar lists the same pages
+  shell: { pagesMenu:"Pages", openPages:"Open the pages menu", closePages:"Close the pages menu" },
   // EXEC-TERMINAL-IND-EDIT (user 2026-11-05: "apapun tabnya selalu tulisannya Edge, Sign In, and Monitor. Boleh diganti
   // misalkan Edge, - terminal, backtest, screener"): the browser tab's title on each page
   pages: { loading:"EDGE", signIn:"EDGE — Sign In", monitor:"EDGE — Monitor", terminal:"EDGE — Terminal",

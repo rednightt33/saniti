@@ -191,6 +191,28 @@ def check_day(meta, day, series, d):
          (round(fl[-1][1]), round(fl[-1][2]), round(to(fl[-1]))))
 
 
+def check_stocks(meta, series, st, sample):
+    """F1: overview-stocks against dev: its tickers are the common stocks, its dates the series dates and the broker
+    dates from the first series date; every stock's close on the sampled dates equals the price table, and its daily
+    Regular foreign net on the sampled broker dates equals Feature 06."""
+    same('stocks.ticker', st['ticker'], meta['stocks']['ticker'])
+    same('stocks.dates', st['dates'], series['dates'])
+    same('stocks.fnet_dates', st['fnet_dates'], [d for d in series['flow']['dates'] if d >= series['dates'][0]])
+    at = {t: k for k, t in enumerate(st['ticker'])}
+    for d in sample:
+        i = st['dates'].index(d)
+        dev = {r[0]: f(r[1]) for r in rows(f'SELECT ticker, close FROM public."Price_Stock_Indonesia_IDX" WHERE date = {lit(d)} '
+                                           f"AND timeframe = 'Daily' AND is_final AND ticker IN {STOCK}")}
+        for t, k in at.items():
+            same(f'stocks.close {t} {d}', st['close'][k][i], dev.get(t), 0.005)
+    for d in [x for x in sample if x in st['fnet_dates']]:
+        i = st['fnet_dates'].index(d)
+        dev = {r[0]: f(r[1]) for r in rows(f'SELECT ticker, foreign_net_1d FROM public."Feature_06_Foreign_Domestic" WHERE trade_date = {lit(d)} '
+                                           f"AND market_board = 'Regular' AND ticker IN {STOCK}")}
+        for t, k in at.items():
+            same(f'stocks.fnet {t} {d}', st['fnet'][k][i], dev.get(t), 0.5)
+
+
 def expected_page(meta, d):
     """What the page's default view (LQ45, 1D) must show on date d, computed here from dev."""
     lq = {r[0] for r in rows("SELECT m.\"Ticker\" FROM public.\"Stock_List_Member\" m JOIN public.\"Stock_List\" l ON l.list_key = m.list_key "
@@ -263,6 +285,8 @@ def main():
     series = json.loads((d / 'overview-series.json').read_text())
     dates = a.dates.split(',') if a.dates else [meta['dates'][1], meta['dates'][len(meta['dates']) // 2], meta['dates'][-1]]
     check_meta(meta)
+    if (d / 'overview-stocks.json').exists():
+        check_stocks(meta, series, json.loads((d / 'overview-stocks.json').read_text()), [series['dates'][0], *dates])
     for x in dates:
         before = len(DIFFS)
         check_day(meta, json.loads((d / f'overview-day-{x}.json').read_text()), series, x)

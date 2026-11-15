@@ -761,3 +761,47 @@ svg{display:block;flex:none}
 #tm .pop .kv b{white-space:nowrap}
 #tm .pop .pnote{font-size:var(--fs-xs);color:var(--text-3);padding-bottom:var(--s-3)}
 @media (prefers-reduced-motion:reduce){.ml-spin{animation:none}}
+
+/* ---------------------------------------------------------------------
+   EXEC-OVERVIEW QA fixes (user go 2026-11-15: "go, kerjakan 1 lalu 2")
+   --------------------------------------------------------------------- */
+/* P1: the small KPI boxes keep their value on the bottom line, whatever their label's length */
+.pd-kpis .kpi{display:flex;flex-direction:column;justify-content:space-between;gap:2px}
+/* class B: a KPI card's date pill may sit under its label and its sub line may wrap (nothing cut on a phone) */
+.k{height:auto;min-height:84px}
+.k .lb{flex-wrap:wrap;row-gap:2px}
+.k .s{white-space:normal}
+/* B2: app.ts fit() measures each header: .tight hides the "Period"/"EMA" words, .wrapped puts the controls on their own
+   row, left-aligned under the title */
+.card-h.tight .plab{display:none}
+.card-h.wrapped{flex-wrap:wrap;row-gap:var(--s-3)}
+.card-h.wrapped .ttl{flex:1 1 100%}
+.card-h.wrapped .pctl{margin-left:0;justify-content:flex-start}
+.card-h.wrapped > .grow{display:none}
+.ff .ttl{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1 1 140px}
+.ff .ttl-s{font-size:var(--fs-12);color:var(--text-3);line-height:16px}
+.ff .pctl{flex:none;display:flex;align-items:center;gap:var(--s-4);margin-left:auto}
+.ff .card-h{flex-wrap:wrap;row-gap:var(--s-3);white-space:normal}
+.ohlc.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+/* class B: a sector heading keeps its figure and shortens its name with "…" */
+.sh{display:flex;align-items:baseline}
+.sh .shn{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sh i{flex:none}
+/* class A: the menus never outgrow the screen; their lists scroll inside */
+.unipop{display:flex;flex-direction:column;max-height:min(440px,70vh);max-width:calc(100% - 2 * var(--s-8))}
+.unipop .unilist{overflow-y:auto;min-height:0;overscroll-behavior:contain}
+#datepop{overflow-y:auto;overscroll-behavior:contain}
+@media (pointer:coarse){.unipop .inp{font-size:16px}}
+/* class E: a sideways drag on a chart moves its crosshair, a vertical one scrolls the page */
+.chb,:is(.secp,.brp) .cv{touch-action:pan-y}
+/* P4: the tile tooltip (the KPI tooltip's look), placed by app.ts */
+.ttip{position:fixed;z-index:var(--z-pop);pointer-events:none;max-width:260px}
+/* F1: the Custom period popover (placed by app.ts under the button pressed) */
+.cpop{position:fixed;z-index:var(--z-pop);width:272px;padding:var(--s-5) var(--s-6);box-shadow:var(--shadow-lg)}
+.cpop .cp-f{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-4);margin:var(--s-4) 0 var(--s-3)}
+.cpop label{display:flex;flex-direction:column;gap:2px;font-size:var(--fs-xs);color:var(--text-3)}
+.cpop input{width:100%;min-width:0;height:var(--h-md);padding:0 var(--s-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text);font:inherit;font-size:var(--fs-12)}
+.cpop .cp-n{font-size:var(--fs-xs);color:var(--text-3);line-height:1.4}
+.cpop .cp-err{margin-top:var(--s-3);font-size:var(--fs-xs);color:var(--red);line-height:1.4}
+.cpop .btns{display:flex;justify-content:flex-end;gap:var(--s-3);margin-top:var(--s-4)}
+@media (pointer:coarse){.cpop input{font-size:16px}}

@@ -181,3 +181,58 @@ def test_the_image_builds_the_overview_page_on_its_own():
     for f in page.rglob('*.ts'):
         for spec in re.findall(r"""(?:\bfrom|\bimport)\s*\(?\s*['"]([^'"]+)['"]""", f.read_text()):
             assert spec.startswith('./') or spec.startswith('../') and (f.parent / spec).resolve().is_relative_to(page), (f, spec)
+
+
+def test_a_phone_reaches_every_page_through_the_pages_menu(settings, store, monkeypatch, tmp_path):
+    """EXEC-OVERVIEW QA (user 2026-11-15: "1B"): at 720 px or less the left menu is hidden; the EDGE bar's menu button
+    lists the same pages (Overview first for the owner), switches to the one picked and closes on Escape."""
+    import os
+    playwright = pytest.importorskip('playwright.sync_api')
+    from test_screener import serve
+    (tmp_path / 'index.html').write_text('<!doctype html><title>Overview frame</title><body data-ready="1">')
+    monkeypatch.setattr(main, 'OVERVIEW_APP', tmp_path)
+    configured = dataclasses.replace(settings, terminal_url='http://terminal-api.railway.internal:8080', terminal_proxy_key=KEY)
+    local, stop = serve(configured, store)
+    try:
+        with playwright.sync_playwright() as pw:
+            browser = pw.chromium.launch(executable_path=os.environ.get('EDGE_TEST_CHROMIUM', '/usr/bin/chromium'),
+                                         headless=True, args=['--no-sandbox'])
+            try:
+                page = browser.new_page(viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True)
+                page.route('https://fonts.*/*', lambda route: route.abort())
+                page.goto(local.origin + '/monitor')
+                page.locator('#auth-login').fill('owner')
+                page.locator('#auth-password').fill('local-test-password')
+                page.get_by_role('button', name='Sign In', exact=True).click()
+                button = page.locator('.topbar .pages-btn')
+                button.wait_for()
+                assert not page.locator('.side-nav').is_visible()
+                button.tap()
+                items = page.locator('.pages-menu [role=menuitem]')
+                assert items.all_text_contents()[:3] == ['Overview', 'Monitor', 'Terminal'] and 'Radar' in items.all_text_contents()
+                assert button.get_attribute('aria-expanded') == 'true'
+                for item in items.all():                                     # every item is a 44 px touch target
+                    assert item.bounding_box()['height'] >= 44
+                page.locator('.pages-menu [role=menuitem]', has_text='Overview').tap()
+                page.wait_for_url(local.origin + '/overview')
+                assert page.locator('.pages-menu').count() == 0
+                button.tap()
+                assert page.locator('.pages-menu [aria-current=page]').inner_text() == 'Overview'
+                page.keyboard.press('Escape')
+                assert page.locator('.pages-menu').count() == 0
+                button.tap()
+                page.locator('.topbar .brand').tap()                         # a tap outside closes it
+                assert page.locator('.pages-menu').count() == 0
+            finally:
+                browser.close()
+    finally:
+        stop()
+
+
+def test_the_relay_accepts_every_file_name_the_publisher_writes():
+    """The publisher's overview.NAME and this relay's agree (F1 added overview-stocks)."""
+    from app import overview as ov
+    for name in ('overview-meta', 'overview-series', 'overview-stocks', 'overview-day-2026-11-13'):
+        assert ov.NAME.fullmatch(name), name
+    for name in ('overview-x', 'radar-meta', 'overview-day-13-11-2026'):
+        assert not ov.NAME.fullmatch(name), name

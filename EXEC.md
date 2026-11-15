@@ -14381,6 +14381,54 @@ desain. Kode: `apps/edge-bff/overview/src/model.ts` (`colorOf(..., signed)`); `O
 edge-bff `a3083980` SUCCESS 2026-11-15 13:40 UTC (go user: "go, deploy edge-bff"); terlihat di halaman live. Lalu user 2026-11-15: **"Foreign buy samakan juga, go deploy"**: warna Foreign buy abu-abu hanya bila kotak
 bertulisan 0 (net di bawah Rp 1 juta); net lain paling tidak hijau muda atau merah muda. Deploy edge-bff `960ef248` SUCCESS 13:57 UTC; terlihat di halaman live.
 
+### Daftar perbaikan dan tambahan sesudah rilis (2026-11-15; dikerjakan sesudah go)
+
+Permintaan user (kata-katanya), dengan penyebab yang sudah dicek di kode:
+
+| # | Permintaan user | Penyebab terverifikasi | Arah perbaikan |
+|---|---|---|---|
+| P1 | "Ini gak align, harusnya sejajar dengan 564 dan 116.6 B" (kotak kecil di bawah grafik IHSG: nilai Turnover lebih tinggi) | `.pd-kpis .kpi` (`overview.css:700-703`): nilai mengikuti label; "Advancers / decliners" dan "Foreign net (9 Nov)" terlipat 2 baris, "Turnover (9 Nov)" 1 baris | nilai di dasar setiap sel (berlaku juga untuk kotak Foreign Flow) |
+| P2 | "ini di list kalo scrollable kenapa bisa seperti pada SS" (menu universe memanjang keluar halaman) | `.unipop` (`overview.css:610`) tanpa batas tinggi; 67 daftar; menu tanggal `.ddpop` (`:721`) sama | tinggi dibatasi, daftar bergulir di dalam, kolom cari tetap di atas |
+| P3 | "Terlampir bug juga kepotong" (popover kotak peta pasar terpotong di bawah) | posisi popover memakai tinggi perkiraan 130/150 px (`app.ts:182`), padahal catatan tanggal broker terlipat; `.tm` memotong (`overflow:hidden`, `overview.css:567`) | ukur popover sesudah digambar, taruh di dalam peta (di atas kotak bila di bawah tidak muat) |
+| P4 | "Untuk market map tambah hoverstate. Harusnya berguna untuk kotak yang tickernya tidak ter-detect." | kotak kecil tidak diberi label (lebar < 34 px atau tinggi < 18 px) dan tidak ada tooltip | tooltip saat kursor di atas kotak: ticker, nama, nilai periode, ukuran |
+| F1 | "yang berkaitan dengan period, kecuali IHSG, tambahkan "Custom" which user bisa pilih periode, maksimal 1 tahun." | panel pasar (Sector, % EMA, total Foreign Flow) cukup dengan `overview-series` (300 sesi); panel per saham (peta, Top Movers, daftar Foreign Flow) hanya punya periode tetap di file harian | **jawaban user 2026-11-15: "1A Rentang tanggal “dari–sampai” (rekomendasi). 2 A — Semua 5 panel, termasuk panel per saham"**: rentang dari–sampai, maks 1 tahun, di 5 panel (bukan IHSG); file per saham baru (±0,9 MB gzip, hanya saat Custom). Rencana eksekusi menunggu go |
+
+Temuan QA mobile (5 reviewer Sonnet, permintaan user 2026-11-15 "Jalankan 5 subagents sonnet 5.5 high to review"),
+dicek ulang di dev sebelum dicatat. Angka: 13.119 nilai di ponsel = hitungan ulang independen dari file (0 beda). Usulan,
+dikelompokkan per penyebab (menunggu go):
+
+| Kelas | Temuan (bukti) | Usulan |
+|---|---|---|
+| A. Elemen mengambang dengan ukuran diasumsikan atau tak dibatasi | P2, P3; menu tanggal di x = −43 px pada iPhone 13 (`.ddpop{right:0}`, `overview.css:721`); menu universe 2.005 px | satu cara penempatan: ukur sesudah tampil, jepit di dalam layar/wadah, tinggi maks dengan gulir di dalam |
+| B. Teks di sel sempit | P1; angka OHLC lebih lebar dari selnya (13/10/6 px pada 360/375/390); label "Foreign net (1D)" dan "129 unchanged" terpotong pada 360–390; judul sektor terpotong tanpa elipsis | nilai di dasar sel; OHLC 2×2 di ponsel; label lebih pendek atau boleh terlipat |
+| C. Pembulatan di batas satuan | "+1000M", "−1000B", "Rp 1000.0B"; "Rp 95.89T" di samping "Rp 111.7T" (`model.ts:27-42`) | pilih satuan sesudah membulatkan; desimal T seragam |
+| D. Label periode/tanggal yang bisa menyesatkan | IHSG 5D dihitung dari bar 1 jam pertama (+5,17%) bukan penutupan 6 Nov (+5,82%); High 5D (5.344,41) < High 1D (5.361,94); "1Y" tanpa tahun ("27 Oct – 13 Nov"); angka asing (tanggal broker) tanpa tanggal di peta; Foreign Flow tidak mengikuti universe tanpa label; Top Movers turun diurutkan dari yang teringan; nama sektor singkat beda antarpanel; "Hover a sector" di ponsel | perubahan 5D dari penutupan sebelum 5 sesi; tahun pada rentang lintas tahun; tanggal broker di label; label "All stocks"; urutan turun terdalam dulu; satu tabel nama singkat |
+| E. Interaksi khusus mouse | P4; crosshair grafik hanya `mousemove`; kolom cari universe langsung fokus (keyboard iOS); menu tidak tertutup oleh ketukan di shell | tooltip hover kotak; crosshair dengan pointer (geser jari); tanpa fokus otomatis di layar sentuh |
+| F. Aksesibilitas | 836 kotak masing-masing satu Tab; 5 dari 8 grup tombol tanpa `role=group`/label; grafik tanpa ringkasan teks; teks abu `--text-3` 3,2:1 (token EDGE, semua halaman); putih di hijau-500 3,6:1 (palet desain) | satu titik Tab untuk peta (panah untuk pindah kotak); label grup; ringkasan teks grafik; token warna menunggu keputusan |
+| G. Shell (sudah ada sebelum Overview, semua tab) | di ≤720 px menu kiri disembunyikan tanpa pengganti (`static/index.html:9834-9838`): tab hanya bisa dibuka dengan mengetik alamat; bingkai `100vh` bukan `100dvh`; status halaman hilang saat pindah tab | menunggu keputusan user |
+| B2. Kontrol header turun ke baris kedua | user 2026-11-15 (zoom 125%): "kotak biru ... harusnya tidak demikian right?". Dicek: desain asli sama persis pada 1152/1280/1440 px; kontrol turun baris setiap kartu lebih sempit dari judul + kontrol (Sector, % EMA, Top Movers pada 1440 px pun sudah turun) | kontrol tetap di baris judul selama muat (label kata "Period"/"EMA" disembunyikan dulu saat sempit); bila tetap tidak muat, baris kedua rata kiri di bawah judul |
+| Performa | 4G cepat 1,6–2,0 s pertama, 0,9 s kunjungan ulang; 3G lambat 5,3 s / 1,3 s; kunjungan ulang 0 file data (cache bekerja); "All stocks" satu tugas 160 ms pada CPU 4× lebih lambat | tidak perlu tindakan |
+
+**Keputusan user 2026-11-15 atas daftar QA:** "1B, 2B, 3 no hanya IHSG saja. Kindly note ya, treemap itu hanya kalau
+toggle ke LQ45 misalkan, maka hanya isoalted di treemap saja, tidak merubah % Above EMA, Top Movers dll".
+- 1B: navigasi ponsel di shell = tombol menu ☰ di bilah atas yang membuka daftar tab (≤720 px; berlaku semua halaman).
+- 2B: token warna teks abu-abu EDGE dibiarkan.
+- 3: Foreign Flow tetap seluruh pasar (IHSG), tidak mengikuti universe.
+- Universe hanya untuk peta pasar: Top Movers juga tidak lagi mengikuti universe (seluruh pasar); % Above EMA sudah
+  seluruh pasar.
+Eksekusi daftar A–F, B2, G(1B) dan F1: **go user 2026-11-15: "go, kerjakan 1 lalu 2"** (1 = perbaikan A–F, B2, menu ☰,
+Top Movers seluruh pasar; 2 = F1 Custom). Dikerjakan di branch; setiap deploy ditanyakan dulu.
+Kemajuan: perbaikan 1 selesai di branch (ERRORS M446; halaman 17 tes, edge-bff 368 tes, cek fixture di 1440/1152/390/360 px); deploy edge-bff menunggu go. Lalu F1.
+Kemajuan F1: selesai di branch. Publisher menulis `overview-stocks` (penutupan dan net asing harian per saham, dipakai ulang antar-lari; penuh hanya pada lari pertama/mode manual: ±1,6 GB Feature 06), halaman punya tombol Custom di 5 panel (rentang dari–sampai, maks 365 hari). Tes: publisher 199, halaman 22, edge-bff Overview 18; 16 cek browser Custom (BBCA 1 Okt–13 Nov −9,47%). Urutan rilis yang diusulkan: deploy publisher → Run Now (lari pertama membangun riwayat) → cek restart Postgres → push `main` (edge-bff: perbaikan 1 + Custom) → cek live. Menunggu go.
+**Rilis 2026-11-15, go user: "Oke, jalankan."** (langkah 1–5, berhenti bila ada yang gagal; tidak ada yang gagal):
+publisher `65c25a7b` SUCCESS; Run Now 195,6 s, Overview 23 file (pertama kali `overview-stocks`: 862 saham × 300
+tanggal), 1,78 MB; restart Postgres 19:55:23 UTC (1,93 GB sebelumnya); `main` `724d130c`, edge-bff `0c882d2d` SUCCESS;
+cek live pemilik 8/8 (33.870 perbandingan, 0 beda) dan cek halaman 33/33 di 1440 px dan ponsel 390 px
+(`verification/overview/live_20261115/`, RAILWAY_CHANGELOG). Perbaikan 1 dan F1 selesai.
+Temuan terbuka (ERRORS M447; belum diperbaiki, menunggu user): di 1440 px kaki Foreign Flow memecah "Market net −Rp / 19.85T" di
+antara "Rp" dan angkanya (hanya tampilan; angkanya benar). Usulan: spasi tak-terputus di dalam setiap jumlah Rp, seperti
+tanggal (`model.ts`), berlaku untuk semua teks jumlah di halaman.
+
 Temuan selama O1 (sudah ditangani di kode):
 - Login publisher di dev punya `statement_timeout=120s`. Hitungan EMA lari pertama (300 tanggal) dalam satu kueri ±86
   detik saat cache dingin, terlalu dekat batas. Sekarang dipecah per 20 tanggal (`BREADTH_CHUNK`; satu kelompok 5,7

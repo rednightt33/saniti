@@ -8041,7 +8041,7 @@ in its staleness check.
   by the manual mode `overview` (AGENTS.md, after a large update, step 4; OVERVIEW_FORMULAS.md section 13).
 - **Lesson:** a cached output is keyed on the content of what it read, at least for the part of history that loaders
   still write; a file that refers to another file by position is rebuilt whenever that file's order changes.
-### M443 — The scheduled Postgres restart can fall between two statements of a long job (2026-11-15, open)
+### M443 — The scheduled Postgres restart can fall between two statements of a long job (2026-11-15, known: not fixed)
 
 - **Symptom (found while planning EXEC-INDEX-GROUP-HISTORY stage 6, nothing broke):** a multi-hour job on
   orc-test-runner (the index and group fill, about 3 hours) would overlap the 13:45 UTC run of postgres-memory-cron.
@@ -8054,10 +8054,10 @@ in its staleness check.
   scheduled restart; also an `idle in transaction` session of a user run.
 - **Mitigation now:** the fill starts after the 13:45 UTC restart (next 02:45 UTC); `backfill_index_entities.py`
   continues an entity from its least advanced feature table, so a stopped run is resumed by running it again.
-- **Planned fix:** PLAN.md RESTART-GUARD (2026-11-16, waiting for go). Earlier proposal: the guard also refuses while a client session is
+- **Proposal (declined, 2026-11-16):** the guard also refuses while a client session is
   `idle in transaction`, or while a job holds a declared session lock (one advisory lock key that long jobs take);
   the refusal message names the session's application_name and start time.
-- **Status:** OPEN (proposal).
+- **Status:** KNOWN, not fixed (user 2026-11-16: "Ya udah, masukin aja ke known error. Tidak usah diperbaiki."). Long jobs keep the mitigation: start them after a scheduled restart (09:45 / 20:45 WIB) or far from it, and make them resumable.
 - **Lesson:** a guard that checks one instant cannot see work that pauses; work that must not be cut declares itself.
 
 ### M444 — The independent Feature 06 check refused an exact value: running float sums near zero (2026-11-15, fixed)
@@ -8080,7 +8080,7 @@ in its staleness check.
   and entity checks pass with it.
 - **Status:** FIXED (the fill is run again).
 - **Lesson:** an independent check must be at least as exact as what it checks; a running sum is not.
-### M445 — The restart guard's hand path cannot see other accounts' sessions (2026-11-16, open)
+### M445 — The restart guard's hand path cannot see other accounts' sessions (2026-11-16, known: not fixed)
 
 - **Symptom (found while planning the fix of M443):** run by hand or at the end of a `run_job.sh` job,
   `scripts/restart_postgres.py` reads `pg_stat_activity` as `pgweb`; a session of another account shows no state
@@ -8092,9 +8092,71 @@ in its staleness check.
   reads as the main account (`${{Postgres.DATABASE_URL}}`) and sees every session.
 - **Class:** every check that reads other sessions through a reader role (the restart guard by hand, `run_job.sh`'s
   restart after a large write, any agent check of "is something running").
-- **Planned fix:** PLAN.md RESTART-GUARD step 2 (one read-only SECURITY DEFINER function for both paths, no query text).
-- **Status:** OPEN (plan, waiting for the user's go).
+- **Proposal (declined, 2026-11-16):** one read-only SECURITY DEFINER function for both paths, no query text (FUTURE_PLAN.md RESTART-GUARD).
+- **Status:** KNOWN, not fixed (user 2026-11-16). Until then: before a restart by hand or a `large_write` job, check running jobs with a query as the main account (or look at orc-test-runner and the cron services), not only the guard's verdict.
 - **Lesson:** a guard must read with the same view of the system in every path that runs it.
+
+### M446 — Market Overview on a phone: menus and popovers outgrew the screen, labels were cut or misleading, and no page menu existed (2026-11-15, fixed, deployed)
+
+- **Found by:** the user (screenshots: values not aligned, the universe list running off the page, the tile popover cut,
+  no hover on unlabelled tiles, controls on a second row at 125% zoom) and a mobile QA by five reviewers (user
+  2026-11-15: "Jalankan 5 subagents sonnet 5.5 high to review"); each finding measured again on dev before it was listed
+  (EXEC-OVERVIEW, "Daftar perbaikan"). Figures were right: 13,119 values on a phone equal an independent recalculation.
+- **Verified causes, by class:**
+  - **A, floating elements sized by assumption or not at all:** the tile popover was placed for a height of 130/150 px
+    (`app.ts`) while it measured 188 px in a map that clips (`.tm{overflow:hidden}`): 32 of 45 tiles clipped it on an
+    iPhone 13; the universe menu had no height limit (2,005 px for 67 lists); the date menu was anchored to the right of
+    a button at the left of a phone screen (x = -43 px).
+  - **B, text in narrow cells:** the values under the IHSG chart followed labels of one or two lines; OHLC values were
+    6-13 px wider than their cells at 390-360 px; KPI labels and "129 unchanged" were cut; sector headings cut without
+    "…"; dates split over two lines ("9 / Nov").
+  - **C, rounding at a unit boundary:** the unit was chosen before rounding ("+1000M", "Rp 1000.0B"); trillions had 1 or
+    2 decimals side by side.
+  - **D, labels:** IHSG 5D was measured from the first hourly bar (+5.17%) instead of the close before the period
+    (+5.82%, as every other 5D figure); a 1Y range had no year; foreign figures of the broker date carried no date;
+    Top Movers' losers were listed mildest first; sector short names differed between panels.
+  - **E, mouse only:** no hover on tiles; chart crosshairs only on `mousemove`; the universe search took the focus on a
+    phone (its keyboard covers the list); a tap in the shell did not close the page's menus.
+  - **F, accessibility:** each of up to 836 tiles was a Tab stop; five period groups had no group name; charts had no
+    text summary.
+  - **Shell:** at 720 px or less the left menu is hidden (`static/index.html`) and nothing replaced it: on a phone every
+    page but Monitor was reachable only by typing its address (before the Overview too).
+  - **Header controls on a second row, right-aligned** (user, zoom 125%): the design's own behaviour when a card is
+    narrower than its title plus its controls (the design file renders the same at 1152, 1280 and 1440 px).
+- **Solution (branch `claude/keen-turing-56vw7y`; user decisions 2026-11-15 "1B, 2B, 3 no hanya IHSG saja", "go,
+  kerjakan 1 lalu 2"):** popover and menus placed from their measured size, menus bounded with an inner scroll;
+  `fit()` derives each header's layout from what is drawn (words hidden first, then a left-aligned row of their own,
+  the words back when that row holds them) and turns OHLC 2 x 2 when a value overflows; bottom-aligned values,
+  wrapping labels, ellipsis headings, no-break dates; units chosen after rounding; 5D from the close before the
+  period, years on cross-year ranges, broker dates named; deepest fall first; one name table; tile hover tooltip;
+  pointer events on charts (`touch-action: pan-y`); no auto-focus on touch; one tab stop for the map with arrow keys;
+  named groups and chart summaries; Top Movers on the whole market (the universe is for the map only); the shell's
+  pages menu (☰) on a phone (1B). Not changed: the grey text token (2B).
+- **Checks:** page tests 17 passed; edge-bff suite 368 passed (a new phone test of the pages menu); fixture checks at
+  1440, 1152, 390 and 360 px: P1 values on one line, no OHLC overflow, no label cut, every header fits, one tab stop,
+  universe menu 440 px with an inner scroll, date menu inside the screen, 0 of 45 popovers clipped, hover on an
+  unlabelled tile, IHSG 5D +5.82%; interaction checks 33 passed.
+- **Status:** FIXED and deployed: edge-bff `0c882d2d` SUCCESS 2026-11-15 19:56 UTC (`main` `724d130c`, user "Oke,
+  jalankan."); measured on the live page as the owner at 1440 px and on a 390 px phone, 33/33 ok
+  (`verification/overview/live_20261115/live_page_check.txt`, RAILWAY_CHANGELOG).
+- **Lesson:** a floating element is placed from its measured size inside the box that clips it; a layout rule that
+  depends on text length is derived from the rendered result, not from a width table; a value's unit is chosen after
+  rounding.
+
+### M447 — Market Overview: a rupiah amount can break between "Rp" and its number (2026-11-15, known: not fixed)
+
+- **Found by:** the live page check after the second release (1440 px, Foreign Flow, Custom 1 Oct-13 Nov): the footer
+  reads "Market net −Rp" on one line and "19.85T" on the next (`verification/overview/live_20261115/live_custom_1440.png`).
+- **Verified cause:** `rp()` joins the currency and the number with an ordinary space (`apps/edge-bff/overview/src/model.ts:48`,
+  `'Rp ' + ...`), so the browser may wrap there whenever the text does not fit its box. The dates had the same problem
+  and use a no-break space since M446.
+- **Class:** every amount the page writes through `rp()` (KPI tiles, map tiles "Rp 1.69T/day", popovers, Foreign Flow
+  rows and footer, Custom); any future unit written as "word number" with a plain space.
+- **Proposed solution (waiting for the user):** a no-break space inside `rp()` (one change covers every amount), with a
+  page test that no amount contains a breakable space; checked at 1440/1152/390/360 px.
+- **Status:** KNOWN, not fixed; the figure itself is right. Recorded in EXEC-OVERVIEW.
+- **Lesson:** a value and its unit are one word for the line breaker: join them with a no-break space where the text is
+  built, not per label.
 
 ### M448 — Look-ahead: eight Terminal Flow indicators choose their brokers with data up to the last candle; four data inputs carry no availability date (2026-11-15, open)
 

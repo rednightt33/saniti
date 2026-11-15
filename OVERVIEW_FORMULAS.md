@@ -1,6 +1,6 @@
 # Rumus Market Overview (dev)
 
-<!-- explained-for: overview.py=ec4d588d48d5767519cbcf16e808d746, model.ts=f807be497cd316b11d7fad04f98c41f8, overview_stock_size=f451fc552b78a6174bc47b4e2a217293 -->
+<!-- explained-for: overview.py=28cfa7546645534fc8d6b9bba399d5ac, model.ts=05c9ed848905b7b6e2733dddf012d312, overview_stock_size=f451fc552b78a6174bc47b4e2a217293 -->
 
 Dokumen ini menjelaskan **setiap angka di halaman Market Overview** (tab "Overview" di EDGE) dengan bahasa sederhana
 dan contoh angka asli dev. Pakai dokumen ini saat ingin mengubah rumus, atau saat bertanya dari mana sebuah angka
@@ -189,7 +189,9 @@ ETF dan kode indeks tidak dihitung.
   - Foreign buy: **jumlah** net asingnya;
   - saham tanpa nilai tidak ikut.
 - **Universe** = semua saham, atau satu daftar indeks/grup Stockbit (`Stock_List` dan anggotanya, sama dengan Screener).
-  Bawaan: **LQ45**. Universe juga menentukan Top Movers.
+  Bawaan: **LQ45**.
+- **Universe hanya untuk peta pasar** (keputusan user 2026-11-15: "treemap itu hanya kalau toggle ke LQ45 misalkan,
+  maka hanya isolated di treemap saja, tidak merubah % Above EMA, Top Movers dll"). Panel lain selalu seluruh pasar.
 - Klik kotak: popover dengan return dan net asing periode itu. Bila data broker tertinggal, ada catatan tanggal
   brokernya. Tombol "Open in Terminal" membuka saham itu di Terminal.
 
@@ -198,14 +200,17 @@ ETF dan kode indeks tidak dihitung.
 | Periode | Titik | Pembanding (garis putus-putus / persen) |
 |---|---|---|
 | 1D | bar 5 menit sesi itu (`price_stock_idx_intraday`) | penutupan sesi sebelumnya |
-| 5D | bar 1 jam dari 5 sesi yang berakhir di tanggal itu | titik pertama |
+| 5D | bar 1 jam dari 5 sesi yang berakhir di tanggal itu | penutupan sesi sebelum 5 sesi itu (seperti setiap angka 5D lain) |
 | 1M | 21 penutupan harian (20 sesi ke belakang + titik awal) | titik pertama |
 | 1Y | 253 penutupan harian (252 sesi ke belakang + titik awal) | titik pertama |
 
 - Baris Open/High/Low/Close:
   - **1D:** angka resmi hari itu dari tabel harga;
-  - **periode lain:** "Start/High/Low/End" dari penutupan pada periode itu. High = penutupan tertinggi, bukan harga
+  - **periode lain:** "Start / High close / Low close / Last". Start = penutupan pembanding (kolom kanan tabel). High
+    close dan Low close = penutupan tertinggi dan terendah pada periode itu (5D: penutupan per jam), bukan harga
     tertinggi intraday.
+- Contoh 13 Nov, 5D: Start 5.050,43 (penutupan 6 Nov), Last 5.344,41 → **+293,98 (+5,82%)**. Sebelum perbaikan QA
+  2026-11-15, 5D diukur dari bar jam pertama 9 Nov (5.081,53) dan tertulis +5,17%.
 - Contoh 13 Nov, 1D: Open 5.265,67, High 5.361,94, Low 5.215,15, Close 5.344,41; +93,51 (+1,78%) dari penutupan
   sebelumnya.
 - Tiga kotak di bawah grafik mengulang Breadth, Turnover dan Foreign net 1D (dengan tanggal broker bila tertinggal).
@@ -251,12 +256,13 @@ ETF dan kode indeks tidak dihitung.
 
 ## 11. Top Movers
 
-- Dari saham universe yang punya return pada periode pilihan (1D/5D/1M, Feature 01):
+- Dari **semua saham** yang punya return pada periode pilihan (1D/5D/1M, Feature 01). Universe peta pasar tidak
+  berpengaruh (keputusan user 2026-11-15):
   - **5 naik terbesar**: return di atas 0, diurutkan dari terbesar;
-  - **5 turun terbesar**: return di bawah 0.
+  - **5 turun terbesar**: return di bawah 0, diurutkan dari penurunan terdalam.
 - Panjang batang = return ÷ return absolut terbesar di daftar itu.
 - Baris bawah = jumlah saham, berapa naik, berapa turun.
-- Contoh 13 Nov, LQ45, 1D: WIFI +19,59% teratas; 45 saham, 37 naik, 5 turun.
+- Contoh 13 Nov, semua saham, 1D: ESIP +34,72% teratas, FLMC −9,88% turun terdalam; 836 saham, 564 naik, 143 turun.
 
 ## 12. Foreign Flow
 
@@ -278,6 +284,49 @@ ETF dan kode indeks tidak dihitung.
   - 5D (3–9 Nov): net **−Rp 295,1 M**;
   - 3M (14 Agu–9 Nov): net **−Rp 30.477,5 M**;
   - BBCA net beli 1D terbesar (+Rp 523,1 M); BMRI net jual 1D terbesar (−Rp 134,5 M).
+
+## 12b. Periode Custom
+
+Keputusan user 2026-11-15: "yang berkaitan dengan period, kecuali IHSG, tambahkan "Custom" which user bisa pilih
+periode, maksimal 1 tahun", lalu "1A Rentang tanggal "dari–sampai"", "2 A — Semua 5 panel, termasuk panel per saham".
+
+- Lima panel punya tombol **Custom**: peta pasar, Sector Performance, % Above EMA, Top Movers, Foreign Flow. Grafik IHSG
+  tidak.
+- Pengguna memilih tanggal **dari** dan **sampai**:
+  - paling panjang **365 hari**;
+  - di dalam data yang terbit (±14 bulan ke belakang);
+  - rentang memakai hari bursa pertama dan terakhir di dalamnya.
+- Rentang yang ditolak diberi pesan cara memperbaikinya: lebih dari 1 tahun, terbalik, di luar data, atau tanpa hari
+  bursa.
+- Setiap panel menyimpan rentangnya sendiri di alamat halaman (`clr`, `spr`, `brr`, `tmr`, `ffr`).
+
+**Rumus — sama dengan periode tetap, hanya panjangnya bebas.** Rentang [A..B]:
+
+| Angka | Rumus |
+|---|---|
+| Return saham (peta pasar, Top Movers) | penutupan hari bursa terakhir ≤ B ÷ penutupan **sesi sebelum** hari bursa pertama ≥ A − 1. Ini cara Feature 01 untuk 1D/5D/1M |
+| Net asing saham (peta pasar Foreign buy, daftar Foreign Flow) | jumlah `foreign_net_1d` (Regular) setiap tanggal broker di [A..B]; kosong bila saham itu tidak punya baris di rentang itu |
+| Total Foreign Flow | jumlah beli dan jual asing pasar (IHSG, Regular) setiap tanggal broker di [A..B] |
+| Sector Performance | return kumulatif dari sesi sebelum hari bursa pertama sampai hari bursa terakhir |
+| % Above EMA | garis dari hari bursa pertama sampai terakhir; angka besar dan "vs 5 sessions" pada hari bursa terakhir |
+| Warna peta pasar | pembagi = √(jumlah hari bursa) untuk Performance, Rp 120 M × √(jumlah tanggal broker) untuk Foreign buy (1D/5D/1M tetap memakai 1/2/4) |
+
+- Data per saham ada di file **`overview-stocks`**:
+  - penutupan setiap saham pada setiap tanggal series, dan net asing harian (Regular) setiap tanggal broker;
+  - ±1 MB, diunduh hanya saat pengguna memilih Custom di panel per saham.
+- Publisher **tidak membaca ulang** riwayat ini setiap lari. File sebelumnya dipakai lagi; yang dibaca hanya:
+  - tanggal baru;
+  - 3 tanggal terbaru (`RECHECK_SESSIONS`);
+  - tanggal broker yang dipakai 3 tanggal itu;
+  - saham baru (dibaca per ticker).
+- Pembacaan penuh hanya pada lari pertama dan mode manual `overview`: dipecah per 20 tanggal (`HISTORY_CHUNK`);
+  Feature 06 ±75 detik dan ±1,6 GB, jadi sesudahnya restart Postgres. Perubahan rumus tidak memicu pembacaan penuh,
+  karena baris harian mentah tidak bergantung pada rumus.
+- Ukuran kotak peta pasar tetap ukuran pada tanggal di atas halaman (bukan rata-rata rentang Custom).
+- Contoh (dev), BBCA, Custom 1 Okt – 13 Nov 2026:
+  - return = 5.500 (13 Nov) ÷ 6.075 (30 Sep, sesi sebelum 1 Okt) − 1 = **−9,47%**;
+  - net asing = jumlah 28 tanggal broker 1 Okt – 9 Nov = **−Rp 3.628,4 M**; data broker baru sampai 9 Nov, dan footer
+    Foreign Flow menuliskannya.
 
 ## 13. Kapan file diperbarui
 
@@ -344,20 +393,23 @@ Ditulis oleh `scripts/overview_formulas_doc.py --write` dari kode di repo; janga
 | `INTRADAY_5D` | 5 | sesi grafik IHSG 5D (bar 1 jam) |
 | `RECHECK_SESSIONS` | 3 | tanggal pasar terbaru yang isi inputnya dicek setiap lari |
 | `BREADTH_CHUNK` | 20 | tanggal per kueri hitungan Feature 04 |
+| `HISTORY_CHUNK` | 20 | tanggal per kueri riwayat harian per saham (overview-stocks) |
+| `STOCKS_SCHEMA` | 1 | versi format overview-stocks |
 | `BENCHMARK` | LQ45 | indeks pembanding (KPI kedua) |
 | `OTHER` | Other | nama sektor untuk "Undefined" |
 
 | Nilai halaman (`model.ts`) | Nilai | Arti |
 |---|---|---|
 | `PERF_SCALE` | `{ '1D': 1, '5D': 2, '1M': 4 }` | pembagi return sebelum langkah warna |
-| `foreignScale` | `120e9 * Math.sqrt(SESSIONS[p])` | pembagi net asing sebelum langkah warna (Rp) |
+| `foreignScale` | `120e9 * Math.sqrt(p === 'C' ? Math.max(1, n || 1) : SESSIONS[p])` | pembagi net asing sebelum langkah warna (Rp) |
 | `YEAR` | `252` | sesi "1Y" (grafik dan Kinerja Sektor) |
 | `SESSIONS` | `{ '1D': 1, '5D': 5, '1M': 20, '3M': 60 }` | sesi per periode |
+| `CUSTOM_MAX_DAYS` | `365` | panjang maksimum rentang Custom (hari) |
 
 | Kode | Sumber | Sidik jari (md5) |
 |---|---|---|
-| `overview.py` | `apps/terminal-publisher/overview.py` (= `CODE` publisher) | `ec4d588d48d5767519cbcf16e808d746` |
-| `model.ts` | `apps/edge-bff/overview/src/model.ts` | `f807be497cd316b11d7fad04f98c41f8` |
+| `overview.py` | `apps/terminal-publisher/overview.py` (= `CODE` publisher) | `28cfa7546645534fc8d6b9bba399d5ac` |
+| `model.ts` | `apps/edge-bff/overview/src/model.ts` | `05c9ed848905b7b6e2733dddf012d312` |
 | `overview_stock_size` | isi fungsi di `database/migrations/20261115_020_overview_stock_size.sql` | `f451fc552b78a6174bc47b4e2a217293` |
 
 <!-- overview-live:end -->

@@ -79,8 +79,8 @@ def main():
     days = sorted(n for n in files if n.startswith('overview-day-'))
     rep['index'] = {'status': s, 'ms': ms, 'finished_at': (idx or {}).get('finished_at'), 'files': len(files),
                     'days': [days[0], days[-1]] if days else None}
-    check('index: meta, series and 20 day files', s == 200 and {'overview-meta', 'overview-series'} <= set(files)
-          and len(days) == 20 and len(files) == 22, rep['index'])
+    check('index: meta, series, stocks and 20 day files', s == 200 and {'overview-meta', 'overview-series', 'overview-stocks'} <= set(files)
+          and len(days) == 20 and len(files) == 23, rep['index'])
     rep['files'] = {}
     for name in sorted(files):
         sha = files[name]['sha256']
@@ -101,6 +101,8 @@ def main():
     if picks:
         V.check_meta(meta)
         series = json.loads((out / 'overview-series.json').read_text())
+        if (out / 'overview-stocks.json').exists():
+            V.check_stocks(meta, series, json.loads((out / 'overview-stocks.json').read_text()), [series['dates'][0], *picks])
         for d in picks:
             V.check_day(meta, json.loads((out / f'overview-day-{d}.json').read_text()), series, d)
     rep['validation'] = {'dates': picks, 'comparisons': V.CHECKED[0], 'differences': V.DIFFS[before:][:40],

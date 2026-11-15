@@ -1,0 +1,36 @@
+run 2026-11-15T20:00:39Z, main 724d130c, edge-bff 0c882d2d
+ok   1440: P1 the three values under the IHSG chart share one bottom line [622, 622, 622]
+ok   1440: OHLC values and KPI labels not cut
+ok   1440: B2 every panel header fits (5)
+ok   1440: one tab stop in the map (1)
+ok   1440: Top Movers and Foreign Flow say All stocks
+ok   1440: no sideways overflow in the page (0)
+ok   1440: P2 universe menu 440 px tall, its list scrolls
+ok   1440: search focused only with a mouse (INPUT)
+ok   1440: P3 no tile popover cut off among 45 tiles (0)
+ok   1440: P4 hover on unlabelled tile ADMR shows "ADMR · PT Alamtri Minerals Indonesia Tbk"
+ok   Custom opens its popover
+ok   a range over a year is refused: The range is 445 days. Pick at most 1 year (365 days).
+ok   a reversed range is refused
+ok   map names the range: 1 Oct – 13 Nov · 836 stocks · size: 20-d
+ok   BBCA Custom return −9.47% = −9.47% from the live file
+ok   Top Movers Custom gainers ['STRK', 'TFCO', 'PTSP', 'BSWD', 'AKKU'] = ['STRK', 'TFCO', 'PTSP', 'BSWD', 'AKKU']
+ok   Financials Custom −4.7% vs -4.71 (from 2026-09-30)
+ok   % above EMA at the range end 19%
+ok   Foreign Flow Custom buy Rp 122.15T = Rp 122.15T
+ok   the address keeps the five ranges
+ok   phone: the pages button is in the header
+ok   phone: pages menu lists 6 pages, Overview first, inside the screen
+ok   phone: Escape closes the pages menu
+ok   390: P1 the three values under the IHSG chart share one bottom line [1560, 1560, 1560]
+ok   390: OHLC values and KPI labels not cut
+ok   390: B2 every panel header fits (5)
+ok   390: one tab stop in the map (1)
+ok   390: Top Movers and Foreign Flow say All stocks
+ok   390: no sideways overflow in the page (0)
+ok   390: P2 universe menu 440 px tall, its list scrolls
+ok   390: search focused only with a mouse (BUTTON)
+ok   390: P3 no tile popover cut off among 45 tiles (0)
+ok   phone: Custom popover inside the screen (x 15, w 272)
+fails 0 | page errors ['Failed to load resource: the server responded with a status of 401 ()', 'Failed to load resource: the server responded with a status of 401 ()']
+note: the two 401 are GET /api/v1/auth/session on the sign-in page before signing in, one per browser context (checked: an anonymous /monitor load answers exactly that one 401).

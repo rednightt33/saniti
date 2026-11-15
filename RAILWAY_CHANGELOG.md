@@ -9,6 +9,39 @@
   checks (the look-ahead gate among them). Not applied: it takes effect with `railway config plan` and apply at the
   deploy after Gate 2, with approval. No variable, service or deployment was changed in this step.
 
+## 2026-11-15 — Market Overview second release: terminal-publisher `65c25a7b`, edge-bff `0c882d2d` (`main` `724d130c`); Postgres restart (EXEC-OVERVIEW, user "Oke, jalankan.")
+
+- **Go:** user 2026-11-15 "Oke, jalankan." for steps 1-5 (deploy publisher, Run Now, restart Postgres, push `main`,
+  live check), stop on any failure. Content: the post-release fix list (ERRORS M446), the phone pages menu (1B), Top
+  Movers on all stocks, and F1 Custom (the publisher's new `overview-stocks` file).
+- **Before (19:50 UTC):** `restart_postgres.py` check READY: 0 running statements, 0 user runs (edge jobs 0, orc turns
+  0), no cron within 45 minutes, memory 1.82 GB. The branch had `main` `2c62125e` merged first (`724d130c`; ERRORS
+  entries renumbered: the Overview phone entry is M446). Main's new INDEX rows do not reach the Overview: every stock
+  query is limited to `IDX_Stock_Universe` stocks, the sectors are the same 11 entities.
+- **terminal-publisher `65c25a7b` SUCCESS (19:50 UTC):** CLI upload of `git archive 724d130c apps/terminal-publisher`
+  (M229 option A); uploaded `overview.py` md5 `28cfa754…` = `OVERVIEW_FORMULAS.md`. Cron `0,30 0,1,12 * * *` and
+  `TERMINAL_PUBLISH_MODE=daily` unchanged.
+- **Run Now 19:51:23 UTC** (`deploymentInstanceExecutionCreate`): done in 195.6 s; `overview` built 23 files (meta,
+  series, stocks, 20 days), 1.78 MB, 56.9 s, the first `overview-stocks` (862 stocks × 300 dates, 296 broker dates);
+  `radar` unchanged (31 files carried).
+- **Postgres restart:** `restart_postgres.py --apply` 19:55 UTC (memory 1.93 GB, 0 statements, 0 user runs): start time
+  18:58:27 → **19:55:23 UTC**, 11 s, edge-bff `/ready` 200.
+- **`main` `2c62125e` → `724d130c`** (fast-forward, 19:55:44 UTC): edge-bff `0c882d2d` SUCCESS (GitHub); every other
+  GitHub service SKIPPED (market-ai-orc included).
+- **Live check as the owner:** `verification/overview/live_check_dev.py` 8/8 PASS at 19:56:40 UTC (index finished
+  19:54:40): 23 files with their sha256, immutable caching, 409/400 refusals, the independent recalculation on
+  2026-10-20, 11-02 and 11-13 plus the `overview-stocks` rows: 33,870 comparisons, 0 differences
+  (`verification/overview/live_20261115/report_release2.json`). Page check
+  `verification/overview/live_page_check_dev.py`, 33/33 ok at 1440 px and on a 390 px phone (`live_page_check.txt`):
+  P1-P4 and B2 measured, the pages menu (6 pages, Overview first), Custom 1 Oct-13 Nov on the five panels equal to the
+  figures computed from the checked files (BBCA −9.47%, Top Movers STRK/TFCO/PTSP/BSWD/AKKU, Financials −4.7%, above
+  EMA50 19%, foreign buy Rp 122.15T), the address keeps the five ranges. Screenshots `live_custom_1440.png`,
+  `live_pages_menu_390.png`, `live_custom_390.png`.
+- **Open (not fixed):** at 1440 px the Foreign Flow footer breaks "Market net −Rp / 19.85T" between the currency and
+  the number (look only; the figure is right): ERRORS M447, waiting for the user.
+- **Rollback:** edge-bff redeploy of `960ef248`; terminal-publisher CLI upload of the `apps/terminal-publisher` tree of
+  `41699d9f` (its next run drops `overview-stocks` from the index; the page's Custom then says the data is missing).
+
 ## 2026-11-15 — stockbit-updater deployed (index entities each round); orc-test-runner fill, catalog, publish; two Postgres restarts
 
 - orc-test-runner (DATABASE_URL set per run, removed: VAR_REMOVED each time): fill job `6f934738` (76 entities, PASS,
