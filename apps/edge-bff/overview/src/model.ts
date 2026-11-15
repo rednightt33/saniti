@@ -316,4 +316,3 @@ export function sectorLinesRange(series: Series, market: string, r: Range) {
     .sort((x, y) => (y.last ?? -Infinity) - (x.last ?? -Infinity) || x.name.localeCompare(y.name));
   return { start: d.base, end: d.last, lines, market: cumulative(series.index[market] || [], d.base, d.last) };
 }
-

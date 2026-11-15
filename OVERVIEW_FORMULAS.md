@@ -1,6 +1,6 @@
 # Rumus Market Overview (dev)
 
-<!-- explained-for: overview.py=28cfa7546645534fc8d6b9bba399d5ac, model.ts=8f7688f0855794c0e97a9a412b66169d, overview_stock_size=f451fc552b78a6174bc47b4e2a217293 -->
+<!-- explained-for: overview.py=28cfa7546645534fc8d6b9bba399d5ac, model.ts=05c9ed848905b7b6e2733dddf012d312, overview_stock_size=f451fc552b78a6174bc47b4e2a217293 -->
 
 Dokumen ini menjelaskan **setiap angka di halaman Market Overview** (tab "Overview" di EDGE) dengan bahasa sederhana
 dan contoh angka asli dev. Pakai dokumen ini saat ingin mengubah rumus, atau saat bertanya dari mana sebuah angka
@@ -409,7 +409,7 @@ Ditulis oleh `scripts/overview_formulas_doc.py --write` dari kode di repo; janga
 | Kode | Sumber | Sidik jari (md5) |
 |---|---|---|
 | `overview.py` | `apps/terminal-publisher/overview.py` (= `CODE` publisher) | `28cfa7546645534fc8d6b9bba399d5ac` |
-| `model.ts` | `apps/edge-bff/overview/src/model.ts` | `8f7688f0855794c0e97a9a412b66169d` |
+| `model.ts` | `apps/edge-bff/overview/src/model.ts` | `05c9ed848905b7b6e2733dddf012d312` |
 | `overview_stock_size` | isi fungsi di `database/migrations/20261115_020_overview_stock_size.sql` | `f451fc552b78a6174bc47b4e2a217293` |
 
 <!-- overview-live:end -->

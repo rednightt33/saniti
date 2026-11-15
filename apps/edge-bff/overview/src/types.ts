@@ -39,4 +39,3 @@ export interface StocksFile {
   schema: number; ticker: string[]; dates: string[]; fnet_dates: string[];
   close: (number | null)[][]; fnet: (number | null)[][];
 }
-
