@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-11-15 — stockbit-updater deployed (index entities each round); orc-test-runner fill, catalog, publish; two Postgres restarts
+
+- orc-test-runner (DATABASE_URL set per run, removed: VAR_REMOVED each time): fill job `6f934738` (76 entities, PASS,
+  13:58-18:13 UTC; started by hand after a scheduler of mine missed the 13:47 restart: it compared `True` with `true`);
+  read-back job (PASS); catalog APPLY (PASS); publish job `f64de936` (`verification/index_group_history/publish_job.py`,
+  terminal-publisher's code `f69eb9e3` = deployed `8a49b4c8`, its bucket and database variables as references):
+  `broker-range` 2024-2026 for the 43 indexes, 129 files planned, 172 written (101.6 MB); `verify` 442 files 0
+  mismatches. A first publish attempt stopped at SET_FAILED (CLI), nothing ran, no variable left.
+- Postgres restarts by `run_job.sh` (`"large_write": true`): 18:13:38 UTC after the fill, 18:41:38 UTC after the
+  publish (memory 1.97 and 1.99 GB, 0 user runs, edge-bff ready 200). The scheduled restart ran at 13:47 UTC.
+- stockbit-updater CLI upload `bbd5aa7f` (deploy.sh from `78d95ad4`) SUCCESS: after IHSG each round runs every other
+  entity of Feature_Index_Entity (`refresh.refresh_index_entities`); a failure is a round warning. A cron service: the
+  deploy ran no round (0 RUNNING). The next round needs a new STOCKBIT_TOKEN (expired 2026-11-10).
+- Rollback: stockbit-updater `deploy.sh` from `28c41268`; the INDEX rows of the 76 entities are separate tickers
+  (`DELETE ... WHERE ticker <> 'IHSG'` on the six tables, only with the user's approval).
+
 ## 2026-11-15 — market-sql-governor, market-python-sandbox, ai-data-coverage, telegram-monitor deployed (EXEC-INDEX-GROUP-HISTORY stages 7-8 code); orc-test-runner trial and catalog dry run
 
 - Merge of `claude/affectionate-shannon-qmsxxb` to `main` (`28c41268`, fast-forward; user go 2026-11-15 "Langsung go

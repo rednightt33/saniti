@@ -1,5 +1,27 @@
 # Database changelog
 
+## 2026-11-15 — INDEX features of 43 indexes and 33 groups (2024-01-02 on); catalog 20261115_004 — applied on dev
+
+- EXEC-INDEX-GROUP-HISTORY stages 6-7 (user go 2026-11-15 "Langsung go tahap 4-9"). `scripts/backfill_index_entities.py`
+  on orc-test-runner, job `6f934738` (`verification/index_group_history/jobs/fill_all.*`), VERDICT PASS in 15,233 s:
+  76 entities of Feature_Index_Entity (32 indexes, 11 IDX-IC sectors, 33 KONGLO groups), first fill, rows from
+  2024-01-02 to the last broker date 2026-11-09 (prices to 2026-11-13). Every entity passed before its write: the
+  universe members' sums equal stock Feature 05 for every month 2016-2026, collapsed = broker rows in the window,
+  independent Feature 02/03/06 checks; each year chunk read back and rerun idempotent.
+- Rows added (no existing row touched; IHSG unchanged): Feature 01/04 INDEX 29,008 each (43 priced entities),
+  Feature 02/05 INDEX 6,045,057 each, Feature 03/06 INDEX 116,616 each.
+- Independent read-back (`verification/index_group_history/readback_check.py`, job, VERDICT PASS): every entity starts
+  at 2024-01-02, groups have no price rows; GPRAJOGO, GSALIM, LQ45, IDXENERGY: the stored foreign cumulative net of
+  2024-01-02 (Regular) equals the members' raw foreign buy minus sell since 2016-01-04, and Feature 05 of 2026-11-09
+  equals the members' raw sums (value and broker/investor/board count).
+- Attempt `4dd6f307` (groups) stopped before any write (ERRORS M441: the independent check's running float sums).
+- Migration `20261115_004_index_entities_catalog.sql` (sha256 `4dff11b3…`) with the vocabulary sync, job DRYRUN
+  `77a5b9c6` then APPLY (`jobs/catalog_apply.*`): six INDEX descriptions (entity lists from Feature_Index_Entity, the
+  rule never to add tickers), IHSG-scope phrases replaced in Feature_Catalog and every copy (0 left), ticker rows,
+  Feature_Catalog v2 (255 rows), Table_Catalog rules; Feature_Vocabulary 198 INDEX entries rebuilt and synced (rerun
+  0), `AI_column_catalog.description_id` equal to the vocabulary (139 metric rows carry the overlap sentence). Feature
+  catalog audit PASS (660 verified). Read back on dev.
+
 ## 2026-11-15 — 43 indexes in IDX_Stock_Universe (20261115_002); price history of 5 of them — applied on dev
 
 - **Go:** user 2026-11-15 "go langkah 3" (EXEC-INDEX-GROUP-HISTORY).
