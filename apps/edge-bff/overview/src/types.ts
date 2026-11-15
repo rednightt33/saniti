@@ -33,3 +33,10 @@ export interface OverviewApi {
   index(): Promise<OverviewIndex>;
   file<T>(name: string, sha: string): Promise<T>;
 }
+/** F1 (user 2026-11-15 "1A ... 2 A"): overview-stocks, every stock's daily close (series dates) and Regular foreign net
+    (broker dates), its own ticker list so the page aligns by ticker. */
+export interface StocksFile {
+  schema: number; ticker: string[]; dates: string[]; fnet_dates: string[];
+  close: (number | null)[][]; fnet: (number | null)[][];
+}
+

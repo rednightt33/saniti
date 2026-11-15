@@ -4,7 +4,7 @@
    universe, period and metric. The state lives in the URL hash, as in the design. */
 import { OverviewError, cached } from './api.ts';
 import * as M from './model.ts';
-import type { Day, Meta, OverviewApi, OverviewIndex, Series } from './types.ts';
+import type { Day, Meta, OverviewApi, OverviewIndex, Series, StocksFile } from './types.ts';
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string, r: ParentNode = document) => r.querySelector(s) as T;
 const $$ = <T extends HTMLElement = HTMLElement>(s: string, r: ParentNode = document) => [...r.querySelectorAll(s)] as T[];
@@ -12,32 +12,45 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&a
 const DOT = ' · ';
 
 type Ema = 'EMA50' | 'EMA200';
-type Window = '60D' | '120D' | '1Y';
+type Window = '60D' | '120D' | '1Y' | 'C';
+type SectorP = M.SectorPeriod | 'C';
 interface State {
-  u: string; mm: M.MapMetric; cl: M.TilePeriod; per: M.IhsgPeriod; sp: M.SectorPeriod; brk: Ema; brp: Window;
+  u: string; mm: M.MapMetric; cl: M.TilePeriod; per: M.IhsgPeriod; sp: SectorP; brk: Ema; brp: Window;
   tmp: M.TilePeriod; ff: M.FlowPeriod; date: string; sel: string | null; open: boolean;
+  // F1: each panel's Custom range (period 'C'), in the hash as <key>r=YYYY-MM-DD_YYYY-MM-DD
+  clr: M.Range | null; spr: M.Range | null; brr: M.Range | null; tmr: M.Range | null; ffr: M.Range | null;
 }
 const ONE_OF: Record<string, string[]> = {
-  mm: ['perf', 'fb'], cl: ['1D', '5D', '1M'], per: ['1D', '5D', '1M', '1Y'], sp: ['20D', '60D', 'YTD', '1Y'], brk: ['EMA50', 'EMA200'],
-  brp: ['60D', '120D', '1Y'], tmp: ['1D', '5D', '1M'], ff: ['1D', '5D', '1M', '3M'],
+  mm: ['perf', 'fb'], cl: ['1D', '5D', '1M', 'C'], per: ['1D', '5D', '1M', '1Y'], sp: ['20D', '60D', 'YTD', '1Y', 'C'], brk: ['EMA50', 'EMA200'],
+  brp: ['60D', '120D', '1Y', 'C'], tmp: ['1D', '5D', '1M', 'C'], ff: ['1D', '5D', '1M', '3M', 'C'],
 };
-const WINDOW: Record<Window, number> = { '60D': 60, '120D': 120, '1Y': M.YEAR };
+const WINDOW: Record<string, number> = { '60D': 60, '120D': 120, '1Y': M.YEAR };
+/* F1 (user 2026-11-15: "yang berkaitan dengan period, kecuali IHSG, tambahkan "Custom" ... maksimal 1 tahun"; "1A ...
+   2 A"): the five panels' period keys, their range keys and their default when the hash names no usable range */
+const CUSTOM = { cl: 'clr', sp: 'spr', brp: 'brr', tmp: 'tmr', ff: 'ffr' } as const;
+type PKey = keyof typeof CUSTOM;
+const DEFAULT: Record<PKey, string> = { cl: '1D', sp: '60D', brp: '120D', tmp: '1D', ff: '1D' };
 
 export function start(api: OverviewApi, view: HTMLElement) {
   const files = cached(api);
   let index: OverviewIndex, meta: Meta, series: Series, day: Day, R: M.Row[] = [], U: M.Universe[] = [], end = -1;
   const q = new URLSearchParams(location.hash.slice(1));
   const pick = (k: string, dflt: string) => (ONE_OF[k].includes(q.get(k) || '') ? (q.get(k) as string) : dflt);
+  const range = (k: string): M.Range | null => { const m = /^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/.exec(q.get(k) || ''); return m ? { a: m[1], b: m[2] } : null };
   const ST: State = {
     u: q.get('u') || '', mm: pick('mm', 'perf') as M.MapMetric, cl: pick('cl', '1D') as M.TilePeriod, per: pick('per', '1D') as M.IhsgPeriod,
-    sp: pick('sp', '60D') as M.SectorPeriod, brk: pick('brk', 'EMA50') as Ema, brp: pick('brp', '120D') as Window,
+    sp: pick('sp', '60D') as SectorP, brk: pick('brk', 'EMA50') as Ema, brp: pick('brp', '120D') as Window,
     tmp: pick('tmp', '1D') as M.TilePeriod, ff: pick('ff', '1D') as M.FlowPeriod, date: '', sel: null, open: false,
+    clr: range('clr'), spr: range('spr'), brr: range('brr'), tmr: range('tmr'), ffr: range('ffr'),
   };
+  for (const k of Object.keys(CUSTOM) as PKey[]) if ((ST as any)[k] === 'C' && !(ST as any)[CUSTOM[k]]) (ST as any)[k] = DEFAULT[k];
   const persist = () => {
     const p = new URLSearchParams();
     for (const k of ['u', 'mm', 'cl', 'per', 'sp', 'brk', 'brp', 'tmp', 'ff'] as const) p.set(k, ST[k]);
+    for (const k of Object.keys(CUSTOM) as PKey[]) { const r = (ST as any)[CUSTOM[k]] as M.Range | null; if ((ST as any)[k] === 'C' && r) p.set(CUSTOM[k], `${r.a}_${r.b}`) }
     history.replaceState(null, '', '#' + p.toString());
   };
+  const pl = (p: string) => (p === 'C' ? 'Custom' : p);     // a period's name in a label
 
   let toastT = 0;
   const toast = (m: string) => { const t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = window.setTimeout(() => (t.hidden = true), 3200) };
@@ -68,7 +81,25 @@ export function start(api: OverviewApi, view: HTMLElement) {
       U = M.universes(meta);
       if (!U.some(u => u.key === ST.u)) ST.u = M.defaultUniverse(meta);
     }
+    if (sha(was, 'overview-stocks') !== sha(index, 'overview-stocks')) stocks = null;
   }
+  /* F1: overview-stocks (about 1 MB) is read only when a panel shows a Custom range; until it is in, the panel says so */
+  let stocks: StocksFile | null = null, stocksLoading: Promise<void> | null = null;
+  function ensureStocks(after: () => void) {
+    if (!stocksLoading) {
+      stocksLoading = get<StocksFile>('overview-stocks').then(d => { stocks = d }).catch(() => {
+        toast('The daily history for Custom periods could not be read. Try again in a minute.');
+      }).finally(() => { stocksLoading = null });
+    }
+    void stocksLoading?.then(after);
+  }
+  const waiting = '<div class="cv-empty">Loading the daily history of every stock…</div>';
+  /** the rows of a period: the day file's for a fixed period, the history's for a Custom range (null while it loads) */
+  const rowsFor = (p: string, r: M.Range | null, after: () => void): M.Row[] | null => {
+    if (p !== 'C' || !r) return R;
+    if (!stocks) { ensureStocks(after); return null }
+    return M.customRows(R, stocks, r);
+  };
   const dayDates = () => meta.dates.filter(d => index.files[`overview-day-${d}`]);
   const uni = () => U.find(u => u.key === ST.u) || U[0];
   const inUni = () => R.filter(M.inUniverse(uni()));
@@ -167,16 +198,23 @@ export function start(api: OverviewApi, view: HTMLElement) {
   function renderMapBar() {
     const u = uni(), n = inUni().filter(r => r.size != null && r.size > 0).length;
     // the foreign figures are of the broker date: named when it lags the price date (QA 2026-11-15)
-    const md = marketDate(), fbNote = ST.mm === 'fb' && lagging() && md ? `foreign net to ${esc(M.dateLabel(md))}${DOT}` : '';
+    const md = marketDate(), fbNote = (ST.cl === 'C' && ST.clr ? `${esc(M.rangeLabel(ST.clr.a, ST.clr.b))}${DOT}` : '')
+      + (ST.mm === 'fb' && lagging() && md ? `foreign net to ${esc(M.dateLabel(md))}${DOT}` : '');
     $('#tbar').innerHTML = `<span>Metric</span>${seg('mm', [['perf', 'Performance'], ['fb', 'Foreign buy']], 'Market map metric')}<span class="sp"></span><span class="sum">${fbNote}${n} stocks${DOT}size: <b>${esc(M.sizeLabel(day.size_basis))}</b></span>`;
-    $('#tper').innerHTML = `<span>Period</span>${seg('cl', [['1D', '1D'], ['5D', '5D'], ['1M', '1M']], 'Market map period')}`;
+    $('#tper').innerHTML = `<span>Period</span>${seg('cl', [['1D', '1D'], ['5D', '5D'], ['1M', '1M'], ['C', 'Custom']], 'Market map period')}`;
     $('#univ').innerHTML = `<b>${esc(u.label)}</b><span>${esc(u.kind)}</span>`;
     $('#uni').setAttribute('aria-expanded', String(ST.open));
   }
   function renderTree() {
     const el = tm(), W = el.clientWidth, H = el.clientHeight;
     if (!W || !H) return;
-    const groups = M.mapGroups(inUni(), ST.mm, ST.cl);
+    const all = rowsFor(ST.cl, ST.clr, renderTree);
+    if (!all) { el.innerHTML = waiting; return }
+    const keep = M.inUniverse(uni()), rows = all.filter(keep);
+    // a Custom range's colour scale: its trading days (Performance) or its broker dates (Foreign buy)
+    const span = ST.cl === 'C' && ST.clr && stocks
+      ? (ST.mm === 'fb' ? stocks.fnet_dates.filter(d => d >= ST.clr!.a && d <= ST.clr!.b).length : M.rangeIn(stocks.dates, ST.clr)?.n) : undefined;
+    const groups = M.mapGroups(rows, ST.mm, ST.cl, span);
     if (!groups.length) { el.innerHTML = `<div class="tm-empty">No stock of ${esc(uni().label)} has a size on ${esc(M.dateLabel(day.date))}. Pick another universe.</div>`; return }
     const fb = ST.mm === 'fb', aggTxt = (v: number | null) => (fb ? M.amount(v) : M.pct(v));
     let html = '', onK: M.Rect<M.Tile> | null = null, count = 0;
@@ -196,11 +234,11 @@ export function start(api: OverviewApi, view: HTMLElement) {
       }
     }
     if (onK && !ST.open) {
-      const r = onK.item.r, p = ST.cl, rv = r.ret[p], fv = r.fnet[p], md = marketDate(), lag = lagging() && !!md;
+      const r = onK.item.r, p = ST.cl, rv = r.ret[p] ?? null, fv = r.fnet[p] ?? null, md = marketDate(), lag = lagging() && !!md;
       html += `<div class="pop" role="dialog" aria-label="${esc(r.t)}">
         <div class="ph"><b>${esc(r.t)}</b><span class="muted" title="${esc(M.sizeLabel(day.size_basis))}">${esc(M.sizeText(day.size_basis, r.size))}</span></div>
-        <div class="kv"><span>Return (${p})</span><b class="${M.cls(rv)}">${M.pct(rv)}</b></div>
-        <div class="kv"><span title="Regular board">Foreign net (${p})</span><b class="${M.cls(fv)}">${M.rp(fv, true)}</b></div>${lag ? `
+        <div class="kv"><span>Return (${pl(p)})</span><b class="${M.cls(rv)}">${M.pct(rv)}</b></div>
+        <div class="kv"><span title="Regular board">Foreign net (${pl(p)})</span><b class="${M.cls(fv)}">${M.rp(fv, true)}</b></div>${lag ? `
         <div class="pnote">Foreign net uses broker data to ${esc(M.dateLabel(md, true))}</div>` : ''}
         <div class="btns"><button class="btn sm primary" data-act="term">Open in Terminal</button></div></div>`;
     }
@@ -230,8 +268,8 @@ export function start(api: OverviewApi, view: HTMLElement) {
     const k = tiles.get(t); if (!k || t === ST.sel) return hideTileTip();
     const r = k.r, p = ST.cl, md = marketDate();
     tileTip.innerHTML = `<span class="t">${esc(r.t)}${DOT}${esc(r.name)}</span>`
-      + `<div class="r"><span>Return (${p})</span><b class="${M.cls(r.ret[p])}">${M.pct(r.ret[p])}</b></div>`
-      + `<div class="r"><span>Foreign net (${p}${lagging() && md ? ', ' + esc(M.dateLabel(md)) : ''})</span><b class="${M.cls(r.fnet[p])}">${M.rp(r.fnet[p], true)}</b></div>`
+      + `<div class="r"><span>Return (${pl(p)})</span><b class="${M.cls(r.ret[p])}">${M.pct(r.ret[p])}</b></div>`
+      + `<div class="r"><span>Foreign net (${pl(p)}${lagging() && md ? ', ' + esc(M.dateLabel(md)) : ''})</span><b class="${M.cls(r.fnet[p])}">${M.rp(r.fnet[p], true)}</b></div>`
       + `<div class="r"><span>Size</span><b>${esc(M.sizeText(day.size_basis, r.size))}</b></div>`;
     tileTip.hidden = false;
     const w = tileTip.offsetWidth, h = tileTip.offsetHeight, G = 8;
@@ -383,7 +421,10 @@ export function start(api: OverviewApi, view: HTMLElement) {
   const PAL = ['var(--green)', 'var(--navy)', 'var(--red)', 'var(--amber)'];
   let hl: string | null = null, drawSectors = () => {};
   function renderSectors() {
-    const box = $('#spb'), sl = M.sectorLines(series, mk(), end, ST.sp), lines = sl.lines, dates = series.dates.slice(sl.start, end + 1);
+    const box = $('#spb');
+    const sl = ST.sp === 'C' && ST.spr ? M.sectorLinesRange(series, mk(), ST.spr) : { ...M.sectorLines(series, mk(), end, ST.sp as M.SectorPeriod), end };
+    if (!sl) { box.innerHTML = '<div class="cv-empty">No trading day in this Custom range. Pick another.</div>'; return }
+    const lines = sl.lines, dates = series.dates.slice(sl.start, sl.end + 1);
     const mx = Math.max(...lines.map(x => Math.abs(x.last ?? 0))) || 1;
     box.innerHTML = `<div class="cb"><div class="cv"></div><div class="bl">${lines.map(x => {
       const v = x.last, w = v == null ? 0 : (Math.abs(v) / mx) * 50;
@@ -395,7 +436,7 @@ export function start(api: OverviewApi, view: HTMLElement) {
     });
     const known = lines.filter(x => x.last != null), focus = known.length >= 4 ? new Set([known[0].name, known[1].name, known[known.length - 2].name, known[known.length - 1].name]) : new Set(known.map(x => x.name));
     const mkLast = M.lastKnown(sl.market);
-    const label = `Sector Performance ${ST.sp}, ${M.rangeLabel(dates[0], dates[dates.length - 1])}: ` + known.map(x => `${x.name} ${M.pct(x.last, 1)}`).join(', ')
+    const label = `Sector Performance ${pl(ST.sp)}, ${M.rangeLabel(dates[0], dates[dates.length - 1])}: ` + known.map(x => `${x.name} ${M.pct(x.last, 1)}`).join(', ')
       + `; ${mk()} ${M.pct(mkLast, 1)}`;
     drawSectors = () => {
       const h = hl ? new Set([hl]) : focus; let ci = 0;
@@ -411,13 +452,15 @@ export function start(api: OverviewApi, view: HTMLElement) {
   let drawBreadth = () => {};
   function renderBreadth() {
     const box = $('#brpb'), all = ST.brk === 'EMA50' ? series.above_ema50 : series.above_ema200;
-    const start = M.periodStart(series.dates, end, WINDOW[ST.brp]), a = all.slice(start, end + 1), dates = series.dates.slice(start, end + 1);
-    const v = all[end], v5 = end >= 5 ? all[end - 5] : null, d = v != null && v5 != null ? v - v5 : null, col = ST.brk === 'EMA200' ? 'var(--text)' : 'var(--navy)';
+    const cr = ST.brp === 'C' && ST.brr ? M.rangeIn(series.dates, ST.brr) : null;
+    const start = cr ? cr.first : M.periodStart(series.dates, end, WINDOW[ST.brp]), stop = cr ? cr.last : end;
+    const a = all.slice(start, stop + 1), dates = series.dates.slice(start, stop + 1);
+    const v = all[stop], v5 = stop >= 5 ? all[stop - 5] : null, d = v != null && v5 != null ? v - v5 : null, col = ST.brk === 'EMA200' ? 'var(--text)' : 'var(--navy)';
     box.innerHTML = `<div class="big"><b>${v == null ? '—' : Math.round(v) + '%'}</b><span>above ${ST.brk}${d == null ? '' : `${DOT}<span class="${M.cls(d)}">${M.sign(d)}${Math.abs(d).toFixed(1)} pp</span> vs 5 sessions`}</span></div><div class="cv"></div>`;
     $$('#brpk button').forEach(x => { const on = x.dataset.k === ST.brk; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)) });
     $$('#brpp button').forEach(x => { const on = x.dataset.p === ST.brp; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)) });
     const fl = (x: number) => Array(a.length).fill(x);
-    const label = `Stocks above ${ST.brk}, ${M.rangeLabel(dates[0], dates[dates.length - 1])}: ${v == null ? 'no data' : v.toFixed(1) + '%'} on ${M.dateLabel(day.date)}`
+    const label = `Stocks above ${ST.brk}, ${M.rangeLabel(dates[0], dates[dates.length - 1])}: ${v == null ? 'no data' : v.toFixed(1) + '%'} on ${M.dateLabel(series.dates[stop])}`
       + (d == null ? '' : `, ${M.sign(d)}${Math.abs(d).toFixed(1)} points against 5 sessions before`);
     drawBreadth = () => lineChart($('.cv', box), { label, dates, range: [0, 100], ticks: [0, 30, 50, 70, 100], base: 50, fy: x => x + '%', ft: x => x.toFixed(1) + '%',
       bands: [{ lo: fl(70), hi: fl(100), fill: 'rgba(8,153,129,.07)' }, { lo: fl(0), hi: fl(30), fill: 'rgba(242,54,69,.07)' }, { lo: fl(0), hi: a, fill: 'rgba(23,52,140,.08)' }],
@@ -428,19 +471,27 @@ export function start(api: OverviewApi, view: HTMLElement) {
   /* ===================== Top Movers: 5 up and 5 down of the whole market (user 2026-11-15: "treemap itu hanya kalau toggle
      ke LQ45 ... hanya isolated di treemap saja, tidak merubah % Above EMA, Top Movers dll") ===================== */
   function renderMovers() {
-    const m = M.movers(R, ST.tmp), mx = Math.max(...[...m.up, ...m.down].map(r => Math.abs(r.ret[ST.tmp] as number))) || 1;
+    const rows = rowsFor(ST.tmp, ST.tmr, renderMovers);
+    $$('#tmvp button').forEach(x => { const on = x.dataset.p === ST.tmp; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)) });
+    if (!rows) { $('#tmvb').innerHTML = waiting; return }
+    const m = M.movers(rows, ST.tmp), mx = Math.max(...[...m.up, ...m.down].map(r => Math.abs(r.ret[ST.tmp] as number))) || 1;
     const row = (r: M.Row) => { const v = r.ret[ST.tmp] as number; return `<div class="tmv-r" tabindex="0" role="button" data-t="${esc(r.t)}" aria-label="${esc(r.t)}, ${esc(r.name)}, ${M.pct(v)}, open in Terminal" title="${esc(r.t)}${DOT}${esc(r.name)}${DOT}${M.pct(v)}"><span class="tk">${esc(r.t)}</span><div class="tmv-t"><i class="${v >= 0 ? 'pos' : 'neg'}" style="width:${Math.max(1.5, (Math.abs(v) / mx) * 50)}%"></i></div><b class="${v >= 0 ? 'pos' : 'neg'}">${M.pct(v)}</b></div>` };
-    $('#tmvb').innerHTML = `<div class="tmv-l"><div class="tmv-g" aria-label="Top gainers">${m.up.map(row).join('') || '<div class="tmv-none">No stock up</div>'}</div><div class="tmv-g" aria-label="Top losers">${m.down.map(row).join('') || '<div class="tmv-none">No stock down</div>'}</div></div><div class="tmv-f"><span>${m.count} stocks${DOT}${m.ups} up / ${m.downs} down</span><span>All stocks</span></div>`;
+    $('#tmvb').innerHTML = `<div class="tmv-l"><div class="tmv-g" aria-label="Top gainers">${m.up.map(row).join('') || '<div class="tmv-none">No stock up</div>'}</div><div class="tmv-g" aria-label="Top losers">${m.down.map(row).join('') || '<div class="tmv-none">No stock down</div>'}</div></div><div class="tmv-f"><span>${m.count} stocks${DOT}${m.ups} up / ${m.downs} down</span><span>${ST.tmp === 'C' && ST.tmr ? esc(M.rangeLabel(ST.tmr.a, ST.tmr.b)) : 'All stocks'}</span></div>`;
     $('#tmvs').textContent = 'All stocks' + DOT + 'by return';
     $$('#tmvp button').forEach(x => { const on = x.dataset.p === ST.tmp; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)) });
   }
 
   /* ===================== Foreign Flow: the market's foreign buying and selling and the largest net buyers and sellers ===================== */
   function renderFlow() {
-    const out = $('#ffb'), m = day.market, per = m?.periods?.[ST.ff] || null;
+    const out = $('#ffb'), m = day.market;
     $$('#ffp button').forEach(b => { const on = b.dataset.v === ST.ff; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)) });
-    if (!m || !per) { out.innerHTML = `<div class="ff-none">No broker data for ${esc(ST.ff)} up to ${esc(M.dateLabel(day.date))}. It appears after the next broker update.</div>`; return }
-    const top = M.foreignTop(R, ST.ff), mx = Math.max(...top.buy.map(r => r.fnet[ST.ff] as number), ...top.sell.map(r => -(r.fnet[ST.ff] as number)), 1);
+    const custom = ST.ff === 'C' && ST.ffr ? M.flowRange(series, ST.ffr) : null;
+    const per = ST.ff === 'C' ? custom : m?.periods?.[ST.ff] || null;
+    if (!m || !per) { out.innerHTML = `<div class="ff-none">No broker data for ${ST.ff === 'C' && ST.ffr ? esc(M.rangeLabel(ST.ffr.a, ST.ffr.b)) : esc(ST.ff) + ' up to ' + esc(M.dateLabel(day.date))}. It appears after the next broker update.</div>`; return }
+    const rows = rowsFor(ST.ff, ST.ffr, renderFlow);
+    if (!rows) { out.innerHTML = waiting; return }
+    const to = custom ? custom.to : m.date, over = custom && ST.ffr && ST.ffr.b > custom.to;
+    const top = M.foreignTop(rows, ST.ff), mx = Math.max(...top.buy.map(r => r.fnet[ST.ff] as number), ...top.sell.map(r => -(r.fnet[ST.ff] as number)), 1);
     const W = (v: number) => Math.max(3, (Math.abs(v) / mx) * 100).toFixed(1) + '%', pb = per.buy + per.sell > 0 ? (per.buy / (per.buy + per.sell)) * 100 : 50;
     const pairs = Array.from({ length: Math.max(top.buy.length, top.sell.length) }, (_, i) => [top.buy[i], top.sell[i]] as const);
     out.innerHTML = `<div class="pd-kpis"><div class="kpi"><span>Foreign buy</span><b>${M.rp(per.buy)}</b></div><div class="kpi"><span>Foreign sell</span><b>${M.rp(per.sell)}</b></div><div class="kpi"><span>Net</span><b class="${M.cls(per.net)}">${M.rp(per.net, true)}</b></div></div>
@@ -448,7 +499,42 @@ export function start(api: OverviewApi, view: HTMLElement) {
       <div class="ff-sl"><span>Buy ${pb.toFixed(1)}%</span><span>Sell ${(100 - pb).toFixed(1)}%</span></div>
       <div class="ff-ch"><span>Net buy</span><span>Net sell</span></div>
       ${pairs.map(([b, s]) => `<div class="ff-r">${b ? `<span class="tk">${esc(b.t)}</span><b class="up">${M.amount(b.fnet[ST.ff])}</b><div class="bar l"><i style="width:${W(b.fnet[ST.ff] as number)}"></i></div>` : '<span class="tk"></span><b></b><div class="bar l"></div>'}${s ? `<div class="bar r"><i style="width:${W(s.fnet[ST.ff] as number)}"></i></div><b class="down s">${M.amount(s.fnet[ST.ff])}</b><span class="tk r">${esc(s.t)}</span>` : '<div class="bar r"></div><b class="down s"></b><span class="tk r"></span>'}</div>`).join('')}
-      <div class="ff-f"><span>Regular board${DOT}${per.from === m.date ? esc(M.dateLabel(m.date)) : `${esc(M.dateLabel(per.from))} – ${esc(M.dateLabel(m.date))}`}</span><span>Market net <b class="${M.cls(per.net)}">${M.rp(per.net, true)}</b></span></div>`;
+      <div class="ff-f"><span>Regular board${DOT}${esc(M.rangeLabel(per.from, to))}${over ? ' (broker data to ' + esc(M.dateLabel(to)) + ')' : ''}</span><span>Market net <b class="${M.cls(per.net)}">${M.rp(per.net, true)}</b></span></div>`;
+  }
+
+  /* ===================== F1: the Custom period popover (one, placed under the Custom button pressed) ===================== */
+  const cpop = document.createElement('div');
+  cpop.className = 'pop cpop'; cpop.setAttribute('role', 'dialog'); cpop.setAttribute('aria-label', 'Custom period'); cpop.hidden = true;
+  document.body.append(cpop);
+  let cpopFor: { key: PKey; after: () => void; button: HTMLElement } | null = null;
+  const closeCustom = (focus = false) => { cpop.hidden = true; if (focus) cpopFor?.button.focus(); cpopFor = null };
+  function openCustom(key: PKey, button: HTMLElement, after: () => void) {
+    const dates = series.dates, min = key === 'brp' ? dates[0] : dates[1], max = dates[dates.length - 1];
+    const was = (ST as any)[CUSTOM[key]] as M.Range | null, e = M.seriesEnd(series, ST.date);
+    const r = was || { a: dates[Math.max(key === 'brp' ? 0 : 1, e - 20)], b: dates[e] };
+    cpop.innerHTML = `<div class="ph"><b>Custom period</b></div>
+      <div class="cp-f"><label>From<input type="date" id="cpa" min="${min}" max="${max}" value="${r.a}"></label>
+      <label>To<input type="date" id="cpb" min="${min}" max="${max}" value="${r.b}"></label></div>
+      <div class="cp-n">At most 1 year, from ${esc(M.dateLabel(min, false, true))}. The range runs from its first to its last trading day.</div>
+      <div class="cp-err" role="alert" hidden></div>
+      <div class="btns"><button type="button" class="btn sm" data-act="cancel">Cancel</button><button type="button" class="btn sm primary" data-act="apply">Apply</button></div>`;
+    cpopFor = { key, after, button };
+    cpop.hidden = false;
+    const b = button.getBoundingClientRect(), w = cpop.offsetWidth, h = cpop.offsetHeight, G = 8;
+    cpop.style.left = Math.max(G, Math.min(innerWidth - w - G, b.right - w)) + 'px';
+    cpop.style.top = Math.max(G, b.bottom + 6 + h > innerHeight - G ? b.top - h - 6 : b.bottom + 6) + 'px';
+    if (!matchMedia('(pointer: coarse)').matches) ($('#cpa', cpop) as HTMLInputElement).focus();
+  }
+  function applyCustom() {
+    if (!cpopFor) return;
+    const a = ($('#cpa', cpop) as HTMLInputElement).value, b = ($('#cpb', cpop) as HTMLInputElement).value;
+    const dates = series.dates, min = cpopFor.key === 'brp' ? dates[0] : dates[1], max = dates[dates.length - 1];
+    const bad = M.rangeProblem({ a, b }, min, max) ?? (M.rangeIn(dates, { a, b }) ? null : 'There is no trading day in this range. Pick another.');
+    const err = $('.cp-err', cpop);
+    if (bad) { err.textContent = bad; err.hidden = false; return }
+    const { key, after } = cpopFor;
+    (ST as any)[key] = 'C'; (ST as any)[CUSTOM[key]] = { a, b };
+    persist(); closeCustom(true); after();
   }
 
   /* ===================== the Terminal (as the Radar's: ml.symbol and the shell's edge-nav, ERRORS M425) ===================== */
@@ -489,9 +575,11 @@ export function start(api: OverviewApi, view: HTMLElement) {
 
   /* ===================== events (bound once; the containers stay, their content is redrawn) ===================== */
   function bind() {
+    const mapAfter = () => { renderMapBar(); renderTree(); fit() };
     const tbarClick = (e: Event) => {
       const b = (e.target as HTMLElement).closest('.seg button') as HTMLElement; if (!b) return;
       const k = (b.parentElement as HTMLElement).dataset.k as keyof State;
+      if (b.dataset.v === 'C') { e.stopPropagation(); openCustom('cl', b, mapAfter); return }
       (ST as any)[k] = b.dataset.v; persist(); renderMapBar(); renderTree();
     };
     $('#tbar').addEventListener('click', tbarClick);
@@ -540,8 +628,14 @@ export function start(api: OverviewApi, view: HTMLElement) {
     });
     const periodClick = (id: string, k: keyof State, attr: string, after: () => void) => $(id).addEventListener('click', e => {
       const b = (e.target as HTMLElement).closest('button') as HTMLElement; if (!b) return;
+      if (b.dataset[attr] === 'C' && k in CUSTOM) { e.stopPropagation(); openCustom(k as PKey, b, after); return }
       (ST as any)[k] = b.dataset[attr]; persist(); after();
     });
+    cpop.addEventListener('click', e => {
+      const act = (e.target as HTMLElement).closest('[data-act]') as HTMLElement | null;
+      if (act?.dataset.act === 'apply') applyCustom(); else if (act?.dataset.act === 'cancel') closeCustom(true);
+    });
+    cpop.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyCustom() } });
     periodClick('#ihp', 'per', 'v', () => { renderIhsg(); fit() });
     periodClick('#spp', 'sp', 'p', renderSectors);
     periodClick('#brpk', 'brk', 'k', renderBreadth);
@@ -559,7 +653,7 @@ export function start(api: OverviewApi, view: HTMLElement) {
     $('#kpis').addEventListener('focusout', hideTip);
     view.addEventListener('scroll', () => { hideTip(); hideTileTip() }, { passive: true });
     // a tap in the shell around this frame closes this page's menus too (QA 2026-11-15)
-    const closeAll = () => { hideTip(); hideTileTip(); if (!$('#datepop').hidden) dateMenu(false); if (ST.open) setUniMenu(false); if (ST.sel) { ST.sel = null; renderTree() } };
+    const closeAll = () => { hideTip(); hideTileTip(); closeCustom(); if (!$('#datepop').hidden) dateMenu(false); if (ST.open) setUniMenu(false); if (ST.sel) { ST.sel = null; renderTree() } };
     if (parent !== window) {
       try {
         parent.document.addEventListener('pointerdown', closeAll);
@@ -569,11 +663,13 @@ export function start(api: OverviewApi, view: HTMLElement) {
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
       hideTip();
+      if (!cpop.hidden) { closeCustom(true); return }
       if (!$('#datepop').hidden) { dateMenu(false); $('#datebtn').focus(); return }
       if (ST.open) { setUniMenu(false); $('#uni').focus(); return }
       if (ST.sel) { const t = ST.sel; ST.sel = null; renderTree(); (tm().querySelector(`.tile[data-t="${CSS.escape(t)}"]`) as HTMLElement | null)?.focus({ preventScroll: true }) }
     });
     document.addEventListener('click', e => {
+      if (!cpop.hidden && !cpop.contains(e.target as Node)) closeCustom();
       if (!$('#datepop').hidden && !$('#datepop').contains(e.target as Node)) dateMenu(false);
       if (ST.open && !$('#unipop').contains(e.target as Node)) setUniMenu(false);
       if (ST.sel && !e.composedPath().includes(tm())) { ST.sel = null; renderTree() }   // a click outside the map closes its popover

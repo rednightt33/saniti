@@ -796,3 +796,12 @@ svg{display:block;flex:none}
 .chb,:is(.secp,.brp) .cv{touch-action:pan-y}
 /* P4: the tile tooltip (the KPI tooltip's look), placed by app.ts */
 .ttip{position:fixed;z-index:var(--z-pop);pointer-events:none;max-width:260px}
+/* F1: the Custom period popover (placed by app.ts under the button pressed) */
+.cpop{position:fixed;z-index:var(--z-pop);width:272px;padding:var(--s-5) var(--s-6);box-shadow:var(--shadow-lg)}
+.cpop .cp-f{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-4);margin:var(--s-4) 0 var(--s-3)}
+.cpop label{display:flex;flex-direction:column;gap:2px;font-size:var(--fs-xs);color:var(--text-3)}
+.cpop input{width:100%;min-width:0;height:var(--h-md);padding:0 var(--s-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text);font:inherit;font-size:var(--fs-12)}
+.cpop .cp-n{font-size:var(--fs-xs);color:var(--text-3);line-height:1.4}
+.cpop .cp-err{margin-top:var(--s-3);font-size:var(--fs-xs);color:var(--red);line-height:1.4}
+.cpop .btns{display:flex;justify-content:flex-end;gap:var(--s-3);margin-top:var(--s-4)}
+@media (pointer:coarse){.cpop input{font-size:16px}}

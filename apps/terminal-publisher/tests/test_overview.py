@@ -45,7 +45,8 @@ class OverviewConn(FakeConn):
         o = overview
         if sql in (o.PROBE_SQL, o.MARKET_SQL, o.DATES_SQL, o.STAMP_SQL, o.FEATURE_DATES_SQL, o.F04_DATES_SQL, o.SIZE_FN_SQL,
                    o.STOCKS_SQL, o.SECTORS_SQL, o.CLOSES_SQL, o.BREADTH_SQL, o.MARKET_FLOW_SQL, o.DAY_SQL, o.SIZE_SQL,
-                   o.STOCK_FLOW_SQL, o.INTRADAY_SQL, o.FP_PRICE_SQL, o.FP_F01_SQL, o.FP_F04_SQL, o.FP_F06_SQL, o.FP_BARS_SQL):
+                   o.STOCK_FLOW_SQL, o.INTRADAY_SQL, o.FP_PRICE_SQL, o.FP_F01_SQL, o.FP_F04_SQL, o.FP_F06_SQL, o.FP_BARS_SQL,
+                   o.STOCK_CLOSES_SQL, o.STOCK_FNET_SQL, o.TICKER_CLOSES_SQL, o.TICKER_FNET_SQL):
             self.asked.append((sql, params))
         if sql == o.PROBE_SQL:
             return [(self.ov_tables,)]
@@ -71,6 +72,16 @@ class OverviewConn(FakeConn):
                     for i, d in enumerate(self.dates) if d in params[0]]
         if sql == o.FP_F06_SQL:
             return [(b, v('f06', b)) for b in params[0]]
+        st = lambda t, d: 100.0 + 10 * [x for x, _, _ in self.stocks].index(t) + self.dates.index(d) + self.ver.get(('price', d), 0)
+        sf = lambda t, d: 1e9 * (1 + [x for x, _, _ in self.stocks].index(t)) - self.ver.get(('f06', d), 0)
+        if sql == o.STOCK_CLOSES_SQL:
+            return [(t, d, st(t, d)) for d in params[0] if d in self.dates for t, _, _ in self.stocks]
+        if sql == o.STOCK_FNET_SQL:
+            return [(t, d, sf(t, d)) for d in params[0] if d in [r[0] for r in self.flow] for t, _, _ in self.stocks]
+        if sql == o.TICKER_CLOSES_SQL:
+            return [(t, d, st(t, d)) for t in params[0] for d in self.dates if params[1] <= d <= params[2]]
+        if sql == o.TICKER_FNET_SQL:
+            return [(t, r[0], sf(t, r[0])) for t in params[0] for r in self.flow if params[1] <= r[0] <= params[2]]
         if sql == o.FP_BARS_SQL:
             return [(d, tf, v('bars', d)) for d in params[1] if d in self.dates and d not in self.no_bars for tf in ('5m', '1h')]
         if sql == o.SECTORS_SQL:
@@ -131,7 +142,7 @@ def test_every_file_is_content_keyed_and_indexed_with_what_the_next_run_reuses(s
     state = bucket.get_json('state.json')
     index = state['overview']
     days = [f'overview-day-{d}' for d in MARKET_DATES[-5:]]
-    assert sorted(index) == sorted(['overview-meta', 'overview-series', *days])
+    assert sorted(index) == sorted(['overview-meta', 'overview-series', 'overview-stocks', *days])
     for name, e in index.items():
         assert overview.NAME.fullmatch(name)
         assert re.fullmatch(rf'v1/overview/{name}\.{e["sha256"][:16]}\.json\.gz', e['key'])
@@ -355,3 +366,47 @@ def test_a_date_leaving_the_window_rebuilds_nothing(small):
     conn.asked = []
     pub.Publisher(conn, bucket, today=TODAY).run('daily')
     assert built(conn) == ['2026-10-30']
+
+
+def asked_dates(conn, sql):
+    return sorted({d for s, p in conn.asked if s == sql for d in p[0]})
+
+
+def test_overview_stocks_holds_every_stocks_daily_close_and_foreign_net(small):
+    """F1 (user 2026-11-15: "1A ... 2 A"): the page's Custom periods read overview-stocks."""
+    _, conn, bucket = run()
+    index = bucket.get_json('state.json')['overview']
+    st = doc(bucket, index['overview-stocks'])
+    assert st['ticker'] == ['BBCA', 'TLKM', 'ZZZZ'] and st['dates'] == MARKET_DATES[-10:]
+    assert st['fnet_dates'] == [r[0] for r in conn.flow if r[0] >= MARKET_DATES[-10]]
+    assert st['close'][1][0] == 100.0 + 10 + MARKET_DATES.index(MARKET_DATES[-10]) and st['fnet'][0][-1] == 1e9
+    assert asked_dates(conn, overview.STOCK_CLOSES_SQL) == MARKET_DATES[-10:]          # the first run reads all
+
+
+def test_a_daily_run_reuses_overview_stocks_and_reads_only_the_window_new_dates_and_new_stocks(small):
+    _, conn, bucket = run()
+    conn.dates.append('2026-10-29')
+    conn.ver[('price', '2026-10-27')] = 5                                      # a price recovery in the window
+    conn.asked = []
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    assert asked_dates(conn, overview.STOCK_CLOSES_SQL) == ['2026-10-27', '2026-10-28', '2026-10-29']
+    assert asked_dates(conn, overview.STOCK_FNET_SQL) == [conn.flow[-1][0]]       # the window's broker date
+    st = doc(bucket, bucket.get_json('state.json')['overview']['overview-stocks'])
+    assert st['dates'][-1] == '2026-10-29' and st['close'][0][st['dates'].index('2026-10-27')] == 100.0 + 18 + 5
+    conn.stocks = [('AAAA', 'New Listing', 'Financials'), *STOCKS]              # a listing: read by ticker
+    conn.asked = []
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    assert [p[0] for s, p in conn.asked if s == overview.TICKER_CLOSES_SQL] == [['AAAA']]
+    st = doc(bucket, bucket.get_json('state.json')['overview']['overview-stocks'])
+    assert st['ticker'][0] == 'AAAA' and None not in st['close'][0] and st['close'][1] == st['close'][1]
+
+
+def test_the_manual_mode_reads_the_history_whole_and_a_code_change_reuses_it(small, monkeypatch):
+    _, conn, bucket = run()
+    monkeypatch.setattr(overview, 'CODE', 'another-formula')
+    conn.asked = []
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')
+    assert asked_dates(conn, overview.STOCK_CLOSES_SQL) == MARKET_DATES[-3:]      # raw rows reused across a formula change
+    conn.asked = []
+    pub.Publisher(conn, bucket, today=TODAY).run('overview')
+    assert asked_dates(conn, overview.STOCK_CLOSES_SQL) == MARKET_DATES[-10:]

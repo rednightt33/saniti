@@ -14403,6 +14403,7 @@ toggle ke LQ45 misalkan, maka hanya isoalted di treemap saja, tidak merubah % Ab
 Eksekusi daftar A–F, B2, G(1B) dan F1: **go user 2026-11-15: "go, kerjakan 1 lalu 2"** (1 = perbaikan A–F, B2, menu ☰,
 Top Movers seluruh pasar; 2 = F1 Custom). Dikerjakan di branch; setiap deploy ditanyakan dulu.
 Kemajuan: perbaikan 1 selesai di branch (ERRORS M443; halaman 17 tes, edge-bff 368 tes, cek fixture di 1440/1152/390/360 px); deploy edge-bff menunggu go. Lalu F1.
+Kemajuan F1: selesai di branch. Publisher menulis `overview-stocks` (penutupan dan net asing harian per saham, dipakai ulang antar-lari; penuh hanya pada lari pertama/mode manual: ±1,6 GB Feature 06), halaman punya tombol Custom di 5 panel (rentang dari–sampai, maks 365 hari). Tes: publisher 199, halaman 22, edge-bff Overview 18; 16 cek browser Custom (BBCA 1 Okt–13 Nov −9,47%). Urutan rilis yang diusulkan: deploy publisher → Run Now (lari pertama membangun riwayat) → cek restart Postgres → push `main` (edge-bff: perbaikan 1 + Custom) → cek live. Menunggu go.
 
 Temuan selama O1 (sudah ditangani di kode):
 - Login publisher di dev punya `statement_timeout=120s`. Hitungan EMA lari pertama (300 tanggal) dalam satu kueri ±86

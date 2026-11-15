@@ -227,3 +227,12 @@ def test_a_phone_reaches_every_page_through_the_pages_menu(settings, store, monk
                 browser.close()
     finally:
         stop()
+
+
+def test_the_relay_accepts_every_file_name_the_publisher_writes():
+    """The publisher's overview.NAME and this relay's agree (F1 added overview-stocks)."""
+    from app import overview as ov
+    for name in ('overview-meta', 'overview-series', 'overview-stocks', 'overview-day-2026-11-13'):
+        assert ov.NAME.fullmatch(name), name
+    for name in ('overview-x', 'radar-meta', 'overview-day-13-11-2026'):
+        assert not ov.NAME.fullmatch(name), name

@@ -51,12 +51,15 @@ CONSTANTS = (('DAY_DATES', 'tanggal yang bisa dipilih (file harian)'),
              ('INTRADAY_5D', 'sesi grafik IHSG 5D (bar 1 jam)'),
              ('RECHECK_SESSIONS', 'tanggal pasar terbaru yang isi inputnya dicek setiap lari'),
              ('BREADTH_CHUNK', 'tanggal per kueri hitungan Feature 04'),
+             ('HISTORY_CHUNK', 'tanggal per kueri riwayat harian per saham (overview-stocks)'),
+             ('STOCKS_SCHEMA', 'versi format overview-stocks'),
              ('BENCHMARK', 'indeks pembanding (KPI kedua)'),
              ('OTHER', 'nama sektor untuk "Undefined"'))
-PAGE_VALUES = (('PERF_SCALE', r"PERF_SCALE: Record<TilePeriod, number> = (\{[^}]*\})", 'pembagi return sebelum langkah warna'),
-               ('foreignScale', r'foreignScale = \(p: TilePeriod\) => ([^;]+);', 'pembagi net asing sebelum langkah warna (Rp)'),
+PAGE_VALUES = (('PERF_SCALE', r"PERF_SCALE: Record<string, number> = (\{[^}]*\})", 'pembagi return sebelum langkah warna'),
+               ('foreignScale', r'foreignScale = \(p: TilePeriod, n\?: number\) => ([^;]+);', 'pembagi net asing sebelum langkah warna (Rp)'),
                ('YEAR', r'export const YEAR = (\d+);', 'sesi "1Y" (grafik dan Kinerja Sektor)'),
-               ('SESSIONS', r"export const SESSIONS: Record<string, number> = (\{[^}]*\})", 'sesi per periode'))
+               ('SESSIONS', r"export const SESSIONS: Record<string, number> = (\{[^}]*\})", 'sesi per periode'),
+               ('CUSTOM_MAX_DAYS', r'export const CUSTOM_MAX_DAYS = (\d+);', 'panjang maksimum rentang Custom (hari)'))
 
 
 def md5(path):

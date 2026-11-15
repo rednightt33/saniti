@@ -47,11 +47,14 @@ INTRADAY_5D = 5             # the 5D chart: 1-hour bars of the 5 sessions ending
 RECHECK_SESSIONS = 3        # ERRORS M442: the newest market dates whose input rows are fingerprinted by content on every
                             # run (late intraday bars, a Feature 01/04 fill in progress, a price recovery, a broker round
                             # rewriting its date); older dates change only by a repair job, published by mode `overview`
+HISTORY_CHUNK = 20          # dates per statement of overview-stocks (Feature 06, 20 older dates: 5.3 s, 13,637 pages)
 BREADTH_CHUNK = 20          # dates per Feature 04 count: a first run's 300 dates in one statement would take ~55 s cold
                             # (60 dates read 14,102 pages in 11 s on dev) against the publisher login's 120 s timeout
 BENCHMARK = 'LQ45'          # the design's second KPI card (an INDEX entity of Feature_Index_Entity)
 OTHER = 'Other'             # decision 5: a stock whose sector is "Undefined"
-NAME = re.compile(r'overview-(?:meta|series|day-\d{4}-\d{2}-\d{2})')
+NAME = re.compile(r'overview-(?:meta|series|stocks|day-\d{4}-\d{2}-\d{2})')
+STOCKS_SCHEMA = 1           # F1 (user 2026-11-15 "1A ... 2 A"): overview-stocks, every stock's daily close and Regular
+                            # foreign net over the series dates, for the page's Custom periods
 
 PRICE = 'public."Price_Stock_Indonesia_IDX"'
 F01 = 'public."Feature_01_Stock_Daily"'
@@ -91,6 +94,15 @@ BREADTH_SQL = (f'SELECT t.trade_date::text, count(t.ema_50), count(*) FILTER (WH
                "WHERE t.trade_date = ANY(%s::date[]) AND t.timeframe = 'Daily' AND t.asset_type = 'equity' "
                f'AND t.ticker IN {STOCK_SET} GROUP BY 1')
 SIZE_FN_SQL = "SELECT md5(prosrc) FROM pg_proc WHERE oid = to_regprocedure('public.overview_stock_size(date)')"
+# F1: the daily rows of overview-stocks, read only for the dates (or the stocks) the previous file does not hold
+STOCK_CLOSES_SQL = (f"SELECT ticker, date::text, close::float8 FROM {PRICE} WHERE date = ANY(%s::date[]) AND timeframe = 'Daily' "
+                    f'AND is_final AND ticker IN {STOCK_SET}')
+STOCK_FNET_SQL = (f"SELECT ticker, trade_date::text, foreign_net_1d::float8 FROM {F06} WHERE trade_date = ANY(%s::date[]) "
+                  f"AND market_board = 'Regular' AND ticker IN {STOCK_SET}")
+TICKER_CLOSES_SQL = (f"SELECT ticker, date::text, close::float8 FROM {PRICE} WHERE ticker = ANY(%s) AND timeframe = 'Daily' "
+                     'AND is_final AND date BETWEEN %s AND %s')
+TICKER_FNET_SQL = (f"SELECT ticker, trade_date::text, foreign_net_1d::float8 FROM {F06} WHERE ticker = ANY(%s) "
+                   "AND market_board = 'Regular' AND trade_date BETWEEN %s AND %s")
 # ERRORS M442: content fingerprints of the input rows dated within the newest RECHECK_SESSIONS market dates (one statement
 # per source; measured on dev for 21 dates: Feature 01 0.8 s, Feature 04 0.5 s, Feature 06 3.0 s, bars 0.5 s, prices 0.9 s,
 # so a few dates cost about 1 s)
@@ -343,11 +355,66 @@ def day_doc(d, prev_d, stock_index, rows, sizes, size_basis, stock_flow, closes,
     }
 
 
-def files(conn, names, lists, stream=None, carry=None, previous=None, present=None):
+def chunks(items, n):
+    return [items[k:k + n] for k in range(0, len(items), n)]
+
+
+def stock_history(stream, prev, tickers, dates, fdates, recheck_dates, recheck_brokers):
+    """F1: ({ticker: {date: close}}, {ticker: {broker date: foreign net}}, reads) over `dates` (the series dates) and
+    `fdates` (the broker dates from the first series date). The previous overview-stocks (prev, None for a full read) is
+    reused for every date it holds, except the recheck window's dates and broker dates (late or rewritten rows, ERRORS
+    M442); a stock it does not hold (a listing) is read by ticker over the whole range; a stock gone is dropped. The raw
+    daily rows do not depend on the formulas, so a code change reuses them too; the manual mode `overview` reads all."""
+    known = set(tickers)
+    closes, fnets = {t: {} for t in tickers}, {t: {} for t in tickers}
+    keep_d, keep_f, have = set(), set(), set()
+    if isinstance(prev, dict) and prev.get('schema') == STOCKS_SCHEMA and isinstance(prev.get('ticker'), list):
+        pd_, pf = {d: i for i, d in enumerate(prev.get('dates') or [])}, {d: i for i, d in enumerate(prev.get('fnet_dates') or [])}
+        keep_d = {d for d in dates if d in pd_ and d not in recheck_dates}
+        keep_f = {d for d in fdates if d in pf and d not in recheck_brokers}
+        for k, t in enumerate(prev['ticker']):
+            if t not in known:
+                continue
+            have.add(t)
+            row, frow = prev['close'][k], prev['fnet'][k]
+            closes[t].update((d, row[pd_[d]]) for d in keep_d if row[pd_[d]] is not None)
+            fnets[t].update((d, frow[pf[d]]) for d in keep_f if frow[pf[d]] is not None)
+    need_d, need_f = [d for d in dates if d not in keep_d], [d for d in fdates if d not in keep_f]
+    reads = {'close_dates': len(need_d), 'fnet_dates': len(need_f), 'new_tickers': 0}
+    for part in chunks(need_d, HISTORY_CHUNK):
+        for t, d, c in stream(STOCK_CLOSES_SQL, (part,)):
+            if t in closes and c is not None:
+                closes[t][d] = c
+    for part in chunks(need_f, HISTORY_CHUNK):
+        for t, d, v in stream(STOCK_FNET_SQL, (part,)):
+            if t in fnets and v is not None:
+                fnets[t][d] = v
+    new = [t for t in tickers if t not in have] if keep_d or keep_f else []
+    if new and dates:
+        reads['new_tickers'] = len(new)
+        for t, d, c in stream(TICKER_CLOSES_SQL, (new, dates[0], dates[-1])):
+            if d in keep_d and c is not None:
+                closes[t][d] = c
+        if fdates:
+            for t, d, v in stream(TICKER_FNET_SQL, (new, fdates[0], fdates[-1])):
+                if d in keep_f and v is not None:
+                    fnets[t][d] = v
+    return closes, fnets, reads
+
+
+def stocks_doc(tickers, dates, fdates, closes, fnets):
+    """overview-stocks: one row per stock (its own ticker list, so the page aligns by ticker), close per series date and
+    Regular foreign net per broker date; null where the source has no row."""
+    return {'schema': STOCKS_SCHEMA, 'ticker': tickers, 'dates': dates, 'fnet_dates': fdates,
+            'close': [[num(closes[t].get(d), 2) for d in dates] for t in tickers],
+            'fnet': [[num(fnets[t].get(d), 0) for d in fdates] for t in tickers]}
+
+
+def files(conn, names, lists, stream=None, carry=None, previous=None, present=None, read=None):
     """Every Overview file to write -> (files [(name, doc, rows, as_of)], kept [day file names whose previous index
     entry stays], carry for state.json). names: unused (the stocks come from the universe); lists: [(key, kind, code,
     name, members)]; carry: the previous run's (None: count and build everything); previous: the previous index; present:
-    the keys under overview/ in the bucket."""
+    the keys under overview/ in the bucket; read(name): the previous publication's file of that name (decoded), or None."""
     stream = stream or (lambda sql, params: conn.execute(sql, params).fetchall())
     previous, present = previous or {}, present or set()
     m = market(conn)
@@ -363,6 +430,7 @@ def files(conn, names, lists, stream=None, carry=None, previous=None, present=No
         return [], [], None
     series_dates = market_dates[-SERIES_SESSIONS:]
     size_fn = (conn.execute(SIZE_FN_SQL).fetchone() or (None,))[0]
+    full_history = carry is None                 # first run or the manual mode: overview-stocks is read whole
     if not (isinstance(carry, dict) and carry.get('code') == CODE and carry.get('size_fn') == size_fn):
         carry = None                       # another formula or size basis: count and build everything again
     stocks = conn.execute(STOCKS_SQL).fetchall()
@@ -415,8 +483,20 @@ def files(conn, names, lists, stream=None, carry=None, previous=None, present=No
     prices_through = market_dates[-1]
     broker_through = flow[-1][0] if flow else None
     series_flow = [r for r in flow if r[0] >= series_dates[0]]
+    # F1: overview-stocks for the page's Custom periods
+    tickers = [t for t, _, _ in stocks]
+    fdates = [r[0] for r in flow if r[0] >= series_dates[0]]
+    prev_stocks = None
+    if not full_history and read and previous.get('overview-stocks'):
+        try:
+            prev_stocks = read('overview-stocks')
+        except Exception:  # noqa: BLE001 - unreadable: read the history whole rather than fail the publication
+            prev_stocks = None
+    brokers = {b for b in (broker_date_of(flow, d) for d in window) if b}
+    hist_c, hist_f, reads = stock_history(stream, prev_stocks, tickers, series_dates, fdates, set(window), brokers)
     out = [('overview-meta', meta_doc(stocks, sectors, lists, m, day_dates, basis, prices_through, broker_through),
             len(stocks), day_dates[-1]),
+           ('overview-stocks', stocks_doc(tickers, series_dates, fdates, hist_c, hist_f), len(tickers), day_dates[-1]),
            ('overview-series', series_doc(series_dates, closes, sectors, m, breadth, series_flow), len(series_dates),
             day_dates[-1])]
     new_carry = {'code': CODE, 'size_fn': size_fn, 'days': day_stamps,

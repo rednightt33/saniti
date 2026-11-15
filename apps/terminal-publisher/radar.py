@@ -269,6 +269,6 @@ def build(conn, names, lists, stream=None):
     return out
 
 
-def files(conn, names, lists, stream=None, carry=None, previous=None, present=None):
+def files(conn, names, lists, stream=None, carry=None, previous=None, present=None, read=None):
     """The publisher's page interface (publisher.PAGES): every Radar file is built again; nothing is kept or carried."""
     return build(conn, names, lists, stream=stream), [], None

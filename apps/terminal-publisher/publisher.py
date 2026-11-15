@@ -1571,7 +1571,7 @@ class Publisher:
             files, kept, carry = mod.files(self.conn, names, lists,
                                            stream=lambda sql, params: list(stream_rows(self.conn, sql, params)),
                                            carry=None if mode == family else page['carry'], previous=previous,
-                                           present=present)
+                                           present=present, read=lambda name: self.bucket.get_json(previous[name]['key'][len(PREFIX) + 1:]))
         except Exception as e:  # noqa: BLE001 - the class only: a driver error may carry connection details
             page['failed'] = 'build'
             log(f'{family}_failed', step='build', error=type(e).__name__, kept=len(previous))
