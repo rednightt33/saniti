@@ -15416,7 +15416,7 @@ tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terba
   - Fase 1 (ditambahkan ke lingkup): preferensi dan simpanan akun disimpan di server per user dan dipulihkan di
     perangkat mana pun. Isi pertama diunggah dari browser saat sign-in pertama, bila datanya masih ada.
 
-### Phase 0 deploy steps (prepared, not run)
+### Phase 0 deploy steps (run 2026-11-16, see RAILWAY_CHANGELOG.md; step 7 waits for the user)
 
 Prepared 2026-11-16 by builder B5 for the main agent. Code: branch `claude/pensive-feynman-4ahfe3` (integrated at
 `31f0bf01`; B1 edge-bff, B2 Orc, B3 terminal-api and the Terminal fixture build, B4 front-end; after the independent

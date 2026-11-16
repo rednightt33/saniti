@@ -15,7 +15,41 @@
   - On orc-test-runner it is the reference `${{market-ai-orc.MARKET_AI_ORC_TEST_KEY}}` (`--skip-deploys`), read back
     with length 64. The runner still holds `MARKET_AI_ORC_API_KEY`; it is removed only after a passing run with the
     test key.
-- No deploy yet. Steps 5-8 (merge to main; edge-bff and market-ai-orc deploys; terminal-api) follow.
+- **Step 5:** right before the push a second M340 check found no active run. Then `main` was fast-forwarded
+  `83ca29d4` → `637b0b96`; branch CI was green first (Backend tests with the new market-ai-orc and terminal-api jobs,
+  Backtest look-ahead gate after the SCREENER_ONBOARDING pointer fix, image builds, generated files, page smoke).
+  - market-ai-orc `33aaffad` reached SUCCESS. It started with the test key; no ConfigError.
+  - edge-bff `150686f9` waited for CI, then reached SUCCESS.
+  - Read back from outside:
+    - `/ready` 200;
+    - `/api/v1/auth/session` without a cookie gives 401 `UNAUTHENTICATED` in the full shape;
+    - a foreign Origin gives 403 `ORIGIN_REJECTED`;
+    - an unknown login gives 401 `INVALID_CREDENTIALS`;
+    - the manual steps without a session give 401;
+    - `/edge-session.js` 200;
+    - the public Terminal bundle has 0 matches for the fixture values (M469).
+- **Step 6, terminal-api:**
+  - Upload: CLI upload of `git archive 637b0b96 apps/terminal-api` as deployment `5d339996`, which reached SUCCESS.
+  - Public check: the public URL answered `gateway_host_not_allowed` to a keyed call (logged once, our probe).
+  - Private network probe (orc-test-runner job with references, `VAR_REMOVED`): `/ready` 200; the edge-bff gateway
+    key, the screener-worker key and the backtest-worker key each got 200 on `manifest/BBCA`; the gateway key with
+    `X-Forwarded-For` got 403.
+  - Domain removal: `terminal-api-dev.up.railway.app` was deleted (domain id `73193635`) and
+    `TERMINAL_ALLOWED_ORIGINS` was deleted.
+  - Redeploy `80bec768` reached SUCCESS, private-only.
+  - Read back after the redeploy:
+    - the public URL answers 404;
+    - the private probe gives the same 200s for all three keys;
+    - the direct sign-in answers 403 `direct_access_closed`.
+- **Step 8:** `.railway/railway.ts` was edited by hand: `MARKET_AI_ORC_TEST_KEY: preserve()` on market-ai-orc and
+  orc-test-runner, and `TERMINAL_ALLOWED_ORIGINS` removed from terminal-api.
+  - A full `railway config pull --force --variables=managed` rewrote the whole file, so it was reverted, as
+    recorded before.
+  - `railway config plan`: "Your Railway configuration is already up to date."
+- **Still open:**
+  - Step 7 is the smoke test with the user's own sign-in, which the agent cannot do.
+  - `MARKET_AI_ORC_API_KEY` stays on orc-test-runner until a runner suite passes with the test key (C1 M4; a suite
+    costs AI tokens).
 
 ## 2026-11-16 — EXEC-WATCHLIST on dev: terminal-api, terminal-publisher, telegram-monitor, edge-bff; migration 20261116_001
 

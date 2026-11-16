@@ -3265,7 +3265,7 @@ change yet.
 - **Solution:** none yet: `Depends(write)` on the route; a test that walks `app.routes` and asserts that every POST,
   PUT, PATCH and DELETE route except sign-in depends on `write` (derived from the route table, not from a list); the
   403 case sent with the Origin. Needs the user's go.
-- **Status:** OPEN (low severity: the Origin check holds). Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed.
+- **Status:** OPEN (low severity: the Origin check holds). Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed).
   - Solution built (EXEC-MU-ACCOUNTS Phase 0, B1): `POST /api/v1/dev/manual/steps/{step_id}` now depends on
     `admin_only('admin.manual', write)` (session, CSRF, and an owner in `EDGE_ADMIN_OWNERS`), the GET on
     `admin_only('admin.manual', session)` (`apps/edge-bff/app/main.py`, manual routes).
@@ -8875,7 +8875,7 @@ in its staleness check.
   The screener-worker suite: 112 passed. edge-bff deployed on the green commit.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
-### M477 — EXEC-MU-ACCOUNTS Phase 0: findings of the independent checkers C1 and C2 (2026-11-16, fixed on branch, not deployed)
+### M477 — EXEC-MU-ACCOUNTS Phase 0: findings of the independent checkers C1 and C2 (2026-11-16, fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 Two checkers read the integrated Phase 0 code against `verification/edge_multiuser/access_tiers/CONTRACT.md` only:
 C1 (security, commit `8c9babc4`, failing tests `test_c1_security_findings.py` in edge-bff, market-ai-orc and
@@ -8928,7 +8928,7 @@ view; a client-supplied id is checked against the caller's ownership on every pa
   check the capability before the shared cache.
 - **Status:** OPEN. Harmless with one user.
 
-### M475 — Orc: a missing owner header becomes the shared owner `default`; progress of an owner-less run is readable by every caller (2026-11-16, OPEN; fixed on branch, not deployed)
+### M475 — Orc: a missing owner header becomes the shared owner `default`; progress of an owner-less run is readable by every caller (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 - **Symptom (read-only inspection, `verification/edge_multiuser/access_tiers/FINDINGS.md`):** any holder of
   `MARKET_AI_ORC_API_KEY` may name any owner in `X-Saniti-Owner`, and the orc-test-runner holds the same key
@@ -8965,7 +8965,7 @@ view; a client-supplied id is checked against the caller's ownership on every pa
 - **Status:** OPEN. No external user exists yet. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed; the Railway variable
   `MARKET_AI_ORC_TEST_KEY` is not set yet (EXEC.md EXEC-MU-ACCOUNTS, "Phase 0 deploy steps"). Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
 
-### M474 — Orc manual agent: every waiting step of every owner is listed to any caller (2026-11-16, OPEN; fixed on branch, not deployed)
+### M474 — Orc manual agent: every waiting step of every owner is listed to any caller (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 - **Symptom:** `/api/v1/dev/manual/steps` (edge-bff `main.py:598-610`) lists and answers model steps of any run.
 - **Verified cause:**
@@ -8990,7 +8990,7 @@ view; a client-supplied id is checked against the caller's ownership on every pa
   stop and progress, so another owner's run with the same request id cannot touch it.
 - **Status:** OPEN. Blocker before a second user. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed. Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
 
-### M473 — Sign-out leaves account data in browser storage (2026-11-16, OPEN; fixed on branch, not deployed)
+### M473 — Sign-out leaves account data in browser storage (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 - **Symptom:** after sign-out, the next person on the same browser inherits the previous account's data.
 - **Verified cause:** sign-out clears memory only (`apps/edge-bff/static/edge-client.js:11,138`). These keys are not
@@ -9017,7 +9017,7 @@ view; a client-supplied id is checked against the caller's ownership on every pa
     Terminal vitest 908 passed; `node shared/build-shell.mjs --check` passes.
 - **Status:** OPEN. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed.
 
-### M472 — The Terminal look check hard-codes another session's paths (2026-11-16, OPEN; fixed on branch, not deployed)
+### M472 — The Terminal look check hard-codes another session's paths (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 - **Symptom:** `node verification/terminal_api/terminal_look/look_check11.mjs`, required by AGENTS.md for every
   Terminal look change, writes into a scratchpad of an earlier session.
@@ -9036,7 +9036,7 @@ view; a client-supplied id is checked against the caller's ownership on every pa
   the same change.
 - **Status:** OPEN. Update 2026-11-16: `look_check11.mjs` fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed; look_check8/9/10/12/13 not changed.
 
-### M471 — Every EDGE front-end reads any 403 as a CSRF or session failure (2026-11-16, OPEN; fixed on branch, not deployed)
+### M471 — Every EDGE front-end reads any 403 as a CSRF or session failure (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 - **Symptom (by reading the code):** a plan refusal would trigger a retry or a sign-out instead of an upgrade message.
 - **Verified cause:**
@@ -9077,7 +9077,7 @@ view; a client-supplied id is checked against the caller's ownership on every pa
   - edge-bff 278 passed / 139 skipped; Terminal vitest 914.
 - **Status:** OPEN. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed. Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
 
-### M470 — terminal-api accepts the EDGE gateway key on its public domain (2026-11-16, OPEN; fixed on branch, not deployed)
+### M470 — terminal-api accepts the EDGE gateway key on its public domain (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 - **Symptom:** the per-user owner header planned in T2 would let any holder of the gateway key name any EDGE user.
 - **Verified cause:**
@@ -9130,7 +9130,7 @@ view; a client-supplied id is checked against the caller's ownership on every pa
 - **Status:** OPEN. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed; `TERMINAL_ALLOWED_ORIGINS` is still set and the public domain is not
   removed yet (EXEC.md EXEC-MU-ACCOUNTS, "Phase 0 deploy steps"). Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
 
-### M469 — The public Terminal bundle embeds a real BBCA broker summary (2026-11-16, OPEN; fixed on branch, not deployed)
+### M469 — The public Terminal bundle embeds a real BBCA broker summary (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 - **Symptom:** `/terminal-app/` and its assets are served without a session (`apps/edge-bff/app/main.py:363-376`).
 - **Verified cause:**
@@ -9159,7 +9159,7 @@ view; a client-supplied id is checked against the caller's ownership on every pa
   production build run with `NODE_ENV=development` or `test` (a CI step or a shell that exports it) would keep the
   fixture and its data in the public bundle. Test the built bundle, not the source.
 
-### M468 — Terminal drawings saved in the browser are merged into whichever account signs in next (2026-11-16, OPEN; fixed on branch, not deployed)
+### M468 — Terminal drawings saved in the browser are merged into whichever account signs in next (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 - **Symptom (by reading the code):** user A's unsynced drawings would join user B's account on a shared browser.
 - **Verified cause:**
