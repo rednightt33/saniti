@@ -14,15 +14,18 @@ EXEC-MU-ACCOUNTS Phase 0 (verification/edge_multiuser/access_tiers/CONTRACT.md s
 - private-only mode: with no browser origin configured (config.py Settings.private_only, the state once the public
   domain is removed) the direct cookie sign-in and every cookie route answer 403 direct_access_closed; the gateway key,
   the service keys and the admin key keep working;
-- the EDGE gateway key is accepted only on a request addressed to the private host (Host terminal-api.railway.internal,
-  any port) that did not pass Railway's public edge (none of EDGE_HEADERS); otherwise 403 gateway_host_not_allowed.
+- every key (the EDGE gateway key, a service key, the admin key) is accepted only on a request addressed to the private
+  host (Host exactly terminal-api.railway.internal with an optional :port, any letter case) that did not pass Railway's
+  public edge (none of EDGE_HEADERS). Otherwise the answer is 403 gateway_host_not_allowed with one generic message,
+  the same whether the key is valid, wrong or absent (C1 M3, L2): the public answer never says a key is real nor names
+  the private host or a variable; the detailed reason goes to the server log only (never the key).
 """
 import datetime as dt
 import json
 import re
 import time
 from contextlib import asynccontextmanager
-from urllib.parse import urlsplit
+import logging
 from typing import Annotated, Literal, get_args
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
@@ -49,6 +52,13 @@ XSECTION_SERVICES = frozenset({'screener-worker'})
 # httpx client, which sends only content-type and the key) carries none of them. The gateway key is refused with any.
 EDGE_HEADERS = ('x-forwarded-for', 'x-forwarded-host', 'x-real-ip', 'forwarded', 'x-railway-edge')
 PRIVATE_URL = f'http://{PRIVATE_HOST}:8080'
+# RFC 9110 7.2: Host = uri-host [":" port]. Only a plain name and an optional port of digits; userinfo, a path, a query,
+# a fragment, a trailing dot or anything else is not a private host (C1 L2). No trailing dot: Railway does not rewrite
+# Host on the private network, it is the name in the caller's URL, and every caller uses the name without one.
+HOST = re.compile(r'([A-Za-z0-9.-]+)(?::[0-9]{1,5})?')
+NOT_HERE = ('This address does not accept keyed requests. Fix: call terminal-api from inside its own network, where '
+            'your service is configured to reach it; a person opens the Terminal in EDGE.')
+log = logging.getLogger('terminal-api')
 TICKER = re.compile(r'^[A-Z0-9]{1,12}$')
 BROKER = r'^[A-Z0-9]{2}$'
 API = '/api/terminal/v1'
@@ -215,24 +225,41 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
               f'{PROXY_HEADER}: <the value of TERMINAL_SERVICE_KEY_<NAME>>.')
 
     def private_call(request: Request):
-        """None when the request was addressed to a private host (settings.proxy_hosts, port ignored) and did not
-        pass the public edge; else what is wrong, for the refusal."""
+        """None when the request was addressed to a private host (settings.proxy_hosts, exactly, with an optional
+        :port; HOST) and did not pass the public edge; else what is wrong, for the server log only."""
         host = request.headers.get('host', '')
-        try:
-            name = urlsplit('//' + host).hostname or ''
-        except ValueError:
-            name = ''
-        if name not in settings.proxy_hosts:
-            return f'the request was addressed to Host {host[:100]!r}'
+        m = HOST.fullmatch(host)
+        if not m or m.group(1).lower() not in settings.proxy_hosts:
+            return f'Host {host[:100]!r} is not a private host'
         edge = [h for h in EDGE_HEADERS if h in request.headers]
         if edge:
-            return f'the request passed Railway\'s public edge (it carries {", ".join(edge)})'
+            return f'the request passed the public edge (it carries {", ".join(edge)})'
         return None
+
+    def key_kind(request: Request):
+        """For the log only: which credential a refused request carried (every key compared; never the key)."""
+        key, admin_key = request.headers.get(PROXY_HEADER), request.headers.get('x-terminal-admin-key')
+        kinds = []
+        if key is not None:
+            kinds.append('gateway' if settings.proxy_key and same_secret(key, settings.proxy_key) else
+                         next((f'service {n}' for n, k, _ in services if same_secret(key, k)), 'unknown proxy key'))
+        if admin_key is not None:
+            kinds.append('admin' if same_secret(admin_key, settings.admin_key) else 'unknown admin key')
+        return ', '.join(kinds) or 'no key'
+
+    def private_only_keys(request: Request):
+        """C1 M3: every key counts only on the private host. Off it, one generic refusal for a valid, a wrong or no
+        key alike, so the public answer tells nothing; the reason is logged."""
+        wrong = private_call(request)
+        if wrong:
+            log.warning('keyed request refused off the private host: %s; credential: %s; path %s', wrong,
+                        key_kind(request), request.scope.get('path'))   # not request.url: a malformed Host breaks it
+            error(403, 'gateway_host_not_allowed', NOT_HERE)
 
     def identify(request: Request) -> Caller:
         """Who is calling, from the request alone (no database): the gateway key, a service key or a session cookie.
-        A key in x-terminal-proxy-key that is neither is refused, never ignored. The gateway key counts only on the
-        private host (private_call, M470); a cookie only while a browser origin is configured (private_only)."""
+        A key in x-terminal-proxy-key that is neither is refused, never ignored. Every key counts only on the private
+        host (private_only_keys, M470, C1 M3); a cookie only while a browser origin is configured (private_only)."""
         key = request.headers.get(PROXY_HEADER)
         if key is None:
             if settings.private_only:
@@ -241,16 +268,10 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             if not token:
                 error(401, 'not_signed_in', 'Sign in first.')
             return Caller('session', token_hash=token_hash(token))
+        private_only_keys(request)                           # before any key is judged (C1 M3)
         gateway_ok = bool(settings.proxy_key) and same_secret(key, settings.proxy_key)
         matched = [(name, email) for name, k, email in services if same_secret(key, k)]   # every key compared
         if gateway_ok:
-            wrong = private_call(request)
-            if wrong:
-                error(403, 'gateway_host_not_allowed',
-                      f'The EDGE gateway key in {PROXY_HEADER} is accepted only on the private host {PRIVATE_HOST}, '
-                      f'and {wrong}. Fix: call terminal-api over the Railway private network from edge-bff '
-                      f'(EDGE_TERMINAL_URL={PRIVATE_URL}), never through a public *.up.railway.app domain. Example: '
-                      f'GET {PRIVATE_URL}{API}/state with {PROXY_HEADER}: ${{{{terminal-api.TERMINAL_PROXY_KEY}}}}.')
             return Caller('gateway', email=settings.proxy_subscriber)
         if not matched:
             error(401, 'proxy_key_rejected',
@@ -278,7 +299,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         if proxied(request):
             return
         if settings.private_only:
-            direct_closed(f'{request.method} {request.url.path} from a browser')
+            direct_closed(f'{request.method} {request.scope.get("path")} from a browser')
         if request.headers.get('origin', '').rstrip('/') not in settings.allowed_origins:
             error(403, 'origin_not_allowed', 'This request must come from the terminal page.')
 
@@ -401,6 +422,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                   f'"packs": true}}.')
 
     def admin(request: Request):
+        private_only_keys(request)                           # C1 M3: the admin key only on the private network
         if not same_secret(request.headers.get('x-terminal-admin-key'), settings.admin_key):
             error(401, 'admin_key_required', 'A valid X-Terminal-Admin-Key header is required.')
 

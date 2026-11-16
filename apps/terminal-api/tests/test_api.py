@@ -212,7 +212,7 @@ ADMIN = {'x-terminal-admin-key': 'k' * 40}
 @pytest.fixture()
 def env():
     store, bucket = FakeStore(), FakeBucket()
-    client = TestClient(create_app(SETTINGS, store, bucket), headers={'origin': ORIGIN})
+    client = TestClient(create_app(SETTINGS, store, bucket), base_url=PRIVATE, headers={'origin': ORIGIN})
     r = client.post(f'{API}/admin/subscribers', headers=ADMIN, json={
         'email': 'Sub@Example.com', 'display_name': 'Sub', 'password': 'correct horse battery',
         'expires_at': (NOW + dt.timedelta(days=30)).isoformat()})
@@ -339,7 +339,7 @@ def test_admin_needs_the_key(env):
 
 def test_password_change_signs_out_other_sessions(env):
     client, store, _ = env
-    other = TestClient(client.app, headers={'origin': ORIGIN})
+    other = TestClient(client.app, base_url=PRIVATE, headers={'origin': ORIGIN})
     sign_in(other)
     sign_in(client)
     r = client.post(f'{API}/auth/change-password', json={'current_password': 'correct horse battery',
@@ -351,7 +351,7 @@ def test_password_change_signs_out_other_sessions(env):
 
 def test_third_session_revokes_the_oldest(env):
     client, _, _ = env
-    a, b = (TestClient(client.app, headers={'origin': ORIGIN}) for _ in range(2))
+    a, b = (TestClient(client.app, base_url=PRIVATE, headers={'origin': ORIGIN}) for _ in range(2))
     sign_in(a), sign_in(b), sign_in(client)
     assert a.get(f'{API}/auth/session').status_code == 401
     assert b.get(f'{API}/auth/session').status_code == 200
@@ -714,7 +714,7 @@ def test_xsection_grants_the_indexed_files_to_the_gateway_in_one_audit_row_under
 
 def test_xsection_refuses_a_subscriber_session_and_a_caller_without_the_gateway_key(rack):
     client, store, _ = rack
-    direct = TestClient(client.app, headers={'origin': ORIGIN})
+    direct = TestClient(client.app, base_url=PRIVATE, headers={'origin': ORIGIN})
     assert sign_in(direct).status_code == 200
     assert direct.get(f'{API}/state').status_code == 200                       # /state keeps its access: it grants nothing
     r = direct.post(f'{API}/xsection', json={'names': ['price']})
@@ -880,7 +880,7 @@ def test_service_key_acts_as_its_own_account_and_cannot_name_an_owner():
     assert r.status_code == 400 and len(store.access) == rows
     assert client.get(f'{API}/state', headers={**GATEWAY, 'x-terminal-proxy-owner': 'owner-a'}).status_code == 200
     # a service account never signs in, whatever its password, and never uses a person's routes
-    r = TestClient(client.app, headers={'origin': ORIGIN}).post(f'{API}/auth/sign-in', json={
+    r = TestClient(client.app, base_url=PRIVATE, headers={'origin': ORIGIN}).post(f'{API}/auth/sign-in', json={
         'email': 'backtest-worker@terminal.local', 'password': 'a service never signs in'})
     assert r.status_code == 401 and r.json()['error'] == 'sign_in_failed'
     r = client.get(f'{API}/history/price', headers=BACKTEST, params={'ticker': 'BBCA', 'from': '2019-01-01',
@@ -921,7 +921,7 @@ def test_xsection_admits_only_the_screener_service_account():
     # the gateway key keeps its access until a later step removes it (compatibility)
     assert client.post(f'{API}/xsection', headers=GATEWAY, json={'names': ['actions']}).status_code == 200
     assert store.access[-1]['sid'] == 1
-    direct = TestClient(client.app, headers={'origin': ORIGIN})
+    direct = TestClient(client.app, base_url=PRIVATE, headers={'origin': ORIGIN})
     assert sign_in(direct).status_code == 200
     assert direct.post(f'{API}/xsection', json={'names': ['price']}).json()['error'] == 'gateway_only'
     assert len(store.access) == 2
@@ -980,7 +980,7 @@ def test_inactive_account_is_refused_at_the_grant(monkeypatch):
     # a signed-in session revoked elsewhere is refused at its next grant the same way
     store.subs[1]['active'] = True
     monkeypatch.undo()
-    direct = TestClient(client.app, headers={'origin': ORIGIN})
+    direct = TestClient(client.app, base_url=PRIVATE, headers={'origin': ORIGIN})
     assert sign_in(direct).status_code == 200 and direct.get(f'{API}/manifest/BBCA').status_code == 200
     for v in store.sessions.values():
         v['revoked'] = True
@@ -1254,7 +1254,7 @@ def test_account_cache_is_dropped_where_this_process_changes_the_account():
     no longer the key's account takes the new account's lock and books on it; a service key never changes a password."""
     client, store, _ = services_client()
     store.limits_value['sessions_per_subscriber'] = 3
-    one, two = (TestClient(client.app, headers={'origin': ORIGIN}) for _ in range(2))
+    one, two = (TestClient(client.app, base_url=PRIVATE, headers={'origin': ORIGIN}) for _ in range(2))
     for c in (one, two):
         assert sign_in(c).status_code == 200 and c.get(f'{API}/manifest/BBCA').status_code == 200   # both cached
     # a password change on this process ends the other session at once (no cached read for it here)
@@ -1263,7 +1263,7 @@ def test_account_cache_is_dropped_where_this_process_changes_the_account():
     assert r.status_code == 200 and two.get(f'{API}/manifest/BBCA').status_code == 401
     # sign-out drops this session's entry at once (the same cookie, sent again, is not served from the cache)
     assert one.get(f'{API}/state').status_code == 200
-    replay = TestClient(client.app, headers={'origin': ORIGIN}, cookies={'terminal_session': one.cookies.get('terminal_session')})
+    replay = TestClient(client.app, base_url=PRIVATE, headers={'origin': ORIGIN}, cookies={'terminal_session': one.cookies.get('terminal_session')})
     assert replay.get(f'{API}/state').status_code == 200 and one.post(f'{API}/auth/sign-out').status_code == 200
     r = replay.get(f'{API}/state')
     assert r.status_code == 401 and r.json()['error'] == 'session_ended'
@@ -1349,7 +1349,7 @@ def test_radar_refuses_a_subscriber_session_and_every_service_key():
             r = call(headers)
             assert r.status_code == 403 and r.json()['error'] == 'gateway_only', r.text
             assert 'EDGE gateway key only' in r.json()['message'] and 'Fix:' in r.json()['message']
-    direct = TestClient(client.app, headers={'origin': ORIGIN})
+    direct = TestClient(client.app, base_url=PRIVATE, headers={'origin': ORIGIN})
     assert sign_in(direct).status_code == 200
     assert direct.get(f'{API}/radar').json()['error'] == 'gateway_only'
     assert direct.post(f'{API}/radar', json={'names': ['radar-meta']}).json()['error'] == 'gateway_only'
@@ -1414,7 +1414,7 @@ def test_overview_refuses_a_subscriber_session_and_every_service_key():
         r = client.get(f'{API}/overview', headers=headers)
         assert r.status_code == 403 and r.json()['error'] == 'gateway_only'
         assert 'the Market Overview' in r.json()['message'] and '/api/v1/overview' in r.json()['message']
-    direct = TestClient(client.app, headers={'origin': ORIGIN})
+    direct = TestClient(client.app, base_url=PRIVATE, headers={'origin': ORIGIN})
     assert sign_in(direct).status_code == 200
     assert direct.post(f'{API}/overview', json={'names': ['overview-meta']}).json()['error'] == 'gateway_only'
     assert all(a['dataset'] != 'overview' for a in store.access)
