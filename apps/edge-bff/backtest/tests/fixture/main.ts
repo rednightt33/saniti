@@ -4,6 +4,7 @@
    portfolio's picked stocks at load are the reference's "Demo 10", its default universe (PF7). */
 import '../../src/styles/backtest.css';
 import '../../../terminal/src/styles/spin.css';
+import '../../src/styles/design.css';
 import { boot } from '../../src/app.ts';
 import { fixtureApi } from './api.ts';
 import { DEMO_10 } from './state.ts';

@@ -20,7 +20,8 @@ import { checkDRef } from '../src/pit/spec.ts';
 
 installBacktestGrammar();
 const M = market(), A = M.stocks[0], ROWS = M.rows[A.ticker];
-const ANCHOR = A.dates[120], START = A.dates[90], LAST = A.dates.length - 1;
+// LAST: the last candle with broker rows (the fixture's newest two sessions have none, Stage C2 lens 1 F4)
+const ANCHOR = A.dates[120], START = A.dates[90], LAST = A.dates.lastIndexOf(ROWS[ROWS.length - 1].d);
 
 function columns(rows: readonly Row[]): BrokerColumns {
   const dates: string[] = [], brokers: string[] = [], at = new Map<string, number>(), inv = ['Foreign', 'Domestic'], brd = ['Regular', 'Nego', 'Tunai'];

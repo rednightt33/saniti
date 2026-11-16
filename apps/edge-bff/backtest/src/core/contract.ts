@@ -241,7 +241,7 @@ export interface BacktestResult {
     benchmark: { kind: 'buy_and_hold' | 'ihsg'; ticker: string };
     data_through: string;            // the latest published bar the run could see
     warnings: Warning[];             // PERIOD_CLIPPED, TICKERS_EXCLUDED, DATA_GAP, PRICES_RESTATED, ADJUSTED_HISTORY_BOUNDARY, ARB_NOT_MODELLED, TICK_NOT_MODELLED, SURVIVORSHIP,
-                                     // FLOW_PRE_2021, FLOW_BASIS_CHANGE, FLOW_SOURCE_GAP, FLOW_ROWS_DROPPED, FLOW_CROSSING_BOARDS (EXEC-BACKTEST-REVAMP)
+                                     // FLOW_PRE_2021, FLOW_BASIS_CHANGE, FLOW_SOURCE_GAP, FLOW_ROWS_DROPPED, FLOW_CROSSING_BOARDS, FLOW_LOTS_RESTATED (EXEC-BACKTEST-REVAMP)
     trials: {
       prior: number; this_run: number; total: number;
       /** The distinct variants this run evaluated (the run itself and the sensitivity cells), which edge-bff records

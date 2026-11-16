@@ -170,13 +170,16 @@ export const ADJUSTED_HISTORY_BOUNDARY = '2026-09-12';
    - FLOW_SOURCE_GAP: days the publisher marks as a source gap (buy and sell totals differ) among those sessions;
    - FLOW_ROWS_DROPPED: broker rows on a day without a price bar, which no Flow value reads (as on the Terminal), per
      board;
-   - FLOW_CROSSING_BOARDS (P4): a point-in-time cohort reads the Nego or Cash board.
+   - FLOW_CROSSING_BOARDS (P4): a point-in-time cohort reads the Nego or Cash board;
+   - FLOW_LOTS_RESTATED (Stage C2, lens 1 F6): an action whose basis is `terms` falls after the first session read, so the
+     broker lots before it are on the published prices' share basis (P9 onPriceBasis), not as the Terminal's chart
+     shows them.
    A stock counts when a condition of the run reads its broker data (a flow condition, or the grammar noted it). */
 export const FLOW_PRE_2021 = '2021-01-01';
 function flowWarnings(prep: readonly Prepared[], active: ReturnType<typeof requestConditions>, from: string, to: string): Ledger['warnings'] {
   const legacy = [...active.entry, ...active.exit].filter(c => c.cond.kind === 'flow').map(c => Number((c.cond as { params?: { length?: unknown } }).params?.length) || 1);
   const legacyDepth = legacy.length ? Math.max(...legacy) : -1;
-  const pre: string[] = [], basis: string[] = [], crossing: string[] = [], gap = new Map<string, number>(), dropped = { Regular: 0, Nego: 0, Cash: 0 }, droppedTickers = new Set<string>();
+  const pre: string[] = [], basis: string[] = [], crossing: string[] = [], lots: string[] = [], gap = new Map<string, number>(), dropped = { Regular: 0, Nego: 0, Cash: 0 }, droppedTickers = new Set<string>();
   for (const p of prep) {
     const notes = p.calc.flowNotes;
     if (legacyDepth < 0 && !notes) continue;
@@ -188,6 +191,7 @@ function flowWarnings(prep: readonly Prepared[], active: ReturnType<typeof reque
     const start = depth === Infinity ? 0 : Math.max(0, i0 - depth), startDate = dates[start], endDate = dates[iEnd];
     if (startDate < FLOW_PRE_2021 || (notes?.first !== undefined && notes.first < FLOW_PRE_2021 && notes.first <= endDate)) pre.push(p.ticker);
     if (notes?.crossing) crossing.push(p.ticker);
+    if (notes && (p.data.basis ?? []).some(a => a.status === 'terms' && a.factor !== 1 && a.ex > startDate)) lots.push(p.ticker);
     if (notes && [...notes.masked].some(i => i >= i0 && i <= iEnd)) basis.push(p.ticker);
     const g = (p.data.flow?.gap_bars ?? []).filter(i => i >= start && i <= iEnd).length;
     if (g) gap.set(p.ticker, g);
@@ -207,6 +211,8 @@ function flowWarnings(prep: readonly Prepared[], active: ReturnType<typeof reque
       message: `On ${days === 1 ? '1 trading day' : `${days} trading days`} the Flow conditions read (counted per stock), the broker source's buy and sell totals differ: some brokers are missing from those days.` }) }
   if (crossing.length) out.push({ code: 'FLOW_CROSSING_BOARDS', count: crossing.length, tickers: list(crossing),
     message: `A point-in-time broker cohort reads the Nego or Cash board for ${stocks(crossing.length)}: trades there are negotiated crossings between two parties, so one block can make a broker the largest buyer or seller of the whole span.` });
+  if (lots.length) out.push({ code: 'FLOW_LOTS_RESTATED', count: lots.length, tickers: list(lots),
+    message: `For ${stocks(lots.length)} a split, bonus share or rights issue falls inside the broker data the Flow conditions read: the broker lots before it are put on the share basis of the published prices (lots times the action's factor; rupiah values unchanged), so lot values there differ from the Terminal's chart, which shows the lots as traded.` });
   const nd = dropped.Regular + dropped.Nego + dropped.Cash;
   if (nd) out.push({ code: 'FLOW_ROWS_DROPPED', count: nd, tickers: list([...droppedTickers]),
     message: `Broker rows on days without a price bar are not read by any Flow value (as on the Terminal): ${(['Regular', 'Nego', 'Cash'] as const).filter(b => dropped[b]).map(b => `${dropped[b]} day${dropped[b] === 1 ? '' : 's'} on the ${b} board`).join(', ')} (counted per stock).` });
@@ -588,9 +594,16 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
       message: `A held or signalled stock had no bar on ${count === 1 ? '1 trading day' : `${count} trading days`} (counted per stock): a position held through such a day was valued at its last close, and an entry signal on the day before it was skipped instead of filled at a stale price.` });
   }
   // EXEC-BACKTEST-REVAMP P7 (user K4 a, 2026-11-15; ERRORS M449): a stock with a split, bonus share or rights issue after
-  // the period's start and on or before the boundary has its published prices inside the period restated with a
-  // factor the market learned only on that day (look back); listed per stock, whatever the period's end
-  const restated = signalled.filter(r => r.p.data.corporate_actions.some(a => a.date > from && a.date <= ADJUSTED_HISTORY_BOUNDARY)).map(r => r.p.ticker).sort(byTicker);
+  // the period's start whose published prices carry it has its prices inside the period restated with a factor the
+  // market learned only on that day (look back); listed per stock, whatever the period's end. Stage C2 (lens 1 F10):
+  // whether the prices carry an action is the publisher's reading of the close across it (basis `price`, P9: adjusted
+  // or raw, the date being the ex date); where it has none (no basis block, or an action too small to tell) the
+  // published history is adjusted up to the boundary
+  const carried = (d: TickerData, a: CorporateAction) => {
+    const b = d.basis?.find(x => x.ex === a.date && x.type === a.type);
+    return b?.price === 'adjusted' || (b?.price !== 'raw' && a.date <= ADJUSTED_HISTORY_BOUNDARY);
+  };
+  const restated = signalled.filter(r => r.p.data.corporate_actions.some(a => a.date > from && carried(r.p.data, a))).map(r => r.p.ticker).sort(byTicker);
   if (restated.length)
     warnings.push({ code: 'PRICES_RESTATED', count: restated.length, tickers: restated,
       message: `${restated.length === 1 ? '1 stock' : `${restated.length} stocks`} had a split, bonus share or rights issue after the start of the period: the published prices before it are restated with a factor that was known only on that day, so absolute levels on those days (a price, an ATR or a volume threshold) differ from what was traded; ratios and percentages are not affected.` });

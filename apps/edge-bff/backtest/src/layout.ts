@@ -1,7 +1,7 @@
 /* Layout modes of the reference (backtest.html section 5): the resizable builder (ml.bw), the hidden setup panel
    (body.bcol, ml.panel), results full screen (body.mainfs), the builder in focus mode (body.bx), the keyboard
-   shortcuts [ (panel), F (full screen) and Escape, and the theme button. */
-import { $, setPal } from './format.ts';
+   shortcuts [ (panel), F (full screen) and Escape, and EDGE's theme. */
+import { $, initColors, setPal } from './format.ts';
 import { S } from './state.ts';
 import { renderNav } from './builder.ts';
 import { refreshSignals, themeChart } from './signals.ts';
@@ -33,5 +33,16 @@ export const BX = () => document.body.classList.contains('bx');
 export const setExpanded = (on: boolean) => { document.body.classList.toggle('bx', on); renderNav(); };
 export const bindFocusEscape = () => document.addEventListener('keydown', e => { if(e.key==='Escape' && BX() && $('menu').hidden) setExpanded(false) });
 
-/* ---- theme ---- */
-export const bindTheme = () => { $('themeBtn').onclick = () => { const r = document.documentElement; r.dataset.theme = r.dataset.theme==='dark' ? 'light' : 'dark'; setPal(); themeChart(); refreshSignals(); if(S.result && S.tab==='overview') renderTab() } };
+/* ---- theme (Tahap D, decision 2a): the page follows EDGE's one theme, the shell's key as the Screener and the Radar
+   read it; the design's own theme button is gone. A change in the shell (another frame of the same origin) arrives as a
+   storage event: the palette, the charts and the overview are drawn again in the new colours. ---- */
+export const THEME_KEY = 'edge-auth-monitor-theme';
+export const applyTheme = () => {
+  let dark = false;
+  try { dark = localStorage.getItem(THEME_KEY) === 'dark' } catch { /* storage off: light */ }
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+};
+export const bindTheme = () => addEventListener('storage', e => {
+  if (e.key !== THEME_KEY && e.key !== null) return;
+  applyTheme(); setPal(); initColors(); themeChart(); refreshSignals(); if(S.result && S.tab==='overview') renderTab();
+});

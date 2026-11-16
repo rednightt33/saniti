@@ -40,7 +40,8 @@ const calcAt = (t: Ticker, rows: readonly Row[], n: number) => {
   return new Calc(h.bars as never, undefined, { ticker: t.ticker, dates: h.dates, index: { dates: M.ihsg.dates, bars: M.ihsg.bars as never },
     broker: { columns: columns(rows.filter(r => r.d <= last)), classification: CLS } });
 };
-/** computeFlow on the same rows and bars (the fixture has broker rows on every session: the window is every bar). */
+/** computeFlow on the same rows and bars, every bar (the grammar's window is the bars from the first to the last broker
+    date; outside it the grammar is empty). */
 const terminal = (t: Ticker, rows: readonly Row[], id: string, params: Record<string, unknown>) => {
   const at = new Map(t.dates.map((d, k) => [d, k]));
   return TF.computeFlow(id, { rows: TF.flowRows(rows as never, t.dates.length, d => at.get(d) ?? -1), dates: t.dates, close: t.bars.C as number[], volume: t.bars.V as number[],
@@ -54,17 +55,33 @@ const same = (a: ArrayLike<unknown>, b: ArrayLike<unknown>, what: string) => {
   }
 };
 
-test('every offered Flow indicator, output and option: the grammar series equals the Terminal formula on the whole history', () => {
-  const rows = M.rows[A.ticker], c = calcAt(A, rows, A.dates.length);
+/* Stage C2 (lens 1 F2, F4): the grammar is the Terminal's formula on the data up to each session. Two places differ from
+   computeFlow on the whole history: a session without broker rows (a source gap; the data up to it ends the session
+   before) is empty, and before a named broker's first row the broker is not a member yet (on the whole history the
+   Terminal counts it as one): there the Terminal is asked with that broker's code replaced by one no row has. */
+const FIRST = (rows: readonly Row[], t: Ticker) => { const m = new Map<string, number>(); for (const r of rows) if (!m.has(r.b)) m.set(r.b, t.dates.indexOf(r.d)); return m };
+const asOfDay = (t: Ticker, rows: readonly Row[], id: string, params: Record<string, unknown>, key: string): (number | null)[] => {
+  const first = FIRST(rows, t), lists = Object.entries(params).filter(([k, v]) => /brokers$|^inst$|^retail$/.test(k) && Array.isArray(v)) as [string, string[]][];
+  const days = new Set(rows.map(r => r.d)), full = terminal(t, rows, id, params)[key];
+  return Array.from(full, (x, i) => {
+    if (!days.has(t.dates[i])) return null;
+    const late = lists.some(([, codes]) => codes.some(code => (first.get(code) ?? -1) > i));
+    if (!late) return x ?? null;
+    const q = { ...params }; for (const [k, codes] of lists) q[k] = codes.map(code => (first.get(code) ?? -1) > i ? '\u0000' + code : code);
+    return terminal(t, rows, id, q)[key][i] ?? null;
+  });
+};
+test('every offered Flow indicator, output and option: the grammar series equals the Terminal formula on the data up to each session', () => {
+  const rows = M.rows[A.ticker], c = calcAt(A, rows, A.dates.length), lastRow = A.dates.indexOf(rows[rows.length - 1].d);
   let n = 0, refused = 0;
   for (const e of FLOWS) for (const v of e.variants) for (const o of e.outputs) {
     let s: ArrayLike<number | null | undefined>;
     try { s = seriesOfRef(c, { kind: 'flow', metric: e.id, output: o, params: v }, 'f') }
     catch (err) { if (err instanceof ValidationError) { refused++; continue } throw err }
-    const r = terminal(A, rows, e.id, e.normalized(v));
-    const k = e.seriesKey(o, v);
-    if (!(k in r)) continue;                                                    // a sided line the side does not draw
-    same(s, r[k], `${e.id}.${o} ${JSON.stringify(v)}`);
+    const q = e.normalized(v), k = e.seriesKey(o, v);
+    if (!(k in terminal(A, rows, e.id, q))) continue;                            // a sided line the side does not draw
+    const want = asOfDay(A, rows, e.id, q, k).map((x, i) => i > lastRow ? null : x);   // after the last broker date: empty
+    same(s, want, `${e.id}.${o} ${JSON.stringify(v)}`);
     n++;
   }
   console.log(`flow parity: ${n} series equal, ${refused} option combinations the Screener's validation refuses`);
@@ -82,13 +99,13 @@ test('FL34 reads today\'s classification on every date, and no baseline is lower
 test('no look-ahead through the grammar: the series on the data cut at t equals the full series up to t', () => {
   const rows = M.rows[A.ticker], full = calcAt(A, rows, A.dates.length), cuts = [120, 260, 333, 480];
   const leaks: string[] = [];
-  for (const e of FLOWS) for (const o of e.outputs) {
+  for (const e of FLOWS) for (const v of e.variants) for (const o of e.outputs) {
     let s: ArrayLike<number | null | undefined>;
-    const ref = { kind: 'flow', metric: e.id, output: o, params: {} };
+    const ref = { kind: 'flow', metric: e.id, output: o, params: v };
     try { s = seriesOfRef(full, ref, 'f') } catch (err) { if (err instanceof ValidationError) continue; throw err }
     for (const k of cuts) {
       const p = seriesOfRef(calcAt(A, rows, k), ref, 'f');
-      for (let i = 0; i < k; i++) if ((p[i] ?? null) !== (s[i] ?? null) && !(Number.isNaN(p[i]) && Number.isNaN(s[i]))) { leaks.push(`${e.id}.${o} at ${i} cut ${k}`); break }
+      for (let i = 0; i < k; i++) if ((p[i] ?? null) !== (s[i] ?? null) && !(Number.isNaN(p[i]) && Number.isNaN(s[i]))) { leaks.push(`${e.id}.${o} ${JSON.stringify(v)} at ${i} cut ${k}`); break }
     }
   }
   assert.deepEqual(leaks, []);
@@ -187,21 +204,23 @@ test("the run's Flow warnings: before 2021, basis change, source gaps and droppe
   assert.deepEqual(codes(plain), {});
 });
 
-test('Stage C F3: a named broker whose first row is after the period is refused per stock; one the stock never traded keeps the Terminal value', () => {
+test('Stage C2 (lens 1 F2, F3): a named broker counts from its own first row; no row after the period decides a run', () => {
   const rows = M.rows[A.ticker], c = calcAt(A, rows, A.dates.length), firstLate = A.dates.indexOf(rows.find(r => r.b === 'LATE')!.d);
   const cond = (params: Record<string, unknown>, metric = 'FL13', output = 'buy') => ({ id: 'f', kind: 'test', test: { kind: 'value', metric: { kind: 'flow', metric, output, params }, op: 'lt', value: 1 } }) as never;
-  const late = cond({ scope: 'selected', brokers: ['AA', 'LATE'] });
-  // the period ends before LATE's first row: refused (the value on those days would be decided by LATE's later rows)
-  assert.throws(() => conditionSeries(c, late, 'f', firstLate - 1), (e: unknown) => e instanceof ValidationError && e.code === 'UNKNOWN_BROKER'
-    && e.field === 'f.test.metric.params.brokers[1]' && new RegExp(`its first is on ${A.dates[firstLate]}`).test(e.message));
-  // on or after it: computed, and the same on the data cut at the period's end (no later row decides it)
-  for (const last of [firstLate, firstLate + 40]) {
-    const full = conditionSeries(c, late, 'f', last), cut = conditionSeries(calcAt(A, rows, last + 1), late, 'f', last);
-    for (let i = 0; i <= last; i++) assert.equal(full[i], cut[i], `bar ${i} (period to ${last})`);
-  }
-  // a list not in use (scope topn) and a broker the stock never traded (ZZ: in neither set) are not refused
-  assert.doesNotThrow(() => conditionSeries(c, cond({ scope: 'topn', brokers: ['LATE'] }), 'f', 10));
+  // LATE before its first row: not a member (FL13 of LATE alone: no member, no value); the period may end before it
+  const late = cond({ scope: 'selected', brokers: ['LATE'] }), s = seriesOfRef(c, { kind: 'flow', metric: 'FL13', output: 'buy', params: { scope: 'selected', brokers: ['LATE'] } }, 'f');
+  assert.ok(Array.from(s).slice(0, firstLate).every(x => x === null), 'empty before LATE trades the stock');
+  assert.ok(Array.from(s).slice(firstLate).some(x => typeof x === 'number'), 'a value once it does');
+  // the run's signals on the whole data equal those on the data cut at the period's end, whatever the end
+  for (const params of [{ scope: 'selected', brokers: ['LATE'] }, { scope: 'selected', brokers: ['AA', 'LATE'] }, { inst: ['LATE'], retail: ['BK'] }])
+    for (const last of [firstLate - 30, firstLate - 1, firstLate, firstLate + 40]) {
+      const q = cond(params, 'inst' in params ? 'FL34' : 'FL13', 'inst' in params ? 'value' : 'buy');
+      let full: ArrayLike<number> | string, cut: ArrayLike<number> | string;
+      try { full = conditionSeries(c, q, 'f', last) } catch (e) { full = (e as ValidationError).code }
+      try { cut = conditionSeries(calcAt(A, rows, last + 1), q, 'f', last) } catch (e) { cut = (e as ValidationError).code }
+      if (typeof full === 'string' || typeof cut === 'string') { assert.equal(full, cut, `${JSON.stringify(params)} to ${last}`); continue }
+      for (let i = 0; i <= last; i++) assert.equal(full[i], cut[i], `${JSON.stringify(params)} bar ${i} (period to ${last})`);
+    }
+  // a broker the stock never traded (ZZ) is in neither set: the Terminal's value, and never refused
   assert.doesNotThrow(() => conditionSeries(c, cond({ scope: 'selected', brokers: ['AA', 'ZZ'] }), 'f', 10));
-  // FL34's inst and retail lists (no scope) are read too
-  assert.throws(() => conditionSeries(c, cond({ inst: ['LATE'], retail: ['BK'] }, 'FL34', 'value'), 'f', firstLate - 1), (e: unknown) => e instanceof ValidationError && e.code === 'UNKNOWN_BROKER' && e.field === 'f.test.metric.params.inst[0]');
 });

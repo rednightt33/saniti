@@ -23,7 +23,8 @@ export interface State {
   conds: Card[];
   exit: { stopMode: string; sl: number; slAtr: number; slRR: number; atrLen: number; stopLine: { id: string; o: string; p?: Record<string, unknown> };
           tpMode: string; tp: number; tpR: number; tpAtr: number; trailMode: string; trail: number; chLen: number; chK: number;
-          trailLine: { id: string; o: string; p?: Record<string, unknown> }; hold: number };
+          trailLine: { id: string; o: string; p?: Record<string, unknown> }; hold: number;
+          /** the holding limit kept while the time exit is off (design: "No holding limit"; not sent) */ holdKeep?: number };
   exitConds: Card[]; exitLogic: 'any' | 'all';
   size: { capital: number; alloc: number };
   cost: { buy: number; sell: number; slip: number; ara: boolean; minVal: number };

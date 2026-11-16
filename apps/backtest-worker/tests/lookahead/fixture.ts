@@ -36,7 +36,10 @@ export function ticker(name: string, seed: number, dates: string[], index = fals
 export interface Row { d: string; b: string; i: string; m: string; bv: number; sv: number; bl: number; sl: number; bf: number; sf: number }
 
 /** Broker rows of a ticker on its own sessions: about 10 brokers a day on Regular, a Nego crossing on about 1 day in
-    10 and a Cash one on 1 in 20; broker LATE trades only from session 200, broker GONE stops after session 350. */
+    10 and a Cash one on 1 in 20; broker LATE trades only from session 200, broker GONE stops after session 350.
+    Stage C2 (lens 1 F4): sessions with prices and no broker row at all, one in 29 and the newest two (the broker data
+    behind the prices), so a value that reads whether the next session has broker data is caught; the rows are drawn
+    as before and then dropped on those sessions. */
 export function brokerRows(t: Ticker, seed: number): Row[] {
   const r = rng(seed), codes = ['AA', 'BK', 'CC', 'DX', 'EP', 'FS', 'GR', 'HP', 'IF', 'KZ', 'LG', 'MG', 'NI', 'OD', 'PD', 'RX', 'SQ', 'TP', 'XL', 'YP', 'YU', 'ZP'];
   const out: Row[] = [];
@@ -54,7 +57,8 @@ export function brokerRows(t: Ticker, seed: number): Row[] {
       if (r() < p) { const b = codes[Math.floor(r() * codes.length)], lots = Math.round(r() * 5000);
         out.push({ d: t.dates[i], b, i: 'Domestic', m, bv: Math.round(lots * 100 * px * (1 + (r() - 0.5) * 0.06)), sv: 0, bl: lots, sl: 0, bf: 1, sf: 0 }) }
   }
-  return out.sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : a.b < b.b ? -1 : a.b > b.b ? 1 : a.i < b.i ? -1 : a.i > b.i ? 1 : a.m < b.m ? -1 : 1);
+  const gap = new Set(t.dates.filter((_, i) => i % 29 === 13 || i >= t.dates.length - 2));
+  return out.filter(x => !gap.has(x.d)).sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : a.b < b.b ? -1 : a.b > b.b ? 1 : a.i < b.i ? -1 : a.i > b.i ? 1 : a.m < b.m ? -1 : 1);
 }
 
 /** The gate's market: IHSG (no volume) and three stocks, one with a suspension (12 sessions missing). */

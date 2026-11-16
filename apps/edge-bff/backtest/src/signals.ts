@@ -19,6 +19,8 @@ import { spin } from '../../terminal/src/ui/spin.ts';
 import { chartTicker, runTickers } from './picked.ts';
 import { Previews, portRows, previewKey, type Rows } from './preview.ts';
 import { NO_STOCK } from './picker.ts';
+import { renderFilterBar } from './filterbar.ts';
+import { LANES, NARROW, drawSignalLanes, initLanes, laneSignals } from './lanes.ts';
 
 export interface Sig { series: { c: Card; s: Uint8Array }[]; entry: Uint8Array; dates: string[] }
 
@@ -120,23 +122,25 @@ const portSig = (): Rows => previews.rows(S.tickers.length ? previewRequest() : 
 /* =====================================================================
    7 · SIGNAL CHART — candles + small arrows per condition + lanes
    ===================================================================== */
-let pc: L.IChartApi, candle: L.ISeriesApi<'Candlestick'>, markers: L.ISeriesMarkersPluginApi<L.Time>, laneState: { sig: Sig; idx: number[]; wait?: boolean } | null = null, crossX: number | null = null, zoomN = 252;
-const LANE_GUTTER = 136;
+let pc: L.IChartApi, candle: L.ISeriesApi<'Candlestick'>, markers: L.ISeriesMarkersPluginApi<L.Time>, laneState: { sig: Sig; idx: number[]; wait?: boolean } | null = null, zoomN = 252;
+/** the left gutter of the chart: the left header over the price pane and the lane labels and switches under it */
+const LANE_GUTTER = 200;
 export const initPriceChart = () => {
   const el = $('priceChart');
   pc = L.createChart(el, { autoSize:true, localization:{locale:'id-ID', priceFormatter:(v: number)=>nf(v, Math.abs(v)<100?2:0)}, layout:{background:{type:L.ColorType.Solid,color:css('--surface')}, textColor:css('--text-3'), fontFamily:'Inter, "Segoe UI", system-ui, sans-serif', attributionLogo:false, panes:{separatorColor:css('--border'), enableResize:true}},
-    grid:{vertLines:{color:css('--border')+'80'},horzLines:{color:css('--border')+'80'}}, rightPriceScale:{borderColor:css('--border')}, leftPriceScale:{visible:true, minimumWidth:LANE_GUTTER, borderColor:css('--border'), ticksVisible:false}, timeScale:{borderColor:css('--border'), rightOffset:4},
+    grid:{vertLines:{visible:false},horzLines:{visible:false}}, rightPriceScale:{borderColor:css('--border')}, leftPriceScale:{visible:!NARROW.matches, minimumWidth:LANE_GUTTER, borderColor:css('--border'), ticksVisible:false}, timeScale:{borderColor:css('--border'), rightOffset:4},
     crosshair:{mode:L.CrosshairMode.Normal} });
   candle = pc.addSeries(L.CandlestickSeries, {upColor:PAL.up,downColor:PAL.dn,borderUpColor:PAL.up,borderDownColor:PAL.dn,wickUpColor:PAL.up,wickDownColor:PAL.dn, priceLineVisible:false, priceFormat:{type:'price',precision:0,minMove:1}});
   markers = L.createSeriesMarkers(candle, []);
   pc.timeScale().subscribeVisibleLogicalRangeChange(() => requestAnimationFrame(drawLanes));
   new ResizeObserver(() => requestAnimationFrame(drawLanes)).observe($('priceChart'));
-  pc.subscribeCrosshairMove(p => { crossX = p.point ? p.point.x : null; requestAnimationFrame(drawLanes) });
+  initLanes(pc);
+  NARROW.addEventListener('change', () => { pc.applyOptions({ leftPriceScale:{ visible:!NARROW.matches } }); requestAnimationFrame(drawLanes) });
 };
 /** theme change: the chart's colours (the reference's themeBtn handler) */
 export const themeChart = () => {
   candle.applyOptions({upColor:PAL.up,downColor:PAL.dn,borderUpColor:PAL.up,borderDownColor:PAL.dn,wickUpColor:PAL.up,wickDownColor:PAL.dn});
-  pc.applyOptions({layout:{background:{type:L.ColorType.Solid,color:css('--surface')}, textColor:css('--text-3')}, grid:{vertLines:{color:css('--border')+'80'},horzLines:{color:css('--border')+'80'}}});
+  pc.applyOptions({layout:{background:{type:L.ColorType.Solid,color:css('--surface')}, textColor:css('--text-3')}, grid:{vertLines:{visible:false},horzLines:{visible:false}}});
 };
 let lastSig: Sig | null = null;
 export const getLastSig = () => lastSig;
@@ -157,29 +161,23 @@ export const refreshSignals = () => {
   const idx: number[] = []; for(let i=0;i<N;i++) if(inRange(DAYS, i)) idx.push(i);
   candle.setData(idx.map(i=>({time:DAYS[i], open:D.o[i], high:D.h[i], low:D.l[i], close:D.c[i]})));
   laneState = {sig, idx, wait};
-  // markers: a small arrow on the day each condition switches on; a bold arrow for the entry signal; exits after a run
-  const mk: L.SeriesMarker<L.Time>[] = [];
-  sig.series.forEach(x => { if(S.hidden[x.c.id] || pending(x.c)) return; const col = COLORS[S.conds.indexOf(x.c) % COLORS.length]; for(const i of idx){ if(x.s[i] && !x.s[i-1]) mk.push({time:DAYS[i], position:'belowBar', color:col, shape:'arrowUp', size:0.5}) } });
-  if(!S.hidden.__entry && !wait){ for(const i of idx){ if(sig.entry[i] && !sig.entry[i-1]) mk.push({time:DAYS[i], position:'belowBar', color:css('--text'), shape:'arrowUp', size:1.4, text:''}) } }
-  const R = S.result; if(R && !S.hidden.__trades){ R.trades.filter(t=>t.tk===tk).forEach(t => { mk.push({time:R.days[t.ei], position:'belowBar', color:PAL.up, shape:'circle', size:0.8}); mk.push({time:R.days[t.xi], position:'aboveBar', color:t.ret>=0?PAL.up:PAL.dn, shape:'arrowDown', size:1, text:zoomN&&zoomN<=252?(t.ret>=0?'+':'')+nf(t.ret*100,1)+'%':''}) }) }
+  // markers (Tahap D, the design): the trades of the last run numbered (the selected one blue) with their exits and
+  // returns; without trades, an arrow on each day the entry rule switches on (the conditions are the lanes below)
+  const mk: L.SeriesMarker<L.Time>[] = [], R = S.result, TR = R && !S.hidden.__trades ? R.trades.filter(t=>t.tk===tk) : [];
+  if(!TR.length && !S.hidden.__entry && !wait){ for(const i of idx){ if(sig.entry[i] && !sig.entry[i-1]) mk.push({time:DAYS[i], position:'belowBar', color:css('--text'), shape:'arrowUp', size:1}) } }
+  TR.forEach((t, k) => { mk.push({time:R!.days[t.ei], position:'belowBar', color:k===LANES.sel?css('--blue'):PAL.up, shape:'arrowUp', size:1.1, text:String(k+1)}); mk.push({time:R!.days[t.xi], position:'aboveBar', color:t.ret>=0?PAL.up:PAL.dn, shape:'arrowDown', size:1, text:zoomN&&zoomN<=252?(t.ret>=0?'+':'')+nf(t.ret*100,1)+'%':''}) });
   mk.sort((a,b)=>a.time<b.time?-1:a.time>b.time?1:0);
   markers.setMarkers(mk);
-  // chips with counts (how often each condition is true inside the period)
+  // Tahap D (the design): the conditions are the lanes under the chart (lanes.ts) and the formula bar above it
+  // (filterbar.ts); each legacy card keeps how often its condition is true inside the period
   const span = idx.length;
-  // chips are grouped by what they are: technical indicators, flow data, price action, and the strategy's own output
-  const chipOf = (x: Sig['series'][number]) => { const col = COLORS[S.conds.indexOf(x.c) % COLORS.length]; let n=0, on=0;
-      if(pending(x.c)) return `<span class="chip" ${TT(ttH(esc(condName(x.c)), [], 'Loading broker data…'))}><i style="background:${col}"></i><span class="cn">${esc(condName(x.c).replace(/\s*\([^)]*\)/,''))}</span><b>…</b></span>`; for(const i of idx){ if(x.s[i]){ n++; if(!x.s[i-1]) on++ } }
-      const ce = $('cf-'+x.c.id); if(ce) ce.innerHTML = `true on <b>${n}</b> days (${nf(n/span*100,1)}%)`;
-      return `<span class="chip ${S.hidden[x.c.id]?'off':''}" data-h="${x.c.id}" ${TT(ttH(esc(condName(x.c)), [['Switches on', on+'×'], ['True on', `${n} days (${nf(n/span*100,1)}%)`]], 'Click to hide or show on the chart.'))}><i style="background:${col}"></i><span class="cn">${esc(condName(x.c).replace(/\s*\([^)]*\)/,''))}</span><b>${on}×</b></span>` };
-  const GROUPS = [['tech','Technical'],['flow','Flow'],['price','Price action']];
-  let nEntry = 0; for(const i of idx) if(sig.entry[i] && !sig.entry[i-1]) nEntry++;
-  const entryN = wait ? '…' : String(nEntry), entryTip = wait ? 'Waits for the broker data of the flow conditions.' : 'Black arrow on the chart. Click to hide or show.';
-  const cols: [string, string[]][] = GROUPS.map(([g,l]) => [l, sig.series.filter(x => catOf(x.c).group===g).map(chipOf)] as [string, string[]]).filter(([,xs]) => xs.length);
-  cols.push(['Strategy', [`<span class="chip entry ${S.hidden.__entry?'off':''}" data-h="__entry" ${TT(ttH('Entry signal', [['Signals', wait ? 'loading' : nEntry+'×']], entryTip))}><i></i><span class="cn">Entry signal</span><b>${wait ? entryN : entryN+'×'}</b></span>`,
-    ...(S.result ? [`<span class="chip ${S.hidden.__trades?'off':''}" data-h="__trades" ${TT(ttH('Trades', [['On this stock', S.result.trades.filter(t=>t.tk===tk).length]], 'Dot = entry, arrow = exit with its return. Click to hide or show.'))}><i style="background:${PAL.up};border-radius:50%"></i><span class="cn">Trades</span><b>${S.result.trades.filter(t=>t.tk===tk).length}</b></span>`] : [])]]);
-  $('sigChips').innerHTML = cols.map(([l,xs],k) => `<div class="lg-col ${l==='Strategy'?'out':''}"><em>${l}</em><div class="lg-items">${xs.join('')}</div></div>`).join('');
-  $('sigChips').querySelectorAll('[data-h]').forEach((ch: HTMLElement) => ch.onclick = () => { S.hidden[ch.dataset.h] = !S.hidden[ch.dataset.h]; refreshSignals() });
-  const rw = pc.priceScale('right').width(); if(rw) $('chartTools').style.right = (rw + 10) + 'px';
+  for (const x of sig.series) {
+    const ce = $('cf-'+x.c.id); if(!ce) continue;
+    if (pending(x.c)) { ce.textContent = 'loading broker data…'; continue }
+    let n = 0; for(const i of idx) if(x.s[i]) n++;
+    ce.innerHTML = `true on <b>${n}</b> days (${nf(span ? n/span*100 : 0,1)}%)`;
+  }
+  renderFilterBar(); laneSignals({ dates:DAYS, o:D.o, h:D.h, l:D.l, c:D.c }, idx, sig, tk, !!wait);
   applyZoom(); drawLanes(); renderNav(); updateViewbar();
 };
 /** the loading ring over the chart for `tk` (null: none); true when it was not already shown for that ticker */
@@ -204,34 +202,12 @@ const portTable = (U: string[], tk: string) => {
    empty; the table shows the empty note or the picked stocks */
 const noChart = () => {
   lastSig = null; candle.setData([]); markers.setMarkers([]); laneState = { sig:{ series:[], entry:new Uint8Array(0), dates:[] }, idx:[] };
-  $('sigChips').innerHTML = '';
+  renderFilterBar(); laneSignals(null);
   applyZoom(); drawLanes(); renderNav(); updateViewbar();
 };
 const applyZoom = () => { const n = laneState ? laneState.idx.length : 0; if(!zoomN || zoomN>=n) pc.timeScale().fitContent(); else pc.timeScale().setVisibleLogicalRange({from:n-zoomN, to:n+3}) };
-// condition lanes: a strip under the chart, one row per condition (+ entry row); filled where the condition is true
-const LANE_H = 18;
-export const drawLanes = () => {
-  if(!laneState) return; const {sig, idx} = laneState, cv = $('laneCv') as HTMLCanvasElement;
-  // EXEC-BACKTEST-LOAD: a flow lane and the entry lane wait for the broker data (laneState.wait): labelled, not filled
-  const w = !!laneState.wait, lw = (c: Card) => w && catOf(c).group === 'flow';
-  const rows = [...sig.series.map(x=>({lbl:catOf(x.c).label + (lw(x.c) ? ' · loading' : ''), col:COLORS[S.conds.indexOf(x.c)%COLORS.length], s:x.s, off:S.hidden[x.c.id] || lw(x.c), bold:false, wait:lw(x.c)})), {lbl:'Entry' + (w ? ' · loading' : ''), col:css('--text'), s:sig.entry, off:S.hidden.__entry || w, bold:true, wait:w}];
-  const H = rows.length*LANE_H+10, W = cv.parentElement.clientWidth, dpr = devicePixelRatio||1;
-  cv.style.height = H+'px'; cv.width = W*dpr; cv.height = H*dpr; const g = cv.getContext('2d'); g.scale(dpr,dpr); g.clearRect(0,0,W,H);
-  const ts = pc.timeScale(), plotW = ts.width(), bs = Math.max(1, ts.options().barSpacing), LW = pc.priceScale('left').width() || LANE_GUTTER;
-  g.save(); g.beginPath(); g.rect(LW, 0, plotW, H); g.clip(); g.translate(LW, 0);
-  rows.forEach((r,k) => { const y = 5+k*LANE_H;
-    g.fillStyle = k%2 ? 'transparent' : css('--surface-2'); g.fillRect(0, y, plotW, LANE_H);
-    if(r.off) return; g.fillStyle = r.col; g.globalAlpha = r.bold ? 1 : .85;
-    const vr = ts.getVisibleLogicalRange(); const a = Math.max(0, Math.floor(vr?vr.from:0)-1), b = Math.min(idx.length-1, Math.ceil(vr?vr.to:idx.length)+1);
-    for(let j=a;j<=b;j++){ const i = idx[j]; if(!r.s[i]) continue; const x = ts.logicalToCoordinate(j as L.Logical); if(x==null) continue; g.fillRect(x-bs/2, y+4, Math.max(1,bs), LANE_H-8) }
-    g.globalAlpha = 1 });
-  if(crossX!=null && crossX<plotW){ g.fillStyle = css('--text-3'); g.fillRect(crossX, 0, 1, H) }
-  g.restore();
-  g.fillStyle = css('--border'); g.fillRect(LW-1, 0, 1, H); g.fillRect(LW+plotW, 0, 1, H);
-  $('laneLabels').style.width = (LW-1)+'px';
-  // EXEC-BACKTEST-SPIN: a lane that waits for the broker data has the small loading ring before its label
-  $('laneLabels').innerHTML = rows.map((r,k)=>`<span class="${r.off?'off':''}" style="top:${5+k*LANE_H}px;height:${LANE_H}px">${r.wait ? '<b class="ml-spin sm" aria-hidden="true"></b>' : `<i style="background:${r.col}"></i>`}${esc(r.lbl)}</span>`).join('');
-};
+/** the signal lanes under the chart on its visible range (lanes.ts; the design's xsLanes) */
+export const drawLanes = () => drawSignalLanes();
 /** the chart's own listeners (the reference wires them at start: zoom buttons, ticker select) */
 export const bindSignals = () => {
   // a user action on this page lets a preview another tab replaced be asked again (preview.ts)

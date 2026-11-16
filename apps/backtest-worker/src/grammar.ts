@@ -38,7 +38,8 @@ import { checkDTest, dSignal, hasD } from './pit/evaluate.ts';
 import { dSeries, namedWithoutRows } from './pit/series.ts';
 import { checkDRef, isD } from './pit/spec.ts';
 import type { DRef } from './pit/spec.ts';
-import type { FlowOut } from '../../edge-bff/terminal/src/calc/flow.ts';
+import { computeFlow } from '../../edge-bff/terminal/src/calc/flow.ts';
+import type { FlowContext, FlowOut } from '../../edge-bff/terminal/src/calc/flow.ts';
 import { SOURCES as SCREENER_SOURCES, registryProblems } from '../../edge-bff/screener/src/core/registry.ts';
 import { IMPLEMENTED_PATTERNS, IMPLEMENTED_TRANSFORMS } from '../../edge-bff/screener/src/core/transforms.ts';
 import { availabilityMap, validateTest } from '../../edge-bff/screener/src/core/validate.ts';
@@ -90,46 +91,29 @@ function asValidation(e: unknown, field: string): unknown {
   return e;
 }
 
-/* Stage C (Agent 9 F3, ERRORS M458): a Flow reference that names its brokers reads them as the Terminal does. A named
-   broker is in the stock's broker set when it has a row anywhere in the rows the formula is given (calc/flow.ts flowRows
-   and cohort), so before its first row its value is 0 (in the set) or empty (not in it, FL13: "no member: no value").
-   A named broker whose first row for the stock is after the end of the period would therefore decide the run from later
-   data: it is refused per stock (UNKNOWN_BROKER, which a portfolio reads as a reason to leave the stock out, signals.ts
-   EXCLUDED_CODES), as a point-in-time indicator refuses a named broker (pit/series.ts namedWithoutRows). A broker the
-   stock never traded is in neither set, so it keeps the Terminal's value. The lists are the registry's broker
-   parameters (kind 'brokers': brokers, inst, retail, num_brokers, den_brokers), each read only where it is in use (its
-   `<prefix>scope` set to 'selected', or no scope of its prefix), so a new parameter of that kind is covered. */
-const FIRST_ROW = new WeakMap<Calc, Map<string, string>>();
-function firstRowOf(c: Calc, code: string): string | undefined {
-  let m = FIRST_ROW.get(c);
-  if (!m) {
-    m = new Map();
-    const cols = c.meta.broker?.columns;
-    if (cols) for (let k = 0; k < cols.rows; k++) {
-      const b = cols.brokers[cols.B[k]], d = cols.dates[cols.D[k]], seen = m.get(b);
-      if (seen === undefined || d < seen) m.set(b, d);
-    }
-    FIRST_ROW.set(c, m);
-  }
-  return m.get(code);
-}
-/** UNKNOWN_BROKER for the first named broker of a (completed) Flow reference whose first row for the stock is after
-    `until` (the period's last bar), naming the field and the fix. */
-function refuseLaterBrokers(c: Calc, ref: Record<string, unknown>, field: string, until: string, inPeriod: boolean): void {
-  const e = FLOW_BY_ID[ref.metric as string], params = isObj(ref.params) ? ref.params : {};
-  if (!e || !c.meta.broker) return;
+/* Stage C2 (lens 1 F2 and F3, ERRORS M459): a Flow reference that names its brokers (a list of the registry's kind
+   'brokers': brokers, inst, retail, num_brokers, den_brokers; read where it is in use: its `<prefix>scope` set to
+   'selected', or no scope of its prefix) reads each named broker from its own first row for the stock on. The Terminal
+   puts a broker in the stock's broker set when it has a row anywhere in the rows it is given (calc/flow.ts cohort), so on
+   the whole history a broker that starts trading the stock later counted as a member (value 0) on the days before, where
+   the data up to that day has no such broker (FL13: "no member: no value"). The series is therefore computed per stretch
+   of days with the same members (tickerFlow: one computeFlow per stretch, the names not yet trading replaced by a code no
+   row has) and joined; a broker with no row at all is in neither set, as before. Stage C refused a broker whose first row
+   came after the period (UNKNOWN_BROKER), which let rows after the period decide the run (lens 1 F3); that refusal is
+   gone. */
+const NOT_YET = '\u0000';
+/** The broker lists a Flow entry reads at these parameters, with their codes. */
+function namedLists(e: (typeof FLOW_BY_ID)[string], params: Record<string, unknown>): { key: string; codes: string[] }[] {
+  const out: { key: string; codes: string[] }[] = [];
   for (const p of e.params) {
     const v = params[p.key];
     if (p.kind !== 'brokers' || !Array.isArray(v)) continue;
     const scope = `${p.key.slice(0, p.key.length - 'brokers'.length)}scope`;
     const sp = p.key.endsWith('brokers') ? e.params.find(q => q.key === scope) : undefined;
     if (sp && (params[scope] ?? sp.default) !== 'selected') continue;
-    v.forEach((code, j) => {
-      const first = typeof code === 'string' ? firstRowOf(c, code) : undefined;
-      if (first !== undefined && first > until)
-        throw new ValidationError('UNKNOWN_BROKER', `${field}.params.${p.key}[${j}]`, `${field}.params.${p.key}[${j}]: ${code} has no broker rows for ${c.meta.ticker ?? 'this stock'}${inPeriod ? ' up to the end of the period' : ''} (its first is on ${first}), so later data would decide this condition; remove ${code}, or end the period on or after ${first}.`);
-    });
+    out.push({ key: p.key, codes: v.filter((x): x is string => typeof x === 'string') });
   }
+  return out;
 }
 
 /** The metrics' availability as the Screener's validation reads it: every metric a backtest has no file for is
@@ -180,9 +164,23 @@ function tickerFlow(c: Calc): TickerFlow | undefined {
     const cols = b.columns, first = cols.rows ? cols.dates[0] : null, last = cols.rows ? cols.dates[cols.dates.length - 1] : null, memo = new Map<string, FlowOut>();
     const dates = c.meta.dates ?? [], lo = first === null ? 0 : (() => { let i = 0; while (i < dates.length && dates[i] < first) i++; return i })();
     const notes = c.flowNotes ??= { depth: 0, masked: new Set<number>() };
+    // Stage C2 (lens 1 F4): the window's sessions with a broker row; on a session without one (a source gap) a Flow value
+    // is empty, as on the data up to that session (the window then ends at the session before)
+    const rowDay = new Set(cols.dates), N = (() => { let i = lo; while (i < dates.length && last !== null && dates[i] <= last) i++; return i - lo })();
+    const noRow = Uint8Array.from({ length: N }, (_, j) => +!rowDay.has(dates[lo + j]));
+    // each named broker's first session in the window (lens 1 F2)
+    const firstAt = new Map<string, number>();
+    for (let k = 0; k < cols.rows; k++) { const b0 = cols.brokers[cols.B[k]], d0 = firstAt.get(b0); if (d0 === undefined || cols.D[k] < d0) firstAt.set(b0, cols.D[k]) }
+    const at = new Map(dates.slice(lo, lo + N).map((d, j) => [d, j]));
+    const firstIn = (code: string) => { const d = firstAt.get(code); return d === undefined ? undefined : at.get(cols.dates[d]) };
+    let ctx: FlowContext | undefined;
     const set = (k: string, out: FlowOut) => {
-      const [, id, params] = JSON.parse(k) as [string, string, Record<string, FlowParamValue>], e = FLOW_BY_ID[id];
-      for (const o of e?.outputs ?? []) {
+      const key = JSON.parse(k) as [string, string, Record<string, FlowParamValue>, string?, number?], [, id, params] = key, e = FLOW_BY_ID[id];
+      for (const s of Object.values(out)) {
+        if (key.length === 5) { if (noRow[key[4]!]) s.fill(null) }
+        else for (let j = 0; j < s.length && j < N; j++) if (noRow[j]) s[j] = null;
+      }
+      for (const o of key.length === 5 ? [] : e?.outputs ?? []) {
         const d = indicatorDepth(e, o.key, params);
         if (notes.depth !== null) notes.depth = d === null ? null : Math.max(notes.depth, d);
         if (!BROKER_PRICE.has(id)) continue;
@@ -193,7 +191,28 @@ function tickerFlow(c: Calc): TickerFlow | undefined {
       }
       memo.set(k, out);
     };
-    f = { first, last, rows: () => cols, classification: b.classification, memo: { get: k => memo.get(k), set } };
+    /** computeFlow per stretch of sessions with the same named members, joined (undefined: no named broker starts
+        inside the window, the memo's caller computes it as the Terminal does) */
+    const members = (k: string): FlowOut | undefined => {
+      const key = JSON.parse(k) as unknown[], e = key.length === 3 ? FLOW_BY_ID[key[1] as string] : undefined;
+      if (!e || e.compute !== 'terminal' || !ctx) return undefined;
+      const params = key[2] as Record<string, FlowParamValue>, lists = namedLists(e, params);
+      const starts = [...new Set(lists.flatMap(l => l.codes.map(firstIn)).filter((j): j is number => j !== undefined && j > 0))].sort((x, y) => x - y);
+      if (!starts.length) return undefined;
+      const bounds = [0, ...starts, ctx.dates.length];
+      let out: FlowOut | undefined;
+      for (let s0 = 0; s0 + 1 < bounds.length; s0++) {
+        const a0 = bounds[s0], b0 = bounds[s0 + 1], q: Record<string, unknown> = { ...params };
+        for (const { key: lk, codes } of lists) q[lk] = codes.map(code => (firstIn(code) ?? -1) <= a0 ? code : NOT_YET + code);
+        const r = computeFlow(e.id, ctx, q as never);
+        if (!out) out = Object.fromEntries(Object.entries(r).map(([sk, v]) => [sk, Array.from(v)]));
+        else for (const [sk, v] of Object.entries(r)) if (out[sk]) for (let j = a0; j < b0; j++) out[sk][j] = v[j];
+      }
+      set(k, out!);
+      return memo.get(k);
+    };
+    f = { first, last, rows: () => cols, classification: b.classification, memo: { get: k => memo.get(k) ?? members(k), set },
+      meter: { context: <T>(build: () => T): T => { const x = build(); ctx = x as unknown as FlowContext; return x } } };
     FLOWS_OF.set(c, f);
   }
   return f;
@@ -290,8 +309,7 @@ export function grammarEvaluator(limits: GrammarLimits = GRAMMAR_DEFAULTS): Gram
           if (c.flowNotes.depth === null) break;
         }
       }
-      const upTo = last === undefined ? n - 1 : Math.min(last, n - 1), until = c.meta.dates?.[upTo];
-      if (until !== undefined) for (const r of flowRefs(test, `${field}.test`)) refuseLaterBrokers(c, r.ref, r.field, until, last !== undefined);
+      const upTo = last === undefined ? n - 1 : Math.min(last, n - 1);
       for (const r of seriesOf(b)) {
         const s = full(r);
         let any = false;
@@ -332,7 +350,6 @@ function pitSignal(c: Calc, test: Record<string, unknown>, field: string, cfield
       const miss = namedWithoutRows(c, side as unknown as DRef, until);
       if (miss) throw new ValidationError('UNKNOWN_BROKER', `${f}.params.brokers[${miss[1]}]`, `${f}.params.brokers[${miss[1]}]: ${miss[0]} has no broker rows for ${c.meta.ticker ?? 'this stock'}${last === undefined ? '' : ' up to the end of the period'}.`);
     }
-    else if (c.meta.dates?.[upTo] !== undefined) for (const r of flowRefs(side, f)) refuseLaterBrokers(c, r.ref, r.field, until, last !== undefined);
     const s = d ? dSeries(c, side as unknown as DRef, f) : seriesOfRef(c, side, f, limits);
     let any = false;
     for (let i = 0; i <= upTo && !any; i++) { const v = s[i]; any = typeof v === 'number' && Number.isFinite(v) }
