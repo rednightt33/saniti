@@ -8,7 +8,7 @@
 --    one account that is not pending (the unique email index below replaces the column's UNIQUE).
 -- 2. MFA guessing (NIST SP 800-63B-4, at most 100 consecutive failures per account): mfa_totp counts consecutive failed
 --    TOTP codes and failed recovery codes; only a success (or an admin, later) resets them; at 100 TOTP failures the
---    authenticator code is refused (MFA_LOCKED), at 10 recovery failures the recovery codes are.
+--    authenticator code is refused (MFA_LOCKED), at 10 recovery failures the recovery codes are, each for 24 h.
 -- Forward-only; rollback block at the end (comment).
 BEGIN;
 SET LOCAL lock_timeout = '5s';
@@ -40,8 +40,15 @@ COMMENT ON COLUMN edge_bff.users.email IS 'Lower-cased; one active or disabled a
 
 ALTER TABLE edge_bff.mfa_totp
     ADD COLUMN totp_failures integer NOT NULL DEFAULT 0 CHECK (totp_failures >= 0),
-    ADD COLUMN recovery_failures integer NOT NULL DEFAULT 0 CHECK (recovery_failures >= 0);
+    ADD COLUMN recovery_failures integer NOT NULL DEFAULT 0 CHECK (recovery_failures >= 0),
+    -- the end of a lock (Unix seconds of edge-bff's clock), set when a count reaches its cap; after it the count
+    -- restarts just below the cap (90 of 100, 8 of 10); a password reset by email code or the operator unlock
+    -- (scripts/edge_mfa_unlock.py) clears counts and locks
+    ADD COLUMN totp_locked_until bigint,
+    ADD COLUMN recovery_locked_until bigint;
 COMMENT ON COLUMN edge_bff.mfa_totp.totp_failures IS 'Consecutive wrong authenticator codes; reset only by a correct code or recovery code; at 100 the authenticator code is refused (MFA_LOCKED).';
+COMMENT ON COLUMN edge_bff.mfa_totp.totp_locked_until IS 'Unix seconds when the authenticator-code lock ends (24 h after the 100th failure); NULL = no lock.';
+COMMENT ON COLUMN edge_bff.mfa_totp.recovery_locked_until IS 'Unix seconds when the recovery-code lock ends (24 h after the 10th failure); NULL = no lock.';
 COMMENT ON COLUMN edge_bff.mfa_totp.recovery_failures IS 'Consecutive wrong recovery codes; reset only by a success; at 10 the recovery codes are refused (MFA_LOCKED).';
 
 DO $verify$
@@ -63,5 +70,6 @@ COMMIT;
 -- DROP INDEX edge_bff.users_email_one_account;
 -- ALTER TABLE edge_bff.users DROP CONSTRAINT users_registration_pending, DROP COLUMN registration_hash,
 --     ADD CONSTRAINT users_email_key UNIQUE (email);
--- ALTER TABLE edge_bff.mfa_totp DROP COLUMN totp_failures, DROP COLUMN recovery_failures;
+-- ALTER TABLE edge_bff.mfa_totp DROP COLUMN totp_failures, DROP COLUMN recovery_failures, DROP COLUMN totp_locked_until,
+--     DROP COLUMN recovery_locked_until;
 -- COMMIT;

@@ -24,6 +24,7 @@ import json
 import re
 import secrets
 import time
+from datetime import datetime, timezone
 
 from fastapi import Depends, Request
 from fastapi.encoders import jsonable_encoder
@@ -36,7 +37,8 @@ from .errors import Refusal
 from .mailer import OutboxStore, enqueue, svix_verify
 from .principal import ADMIN_ACCESS, Principal
 from .security import normal_password, password_verifier, token_hash, verify_password
-from .throttle import CODE_USER, MFA_USER, SEND_EMAIL, SEND_IP, SIGNIN_LOGIN, Throttle, client_address
+from .throttle import (CODE_USER, MFA_USER, REGISTER_DAY, REGISTER_HOUR, SEND_EMAIL, SEND_IP, SIGNIN_LOGIN, Throttle,
+                       client_address)
 
 COOKIE = 'edge_session'
 CODE_SECONDS = 300
@@ -51,6 +53,8 @@ REGISTRATION_PATH = '/api/v1/auth/'
 REGISTRATION_SECONDS = 86400
 REGISTRATION_TOKEN = re.compile(r'[0-9a-f]{64}')
 TOTP_FAILURE_CAP, RECOVERY_FAILURE_CAP = 100, 10
+TOTP_RESTART, RECOVERY_RESTART = 90, 8          # the count after a lock ends: 10 (2) more tries before the next lock
+LOCK_SECONDS = 86400
 
 
 def invalid(reasons):
@@ -183,6 +187,13 @@ class FlowStore:
             self._lock(c, f['email'])
             if not self._may_send(c, f['email'], ip):
                 return False
+            # ERRORS M478 re-check (N4): a new registration (from any browser) mails an address at most once per hour
+            # and three times per day, so registrations by others use at most 3 of the address's 10 daily emails; a
+            # later one in the hour answers the same 202 and changes nothing (the earlier code is not re-sent)
+            key = self._h(REGISTER_HOUR, 'register:' + f['email'])
+            if Throttle._wait(c, REGISTER_HOUR, key) or Throttle._wait(c, REGISTER_DAY, key):
+                return False
+            Throttle._add(c, REGISTER_HOUR, key)
             if c.execute("SELECT 1 FROM edge_bff.users WHERE email=%s AND status<>'pending'", (f['email'],)).fetchone():
                 return bool(self._send(c, 'account_exists', f['email'], email_texts.account_exists_email()))
             user_id = c.execute('''INSERT INTO edge_bff.users(owner_key, username, requested_username, email,
@@ -269,6 +280,9 @@ class FlowStore:
             self._set_password(c, user['user_id'], verifier)
             c.execute('UPDATE edge_bff.sessions SET revoked_at=now() WHERE user_id=%s AND revoked_at IS NULL',
                       (user['user_id'],))
+            # a reset proved by the email code is a recovery: it clears the MFA failure counts and locks (N2)
+            c.execute('''UPDATE edge_bff.mfa_totp SET totp_failures=0, recovery_failures=0, totp_locked_until=NULL,
+                recovery_locked_until=NULL WHERE user_id=%s''', (user['user_id'],))
             enqueue(c, 'password_changed', user['email'], email_texts.password_changed_email())
             return 'ok', user
 
@@ -296,7 +310,8 @@ class FlowStore:
 
     def totp(self, user_id):
         with self.store.connect() as c:
-            return c.execute('''SELECT nonce, confirmed_at, last_step, totp_failures, recovery_failures
+            return c.execute('''SELECT nonce, confirmed_at, last_step, totp_failures, recovery_failures,
+                    totp_locked_until, recovery_locked_until
                 FROM edge_bff.mfa_totp WHERE user_id=%s''', (user_id,)).fetchone()
 
     def enroll(self, user_id, nonce, hashes):
@@ -313,7 +328,7 @@ class FlowStore:
         """True when the step is after the last one used (then it is the last one, and the enrolment is confirmed)."""
         with self.store.connect() as c:
             return c.execute('''UPDATE edge_bff.mfa_totp SET last_step=%s, confirmed_at=coalesce(confirmed_at, now()),
-                    totp_failures=0, recovery_failures=0
+                    totp_failures=0, recovery_failures=0, totp_locked_until=NULL, recovery_locked_until=NULL
                 WHERE user_id=%s AND (last_step IS NULL OR last_step < %s) RETURNING user_id''',
                              (step, user_id, step)).fetchone() is not None
 
@@ -321,15 +336,25 @@ class FlowStore:
         with self.store.connect() as c:
             if c.execute('''UPDATE edge_bff.mfa_recovery_codes SET used_at=now()
                     WHERE user_id=%s AND code_hash=%s AND used_at IS NULL RETURNING user_id''', (user_id, code_hash)).fetchone():
-                c.execute('UPDATE edge_bff.mfa_totp SET totp_failures=0, recovery_failures=0 WHERE user_id=%s', (user_id,))
+                c.execute('''UPDATE edge_bff.mfa_totp SET totp_failures=0, recovery_failures=0, totp_locked_until=NULL,
+                    recovery_locked_until=NULL WHERE user_id=%s''', (user_id,))
                 return True
             return False
 
-    def mfa_failed(self, user_id, kind):
-        """One more consecutive failure of `kind` (totp or recovery)."""
-        column = {'totp': 'totp_failures', 'recovery': 'recovery_failures'}[kind]
+    def mfa_failed(self, user_id, kind, cap, lock_until):
+        """One more consecutive failure of `kind` (totp or recovery); reaching the cap starts a lock until lock_until."""
+        count, until = {'totp': ('totp_failures', 'totp_locked_until'),
+                        'recovery': ('recovery_failures', 'recovery_locked_until')}[kind]
         with self.store.connect() as c:
-            c.execute(f'UPDATE edge_bff.mfa_totp SET {column}={column}+1 WHERE user_id=%s', (user_id,))
+            c.execute(f'''UPDATE edge_bff.mfa_totp SET {count}={count}+1,
+                {until}=CASE WHEN {count}+1 >= %s THEN %s ELSE {until} END WHERE user_id=%s''', (cap, lock_until, user_id))
+
+    def lock_over(self, user_id, kind, restart):
+        """A lock that has ended: the count restarts just below the cap (a few more tries before the next lock)."""
+        count, until = {'totp': ('totp_failures', 'totp_locked_until'),
+                        'recovery': ('recovery_failures', 'recovery_locked_until')}[kind]
+        with self.store.connect() as c:
+            c.execute(f'UPDATE edge_bff.mfa_totp SET {count}=%s, {until}=NULL WHERE user_id=%s', (restart, user_id))
 
 
 class AuthFlows:
@@ -348,14 +373,18 @@ class AuthFlows:
     async def breached(self, password):
         return await asyncio.to_thread(passwords.pwned, password, self.pwned_fetch)
 
-    async def restart_registration(self, response, row, ip):
-        """A switch-on sign-in refused 401 (main.py): set a registration cookie (always, so answers never differ), and
-        when the password was a pending registration's, move that registration to this cookie and mail a fresh code
-        within the send limits."""
-        registration = secrets.token_hex(32)
-        if row is not None and await asyncio.to_thread(self.store.restart, row['user_id'], row['email'], ip,
-                                                       token_hash(registration)):
+    async def restart_registration(self, response, row, ip, request=None):
+        """A switch-on sign-in refused 401 (main.py). Every such answer carries a registration cookie, so the headers
+        never differ: when the password was a pending registration's, that registration moves to a new cookie and a
+        fresh code is mailed (within the send limits); otherwise this browser's own registration cookie is set again
+        unchanged (N3: a mistyped sign-in never orphans a registration), or an unused one when it has none."""
+        held = request.cookies.get(REGISTRATION_COOKIE, '') if request is not None else ''
+        fresh = secrets.token_hex(32)
+        moved = row is not None and await asyncio.to_thread(self.store.restart, row['user_id'], row['email'], ip,
+                                                            token_hash(fresh))
+        if moved:
             self.wake()
+        registration = fresh if moved or not REGISTRATION_TOKEN.fullmatch(held) else held
         if self.with_registration is not None:
             self.with_registration(response, registration)
         return response
@@ -526,10 +555,19 @@ class AuthFlows:
                 raise Refusal(400, 'MFA_NOT_ENROLLED')
             # NIST SP 800-63B-4: at most 100 consecutive failed codes per account (10 for recovery codes), counted
             # across every window and cleared only by a success (ERRORS M478, C1 P1-M2)
-            if code and row['totp_failures'] >= TOTP_FAILURE_CAP:
-                raise Refusal(403, 'MFA_LOCKED', {'locked': 'code', 'use': 'recovery_code'})
-            if recovery and row['recovery_failures'] >= RECOVERY_FAILURE_CAP:
-                raise Refusal(403, 'MFA_LOCKED', {'locked': 'recovery_code'})
+            # A lock lasts LOCK_SECONDS from the failure that reached the cap; then the count restarts just below it
+            # (N2). A password reset by email code or the operator (scripts/edge_mfa_unlock.py) clears it earlier.
+            kind, cap, restart = ('totp', TOTP_FAILURE_CAP, TOTP_RESTART) if code else \
+                ('recovery', RECOVERY_FAILURE_CAP, RECOVERY_RESTART)
+            now = self.clock()
+            if row[f'{kind}_failures'] >= cap:
+                until = row[f'{kind}_locked_until']
+                if until is not None and now < until:
+                    raise Refusal(403, 'MFA_LOCKED', {
+                        'locked': 'code' if code else 'recovery_code',
+                        'unlock_at': datetime.fromtimestamp(until, timezone.utc).isoformat(),
+                        **({'use': 'recovery_code'} if code and row['recovery_failures'] < RECOVERY_FAILURE_CAP else {})})
+                await asyncio.to_thread(store.lock_over, p.user_id, kind, restart)
             if code:
                 step = mfa.matching_step(mfa.secret_of(settings.mfa_key, p.user_id, row['nonce']), code,
                                          mfa.step_now(self.clock))
@@ -538,7 +576,7 @@ class AuthFlows:
                 ok = row['confirmed_at'] is not None and await asyncio.to_thread(
                     store.use_recovery, p.user_id, mfa.recovery_hash(settings.mfa_key, p.user_id, recovery))
             if not ok:
-                await asyncio.to_thread(store.mfa_failed, p.user_id, 'totp' if code else 'recovery')
+                await asyncio.to_thread(store.mfa_failed, p.user_id, kind, cap, int(now) + LOCK_SECONDS)
                 raise Refusal(400, 'MFA_CODE_INVALID', {'fields': ['code' if code else 'recovery_code']})
             await asyncio.to_thread(self.throttle.clear, MFA_USER, key)
             # OWASP Session Management: a new session token at the privilege change; the pending one is revoked

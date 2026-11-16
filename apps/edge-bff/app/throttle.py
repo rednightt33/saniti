@@ -36,6 +36,10 @@ CODE_USER = Limit('code_user', 20, 86400)
 SEND_EMAIL = Limit('send_email', 10, 86400)
 SEND_IP = Limit('send_ip', 10, 3600, enforced=False)
 MFA_USER = Limit('code_user', 10, 900)
+# ERRORS M478 re-check (N4): new registrations of one address, from any browser, mail it at most once per hour and three
+# times per day (scope send_email, key 'register:<email>'); they also count towards SEND_EMAIL
+REGISTER_HOUR = Limit('send_email', 1, 3600)
+REGISTER_DAY = Limit('send_email', 3, 86400)
 
 BUCKET = 'to_timestamp(floor(extract(epoch FROM now()) / %(bucket)s) * %(bucket)s)'
 

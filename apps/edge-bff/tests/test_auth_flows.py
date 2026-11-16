@@ -73,6 +73,12 @@ def cooldown_over(store):
     db(store, "UPDATE edge_bff.email_outbox SET created_at = created_at - interval '61 seconds'")
 
 
+def hour_over(store):
+    """An hour has passed for the per-address registration limit (one new registration email per hour, N4)."""
+    cooldown_over(store)
+    db(store, "UPDATE edge_bff.auth_throttle SET window_start = window_start - interval '61 minutes' WHERE scope='send_email'")
+
+
 def verify(c, code, email='ana@example.com', **extra):
     return c.post('/api/v1/auth/register/verify', headers=ORIGIN, json={'email': email, 'code': code, **extra})
 
@@ -168,7 +174,7 @@ def test_register_sends_a_code_and_verify_signs_in_directly(app, store):
 
 def test_existing_and_new_addresses_and_usernames_answer_alike(app, store, monkeypatch):
     make_account(app, store)
-    cooldown_over(store)
+    hour_over(store)
     hashed = []
     real = flows_module.password_verifier
     monkeypatch.setattr(flows_module, 'password_verifier', lambda p: (hashed.append(1), real(p))[1])
@@ -320,7 +326,7 @@ def test_each_registration_is_bound_to_its_browser_and_the_verified_one_removes_
     assert register(app).status_code == 202
     mine = last_code(store, 'ana@example.com')
     other = TestClient(app.app)
-    cooldown_over(store)
+    hour_over(store)
     assert register(other, username='other_one', password='the other password').status_code == 202
     theirs = last_code(store, 'ana@example.com')
     rows = db(store, "SELECT requested_username, registration_hash FROM edge_bff.users WHERE email='ana@example.com' ORDER BY user_id")
@@ -368,7 +374,10 @@ def test_mfa_lock_after_consecutive_failures_and_its_clearing(app, store, on):
     db(store, 'UPDATE edge_bff.mfa_totp SET totp_failures = 99, confirmed_at = now()')
     assert error_code(app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': '000000'})) == 'MFA_CODE_INVALID'
     r = app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': '000000'})
-    assert (r.status_code, error_code(r)) == (403, 'MFA_LOCKED') and 'recovery code' in r.json()['error']['message']
+    assert (r.status_code, error_code(r)) == (403, 'MFA_LOCKED')
+    assert r.json()['error']['message'] == ('Too many wrong codes, so this way of signing in is locked. Wait 24 hours or '
+                                            'reset your password by email; an operator can also unlock it.')
+    assert r.json()['error']['details']['use'] == 'recovery_code' and r.json()['error']['details']['unlock_at'].startswith('2027-')
     db(store, "DELETE FROM edge_bff.auth_throttle")
     user_id, nonce = (lambda r: (r['user_id'], bytes(r['nonce'])))(db(store, 'SELECT user_id, nonce FROM edge_bff.mfa_totp')[0])
     good = mfa.code_at(mfa.secret_of(on.mfa_key, user_id, nonce), int(now['t']) // 30)
@@ -665,3 +674,127 @@ def test_the_webhook_suppresses_bounces_once_and_ignores_bad_signatures(app, sto
     raw, headers = signed({'type': 'email.delivered', 'data': {'to': ['bob@example.com']}}, 'msg_2')
     assert app.post(hook, content=raw, headers=headers).json() == {'status': 'applied'}
     assert len(db(store, 'SELECT * FROM edge_bff.email_suppression')) == 1
+
+
+# ---- second fix round (ERRORS M478 re-check: N1-N4) ---------------------------------------------------------------------
+
+def test_every_sign_in_runs_the_same_number_of_derivations(app, store, monkeypatch):
+    """N1: 1 + PENDING_CHECKED derivations whatever the address holds: an account, 0 to 3+ pending rows, nothing."""
+    from app import main as main_module
+    from app.accounts import PENDING_CHECKED
+    make_account(app, store, 'acct@example.com', 'acct_1')
+    for n in range(4):
+        hour_over(store)
+        register(TestClient(app.app), 'many@example.com', f'many_{n}')
+    hour_over(store)
+    register(TestClient(app.app), 'one@example.com', 'one_1')
+    assert db(store, "SELECT count(*) AS n FROM edge_bff.users WHERE email='many@example.com'")[0]['n'] == 3
+    calls = []
+    real = main_module.verify_password
+    monkeypatch.setattr(main_module, 'verify_password', lambda pw, v: calls.append(1) or real(pw, v))
+    counts = {}
+    for login in ('acct@example.com', 'acct_1', 'many@example.com', 'one@example.com', 'none@example.com', 'nobody'):
+        calls.clear()
+        TestClient(app.app).post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': login, 'password': 'wrong password'})
+        counts[login] = len(calls)
+    assert set(counts.values()) == {1 + PENDING_CHECKED}, counts
+    calls.clear()
+    assert TestClient(app.app).post('/api/v1/auth/sign-in', headers=ORIGIN,
+                                    json={'login': 'acct_1', 'password': PASSWORD}).status_code == 200
+    assert len(calls) == 1 + PENDING_CHECKED
+
+
+def test_a_failed_sign_in_keeps_this_browsers_registration_cookie(app, store):
+    """N3: a 401 that restarted nothing sets the browser's own registration cookie again (or an unused one)."""
+    register(app)
+    held = app.cookies.get('edge_registration')
+    r = app.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'nobody', 'password': 'wrong password'})
+    assert r.status_code == 401 and f'edge_registration={held}' in r.headers['set-cookie']
+    fresh = TestClient(app.app)
+    r = fresh.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'nobody', 'password': 'wrong password'})
+    assert 'edge_registration=' in r.headers['set-cookie'] and fresh.cookies.get('edge_registration') != held
+    assert verify(app, last_code(store, 'ana@example.com')).status_code == 200
+
+
+def test_new_registrations_of_an_address_mail_it_once_an_hour_and_three_times_a_day(app, store):
+    """N4: a second registration of the address within the hour (any browser) answers the same 202, creates nothing
+    and mails nothing; at most three such emails a day."""
+    assert register(app).status_code == 202
+    cooldown_over(store)
+    other = TestClient(app.app)
+    r = register(other, username='other_one')
+    assert (r.status_code, r.json()) == (202, flows_module.ACCEPTED) and 'edge_registration=' in r.headers['set-cookie']
+    assert len(outbox(store, 'ana@example.com')) == 1
+    assert db(store, "SELECT count(*) AS n FROM edge_bff.users WHERE email='ana@example.com'")[0]['n'] == 1
+    for n in range(4):
+        hour_over(store)
+        register(TestClient(app.app), username=f'later_{n}')
+    assert len(outbox(store, 'ana@example.com')) == 3
+    # the first browser can still finish, and ask again for its own code
+    cooldown_over(store)
+    app.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'ana@example.com', 'purpose': 'register'})
+    assert len(outbox(store, 'ana@example.com')) == 4
+    assert verify(app, last_code(store, 'ana@example.com')).json()['username'] == 'ana_putri'
+
+
+def mfa_locked_admin(app, store, on, now):
+    flows = app.app.state.auth_flows
+    flows.clock = lambda: now['t']
+    h = admin_sign_in(app)
+    app.post('/api/v1/auth/mfa/enroll', headers=h)
+    row = db(store, 'SELECT user_id, nonce FROM edge_bff.mfa_totp')[0]
+    secret = mfa.secret_of(on.mfa_key, row['user_id'], bytes(row['nonce']))
+    db(store, 'UPDATE edge_bff.mfa_totp SET confirmed_at = now(), totp_failures = 99')
+    app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': '000000'})           # the 100th: locked for 24 h
+    return h, secret
+
+
+def test_the_mfa_lock_ends_after_24_hours_with_few_tries_left(app, store, on):
+    now = {'t': 1_800_000_000.0}
+    h, secret = mfa_locked_admin(app, store, on, now)
+    lock = db(store, 'SELECT totp_failures, totp_locked_until FROM edge_bff.mfa_totp')[0]
+    assert (lock['totp_failures'], lock['totp_locked_until']) == (100, 1_800_000_000 + 86400)
+    db(store, 'DELETE FROM edge_bff.auth_throttle')
+    now['t'] += 86399
+    r = app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': mfa.code_at(secret, int(now['t']) // 30)})
+    assert error_code(r) == 'MFA_LOCKED' and r.json()['error']['details']['unlock_at'] == '2027-01-16T08:00:00+00:00'
+    now['t'] += 1                                                                       # the lock has ended
+    db(store, 'DELETE FROM edge_bff.auth_throttle')
+    for _ in range(10):
+        assert error_code(app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': '000000'})) == 'MFA_CODE_INVALID'
+    db(store, 'DELETE FROM edge_bff.auth_throttle')
+    assert error_code(app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': '000000'})) == 'MFA_LOCKED'   # 90 + 10
+
+
+def test_a_password_reset_by_email_clears_the_mfa_lock(app, store, on):
+    now = {'t': 1_800_000_000.0}
+    mfa_locked_admin(app, store, on, now)
+    db(store, "UPDATE edge_bff.users SET email='owner@example.com' WHERE owner_key=%s", on.owner)
+    cooldown_over(store)
+    app.post('/api/v1/auth/password/forgot', headers=ORIGIN, json={'email': 'owner@example.com'})
+    body = {'email': 'owner@example.com', 'code': last_code(store, 'owner@example.com'), 'password': 'a fresh password',
+            'password_repeat': 'a fresh password'}
+    assert app.post('/api/v1/auth/password/reset', headers=ORIGIN, json=body).status_code == 200
+    assert db(store, 'SELECT totp_failures, recovery_failures, totp_locked_until FROM edge_bff.mfa_totp') == [
+        {'totp_failures': 0, 'recovery_failures': 0, 'totp_locked_until': None}]
+
+
+def test_the_operator_unlock_clears_the_lock_and_writes_the_audit(app, store, on, database, monkeypatch, capsys):
+    import importlib.util
+    from pathlib import Path
+    now = {'t': 1_800_000_000.0}
+    mfa_locked_admin(app, store, on, now)
+    spec = importlib.util.spec_from_file_location('edge_mfa_unlock', Path(__file__).resolve().parents[3] / 'scripts/edge_mfa_unlock.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setenv('DATABASE_URL', database)
+    assert module.main(['--username', 'nobody_here', '--reason', 'test']) == 1
+    assert module.main(['--username', 'owner', '--reason', 'locked by a password holder, ticket 12']) == 0
+    out = capsys.readouterr().out
+    assert database not in out and 'unlocked' in out
+    assert db(store, 'SELECT totp_failures, totp_locked_until FROM edge_bff.mfa_totp') == [
+        {'totp_failures': 0, 'totp_locked_until': None}]
+    (audit,) = db(store, 'SELECT * FROM edge_bff.admin_audit')
+    assert (audit['action'], audit['actor_user_id'], audit['after']['actor'], audit['before']['totp_failures']) == (
+        'mfa.unlock', None, 'operator', 100)
+    assert audit['reason'] == 'operator: locked by a password holder, ticket 12'

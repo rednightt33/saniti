@@ -7,7 +7,7 @@ import re
 import time
 
 from app import mfa
-from test_auth_flows import (PASSWORD, admin_sign_in, app, cooldown_over, db, error_code, last_code, on,  # noqa: F401
+from test_auth_flows import (PASSWORD, admin_sign_in, app, cooldown_over, db, error_code, hour_over, last_code, on,  # noqa: F401
                              register, verify)
 from test_edge import ORIGIN
 
@@ -34,7 +34,7 @@ def test_c1_p1_a_second_registration_cannot_set_the_password_of_a_pending_one(ap
     attacker = TestClient(app.app)
     assert register(app, VICTIM, 'victim_1').status_code == 202
     mine = last_code(store, VICTIM)
-    cooldown_over(store)
+    hour_over(store)                                                  # and the hour of one new registration email (N4)
     assert register(attacker, VICTIM, 'attacker_1', password=ATTACKER_PASSWORD).status_code == 202
     newest = last_code(store, VICTIM)
     assert verify(app, newest, VICTIM).status_code == 400             # the newest code is the attacker's registration's
