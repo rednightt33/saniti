@@ -7,7 +7,7 @@ password and username. That party then signs in to the victim's verified account
 
 The rule: whoever proves the code owns the account; a party that never saw the code never gets a working sign-in to
 it."""
-from test_auth_flows import PASSWORD, app, cooldown_over, last_code, on, register, verify  # noqa: F401 - fixtures
+from test_auth_flows import PASSWORD, app, hour_over, last_code, on, register, verify  # noqa: F401 - fixtures
 from test_edge import ORIGIN
 
 VICTIM = 'victim@example.com'
@@ -24,7 +24,7 @@ def test_a_second_registration_of_a_pending_address_never_gives_its_author_the_v
     other = TestClient(app.app)
     assert register(app, VICTIM, 'victim_real', PASSWORD).status_code == 202
     own = last_code(store, VICTIM)
-    cooldown_over(store)                                    # the 60 s send limit of the address has passed
+    hour_over(store)                                        # the 60 s send limit and the hour of one new registration email
     assert register(other, VICTIM, 'hijacker_name', OTHER_PASSWORD).status_code == 202
     # the newest code in the inbox is the other party's registration's: it does not open the victim's registration
     assert verify(app, last_code(store, VICTIM), VICTIM).status_code == 400

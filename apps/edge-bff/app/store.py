@@ -70,7 +70,7 @@ class Store:
             c.execute('SELECT requested_username FROM edge_bff.users LIMIT 0')
             c.execute('SELECT 1 FROM edge_bff.email_hook_events LIMIT 0')
             c.execute('SELECT registration_hash FROM edge_bff.users LIMIT 0')     # 20261117_002
-            c.execute('SELECT totp_failures, recovery_failures FROM edge_bff.mfa_totp LIMIT 0')
+            c.execute('SELECT totp_failures, recovery_failures, totp_locked_until, recovery_locked_until FROM edge_bff.mfa_totp LIMIT 0')
 
     def session_create(self, hashed, owner, seconds):
         with self.connect() as c:

@@ -23,16 +23,18 @@ def password_verifier(password: str) -> str:
 
 def verify_password(password: str, verifier: str) -> bool:
     """The NFKC form first; a legacy verifier made from the text as typed (before normalisation; e.g. the configured
-    EDGE_PASSWORD_VERIFIER) is still accepted, with one more scrypt only when the two forms differ."""
+    EDGE_PASSWORD_VERIFIER) is still accepted. When the two forms differ both are always derived, so the number of
+    derivations depends only on the text typed, never on which form (or whether any) matched."""
     try:
         scheme, salt, value = verifier.split('$')
         if scheme != 'scrypt' or len(password) > 1024:
             return False
         salt = bytes.fromhex(salt)
         normal = normal_password(password)
-        if hmac.compare_digest(_scrypt(normal, salt).hex().encode(), value.encode()):
-            return True
-        return normal != password and hmac.compare_digest(_scrypt(password, salt).hex().encode(), value.encode())
+        ok = hmac.compare_digest(_scrypt(normal, salt).hex().encode(), value.encode())
+        if normal != password:
+            ok = hmac.compare_digest(_scrypt(password, salt).hex().encode(), value.encode()) or ok
+        return ok
     except (ValueError, TypeError, UnicodeEncodeError):
         return False
 

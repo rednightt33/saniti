@@ -27,6 +27,7 @@ from .auth_flows import AuthFlows
 from .mailer import EmailSender
 from .preferences import Preferences
 from .presets import Presets
+from .accounts import PENDING_CHECKED
 from .principal import Auth, Principal, role_needs_mfa
 from .drawings import Drawings
 from .overview import Overview
@@ -570,17 +571,19 @@ def create_app(settings=None, store=None, orc=None):
         account = restart = None
         if settings.multiuser:
             # EXEC-MU-ACCOUNTS Phase 1 (switch on): the active account named by its username or email, its password
-            # identity; else the pending registrations of that address (the newest few). An unknown login runs the same
-            # scrypt against the configured verifier, so the time tells nothing
+            # identity, and the pending registrations of that address (the newest PENDING_CHECKED). Every sign-in runs
+            # exactly 1 + PENDING_CHECKED password derivations, padded with the configured verifier, whatever the
+            # address holds (ERRORS M478 re-check: the time tells nothing; OWASP Authentication)
             account = await asyncio.to_thread(auth.accounts.find_login, body.login)
-            if account is not None:
-                known = await asyncio.to_thread(verify_password, body.password, account['verifier'])
-            else:
-                known = False
-                for row in await asyncio.to_thread(auth.accounts.pending_logins, body.login) or [None]:
-                    if await asyncio.to_thread(verify_password, body.password,
-                                               row['verifier'] if row else settings.password_verifier) and row:
-                        restart = restart or row
+            pending = list(await asyncio.to_thread(auth.accounts.pending_logins, body.login))[:PENDING_CHECKED]
+            known = await asyncio.to_thread(verify_password, body.password,
+                                            account['verifier'] if account else settings.password_verifier)
+            known = known and account is not None
+            for row in pending + [None] * (PENDING_CHECKED - len(pending)):
+                matched = await asyncio.to_thread(verify_password, body.password,
+                                                  row['verifier'] if row else settings.password_verifier)
+                if matched and row is not None and account is None:
+                    restart = restart or row
         else:
             # the password is checked before the login is compared (against the one verifier, so an unknown login runs
             # the same scrypt as a known one): a wrong login costs the same time as a wrong password
@@ -594,7 +597,7 @@ def create_app(settings=None, store=None, orc=None):
                 # enumeration); within the send limits a fresh code is mailed and this browser gets that registration's
                 # cookie, so the person finishes on /verify. Every switch-on 401 sets a registration cookie, so the
                 # answers do not differ by a header either
-                await flows.restart_registration(response, restart, client_address(request))
+                await flows.restart_registration(response, restart, client_address(request), request)
             return response
         await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
         old = request.cookies.get(COOKIE)
