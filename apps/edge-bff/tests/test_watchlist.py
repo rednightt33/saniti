@@ -54,9 +54,16 @@ def test_create_rename_choose_indicators_delete_and_restore(app):
     every = c.put('/api/v1/watchlist/indicators', headers=c.h, json={'indicators': ['volr']}).json()['lists']
     assert [x['indicators'] for x in every] == [['volr'], ['volr']]
     # delete, then Undo: the page creates it again with what it held, at its old place
-    assert c.delete(f'{LISTS}/{core["id"]}', headers=c.h).status_code == 204
-    back = make(c, 'Core', tickers=['BBCA', 'BMRI'], indicators=['volr'], position=0)
-    assert names(c) == [('Core', ['BBCA', 'BMRI']), ('Big banks', [])] and back['indicators'] == ['volr']
+    # a stock added elsewhere after the page loaded (the Screener's star) is in what the delete answers
+    c.post(f'{LISTS}/{core["id"]}/tickers', headers=c.h, json={'tickers': ['TLKM']})
+    gone = c.delete(f'{LISTS}/{core["id"]}', headers=c.h)
+    assert gone.status_code == 200
+    snap = gone.json()['deleted']
+    assert [t['ticker'] for t in snap['tickers']] == ['BBCA', 'BMRI', 'TLKM'] and snap['position'] == 0
+    make(c, 'Third')                                                     # takes the free position before Undo
+    back = make(c, snap['name'], tickers=[t['ticker'] for t in snap['tickers']], indicators=snap['indicators'],
+                position=snap['position'])
+    assert names(c) == [('Core', ['BBCA', 'BMRI', 'TLKM']), ('Big banks', []), ('Third', [])] and back['indicators'] == ['volr']
 
 
 def test_tickers_add_many_keep_their_place_and_undo_puts_one_back(app):
@@ -91,7 +98,7 @@ def test_every_limit_is_published_and_a_refusal_names_the_limit_and_the_fix(app,
     assert c.patch(f'{LISTS}/{a["id"]}', headers=c.h, json={'indicators': []}).status_code == 422
     r = c.patch(f'{LISTS}/{a["id"]}', headers=c.h, json={'name': 'b'})
     assert r.status_code == 409 and r.json()['error']['code'] == 'NAME_TAKEN'
-    for bad in ({'name': ''}, {'name': 'x' * 41}, {'name': 'Z', 'tickers': ['bbca']}, {'name': 'Z', 'indicators': ['RSI']}):
+    for bad in ({'name': ''}, {'name': 'x' * 41}, {'name': 'A\x00B'}, {'name': 'Z', 'tickers': ['bbca']}, {'name': 'Z', 'indicators': ['RSI']}):
         r = c.post(LISTS, headers=c.h, json=bad)
         assert r.status_code == 422 and r.json()['error']['field'] in ('name', 'tickers', 'indicators'), bad
 

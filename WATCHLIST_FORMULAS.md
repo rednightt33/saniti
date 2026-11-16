@@ -6,7 +6,7 @@ baru** ("selight as possible yang mana tidak perlu ada calculation lagi"). Karen
 yang **sudah tersimpan** di database, dibaca apa adanya. Satu-satunya hitungan adalah jarak harga ke EMA (satu pembagian
 di baris yang sama).
 
-<!-- explained-for: watchlist.py=e5b1b65cda471035017280b3333dcb70, app/watchlist.py=5d71da60631844b2eb780e51de1a4227 -->
+<!-- explained-for: watchlist.py=611c25ab055d91fea438a6896461ef12, app/watchlist.py=adfcc13d22c9887ef143b973718ee736 -->
 
 ## 1. Dari mana angkanya datang
 
@@ -16,15 +16,18 @@ masing-masing pengguna disimpan terpisah di server (`edge_bff.watchlist_lists` d
 mencocokkan saham di list dengan baris di file.
 
 Satu lari publisher membaca: satu tanggal Feature 01 dan Feature 04, satu tanggal broker Feature 06, 30 tanggal harga,
-aksi korporasi 30 hari ke depan, dan satu tanggal Radar. Di dev semuanya selesai dalam 0,23 detik (8.945 halaman
-memori; `verification/watchlist/EXPLAIN_20261116.txt`). Ini **bukan** update besar, jadi tidak perlu restart Postgres.
+aksi korporasi 30 hari ke depan, dan satu tanggal Radar. Di dev semuanya selesai dalam 3,1 detik saat cache dingin
+(0,2 detik saat hangat), 16.942 halaman memori (`verification/watchlist/EXPLAIN_20261116.txt`). Ini **bukan** update
+besar, jadi tidak perlu restart Postgres.
 File dibangun ulang hanya bila isinya berubah (stempelnya adalah isi file itu sendiri).
 
 ## 2. Dua tanggal
 
-- **Tanggal harga** ("Prices to …"): tanggal terbaru yang sudah punya penutupan final IHSG **dan** baris Feature 01 dan
-  Feature 04. Kalau Feature belum selesai dihitung untuk hari terbaru, halaman memakai hari sebelumnya yang lengkap,
-  tidak pernah campuran dua hari.
+- **Tanggal harga** ("Prices to …"): tanggal pasar terbaru yang **lengkap**: setiap saham yang punya penutupan final
+  hari itu juga punya baris Feature 01, dan setiap baris Feature 01 punya baris Feature 04 (jumlahnya dihitung dari
+  data hari itu sendiri; di dev ketiganya sama setiap hari, mis. 836 pada 13 Nov). Kalau worker Feature masih menulis
+  hari terbaru, file memakai hari lengkap sebelumnya, tidak pernah campuran dua hari. Diperiksa satu tanggal per kali,
+  sampai 10 tanggal ke belakang; tanpa tanggal lengkap, file sebelumnya tetap dipakai.
 - **Tanggal broker** ("Broker data to …"): tanggal terbaru data asing (Feature 06, papan Regular). Biasanya beberapa
   hari di belakang tanggal harga, karena ronde broker dijalankan terpisah. Contoh: harga 13 Nov, broker 9 Nov. Setiap
   angka asing di halaman diberi tanggal ini.
@@ -65,7 +68,8 @@ yang dipilih (maksimal 8).
 ## 5. Badge dan filter
 
 - **Radar**: saringan Radar yang dipenuhi saham pada **tanggal Radar terbaru**, dibaca dengan pengaturan bawaan halaman
-  Radar (level Standard, gerbang Broad), dan untuk S6Δ pada varian bawaannya (Ratio). Jadi badge menunjukkan apa yang
+  Radar (level Standard, gerbang Broad), versi aturan yang sama dengan halaman Radar (`feature_07_rule_version()`), dan
+  untuk S6Δ pada varian bawaannya (Ratio). Selama pengisian pertama Radar berjalan, file tidak diterbitkan ulang. Jadi badge menunjukkan apa yang
   terlihat saat halaman Radar dibuka. Contoh 9 Nov: BBCA lolos S6; DKFT lolos S6. Di dev ada 102 saham yang lolos minimal
   satu saringan. Filter "Radar" menampilkan hanya saham di list yang punya badge ini.
 - **Aksi korporasi**: RUPS, public expose, dividen (cum/ex), right issue dan lainnya dengan tanggal **sesudah tanggal
@@ -80,7 +84,8 @@ Kedua filter hanya mengubah tampilan list yang sedang dibuka, tidak mengubah isi
 List disimpan di server per akun, jadi sama di perangkat mana pun, dan akun lain tidak bisa membaca atau mengubahnya.
 Bintang di Screener memakai list pertama (keputusan 2A). Batasnya (tabel di bawah) dijaga server. Setiap penolakan
 menyebut batas mana yang tercapai dan cara memperbaikinya, misalnya "At most 50 stocks in one list: it has 50, these
-would make 52. Remove some or use another list."
+would make 52. Remove some or use another list." Undo hapus list memakai isi list menurut server saat dihapus, dan
+mengembalikannya ke posisi semula. Nilai yang tampil sebagai nol (mis. "0.0%", "Rp 0") tidak diberi warna.
 
 <!-- watchlist-live:start -->
 
@@ -121,7 +126,7 @@ Ditulis oleh `scripts/watchlist_formulas_doc.py --write` dari kode di repo; jang
 
 | Kode | Sidik jari (md5) |
 |---|---|
-| `watchlist.py` | `e5b1b65cda471035017280b3333dcb70` |
-| `app/watchlist.py` | `5d71da60631844b2eb780e51de1a4227` |
+| `watchlist.py` | `611c25ab055d91fea438a6896461ef12` |
+| `app/watchlist.py` | `adfcc13d22c9887ef143b973718ee736` |
 
 <!-- watchlist-live:end -->

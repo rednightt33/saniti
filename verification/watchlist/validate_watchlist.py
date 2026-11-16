@@ -107,7 +107,7 @@ def older(n):
         rr = r.query(f"SELECT max(trade_date)::text FROM public.\"Feature_07_Radar_Result\" WHERE trade_date <= '{b}'")[0][0]
 
         def run(sql, params, p=p, b=b, rr=rr):
-            if sql == W.PRICE_DATE_SQL:
+            if sql == W.RECENT_SQL:                   # the module still checks that the date is complete
                 return [(p,)]
             if sql == W.BROKER_DATE_SQL:
                 return [(b,)]

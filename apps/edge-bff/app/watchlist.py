@@ -87,6 +87,8 @@ def over(limit, allowed, needed, message):
 def name_of(value):
     if not isinstance(value, str) or not 1 <= len(value.strip()) <= NAME_CHARS:
         raise invalid('name', f'Enter a list name of 1 to {NAME_CHARS} characters.')
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):      # review 2026-11-16: PostgreSQL refuses NUL in text
+        raise invalid('name', 'A list name cannot contain control characters such as a line break.')
     return value.strip()
 
 
@@ -176,6 +178,9 @@ class WatchlistStore:
                              'WHERE owner_key=%s', (owner,)).fetchone()
             if held['n'] >= LISTS:
                 raise over('lists', LISTS, held['n'] + 1, f'At most {LISTS} lists: you have {held["n"]}. Delete one first.')
+            if position is not None:          # Undo puts a list back at its place: the lists from there move one down
+                c.execute('UPDATE edge_bff.watchlist_lists SET position = position + 1 WHERE owner_key=%s AND position >= %s',
+                          (owner, position))
             try:
                 row = c.execute('''INSERT INTO edge_bff.watchlist_lists(owner_key, name, position, indicators)
                     VALUES (%s,%s,%s,%s) RETURNING list_id::text AS id''',
@@ -210,13 +215,16 @@ class WatchlistStore:
             return self._lists(c, owner)
 
     def delete(self, owner, list_id):
+        """Delete a list; the answer is the list as it was at the moment of deleting (name, position, indicators,
+        stocks), so Undo restores what was really deleted, not the page's older copy (review 2026-11-16)."""
         with self.connect() as c:
             self.lock(c, owner)
             self._one(c, owner, list_id)
-            n = c.execute('SELECT count(*) AS n FROM edge_bff.watchlist_lists WHERE owner_key=%s', (owner,)).fetchone()['n']
-            if n <= 1:
+            lists = self._lists(c, owner)
+            if len(lists) <= 1:
                 raise failure('LAST_LIST', 409)
             c.execute('DELETE FROM edge_bff.watchlist_lists WHERE owner_key=%s AND list_id=%s', (owner, list_id))
+            return next(x for x in lists if x['id'] == list_id)
 
     def add(self, owner, list_id, tickers, position):
         """Add stocks to a list (a stock already in it stays where it is). position: where the first new one goes (Undo
@@ -320,8 +328,7 @@ class Watchlist:
 
         @app.delete('/api/v1/watchlist/lists/{list_id}')
         async def delete(list_id: str, _=Depends(write)):
-            await asyncio.to_thread(self.store.delete, owner, list_id_of(list_id))
-            return Response(status_code=204)
+            return answer({'deleted': await asyncio.to_thread(self.store.delete, owner, list_id_of(list_id))})
 
         @app.post('/api/v1/watchlist/lists/{list_id}/tickers')
         async def add(list_id: str, request: Request, _=Depends(write)):

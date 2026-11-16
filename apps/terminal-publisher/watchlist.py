@@ -13,14 +13,18 @@ terminal-api presigns it only for the EDGE gateway key. WATCHLIST_FORMULAS.md ex
 Light by decision (user 2026-11-16: "selight as possible yang mana tidak perlu ada calculation lagi"): every value is a
 stored column read as it is; the only arithmetic is the distance to an EMA (close / EMA - 1 of the same Feature 04 row).
 No history, no percentile, nothing carried between runs. Read cost on dev (2026-11-16, EXPLAIN ANALYZE, every query of a
-run): 0.23 s, 8,945 shared pages (verification/watchlist/EXPLAIN_20261116.txt): not a large update.
+build, the complete-date check included): 3.1 s with a cold cache (0.2 s warm), 16,942 shared pages
+(verification/watchlist/EXPLAIN_20261116.txt): not a large update. stamp() builds once and files() once per run.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from pathlib import Path
+
+import radar
 
 SCHEMA = 1
 NAME = re.compile(r'watchlist-stocks')
@@ -74,12 +78,17 @@ KEYS = tuple(c[0] for c in CATALOG)
 PROBE_SQL = (f"SELECT to_regclass('{RADAR}') IS NOT NULL AND to_regclass('{ACTION}') IS NOT NULL "
              f"AND to_regclass('{RADAR_FILTER}') IS NOT NULL")
 MARKET_SQL = f"SELECT ticker FROM {ENTITY} WHERE entity_kind = 'MARKET'"
-# the price date: the newest date that has the market's final close and Feature 01 and Feature 04 rows (a run before the
-# feature workers finished shows the previous complete date, never a mix)
-PRICE_DATE_SQL = (f"SELECT p.date::text FROM {PRICE} AS p WHERE p.ticker = %(m)s AND p.timeframe = 'Daily' AND p.is_final "
-                  f"AND EXISTS (SELECT 1 FROM {F01} AS f WHERE f.date = p.date) "
-                  f"AND EXISTS (SELECT 1 FROM {F04} AS t WHERE t.trade_date = p.date AND t.timeframe = 'Daily' "
-                  f"AND t.asset_type = 'equity') ORDER BY p.date DESC LIMIT 1")
+# the price date: the newest of the COMPLETE_SCAN newest market dates on which every stock with a final close has its
+# Feature 01 row and every one of those its Feature 04 row (review 2026-11-16: a run while a feature worker is still
+# writing must show the previous complete date, never a mix; on dev the three counts are equal on every date, e.g. 836 on
+# 13 Nov). None when no recent date is complete: the publication keeps the previous file.
+COMPLETE_SCAN = 10
+RECENT_SQL = (f"SELECT date::text FROM {PRICE} WHERE ticker = %(m)s AND timeframe = 'Daily' AND is_final "
+              f'ORDER BY date DESC LIMIT {COMPLETE_SCAN}')
+COUNTS_SQL = (f"SELECT (SELECT count(*) FROM {PRICE} WHERE date = %(d)s AND timeframe = 'Daily' AND is_final AND ticker IN {STOCK_SET}), "
+              f'(SELECT count(*) FROM {F01} WHERE date = %(d)s AND ticker IN {STOCK_SET}), '
+              f"(SELECT count(*) FROM {F04} WHERE trade_date = %(d)s AND timeframe = 'Daily' AND asset_type = 'equity' "
+              f'AND ticker IN {STOCK_SET})')
 BROKER_DATE_SQL = f"SELECT max(trade_date)::text FROM {F06I} WHERE ticker = %(m)s AND market_board = 'Regular'"
 RADAR_DATE_SQL = f'SELECT max(trade_date)::text FROM {RADAR}'
 EVENTS_LOADED_SQL = f'SELECT max(last_seen_at)::date::text FROM {ACTION}'
@@ -103,10 +112,10 @@ EVENTS_SQL = (f'SELECT DISTINCT ticker, action_type, annotation_date::text, coal
               f'AND ticker IN {STOCK_SET} ORDER BY 3, 1, 2, 4')
 # the Radar's board columns: one per column id, read at its default variant (S6Δ: Ratio), with the board's label
 RADAR_FILTERS_SQL = (f'SELECT f.filter_id, f.column_label, f.name, f.position FROM {RADAR_FILTER} AS f '
-                     f'WHERE f.is_default_variant AND f.rule_version = (SELECT max(rule_version) FROM {RADAR_FILTER}) '
+                     'WHERE f.is_default_variant AND f.rule_version = public.feature_07_rule_version() '
                      'ORDER BY f.position')
 RADAR_SQL = (f"SELECT DISTINCT ticker, filter_id FROM {RADAR} WHERE trade_date = %(r)s AND status = 'hit' "
-             'AND level = %(level)s AND gate = %(gate)s')
+             'AND level = %(level)s AND gate = %(gate)s AND rule_version = public.feature_07_rule_version()')
 
 CODE = hashlib.md5(Path(__file__).read_bytes()).hexdigest()
 MAINTAINED_BY = ('daily', 'backfill', 'watchlist')    # the modes that rebuild the file when its stamp changed
@@ -118,12 +127,27 @@ def available(conn):
 
 
 def busy(conn):
-    """A reason not to publish now, or None (none: every read is one date)."""
-    return None
+    """A reason not to publish now, or None: the Radar's first fill (its badges would come from a half-filled date)."""
+    return radar.busy(conn)
 
 
 def num(v, digits):
-    return None if v is None else round(float(v), digits)
+    """A rounded value, or None for no value and for NaN or infinity (a stored float column may hold one; the file must
+    stay valid JSON and the page shows "—")."""
+    if v is None:
+        return None
+    f = float(v)
+    return round(f, digits) if math.isfinite(f) else None
+
+
+def price_date(run, m):
+    """The newest complete market date (COUNTS_SQL equal for price, Feature 01 and Feature 04), asked one date at a time
+    from the newest, so a normal run counts one date (review 2026-11-16: counting the 10 dates at once read 98k pages)."""
+    for (d,) in run(RECENT_SQL, {'m': m}):
+        px, f01, f04 = run(COUNTS_SQL, {'d': d})[0]
+        if px and f01 >= px and f04 >= f01:
+            return d
+    return None
 
 
 def build(run):
@@ -131,7 +155,7 @@ def build(run):
     m = (run(MARKET_SQL, {}) or [[None]])[0][0]
     if not m:
         return None
-    p = (run(PRICE_DATE_SQL, {'m': m}) or [[None]])[0][0]
+    p = price_date(run, m)
     if not p:
         return None
     b = (run(BROKER_DATE_SQL, {'m': m}) or [[None]])[0][0]

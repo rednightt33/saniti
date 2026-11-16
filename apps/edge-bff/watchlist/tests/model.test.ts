@@ -173,3 +173,17 @@ describe('undo', () => {
     expect(M.restoreTickerBody(l, 'ZZZZ')).toBeNull();
   });
 });
+
+describe('review 2026-11-16: a value that reads as zero is not coloured', () => {
+  const file = sample as unknown as StocksFile, cat = M.catalog(file);
+  it('a small MACD histogram keeps two decimals and a rounded zero has no colour', () => {
+    expect(M.formatValue(cat.by.macdh, 0.04)).toBe('0.04');
+    expect(M.formatValue(cat.by.macdh, -0.004)).toBe('0.00');
+    expect(M.formatValue(cat.by.macdh, -12.34)).toBe('−12.3');
+    const s = { ...M.stocks(file).values().next().value!, i: 0 };
+    const at = (k: string, v: number) => { const f = { ...file, values: { ...file.values, [k]: [v] } } as StocksFile; return M.indVal(f, cat.by[k], s) };
+    expect(at('fn5', 400000)).toEqual({ v: 'Rp\u00a00', k: '', na: false });
+    expect(at('r5d', -0.04)).toEqual({ v: '0.0%', k: '', na: false });
+    expect(at('r5d', -0.06).k).toBe('down');
+  });
+});

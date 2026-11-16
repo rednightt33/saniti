@@ -81,7 +81,7 @@ export const live: WatchlistApi = {
   rename: async (id, name) => (await call<{ list: WList }>('PATCH', `${L}/${enc(id)}`, { name })).list,
   setIndicators: async (id, indicators) => (await call<{ list: WList }>('PATCH', `${L}/${enc(id)}`, { indicators })).list,
   setIndicatorsAll: async indicators => (await call<{ lists: WList[] }>('PUT', '/api/v1/watchlist/indicators', { indicators })).lists,
-  remove: id => call<void>('DELETE', `${L}/${enc(id)}`),
+  remove: async id => (await call<{ deleted: WList }>('DELETE', `${L}/${enc(id)}`)).deleted,
   addTickers: (id, tickers, position) => call<AddAnswer>('POST', `${L}/${enc(id)}/tickers`, position == null ? { tickers } : { tickers, position }),
   removeTicker: (id, ticker) => call<void>('DELETE', `${L}/${enc(id)}/tickers/${enc(ticker)}`),
   logos: () => readLogos().catch(() => ({})),

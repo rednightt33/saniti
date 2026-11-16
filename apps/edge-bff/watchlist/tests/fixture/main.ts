@@ -56,6 +56,7 @@ const api: WatchlistApi = {
     const name = (b.name || '').trim();
     if (db.length >= lim('lists')) throw over(`At most ${lim('lists')} lists: you have ${db.length}. Delete one first.`);
     if (taken(name)) throw new WatchlistError('NAME_TAKEN', 'Another list already has this name. Pick another name.', 409, 'name');
+    if (b.position != null) db.forEach(x => { if (x.position >= b.position!) x.position += 1 });   // as the server: Undo's place
     const l = mk(name, b.position ?? Math.max(-1, ...db.map(x => x.position)) + 1, [...new Set(b.tickers || [])], b.indicators ?? null);
     db.push(l); order(); return wait(l);
   },
@@ -67,9 +68,9 @@ const api: WatchlistApi = {
   async setIndicators(id, indicators) { const l = one(id); l.indicators = indicators; return wait(l) },
   async setIndicatorsAll(indicators) { db.forEach(l => (l.indicators = indicators)); return wait(order()) },
   async remove(id) {
-    one(id);
+    const gone = one(id);
     if (db.length <= 1) throw new WatchlistError('LAST_LIST', 'The last list cannot be deleted. Create another list first.', 409);
-    db = db.filter(l => l.id !== id); await wait(0);
+    db = db.filter(l => l.id !== id); return wait(JSON.parse(JSON.stringify(gone)));
   },
   async addTickers(id, tickers, position) {
     const l = one(id), known = new Set(l.tickers.map(x => x.ticker)), add = tickers.filter(t => !known.has(t));

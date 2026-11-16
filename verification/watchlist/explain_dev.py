@@ -13,6 +13,10 @@ STOCK = '(SELECT "Ticker" FROM public."IDX_Stock_Universe" WHERE "Security Type"
 DATES = (f"SELECT date FROM public.\"Price_Stock_Indonesia_IDX\" WHERE ticker = 'IHSG' AND timeframe = 'Daily' AND is_final "
          f"AND date <= '{P}' ORDER BY date DESC LIMIT 30")
 Q = {
+    'complete-date check (one date)': f"SELECT (SELECT count(*) FROM public.\"Price_Stock_Indonesia_IDX\" WHERE date = '{P}' AND timeframe = 'Daily' "
+                                      f"AND is_final AND ticker IN {STOCK}), (SELECT count(*) FROM public.\"Feature_01_Stock_Daily\" WHERE date = '{P}' "
+                                      f"AND ticker IN {STOCK}), (SELECT count(*) FROM public.\"Feature_04_Technical_Indicator\" WHERE trade_date = '{P}' "
+                                      f"AND timeframe = 'Daily' AND asset_type = 'equity' AND ticker IN {STOCK})",
     'dates (30 IHSG sessions)': DATES,
     'universe': 'SELECT "Ticker", "Company Name", "Sector" FROM public."IDX_Stock_Universe" WHERE "Security Type" = \'stock\'',
     'feature 01 (one date)': f"SELECT ticker, close, return_1d_pct, return_5d_pct, return_20d_pct, return_60d_pct, volume_ratio_20d, "
@@ -27,7 +31,8 @@ Q = {
                                    f"WHERE source_removed_at IS NULL AND annotation_date > '{P}' AND annotation_date <= date '{P}' + 30 AND ticker IN {STOCK}",
     'corporate actions loaded at': 'SELECT max(last_seen_at) FROM public.stockbit_corporate_action',
     'radar (newest date)': 'SELECT DISTINCT ticker, filter_id FROM public."Feature_07_Radar_Result" WHERE status = \'hit\' AND trade_date = '
-                           '(SELECT max(trade_date) FROM public."Feature_07_Radar_Result")',
+                           '(SELECT max(trade_date) FROM public."Feature_07_Radar_Result") AND level = \'standard\' AND gate = \'broad\' '
+                           'AND rule_version = public.feature_07_rule_version()',
 }
 print(f'prices date {P}, broker date {B}')
 tot_ms = tot_buf = 0

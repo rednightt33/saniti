@@ -8157,3 +8157,36 @@ in its staleness check.
 - **Status:** KNOWN, not fixed; the figure itself is right. Recorded in EXEC-OVERVIEW.
 - **Lesson:** a value and its unit are one word for the line breaker: join them with a no-break space where the text is
   built, not per label.
+
+### M448 — Watchlist: findings of the independent review before release (2026-11-16, fixed in the branch; two known)
+
+- **Found by:** the independent code review of EXEC-WATCHLIST L6 (`git diff 8bc5ddc2..`), each finding checked in the
+  code before it was fixed.
+- **Fixed (verified causes):**
+  1. A run while a feature worker was still writing the newest date counted it as complete as soon as one Feature 01
+     and one Feature 04 row existed (`watchlist.py` PRICE_DATE_SQL). Now a date is complete when the stocks with a final
+     close, their Feature 01 rows and those rows' Feature 04 rows are equally many (equal on every dev date, e.g. 836
+     on 13 Nov), checked one date at a time from the newest (counting 10 dates at once read 98k pages; one date 7,979).
+  2. The Radar badges read `max(rule_version)` as text and no version on the results; the Radar page reads
+     `public.feature_07_rule_version()`. Both queries now use it, and the file waits while the Radar's first fill runs
+     (`busy` = `radar.busy`).
+  3. A NaN or infinite stored float would have stopped the file (the publisher refuses non-JSON numbers): such a value
+     is now "no value".
+  4. Undo of a deleted list restored the page's copy from page load, losing stocks starred in the Screener since:
+     `DELETE /lists/{id}` now answers the list as it was when deleted and Undo uses that; a restored list takes back
+     its place (the lists from there move one down).
+  5. Deleting the first list moves the Screener star to the next list: the delete dialog now says so.
+  6. A value that reads as zero ("0.0%", "Rp 0") was still coloured by its unrounded sign; a small MACD histogram read
+     "0.0": colour follows the shown value, and values under 1 keep 2 decimals.
+  7. A list name with a control character (NUL) gave a 500: refused with a 422 naming the field.
+  8. The migration's rollback comment could fail when two lists shared an owner's lowest position: it keeps one list
+     per owner (`DISTINCT ON`). The migration was not applied anywhere yet.
+- **Release order (finding 1 of the review, verified):** the old edge-bff code inserts stars without a list, so the
+  migration must come after the new edge-bff code (before it, the new code answers 503 NOT_READY for the star and the
+  page, never a wrong write). And the page needs the daily file: publisher and terminal-api, and the file, come first.
+- **Known, not fixed:** (a) when the daily file cannot be read (terminal-api down or over quota) the page shows an error
+  instead of the lists without figures; (b) a restored list's stocks get a new `added_at` (the Screener's star time).
+  Proposal for (a): show the lists with "—" and the file's error in the header; waiting for the user.
+- **Lesson:** a "complete date" is derived from the date's own counts across the sources, never from the existence of
+  one row; a read of a family another page owns (Radar) uses that page's own selector (`feature_07_rule_version()`),
+  not a re-derivation.

@@ -34,7 +34,8 @@ export function fRp(v: number | null | undefined): string | null {
   if (!u || n.toFixed(1) === '0.0') return 'Rp' + NB + '0';
   return sgn(v) + 'Rp' + NB + n.toFixed(1) + u;
 }
-const plain = (v: number) => (v < 0 ? MINUS : '') + Math.abs(v).toFixed(1);
+/* 1 decimal; 2 below 1 (a MACD histogram of a low-priced stock, 0.04) so a small value does not read as 0.0 */
+const plain = (v: number) => { const d = Math.abs(v) < 1 ? 2 : 1; return (+v.toFixed(d) < 0 ? MINUS : '') + Math.abs(v).toFixed(d) };
 /** one indicator value by its catalog unit: index 1 decimal, pct with its sign (a "+" only where the catalog colours the
     sign), ratio "0.6×", rp as fRp, rank "P83"; price (the MACD histogram) 1 decimal */
 export function formatValue(item: CatalogItem, v: number | null | undefined): string | null {
@@ -99,7 +100,8 @@ export function value(f: StocksFile, key: string, s: Stock): number | null {
 }
 export function indVal(f: StocksFile, item: CatalogItem, s: Stock | null): { v: string; k: string; na: boolean } {
   const x = s ? value(f, item.key, s) : null, v = formatValue(item, x);
-  return v == null ? { v: '—', k: '', na: true } : { v, k: item.signed ? cls(x) : '', na: false };
+  // the colour follows what is shown: a value that reads as zero ("0.0%", "Rp 0") is not coloured (review 2026-11-16)
+  return v == null ? { v: '—', k: '', na: true } : { v, k: item.signed && /[1-9]/.test(v) ? cls(x) : '', na: false };
 }
 export const tickersOf = (l: Pick<WList, 'tickers'>) => l.tickers.map(x => x.ticker);
 

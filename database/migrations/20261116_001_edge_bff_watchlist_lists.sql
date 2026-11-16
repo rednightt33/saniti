@@ -84,9 +84,9 @@ COMMIT;
 
 -- Rollback (only with the user's approval; drops every named list, keeps one row per starred ticker of the first list):
 -- BEGIN;
--- DELETE FROM edge_bff.watchlist_items AS i USING edge_bff.watchlist_lists AS l
---   WHERE l.owner_key = i.owner_key AND l.list_id = i.list_id
---   AND l.position > (SELECT min(position) FROM edge_bff.watchlist_lists AS f WHERE f.owner_key = l.owner_key);
+-- DELETE FROM edge_bff.watchlist_items AS i WHERE (i.owner_key, i.list_id) NOT IN (
+--   SELECT DISTINCT ON (owner_key) owner_key, list_id FROM edge_bff.watchlist_lists
+--   ORDER BY owner_key, position, created_at, list_id);
 -- ALTER TABLE edge_bff.watchlist_items DROP CONSTRAINT watchlist_items_list, DROP CONSTRAINT watchlist_items_pkey,
 --   ADD PRIMARY KEY (owner_key, ticker), DROP COLUMN list_id, DROP COLUMN position;
 -- DROP TABLE edge_bff.watchlist_lists;

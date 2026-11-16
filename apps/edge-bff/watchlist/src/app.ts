@@ -202,14 +202,15 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
     DELID = id; const ts = tk(l), n = ts.length;
     const others = ts.filter(t => LISTS.some(x => x.id !== id && tk(x).includes(t))).length;
     openDialog(`<div class="dialog dell" role="alertdialog" aria-modal="true" aria-label="Delete list ${esc(l.name)}">${dhead(`Delete “${esc(l.name)}”?`, `${n} stocks${DOT}${ind(l).length} indicators`)}
-  <div class="dialog-body"><p>The list and its indicator choice are deleted.${n ? ` ${n - others} of its ${n} stocks are in no other list.` : ''} Other lists are not changed.</p><p class="note">You can undo right after deleting.</p></div>
+  <div class="dialog-body"><p>The list and its indicator choice are deleted.${n ? ` ${n - others} of its ${n} stocks are in no other list.` : ''} Other lists are not changed.</p>${LISTS[0].id === id ? `<p>The Screener’s star adds stocks to this list. After deleting, it adds them to “${esc(LISTS[1].name)}”.</p>` : ''}<p class="note">You can undo right after deleting.</p></div>
   <div class="dialog-foot"><button class="btn" data-act="close" data-autofocus>Cancel</button><button class="btn danger" data-act="del-list-go">Delete list</button></div></div>`, { onClose: () => { DELID = null } });
   }
   async function delListGo(btn: HTMLButtonElement) {
     if (!DELID || btn.disabled) return;
     btn.disabled = true;
-    const id = DELID, snap = JSON.parse(JSON.stringify(L(id))) as WList, idx = LISTS.findIndex(l => l.id === id), wasActive = st.active === id;
-    try { await api.remove(id) } catch (e) { btn.disabled = false; toast(esc(msg(e, 'The list was not deleted. Try again.'))); return }
+    const id = DELID, idx = LISTS.findIndex(l => l.id === id), wasActive = st.active === id;
+    let snap: WList;
+    try { snap = await api.remove(id) } catch (e) { btn.disabled = false; toast(esc(msg(e, 'The list was not deleted. Try again.'))); return }
     LISTS.splice(idx, 1);
     if (wasActive) { st.active = LISTS[Math.max(0, idx - 1)].id; persist(); FILT = { radar: false, ev: false }; TSORT = null }
     closeDialog(true); render();

@@ -39,7 +39,8 @@ export interface WatchlistApi {
   rename(id: string, name: string): Promise<WList>;
   setIndicators(id: string, indicators: string[] | null): Promise<WList>;
   setIndicatorsAll(indicators: string[] | null): Promise<WList[]>;
-  remove(id: string): Promise<void>;
+  /** the list as it was when deleted (its stocks then, not the page's older copy): Undo restores exactly that */
+  remove(id: string): Promise<WList>;
   addTickers(id: string, tickers: string[], position?: number): Promise<AddAnswer>;
   removeTicker(id: string, ticker: string): Promise<void>;
   /** ticker -> logo version (the first 12 hex of its sha256); {} when the logo list cannot be read */

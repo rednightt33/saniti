@@ -10,13 +10,17 @@ DATES = [f'2026-11-{d:02d}' for d in (3, 4, 5, 6, 9, 10, 11, 12, 13)]
 
 
 class Fake:
-    def __init__(self, broker='2026-11-09', price='2026-11-13', radar='2026-11-09'):
+    def __init__(self, broker='2026-11-09', price='2026-11-13', radar='2026-11-09', counts=None):
         self.broker, self.price, self.radar, self.seen = broker, price, radar, []
+        # per date: (stocks with a final close, Feature 01 rows, Feature 04 rows); complete by default
+        self.counts = counts or {}
 
     def run(self, sql, params):
         self.seen.append((sql, params))
+        if sql == W.COUNTS_SQL:
+            return [self.counts.get(params['d'], (3, 3, 3))]
         a = {
-            W.MARKET_SQL: [('IHSG',)], W.PRICE_DATE_SQL: [(self.price,)] if self.price else [],
+            W.MARKET_SQL: [('IHSG',)], W.RECENT_SQL: [(d,) for d in reversed(DATES)] if self.price else [],
             W.BROKER_DATE_SQL: [(self.broker,)], W.RADAR_DATE_SQL: [(self.radar,)], W.EVENTS_LOADED_SQL: [('2026-11-09',)],
             W.DATES_SQL: [(d,) for d in reversed(DATES)],
             W.STOCKS_SQL: [('AAAA', 'PT A Tbk', 'Energy'), ('BBBB', 'PT B Tbk', 'Financials'), ('CCCC', 'PT C Tbk', 'Undefined')],
@@ -99,3 +103,32 @@ def test_files_and_stamp_are_exact_and_equal_runs_give_equal_bytes():
     assert a == b == [W.digest(doc), W.CODE]
     assert W.stamp(Conn(Fake(broker='2026-11-10')))[0] != a[0]      # any content change changes the stamp
     assert json.dumps(W.build(Fake().run), sort_keys=True) == json.dumps(doc, sort_keys=True)
+
+
+def test_the_price_date_is_the_newest_complete_one():
+    """A run while a feature worker is still writing the newest date shows the previous complete date (review
+    2026-11-16); no complete date among the recent ones gives no file (the previous publication stays)."""
+    f = Fake(counts={'2026-11-13': (836, 836, 400), '2026-11-12': (834, 800, 800)})
+    doc = W.build(f.run)
+    assert doc['prices_through'] == '2026-11-11'
+    assert dict((s, p) for s, p in f.seen if s == W.F01_SQL)[W.F01_SQL] == {'p': '2026-11-11'}
+    assert W.build(Fake(counts={d: (5, 4, 4) for d in DATES}).run) is None
+
+
+def test_a_non_finite_stored_value_is_shown_as_no_value():
+    class NaNs(Fake):
+        def run(self, sql, params):
+            rows = super().run(sql, params)
+            if sql == W.F01_SQL:
+                rows = [(rows[0][0], float('nan'), *rows[0][2:-1], float('inf'))] + rows[1:]
+            return rows
+    doc = W.build(NaNs().run)
+    i = doc['ticker'].index('AAAA')
+    assert doc['last'][i] is None and doc['values']['dd60'][i] is None and doc['r1m'][i] == 6.3
+    json.dumps(doc, allow_nan=False)                                   # still valid JSON
+
+
+def test_radar_reads_the_radar_pages_rule_version_and_waits_for_its_first_fill(monkeypatch):
+    assert 'public.feature_07_rule_version()' in W.RADAR_SQL and 'public.feature_07_rule_version()' in W.RADAR_FILTERS_SQL
+    monkeypatch.setattr(W.radar, 'busy', lambda conn: 'the Radar backfill is running')
+    assert W.busy(object()) == 'the Radar backfill is running'
