@@ -16,6 +16,9 @@ interface Bars { dates: string[]; o: ArrayLike<number>; h: ArrayLike<number>; l:
 interface SigLike { series: { c: Card; s: Uint8Array }[]; entry: Uint8Array }
 interface Row { c: Card; raw: Uint8Array; w: Uint8Array; L: string; col: string; off: boolean; wait: boolean }
 interface Tr { k: number; i: number; s: number; j: number; r: number; why: string }
+/** what waits for its data: a card (a flow card for the broker data, a test card for the worker's tracks) and the entry */
+export interface Wait { card: (c: Card) => boolean; entry: boolean }
+const NO_WAIT: Wait = { card: () => false, entry: false };
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 /** "Mon 2 Jan 2026" */
@@ -24,7 +27,7 @@ export const dayName = (s: string) => { const d = new Date(s + 'T00:00:00Z'); re
 export const letterOf = (k: number) => String.fromCharCode(65 + k);
 
 /** the lanes' state: the chart's data (null: nothing drawn), the selected trade (-1: none), the crosshair */
-export const LANES: { a: { bars: Bars; idx: number[]; sig: SigLike; tk: string; wait: boolean } | null; sel: number; cx: number | null;
+export const LANES: { a: { bars: Bars; idx: number[]; sig: SigLike; tk: string; wait: Wait } | null; sel: number; cx: number | null;
   rows: Row[]; tr: Tr[]; pos: Map<number, number> } = { a: null, sel: -1, cx: null, rows: [], tr: [], pos: new Map() };
 
 let chart: L.IChartApi | null = null;
@@ -32,13 +35,12 @@ let chart: L.IChartApi | null = null;
 export const initLanes = (pc: L.IChartApi) => { chart = pc; pc.subscribeCrosshairMove(p => laneHover(p)) };
 const redraw = () => refreshSignals();
 
-const pending = (c: Card, wait: boolean) => wait && catOf(c).group === 'flow';
 /** a phone (decision 2a): the chart has no left gutter, the left header sits above it and each lane's name is on its
     own line over the lane (the design's 200px gutter left a chart 130px wide there) */
 export const NARROW = matchMedia('(max-width:600px)');
 
 /** new data for the lanes (undefined: keep the last), then draw them and the trade table */
-export function laneSignals(bars?: Bars | null, idx?: number[], sig?: SigLike, tk?: string, wait = false) {
+export function laneSignals(bars?: Bars | null, idx?: number[], sig?: SigLike, tk?: string, wait: Wait = NO_WAIT) {
   if (bars !== undefined) LANES.a = bars && idx && sig && tk ? { bars, idx, sig, tk, wait } : null;
   const A = LANES.a;
   if (!A || !A.idx.length) { $('xsig').innerHTML = ''; $('xsShade').innerHTML = ''; tradeTable(); return }
@@ -50,7 +52,7 @@ export function laneSignals(bars?: Bars | null, idx?: number[], sig?: SigLike, t
     const raw = q.s, w = new Uint8Array(raw.length);
     let last = -1e9;
     for (let i = 0; i < raw.length; i++) { if (raw[i]) last = i; w[i] = i - last < win ? 1 : 0 }
-    const wait = pending(q.c, A.wait);
+    const wait = A.wait.card(q.c);
     return { c: q.c, raw, w, L: letterOf(k), col: COLORS[S.conds.indexOf(q.c) % COLORS.length], off: !!S.hidden[q.c.id] || wait, wait };
   });
   LANES.pos = new Map(A.idx.map((d, k) => [d, k]));
@@ -86,7 +88,7 @@ export function drawSignalLanes() {
     add(`<rect x="${LW}" y="${y}" width="${PW}" height="${rh}" fill="var(--surface-2)"/>`);
     if (r && !r.off) { spans(r.w, y + 3, rh - 6, 'url(#xsHatch)', 'rx="3"'); spans(r.raw, y + 3, rh - 6, 'var(--gray-700,#4d4d4d)', 'rx="3"') }
   });
-  if (!S.hidden.__entry && !A.wait) spans(sig.entry, Y(lanes.length - 2) + 3, rh - 6, 'var(--up)', 'rx="3" opacity=".85"');
+  if (!S.hidden.__entry && !A.wait.entry) spans(sig.entry, Y(lanes.length - 2) + 3, rh - 6, 'var(--up)', 'rx="3" opacity=".85"');
   { const y = Y(lanes.length - 1);
     TR.forEach(t => {
       const a = LANES.pos.get(t.i), b = LANES.pos.get(t.j);
@@ -99,7 +101,7 @@ export function drawSignalLanes() {
   add('</g>');
   // EXEC-BACKTEST-LOAD (user 2026-10-27): a flow lane and the entry lane wait for the broker data: labelled
   // "loading" with the small ring in place of their switch, not filled
-  const waits = (r: Row | null, l: string) => r ? r.wait : l === '∩' && A.wait;
+  const waits = (r: Row | null, l: string) => r ? r.wait : l === '∩' && A.wait.entry;
   lanes.forEach(([l, r], k) => {
     const y = narrow ? LY(k) : Y(k) + (rh - 18) / 2, dark = !r, t = (r ? catOf(r.c).label : l === '∩' ? 'Entry signal' : 'Trades') + (waits(r, l) ? ' · loading' : '');
     const room = narrow ? Math.floor((W - 90) / 6.5) : 17;
@@ -107,7 +109,7 @@ export function drawSignalLanes() {
   });
   host.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${out.join('')}</svg>` + lanes.map(([l, r], k) => {
     const id = r ? r.c.id : l === '∩' ? '__entry' : '__trades', on = !S.hidden[id], name = r ? catOf(r.c).label : l === '∩' ? 'Entry signal' : 'Trades';
-    if (waits(r, l)) return `<b class="ml-spin sm xs-wait" role="status" aria-label="${esc(name)}: loading broker data" title="Loading broker data" style="top:${narrow ? LY(k) + 3 : Y(k) + (rh - 14) / 2}px;left:${narrow ? W - 22 : LW - 32}px"></b>`;
+    if (waits(r, l)) return `<b class="ml-spin sm xs-wait" role="status" aria-label="${esc(name)}: loading" title="${r && r.c.type === 'test' ? 'Computed by the backtest server' : 'Loading broker data'}" style="top:${narrow ? LY(k) + 3 : Y(k) + (rh - 14) / 2}px;left:${narrow ? W - 22 : LW - 32}px"></b>`;
     return `<button type="button" class="xs-tg ${on ? 'on' : ''}" role="switch" aria-checked="${on}" aria-label="${on ? 'Hide' : 'Show'} ${esc(name)}" title="${on ? 'Hide' : 'Show'} ${esc(name)} on the chart" data-xh="${id}" style="top:${narrow ? LY(k) + 1 : Y(k) + (rh - 16) / 2}px;left:${narrow ? W - 30 : LW - 38}px"><span></span></button>`;
   }).join('');
   host.querySelectorAll('[data-xh]').forEach((b: HTMLElement) => b.onclick = () => { S.hidden[b.dataset.xh!] = !S.hidden[b.dataset.xh!]; redraw() });

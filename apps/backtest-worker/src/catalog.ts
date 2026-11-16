@@ -16,6 +16,7 @@ import type { Config } from './config.ts';
 import { brokerDataThrough } from './load.ts';
 import type { Publication, TerminalClient, TickerReference } from './terminal.ts';
 import { stocksOf, tradable } from './validate.ts';
+import { NOT_PER_DAY } from './grammar.ts';
 
 /** The portfolio picker's filters (PF6, 2026-10-27): one per grouping column, in the file's column order; per value the
     number of published stocks that have it, in value order (byTicker), and the stocks without a value (unclassified:
@@ -52,6 +53,9 @@ export async function buildCatalog(client: TerminalClient, cfg: Pick<Config, 'li
     flow: { available: cfg.flow.enabled, reason: cfg.flow.reason, brokers: brokers.map(b => b.code), data_through: flowThrough },
     limits: cfg.limits,
     flow_indicators: flowIndicators(cfg.flow.enabled),
+    // Stage D (D5): the Screener's reference kinds a backtest refuses, with the refusal's reason (grammar.ts NOT_PER_DAY),
+    // so the page marks them in its condition window from the engine, not from a list of its own
+    grammar_refusals: { ...NOT_PER_DAY },
   };
 }
 

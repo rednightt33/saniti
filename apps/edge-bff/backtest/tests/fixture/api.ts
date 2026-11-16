@@ -13,6 +13,7 @@ import { ENGINE_VERSION, newSession, previewRequest, runRequest } from './run.ts
 import { BANKS, DEMO_10 } from './state.ts';
 import { MAX_PORTFOLIO_TICKERS, MAX_POSITIONS } from '../../src/core/engine.ts';
 import { servedEvents, servedResult } from '../served.ts';
+import { grammarCatalog, screenerCatalog, standIn } from '../screener-catalog.ts';
 
 /* the reference's choices as a catalog: its tickers in its order (no names: the reference has none, name null), its
    universe "Banks" as their one grouping (sector: BBCA, BBRI and BMRI are Banks, the other seven unclassified), its
@@ -26,6 +27,7 @@ export const CATALOG: Catalog = {
   flow:{ available:true, reason:null, brokers:M.BROKERS, data_through:M.DAYS[M.N - 1] },
   limits:{ max_positions:MAX_POSITIONS, window_bars:{ min:1, max:20 }, monte_carlo_runs:1000, max_portfolio_tickers:MAX_PORTFOLIO_TICKERS,
            max_download_bytes:0, max_broker_rows:0, timeout_seconds:600, queued_per_owner:1, max_conditions:Infinity, max_flow_series:Infinity },
+  ...grammarCatalog(true),
 };
 
 /* the reference's words (backtest.html: the header, the Robustness warning box, "Variants tried this session") */
@@ -56,9 +58,13 @@ export function fixtureApi(): BacktestApi {
     texts: REFERENCE_TEXTS,
     catalog: () => now(() => CATALOG),
     bars: t => now(() => barsOf(t)),
-    ready: (c: Card) => M.condReady(c),
+    ready: (c: Card) => c.type === 'test' || M.condReady(c),
     indicatorOutputs: (t, id, p) => M.regReady(id) && M.DATA[t] ? M.memo(t, 'reg' + id + JSON.stringify(p), () => M.REG_CALC[id](M.DATA[t], p)) : null,
-    conditionSeries: (t, c) => M.condReady(c) && M.DATA[t] ? M.catOf(c).eval(t, c) : null,
+    // Stage D: a test card is the worker's; here a deterministic stand-in (tests/screener-catalog.ts)
+    conditionSeries: (t, c) => !M.DATA[t] ? null : c.type === 'test' ? standIn(M.DATA[t].c) : M.condReady(c) ? M.catOf(c).eval(t, c) : null,
+    screenerCatalog,
+    tracks: () => {},
+    tracked: () => null,
     signalsPreview: q => now(() => previewRequest(q)),
     submit: q => now(() => {
       const request = JSON.parse(JSON.stringify(q)) as BacktestRequest, { result } = runRequest(request, session);

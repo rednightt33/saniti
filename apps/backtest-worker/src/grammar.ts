@@ -50,7 +50,7 @@ export interface GrammarLimits { capBudgetMs: number; withinMax: number }
 export const GRAMMAR_DEFAULTS: GrammarLimits = { capBudgetMs: 4500, withinMax: 130 };
 
 /** Metric reference kinds that have no per-day value in a backtest, with the reason the refusal gives. */
-const NOT_PER_DAY: Record<string, string> = {
+export const NOT_PER_DAY: Record<string, string> = {
   universe: 'a universe attribute is a value on the screen date only, so a backtest cannot read it on earlier days',
   xsection: 'a cross-section value ranks the stocks listed on the screen date, so a backtest cannot read it on earlier days without look-ahead',
   rank: 'a rank across stocks uses the stocks listed on the screen date, so a backtest cannot read it on earlier days without look-ahead',

@@ -9,11 +9,14 @@ import { letterOf } from './lanes.ts';
 import { condName, refreshSignals } from './signals.ts';
 import { markStale, renderBuilder } from './builder.ts';
 import { openCondWin } from './condwin.ts';
+import { SC, entryOf } from './grammar.ts';
+import { condRule, isCustom, shortParts } from '../../screener/src/forms.ts';
 
 const changed = () => { markStale(); renderBuilder(); refreshSignals() };
 
 /** a legacy card that differs from its catalog defaults (value or a parameter): its setting is shown in blue */
 const custom = (c: Card) => {
+  if (c.type === 'test') { const e = entryOf(c); return !!e && isCustom(e, c.sc) }
   if (c.type === 'reg') return false;
   const d = CATALOG[c.type] as any, lc = c as any;
   return (lc.val != null && d.val != null && lc.val != d.val) || d.params.some((q: unknown[]) => q[2] != null && lc[q[0] as string] != q[2]);
@@ -24,10 +27,16 @@ export function renderFilterBar() {
   if (!box) return;
   const act = S.conds.filter(c => c.on && condReady(c)), na = act.length;
   const chip = (c: Card, k: number) => {
+    if (c.type === 'test') {   // Stage D: the Screener's short name and rule (forms.ts shortParts)
+      const e = entryOf(c), sp = e ? { base: shortParts(e, c.sc).base, rule: shortParts(e, c.sc).rule || condRule(e, c.sc) } : { base: 'Condition', rule: '' };
+      return `<button type="button" class="fchip" data-fc="${c.id}" title="Edit ${esc(condName(c))} in the workspace"><span class="bd">${letterOf(k)}</span><span class="nm">${esc(sp.base)}</span><b class="${custom(c) ? 'cu' : ''}">${esc(sp.rule || '')}</b>${ico('<path d="m6 9 6 6 6-6"/>')}</button>`;
+    }
     const t = catOf(c), full = condName(c), lc = c as any;
     const head = c.type === 'reg' ? REG_BY[lc.ind].name : t.label + (t.params.length ? ` (${t.params.map(([q]) => lc[q]).join(',')})` : '');
     const tail = full.startsWith(head) ? full.slice(head.length).replace(/^\s*·\s*/, '').trim() : full;
-    const nm = c.type === 'reg' ? REG_BY[lc.ind].short || head : t.label.replace(/^Stochastic /, 'Stoch ');
+    // a registry card's short name is the catalog's (the Screener's shortOf: its `short` or an upper-case synonym); the
+    // registry's own `short` is a description sentence in the real data
+    const nm = c.type === 'reg' ? SC.by.get(lc.ind)?.short || REG_BY[lc.ind].name : t.label.replace(/^Stochastic /, 'Stoch ');
     return `<button type="button" class="fchip" data-fc="${c.id}" title="Edit ${esc(full)} in the workspace"><span class="bd">${letterOf(k)}</span><span class="nm">${esc(nm)}</span><b class="${custom(c) ? 'cu' : ''}">${esc(tail)}</b>${ico('<path d="m6 9 6 6 6-6"/>')}</button>`;
   };
   box.innerHTML = `<span class="lbl">Entry</span><span class="seg sm" role="radiogroup" aria-label="Entry rule">${([['all', 'All'], ['any', 'Any'], ['n', 'At least']] as const).map(([v, l]) => `<button type="button" role="radio" aria-checked="${S.logic === v}" class="${S.logic === v ? 'on' : ''}" data-fl="${v}">${l}</button>`).join('')}</span>${S.logic === 'n' ? `<input class="inp fn" type="number" min="1" max="${Math.max(1, na)}" value="${S.atLeast}" data-fk="atLeast" aria-label="Minimum number of conditions">` : ''}`

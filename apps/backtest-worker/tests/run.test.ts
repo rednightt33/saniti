@@ -665,6 +665,14 @@ test('Stage D (D6): the preview\'s detail ticker: each condition, the entry and 
   assert.deepEqual(d.entry, track(sig.entry, m)); assert.deepEqual(d.exit, track(sig.exit, m));
   assert.equal(d.entry.on.length, p.rows.find(r => r.ticker === 'UNVR')!.entry_signals, 'the same entry events as the row');
   assert.ok(d.exit.runs.length > 0, 'the exit condition is true somewhere');
+  // every picked stock left out (a 200-session average with no value up to a period's end 20 sessions in): with a detail
+  // the preview answers (TICKERS_EXCLUDED with every stock, the detail's error), without one it is UNIVERSE_EMPTY as before
+  const long = { logic: 'all', at_least: 1, window_bars: 5, conditions: [{ id: 's1', kind: 'test', test: { kind: 'state', lhs: { kind: 'price', field: 'close' }, op: 'gt', rhs: { kind: 'indicator', indicator: 'I01', output: 'sma', params: { length: 200 } } } }] } as BacktestRequest['entry'];
+  const early = { from: T[0], to: T[20] };
+  const gone = await runSignals({ schema_version: 1, tickers: ['UNVR'], period: early, entry: long, detail: { ticker: 'UNVR' } }, refs, env());
+  assert.deepEqual(gone.rows, []); assert.equal(gone.warnings[0].code, 'TICKERS_EXCLUDED');
+  assert.equal(gone.detail?.error?.code, 'INDICATOR_OUTPUT_EMPTY', 'the detail says why');
+  assert.deepEqual(await refusal(runSignals({ schema_version: 1, tickers: ['UNVR'], period: early, entry: long }, refs, env())), ['UNIVERSE_EMPTY', 'tickers']);
   // no detail asked: none answered; a detail ticker that is not picked, a field it does not have: refused with the field
   assert.equal((await runSignals({ schema_version: 1, tickers: ['UNVR'], period, entry }, refs, env())).detail, undefined);
   assert.deepEqual(await refusal(runSignals({ schema_version: 1, tickers: ['UNVR'], period, entry, detail: { ticker: 'BBCA' } }, refs, env())), ['INVALID_REQUEST', 'detail.ticker']);

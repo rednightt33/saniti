@@ -14,6 +14,7 @@ import { BX, setExpanded, setPanel } from './layout.ts';
 import { renderResults, renderTab } from './results/index.ts';
 import { condWinCount, openCondWin } from './condwin.ts';
 import { renderHeader } from './header.ts';
+import { SC, entryOf, refusalOf, testName } from './grammar.ts';
 import { abortRun } from './run.ts';
 import { bindPicker, pickerHtml } from './picker.ts';
 import { stocksText, tickersLabel, titleNames } from './picked.ts';
@@ -162,6 +163,11 @@ export const condCard = (c: Card, i: number) => {
   const C = catOf(c), col = COLORS[i % COLORS.length], x = opened.has(c.id);
   const open = `<div class="cond mc ${c.on?'':'off'} ${x?'x':''}" data-id="${c.id}" data-card="${c.id}" tabindex="0" role="group" aria-expanded="${x}" aria-label="${esc(C.label)}, press Enter to ${x?'close':'edit'}" title="${x?'':'Click to edit'}">`;
   const head = (tag: string) => `<div class="cond-h"><span class="dot" style="background:${col}"></span><b>${esc(C.label)}</b>${tag}<label class="sw" title="Enable / disable"><input type="checkbox" data-c="${c.id}" data-p="on" ${c.on?'checked':''} aria-label="Enable condition"><span></span></label><button class="x" type="button" data-del="${c.id}" title="Remove" aria-label="Remove condition">${ico('<path d="M6 6l12 12M18 6 6 18"/>')}</button></div><div class="msum">${esc(condName(c))}</div>`;
+  // Stage D (D5): a test card (the shared grammar, computed by the worker): its rule in the Screener's words, edited in
+  // the condition window; why it cannot run, from the engine and the catalogs (grammar.ts refusalOf)
+  if(c.type==='test'){ const e = entryOf(c), why = !e ? (SC.state === 'ready' ? 'Not in the catalog of this account.' : 'Loading the catalog…') : refusalOf(e);
+    return open + head(`<span class="tag ${C.group}">${C.group==='tech'?'Technical':C.group==='flow'?'Flow':'Price'}</span>`) + `<span class="cf-stat" id="cf-${c.id}"></span><div class="cond-b"><div class="regrule">${esc(testName(c))}</div>
+    <div class="cond-f"><span>${why ? `<span class="pill warn">Not in backtest</span> ${esc(why)}` : esc(C.desc)}</span><button class="btn sm" data-ws="${c.id}">Edit in workspace</button></div></div></div>` }
   if(c.type==='reg') return open + head(`<span class="tag tech">${esc(CAT_LABEL[REG_BY[c.ind].cat]||REG_BY[c.ind].cat)}</span>`) + `<span class="cf-stat" id="cf-${c.id}" hidden></span><div class="cond-b"><div class="regrule">${esc(sideLbl(REG_BY[c.ind],c.lhs))} <b>${OPS[c.op]}</b> ${esc(sideLbl(REG_BY[c.ind],c.rhs))}</div><div class="regpar">${REG_BY[c.ind].p.filter(x=>x.t!=='fixed').map(x=>`<span>${esc(x.l)} <b>${esc(String(c.p[x.k]))}</b></span>`).join('')}</div>
     <div class="cond-f"><span>${regReady(c.ind)?esc(C.desc):'<span class="pill warn">Not calculated</span> ignored on Run'}</span><button class="btn sm" data-ws="${c.id}">Edit in workspace</button></div></div></div>`;
   const lc = c as any;

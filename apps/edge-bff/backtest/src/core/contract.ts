@@ -372,6 +372,9 @@ export interface Catalog {
       of a session without the right flow_point_in_time; the worker refuses them without it, CONDITION_RESTRICTED),
       date_param their required anchor or start; available false with the reason for one a backtest cannot read */
   flow_indicators?: { id: string; name: string; access: 'all' | 'admin'; available: boolean; reason: string | null; date_param: 'anchor' | 'start' | null }[];
+  /** EXEC-BACKTEST-REVAMP Stage D (D5): the reference kinds of the Screener's grammar a backtest refuses (universe,
+      xsection, rank: no per-day value without look-ahead), each with the refusal's reason (the worker's grammar.ts) */
+  grammar_refusals?: Record<string, string>;
 }
 /** A classification the portfolio picker filters by: a column of terminal-api's ticker reference file other than
     ticker, name and type (today sector and industry; derived from the file, never listed here). values: each value

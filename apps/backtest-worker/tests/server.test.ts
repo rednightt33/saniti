@@ -225,6 +225,9 @@ test('catalog: the published tickers with their groups, the groupings, the broke
   const c = a.json() as Catalog;
   assert.equal(c.schema_version, 1); assert.equal(c.engine_version, ENGINE_VERSION); assert.equal(c.registry_version, REGISTRY_VERSION);
   assert.equal(c.data_through, FX.get('IHSG')!.T.at(-1)); assert.equal(c.first_date, FX.get('IHSG')!.T[0]);
+  // Stage D (D5): the grammar's refused reference kinds with their reasons, the worker's own (grammar.ts NOT_PER_DAY)
+  assert.deepEqual(Object.keys(c.grammar_refusals ?? {}).sort(), ['rank', 'universe', 'xsection']);
+  assert.match(c.grammar_refusals!.universe, /screen date only/);
   assert.deepEqual(c.tickers, refs.tickers.map(r => ({ ticker: r.ticker, name: r.name, type: r.type, groups: r.groups })));
   assert.deepEqual(c.tickers.find(t => t.ticker === 'IHSG'), { ticker: 'IHSG', name: 'IHSG (test name)', type: 'index', groups: { sector: null, industry: null } });
   assert.deepEqual(c.tickers.find(t => t.ticker === 'LQ45'), { ticker: 'LQ45', name: null, type: 'index', groups: { sector: null, industry: null } });   // as published

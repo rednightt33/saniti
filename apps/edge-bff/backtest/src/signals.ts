@@ -13,8 +13,9 @@ import { catOf, condReady, evalCond, needsFlow, opLabel, regName } from './reg.t
 import { S } from './state.ts';
 import { renderNav, updateViewbar } from './builder.ts';
 import { TT, ttH } from './results/svg.ts';
-import { previewRequest } from './api/request.ts';
-import { renderWSMid } from './workspace.ts';
+import { needsDetail, previewRequest } from './api/request.ts';
+import { testName } from './grammar.ts';
+import { render as renderCondWin } from './condwin.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
 import { chartTicker, runTickers } from './picked.ts';
 import { Previews, portRows, previewKey, type Rows } from './preview.ts';
@@ -34,7 +35,10 @@ export const signalsFor = (tk: string): Sig => {
   const series = active.map(c => ({c, s: evalCond(tk, c)}));
   const need = S.logic==='all' ? active.length : S.logic==='any' ? 1 : Math.min(S.atLeast, active.length);
   const W = Math.max(1, S.window|0), entry = new Uint8Array(N);
-  if(active.length){
+  // Stage D (D6): with a test card the worker's combined entry (its own window rule for a test), as the run reads it
+  const worker = needsDetail() ? API.tracked(tk, '__entry') : null;
+  if(worker) entry.set(worker);
+  else if(active.length){
     const recent = series.map(() => -1e9);
     for(let i=0;i<N;i++){
       let met = 0; series.forEach((x,k) => { if(x.s[i]) recent[k] = i; if(i - recent[k] < W) met++ });
@@ -86,7 +90,7 @@ const eventsNeeded = (tk: string) => ran().includes(tk) && !S.result.ev.cond.has
 const prepared = (tk: string) => loaded(tk) && (!eventsNeeded(tk) || failed.has(tk + '|events'));
 const flowWait = (tk: string) => needsFlow() && !loaded(tk, true) && !failed.has(tk + '|flow') && !(fresh() && S.result.ev.cond.has(tk));
 const preparing = new Set<string>();
-const redrawIf = (tk: string) => { if (S.sigTicker === tk && prepared(tk)) { refreshSignals(); if (!$('ews').hidden) renderWSMid() } };
+const redrawIf = (tk: string) => { if (S.sigTicker === tk && prepared(tk)) { refreshSignals(); renderCondWin() } };
 function prepare(tk: string) {
   const key = `${tk}|${eventsNeeded(tk)}`;
   // the bars and events only while they are missing: a redraw that waits for the broker data calls prepare again, and
@@ -112,10 +116,24 @@ function prepare(tk: string) {
    preview's warnings are one short line in the page's toast, when an answer brings one the previous answer did not. */
 const previews = new Previews({
   ask: (q, o) => API.signalsPreview(q, o),
-  current: () => S.mode === 'portfolio' && S.tickers.length ? previewKey(previewRequest()) : null,
-  answered: note => { if (note) toast(note, true); refreshSignals() },
+  current: () => previewWanted() ? previewKey(previewRequest()) : null,
+  // single mode has no table to point at: the chart's stock left out says its own reason (the detail's error)
+  answered: note => { const d = S.mode !== 'portfolio' ? previews.detail(previewRequest()) : null;
+    if (d?.error) toastError(d.error.message); else if (note) toast(note, true); refreshSignals() },
   failed: message => toastError(message),
 });
+/** a preview is asked: the portfolio table's, or the chart's tracks of a test card (Stage D, D6) */
+const previewWanted = () => (S.mode === 'portfolio' && S.tickers.length > 0) || needsDetail();
+/** Stage D (D6): the worker's tracks of the chart's ticker for the current settings into the API (asked with the
+    preview); false while they are on the way. A fresh run's own events need none. */
+const detailReady = (tk: string): boolean => {
+  if (!needsDetail() || (fresh() && S.result.ev.cond.has(tk))) { API.tracks(tk, null); return true }
+  const q = previewRequest();
+  if (S.mode !== 'portfolio') previews.rows(q);                 // asks it (the portfolio table asks it in its mode)
+  const d = previews.detail(q);
+  API.tracks(tk, d ?? null);
+  return d !== undefined;
+};
 const portSig = (): Rows => previews.rows(S.tickers.length ? previewRequest() : null,
   fresh() ? portRows(S.result.raw.tables.per_ticker, S.result.raw.meta.warnings) : null);
 
@@ -155,9 +173,11 @@ export const refreshSignals = () => {
   // another stock under this one's name) and shows the loading ring with the ticker (S2)
   if(!prepared(tk)){ if (chartLoading(tk)) noChart(); prepare(tk); return }
   chartLoading(null);
-  const wait = flowWait(tk); if (wait) prepare(tk);
+  const fwait = flowWait(tk); if (fwait) prepare(tk);
+  // Stage D (D6): a test card waits for the worker's tracks (the preview's detail), a flow card for the broker data
+  const swait = !detailReady(tk), wait = fwait || swait;
   const D = DATA[tk], DAYS = D.dates, N = DAYS.length, sig = chartSignals(tk); lastSig = wait ? null : sig;   // the signal count waits too
-  const pending = (c: Card) => wait && catOf(c).group === 'flow';
+  const pending = (c: Card) => (fwait && catOf(c).group === 'flow' && c.type !== 'test') || (swait && c.type === 'test');
   const idx: number[] = []; for(let i=0;i<N;i++) if(inRange(DAYS, i)) idx.push(i);
   candle.setData(idx.map(i=>({time:DAYS[i], open:D.o[i], high:D.h[i], low:D.l[i], close:D.c[i]})));
   laneState = {sig, idx, wait};
@@ -173,11 +193,11 @@ export const refreshSignals = () => {
   const span = idx.length;
   for (const x of sig.series) {
     const ce = $('cf-'+x.c.id); if(!ce) continue;
-    if (pending(x.c)) { ce.textContent = 'loading broker data…'; continue }
+    if (pending(x.c)) { ce.textContent = x.c.type === 'test' ? 'waiting for the backtest server…' : 'loading broker data…'; continue }
     let n = 0; for(const i of idx) if(x.s[i]) n++;
     ce.innerHTML = `true on <b>${n}</b> days (${nf(span ? n/span*100 : 0,1)}%)`;
   }
-  renderFilterBar(); laneSignals({ dates:DAYS, o:D.o, h:D.h, l:D.l, c:D.c }, idx, sig, tk, !!wait);
+  renderFilterBar(); laneSignals({ dates:DAYS, o:D.o, h:D.h, l:D.l, c:D.c }, idx, sig, tk, { card:pending, entry:wait });
   applyZoom(); drawLanes(); renderNav(); updateViewbar();
 };
 /** the loading ring over the chart for `tk` (null: none); true when it was not already shown for that ticker */
@@ -192,7 +212,7 @@ const chartLoading = (tk: string | null) => {
 const tickerSelect = (U: string[], tk: string) => { $('sigTicker').innerHTML = U.map(t=>`<option ${t===tk?'selected':''}>${esc(t)}</option>`).join(''); $('sigTicker').style.display = U.length>1 ? '' : 'none' };
 /* the portfolio signal table (the reference's), on the picked stocks; nothing picked: the step's empty note */
 const portTable = (U: string[], tk: string) => {
-  if(S.mode!=='portfolio'){ $('portSig').hidden = true; previews.drop(); return }
+  if(S.mode!=='portfolio'){ $('portSig').hidden = true; if (!needsDetail()) previews.drop(); return }
   const P = portSig(); const rows = U.map(t => { const {n, last, left} = P(t); const tr = S.result ? S.result.trades.filter(x=>x.tk===t) : []; const w = tr.filter(x=>x.ret>0).length;
       return `<tr class="${t===tk?'on':''}" data-t="${esc(t)}"><td><b>${esc(t)}</b></td><td ${left?TT(ttH(`${esc(t)} left out`, [['Error', esc(left.code)]], esc(left.message))):''}>${n ?? '—'}</td><td>${esc(last||'—')}</td><td>${S.result?tr.length:'—'}</td><td>${S.result&&tr.length?nf(w/tr.length*100,0)+'%':'—'}</td><td class="${S.result?cls(tr.reduce((s,x)=>s+x.pnl,0)):''}">${S.result?rp(tr.reduce((s,x)=>s+x.pnl,0)):'—'}</td></tr>` }).join('');
   $('portSig').hidden = false; $('portSig').innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px">Signals across the universe <span style="color:var(--text-3);font-weight:400">— click a row to show it on the chart</span></div>${U.length ? `<table class="sigtbl"><thead><tr><th>Ticker</th><th>Entry signals</th><th>Last signal</th><th>Trades</th><th>Win rate</th><th>P&L</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="exempty">${NO_STOCK}</div>`}`;
@@ -216,7 +236,7 @@ export const bindSignals = () => {
 };
 export const bindTicker = () => { $('sigTicker').onchange = (e: Event) => { S.sigTicker = (e.target as HTMLSelectElement).value; refreshSignals() } };
 
-export const condName = (c: Card) => { if(c.type==='reg') return regName(c); const C = catOf(c), lc = c as any; const par = C.params.map(([k])=>lc[k]).join(','); return `${C.label}${par?` (${par})`:''} ${C.noVal?opLabel(c,lc.op):`${OPS[lc.op]||lc.op} ${lc.val}${C.unit&&C.unit!=='Rp B'?C.unit:C.unit?' '+C.unit:''}`}` };
+export const condName = (c: Card) => { if(c.type==='test') return testName(c); if(c.type==='reg') return regName(c); const C = catOf(c), lc = c as any; const par = C.params.map(([k])=>lc[k]).join(','); return `${C.label}${par?` (${par})`:''} ${C.noVal?opLabel(c,lc.op):`${OPS[lc.op]||lc.op} ${lc.val}${C.unit&&C.unit!=='Rp B'?C.unit:C.unit?' '+C.unit:''}`}` };
 
 /* exit signals: same condition model and catalog as entry (the reference's exitSeries, section 8) */
 export const exitSeries = (tk: string) => { const N = DATA[tk] ? DATA[tk].dates.length : 0, r = new Uint8Array(N), act = S.exitConds.filter(c => c.on && condReady(c)); if(!act.length) return r;

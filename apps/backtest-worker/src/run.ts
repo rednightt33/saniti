@@ -36,7 +36,7 @@
    - PERIOD_BEFORE_DATA (engine.ts): the primary benchmark has no close on or before the first day of the result
      calendar (result.ts cannot scale a benchmark without a first close). */
 import crypto from 'node:crypto';
-import type { BacktestRequest, BacktestResult, JobContext, JobProgress, PreviewDetail, SignalsPreview, SignalsPreviewRequest } from '../../edge-bff/backtest/src/core/contract.ts';
+import type { BacktestRequest, BacktestResult, JobContext, JobProgress, PreviewDetail, SignalsPreview, SignalsPreviewRequest, Warning } from '../../edge-bff/backtest/src/core/contract.ts';
 import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { DataError, INDEX_TICKER, dataVersion, unknownBasis } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { Cancelled, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
@@ -48,8 +48,8 @@ import { buildResult } from '../../edge-bff/backtest/src/core/result.ts';
 import { sensitivityPlan } from '../../edge-bff/backtest/src/core/robustness.ts';
 import { withThreshold } from '../../edge-bff/backtest/src/core/catalog.ts';
 import type { Condition } from '../../edge-bff/backtest/src/core/contract.ts';
-import { EXCLUDED_CODES, emptyTrack, leftOut, periodSignals, previewRow, requestConditions, track, unlessLeftOut } from '../../edge-bff/backtest/src/core/signals.ts';
-import type { BarMap } from '../../edge-bff/backtest/src/core/signals.ts';
+import { EXCLUDED_CODES, byTicker, emptyTrack, leftOut, periodSignals, previewRow, requestConditions, track, unlessLeftOut } from '../../edge-bff/backtest/src/core/signals.ts';
+import type { BarMap, Exclusion } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from './config.ts';
 import { brokerDataThrough, loadMarket } from './load.ts';
 import type { Bundle, PlannedClient } from './load.ts';
@@ -253,8 +253,19 @@ export async function runSignals(request: unknown, refs: Refs, env: RunEnv, hook
     }
     hooks.progress?.({ phase: 'signals', done: ++done, total: checked.tickers.length });
   }
-  const left = leftOut(excluded, rows.length, 'tickers', 'preview');                        // UNIVERSE_EMPTY when none is left
+  // UNIVERSE_EMPTY when none is left; Stage D (D6): a preview that asks a detail answers with every stock left out in
+  // TICKERS_EXCLUDED instead, so the chart can say why its stock has no tracks (detail.error)
+  let left;
+  try { left = leftOut(excluded, rows.length, 'tickers', 'preview') }
+  catch (e) { if (!(q.detail && e instanceof ValidationError && e.code === 'UNIVERSE_EMPTY')) throw e; left = allLeftOut(excluded) }
   return { data_version: await versionOf(loaded, checked.columns, classification), rows, warnings: left ? [left] : [], ...(detail ? { detail } : {}) };
+}
+
+/** TICKERS_EXCLUDED with every picked stock (a preview with a detail; leftOut's own words for the others) */
+function allLeftOut(excluded: readonly Exclusion[]): Warning {
+  const xs = [...excluded].sort((a, b) => byTicker(a.ticker, b.ticker)), one = xs.length === 1;
+  return { code: 'TICKERS_EXCLUDED', count: xs.length, tickers: xs.map(x => x.ticker), reasons: xs.map(x => ({ ...x })),
+    message: `${one ? 'The picked stock was' : `All ${xs.length} picked stocks were`} left out of this preview because ${one ? 'its' : 'their'} own data cannot serve the strategy.` };
 }
 
 /** Stage D (D6): the detail ticker's condition tracks over its own bars inside the period, with the preview's rules

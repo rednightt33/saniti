@@ -35,6 +35,9 @@ import { PUBLISHED_TEXTS } from '../../src/api/texts.ts';
 import { ApiFailure, type BacktestApi, type TickerBars } from '../../src/api/types.ts';
 import { readsFlow } from '../../src/api/request.ts';
 import { servedEvents, servedResult } from '../served.ts';
+import { grammarCatalog, screenerCatalog, standIn } from '../screener-catalog.ts';
+import type { PreviewDetail } from '../../src/core/contract.ts';
+import { conditionSeries } from '../../src/core/conditions.ts';
 
 /* ticker, name, sector, industry (null: unclassified) */
 type StockRow = [string, string, string | null, string | null];
@@ -95,6 +98,7 @@ function market(stocks: StockRow[], hostile: boolean, flow = false, unserved: St
       : { available:false, reason:hostile ? XSS('flow reason') : 'Broker data not verified yet', brokers:['YU', 'CC', 'PD', ...(hostile ? [XSS('broker')] : ['AK'])], data_through:null },
     limits:{ max_positions:MAX_POSITIONS, window_bars:{ min:1, max:20 }, monte_carlo_runs:1000, max_portfolio_tickers:MAX_PORTFOLIO_TICKERS,
              max_download_bytes:5e8, max_broker_rows:5e6, timeout_seconds:600, queued_per_owner:2, max_conditions:4, max_flow_series:8 },
+    ...grammarCatalog(flow),
   };
   const calcs = new Map<string, Calc>(), left = new Set(unserved.map(s => s[0]));
   /* a stock the market leaves out: the error the worker gives a stock without price files, or without any value of
@@ -208,9 +212,15 @@ export function stubApi(opts: { hostile?: boolean; flow?: boolean; wide?: boolea
     ready: c => compute.ready(c),
     indicatorOutputs: (t, id, p) => compute.indicatorOutputs(t, id, p),
     conditionSeries: (t, c) => compute.conditionSeries(t, c),
-    // the worker's preview (backtest-worker run.ts): the run's exclusions, TICKERS_EXCLUDED, UNIVERSE_EMPTY
-    signalsPreview: (req: SignalsPreviewRequest, o = {}) => (probe.__previewAsks = (probe.__previewAsks || 0) + 1, later(() => {
+    tracks: (t, d) => compute.tracks(t, d),
+    tracked: (t, w) => compute.tracked(t, w),
+    screenerCatalog,
+    // the worker's preview (backtest-worker run.ts): the run's exclusions, TICKERS_EXCLUDED, UNIVERSE_EMPTY; Stage D (D6):
+    // the detail ticker's tracks, a test card's by the deterministic stand-in (the stub has no grammar: the worker's)
+    signalsPreview: (q0: SignalsPreviewRequest, o = {}) => (probe.__previewAsks = (probe.__previewAsks || 0) + 1, later(() => {
       if (probe.__replaceNextPreview) { probe.__replaceNextPreview = false; throw new ApiFailure('A newer signals preview replaced this one.', 'PREVIEW_REPLACED', 409) }
+      const isTest = (c: { kind?: string }) => c.kind === 'test';
+      const req = { ...q0, entry:{ ...q0.entry, conditions:q0.entry.conditions.filter(c => !isTest(c as { kind?: string })) } };
       const active = requestConditions(req), excluded: Exclusion[] = [], rows = [];
       for (const t of [...req.tickers].sort(byTicker)) {
         if (mk.hostile && t === XSS('ticker')) { excluded.push({ ticker:t, code:XSS('preview reason code'), message:XSS('preview reason') }); continue }
@@ -218,9 +228,13 @@ export function stubApi(opts: { hostile?: boolean; flow?: boolean; wide?: boolea
         const row = unlessLeftOut(t, excluded, () => previewRow(calcOf(t), ALL[t].dates, req, req.period.from, req.period.to, active));
         if (row) rows.push({ ticker:t, ...row });
       }
-      const left = leftOut(excluded, rows.length, 'tickers', 'preview');
+      // as the worker: with a detail every stock left out is TICKERS_EXCLUDED, not UNIVERSE_EMPTY (run.ts allLeftOut)
+      let left;
+      try { left = leftOut(excluded, rows.length, 'tickers', 'preview') }
+      catch (e) { if (!q0.detail) throw e; left = { code:'TICKERS_EXCLUDED', count:excluded.length, tickers:excluded.map(x => x.ticker), reasons:excluded.map(x => ({ ...x })), message:'Every picked stock was left out of this preview.' } }
       probe.__previewAnswers = (probe.__previewAnswers || 0) + 1;
-      return { data_version:'stub', rows, warnings:[...(left ? [left] : []), ...(mk.hostile ? [hostileWarning('preview')] : [])] };
+      return { data_version:'stub', rows, warnings:[...(left ? [left] : []), ...(mk.hostile ? [hostileWarning('preview')] : [])],
+        ...(q0.detail && ALL[q0.detail.ticker] ? { detail:stubDetail(q0, calcOf(q0.detail.ticker), ALL[q0.detail.ticker].dates) } : {}) };
     }, 20, o.signal)),
     submit: req => later(() => {
       const f = CATALOG.flow;
@@ -244,4 +258,24 @@ export function stubApi(opts: { hostile?: boolean; flow?: boolean; wide?: boolea
     cancel: id => later(() => { const j = jobs.get(id); if (j) j.cancelled = true }),
     closes: (t, cal) => later(() => asOf(ALL[t].dates, ALL[t].c, cal)),
   };
+}
+
+/** Stage D (D6): the preview's detail as the worker answers it (run.ts previewDetail), each test card by the stand-in,
+    the page's own conditions by the core, the entry and exit combined per bar (window 1, as the worker reads a test) */
+function stubDetail(q: SignalsPreviewRequest, calc: Calc, dates: readonly string[]): PreviewDetail {
+  const t = q.detail!.ticker, first = dates.findIndex(d => d >= q.period.from), lastAt = dates.length - 1 - [...dates].reverse().findIndex(d => d <= q.period.to);
+  const none: PreviewDetail = { ticker:t, from:null, to:null, conditions:[], exit_conditions:[], entry:{ on:[], runs:[] }, exit:{ on:[], runs:[] } };
+  if (first < 0 || lastAt < first) return none;
+  const bar = new Int32Array(dates.length).fill(-1); for (let j = first; j <= lastAt; j++) bar[j] = j - first;
+  const m = { bar, first, last:lastAt } as never, C = calc.bars.C as ArrayLike<number>;
+  const series = (list: unknown[], field: string) => (list as { id: string; kind?: string; enabled?: boolean }[]).filter(c => c.enabled !== false)
+    .map((c, k) => ({ id:c.id, s:c.kind === 'test' ? standIn(C) : conditionSeries(calc, c as never, `${field}[${k}]`) }));
+  let en: { id: string; s: Uint8Array }[], ex: { id: string; s: Uint8Array }[];
+  try { en = series(q.entry.conditions, 'entry.conditions'); ex = series(q.detail!.exit_signals?.conditions ?? [], 'exit.signals.conditions') }
+  catch (e) { const v = e as { code?: string; field?: string; message: string }; if (!v.code) throw e; return { ...none, error:{ code:v.code, ...(v.field ? { field:v.field } : {}), message:v.message } } }
+  const need = q.entry.logic === 'all' ? en.length : q.entry.logic === 'any' ? 1 : q.entry.at_least;
+  const comb = (xs: { s: Uint8Array }[], n: number) => { const o = new Uint8Array(dates.length); if (xs.length) for (let i = 0; i < o.length; i++) o[i] = +(xs.filter(x => x.s[i]).length >= n); return o };
+  return { ticker:t, from:dates[first], to:dates[lastAt],
+    conditions:en.map(x => ({ condition_id:x.id, track:track(x.s, m) })), exit_conditions:ex.map(x => ({ condition_id:x.id, track:track(x.s, m) })),
+    entry:track(comb(en, need), m), exit:track(comb(ex, q.detail!.exit_signals?.logic === 'all' ? ex.length : 1), m) };
 }

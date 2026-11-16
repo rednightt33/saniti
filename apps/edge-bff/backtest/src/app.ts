@@ -11,11 +11,12 @@ import { needsFlow } from './reg.ts';
 import { applyCatalog, edits, S } from './state.ts';
 import { applyTheme, bindFocusEscape, bindLayout, bindTheme, initResize, restorePanel } from './layout.ts';
 import { bindHeader, setDataNote } from './header.ts';
+import { screenerCatalogFailed, setScreenerCatalog } from './grammar.ts';
+import { refreshCondWin } from './condwin.ts';
 import { bindMenuClose, bindViewSeg, renderBuilder } from './builder.ts';
 import { bindSignals, bindTicker, initPriceChart, refreshSignals } from './signals.ts';
 import { bindHover } from './results/svg.ts';
 import { renderResults } from './results/index.ts';
-import { bindWS } from './workspace.ts';
 import { bindRun, run } from './run.ts';
 
 export interface BootOptions {
@@ -55,10 +56,14 @@ export async function boot(api: BacktestApi, opts: BootOptions = {}) {
   const tk = S.sigTicker, bars = load(tk, false, needsFlow()).then(() => needsFlow() ? load(tk, true) : undefined);
   bars.catch(() => {});                                    // a failed load is shown by the chart's own prepare
   await within(bars.catch(() => {}), QUICK_MS);
-  bindLayout(); bindFocusEscape(); bindViewSeg(); bindMenuClose(); bindSignals(); bindTicker(); bindRun(); bindHover(); bindTheme(); bindWS(); bindHeader();
+  bindLayout(); bindFocusEscape(); bindViewSeg(); bindMenuClose(); bindSignals(); bindTicker(); bindRun(); bindHover(); bindTheme(); bindHeader();
   runButtons().forEach(b => b.disabled = false);
   renderBuilder(); initPriceChart(); refreshSignals(); renderResults();
   if (!early) asked.then(cat => catalogArrived(api, cat), failed);
+  // Stage D (D5): the Screener's catalog for the condition window, after the first draw (its rows wait for it, the page
+  // does not); a failure is the window's own message
+  api.screenerCatalog().then(cat => { setScreenerCatalog(cat); refreshCondWin(); renderBuilder(); refreshSignals() },
+    e => { screenerCatalogFailed((e as Error)?.message || 'The catalog could not be read.'); refreshCondWin(); renderBuilder() });
   if (opts.autorun) run(false);
 }
 
@@ -69,6 +74,7 @@ function catalogArrived(api: BacktestApi, cat: Catalog) {
   const untouched = edits.n === 0, ticker = S.ticker;
   setEnv(api, cat);
   setDataNote(api.texts.dataNote(CAT));
+  refreshCondWin();                                        // what the Backtest can read comes with this catalog
   if (untouched) applyCatalog();
   else {
     const stocks = STOCKS();

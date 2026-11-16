@@ -5,9 +5,15 @@
    condition or a backtest themselves; they render what this interface returns, as backtest.html renders its own. */
 import type { BacktestRequest, BacktestResultCore, Catalog, JobStatus, SignalsPreview, SignalsPreviewRequest, TickerEvents } from '../core/contract.ts';
 import type { LegacyCard, RegCard } from '../core/catalog.ts';
+import type { Card as ScreenerCard } from '../../../screener/src/forms.ts';
+import type { CatalogResponse } from '../../../screener/src/core/contract.ts';
+import type { PreviewDetail } from '../core/contract.ts';
 
-/** A condition card as the page keeps it in S.conds / S.exitConds (backtest.html mkCond / mkReg). */
-export type Card = LegacyCard | RegCard;
+/** EXEC-BACKTEST-REVAMP Stage D (D5): a condition in the shared grammar (kind 'test'), made in the condition window from
+    the Screener's catalog: the Screener's own card (forms.ts) on its entry; the worker computes it (grammar.ts). */
+export interface TestCard { id: string; type: 'test'; on: boolean; entry: string; sc: ScreenerCard }
+/** A condition card as the page keeps it in S.conds / S.exitConds (backtest.html mkCond / mkReg, and Stage D's test card). */
+export type Card = LegacyCard | RegCard | TestCard;
 
 /** One ticker's published daily bars, oldest first, its whole history (the chart shows the part inside the period). */
 export interface TickerBars {
@@ -71,4 +77,11 @@ export interface BacktestApi {
   cancel(id: string): Promise<void>;
   /** A comparison line (S.cmp): the ticker's published close as of each day of `calendar` (null before its first bar). */
   closes(ticker: string, calendar: string[]): Promise<(number | null)[]>;
+  /** Stage D (D5): the Screener's catalog the condition window lists (edge-bff /api/v1/screener/catalog, per session). */
+  screenerCatalog(): Promise<CatalogResponse>;
+  /** Stage D (D6): the worker's tracks of the conditions the page cannot compute, for one ticker (a preview's detail;
+      null forgets them): conditionSeries then answers those cards from them, and null until they are there. */
+  tracks(ticker: string, detail: PreviewDetail | null): void;
+  /** the worker's combined entry ('__entry') or exit-signal ('__exit') state from those tracks (null: none) */
+  tracked(ticker: string, which: '__entry' | '__exit'): Uint8Array | null;
 }
