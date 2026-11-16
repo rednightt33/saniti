@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=1576dc4f860a8f5b8b1a9bea1a4bf1b34203fe41d8eac52dfcd2d3d665353b05 by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=de3c690c949b1600cf95367c69cc519224dd6d686fcf0639530246279958489b by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -38,9 +38,12 @@ var EdgeSession = (() => {
     lastLogin: () => lastLogin,
     loginKey: () => loginKey,
     noteLogin: () => noteLogin,
+    onReset: () => onReset,
     readError: () => readError,
+    reloadPage: () => reloadPage,
     retryAfter: () => retryAfter,
-    sessionClient: () => sessionClient
+    sessionClient: () => sessionClient,
+    setRole: () => setRole
   });
   var STORAGE = Object.freeze([
     // the shell (static/index.html, static/edge-client.js)
@@ -158,11 +161,12 @@ var EdgeSession = (() => {
       return "";
     }
   }
+  var PAGE_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
   function post(message) {
     try {
       if (typeof BroadcastChannel !== "undefined") {
         const c = new BroadcastChannel(CHANNEL);
-        c.postMessage(message);
+        c.postMessage({ ...message, from: PAGE_ID });
         c.close();
       }
     } catch {
@@ -306,6 +310,29 @@ var EdgeSession = (() => {
     }
   };
   var clients = /* @__PURE__ */ new Set();
+  var resets = /* @__PURE__ */ new Set();
+  var fireResets = () => resets.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+    }
+  });
+  function onReset(fn) {
+    resets.add(fn);
+    return () => {
+      resets.delete(fn);
+    };
+  }
+  var role = "app";
+  function setRole(r) {
+    role = r;
+  }
+  function reloadPage() {
+    try {
+      if (role === "app" && typeof location !== "undefined" && typeof location.reload === "function") location.reload();
+    } catch {
+    }
+  }
   var entitlements = null;
   var listening = false;
   function listen() {
@@ -315,8 +342,13 @@ var EdgeSession = (() => {
       if (typeof BroadcastChannel === "undefined") return;
       const c = new BroadcastChannel(CHANNEL);
       c.onmessage = (ev) => {
+        if (ev?.data?.from === PAGE_ID) return;
         const t = ev?.data?.type;
         if (t === "entitlements" || t === "cleared") clients.forEach((fn) => fn());
+        if (t === "cleared") {
+          fireResets();
+          reloadPage();
+        }
       };
       c.unref?.();
     } catch {
@@ -341,6 +373,7 @@ var EdgeSession = (() => {
   function sessionClient(fetchImpl) {
     const f = fetchImpl ?? ((...a) => fetch(...a));
     let p = null, now = null;
+    let identity = "";
     const invalidate = () => {
       p = null;
       now = null;
@@ -361,7 +394,15 @@ var EdgeSession = (() => {
       noteVersion(res);
       const d = await res.json().catch(() => ({}));
       const s = { login: String(d?.login || ""), csrf: String(d?.csrf_token || ""), access: d?.access ?? null, raw: d };
+      if (identity && norm(s.login) !== identity) {
+        fireResets();
+        void clearUserState();
+        reloadPage();
+        const e = readError(401, { error: { code: "USER_CHANGED", message: "Another EDGE account signed in on this browser. Reload the page to continue as that account." } });
+        throw new SessionError(e, e.message);
+      }
       checkUser(s.login);
+      if (!identity) identity = norm(s.login);
       now = s;
       return s;
     })().catch((e) => {
@@ -372,10 +413,21 @@ var EdgeSession = (() => {
       const method = String(init.method || "GET").toUpperCase();
       const write = WRITE.has(method);
       const headers = { ...init.headers || {} };
-      if (write) headers["X-CSRF-Token"] = (await session()).csrf;
+      if (write) {
+        try {
+          headers["X-CSRF-Token"] = (await session()).csrf;
+        } catch (e) {
+          if (e instanceof SessionError && e.error?.code === "USER_CHANGED")
+            return new Response(JSON.stringify({ error: { code: "USER_CHANGED", message: e.message, details: {} } }), { status: 401, headers: { "Content-Type": "application/json" } });
+          throw e;
+        }
+      }
       const res = await f(url, { credentials: "same-origin", ...init, method, headers });
       noteVersion(res);
-      if (res.status === 401) invalidate();
+      if (res.status === 401) {
+        invalidate();
+        fireResets();
+      }
       if (res.status === 403 && write && !retried) {
         const e = await errorOf(res.clone());
         if (e.kind === "csrf") {
@@ -385,9 +437,18 @@ var EdgeSession = (() => {
       }
       return res;
     }
-    return { session, send, invalidate, get current() {
-      return now;
-    } };
+    return {
+      session,
+      send,
+      invalidate,
+      get current() {
+        return now;
+      },
+      /** the login this page opened with ('' before its first session read) */
+      get identity() {
+        return identity;
+      }
+    };
   }
   var edge = sessionClient();
   return __toCommonJS(edge_session_exports);

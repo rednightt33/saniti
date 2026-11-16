@@ -140,8 +140,10 @@ export function lastLogin(): string {
   try { return areaOf('local')?.getItem(LAST_LOGIN_KEY) || '' } catch { return '' }
 }
 
-function post(message: unknown) {
-  try { if (typeof BroadcastChannel !== 'undefined') { const c = new BroadcastChannel(CHANNEL); c.postMessage(message); c.close() } } catch { /* not offered */ }
+/* this page's own messages are not read back (a page that clears for itself already dropped what it holds) */
+const PAGE_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
+function post(message: Record<string, unknown>) {
+  try { if (typeof BroadcastChannel !== 'undefined') { const c = new BroadcastChannel(CHANNEL); c.postMessage({ ...message, from:PAGE_ID }); c.close() } } catch { /* not offered */ }
 }
 
 /** removes every `user` key of localStorage and sessionStorage and the `user` IndexedDB databases of this browser.
@@ -284,6 +286,19 @@ export class SessionError extends Error {
 }
 
 const clients = new Set<() => void>();
+/* Phase 0 fix round (C1 M1-M2, C2 #2-#3): what a page must drop when its user may have changed (a 401, another
+   account's session, the 'cleared' broadcast): pending writes such as the drawings' autosave (onReset) */
+const resets = new Set<() => void>();
+const fireResets = () => resets.forEach(fn => { try { fn() } catch { /* the others still run */ } });
+/** `fn` runs when this page's account ended or changed: drop pending writes, never stamp or send them */
+export function onReset(fn: () => void): () => void { resets.add(fn); return () => { resets.delete(fn) } }
+let role: 'app' | 'shell' = 'app';
+/** the shell says so at load: a page ('app', the default) reloads on 'cleared'; the shell keeps its own sign-in flow */
+export function setRole(r: 'app' | 'shell') { role = r }
+/** reloads an app page (its in-memory state and singletons must not outlive its account); nothing outside a browser */
+export function reloadPage() {
+  try { if (role === 'app' && typeof location !== 'undefined' && typeof location.reload === 'function') location.reload() } catch { /* not a page */ }
+}
 let entitlements: string | null = null;
 let listening = false;
 function listen() {
@@ -291,7 +306,13 @@ function listen() {
   try {
     if (typeof BroadcastChannel === 'undefined') return;
     const c = new BroadcastChannel(CHANNEL);
-    c.onmessage = (ev: MessageEvent) => { const t = ev?.data?.type; if (t === 'entitlements' || t === 'cleared') clients.forEach(fn => fn()) };
+    c.onmessage = (ev: MessageEvent) => {
+      if (ev?.data?.from === PAGE_ID) return;
+      const t = ev?.data?.type;
+      if (t === 'entitlements' || t === 'cleared') clients.forEach(fn => fn());
+      // another tab signed out or another account signed in: nothing of this page's account may survive in memory
+      if (t === 'cleared') { fireResets(); reloadPage() }
+    };
     (c as unknown as { unref?: () => void }).unref?.();       // Node (tests): the channel never keeps the process alive
   } catch { /* not offered */ }
 }
@@ -311,6 +332,9 @@ const WRITE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 export function sessionClient(fetchImpl?: typeof fetch) {
   const f: typeof fetch = fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
   let p: Promise<EdgeSessionInfo> | null = null, now: EdgeSessionInfo | null = null;
+  /* the login of this page's first session read: the account the page's memory belongs to. It never changes; a later
+     read of another login is refused (C1 M1, C2 #2). Phase 1: switch to the session answer's stable owner key. */
+  let identity = '';
   const invalidate = () => { p = null; now = null };
   clients.add(invalidate); listen();
   const session = (): Promise<EdgeSessionInfo> => p ||= (async () => {
@@ -321,7 +345,16 @@ export function sessionClient(fetchImpl?: typeof fetch) {
     noteVersion(res);
     const d = await res.json().catch(() => ({}));
     const s: EdgeSessionInfo = { login:String(d?.login || ''), csrf:String(d?.csrf_token || ''), access:d?.access ?? null, raw:d };
+    if (identity && norm(s.login) !== identity) {
+      // another account signed in on this browser since the page opened: never act for it with this page's state
+      fireResets();
+      void clearUserState();
+      reloadPage();
+      const e = readError(401, { error:{ code:'USER_CHANGED', message:'Another EDGE account signed in on this browser. Reload the page to continue as that account.' } });
+      throw new SessionError(e, e.message);
+    }
     checkUser(s.login);
+    if (!identity) identity = norm(s.login);
     now = s;
     return s;
   })().catch(e => { p = null; throw e });
@@ -333,17 +366,28 @@ export function sessionClient(fetchImpl?: typeof fetch) {
     const method = String(init.method || 'GET').toUpperCase();
     const write = WRITE.has(method);
     const headers: Record<string, string> = { ...(init.headers as Record<string, string> || {}) };
-    if (write) headers['X-CSRF-Token'] = (await session()).csrf;
+    if (write) {
+      try { headers['X-CSRF-Token'] = (await session()).csrf }
+      catch (e) {
+        // another account's session: the write is never sent; the page gets a 401 USER_CHANGED (sign in / reload)
+        if (e instanceof SessionError && e.error?.code === 'USER_CHANGED')
+          return new Response(JSON.stringify({ error:{ code:'USER_CHANGED', message:e.message, details:{} } }), { status:401, headers:{ 'Content-Type':'application/json' } });
+        throw e;
+      }
+    }
     const res = await f(url, { credentials:'same-origin', ...init, method, headers });
     noteVersion(res);
-    if (res.status === 401) invalidate();
+    if (res.status === 401) { invalidate(); fireResets() }
     if (res.status === 403 && write && !retried) {
       const e = await errorOf(res.clone());
+      // the repeat goes out only when the session read again is the page's own account (session() refuses another)
       if (e.kind === 'csrf') { invalidate(); return send(url, init, true) }
     }
     return res;
   }
-  return { session, send, invalidate, get current() { return now } };
+  return { session, send, invalidate, get current() { return now },
+    /** the login this page opened with ('' before its first session read) */
+    get identity() { return identity } };
 }
 export type SessionClient = ReturnType<typeof sessionClient>;
 

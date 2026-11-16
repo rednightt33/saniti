@@ -2,7 +2,7 @@
    M471: the error contract in both shapes, the CSRF repeat only on CSRF_INVALID, a plan refusal never a retry or a
    sign-out; M473: the user keys cleared on sign-out and on a change of user; M468: a drawing copy only for its login. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { classify, clearUserState, checkUser, LAST_LOGIN_KEY, noteLogin, readError, sessionClient, accessText, isAccessRefusal }
+import { classify, clearUserState, checkUser, LAST_LOGIN_KEY, noteLogin, onReset, readError, sessionClient, accessText, isAccessRefusal }
   from '../../../shared/edge-session';
 import { ownCopy, stampCopy } from '../../src/data/drawingsApi';
 
@@ -70,6 +70,36 @@ describe('the session and CSRF (M471)', () => {
     await c.send('/api/v1/x', { method:'POST' });
     expect(s.calls.filter(c => c.startsWith('GET /api/v1/auth/session'))).toHaveLength(1);
   });
+  it('another login read again is refused: the write is never sent, the page gets 401 USER_CHANGED and its user state goes', async () => {
+    let who = 'alice'; const writes: string[] = [];
+    const f = (async (url: string, init?: RequestInit) => {
+      if (url === '/api/v1/auth/session') return answer(200, { login:who, csrf_token:`t-${who}` });
+      writes.push((init?.headers as any)?.['X-CSRF-Token']);
+      return answer(403, { error:{ code:'CSRF_INVALID' } });
+    }) as unknown as typeof fetch;
+    const c = sessionClient(f), dropped = vi.fn();
+    const off = onReset(dropped);
+    await c.session();
+    expect(c.identity).toBe('alice');
+    local.setItem('ml.symbol', 'BBRI');
+    who = 'bob';
+    const res = await c.send('/api/v1/x', { method:'PUT' });
+    off();
+    expect(res.status).toBe(401);
+    expect((await res.json()).error.code).toBe('USER_CHANGED');
+    expect(writes).toEqual(['t-alice']);
+    expect(dropped).toHaveBeenCalled();
+    expect(local.getItem('ml.symbol')).toBeNull();
+    expect(c.identity).toBe('alice');
+  });
+  it('the "cleared" broadcast of another page drops this page\'s pending writes', async () => {
+    const dropped = vi.fn(), off = onReset(dropped);
+    sessionClient(async () => answer(200, {}));                // the page listens
+    const other = new BroadcastChannel('edge-session');
+    other.postMessage({ type:'cleared', from:'another-page' });
+    await vi.waitFor(() => expect(dropped).toHaveBeenCalled());
+    other.close(); off();
+  });
   it('forgets the session on a 401 only', async () => {
     const s = server([answer(401, { error:{ code:'UNAUTHENTICATED' } })]);
     const c = sessionClient(s.f);
@@ -130,7 +160,7 @@ describe('drawings kept in this browser (M468)', () => {
     expect(ownCopy('[{"id":"d1"}]', 'owner')).toBeNull();
     expect(ownCopy('not json', 'owner')).toBeNull();
   });
-  it('a copy written without a known login stays the older form', () => {
-    expect(stampCopy('[]', '')).toBe('[]');
+  it('nothing is kept for a page whose login is not known (an unowned copy could join the next account)', () => {
+    expect(stampCopy('[]', '')).toBeNull();
   });
 });
