@@ -43,7 +43,8 @@ export interface SourceTexts {
 
 /** An API answer that is an error: shown with the page's toast(). */
 export class ApiFailure extends Error {
-  constructor(message: string, readonly code = '', readonly status = 0, readonly field?: string) { super(message) }
+  /** retryAfter: the answer's Retry-After in seconds (edge-bff's 503 SCREENER_NOT_READY names one), null without it */
+  constructor(message: string, readonly code = '', readonly status = 0, readonly field?: string, readonly retryAfter: number | null = null) { super(message) }
 }
 /** Whether a call failed because its caller aborted it (an AbortSignal): nothing to show. */
 export const isAbort = (e: unknown) => (e as { name?: string } | null)?.name === 'AbortError';
