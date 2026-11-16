@@ -177,6 +177,13 @@ begitupun untuk corporate action". Diterapkan di mockup:
 5. Filter tanpa menu: klik "Radar" = hanya saham yang lolos Radar, klik "Corporate action" = hanya saham dengan aksi
    korporasi 30 hari; klik lagi mematikan; pesan di bawah ("Filtered: only stocks in Radar (9 Nov) · 8 of 14").
 
+**User 2026-11-16:** "Buat tableindikator pakai design spec terlampir. Coba kasih 10 opsi dalam 1 HTML" (lampiran
+`edge-design-spec-type-A.css` dan halaman spec v1.2). Dibaca sebagai kolom indikator di tampilan Tabel (butir 4
+sebelumnya; 10 opsi dialog Indicators tetap tersedia bila itu yang dimaksud). 10 opsi tabel dibuat di atas spec v1.2
+(tone, skala 50–900, `--up-bg`/`--down-bg`, format angka spec), warna hanya untuk makna dari nilai tersimpan: zona RSI
+≥ 70 / ≤ 30, volume ≥ 1.5×, dekat high 60D ≥ −3% / ≤ −20%. Data: Core + empat saham nyata yang masuk zona (DKFT, BRPT,
+EXCL, VKTR). Menunggu pilihan user.
+
 **Rencana eksekusi (usulan, menunggu go; pola EXEC-OVERVIEW):**
 - **W1 Rumus dan biaya.** Rumus setiap indikator dan persentil ditulis di `WATCHLIST_FORMULAS.md` (bahasa Indonesia
   sederhana, contoh nyata, dijaga skrip + tes seperti `OVERVIEW_FORMULAS.md`). Sumber: kolom tersimpan bila ada (RSI,
