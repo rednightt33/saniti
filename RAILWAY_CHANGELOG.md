@@ -26,7 +26,10 @@
   page at 1440 and 390 px (lists, cards, prices, logos, Radar and corporate-action badges, the Radar filter, no failed response
   on the page, no sideways scroll). The live file recalculated from PostgreSQL: 40,518 comparisons, 0 differences.
 - **Postgres memory:** 1.99 GB at 13:27 UTC (the DRYRUN's `POSTGRES_MEMORY_CHECK`, refused: postgres-memory-cron due at
-  13:45 UTC). None of this was a large update; the scheduled restart at 13:45 UTC covers it.
+  13:45 UTC). None of this was a large update; the scheduled restart ran at 13:47 UTC, memory 0.11 GB at 13:50 UTC.
+- **User feedback, same evening (Alt+A, logos in Add stocks; EXEC-WATCHLIST):** `main` `8ed943ed`, every workflow
+  green, edge-bff `ac4056fd` SUCCESS (deployed by the push). Live: the button shows `Alt+A`, Alt+A opens Add stocks,
+  the search row of BBCA shows the issuer logo.
 
 ## 2026-11-16 — backtest-worker `BACKTEST_WORKER_KEY` rotated; edge-bff redeployed (ERRORS M464, user "Boleh rotasi kunci worker")
 
