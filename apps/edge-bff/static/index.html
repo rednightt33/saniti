@@ -11738,12 +11738,15 @@ function Resend({v, L, wait, purpose}) {
 }
 function CodeForm({go, L}) {
   const v = currentView, V = L.verify, code = initialValue(v, "code", () => ""), email = initialValue(v, "email", () => authFlow.email);
+  // USERNAME_TAKEN (decided only after the code is proved): the code owner chooses another username here
+  const taken = initialValue(v, "taken", () => false), username = initialValue(v, "username", () => "");
   const busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => ""), info = initialValue(v, "info", () => "");
   const {left, wait} = useClock(v);
   const submit = async e => { e.preventDefault(); if (busy) return; if (!/^\d{6}$/.test(code)) { updateValue(v, "error", L.check.code); return; }
     authFlow.email = email.trim(); updateValue(v, "busy", true); updateValue(v, "error", "");
-    try { await Edge.verifyEmail(authFlow.email, code); authFlow.notice = ""; go("/monitor"); }
-    catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } };
+    try { await Edge.verifyEmail(authFlow.email, code, taken ? username.trim().toLowerCase() : undefined); authFlow.notice = ""; go("/monitor"); }
+    catch (e) { if (e.info?.code === "USERNAME_TAKEN") { updateValue(v, "taken", true); updateValue(v, "error", e.info.message || V.usernameTaken); }
+      else updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } };
   const notice = authFlow.notice;
   return element(AuthShell, {go, title:V.title, lead:authFlow.email ? `${V.sentTo} ${authFlow.email}.` : V.sent},
     element("form", {onSubmit:submit},
@@ -11751,6 +11754,8 @@ function CodeForm({go, L}) {
       !authFlow.email && element(AuthField, {label:V.email}, element("input", {id:"auth-email", type:"email", autoComplete:"email", value:email, required:true, disabled:busy,
         onChange:e => { updateValue(v, "email", e.target.value); authFlow.email = e.target.value.trim(); }})),
       element(AuthField, {label:V.code, support:V.codeHint}, element(CodeInput, {value:code, disabled:busy, onChange:next => updateValue(v, "code", next)})),
+      taken && element(AuthField, {label:V.username, support:L.register.usernameHint}, element("input", {id:"auth-new-username", value:username, required:true, disabled:busy,
+        autoComplete:"username", pattern:"[a-z0-9_]{3,30}", maxLength:30, autoCapitalize:"none", onChange:e => updateValue(v, "username", e.target.value)})),
       left !== null && element("p", {className:"auth-countdown", role:"timer", "aria-live":"off"}, left > 0 ? `${V.expiresIn} ${mmss(left)}.` : V.expired),
       info && element("p", {className:"auth-note", role:"status"}, info),
       error && element("p", {className:"auth-error", role:"alert"}, error),

@@ -70,13 +70,14 @@ describe('account preferences (contract 4b)', () => {
     const send = vi.fn(async (url: string, init: RequestInit = {}) => {
       const method = init.method || 'GET';
       if (status !== 200) return answer(status, { error:{ code:'NOT_FOUND' } });
-      if (method === 'GET') { calls.push({ method }); return answer(200, { preferences:[...rows].map(([key, r]) => ({ key, ...r })) }) }
+      // the shapes of app/preferences.py (recorded in preferences.recorded.json, edge_session_prefs_recorded.test.ts)
+      if (method === 'GET') { calls.push({ method }); return answer(200, { preferences:Object.fromEntries([...rows].map(([key, r]) => [key, { ...r, updated_at:'t' }])), limits:{ keys:64, value_bytes:65536, total_bytes:1048576 } }) }
       const key = decodeURIComponent(url.split('/').pop() as string), body = JSON.parse(String(init.body));
       calls.push({ method, key, body });
       const row = rows.get(key);
-      if (row && body.version !== row.version) return answer(409, { error:{ code:'VERSION_CONFLICT', details:{ value:row.value, version:row.version } } });
+      if ((row?.version ?? null) !== body.version) return answer(409, { error:{ code:'PREFERENCE_CONFLICT', message:'changed', details:{ key, current:row ? { ...row, updated_at:'t' } : null } } });
       const next = { value:body.value, version:(row?.version ?? 0) + 1 }; rows.set(key, next);
-      return answer(200, { key, ...next });
+      return answer(row ? 200 : 201, { key, ...next, updated_at:'t' });
     });
     return { send: send as any, rows, calls };
   }
@@ -86,7 +87,7 @@ describe('account preferences (contract 4b)', () => {
     const p = preferences(s, { delayMs:0 });
     expect(await p.load({ uploadLocal:true })).toBe(true);
     expect(local.getItem('edge-model-choice')).toBe('"server"');
-    expect(s.calls.filter(c => c.method === 'PUT').map(c => [c.key, c.body])).toEqual([['ml.my', { value:'[1]' }]]);
+    expect(s.calls.filter(c => c.method === 'PUT').map(c => [c.key, c.body])).toEqual([['ml.my', { value:'[1]', version:null }]]);
     await p.load({ uploadLocal:true });
     expect(s.calls.filter(c => c.method === 'PUT')).toHaveLength(1);           // once: the server holds it now
   });

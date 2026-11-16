@@ -1,0 +1,176 @@
+[
+ {
+  "name": "empty",
+  "request": {
+   "method": "GET",
+   "path": "/api/v1/preferences",
+   "body": null
+  },
+  "status": 200,
+  "body": {
+   "preferences": {},
+   "limits": {
+    "keys": 64,
+    "value_bytes": 65536,
+    "total_bytes": 1048576
+   }
+  }
+ },
+ {
+  "name": "created",
+  "request": {
+   "method": "PUT",
+   "path": "/api/v1/preferences/ml.my",
+   "body": {
+    "value": "[{\"id\":\"m1\"}]",
+    "version": null
+   }
+  },
+  "status": 201,
+  "body": {
+   "key": "ml.my",
+   "value": "[{\"id\":\"m1\"}]",
+   "version": 1,
+   "updated_at": "<updated_at>"
+  }
+ },
+ {
+  "name": "replaced",
+  "request": {
+   "method": "PUT",
+   "path": "/api/v1/preferences/ml.my",
+   "body": {
+    "value": "[{\"id\":\"m2\"}]",
+    "version": 1
+   }
+  },
+  "status": 200,
+  "body": {
+   "key": "ml.my",
+   "value": "[{\"id\":\"m2\"}]",
+   "version": 2,
+   "updated_at": "<updated_at>"
+  }
+ },
+ {
+  "name": "stale",
+  "request": {
+   "method": "PUT",
+   "path": "/api/v1/preferences/ml.my",
+   "body": {
+    "value": "[]",
+    "version": 1
+   }
+  },
+  "status": 409,
+  "body": {
+   "error": {
+    "code": "PREFERENCE_CONFLICT",
+    "message": "This setting was changed on another device. The current value is attached; merge it and save again.",
+    "details": {
+     "key": "ml.my",
+     "current": {
+      "value": "[{\"id\":\"m2\"}]",
+      "version": 2,
+      "updated_at": "<updated_at>"
+     }
+    }
+   }
+  }
+ },
+ {
+  "name": "created_elsewhere",
+  "request": {
+   "method": "PUT",
+   "path": "/api/v1/preferences/scr.last",
+   "body": {
+    "value": "{\"name\":\"Mine\"}",
+    "version": null
+   }
+  },
+  "status": 201,
+  "body": {
+   "key": "scr.last",
+   "value": "{\"name\":\"Mine\"}",
+   "version": 1,
+   "updated_at": "<updated_at>"
+  }
+ },
+ {
+  "name": "missing_version",
+  "request": {
+   "method": "PUT",
+   "path": "/api/v1/preferences/scr.last",
+   "body": {
+    "value": "{\"name\":\"Other\"}",
+    "version": null
+   }
+  },
+  "status": 409,
+  "body": {
+   "error": {
+    "code": "PREFERENCE_CONFLICT",
+    "message": "This setting was changed on another device. The current value is attached; merge it and save again.",
+    "details": {
+     "key": "scr.last",
+     "current": {
+      "value": "{\"name\":\"Mine\"}",
+      "version": 1,
+      "updated_at": "<updated_at>"
+     }
+    }
+   }
+  }
+ },
+ {
+  "name": "filled",
+  "request": {
+   "method": "GET",
+   "path": "/api/v1/preferences",
+   "body": null
+  },
+  "status": 200,
+  "body": {
+   "preferences": {
+    "ml.my": {
+     "value": "[{\"id\":\"m2\"}]",
+     "version": 2,
+     "updated_at": "<updated_at>"
+    },
+    "scr.last": {
+     "value": "{\"name\":\"Mine\"}",
+     "version": 1,
+     "updated_at": "<updated_at>"
+    }
+   },
+   "limits": {
+    "keys": 64,
+    "value_bytes": 65536,
+    "total_bytes": 1048576
+   }
+  }
+ },
+ {
+  "name": "too_large",
+  "request": {
+   "method": "PUT",
+   "path": "/api/v1/preferences/ml.ind.v1",
+   "body": {
+    "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…",
+    "version": null
+   }
+  },
+  "status": 422,
+  "body": {
+   "error": {
+    "code": "PREFERENCE_LIMIT",
+    "message": "Your account keeps too many settings or too large a setting. Remove some, then save again.",
+    "details": {
+     "limit": "value_bytes",
+     "allowed": 65536,
+     "needed": 70002
+    }
+   }
+  }
+ }
+]

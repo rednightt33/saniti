@@ -195,7 +195,8 @@
     config: () => readConfig(),
     // EXEC-MU-ACCOUNTS Phase 1 (contract section 4): the account routes; every refusal carries the server's message
     register: body => api('/auth/register', body),
-    verifyEmail: async (email, code) => { stopPrefs(); const answer = await api('/auth/register/verify', {email, code}); return Edge.adopt(answer); },
+    // `username`: another username after USERNAME_TAKEN (the code owner chooses it; contract section 4)
+    verifyEmail: async (email, code, username) => { stopPrefs(); const answer = await api('/auth/register/verify', {email, code, ...(username ? {username} : {})}); return Edge.adopt(answer); },
     resendCode: (email, purpose) => api('/auth/code/resend', {email, purpose}),
     forgotPassword: email => api('/auth/password/forgot', {email}),
     resetPassword: (email, code, password, password_repeat) => api('/auth/password/reset', {email, code, password, password_repeat}),

@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=4070845007c184614278d266502dbe36f06033c6d2aab691603b98344baefd7a by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=f8002f35bfce702af5395c4832b341b401680fe66e2d99e80baaf727f9c3a1c0 by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -510,18 +510,21 @@ var EdgeSession = (() => {
   var edge = sessionClient();
   var SYNC_KEYS = Object.freeze(STORAGE.filter((e) => e.sync && e.match === "exact" && e.area === "local").map((e) => e.key));
   var PREFERENCES_URL = "/api/v1/preferences";
-  var PREF_MAX = 65536;
-  function prefList(body) {
-    const p = body?.preferences ?? body?.items ?? body;
-    const list = Array.isArray(p) ? p : p && typeof p === "object" ? Object.entries(p).map(([key, v]) => ({ key, ...v || {} })) : [];
-    return list.filter((x) => x && typeof x.key === "string").map((x) => ({ key: x.key, value: x.value, version: typeof x.version === "number" ? x.version : null }));
-  }
+  var DEFAULT_VALUE_BYTES = 65536;
   var asText = (v) => v == null ? null : typeof v === "string" ? v : JSON.stringify(v);
+  var jsonBytes = (v) => {
+    try {
+      return new TextEncoder().encode(JSON.stringify(v)).length;
+    } catch {
+      return v.length * 3;
+    }
+  };
   function preferences(client, opts = {}) {
     const delay = opts.delayMs ?? 1e3;
     const state = /* @__PURE__ */ new Map();
     const timers = /* @__PURE__ */ new Map();
-    let on = false, listening2 = false;
+    const refused = /* @__PURE__ */ new Set();
+    let on = false, listening2 = false, valueBytes = DEFAULT_VALUE_BYTES;
     const local = () => areaOf("local");
     const onStorage = (e) => {
       if (!on || !e.key || e.newValue === null || !SYNC_KEYS.includes(e.key)) return;
@@ -531,9 +534,16 @@ var EdgeSession = (() => {
       }
       note(e.key);
     };
-    async function put(key) {
+    const keep = (key, value) => {
+      try {
+        if (value === null) local()?.removeItem(key);
+        else if (local()?.getItem(key) !== value) local()?.setItem(key, value);
+      } catch {
+      }
+    };
+    async function put(key, again = true) {
       timers.delete(key);
-      if (!on) return;
+      if (!on || refused.has(key)) return;
       let value = null;
       try {
         value = local()?.getItem(key) ?? null;
@@ -541,13 +551,17 @@ var EdgeSession = (() => {
         value = null;
       }
       const was = state.get(key);
-      if (value === null || value === (was?.value ?? null) || value.length > PREF_MAX) return;
+      if (value === null || value === (was?.value ?? null)) return;
+      if (jsonBytes(value) > valueBytes) {
+        refused.add(key);
+        return;
+      }
       let res;
       try {
         res = await client.send(`${PREFERENCES_URL}/${encodeURIComponent(key)}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ value, ...was?.version != null ? { version: was.version } : {} })
+          body: JSON.stringify({ value, version: was?.version ?? null })
         });
       } catch {
         return;
@@ -559,23 +573,27 @@ var EdgeSession = (() => {
         body = null;
       }
       if (!on) return;
-      if (res.ok) {
-        state.set(key, { value, version: typeof body?.version === "number" ? body.version : (was?.version ?? 0) + 1 });
+      if (res.status === 200 || res.status === 201) {
+        state.set(key, { value, version: typeof body?.version === "number" ? body.version : null });
         return;
       }
-      if (res.status === 409) {
-        const d = body?.error?.details ?? body?.current ?? {};
-        const server = asText(d.value), version = typeof d.version === "number" ? d.version : null;
-        state.set(key, { value: server, version });
-        try {
-          if (server === null) local()?.removeItem(key);
-          else local()?.setItem(key, server);
-        } catch {
+      const error = body?.error;
+      if (res.status === 409 && error?.code === "PREFERENCE_CONFLICT") {
+        const current = error.details?.current;
+        if (current && typeof current.version === "number") {
+          const server = asText(current.value);
+          state.set(key, { value: server, version: current.version });
+          keep(key, server);
+        } else if (again) {
+          state.delete(key);
+          await put(key, false);
         }
+        return;
       }
+      if (res.status === 422 && error?.code === "PREFERENCE_LIMIT") refused.add(key);
     }
     function note(key) {
-      if (!on || !SYNC_KEYS.includes(key)) return;
+      if (!on || !SYNC_KEYS.includes(key) || refused.has(key)) return;
       const t = timers.get(key);
       if (t) clearTimeout(t);
       timers.set(key, setTimeout(() => {
@@ -602,23 +620,22 @@ var EdgeSession = (() => {
       } catch {
         return false;
       }
+      const items = body?.preferences;
+      if (!items || typeof items !== "object" || Array.isArray(items)) return false;
+      if (typeof body.limits?.value_bytes === "number") valueBytes = body.limits.value_bytes;
       state.clear();
+      refused.clear();
       on = true;
-      const s = local();
-      for (const p of prefList(body)) {
-        if (!SYNC_KEYS.includes(p.key)) continue;
-        const value = asText(p.value);
-        state.set(p.key, { value, version: p.version });
-        try {
-          if (value === null) s?.removeItem(p.key);
-          else if (s?.getItem(p.key) !== value) s?.setItem(p.key, value);
-        } catch {
-        }
+      for (const [key, item] of Object.entries(items)) {
+        if (!SYNC_KEYS.includes(key) || !item || typeof item.version !== "number") continue;
+        const value = asText(item.value);
+        state.set(key, { value, version: item.version });
+        keep(key, value);
       }
       if (o.uploadLocal) for (const key of SYNC_KEYS) {
         let v = null;
         try {
-          v = s?.getItem(key) ?? null;
+          v = local()?.getItem(key) ?? null;
         } catch {
           v = null;
         }
@@ -640,11 +657,11 @@ var EdgeSession = (() => {
       const keys = [...timers.keys()];
       timers.forEach((t) => clearTimeout(t));
       timers.clear();
-      await Promise.all(keys.map(put));
+      await Promise.all(keys.map((k) => put(k)));
     }
     return { load, note, stop, flush, get active() {
       return on;
-    }, state };
+    }, state, refused };
   }
   var prefs = preferences(edge);
   return __toCommonJS(edge_session_exports);
