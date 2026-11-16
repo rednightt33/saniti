@@ -15056,7 +15056,8 @@ Rincian dan ID: `RAILWAY_CHANGELOG.md` 2026-11-16.
   deploy itu menunggu CI hijau: K10 a berlaku), telegram-monitor `438e9c81`, terminal-publisher `0f7f2a95` (CLI) dengan
   run pertamanya 10:04-10:21 UTC (864 berkas events format 3, basis 361 aksi, laporan Telegram basis terkirim).
 - Restart Postgres sesudah update besar: ditolak penjaga (cron 10:00/10:30, lalu 11:00, publisher 12:00/12:30, B6,
-  cron restart 13:45); restart terjadwal 13:45 UTC (otomatis ON, mode apply) yang menanganinya, dicek 13:55 UTC.
+  cron restart 13:45); restart terjadwal 13:45 UTC (otomatis ON, mode apply) yang menanganinya: Postgres menyala ulang
+  13:47:13 UTC, memori 1,99 → 0,11 GB, edge-bff `/ready` 200 (dicek 13:57 UTC).
 - Langkah 4: `revamp_dev_check.py` lulus (katalog; run Flow A-C 48 transaksi; run D sebagai admin 3 transaksi; pratinjau
   184 sinyal); e2e: halaman, single, repeat, penolakan dan cancel lulus; **run portofolio 12 saham `WORKER_LOST`**
   (M463: pratinjau lalu run memerlukan 1,5-1,8 GB, batas worker 1 GB; sudah terjadi sebelum revamp). Cek data nyata P6.4

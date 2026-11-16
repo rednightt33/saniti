@@ -97,7 +97,9 @@
 - **Postgres restart after the large update:** `scripts/restart_postgres.py` at 10:14 UTC REFUSED (`cron_due`: the
   10:00 and 10:30 crons; memory 1.99 GB, 0 statements, 0 user runs). Every minute until 14:30 UTC is inside a guard
   (crons 10:30, 11:00, the publisher 12:00 and 12:30, B6 12:00-13:20, `postgres-memory-cron` 13:45); the scheduled
-  restart at 13:45 UTC (auto on, mode `apply`) covers it, checked at 13:55 UTC.
+  restart at 13:45 UTC (auto on, mode `apply`) covered it. Checked at 13:57 UTC: `pg_postmaster_start_time`
+  13:47:13 UTC, `Telegram_Notification_Log` `Postgres_Restart` COMPLETED SENT 13:47:09 and 13:50:24 UTC, Postgres memory
+  1.99 GB (13:40) → 0.11 GB (13:50), edge-bff `/ready` 200.
 - **Dev checks:** `e2e_dev.py` (10:00-10:02 UTC): page boot, single, repeat, refusal at submit and cancel passed; the
   12-stock portfolio run ended `WORKER_LOST`: the worker process was killed above its 1 GB limit after the preview
   (ERRORS M463, open: the user's decision); the six results tabs at 390 px timed out because the check clicked under
