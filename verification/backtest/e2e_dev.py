@@ -1063,6 +1063,12 @@ def main():
             if out['page']['done']['ok']:
                 for w, h in VIEWPORTS:
                     page.set_viewport_size({'width': w, 'height': h})
+                    # a phone (the design, as the smoke test's showChart): the open builder covers the main column, the
+                    # results show once it is closed (ERRORS M465)
+                    page.wait_for_timeout(300)
+                    if not page.evaluate("() => document.getElementById('main').getBoundingClientRect().width"):
+                        page.click('#panelTg')
+                        page.wait_for_timeout(300)
                     for t in TABS:
                         try:
                             page.click(f'#rtabs [data-tab="{t}"]', timeout=10_000)
