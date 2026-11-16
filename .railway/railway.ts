@@ -16,7 +16,8 @@ export default defineRailway(() => {
   // user "Naikkan ke 1 GB"): the stockbit-updater INDEX rebuild was killed by the out-of-memory killer at 512 MB.
   // 2026-11-09: 2 GB after an out-of-memory stop at 1 GB (user "Naikkan limit sementara ke 2 GB"; "Limit ram keep 2gb
   // dulu, nanti saya yg rubah"); recorded here 2026-11-15 from the live limit (ERRORS M455, Railway serviceInstanceLimits).
-  Postgres.deploy = { limitOverride: { containers: { memoryBytes: 2000000000 } } };
+  // 2026-11-16: the live limit also holds 1 vCPU (set outside this file; recorded from `railway config plan`, no change)
+  Postgres.deploy = { limitOverride: { containers: { cpu: 1, memoryBytes: 2000000000 } } };
   const postgresVolumeThQL = volume("postgres-volume-thQL", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 100000 });
   const stockbitUpdaterVolume = volume("stockbit-updater-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
@@ -71,8 +72,9 @@ export default defineRailway(() => {
     healthcheck: "/ready",
     healthcheckTimeout: 300,
     replicas: { "sfo": 1 },
-    // EXEC-U4 (go 2026-10-29): sleeps when idle; orc wakes it (apps/market-ai-orc/app/wake.py)
-    deploy: { restartPolicyType: "ALWAYS", sleepApplication: true },
+    // EXEC-U4 (go 2026-10-29): sleeps when idle; orc wakes it (apps/market-ai-orc/app/wake.py). 2026-11-16: the live 1 GB
+    // memory limit was set outside this file; recorded from `railway config plan` (no change)
+    deploy: { restartPolicyType: "ALWAYS", sleepApplication: true, limitOverride: { containers: { memoryBytes: 1000000000 } } },
     volumeMounts: { "/data": marketPythonSandboxData },
     env: { AUDIT_STORE_SANDBOX_KEY: preserve(), AUDIT_STORE_URL: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_AUDIT_STORE_ENABLED: preserve(), PY_SANDBOX_BUNDLE_MAX_ROWS: preserve(), PY_SANDBOX_BUNDLE_RETENTION_HOURS: preserve(), PY_SANDBOX_DATANEED_ENABLED: preserve(), PY_SANDBOX_DERIVED_FREQUENCY_ENABLED: preserve(), PY_SANDBOX_ENABLE_CONVERSATION_REUSE: preserve(), PY_SANDBOX_EXPLORE_TESTS_ENABLED: preserve(), PY_SANDBOX_MAX_ANALYSES_PER_REQUEST: preserve(), PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST: preserve(), PY_SANDBOX_MAX_MEMORY_MB: preserve(), PY_SANDBOX_MAX_SESSIONS: preserve(), PY_SANDBOX_MAX_SPECS_PER_REQUEST: preserve(), PY_SANDBOX_MODULES_AUDIT_ENABLED: preserve(), PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED: preserve(), PY_SANDBOX_OPEN_WAIT_SECONDS: preserve(), PY_SANDBOX_OUTPUT_SESSIONS: preserve(), PY_SANDBOX_RESEARCH_FINDINGS_ENABLED: preserve(), PY_SANDBOX_RESEARCH_MIN_ANGLES: preserve(), PY_SANDBOX_RESULT_RETENTION_HOURS: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_GOVERNOR_URL: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve() },
   });
@@ -166,7 +168,9 @@ export default defineRailway(() => {
     healthcheckTimeout: 60,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS", sleepApplication: true },
-    env: { DATABASE_URL: preserve(), TELEGRAM_BOT_TOKEN: preserve(), TELEGRAM_CHAT_ID: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_SUCCESS: preserve() },
+    // 2026-11-16: PUBLISH_RAILWAY_TOKEN and TERMINAL_PUBLISHER_SERVICE_INSTANCE_ID are live (set outside this file);
+    // recorded so that an apply keeps them (`railway config plan` would have deleted them)
+    env: { DATABASE_URL: preserve(), PUBLISH_RAILWAY_TOKEN: preserve(), TELEGRAM_BOT_TOKEN: preserve(), TELEGRAM_CHAT_ID: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_SUCCESS: preserve(), TERMINAL_PUBLISHER_SERVICE_INSTANCE_ID: preserve() },
   });
   const idxPriceRecoveryCron = service("idx-price-recovery-cron", {
     source: saniti2,
@@ -220,11 +224,10 @@ export default defineRailway(() => {
   });
   // EDGE Screener worker (apps/screener-worker, EXEC-SCREENER P3 a): built from GitHub main with the repository root as context
   // EXEC-BACKTEST-REVAMP K10 a (user 2026-11-15): a push to main is to deploy only once its GitHub checks pass (the
-  // look-ahead gate among them, .github/workflows/backtest-lookahead.yml). Not live yet: this file records the live
-  // value (false, read 2026-11-16, Stage C2 lens 2 F4); it becomes true with `railway config apply` at the deploy after
-  // Gate 3, with the user's approval (RAILWAY_CHANGELOG 2026-11-15)
+  // look-ahead gate among them, .github/workflows/backtest-lookahead.yml). Applied 2026-11-16 with the deploy after Gate 3
+  // (user "1A 2B 3A, go deploy"; RAILWAY_CHANGELOG 2026-11-16)
   const screenerWorker = service("screener-worker", {
-    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/" }),
+    source: github("rednightt33/saniti", { checkSuites: true, rootDirectory: "/" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "apps/screener-worker/Dockerfile",
       watchPatterns: ["/apps/screener-worker/**", "/apps/edge-bff/screener/src/core/**",
         "/apps/edge-bff/screener/scripts/build-screener-registry.mjs", "/apps/edge-bff/backtest/src/core/**",
@@ -239,7 +242,7 @@ export default defineRailway(() => {
     env: { SCREENER_CACHE_BYTES: preserve(), SCREENER_CACHE_DIR: preserve(), SCREENER_CACHE_DIR_BYTES: preserve(), SCREENER_CAP_BUDGET_MS: preserve(), SCREENER_DEADLINE_MS: preserve(), SCREENER_DOWNLOAD_CONCURRENCY: preserve(), SCREENER_DOWNLOAD_RETRIES: preserve(), SCREENER_FILE_ORIGIN: preserve(), SCREENER_HTTP_TIMEOUT_MS: preserve(), SCREENER_MAX_CONDITIONS: preserve(), SCREENER_MAX_COUNTS: preserve(), SCREENER_MAX_CPU_MS: preserve(), SCREENER_MAX_FILE_BYTES: preserve(), SCREENER_MAX_INFLATED_BYTES: preserve(), SCREENER_MAX_METRIC_FILTERS: preserve(), SCREENER_MAX_REFRESH_BYTES: preserve(), SCREENER_MAX_REQUEST_BYTES: preserve(), SCREENER_MAX_RESPONSE_BYTES: preserve(), SCREENER_OWNER_CPU_MS: preserve(), SCREENER_OWNER_INFLIGHT: preserve(), SCREENER_PREVIOUS_GRACE_S: preserve(), SCREENER_QUEUE: preserve(), SCREENER_RETRY_BASE_MS: preserve(), SCREENER_THREADS: preserve(), SCREENER_THREAD_HEAP_MB: preserve(), SCREENER_WITHIN_MAX: preserve(), SCREENER_WORKER_KEY: preserve(), TERMINAL_PROXY_KEY: preserve(), TERMINAL_URL: preserve() },
   });
   const edgeBff = service("edge-bff", {
-    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/edge-bff" }),   // K10 a pending, as screener-worker
+    source: github("rednightt33/saniti", { checkSuites: true, rootDirectory: "/apps/edge-bff" }),   // K10 a, as screener-worker
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
     start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1 --no-access-log --no-proxy-headers",
     healthcheck: "/ready",
