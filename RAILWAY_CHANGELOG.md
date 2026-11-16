@@ -22,8 +22,8 @@
   DRYRUN `MIG DRYRUN_BODY_OK`, then APPLY `MIG APPLY` 13:28 UTC, sha256 `c01d6929…`, `VAR_REMOVED` both times
   (DATABASE_CHANGELOG.md).
 - **Live check as the owner** (`verification/watchlist/live_check_dev.py`, `verification/watchlist/LIVE_20261116.txt`):
-  57/57 ok — file by sha256, the lists API round trip and its refusals, the Screener star into the first list, the
-  page at 1440 and 390 px (lists, cards, prices, Radar and corporate-action badges, the Radar filter, no failed response
+  59/59 ok — file by sha256, the lists API round trip and its refusals, the Screener star into the first list, the
+  page at 1440 and 390 px (lists, cards, prices, logos, Radar and corporate-action badges, the Radar filter, no failed response
   on the page, no sideways scroll). The live file recalculated from PostgreSQL: 40,518 comparisons, 0 differences.
 - **Postgres memory:** 1.99 GB at 13:27 UTC (the DRYRUN's `POSTGRES_MEMORY_CHECK`, refused: postgres-memory-cron due at
   13:45 UTC). None of this was a large update; the scheduled restart at 13:45 UTC covers it.

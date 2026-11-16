@@ -8,7 +8,7 @@ first "Watchlist" list exists afterwards (what the page's first visit and the Sc
    position), refusals (control character, 9 indicators, a list over 50 stocks), the last list kept.
 3. The Screener star fills the first list, and its removal empties it.
 4. The page at 1440 and 390 px: the lists, one card per stock with the file's price, the Radar and corporate-action
-   badges where the file has them, the Radar filter and its toast, no "Figures unavailable", no console error, no
+   badges where the file has them, a loaded logo or the monogram on every card, the Radar filter and its toast, no "Figures unavailable", no console error, no
    sideways scroll. Screenshots to OUT.
 Usage: python3 verification/watchlist/live_check_dev.py OUT     (Railway CLI on PATH, Playwright's Chromium)
 """
@@ -134,6 +134,7 @@ PAGE_JS = """() => ({
   tabs: [...document.querySelectorAll('.bar1 .tabs [role=tab]')].map(t => [t.firstChild?.textContent.trim(), Number(t.querySelector('.cnt')?.textContent)]),
   cards: [...document.querySelectorAll('.cg .wc[data-t]')].map(c => ({ t: c.dataset.t, px: c.querySelector('.px b')?.textContent,
     radar: !!c.querySelector('.pill.radar'), event: !!c.querySelector('.pill.info') })),
+  logos: [...document.querySelectorAll('.wc[data-t]')].map(c => { const e = c.querySelector('.lg'); return e ? (e.tagName === 'IMG' ? (e.naturalWidth > 0 ? 'logo' : 'broken') : 'monogram') : 'none' }),
   fileerr: document.querySelectorAll('.card.fileerr').length,
   warn: [...document.querySelectorAll('.pill.warn')].map(p => p.textContent),
   overflow: document.documentElement.scrollWidth - innerWidth })"""
@@ -157,7 +158,12 @@ def page_check(br, width, mobile):
     p.wait_for_timeout(1000)
     f = next(x for x in p.frames if '/watchlist-app/' in x.url)
     f.locator('.cg .wc[data-t]').first.wait_for(timeout=60000)
-    p.wait_for_timeout(2500)                                  # logos and the file
+    # the page draws monograms first and swaps in the logos once the logo list is read (kept in localStorage on
+    # success): wait for the list, then for every logo image, before anything is measured or photographed
+    f.wait_for_function("""() => { let c = null; try { c = localStorage.getItem('edge.watchlist.logos') } catch (e) { return true }
+      return !!c && [...document.querySelectorAll('.wc .lg')].every(e => e.tagName !== 'IMG' || (e.complete && e.naturalWidth > 0)) }""", timeout=30000)
+    p.wait_for_timeout(500)
+    have = set(f.evaluate("() => Object.keys((JSON.parse(localStorage.getItem('edge.watchlist.logos') || '{}').map) || {})"))
     v = f.evaluate(PAGE_JS)
     tag = f'{width}px'
     ok(v['tabs'][:1] == [[first['name'], len(star)]], f'{tag}: lists {v["tabs"]} (name, count)')
@@ -168,6 +174,8 @@ def page_check(br, width, mobile):
         ok(c['px'] == want, f'{tag}: {c["t"]} price {c["px"]} = file {want}')
         ok(c['radar'] == (c['t'] in doc['radar']), f'{tag}: {c["t"]} Radar badge {c["radar"]} (file {c["t"] in doc["radar"]})')
         ok(c['event'] == (c['t'] in doc['events']), f'{tag}: {c["t"]} corporate-action badge {c["event"]} (file {c["t"] in doc["events"]})')
+    want = ['logo' if c['t'] in have else 'monogram' for c in v['cards']]
+    ok(v['logos'] == want, f'{tag}: the logo where the logo list has one, else the monogram {v["logos"]} ({len(have)} logos listed)')
     ok(v['fileerr'] == 0 and 'Figures unavailable' not in v['warn'], f'{tag}: the figures were read')
     ok(v['overflow'] <= 0, f'{tag}: no sideways scroll ({v["overflow"]})')
     p.screenshot(path=str(OUT / f'watchlist_{width}.png'))
