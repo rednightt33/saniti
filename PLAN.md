@@ -126,7 +126,24 @@ Vite di iframe seperti Overview, bahasa Inggris, ikon mata di rail.
    Stockbit) dan saringan Radar yang lolos (`Feature_07_Radar_Result`, tanggal broker); masing-masing menulis tanggal
    datanya.
 
-**Masih terbuka:** definisi "selesai" di bawah dan rencana eksekusi berikut (dikirim 2026-11-16), menunggu "go".
+**Go user 2026-11-16: "Go"** (atas rencana W1–W8, keputusan kecil dan definisi "selesai" di bawah). Sebelum W1 dimulai,
+user menyela: **"Maaf, boleh minta kira2 HTML nanti FE akna jadi seperti apa before we design backend? Kalau bisa kita
+buat selight as possible yang mana tidak perlu ada calculation lagi (mis. percentile bar)"**. Eksekusi ditahan sampai
+user menyetujui tampilan.
+
+**Mockup ringan (2026-11-16, menunggu tinjauan user):** desain user dengan label Inggris dan data snapshot dev (harga 13
+Nov, broker 9 Nov); file di scratchpad sesi (berisi data pasar, tidak di-commit), dibangun dari desain di repo. Bedanya
+dengan rencana W1–W8:
+- tanpa bar persentil; setiap angka dibaca apa adanya dari kolom tersimpan, tanpa riwayat dan tanpa hitungan baru;
+- katalog indikator (14): RSI, MACD histogram, ADX (Feature 04); harga vs EMA 50 / EMA 200 (satu pembagian di baris
+  yang sama); return 5D/3M, volume vs rata-rata 20 hari, volatilitas 20D, jarak dari high 60D (Feature 01); net asing
+  1D/5D/20D dan peringkat net asing 5D yang sudah tersimpan (Feature 06, papan Regular); bawaan RSI, Volume, From 60D
+  high, Foreign 5D;
+- dibuang karena perlu hitungan riwayat: high 52W, SMA 200, beta/volatilitas/max drawdown 1Y, garis SMA 50 di grafik;
+- grafik kecil = 30 penutupan terakhir; lencana aksi korporasi (30 hari) dan Radar tetap; label tanggal data seperti
+  Overview; "Open in Terminal" di menu saham; "Rename" di menu list; sakelar notifikasi dihapus (4A).
+Akibatnya backend cukup: tabel list di server (W2–W3) dan satu file harian yang membaca satu tanggal dari Feature
+01/04/06, 30 penutupan, aksi korporasi dan Radar (tanpa file riwayat). Rencana W1/W4 disesuaikan sesudah user setuju.
 
 **Rencana eksekusi (usulan, menunggu go; pola EXEC-OVERVIEW):**
 - **W1 Rumus dan biaya.** Rumus setiap indikator dan persentil ditulis di `WATCHLIST_FORMULAS.md` (bahasa Indonesia
