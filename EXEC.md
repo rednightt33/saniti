@@ -13748,3 +13748,47 @@ lalu satu run publisher dan cek live dengan login.
 14/14); run publisher 15:55 UTC menerbitkan `stock_lists`; cek live dengan login PASS 10/10 (LQ45 45 saham, LQ45 + Astra
 3, LQ45 tanpa Salim dan Djarum 39, IDX30 atau JII 41, kode salah ditolak); restart Postgres 16:00 UTC. ERRORS M418 tutup.
 Sisa: DATABASE_SCHEMA.md belum memuat tabel Stock_List (refresh skema terjadwal), ERRORS M417 (5 langkah smoke lama).
+
+## EXEC-MU-ACCOUNTS — EDGE multi-user Fase 0 (pengamanan) + Fase 1 (akun) (go 2026-11-16)
+
+**Go (kata user, 2026-11-16):**
+- Jawaban atas empat pertanyaan:
+  1. "A dan B": dua lapis disetujui, yaitu katalog rilis untuk definisi dan kode, dan pembatasan data di server.
+     Indikator Terminal tetap dihitung di browser.
+  2. "Tepat N hari terakhir": histori Free dibatasi N hari, bukan per tahun kalender.
+  3. "A": website tetap menyala selama pengerjaan.
+  4. "B": go Fase 0 + Fase 1.
+- Dasar: `PLAN.md` EDGE-MULTIUSER (keputusan 2026-11-11 dan 2026-11-16) dan
+  `verification/edge_multiuser/access_tiers/FINDINGS.md` (§5 fase, §6 tes).
+- **Saklar:** `EDGE_MULTIUSER` mati sampai Fase 6. Dengan saklar mati, perilaku untuk user sekarang tidak berubah.
+- **Fase 0, pengamanan (tanpa perubahan terlihat):**
+  - Mode manual AI: hanya admin, terikat pemilik, dengan CSRF (M259, M429).
+  - Orc menolak permintaan tanpa pemilik. Runner tes mendapat kunci sendiri yang hanya berlaku untuk pemilik tes
+    (perubahan variabel Railway, disetujui dalam go ini) (M430).
+  - Domain publik terminal-api dihapus (user 2026-11-16: "Terminal API publik (hapus)"). Sebelumnya dicek bahwa tidak
+    ada login langsung yang masih dipakai (M425).
+  - Pembatas percobaan login di Postgres, per email dan per IP.
+  - Perbaikan drawings (M423), registry penyimpanan browser dan pembersihan saat sign-out (M428).
+  - Kontrak 403 bernama di empat front-end (M426).
+  - Data fixture asli diganti (M424).
+  - Workflow CI untuk pytest dan vitest, dan look check yang portabel (M427).
+- **Fase 1, akun (di balik saklar):**
+  - Tabel: `users` (username, nama depan, nama belakang, email, telepon; `edge-private` sebagai user #1 admin),
+    `identities`, `email_codes` (5 menit), `auth_throttle`, perluasan `sessions`, `mfa_totp` dan kode pemulihan,
+    `email_outbox`, `admin_audit`.
+  - Principal per permintaan di semua route, menggantikan `settings.owner`.
+  - Alur: daftar, kode, langsung masuk, kirim ulang, lupa password, reset ke halaman login, MFA admin.
+  - Password minimal 8 karakter, dengan cek password bocor.
+  - Pengirim Resend dengan mode tes sampai domain siap (perkiraan Kamis 2026-11-19).
+- **Tetap di luar eksekusi ini:**
+  - Katalog paket dan gate per tab (Fase 2-3; termasuk histori N hari dan katalog rilis indikator).
+  - Dashboard admin (Fase 4), pembayaran (Fase 5), peluncuran (Fase 6).
+- **Aturan tiap deploy:**
+  - Cek tidak ada run user aktif (M340).
+  - Klaim berhasil hanya pada `SUCCESS`.
+  - Skema dibaca balik dari database live.
+  - Pencatatan sesuai AGENTS.md (migrasi, `DATABASE_SCHEMA.md`, changelog, `RAILWAY_CHANGELOG.md`, ERRORS).
+- **Terbuka:**
+  1. Jalur deploy: Railway membangun dari `main`, sedangkan sesi ini bekerja di branch `claude/pensive-feynman-4ahfe3`.
+     Setiap deploy perlu PR yang di-merge user, atau izin push ke `main`.
+  2. Susunan sub-agent (pembangun dan pemeriksa independen) menunggu persetujuan user.

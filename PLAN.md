@@ -1146,10 +1146,10 @@ pendaftaran sendiri plus kode email. Approval untuk merencanakan, belum "go" eks
   - **(2) Pembatasan data.** Ticker, jenis data, dan kedaluwarsa histori tetap dibatasi di grant terminal-api. Untuk histori
     terbatas, terminal-api memberi file per tahun (`price/{ticker}/{year}`, sudah ditulis publisher) dan tidak memberi
     pack semua tahun.
-- **Pertanyaan terbuka:**
-  1. Konfirmasi usulan dua lapis di atas.
-  2. Fase mana yang di-"go" lebih dulu.
-  3. Dua indikator Free, isi paket berbayar, dan payment gateway dipilih nanti.
+- **Keputusan user, 2026-11-16:** dua lapis disetujui ("A dan B"); histori Free "Tepat N hari terakhir" (publisher
+  menulis file histori terbaru per N yang dipakai katalog, Fase 3); website tetap menyala; go Fase 0 + 1, kini
+  dieksekusi di `EXEC.md` EXEC-MU-ACCOUNTS. Fase 2-6 tetap di sini.
+- **Pertanyaan terbuka:** dua indikator Free, isi paket berbayar, dan payment gateway dipilih nanti.
 
 ## TERMINAL-IND-CARDS — dipindah ke `EXEC.md` EXEC-IND-CARDS (go 2026-11-01: "jalankan TERMINAL-IND-CARDS as well")
 
