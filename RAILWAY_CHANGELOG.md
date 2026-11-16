@@ -1,5 +1,22 @@
 # Railway changelog
 
+## 2026-11-16 — EXEC-MU-ACCOUNTS Phase 0 deploy, steps 1-4
+
+- **User:** go 2026-11-16 (EXEC.md EXEC-MU-ACCOUNTS: "B: go Fase 0 + Fase 1", "1 A, 2 A, 3 A, 4 A"; option A for
+  sign-out clean-up).
+- **Step 1, M340:** job `7848976c` found no active `edge_bff.jobs` and no RUNNING `AI_conversation_turn`.
+- **Step 2:** migration `20261116_002_edge_bff_accounts_auth_throttle.sql` was rehearsed (DRYRUN `8124e411`) and
+  applied (APPLY `da8a0b98`), then read back (DATABASE_CHANGELOG.md).
+- **Step 3:** login privileges read back (job `27788af7`). The provisioning script was not re-run, because it would
+  rotate the login password.
+- **Step 4:** `MARKET_AI_ORC_TEST_KEY` was set on market-ai-orc with `--skip-deploys`.
+  - The value was made in-process with `secrets.token_urlsafe(48)` and passed on stdin; it was never printed.
+  - Read back: length 64, different from `MARKET_AI_ORC_API_KEY`.
+  - On orc-test-runner it is the reference `${{market-ai-orc.MARKET_AI_ORC_TEST_KEY}}` (`--skip-deploys`), read back
+    with length 64. The runner still holds `MARKET_AI_ORC_API_KEY`; it is removed only after a passing run with the
+    test key.
+- No deploy yet. Steps 5-8 (merge to main; edge-bff and market-ai-orc deploys; terminal-api) follow.
+
 ## 2026-11-16 — EXEC-WATCHLIST on dev: terminal-api, terminal-publisher, telegram-monitor, edge-bff; migration 20261116_001
 
 - **Go:** user 2026-11-16 "Oke, synchronize dulu dengan branch main, kemudian kerjakan. Go." (the release order of

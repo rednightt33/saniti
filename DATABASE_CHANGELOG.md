@@ -1,6 +1,6 @@
 # Database changelog
 
-## 2026-11-16 — EDGE sign-in throttle in PostgreSQL (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 0) — written, NOT applied yet
+## 2026-11-16 — EDGE sign-in throttle in PostgreSQL (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 0) — applied 2026-11-16
 
 - **User:** go 2026-11-16 for EXEC-MU-ACCOUNTS Phase 0 + Phase 1 ("B: go Fase 0 + Fase 1"; EXEC.md EXEC-MU-ACCOUNTS):
   the sign-in attempt limiter moves into Postgres, per email and per IP. Operational schema `edge_bff`, no market
@@ -24,8 +24,26 @@
 - **Status:** written; `apps/edge-bff/tests/test_auth_throttle.py` runs it on a disposable PostgreSQL built from the
   migrations (ten failures across two app instances, atomic counts, purge, second run refused, no TRUNCATE, the
   provisioned login's grants; run against a disposable local PostgreSQL 16 in the integrated run below). Integrated edge-bff run 2026-11-16: 276
-  passed, 139 skipped. **Not applied to Railway.**
-  `APPLIED.sha256` gets its line only after the apply. Order and read-back: EXEC.md EXEC-MU-ACCOUNTS, "Phase 0 deploy
+  passed, 139 skipped.
+- **Applied 2026-11-16** on Railway dev:
+  - Before: no user run active (M340; job `7848976c`: no QUEUED/RUNNING/RECOVERING `edge_bff.jobs`, 0 running
+    `AI_conversation_turn`), the table absent.
+  - DRYRUN job `8124e411`: body OK, then ROLLBACK.
+  - APPLY job `da8a0b98` with the same sha256.
+  - Read back after the commit, matching the DRYRUN:
+    - the four columns NOT NULL (`count` default 1);
+    - PK (`scope`, `key_hash`, `window_start`);
+    - the three CHECKs;
+    - only the PK index;
+    - `edge_bff_runtime` exactly DELETE, INSERT, SELECT, UPDATE, with no TRUNCATE, REFERENCES or TRIGGER;
+    - PUBLIC none;
+    - 0 rows, readable as `edge_bff_runtime`;
+    - the comment present.
+  - `APPLIED.sha256` line added.
+  - Login: `scripts/provision_edge_bff_login.py` was **not** re-run, because it also sets the login's password, which a
+    re-run would rotate under the running edge-bff; earlier `edge_bff` migrations did not re-run it either.
+  - Instead, read-only job `27788af7`: `edge_bff_login` (through `edge_bff_runtime`) has SELECT, INSERT, UPDATE and
+    DELETE on the table, and no TRUNCATE, REFERENCES or TRIGGER. No user run was active. Order and read-back: EXEC.md EXEC-MU-ACCOUNTS, "Phase 0 deploy
   steps (prepared, not run)".
 
 ## 2026-11-16 — Named watchlists on the account (schema `edge_bff`, EXEC-WATCHLIST 2A) — applied on dev
