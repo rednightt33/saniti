@@ -1081,6 +1081,11 @@ pendaftaran sendiri plus kode email. Approval untuk merencanakan, belum "go" eks
   dan direktori user terpisah dari Postgres Railway. FreeSend adalah relay self-host lewat SMTP sendiri (bukan pengirim email),
   tidak dipakai. `up.railway.app` ada di Public Suffix List (dicek 2026-11-16), jadi `edge-bff-dev.up.railway.app` bisa menjadi
   alamat redirect Google OAuth, tetapi SPF/DKIM tidak bisa dipasang di domain Railway.
+- **Kontras Supabase OAuth vs bangun sendiri, 2026-11-16 (riset; user: "soa = supabase oauth"):** token Supabase di browser
+  tidak bisa HttpOnly dan JWT tetap berlaku sampai kedaluwarsa (default 1 jam) setelah sign-out; kalau dipakai lewat BFF
+  (token tidak sampai ke browser), batas per IP Supabase melihat IP BFF kecuali `Sb-Forwarded-For` dengan secret key; cek
+  password bocor dan timeout sesi hanya di Pro; layar Google menampilkan `<ref>.supabase.co` kecuali add-on domain (sekitar
+  USD 10/bulan) atau verifikasi merek. Kontrol akses halaman dan data per user tetap dikerjakan di BFF pada kedua pilihan.
 - **Keputusan user, 2026-11-16:** "Bangun sendiri di BFF" (opsi A: tabel user di `edge_bff`, scrypt, kode email di database
   kita, sesi cookie BFF tetap seperti sekarang; tanpa Supabase dan FreeSend).
 - **Pertanyaan terbuka:** (1) domain sendiri untuk email (SPF/DKIM) dan layanan email lewat HTTPS API, atau Gmail SMTP sebagai
