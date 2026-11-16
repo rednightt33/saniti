@@ -60,7 +60,10 @@ calculation arrives).
 ## 4. 1:1 verification method
 
 1. **Same data:** the TS app has a fixture mode (`/terminal?fixture=reference`) that generates exactly the reference's
-   synthetic OHLCV, broker profile and flow (ported generator, same seeds).
+   synthetic OHLCV, broker profile and flow (ported generator, same seeds). Since ERRORS M469 (2026-11-16) the fixture
+   mode exists only in a fixture build: `npx vite build --mode fixture` before the check, `npm run build` after it
+   (`tests/visual/compare.mjs` refuses a build without fixture mode; the production bundle drops the fixture,
+   `tests/data/fixture_bundle.test.mjs`).
 2. **Pixels:** Playwright opens the reference HTML and the TS page at the same viewports (1600×1000, 1280×800,
    390×844), waits for fonts and charts, and compares full-page and per-panel screenshots (pixel diff; the only
    accepted differences are listed, e.g. intentional indicator conventions).

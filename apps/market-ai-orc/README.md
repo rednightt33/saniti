@@ -265,6 +265,7 @@ Gate and final-response log events (always on):
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `MARKET_AI_ORC_API_KEY` | yes (secret) | — | Bearer key the backend must send |
+| `MARKET_AI_ORC_TEST_KEY` | no (secret) | — | ERRORS M475: a second bearer key for orc-test-runner (referenced there as `${{market-ai-orc.MARKET_AI_ORC_TEST_KEY}}`). It authenticates every route, but `X-Saniti-Owner` may then name only a test owner (`golden-*`, `test-*`, `someone-else`; else 403 `OWNER_NOT_ALLOWED`). Unset: only the main key authenticates. Never logged or shown in the settings repr |
 | `OPENROUTER_API_KEY` | yes (secret) | — | OpenRouter API key |
 | `AI_MODEL` | no | `deepseek/deepseek-v4.1-flash` | OpenRouter model ID of model 1 |
 | `AI_MODEL_2` | no | `xiaomi/mimo-v2.6-pro` | OpenRouter model ID of model 2 |
@@ -435,7 +436,9 @@ in the background every hour (`ai_model_prices_refreshed`; a failed read keeps t
 with `prices_fetched_at`, `edge_default` (EDGE's starting choice: DeepSeek V4.1 Flash, high) and `server_default`.
 
 ### `POST /v1/agent/run`
-Header: `Authorization: Bearer ${MARKET_AI_ORC_API_KEY}`. Missing or wrong key → `401`.
+Header: `Authorization: Bearer ${MARKET_AI_ORC_API_KEY}` (or the test key, for test owners only). Missing or wrong
+key → `401`. `X-Saniti-Owner` is required for every run, CLIENT history included (400 `OWNER_REQUIRED`); the run's
+progress, stop button and manual steps are registered under that owner (M475).
 
 Request:
 
@@ -569,9 +572,13 @@ requests are unchanged in either case.
 - **Request:** `history_mode: "SERVER"`, a new `request_id` per message, the `message`, and `conversation_id`
   (`null` for a new conversation). Sending `history` as well is refused (`HISTORY_SOURCE_CONFLICT`).
 - **Owner:** header `X-Saniti-Owner` (`^[A-Za-z0-9._:@-]{1,128}$`), set by the trusted server-side caller that holds
-  the bearer key, for example its authenticated user id. Without the header the owner is `default`. A conversation
-  of another owner reads as `CONVERSATION_NOT_FOUND`. The header is only as trustworthy as the caller: never forward
-  a browser-supplied value without authenticating it.
+  the bearer key, for example its authenticated user id. It is required on every route that reads it (both history
+  modes, stop, progress, request status, messages, branch, export download, the manual steps): a missing or blank
+  header is refused with 400 `OWNER_REQUIRED`; there is no shared `default` owner any more (ERRORS M475, EXEC-MU-ACCOUNTS
+  Phase 0). A caller holding `MARKET_AI_ORC_TEST_KEY` may name only `golden-*`, `test-*` or `someone-else`, else 403
+  `OWNER_NOT_ALLOWED`. These two refusals carry `{"error": {"code", "message"}}` beside the usual `detail`. A
+  conversation of another owner reads as `CONVERSATION_NOT_FOUND`. The header is only as trustworthy as the caller:
+  never forward a browser-supplied value without authenticating it.
 - **Response:** the usual body plus
   `"conversation": {"conversation_id", "turn_index", "persistence": "SAVED" | "NOT_SAVED", "replayed",
   "research_plan"}`. `NOT_SAVED`

@@ -1,5 +1,33 @@
 # Database changelog
 
+## 2026-11-16 — EDGE sign-in throttle in PostgreSQL (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 0) — written, NOT applied yet
+
+- **User:** go 2026-11-16 for EXEC-MU-ACCOUNTS Phase 0 + Phase 1 ("B: go Fase 0 + Fase 1"; EXEC.md EXEC-MU-ACCOUNTS):
+  the sign-in attempt limiter moves into Postgres, per email and per IP. Operational schema `edge_bff`, no market
+  data, no catalog row; not in `DATABASE_SCHEMA.md` (schema `public` only), as `20261116_001`.
+- **`20261116_002_edge_bff_accounts_auth_throttle.sql`** (sha256 `0d079dd20d3bf748c0ee134da703548e83fdd0bd9eba8f7fdfc055bdd5653b5f`):
+  `edge_bff.auth_throttle`:
+  - columns: `scope text` (CHECK `signin_email`, `signin_ip`, `code_user`, `send_email`, `send_ip`), `key_hash text`
+    (CHECK 64 lower-case hexadecimal digits: HMAC-SHA256 with `EDGE_SESSION_SECRET` of the normalised key, never the
+    login, email or address itself), `window_start timestamptz` (the one-minute bucket), `count integer` (default 1,
+    CHECK > 0);
+  - primary key (`scope`, `key_hash`, `window_start`), no other index (a limit reads one key prefix; the purge reads a
+    table of at most a few thousand rows);
+  - `edge_bff_runtime` gets SELECT/INSERT/UPDATE/DELETE only, PUBLIC nothing; the file's verify block refuses TRUNCATE,
+    REFERENCES, TRIGGER and any PUBLIC privilege; the preflight refuses a missing schema or role and a second run;
+    rollback body in the file (drop the table; deploy the previous edge-bff first).
+  - Used by `apps/edge-bff/app/throttle.py`: 10 failed sign-ins per login in 15 minutes enforced; the client address
+    recorded, not enforced, until a probe proves Railway's forwarded address; rows older than 2 days purged by the
+    hourly session clean-up (`store.py cleanup_sessions`). edge-bff's `/ready` reads the table, so an edge-bff built
+    from this branch is not ready before the migration is applied.
+  - `scripts/provision_edge_bff_login.py` knows the grants (`THROTTLE_GRANTS`, held exactly, TRUNCATE included).
+- **Status:** written; `apps/edge-bff/tests/test_auth_throttle.py` runs it on a disposable PostgreSQL built from the
+  migrations (ten failures across two app instances, atomic counts, purge, second run refused, no TRUNCATE, the
+  provisioned login's grants; skipped where no PostgreSQL is available). Integrated edge-bff run 2026-11-16: 276
+  passed, 139 skipped. **Not applied to Railway.**
+  `APPLIED.sha256` gets its line only after the apply. Order and read-back: EXEC.md EXEC-MU-ACCOUNTS, "Phase 0 deploy
+  steps (prepared, not run)".
+
 ## 2026-11-16 — Named watchlists on the account (schema `edge_bff`, EXEC-WATCHLIST 2A) — applied on dev
 
 - **User:** "1A / 2A / 3A / 4A" (2026-11-16): lists keyed per account, several named lists on the server, the Screener

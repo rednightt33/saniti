@@ -3265,7 +3265,16 @@ change yet.
 - **Solution:** none yet: `Depends(write)` on the route; a test that walks `app.routes` and asserts that every POST,
   PUT, PATCH and DELETE route except sign-in depends on `write` (derived from the route table, not from a list); the
   403 case sent with the Origin. Needs the user's go.
-- **Status:** OPEN (low severity: the Origin check holds).
+- **Status:** OPEN (low severity: the Origin check holds). Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed.
+  - Solution built (EXEC-MU-ACCOUNTS Phase 0, B1): `POST /api/v1/dev/manual/steps/{step_id}` now depends on
+    `admin_only('admin.manual', write)` (session, CSRF, and an owner in `EDGE_ADMIN_OWNERS`), the GET on
+    `admin_only('admin.manual', session)` (`apps/edge-bff/app/main.py`, manual routes).
+  - The route-table walk `apps/edge-bff/tests/test_route_table.py` derives the rule from `app.routes`: every `/api`
+    route carries the session dependency, every write carries `write` (sign-in excepted), and a route under
+    `/api/v1/hooks/` must be registered with its signature check (`app/hooks.py`). It fails on the old declaration
+    (`test_the_walk_refuses_what_it_must`). `tests/test_manual_routes.py` sends the Origin, so its 403 now comes from
+    the CSRF or the admin check, not from the Origin check.
+  - Evidence: integrated edge-bff suite 276 passed, 139 skipped (main agent, 2026-11-16).
 - **Lesson:** a rule for "every write" is tested by walking the route table.
 
 ### M260 — The Terminal gateway relays terminal-api JSON without `public_data` (2026-10-27)
@@ -8879,7 +8888,7 @@ in its staleness check.
   check the capability before the shared cache.
 - **Status:** OPEN. Harmless with one user.
 
-### M475 — Orc: a missing owner header becomes the shared owner `default`; progress of an owner-less run is readable by every caller (2026-11-16, OPEN)
+### M475 — Orc: a missing owner header becomes the shared owner `default`; progress of an owner-less run is readable by every caller (2026-11-16, OPEN; fixed on branch, not deployed)
 
 - **Symptom (read-only inspection, `verification/edge_multiuser/access_tiers/FINDINGS.md`):** any holder of
   `MARKET_AI_ORC_API_KEY` may name any owner in `X-Saniti-Owner`, and the orc-test-runner holds the same key
@@ -8892,9 +8901,26 @@ in its staleness check.
   - refuse a missing owner;
   - give the test runner its own key, limited to test owners (Railway variable, needs approval);
   - store and check the owner at every registry.
-- **Status:** OPEN. No external user exists yet.
+- **Solution built (Phase 0, B2):**
+  - `owner_from_header` raises 400 `OWNER_REQUIRED` for a missing or blank `X-Saniti-Owner`; `DEFAULT_OWNER` is gone
+    (`apps/market-ai-orc/app/conversations.py`). Every route that reads the header goes through `caller_owner`
+    (`app/main.py`), the CLIENT-history run included; the two identity refusals carry `{"error": {...}}` beside the
+    existing `detail`.
+  - Second bearer `MARKET_AI_ORC_TEST_KEY` (`config.py` `internal_test_api_key`, never in the repr): it authenticates
+    but may name only `golden-*`, `test-*` or `someone-else` (`TEST_OWNER_RE`), else 403 `OWNER_NOT_ALLOWED`. Both
+    keys are compared in constant time on every call. orc-test-runner reads `MARKET_AI_ORC_TEST_KEY` and falls back to
+    `MARKET_AI_ORC_API_KEY` while it is unset (`apps/orc-test-runner/run.py`).
+  - `progress.tracking` and `stop.running` store the normalised owner; an entry without an owner never matches.
+  - Tests: `apps/market-ai-orc/tests/test_owner_header.py` (every owner route refuses a missing owner; the test key
+    with a `u_` owner gives 403; the route list is derived from the app), `test_progress.py`, `test_stop.py`. Orc
+    suite: 1806 passed, 365 skipped without Postgres; with a local Postgres the same 31 failures and 3 errors as before
+    the change (test_data_access_postgres 29, test_catalog_postgres 1, test_ip2 1, test_request_data 3 errors).
+  - To know: conversations stored under the owner `default` (by callers that sent no header) can no longer be read.
+    EDGE always sends `EDGE_OWNER` and orc-test-runner always a `golden-*` owner, so no current caller depends on it.
+- **Status:** OPEN. No external user exists yet. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed; the Railway variable
+  `MARKET_AI_ORC_TEST_KEY` is not set yet (EXEC.md EXEC-MU-ACCOUNTS, "Phase 0 deploy steps").
 
-### M474 — Orc manual agent: every waiting step of every owner is listed to any caller (2026-11-16, OPEN)
+### M474 — Orc manual agent: every waiting step of every owner is listed to any caller (2026-11-16, OPEN; fixed on branch, not deployed)
 
 - **Symptom:** `/api/v1/dev/manual/steps` (edge-bff `main.py:598-610`) lists and answers model steps of any run.
 - **Verified cause:**
@@ -8906,9 +8932,18 @@ in its staleness check.
 - **Class:** a troubleshooting route that crosses owners.
 - **Solution (planned, Phase 0):** admin-only with MFA; steps keep their owner; `pending(owner)` and `answer(owner, …)`;
   `write` on the POST.
-- **Status:** OPEN. Blocker before a second user.
+- **Solution built (Phase 0, B1 and B2):**
+  - Orc: `Step` stores the run's owner (the `current_owner` context set by the run route); `manual.pending(owner)`
+    lists only that owner's steps and `manual.answer(owner, step_id, reply)` answers another owner's step as
+    `NOT_WAITING` (`apps/market-ai-orc/app/manual_agent.py`, `app/main.py`); both routes need the owner header.
+  - edge-bff: both manual routes are admin-only (`EDGE_ADMIN_OWNERS`; 403 `CAPABILITY_REQUIRED`, capability
+    `admin.manual`), the POST with CSRF (M259).
+  - MFA is not in Phase 0: it comes with the accounts of Phase 1 (contract section 4, "Admin MFA").
+  - Tests: `apps/market-ai-orc/tests/test_manual_agent.py` (owner A's steps are invisible to owner B and cannot be
+    answered by B), `apps/edge-bff/tests/test_manual_routes.py`.
+- **Status:** OPEN. Blocker before a second user. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed.
 
-### M473 — Sign-out leaves account data in browser storage (2026-11-16, OPEN)
+### M473 — Sign-out leaves account data in browser storage (2026-11-16, OPEN; fixed on branch, not deployed)
 
 - **Symptom:** after sign-out, the next person on the same browser inherits the previous account's data.
 - **Verified cause:** sign-out clears memory only (`apps/edge-bff/static/edge-client.js:11,138`). These keys are not
@@ -8921,9 +8956,21 @@ in its staleness check.
 - **Class:** per-user state stored per browser.
 - **Solution (planned, Phase 0):** a storage registry (`browser` vs `user` keys, with a test that fails on an
   unclassified key) cleared on sign-out or a change of user.
-- **Status:** OPEN.
+- **Solution built (Phase 0, B4):**
+  - `apps/edge-bff/shared/edge-session.ts` holds the registry `STORAGE` (every localStorage, sessionStorage and
+    IndexedDB key of the shell and the six pages, classed `browser` or `user`) and `clearUserState()`, which removes
+    the `user` keys and the IndexedDB `terminal-files` (downloaded files and the Screener's last result).
+  - The shell's sign-out (`static/edge-client.js`) runs it even when the sign-out request fails. A sign-in or a
+    restored session with another login than `edge-last-login` clears the previous account's state first
+    (`noteLogin`), and the change is broadcast to the other tabs (`BroadcastChannel('edge-session')`).
+  - The shell loads the same code as `/edge-session.js`, built by `node shared/build-shell.mjs` (its first line names
+    the source's sha256).
+  - Tests: `apps/edge-bff/tests/test_storage_registry.py` fails on a storage key found in the code without an entry,
+    and when `static/edge-session.js` is not the build of the source; `terminal/tests/data/edge_session.test.ts`.
+    Terminal vitest 908 passed; `node shared/build-shell.mjs --check` passes.
+- **Status:** OPEN. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed.
 
-### M472 — The Terminal look check hard-codes another session's paths (2026-11-16, OPEN)
+### M472 — The Terminal look check hard-codes another session's paths (2026-11-16, OPEN; fixed on branch, not deployed)
 
 - **Symptom:** `node verification/terminal_api/terminal_look/look_check11.mjs`, required by AGENTS.md for every
   Terminal look change, writes into a scratchpad of an earlier session.
@@ -8932,9 +8979,17 @@ in its staleness check.
 - **Class:** a required check bound to one machine and one session.
 - **Solution (planned, Phase 0):** the output directory comes from an argument or the environment, and imports are
   relative. CI already runs the backend suites on every push (`.github/workflows/backend-tests.yml`; deploy gating M455).
-- **Status:** OPEN.
+- **Solution built (Phase 0, B4):** `look_check11.mjs` imports `./serve.mjs` relatively. The screenshots go to the
+  first argument, else `$LOOK_OUT`, else a new temporary directory (printed). BBRI's exported rows come from the second
+  argument, else `$LOOK_DATA`, else `OUT/look`. Playwright is taken from beside the file, `$PLAYWRIGHT_MODULE_DIR` or
+  the global npm folder.
+- **Still open:** `look_check8.mjs`, `look_check9.mjs`, `look_check10.mjs`, `look_check12.mjs` and `look_check13.mjs`
+  in `verification/terminal_api/terminal_look/` still hard-code `/home/user/saniti/...` or a session scratchpad
+  (grep, 2026-11-16). AGENTS.md requires only `look_check11.mjs`; the others fail on another machine until they get
+  the same change.
+- **Status:** OPEN. Update 2026-11-16: `look_check11.mjs` fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed; look_check8/9/10/12/13 not changed.
 
-### M471 — Every EDGE front-end reads any 403 as a CSRF or session failure (2026-11-16, OPEN)
+### M471 — Every EDGE front-end reads any 403 as a CSRF or session failure (2026-11-16, OPEN; fixed on branch, not deployed)
 
 - **Symptom (by reading the code):** a plan refusal would trigger a retry or a sign-out instead of an upgrade message.
 - **Verified cause:**
@@ -8947,9 +9002,26 @@ in its staleness check.
   - one `{"error":{"code","message","details"}}` shape for 401 and 403, with `CSRF_INVALID`, `CAPABILITY_REQUIRED`,
     `PLAN_EXPIRED`, `LIMIT_REACHED` and `MFA_REQUIRED`;
   - one shared client module reads the code.
-- **Status:** OPEN.
+- **Solution built (Phase 0, B1 server side, B4 client side):**
+  - Server: `apps/edge-bff/app/errors.py` maps FastAPI's and Starlette's own refusals and every `Refusal` to
+    `{"error": {"code", "message", "details"}}`: `UNAUTHENTICATED`, `CSRF_INVALID`, `CAPABILITY_REQUIRED` (with
+    `details.capability` and `display_name`), `SIGN_IN_RATE_LIMIT` (with `retry_after_s` and `Retry-After`),
+    `INVALID_INPUT` (naming the fields, never their values), `NOT_FOUND`, `METHOD_NOT_ALLOWED`. Messages are plain
+    English (EXEC-UI-1019B).
+  - Client: `shared/edge-session.ts` `readError` reads the code (and, during the rollout, the old `{"detail"}` of a
+    401 or 403). Only a 401 signs out; only a 403 `CSRF_INVALID` re-reads the session and repeats the write once; any
+    other 403 keeps the session and shows its words (`EdgeLabels.access` in `static/edge-labels.js`). Used by the
+    shell (`edge-client.js`), the Terminal (`live.ts`, `layoutsApi.ts`, `drawingsApi.ts`), Backtest, Screener, Radar,
+    Overview and Watchlist.
+  - Tests: `apps/edge-bff/tests/test_error_contract.py`, `terminal/tests/data/edge_session.test.ts`; the page suites
+    and all six builds passed (backtest 91, screener 1354 + 1 skipped, radar 8, overview 22, watchlist 22).
+  - Not yet in the full shape: refusals made by `main.py`'s older `error(code, status)` helper
+    (`INVALID_CREDENTIALS`, `ORIGIN_REJECTED`, the `StoreError` and `OrcError` codes) still answer
+    `{"error": {"code"}}` without `message` and `details`. The client decides by the code, so the behaviour is
+    right; the full shape is left for Phase 1.
+- **Status:** OPEN. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed.
 
-### M470 — terminal-api accepts the EDGE gateway key on its public domain (2026-11-16, OPEN)
+### M470 — terminal-api accepts the EDGE gateway key on its public domain (2026-11-16, OPEN; fixed on branch, not deployed)
 
 - **Symptom:** the per-user owner header planned in T2 would let any holder of the gateway key name any EDGE user.
 - **Verified cause:**
@@ -8963,9 +9035,34 @@ in its staleness check.
 - **Solution (planned, Phase 0, before T2):**
   - refuse the gateway key on the public host, or remove the public domain (decision D-T2);
   - put the owner in the cache credential.
-- **Status:** OPEN.
+- **Read-only check before the removal (job `a97135cc`, 2026-11-16; contract section 7):**
+  - `terminal.subscriber` holds 4 rows: one person (inactive since 2026-10-26, last direct sign-in 2026-10-25), the
+    gateway account (id 2) and two service accounts (ids 7 and 8). No direct sign-in within 30 days.
+  - The gateway account's access rows with a public client address, up to 2026-11-01, came from agents' local
+    verification tools that called the public domain with the gateway key, not from a browser or an outside caller
+    (B3, from the git history: commits `93c7d182` .. `1b657d59`).
+  - Every service already calls the private name: the workers' `TERMINAL_URL` and edge-bff's `EDGE_TERMINAL_URL` are
+    `http://terminal-api.railway.internal:8080`. terminal-api has `TERMINAL_ALLOWED_ORIGINS` =
+    `https://terminal-api-dev.up.railway.app`.
+- **Solution built (Phase 0, B3; user 2026-11-16: "Terminal API publik (hapus)"):**
+  - Private-only mode: with `TERMINAL_ALLOWED_ORIGINS` and `RAILWAY_PUBLIC_DOMAIN` unset, the service starts (it used
+    to refuse to start), adds no CORS middleware, and refuses the direct sign-in and every cookie route with 403
+    `direct_access_closed`, naming the fix (open the Terminal in EDGE; a service calls the private URL with its key).
+    The gateway key, the service keys and the admin key keep working (`apps/terminal-api/app/config.py`
+    `Settings.private_only`, `app/main.py` `direct_closed`).
+  - Gateway host rule, in both modes: the gateway key counts only on a request whose Host is
+    `terminal-api.railway.internal` (port ignored) and that carries none of Railway's edge headers
+    (`x-forwarded-for`, `x-forwarded-host`, `x-real-ip`, `forwarded`, `x-railway-edge`); otherwise 403
+    `gateway_host_not_allowed`, with the fix and an example. The host list is fixed in code and refuses a public
+    `*.up.railway.app` name at start.
+  - Not in Phase 0: the owner in the account cache credential (T2, Phase 3).
+  - Tests: `apps/terminal-api/tests/test_private_only.py`; terminal-api suite 91 passed.
+  - Consequence: a local verification tool that calls `https://terminal-api-dev.up.railway.app` (as those commits did)
+    stops working; such checks run on the private network (orc-test-runner or a job) once the domain is removed.
+- **Status:** OPEN. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed; `TERMINAL_ALLOWED_ORIGINS` is still set and the public domain is not
+  removed yet (EXEC.md EXEC-MU-ACCOUNTS, "Phase 0 deploy steps").
 
-### M469 — The public Terminal bundle embeds a real BBCA broker summary (2026-11-16, OPEN)
+### M469 — The public Terminal bundle embeds a real BBCA broker summary (2026-11-16, OPEN; fixed on branch, not deployed)
 
 - **Symptom:** `/terminal-app/` and its assets are served without a session (`apps/edge-bff/app/main.py:363-376`).
 - **Verified cause:**
@@ -8975,9 +9072,21 @@ in its staleness check.
 - **Class:** market data shipped as test fixture in a public asset (data terms, `verification/edge_multiuser/data_terms_exposure.md`).
 - **Solution (planned, Phase 0):** replace the fixture with synthetic numbers, or keep fixture mode out of the production
   build.
-- **Status:** OPEN. Low severity: one day from 2023.
+- **Solution built (Phase 0, B3):** fixture mode exists only in a fixture build. `terminal/src/main.ts` guards
+  `?fixture=reference` with `FIXTURE_BUILD = import.meta.env.MODE === 'fixture'`, a compile-time constant, so the
+  production build (`npm run build`, the bundle edge-bff serves without a session) drops `fixture.ts` and
+  `fixtureConstants.ts` as dead code (its two `Set`s are marked `/* @__PURE__ */` so nothing keeps the module). The 1:1
+  check builds with `npx vite build --mode fixture` first and refuses a build without fixture mode
+  (`tests/visual/compare.mjs`); `npm run build` afterwards restores the production page. Test:
+  `terminal/tests/data/fixture_bundle.test.mjs` (the production bundle holds no broker-summary constant). Terminal vitest
+  908 passed, build OK.
+- **Status:** OPEN. Low severity: one day from 2023. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed.
+- **Lesson (Vite `MODE` vs `DEV`):** a build-time switch that removes code from production keys on
+  `import.meta.env.MODE` (set only by `--mode`), not on `import.meta.env.DEV` or `PROD`: those follow `NODE_ENV`, so a
+  production build run with `NODE_ENV=development` or `test` (a CI step or a shell that exports it) would keep the
+  fixture and its data in the public bundle. Test the built bundle, not the source.
 
-### M468 — Terminal drawings saved in the browser are merged into whichever account signs in next (2026-11-16, OPEN)
+### M468 — Terminal drawings saved in the browser are merged into whichever account signs in next (2026-11-16, OPEN; fixed on branch, not deployed)
 
 - **Symptom (by reading the code):** user A's unsynced drawings would join user B's account on a shared browser.
 - **Verified cause:**
@@ -8987,4 +9096,10 @@ in its staleness check.
 - **Class:** an offline copy that is not bound to its owner.
 - **Solution (planned, Phase 0):** stamp each local set with the user that wrote it and merge only for that user, or
   retire the offline copy.
-- **Status:** OPEN. Harmless with one user.
+- **Solution built (Phase 0, B4):** `terminal/src/data/drawingsApi.ts` keeps an offline set as
+  `{"owner": <login>, "drawings": [...]}` (`stampCopy`), and `load()` merges only the sets of the signed-in login
+  (`ownCopy`). A set of the older form (a bare list) joins only when the signed-in login is the one this browser
+  signed in with last (`edge-last-login`); any other copy is removed, never shown or written to the account.
+  `ml.drawings.` is a `user` key of the storage registry, so sign-out removes it (M473). Test:
+  `terminal/tests/data/edge_session.test.ts`.
+- **Status:** OPEN. Harmless with one user. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed.
