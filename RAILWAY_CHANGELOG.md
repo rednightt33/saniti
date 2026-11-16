@@ -1,5 +1,33 @@
 # Railway changelog
 
+## 2026-11-16 — EXEC-WATCHLIST on dev: terminal-api, terminal-publisher, telegram-monitor, edge-bff; migration 20261116_001
+
+- **Go:** user 2026-11-16 "Oke, synchronize dulu dengan branch main, kemudian kerjakan. Go." (the release order of
+  EXEC-WATCHLIST, ERRORS M466: publisher and terminal-api first, then `main`, then the migration right after edge-bff).
+- **Before each deploy and the migration:** no EDGE job active and no orc turn running (`user_runs` (0, 0)).
+- **terminal-api** `171d24b6` SUCCESS 12:21 UTC (CLI upload; page family `watchlist`).
+- **terminal-publisher** `b51c2f0b` (12:21 UTC, CLI upload): Run Now 12:48 UTC skipped (within 20 minutes after the
+  12:30 tick, `should_run`); Run Now 12:59 UTC `watchlist_failed` step build, `InsufficientPrivilege` (the publisher's
+  role cannot read `stockbit_corporate_action`, ERRORS M466). Fixed at the source (`idx_event_annotation`), `55436c93`
+  SUCCESS 13:05 UTC; Run Now 13:06 UTC built `watchlist-stocks` (1 file, 0.1 MB, 2 s; index `finished_at`
+  13:08:27 UTC). Not a large update (0.23 s, 8,945 pages, `verification/watchlist/EXPLAIN_20261116.txt`).
+- **`main`** `6e39ef8e` → `bed51b81` → `854bcad6`. telegram-monitor `dd93934a` SUCCESS (stage name `watchlist`).
+  edge-bff `655a2e87` SKIPPED "CI check suite failed": the screener-worker job of the look-ahead gate (run
+  `43873068101`) failed its `SCREENER_ONBOARDING.md` pointer test (ERRORS M467). After the fix (`854bcad6`, every
+  workflow green: look-ahead gate, backend tests, generated files) the push made `642a7b2d` SKIPPED (no watched file
+  changed), so the agent started `serviceInstanceDeployV2` on `854bcad6` → `41811cfa` SUCCESS 13:25 UTC.
+  Read back: `/ready` 200, `/watchlist` and `/watchlist-app/` 200, `/api/v1/watchlist/index` and `/lists` 401 without
+  a session.
+- **Migration** `20261116_001_edge_bff_watchlist_lists.sql` on orc-test-runner (idle; its last job `JOB_EXIT 0`):
+  DRYRUN `MIG DRYRUN_BODY_OK`, then APPLY `MIG APPLY` 13:28 UTC, sha256 `c01d6929…`, `VAR_REMOVED` both times
+  (DATABASE_CHANGELOG.md).
+- **Live check as the owner** (`verification/watchlist/live_check_dev.py`, `verification/watchlist/LIVE_20261116.txt`):
+  57/57 ok — file by sha256, the lists API round trip and its refusals, the Screener star into the first list, the
+  page at 1440 and 390 px (lists, cards, prices, Radar and corporate-action badges, the Radar filter, no failed response
+  on the page, no sideways scroll). The live file recalculated from PostgreSQL: 40,518 comparisons, 0 differences.
+- **Postgres memory:** 1.99 GB at 13:27 UTC (the DRYRUN's `POSTGRES_MEMORY_CHECK`, refused: postgres-memory-cron due at
+  13:45 UTC). None of this was a large update; the scheduled restart at 13:45 UTC covers it.
+
 ## 2026-11-16 — backtest-worker `BACKTEST_WORKER_KEY` rotated; edge-bff redeployed (ERRORS M464, user "Boleh rotasi kunci worker")
 
 - **Why:** the old value appeared in an agent session's terminal output (ERRORS M464); it was not committed or sent

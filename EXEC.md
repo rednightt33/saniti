@@ -15336,3 +15336,11 @@ tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terba
 - **User 2026-11-16: "Oke, synchronize dulu dengan branch main, kemudian kerjakan. Go."** `main` (70 commit dari sesi lain:
   Backtest revamp, hak akses, M448–M465) digabung ke branch; catatan Watchlist jadi ERRORS M466; perbaikan (a) selesai
   (cek browser `?fail=index`/`?fail=file`). Lalu langkah rilis 1–4 di atas.
+- **Rilis dev 2026-11-16 selesai (L7) dan dicatat (L8):** terminal-api `171d24b6`, publisher `55436c93` (Run Now 13:06
+  UTC, file pertama; lari 12:59 gagal hak baca, diperbaiki ke `idx_event_annotation`, M466), `main` `854bcad6`,
+  telegram-monitor `dd93934a`, edge-bff `41811cfa` (deploy ditahan CI karena penunjuk baris `SCREENER_ONBOARDING.md`
+  bergeser, M467, lalu dideploy manual sesudah semua cek hijau), migrasi `20261116_001` DRYRUN lalu APPLY 13:28 UTC
+  (0 bintang sebelumnya). Cek live sebagai pemilik 57/57 (`verification/watchlist/LIVE_20261116.txt`); file live
+  dihitung ulang dari PostgreSQL: 40.518 perbandingan, 0 beda. Catatan: `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md`.
+- **Belum dibuktikan (butir 7 definisi selesai):** file diperbarui sendiri oleh lari terjadwal publisher (07:30 WIB
+  17 Nov adalah lari terjadwal pertama sesudah rilis). Known (b) M466 tetap terbuka.

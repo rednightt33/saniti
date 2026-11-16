@@ -1,5 +1,23 @@
 # Database changelog
 
+## 2026-11-16 — Named watchlists on the account (schema `edge_bff`, EXEC-WATCHLIST 2A) — applied on dev
+
+- **User:** "1A / 2A / 3A / 4A" (2026-11-16): lists keyed per account, several named lists on the server, the Screener
+  star into the first list, the existing stars become the list "Watchlist". Operational schema `edge_bff`, no market
+  data, no catalog row; not in `DATABASE_SCHEMA.md` (schema `public` only), as `20261107_001`.
+- **`20261116_001_edge_bff_watchlist_lists.sql`** (sha256 `c01d6929ae207b0f23c9ec48d74832c25b5ea5bd87b8e1686150c88d8aaa28bb`):
+  `edge_bff.watchlist_lists` (owner_key, list_id uuid, name 1–40 characters, position, indicators: null or 1–8 keys
+  `[a-z0-9_]{1,24}`; key (owner_key, list_id); one name per owner ignoring case); `edge_bff.watchlist_items` gains
+  `list_id` and `position` (NOT NULL), key (owner_key, list_id, ticker), a list's stocks go with it (ON DELETE
+  CASCADE). The preflight refuses an owner with more than 50 stars; the stars move into a list "Watchlist" at position
+  0. `edge_bff_runtime` gets SELECT/INSERT/UPDATE/DELETE on the lists (the items keep SELECT/INSERT/DELETE);
+  `scripts/provision_edge_bff_login.py` knows the grants. Rollback body in the file.
+- **Applied on dev 2026-11-16** right after edge-bff `41811cfa` (the old code wrote stars without a list): DRYRUN then
+  APPLY through `scripts/onboarding/run_job.sh scripts/onboarding/migration_job.py`
+  (`verification/watchlist/jobs/migration20261116_001{,_apply}.params.json`). Read back: 0 stars before (nothing to
+  move), the items' columns `owner_key, ticker, added_at, list_id, position` all NOT NULL, grants as above.
+  `APPLIED.sha256` updated. Live round trip as the owner: `verification/watchlist/LIVE_20261116.txt` (57/57).
+
 ## 2026-11-15 — INDEX features of 43 indexes and 33 groups (2024-01-02 on); catalog 20261115_004 — applied on dev
 
 - EXEC-INDEX-GROUP-HISTORY stages 6-7 (user go 2026-11-15 "Langsung go tahap 4-9"). `scripts/backfill_index_entities.py`

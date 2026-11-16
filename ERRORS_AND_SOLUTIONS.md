@@ -8806,7 +8806,7 @@ in its staleness check.
 - **Status:** FIXED (rerun on dev 2026-11-16).
 - **Lesson for new data:** none (verification only).
 
-### M466 — Watchlist: findings of the independent review before release (2026-11-16, fixed in the branch; one known)
+### M466 — Watchlist: findings of the independent review before release (2026-11-16, fixed and deployed on dev; one known)
 
 - **Found by:** the independent code review of EXEC-WATCHLIST L6 (`git diff 8bc5ddc2..`), each finding checked in the
   code before it was fixed.
@@ -8837,6 +8837,8 @@ in its staleness check.
   notice with "Try again", "Figures unavailable" in the header; list actions keep working; Indicators and the stock
   search wait for the figures. Checked in a browser with the fixture's `?fail=index` and `?fail=file` at 1440 and 390 px.
 - **Known, not fixed:** (b) a restored list's stocks get a new `added_at` (the Screener's star time).
+- **Status 2026-11-16:** deployed on dev (publisher `55436c93`, edge-bff `41811cfa`, migration `20261116_001` applied
+  after the new edge-bff code, as the release order says); live check 57/57 (`verification/watchlist/LIVE_20261116.txt`).
 - **Found at release (2026-11-16, run 12:59 UTC, `watchlist_failed` step build, `InsufficientPrivilege`):** the publisher
   reads as `terminal_market_reader`, which has no SELECT on `stockbit_corporate_action`; every dev check of the module
   had run through pgweb, a role that has it. Fix at the source layer: the corporate actions are read from
