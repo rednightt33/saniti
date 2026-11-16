@@ -14649,4 +14649,19 @@ tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terba
 
 ### Kemajuan
 
-- L1: dimulai 2026-11-16.
+- L1 selesai: beban baca harian di dev 0,23 s, 8.945 halaman (`verification/watchlist/EXPLAIN_20261116.txt`), bukan
+  update besar; `WATCHLIST_FORMULAS.md` + `scripts/watchlist_formulas_doc.py` + tes; aturan baru di `AGENTS.md`.
+- L2/L3 selesai di branch: migrasi `20261116_001` (belum dipasang di dev), `app/watchlist.py`, bintang Screener ke list
+  pertama (batasnya ikut 50 per list), izin login di `scripts/provision_edge_bff_login.py`; 8 tes baru; suite edge-bff
+  376 lulus (satu tes tata letak Monitor di ponsel kadang gagal: menunggu daftar percakapan 6 s, tidak terkait).
+- L4 selesai di branch: `apps/terminal-publisher/watchlist.py` (badge Radar = papan bawaan halaman Radar, level Standard,
+  gerbang Broad, varian bawaan; 102 saham pada 9 Nov), keluarga didaftarkan di publisher, terminal-api, telegram-monitor;
+  tes 199 / 65 / 41 lulus.
+- L5 selesai di branch: halaman Vite `apps/edge-bff/watchlist`, tab sesudah Overview dan di menu ☰; logo dari penyimpanan
+  logo Terminal (halaman memakai kebijakan CSP halaman Terminal: koneksi ke bucket yang sudah dipakai EDGE); 18 tes
+  halaman, 8 tes shell/halaman, 152 cek tata letak dan 32 cek interaksi di 1440/1152/390/360 px dan mode gelap.
+- L6: hitung ulang independen 121.554 perbandingan, 0 beda, pada 13, 10 dan 6 Nov
+  (`verification/watchlist/VALIDATION_20261116.txt`); tinjauan kode independen berjalan.
+- Urutan rilis (L7, tiap langkah ditanyakan): migrasi DRYRUN lalu APPLY di dev (harus sebelum edge-bff: kode bintang
+  Screener yang baru membaca kolom `list_id`), deploy publisher dan terminal-api, push `main` (edge-bff, telegram-monitor),
+  Run Now publisher, cek live sebagai pemilik.
