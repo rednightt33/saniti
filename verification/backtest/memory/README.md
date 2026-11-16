@@ -30,3 +30,15 @@ conditions), its preview first:
 
 A single-stock run (MAPI): 1.0 s and a 500 MB process after it before; 0.8-1.0 s and 147 MB after the change. A
 preview on a new thread took 0.2-0.3 s longer than on a warm one. The worker starts at 107-135 MB.
+
+The change as built (`compute.ts` ends each thread, `BACKTEST_THREAD_HEAP_MB=412` as derived at 2 GB, 4 in flight, the
+image's malloc settings), `measure.mjs` from this folder on the same files:
+
+| Request | Peak | Right after the run | 30 s after | Preview / run |
+|---|---|---|---|---|
+| the 12-stock portfolio | 535 MB | 224 MB | 224 MB | 6.9 / 7.5 s |
+| the same with two grammar Flow conditions | 717 MB | 188 MB | 187 MB | 10.9 / 12.4 s |
+| a single stock (MAPI) | 301 MB | 159 MB | 119 MB | 0.8 / 1.0 s |
+
+`thread_start` and `thread_end` carried the process's memory at each step (for the portfolio: preview thread 108 →
+190 MB, run thread 162 → 224 MB, the 3-stock preview 224 → 220 MB).
