@@ -14996,7 +14996,7 @@ terbitannya, dan mengosongkan setiap nilai Flow (semua keluarga, bukan hanya har
 tanggal ex aksi yang belum diputuskan, `unresolved`, atau berharga mentah. Penskalaan lot sebelum ex tetap bagian dari
 riwayat yang disesuaikan (K4 a, diperingatkan `FLOW_LOTS_RESTATED`). Laporan harian tidak lagi mendaftar `pending` biasa.
 
-### Deploy (hanya setelah Gerbang 2) dan rollback
+### Deploy (hanya setelah Gerbang 3, user 2026-11-16 "Opsi C") dan rollback
 
 1. PR branch → `main` (7B); CI hijau termasuk gerbang look-ahead; tidak ada job Backtest aktif (cek status job sebelum upload).
 2. **Worker lebih dulu:** worker baru menerima `{request, context}` maupun bentuk lama dan menganggap `context.rights` yang hilang
@@ -15005,10 +15005,19 @@ riwayat yang disesuaikan (K4 a, diperingatkan `FLOW_LOTS_RESTATED`). Laporan har
    repo; variabel anggaran memori K9 (b) diterapkan bersama upload (dengan persetujuan Gerbang 2) dan dicatat.
 3. Merge; screener-worker sebelum edge-bff (M459 item 15), keduanya dari `main` (K10 a: `checkSuites` diterapkan bersama deploy ini); M252: deploy `SKIPPED` → deploy commit itu
    eksplisit; `SUCCESS`; screener-worker `/ready` dan `engine_version` = repo.
+3a. telegram-monitor ikut merge (GitHub `main`, `checkSuites` off): sumber `Broker_Basis_Report` harus aktif sebelum
+   laporan pertama publisher; `SUCCESS` dicek.
+3b. terminal-publisher (CLI upload dari commit hijau yang sama; tidak tersambung GitHub), lalu satu run (Run Now):
+   `EVENTS_FORMAT` 3 menerbitkan ulang semua berkas events sekali = update besar, maka langkah restart Postgres
+   (`scripts/restart_postgres.py`, AGENTS "Postgres memory after large updates") sesudah pemeriksaan pembaca; dicatat di
+   `RAILWAY_CHANGELOG.md`.
 4. Verifikasi dev: `verification/backtest/e2e_dev.py`; satu run A-C; satu run D sebagai admin; panggilan worker tanpa hak ditolak;
-   P6.4 data nyata; ukuran memori dan waktu dicatat (run 12 saham + pratinjau).
+   P6.4 data nyata; ukuran memori dan waktu dicatat (run 12 saham + pratinjau); halaman Backtest di EDGE (tema dari
+   EDGE, jendela kondisi, satu run) di 1440 dan 390 px.
 5. **Rollback urutan terbalik:** edge-bff `960ef248` dulu, lalu screener-worker `eb9d30e1`, lalu backtest-worker `d9acefda`;
-   revert merge di `main`. Hasil lama tetap terjelaskan lewat `engine_version` per job; trial tidak di-reset.
+   terminal-publisher dan telegram-monitor ke deployment sebelumnya; revert merge di `main`. Berkas events format 3 tetap
+   terbaca oleh worker dan halaman lama: pembaca di `main` hanya memeriksa kolom dan `schema_version` (tetap 1) dan
+   mengabaikan kunci `basis` dan `format` (`origin/main` `datafile.ts decodeColumnar`, `kind`, diperiksa 2026-11-16). Hasil lama tetap terjelaskan lewat `engine_version` per job; trial tidak di-reset.
 
 ### Selesai berarti
 
