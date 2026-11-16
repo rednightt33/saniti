@@ -26,6 +26,7 @@ import { IC, ico } from './icons.ts';
 import { canonical, ctx, definitionOf, freshUniverse, presetOf, S, stateOfDefinition, ui } from './state.ts';
 import { entriesOf } from './entries.ts';
 import { applyTheme, followTheme, lastScreen, panelPrefs, saveLast, savePanel } from './storage.ts';
+import { onReset } from '../../shared/edge-session.ts';
 import { dataLine, T } from './texts.ts';
 import { closeDialog, dialogOpen, openMenu, openSave, toast } from './dialogs.ts';
 import { closePop, onUniverseClick, onUniverseField, openDrawer, placePop, renderUniverse, updateUniverseLight, uCountTxt } from './universe-ui.ts';
@@ -148,17 +149,21 @@ function pickFirst() {
   if (list.length && !list.some(r => r.ticker === S.pick)) { S.pick = sortRows(list, S.sort)[0].ticker; S.dtab = 'stock' }
 }
 /** the last open screen, for the next visit (scr.last) */
-let rememberT: ReturnType<typeof setTimeout> | undefined, pending = false;
+let rememberT: ReturnType<typeof setTimeout> | undefined, pending = false, dropped = false;
+/* EXEC-MU-ACCOUNTS Phase 0 (M473): the account ended or changed ('cleared', another login): the waiting save is
+   cancelled and nothing is written any more, also not by the pagehide of the reload that follows */
+onReset(() => { clearTimeout(rememberT); pending = false; dropped = true });
 function remember(now = false) {
+  if (dropped) return;
   clearTimeout(rememberT); pending = true;
   const write = () => {
     pending = false;
-    if (!ctx.catalog) return;
+    if (dropped || !ctx.catalog) return;
     saveLast({ name:S.name, definition:definitionOf(), ...(S.source?.kind === 'saved' ? { item_id:S.source.item_id } : S.source?.kind === 'preset' ? { preset:S.source.id } : {}), sort:S.sort, near:S.nearMiss });
   };
   if (now) write(); else rememberT = setTimeout(write, 400);
 }
-addEventListener('pagehide', () => { if (pending) remember(true) });
+addEventListener('pagehide', () => { if (pending && !dropped) remember(true) });
 
 /* ---- catalog and universe ---------------------------------------------------------------------------------- */
 function useCatalog(c: CatalogResponse) {

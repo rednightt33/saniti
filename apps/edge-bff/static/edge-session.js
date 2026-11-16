@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=de3c690c949b1600cf95367c69cc519224dd6d686fcf0639530246279958489b by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=473f9bd99035587ac538de1449e4932781d4f6ee5a3df85c8d3b1e0b9ab82832 by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -38,6 +38,7 @@ var EdgeSession = (() => {
     lastLogin: () => lastLogin,
     loginKey: () => loginKey,
     noteLogin: () => noteLogin,
+    onCleared: () => onCleared,
     onReset: () => onReset,
     readError: () => readError,
     reloadPage: () => reloadPage,
@@ -323,6 +324,13 @@ var EdgeSession = (() => {
       resets.delete(fn);
     };
   }
+  var clearedHooks = /* @__PURE__ */ new Set();
+  function onCleared(fn) {
+    clearedHooks.add(fn);
+    return () => {
+      clearedHooks.delete(fn);
+    };
+  }
   var role = "app";
   function setRole(r) {
     role = r;
@@ -346,8 +354,16 @@ var EdgeSession = (() => {
         const t = ev?.data?.type;
         if (t === "entitlements" || t === "cleared") clients.forEach((fn) => fn());
         if (t === "cleared") {
-          fireResets();
-          reloadPage();
+          clearedHooks.forEach((fn) => {
+            try {
+              fn();
+            } catch {
+            }
+          });
+          if (role === "app") {
+            fireResets();
+            reloadPage();
+          }
         }
       };
       c.unref?.();
@@ -424,10 +440,7 @@ var EdgeSession = (() => {
       }
       const res = await f(url, { credentials: "same-origin", ...init, method, headers });
       noteVersion(res);
-      if (res.status === 401) {
-        invalidate();
-        fireResets();
-      }
+      if (res.status === 401) invalidate();
       if (res.status === 403 && write && !retried) {
         const e = await errorOf(res.clone());
         if (e.kind === "csrf") {

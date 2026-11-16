@@ -2,7 +2,7 @@
    M471: the error contract in both shapes, the CSRF repeat only on CSRF_INVALID, a plan refusal never a retry or a
    sign-out; M473: the user keys cleared on sign-out and on a change of user; M468: a drawing copy only for its login. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { classify, clearUserState, checkUser, LAST_LOGIN_KEY, noteLogin, onReset, readError, sessionClient, accessText, isAccessRefusal }
+import { classify, clearUserState, checkUser, LAST_LOGIN_KEY, noteLogin, onCleared, onReset, readError, sessionClient, accessText, isAccessRefusal }
   from '../../../shared/edge-session';
 import { ownCopy, stampCopy } from '../../src/data/drawingsApi';
 
@@ -98,6 +98,23 @@ describe('the session and CSRF (M471)', () => {
     const other = new BroadcastChannel('edge-session');
     other.postMessage({ type:'cleared', from:'another-page' });
     await vi.waitFor(() => expect(dropped).toHaveBeenCalled());
+    other.close(); off();
+  });
+  it('a 401 of the page\'s own account keeps pending writes (its session expired: nothing to drop)', async () => {
+    const dropped = vi.fn(), off = onReset(dropped);
+    const c = sessionClient(async (url: any) => url === '/api/v1/auth/session' ? answer(200, { login:'alice', csrf_token:'t' }) : answer(401, { error:{ code:'UNAUTHENTICATED' } }));
+    await c.session();
+    expect((await c.send('/api/v1/x', { method:'PUT' })).status).toBe(401);
+    off();
+    expect(dropped).not.toHaveBeenCalled();
+    expect(c.identity).toBe('alice');
+  });
+  it('the shell hears another page\'s "cleared" too (onCleared), to drop its views and read the session again', async () => {
+    const heard = vi.fn(), off = onCleared(heard);
+    sessionClient(async () => answer(200, {}));
+    const other = new BroadcastChannel('edge-session');
+    other.postMessage({ type:'cleared', from:'another-tab' });
+    await vi.waitFor(() => expect(heard).toHaveBeenCalled());
     other.close(); off();
   });
   it('forgets the session on a 401 only', async () => {
