@@ -1,0 +1,67 @@
+name: Backtest look-ahead gate
+
+# EXEC-BACKTEST-REVAMP P6 (user decision 3, 2026-11-15: the look-ahead test is a mandatory CI gate; ERRORS M448): a value
+# on day t may use only data up to t. apps/backtest-worker/tests/lookahead.test.ts checks every series the backtest can
+# read (derived from the registries) and the engine as a whole on synthetic data; the worker suite also holds the version,
+# entry-point and hash golden checks, the point-in-time, Flow and grammar tests (pit, flow-grammar, grammar, canonical),
+# and the Screener worker's suite. The Screener golden (tests/core/golden-grammar.test.mjs) and the page's worker-only
+# import check run with their suites. No database, no secrets, read-only. Whether a red run blocks a deploy (EXEC-BACKTEST-
+# REVAMP K10 a): Railway's checkSuites on edge-bff and screener-worker (.railway/railway.ts); backtest-worker is a CLI
+# upload, which no Railway setting holds, so its upload is a manual step taken only after this workflow is green on the
+# commit uploaded, with the run ID recorded in RAILWAY_CHANGELOG.md (apps/backtest-worker/README.md, Deploy).
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backtest-lookahead-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backtest-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/backtest-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm run registry:check
+      - run: npm test
+
+  # EXEC-BACKTEST-REVAMP P8: the Screener worker's suite too (its pointer test was red on main before P8; it shares the
+  # grammar and the rights table with the Backtest)
+  screener-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/screener-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm test
+
+  screener-and-backtest-page:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Screener (typecheck, build, tests incl. the grammar golden)
+        working-directory: apps/edge-bff/screener
+        run: npm ci && npm run build && npx vitest run
+      - name: Backtest page (typecheck, build, tests incl. the worker-only import check)
+        working-directory: apps/edge-bff/backtest
+        run: npm ci && npm run build && npx vitest run

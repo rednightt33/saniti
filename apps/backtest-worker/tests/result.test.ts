@@ -160,7 +160,7 @@ test('hand-computed ledger: monthly, annual, weekday, drawdowns, exit reasons, p
   assert.deepEqual(R.oos, { fraction: 0, cut: 7, cut_date: '2024-02-02' });
   assert.equal(R.stats.in_sample, null);                                     // cut 7 is not above 20
   assert.equal(R.trade_stats.in_sample.n, 5);
-  assert.deepEqual(R.meta.trials, { prior: 0, this_run: 1, total: 1, variants: [{ variant_hash: 'run', sharpe_daily: R.stats.all.sharpe / Math.sqrt(252), kind: 'run' }] });
+  assert.deepEqual(R.meta.trials, { prior: 0, this_run: 1, total: 1, variants: [{ variant_hash: 'run', sharpe_daily: R.stats.all.sharpe / Math.sqrt(252), kind: 'run' }], owner: null });   // K6 a: no owner trials given
   assert.equal(R.robustness.deflated.sharpe_variance_from, 'sample');
   assert.equal(R.robustness.monte_carlo?.n_trades, 5);
 });
@@ -533,4 +533,39 @@ test('no NaN or Infinity on the wire: a flat run without trades, a one-day perio
   assert.equal(buildResult(input(request({ capital: 1e9 }), wins)).trade_stats.all.profit_factor, 'inf');
   for (const bad of [{ a: NaN }, { a: [1, Infinity] }, { a: new Float64Array(2) }, [undefined], { f: () => 1 }]) assert.throws(() => assertFiniteJson(bad));
   assert.doesNotThrow(() => assertFiniteJson({ a: undefined, b: [null, 'x', 0, { c: -1 }] }));
+});
+
+test('statistical warnings (ERRORS M457): few trades, trades across the cut, one trial, a point-in-time anchor inside the period', async () => {
+  const { statWarnings } = await import('../../edge-bff/backtest/src/core/result.ts');
+  const dates = Array.from({ length: 100 }, (_, k) => `2025-${String(1 + Math.floor(k / 28)).padStart(2, '0')}-${String(1 + (k % 28)).padStart(2, '0')}`);
+  const t = (e: number, x: number) => ({ entry_bar: e, exit_bar: x }) as never;
+  const q = (conds: unknown[] = []) => ({ period: { from: dates[0] }, entry: { conditions: conds }, exit: { signals: { conditions: [] } } }) as never;
+  const codes = (w: { code: string }[]) => w.map(x => x.code);
+  const many = Array.from({ length: 40 }, (_, k) => t(k, k + 1));
+  assert.deepEqual(codes(statWarnings(q(), many, null, false, 5, dates)), []);
+  assert.deepEqual(codes(statWarnings(q(), many.slice(0, 29), null, false, 5, dates)), ['FEW_TRADES']);
+  // with an out-of-sample cut at bar 69: 30 trades after it would pass, 9 do not; one trade across the cut
+  const split = [...Array.from({ length: 30 }, (_, k) => t(k, k + 1)), t(68, 71), ...Array.from({ length: 9 }, (_, k) => t(80 + k, 81 + k))];
+  const w = statWarnings(q(), split, 69, true, 5, dates);
+  assert.deepEqual(codes(w), ['FEW_TRADES', 'OOS_STRADDLE']);
+  assert.match(w[0].message, /9 of them after the out-of-sample cut/);
+  assert.deepEqual(codes(statWarnings(q(), many, null, false, 1, dates)), ['DSR_SAMPLE_RULE']);
+  const d = { id: 'd', kind: 'test', test: { kind: 'value', metric: { kind: 'flow', metric: 'FL45', params: { anchor: dates[80] } }, op: 'gt', value: 5 } };
+  const a = statWarnings(q([d]), many, 69, true, 5, dates).find(x => x.code === 'ANCHOR_INSIDE_PERIOD')!;
+  assert.match(a.message, /after the out-of-sample cut/);
+  // a switched-off point-in-time condition is not run, so it raises no warning (Stage C F10)
+  assert.equal(statWarnings(q([{ ...d, enabled: false }]), many, 69, true, 5, dates).find(x => x.code === 'ANCHOR_INSIDE_PERIOD'), undefined);
+});
+
+test('K6 a: the owner\'s trials across lines give a second, stricter deflated Sharpe beside the line\'s', async () => {
+  const { buildResult } = await import('../../edge-bff/backtest/src/core/result.ts');
+  const r = rng(77), L = randomLedger(r, 300, 12), q = request({});
+  const owner = Array.from({ length: 40 }, (_, k) => ({ variant_hash: (k + 1).toString(16).padStart(64, '0'), sharpe_daily: (r() - 0.5) * 0.2 }));
+  const base = { request: q, ledger: L, versions: { ...VERSIONS, data_through: L.dates[L.dates.length - 1] }, tickers: ['AAAA'], prior_trials: [], sensitivity: null, duration_ms: 0, variant_hash: 'v'.repeat(64), lineage_key: 'l'.repeat(64), request_hash: 'h'.repeat(64) };
+  const line = buildResult(base as never), both = buildResult({ ...base, owner_trials: owner } as never);
+  assert.equal(line.robustness.deflated_owner, null);
+  assert.deepEqual(both.meta.trials.owner, { total: 41, days: 90 });
+  assert.equal(both.robustness.deflated_owner!.trials, 41);
+  assert.deepEqual(both.robustness.deflated, line.robustness.deflated, 'the line\'s own deflated Sharpe is unchanged');
+  assert.ok((both.robustness.deflated_owner!.dsr ?? 0) <= (line.robustness.deflated.dsr ?? 1), 'more trials, a stricter (lower) deflated Sharpe');
 });

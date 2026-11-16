@@ -1,0 +1,77 @@
+name: Backend tests
+
+# EXEC-BACKTEST-REVAMP Stage C2 (lens 2 F3, 2026-11-16): the Python services the Backtest revamp changed had no CI run:
+# edge-bff (rights and owners from the session, the catalogs filtered per session, the Screener's context, the backtest
+# store and its owner joins), terminal-publisher (the P9 broker basis in the events file) and telegram-monitor (the
+# Broker_Basis_Report message). Each suite runs here on every push and pull request. edge-bff's suite needs a
+# disposable Postgres (tests/conftest.py EDGE_TEST_POSTGRES_URL: it creates and drops its own database); its browser
+# tests skip without Playwright (pytest.importorskip), as they do on a machine without it, so this job checks the server.
+# No secrets, read-only.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  edge-bff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: apps/edge-bff
+    env:
+      EDGE_TEST_POSTGRES_URL: postgresql://postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pytest==8.4.2
+      - run: python -m pytest -q -p no:cacheprovider tests
+
+  terminal-publisher:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/terminal-publisher
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q -p no:cacheprovider tests
+
+  telegram-monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/telegram-monitor
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pytest==8.4.2
+      - run: python -m pytest -q -p no:cacheprovider test_telegram_monitor.py

@@ -71,7 +71,12 @@ Objects (all under v1/; <sha> is the sha256 of the object's gzip bytes, ERRORS M
   broker/{ticker}/{year}.<sha>.json.gz   columns d,b,i,m,bv,sv,bl,sl,bf,sf (bf, sf: buy and sell transactions,
                                    EXEC-TERMINAL-FLOW-IND); gap = [[date, board], ...] (ERRORS M157)
   events/{ticker}/all.<sha>.json.gz      corporate actions and insider transactions of idx_event_annotation, all dates
-                                   (one file per ticker, file id "all"); republished when the ticker's rows change
+                                   (one file per ticker, file id "all"); republished when the ticker's rows change.
+                                   EXEC-BACKTEST-REVAMP P9: a ticker with price-affecting actions also carries
+                                   `basis` (broker_basis: per action its broker basis factor and status, read by the
+                                   Backtest worker; the Terminal reads `columns` only), republished when a decision
+                                   changes; the daily run reports the recent actions that need attention to
+                                   telegram-monitor (Broker_Basis_Report, notify_basis; UPDATE_TABLE.md part C)
   manifest/{ticker}.json           per dataset: data_through and, per year, key, sha256, bytes, rows, first, last, stamp
   ref/tickers.json.gz, ref/brokers.json.gz (code, name, type, classification), state.json
   logo/{ticker}.png|svg            the ticker's logo: Stockbit's PNG, else TradingView's SVG (scanner `logoid`)
@@ -134,6 +139,7 @@ import json
 import math
 import os
 import re
+import statistics
 import sys
 import threading
 import time
@@ -199,9 +205,149 @@ EVENT_COLUMNS = ['d', 'role', 'family', 'type', 'action', 'holder', 'holder_role
                  'shares_change', 'pct_after', 'pct_change', 'pct_flag', 'price', 'price_estimated', 'value', 'origin',
                  'title', 'detail']
 # EXEC-TERMINAL-T7-T10 T9: bumping the events format re-stamps every ticker, so the next run republishes all files
-EVENTS_FORMAT = 2
+# (3: EXEC-BACKTEST-REVAMP P9, the basis block)
+EVENTS_FORMAT = 3
 EVENT_STAMPS_SQL = ('SELECT ticker, count(*), max(annotation_date)::text, max(ingestion_time)::text '
                     'FROM public.idx_event_annotation GROUP BY ticker')
+
+# EXEC-BACKTEST-REVAMP P9 (option A; user 2026-11-16 "A dulu", then "opsi A"; ERRORS M450, M458 item 2): the broker
+# basis of each price-affecting corporate action, in the events file as a block of its own (`basis`; the Terminal reads
+# only `columns`, so it is unaffected). The published prices carry an action's adjustment once TradingView's history of
+# the ticker is (re)loaded after it; the broker lots (Feature 05, from Stockbit) carry splits and bonus shares but not
+# rights issues (verification/backtest/basis: 98 of 107 rights issues below the market show the jump of their terms).
+# Per action, measured on the Regular board's broker VWAP against the close of the sessions within BASIS_WINDOW_DAYS of
+# the ex date (the same rows the broker files hold):
+#   terms       the jump of VWAP / close across the ex date equals the action's terms factor (BASIS_TOLERANCE) and is
+#               nearer to it than to 1: the prices carry the action, the broker lots do not; the Backtest multiplies the
+#               lots before it by `factor`
+#   same        the jump is 1 (within BASIS_TOLERANCE, and nearer to 1 than to the terms factor): both sources on one
+#               basis (factor 1). Stage C2 (lens 1 F7): before, an action whose terms factor was within BASIS_TOLERANCE
+#               of 1 was never `terms` (45 rights issues and 6 bonus shares of 3.6-5 % carry their jump), so the broker
+#               prices before it stayed up to 4 % off; the nearer reading now decides
+#   pending     the window after the ex date is not complete yet (factor 1 until then)
+#   unresolved  too few broker sessions, a jump that matches neither, or an action without an ex date (Stage C2, lens 1
+#               F8: keyed on its annotation date, never measured; factor 1; the Backtest masks across it)
+# Stage C2, user 2026-11-16 "A" (ERRORS M459 items 1, 9): an action is decided once, when its window of
+# BASIS_WINDOW_DAYS after the ex date is complete (`decided`, ex + BASIS_WINDOW_DAYS); before that it is pending. Its status
+# reads the sessions of its own window only: a rights issue's terms in the VWAP form (the traded price of the last session
+# before ex), never the price factors of later actions, so a later action never changes an earlier decision. The exact
+# factor (the published close through the later actions' factors, terms_factor `later`) is only the scale of the lots
+# before ex, part of the adjusted history (K4 a). The Backtest treats an action as undecided on every bar before
+# `decided`, whatever this file says, so no value on day t reads a decision made after t.
+# `price` says whether the published close carries the action (adjusted: smooth across the ex date) or not (raw: the
+# close jumps by the terms factor, the history was not reloaded, ERRORS D22); null when the factor is too small to tell.
+# (the price-affecting types are PRICE_ACTION_TYPES, defined with the xsection actions below)
+BASIS_WINDOW_DAYS, BASIS_MIN_SESSIONS, BASIS_TOLERANCE, BASIS_PRICE_MIN = 21, 3, 0.04, 0.10
+# an action this recent is measured again on every daily run (its sessions after the ex date are still arriving) and
+# reported while it needs attention (unresolved, or a close not reloaded; a pending one waits for its window)
+BASIS_RECENT_DAYS = 60
+BASIS_SOURCE, BASIS_REPORT_MAX = 'Broker_Basis_Report', 30          # telegram-monitor's source; items per message
+BASIS_COLUMNS = ['ex', 'type', 'factor', 'status', 'price', 'terms', 'observed', 'pre', 'post', 'decided']
+BASIS_TICKERS_SQL = ("SELECT ticker, max(coalesce(ex_date, annotation_date))::text FROM public.idx_event_annotation "
+                     "WHERE event_family = 'CORPORATE_ACTION' AND event_type = ANY(%s) GROUP BY ticker")
+BASIS_ACTIONS_SQL = ('SELECT coalesce(ex_date, annotation_date)::text, event_type, ratio_old::float8, ratio_new::float8, '
+                     'amount_per_share::float8, ex_date IS NULL FROM public.idx_event_annotation WHERE ticker = %s '
+                     "AND event_family = 'CORPORATE_ACTION' AND event_type = ANY(%s) "
+                     'ORDER BY coalesce(ex_date, annotation_date), event_key')
+BASIS_DAYS_SQL = ('SELECT b.trade_date::text, ((sum(b.buy_value) + sum(b.sell_value)) / '
+                  'nullif(100 * (sum(b.buy_lots) + sum(b.sell_lots)), 0))::float8, p.high::float8, p.low::float8, p.close::float8 '
+                  'FROM public."Feature_05_Foreign_Domestic_Broker_Detail" b JOIN public."Price_Stock_Indonesia_IDX" p '
+                  "ON p.ticker = b.ticker AND p.timeframe = 'Daily' AND p.is_final AND p.date = b.trade_date "
+                  "WHERE b.ticker = %s AND b.market_board = 'Regular' AND b.trade_date BETWEEN %s AND %s "
+                  'GROUP BY b.trade_date, p.high, p.low, p.close ORDER BY 1')
+
+
+def terms_factor(typ, old, new, price, cum_close=None, later=1.0, cum_vwap=None):
+    """The factor an action's terms give to the ratio of a broker price before it to the published (adjusted) close:
+    split and reverse split new/old; bonus share and stock dividend (old + new)/old; rights issue P/TERP with TERP =
+    (old P + new X)/(old + new), X the exercise price. The published close of the last session before the ex date is
+    TERP on the scale of the prices after every later action, so with `later` (the product of the later actions' price
+    factors) the factor is exact: f = ((old + new) A - new X)/(old A), A = cum_close x later (COCO 2026-07-09: 1.7429,
+    and no session off its range after it; verification/backtest/basis). When `later` is unknown (None), P is the broker
+    VWAP of that session (`cum_vwap`, the traded price, within about 1-3 %). None when a term is missing or not positive."""
+    pos = lambda x: isinstance(x, (int, float)) and math.isfinite(x) and x > 0
+    if not (pos(old) and pos(new)):
+        return None
+    if typ in ('STOCK_SPLIT', 'REVERSE_SPLIT'):
+        return new / old
+    if typ in ('BONUS_SHARE', 'STOCK_DIVIDEND'):
+        return (old + new) / old
+    if typ != 'RIGHT_ISSUE' or not pos(price):
+        return None
+    if later is not None and pos(cum_close):
+        a = cum_close * later
+        f = ((old + new) * a - new * price) / (old * a)
+        return f if pos(f) else None
+    return cum_vwap * (old + new) / (old * cum_vwap + new * price) if pos(cum_vwap) else None
+
+
+def broker_basis(actions, days, through):
+    """The basis rows (BASIS_COLUMNS) of a ticker's price actions [(ex, type, old, new, price[, no_ex])] (no_ex: the
+    action has no ex date and `ex` is its annotation date: unresolved, not measured) from its sessions
+    [(date, vwap, high, low, close)] around them; `through` is the last broker date. An action after `through` has no
+    broker row it could restate and is left out. The actions are measured newest first, so each rights issue's terms
+    factor reads the price factors of the actions after it (terms_factor `later`): an action's price factor is its factor
+    when the prices carry it (terms, or same with an adjusted close), 1 when the close was not reloaded (raw), unknown
+    otherwise (the older rights issues then take the VWAP form)."""
+    if not through:
+        return []
+    end = dt.date.fromisoformat(through)
+    num = lambda x: isinstance(x, (int, float)) and math.isfinite(x) and x > 0
+    rnd = lambda x: None if x is None else float(f'{x:.10g}')
+    out, later = [], 1.0
+    for ex, typ, old, new, price, *rest in sorted((a for a in actions if a[0] <= through), key=lambda a: a[0], reverse=True):
+        decided = (dt.date.fromisoformat(ex) + dt.timedelta(days=BASIS_WINDOW_DAYS)).isoformat()
+        if rest and rest[0]:
+            out.append([ex, typ, 1.0, 'unresolved', None, None, None, 0, 0, decided])
+            later = None                                    # its price factor is unknown: older ones take the VWAP form
+            continue
+        lo = (dt.date.fromisoformat(ex) - dt.timedelta(days=BASIS_WINDOW_DAYS)).isoformat()
+        near = [(d, v, c) for d, v, h, l, c in days if lo <= d <= decided and num(v) and num(c)]
+        pre, post = [x for x in near if x[0] < ex], [x for x in near if x[0] >= ex]
+        # the decision's terms: its own window only (a rights issue in the VWAP form); the scale's: exact with `later`
+        own = terms_factor(typ, old, new, price, None, None, pre[-1][1] if pre else None)
+        terms = terms_factor(typ, old, new, price, pre[-1][2] if pre else None, later, pre[-1][1] if pre else None) or own
+        status, observed, side = 'unresolved', None, None
+        if decided > end.isoformat():
+            status = 'pending'                              # the window is not complete: decided once it is (user "A")
+        elif len(pre) >= BASIS_MIN_SESSIONS and len(post) >= BASIS_MIN_SESSIONS:
+            observed = statistics.median(v / c for _, v, c in pre) / statistics.median(v / c for _, v, c in post)
+            to_terms = abs(math.log(observed / own)) if own is not None else math.inf
+            if to_terms <= math.log1p(BASIS_TOLERANCE) and to_terms < abs(math.log(observed)):
+                status = 'terms'
+            elif abs(observed - 1) <= BASIS_TOLERANCE:
+                status = 'same'
+            if own is not None and abs(own - 1) >= BASIS_PRICE_MIN:
+                jump = statistics.median(c for *_, c in pre) / statistics.median(c for *_, c in post)
+                side = 'raw' if abs(math.log(jump) - math.log(own)) < abs(math.log(jump)) else 'adjusted'
+        factor = terms if status == 'terms' else 1.0
+        # the price factor of this action, for the older ones' scale
+        carried = terms if status == 'terms' or (status == 'same' and side == 'adjusted') else 1.0 if side == 'raw' else None
+        later = None if later is None or carried is None else later * carried
+        out.append([ex, typ, rnd(factor), status, side, rnd(terms), rnd(observed), len(pre), len(post), decided])
+    return sorted(out, key=lambda r: r[0])
+
+
+def basis_digest(rows):
+    """The basis rows' part of the events stamp: a change of a decision (ex, type, factor, status, price) republishes the
+    events file. Stage C2 (lens 2 F7): the measured numbers (terms, observed, pre, post) are not in it, so the file is not
+    republished each day while sessions after a recent ex date arrive, and a run's data_version stays the same."""
+    return hashlib.sha256(json.dumps([r[:5] for r in rows], separators=(',', ':')).encode()).hexdigest()[:16]
+
+
+def basis_block(rows):
+    return {'columns': BASIS_COLUMNS, **columnar(rows, BASIS_COLUMNS),
+            'means': {'factor': 'multiply the broker lots of every date before ex by this factor (rupiah unchanged) to put '
+                                'broker prices on the basis of the published prices',
+                      'status': 'terms (the prices carry the action, the lots do not), same (one basis), pending (its window '
+                                'after ex is not complete yet), unresolved (neither: masked across ex)',
+                      'decided': 'the date the decision holds from (ex + window_days); a reader treats the action as '
+                                 'undecided on every date before it',
+                      'price': 'adjusted (the close carries the action) or raw (not reloaded after it); null: too small to tell',
+                      'terms': 'the factor of the terms', 'observed': 'median VWAP/close before ex over after',
+                      'pre': 'sessions before ex measured', 'post': 'sessions from ex measured'},
+            'rule': {'window_days': BASIS_WINDOW_DAYS, 'min_sessions': BASIS_MIN_SESSIONS, 'tolerance': BASIS_TOLERANCE,
+                     'price_min': BASIS_PRICE_MIN}}
 # EXEC-TERMINAL-FRESH (user 2026-10-27): final daily price sessions that have no broker data yet
 BEHIND_SQL = ('SELECT count(DISTINCT date) FROM public."Price_Stock_Indonesia_IDX" '
               "WHERE timeframe = 'Daily' AND is_final AND date > %s")
@@ -681,8 +827,8 @@ def event_rows(rows):
     return out
 
 
-def events_doc(ticker, rows):
-    return {'schema_version': SCHEMA_VERSION, 'dataset': 'events', 'ticker': ticker,
+def events_doc(ticker, rows, basis=None):
+    return {**({'basis': basis_block(basis)} if basis else {}),'schema_version': SCHEMA_VERSION, 'dataset': 'events', 'ticker': ticker,
             'units': {'shares_change': 'shares', 'pct_after': 'percent of shares', 'pct_change': 'percentage points',
                       'price': 'IDR per share', 'value': 'IDR'},
             'format': EVENTS_FORMAT,
@@ -1122,6 +1268,9 @@ class Publisher:
         self.changed = set()                                      # (dataset, ticker, year) written or removed this run
         self.written = 0
         self.broker_behind = None                          # final price sessions after the broker data (run())
+        # EXEC-BACKTEST-REVAMP P9: the broker basis of the tickers measured this run, the broker date it is measured
+        # through (run()), and the daily report's actions that need attention
+        self.basis_cache, self.basis_through, self.basis_report = {}, None, []
         self.bytes = 0
         self.xsection = {}                                  # the index written into state.json (run())
         self.xsection_failed = []                           # xsection files whose rebuild failed (their entry kept)
@@ -1220,6 +1369,7 @@ class Publisher:
     def publish(self, dataset, ticker, year, stamp=None):
         if dataset == 'events':
             rows = event_rows(self.conn.execute(EVENTS_SQL, (ticker,)).fetchall())
+            basis = self.basis_of(ticker)
         else:
             lo, hi = f'{year}-01-01', f'{year}-12-31'
             rows = self.conn.execute(PRICE_SQL if dataset == 'price' else broker_sql(self.kind_of(ticker)),
@@ -1233,7 +1383,7 @@ class Publisher:
                 del datasets[dataset]             # EXEC-IHSG-FLOW: no empty dataset for a ticker without rows (an index)
             return None
         doc = (price_doc(ticker, year, rows) if dataset == 'price' else broker_doc(ticker, year, rows)
-               if dataset == 'broker' else events_doc(ticker, rows))
+               if dataset == 'broker' else events_doc(ticker, rows, basis))
         body, sha = encode(doc)
         key, uploaded = self.store(files.get(str(year), {}), dataset, ticker, year, body, sha)
         if uploaded:
@@ -1799,6 +1949,7 @@ class Publisher:
         fi_stamps = self.fi_stamps() if fi_all else {}
         fi = fi_all if mode in ('daily', 'backfill', 'fixed_income') else []
         through = self.data_through()
+        self.basis_through = through['broker']                 # P9: the broker basis is measured through this date
         self.resolve_price_first_year()
         state = self.bucket.get_json('state.json') or {}
         self.previous_finished = state.get('finished_at')
@@ -1822,7 +1973,10 @@ class Publisher:
             todo += [('broker', t, y, None) for t, typ in kind.items() if typ in BROKER_TABLES for y in years]
             todo += self.changed_events(kind, force=True)
         elif mode == 'daily':
-            todo = self.changed_prices(kind) + self.changed_events(kind)
+            todo = self.changed_prices(kind)
+            # Stage C2 (lens 1 F11, lens 2 F5): a price year before the last one changed is a reloaded history (UPDATE_TABLE
+            # part C); the last year changes with every new candle, and an action that recent is measured as recent
+            todo += self.changed_events(kind, prices={t for d, t, y, _ in todo if d == 'price' and y is not None and y < self.last_year})
             since = state.get('broker_through')
             if since and through['broker'] and through['broker'] > since:
                 new = self.conn.execute(
@@ -1848,9 +2002,16 @@ class Publisher:
             lo, hi = int(start_from[:4]), int(end_to[:4])
             todo = [('broker', t, y, None) for t in tickers if kind.get(t) in BROKER_TABLES
                     for y in range(max(lo, self.broker_first_year), hi + 1)]
+            # P9: republished broker rows may change a ticker's broker basis
+            todo += self.changed_events(kind, only=set(tickers))
         else:
             raise SystemExit(f'unknown mode {mode}')
         fi_todo = self.changed_fixed_income(fi, fi_stamps, force=mode in ('backfill', 'fixed_income')) if fi else []
+        if mode == 'daily':                                  # P9.4: the actions whose broker basis needs attention
+            self.basis_report = self.basis_attention()
+            log('broker_basis', measured=len(self.basis_cache), attention=len(self.basis_report),
+                **{k: sum(1 for x in self.basis_report if x['status'] == k) for k in ('pending', 'unresolved')},
+                raw_price=sum(1 for x in self.basis_report if x['price'] == 'raw'))
         log('plan', mode=mode, files=len(todo), fi_files=len(fi_todo), window=[self.first_year, self.last_year],
             price_first_year=self.price_first_year, broker_first_year=self.broker_first_year, data_through=through)
         self.step('files')
@@ -2176,18 +2337,59 @@ class Publisher:
             log('gc_failed', error=type(e).__name__)
             return 0
 
-    def changed_events(self, kind, force=False):
-        """Tickers whose event rows changed (count, last date, last ingestion), or every ticker with events."""
-        out = []
+    def basis_of(self, ticker):
+        """The ticker's broker basis rows (broker_basis), measured once per run."""
+        if ticker not in self.basis_cache:
+            actions = self.conn.execute(BASIS_ACTIONS_SQL, (ticker, list(PRICE_ACTION_TYPES))).fetchall()
+            days = {}
+            for ex, *_ in actions:
+                if self.basis_through and ex <= self.basis_through:
+                    d = dt.date.fromisoformat(ex)
+                    lo, hi = (d - dt.timedelta(days=BASIS_WINDOW_DAYS)).isoformat(), (d + dt.timedelta(days=BASIS_WINDOW_DAYS)).isoformat()
+                    for row in self.conn.execute(BASIS_DAYS_SQL, (ticker, lo, hi)).fetchall():
+                        days[row[0]] = row
+            self.basis_cache[ticker] = broker_basis(actions, [days[d] for d in sorted(days)], self.basis_through)
+        return self.basis_cache[ticker]
+
+    def changed_events(self, kind, force=False, prices=(), only=None):
+        """Tickers whose event rows changed (count, last date, last ingestion) or whose broker basis changed, or every
+        ticker with events (force); `only`: those tickers alone. The basis (P9) is measured again where its inputs may
+        have changed: the ticker's events, a price year before the last one published this run (`prices`, a history
+        reloaded after an action; the last year changes with every candle), an action within BASIS_RECENT_DAYS of the broker date (its sessions after the ex date are still
+        arriving), a ticker of `only` (a broker range republished), or a stamp without one; elsewhere the published basis
+        part of the stamp is kept."""
+        out, prices = [], set(prices)
+        latest = dict(self.conn.execute(BASIS_TICKERS_SQL, (list(PRICE_ACTION_TYPES),)).fetchall())
+        recent = ((dt.date.fromisoformat(self.basis_through) - dt.timedelta(days=BASIS_RECENT_DAYS)).isoformat()
+                  if self.basis_through else None)
         for ticker, count, last, ingested in self.conn.execute(EVENT_STAMPS_SQL).fetchall():
-            if ticker not in kind:
+            if ticker not in kind or (only is not None and ticker not in only):
                 continue  # delisted tickers are not served by the terminal
-            stamp = f'format={EVENTS_FORMAT};rows={count};last={last};ing={ingested}'
+            base = f'format={EVENTS_FORMAT};rows={count};last={last};ing={ingested}'
             current = self.manifest(ticker)['datasets'].get('events', {}).get('files', {}).get('all', {})
-            if force or current.get('stamp') != stamp:
+            old = current.get('stamp') or ''
+            old_base, _, old_basis = old.partition(';basis=')
+            stamp = base
+            if ticker in latest:
+                again = (force or old_base != base or not old_basis or ticker in prices or only is not None
+                         or (recent is not None and latest[ticker] >= recent))
+                stamp += ';basis=' + (basis_digest(self.basis_of(ticker)) if again else old_basis)
+            if force or old != stamp:
                 out.append(('events', ticker, 'all', stamp))
-        log('planning', step='event stamps read', changed=len(out))
+        log('planning', step='event stamps read', changed=len(out), basis_measured=len(self.basis_cache))
         return out
+
+    def basis_attention(self):
+        """The daily report (P9.4): the actions within BASIS_RECENT_DAYS of the broker date measured this run whose basis
+        needs attention (unresolved, or a close not reloaded after the action), oldest first. Stage C2 (user "A"): a
+        pending action is not listed; every new action is pending for its window, which is no fault."""
+        if not self.basis_through:
+            return []
+        recent = (dt.date.fromisoformat(self.basis_through) - dt.timedelta(days=BASIS_RECENT_DAYS)).isoformat()
+        items = [{'ticker': t, 'ex': r[0], 'type': r[1], 'status': r[3], 'price': r[4]}
+                 for t, rows in self.basis_cache.items() for r in rows
+                 if r[0] >= recent and (r[3] == 'unresolved' or r[4] == 'raw')]
+        return sorted(items, key=lambda x: (x['ex'], x['ticker']))
 
     def changed_prices(self, kind):
         """Price ticker-years whose source stamp (rows, last date, last ingestion, sum of closes) differs from the
@@ -2585,6 +2787,18 @@ def notify_broker_behind(run_day):
     post_notify({'source_table': 'Terminal_Broker_Freshness', 'execution_id': f'terminal-{run_day}'}, 'broker_behind_notify')
 
 
+def notify_basis(run_day, items):
+    """EXEC-BACKTEST-REVAMP P9.4 (user 2026-11-16, option A: "laporan harian (log dan Telegram)"): ask telegram-monitor
+    (source Broker_Basis_Report) once per day to list the recent corporate actions whose broker basis needs attention:
+    pending (too few sessions after the ex date yet), unresolved, or a published close not reloaded after the action
+    (ERRORS D22: the price history needs its pull again). Facts only: tickers, dates and enumerations, at most
+    BASIS_REPORT_MAX items with the total. Stage C2 (lens 2 F7): the id carries a digest of the list, so a later run the
+    same day sends a changed list and the same list once."""
+    digest = hashlib.sha256(json.dumps(items, separators=(',', ':'), sort_keys=True).encode()).hexdigest()[:8]
+    post_notify({'source_table': BASIS_SOURCE, 'execution_id': f'broker-basis-{run_day}-{digest}',
+                 'details': {'date': run_day, 'total': len(items), 'items': items[:BASIS_REPORT_MAX]}}, 'basis_notify')
+
+
 def notify_publication(status, run_time, manual=False, **details):
     """EXEC-PUBLISHER-SPEED (user go 2026-10-29, ERRORS M303): ask telegram-monitor (source Terminal_Publisher_Health) to
     send one alert. `run_time`: the WIB run time the run belongs to (a manual run: its start). One message id per run
@@ -2791,6 +3005,9 @@ def main(argv):
     # a run from 17:00 WIB (stale_alert_due) warns when broker data lags the prices
     if mode == 'daily' and (pub.broker_behind or 0) >= 1 and stale_alert_due(started):
         notify_broker_behind(started.astimezone(WIB).date().isoformat())
+    # P9.4: the recent actions whose broker basis needs attention, once a day (telegram-monitor keeps one per date)
+    if mode == 'daily' and pub.basis_report:
+        notify_basis(started.astimezone(WIB).date().isoformat(), pub.basis_report)
     # EXEC-SCREENER: a failed xsection file fails the run visibly once everything else is published (exit 3); so does a
     # reference file whose content-keyed copy failed (EXEC-MU-RUNTIME T5; its fixed-key copy was written)
     # EXEC-RADAR R5 (QA 2026-11-14), EXEC-OVERVIEW: a page build or put that failed is a partial publication too (file

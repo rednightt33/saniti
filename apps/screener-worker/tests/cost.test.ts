@@ -179,7 +179,10 @@ test('a counts request teaches the cost model as a run does', async () => {
 test('compute_budget on a flow screen: refused before compute with how to pass (fewer custom or flow conditions, shorter windows or anchors, a narrower universe) and a right and a wrong example; the catalog\'s limit entry states the same fix before', async () => {
   const { port } = await worker({ SCREENER_MAX_CPU_MS: '1' });
   const definition = { universe: U, logic: 'all', conditions: [{ id: 'a', enabled: true, test: { kind: 'value', metric: pct(flow('FL18', { anchor_sessions: 40 }), 10), op: 'ge', value: 50 } }] };
-  const r = await call(port, 'POST', '/v1/run', { schema_version: 1, client_order: { page: 'p', seq: 1 }, definition, options: { exhaustive: true } }, auth(OWNER_A));
+  // FL18's Screener version is for admins (EXEC-BACKTEST-REVAMP P5, K8 b): without the right it is refused before any cost
+  const restricted = await call(port, 'POST', '/v1/run', { schema_version: 1, client_order: { page: 'p', seq: 1 }, definition, options: { exhaustive: true } }, auth(OWNER_A));
+  assert.deepEqual([restricted.status, restricted.body.error.code, restricted.body.error.field], [422, 'CONDITION_RESTRICTED', 'definition.conditions[0].test.metric.of']);
+  const r = await call(port, 'POST', '/v1/run', { schema_version: 1, client_order: { page: 'p', seq: 1 }, definition, options: { exhaustive: true }, context: { rights: ['flow_point_in_time'] } }, auth(OWNER_A));
   assert.equal(r.status, 422);
   assert.deepEqual([r.body.error.code, r.body.error.details.limit, r.body.error.details.allowed, r.body.error.details.costliest], ['LIMIT_EXCEEDED', 'compute_budget', 1, 'a']);
   assert.match(r.body.error.message, /above the 1 ms budget; the costliest is condition 1\. To pass, use default parameters, fewer custom or flow conditions, shorter lengths, windows or anchors, or a narrower universe \(right: .*; wrong: .*anchored.*\)\.$/);

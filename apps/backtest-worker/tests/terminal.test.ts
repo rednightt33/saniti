@@ -443,7 +443,8 @@ test('reference lists: tickers with name, type and their groupings, brokers with
   const c = new TerminalClient(options());
   // the publisher's columns (ticker, name, type, sector, industry): sector and industry are the groupings
   assert.deepEqual(await c.reference('tickers'), { groupings: ['sector', 'industry'], tickers: [{ ticker: 'BBCA', name: 'Bank Central Asia', type: 'stock', groups: { sector: 'Finance', industry: 'Banks' } }, { ticker: 'IHSG', name: 'Composite', type: 'index', groups: { sector: null, industry: null } }] });
-  assert.deepEqual(await c.reference('brokers'), [{ code: 'AK', name: 'UBS', type: 'Foreign' }, { code: 'YP', name: 'Mirae', type: 'Domestic' }]);
+  // no classification column in this file: null (EXEC-BACKTEST-REVAMP P3 reads it where the file has it)
+  assert.deepEqual(await c.reference('brokers'), [{ code: 'AK', name: 'UBS', type: 'Foreign', classification: null }, { code: 'YP', name: 'Mirae', type: 'Domestic', classification: null }]);
 });
 
 test('every column of the ticker reference but ticker, name and type is a grouping, in the file\'s order; null, \'\' and \'Undefined\' are unclassified (PF6)', async () => {

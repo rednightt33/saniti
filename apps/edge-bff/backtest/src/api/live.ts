@@ -12,6 +12,10 @@ import { ApiFailure, isAbort, type BacktestApi, type Card, type TickerBars, type
 import { Compute } from './compute.ts';
 import { fileCache, type FileCache } from './cache.ts';
 import { PUBLISHED_TEXTS } from './texts.ts';
+import type { CatalogResponse } from '../../../screener/src/core/contract.ts';
+import { retryAfter } from '../../../screener/src/api/live.ts';   // Retry-After as the Screener page reads it
+
+const sleep = (ms: number) => new Promise(ok => setTimeout(ok, ms));
 
 const TERMINAL = '/api/terminal/v1', BACKTESTS = '/api/v1/backtests';
 const SIGN_IN = 'Sign in to EDGE first, then open the Backtest tab again.';
@@ -37,7 +41,8 @@ async function failure(res: Response, service: string): Promise<ApiFailure> {
   if (res.status === 401) return new ApiFailure(SIGN_IN, code || 'UNAUTHENTICATED', 401);
   if (code === 'BACKTEST_DISABLED') return new ApiFailure(msg || 'Backtests are switched off on this server.', code, res.status);
   if (res.status === 429) return new ApiFailure(`Limit reached: ${msg || code || 'try again later'}.`, code, 429);
-  return new ApiFailure(msg || `The ${service} answered ${res.status}${code ? ` (${code})` : ''}.`, code, res.status, err?.field);
+  return new ApiFailure(msg || `The ${service} answered ${res.status}${code ? ` (${code})` : ''}.`, code, res.status, err?.field,
+    retryAfter(res.headers.get('Retry-After')));
 }
 
 /* `signal`: the caller's AbortSignal; an aborted call rejects with the AbortError itself (types.ts isAbort) */
@@ -170,6 +175,25 @@ export function liveApi(opts: { cache?: FileCache } = {}): BacktestApi {
     ready: (card: Card) => compute.ready(card),
     indicatorOutputs: (ticker, id, params) => compute.indicatorOutputs(ticker, id, params),
     conditionSeries: (ticker, card) => compute.conditionSeries(ticker, card),
+    tracks: (ticker, detail) => compute.tracks(ticker, detail),
+    tracked: (ticker, which) => compute.tracked(ticker, which),
+    // Stage D (D5): the Screener's catalog of this session (edge-bff filters it per right, as for the Screener page)
+    // the Screener's catalog, by the contract's rule the Screener page follows (screener/src/app.ts withRetry): the
+    // worker still loading its data after it woke (503 SCREENER_NOT_READY) is asked again after its Retry-After, BUSY
+    // twice, an unavailable or unreachable service once; a minute of waits at most (ERRORS M462: the first visit after
+    // the worker slept left the condition window without the Screener's rows)
+    async screenerCatalog() {
+      for (let k = 0; ; k++) {
+        try { return await call<CatalogResponse>('/api/v1/screener', '/catalog', undefined, 'screener') }
+        catch (e) {
+          const f = e instanceof ApiFailure ? e : null;
+          if (f?.code === 'SCREENER_NOT_READY' && k < 12) { await sleep(Math.max(1, f.retryAfter ?? 5) * 1000); continue }
+          if (f?.code === 'BUSY' && k < 2) { await sleep(1000 * (k + 1)); continue }
+          if ((f?.code === 'SCREENER_UNAVAILABLE' || f?.code === 'NETWORK') && k < 1) { await sleep(2000); continue }
+          throw e;
+        }
+      }
+    },
 
     signalsPreview: (req: SignalsPreviewRequest, o = {}) =>
       call<SignalsPreview>(BACKTESTS, '/signals', { ...req, client_order:{ page, seq:++previews } }, undefined, o.signal),

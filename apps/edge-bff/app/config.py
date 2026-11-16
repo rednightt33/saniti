@@ -4,6 +4,17 @@ import re
 from urllib.parse import urlsplit
 
 
+def admin_owners_of(raw, owner):
+    """EDGE_ADMIN_OWNERS: owners separated by commas, each as EDGE_OWNER is written; unset means the one owner. An empty
+    value, a blank entry ("a,,b"), spaces or a repeated owner stop the start (a typo must not turn every right off)."""
+    if raw is None:
+        return (owner,)
+    parts = raw.split(',')
+    if not raw or any(not p or p != p.strip() or not re.fullmatch(r'[A-Za-z0-9._:@-]{1,128}', p) for p in parts) or len(set(parts)) != len(parts):
+        raise ValueError('Invalid EDGE_ADMIN_OWNERS: owners separated by commas, without blanks or spaces')
+    return tuple(parts)
+
+
 @dataclass(frozen=True)
 class Settings:
     database_url: str
@@ -43,6 +54,9 @@ class Settings:
     screener_worker_url: str = ''
     screener_worker_key: str = ''
     screener_timeout_seconds: float = 0
+    # EXEC-BACKTEST-REVAMP P5: the owners with every admin right (app/rights.py), EDGE_ADMIN_OWNERS as a comma list;
+    # default the one owner (EDGE_OWNER) until EDGE-MULTIUSER
+    admin_owners: tuple = ()
 
     @classmethod
     def from_env(cls):
@@ -72,7 +86,8 @@ class Settings:
                 backtest_max_result_bytes=int(os.environ.get('BACKTEST_MAX_RESULT_BYTES', '0')),
                 screener_worker_url=os.environ.get('SCREENER_WORKER_URL', '').strip().rstrip('/'),
                 screener_worker_key=os.environ.get('SCREENER_WORKER_KEY', ''),
-                screener_timeout_seconds=float(os.environ.get('SCREENER_TIMEOUT_SECONDS', '0')))
+                screener_timeout_seconds=float(os.environ.get('SCREENER_TIMEOUT_SECONDS', '0')),
+                admin_owners=admin_owners_of(os.environ.get('EDGE_ADMIN_OWNERS'), required('EDGE_OWNER')))
         s.validate()
         return s
 
@@ -81,6 +96,8 @@ class Settings:
             raise ValueError('Invalid EDGE_PASSWORD_VERIFIER')
         if not re.fullmatch(r'[A-Za-z0-9._:@-]{1,128}', self.owner) or len(self.session_secret) < 32:
             raise ValueError('Invalid EDGE owner/session configuration')
+        if not all(isinstance(o, str) and re.fullmatch(r'[A-Za-z0-9._:@-]{1,128}', o) for o in self.admin_owners):
+            raise ValueError('Invalid EDGE_ADMIN_OWNERS')
         host = urlsplit(self.orc_url).hostname
         if self.environment != 'local' and (host != 'market-ai-orc.railway.internal' or urlsplit(self.orc_url).scheme != 'http'):
             raise ValueError('EDGE_ORC_URL must use the existing Railway private Orc endpoint')

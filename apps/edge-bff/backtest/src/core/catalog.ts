@@ -13,21 +13,50 @@ import { BY_ID, ValidationError } from './registry.ts';
 export const DISPLAY: Record<'indicator' | 'dip' | 'breakout' | 'volspike' | 'macross' | 'macd' | 'fnet' | 'broker' | 'top5', number> = {
   indicator: 1, dip: 0.01, breakout: 1, volspike: 1, macross: 1, macd: 1, fnet: 1e9, broker: 1e9, top5: 1e9,
 };
+/* EXEC-BACKTEST-REVAMP P2: a condition in the Screener's grammar has one numeric threshold where its test compares with
+   one constant: a VALUE test's value with a one-bound operator (between and outside have two, so no single axis), a
+   STATE or EVENT comparison's constant on the right, or that of a window's inner test. Its unit is the metric's own
+   (the Screener shows it as it is), so its display scale is 1. */
+const isConst = (s: unknown): boolean => !!s && typeof s === 'object' && !('kind' in (s as object)) && typeof (s as { value?: unknown }).value === 'number';
+export function testThresholdPath(t: unknown): string[] | null {
+  if (!t || typeof t !== 'object') return null;
+  const x = t as Record<string, unknown>;
+  if (x.kind === 'value') return typeof x.value === 'number' && x.value2 === undefined ? ['value'] : null;
+  if (x.kind === 'state') return isConst(x.rhs) ? ['rhs', 'value'] : null;
+  if (x.kind === 'event') return isConst((x.signal as { rhs?: unknown } | undefined)?.rhs) ? ['signal', 'rhs', 'value'] : null;
+  if (x.kind === 'window') { const p = testThresholdPath(x.test); return p ? ['test', ...p] : null }
+  return null;
+}
+const atPath = (o: unknown, p: readonly string[]): unknown => p.reduce((v, k) => (v as Record<string, unknown> | undefined)?.[k], o);
+/** Where a condition's threshold sits in the wire condition ('rhs.value', 'value', 'test.signal.rhs.value'), or null. */
+export function thresholdField(c: Condition): string | null {
+  if (c.kind === 'test') { const p = testThresholdPath(c.test); return p ? ['test', ...p].join('.') : null }
+  return threshold(c) === null ? null : c.kind === 'indicator' ? 'rhs.value' : 'value';
+}
 /** The display scale of a wire condition's threshold (null when the condition has no numeric threshold). */
 export function displayScale(c: Condition): number | null {
   if (c.kind === 'indicator') return c.rhs.type === 'value' ? DISPLAY.indicator : null;
   if (c.kind === 'flow') return DISPLAY[c.type];
+  if (c.kind === 'test') return testThresholdPath(c.test) ? 1 : null;
   return c.type === 'dip' || c.type === 'volspike' ? DISPLAY[c.type] : null;
 }
 /** The numeric threshold of a wire condition in wire units, or null. */
 export function threshold(c: Condition): number | null {
   if (c.kind === 'indicator') return c.rhs.type === 'value' ? c.rhs.value : null;
   if (c.kind === 'flow') return c.value;
+  if (c.kind === 'test') { const p = testThresholdPath(c.test); return p ? atPath(c.test, p) as number : null }
   return c.type === 'dip' || c.type === 'volspike' ? (c.value ?? null) : null;
 }
 /** The same condition with another threshold (wire units). */
 export function withThreshold<T extends Condition>(c: T, value: number): T {
   if (c.kind === 'indicator') return { ...c, rhs: { type: 'value', value } } as T;
+  if (c.kind === 'test') {
+    const p = testThresholdPath(c.test);
+    if (!p) return c;
+    const test = JSON.parse(JSON.stringify(c.test)) as Record<string, unknown>;
+    (atPath(test, p.slice(0, -1)) as Record<string, unknown>)[p[p.length - 1]] = value;
+    return { ...c, test } as T;
+  }
   return { ...c, value } as T;
 }
 

@@ -1,6 +1,8 @@
 """ERRORS M329: the Backtest and Screener registries are generated from the Terminal's calc/indicators.ts; when that file
 changes and they are not rebuilt, screener-worker refuses to start (startup_check_failed) and every deploy fails. Both
-registry checks run here, without installed packages (node with --experimental-strip-types)."""
+registry checks run here, without installed packages (node with --experimental-strip-types). The Screener's check also
+covers apps/edge-bff/backtest/src/core/compare-lag.json, which its generator writes from the lag probe
+(EXEC-BACKTEST-REVAMP K5 a)."""
 import shutil
 import subprocess
 from pathlib import Path

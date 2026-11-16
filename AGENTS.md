@@ -10,7 +10,22 @@ Before changing the backtest (`apps/edge-bff/backtest`, `apps/backtest-worker`, 
 publisher files and terminal-api routes it reads), read `BACKTEST_END_TO_END.md` (the flow from PostgreSQL to the page)
 and `apps/edge-bff/backtest/CONTRACT.md` (its rules).
 
-To update the broker tables after `IDX_Broker_Summary` changes (Feature 02, 03, 05, 06 and the `_INDEX` tables), follow `UPDATE_TABLE.md`: refresh order, checks, and the open gap that the loader in Git does not write `buy_freq`/`sell_freq`. To update the Stockbit corporate actions, insider movements and `idx_event_annotation` (ad hoc, with a token the user gives), follow `UPDATE_TABLE.md` part B.
+To update the broker tables after `IDX_Broker_Summary` changes (Feature 02, 03, 05, 06 and the `_INDEX` tables), follow `UPDATE_TABLE.md`: refresh order, checks, and the open gap that the loader in Git does not write `buy_freq`/`sell_freq`. To update the Stockbit corporate actions, insider movements and `idx_event_annotation` (ad hoc, with a token the user gives), follow `UPDATE_TABLE.md` part B. After a split, bonus share or rights issue (the daily Telegram "Basis harga lawan data broker" lists the ones that need it), follow `UPDATE_TABLE.md` part C: the price history is pulled again with the user's go, the broker data stays as it is, and the publisher measures the broker basis itself (EXEC-BACKTEST-REVAMP P9).
+
+## Backtest look-ahead gate
+
+User decision 2026-11-15 (EXEC-BACKTEST-REVAMP, decision 3: "uji look-ahead menjadi gerbang CI wajib"): a value the
+Backtest reads on day t may use only data up to t. `.github/workflows/backtest-lookahead.yml` runs, on every push and pull
+request, the worker suite (`apps/backtest-worker/tests/lookahead.test.ts`: every registry series, transform, pattern,
+Flow FL01-FL52 with every option and the engine as a whole on data cut at t, with a self-test that a centred average is
+caught; `pit.test.ts`, `flow-grammar.test.ts`, `grammar.test.ts`: the point-in-time indicators, the Flow indicators and
+the grammar through the worker's own path) and the Screener and page suites. A new indicator, Flow indicator, transform,
+pattern or condition kind enters the gate by the registries it is derived from; a test is never skipped to pass it
+(edge-bff and screener-worker are to deploy only on green checks, K10 a, applied with the deploy after Gate 3; until then
+`checkSuites` is off and a push to `main` deploys them, ERRORS M459). Before a release that changes what the Backtest
+reads, run the real-data check too (`verification/backtest/lookahead/README.md`). The Terminal (`apps/edge-bff/terminal`)
+keeps its own hindsight indicators (user: "Terminal jangan disentuh"); the Backtest reads their point-in-time versions
+(`apps/backtest-worker/src/pit/`, worker-only, admins only).
 
 ## Plans
 
@@ -196,8 +211,10 @@ Why it matters:
 - Railway bills the Postgres container's memory, and that includes the Linux page cache a large read or write leaves
   behind.
 - The cache stays for hours after the work ends (it held 4 GB for 3 hours on 2026-11-02).
-- The container limit is 1 GB since 2026-11-06 (user: "minta tolong untuk memory progress di cap jadi 1 GB.. sekarang
-  4GB"; `.railway/railway.ts`, `Postgres.deploy.limitOverride`). The 1 GB test of 2026-11-03 made year-wide queries take
+- The container limit is 2 GB since 2026-11-09 (user: "Naikkan limit sementara ke 2 GB"; "Limit ram keep 2gb dulu,
+  nanti saya yg rubah"), after 1 GB from 2026-11-06 (user: "minta tolong untuk memory progress di cap jadi 1 GB..
+  sekarang 4GB") stopped a rebuild for memory; `.railway/railway.ts`, `Postgres.deploy.limitOverride` (recorded from the
+  live limit 2026-11-15, ERRORS M455). The 1 GB test of 2026-11-03 made year-wide queries take
   3–6 minutes (AI-shaped queries 0.1 s); 4 GB was used 2026-11-03 to 2026-11-06. Postgres itself uses about 0.1–0.3 GB at rest (`shared_buffers` 128 MB);
   the rest is cache.
 - To change the limit, run `python3 scripts/set_postgres_memory.py --gb N` (check: guards, the `railway.ts` edit, the

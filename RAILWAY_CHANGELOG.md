@@ -1,5 +1,99 @@
 # Railway changelog
 
+## 2026-11-16 — backtest-worker `BACKTEST_WORKER_KEY` rotated; edge-bff redeployed (ERRORS M464, user "Boleh rotasi kunci worker")
+
+- **Why:** the old value appeared in an agent session's terminal output (ERRORS M464); it was not committed or sent
+  anywhere else.
+- **Before (11:50 UTC):** no Backtest job active, no orc turn running.
+- **Action:** variable `BACKTEST_WORKER_KEY`, service backtest-worker, environment dev: replaced with a new 64-character
+  value made in the process and piped to `railway variable set --stdin` (never printed; the length read back). Its
+  one consumer (`scripts/railway_reference_consumers.py backtest-worker.BACKTEST_WORKER_KEY`): edge-bff, by reference.
+- **Deployments:** backtest-worker `b087e1c4` SUCCESS (the redeploy of `31e94b94`'s build); edge-bff `20af8720`
+  (started by the reference change) and `59df442f` (`--redeploy`) SUCCESS 11:51 UTC, source `fd539903` unchanged.
+- **Verified:** edge-bff `/ready` 200; `verification/backtest/revamp_dev_check.py` through the new key: catalog, a Flow
+  run (48 trades), a point-in-time run as an admin (3 trades), the signals preview (184 entries), all passed.
+
+## 2026-11-16 — backtest-worker `31e94b94`: memory released after every task, 2 GB limit (ERRORS M463, user "Go untuk opsi 1")
+
+- **Go:** user 2026-11-16: "tidak apa-apa untuk naikkan ke 2 GB apabila run memang diperlukan", "RAM hanya berjalan
+  ketika ada request saja", "Go untuk opsi 1". Code: rednightt33/saniti#69 (`9250827b`), every check green before
+  the upload.
+- **Before:** no Backtest job active (`edge_bff.jobs` 0, 11:28 UTC); the worker `e4cf8fdd` asleep.
+- **Variable:** `BACKTEST_DOWNLOAD_CONCURRENCY` 16 → 4 (`railway variable set --skip-deploys`), read back.
+- **Limit:** `railway config apply`: the plan held exactly `backtest-worker deploy.limitOverride.containers.memoryBytes`
+  1000000000 → 2000000000; read back from `serviceInstanceLimits` (2,000,000,000). The apply started a redeploy of the
+  old code (`b750d187`), replaced by the upload.
+- **Upload:** CLI upload of `git archive 9250827b` of the paths the Dockerfile copies, `--path-as-root` →
+  `31e94b94` SUCCESS 11:30 UTC; start line: `engine_version` `681b18d3ffe51792` (= the repository's), `memory`
+  `{container_bytes: 1999998976, thread_heap_mb: 412}`, concurrency 4.
+- **Checks:** `e2e_dev.py` 11:33-11:35 UTC: every step passed, the 12-stock portfolio FINISHED (19.6 s on the worker);
+  its preview peaked at 452 MB and its run at 462 MB, the process back to 187-189 MB as each thread ended
+  (`thread_end`); Railway's per-minute memory peaked at 0.37 GB (limit 2 GB). The first e2e run at 11:30 failed in the
+  check itself (the builder left closed after the phone screenshots, ERRORS M465), not on the page or the worker.
+- **Rollback:** CLI upload of the worker from `8194a16c` with `BACKTEST_DOWNLOAD_CONCURRENCY=16`; the limit back with
+  `railway.ts` (1 GB) and `railway config apply`.
+
+## 2026-11-16 — EXEC-BACKTEST-REVAMP deploy on dev (Gate 3, user "1A 2B 3A, go deploy", "ok lanjut")
+
+- **Before:** no Backtest job active and no orc turn running (edge_bff.jobs, `AI_conversation_turn`) before each upload
+  and merge. Rollback points (the deployments live before): edge-bff `0c882d2d`, screener-worker `eb9d30e1`,
+  backtest-worker `d9acefda`, telegram-monitor `bdbbca08`, terminal-publisher `65c25a7b`.
+- **backtest-worker** `e4cf8fdd` SUCCESS 09:22 UTC: CLI upload of `git archive 48a38519` (the PR head) of the paths its
+  Dockerfile copies, `--path-as-root`; start log `engine_version` `e3be5b3a63d4e629` = the repository's. Before the
+  merge, as the deploy order says (worker first).
+- **screener-worker:** CLI upload `4cfe1654` from `48a38519` (09:24 UTC) before the merge, then `cac24666` SUCCESS
+  from `main` `c5d3ee97` (the merge of rednightt33/saniti#65, 09:27 UTC).
+- **edge-bff:** `37a4ab62` from `c5d3ee97` FAILED in Railway's build (the Backtest page stage lacked the Screener
+  source, ERRORS M461); `041807ea` SUCCESS from `4e02ad6e` (rednightt33/saniti#66, 09:38 UTC); `f0c86a39` SUCCESS from
+  `fd539903` (rednightt33/saniti#67: the Screener catalog asked again while its worker loads, M462), which waited
+  (`WAITING`) for the checks on `main` and deployed at 09:59 UTC: K10 a in effect. `/ready` 200.
+- **telegram-monitor** `438e9c81` SUCCESS from `c5d3ee97` (source `Broker_Basis_Report`; GitHub-connected,
+  `checkSuites` off as before).
+- **K10 a:** `railway config apply` set `checkSuites: true` on edge-bff and screener-worker (the plan held exactly those
+  two changes, read back from `deploymentTriggers`); four live settings made outside the file were recorded in
+  `.railway/railway.ts` instead of applying their removal (Postgres 1 vCPU, market-python-sandbox 1 GB, two
+  telegram-monitor variables by name).
+- **terminal-publisher** `0f7f2a95` SUCCESS 09:32 UTC: CLI upload of `git archive 48a38519 apps/terminal-publisher`;
+  cron `0,30 0,1,12 * * *` kept. Its first run was the Run Now that telegram-monitor pressed after the price cron
+  (`terminal_publish_signal` `Monitoring_Price_ALL` 10:04:58 and `Monitoring_Fixed_Income` 10:04:42, both
+  `TRIGGERED`): mode daily, 864 events files changed (`EVENTS_FORMAT` 3, the basis per corporate action), basis measured
+  for 361 actions (4 need attention: 2 unresolved, 3 with a raw price), 1,768 files planned, 2,722 written, done in
+  294 s (10:10 UTC), then the 2,723 replaced files deleted after 600 s (none left, 10:21 UTC); the daily Telegram
+  "Basis harga lawan data broker" sent (`Telegram_Notification_Log` `broker-basis-2026-11-16-8960568a` SENT 10:21:40
+  UTC), with the existing broker-behind notice (broker data 5 sessions behind the prices). Reader check: BBRI's new events file is format 3 with
+  its basis (the 2021 rights issue `terms` 1.025), decoded by the worker's code; `verification/backtest/revamp_dev_check.py`
+  passed after it (Flow run `bt_ed5d0afe…` 48 trades, point-in-time run `bt_3619d46e…` 3 trades, preview 184 entries).
+- **Postgres restart after the large update:** `scripts/restart_postgres.py` at 10:14 UTC REFUSED (`cron_due`: the
+  10:00 and 10:30 crons; memory 1.99 GB, 0 statements, 0 user runs). Every minute until 14:30 UTC is inside a guard
+  (crons 10:30, 11:00, the publisher 12:00 and 12:30, B6 12:00-13:20, `postgres-memory-cron` 13:45); the scheduled
+  restart at 13:45 UTC (auto on, mode `apply`) covers it, checked at 13:55 UTC.
+- **Dev checks:** `e2e_dev.py` (10:00-10:02 UTC): page boot, single, repeat, refusal at submit and cancel passed; the
+  12-stock portfolio run ended `WORKER_LOST`: the worker process was killed above its 1 GB limit after the preview
+  (ERRORS M463, open: the user's decision); the six results tabs at 390 px timed out because the check clicked under
+  the open builder (M465, the check fixed); rerun `--only single` 10:23-10:24 UTC: all passed, 18 screenshots (1600,
+  1280 and 390 px, six tabs each). `revamp_dev_check.py`: catalog (52 Flow indicators, 48 available, the 8
+  point-in-time ones admin-only), a Flow run in the shared grammar and a point-in-time run as an admin, and the signals
+  preview, all passed.
+
+## 2026-11-16 — EXEC-BACKTEST-REVAMP Stage C2: `.railway/railway.ts` records the live `checkSuites` (no Railway change)
+
+- Lens 2 F4 (ERRORS M459 item 14): the 2026-11-15 entry wrote `checkSuites: true` for edge-bff and screener-worker into
+  `railway.ts` before applying it; the live triggers read `checkSuites: false` (edge-bff, screener-worker,
+  telegram-monitor, Railway `deploymentTriggers`, read-only, by the reviewer). The file now records the live `false`
+  with a note; K10 a (true for both) is applied with `railway config apply` at the deploy after Gate 3, with the user's
+  approval. No variable, service or deployment was changed.
+- The deploy order across services (M459 item 15) is in `apps/backtest-worker/README.md` (Deploy) and
+  `BACKTEST_END_TO_END.md`: backtest-worker upload, screener-worker, then edge-bff.
+
+## 2026-11-15 — EXEC-BACKTEST-REVAMP: `.railway/railway.ts` records the live limits and the CI gate (not applied yet)
+
+- Recorded from the live project (ERRORS M455, Railway `serviceInstanceLimits`, read-only): backtest-worker
+  `limitOverride` 1,000,000,000 bytes (set 2026-11-07, kept by user K9 b), Postgres 2,000,000,000 bytes (user 2026-11-09
+  "Limit ram keep 2gb dulu"). `railway.ts` said none and 1 GB.
+- K10 a (user 2026-11-15): `checkSuites: true` for edge-bff and screener-worker, so a push to `main` deploys only on green
+  checks (the look-ahead gate among them). Not applied: it takes effect with `railway config plan` and apply at the
+  deploy after Gate 2, with approval. No variable, service or deployment was changed in this step.
+
 ## 2026-11-15 — Market Overview second release: terminal-publisher `65c25a7b`, edge-bff `0c882d2d` (`main` `724d130c`); Postgres restart (EXEC-OVERVIEW, user "Oke, jalankan.")
 
 - **Go:** user 2026-11-15 "Oke, jalankan." for steps 1-5 (deploy publisher, Run Now, restart Postgres, push `main`,
@@ -41,6 +135,9 @@
   terminal-publisher's code `f69eb9e3` = deployed `8a49b4c8`, its bucket and database variables as references):
   `broker-range` 2024-2026 for the 43 indexes, 129 files planned, 172 written (101.6 MB); `verify` 442 files 0
   mismatches. A first publish attempt stopped at SET_FAILED (CLI), nothing ran, no variable left.
+- Postgres restart by the user (Telegram "🔄 Restart Postgres", 2026-11-15) after the read-only reviews of BACKTEST-REVAMP
+  Stages A-B (memory had been 1.84-2.0 GB of 2.0 GB since 15:00 UTC): `pg_postmaster_start_time` 18:58:27 UTC; memory
+  0.09 GB at 19:00 UTC (Railway metrics, read back by the main agent).
 - Postgres restarts by `run_job.sh` (`"large_write": true`): 18:13:38 UTC after the fill, 18:41:38 UTC after the
   publish (memory 1.97 and 1.99 GB, 0 user runs, edge-bff ready 200). The scheduled restart ran at 13:47 UTC.
 - stockbit-updater CLI upload `bbd5aa7f` (deploy.sh from `78d95ad4`) SUCCESS: after IHSG each round runs every other

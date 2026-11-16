@@ -18,9 +18,13 @@ import type { BacktestRequest, BacktestResult, Catalog, JobProgress, JobStatus, 
 import { DEFAULT_ENTRY, LEGACY, legacyCard, legacyToCondition } from '../../edge-bff/backtest/src/core/catalog.ts';
 import type { LegacyCard } from '../../edge-bff/backtest/src/core/catalog.ts';
 import { MAX_PORTFOLIO_TICKERS, MAX_POSITIONS } from '../../edge-bff/backtest/src/core/engine.ts';
-import { lineageKey, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { lineageKey as coreLineageKey, variantHash as coreVariantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { hashForm, lineageForm } from '../src/canonical.ts';
+// the worker hashes a request's hash form (canonical.ts, EXEC-BACKTEST-REVAMP K7 a)
+const lineageKey = (q: BacktestRequest) => coreLineageKey(lineageForm(q));
+const variantHash = (q: BacktestRequest) => coreVariantHash(hashForm(q));
 import { packResult } from '../src/compute.ts';
-import { FLOW_OFF_REASON, loadConfig } from '../src/config.ts';
+import { FLOW_OFF_REASON, MAIN_RESERVE_BYTES, containerMemoryBytes, loadConfig, threadHeapMb } from '../src/config.ts';
 import { PlannedClient } from '../src/load.ts';
 import { setLogSink } from '../src/log.ts';
 import { runJob, runSignals } from '../src/run.ts';
@@ -221,6 +225,9 @@ test('catalog: the published tickers with their groups, the groupings, the broke
   const c = a.json() as Catalog;
   assert.equal(c.schema_version, 1); assert.equal(c.engine_version, ENGINE_VERSION); assert.equal(c.registry_version, REGISTRY_VERSION);
   assert.equal(c.data_through, FX.get('IHSG')!.T.at(-1)); assert.equal(c.first_date, FX.get('IHSG')!.T[0]);
+  // Stage D (D5): the grammar's refused reference kinds with their reasons, the worker's own (grammar.ts NOT_PER_DAY)
+  assert.deepEqual(Object.keys(c.grammar_refusals ?? {}).sort(), ['rank', 'universe', 'xsection']);
+  assert.match(c.grammar_refusals!.universe, /screen date only/);
   assert.deepEqual(c.tickers, refs.tickers.map(r => ({ ticker: r.ticker, name: r.name, type: r.type, groups: r.groups })));
   assert.deepEqual(c.tickers.find(t => t.ticker === 'IHSG'), { ticker: 'IHSG', name: 'IHSG (test name)', type: 'index', groups: { sector: null, industry: null } });
   assert.deepEqual(c.tickers.find(t => t.ticker === 'LQ45'), { ticker: 'LQ45', name: null, type: 'index', groups: { sector: null, industry: null } });   // as published
@@ -232,7 +239,7 @@ test('catalog: the published tickers with their groups, the groupings, the broke
   assert.equal('universes' in c, false);
   assert.deepEqual(c.flow, { available: false, reason: FLOW_OFF_REASON, brokers: ['YU', 'ZP'], data_through: null });
   const manifests = () => fake.requests.filter(r => r.path.startsWith('/api/terminal/v1/manifest/')).length, m0 = manifests();
-  assert.deepEqual(c.limits, { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 60, queued_per_owner: 3, max_conditions: 20 });
+  assert.deepEqual(c.limits, { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 60, queued_per_owner: 3, max_conditions: 20, max_flow_series: 8 });
   assert.equal(manifests(), m0, 'flow off: no manifest is asked');
   // flow on: available, no reason, and the newest broker data_through of every stock's manifest
   const on = createApp(loadConfig(ENV({ BACKTEST_FLOW_ENABLED: '1' })));
@@ -573,6 +580,71 @@ test('a job over BACKTEST_TIMEOUT_SECONDS ends FAILED TIMEOUT, its thread is sto
   } finally { slow.bundleMs = 0; await t.close() }
 });
 
+/* ---- memory (ERRORS M463, user 2026-11-16 "Go untuk opsi 1") ---------------------------------------------------- */
+test('M463: a compute thread ends once it has no task left, the next task starts a new one, and the memory of each step is logged', async () => {
+  const t = createApp(loadConfig(ENV(), 2_000_000_000)), from = lines.length;
+  try {
+    const at = `http://127.0.0.1:${await t.listen(0, '127.0.0.1')}`;
+    assert.deepEqual([t.threads.jobs.alive, t.threads.previews.alive], [false, false], 'no thread before the first task');
+    for (const ticker of ['UNVR', 'BBCA']) {                       // a new thread for each job, both finish
+      const id = newId();
+      assert.equal((await call('POST', '/v1/jobs', jobBody(id, pageDefault(ticker)), { at })).status, 202);
+      assert.equal((await until(id, at)).status.state, 'FINISHED');
+      assert.equal(t.threads.jobs.alive, false, `the job thread ended after ${ticker}'s job`);
+      assert.equal((await call('GET', `/v1/jobs/${id}/result`, undefined, { at })).status, 200, 'its result stays with the HTTP thread');
+    }
+    const p = await call('POST', '/v1/signals', { schema_version: 1, tickers: STOCKS, period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry }, { at });
+    assert.equal(p.status, 200, p.body.toString());
+    assert.equal(t.threads.previews.alive, false, 'the preview thread ended after its preview');
+    // the log is shared by every app of this file: this app's threads are the ones started with its heap limit (the
+    // others have none here), and the ends are counted (another app's thread may end meanwhile)
+    const ended = (thread: string) => linesFrom(from).filter(o => o.event === 'thread_end' && o.thread === thread && o.reason === 'idle').length;
+    for (const t0 = Date.now(); ended('jobs') < 2 || ended('previews') < 1; await tick(10))
+      assert.ok(Date.now() - t0 < 10_000, 'thread_end was never logged');
+    const seen = linesFrom(from), heap = threadHeapMb(2_000_000_000);
+    const starts = seen.filter(o => o.event === 'thread_start' && o.heap_mb === heap), ends = seen.filter(o => o.event === 'thread_end');
+    assert.deepEqual(starts.map(o => o.thread), ['jobs', 'jobs', 'previews'], 'a new thread for each task, with the heap limit derived from the container');
+    for (const o of [...starts, ...ends]) assert.ok(Number.isInteger(o.rss_bytes) && o.rss_bytes > 0, JSON.stringify(o));
+  } finally { await t.close() }
+});
+
+test('M463: the heap limit of a compute thread comes from the container\'s memory, or from BACKTEST_THREAD_HEAP_MB', () => {
+  const read = (files: Record<string, string>) => (p: string) => { if (!(p in files)) throw new Error('ENOENT'); return files[p] };
+  assert.equal(containerMemoryBytes(read({ '/sys/fs/cgroup/memory.max': '2000000000\n' })), 2_000_000_000);         // cgroup v2
+  assert.equal(containerMemoryBytes(read({ '/sys/fs/cgroup/memory.max': 'max\n' })), null);                        // no limit
+  assert.equal(containerMemoryBytes(read({ '/sys/fs/cgroup/memory/memory.limit_in_bytes': '1073741824' })), 1_073_741_824);   // v1
+  assert.equal(containerMemoryBytes(read({ '/sys/fs/cgroup/memory/memory.limit_in_bytes': '9223372036854771712' })), null);   // v1, none
+  assert.equal(containerMemoryBytes(read({})), null);                                                               // a laptop
+  // the container less the HTTP thread's reserve, shared by two threads, half of each for its heap
+  assert.equal(threadHeapMb(2_000_000_000), Math.floor((2_000_000_000 - MAIN_RESERVE_BYTES) / 4 / 2 ** 20));
+  assert.equal(threadHeapMb(2_000_000_000), 412);
+  assert.equal(threadHeapMb(1_000_000_000), 174);
+  assert.equal(threadHeapMb(300_000_000), 64, 'never below 64 MB');
+  assert.equal(threadHeapMb(null), null);
+  assert.equal(loadConfig(ENV(), 2_000_000_000).memory.thread_heap_mb, 412);
+  assert.deepEqual(loadConfig(ENV(), null).memory, { container_bytes: null, thread_heap_mb: null });
+  assert.equal(loadConfig(ENV({ BACKTEST_THREAD_HEAP_MB: '300' }), 2_000_000_000).memory.thread_heap_mb, 300);
+  assert.equal(loadConfig(ENV({ BACKTEST_THREAD_HEAP_MB: '0' }), 2_000_000_000).memory.thread_heap_mb, null, '0: no limit');
+  assert.throws(() => loadConfig(ENV({ BACKTEST_THREAD_HEAP_MB: '-1' })), /BACKTEST_THREAD_HEAP_MB must be a whole number/);
+});
+
+test('M463: a job over its thread\'s heap ends FAILED OUT_OF_MEMORY with what to change; the worker keeps answering and the next task runs', async () => {
+  const t = createApp(loadConfig(ENV({ BACKTEST_THREAD_HEAP_MB: '8' })));
+  try {
+    const at = `http://127.0.0.1:${await t.listen(0, '127.0.0.1')}`, id = newId();
+    assert.equal((await call('POST', '/v1/jobs', jobBody(id, pageDefault('UNVR')), { at })).status, 202);
+    const { status } = await until(id, at);
+    assert.equal(status.state, 'FAILED');
+    assert.equal(status.error!.code, 'OUT_OF_MEMORY');
+    assert.match(status.error!.message, /fewer stocks or a shorter period/);
+    assert.equal((await call('GET', '/health', undefined, { at })).status, 200, 'the process lives on');
+    assert.equal(t.threads.jobs.alive, false);
+  } finally { await t.close() }
+  const next = newId();                                            // the shared app, its own limit: unaffected
+  assert.equal((await call('POST', '/v1/jobs', jobBody(next, pageDefault('BBCA')))).status, 202);
+  assert.equal((await until(next)).status.state, 'FINISHED');
+});
+
 /* ---- signals preview ------------------------------------------------------------------------------------------------ */
 test('signals preview: the rows run.ts computes, its refusals, and a preview the caller abandoned does not block the next', async () => {
   const body = { schema_version: 1, tickers: STOCKS, period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry };
@@ -631,7 +703,7 @@ test('a caller that leaves while the worker waits for the reference lists queues
     assert.deepEqual(previews, [['UNVR'], ['GOTO']], 'the abandoned preview never reached the preview thread, so the next one waited for nothing');
     // and it loaded no data: the bundles asked since are the two previews' own (a fresh thread: nothing is cached)
     const bundled = fake.requests.slice(b0).filter(x => x.path === '/api/terminal/v1/bundle').map(x => JSON.parse(x.body).ticker);
-    assert.deepEqual([...new Set(bundled)].sort(), ['GOTO', 'UNVR']);
+    assert.deepEqual([...new Set(bundled)].sort(), ['GOTO', 'IHSG', 'UNVR']);              // a preview reads IHSG too (P2)
     // a job: the abandoned POST /v1/jobs never starts (edge-bff finds the id unknown and posts it again)
     const left = newId();
     await leave('/v1/jobs', jobBody(left, pageDefault('BBCA')), at);
@@ -755,3 +827,18 @@ test('preview_end: each preview\'s wait in the queue (preview_wait_ms), its comp
 /* ---- what was observed (durations on this machine, for the report; not asserted) ---------------------------------- */
 const observed: Record<string, unknown> = {};
 after(() => { process.stdout.write(`# observed ${JSON.stringify(observed)}\n`) });
+
+test('P5: rights from the context only, fail closed; unknown rights and fields refused; D refused even switched off', async () => {
+  const { rightsOf } = await import('../src/server.ts');
+  assert.deepEqual(rightsOf(undefined), []);
+  assert.deepEqual(rightsOf(['flow_point_in_time']), ['flow_point_in_time']);
+  for (const bad of [['admin'], 'flow_point_in_time', ['flow_point_in_time', 'flow_point_in_time'], [1]])
+    assert.throws(() => rightsOf(bad), (e: unknown) => (e as { code?: string }).code === 'INVALID_CONTEXT', JSON.stringify(bad));
+  const { checkRequest } = await import('../src/validate.ts');
+  const q = pageDefault('UNVR');
+  const d = { id: 'd1', enabled: false, kind: 'test', test: { kind: 'value', metric: { kind: 'flow', metric: 'FL45', params: { anchor: '2026-01-02' } }, op: 'gt', value: 5 } };
+  const withD = { ...q, entry: { ...q.entry, conditions: [...q.entry.conditions, d] } };
+  assert.throws(() => checkRequest(withD, refs, { limits: loadConfig(ENV()).limits, flow: { enabled: true, reason: null } }),
+    (e: unknown) => (e as { code?: string; field?: string }).code === 'CONDITION_RESTRICTED' && (e as { field?: string }).field === `entry.conditions[${q.entry.conditions.length}].test.metric`);
+  checkRequest(withD, refs, { limits: loadConfig(ENV()).limits, flow: { enabled: true, reason: null } }, new Set(['flow_point_in_time']));
+});

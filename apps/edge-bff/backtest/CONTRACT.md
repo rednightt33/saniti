@@ -23,6 +23,8 @@ not in the path.
 
 ## 2. Market data
 
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.2.*
+
 - Datasets: `price` (`d,o,h,l,c,v`), `broker` (`d,b,i,m,bv,sv,bl,sl,bf,sf`; `bf`/`sf` buy and sell transactions since 2026-10-30, read by name), `events` (corporate actions), from
   `POST /api/terminal/v1/bundle {ticker, datasets, packs: true}` (header `x-terminal-proxy-key` with the worker's
   `TERMINAL_PROXY_KEY` **[D-U1]**: since EXEC-MU-RUNTIME T1 (2026-10-28) a reference to terminal-api's
@@ -107,6 +109,8 @@ not in the path.
   manifests before any download, so none of its bars is read and it adds no day.
 
 ## 3. Request validation (worker `validate.ts`, before any download)
+
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.1, 13.4.*
 
 - edge-bff calls the worker's `POST /v1/validate` before it queues a job (`POST /api/v1/backtests`) and relays a
   refusal as it is (422, 424): a refused request never becomes a job **[D-L2]**. The worker checks the request again
@@ -231,6 +235,8 @@ What the period and the picked stocks become on the data (`engine.ts` run, after
 
 ## 5. Signals
 
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.1-13.3.*
+
 - Condition series as `conditions.ts` (page semantics, verified formulas). The combined entry state is
   `combineEntry`; the **entry event** is a bar where the combined state switches from false to true on the ticker's
   own bars **[D-E1]**. Only events are orders; a state that stays true does not re-enter after an exit.
@@ -300,6 +306,8 @@ bar's intraday stop/target, so it never takes a price from later in the day **[D
 
 ## 7. Results (numbers only; the page owns layout, labels, colours, charts)
 
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.5, 13.6.*
+
 All statistics reproduce the page's formulas (`seriesStats`, `tradeStats`, `dsr`, `monteCarlo`, and the tables the
 renderers derive: monthly, annual, weekday, rolling Sharpe 126 (window excludes the current return), five deepest
 drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` shows for the same ledger.
@@ -366,6 +374,8 @@ drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` sho
 
 ## 8. Worker private API (shared secret header `x-backtest-worker-key`)
 
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.7.*
+
 - `GET /health` (no key) · `GET /v1/catalog` → `Catalog` (`catalog.ts buildCatalog`) **[D-PF6]**:
   - `tickers`: every row of terminal-api's reference ticker file, `{ticker, name, type, groups}`; `groups` (in place
     of the former `sector`) holds the row's value of every grouping by its key, null when it is unclassified: a value
@@ -408,6 +418,8 @@ drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` sho
   synchronous call answers 504 `TIMEOUT`; a job or preview over it has its thread terminated.
 
 ## 9. edge-bff public API (session cookie; POST needs CSRF like `/api/v1/runs`)
+
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.8.*
 
 `GET /api/v1/backtests/catalog` (the worker's `Catalog`, kept 60 s; the last one while the worker does not answer) ·
 `POST /api/v1/backtests` (body = request + optional `client_request_id`, edge-bff's submission key, taken out before
@@ -494,8 +506,10 @@ not have.
 
 ## 10. Page
 
-`/backtest` (EDGE tab "Backtest", iframe) → `/backtest-app/`. Markup and CSS of `backtest.html` verbatim, the
-portfolio stock picker aside (below, PF7); behaviour ported to TS modules. Preview signals in the browser with the
+*EXEC-BACKTEST-REVAMP (2026-11-15): see sections 13.9 and 13.11 (the page port of the user's design file).*
+
+`/backtest` (EDGE tab "Backtest", iframe) → `/backtest-app/`. Markup and CSS of the user's design file, which replaced
+`backtest.html` as the 1:1 reference (user 2026-11-15, section 13.11); behaviour in TS modules. Preview signals in the browser with the
 shared core on the ticker's published bars (via the existing `/api/terminal/v1` proxy); after a run, markers come from
 the result events only. No run at page load
 **[D-no-autorun]**; the page opens in its own "Not run yet" state. The synthetic generator and the mock-up engine
@@ -517,29 +531,32 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
   and broker selects show the current choice and "Loading tickers…" / "Loading brokers…", the picker "Loading stocks…"
   and "Loading sectors and industries…", and Run waits for the catalog. When it answers, its defaults are taken if no
   setting was changed yet, and the builder draws again once no builder field has the focus. The chart draws the candles
-  as soon as the prices are there; a flow card's lanes and the entry lane say "· loading" (no entry marker, the count
-  "…") until its broker data is there (`signals.ts prepare`, `flowWait`). One `/bundle` per ticker asks its prices and,
+  as soon as the prices are there; a flow card's lane and the entry lane wait (no entry marker, the count "…") until
+  its broker data is there (`signals.ts prepare`, `flowWait`): the small ring in place of the lane's switch ("<name>:
+  loading") and "· loading" after its name where that fits whole (`lanes.ts`; a test card waits so for the worker's
+  tracks). One `/bundle` per ticker asks its prices and,
   when a flow card will need them, its broker files (`live.ts bundles`, reused while its URLs are good). Downloads, the
   manifest checks and the decoding run in a Web Worker (`api/load.worker.ts`, `api/load.ts`); the file cache and the
   download with retries are the module the Terminal uses too (`terminal/src/data/rack.ts`, K3).
 - Loading ring (EXEC-BACKTEST-SPIN, user 2026-10-27: "S1 dan S2 yes sesuai yang kamu sarankan / S3 - OK ya"): the
-  Terminal's ring (`terminal/src/styles/spin.css`, `terminal/src/ui/spin.ts`: one turn in 0.15 s, 1.6 s with reduced
-  motion). Until the shown ticker's prices are there the chart is emptied (no candles of another stock under the new
-  name) and `#chartLoading` shows the ring with "Loading <TICKER>"; a lane waiting for broker data has a small ring
-  before its label; the run note shows the ring with "Loading…" (waiting for the catalog), "Running…" and the job's
-  phase. These exist only while the page loads or runs: the settled page is the reference's.
+  Terminal's ring (`terminal/src/styles/spin.css`, `terminal/src/ui/spin.ts`: one turn in 0.15 s on every device, the
+  reduced-motion setting included, user 2026-11-09, ERRORS M420). Until the shown ticker's prices are there the chart is emptied (no candles of another stock under the new
+  name) and `#chartLoading` shows the ring with "Loading <TICKER>"; a lane waiting for broker data has the small ring
+  in place of its switch; the run note shows the ring with "Loading…" (waiting for the catalog), "Running…" and the job's
+  phase. These exist only while the page loads or runs: the settled page is the design's.
 - A file download that gets no answer, whose body is cut off on the way, or that the storage host answers 5xx is asked
   again twice (0.5 s, then 1 s), as the worker does (`terminal.ts http`); after that it is `DATA_UNAVAILABLE` "A data
   file could not be downloaded." A refusal (403: the link expired, 404) is answered at once. A whole file that is not
   what its manifest entry says is `DATA_INTEGRITY` and is not asked again (`live.ts fetchFile`, ERRORS M251). An edge-bff
   answer whose body is cut off is `NETWORK` without a status, which the job's status poll asks again (`run.ts`).
-- The header has no date: live says "Published data · long-only" (`api/texts.ts` `dataNote`), the lead's short form,
-  because "Published data to <`catalog.data_through`> · long-only" wraps more than the reference's "Synthetic demo
-  data · long-only" (7 lines against 5 at 390 px, 5 against 3 at 480; `api/texts.ts` gives every width measured).
+- The data source note has no date: live says "Published data · long-only" (`api/texts.ts` `dataNote`), the lead's
+  short form, because "Published data to <`catalog.data_through`> · long-only" wraps more than the reference's
+  "Synthetic demo data · long-only" (7 lines against 5 at 390 px, 5 against 3 at 480; `api/texts.ts` gives every width
+  measured). Since Stage D it is in the view bar, one line (13.11).
 - Condition limit: adding a condition, loading a template (entry or exit), duplicating one or switching one on is
   refused when the list would then hold more than `limits.max_conditions` enabled conditions, with the toast "Limit
   reached: at most N active conditions per list." and nothing changed (`reg.ts withinLimit`, called by `builder.ts`
-  (the add menu, both template lists, the switch) and `workspace.ts` (add, duplicate, the switches)); a change that
+  (the add menu, both template lists, the switch) and `condwin.ts` (add, duplicate, the switches)); a change that
   does not raise the count passes. The worker's `LIMIT_EXCEEDED` `max_conditions` (section 3) stays the rule.
 - Run events: the chart asks `/events?ticker=` only for a ticker of the run (`meta.tickers` and the tickers of
   `events.entries`, `picked.ts runTickers`; edge-bff answers any other with 404 `EVENTS_NOT_FOUND`); a picked stock
@@ -607,10 +624,9 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
     toast line and every row "—" with that error in its tooltip. Any other preview failure is its message in the
     toast once, and the same settings are not asked again until they change; a redraw (a zoom button, a legend chip)
     never asks or toasts (review PG-2; `preview.ts`).
-  - The context title never takes more lines than the reference's own title of the same count at the same width
-    (with its universe name "Banks"): it names the picked stocks by three, two or one ticker and "+n", the longest
-    that fits, else the count alone, measured in place and again on resize (review PG-3; `builder.ts`,
-    `picked.ts titleNames`). At 390 px: "BBCA +9 · 10 stocks · …" and "3 stocks · max 5 positions".
+  - The context title is the design's (13.11): the picked stocks by up to three tickers and "+n", "BBCA, BBRI, BMRI +2
+    · 5 stocks · max 5 positions" (`builder.ts portfolioTitle`, `picked.ts tickersLabel`). Review PG-3 shortened it to
+    the line count of backtest.html's title; the design, the reference since 2026-11-15, names three (M460 item 5).
   - Step 1 in portfolio mode: the picker card, then the reference's first row with its Max positions alone (its
     Universe select is the picker), then the reference's second row (Rank candidates by, Min. avg value) verbatim
     (review PG-4).
@@ -624,6 +640,8 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
   that no error text reaches the plain `toast()`.
 
 ## 11. Errors
+
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.4.*
 
 `{error:{code, field?, message?, details?}}`.
 
@@ -659,6 +677,8 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
   `WORKER_FAILED` (the worker reports `FAILED` without an error). Cancel → `CANCELLED`, without an error.
 
 ## 12. Decisions taken for the user (2026-10-26; PF1–PF8 and LA-1 2026-10-27)
+
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13 (K1-K11).*
 
 | Id | Question | Options | Chosen | Why |
 |---|---|---|---|---|
@@ -707,3 +727,185 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 | PF6 | What the picker filters by | an enumerated sector + industry list / groupings derived from the reference file | derived: every column of terminal-api's ticker reference file but ticker, name and type is a grouping (`groups` per ticker, `groupings` in file order, stocks counted, an index not); null, `''` and `Undefined` are unclassified, counted apart and never a value; sector no longer a required column (lead 2026-10-27) | the picker filters by sector and industry (user N), and the publisher writes both (`ref/tickers`); a column the file gains becomes a filter without a code change; `DATABASE_SCHEMA.md`: `Undefined` is no classification |
 | PF7 | The page's portfolio stock picker | the reference's Universe select (1:1) / a picker | the picker (section 10): a search combobox, one select per catalog grouping listing its stocks with an add control (groupings combined with AND), removable chips with "n / max"; the limit toast, Run refused with no stock, nothing picked by default in the live page; the fixture's "Demo 10" and "Banks" as picked sets (user N, lead 2026-10-27) | user N asked for search and group filters; the one approved departure from the 1:1 rule, in the reference's own styles; the server's rule stays authoritative |
 | PF8 | Calendar when a stock is left out | the stocks that run / every requested stock with bars | IHSG and every picked stock whose bars were read, left out by the engine or not (`engine.ts` run); a stock the loader leaves out has no bars read (section 2) (lead 2026-10-27) | which stocks trade can no longer change another stock's next calendar day (the last look-ahead path of the adversarial check, the former known limit of section 2); 0 stock bars on a day without an IHSG bar in `public."Price_Stock_Indonesia_IDX"` (lead, 2026-10-27), so published results do not change |
+
+## 13. EXEC-BACKTEST-REVAMP (2026-11-15): one condition language, Flow, point-in-time, rights, look-ahead gate
+
+User decisions in `PLAN.md` BACKTEST-REVAMP and `EXEC.md` EXEC-BACKTEST-REVAMP (K1-K11, the "go" of 2026-11-15). The
+sections above stay true for the conditions they describe; this section adds what the revamp changed, each point with
+the section it belongs to.
+
+**13.1 Conditions (sections 3, 5).** A fourth condition kind, `{"id","enabled","kind":"test","test":<the Screener's
+Test>}`: VALUE, STATE, EVENT or window tests over indicators, bar fields, transforms, patterns and Flow indicators, as
+the Screener writes them (`screener/src/core/contract.ts`). It is computed by the worker only
+(`apps/backtest-worker/src/grammar.ts`, installed into the core with `conditions.ts installGrammar`; the page answers
+`CONDITION_UNAVAILABLE`), with the Screener core's own validation and series (one language, no second implementation):
+- per bar with `condition.ts conditionSignal`; EVENT `within` is the condition's own rolling window, and the entry
+  rule's `window_bars` does not widen it (`combineEntry` windows = 1); bar 0 is never true, inside a window and an event
+  too; a series without a value up to the period's end is `INDICATOR_OUTPUT_EMPTY` (`FLOW_OUTPUT_EMPTY` for Flow);
+- refused with the reason (`CONDITION_UNAVAILABLE`): universe attributes, cross-section values and ranks (no per-day
+  value without look-ahead), FL31 (insider rows carry the transaction date only), the Screener's own `fnet` and
+  `ksei_net` entries, FL52 (use FL23), a point-in-time indicator inside a transform;
+- the preview loads IHSG (for `vs_index`), and events and broker rows when a Flow indicator needs them.
+
+The legacy kinds are unchanged except K5 a: price against an output the Screener's lag probe marks (today Donchian's
+bands) reads the output's prior bar (`compare-lag.json`, written by the Screener's registry generator; ERRORS M451). 426
+legacy indicator forms give the same entry signal in both languages on 8 real tickers and hash as one trial
+(`apps/backtest-worker/tests/canonical.test.ts`).
+
+**13.2 Flow indicators (sections 2, 3, 5).** `{"kind":"flow","metric":"FL11","output":...,"params":...}` inside a test.
+The 41 clean ones are read on every bar from the stock's whole broker history with the Terminal's formula as it is
+(`calc/flow.ts computeFlow` through the Screener's flow series; 526 series equal it), the registry's baselines (nothing
+lowered) and today's broker classification on every date (FL34, user decision 5). Data: `datafile.ts brokerColumns`
+(about 56 bytes a row, `bf`/`sf` by name, null as NaN), kept only when a Flow reference reads them; the classification
+from terminal-api's `brokers` reference. P9 (option A; user 2026-11-16 "A dulu", "opsi A"; ERRORS M450, M458 item 2):
+the lots are put on the published prices' basis first (`datafile.ts brokerBasis`, `onPriceBasis`: the events file's
+`basis` block, per price-affecting action its factor and status, written by the publisher, `publisher.py broker_basis`;
+the lots of every date before a `terms` action are multiplied by its factor, rupiah unchanged). A broker-price value
+(family "Buy VWAP & Implied Cost" or a price unit) is then empty only where its window reads a bar whose basis the
+data up to that bar leaves unsettled (`apps/backtest-worker/src/basis.ts`): a bar whose Regular-board broker VWAP is
+outside its own low and high (1 %), or an action inside the window whose basis is pending, unresolved, or whose close
+was not reloaded after it (price raw). An events file without the block reads its actions as unresolved. Before P9 the
+value was also empty before every action dated on or before 2026-09-12, which read the action before it happened (K3 a
+as first built). Stage C2 (ERRORS M459): a Flow value on a session without broker rows is empty (as on the data up to it,
+whose window ends the session before); a broker a list names is a member from its own first row for the stock on
+(computeFlow per stretch of sessions with the same members, the Terminal's own formula); the publisher's basis status
+is the nearer of `terms` and `same` for a small action, an action without an ex date is `unresolved` on its annotation
+date, and the events stamp holds the decisions (ex, type, factor, status, price) only. User 2026-11-16 "A" (M459 items
+1, 9): the publisher decides an action once its 21 days after the ex date have passed (column `decided`; `pending`
+before), from its own window only (a rights issue's terms in the VWAP form, so a later action never moves it); the worker
+treats an action as undecided on every bar before `decided` whatever the file says, and every Flow value (every family,
+the point-in-time ones included) whose window crosses an undecided, unresolved or not-reloaded action is empty; the
+per-day guard stays on the broker-price values. The lots before a `terms` action stay scaled (the adjusted history, K4
+a, `FLOW_LOTS_RESTATED`).
+
+**13.3 Point-in-time indicators (sections 3, 5).** FL18, FL19, FL20, FL23, FL44, FL45, FL51 (`apps/backtest-worker/src/pit/`,
+worker-only, admins only): the brokers chosen again on each candle from the anchor (FL18-FL20, FL44, FL45: `anchor`) or
+start (FL23, FL51: `start`) to that candle with the Terminal's own choice, the Terminal's formula for them; FL23 is the
+Terminal's `auto_c` chosen each day (K2 a); FL51 the top N loaders (lots-weighted cost, distance, share, one loader by
+rank); every value empty for the first 5 sessions with data from the anchor; output `cohort_changed` (0/1). Equal to the
+Terminal with named brokers on every candle after the warm-up, and with chosen brokers on the last candle. Forms: VALUE,
+STATE, EVENT, window with a point-in-time side, a price, a constant or any other reference, checked by unit.
+
+**13.4 Refusals (section 11).** All 422 with `field` and a message naming the fix:
+
+| Code | When |
+|---|---|
+| `ANCHOR_REQUIRED` | a point-in-time indicator without its `anchor` / `start` date (or `"view"`) |
+| `INVALID_ANCHOR` | not a real date YYYY-MM-DD |
+| `ANCHOR_BEFORE_DATA` | before the stock's first broker day (a portfolio leaves the stock out) |
+| `RANK_NOT_ALLOWED` | FL19 / FL20 with another rank than `net_buy` |
+| `TOP_N_LIMIT` | more than 10 brokers |
+| `CONDITION_RESTRICTED` | a point-in-time indicator without the right `flow_point_in_time`, enabled or not, at any depth |
+| `CONDITION_UNAVAILABLE` | see 13.1; FL51 `end` |
+| `FLOW_BUDGET_EXCEEDED` | more distinct Flow series than `limits.max_flow_series` (default 8) |
+| `UNKNOWN_BROKER` | a broker code outside the reference list (every list of kind `brokers`: `brokers`, `num_brokers`, `den_brokers`, FL34 `inst` / `retail`); for a stock, a named broker of a point-in-time indicator without rows up to the period's end, (Stage C refused a named broker of any Flow indicator whose first row is after the period's end; Stage C2, M459: that broker is simply not a member before its first row, so no later row decides a run); a portfolio leaves the stock out |
+| `UNKNOWN_FIELD` `context` | a body from the page that carries `context` (edge-bff) |
+| `INVALID_CONTEXT` | rights that are not a list of distinct known rights |
+
+A refusal of the Screener's own validation of a grammar condition (for example `LIMIT_EXCEEDED`, `UNKNOWN_INDICATOR`,
+`PARAM_OUT_OF_RANGE`, `METRIC_UNAVAILABLE`) reaches the client with the Screener's code, field, message and `details`
+(Stage C, M458), as the Screener's contract lists them.
+
+**13.5 Results (section 7).** New warnings: `PRICES_RESTATED` (K4 a, M449; Stage C2: an action whose basis says the close
+carries it, `price` adjusted, or without that reading one on or before the boundary), `FLOW_PRE_2021` (decision 4),
+`FLOW_BASIS_CHANGE`, `FLOW_SOURCE_GAP`, `FLOW_ROWS_DROPPED`, `FLOW_CROSSING_BOARDS`, `FLOW_LOTS_RESTATED` (Stage C2: a
+`terms` action after the first session the Flow conditions read; the lots before it are on the prices' share basis), `FEW_TRADES`, `OOS_STRADDLE`,
+`DSR_SAMPLE_RULE`, `ANCHOR_INSIDE_PERIOD`, and `SURVIVORSHIP` in single mode too. The sensitivity grid can vary a grammar
+threshold (`x_field`, e.g. `test.value`; 20 % steps of its base, cells the validation refuses are null). K6 a:
+`meta.trials.owner {total, days}` and `robustness.deflated_owner`, a deflated Sharpe over the owner's distinct trials of
+the last 90 days across every line, beside the line's; the new page (Stage D) is to show the stricter of the two, and the
+page today does not read `deflated_owner` yet. `ANCHOR_INSIDE_PERIOD` reads the enabled conditions only.
+
+**13.6 Hashes (section 7).** K7 a: the worker hashes the request's hash form (`apps/backtest-worker/src/canonical.ts`):
+parameters completed; a grammar condition equal to an indicator condition written as that condition; `window_bars` only
+where a condition reads it; a grammar condition's lineage shape is its test at every depth without numbers
+(`hash.ts testShape`). No lineage key changed; 7 of the 20 golden requests changed their variant and request hash once
+(partial parameters of the page's Stochastic, Bollinger and Dip cards; `tests/hash-golden-k7a.json`). Stage C (M458):
+with grammar conditions only, `window_bars` reads none of them, so it never decides the hash form (they are translated at
+their common own window, or not at all); the lineage key is taken over `lineageForm` (each grammar condition that is an
+indicator condition at its own window written as one), so one strategy keeps one line however its windows are set; an
+indicator condition comparing the price with an output read one bar late (`compare-lag.json`, K5 a: the Donchian bands)
+carries `compare_lag: 1` in its hash form, so a run after K5 a is another trial (same line) than one before it; and
+`data_version` covers the brokers' classification when a grammar Flow condition reads the broker rows (FL34, `class:`
+scopes).
+
+**13.7 Worker API (section 8).** `/v1/validate {request, context}`, `/v1/signals {request, context}` (the bare request
+still read: the worker deploys first), `/v1/jobs {job_id, request, context}` with `context {job_id, prior_trials,
+owner_trials?, rights?}`; `context.rights` absent = none (fail closed). The catalog adds `flow_indicators` (`access` all
+or admin, `available`, `reason`, `date_param`) and `limits.max_flow_series`. `engine_version` covers the Screener core.
+
+**13.8 edge-bff (section 9).** Owner and rights from the session (`app/rights.py`; `EDGE_ADMIN_OWNERS`, default
+`EDGE_OWNER`); every worker call carries `context.rights`, a queued job's computed at dispatch; the catalog filtered per
+session (the kept one too); result parts joined on `owner_key`. The Screener (K8 b): its anchored and inventory entries
+marked `access: admin`, refused by screener-worker without the right, filtered from its catalog per session.
+
+**13.9 Page (section 10).** The page does not compute grammar or point-in-time conditions and no module it imports
+reaches `apps/backtest-worker/` (`tests/worker-only.test.mjs`, M456). Stage D (D6): the signals preview takes
+`detail: {ticker, exit_signals?}` (one of `tickers`; `exit_signals` checked as a run's `exit.signals`) and answers
+`detail` (contract.ts `PreviewDetail`): that ticker's entry conditions, exit signal conditions, entry and exit as tracks on
+its own bars inside the period (index 0 its bar on `from`), with the preview's rules (a condition without a value is
+false; the error a run would leave the stock out with is `detail.error`). The page draws the conditions it cannot
+compute from it.
+
+**13.10 Look-ahead gate.** `.github/workflows/backtest-lookahead.yml` (AGENTS.md "Backtest look-ahead gate"); real data:
+`verification/backtest/lookahead/` (BBRI, GOTO, COCO, ALKA: 0 leaks, 2026-11-15; with the publisher's broker basis
+2026-11-16: 0 leaks, COCO 799 sessions off the price basis without the factors and 0 with them). The gate also runs a
+corporate action: the published world (adjusted prices, lots scaled back by the factor) gives the traded world's signals
+on every bar whose window does not cross the action, and the engine on the data cut at t with the basis kept whole.
+
+**13.11 Page port (section 10; Tahap D, user 2026-11-15 "1 setuju, 2a", 2026-11-16 "Opsi C").** The 1:1 reference is the
+user's design file (built on a compiled copy of the page; kept outside the repository, `tests/visual/compare.mjs` takes
+its path). Its markup is `index.html`, its style blocks `src/styles/design.css` over the page's own `backtest.css` (one
+change: the design's block 4 left `@layer edge-components` open and a stray `}` swallowed the rules after it; the layer
+is closed before block 5). The agreed fixes (decision 2a):
+- the builder can be closed on a phone and hides nothing it holds (`layout.ts`, the NARROW lane mode);
+- the theme follows EDGE: the shell's key `edge-auth-monitor-theme` as the Screener and the Radar read it (`layout.ts
+  applyTheme`), a change in another frame arrives as a storage event and redraws the palette, the charts and the
+  overview; the design's own theme button is gone;
+- the switches keep their contrast in dark mode (`design.css`, the knob on `--bg`);
+- the search label of the builder counts the condition window's rows that can be added, "Search N indicators to add"
+  (`condwin.ts condWinCount`; a row that says "Not in backtest" is not counted);
+- the data source note (`api.texts.dataNote`) is shown in the view bar, one line before Full screen, its whole text as
+  its title (`#dataNote`; under the header's title it pushed the header's last rows out of view, M460 item 5);
+- the left header over the price chart (`#xsHd`) is built from the page's state (`header.ts`), not by a script that
+  copies a hidden row's text; its elements keep the old ids (`ctxTicker`, `ctxTitle`, `ctxPeriod`, `lastRun`,
+  `staleTag`); its texts are the design's ("Last run": net return · Sharpe · max drawdown · trades).
+
+Everywhere else the page is the design's, also where the design cuts: the header clips the rows below its buttons (Agent
+10 found two Stage D rules that wrapped the chips and scrolled the header without the user's approval: removed, M460
+item 5). The formula bar is one row as tall as the design's and shows the chips that fit whole, "+N more" for the rest
+(user 2026-11-16 at Gate 3: "2B"; `filterbar.ts fit`, again when the bar's width changes; the design cut them, at 1024
+px only "A ADX > 25" was readable); on a phone it wraps and shows them all. On a phone
+(600 px or less), under the decision's "hides nothing": the condition window takes the whole screen (the design's is at
+least 760 px wide, so its Add buttons, Close and Done were off the screen), its categories a row that scrolls across,
+each indicator's row in two or three lines, the strategy panel in the list's place while it is open; the results'
+figures two to a row and the comparison box under the equity chart's title (`design.css`, the 600 px block; M460
+item 6). A row the page cannot calculate says "Not calculated" (the design's and the builder card's word), a test card
+with fields not valid yet "Check fields" (M460 item 7).
+
+Parts: the formula bar above the chart (`filterbar.ts`: the entry rule and the first three active entry conditions as
+chips with their lane letter; a setting that differs from its default in blue), the signal chart under the price pane
+(`lanes.ts`: one row per entry condition with its letter, colour and name, the days it is true solid and the days it
+still counts for the rule's window hatched, the entry row, the trades row, a switch per row, the trades shaded on the
+price pane, a crosshair tooltip, the trade table after a run with the values on each trade's signal bar), and the
+condition window (`condwin.ts`, replacing the entry workspace):
+- its rows are the Backtest presets (`core/catalog.ts` LEGACY) and every entry of the Screener's catalog (`grammar.ts`,
+  the Screener's own `entriesOf`). A registry indicator's choice that the page's own card writes exactly (a value, a
+  level, an output crossing) makes that card, computed on the page; every other choice makes a card of kind `test`
+  (13.1), the Screener's own card, computed by the worker (13.9);
+- whether the Backtest can read a row is derived, never listed: the backtest catalog's `grammar_refusals` (the worker's
+  reference kinds without a per-day value, `NOT_PER_DAY`), its `flow_indicators` (availability and reason of each Flow
+  indicator; the point-in-time ones only in an admin's catalog, `app/rights.py`) and the Screener catalog's own
+  availability of the entry; such a row shows "Not in backtest" with that reason;
+- side (entry, exit), search, sort, categories, a resizable rail, Customize (a popover), the strategy panel (a tab on a
+  phone), and the keyboard as the design: `/` the search, arrows the active row, Enter adds or removes it, Escape closes
+  the popover, then the window, and gives the focus back; Tab stays inside the window;
+- the condition limit holds as everywhere (`reg.ts withinLimit`); "My metrics" are kept in this browser (`ml.my`, a
+  convenience of the viewer, never a setting of a run).
+
+A new indicator's default threshold (`reg.ts regMedian`) is the median of its values on the shown ticker's bars before
+the period's start, and only when they hold fewer than 20 values the bars up to the period's end; it never reads a bar
+after the period. Checks: `tests/smoke/smoke.mjs` (the condition window, the theme that follows EDGE, every step of the
+page on the stub API; in CI, `.github/workflows/backtest-page-smoke.yml`, user "3A"), `tests/visual/compare.mjs` with
+`diff.py` (the design against `?fixture=design` at 1440, 1024 and 390 px, light and dark; by hand, the design file is
+not in the repository).

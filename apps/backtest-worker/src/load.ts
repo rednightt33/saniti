@@ -48,6 +48,7 @@ const key = (ticker: string, datasets: readonly Dataset[]) => `${ticker}|${[...d
 export interface LoadGroup {
   tickers: readonly string[]; datasets: readonly Dataset[];
   skipUnpublished?: boolean;     // a ticker without published files is left out (Loaded.excluded), not an error
+  brokerColumns?: boolean;       // keep the broker rows as columns (a Flow indicator in the grammar reads them, P3)
 }
 export interface Loaded {
   tickers: Map<string, LoadedTicker>;
@@ -104,7 +105,7 @@ async function lanes<T>(items: readonly T[], n: number, task: (item: T, k: numbe
 export async function loadMarket(client: PlannedClient, groups: readonly LoadGroup[], limits: Pick<Limits, 'max_download_bytes' | 'max_broker_rows'>,
   field: string, concurrency: number, hooks: LoadHooks = {}): Promise<Loaded> {
   const stop = () => { if (hooks.shouldStop?.()) throw new Cancelled() };
-  const jobs = groups.flatMap(g => [...new Set(g.tickers)].map(ticker => ({ ticker, datasets: g.datasets, skip: !!g.skipUnpublished })));
+  const jobs = groups.flatMap(g => [...new Set(g.tickers)].map(ticker => ({ ticker, datasets: g.datasets, skip: !!g.skipUnpublished, columns: !!g.brokerColumns })));
   const total = jobs.length;
   let done = 0;
   hooks.progress?.(0, total);
@@ -142,7 +143,7 @@ export async function loadMarket(client: PlannedClient, groups: readonly LoadGro
       within(limits, reading, field, kept.length);
       b = n;
     };
-    const load = () => { client.plan(b, j.datasets); return client.loadTicker(j.ticker, j.datasets, { keepBrokerRows: false }) };
+    const load = () => { client.plan(b, j.datasets); return client.loadTicker(j.ticker, j.datasets, { keepBrokerRows: false, keepBrokerColumns: j.columns }) };
     // a ticker whose every file is cached needs no URL: its step-1 answer serves it however old (review COST-1)
     if (!client.usable(b) && !(await client.cached(b))) await again();
     let t: LoadedTicker;

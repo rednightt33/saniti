@@ -35,22 +35,28 @@
      checkPriceRange); a period.from before its first bar starts the run there (engine.ts PERIOD_CLIPPED);
    - PERIOD_BEFORE_DATA (engine.ts): the primary benchmark has no close on or before the first day of the result
      calendar (result.ts cannot scale a benchmark without a first close). */
-import type { BacktestRequest, BacktestResult, JobContext, JobProgress, SignalsPreview, SignalsPreviewRequest } from '../../edge-bff/backtest/src/core/contract.ts';
+import crypto from 'node:crypto';
+import type { BacktestRequest, BacktestResult, JobContext, JobProgress, PreviewDetail, SignalsPreview, SignalsPreviewRequest, Warning } from '../../edge-bff/backtest/src/core/contract.ts';
 import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
-import { DataError, INDEX_TICKER } from '../../edge-bff/backtest/src/core/datafile.ts';
+import { DataError, INDEX_TICKER, dataVersion, unknownBasis } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { Cancelled, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { MarketData } from '../../edge-bff/backtest/src/core/engine.ts';
-import { canonicalRequest, lineageKey, requestHash, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { canonicalJson, canonicalRequest, lineageKey, requestHash, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
 import type { CellRun, ResultInput } from '../../edge-bff/backtest/src/core/ledger.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { buildResult } from '../../edge-bff/backtest/src/core/result.ts';
 import { sensitivityPlan } from '../../edge-bff/backtest/src/core/robustness.ts';
-import { leftOut, previewRow, requestConditions, unlessLeftOut } from '../../edge-bff/backtest/src/core/signals.ts';
+import { withThreshold } from '../../edge-bff/backtest/src/core/catalog.ts';
+import type { Condition } from '../../edge-bff/backtest/src/core/contract.ts';
+import { EXCLUDED_CODES, byTicker, emptyTrack, leftOut, periodSignals, previewRow, requestConditions, track, unlessLeftOut } from '../../edge-bff/backtest/src/core/signals.ts';
+import type { BarMap, Exclusion } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from './config.ts';
 import { brokerDataThrough, loadMarket } from './load.ts';
 import type { Bundle, PlannedClient } from './load.ts';
 import { checkPriceRange } from './terminal.ts';
 import type { Dataset, LoadedTicker, TerminalClient } from './terminal.ts';
+import { hashForm, lineageForm } from './canonical.ts';
+import { checkTest } from './grammar.ts';
 import { checkRequest, checkSignalsRequest, stocksOf } from './validate.ts';
 import type { CheckedRequest, References } from './validate.ts';
 
@@ -109,7 +115,10 @@ export async function checkPublished(request: BacktestRequest, checked: CheckedR
   checkAfterData(last, to);
 }
 
-export async function runJob(request: unknown, context: Pick<JobContext, 'prior_trials'>, refs: Refs, env: RunEnv, hooks: RunHooks = {}): Promise<BacktestResult> {
+/** The run's context besides the request: the prior trials (edge-bff), and the rights (P4-P5: from the session; none
+    when absent, fail closed). */
+export interface RunContext extends Pick<JobContext, 'prior_trials' | 'owner_trials'> { rights?: readonly string[] }
+export async function runJob(request: unknown, context: RunContext, refs: Refs, env: RunEnv, hooks: RunHooks = {}): Promise<BacktestResult> {
   const now = env.now ?? (() => performance.now()), t0 = now();
   const stop = () => { if (hooks.shouldStop?.()) throw new Cancelled() };
   const report = (phase: JobProgress['phase'], done: number, total: number) => hooks.progress?.({ phase, done, total });
@@ -117,11 +126,11 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
 
   /* 1. loading */
   report('loading', 0, 0);
-  const checked = checkRequest(request, refs, env.config);
+  const checked = checkRequest(request, refs, env.config, new Set(context.rights ?? []));
   const q = canonicalRequest(request as BacktestRequest), single = q.mode === 'single', { from, to } = q.period;
   const datasets: Dataset[] = checked.broker ? ['price', 'events', 'broker'] : ['price', 'events'];
   const field = single ? 'single.ticker' : 'portfolio.tickers';
-  const loaded = await loadMarket(env.client, [{ tickers: [INDEX_TICKER], datasets: ['price'] }, { tickers: checked.tickers, datasets, skipUnpublished: !single }],
+  const loaded = await loadMarket(env.client, [{ tickers: [INDEX_TICKER], datasets: ['price'] }, { tickers: checked.tickers, datasets, skipUnpublished: !single, brokerColumns: checked.columns }],
     limits, field, env.config.terminal.concurrency, {
       shouldStop: hooks.shouldStop, progress: (d, t) => report('loading', d, t),
       planned: checked.broker ? b => flowThroughOf(new Map([...b].filter(([t]) => t !== INDEX_TICKER)), to, refs, env, hooks.shouldStop) : undefined,
@@ -131,8 +140,8 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
   checkAfterData(ihsgLast, to);
   const stocks = checked.tickers.filter(t => loaded.tickers.has(t)).map(t => loaded.tickers.get(t) as LoadedTicker);
   if (single) checkPriceRange(stocks[0], from, to);
-  const market: MarketData = { ihsg, tickers: {}, excluded: loaded.excluded };
-  for (const t of stocks) market.tickers[t.ticker] = { prices: t.prices!, corporate_actions: t.corporate_actions ?? [], ...(t.flow ? { flow: t.flow } : {}) };
+  const market: MarketData = { ihsg, tickers: {}, excluded: loaded.excluded, classification: classificationOf(refs) };
+  for (const t of stocks) market.tickers[t.ticker] = { prices: t.prices!, corporate_actions: t.corporate_actions ?? [], ...(t.flow ? { flow: t.flow } : {}), ...(t.broker_columns ? { broker: t.broker_columns } : {}), ...(t.broker_basis ? { basis: t.broker_basis } : {}) };
   const dataThrough = [ihsgLast, ...stocks.map(t => lastOf(t.prices!.dates))].sort();
   stop();
 
@@ -141,9 +150,11 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
   const ledger = run(ctx, q, { shouldStop: hooks.shouldStop, progress: (done, total) => done < nT ? report('signals', done, nT) : report('backtest', done - nT, total - nT) });
   stop();
 
-  /* 4. sensitivity */
-  const variant_hash = await variantHash(q);
-  const plan = sensitivityPlan(q);
+  /* 4. sensitivity (the hashes read the request's hash form, canonical.ts: the same strategy written two ways is one
+     trial, EXEC-BACKTEST-REVAMP K7 a; a grammar condition's cell whose threshold the Screener's validation refuses is
+     not run) */
+  const variant_hash = await variantHash(hashForm(q));
+  const plan = sensitivityPlan(q, gridAccepts);
   let sensitivity: ResultInput['sensitivity'] = null;
   if (plan) {
     const runs = new Map<string, CellRun>([[variant_hash, { ledger, variant_hash }]]);   // a cell equal to the run is the run
@@ -156,7 +167,7 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
       for (const cq of row) {
         if (!cq) { out.push(null); continue }
         stop();
-        const h = await variantHash(cq);
+        const h = await variantHash(hashForm(cq));
         let c = runs.get(h);
         if (!c) { c = { ledger: run(ctx, cq, { shouldStop: hooks.shouldStop }), variant_hash: h }; runs.set(h, c) }
         out.push(c);
@@ -170,15 +181,15 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
   stop();
 
   /* 5. statistics, tables, trials, Monte Carlo */
-  const data_version = loaded.data_version;
+  const data_version = await versionOf(loaded, checked.columns, market.classification ?? {});
   const [lineage_key, request_hash] = await Promise.all([
-    lineageKey(q), requestHash(q, { engine_version: env.versions.engine_version, registry_version: env.versions.registry_version, data_version })]);
+    lineageKey(lineageForm(q)), requestHash(hashForm(q), { engine_version: env.versions.engine_version, registry_version: env.versions.registry_version, data_version })]);
   if (q.robustness.monte_carlo_runs > 0) report('monte_carlo', 0, q.robustness.monte_carlo_runs);
   else report('finalizing', 0, 1);
   const result = buildResult({
     request: q, ledger,
     versions: { engine_version: env.versions.engine_version, registry_version: env.versions.registry_version, data_version, data_through: lastOf(dataThrough) },
-    tickers: single ? [...checked.tickers] : ledger.per_ticker_signals.map(t => t.ticker), prior_trials: context.prior_trials, variant_hash, lineage_key, request_hash, sensitivity, duration_ms: 0,
+    tickers: single ? [...checked.tickers] : ledger.per_ticker_signals.map(t => t.ticker), prior_trials: context.prior_trials, ...(context.owner_trials ? { owner_trials: context.owner_trials } : {}), variant_hash, lineage_key, request_hash, sensitivity, duration_ms: 0,
   });
   stop();
   report('finalizing', 0, 1);
@@ -187,33 +198,94 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
   return result;
 }
 
+/** The run's data_version: datafile.ts dataVersion over every file read and, when a grammar Flow condition reads the
+    broker rows (their columns), the brokers' classification it reads (FL34, the class: scopes): a relabelled broker list
+    is new data for the same files, so it is a new data_version and a new request hash (Stage C F7, ERRORS M458). Other
+    runs keep the version of their files. */
+async function versionOf(loaded: { files: readonly { ticker: string; dataset: string; sha256: string }[]; data_version: string }, columns: boolean, classification: Record<string, string>): Promise<string> {
+  if (!columns) return loaded.data_version;
+  const sha256 = crypto.createHash('sha256').update(canonicalJson(classification)).digest('hex');
+  return dataVersion([...loaded.files, { ticker: 'REFERENCE', dataset: 'broker_classification', sha256 }]);
+}
+
+/** The brokers' classification of the reference list (IDX_Broker_Profile; today's labels, used on every date: user
+    decision 5, 2026-11-15), for FL34 and the class: broker scopes of the Flow indicators. */
+const classificationOf = (refs: Refs): Record<string, string> =>
+  Object.fromEntries(refs.brokers.filter(b => typeof b.classification === 'string' && b.classification).map(b => [b.code, b.classification as string]));
+
+/** A sensitivity cell's threshold the grammar's validation accepts (a grammar condition; the others are checked by the
+    plan itself, robustness.ts accepted). */
+export function gridAccepts(c: Condition, value: number): boolean {
+  if (c.kind !== 'test') return true;
+  try { checkTest(withThreshold(c, value), 'cell'); return true }
+  catch (e) { if (e instanceof ValidationError) return false; throw e }
+}
+
 /** The portfolio table's entry signals before a run (no backtest, no trial): each picked stock's entry events on its
     own bars inside the period, as the backtest counts them (signals.ts previewRow), with the run's checks and
     exclusions (lead decision 2026-10-26: a preview never fails where the matching run succeeds): a ticker without
     published files (load.ts skipUnpublished) or whose own data cannot serve the strategy (signals.ts EXCLUDED_CODES)
     is left out and listed in the warning TICKERS_EXCLUDED, none left is UNIVERSE_EMPTY, and a preview that reads the
     broker files is held to FLOW_DATA_THROUGH. */
-export async function runSignals(request: unknown, refs: Refs, env: RunEnv, hooks: RunHooks = {}): Promise<SignalsPreview> {
+export async function runSignals(request: unknown, refs: Refs, env: RunEnv, hooks: RunHooks = {}, context: { rights?: readonly string[] } = {}): Promise<SignalsPreview> {
   const stop = () => { if (hooks.shouldStop?.()) throw new Cancelled() };
-  const checked = checkSignalsRequest(request, refs, env.config);
+  const checked = checkSignalsRequest(request, refs, env.config, new Set(context.rights ?? []));
   const q = request as SignalsPreviewRequest;
-  const loaded = await loadMarket(env.client, [{ tickers: checked.tickers, datasets: checked.broker ? ['price', 'broker'] : ['price'], skipUnpublished: true }], env.config.limits, 'tickers',
+  // IHSG's prices too, as a run loads them: a grammar condition may compare with the index (vs_index), and a preview
+  // never fails where the matching run succeeds (EXEC-BACKTEST-REVAMP P2)
+  const loaded = await loadMarket(env.client, [{ tickers: [INDEX_TICKER], datasets: ['price'] }, { tickers: checked.tickers, datasets: checked.columns ? ['price', 'broker', 'events'] : checked.broker ? ['price', 'broker'] : ['price'], skipUnpublished: true, brokerColumns: checked.columns }], env.config.limits, 'tickers',
     env.config.terminal.concurrency, {
       shouldStop: hooks.shouldStop, progress: (d, t) => hooks.progress?.({ phase: 'loading', done: d, total: t }),
-      planned: checked.broker ? b => flowThroughOf(b, q.period.to, refs, env, hooks.shouldStop) : undefined,
+      planned: checked.broker ? b => flowThroughOf(new Map([...b].filter(([t]) => t !== INDEX_TICKER)), q.period.to, refs, env, hooks.shouldStop) : undefined,
     });
+  const ihsg = (loaded.tickers.get(INDEX_TICKER) as LoadedTicker).prices!, classification = classificationOf(refs);
   const req = { entry: q.entry }, active = requestConditions(req), rows: SignalsPreview['rows'] = [], excluded = [...loaded.excluded];
-  let done = 0;
+  let done = 0, detail: PreviewDetail | undefined;
   for (const ticker of checked.tickers) {
     stop();
     const t = loaded.tickers.get(ticker);
     if (t) {
-      const calc = new Calc(t.prices!.bars, t.flow ?? undefined);
+      const calc = new Calc(t.prices!.bars, t.flow ?? undefined, { ticker, dates: t.prices!.dates, index: { dates: ihsg.dates, bars: ihsg.bars },
+        ...(t.broker_columns ? { broker: { columns: t.broker_columns, classification, basis: t.broker_basis ?? unknownBasis(t.corporate_actions ?? []) } } : {}) });
       const row = unlessLeftOut(ticker, excluded, () => previewRow(calc, t.prices!.dates, req, q.period.from, q.period.to, active));
       if (row) rows.push({ ticker, ...row });
+      if (q.detail?.ticker === ticker) detail = previewDetail(calc, ticker, t.prices!.dates, q);
     }
     hooks.progress?.({ phase: 'signals', done: ++done, total: checked.tickers.length });
   }
-  const left = leftOut(excluded, rows.length, 'tickers', 'preview');                        // UNIVERSE_EMPTY when none is left
-  return { data_version: loaded.data_version, rows, warnings: left ? [left] : [] };
+  // UNIVERSE_EMPTY when none is left; Stage D (D6): a preview that asks a detail answers with every stock left out in
+  // TICKERS_EXCLUDED instead, so the chart can say why its stock has no tracks (detail.error)
+  let left;
+  try { left = leftOut(excluded, rows.length, 'tickers', 'preview') }
+  catch (e) { if (!(q.detail && e instanceof ValidationError && e.code === 'UNIVERSE_EMPTY')) throw e; left = allLeftOut(excluded) }
+  return { data_version: await versionOf(loaded, checked.columns, classification), rows, warnings: left ? [left] : [], ...(detail ? { detail } : {}) };
+}
+
+/** TICKERS_EXCLUDED with every picked stock (a preview with a detail; leftOut's own words for the others) */
+function allLeftOut(excluded: readonly Exclusion[]): Warning {
+  const xs = [...excluded].sort((a, b) => byTicker(a.ticker, b.ticker)), one = xs.length === 1;
+  return { code: 'TICKERS_EXCLUDED', count: xs.length, tickers: xs.map(x => x.ticker), reasons: xs.map(x => ({ ...x })),
+    message: `${one ? 'The picked stock was' : `All ${xs.length} picked stocks were`} left out of this preview because ${one ? 'its' : 'their'} own data cannot serve the strategy.` };
+}
+
+/** Stage D (D6): the detail ticker's condition tracks over its own bars inside the period, with the preview's rules
+    (signals.ts periodSignals `portfolio`: a condition without a value on those bars is false; the ticker's data that
+    cannot serve the strategy is the detail's error, the code a run leaves the stock out with). */
+function previewDetail(calc: Calc, ticker: string, dates: readonly string[], q: SignalsPreviewRequest): PreviewDetail {
+  const req = { entry: q.entry, ...(q.detail?.exit_signals ? { exit: { signals: q.detail.exit_signals } } : {}) };
+  const none = { ticker, from: null, to: null, conditions: [], exit_conditions: [], entry: emptyTrack(), exit: emptyTrack() };
+  try {
+    const { first, last, sig } = periodSignals(calc, dates, req as never, requestConditions(req as never), q.period.from, q.period.to, true);
+    if (!sig) return none;
+    const bar = new Int32Array(dates.length).fill(-1);
+    for (let j = first; j <= last; j++) bar[j] = j - first;
+    const m = { bar, first, last } as unknown as BarMap;
+    return { ticker, from: dates[first], to: dates[last],
+      conditions: sig.entryConditions.map(x => ({ condition_id: x.id, track: track(x.s, m) })),
+      exit_conditions: sig.exitConditions.map(x => ({ condition_id: x.id, track: track(x.s, m) })),
+      entry: track(sig.entry, m), exit: track(sig.exit, m) };
+  } catch (e) {
+    if (!(e instanceof ValidationError) || !EXCLUDED_CODES.includes(e.code)) throw e;
+    return { ...none, error: { code: e.code, ...(e.field ? { field: e.field } : {}), message: e.message } };
+  }
 }

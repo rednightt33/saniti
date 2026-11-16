@@ -69,6 +69,27 @@ describe('the live BacktestApi (live.ts)', () => {
     ctl.abort();
     expect(isAbort(await p)).toBe(true);
   });
+  it('asks the Screener catalog again while the worker loads its data (503 SCREENER_NOT_READY, after its Retry-After; ERRORS M462)', async () => {
+    let asks = 0;
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (url === '/api/v1/auth/session') return Response.json({ csrf_token:'t' });
+      asks++;
+      return asks === 1 ? Response.json({ error:{ code:'SCREENER_NOT_READY', message:'The screener is loading its data.' } }, { status:503, headers:{ 'Retry-After':'0' } })
+        : Response.json({ evaluation_date:'2026-11-14', metrics:[] });
+    });
+    vi.useFakeTimers();
+    const p = liveApi({ cache:{ get:async () => null, put:async () => {} } }).screenerCatalog();
+    await vi.advanceTimersByTimeAsync(1000);       // the wait is at least a second, whatever the Retry-After says
+    vi.useRealTimers();
+    expect(await p).toEqual({ evaluation_date:'2026-11-14', metrics:[] });
+    expect(asks).toBe(2);
+  });
+  it('gives up on the Screener catalog for a refusal that is not a wait (the page then shows the failure)', async () => {
+    answer(403, { error:{ code:'FORBIDDEN', message:'No.' } });
+    const err = await liveApi({ cache:{ get:async () => null, put:async () => {} } }).screenerCatalog().catch(e => e);
+    expect(err).toBeInstanceOf(ApiFailure);
+    expect(err.code).toBe('FORBIDDEN');
+  });
   it('gives an answer whose body is cut off on the way as NETWORK without a status, which the status poll asks again (run.ts)', async () => {
     vi.stubGlobal('fetch', async (url: string) => url === '/api/v1/auth/session' ? Response.json({ csrf_token:'t' })
       : new Response(new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('{"state":"RUN')); c.error(new TypeError('network error')) } }),

@@ -32,6 +32,7 @@ export interface FlowData {
   from: number; to: number;                // first and last price bar with a broker row (from > to: none)
   gap_bars: number[];                      // price bars named by the publisher's gap markers (any board), ascending
   unmatched_rows: number;                  // broker rows on a date without a price bar (skipped, as the Terminal does)
+  unmatched_dates?: Record<'Regular' | 'Nego' | 'Cash', string[]>;   // those dates per board, ascending (FLOW_ROWS_DROPPED, P3)
 }
 
 const normInvestor = (s: string) => /foreign|asing/i.test(s) ? 'Foreign' : 'Domestic';      // terminal app/flow.ts
@@ -45,9 +46,10 @@ export function flowData(rows: readonly BrokerRow[], priceDates: readonly string
   const comboOf = new Map<string, number>(), comboBroker: string[] = [], comboForeign: boolean[] = [];
   const perBar: ([number, number][] | undefined)[] = new Array(N);
   let from = N, to = -1, unmatched = 0;
+  const dropped: Record<'Regular' | 'Nego' | 'Cash', Set<string>> = { Regular: new Set(), Nego: new Set(), Cash: new Set() };
   for (const r of rows) {
     const i = idx.get(r.d);
-    if (i === undefined) { unmatched++; continue }
+    if (i === undefined) { unmatched++; dropped[board(r.m) as 'Regular' | 'Nego' | 'Cash'].add(r.d); continue }
     if (i < from) from = i;
     if (i > to) to = i;
     const investor = normInvestor(r.i), key = `${r.b}|${investor}|${board(r.m)}`;
@@ -73,7 +75,9 @@ export function flowData(rows: readonly BrokerRow[], priceDates: readonly string
   }
   const gap = new Set<number>();
   for (const g of gaps) { const i = idx.get(g.d); if (i !== undefined) gap.add(i) }
-  return { fnet, brokers, from, to, gap_bars: [...gap].sort((a, b) => a - b), unmatched_rows: unmatched };
+  const sorted = (x: Set<string>) => [...x].sort();
+  return { fnet, brokers, from, to, gap_bars: [...gap].sort((a, b) => a - b), unmatched_rows: unmatched,
+    unmatched_dates: { Regular: sorted(dropped.Regular), Nego: sorted(dropped.Nego), Cash: sorted(dropped.Cash) } };
 }
 
 /** The net of broker `code` on the ticker's price bars: its series when it has a row on one of them, else 0 on every

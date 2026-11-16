@@ -49,7 +49,17 @@ export interface FlowCondition {
   op: 'gt' | 'lt';                                     // fnet: gt | lt; broker, top5: gt
   value: number;                                       // IDR
 }
-export type Condition = IndicatorCondition | PriceActionCondition | FlowCondition;
+/** EXEC-BACKTEST-REVAMP P1-P2: a condition in the Screener's grammar (the Screener's contract.ts Test: VALUE, STATE,
+    EVENT or window over indicators, bar fields, transforms and patterns), computed per bar by the worker with the
+    Screener core (apps/backtest-worker/src/grammar.ts). EVENT `within` is the condition's own window (the entry rule's
+    window_bars does not widen it); references without a per-day value (universe attributes, cross-section values and
+    ranks, the Screener's flow entries) are CONDITION_UNAVAILABLE. The page does not compute it (CONDITION_UNAVAILABLE
+    in the browser). */
+export interface TestCondition {
+  id: string; enabled?: boolean; kind: 'test';
+  test: Record<string, unknown>;                       // the Screener's Test, checked and completed by its validation
+}
+export type Condition = IndicatorCondition | PriceActionCondition | FlowCondition | TestCondition;
 
 /** A price line a stop or a trailing stop can sit on: an output of an overlay indicator (the page's LEVEL_LINES). */
 export interface LineRef { indicator: string; output: string; params?: ParamMap }
@@ -96,7 +106,14 @@ export interface JobContext {
   /** Trials already recorded for this strategy line (K3): every distinct variant evaluated before, with its daily
       Sharpe; the worker adds this run's variants and computes the Deflated Sharpe from the union. */
   prior_trials: { variant_hash: string; sharpe_daily: number }[];
+  /** EXEC-BACKTEST-REVAMP (user K6 a, 2026-11-15): every distinct variant the owner evaluated in the last
+      OWNER_TRIAL_DAYS days, across every strategy line (a search over many lines is still a search); the worker reports
+      a second deflated Sharpe over them beside the line's (robustness.deflated_owner); the page shows the stricter */
+  owner_trials?: { variant_hash: string; sharpe_daily: number }[];
+  /** P5: the session owner's rights, set by edge-bff (none when absent) */
+  rights?: string[];
 }
+export const OWNER_TRIAL_DAYS = 90;
 
 /* ------------------------------------------------------------------------------------------------------------ */
 /* result                                                                                                        */
@@ -195,6 +212,7 @@ export interface SensitivityCell { sharpe: number; cagr: number; profit_factor: 
 export interface Sensitivity {
   condition_id: string;              // the first enabled entry condition with a numeric threshold
   x_param: 'value';                  // what varies on x: the condition's threshold
+  x_field: string;                   // where it sits in that condition: 'rhs.value', 'value', 'test.signal.rhs.value' (EXEC-BACKTEST-REVAMP P2)
   xs: number[]; xs_display: number[];                       // wire units and the page's display units
   y_key: 'stop_pct' | 'stop_atr_mult' | 'stop_reward_risk_x' | 'max_hold_bars';
   ys: number[]; ys_display: number[];
@@ -222,12 +240,16 @@ export interface BacktestResult {
     tickers: string[];               // single: [ticker]; portfolio: the picked stocks the run ran on, ticker order (TICKERS_EXCLUDED lists the others)
     benchmark: { kind: 'buy_and_hold' | 'ihsg'; ticker: string };
     data_through: string;            // the latest published bar the run could see
-    warnings: Warning[];             // PERIOD_CLIPPED, TICKERS_EXCLUDED, DATA_GAP, ADJUSTED_HISTORY_BOUNDARY, ARB_NOT_MODELLED, TICK_NOT_MODELLED, SURVIVORSHIP
+    warnings: Warning[];             // PERIOD_CLIPPED, TICKERS_EXCLUDED, DATA_GAP, PRICES_RESTATED, ADJUSTED_HISTORY_BOUNDARY, ARB_NOT_MODELLED, TICK_NOT_MODELLED, SURVIVORSHIP,
+                                     // FLOW_PRE_2021, FLOW_BASIS_CHANGE, FLOW_SOURCE_GAP, FLOW_ROWS_DROPPED, FLOW_CROSSING_BOARDS, FLOW_LOTS_RESTATED (EXEC-BACKTEST-REVAMP)
     trials: {
       prior: number; this_run: number; total: number;
       /** The distinct variants this run evaluated (the run itself and the sensitivity cells), which edge-bff records
           in edge_bff.backtest_trials for the next run of the same lineage (K3). */
       variants: { variant_hash: string; sharpe_daily: number; kind: 'run' | 'sensitivity' }[];
+      /** K6 a: the owner's distinct trials of the last OWNER_TRIAL_DAYS days (this run's included); null when edge-bff
+          sent none (an edge-bff from before K6 a) */
+      owner?: { total: number; days: number } | null;
     };
   };
   dates: string[];                   // result calendar: exchange days from the first to the last day of the period
@@ -266,6 +288,8 @@ export interface BacktestResult {
     monte_carlo: MonteCarlo | null;                    // null with fewer than 3 trades (page rule)
     sensitivity: Sensitivity | null;                   // null without a numeric threshold or when switched off
     deflated: { sr0: number | null; dsr: number | null; trials: number; sharpe_variance_from: 'trials' | 'sample' };   // null: page NaN
+    /** K6 a: the same over the owner's trials of the last OWNER_TRIAL_DAYS days; null without them */
+    deflated_owner?: { sr0: number | null; dsr: number | null; trials: number; sharpe_variance_from: 'trials' | 'sample' } | null;
   };
 }
 
@@ -304,12 +328,28 @@ export interface ApiError { error: { code: string; field?: string; message?: str
 export interface SignalsPreviewRequest {
   schema_version: 1; tickers: string[]; period: { from: string; to: string };
   entry: BacktestRequest['entry'];
+  /** EXEC-BACKTEST-REVAMP Stage D (D6): one of `tickers` whose condition tracks the page draws (the chart's ticker); the
+      page computes its own indicator, price-action and flow cards and asks the worker for the conditions it cannot
+      compute (the grammar and the point-in-time Flow indicators, which run on the worker only: CONTRACT.md 13.9).
+      exit_signals: the exit signal conditions, read for this ticker only (as a run's exit.signals) */
+  detail?: { ticker: string; exit_signals?: BacktestRequest['exit']['signals'] };
+}
+/** The tracks of the preview's detail ticker over its own bars inside the period: index 0 is its bar on `from`, the last
+    its bar on `to` (from and to null: no bar inside the period). error: its data cannot serve the strategy (an error of
+    signals.ts EXCLUDED_CODES; the ticker is then listed in TICKERS_EXCLUDED too). */
+export interface PreviewDetail {
+  ticker: string; from: string | null; to: string | null;
+  conditions: { condition_id: string; track: SignalTrack }[];        // the enabled entry conditions, request order
+  exit_conditions: { condition_id: string; track: SignalTrack }[];   // the enabled exit signal conditions
+  entry: SignalTrack; exit: SignalTrack;                             // the combined entry and exit-signal states
+  error?: { code: string; field?: string; message: string };
 }
 export interface SignalsPreview {
   data_version: string;
   rows: { ticker: string; entry_signals: number; last_signal: string | null }[];   // the picked stocks that are counted, ticker order
   warnings: Warning[];             // TICKERS_EXCLUDED, as the run's: the stocks left out (no published files, or their own
                                    // data cannot serve the entry rule); every stock left out is UNIVERSE_EMPTY, not a preview
+  detail?: PreviewDetail;          // the request's detail ticker (Stage D, D6)
 }
 
 /** GET catalog: what the page may offer (built by the worker from its registry, catalog.ts and the published data). */
@@ -327,6 +367,14 @@ export interface Catalog {
                                                          // flow run can reach (period.to after it: FLOW_DATA_THROUGH); null while flow is off
   };
   limits: Limits;
+  /** EXEC-BACKTEST-REVAMP P3-P5: the Flow indicators a condition in the grammar may read ({"kind":"flow","metric":id}),
+      derived from the registries: access 'admin' for the point-in-time versions (edge-bff leaves them out of the catalog
+      of a session without the right flow_point_in_time; the worker refuses them without it, CONDITION_RESTRICTED),
+      date_param their required anchor or start; available false with the reason for one a backtest cannot read */
+  flow_indicators?: { id: string; name: string; access: 'all' | 'admin'; available: boolean; reason: string | null; date_param: 'anchor' | 'start' | null }[];
+  /** EXEC-BACKTEST-REVAMP Stage D (D5): the reference kinds of the Screener's grammar a backtest refuses (universe,
+      xsection, rank: no per-day value without look-ahead), each with the refusal's reason (the worker's grammar.ts) */
+  grammar_refusals?: Record<string, string>;
 }
 /** A classification the portfolio picker filters by: a column of terminal-api's ticker reference file other than
     ticker, name and type (today sector and industry; derived from the file, never listed here). values: each value
@@ -340,4 +388,7 @@ export interface Limits {
   max_download_bytes: number; max_broker_rows: number; timeout_seconds: number; queued_per_owner: number;
   max_conditions: number;                                // enabled conditions one list may have (entry.conditions,
                                                          // exit.signals.conditions); more is LIMIT_EXCEEDED
+  /** EXEC-BACKTEST-REVAMP P3: distinct Flow series (indicator, output and parameters, completed) a request's enabled
+      conditions may read, each computed on every picked stock; more is FLOW_BUDGET_EXCEEDED */
+  max_flow_series: number;
 }

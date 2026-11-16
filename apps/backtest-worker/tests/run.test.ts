@@ -7,6 +7,7 @@
    Sector names and company names of the fake reference list are test labels, not published values; the broker rows
    and the corporate action of the flow and events tests are test rows, marked where they are made. */
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { loadFixtures } from '../../edge-bff/terminal/tests/calc/fixtures.mjs';
 import type { BacktestRequest, BacktestResult, Condition, JobProgress } from '../../edge-bff/backtest/src/core/contract.ts';
@@ -17,16 +18,18 @@ import { DataError, dataVersion } from '../../edge-bff/backtest/src/core/datafil
 import type { PriceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { Cancelled, MAX_PORTFOLIO_TICKERS, MAX_POSITIONS, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { Exclusion } from '../../edge-bff/backtest/src/core/engine.ts';
-import { lineageKey, requestHash, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { canonicalJson, lineageKey as coreLineageKey, requestHash as coreRequestHash, variantHash as coreVariantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { hashForm, lineageForm } from '../src/canonical.ts';
 import type { CellRun } from '../../edge-bff/backtest/src/core/ledger.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { assertFiniteJson, buildResult } from '../../edge-bff/backtest/src/core/result.ts';
 import { sensitivityPlan } from '../../edge-bff/backtest/src/core/robustness.ts';
-import { previewRow, requestConditions } from '../../edge-bff/backtest/src/core/signals.ts';
+import { periodSignals, previewRow, requestConditions, track } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from '../src/config.ts';
 import { WorkerError } from '../src/errors.ts';
 import { PlannedClient } from '../src/load.ts';
-import { runJob, runSignals } from '../src/run.ts';
+import { gridAccepts, runJob, runSignals } from '../src/run.ts';
+import { grammarStats } from '../src/grammar.ts';
 import type { RunEnv } from '../src/run.ts';
 import type { TickerRef } from '../src/terminal.ts';
 import { checkRequest } from '../src/validate.ts';
@@ -66,7 +69,7 @@ const NOPX: TickerRef = { ticker: 'NOPX', name: 'NOPX (test name)', type: 'stock
 const SECTOR_A = ['BBCA', 'GOTO', 'UNVR'];
 
 const KEY = 'run-test-proxy-key-'.padEnd(48, 'x');
-const LIMITS: Config['limits'] = { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 600, queued_per_owner: 3, max_conditions: 20 };
+const LIMITS: Config['limits'] = { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 600, queued_per_owner: 3, max_conditions: 20, max_flow_series: 8 };
 const OFF: Config['flow'] = { enabled: false, reason: 'flow is off in this test' };
 let fake: Awaited<ReturnType<typeof startFakeTerminal>>;
 let refs: References;
@@ -118,10 +121,15 @@ const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
 /** The oracle: the shared core run on the fixture bars directly (no terminal-api, no worker), as CONTRACT.md sections
     4-7 compose it: prepare, run, one run per sensitivity cell, buildResult with the hashes and versions. */
+// the worker hashes a request's hash form (canonical.ts, EXEC-BACKTEST-REVAMP K7 a), so the reference does too
+const variantHash = (q: BacktestRequest) => coreVariantHash(hashForm(q));
+const lineageKey = (q: BacktestRequest) => coreLineageKey(lineageForm(q));
+const requestHash = (q: BacktestRequest, v: Parameters<typeof coreRequestHash>[1]) => coreRequestHash(hashForm(q), v);
+
 async function direct(q: BacktestRequest, tickers: string[], files: { ticker: string; dataset: string; sha256: string }[], prior: { variant_hash: string; sharpe_daily: number }[] = [],
   excluded?: Exclusion[]): Promise<BacktestResult> {
   const ctx = prepare({ ihsg: series('IHSG'), tickers: Object.fromEntries(tickers.map(t => [t, { prices: series(t), corporate_actions: [] }])), ...(excluded ? { excluded } : {}) });
-  const ledger = run(ctx, q), plan = sensitivityPlan(q);
+  const ledger = run(ctx, q), plan = sensitivityPlan(q, gridAccepts);
   let sensitivity = null;
   if (plan) {
     const cells: (CellRun | null)[][] = [];
@@ -174,7 +182,7 @@ test('a single-stock job with the page default settings: every phase in order, a
   assert.equal(r.meta.data_through, THROUGH); assert.equal(r.dates[r.dates.length - 1], THROUGH); assert.ok(r.dates[0] >= q.period.from);
   assert.ok(r.meta.duration_ms > 0 && r.meta.duration_ms <= ms + 1);
   assert.equal(r.robustness.sensitivity!.cells.flat().filter(Boolean).length, 25);
-  assert.deepEqual(r.meta.warnings.map(w => w.code), ['ADJUSTED_HISTORY_BOUNDARY', 'ARB_NOT_MODELLED', 'TICK_NOT_MODELLED']);
+  assert.deepEqual(r.meta.warnings.map(w => w.code), ['ADJUSTED_HISTORY_BOUNDARY', 'ARB_NOT_MODELLED', 'TICK_NOT_MODELLED', 'SURVIVORSHIP', 'FEW_TRADES']);   // M457
   assertFiniteJson(r); finiteOrNull(r);
   assert.deepStrictEqual(JSON.parse(JSON.stringify(r)), plusZero(r)); // nothing JSON would drop or change (JSON writes -0 as 0)
 });
@@ -530,7 +538,8 @@ test('signals preview: each picked stock as previewRow on its own bars, data_ver
   const p = await runSignals({ schema_version: 1, tickers: STOCKS, period, entry }, refs, env());
   const active = requestConditions({ entry });
   assert.deepEqual(p.rows, STOCKS.map(t => ({ ticker: t, ...previewRow(new Calc(series(t).bars), FX.get(t)!.T, { entry }, period.from, period.to, active) })));
-  assert.equal(p.data_version, await dataVersion(STOCKS.map(priceFile)));
+  // IHSG's prices are read too, as by the run (EXEC-BACKTEST-REVAMP P2: a grammar condition may compare with the index)
+  assert.equal(p.data_version, await dataVersion([priceFile('IHSG'), ...STOCKS.map(priceFile)]));
   assert.ok(p.rows.some(r => r.entry_signals > 0));
   const s = await runSignals({ schema_version: 1, tickers: ['UNVR', 'BBCA', 'GOTO'], period, entry }, refs, env());
   assert.deepEqual(s.rows.map(r => r.ticker), SECTOR_A, 'ticker order, whatever the order picked');
@@ -599,4 +608,138 @@ test('signals preview: the run\'s exclusions in the run\'s warning, UNIVERSE_EMP
     assert.deepEqual(ok.warnings[0].reasons, jr.meta.warnings.find(x => x.code === 'TICKERS_EXCLUDED')!.reasons);
     assert.deepEqual(ok.warnings[0].reasons!.map(x => [x.ticker, x.code, x.field]), [['BBCA', 'DATA_MISSING', 'BBCA.broker'], ['GOTO', 'DATA_MISSING', 'GOTO.broker']]);
   } finally { await stale.close() }
+});
+
+/* ---- EXEC-BACKTEST-REVAMP P2: conditions in the Screener's grammar ---------------------------------------------- */
+const RSI = { kind: 'indicator', indicator: 'I13', output: 'rsi', params: {} };
+const grammarEntry = (): BacktestRequest['entry'] => ({ logic: 'all', at_least: 1, window_bars: 5, conditions: [
+  { id: 'g1', kind: 'test', test: { kind: 'value', metric: RSI, op: 'lt', value: 45 } },
+  { id: 'g2', kind: 'test', test: { kind: 'value', metric: { kind: 'transform', fn: 'vs_index', of: { kind: 'price', field: 'close' }, args: {} }, op: 'gt', value: 0 } },
+  { id: 'g3', kind: 'test', test: { kind: 'event', within: 10, signal: { lhs: RSI, op: 'crosses_below', rhs: { value: 50 } } } },
+] as BacktestRequest['entry']['conditions'] });
+
+test('a single job with grammar conditions: the core result, a grid on the grammar threshold, each series computed once for the run and its 25 cells', async () => {
+  const q = { ...pageDefault('UNVR'), entry: grammarEntry() };
+  const before = grammarStats.computed;
+  const r = await runJob(q, { prior_trials: [] }, refs, env());
+  // RSI(14) and the close relative to IHSG: each computed once on UNVR for the run and every cell
+  assert.ok(grammarStats.computed - before <= 2, `${grammarStats.computed - before} series computations`);
+  assert.deepStrictEqual(noDuration(r), noDuration(await direct(q, ['UNVR'], [priceFile('IHSG'), priceFile('UNVR')])));
+  const s = r.robustness.sensitivity!;
+  assert.equal(s.condition_id, 'g1'); assert.equal(s.x_field, 'test.value');
+  assert.deepEqual(s.xs, [27, 36, 45, 54, 63]);                      // 20 % of 45 per step, no floor of 1
+  assert.equal(s.cells.flat().filter(Boolean).length, 25);
+  assert.ok(r.trades.length > 0, 'the grammar conditions trade');
+  // the same strategy with its parameters written out is the same trial
+  const full = clone(q); (full.entry.conditions[0] as { test: { metric: { params: object } } }).test.metric.params = { length: 14, source: 'close' };
+  const r2 = await runJob(full, { prior_trials: [] }, refs, env());
+  assert.equal(r2.meta.trials.variants[0].variant_hash, r.meta.trials.variants[0].variant_hash);
+  assert.equal(r2.meta.lineage_key, r.meta.lineage_key);
+});
+
+test('grammar conditions: the preview reads IHSG for vs_index; refusals name the field', async () => {
+  const q = pageDefault('UNVR'), entry = grammarEntry();
+  const p = await runSignals({ schema_version: 1, tickers: ['UNVR', 'BBCA'], period: { from: q.period.from, to: q.period.to }, entry }, refs, env());
+  assert.deepEqual(p.rows.map(x => x.ticker), ['BBCA', 'UNVR']);                    // ticker order
+  assert.ok(p.rows.some(x => x.entry_signals > 0), 'the preview finds signals');
+  const universe = { ...entry, conditions: [{ id: 'u1', kind: 'test', test: { kind: 'value', metric: { kind: 'universe', attribute: 'adv20_idr' }, op: 'gt', value: 1e9 } }] } as BacktestRequest['entry'];
+  assert.deepEqual(await refusal(runJob({ ...q, entry: universe }, { prior_trials: [] }, refs, env())), ['CONDITION_UNAVAILABLE', 'entry.conditions[0].test.metric']);
+  const bad = { ...entry, conditions: [{ id: 'b1', kind: 'test', test: { kind: 'value', metric: RSI, op: 'between', value: 70, value2: 30 } }] } as BacktestRequest['entry'];
+  assert.deepEqual(await refusal(runJob({ ...q, entry: bad }, { prior_trials: [] }, refs, env())), ['INVALID_CONDITION', 'entry.conditions[0].test.value2']);
+});
+
+test('Stage D (D6): the preview\'s detail ticker: each condition, the entry and the exit signals as tracks on its own bars in the period', async () => {
+  const q = pageDefault('UNVR'), entry = grammarEntry(), period = { from: q.period.from, to: q.period.to };
+  const exit_signals = { logic: 'any', conditions: [{ id: 'x1', kind: 'test', test: { kind: 'value', metric: RSI, op: 'gt', value: 70 } }] } as BacktestRequest['exit']['signals'];
+  const p = await runSignals({ schema_version: 1, tickers: ['UNVR', 'BBCA'], period, entry, detail: { ticker: 'UNVR', exit_signals } }, refs, env());
+  const d = p.detail!, T = FX.get('UNVR')!.T;
+  // the tracks the core computes for the same request on the same bars (tickerSignals with the preview's rules)
+  const req = { entry, exit: { signals: exit_signals } }, act = requestConditions(req as never);
+  const calc = new Calc(series('UNVR').bars, undefined, { ticker: 'UNVR', dates: T, index: { dates: FX.get('IHSG')!.T, bars: series('IHSG').bars } });
+  const ps = periodSignals(calc, T, req as never, act, period.from, period.to, true), sig = ps.sig!;
+  const bar = new Int32Array(T.length).fill(-1); for (let j = ps.first; j <= ps.last; j++) bar[j] = j - ps.first;
+  const m = { bar, first: ps.first, last: ps.last } as never;
+  assert.equal(d.ticker, 'UNVR'); assert.equal(d.from, T[ps.first]); assert.equal(d.to, T[ps.last]);
+  assert.deepEqual(d.conditions, sig.entryConditions.map(x => ({ condition_id: x.id, track: track(x.s, m) })));
+  assert.deepEqual(d.exit_conditions, [{ condition_id: 'x1', track: track(sig.exitConditions[0].s, m) }]);
+  assert.deepEqual(d.entry, track(sig.entry, m)); assert.deepEqual(d.exit, track(sig.exit, m));
+  assert.equal(d.entry.on.length, p.rows.find(r => r.ticker === 'UNVR')!.entry_signals, 'the same entry events as the row');
+  assert.ok(d.exit.runs.length > 0, 'the exit condition is true somewhere');
+  // every picked stock left out (a 200-session average with no value up to a period's end 20 sessions in): with a detail
+  // the preview answers (TICKERS_EXCLUDED with every stock, the detail's error), without one it is UNIVERSE_EMPTY as before
+  const long = { logic: 'all', at_least: 1, window_bars: 5, conditions: [{ id: 's1', kind: 'test', test: { kind: 'state', lhs: { kind: 'price', field: 'close' }, op: 'gt', rhs: { kind: 'indicator', indicator: 'I01', output: 'sma', params: { length: 200 } } } }] } as BacktestRequest['entry'];
+  const early = { from: T[0], to: T[20] };
+  const gone = await runSignals({ schema_version: 1, tickers: ['UNVR'], period: early, entry: long, detail: { ticker: 'UNVR' } }, refs, env());
+  assert.deepEqual(gone.rows, []); assert.equal(gone.warnings[0].code, 'TICKERS_EXCLUDED');
+  assert.equal(gone.detail?.error?.code, 'INDICATOR_OUTPUT_EMPTY', 'the detail says why');
+  assert.deepEqual(await refusal(runSignals({ schema_version: 1, tickers: ['UNVR'], period: early, entry: long }, refs, env())), ['UNIVERSE_EMPTY', 'tickers']);
+  // no detail asked: none answered; a detail ticker that is not picked, a field it does not have: refused with the field
+  assert.equal((await runSignals({ schema_version: 1, tickers: ['UNVR'], period, entry }, refs, env())).detail, undefined);
+  assert.deepEqual(await refusal(runSignals({ schema_version: 1, tickers: ['UNVR'], period, entry, detail: { ticker: 'BBCA' } }, refs, env())), ['INVALID_REQUEST', 'detail.ticker']);
+  assert.deepEqual(await refusal(runSignals({ schema_version: 1, tickers: ['UNVR'], period, entry, detail: { ticker: 'UNVR', chart: 1 } }, refs, env())), ['UNKNOWN_FIELD', 'detail.chart']);
+  const badExit = { logic: 'any', conditions: [{ id: 'x1', kind: 'test', test: { kind: 'value', metric: RSI, op: 'between', value: 70, value2: 30 } }] };
+  assert.deepEqual(await refusal(runSignals({ schema_version: 1, tickers: ['UNVR'], period, entry, detail: { ticker: 'UNVR', exit_signals: badExit } }, refs, env())), ['INVALID_CONDITION', 'exit.signals.conditions[0].test.value2']);
+});
+
+test('P3: a job with a Flow indicator in the grammar reads the broker rows as columns; refusals name the field', async () => {
+  // test rows: brokers YU and ZP trading UNVR on its last 60 sessions (not published values)
+  const days = FX.get('UNVR')!.T.slice(-60);
+  const rows = days.flatMap((d, k) => [[d, 'YU', 'Foreign', 'Regular', 1e9 * (1 + (k % 4)), 4e8 * (1 + (k % 3)), 1e4 * (1 + (k % 4)), 5e3, false],
+    [d, 'ZP', 'Domestic', 'Regular', 3e8 * (1 + (k % 5)), 9e8, 3e3, 9e3 * (1 + (k % 2)), false]]);
+  const doc = brokerArchive('UNVR', rows, [2026, 2026]);
+  const flowFake = await startFakeTerminal({ key: KEY, tickers: market({ UNVR: { broker: { data_through: THROUGH, doc } }, BBCA: { broker: { data_through: THROUGH, doc: brokerArchive('BBCA', [], [2026, 2026]) } } }), refs: REFS });
+  try {
+    const on: Config['flow'] = { enabled: true, reason: null };
+    const fl = (params: Record<string, unknown> = {}) => ({ id: 'f1', kind: 'test', test: { kind: 'event', within: 2, signal: { lhs: { kind: 'flow', metric: 'FL11', params }, op: 'crosses_above', rhs: { value: 0 } } } });
+    const q = { ...pageDefault('UNVR'), entry: { logic: 'all', at_least: 1, window_bars: 5, conditions: [fl()] } } as BacktestRequest;
+    q.period.from = days[0];
+    const r = await runJob(q, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }));
+    // the brokers' classification the grammar's Flow conditions read is part of the data (Stage C F7): its hash beside the files
+    const cls = (b: Record<string, string>) => ({ ticker: 'REFERENCE', dataset: 'broker_classification', sha256: crypto.createHash('sha256').update(canonicalJson(b)).digest('hex') });
+    assert.equal(r.meta.data_version, await dataVersion([priceFile('IHSG'), priceFile('UNVR'), { ticker: 'UNVR', dataset: 'broker', sha256: encode(doc).sha256 }, cls({})]));
+    const relabelled = { ...refs, brokers: refs.brokers.map(b => ({ ...b, classification: b.code === 'YU' ? 'Institutional-heavy' : null })) };
+    const r2 = await runJob(q, { prior_trials: [] }, relabelled, env({ url: flowFake.url, flow: on }));
+    assert.equal(r2.meta.data_version, await dataVersion([priceFile('IHSG'), priceFile('UNVR'), { ticker: 'UNVR', dataset: 'broker', sha256: encode(doc).sha256 }, cls({ YU: 'Institutional-heavy' })]));
+    assert.notEqual(r2.meta.request_hash, r.meta.request_hash, 'a relabelled broker list is a new request hash');
+    assert.ok(r.events.entries.UNVR.on.length > 0, 'the Flow condition switches on');
+    // flow off: refused before any download; a broker code outside the reference list; a ticker without broker rows
+    assert.deepEqual(await refusal(runJob(q, { prior_trials: [] }, refs, env({ url: flowFake.url }))), ['FLOW_UNAVAILABLE', 'entry.conditions[0].test.signal.lhs']);
+    const named = { ...q, entry: { ...q.entry, conditions: [fl({ scope: 'selected', brokers: ['QQ'] })] } } as BacktestRequest;
+    assert.deepEqual(await refusal(runJob(named, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['UNKNOWN_BROKER', 'entry.conditions[0].test.signal.lhs.params.brokers[0]']);
+    // the Flow budget: two distinct series (another window) over a limit of 1; the same series twice is one
+    const two = { ...q, entry: { ...q.entry, conditions: [fl(), { ...fl({ window: 5 }), id: 'f2' }] } } as BacktestRequest;
+    assert.deepEqual(await refusal(runJob(two, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on, limits: { max_flow_series: 1 } }))), ['FLOW_BUDGET_EXCEEDED', 'entry.conditions[1]']);
+    const twice = { ...q, entry: { ...q.entry, conditions: [fl(), { ...fl({ window: 1 }), id: 'f2' }] } } as BacktestRequest;
+    await runJob(twice, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on, limits: { max_flow_series: 1 } }));
+    const bbca = { ...q, single: { ticker: 'BBCA', benchmark: 'buy_and_hold' } } as BacktestRequest;
+    assert.deepEqual(await refusal(runJob(bbca, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['FLOW_OUTPUT_EMPTY', 'entry.conditions[0].test']);
+    // the preview reads the same
+    const p = await runSignals({ schema_version: 1, tickers: ['UNVR'], period: { from: q.period.from, to: q.period.to }, entry: q.entry }, refs, env({ url: flowFake.url, flow: on }));
+    assert.ok(p.rows[0].entry_signals > 0, 'the preview finds the same Flow signals');
+  } finally { await flowFake.close() }
+});
+
+test('P4: a point-in-time Flow condition runs for a context with the right, and is CONDITION_RESTRICTED without it', async () => {
+  const fx = FX.get('UNVR')!, days = fx.T.slice(-80), close = (fx.C as number[]).slice(-80);
+  // test rows traded at the day's close (a broker price is on the price basis: P9's per-day guard keeps the values)
+  const rows = days.flatMap((d, k) => { const c = close[k], bl = 1e4 * (1 + (k % 4)), sl = 9e3 * (1 + (k % 2));
+    return [[d, 'YU', 'Foreign', 'Regular', bl * 100 * c, 5e3 * 100 * c, bl, 5e3, false], [d, 'ZP', 'Domestic', 'Regular', 3e3 * 100 * c, sl * 100 * c, 3e3, sl, false]] });
+  const doc = brokerArchive('UNVR', rows, [2026, 2026]);
+  const flowFake = await startFakeTerminal({ key: KEY, tickers: market({ UNVR: { broker: { data_through: THROUGH, doc } } }), refs: REFS });
+  try {
+    const on: Config['flow'] = { enabled: true, reason: null };
+    const d = { id: 'd1', kind: 'test', test: { kind: 'state', lhs: { kind: 'price', field: 'close' }, op: 'gt', rhs: { kind: 'flow', metric: 'FL18', params: { anchor: days[0] } } } };
+    const q = { ...pageDefault('UNVR'), entry: { logic: 'all', at_least: 1, window_bars: 5, conditions: [d] } } as BacktestRequest;
+    q.period.from = days[0];                                            // the first value comes after the warm-up, inside the period
+    assert.deepEqual(await refusal(runJob(q, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['CONDITION_RESTRICTED', 'entry.conditions[0].test.rhs']);
+    assert.deepEqual(await refusal(runJob(q, { prior_trials: [], rights: ['something_else'] }, refs, env({ url: flowFake.url, flow: on }))), ['CONDITION_RESTRICTED', 'entry.conditions[0].test.rhs']);
+    const r = await runJob(q, { prior_trials: [], rights: ['flow_point_in_time'] }, refs, env({ url: flowFake.url, flow: on }));
+    assert.ok(r.events.entries.UNVR.on.length > 0, 'the point-in-time condition switches on');
+    const p = await runSignals({ schema_version: 1, tickers: ['UNVR'], period: { from: q.period.from, to: q.period.to }, entry: q.entry }, refs, env({ url: flowFake.url, flow: on }), {}, { rights: ['flow_point_in_time'] });
+    assert.ok(p.rows[0].entry_signals > 0);
+    assert.deepEqual(await refusal(runSignals({ schema_version: 1, tickers: ['UNVR'], period: { from: q.period.from, to: q.period.to }, entry: q.entry }, refs, env({ url: flowFake.url, flow: on }))), ['CONDITION_RESTRICTED', 'entry.conditions[0].test.rhs']);
+    // the anchor before the stock's broker data
+    const early = clone(q); ((early.entry.conditions[0] as unknown as { test: { rhs: { params: { anchor: string } } } }).test.rhs.params.anchor = '2019-01-02');
+    assert.deepEqual(await refusal(runJob(early, { prior_trials: [], rights: ['flow_point_in_time'] }, refs, env({ url: flowFake.url, flow: on }))), ['ANCHOR_BEFORE_DATA', 'entry.conditions[0].test.rhs.params.anchor']);
+  } finally { await flowFake.close() }
 });

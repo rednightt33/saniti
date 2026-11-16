@@ -332,3 +332,13 @@ the method, every scenario, K = 1 and K = 4, and the proposed limits. Phase 17 m
   grace window.
 - P4: the catalog's `max_refresh_bytes` rule still reads "more fails it"; with broker days, the days beyond it wait
   for a follow-up refresh instead (the Phase 1 files still fail). Its wording is the page's (plain-words test).
+
+## Rights (EXEC-BACKTEST-REVAMP P5, user K8 b, 2026-11-15)
+
+Every request body may carry `context: {rights}`, which edge-bff sets from the session. When the context is absent,
+there are no rights; an unknown right is `INVALID_CONTEXT`. The Screener's versions of the indicators that choose their
+brokers with later data in the Terminal are FL18, FL19, FL20, FL23, FL44 and FL45 (`catalog.ts flowAdminOnly`:
+compute `anchored` or `inventory`). Their catalog entries are marked `access: 'admin'`. A definition that reads one
+anywhere is refused without the right `flow_point_in_time` (`run.ts restrict`, `CONDITION_RESTRICTED` 422) in
+validate, run, preview and counts. edge-bff leaves these entries out of the catalog of a session without the right.
+The suite runs in CI (`.github/workflows/backtest-lookahead.yml`).
