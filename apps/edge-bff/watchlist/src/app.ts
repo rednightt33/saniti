@@ -25,12 +25,13 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
   let index: WatchlistIndex, F: StocksFile, CAT: M.Catalog, BY = new Map<string, M.Stock>(), UL: M.Stock[] = [];
   let RN: Record<string, string> = {}, LISTS: WList[] = [], LIM: M.Limits = M.limitsOf([]), LOGOS: Record<string, string> = {};
   let PD = '', BD = '', RD = '';
+  let FILE_ERR: string | null = null;     // M466 (a): the figures could not be read; the lists are shown without them
   const st: { active: string; view: View } = { active: '', view: 'cards' };
   try { const s = JSON.parse(localStorage.getItem(VIEW_KEY) || 'null'); if (s) { st.active = String(s.active || ''); st.view = s.view === 'table' ? 'table' : 'cards' } } catch { /* storage off */ }
   const persist = () => { try { localStorage.setItem(VIEW_KEY, JSON.stringify(st)) } catch { /* storage off */ } };
 
   const L = (id?: string) => LISTS.find(l => l.id === (id || st.active)) as WList;
-  const S = (t: string) => BY.get(t) || M.unknownStock(t);
+  const S = (t: string) => BY.get(t) || M.unknownStock(t, FILE_ERR ? '' : undefined);
   const tk = (l: WList) => M.tickersOf(l);
   const ind = (l: WList) => M.indicatorsOf(l, CAT, LIM.indicators);
   const INFO = (k: string) => CAT.by[k];
@@ -85,16 +86,17 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
   /* ---------- page ---------- */
   let FLASH: string | null = null;
   const pills = () => {
+    if (FILE_ERR) return `<span class="pill warn" title="${esc(FILE_ERR)}"><span class="dot"></span>Figures unavailable</span>`;
     const lag = !F.broker_through || F.broker_through < F.prices_through;
     return `<span class="pill pos" title="Daily closes, Feature 01 and Feature 04"><span class="dot"></span>Prices to ${M.dateLabel(F.prices_through, true)}</span>` +
       `<span class="pill ${lag ? 'warn' : 'pos'}" title="Foreign flow (broker summary, Regular board) and Radar"><span class="dot"></span>${F.broker_through ? `Broker data to ${M.dateLabel(F.broker_through, true)}` : 'No broker data yet'}</span>`;
   };
   function head(l: WList) {
     const ks = ind(l), n = ks.length, rest = ks.slice(CARD_IND).map(k => INFO(k).short), sess = F.dates.length;
-    const sub = st.view === 'cards'
+    const sub = FILE_ERR ? 'Your lists are shown without figures until they can be read again.' : st.view === 'cards'
       ? `One card per stock: price, ${sess}-session line and the first ${Math.min(CARD_IND, n)} indicators${rest.length ? ` (${rest.join(', ')} in Table only)` : ''}.`
       : `One row per stock: price, ${sess}-session line and ${n} indicators.`;
-    return `<div class="wlh"><div><h1>Watchlist</h1><p class="muted">${esc(sub)}</p></div><div class="act"><span class="pills">${pills()}</span><button class="btn" data-act="open-ind">${ic('cols')}Indicators <span class="muted">${n}</span></button><button class="btn primary" data-act="open-add">${ic('plus')}Add ticker</button></div></div>`;
+    return `<div class="wlh"><div><h1>Watchlist</h1><p class="muted">${esc(sub)}</p></div><div class="act"><span class="pills">${pills()}</span><button class="btn" data-act="open-ind" ${FILE_ERR ? 'disabled title="Indicators come with the figures"' : ''}>${ic('cols')}Indicators <span class="muted">${n}</span></button><button class="btn primary" data-act="open-add">${ic('plus')}Add ticker</button></div></div>`;
   }
   function bar(l: WList) {
     const n = tk(l).length;
@@ -149,7 +151,8 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
     if (!L()) st.active = LISTS[0]?.id || '';
     const l = L();
     PAGE.removeAttribute('aria-busy');
-    PAGE.innerHTML = head(l) + bar(l) + (st.view === 'cards' ? cardsView(l) : tableView(l));
+    const warn = FILE_ERR ? `<div class="card fileerr" role="status"><strong>Figures unavailable</strong><span>${esc(FILE_ERR)}</span><button class="btn sm" data-act="retry-file">Try again</button></div>` : '';
+    PAGE.innerHTML = head(l) + warn + bar(l) + (st.view === 'cards' ? cardsView(l) : tableView(l));
     if (FLASH) { const el = PAGE.querySelector(`[data-t="${CSS.escape(FLASH)}"]`); if (el && !reduceMotion()) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); FLASH = null }
   }
   function renderFailure(text: string) {
@@ -276,7 +279,8 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
     q$('#adTgt').innerHTML = `${esc(l.name)} <span class="muted">${n}</span>${ic('chev')}`;
     const res = adMatches(), shown = res.slice(0, 6), multi = M.isMulti(AD.q);
     let h = '';
-    if (!AD.q.trim()) h = `<div class="eyebrow pad">Type a stock code or name${DOT}${UL.length} stocks</div>`;
+    if (FILE_ERR) h = `<div class="note pad-note">Stock search needs today’s figures, which cannot be read right now. Try again later.</div>`;
+    else if (!AD.q.trim()) h = `<div class="eyebrow pad">Type a stock code or name${DOT}${UL.length} stocks</div>`;
     else {
       h = `<div class="eyebrow pad">Results${DOT}${res.length}</div>`;
       if (multi) {
@@ -506,6 +510,7 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
     const a = b.dataset.act, t = b.dataset.t || '';
     switch (a) {
       case 'retry': void boot(); break;
+      case 'retry-file': void loadFile().then(() => render()); break;
       case 'list': if (b.dataset.id !== st.active) { TSORT = null; st.active = b.dataset.id!; persist(); render() } break;
       case 'f-radar': case 'f-ev': {
         const k = a === 'f-radar' ? 'radar' : 'ev'; FILT[k] = !FILT[k]; render();
@@ -622,14 +627,18 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
       throw err;
     }
   }
+  /** the figures; when they cannot be read the lists are still shown, with "—" and the reason (M466 (a)) */
+  async function loadFile() {
+    try { index = await api.index(); F = await readFile(); FILE_ERR = null }
+    catch (e) { F = M.emptyFile(); FILE_ERR = msg(e, 'The figures could not be read. Try again in a minute.') }
+    CAT = M.catalog(F); BY = M.stocks(F); UL = [...BY.values()]; RN = M.radarNames(F);
+    PD = M.dateLabel(F.prices_through); BD = M.dateLabel(F.broker_through); RD = M.dateLabel(F.radar_date);
+  }
   async function boot() {
     PAGE.setAttribute('aria-busy', 'true');
     try {
       const lp = api.lists();
-      index = await api.index();
-      F = await readFile();
-      CAT = M.catalog(F); BY = M.stocks(F); UL = [...BY.values()]; RN = M.radarNames(F);
-      PD = M.dateLabel(F.prices_through); BD = M.dateLabel(F.broker_through); RD = M.dateLabel(F.radar_date);
+      await loadFile();
       const got = await lp;
       LIM = M.limitsOf(got.limits); LISTS = got.lists;
       if (!LISTS.length) {                                   // a first visit: one list to start from

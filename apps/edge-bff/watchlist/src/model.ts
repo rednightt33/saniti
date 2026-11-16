@@ -94,7 +94,13 @@ export function stocks(f: StocksFile): Map<string, Stock> {
   return m;
 }
 /** a list's stock that today's file does not hold (no longer a listed common stock): shown without values */
-export const unknownStock = (t: string): Stock => ({ t, n: 'Not in today’s data', sec: '', known: false, last: null, r1d: null, r1m: null, trend: [], ev: [], rd: [], i: -1 });
+export const unknownStock = (t: string, name = 'Not in today’s data'): Stock => ({ t, n: name, sec: '', known: false, last: null, r1d: null, r1m: null, trend: [], ev: [], rd: [], i: -1 });
+/** M466 (a), user 2026-11-16 "go with A": the figures could not be read; the lists are still shown, every value "—" */
+export const emptyFile = (): StocksFile => ({
+  schema: 0, prices_through: '', broker_through: null, radar_date: null, events_loaded: null, event_days: 0,
+  radar_board: { level: '', gate: '' }, dates: [], catalog: [], default: [], radar_filters: [], ticker: [], name: [],
+  sector: [], last: [], r1d: [], r1m: [], trend: [], values: {}, events: {}, radar: {},
+});
 export function value(f: StocksFile, key: string, s: Stock): number | null {
   return s.i < 0 ? null : f.values[key]?.[s.i] ?? null;
 }

@@ -49,8 +49,15 @@ const taken = (name: string, except?: string) => db.some(l => l.id !== except &&
 const over = (msg: string) => new WatchlistError('LIMIT_EXCEEDED', msg, 422);
 
 const api: WatchlistApi = {
-  index: async () => ({ finished_at: 'fixture', files: { 'watchlist-stocks': { sha256: 'f'.repeat(64), bytes: 0, rows: file.ticker.length, as_of: file.prices_through } } }),
-  file: async <T>() => wait(file as unknown as T),
+  // ?fail=index or ?fail=file: the figures cannot be read (M466 (a): the lists must still be shown)
+  index: async () => {
+    if (new URLSearchParams(location.search).get('fail') === 'index') throw new WatchlistError('WATCHLIST_UNAVAILABLE', 'The Terminal data service did not answer. Try again in a minute.', 503);
+    return { finished_at: 'fixture', files: { 'watchlist-stocks': { sha256: 'f'.repeat(64), bytes: 0, rows: file.ticker.length, as_of: file.prices_through } } };
+  },
+  file: async <T>() => {
+    if (new URLSearchParams(location.search).get('fail') === 'file') throw new WatchlistError('WATCHLIST_FILE_NOT_PUBLISHED', 'The watchlist figures are not published yet. They come with the next daily publication; try again later.', 404);
+    return wait(file as unknown as T);
+  },
   lists: async () => wait({ lists: order(), limits: LIMITS }),
   async create(b: CreateBody) {
     const name = (b.name || '').trim();

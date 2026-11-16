@@ -8806,7 +8806,7 @@ in its staleness check.
 - **Status:** FIXED (rerun on dev 2026-11-16).
 - **Lesson for new data:** none (verification only).
 
-### M466 — Watchlist: findings of the independent review before release (2026-11-16, fixed in the branch; two known)
+### M466 — Watchlist: findings of the independent review before release (2026-11-16, fixed in the branch; one known)
 
 - **Found by:** the independent code review of EXEC-WATCHLIST L6 (`git diff 8bc5ddc2..`), each finding checked in the
   code before it was fixed.
@@ -8832,9 +8832,11 @@ in its staleness check.
 - **Release order (finding 1 of the review, verified):** the old edge-bff code inserts stars without a list, so the
   migration must come after the new edge-bff code (before it, the new code answers 503 NOT_READY for the star and the
   page, never a wrong write). And the page needs the daily file: publisher and terminal-api, and the file, come first.
-- **Known, not fixed:** (a) when the daily file cannot be read (terminal-api down or over quota) the page shows an error
-  instead of the lists without figures; (b) a restored list's stocks get a new `added_at` (the Screener's star time).
-  Proposal for (a): show the lists with "—" and the file's error in the header; waiting for the user.
+- **(a) fixed (user 2026-11-16: "untuk nomor 1 kita go with A"):** when the daily file cannot be read (the index or the
+  file: terminal-api down, over quota, not published yet) the page still shows the lists with "—", the reason in a
+  notice with "Try again", "Figures unavailable" in the header; list actions keep working; Indicators and the stock
+  search wait for the figures. Checked in a browser with the fixture's `?fail=index` and `?fail=file` at 1440 and 390 px.
+- **Known, not fixed:** (b) a restored list's stocks get a new `added_at` (the Screener's star time).
 - **Lesson:** a "complete date" is derived from the date's own counts across the sources, never from the existence of
   one row; a read of a family another page owns (Radar) uses that page's own selector (`feature_07_rule_version()`),
   not a re-derivation.

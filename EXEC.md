@@ -15331,5 +15331,8 @@ tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terba
   DRYRUN lalu APPLY di dev (kode edge-bff lama menulis bintang tanpa list, jadi migrasi harus sesudah kode baru; di
   antaranya bintang Screener dan Watchlist menjawab 503 NOT_READY); (4) cek live sebagai pemilik.
 - **Keputusan user 2026-11-16 atas known (a) M466: "untuk nomor 1 kita go with A"**: diperbaiki sebelum rilis (halaman
-  tetap menampilkan list dengan "—" dan pesan di kepala halaman bila file harian tidak terbaca). Belum dikerjakan:
-  user akan memberi instruksi berikutnya. Known (b) (waktu `added_at` baru sesudah Undo) tetap dicatat saja.
+  tetap menampilkan list dengan "—" dan pesan di kepala halaman bila file harian tidak terbaca). Known (b) (waktu
+  `added_at` baru sesudah Undo) tetap dicatat saja.
+- **User 2026-11-16: "Oke, synchronize dulu dengan branch main, kemudian kerjakan. Go."** `main` (70 commit dari sesi lain:
+  Backtest revamp, hak akses, M448–M465) digabung ke branch; catatan Watchlist jadi ERRORS M466; perbaikan (a) selesai
+  (cek browser `?fail=index`/`?fail=file`). Lalu langkah rilis 1–4 di atas.

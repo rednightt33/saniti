@@ -582,3 +582,9 @@ tr.enter td{animation:wlfade .3s ease;background:var(--surface-2)}
 .empty p{margin-top:var(--s-2)}
 /* a monogram sits on the ticker's line as the logo image does (an inline grid's baseline is its letter, not its foot) */
 .tbl td.stk .lg.mono{vertical-align:middle;position:relative;top:-1px}
+
+/* M466 (a): the figures could not be read; the lists stay usable */
+.card.fileerr{display:flex;align-items:center;gap:var(--s-6);flex-wrap:wrap;padding:var(--s-6) var(--s-8);margin-bottom:var(--s-8);border-color:color-mix(in srgb,var(--amber) 40%,var(--border));background:var(--amber-bg)}
+.card.fileerr strong{font-weight:var(--fw-semibold);color:var(--amber)}
+.card.fileerr span{flex:1;min-width:200px;color:var(--text-2);font-size:var(--fs-12)}
+.pad-note{padding:var(--s-6) 18px}
