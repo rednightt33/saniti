@@ -14661,7 +14661,9 @@ tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terba
   logo Terminal (halaman memakai kebijakan CSP halaman Terminal: koneksi ke bucket yang sudah dipakai EDGE); 18 tes
   halaman, 8 tes shell/halaman, 152 cek tata letak dan 32 cek interaksi di 1440/1152/390/360 px dan mode gelap.
 - L6: hitung ulang independen 121.554 perbandingan, 0 beda, pada 13, 10 dan 6 Nov
-  (`verification/watchlist/VALIDATION_20261116.txt`); tinjauan kode independen berjalan.
-- Urutan rilis (L7, tiap langkah ditanyakan): migrasi DRYRUN lalu APPLY di dev (harus sebelum edge-bff: kode bintang
-  Screener yang baru membaca kolom `list_id`), deploy publisher dan terminal-api, push `main` (edge-bff, telegram-monitor),
-  Run Now publisher, cek live sebagai pemilik.
+  (`verification/watchlist/VALIDATION_20261116.txt`, diulang sesudah perbaikan review: tetap 0 beda); tinjauan kode
+  independen selesai: 13 temuan, tidak ada yang berat; 8 diperbaiki, urutan rilis diubah, 2 dicatat known (ERRORS M448).
+- Urutan rilis (L7, tiap langkah ditanyakan; diubah sesudah review, ERRORS M448): (1) deploy publisher dan terminal-api,
+  Run Now publisher (file harian pertama); (2) push `main` (edge-bff, telegram-monitor); (3) segera sesudahnya migrasi
+  DRYRUN lalu APPLY di dev (kode edge-bff lama menulis bintang tanpa list, jadi migrasi harus sesudah kode baru; di
+  antaranya bintang Screener dan Watchlist menjawab 503 NOT_READY); (4) cek live sebagai pemilik.
