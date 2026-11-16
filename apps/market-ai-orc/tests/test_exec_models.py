@@ -20,7 +20,7 @@ from app.tools import build_default_registry
 from conftest import ANSWER, BASE_ENV, ScriptedClient, final_response, make_settings, tool_call_response
 from test_mode4 import BROKER, FIRST_ROUND, m4, mode4_agent
 
-AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
+AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}", "X-Saniti-Owner": "owner-test"}
 
 
 # ---------------------------------------------------------------- the offered models and their levels

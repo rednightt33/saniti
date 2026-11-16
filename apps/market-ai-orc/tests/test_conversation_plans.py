@@ -18,7 +18,7 @@ from test_research_plan import ON, Clock, Sandbox, answer, classifier, clarifica
 from test_research_plan import research_arguments
 
 pytestmark = pytest.mark.skipif(not ADMIN_URL, reason="ORC_TEST_POSTGRES_URL not set")
-AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
+AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}", "X-Saniti-Owner": "owner-test"}
 QUESTION = "Apakah RSI di bawah 30 dan hammer menghasilkan return lebih tinggi?"
 
 

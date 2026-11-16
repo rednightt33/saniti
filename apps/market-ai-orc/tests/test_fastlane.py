@@ -24,7 +24,7 @@ from conftest import ANSWER, BASE_ENV, ScriptedClient, final_response, make_sett
 from test_analysis_path import ON, Counting
 from test_dataneed_orchestrator import BUNDLE, NEED, SESSION, Tools, answer, call, completed, flow
 
-AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
+AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}", "X-Saniti-Owner": "owner-test"}
 FAST_ON = {**ON, "AI_ENABLE_FASTLANE": "true"}
 
 

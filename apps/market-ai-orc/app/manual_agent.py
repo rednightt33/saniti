@@ -11,6 +11,10 @@ level, and the rest of that run follows it; the stop button ends a wait. With AI
 2026-10-19) no OpenRouter model answers a manual run: a step waits until it is answered, the run is stopped or its time
 is up, and with AI_MANUAL_AGENT_ROUTERS true the routers of a manual run come here too (orchestrator._router_model). Switched off (AI_ENABLE_MANUAL_AGENT), the
 model is not offered and nothing comes here. The service runs one replica (railway.ts), so the steps live in memory.
+
+Owners (M474): a step keeps the owner of the run it belongs to (conversations.current_owner, set by the run route);
+pending(owner) lists only that owner's steps, and answer(owner, ...) treats another owner's step as unknown. A step
+without an owner is never listed or answerable.
 """
 from __future__ import annotations
 
@@ -22,6 +26,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import stop
+from .conversations import current_owner
 from .model_choices import MANUAL_OPTION
 from .tools.request_data import current_request_id, current_run_deadline
 
@@ -36,6 +41,7 @@ class Step:
     request_id: str
     payload: dict[str, Any]
     created_at: float
+    owner: str | None = None
     done: threading.Event = field(default_factory=threading.Event)
     reply: dict[str, Any] | None = None
 
@@ -64,7 +70,7 @@ class ManualAgent:
         if fallen:
             return self._fallback(payload, request_id, "EARLIER_STEP")
         # a copy: the run keeps adding to its input list, the step shows the call as it was sent
-        step = Step(uuid.uuid4().hex[:16], request_id, copy.deepcopy(payload), time.time())
+        step = Step(uuid.uuid4().hex[:16], request_id, copy.deepcopy(payload), time.time(), current_owner.get())
         with self._lock:
             self._steps[step.step_id] = step
         self.log("manual_agent_step_waiting", request_id=request_id, step_id=step.step_id)
@@ -109,19 +115,22 @@ class ManualAgent:
         sent = {**payload, "model": model, "reasoning": self.settings.reasoning(self.settings.ai_reasoning_effort)}
         return self.real.create(sent)
 
-    def pending(self) -> list[dict[str, Any]]:
+    def pending(self, owner: str | None) -> list[dict[str, Any]]:
+        """The waiting steps of this owner's runs only (M474)."""
         with self._lock:
-            steps = sorted(self._steps.values(), key=lambda s: s.created_at)
+            steps = sorted((s for s in self._steps.values() if owner is not None and s.owner == owner),
+                           key=lambda s: s.created_at)
         return [{"step_id": s.step_id, "request_id": s.request_id, "created_at": s.created_at,
                  "waited_seconds": round(time.time() - s.created_at, 1), "payload": s.payload} for s in steps]
 
-    def answer(self, step_id: str, reply: Any) -> str:
-        """ANSWERED, NOT_WAITING (unknown or already answered or fallen back), or INVALID (not a model response)."""
+    def answer(self, owner: str | None, step_id: str, reply: Any) -> str:
+        """ANSWERED, NOT_WAITING (unknown, another owner's, already answered or fallen back: never told apart), or
+        INVALID (not a model response)."""
         if not isinstance(reply, dict) or not isinstance(reply.get("output"), list):
             return "INVALID"
         with self._lock:
             step = self._steps.get(step_id)
-            if step is None or step.done.is_set():
+            if step is None or owner is None or step.owner != owner or step.done.is_set():
                 return "NOT_WAITING"
             step.reply = reply
             step.done.set()

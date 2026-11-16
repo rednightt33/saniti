@@ -17,7 +17,7 @@ from test_research_findings import PLAN
 
 ON = {"AI_ENABLE_DATANEED": "true", "AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION": "true",
       "AI_RESEARCH_PLAN_SIGNING_KEY": "0123456789abcdef" * 4, "AI_ENABLE_ANALYSIS_PATH": "true"}
-AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
+AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}", "X-Saniti-Owner": "owner-test"}
 
 
 class Counting(Tools):

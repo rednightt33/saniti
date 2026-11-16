@@ -3,8 +3,9 @@
 With history_mode SERVER a caller sends one message per request and the orchestrator reads the earlier turns from
 PostgreSQL ("AI_conversation", "AI_conversation_turn"; migration 20260927_002) instead of receiving a history.
 
-Ownership: the owner is the X-Saniti-Owner header of the trusted server-side caller that holds the internal bearer
-(DEFAULT_OWNER without the header). Every lookup checks it; a conversation of another owner reads as not found. The
+Ownership: the owner is the X-Saniti-Owner header of the trusted server-side caller that holds the internal bearer;
+a missing or blank header is refused (OWNER_REQUIRED, M475), and a caller holding MARKET_AI_ORC_TEST_KEY may name
+only test owners (TEST_OWNER_RE, else OWNER_NOT_ALLOWED). Every lookup checks it; a conversation of another owner reads as not found. The
 model never supplies or sees the owner.
 
 One turn at a time per conversation: a short transaction claims the conversation's lease (active request id, lease
@@ -24,6 +25,7 @@ hidden reasoning are never stored here.
 from __future__ import annotations
 
 import hashlib
+import contextvars
 import json
 import logging
 import re
@@ -47,8 +49,12 @@ from .schemas import MAX_HISTORY_ITEMS, MAX_MESSAGE_CHARACTERS, AgentRunRequest,
 logger = logging.getLogger("market_ai_orc")
 
 OWNER_HEADER = "X-Saniti-Owner"
-DEFAULT_OWNER = "default"
 OWNER_RE = re.compile(r"^[A-Za-z0-9._:@-]{1,128}$")
+# M475: the owners a caller holding MARKET_AI_ORC_TEST_KEY may name (orc-test-runner: golden-*, and someone-else for
+# its other-owner download checks); the main key keeps every owner
+TEST_OWNER_RE = re.compile(r"^(golden-[A-Za-z0-9._:@-]+|test-[A-Za-z0-9._:@-]+|someone-else)$")
+# the normalised owner of the run in this context (set by the run route; read by the manual agent, M474)
+current_owner: contextvars.ContextVar[str | None] = contextvars.ContextVar("current_owner", default=None)
 CONVERSATION_ID_RE = re.compile(r"^conv_[0-9a-f]{32}$")
 MAX_ASSISTANT_TEXT = 40000
 MESSAGES_PAGE_DEFAULT = 20
@@ -94,12 +100,19 @@ class ConversationError(Exception):
         self.http_status = http_status
 
 
-def owner_from_header(value: str | None) -> str:
+def owner_from_header(value: str | None, *, test_key: bool = False) -> str:
+    """The normalised owner of a request (M475): a missing or blank header is refused, never a shared default; a
+    caller authenticated with MARKET_AI_ORC_TEST_KEY may name only a test owner."""
     if value is None or not value.strip():
-        return DEFAULT_OWNER
+        raise ConversationError("OWNER_REQUIRED", f"{OWNER_HEADER} is required: send the owner of the request, for "
+                                f"example {OWNER_HEADER}: u_123 (not an empty or missing header).", 400)
     value = value.strip()
     if not OWNER_RE.fullmatch(value):
         raise ConversationError("INVALID_OWNER", f"{OWNER_HEADER} must match {OWNER_RE.pattern}.", 400)
+    if test_key and not TEST_OWNER_RE.fullmatch(value):
+        raise ConversationError("OWNER_NOT_ALLOWED", f"This key may name only test owners (golden-<name>, "
+                                f"test-<name> or someone-else): send for example {OWNER_HEADER}: golden-suite, "
+                                f"not a user's owner such as u_123.", 403)
     return value
 
 

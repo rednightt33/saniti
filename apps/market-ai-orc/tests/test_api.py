@@ -11,7 +11,7 @@ from app.tools import build_default_registry
 from conftest import ANSWER, BASE_ENV, ScriptedClient, final_response, make_settings, tool_call_response
 
 
-AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
+AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}", "X-Saniti-Owner": "owner-test"}
 BODY = {"request_id": "abc123", "message": "What capabilities do you currently have?"}
 
 
