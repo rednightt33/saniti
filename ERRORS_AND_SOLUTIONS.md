@@ -8887,7 +8887,7 @@ Each finding came as a test that failed on the code; the fix round makes them pa
 |---|---|---|---|
 | C1 H1 | edge-bff sign-in throttle (contract section 4) | 40 parallel guesses against one login all reached the password check: the limit was read before the password check and the failure counted after it, so tries in flight were never counted | one transaction decides and counts the try before the password check (advisory lock on scope and key hash, window sum, UPSERT, `throttle.attempt`); a success clears the count (`f3410489`) |
 | C1 M1, C2 #2 | front-end CSRF repeat (M471, M473) | a page open across a change of user repeated account A's write under account B's session after a 403 `CSRF_INVALID`: the repeat re-read whatever session the cookie held | each page keeps the login of its first session read; another login is refused with 401 `USER_CHANGED`, the write is not sent, pending writes are dropped, the user state is cleared and the page reloads; the shell repeats only for its own login (`847da443`) |
-| C1 M2, C2 #3 | Terminal drawings (M468) | A's unsaved drawings were stamped with B's login after the session changed: the stamp fell back to the last-login mark | the stamp is the page's own identity; nothing is kept when it is unknown; pending changes are dropped on reset (`847da443`) |
+| C1 M2, C2 #3 | Terminal drawings (M468) | A's unsaved drawings were stamped with B's login after the session changed: the stamp fell back to the last-login mark | the stamp is the page's own identity; nothing is kept when it is unknown (`847da443`). Pending changes: since `1888e8b2` kept, stamped with the page's identity, on the user's own 401 (an expired session), and dropped only on `USER_CHANGED` or another page's `cleared` broadcast |
 | C2 #1 (high) | Orc CLIENT history (M475) | a `history_mode` CLIENT run naming any `conversation_id` opened that conversation's kept tables, run memory, exports and evidence (keyed by conversation only), so the test key reached a user's conversation | a CLIENT run may name only a conversation its owner holds (`ConversationStore.holds`), else 404 `CONVERSATION_NOT_FOUND` before the run; without the conversation store the id is dropped (`88c06bd0`) |
 | C1 M4 | Orc test key (M475) | a `MARKET_AI_ORC_TEST_KEY` shorter than 32 characters or equal to the main key was accepted, which would undo the owner limit | `ConfigError` at start; orc-test-runner reads only `MARKET_AI_ORC_TEST_KEY`, no main-key fallback (`88c06bd0`) |
 | C1 L1 | Orc stop, progress, manual fallback (M474, M475) | another owner reusing a running `request_id` replaced and then removed the first run's stop flag and hid its progress: the registries were keyed by request id alone | keyed by (owner, request id); a run's exit removes only its own entry (`88c06bd0`) |
@@ -8895,6 +8895,16 @@ Each finding came as a test that failed on the code; the fix round makes them pa
 | C1 L2 | terminal-api Host parsing (M470) | the host rule accepted a Host with userinfo, a path, a query or a fragment (`urlsplit`) | exact match: `terminal-api.railway.internal` with an optional `:digits` port, any letter case (`9f7730a9`) |
 | C1/C2 round (error shape) | edge-bff (M471) | any 403 `HTTPException` was mapped to `CSRF_INVALID`, so a client would retry a plan refusal; the older `error()` helper sent only `code` | only the CSRF check answers `CSRF_INVALID`; any other 403 is `FORBIDDEN`; every `main.py` refusal has `code`, `message`, `details` (`f3410489`) |
 | C2 (lock) | edge-bff job submission | `store.submit` locked the bare owner string, a key another lock could equal | the key is `'jobs:' + owner`, like every other edge-bff lock (`f3410489`) |
+
+Re-check by the same checkers after the fix round (integrated at `4f4f9ded`), both fixed on branch, not deployed:
+
+| Id | Part | Defect (verified cause) | Fix (commit) |
+|---|---|---|---|
+| C1 re-check | terminal-api off-host refusal log | the log line wrote the request path and the reason with `%s`, so a caller could put a line break in the path and forge log lines | path and reason quoted with `%r` (`86574723`) |
+| C2 re-check | Screener (M473) | `scr.last` (the last screen definition, a `user` key) was written again by the `pagehide` flush after the sign-out clean-up, so the next account inherited it | an `onReset` cancels the waiting `remember()` and a dropped flag stops every later write, the `pagehide` flush of the following reload included (`1888e8b2`, `tests/test_c2_pagehide_reset.py`) |
+
+Also in `1888e8b2`: the shell resets its views of the previous account (the sign-in page shows) and reads the session
+again on another page's `cleared` broadcast; a page's own broadcasts never reach it, so there is no loop.
 
 Also in the round: one English wording for refusals on server (`app/errors.py`) and page (`EdgeLabels.access`)
 (`599ff8a9`). Integrated results (main agent): edge-bff 278 passed / 139 skipped (browser tests); terminal-api 99;
@@ -9138,6 +9148,11 @@ view; a client-supplied id is checked against the caller's ownership on every pa
   (`tests/visual/compare.mjs`); `npm run build` afterwards restores the production page. Test:
   `terminal/tests/data/fixture_bundle.test.mjs` (the production bundle holds no broker-summary constant). Terminal vitest
   908 passed, build OK.
+- **How the plan's wording is met:** EXEC-MU-ACCOUNTS Phase 0 says "Data fixture asli diganti" (the real fixture data
+  replaced). It is met by exclusion, not by new numbers: the real BBCA fixture of 2023-12-18 stays in Git
+  (`terminal/src/data/fixtureConstants.ts`, used by the 1:1 check) and is kept out of the production bundle; the
+  production build has 0 matches of it, and only a `--mode fixture` build contains it (main agent, integrated check at
+  `4f4f9ded`). The public page `/terminal-app/` therefore no longer ships it.
 - **Status:** OPEN. Low severity: one day from 2023. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed.
 - **Lesson (Vite `MODE` vs `DEV`):** a build-time switch that removes code from production keys on
   `import.meta.env.MODE` (set only by `--mode`), not on `import.meta.env.DEV` or `PROD`: those follow `NODE_ENV`, so a
@@ -9162,6 +9177,8 @@ view; a client-supplied id is checked against the caller's ownership on every pa
   `terminal/tests/data/edge_session.test.ts`.
 - **Fix round after the checkers (M477, C1 M2, C2 #3, `847da443`):** the stamp fell back to the last-login mark, so
   after a change of session A's unsaved drawings were stamped with B's login. A copy is now stamped only with the
-  page's own identity (the login of its first session read); nothing is kept while it is unknown, and pending changes
-  are dropped when the session resets. Test: `terminal/tests/data/edge_session_user_change.test.ts`.
+  page's own identity (the login of its first session read); nothing is kept while it is unknown. Test:
+  `terminal/tests/data/edge_session_user_change.test.ts`. Corrected by the last fix round (`1888e8b2`): pending changes
+  are kept, stamped with the page's identity, when the user's own session ends (401), and dropped only on
+  `USER_CHANGED` (another login) or another page's `cleared` broadcast.
 - **Status:** OPEN. Harmless with one user. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed. Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.

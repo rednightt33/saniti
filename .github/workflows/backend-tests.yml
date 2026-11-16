@@ -7,6 +7,12 @@ name: Backend tests
 # disposable Postgres (tests/conftest.py EDGE_TEST_POSTGRES_URL: it creates and drops its own database); its browser
 # tests skip without Playwright (pytest.importorskip), as they do on a machine without it, so this job checks the server.
 # No secrets, read-only.
+# EXEC-MU-ACCOUNTS Phase 0 (2026-11-16): market-ai-orc (owner header, test key, per-owner registries) and terminal-api
+# (private-only mode, private host rule for every key) are not gated on Railway, so their suites run here too.
+# market-ai-orc runs without Postgres (ORC_TEST_POSTGRES_URL unset: its Postgres tests skip, as on a machine without
+# one; with a Postgres 3 test_request_data errors predate Phase 0). terminal-api's one server test (tests/test_api.py,
+# a dropped connection replaced) uses a disposable Postgres (TERMINAL_TEST_POSTGRES_URL). Every job of this workflow is
+# part of the check suite that gates edge-bff's deploy (checkSuites), so a red job here holds that deploy too.
 
 on:
   push:
@@ -75,3 +81,45 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt pytest==8.4.2
       - run: python -m pytest -q -p no:cacheprovider test_telegram_monitor.py
+
+  market-ai-orc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/market-ai-orc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q -p no:cacheprovider tests
+
+  terminal-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: apps/terminal-api
+    env:
+      TERMINAL_TEST_POSTGRES_URL: postgresql://postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q -p no:cacheprovider tests

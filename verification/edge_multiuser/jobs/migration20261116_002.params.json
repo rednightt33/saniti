@@ -1,0 +1,58 @@
+{
+ "mode": "DRYRUN",
+ "migrations": [
+  "20261116_002_edge_bff_accounts_auth_throttle.sql"
+ ],
+ "probes": [
+  [
+   "columns",
+   null,
+   "SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name = 'auth_throttle' ORDER BY ordinal_position"
+  ],
+  [
+   "primary_key",
+   null,
+   "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'edge_bff.auth_throttle'::regclass AND contype = 'p'"
+  ],
+  [
+   "checks",
+   null,
+   "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'edge_bff.auth_throttle'::regclass AND contype = 'c' ORDER BY conname"
+  ],
+  [
+   "indexes",
+   null,
+   "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'edge_bff' AND tablename = 'auth_throttle' ORDER BY indexname"
+  ],
+  [
+   "runtime_grants",
+   null,
+   "SELECT string_agg(privilege_type, ',' ORDER BY privilege_type) AS privileges FROM information_schema.role_table_grants WHERE grantee = 'edge_bff_runtime' AND table_schema = 'edge_bff' AND table_name = 'auth_throttle'"
+  ],
+  [
+   "runtime_no_extra",
+   null,
+   "SELECT has_table_privilege('edge_bff_runtime', 'edge_bff.auth_throttle', 'TRUNCATE') AS truncate, has_table_privilege('edge_bff_runtime', 'edge_bff.auth_throttle', 'REFERENCES') AS refs, has_table_privilege('edge_bff_runtime', 'edge_bff.auth_throttle', 'TRIGGER') AS trigger"
+  ],
+  [
+   "public_grants",
+   null,
+   "SELECT count(*) AS grants, has_table_privilege('public', 'edge_bff.auth_throttle', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER') AS public_any FROM information_schema.role_table_grants WHERE grantee = 'PUBLIC' AND table_schema = 'edge_bff' AND table_name = 'auth_throttle'"
+  ],
+  [
+   "rows",
+   null,
+   "SELECT count(*) AS rows FROM edge_bff.auth_throttle"
+  ],
+  [
+   "runtime_reads",
+   "edge_bff_runtime",
+   "SELECT count(*) AS rows FROM edge_bff.auth_throttle"
+  ],
+  [
+   "comment",
+   null,
+   "SELECT obj_description('edge_bff.auth_throttle'::regclass, 'pg_class') IS NOT NULL AS has_comment"
+  ]
+ ]
+}

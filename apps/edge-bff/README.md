@@ -743,9 +743,12 @@ Shared front-end layer (`shared/`, M471, M473):
 - It owns the error contract above, the session call with CSRF, and the storage registry.
 - Page identity (C1 M1, C2 #2, ERRORS M477): each page keeps the login of its first session read. A later session
   read of another login is refused with 401 `USER_CHANGED` and the write is never sent, so a CSRF repeat goes out only
-  for the page's own account. A 401, a change of login or the `cleared` broadcast of another page drops the pending
-  writes; on `cleared` an app page reloads (the shell, role `shell`, keeps its own sign-in flow). A page ignores its
-  own broadcasts. The shell repeats a write after `CSRF_INVALID` only when the session read again is its own login.
+  for the page's own account. A change of login (`USER_CHANGED`) or the `cleared` broadcast of another page drops the
+  pending writes; the page's own 401 (its session ended) keeps them, stamped with its identity (`1888e8b2`). On
+  `cleared` an app page reloads, and the shell resets its views of the previous account (the sign-in page shows) and
+  reads the session again. A page ignores its own broadcasts. The shell repeats a write after `CSRF_INVALID` only
+  when the session read again is its own login. The Screener stops writing `scr.last` after a reset, the `pagehide`
+  flush included.
 - Storage registry: every localStorage, sessionStorage and IndexedDB key of the shell and the pages has one entry in
   `STORAGE`, classed `browser` (how this browser shows EDGE: theme, widths, folds) or `user` (anything of an
   account). Sign-out, or a sign-in with another login than the last one on this browser, removes the `user` keys and
