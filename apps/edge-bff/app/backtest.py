@@ -25,6 +25,8 @@ from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
 from .client import public_data
+from .accounts import AccountStore
+from .principal import Principal, owner_principal
 from .rights import catalog_for, refuse_context, rights_of
 
 OWNER_TRIAL_DAYS = 90        # contract.ts OWNER_TRIAL_DAYS (K6 a)
@@ -752,6 +754,10 @@ class BacktestLoop:
 
     def __init__(self, settings, store, worker):
         self.settings, self.store, self.worker = settings, store, worker
+        # owner key -> its principal now (Backtests.routes sets the app's Auth.owner_principal; on its own, as a test
+        # builds it, the same resolution from these settings)
+        accounts = AccountStore(store.store) if hasattr(store, 'store') else None
+        self.access = lambda owner: owner_principal(settings, accounts, owner)
         self.stopping = asyncio.Event()
         self.timings = {}      # request_id -> JobTiming of a job this loop follows (EXEC-MU-RUNTIME Phase 0)
 
@@ -914,15 +920,16 @@ class BacktestLoop:
                     return False
                 prior = await self.call(self.store.prior_trials, row['owner_key'], row['lineage_key'])
                 owner_trials = await self.call(self.store.owner_trials, row['owner_key'])
+                # EXEC-BACKTEST-REVAMP P5, EXEC-MU-ACCOUNTS Phase 1: the owner's rights as they are now, from its
+                # principal (an admin right taken away while the job waited: the worker refuses it, CONDITION_RESTRICTED)
+                rights = rights_of(await self.call(self.access, row['owner_key']))
             except psycopg.OperationalError as e:
                 self.store_failed('dispatch', job_id, e)
                 await self.sleep(self.settings.poll_seconds)
                 continue
-            # EXEC-BACKTEST-REVAMP P5: the owner's rights as they are now (an admin right taken away while the job
-            # waited: the worker refuses it, CONDITION_RESTRICTED)
             body = {'job_id': job_id, 'request': row['request'],
                     'context': {'job_id': job_id, 'prior_trials': prior, 'owner_trials': owner_trials,
-                                'rights': rights_of(self.settings, row['owner_key'])}}
+                                'rights': rights}}
             timing.fields['prior_trials'] = len(prior)
             try:
                 sent = time.monotonic()
@@ -1265,23 +1272,29 @@ class Backtests:
             raise BacktestError(422, {'code': 'INVALID_INPUT'})
         return body
 
-    def routes(self, app, session, write):
+    def routes(self, app, auth):
         settings = self.settings
+        # EXEC-MU-ACCOUNTS Phase 1: the loop reads a queued job's owner's rights from the same principal resolution
+        if self.loop:
+            self.loop.access = auth.owner_principal
 
-        # EXEC-BACKTEST-REVAMP P5: every route reads the session's owner (main.py session) and its rights (rights.py),
-        # never settings.owner nor a body's
-        async def identity(request: Request, _=Depends(session)):
-            return request.state.owner
+        # EXEC-BACKTEST-REVAMP P5, EXEC-MU-ACCOUNTS Phase 1: every route reads the principal's owner and its rights
+        # (rights.py), never the configured owner nor a body's
+        async def identity(p: Principal = Depends(auth.principal)):
+            return p.owner_key
 
-        async def writer(request: Request, _=Depends(write)):
-            return request.state.owner
+        async def writer(p: Principal = Depends(auth.writer)):
+            return p.owner_key
+
+        def rights(request):
+            return rights_of(request.state.principal)
 
         @app.exception_handler(BacktestError)
         async def backtest_error(_, exc):
             return JSONResponse(status_code=exc.status, content={'error': exc.error})
 
         @app.get('/api/v1/backtests/catalog')
-        async def catalog(owner: str = Depends(identity)):
+        async def catalog(request: Request, owner: str = Depends(identity)):
             """The worker's Catalog, kept CATALOG_CACHE_SECONDS; while the worker cannot answer the last one is kept."""
             await self.guard()
             now = time.monotonic()
@@ -1295,7 +1308,7 @@ class Backtests:
                     self.catalog.update(at=now, data=data)
             # the whole catalog is kept once; each session sees the entries its rights allow (the kept one too, while the
             # worker cannot answer)
-            return JSONResponse(catalog_for(self.catalog['data'], rights_of(settings, owner)))
+            return JSONResponse(catalog_for(self.catalog['data'], rights(request)))
 
         @app.post('/api/v1/backtests/signals')
         async def signals(request: Request, owner: str = Depends(writer)):
@@ -1308,7 +1321,7 @@ class Backtests:
             refuse_context(body)
             order = preview_order(body.pop('client_order', None))
             try:
-                return JSONResponse(await self.latest_preview(owner, request, body, order, {'rights': rights_of(settings, owner)}))
+                return JSONResponse(await self.latest_preview(owner, request, body, order, {'rights': rights(request)}))
             except CallerGone:
                 return Response(status_code=204)    # never sent: uvicorn drops an answer to a closed connection
 
@@ -1338,7 +1351,7 @@ class Backtests:
                 if row is None:
                     asked = time.monotonic()
                     try:
-                        checked = await self.ask('POST', '/v1/validate', {'request': body, 'context': {'rights': rights_of(settings, owner)}})
+                        checked = await self.ask('POST', '/v1/validate', {'request': body, 'context': {'rights': rights(request)}})
                     finally:
                         timed['validate_ms'] = ms_since(asked)
                     checked = checked if isinstance(checked, dict) and checked.get('ok') is True else {}

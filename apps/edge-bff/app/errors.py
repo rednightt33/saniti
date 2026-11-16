@@ -45,6 +45,9 @@ MESSAGES = {
     'OUTPUT_NOT_FOUND': 'This table was not found in the answer.',
     'PIN_LIMIT': 'Too many answers are pinned in this conversation. Unpin one, then try again.',
     'BRANCH_FAILED': 'A new conversation could not be started from this answer. Try again in a moment.',
+    # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4b): the account preferences
+    'PREFERENCE_CONFLICT': 'This setting was changed on another device. The current value is attached; merge it and save again.',
+    'PREFERENCE_LIMIT': 'Your account keeps too many settings or too large a setting. Remove some, then save again.',
 }
 
 # FastAPI's and Starlette's own refusals by status (a route raises HTTPException with one of these codes as its detail)

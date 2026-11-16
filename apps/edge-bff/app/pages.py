@@ -114,10 +114,10 @@ class PageFiles:
         self.cached, self.cached_at = data, now
         return data
 
-    def routes(self, app, session):
+    def routes(self, app, auth):
         family = self.family
 
-        async def page_index(_=Depends(session)):
+        async def page_index(_=Depends(auth.principal)):
             if not self.settings.terminal_url:
                 return self.failure('NOT_CONFIGURED', 503)
             data = await self.index()
@@ -125,7 +125,7 @@ class PageFiles:
                 return self.failure('UNAVAILABLE', 503)
             return JSONResponse({'finished_at': data.get('finished_at'), 'files': data['files']})
 
-        async def page_file(name: str, request: Request, sha: str = '', _=Depends(session)):
+        async def page_file(name: str, request: Request, sha: str = "", _=Depends(auth.principal)):
             if not self.settings.terminal_url:
                 return self.failure('NOT_CONFIGURED', 503)
             if not self.name.fullmatch(name):

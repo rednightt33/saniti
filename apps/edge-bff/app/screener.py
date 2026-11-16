@@ -32,6 +32,7 @@ from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
 from . import wake
+from .principal import Principal
 from .rights import POINT_IN_TIME, refuse_context, rights_of
 from .watchlist import PER_LIST, WatchlistStore
 from .backtest import (CONTROL_TIMEOUT, PREVIEW_PAGES, Backtests, BacktestError, CallerGone, PreviewReplaced, accepts_gzip,
@@ -661,7 +662,7 @@ class Screeners:
 
     # ---- relay ------------------------------------------------------------------------------------------------------
 
-    async def ask(self, method, path, body=None, relay=False):
+    async def ask(self, method, path, body=None, relay=False, owner=None):
         """One worker call, with the owner tag (report 8.11): 2xx -> its Answer (a relayed gzip one as its bytes); a 4xx
         refusal of the contract (RELAYED, at its status) -> that error and status, as the worker gave them; its 504
         TIMEOUT -> 504 with its error; its 503 SCREENER_NOT_READY -> 503 with Retry-After; its 409 DATA_VERSION_PENDING
@@ -673,7 +674,7 @@ class Screeners:
         wait = httpx.Timeout(CONTROL_TIMEOUT, read=self.settings.screener_timeout_seconds + CONTROL_TIMEOUT)
         for fresh in (False, True):
             try:
-                answer = await self.worker.call(method, path, body, wait, owner=self.settings.owner, relay=relay, fresh=fresh)
+                answer = await self.worker.call(method, path, body, wait, owner=owner, relay=relay, fresh=fresh)
             except WorkerTimeout as e:
                 raise ScreenerError(504, e.error)
             except WorkerNotReady as e:
@@ -743,7 +744,7 @@ class Screeners:
             self.health['at'] = time.monotonic()
             return self.health['key']
 
-    async def doc(self, name, path):
+    async def doc(self, name, path, owner):
         """The cached document while the worker's state is the one it was fetched at; else fetched again (one fetch at a
         time; the pages that ask meanwhile get its answer). While the worker cannot answer, or has no snapshot, the last
         one is kept."""
@@ -756,7 +757,7 @@ class Screeners:
             if self.current_doc(cached, key):
                 return cached
             try:
-                answer = await self.ask('GET', path)
+                answer = await self.ask('GET', path, owner=owner)
             except ScreenerError:
                 if cached is not None:
                     return cached
@@ -856,7 +857,7 @@ class Screeners:
         async def relay():
             if before:
                 await before['ended'].wait()
-            return await self.ask('POST', path, body, relay=True)
+            return await self.ask('POST', path, body, relay=True, owner=owner)
         try:
             return await Backtests.unless_gone(request, relay(), mine['replaced'])
         except PreviewReplaced:
@@ -897,14 +898,14 @@ class Screeners:
         await self.current()
         return self.health['versions']
 
-    async def validated(self, kind, definition, rights=()):
+    async def validated(self, kind, definition, rights=(), owner=None):
         """{definition_hash, registry, screener_registry} of a saved item's definition, checked by the worker's
         /v1/validate; its 422 is relayed (for a My metric with the field named from its test, not from the screen it is
         validated in)."""
         try:
             data = (await self.ask('POST', '/v1/validate', {'schema_version': SCHEMA_VERSION,
                                                             'definition': validated_definition(kind, definition),
-                                                            'context': {'rights': list(rights)}})).data
+                                                            'context': {'rights': list(rights)}}, owner=owner)).data
         except ScreenerError as e:
             field = e.error.get('field')
             if kind == 'metric' and isinstance(field, str) and METRIC_CONDITION in field:
@@ -922,7 +923,7 @@ class Screeners:
             raise failure('SCREENER_UNAVAILABLE', 503)
         return {'definition_hash': digest, 'registry': versions['registry'], 'screener_registry': versions['screener_registry']}
 
-    async def reviewed(self, rows):
+    async def reviewed(self, rows, rights, owner):
         """SavedItem of each row with needs_review (report 8.7): an item saved under the registry versions the worker
         has now passed its validation then and needs none; one saved under others is validated again, and each refusal
         is listed with its field. Nothing is adjusted: the stored definition stays as saved. While the worker cannot
@@ -936,21 +937,21 @@ class Screeners:
             if isinstance(current, dict) and (row['registry_version'], row['screener_registry_version']) != (
                     current.get('registry'), current.get('screener_registry')):
                 key = (row['kind'], hashlib.sha256(dumps(row['definition'])).hexdigest(), current.get('registry'),
-                       current.get('screener_registry'))
+                       current.get('screener_registry'), tuple(rights))
                 if key in self.reviews:
                     review = self.reviews[key]
                 elif answering:
-                    found = await self.review(row, key)
+                    found = await self.review(row, key, rights, owner)
                     answering = found is not None
                     review = found or []
             out.append(item_of(row, review))
         return out
 
-    async def review(self, row, key):
+    async def review(self, row, key, rights, owner):
         """needs_review of one row validated again (kept per definition and versions), or None when the worker did not
         answer the question (nothing kept)."""
         try:
-            await self.validated(row['kind'], row['definition'], rights_of(self.settings, row.get('owner_key') or self.settings.owner))
+            await self.validated(row['kind'], row['definition'], rights, owner)
             found = []
         except ScreenerError as e:
             if e.status != 422:
@@ -965,13 +966,12 @@ class Screeners:
 
     # ---- routes -----------------------------------------------------------------------------------------------------
 
-    def routes(self, app, session, write):
-        owner = self.settings.owner
-
-        # EXEC-BACKTEST-REVAMP P5 (user K8 b): the session owner's rights (rights.py) go to every worker call in the body's
-        # context; a page body that carries one is refused before the worker
+    def routes(self, app, auth):
+        # EXEC-BACKTEST-REVAMP P5 (user K8 b), EXEC-MU-ACCOUNTS Phase 1: the principal's rights (rights.py) go to every
+        # worker call in the body's context; a page body that carries one is refused before the worker. Every call
+        # carries the principal's owner tag; nothing here reads the configured owner.
         def rights(request):
-            return rights_of(self.settings, getattr(request.state, 'owner', owner))
+            return rights_of(request.state.principal)
 
         def with_context(request, body):
             refuse_context(body)
@@ -982,82 +982,82 @@ class Screeners:
             return JSONResponse(status_code=exc.status, content={'error': exc.error}, headers=exc.headers)
 
         @app.get('/api/v1/screener/catalog')
-        async def catalog(request: Request, _=Depends(session)):
+        async def catalog(request: Request, p: Principal = Depends(auth.principal)):
             """CatalogResponse (report 8.4) with edge-bff's own limits added, kept while the worker's state (versions and
             refresh, its /health) is the one it was fetched at; ETag and If-None-Match -> 304."""
             await self.guard()
-            return self.doc_answer(request, self.catalog_for(await self.doc('catalog', '/v1/catalog'), rights(request)))
+            return self.doc_answer(request, self.catalog_for(await self.doc('catalog', '/v1/catalog', p.owner_key), rights(request)))
 
         @app.get('/api/v1/screener/universe')
-        async def universe(request: Request, _=Depends(session)):
+        async def universe(request: Request, p: Principal = Depends(auth.principal)):
             """UniverseResponse (report 8.4), kept as the catalog is; ETag and If-None-Match -> 304."""
             await self.guard()
-            return self.doc_answer(request, await self.doc('universe', '/v1/universe'))
+            return self.doc_answer(request, await self.doc('universe', '/v1/universe', p.owner_key))
 
         async def lane(lane, path, request):
             await self.guard()
             body = with_context(request, await self.json_object(request))
             order = self.order_of(body.get('client_order'))
             try:
-                answer = await self.latest(lane, owner, request, body, order, path)
+                answer = await self.latest(lane, request.state.owner, request, body, order, path)
             except CallerGone:
                 return Response(status_code=204)    # never sent: uvicorn drops an answer to a closed connection
             return await self.relayed(request, answer)
 
         @app.post('/api/v1/screener/run')
-        async def run(request: Request, _=Depends(write)):
+        async def run(request: Request, p: Principal = Depends(auth.writer)):
             """RunResponse of one screen (report 8.5), latest wins per (owner, page) (409 SCREEN_REPLACED); the body goes
             to the worker as sent (contract.ts RunRequest, client_order included)."""
             return await lane('run', '/v1/run', request)
 
         @app.post('/api/v1/screener/preview')
-        async def preview(request: Request, _=Depends(write)):
+        async def preview(request: Request, p: Principal = Depends(auth.writer)):
             """PreviewResponse of one ticker (report 8.6), latest wins per (owner, page) (409 PREVIEW_REPLACED)."""
             return await lane('preview', '/v1/preview', request)
 
         @app.post('/api/v1/screener/validate')
-        async def validate(request: Request, _=Depends(write)):
+        async def validate(request: Request, p: Principal = Depends(auth.writer)):
             await self.guard()
-            return await self.relayed(request, await self.ask('POST', '/v1/validate', with_context(request, await self.json_object(request)), relay=True))
+            return await self.relayed(request, await self.ask('POST', '/v1/validate', with_context(request, await self.json_object(request)), relay=True, owner=p.owner_key))
 
         @app.post('/api/v1/screener/counts')
-        async def counts(request: Request, _=Depends(write)):
+        async def counts(request: Request, p: Principal = Depends(auth.writer)):
             await self.guard()
-            return await self.relayed(request, await self.ask('POST', '/v1/counts', with_context(request, await self.json_object(request)), relay=True))
+            return await self.relayed(request, await self.ask('POST', '/v1/counts', with_context(request, await self.json_object(request)), relay=True, owner=p.owner_key))
 
         @app.get('/api/v1/screener/items')
-        async def items(kind: str | None = None, _=Depends(session)):
+        async def items(request: Request, kind: str | None = None, p: Principal = Depends(auth.principal)):
             """{items: SavedItem[]} of the owner, one kind or both, the latest changed first, each with needs_review."""
             await self.guard()
             if kind is not None and kind not in KINDS:
                 raise invalid('kind', 'kind is screen or metric (or left out for both)')
-            rows = await asyncio.to_thread(self.store.items, owner, kind)
-            return JSONResponse({'items': await self.reviewed(rows)})
+            rows = await asyncio.to_thread(self.store.items, p.owner_key, kind)
+            return JSONResponse({'items': await self.reviewed(rows, rights(request), p.owner_key)})
 
         @app.put('/api/v1/screener/items/{item_id}')
-        async def put_item(item_id: str, request: Request, _=Depends(write)):
+        async def put_item(item_id: str, request: Request, p: Principal = Depends(auth.writer)):
             """PutItemRequest -> the stored SavedItem: created without revision, replaced with the revision it was read
             with; the definition validated by the worker first (its refusal relayed as it is)."""
             await self.guard()
             if not ITEM_ID.fullmatch(item_id):
                 raise invalid('item_id', 'item_id is scr_ followed by 32 lowercase hexadecimal digits')
             kind, name, definition, revision = checked_item(await self.json_object(request))
-            checked = await self.validated(kind, definition, rights(request))
-            row, _ = await asyncio.to_thread(self.store.put, owner, item_id, kind, name, definition, checked, revision)
+            checked = await self.validated(kind, definition, rights(request), p.owner_key)
+            row, _ = await asyncio.to_thread(self.store.put, p.owner_key, item_id, kind, name, definition, checked, revision)
             return JSONResponse(item_of(row, []))
 
         @app.delete('/api/v1/screener/items/{item_id}', status_code=204)
-        async def delete_item(item_id: str, _=Depends(write)):
+        async def delete_item(item_id: str, p: Principal = Depends(auth.writer)):
             await self.guard()
             if not ITEM_ID.fullmatch(item_id):
                 raise failure('NOT_FOUND', 404)
-            await asyncio.to_thread(self.store.delete, owner, item_id)
+            await asyncio.to_thread(self.store.delete, p.owner_key, item_id)
             return Response(status_code=204)
 
         @app.get('/api/v1/screener/watchlist')
-        async def watchlist(_=Depends(session)):
+        async def watchlist(p: Principal = Depends(auth.principal)):
             await self.guard()
-            rows = await asyncio.to_thread(self.store.watchlist, owner)
+            rows = await asyncio.to_thread(self.store.watchlist, p.owner_key)
             return JSONResponse(jsonable_encoder({'tickers': [{'ticker': r['ticker'], 'added_at': r['added_at']} for r in rows]}))
 
         def ticker_of(ticker):
@@ -1066,13 +1066,13 @@ class Screeners:
             return ticker
 
         @app.put('/api/v1/screener/watchlist/{ticker}', status_code=204)
-        async def watch(ticker: str, _=Depends(write)):
+        async def watch(ticker: str, p: Principal = Depends(auth.writer)):
             await self.guard()
-            await asyncio.to_thread(self.store.watch, owner, ticker_of(ticker))
+            await asyncio.to_thread(self.store.watch, p.owner_key, ticker_of(ticker))
             return Response(status_code=204)
 
         @app.delete('/api/v1/screener/watchlist/{ticker}', status_code=204)
-        async def unwatch(ticker: str, _=Depends(write)):
+        async def unwatch(ticker: str, p: Principal = Depends(auth.writer)):
             await self.guard()
-            await asyncio.to_thread(self.store.unwatch, owner, ticker_of(ticker))
+            await asyncio.to_thread(self.store.unwatch, p.owner_key, ticker_of(ticker))
             return Response(status_code=204)

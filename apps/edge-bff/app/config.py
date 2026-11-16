@@ -15,6 +15,14 @@ def admin_owners_of(raw, owner):
     return tuple(parts)
 
 
+def switch_of(name):
+    """A true/false switch, unset = false; any other value stops the start (a typo must not turn accounts on)."""
+    raw = os.environ.get(name, 'false').strip().lower()
+    if raw not in ('true', 'false'):
+        raise ValueError(f'{name} is true or false')
+    return raw == 'true'
+
+
 @dataclass(frozen=True)
 class Settings:
     database_url: str
@@ -57,6 +65,11 @@ class Settings:
     # EXEC-BACKTEST-REVAMP P5: the owners with every admin right (app/rights.py), EDGE_ADMIN_OWNERS as a comma list;
     # default the one owner (EDGE_OWNER) until EDGE-MULTIUSER
     admin_owners: tuple = ()
+    # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md sections 0 and 2): EDGE_MULTIUSER (default false, on only at Phase 6) makes
+    # the principal an account of edge_bff.users; off, it is user #1 = EDGE_OWNER and sign-in is as before. The idle
+    # timeout of a switch-on session: EDGE_SESSION_IDLE_SECONDS (default 8 h)
+    multiuser: bool = False
+    session_idle_seconds: int = 28800
 
     @classmethod
     def from_env(cls):
@@ -87,7 +100,9 @@ class Settings:
                 screener_worker_url=os.environ.get('SCREENER_WORKER_URL', '').strip().rstrip('/'),
                 screener_worker_key=os.environ.get('SCREENER_WORKER_KEY', ''),
                 screener_timeout_seconds=float(os.environ.get('SCREENER_TIMEOUT_SECONDS', '0')),
-                admin_owners=admin_owners_of(os.environ.get('EDGE_ADMIN_OWNERS'), required('EDGE_OWNER')))
+                admin_owners=admin_owners_of(os.environ.get('EDGE_ADMIN_OWNERS'), required('EDGE_OWNER')),
+                multiuser=switch_of('EDGE_MULTIUSER'),
+                session_idle_seconds=int(os.environ.get('EDGE_SESSION_IDLE_SECONDS', '28800')))
         s.validate()
         return s
 
@@ -141,3 +156,5 @@ class Settings:
             raise ValueError('BACKTEST_QUEUED_PER_OWNER must be at least 1')
         if self.orc_timeout_seconds < 3900 or self.session_seconds < 60 or self.heartbeat_seconds <= 0 or self.poll_seconds <= 0 or self.lease_seconds < self.heartbeat_seconds * 2:
             raise ValueError('Invalid EDGE timeout/lease configuration')
+        if self.session_idle_seconds < 60:
+            raise ValueError('EDGE_SESSION_IDLE_SECONDS must be at least 60')

@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.encoders import jsonable_encoder
 
 from .pages import PageFiles
+from .principal import Principal
 
 NAME = re.compile(r'watchlist-stocks')                       # publisher watchlist.NAME
 LISTS = 20                                                  # lists per account
@@ -283,9 +284,8 @@ class Watchlist:
     async def aclose(self):
         await self.files.aclose()
 
-    def routes(self, app, session, write):
-        owner = self.settings.owner
-        self.files.routes(app, session)
+    def routes(self, app, auth):
+        self.files.routes(app, auth)
 
         def answer(body, status=200):
             return JSONResponse(status_code=status, content=jsonable_encoder(body))
@@ -304,42 +304,42 @@ class Watchlist:
         app.add_exception_handler(WatchlistError, refused)
 
         @app.get('/api/v1/watchlist/lists')
-        async def lists(_=Depends(session)):
-            return answer({'lists': await asyncio.to_thread(self.store.lists, owner), 'limits': limits()})
+        async def lists(p: Principal = Depends(auth.principal)):
+            return answer({'lists': await asyncio.to_thread(self.store.lists, p.owner_key), 'limits': limits()})
 
         @app.post('/api/v1/watchlist/lists')
-        async def create(request: Request, _=Depends(write)):
+        async def create(request: Request, p: Principal = Depends(auth.writer)):
             b = await body_of(request)
-            made = await asyncio.to_thread(self.store.create, owner, name_of(b.get('name')), tickers_of(b.get('tickers', [])),
+            made = await asyncio.to_thread(self.store.create, p.owner_key, name_of(b.get('name')), tickers_of(b.get('tickers', [])),
                                            indicators_of(b.get('indicators')), position_of(b.get('position')))
             return answer({'list': made}, 201)
 
         @app.patch('/api/v1/watchlist/lists/{list_id}')
-        async def update(list_id: str, request: Request, _=Depends(write)):
+        async def update(list_id: str, request: Request, p: Principal = Depends(auth.writer)):
             b = await body_of(request)
             name = name_of(b['name']) if 'name' in b else None
             ind = indicators_of(b['indicators']) if 'indicators' in b else ...
-            return answer({'list': await asyncio.to_thread(self.store.update, owner, list_id_of(list_id), name, ind)})
+            return answer({'list': await asyncio.to_thread(self.store.update, p.owner_key, list_id_of(list_id), name, ind)})
 
         @app.put('/api/v1/watchlist/indicators')
-        async def indicators_all(request: Request, _=Depends(write)):
+        async def indicators_all(request: Request, p: Principal = Depends(auth.writer)):
             b = await body_of(request)
-            return answer({'lists': await asyncio.to_thread(self.store.indicators_all, owner, indicators_of(b.get('indicators')))})
+            return answer({'lists': await asyncio.to_thread(self.store.indicators_all, p.owner_key, indicators_of(b.get('indicators')))})
 
         @app.delete('/api/v1/watchlist/lists/{list_id}')
-        async def delete(list_id: str, _=Depends(write)):
-            return answer({'deleted': await asyncio.to_thread(self.store.delete, owner, list_id_of(list_id))})
+        async def delete(list_id: str, p: Principal = Depends(auth.writer)):
+            return answer({'deleted': await asyncio.to_thread(self.store.delete, p.owner_key, list_id_of(list_id))})
 
         @app.post('/api/v1/watchlist/lists/{list_id}/tickers')
-        async def add(list_id: str, request: Request, _=Depends(write)):
+        async def add(list_id: str, request: Request, p: Principal = Depends(auth.writer)):
             b = await body_of(request)
-            got = await asyncio.to_thread(self.store.add, owner, list_id_of(list_id), tickers_of(b.get('tickers')),
+            got = await asyncio.to_thread(self.store.add, p.owner_key, list_id_of(list_id), tickers_of(b.get('tickers')),
                                           position_of(b.get('position')))
             return answer(got)
 
         @app.delete('/api/v1/watchlist/lists/{list_id}/tickers/{ticker}')
-        async def remove(list_id: str, ticker: str, _=Depends(write)):
+        async def remove(list_id: str, ticker: str, p: Principal = Depends(auth.writer)):
             if not TICKER.fullmatch(ticker):
                 raise invalid('ticker', 'A stock code is 1 to 12 capital letters or digits, e.g. BBCA.')
-            await asyncio.to_thread(self.store.remove, owner, list_id_of(list_id), ticker)
+            await asyncio.to_thread(self.store.remove, p.owner_key, list_id_of(list_id), ticker)
             return Response(status_code=204)

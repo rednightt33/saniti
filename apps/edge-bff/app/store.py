@@ -60,6 +60,11 @@ class Store:
             # EXEC-MU-ACCOUNTS Phase 0: sign-in needs the throttle table (migration 20261116_002), so an edge-bff
             # deployed before that migration is not ready rather than refusing every sign-in
             c.execute('SELECT 1 FROM edge_bff.auth_throttle LIMIT 0')
+            # EXEC-MU-ACCOUNTS Phase 1: the seed of user #1, every principal with the switch on and the preferences need
+            # the account tables (migration 20261116_003); applied before this edge-bff is deployed
+            c.execute('SELECT user_id, owner_key FROM edge_bff.users LIMIT 0')
+            c.execute('SELECT user_id, last_seen_at FROM edge_bff.sessions LIMIT 0')
+            c.execute('SELECT 1 FROM edge_bff.user_preferences LIMIT 0')
 
     def session_create(self, hashed, owner, seconds):
         with self.connect() as c:
