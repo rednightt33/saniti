@@ -8922,6 +8922,10 @@ Lesson: a fix for one finding is re-checked for the side channel it opens (a per
 a lock needs an end and a way out before it ships (AGENTS.md "Gates and evidence": how to pass); a binding between a
 code and its requester is part of the data model, not of the message.
 
+- **Operator unlock as a job (gap found by the records pass, closed 2026-11-16):** `run_job.sh` starts `job.py` without
+  arguments, so `scripts/onboarding/edge_mfa_unlock_job.py` reads `username` and `reason` from `params.json` and calls
+  `scripts/edge_mfa_unlock.py` (staged as an extra).
+
 ### M477 — EXEC-MU-ACCOUNTS Phase 0: findings of the independent checkers C1 and C2 (2026-11-16, fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 Two checkers read the integrated Phase 0 code against `verification/edge_multiuser/access_tiers/CONTRACT.md` only:
