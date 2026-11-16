@@ -8694,7 +8694,7 @@ in its staleness check.
 - **Status:** FIXED (deployed with edge-bff, `RAILWAY_CHANGELOG.md` 2026-11-16).
 - **Lesson for new data:** none (page only).
 
-### M463 — Backtest worker on dev: a 12-stock portfolio run after its preview is killed with the worker (WORKER_LOST); the 1 GB limit is below what a preview and a run hold together (2026-11-16, open: user decision)
+### M463 — Backtest worker on dev: a 12-stock portfolio run after its preview is killed with the worker (WORKER_LOST); the 1 GB limit is below what a preview and a run hold together (2026-11-16, fixed, deployed)
 
 - **Symptom:** the dev end-to-end check after the EXEC-BACKTEST-REVAMP deploy (`verification/backtest/e2e_dev.py`,
   10:00-10:02 UTC): single, repeat, refusal and cancel passed; the portfolio run (12 stocks BBRI, TLKM, BBCA, ASII,
@@ -8733,7 +8733,23 @@ in its staleness check.
   once, grammar Flow conditions (columns kept), the point-in-time indicators. A per-task refusal that names the
   problem exists already for a thread over its own heap limit (`server.ts answerError`: `OUT_OF_MEMORY`, "choose fewer
   stocks or a shorter period"), but no thread has such a limit, so the container kills the process first.
-- **Solution:** open, the user's decision (options with these numbers in the report of 2026-11-16).
+- **Solution (user 2026-11-16: "tidak apa-apa untuk naikkan ke 2 GB apabila run memang diperlukan", "RAM hanya berjalan
+  ketika ada request saja", "Go untuk opsi 1"; rednightt33/saniti#69):** a compute thread ends once it has no task
+  left (`src/compute.ts`), so a task's memory goes back to the system within a second; each thread has a V8 heap limit
+  derived from the container's memory (`config.ts threadHeapMb`, (memory − 256 MB) ÷ 4: 412 MB at 2 GB;
+  `BACKTEST_THREAD_HEAP_MB` overrides), so a thread over it fails its own task with `OUT_OF_MEMORY` and the process
+  lives on; `thread_start` and `thread_end` log `rss_bytes`; the image sets `MALLOC_ARENA_MAX=2` and
+  `MALLOC_TRIM_THRESHOLD_=131072`; `BACKTEST_DOWNLOAD_CONCURRENCY` 16 → 4; the container limit 2 GB
+  (`.railway/railway.ts`). Measured with `verification/backtest/memory/`.
+- **Verified on dev (deployment `31e94b94`, 11:30 UTC):** the start line reads the container's 1,999,998,976 bytes and
+  a 412 MB heap per thread, `engine_version` `681b18d3ffe51792`; `e2e_dev.py` 11:33-11:35 UTC passed every step, the
+  12-stock portfolio FINISHED (worker 19.6 s; click to result 22.9 s); the worker's own lines: the 12-stock preview
+  peaked at 452 MB and the process went back to 187 MB when its thread ended, the run peaked at 462 MB and went back to
+  188 MB, a single run peaked at 245 MB and went back to 139 MB; Railway's per-minute memory peaked at 0.37 GB.
+- **Cost (measured on dev):** a task starts a thread (0.5-0.8 s) and reads its files from the disk cache on a new
+  thread: a single run took 1.9-2.5 s on a warm container (0.6-0.7 s before with a long-lived thread, 1.2-2.4 s on its
+  first run after a wake); the 12-stock run's loading took 17.3 s (53 files from disk, 8 small downloads), the decoding
+  on Railway's CPU.
 - **After a run (user 2026-11-16: "bisa nggak setelah selesai run langsung dibuat tidur atau otomatis di-cut?"):**
   Railway's per-minute samples of the dev worker show the memory a task leaves staying flat until the next request or
   the sleep (455 MB 09:49-09:59, 389-393 MB 10:04-10:11, 172 MB from 10:25; the deployment `SLEEPING` at 10:41 while
@@ -8749,6 +8765,7 @@ in its staleness check.
   | heaviest (grammar Flow), threads end + 4 in flight + heap cap 300 MB | 764 MB | 263 MB | 263 MB | 11.4 s / 13.4 s |
 
   The worker starts at 107-135 MB. A preview on a fresh thread took 1.84-1.96 s against 1.67 s on a warm one.
+- **Status:** FIXED, deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`).
 - **Lesson for new data:** a data source whose per-entity history grows (broker rows per stock) needs a memory budget
   measured on its largest entities and enforced by the process that loads it, not only a row count.
 
@@ -8776,5 +8793,8 @@ in its staleness check.
 - **Solution:** the check closes the builder when the main column has no width before it clicks the tabs.
 - **Class:** a browser check written for one layout must open the layout's own way to a control at every width it
   visits; the smoke test in CI holds the page's rule, the dev check copies it.
+- **Second step (11:30 UTC):** the page keeps a builder closed (`layout.ts setPanel`, `ml.panel`), so after the phone
+  screenshots the portfolio setup could not click the step tab (Page.click timeout); the check reopens it with its rail
+  after the screenshots and before the setup (the smoke test's `showBuilder`); rerun 11:33 UTC: every step passed.
 - **Status:** FIXED (rerun on dev 2026-11-16).
 - **Lesson for new data:** none (verification only).

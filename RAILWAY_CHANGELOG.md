@@ -1,5 +1,25 @@
 # Railway changelog
 
+## 2026-11-16 — backtest-worker `31e94b94`: memory released after every task, 2 GB limit (ERRORS M463, user "Go untuk opsi 1")
+
+- **Go:** user 2026-11-16: "tidak apa-apa untuk naikkan ke 2 GB apabila run memang diperlukan", "RAM hanya berjalan
+  ketika ada request saja", "Go untuk opsi 1". Code: rednightt33/saniti#69 (`9250827b`), every check green before
+  the upload.
+- **Before:** no Backtest job active (`edge_bff.jobs` 0, 11:28 UTC); the worker `e4cf8fdd` asleep.
+- **Variable:** `BACKTEST_DOWNLOAD_CONCURRENCY` 16 → 4 (`railway variable set --skip-deploys`), read back.
+- **Limit:** `railway config apply`: the plan held exactly `backtest-worker deploy.limitOverride.containers.memoryBytes`
+  1000000000 → 2000000000; read back from `serviceInstanceLimits` (2,000,000,000). The apply started a redeploy of the
+  old code (`b750d187`), replaced by the upload.
+- **Upload:** CLI upload of `git archive 9250827b` of the paths the Dockerfile copies, `--path-as-root` →
+  `31e94b94` SUCCESS 11:30 UTC; start line: `engine_version` `681b18d3ffe51792` (= the repository's), `memory`
+  `{container_bytes: 1999998976, thread_heap_mb: 412}`, concurrency 4.
+- **Checks:** `e2e_dev.py` 11:33-11:35 UTC: every step passed, the 12-stock portfolio FINISHED (19.6 s on the worker);
+  its preview peaked at 452 MB and its run at 462 MB, the process back to 187-189 MB as each thread ended
+  (`thread_end`); Railway's per-minute memory peaked at 0.37 GB (limit 2 GB). The first e2e run at 11:30 failed in the
+  check itself (the builder left closed after the phone screenshots, ERRORS M465), not on the page or the worker.
+- **Rollback:** CLI upload of the worker from `8194a16c` with `BACKTEST_DOWNLOAD_CONCURRENCY=16`; the limit back with
+  `railway.ts` (1 GB) and `railway config apply`.
+
 ## 2026-11-16 — EXEC-BACKTEST-REVAMP deploy on dev (Gate 3, user "1A 2B 3A, go deploy", "ok lanjut")
 
 - **Before:** no Backtest job active and no orc turn running (edge_bff.jobs, `AI_conversation_turn`) before each upload

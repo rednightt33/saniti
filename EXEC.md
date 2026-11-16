@@ -15076,6 +15076,8 @@ Rincian dan ID: `RAILWAY_CHANGELOG.md` 2026-11-16.
   `thread_start`/`thread_end` dengan RSS), `config.ts` (`threadHeapMb`, `BACKTEST_THREAD_HEAP_MB`), Dockerfile
   (`MALLOC_ARENA_MAX=2`, `MALLOC_TRIM_THRESHOLD_=131072`), `BACKTEST_DOWNLOAD_CONCURRENCY` 16 → 4, batas container 2 GB
   (`.railway/railway.ts`), alat ukur `verification/backtest/memory/`. Rotasi kunci (M464) belum dijawab: tidak dilakukan.
+  Selesai di dev 2026-11-16: worker `31e94b94` (rednightt33/saniti#69), batas 2 GB, e2e lulus termasuk portofolio 12
+  saham (puncak 462 MB, kembali ke 188 MB saat thread berakhir); rincian `RAILWAY_CHANGELOG.md`, ERRORS M463.
 
 ### Selesai berarti
 
