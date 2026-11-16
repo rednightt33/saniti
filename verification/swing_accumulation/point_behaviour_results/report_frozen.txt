@@ -1,0 +1,25 @@
+30 episode, 15 saham, 127 deret (teknikal 76, Flow 51); galat indikator: tidak ada
+jendela pembanding per episode (median [min; maks]): {'A1': '8 [3; 21]', 'A2': '8 [0; 23]', 'B1': '8 [3; 21]', 'B2': '7 [0; 23]', 'C': '25 [15; 37]'}
+
+== Kalibrasi nol (300 pseudo-episode acak): jumlah deret yang lolos kriteria per ukuran
+                                A1   A2   B1   B2    C
+nyata                          0.0  0.0  0.0  0.0  5.0
+rata-rata nol                  0.0  0.0  0.0  0.0  1.0
+P95 nol                        0.0  0.0  0.0  0.0  3.0
+selisih nyata − rata-rata nol  0.0  0.0  0.0  0.0  4.0
+  C['n_flags'] = C[[f'{T}_flag' for T in TESTS]].sum(1); C = C.sort_values(['tier', 'n_flags'], ascending=[True, False]); C.to_csv(os.path.join(D, 'point_candidates.csv'), index=False)
+
+== Kandidat: Tingkat 1 = 0, Tingkat 2 = 5 dari 127 deret
+
+Tingkat 1 (lolos >= 2 ukuran pada segmen yang sama): median persentil per ukuran (50 = biasa)
+Empty DataFrame
+Columns: [series, A1_med, A2_med, B1_med, B2_med, C_med, n_flags]
+Index: []
+
+Tingkat 2 (lolos 1 ukuran), 40 teratas menurut jarak dari 50:
+       series  A1_med  A2_med  B1_med  B2_med  C_med  n_flags
+ T:ppo.signal     0.0    91.0    72.0    94.0   22.0        1
+    T:roc.roc     2.0    88.0    86.0    52.0   73.0        1
+T:macd.signal     6.0    91.0    69.0    90.0   19.0        1
+ F:FL24.value    11.0    74.0    91.0    63.0   25.0        1
+   F:FL02.buy    10.0    46.0    58.0    62.0   28.0        1
