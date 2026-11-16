@@ -1,0 +1,33 @@
+{
+ "mode": "APPLY",
+ "migrations": [
+  "20261116_001_edge_bff_watchlist_lists.sql"
+ ],
+ "probes": [
+  [
+   "stars_before",
+   null,
+   "SELECT count(*) AS items, count(DISTINCT owner_key) AS owners, coalesce(max(n), 0) AS max_per_owner FROM (SELECT owner_key, count(*) OVER (PARTITION BY owner_key) AS n FROM edge_bff.watchlist_items) x"
+  ],
+  [
+   "lists",
+   null,
+   "SELECT name, position, indicators FROM edge_bff.watchlist_lists ORDER BY position"
+  ],
+  [
+   "items_per_list",
+   null,
+   "SELECT l.name, count(i.ticker), min(i.position), max(i.position) FROM edge_bff.watchlist_lists l LEFT JOIN edge_bff.watchlist_items i USING (owner_key, list_id) GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "runtime_grants",
+   null,
+   "SELECT table_name, string_agg(privilege_type, ',' ORDER BY privilege_type) FROM information_schema.role_table_grants WHERE grantee = 'edge_bff_runtime' AND table_schema = 'edge_bff' AND table_name IN ('watchlist_lists', 'watchlist_items') GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "items_columns",
+   null,
+   "SELECT column_name, is_nullable FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name = 'watchlist_items' ORDER BY ordinal_position"
+  ]
+ ]
+}
