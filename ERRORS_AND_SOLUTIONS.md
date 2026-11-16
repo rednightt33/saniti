@@ -8866,6 +8866,19 @@ in its staleness check.
   The screener-worker suite: 112 passed. edge-bff deployed on the green commit.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
+### M476 — The Watchlist's data file carries Radar output, an admin page's content (2026-11-16, OPEN)
+
+- **Symptom (read-only delta inspection, `verification/edge_multiuser/access_tiers/CONTRACT.md` section 15):** every
+  user allowed the Watchlist file would receive the Radar's screens.
+- **Verified cause:**
+  - `watchlist-stocks` is built with "the Radar screens it meets on the Radar's newest date" and the default flow
+    indicator `fn5` (`apps/terminal-publisher/watchlist.py:11, 33-35`);
+  - `/api/v1/watchlist/file/<name>` serves it to any session from a shared cache (`apps/edge-bff/app/pages.py`).
+- **Class:** one published file that mixes content of different access levels.
+- **Solution (planned, EXEC-MU-ACCOUNTS Phase 3):** split the file (base vs Radar badges), or publish one per capability;
+  check the capability before the shared cache.
+- **Status:** OPEN. Harmless with one user.
+
 ### M475 — Orc: a missing owner header becomes the shared owner `default`; progress of an owner-less run is readable by every caller (2026-11-16, OPEN)
 
 - **Symptom (read-only inspection, `verification/edge_multiuser/access_tiers/FINDINGS.md`):** any holder of

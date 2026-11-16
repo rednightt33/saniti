@@ -116,7 +116,7 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 | `POST /api/v1/auth/sign-out-all` | — | every session of the user |
 | `POST /api/v1/auth/mfa/enroll` | — | `otpauth://` URI plus 10 recovery codes, shown once; admin only |
 | `POST /api/v1/auth/mfa/verify` | `code` or `recovery_code` | sets `mfa_passed_at` |
-| `GET /api/v1/auth/session` | — | `{authenticated, username, role, plan, status, expires_at, mfa_ok, capabilities:{…}, limits:{…}, version, next: null/"verify"/"mfa"/"pay", csrf_token}`. The existing Monitor keys stay inside `capabilities` |
+| `GET /api/v1/auth/session` | — | today's keys unchanged (`authenticated`, `login`, `csrf_token`, `capabilities` = configuration flags) plus `username` and `access: {plan, role, status, expires_at, mfa_ok, capabilities:[…], limits:{…}, version, next: null/"verify"/"mfa"/"pay"}` |
 
 **Registration rules:**
 - Enumeration: an existing email or username gets the same 202. An existing email receives "akun sudah ada, gunakan
@@ -213,7 +213,8 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
     - history limited by days is served from a publisher "recent" pack per N.
   - The 1e9 quota override is retired for people; plan limits come from the capabilities header.
 - **Workers** (backtest, screener):
-  - `context.rights` becomes `context.capabilities` plus `context.limits`.
+  - `context.rights` stays the wire field and carries the resolved capability names; `context.limits` is added (workers
+    accept it first, section 15).
   - The worker takes `min(its ceiling, context)` and refuses ids outside the capabilities (`CAPABILITY_REQUIRED`, naming
     the id).
   - Screener: the check runs after `normalize`, before any cache; the answer-shape (row cap) enters the result key.
@@ -336,9 +337,51 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 - Checkers C1 (security), C2 (isolation) and C3 (conformance and regression) review the integrated diff against this
   file only.
 
-## 15. New tabs and changes on `main` since the audit
+## 15. New tabs and changes on `main` since the audit (delta inspection 2026-11-16, spot-checked)
 
-(Filled from the delta inspection: Overview, Radar, Watchlist, `rights.py`, `pages.py`, CI.)
+- **Per-request owner is half done.**
+  - `main.py` `session` sets `request.state.owner`.
+  - Backtest uses it (`backtest.py` `identity`/`writer`).
+  - The Screener still sends `owner=self.settings.owner` to the worker (`screener.py:676`) and binds it for lanes, items
+    and preview slots (`:953`, `:969`).
+  - The Watchlist binds `owner = self.settings.owner` (`watchlist.py:287`).
+  - Phase 1 moves all of them to the principal.
+- **Overview, Radar, Watchlist page files** (`app/pages.py` `PageFiles`):
+  - `GET /api/v1/<family>/index` and `/file/<name>?sha=` use the session only.
+  - They are served from process caches shared by every user (index 30 s; bytes by sha, 32 MB).
+  - Every grant goes to the one gateway account under `quota.REF`.
+  - Phase 3: a capability check (`<family>.view`, and per file kind such as `overview.day`, `radar.board`) runs **before**
+    the shared cache.
+- **Radar data inside the Watchlist file** (new defect M476). `watchlist-stocks` carries the Radar screens of the newest
+  date and flow values (`apps/terminal-publisher/watchlist.py:11, 33-35`). The Radar is an admin page. Phase 3 splits
+  the file (base vs Radar badges) or publishes one per capability.
+- **Watchlist limits** `LISTS=20`, `PER_LIST=50`, `INDICATORS=8` (`watchlist.py:29-31`) become plan limits. Its indicator
+  keys are checked against the release and plan catalog.
+- **The existing `capabilities` object** of `/auth/session` holds configuration flags (`main.py:539-549`). The shell
+  hides Overview, Radar and Watchlist with it (`static/index.html:11385-11386`, `OWNER_PAGES`).
+  - That object stays as it is, for the configuration.
+  - The principal's access goes into a new `access` object:
+    `{plan, role, status, expires_at, mfa_ok, capabilities:[…], limits:{…}, version, next}`.
+  - Tabs are always shown (user decision); a tab without `<tab>.view` shows its example.
+- **The `rights` wire field stays.**
+  - `context.rights` is what the workers read today. They refuse unknown keys and values (`KNOWN_RIGHTS`,
+    `apps/backtest-worker/src/server.ts:62`).
+  - Phase 2 keeps the field and fills it with resolved capability names.
+  - The workers' known names are extended **before** edge-bff sends new ones (deploy order: workers first).
+  - The catalogs' `access:'admin'` marks (`screener/src/core/catalog.ts:78-79,141`, `backtest-worker/src/catalog.ts:72`)
+    become `release` plus `capability` fields.
+- **Browser storage added:** `edge.watchlist.view` (a user's list id), `edge.watchlist.logos` and `ml.symbol` in the new
+  apps; all go into the storage registry. Overview, Radar and Watchlist `api.ts` also get the error contract (M471).
+- **Build:** the radar, overview and watchlist Dockerfile stages copy only their own folder (`Dockerfile:42-69`). The
+  shared session module needs COPY lines there and a path trigger in `.github/workflows/edge-bff-image.yml`.
+- **CI gating:**
+  - edge-bff and screener-worker deploy only on green checks (`checkSuites: true`).
+  - backtest-worker, terminal-api and market-ai-orc are not gated. Their changes are tested locally and in CI before
+    deploy by hand.
+- **`EDGE_ADMIN_OWNERS`** is not declared in `.railway/railway.ts` (default: the one owner). The role-admin seed replaces
+  it at cutover.
+- **Static examples:** none exist yet for Overview, Radar, Watchlist, Screener, Backtest or Monitor. Phase 3 adds
+  synthetic example files in the repository, served without a grant.
 
 ## 16. Railway (names only; values never in Git)
 
