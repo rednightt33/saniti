@@ -15078,6 +15078,10 @@ Rincian dan ID: `RAILWAY_CHANGELOG.md` 2026-11-16.
   (`.railway/railway.ts`), alat ukur `verification/backtest/memory/`. Rotasi kunci (M464) belum dijawab: tidak dilakukan.
   Selesai di dev 2026-11-16: worker `31e94b94` (rednightt33/saniti#69), batas 2 GB, e2e lulus termasuk portofolio 12
   saham (puncak 462 MB, kembali ke 188 MB saat thread berakhir); rincian `RAILWAY_CHANGELOG.md`, ERRORS M463.
+- **Jawaban user, 2026-11-16 (sesudah laporan biaya kecepatan M463):** "tetap langsung dilepas. Boleh rotasi kunci
+  worker. Langsung synchronize dengan main branch and push to main." Dibaca: thread penghitung tetap berakhir segera
+  setelah tugasnya (tanpa masa tunggu 60 detik); `BACKTEST_WORKER_KEY` dirotasi (M464); catatan di-push langsung ke
+  `main`.
 
 ### Selesai berarti
 
