@@ -7,7 +7,7 @@
    browser before (ml.drawings.*) move to the account once, merged by drawing id with what the account holds. */
 import { savedClient, sendOnLeave, primeToken, LayoutApiError } from './layoutsApi';
 import { store } from '../app/context';
-import { edge, isLastLogin, lastLogin, loginKey } from '../../../shared/edge-session';
+import { edge, isLastLogin, loginKey, onReset } from '../../../shared/edge-session';
 
 /* M468 (EXEC-MU-ACCOUNTS Phase 0): a copy kept in this browser is stamped with the login that wrote it,
    {"owner": login, "drawings": [...]}, and joins the account only for that login. A copy of the older form (a bare
@@ -21,13 +21,17 @@ export function ownCopy(text: string | null, login: string): unknown[] | null {
   if (v && typeof v === 'object' && Array.isArray(v.drawings)) return !!loginKey(login) && v.owner === loginKey(login) ? v.drawings : null;
   return null;
 }
-/** the text kept in this browser for `login` (a bare list when the login is not known) */
-export function stampCopy(text: string, login: string): string {
+/** the text kept in this browser for `login`; null when the login is not known (nothing is kept then: a copy without
+    an owner could join whichever account the browser marks next) */
+export function stampCopy(text: string, login: string): string | null {
   const owner = loginKey(login);
-  if (!owner) return text;
-  try { return JSON.stringify({ owner, drawings:JSON.parse(text) }) } catch { return text }
+  if (!owner) return null;
+  try { return JSON.stringify({ owner, drawings:JSON.parse(text) }) } catch { return null }
 }
-const signedIn = () => edge.current?.login || lastLogin();
+/* the account this page opened with (its first session read), never the browser's last-login mark: that mark moves to
+   another account when one signs in in another tab (C1 M2, C2 #3). Phase 1: the session's stable owner key. */
+const signedIn = () => edge.identity;
+const keepCopy = (local: string, text: string) => { const stamped = stampCopy(text, signedIn()); if (stamped !== null) store.set(local, stamped) };
 
 const BASE = '/api/v1/terminal/drawings';
 const call = savedClient(BASE, 'drawing');
@@ -66,13 +70,15 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
     say('Your drawings could not be saved to your EDGE account just now: they are kept in this browser and move to the account when it can be reached.', true);
   };
   primeToken();
+  // the account ended or changed (a 401, the 'cleared' broadcast): pending changes are dropped, never stamped or sent
+  onReset(() => { pending.forEach(p => clearTimeout(p.timer)); pending.clear() });
 
   /** the stored text of a set; `local` is this browser's key for it (kept, or moved to the account once) */
   async function load(t: string, s: string, local: string): Promise<string> {
     const here = store.get(local);
     if (!fits(t, s)) return here || '[]';
     const sets = await listOf(t);
-    const who = await edge.session().then(x => x.login, () => lastLogin());
+    const who = await edge.session().then(x => x.login, () => edge.identity);
     const mine = ownCopy(here, who);
     if (here !== null && mine === null) store.remove(local);          // M468: another login's copy (or not a list)
     if (!sets) { unreachable(); return mine ? JSON.stringify(mine) : '[]' }
@@ -121,8 +127,8 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
     const timer = setTimeout(async () => {
       pending.delete(key);
       const sets = await listOf(t);
-      if (!sets) { store.set(local, stampCopy(text, signedIn())); unreachable(); return }
-      if (!(await write(t, s, text))) store.set(local, stampCopy(text, signedIn()));   // not lost: moves to the account on the next load
+      if (!sets) { keepCopy(local, text); unreachable(); return }
+      if (!(await write(t, s, text))) keepCopy(local, text);   // not lost: moves to the account on the next load
     }, SAVE_MS);
     pending.set(key, { json:text, timer });
   }
@@ -142,7 +148,7 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
     clearTimeout(timer);
     const [t, s] = key.split('/'), r = rev.get(key);
     if (json.length < 60000) sendOnLeave(`${BASE}/${t}/${s}`, 'PUT', { drawings:JSON.parse(json), ...(r ? { revision:r } : {}) });
-    store.set(s === 'chart' ? `ml.drawings.${t}` : s === 'flow' ? `ml.drawings.flow.${t}` : `ml.drawings.pane.${t}.${s.slice(5)}`, stampCopy(json, signedIn()));
+    keepCopy(s === 'chart' ? `ml.drawings.${t}` : s === 'flow' ? `ml.drawings.flow.${t}` : `ml.drawings.pane.${t}.${s.slice(5)}`, json);
   }));
 
   return { load, save, remove, flushNow: () => pending.forEach((p, key) => { clearTimeout(p.timer); pending.delete(key); const [t, s] = key.split('/'); write(t, s, p.json) }) };

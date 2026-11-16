@@ -10,6 +10,7 @@
   // Only a 401 resets the session (the sign-in page); only a 403 CSRF_INVALID reads the session again and repeats the
   // write once; a plan refusal keeps the session and carries its words (EdgeLabels.access, error.text).
   const ES = () => window.EdgeSession || null;
+  try { ES()?.setRole('shell'); } catch { /* the module is missing: the shell still signs in */ }
   // EXEC-MODELS: the offered models are read once per session, before the work page shows (sign-in or a restored
   // session waits up to 3 s for them), so their arrival never redraws the page while the user types
   let models = {data:null, failed:false, pending:null};
@@ -22,7 +23,18 @@
       const info = ES()?.readError(res.status, data, res.headers.get('Retry-After')) || null;
       if (res.status === 401 && path !== '/auth/sign-in') reset();
       if (info?.kind === 'csrf' && method !== 'GET' && !retried && auth && path !== '/auth/sign-in') {
-        try { const fresh = await fetch('/api/v1/auth/session', {credentials:'same-origin'}); if (fresh.ok) { auth = await fresh.json(); return api(path, body, method, true); } } catch { /* the refusal below stands */ }
+        // the repeat goes out only for the account this page holds; another login (signed in in another tab) never
+        // receives this page's write: its user state is cleared and the page reloads as that account (C1 M1, C2 #2)
+        const started = String(auth.login || '').trim().toLowerCase();
+        let fresh = null;
+        try { const r = await fetch('/api/v1/auth/session', {credentials:'same-origin'}); if (r.ok) fresh = await r.json(); } catch { /* the refusal below stands */ }
+        if (fresh && String(fresh.login || '').trim().toLowerCase() === started) { auth = fresh; return api(path, body, method, true); }
+        if (fresh) {
+          try { await ES()?.clearUserState(); } catch { /* storage off */ }
+          reset();
+          try { location.reload(); } catch { /* not a page */ }
+          throw new ApiError('USER_CHANGED', 401, info);
+        }
       }
       const error = new ApiError(data.error?.code || (info?.legacy && info.kind === 'csrf' ? info.code : res.status === 401 ? 'Authentication required' : 'Request unavailable'), res.status, info);
       const words = info && ES()?.isAccessRefusal(info) ? (info.message || (window.EdgeLabels?.access || {})[info.code] || ES().accessText(info)) : null;
