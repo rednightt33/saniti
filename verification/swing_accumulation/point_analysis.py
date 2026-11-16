@@ -7,6 +7,9 @@ from pathlib import Path
 import numpy as np, pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent)); from swing_lib import stochastic, zigzag, combine
 D = os.environ.get('EP_DIR', '.'); HERE = Path(__file__).resolve().parent; rng = np.random.default_rng(2026)
+MATCHED = os.environ.get('PLACEBO') == 'matched'; SUF = '_matched' if MATCHED else ''
+# PLACEBO=matched is an AMENDED analysis added after the frozen run showed too few placebo windows (median 8 per episode): A1/A2/B1/B2 use windows of the same stock whose length is within +-15% of the segment and
+# whose log price move is 60%-140% of the episode's, outside every episode of that stock +-5 candles (at most 150 per episode, random); C is unchanged. Report it as 'rule changed after seeing the data'.
 EP = pd.read_csv(HERE / 'episodes_step1.csv'); TESTS = ['A1', 'A2', 'B1', 'B2', 'C']; MINP = 15; LAGS = list(range(-10, 11)); HALF = 20; REPS = 300
 
 # ---------------- data per stock
@@ -18,14 +21,14 @@ for tk in sorted(EP.tk.unique()):
     th = float(EP[EP.tk == tk].th.iloc[0]); o = di.get('2024-01-02', int(np.argmax(np.array(P.d) >= '2024-01-02')))
     Kst, _ = stochastic(h[o:], l[o:], c[o:]); v3, _ = combine(zigzag(h[o:], l[o:], th), Kst, 5); piv = [o + p[0] for p in v3]
     minor = [t for t in range(5, len(P) - 5) if l[t] == l[t - 5:t + 6].min() and all(abs(t - p) > 10 for p in piv) and t >= di.get('2024-03-01', o + 40)]
-    data[tk] = dict(P=P, names=names, X=X, h=h, l=l, c=c, di=di, th=th, minor=minor, N=len(P), errors=S['errors'])
+    data[tk] = dict(P=P, names=names, X=X, h=h, l=l, c=c, di=di, th=th, minor=minor, N=len(P), errors=S['errors'], start=di.get('2024-03-01', o + 40))
 names = sorted(n for n in set.intersection(*[set(d['names']) for d in data.values()]) if not n.startswith('F:FL31.'))   # plan section 2: FL31 (insider data, empty here) excluded; FL23 (inventory of named brokers) drops out because its series names differ per stock
 for tk, d in data.items():
     idx = [d['names'].index(n) for n in names]; d['X'] = d['X'][idx]; d['names'] = names
-print(f'{len(EP)} episode, {EP.tk.nunique()} saham, {len(names)} deret (teknikal {sum(n.startswith("T:") for n in names)}, Flow {sum(n.startswith("F:") for n in names)}); galat indikator:', {tk: d['errors'] for tk, d in data.items() if d['errors']} or 'tidak ada')
-EP['d2'] = pd.to_datetime(EP.d2); EP = EP.sort_values('d2').reset_index(drop=True); cl = [0]
-for i in range(1, len(EP)): cl.append(cl[-1] if (EP.d2[i] - EP.d2[i - 1]).days <= 21 else cl[-1] + 1)
-EP['cluster'] = cl; EP['late'] = EP.d2.dt.year >= 2026
+print('ANALISIS TAMBAHAN (pembanding dicocokkan; aturan diubah sesudah melihat data)' if MATCHED else 'ANALISIS SESUAI ATURAN BEKU'); print(f'{len(EP)} episode, {EP.tk.nunique()} saham, {len(names)} deret (teknikal {sum(n.startswith("T:") for n in names)}, Flow {sum(n.startswith("F:") for n in names)}); galat indikator:', {tk: d['errors'] for tk, d in data.items() if d['errors']} or 'tidak ada')
+EP['d2dt'] = pd.to_datetime(EP.d2); EP = EP.sort_values('d2dt').reset_index(drop=True); cl = [0]
+for i in range(1, len(EP)): cl.append(cl[-1] if (EP.d2dt[i] - EP.d2dt[i - 1]).days <= 21 else cl[-1] + 1)
+EP['cluster'] = cl; EP['late'] = EP.d2dt.dt.year >= 2026
 
 
 # ---------------- window statistics (vectorised over series)
@@ -74,13 +77,26 @@ for e in EP.itertuples():
     o_A1 = X[:, i2] - X[:, i1]; o_A2 = X[:, i3] - X[:, i2]; o_B1 = spearman(X, i1, i2); o_B2 = spearman(X, i2, i3) if m2 + 1 >= 10 else np.full(len(names), np.nan); o_C = lead(X, i2)
     for T, o in (('A1', o_A1), ('A2', o_A2), ('B1', o_B1), ('B2', o_B2), ('C', o_C)): obs[T].append(o)
     pl = {T: [] for T in TESTS}
+    if MATCHED:
+        alli = [(d['di'][x.d1], d['di'][x.d3]) for x in EP[EP.tk == e.tk].itertuples()]
+        for T, mm, ll in (('1', m1, np.log(d['c'][i2] / d['c'][i1])), ('2', m2, np.log(d['c'][i3] / d['c'][i2]))):
+            lo, hi = sorted((0.6 * ll, 1.4 * ll)); cand = []
+            for m in range(max(int(np.floor(mm * 0.85)), 3), int(np.ceil(mm * 1.15)) + 1):
+                for s0 in range(d['start'], d['N'] - m):
+                    t = s0 + m
+                    if lo <= np.log(d['c'][t] / d['c'][s0]) <= hi and all(not (s0 <= b + 5 and t >= a - 5) for a, b in alli): cand.append((s0, t))
+            if len(cand) > 150: cand = [cand[k] for k in rng.choice(len(cand), 150, replace=False)]
+            for s0, t in cand:
+                pl['A' + T].append(X[:, t] - X[:, s0])
+                if t - s0 + 1 >= 10: pl['B' + T].append(spearman(X, s0, t))
     for t in ok:
-        if t - m1 >= 0 and d['c'][t] / d['c'][t - m1] - 1 <= -th / 3 and not (t - m1 <= i3 and t >= i1):
-            pl['A1'].append(X[:, t] - X[:, t - m1])
-            if m1 + 1 >= 10: pl['B1'].append(spearman(X, t - m1, t))
-        if t + m2 < d['N'] and d['c'][t + m2] / d['c'][t] - 1 >= th / 3 and not (t <= i3 and t + m2 >= i1):
-            pl['A2'].append(X[:, t + m2] - X[:, t])
-            if m2 + 1 >= 10: pl['B2'].append(spearman(X, t, t + m2))
+        if not MATCHED:
+            if t - m1 >= 0 and d['c'][t] / d['c'][t - m1] - 1 <= -th / 3 and not (t - m1 <= i3 and t >= i1):
+                pl['A1'].append(X[:, t] - X[:, t - m1])
+                if m1 + 1 >= 10: pl['B1'].append(spearman(X, t - m1, t))
+            if t + m2 < d['N'] and d['c'][t + m2] / d['c'][t] - 1 >= th / 3 and not (t <= i3 and t + m2 >= i1):
+                pl['A2'].append(X[:, t + m2] - X[:, t])
+                if m2 + 1 >= 10: pl['B2'].append(spearman(X, t, t + m2))
         pl['C'].append(lead(X, t))
     for T in TESTS:
         M = np.array(pl[T]) if pl[T] else np.empty((0, len(names))); plc_all[T].append(M); nplc[T].append(len(M)); pct[T].append(pct_of(obs[T][-1], M) if len(M) else np.full(len(names), np.nan))
@@ -124,8 +140,8 @@ for j, nm in enumerate(names):
     for T in TESTS: r.update({f'{T}_med': res[T]['med'][j], f'{T}_n': res[T]['nvalid'][j], f'{T}_agree': res[T]['agree'][j], f'{T}_early': res[T]['early'][j], f'{T}_late': res[T]['late'][j], f'{T}_flag': bool(res[T]['flag'][j])})
     seg1 = sum(r[f'{T}_flag'] for T in ('A1', 'B1', 'C')); seg2 = sum(r[f'{T}_flag'] for T in ('A2', 'B2'))
     r['tier'] = 1 if seg1 >= 2 or seg2 >= 2 else (2 if any(r[f'{T}_flag'] for T in TESTS) else 0); rows.append(r)
-R = pd.DataFrame(rows); R.to_csv(os.path.join(D, 'point_results.csv'), index=False); C = R[R.tier > 0].copy()
-C['n_flags'] = C[[f'{T}_flag' for T in TESTS]].sum(1); C = C.sort_values(['tier', 'n_flags'], ascending=[True, False]); C.to_csv(os.path.join(D, 'point_candidates.csv'), index=False)
+R = pd.DataFrame(rows); R.to_csv(os.path.join(D, f'point_results{SUF}.csv'), index=False); C = R[R.tier > 0].copy()
+C['n_flags'] = C[[f'{T}_flag' for T in TESTS]].sum(axis=1); C = C.sort_values(['tier', 'n_flags'], ascending=[True, False]); C.to_csv(os.path.join(D, f'point_candidates{SUF}.csv'), index=False)
 pd.set_option('display.width', 250); pd.set_option('display.max_rows', 200)
 print(f'\n== Kandidat: Tingkat 1 = {int((C.tier == 1).sum())}, Tingkat 2 = {int((C.tier == 2).sum())} dari {len(R)} deret')
 show = lambda df: df[['series'] + [f'{T}_med' for T in TESTS] + ['n_flags']].round(0)
