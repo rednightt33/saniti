@@ -11,7 +11,8 @@
    - theme: the page follows EDGE's key (edge-auth-monitor-theme, decision 2a), set before load; the design keeps its own
      theme button, pressed once for dark.
    Usage: BACKTEST_REFERENCE_HTML=<design file> node tests/visual/compare.mjs [out dir] [scenario]
-   BACKTEST_VISUAL_THEMES=light (or dark) runs one theme; BACKTEST_COMPARE_SELF=1 runs the reference against itself: the
+   BACKTEST_VISUAL_THEMES=light (or dark) runs one theme, BACKTEST_VISUAL_VIEWPORTS one or more viewports;
+   BACKTEST_COMPARE_SELF=1 runs the reference against itself: the
    noise floor of the method. */
 import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright');   // the preinstalled Playwright (global NODE_PATH)
@@ -27,7 +28,8 @@ if (!reference) { console.error('set BACKTEST_REFERENCE_HTML to the reference pa
 try { await access(reference) } catch { console.error(`reference page not found: ${reference}`); process.exit(2) }
 const out = process.argv[2] || process.env.BACKTEST_VISUAL_OUT || join(tmpdir(), 'backtest-visual');
 const only = process.argv[3];
-const VIEWPORTS = [[1440, 900], [1024, 768], [390, 844]];
+/* BACKTEST_VISUAL_VIEWPORTS=1440x900,390x844 runs those only (several processes can share one out dir) */
+const VIEWPORTS = [[1440, 900], [1024, 768], [390, 844]].filter(([w, h]) => !process.env.BACKTEST_VISUAL_VIEWPORTS || process.env.BACKTEST_VISUAL_VIEWPORTS.split(',').includes(`${w}x${h}`));
 const THEMES = (process.env.BACKTEST_VISUAL_THEMES || 'light,dark').split(',');
 const PANELS = ['#xsHd', '#rail', '#sumbox', '#builder', '#runNote', '.viewbar', '#xfb', '#sigChips', '#laneLabels', '#xsig', '#portSig', '#resCard', '#cw', '#cwPop',
   '#menu', '#tip', '#toast'];
@@ -88,5 +90,6 @@ try {
 } finally {
   await browser.close(); server.close();
 }
-await writeFile(`${out}/errors.json`, JSON.stringify(errors, null, 1));
+const part = [process.env.BACKTEST_VISUAL_VIEWPORTS, process.env.BACKTEST_VISUAL_THEMES].filter(Boolean).join('-').replace(/,/g, '+');
+await writeFile(`${out}/errors${part ? '-' + part : ''}.json`, JSON.stringify(errors, null, 1));
 console.log(`done; page errors: ${errors.length}${errors.length ? '\n' + errors.join('\n') : ''}`);
