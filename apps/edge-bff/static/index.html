@@ -11632,12 +11632,17 @@ function PublicThemeButton() {
 // authenticator: enrol with a QR code drawn here, or verify). The words are EdgeLabels.auth; a refusal shows the
 // server's message (error.message) and the code's words only when it sends none. The email being verified lives in
 // this page's memory (authFlow), never in storage or the address.
-const authFlow = {email:"", purpose:"register", sentAt:0, notice:""};
+const authFlow = {email:"", purpose:"register", sentAt:0, notice:"", resendAfter:60, mfaEnrolled:null};
 const CODE_SECONDS = 300, RESEND_SECONDS = 60;
 const authText = error => error?.info?.message || EdgeLabels.auth.errors[error?.info?.code || error?.message] || error?.text || EdgeLabels.auth.errors.fallback;
 const passwordProblem = (password, repeat) => { const C = EdgeLabels.auth.check;
   return password.length < 8 ? C.short : password.length > 256 ? C.long : password !== repeat ? C.mismatch : ""; };
-const codeSent = (email, purpose) => { authFlow.email = email; authFlow.purpose = purpose; authFlow.sentAt = Date.now(); };
+// a code was sent: the server says when a new one may be asked for (resend_after_s, 60 s)
+const codeSent = (email, purpose, answer) => { authFlow.email = email; authFlow.purpose = purpose; authFlow.sentAt = Date.now();
+  authFlow.resendAfter = Number.isFinite(answer?.resend_after_s) ? answer.resend_after_s : RESEND_SECONDS; };
+// a refusal by field (details.fields, details.reasons[field]): the reason is shown under its field
+const fieldsOf = error => { const d = error?.info?.details || {}, reasons = d.reasons && typeof d.reasons === "object" ? d.reasons : {};
+  return Object.fromEntries((Array.isArray(d.fields) ? d.fields : Object.keys(reasons)).filter(f => typeof reasons[f] === "string").map(f => [f, reasons[f]])); };
 // the QR code library (static/qrcode-generator.js, MIT, served from this origin) is read only by the /mfa page
 let qrLibrary = null;
 const loadQr = () => qrLibrary || (qrLibrary = window.qrcode ? Promise.resolve(window.qrcode) : new Promise((ok, no) => {
@@ -11678,7 +11683,7 @@ function LoginForm({go, L}) {
  const submit=async e=>{e.preventDefault();if(busy)return;updateValue(v,"busy",true);updateValue(v,"error","");authFlow.notice="";
   try{await Edge.signin(login,password);updateValue(v,"password","");go("/monitor");}
   catch(e){const code=e.info?.code;
-   if(code==="MFA_REQUIRED"){updateValue(v,"password","");go("/mfa");return;}
+   if(code==="MFA_REQUIRED"){authFlow.mfaEnrolled=typeof e.info.details?.mfa_enrolled==="boolean"?e.info.details.mfa_enrolled:null;updateValue(v,"password","");go("/mfa");return;}
    if(code==="EMAIL_NOT_VERIFIED"){authFlow.email=login.includes("@")?login:"";authFlow.purpose="register";authFlow.sentAt=0;authFlow.notice=L.login.unverified;go("/verify");return;}
    updateValue(v,"error",e.info?authText(e):e.message);}
   finally{updateValue(v,"busy",false);}};
@@ -11694,15 +11699,15 @@ function LoginForm({go, L}) {
 }
 function RegisterForm({go, L}) {
   const v = currentView, R = L.register, f = initialValue(v, "f", () => ({username:"", first_name:"", last_name:"", email:"", phone:"", password:"", password_repeat:""}));
-  const busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => "");
-  const set = name => e => updateValue(v, "f", old => ({...old, [name]:e.target.value}));
+  const busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => ""), bad = initialValue(v, "bad", () => ({}));
+  const set = name => e => { updateValue(v, "f", old => ({...old, [name]:e.target.value})); if (bad[name]) updateValue(v, "bad", old => ({...old, [name]:undefined})); };
   const submit = async e => { e.preventDefault(); if (busy) return;
     const problem = passwordProblem(f.password, f.password_repeat); if (problem) { updateValue(v, "error", problem); return; }
-    updateValue(v, "busy", true); updateValue(v, "error", "");
-    try { await Edge.register({...f, username:f.username.trim().toLowerCase(), email:f.email.trim()}); codeSent(f.email.trim(), "register");
+    updateValue(v, "busy", true); updateValue(v, "error", ""); updateValue(v, "bad", {});
+    try { const answer = await Edge.register({...f, username:f.username.trim().toLowerCase(), email:f.email.trim()}); codeSent(f.email.trim(), "register", answer);
       updateValue(v, "f", old => ({...old, password:"", password_repeat:""})); go("/verify"); }
-    catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } };
-  const field = (label, name, extra = {}, support) => element(AuthField, {label, support},
+    catch (e) { updateValue(v, "error", authText(e)); updateValue(v, "bad", fieldsOf(e)); } finally { updateValue(v, "busy", false); } };
+  const field = (label, name, extra = {}, support) => element(AuthField, {label, support, error:bad[name]},
     element("input", {id:`auth-${label.toLowerCase().replaceAll(" ", "-")}`, value:f[name], required:true, disabled:busy, onChange:set(name), ...extra}));
   return element(AuthShell, {go, title:R.title, lead:R.lead},
     element("form", {onSubmit:submit},
@@ -11721,7 +11726,7 @@ function useClock(v) {
   const now = initialValue(v, "now", () => Date.now());
   onLifecycle(v, "clock", () => { const t = setInterval(() => updateValue(v, "now", Date.now()), 1000); return () => clearInterval(t); }, []);
   const since = authFlow.sentAt ? Math.floor((now - authFlow.sentAt) / 1000) : null;
-  return {left:since === null ? null : Math.max(0, CODE_SECONDS - since), wait:since === null ? 0 : Math.max(0, RESEND_SECONDS - since)};
+  return {left:since === null ? null : Math.max(0, CODE_SECONDS - since), wait:since === null ? 0 : Math.max(0, authFlow.resendAfter - since)};
 }
 const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 function CodeInput({id = "auth-code", value, disabled, onChange}) {
@@ -11731,26 +11736,31 @@ function CodeInput({id = "auth-code", value, disabled, onChange}) {
 function Resend({v, L, wait, purpose}) {
   const busy = initialValue(v, "resending", () => false);
   const resend = async () => { if (busy || wait > 0 || !authFlow.email) return; updateValue(v, "resending", true);
-    try { await Edge.resendCode(authFlow.email, purpose); authFlow.sentAt = Date.now(); updateValue(v, "info", L.verify.resent); updateValue(v, "error", ""); }
+    try { codeSent(authFlow.email, purpose, await Edge.resendCode(authFlow.email, purpose)); updateValue(v, "info", L.verify.resent); updateValue(v, "error", ""); }
     catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "resending", false); } };
   return element("p", {className:"auth-switch"}, wait > 0 ? `${L.verify.resendIn} ${wait} s.`
     : element("button", {type:"button", className:"text-link", disabled:busy || !authFlow.email, onClick:resend}, L.verify.resend));
 }
 function CodeForm({go, L}) {
   const v = currentView, V = L.verify, code = initialValue(v, "code", () => ""), email = initialValue(v, "email", () => authFlow.email);
-  const busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => ""), info = initialValue(v, "info", () => "");
+  // USERNAME_TAKEN (decided only after the code is proved): the code owner chooses another username here
+  const taken = initialValue(v, "taken", () => false), username = initialValue(v, "username", () => "");
+  const busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => ""), info = initialValue(v, "info", () => ""), bad = initialValue(v, "bad", () => ({}));
   const {left, wait} = useClock(v);
   const submit = async e => { e.preventDefault(); if (busy) return; if (!/^\d{6}$/.test(code)) { updateValue(v, "error", L.check.code); return; }
-    authFlow.email = email.trim(); updateValue(v, "busy", true); updateValue(v, "error", "");
-    try { await Edge.verifyEmail(authFlow.email, code); authFlow.notice = ""; go("/monitor"); }
-    catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } };
+    authFlow.email = email.trim(); updateValue(v, "busy", true); updateValue(v, "error", ""); updateValue(v, "bad", {});
+    try { await Edge.verifyEmail(authFlow.email, code, taken ? username.trim().toLowerCase() : undefined); authFlow.notice = ""; go("/monitor"); }
+    catch (e) { if (e.info?.code === "USERNAME_TAKEN") { updateValue(v, "taken", true); updateValue(v, "error", e.info.message || V.usernameTaken); }
+      else { updateValue(v, "error", authText(e)); updateValue(v, "bad", fieldsOf(e)); } } finally { updateValue(v, "busy", false); } };
   const notice = authFlow.notice;
   return element(AuthShell, {go, title:V.title, lead:authFlow.email ? `${V.sentTo} ${authFlow.email}.` : V.sent},
     element("form", {onSubmit:submit},
       notice && element("p", {className:"auth-note", role:"status"}, notice),
-      !authFlow.email && element(AuthField, {label:V.email}, element("input", {id:"auth-email", type:"email", autoComplete:"email", value:email, required:true, disabled:busy,
+      !authFlow.email && element(AuthField, {label:V.email, error:bad.email}, element("input", {id:"auth-email", type:"email", autoComplete:"email", value:email, required:true, disabled:busy,
         onChange:e => { updateValue(v, "email", e.target.value); authFlow.email = e.target.value.trim(); }})),
-      element(AuthField, {label:V.code, support:V.codeHint}, element(CodeInput, {value:code, disabled:busy, onChange:next => updateValue(v, "code", next)})),
+      element(AuthField, {label:V.code, support:V.codeHint, error:bad.code}, element(CodeInput, {value:code, disabled:busy, onChange:next => updateValue(v, "code", next)})),
+      taken && element(AuthField, {label:V.username, support:L.register.usernameHint, error:bad.username}, element("input", {id:"auth-new-username", value:username, required:true, disabled:busy,
+        autoComplete:"username", pattern:"[a-z0-9_]{3,30}", maxLength:30, autoCapitalize:"none", onChange:e => updateValue(v, "username", e.target.value)})),
       left !== null && element("p", {className:"auth-countdown", role:"timer", "aria-live":"off"}, left > 0 ? `${V.expiresIn} ${mmss(left)}.` : V.expired),
       info && element("p", {className:"auth-note", role:"status"}, info),
       error && element("p", {className:"auth-error", role:"alert"}, error),
@@ -11761,7 +11771,7 @@ function CodeForm({go, L}) {
 function ForgotForm({go, L}) {
   const v = currentView, F = L.forgot, email = initialValue(v, "email", () => authFlow.email), busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => "");
   const submit = async e => { e.preventDefault(); if (busy) return; updateValue(v, "busy", true); updateValue(v, "error", "");
-    try { await Edge.forgotPassword(email.trim()); codeSent(email.trim(), "reset"); go("/reset"); }
+    try { codeSent(email.trim(), "reset", await Edge.forgotPassword(email.trim())); go("/reset"); }
     catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } };
   return element(AuthShell, {go, title:F.title, lead:F.lead},
     element("form", {onSubmit:submit},
@@ -11772,7 +11782,7 @@ function ForgotForm({go, L}) {
 }
 function ResetForm({go, L}) {
   const v = currentView, P = L.reset, f = initialValue(v, "f", () => ({email:authFlow.email, code:"", password:"", password_repeat:""}));
-  const busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => ""), info = initialValue(v, "info", () => "");
+  const busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => ""), info = initialValue(v, "info", () => ""), bad = initialValue(v, "bad", () => ({}));
   const {left, wait} = useClock(v);
   const set = (name, value) => updateValue(v, "f", old => ({...old, [name]:value}));
   const submit = async e => { e.preventDefault(); if (busy) return;
@@ -11780,15 +11790,15 @@ function ResetForm({go, L}) {
     const problem = passwordProblem(f.password, f.password_repeat); if (problem) { updateValue(v, "error", problem); return; }
     authFlow.email = f.email.trim(); updateValue(v, "busy", true); updateValue(v, "error", "");
     try { await Edge.resetPassword(authFlow.email, f.code, f.password, f.password_repeat); authFlow.sentAt = 0; authFlow.notice = L.login.resetDone; go("/login"); }
-    catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); set("password", ""); set("password_repeat", ""); } };
+    catch (e) { updateValue(v, "error", authText(e)); updateValue(v, "bad", fieldsOf(e)); } finally { updateValue(v, "busy", false); set("password", ""); set("password_repeat", ""); } };
   return element(AuthShell, {go, title:P.title, lead:authFlow.email ? `${P.sentTo} ${authFlow.email}.` : L.verify.sent},
     element("form", {onSubmit:submit},
       !authFlow.email && element(AuthField, {label:L.forgot.email}, element("input", {id:"auth-email", type:"email", autoComplete:"email", value:f.email, required:true, disabled:busy,
         onChange:e => { set("email", e.target.value); authFlow.email = e.target.value.trim(); }})),
-      element(AuthField, {label:P.code, support:L.verify.codeHint}, element(CodeInput, {value:f.code, disabled:busy, onChange:next => set("code", next)})),
+      element(AuthField, {label:P.code, support:L.verify.codeHint, error:bad.code}, element(CodeInput, {value:f.code, disabled:busy, onChange:next => set("code", next)})),
       left !== null && element("p", {className:"auth-countdown", role:"timer", "aria-live":"off"}, left > 0 ? `${L.verify.expiresIn} ${mmss(left)}.` : L.verify.expired),
-      element(AuthField, {label:P.password, support:P.passwordHint}, element("input", {id:"auth-new-password", type:"password", autoComplete:"new-password", maxLength:256, value:f.password, required:true, disabled:busy, onChange:e => set("password", e.target.value)})),
-      element(AuthField, {label:P.repeat}, element("input", {id:"auth-repeat-new-password", type:"password", autoComplete:"new-password", maxLength:256, value:f.password_repeat, required:true, disabled:busy, onChange:e => set("password_repeat", e.target.value)})),
+      element(AuthField, {label:P.password, support:P.passwordHint, error:bad.password}, element("input", {id:"auth-new-password", type:"password", autoComplete:"new-password", maxLength:256, value:f.password, required:true, disabled:busy, onChange:e => set("password", e.target.value)})),
+      element(AuthField, {label:P.repeat, error:bad.password_repeat}, element("input", {id:"auth-repeat-new-password", type:"password", autoComplete:"new-password", maxLength:256, value:f.password_repeat, required:true, disabled:busy, onChange:e => set("password_repeat", e.target.value)})),
       info && element("p", {className:"auth-note", role:"status"}, info),
       error && element("p", {className:"auth-error", role:"alert"}, error),
       element(Button, {kind:"primary", type:"submit", disabled:busy}, busy ? P.busy : P.submit)),
@@ -11799,16 +11809,16 @@ function MfaForm({go, L}) {
   const v = currentView, M = L.mfa, code = initialValue(v, "code", () => ""), recovery = initialValue(v, "recovery", () => false);
   const busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => ""), enrol = initialValue(v, "enrol", () => null), saved = initialValue(v, "saved", () => false);
   // an account without an authenticator yet (access.mfa_enrolled false) starts on the set-up
-  onLifecycle(v, "start", () => { if (Edge.auth?.access?.mfa_enrolled === false) startEnrol(); }, []);
+  onLifecycle(v, "start", () => { if (Edge.auth?.access?.mfa_enrolled === false || authFlow.mfaEnrolled === false) startEnrol(); }, []);
   async function startEnrol() { if (busy) return; updateValue(v, "busy", true); updateValue(v, "error", "");
-    try { const a = await Edge.mfaEnroll(); updateValue(v, "enrol", {uri:a.otpauth_uri || a.otpauth_url || a.uri || "", codes:Array.isArray(a.recovery_codes) ? a.recovery_codes : []}); updateValue(v, "recovery", false); }
+    try { const a = await Edge.mfaEnroll(); updateValue(v, "enrol", {uri:a.otpauth_uri || "", secret:a.secret || "", codes:Array.isArray(a.recovery_codes) ? a.recovery_codes : []}); updateValue(v, "recovery", false); }
     catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } }
   const submit = async e => { e.preventDefault(); if (busy) return;
     if (!recovery && !/^\d{6}$/.test(code)) { updateValue(v, "error", L.check.code); return; }
     updateValue(v, "busy", true); updateValue(v, "error", "");
-    try { await Edge.mfaVerify(recovery ? {recovery_code:code.trim()} : {code}); updateValue(v, "enrol", null); go("/monitor"); }
+    try { await Edge.mfaVerify(recovery ? {recovery_code:code.trim()} : {code}); updateValue(v, "enrol", null); authFlow.mfaEnrolled = null; go("/monitor"); }
     catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } };
-  const secret = enrol?.uri ? (new URLSearchParams(enrol.uri.split("?")[1] || "").get("secret") || "") : "";
+  const secret = enrol?.secret || (enrol?.uri ? (new URLSearchParams(enrol.uri.split("?")[1] || "").get("secret") || "") : "");
   const needsSave = Boolean(enrol && enrol.codes.length && !saved);
   return element(AuthShell, {go, title:enrol ? M.enrolTitle : M.title, lead:enrol ? M.enrolLead : M.lead},
     enrol && element("div", {className:"auth-enrol"},

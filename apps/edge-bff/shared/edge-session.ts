@@ -440,93 +440,111 @@ export type SessionClient = ReturnType<typeof sessionClient>;
 /** the page's one session (global fetch, read when called so a test's stub is used) */
 export const edge: SessionClient = sessionClient();
 
-/* ---- account preferences (contract 4b) ---------------------------------------------------------------------------- */
+/* ---- account preferences (contract 4b; the routes of apps/edge-bff/app/preferences.py) ------------------------------ */
 
 /** the keys copied to the account (registry `sync`) */
 export const SYNC_KEYS: readonly string[] = Object.freeze(STORAGE.filter(e => e.sync && e.match === 'exact' && e.area === 'local').map(e => e.key));
 export const PREFERENCES_URL = '/api/v1/preferences';
-const PREF_MAX = 65536;                              // contract 4b: the server's cap per key (64 KB)
+/* app/preferences.py LIMITS, replaced by the GET answer's `limits`: value_bytes is the JSON text as PostgreSQL keeps it */
+const DEFAULT_VALUE_BYTES = 65536;
 
 interface PrefState { version: number | null; value: string | null }
-/* the server's list, as {preferences: [{key, value, version}]} or {preferences: {key: {value, version}}} */
-function prefList(body: any): { key: string; value: unknown; version: number | null }[] {
-  const p = body?.preferences ?? body?.items ?? body;
-  const list = Array.isArray(p) ? p : p && typeof p === 'object' ? Object.entries(p).map(([key, v]: [string, any]) => ({ key, ...(v || {}) })) : [];
-  return list.filter((x: any) => x && typeof x.key === 'string').map((x: any) => ({ key:x.key, value:x.value, version:typeof x.version === 'number' ? x.version : null }));
-}
-/* a stored value is the text this browser keeps (localStorage holds text); a server value that is not text is kept as JSON */
+/* a stored value is the text this browser keeps (localStorage holds text; the page writes it as a JSON string value); a
+   value another client wrote as other JSON is kept as its JSON text */
 const asText = (v: unknown): string | null => v == null ? null : typeof v === 'string' ? v : JSON.stringify(v);
+const jsonBytes = (v: string) => { try { return new TextEncoder().encode(JSON.stringify(v)).length } catch { return v.length * 3 } };
 
 /** the account copy of the `sync` keys, run by the shell after its session read (`client`: the shell's session).
+    The routes (app/preferences.py):
+    - GET /api/v1/preferences -> {preferences: {key: {value, version, updated_at}}, limits};
+    - PUT /api/v1/preferences/{key} {value, version|null} -> 201 created / 200 replaced {key, value, version, updated_at};
+      a stale or missing version -> 409 PREFERENCE_CONFLICT, details.current {value, version} (null: no row any more);
+      a limit -> 422 PREFERENCE_LIMIT, details.limit keys | value_bytes | total_bytes.
     load(): the server copy into this browser's storage; with `uploadLocal` (the local state is this identity's) a local
-    value with no server copy goes up once. note(key): a change, written to the server a moment later (`delayMs`), with
-    the version it was read with; 409 takes the server's value. Changes made in the pages' frames reach the shell as
-    `storage` events. stop(): nothing more is written (sign-out, another account). */
+    value with no server copy goes up once. note(key): a change, written a moment later (`delayMs`) with the version it
+    was read with (null for a key the server does not hold); a 409 takes the server's value; a 422 stops that key for
+    this page (the page keeps working from its storage). Changes made in the pages' frames reach the shell as `storage`
+    events. stop(): nothing more is written (sign-out, another account). */
 export function preferences(client: { send: SessionClient['send'] }, opts: { delayMs?: number } = {}) {
   const delay = opts.delayMs ?? 1000;
   const state = new Map<string, PrefState>();
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
-  let on = false, listening = false;
+  const refused = new Set<string>();                    // keys over a limit (422 PREFERENCE_LIMIT): not sent again
+  let on = false, listening = false, valueBytes = DEFAULT_VALUE_BYTES;
   const local = () => areaOf('local');
   const onStorage = (e: StorageEvent) => {
     if (!on || !e.key || e.newValue === null || !SYNC_KEYS.includes(e.key)) return;     // a removal is a clean-up, never sent
     try { if (e.storageArea && e.storageArea !== local()) return } catch { /* no storage */ }
     note(e.key);
   };
-  async function put(key: string): Promise<void> {
+  const keep = (key: string, value: string | null) => {
+    try { if (value === null) local()?.removeItem(key); else if (local()?.getItem(key) !== value) local()?.setItem(key, value) } catch { /* storage off */ }
+  };
+  async function put(key: string, again = true): Promise<void> {
     timers.delete(key);
-    if (!on) return;
+    if (!on || refused.has(key)) return;
     let value: string | null = null;
     try { value = local()?.getItem(key) ?? null } catch { value = null }
     const was = state.get(key);
-    if (value === null || value === (was?.value ?? null) || value.length > PREF_MAX) return;
+    if (value === null || value === (was?.value ?? null)) return;
+    if (jsonBytes(value) > valueBytes) { refused.add(key); return }          // the server would refuse it (value_bytes)
     let res: Response;
     try {
       res = await client.send(`${PREFERENCES_URL}/${encodeURIComponent(key)}`, { method:'PUT', headers:{ 'Content-Type':'application/json' },
-        body:JSON.stringify({ value, ...(was?.version != null ? { version:was.version } : {}) }) });
+        body:JSON.stringify({ value, version:was?.version ?? null }) });
     } catch { return }                                                       // offline: the next change sends it
     let body: any = null;
     try { body = await res.json() } catch { body = null }
     if (!on) return;
-    if (res.ok) { state.set(key, { value, version:typeof body?.version === 'number' ? body.version : (was?.version ?? 0) + 1 }); return }
-    if (res.status === 409) {
-      // another device changed it first: its value wins here too
-      const d = body?.error?.details ?? body?.current ?? {};
-      const server = asText(d.value), version = typeof d.version === 'number' ? d.version : null;
-      state.set(key, { value:server, version });
-      try { if (server === null) local()?.removeItem(key); else local()?.setItem(key, server) } catch { /* storage off */ }
+    if (res.status === 200 || res.status === 201) { state.set(key, { value, version:typeof body?.version === 'number' ? body.version : null }); return }
+    const error = body?.error;
+    if (res.status === 409 && error?.code === 'PREFERENCE_CONFLICT') {
+      const current = error.details?.current;
+      if (current && typeof current.version === 'number') {
+        // another device wrote it first: its value wins here too
+        const server = asText(current.value);
+        state.set(key, { value:server, version:current.version });
+        keep(key, server);
+      } else if (again) {
+        state.delete(key);                                                   // the row is gone: written again as new
+        await put(key, false);
+      }
+      return;
     }
+    if (res.status === 422 && error?.code === 'PREFERENCE_LIMIT') refused.add(key);
   }
   function note(key: string) {
-    if (!on || !SYNC_KEYS.includes(key)) return;
+    if (!on || !SYNC_KEYS.includes(key) || refused.has(key)) return;
     const t = timers.get(key); if (t) clearTimeout(t);
     timers.set(key, setTimeout(() => { void put(key) }, delay));
   }
   async function load(o: { uploadLocal?: boolean } = {}): Promise<boolean> {
     let res: Response;
     try { res = await client.send(PREFERENCES_URL) } catch { return false }
-    if (!res.ok) { try { await res.text() } catch { /* gone */ } return false }                                             // 404: the switch is off or not built yet
+    if (!res.ok) { try { await res.text() } catch { /* gone */ } return false }   // 404: the route is not there (older server)
     let body: any = null;
     try { body = await res.json() } catch { return false }
-    state.clear(); on = true;
-    const s = local();
-    for (const p of prefList(body)) {
-      if (!SYNC_KEYS.includes(p.key)) continue;
-      const value = asText(p.value);
-      state.set(p.key, { value, version:p.version });
-      try { if (value === null) s?.removeItem(p.key); else if (s?.getItem(p.key) !== value) s?.setItem(p.key, value) } catch { /* storage off */ }
+    const items = body?.preferences;
+    if (!items || typeof items !== 'object' || Array.isArray(items)) return false;
+    if (typeof body.limits?.value_bytes === 'number') valueBytes = body.limits.value_bytes;
+    state.clear(); refused.clear(); on = true;
+    for (const [key, item] of Object.entries(items) as [string, any][]) {
+      if (!SYNC_KEYS.includes(key) || !item || typeof item.version !== 'number') continue;
+      const value = asText(item.value);
+      state.set(key, { value, version:item.version });
+      keep(key, value);
     }
     if (o.uploadLocal) for (const key of SYNC_KEYS) {
       let v: string | null = null;
-      try { v = s?.getItem(key) ?? null } catch { v = null }
+      try { v = local()?.getItem(key) ?? null } catch { v = null }
       if (v !== null && !state.has(key)) await put(key);                     // once: the server holds it from now on
     }
     if (!listening && typeof addEventListener === 'function') { listening = true; addEventListener('storage', onStorage as EventListener) }
     return true;
   }
   function stop() { on = false; timers.forEach(t => clearTimeout(t)); timers.clear(); state.clear() }
-  async function flush() { const keys = [...timers.keys()]; timers.forEach(t => clearTimeout(t)); timers.clear(); await Promise.all(keys.map(put)) }
-  return { load, note, stop, flush, get active() { return on }, state };
+  async function flush() { const keys = [...timers.keys()]; timers.forEach(t => clearTimeout(t)); timers.clear(); await Promise.all(keys.map(k => put(k))) }
+  return { load, note, stop, flush, get active() { return on }, state, refused };
 }
 /** the shell's account preferences (on the page's session) */
 export const prefs = preferences(edge);

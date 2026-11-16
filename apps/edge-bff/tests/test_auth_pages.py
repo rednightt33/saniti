@@ -75,6 +75,18 @@ def test_register_then_the_code_page(fixture_server, page):
     page.get_by_role('alert').wait_for()
     assert page.get_by_role('alert').inner_text() == 'That code is not valid or has expired.'   # the server's message
     assert sent[1] == {'email': 'ana@example.com', 'code': '123456'}
+    # the username was taken meanwhile (decided only after the code is proved): the page asks for another one
+    page.unroute('**/api/v1/auth/register/verify')
+    page.route('**/api/v1/auth/register/verify', lambda r: (sent.append(r.request.post_data_json),
+               answer(r, 409, {'error': {'code': 'USERNAME_TAKEN', 'message': 'That username is taken. Choose another one.', 'details': {}}})
+               if 'username' not in r.request.post_data_json else answer(r, 200, {'authenticated': True, 'login': 'ana_p', 'csrf_token': 't'})))
+    page.get_by_role('button', name='Verify').click()
+    page.get_by_label('New username', exact=True).wait_for()
+    assert page.get_by_role('alert').inner_text() == 'That username is taken. Choose another one.'
+    page.get_by_label('New username', exact=True).fill('ana_p')
+    page.get_by_role('button', name='Verify').click()
+    page.wait_for_function("() => location.pathname !== '/verify'")
+    assert sent[2:] == [{'email': 'ana@example.com', 'code': '123456'}, {'email': 'ana@example.com', 'code': '123456', 'username': 'ana_p'}]
 
 
 def test_forgot_password_code_new_password_back_to_sign_in(fixture_server, page):
