@@ -96,7 +96,9 @@ class AccountStore:
                       AND coalesce(s.last_seen_at, s.created_at) > now() - make_interval(secs => %(idle)s)),
                 touched AS (UPDATE edge_bff.sessions t SET last_seen_at = now() FROM found
                     WHERE t.token_hash = found.token_hash AND found.stale RETURNING 1)
-                SELECT user_id, owner_key, username, role, status, mfa_passed_at FROM found''',
+                SELECT user_id, owner_key, username, role, status, mfa_passed_at,
+                       EXISTS (SELECT 1 FROM edge_bff.mfa_totp m WHERE m.user_id = found.user_id
+                               AND m.confirmed_at IS NOT NULL) AS mfa_enrolled FROM found''',
                              {'hashed': hashed, 'idle': idle_seconds, 'touch': TOUCH_SECONDS, 'active': ACTIVE}).fetchone()
 
     def owner(self, owner_key):

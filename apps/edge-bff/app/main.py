@@ -384,6 +384,11 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/overview')
     @app.get('/watchlist')
     @app.get('/login')
+    @app.get('/register')                   # EXEC-MU-ACCOUNTS Phase 1: the account pages of the shell (contract 12)
+    @app.get('/verify')
+    @app.get('/forgot')
+    @app.get('/reset')
+    @app.get('/mfa')
     async def index():
         return FileResponse(STATIC / 'index.html', media_type='text/html')
 
@@ -596,8 +601,12 @@ def create_app(settings=None, store=None, orc=None):
         p = await auth.resolve(token)
         if p is None:                              # an account disabled at this very moment
             return error('INVALID_CREDENTIALS', 401)
-        # EXEC-RADAR R7: the capabilities come with the sign-in too, so the shell's menu is right before any reload
-        response = JSONResponse(session_answer(p))
+        # EXEC-RADAR R7: the capabilities come with the sign-in too, so the shell's menu is right before any reload.
+        # An admin whose session has not passed MFA (switch on) gets the pending session's cookie and 403 MFA_REQUIRED
+        # with its CSRF token, for the MFA page's enrol or verify call
+        response = JSONResponse(session_answer(p)) if p.mfa_ok else refusal(
+            403, 'MFA_REQUIRED', {'csrf_token': csrf_token(token, settings.session_secret),
+                                  'mfa_enrolled': p.mfa_enrolled})
         response.set_cookie(COOKIE, token, max_age=settings.session_seconds, httponly=True,
                             secure=settings.secure_cookie, samesite='strict', path='/')
         return response
@@ -606,6 +615,7 @@ def create_app(settings=None, store=None, orc=None):
         """GET /api/v1/auth/session (and the sign-in answer): today's keys unchanged, plus username and access
         (CONTRACT.md sections 4 and 15). login: the configured login with the switch off, the username with it on."""
         return {'authenticated': True, 'login': p.username if settings.multiuser else settings.login,
+                'owner_key': p.owner_key,
                 'csrf_token': csrf_token(p.token, settings.session_secret), 'capabilities': capabilities(),
                 'username': p.username, 'access': jsonable_encoder(p.access())}
 

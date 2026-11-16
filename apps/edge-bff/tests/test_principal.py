@@ -83,7 +83,9 @@ def test_switch_off_the_principal_is_user_one_and_the_session_keeps_todays_keys(
         # the test settings list no admin owner (EDGE_ADMIN_OWNERS unset there means none): no capability, as rights.py
         # gave before Phase 1
         assert answer['access'] == {'plan': None, 'role': 'user', 'status': 'active', 'expires_at': None, 'mfa_ok': True,
-                                    'capabilities': [], 'limits': {}, 'version': 'env', 'next': None}
+                                    'capabilities': [], 'limits': {}, 'version': 'env', 'next': None,
+                                    'owner_key': settings.owner, 'mfa_enrolled': False}
+        assert answer['owner_key'] == settings.owner
     admins = dataclasses.replace(settings, admin_owners=(settings.owner,))
     with TestClient(create_app(admins, store, FakeOrc())) as c:
         login(c)
@@ -243,6 +245,8 @@ def on(settings, store, workers):
 
 def sign_in(c, login_name, password):
     r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': login_name, 'password': password})
+    if r.status_code == 403 and r.json()['error']['code'] == 'MFA_REQUIRED':     # an admin: the pending session
+        return {**ORIGIN, 'X-CSRF-Token': r.json()['error']['details']['csrf_token']}
     assert r.status_code == 200, r.text
     return {**ORIGIN, 'X-CSRF-Token': r.json()['csrf_token']}
 
@@ -416,9 +420,11 @@ def test_need_and_admin_dependencies(on, store):
         assert c.post('/api/v1/example/admin', headers=ORIGIN).json()['error']['code'] == 'CSRF_INVALID'
         make_user(store, 'boss', 'boss-password', role='admin')
         h = sign_in(c, 'boss', 'boss-password')
-        assert c.get('/api/v1/example/needs').status_code == 200
+        # a pending admin session reaches no route but the session and the MFA steps
+        assert c.get('/api/v1/example/needs').json()['error']['code'] == 'MFA_REQUIRED'
         assert c.post('/api/v1/example/admin', headers=h).json()['error']['code'] == 'MFA_REQUIRED'
         db(store, "UPDATE edge_bff.sessions SET mfa_passed_at = now() WHERE revoked_at IS NULL")
+        assert c.get('/api/v1/example/needs').status_code == 200
         assert c.post('/api/v1/example/admin', headers=h).json() == {'ok': True}
 
 
