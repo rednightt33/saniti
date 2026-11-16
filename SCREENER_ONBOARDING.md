@@ -104,7 +104,7 @@ same publication of the same data.
 | Market tables | `database/migrations/`, `DATABASE_SCHEMA.md` | FACT | Railway `Postgres` (sfo) | the source rows | — |
 | terminal-publisher | `apps/terminal-publisher/publisher.py` | FACT; the xsection writer BRANCH (`publish_xsection`, `publisher.py:1557`) | Railway cron, CLI upload, sfo | read-only DB login, bucket write credentials | serves readers |
 | Bucket `terminal-display` | written by the publisher | FACT | Railway bucket, sin | every published file | — |
-| terminal-api | `apps/terminal-api/app/` | FACT; `xsection` on `/state` and `POST /xsection` BRANCH (`bucket.py:51` `xsection_index`, `apps/terminal-api/app/main.py:320` `xsection`) | FastAPI, CLI upload, sfo | bucket credentials, quotas, audit and service accounts (schema `terminal`) | streams a data file |
+| terminal-api | `apps/terminal-api/app/` | FACT; `xsection` on `/state` and `POST /xsection` BRANCH (`bucket.py:51` `xsection_index`, `apps/terminal-api/app/main.py:391` `xsection`) | FastAPI, CLI upload, sfo | bucket credentials, quotas, audit and service accounts (schema `terminal`) | streams a data file |
 | Shared formulas | `apps/edge-bff/terminal/src/calc/indicators.ts`, `terminal/src/data/indRegistry.json` | FACT, unchanged by the Screener | TypeScript, imported | the 53 indicator formulas and their registry | — |
 | Backtest shared core | `apps/edge-bff/backtest/src/core/` | FACT, unchanged by the Screener | TypeScript, imported | parameter contract (`registry.ts`), `Calc`, `compare`, patterns, file decoding (`datafile.ts`) | — |
 | Screener core | `apps/edge-bff/screener/src/core/` (18 files) and its generator `apps/edge-bff/screener/scripts/build-screener-registry.mjs` | BRANCH | TypeScript imported by the worker; the page imports only `contract.ts` and `universe.ts` | contract, registry and metric catalog, validation, series path, transforms and patterns, evaluation, planner, universe and cross-section rules | defines an indicator formula |
@@ -144,7 +144,7 @@ From the user's decisions (DECIDED 2026-10-28, `EXEC.md` EXEC-SCREENER) and the 
    deliberate **registry release** (P6, section 2.4).
 4. **Feature 04 is unchanged and is not read at run time (P2 a).** It is the parity oracle in tests (section 1.12).
 5. **Nothing fabricated (I5).** Every cell is PASS, FAIL or NA, and every NA carries a reason code
-   (`apps/edge-bff/screener/src/core/contract.ts:274` `NA_REASONS`). A metric without data is shown disabled with its reason, never silently dropped.
+   (`apps/edge-bff/screener/src/core/contract.ts:278` `NA_REASONS`). A metric without data is shown disabled with its reason, never silently dropped.
 6. **No silent adjustment (I7).** Invalid input is refused with the field and the fix; never clamped, rounded or
    reordered (`validate.ts` header; `registry.ts` header: the backtest core's `resolveParams` first, then only
    narrowing).
@@ -277,17 +277,17 @@ cache and quotas.
 | Route | Status | Answer | Quota, audit |
 |---|---|---|---|
 | `GET /api/terminal/v1/state` | FACT on `main` (EXEC-BACKTEST-LOAD); the `xsection` and `refs` fields BRANCH (`bucket.py:11` `STATE_FIELDS`; `xsection_index` `bucket.py:51`, `refs_index` `bucket.py:78`) | `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, the `xsection` index (well-formed entries only, else null) and `refs` | none |
-| `POST /api/terminal/v1/xsection {names}` | BRANCH (`apps/terminal-api/app/main.py:548`; caller check `xsection_caller`, `main.py:311`) | per name a presigned URL, `sha256`, `bytes`, `rows`, `as_of`; a name not in the index answers 404 `xsection_not_published` with the indexed names | only the screener-worker's service key (`XSECTION_SERVICES`, `main.py:39`; `TERMINAL_SERVICE_KEY_SCREENER_WORKER`, EXEC-MU-RUNTIME T1) or, until a later step removes it, the gateway key; anything else 403 `gateway_only`. One audit row under the `REF` pseudo-ticker (`apps/terminal-api/app/quota.py:11`), dataset `xsection`; file quota = number of names; bytes counted |
+| `POST /api/terminal/v1/xsection {names}` | BRANCH (`apps/terminal-api/app/main.py:548`; caller check `xsection_caller`, `main.py:382`) | per name a presigned URL, `sha256`, `bytes`, `rows`, `as_of`; a name not in the index answers 404 `xsection_not_published` with the indexed names | only the screener-worker's service key (`XSECTION_SERVICES`, `main.py:50`; `TERMINAL_SERVICE_KEY_SCREENER_WORKER`, EXEC-MU-RUNTIME T1) or, until a later step removes it, the gateway key; anything else 403 `gateway_only`. One audit row under the `REF` pseudo-ticker (`apps/terminal-api/app/quota.py:11`), dataset `xsection`; file quota = number of names; bytes counted |
 
 Rules a new file must meet at terminal-api (`bucket.py:13` `XSECTION_NAME` and `xsection_index`): the name matches
 `^[a-z0-9][a-z0-9_-]{0,31}$`; the index entry has exactly `key`, `sha256` (64 hex), `bytes` (≥ 1), `rows` (≥ 0) and
 `as_of` (a string of at most 64 characters, else null); the key is `v1/xsection/<name>.<first 16 hex of the
 sha256>.json.gz`. An entry that breaks a rule is dropped from `/state` and never presigned. A call asks at most 16
-names (`MAX_XSECTION_NAMES`, `main.py:51`). Tests: `apps/terminal-api/tests/test_api.py`
+names (`MAX_XSECTION_NAMES`, `main.py:73`). Tests: `apps/terminal-api/tests/test_api.py`
 `test_xsection_index_keeps_only_well_formed_entries`, `test_xsection_presigns_only_keys_of_the_xsection_family`,
 `test_xsection_grants_the_indexed_files_to_the_gateway_in_one_audit_row_under_ref` and the other `test_xsection_*`.
 
-Neither route is in edge-bff's browser allow-list (`TERMINAL_ROUTES`, `apps/edge-bff/app/main.py:44`), so the browser
+Neither route is in edge-bff's browser allow-list (`TERMINAL_ROUTES`, `apps/edge-bff/app/main.py:47`), so the browser
 can never pull a whole-universe file. **A new xsection name needs no terminal-api code change**: names are validated
 against the index, not against a list in code; only the size matters for the quota (section 1.15).
 
@@ -427,7 +427,7 @@ lists are data, read from `screener-metrics.json` (section 1.11), never kept in 
 A bar field compared with an output whose `price_compare_lag` is 1 (Donchian's prior band, `rolling_max` of the high)
 reads the lagged series `lag(x, 1)` as its own cached series, never a shifted view (`condition.ts` header).
 
-NA reasons (per cell, never failing the whole screen; `apps/edge-bff/screener/src/core/contract.ts:274` `NA_REASONS`): `INSUFFICIENT_HISTORY`,
+NA reasons (per cell, never failing the whole screen; `apps/edge-bff/screener/src/core/contract.ts:278` `NA_REASONS`): `INSUFFICIENT_HISTORY`,
 `NULL_AT_EVALUATION` (also for a missing input, e.g. IHSG volume), `FLOW_UNAVAILABLE`, `FLOW_LAGGED`,
 `NOT_APPLICABLE` (`applies_to`), `DATA_INTEGRITY`, `MIXED_ADJUSTMENT_BASIS`. Remarks explain a value and never change
 PASS, FAIL or NA: `STALE` and `PRICE_BREAK` per row, `PRICE_BREAK_IN_LOOKBACK` per cell. A cell's lookback
@@ -531,7 +531,7 @@ window and refused after it ...".
 Header `x-screener-worker-key` (at least 32 characters, compared in constant time, `server.ts:155-159`) on every route
 except `/health` and `/ready`; `x-screener-owner` (16 hex: the first 16 of HMAC-SHA256(`SCREENER_WORKER_KEY`,
 `owner_key`) computed by edge-bff) selects the owner's lane and budget (`server.ts:428-433`). Routes (`server.ts` header
-`:5-16`, `contract.ts:669` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
+`:5-16`, `contract.ts:673` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
 state), `GET /ready` (200 only with a loaded snapshot, else 503 `SCREENER_NOT_READY` with `Retry-After`: the Railway
 healthcheck), `GET /v1/catalog` and `/v1/universe` (`ETag`, `304`), `POST /v1/run`, `/v1/preview`, `/v1/counts` (gzip
 with `ETag`), `POST /v1/validate` (`{valid, definition_hash, normalized, versions}`; `versions` is additive,
@@ -549,7 +549,7 @@ README "Logs".
 
 ## 1.8 Stage 5: edge-bff (BRANCH)
 
-`apps/edge-bff/app/screener.py` (`Screeners`, `:628`), mounted like the Backtest module (`apps/edge-bff/app/main.py:462`
+`apps/edge-bff/app/screener.py` (`Screeners`, `:628`), mounted like the Backtest module (`apps/edge-bff/app/main.py:527`
 `screeners.routes`):
 
 | Route under `/api/v1/screener/` | Auth | Worker route |
@@ -589,7 +589,7 @@ README "Logs".
   50, `screener.py:81-82`; since EXEC-WATCHLIST 2A the star fills the first watchlist, so the limit is that list's
   `PER_LIST`, `apps/edge-bff/app/watchlist.py`).
 - **Page and frame**: `/screener` (`main.py:317`) and `/screener-app/` with its assets (`main.py:396-404`) under
-  `SCREENER_CSP` (`main.py:74-77`: `connect-src 'self'`).
+  `SCREENER_CSP` (`main.py:77-80`: `connect-src 'self'`).
 - **A new metric needs no edge-bff change:** the catalog is relayed as the worker built it.
 
 Tests: `apps/edge-bff/tests/test_screener.py` (35 tests, on a disposable PostgreSQL through `EDGE_TEST_POSTGRES_URL`;
@@ -994,7 +994,7 @@ What changes, per class (yes = always; maybe = depends; no = never):
 | L9 AI exposure | AI formula row | no | optional onboarding | optional onboarding | optional onboarding | optional onboarding |
 
 Notes: "no" for terminal-api rests on `/xsection` validating names against the index (BRANCH, section 1.6); a new
-service that reads `/xsection` needs its name in `XSECTION_SERVICES` (`apps/terminal-api/app/main.py:39`). "A wire kind
+service that reads `/xsection` needs its name in `XSECTION_SERVICES` (`apps/terminal-api/app/main.py:50`). "A wire kind
 the first time" means the first macro series needs one new reference kind in `contract.ts` `MetricRef` and in
 `apps/edge-bff/screener/src/core/catalog.ts:240` `KINDS` (worked example 2.13); a fundamental or a universe attribute is `kind: 'universe'`, read from a
 field of the worker's universe row (`condition.ts:152-166`; `apps/edge-bff/screener/src/core/contract.ts:466-468`), so
