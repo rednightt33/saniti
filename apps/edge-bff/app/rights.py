@@ -6,15 +6,21 @@ The rights of an owner, decided here from the session's owner and the configurat
 EDGE_OWNER), never from a request body: edge-bff refuses a body that carries `context` (422 UNKNOWN_FIELD) and always
 sends the workers its own `context.rights` (also []), computed when the call is made (a queued job reads its owner's
 rights when it is dispatched, so an owner whose right was taken away meanwhile is refused CONDITION_RESTRICTED).
+
+EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 2): the rights come from the principal's capabilities (app/principal.py):
+the right flow_point_in_time is the capability backtest.flow_point_in_time. With EDGE_MULTIUSER off the principal holds
+every capability exactly when EDGE_ADMIN_OWNERS lists its owner, so the rights are the ones decided here before.
 """
 
 POINT_IN_TIME = 'flow_point_in_time'      # the point-in-time Flow indicators (Backtest pit/; the Screener's own versions)
 ADMIN_RIGHTS = (POINT_IN_TIME,)
+# the wire right (context.rights, read by the workers) -> the capability the principal must hold for it
+CAPABILITY_OF = {POINT_IN_TIME: 'backtest.flow_point_in_time'}
 
 
-def rights_of(settings, owner):
-    """The rights of an owner: every admin right for an owner listed in EDGE_ADMIN_OWNERS, none otherwise."""
-    return list(ADMIN_RIGHTS) if owner in settings.admin_owners else []
+def rights_of(principal):
+    """The wire rights of a principal: each right whose capability it holds (none for a principal without them)."""
+    return [right for right in ADMIN_RIGHTS if principal.can(CAPABILITY_OF[right])]
 
 
 def refuse_context(body):

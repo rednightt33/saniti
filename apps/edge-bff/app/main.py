@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import hmac
 import json
+import logging
 from pathlib import Path
 import re
 import secrets
@@ -19,10 +20,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .backtest import Backtests
 from .client import OrcClient, OrcError, public_data
 from .config import Settings
-from .errors import Refusal, capability_required, http_refusal, refusal, validation_refusal
+from .errors import Refusal, http_refusal, refusal, validation_refusal
 from .hooks import is_hook_path
 from .layouts import Layouts
+from .preferences import Preferences
 from .presets import Presets
+from .principal import Auth, Principal
 from .drawings import Drawings
 from .overview import Overview
 from .watchlist import Watchlist
@@ -211,6 +214,9 @@ def create_app(settings=None, store=None, orc=None):
     ready = {'value': False}
     # EXEC-MU-ACCOUNTS Phase 0: the sign-in throttle lives in PostgreSQL (app/throttle.py), shared by every instance
     throttle = Throttle(store, settings.session_secret)
+    # EXEC-MU-ACCOUNTS Phase 1: the principal of every request (app/principal.py) and the account preferences
+    auth = Auth(settings, store)
+    preferences = Preferences(store)
     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
     # (a client per request opened a new connection every time)
     terminal_http = {'client': None}
@@ -222,6 +228,17 @@ def create_app(settings=None, store=None, orc=None):
             ready['value'] = True
         except Exception:
             ready['value'] = False
+        if ready['value']:
+            # EXEC-MU-ACCOUNTS Phase 1: user #1 (the configured owner) when the accounts table holds none; idempotent
+            # across replicas. A failure keeps the switch-off sign-in working; with the switch on nothing can sign in
+            # without accounts, so the worker does not start
+            try:
+                await asyncio.to_thread(auth.seed_user)
+            except Exception as e:                     # noqa: BLE001 - logged by its class only (no secret in it)
+                logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_failed',
+                                                                           'error': type(e).__name__}))
+                if settings.multiuser:
+                    ready['value'] = False
         task = asyncio.create_task(worker.run()) if settings.worker_enabled and ready['value'] else None
         # EDGE backtest: its own loop, only with a worker configured; it does not wait for /ready (a missing backtest
         # table keeps only the backtest feature off, BACKTEST_NOT_READY)
@@ -248,6 +265,7 @@ def create_app(settings=None, store=None, orc=None):
     app = FastAPI(title='EDGE private gateway', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.worker, app.state.store, app.state.backtests = worker, store, backtests
     app.state.screeners = screeners
+    app.state.auth = auth                                 # EXEC-MU-ACCOUNTS Phase 1 (tests add routes with need and admin)
 
     def error(code, status):
         # EXEC-MU-ACCOUNTS Phase 0 (CONTRACT.md section 3): every refusal in the full shape {code, message, details}
@@ -311,39 +329,22 @@ def create_app(settings=None, store=None, orc=None):
         response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
         return response
 
-    async def session(request: Request):
-        token = request.cookies.get(COOKIE, '')
-        found = await asyncio.to_thread(store.session, token_hash(token)) if re.fullmatch(r'[0-9a-f]{64}', token) else None
-        if not found or found['owner_key'] != settings.owner:
-            raise Refusal(401, 'UNAUTHENTICATED')
-        # EXEC-BACKTEST-REVAMP P5: the session's owner for the routes that read it (backtest.py identity), never a body's
-        request.state.owner = found['owner_key']
-        return token
+    # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 2): the principal of every request (app/principal.py); auth.principal
+    # replaces the session dependency and auth.writer the write (CSRF) one. The route-table test
+    # (tests/test_route_table.py, CONTRACT.md 13.1) finds these in every /api route's dependencies.
+    app.state.session_dependency, app.state.write_dependency = auth.principal, auth.writer
 
-    async def write(request: Request, token=Depends(session)):
-        if not hmac.compare_digest(request.headers.get('x-csrf-token', ''), csrf_token(token, settings.session_secret)):
-            # the only place that answers CSRF_INVALID (the clients re-read the session and retry once on it)
-            raise Refusal(403, 'CSRF_INVALID')
-        return token
+    async def still_signed_in(p):
+        """The SSE stream re-checks the principal on each loop (CONTRACT.md section 4 "Sessions")."""
+        found = await auth.resolve(p.token)
+        return found is not None and found.owner_key == p.owner_key
 
-    # The route-table test (tests/test_route_table.py, CONTRACT.md 13.1) finds these in every /api route's dependencies
-    app.state.session_dependency, app.state.write_dependency = session, write
-
-    def admin_only(capability, base):
-        """A route for an owner listed in EDGE_ADMIN_OWNERS only (settings.admin_owners; default the one owner), after
-        the session (base = session) or the session and CSRF (base = write): 403 CAPABILITY_REQUIRED otherwise."""
-        async def check(request: Request, token=Depends(base)):
-            if request.state.owner not in settings.admin_owners:
-                raise capability_required(capability)
-            return token
-        return check
-
-    async def snapshot(request_id):
-        row = await asyncio.to_thread(store.job, settings.owner, request_id)
+    async def snapshot(owner, request_id):
+        row = await asyncio.to_thread(store.job, owner, request_id)
         data = {k: row[k] for k in ('request_id','conversation_id','state','state_version','run_status','error_code','created_at','updated_at','completed_at')}
         data['message'] = row['input']['message']
         if row['state'] in TERMINAL and row['conversation_id']:
-            found = await asyncio.to_thread(orc.request, settings.owner, request_id)
+            found = await asyncio.to_thread(orc.request, owner, request_id)
             data['response'] = found.get('response') if found else None
             data['expired'] = found is None
         return jsonable_encoder(data)
@@ -514,27 +515,30 @@ def create_app(settings=None, store=None, orc=None):
         return JSONResponse(status_code=answer.status_code, content=data)
 
     @app.get('/api/terminal/v1/{path:path}')
-    async def terminal_read(path: str, request: Request, _=Depends(session)):
+    async def terminal_read(path: str, request: Request, p: Principal = Depends(auth.principal)):
         return await forward_terminal('GET', path, request)
 
     @app.post('/api/terminal/v1/{path:path}')
-    async def terminal_write(path: str, request: Request, _=Depends(write)):
+    async def terminal_write(path: str, request: Request, p: Principal = Depends(auth.writer)):
         return await forward_terminal('POST', path, request)
 
     # EDGE backtest (CONTRACT.md section 9): /api/v1/backtests... with this session (writes with CSRF, as /api/v1/runs)
-    backtests.routes(app, session, write)
+    # EXEC-MU-ACCOUNTS Phase 1: every router takes routes(app, auth) (auth.principal, auth.writer, auth.need, auth.admin)
+    backtests.routes(app, auth)
     # EDGE screener (report API CONTRACT 8.2): /api/v1/screener... with this session (writes with CSRF, as the backtest)
-    screeners.routes(app, session, write)
+    screeners.routes(app, auth)
     # EXEC-TERMINAL-LAYOUTS (user 2026-11-06: "di akun edge"): the Terminal's saved chart layouts, /api/v1/terminal/layouts
-    layouts.routes(app, session, write)
+    layouts.routes(app, auth)
     # EXEC-IND-PRESETS (user 2026-11-06: "Q1 A"): the Terminal's indicator presets, /api/v1/terminal/presets
-    presets.routes(app, session, write)
+    presets.routes(app, auth)
     # EXEC-DRAW-PANES (user 2026-11-07: "semua gambar harus di simpan di akun EDGE"): the Terminal's drawings, /api/v1/terminal/drawings
-    drawings.routes(app, session, write)
+    drawings.routes(app, auth)
     # EXEC-RADAR R6, EXEC-OVERVIEW O4: /api/v1/radar and /api/v1/overview (index and files), the owner's only
-    radar.routes(app, session)
-    overview.routes(app, session)
-    watchlist.routes(app, session, write)              # EXEC-WATCHLIST L3: the lists and the daily file
+    radar.routes(app, auth)
+    overview.routes(app, auth)
+    watchlist.routes(app, auth)              # EXEC-WATCHLIST L3: the lists and the daily file
+    # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4b): the account's preferences, /api/v1/preferences
+    preferences.routes(app, auth)
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):
@@ -547,10 +551,20 @@ def create_app(settings=None, store=None, orc=None):
         wait = await asyncio.to_thread(throttle.attempt, SIGNIN_LOGIN, login_key)
         if wait:
             return refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
-        # the password is checked before the login is compared (against the one verifier, so an unknown login runs the
-        # same scrypt as a known one): a wrong login costs the same time as a wrong password
-        password_ok = await asyncio.to_thread(verify_password, body.password, settings.password_verifier)
-        if not hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode()) or not password_ok:
+        account = None
+        if settings.multiuser:
+            # EXEC-MU-ACCOUNTS Phase 1 (switch on): the account named by its username or email, its password identity;
+            # an unknown login runs the same scrypt against the configured verifier, so the time tells nothing
+            account = await asyncio.to_thread(auth.accounts.find_login, body.login)
+            password_ok = await asyncio.to_thread(verify_password, body.password,
+                                                  account['verifier'] if account else settings.password_verifier)
+            known = account is not None and password_ok
+        else:
+            # the password is checked before the login is compared (against the one verifier, so an unknown login runs
+            # the same scrypt as a known one): a wrong login costs the same time as a wrong password
+            password_ok = await asyncio.to_thread(verify_password, body.password, settings.password_verifier)
+            known = hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode()) and password_ok
+        if not known:
             await asyncio.to_thread(throttle.count, (SIGNIN_IP, client_address(request)))
             return error('INVALID_CREDENTIALS', 401)
         await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
@@ -558,13 +572,28 @@ def create_app(settings=None, store=None, orc=None):
         if old:
             await asyncio.to_thread(store.revoke, token_hash(old))
         token = secrets.token_hex(32)
-        await asyncio.to_thread(store.session_create, token_hash(token), settings.owner, settings.session_seconds)
+        if account is not None:
+            # at most MAX_SESSIONS per account (the oldest revoked); the address only as its HMAC
+            await asyncio.to_thread(auth.accounts.create_session, token_hash(token), account, settings.session_seconds,
+                                    throttle.key_hash(SIGNIN_IP.scope, client_address(request)))
+            await asyncio.to_thread(auth.accounts.signed_in, account['user_id'])
+        else:
+            await asyncio.to_thread(store.session_create, token_hash(token), auth.configured_owner(), settings.session_seconds)
+        p = await auth.resolve(token)
+        if p is None:                              # an account disabled at this very moment
+            return error('INVALID_CREDENTIALS', 401)
         # EXEC-RADAR R7: the capabilities come with the sign-in too, so the shell's menu is right before any reload
-        response = JSONResponse({'authenticated': True, 'login': settings.login, 'csrf_token': csrf_token(token, settings.session_secret),
-                                 'capabilities': capabilities()})
+        response = JSONResponse(session_answer(p))
         response.set_cookie(COOKIE, token, max_age=settings.session_seconds, httponly=True,
                             secure=settings.secure_cookie, samesite='strict', path='/')
         return response
+
+    def session_answer(p):
+        """GET /api/v1/auth/session (and the sign-in answer): today's keys unchanged, plus username and access
+        (CONTRACT.md sections 4 and 15). login: the configured login with the switch off, the username with it on."""
+        return {'authenticated': True, 'login': p.username if settings.multiuser else settings.login,
+                'csrf_token': csrf_token(p.token, settings.session_secret), 'capabilities': capabilities(),
+                'username': p.username, 'access': jsonable_encoder(p.access())}
 
     def capabilities():
         return {'deep_research': False, 'model_selection': True, 'cancel': True, 'tool_progress': False,
@@ -574,45 +603,44 @@ def create_app(settings=None, store=None, orc=None):
                 'watchlist': bool(settings.terminal_url)}
 
     @app.get('/api/v1/auth/session')
-    async def get_session(token=Depends(session)):
-        return {'authenticated': True, 'login': settings.login, 'csrf_token': csrf_token(token, settings.session_secret),
-                'capabilities': capabilities()}
+    async def get_session(p: Principal = Depends(auth.principal)):
+        return session_answer(p)
 
     @app.post('/api/v1/auth/sign-out')
-    async def sign_out(token=Depends(write)):
-        await asyncio.to_thread(store.revoke, token_hash(token))
+    async def sign_out(p: Principal = Depends(auth.writer)):
+        await asyncio.to_thread(store.revoke, token_hash(p.token))
         response = JSONResponse({'authenticated': False})
         response.delete_cookie(COOKIE, path='/')
         return response
 
     @app.post('/api/v1/runs', status_code=202)
-    async def submit(body: RunInput, _=Depends(write)):
+    async def submit(body: RunInput, p: Principal = Depends(auth.writer)):
         payload = body.model_dump(exclude_none=True, exclude={'submission_key', 'after_stop'})
         if body.conversation_id:
-            await asyncio.to_thread(store.conversation, settings.owner, body.conversation_id)
-            if not await asyncio.to_thread(orc.messages, settings.owner, body.conversation_id):
+            await asyncio.to_thread(store.conversation, p.owner_key, body.conversation_id)
+            if not await asyncio.to_thread(orc.messages, p.owner_key, body.conversation_id):
                 raise StoreError('CONVERSATION_EXPIRED', 410)
-        row, created = await asyncio.to_thread(store.submit, settings.owner, body.submission_key, payload,
+        row, created = await asyncio.to_thread(store.submit, p.owner_key, body.submission_key, payload,
                                                body.after_stop)
         after = (row['input'] or {}).get('after_request_id')
-        before = await asyncio.to_thread(store.job, settings.owner, after) if after else None
+        before = await asyncio.to_thread(store.job, p.owner_key, after) if after else None
         if before is not None and created:  # S3: the run this message follows is stopped; this one waits for it
-            await stop_job(before)
+            await stop_job(p.owner_key, before)
         return {'request_id': row['request_id'], 'conversation_id': row['conversation_id'],
                 'state': row['state'], 'state_version': row['state_version'], 'created': created,
                 **({'after_request_id': before['request_id']} if before is not None else {})}
 
-    async def stop_job(row):
+    async def stop_job(owner, row):
         """The stop button (EXEC-X, EXEC-Y Fase 1): a queued run ends here and never reaches Orc; a running one is
         marked (the worker never dispatches a marked run) and flagged at Orc, which stops before its next model call
         while the run's answer still arrives through the worker. NOT_RUNNING when there is nothing to stop."""
-        if row['state'] == 'QUEUED' and await asyncio.to_thread(store.stop_queued, settings.owner, row['request_id']):
+        if row['state'] == 'QUEUED' and await asyncio.to_thread(store.stop_queued, owner, row['request_id']):
             return 'STOPPED'
         if row['state'] not in ('QUEUED', 'RUNNING', 'RECOVERING'):
             return 'NOT_RUNNING'
-        marked = await asyncio.to_thread(store.request_stop, settings.owner, row['request_id'])
+        marked = await asyncio.to_thread(store.request_stop, owner, row['request_id'])
         for attempt in range(STOP_RETRIES):
-            status = await asyncio.to_thread(orc.stop, settings.owner, row['request_id'])
+            status = await asyncio.to_thread(orc.stop, owner, row['request_id'])
             if status != 'NOT_RUNNING':
                 return status
             if marked and not marked['attempt_count']:
@@ -623,43 +651,43 @@ def create_app(settings=None, store=None, orc=None):
             # V5 (C): dispatched, yet Orc runs nothing (a restart ended it); unless Orc stored its answer, the run ends
             # here and the composer opens again
             try:
-                found = await asyncio.to_thread(orc.request, settings.owner, row['request_id'])
+                found = await asyncio.to_thread(orc.request, owner, row['request_id'])
             except OrcError:
                 return 'NOT_RUNNING'
             if (found or {}).get('turn_status') != 'COMPLETED' and \
-                    await asyncio.to_thread(store.interrupt_not_running, settings.owner, row['request_id']):
+                    await asyncio.to_thread(store.interrupt_not_running, owner, row['request_id']):
                 return 'STOPPED'
         return 'NOT_RUNNING'
 
     @app.post('/api/v1/runs/{request_id}/stop')
-    async def stop_run(request_id: str, _=Depends(write)):
-        row = await asyncio.to_thread(store.job, settings.owner, request_id)
-        status = await stop_job(row)
+    async def stop_run(request_id: str, p: Principal = Depends(auth.writer)):
+        row = await asyncio.to_thread(store.job, p.owner_key, request_id)
+        status = await stop_job(p.owner_key, row)
         return JSONResponse({'status': status}, status_code=409 if status == 'NOT_RUNNING' else 202)
 
     @app.get('/api/v1/runs/{request_id}')
-    async def run_status(request_id: str, _=Depends(session)):
-        return await snapshot(request_id)
+    async def run_status(request_id: str, p: Principal = Depends(auth.principal)):
+        return await snapshot(p.owner_key, request_id)
 
     @app.get('/api/v1/runs/{request_id}/progress')
-    async def run_progress(request_id: str, _=Depends(session)):
+    async def run_progress(request_id: str, p: Principal = Depends(auth.principal)):
         """EXEC-IMPL-1016 Fase 4.3 (UI-1015B): what the run is doing now, read from Orc while it runs (labels and
         times only; nothing is stored). NOT_RUNNING before Orc starts it, after it ends, or when Orc cannot answer."""
-        await asyncio.to_thread(store.job, settings.owner, request_id)  # the owner's run, or 404
+        await asyncio.to_thread(store.job, p.owner_key, request_id)  # the owner's run, or 404
         try:
-            found = await asyncio.to_thread(orc.progress, settings.owner, request_id)
+            found = await asyncio.to_thread(orc.progress, p.owner_key, request_id)
         except OrcError:
             found = None
         return found or {'status': 'NOT_RUNNING', 'steps': []}
 
     @app.get('/api/v1/runs')
-    async def active_run(_=Depends(session)):
-        row = await asyncio.to_thread(store.active, settings.owner)
-        return {'active': await snapshot(row['request_id']) if row else None}
+    async def active_run(p: Principal = Depends(auth.principal)):
+        row = await asyncio.to_thread(store.active, p.owner_key)
+        return {'active': await snapshot(p.owner_key, row["request_id"]) if row else None}
 
     @app.get('/api/v1/runs/{request_id}/events')
-    async def events(request_id: str, request: Request, token=Depends(session)):
-        await asyncio.to_thread(store.job, settings.owner, request_id)
+    async def events(request_id: str, request: Request, p: Principal = Depends(auth.principal)):
+        await asyncio.to_thread(store.job, p.owner_key, request_id)
         try:
             last = max(0, int(request.headers.get('last-event-id', '0')))
         except ValueError:
@@ -669,9 +697,9 @@ def create_app(settings=None, store=None, orc=None):
             started = time.monotonic()
             # Short bounded connections; reconnect to snapshots rather than holding a 60-minute edge request.
             while time.monotonic() - started < 240:
-                if await request.is_disconnected() or not await asyncio.to_thread(store.session, token_hash(token)):
+                if await request.is_disconnected() or not await still_signed_in(p):
                     break
-                data = await snapshot(request_id)
+                data = await snapshot(p.owner_key, request_id)
                 terminal = data['state'] in TERMINAL
                 if data['state_version'] > version or terminal or version > data['state_version']:
                     version = data['state_version']
@@ -690,29 +718,29 @@ def create_app(settings=None, store=None, orc=None):
     # the manual model and posts its reply; Orc decides (404 while its switch is off). EXEC-MU-ACCOUNTS Phase 0 (M259,
     # M474): an admin owner's only (403 CAPABILITY_REQUIRED admin.manual), and the reply is a write (CSRF)
     @app.get('/api/v1/dev/manual/steps')
-    async def manual_steps(_=Depends(admin_only('admin.manual', session))):
-        code, data = await asyncio.to_thread(orc.manual, settings.owner, 'GET', '')
+    async def manual_steps(p: Principal = Depends(auth.admin(capability='admin.manual'))):
+        code, data = await asyncio.to_thread(orc.manual, p.owner_key, 'GET', '')
         return JSONResponse(data, status_code=code)
 
     @app.post('/api/v1/dev/manual/steps/{step_id}')
-    async def manual_answer(step_id: str, request: Request, _=Depends(admin_only('admin.manual', write))):
+    async def manual_answer(step_id: str, request: Request, p: Principal = Depends(auth.admin(write=True, capability='admin.manual'))):
         try:
             body = await request.json()
         except ValueError:
             raise HTTPException(400, 'INVALID_INPUT')
-        code, data = await asyncio.to_thread(orc.manual, settings.owner, 'POST', '/' + step_id[:64], body)
+        code, data = await asyncio.to_thread(orc.manual, p.owner_key, 'POST', '/' + step_id[:64], body)
         return JSONResponse(data, status_code=code)
 
     models_cache = {'at': None, 'data': None}
 
     @app.get('/api/v1/models')
-    async def models(_=Depends(session)):
+    async def models(p: Principal = Depends(auth.principal)):
         """EXEC-MODELS: the models a message may choose, with their levels and prices, cached for ten minutes; when Orc
         cannot answer, the last list is kept (none yet: the page hides the choice and sends none)."""
         now = time.monotonic()
         if models_cache['data'] is None or now - models_cache['at'] >= MODELS_CACHE_SECONDS:
             try:
-                data = await asyncio.to_thread(orc.models, settings.owner)
+                data = await asyncio.to_thread(orc.models, p.owner_key)
             except OrcError:
                 data = None
             if data:
@@ -723,82 +751,82 @@ def create_app(settings=None, store=None, orc=None):
 
     @app.get('/api/v1/conversations')
     async def conversations(q: str = Query(default='', max_length=200), bookmarked: bool = False,
-                            offset: int = Query(default=0, ge=0), limit: int = Query(default=30, ge=1, le=100), _=Depends(session)):
-        items = await asyncio.to_thread(store.list_conversations, settings.owner, q, bookmarked, offset, limit+1)
+                            offset: int = Query(default=0, ge=0), limit: int = Query(default=30, ge=1, le=100), p: Principal = Depends(auth.principal)):
+        items = await asyncio.to_thread(store.list_conversations, p.owner_key, q, bookmarked, offset, limit+1)
         return jsonable_encoder({'items': items[:limit], 'next_offset':offset+limit if len(items)>limit else None})
 
     @app.get('/api/v1/conversations/{conversation_id}/messages')
     async def messages(conversation_id: str, after: int = Query(default=-1, ge=-1),
                        limit: int = Query(default=20, ge=1, le=50), through: int | None = Query(default=None, ge=0),
-                       _=Depends(session)):
-        ui = await asyncio.to_thread(store.conversation, settings.owner, conversation_id)
-        data = await asyncio.to_thread(orc.messages, settings.owner, conversation_id, after, limit, through)
+                       p: Principal = Depends(auth.principal)):
+        ui = await asyncio.to_thread(store.conversation, p.owner_key, conversation_id)
+        data = await asyncio.to_thread(orc.messages, p.owner_key, conversation_id, after, limit, through)
         if data is None:
             raise StoreError('CONVERSATION_EXPIRED', 410)
         # EXEC-ASK-BRANCH Q2: each answer's side chat (not in the list), for the link under the answer
-        sides = await asyncio.to_thread(store.side_chats, settings.owner,
+        sides = await asyncio.to_thread(store.side_chats, p.owner_key,
                                         [m.get('request_id') for m in data.get('messages') or [] if m.get('request_id')])
         return jsonable_encoder({'conversation':ui, **data, 'side_chats':sides})
 
     @app.post('/api/v1/runs/{request_id}/branch')
-    async def branch(request_id: str, body: BranchInput, _=Depends(write)):
+    async def branch(request_id: str, body: BranchInput, p: Principal = Depends(auth.writer)):
         """EXEC-ASK-BRANCH (user 2026-10-24): a new conversation continuing this answer (Orc keeps the history it
         continues; nothing is copied). A side chat is made once per answer and then opened again."""
-        if body.kind == 'SIDE' and (existing := await asyncio.to_thread(store.side_chat, settings.owner, request_id)):
+        if body.kind == 'SIDE' and (existing := await asyncio.to_thread(store.side_chat, p.owner_key, request_id)):
             return jsonable_encoder(existing)
-        found = await asyncio.to_thread(orc.request, settings.owner, request_id)
+        found = await asyncio.to_thread(orc.request, p.owner_key, request_id)
         if not found or found.get('turn_status') != 'COMPLETED':
             raise StoreError('RESPONSE_NOT_AVAILABLE', 409)
-        await asyncio.to_thread(store.conversation, settings.owner, found['conversation_id'])
-        made = await asyncio.to_thread(orc.branch, settings.owner, found['conversation_id'], found['turn_index'])
-        return jsonable_encoder(await asyncio.to_thread(store.add_branch, settings.owner, made['conversation_id'],
+        await asyncio.to_thread(store.conversation, p.owner_key, found['conversation_id'])
+        made = await asyncio.to_thread(orc.branch, p.owner_key, found['conversation_id'], found['turn_index'])
+        return jsonable_encoder(await asyncio.to_thread(store.add_branch, p.owner_key, made['conversation_id'],
                                                         body.title, body.kind, found['conversation_id'], request_id))
 
     @app.delete('/api/v1/conversations/{conversation_id}')
-    async def hide_conversation(conversation_id: str, _=Depends(write)):
+    async def hide_conversation(conversation_id: str, p: Principal = Depends(auth.writer)):
         """EXEC-DELETE: hide a conversation from the list; a running one is refused (its answer is still coming)."""
-        if await asyncio.to_thread(store.active_conversation, settings.owner, conversation_id):
+        if await asyncio.to_thread(store.active_conversation, p.owner_key, conversation_id):
             raise StoreError('CONVERSATION_RUNNING', 409)
-        return jsonable_encoder(await asyncio.to_thread(store.hide, settings.owner, conversation_id))
+        return jsonable_encoder(await asyncio.to_thread(store.hide, p.owner_key, conversation_id))
 
     @app.patch('/api/v1/conversations/{conversation_id}/preferences')
-    async def preferences(conversation_id: str, body: ConversationPreferences, _=Depends(write)):
-        await asyncio.to_thread(store.conversation, settings.owner, conversation_id)
-        if await asyncio.to_thread(orc.messages, settings.owner, conversation_id) is None:
+    async def preferences(conversation_id: str, body: ConversationPreferences, p: Principal = Depends(auth.writer)):
+        await asyncio.to_thread(store.conversation, p.owner_key, conversation_id)
+        if await asyncio.to_thread(orc.messages, p.owner_key, conversation_id) is None:
             raise StoreError('CONVERSATION_EXPIRED', 410)
-        return jsonable_encoder(await asyncio.to_thread(store.preferences, settings.owner, conversation_id,
+        return jsonable_encoder(await asyncio.to_thread(store.preferences, p.owner_key, conversation_id,
                                                         **body.model_dump(exclude_none=True)))
 
     @app.patch('/api/v1/runs/{request_id}/preferences')
-    async def pin(request_id: str, body: Pin, _=Depends(write)):
-        row = await asyncio.to_thread(store.job, settings.owner, request_id)
-        found = await asyncio.to_thread(orc.request, settings.owner, request_id)
+    async def pin(request_id: str, body: Pin, p: Principal = Depends(auth.writer)):
+        row = await asyncio.to_thread(store.job, p.owner_key, request_id)
+        found = await asyncio.to_thread(orc.request, p.owner_key, request_id)
         if not found or not found.get('response'):
             raise StoreError('RESPONSE_NOT_AVAILABLE', 409)
-        return jsonable_encoder(await asyncio.to_thread(store.preferences, settings.owner, found['conversation_id'],
+        return jsonable_encoder(await asyncio.to_thread(store.preferences, p.owner_key, found['conversation_id'],
                                                         request_id=request_id, pinned=body.pinned))
 
     @app.post('/api/v1/conversations/{conversation_id}/outputs/{output_id}/export')
-    async def export_table(conversation_id: str, output_id: str, body: TableExport, _=Depends(write)):
+    async def export_table(conversation_id: str, output_id: str, body: TableExport, p: Principal = Depends(auth.writer)):
         """The table download (user 2026-10-20): every row of an answer table as Excel; Orc writes the file (no model
         call) and the page then downloads it through the export route below."""
         if not re.fullmatch(r'out_[0-9a-f]{24}', output_id):
             raise StoreError('OUTPUT_NOT_FOUND', 404)
-        await asyncio.to_thread(store.conversation, settings.owner, conversation_id)
-        data = await asyncio.to_thread(orc.export_table, settings.owner, conversation_id, output_id,
+        await asyncio.to_thread(store.conversation, p.owner_key, conversation_id)
+        data = await asyncio.to_thread(orc.export_table, p.owner_key, conversation_id, output_id,
                                        body.columns, body.titles)
         if not re.fullmatch(r'exp_[0-9a-f]{24}', str(data.get('export_id') or '')):
             raise OrcError('EXPORT_FAILED')
         return jsonable_encoder(data)
 
     @app.get('/api/v1/exports/{export_id}')
-    async def download(export_id: str, _=Depends(session)):
+    async def download(export_id: str, p: Principal = Depends(auth.principal)):
         if not re.fullmatch(r'exp_[0-9a-f]{24}', export_id):
             raise StoreError('EXPORT_NOT_FOUND', 404)
         # Orc enforces owner; use streaming transport so file size does not become a BFF response copy.
         client = httpx.AsyncClient(base_url=settings.orc_url, timeout=60, trust_env=False, follow_redirects=False)
         req = client.build_request('GET', f'/v1/exports/{export_id}/download', headers={
-            'Authorization': f'Bearer {settings.orc_key}', 'X-Saniti-Owner':settings.owner})
+            'Authorization': f'Bearer {settings.orc_key}', 'X-Saniti-Owner':p.owner_key})
         try:
             response = await client.send(req, stream=True)
         except Exception:

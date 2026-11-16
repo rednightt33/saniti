@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
 from .layouts import LayoutError, checked_name, invalid, storable
+from .principal import Principal
 
 PRESET_ID = re.compile(r'ipr_[0-9a-f]{32}')         # migration 20261106_002; terminal src/data/presetsApi.ts
 DEF_ID = re.compile(r'[A-Za-z0-9_]{1,40}')          # migration 20261106_002 (def_id)
@@ -185,16 +186,16 @@ class Presets:
             raise invalid('preset_id', 'preset_id is ipr_ followed by 32 lowercase hexadecimal digits')
         return preset_id
 
-    def routes(self, app, session, write):
-        owner, store = self.settings.owner, self.store      # LayoutError answers through the layouts' handler
+    def routes(self, app, auth):
+        store = self.store      # LayoutError answers through the layouts' handler
 
         @app.get('/api/v1/terminal/presets')
-        async def presets(_=Depends(session)):
-            rows = await asyncio.to_thread(store.list, owner)
+        async def presets(p: Principal = Depends(auth.principal)):
+            rows = await asyncio.to_thread(store.list, p.owner_key)
             return JSONResponse({'presets': [preset_of(r) for r in rows], 'limit': PRESET_LIMIT})
 
         @app.put('/api/v1/terminal/presets/{preset_id}')
-        async def put_preset(preset_id: str, request: Request, _=Depends(write)):
+        async def put_preset(preset_id: str, request: Request, p: Principal = Depends(auth.writer)):
             body = await self.body(request)
             unknown = set(body) - {'name', 'def_id', 'config', 'summary', 'revision'}
             if unknown:
@@ -209,20 +210,20 @@ class Presets:
             revision = body.get('revision')
             if revision is not None and (isinstance(revision, bool) or not isinstance(revision, int) or revision < 1):
                 raise invalid('revision', 'revision is the positive whole number the preset was read with')
-            row, created = await asyncio.to_thread(store.put, owner, self.preset_id(preset_id), checked_name(body.get('name')),
+            row, created = await asyncio.to_thread(store.put, p.owner_key, self.preset_id(preset_id), checked_name(body.get('name')),
                                                    def_id, checked_config(body.get('config')), summary.strip(), revision)
             return JSONResponse(preset_of(row), status_code=201 if created else 200)
 
         @app.patch('/api/v1/terminal/presets/{preset_id}')
-        async def mark_preset(preset_id: str, request: Request, _=Depends(write)):
+        async def mark_preset(preset_id: str, request: Request, p: Principal = Depends(auth.writer)):
             body = await self.body(request)
             favorite, used = body.get('favorite'), body.get('used')
             if set(body) - {'favorite', 'used'} or (favorite is not None and not isinstance(favorite, bool)) \
                     or used not in (None, True) or (favorite is None and not used):
                 raise invalid(None, 'send favorite (true or false) and/or used (true)')
-            return JSONResponse(preset_of(await asyncio.to_thread(store.mark, owner, self.preset_id(preset_id), favorite, bool(used))))
+            return JSONResponse(preset_of(await asyncio.to_thread(store.mark, p.owner_key, self.preset_id(preset_id), favorite, bool(used))))
 
         @app.delete('/api/v1/terminal/presets/{preset_id}', status_code=204)
-        async def delete_preset(preset_id: str, _=Depends(write)):
-            await asyncio.to_thread(store.delete, owner, self.preset_id(preset_id))
+        async def delete_preset(preset_id: str, p: Principal = Depends(auth.writer)):
+            await asyncio.to_thread(store.delete, p.owner_key, self.preset_id(preset_id))
             return Response(status_code=204)

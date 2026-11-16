@@ -27,6 +27,7 @@ def database():
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261107_001_edge_bff_terminal_drawings.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261116_001_edge_bff_watchlist_lists.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261116_002_edge_bff_accounts_auth_throttle.sql').read_text())
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261116_003_edge_bff_accounts_users.sql').read_text())
             c.execute('CREATE TABLE public.market_private(secret text)')
         yield url
     finally:
@@ -37,7 +38,7 @@ def database():
 def store(database):
     # EXEC-SCREENER (migration 20261028_001): with the saved screener items and the watchlist; EXEC-MU-ACCOUNTS: and the
     # sign-in throttle, so one test's wrong passwords never limit another's sign-in
-    with psycopg.connect(database) as c:c.execute('TRUNCATE edge_bff.sessions,edge_bff.jobs,edge_bff.conversation_ui,edge_bff.screener_items,edge_bff.watchlist_items,edge_bff.watchlist_lists,edge_bff.terminal_layouts,edge_bff.indicator_presets,edge_bff.terminal_drawings,edge_bff.auth_throttle')
+    with psycopg.connect(database) as c:c.execute('TRUNCATE edge_bff.sessions,edge_bff.jobs,edge_bff.conversation_ui,edge_bff.screener_items,edge_bff.watchlist_items,edge_bff.watchlist_lists,edge_bff.terminal_layouts,edge_bff.indicator_presets,edge_bff.terminal_drawings,edge_bff.auth_throttle,edge_bff.users,edge_bff.user_preferences,edge_bff.email_outbox,edge_bff.email_suppression CASCADE')
     return Store(database)
 
 @pytest.fixture

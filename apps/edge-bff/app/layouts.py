@@ -28,6 +28,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
+from .principal import Principal
+
 LAYOUT_ID = re.compile(r'lay_[0-9a-f]{32}')         # migration 20261106_001; terminal src/data/layoutsApi.ts
 SETTING = re.compile(r'ml\.[A-Za-z0-9_.-]{1,80}')   # a stored setting name of the Terminal page (localStorage key)
 NAME_MAX = 120                                      # migration 20261106_001: 1-120, trimmed
@@ -211,24 +213,24 @@ class Layouts:
             raise invalid('layout_id', 'layout_id is lay_ followed by 32 lowercase hexadecimal digits')
         return layout_id
 
-    def routes(self, app, session, write):
-        owner, store = self.settings.owner, self.store
+    def routes(self, app, auth):
+        store = self.store
 
         @app.exception_handler(LayoutError)
         async def layout_error(_, exc):
             return JSONResponse(status_code=exc.status, content={'error': exc.error}, headers=exc.headers)
 
         @app.get('/api/v1/terminal/layouts')
-        async def layouts(_=Depends(session)):
-            rows = await asyncio.to_thread(store.list, owner)
+        async def layouts(p: Principal = Depends(auth.principal)):
+            rows = await asyncio.to_thread(store.list, p.owner_key)
             return JSONResponse({'layouts': [layout_of(r) for r in rows], 'limit': LAYOUT_LIMIT})
 
         @app.get('/api/v1/terminal/layouts/{layout_id}')
-        async def layout(layout_id: str, _=Depends(session)):
-            return JSONResponse(layout_of(await asyncio.to_thread(store.get, owner, self.layout_id(layout_id)), True))
+        async def layout(layout_id: str, p: Principal = Depends(auth.principal)):
+            return JSONResponse(layout_of(await asyncio.to_thread(store.get, p.owner_key, self.layout_id(layout_id)), True))
 
         @app.put('/api/v1/terminal/layouts/{layout_id}')
-        async def put_layout(layout_id: str, request: Request, _=Depends(write)):
+        async def put_layout(layout_id: str, request: Request, p: Principal = Depends(auth.writer)):
             body = await self.body(request)
             unknown = set(body) - {'name', 'state', 'summary', 'revision'}
             if unknown:
@@ -240,20 +242,20 @@ class Layouts:
             revision = body.get('revision')
             if revision is not None and (isinstance(revision, bool) or not isinstance(revision, int) or revision < 1):
                 raise invalid('revision', 'revision is the positive whole number the layout was read with')
-            row, created = await asyncio.to_thread(store.put, owner, self.layout_id(layout_id), checked_name(body.get('name')),
+            row, created = await asyncio.to_thread(store.put, p.owner_key, self.layout_id(layout_id), checked_name(body.get('name')),
                                                    checked_state(body.get('state')), summary.strip(), revision)
             return JSONResponse(layout_of(row, True), status_code=201 if created else 200)
 
         @app.patch('/api/v1/terminal/layouts/{layout_id}')
-        async def mark_layout(layout_id: str, request: Request, _=Depends(write)):
+        async def mark_layout(layout_id: str, request: Request, p: Principal = Depends(auth.writer)):
             body = await self.body(request)
             favorite, opened = body.get('favorite'), body.get('opened')
             if set(body) - {'favorite', 'opened'} or (favorite is not None and not isinstance(favorite, bool)) \
                     or opened not in (None, True) or (favorite is None and not opened):
                 raise invalid(None, 'send favorite (true or false) and/or opened (true)')
-            return JSONResponse(layout_of(await asyncio.to_thread(store.mark, owner, self.layout_id(layout_id), favorite, bool(opened))))
+            return JSONResponse(layout_of(await asyncio.to_thread(store.mark, p.owner_key, self.layout_id(layout_id), favorite, bool(opened))))
 
         @app.delete('/api/v1/terminal/layouts/{layout_id}', status_code=204)
-        async def delete_layout(layout_id: str, _=Depends(write)):
-            await asyncio.to_thread(store.delete, owner, self.layout_id(layout_id))
+        async def delete_layout(layout_id: str, p: Principal = Depends(auth.writer)):
+            await asyncio.to_thread(store.delete, p.owner_key, self.layout_id(layout_id))
             return Response(status_code=204)

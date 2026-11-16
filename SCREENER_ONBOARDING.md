@@ -287,7 +287,7 @@ names (`MAX_XSECTION_NAMES`, `main.py:73`). Tests: `apps/terminal-api/tests/test
 `test_xsection_index_keeps_only_well_formed_entries`, `test_xsection_presigns_only_keys_of_the_xsection_family`,
 `test_xsection_grants_the_indexed_files_to_the_gateway_in_one_audit_row_under_ref` and the other `test_xsection_*`.
 
-Neither route is in edge-bff's browser allow-list (`TERMINAL_ROUTES`, `apps/edge-bff/app/main.py:47`), so the browser
+Neither route is in edge-bff's browser allow-list (`TERMINAL_ROUTES`, `apps/edge-bff/app/main.py:50`), so the browser
 can never pull a whole-universe file. **A new xsection name needs no terminal-api code change**: names are validated
 against the index, not against a list in code; only the size matters for the quota (section 1.15).
 
@@ -549,7 +549,7 @@ README "Logs".
 
 ## 1.8 Stage 5: edge-bff (BRANCH)
 
-`apps/edge-bff/app/screener.py` (`Screeners`, `:628`), mounted like the Backtest module (`apps/edge-bff/app/main.py:527`
+`apps/edge-bff/app/screener.py` (`Screeners`, `:629`), mounted like the Backtest module (`apps/edge-bff/app/main.py:529`
 `screeners.routes`):
 
 | Route under `/api/v1/screener/` | Auth | Worker route |
@@ -561,25 +561,25 @@ README "Logs".
 
 - **Relay as bytes.** `run`, `preview` and `counts` are passed through as the worker's gzip bytes with its `ETag`
   (`validate` as the worker's JSON); edge-bff reads only the first 4,096 inflated bytes for `price_data` and
-  `published_at` (`PEEK_BYTES`, `screener.py:64`) and parses only error bodies (and a validation's hash and versions
+  `published_at` (`PEEK_BYTES`, `screener.py:65`) and parses only error bodies (and a validation's hash and versions
   for a saved item). Test `test_relayed_answers_are_the_workers_gzip_bytes_never_parsed`.
-- **Refusals.** The worker's contract refusals are relayed at their status (`RELAYED`, `screener.py:54`); any other
+- **Refusals.** The worker's contract refusals are relayed at their status (`RELAYED`, `screener.py:55`); any other
   4xx is `503 SCREENER_UNAVAILABLE` (test `test_worker_refusals_outside_the_contract_are_unavailable`); a
   `DATA_VERSION_PENDING` is asked once more on a new connection, then `503 SCREENER_NOT_READY` with `Retry-After` 2
-  (`PENDING_RETRY_SECONDS`, `:59`).
+  (`PENDING_RETRY_SECONDS`, `:60`).
 - **Catalog and universe** are kept in memory per worker state (versions, `published_at` and refresh, read from `/health`
-  at most every 60 s, `HEALTH_SECONDS`, `:74`; `published_at` because an advance keeps the versions but not the documents,
+  at most every 60 s, `HEALTH_SECONDS`, `:75`; `published_at` because an advance keeps the versions but not the documents,
   ERRORS M299, test `test_the_catalog_and_universe_follow_a_publication_that_keeps_the_versions`), dropped at once when
   any answer names a newer publication, and never go back to an older one; `ETag` and `304` (tests
   `test_catalog_and_universe_are_kept_per_worker_state_with_an_etag`,
   `test_a_newer_publication_seen_in_a_run_drops_the_cached_catalog_at_once`,
   `test_the_catalog_never_goes_back_and_ignores_transient_refresh_states`). edge-bff adds its own limits to the
-  catalog's `limits[]` (`own_limits`, `:561-592`: `saved_items` 50 per kind, `watchlist` 500,
+  catalog's `limits[]` (`own_limits`, `:562-593`: `saved_items` 50 per kind, `watchlist` 500,
   `saved_definition_bytes` 65,536, `request_bytes` 131,072, `inflight_per_page` 1).
-- **Latest wins** per (owner, page) through `client_order {page, seq}` (`latest`, `:832`); an older call answers 409
+- **Latest wins** per (owner, page) through `client_order {page, seq}` (`latest`, `:833`); an older call answers 409
   `SCREEN_REPLACED` or `PREVIEW_REPLACED`; a caller that left is stopped at the worker.
 - **Saved items** are validated by the worker before they are stored, with the `registry` and `screener_registry` of the
-  same answer (`validated`, `:900-922`; `/health` versions when an answer has none), and validated again on load when
+  same answer (`validated`, `:901-923`; `/health` versions when an answer has none), and validated again on load when
   they were saved under other versions ("needs review" with the field; nothing adjusted). Every store statement filters
   `owner_key`.
 - **Settings** (`apps/edge-bff/app/config.py:113-122`): `SCREENER_WORKER_URL` and `SCREENER_WORKER_KEY` together or not
@@ -589,7 +589,7 @@ README "Logs".
   50, `screener.py:81-82`; since EXEC-WATCHLIST 2A the star fills the first watchlist, so the limit is that list's
   `PER_LIST`, `apps/edge-bff/app/watchlist.py`).
 - **Page and frame**: `/screener` (`main.py:317`) and `/screener-app/` with its assets (`main.py:396-404`) under
-  `SCREENER_CSP` (`main.py:77-80`: `connect-src 'self'`).
+  `SCREENER_CSP` (`main.py:80-83`: `connect-src 'self'`).
 - **A new metric needs no edge-bff change:** the catalog is relayed as the worker built it.
 
 Tests: `apps/edge-bff/tests/test_screener.py` (35 tests, on a disposable PostgreSQL through `EDGE_TEST_POSTGRES_URL`;
@@ -838,7 +838,7 @@ variable.
 | Response, request | 4,194,304 bytes of JSON; 131,072 bytes of body | `SCREENER_MAX_RESPONSE_BYTES`, `SCREENER_MAX_REQUEST_BYTES` |
 | One xsection file (gzip), inflated, one refresh | 2 × the measured size: 24,000,000 / 150,000,000 / 24,000,000 locally; re-derived from the first dev publisher run | `SCREENER_MAX_FILE_BYTES`, `SCREENER_MAX_INFLATED_BYTES`, `SCREENER_MAX_REFRESH_BYTES` |
 | Threads, heap, caches, memory | K = 2, 512 MB per thread, 256 MiB of caches, a 2.75 GB replica | `SCREENER_THREADS`, `SCREENER_THREAD_HEAP_MB`, `SCREENER_CACHE_BYTES`, Railway memory limit |
-| Saved items, watchlist (edge-bff constants) | 50 saved screens and 50 My metrics per owner; 50 tickers in the first watchlist (`PER_LIST`, EXEC-WATCHLIST 2A) | `SCREEN_LIMIT` (`screener.py:81`), `WATCHLIST_LIMIT` (`:82`) |
+| Saved items, watchlist (edge-bff constants) | 50 saved screens and 50 My metrics per owner; 50 tickers in the first watchlist (`PER_LIST`, EXEC-WATCHLIST 2A) | `SCREEN_LIMIT` (`screener.py:81`), `WATCHLIST_LIMIT` (`:83`) |
 | terminal-api default quota (one shared gateway subscriber) | `files_per_hour` 60, `megabytes_per_day` 300 (`database/migrations/20261025_100_create_terminal_schema.sql:79-83`); overridden to 1e9 on dev, TEMPORARY (decision U1); a service key has its own hourly ceilings instead (EXEC-MU-RUNTIME T1, `BACKTEST_END_TO_END.md` 6.1) | `terminal.quota` |
 
 **Onboarding consequence:** a new file must fit `SCREENER_MAX_FILE_BYTES`, `SCREENER_MAX_INFLATED_BYTES` and
