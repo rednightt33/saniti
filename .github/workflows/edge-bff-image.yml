@@ -1,0 +1,33 @@
+name: edge-bff image builds
+
+# ERRORS M461 (2026-11-16): the edge-bff deployment of the EXEC-BACKTEST-REVAMP merge failed in Railway's build: the
+# Backtest page's build stage did not copy the Screener source its page imports, while every CI job built the pages in
+# the whole repository and passed. This builds the image as Railway does (apps/edge-bff as the context, its Dockerfile:
+# the Terminal, Backtest, Screener, Radar and Overview page stages and the Python image), so a module a stage does not
+# copy fails here before a merge deploys it. No push, no secrets.
+
+on:
+  push:
+    paths:
+      - "apps/edge-bff/**"
+      - ".github/workflows/edge-bff-image.yml"
+  pull_request:
+    paths:
+      - "apps/edge-bff/**"
+      - ".github/workflows/edge-bff-image.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edge-bff-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the edge-bff image (Railway's context and Dockerfile)
+        run: docker build -f apps/edge-bff/Dockerfile -t edge-bff-ci apps/edge-bff
