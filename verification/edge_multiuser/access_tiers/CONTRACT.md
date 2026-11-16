@@ -195,15 +195,24 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
   - A missing or blank `X-Saniti-Owner` is refused with 400 `OWNER_REQUIRED`; no `default`.
   - A second key `MARKET_AI_ORC_TEST_KEY` may name only owners matching `golden-*`, `test-*` or `someone-else`.
     orc-test-runner moves to it (Railway variable, approved in the go). The existing key keeps every other owner.
+    The test key must be at least 32 characters and differ from `MARKET_AI_ORC_API_KEY` (else `ConfigError` at
+    start); orc-test-runner reads only `MARKET_AI_ORC_TEST_KEY` and does not start without it (fix round, ERRORS M477).
+  - A `history_mode` CLIENT run may name only a `conversation_id` its owner holds (else 404
+    `CONVERSATION_NOT_FOUND`); without the conversation store the id is dropped (fix round, C2).
   - Manual steps store their owner: `pending(owner)` and `answer(owner, step_id, reply)`. The edge-bff manual routes
     require `admin` and `writer` for the POST.
-  - Progress and stop store the normalised owner and never match `None`.
+  - Progress and stop store the normalised owner and never match `None`; they and the manual fallback list are keyed
+    by (owner, request id) (fix round, C1 L1).
   - Phase 3: edge-bff sends `X-Saniti-Capabilities` (allowed models, levels, modes, lane, export) and Orc's
     `resolve_model_choice`, `routed()` and lane check use it. Model list changes still need the user's approval
     (AGENTS.md "Model and provider").
 - **terminal-api:**
   - Phase 0: the public domain is removed after a check that no direct sign-in has been used within 30 days
     (`terminal.access_log` for person subscribers other than the gateway; `terminal.session`).
+  - Phase 0: every key (the gateway key, each service key, the admin key) is accepted only on the private host: Host
+    exactly `terminal-api.railway.internal` with an optional `:port`, and none of Railway's public-edge headers. Off
+    it, one generic 403 `gateway_host_not_allowed` for a valid, wrong or absent key; the reason goes to the server log
+    only (fix round, C1 M3 and L2; ERRORS M470, M477).
   - Phase 3 (T2):
     - edge-bff sends `x-terminal-proxy-owner: <owner_key>` and `x-terminal-capabilities` (allowed tickers, datasets,
       `history_days`, intraday timeframes, references);

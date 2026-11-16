@@ -15,12 +15,14 @@ GitHub-connected: a new build is uploaded with the CLI (`git archive <commit> ap
 | Caller | Credential | Where it is accepted |
 |---|---|---|
 | EDGE (edge-bff's Terminal gateway) | `X-Terminal-Proxy-Key` = `TERMINAL_PROXY_KEY`; acts as the one account `TERMINAL_PROXY_SUBSCRIBER` | only on the private host (below) |
-| backtest-worker, screener-worker | `X-Terminal-Proxy-Key` = their own `TERMINAL_SERVICE_KEY_<NAME>` (their service account) | private network |
-| administrator | `X-Terminal-Admin-Key` = `TERMINAL_ADMIN_KEY` (`/admin/...`) | private network once the public domain is gone |
+| backtest-worker, screener-worker | `X-Terminal-Proxy-Key` = their own `TERMINAL_SERVICE_KEY_<NAME>` (their service account) | only on the private host |
+| administrator | `X-Terminal-Admin-Key` = `TERMINAL_ADMIN_KEY` (`/admin/...`) | only on the private host, in both modes |
 | a person signing in directly | cookie `terminal_session` from `POST /auth/sign-in` | only while a browser origin is configured |
 
 Every service already calls `http://terminal-api.railway.internal:8080` (edge-bff `EDGE_TERMINAL_URL`, the workers'
-`TERMINAL_URL`).
+`TERMINAL_URL`). Scripts that use the admin key (`scripts/terminal_subscriber.py`, `verification/terminal_api/validate.py`,
+`verification/terminal_api/quota_live.py`) must run on the private network (orc-test-runner or a job): over the
+public URL they are refused (C1 M3, ERRORS M477).
 
 ## Private-only mode (EXEC-MU-ACCOUNTS Phase 0, ERRORS M470)
 
@@ -41,22 +43,30 @@ no direct sign-in was used within 30 days (job `a97135cc`; ERRORS M470).
 - With an origin configured (today: `TERMINAL_ALLOWED_ORIGINS=https://terminal-api-dev.up.railway.app`) the direct
   sign-in works as before.
 
-## Gateway host rule (M470; both modes)
+## Private host rule for every key (M470, C1 M3 and L2 in M477; both modes)
 
-The EDGE gateway key counts only on a request addressed to the private host `terminal-api.railway.internal` (Host
-header, port ignored) that carries none of the headers Railway's public edge adds (`x-forwarded-for`,
-`x-forwarded-host`, `x-real-ip`, `forwarded`, `x-railway-edge`). Otherwise the answer is 403
-`gateway_host_not_allowed`, naming the host or the edge header found and the fix (`EDGE_TERMINAL_URL` on the private
-network). The host list is fixed in code (`config.py` `PRIVATE_HOST`); a public `*.up.railway.app` name, an upper-case
-name or a port in it stops the start. A wrong key on any host stays 401 `proxy_key_rejected`. The service keys are
-not bound to a host.
+Every key, the EDGE gateway key, a service key and the admin key, counts only on a request addressed to the private
+host and that carries none of the headers Railway's public edge adds (`x-forwarded-for`, `x-forwarded-host`,
+`x-real-ip`, `forwarded`, `x-railway-edge`). The check runs before any key is judged (`app/main.py`
+`private_only_keys`, called from `identify` and from the admin dependency).
 
-Consequence: a local verification tool that calls the public domain with the gateway key (as the tools behind the
-gateway's public-address access rows up to 2026-11-01 did) is refused; run such checks on the private network
-(orc-test-runner or a job).
+- The Host must be exactly `terminal-api.railway.internal` with an optional `:digits` port, in any letter case.
+  Userinfo, a path, a query, a fragment, brackets, a trailing dot or a bad port are refused.
+- Off the private host the answer is one generic 403 `gateway_host_not_allowed`, the same for a valid, a wrong or an
+  absent key. It names neither the private host nor a variable ("This address does not accept keyed requests. Fix:
+  call terminal-api from inside its own network, ..."). The reason and the kind of credential go to the server log,
+  never the key.
+- On the private host a wrong key is 401 `proxy_key_rejected`, as before.
+- The host list is fixed in code (`config.py` `PRIVATE_HOST`); a public `*.up.railway.app` name, an upper-case name
+  or a port in it stops the start.
+
+Consequence: a local verification tool that calls the public domain with any key (as the tools behind the gateway's
+public-address access rows up to 2026-11-01 did) is refused; run such checks on the private network (orc-test-runner
+or a job).
 
 ## Tests
 
-`pip install -r requirements-dev.txt`, then `python -m pytest tests` (91 passed on 2026-11-16). The two modes and the
+`pip install -r requirements-dev.txt`, then `python -m pytest tests` (99 passed on 2026-11-16, after the checkers' fix
+round). The two modes and the
 host rule: `tests/test_private_only.py`. `scripts/measure_grant_transactions.py` calls the app on the private host as
 edge-bff does.
