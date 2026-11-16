@@ -768,8 +768,13 @@ as first built). Stage C2 (ERRORS M459): a Flow value on a session without broke
 whose window ends the session before); a broker a list names is a member from its own first row for the stock on
 (computeFlow per stretch of sessions with the same members, the Terminal's own formula); the publisher's basis status
 is the nearer of `terms` and `same` for a small action, an action without an ex date is `unresolved` on its annotation
-date, and the events stamp holds the decisions (ex, type, factor, status, price) only. Open (M459 items 1, 9): the
-status is decided with sessions after the ex date; the user's rule for the days before that decision is known is pending.
+date, and the events stamp holds the decisions (ex, type, factor, status, price) only. User 2026-11-16 "A" (M459 items
+1, 9): the publisher decides an action once its 21 days after the ex date have passed (column `decided`; `pending`
+before), from its own window only (a rights issue's terms in the VWAP form, so a later action never moves it); the worker
+treats an action as undecided on every bar before `decided` whatever the file says, and every Flow value (every family,
+the point-in-time ones included) whose window crosses an undecided, unresolved or not-reloaded action is empty; the
+per-day guard stays on the broker-price values. The lots before a `terms` action stay scaled (the adjusted history, K4
+a, `FLOW_LOTS_RESTATED`).
 
 **13.3 Point-in-time indicators (sections 3, 5).** FL18, FL19, FL20, FL23, FL44, FL45, FL51 (`apps/backtest-worker/src/pit/`,
 worker-only, admins only): the brokers chosen again on each candle from the anchor (FL18-FL20, FL44, FL45: `anchor`) or

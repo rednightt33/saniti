@@ -40,6 +40,18 @@ times the later actions' price factors (the actions are measured newest first). 
 | observed jump (2.686, 1.728) | 44 |
 | exact form (2.7097, 1.7429) | 0 |
 
+## The decision rule since Stage C2 (user 2026-11-16 "A", ERRORS M459 item 1)
+
+An action is decided once its 21 days after the ex date have passed, from its own window only: the status compares the
+observed jump with the terms in the VWAP form (the traded price of the last session before the ex date), never with the
+later actions' factors, so a later action never moves an earlier decision; the exact form above stays the scale of the
+lots. `compare_rule.py` runs both versions of `broker_basis` on the fetched windows (each action alone):
+`compare_rule_2026-11-16.txt`, 21 of 506 decisions differ, all rights issues but none of the splits and bonus shares.
+Among them COCO 2025-10-09 (the exact form taken alone reads a close adjusted by its 2026 rights issue: 1.75 against an
+observed 2.686; the VWAP form 2.69: `terms`), and four whose VWAP form misses the observed jump by more than the
+tolerance (SQMI 2019, GOLD 2019, PANI 2022, FORU 2026): now `unresolved`, so the Backtest leaves their Flow values
+across the action empty rather than scaling them.
+
 `basis_from_export.py` writes the publisher's basis block for an exported ticker (`verification/backtest/lookahead`),
 which `real_data.ts` reads. `guard_sample.py` measures the per-day guard of `apps/backtest-worker/src/basis.ts` on 40
 stocks for 2025 without any factor (`guard_sample_2026-11-16.txt`): 7,466 sessions, 228 outside the range, all VKTR

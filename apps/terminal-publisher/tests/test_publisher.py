@@ -2966,6 +2966,30 @@ def test_stage_c2_small_actions_no_ex_date_and_the_digest():
     assert pub.basis_digest(a) != pub.basis_digest([['2026-03-02', 'RIGHT_ISSUE', 1.0, 'unresolved', 'adjusted', 1.5, 1.2, 12, 9]])
 
 
+def test_stage_c2_an_action_is_decided_once_its_window_is_complete_and_a_later_action_never_changes_it():
+    """Stage C2, user 2026-11-16 "A" (ERRORS M459 items 1, 9): pending until ex + BASIS_WINDOW_DAYS has passed, however
+    many sessions follow the ex date; decided then from its own window, with the date in `decided`; an older action's
+    status does not move when a newer action arrives (its decision reads its own window only)."""
+    ri = ('2026-03-02', 'RIGHT_ISSUE', 1.0, 1.0, 100.0)
+    days = basis_days('2026-03-02', 12, 20, 1.5, 1.0, 200.0, 200.0)
+    col = lambda row, k: dict(zip(pub.BASIS_COLUMNS, row))[k]
+    [row] = pub.broker_basis([ri], days, '2026-03-20')                   # 15 sessions after ex, window open to 03-23
+    assert (col(row, 'status'), col(row, 'factor'), col(row, 'decided')) == ('pending', 1.0, '2026-03-23')
+    [row] = pub.broker_basis([ri], days, '2026-03-23')
+    assert col(row, 'status') == 'terms' and abs(col(row, 'factor') - 1.5) < 1e-9 and col(row, 'decided') == '2026-03-23'
+    # a newer rights issue (its own window, the prices scaled by it before its ex date): the older decision is the same
+    newer = ('2026-06-01', 'RIGHT_ISSUE', 1.0, 1.0, 100.0)
+    scaled = [(d, v, h / 1.5, l / 1.5, c / 1.5) for d, v, h, l, c in days]      # the published closes before the newer
+                                                                                   # ex date adjusted by it, the lots raw
+    for through in ('2026-06-03', '2026-07-01'):                                  # newer pending, then decided
+        rows = pub.broker_basis([ri, newer], scaled + basis_days('2026-06-01', 12, 25, 1.5, 1.0, 200.0, 200.0), through)
+        assert col(rows[0], 'status') == 'terms', (through, rows)
+    # the daily report leaves a pending action out (every new action is pending for its window)
+    p = pub.Publisher.__new__(pub.Publisher)
+    p.basis_through, p.basis_cache = '2026-03-20', {'BBCA': pub.broker_basis([ri], days, '2026-03-20')}
+    assert p.basis_attention() == []
+
+
 def test_stage_c2_a_daily_run_measures_an_old_action_again_only_after_its_history_is_reloaded():
     """Stage C2 (lens 1 F11, lens 2 F5): a new candle in the last year is no reload; a changed older year is."""
     days = basis_days('2025-06-02', 12, 12, 1.5, 1.0, 200.0, 200.0)
@@ -2989,8 +3013,9 @@ def test_stage_c2_a_daily_run_measures_an_old_action_again_only_after_its_histor
 
 
 def basis_conn(pre_close=200.0, ratio_pre=1.5):
-    """BBCA with a rights issue on 2026-02-02 (1:1 at Rp 100), its sessions around it, a broker date after them."""
-    days = basis_days('2026-02-02', 12, 12, ratio_pre, 1.0, pre_close, 200.0)
+    """BBCA with a rights issue on 2026-02-02 (1:1 at Rp 100), its sessions around it, a broker date after its window
+    (Stage C2, user "A": an action is decided once BASIS_WINDOW_DAYS after its ex date have passed)."""
+    days = basis_days('2026-02-02', 12, 20, ratio_pre, 1.0, pre_close, 200.0)
     prices = [('BBCA', d, c, h, l, c, 1000.0) for d, v, h, l, c in days] + [r for r in PRICES if r[0] == 'IHSG']
     brokers = [('BBCA', d, 'AK', 'Foreign', 'Regular', v * 100 * 10, v * 100 * 10, 10.0, 10.0, False, 3, 3) for d, v, *_ in days]
     actions = ACTIONS + [('BBCA', '2026-02-02', 'RIGHT_ISSUE', 1.0, 1.0, 100.0, 'IDR', 'k9')]

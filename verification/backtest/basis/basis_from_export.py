@@ -22,7 +22,8 @@ def actions(ticker):
     if 'rows' not in d:
         raise SystemExit(f'{ticker}: {d}')
     num = lambda x: None if x in (None, '') else float(x)
-    return [(r[0][:10], r[1], num(r[2]), num(r[3]), num(r[4])) for r in d['rows'] or []]
+    # the sixth column: the action has no ex date (Stage C2, lens 1 F8: unresolved, keyed on its annotation date)
+    return [(r[0][:10], r[1], num(r[2]), num(r[3]), num(r[4]), str(r[5]).lower() in ('true', 't')) for r in d['rows'] or []]
 
 
 for folder in sys.argv[1:]:

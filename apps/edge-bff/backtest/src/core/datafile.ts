@@ -297,17 +297,23 @@ export function corporateActions(docs: Columnar[]): CorporateAction[] {
    writes the decision into the events file (`basis`, apps/terminal-publisher/publisher.py broker_basis):
    - terms: the published prices carry the action and the broker lots do not (a rights issue); the lots of every date
      before the ex date are multiplied by `factor`, so the broker prices are on the prices' basis (onPriceBasis);
-   - same: one basis on both sides (factor 1); pending: too few sessions after the ex date yet; unresolved: neither.
+   - same: one basis on both sides (factor 1); pending: its window after the ex date is not complete yet; unresolved:
+     neither.
    `price` says whether the published close carries the action (adjusted) or was not reloaded after it (raw, ERRORS D22).
-   An events file published before P9 has no block: its actions read as unresolved (factor 1), so a broker-price value
-   across them is left empty, as a value whose basis is not known. */
+   `decided` (Stage C2, user 2026-11-16 "A", ERRORS M459): the date the decision holds from (ex + the rule's window
+   days); a reader treats the action as undecided on every date before it (backtest-worker basis.ts), whatever its
+   status says. An events file published before P9 has no block: its actions read as unresolved (factor 1), so a Flow
+   value across them is left empty, as a value whose basis is not known. */
 export const BASIS_STATUSES = ['terms', 'same', 'pending', 'unresolved'] as const;
 export type BasisStatus = typeof BASIS_STATUSES[number];
-export interface BasisAction { ex: string; type: string; factor: number; status: BasisStatus; price: 'adjusted' | 'raw' | null }
+export interface BasisAction { ex: string; type: string; factor: number; status: BasisStatus; price: 'adjusted' | 'raw' | null; decided: string }
+/** the publisher's window (publisher.py BASIS_WINDOW_DAYS), read from a block's rule when it has one */
+export const BASIS_WINDOW_DAYS = 21;
+const plusDays = (d: string, n: number) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86_400_000).toISOString().slice(0, 10);
 
 /** The actions with an unknown basis (an events file without the block). */
 export const unknownBasis = (actions: readonly CorporateAction[]): BasisAction[] =>
-  actions.map(a => ({ ex: a.date, type: a.type, factor: 1, status: 'unresolved' as const, price: null }));
+  actions.map(a => ({ ex: a.date, type: a.type, factor: 1, status: 'unresolved' as const, price: null, decided: a.date }));
 
 /** Events documents -> the broker basis of the ticker's price actions, oldest first (unknownBasis of `actions` when no
     document carries the block). */
@@ -321,12 +327,15 @@ export function brokerBasis(docs: Columnar[], actions: readonly CorporateAction[
     const what = `events file ${k + 1}, basis`;
     if (!b || typeof b !== 'object' || Array.isArray(b)) throw integrity(`${what} is not an object.`);
     const [ex, type, factor, status, price] = cols(b as Columnar, ['ex', 'type', 'factor', 'status', 'price'], what);
+    // `decided` (Stage C2): a block without the column (none is published) reads ex + the rule's window
+    const rule = (b as { rule?: { window_days?: unknown } }).rule, days = typeof rule?.window_days === 'number' ? rule.window_days : BASIS_WINDOW_DAYS;
+    const dec = Array.isArray((b as { decided?: unknown }).decided) ? (b as { decided: unknown[] }).decided : null;
     for (let j = 0; j < ex.length; j++) {
-      const f = factor[j], st = status[j], pr = price[j];
+      const f = factor[j], st = status[j], pr = price[j], d = dec ? dec[j] : isDate(ex[j]) ? plusDays(ex[j] as string, days) : null;
       if (!isDate(ex[j]) || !PRICE_ACTION_TYPES.includes(type[j] as string) || typeof f !== 'number' || !Number.isFinite(f) || f <= 0
-          || !(BASIS_STATUSES as readonly unknown[]).includes(st) || !(pr === null || pr === 'adjusted' || pr === 'raw'))
-        throw integrity(`${what}, row ${j + 1}: ${JSON.stringify([ex[j], type[j], f, st, pr])} is not an action's basis.`);
-      out.push({ ex: ex[j] as string, type: type[j] as string, factor: st === 'terms' ? f : 1, status: st as BasisStatus, price: pr as BasisAction['price'] });
+          || !(BASIS_STATUSES as readonly unknown[]).includes(st) || !(pr === null || pr === 'adjusted' || pr === 'raw') || !isDate(d) || (d as string) < (ex[j] as string))
+        throw integrity(`${what}, row ${j + 1}: ${JSON.stringify([ex[j], type[j], f, st, pr, d])} is not an action's basis.`);
+      out.push({ ex: ex[j] as string, type: type[j] as string, factor: st === 'terms' ? f : 1, status: st as BasisStatus, price: pr as BasisAction['price'], decided: d as string });
     }
   });
   return found ? out.sort((a, b) => a.ex < b.ex ? -1 : a.ex > b.ex ? 1 : 0) : unknownBasis(actions);

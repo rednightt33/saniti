@@ -350,9 +350,11 @@ dengan faktor yang diukur publisher per aksi (blok `basis` berkas events, ERRORS
 
 ## C1. Cara tahu ada yang perlu dikerjakan
 
-- Telegram harian "⚠️ Basis harga lawan data broker" (sumber `Broker_Basis_Report`, dikirim terminal-publisher sekali sehari
-  bila ada): aksi dalam 60 hari terakhir yang riwayat harganya belum ditarik ulang, masih menunggu hari bursa sesudah
-  tanggal ex, atau belum cocok.
+- Telegram harian "⚠️ Basis harga lawan data broker" (sumber `Broker_Basis_Report`, dikirim terminal-publisher bila ada;
+  daftar yang sama sekali sehari, daftar yang berubah dikirim lagi): aksi dalam 60 hari terakhir yang riwayat harganya
+  belum ditarik ulang, atau belum cocok. Aksi baru selalu `pending` selama 21 hari sesudah tanggal ex (keputusan diambil
+  sekali sesudah jendelanya lengkap, user 2026-11-16 "A"); itu wajar dan tidak dilaporkan. Selama itu Backtest
+  mengosongkan nilai Flow yang rentangnya melewati tanggal ex.
 - Log terminal-publisher, event `broker_basis` (jumlah per status) pada setiap run harian.
 - Daftar aksi saja tidak cukup: TradingView tidak menyesuaikan setiap aksi (BAJA dan BRNA 2026 tidak disesuaikan,
   `verification/price_gap_0917/README.md`). Bandingkan dulu harga tersimpan dengan TradingView:
@@ -368,7 +370,8 @@ dengan faktor yang diukur publisher per aksi (blok `basis` berkas events, ERRORS
    saham itu (otomatis, P9); Market Overview diterbitkan ulang bila tanggal lama berubah (`AGENTS.md`, Postgres memory
    butir 4).
 4. Ini update besar: langkah restart Postgres di `AGENTS.md` ("Postgres memory after large updates").
-5. Besoknya: aksi itu tidak lagi muncul di Telegram (status `terms` atau `same` dengan harga `adjusted`).
+5. Besoknya: aksi itu tidak lagi muncul di Telegram (status `terms` atau `same` dengan harga `adjusted`; aksi yang
+   21 harinya belum lewat tetap `pending` sampai lewat).
 
 ## C3. Data broker
 

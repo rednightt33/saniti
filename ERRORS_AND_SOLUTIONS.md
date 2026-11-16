@@ -8496,7 +8496,7 @@ in its staleness check.
   a set of members must take its members from the rows up to the period's end; a look-ahead test cuts the data at t at
   every step that decides something, the refusal included.
 
-### M459 — Backtest revamp, Stage C2 review: the broker basis decided with sessions after the day, a named broker a member before it trades, the gate blind to days without broker rows, and deploy gaps (2026-11-16, open: items 1, 9)
+### M459 — Backtest revamp, Stage C2 review: the broker basis decided with sessions after the day, a named broker a member before it trades, the gate blind to days without broker rows, and deploy gaps (2026-11-16, fixed on branch)
 
 - **Found by:** BACKTEST-REVAMP Stage C2 (user 2026-11-16 "Opsi C": two independent reviewers, Opus, medium effort,
   read-only, the diff only): lens 1 correctness and look-ahead, lens 2 contracts, rights, deploy and cross-service
@@ -8508,7 +8508,15 @@ in its staleness check.
      `pending`, `terms`, `same` or `unresolved` from up to 21 days after the ex date, so on the days ex..ex+21 a
      broker-price value is present or empty, and the lots before ex are scaled or not, depending on later sessions (a
      rights issue reads `terms` with 3 sessions after it and `unresolved` with 9 after a drift). The gate keeps the basis
-     block whole at every cut, so it could not see this. **Open: the user chooses the rule (2026-11-16, question A/B/C).**
+     block whole at every cut, so it could not see this. **Fix (user 2026-11-16 "A"):** the publisher decides an action
+     once its 21 days after the ex date have passed (column `decided`; `pending` before), from its own window only (a
+     rights issue's terms in the VWAP form, never the later actions' factors, so a later action never moves it; on the
+     fetched windows of 506 actions 21 decisions differ from the exact form taken alone, e.g. COCO 2025-10-09 now `terms`
+     2.69 against an observed 2.686, SQMI 2019 now `unresolved` and masked: `verification/backtest/basis/
+     compare_rule_2026-11-16.txt`); the worker treats an action as undecided on every bar before `decided` whatever the
+     file says (`basis.ts`), so no value on day t reads a decision made after t. Gate: `lookahead.test.ts` "before an
+     action is decided, its published status changes no value on day t" (pending at the cut against `terms` and
+     `unresolved` in the full data, FL17, FL11, FL01). The daily report leaves a pending action out.
   2. *Lens 1 F2: a named broker is a member before its first row.* The Terminal's cohort (calc/flow.ts) takes the broker
      set from every row it is given, so on the whole history a broker that starts trading the stock later counts as a
      member (FL13 0) on earlier days, where the data up to that day has none (FL13 empty). Fix (worker `grammar.ts
@@ -8531,7 +8539,10 @@ in its staleness check.
      action has `annotation_date = ex_date`). Fix (publisher, defensive): keyed on its annotation date, `unresolved`.
   8. *Lens 1 F10: PRICES_RESTATED used a fixed boundary.* VKTR's 2026-10-07 rights issue, reloaded 2026-10-31, restated
      prices without the warning. Fix (core): the basis' `price` side decides; the boundary only where the basis has none.
-  9. *Lens 1 F9: lot-based Flow windows mix scales across an unsettled action.* Open with item 1 (its rule decides it).
+  9. *Lens 1 F9: lot-based Flow windows mix scales across an unsettled action.* Fix (with item 1, user "A"): the
+     actions mask every Flow value (every family and point-in-time output) whose window crosses an undecided,
+     unresolved or not-reloaded action; the per-day guard (a broker VWAP outside the day's range) stays on the
+     broker-price values, as decided before (FLOW_BASIS_CHANGE now says "A Flow value").
   10. *Lens 1 F11 = lens 2 F5: the daily publish measured the basis of every ticker with a price action.* Every new
       candle changes the last price year's stamp. Fix (publisher): only a changed older year (a reloaded history) or a
       recent action measures again.
@@ -8556,7 +8567,7 @@ in its staleness check.
   lens 2 F7 the K7 a hash form splits strategy lines at deploy (intended, one line in the deploy notes).
 - **Class:** a decision a run reads (a basis status, a broker set, a window's end) made on the whole history lets later
   rows decide earlier days; a test fixture without the gaps of real data cannot see it.
-- **Status:** items 2-8 and 10-16 FIXED ON BRANCH; items 1 and 9 OPEN (user decision).
+- **Status:** items 1-16 FIXED ON BRANCH (1 and 9 by the user's "A", 2026-11-16), awaiting Gate 3 (deploy).
 - **Lesson for new data:** a published decision that depends on later sessions carries the date it became known, and a
   reader treats it as unknown before; a fixture for look-ahead tests has the gaps of the real source (missing days,
   members that come and go).

@@ -165,8 +165,8 @@ export const ADJUSTED_HISTORY_BOUNDARY = '2026-09-12';
    from the broker data, per stock, over the sessions they read (the period, and before it as many sessions as the
    longest Flow series reads: its window or baseline; the whole history for a series that reads all of it):
    - FLOW_PRE_2021: those sessions start before 2021 (the 2016-2020 source misses some brokers on some days);
-   - FLOW_BASIS_CHANGE: a broker-price value (broker VWAP, implied cost) was left empty inside the period, because its
-     window reads broker lots on another basis than the prices (the grammar's mask, FlowNotes);
+   - FLOW_BASIS_CHANGE: a Flow value was left empty inside the period, because its window reads broker lots on another
+     basis than the prices, or across an action not decided yet on its bar (the grammar's mask, FlowNotes; Stage C2);
    - FLOW_SOURCE_GAP: days the publisher marks as a source gap (buy and sell totals differ) among those sessions;
    - FLOW_ROWS_DROPPED: broker rows on a day without a price bar, which no Flow value reads (as on the Terminal), per
      board;
@@ -205,7 +205,7 @@ function flowWarnings(prep: readonly Prepared[], active: ReturnType<typeof reque
   if (pre.length) out.push({ code: 'FLOW_PRE_2021', count: pre.length, tickers: list(pre),
     message: `The Flow conditions read broker data from before 2021 for ${stocks(pre.length)}: the 2016-2020 source misses some brokers on some days, so flow values in those years are less complete than later ones.` });
   if (basis.length) out.push({ code: 'FLOW_BASIS_CHANGE', count: basis.length, tickers: list(basis),
-    message: `A broker-price Flow value (a broker VWAP or implied cost) was left empty on some days of the period for ${stocks(basis.length)}: its window reads a day whose broker prices are not on the basis of the published prices (a split, bonus share or rights issue the price history or the broker data does not carry yet), so the comparison with the close would be wrong.` });
+    message: `A Flow value was left empty on some days of the period for ${stocks(basis.length)}: its window reads across a split, bonus share or rights issue whose broker data is not on the basis of the published prices, or whose basis is decided only once the 21 days after its ex date have passed, so its lots or broker prices would mix two scales.` });
   if (gap.size) { const days = [...gap.values()].reduce((a, b) => a + b, 0);
     out.push({ code: 'FLOW_SOURCE_GAP', count: days, tickers: list([...gap.keys()]),
       message: `On ${days === 1 ? '1 trading day' : `${days} trading days`} the Flow conditions read (counted per stock), the broker source's buy and sell totals differ: some brokers are missing from those days.` }) }

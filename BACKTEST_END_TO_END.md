@@ -964,10 +964,13 @@ The rules are in `apps/edge-bff/backtest/CONTRACT.md` section 13; this is where 
   issue, whether the broker prices and the published prices are on one basis across it and writes the factor and status
   into the events file (`basis`, `publisher.py broker_basis`; the Terminal reads only the events columns). The worker
   multiplies the broker lots before a `terms` action by its factor when it decodes the broker files
-  (`datafile.ts onPriceBasis`), so every Flow formula reads broker prices on the prices' basis; a broker-price value is
-  empty only where the data up to its bar leaves the basis unsettled (`apps/backtest-worker/src/basis.ts`). The daily
-  publisher run reports the recent actions that need attention on Telegram (`Broker_Basis_Report`); the steps after an
-  action are `UPDATE_TABLE.md` part C.
+  (`datafile.ts onPriceBasis`), so every Flow formula reads broker prices on the prices' basis; a Flow value is empty
+  only where the data up to its bar leaves the basis unsettled (`apps/backtest-worker/src/basis.ts`). Stage C2 (user
+  2026-11-16 "A", ERRORS M459): an action is decided once its 21 days after the ex date have passed (`decided`), from its
+  own window; before that date the worker treats it as undecided whatever the file says, and every Flow value (every
+  family) whose window crosses an undecided, unresolved or not-reloaded action is empty. The daily publisher run reports
+  the recent actions that need attention on Telegram (`Broker_Basis_Report`: unresolved, or the price history not pulled
+  again; a pending one is not listed); the steps after an action are `UPDATE_TABLE.md` part C.
 - **Known open items (section 13).**
   - The data-layer fix M449: an as-traded price series (broker lots on the price basis: P9).
   - `OOS_ALREADY_SEEN`.

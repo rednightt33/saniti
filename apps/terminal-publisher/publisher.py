@@ -219,18 +219,25 @@ EVENT_STAMPS_SQL = ('SELECT ticker, count(*), max(annotation_date)::text, max(in
 #               basis (factor 1). Stage C2 (lens 1 F7): before, an action whose terms factor was within BASIS_TOLERANCE
 #               of 1 was never `terms` (45 rights issues and 6 bonus shares of 3.6-5 % carry their jump), so the broker
 #               prices before it stayed up to 4 % off; the nearer reading now decides
-#   pending     the ex date is so recent that fewer than BASIS_MIN_SESSIONS sessions follow it (factor 1 until then)
+#   pending     the window after the ex date is not complete yet (factor 1 until then)
 #   unresolved  too few broker sessions, a jump that matches neither, or an action without an ex date (Stage C2, lens 1
 #               F8: keyed on its annotation date, never measured; factor 1; the Backtest masks across it)
+# Stage C2, user 2026-11-16 "A" (ERRORS M459 items 1, 9): an action is decided once, when its window of
+# BASIS_WINDOW_DAYS after the ex date is complete (`decided`, ex + BASIS_WINDOW_DAYS); before that it is pending. Its status
+# reads the sessions of its own window only: a rights issue's terms in the VWAP form (the traded price of the last session
+# before ex), never the price factors of later actions, so a later action never changes an earlier decision. The exact
+# factor (the published close through the later actions' factors, terms_factor `later`) is only the scale of the lots
+# before ex, part of the adjusted history (K4 a). The Backtest treats an action as undecided on every bar before
+# `decided`, whatever this file says, so no value on day t reads a decision made after t.
 # `price` says whether the published close carries the action (adjusted: smooth across the ex date) or not (raw: the
 # close jumps by the terms factor, the history was not reloaded, ERRORS D22); null when the factor is too small to tell.
 # (the price-affecting types are PRICE_ACTION_TYPES, defined with the xsection actions below)
 BASIS_WINDOW_DAYS, BASIS_MIN_SESSIONS, BASIS_TOLERANCE, BASIS_PRICE_MIN = 21, 3, 0.04, 0.10
 # an action this recent is measured again on every daily run (its sessions after the ex date are still arriving) and
-# reported while it needs attention (pending, unresolved, or a close not reloaded)
+# reported while it needs attention (unresolved, or a close not reloaded; a pending one waits for its window)
 BASIS_RECENT_DAYS = 60
 BASIS_SOURCE, BASIS_REPORT_MAX = 'Broker_Basis_Report', 30          # telegram-monitor's source; items per message
-BASIS_COLUMNS = ['ex', 'type', 'factor', 'status', 'price', 'terms', 'observed', 'pre', 'post']
+BASIS_COLUMNS = ['ex', 'type', 'factor', 'status', 'price', 'terms', 'observed', 'pre', 'post', 'decided']
 BASIS_TICKERS_SQL = ("SELECT ticker, max(coalesce(ex_date, annotation_date))::text FROM public.idx_event_annotation "
                      "WHERE event_family = 'CORPORATE_ACTION' AND event_type = ANY(%s) GROUP BY ticker")
 BASIS_ACTIONS_SQL = ('SELECT coalesce(ex_date, annotation_date)::text, event_type, ratio_old::float8, ratio_new::float8, '
@@ -284,33 +291,35 @@ def broker_basis(actions, days, through):
     rnd = lambda x: None if x is None else float(f'{x:.10g}')
     out, later = [], 1.0
     for ex, typ, old, new, price, *rest in sorted((a for a in actions if a[0] <= through), key=lambda a: a[0], reverse=True):
+        decided = (dt.date.fromisoformat(ex) + dt.timedelta(days=BASIS_WINDOW_DAYS)).isoformat()
         if rest and rest[0]:
-            out.append([ex, typ, 1.0, 'unresolved', None, None, None, 0, 0])
+            out.append([ex, typ, 1.0, 'unresolved', None, None, None, 0, 0, decided])
             later = None                                    # its price factor is unknown: older ones take the VWAP form
             continue
         lo = (dt.date.fromisoformat(ex) - dt.timedelta(days=BASIS_WINDOW_DAYS)).isoformat()
-        hi = (dt.date.fromisoformat(ex) + dt.timedelta(days=BASIS_WINDOW_DAYS)).isoformat()
-        near = [(d, v, c) for d, v, h, l, c in days if lo <= d <= hi and num(v) and num(c)]
+        near = [(d, v, c) for d, v, h, l, c in days if lo <= d <= decided and num(v) and num(c)]
         pre, post = [x for x in near if x[0] < ex], [x for x in near if x[0] >= ex]
-        terms = terms_factor(typ, old, new, price, pre[-1][2] if pre else None, later, pre[-1][1] if pre else None)
+        # the decision's terms: its own window only (a rights issue in the VWAP form); the scale's: exact with `later`
+        own = terms_factor(typ, old, new, price, None, None, pre[-1][1] if pre else None)
+        terms = terms_factor(typ, old, new, price, pre[-1][2] if pre else None, later, pre[-1][1] if pre else None) or own
         status, observed, side = 'unresolved', None, None
-        if len(pre) >= BASIS_MIN_SESSIONS and len(post) >= BASIS_MIN_SESSIONS:
+        if decided > end.isoformat():
+            status = 'pending'                              # the window is not complete: decided once it is (user "A")
+        elif len(pre) >= BASIS_MIN_SESSIONS and len(post) >= BASIS_MIN_SESSIONS:
             observed = statistics.median(v / c for _, v, c in pre) / statistics.median(v / c for _, v, c in post)
-            to_terms = abs(math.log(observed / terms)) if terms is not None else math.inf
+            to_terms = abs(math.log(observed / own)) if own is not None else math.inf
             if to_terms <= math.log1p(BASIS_TOLERANCE) and to_terms < abs(math.log(observed)):
                 status = 'terms'
             elif abs(observed - 1) <= BASIS_TOLERANCE:
                 status = 'same'
-            if terms is not None and abs(terms - 1) >= BASIS_PRICE_MIN:
+            if own is not None and abs(own - 1) >= BASIS_PRICE_MIN:
                 jump = statistics.median(c for *_, c in pre) / statistics.median(c for *_, c in post)
-                side = 'raw' if abs(math.log(jump) - math.log(terms)) < abs(math.log(jump)) else 'adjusted'
-        elif len(post) < BASIS_MIN_SESSIONS and dt.date.fromisoformat(ex) + dt.timedelta(days=BASIS_WINDOW_DAYS) > end:
-            status = 'pending'
+                side = 'raw' if abs(math.log(jump) - math.log(own)) < abs(math.log(jump)) else 'adjusted'
         factor = terms if status == 'terms' else 1.0
-        # the price factor of this action, for the older ones' terms
+        # the price factor of this action, for the older ones' scale
         carried = terms if status == 'terms' or (status == 'same' and side == 'adjusted') else 1.0 if side == 'raw' else None
         later = None if later is None or carried is None else later * carried
-        out.append([ex, typ, rnd(factor), status, side, rnd(terms), rnd(observed), len(pre), len(post)])
+        out.append([ex, typ, rnd(factor), status, side, rnd(terms), rnd(observed), len(pre), len(post), decided])
     return sorted(out, key=lambda r: r[0])
 
 
@@ -325,8 +334,10 @@ def basis_block(rows):
     return {'columns': BASIS_COLUMNS, **columnar(rows, BASIS_COLUMNS),
             'means': {'factor': 'multiply the broker lots of every date before ex by this factor (rupiah unchanged) to put '
                                 'broker prices on the basis of the published prices',
-                      'status': 'terms (the prices carry the action, the lots do not), same (one basis), pending (too few '
-                                'sessions after ex yet), unresolved (neither: masked across ex)',
+                      'status': 'terms (the prices carry the action, the lots do not), same (one basis), pending (its window '
+                                'after ex is not complete yet), unresolved (neither: masked across ex)',
+                      'decided': 'the date the decision holds from (ex + window_days); a reader treats the action as '
+                                 'undecided on every date before it',
                       'price': 'adjusted (the close carries the action) or raw (not reloaded after it); null: too small to tell',
                       'terms': 'the factor of the terms', 'observed': 'median VWAP/close before ex over after',
                       'pre': 'sessions before ex measured', 'post': 'sessions from ex measured'},
@@ -2356,13 +2367,14 @@ class Publisher:
 
     def basis_attention(self):
         """The daily report (P9.4): the actions within BASIS_RECENT_DAYS of the broker date measured this run whose basis
-        needs attention (pending, unresolved, or a close not reloaded after the action), oldest first."""
+        needs attention (unresolved, or a close not reloaded after the action), oldest first. Stage C2 (user "A"): a
+        pending action is not listed; every new action is pending for its window, which is no fault."""
         if not self.basis_through:
             return []
         recent = (dt.date.fromisoformat(self.basis_through) - dt.timedelta(days=BASIS_RECENT_DAYS)).isoformat()
         items = [{'ticker': t, 'ex': r[0], 'type': r[1], 'status': r[3], 'price': r[4]}
                  for t, rows in self.basis_cache.items() for r in rows
-                 if r[0] >= recent and (r[3] in ('pending', 'unresolved') or r[4] == 'raw')]
+                 if r[0] >= recent and (r[3] == 'unresolved' or r[4] == 'raw')]
         return sorted(items, key=lambda x: (x['ex'], x['ticker']))
 
     def changed_prices(self, kind):

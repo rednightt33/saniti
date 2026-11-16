@@ -14988,6 +14988,14 @@ deploy di README worker dan BACKTEST_END_TO_END (sudut 2 F1/F2). **Pertanyaan te
 (keputusan basis memakai sesi sesudah ex): A putuskan setelah jendela 21 hari lengkap, sebelum itu semua nilai Flow yang
 melintasi ex kosong (menutup F9 juga; rekomendasi); B putuskan di hari bursa ke-3 lalu dibekukan; C biarkan.
 
+**Jawaban user, 2026-11-16:** "A". Artinya (M459 item 1 dan 9): publisher memutuskan basis sebuah aksi korporasi sekali,
+sesudah jendela 21 hari kalender setelah tanggal ex lengkap (kolom `decided` di blok basis); sebelum itu statusnya
+`pending` (faktor 1). Status diputuskan dari sesi di jendela aksi itu saja (bentuk VWAP syarat right issue, tidak dari
+aksi sesudahnya). Worker memperlakukan aksi sebagai belum diputuskan untuk setiap bar sebelum `decided`, apa pun status
+terbitannya, dan mengosongkan setiap nilai Flow (semua keluarga, bukan hanya harga broker) yang rentangnya melewati
+tanggal ex aksi yang belum diputuskan, `unresolved`, atau berharga mentah. Penskalaan lot sebelum ex tetap bagian dari
+riwayat yang disesuaikan (K4 a, diperingatkan `FLOW_LOTS_RESTATED`). Laporan harian tidak lagi mendaftar `pending` biasa.
+
 ### Deploy (hanya setelah Gerbang 2) dan rollback
 
 1. PR branch → `main` (7B); CI hijau termasuk gerbang look-ahead; tidak ada job Backtest aktif (cek status job sebelum upload).

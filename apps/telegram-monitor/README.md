@@ -37,11 +37,13 @@ time and kind; a failed run and its missing publication share one id, so only th
 
 `Broker_Basis_Report` (EXEC-BACKTEST-REVAMP P9.4, user 2026-11-16: "opsi A", the daily report in the log and on
 Telegram) is asked by terminal-publisher's daily run when a corporate action of the last 60 days needs attention: a
-published price history not pulled again after it, too few sessions after its ex date yet (pending), or a broker basis
-that matches neither its terms nor 1 (unresolved). Only the publisher measures it, so the list comes in the request's
-`details`, and `parse_broker_basis` accepts it only in a fixed shape (date, total, at most 30 items of ticker, ex date,
-action type, status and price state; never free text). The `execution_id` `broker-basis-YYYY-MM-DD` keeps it to one
-message a day; the message points to `UPDATE_TABLE.md` part C.
+published price history not pulled again after it, or a broker basis that matches neither its terms nor 1 (unresolved).
+A pending action (its 21 days after the ex date not passed yet; user 2026-11-16 "A") is not listed: every new action is
+pending for its window. Only the publisher measures it, so the list comes in the request's `details`, and
+`parse_broker_basis` accepts it only in a fixed shape (date, total, at most 30 items of ticker, ex date, action type,
+status and price state; never free text). The `execution_id` `broker-basis-YYYY-MM-DD-<digest>` carries a digest of the
+list, so the same list is sent once and a changed one the same day again (Stage C2); a long list is split into messages
+under Telegram's limit. The message points to `UPDATE_TABLE.md` part C.
 
 `Fixed_Income_Consensus_Check` (EXEC-FI-DATE B, user go 2026-11-01, ERRORS M324) is the weekly fixed-income consensus
 check (`apps/fixed-income-price-cron/consensus_check.py`): every series compared with three fresh source pulls, report

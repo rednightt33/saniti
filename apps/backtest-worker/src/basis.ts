@@ -8,15 +8,21 @@
      it is a broker day on another scale (a range re-downloaded after a split without a marker, PBSA; a factor not
      measured). Measured 2026-11-16 (verification/backtest/basis, real_data.ts): BBRI, GOTO and ALKA 0 of 891-916
      sessions outside, COCO every session before its rights issue of 2026-07-09 before the factor and none after it;
-   - an action falls inside (start, i] whose basis is not settled across it: pending (too few sessions after its ex date
-     yet), unresolved, or a published close not reloaded after it (price raw: the prices and the lots both jump there).
+   - an action falls inside (start, i] whose basis is not settled across it: pending, unresolved, or a published close
+     not reloaded after it (price raw: the prices and the lots both jump there);
+   - Stage C2 (user 2026-11-16 "A", ERRORS M459 items 1, 9): an action falls inside (start, i] and bar i is before its
+     `decided` date (ex + the publisher's window): the publisher's decision reads the sessions up to that date, so on an
+     earlier bar the action counts as undecided whatever its published status, and no value on day t reads a decision
+     made after t.
+   The caller applies the actions to every Flow value (Stage C2: the lots of every family mix scales across an unsettled
+   action, not the broker prices only) and the per-day guard to the values that compare a broker price with the close.
    Before P9 the rule also emptied every bar before an action dated on or before 2026-09-12, which read the action's
    date before it happened (M458 item 2); a value's availability on day t now depends on days up to t only. */
 import type { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
 
 export const RANGE_TOLERANCE = 0.01;
 
-interface Blocks { off: Int32Array; actions: string[] }
+interface Blocks { off: Int32Array; actions: { ex: string; settled: boolean; decided: string }[] }
 const MEMO = new WeakMap<Calc, Blocks>();
 
 function blocks(c: Calc): Blocks {
@@ -39,17 +45,19 @@ function blocks(c: Calc): Blocks {
       off[i + 1] = off[i] + (outside ? 1 : 0);
     }
   }
-  const actions = (meta?.basis ?? []).filter(a => a.status === 'pending' || a.status === 'unresolved' || a.price === 'raw').map(a => a.ex);
+  const actions = (meta?.basis ?? []).map(a => ({ ex: a.ex, decided: a.decided ?? a.ex,
+    settled: !(a.status === 'pending' || a.status === 'unresolved' || a.price === 'raw') }));
   MEMO.set(c, b = { off, actions });
   return b;
 }
 
-/** Whether a broker-price value at bar `i` that reads the bars [start, i] stays empty (see the header). */
-export function basisBlocked(c: Calc, start: number, i: number): boolean {
+/** Whether a Flow value at bar `i` that reads the bars [start, i] stays empty (see the header). `offDays`: the per-day
+    guard applies too (a broker price compared with the close; the actions apply to every Flow value, user "A"). */
+export function basisBlocked(c: Calc, start: number, i: number, offDays = true): boolean {
   const b = blocks(c), dates = c.meta.dates ?? [], s = Math.max(0, start);
-  if (b.off[i + 1] - b.off[s] > 0) return true;
+  if (offDays && b.off[i + 1] - b.off[s] > 0) return true;
   const from = dates[s], to = dates[i];
-  return b.actions.some(d => from < d && d <= to);
+  return b.actions.some(a => from < a.ex && a.ex <= to && (!a.settled || to < a.decided));
 }
 
 /** How many bars are off the price basis by their own data (verification: real_data.ts reports it per ticker). */

@@ -13,6 +13,7 @@ import type { BasisAction, BrokerColumns } from '../../edge-bff/backtest/src/cor
 import { onPriceBasis, unknownBasis } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { FLOWS } from './lookahead/flow-helpers.ts';
+import { FLOW_BY_ID, indicatorDepth } from '../../edge-bff/screener/src/core/flowmetrics.ts';
 import { head, market } from './lookahead/fixture.ts';
 import type { Row, Ticker } from './lookahead/fixture.ts';
 import { installBacktestGrammar, seriesOfRef } from '../src/grammar.ts';
@@ -138,8 +139,14 @@ test('P9: broker prices on the price basis; empty only where the data up to the 
   // is 1.5x the adjusted close), and one Regular day is off the scale with no action (a range re-downloaded, PBSA)
   const published = base.map(r => ({ ...r, bl: r.d < terms ? r.bl / 1.5 : r.bl, sl: r.d < terms ? r.sl / 1.5 : r.sl,
     bv: r.d === off && r.m === 'Regular' ? r.bv * 1.5 : r.bv, sv: r.d === off && r.m === 'Regular' ? r.sv * 1.5 : r.sv }));
-  const basis: BasisAction[] = [{ ex: terms, type: 'RIGHT_ISSUE', factor: 1.5, status: 'terms', price: 'adjusted' },
-    { ex: unresolved, type: 'STOCK_SPLIT', factor: 1, status: 'unresolved', price: null }, { ex: raw, type: 'STOCK_SPLIT', factor: 1, status: 'same', price: 'raw' }];
+  // Stage C2 (user "A"): each decided 21 days after its ex date; on an earlier bar a window across it stays empty
+  const dec = (d: string) => new Date(Date.parse(d + 'T00:00:00Z') + 21 * 86_400_000).toISOString().slice(0, 10);
+  const basis: BasisAction[] = [{ ex: terms, type: 'RIGHT_ISSUE', factor: 1.5, status: 'terms', price: 'adjusted', decided: dec(terms) },
+    { ex: unresolved, type: 'STOCK_SPLIT', factor: 1, status: 'unresolved', price: null, decided: dec(unresolved) },
+    { ex: raw, type: 'STOCK_SPLIT', factor: 1, status: 'same', price: 'raw', decided: dec(raw) }];
+  // the per-day guard (the off day) reads a broker price only; the actions every Flow value
+  const blockedOver = (from: string, to: string, offDays = true) => (offDays && from <= off && off <= to) || [unresolved, raw].some(d => from < d && d <= to)
+    || (from < terms && terms <= to && to < dec(terms));
   const cols = onPriceBasis(columns(published), basis);
   // the lots are back on the price basis: the published rows times the factor before the ex date
   const onBasis = published.map(r => ({ ...r, bl: r.d < terms ? r.bl * 1.5 : r.bl, sl: r.d < terms ? r.sl * 1.5 : r.sl }));
@@ -149,15 +156,22 @@ test('P9: broker prices on the price basis; empty only where the data up to the 
   let kept = 0;
   for (let i = 0; i < dates.length; i++) {
     const start = Math.max(0, i - 9), from = dates[start], to = dates[i];
-    const blocked = (from <= off && off <= to) || [unresolved, raw].some(d => from < d && d <= to);
+    const blocked = blockedOver(from, to);
     assert.equal(s[i] ?? null, blocked ? null : term[i] ?? null, `bar ${i} (${dates[i]})`);
     if (!blocked && i < 30 && s[i] !== null) kept++;
   }
   assert.ok(kept >= 15, `the bars before the rights issue keep their values (${kept}); before P9 every one was empty`);
   assert.equal(c.flowNotes!.masked.size, Array.from(s).filter((v, i) => v === null && term[i] !== null).length);
-  // a Flow indicator that is not a broker price is never masked (and reads the lots on the price basis too)
-  const fl11 = FLOWS.find(e => e.id === 'FL11')!;
-  same(seriesOfRef(calc(), { kind: 'flow', metric: 'FL11', params: {} }, 'f'), terminal(t, onBasis, 'FL11', fl11.normalized({}))[fl11.seriesKey('value', {})], 'FL11 unmasked');
+  // Stage C2: a Flow indicator that is not a broker price is masked the same way (its lots mix scales across an unsettled
+  // action) and reads the lots on the price basis elsewhere
+  const fl11 = FLOWS.find(e => e.id === 'FL11')!, d11 = indicatorDepth(FLOW_BY_ID.FL11, 'value', fl11.normalized({}) as never)!;
+  const t11 = terminal(t, onBasis, 'FL11', fl11.normalized({}))[fl11.seriesKey('value', {})];
+  same(seriesOfRef(calc(), { kind: 'flow', metric: 'FL11', params: {} }, 'f'),
+    Array.from(t11, (x, i) => blockedOver(dates[Math.max(0, i - d11 + 1)], dates[i], false) ? null : x ?? null), 'FL11 masked where its window crosses');
+  // the bars between the ex date and its decision are empty for a window across it, and keep their values after
+  const mid = dates.findIndex(d => d > terms && d < dec(terms)), after = dates.findIndex(d => d >= dec(terms));
+  assert.equal(s[mid], null, 'not decided yet on this bar');
+  assert.ok(s[after + 10] !== null || term[after + 10] === null, 'decided: kept');
   // an events file without the block: its actions read as unresolved, masked across them only
   const u = new Calc(t.bars as never, undefined, { ticker: t.ticker, dates, broker: { columns: columns(published), classification: CLS, basis: unknownBasis([{ date: terms, type: 'RIGHT_ISSUE' }]) } });
   const su = seriesOfRef(u, { kind: 'flow', metric: 'FL17', params: { window: 10 } }, 'f');
@@ -195,10 +209,12 @@ test("the run's Flow warnings: before 2021, basis change, source gaps and droppe
   // P7 (K4 a, M449): the rights issue inside the period restates the published prices before it
   assert.deepEqual(a.warnings.filter(x => x.code === 'PRICES_RESTATED').map(x => [x.count, x.tickers]), [[1, ['WARN']]]);
   assert.deepEqual(run(market([]), req(dates.find(d => d >= '2021-03-01')!, 'FL17')).warnings.filter(x => x.code === 'PRICES_RESTATED'), []);
-  // from 2020: FLOW_PRE_2021; FL11 is no broker price, so no basis change
+  // from 2020: FLOW_PRE_2021; Stage C2 (user "A"): FL11 is masked across the unsettled action too (its lots would mix
+  // scales), so the basis change is noted for it as well; without an action none
   const b = codes(run(market([action]), req(dates[25], 'FL11')));
   assert.deepEqual(b.FLOW_PRE_2021, [1, ['WARN']]);
-  assert.equal(b.FLOW_BASIS_CHANGE, undefined);
+  assert.deepEqual(b.FLOW_BASIS_CHANGE, [1, ['WARN']]);
+  assert.equal(codes(run(market([]), req(dates[25], 'FL11'))).FLOW_BASIS_CHANGE, undefined);
   // no Flow condition: no Flow warning
   const plain = run(market([]), { ...(req(dates[25], 'FL11') as object), entry: { logic: 'all', at_least: 1, window_bars: 1, conditions: [{ id: 'r', kind: 'indicator', indicator: 'I13', params: {}, lhs: { type: 'output', output: 'rsi' }, op: 'lt', rhs: { type: 'value', value: 40 } }] } } as never);
   assert.deepEqual(codes(plain), {});

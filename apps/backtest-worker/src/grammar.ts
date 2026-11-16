@@ -134,20 +134,21 @@ export function flowRefs(test: unknown, field: string): { field: string; ref: Re
   return refKinds(test, field).filter(([k]) => k === 'flow').map(([, f, ref]) => ({ field: f, ref }));
 }
 
-/* EXEC-BACKTEST-REVAMP P3 (K3 a, ERRORS M450), P9 (option A, M458 item 2): a Flow value that compares a broker price
-   with the close (the registry's family "Buy VWAP & Implied Cost", or a price unit) reads the broker lots on the
-   published prices' basis (datafile.ts onPriceBasis, the factor the publisher measured per corporate action) and is left
-   empty only where its window reads a bar whose basis is not settled by the data up to its own bar (basis.ts
-   basisBlocked: a bar whose broker VWAP is outside its own range, or an action across which the basis is pending,
-   unresolved or the close was not reloaded). Derived from the registry and the ticker's events; a new indicator of that
-   family is covered without a code change. */
+/* EXEC-BACKTEST-REVAMP P3 (K3 a, ERRORS M450), P9 (option A, M458 item 2), Stage C2 (user 2026-11-16 "A", M459 items
+   1, 9): a Flow value reads the broker lots on the published prices' basis (datafile.ts onPriceBasis, the factor the
+   publisher measured per corporate action) and is left empty where its window reads a bar whose basis is not settled by
+   the data up to its own bar (basis.ts basisBlocked: a bar whose broker VWAP is outside its own range, or an action
+   across which the basis is pending, unresolved, not reloaded, or not decided yet on that bar). The actions apply to
+   every family (before Stage C2 only to the broker-price ones, and the lot sums of the others mixed two scales across
+   an unsettled action); the per-day guard to the broker-price ones (the registry's family "Buy VWAP & Implied Cost", or
+   a price unit), derived from the registry. */
 const BROKER_PRICE = new Set((FLOW_REGISTRY as { indicators: { id: string; family: string; unit: string }[] }).indicators
   .filter(r => r.family === 'Buy VWAP & Implied Cost' || r.unit === 'price').map(r => r.id));
 /** The bars [lo, lo + N) of the flow window whose value must stay empty, for a series that reads `depth` sessions up to
-    its bar (null: the whole history). */
-function basisMask(c: Calc, lo: number, N: number, depth: number | null): Uint8Array {
+    its bar (null: the whole history); `offDays` for a broker-price series. */
+function basisMask(c: Calc, lo: number, N: number, depth: number | null, offDays: boolean): Uint8Array {
   const mask = new Uint8Array(N);
-  for (let k = 0; k < N; k++) { const i = lo + k; mask[k] = +basisBlocked(c, depth === null ? 0 : i - depth + 1, i) }
+  for (let k = 0; k < N; k++) { const i = lo + k; mask[k] = +basisBlocked(c, depth === null ? 0 : i - depth + 1, i, offDays) }
   return mask;
 }
 
@@ -183,10 +184,12 @@ function tickerFlow(c: Calc): TickerFlow | undefined {
       for (const o of key.length === 5 ? [] : e?.outputs ?? []) {
         const d = indicatorDepth(e, o.key, params);
         if (notes.depth !== null) notes.depth = d === null ? null : Math.max(notes.depth, d);
-        if (!BROKER_PRICE.has(id)) continue;
-        const key = seriesKeyOf(e, o.key, params, 'mask'), s = out[key];
+        // a sided line the parameters do not draw (Buy only, say) has no key: nothing to mask
+        let key: string;
+        try { key = seriesKeyOf(e, o.key, params, 'mask') } catch { continue }
+        const s = out[key];
         if (!s) continue;
-        const m = basisMask(c, lo, s.length, d);
+        const m = basisMask(c, lo, s.length, d, BROKER_PRICE.has(id));
         for (let j = 0; j < s.length; j++) if (m[j] && s[j] !== null) { s[j] = null; notes.masked.add(lo + j) }
       }
       memo.set(k, out);

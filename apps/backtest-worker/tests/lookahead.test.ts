@@ -259,3 +259,28 @@ test('P9: a corporate action: the published world (prices adjusted, lots scaled 
   const out = (n: number) => ({ fl17: seriesOfRef(world(n, true), fl17, 'f') as unknown as ArrayLike<unknown>, sig: sig(world(n, true)) as unknown as ArrayLike<unknown> });
   assert.equal(leak(out as never), null);
 });
+
+test('Stage C2 (user 2026-11-16 "A", ERRORS M459 items 1, 9): before an action is decided, its published status changes no value on day t', () => {
+  // a rights issue at session EX decided at DEC (ex + 21 days): the full data publish "terms" or, after a drift,
+  // "unresolved"; the data cut at t < DEC published "pending". The lots stay scaled as published (the adjusted history,
+  // K4 a). Every Flow value (a broker price and a lot sum alike) on a bar before DEC must not depend on which.
+  const EX = 260, ex = A.dates[EX], dec = new Date(Date.parse(ex + 'T00:00:00Z') + 21 * 86_400_000).toISOString().slice(0, 10);
+  const DEC = A.dates.findIndex(d => d >= dec), rows = M.rows[A.ticker];
+  const action = (status: BasisAction['status']): BasisAction[] => [{ ex, type: 'RIGHT_ISSUE', factor: status === 'terms' ? 1.4 : 1, status, price: 'adjusted', decided: dec }];
+  const columns = onPriceBasis(brokerColumns(rows.map(r => r.d < ex ? { ...r, bl: r.bl / 1.4, sl: r.sl / 1.4 } : r)), action('terms'));
+  const world = (n: number, basis: BasisAction[]) => { const h = head(A, n), last = h.dates[h.dates.length - 1];
+    const keep = new Set(Array.from({ length: columns.rows }, (_, k) => k).filter(k => columns.dates[columns.D[k]] <= last));
+    const cut = { ...columns, rows: keep.size, D: columns.D.slice(0, keep.size), B: columns.B.slice(0, keep.size), I: columns.I.slice(0, keep.size), M: columns.M.slice(0, keep.size),
+      BV: columns.BV.slice(0, keep.size), SV: columns.SV.slice(0, keep.size), BL: columns.BL.slice(0, keep.size), SL: columns.SL.slice(0, keep.size), BF: columns.BF.slice(0, keep.size), SF: columns.SF.slice(0, keep.size) };
+    return new Calc(h.bars as never, undefined, { ticker: A.ticker, dates: h.dates, broker: { columns: cut, classification: {}, basis } }) };
+  const refs = [{ kind: 'flow', metric: 'FL17', params: { window: 10 } }, { kind: 'flow', metric: 'FL11', params: {} }, { kind: 'flow', metric: 'FL01', output: 'buy', params: {} }];
+  for (const full of ['terms', 'unresolved'] as const) for (const ref of refs) {
+    const s = seriesOfRef(world(N, action(full)), ref, 'f');
+    for (const k of [EX - 5, EX + 3, EX + 9, DEC - 1]) {
+      const p = seriesOfRef(world(k + 1, action('pending')), ref, 'f');
+      for (let i = 0; i <= k; i++) assert.equal(p[i] ?? null, s[i] ?? null, `${ref.metric} published ${full}, cut at ${k} (decided at ${DEC}): bar ${i}`);
+    }
+    // a window across the action (FL17's 10 sessions on bar EX + 3) is empty on every bar before DEC
+    if (ref.metric === 'FL17') assert.equal(s[EX + 3] ?? null, null, `${ref.metric}: not decided yet on bar ${EX + 3}`);
+  }
+});
