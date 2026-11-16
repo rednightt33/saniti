@@ -7,6 +7,27 @@
    browser before (ml.drawings.*) move to the account once, merged by drawing id with what the account holds. */
 import { savedClient, sendOnLeave, primeToken, LayoutApiError } from './layoutsApi';
 import { store } from '../app/context';
+import { edge, isLastLogin, lastLogin, loginKey } from '../../../shared/edge-session';
+
+/* M468 (EXEC-MU-ACCOUNTS Phase 0): a copy kept in this browser is stamped with the login that wrote it,
+   {"owner": login, "drawings": [...]}, and joins the account only for that login. A copy of the older form (a bare
+   list, no owner) joins only when the login signed in is the one this browser signed in with last (the shell's mark,
+   shared/edge-session.ts); any other copy is dropped, never shown and never written to this account. */
+export function ownCopy(text: string | null, login: string): unknown[] | null {
+  if (!text) return null;
+  let v: any;
+  try { v = JSON.parse(text) } catch { return null }
+  if (Array.isArray(v)) return isLastLogin(login) ? v : null;
+  if (v && typeof v === 'object' && Array.isArray(v.drawings)) return !!loginKey(login) && v.owner === loginKey(login) ? v.drawings : null;
+  return null;
+}
+/** the text kept in this browser for `login` (a bare list when the login is not known) */
+export function stampCopy(text: string, login: string): string {
+  const owner = loginKey(login);
+  if (!owner) return text;
+  try { return JSON.stringify({ owner, drawings:JSON.parse(text) }) } catch { return text }
+}
+const signedIn = () => edge.current?.login || lastLogin();
 
 const BASE = '/api/v1/terminal/drawings';
 const call = savedClient(BASE, 'drawing');
@@ -51,14 +72,16 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
     const here = store.get(local);
     if (!fits(t, s)) return here || '[]';
     const sets = await listOf(t);
-    if (!sets) { unreachable(); return here || '[]' }
+    const who = await edge.session().then(x => x.login, () => lastLogin());
+    const mine = ownCopy(here, who);
+    if (here !== null && mine === null) store.remove(local);          // M468: another login's copy (or not a list)
+    if (!sets) { unreachable(); return mine ? JSON.stringify(mine) : '[]' }
     const got = sets.get(s);
     rev.set(k(t, s), got ? got.revision : null);
     let text = got ? JSON.stringify(got.drawings) : '[]';
     last.set(k(t, s), text);
-    let mine: unknown = null;
-    try { mine = here ? JSON.parse(here) : null } catch { /* not a list: left in the browser */ }
-    if (Array.isArray(mine) && mine.length) {
+    if (mine && !mine.length) store.remove(local);
+    if (mine && mine.length) {
       // the one-time move: this browser's drawings join the account's (a drawing the account has is kept as it is there)
       const ids = new Set((got?.drawings || []).map((d: any) => d && d.id).filter(Boolean));
       const merged = [...(got?.drawings || []), ...mine.filter((d: any) => !(d && d.id && ids.has(d.id)))];
@@ -98,8 +121,8 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
     const timer = setTimeout(async () => {
       pending.delete(key);
       const sets = await listOf(t);
-      if (!sets) { store.set(local, text); unreachable(); return }
-      if (!(await write(t, s, text))) store.set(local, text);          // not lost: moves to the account on the next load
+      if (!sets) { store.set(local, stampCopy(text, signedIn())); unreachable(); return }
+      if (!(await write(t, s, text))) store.set(local, stampCopy(text, signedIn()));   // not lost: moves to the account on the next load
     }, SAVE_MS);
     pending.set(key, { json:text, timer });
   }
@@ -119,7 +142,7 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
     clearTimeout(timer);
     const [t, s] = key.split('/'), r = rev.get(key);
     if (json.length < 60000) sendOnLeave(`${BASE}/${t}/${s}`, 'PUT', { drawings:JSON.parse(json), ...(r ? { revision:r } : {}) });
-    store.set(s === 'chart' ? `ml.drawings.${t}` : s === 'flow' ? `ml.drawings.flow.${t}` : `ml.drawings.pane.${t}.${s.slice(5)}`, json);
+    store.set(s === 'chart' ? `ml.drawings.${t}` : s === 'flow' ? `ml.drawings.flow.${t}` : `ml.drawings.pane.${t}.${s.slice(5)}`, stampCopy(json, signedIn()));
   }));
 
   return { load, save, remove, flushNow: () => pending.forEach((p, key) => { clearTimeout(p.timer); pending.delete(key); const [t, s] = key.split('/'); write(t, s, p.json) }) };

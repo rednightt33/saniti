@@ -4,7 +4,11 @@
    Catalog and universe are conditional GETs: the page sends If-None-Match from its own pointer (report 6c.5 item 5)
    and reads the ETag back; the house Cache-Control no-store keeps the browser's HTTP cache out.
    Errors keep the contract's shape {"error": {code, field, message, details}}; the TEMPORARY 401/403 {"detail": ...}
-   of the auth dependencies (report 8.1, ERRORS M261) is mapped the same way. */
+   of the auth dependencies (report 8.1, ERRORS M261) is mapped the same way.
+   EXEC-MU-ACCOUNTS Phase 0 (M471): the session, CSRF and that error contract are the shared module's
+   (apps/edge-bff/shared/edge-session.ts): only a 403 CSRF_INVALID reads the session again and repeats the write once;
+   a plan refusal (CAPABILITY_REQUIRED, PLAN_EXPIRED, LIMIT_REACHED, MFA_REQUIRED) keeps the session and is shown as its
+   message; only a 401 is "sign in". */
 import type {
   CatalogResponse, CountsRequest, CountsResponse, Definition, ItemKind, ItemsResponse, PreviewRequest, PreviewResponse,
   PutItemRequest, RunRequest, SavedItem, UniverseResponse, ValidateResponse, WatchlistResponse,
@@ -12,17 +16,12 @@ import type {
 import { SCHEMA_VERSION } from '../core/contract.ts';
 import { ApiFailure, isAbort, type CallOpts, type Conditional, type RunAnswer, type ScreenerApi, type Session } from './types.ts';
 import { errorText, T } from '../texts.ts';
+import { accessText, isAccessRefusal, readError, retryAfter as readRetryAfter, SessionError, sessionClient } from '../../../shared/edge-session.ts';
 
 const BASE = '/api/v1/screener';
 
 /** Reads Retry-After (seconds, or an HTTP date) as whole seconds; null when absent or unreadable. */
-export function retryAfter(h: string | null, now = Date.now()): number | null {
-  if (!h) return null;
-  const s = Number(h);
-  if (Number.isFinite(s) && s >= 0) return Math.ceil(s);
-  const t = Date.parse(h);
-  return Number.isFinite(t) ? Math.max(0, Math.ceil((t - now) / 1000)) : null;
-}
+export function retryAfter(h: string | null, now = Date.now()): number | null { return readRetryAfter(h, now) }
 
 /** An edge-bff answer that is not ok, as the page's ApiFailure: the contract's error body, or the auth dependencies'
     {"detail": ...} (TEMPORARY, M261), or no JSON at all. The message is the page's own wording per code (texts.ts),
@@ -32,8 +31,10 @@ export async function failure(res: Response): Promise<ApiFailure> {
   try { data = await res.json() } catch { /* no JSON body */ }
   const err = data && data.error && typeof data.error === 'object' ? data.error : null;
   const ra = retryAfter(res.headers.get('Retry-After'));
+  const info = readError(res.status, data, res.headers.get('Retry-After'));
   if (res.status === 401) return new ApiFailure(T.signIn, 'UNAUTHENTICATED', 401);
   if (res.status === 403 && !err) return new ApiFailure(T.forbidden, 'FORBIDDEN', 403);
+  if (isAccessRefusal(info)) return new ApiFailure(accessText(info) as string, info.code, res.status, err?.field, info.retryAfter, info.details, err);
   const code = err ? String(err.code || '') : '';
   const details = err && err.details && typeof err.details === 'object' ? err.details : null;
   const msg = errorText(code, { field:err?.field, details, retryAfter:ra, server:err?.message || (typeof data?.detail === 'string' ? data.detail : '') })
@@ -47,28 +48,23 @@ const newId = () => typeof crypto !== 'undefined' && 'randomUUID' in crypto ? cr
 /** `fetchImpl`: a test passes its own fetch. */
 export function liveApi(opts: { fetchImpl?: typeof fetch } = {}): ScreenerApi {
   const f: typeof fetch = opts.fetchImpl ?? ((...a) => fetch(...a));
-  let sessionP: Promise<Session> | null = null;
-  const session = () => sessionP ||= (async () => {
-    let res: Response;
-    try { res = await f('/api/v1/auth/session', { credentials:'same-origin' }) }
-    catch { throw new ApiFailure(T.unreachable, 'NETWORK') }
-    if (!res.ok) throw new ApiFailure(T.signIn, 'UNAUTHENTICATED', res.status);
-    const d = await res.json().catch(() => ({}));
-    return { login:String(d.login || ''), csrf:String(d.csrf_token || '') };
-  })().catch(e => { sessionP = null; throw e });
+  const edge = sessionClient(f);
+  const session = (): Promise<Session> => edge.session().then(s => ({ login:s.login, csrf:s.csrf }), e => {
+    const info = e instanceof SessionError ? e.error : null;
+    if (!info) throw new ApiFailure(T.unreachable, 'NETWORK');
+    if (!isAccessRefusal(info)) throw new ApiFailure(T.signIn, 'UNAUTHENTICATED', info.status);
+    throw new ApiFailure(e.message, info.code, info.status, undefined, info.retryAfter, info.details);
+  });
 
   async function send(method: string, path: string, body?: unknown, o: CallOpts & { etag?: string | null } = {}): Promise<Response> {
     const headers: Record<string, string> = {};
-    if (method !== 'GET') { headers['X-CSRF-Token'] = (await session()).csrf; if (body !== undefined) headers['Content-Type'] = 'application/json' }
+    if (method !== 'GET') { await session(); if (body !== undefined) headers['Content-Type'] = 'application/json' }
     if (o.etag) headers['If-None-Match'] = `"${o.etag}"`;
     let res: Response;
-    try { res = await f(BASE + path, { method, credentials:'same-origin', headers, body:body === undefined ? undefined : JSON.stringify(body), signal:o.signal }) }
+    try { res = await edge.send(BASE + path, { method, headers, body:body === undefined ? undefined : JSON.stringify(body), signal:o.signal }) }
     catch (e) { if (isAbort(e)) throw e; throw new ApiFailure(T.unreachable, 'NETWORK') }
     if (res.status === 304) return res;
-    if (!res.ok) {
-      if (res.status === 401 || res.status === 403) sessionP = null;     // a new session or token is read on the next call
-      throw await failure(res);
-    }
+    if (!res.ok) throw await failure(res);
     return res;
   }
   const bytesOf = async (res: Response, o: CallOpts = {}) => {

@@ -6,6 +6,7 @@ import { barRows, brokerData, download, priceRows, rowsOf, type PriceRow, type W
 import { INTEGRITY_MESSAGE, isIntegrity, type FileRef } from './rack';
 import { aggregateRows, alignCandles, alignCandlesCarry, buckets, candleOf, dayOfCandles, dayOfKey, isIntraday, type Timeframe } from './timeframe';
 import { fileStats, mark } from '../app/perf';
+import { accessText, edge, isAccessRefusal, readError, SessionError } from '../../../shared/edge-session';
 
 const API = '/api/terminal/v1';
 
@@ -60,25 +61,41 @@ export function detailText(value: unknown, kind: string): string {
 }
 const roleLabel = (role: string) => role.toLowerCase().split('_').map((w, i) => i ? w : w[0].toUpperCase() + w.slice(1)).join(' ');
 
-async function api(path: string, csrf: string, body?: unknown) {
-  const res = await fetch(API + path, body === undefined ? { credentials:'same-origin' }
-    : { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/json', 'X-CSRF-Token':csrf }, body:JSON.stringify(body) });
+/* EXEC-MU-ACCOUNTS Phase 0 (M471): session, CSRF and the error contract from the shared module
+   (apps/edge-bff/shared/edge-session.ts): a plan refusal (CAPABILITY_REQUIRED, PLAN_EXPIRED, LIMIT_REACHED, MFA_REQUIRED)
+   is shown as its message, not as "answered 403"; only a 401 asks to sign in again; a 403 CSRF_INVALID is repeated once.
+   `csrf` is kept for the callers' signatures: the shared module sets the header itself. */
+const SIGN_IN = 'Sign in to EDGE first, then open the Terminal tab again.';
+async function api(path: string, _csrf: string, body?: unknown) {
+  let res: Response;
+  try {
+    res = await edge.send(API + path, body === undefined ? {}
+      : { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
+  } catch (e) { throw sessionFailure(e) }
   let data: any = null;
   try { data = await res.json() } catch(e) {}
   if (!res.ok) {
+    const info = readError(res.status, data, res.headers.get('Retry-After'));
     const msg = data && (data.message || (data.error && (data.error.code || data.error)));
-    throw new TerminalError(res.status === 401 ? 'Sign in to EDGE first, then open the Terminal tab again.'
+    throw new TerminalError(res.status === 401 ? SIGN_IN
+      : isAccessRefusal(info) ? accessText(info) as string
       : res.status === 429 ? `Download limit reached: ${msg || 'try again later'}.`
-      : `The terminal data service answered ${res.status}${msg ? ` (${msg})` : ''}.`, res.status);
+      : `The terminal data service answered ${res.status}${msg ? ` (${msg})` : ''}.`, res.status, info.code);
   }
   return data;
 }
 
 async function session(): Promise<string> {
-  const res = await fetch('/api/v1/auth/session', { credentials:'same-origin' });
-  if (!res.ok) throw new TerminalError('Sign in to EDGE first, then open the Terminal tab again.', res.status);
-  const data = await res.json();
-  return data.csrf_token || '';
+  try { return (await edge.session()).csrf }
+  catch (e) {
+    throw sessionFailure(e);
+  }
+}
+/* a session that could not be read: a plan refusal's message, EDGE out of reach, or the sign-in sentence */
+function sessionFailure(e: unknown): unknown {
+  if (!(e instanceof SessionError)) return e;
+  if (!e.error) return new TerminalError(e.message, 0);
+  return new TerminalError(isAccessRefusal(e.error) ? e.message : SIGN_IN, e.error.status, e.error.code);
 }
 
 /* EXEC-TERMINAL-UI-1026 U6: one call gives every file of the displayed ticker (terminal-api /bundle) */

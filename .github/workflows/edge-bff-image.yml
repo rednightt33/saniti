@@ -5,15 +5,19 @@ name: edge-bff image builds
 # the whole repository and passed. This builds the image as Railway does (apps/edge-bff as the context, its Dockerfile:
 # the Terminal, Backtest, Screener, Radar and Overview page stages and the Python image), so a module a stage does not
 # copy fails here before a merge deploys it. No push, no secrets.
+# EXEC-MU-ACCOUNTS Phase 0: apps/edge-bff/shared (the session module every page stage copies) is named as its own path
+# too, so a change there alone builds every stage.
 
 on:
   push:
     paths:
       - "apps/edge-bff/**"
+      - "apps/edge-bff/shared/**"
       - ".github/workflows/edge-bff-image.yml"
   pull_request:
     paths:
       - "apps/edge-bff/**"
+      - "apps/edge-bff/shared/**"
       - ".github/workflows/edge-bff-image.yml"
 
 permissions:

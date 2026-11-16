@@ -14,6 +14,7 @@ import { fileCache, type FileCache } from './cache.ts';
 import { PUBLISHED_TEXTS } from './texts.ts';
 import type { CatalogResponse } from '../../../screener/src/core/contract.ts';
 import { retryAfter } from '../../../screener/src/api/live.ts';   // Retry-After as the Screener page reads it
+import { accessText, edge, isAccessRefusal, readError, SessionError } from '../../../shared/edge-session.ts';
 
 const sleep = (ms: number) => new Promise(ok => setTimeout(ok, ms));
 
@@ -21,14 +22,15 @@ const TERMINAL = '/api/terminal/v1', BACKTESTS = '/api/v1/backtests';
 const SIGN_IN = 'Sign in to EDGE first, then open the Backtest tab again.';
 
 /* ---- session and JSON calls -------------------------------------------------------------------------------- */
-let csrfP: Promise<string> | null = null;
+/* EXEC-MU-ACCOUNTS Phase 0 (M471): the session, CSRF and the error contract are the shared module's
+   (apps/edge-bff/shared/edge-session.ts): only a 401 means "sign in again"; a 403 CSRF_INVALID is repeated once; a plan
+   refusal (CAPABILITY_REQUIRED, PLAN_EXPIRED, LIMIT_REACHED, MFA_REQUIRED) keeps the session and shows its message. */
 function csrf(): Promise<string> {
-  return csrfP ||= (async () => {
-    const res = await fetch('/api/v1/auth/session', { credentials:'same-origin' });
-    if (!res.ok) throw new ApiFailure(SIGN_IN, 'UNAUTHENTICATED', res.status);
-    const data = await res.json();
-    return data.csrf_token || '';
-  })().catch(e => { csrfP = null; throw e });
+  return edge.session().then(s => s.csrf, e => {
+    const info = e instanceof SessionError ? e.error : null;
+    if (!info) throw new ApiFailure('EDGE could not be reached.', 'NETWORK');
+    throw isAccessRefusal(info) ? new ApiFailure(e.message, info.code, info.status, undefined, info.retryAfter) : new ApiFailure(SIGN_IN, 'UNAUTHENTICATED', info.status);
+  });
 }
 
 /** an edge-bff answer that is not ok as the page's message: {error:{code, field, message}} (CONTRACT.md section 11) */
@@ -38,24 +40,24 @@ async function failure(res: Response, service: string): Promise<ApiFailure> {
   const err = data && data.error && typeof data.error === 'object' ? data.error : null;
   const code = err ? String(err.code || '') : data && typeof data.error === 'string' ? data.error : '';
   const msg = (err && err.message) || (data && data.message) || '';
+  const info = readError(res.status, data, res.headers.get('Retry-After'));
   if (res.status === 401) return new ApiFailure(SIGN_IN, code || 'UNAUTHENTICATED', 401);
+  if (isAccessRefusal(info)) return new ApiFailure(accessText(info) as string, info.code, res.status, err?.field, info.retryAfter);
   if (code === 'BACKTEST_DISABLED') return new ApiFailure(msg || 'Backtests are switched off on this server.', code, res.status);
   if (res.status === 429) return new ApiFailure(`Limit reached: ${msg || code || 'try again later'}.`, code, 429);
-  return new ApiFailure(msg || `The ${service} answered ${res.status}${code ? ` (${code})` : ''}.`, code, res.status, err?.field,
+  return new ApiFailure(msg || `The ${service} answered ${res.status}${code ? ` (${code})` : ''}.`, code || (info.legacy ? info.code : ''), res.status, err?.field,
     retryAfter(res.headers.get('Retry-After')));
 }
 
 /* `signal`: the caller's AbortSignal; an aborted call rejects with the AbortError itself (types.ts isAbort) */
 async function call<T>(base: string, path: string, body?: unknown, service = 'backtest service', signal?: AbortSignal): Promise<T> {
-  const init: RequestInit = body === undefined ? { credentials:'same-origin', signal }
-    : { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/json', 'X-CSRF-Token':await csrf() }, body:JSON.stringify(body), signal };
+  const init: RequestInit = body === undefined ? { signal }
+    : { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body), signal };
+  if (body !== undefined) await csrf();             // a session that cannot be read is the sign-in message, not NETWORK
   let res: Response;
-  try { res = await fetch(base + path, init) }
+  try { res = await edge.send(base + path, init) }
   catch (e) { if (isAbort(e)) throw e; throw new ApiFailure(`The ${service} could not be reached.`, 'NETWORK') }
-  if (!res.ok) {
-    if (res.status === 401 || res.status === 403) csrfP = null;      // a new session or token is read on the next call
-    throw await failure(res, service);
-  }
+  if (!res.ok) throw await failure(res, service);
   if (res.status === 204) return undefined as T;
   // an answer whose body is cut off on the way is no answer: NETWORK, which the status poll asks again (run.ts status)
   try { return await res.json() }

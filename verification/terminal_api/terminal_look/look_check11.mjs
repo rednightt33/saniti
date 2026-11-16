@@ -3,12 +3,30 @@
    its band, read from the rendered pixels, plus every toggle's thumb in its track and the right-panel rows (EXEC-RP-LOOK).
    Fails (exit 1) on: a text start more than 1px off its column, ink more than 1px off its band's middle, a thumb more than
    0.5px off its track's middle, a market choice not at its row's right (the panels and the Foreign × Domestic window,
-   EXEC-FD-WINDOW). Writes look11_*.png to the scratchpad. */
+   EXEC-FD-WINDOW). Writes look11_*.png to the output directory.
+   Usage (M472: no machine or session paths; build the Terminal first, cd apps/edge-bff/terminal && npm run build):
+     node verification/terminal_api/terminal_look/look_check11.mjs [OUT] [DATA]
+   OUT   where the screenshots go: the argument, else $LOOK_OUT, else a new temporary directory (printed);
+   DATA  BBRI's exported rows (px_BBRI.json, bk_BBRI.json; look_check.mjs): the argument, else $LOOK_DATA, else OUT/look.
+   Playwright is taken from beside this file, else from the global npm folder ($PLAYWRIGHT_MODULE_DIR to name another). */
 import { createRequire } from 'node:module';
-import { serve } from '/home/user/saniti/verification/terminal_api/terminal_look/serve.mjs';
-const { chromium, devices } = createRequire('/home/user/saniti/verification/terminal_api/terminal_look/')('playwright');
-const SP = '/tmp/claude-0/-home-user-saniti/5abac1e8-94e8-5166-9d5b-02bb4e4273bc/scratchpad';
-const { origin, close } = await serve(SP + '/look', 'BBRI');
+import { execSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { serve } from './serve.mjs';
+const playwright = (() => {
+  const from = [process.env.PLAYWRIGHT_MODULE_DIR, import.meta.url].filter(Boolean);
+  try { from.push(join(execSync('npm root -g', { encoding:'utf8' }).trim(), 'noop.js')) } catch { /* no npm */ }
+  for (const f of from) { try { return createRequire(f.startsWith('file:') || f.endsWith('.js') ? f : join(f, 'noop.js'))('playwright') } catch { /* next */ } }
+  throw new Error('look_check11: playwright not found (npm i -g playwright, or set PLAYWRIGHT_MODULE_DIR)');
+})();
+const { chromium, devices } = playwright;
+const SP = process.argv[2] || process.env.LOOK_OUT || mkdtempSync(join(tmpdir(), 'look11-'));
+mkdirSync(SP, { recursive:true });
+const DATA = process.argv[3] || process.env.LOOK_DATA || join(SP, 'look');
+console.log(`look_check11: screenshots in ${SP}, data from ${DATA}`);
+const { origin, close } = await serve(DATA, 'BBRI');
 const b = await chromium.launch(); const errs = [], R = {}, bad = [];
 const check = (name, ok, got) => { if (!ok) bad.push(`${name}: ${JSON.stringify(got)}`) };
 

@@ -175,12 +175,14 @@ def test_the_image_builds_the_overview_page_on_its_own():
     stage = text.split('FROM node:22-slim AS overview', 1)[1].split('\nFROM ', 1)[0]
     assert [line for line in stage.strip().splitlines() if line.strip() and not line.startswith('#')] == [
         'WORKDIR /build/overview', 'COPY overview/package.json overview/package-lock.json ./', 'RUN npm ci --no-audit --no-fund',
-        'COPY overview/ ./', 'RUN npm run build']
+        'COPY shared /build/shared', 'COPY overview/ ./', 'RUN npm run build']
     assert 'COPY --from=overview /build/overview/dist ./static/overview-app\n' in text
     page = Path(__file__).resolve().parents[1] / 'overview' / 'src'
     for f in page.rglob('*.ts'):
         for spec in re.findall(r"""(?:\bfrom|\bimport)\s*\(?\s*['"]([^'"]+)['"]""", f.read_text()):
-            assert spec.startswith('./') or spec.startswith('../') and (f.parent / spec).resolve().is_relative_to(page), (f, spec)
+            # EXEC-MU-ACCOUNTS Phase 0: besides its folder, only the shared session module (shared/, copied in the stage)
+            target = (f.parent / spec).resolve()
+            assert spec.startswith('./') or spec.startswith('../') and (target.is_relative_to(page) or target == page.parents[1] / 'shared' / 'edge-session.ts'), (f, spec)
 
 
 def test_a_phone_reaches_every_page_through_the_pages_menu(settings, store, monkeypatch, tmp_path):

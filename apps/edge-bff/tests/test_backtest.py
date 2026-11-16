@@ -1506,7 +1506,7 @@ def test_the_image_builds_the_backtest_page_beside_the_sources_it_imports():
     assert [line for line in stage.strip().splitlines() if line.strip() and not line.startswith('#')] == [
         'WORKDIR /build/backtest', 'COPY backtest/package.json backtest/package-lock.json ./',
         'RUN npm ci --no-audit --no-fund', 'COPY terminal/src /build/terminal/src',
-        'COPY screener/src /build/screener/src', 'COPY backtest/ ./', 'RUN npm run build']
+        'COPY screener/src /build/screener/src', 'COPY shared /build/shared', 'COPY backtest/ ./', 'RUN npm run build']
     root = Path(__file__).resolve().parents[1].resolve()
     page = root / 'backtest'
     spec_rx = re.compile(r"""(?:\bfrom|\bimport)\s*\(?\s*['"]([^'"]+)['"]""")
@@ -1528,7 +1528,8 @@ def test_the_image_builds_the_backtest_page_beside_the_sources_it_imports():
             elif not mine:
                 packages.add((f.relative_to(root).as_posix(), spec))
     assert any(p.startswith('screener/src/') for p in outside), 'the page reaches no Screener file: is the walk broken?'
-    assert [p for p in sorted(outside) if not (p.startswith('terminal/src/') or p.startswith('screener/src/'))] == []
+    # EXEC-MU-ACCOUNTS Phase 0: shared/ holds the session module every page imports (shared/edge-session.ts)
+    assert [p for p in sorted(outside) if not (p.startswith(('terminal/src/', 'screener/src/', 'shared/')))] == []
     assert packages == set()
 
 
@@ -1561,11 +1562,13 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
     copied = [source for line in (root / 'Dockerfile').read_text().splitlines() if line.startswith('COPY ') and '--from' not in line
               for source in line.split()[1:-1]]
     # (the backtest stage also takes screener/src: its page reads the Screener's entries and forms, ERRORS M461)
-    assert copied == ['terminal/package.json', 'terminal/package-lock.json', 'terminal/', 'backtest/package.json',
-                      'backtest/package-lock.json', 'terminal/src', 'screener/src', 'backtest/', 'screener/package.json',
-                      'screener/package-lock.json', 'terminal/src', 'backtest/src', 'screener/', 'radar/package.json',
-                      'radar/package-lock.json', 'radar/', 'overview/package.json', 'overview/package-lock.json', 'overview/',
-                      'watchlist/package.json', 'watchlist/package-lock.json', 'watchlist/', 'requirements.txt', 'app', 'static']
+    # (EXEC-MU-ACCOUNTS Phase 0: every page stage also takes shared/, the session module the pages import)
+    assert copied == ['terminal/package.json', 'terminal/package-lock.json', 'shared', 'terminal/', 'backtest/package.json',
+                      'backtest/package-lock.json', 'terminal/src', 'screener/src', 'shared', 'backtest/', 'screener/package.json',
+                      'screener/package-lock.json', 'terminal/src', 'backtest/src', 'shared', 'screener/', 'radar/package.json',
+                      'radar/package-lock.json', 'shared', 'radar/', 'overview/package.json', 'overview/package-lock.json', 'shared',
+                      'overview/', 'watchlist/package.json', 'watchlist/package-lock.json', 'shared', 'watchlist/',
+                      'requirements.txt', 'app', 'static']
     # the copied sources, the files at the top of each copied folder (configuration, package files, index.html, the app's
     # modules, the static files) and the three pages' sources
     top = [f'{folder}/{p.name}' for folder in ('app', 'static', 'terminal', 'backtest', 'screener', 'radar', 'overview', 'watchlist')

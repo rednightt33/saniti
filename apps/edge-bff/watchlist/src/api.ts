@@ -5,6 +5,7 @@
                                                   CSRF token (GET /api/v1/auth/session, as the Screener page's live.ts)
      /api/terminal/v1/reference/logos, /logo/<T>  the Terminal's issuer logos (as apps/edge-bff/terminal/src/data/live.ts)
    A refusal keeps edge-bff's {error: {code, field, message}}: the page shows its message, which names the fix. */
+import { accessText, edge, isAccessRefusal, readError, SessionError } from '../../shared/edge-session.ts';
 import type { AddAnswer, CreateBody, ListsAnswer, WList, WatchlistApi, WatchlistIndex } from './types.ts';
 
 export class WatchlistError extends Error {
@@ -15,29 +16,31 @@ const OFFLINE = 'The watchlist could not reach EDGE. Check the connection and tr
 const SIGNED_OUT = 'Your EDGE session ended. Sign in again, then open the Watchlist.';
 const FORBIDDEN = 'EDGE refused the change because the page’s session token is out of date. Reload the page and try again.';
 
-let csrfP: Promise<string> | null = null;
-const csrf = () => csrfP ||= (async () => {
-  let r: Response;
-  try { r = await fetch('/api/v1/auth/session', { credentials: 'same-origin' }) } catch { throw new WatchlistError('OFFLINE', OFFLINE, 0) }
-  if (!r.ok) throw new WatchlistError('SIGNED_OUT', SIGNED_OUT, r.status);
-  const d = await r.json().catch(() => ({}));
-  return String(d.csrf_token || '');
-})().catch(e => { csrfP = null; throw e });
+/* EXEC-MU-ACCOUNTS Phase 0 (M471): the session, CSRF and the error contract are the shared module's
+   (apps/edge-bff/shared/edge-session.ts): only a 401 is "signed out"; a 403 CSRF_INVALID is repeated once; a plan refusal
+   (CAPABILITY_REQUIRED, PLAN_EXPIRED, LIMIT_REACHED, MFA_REQUIRED) keeps the session and is shown as its message. */
+const csrf = () => edge.session().then(s => s.csrf, e => {
+  const info = e instanceof SessionError ? e.error : null;
+  if (!info) throw new WatchlistError('OFFLINE', OFFLINE, 0);
+  if (isAccessRefusal(info)) throw new WatchlistError(info.code, e.message, info.status);
+  throw new WatchlistError('SIGNED_OUT', SIGNED_OUT, info.status);
+});
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { accept: 'application/json' };
-  if (method !== 'GET') { headers['X-CSRF-Token'] = await csrf(); if (body !== undefined) headers['Content-Type'] = 'application/json' }
+  if (method !== 'GET') { await csrf(); if (body !== undefined) headers['Content-Type'] = 'application/json' }
   let r: Response;
   try {
-    r = await fetch(url, { method, credentials: 'same-origin', headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    r = await edge.send(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch { throw new WatchlistError('OFFLINE', OFFLINE, 0) }
   if (r.status === 204) return undefined as T;
   let data: any = null;
   try { data = await r.json() } catch { data = null }
   if (!r.ok) {
-    if (r.status === 401 || r.status === 403) csrfP = null;           // a new session or token is read on the next call
     const e = data && typeof data.error === 'object' ? data.error : null;
+    const info = readError(r.status, data, r.headers.get('Retry-After'));
     if (r.status === 401) throw new WatchlistError('SIGNED_OUT', SIGNED_OUT, 401);
+    if (isAccessRefusal(info)) throw new WatchlistError(info.code, accessText(info) as string, r.status, e?.field);
     if (r.status === 403 && !e) throw new WatchlistError('FORBIDDEN', FORBIDDEN, 403);
     throw new WatchlistError(e?.code || `HTTP_${r.status}`, e?.message || 'The watchlist could not be read or saved. Try again in a minute.', r.status, e?.field);
   }
