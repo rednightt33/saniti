@@ -1,11 +1,12 @@
 /* A static server for the 1:1 check: /ref/ is the reference page (the user's file, never committed; path in
-   TERMINAL_REFERENCE_HTML) and /terminal-app/ the built TypeScript page (../../../static/terminal-app). */
+   TERMINAL_REFERENCE_HTML) and /terminal-app/ the built TypeScript page (../../../static/terminal-app), which for the 1:1
+   check is the fixture build (`npx vite build --mode fixture`, ERRORS M469). */
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const BUILD = fileURLToPath(new URL('../../../static/terminal-app/', import.meta.url));
+export const BUILD = fileURLToPath(new URL('../../../static/terminal-app/', import.meta.url));
 const TYPES = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.json':'application/json', '.svg':'image/svg+xml' };
 
 export function serve(reference) {

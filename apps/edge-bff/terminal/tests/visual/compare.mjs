@@ -2,16 +2,26 @@
    Both pages run on the same synthetic data (/terminal-app/?fixture=reference), each in a fresh browser context, at
    the same viewports; the script saves full-page screenshots and the text of every panel, then scenario steps
    (interactions) after which it saves both again. Pixel comparison: diff.py.
-   Usage: TERMINAL_REFERENCE_HTML=<file> node tests/visual/compare.mjs <out dir> [scenario] */
+   ERRORS M469: the fixture is only in a fixture build, never in the production one edge-bff serves, so build it first
+   (into ../static/terminal-app, as the server below reads it) and rebuild the production page afterwards.
+   Usage: npx vite build --mode fixture && TERMINAL_REFERENCE_HTML=<file> node tests/visual/compare.mjs <out dir> [scenario]
+          && npm run build */
 import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright');   // the preinstalled Playwright (global NODE_PATH)
-import { mkdir, writeFile } from 'node:fs/promises';
-import { serve } from './serve.mjs';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { BUILD, serve } from './serve.mjs';
 import { SCENARIOS } from './scenarios.mjs';
 
 const reference = process.env.TERMINAL_REFERENCE_HTML;
 if (!reference) { console.error('TERMINAL_REFERENCE_HTML is required'); process.exit(2) }
 const out = process.argv[2] || 'visual-out';
+{ /* a production build has no fixture mode (M469): ?fixture=reference would load live data and every pixel would differ */
+  const js = await Promise.all((await readdir(`${BUILD}assets`)).filter(f => f.endsWith('.js')).map(f => readFile(`${BUILD}assets/${f}`, 'utf8')));
+  if (!js.some(t => t.includes('mode:"fixture"'))) {
+    console.error('The built page has no fixture mode (a production build, ERRORS M469). Fix: npx vite build --mode fixture, then run this again.');
+    process.exit(2);
+  }
+}
 const only = process.argv[3];
 const VIEWPORTS = [[1600, 1000], [1280, 800], [390, 844]];
 const MARKUP = ['#statsPanel', '#brokerPanel', '.tvbar', '#addPanel', '.chart-legend', '.flow-head', '.flow-legend', '#indPop', '#evPop',

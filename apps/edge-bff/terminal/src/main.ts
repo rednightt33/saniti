@@ -1,7 +1,10 @@
 /* EDGE financial terminal (EXEC-TERMINAL-API T5): the reference page 03-terminal-right-panel.html as modular
    TypeScript. The sections start in the reference's own order, so listeners and first draws happen in the same
    sequence. /terminal-app/?fixture=reference runs on the reference's synthetic data for the 1:1 check; otherwise the
-   page reads the published files of the rack through EDGE. */
+   page reads the published files of the rack through EDGE. ERRORS M469: the fixture (it seeds from a real broker summary)
+   exists only in a fixture build (`npx vite build --mode fixture`); the production build
+   (`npm run build`, the one edge-bff serves at /terminal-app/ without a session) drops it as dead code
+   (tests/data/fixture_bundle.test.mjs). */
 import './styles/terminal.css';
 import './styles/spin.css';                                  // EXEC-BACKTEST-SPIN: the shared loading ring
 import * as L from 'lightweight-charts';
@@ -183,6 +186,9 @@ function notice(message: string, role = 'status') {
   return box;
 }
 const fail = (message: string) => notice(message, 'alert');
+/* ERRORS M469: fixture mode only in a `--mode fixture` build (or `vite --mode fixture`), where the 1:1 check runs. MODE,
+   not DEV: DEV follows NODE_ENV, so a production build made with NODE_ENV=development or test would keep the fixture */
+const FIXTURE_BUILD = import.meta.env.MODE === 'fixture';
 
 function boot() {
   const stored = store.get('ml.symbol');
@@ -190,7 +196,9 @@ function boot() {
   /* EXEC-NAV-LEFT (ERRORS M412): opened by EDGE (?in=edge) the Statistics button is EDGE's; known from the first paint, so
      the Terminal's own folded rail is never drawn while the data loads (the message hand-shake only starts with the chart) */
   if (params.get('in') === 'edge') document.documentElement.classList.add('edge-rail');
-  if (params.get('fixture') === 'reference') {
+  /* FIXTURE_BUILD is a compile-time constant (Vite replaces import.meta.env), so in production this branch and the
+     whole fixture module (fixture.ts, fixtureConstants.ts) are removed from the bundle */
+  if (FIXTURE_BUILD && params.get('fixture') === 'reference') {
     /* the 1:1 check keeps the reference's fixed heights; &fit=1 shows the fixture in the screen-filling layout */
     if (params.get('fit') !== '1') document.documentElement.classList.remove('fit');
     /* synchronous, like the reference: it builds every compare series up front, so adding one is immediate */
