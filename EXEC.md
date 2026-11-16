@@ -15575,7 +15575,7 @@ before them never takes traffic (Railway keeps the previous deployment serving).
 1. **No user run active (M340).** `edge_bff.jobs` has no QUEUED, RUNNING or RECOVERING row and `AI_conversation_turn`
    no RUNNING row; repeat right before steps 2 and 5 and before any Postgres restart.
    - Check: both counts 0 in the same job, right before the next step. Rollback: none (read only).
-2. **Migrations `20261116_003_edge_bff_accounts_users.sql`** (sha256 `d5e2352b…92201dd4138`),
+2. **Migrations** (each file is its own transaction and refuses a second run: after a failure, resume with only the files not yet applied) **`20261116_003_edge_bff_accounts_users.sql`** (sha256 `d5e2352b…92201dd4138`),
    **`20261117_001_edge_bff_accounts_registration.sql`** (sha256 `ac275784…a19cc69f730`) **and
    `20261117_002_edge_bff_accounts_registration_binding.sql`** (sha256 `35412e55…bdc963ee343`; full values in
    `DATABASE_CHANGELOG.md`): DRYRUN, then APPLY, in that order in one job, through `scripts/onboarding/run_job.sh
@@ -15626,7 +15626,7 @@ before them never takes traffic (Railway keeps the previous deployment serving).
      nothing on a later start), never `account_seed_failed`.
    - Rollback: redeploy the previous edge-bff deployment (its id recorded before the push) or revert the merge. The
      previous build ignores the new tables and columns.
-6. **Smoke checks with the switch off** (from outside; then the user's own sign-in, which the agent cannot do):
+6. **Smoke checks with the switch off** (include: the user's devices keep My metrics and favourites after the first load; C3 Phase 1 B1), (from outside; then the user's own sign-in, which the agent cannot do):
    - `GET /api/v1/auth/config` → 200 `{"multiuser": false}`;
    - each new route answers 404 `NOT_FOUND` without and with a session: `POST /api/v1/auth/register`,
      `/register/verify`, `/code/resend`, `/password/forgot`, `/password/reset`, `/password/change`, `/sign-out-all`,
@@ -15660,9 +15660,9 @@ before them never takes traffic (Railway keeps the previous deployment serving).
    job of `scripts/onboarding/run_job.sh` (orc-test-runner, `DATABASE_URL` from the reference), never over a public URL
    and never from a local machine against the public database proxy. It clears that account's MFA counts and locks and
    writes one `admin_audit` row (actor `operator`); it prints only the user id and the counts. `run_job.sh` runs
-   `python -u job.py` without arguments, so the job needs a two-line wrapper `job.py` that calls
-   `edge_mfa_unlock.main(['--username', ..., '--reason', ...])` with the values from `params.json` (open item,
-   ERRORS M478). Only with the user's approval for that account; record it in `RAILWAY_CHANGELOG.md`.
+   `python -u job.py` without arguments, so use the wrapper `scripts/onboarding/edge_mfa_unlock_job.py` (params
+   `{"username", "reason"}`, the unlock script staged as an extra; `77d905aa`). Only with the user's approval for that
+   account; record it in `RAILWAY_CHANGELOG.md`.
 10. **Records:** `RAILWAY_CHANGELOG.md` (each job id, the deployment id and its `SUCCESS` time, the variable actions by
    name, scope, action and verification only); `DATABASE_CHANGELOG.md` (applied, read-back, the seed) and
    `APPLIED.sha256`; `ERRORS_AND_SOLUTIONS.md` (the checkers' consolidated entry, its statuses to deployed).

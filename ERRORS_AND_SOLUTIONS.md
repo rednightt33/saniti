@@ -8912,7 +8912,7 @@ Open after the rounds:
 - `scripts/edge_mfa_unlock.py` takes `--username` and `--reason` on the command line, while
   `scripts/onboarding/run_job.sh` runs its job as `python -u job.py` without arguments
   (`scripts/onboarding/Dockerfile`), so the documented "run it as a job like the migrations" needs a small wrapper
-  `job.py` that passes the two values (from `params.json`) to `main([...])`. OPEN (process; no lock exists yet).
+  `job.py` that passes the two values (from `params.json`) to `main([...])`. FIXED 2026-11-16: `scripts/onboarding/edge_mfa_unlock_job.py` (`77d905aa`).
 - The migration's header comment says the MFA counts are reset "only by a success (or an admin, later)"; the code also
   ends a lock after 24 h and clears it on a password reset (its column comments say so). Comment only; the migration is
   not applied, but it is not edited after review either (AGENTS.md: a new migration if a change is needed).
@@ -8925,6 +8925,16 @@ code and its requester is part of the data model, not of the message.
 - **Operator unlock as a job (gap found by the records pass, closed 2026-11-16):** `run_job.sh` starts `job.py` without
   arguments, so `scripts/onboarding/edge_mfa_unlock_job.py` reads `username` and `reason` from `params.json` and calls
   `scripts/edge_mfa_unlock.py` (staged as an extra).
+
+- **C3 conformance check (2026-11-16, `3ed24bc2`):**
+  - **Blocking B1:** with the switch off, a browser without the last-login mark cleared user #1's browser-only data (My
+    metrics, favourites) instead of adopting and uploading it. The cause was the C2 #3 rule applied to the only possible
+    principal. Fix: adopt when the session's `access.version` is `env`; clear only with the switch on.
+  - **Recorded, non-blocking:**
+    - First device wins per preference, with no merge of lists.
+    - The page may wait up to 3 s once for the first upload.
+    - The seed username is `admin_1`, because `edge` is reserved by a CHECK in `20261116_003`. Keeping `edge` needs a
+      new migration, and the seed needs an email for password reset. To be decided before Phase 6.
 
 ### M477 — EXEC-MU-ACCOUNTS Phase 0: findings of the independent checkers C1 and C2 (2026-11-16, fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
