@@ -17,7 +17,7 @@ import { renderHeader } from './header.ts';
 import { SC, entryOf, refusalOf, testName } from './grammar.ts';
 import { abortRun } from './run.ts';
 import { bindPicker, pickerHtml } from './picker.ts';
-import { stocksText, tickersLabel, titleNames } from './picked.ts';
+import { stocksText, tickersLabel } from './picked.ts';
 
 /* =====================================================================
    5 · BUILDER UI
@@ -137,22 +137,13 @@ export const updateViewbar = () => {
   renderHeader(); if(S.mode==='portfolio') portfolioTitle();
   $('viewCtx').innerHTML = S.view==='results' && R ? `Net <b class="${cls(R.st.tot)}">${pct(R.st.tot)}</b> <i>·</i> Sharpe <b>${num(R.st.sharpe)}</b> <i>·</i> Max DD <b class="down">${pct(R.st.mdd)}</b>` : '';
 };
-/* The context title of a portfolio: the reference's "<universe> · n stocks · max m positions" with the picked stocks
-   named where it names its universe, by the most tickers (picked.ts titleNames) whose title takes no more lines than
-   the reference's own title of the same count would take here, with its shorter universe name ("Banks · n stocks ·
-   max m positions"), else the count alone (review PG-3: never more lines than the reference). Measured in place (the
-   title's width depends on its own text), and again when the window's size changes. In Chromium, the visual harness's
-   portfolios: three tickers at 1280 and 1600 px, as before; at 390 px "BBCA +9 · 10 stocks · …" in 5 lines as the
-   reference's "Demo 10 · 10 stocks · …", and "3 stocks · max 5 positions" in 3 against the 4 of "Banks · 3 stocks · …". */
-let refits = false;
+/* The context title of a portfolio, the design's form (the 1:1 reference since 2026-11-15): the picked stocks as the
+   step summary names them (up to three tickers, then "+n"), the count and the positions, "BBCA, BBRI, BMRI · 3 stocks ·
+   max 5 positions". Review PG-3 shortened it until it took no more lines than backtest.html's title ("Banks · n stocks
+   · …"); with the design as the reference it named fewer stocks than the design does (Agent 10, M460 item 5). */
 const portfolioTitle = () => {
-  if(!refits){ refits = true; addEventListener('resize', () => { if(S.mode==='portfolio') portfolioTitle() }) }
   const el = $('ctxTitle'), max = `max ${S.maxPos} positions`;
-  if(!S.tickers.length){ el.textContent = `No stock picked · ${max}`; return }
-  const count = `${stocksText(S.tickers.length)} · ${max}`, height = (t: string) => { el.textContent = t; return Math.round(el.getBoundingClientRect().height) };
-  const ref = height(`Banks · ${count}`);
-  for(const name of titleNames(S.tickers)) if(height(`${name} · ${count}`) <= ref) return;
-  el.textContent = count;
+  el.textContent = S.tickers.length ? `${tickersLabel(S.tickers)} · ${stocksText(S.tickers.length)} · ${max}` : `No stock picked · ${max}`;
 };
 export const bindViewSeg = () => { $('viewSeg').onclick = (e: MouseEvent) => { const b = (e.target as HTMLElement).closest('[data-v]') as HTMLElement; if(b) setView(b.dataset.v as 'signals' | 'results') } };
 /* a flow card without published broker data: the reference's "not calculated" pill with the catalog's reason */

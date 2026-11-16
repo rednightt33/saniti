@@ -13,7 +13,7 @@
 <!-- EXEC-BACKTEST-REVAMP Tahap D (user 2026-11-15 "1 setuju, 2a"; 2026-11-16 "Opsi C"): the markup of the user's design file
      (the 1:1 reference). Decision 2a: the left header (#xsHd) is built from the page state in src/header.ts, not by a script
      that copies hidden text, so the design's hidden header row is gone and its Add indicator and Run buttons are markup here;
-     the data source note is shown in the header; the theme follows EDGE (edge-auth-monitor-theme), so the design's hidden
+     the data source note is shown in the view bar (#dataNote); the theme follows EDGE (edge-auth-monitor-theme), so the design's hidden
      theme button and note holder are gone. -->
 <div class="bdrop" id="bdrop"></div>
 <div class="app">
@@ -29,7 +29,7 @@
   </aside>
   <main class="main" id="main">
   <div class="viewbar">
-  <div class="in tabsrow"><nav class="vtabs" id="viewSeg"><button class="on" data-v="signals"><svg class="ico" viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M7 15l4-5 3 3 5-7"/></svg>Signals<span class="ct" id="vcSig"></span></button><button data-v="results"><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="16" y="4" width="4" height="16" rx="1"/></svg>Results<span class="ct" id="vcRes"></span></button></nav><span class="sp"></span><span class="ctx" id="viewCtx" hidden></span><button class="hbtn" id="fsBtn" title="Full screen ( F )"><svg class="ico" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Full screen</span></button></div></div>
+  <div class="in tabsrow"><nav class="vtabs" id="viewSeg"><button class="on" data-v="signals"><svg class="ico" viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M7 15l4-5 3 3 5-7"/></svg>Signals<span class="ct" id="vcSig"></span></button><button data-v="results"><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="16" y="4" width="4" height="16" rx="1"/></svg>Results<span class="ct" id="vcRes"></span></button></nav><span class="sp"></span><small class="vnote" id="dataNote" hidden></small><span class="ctx" id="viewCtx" hidden></span><button class="hbtn" id="fsBtn" title="Full screen ( F )"><svg class="ico" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Full screen</span></button></div></div>
   <div class="wrap" id="wrap">
    <div class="view on" id="vSignals">
     <section class="card" id="sigCard">

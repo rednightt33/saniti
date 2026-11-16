@@ -8572,11 +8572,13 @@ in its staleness check.
   reader treats it as unknown before; a fixture for look-ahead tests has the gaps of the real source (missing days,
   members that come and go).
 
-### M460 — Backtest page port (Stage D): shortcuts read a removed panel, the condition window lost the focus, a waiting lane's name was cut, and the page's browser checks had drifted unseen (2026-11-16, fixed on branch)
+### M460 — Backtest page port (Stage D): shortcuts read a removed panel, the focus lost, a waiting lane's name cut, the browser checks drifted, and the port departed from the design without approval (2026-11-16, fixed on branch)
 
 - **Found by:** BACKTEST-REVAMP Stage D (D7, user 2026-11-16 "Opsi C"), running the page's browser checks on the port of the
   user's design file: `tests/smoke/smoke.mjs` (Playwright on the stub API) and `tests/visual/compare.mjs` with `diff.py`
-  (the design against `?fixture=design`, 1440, 1024 and 390 px, light and dark).
+  (the design against `?fixture=design`, 1440, 1024 and 390 px, light and dark); items 5-9 by Agent 10 (independent
+  review of the port, Opus, medium effort, read-only), each re-verified by the main agent in the screenshots and the
+  code the same day.
 - **Verified, with root cause and solution (on branch `claude/hopeful-shannon-bqgb1a`):**
   1. *The keyboard shortcuts `f` (full screen) and `[` (hide the builder) threw on every key press* ("Cannot read
      properties of null (reading 'hidden')", smoke run of 2026-11-16). `layout.ts bindLayout` still skipped the keys
@@ -8595,9 +8597,47 @@ in its staleness check.
      condition window, the theme from EDGE, a phone's builder over the chart, the Results view without the header's
      Run). Fix: the smoke follows the page (56 of 56 steps pass, no console error); `SMOKE_ONLY` runs one section; a
      missing control fails its step in 10 s.
+  5. *The port departed from the design where no agreed fix allowed it* (Agent 10 items 1-2). Two Stage D rules labelled
+     "decision 2a" were not among the agreed fixes: below 1280 px the formula bar's chips wrapped (3 rows at 1024, 5 in
+     portfolio mode: the chart shorter, the header's Period cut at "03 June 2019 – 23", the signal table below the
+     fold), and the header's rows scrolled (an unlabelled tab stop). The data source note (an agreed fix) sat under the
+     header's title, three lines of its 121 px column, and pushed "Run time" behind the Add indicator button at 1440
+     after a portfolio run. "Last run" added the labels "Net" and "DD"; the portfolio title was shortened by review
+     PG-3 to the line count of backtest.html's title, where the design names three tickers. Fix: the two rules removed
+     (the page is the design's at 1024, cuts included), the note in the view bar (one line, its whole text as its
+     title; the tabs and Full screen do not shrink for it), the header's texts and the title the design's
+     (`picked.ts titleNames` and its test removed). The 1024 cuts are the design's; whether to show the chips that fit
+     and "+N more" instead is the user's choice at Gate 3.
+  6. *On a phone nothing could be added* (Agent 10 item 3, in the design too): the condition window is at least 760 px
+     wide (`design.css` `#cw .qwin min-width`), so on 390 px its Add buttons, the condition column, Sort, Close and Done
+     were off the screen and it could not scroll across; the results' fourth figure and "+ Compare with…" were cut.
+     Fix, under the decision's "on a phone ... hides nothing": the 600 px block (the window the whole screen, its
+     categories a row that scrolls across, each indicator's row in two or three lines, the strategy panel in the
+     list's place while open; the figures two to a row; the comparison box under the title). The design's `.xs-sc`
+     rules are `!important`, so the phone rules match them.
+  7. *A row the page cannot calculate said "Check fields"* (Agent 10 item 4; Stochastic RSI, Money Flow Index): the
+     window showed that pill whenever the card was not ready. Fix (`condwin.ts rowHTML`): "Not calculated" (the
+     design's and the builder card's word, the flow reason as its title for a flow card), "Check fields" only for a
+     test card whose fields are not valid.
+  8. *The search label counted rows that cannot be added* (Agent 10 item 5): "Search 192 indicators to add" with 51 rows
+     "Not in backtest". Fix (`condwin.ts condWinCount`): the rows that can be added (141 in the fixture).
+  9. *The page tests' copy of the worker's catalog rule had drifted* (Agent 10 section A): the worker's catalog module
+     reads Node files, so the smoke stub and the fixture take a copy; it left out the anchored and inventory
+     indicators that a session without the admin right sees as "drawn on the Terminal only", had no insider reason and
+     kept FL51 (point in time, admin only, with no Screener formula). Fix: `tests/grammar-catalog.ts` (no browser-only
+     import) and `apps/backtest-worker/tests/catalog-copy.test.ts` (worker suite, CI): the copy equals
+     `flowIndicators` without the admin entries and `NOT_PER_DAY`, flow on and off; a copy that keeps FL51 gives 45
+     entries against the worker's 44 and fails it.
+- **Checked, not changed:** the locked and "Not in backtest" states derive from the catalogs (`grammar.ts refusalOf`,
+  the worker's `catalog.ts`, edge-bff `rights.py`), no hand list (Agent 10, verified); `reg.ts regMedian` reads no bar
+  after the period, and in its fallback (fewer than 20 bars before the start) bars inside the period, as decided; the
+  results tabs have no tab roles and arrow keys do not switch them, as in the design; Tab stays inside the condition
+  window, Escape closes it and the focus returns (better than the design, which drops it).
 - **Class:** a browser check that no CI job runs drifts from the page it guards; a panel removed from the markup leaves
-  readers of its id behind (a null at run time, not a build error).
-- **Status:** items 1-4 FIXED ON BRANCH, awaiting Gate 3 (deploy). Open: the smoke and visual checks run only by hand
-  (the visual check needs the user's design file, which is not in the repository); running the smoke in CI is put to
-  the user at Gate 3.
+  readers of its id behind (a null at run time, not a build error); a test copy of a rule a build cannot import drifts
+  unless a test compares it; a port labels its own choices with the user's decision unless the decision's list is
+  checked item by item.
+- **Status:** items 1-9 FIXED ON BRANCH, awaiting Gate 3 (deploy). Open, put to the user at Gate 3: the 1024 cuts
+  (item 5); the smoke and visual checks run only by hand (the visual check needs the user's design file, which is not
+  in the repository), running the smoke in CI.
 - **Lesson for new data:** none (page only).

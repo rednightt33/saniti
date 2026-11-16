@@ -874,11 +874,40 @@ html,body{font:var(--fw-regular) var(--fs-base)/var(--lh-base) var(--sans);font-
   #xsHdB .xh-id{grid-column:1/-1}
   #xsHd .xs-add{margin-top:0}
   #xsTip{width:min(300px,calc(100% - 8px))}
+  /* the condition window (the design's is at least 760px wide: on a phone its Add buttons, Sort, Close and Done were off
+     the screen and nothing could be added; Agent 10, M460 item 6): the whole screen, the categories a row that scrolls
+     across, each indicator's row in two lines (name; condition, settings and Add) */
+  #cw{padding:0;place-items:stretch}
+  #cw .qwin{min-width:0;min-height:0;width:100%;height:100%;max-width:100%;max-height:100%;border-radius:0;resize:none}
+  #cw .qwin-h,#cw .qwin-t{padding-left:12px;padding-right:12px}
+  #cw .qwin-t{flex-wrap:wrap}
+  #cw .qwin-t kbd{display:none}
+  /* (the design's own .xs-sc rules are !important: these match them, later in the file) */
+  #cw .qwin-b,#cw .qwin[data-mode=B].xs-sc .qwin-b{grid-template-columns:minmax(0,1fr) 44px!important;grid-template-rows:auto minmax(0,1fr)}
+  #cw .qwin:not(.xs-sc) .qwin-b{grid-template-columns:minmax(0,1fr)!important}
+  #cw .qwin:not(.xs-sc) .qmain{display:none}   /* the strategy panel opened: it takes the list's place until Hide */
+  #cw .qrail{grid-column:1/-1;flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:6px 10px;border-bottom:1px solid var(--border)}
+  #cw .qrail>*{flex:none;width:auto}
+  #cw .qsplit,#cw .qcols,#cw .qwin[data-mode=B] .qcols,#cw .qwin[data-mode=B].xs-sc .qcols{display:none!important}
+  #cw .qrow,#cw .qwin[data-mode=B] .qrow,#cw .qwin[data-mode=B].xs-sc .qrow{grid-template-columns:minmax(0,1fr) auto!important;row-gap:6px!important;padding:8px 10px!important}
+  #cw .qwin .qrow>.qnm,#cw .qwin[data-mode=B].xs-sc .qrow>.qnm{grid-column:1/-1!important;grid-row:1!important}
+  #cw .qwin .qrow>.qs,#cw .qwin[data-mode=B].xs-sc .qrow>.qs{grid-column:1!important;grid-row:2!important;min-width:0}
+  #cw .qwin .qrow>.qact,#cw .qwin[data-mode=B].xs-sc .qrow>.qact{grid-column:2!important;grid-row:2!important}
+  #cw .qwin .qrow>.qt,#cw .qwin[data-mode=B].xs-sc .qrow>.qt{grid-column:1/-1!important;grid-row:3!important;min-width:0}
+  #cw .qrow>.qt:empty{display:none}
+  #cw .qrow.na>.qna{grid-column:1/-1;grid-row:2;justify-self:start}
+  #cw .qwin-f{flex-wrap:wrap;gap:6px;padding:8px 12px}
+  #cw .qwin-f>span:first-child{display:none}
+  #cwPop{max-width:calc(100vw - 16px)}
+  /* the results' figures two to a row, the comparison box under the equity chart's title (both were cut at the right) */
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpi{border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .kpi:nth-child(2n){border-right:0}
+  .panel>div:has(>#cmpBox){flex-wrap:wrap;row-gap:8px}
 }
-/* the data source note under the header's title (decision 2a: restored; a row of its own was cut at 1024 x 768) */
-#xsHd .xh-tt{display:flex;flex-direction:column;gap:2px;min-width:0}
-#xsHd .xh-tt small{font-size:11px;line-height:1.35;color:var(--text-3)}
-/* decision 2a: below 1280px the formula bar's chips wrap instead of being cut */
-@media(max-width:1279px){.xfb-l{flex-wrap:wrap;overflow:visible}.xfb-l .fchip[data-fc]:not(:has(~ .fchip[data-fc])){min-width:0}}
-/* a short window: the header's rows scroll inside the column instead of going under its buttons (decision 2a) */
-#xsHdB{overflow-y:auto}
+/* the data source note (decision 2a: shown) in the view bar, one line before Full screen, its whole text as its title;
+   under the header's title it took three lines of the 121px column and pushed the header's last rows out of view
+   (Agent 10, ERRORS M460 item 5) */
+.viewbar .vnote{flex:0 1 auto;align-self:center;margin-bottom:4px;min-width:0;font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.viewbar .tabsrow>.vtabs,.viewbar .tabsrow>.hbtn{flex-shrink:0}   /* the note gives way first: the tabs' counts stay on one line */
+.viewbar .vnote[hidden]{display:none}

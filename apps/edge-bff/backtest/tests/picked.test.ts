@@ -8,7 +8,7 @@ import { Compute } from '../src/api/compute.ts';
 import type { BacktestApi } from '../src/api/types.ts';
 import { setEnv } from '../src/env.ts';
 import { applyCatalog, S } from '../src/state.ts';
-import { addTickers, chartTicker, groupLabel, groupStocks, limitText, runTickers, searchMatches, stocksOf, stocksText, tickersLabel, titleNames, type Stock } from '../src/picked.ts';
+import { addTickers, chartTicker, groupLabel, groupStocks, limitText, runTickers, searchMatches, stocksOf, stocksText, tickersLabel, type Stock } from '../src/picked.ts';
 import { CATALOG } from './smoke/stub.ts';
 
 const st = (ticker: string, name: string | null, sector: string | null, industry: string | null = null): Stock =>
@@ -99,11 +99,6 @@ describe('the picked stocks\' words', () => {
     expect(tickersLabel(['BBCA', 'BBRI', 'BMRI'])).toBe('BBCA, BBRI, BMRI');
     expect(tickersLabel(['BBCA', 'BBRI', 'BMRI', 'TLKM', 'ASII'])).toBe('BBCA, BBRI, BMRI +2');
     expect([stocksText(1), stocksText(12)]).toEqual(['1 stock', '12 stocks']);
-  });
-  it('the view bar\'s title may name them by fewer tickers, longest first, each name once (review PG-3)', () => {
-    expect(titleNames(['BBCA', 'BBRI', 'BMRI', 'TLKM', 'ASII'])).toEqual(['BBCA, BBRI, BMRI +2', 'BBCA, BBRI +3', 'BBCA +4']);
-    expect(titleNames(['BBCA', 'BBRI'])).toEqual(['BBCA, BBRI', 'BBCA +1']);
-    expect(titleNames(['BBCA'])).toEqual(['BBCA']);
   });
 });
 

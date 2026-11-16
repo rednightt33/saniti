@@ -70,11 +70,6 @@ export function tickersLabel(list: readonly string[], shown = 3): string {
   return list.slice(0, shown).join(', ') + (list.length > shown ? ` +${list.length - shown}` : '');
 }
 
-/** The names the view bar's title may give the picked stocks, longest first, each once: three, two, then one ticker
-    with "+n" (builder.ts keeps the first whose title takes no more lines than the reference's; none: the count alone,
-    review PG-3). */
-export const titleNames = (list: readonly string[]): string[] => [...new Set([3, 2, 1].map(k => tickersLabel(list, k)))];
-
 /** "1 stock", "n stocks" (the core's wording of a count of stocks, core/signals.ts leftOut) */
 export const stocksText = (n: number) => n === 1 ? '1 stock' : `${n} stocks`;
 

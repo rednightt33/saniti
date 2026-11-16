@@ -549,9 +549,10 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
   file could not be downloaded." A refusal (403: the link expired, 404) is answered at once. A whole file that is not
   what its manifest entry says is `DATA_INTEGRITY` and is not asked again (`live.ts fetchFile`, ERRORS M251). An edge-bff
   answer whose body is cut off is `NETWORK` without a status, which the job's status poll asks again (`run.ts`).
-- The header has no date: live says "Published data · long-only" (`api/texts.ts` `dataNote`), the lead's short form,
-  because "Published data to <`catalog.data_through`> · long-only" wraps more than the reference's "Synthetic demo
-  data · long-only" (7 lines against 5 at 390 px, 5 against 3 at 480; `api/texts.ts` gives every width measured).
+- The data source note has no date: live says "Published data · long-only" (`api/texts.ts` `dataNote`), the lead's
+  short form, because "Published data to <`catalog.data_through`> · long-only" wraps more than the reference's
+  "Synthetic demo data · long-only" (7 lines against 5 at 390 px, 5 against 3 at 480; `api/texts.ts` gives every width
+  measured). Since Stage D it is in the view bar, one line (13.11).
 - Condition limit: adding a condition, loading a template (entry or exit), duplicating one or switching one on is
   refused when the list would then hold more than `limits.max_conditions` enabled conditions, with the toast "Limit
   reached: at most N active conditions per list." and nothing changed (`reg.ts withinLimit`, called by `builder.ts`
@@ -623,10 +624,9 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
     toast line and every row "—" with that error in its tooltip. Any other preview failure is its message in the
     toast once, and the same settings are not asked again until they change; a redraw (a zoom button, a legend chip)
     never asks or toasts (review PG-2; `preview.ts`).
-  - The context title never takes more lines than the reference's own title of the same count at the same width
-    (with its universe name "Banks"): it names the picked stocks by three, two or one ticker and "+n", the longest
-    that fits, else the count alone, measured in place and again on resize (review PG-3; `builder.ts`,
-    `picked.ts titleNames`). At 390 px: "BBCA +9 · 10 stocks · …" and "3 stocks · max 5 positions".
+  - The context title is the design's (13.11): the picked stocks by up to three tickers and "+n", "BBCA, BBRI, BMRI +2
+    · 5 stocks · max 5 positions" (`builder.ts portfolioTitle`, `picked.ts tickersLabel`). Review PG-3 shortened it to
+    the line count of backtest.html's title; the design, the reference since 2026-11-15, names three (M460 item 5).
   - Step 1 in portfolio mode: the picker card, then the reference's first row with its Max positions alone (its
     Universe select is the picker), then the reference's second row (Rank candidates by, Min. avg value) verbatim
     (review PG-4).
@@ -863,11 +863,23 @@ is closed before block 5). The agreed fixes (decision 2a):
   applyTheme`), a change in another frame arrives as a storage event and redraws the palette, the charts and the
   overview; the design's own theme button is gone;
 - the switches keep their contrast in dark mode (`design.css`, the knob on `--bg`);
-- the search label of the builder counts the condition window's real rows (`builder.ts searchLabel`);
-- the data source note (`api.texts.dataNote`) is shown under the header's title;
+- the search label of the builder counts the condition window's rows that can be added, "Search N indicators to add"
+  (`condwin.ts condWinCount`; a row that says "Not in backtest" is not counted);
+- the data source note (`api.texts.dataNote`) is shown in the view bar, one line before Full screen, its whole text as
+  its title (`#dataNote`; under the header's title it pushed the header's last rows out of view, M460 item 5);
 - the left header over the price chart (`#xsHd`) is built from the page's state (`header.ts`), not by a script that
   copies a hidden row's text; its elements keep the old ids (`ctxTicker`, `ctxTitle`, `ctxPeriod`, `lastRun`,
-  `staleTag`).
+  `staleTag`); its texts are the design's ("Last run": net return · Sharpe · max drawdown · trades).
+
+Everywhere else the page is the design's, also where the design cuts: at 1024 px the formula bar is one row and cuts
+the chips past its width, and the header clips the rows below its buttons (Agent 10 found two Stage D rules that wrapped
+and scrolled them without the user's approval: removed, M460 item 5; the choice is the user's at Gate 3). On a phone
+(600 px or less), under the decision's "hides nothing": the condition window takes the whole screen (the design's is at
+least 760 px wide, so its Add buttons, Close and Done were off the screen), its categories a row that scrolls across,
+each indicator's row in two or three lines, the strategy panel in the list's place while it is open; the results'
+figures two to a row and the comparison box under the equity chart's title (`design.css`, the 600 px block; M460
+item 6). A row the page cannot calculate says "Not calculated" (the design's and the builder card's word), a test card
+with fields not valid yet "Check fields" (M460 item 7).
 
 Parts: the formula bar above the chart (`filterbar.ts`: the entry rule and the first three active entry conditions as
 chips with their lane letter; a setting that differs from its default in blue), the signal chart under the price pane

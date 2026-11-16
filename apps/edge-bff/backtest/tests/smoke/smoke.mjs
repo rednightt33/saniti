@@ -77,15 +77,6 @@ const chips = () => page.locator('#pkChips .chip b').allInnerTexts();
 const group = async (label, value) => { await showBuilder(); return page.locator(`#pk label.fld:has(span:text-is("${label}")) select`).selectOption({ label:value }) };
 const options = () => page.locator('#pkList [role="option"] b').allInnerTexts();
 const tableRows = () => page.locator('#portSig [data-t]').evaluateAll(rs => rs.map(r => r.dataset.t));
-/* review PG-3: the context title (the header's #ctxTitle) never takes more lines than the reference's title of the same
-   count in the same place ("Banks · n stocks · max m positions"), measured in place; `alt` another title measured there */
-const titleLines = alt => page.evaluate(a => {
-  const el = document.getElementById('ctxTitle'), own = el.textContent;
-  const lines = t => { el.textContent = t; const r = document.createRange(); r.selectNodeContents(el); return new Set([...r.getClientRects()].map(x => Math.round(x.top))).size };
-  const mine = lines(own), ref = lines('Banks · ' + own.match(/\d+ stocks? · max \d+ positions$/)[0]), other = a ? lines(a) : null;
-  el.textContent = own;
-  return { own, mine, ref, other };
-}, alt);
 /* a phone (the design): the open builder covers the main column; the chart and its table are shown once it is closed */
 const showChart = async () => { if (!(await page.evaluate(() => document.getElementById('main').getBoundingClientRect().width))) { await page.click('#panelTg'); await page.waitForTimeout(200) } };
 const showBuilder = async () => { if (await page.evaluate(() => document.body.classList.contains('bcol'))) { await page.click('#bRail'); await page.waitForTimeout(200) } };
@@ -259,9 +250,8 @@ await at('picker: chips and the chart\'s ticker', async () => {
   expect(JSON.stringify(await tableRows()) === '["ASII","BBCA","BBRI"]', `table rows ${await tableRows()}`);
   const tk = await page.inputValue('#sigTicker');
   expect(['ASII', 'BBCA', 'BBRI'].includes(tk), `the chart shows ${tk}, which is not picked`);
-  const t = await titleLines('ASII, BBCA, BBRI · 3 stocks · max 5 positions');
-  expect(t.own.startsWith('ASII') && t.own.endsWith(' · 3 stocks · max 5 positions') && t.mine <= t.ref && (t.own.startsWith('ASII, BBCA, BBRI') || t.other > t.ref),
-    `ctx title "${t.own}" takes ${t.mine} lines, the reference's ${t.ref}, all three tickers ${t.other}`);
+  // the design's title: the picked stocks by up to three tickers, the count, the positions (M460 item 5)
+  expect((await text('#ctxTitle')) === 'ASII, BBCA, BBRI · 3 stocks · max 5 positions', `ctx title ${await text('#ctxTitle')}`);
 });
 /* two settings changes before the first preview answers: that preview is aborted and only the second one answers */
 await at('preview replaced by newer settings', async () => {
@@ -443,14 +433,13 @@ await at('wide: the preview toast is one line', async () => {
   expect((await toastsSince(p0.toasts)).length === 1, `toasts: ${await toastsSince(p0.toasts)}`);
   await noSideScroll('group list');
 });
-/* the title on a phone (the builder closed: the chart's header shown) and wide (a resize), each within the reference's lines */
+/* the title on a phone (the builder closed: the chart's header shown) and wide (a resize): the design's form at both */
 await at('wide: the view bar title on a phone', async () => {
   await showChart();
-  let t = await titleLines();
-  expect(t.mine <= t.ref && t.own.endsWith('9 stocks · max 5 positions'), `the title on a phone "${t.own}" takes ${t.mine} lines, the reference's ${t.ref}`);
+  const title = 'BBCA, WID1, WID2 +6 · 9 stocks · max 5 positions';
+  expect(await text('#ctxTitle') === title, `the title on a phone "${await text('#ctxTitle')}"`);
   await page.setViewportSize({ width:1440, height:900 }); await page.waitForTimeout(300);
-  t = await titleLines();
-  expect(t.mine <= t.ref && t.own.endsWith('9 stocks · max 5 positions'), `the title wide "${t.own}" takes ${t.mine} lines, the reference's ${t.ref}`);
+  expect(await text('#ctxTitle') === title, `the title wide "${await text('#ctxTitle')}"`);
   await page.setViewportSize({ width:390, height:844 }); await page.waitForTimeout(300);
   await showBuilder();
   expect((await text('#sumbox [data-st="1"] em')).startsWith('BBCA, WID1, WID2 +6 · max 5'), `step summary ${await text('#sumbox [data-st="1"] em')}`);

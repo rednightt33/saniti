@@ -10,7 +10,7 @@
    popover), the strategy panel, keyboard (/, arrows, Enter, Esc) as the design. "My metrics" are kept in this browser
    (ml.my: the row and its settings), a convenience of the viewer. */
 import { $, esc, ico, nf, toast } from './format.ts';
-import { BROKER_CODES, DATA } from './env.ts';
+import { BROKER_CODES, CAT, DATA } from './env.ts';
 import { S, mkCond } from './state.ts';
 import { CATALOG, REG_BY, catOf, condReady, mkReg, regMedian, switchedOn, withinLimit } from './reg.ts';
 import type { Card, TestCard } from './api/types.ts';
@@ -82,8 +82,9 @@ function rows(): Row[] {
   CW.drafts.entry.clear(); CW.drafts.exit.clear();
   return CW.rows = out;
 }
-/** how many rows the window lists (the builder's search label, decision 2a: the real number) */
-export const condWinCount = (): number => SC.state === 'ready' ? rows().length : 0;
+/** how many of the window's rows can be added (the builder's search label "Search N indicators to add", decision 2a:
+    the real number; a row that says "Not in backtest" is not counted, Agent 10, M460 item 8) */
+export const condWinCount = (): number => SC.state === 'ready' ? rows().filter(r => r.kind !== 'na').length : 0;
 
 const optLabel = (r: Row, cs: string) => r.opts.find(x => x[0] === cs)?.[1] ?? '';
 /** a card for row `r` at choice `cs` (a page card where the page writes it exactly, else a test card) */
@@ -203,7 +204,11 @@ function rowHTML(i: number, k: number): string {
   const d = draft(i), n = added(i).length, fs = fields(d), cs = csOf(d), ready = condReady(d);
   const prm = fs.length > 2 ? `<button type="button" class="qcus ${fs.some(f => f.def != null && String(f.v) !== String(f.def)) ? 'chg' : ''}" data-cwcus="${i}" aria-haspopup="dialog" title="${fs.length} fields you can change">${ico('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>')}<span class="t">Customize</span><span class="n">${fs.length}</span></button>`
     : fs.map(f => fieldHTML(f, 'qbox', 'd' + i)).join('');
-  return `<div class="qrow ${n ? 'isadd' : ''} ${act}" data-ai="${i}" role="option" aria-selected="${k === CW.act}"><span class="qnm">${name}${ready ? '' : '<span class="pill warn" title="Its fields are not valid yet: it is kept but left out of a run">Check fields</span>'}</span><small class="qdesc" title="${esc(r.ds)}">${esc(r.ds)}</small></span>
+  // why a row's card would be left out of a run (compute.ts ready): a test card's fields not valid yet, any other card's
+  // indicator not calculated on this page (the builder card's and the design's "Not calculated"; Agent 10, M460 item 7)
+  const why = ready ? '' : d.type === 'test' ? '<span class="pill warn" title="Its fields are not valid yet: it is kept but left out of a run">Check fields</span>'
+    : `<span class="pill warn" title="${esc((CATALOG as Record<string, { group?: string }>)[d.type]?.group === 'flow' && CAT.flow.reason ? CAT.flow.reason : 'Not calculated on this page: it is kept but left out of a run')}">Not calculated</span>`;
+  return `<div class="qrow ${n ? 'isadd' : ''} ${act}" data-ai="${i}" role="option" aria-selected="${k === CW.act}"><span class="qnm">${name}${why}</span><small class="qdesc" title="${esc(r.ds)}">${esc(r.ds)}</small></span>
   <span class="qs"><select class="sel" data-cwcs="${i}" aria-label="Condition for ${esc(r.n)}">${r.opts.map(([v, l, ok]) => `<option value="${esc(v)}" ${v === cs ? 'selected' : ''} ${ok ? '' : 'disabled'}>${esc(l)}${ok ? '' : ' · not offered'}</option>`).join('')}</select></span>
   <span class="qt">${prm}</span><button type="button" class="qact ${n ? 'on' : ''}" data-cwadd="${i}" tabindex="-1" title="${n ? 'Remove from ' + CW.side : 'Add to ' + CW.side}">${n ? `<span class="q-on">${ico('<path d="M5 12.5l4.5 4.5L19 7.5"/>')}Added</span><span class="q-rm">Remove</span>` : 'Add'}</button></div>`;
 }
