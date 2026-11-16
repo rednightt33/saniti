@@ -53,7 +53,7 @@ import type { ComputeThread } from './pool.ts';
 import type { PreviewOutcome, PreviewTask } from './preview.ts';
 import { Refresher, TerminalApi } from './refresh.ts';
 import type { Held, RefreshHost } from './refresh.ts';
-import { countsAnswer, countsEnvelope, estimateCost, newCostTracker, normalize, previewEnvelope, resultKey, runEnvelope, validateEnvelope } from './run.ts';
+import { countsAnswer, countsEnvelope, estimateCost, newCostTracker, normalize, previewEnvelope, restrict, resultKey, runEnvelope, validateEnvelope } from './run.ts';
 import type { CountsEntryOut, CountsTask, Envelope, Estimate, RunOptionsN, RunOutcome, RunTask } from './run.ts';
 import { flowContextOf, groupingsOf, materialize, referenceHash } from './snapshot.ts';
 import type { BuildStats, SnapshotDesc, SnapshotReference, TickerEntry } from './snapshot.ts';
@@ -459,6 +459,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       const s = current;
       if (!s) throw notReady();
       const n = await engine.normalize(e.definition, s);
+      restrict(n.normalized, e.rights);                          // EXEC-BACKTEST-REVAMP P5 (K8 b): admins only
       // versions (additive): the registries the definition was checked against, so edge-bff stores them with the item
       return sendJson(res, 200, { valid: true, definition_hash: n.hash, normalized: n.normalized, versions: { ...s.desc.versions } });
     }
@@ -467,6 +468,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       const e = runEnvelope(parseJson(raw));
       const s = await pinned(e.data_version);
       const n = await engine.normalize(e.definition, s);
+      restrict(n.normalized, e.rights);
       let r: Computed | null = null, status = 'ok';
       try {
         r = await compute(s, n.normalized, n.hash, e.options, owner, e.client_order, res, deadlineAt);
@@ -481,6 +483,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       const e = previewEnvelope(parseJson(raw));
       const s = await pinned(e.data_version);
       const n = await engine.normalize(e.definition, s);
+      restrict(n.normalized, e.rights);
       const ticker = e.ticker as string;
       if (!s.position.has(ticker) || !s.desc.rows.some(r => r.ticker === ticker)) throw refuse('INVALID_INPUT', `${ticker} is not a listed stock of this publication; look up a listed ticker instead.`, 'ticker');
       const k = resultKey(s.desc, n.hash, e.options, `preview:${ticker}`), hit = results.get(k);
@@ -512,6 +515,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       for (const [k, d] of defs.entries()) {
         try {
           const n = await engine.normalize(d.definition, s, `definitions[${k}].definition`);
+          restrict(n.normalized, e.rights, `definitions[${k}].definition`);
           const c = counts.get(countsKey(s, n.hash));
           if (c) { hits++; entries.push({ item_id: d.item_id, match_count: c.match_count, near_count: c.near_count, busy_ms: 0 }); continue }
           const est = engine.estimate(n.normalized, s);

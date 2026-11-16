@@ -1,0 +1,9 @@
+[
+ "legacy:stoch",
+ "legacy:bb",
+ "legacy:dip",
+ "legacy:all",
+ "legacy:all:disabled-one",
+ "rsi:params-empty",
+ "exit-signal"
+]

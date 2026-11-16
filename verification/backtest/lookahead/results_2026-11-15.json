@@ -1,0 +1,146 @@
+[
+ {
+  "ticker": "BBRI",
+  "bars": 920,
+  "from": "2023-01-02",
+  "to": "2026-11-13",
+  "broker_rows": 89483,
+  "cuts": [
+   "2024-05-16",
+   "2025-02-17",
+   "2025-11-26",
+   "2026-07-06"
+  ],
+  "anchor": "2023-03-30",
+  "series": 168,
+  "groups": {
+   "indicators": 76,
+   "price_action": 8,
+   "candles": 20,
+   "grammar": 4,
+   "flow_a_c": 44,
+   "point_in_time": 16
+  },
+  "leaks": [],
+  "refused": [
+   "FL01.sell: INVALID_CONDITION",
+   "FL02.sell: INVALID_CONDITION",
+   "FL03.sell: INVALID_CONDITION",
+   "FL04.sell: INVALID_CONDITION",
+   "FL05.sell: INVALID_CONDITION",
+   "FL13.sell: INVALID_CONDITION",
+   "FL32.sell: INVALID_CONDITION",
+   "FL33.sell: INVALID_CONDITION",
+   "FL34.value: METRIC_UNAVAILABLE",
+   "FL34.change: METRIC_UNAVAILABLE"
+  ]
+ },
+ {
+  "ticker": "GOTO",
+  "bars": 920,
+  "from": "2023-01-02",
+  "to": "2026-11-13",
+  "broker_rows": 82325,
+  "cuts": [
+   "2024-05-16",
+   "2025-02-17",
+   "2025-11-26",
+   "2026-07-06"
+  ],
+  "anchor": "2023-03-30",
+  "series": 168,
+  "groups": {
+   "indicators": 76,
+   "price_action": 8,
+   "candles": 20,
+   "grammar": 4,
+   "flow_a_c": 44,
+   "point_in_time": 16
+  },
+  "leaks": [],
+  "refused": [
+   "FL01.sell: INVALID_CONDITION",
+   "FL02.sell: INVALID_CONDITION",
+   "FL03.sell: INVALID_CONDITION",
+   "FL04.sell: INVALID_CONDITION",
+   "FL05.sell: INVALID_CONDITION",
+   "FL13.sell: INVALID_CONDITION",
+   "FL32.sell: INVALID_CONDITION",
+   "FL33.sell: INVALID_CONDITION",
+   "FL34.value: METRIC_UNAVAILABLE",
+   "FL34.change: METRIC_UNAVAILABLE"
+  ]
+ },
+ {
+  "ticker": "COCO",
+  "bars": 889,
+  "from": "2023-01-02",
+  "to": "2026-11-13",
+  "broker_rows": 24509,
+  "cuts": [
+   "2024-04-26",
+   "2025-01-17",
+   "2025-12-05",
+   "2026-07-09"
+  ],
+  "anchor": "2023-03-30",
+  "series": 168,
+  "groups": {
+   "indicators": 76,
+   "price_action": 8,
+   "candles": 20,
+   "grammar": 4,
+   "flow_a_c": 44,
+   "point_in_time": 16
+  },
+  "leaks": [],
+  "refused": [
+   "FL01.sell: INVALID_CONDITION",
+   "FL02.sell: INVALID_CONDITION",
+   "FL03.sell: INVALID_CONDITION",
+   "FL04.sell: INVALID_CONDITION",
+   "FL05.sell: INVALID_CONDITION",
+   "FL13.sell: INVALID_CONDITION",
+   "FL32.sell: INVALID_CONDITION",
+   "FL33.sell: INVALID_CONDITION",
+   "FL34.value: METRIC_UNAVAILABLE",
+   "FL34.change: METRIC_UNAVAILABLE"
+  ]
+ },
+ {
+  "ticker": "ALKA",
+  "bars": 895,
+  "from": "2023-01-02",
+  "to": "2026-11-13",
+  "broker_rows": 14380,
+  "cuts": [
+   "2024-04-30",
+   "2025-01-23",
+   "2025-10-30",
+   "2026-06-03"
+  ],
+  "anchor": "2023-03-30",
+  "series": 168,
+  "groups": {
+   "indicators": 76,
+   "price_action": 8,
+   "candles": 20,
+   "grammar": 4,
+   "flow_a_c": 44,
+   "point_in_time": 16
+  },
+  "leaks": [],
+  "refused": [
+   "FL01.sell: INVALID_CONDITION",
+   "FL02.sell: INVALID_CONDITION",
+   "FL03.sell: INVALID_CONDITION",
+   "FL04.sell: INVALID_CONDITION",
+   "FL05.sell: INVALID_CONDITION",
+   "FL13.sell: INVALID_CONDITION",
+   "FL32.sell: INVALID_CONDITION",
+   "FL33.sell: INVALID_CONDITION",
+   "FL34.value: METRIC_UNAVAILABLE",
+   "FL34.change: METRIC_UNAVAILABLE"
+  ]
+ }
+]

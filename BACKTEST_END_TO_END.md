@@ -558,6 +558,8 @@ xsection and refs indexes are presigned.
 
 ## 7. Stage 5: the worker (`apps/backtest-worker`)
 
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 18.*
+
 A private `node:http` service; edge-bff (`WorkerClient` in `apps/edge-bff/app/backtest.py`) is its only caller and the
 page never reaches it. No npm dependency: `node --experimental-strip-types --import ./loader/register.mjs
 src/server.ts`. The loader resolves the Terminal's Vite-style extensionless imports (ERRORS M249). The Docker image
@@ -622,6 +624,8 @@ Only the latest job is kept, in memory; after a restart every id is 404 `UNKNOWN
 
 ## 8. Stage 6: edge-bff, the public API and the queue (`apps/edge-bff/app/backtest.py`)
 
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 18.*
+
 edge-bff never computes and never stores market data. It reads only a few fields of a request (mode, ticker, picked
 stocks) and of a result (versions, duration, trials, lineage key, events). Off (503 `BACKTEST_DISABLED`) when
 `BACKTEST_WORKER_URL` is empty; 503 `BACKTEST_NOT_READY` until the tables exist.
@@ -682,6 +686,8 @@ migration's `$verify$` block checks.
   both (but see ERRORS M252, section 12).
 
 ## 9. Stage 7: the engine (shared core, `apps/edge-bff/backtest/src/core`)
+
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 18.*
 
 Pure TypeScript, no I/O; the same modules run in the browser (charts, preview) and in the worker (runs).
 
@@ -754,6 +760,8 @@ only for the visual and numeric comparison with `backtest.html`, and is checked 
 
 ## 11. Cross-cutting
 
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 18.*
+
 ### 11.1 Caches, from the bucket to the screen
 
 | Where | What | Key | Lifetime |
@@ -809,7 +817,13 @@ in the worker, class names only in the publisher).
   it. backtest-worker, terminal-api and terminal-publisher are CLI uploads (`railway up`): merging to `main` does not
   redeploy them. ERRORS M252: a merge commit can be skipped by Railway ("No changes to watched files"); after every
   merge check the edge-bff deployment and deploy the commit explicitly when it was skipped. Ids and procedures:
-  `RAILWAY_CHANGELOG.md` 2026-10-26 and 2026-10-27 entries.
+  `RAILWAY_CHANGELOG.md` 2026-10-26 and 2026-10-27 entries. **Order (EXEC-BACKTEST-REVAMP, ERRORS M459 item 15):** the
+  workers before edge-bff, because a new edge-bff sends `context` (rights, the owner's trials) that the older workers
+  refuse: backtest-worker uploaded from the green commit, screener-worker, then edge-bff from `main`
+  (`apps/backtest-worker/README.md` Deploy). CI: `backtest-lookahead.yml` (workers, Screener and page),
+  `backend-tests.yml` (edge-bff, terminal-publisher, telegram-monitor) and `backtest-page-smoke.yml` (the page's
+  Playwright smoke on its stub API, user 2026-11-16 "3A", ERRORS M460); `checkSuites` is not live yet (K10 a, applied
+  with the deploy after Gate 3).
 - **Migrations**: `20261026_005` and `20261027_005`, applied in dev (DRYRUN then APPLY on orc-test-runner; logs in
   `verification/backtest/jobs/`).
 - **Tests** (run one suite at a time; the edge-bff suite uses a cluster-wide role):
@@ -827,6 +841,8 @@ in the worker, class names only in the publisher).
 
 ## 13. Known open items
 
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 18.*
+
 | Item | Status | Where |
 |---|---|---|
 | Files overwritten in place during publisher runs → `DATA_INTEGRITY` | FIXED in code (content keys + cleanup); dev verification PENDING: the first scheduled run with it (00:30 UTC 2026-10-28, `4c2c3823`) crashed in planning before the cleanup and before any write (ERRORS M263) | ERRORS M250, M263 |
@@ -840,6 +856,8 @@ in the worker, class names only in the publisher).
 | `backtest_jobs` rows and `backtest_trials` are never purged; `prior_trials` grows per lineage | no decision yet | `apps/edge-bff/README.md` |
 
 ## 14. How to change things
+
+*EXEC-BACKTEST-REVAMP (2026-11-15): see section 18.*
 
 | Change | Files | Tests |
 |---|---|---|
@@ -903,3 +921,64 @@ built at start); the page draws at once (`PROVISIONAL`, loading lines), candles 
 ticker, decoding in `api/load.worker.ts`; one rack module for both pages' cache and downloads
 (`terminal/src/data/rack.ts`); a connection pool in edge-bff (`app/store.py`). Still open: the run itself (5–13 s),
 the publisher's in-place rewrites (M250).
+
+## 18. EXEC-BACKTEST-REVAMP (2026-11-15): what the revamp changed along the pipeline
+
+The rules are in `apps/edge-bff/backtest/CONTRACT.md` section 13; this is where each change sits in the stages above.
+
+- **Stage 5, the worker (section 7).** Three modules:
+  - `src/grammar.ts` computes conditions in the Screener's grammar (kind `test`) with the Screener core: it is
+    installed into the shared core once per thread, and the Screener core is copied into the image and covered by
+    `engine_version`;
+  - `src/canonical.ts` is the hash form (K7 a);
+  - `src/pit/` holds the eight point-in-time Flow indicators (admins only).
+
+  Broker rows are kept as typed columns (`datafile.ts brokerColumns`, about 56 bytes a row) only when a Flow
+  indicator reads them; the preview loads IHSG and, with Flow, events and broker rows. `context.rights` (none when
+  absent) and `context.owner_trials` come from edge-bff. The worker refuses to start when the Screener registry,
+  catalog or sources disagree (`grammarProblems`). Wake-up after sleep adds about 3-15 s, measured as container start
+  0.3-9.7 s plus edge-bff's probe schedule (`wake.py DELAYS = (1, 2, 4, 8, 8)`: probes at about 1, 3, 7, 15 and 23 s);
+  the disk cache survives the sleep, the memory cache does not.
+- **Stage 6, edge-bff (section 8).** Owner and rights come from the session (`app/rights.py`, `EDGE_ADMIN_OWNERS`), and
+  every worker call carries them, a queued job's computed when it is dispatched. A body from the page that carries
+  `context` is refused. The catalog is filtered per session, the kept one too. Result parts are joined on the owner.
+  The owner's trials of the last 90 days go to the worker (K6 a). The Screener routes carry the same rights (K8 b).
+- **Stage 7, the engine (section 9).**
+  - Price against an output the lag probe marks reads the prior bar (K5 a; `compare-lag.json` from the Screener's
+    registry generator).
+  - New warnings: `PRICES_RESTATED` and the Flow data warnings (engine); `FEW_TRADES`, `OOS_STRADDLE`,
+    `DSR_SAMPLE_RULE`, `ANCHOR_INSIDE_PERIOD` (result).
+  - `SURVIVORSHIP` in single mode too.
+  - The sensitivity grid takes a grammar threshold.
+- **Cross-cutting (section 11).** Look-ahead is a CI gate (`.github/workflows/backtest-lookahead.yml`, AGENTS.md
+  "Backtest look-ahead gate"). The real-data check is in `verification/backtest/lookahead/`. edge-bff and
+  screener-worker are to deploy only on green checks (K10 a, applied with the deploy after Gate 3; not live yet, M459); the worker, a CLI upload,
+  only after a green run on the uploaded commit, its ID recorded (`apps/backtest-worker/README.md`, Deploy).
+- **Stage C review (ERRORS M458).** An independent review found what the gate did not test; fixed on the branch: the
+  engine-level look-ahead case runs grammar, Flow and point-in-time conditions and a late series; `dSignal` is
+  truncation-tested; a named broker whose first row is after the period's end is refused per stock; an unused
+  `window_bars` no longer splits a line; the Donchian compare lag marks the trial; the brokers' classification is in
+  `data_version`; FL34's broker lists are checked; the Screener's refusal details pass through; a Screener preset that
+  reads an admin entry is hidden from other sessions. The broker-price mask that read a later action (M458 item 2) is
+  replaced by P9 (option A, user 2026-11-16).
+- **P9, broker prices on the price basis (Stage 1-2 and 5).** The publisher measures, per split, bonus share and rights
+  issue, whether the broker prices and the published prices are on one basis across it and writes the factor and status
+  into the events file (`basis`, `publisher.py broker_basis`; the Terminal reads only the events columns). The worker
+  multiplies the broker lots before a `terms` action by its factor when it decodes the broker files
+  (`datafile.ts onPriceBasis`), so every Flow formula reads broker prices on the prices' basis; a Flow value is empty
+  only where the data up to its bar leaves the basis unsettled (`apps/backtest-worker/src/basis.ts`). Stage C2 (user
+  2026-11-16 "A", ERRORS M459): an action is decided once its 21 days after the ex date have passed (`decided`), from its
+  own window; before that date the worker treats it as undecided whatever the file says, and every Flow value (every
+  family) whose window crosses an undecided, unresolved or not-reloaded action is empty. The daily publisher run reports
+  the recent actions that need attention on Telegram (`Broker_Basis_Report`: unresolved, or the price history not pulled
+  again; a pending one is not listed); the steps after an action are `UPDATE_TABLE.md` part C.
+- **Known open items (section 13).**
+  - The data-layer fix M449: an as-traded price series (broker lots on the price basis: P9).
+  - `OOS_ALREADY_SEEN`.
+  - The point-in-time grid axes (anchor ±10/20 sessions, top N ±1/2).
+  - A point-in-time indicator inside a transform.
+  - The cross-thread broker budget of K9 b item 4.
+  - The page port (Stage D).
+- **How to change things (section 14).** Adding a Flow indicator, transform or pattern needs no list here: the
+  registries decide, and the look-ahead gate tests it. Changing the Screener's lag probe or registry rebuilds
+  `compare-lag.json` in the same commit (`npm run registry` in `apps/edge-bff/screener`).

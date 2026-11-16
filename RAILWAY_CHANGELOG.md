@@ -1,5 +1,24 @@
 # Railway changelog
 
+## 2026-11-16 — EXEC-BACKTEST-REVAMP Stage C2: `.railway/railway.ts` records the live `checkSuites` (no Railway change)
+
+- Lens 2 F4 (ERRORS M459 item 14): the 2026-11-15 entry wrote `checkSuites: true` for edge-bff and screener-worker into
+  `railway.ts` before applying it; the live triggers read `checkSuites: false` (edge-bff, screener-worker,
+  telegram-monitor, Railway `deploymentTriggers`, read-only, by the reviewer). The file now records the live `false`
+  with a note; K10 a (true for both) is applied with `railway config apply` at the deploy after Gate 3, with the user's
+  approval. No variable, service or deployment was changed.
+- The deploy order across services (M459 item 15) is in `apps/backtest-worker/README.md` (Deploy) and
+  `BACKTEST_END_TO_END.md`: backtest-worker upload, screener-worker, then edge-bff.
+
+## 2026-11-15 — EXEC-BACKTEST-REVAMP: `.railway/railway.ts` records the live limits and the CI gate (not applied yet)
+
+- Recorded from the live project (ERRORS M455, Railway `serviceInstanceLimits`, read-only): backtest-worker
+  `limitOverride` 1,000,000,000 bytes (set 2026-11-07, kept by user K9 b), Postgres 2,000,000,000 bytes (user 2026-11-09
+  "Limit ram keep 2gb dulu"). `railway.ts` said none and 1 GB.
+- K10 a (user 2026-11-15): `checkSuites: true` for edge-bff and screener-worker, so a push to `main` deploys only on green
+  checks (the look-ahead gate among them). Not applied: it takes effect with `railway config plan` and apply at the
+  deploy after Gate 2, with approval. No variable, service or deployment was changed in this step.
+
 ## 2026-11-15 — Market Overview second release: terminal-publisher `65c25a7b`, edge-bff `0c882d2d` (`main` `724d130c`); Postgres restart (EXEC-OVERVIEW, user "Oke, jalankan.")
 
 - **Go:** user 2026-11-15 "Oke, jalankan." for steps 1-5 (deploy publisher, Run Now, restart Postgres, push `main`,
@@ -41,6 +60,9 @@
   terminal-publisher's code `f69eb9e3` = deployed `8a49b4c8`, its bucket and database variables as references):
   `broker-range` 2024-2026 for the 43 indexes, 129 files planned, 172 written (101.6 MB); `verify` 442 files 0
   mismatches. A first publish attempt stopped at SET_FAILED (CLI), nothing ran, no variable left.
+- Postgres restart by the user (Telegram "🔄 Restart Postgres", 2026-11-15) after the read-only reviews of BACKTEST-REVAMP
+  Stages A-B (memory had been 1.84-2.0 GB of 2.0 GB since 15:00 UTC): `pg_postmaster_start_time` 18:58:27 UTC; memory
+  0.09 GB at 19:00 UTC (Railway metrics, read back by the main agent).
 - Postgres restarts by `run_job.sh` (`"large_write": true`): 18:13:38 UTC after the fill, 18:41:38 UTC after the
   publish (memory 1.97 and 1.99 GB, 0 user runs, edge-bff ready 200). The scheduled restart ran at 13:47 UTC.
 - stockbit-updater CLI upload `bbd5aa7f` (deploy.sh from `78d95ad4`) SUCCESS: after IHSG each round runs every other

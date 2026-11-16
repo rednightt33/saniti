@@ -51,6 +51,11 @@ POSTGRES_RESTART_SOURCE = "Postgres_Restart"
 # The loaders that already notify (price DAILY/RECOVERY, fixed income, broker round) are read from their monitoring
 # rows; a loader without a monitoring notice on a clean run (idx-intraday-cron) sends Terminal_Publish_Request.
 PUBLISH_REQUEST_SOURCE = "Terminal_Publish_Request"
+# EXEC-BACKTEST-REVAMP P9.4 (user 2026-11-16, option A: "laporan harian (log dan Telegram)"): terminal-publisher reports,
+# once a day, the recent corporate actions whose broker basis needs attention (the broker prices against the published
+# prices; ERRORS M450, M458 item 2, D22). Only the publisher measures it, so the facts come with the request, accepted only
+# in the fixed shape parse_broker_basis checks: tickers, dates, counts and enumerations, never free text.
+BASIS_SOURCE = "Broker_Basis_Report"
 PUBLISH_SIGNAL_TABLE = "public.terminal_publish_signal"
 PUBLISH_TRIGGER_SOURCES = PRICE_MONITORING_SOURCES | {STOCKBIT_SOURCE, PUBLISH_REQUEST_SOURCE}
 RAILWAY_API_URL = "https://backboard.railway.com/graphql/v2"
@@ -61,7 +66,7 @@ mutation RunCronNow($input: DeploymentInstanceExecutionCreateInput!) {
 """
 SUPPORTED_SOURCES = PRICE_MONITORING_SOURCES | {"Monitoring_Feature04", STOCKBIT_SOURCE, FRESHNESS_SOURCE, HEALTH_SOURCE,
                                                 CONSENSUS_SOURCE, AUDIT_QUEUE_SOURCE, POSTGRES_RESTART_SOURCE,
-                                                PUBLISH_REQUEST_SOURCE}
+                                                PUBLISH_REQUEST_SOURCE, BASIS_SOURCE}
 MAX_REQUEST_BYTES = 16_384
 MAX_TELEGRAM_TEXT = 4_000
 JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
@@ -626,6 +631,89 @@ def build_postgres_restart_message(report: PostgresRestart) -> str:
     verdict = "akan dijalankan" if report.would_restart else f"tidak akan dijalankan ({why})"
     return (f"🧪 Uji restart Postgres ({kind}, mode check, tanpa restart): restart {verdict}.\n"
             f"Memori {gb(report.memory_gb)}.{wait}\n{auto}")
+
+
+# Stage C2 (lens 2 F7): the date and a digest of the items, so a changed list the same day is sent and the same list once
+BASIS_ID = re.compile(r"^broker-basis-(\d{4}-\d{2}-\d{2})(?:-[0-9a-f]{8})?$")
+BASIS_TICKER = re.compile(r"^[A-Z0-9]{1,12}$")
+BASIS_TYPES = {"STOCK_SPLIT": "stock split", "REVERSE_SPLIT": "reverse split", "BONUS_SHARE": "saham bonus",
+               "RIGHT_ISSUE": "rights issue", "STOCK_DIVIDEND": "dividen saham"}
+BASIS_STATUSES = {"terms", "same", "pending", "unresolved"}
+BASIS_MAX_ITEMS = 30
+
+
+@dataclass(frozen=True)
+class BrokerBasisReport:
+    execution_id: str
+    date: str
+    total: int
+    items: tuple[tuple[str, str, str, str, str | None], ...]   # ticker, ex date, type, status, price
+
+
+def parse_broker_basis(execution_id: str, details: object) -> BrokerBasisReport:
+    """terminal-publisher's daily broker basis report, checked field by field; anything else is a ValueError (400)."""
+    match = BASIS_ID.fullmatch(execution_id)
+    if not match or not isinstance(details, dict) or set(details) != {"date", "total", "items"}:
+        raise ValueError("invalid broker basis report")
+    day, total, items = details["date"], details["total"], details["items"]
+    if day != match.group(1) or isinstance(total, bool) or not isinstance(total, int) or not 1 <= total <= 100_000:
+        raise ValueError("invalid broker basis report")
+    if not isinstance(items, list) or not 1 <= len(items) <= min(total, BASIS_MAX_ITEMS):
+        raise ValueError("invalid broker basis items")
+    out = []
+    for item in items:
+        if not isinstance(item, dict) or set(item) != {"ticker", "ex", "type", "status", "price"}:
+            raise ValueError("invalid broker basis item")
+        ticker, ex, typ, status, price = (item[k] for k in ("ticker", "ex", "type", "status", "price"))
+        try:
+            if not (isinstance(ex, str) and len(ex) == 10):
+                raise ValueError
+            date.fromisoformat(ex)
+        except ValueError:
+            raise ValueError("invalid broker basis item") from None
+        if (not (isinstance(ticker, str) and BASIS_TICKER.fullmatch(ticker)) or typ not in BASIS_TYPES
+                or status not in BASIS_STATUSES or price not in ("raw", "adjusted", None)
+                or not (status in ("pending", "unresolved") or price == "raw")):
+            raise ValueError("invalid broker basis item")
+        out.append((ticker, ex, typ, status, price))
+    return BrokerBasisReport(execution_id, day, total, tuple(out))
+
+
+def pack_lines(lines: list[str], max_length: int = MAX_TELEGRAM_TEXT) -> list[str]:
+    """Lines packed into messages of at most max_length characters, in order (a line longer than that is cut)."""
+    out, cur = [], ""
+    for line in (x[:max_length] for x in lines):
+        if cur and len(cur) + 1 + len(line) > max_length:
+            out.append(cur)
+            cur = line
+        else:
+            cur = f"{cur}\n{line}" if cur else line
+    return out + ([cur] if cur else [])
+
+
+def build_broker_basis_messages(report: BrokerBasisReport, max_length: int = MAX_TELEGRAM_TEXT) -> list[str]:
+    """Stage C2 (lens 2 F6): the report in as many messages as Telegram's limit needs (30 items reach about 5,500
+    characters); the steps line closes the last one."""
+    lines = build_broker_basis_message(report).split("\n")
+    return pack_lines(lines, max_length)
+
+
+def build_broker_basis_message(report: BrokerBasisReport) -> str:
+    when = lambda d: datetime.strptime(d, "%Y-%m-%d").strftime("%d %b %Y")
+    lines = [f"⚠️ Basis harga lawan data broker ({when(report.date)}): {report.total} aksi korporasi perlu perhatian"]
+    for ticker, ex, typ, status, price in report.items:
+        why = []
+        if price == "raw":
+            why.append("riwayat harga belum ditarik ulang sesudah aksi ini")
+        if status == "pending":
+            why.append("menunggu cukup hari bursa sesudah tanggal ex (dihitung ulang otomatis)")
+        if status == "unresolved":
+            why.append("selisih harga broker lawan harga tidak cocok dengan syarat aksi; cek datanya")
+        lines.append(f"• {ticker} {BASIS_TYPES[typ]}, ex {when(ex)}: {'; '.join(why)}")
+    if report.total > len(report.items):
+        lines.append(f"… dan {report.total - len(report.items)} lainnya (log terminal-publisher, event broker_basis).")
+    lines.append("Langkah sesudah aksi korporasi: UPDATE_TABLE.md bagian C. Backtest mengosongkan nilai yang belum cocok.")
+    return "\n".join(lines)
 
 
 LOADER_NAME = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
@@ -1297,6 +1385,8 @@ class TelegramMonitor:
             health = parse_audit_queue(execution_id, details)
         if source_table == POSTGRES_RESTART_SOURCE:
             health = parse_postgres_restart(execution_id, details)
+        if source_table == BASIS_SOURCE:
+            health = parse_broker_basis(execution_id, details)
         if source_table == PUBLISH_REQUEST_SOURCE:
             loader, changed = parse_publish_request(execution_id, details)
             with psycopg.connect(self.database_url) as connection:
@@ -1357,6 +1447,9 @@ class TelegramMonitor:
                 elif isinstance(summary, PostgresRestart):        # every report is sent, a success included
                     message_ids.append(self.send_message(self.token, self.chat_id,
                                                          build_postgres_restart_message(summary)))
+                elif isinstance(summary, BrokerBasisReport):     # P9.4: when the list of actions that need attention changes
+                    for message in build_broker_basis_messages(summary):
+                        message_ids.append(self.send_message(self.token, self.chat_id, message))
                 elif isinstance(summary, ConsensusReport):       # every weekly report is sent, a clean one included
                     message_ids.append(self.send_message(self.token, self.chat_id, build_consensus_message(summary)))
                 elif isinstance(summary, StockbitUpdateSummary):

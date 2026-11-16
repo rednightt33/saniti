@@ -327,6 +327,29 @@ cd apps/backtest-worker && npm start
 
 `npm start` needs the variables above.
 
+### Deploy
+
+The worker is not connected to GitHub: it is uploaded with the Railway CLI from a clean tree of the commit to deploy
+(`git archive`, as `RAILWAY_CHANGELOG.md` records each upload). No Railway setting can hold a CLI upload back, so the CI
+gate is a manual step (EXEC-BACKTEST-REVAMP K10 a, ERRORS M458):
+
+1. the workflow `Backtest look-ahead gate` (`.github/workflows/backtest-lookahead.yml`) has a green run on exactly the
+   commit uploaded (the worker suite, the Screener worker's suite, the Screener and page suites);
+2. the upload names that commit and the run ID, recorded in `RAILWAY_CHANGELOG.md` with the deployment ID;
+3. success is claimed only when that deployment is `SUCCESS` and `/health` answers the new `engine_version`.
+
+**Order across services (Stage C2, ERRORS M459 item 15).** A new edge-bff sends the worker `{request, context}` with
+`context.rights` and `context.owner_trials`, and screener-worker `context` too; the deployed workers before this revamp
+refuse those bodies (422 `INVALID_REQUEST` "The body must be {request}", `UNKNOWN_FIELD context.owner_trials`, the
+Screener's `INVALID_INPUT` "context is not a field"), so every Backtest run, preview and queued job, and every Screener
+run, would fail until they are updated. A new worker accepts the old bodies (no context: no rights), so the order is:
+1. upload this worker (the steps above) from the green commit, before the merge;
+2. screener-worker before edge-bff (both build from `main`: with `checkSuites` off a push deploys both at once, so the
+   few minutes between their builds refuse Screener calls; a quiet hour, or screener-worker uploaded from the same
+   commit first);
+3. edge-bff from `main`; then terminal-publisher (CLI) and telegram-monitor (before the publisher's first report).
+The K7 a hash form starts new strategy lines at this deploy (trial counts restart; intended, `hash-golden-k7a.json`).
+
 ## Tests
 
 Run `npm test` (`node --experimental-strip-types --import ./loader/register.mjs --test tests/*.test.ts`). It needs no dependency and no network.
@@ -439,3 +462,33 @@ project folder `backtest/e2e-2026-10-27/`):
   against 166 ms). The worker stays in `sfo`.
 - **Memory.** Railway's one-minute peak was 1.31 GB while a 12-stock preview, its run and a cancel ran within the
   minute; 0.32 GB for the cold API sequence alone. CPU peaked at 0.43 vCPU (one-minute average).
+
+## EXEC-BACKTEST-REVAMP (2026-11-15)
+
+The rules are in `apps/edge-bff/backtest/CONTRACT.md` section 13. The modules:
+
+- `src/grammar.ts`: conditions in the Screener's grammar (kind `test`), computed with the Screener core (installed into
+  the shared core once per thread by `validate.ts`); the Flow indicators per bar from the whole broker history;
+  `grammarProblems` (the start-up check of the Screener registry, catalog and sources).
+- `src/canonical.ts`: the form the hashes are taken over (K7 a).
+- `src/pit/`: the eight point-in-time Flow indicators (`compute.ts`, `spec.ts`, `evaluate.ts`, `series.ts`), worker-only,
+  admins only (right `flow_point_in_time` in `context.rights`).
+- `src/catalog.ts flowIndicators`: the catalog's `flow_indicators`.
+- `src/basis.ts` (P9, option A, user 2026-11-16): where a broker-price Flow value stays empty, from the data up to its bar
+  only (a bar whose Regular broker VWAP is outside its own range, or an action across which the broker basis is not
+  settled). The lots are put on the price basis when the broker files are decoded (`terminal.ts`, core `datafile.ts
+  brokerBasis`, `onPriceBasis`: the events file's `basis` block, written by the publisher).
+
+The image copies the Screener core and its registry generator, and `engine_version` covers them. New tests:
+
+| Test | What it checks |
+|---|---|
+| `grammar.test.ts` | parity with the Screener on the data cut at each sampled day; the Screener's refusal details; the empty-series refusal up to the period's end |
+| `canonical.test.ts` | one language, one trial; an unused `window_bars` never splits a line or a trial; the compare-lag mark |
+| `flow-grammar.test.ts` | the Flow series equal `computeFlow` (selected-broker variants included); the basis mask and the Flow warnings; a named broker whose first row is after the period |
+| `pit.test.ts` | truncation and Terminal equality of every point-in-time indicator, and of their conditions (`dSignal`) |
+| `lookahead.test.ts` | the engine as a whole on the data cut at t, with grammar, Flow and point-in-time conditions and a late series |
+| `hash-golden.test.ts` | the K7 a once-change in `hash-golden-k7a.json` |
+
+The real-data check is in `verification/backtest/lookahead/`. New variable: `BACKTEST_MAX_FLOW_SERIES` (default 8).
+Memory: K9 b keeps the 1 GB limit; the budgets are set with the deploy after Gate 2.

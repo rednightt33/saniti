@@ -18,7 +18,11 @@ import type { BacktestRequest, BacktestResult, Catalog, JobProgress, JobStatus, 
 import { DEFAULT_ENTRY, LEGACY, legacyCard, legacyToCondition } from '../../edge-bff/backtest/src/core/catalog.ts';
 import type { LegacyCard } from '../../edge-bff/backtest/src/core/catalog.ts';
 import { MAX_PORTFOLIO_TICKERS, MAX_POSITIONS } from '../../edge-bff/backtest/src/core/engine.ts';
-import { lineageKey, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { lineageKey as coreLineageKey, variantHash as coreVariantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { hashForm, lineageForm } from '../src/canonical.ts';
+// the worker hashes a request's hash form (canonical.ts, EXEC-BACKTEST-REVAMP K7 a)
+const lineageKey = (q: BacktestRequest) => coreLineageKey(lineageForm(q));
+const variantHash = (q: BacktestRequest) => coreVariantHash(hashForm(q));
 import { packResult } from '../src/compute.ts';
 import { FLOW_OFF_REASON, loadConfig } from '../src/config.ts';
 import { PlannedClient } from '../src/load.ts';
@@ -221,6 +225,9 @@ test('catalog: the published tickers with their groups, the groupings, the broke
   const c = a.json() as Catalog;
   assert.equal(c.schema_version, 1); assert.equal(c.engine_version, ENGINE_VERSION); assert.equal(c.registry_version, REGISTRY_VERSION);
   assert.equal(c.data_through, FX.get('IHSG')!.T.at(-1)); assert.equal(c.first_date, FX.get('IHSG')!.T[0]);
+  // Stage D (D5): the grammar's refused reference kinds with their reasons, the worker's own (grammar.ts NOT_PER_DAY)
+  assert.deepEqual(Object.keys(c.grammar_refusals ?? {}).sort(), ['rank', 'universe', 'xsection']);
+  assert.match(c.grammar_refusals!.universe, /screen date only/);
   assert.deepEqual(c.tickers, refs.tickers.map(r => ({ ticker: r.ticker, name: r.name, type: r.type, groups: r.groups })));
   assert.deepEqual(c.tickers.find(t => t.ticker === 'IHSG'), { ticker: 'IHSG', name: 'IHSG (test name)', type: 'index', groups: { sector: null, industry: null } });
   assert.deepEqual(c.tickers.find(t => t.ticker === 'LQ45'), { ticker: 'LQ45', name: null, type: 'index', groups: { sector: null, industry: null } });   // as published
@@ -232,7 +239,7 @@ test('catalog: the published tickers with their groups, the groupings, the broke
   assert.equal('universes' in c, false);
   assert.deepEqual(c.flow, { available: false, reason: FLOW_OFF_REASON, brokers: ['YU', 'ZP'], data_through: null });
   const manifests = () => fake.requests.filter(r => r.path.startsWith('/api/terminal/v1/manifest/')).length, m0 = manifests();
-  assert.deepEqual(c.limits, { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 60, queued_per_owner: 3, max_conditions: 20 });
+  assert.deepEqual(c.limits, { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 60, queued_per_owner: 3, max_conditions: 20, max_flow_series: 8 });
   assert.equal(manifests(), m0, 'flow off: no manifest is asked');
   // flow on: available, no reason, and the newest broker data_through of every stock's manifest
   const on = createApp(loadConfig(ENV({ BACKTEST_FLOW_ENABLED: '1' })));
@@ -631,7 +638,7 @@ test('a caller that leaves while the worker waits for the reference lists queues
     assert.deepEqual(previews, [['UNVR'], ['GOTO']], 'the abandoned preview never reached the preview thread, so the next one waited for nothing');
     // and it loaded no data: the bundles asked since are the two previews' own (a fresh thread: nothing is cached)
     const bundled = fake.requests.slice(b0).filter(x => x.path === '/api/terminal/v1/bundle').map(x => JSON.parse(x.body).ticker);
-    assert.deepEqual([...new Set(bundled)].sort(), ['GOTO', 'UNVR']);
+    assert.deepEqual([...new Set(bundled)].sort(), ['GOTO', 'IHSG', 'UNVR']);              // a preview reads IHSG too (P2)
     // a job: the abandoned POST /v1/jobs never starts (edge-bff finds the id unknown and posts it again)
     const left = newId();
     await leave('/v1/jobs', jobBody(left, pageDefault('BBCA')), at);
@@ -755,3 +762,18 @@ test('preview_end: each preview\'s wait in the queue (preview_wait_ms), its comp
 /* ---- what was observed (durations on this machine, for the report; not asserted) ---------------------------------- */
 const observed: Record<string, unknown> = {};
 after(() => { process.stdout.write(`# observed ${JSON.stringify(observed)}\n`) });
+
+test('P5: rights from the context only, fail closed; unknown rights and fields refused; D refused even switched off', async () => {
+  const { rightsOf } = await import('../src/server.ts');
+  assert.deepEqual(rightsOf(undefined), []);
+  assert.deepEqual(rightsOf(['flow_point_in_time']), ['flow_point_in_time']);
+  for (const bad of [['admin'], 'flow_point_in_time', ['flow_point_in_time', 'flow_point_in_time'], [1]])
+    assert.throws(() => rightsOf(bad), (e: unknown) => (e as { code?: string }).code === 'INVALID_CONTEXT', JSON.stringify(bad));
+  const { checkRequest } = await import('../src/validate.ts');
+  const q = pageDefault('UNVR');
+  const d = { id: 'd1', enabled: false, kind: 'test', test: { kind: 'value', metric: { kind: 'flow', metric: 'FL45', params: { anchor: '2026-01-02' } }, op: 'gt', value: 5 } };
+  const withD = { ...q, entry: { ...q.entry, conditions: [...q.entry.conditions, d] } };
+  assert.throws(() => checkRequest(withD, refs, { limits: loadConfig(ENV()).limits, flow: { enabled: true, reason: null } }),
+    (e: unknown) => (e as { code?: string; field?: string }).code === 'CONDITION_RESTRICTED' && (e as { field?: string }).field === `entry.conditions[${q.entry.conditions.length}].test.metric`);
+  checkRequest(withD, refs, { limits: loadConfig(ENV()).limits, flow: { enabled: true, reason: null } }, new Set(['flow_point_in_time']));
+});

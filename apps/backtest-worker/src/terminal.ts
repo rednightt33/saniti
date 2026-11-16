@@ -47,9 +47,10 @@
 import { mkdir, readFile, readdir, rename, stat, unlink, utimes, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
-  DataError, brokerGaps, brokerRows, corporateActions, dataVersion, decodeColumnar, inflateVerified, priceSeries,
+  DataError, brokerBasis, brokerColumns, brokerGaps, brokerRows, corporateActions, dataVersion, decodeColumnar, inflateVerified, onPriceBasis,
+  priceSeries,
 } from '../../edge-bff/backtest/src/core/datafile.ts';
-import type { BrokerGap, BrokerRow, Columnar, CorporateAction, FileEntry, PriceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
+import type { BasisAction, BrokerColumns, BrokerGap, BrokerRow, Columnar, CorporateAction, FileEntry, PriceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { flowData } from '../../edge-bff/backtest/src/core/flow.ts';
 import type { FlowData } from '../../edge-bff/backtest/src/core/flow.ts';
 import { isIsoDate } from '../../edge-bff/backtest/src/core/signals.ts';
@@ -131,9 +132,11 @@ export interface LoadedTicker {
   ticker: string;
   prices: PriceSeries | null;                    // 'price' read
   broker_rows: BrokerRow[] | null;               // 'broker' read (null as well with keepBrokerRows: false)
+  broker_columns?: BrokerColumns | null;         // 'broker' read with keepBrokerColumns (P3: a Flow indicator in the grammar)
   broker_gaps: BrokerGap[] | null;               // the publisher's gap markers
   flow: FlowData | null;                         // 'price' and 'broker' read: flow.ts on the ticker's price bars
   corporate_actions: CorporateAction[] | null;   // 'events' read; a ticker without events has an empty list
+  broker_basis?: BasisAction[] | null;           // 'events' read: the price actions' broker basis (P9, datafile brokerBasis)
   data_through: Partial<Record<Dataset, string | null>>;   // per dataset, as the manifest has it
   first_year: Partial<Record<Dataset, number | null>>;
   generated_at: string | null;                   // the manifest's generated_at
@@ -144,7 +147,7 @@ export interface Loaded {
   files: ReadFile[];                             // every file read, sorted by ticker, dataset, sha256
   data_version: string;                          // datafile.ts dataVersion over `files`
 }
-export interface LoadOptions { keepBrokerRows?: boolean }   // false: only the flow is kept (portfolio memory)
+export interface LoadOptions { keepBrokerRows?: boolean; keepBrokerColumns?: boolean }   // false: only the flow is kept (portfolio memory); columns: P3
 /** A row of terminal-api's ticker reference file. groups: the ticker's value of every other column (the file's
     classifications, today sector and industry; PF6), null when it has none: a value that is not a string, '', or
     'Undefined' (DATABASE_SCHEMA.md IDX_Stock_Universe."Sector"/"Industry": the source gives no classification; the
@@ -154,7 +157,9 @@ export interface TickerRef { ticker: string; name: string | null; type: string |
 export interface TickerReference { groupings: string[]; tickers: TickerRef[] }
 /** The value of a classification column, null when it is unclassified (TickerRef groups). */
 export const classification = (v: unknown): string | null => typeof v === 'string' && v !== '' && v !== 'Undefined' ? v : null;
-export interface BrokerRef { code: string; name: string | null; type: string | null }
+/** classification: IDX_Broker_Profile's label (Institutional-heavy, Retail-heavy, Mixed, Niche) where the reference file
+    has the column (FL34 and the class: broker scopes, EXEC-BACKTEST-REVAMP P3), else null. */
+export interface BrokerRef { code: string; name: string | null; type: string | null; classification?: string | null }
 /** EXEC-BACKTEST-LOAD (user 2026-10-27, K1): the publisher run the published files belong to (terminal-api GET /state:
     state.json, written last by each run) and the newest price and broker dates of the whole tables at that run. */
 export interface Publication { finished_at: string; price_through: string | null; broker_through: string | null }
@@ -539,13 +544,15 @@ export class TerminalClient {
       }));
     }));
     if (docs.price) t.prices = priceSeries(ticker, docs.price);
+    if (docs.events) { t.corporate_actions = corporateActions(docs.events); t.broker_basis = brokerBasis(docs.events, t.corporate_actions) }
     if (docs.broker) {
       const rows = brokerRows(docs.broker), gaps = brokerGaps(docs.broker);
+      // P9: the columns the grammar's Flow indicators read have their lots on the published prices' basis
+      if (opts.keepBrokerColumns) t.broker_columns = onPriceBasis(brokerColumns(docs.broker), t.broker_basis ?? []);
       t.broker_gaps = gaps;
       if (opts.keepBrokerRows !== false) t.broker_rows = rows;
       if (t.prices) t.flow = flowData(rows, t.prices.dates, gaps);
     }
-    if (docs.events) t.corporate_actions = corporateActions(docs.events);
     files.sort(byFile);
     return t;
   }
@@ -620,9 +627,10 @@ export class TerminalClient {
     for (const k of keys) if (!doc.columns.includes(k)) throw new DataError('DATA_INTEGRITY', `${what}: column ${k} is missing.`, name);
     const c = keys.map(k => doc[k] as unknown[]), str = (v: unknown) => typeof v === 'string' ? v : null;
     const groupings = name === 'tickers' ? doc.columns.filter(k => !keys.includes(k)) : [];
+    const cls = name === 'brokers' && doc.columns.includes('classification') && Array.isArray(doc.classification) ? doc.classification as unknown[] : null;
     const rows = c[0].map((id, i) => {
       if (typeof id !== 'string' || !id) throw new DataError('DATA_INTEGRITY', `${what}: row ${i + 1} has no ${keys[0]}.`, name);
-      if (name === 'brokers') return { code: id, name: str(c[1][i]), type: str(c[2][i]) };
+      if (name === 'brokers') return { code: id, name: str(c[1][i]), type: str(c[2][i]), classification: cls ? str(cls[i]) : null };
       const groups: Record<string, string | null> = {};
       for (const g of groupings) groups[g] = classification((doc[g] as unknown[])[i]);
       return { ticker: id, name: str(c[1][i]), type: str(c[2][i]), groups };

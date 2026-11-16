@@ -1,0 +1,58 @@
+name: Backtest page smoke
+
+# EXEC-BACKTEST-REVAMP Gate 3 (user 2026-11-16 "3A": the page's smoke test in CI; ERRORS M460 item 4): the Playwright run
+# of the Backtest page on its stub API (apps/edge-bff/backtest/tests/smoke/smoke.mjs: every builder step, the condition
+# window, runs and every results tab, the portfolio picker, markup in every string, a phone's width, flow, slow data,
+# the theme from EDGE), failing on any console or page error. It ran by hand only and drifted from the page for three
+# weeks unseen (M460). Runs on a push or pull request that touches the page or a module it reads. No database, no
+# secrets, no network beyond the package registries (the web font is answered empty by the test).
+
+on:
+  push:
+    paths:
+      - "apps/edge-bff/backtest/**"
+      - "apps/edge-bff/screener/src/**"
+      - "apps/edge-bff/screener/tests/fixture/**"
+      - "apps/edge-bff/terminal/src/**"
+      - "apps/edge-bff/static/favicon*"
+      - ".github/workflows/backtest-page-smoke.yml"
+  pull_request:
+    paths:
+      - "apps/edge-bff/backtest/**"
+      - "apps/edge-bff/screener/src/**"
+      - "apps/edge-bff/screener/tests/fixture/**"
+      - "apps/edge-bff/terminal/src/**"
+      - "apps/edge-bff/static/favicon*"
+      - ".github/workflows/backtest-page-smoke.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backtest-page-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Screener dependencies (the page reads its entries, forms and test fixture)
+        working-directory: apps/edge-bff/screener
+        run: npm ci
+      - name: Backtest page dependencies
+        working-directory: apps/edge-bff/backtest
+        run: npm ci
+      # the smoke loads Playwright from the global modules (smoke.mjs createRequire), the version the sandbox has
+      - name: Playwright with Chromium
+        run: |
+          npm install -g playwright@1.63.0
+          npx -y playwright@1.63.0 install --with-deps chromium
+          echo "NODE_PATH=$(npm root -g)" >> "$GITHUB_ENV"
+      - name: Smoke (build the stub page, run every step)
+        working-directory: apps/edge-bff/backtest
+        run: npm run smoke

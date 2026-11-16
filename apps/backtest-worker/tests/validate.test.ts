@@ -21,7 +21,7 @@ const REFS: References = {
   brokers: [{ code: 'YU', name: 'test broker', type: 'Foreign' }],
 };
 const CFG: Pick<Config, 'limits' | 'flow'> = {
-  limits: { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 600, queued_per_owner: 3, max_conditions: 20 },
+  limits: { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 600, queued_per_owner: 3, max_conditions: 20, max_flow_series: 8 },
   flow: { enabled: true, reason: null },
 };
 const codeOf = (f: () => unknown) => { try { f() } catch (e) { if (e instanceof ValidationError) return [e.code, e.field]; throw e } return null };
@@ -299,4 +299,13 @@ test('a lowered limit is the one every refusal names, over the core\'s ceiling t
   // the default limits are the core's ceilings (12): the same wording
   assert.deepEqual(msg(() => checkRequest(portfolioRequest(['S01'], 13), MANY, CFG)), ['INVALID_PORTFOLIO', 'portfolio.max_positions', 'portfolio.max_positions must be a whole number from 1 to 12.']);
   assert.equal(msg(() => checkRequest(portfolioRequest(picked(5), 5), MANY, five)), null);
+});
+
+test('Stage C F8: every broker list of a Flow reference is checked against the broker list, FL34 inst and retail included', () => {
+  const fl = (metric: string, params: Record<string, unknown>) => ({ id: 'f', kind: 'test', test: { kind: 'value', metric: { kind: 'flow', metric, params }, op: 'gt', value: 0 } }) as unknown as Condition;
+  assert.deepEqual(codeOf(() => checkRequest(pageRequest([fl('FL34', { inst: ['YU'], retail: ['QQ'] })]), REFS, CFG)), ['UNKNOWN_BROKER', 'entry.conditions[0].test.metric.params.retail[0]']);
+  assert.deepEqual(codeOf(() => checkRequest(pageRequest([fl('FL46', { num_scope: 'selected', num_brokers: ['ZZ'] })]), REFS, CFG)), ['UNKNOWN_BROKER', 'entry.conditions[0].test.metric.params.num_brokers[0]']);
+  assert.equal(codeOf(() => checkRequest(pageRequest([fl('FL34', { inst: ['YU'], retail: ['YU'] })]), REFS, CFG)), null);
+  // a class scope is not a list of codes
+  assert.equal(codeOf(() => checkRequest(pageRequest([fl('FL34', {})]), REFS, CFG)), null);
 });

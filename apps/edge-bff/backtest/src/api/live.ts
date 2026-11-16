@@ -12,6 +12,7 @@ import { ApiFailure, isAbort, type BacktestApi, type Card, type TickerBars, type
 import { Compute } from './compute.ts';
 import { fileCache, type FileCache } from './cache.ts';
 import { PUBLISHED_TEXTS } from './texts.ts';
+import type { CatalogResponse } from '../../../screener/src/core/contract.ts';
 
 const TERMINAL = '/api/terminal/v1', BACKTESTS = '/api/v1/backtests';
 const SIGN_IN = 'Sign in to EDGE first, then open the Backtest tab again.';
@@ -170,6 +171,10 @@ export function liveApi(opts: { cache?: FileCache } = {}): BacktestApi {
     ready: (card: Card) => compute.ready(card),
     indicatorOutputs: (ticker, id, params) => compute.indicatorOutputs(ticker, id, params),
     conditionSeries: (ticker, card) => compute.conditionSeries(ticker, card),
+    tracks: (ticker, detail) => compute.tracks(ticker, detail),
+    tracked: (ticker, which) => compute.tracked(ticker, which),
+    // Stage D (D5): the Screener's catalog of this session (edge-bff filters it per right, as for the Screener page)
+    screenerCatalog: () => call<CatalogResponse>('/api/v1/screener', '/catalog', undefined, 'screener'),
 
     signalsPreview: (req: SignalsPreviewRequest, o = {}) =>
       call<SignalsPreview>(BACKTESTS, '/signals', { ...req, client_order:{ page, seq:++previews } }, undefined, o.signal),

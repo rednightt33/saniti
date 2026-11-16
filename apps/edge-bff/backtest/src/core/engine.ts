@@ -22,7 +22,8 @@
    prepare(data) keeps one indicator memo per ticker (conditions.ts Calc), so the sensitivity grid's reruns of
    run(context, request) recompute only the comparisons, not the indicators. Pure module: no DOM and no Node API. */
 import type { BacktestRequest, ExitPhase, ExitReason, Limits, SkippedSignal, SignalTrack } from './contract.ts';
-import type { CorporateAction, PriceSeries } from './datafile.ts';
+import type { BasisAction, CorporateAction, PriceSeries, BrokerColumns } from './datafile.ts';
+import { unknownBasis } from './datafile.ts';
 import type { FlowData } from './flow.ts';
 import type { Ledger, LedgerTrade } from './ledger.ts';
 import type { Num, Params } from '../../../terminal/src/calc/indicators.ts';
@@ -42,6 +43,8 @@ export interface TickerData {
   prices: PriceSeries;                     // published bars as they are (no adjusted close), bars.T = dates
   corporate_actions: CorporateAction[];    // price-affecting actions only (datafile corporateActions)
   flow?: FlowData;                         // aligned with prices.bars; absent while catalog.flow.available is false
+  broker?: BrokerColumns;                  // the broker rows as columns, when a Flow indicator in the grammar reads them (P3)
+  basis?: BasisAction[];                   // P9: the price actions' broker basis (absent: unknown, datafile unknownBasis)
 }
 /** Everything a run reads. IHSG is always present (calendar, IHSG benchmark). Single mode reads the request's ticker;
     portfolio mode reads the request's picked stocks (portfolio.tickers, PF1), and every one of them in `tickers`
@@ -49,7 +52,7 @@ export interface TickerData {
     none of their bars is read); the run lists them in its TICKERS_EXCLUDED warning with the stocks it leaves out
     itself. In portfolio mode `tickers` and `excluded` hold each picked stock exactly once and no other ticker (the
     worker loads exactly the picked stocks); run() refuses other market data (pickedLoaded). */
-export interface MarketData { ihsg: PriceSeries; tickers: Record<string, TickerData>; excluded?: Exclusion[] }
+export interface MarketData { ihsg: PriceSeries; tickers: Record<string, TickerData>; excluded?: Exclusion[]; classification?: Readonly<Record<string, string>> }
 
 export interface Hooks { progress?(done: number, total: number): void; shouldStop?(): boolean }
 /** Thrown by run() when hooks.shouldStop() answers true (job state CANCELLED). */
@@ -100,8 +103,10 @@ function prepared(ctx: Context, ticker: string, field: string): Prepared {
   if (!d || !d.prices) throw new EngineDataError('DATA_MISSING', `No price data was loaded for ${ticker}.`, field);
   checkSeries(d.prices, ticker, true);
   const b = d.prices.bars;
-  // conditions.ts Calc takes the ticker's flow data as its second argument (flow conditions, kind 'flow')
-  const calc = new Calc(b, d.flow);
+  // conditions.ts Calc takes the ticker's flow data as its second argument (flow conditions, kind 'flow'), and the
+  // ticker, its bar dates and IHSG's bars for the grammar (kind test: vs_index)
+  const calc = new Calc(b, d.flow, { ticker, dates: d.prices.dates, index: { dates: ctx.data.ihsg.dates, bars: ctx.data.ihsg.bars },
+    ...(d.broker ? { broker: { columns: d.broker, classification: ctx.data.classification ?? {}, basis: d.basis ?? unknownBasis(d.corporate_actions) } } : {}) });
   p = { ticker, data: d, calc, O: b.O as number[], H: b.H as number[], L: b.L as number[], C: b.C as number[], scores: {}, liq: null, maps: new Map() };
   ctx.tickers.set(ticker, p);
   return p;
@@ -155,6 +160,64 @@ export const MAX_PORTFOLIO_TICKERS = 12;  // stocks one portfolio may pick (user
 export type RunLimits = Pick<Limits, 'max_positions' | 'max_portfolio_tickers'>;
 const CEILINGS: RunLimits = { max_positions: MAX_POSITIONS, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS };
 export const ADJUSTED_HISTORY_BOUNDARY = '2026-09-12';
+
+/* EXEC-BACKTEST-REVAMP P3 (user decision 4 and K3 a, 2026-11-15; ERRORS M157, M450): what the run's Flow conditions read
+   from the broker data, per stock, over the sessions they read (the period, and before it as many sessions as the
+   longest Flow series reads: its window or baseline; the whole history for a series that reads all of it):
+   - FLOW_PRE_2021: those sessions start before 2021 (the 2016-2020 source misses some brokers on some days);
+   - FLOW_BASIS_CHANGE: a Flow value was left empty inside the period, because its window reads broker lots on another
+     basis than the prices, or across an action not decided yet on its bar (the grammar's mask, FlowNotes; Stage C2);
+   - FLOW_SOURCE_GAP: days the publisher marks as a source gap (buy and sell totals differ) among those sessions;
+   - FLOW_ROWS_DROPPED: broker rows on a day without a price bar, which no Flow value reads (as on the Terminal), per
+     board;
+   - FLOW_CROSSING_BOARDS (P4): a point-in-time cohort reads the Nego or Cash board;
+   - FLOW_LOTS_RESTATED (Stage C2, lens 1 F6): an action whose basis is `terms` falls after the first session read, so the
+     broker lots before it are on the published prices' share basis (P9 onPriceBasis), not as the Terminal's chart
+     shows them.
+   A stock counts when a condition of the run reads its broker data (a flow condition, or the grammar noted it). */
+export const FLOW_PRE_2021 = '2021-01-01';
+function flowWarnings(prep: readonly Prepared[], active: ReturnType<typeof requestConditions>, from: string, to: string): Ledger['warnings'] {
+  const legacy = [...active.entry, ...active.exit].filter(c => c.cond.kind === 'flow').map(c => Number((c.cond as { params?: { length?: unknown } }).params?.length) || 1);
+  const legacyDepth = legacy.length ? Math.max(...legacy) : -1;
+  const pre: string[] = [], basis: string[] = [], crossing: string[] = [], lots: string[] = [], gap = new Map<string, number>(), dropped = { Regular: 0, Nego: 0, Cash: 0 }, droppedTickers = new Set<string>();
+  for (const p of prep) {
+    const notes = p.calc.flowNotes;
+    if (legacyDepth < 0 && !notes) continue;
+    const dates = p.data.prices.dates, n = dates.length;
+    let i0 = 0; while (i0 < n && dates[i0] < from) i0++;
+    let iEnd = n - 1; while (iEnd >= 0 && dates[iEnd] > to) iEnd--;
+    if (i0 > iEnd) continue;
+    const depth = notes && notes.depth === null ? Infinity : Math.max(legacyDepth, notes?.depth ?? 0);
+    const start = depth === Infinity ? 0 : Math.max(0, i0 - depth), startDate = dates[start], endDate = dates[iEnd];
+    if (startDate < FLOW_PRE_2021 || (notes?.first !== undefined && notes.first < FLOW_PRE_2021 && notes.first <= endDate)) pre.push(p.ticker);
+    if (notes?.crossing) crossing.push(p.ticker);
+    if (notes && (p.data.basis ?? []).some(a => a.status === 'terms' && a.factor !== 1 && a.ex > startDate)) lots.push(p.ticker);
+    if (notes && [...notes.masked].some(i => i >= i0 && i <= iEnd)) basis.push(p.ticker);
+    const g = (p.data.flow?.gap_bars ?? []).filter(i => i >= start && i <= iEnd).length;
+    if (g) gap.set(p.ticker, g);
+    const u = p.data.flow?.unmatched_dates;
+    if (u) for (const b of ['Regular', 'Nego', 'Cash'] as const) {
+      const k = u[b].filter(d => d >= startDate && d <= endDate).length;
+      if (k) { dropped[b] += k; droppedTickers.add(p.ticker) }
+    }
+  }
+  const out: Ledger['warnings'] = [], list = (t: string[]) => [...t].sort(byTicker), stocks = (k: number) => k === 1 ? '1 stock' : `${k} stocks`;
+  if (pre.length) out.push({ code: 'FLOW_PRE_2021', count: pre.length, tickers: list(pre),
+    message: `The Flow conditions read broker data from before 2021 for ${stocks(pre.length)}: the 2016-2020 source misses some brokers on some days, so flow values in those years are less complete than later ones.` });
+  if (basis.length) out.push({ code: 'FLOW_BASIS_CHANGE', count: basis.length, tickers: list(basis),
+    message: `A Flow value was left empty on some days of the period for ${stocks(basis.length)}: its window reads across a split, bonus share or rights issue whose broker data is not on the basis of the published prices, or whose basis is decided only once the 21 days after its ex date have passed, so its lots or broker prices would mix two scales.` });
+  if (gap.size) { const days = [...gap.values()].reduce((a, b) => a + b, 0);
+    out.push({ code: 'FLOW_SOURCE_GAP', count: days, tickers: list([...gap.keys()]),
+      message: `On ${days === 1 ? '1 trading day' : `${days} trading days`} the Flow conditions read (counted per stock), the broker source's buy and sell totals differ: some brokers are missing from those days.` }) }
+  if (crossing.length) out.push({ code: 'FLOW_CROSSING_BOARDS', count: crossing.length, tickers: list(crossing),
+    message: `A point-in-time broker cohort reads the Nego or Cash board for ${stocks(crossing.length)}: trades there are negotiated crossings between two parties, so one block can make a broker the largest buyer or seller of the whole span.` });
+  if (lots.length) out.push({ code: 'FLOW_LOTS_RESTATED', count: lots.length, tickers: list(lots),
+    message: `For ${stocks(lots.length)} a split, bonus share or rights issue falls inside the broker data the Flow conditions read: the broker lots before it are put on the share basis of the published prices (lots times the action's factor; rupiah values unchanged), so lot values there differ from the Terminal's chart, which shows the lots as traded.` });
+  const nd = dropped.Regular + dropped.Nego + dropped.Cash;
+  if (nd) out.push({ code: 'FLOW_ROWS_DROPPED', count: nd, tickers: list([...droppedTickers]),
+    message: `Broker rows on days without a price bar are not read by any Flow value (as on the Terminal): ${(['Regular', 'Nego', 'Cash'] as const).filter(b => dropped[b]).map(b => `${dropped[b]} day${dropped[b] === 1 ? '' : 's'} on the ${b} board`).join(', ')} (counted per stock).` });
+  return out;
+}
 /** A portfolio's picked stocks (contract.ts portfolio.tickers, PF1-PF3): a list of 1 to `max` distinct strings, else
     `code` at `field`; the copy in ticker order (the canonical order: the same set in any order is the same request).
     Whether each is a published stock is the worker's check (validate.ts, UNKNOWN_TICKER at `field`[i]); `max` is
@@ -326,6 +389,7 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
   }
   const left = single ? null : leftOut(excluded, signalled.length, 'portfolio.tickers', 'run');   // UNIVERSE_EMPTY when none is left
   if (left) warnings.push(left);
+  warnings.push(...flowWarnings(prep, active, from, to));
 
   /* ---- the result calendar and the primary benchmark ---- */
   // IHSG and every ticker whose bars the run read, run or left out (PF8, 2026-10-27): which tickers run is decided on
@@ -529,11 +593,27 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
     warnings.push({ code: 'DATA_GAP', count, tickers: [...gapTickers].sort(byTicker),
       message: `A held or signalled stock had no bar on ${count === 1 ? '1 trading day' : `${count} trading days`} (counted per stock): a position held through such a day was valued at its last close, and an entry signal on the day before it was skipped instead of filled at a stale price.` });
   }
+  // EXEC-BACKTEST-REVAMP P7 (user K4 a, 2026-11-15; ERRORS M449): a stock with a split, bonus share or rights issue after
+  // the period's start whose published prices carry it has its prices inside the period restated with a factor the
+  // market learned only on that day (look back); listed per stock, whatever the period's end. Stage C2 (lens 1 F10):
+  // whether the prices carry an action is the publisher's reading of the close across it (basis `price`, P9: adjusted
+  // or raw, the date being the ex date); where it has none (no basis block, or an action too small to tell) the
+  // published history is adjusted up to the boundary
+  const carried = (d: TickerData, a: CorporateAction) => {
+    const b = d.basis?.find(x => x.ex === a.date && x.type === a.type);
+    return b?.price === 'adjusted' || (b?.price !== 'raw' && a.date <= ADJUSTED_HISTORY_BOUNDARY);
+  };
+  const restated = signalled.filter(r => r.p.data.corporate_actions.some(a => a.date > from && carried(r.p.data, a))).map(r => r.p.ticker).sort(byTicker);
+  if (restated.length)
+    warnings.push({ code: 'PRICES_RESTATED', count: restated.length, tickers: restated,
+      message: `${restated.length === 1 ? '1 stock' : `${restated.length} stocks`} had a split, bonus share or rights issue after the start of the period: the published prices before it are restated with a factor that was known only on that day, so absolute levels on those days (a price, an ATR or a volume threshold) differ from what was traded; ratios and percentages are not affected.` });
   if (from < ADJUSTED_HISTORY_BOUNDARY && to >= ADJUSTED_HISTORY_BOUNDARY)
     warnings.push({ code: 'ADJUSTED_HISTORY_BOUNDARY', message: `The period crosses ${ADJUSTED_HISTORY_BOUNDARY}: published prices before it are back-adjusted for splits, bonus shares and rights issues, prices after it are raw. Trades held through a corporate action are marked with it.` });
   warnings.push({ code: 'ARB_NOT_MODELLED', message: 'Auto-rejection limits are not modelled: a stop fills at the lower of the open and the stop level, with no lower-limit lock; entries are only skipped when the open gaps up by the ARA gap fraction or more (when that option is on).' });
   warnings.push({ code: 'TICK_NOT_MODELLED', message: 'Fills are not rounded to the IDX tick size.' });
   if (!single) warnings.push({ code: 'SURVIVORSHIP', message: 'The stocks are picked from today\'s list of published tickers: stocks delisted before today cannot be picked, which can flatter past results.' });
+  // EXEC-BACKTEST-REVAMP (ERRORS M457): a single stock is chosen from today's list too
+  else warnings.push({ code: 'SURVIVORSHIP', message: 'The stock is chosen from today\'s list of published tickers: a strategy tried on stocks that are still listed today looks better than it would have on the stocks of its time, some of which were delisted since.' });
 
   return {
     dates: dates.slice(), equity, exposure, benchmark_close,

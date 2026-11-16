@@ -14,7 +14,9 @@ export default defineRailway(() => {
   // ("Pake 1 gb likely Setiap query akan timeout. Kembalikan ke 4GB ya"). Change it with scripts/set_postgres_memory.py.
   // 2026-11-07: 512 MB set by the user in the dashboard; 2026-11-09 back to 1 GB (Railway API serviceInstanceLimitsUpdate,
   // user "Naikkan ke 1 GB"): the stockbit-updater INDEX rebuild was killed by the out-of-memory killer at 512 MB.
-  Postgres.deploy = { limitOverride: { containers: { memoryBytes: 1000000000 } } };
+  // 2026-11-09: 2 GB after an out-of-memory stop at 1 GB (user "Naikkan limit sementara ke 2 GB"; "Limit ram keep 2gb
+  // dulu, nanti saya yg rubah"); recorded here 2026-11-15 from the live limit (ERRORS M455, Railway serviceInstanceLimits).
+  Postgres.deploy = { limitOverride: { containers: { memoryBytes: 2000000000 } } };
   const postgresVolumeThQL = volume("postgres-volume-thQL", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 100000 });
   const stockbitUpdaterVolume = volume("stockbit-updater-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
@@ -211,9 +213,16 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     env: { BACKTEST_CACHE_BYTES: preserve(), BACKTEST_CACHE_DIR: preserve(), BACKTEST_CACHE_DIR_BYTES: preserve(), BACKTEST_DOWNLOAD_CONCURRENCY: preserve(), BACKTEST_DOWNLOAD_RETRIES: preserve(), BACKTEST_FILE_ORIGIN: preserve(), BACKTEST_FLOW_ENABLED: preserve(), BACKTEST_HTTP_TIMEOUT_MS: preserve(), BACKTEST_MAX_BROKER_ROWS: preserve(), BACKTEST_MAX_CONDITIONS: preserve(), BACKTEST_MAX_DOWNLOAD_BYTES: preserve(), BACKTEST_MAX_FILE_BYTES: preserve(), BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_RETRY_BASE_MS: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), TERMINAL_PROXY_KEY: preserve(), TERMINAL_URL: preserve() },
     // EXEC-U4-WORKERS (go 2026-11-02): sleeps when idle; edge-bff wakes it (apps/edge-bff/app/wake.py)
-    deploy: { sleepApplication: true },
+    // EXEC-BACKTEST-REVAMP K9 b (user 2026-11-15, "K9 B"): the 1 GB limit set on 2026-11-07 stays, recorded here from the
+    // live limit (ERRORS M455); the run keeps within it by its budgets (BACKTEST_CACHE_BYTES, BACKTEST_MAX_BROKER_ROWS,
+    // BACKTEST_MAX_FLOW_SERIES), set with the deploy after Gate 2
+    deploy: { sleepApplication: true, limitOverride: { containers: { memoryBytes: 1000000000 } } },
   });
   // EDGE Screener worker (apps/screener-worker, EXEC-SCREENER P3 a): built from GitHub main with the repository root as context
+  // EXEC-BACKTEST-REVAMP K10 a (user 2026-11-15): a push to main is to deploy only once its GitHub checks pass (the
+  // look-ahead gate among them, .github/workflows/backtest-lookahead.yml). Not live yet: this file records the live
+  // value (false, read 2026-11-16, Stage C2 lens 2 F4); it becomes true with `railway config apply` at the deploy after
+  // Gate 3, with the user's approval (RAILWAY_CHANGELOG 2026-11-15)
   const screenerWorker = service("screener-worker", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "apps/screener-worker/Dockerfile",
@@ -230,7 +239,7 @@ export default defineRailway(() => {
     env: { SCREENER_CACHE_BYTES: preserve(), SCREENER_CACHE_DIR: preserve(), SCREENER_CACHE_DIR_BYTES: preserve(), SCREENER_CAP_BUDGET_MS: preserve(), SCREENER_DEADLINE_MS: preserve(), SCREENER_DOWNLOAD_CONCURRENCY: preserve(), SCREENER_DOWNLOAD_RETRIES: preserve(), SCREENER_FILE_ORIGIN: preserve(), SCREENER_HTTP_TIMEOUT_MS: preserve(), SCREENER_MAX_CONDITIONS: preserve(), SCREENER_MAX_COUNTS: preserve(), SCREENER_MAX_CPU_MS: preserve(), SCREENER_MAX_FILE_BYTES: preserve(), SCREENER_MAX_INFLATED_BYTES: preserve(), SCREENER_MAX_METRIC_FILTERS: preserve(), SCREENER_MAX_REFRESH_BYTES: preserve(), SCREENER_MAX_REQUEST_BYTES: preserve(), SCREENER_MAX_RESPONSE_BYTES: preserve(), SCREENER_OWNER_CPU_MS: preserve(), SCREENER_OWNER_INFLIGHT: preserve(), SCREENER_PREVIOUS_GRACE_S: preserve(), SCREENER_QUEUE: preserve(), SCREENER_RETRY_BASE_MS: preserve(), SCREENER_THREADS: preserve(), SCREENER_THREAD_HEAP_MB: preserve(), SCREENER_WITHIN_MAX: preserve(), SCREENER_WORKER_KEY: preserve(), TERMINAL_PROXY_KEY: preserve(), TERMINAL_URL: preserve() },
   });
   const edgeBff = service("edge-bff", {
-    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/edge-bff" }),
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/edge-bff" }),   // K10 a pending, as screener-worker
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
     start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1 --no-access-log --no-proxy-headers",
     healthcheck: "/ready",

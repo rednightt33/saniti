@@ -10,6 +10,7 @@ import { Calc, combineEntry, combineExit, conditionSeries, switchOns, trueBars }
 import type { Condition, EntryLogic, Op, Signal } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { REGISTRY, ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import * as O from './oracle.mjs';
+import lagDoc from '../../edge-bff/backtest/src/core/compare-lag.json' with { type: 'json' };
 
 const fixtures = loadFixtures().map((f: any) => ({ ticker: f.ticker, bars: { T: f.T, O: f.O, H: f.H, L: f.L, C: f.C, V: f.V } }));
 const OP: Record<Op, string> = { gt: 'gt', lt: 'lt', crosses_above: 'ca', crosses_below: 'cb' };
@@ -38,13 +39,22 @@ function indicatorCases() {
       cases.push({ cond: { id: `${r.id}-${out}-${op}-v`, kind: 'indicator', indicator: r.id, params, lhs: { type: 'output', output: out }, op, rhs: { type: 'value', value: NaN } },
         oracle: c => O.regEval(O.toF(series(c)[out]), null, (this_value_of(c, r.key, resolved, out)), OP[op]) });
       cases.push({ cond: { id: `${r.id}-${out}-${op}-p`, kind: 'indicator', indicator: r.id, params, lhs: { type: 'price' }, op, rhs: { type: 'output', output: out } },
-        oracle: c => O.regEval(price(c), O.toF(series(c)[out]), 0, OP[op]) });
+        oracle: c => O.regEval(price(c), lagged(r.id, out, r.price_input, op, O.toF(series(c)[out])), 0, OP[op]) });
       if (sib) cases.push({ cond: { id: `${r.id}-${out}-${op}-${sib}`, kind: 'indicator', indicator: r.id, params, lhs: { type: 'output', output: out }, op, rhs: { type: 'output', output: sib } },
         oracle: c => O.regEval(O.toF(series(c)[out]), O.toF(series(c)[sib]), 0, OP[op]) });
     }
   }
   return cases;
 }
+/* EXEC-BACKTEST-REVAMP K5 a (ERRORS M451): price against an output the Screener's lag probe marks reads the output's
+   prior bar (the page's regEval compared with today's band, which a Donchian close can never exceed); the oracle reads
+   the probe's file, not the core's code */
+const LAG = (lagDoc as { price_compare_lag: Record<string, Record<string, { field: string; gt: number; lt: number }>> }).price_compare_lag;
+const lagged = (id: string, out: string, field: string, op: Op, s: Float64Array): Float64Array => {
+  const l = LAG[id]?.[out], dir = op === 'gt' || op === 'crosses_above' ? 'gt' : 'lt';
+  if (!l || l.field !== field || l[dir] !== 1) return s;
+  const o = new Float64Array(s.length).fill(NaN); for (let i = 1; i < s.length; i++) o[i] = s[i - 1]; return o;
+};
 const this_value_of = (c: Calc, key: string, params: any, out: string) => median(c.out(key, params)[out]);
 const withValue = (cond: Condition, c: Calc): Condition => cond.kind === 'indicator' && cond.rhs.type === 'value'
   ? { ...cond, rhs: { type: 'value', value: this_value_of(c, REGISTRY.indicators.find(r => r.id === cond.indicator)!.key, { ...DEFAULTS[REGISTRY.indicators.find(r => r.id === cond.indicator)!.key], ...cond.params }, cond.lhs.output!) } }

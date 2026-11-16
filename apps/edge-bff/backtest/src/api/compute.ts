@@ -9,12 +9,17 @@ import { isN } from '../../../terminal/src/calc/indicators.ts';
 import { LEGACY, legacyToCondition, regToCondition, type LegacyCard, type RegCard } from '../core/catalog.ts';
 import { Calc, conditionSeries } from '../core/conditions.ts';
 import { BY_ID, ValidationError, resolveParams } from '../core/registry.ts';
-import type { Card, Outputs, TickerBars } from './types.ts';
+import type { Card, Outputs, TestCard, TickerBars } from './types.ts';
+import type { PreviewDetail, SignalTrack } from '../core/contract.ts';
+import { testReady, testWire } from '../grammar.ts';
 
-/** a card as the wire condition a run sends (the one mapping of core/catalog.ts) */
-export const toWire = (c: Card): Condition => c.type === 'reg' ? regToCondition(c as RegCard) : legacyToCondition(c as LegacyCard);
+/** a card as the wire condition a run sends (the one mapping of core/catalog.ts; a test card's is the Screener's) */
+export const toWire = (c: Card): Condition => c.type === 'test' ? testWire(c as TestCard) : c.type === 'reg' ? regToCondition(c as RegCard) : legacyToCondition(c as LegacyCard);
 
-interface Loaded { bars: TickerBars; calc: Calc; flow: FlowData | undefined; memo: Map<string, Uint8Array | null>; outs: Map<string, Outputs | null> }
+/** Stage D (D6): the worker's tracks of one ticker (a preview's detail), as 0/1 series on its bars: each condition by
+    its id, '__entry' and '__exit' the combined states */
+type Tracks = Map<string, Uint8Array>;
+interface Loaded { bars: TickerBars; calc: Calc; flow: FlowData | undefined; memo: Map<string, Uint8Array | null>; outs: Map<string, Outputs | null>; tracks?: Tracks }
 
 /** the bars of the indicators module (bars.T = dates) from a ticker's TickerBars */
 export const toBars = (b: TickerBars): Bars => ({ O:Array.from(b.o), H:Array.from(b.h), L:Array.from(b.l), C:Array.from(b.c), V:Array.from(b.v), T:b.dates });
@@ -30,10 +35,24 @@ export class Compute {
     const f = flow ?? (prev && prev.bars.dates.length === bars.dates.length ? prev.flow : undefined);
     this.tickers.set(bars.ticker, { bars, calc:new Calc(calcBars, f), flow:f, memo:new Map(), outs:new Map() });
   }
+  /** Stage D (D6): a preview's detail for the ticker (null forgets its tracks) */
+  tracks(ticker: string, detail: PreviewDetail | null) {
+    const t = this.tickers.get(ticker);
+    if (!t) return;
+    if (!detail || detail.ticker !== ticker || detail.error) { t.tracks = undefined; return }
+    const N = t.bars.dates.length, at = detail.from === null ? -1 : t.bars.dates.indexOf(detail.from), m: Tracks = new Map();
+    const series = (tr: SignalTrack) => { const s = new Uint8Array(N); if (at >= 0) for (let k = 0; k + 1 < tr.runs.length; k += 2) for (let j = tr.runs[k]; j <= tr.runs[k + 1]; j++) if (at + j < N) s[at + j] = 1; return s };
+    for (const c of [...detail.conditions, ...detail.exit_conditions]) m.set(c.condition_id, series(c.track));
+    m.set('__entry', series(detail.entry)); m.set('__exit', series(detail.exit));
+    t.tracks = m;
+  }
+  /** the worker's combined entry or exit state for the ticker (null: no detail) */
+  tracked(ticker: string, which: '__entry' | '__exit'): Uint8Array | null { return this.tickers.get(ticker)?.tracks?.get(which) ?? null }
   has(ticker: string, flow = false) { const t = this.tickers.get(ticker); return !!t && (!flow || !!t.flow) }
   get(ticker: string) { return this.tickers.get(ticker)?.bars }
 
   ready(card: Card): boolean {
+    if (card.type === 'test') return testReady(card as TestCard);
     if (card.type === 'reg') { const r = BY_ID[(card as RegCard).ind]; return !!r && r.available_for_backtest }
     const spec = LEGACY[card.type];
     if (!spec) return false;
@@ -61,6 +80,7 @@ export class Compute {
   conditionSeries(ticker: string, card: Card): Uint8Array | null {
     const t = this.tickers.get(ticker);
     if (!t || !this.ready(card)) return null;
+    if (card.type === 'test') return t.tracks?.get(card.id) ?? null;     // the worker's (tracks), null until they are there
     const spec = card.type === 'reg' ? null : LEGACY[card.type];
     if (spec && spec.group === 'flow' && !t.flow) return null;
     let cond;

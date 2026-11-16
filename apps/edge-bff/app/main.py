@@ -289,6 +289,8 @@ def create_app(settings=None, store=None, orc=None):
         found = await asyncio.to_thread(store.session, token_hash(token)) if re.fullmatch(r'[0-9a-f]{64}', token) else None
         if not found or found['owner_key'] != settings.owner:
             raise HTTPException(status_code=401, detail='Authentication required')
+        # EXEC-BACKTEST-REVAMP P5: the session's owner for the routes that read it (backtest.py identity), never a body's
+        request.state.owner = found['owner_key']
         return token
 
     async def write(request: Request, token=Depends(session)):

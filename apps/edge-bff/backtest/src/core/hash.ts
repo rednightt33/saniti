@@ -45,6 +45,7 @@ export function canonicalRequest(q: BacktestRequest): BacktestRequest {
     - `robustness` (Monte Carlo runs and seed reshuffle the same trades; the sensitivity switch adds cells that are
       trials of their own), `single.benchmark` (beta, alpha and correlation only), `period.oos_fraction` (it splits the
       statistics, not the run);
+    - `entry.window_bars` when every enabled entry condition is in the Screener's grammar (each applies its own window);
     - condition ids and disabled conditions: each list's enabled conditions are the sorted list of their content
       without id and enabled flag (the entry and exit rules combine them in any order; a repeated condition stays
       repeated, because at_least counts it);
@@ -73,7 +74,10 @@ export function variantOf(request: BacktestRequest): Record<string, unknown> {
     schema_version: q.schema_version, mode: q.mode,
     ...(single ? { single: { ticker: q.single?.ticker } } : { portfolio: q.portfolio }),
     period: { from: q.period.from, to: q.period.to },
-    entry: { logic: q.entry.logic, ...(q.entry.logic === 'at_least' ? { at_least: Math.min(q.entry.at_least, entryConditions.length) } : {}), window_bars: q.entry.window_bars, conditions: entryConditions },
+    entry: { logic: q.entry.logic, ...(q.entry.logic === 'at_least' ? { at_least: Math.min(q.entry.at_least, entryConditions.length) } : {}),
+      // a grammar condition applies its own window (conditions.ts combineEntry), so window_bars counts only where an
+      // enabled entry condition of another kind reads it (EXEC-BACKTEST-REVAMP P2)
+      ...(q.entry.conditions.some(c => c.enabled !== false && c.kind !== 'test') || !entryConditions.length ? { window_bars: q.entry.window_bars } : {}), conditions: entryConditions },
     exit: {
       ...(s.mode === 'atr' || t.mode === 'atr' ? { atr_length: x.atr_length } : {}), stop, take_profit, trailing, max_hold_bars: x.max_hold_bars,
       signals: exitConditions.length ? { logic: x.signals.logic, conditions: exitConditions } : { conditions: [] },
@@ -91,9 +95,32 @@ export const variantHash = (q: BacktestRequest): Promise<string> => sha256Hex(ca
    enum or broker choices that tune them) are left out. Only enabled conditions count (a disabled one is not part of
    the tested strategy), and their order does not (the same set of rules is the same strategy). */
 const sideShape = (s: { type: string; output?: string }) => s.type === 'output' ? { type: 'output', output: s.output } : { type: s.type };
+/* EXEC-BACKTEST-REVAMP P2 (ERRORS M452): a condition in the Screener's grammar has the shape of its test at every depth,
+   numbers left out as for the other kinds: every number becomes 'n' (thresholds, within, window lengths and counts),
+   `params` are left out (an indicator's or pattern's tuning, numbers and enum options) and of a transform's `args`
+   only the references stay (ratio's `by`: another series is another strategy; a length or a moving-average type is
+   tuning). Every name stays: test kind, operator, reference kind, indicator, output, bar field, transform, pattern,
+   window mode. So "RSI crosses above 50 within 3" and "... above 60 within 5" are one line, "RSI" and "MFI" two,
+   and no two different grammar strategies share one shape (before P2 every unknown kind shared {kind, type, op}). */
+export function testShape(x: unknown): unknown {
+  if (typeof x === 'number') return 'n';
+  if (Array.isArray(x)) return x.map(testShape);
+  if (x && typeof x === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(x as Record<string, unknown>)) {
+      if (k === 'params') continue;
+      out[k] = k === 'args' && v && typeof v === 'object'
+        ? testShape(Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([, a]) => !!a && typeof a === 'object')))
+        : testShape(v);
+    }
+    return out;
+  }
+  return x;
+}
 function conditionShape(c: Condition): unknown {
   if (c.kind === 'indicator') return { kind: c.kind, indicator: c.indicator, lhs: sideShape(c.lhs), op: c.op, rhs: sideShape(c.rhs) };
   if (c.kind === 'price_action') return { kind: c.kind, type: c.type, op: c.op ?? PRICE_ACTION[c.type]?.ops[0] ?? null };
+  if (c.kind === 'test') return { kind: c.kind, test: testShape(c.test) };
   return { kind: c.kind, type: c.type, op: c.op };
 }
 const shapes = (cs: readonly Condition[]) => cs.filter(c => c.enabled !== false).map(c => canonicalJson(conditionShape(c))).sort();

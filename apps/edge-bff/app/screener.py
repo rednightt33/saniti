@@ -32,6 +32,7 @@ from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
 from . import wake
+from .rights import POINT_IN_TIME, refuse_context, rights_of
 from .backtest import (CONTROL_TIMEOUT, PREVIEW_PAGES, Backtests, BacktestError, CallerGone, PreviewReplaced, accepts_gzip,
                        dumps, error_of, loads, preview_order)
 
@@ -51,7 +52,9 @@ OWNER_HEADER = 'x-screener-owner'                   # contract.ts WORKER_OWNER_H
 # DATA_VERSION_PENDING (409, worker-only) never reaches the page (Screeners.ask).
 RELAYED = {'INVALID_INPUT': 422, 'INVALID_CONDITION': 422, 'UNKNOWN_INDICATOR': 422, 'PARAM_OUT_OF_RANGE': 422,
            'METRIC_UNAVAILABLE': 422, 'LIMIT_EXCEEDED': 422, 'DATA_UNAVAILABLE': 424, 'DATA_INTEGRITY': 424, 'BUSY': 409,
-           'DATA_VERSION_CHANGED': 409, 'REQUEST_TOO_LARGE': 413}
+           'DATA_VERSION_CHANGED': 409, 'REQUEST_TOO_LARGE': 413,
+           # EXEC-BACKTEST-REVAMP P5 (K8 b): an admin-only entry without the session's right; a context not formed here
+           'CONDITION_RESTRICTED': 422, 'INVALID_CONTEXT': 422}
 PENDING_RETRY_SECONDS = 2                           # report 8.8 and 6d.4 rule 3: Retry-After of a DATA_VERSION_PENDING
 # Not derivable: the most bytes edge-bff reads of one worker answer (as received, and again once inflated). The worker
 # caps its own answers (SCREENER_MAX_RESPONSE_BYTES, 2 MB of JSON initially, report 8.9); this is only the backstop
@@ -108,6 +111,18 @@ def failure(code, status, field=None, message=None, details=None, headers=None):
     error = {'code': code, **({'field': field} if field else {}), 'message': message or MESSAGES[code],
              **({'details': details} if details else {})}
     return ScreenerError(status, error, headers)
+
+
+def reads_any(x, ids):
+    """Whether a preset's definition reads a metric of `ids` anywhere: a reference {"kind": ..., "metric": id} at any
+    depth (Stage C F6, ERRORS M458)."""
+    if isinstance(x, list):
+        return any(reads_any(v, ids) for v in x)
+    if isinstance(x, dict):
+        if isinstance(x.get('metric'), str) and x['metric'] in ids and isinstance(x.get('kind'), str):
+            return True
+        return any(reads_any(v, ids) for v in x.values())
+    return False
 
 
 class ScreenerError(Exception):
@@ -610,6 +625,7 @@ class Screeners:
         # failed_keeping_previous; the transient refreshing and loading change no catalog byte, report 8.3)
         self.health = {'at': None, 'versions': None, 'key': None, 'refresh': None}
         self.docs = {}                 # 'catalog' | 'universe' -> Doc
+        self.restricted = {}           # the catalog's ETag -> its Doc without the admin entries (catalog_for)
         self.locks = {}                # one fetch at a time per document (and for /health): concurrent pages wait for it
         self.flight = {}               # (owner, lane, page) -> its call in flight (latest; page None without client_order)
         self.pages = {}                # (owner, lane) -> {page: the highest seq that arrived}, PREVIEW_PAGES at most
@@ -755,6 +771,30 @@ class Screeners:
         return Doc(key=key, raw=raw, gz=gzip.compress(raw, 6, mtime=0), etag='"' + hashlib.sha256(raw).hexdigest() + '"',
                    price_data=price_data_of(data), published_at=published_of(data))
 
+    def catalog_for(self, doc, rights):
+        """EXEC-BACKTEST-REVAMP P5 (K8 b): the catalog as a session sees it: without POINT_IN_TIME, the entries marked
+        access 'admin' are left out, with their own bytes and ETag (kept per document, so a session without the right
+        never gets the admin catalog's ETag or a 304 for it)."""
+        if POINT_IN_TIME in rights:
+            return doc
+        hit = self.restricted.get(doc.etag)
+        if hit is None:
+            data = loads(doc.raw)
+            if isinstance(data, dict) and isinstance(data.get('metrics'), list):
+                admin = {m.get('id') for m in data['metrics'] if isinstance(m, dict) and m.get('access') == 'admin'}
+                data = {**data, 'metrics': [m for m in data['metrics'] if not (isinstance(m, dict) and m.get('access') == 'admin')]}
+                # Stage C F6 (ERRORS M458): a preset that reads an admin entry would be refused when run
+                # (CONDITION_RESTRICTED), so it is left out too; the entries are the catalog's own admin marks
+                if isinstance(data.get('presets'), list):
+                    data['presets'] = [p for p in data['presets'] if not reads_any(p.get('definition') if isinstance(p, dict) else None, admin)]
+            raw = dumps(data)
+            hit = Doc(key=doc.key, raw=raw, gz=gzip.compress(raw, 6, mtime=0), etag='"' + hashlib.sha256(raw).hexdigest() + '"',
+                      price_data=doc.price_data, published_at=doc.published_at)
+            if len(self.restricted) > 8:
+                self.restricted.clear()
+            self.restricted[doc.etag] = hit
+        return hit
+
     @staticmethod
     def doc_answer(request, doc):
         """200 with the document (gzip when taken), or 304 with no body when If-None-Match names its ETag. The house
@@ -845,13 +885,14 @@ class Screeners:
         await self.current()
         return self.health['versions']
 
-    async def validated(self, kind, definition):
+    async def validated(self, kind, definition, rights=()):
         """{definition_hash, registry, screener_registry} of a saved item's definition, checked by the worker's
         /v1/validate; its 422 is relayed (for a My metric with the field named from its test, not from the screen it is
         validated in)."""
         try:
             data = (await self.ask('POST', '/v1/validate', {'schema_version': SCHEMA_VERSION,
-                                                            'definition': validated_definition(kind, definition)})).data
+                                                            'definition': validated_definition(kind, definition),
+                                                            'context': {'rights': list(rights)}})).data
         except ScreenerError as e:
             field = e.error.get('field')
             if kind == 'metric' and isinstance(field, str) and METRIC_CONDITION in field:
@@ -897,7 +938,7 @@ class Screeners:
         """needs_review of one row validated again (kept per definition and versions), or None when the worker did not
         answer the question (nothing kept)."""
         try:
-            await self.validated(row['kind'], row['definition'])
+            await self.validated(row['kind'], row['definition'], rights_of(self.settings, row.get('owner_key') or self.settings.owner))
             found = []
         except ScreenerError as e:
             if e.status != 422:
@@ -915,6 +956,15 @@ class Screeners:
     def routes(self, app, session, write):
         owner = self.settings.owner
 
+        # EXEC-BACKTEST-REVAMP P5 (user K8 b): the session owner's rights (rights.py) go to every worker call in the body's
+        # context; a page body that carries one is refused before the worker
+        def rights(request):
+            return rights_of(self.settings, getattr(request.state, 'owner', owner))
+
+        def with_context(request, body):
+            refuse_context(body)
+            return {**body, 'context': {'rights': rights(request)}}
+
         @app.exception_handler(ScreenerError)
         async def screener_error(_, exc):
             return JSONResponse(status_code=exc.status, content={'error': exc.error}, headers=exc.headers)
@@ -924,7 +974,7 @@ class Screeners:
             """CatalogResponse (report 8.4) with edge-bff's own limits added, kept while the worker's state (versions and
             refresh, its /health) is the one it was fetched at; ETag and If-None-Match -> 304."""
             await self.guard()
-            return self.doc_answer(request, await self.doc('catalog', '/v1/catalog'))
+            return self.doc_answer(request, self.catalog_for(await self.doc('catalog', '/v1/catalog'), rights(request)))
 
         @app.get('/api/v1/screener/universe')
         async def universe(request: Request, _=Depends(session)):
@@ -934,7 +984,7 @@ class Screeners:
 
         async def lane(lane, path, request):
             await self.guard()
-            body = await self.json_object(request)
+            body = with_context(request, await self.json_object(request))
             order = self.order_of(body.get('client_order'))
             try:
                 answer = await self.latest(lane, owner, request, body, order, path)
@@ -956,12 +1006,12 @@ class Screeners:
         @app.post('/api/v1/screener/validate')
         async def validate(request: Request, _=Depends(write)):
             await self.guard()
-            return await self.relayed(request, await self.ask('POST', '/v1/validate', await self.json_object(request), relay=True))
+            return await self.relayed(request, await self.ask('POST', '/v1/validate', with_context(request, await self.json_object(request)), relay=True))
 
         @app.post('/api/v1/screener/counts')
         async def counts(request: Request, _=Depends(write)):
             await self.guard()
-            return await self.relayed(request, await self.ask('POST', '/v1/counts', await self.json_object(request), relay=True))
+            return await self.relayed(request, await self.ask('POST', '/v1/counts', with_context(request, await self.json_object(request)), relay=True))
 
         @app.get('/api/v1/screener/items')
         async def items(kind: str | None = None, _=Depends(session)):
@@ -980,7 +1030,7 @@ class Screeners:
             if not ITEM_ID.fullmatch(item_id):
                 raise invalid('item_id', 'item_id is scr_ followed by 32 lowercase hexadecimal digits')
             kind, name, definition, revision = checked_item(await self.json_object(request))
-            checked = await self.validated(kind, definition)
+            checked = await self.validated(kind, definition, rights(request))
             row, _ = await asyncio.to_thread(self.store.put, owner, item_id, kind, name, definition, checked, revision)
             return JSONResponse(item_of(row, []))
 

@@ -1,0 +1,38 @@
+('BONUS_SHARE', 'pending', 'pending') 2
+('BONUS_SHARE', 'same', 'same') 47
+('BONUS_SHARE', 'terms', 'terms') 3
+('BONUS_SHARE', 'unresolved', 'unresolved') 8
+('REVERSE_SPLIT', 'same', 'same') 2
+('REVERSE_SPLIT', 'unresolved', 'unresolved') 7
+('RIGHT_ISSUE', 'same', 'pending') 1
+('RIGHT_ISSUE', 'same', 'same') 79
+('RIGHT_ISSUE', 'same', 'terms') 4
+('RIGHT_ISSUE', 'terms', 'same') 3
+('RIGHT_ISSUE', 'terms', 'terms') 100
+('RIGHT_ISSUE', 'terms', 'unresolved') 4
+('RIGHT_ISSUE', 'unresolved', 'terms') 9
+('RIGHT_ISSUE', 'unresolved', 'unresolved') 93
+('STOCK_SPLIT', 'same', 'same') 86
+('STOCK_SPLIT', 'unresolved', 'unresolved') 58
+changed 21 of 506
+('AHAP', '2018-07-06', 'RIGHT_ISSUE', 'unresolved', 'terms', 0.9689911549, 1.866143959)
+('PEGE', '2018-07-09', 'RIGHT_ISSUE', 'unresolved', 'terms', 2.063306779, 2.167142415)
+('MAYA', '2018-10-04', 'RIGHT_ISSUE', 'unresolved', 'terms', 0.9425987058, 1.11399678)
+('SQMI', '2019-01-23', 'RIGHT_ISSUE', 'terms', 'unresolved', 1.422256187, 1.421959632)
+('GOLD', '2019-07-02', 'RIGHT_ISSUE', 'terms', 'unresolved', 2.065014457, 2.065019194)
+('MAYA', '2019-12-02', 'RIGHT_ISSUE', 'terms', 'same', 1.018045938, 1.01909632)
+('DNAR', '2019-12-16', 'RIGHT_ISSUE', 'same', 'terms', 0.9880331429, 1.02360851)
+('ARTO', '2020-03-30', 'RIGHT_ISSUE', 'unresolved', 'terms', 6.161896184, 6.653158168)
+('BBSI', '2020-12-08', 'RIGHT_ISSUE', 'terms', 'same', 1.001470951, 1.005317033)
+('BEKS', '2020-12-18', 'RIGHT_ISSUE', 'unresolved', 'terms', 4.01266721, 4.271587544)
+('SDRA', '2021-09-15', 'RIGHT_ISSUE', 'same', 'terms', 0.9983159677, 1.009343215)
+('BBRM', '2022-02-24', 'RIGHT_ISSUE', 'unresolved', 'terms', 1.141954126, 1.075468331)
+('AHAP', '2022-08-08', 'RIGHT_ISSUE', 'unresolved', 'terms', 1.18392635, 1.289987512)
+('PANI', '2022-08-09', 'RIGHT_ISSUE', 'terms', 'unresolved', 13.99044029, 14.14470143)
+('BMAS', '2022-11-21', 'RIGHT_ISSUE', 'unresolved', 'terms', 1.320019519, 1.557967599)
+('MITI', '2022-12-01', 'RIGHT_ISSUE', 'same', 'terms', 0.9881851852, 0.9964063691)
+('GMFI', '2024-12-23', 'RIGHT_ISSUE', 'same', 'terms', 0.8578719855, 1.031603163)
+('WIFI', '2025-07-02', 'RIGHT_ISSUE', 'terms', 'same', 0.9968671679, 0.9972832647)
+('COCO', '2025-10-09', 'RIGHT_ISSUE', 'unresolved', 'terms', 1.751032705, 2.686463617)
+('FORU', '2026-09-22', 'RIGHT_ISSUE', 'terms', 'unresolved', 19.50671505, 19.82565048)
+('MGLV', '2026-11-05', 'RIGHT_ISSUE', 'same', 'pending', 0.9735761589, None)

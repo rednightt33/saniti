@@ -66,7 +66,6 @@ export const WORKER = 'apps/backtest-worker';
 export const PROTECTED = [...ALWAYS, CORE, WORKER];
 export const BASELINE = 'scripts/screener/backtest_worker_baseline.json';
 export const CORE_BASELINE = 'scripts/screener/backtest_core_baseline.json';
-const ENGINE_DIRS = ['apps/edge-bff/backtest/src/core', 'apps/backtest-worker/src'];
 const ARTIFACT = 'apps/edge-bff/backtest/src/core/backtest-registry.json';
 
 const git = (args, opts = {}) => execFileSync('git', ['-C', ROOT, ...args], { encoding: 'utf8', maxBuffer: 64 << 20, ...opts });
@@ -129,7 +128,10 @@ if (always.changed.length) problems.push(`formula or Feature 04 paths differ fro
 if (always.untracked.length) problems.push(`untracked files in formula or Feature 04 paths: ${always.untracked.join(', ')}`);
 
 // 2. the versions, by the backtest worker's own functions, here and on the base tree
-const { engineVersion, REGISTRY_VERSION } = await import(pathToFileURL(path.join(ROOT, 'apps/backtest-worker/src/version.ts')).href);
+const { engineVersion, REGISTRY_VERSION, SOURCES } = await import(pathToFileURL(path.join(ROOT, 'apps/backtest-worker/src/version.ts')).href);
+// the paths engine_version reads, from the worker's own list (EXEC-BACKTEST-REVAMP added the Terminal's calc module,
+// its flow registry and the Screener core; a fixed list here made the base tree lack them, ERRORS M458)
+const ENGINE_DIRS = SOURCES.map(([entry]) => entry);
 const { registryVersion } = await import(pathToFileURL(path.join(ROOT, 'apps/backtest-worker/scripts/build-registry.mjs')).href);
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'screener-tripwire-'));
 let baseEngine;

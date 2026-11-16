@@ -4,7 +4,7 @@
    Pure module: no DOM and no Node API. */
 import type { BacktestRequest, Condition, MonteCarlo, Sensitivity, SensitivityCell } from './contract.ts';
 import type { Ledger, LedgerTrade } from './ledger.ts';
-import { displayScale, threshold, withThreshold } from './catalog.ts';
+import { displayScale, threshold, thresholdField, withThreshold } from './catalog.ts';
 import { thresholdAccepted } from './conditions.ts';
 import { dsr, finiteOrNull, profitFactor, quant, seriesStats, tradeStats } from './stats.ts';
 import type { SeriesStatsRaw } from './stats.ts';
@@ -106,9 +106,14 @@ const gridY = (q: BacktestRequest) => { const m = q.exit.stop.mode; return GRID_
 function accepted(c: Condition, value: number): boolean {
   return c.kind !== 'price_action' || thresholdAccepted(c.type, value);
 }
+/** The x axis's step and rounding: the page's for its own conditions; for a grammar condition (EXEC-BACKTEST-REVAMP P2)
+    20 % of its base without the page's floor of 1 (a z-score of 0.5 steps by 0.1, an RSI of 30 by 6 as on the page),
+    1 at a base of 0, and six significant digits (its unit is the metric's own, often below 1). */
+const stepOf = (c: Condition, base: number) => c.kind === 'test' ? (Math.abs(base) * .2 || 1) : Math.max(1, Math.abs(base) * .2 || 1);
+const roundX = (c: Condition, x: number) => c.kind === 'test' ? +x.toPrecision(6) : +x.toFixed(2);
 
 export interface SensitivityPlan {
-  condition_id: string; xs: number[]; xs_display: number[]; y_key: YKey; ys: number[]; ys_display: number[];
+  condition_id: string; x_field: string; xs: number[]; xs_display: number[]; y_key: YKey; ys: number[]; ys_display: number[];
   base_x: number; base_y: number;
   /** The 25 variant requests, [y][x]; null where the threshold is outside what conditions.ts accepts. Each has
       sensitivity and Monte Carlo off: a cell is one backtest, as on the page. */
@@ -123,25 +128,25 @@ export interface SensitivityPlan {
     Recovering the display base from the wire (e.g. -0.03 / 0.01 = -2.9999999999999996) can differ from the typed
     value by an ulp; after the page's 2-decimal rounding the axes are the page's for every base of at most 2 decimals
     (the grid values are then multiples of 0.002, far from a rounding boundary). */
-export function sensitivityPlan(q: BacktestRequest): SensitivityPlan | null {
+export function sensitivityPlan(q: BacktestRequest, accepts: (c: Condition, value: number) => boolean = accepted): SensitivityPlan | null {
   if (!q.robustness.sensitivity) return null;
   const c0 = q.entry.conditions.find(c => c.enabled !== false && threshold(c) !== null);
   if (!c0) return null;
   const scale = displayScale(c0) as number, base_x = threshold(c0) as number, base = base_x / scale;
-  const step = Math.max(1, Math.abs(base) * .2 || 1);
-  const xs_display = KS.map(k => +(base + k * step).toFixed(2)), xs = xs_display.map(x => x * scale);
+  const step = stepOf(c0, base);
+  const xs_display = KS.map(k => roundX(c0, base + k * step)), xs = xs_display.map(x => x * scale);
   const yk = gridY(q), y0 = yk.get(q);
   const ys_display = KS.map(k => +Math.max(yk.min, y0 + k * yk.step).toFixed(2)), ys = ys_display.map(yk.toWire);
   const base_y = yk.key === 'stop_pct' ? q.exit.stop.pct : y0;
   const requests = ys.map(y => xs.map(x => {
-    if (!accepted(c0, x)) return null;
+    if (!accepted(c0, x) || !accepts(c0, x)) return null;
     const v = JSON.parse(JSON.stringify(q)) as BacktestRequest;
     v.entry.conditions = v.entry.conditions.map(c => c.id === c0.id ? withThreshold(c, x) : c);
     yk.set(v, y);
     v.robustness = { ...v.robustness, sensitivity: false, monte_carlo_runs: 0 };
     return v;
   }));
-  return { condition_id: c0.id, xs, xs_display, y_key: yk.key, ys, ys_display, base_x, base_y, requests };
+  return { condition_id: c0.id, x_field: thresholdField(c0) as string, xs, xs_display, y_key: yk.key, ys, ys_display, base_x, base_y, requests };
 }
 
 /** One grid cell from its full run, as the page: seriesStats of the equity (no benchmark) and tradeStats. */
