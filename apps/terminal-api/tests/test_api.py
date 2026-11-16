@@ -13,6 +13,8 @@ from app.main import API, create_app
 from app.security import password_verifier, verify_password
 
 ORIGIN = 'https://terminal.example'
+# M470: edge-bff and the workers call terminal-api on its Railway private name (the gateway key counts only there)
+PRIVATE = 'http://terminal-api.railway.internal:8080'
 NOW = dt.datetime.now(dt.timezone.utc)
 LIMITS = {'url_ttl_seconds': 120, 'files_per_hour': 60, 'tickers_per_hour': 30, 'tickers_per_day': 150,
           'megabytes_per_day': 300, 'history_per_hour': 20, 'sessions_per_subscriber': 2, 'session_hours': 24,
@@ -513,7 +515,7 @@ PROXY_KEY = 'p' * 40
 def gateway():
     store, bucket = FakeStore(), FakeBucket()
     settings = Settings(**{**SETTINGS.__dict__, 'proxy_key': PROXY_KEY, 'proxy_subscriber': 'sub@example.com'})
-    client = TestClient(create_app(settings, store, bucket))
+    client = TestClient(create_app(settings, store, bucket), base_url=PRIVATE)
     r = client.post(f'{API}/admin/subscribers', headers={**ADMIN, 'origin': ORIGIN}, json={
         'email': 'sub@example.com', 'display_name': 'Owner', 'password': 'correct horse battery',
         'expires_at': (NOW + dt.timedelta(days=30)).isoformat()})
@@ -594,7 +596,7 @@ def test_state_unreadable_is_503():
     store, bucket = FakeStore(), FakeBucket()
     bucket.state_doc = None
     settings = Settings(**{**SETTINGS.__dict__, 'proxy_key': PROXY_KEY, 'proxy_subscriber': 'sub@example.com'})
-    client = TestClient(create_app(settings, store, bucket))
+    client = TestClient(create_app(settings, store, bucket), base_url=PRIVATE)
     client.post(f'{API}/admin/subscribers', headers={**ADMIN, 'origin': ORIGIN}, json={
         'email': 'sub@example.com', 'display_name': 'Owner', 'password': 'correct horse battery',
         'expires_at': (NOW + dt.timedelta(days=30)).isoformat()})
@@ -651,7 +653,7 @@ def gateway_client(bucket, store=None):
     """terminal-api with the gateway configured and its subscriber (sub@example.com, id 1) added."""
     store = store or FakeStore()
     settings = Settings(**{**SETTINGS.__dict__, 'proxy_key': PROXY_KEY, 'proxy_subscriber': 'sub@example.com'})
-    client = TestClient(create_app(settings, store, bucket))
+    client = TestClient(create_app(settings, store, bucket), base_url=PRIVATE)
     r = client.post(f'{API}/admin/subscribers', headers={**ADMIN, 'origin': ORIGIN}, json={
         'email': 'sub@example.com', 'display_name': 'Owner', 'password': 'correct horse battery',
         'expires_at': (NOW + dt.timedelta(days=30)).isoformat()})
@@ -839,7 +841,7 @@ def services_client(bucket=None):
     settings = Settings(**{**SETTINGS.__dict__, 'proxy_key': PROXY_KEY, 'proxy_subscriber': 'sub@example.com',
                            'service_keys': (('backtest-worker', BACKTEST_KEY), ('screener-worker', SCREENER_KEY))})
     settings.validate()
-    client = TestClient(create_app(settings, store, bucket))
+    client = TestClient(create_app(settings, store, bucket), base_url=PRIVATE)
     r = client.post(f'{API}/admin/subscribers', headers={**ADMIN, 'origin': ORIGIN}, json={
         'email': 'sub@example.com', 'display_name': 'Owner', 'password': 'correct horse battery',
         'expires_at': (NOW + dt.timedelta(days=30)).isoformat()})

@@ -112,7 +112,9 @@ def main():
     key = service_key if extra else proxy_key
     start = os.path.getsize(a.log)
     tag = f'{a.label}-{int(time.time())}'
-    with TestClient(create_app(settings, None, MemoryBucket()), headers={'x-terminal-proxy-key': key}) as client:
+    # the private host, as edge-bff calls it: since M470 the gateway key counts only there (older builds ignore Host)
+    with TestClient(create_app(settings, None, MemoryBucket()), headers={'x-terminal-proxy-key': key},
+                    base_url='http://terminal-api.railway.internal:8080') as client:
         ok = lambda r: r.status_code == 200 or sys.exit(f'{r.request.url.path}: {r.status_code} {r.text[:300]}')
         ok(client.get('/api/terminal/v1/manifest/BBCA'))                   # warm-up: account known, prune done
         ok(client.post('/api/terminal/v1/bundle', json={'ticker': 'BBCA', 'packs': True}))
