@@ -353,6 +353,12 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
   - Every grant goes to the one gateway account under `quota.REF`.
   - Phase 3: a capability check (`<family>.view`, and per file kind such as `overview.day`, `radar.board`) runs **before**
     the shared cache.
+- **Page files are cached by the browser for a year** (`app/pages.py:173`, `private, max-age=31536000, immutable`).
+  - The browser would hand admin Radar files to the next user of that browser without asking the server.
+  - Phase 3: `no-cache` (revalidated against the server's capability check) or one URL per capability.
+- **Orc history mode CLIENT trusts a body `conversation_id`** (C2, `apps/market-ai-orc/app/main.py` ~773-784). Kept
+  tables, run memory, exports and evidence are keyed by conversation only. Fixed in the Phase 0 fix round: a CLIENT run
+  never opens a conversation its owner does not hold.
 - **Radar data inside the Watchlist file** (new defect M476). `watchlist-stocks` carries the Radar screens of the newest
   date and flow values (`apps/terminal-publisher/watchlist.py:11, 33-35`). The Radar is an admin page. Phase 3 splits
   the file (base vs Radar badges) or publishes one per capability.
