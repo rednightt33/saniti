@@ -755,9 +755,11 @@ Shared front-end layer (`shared/`, M471, M473):
   the IndexedDB `terminal-files` (`clearUserState`). `tests/test_storage_registry.py` fails on a key found in the code
   without an entry: **a new browser storage key needs its entry in `shared/edge-session.ts`, then
   `node shared/build-shell.mjs`.**
-- A browser with no last-login mark (EDGE last used there before Phase 0) holds state of an unknown account and is
-  cleared at the first sign-in, except for user #1: the session answer's `access.seed` (the switch-off principal or the
-  seed row) keeps it and uploads its preferences once, with the switch off and on (`noteIdentity`, ERRORS M478 C3 B1).
+- A browser with no last-login mark (EDGE last used there before Phase 0), or with a Phase 0 mark (the bare login),
+  holds state of an unknown account and is cleared at the first sign-in, except for user #1: the session answer's
+  `access.seed` (the switch-off principal or the seed row) keeps it, moves its Phase 0 drawing stamps and uploads its
+  preferences once, with the switch off and on (`noteIdentity`, `checkUser`; ERRORS M478 C3 B1, C4). A sign-out
+  broadcast also clears every other tab's sessionStorage `user` keys.
 - Terminal drawings kept in the browser while the account cannot be reached are stamped with the page's identity
   (never the last-login mark; nothing is kept while it is unknown) and join only that login's account (M468, M477).
 

@@ -52,3 +52,37 @@ describe('a Phase 0 mark (the bare login) first met with the switch on', () => {
     expect(local.getItem('ml.my')).toBeNull();
   });
 });
+
+/* Fix round (main agent): the same class beyond the observed case, and the per-tab sessionStorage of a sign-out */
+describe('access.seed and the Phase 0 mark, wider cases', () => {
+  it('switch off: the Phase 0 mark of the same login still moves to the owner key (unchanged)', () => {
+    local.setItem(LAST_LOGIN_KEY, 'edge');
+    local.setItem('ml.my', '[{"row":"rsi"}]');
+    local.setItem('ml.drawings.BBRI', JSON.stringify({ owner:'edge', drawings:[] }));
+    expect(noteIdentity('edge', 'edge-private', { seed:true })).toEqual({ changed:false, same:true });
+    expect(JSON.parse(local.getItem('ml.drawings.BBRI') || 'null')?.owner).toBe('owner:edge-private');
+  });
+  it('a registered account\'s stamps are never restamped for the seed: an owner-form mark of another account clears', () => {
+    local.setItem(LAST_LOGIN_KEY, 'owner:u_0123456789abcdef01234567');
+    local.setItem('ml.drawings.BBCA', JSON.stringify({ owner:'owner:u_0123456789abcdef01234567', drawings:[{ id:'bob' }] }));
+    expect(noteIdentity('admin_1', 'edge-private', { seed:true }).changed).toBe(true);
+    expect(local.getItem('ml.drawings.BBCA')).toBeNull();
+  });
+  it('without access.seed a Phase 0 mark of another login still clears (the C2 #3 rule)', () => {
+    local.setItem(LAST_LOGIN_KEY, 'edge');
+    local.setItem('ml.my', '[{"row":"rsi"}]');
+    expect(noteIdentity('admin_1', 'edge-private').changed).toBe(true);
+    expect(local.getItem('ml.my')).toBeNull();
+  });
+  it('a "cleared" broadcast from another tab removes this tab\'s own sessionStorage user keys, keeping its browser keys', async () => {
+    const session = memoryStorage(); vi.stubGlobal('sessionStorage', session);
+    session.setItem('edge-side-attach:c_1', 'a passage of the previous account');
+    session.setItem('edge-details-open', '1');
+    sessionClient((async () => new Response('{}', { status:200 })) as typeof fetch);      // this page listens
+    const other = new BroadcastChannel('edge-session');
+    other.postMessage({ type:'cleared', signOut:true, from:'another-tab' });
+    await vi.waitFor(() => expect(session.getItem('edge-side-attach:c_1')).toBeNull());
+    expect(session.getItem('edge-details-open')).toBe('1');
+    other.close();
+  });
+});

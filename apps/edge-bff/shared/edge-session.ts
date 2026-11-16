@@ -154,13 +154,15 @@ function post(message: Record<string, unknown>) {
 /** removes every `user` key of localStorage and sessionStorage and the `user` IndexedDB databases of this browser.
     `signOut` also removes the last-login mark (nothing of the account remains). Resolves when the databases are gone
     or, when a page still holds one open, once the browser has queued their removal (they go when that page closes). */
-export function clearUserState(opts: { signOut?: boolean } = {}): Promise<void> {
-  for (const area of ['local', 'session'] as const) {
-    const s = areaOf(area); if (!s) continue;
-    for (const k of keysOf(s)) {
-      if (k === LAST_LOGIN_KEY ? !!opts.signOut : isUserKey(k, area)) { try { s.removeItem(k) } catch { /* storage off */ } }
-    }
+function clearArea(area: 'local' | 'session', signOut: boolean) {
+  const s = areaOf(area); if (!s) return;
+  for (const k of keysOf(s)) {
+    if (k === LAST_LOGIN_KEY ? signOut : isUserKey(k, area)) { try { s.removeItem(k) } catch { /* storage off */ } }
   }
+}
+export function clearUserState(opts: { signOut?: boolean } = {}): Promise<void> {
+  clearArea('local', !!opts.signOut);
+  clearArea('session', !!opts.signOut);
   post({ type:'cleared', signOut:!!opts.signOut });
   const idb: IDBFactory | undefined = (() => { try { return globalThis.indexedDB } catch { return undefined } })();
   const names = STORAGE.filter(e => e.area === 'idb' && e.kind === 'user').map(e => e.key);
@@ -207,27 +209,46 @@ export function migrateIdentity(from: string, to: string) {
   }
 }
 
+/* a mark or a drawing stamp of the bare-login form was written by Phase 0, when EDGE had one account (user #1): every
+   identity written since Phase 1 is `owner:<key>` (the session answer carries the owner key) */
+const bareForm = (id: string) => !!id && !id.startsWith('owner:');
+/** user #1's Phase 0 drawing stamps (the bare-login form) are stamped with its owner identity `to` */
+function migrateBare(to: string) {
+  const s = areaOf('local'); if (!s || bareForm(to)) return;
+  for (const k of keysOf(s)) {
+    if (!k.startsWith('ml.drawings.')) continue;
+    try {
+      const v = JSON.parse(s.getItem(k) || 'null');
+      if (v && typeof v === 'object' && !Array.isArray(v) && typeof v.owner === 'string' && bareForm(v.owner)) s.setItem(k, JSON.stringify({ ...v, owner:to }));
+    } catch { /* not a stamped copy */ }
+  }
+}
+/** `seed` (the session answer's access.seed, user #1) keeps this browser's state: it has no mark, or a mark of the
+    bare-login form (Phase 0), so its state was written while EDGE had one account (C3 Phase 1 B1, C4) */
+const seedKeeps = (was: string, now: string, seed?: boolean) => seed === true && was !== now && (!was || bareForm(was));
+
 /** the shell, after a sign-in or a session read: another identity than the last one clears the previous account's
     state first; then this one is the last. A mark holding this account's login while the answer now carries its owner
     key is the same account: the mark and its drawing stamps move to the owner key. `same`: the local state was this
     identity's (edge-client.js then uploads its values with no server copy once).
     A browser with no mark (EDGE last used there before the Phase 0 deploy, or the mark was removed) holds state of an
     unknown account, with one exception: `seed`, the session answer's access.seed, says this is user #1, the one account
-    EDGE had before accounts, so state written before the mark existed can only be its (C3 Phase 1 B1: kept and uploaded
-    once, with the switch off and on). Any other identity never adopts it (C2 Phase 1 #3): only drawing copies stamped
-    by this same login are its (the one-time move to the owner key); anything else is cleared. */
+    EDGE had before accounts. State written before the mark existed, or under a Phase 0 mark (the bare login, which may
+    differ from the seed's username with the switch on: EDGE_LOGIN 'edge' is reserved), can only be its: kept, its stamps
+    moved, uploaded once (C3 Phase 1 B1, C4). Any other identity never adopts it (C2 Phase 1 #3): only drawing copies
+    stamped by this same login are its (the one-time move to the owner key); anything else is cleared. */
 export function noteIdentity(login: string, ownerKey?: string | null, opts: { seed?: boolean } = {}): { changed: boolean; same: boolean } {
   const now = identityOf(login, ownerKey); if (!now) return { changed:false, same:false };
   const was = lastLogin();
-  const seedAdopts = !was && opts.seed === true;
+  const seed = seedKeeps(was, now, opts.seed);
   const ownStamps = !was && hasStampsOf(norm(login));
-  const upgraded = !!ownerKey && (was === norm(login) || ownStamps);
-  if (upgraded) migrateIdentity(norm(login), now);
-  const unknown = !was && !ownStamps && !seedAdopts && hasUserState();
-  const changed = (!!was && was !== now && !upgraded) || unknown;
+  const upgraded = !seed && !!ownerKey && (was === norm(login) || ownStamps);
+  if (seed) migrateBare(now); else if (upgraded) migrateIdentity(norm(login), now);
+  const unknown = !was && !ownStamps && !seed && hasUserState();
+  const changed = (!!was && was !== now && !upgraded && !seed) || unknown;
   if (changed) clearUserState();
   try { areaOf('local')?.setItem(LAST_LOGIN_KEY, now) } catch { /* storage off: nothing of the account is kept either */ }
-  return { changed, same:(!!was && (was === now || upgraded)) || (!was && (ownStamps || seedAdopts)) };
+  return { changed, same:(!!was && (was === now || upgraded || seed)) || (!was && (ownStamps || seed)) };
 }
 /** noteIdentity's `changed` (Phase 0 callers) */
 export const noteLogin = (login: string, ownerKey?: string | null): boolean => noteIdentity(login, ownerKey).changed;
@@ -235,10 +256,11 @@ export const noteLogin = (login: string, ownerKey?: string | null): boolean => n
 /** a page (inside the shell's frame or opened alone): another identity than the shell's last one clears the previous
     account's state. A page never writes the mark (the shell does), so its own storage stays its own keys; a mark of
     this account's login with its owner key now known is the same account (its stamps move, the shell moves the mark). */
-export function checkUser(login: string, ownerKey?: string | null): boolean {
+export function checkUser(login: string, ownerKey?: string | null, opts: { seed?: boolean } = {}): boolean {
   const now = identityOf(login, ownerKey), was = lastLogin();
   if (!now || !was || was === now) return false;
   if (ownerKey && was === norm(login)) { migrateIdentity(was, now); return false }
+  if (seedKeeps(was, now, opts.seed)) { migrateBare(now); return false }       // user #1 under its Phase 0 mark (C4)
   clearUserState();
   return true;
 }
@@ -369,6 +391,8 @@ function listen() {
       if (t === 'entitlements' || t === 'cleared') clients.forEach(fn => fn());
       // another tab signed out or another account signed in: nothing of this page's account may survive in memory
       if (t === 'cleared') {
+        // sessionStorage is per tab: the page that signed out (or saw another account) cleared only its own (C4)
+        clearArea('session', !!ev?.data?.signOut);
         clearedHooks.forEach(fn => { try { fn() } catch { /* the others still run */ } });
         if (role === 'app') { fireResets(); reloadPage() }
       }
@@ -418,7 +442,7 @@ export function sessionClient(fetchImpl?: typeof fetch) {
       const e = readError(401, { error:{ code:'USER_CHANGED', message:'Another EDGE account signed in on this browser. Reload the page to continue as that account.' } });
       throw new SessionError(e, e.message);
     }
-    checkUser(s.login, s.ownerKey);
+    checkUser(s.login, s.ownerKey, { seed:d?.access?.seed === true });
     if (!identity) identity = id;
     now = s;
     return s;

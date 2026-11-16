@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=435dd9afb70007e3d02b00f70a0a3752c3f4fb672de467cce057075d9308723c by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=fb8f09bff727cd5df1f549f9fc69214f0be5456afc2a3f480e25129fab7355ce by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -180,19 +180,21 @@ var EdgeSession = (() => {
     } catch {
     }
   }
-  function clearUserState(opts = {}) {
-    for (const area of ["local", "session"]) {
-      const s = areaOf(area);
-      if (!s) continue;
-      for (const k of keysOf(s)) {
-        if (k === LAST_LOGIN_KEY ? !!opts.signOut : isUserKey(k, area)) {
-          try {
-            s.removeItem(k);
-          } catch {
-          }
+  function clearArea(area, signOut) {
+    const s = areaOf(area);
+    if (!s) return;
+    for (const k of keysOf(s)) {
+      if (k === LAST_LOGIN_KEY ? signOut : isUserKey(k, area)) {
+        try {
+          s.removeItem(k);
+        } catch {
         }
       }
     }
+  }
+  function clearUserState(opts = {}) {
+    clearArea("local", !!opts.signOut);
+    clearArea("session", !!opts.signOut);
     post({ type: "cleared", signOut: !!opts.signOut });
     const idb = (() => {
       try {
@@ -247,29 +249,48 @@ var EdgeSession = (() => {
       }
     }
   }
+  var bareForm = (id) => !!id && !id.startsWith("owner:");
+  function migrateBare(to) {
+    const s = areaOf("local");
+    if (!s || bareForm(to)) return;
+    for (const k of keysOf(s)) {
+      if (!k.startsWith("ml.drawings.")) continue;
+      try {
+        const v = JSON.parse(s.getItem(k) || "null");
+        if (v && typeof v === "object" && !Array.isArray(v) && typeof v.owner === "string" && bareForm(v.owner)) s.setItem(k, JSON.stringify({ ...v, owner: to }));
+      } catch {
+      }
+    }
+  }
+  var seedKeeps = (was, now, seed) => seed === true && was !== now && (!was || bareForm(was));
   function noteIdentity(login, ownerKey, opts = {}) {
     const now = identityOf(login, ownerKey);
     if (!now) return { changed: false, same: false };
     const was = lastLogin();
-    const seedAdopts = !was && opts.seed === true;
+    const seed = seedKeeps(was, now, opts.seed);
     const ownStamps = !was && hasStampsOf(norm(login));
-    const upgraded = !!ownerKey && (was === norm(login) || ownStamps);
-    if (upgraded) migrateIdentity(norm(login), now);
-    const unknown = !was && !ownStamps && !seedAdopts && hasUserState();
-    const changed = !!was && was !== now && !upgraded || unknown;
+    const upgraded = !seed && !!ownerKey && (was === norm(login) || ownStamps);
+    if (seed) migrateBare(now);
+    else if (upgraded) migrateIdentity(norm(login), now);
+    const unknown = !was && !ownStamps && !seed && hasUserState();
+    const changed = !!was && was !== now && !upgraded && !seed || unknown;
     if (changed) clearUserState();
     try {
       areaOf("local")?.setItem(LAST_LOGIN_KEY, now);
     } catch {
     }
-    return { changed, same: !!was && (was === now || upgraded) || !was && (ownStamps || seedAdopts) };
+    return { changed, same: !!was && (was === now || upgraded || seed) || !was && (ownStamps || seed) };
   }
   var noteLogin = (login, ownerKey) => noteIdentity(login, ownerKey).changed;
-  function checkUser(login, ownerKey) {
+  function checkUser(login, ownerKey, opts = {}) {
     const now = identityOf(login, ownerKey), was = lastLogin();
     if (!now || !was || was === now) return false;
     if (ownerKey && was === norm(login)) {
       migrateIdentity(was, now);
+      return false;
+    }
+    if (seedKeeps(was, now, opts.seed)) {
+      migrateBare(now);
       return false;
     }
     clearUserState();
@@ -405,6 +426,7 @@ var EdgeSession = (() => {
         const t = ev?.data?.type;
         if (t === "entitlements" || t === "cleared") clients.forEach((fn) => fn());
         if (t === "cleared") {
+          clearArea("session", !!ev?.data?.signOut);
           clearedHooks.forEach((fn) => {
             try {
               fn();
@@ -480,7 +502,7 @@ var EdgeSession = (() => {
         const e = readError(401, { error: { code: "USER_CHANGED", message: "Another EDGE account signed in on this browser. Reload the page to continue as that account." } });
         throw new SessionError(e, e.message);
       }
-      checkUser(s.login, s.ownerKey);
+      checkUser(s.login, s.ownerKey, { seed: d?.access?.seed === true });
       if (!identity) identity = id;
       now = s;
       return s;

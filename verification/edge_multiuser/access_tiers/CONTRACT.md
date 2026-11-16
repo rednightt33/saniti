@@ -315,8 +315,10 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 - **Storage registry:** every localStorage, sessionStorage and IndexedDB key is classified `browser` (theme, widths) or
   `user`.
   - Sign-out or a change of user clears the `user` keys, and the `terminal-files` and screener caches.
-  - A browser with no last-login mark is cleared at the first sign-in unless the session's `access.seed` is true
-    (user #1: state written before the mark existed can only be its; ERRORS M478 C3 B1).
+  - A browser with no last-login mark, or with a mark of the bare-login form (Phase 0), is cleared at the first
+    sign-in unless the session's `access.seed` is true: user #1, the one account EDGE had while such state was written,
+    keeps it and its bare drawing stamps move to its owner identity (ERRORS M478 C3 B1, C4). A `cleared` broadcast also
+    clears the receiving tab's own sessionStorage `user` keys (sessionStorage is per tab).
   - A test fails on an unclassified key.
   - Drawings offline copies are stamped with the owner and merged only for it (M468).
 - **Shell pages:** `/register`, `/verify`, `/forgot`, `/reset`, `/mfa`, `/pay` (Phase 5 stub), `/admin` (Phase 4).

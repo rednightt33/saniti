@@ -8943,8 +8943,31 @@ code and its requester is part of the data model, not of the message.
       account clears for the seed too. Server: `test_principal.py` (switch off: `seed` true) and `test_auth_flows.py`
       (the seed row true, a registered account false).
     - Not covered: a browser whose mark was removed by hand and that holds another account's state, first signed in
-      by the seed. That state is then kept for the seed. It can only arise from a manual storage edit, since sign-out
-      removes the mark together with the state.
+      by the seed. That state is then kept for the seed. Since the C4 round it arises only from a manual storage edit
+      or a late write racing a sign-out (the Screener's `scr.last` and the drawings guard theirs with `onReset`; no
+      unguarded `sync` writer was found). Sign-out removes the mark together with the state, in every open tab.
+- **C4 independent check of `331aec25` (2026-11-16, failing test `7eeb24a2`,
+  `terminal/tests/data/c4_seed_phase0_mark.test.ts`):**
+  - **Blocking for the switch-on step (Phase 6), not for the Phase 1 deploy:** Phase 0 (on dev since 2026-11-16) wrote
+    the mark as the bare login `edge`. With the switch on, the seed signs in as `admin_1` (`edge` is a reserved
+    username). `noteIdentity` read `seed` only without a mark, so `edge` ≠ `admin_1` cleared user #1's state and left
+    its `edge` drawing stamps behind. An app page opened alone cleared it the same way through `checkUser`, which never
+    saw `seed`.
+  - **Fix (FIXED on branch, not deployed):** a mark or stamp of the bare-login form can only be Phase 0's, when EDGE
+    had one account. With `seed`, `noteIdentity` and `checkUser` keep that state and move the bare stamps to the owner
+    identity (`seedKeeps`, `migrateBare`). `sessionClient` passes `access.seed` to `checkUser`. Without `seed` the
+    C2 #3 rule is unchanged.
+  - **Non-blocking, fixed in the same round:** sign-out cleared only the signing-out tab's sessionStorage (it is per
+    tab), so a no-mark browser could keep another account's `edge-side-attach:*` caches in another tab. A `cleared`
+    broadcast now also clears the receiving tab's own sessionStorage `user` keys. The cost: a page in the same tab
+    clears a cache the shell may have just written; every session `user` key is a cache.
+  - **Tests:** the checker's two failing cases pass unchanged, and its control passes. Added cases: the switch-off
+    Phase 0 mark is unchanged; an owner-form mark of another account still clears for the seed; a Phase 0 mark without
+    `seed` still clears; the `cleared` broadcast clears the other tab's sessionStorage and keeps its browser keys.
+    Terminal vitest: 948 passed.
+  - **Confirmed sound by C4:** no account other than user #1 can get `seed: true` (the switch-off mapping, the
+    `unknown` principal, `users_one_seed` and the owner-key trigger); an old cached client is no risk, because scripts
+    are served `no-store`.
   - **Recorded, non-blocking:**
     - First device wins per preference, with no merge of lists.
     - The page may wait up to 3 s once for the first upload.
