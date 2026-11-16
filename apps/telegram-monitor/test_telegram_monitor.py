@@ -819,6 +819,23 @@ class BrokerBasisReportTests(unittest.TestCase):
         try:
             self.assertEqual(monitor.notify(tm.BASIS_SOURCE, self.ID, self.details())[0], "sent")
             self.assertEqual(monitor.notify(tm.BASIS_SOURCE, self.ID, self.details())[0], "duplicate")
+            # Stage C2 (lens 2 F7): a changed list the same day carries another digest in its id and is sent
+            self.assertEqual(monitor.notify(tm.BASIS_SOURCE, self.ID + "-0a1b2c3d", self.details())[0], "sent")
         finally:
             tm.psycopg.connect, tm.claim_delivery, tm.mark_sent = saved
-        self.assertEqual(len(sent), 1)
+        self.assertEqual(len(sent), 2)
+
+    def test_a_long_report_is_split_under_telegrams_limit(self):
+        """Stage C2 (lens 2 F6): 30 items with long reasons reach about 5,500 characters; each message stays under the
+        limit and together they hold every line."""
+        import telegram_monitor as tm
+        item = {"ex": "2026-09-22", "type": "REVERSE_SPLIT", "status": "unresolved", "price": "raw"}
+        items = [{**item, "ticker": f"ABCDEFGHIJK{chr(65 + k % 26)}"} for k in range(30)]
+        report = tm.parse_broker_basis(self.ID + "-0a1b2c3d", self.details(total=30, items=items))
+        whole = tm.build_broker_basis_message(report)
+        self.assertGreater(len(whole), tm.MAX_TELEGRAM_TEXT)
+        parts = tm.build_broker_basis_messages(report)
+        self.assertGreater(len(parts), 1)
+        self.assertTrue(all(len(p) <= tm.MAX_TELEGRAM_TEXT for p in parts))
+        self.assertEqual("\n".join(parts), whole)
+        self.assertIn("UPDATE_TABLE.md bagian C", parts[-1])

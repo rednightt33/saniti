@@ -8491,7 +8491,72 @@ in its staleness check.
   version that leaves out an input the run reads (a window, a reference label, a changed rule) merges what differs or
   splits what is one.
 - **Status:** items 1-11 FIXED ON BRANCH (item 2 by P9, 2026-11-16), awaiting Gate 2 (deploy: publisher, telegram-monitor,
-  worker, screener-worker, edge-bff).
+  worker, screener-worker, edge-bff). Item 3's refusal is replaced by a member per day (M459 items 2-3, 2026-11-16).
 - **Lesson for new data:** every input a run reads, a reference list included, enters `data_version`; a series built from
   a set of members must take its members from the rows up to the period's end; a look-ahead test cuts the data at t at
   every step that decides something, the refusal included.
+
+### M459 — Backtest revamp, Stage C2 review: the broker basis decided with sessions after the day, a named broker a member before it trades, the gate blind to days without broker rows, and deploy gaps (2026-11-16, open: items 1, 9)
+
+- **Found by:** BACKTEST-REVAMP Stage C2 (user 2026-11-16 "Opsi C": two independent reviewers, Opus, medium effort,
+  read-only, the diff only): lens 1 correctness and look-ahead, lens 2 contracts, rights, deploy and cross-service
+  compatibility. Every item re-verified by the main agent in code, tests and data (pgweb, read-only) the same day. Lens 2
+  found the admin gate holding at every place it traced (worker, screener-worker, edge-bff catalogs, presets, previews,
+  queued jobs, counts).
+- **Verified, with root cause and solution (on branch `claude/hopeful-shannon-bqgb1a` unless marked):**
+  1. *Lens 1 F1: the broker basis is decided with sessions after the bar it governs.* `publisher.py broker_basis` sets
+     `pending`, `terms`, `same` or `unresolved` from up to 21 days after the ex date, so on the days ex..ex+21 a
+     broker-price value is present or empty, and the lots before ex are scaled or not, depending on later sessions (a
+     rights issue reads `terms` with 3 sessions after it and `unresolved` with 9 after a drift). The gate keeps the basis
+     block whole at every cut, so it could not see this. **Open: the user chooses the rule (2026-11-16, question A/B/C).**
+  2. *Lens 1 F2: a named broker is a member before its first row.* The Terminal's cohort (calc/flow.ts) takes the broker
+     set from every row it is given, so on the whole history a broker that starts trading the stock later counts as a
+     member (FL13 0) on earlier days, where the data up to that day has none (FL13 empty). Fix (worker `grammar.ts
+     tickerFlow`): computeFlow per stretch of sessions with the same named members (a name not trading yet replaced by a
+     code no row has) and joined; the Terminal file is unchanged.
+  3. *Lens 1 F3: the UNKNOWN_BROKER refusal of M458 item 3 read rows after the period.* A broker whose first row came
+     after the period refused the run (or left the stock out); on the data cut at the period's end it ran. Fix: the
+     refusal is gone; item 2 makes the value of each day its own.
+  4. *Lens 1 F4: the gate had broker rows on every session.* Fix (tests): the fixture drops every 29th session's broker
+     rows and the newest two, and the Flow variants name LATE and GONE (first row at session 200, last at 350). The wider
+     gate found a leak at once: FL27/FL28 had a value on a session without broker rows only because later rows extend the
+     window. Fix (worker): a Flow value on a session without broker rows is empty (as on the data up to it); the parity
+     test compares with the Terminal on the data up to each session.
+  5. *Lens 1 F6: lot values before a `terms` action differ from the Terminal's chart without a word.* Fix (core engine):
+     warning `FLOW_LOTS_RESTATED`.
+  6. *Lens 1 F7: a small action is never `terms`.* With |terms - 1| within the 4 % tolerance the status could only be
+     `same` (data: 45 rights issues within 2 % and 6 bonus shares of 3.6-5 % whose close carries the jump). Fix
+     (publisher): the nearer reading decides (terms when the jump is within tolerance of it and nearer to it than to 1).
+  7. *Lens 1 F8: an action without an ex date is missing from the basis.* 0 rows today (pgweb 2026-11-16: every price
+     action has `annotation_date = ex_date`). Fix (publisher, defensive): keyed on its annotation date, `unresolved`.
+  8. *Lens 1 F10: PRICES_RESTATED used a fixed boundary.* VKTR's 2026-10-07 rights issue, reloaded 2026-10-31, restated
+     prices without the warning. Fix (core): the basis' `price` side decides; the boundary only where the basis has none.
+  9. *Lens 1 F9: lot-based Flow windows mix scales across an unsettled action.* Open with item 1 (its rule decides it).
+  10. *Lens 1 F11 = lens 2 F5: the daily publish measured the basis of every ticker with a price action.* Every new
+      candle changes the last price year's stamp. Fix (publisher): only a changed older year (a reloaded history) or a
+      recent action measures again.
+  11. *Lens 2 F7: the events file republished daily for 21 days after an action* (the digest held the measured numbers),
+      and *one Telegram report a day* (a later changed list was a duplicate). Fix: the digest holds the decisions only;
+      the report's id carries a digest of its list.
+  12. *Lens 2 F6: the basis report could exceed Telegram's 4,096 characters* (30 items: up to 5,498) and was then never
+      delivered. Fix (telegram-monitor): split into messages under `MAX_TELEGRAM_TEXT`.
+  13. *Lens 2 F3: no CI for edge-bff, terminal-publisher or telegram-monitor.* Fix: `.github/workflows/backend-tests.yml`
+      (edge-bff with a disposable Postgres, browser tests skipped without Playwright as elsewhere; `device_page` in
+      `tests/test_composer_layout.py` now skips the same way instead of erroring).
+  14. *Lens 2 F4: `.railway/railway.ts` recorded `checkSuites: true` that is not live.* Fix: the file records the live
+      `false` with a note; K10 a is applied with the deploy after Gate 3, with approval.
+  15. *Lens 2 F1, F2: the deploy order.* A new edge-bff sends `context` and `owner_trials`; the deployed backtest-worker and
+      screener-worker refuse them (422), so every run, preview and queued job fails until they are updated. Fix (docs):
+      the order (backtest-worker upload, then screener-worker, then edge-bff) in the worker README and
+      BACKTEST_END_TO_END; the choice is part of the Gate 3 deploy approval.
+  16. *Lens 1 F5: FL27/FL28 empty for about 20-40 sessions at the start of a stock's broker data,* where the Terminal has
+      values: the Screener core's window starts at the first broker date. Not a look-ahead (the Backtest is stricter);
+      kept, recorded here (changing it would change the Screener's values too).
+- **Not fixed, low:** lens 2 F7 `owner_trials` grows with use (every distinct variant of 90 days in each job body);
+  lens 2 F7 the K7 a hash form splits strategy lines at deploy (intended, one line in the deploy notes).
+- **Class:** a decision a run reads (a basis status, a broker set, a window's end) made on the whole history lets later
+  rows decide earlier days; a test fixture without the gaps of real data cannot see it.
+- **Status:** items 2-8 and 10-16 FIXED ON BRANCH; items 1 and 9 OPEN (user decision).
+- **Lesson for new data:** a published decision that depends on later sessions carries the date it became known, and a
+  reader treats it as unknown before; a fixture for look-ahead tests has the gaps of the real source (missing days,
+  members that come and go).

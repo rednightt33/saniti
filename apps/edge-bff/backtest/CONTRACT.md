@@ -764,7 +764,12 @@ data up to that bar leaves unsettled (`apps/backtest-worker/src/basis.ts`): a ba
 outside its own low and high (1 %), or an action inside the window whose basis is pending, unresolved, or whose close
 was not reloaded after it (price raw). An events file without the block reads its actions as unresolved. Before P9 the
 value was also empty before every action dated on or before 2026-09-12, which read the action before it happened (K3 a
-as first built).
+as first built). Stage C2 (ERRORS M459): a Flow value on a session without broker rows is empty (as on the data up to it,
+whose window ends the session before); a broker a list names is a member from its own first row for the stock on
+(computeFlow per stretch of sessions with the same members, the Terminal's own formula); the publisher's basis status
+is the nearer of `terms` and `same` for a small action, an action without an ex date is `unresolved` on its annotation
+date, and the events stamp holds the decisions (ex, type, factor, status, price) only. Open (M459 items 1, 9): the
+status is decided with sessions after the ex date; the user's rule for the days before that decision is known is pending.
 
 **13.3 Point-in-time indicators (sections 3, 5).** FL18, FL19, FL20, FL23, FL44, FL45, FL51 (`apps/backtest-worker/src/pit/`,
 worker-only, admins only): the brokers chosen again on each candle from the anchor (FL18-FL20, FL44, FL45: `anchor`) or
@@ -786,7 +791,7 @@ STATE, EVENT, window with a point-in-time side, a price, a constant or any other
 | `CONDITION_RESTRICTED` | a point-in-time indicator without the right `flow_point_in_time`, enabled or not, at any depth |
 | `CONDITION_UNAVAILABLE` | see 13.1; FL51 `end` |
 | `FLOW_BUDGET_EXCEEDED` | more distinct Flow series than `limits.max_flow_series` (default 8) |
-| `UNKNOWN_BROKER` | a broker code outside the reference list (every list of kind `brokers`: `brokers`, `num_brokers`, `den_brokers`, FL34 `inst` / `retail`); for a stock, a named broker of a point-in-time indicator without rows up to the period's end, and a named broker of any Flow indicator (where its list is in use) whose first row is after the period's end (Stage C, M458: later rows would decide the run); a portfolio leaves the stock out |
+| `UNKNOWN_BROKER` | a broker code outside the reference list (every list of kind `brokers`: `brokers`, `num_brokers`, `den_brokers`, FL34 `inst` / `retail`); for a stock, a named broker of a point-in-time indicator without rows up to the period's end, (Stage C refused a named broker of any Flow indicator whose first row is after the period's end; Stage C2, M459: that broker is simply not a member before its first row, so no later row decides a run); a portfolio leaves the stock out |
 | `UNKNOWN_FIELD` `context` | a body from the page that carries `context` (edge-bff) |
 | `INVALID_CONTEXT` | rights that are not a list of distinct known rights |
 
@@ -794,8 +799,10 @@ A refusal of the Screener's own validation of a grammar condition (for example `
 `PARAM_OUT_OF_RANGE`, `METRIC_UNAVAILABLE`) reaches the client with the Screener's code, field, message and `details`
 (Stage C, M458), as the Screener's contract lists them.
 
-**13.5 Results (section 7).** New warnings: `PRICES_RESTATED` (K4 a, M449), `FLOW_PRE_2021` (decision 4),
-`FLOW_BASIS_CHANGE`, `FLOW_SOURCE_GAP`, `FLOW_ROWS_DROPPED`, `FLOW_CROSSING_BOARDS`, `FEW_TRADES`, `OOS_STRADDLE`,
+**13.5 Results (section 7).** New warnings: `PRICES_RESTATED` (K4 a, M449; Stage C2: an action whose basis says the close
+carries it, `price` adjusted, or without that reading one on or before the boundary), `FLOW_PRE_2021` (decision 4),
+`FLOW_BASIS_CHANGE`, `FLOW_SOURCE_GAP`, `FLOW_ROWS_DROPPED`, `FLOW_CROSSING_BOARDS`, `FLOW_LOTS_RESTATED` (Stage C2: a
+`terms` action after the first session the Flow conditions read; the lots before it are on the prices' share basis), `FEW_TRADES`, `OOS_STRADDLE`,
 `DSR_SAMPLE_RULE`, `ANCHOR_INSIDE_PERIOD`, and `SURVIVORSHIP` in single mode too. The sensitivity grid can vary a grammar
 threshold (`x_field`, e.g. `test.value`; 20 % steps of its base, cells the validation refuses are null). K6 a:
 `meta.trials.owner {total, days}` and `robustness.deflated_owner`, a deflated Sharpe over the owner's distinct trials of
@@ -825,9 +832,13 @@ or admin, `available`, `reason`, `date_param`) and `limits.max_flow_series`. `en
 session (the kept one too); result parts joined on `owner_key`. The Screener (K8 b): its anchored and inventory entries
 marked `access: admin`, refused by screener-worker without the right, filtered from its catalog per session.
 
-**13.9 Page (section 10).** Unchanged in this step (back end first): the page does not compute grammar or point-in-time
-conditions and no module it imports reaches `apps/backtest-worker/` (`tests/worker-only.test.mjs`, M456). The new page
-(Stage D) asks the worker for their series.
+**13.9 Page (section 10).** The page does not compute grammar or point-in-time conditions and no module it imports
+reaches `apps/backtest-worker/` (`tests/worker-only.test.mjs`, M456). Stage D (D6): the signals preview takes
+`detail: {ticker, exit_signals?}` (one of `tickers`; `exit_signals` checked as a run's `exit.signals`) and answers
+`detail` (contract.ts `PreviewDetail`): that ticker's entry conditions, exit signal conditions, entry and exit as tracks on
+its own bars inside the period (index 0 its bar on `from`), with the preview's rules (a condition without a value is
+false; the error a run would leave the stock out with is `detail.error`). The page draws the conditions it cannot
+compute from it.
 
 **13.10 Look-ahead gate.** `.github/workflows/backtest-lookahead.yml` (AGENTS.md "Backtest look-ahead gate"); real data:
 `verification/backtest/lookahead/` (BBRI, GOTO, COCO, ALKA: 0 leaks, 2026-11-15; with the publisher's broker basis

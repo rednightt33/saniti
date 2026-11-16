@@ -338,6 +338,18 @@ gate is a manual step (EXEC-BACKTEST-REVAMP K10 a, ERRORS M458):
 2. the upload names that commit and the run ID, recorded in `RAILWAY_CHANGELOG.md` with the deployment ID;
 3. success is claimed only when that deployment is `SUCCESS` and `/health` answers the new `engine_version`.
 
+**Order across services (Stage C2, ERRORS M459 item 15).** A new edge-bff sends the worker `{request, context}` with
+`context.rights` and `context.owner_trials`, and screener-worker `context` too; the deployed workers before this revamp
+refuse those bodies (422 `INVALID_REQUEST` "The body must be {request}", `UNKNOWN_FIELD context.owner_trials`, the
+Screener's `INVALID_INPUT` "context is not a field"), so every Backtest run, preview and queued job, and every Screener
+run, would fail until they are updated. A new worker accepts the old bodies (no context: no rights), so the order is:
+1. upload this worker (the steps above) from the green commit, before the merge;
+2. screener-worker before edge-bff (both build from `main`: with `checkSuites` off a push deploys both at once, so the
+   few minutes between their builds refuse Screener calls; a quiet hour, or screener-worker uploaded from the same
+   commit first);
+3. edge-bff from `main`; then terminal-publisher (CLI) and telegram-monitor (before the publisher's first report).
+The K7 a hash form starts new strategy lines at this deploy (trial counts restart; intended, `hash-golden-k7a.json`).
+
 ## Tests
 
 Run `npm test` (`node --experimental-strip-types --import ./loader/register.mjs --test tests/*.test.ts`). It needs no dependency and no network.

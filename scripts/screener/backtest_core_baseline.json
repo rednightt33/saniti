@@ -2,17 +2,17 @@
   "schema": 1,
   "about": "The approved state of apps/edge-bff/backtest/src/core for scripts/screener/check_backtest_untouched.mjs: the tripwire passes a core that differs from origin/main only while its content hash is core_tree (and, while the worker is the base's, the versions are these). Recorded with --record-core and changed only by a deliberate commit (EXEC-SCREENER-FLOW-CANDLES, K2 A).",
   "base_commit": "f90b037e5dfbbd215a95e0cf1779f04e299af262",
-  "recorded_on": "8b1ef7b0a1ba7c464e62981e606b9701e6098cbe",
+  "recorded_on": "0b749f3508a64b42b01a1056b5b53c1a9bd04f1a",
   "recorded_at": "2026-11-16",
-  "engine_version": "6b9b913f4023d381",
+  "engine_version": "68e4f2a9ae958f03",
   "base_engine_version": "b85c67c25f6a707b",
   "registry_version": "514dc3df60a25aff",
-  "core_tree": "0c3794c456d5c2fbdb08e355f7a2bf735057558d92d3caaadf6e6c92d52a28da",
+  "core_tree": "9c653d6a1ed587663c25374d330882300354818c5e9a7bdc08d78510ce329d2f",
   "core_files": 17,
   "exec": {
     "section": "EXEC-BACKTEST-REVAMP",
-    "decision": "User 2026-11-15 (verbatim in EXEC-BACKTEST-REVAMP): \"Setuju untuk usulanmu ... satu bahasa kondisi bersama (permanen)\", \"Terminal jangan disentuh ... indikator D ini akan hanya avail untuk admin saja\", decisions 1A, K1-K11 (K8 \"1B\"), \"Go\" (Gerbang 1); 2026-11-16 at Gerbang 2: \"A dulu\", then \"opsi A\" (P9, broker prices on the price basis); merge and deploy wait for Gerbang 2",
+    "decision": "User 2026-11-15 (verbatim in EXEC-BACKTEST-REVAMP): \"Setuju untuk usulanmu ... satu bahasa kondisi bersama (permanen)\", \"Terminal jangan disentuh ... indikator D ini akan hanya avail untuk admin saja\", decisions 1A, K1-K11 (K8 \"1B\"), \"Go\" (Gerbang 1); 2026-11-16 at Gerbang 2: \"A dulu\", then \"opsi A\" (P9); \"Opsi C\" (two reviewers, then the page port, Stage C2 fixes); merge and deploy wait for Gerbang 3",
     "date": "2026-11-16"
   },
-  "note": "P0-P8, Stage C and P9: the grammar hook, Flow and point-in-time meta, compare-lag, statistics warnings, K6 a owner trials, K7 a hash rules, broker columns, broker basis (brokerBasis, onPriceBasis)"
+  "note": "P0-P8, Stage C, P9 and Stage C2: the grammar hook, Flow and point-in-time meta, compare-lag, statistics warnings (FLOW_LOTS_RESTATED, PRICES_RESTATED from the basis), K6 a owner trials, K7 a hash rules, broker columns on the price basis, the preview detail (D6)"
 }

@@ -2938,6 +2938,56 @@ def test_broker_basis_decides_each_action_from_its_own_sessions():
     assert got['2026-03-02']['status'] == 'terms' and abs(got['2026-03-02']['factor'] - 4 / 3) < 1e-9
 
 
+def test_stage_c2_small_actions_no_ex_date_and_the_digest():
+    """Stage C2 (lens 1 F7, F8; lens 2 F7): the nearer reading decides a small action; an action without an ex date is
+    unresolved, never measured, and the older actions take the VWAP form; the digest holds the decisions only."""
+    through = '2026-11-13'
+    # a bonus share of 3.7 % (PDPP 2023-11-27): the jump of its terms is nearer to the terms than to 1 -> terms
+    small = ('2026-03-02', 'BONUS_SHARE', 1000.0, 37.0, None)
+    [row] = pub.broker_basis([small], basis_days('2026-03-02', 12, 12, 1.037, 1.0), through)
+    got = dict(zip(pub.BASIS_COLUMNS, row))
+    assert got['status'] == 'terms' and abs(got['factor'] - 1.037) < 1e-9, got
+    # the same action with no jump: nearer to 1 -> same
+    [row] = pub.broker_basis([small], basis_days('2026-03-02', 12, 12, 1.004, 1.0), through)
+    assert row[3] == 'same' and row[2] == 1.0
+    # a jump halfway between is the nearer one (here 1)
+    [row] = pub.broker_basis([small], basis_days('2026-03-02', 12, 12, 1.015, 1.0), through)
+    assert row[3] == 'same'
+    # no ex date: keyed on the annotation date, unresolved, not measured (the sessions are not read)
+    rows = pub.broker_basis([('2026-03-02', 'RIGHT_ISSUE', 1.0, 1.0, 100.0, True), ('2026-01-05', 'RIGHT_ISSUE', 1.0, 1.0, 100.0)],
+                            basis_days('2026-03-02', 12, 12, 1.5, 1.0, 200.0, 200.0) + basis_days('2026-01-05', 12, 12, 1.5, 1.0, 200.0, 200.0), through)
+    got = {r[0]: dict(zip(pub.BASIS_COLUMNS, r)) for r in rows}
+    assert (got['2026-03-02']['status'], got['2026-03-02']['factor'], got['2026-03-02']['pre']) == ('unresolved', 1.0, 0)
+    assert got['2026-01-05']['status'] == 'terms', 'the older one is still measured (with the VWAP form)'
+    # the digest reads the decisions (ex, type, factor, status, price), not the measured numbers
+    a = [['2026-03-02', 'RIGHT_ISSUE', 1.5, 'terms', 'adjusted', 1.5, 1.49, 12, 5]]
+    b = [['2026-03-02', 'RIGHT_ISSUE', 1.5, 'terms', 'adjusted', 1.5, 1.51, 12, 9]]
+    assert pub.basis_digest(a) == pub.basis_digest(b)
+    assert pub.basis_digest(a) != pub.basis_digest([['2026-03-02', 'RIGHT_ISSUE', 1.0, 'unresolved', 'adjusted', 1.5, 1.2, 12, 9]])
+
+
+def test_stage_c2_a_daily_run_measures_an_old_action_again_only_after_its_history_is_reloaded():
+    """Stage C2 (lens 1 F11, lens 2 F5): a new candle in the last year is no reload; a changed older year is."""
+    days = basis_days('2025-06-02', 12, 12, 1.5, 1.0, 200.0, 200.0)
+    late = [('2026-09-01', 200.0), ('2026-09-02', 200.0)]
+    prices = [('BBCA', d, c, h, l, c, 1000.0) for d, v, h, l, c in days] + [('BBCA', d, c, c * 1.01, c * 0.99, c, 1000.0) for d, c in late[:1]]
+    prices += [r for r in PRICES if r[0] == 'IHSG']
+    brokers = [('BBCA', d, 'AK', 'Foreign', 'Regular', v * 100 * 10, v * 100 * 10, 10.0, 10.0, False, 3, 3) for d, v, *_ in days]
+    brokers += [('BBCA', late[0][0], 'AK', 'Foreign', 'Regular', 2e6, 2e6, 10.0, 10.0, False, 3, 3)]
+    # without the fixture's recent split (2026-10-14), which is measured on every daily run as a recent action
+    old_only = [a for a in ACTIONS if a[1] != '2026-10-14'] + [('BBCA', '2025-06-02', 'RIGHT_ISSUE', 1.0, 1.0, 100.0, 'IDR', 'k9')]
+    conn = FakeConn(prices, brokers, UNIVERSE, actions=old_only)
+    _, _, bucket = run('backfill', conn)
+    pub.Publisher(conn, bucket, today=TODAY).run('daily')                                    # the source stamps settle
+    conn.prices = conn.prices + [('BBCA', late[1][0], 200.0, 202.0, 198.0, 200.0, 1000.0)]   # a new candle in 2026
+    p2 = pub.Publisher(conn, bucket, today=TODAY); p2.run('daily')
+    assert 'BBCA' not in p2.basis_cache, 'a new candle in the last year measures no old action again'
+    conn.prices = [(t, d, o / 1.5, h / 1.5, l / 1.5, c / 1.5, v) if t == 'BBCA' and d < '2025-06-02' else (t, d, o, h, l, c, v)
+                   for t, d, o, h, l, c, v in conn.prices]                                       # 2025 reloaded
+    p3 = pub.Publisher(conn, bucket, today=TODAY); p3.run('daily')
+    assert 'BBCA' in p3.basis_cache, 'a reloaded older year measures it again'
+
+
 def basis_conn(pre_close=200.0, ratio_pre=1.5):
     """BBCA with a rights issue on 2026-02-02 (1:1 at Rp 100), its sessions around it, a broker date after them."""
     days = basis_days('2026-02-02', 12, 12, ratio_pre, 1.0, pre_close, 200.0)
@@ -2993,7 +3043,8 @@ def test_the_daily_report_lists_the_recent_actions_that_need_attention(monkeypat
     sent = []
     monkeypatch.setattr(pub, 'post_notify', lambda payload, event: sent.append((payload, event)))
     pub.notify_basis('2026-02-20', p.basis_report)
-    assert sent == [({'source_table': 'Broker_Basis_Report', 'execution_id': 'broker-basis-2026-02-20',
+    digest = pub.hashlib.sha256(pub.json.dumps(p.basis_report, separators=(',', ':'), sort_keys=True).encode()).hexdigest()[:8]
+    assert sent == [({'source_table': 'Broker_Basis_Report', 'execution_id': f'broker-basis-2026-02-20-{digest}',
                       'details': {'date': '2026-02-20', 'total': 1, 'items': p.basis_report}}, 'basis_notify')]
     # reloaded: nothing to report
     conn.prices = [(t, d, o / 1.5, h / 1.5, l / 1.5, c / 1.5, v) if t == 'BBCA' and d < '2026-02-02' else (t, d, o, h, l, c, v)

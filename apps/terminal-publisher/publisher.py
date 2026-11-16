@@ -212,11 +212,16 @@ EVENT_STAMPS_SQL = ('SELECT ticker, count(*), max(annotation_date)::text, max(in
 # rights issues (verification/backtest/basis: 98 of 107 rights issues below the market show the jump of their terms).
 # Per action, measured on the Regular board's broker VWAP against the close of the sessions within BASIS_WINDOW_DAYS of
 # the ex date (the same rows the broker files hold):
-#   terms       the jump of VWAP / close across the ex date equals the action's terms factor (BASIS_TOLERANCE): the
-#               prices carry the action, the broker lots do not; the Backtest multiplies the lots before it by `factor`
-#   same        the jump is 1: both sources on one basis (factor 1)
+#   terms       the jump of VWAP / close across the ex date equals the action's terms factor (BASIS_TOLERANCE) and is
+#               nearer to it than to 1: the prices carry the action, the broker lots do not; the Backtest multiplies the
+#               lots before it by `factor`
+#   same        the jump is 1 (within BASIS_TOLERANCE, and nearer to 1 than to the terms factor): both sources on one
+#               basis (factor 1). Stage C2 (lens 1 F7): before, an action whose terms factor was within BASIS_TOLERANCE
+#               of 1 was never `terms` (45 rights issues and 6 bonus shares of 3.6-5 % carry their jump), so the broker
+#               prices before it stayed up to 4 % off; the nearer reading now decides
 #   pending     the ex date is so recent that fewer than BASIS_MIN_SESSIONS sessions follow it (factor 1 until then)
-#   unresolved  too few broker sessions, or a jump that matches neither (factor 1; the Backtest masks across it)
+#   unresolved  too few broker sessions, a jump that matches neither, or an action without an ex date (Stage C2, lens 1
+#               F8: keyed on its annotation date, never measured; factor 1; the Backtest masks across it)
 # `price` says whether the published close carries the action (adjusted: smooth across the ex date) or not (raw: the
 # close jumps by the terms factor, the history was not reloaded, ERRORS D22); null when the factor is too small to tell.
 # (the price-affecting types are PRICE_ACTION_TYPES, defined with the xsection actions below)
@@ -226,11 +231,12 @@ BASIS_WINDOW_DAYS, BASIS_MIN_SESSIONS, BASIS_TOLERANCE, BASIS_PRICE_MIN = 21, 3,
 BASIS_RECENT_DAYS = 60
 BASIS_SOURCE, BASIS_REPORT_MAX = 'Broker_Basis_Report', 30          # telegram-monitor's source; items per message
 BASIS_COLUMNS = ['ex', 'type', 'factor', 'status', 'price', 'terms', 'observed', 'pre', 'post']
-BASIS_TICKERS_SQL = ("SELECT ticker, max(ex_date)::text FROM public.idx_event_annotation WHERE event_family = 'CORPORATE_ACTION' "
-                     'AND event_type = ANY(%s) AND ex_date IS NOT NULL GROUP BY ticker')
-BASIS_ACTIONS_SQL = ('SELECT ex_date::text, event_type, ratio_old::float8, ratio_new::float8, amount_per_share::float8 '
-                     "FROM public.idx_event_annotation WHERE ticker = %s AND event_family = 'CORPORATE_ACTION' "
-                     'AND event_type = ANY(%s) AND ex_date IS NOT NULL ORDER BY ex_date, event_key')
+BASIS_TICKERS_SQL = ("SELECT ticker, max(coalesce(ex_date, annotation_date))::text FROM public.idx_event_annotation "
+                     "WHERE event_family = 'CORPORATE_ACTION' AND event_type = ANY(%s) GROUP BY ticker")
+BASIS_ACTIONS_SQL = ('SELECT coalesce(ex_date, annotation_date)::text, event_type, ratio_old::float8, ratio_new::float8, '
+                     'amount_per_share::float8, ex_date IS NULL FROM public.idx_event_annotation WHERE ticker = %s '
+                     "AND event_family = 'CORPORATE_ACTION' AND event_type = ANY(%s) "
+                     'ORDER BY coalesce(ex_date, annotation_date), event_key')
 BASIS_DAYS_SQL = ('SELECT b.trade_date::text, ((sum(b.buy_value) + sum(b.sell_value)) / '
                   'nullif(100 * (sum(b.buy_lots) + sum(b.sell_lots)), 0))::float8, p.high::float8, p.low::float8, p.close::float8 '
                   'FROM public."Feature_05_Foreign_Domestic_Broker_Detail" b JOIN public."Price_Stock_Indonesia_IDX" p '
@@ -264,7 +270,8 @@ def terms_factor(typ, old, new, price, cum_close=None, later=1.0, cum_vwap=None)
 
 
 def broker_basis(actions, days, through):
-    """The basis rows (BASIS_COLUMNS) of a ticker's price actions [(ex, type, old, new, price)] from its sessions
+    """The basis rows (BASIS_COLUMNS) of a ticker's price actions [(ex, type, old, new, price[, no_ex])] (no_ex: the
+    action has no ex date and `ex` is its annotation date: unresolved, not measured) from its sessions
     [(date, vwap, high, low, close)] around them; `through` is the last broker date. An action after `through` has no
     broker row it could restate and is left out. The actions are measured newest first, so each rights issue's terms
     factor reads the price factors of the actions after it (terms_factor `later`): an action's price factor is its factor
@@ -276,7 +283,11 @@ def broker_basis(actions, days, through):
     num = lambda x: isinstance(x, (int, float)) and math.isfinite(x) and x > 0
     rnd = lambda x: None if x is None else float(f'{x:.10g}')
     out, later = [], 1.0
-    for ex, typ, old, new, price in sorted((a for a in actions if a[0] <= through), key=lambda a: a[0], reverse=True):
+    for ex, typ, old, new, price, *rest in sorted((a for a in actions if a[0] <= through), key=lambda a: a[0], reverse=True):
+        if rest and rest[0]:
+            out.append([ex, typ, 1.0, 'unresolved', None, None, None, 0, 0])
+            later = None                                    # its price factor is unknown: older ones take the VWAP form
+            continue
         lo = (dt.date.fromisoformat(ex) - dt.timedelta(days=BASIS_WINDOW_DAYS)).isoformat()
         hi = (dt.date.fromisoformat(ex) + dt.timedelta(days=BASIS_WINDOW_DAYS)).isoformat()
         near = [(d, v, c) for d, v, h, l, c in days if lo <= d <= hi and num(v) and num(c)]
@@ -285,7 +296,8 @@ def broker_basis(actions, days, through):
         status, observed, side = 'unresolved', None, None
         if len(pre) >= BASIS_MIN_SESSIONS and len(post) >= BASIS_MIN_SESSIONS:
             observed = statistics.median(v / c for _, v, c in pre) / statistics.median(v / c for _, v, c in post)
-            if terms is not None and abs(terms - 1) > BASIS_TOLERANCE and abs(observed / terms - 1) <= BASIS_TOLERANCE:
+            to_terms = abs(math.log(observed / terms)) if terms is not None else math.inf
+            if to_terms <= math.log1p(BASIS_TOLERANCE) and to_terms < abs(math.log(observed)):
                 status = 'terms'
             elif abs(observed - 1) <= BASIS_TOLERANCE:
                 status = 'same'
@@ -303,8 +315,10 @@ def broker_basis(actions, days, through):
 
 
 def basis_digest(rows):
-    """The basis rows' part of the events stamp: a change of a decision republishes the events file."""
-    return hashlib.sha256(json.dumps(rows, separators=(',', ':')).encode()).hexdigest()[:16]
+    """The basis rows' part of the events stamp: a change of a decision (ex, type, factor, status, price) republishes the
+    events file. Stage C2 (lens 2 F7): the measured numbers (terms, observed, pre, post) are not in it, so the file is not
+    republished each day while sessions after a recent ex date arrive, and a run's data_version stays the same."""
+    return hashlib.sha256(json.dumps([r[:5] for r in rows], separators=(',', ':')).encode()).hexdigest()[:16]
 
 
 def basis_block(rows):
@@ -1935,7 +1949,9 @@ class Publisher:
             todo += self.changed_events(kind, force=True)
         elif mode == 'daily':
             todo = self.changed_prices(kind)
-            todo += self.changed_events(kind, prices={t for _, t, _, _ in todo})
+            # Stage C2 (lens 1 F11, lens 2 F5): a price year before the last one changed is a reloaded history (UPDATE_TABLE
+            # part C); the last year changes with every new candle, and an action that recent is measured as recent
+            todo += self.changed_events(kind, prices={t for d, t, y, _ in todo if d == 'price' and y is not None and y < self.last_year})
             since = state.get('broker_through')
             if since and through['broker'] and through['broker'] > since:
                 new = self.conn.execute(
@@ -2313,8 +2329,8 @@ class Publisher:
     def changed_events(self, kind, force=False, prices=(), only=None):
         """Tickers whose event rows changed (count, last date, last ingestion) or whose broker basis changed, or every
         ticker with events (force); `only`: those tickers alone. The basis (P9) is measured again where its inputs may
-        have changed: the ticker's events, a price year published this run (`prices`, a history reloaded after an
-        action), an action within BASIS_RECENT_DAYS of the broker date (its sessions after the ex date are still
+        have changed: the ticker's events, a price year before the last one published this run (`prices`, a history
+        reloaded after an action; the last year changes with every candle), an action within BASIS_RECENT_DAYS of the broker date (its sessions after the ex date are still
         arriving), a ticker of `only` (a broker range republished), or a stamp without one; elsewhere the published basis
         part of the stamp is kept."""
         out, prices = [], set(prices)
@@ -2750,8 +2766,10 @@ def notify_basis(run_day, items):
     (source Broker_Basis_Report) once per day to list the recent corporate actions whose broker basis needs attention:
     pending (too few sessions after the ex date yet), unresolved, or a published close not reloaded after the action
     (ERRORS D22: the price history needs its pull again). Facts only: tickers, dates and enumerations, at most
-    BASIS_REPORT_MAX items with the total."""
-    post_notify({'source_table': BASIS_SOURCE, 'execution_id': f'broker-basis-{run_day}',
+    BASIS_REPORT_MAX items with the total. Stage C2 (lens 2 F7): the id carries a digest of the list, so a later run the
+    same day sends a changed list and the same list once."""
+    digest = hashlib.sha256(json.dumps(items, separators=(',', ':'), sort_keys=True).encode()).hexdigest()[:8]
+    post_notify({'source_table': BASIS_SOURCE, 'execution_id': f'broker-basis-{run_day}-{digest}',
                  'details': {'date': run_day, 'total': len(items), 'items': items[:BASIS_REPORT_MAX]}}, 'basis_notify')
 
 

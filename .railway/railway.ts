@@ -219,10 +219,12 @@ export default defineRailway(() => {
     deploy: { sleepApplication: true, limitOverride: { containers: { memoryBytes: 1000000000 } } },
   });
   // EDGE Screener worker (apps/screener-worker, EXEC-SCREENER P3 a): built from GitHub main with the repository root as context
-  // EXEC-BACKTEST-REVAMP K10 a (user 2026-11-15): a push to main deploys only once its GitHub checks pass (the
-  // look-ahead gate among them, .github/workflows/backtest-lookahead.yml); applied with the deploy after Gate 2
+  // EXEC-BACKTEST-REVAMP K10 a (user 2026-11-15): a push to main is to deploy only once its GitHub checks pass (the
+  // look-ahead gate among them, .github/workflows/backtest-lookahead.yml). Not live yet: this file records the live
+  // value (false, read 2026-11-16, Stage C2 lens 2 F4); it becomes true with `railway config apply` at the deploy after
+  // Gate 3, with the user's approval (RAILWAY_CHANGELOG 2026-11-15)
   const screenerWorker = service("screener-worker", {
-    source: github("rednightt33/saniti", { checkSuites: true, rootDirectory: "/" }),
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "apps/screener-worker/Dockerfile",
       watchPatterns: ["/apps/screener-worker/**", "/apps/edge-bff/screener/src/core/**",
         "/apps/edge-bff/screener/scripts/build-screener-registry.mjs", "/apps/edge-bff/backtest/src/core/**",
@@ -237,7 +239,7 @@ export default defineRailway(() => {
     env: { SCREENER_CACHE_BYTES: preserve(), SCREENER_CACHE_DIR: preserve(), SCREENER_CACHE_DIR_BYTES: preserve(), SCREENER_CAP_BUDGET_MS: preserve(), SCREENER_DEADLINE_MS: preserve(), SCREENER_DOWNLOAD_CONCURRENCY: preserve(), SCREENER_DOWNLOAD_RETRIES: preserve(), SCREENER_FILE_ORIGIN: preserve(), SCREENER_HTTP_TIMEOUT_MS: preserve(), SCREENER_MAX_CONDITIONS: preserve(), SCREENER_MAX_COUNTS: preserve(), SCREENER_MAX_CPU_MS: preserve(), SCREENER_MAX_FILE_BYTES: preserve(), SCREENER_MAX_INFLATED_BYTES: preserve(), SCREENER_MAX_METRIC_FILTERS: preserve(), SCREENER_MAX_REFRESH_BYTES: preserve(), SCREENER_MAX_REQUEST_BYTES: preserve(), SCREENER_MAX_RESPONSE_BYTES: preserve(), SCREENER_OWNER_CPU_MS: preserve(), SCREENER_OWNER_INFLIGHT: preserve(), SCREENER_PREVIOUS_GRACE_S: preserve(), SCREENER_QUEUE: preserve(), SCREENER_RETRY_BASE_MS: preserve(), SCREENER_THREADS: preserve(), SCREENER_THREAD_HEAP_MB: preserve(), SCREENER_WITHIN_MAX: preserve(), SCREENER_WORKER_KEY: preserve(), TERMINAL_PROXY_KEY: preserve(), TERMINAL_URL: preserve() },
   });
   const edgeBff = service("edge-bff", {
-    source: github("rednightt33/saniti", { checkSuites: true, rootDirectory: "/apps/edge-bff" }),   // K10 a, as screener-worker
+    source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/edge-bff" }),   // K10 a pending, as screener-worker
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
     start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1 --no-access-log --no-proxy-headers",
     healthcheck: "/ready",

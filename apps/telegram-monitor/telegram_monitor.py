@@ -633,7 +633,8 @@ def build_postgres_restart_message(report: PostgresRestart) -> str:
             f"Memori {gb(report.memory_gb)}.{wait}\n{auto}")
 
 
-BASIS_ID = re.compile(r"^broker-basis-(\d{4}-\d{2}-\d{2})$")
+# Stage C2 (lens 2 F7): the date and a digest of the items, so a changed list the same day is sent and the same list once
+BASIS_ID = re.compile(r"^broker-basis-(\d{4}-\d{2}-\d{2})(?:-[0-9a-f]{8})?$")
 BASIS_TICKER = re.compile(r"^[A-Z0-9]{1,12}$")
 BASIS_TYPES = {"STOCK_SPLIT": "stock split", "REVERSE_SPLIT": "reverse split", "BONUS_SHARE": "saham bonus",
                "RIGHT_ISSUE": "rights issue", "STOCK_DIVIDEND": "dividen saham"}
@@ -676,6 +677,25 @@ def parse_broker_basis(execution_id: str, details: object) -> BrokerBasisReport:
             raise ValueError("invalid broker basis item")
         out.append((ticker, ex, typ, status, price))
     return BrokerBasisReport(execution_id, day, total, tuple(out))
+
+
+def pack_lines(lines: list[str], max_length: int = MAX_TELEGRAM_TEXT) -> list[str]:
+    """Lines packed into messages of at most max_length characters, in order (a line longer than that is cut)."""
+    out, cur = [], ""
+    for line in (x[:max_length] for x in lines):
+        if cur and len(cur) + 1 + len(line) > max_length:
+            out.append(cur)
+            cur = line
+        else:
+            cur = f"{cur}\n{line}" if cur else line
+    return out + ([cur] if cur else [])
+
+
+def build_broker_basis_messages(report: BrokerBasisReport, max_length: int = MAX_TELEGRAM_TEXT) -> list[str]:
+    """Stage C2 (lens 2 F6): the report in as many messages as Telegram's limit needs (30 items reach about 5,500
+    characters); the steps line closes the last one."""
+    lines = build_broker_basis_message(report).split("\n")
+    return pack_lines(lines, max_length)
 
 
 def build_broker_basis_message(report: BrokerBasisReport) -> str:
@@ -1427,8 +1447,9 @@ class TelegramMonitor:
                 elif isinstance(summary, PostgresRestart):        # every report is sent, a success included
                     message_ids.append(self.send_message(self.token, self.chat_id,
                                                          build_postgres_restart_message(summary)))
-                elif isinstance(summary, BrokerBasisReport):     # P9.4: one a day, only when an action needs attention
-                    message_ids.append(self.send_message(self.token, self.chat_id, build_broker_basis_message(summary)))
+                elif isinstance(summary, BrokerBasisReport):     # P9.4: when the list of actions that need attention changes
+                    for message in build_broker_basis_messages(summary):
+                        message_ids.append(self.send_message(self.token, self.chat_id, message))
                 elif isinstance(summary, ConsensusReport):       # every weekly report is sent, a clean one included
                     message_ids.append(self.send_message(self.token, self.chat_id, build_consensus_message(summary)))
                 elif isinstance(summary, StockbitUpdateSummary):

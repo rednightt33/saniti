@@ -21,7 +21,8 @@ Flow FL01-FL52 with every option and the engine as a whole on data cut at t, wit
 caught; `pit.test.ts`, `flow-grammar.test.ts`, `grammar.test.ts`: the point-in-time indicators, the Flow indicators and
 the grammar through the worker's own path) and the Screener and page suites. A new indicator, Flow indicator, transform,
 pattern or condition kind enters the gate by the registries it is derived from; a test is never skipped to pass it
-(edge-bff and screener-worker deploy only on green checks, K10 a). Before a release that changes what the Backtest
+(edge-bff and screener-worker are to deploy only on green checks, K10 a, applied with the deploy after Gate 3; until then
+`checkSuites` is off and a push to `main` deploys them, ERRORS M459). Before a release that changes what the Backtest
 reads, run the real-data check too (`verification/backtest/lookahead/README.md`). The Terminal (`apps/edge-bff/terminal`)
 keeps its own hindsight indicators (user: "Terminal jangan disentuh"); the Backtest reads their point-in-time versions
 (`apps/backtest-worker/src/pit/`, worker-only, admins only).

@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-11-16 — EXEC-BACKTEST-REVAMP Stage C2: `.railway/railway.ts` records the live `checkSuites` (no Railway change)
+
+- Lens 2 F4 (ERRORS M459 item 14): the 2026-11-15 entry wrote `checkSuites: true` for edge-bff and screener-worker into
+  `railway.ts` before applying it; the live triggers read `checkSuites: false` (edge-bff, screener-worker,
+  telegram-monitor, Railway `deploymentTriggers`, read-only, by the reviewer). The file now records the live `false`
+  with a note; K10 a (true for both) is applied with `railway config apply` at the deploy after Gate 3, with the user's
+  approval. No variable, service or deployment was changed.
+- The deploy order across services (M459 item 15) is in `apps/backtest-worker/README.md` (Deploy) and
+  `BACKTEST_END_TO_END.md`: backtest-worker upload, screener-worker, then edge-bff.
+
 ## 2026-11-15 — EXEC-BACKTEST-REVAMP: `.railway/railway.ts` records the live limits and the CI gate (not applied yet)
 
 - Recorded from the live project (ERRORS M455, Railway `serviceInstanceLimits`, read-only): backtest-worker

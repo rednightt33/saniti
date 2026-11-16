@@ -14976,6 +14976,18 @@ pemeriksaan): "Opsi C" = tinjauan dua agen (Opus 5.5 medium, read-only, diff `or
 kita; sudut 1 kebenaran dan look-ahead, sudut 2 kontrak, hak, deploy dan kompatibilitas lintas layanan), lalu Tahap D
 (port tampilan dari desain user, ditinjau Agent 10) sebelum deploy, lalu Gerbang 3. PR, merge dan deploy menunggu.
 
+**Kemajuan Opsi C, 2026-11-16 (Tahap C2, ERRORS M459):** kedua peninjau selesai; setiap temuan diverifikasi ulang di kode,
+uji dan data. Sudut 1: 11 temuan, 9 terbukti, F8 0 baris di data, F5 selisih kecil dengan Terminal (bukan look-ahead,
+dicatat). Sudut 2: hak admin bersih di semua jalur; urutan deploy, CI dan `railway.ts` terbukti. Diperbaiki di branch:
+anggota broker per hari (F2/F3), gerbang dengan hari tanpa data broker dan broker LATE/GONE (F4; menemukan FL27/FL28 di
+hari tanpa data broker, diperbaiki), `FLOW_LOTS_RESTATED` (F6), aturan terdekat untuk aksi kecil (F7), aksi tanpa ex
+(F8), `PRICES_RESTATED` dari basis (F10), ukur ulang hanya pada riwayat yang ditarik ulang (F11 = sudut 2 F5), stempel
+events hanya keputusan dan laporan Telegram dipecah serta berdigest (sudut 2 F6, F7), CI `backend-tests.yml` (sudut 2
+F3), `railway.ts` mencatat `checkSuites` live (false; K10 a diterapkan saat deploy sesudah Gerbang 3; sudut 2 F4), urutan
+deploy di README worker dan BACKTEST_END_TO_END (sudut 2 F1/F2). **Pertanyaan terbuka ke user (2026-11-16):** aturan F1
+(keputusan basis memakai sesi sesudah ex): A putuskan setelah jendela 21 hari lengkap, sebelum itu semua nilai Flow yang
+melintasi ex kosong (menutup F9 juga; rekomendasi); B putuskan di hari bursa ke-3 lalu dibekukan; C biarkan.
+
 ### Deploy (hanya setelah Gerbang 2) dan rollback
 
 1. PR branch → `main` (7B); CI hijau termasuk gerbang look-ahead; tidak ada job Backtest aktif (cek status job sebelum upload).
@@ -14983,7 +14995,7 @@ kita; sudut 1 kebenaran dan look-ahead, sudut 2 kontrak, hak, deploy dan kompati
    dari edge-bff lama sebagai tanpa hak (D ditolak, A-C jalan). Pasang Railway CLI (`npm i -g @railway/cli`), `git archive`
    konteks build sesuai Dockerfile, `railway up --path-as-root`; klaim hanya pada `SUCCESS`; log start `engine_version` =
    repo; variabel anggaran memori K9 (b) diterapkan bersama upload (dengan persetujuan Gerbang 2) dan dicatat.
-3. Merge; edge-bff dan screener-worker men-deploy dari `main` (K10: menunggu CI); M252: deploy `SKIPPED` → deploy commit itu
+3. Merge; screener-worker sebelum edge-bff (M459 item 15), keduanya dari `main` (K10 a: `checkSuites` diterapkan bersama deploy ini); M252: deploy `SKIPPED` → deploy commit itu
    eksplisit; `SUCCESS`; screener-worker `/ready` dan `engine_version` = repo.
 4. Verifikasi dev: `verification/backtest/e2e_dev.py`; satu run A-C; satu run D sebagai admin; panggilan worker tanpa hak ditolak;
    P6.4 data nyata; ukuran memori dan waktu dicatat (run 12 saham + pratinjau).

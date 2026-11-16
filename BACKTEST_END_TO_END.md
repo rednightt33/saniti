@@ -817,7 +817,12 @@ in the worker, class names only in the publisher).
   it. backtest-worker, terminal-api and terminal-publisher are CLI uploads (`railway up`): merging to `main` does not
   redeploy them. ERRORS M252: a merge commit can be skipped by Railway ("No changes to watched files"); after every
   merge check the edge-bff deployment and deploy the commit explicitly when it was skipped. Ids and procedures:
-  `RAILWAY_CHANGELOG.md` 2026-10-26 and 2026-10-27 entries.
+  `RAILWAY_CHANGELOG.md` 2026-10-26 and 2026-10-27 entries. **Order (EXEC-BACKTEST-REVAMP, ERRORS M459 item 15):** the
+  workers before edge-bff, because a new edge-bff sends `context` (rights, the owner's trials) that the older workers
+  refuse: backtest-worker uploaded from the green commit, screener-worker, then edge-bff from `main`
+  (`apps/backtest-worker/README.md` Deploy). CI: `backtest-lookahead.yml` (workers, Screener and page) and
+  `backend-tests.yml` (edge-bff, terminal-publisher, telegram-monitor); `checkSuites` is not live yet (K10 a, applied
+  with the deploy after Gate 3).
 - **Migrations**: `20261026_005` and `20261027_005`, applied in dev (DRYRUN then APPLY on orc-test-runner; logs in
   `verification/backtest/jobs/`).
 - **Tests** (run one suite at a time; the edge-bff suite uses a cluster-wide role):
@@ -946,7 +951,7 @@ The rules are in `apps/edge-bff/backtest/CONTRACT.md` section 13; this is where 
   - The sensitivity grid takes a grammar threshold.
 - **Cross-cutting (section 11).** Look-ahead is a CI gate (`.github/workflows/backtest-lookahead.yml`, AGENTS.md
   "Backtest look-ahead gate"). The real-data check is in `verification/backtest/lookahead/`. edge-bff and
-  screener-worker deploy only on green checks (K10 a, applied with the deploy after Gate 2); the worker, a CLI upload,
+  screener-worker are to deploy only on green checks (K10 a, applied with the deploy after Gate 3; not live yet, M459); the worker, a CLI upload,
   only after a green run on the uploaded commit, its ID recorded (`apps/backtest-worker/README.md`, Deploy).
 - **Stage C review (ERRORS M458).** An independent review found what the gate did not test; fixed on the branch: the
   engine-level look-ahead case runs grammar, Flow and point-in-time conditions and a late series; `dSignal` is
