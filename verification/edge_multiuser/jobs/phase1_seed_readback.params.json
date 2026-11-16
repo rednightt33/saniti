@@ -5,7 +5,7 @@
   [
    "seed_user",
    null,
-   "SELECT user_id, owner_key, username, role, status, email IS NOT NULL AS has_email, email_verified_at IS NOT NULL AS email_verified, requested_username, created_at FROM edge_bff.users ORDER BY user_id"
+   "SELECT user_id, owner_key, username, role, status, email IS NOT NULL AS has_email, email_verified_at IS NOT NULL AS email_verified, requested_username, registration_hash IS NOT NULL AS has_registration_hash, created_at FROM edge_bff.users ORDER BY user_id"
   ],
   [
    "seed_identity",

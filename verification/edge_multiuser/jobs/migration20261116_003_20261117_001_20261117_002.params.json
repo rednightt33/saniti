@@ -2,7 +2,8 @@
  "mode": "DRYRUN",
  "migrations": [
   "20261116_003_edge_bff_accounts_users.sql",
-  "20261117_001_edge_bff_accounts_registration.sql"
+  "20261117_001_edge_bff_accounts_registration.sql",
+  "20261117_002_edge_bff_accounts_registration_binding.sql"
  ],
  "probes": [
   [
@@ -39,6 +40,16 @@
    "indexes",
    null,
    "SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = 'edge_bff' AND tablename IN ('users', 'identities', 'email_codes', 'mfa_totp', 'mfa_recovery_codes', 'email_outbox', 'email_suppression', 'admin_audit', 'user_preferences', 'email_hook_events') ORDER BY tablename, indexname"
+  ],
+  [
+   "migration_002_columns",
+   null,
+   "SELECT table_name, column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_schema = 'edge_bff' AND ((table_name = 'users' AND column_name = 'registration_hash') OR (table_name = 'mfa_totp' AND column_name IN ('totp_failures', 'recovery_failures', 'totp_locked_until', 'recovery_locked_until'))) ORDER BY table_name, column_name"
+  ],
+  [
+   "email_uniqueness",
+   null,
+   "SELECT (SELECT count(*) FROM pg_constraint WHERE conrelid = 'edge_bff.users'::regclass AND conname = 'users_email_key') AS users_email_key, (SELECT indexdef FROM pg_indexes WHERE schemaname = 'edge_bff' AND indexname = 'users_email_one_account') AS one_account_index"
   ],
   [
    "owner_key_trigger",

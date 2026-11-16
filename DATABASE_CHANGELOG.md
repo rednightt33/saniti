@@ -1,5 +1,30 @@
 # Database changelog
 
+## 2026-11-17 — EDGE registration bound to its browser, MFA failure counts and locks (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 1 fix round) — written, NOT applied yet
+
+- **Why:** the independent checkers' findings C1 P1-H1 / C2 #1 (pending-registration takeover) and C1 P1-M2 with its
+  re-check N2 (MFA guessing, then a lock with no way back); ERRORS M478. Operational schema `edge_bff`, no market data,
+  no catalog row; not in `DATABASE_SCHEMA.md` (schema `public` only). `20261117_001` is unchanged.
+- **`20261117_002_edge_bff_accounts_registration_binding.sql`** (sha256 `35412e55e811923c44834af3b415e96bf2c7a85cdfa3f287d2183bdc963ee343`),
+  after `20261117_001` (preflight: `requested_username` and `users_email_key` exist, none of its columns does):
+  - `edge_bff.users`: new `registration_hash` (UNIQUE, 64 lower-case hexadecimal digits: the SHA-256 of the random
+    token in the browser's HttpOnly registration cookie), CHECK `users_registration_pending` (only a pending row has
+    one); `users_email_key` (UNIQUE email) is dropped and replaced by the partial unique index
+    `users_email_one_account` (`email` WHERE `status <> 'pending'`): one active or disabled account per address,
+    several pending registrations until one is verified (the others are then deleted by edge-bff).
+  - `edge_bff.mfa_totp`: `totp_failures` and `recovery_failures` (NOT NULL, default 0, CHECK >= 0; consecutive wrong
+    codes), `totp_locked_until` and `recovery_locked_until` (bigint Unix seconds of edge-bff's clock, NULL = no
+    lock). At 100 TOTP (10 recovery) failures the way is locked for 24 h, then the count restarts at 90 (8); a password
+    reset by email or `scripts/edge_mfa_unlock.py` clears counts and locks (`app/auth_flows.py`).
+  - Grants unchanged (columns of tables `edge_bff_runtime` already updates). Verify block: `users_email_key` gone, no
+    two non-pending accounts share an address. Rollback body in the file (deletes extra pending registrations; deploy
+    the previous edge-bff first).
+- **Status:** written, tested in the edge-bff suite (second fix round `d2d11ab3`: 364 passed, 148 skipped); **not
+  applied to Railway**. Applied in one job with `20261116_003` and `20261117_001` (EXEC.md EXEC-MU-ACCOUNTS, "Phase 1
+  deploy steps"; job params
+  `verification/edge_multiuser/jobs/migration20261116_003_20261117_001_20261117_002{,_apply}.params.json`).
+  `APPLIED.sha256` gets its line only after the apply.
+
 ## 2026-11-17 — EDGE pending usernames and Resend webhook deliveries (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 1) — written, NOT applied yet
 
 - **User:** go 2026-11-16 for EXEC-MU-ACCOUNTS Phase 0 + Phase 1 ("B: go Fase 0 + Fase 1"; EXEC.md EXEC-MU-ACCOUNTS).
@@ -16,8 +41,9 @@
   - Rollback body in the file (deletes pending registrations, which hold no username; deploy the previous edge-bff
     first).
 - **Status:** written, tested in the edge-bff suite (integrated run at `925d1b1e`: 342 passed, 146 skipped without a
-  browser); **not applied to Railway**. It is applied together with `20261116_003` (EXEC.md EXEC-MU-ACCOUNTS, "Phase 1
-  deploy steps"; job params `verification/edge_multiuser/jobs/migration20261116_003_20261117_001{,_apply}.params.json`).
+  browser); **not applied to Railway**. It is applied together with `20261116_003` and `20261117_002` (EXEC.md EXEC-MU-ACCOUNTS, "Phase 1
+  deploy steps"; job params `verification/edge_multiuser/jobs/migration20261116_003_20261117_001_20261117_002{,_apply}.params.json`,
+  with `20261117_002`).
   `APPLIED.sha256` gets its line only after the apply.
 
 ## 2026-11-16 — EDGE accounts foundation (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 1) — written, NOT applied yet

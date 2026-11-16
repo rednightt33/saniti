@@ -761,8 +761,9 @@ Shared front-end layer (`shared/`, M471, M473):
 ## Accounts (EXEC-MU-ACCOUNTS Phase 1, 2026-11-16/17)
 
 Phase 1 builds EDGE accounts behind the switch `EDGE_MULTIUSER` (default `false`; it goes on only at Phase 6). Contract:
-`verification/edge_multiuser/access_tiers/CONTRACT.md` sections 0-5 and 12. Tables: migrations `20261116_003` and
-`20261117_001` (`DATABASE_CHANGELOG.md`).
+`verification/edge_multiuser/access_tiers/CONTRACT.md` sections 0-5 and 12. Tables: migrations `20261116_003`,
+`20261117_001` and `20261117_002` (`DATABASE_CHANGELOG.md`). The independent checkers' findings and their fixes:
+ERRORS M478.
 
 The switch and what it changes:
 
@@ -773,7 +774,7 @@ The switch and what it changes:
 | Account routes (table below) | 404 `NOT_FOUND`, except `GET /api/v1/auth/config` = `{"multiuser": false}` | open |
 | Email sender loop | not started | started with the worker (`EDGE_EMAIL_ENABLED`) |
 | Admin MFA | none | required before any admin route (403 `MFA_REQUIRED`) |
-| Sessions | as before | idle timeout `EDGE_SESSION_IDLE_SECONDS` (default 28800), at most 5 per user, `last_seen_at` written at most once a minute |
+| Sessions | as before | idle timeout `EDGE_SESSION_IDLE_SECONDS` (default 28800), at most 5 per user, `last_seen_at` written at most once a minute; sessions still waiting for the admin's second factor capped apart at 3, never counted towards or revoking the 5; a new session token when MFA is passed |
 | Seed of user #1 | at every start when `edge_bff.users` is empty; its password identity follows `EDGE_PASSWORD_VERIFIER` | the identity is the account's own and is never overwritten |
 | Preferences (below) | served for user #1 | served per account |
 
@@ -795,20 +796,37 @@ Account routes (`app/auth_flows.py`; POST with the exact Origin; a refusal in th
 | Route | Body | Answer |
 | --- | --- | --- |
 | GET `/auth/config` (public) | — | `{"multiuser": true/false}`; the sign-in page shows Register and "Forgot password?" only when true |
-| POST `/auth/register` | `username`, `first_name`, `last_name`, `email`, `phone`, `password`, `password_repeat` | always 202 `CODE_SENT` for valid input, whether the email or username exists or not; an existing address gets the "account exists" email instead of a code |
-| POST `/auth/register/verify` | `email`, `code` (`username` to choose another) | 200 and the session cookie; 400 `CODE_INVALID_OR_EXPIRED` for any wrong, expired or used code; 409 `USERNAME_TAKEN` only after the code is proved |
+| POST `/auth/register` | `username`, `first_name`, `last_name`, `email`, `phone`, `password`, `password_repeat` | always 202 `CODE_SENT` for valid input, whether the email or username exists or not; an existing address gets the "account exists" email instead of a code. A new pending registration of its own, bound to this browser by the registration cookie (below); an earlier registration of the address is never changed |
+| POST `/auth/register/verify` | `email`, `code` (`username` to choose another) | 200 and the session cookie, only from the browser that registered (its registration cookie); the address's other pending registrations are deleted; 400 `CODE_INVALID_OR_EXPIRED` for any wrong, expired or used code, or a code of another browser's registration; 409 `USERNAME_TAKEN` only after the code is proved |
 | POST `/auth/code/resend` | `email`, `purpose` (`register`/`reset`) | always 202 |
 | POST `/auth/password/forgot` | `email` | always 202 |
 | POST `/auth/password/reset` | `email`, `code`, `password`, `password_repeat` | 200 `{"next": "sign_in"}`; every session revoked, nobody signed in, a notification email |
 | POST `/auth/password/change` (writer) | `current_password`, `password`, `password_repeat` | other sessions revoked, a notification email |
 | POST `/auth/sign-out-all` (writer) | — | every session of the account |
 | POST `/auth/mfa/enroll` (admin, write) | — | `otpauth://` URI and 10 recovery codes, shown once |
-| POST `/auth/mfa/verify` (writer) | `code` or `recovery_code` | the session's `mfa_passed_at`; the session answer |
+| POST `/auth/mfa/verify` (writer) | `code` or `recovery_code` | the session's `mfa_passed_at`, a new session token (the pending one revoked; take the answer's `csrf_token`); the session answer; 403 `MFA_LOCKED` (below) |
 | POST `/hooks/email/resend` | Resend's signed event | Svix signature checked over the raw body; each `svix-id` once (`email_hook_events`); a bounce or complaint goes to `email_suppression` |
 
+Registration cookie (ERRORS M478, C1 P1-H1, C2 #1): `edge_registration`, a random token, HttpOnly, SameSite=Strict,
+path `/api/v1/auth/`, 24 h; only its SHA-256 is stored (`users.registration_hash`). A code activates only the pending
+registration whose cookie comes with it, so the code must be entered in the same browser where the account was
+registered (the code page says so). Every registration is its own pending row; an address has at most one account
+that is not pending (`users_email_one_account`).
+
+Sign-in of a pending account (C1 P1-M1): the right password of a registration not yet verified answers the same 401
+`INVALID_CREDENTIALS` as a wrong one; within the send limits a fresh code is mailed and this browser gets the
+registration cookie. `EMAIL_NOT_VERIFIED` (contract section 4) is not used any more. With registration open, the
+sign-in page adds to a 401: "If you have just registered, check your email for a code and enter it on the Verify page",
+with a link. A 401 that restarted nothing keeps this browser's registration cookie (sets it again; an unused one when it
+has none). Every switch-on sign-in derives the password exactly 1 + `PENDING_CHECKED` (3) times, padded with the
+configured verifier, so its time says nothing about how many registrations an address has.
+
 Rules: codes are 6 digits, HMAC-SHA256 with `EDGE_CODE_SECRET`, valid 300 s, 5 tries each and at most 20 failed tries
-per user per day (429 `LIMIT_REACHED`); one email per address per 60 s and 10 a day; passwords 8 to 256 characters,
-any character, refused when found in Pwned Passwords (k-anonymity range API, 2 s; when it cannot answer the password is
+per user per day (429 `LIMIT_REACHED`); one email per address per 60 s and 10 a day; a new registration of an
+address (from any browser) mails it at most once per hour and three times a day, inside those 10 (a later one in the
+hour answers the same 202 and changes nothing; recorded decision N4 in M478: whoever's address was registered by
+someone else first may wait up to an hour for their own code); passwords 8 to 256 characters after NFKC normalisation
+(verifiers made before it are still accepted), any character, refused when found in Pwned Passwords (k-anonymity range API, 2 s; when it cannot answer the password is
 accepted and `PWNED_CHECK_UNAVAILABLE` logged); a phone is normalised to E.164 (`08…` → `+628…`), not verified; a
 pending user is deleted 24 h after creation.
 
@@ -823,13 +841,22 @@ Email (`app/mailer.py`, `app/email_texts.py`, plain English): a code and its ema
   sent. Needs `RESEND_API_KEY` and `EDGE_EMAIL_FROM` (an address); `RESEND_WEBHOOK_SECRET` (`whsec_…`) signs the
   webhook at `/api/v1/hooks/email/resend`.
 
-Admin MFA (`app/mfa.py`): TOTP (RFC 6238, SHA-1, 30 s, 6 digits, ±1 step, a used step never accepted again). The secret
+Admin MFA (`app/mfa.py`): TOTP (RFC 6238, SHA-1, 30 s, 6 digits, ±1 step, a used step never accepted again).
+Besides the 10 tries per 15 minutes, 100 consecutive wrong authenticator codes (10 recovery codes) lock that way in
+(403 `MFA_LOCKED`, "Wait 24 hours or reset your password by email; an operator can also unlock it.", with
+`details.unlock_at`; the `/mfa` page shows it in local time, switches to the recovery-code field when only the
+authenticator is locked, and keeps "Forgot password?"). A lock lasts 24 h, then the count restarts at 90 (8), so 10 (2)
+more tries come before the next lock; a correct code resets the counts; a password reset by email code clears counts
+and locks. Operator unlock: `scripts/edge_mfa_unlock.py --username <name> --reason "<why>"`, run as a job on the
+private network only (EXEC.md EXEC-MU-ACCOUNTS, Phase 1 deploy steps, step 9); it clears that account's counts and
+locks, writes one `admin_audit` row with actor `operator`, and prints only the user id and the counts. The secret
 is HMAC-SHA256(`EDGE_MFA_KEY`, user id ‖ a stored 16-byte nonce)[:20], never stored: changing `EDGE_MFA_KEY` after an
 admin has enrolled invalidates every authenticator, so the key is set once and kept. The `/mfa` page shows the QR code
 with the vendored `static/qrcode-generator.js` (qrcode-generator 1.4.4, MIT, licence in
 `static/qrcode-generator.LICENSE`), served from this origin.
 
-Variables (all checked at start; with the switch off a missing one never stops it, a set one is still checked):
+Variables (all checked at start; with the switch off a missing one never stops it, a set one is still checked; the
+secrets never appear in `repr(Settings)`):
 `EDGE_MULTIUSER` (true/false only), `EDGE_SESSION_IDLE_SECONDS` (at least 60), `EDGE_CODE_SECRET` and `EDGE_MFA_KEY`
 (at least 32 characters; required with the switch on), `EDGE_EMAIL_MODE` (log/resend), `EDGE_EMAIL_ENABLED`,
 `EDGE_EMAIL_FROM`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`.
