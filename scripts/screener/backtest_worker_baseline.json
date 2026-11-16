@@ -2,16 +2,16 @@
   "schema": 1,
   "about": "The approved state of apps/backtest-worker for scripts/screener/check_backtest_untouched.mjs: the tripwire passes a worker that differs from origin/main only while its content hash is worker_tree and the versions are these. Recorded with --record and changed only by a deliberate commit (EXEC-MU-RUNTIME).",
   "base_commit": "f90b037e5dfbbd215a95e0cf1779f04e299af262",
-  "recorded_on": "f90f240f5f10993c1e25670c383087edf45fe87f",
-  "recorded_at": "2026-11-15",
-  "engine_version": "af16f03c90e0cf6c",
+  "recorded_on": "8b1ef7b0a1ba7c464e62981e606b9701e6098cbe",
+  "recorded_at": "2026-11-16",
+  "engine_version": "6b9b913f4023d381",
   "base_engine_version": "b85c67c25f6a707b",
   "registry_version": "514dc3df60a25aff",
-  "worker_tree": "cdca17bed1a4a3858cf849c4c20cc16d8c7308ed68d15e335e5df11a7de0c71f",
-  "worker_files": 62,
+  "worker_tree": "fa70721fa816e2462f066aaf8bb1c61bd24d96e4c79144c62bab3f95984a08b2",
+  "worker_files": 63,
   "exec": {
     "section": "EXEC-BACKTEST-REVAMP",
-    "decision": "User 2026-11-15 (verbatim in EXEC-BACKTEST-REVAMP): \"Setuju untuk usulanmu ... satu bahasa kondisi bersama (permanen)\", \"Terminal jangan disentuh ... indikator D ini akan hanya avail untuk admin saja\", decisions 1A, K1-K11 (K8 \"1B\"), and \"Go\" (Gerbang 1); merge and deploy wait for Gerbang 2"
+    "decision": "User 2026-11-15 (verbatim in EXEC-BACKTEST-REVAMP): \"Setuju untuk usulanmu ... satu bahasa kondisi bersama (permanen)\", \"Terminal jangan disentuh ... indikator D ini akan hanya avail untuk admin saja\", decisions 1A, K1-K11 (K8 \"1B\"), \"Go\" (Gerbang 1); 2026-11-16 at Gerbang 2: \"A dulu\", then \"opsi A\" (P9, broker prices on the price basis); merge and deploy wait for Gerbang 2"
   },
-  "note": "P0-P8 and Stage C: grammar.ts, canonical.ts, pit/, rights, owner trials, broker columns, Flow budget, the look-ahead gate tests"
+  "note": "P0-P8, Stage C and P9: grammar.ts, canonical.ts, pit/, basis.ts, rights, owner trials, broker columns on the price basis, Flow budget, the look-ahead gate tests"
 }

@@ -47,9 +47,10 @@
 import { mkdir, readFile, readdir, rename, stat, unlink, utimes, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
-  DataError, brokerColumns, brokerGaps, brokerRows, corporateActions, dataVersion, decodeColumnar, inflateVerified, priceSeries,
+  DataError, brokerBasis, brokerColumns, brokerGaps, brokerRows, corporateActions, dataVersion, decodeColumnar, inflateVerified, onPriceBasis,
+  priceSeries,
 } from '../../edge-bff/backtest/src/core/datafile.ts';
-import type { BrokerColumns, BrokerGap, BrokerRow, Columnar, CorporateAction, FileEntry, PriceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
+import type { BasisAction, BrokerColumns, BrokerGap, BrokerRow, Columnar, CorporateAction, FileEntry, PriceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { flowData } from '../../edge-bff/backtest/src/core/flow.ts';
 import type { FlowData } from '../../edge-bff/backtest/src/core/flow.ts';
 import { isIsoDate } from '../../edge-bff/backtest/src/core/signals.ts';
@@ -135,6 +136,7 @@ export interface LoadedTicker {
   broker_gaps: BrokerGap[] | null;               // the publisher's gap markers
   flow: FlowData | null;                         // 'price' and 'broker' read: flow.ts on the ticker's price bars
   corporate_actions: CorporateAction[] | null;   // 'events' read; a ticker without events has an empty list
+  broker_basis?: BasisAction[] | null;           // 'events' read: the price actions' broker basis (P9, datafile brokerBasis)
   data_through: Partial<Record<Dataset, string | null>>;   // per dataset, as the manifest has it
   first_year: Partial<Record<Dataset, number | null>>;
   generated_at: string | null;                   // the manifest's generated_at
@@ -542,14 +544,15 @@ export class TerminalClient {
       }));
     }));
     if (docs.price) t.prices = priceSeries(ticker, docs.price);
+    if (docs.events) { t.corporate_actions = corporateActions(docs.events); t.broker_basis = brokerBasis(docs.events, t.corporate_actions) }
     if (docs.broker) {
       const rows = brokerRows(docs.broker), gaps = brokerGaps(docs.broker);
-      if (opts.keepBrokerColumns) t.broker_columns = brokerColumns(docs.broker);
+      // P9: the columns the grammar's Flow indicators read have their lots on the published prices' basis
+      if (opts.keepBrokerColumns) t.broker_columns = onPriceBasis(brokerColumns(docs.broker), t.broker_basis ?? []);
       t.broker_gaps = gaps;
       if (opts.keepBrokerRows !== false) t.broker_rows = rows;
       if (t.prices) t.flow = flowData(rows, t.prices.dates, gaps);
     }
-    if (docs.events) t.corporate_actions = corporateActions(docs.events);
     files.sort(byFile);
     return t;
   }

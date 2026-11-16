@@ -38,7 +38,7 @@
 import crypto from 'node:crypto';
 import type { BacktestRequest, BacktestResult, JobContext, JobProgress, SignalsPreview, SignalsPreviewRequest } from '../../edge-bff/backtest/src/core/contract.ts';
 import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
-import { DataError, INDEX_TICKER, dataVersion } from '../../edge-bff/backtest/src/core/datafile.ts';
+import { DataError, INDEX_TICKER, dataVersion, unknownBasis } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { Cancelled, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { MarketData } from '../../edge-bff/backtest/src/core/engine.ts';
 import { canonicalJson, canonicalRequest, lineageKey, requestHash, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
@@ -140,7 +140,7 @@ export async function runJob(request: unknown, context: RunContext, refs: Refs, 
   const stocks = checked.tickers.filter(t => loaded.tickers.has(t)).map(t => loaded.tickers.get(t) as LoadedTicker);
   if (single) checkPriceRange(stocks[0], from, to);
   const market: MarketData = { ihsg, tickers: {}, excluded: loaded.excluded, classification: classificationOf(refs) };
-  for (const t of stocks) market.tickers[t.ticker] = { prices: t.prices!, corporate_actions: t.corporate_actions ?? [], ...(t.flow ? { flow: t.flow } : {}), ...(t.broker_columns ? { broker: t.broker_columns } : {}) };
+  for (const t of stocks) market.tickers[t.ticker] = { prices: t.prices!, corporate_actions: t.corporate_actions ?? [], ...(t.flow ? { flow: t.flow } : {}), ...(t.broker_columns ? { broker: t.broker_columns } : {}), ...(t.broker_basis ? { basis: t.broker_basis } : {}) };
   const dataThrough = [ihsgLast, ...stocks.map(t => lastOf(t.prices!.dates))].sort();
   stop();
 
@@ -245,7 +245,7 @@ export async function runSignals(request: unknown, refs: Refs, env: RunEnv, hook
     const t = loaded.tickers.get(ticker);
     if (t) {
       const calc = new Calc(t.prices!.bars, t.flow ?? undefined, { ticker, dates: t.prices!.dates, index: { dates: ihsg.dates, bars: ihsg.bars },
-        ...(t.broker_columns ? { broker: { columns: t.broker_columns, classification, actions: (t.corporate_actions ?? []).map(a => a.date) } } : {}) });
+        ...(t.broker_columns ? { broker: { columns: t.broker_columns, classification, basis: t.broker_basis ?? unknownBasis(t.corporate_actions ?? []) } } : {}) });
       const row = unlessLeftOut(ticker, excluded, () => previewRow(calc, t.prices!.dates, req, q.period.from, q.period.to, active));
       if (row) rows.push({ ticker, ...row });
     }

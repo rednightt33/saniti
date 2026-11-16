@@ -14948,6 +14948,27 @@ satu basis, 13 lonjakan = faktor, 3 lain. 87 rights terlalu sedikit hari broker 
 *Dampak:* nilai Flow dalam lot dan harga broker di Backtest sebelum rights issue berbeda dari tampilan Terminal (Terminal
 tetap mentah, "Terminal jangan disentuh"); nilai yang hanya rasio data broker tidak berubah; `data_version` berubah untuk
 saham yang berkas events-nya terbit ulang.
+**Jawaban user, 2026-11-16 (sesudah penjelasan kasus aksi korporasi di masa depan):** "opsi A" atas pertanyaan "Pilih A, B,
+atau C? Dengan pilihan itu, apakah saya boleh mulai ("go") mengerjakan P9 di branch?"; opsi A = P9 + laporan harian (log
+dan Telegram) + daftar langkah di `UPDATE_TABLE.md`. Dibaca sebagai go P9 di branch; deploy tetap menunggu Gerbang 2.
+Tambahan dari pemeriksaan hari itu: aturan masker sementara menganggap harga sesudah 2026-09-12 tidak pernah ditarik ulang;
+sesudah tarik ulang, hari sebelum tanggal ex tidak dikosongkan dan membandingkan dua skala (M458 butir 2). P9 menutupnya.
+*P9 dikerjakan 2026-11-16 di branch (belum deploy):*
+- Publisher: `broker_basis` per aksi (lonjakan VWAP/close teramati lawan faktor syarat; rights issue memakai rumus tertutup
+  dengan close yang diterbitkan dan faktor aksi sesudahnya, karena versi VWAP menyisakan 165 hari COCO di luar rentang dan
+  rumus tertutup 0); blok `basis` di berkas events (`EVENTS_FORMAT` 3: semua berkas events terbit ulang sekali); diukur
+  ulang bila event, tahun harga, atau rentang broker saham itu berubah, atau aksinya dalam 60 hari terakhir; laporan
+  harian `Broker_Basis_Report` ke telegram-monitor (sumber baru). Tes publisher 204, telegram-monitor 44.
+- Worker dan core: `brokerBasis`, `onPriceBasis` (lot × faktor sebelum aksi `terms`), `src/basis.ts` (masker kausal:
+  VWAP Regular di luar rentang hari itu ±1 %, atau aksi pending/unresolved/close mentah di dalam jendela); aturan "sebelum
+  aksi sebelum batas" dihapus. Tes worker 251 (dunia diperdagangkan = dunia diterbitkan; mesin dengan aksi pada data
+  terpotong), halaman 89, Screener 1354, screener-worker 112.
+- Bukti data nyata (`verification/backtest/basis/`, `verification/backtest/lookahead/results_2026-11-16.json`): COCO 799 →
+  0 hari di luar rentang; 0 kebocoran pada BBRI, GOTO, COCO, ALKA; sampel 40 saham 2025: 0 salah tanda dari 7.238 hari
+  saham bersih, semua hari VKTR tertandai (rights 2026-10-07, harga ditarik ulang 2026-10-31, lot mentah).
+- `UPDATE_TABLE.md` bagian C; `AGENTS.md` menunjuknya.
+- Deploy (Gerbang 2) bertambah: terminal-publisher (CLI upload; run pertama menerbitkan ulang semua berkas events =
+  update besar, restart Postgres) dan telegram-monitor (sumber baru harus aktif sebelum publisher mengirim).
 
 ### Deploy (hanya setelah Gerbang 2) dan rollback
 

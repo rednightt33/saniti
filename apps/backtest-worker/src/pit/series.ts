@@ -3,11 +3,12 @@
    computation per family and parameters serves every output (FL18, FL19, FL20, FL44, FL45 and cohort_changed of one
    cohort rule in one pass), kept per ticker. Checked per ticker: the anchor not before its first broker day
    (ANCHOR_BEFORE_DATA; a portfolio leaves such a stock out, signals.ts EXCLUDED_CODES). A named broker without rows
-   is checked up to the period's end by the caller (namedWithoutRows): rows after it never decide a run. A price or percentage value is left empty where its span from the anchor reads broker
-   lots on another basis than the prices (K3 a, ERRORS M450: an action on or before ADJUSTED_HISTORY_BOUNDARY after the
-   anchor, or a later one inside the span), noted for FLOW_BASIS_CHANGE; FLOW_PRE_2021 reads the anchor's date. */
+   is checked up to the period's end by the caller (namedWithoutRows): rows after it never decide a run. A price or
+   percentage value is left empty where its span from the anchor reads a bar whose basis the data up to that bar leaves
+   unsettled (K3 a, P9: basis.ts basisBlocked; the lots are on the price basis, datafile.ts onPriceBasis), noted for
+   FLOW_BASIS_CHANGE; FLOW_PRE_2021 reads the anchor's date. */
 import type { Calc } from '../../../edge-bff/backtest/src/core/conditions.ts';
-import { ADJUSTED_HISTORY_BOUNDARY } from '../../../edge-bff/backtest/src/core/engine.ts';
+import { basisBlocked } from '../basis.ts';
 import { canonicalJson } from '../../../edge-bff/backtest/src/core/hash.ts';
 import { ValidationError } from '../../../edge-bff/backtest/src/core/registry.ts';
 import { brokerFlowRows } from '../../../edge-bff/screener/src/core/flowmetrics.ts';
@@ -56,14 +57,14 @@ export function dSeries(c: Calc, ref: DRef, field: string): Num[] {
   }
   const name = spec.family === 'anchored' ? (ref.output === 'cohort_changed' ? 'cohort_changed' : ref.metric) : ref.output;
   const s = [...out[name]], unit = spec.outputs[ref.output];
-  // K3 a: a price or percentage from the anchor across an action the prices are adjusted for (FL51's share is a ratio of lots)
+  // K3 a, P9: a price or percentage from the anchor over bars whose basis is not settled up to that bar (basis.ts;
+  // FL51's share is a ratio of lots)
   const notes = c.flowNotes ??= { depth: 0, masked: new Set<number>() };
   if (!notes.first || anchor < notes.first) notes.first = anchor;
   if ((p.boards as string[]).some(x => x !== 'Regular')) notes.crossing = true;
   if ((unit === 'price' || unit === 'pct') && !(ref.metric === 'FL51' && ref.output === 'share')) {
-    const a = candleAt(dates, anchor), actions = b.actions ?? [];
-    for (let i = a; i < s.length; i++)
-      if (s[i] !== null && actions.some(d => dates[a] < d && (d <= ADJUSTED_HISTORY_BOUNDARY || dates[i] >= d))) { s[i] = null; notes.masked.add(i) }
+    const a = candleAt(dates, anchor);
+    for (let i = a; i < s.length; i++) if (s[i] !== null && basisBlocked(c, a, i)) { s[i] = null; notes.masked.add(i) }
   }
   return s;
 }

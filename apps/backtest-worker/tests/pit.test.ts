@@ -9,7 +9,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as TF from '../../edge-bff/terminal/src/calc/flow.ts';
 import { Calc, conditionSeries } from '../../edge-bff/backtest/src/core/conditions.ts';
-import type { BrokerColumns } from '../../edge-bff/backtest/src/core/datafile.ts';
+import type { BasisAction, BrokerColumns } from '../../edge-bff/backtest/src/core/datafile.ts';
+import { onPriceBasis } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { head, market } from './lookahead/fixture.ts';
 import type { Row, Ticker } from './lookahead/fixture.ts';
@@ -34,9 +35,9 @@ function columns(rows: readonly Row[]): BrokerColumns {
   return { rows: D.length, dates, brokers, investor_types: inv, boards: brd, D: Int32Array.from(D), B: Int32Array.from(B), I: Uint8Array.from(I), M: Uint8Array.from(Mm),
     BV: f(V[0]), SV: f(V[1]), BL: f(V[2]), SL: f(V[3]), BF: f(V[4]), SF: f(V[5]) };
 }
-const calcAt = (t: Ticker, rows: readonly Row[], n: number, actions: string[] = []) => {
+const calcAt = (t: Ticker, rows: readonly Row[], n: number, basis: BasisAction[] = []) => {
   const h = head(t, n), last = h.dates[h.dates.length - 1];
-  return new Calc(h.bars as never, undefined, { ticker: t.ticker, dates: h.dates, broker: { columns: columns(rows.filter(r => r.d <= last)), classification: {}, actions } });
+  return new Calc(h.bars as never, undefined, { ticker: t.ticker, dates: h.dates, broker: { columns: onPriceBasis(columns(rows.filter(r => r.d <= last)), basis), classification: {}, basis } });
 };
 const terminalCtx = (t: Ticker, rows: readonly Row[]): TF.FlowContext => {
   const at = new Map(t.dates.map((d, k) => [d, k]));
@@ -129,10 +130,19 @@ test('edge cases: anchor after the data, before it, no positive buyers, a broker
   seriesOfRef(n, ref('FL18', { anchor: ANCHOR, boards: ['Regular', 'Nego'] }), 'f');
   assert.equal(n.flowNotes?.crossing, true);
   assert.equal(n.flowNotes?.first, ANCHOR);
-  // an action after the anchor whose adjustment the prices carry (before 2026-09-12): every price value from the anchor is empty
-  const k3 = calcAt(A, ROWS, A.dates.length, [A.dates[300]]), m = seriesOfRef(k3, ref('FL18', { anchor: ANCHOR }), 'f');
-  assert.ok(Array.from(m).every(v => v === null) && k3.flowNotes!.masked.size > 0);
+  // P9: an action after the anchor whose basis is not settled (unresolved): the price values from the anchor are kept up to
+  // the day before its ex date and empty from it (the span crosses it); one the lots are scaled for (terms) masks nothing
+  const at = A.dates[300], k3 = calcAt(A, ROWS, A.dates.length, [{ ex: at, type: 'STOCK_SPLIT', factor: 1, status: 'unresolved', price: null }]);
+  const m = seriesOfRef(k3, ref('FL18', { anchor: ANCHOR }), 'f'), plain = seriesOfRef(calcAt(A, ROWS, A.dates.length), ref('FL18', { anchor: ANCHOR }), 'f');
+  assert.ok(Array.from(m).every((v, i) => i >= 300 ? v === null : v === (plain[i] ?? null)) && k3.flowNotes!.masked.size > 0);
   assert.ok(Array.from(seriesOfRef(k3, ref('FL23', { start: START }), 'f')).some(v => typeof v === 'number'), 'lots are not a price: kept (warned)');
+  // lots published on the traded scale before a rights issue (1.2x fewer) and scaled back by its factor: the values of
+  // the rows on one basis, nothing masked; the same rows without the factor are off the day's range: empty
+  const traded = ROWS.map(r => r.d < at ? { ...r, bl: r.bl / 1.2, sl: r.sl / 1.2 } : r), terms = [{ ex: at, type: 'RIGHT_ISSUE', factor: 1.2, status: 'terms' as const, price: 'adjusted' as const }];
+  const scaled = seriesOfRef(calcAt(A, traded, A.dates.length, terms), ref('FL18', { anchor: ANCHOR }), 'f');
+  assert.ok(Array.from(scaled).every((v, i) => near(v, plain[i])), 'a terms action: the values on one basis, nothing masked');
+  const unscaled = seriesOfRef(calcAt(A, traded, A.dates.length, [{ ...terms[0], status: 'unresolved', factor: 1 }]), ref('FL18', { anchor: ANCHOR }), 'f');
+  assert.ok(Array.from(unscaled).every(v => v === null), 'the traded scale without its factor: every value from the anchor empty');
 });
 
 test('refusals name the field and the fix', () => {

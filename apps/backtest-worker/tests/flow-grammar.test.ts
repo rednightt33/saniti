@@ -9,7 +9,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as TF from '../../edge-bff/terminal/src/calc/flow.ts';
 import { Calc, conditionSeries } from '../../edge-bff/backtest/src/core/conditions.ts';
-import type { BrokerColumns } from '../../edge-bff/backtest/src/core/datafile.ts';
+import type { BasisAction, BrokerColumns } from '../../edge-bff/backtest/src/core/datafile.ts';
+import { onPriceBasis, unknownBasis } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { FLOWS } from './lookahead/flow-helpers.ts';
 import { head, market } from './lookahead/fixture.ts';
@@ -113,24 +114,39 @@ import { flowData } from '../../edge-bff/backtest/src/core/flow.ts';
 import { prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import { sessions, ticker as mkTicker, brokerRows as mkRows } from './lookahead/fixture.ts';
 
-test('a broker-price value is empty where its window reads lots on another basis; every other value is the Terminal\'s', () => {
-  const dates = sessions('2026-05-04', 140), t = mkTicker('BASE', 41, dates), rows = mkRows(t, 42);
-  const pre = dates[30], post = dates[110];                               // ex-dates before and after 2026-09-12
-  assert.ok(pre < '2026-09-12' && post > '2026-09-12');
-  const calc = (actions: string[]) => new Calc(t.bars as never, undefined, { ticker: t.ticker, dates, broker: { columns: columns(rows), classification: CLS, actions } });
-  const ref = { kind: 'flow', metric: 'FL17', params: { window: 10 } };
-  const term = terminal(t, rows, 'FL17', FLOWS.find(e => e.id === 'FL17')!.normalized({ window: 10 }))[FLOWS.find(e => e.id === 'FL17')!.seriesKey('value', { window: 10 })];
-  const c = calc([pre, post]), s = seriesOfRef(c, ref, 'f');
+test('P9: broker prices on the price basis; empty only where the data up to the bar leaves the basis unsettled', () => {
+  const dates = sessions('2026-05-04', 140), t = mkTicker('BASE', 41, dates), base = mkRows(t, 42);
+  const terms = dates[30], off = dates[60], unresolved = dates[80], raw = dates[110];
+  // as published: the lots before a rights issue the prices carry are on the traded scale (1.5x fewer, so the broker VWAP
+  // is 1.5x the adjusted close), and one Regular day is off the scale with no action (a range re-downloaded, PBSA)
+  const published = base.map(r => ({ ...r, bl: r.d < terms ? r.bl / 1.5 : r.bl, sl: r.d < terms ? r.sl / 1.5 : r.sl,
+    bv: r.d === off && r.m === 'Regular' ? r.bv * 1.5 : r.bv, sv: r.d === off && r.m === 'Regular' ? r.sv * 1.5 : r.sv }));
+  const basis: BasisAction[] = [{ ex: terms, type: 'RIGHT_ISSUE', factor: 1.5, status: 'terms', price: 'adjusted' },
+    { ex: unresolved, type: 'STOCK_SPLIT', factor: 1, status: 'unresolved', price: null }, { ex: raw, type: 'STOCK_SPLIT', factor: 1, status: 'same', price: 'raw' }];
+  const cols = onPriceBasis(columns(published), basis);
+  // the lots are back on the price basis: the published rows times the factor before the ex date
+  const onBasis = published.map(r => ({ ...r, bl: r.d < terms ? r.bl * 1.5 : r.bl, sl: r.d < terms ? r.sl * 1.5 : r.sl }));
+  const calc = () => new Calc(t.bars as never, undefined, { ticker: t.ticker, dates, broker: { columns: cols, classification: CLS, basis } });
+  const e17 = FLOWS.find(e => e.id === 'FL17')!, term = terminal(t, onBasis, 'FL17', e17.normalized({ window: 10 }))[e17.seriesKey('value', { window: 10 })];
+  const c = calc(), s = seriesOfRef(c, { kind: 'flow', metric: 'FL17', params: { window: 10 } }, 'f');
+  let kept = 0;
   for (let i = 0; i < dates.length; i++) {
-    const start = Math.max(0, i - 9), reads = (d: string) => dates[start] < d && (d <= '2026-09-12' || dates[i] >= d);
-    const want = reads(pre) || reads(post) ? null : term[i] ?? null;
-    assert.equal(s[i] ?? null, want, `bar ${i} (${dates[i]})`);
+    const start = Math.max(0, i - 9), from = dates[start], to = dates[i];
+    const blocked = (from <= off && off <= to) || [unresolved, raw].some(d => from < d && d <= to);
+    assert.equal(s[i] ?? null, blocked ? null : term[i] ?? null, `bar ${i} (${dates[i]})`);
+    if (!blocked && i < 30 && s[i] !== null) kept++;
   }
-  assert.ok(c.flowNotes!.masked.size >= 30 + 9, 'every bar before the adjusted action, and the windows across the later one');
-  // a Flow indicator that is not a broker price is never masked
-  const n = seriesOfRef(calc([pre, post]), { kind: 'flow', metric: 'FL11', params: {} }, 'f');
+  assert.ok(kept >= 15, `the bars before the rights issue keep their values (${kept}); before P9 every one was empty`);
+  assert.equal(c.flowNotes!.masked.size, Array.from(s).filter((v, i) => v === null && term[i] !== null).length);
+  // a Flow indicator that is not a broker price is never masked (and reads the lots on the price basis too)
   const fl11 = FLOWS.find(e => e.id === 'FL11')!;
-  same(n, terminal(t, rows, 'FL11', fl11.normalized({}))[fl11.seriesKey('value', {})], 'FL11 unmasked');
+  same(seriesOfRef(calc(), { kind: 'flow', metric: 'FL11', params: {} }, 'f'), terminal(t, onBasis, 'FL11', fl11.normalized({}))[fl11.seriesKey('value', {})], 'FL11 unmasked');
+  // an events file without the block: its actions read as unresolved, masked across them only
+  const u = new Calc(t.bars as never, undefined, { ticker: t.ticker, dates, broker: { columns: columns(published), classification: CLS, basis: unknownBasis([{ date: terms, type: 'RIGHT_ISSUE' }]) } });
+  const su = seriesOfRef(u, { kind: 'flow', metric: 'FL17', params: { window: 10 } }, 'f');
+  // the days before it are off the price basis by their own data (VWAP 1.5x the close, outside the day's range): empty
+  // through the per-day guard; a window after the action and away from the off day keeps its value
+  assert.ok(su[20] === null && su[35] === null && su[50] !== null, 'the per-day guard catches what no factor settled');
 });
 
 test("the run's Flow warnings: before 2021, basis change, source gaps and dropped rows, per stock over the sessions read", () => {

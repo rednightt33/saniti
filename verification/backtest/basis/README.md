@@ -25,3 +25,23 @@ Result (dev, 2026-11-16):
 Reading: splits and bonus shares are on one basis in both sources (Stockbit adjusts them); rights issues are the
 mismatch, and their terms give the factor the prices carry. The "other" rows are data problems to resolve one by one
 (for example ATIC 2018-06-25: terms 1000:298666 at Rp 1, a factor of 244 against an observed 1.01).
+
+## The factor the Backtest applies (2026-11-16, P9)
+
+The terms factor of a rights issue above uses the broker VWAP of the last session before the ex date for the traded
+price. The publisher (`publisher.py terms_factor`) uses the exact form instead: the published close of that session is
+TERP on the scale of the prices after every later action, so f = ((old + new) A - new X) / (old A), with A that close
+times the later actions' price factors (the actions are measured newest first). On COCO (exported 2023-2026):
+
+| Factor used | Sessions with the scaled VWAP outside the day's range (1 %) |
+|---|---|
+| none | 799 of 885 |
+| terms with the VWAP (2.692, 1.788) | 165 |
+| observed jump (2.686, 1.728) | 44 |
+| exact form (2.7097, 1.7429) | 0 |
+
+`basis_from_export.py` writes the publisher's basis block for an exported ticker (`verification/backtest/lookahead`),
+which `real_data.ts` reads. `guard_sample.py` measures the per-day guard of `apps/backtest-worker/src/basis.ts` on 40
+stocks for 2025 without any factor (`guard_sample_2026-11-16.txt`): 7,466 sessions, 228 outside the range, all VKTR
+(rights issue 2026-10-07; its prices were pulled again on 2026-10-31, its broker lots are raw, so its factor puts them
+back); 0 of the 7,238 sessions of the other 39 stocks.

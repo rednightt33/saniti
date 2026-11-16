@@ -687,9 +687,10 @@ test('P3: a job with a Flow indicator in the grammar reads the broker rows as co
 });
 
 test('P4: a point-in-time Flow condition runs for a context with the right, and is CONDITION_RESTRICTED without it', async () => {
-  const days = FX.get('UNVR')!.T.slice(-80);
-  const rows = days.flatMap((d, k) => [[d, 'YU', 'Foreign', 'Regular', 1e9 * (1 + (k % 4)), 4e8 * (1 + (k % 3)), 1e4 * (1 + (k % 4)), 5e3, false],
-    [d, 'ZP', 'Domestic', 'Regular', 3e8 * (1 + (k % 5)), 9e8, 3e3, 9e3 * (1 + (k % 2)), false]]);
+  const fx = FX.get('UNVR')!, days = fx.T.slice(-80), close = (fx.C as number[]).slice(-80);
+  // test rows traded at the day's close (a broker price is on the price basis: P9's per-day guard keeps the values)
+  const rows = days.flatMap((d, k) => { const c = close[k], bl = 1e4 * (1 + (k % 4)), sl = 9e3 * (1 + (k % 2));
+    return [[d, 'YU', 'Foreign', 'Regular', bl * 100 * c, 5e3 * 100 * c, bl, 5e3, false], [d, 'ZP', 'Domestic', 'Regular', 3e3 * 100 * c, sl * 100 * c, 3e3, sl, false]] });
   const doc = brokerArchive('UNVR', rows, [2026, 2026]);
   const flowFake = await startFakeTerminal({ key: KEY, tickers: market({ UNVR: { broker: { data_through: THROUGH, doc } } }), refs: REFS });
   try {

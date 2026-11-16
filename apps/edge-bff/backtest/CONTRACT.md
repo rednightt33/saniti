@@ -755,9 +755,16 @@ The 41 clean ones are read on every bar from the stock's whole broker history wi
 (`calc/flow.ts computeFlow` through the Screener's flow series; 526 series equal it), the registry's baselines (nothing
 lowered) and today's broker classification on every date (FL34, user decision 5). Data: `datafile.ts brokerColumns`
 (about 56 bytes a row, `bf`/`sf` by name, null as NaN), kept only when a Flow reference reads them; the classification
-from terminal-api's `brokers` reference. A broker-price value (family "Buy VWAP & Implied Cost" or a price unit) is
-empty where its window reads a session on another basis than the prices: before an action dated on or before
-2026-09-12 (the prices are back-adjusted for it) or across a later one (K3 a; ERRORS M450).
+from terminal-api's `brokers` reference. P9 (option A; user 2026-11-16 "A dulu", "opsi A"; ERRORS M450, M458 item 2):
+the lots are put on the published prices' basis first (`datafile.ts brokerBasis`, `onPriceBasis`: the events file's
+`basis` block, per price-affecting action its factor and status, written by the publisher, `publisher.py broker_basis`;
+the lots of every date before a `terms` action are multiplied by its factor, rupiah unchanged). A broker-price value
+(family "Buy VWAP & Implied Cost" or a price unit) is then empty only where its window reads a bar whose basis the
+data up to that bar leaves unsettled (`apps/backtest-worker/src/basis.ts`): a bar whose Regular-board broker VWAP is
+outside its own low and high (1 %), or an action inside the window whose basis is pending, unresolved, or whose close
+was not reloaded after it (price raw). An events file without the block reads its actions as unresolved. Before P9 the
+value was also empty before every action dated on or before 2026-09-12, which read the action before it happened (K3 a
+as first built).
 
 **13.3 Point-in-time indicators (sections 3, 5).** FL18, FL19, FL20, FL23, FL44, FL45, FL51 (`apps/backtest-worker/src/pit/`,
 worker-only, admins only): the brokers chosen again on each candle from the anchor (FL18-FL20, FL44, FL45: `anchor`) or
@@ -823,4 +830,7 @@ conditions and no module it imports reaches `apps/backtest-worker/` (`tests/work
 (Stage D) asks the worker for their series.
 
 **13.10 Look-ahead gate.** `.github/workflows/backtest-lookahead.yml` (AGENTS.md "Backtest look-ahead gate"); real data:
-`verification/backtest/lookahead/` (BBRI, GOTO, COCO, ALKA: 0 leaks, 2026-11-15).
+`verification/backtest/lookahead/` (BBRI, GOTO, COCO, ALKA: 0 leaks, 2026-11-15; with the publisher's broker basis
+2026-11-16: 0 leaks, COCO 799 sessions off the price basis without the factors and 0 with them). The gate also runs a
+corporate action: the published world (adjusted prices, lots scaled back by the factor) gives the traded world's signals
+on every bar whose window does not cross the action, and the engine on the data cut at t with the basis kept whole.

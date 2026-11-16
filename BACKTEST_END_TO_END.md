@@ -953,11 +953,18 @@ The rules are in `apps/edge-bff/backtest/CONTRACT.md` section 13; this is where 
   truncation-tested; a named broker whose first row is after the period's end is refused per stock; an unused
   `window_bars` no longer splits a line; the Donchian compare lag marks the trial; the brokers' classification is in
   `data_version`; FL34's broker lists are checked; the Screener's refusal details pass through; a Screener preset that
-  reads an admin entry is hidden from other sessions. Open, for the user: the broker-price mask before a split, bonus
-  or rights issue dated before 2026-09-12 empties the bars before the action too, so their availability depends on a
-  later event (M458 item 2).
+  reads an admin entry is hidden from other sessions. The broker-price mask that read a later action (M458 item 2) is
+  replaced by P9 (option A, user 2026-11-16).
+- **P9, broker prices on the price basis (Stage 1-2 and 5).** The publisher measures, per split, bonus share and rights
+  issue, whether the broker prices and the published prices are on one basis across it and writes the factor and status
+  into the events file (`basis`, `publisher.py broker_basis`; the Terminal reads only the events columns). The worker
+  multiplies the broker lots before a `terms` action by its factor when it decodes the broker files
+  (`datafile.ts onPriceBasis`), so every Flow formula reads broker prices on the prices' basis; a broker-price value is
+  empty only where the data up to its bar leaves the basis unsettled (`apps/backtest-worker/src/basis.ts`). The daily
+  publisher run reports the recent actions that need attention on Telegram (`Broker_Basis_Report`); the steps after an
+  action are `UPDATE_TABLE.md` part C.
 - **Known open items (section 13).**
-  - The data-layer fixes M449/M450: an as-traded price series, and broker lots on the price basis.
+  - The data-layer fix M449: an as-traded price series (broker lots on the price basis: P9).
   - `OOS_ALREADY_SEEN`.
   - The point-in-time grid axes (anchor ±10/20 sessions, top N ±1/2).
   - A point-in-time indicator inside a transform.

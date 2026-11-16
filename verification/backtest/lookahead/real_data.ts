@@ -3,7 +3,11 @@
    export.sh (px.json, br.json), every series the Backtest reads is computed on the whole data and on the data cut at a
    few days t; every value on a day <= t must be equal. Covered: the 53 indicators at their defaults, the price-action
    types, the 20 candles, a set of grammar tests, the 41 clean Flow indicators at their defaults, and the 8 point-in-time
-   indicators (anchor / start 60 sessions after the first broker day). Read-only, nothing written but the report.
+   indicators (anchor / start 60 sessions after the first broker day). P9: with the publisher's broker basis of the
+   ticker (basis.json, verification/backtest/basis/basis_from_export.py) the lots are put on the price basis and the
+   corporate actions are in the data (kept whole at every cut: the basis is part of the published price history); the
+   report counts the sessions still off the price basis with and without the factors. Read-only, nothing written but the
+   report.
      node --experimental-strip-types --no-warnings --import ../../../apps/backtest-worker/loader/register.mjs \
        real_data.ts out/BBRI out/GOTO ... > report.json */
 import fs from 'node:fs';
@@ -14,6 +18,9 @@ import type { BrokerColumns } from '../../../apps/edge-bff/backtest/src/core/dat
 import { REGISTRY, ValidationError } from '../../../apps/edge-bff/backtest/src/core/registry.ts';
 import { FLOWS } from '../../../apps/backtest-worker/tests/lookahead/flow-helpers.ts';
 import { installBacktestGrammar, seriesOfRef } from '../../../apps/backtest-worker/src/grammar.ts';
+import { offBasisCount } from '../../../apps/backtest-worker/src/basis.ts';
+import { brokerBasis, onPriceBasis } from '../../../apps/edge-bff/backtest/src/core/datafile.ts';
+import type { BasisAction } from '../../../apps/edge-bff/backtest/src/core/datafile.ts';
 
 installBacktestGrammar();
 type Doc = { columns: string[]; rows: unknown[][] };
@@ -25,7 +32,9 @@ function load(dir: string) {
   const bars = { O: col(1), H: col(2), L: col(3), C: col(4), V: col(5), T: dates };
   const rows = br.rows.map(r => ({ d: String(r[0]), b: String(r[1]), i: String(r[2]), m: String(r[3]), bv: Number(r[4]), sv: Number(r[5]), bl: Number(r[6]), sl: Number(r[7]),
     bf: r[8] === null ? NaN : Number(r[8]), sf: r[9] === null ? NaN : Number(r[9]) }));
-  return { ticker: dir.split('/').pop()!, dates, bars, rows };
+  // P9: the publisher's broker basis of the ticker (verification/backtest/basis/basis_from_export.py), when written
+  const basis: BasisAction[] = fs.existsSync(`${dir}/basis.json`) ? brokerBasis([{ columns: [], basis: read(`${dir}/basis.json`) } as never], []) : [];
+  return { ticker: dir.split('/').pop()!, dates, bars, rows, basis };
 }
 function columns(rows: ReturnType<typeof load>['rows']): BrokerColumns {
   const dates: string[] = [], brokers: string[] = [], at = new Map<string, number>(), inv = ['Foreign', 'Domestic'], brd = ['Regular', 'Nego', 'Tunai'];
@@ -51,7 +60,7 @@ function check(dir: string) {
   const cut = (n: number) => {
     const last = T.dates[n - 1], s = <V,>(a: V[]) => a.slice(0, n);
     return new Calc({ O: s(T.bars.O), H: s(T.bars.H), L: s(T.bars.L), C: s(T.bars.C), V: s(T.bars.V), T: s(T.dates) } as never, undefined,
-      { ticker: T.ticker, dates: s(T.dates), broker: { columns: columns(T.rows.filter(r => r.d <= last)), classification: {} } });
+      { ticker: T.ticker, dates: s(T.dates), broker: { columns: onPriceBasis(columns(T.rows.filter(r => r.d <= last)), T.basis), classification: {}, basis: T.basis } });
   };
   const cuts = [0.35, 0.55, 0.75, 0.9].map(f => Math.floor(N * f));
   const full = cut(N), parts = cuts.map(cut);
@@ -93,7 +102,11 @@ function check(dir: string) {
     for (const o of ['total', 'cohort_changed']) run(`FL23.${o} (point in time)`, c => seriesOfRef(c, { kind: 'flow', metric: 'FL23', output: o, params: { start: anchor } }, 'f'));
     for (const o of ['cost', 'distance', 'share', 'cohort_changed']) run(`FL51.${o} (point in time)`, c => seriesOfRef(c, { kind: 'flow', metric: 'FL51', output: o, params: { start: anchor } }, 'f'));
   }
-  return { ticker: T.ticker, bars: N, from: T.dates[0], to: T.dates[N - 1], broker_rows: T.rows.length, cuts: cuts.map(k => T.dates[k - 1]), anchor, series, groups, leaks, refused };
+  // P9: the sessions still off the price basis after the factors (their broker-price values stay empty), without them
+  const plain = new Calc(T.bars as never, undefined, { ticker: T.ticker, dates: T.dates, broker: { columns: columns(T.rows), classification: {} } });
+  const basis = T.basis.map(a => [a.ex, a.type, a.status, a.factor, a.price]);
+  return { ticker: T.ticker, bars: N, from: T.dates[0], to: T.dates[N - 1], broker_rows: T.rows.length, cuts: cuts.map(k => T.dates[k - 1]), anchor,
+    basis, off_basis_sessions: offBasisCount(full), off_basis_sessions_without_factors: offBasisCount(plain), series, groups, leaks, refused };
 }
 
 const report = process.argv.slice(2).map(check);

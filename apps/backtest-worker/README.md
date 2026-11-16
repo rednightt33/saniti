@@ -462,6 +462,10 @@ The rules are in `apps/edge-bff/backtest/CONTRACT.md` section 13. The modules:
 - `src/pit/`: the eight point-in-time Flow indicators (`compute.ts`, `spec.ts`, `evaluate.ts`, `series.ts`), worker-only,
   admins only (right `flow_point_in_time` in `context.rights`).
 - `src/catalog.ts flowIndicators`: the catalog's `flow_indicators`.
+- `src/basis.ts` (P9, option A, user 2026-11-16): where a broker-price Flow value stays empty, from the data up to its bar
+  only (a bar whose Regular broker VWAP is outside its own range, or an action across which the broker basis is not
+  settled). The lots are put on the price basis when the broker files are decoded (`terminal.ts`, core `datafile.ts
+  brokerBasis`, `onPriceBasis`: the events file's `basis` block, written by the publisher).
 
 The image copies the Screener core and its registry generator, and `engine_version` covers them. New tests:
 

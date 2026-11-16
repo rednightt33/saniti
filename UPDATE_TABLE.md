@@ -7,6 +7,7 @@ Panduan memperbarui tabel yang diisi dari Stockbit. Setiap kelompok tabel punya 
 | **0. Cara biasa: service `stockbit-updater`** | semua tabel A dan B dalam satu putaran | Ganti `STOCKBIT_TOKEN` di service, lalu tekan **Run Now** (deploy tidak menjalankan putaran sejak 2026-11-09) |
 | **A. Tabel broker** (nomor 1–7 di bawah) | `IDX_Broker_Summary` → Feature 05, 02, 03, 06, `_INDEX` | Loader lokal + job refresh di `orc-test-runner` |
 | **B. Corporate action, insider dan anotasi** (B1–B7) | `stockbit_corporate_action`, `stockbit_insider_transaction`, `idx_event_annotation` | Satu job di `orc-test-runner` dengan token dari user |
+| **C. Sesudah aksi korporasi** (C1–C4) | `Price_Stock_Indonesia_IDX` saham itu → Feature 01, 04 → berkas Terminal/Backtest | Tarik ulang harga per saham dengan go user; data broker tidak perlu diapa-apakan |
 
 # Bagian 0 — service `stockbit-updater` (cara biasa sejak 2026-10-25)
 
@@ -336,3 +337,47 @@ besar. Sesudah pemeriksaan hasilnya:
 2. Catat di `RAILWAY_CHANGELOG.md`: deploy di `orc-test-runner`, `TOKEN_REMOVED` dan `VAR_REMOVED`.
 3. Data baru atau aneh dari Stockbit (jenis aksi baru, tipe corporate action baru tanpa tanggal anotasi) → catat di
    `ERRORS_AND_SOLUTIONS.md` dan perbarui `CORP_TYPES` di `stockbit_events.py` beserta tesnya.
+
+
+# Bagian C — sesudah aksi korporasi (split, saham bonus, rights issue)
+
+EXEC-BACKTEST-REVAMP P9 (user 2026-11-16: "opsi A", P9 + laporan harian + daftar langkah ini). Konteks: TradingView
+menulis ulang riwayat harga sesudah split, saham bonus dan rights issue, tetapi run harga harian
+(`apps/idx-price-cron/price_update.py`) hanya mengambil 5 bar terakhir, jadi riwayat tersimpan tetap di skala lama sampai
+ditarik ulang (ERRORS D22). Data broker Stockbit sudah menyesuaikan split dan saham bonus, tetapi tidak rights issue
+(`verification/backtest/basis/`: 98 dari 107 rights issue di bawah harga pasar). Backtest menyamakan skala harga broker
+dengan faktor yang diukur publisher per aksi (blok `basis` berkas events, ERRORS M458 butir 2).
+
+## C1. Cara tahu ada yang perlu dikerjakan
+
+- Telegram harian "⚠️ Basis harga lawan data broker" (sumber `Broker_Basis_Report`, dikirim terminal-publisher sekali sehari
+  bila ada): aksi dalam 60 hari terakhir yang riwayat harganya belum ditarik ulang, masih menunggu hari bursa sesudah
+  tanggal ex, atau belum cocok.
+- Log terminal-publisher, event `broker_basis` (jumlah per status) pada setiap run harian.
+- Daftar aksi saja tidak cukup: TradingView tidak menyesuaikan setiap aksi (BAJA dan BRNA 2026 tidak disesuaikan,
+  `verification/price_gap_0917/README.md`). Bandingkan dulu harga tersimpan dengan TradingView:
+  `verification/price_gap_0917/scale_scan.py` (read-only).
+
+## C2. Langkah (tiap tarik ulang dengan go user; menulis ke database)
+
+1. Tarik ulang seluruh riwayat harga saham itu dari TradingView, seperti EXEC-PRICE-GAP-0917
+   (`verification/price_gap_0917/jobs/price_job.py`). Jangan hanya sebagian rentang: patahan skala pindah ke awal rentang.
+2. Hitung ulang Feature 01 dan Feature 04 saham itu secara penuh (`verification/price_gap_0917/jobs/f04_job.py`; jalur
+   harian tidak bisa, ERRORS D26).
+3. Run harian terminal-publisher berikutnya menerbitkan ulang tahun harga yang berubah dan mengukur ulang basis broker
+   saham itu (otomatis, P9); Market Overview diterbitkan ulang bila tanggal lama berubah (`AGENTS.md`, Postgres memory
+   butir 4).
+4. Ini update besar: langkah restart Postgres di `AGENTS.md` ("Postgres memory after large updates").
+5. Besoknya: aksi itu tidak lagi muncul di Telegram (status `terms` atau `same` dengan harga `adjusted`).
+
+## C3. Data broker
+
+Tidak perlu diapa-apakan. Bila tetap diunduh ulang, unduh **seluruh** riwayat broker saham itu (Bagian A), jangan
+sebagian: PBSA (split 2026-10-14) hanya diunduh ulang mulai 2026-09-01, sehingga data brokernya sendiri bercampur dua skala
+(ERRORS M450); Backtest lalu hanya bisa mengosongkan hari-hari itu (penjaga per hari), bukan memperbaikinya. Sesudah unduh
+ulang, jalankan publisher mode `broker-range` untuk rentang itu: basis saham itu diukur ulang.
+
+## C4. Catatan
+
+`DATABASE_CHANGELOG.md` (saham, rentang, jumlah baris, rasio), `RAILWAY_CHANGELOG.md` (job, deploy, restart Postgres),
+status ERRORS D22 untuk saham itu.

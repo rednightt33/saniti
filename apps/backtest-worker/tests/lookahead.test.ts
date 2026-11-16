@@ -13,7 +13,7 @@ import { F } from '../../edge-bff/terminal/src/calc/indicators.ts';
 import * as TF from '../../edge-bff/terminal/src/calc/flow.ts';
 import FLOW_REG from '../../edge-bff/terminal/src/data/flowRegistry.json' with { type: 'json' };
 import { REGISTRY, ValidationError, resolveParams } from '../../edge-bff/backtest/src/core/registry.ts';
-import { Calc, FLOW, PRICE_ACTION, flowCondition, priceActionCondition } from '../../edge-bff/backtest/src/core/conditions.ts';
+import { Calc, FLOW, PRICE_ACTION, conditionSeries, flowCondition, priceActionCondition } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { CANDLE_IDS, candleSignal } from '../../edge-bff/backtest/src/core/candles.ts';
 import { flowData } from '../../edge-bff/backtest/src/core/flow.ts';
 import { prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
@@ -21,7 +21,9 @@ import { IMPLEMENTED_PATTERNS, IMPLEMENTED_TRANSFORMS, resolveSignal } from '../
 import { resolveSeries, tickerCalc } from '../../edge-bff/screener/src/core/metrics.ts';
 import { SCREENER_REGISTRY } from '../../edge-bff/screener/src/core/registry.ts';
 import { brokerColumns, head, market, type Row, type Ticker } from './lookahead/fixture.ts';
-import { installBacktestGrammar } from '../src/grammar.ts';
+import { installBacktestGrammar, seriesOfRef } from '../src/grammar.ts';
+import { onPriceBasis } from '../../edge-bff/backtest/src/core/datafile.ts';
+import type { BasisAction } from '../../edge-bff/backtest/src/core/datafile.ts';
 
 installBacktestGrammar();
 const M = market(), A = M.stocks[0], N = A.dates.length, CUTS = [150, 260, 390, 520];
@@ -151,14 +153,18 @@ test('Flow FL01-FL52 with every option: only the Terminal hindsight group reads 
 });
 
 test('the engine as a whole: the same request on the full data and on the data cut at t gives the same ledger', () => {
-  const tickerData = (t: Ticker, n: number | null, flow: boolean) => {
-    const k = n ?? t.dates.length, h = head(t, k), d = h.dates;
-    const rows = M.rows[t.ticker].filter(r => r.d <= d[d.length - 1]);
-    return { prices: { ticker: t.ticker, dates: d, bars: h.bars, dropped: 0 }, corporate_actions: [],
-      ...(flow ? { flow: flowData(rows, d), broker: brokerColumns(rows) } : {}) };
+  // P9 ('action'): AAAA as published after a rights issue at session 260 with factor 1.4: the fixture's prices
+  // (adjusted), its broker lots before the ex date on the traded scale, and the publisher's basis {terms, 1.4}, kept whole
+  // at every cut (it is part of the published price history)
+  const EX = A.dates[260], FX = 1.4, BASIS: BasisAction[] = [{ ex: EX, type: 'RIGHT_ISSUE', factor: FX, status: 'terms', price: 'adjusted' }];
+  const tickerData = (t: Ticker, n: number | null, flow: boolean | 'action') => {
+    const k = n ?? t.dates.length, h = head(t, k), d = h.dates, act = flow === 'action' && t.ticker === 'AAAA';
+    const rows = M.rows[t.ticker].filter(r => r.d <= d[d.length - 1]).map(r => act && r.d < EX ? { ...r, bl: r.bl / FX, sl: r.sl / FX } : r);
+    return { prices: { ticker: t.ticker, dates: d, bars: h.bars, dropped: 0 }, corporate_actions: act ? [{ date: EX, type: 'RIGHT_ISSUE' }] : [],
+      ...(flow ? { flow: flowData(rows, d), broker: onPriceBasis(brokerColumns(rows), act ? BASIS : []), ...(act ? { basis: BASIS } : {}) } : {}) };
   };
   const cutDate = (k: number) => A.dates[k];
-  const marketAt = (to: string | null, flow: boolean) => {
+  const marketAt = (to: string | null, flow: boolean | 'action') => {
     const n = (t: Ticker) => to === null ? null : t.dates.filter(d => d <= to).length;
     return { ihsg: { ticker: 'IHSG', dates: head(M.ihsg, n(M.ihsg) ?? N).dates, bars: head(M.ihsg, n(M.ihsg) ?? N).bars, dropped: 0 },
       tickers: Object.fromEntries(M.stocks.map(t => [t.ticker, tickerData(t, n(t), flow)])), classification: { AA: 'Institutional-heavy', BK: 'Retail-heavy', YP: 'Retail-heavy' } };
@@ -186,7 +192,7 @@ test('the engine as a whole: the same request on the full data and on the data c
   const D_STATE = test_('ds', { kind: 'state', lhs: close, op: 'gt', rhs: { kind: 'flow', metric: 'FL18', params: { anchor: A.dates[120] } } });
   const D_EVENT = test_('de', { kind: 'event', within: 3, signal: { lhs: { kind: 'flow', metric: 'FL45', params: { anchor: A.dates[100] } }, op: 'crosses_above', rhs: { value: 2 } } });
   const D_VALUE = test_('dv', { kind: 'value', metric: { kind: 'flow', metric: 'FL51', output: 'distance', params: { start: A.dates[90] } }, op: 'lt', value: 0 });
-  const cases: [string, Record<string, unknown>, boolean][] = [
+  const cases: [string, Record<string, unknown>, boolean | 'action'][] = [
     ['single', base({ mode: 'single', single: { ticker: 'AAAA', benchmark: 'buy_and_hold' }, entry: { logic: 'any', at_least: 1, window_bars: 3, conditions: [RSI, BRK] } }), false],
     ['portfolio fnet', base({ mode: 'portfolio', portfolio: { tickers: ['AAAA', 'BBBB', 'SUSP'], max_positions: 2, rank_by: 'fnet', min_avg_value_20d_idr: 0 },
       entry: { logic: 'any', at_least: 1, window_bars: 2, conditions: [RSI, FNET] } }), true],
@@ -196,6 +202,10 @@ test('the engine as a whole: the same request on the full data and on the data c
     ['portfolio grammar and point in time', base({ mode: 'portfolio', portfolio: { tickers: ['AAAA', 'BBBB', 'SUSP'], max_positions: 2, rank_by: 'fnet', min_avg_value_20d_idr: 0 },
       entry: { logic: 'at_least', at_least: 1, window_bars: 2, conditions: [{ ...test_('pg', { kind: 'event', within: 3, signal: { lhs: rsi, op: 'crosses_above', rhs: { value: 45 } } }) },
         test_('pd', { kind: 'value', metric: { kind: 'flow', metric: 'FL51', output: 'share', params: { start: A.dates[90] } }, op: 'gt', value: 20 })] } }), true],
+    ['single published world with a corporate action', base({ mode: 'single', single: { ticker: 'AAAA', benchmark: 'buy_and_hold' }, entry: { logic: 'any', at_least: 1, window_bars: 1,
+      conditions: [test_('ca', { kind: 'state', lhs: close, op: 'gt', rhs: { kind: 'flow', metric: 'FL17', params: { window: 10 } } }), D_STATE] } }), 'action'],
+    ['portfolio published world with a corporate action', base({ mode: 'portfolio', portfolio: { tickers: ['AAAA', 'BBBB', 'SUSP'], max_positions: 2, rank_by: 'fnet', min_avg_value_20d_idr: 0 },
+      entry: { logic: 'any', at_least: 1, window_bars: 2, conditions: [test_('cb', { kind: 'event', within: 3, signal: { lhs: close, op: 'crosses_above', rhs: { kind: 'flow', metric: 'FL17', params: { window: 10 } } } })] } }), 'action'],
     // a series whose first value comes after the first cuts (SMA 200): refused or left out on the bars up to the period's
     // end only, never decided by later bars
     ...(['single', 'portfolio'] as const).map(mode => [`${mode} late series`, base({ mode, ...(mode === 'single' ? { single: { ticker: 'AAAA', benchmark: 'buy_and_hold' } }
@@ -211,4 +221,41 @@ test('the engine as a whole: the same request on the full data and on the data c
     assert.deepEqual(b, a, `${name} cut ${cutDate(k)}`);
     if (k === CUTS[CUTS.length - 1]) assert.ok(a.trades?.length > 0, `${name}: the case trades (${a.trades?.length})`);
   }
+});
+
+test('P9: a corporate action: the published world (prices adjusted, lots scaled back by the factor) gives the traded world\'s signals, and no value on day t reads a later day', () => {
+  // the fixture is on one basis (broker VWAP near the close); a rights issue at session EX with factor F:
+  // traded: the closes before EX are F times the fixture's, the broker lots before EX F times fewer (VWAP F x the close);
+  // published: the fixture's closes (adjusted), the same broker rows, the publisher's basis {terms, F}
+  const EX = 260, F = 1.4, ex = A.dates[EX], rows = M.rows[A.ticker];
+  const traded = rows.map(r => r.d < ex ? { ...r, bl: r.bl / F, sl: r.sl / F } : r);
+  const scale = (k: number) => (a: ArrayLike<number | null>) => Array.from(a, (v, i) => i < k && typeof v === 'number' ? v * F : v);
+  const tradedBars = (n: number) => { const b = bars(A, n); return { ...b, O: scale(EX)(b.O), H: scale(EX)(b.H), L: scale(EX)(b.L), C: scale(EX)(b.C) } };
+  const world = (n: number, published: boolean) => {
+    const h = head(A, n), last = h.dates[h.dates.length - 1], r = traded.filter(x => x.d <= last);
+    const basis: BasisAction[] = published ? [{ ex, type: 'RIGHT_ISSUE', factor: F, status: 'terms', price: 'adjusted' }] : [{ ex, type: 'RIGHT_ISSUE', factor: 1, status: 'same', price: 'raw' }];
+    return new Calc((published ? h.bars : tradedBars(n)) as never, undefined, { ticker: A.ticker, dates: h.dates,
+      broker: { columns: onPriceBasis(brokerColumns(r), basis), classification: {}, basis } });
+  };
+  const fl17 = { kind: 'flow', metric: 'FL17', params: { window: 10 } }, close = { kind: 'price', field: 'close' };
+  const cond = { id: 'b', kind: 'test', test: { kind: 'state', lhs: close, op: 'gt', rhs: fl17 } } as never;
+  const sig = (c: Calc) => conditionSeries(c, cond, 'b');
+  const pub = sig(world(N, true)), trd = sig(world(N, false));
+  let same = 0, differs = 0;
+  for (let i = 1; i < N; i++) {
+    const crosses = i - 9 < EX && i >= EX;                     // the window [i-9, i] reads both sides of the action
+    if (crosses) continue;
+    if (pub[i] === trd[i]) same++; else differs++;
+  }
+  assert.equal(differs, 0, `the published world's signal differs from the traded world's on ${differs} bars`);
+  assert.ok(same > N - 20, `${same} bars compared`);
+  const on = Array.from(pub).filter(Boolean).length;
+  assert.ok(on > 30 && on < N - 30, `the condition is on for ${on} bars, off for the others`);
+  // without the factor (the lots left on the traded scale) the bars before the action differ, or are emptied by the
+  // per-day guard: the factor is what makes the two worlds one
+  const raw = sig((() => { const h = head(A, N); return new Calc(h.bars as never, undefined, { ticker: A.ticker, dates: h.dates, broker: { columns: brokerColumns(traded), classification: {}, basis: [] } }) })());
+  assert.ok(Array.from({ length: EX - 10 }, (_, k) => k + 10).some(i => raw[i] !== trd[i]), 'the unscaled lots change the signals before the action');
+  // the published world on the data cut at t (the basis is part of the published price history, so it is kept)
+  const out = (n: number) => ({ fl17: seriesOfRef(world(n, true), fl17, 'f') as unknown as ArrayLike<unknown>, sig: sig(world(n, true)) as unknown as ArrayLike<unknown> });
+  assert.equal(leak(out as never), null);
 });

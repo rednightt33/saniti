@@ -10,7 +10,7 @@ Before changing the backtest (`apps/edge-bff/backtest`, `apps/backtest-worker`, 
 publisher files and terminal-api routes it reads), read `BACKTEST_END_TO_END.md` (the flow from PostgreSQL to the page)
 and `apps/edge-bff/backtest/CONTRACT.md` (its rules).
 
-To update the broker tables after `IDX_Broker_Summary` changes (Feature 02, 03, 05, 06 and the `_INDEX` tables), follow `UPDATE_TABLE.md`: refresh order, checks, and the open gap that the loader in Git does not write `buy_freq`/`sell_freq`. To update the Stockbit corporate actions, insider movements and `idx_event_annotation` (ad hoc, with a token the user gives), follow `UPDATE_TABLE.md` part B.
+To update the broker tables after `IDX_Broker_Summary` changes (Feature 02, 03, 05, 06 and the `_INDEX` tables), follow `UPDATE_TABLE.md`: refresh order, checks, and the open gap that the loader in Git does not write `buy_freq`/`sell_freq`. To update the Stockbit corporate actions, insider movements and `idx_event_annotation` (ad hoc, with a token the user gives), follow `UPDATE_TABLE.md` part B. After a split, bonus share or rights issue (the daily Telegram "Basis harga lawan data broker" lists the ones that need it), follow `UPDATE_TABLE.md` part C: the price history is pulled again with the user's go, the broker data stays as it is, and the publisher measures the broker basis itself (EXEC-BACKTEST-REVAMP P9).
 
 ## Backtest look-ahead gate
 

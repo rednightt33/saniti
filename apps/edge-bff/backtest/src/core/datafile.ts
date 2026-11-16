@@ -291,6 +291,57 @@ export function corporateActions(docs: Columnar[]): CorporateAction[] {
   return out.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 }
 
+/* ---- the broker basis (EXEC-BACKTEST-REVAMP P9) ------------------------------------------------------------------ */
+/* Option A (user 2026-11-16: "A dulu", then "opsi A"; ERRORS M450, M458 item 2): the publisher measures, per
+   price-affecting corporate action, whether the broker prices and the published prices are on one basis across it, and
+   writes the decision into the events file (`basis`, apps/terminal-publisher/publisher.py broker_basis):
+   - terms: the published prices carry the action and the broker lots do not (a rights issue); the lots of every date
+     before the ex date are multiplied by `factor`, so the broker prices are on the prices' basis (onPriceBasis);
+   - same: one basis on both sides (factor 1); pending: too few sessions after the ex date yet; unresolved: neither.
+   `price` says whether the published close carries the action (adjusted) or was not reloaded after it (raw, ERRORS D22).
+   An events file published before P9 has no block: its actions read as unresolved (factor 1), so a broker-price value
+   across them is left empty, as a value whose basis is not known. */
+export const BASIS_STATUSES = ['terms', 'same', 'pending', 'unresolved'] as const;
+export type BasisStatus = typeof BASIS_STATUSES[number];
+export interface BasisAction { ex: string; type: string; factor: number; status: BasisStatus; price: 'adjusted' | 'raw' | null }
+
+/** The actions with an unknown basis (an events file without the block). */
+export const unknownBasis = (actions: readonly CorporateAction[]): BasisAction[] =>
+  actions.map(a => ({ ex: a.date, type: a.type, factor: 1, status: 'unresolved' as const, price: null }));
+
+/** Events documents -> the broker basis of the ticker's price actions, oldest first (unknownBasis of `actions` when no
+    document carries the block). */
+export function brokerBasis(docs: Columnar[], actions: readonly CorporateAction[]): BasisAction[] {
+  const isDate = dateCheck(), out: BasisAction[] = [];
+  let found = false;
+  docs.forEach((doc, k) => {
+    const b = (doc as { basis?: unknown }).basis;
+    if (b === undefined) return;
+    found = true;
+    const what = `events file ${k + 1}, basis`;
+    if (!b || typeof b !== 'object' || Array.isArray(b)) throw integrity(`${what} is not an object.`);
+    const [ex, type, factor, status, price] = cols(b as Columnar, ['ex', 'type', 'factor', 'status', 'price'], what);
+    for (let j = 0; j < ex.length; j++) {
+      const f = factor[j], st = status[j], pr = price[j];
+      if (!isDate(ex[j]) || !PRICE_ACTION_TYPES.includes(type[j] as string) || typeof f !== 'number' || !Number.isFinite(f) || f <= 0
+          || !(BASIS_STATUSES as readonly unknown[]).includes(st) || !(pr === null || pr === 'adjusted' || pr === 'raw'))
+        throw integrity(`${what}, row ${j + 1}: ${JSON.stringify([ex[j], type[j], f, st, pr])} is not an action's basis.`);
+      out.push({ ex: ex[j] as string, type: type[j] as string, factor: st === 'terms' ? f : 1, status: st as BasisStatus, price: pr as BasisAction['price'] });
+    }
+  });
+  return found ? out.sort((a, b) => a.ex < b.ex ? -1 : a.ex > b.ex ? 1 : 0) : unknownBasis(actions);
+}
+
+/** The broker columns with their lots on the published prices' basis: the buy and sell lots of each date multiplied by
+    the factors of the `terms` actions after it (rupiah and transaction counts unchanged), so a broker price (value /
+    lots) compares with the close. The columns themselves when no action is scaled. */
+export function onPriceBasis(c: BrokerColumns, basis: readonly BasisAction[]): BrokerColumns {
+  const scaled = basis.filter(a => a.status === 'terms' && a.factor !== 1);
+  if (!scaled.length || !c.rows) return c;
+  const F = c.dates.map(d => scaled.reduce((f, a) => a.ex > d ? f * a.factor : f, 1));
+  return { ...c, BL: Float64Array.from(c.BL, (x, k) => x * F[c.D[k]]), SL: Float64Array.from(c.SL, (x, k) => x * F[c.D[k]]) };
+}
+
 /* ---- alignment and version ------------------------------------------------------------------------------------ */
 /** The value of the last date on or before each calendar date, null before the first date (the Terminal's alignTo:
     benchmark and compare lines on the result calendar, D-X2). `dates` strictly increasing (a PriceSeries). */

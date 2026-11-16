@@ -32,7 +32,7 @@ import type { ResolvedSeries, TickerBars } from '../../edge-bff/screener/src/cor
 import { FLOW_BY_ID, indicatorDepth, readsFlow, seriesKeyOf } from '../../edge-bff/screener/src/core/flowmetrics.ts';
 import type { FlowBindContext, TickerFlow } from '../../edge-bff/screener/src/core/flowmetrics.ts';
 import type { FlowParamValue } from '../../edge-bff/screener/src/core/contract.ts';
-import { ADJUSTED_HISTORY_BOUNDARY } from '../../edge-bff/backtest/src/core/engine.ts';
+import { basisBlocked } from './basis.ts';
 import FLOW_REGISTRY from '../../edge-bff/terminal/src/data/flowRegistry.json' with { type: 'json' };
 import { checkDTest, dSignal, hasD } from './pit/evaluate.ts';
 import { dSeries, namedWithoutRows } from './pit/series.ts';
@@ -150,25 +150,20 @@ export function flowRefs(test: unknown, field: string): { field: string; ref: Re
   return refKinds(test, field).filter(([k]) => k === 'flow').map(([, f, ref]) => ({ field: f, ref }));
 }
 
-/* EXEC-BACKTEST-REVAMP P3 (K3 a, ERRORS M450; verified 2026-11-15 on COCO: broker VWAP / close 1.74-1.82 on every
-   date before its rights issue of 2026-07-09, 1.02 after): the published prices before ADJUSTED_HISTORY_BOUNDARY are
-   back-adjusted for each later split, bonus share and rights issue, the broker lots are not. A Flow value that compares
-   a broker price with the close (the registry's family "Buy VWAP & Implied Cost", or a price unit) is therefore left
-   empty where its window reads a session on another basis than the prices: before an action whose adjustment the prices
-   carry (ex-date on or before the boundary), or across one after it (the window mixes lots before and after). Derived
-   from the registry and the ticker's events; a new indicator of that family is covered without a code change. Not
-   covered (no published marker): a broker range re-downloaded after an action (PBSA, M450), which the data fix owns. */
+/* EXEC-BACKTEST-REVAMP P3 (K3 a, ERRORS M450), P9 (option A, M458 item 2): a Flow value that compares a broker price
+   with the close (the registry's family "Buy VWAP & Implied Cost", or a price unit) reads the broker lots on the
+   published prices' basis (datafile.ts onPriceBasis, the factor the publisher measured per corporate action) and is left
+   empty only where its window reads a bar whose basis is not settled by the data up to its own bar (basis.ts
+   basisBlocked: a bar whose broker VWAP is outside its own range, or an action across which the basis is pending,
+   unresolved or the close was not reloaded). Derived from the registry and the ticker's events; a new indicator of that
+   family is covered without a code change. */
 const BROKER_PRICE = new Set((FLOW_REGISTRY as { indicators: { id: string; family: string; unit: string }[] }).indicators
   .filter(r => r.family === 'Buy VWAP & Implied Cost' || r.unit === 'price').map(r => r.id));
 /** The bars [lo, lo + N) of the flow window whose value must stay empty, for a series that reads `depth` sessions up to
     its bar (null: the whole history). */
-function basisMask(dates: readonly string[], lo: number, N: number, depth: number | null, actions: readonly string[]): Uint8Array {
+function basisMask(c: Calc, lo: number, N: number, depth: number | null): Uint8Array {
   const mask = new Uint8Array(N);
-  if (!actions.length) return mask;
-  for (let k = 0; k < N; k++) {
-    const i = lo + k, start = depth === null ? 0 : Math.max(0, i - depth + 1), s = dates[start], at = dates[i];
-    mask[k] = +actions.some(d => s < d && (d <= ADJUSTED_HISTORY_BOUNDARY || at >= d));
-  }
+  for (let k = 0; k < N; k++) { const i = lo + k; mask[k] = +basisBlocked(c, depth === null ? 0 : i - depth + 1, i) }
   return mask;
 }
 
@@ -193,7 +188,7 @@ function tickerFlow(c: Calc): TickerFlow | undefined {
         if (!BROKER_PRICE.has(id)) continue;
         const key = seriesKeyOf(e, o.key, params, 'mask'), s = out[key];
         if (!s) continue;
-        const m = basisMask(dates, lo, s.length, d, b.actions ?? []);
+        const m = basisMask(c, lo, s.length, d);
         for (let j = 0; j < s.length; j++) if (m[j] && s[j] !== null) { s[j] = null; notes.masked.add(lo + j) }
       }
       memo.set(k, out);

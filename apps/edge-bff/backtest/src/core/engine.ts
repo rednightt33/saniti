@@ -22,7 +22,8 @@
    prepare(data) keeps one indicator memo per ticker (conditions.ts Calc), so the sensitivity grid's reruns of
    run(context, request) recompute only the comparisons, not the indicators. Pure module: no DOM and no Node API. */
 import type { BacktestRequest, ExitPhase, ExitReason, Limits, SkippedSignal, SignalTrack } from './contract.ts';
-import type { CorporateAction, PriceSeries, BrokerColumns } from './datafile.ts';
+import type { BasisAction, CorporateAction, PriceSeries, BrokerColumns } from './datafile.ts';
+import { unknownBasis } from './datafile.ts';
 import type { FlowData } from './flow.ts';
 import type { Ledger, LedgerTrade } from './ledger.ts';
 import type { Num, Params } from '../../../terminal/src/calc/indicators.ts';
@@ -43,6 +44,7 @@ export interface TickerData {
   corporate_actions: CorporateAction[];    // price-affecting actions only (datafile corporateActions)
   flow?: FlowData;                         // aligned with prices.bars; absent while catalog.flow.available is false
   broker?: BrokerColumns;                  // the broker rows as columns, when a Flow indicator in the grammar reads them (P3)
+  basis?: BasisAction[];                   // P9: the price actions' broker basis (absent: unknown, datafile unknownBasis)
 }
 /** Everything a run reads. IHSG is always present (calendar, IHSG benchmark). Single mode reads the request's ticker;
     portfolio mode reads the request's picked stocks (portfolio.tickers, PF1), and every one of them in `tickers`
@@ -104,7 +106,7 @@ function prepared(ctx: Context, ticker: string, field: string): Prepared {
   // conditions.ts Calc takes the ticker's flow data as its second argument (flow conditions, kind 'flow'), and the
   // ticker, its bar dates and IHSG's bars for the grammar (kind test: vs_index)
   const calc = new Calc(b, d.flow, { ticker, dates: d.prices.dates, index: { dates: ctx.data.ihsg.dates, bars: ctx.data.ihsg.bars },
-    ...(d.broker ? { broker: { columns: d.broker, classification: ctx.data.classification ?? {}, actions: d.corporate_actions.map(c => c.date) } } : {}) });
+    ...(d.broker ? { broker: { columns: d.broker, classification: ctx.data.classification ?? {}, basis: d.basis ?? unknownBasis(d.corporate_actions) } } : {}) });
   p = { ticker, data: d, calc, O: b.O as number[], H: b.H as number[], L: b.L as number[], C: b.C as number[], scores: {}, liq: null, maps: new Map() };
   ctx.tickers.set(ticker, p);
   return p;
@@ -199,7 +201,7 @@ function flowWarnings(prep: readonly Prepared[], active: ReturnType<typeof reque
   if (pre.length) out.push({ code: 'FLOW_PRE_2021', count: pre.length, tickers: list(pre),
     message: `The Flow conditions read broker data from before 2021 for ${stocks(pre.length)}: the 2016-2020 source misses some brokers on some days, so flow values in those years are less complete than later ones.` });
   if (basis.length) out.push({ code: 'FLOW_BASIS_CHANGE', count: basis.length, tickers: list(basis),
-    message: `A broker-price Flow value (a broker VWAP or implied cost) was left empty on some days of the period for ${stocks(basis.length)}: its window reads broker lots from before a split, bonus share or rights issue, while the published prices are adjusted for it, so the comparison with the close would be wrong.` });
+    message: `A broker-price Flow value (a broker VWAP or implied cost) was left empty on some days of the period for ${stocks(basis.length)}: its window reads a day whose broker prices are not on the basis of the published prices (a split, bonus share or rights issue the price history or the broker data does not carry yet), so the comparison with the close would be wrong.` });
   if (gap.size) { const days = [...gap.values()].reduce((a, b) => a + b, 0);
     out.push({ code: 'FLOW_SOURCE_GAP', count: days, tickers: list([...gap.keys()]),
       message: `On ${days === 1 ? '1 trading day' : `${days} trading days`} the Flow conditions read (counted per stock), the broker source's buy and sell totals differ: some brokers are missing from those days.` }) }

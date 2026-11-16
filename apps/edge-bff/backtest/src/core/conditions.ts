@@ -13,7 +13,7 @@
 import { F, isN } from '../../../terminal/src/calc/indicators.ts';
 import type { Bars, Num, Out, Params } from '../../../terminal/src/calc/indicators.ts';
 import type { FlowData } from './flow.ts';
-import type { BrokerColumns } from './datafile.ts';
+import type { BasisAction, BrokerColumns } from './datafile.ts';
 import { brokerNet, rollingSum, top5Accumulation } from './flow.ts';
 import { ValidationError, indicator, resolveParams } from './registry.ts';
 import lagDoc from './compare-lag.json' with { type: 'json' };
@@ -37,7 +37,9 @@ export interface CalcMeta {
   ticker?: string; dates?: readonly string[]; index?: { dates: readonly string[]; bars: Bars };
   /** EXEC-BACKTEST-REVAMP P3: the ticker's broker rows as columns and the brokers' classification (IDX_Broker_Profile,
       today's labels used on every date: user decision 5, 2026-11-15), for the Flow indicators in the grammar */
-  broker?: { columns: BrokerColumns; classification: Readonly<Record<string, string>>; actions?: readonly string[] };
+  /** EXEC-BACKTEST-REVAMP P9: the ticker's price actions with their broker basis (datafile.ts brokerBasis); the
+      columns' lots are already on the price basis (onPriceBasis) */
+  broker?: { columns: BrokerColumns; classification: Readonly<Record<string, string>>; basis?: readonly BasisAction[] };
 }
 /** What the grammar noted while it read the ticker's broker data (EXEC-BACKTEST-REVAMP P3; the engine turns it into the
     run's FLOW_* warnings for the period): the most sessions a Flow series read before its bar (null: its whole
