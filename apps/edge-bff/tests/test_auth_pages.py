@@ -89,6 +89,32 @@ def test_register_then_the_code_page(fixture_server, page):
     assert sent[2:] == [{'email': 'ana@example.com', 'code': '123456'}, {'email': 'ana@example.com', 'code': '123456', 'username': 'ana_p'}]
 
 
+def test_a_refused_sign_in_points_a_new_account_to_its_code(fixture_server, page):
+    """A pending account's sign-in answers the generic 401 INVALID_CREDENTIALS (no enumeration; the server emails a new
+    code and sets the registration cookie): with registration open the page adds where to enter the code."""
+    origin, _ = fixture_server
+    refused = {'error': {'code': 'INVALID_CREDENTIALS', 'message': 'The login or the password is not right.', 'details': {}}}
+    page.route('**/api/v1/auth/sign-in', lambda r: answer(r, 401, refused))
+    page.goto(origin + '/login')
+    page.get_by_label('Login', exact=True).fill('ana@example.com')
+    page.get_by_label('Password', exact=True).fill('a long enough password')
+    page.get_by_role('button', name='Sign In').click()
+    page.get_by_role('alert').wait_for()
+    assert page.get_by_role('link', name='Verify page').count() == 0       # registration closed: the message only
+    page.route('**/api/v1/auth/config', lambda r: answer(r, 200, {'multiuser': True}))
+    page.goto(origin + '/login')
+    page.get_by_label('Login', exact=True).fill('ana@example.com')
+    page.get_by_label('Password', exact=True).fill('a long enough password')
+    page.get_by_role('button', name='Sign In').click()
+    page.get_by_role('alert').wait_for()
+    assert page.get_by_role('alert').inner_text() == 'The login or the password is not right.'
+    assert 'If you have just registered, check your email for a code' in page.locator('.auth-note').inner_text()
+    page.get_by_role('link', name='Verify page').click()
+    page.wait_for_function("() => location.pathname === '/verify'")
+    assert page.get_by_text('Enter the code in the same browser where you registered.').is_visible()
+    assert page.get_by_text('We sent a code to ana@example.com.').is_visible()
+
+
 def test_forgot_password_code_new_password_back_to_sign_in(fixture_server, page):
     origin, _ = fixture_server
     sent = []

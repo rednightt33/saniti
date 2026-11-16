@@ -2,7 +2,7 @@
    M471: the error contract in both shapes, the CSRF repeat only on CSRF_INVALID, a plan refusal never a retry or a
    sign-out; M473: the user keys cleared on sign-out and on a change of user; M468: a drawing copy only for its login. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { classify, clearUserState, checkUser, LAST_LOGIN_KEY, noteLogin, onCleared, onReset, readError, sessionClient, accessText, isAccessRefusal }
+import { classify, clearUserState, checkUser, LAST_LOGIN_KEY, noteIdentity, noteLogin, onCleared, onReset, readError, sessionClient, accessText, isAccessRefusal }
   from '../../../shared/edge-session';
 import { ownCopy, stampCopy } from '../../src/data/drawingsApi';
 
@@ -141,15 +141,26 @@ describe('the storage registry and the clean-up (M473)', () => {
     await clearUserState({ signOut:true });
     expect(local.getItem(LAST_LOGIN_KEY)).toBeNull();
   });
-  it('a first load adopts the login and clears nothing; another login clears the previous account', () => {
+  it('a browser with no mark never hands its state to the first login (C2 Phase 1 #3); the same login keeps it; another clears it', () => {
     local.setItem('ml.symbol', 'BBRI');
-    expect(noteLogin('Owner')).toBe(false);
-    expect([local.getItem('ml.symbol'), local.getItem(LAST_LOGIN_KEY)]).toEqual(['BBRI', 'owner']);
+    expect(noteLogin('Owner')).toBe(true);                         // whose state it was is unknown: cleared, not adopted
+    expect([local.getItem('ml.symbol'), local.getItem(LAST_LOGIN_KEY)]).toEqual([null, 'owner']);
+    local.setItem('ml.symbol', 'BBRI');
     expect(noteLogin('owner')).toBe(false);
     expect(checkUser('OWNER')).toBe(false);
     expect(local.getItem('ml.symbol')).toBe('BBRI');
     expect(noteLogin('second')).toBe(true);
     expect([local.getItem('ml.symbol'), local.getItem(LAST_LOGIN_KEY)]).toEqual([null, 'second']);
+  });
+  it('a browser with no mark and no account state adopts the first login, clearing nothing', () => {
+    local.setItem('edge-auth-monitor-theme', 'dark');
+    expect(noteLogin('owner')).toBe(false);
+    expect([local.getItem('edge-auth-monitor-theme'), local.getItem(LAST_LOGIN_KEY)]).toEqual(['dark', 'owner']);
+  });
+  it('with no mark, drawing copies stamped by this same login are kept and move to its owner key', () => {
+    local.setItem('ml.drawings.BBRI', '{"owner":"owner","drawings":[{"id":"d1"}]}');
+    expect(noteIdentity('Owner', 'u_0123456789abcdef01234567')).toEqual({ changed:false, same:true });
+    expect(JSON.parse(local.getItem('ml.drawings.BBRI') as string).owner).toBe('owner:u_0123456789abcdef01234567');
   });
   it('a page clears on another login but never writes the mark', () => {
     local.setItem('scr.last', '{}');

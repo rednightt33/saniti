@@ -11677,14 +11677,17 @@ function AuthPage({go, mode = "login"}) {
   return element(LoginForm, {go, L});
 }
 function LoginForm({go, L}) {
- const v=currentView,login=initialValue(v,"login",()=>""),password=initialValue(v,"password",()=>""),busy=initialValue(v,"busy",()=>false),error=initialValue(v,"error",()=>""),open=initialValue(v,"open",()=>false);
+ const v=currentView,login=initialValue(v,"login",()=>""),password=initialValue(v,"password",()=>""),busy=initialValue(v,"busy",()=>false),error=initialValue(v,"error",()=>""),open=initialValue(v,"open",()=>false),hint=initialValue(v,"hint",()=>false);
  onLifecycle(v,"config",()=>{let live=true;Edge.config().then(c=>{if(live)updateValue(v,"open",c.multiuser);});return()=>{live=false;};},[]);
  const notice=authFlow.notice;
  const submit=async e=>{e.preventDefault();if(busy)return;updateValue(v,"busy",true);updateValue(v,"error","");authFlow.notice="";
   try{await Edge.signin(login,password);updateValue(v,"password","");go("/monitor");}
   catch(e){const code=e.info?.code;
    if(code==="MFA_REQUIRED"){authFlow.mfaEnrolled=typeof e.info.details?.mfa_enrolled==="boolean"?e.info.details.mfa_enrolled:null;updateValue(v,"password","");go("/mfa");return;}
-   if(code==="EMAIL_NOT_VERIFIED"){authFlow.email=login.includes("@")?login:"";authFlow.purpose="register";authFlow.sentAt=0;authFlow.notice=L.login.unverified;go("/verify");return;}
+   // a pending registration answers the same 401 as a wrong password (no enumeration; the server emails a new code):
+   // the page says where the code goes, with registration open only
+   updateValue(v,"hint",code==="INVALID_CREDENTIALS");
+   if(code==="INVALID_CREDENTIALS"){authFlow.email=login.includes("@")?login.trim():"";authFlow.purpose="register";authFlow.sentAt=0;}
    updateValue(v,"error",e.info?authText(e):e.message);}
   finally{updateValue(v,"busy",false);}};
  return element(AuthShell,{go,title:L.login.title,lead:L.login.lead},
@@ -11694,6 +11697,7 @@ function LoginForm({go, L}) {
    element(AuthField,{label:L.login.password},element("input",{id:"auth-password",type:"password",autoComplete:"current-password",value:password,required:true,disabled:busy,onChange:e=>updateValue(v,"password",e.target.value)})),
    open&&element("div",{className:"auth-row-end"},authLink(go,"/forgot",L.login.forgot)),
    error&&element("p",{className:"auth-error",role:"alert"},error),
+   error&&hint&&open&&element("p",{className:"auth-note"},L.login.justRegistered," ",authLink(go,"/verify",L.login.verifyLink),"."),
    element(Button,{kind:"primary",type:"submit",disabled:busy},busy?L.login.busy:L.login.submit)),
   open&&element("p",{className:"auth-switch"},L.login.noAccount," ",authLink(go,"/register",L.login.create)));
 }
@@ -11756,6 +11760,7 @@ function CodeForm({go, L}) {
   return element(AuthShell, {go, title:V.title, lead:authFlow.email ? `${V.sentTo} ${authFlow.email}.` : V.sent},
     element("form", {onSubmit:submit},
       notice && element("p", {className:"auth-note", role:"status"}, notice),
+      element("p", {className:"auth-note"}, V.sameBrowser),
       !authFlow.email && element(AuthField, {label:V.email, error:bad.email}, element("input", {id:"auth-email", type:"email", autoComplete:"email", value:email, required:true, disabled:busy,
         onChange:e => { updateValue(v, "email", e.target.value); authFlow.email = e.target.value.trim(); }})),
       element(AuthField, {label:V.code, support:V.codeHint, error:bad.code}, element(CodeInput, {value:code, disabled:busy, onChange:next => updateValue(v, "code", next)})),
