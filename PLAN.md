@@ -987,7 +987,7 @@ Dipindah pada 2026-10-29 setelah "go" user; persetujuan, temuan dan rencana ikut
 Dipindah ke `EXEC.md` EXEC-SCREENER pada 2026-10-28 setelah "go" user (persetujuan, jawaban P1-P23 dan pertanyaan yang
 masih terbuka ikut dipindah). Laporan: `verification/screener/AUDIT.md`.
 
-## EDGE-MULTIUSER — EDGE untuk user eksternal di semua tab (disetujui sebagai syarat 2026-10-28; rencana disusun; DIPENDING 2026-10-28)
+## EDGE-MULTIUSER — EDGE untuk user eksternal di semua tab (disetujui sebagai syarat 2026-10-28; DIPENDING 2026-10-28; dibuka lagi 2026-11-11: pendaftaran sendiri, login dibangun di BFF 2026-11-16)
 
 **Persetujuan, 2026-10-28 (kata user):** "Also, ini nanti akan multiuse,r jadi infrastruktur harus bisa di scale UP + efficient
 cost wise." Lalu atas pertanyaan P29 (siapa "banyak user"): "External / Ini termasuk tab2 lagi ya monitor, terminal, backtest juga".
@@ -1061,6 +1061,31 @@ Coba saja di explore pakai benchmark yang best practice."
 - **Pertanyaan yang dulu terbuka (RT1-RT15, `RUNTIME.md` §12; kini mengikuti rekomendasi lewat opsi A):** yang terpenting RT1 pool bersama, bukan salinan per
   user; RT2 "go" Tahap 0 + 1 bersama Screener; RT3 target waktu; RT14 service menyala terus saat peluncuran (tidur di luar
   08:10-22:10 WIB hanya hemat ±USD 8,6/bulan, user pertama menunggu 14-27 s, dan kode harus diubah dulu).
+
+**Dibuka lagi, 2026-11-11 (kata user):** "Goalnya adalah kita akan buat BFF ini bisa multi-user login ... Untuk stage pertama
+adalah akan ada tombol registration di front end, yang mana ketika user klik tombol registration, they can fill mandatory
+information dan mendapatkan email confirmation di Gmail, dan email confirmation tersebut harus kembali di-put sebagai
+confirmation code untuk bisa eligible for a login. Konfirmasi dulu." Ini mengganti rekomendasi MU7 (undangan saja) dengan
+pendaftaran sendiri plus kode email. Approval untuk merencanakan, belum "go" eksekusi.
+- **Audit dependensi 2026-11-11 (read-only; job runner `b48035ae` dan job kedua, keduanya `VAR_REMOVED`):** live: tidak ada
+  `edge_bff.users`; semua data `edge_bff` milik `edge-private` (414 jobs, 106 percakapan, 2 sesi); 10 tabel `edge_bff` berkunci
+  `owner_key` teks tanpa FK; tidak ada RLS; `terminal.access_log` subscriber 2 (gateway EDGE) 11.841 baris, 5 override kuota.
+  Kode (HEAD `ea87c5e`): `settings.owner` di 41 tempat `main.py` plus `backtest.py:1249`, `screener.py:648,916`, `layouts.py:215`,
+  `presets.py:189`, `drawings.py:161`; sesi hanya menerima `settings.owner` (`main.py:277`); M259 masih OPEN; Orc memetakan
+  header kosong ke `default` (`conversations.py:97-99`); `AI_research_run_audit` dan `ai_audit.*` menyimpan pertanyaan/jawaban
+  tanpa owner dan tanpa penghapusan; `ml.drawings.*` di browser digabung ke akun yang login berikutnya
+  (`terminal/src/data/drawingsApi.ts:50-69`); Backtest claim murni FIFO global (`backtest.py:638-648`); drawings sampai
+  5.000 × 100 KB per owner (`drawings.py:32-33`).
+- **Riset penyedia login dan email, 2026-11-11..16:** Supabase Auth bisa (kode OTP 6-10 digit, Google OAuth), tetapi paket
+  gratis pause setelah 1 minggu tanpa aktivitas (Pro USD 25/bulan), email bawaannya hanya ke anggota tim dan 2 email/jam,
+  dan direktori user terpisah dari Postgres Railway. FreeSend adalah relay self-host lewat SMTP sendiri (bukan pengirim email),
+  tidak dipakai. `up.railway.app` ada di Public Suffix List (dicek 2026-11-16), jadi `edge-bff-dev.up.railway.app` bisa menjadi
+  alamat redirect Google OAuth, tetapi SPF/DKIM tidak bisa dipasang di domain Railway.
+- **Keputusan user, 2026-11-16:** "Bangun sendiri di BFF" (opsi A: tabel user di `edge_bff`, scrypt, kode email di database
+  kita, sesi cookie BFF tetap seperti sekarang; tanpa Supabase dan FreeSend).
+- **Pertanyaan terbuka:** (1) domain sendiri untuk email (SPF/DKIM) dan layanan email lewat HTTPS API, atau Gmail SMTP sebagai
+  TEMPORARY selama domain belum ada; (2) Google sign-in ikut di tahap 1 atau menyusul; (3) siapa boleh daftar (langsung aktif,
+  menunggu persetujuan admin, atau daftar email tertentu); (4) isian wajib form; (5) chat AI dibuka untuk user baru atau belum.
 
 ## TERMINAL-IND-CARDS — dipindah ke `EXEC.md` EXEC-IND-CARDS (go 2026-11-01: "jalankan TERMINAL-IND-CARDS as well")
 
