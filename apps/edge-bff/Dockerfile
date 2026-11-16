@@ -10,11 +10,14 @@ RUN npm run build
 # EDGE backtest (CONTRACT.md section 10): the backtest page (backtest/, TypeScript + Vite) is built here into its dist/
 # and copied into static/backtest-app; its shared core imports the Terminal's calculation module and indicator registry
 # (terminal/src), so that source sits beside it as in the repository. The build output is not kept in git.
+# EXEC-BACKTEST-REVAMP Stage D: the page's condition window and test cards read the Screener's catalog entries, forms and
+# contract (screener/src), so that source sits beside it too (ERRORS M461: the 2026-11-16 build failed without it).
 FROM node:22-slim AS backtest
 WORKDIR /build/backtest
 COPY backtest/package.json backtest/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY terminal/src /build/terminal/src
+COPY screener/src /build/screener/src
 COPY backtest/ ./
 RUN npm run build
 

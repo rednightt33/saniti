@@ -8646,3 +8646,22 @@ in its staleness check.
   page or a module it reads; class fix of item 4). The visual check stays by hand (the user's design file is not in
   the repository).
 - **Lesson for new data:** none (page only).
+
+### M461 — edge-bff deploy of the EXEC-BACKTEST-REVAMP merge failed: the Backtest page's image stage lacked the Screener source it imports (2026-11-16, fixed)
+
+- **Symptom:** after PR rednightt33/saniti#65 merged (`c5d3ee97`), edge-bff deployment `37a4ab62` FAILED in the build:
+  `src/grammar.ts: Cannot find module '../../screener/src/entries.ts'` (and `forms.ts`, `operators.ts`,
+  `core/contract.ts` from `condwin.ts`, `filterbar.ts`, `api/types.ts`, `api/live.ts`). The live edge-bff stayed
+  `0c882d2d`; the new workers accept its bodies (no `context`: no rights), so nothing was down.
+- **Verified root cause:** `apps/edge-bff/Dockerfile`'s `backtest` stage copied `terminal/src` and `backtest/` only;
+  Stage D's page imports the Screener's catalog entries, forms and contract (`screener/src`). Every CI job built the
+  pages inside the whole repository (`backtest-lookahead.yml`, the smoke), where the files exist, so none saw it.
+  Reproduced: the stage's files in an empty folder fail the same way, and pass with `screener/src` beside them.
+- **Solution:** `COPY screener/src /build/screener/src` in the `backtest` stage (as the `screener` stage copies
+  `backtest/src`). Class fix: `.github/workflows/edge-bff-image.yml` builds the image as Railway does (context
+  `apps/edge-bff`, its Dockerfile: every page stage and the Python image) on a push or pull request touching edge-bff,
+  so a module a stage does not copy fails before a merge deploys it.
+- **Class:** a build that runs in the whole repository proves nothing about an image built from a part of it; the
+  workers have `scripts/check_image_imports.mjs` for this, the multi-stage page image had no check.
+- **Status:** FIXED (the image check in CI; the deploy recorded in `RAILWAY_CHANGELOG.md`).
+- **Lesson for new data:** none (build only).
