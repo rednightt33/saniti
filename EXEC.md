@@ -15065,6 +15065,12 @@ Rincian dan ID: `RAILWAY_CHANGELOG.md` 2026-11-16.
   worker).
 - **Pertanyaan terbuka ke user (2026-11-16):** perbaikan M463 (batas memori worker, pilihan di laporan) dan rotasi
   `BACKTEST_WORKER_KEY` (M464).
+- **Jawaban user, 2026-11-16 (M463):** "Sebenarnya tidak apa-apa untuk naikkan ke 2 GB apabila run memang diperlukan.
+  Tapi bisa nggak setelah selesai run langsung dibuat tidur atau otomatis di-cut? Tidak perlu sticky sampai 7-10 menit
+  tanpa request. Jadi RAM hanya berjalan ketika ada request saja". Dibaca: batas 2 GB disetujui bila run memerlukannya;
+  diminta RAM dilepas segera setelah request selesai. Usulan (thread penghitung berakhir setelah tugasnya, batas heap
+  per thread dari batas container, 4 saham dimuat bersamaan, pengaturan alokator; angka di ERRORS M463) menunggu "go"
+  user; tidur Railway sendiri 5-10 menit dan tidak bisa diatur.
 
 ### Selesai berarti
 

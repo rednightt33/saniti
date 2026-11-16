@@ -8734,7 +8734,21 @@ in its staleness check.
   problem exists already for a thread over its own heap limit (`server.ts answerError`: `OUT_OF_MEMORY`, "choose fewer
   stocks or a shorter period"), but no thread has such a limit, so the container kills the process first.
 - **Solution:** open, the user's decision (options with these numbers in the report of 2026-11-16).
-- **Status:** OPEN.
+- **After a run (user 2026-11-16: "bisa nggak setelah selesai run langsung dibuat tidur atau otomatis di-cut?"):**
+  Railway's per-minute samples of the dev worker show the memory a task leaves staying flat until the next request or
+  the sleep (455 MB 09:49-09:59, 389-393 MB 10:04-10:11, 172 MB from 10:25; the deployment `SLEEPING` at 10:41 while
+  the graph repeats 172 MB). Railway puts a service to sleep 5-10 minutes after its last outbound traffic, with no
+  setting for it (docs.railway.com/reference/app-sleeping). Measured locally (same harness and files; process RSS):
+
+  | Variant | Peak, preview then run | 1 s after the run | 30 s after | Preview / run time |
+  |---|---|---|---|---|
+  | as deployed | 1,446 MB | 986 MB | 642 MB | 5.9 s / 6.7 s |
+  | each compute thread ends when it has no task left (scratch copy of `compute.ts`) | 1,123 MB | 322 MB | 322 MB | 6.4 s / 6.5 s |
+  | the same + 4 tickers in flight + heap cap 300 MB per thread | 571 MB | 267 MB | 267 MB | 7.1 s / 7.5 s |
+  | the same + `MALLOC_ARENA_MAX=2`, `MALLOC_TRIM_THRESHOLD_=131072` | 493 MB | 187 MB | 187 MB | 7.7 s / 8.1 s |
+  | heaviest (grammar Flow), threads end + 4 in flight + heap cap 300 MB | 764 MB | 263 MB | 263 MB | 11.4 s / 13.4 s |
+
+  The worker starts at 107-135 MB. A preview on a fresh thread took 1.84-1.96 s against 1.67 s on a warm one.
 - **Lesson for new data:** a data source whose per-entity history grows (broker rows per stock) needs a memory budget
   measured on its largest entities and enforced by the process that loads it, not only a row count.
 
