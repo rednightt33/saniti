@@ -184,6 +184,11 @@ sebelumnya; 10 opsi dialog Indicators tetap tersedia bila itu yang dimaksud). 10
 ≥ 70 / ≤ 30, volume ≥ 1.5×, dekat high 60D ≥ −3% / ≤ −20%. Data: Core + empat saham nyata yang masuk zona (DKFT, BRPT,
 EXCL, VKTR). Menunggu pilihan user.
 
+**User 2026-11-16:** "Untuk table leave as is. Hanya panel indikator yang perlu di reskin." Tabel = mockup saat ini
+(pil Foreign solid, tanpa warna zona). 10 opsi panel Indicators dibuat ulang di atas Design Spec v1.2 (warna kelompok
+dari skala 50–900: Technical blue-600, Price & volume violet-600, Foreign flow green-600; latar --blue-bg /
+--violet-bg / --green-bg; tombol .btn/.primary/.ghost). Menunggu pilihan user.
+
 **Rencana eksekusi (usulan, menunggu go; pola EXEC-OVERVIEW):**
 - **W1 Rumus dan biaya.** Rumus setiap indikator dan persentil ditulis di `WATCHLIST_FORMULAS.md` (bahasa Indonesia
   sederhana, contoh nyata, dijaga skrip + tes seperti `OVERVIEW_FORMULAS.md`). Sumber: kolom tersimpan bila ada (RSI,
