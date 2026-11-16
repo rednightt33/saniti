@@ -1,7 +1,7 @@
 """Multi-Angle Research golden questions against market-ai-orc on the private network (orc-test-runner).
 
 MARKET_AI_ORC_TEST_KEY (M475: market-ai-orc accepts it only for test owners such as golden-*) is read from the
-environment and never printed; while it is not set, MARKET_AI_ORC_API_KEY is used instead (transition). Every item is a new SERVER-mode conversation;
+environment and never printed; the runner never uses market-ai-orc's main key. Every item is a new SERVER-mode conversation;
 a RESEARCH_PLAN_CONFIRMATION is approved once with plan_reply APPROVE. An item with "turns" is one conversation of
 free-text messages instead (mode 4: no analysis_path, no plan_reply; the reply classifier reads each reply); a turn
 may also be {"message", "chosen_option"} to pick a quick choice of an ask-back question (EXEC-3). Output: a short `OTR {json}` line per turn, then
@@ -11,7 +11,7 @@ import base64, gzip, json, os, re, threading, time, urllib.error, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 BASE = "http://market-ai-orc.railway.internal:8080"
-KEY = (os.environ.get("MARKET_AI_ORC_TEST_KEY") or "").strip() or os.environ["MARKET_AI_ORC_API_KEY"]
+KEY = os.environ["MARKET_AI_ORC_TEST_KEY"]
 AUDIT = "http://market-audit-store.railway.internal:8080"
 READER = os.environ.get("AUDIT_STORE_READER_KEY")
 AUDIT_KINDS = ("final.rejected", "final.forced", "final.unrendered")

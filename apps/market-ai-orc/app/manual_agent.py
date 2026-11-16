@@ -55,7 +55,7 @@ class ManualAgent:
         self.clock, self.poll_seconds = clock, poll_seconds
         self._lock = threading.Lock()
         self._steps: dict[str, Step] = {}
-        self._fallen: list[str] = []
+        self._fallen: list[tuple[str | None, str]] = []  # (owner, request id), C1 L1
 
     def __getattr__(self, name: str) -> Any:  # key reads, endpoints, prices: the real client's
         return getattr(self.real, name)
@@ -65,12 +65,13 @@ class ManualAgent:
         if payload.get("model") != MANUAL_MODEL:
             return self.real.create(payload, timeout=timeout, attempts=attempts, **options)
         request_id = current_request_id.get() or "unknown"
+        owner = current_owner.get()
         with self._lock:
-            fallen = request_id in self._fallen
+            fallen = (owner, request_id) in self._fallen
         if fallen:
             return self._fallback(payload, request_id, "EARLIER_STEP")
         # a copy: the run keeps adding to its input list, the step shows the call as it was sent
-        step = Step(uuid.uuid4().hex[:16], request_id, copy.deepcopy(payload), time.time(), current_owner.get())
+        step = Step(uuid.uuid4().hex[:16], request_id, copy.deepcopy(payload), time.time(), owner)
         with self._lock:
             self._steps[step.step_id] = step
         self.log("manual_agent_step_waiting", request_id=request_id, step_id=step.step_id)
@@ -95,7 +96,7 @@ class ManualAgent:
                     continue
                 if self.clock() >= deadline:
                     with self._lock:
-                        self._fallen = (self._fallen + [request_id])[-KEEP_FALLEN:]
+                        self._fallen = (self._fallen + [(owner, request_id)])[-KEEP_FALLEN:]
                     return self._fallback(payload, request_id, "NO_REPLY")
         finally:
             with self._lock:

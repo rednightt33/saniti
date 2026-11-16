@@ -5,8 +5,8 @@ and the agent container cannot reach Railway SSH, so questions are sent from thi
 
 - Railway service `orc-test-runner` (`09358b92-09d4-4da2-b547-bf8f621e226c`), restart policy `NEVER`, no domain.
   Key: `MARKET_AI_ORC_TEST_KEY` (a reference to market-ai-orc's test key, M475), which Orc accepts only for test
-  owners (`golden-*`, `test-*`, `someone-else`); while it is not set, `MARKET_AI_ORC_API_KEY` (market-ai-orc's main
-  key) is used instead. Neither is ever printed. Every request names an owner (`X-Saniti-Owner`); Orc refuses a
+  owners (`golden-*`, `test-*`, `someone-else`); it is required, never printed, and the runner never uses
+  market-ai-orc's main key `MARKET_AI_ORC_API_KEY`. Every request names an owner (`X-Saniti-Owner`); Orc refuses a
   request without one (400 `OWNER_REQUIRED`).
 - `run.py` (standard library only) sends every item of `suite.json` as a new `history_mode` SERVER conversation
   (owner `golden-multi-angle`), with the item's `analysis_path`, and approves a `RESEARCH_PLAN_CONFIRMATION` once with

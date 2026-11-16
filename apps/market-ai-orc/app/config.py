@@ -585,6 +585,12 @@ class Settings:
             ZoneInfo(settings.analysis_timezone)
         except Exception as exc:  # noqa: BLE001 - any lookup failure is a configuration error
             raise ConfigError("ANALYSIS_TIMEZONE must be an IANA time zone such as Asia/Jakarta") from exc
+        if settings.internal_test_api_key is not None:
+            # M475 / C1 M4: the test runner's key is a real secret of its own, never a copy of the main key
+            if len(settings.internal_test_api_key) < 32:
+                raise ConfigError("MARKET_AI_ORC_TEST_KEY must be at least 32 characters")
+            if settings.internal_test_api_key == settings.internal_api_key:
+                raise ConfigError("MARKET_AI_ORC_TEST_KEY must differ from MARKET_AI_ORC_API_KEY")
         if settings.ai_reasoning_effort not in REASONING_EFFORTS:
             raise ConfigError(
                 "AI_REASONING_EFFORT must be one of: " + ", ".join(sorted(REASONING_EFFORTS))
