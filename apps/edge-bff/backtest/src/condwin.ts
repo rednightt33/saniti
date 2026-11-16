@@ -8,7 +8,7 @@
      from a list here; the design's mock-up wording ("Broker-flow series are in the Screener only") is gone with it.
    Side (entry, exit), search (the label counts the real rows), sort, categories, a resizable rail, Customize (the
    popover), the strategy panel, keyboard (/, arrows, Enter, Esc) as the design. "My metrics" are kept in this browser
-   (bt.my: the row and its settings), a convenience of the viewer. */
+   (ml.my: the row and its settings), a convenience of the viewer. */
 import { $, esc, ico, nf, toast } from './format.ts';
 import { BROKER_CODES, DATA } from './env.ts';
 import { S, mkCond } from './state.ts';
@@ -39,7 +39,7 @@ const CW: { side: Side; view: string; q: string; sort: string; act: number; draf
 
 /* ---- My metrics (this browser) ---- */
 interface My { row: string; card: Card }
-const MY_KEY = 'bt.my';
+const MY_KEY = 'ml.my';
 const myList = (): My[] => { try { return JSON.parse(localStorage.getItem(MY_KEY) || '[]') } catch { return [] } };
 const mySave = (l: My[]) => { try { localStorage.setItem(MY_KEY, JSON.stringify(l.slice(-50))) } catch { /* storage off: kept for this page only */ } };
 
@@ -362,7 +362,10 @@ export function openCondWin(sel: { kind: string; id: string } | null, side: Side
 }
 export function closeCondWin() {
   ($('cw') as HTMLElement).hidden = true; ($('cwPop') as HTMLElement).hidden = true; document.body.classList.remove('cwopen');
-  lastFocus?.focus?.();
+  // the focus goes back to what opened the window; an add or a remove draws the builder again, so that element may be
+  // gone: its new copy (the same id), else the builder's search box
+  const back = lastFocus?.isConnected ? lastFocus : (lastFocus?.id && document.getElementById(lastFocus.id)) || document.getElementById('wsOpen');
+  back?.focus?.();
 }
 let ready = false;
 function init() {

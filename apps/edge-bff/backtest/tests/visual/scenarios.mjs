@@ -1,11 +1,11 @@
-/* The scripted interaction scenario run on both pages (the reference and /backtest-app/?fixture=reference). Steps are
-   cumulative: each one starts from the state the previous left; both pages start the way the reference does (one run
-   at load, the Signals view, builder step 2). Names starting with "d-" need the desktop layout. A step gets the side it
-   runs on ('ref' or 'ts'): where the reference has its Universe select the TypeScript page has the stock picker (PF7),
-   so a step picks the same stocks with the control each page has. The steps of TS_ONLY run on the TypeScript page
-   alone, after the others (snapshots of the picker for review; the reference has no such control to compare). */
+/* The scripted interaction scenario run on both pages (the user's design file and /backtest-app/?fixture=design). Steps
+   are cumulative: each one starts from the state the previous left; both pages start the way the design does (no run at
+   load, the Signals view, builder step 2). Names starting with "d-" need the desktop layout. A step gets the side it runs
+   on ('ref' or 'ts'). The design was built on a compiled copy of the page, so both have the stock picker (PF7) and the
+   condition window, and every step runs on both (TS_ONLY is kept for a step the design has no control for). */
 const click = (page, sel) => page.locator(sel).first().click();
-const step = (page, n) => click(page, `#sumbox [data-st="${n}"]`);
+/* the builder's step tabs (design "Builder v2"; the strategy summary rows are hidden in the design) */
+const step = (page, n) => click(page, `#rail [data-st="${n}"]`);
 
 /* Run backtest: both pages disable the run buttons in the click handler and enable them again with the result */
 async function run(page) {
@@ -36,13 +36,13 @@ export const SCENARIOS = {
   'a5-step3-exit': async page => { await step(page, 3) },
   'a6-step4-sizing': async page => { await step(page, 4) },
   'a7-step5-costs': async page => { await step(page, 5) },
-  /* the conditions workspace */
-  'b1-workspace-entry': async page => { await step(page, 2); await click(page, '#wsOpen') },
-  'b2-workspace-search': async page => { await page.fill('#wsQ', 'smoothing') },
-  'b3-workspace-category': async page => { await page.fill('#wsQ', ''); await click(page, '#wsCats button:nth-child(3)') },
-  'b4-workspace-item': async page => { await click(page, '#wsList .wl-i') },
-  'b5-workspace-exit-tab': async page => { await click(page, '#wsTabs [data-wside="exit"]') },
-  'b6-workspace-closed': async page => { await click(page, '#wsClose') },
+  /* the condition window (condwin.ts): opened from the builder, a search, a category, Customize, the exit side, closed */
+  'b1-condwin-entry': async page => { await step(page, 2); await click(page, '#wsOpen') },
+  'b2-condwin-search': async page => { await page.fill('#cwQ', 'stochastic') },
+  'b3-condwin-category': async page => { await page.fill('#cwQ', ''); await click(page, '#cwRail [data-cwv="Trend"]') },
+  'b4-condwin-customize': async page => { await click(page, '#cwList [data-cwcus]') },
+  'b5-condwin-exit-side': async page => { await page.keyboard.press('Escape'); await click(page, '#cwSide [data-cwside="exit"]') },
+  'b6-condwin-closed': async page => { await click(page, '#cw .qwin-f [data-cwclose]') },
   /* a template, a run and every results tab */
   'c1-template': async page => { await click(page, '#builder [data-tpl="Trend + pullback"]') },
   'c2-run-overview': async page => { await run(page); await tab(page, 'overview') },
@@ -61,11 +61,10 @@ export const SCENARIOS = {
   },
   'e2-portfolio-row': async page => { await click(page, '#portSig [data-t="BBRI"]') },
   'e3-portfolio-results': async page => { await run(page) },
-  'e4-portfolio-banks': async (page, side) => {
+  'e4-portfolio-banks': async page => {
     await click(page, '#viewSeg [data-v="signals"]');
-    if (side === 'ref') await page.selectOption('#builder [data-k="universe"]', { label:'Banks (BBCA, BBRI, BMRI)' });
     // the picker: the fixture's default portfolio is the reference's Demo 10; its chips other than the banks removed
-    else for (const t of await page.locator('#pkChips [data-pk-del]').evaluateAll(bs => bs.map(b => b.dataset.pkDel)))
+    for (const t of await page.locator('#pkChips [data-pk-del]').evaluateAll(bs => bs.map(b => b.dataset.pkDel)))
       if (!['BBCA', 'BBRI', 'BMRI'].includes(t)) await click(page, `#pkChips [data-pk-del="${t}"]`);
   },
   'e5-portfolio-banks-run': async page => { await run(page) },
@@ -83,7 +82,7 @@ export const SCENARIOS = {
     [`h${k + 1}a-stop-${m}`, async page => { await click(page, `#builder [data-mode="exit.stopMode"] [data-v="${m}"]`) }],
     [`h${k + 1}b-stop-${m}-run`, async page => { await run(page) }],
   ])),
-  /* the stock picker (TS_ONLY): the search list, the keyboard's add, a group with its list, add all at the limit */
+  /* the stock picker: the search list, the keyboard's add, a group with its list, add all at the limit */
   'p1-picker-search': async page => {
     await click(page, '#viewSeg [data-v="signals"]'); await step(page, 1); await click(page, '#modeSeg [data-m="portfolio"]');
     await click(page, '#pkQ'); await page.keyboard.type('a');
@@ -98,4 +97,4 @@ export const SCENARIOS = {
     await click(page, '#pkAll');
   },
 };
-export const TS_ONLY = new Set(['p1-picker-search', 'p2-picker-added', 'p3-picker-group', 'p4-picker-add-all']);
+export const TS_ONLY = new Set();

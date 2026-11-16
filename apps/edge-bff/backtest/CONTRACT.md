@@ -506,10 +506,10 @@ not have.
 
 ## 10. Page
 
-*EXEC-BACKTEST-REVAMP (2026-11-15): see section 13.9.*
+*EXEC-BACKTEST-REVAMP (2026-11-15): see sections 13.9 and 13.11 (the page port of the user's design file).*
 
-`/backtest` (EDGE tab "Backtest", iframe) → `/backtest-app/`. Markup and CSS of `backtest.html` verbatim, the
-portfolio stock picker aside (below, PF7); behaviour ported to TS modules. Preview signals in the browser with the
+`/backtest` (EDGE tab "Backtest", iframe) → `/backtest-app/`. Markup and CSS of the user's design file, which replaced
+`backtest.html` as the 1:1 reference (user 2026-11-15, section 13.11); behaviour in TS modules. Preview signals in the browser with the
 shared core on the ticker's published bars (via the existing `/api/terminal/v1` proxy); after a run, markers come from
 the result events only. No run at page load
 **[D-no-autorun]**; the page opens in its own "Not run yet" state. The synthetic generator and the mock-up engine
@@ -553,7 +553,7 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 - Condition limit: adding a condition, loading a template (entry or exit), duplicating one or switching one on is
   refused when the list would then hold more than `limits.max_conditions` enabled conditions, with the toast "Limit
   reached: at most N active conditions per list." and nothing changed (`reg.ts withinLimit`, called by `builder.ts`
-  (the add menu, both template lists, the switch) and `workspace.ts` (add, duplicate, the switches)); a change that
+  (the add menu, both template lists, the switch) and `condwin.ts` (add, duplicate, the switches)); a change that
   does not raise the count passes. The worker's `LIMIT_EXCEEDED` `max_conditions` (section 3) stays the rule.
 - Run events: the chart asks `/events?ticker=` only for a ticker of the run (`meta.tickers` and the tickers of
   `events.entries`, `picked.ts runTickers`; edge-bff answers any other with 404 `EVENTS_NOT_FOUND`); a picked stock
@@ -850,3 +850,45 @@ compute from it.
 2026-11-16: 0 leaks, COCO 799 sessions off the price basis without the factors and 0 with them). The gate also runs a
 corporate action: the published world (adjusted prices, lots scaled back by the factor) gives the traded world's signals
 on every bar whose window does not cross the action, and the engine on the data cut at t with the basis kept whole.
+
+**13.11 Page port (section 10; Tahap D, user 2026-11-15 "1 setuju, 2a", 2026-11-16 "Opsi C").** The 1:1 reference is the
+user's design file (built on a compiled copy of the page; kept outside the repository, `tests/visual/compare.mjs` takes
+its path). Its markup is `index.html`, its style blocks `src/styles/design.css` over the page's own `backtest.css` (one
+change: the design's block 4 left `@layer edge-components` open and a stray `}` swallowed the rules after it; the layer
+is closed before block 5). The agreed fixes (decision 2a):
+- the builder can be closed on a phone and hides nothing it holds (`layout.ts`, the NARROW lane mode);
+- the theme follows EDGE: the shell's key `edge-auth-monitor-theme` as the Screener and the Radar read it (`layout.ts
+  applyTheme`), a change in another frame arrives as a storage event and redraws the palette, the charts and the
+  overview; the design's own theme button is gone;
+- the switches keep their contrast in dark mode (`design.css`, the knob on `--bg`);
+- the search label of the builder counts the condition window's real rows (`builder.ts searchLabel`);
+- the data source note (`api.texts.dataNote`) is shown under the header's title;
+- the left header over the price chart (`#xsHd`) is built from the page's state (`header.ts`), not by a script that
+  copies a hidden row's text; its elements keep the old ids (`ctxTicker`, `ctxTitle`, `ctxPeriod`, `lastRun`,
+  `staleTag`).
+
+Parts: the formula bar above the chart (`filterbar.ts`: the entry rule and the first three active entry conditions as
+chips with their lane letter; a setting that differs from its default in blue), the signal chart under the price pane
+(`lanes.ts`: one row per entry condition with its letter, colour and name, the days it is true solid and the days it
+still counts for the rule's window hatched, the entry row, the trades row, a switch per row, the trades shaded on the
+price pane, a crosshair tooltip, the trade table after a run with the values on each trade's signal bar), and the
+condition window (`condwin.ts`, replacing the entry workspace):
+- its rows are the Backtest presets (`core/catalog.ts` LEGACY) and every entry of the Screener's catalog (`grammar.ts`,
+  the Screener's own `entriesOf`). A registry indicator's choice that the page's own card writes exactly (a value, a
+  level, an output crossing) makes that card, computed on the page; every other choice makes a card of kind `test`
+  (13.1), the Screener's own card, computed by the worker (13.9);
+- whether the Backtest can read a row is derived, never listed: the backtest catalog's `grammar_refusals` (the worker's
+  reference kinds without a per-day value, `NOT_PER_DAY`), its `flow_indicators` (availability and reason of each Flow
+  indicator; the point-in-time ones only in an admin's catalog, `app/rights.py`) and the Screener catalog's own
+  availability of the entry; such a row shows "Not in backtest" with that reason;
+- side (entry, exit), search, sort, categories, a resizable rail, Customize (a popover), the strategy panel (a tab on a
+  phone), and the keyboard as the design: `/` the search, arrows the active row, Enter adds or removes it, Escape closes
+  the popover, then the window, and gives the focus back; Tab stays inside the window;
+- the condition limit holds as everywhere (`reg.ts withinLimit`); "My metrics" are kept in this browser (`ml.my`, a
+  convenience of the viewer, never a setting of a run).
+
+A new indicator's default threshold (`reg.ts regMedian`) is the median of its values on the shown ticker's bars before
+the period's start, and only when they hold fewer than 20 values the bars up to the period's end; it never reads a bar
+after the period. Checks: `tests/smoke/smoke.mjs` (the condition window, the theme that follows EDGE, every step of the
+page on the stub API), `tests/visual/compare.mjs` with `diff.py` (the design against `?fixture=design` at 1440, 1024 and
+390 px, light and dark).

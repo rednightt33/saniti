@@ -1,8 +1,8 @@
 /* Playwright smoke run of the page on the stub BacktestApi (stub.ts, built by `vite build --mode smoke` into
-   dist-smoke/): boot, every builder step, the entry workspace, a run with every results tab, a sensitivity grid with a
+   dist-smoke/): boot, every builder step, the condition window, a run with every results tab, a sensitivity grid with a
    refused cell, the condition limit, the portfolio mode with its stock picker (PF7: the search box from the keyboard,
    the groupings' filters, add all, the chips), its signal table and a second run, the keyboard shortcuts and the
-   theme; then the market with markup in its strings (?hostile=1: no element is made from them and none of their
+   theme that follows EDGE; then the market with markup in its strings (?hostile=1: no element is made from them and none of their
    scripts runs, in every view and tooltip), the market with stocks every preview and run leaves out (?wide=1, on a
    phone's width: the limit of 12 stocks, the preview's one-line toast, the view bar's title, a left-out row asks no
    events, a stock without price data picked first, every picked stock left out) and the market with flow (?flow=1:
@@ -38,6 +38,7 @@ const errors = [], steps = [];
 let step = 'boot', page;
 async function openPage(viewport = { width:1440, height:900 }) {
   page = await browser.newPage({ viewport });
+  page.setDefaultTimeout(10000);              // a missing control fails its step in 10 s, not Playwright's 30 s
   // the web font is not needed here (and the sandbox may have no network): an empty style sheet
   await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, route => route.fulfill({ status:200, contentType:'text/css', body:'' }));
   page.on('console', m => { if (m.type() === 'error') errors.push(`[${step}] console: ${m.text()}`) });
@@ -48,7 +49,7 @@ const at = async (name, fn) => {
   step = name; const before = errors.length;
   try { await fn() } catch (e) { errors.push(`[${name}] ${process.env.SMOKE_DEBUG ? e.message.slice(0, 2500) : e.message.split('\n')[0]}`) }
   await page.waitForTimeout(150);
-  steps.push(`${errors.length === before ? 'ok  ' : 'FAIL'} ${name}`);
+  steps.push(`${errors.length === before ? 'ok  ' : 'FAIL'} ${name}`); console.log(steps.at(-1));
 };
 const text = sel => page.locator(sel).first().innerText();
 const expect = (ok, what) => { if (!ok) throw new Error(what) };
@@ -78,23 +79,37 @@ await at('boot', async () => {
   expect((await text('#lastRun')).includes('Not run yet'), 'the page does not open in "Not run yet"');
   expect((await text('#resCard')).includes('No results yet.'), 'the results card is not empty at boot');
   // review finding (b): the EDGE icons are linked and answered
-  const icons = await page.evaluate(async () => Promise.all([...document.querySelectorAll('link[rel="icon"]')].map(async l => [l.getAttribute('href'), (await fetch(l.href)).status])));
+  // (the path: the query is EDGE's cache stamp, `?v=` as edge-bff's own index.html)
+  const icons = await page.evaluate(async () => Promise.all([...document.querySelectorAll('link[rel="icon"]')].map(async l => [new URL(l.href).pathname, (await fetch(l.href)).status])));
   expect(JSON.stringify(icons) === '[["/favicon.svg",200],["/favicon-32.png",200]]', `icons ${JSON.stringify(icons)}`);
 });
 for (const n of [1, 3, 4, 5, 2]) await at(`builder step ${n}`, async () => {
   await page.click(`#rail [data-st="${n}"]`);
   await page.waitForSelector(`#builder .bs.on[data-step="${n}"]`, { timeout:3000 });
 });
-await at('entry workspace', async () => {
+/* the condition window (Tahap D, condwin.ts): it opens on the search box, a search narrows its rows, a row is added to
+   the entry list and removed again from its own button, the sides switch, Escape closes it and gives the focus back */
+await at('condition window', async () => {
   await page.click('#wsOpen');
-  await page.waitForSelector('#ews:not([hidden])', { timeout:3000 });
-  await page.fill('#wsQ', 'rsi');
-  await page.locator('#wsList [data-wi]').first().click();
-  await page.fill('#wsQ', '');
-  await page.click('#wsTabs [data-wside="exit"]');
-  await page.click('#wsTabs [data-wside="entry"]');
+  await page.waitForSelector('#cw:not([hidden])', { timeout:3000 });
+  await page.waitForFunction(() => document.activeElement?.id === 'cwQ', null, { timeout:3000 });
+  const all = await page.locator('#cwList .qrow').count();
+  await page.fill('#cwQ', 'rsi');
+  const found = await page.locator('#cwList .qrow').count();
+  expect(found > 0 && found < all, `the search "rsi" lists ${found} of ${all} rows`);
+  const entries = async () => +(await text('#cwSide [data-cwside="entry"] .n'));
+  const n0 = await entries();
+  await page.locator('#cwList .qrow:not(.na) [data-cwadd]:not(.on)').first().click();
+  expect(await entries() === n0 + 1, `entry conditions after an add: ${await entries()}, before ${n0}`);
+  await page.locator('#cwList .qrow [data-cwadd].on').first().click();
+  expect(await entries() === n0, `entry conditions after the remove: ${await entries()}, before ${n0}`);
+  await page.fill('#cwQ', '');
+  await page.click('#cwSide [data-cwside="exit"]');
+  expect((await page.getAttribute('#cwSide [data-cwside="exit"]', 'class')).includes('on'), 'the exit side is not shown');
+  await page.click('#cwSide [data-cwside="entry"]');
   await page.keyboard.press('Escape');
-  await page.waitForSelector('#ews[hidden]', { state:'attached', timeout:3000 });
+  await page.waitForSelector('#cw[hidden]', { state:'attached', timeout:3000 });
+  expect(await page.evaluate(() => document.activeElement?.id) === 'wsOpen', 'the focus did not go back to the search box of the builder');
 });
 const runAndWait = async () => {
   await page.click('#runTop');
@@ -123,10 +138,11 @@ await at('settings change marks the result stale', async () => {
   await page.waitForSelector('#lastRun.is-stale', { timeout:3000 });
   expect(await page.evaluate(() => !document.getElementById('staleTag').hidden), 'the stale tag is hidden');
 });
-/* (from here a builder step is opened with its summary row: the rail hides the panel when its step is the current one) */
+/* a builder step is opened with its tab (design "Builder v2"); the strategy summary rows are hidden in the design ("tabs
+   already show each step"), their text is still the strategy's summary in the markup, which the checks below read */
 /* a volspike threshold of 1 makes the grid step to -1, a value the condition refuses: that column was not run */
 await at('sensitivity grid with a refused value', async () => {
-  await page.click('#sumbox [data-st="2"]');
+  await page.click('#rail [data-st=\"2\"]');
   await page.click('#builder [data-tpl="Breakout + volume"]');
   const val = page.locator('#builder .cond:has(b:text-is("Volume spike")) [data-p="val"]');
   await val.fill('1'); await val.evaluate(el => el.blur());
@@ -141,7 +157,7 @@ await at('sensitivity grid with a refused value', async () => {
 });
 /* the stub's limit is 4 active conditions per list: the template has 3, one more is added, the next is refused */
 await at('condition limit', async () => {
-  await page.click('#sumbox [data-st="2"]');
+  await page.click('#rail [data-st=\"2\"]');
   const active = () => page.evaluate(() => document.querySelectorAll('#builder [data-step="2"] .cond:not(.off)').length);
   const before = await active();
   await page.click('#addCond'); await page.click('#menu [data-add="rsi"]');
@@ -268,14 +284,20 @@ for (const tab of ['overview', 'returns', 'trades', 'risk', 'robust', 'list']) a
   await page.click(`#rtabs [data-tab="${tab}"]`);
   await page.waitForSelector(`#rtabs [data-tab="${tab}"].on`, { timeout:3000 });
 });
+/* the theme follows EDGE (decision 2a): the shell's key, changed in another frame (a storage event); the page has no
+   theme button of its own */
 await at('keyboard shortcuts and theme', async () => {
   await page.locator('body').click({ position:{ x:5, y:5 } }).catch(() => {});
   await page.keyboard.press('f'); expect(await page.evaluate(() => document.body.classList.contains('mainfs')), 'f did not open full screen');
   await page.keyboard.press('Escape'); expect(!(await page.evaluate(() => document.body.classList.contains('mainfs'))), 'Escape did not leave full screen');
   await page.keyboard.press('['); expect(await page.evaluate(() => document.body.classList.contains('bcol')), '[ did not hide the panel');
   await page.keyboard.press('[');
-  await page.click('#themeBtn'); await page.click('#themeBtn');
-  const keys = await page.evaluate(() => Object.keys(localStorage).sort());
+  expect(!(await page.locator('#themeBtn').count()), 'the page has a theme button of its own');
+  for (const t of ['dark', 'light']) {
+    await page.evaluate(v => { localStorage.setItem('edge-auth-monitor-theme', v); dispatchEvent(new StorageEvent('storage', { key:'edge-auth-monitor-theme', newValue:v })) }, t);
+    expect(await page.evaluate(() => document.documentElement.dataset.theme) === t, `the theme did not follow EDGE to ${t}`);
+  }
+  const keys = (await page.evaluate(() => Object.keys(localStorage).sort())).filter(k => k !== 'edge-auth-monitor-theme');
   expect(keys.every(k => k.startsWith('ml.')), `unexpected localStorage keys ${keys}`);
 });
 
@@ -304,7 +326,7 @@ await at('hostile: boot', async () => {
    row's tooltip has the markup reason) */
 const pickBySearch = async q => { await page.fill('#pkQ', q); await page.waitForSelector('#pkQ[aria-expanded="true"]', { timeout:3000 }); await page.keyboard.press('Enter') };
 await at('hostile: portfolio preview', async () => {
-  await page.click('#sumbox [data-st="1"]');
+  await page.click('#rail [data-st=\"1\"]');
   await page.click('#modeSeg [data-m="portfolio"]');
   for (const q of ['MAPI', 'ACES', 'BBCA', 'BBRI', 'TLKM', '"\'><img']) await pickBySearch(q);
   expect((await chips()).length === 6 && (await chips()).at(-1).includes('onerror='), 'the markup ticker is not a chip with its text');
@@ -345,7 +367,7 @@ await at('hostile: an error message', async () => {
    toast and its message, which names the stock, in the row's tooltip (review PG-2); the strategy summary names the
    picked stock, the view bar's title where it costs no line (review PG-3) */
 await at('hostile: the markup stock alone', async () => {
-  await page.click('#sumbox [data-st="1"]');
+  await page.click('#rail [data-st=\"1\"]');
   for (const t of ['MAPI', 'ACES', 'BBCA', 'BBRI', 'TLKM']) await page.click(`#pkChips [data-pk-del="${t}"]`);
   await toastText(/^1 stock left out \(see the — row\)$/);
   const tip = await page.getAttribute('#portSig td[data-tt]', 'data-tt');
@@ -356,7 +378,7 @@ await at('hostile: the markup stock alone', async () => {
   await noMarkup();
 });
 await at('hostile: single run on the markup ticker', async () => {
-  await page.click('#sumbox [data-st="1"]');
+  await page.click('#rail [data-st=\"1\"]');
   await page.click('#modeSeg [data-m="single"]');
   await page.locator('#builder [data-k="ticker"]').selectOption({ index:await markupOption('#builder [data-k="ticker"]') });
   await runAndWait();
@@ -371,7 +393,7 @@ const noSideScroll = async what => { const w = await page.evaluate(() => [...doc
   expect(!w.length, `${what}: the picker reaches past the window's width: ${w.slice(0, 5)}`) };
 await at('wide: the picker on a phone', async () => {
   await boot('?wide=1');
-  await page.click('#sumbox [data-st="1"]');
+  await page.click('#rail [data-st=\"1\"]');
   await page.click('#modeSeg [data-m="portfolio"]');
   await pickBySearch('BBCA');
   await page.click('#pkQ'); await page.fill('#pkQ', 'w');
@@ -497,7 +519,7 @@ await at('wide: every picked stock left out', async () => {
 await page.close(); await openPage();
 await at('flow: default end and FLOW_DATA_THROUGH', async () => {
   await boot('?flow=1');
-  await page.click('#sumbox [data-st="1"]');
+  await page.click('#rail [data-st=\"1\"]');
   const to = page.locator('#builder [data-k="to"]'), [value, max] = await to.evaluate(el => [el.value, el.max]);
   expect(value < max, `the default end ${value} is not before the last price day ${max}`);
   await to.fill(max); await to.evaluate(el => el.blur());
@@ -568,7 +590,7 @@ await at('slow prices: the chart shows the loading ring with the ticker, one tur
 });
 await at('slow prices: a ticker switch empties the chart and names the new ticker', async () => {
   const other = await page.locator('#builder [data-k="ticker"] option').evaluateAll(os => os.map(o => o.textContent).find(t => t !== 'MAPI'));
-  await page.click('#sumbox [data-st="1"]');                         // step 1 holds the Ticker field
+  await page.click('#rail [data-st=\"1\"]');                         // step 1 holds the Ticker field
   await page.selectOption('#builder [data-k="ticker"]', other);
   await page.waitForFunction(() => !document.getElementById('chartLoading').hidden, null, { timeout:1000 });
   const r = await ring(), chips = await text('#sigChips');
@@ -593,6 +615,5 @@ await at('a run shows the loading ring in its note while it waits', async () => 
 });
 
 await browser.close(); server.close();
-console.log(steps.join('\n'));
 if (errors.length) { console.error(`\n${errors.length} error(s):\n` + errors.join('\n')); process.exit(1) }
 console.log('\nsmoke: no console errors');
