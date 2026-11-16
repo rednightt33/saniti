@@ -11,6 +11,10 @@
   // write once; a plan refusal keeps the session and carries its words (EdgeLabels.access, error.text).
   const ES = () => window.EdgeSession || null;
   try { ES()?.setRole('shell'); } catch { /* the module is missing: the shell still signs in */ }
+  // another page cleared the user state (a sign-out in another tab, or another account signed in): this tab drops its
+  // in-memory views of the previous account (reset shows the sign-in page) and reads the session again, showing the
+  // account signed in now. This tab's own broadcasts never reach it, so there is no loop.
+  try { ES()?.onCleared(() => { reset(); window.Edge.session().then(a => { if (a) dispatchEvent(new Event('edge-auth')); }); }); } catch { /* not offered */ }
   // EXEC-MODELS: the offered models are read once per session, before the work page shows (sign-in or a restored
   // session waits up to 3 s for them), so their arrival never redraws the page while the user types
   let models = {data:null, failed:false, pending:null};

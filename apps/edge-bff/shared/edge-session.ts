@@ -292,6 +292,10 @@ const resets = new Set<() => void>();
 const fireResets = () => resets.forEach(fn => { try { fn() } catch { /* the others still run */ } });
 /** `fn` runs when this page's account ended or changed: drop pending writes, never stamp or send them */
 export function onReset(fn: () => void): () => void { resets.add(fn); return () => { resets.delete(fn) } }
+/* the 'cleared' broadcast of another page, for any role: the shell drops its in-memory views and reads the session again */
+const clearedHooks = new Set<() => void>();
+/** `fn` runs when another page cleared the user state (a sign-out, or another account signed in) */
+export function onCleared(fn: () => void): () => void { clearedHooks.add(fn); return () => { clearedHooks.delete(fn) } }
 let role: 'app' | 'shell' = 'app';
 /** the shell says so at load: a page ('app', the default) reloads on 'cleared'; the shell keeps its own sign-in flow */
 export function setRole(r: 'app' | 'shell') { role = r }
@@ -311,7 +315,10 @@ function listen() {
       const t = ev?.data?.type;
       if (t === 'entitlements' || t === 'cleared') clients.forEach(fn => fn());
       // another tab signed out or another account signed in: nothing of this page's account may survive in memory
-      if (t === 'cleared') { fireResets(); reloadPage() }
+      if (t === 'cleared') {
+        clearedHooks.forEach(fn => { try { fn() } catch { /* the others still run */ } });
+        if (role === 'app') { fireResets(); reloadPage() }
+      }
     };
     (c as unknown as { unref?: () => void }).unref?.();       // Node (tests): the channel never keeps the process alive
   } catch { /* not offered */ }
@@ -377,7 +384,9 @@ export function sessionClient(fetchImpl?: typeof fetch) {
     }
     const res = await f(url, { credentials:'same-origin', ...init, method, headers });
     noteVersion(res);
-    if (res.status === 401) { invalidate(); fireResets() }
+    // a 401 of the page's own account (its session expired) keeps pending writes: they are stamped with the page's
+    // identity and join that account again; only another login, USER_CHANGED or 'cleared' drops them
+    if (res.status === 401) invalidate();
     if (res.status === 403 && write && !retried) {
       const e = await errorOf(res.clone());
       // the repeat goes out only when the session read again is the page's own account (session() refuses another)
