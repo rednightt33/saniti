@@ -15543,6 +15543,11 @@ so the migration goes first; Orc refuses a request without an owner, which every
     job's `POSTGRES_MEMORY_CHECK` line says `READY` (`python3 scripts/restart_postgres.py`, then `--apply`, after the
     M340 check), and record it in `RAILWAY_CHANGELOG.md`.
 
+- **Terbuka sebelum saklar dinyalakan (dicatat 2026-11-16):** login Anda sekarang `edge` adalah kata yang dicadangkan,
+  jadi user #1 di-seed dengan username `admin_1` dan tanpa email. Sebelum `EDGE_MULTIUSER` dinyalakan, user perlu
+  memutuskan username akun admin (misalnya tetap `edge`, dengan pengecualian dari daftar cadangan untuk seed) dan
+  mengisi email untuk reset password dan MFA. Tanpa itu, login lama `edge` tidak berlaku saat saklar menyala.
+
 ### Phase 1 deploy steps (prepared, not run)
 
 Prepared 2026-11-17 by builder B5 for the main agent. Code: `git diff 47dce4e3..HEAD` on branch
