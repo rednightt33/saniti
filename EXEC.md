@@ -15406,3 +15406,85 @@ tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terba
   - Nomor ERRORS milik rencana ini menjadi M468-M475, karena M423-M467 sudah dipakai di `main`.
 - **Tetap di luar eksekusi ini:** gateway pembayaran nyata, isi paket berbayar, dua indikator Free, Privacy dan Terms
   (isinya dari user), izin data per sumber (MU2), dan penyalaan saklar (Fase 6).
+
+### Phase 0 deploy steps (prepared, not run)
+
+Prepared 2026-11-16 by builder B5 for the main agent. Code: branch `claude/pensive-feynman-4ahfe3` (integrated at
+`31f0bf01`; B1 edge-bff, B2 Orc, B3 terminal-api and the Terminal fixture build, B4 front-end). Nothing below has run:
+no deploy, no migration applied, no Railway variable changed. Integrated tests (main agent, 2026-11-16): edge-bff 276
+passed / 139 skipped; terminal-api 91; Terminal vitest 908 and build; backtest 91, screener 1354 (+1 skipped), radar
+8, overview 22, watchlist 22, all six page builds; `node shared/build-shell.mjs --check`; Orc 1806 passed / 365
+skipped without Postgres (with a local Postgres the 31 failures and 3 errors known from before the change). IDs:
+`PROJECT_CONTEXT.md`. Secrets are never printed (M464: read variables only through an allow list of names).
+
+Order matters: edge-bff of this branch is not ready until the table exists (`/ready` reads `edge_bff.auth_throttle`),
+so the migration goes first; Orc refuses a request without an owner, which every current caller already sends (EDGE
+`EDGE_OWNER`, orc-test-runner `golden-*`), so Orc may deploy before or after edge-bff.
+
+1. **No user run active (M340).** `edge_bff.jobs` has no QUEUED, RUNNING or RECOVERING row and `AI_conversation_turn`
+   no RUNNING row; wait until none. Repeat this check right before steps 5 and 6 and before any Postgres restart.
+2. **Migration `20261116_002_edge_bff_accounts_auth_throttle.sql`** (sha256 `0d079dd2…5653b5f`, full value in
+   `DATABASE_CHANGELOG.md`): DRYRUN, then APPLY, through `scripts/onboarding/run_job.sh scripts/onboarding/migration_job.py`
+   with params like `verification/watchlist/jobs/migration20261116_001{,_apply}.params.json`. Read back from the live
+   database:
+   - the columns `scope, key_hash, window_start, count`, all NOT NULL, the primary key (`scope`, `key_hash`,
+     `window_start`) and the CHECKs;
+   - `information_schema.role_table_grants` for `edge_bff_runtime` on `auth_throttle`: exactly DELETE, INSERT,
+     SELECT, UPDATE; nothing for PUBLIC;
+   - 0 rows.
+
+   Then add its line to `database/migrations/APPLIED.sha256` (`sha256sum <file>`) and mark the changelog entry
+   applied. The running edge-bff does not touch the table, so applying early is harmless.
+3. **Grants of the login:** re-run `scripts/provision_edge_bff_login.py` (as a job; it needs `DATABASE_URL` and
+   `EDGE_DB_PASSWORD`, never printed). It rolls back on any unexpected reachable relation; read back that
+   `edge_bff_login` reaches `edge_bff.auth_throttle` with exactly the four privileges (`THROTTLE_GRANTS`).
+4. **`MARKET_AI_ORC_TEST_KEY`** (approved in the go: "Runner tes mendapat kunci sendiri"):
+   - on market-ai-orc: a new random value of at least 32 characters made in the process (`secrets.token_urlsafe(48)`)
+     and piped to `railway variable set --stdin --skip-deploys`; read back its length only;
+   - on orc-test-runner: the reference `${{market-ai-orc.MARKET_AI_ORC_TEST_KEY}}` (`--skip-deploys`).
+     `MARKET_AI_ORC_API_KEY` stays on orc-test-runner for now (run.py falls back to it); removing it is a later,
+     separate step once a golden run with the test key has passed.
+   - `python3 scripts/railway_reference_consumers.py market-ai-orc.MARKET_AI_ORC_TEST_KEY` must list only
+     orc-test-runner (a one-off service: it reads the value at its next upload or run).
+5. **Merge to `main`** (go item 1: "Merge bertahap ke `main` di balik saklar mati"): rebase or merge
+   `claude/pensive-feynman-4ahfe3` onto the current `main`, run every suite of `.github/workflows/backend-tests.yml` and
+   `backtest-lookahead.yml` (M455 lesson), `git diff --check`, push.
+   - market-ai-orc deploys on the push (not gated): wait for that exact deployment's `SUCCESS`, then `/ready` and one
+     request without `X-Saniti-Owner` from orc-test-runner gives 400 `OWNER_REQUIRED`.
+   - edge-bff deploys only after green checks (`checkSuites`): wait for that exact deployment's `SUCCESS`, then
+     edge-bff `/ready` 200.
+   - The orc-test-runner code (`run.py`) is uploaded with its next run (CLI, as its README says).
+6. **terminal-api** (not GitHub-connected; user: "Terminal API publik (hapus)"; M470):
+   1. Remove `TERMINAL_ALLOWED_ORIGINS` from terminal-api without a redeploy (`--skip-deploys`). An older build
+      refuses to start without an origin; it would still start here because `RAILWAY_PUBLIC_DOMAIN` is set.
+   2. Upload the new build: CLI upload of `git archive <merged commit> apps/terminal-api` (as in
+      `RAILWAY_CHANGELOG.md`); wait for that exact deployment's `SUCCESS`; `/ready` 200; the Terminal opens in EDGE
+      (the gateway host rule accepts edge-bff's private calls).
+   3. Remove the public domain `terminal-api-dev.up.railway.app` (dashboard or CLI). `RAILWAY_PUBLIC_DOMAIN` is set
+      when a deployment starts, so redeploy once more and wait for that deployment's `SUCCESS`: only a deployment
+      started without the domain is private-only.
+   4. Check from the private network (orc-test-runner or a job): `/ready` 200; `POST /api/terminal/v1/auth/sign-in`
+      answers 403 `direct_access_closed`; a gateway-key call with an `X-Forwarded-For` header answers 403
+      `gateway_host_not_allowed`; `https://terminal-api-dev.up.railway.app` no longer answers.
+   - Rollback: restore `TERMINAL_ALLOWED_ORIGINS` and the domain, or redeploy the previous deployment.
+   - Not part of Phase 0: the bucket CORS rule that still lists the old terminal-api origin
+     (`scripts/terminal_bucket_cors.py`); EDGE's origin stays in it.
+7. **Smoke checks through EDGE** (`https://edge-bff-dev.up.railway.app`, the user's login, read-only where possible):
+   sign-in, and a wrong password gives 401 without a lock-out; Terminal (chart, broker summary, a drawing saved and
+   read back); Radar; Screener (a run); Backtest (a run); Monitor (one short question to a finished answer, progress
+   and stop visible); sign-out clears the `user` keys (the browser's storage keeps only `browser` keys such as
+   `edge-auth-monitor-theme`). The manual-agent GET answers for the owner (404 while Orc's manual switch is off) and
+   the POST without a CSRF token gives 403 `CSRF_INVALID`.
+8. **Configuration as code:** `railway config pull --force` and `railway config plan`; update `.railway/railway.ts`:
+   terminal-api env without `TERMINAL_ALLOWED_ORIGINS` and without a public domain; `MARKET_AI_ORC_TEST_KEY:
+   preserve()` on market-ai-orc and on orc-test-runner. The plan must show no other change.
+9. **Records:**
+   - `RAILWAY_CHANGELOG.md`: each deployment id and its `SUCCESS` time, the variable actions (names, scope, action and
+     verification only), the domain removal.
+   - `ERRORS_AND_SOLUTIONS.md`: M259, M468-M475 from "fixed on branch, not deployed" to FIXED with the live evidence
+     (M472 stays OPEN for look_check8/9/10/12/13); the Railway forwarded-address probe result for the per-IP limit
+     when it is run (contract section 4).
+   - `DATABASE_CHANGELOG.md` (applied, read-back) and `APPLIED.sha256`.
+10. **Postgres memory:** the migration is small (an empty table), not a large update. Restart Postgres only if the
+    job's `POSTGRES_MEMORY_CHECK` line says `READY` (`python3 scripts/restart_postgres.py`, then `--apply`, after the
+    M340 check), and record it in `RAILWAY_CHANGELOG.md`.

@@ -79,7 +79,11 @@ last one (a drag sends many); one still waiting when the page goes away is sent 
 Build and checks, from `terminal/`: `npm ci`, `npm run build` (typecheck + build), `npx vitest run tests/calc`
 (parity), and the 1:1 check `TERMINAL_REFERENCE_HTML=<reference file> node tests/visual/compare.mjs <out>` then
 `python3 tests/visual/diff.py <out>` (must report 0 differing pixels). `/terminal-app/?fixture=reference` runs the
-page on the reference's synthetic data.
+page on the reference's synthetic data, but only in a fixture build (ERRORS M469): run `npx vite build --mode fixture`
+before the 1:1 check (`compare.mjs` refuses a build without fixture mode) and `npm run build` after it. The production
+build (`npm run build`, the one the Dockerfile makes and edge-bff serves without a session) has no fixture mode: the
+switch is `import.meta.env.MODE === 'fixture'` (not `DEV`, which follows `NODE_ENV`), so the fixture module and its
+broker summary are dropped from the bundle (`tests/data/fixture_bundle.test.mjs`).
 
 ## Backtest tab (EDGE backtest, 2026-10-26)
 
@@ -340,6 +344,7 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 | Layer | File | Change it when |
 | --- | --- | --- |
 | Transport (API, session, SSE) | `static/edge-client.js` | a BFF route or its JSON changes |
+| Session, error contract, browser storage (shared by the shell and the six pages) | `shared/edge-session.ts`, built for the shell into `static/edge-session.js` | a refusal code, the CSRF retry, or a browser storage key (see "Accounts groundwork" below) |
 | View contract | `static/edge-view.js` (`EdgeView.toView`) | Orc's response shape changes; the only code that reads it |
 | Words | `static/edge-labels.js` | wording, a label, a code's words, a status name |
 | Look and layout | `static/index.html` (markup, CSS, renderers) | anything visual; renderers read the view model only |
@@ -482,7 +487,7 @@ Orc owns history, answers, methodology, evidence, usage and exports. BFF accesse
 Orc endpoints, not SQL. Its dedicated restricted schema holds its operational tables: sessions, jobs and UI metadata,
 and, with migration `20261026_005`, the three backtest tables (backtest jobs, result parts and trials; see Backtest
 tab), with migration `20261028_001` the screener's saved items and watchlist (see Screener tab), and with migration
-`20261106_001` the Terminal's saved chart layouts, with `20261106_002` its indicator presets and with `20261107_001` its drawings (see Terminal tab), which hold no market data. Jobs retain original inputs for deterministic replay, not answers. Pins/bookmarks do
+`20261106_001` the Terminal's saved chart layouts, with `20261106_002` its indicator presets and with `20261107_001` its drawings (see Terminal tab), which hold no market data. Migration `20261116_002` adds `auth_throttle`, the sign-in throttle (see Accounts groundwork). Jobs retain original inputs for deterministic replay, not answers. Pins/bookmarks do
 not extend Orc's retention (code default 30 days, actual configuration must be checked before rollout). Expired
 history returns 410.
 There is currently no automatic purge of terminal job inputs/UI metadata or of backtest jobs: define an operational
@@ -524,7 +529,7 @@ No CORS is enabled. Responses are not cached. Inputs forbid unknown fields.
 
 | Method/path | Input/result |
 | --- | --- |
-| POST `/auth/sign-in` | `{login,password}`; session cookie, login, CSRF token |
+| POST `/auth/sign-in` | `{login,password}`; session cookie, login, CSRF token; 401 `INVALID_CREDENTIALS`, 429 `SIGN_IN_RATE_LIMIT` with `Retry-After` (see Accounts groundwork) |
 | GET `/auth/session` | Authenticated login, CSRF, supported capabilities |
 | POST `/auth/sign-out` | Revoke session; clear cookie |
 | POST `/runs` | `{submission_key,message,conversation_id?,chosen_option?,plan_reply?,model?,reasoning_level?}`; 202 request identity |
@@ -568,8 +573,9 @@ Sources are drawn only from actual evidence/annotations/data_record. Usage/cost 
 | EDGE_LEASE_SECONDS / EDGE_HEARTBEAT_SECONDS | 90 / 20 |
 | EDGE_POLL_SECONDS / EDGE_WORKER_ENABLED | 2 / true |
 
-Use one uvicorn process/one replica initially. Disable request access logs and proxy headers; authentication attempt
-limiting is process-local. HTTPS termination is Railway's responsibility. No plaintext password, database credential,
+Use one uvicorn process/one replica initially. Disable request access logs and proxy headers. Authentication attempt
+limiting lives in PostgreSQL (`edge_bff.auth_throttle`, EXEC-MU-ACCOUNTS Phase 0), so it holds across restarts and
+instances. HTTPS termination is Railway's responsibility. No plaintext password, database credential,
 Orc key, session secret or Railway token is bundled or stored in Git. Public errors are generic; private diagnostic
 keys/addresses are filtered. The original inline renderer requires CSP `unsafe-inline`; unsafe-eval is not enabled.
 
@@ -669,3 +675,71 @@ Where it applies:
   the last 90 days (`owner_trials`, K6 a).
 - Result parts are joined on `owner_key`.
 - The Screener routes carry the same rights and filter the Screener catalog per session (its own ETag).
+
+## Accounts groundwork (EXEC-MU-ACCOUNTS Phase 0, 2026-11-16)
+
+Phase 0 of the multi-user plan changes nothing the current user sees; it secures what a second account would reach.
+The contract is `verification/edge_multiuser/access_tiers/CONTRACT.md` (sections 3, 4, 6 and 12); the defects it closes
+are ERRORS M259, M468, M469, M471, M472 and M473.
+
+Sign-in throttle (`app/throttle.py`, table `edge_bff.auth_throttle`, migration `20261116_002`):
+- 10 failed sign-ins per login (case-folded, trimmed) in 15 minutes, counted in PostgreSQL, so every instance and
+  every restart sees the same count. The next try answers 429 `SIGN_IN_RATE_LIMIT` with `details.retry_after_s` and
+  `Retry-After`. A success forgets the login's failures.
+- Every login typed is counted, known or not, and the password is checked before the login is compared, so neither
+  the answer nor its timing tells whether an account exists.
+- The client address (right-most `X-Forwarded-For`, else the socket peer) is recorded under `signin_ip` (30 in 15
+  minutes) but not enforced until a probe proves what Railway's edge sends (contract section 4, "Client IP").
+- Keys are stored only as HMAC-SHA256 with `EDGE_SESSION_SECRET`; rows older than 2 days are deleted by the hourly
+  session clean-up.
+- `/ready` now also reads `edge_bff.auth_throttle`: an edge-bff of this version is not ready (503 `NOT_READY`) until
+  the migration is applied, rather than refusing every sign-in.
+
+Error contract (`app/errors.py`, M471): every refusal of edge-bff's own, FastAPI's and Starlette's included, has the
+shape `{"error": {"code", "message", "details"}}`; messages are plain English without internal names (EXEC-UI-1019B).
+
+| Status | Code | The page does |
+| --- | --- | --- |
+| 401 | `UNAUTHENTICATED` | goes to sign-in (the only answer that means "signed out") |
+| 403 | `CSRF_INVALID` | reads the session once more and repeats the write once |
+| 403 | `CAPABILITY_REQUIRED` (`details.capability`, `details.display_name`) | keeps the session and shows the words |
+| 403 | `ORIGIN_REJECTED` | unchanged |
+| 404 | `NOT_FOUND` | not found (another user's item reads the same) |
+| 405 | `METHOD_NOT_ALLOWED` | shows the refusal |
+| 422 | `INVALID_INPUT` (`details.fields`: the API names, never the values) | shows the refusal |
+| 429 | `SIGN_IN_RATE_LIMIT` (`details.retry_after_s`) | shows the wait message |
+
+`PLAN_EXPIRED`, `MFA_REQUIRED` and `LIMIT_REACHED` are read by the pages already (words in `static/edge-labels.js`,
+`EdgeLabels.access`) and are sent from Phase 1 on. Refusals made by `main.py`'s older `error(code, status)` helper
+(`INVALID_CREDENTIALS`, `ORIGIN_REJECTED`, store and Orc codes) still carry only `code`; the pages decide by the code.
+
+Manual agent routes (M259, M474): `GET /api/v1/dev/manual/steps` and `POST /api/v1/dev/manual/steps/{step_id}` are
+for an owner in `EDGE_ADMIN_OWNERS` only (default `EDGE_OWNER`; 403 `CAPABILITY_REQUIRED`, capability `admin.manual`),
+and the POST is a write (Origin and `X-CSRF-Token`). Orc answers only the steps of the run's own owner.
+
+Hooks prefix (`app/hooks.py`, contract section 6): the Origin check skips exactly `/api/v1/hooks/`, for callers such
+as a payment or email provider that cannot send EDGE's Origin; the body size cap and the security headers stay. A hook
+route has no session or CSRF, must verify a signature over the raw body, and is registered in `HOOK_ROUTES` with its
+verifier. No hook route exists in Phase 0.
+
+Route walk (`tests/test_route_table.py`): every `/api` route is public by an explicit list (sign-in, `/health`,
+`/ready`) or depends on the session; every write depends on `write` (session and CSRF), sign-in and hooks excepted;
+every hook route is registered with its verifier. A new route that misses one fails CI.
+
+Shared front-end layer (`shared/`, M471, M473):
+- `shared/edge-session.ts` is the one session module of EDGE. The six Vite pages (Terminal, Backtest, Screener,
+  Radar, Overview, Watchlist) import it; every page stage of the Dockerfile copies `shared/` beside its own folder, and
+  `.github/workflows/edge-bff-image.yml` builds every stage when `shared/` changes.
+- The shell loads the same code as `/edge-session.js` (`window.EdgeSession`, before `edge-client.js`), built by
+  `node shared/build-shell.mjs` (from `apps/edge-bff`, after `npm ci` in `terminal/`, whose esbuild it uses).
+  `node shared/build-shell.mjs --check` and `tests/test_storage_registry.py` fail when `static/edge-session.js` is not
+  the build of the source: run the build after every edit of the module and commit both files.
+- It owns the error contract above, the session call with CSRF, and the storage registry.
+- Storage registry: every localStorage, sessionStorage and IndexedDB key of the shell and the pages has one entry in
+  `STORAGE`, classed `browser` (how this browser shows EDGE: theme, widths, folds) or `user` (anything of an
+  account). Sign-out, or a sign-in with another login than the last one on this browser, removes the `user` keys and
+  the IndexedDB `terminal-files` (`clearUserState`). `tests/test_storage_registry.py` fails on a key found in the code
+  without an entry: **a new browser storage key needs its entry in `shared/edge-session.ts`, then
+  `node shared/build-shell.mjs`.**
+- Terminal drawings kept in the browser while the account cannot be reached are stamped with the login and join only
+  that login's account (M468).

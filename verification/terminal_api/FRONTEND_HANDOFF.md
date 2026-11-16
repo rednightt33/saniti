@@ -3,6 +3,10 @@
 Status 2026-10-25: backend live on Railway `dev` (EXEC-TERMINAL-API). This is what the frontend phase may rely on.
 Design and decisions: `DESIGN.md`; live evidence: `PHASE1_PHASE2.md`, `INTEGRITY.md`, Phase 7 results in `EXEC.md`.
 
+Note 2026-11-16 (EXEC-MU-ACCOUNTS Phase 0, built, not deployed yet): the public domain below is to be removed (user:
+"Terminal API publik (hapus)"). terminal-api then runs private-only: the direct sign-in and cookie routes answer 403
+`direct_access_closed`, and the page reaches the data only through EDGE (section 7). See `apps/terminal-api/README.md`.
+
 ## 1. How data reaches the page
 
 ```
