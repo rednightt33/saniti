@@ -58,7 +58,8 @@
   const identity = session => { try { return ES()?.identityOf(session?.login || '', ownerOf(session)) ?? String(session?.login || '').trim().toLowerCase(); } catch { return String(session?.login || '').trim().toLowerCase(); } };
   const noteLogin = session => { try { if (session?.login) return ES()?.noteIdentity(session.login, ownerOf(session)) || null; } catch { /* storage off */ } return null; };
   // the preferences routes ship with the Phase 1 session answer (its `access` object): an older server is never asked
-  const loadPrefs = noted => { if (!auth?.access) return Promise.resolve(false);
+  // (a session still waiting for the authenticator, access.next "mfa", reads none: they answer 403 MFA_REQUIRED)
+  const loadPrefs = noted => { if (!auth?.access || auth.access.next) return Promise.resolve(false);
     try { return ES()?.prefs.load({uploadLocal:Boolean(noted?.same)}) || Promise.resolve(false); } catch { return Promise.resolve(false); } };
   const stopPrefs = () => { try { ES()?.prefs.stop(); ES()?.edge.forget(); } catch { /* not offered */ } };
   // the auth routes that answer without a session (a 401 there is the form's answer, not a sign-out)
