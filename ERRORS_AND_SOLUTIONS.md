@@ -8668,3 +8668,24 @@ in its staleness check.
   workers have `scripts/check_image_imports.mjs` and the Screener stage its own test, the Backtest stage had none.
 - **Status:** FIXED (the image check in CI; the deploy recorded in `RAILWAY_CHANGELOG.md`).
 - **Lesson for new data:** none (build only).
+
+### M462 — Backtest page on dev: the condition window lost the Screener's rows when the screener-worker woke up, and the e2e check clicked a hidden row (2026-11-16, fixed)
+
+- **Symptom:** the dev end-to-end check after the EXEC-BACKTEST-REVAMP deploy (`verification/backtest/e2e_dev.py`,
+  09:40-09:43 UTC): single, repeat, refusal and cancel passed; `page_clean` failed on one
+  `GET /api/v1/screener/catalog` 503, and the portfolio step on `Page.click` timing out.
+- **Verified root causes:** (1) the 503 is edge-bff's `SCREENER_NOT_READY` with `Retry-After` (the screener-worker
+  sleeps when idle and answers so while it loads its data after waking, `app/screener.py`); the Screener page waits and
+  asks again (`screener/src/app.ts withRetry`), the Backtest page (Stage D, `api/live.ts screenerCatalog`) asked once,
+  so a first visit after the worker slept left the condition window with the Backtest presets only until a reload.
+  (2) `e2e_dev.py page_portfolio_setup` clicked `#sumbox [data-st="1"]`, the summary row the design hides (as the smoke
+  test did, M460 item 4).
+- **Solution:** (1) `api/live.ts`: `ApiFailure` carries the answer's Retry-After (read by the Screener page's own
+  `retryAfter`), and `screenerCatalog` follows the contract's rule the Screener page follows: `SCREENER_NOT_READY` asked
+  again after its Retry-After (at least a second, a minute of waits at most), `BUSY` twice, unavailable or unreachable
+  once (`tests/live.test.ts`: 503 then 200 gives the catalog on the second ask; a refusal that is not a wait fails at
+  once). (2) the e2e check opens step 1 with its tab `#rail [data-st="1"]`.
+- **Class:** a client of an edge-bff route that answers "wait and ask again" must follow the route's rule wherever it
+  is called from; a second page that reads the route copied the call but not the rule.
+- **Status:** FIXED (deployed with edge-bff, `RAILWAY_CHANGELOG.md` 2026-11-16).
+- **Lesson for new data:** none (page only).

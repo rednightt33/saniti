@@ -800,11 +800,12 @@ def portfolio_body(template, pick):
 
 def page_portfolio_setup(page, pick):
     """THE ONE PLACE THAT KNOWS HOW THE PAGE IS SWITCHED TO PORTFOLIO AND GIVEN ITS TICKERS (builder.ts, picker.ts):
-    the view tab #viewSeg [data-v="signals"], the summary row #sumbox [data-st="1"] (goStep 1), the mode switch
+    the view tab #viewSeg [data-v="signals"], the builder's step tab #rail [data-st="1"] (goStep 1; the design hides the
+    summary rows, Stage D), the mode switch
     #modeSeg [data-m="portfolio"], then each ticker typed in the search box #pkQ and its option clicked in #pkList (the
     option whose <b> is exactly the ticker). Checks the count pill #pkN against the pick."""
     page.click('#viewSeg [data-v="signals"]')
-    page.click('#sumbox [data-st="1"]')
+    page.click('#rail [data-st="1"]')
     page.click('#modeSeg [data-m="portfolio"]')
     page.wait_for_selector('#pkQ', timeout=10_000)
     for chip in page.query_selector_all('#pkChips [data-pk-del]'):   # the live page starts empty; the fixture does not
