@@ -9,7 +9,7 @@ import threading
 from contextlib import asynccontextmanager
 from functools import partial
 
-from fastapi import Body, Depends, FastAPI, Header, HTTPException, status
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .catalog_store import CatalogStore
@@ -19,8 +19,8 @@ from .conversation_plans import DATA_RECORD_KEY
 from .table_export import TableExportError, TableExportRequest, export_table
 from .conversation_router import first_stage
 from .conversation_plans import summary as plan_summary
-from .conversations import (ConversationError, ConversationStore, UpkeepThread, fingerprint, owner_from_header,
-                            reuse_key)
+from .conversations import (ConversationError, ConversationStore, UpkeepThread, current_owner, fingerprint,
+                            owner_from_header, reuse_key)
 from .openrouter_client import CreditMonitor, OpenRouterClient
 from .audit import RunAuditor
 from .audit_outbox import AuditOutbox
@@ -585,11 +585,23 @@ def create_app(
         default_mode = effective_default(settings.ai_mode_switch, found)
         app.state.orchestrator = found
         return True
-    expected = f"Bearer {settings.internal_api_key}"
+    expected = f"Bearer {settings.internal_api_key}".encode()
+    # M475: MARKET_AI_ORC_TEST_KEY (orc-test-runner) authenticates too, but may name only test owners
+    expected_test = f"Bearer {settings.internal_test_api_key}".encode() if settings.internal_test_api_key else None
 
-    def authorize(authorization: str | None = Header(default=None)) -> None:
-        if not authorization or not hmac.compare_digest(authorization, expected):
+    def authorize(request: Request, authorization: str | None = Header(default=None)) -> None:
+        supplied = (authorization or "").encode()
+        # both comparisons always run, in constant time, so the timing tells nothing about which key was close
+        main_key = hmac.compare_digest(supplied, expected)
+        test_key = hmac.compare_digest(supplied, expected_test) if expected_test is not None else False
+        if not authorization or not (main_key or test_key):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+        request.state.test_key = test_key and not main_key
+
+    def caller_owner(request: Request, value: str | None) -> str:
+        """The request's normalised owner (M475): OWNER_REQUIRED when missing or blank, OWNER_NOT_ALLOWED when the
+        test key names an owner that is not a test owner."""
+        return owner_from_header(value, test_key=bool(getattr(request.state, "test_key", False)))
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -607,8 +619,11 @@ def create_app(
         return {"status": "ready" if ensure_runtime() else "initializing"}
 
     def refuse(error: ConversationError) -> JSONResponse:
-        return JSONResponse(status_code=error.http_status,
-                            content={"detail": {"code": error.code, "message": error.message}})
+        body = {"code": error.code, "message": error.message}
+        if error.code in ("OWNER_REQUIRED", "OWNER_NOT_ALLOWED"):
+            # M475: the identity refusals carry the contract's "error" shape too; "detail" stays for current callers
+            return JSONResponse(status_code=error.http_status, content={"error": body, "detail": body})
+        return JSONResponse(status_code=error.http_status, content={"detail": body})
 
     def routed(request: AgentRunRequest, continuation: object) -> tuple[AgentRunRequest, ModeExecution]:
         """The request with the analysis_path of its mode (AUTO: none) and the mode record for execution.mode."""
@@ -639,11 +654,11 @@ def create_app(
         return result.model_copy(update={"execution": result.execution.model_copy(update={"mode": mode})})
 
     @app.post("/v1/agent/run/{request_id}/stop", dependencies=[Depends(authorize)])
-    def stop_run(request_id: str, x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
+    def stop_run(request_id: str, request: Request, x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
         """The stop button (app/stop.py): the run stops before its next model call; its answer still arrives on the
         run's own request. 404 when no run of this owner with this id is running."""
         try:
-            owner = owner_from_header(x_saniti_owner) if x_saniti_owner is not None else None
+            owner = caller_owner(request, x_saniti_owner)
         except ConversationError as error:
             return refuse(error)
         status = stop.stop(request_id[:200], owner)
@@ -651,10 +666,15 @@ def create_app(
         return JSONResponse(status_code=202 if status == "STOPPING" else 404, content={"status": status})
 
     @app.get("/v1/agent/requests/{request_id}/progress", dependencies=[Depends(authorize)])
-    def run_progress(request_id: str, x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
+    def run_progress(request_id: str, request: Request,
+                     x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
         """EXEC-IMPL-1016 Fase 4.3 (UI-1015B): the steps of a running (or just finished) run in plain words, for
         EDGE's progress view. 404 for an unknown run or another owner's run (never told apart)."""
-        found = progress.snapshot(request_id[:200], x_saniti_owner)
+        try:
+            owner = caller_owner(request, x_saniti_owner)
+        except ConversationError as error:
+            return refuse(error)
+        found = progress.snapshot(request_id[:200], owner)
         if found is None:
             return JSONResponse(status_code=404, content={"status": "NOT_RUNNING"})
         return JSONResponse(content=found)
@@ -676,24 +696,40 @@ def create_app(
                 "lane_selection": bool(settings.ai_enable_fastlane)}
 
     @app.get("/v1/dev/manual/steps", dependencies=[Depends(authorize)])
-    def manual_steps() -> dict[str, Any]:
-        """EXEC-MANUAL: the model calls waiting for Claude, each with the exact payload the model would get."""
+    def manual_steps(request: Request, x_saniti_owner: str | None = Header(default=None)) -> Any:
+        """EXEC-MANUAL: the model calls waiting for Claude, each with the exact payload the model would get; only the
+        steps of this owner's runs (M474)."""
         if manual is None:
             raise HTTPException(status_code=404, detail="Not Found")
-        return {"steps": manual.pending(), "wait_seconds": settings.ai_manual_agent_wait_seconds}
+        try:
+            owner = caller_owner(request, x_saniti_owner)
+        except ConversationError as error:
+            return refuse(error)
+        return {"steps": manual.pending(owner), "wait_seconds": settings.ai_manual_agent_wait_seconds}
 
     @app.post("/v1/dev/manual/steps/{step_id}", dependencies=[Depends(authorize)])
-    def manual_answer(step_id: str, body: dict[str, Any] = Body(...)) -> JSONResponse:
-        """EXEC-MANUAL: Claude's reply to one waiting step, in the model's response shape ({"output": [...]})."""
+    def manual_answer(step_id: str, request: Request, body: dict[str, Any] = Body(...),
+                      x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
+        """EXEC-MANUAL: Claude's reply to one waiting step, in the model's response shape ({"output": [...]}); another
+        owner's step answers as an unknown one (M474)."""
         if manual is None:
             raise HTTPException(status_code=404, detail="Not Found")
-        outcome = manual.answer(step_id[:64], body.get("response"))
+        try:
+            owner = caller_owner(request, x_saniti_owner)
+        except ConversationError as error:
+            return refuse(error)
+        outcome = manual.answer(owner, step_id[:64], body.get("response"))
         code = {"ANSWERED": 200, "NOT_WAITING": 409, "INVALID": 422}[outcome]
         return JSONResponse(status_code=code, content={"status": outcome})
 
     @app.post("/v1/agent/run", response_model=AgentRunResponse, dependencies=[Depends(authorize)])
-    def run_agent(payload: AgentRunRequest,
+    def run_agent(payload: AgentRunRequest, request: Request,
                   x_saniti_owner: str | None = Header(default=None)) -> AgentRunResponse | JSONResponse:
+        # M475: every run has a normalised owner (CLIENT history too), checked before anything runs
+        try:
+            owner = caller_owner(request, x_saniti_owner)
+        except ConversationError as error:
+            return refuse(error)
         # EXEC-MODELS: the message's model and reasoning, checked before anything runs, for the whole request (mode 4
         # steps run in this context); the routers keep AI_MODEL with reasoning low
         try:
@@ -706,18 +742,20 @@ def create_app(
         except LaneError as error:
             return refuse(ConversationError(error.code, str(error), 400))
         token, lane_token = current_model_choice.set(choice), current_lane.set(lane)
+        owner_token = current_owner.set(owner)
         try:
             # EXEC-IMPL-1016 Fase 4.3 (UI-1015B): the run's steps, readable while it runs (app/progress.py)
-            with progress.tracking(payload.request_id, x_saniti_owner):
+            with progress.tracking(payload.request_id, owner):
                 if not ensure_runtime():
                     return JSONResponse(status_code=503, headers={"Retry-After": "5"}, content={
                         "detail": {"code": "SANDBOX_INITIALIZING", "message": user_texts.PROGRESS_SERVICES_WAIT}})
-                return run_chosen(payload, x_saniti_owner)
+                return run_chosen(payload, owner)
         finally:
+            current_owner.reset(owner_token)
             current_lane.reset(lane_token)
             current_model_choice.reset(token)
 
-    def run_chosen(payload: AgentRunRequest, x_saniti_owner: str | None) -> AgentRunResponse | JSONResponse:
+    def run_chosen(payload: AgentRunRequest, owner: str) -> AgentRunResponse | JSONResponse:
         if payload.analysis_path not in (None, "AUTO"):
             if not getattr(orchestrator, "analysis_path", False):
                 return refuse(ConversationError("ANALYSIS_PATH_UNAVAILABLE", "analysis_path needs "
@@ -738,7 +776,7 @@ def create_app(
             request, mode = routed(payload, payload.continuation)
             caller = current_caller_path.set(payload.analysis_path if mode.source == "CALLER" else None)
             try:
-                with stop.running(payload.request_id, None) as flag:
+                with stop.running(payload.request_id, owner) as flag:
                     result = stopped(with_mode(orchestrator.run(request), mode), flag)
                 return follow_ups.attach(orchestrator, payload.message, result)
             finally:
@@ -754,7 +792,6 @@ def create_app(
                 raise ConversationError("CONTINUATION_SOURCE_CONFLICT", "history_mode SERVER keeps the Research "
                                         "Plan itself; reply with the message, or with plan_reply for an explicit "
                                         "APPROVE, REVISE or CANCEL.", 400)
-            owner = owner_from_header(x_saniti_owner)
             start = conversations.begin(owner, payload, fingerprint(payload))
         except ConversationError as error:
             return refuse(error)
@@ -791,11 +828,11 @@ def create_app(
             "research_plan": plan_summary(start.state)}})
 
     @app.get("/v1/exports/{export_id}/download", dependencies=[Depends(authorize)])
-    def download_export(export_id: str, x_saniti_owner: str | None = Header(default=None)) -> Any:
+    def download_export(export_id: str, request: Request, x_saniti_owner: str | None = Header(default=None)) -> Any:
         """D4: an exported file of one of the owner's conversations, streamed from Postgres in 1 MB chunks."""
         store = getattr(orchestrator, "result_store", None)
         try:
-            owner = owner_from_header(x_saniti_owner)
+            owner = caller_owner(request, x_saniti_owner)
         except ConversationError as error:
             return refuse(error)
         found = store.owned_export(owner, export_id) \
@@ -810,46 +847,50 @@ def create_app(
                                      "X-Saniti-Sha256": found["sha256"]})
 
     @app.get("/v1/agent/requests/{request_id}", dependencies=[Depends(authorize)])
-    def request_status(request_id: str, x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
+    def request_status(request_id: str, request: Request,
+                       x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
         try:
+            owner = caller_owner(request, x_saniti_owner)
             if conversations is None:
                 raise ConversationError("HISTORY_MODE_UNAVAILABLE", "The conversation store is not enabled.", 404)
-            return JSONResponse(content=conversations.request(owner_from_header(x_saniti_owner), request_id))
+            return JSONResponse(content=conversations.request(owner, request_id))
         except ConversationError as error:
             return refuse(error)
 
     @app.get("/v1/conversations/{conversation_id}/messages", dependencies=[Depends(authorize)])
-    def conversation_messages(conversation_id: str, after: int | None = None, limit: int | None = None,
-                              through: int | None = None,
+    def conversation_messages(conversation_id: str, request: Request, after: int | None = None,
+                              limit: int | None = None, through: int | None = None,
                               x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
         try:
+            owner = caller_owner(request, x_saniti_owner)
             if conversations is None:
                 raise ConversationError("HISTORY_MODE_UNAVAILABLE", "The conversation store is not enabled.", 404)
-            return JSONResponse(content=conversations.messages(owner_from_header(x_saniti_owner), conversation_id,
+            return JSONResponse(content=conversations.messages(owner, conversation_id,
                                                                after, limit, through))
         except ConversationError as error:
             return refuse(error)
 
     @app.post("/v1/conversations/{conversation_id}/branch", dependencies=[Depends(authorize)])
-    def branch_conversation(conversation_id: str, payload: BranchRequest,
+    def branch_conversation(conversation_id: str, payload: BranchRequest, request: Request,
                             x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
         """EXEC-ASK-BRANCH (user 2026-10-24): a new conversation that continues this one from one of its answers
         (EDGE Branch and the side chat "Ask about this answer"); no model call."""
         try:
+            owner = caller_owner(request, x_saniti_owner)
             if conversations is None:
                 raise ConversationError("HISTORY_MODE_UNAVAILABLE", "The conversation store is not enabled.", 404)
-            return JSONResponse(content=conversations.branch(owner_from_header(x_saniti_owner), conversation_id,
+            return JSONResponse(content=conversations.branch(owner, conversation_id,
                                                              payload.through_turn))
         except ConversationError as error:
             return refuse(error)
 
     @app.post("/v1/conversations/{conversation_id}/outputs/{output_id}/export", dependencies=[Depends(authorize)])
-    def export_answer_table(conversation_id: str, output_id: str, payload: TableExportRequest,
+    def export_answer_table(conversation_id: str, output_id: str, payload: TableExportRequest, request: Request,
                             x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
         """The table download of an answer (user 2026-10-20): every row of a kept table as XLSX with the columns and
         titles the answer shows, the definition sheet and the input sheets; no model call (app/table_export.py)."""
         try:
-            owner = owner_from_header(x_saniti_owner)
+            owner = caller_owner(request, x_saniti_owner)
             body = export_table(registry=getattr(orchestrator, "registry", None),
                                 result_store=getattr(orchestrator, "result_store", None), conversations=conversations,
                                 owner=owner, conversation_id=conversation_id, output_id=output_id, request=payload)

@@ -11,7 +11,7 @@ from app import progress, user_texts
 from conftest import BASE_ENV, ScriptedClient, make_settings, tool_call_response
 from test_orchestrator import orchestrator, request
 
-AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
+AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}", "X-Saniti-Owner": "owner-test"}
 
 
 def test_only_the_owner_reads_a_runs_steps_and_a_finished_run_stays_readable() -> None:
@@ -31,7 +31,7 @@ def test_only_the_owner_reads_a_runs_steps_and_a_finished_run_stays_readable() -
 
 def test_a_step_that_raises_is_failed_and_a_long_run_keeps_its_newest_steps(monkeypatch) -> None:
     monkeypatch.setattr(progress, "MAX_STEPS", 3)
-    with progress.tracking("edge_p2", None):
+    with progress.tracking("edge_p2", "owner-a"):
         try:
             with progress.step("Gagal"):
                 raise RuntimeError("x")
@@ -40,16 +40,16 @@ def test_a_step_that_raises_is_failed_and_a_long_run_keeps_its_newest_steps(monk
         for index in range(4):
             with progress.step(f"s{index}"):
                 pass
-    view = progress.snapshot("edge_p2", None)
+    view = progress.snapshot("edge_p2", "owner-a")
     assert [s["label"] for s in view["steps"]] == ["s1", "s2", "s3"] and view["earlier_steps"] == 2
 
 
 def test_a_run_records_its_model_calls_and_tools_in_plain_words() -> None:
     agent, _ = orchestrator([])
     agent.client = ScriptedClient([tool_call_response("get_system_capabilities")])
-    with progress.tracking("edge_p3", None):
+    with progress.tracking("edge_p3", "owner-a"):
         agent.run(request())
-    steps = progress.snapshot("edge_p3", None)["steps"]
+    steps = progress.snapshot("edge_p3", "owner-a")["steps"]
     labels = [s["label"] for s in steps]
     assert labels[0] == user_texts.PROGRESS_THINKING
     assert user_texts.PROGRESS_EFFECTS["READS"] in labels  # get_system_capabilities is named by what it does

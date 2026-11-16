@@ -23,7 +23,7 @@ from test_conversations import ADMIN_URL, databases  # noqa: F401
 from test_result_store import conversation
 from test_session_tools import OUTPUT, SESSION, call
 
-AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
+AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}", "X-Saniti-Owner": "default"}  # the owner of conversation()
 XLSX = b"PK\x03\x04 fake workbook"
 
 
@@ -131,6 +131,9 @@ def test_the_owner_downloads_the_file_and_no_one_else(databases) -> None:  # noq
         assert got.headers["x-saniti-sha256"] == hashlib.sha256(data).hexdigest()
         other = api.get(f"/v1/exports/{saved['export_id']}/download", headers={**AUTH, "X-Saniti-Owner": "someone"})
         assert other.status_code == 404
+        # M475: no owner header is refused, never read as the owner "default"
+        bare = api.get(f"/v1/exports/{saved['export_id']}/download", headers={"Authorization": AUTH["Authorization"]})
+        assert bare.status_code == 400 and bare.json()["error"]["code"] == "OWNER_REQUIRED"
         assert api.get(f"/v1/exports/{saved['export_id']}/download").status_code == 401
 
 

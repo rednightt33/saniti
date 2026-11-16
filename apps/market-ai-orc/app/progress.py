@@ -103,10 +103,11 @@ class step:
 
 
 def snapshot(request_id: str, owner: str | None) -> dict[str, Any] | None:
-    """The run's progress, or None (unknown, expired, or another owner's run: never told apart)."""
+    """The run's progress, or None (unknown, expired, or another owner's run: never told apart). M475: only the run's
+    own normalised owner reads it; a run or a caller without an owner never matches."""
     with _lock:
         run = _runs.get(request_id)
-    if run is None or (run.owner is not None and run.owner != owner):
+    if run is None or run.owner is None or owner is None or run.owner != owner:
         return None
     return run.view()
 

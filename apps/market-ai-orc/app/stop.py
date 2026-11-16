@@ -38,10 +38,11 @@ class running:
 
 
 def stop(request_id: str, owner: str | None) -> str:
-    """STOPPING, or NOT_RUNNING (unknown, finished, or another owner's run: never told apart, so no run is revealed)."""
+    """STOPPING, or NOT_RUNNING (unknown, finished, or another owner's run: never told apart, so no run is revealed).
+    M475: only the run's own normalised owner stops it; a run or a caller without an owner never matches."""
     with _lock:
         found = _running.get(request_id)
-    if found is None or (found[0] is not None and found[0] != owner):
+    if found is None or found[0] is None or owner is None or found[0] != owner:
         return "NOT_RUNNING"
     found[1].set()
     return "STOPPING"

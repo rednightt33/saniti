@@ -32,7 +32,7 @@ MIGRATIONS = [REPO / "database/migrations/20260927_002_create_ai_conversation_st
               REPO / "database/migrations/20261003_009_conversation_evidence.sql",
               REPO / "database/migrations/20261006_003_conversation_run_memory.sql",
               REPO / "database/migrations/20261024_001_conversation_lineage.sql"]
-AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
+AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}", "X-Saniti-Owner": "owner-test"}
 
 # The columns of the legacy documentation tables the migration writes to (DATABASE_SCHEMA.md).
 CATALOG_STUBS = '''

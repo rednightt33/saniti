@@ -105,7 +105,7 @@ def test_http_stays_up_and_request_recovers_full_registry_without_a_restart(monk
     monkeypatch.setattr(main.CreditMonitor, "start", lambda _: None)
     monkeypatch.setattr(main.CreditMonitor, "stop", lambda _: None)
     app = main.create_app(make_settings(PY_SANDBOX_URL="http://sandbox.test", PY_SANDBOX_API_KEY="s" * 32))
-    auth = {"Authorization": "Bearer " + BASE_ENV["MARKET_AI_ORC_API_KEY"]}
+    auth = {"Authorization": "Bearer " + BASE_ENV["MARKET_AI_ORC_API_KEY"], "X-Saniti-Owner": "owner-test"}
     with TestClient(app) as client:
         assert client.get("/ready").status_code == 200
         assert client.get("/v1/agent/readiness").status_code == 401

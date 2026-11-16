@@ -14,6 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 from app import edit_repair, lanes
+from app.conversations import current_owner
 from app.manual_agent import MANUAL_MODEL, ManualAgent
 from app.model_choices import current_model_choice, resolve
 from app.orchestrator import (CITING_CHECKS_RULES, EXPLORE_GOAL_CAVEAT, GOAL_ANSWER_RULES, REPRODUCE_NOTE,
@@ -171,14 +172,14 @@ def test_without_the_fallback_a_step_waits_past_the_wait_and_ends_at_the_runs_ti
     def claude() -> None:
         now[0] = 10_000.0  # far past AI_MANUAL_AGENT_WAIT_SECONDS: no fallback
         for _ in range(500):
-            if agent.pending():
+            if agent.pending("owner-a"):
                 time.sleep(0.05)
-                step = agent.pending()[0]["step_id"]
-                seen.append(agent.answer(step, final_response(ANSWER)))
+                step = agent.pending("owner-a")[0]["step_id"]
+                seen.append(agent.answer("owner-a", step, final_response(ANSWER)))
                 return
             time.sleep(0.005)
     threading.Thread(target=claude, daemon=True).start()
-    token = current_request_id.set("nf1")
+    token, owner = current_request_id.set("nf1"), current_owner.set("owner-a")
     try:
         reply = agent.create({"model": MANUAL_MODEL, "input": []})
         deadline = current_run_deadline.set(time.monotonic() + 0.05)  # the run's own limit ends a wait
@@ -187,6 +188,7 @@ def test_without_the_fallback_a_step_waits_past_the_wait_and_ends_at_the_runs_ti
         finally:
             current_run_deadline.reset(deadline)
     finally:
+        current_owner.reset(owner)
         current_request_id.reset(token)
     assert seen == ["ANSWERED"] and reply["output"] == final_response(ANSWER)["output"]
     assert expired["output"] == [] and real.payloads == []  # OpenRouter is never called

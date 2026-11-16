@@ -9,7 +9,7 @@ from app import stop
 from conftest import BASE_ENV, ScriptedClient, make_settings, tool_call_response
 from test_orchestrator import orchestrator, request
 
-AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
+AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}", "X-Saniti-Owner": "owner-test"}
 
 
 def test_only_the_owner_stops_a_running_request_and_nothing_else_is_revealed() -> None:
