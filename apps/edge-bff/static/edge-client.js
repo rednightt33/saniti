@@ -14,25 +14,28 @@
   // another page cleared the user state (a sign-out in another tab, or another account signed in): this tab drops its
   // in-memory views of the previous account (reset shows the sign-in page) and reads the session again, showing the
   // account signed in now. This tab's own broadcasts never reach it, so there is no loop.
-  try { ES()?.onCleared(() => { reset(); window.Edge.session().then(a => { if (a) dispatchEvent(new Event('edge-auth')); }); }); } catch { /* not offered */ }
+  try { ES()?.onCleared(() => { stopPrefs(); reset(); window.Edge.session().then(a => { if (a) dispatchEvent(new Event('edge-auth')); }); }); } catch { /* not offered */ }
   // EXEC-MODELS: the offered models are read once per session, before the work page shows (sign-in or a restored
   // session waits up to 3 s for them), so their arrival never redraws the page while the user types
   let models = {data:null, failed:false, pending:null};
+  // a sign-in that waits for the admin's authenticator code (403 MFA_REQUIRED, a pending session): its CSRF token, when
+  // the refusal carries one (details.csrf_token), for the /mfa page's enrol and verify writes
+  const pending = {csrf:''};
   const reset = () => { auth = null; models = {data:null, failed:false, pending:null}; followers.forEach(close => close()); followers.clear(); dispatchEvent(new Event('edge-auth')); };
   async function api(path, body, method = body === undefined ? 'GET' : 'POST', retried = false) {
-    const headers = method === 'GET' ? {} : { 'X-CSRF-Token':auth?.csrf_token || '', ...(body === undefined ? {} : {'Content-Type':'application/json'}) };
+    const headers = method === 'GET' ? {} : { 'X-CSRF-Token':auth?.csrf_token || pending.csrf || '', ...(body === undefined ? {} : {'Content-Type':'application/json'}) };
     const res = await fetch('/api/v1' + path, { method, headers, credentials:'same-origin', ...(body === undefined ? {} : {body:JSON.stringify(body)}) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       const info = ES()?.readError(res.status, data, res.headers.get('Retry-After')) || null;
-      if (res.status === 401 && path !== '/auth/sign-in') reset();
-      if (info?.kind === 'csrf' && method !== 'GET' && !retried && auth && path !== '/auth/sign-in') {
+      if (res.status === 401 && !PUBLIC_AUTH.test(path)) reset();
+      if (info?.kind === 'csrf' && method !== 'GET' && !retried && auth && !PUBLIC_AUTH.test(path)) {
         // the repeat goes out only for the account this page holds; another login (signed in in another tab) never
         // receives this page's write: its user state is cleared and the page reloads as that account (C1 M1, C2 #2)
-        const started = String(auth.login || '').trim().toLowerCase();
+        const started = identity(auth);
         let fresh = null;
         try { const r = await fetch('/api/v1/auth/session', {credentials:'same-origin'}); if (r.ok) fresh = await r.json(); } catch { /* the refusal below stands */ }
-        if (fresh && String(fresh.login || '').trim().toLowerCase() === started) { auth = fresh; return api(path, body, method, true); }
+        if (fresh && identity(fresh) === started) { auth = fresh; return api(path, body, method, true); }
         if (fresh) {
           try { await ES()?.clearUserState(); } catch { /* storage off */ }
           reset();
@@ -47,8 +50,25 @@
     }
     return data;
   }
-  // M473: another login than the last one on this browser clears the previous account's state before anything shows
-  const noteLogin = session => { try { if (session?.login) ES()?.noteLogin(session.login); } catch { /* storage off */ } };
+  // M473: another login than the last one on this browser clears the previous account's state before anything shows.
+  // Phase 1: the identity is the stable owner key once the session answer carries it (owner:<key>), else the login;
+  // then the account preferences (contract 4b) are read into this browser, and a local value of this same identity
+  // with no server copy goes up once.
+  const ownerOf = session => session?.owner_key ?? session?.access?.owner_key ?? null;
+  const identity = session => { try { return ES()?.identityOf(session?.login || '', ownerOf(session)) ?? String(session?.login || '').trim().toLowerCase(); } catch { return String(session?.login || '').trim().toLowerCase(); } };
+  const noteLogin = session => { try { if (session?.login) return ES()?.noteIdentity(session.login, ownerOf(session)) || null; } catch { /* storage off */ } return null; };
+  // the preferences routes ship with the Phase 1 session answer (its `access` object): an older server is never asked
+  const loadPrefs = noted => { if (!auth?.access) return Promise.resolve(false);
+    try { return ES()?.prefs.load({uploadLocal:Boolean(noted?.same)}) || Promise.resolve(false); } catch { return Promise.resolve(false); } };
+  const stopPrefs = () => { try { ES()?.prefs.stop(); ES()?.edge.forget(); } catch { /* not offered */ } };
+  // the auth routes that answer without a session (a 401 there is the form's answer, not a sign-out)
+  const PUBLIC_AUTH = /^\/auth\/(sign-in|register|code\/|password\/(forgot|reset)|config|mfa\/)/;
+  // EXEC-MU-ACCOUNTS Phase 1: whether registration is open (GET /api/v1/auth/config, public); a 404 or any failure is
+  // "off" (the switch is off, or the route is not deployed yet), so nothing changes for the current user
+  let config = null;
+  const readConfig = () => config || (config = fetch('/api/v1/auth/config', {credentials:'same-origin'})
+    // the body is always read, also of a 404: an answer whose body is never read stays open in the browser
+    .then(r => r.json().catch(() => ({})).then(d => r.ok ? d : {})).then(d => ({multiuser: d?.multiuser === true})).catch(() => ({multiuser:false})));
   const terminal = s => ['FINISHED','FAILED','INTERRUPTED'].includes(s.state);
   // EXEC-X (M124): the frame stays English (user decision 2026-10-08) but says what the saved response is
   const DOMAIN = {COMPLETED:'Completed',AWAITING_CONFIRMATION:'Awaiting approval',NEEDS_CLARIFICATION:'Needs your reply',LIMITED:'Limited',FAILED:'Failed'};
@@ -162,10 +182,29 @@
   window.Edge = {
     api,follow,terminal,conversations,messages,adaptRun,stateRun,statusLabel,statusTone,shortTitle,
     get auth() { return auth; },
-    async session() { try { auth = await api('/auth/session'); } catch { auth = null; } if (auth) { noteLogin(auth); await settle(loadModels()); } return auth; },
-    async signin(login,password) { auth = await api('/auth/sign-in',{login,password}); noteLogin(auth); await settle(loadModels()); dispatchEvent(new Event('edge-auth')); return auth; },
+    async session() { try { auth = await api('/auth/session'); } catch { auth = null; } if (auth) { const noted = noteLogin(auth); await settle(Promise.all([loadModels(), loadPrefs(noted)])); } return auth; },
+    async signin(login,password) { stopPrefs(); pending.csrf = '';
+      try { auth = await api('/auth/sign-in',{login,password}); }
+      catch (error) { if (error.info?.code === 'MFA_REQUIRED') pending.csrf = String(error.info.details?.csrf_token || ''); throw error; }
+      return Edge.adopt(auth); },
+    // after a sign-in, or an email code that signs in directly: the session answer is read (identity, access), the
+    // previous account's state cleared when it was another, preferences loaded
+    async adopt(answer) { auth = answer && answer.csrf_token ? answer : null; try { const s = await api('/auth/session'); auth = s; } catch { /* the sign-in answer stands */ }
+      if (auth) { const noted = noteLogin(auth); await settle(Promise.all([loadModels(), loadPrefs(noted)])); }
+      dispatchEvent(new Event('edge-auth')); return auth; },
+    config: () => readConfig(),
+    // EXEC-MU-ACCOUNTS Phase 1 (contract section 4): the account routes; every refusal carries the server's message
+    register: body => api('/auth/register', body),
+    verifyEmail: async (email, code) => { stopPrefs(); const answer = await api('/auth/register/verify', {email, code}); return Edge.adopt(answer); },
+    resendCode: (email, purpose) => api('/auth/code/resend', {email, purpose}),
+    forgotPassword: email => api('/auth/password/forgot', {email}),
+    resetPassword: (email, code, password, password_repeat) => api('/auth/password/reset', {email, code, password, password_repeat}),
+    mfaEnroll: () => api('/auth/mfa/enroll', {}),
+    mfaVerify: async answer => { await api('/auth/mfa/verify', answer); pending.csrf = ''; return Edge.adopt(auth); },
+    notePreference: key => { try { ES()?.prefs.note(key); } catch { /* not offered */ } },
     // M473: sign-out removes every `user` key and the user caches (storage registry), and the last-login mark
-    async signout() { try { await api('/auth/sign-out',{}); } finally { try { await ES()?.clearUserState({signOut:true}); } catch { /* storage off */ } } reset(); },
+    async signout() { try { await ES()?.prefs.flush(); } catch { /* best effort */ } stopPrefs();
+      try { await api('/auth/sign-out',{}); } finally { try { await ES()?.clearUserState({signOut:true}); } catch { /* storage off */ } } reset(); },
     createRun: body => api('/runs',body),
     modelList: () => models,
     loadModels: () => loadModels(),

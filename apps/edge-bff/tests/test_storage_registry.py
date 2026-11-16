@@ -145,6 +145,27 @@ def test_user_keys_named_by_the_contract_are_user():
         assert kinds.get((key, 'local')) == 'browser', key
 
 
+FLAGS = re.compile(r"\{ key:'((?:[^'\\]|\\.)*)', match:'(exact|prefix)', area:'(local|session|idb)', kind:'(browser|user)', ((?:sync|cache):true, )?where:")
+# contract 4b (EXEC-MU-ACCOUNTS Phase 1): the account preferences copied to the server (GET/PUT /api/v1/preferences)
+SYNCED = {'edge-model-choice', 'ml.symbol', 'ml.tf', 'ml.fi.metric', 'ml.chart.style', 'ml.chart.mode', 'ml.vol.on',
+          'ml.vol.removed', 'ml.ind.v1', 'ml.ind.filters', 'ml.ind.favs', 'ml.legend.hidden', 'ml.events.v1',
+          'ml.flow.filters', 'ml.flow.cum', 'ml.assets.v1', 'ml.my', 'scr.last', 'scr.extraCols', 'edge.watchlist.view'}
+
+
+def test_every_user_key_is_sync_or_cache():
+    """contract 4b: a `user` key with no server copy is either `sync` (a preference or saved item copied to the account)
+    or `cache` (the account holds the original elsewhere, or it is transient); a `browser` key is neither. Only an exact
+    localStorage key can be synced (the server keeps one value per key)."""
+    text = SHARED.read_text()
+    rows = FLAGS.findall(text)
+    assert len(rows) == len(registry()), 'a registry line is not in the form { key, match, area, kind, sync|cache, where, what }'
+    wrong = [k for k, match, area, kind, flag in rows if (kind == 'user') != bool(flag)
+             or (flag.startswith('sync') and (match != 'exact' or area != 'local'))]
+    assert not wrong, f'user keys need exactly one of sync:true or cache:true, browser keys none: {wrong}'
+    synced = {k for k, _, _, _, flag in rows if flag.startswith('sync')}
+    assert synced == SYNCED, synced ^ SYNCED
+
+
 def test_the_scan_sees_an_unclassified_key():
     entries = registry()
     assert not covered('ml.newthing', 'local', entries)

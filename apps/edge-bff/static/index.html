@@ -11033,6 +11033,24 @@ html .app .monitor-layout .result .edge-md-table .data-table th .edge-sort-icon{
    its end is never faded */
 html .app .monitor-layout .research-scroll{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 24px),transparent);}
 @media (max-width:720px){html .app .monitor-layout .research-scroll{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 8px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 8px),transparent);}}
+/* EXEC-MU-ACCOUNTS Phase 1: the account pages (AuthPage modes) keep the sign-in page's look */
+.auth-note {margin:0;padding:9px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--muted-foreground);font-size:.875rem;line-height:1.5;}
+.auth-countdown {margin:-6px 0 0;color:var(--muted-foreground);font-size:.8125rem;text-align:center;font-variant-numeric:tabular-nums;}
+.auth-row-end {display:flex;justify-content:flex-end;margin-top:-8px;}
+.auth-link {color:var(--foreground);font-size:.875rem;font-weight:500;text-decoration:none;}
+.auth-link:hover {text-decoration:underline;}
+.auth-pair {display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.auth-field>small {color:var(--muted-foreground);font-size:.75rem;text-align:center;}
+.auth-enrol {display:flex;flex-direction:column;align-items:center;gap:14px;margin-bottom:20px;}
+.auth-qr {width:184px;height:184px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;shape-rendering:crispEdges;}
+.auth-qr-wait {display:block;background:var(--secondary);}
+.auth-secret {font-size:.8125rem;word-break:break-all;}
+.auth-codes {width:100%;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.875rem;}
+.auth-codes p {margin:4px 0 8px;color:var(--muted-foreground);}
+.auth-codes ol {margin:0 0 10px;padding-left:22px;columns:2;font-variant-numeric:tabular-nums;}
+.auth-check {display:flex;align-items:center;gap:8px;}
+.text-link:disabled {opacity:.5;cursor:default;text-decoration:none;}
+@media (max-width:420px){.auth-pair{grid-template-columns:1fr;}}
 </style>
 </head>
 <body><div id="root"></div>
@@ -11609,10 +11627,207 @@ function PublicThemeButton() {
     return element(IconButton, { icon: "theme", onClick: toggle, title: `Switch to ${theme === "dark" ? "light" : "dark"} theme` });
 }
 
-function AuthPage({go}) {
- const v=currentView,login=initialValue(v,"login",()=>""),password=initialValue(v,"password",()=>""),busy=initialValue(v,"busy",()=>false),error=initialValue(v,"error",()=>"");
- const submit=async e=>{e.preventDefault();if(busy)return;updateValue(v,"busy",true);updateValue(v,"error","");try{await Edge.signin(login,password);updateValue(v,"password","");go("/monitor");}catch(e){updateValue(v,"error",e.message);}finally{updateValue(v,"busy",false);}};
- return element("div",{className:"auth-page"},element("div",{className:"auth-top"},element(PublicBrand,{go}),element(PublicThemeButton)),element("main",{className:"auth-shell"},element("div",{className:"auth-form-wrap"},element("div",{className:"auth-heading"},element("h1",null,"Welcome to Edge"),element("p",null,"Sign in to your private workspace.")),element("form",{onSubmit:submit},element(AuthField,{label:"Login"},element("input",{id:"auth-login",autoComplete:"username",value:login,required:true,disabled:busy,onChange:e=>updateValue(v,"login",e.target.value)})),element(AuthField,{label:"Password"},element("input",{id:"auth-password",type:"password",autoComplete:"current-password",value:password,required:true,disabled:busy,onChange:e=>updateValue(v,"password",e.target.value)})),error&&element("p",{className:"auth-error",role:"alert"},error),element(Button,{kind:"primary",type:"submit",disabled:busy},busy?"Signing in…":"Sign In")))),element(AuthFooter));
+// EXEC-MU-ACCOUNTS Phase 1 (contract sections 4 and 12): the account pages share the sign-in page's look. One mode per
+// route (ROUTES): login, register, verify (the email code), forgot, reset (code and new password), mfa (the admin's
+// authenticator: enrol with a QR code drawn here, or verify). The words are EdgeLabels.auth; a refusal shows the
+// server's message (error.message) and the code's words only when it sends none. The email being verified lives in
+// this page's memory (authFlow), never in storage or the address.
+const authFlow = {email:"", purpose:"register", sentAt:0, notice:""};
+const CODE_SECONDS = 300, RESEND_SECONDS = 60;
+const authText = error => error?.info?.message || EdgeLabels.auth.errors[error?.info?.code || error?.message] || error?.text || EdgeLabels.auth.errors.fallback;
+const passwordProblem = (password, repeat) => { const C = EdgeLabels.auth.check;
+  return password.length < 8 ? C.short : password.length > 256 ? C.long : password !== repeat ? C.mismatch : ""; };
+const codeSent = (email, purpose) => { authFlow.email = email; authFlow.purpose = purpose; authFlow.sentAt = Date.now(); };
+// the QR code library (static/qrcode-generator.js, MIT, served from this origin) is read only by the /mfa page
+let qrLibrary = null;
+const loadQr = () => qrLibrary || (qrLibrary = window.qrcode ? Promise.resolve(window.qrcode) : new Promise((ok, no) => {
+  const script = document.createElement("script"); script.src = "/qrcode-generator.js"; script.onload = () => window.qrcode ? ok(window.qrcode) : no(new Error("qr"));
+  script.onerror = () => { qrLibrary = null; no(new Error("qr")); }; document.head.appendChild(script); }));
+function QrCode({text}) {
+  const v = currentView, cells = initialValue(v, "cells", () => null), failed = initialValue(v, "failed", () => false);
+  onLifecycle(v, "draw", () => { let live = true;
+    loadQr().then(qrcode => { const qr = qrcode(0, "M"); qr.addData(text); qr.make(); const n = qr.getModuleCount(), out = [];
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) out.push(`M${c} ${r}h1v1h-1z`);
+      if (live) updateValue(v, "cells", {n, d:out.join("")}); }).catch(() => { if (live) updateValue(v, "failed", true); });
+    return () => { live = false; }; }, [text]);
+  if (failed) return element("p", {className:"auth-note"}, EdgeLabels.auth.mfa.qrFailed);
+  if (!cells) return element("div", {className:"auth-qr auth-qr-wait", "aria-hidden":"true"});
+  return element("svg", {className:"auth-qr", viewBox:`0 0 ${cells.n + 8} ${cells.n + 8}`, role:"img", "aria-label":"QR code"},
+    element("rect", {width:cells.n + 8, height:cells.n + 8, fill:"#fff"}),
+    element("path", {d:cells.d, fill:"#000", transform:"translate(4 4)"}));
+}
+function AuthShell({title, lead, children, go}) {
+  return element("div",{className:"auth-page"},element("div",{className:"auth-top"},element(PublicBrand,{go}),element(PublicThemeButton)),
+    element("main",{className:"auth-shell"},element("div",{className:"auth-form-wrap"},
+      element("div",{className:"auth-heading"},element("h1",null,title),lead&&element("p",null,lead)),children)),element(AuthFooter));
+}
+const authLink = (go, to, text) => element("a", {href:to, className:"auth-link", onClick:e => { e.preventDefault(); go(to); }}, text);
+function AuthPage({go, mode = "login"}) {
+  const L = EdgeLabels.auth;
+  if (mode === "register") return element(RegisterForm, {go, L});
+  if (mode === "verify") return element(CodeForm, {go, L});
+  if (mode === "forgot") return element(ForgotForm, {go, L});
+  if (mode === "reset") return element(ResetForm, {go, L});
+  if (mode === "mfa") return element(MfaForm, {go, L});
+  return element(LoginForm, {go, L});
+}
+function LoginForm({go, L}) {
+ const v=currentView,login=initialValue(v,"login",()=>""),password=initialValue(v,"password",()=>""),busy=initialValue(v,"busy",()=>false),error=initialValue(v,"error",()=>""),open=initialValue(v,"open",()=>false);
+ onLifecycle(v,"config",()=>{let live=true;Edge.config().then(c=>{if(live)updateValue(v,"open",c.multiuser);});return()=>{live=false;};},[]);
+ const notice=authFlow.notice;
+ const submit=async e=>{e.preventDefault();if(busy)return;updateValue(v,"busy",true);updateValue(v,"error","");authFlow.notice="";
+  try{await Edge.signin(login,password);updateValue(v,"password","");go("/monitor");}
+  catch(e){const code=e.info?.code;
+   if(code==="MFA_REQUIRED"){updateValue(v,"password","");go("/mfa");return;}
+   if(code==="EMAIL_NOT_VERIFIED"){authFlow.email=login.includes("@")?login:"";authFlow.purpose="register";authFlow.sentAt=0;authFlow.notice=L.login.unverified;go("/verify");return;}
+   updateValue(v,"error",e.info?authText(e):e.message);}
+  finally{updateValue(v,"busy",false);}};
+ return element(AuthShell,{go,title:L.login.title,lead:L.login.lead},
+  element("form",{onSubmit:submit},
+   notice&&element("p",{className:"auth-note",role:"status"},notice),
+   element(AuthField,{label:L.login.login},element("input",{id:"auth-login",autoComplete:"username",value:login,required:true,disabled:busy,onChange:e=>updateValue(v,"login",e.target.value)})),
+   element(AuthField,{label:L.login.password},element("input",{id:"auth-password",type:"password",autoComplete:"current-password",value:password,required:true,disabled:busy,onChange:e=>updateValue(v,"password",e.target.value)})),
+   open&&element("div",{className:"auth-row-end"},authLink(go,"/forgot",L.login.forgot)),
+   error&&element("p",{className:"auth-error",role:"alert"},error),
+   element(Button,{kind:"primary",type:"submit",disabled:busy},busy?L.login.busy:L.login.submit)),
+  open&&element("p",{className:"auth-switch"},L.login.noAccount," ",authLink(go,"/register",L.login.create)));
+}
+function RegisterForm({go, L}) {
+  const v = currentView, R = L.register, f = initialValue(v, "f", () => ({username:"", first_name:"", last_name:"", email:"", phone:"", password:"", password_repeat:""}));
+  const busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => "");
+  const set = name => e => updateValue(v, "f", old => ({...old, [name]:e.target.value}));
+  const submit = async e => { e.preventDefault(); if (busy) return;
+    const problem = passwordProblem(f.password, f.password_repeat); if (problem) { updateValue(v, "error", problem); return; }
+    updateValue(v, "busy", true); updateValue(v, "error", "");
+    try { await Edge.register({...f, username:f.username.trim().toLowerCase(), email:f.email.trim()}); codeSent(f.email.trim(), "register");
+      updateValue(v, "f", old => ({...old, password:"", password_repeat:""})); go("/verify"); }
+    catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } };
+  const field = (label, name, extra = {}, support) => element(AuthField, {label, support},
+    element("input", {id:`auth-${label.toLowerCase().replaceAll(" ", "-")}`, value:f[name], required:true, disabled:busy, onChange:set(name), ...extra}));
+  return element(AuthShell, {go, title:R.title, lead:R.lead},
+    element("form", {onSubmit:submit},
+      field(R.username, "username", {autoComplete:"username", pattern:"[a-z0-9_]{3,30}", maxLength:30, autoCapitalize:"none"}, R.usernameHint),
+      element("div", {className:"auth-pair"}, field(R.firstName, "first_name", {autoComplete:"given-name"}), field(R.lastName, "last_name", {autoComplete:"family-name"})),
+      field(R.email, "email", {type:"email", autoComplete:"email"}),
+      field(R.phone, "phone", {type:"tel", autoComplete:"tel", inputMode:"tel"}, R.phoneHint),
+      field(R.password, "password", {type:"password", autoComplete:"new-password", maxLength:256}, R.passwordHint),
+      field(R.repeat, "password_repeat", {type:"password", autoComplete:"new-password", maxLength:256}),
+      error && element("p", {className:"auth-error", role:"alert"}, error),
+      element(Button, {kind:"primary", type:"submit", disabled:busy}, busy ? R.busy : R.submit)),
+    element("p", {className:"auth-switch"}, R.haveAccount, " ", authLink(go, "/login", R.signIn)));
+}
+// the seconds left of the code (5 minutes) and before a new one may be sent (60 s), counted on this page each second
+function useClock(v) {
+  const now = initialValue(v, "now", () => Date.now());
+  onLifecycle(v, "clock", () => { const t = setInterval(() => updateValue(v, "now", Date.now()), 1000); return () => clearInterval(t); }, []);
+  const since = authFlow.sentAt ? Math.floor((now - authFlow.sentAt) / 1000) : null;
+  return {left:since === null ? null : Math.max(0, CODE_SECONDS - since), wait:since === null ? 0 : Math.max(0, RESEND_SECONDS - since)};
+}
+const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+function CodeInput({id = "auth-code", value, disabled, onChange}) {
+  return element("input", {id, value, required:true, disabled, inputMode:"numeric", autoComplete:"one-time-code", pattern:"[0-9]{6}",
+    onChange:e => onChange(e.target.value.replace(/\D/g, "").slice(0, 6))});
+}
+function Resend({v, L, wait, purpose}) {
+  const busy = initialValue(v, "resending", () => false);
+  const resend = async () => { if (busy || wait > 0 || !authFlow.email) return; updateValue(v, "resending", true);
+    try { await Edge.resendCode(authFlow.email, purpose); authFlow.sentAt = Date.now(); updateValue(v, "info", L.verify.resent); updateValue(v, "error", ""); }
+    catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "resending", false); } };
+  return element("p", {className:"auth-switch"}, wait > 0 ? `${L.verify.resendIn} ${wait} s.`
+    : element("button", {type:"button", className:"text-link", disabled:busy || !authFlow.email, onClick:resend}, L.verify.resend));
+}
+function CodeForm({go, L}) {
+  const v = currentView, V = L.verify, code = initialValue(v, "code", () => ""), email = initialValue(v, "email", () => authFlow.email);
+  const busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => ""), info = initialValue(v, "info", () => "");
+  const {left, wait} = useClock(v);
+  const submit = async e => { e.preventDefault(); if (busy) return; if (!/^\d{6}$/.test(code)) { updateValue(v, "error", L.check.code); return; }
+    authFlow.email = email.trim(); updateValue(v, "busy", true); updateValue(v, "error", "");
+    try { await Edge.verifyEmail(authFlow.email, code); authFlow.notice = ""; go("/monitor"); }
+    catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } };
+  const notice = authFlow.notice;
+  return element(AuthShell, {go, title:V.title, lead:authFlow.email ? `${V.sentTo} ${authFlow.email}.` : V.sent},
+    element("form", {onSubmit:submit},
+      notice && element("p", {className:"auth-note", role:"status"}, notice),
+      !authFlow.email && element(AuthField, {label:V.email}, element("input", {id:"auth-email", type:"email", autoComplete:"email", value:email, required:true, disabled:busy,
+        onChange:e => { updateValue(v, "email", e.target.value); authFlow.email = e.target.value.trim(); }})),
+      element(AuthField, {label:V.code, support:V.codeHint}, element(CodeInput, {value:code, disabled:busy, onChange:next => updateValue(v, "code", next)})),
+      left !== null && element("p", {className:"auth-countdown", role:"timer", "aria-live":"off"}, left > 0 ? `${V.expiresIn} ${mmss(left)}.` : V.expired),
+      info && element("p", {className:"auth-note", role:"status"}, info),
+      error && element("p", {className:"auth-error", role:"alert"}, error),
+      element(Button, {kind:"primary", type:"submit", disabled:busy}, busy ? V.busy : V.submit)),
+    element(Resend, {v, L, wait, purpose:"register"}),
+    element("p", {className:"auth-switch"}, authLink(go, "/login", V.back)));
+}
+function ForgotForm({go, L}) {
+  const v = currentView, F = L.forgot, email = initialValue(v, "email", () => authFlow.email), busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => "");
+  const submit = async e => { e.preventDefault(); if (busy) return; updateValue(v, "busy", true); updateValue(v, "error", "");
+    try { await Edge.forgotPassword(email.trim()); codeSent(email.trim(), "reset"); go("/reset"); }
+    catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } };
+  return element(AuthShell, {go, title:F.title, lead:F.lead},
+    element("form", {onSubmit:submit},
+      element(AuthField, {label:F.email}, element("input", {id:"auth-email", type:"email", autoComplete:"email", value:email, required:true, disabled:busy, onChange:e => updateValue(v, "email", e.target.value)})),
+      error && element("p", {className:"auth-error", role:"alert"}, error),
+      element(Button, {kind:"primary", type:"submit", disabled:busy}, busy ? F.busy : F.submit)),
+    element("p", {className:"auth-switch"}, authLink(go, "/login", F.back)));
+}
+function ResetForm({go, L}) {
+  const v = currentView, P = L.reset, f = initialValue(v, "f", () => ({email:authFlow.email, code:"", password:"", password_repeat:""}));
+  const busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => ""), info = initialValue(v, "info", () => "");
+  const {left, wait} = useClock(v);
+  const set = (name, value) => updateValue(v, "f", old => ({...old, [name]:value}));
+  const submit = async e => { e.preventDefault(); if (busy) return;
+    if (!/^\d{6}$/.test(f.code)) { updateValue(v, "error", L.check.code); return; }
+    const problem = passwordProblem(f.password, f.password_repeat); if (problem) { updateValue(v, "error", problem); return; }
+    authFlow.email = f.email.trim(); updateValue(v, "busy", true); updateValue(v, "error", "");
+    try { await Edge.resetPassword(authFlow.email, f.code, f.password, f.password_repeat); authFlow.sentAt = 0; authFlow.notice = L.login.resetDone; go("/login"); }
+    catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); set("password", ""); set("password_repeat", ""); } };
+  return element(AuthShell, {go, title:P.title, lead:authFlow.email ? `${P.sentTo} ${authFlow.email}.` : L.verify.sent},
+    element("form", {onSubmit:submit},
+      !authFlow.email && element(AuthField, {label:L.forgot.email}, element("input", {id:"auth-email", type:"email", autoComplete:"email", value:f.email, required:true, disabled:busy,
+        onChange:e => { set("email", e.target.value); authFlow.email = e.target.value.trim(); }})),
+      element(AuthField, {label:P.code, support:L.verify.codeHint}, element(CodeInput, {value:f.code, disabled:busy, onChange:next => set("code", next)})),
+      left !== null && element("p", {className:"auth-countdown", role:"timer", "aria-live":"off"}, left > 0 ? `${L.verify.expiresIn} ${mmss(left)}.` : L.verify.expired),
+      element(AuthField, {label:P.password, support:P.passwordHint}, element("input", {id:"auth-new-password", type:"password", autoComplete:"new-password", maxLength:256, value:f.password, required:true, disabled:busy, onChange:e => set("password", e.target.value)})),
+      element(AuthField, {label:P.repeat}, element("input", {id:"auth-repeat-new-password", type:"password", autoComplete:"new-password", maxLength:256, value:f.password_repeat, required:true, disabled:busy, onChange:e => set("password_repeat", e.target.value)})),
+      info && element("p", {className:"auth-note", role:"status"}, info),
+      error && element("p", {className:"auth-error", role:"alert"}, error),
+      element(Button, {kind:"primary", type:"submit", disabled:busy}, busy ? P.busy : P.submit)),
+    element(Resend, {v, L, wait, purpose:"reset"}),
+    element("p", {className:"auth-switch"}, authLink(go, "/login", P.back)));
+}
+function MfaForm({go, L}) {
+  const v = currentView, M = L.mfa, code = initialValue(v, "code", () => ""), recovery = initialValue(v, "recovery", () => false);
+  const busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => ""), enrol = initialValue(v, "enrol", () => null), saved = initialValue(v, "saved", () => false);
+  // an account without an authenticator yet (access.mfa_enrolled false) starts on the set-up
+  onLifecycle(v, "start", () => { if (Edge.auth?.access?.mfa_enrolled === false) startEnrol(); }, []);
+  async function startEnrol() { if (busy) return; updateValue(v, "busy", true); updateValue(v, "error", "");
+    try { const a = await Edge.mfaEnroll(); updateValue(v, "enrol", {uri:a.otpauth_uri || a.otpauth_url || a.uri || "", codes:Array.isArray(a.recovery_codes) ? a.recovery_codes : []}); updateValue(v, "recovery", false); }
+    catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } }
+  const submit = async e => { e.preventDefault(); if (busy) return;
+    if (!recovery && !/^\d{6}$/.test(code)) { updateValue(v, "error", L.check.code); return; }
+    updateValue(v, "busy", true); updateValue(v, "error", "");
+    try { await Edge.mfaVerify(recovery ? {recovery_code:code.trim()} : {code}); updateValue(v, "enrol", null); go("/monitor"); }
+    catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } };
+  const secret = enrol?.uri ? (new URLSearchParams(enrol.uri.split("?")[1] || "").get("secret") || "") : "";
+  const needsSave = Boolean(enrol && enrol.codes.length && !saved);
+  return element(AuthShell, {go, title:enrol ? M.enrolTitle : M.title, lead:enrol ? M.enrolLead : M.lead},
+    enrol && element("div", {className:"auth-enrol"},
+      enrol.uri && element(QrCode, {text:enrol.uri}),
+      secret && element("p", {className:"auth-note"}, M.secret, ": ", element("code", {className:"auth-secret"}, secret)),
+      enrol.codes.length > 0 && element("div", {className:"auth-codes"},
+        element("strong", null, M.codesTitle), element("p", null, M.codesLead),
+        element("ol", null, enrol.codes.map((c, i) => element("li", {key:i}, element("code", null, c)))),
+        element("label", {className:"auth-check"}, element("input", {type:"checkbox", checked:saved, onChange:e => updateValue(v, "saved", e.target.checked)}), M.saved))),
+    element("form", {onSubmit:submit},
+      element(AuthField, {label:recovery ? M.recovery : M.code, support:recovery ? null : M.codeHint}, recovery
+        ? element("input", {id:"auth-recovery-code", value:code, required:true, disabled:busy, autoComplete:"one-time-code", autoCapitalize:"none", onChange:e => updateValue(v, "code", e.target.value)})
+        : element(CodeInput, {value:code, disabled:busy, onChange:next => updateValue(v, "code", next)})),
+      error && element("p", {className:"auth-error", role:"alert"}, error),
+      element(Button, {kind:"primary", type:"submit", disabled:busy || needsSave}, busy ? M.busy : M.submit)),
+    !enrol && element("p", {className:"auth-switch"},
+      element("button", {type:"button", className:"text-link", onClick:() => { updateValue(v, "recovery", !recovery); updateValue(v, "code", ""); }}, recovery ? M.useCode : M.useRecovery)),
+    !enrol && element("p", {className:"auth-switch"}, element("button", {type:"button", className:"text-link", disabled:busy, onClick:startEnrol}, busy ? M.busySetup : M.setup)),
+    element("p", {className:"auth-switch"}, authLink(go, "/login", L.verify.back)));
 }
 function AuthField({ label, error, support, children }) {
     const id = label.toLowerCase().replaceAll(" ", "-");
@@ -12210,7 +12425,8 @@ function FileTypeIcon({label}){
     element("rect",{x:"3",y:"3",width:"18",height:"18",rx:"3",fill:"#1D6F42"}),
     element("path",{d:"M8.5 8l7 8M15.5 8l-7 8",stroke:"#FFFFFF",strokeWidth:"2.2",strokeLinecap:"round",fill:"none"}));
 }
-function keepModelChoice(choice){try{localStorage.setItem(MODEL_CHOICE_KEY,JSON.stringify(choice));}catch{}refresh();}
+// contract 4b: the choice is an account preference (EdgeSession SYNC_KEYS), copied to the account a moment later
+function keepModelChoice(choice){try{localStorage.setItem(MODEL_CHOICE_KEY,JSON.stringify(choice));}catch{}Edge.notePreference?.(MODEL_CHOICE_KEY);refresh();}
 const edgeModelTime=new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Jakarta",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
 function edgeModelPrice(value){return value==null?"–":"$"+(value<1?value.toFixed(3):value.toFixed(2));}
 function EdgeModelSelector(){
@@ -13391,12 +13607,41 @@ function Flow({ run }) {
                 step.durationMs !== undefined && ` · ${formatDuration(step.durationMs)}`)))));
 }
 
+// EXEC-MU-ACCOUNTS Phase 1 (contract section 12): the one route table that go() and currentPath read. `auth`: the page
+// needs a session; `open`: an account page shown only while registration is open (GET /api/v1/auth/config, else the
+// sign-in page); `title`: EdgeLabels.pages. /c/<id> is the Monitor (EXEC-CHAT-URL). main.py serves each path.
+const ROUTES = [
+    {path:"/monitor", names:["monitor","markets","/markets"], auth:true, title:"monitor"},
+    {path:"/terminal", names:["terminal"], auth:true, title:"terminal"},
+    {path:"/backtest", names:["backtest"], auth:true, title:"backtest"},
+    {path:"/screener", names:["screener"], auth:true, title:"screener"},
+    {path:"/radar", names:["radar"], auth:true, title:"radar"},
+    {path:"/overview", names:["overview"], auth:true, title:"overview"},
+    {path:"/watchlist", names:["watchlist"], auth:true, title:"watchlist"},
+    {path:"/login", names:["login","/"], auth:false, mode:"login", title:"signIn"},
+    {path:"/register", names:["register"], auth:false, mode:"register", open:true, title:"register"},
+    {path:"/verify", names:["verify"], auth:false, mode:"verify", open:true, title:"verify"},
+    {path:"/forgot", names:["forgot"], auth:false, mode:"forgot", open:true, title:"forgot"},
+    {path:"/reset", names:["reset"], auth:false, mode:"reset", open:true, title:"reset"},
+    {path:"/mfa", names:["mfa"], auth:false, mode:"mfa", title:"mfa"}
+];
+const routeOf = name => ROUTES.find(r => r.path === name || r.names.includes(name)) || null;
 function App() {
     const viewRecord = currentView;
-    const currentPath = () => ["/terminal","/backtest","/screener","/radar","/overview","/watchlist"].includes(routeLocation().pathname) ? routeLocation().pathname : ["/monitor","/markets"].includes(routeLocation().pathname) || routeLocation().pathname.startsWith("/c/") ? "/monitor" : "/login";
-    const authenticated=initialValue(viewRecord,"authenticated",()=>false),checked=initialValue(viewRecord,"checked",()=>false);
+    const currentPath = () => { const p = routeLocation().pathname; return p.startsWith("/c/") ? "/monitor" : routeOf(p)?.path === p ? p : p === "/markets" ? "/monitor" : "/login"; };
+    const authenticated=initialValue(viewRecord,"authenticated",()=>false),checked=initialValue(viewRecord,"checked",()=>false),open=initialValue(viewRecord,"open",()=>false);
+    onLifecycle(viewRecord,"config",()=>{let live=true;Edge.config().then(c=>{if(live)updateValue(viewRecord,"open",c.multiuser);});return()=>{live=false;};},[]);
     onLifecycle(viewRecord,"auth",()=>{const sync=()=>updateValue(viewRecord,"authenticated",Boolean(Edge.auth));addEventListener("edge-auth",sync);Edge.session().then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
     const path = initialValue(viewRecord, "path", currentPath), setPath = next => updateValue(viewRecord, "path", next);
+    // which account page shows, or null for a workspace page: a session that waits for the authenticator (access.next
+    // "mfa") always shows /mfa; signed in, the account pages lead to the workspace; an `open` page needs registration
+    // open; /mfa also shows without a session (a sign-in answered MFA_REQUIRED and holds a pending session)
+    const authMode = () => { const r = routeOf(path), next = Edge.auth?.access?.next;
+        if (authenticated && next === "mfa") return "mfa";
+        if (authenticated) return null;
+        if (!r || r.auth !== false) return "login";
+        if (r.open && !open) return "login";
+        return r.mode; };
     const theme = initialValue(viewRecord, "theme", () => localStorage.getItem("edge-auth-monitor-theme") || "light"), setTheme = next => updateValue(viewRecord, "theme", next);
     onLifecycle(viewRecord, "navigation", () => {
         const sync = () => setPath(currentPath());
@@ -13409,12 +13654,13 @@ function App() {
     }, [theme]);
     // EXEC-TERMINAL-IND-EDIT (user 2026-11-05): the browser tab names the page; the words are in edge-labels.js (pages)
     onLifecycle(viewRecord, "title", () => {
-        const P = EdgeLabels.pages;
-        document.title = !checked ? P.loading : !authenticated ? P.signIn : path === "/terminal" ? P.terminal : path === "/backtest" ? P.backtest : path === "/screener" ? P.screener : path === "/radar" ? P.radar : path === "/overview" ? P.overview : path === "/watchlist" ? P.watchlist : P.monitor;
-    }, [checked, authenticated, path]);
+        const P = EdgeLabels.pages, r = routeOf(path), m = authMode();
+        document.title = !checked ? P.loading : !authenticated || r?.auth === false ? P[m === "login" ? "signIn" : m] || P.signIn : P[r?.title] || P.monitor;
+    }, [checked, authenticated, path, open]);
     const go = route => {
-        if (!["monitor", "markets", "terminal", "backtest", "screener", "radar", "overview", "watchlist", "/monitor", "/markets", "/terminal", "/backtest", "/screener", "/radar", "/overview", "/watchlist", "/login", "/"].includes(route)) return;
-        const nextPath = ["terminal","/terminal"].includes(route) ? "/terminal" : ["backtest","/backtest"].includes(route) ? "/backtest" : ["screener","/screener"].includes(route) ? "/screener" : ["radar","/radar"].includes(route) ? "/radar" : ["overview","/overview"].includes(route) ? "/overview" : ["watchlist","/watchlist"].includes(route) ? "/watchlist" : ["markets","/markets","monitor","/monitor"].includes(route) ? "/monitor" : "/login";
+        const target = routeOf(route);
+        if (!target) return;
+        const nextPath = target.path;
         // EXEC-CHAT-URL: signing in at /c/<id> stays on that conversation
         if (!(nextPath === "/monitor" && routeLocation().pathname.startsWith("/c/"))) routeHistory.pushState({}, "", nextPath);
         setPath(nextPath);
@@ -13427,7 +13673,10 @@ function App() {
     });
     themeState = { theme, toggle };
     shellGo = go;                                     // the edge-nav listener (below nav) switches pages with it
-    return !checked ? element("div",{className:"auth-page"},"Checking session…") : authenticated ? (path === "/terminal" ? element(TerminalPage,{go}) : path === "/backtest" ? element(BacktestPage,{go}) : path === "/screener" ? element(ScreenerPage,{go}) : path === "/radar" ? element(RadarPage,{go}) : path === "/overview" ? element(OverviewPage,{go}) : path === "/watchlist" ? element(WatchlistPage,{go}) : element(Monitor,{go})) : element(AuthPage,{mode:"login",go});
+    if (!checked) return element("div",{className:"auth-page"},"Checking session…");
+    const mode = authMode();
+    if (!authenticated || mode !== null) return element(AuthPage,{mode:mode || "login",go,key:mode || "login"});
+    return path === "/terminal" ? element(TerminalPage,{go}) : path === "/backtest" ? element(BacktestPage,{go}) : path === "/screener" ? element(ScreenerPage,{go}) : path === "/radar" ? element(RadarPage,{go}) : path === "/overview" ? element(OverviewPage,{go}) : path === "/watchlist" ? element(WatchlistPage,{go}) : element(Monitor,{go});
 }
 
 refresh();
