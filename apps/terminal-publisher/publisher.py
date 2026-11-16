@@ -219,7 +219,7 @@ EVENT_STAMPS_SQL = ('SELECT ticker, count(*), max(annotation_date)::text, max(in
 #   unresolved  too few broker sessions, or a jump that matches neither (factor 1; the Backtest masks across it)
 # `price` says whether the published close carries the action (adjusted: smooth across the ex date) or not (raw: the
 # close jumps by the terms factor, the history was not reloaded, ERRORS D22); null when the factor is too small to tell.
-PRICE_ACTION_TYPES = ('STOCK_SPLIT', 'REVERSE_SPLIT', 'BONUS_SHARE', 'RIGHT_ISSUE', 'STOCK_DIVIDEND')
+# (the price-affecting types are PRICE_ACTION_TYPES, defined with the xsection actions below)
 BASIS_WINDOW_DAYS, BASIS_MIN_SESSIONS, BASIS_TOLERANCE, BASIS_PRICE_MIN = 21, 3, 0.04, 0.10
 # an action this recent is measured again on every daily run (its sessions after the ex date are still arriving) and
 # reported while it needs attention (pending, unresolved, or a close not reloaded)
