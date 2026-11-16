@@ -15560,7 +15560,13 @@ on the principal;
 `925d1b1e` (main agent): edge-bff 342 passed / 146 skipped without a browser; Terminal vitest 933; builds OK;
 `node shared/build-shell.mjs --check` OK; after the second fix round (`d2d11ab3`, builders) edge-bff 364 passed / 148
 skipped. The checkers' findings C1 and C2 are fixed on the branch (M478); before step 1 the main agent re-runs the
-integrated suites on the final commit and writes the counts here. Nothing below has run.
+integrated suites on the final commit and writes the counts here.
+
+Run log (main agent, 2026-11-16): the C3 B1 fix (`331aec25`, `access.seed`, ERRORS M478) landed before step 1; Terminal
+vitest 941 passed. Step 1: job `fdc4ed8a`, 0 active EDGE jobs and 0 running orc turns; the account tables were absent.
+Step 2 DRYRUN: job `7b4c50ee`, the three bodies OK with the changelog sha256 values; every probe as expected (ten tables,
+`runtime_grants` and `login_grants` equal to `expected` for every table, `public_grants` empty, 0 rows, every table
+commented), then ROLLBACK. The remaining steps follow below as they run.
 
 What changes for the current user with the switch off: nothing in sign-in or the tabs. Two things are new and visible
 in the data: user #1 is seeded into `edge_bff.users` at the first start, and the shell starts copying the `sync`
