@@ -124,3 +124,6 @@ def test_the_admin_enrols_the_authenticator_and_signs_in(live, page):
     page.get_by_label('I have saved my recovery codes').check()
     page.get_by_role('button', name='Continue').click()
     page.get_by_placeholder('Ask a research question…').wait_for()
+    # passing MFA rotated the session token: the page writes with the new CSRF token at once
+    put = page.evaluate("() => Edge.api('/preferences/ml.tf', {value:'W', version:null}, 'PUT').then(r => r.version, e => e.message)")
+    assert put == 1
