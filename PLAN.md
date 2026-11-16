@@ -164,6 +164,19 @@ putih, jangan lupa logo emiten juga. sudah ada setau saya di storage. 2 dan 3 ke
   yang terbuka, bukan isi list; "n of N" dan "Clear"; berlaku di Kartu dan Tabel. Dicoba di mockup (Core: Radar 8 dari
   14, aksi korporasi AMMN dan UNVR). Menunggu persetujuan user.
 
+**User 2026-11-16 atas mockup tabel:** "1: mesti diganti jangan tulisa 30D, maybe trend or anything else? 2: 2 buat
+hoverstatekalau hover ke radar 3: kasih pill ya, solid green or red, fontnya putih 4. table indicator too plain, hanya
+hitam dan putih, boleh kasih 10 opsi dalam 1 HTML? 5. kotak merah radar dan corporate action tidak usah kalau di klik
+muncul drop down, hanya buat saja kalu klik radar maka ada pop up dibawah keluar "Filtered only stocks in radar"?
+begitupun untuk corporate action". Diterapkan di mockup:
+1. Kolom grafik kecil bernama "Trend" (30 penutupan terakhir di keterangan kursor).
+2. Kursor di lencana Radar membuka kotak: saringan yang lolos (kode + nama) dan tanggal Radar; klik membuka Radar.
+3. Nilai Foreign net (1D/5D/20D) di Tabel = pil isi hijau/merah, teks putih.
+4. 10 pilihan desain dialog Indicators berwarna (warna per kelompok: Technical biru, Price & volume ungu, Foreign flow
+   hijau) dalam satu HTML; menunggu pilihan user.
+5. Filter tanpa menu: klik "Radar" = hanya saham yang lolos Radar, klik "Corporate action" = hanya saham dengan aksi
+   korporasi 30 hari; klik lagi mematikan; pesan di bawah ("Filtered: only stocks in Radar (9 Nov) · 8 of 14").
+
 **Rencana eksekusi (usulan, menunggu go; pola EXEC-OVERVIEW):**
 - **W1 Rumus dan biaya.** Rumus setiap indikator dan persentil ditulis di `WATCHLIST_FORMULAS.md` (bahasa Indonesia
   sederhana, contoh nyata, dijaga skrip + tes seperti `OVERVIEW_FORMULAS.md`). Sumber: kolom tersimpan bila ada (RSI,
