@@ -72,10 +72,10 @@ def check(doc):
         for j, d in enumerate(dates):
             want = closes.get((t, d))
             cmp(f'{t} trend {d}', doc['trend'][i][j], None if want is None else float(want), 0.006)
-    # corporate actions after P up to 30 days, of universe stocks, removed ones excluded
+    # corporate actions after P up to 30 days, of universe stocks, as the Terminal's event markers read them
     ev = {}
-    for t, a, d, role in q(f"SELECT ticker, action_type, annotation_date::text, coalesce(annotation_date_role, '') FROM public.stockbit_corporate_action "
-                           f"WHERE source_removed_at IS NULL AND annotation_date > '{P}' AND annotation_date <= date '{P}' + {doc['event_days']}"):
+    for t, a, d, role in q(f"SELECT ticker, event_type, annotation_date::text, coalesce(annotation_date_role, '') FROM public.idx_event_annotation "
+                           f"WHERE event_family = 'CORPORATE_ACTION' AND annotation_date > '{P}' AND annotation_date <= date '{P}' + {doc['event_days']}"):
         if t in at and [a, d, role] not in ev.setdefault(t, []):
             ev[t].append([a, d, role])
     CHECKED[0] += 1

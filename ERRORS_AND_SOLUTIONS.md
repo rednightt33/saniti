@@ -8837,6 +8837,13 @@ in its staleness check.
   notice with "Try again", "Figures unavailable" in the header; list actions keep working; Indicators and the stock
   search wait for the figures. Checked in a browser with the fixture's `?fail=index` and `?fail=file` at 1440 and 390 px.
 - **Known, not fixed:** (b) a restored list's stocks get a new `added_at` (the Screener's star time).
+- **Found at release (2026-11-16, run 12:59 UTC, `watchlist_failed` step build, `InsufficientPrivilege`):** the publisher
+  reads as `terminal_market_reader`, which has no SELECT on `stockbit_corporate_action`; every dev check of the module
+  had run through pgweb, a role that has it. Fix at the source layer: the corporate actions are read from
+  `idx_event_annotation` (family `CORPORATE_ACTION`), the table the Terminal's event markers already read (one source
+  for both pages, no new grant). `verification/watchlist/reader_rights_dev.py` checks every relation and function named
+  in the module's SQL against the publisher's role (all readable). Lesson: a read check of a publisher module runs
+  under the publisher's own role, never only under an administrative or pgweb role.
 - **Lesson:** a "complete date" is derived from the date's own counts across the sources, never from the existence of
   one row; a read of a family another page owns (Radar) uses that page's own selector (`feature_07_rule_version()`),
   not a re-derivation.

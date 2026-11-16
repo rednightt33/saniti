@@ -6,7 +6,7 @@ baru** ("selight as possible yang mana tidak perlu ada calculation lagi"). Karen
 yang **sudah tersimpan** di database, dibaca apa adanya. Satu-satunya hitungan adalah jarak harga ke EMA (satu pembagian
 di baris yang sama).
 
-<!-- explained-for: watchlist.py=611c25ab055d91fea438a6896461ef12, app/watchlist.py=adfcc13d22c9887ef143b973718ee736 -->
+<!-- explained-for: watchlist.py=6c3c265a21043c67e62c9874538e17b3, app/watchlist.py=adfcc13d22c9887ef143b973718ee736 -->
 
 ## 1. Dari mana angkanya datang
 
@@ -17,8 +17,8 @@ mencocokkan saham di list dengan baris di file.
 
 Satu lari publisher membaca: satu tanggal Feature 01 dan Feature 04, satu tanggal broker Feature 06, 30 tanggal harga,
 aksi korporasi 30 hari ke depan, dan satu tanggal Radar. Di dev semuanya selesai dalam 3,1 detik saat cache dingin
-(0,2 detik saat hangat), 16.942 halaman memori (`verification/watchlist/EXPLAIN_20261116.txt`). Ini **bukan** update
-besar, jadi tidak perlu restart Postgres.
+(di bawah 0,1 detik saat hangat), 17–29 ribu halaman memori, sebagian besar dari cache
+(`verification/watchlist/EXPLAIN_20261116.txt`). Ini **bukan** update besar, jadi tidak perlu restart Postgres.
 File dibangun ulang hanya bila isinya berubah (stempelnya adalah isi file itu sendiri).
 
 ## 2. Dua tanggal
@@ -72,9 +72,10 @@ yang dipilih (maksimal 8).
   untuk S6Δ pada varian bawaannya (Ratio). Selama pengisian pertama Radar berjalan, file tidak diterbitkan ulang. Jadi badge menunjukkan apa yang
   terlihat saat halaman Radar dibuka. Contoh 9 Nov: BBCA lolos S6; DKFT lolos S6. Di dev ada 102 saham yang lolos minimal
   satu saringan. Filter "Radar" menampilkan hanya saham di list yang punya badge ini.
-- **Aksi korporasi**: RUPS, public expose, dividen (cum/ex), right issue dan lainnya dengan tanggal **sesudah tanggal
-  harga sampai 30 hari kemudian** (`stockbit_corporate_action`, baris yang belum dihapus sumbernya). Contoh: AMMN "RUPS
-  17 Nov". Data ini ikut ronde Stockbit; halaman menulis tanggal terakhir dimuat. Filter "Corporate action" menampilkan
+- **Aksi korporasi**: RUPS, public expose, dividen (tanggal ex), right issue, waran dan lainnya dengan tanggal **sesudah
+  tanggal harga sampai 30 hari kemudian**, dibaca dari `idx_event_annotation` (keluarga `CORPORATE_ACTION`), sumber
+  yang sama dengan penanda event di grafik Terminal, jadi kedua halaman selalu menunjukkan acara yang sama. Contoh: AMMN
+  "RUPS 17 Nov", PGAS "Public expose 19 Nov". Data ini ikut ronde Stockbit; halaman menulis tanggal terakhir diambil. Filter "Corporate action" menampilkan
   hanya saham di list yang punya acara dalam jendela ini.
 
 Kedua filter hanya mengubah tampilan list yang sedang dibuka, tidak mengubah isi list.
@@ -126,7 +127,7 @@ Ditulis oleh `scripts/watchlist_formulas_doc.py --write` dari kode di repo; jang
 
 | Kode | Sidik jari (md5) |
 |---|---|
-| `watchlist.py` | `611c25ab055d91fea438a6896461ef12` |
+| `watchlist.py` | `6c3c265a21043c67e62c9874538e17b3` |
 | `app/watchlist.py` | `adfcc13d22c9887ef143b973718ee736` |
 
 <!-- watchlist-live:end -->

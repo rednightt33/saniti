@@ -27,9 +27,9 @@ Q = {
                                     f"FROM public.\"Feature_06_Foreign_Domestic\" WHERE trade_date = '{B}' AND market_board = 'Regular' AND ticker IN {STOCK}",
     'closes (30 dates)': f"SELECT ticker, date, close FROM public.\"Price_Stock_Indonesia_IDX\" WHERE date IN ({DATES}) AND timeframe = 'Daily' "
                          f"AND is_final AND ticker IN {STOCK}",
-    'corporate actions (30 days)': f"SELECT ticker, action_type, annotation_date, annotation_date_role FROM public.stockbit_corporate_action "
-                                   f"WHERE source_removed_at IS NULL AND annotation_date > '{P}' AND annotation_date <= date '{P}' + 30 AND ticker IN {STOCK}",
-    'corporate actions loaded at': 'SELECT max(last_seen_at) FROM public.stockbit_corporate_action',
+    'corporate actions (30 days)': f"SELECT ticker, event_type, annotation_date, annotation_date_role FROM public.idx_event_annotation "
+                                   f"WHERE event_family = 'CORPORATE_ACTION' AND annotation_date > '{P}' AND annotation_date <= date '{P}' + 30 AND ticker IN {STOCK}",
+    'corporate actions loaded at': "SELECT max(source_fetched_at) FROM public.idx_event_annotation WHERE event_family = 'CORPORATE_ACTION'",
     'radar (newest date)': 'SELECT DISTINCT ticker, filter_id FROM public."Feature_07_Radar_Result" WHERE status = \'hit\' AND trade_date = '
                            '(SELECT max(trade_date) FROM public."Feature_07_Radar_Result") AND level = \'standard\' AND gate = \'broad\' '
                            'AND rule_version = public.feature_07_rule_version()',

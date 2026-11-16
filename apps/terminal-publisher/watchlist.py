@@ -13,8 +13,8 @@ terminal-api presigns it only for the EDGE gateway key. WATCHLIST_FORMULAS.md ex
 Light by decision (user 2026-11-16: "selight as possible yang mana tidak perlu ada calculation lagi"): every value is a
 stored column read as it is; the only arithmetic is the distance to an EMA (close / EMA - 1 of the same Feature 04 row).
 No history, no percentile, nothing carried between runs. Read cost on dev (2026-11-16, EXPLAIN ANALYZE, every query of a
-build, the complete-date check included): 3.1 s with a cold cache (0.2 s warm), 16,942 shared pages
-(verification/watchlist/EXPLAIN_20261116.txt): not a large update. stamp() builds once and files() once per run.
+build, the complete-date check included): 3.1 s with a cold cache, under 0.1 s warm, 17k-29k shared pages (about
+0.13-0.22 GB touched, mostly cached; verification/watchlist/EXPLAIN_20261116.txt): not a large update. stamp() builds once and files() once per run.
 """
 from __future__ import annotations
 
@@ -41,7 +41,9 @@ F06 = 'public."Feature_06_Foreign_Domestic"'
 F06I = 'public."Feature_06_Foreign_Domestic_INDEX"'
 ENTITY = 'public."Feature_Index_Entity"'
 UNIVERSE = 'public."IDX_Stock_Universe"'
-ACTION = 'public.stockbit_corporate_action'
+# the corporate actions as the Terminal's event markers read them (publisher.py events/), one source for both pages;
+# release 2026-11-16: the publisher's reader holds SELECT on it and not on stockbit_corporate_action (ERRORS M466)
+ACTION = 'public.idx_event_annotation'
 RADAR = 'public."Feature_07_Radar_Result"'
 RADAR_FILTER = 'public."Feature_07_Radar_Filter"'
 STOCK_SET = f'(SELECT "Ticker" FROM {UNIVERSE} WHERE "Security Type" = \'stock\')'
@@ -91,7 +93,7 @@ COUNTS_SQL = (f"SELECT (SELECT count(*) FROM {PRICE} WHERE date = %(d)s AND time
               f'AND ticker IN {STOCK_SET})')
 BROKER_DATE_SQL = f"SELECT max(trade_date)::text FROM {F06I} WHERE ticker = %(m)s AND market_board = 'Regular'"
 RADAR_DATE_SQL = f'SELECT max(trade_date)::text FROM {RADAR}'
-EVENTS_LOADED_SQL = f'SELECT max(last_seen_at)::date::text FROM {ACTION}'
+EVENTS_LOADED_SQL = f"SELECT max(source_fetched_at)::date::text FROM {ACTION} WHERE event_family = 'CORPORATE_ACTION'"
 DATES_SQL = (f"SELECT date::text FROM {PRICE} WHERE ticker = %(m)s AND timeframe = 'Daily' AND is_final AND date <= %(p)s "
              'ORDER BY date DESC LIMIT %(n)s')
 STOCKS_SQL = f'SELECT "Ticker", "Company Name", "Sector" FROM {UNIVERSE} WHERE "Security Type" = \'stock\' ORDER BY 1'
@@ -107,8 +109,8 @@ F06_SQL = (f'SELECT ticker, foreign_net_1d::float8, foreign_net_5d::float8, fore
            f"WHERE trade_date = %(b)s AND market_board = 'Regular' AND ticker IN {STOCK_SET}")
 CLOSES_SQL = (f"SELECT ticker, date::text, close::float8 FROM {PRICE} WHERE date = ANY(%(d)s::date[]) AND timeframe = 'Daily' "
               f'AND is_final AND ticker IN {STOCK_SET}')
-EVENTS_SQL = (f'SELECT DISTINCT ticker, action_type, annotation_date::text, coalesce(annotation_date_role, \'\') FROM {ACTION} '
-              f'WHERE source_removed_at IS NULL AND annotation_date > %(p)s::date AND annotation_date <= %(p)s::date + %(days)s '
+EVENTS_SQL = (f'SELECT DISTINCT ticker, event_type, annotation_date::text, coalesce(annotation_date_role, \'\') FROM {ACTION} '
+              f"WHERE event_family = 'CORPORATE_ACTION' AND annotation_date > %(p)s::date AND annotation_date <= %(p)s::date + %(days)s "
               f'AND ticker IN {STOCK_SET} ORDER BY 3, 1, 2, 4')
 # the Radar's board columns: one per column id, read at its default variant (S6Δ: Ratio), with the board's label
 RADAR_FILTERS_SQL = (f'SELECT f.filter_id, f.column_label, f.name, f.position FROM {RADAR_FILTER} AS f '
@@ -119,7 +121,7 @@ RADAR_SQL = (f"SELECT DISTINCT ticker, filter_id FROM {RADAR} WHERE trade_date =
 
 CODE = hashlib.md5(Path(__file__).read_bytes()).hexdigest()
 MAINTAINED_BY = ('daily', 'backfill', 'watchlist')    # the modes that rebuild the file when its stamp changed
-UNAVAILABLE = 'Feature_07_Radar_Result, Feature_07_Radar_Filter or stockbit_corporate_action missing'
+UNAVAILABLE = 'Feature_07_Radar_Result, Feature_07_Radar_Filter or idx_event_annotation missing'
 
 
 def available(conn):
