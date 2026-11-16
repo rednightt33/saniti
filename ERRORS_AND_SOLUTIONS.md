@@ -8875,6 +8875,36 @@ in its staleness check.
   The screener-worker suite: 112 passed. edge-bff deployed on the green commit.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
+### M477 — EXEC-MU-ACCOUNTS Phase 0: findings of the independent checkers C1 and C2 (2026-11-16, fixed on branch, not deployed)
+
+Two checkers read the integrated Phase 0 code against `verification/edge_multiuser/access_tiers/CONTRACT.md` only:
+C1 (security, commit `8c9babc4`, failing tests `test_c1_security_findings.py` in edge-bff, market-ai-orc and
+terminal-api, `terminal/tests/data/c1_security_findings.test.ts`) and C2 (isolation, commit `f3e1ff4a`,
+`apps/market-ai-orc/tests/test_c2_client_history_owner.py`, `terminal/tests/data/edge_session_user_change.test.ts`).
+Each finding came as a test that failed on the code; the fix round makes them pass unchanged. Every row: fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
+
+| Id | Part | Defect (verified cause) | Fix (commit) |
+|---|---|---|---|
+| C1 H1 | edge-bff sign-in throttle (contract section 4) | 40 parallel guesses against one login all reached the password check: the limit was read before the password check and the failure counted after it, so tries in flight were never counted | one transaction decides and counts the try before the password check (advisory lock on scope and key hash, window sum, UPSERT, `throttle.attempt`); a success clears the count (`f3410489`) |
+| C1 M1, C2 #2 | front-end CSRF repeat (M471, M473) | a page open across a change of user repeated account A's write under account B's session after a 403 `CSRF_INVALID`: the repeat re-read whatever session the cookie held | each page keeps the login of its first session read; another login is refused with 401 `USER_CHANGED`, the write is not sent, pending writes are dropped, the user state is cleared and the page reloads; the shell repeats only for its own login (`847da443`) |
+| C1 M2, C2 #3 | Terminal drawings (M468) | A's unsaved drawings were stamped with B's login after the session changed: the stamp fell back to the last-login mark | the stamp is the page's own identity; nothing is kept when it is unknown; pending changes are dropped on reset (`847da443`) |
+| C2 #1 (high) | Orc CLIENT history (M475) | a `history_mode` CLIENT run naming any `conversation_id` opened that conversation's kept tables, run memory, exports and evidence (keyed by conversation only), so the test key reached a user's conversation | a CLIENT run may name only a conversation its owner holds (`ConversationStore.holds`), else 404 `CONVERSATION_NOT_FOUND` before the run; without the conversation store the id is dropped (`88c06bd0`) |
+| C1 M4 | Orc test key (M475) | a `MARKET_AI_ORC_TEST_KEY` shorter than 32 characters or equal to the main key was accepted, which would undo the owner limit | `ConfigError` at start; orc-test-runner reads only `MARKET_AI_ORC_TEST_KEY`, no main-key fallback (`88c06bd0`) |
+| C1 L1 | Orc stop, progress, manual fallback (M474, M475) | another owner reusing a running `request_id` replaced and then removed the first run's stop flag and hid its progress: the registries were keyed by request id alone | keyed by (owner, request id); a run's exit removes only its own entry (`88c06bd0`) |
+| C1 M3 | terminal-api keys (M470) | the service keys and the admin key were accepted through the public edge; only the gateway key had the host rule | every key only on the private host; one generic 403 `gateway_host_not_allowed` off it for a valid, wrong or absent key, the reason in the server log only (`9f7730a9`) |
+| C1 L2 | terminal-api Host parsing (M470) | the host rule accepted a Host with userinfo, a path, a query or a fragment (`urlsplit`) | exact match: `terminal-api.railway.internal` with an optional `:digits` port, any letter case (`9f7730a9`) |
+| C1/C2 round (error shape) | edge-bff (M471) | any 403 `HTTPException` was mapped to `CSRF_INVALID`, so a client would retry a plan refusal; the older `error()` helper sent only `code` | only the CSRF check answers `CSRF_INVALID`; any other 403 is `FORBIDDEN`; every `main.py` refusal has `code`, `message`, `details` (`f3410489`) |
+| C2 (lock) | edge-bff job submission | `store.submit` locked the bare owner string, a key another lock could equal | the key is `'jobs:' + owner`, like every other edge-bff lock (`f3410489`) |
+
+Also in the round: one English wording for refusals on server (`app/errors.py`) and page (`EdgeLabels.access`)
+(`599ff8a9`). Integrated results (main agent): edge-bff 278 passed / 139 skipped (browser tests); terminal-api 99;
+Terminal vitest 914; backtest 91, screener 1354 (+1 skipped), radar 8, overview 22, watchlist 22, six builds OK; Orc
+1815 passed / 367 skipped without Postgres, with a local Postgres the same 31 failures and 3 errors as before.
+Consequence of C1 M3: scripts that use the admin key over the public URL (`scripts/terminal_subscriber.py`,
+`verification/terminal_api/validate.py`, `verification/terminal_api/quota_live.py`) must run on the private network.
+Lesson: a limit is decided and counted in one atomic step; a credential rule names every credential, not the one in
+view; a client-supplied id is checked against the caller's ownership on every path, not only the main one.
+
 ### M476 — The Watchlist's data file carries Radar output, an admin page's content (2026-11-16, OPEN)
 
 - **Symptom (read-only delta inspection, `verification/edge_multiuser/access_tiers/CONTRACT.md` section 15):** every
@@ -8909,7 +8939,8 @@ in its staleness check.
   - Second bearer `MARKET_AI_ORC_TEST_KEY` (`config.py` `internal_test_api_key`, never in the repr): it authenticates
     but may name only `golden-*`, `test-*` or `someone-else` (`TEST_OWNER_RE`), else 403 `OWNER_NOT_ALLOWED`. Both
     keys are compared in constant time on every call. orc-test-runner reads `MARKET_AI_ORC_TEST_KEY` and falls back to
-    `MARKET_AI_ORC_API_KEY` while it is unset (`apps/orc-test-runner/run.py`).
+    `MARKET_AI_ORC_API_KEY` while it is unset (`apps/orc-test-runner/run.py`). Superseded in the fix round (M477):
+    the runner reads only `MARKET_AI_ORC_TEST_KEY` and does not start without it.
   - `progress.tracking` and `stop.running` store the normalised owner; an entry without an owner never matches.
   - Tests: `apps/market-ai-orc/tests/test_owner_header.py` (every owner route refuses a missing owner; the test key
     with a `u_` owner gives 403; the route list is derived from the app), `test_progress.py`, `test_stop.py`. Orc
@@ -8917,8 +8948,12 @@ in its staleness check.
     the change (test_data_access_postgres 29, test_catalog_postgres 1, test_ip2 1, test_request_data 3 errors).
   - To know: conversations stored under the owner `default` (by callers that sent no header) can no longer be read.
     EDGE always sends `EDGE_OWNER` and orc-test-runner always a `golden-*` owner, so no current caller depends on it.
+- **Fix round after the checkers (M477, `88c06bd0`):** a CLIENT-history run may name only a conversation its owner
+  holds (C2 #1, high: the test key reached a user's conversation through it); the test key must be at least 32
+  characters and differ from the main key, else `ConfigError` at start (C1 M4); stop, progress and the manual
+  fallback list are keyed by (owner, request id) (C1 L1). Orc 1815 passed / 367 skipped without Postgres.
 - **Status:** OPEN. No external user exists yet. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed; the Railway variable
-  `MARKET_AI_ORC_TEST_KEY` is not set yet (EXEC.md EXEC-MU-ACCOUNTS, "Phase 0 deploy steps").
+  `MARKET_AI_ORC_TEST_KEY` is not set yet (EXEC.md EXEC-MU-ACCOUNTS, "Phase 0 deploy steps"). Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
 
 ### M474 — Orc manual agent: every waiting step of every owner is listed to any caller (2026-11-16, OPEN; fixed on branch, not deployed)
 
@@ -8941,7 +8976,9 @@ in its staleness check.
   - MFA is not in Phase 0: it comes with the accounts of Phase 1 (contract section 4, "Admin MFA").
   - Tests: `apps/market-ai-orc/tests/test_manual_agent.py` (owner A's steps are invisible to owner B and cannot be
     answered by B), `apps/edge-bff/tests/test_manual_routes.py`.
-- **Status:** OPEN. Blocker before a second user. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed.
+- **Fix round (M477, C1 L1, `88c06bd0`):** the manual agent's fallback list is keyed by (owner, request id), like
+  stop and progress, so another owner's run with the same request id cannot touch it.
+- **Status:** OPEN. Blocker before a second user. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed. Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
 
 ### M473 — Sign-out leaves account data in browser storage (2026-11-16, OPEN; fixed on branch, not deployed)
 
@@ -9018,8 +9055,17 @@ in its staleness check.
   - Not yet in the full shape: refusals made by `main.py`'s older `error(code, status)` helper
     (`INVALID_CREDENTIALS`, `ORIGIN_REJECTED`, the `StoreError` and `OrcError` codes) still answer
     `{"error": {"code"}}` without `message` and `details`. The client decides by the code, so the behaviour is
-    right; the full shape is left for Phase 1.
-- **Status:** OPEN. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed.
+    right; the full shape is left for Phase 1. Superseded by the fix round below.
+- **Fix round after the checkers (M477):**
+  - `f3410489`: only the CSRF check answers `CSRF_INVALID` (raised explicitly); any other 403 is `FORBIDDEN`, which no
+    client retries. `main.py` `error()` gives every older refusal the full `code`, `message`, `details` shape; a code
+    without a message gets its status class's message.
+  - `847da443` (C1 M1, C2 #2): a page keeps the login of its first session read; a session of another login answers
+    401 `USER_CHANGED` and the write is never sent, so a CSRF repeat goes out only for the page's own account; pending
+    writes are dropped and an app page reloads on the `cleared` broadcast.
+  - `599ff8a9`: server (`app/errors.py`) and page (`EdgeLabels.access`) share one English wording.
+  - edge-bff 278 passed / 139 skipped; Terminal vitest 914.
+- **Status:** OPEN. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed. Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
 
 ### M470 — terminal-api accepts the EDGE gateway key on its public domain (2026-11-16, OPEN; fixed on branch, not deployed)
 
@@ -9059,8 +9105,20 @@ in its staleness check.
   - Tests: `apps/terminal-api/tests/test_private_only.py`; terminal-api suite 91 passed.
   - Consequence: a local verification tool that calls `https://terminal-api-dev.up.railway.app` (as those commits did)
     stops working; such checks run on the private network (orc-test-runner or a job) once the domain is removed.
+- **Fix round after the checkers (M477, `9f7730a9`):**
+  - C1 M3: the host rule now covers every key, the gateway key, the service keys and the admin key (`/admin`
+    routes), not only the gateway key. Off the private host the answer is one generic 403
+    `gateway_host_not_allowed` for a valid, a wrong or no key; it names neither the private host nor a variable. The
+    reason and the kind of credential go to the server log, never the key. (The earlier "wrong key stays 401
+    `proxy_key_rejected` on any host" no longer holds off the private host.)
+  - C1 L2: the Host is matched exactly, `terminal-api.railway.internal` with an optional `:digits` port, any letter
+    case; userinfo, a path, a query, a fragment, brackets, a trailing dot or a bad port are refused.
+  - Consequence: scripts that use the admin key over the public URL (`scripts/terminal_subscriber.py`,
+    `verification/terminal_api/validate.py`, `verification/terminal_api/quota_live.py`) must run on the private
+    network, at once after the deploy, not only after the domain removal.
+  - terminal-api suite 99 passed.
 - **Status:** OPEN. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed; `TERMINAL_ALLOWED_ORIGINS` is still set and the public domain is not
-  removed yet (EXEC.md EXEC-MU-ACCOUNTS, "Phase 0 deploy steps").
+  removed yet (EXEC.md EXEC-MU-ACCOUNTS, "Phase 0 deploy steps"). Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
 
 ### M469 — The public Terminal bundle embeds a real BBCA broker summary (2026-11-16, OPEN; fixed on branch, not deployed)
 
@@ -9102,4 +9160,8 @@ in its staleness check.
   signed in with last (`edge-last-login`); any other copy is removed, never shown or written to the account.
   `ml.drawings.` is a `user` key of the storage registry, so sign-out removes it (M473). Test:
   `terminal/tests/data/edge_session.test.ts`.
-- **Status:** OPEN. Harmless with one user. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed.
+- **Fix round after the checkers (M477, C1 M2, C2 #3, `847da443`):** the stamp fell back to the last-login mark, so
+  after a change of session A's unsaved drawings were stamped with B's login. A copy is now stamped only with the
+  page's own identity (the login of its first session read); nothing is kept while it is unknown, and pending changes
+  are dropped when the session resets. Test: `terminal/tests/data/edge_session_user_change.test.ts`.
+- **Status:** OPEN. Harmless with one user. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed. Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.

@@ -265,7 +265,7 @@ Gate and final-response log events (always on):
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `MARKET_AI_ORC_API_KEY` | yes (secret) | — | Bearer key the backend must send |
-| `MARKET_AI_ORC_TEST_KEY` | no (secret) | — | ERRORS M475: a second bearer key for orc-test-runner (referenced there as `${{market-ai-orc.MARKET_AI_ORC_TEST_KEY}}`). It authenticates every route, but `X-Saniti-Owner` may then name only a test owner (`golden-*`, `test-*`, `someone-else`; else 403 `OWNER_NOT_ALLOWED`). Unset: only the main key authenticates. Never logged or shown in the settings repr |
+| `MARKET_AI_ORC_TEST_KEY` | no (secret) | — | ERRORS M475: a second bearer key for orc-test-runner (referenced there as `${{market-ai-orc.MARKET_AI_ORC_TEST_KEY}}`). It authenticates every route, but `X-Saniti-Owner` may then name only a test owner (`golden-*`, `test-*`, `someone-else`; else 403 `OWNER_NOT_ALLOWED`). When set it must be at least 32 characters and differ from `MARKET_AI_ORC_API_KEY`, else the start fails with `ConfigError` (C1 M4, ERRORS M477). Unset: only the main key authenticates, and orc-test-runner cannot start (it reads only this key). Never logged or shown in the settings repr |
 | `OPENROUTER_API_KEY` | yes (secret) | — | OpenRouter API key |
 | `AI_MODEL` | no | `deepseek/deepseek-v4.1-flash` | OpenRouter model ID of model 1 |
 | `AI_MODEL_2` | no | `xiaomi/mimo-v2.6-pro` | OpenRouter model ID of model 2 |
@@ -438,7 +438,10 @@ with `prices_fetched_at`, `edge_default` (EDGE's starting choice: DeepSeek V4.1 
 ### `POST /v1/agent/run`
 Header: `Authorization: Bearer ${MARKET_AI_ORC_API_KEY}` (or the test key, for test owners only). Missing or wrong
 key → `401`. `X-Saniti-Owner` is required for every run, CLIENT history included (400 `OWNER_REQUIRED`); the run's
-progress, stop button and manual steps are registered under that owner (M475).
+progress, stop button and manual steps are registered under (owner, request id), so another owner reusing the same
+request id never replaces or reads them (M475, C1 L1 in M477). A CLIENT-history run that names a `conversation_id`
+must name one its owner holds, else 404 `CONVERSATION_NOT_FOUND` before the run starts (the kept tables, run memory,
+exports and evidence are keyed by conversation); without the conversation store the id is dropped (C2, M477).
 
 Request:
 

@@ -15410,10 +15410,11 @@ tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terba
 ### Phase 0 deploy steps (prepared, not run)
 
 Prepared 2026-11-16 by builder B5 for the main agent. Code: branch `claude/pensive-feynman-4ahfe3` (integrated at
-`31f0bf01`; B1 edge-bff, B2 Orc, B3 terminal-api and the Terminal fixture build, B4 front-end). Nothing below has run:
-no deploy, no migration applied, no Railway variable changed. Integrated tests (main agent, 2026-11-16): edge-bff 276
-passed / 139 skipped; terminal-api 91; Terminal vitest 908 and build; backtest 91, screener 1354 (+1 skipped), radar
-8, overview 22, watchlist 22, all six page builds; `node shared/build-shell.mjs --check`; Orc 1806 passed / 365
+`31f0bf01`; B1 edge-bff, B2 Orc, B3 terminal-api and the Terminal fixture build, B4 front-end; after the independent
+checkers C1 and C2, the fix round at `34cfcc13`, ERRORS M477). Nothing below has run: no deploy, no migration applied,
+no Railway variable changed. Integrated tests at `34cfcc13` (main agent, 2026-11-16): edge-bff 278 passed / 139
+skipped (browser tests); terminal-api 99; Terminal vitest 914 and build; backtest 91, screener 1354 (+1 skipped),
+radar 8, overview 22, watchlist 22, all six page builds; `node shared/build-shell.mjs --check`; Orc 1815 passed / 367
 skipped without Postgres (with a local Postgres the 31 failures and 3 errors known from before the change). IDs:
 `PROJECT_CONTEXT.md`. Secrets are never printed (M464: read variables only through an allow list of names).
 
@@ -15442,8 +15443,11 @@ so the migration goes first; Orc refuses a request without an owner, which every
    - on market-ai-orc: a new random value of at least 32 characters made in the process (`secrets.token_urlsafe(48)`)
      and piped to `railway variable set --stdin --skip-deploys`; read back its length only;
    - on orc-test-runner: the reference `${{market-ai-orc.MARKET_AI_ORC_TEST_KEY}}` (`--skip-deploys`).
-     `MARKET_AI_ORC_API_KEY` stays on orc-test-runner for now (run.py falls back to it); removing it is a later,
-     separate step once a golden run with the test key has passed.
+   - Both must be set, and market-ai-orc deployed with the key, before orc-test-runner runs the new `run.py`: since
+     the fix round (C1 M4) `run.py` reads only `MARKET_AI_ORC_TEST_KEY` and fails to start without it, and Orc refuses
+     a test key under 32 characters or equal to `MARKET_AI_ORC_API_KEY` (`ConfigError` at start, so the orc deploy
+     would fail). Remove `MARKET_AI_ORC_API_KEY` from orc-test-runner only after a run with the test key has passed
+     (and after checking that no other job on orc-test-runner reads it); then `.railway/railway.ts` drops it there.
    - `python3 scripts/railway_reference_consumers.py market-ai-orc.MARKET_AI_ORC_TEST_KEY` must list only
      orc-test-runner (a one-off service: it reads the value at its next upload or run).
 5. **Merge to `main`** (go item 1: "Merge bertahap ke `main` di balik saklar mati"): rebase or merge
@@ -15459,13 +15463,18 @@ so the migration goes first; Orc refuses a request without an owner, which every
       refuses to start without an origin; it would still start here because `RAILWAY_PUBLIC_DOMAIN` is set.
    2. Upload the new build: CLI upload of `git archive <merged commit> apps/terminal-api` (as in
       `RAILWAY_CHANGELOG.md`); wait for that exact deployment's `SUCCESS`; `/ready` 200; the Terminal opens in EDGE
-      (the gateway host rule accepts edge-bff's private calls).
+      (the gateway host rule accepts edge-bff's private calls). Since the fix round every key is bound to the
+      private host (C1 M3), so also check a Backtest run and a Screener run (the workers' service keys) and that the
+      server log shows no `keyed request refused off the private host` line from a service.
    3. Remove the public domain `terminal-api-dev.up.railway.app` (dashboard or CLI). `RAILWAY_PUBLIC_DOMAIN` is set
       when a deployment starts, so redeploy once more and wait for that deployment's `SUCCESS`: only a deployment
       started without the domain is private-only.
    4. Check from the private network (orc-test-runner or a job): `/ready` 200; `POST /api/terminal/v1/auth/sign-in`
       answers 403 `direct_access_closed`; a gateway-key call with an `X-Forwarded-For` header answers 403
       `gateway_host_not_allowed`; `https://terminal-api-dev.up.railway.app` no longer answers.
+   - From the new build on, the admin key works only on the private host too: `scripts/terminal_subscriber.py`,
+     `verification/terminal_api/validate.py` and `verification/terminal_api/quota_live.py` run on the private
+     network (orc-test-runner or a job), never over the public URL.
    - Rollback: restore `TERMINAL_ALLOWED_ORIGINS` and the domain, or redeploy the previous deployment.
    - Not part of Phase 0: the bucket CORS rule that still lists the old terminal-api origin
      (`scripts/terminal_bucket_cors.py`); EDGE's origin stays in it.

@@ -683,9 +683,11 @@ The contract is `verification/edge_multiuser/access_tiers/CONTRACT.md` (sections
 are ERRORS M259, M468, M469, M471, M472 and M473.
 
 Sign-in throttle (`app/throttle.py`, table `edge_bff.auth_throttle`, migration `20261116_002`):
-- 10 failed sign-ins per login (case-folded, trimmed) in 15 minutes, counted in PostgreSQL, so every instance and
-  every restart sees the same count. The next try answers 429 `SIGN_IN_RATE_LIMIT` with `details.retry_after_s` and
-  `Retry-After`. A success forgets the login's failures.
+- 10 sign-in tries per login (case-folded, trimmed) in 15 minutes, counted in PostgreSQL, so every instance and
+  every restart sees the same count. Each try is decided and counted in one locked transaction before the password
+  check (`throttle.attempt`: advisory lock on the scope and key hash, window sum, UPSERT), so a concurrent burst
+  reaches the password check at most 10 times (C1 H1, ERRORS M477). The next try answers 429 `SIGN_IN_RATE_LIMIT`
+  with `details.retry_after_s` and `Retry-After`. A success clears the login's count, so only failed tries remain.
 - Every login typed is counted, known or not, and the password is checked before the login is compared, so neither
   the answer nor its timing tells whether an account exists.
 - The client address (right-most `X-Forwarded-For`, else the socket peer) is recorded under `signin_ip` (30 in 15
@@ -701,7 +703,9 @@ shape `{"error": {"code", "message", "details"}}`; messages are plain English wi
 | Status | Code | The page does |
 | --- | --- | --- |
 | 401 | `UNAUTHENTICATED` | goes to sign-in (the only answer that means "signed out") |
-| 403 | `CSRF_INVALID` | reads the session once more and repeats the write once |
+| 401 | `USER_CHANGED` (made by the page, not the server) | another login's session appeared under an open page: the write is not sent, pending writes are dropped, the user state is cleared and the page reloads |
+| 403 | `CSRF_INVALID` (only the CSRF check sends it) | reads the session once more and repeats the write once, only if the session is still the page's own login |
+| 403 | `FORBIDDEN` (any other 403) | keeps the session and shows the refusal; never retried |
 | 403 | `CAPABILITY_REQUIRED` (`details.capability`, `details.display_name`) | keeps the session and shows the words |
 | 403 | `ORIGIN_REJECTED` | unchanged |
 | 404 | `NOT_FOUND` | not found (another user's item reads the same) |
@@ -710,8 +714,10 @@ shape `{"error": {"code", "message", "details"}}`; messages are plain English wi
 | 429 | `SIGN_IN_RATE_LIMIT` (`details.retry_after_s`) | shows the wait message |
 
 `PLAN_EXPIRED`, `MFA_REQUIRED` and `LIMIT_REACHED` are read by the pages already (words in `static/edge-labels.js`,
-`EdgeLabels.access`) and are sent from Phase 1 on. Refusals made by `main.py`'s older `error(code, status)` helper
-(`INVALID_CREDENTIALS`, `ORIGIN_REJECTED`, store and Orc codes) still carry only `code`; the pages decide by the code.
+`EdgeLabels.access`) and are sent from Phase 1 on. Every `main.py` refusal, the older `error(code, status)` helper's
+included (`INVALID_CREDENTIALS`, `ORIGIN_REJECTED`, store and Orc codes), carries `code`, `message` and `details`; a
+code relayed without a message of its own gets its status class's message. Server and page share one English wording
+(`app/errors.py`, `EdgeLabels.access`).
 
 Manual agent routes (M259, M474): `GET /api/v1/dev/manual/steps` and `POST /api/v1/dev/manual/steps/{step_id}` are
 for an owner in `EDGE_ADMIN_OWNERS` only (default `EDGE_OWNER`; 403 `CAPABILITY_REQUIRED`, capability `admin.manual`),
@@ -735,11 +741,16 @@ Shared front-end layer (`shared/`, M471, M473):
   `node shared/build-shell.mjs --check` and `tests/test_storage_registry.py` fail when `static/edge-session.js` is not
   the build of the source: run the build after every edit of the module and commit both files.
 - It owns the error contract above, the session call with CSRF, and the storage registry.
+- Page identity (C1 M1, C2 #2, ERRORS M477): each page keeps the login of its first session read. A later session
+  read of another login is refused with 401 `USER_CHANGED` and the write is never sent, so a CSRF repeat goes out only
+  for the page's own account. A 401, a change of login or the `cleared` broadcast of another page drops the pending
+  writes; on `cleared` an app page reloads (the shell, role `shell`, keeps its own sign-in flow). A page ignores its
+  own broadcasts. The shell repeats a write after `CSRF_INVALID` only when the session read again is its own login.
 - Storage registry: every localStorage, sessionStorage and IndexedDB key of the shell and the pages has one entry in
   `STORAGE`, classed `browser` (how this browser shows EDGE: theme, widths, folds) or `user` (anything of an
   account). Sign-out, or a sign-in with another login than the last one on this browser, removes the `user` keys and
   the IndexedDB `terminal-files` (`clearUserState`). `tests/test_storage_registry.py` fails on a key found in the code
   without an entry: **a new browser storage key needs its entry in `shared/edge-session.ts`, then
   `node shared/build-shell.mjs`.**
-- Terminal drawings kept in the browser while the account cannot be reached are stamped with the login and join only
-  that login's account (M468).
+- Terminal drawings kept in the browser while the account cannot be reached are stamped with the page's identity
+  (never the last-login mark; nothing is kept while it is unknown) and join only that login's account (M468, M477).
