@@ -11,8 +11,11 @@ from fastapi.responses import JSONResponse
 MESSAGES = {
     'UNAUTHENTICATED': 'Your session has ended or you are not signed in. Please sign in again.',
     'CSRF_INVALID': 'This request could not be verified. Reload the page and try again.',
-    'CAPABILITY_REQUIRED': 'This feature is not included in your account.',
-    'SIGN_IN_RATE_LIMIT': 'Too many failed sign-in attempts. Wait a moment, then try again.',
+    'CAPABILITY_REQUIRED': 'This feature is not part of your EDGE plan. Upgrade the plan to use it; you are still signed in.',
+    'PLAN_EXPIRED': 'Your EDGE plan has ended. Renew it to use this again; you are still signed in.',
+    'MFA_REQUIRED': 'This needs your sign-in code. Enter the code from your authenticator app, then try again.',
+    'LIMIT_REACHED': "You have reached your plan's limit. Try again later, or upgrade the plan.",
+    'SIGN_IN_RATE_LIMIT': 'Too many sign-in attempts. Wait a minute, then try again.',
     'INVALID_INPUT': 'Some fields are not valid. Check them and try again.',
     'NOT_FOUND': 'The page or item you asked for was not found.',
     'METHOD_NOT_ALLOWED': 'This kind of request is not supported here.',

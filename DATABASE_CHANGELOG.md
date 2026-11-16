@@ -23,7 +23,7 @@
   - `scripts/provision_edge_bff_login.py` knows the grants (`THROTTLE_GRANTS`, held exactly, TRUNCATE included).
 - **Status:** written; `apps/edge-bff/tests/test_auth_throttle.py` runs it on a disposable PostgreSQL built from the
   migrations (ten failures across two app instances, atomic counts, purge, second run refused, no TRUNCATE, the
-  provisioned login's grants; skipped where no PostgreSQL is available). Integrated edge-bff run 2026-11-16: 276
+  provisioned login's grants; run against a disposable local PostgreSQL 16 in the integrated run below). Integrated edge-bff run 2026-11-16: 276
   passed, 139 skipped. **Not applied to Railway.**
   `APPLIED.sha256` gets its line only after the apply. Order and read-back: EXEC.md EXEC-MU-ACCOUNTS, "Phase 0 deploy
   steps (prepared, not run)".
