@@ -79,7 +79,9 @@ class Store:
         run is marked to stop. One active job per owner stays a database rule; one waiting message per run."""
         fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         with self.connect() as c:
-            c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', (owner,))
+            # C2: a namespaced key like every other edge-bff lock ('backtest:', 'layouts:', ...), so no other lock's key
+            # can equal an owner's run lock
+            c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('jobs:' + owner,))
             row = c.execute('SELECT * FROM edge_bff.jobs WHERE owner_key=%s AND submission_key=%s', (owner, key)).fetchone()
             waiting = c.execute("""SELECT * FROM edge_bff.jobs WHERE owner_key=%s AND input->'next'->>'submission_key'=%s""",
                                 (owner, key)).fetchone()

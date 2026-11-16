@@ -250,7 +250,8 @@ def create_app(settings=None, store=None, orc=None):
     app.state.screeners = screeners
 
     def error(code, status):
-        return JSONResponse(status_code=status, content={'error': {'code': code}})
+        # EXEC-MU-ACCOUNTS Phase 0 (CONTRACT.md section 3): every refusal in the full shape {code, message, details}
+        return refusal(status, code)
 
     @app.exception_handler(StoreError)
     async def store_error(_, exc):
@@ -314,14 +315,15 @@ def create_app(settings=None, store=None, orc=None):
         token = request.cookies.get(COOKIE, '')
         found = await asyncio.to_thread(store.session, token_hash(token)) if re.fullmatch(r'[0-9a-f]{64}', token) else None
         if not found or found['owner_key'] != settings.owner:
-            raise HTTPException(status_code=401, detail='UNAUTHENTICATED')
+            raise Refusal(401, 'UNAUTHENTICATED')
         # EXEC-BACKTEST-REVAMP P5: the session's owner for the routes that read it (backtest.py identity), never a body's
         request.state.owner = found['owner_key']
         return token
 
     async def write(request: Request, token=Depends(session)):
         if not hmac.compare_digest(request.headers.get('x-csrf-token', ''), csrf_token(token, settings.session_secret)):
-            raise HTTPException(status_code=403, detail='CSRF_INVALID')
+            # the only place that answers CSRF_INVALID (the clients re-read the session and retry once on it)
+            raise Refusal(403, 'CSRF_INVALID')
         return token
 
     # The route-table test (tests/test_route_table.py, CONTRACT.md 13.1) finds these in every /api route's dependencies
@@ -537,16 +539,19 @@ def create_app(settings=None, store=None, orc=None):
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):
         # EXEC-MU-ACCOUNTS Phase 0 (CONTRACT.md section 4 "Throttle"): 10 failures per login in 15 minutes, counted in
-        # PostgreSQL for every login typed (known or not, so a refusal says nothing about the account); the client
-        # address is counted too but not enforced until Railway's forwarded address is proved
+        # PostgreSQL for every login typed (known or not, so a refusal says nothing about the account). The try is
+        # decided and counted in one locked step before the password check (C1 H1: a concurrent burst cannot pass the
+        # limit); a success clears the count. The client address is counted on failure but not enforced until
+        # Railway's forwarded address is proved.
         login_key = normal_login(body.login)
-        wait = await asyncio.to_thread(throttle.retry_after, SIGNIN_LOGIN, login_key)
+        wait = await asyncio.to_thread(throttle.attempt, SIGNIN_LOGIN, login_key)
         if wait:
             return refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
-        # the password is checked before the login is compared, so a wrong login costs the same time as a wrong password
+        # the password is checked before the login is compared (against the one verifier, so an unknown login runs the
+        # same scrypt as a known one): a wrong login costs the same time as a wrong password
         password_ok = await asyncio.to_thread(verify_password, body.password, settings.password_verifier)
         if not hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode()) or not password_ok:
-            await asyncio.to_thread(throttle.count, (SIGNIN_LOGIN, login_key), (SIGNIN_IP, client_address(request)))
+            await asyncio.to_thread(throttle.count, (SIGNIN_IP, client_address(request)))
             return error('INVALID_CREDENTIALS', 401)
         await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
         old = request.cookies.get(COOKIE)

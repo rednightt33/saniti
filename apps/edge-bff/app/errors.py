@@ -20,10 +20,37 @@ MESSAGES = {
     'NOT_FOUND': 'The page or item you asked for was not found.',
     'METHOD_NOT_ALLOWED': 'This kind of request is not supported here.',
     'REQUEST_REFUSED': 'This request could not be processed.',
+    'FORBIDDEN': 'This request is not allowed for your account.',
+    'INVALID_CREDENTIALS': 'The login or password is not correct. Check them and try again.',
+    'ORIGIN_REJECTED': 'This request did not come from the EDGE page. Open EDGE again and retry from there.',
+    'REQUEST_TOO_LARGE': 'This request is too large. Send less at once and try again.',
+    'SERVICE_UNAVAILABLE': 'EDGE cannot answer right now. Wait a moment, then try again.',
+    'NOT_READY': 'EDGE is starting. Wait a moment, then try again.',
+    'TERMINAL_UNAVAILABLE': 'Market data cannot be reached right now. Wait a moment, then try again.',
+    'ORC_UNAVAILABLE': 'The assistant cannot be reached right now. Wait a moment, then try again.',
+    'MODELS_UNAVAILABLE': 'The list of models cannot be read right now. Wait a moment, then try again.',
+    'RUN_NOT_FOUND': 'This question was not found.',
+    'RUN_IN_PROGRESS': 'Another question is still being answered. Wait for it to finish or stop it first.',
+    'SUBMISSION_CONFLICT': 'This request was already sent with different content. Send it again as a new request.',
+    'QUEUE_FULL': 'Too many requests are waiting. Wait for one to finish, then try again.',
+    'BACKTEST_NOT_READY': 'Backtests are not available right now. Wait a moment, then try again.',
+    'BACKTEST_NOT_FOUND': 'This backtest was not found.',
+    'RESULT_INTEGRITY': 'This result could not be read back correctly. Run the backtest again.',
+    'CONVERSATION_NOT_FOUND': 'This conversation was not found.',
+    'CONVERSATION_EXPIRED': 'This conversation has expired and can no longer be continued. Start a new one.',
+    'CONVERSATION_RUNNING': 'This conversation is still being answered. Wait for it to finish, then try again.',
+    'RESPONSE_NOT_AVAILABLE': 'This answer is not available yet. Wait for it to finish, then try again.',
+    'EXPORT_NOT_FOUND': 'This download was not found or has expired. Export the table again.',
+    'EXPORT_FAILED': 'The table could not be exported. Try again in a moment.',
+    'OUTPUT_NOT_FOUND': 'This table was not found in the answer.',
+    'PIN_LIMIT': 'Too many answers are pinned in this conversation. Unpin one, then try again.',
+    'BRANCH_FAILED': 'A new conversation could not be started from this answer. Try again in a moment.',
 }
 
 # FastAPI's and Starlette's own refusals by status (a route raises HTTPException with one of these codes as its detail)
-STATUS_CODES = {400: 'INVALID_INPUT', 401: 'UNAUTHENTICATED', 403: 'CSRF_INVALID', 404: 'NOT_FOUND',
+# A 403 is FORBIDDEN, which the clients do not retry: only the CSRF check (main.py write) answers CSRF_INVALID, and it
+# raises it explicitly, never through an HTTPException
+STATUS_CODES = {400: 'INVALID_INPUT', 401: 'UNAUTHENTICATED', 403: 'FORBIDDEN', 404: 'NOT_FOUND',
                 405: 'METHOD_NOT_ALLOWED', 422: 'INVALID_INPUT'}
 
 # The capabilities a Phase 0 route may require, with the name the person sees (CONTRACT.md section 3 details)
@@ -38,9 +65,15 @@ class Refusal(Exception):
         super().__init__(code)
 
 
+def message_of(code, status):
+    """The code's message; a code without one (a code relayed from another service) gets the message of its status
+    class, so every refusal carries a message."""
+    return MESSAGES.get(code) or MESSAGES['SERVICE_UNAVAILABLE' if status >= 500 else 'REQUEST_REFUSED']
+
+
 def refusal(status, code, details=None, headers=None):
     return JSONResponse(status_code=status, headers=headers, content={'error': {
-        'code': code, 'message': MESSAGES.get(code, MESSAGES['REQUEST_REFUSED']), 'details': details or {}}})
+        'code': code, 'message': message_of(code, status), 'details': details or {}}})
 
 
 def capability_required(capability):
@@ -50,7 +83,7 @@ def capability_required(capability):
 
 def http_refusal(exc):
     """A FastAPI/Starlette HTTPException: its detail when it is one of our codes, else the code of its status."""
-    code = exc.detail if isinstance(exc.detail, str) and exc.detail in MESSAGES else \
+    code = exc.detail if isinstance(exc.detail, str) and exc.detail in MESSAGES and exc.detail != 'CSRF_INVALID' else \
         STATUS_CODES.get(exc.status_code, 'REQUEST_REFUSED')
     return refusal(exc.status_code, code, headers=getattr(exc, 'headers', None))
 
