@@ -36,7 +36,7 @@
    - PERIOD_BEFORE_DATA (engine.ts): the primary benchmark has no close on or before the first day of the result
      calendar (result.ts cannot scale a benchmark without a first close). */
 import crypto from 'node:crypto';
-import type { BacktestRequest, BacktestResult, JobContext, JobProgress, SignalsPreview, SignalsPreviewRequest } from '../../edge-bff/backtest/src/core/contract.ts';
+import type { BacktestRequest, BacktestResult, JobContext, JobProgress, PreviewDetail, SignalsPreview, SignalsPreviewRequest } from '../../edge-bff/backtest/src/core/contract.ts';
 import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { DataError, INDEX_TICKER, dataVersion, unknownBasis } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { Cancelled, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
@@ -48,7 +48,8 @@ import { buildResult } from '../../edge-bff/backtest/src/core/result.ts';
 import { sensitivityPlan } from '../../edge-bff/backtest/src/core/robustness.ts';
 import { withThreshold } from '../../edge-bff/backtest/src/core/catalog.ts';
 import type { Condition } from '../../edge-bff/backtest/src/core/contract.ts';
-import { leftOut, previewRow, requestConditions, unlessLeftOut } from '../../edge-bff/backtest/src/core/signals.ts';
+import { EXCLUDED_CODES, emptyTrack, leftOut, periodSignals, previewRow, requestConditions, track, unlessLeftOut } from '../../edge-bff/backtest/src/core/signals.ts';
+import type { BarMap } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from './config.ts';
 import { brokerDataThrough, loadMarket } from './load.ts';
 import type { Bundle, PlannedClient } from './load.ts';
@@ -239,7 +240,7 @@ export async function runSignals(request: unknown, refs: Refs, env: RunEnv, hook
     });
   const ihsg = (loaded.tickers.get(INDEX_TICKER) as LoadedTicker).prices!, classification = classificationOf(refs);
   const req = { entry: q.entry }, active = requestConditions(req), rows: SignalsPreview['rows'] = [], excluded = [...loaded.excluded];
-  let done = 0;
+  let done = 0, detail: PreviewDetail | undefined;
   for (const ticker of checked.tickers) {
     stop();
     const t = loaded.tickers.get(ticker);
@@ -248,9 +249,32 @@ export async function runSignals(request: unknown, refs: Refs, env: RunEnv, hook
         ...(t.broker_columns ? { broker: { columns: t.broker_columns, classification, basis: t.broker_basis ?? unknownBasis(t.corporate_actions ?? []) } } : {}) });
       const row = unlessLeftOut(ticker, excluded, () => previewRow(calc, t.prices!.dates, req, q.period.from, q.period.to, active));
       if (row) rows.push({ ticker, ...row });
+      if (q.detail?.ticker === ticker) detail = previewDetail(calc, ticker, t.prices!.dates, q);
     }
     hooks.progress?.({ phase: 'signals', done: ++done, total: checked.tickers.length });
   }
   const left = leftOut(excluded, rows.length, 'tickers', 'preview');                        // UNIVERSE_EMPTY when none is left
-  return { data_version: await versionOf(loaded, checked.columns, classification), rows, warnings: left ? [left] : [] };
+  return { data_version: await versionOf(loaded, checked.columns, classification), rows, warnings: left ? [left] : [], ...(detail ? { detail } : {}) };
+}
+
+/** Stage D (D6): the detail ticker's condition tracks over its own bars inside the period, with the preview's rules
+    (signals.ts periodSignals `portfolio`: a condition without a value on those bars is false; the ticker's data that
+    cannot serve the strategy is the detail's error, the code a run leaves the stock out with). */
+function previewDetail(calc: Calc, ticker: string, dates: readonly string[], q: SignalsPreviewRequest): PreviewDetail {
+  const req = { entry: q.entry, ...(q.detail?.exit_signals ? { exit: { signals: q.detail.exit_signals } } : {}) };
+  const none = { ticker, from: null, to: null, conditions: [], exit_conditions: [], entry: emptyTrack(), exit: emptyTrack() };
+  try {
+    const { first, last, sig } = periodSignals(calc, dates, req as never, requestConditions(req as never), q.period.from, q.period.to, true);
+    if (!sig) return none;
+    const bar = new Int32Array(dates.length).fill(-1);
+    for (let j = first; j <= last; j++) bar[j] = j - first;
+    const m = { bar, first, last } as unknown as BarMap;
+    return { ticker, from: dates[first], to: dates[last],
+      conditions: sig.entryConditions.map(x => ({ condition_id: x.id, track: track(x.s, m) })),
+      exit_conditions: sig.exitConditions.map(x => ({ condition_id: x.id, track: track(x.s, m) })),
+      entry: track(sig.entry, m), exit: track(sig.exit, m) };
+  } catch (e) {
+    if (!(e instanceof ValidationError) || !EXCLUDED_CODES.includes(e.code)) throw e;
+    return { ...none, error: { code: e.code, ...(e.field ? { field: e.field } : {}), message: e.message } };
+  }
 }

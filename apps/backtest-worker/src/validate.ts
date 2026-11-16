@@ -69,8 +69,9 @@ const FIELDS: Record<string, string[]> = {
   indicator: ['id', 'enabled', 'kind', 'indicator', 'params', 'lhs', 'op', 'rhs'],
   price_action: ['id', 'enabled', 'kind', 'type', 'params', 'op', 'value'],
   flow: ['id', 'enabled', 'kind', 'type', 'params', 'op', 'value'],
-  preview: ['schema_version', 'tickers', 'period', 'entry'],
+  preview: ['schema_version', 'tickers', 'period', 'entry', 'detail'],
   preview_period: ['from', 'to'],
+  preview_detail: ['ticker', 'exit_signals'],
 };
 const CONDITION_KINDS = ['indicator', 'price_action', 'flow'];
 const SIDE: Record<string, string[]> = { price: ['type'], output: ['type', 'output'], value: ['type', 'value'] };
@@ -268,15 +269,25 @@ export function checkSignalsRequest(input: unknown, refs: References, cfg: Pick<
   if (!isObject(input)) fail('INVALID_REQUEST', 'request', 'The request must be a JSON object.');
   const q = input as unknown as SignalsPreviewRequest;
   only(q, 'preview', ''); only(q.period, 'preview_period', 'period'); entryFields(q.entry, 'entry');
+  // Stage D (D6): the detail ticker's tracks, with its exit signal conditions checked as a run's exit.signals
+  only(q.detail, 'preview_detail', 'detail');
+  const exit = isObject(q.detail) ? q.detail.exit_signals : undefined;
+  if (isObject(q.detail)) { only(exit, 'signals', 'detail.exit_signals'); if (isObject(exit)) conditionFields(exit.conditions, 'exit.signals.conditions') }
   if (q.schema_version !== 1) fail('INVALID_REQUEST', 'schema_version', 'schema_version must be 1.');
   if (!isObject(q.period)) fail('INVALID_PERIOD', 'period', 'period is required.');
   if (!isIsoDate(q.period.from)) fail('INVALID_PERIOD', 'period.from', 'period.from must be a date YYYY-MM-DD.');
   if (!isIsoDate(q.period.to)) fail('INVALID_PERIOD', 'period.to', 'period.to must be a date YYYY-MM-DD.');
   if (q.period.from > q.period.to) fail('INVALID_PERIOD', 'period.to', 'period.to must not be before period.from.');
   const tickers = pickedStocks(q.tickers, refs, cfg.limits.max_portfolio_tickers, 'tickers');
-  const active = requestConditions({ entry: q.entry });
+  if (q.detail !== undefined) {
+    if (!isObject(q.detail) || typeof q.detail.ticker !== 'string' || !tickers.includes(q.detail.ticker))
+      fail('INVALID_REQUEST', 'detail.ticker', 'detail.ticker must be one of the picked tickers.');
+    if (exit !== undefined && !isObject(exit)) fail('INVALID_REQUEST', 'detail.exit_signals', 'detail.exit_signals must be an object {logic, conditions}.');
+  }
+  const active = requestConditions({ entry: q.entry, ...(isObject(exit) ? { exit: { signals: exit } } : {}) } as never);
   entryTypes(q.entry);
-  withinConditions([[active.entry, 'entry.conditions']], cfg.limits.max_conditions);
-  const reads = checkConditions(listed(q.entry.conditions, 'entry.conditions'), cfg.flow, refs.brokers, cfg.limits.max_flow_series, rights);
+  withinConditions([[active.entry, 'entry.conditions'], [active.exit, 'exit.signals.conditions']], cfg.limits.max_conditions);
+  const reads = checkConditions([...listed(q.entry.conditions, 'entry.conditions'), ...(isObject(exit) ? listed(exit.conditions, 'exit.signals.conditions') : [])],
+    cfg.flow, refs.brokers, cfg.limits.max_flow_series, rights);
   return { tickers, broker: reads.broker, columns: reads.columns };
 }

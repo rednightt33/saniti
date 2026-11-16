@@ -24,7 +24,7 @@ import type { CellRun } from '../../edge-bff/backtest/src/core/ledger.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { assertFiniteJson, buildResult } from '../../edge-bff/backtest/src/core/result.ts';
 import { sensitivityPlan } from '../../edge-bff/backtest/src/core/robustness.ts';
-import { previewRow, requestConditions } from '../../edge-bff/backtest/src/core/signals.ts';
+import { periodSignals, previewRow, requestConditions, track } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from '../src/config.ts';
 import { WorkerError } from '../src/errors.ts';
 import { PlannedClient } from '../src/load.ts';
@@ -646,6 +646,31 @@ test('grammar conditions: the preview reads IHSG for vs_index; refusals name the
   assert.deepEqual(await refusal(runJob({ ...q, entry: universe }, { prior_trials: [] }, refs, env())), ['CONDITION_UNAVAILABLE', 'entry.conditions[0].test.metric']);
   const bad = { ...entry, conditions: [{ id: 'b1', kind: 'test', test: { kind: 'value', metric: RSI, op: 'between', value: 70, value2: 30 } }] } as BacktestRequest['entry'];
   assert.deepEqual(await refusal(runJob({ ...q, entry: bad }, { prior_trials: [] }, refs, env())), ['INVALID_CONDITION', 'entry.conditions[0].test.value2']);
+});
+
+test('Stage D (D6): the preview\'s detail ticker: each condition, the entry and the exit signals as tracks on its own bars in the period', async () => {
+  const q = pageDefault('UNVR'), entry = grammarEntry(), period = { from: q.period.from, to: q.period.to };
+  const exit_signals = { logic: 'any', conditions: [{ id: 'x1', kind: 'test', test: { kind: 'value', metric: RSI, op: 'gt', value: 70 } }] } as BacktestRequest['exit']['signals'];
+  const p = await runSignals({ schema_version: 1, tickers: ['UNVR', 'BBCA'], period, entry, detail: { ticker: 'UNVR', exit_signals } }, refs, env());
+  const d = p.detail!, T = FX.get('UNVR')!.T;
+  // the tracks the core computes for the same request on the same bars (tickerSignals with the preview's rules)
+  const req = { entry, exit: { signals: exit_signals } }, act = requestConditions(req as never);
+  const calc = new Calc(series('UNVR').bars, undefined, { ticker: 'UNVR', dates: T, index: { dates: FX.get('IHSG')!.T, bars: series('IHSG').bars } });
+  const ps = periodSignals(calc, T, req as never, act, period.from, period.to, true), sig = ps.sig!;
+  const bar = new Int32Array(T.length).fill(-1); for (let j = ps.first; j <= ps.last; j++) bar[j] = j - ps.first;
+  const m = { bar, first: ps.first, last: ps.last } as never;
+  assert.equal(d.ticker, 'UNVR'); assert.equal(d.from, T[ps.first]); assert.equal(d.to, T[ps.last]);
+  assert.deepEqual(d.conditions, sig.entryConditions.map(x => ({ condition_id: x.id, track: track(x.s, m) })));
+  assert.deepEqual(d.exit_conditions, [{ condition_id: 'x1', track: track(sig.exitConditions[0].s, m) }]);
+  assert.deepEqual(d.entry, track(sig.entry, m)); assert.deepEqual(d.exit, track(sig.exit, m));
+  assert.equal(d.entry.on.length, p.rows.find(r => r.ticker === 'UNVR')!.entry_signals, 'the same entry events as the row');
+  assert.ok(d.exit.runs.length > 0, 'the exit condition is true somewhere');
+  // no detail asked: none answered; a detail ticker that is not picked, a field it does not have: refused with the field
+  assert.equal((await runSignals({ schema_version: 1, tickers: ['UNVR'], period, entry }, refs, env())).detail, undefined);
+  assert.deepEqual(await refusal(runSignals({ schema_version: 1, tickers: ['UNVR'], period, entry, detail: { ticker: 'BBCA' } }, refs, env())), ['INVALID_REQUEST', 'detail.ticker']);
+  assert.deepEqual(await refusal(runSignals({ schema_version: 1, tickers: ['UNVR'], period, entry, detail: { ticker: 'UNVR', chart: 1 } }, refs, env())), ['UNKNOWN_FIELD', 'detail.chart']);
+  const badExit = { logic: 'any', conditions: [{ id: 'x1', kind: 'test', test: { kind: 'value', metric: RSI, op: 'between', value: 70, value2: 30 } }] };
+  assert.deepEqual(await refusal(runSignals({ schema_version: 1, tickers: ['UNVR'], period, entry, detail: { ticker: 'UNVR', exit_signals: badExit } }, refs, env())), ['INVALID_CONDITION', 'exit.signals.conditions[0].test.value2']);
 });
 
 test('P3: a job with a Flow indicator in the grammar reads the broker rows as columns; refusals name the field', async () => {

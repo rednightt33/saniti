@@ -328,12 +328,28 @@ export interface ApiError { error: { code: string; field?: string; message?: str
 export interface SignalsPreviewRequest {
   schema_version: 1; tickers: string[]; period: { from: string; to: string };
   entry: BacktestRequest['entry'];
+  /** EXEC-BACKTEST-REVAMP Stage D (D6): one of `tickers` whose condition tracks the page draws (the chart's ticker); the
+      page computes its own indicator, price-action and flow cards and asks the worker for the conditions it cannot
+      compute (the grammar and the point-in-time Flow indicators, which run on the worker only: CONTRACT.md 13.9).
+      exit_signals: the exit signal conditions, read for this ticker only (as a run's exit.signals) */
+  detail?: { ticker: string; exit_signals?: BacktestRequest['exit']['signals'] };
+}
+/** The tracks of the preview's detail ticker over its own bars inside the period: index 0 is its bar on `from`, the last
+    its bar on `to` (from and to null: no bar inside the period). error: its data cannot serve the strategy (an error of
+    signals.ts EXCLUDED_CODES; the ticker is then listed in TICKERS_EXCLUDED too). */
+export interface PreviewDetail {
+  ticker: string; from: string | null; to: string | null;
+  conditions: { condition_id: string; track: SignalTrack }[];        // the enabled entry conditions, request order
+  exit_conditions: { condition_id: string; track: SignalTrack }[];   // the enabled exit signal conditions
+  entry: SignalTrack; exit: SignalTrack;                             // the combined entry and exit-signal states
+  error?: { code: string; field?: string; message: string };
 }
 export interface SignalsPreview {
   data_version: string;
   rows: { ticker: string; entry_signals: number; last_signal: string | null }[];   // the picked stocks that are counted, ticker order
   warnings: Warning[];             // TICKERS_EXCLUDED, as the run's: the stocks left out (no published files, or their own
                                    // data cannot serve the entry rule); every stock left out is UNIVERSE_EMPTY, not a preview
+  detail?: PreviewDetail;          // the request's detail ticker (Stage D, D6)
 }
 
 /** GET catalog: what the page may offer (built by the worker from its registry, catalog.ts and the published data). */
