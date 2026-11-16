@@ -89,6 +89,9 @@ const titleLines = alt => page.evaluate(a => {
 /* a phone (the design): the open builder covers the main column; the chart and its table are shown once it is closed */
 const showChart = async () => { if (!(await page.evaluate(() => document.getElementById('main').getBoundingClientRect().width))) { await page.click('#panelTg'); await page.waitForTimeout(200) } };
 const showBuilder = async () => { if (await page.evaluate(() => document.body.classList.contains('bcol'))) { await page.click('#bRail'); await page.waitForTimeout(200) } };
+/* Run as the user finds it: the header's button in the Signals view, the builder's in its foot (the Results view has
+   no header Run); the one shown */
+const clickRun = () => page.locator('.js-run:visible').first().click();
 await at('boot', async () => {
   await boot();
   expect((await text('#lastRun')).includes('Not run yet'), 'the page does not open in "Not run yet"');
@@ -127,7 +130,7 @@ await at('condition window', async () => {
   expect(await page.evaluate(() => document.activeElement?.id) === 'wsOpen', 'the focus did not go back to the search box of the builder');
 });
 const runAndWait = async () => {
-  await page.click('#runTop');
+  await clickRun();
   await page.waitForFunction(() => /^Done in /.test(document.getElementById('runNote').textContent), null, { timeout:30000 });
 };
 await at('run (single)', async () => {
@@ -205,7 +208,7 @@ await at('portfolio mode: the reference\'s rows', async () => {
 });
 await at('run with no stock picked', async () => {
   const note = await text('#runNote');
-  await page.click('#runTop');
+  await clickRun();
   await toastText(/^Add at least one stock$/);
   expect(await text('#runNote') === note && !(await text('#lastRun')).includes('Running'), 'a run started without a stock');
 });
@@ -539,7 +542,7 @@ await at('flow: default end and FLOW_DATA_THROUGH', async () => {
   const to = page.locator('#builder [data-k="to"]'), [value, max] = await to.evaluate(el => [el.value, el.max]);
   expect(value < max, `the default end ${value} is not before the last price day ${max}`);
   await to.fill(max); await to.evaluate(el => el.blur());
-  await page.click('#runTop');
+  await clickRun();
   const msg = await toastText(/^The broker data is published through/);
   expect(msg.startsWith(`The broker data is published through ${value}:`), `the toast does not name the default end ${value}: ${msg}`);
   expect(!/^Done in /.test(await text('#runNote')), 'the refused run finished');
@@ -571,7 +574,7 @@ await at('slow catalog: the page is ready before it, the lists say they are load
   const opts = await page.locator('#builder [data-k="ticker"] option').allInnerTexts();
   expect(opts.length === 2 && opts[1] === 'Loading tickers…', `the ticker list before the catalog: ${JSON.stringify(opts)}`);
   expect(!(await page.locator('#runTop').isDisabled()), 'Run is disabled before the catalog');
-  await page.click('#runTop');
+  await clickRun();
   await page.waitForFunction(() => /^Done in /.test(document.getElementById('runNote').textContent), null, { timeout:15000 });
   const after = await page.locator('#builder [data-k="ticker"] option').allInnerTexts();
   expect(after.length > 2 && !after.some(x => /Loading/.test(x)), `the ticker list after the catalog: ${after.length} options`);
@@ -629,7 +632,7 @@ await at('reduced motion: the ring keeps its one speed (0.15 s), it does not sto
 await at('a run shows the loading ring in its note while it waits', async () => {
   await page.goto(`${origin}/backtest-app/?slowcat=1500`);
   await page.waitForSelector('#builder .bs.on', { timeout:2000 });
-  await page.click('#runTop');
+  await clickRun();
   expect(await page.locator('#runNote .ml-spin').count() === 1, `the run note while the run waits: "${await text('#runNote')}"`);
   await page.waitForFunction(() => /^Done in /.test(document.getElementById('runNote').textContent), null, { timeout:15000 });
   expect(await page.locator('#runNote .ml-spin').count() === 0, 'the ring stays after the run');
