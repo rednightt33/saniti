@@ -103,8 +103,11 @@ export function drawSignalLanes() {
   // "loading" with the small ring in place of their switch, not filled
   const waits = (r: Row | null, l: string) => r ? r.wait : l === '∩' && A.wait.entry;
   lanes.forEach(([l, r], k) => {
-    const y = narrow ? LY(k) : Y(k) + (rh - 18) / 2, dark = !r, t = (r ? catOf(r.c).label : l === '∩' ? 'Entry signal' : 'Trades') + (waits(r, l) ? ' · loading' : '');
     const room = narrow ? Math.floor((W - 90) / 6.5) : 17;
+    // a waiting lane: "· loading" after its name where it fits whole, never cut ("Broker net buy ·…"); the ring in place
+    // of its switch ("<name>: loading") says it either way
+    const name = r ? catOf(r.c).label : l === '∩' ? 'Entry signal' : 'Trades', more = waits(r, l) ? ' · loading' : '';
+    const y = narrow ? LY(k) : Y(k) + (rh - 18) / 2, dark = !r, t = name.length + more.length <= room ? name + more : name;
     add(`<g opacity="${r && r.off ? 0.45 : 1}"><rect x="8" y="${y}" width="18" height="18" rx="3" fill="${dark ? 'var(--text)' : 'var(--sel)'}"/><text x="17" y="${y + 13}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${dark ? 'var(--surface)' : 'var(--text-2)'}">${l}</text>${r ? `<rect x="33" y="${y + 5}" width="8" height="8" rx="2" fill="${r.col}"/>` : ''}<text x="${r ? 47 : 34}" y="${y + 13}" font-size="11.5" font-weight="600" fill="var(--text)">${esc(t.length > room ? t.slice(0, room - 1) + '…' : t)}</text></g>`);
   });
   host.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${out.join('')}</svg>` + lanes.map(([l, r], k) => {
