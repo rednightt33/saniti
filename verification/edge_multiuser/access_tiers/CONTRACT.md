@@ -117,6 +117,7 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 | `POST /api/v1/auth/sign-out-all` | — | every session of the user |
 | `POST /api/v1/auth/mfa/enroll` | — | `otpauth://` URI plus 10 recovery codes, shown once; admin only |
 | `POST /api/v1/auth/mfa/verify` | `code` or `recovery_code` | sets `mfa_passed_at` |
+| `GET /api/v1/auth/config` | — | public, no session: `{"multiuser": bool}`. The sign-in page shows "Create account" and "Forgot password?" only when true (added 2026-11-16 for the page builder) |
 | `GET /api/v1/auth/session` | — | today's keys unchanged (`authenticated`, `login`, `csrf_token`, `capabilities` = configuration flags) plus `username` and `access: {plan, role, status, expires_at, mfa_ok, capabilities:[…], limits:{…}, version, next: null/"verify"/"mfa"/"pay"}` |
 
 **Registration rules:**
