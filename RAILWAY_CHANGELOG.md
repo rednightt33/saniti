@@ -1,5 +1,46 @@
 # Railway changelog
 
+## 2026-11-16 — EXEC-MU-ACCOUNTS Phase 1 deploy (switch off), steps 1-8
+
+- **User:** go 2026-11-16 (EXEC.md EXEC-MU-ACCOUNTS: "B: go Fase 0 + Fase 1", "1 A, 2 A, 3 A, 4 A": merge to `main`
+  in steps behind `EDGE_MULTIUSER`, which stays off).
+- **Before:** the C3 B1 fix (`331aec25`) and the C4 fix round (`2433e50a`) landed; C4's re-check found nothing blocking.
+  Local suites on the final code: edge-bff 513 passed (with Chromium and Postgres), Terminal vitest 948 passed. Branch
+  CI green on `f34fecdc` (Backend tests, look-ahead gate, generated files; image builds and page smoke green on
+  `2433e50a`, the same code).
+- **Step 1, M340:** jobs `fdc4ed8a` and `9522d9cd`, and `94d3230e` right before the push: 0 active EDGE jobs and
+  0 running orc turns each time.
+- **Step 2:** migrations `20261116_003`, `20261117_001` and `20261117_002`, DRYRUN job `7b4c50ee`, APPLY job
+  `c039bac9`, read back (DATABASE_CHANGELOG.md). Not a large update: no Postgres restart.
+- **Step 3:** the login's grants equal the expected ones (the `login_grants` probe of step 2). The provisioning script
+  was not re-run.
+- **Step 4:** `EDGE_CODE_SECRET` and `EDGE_MFA_KEY` were set on edge-bff (dev, `--skip-deploys`).
+  - The values were made in-process and never printed.
+  - Read back: length 64 each, different from each other.
+  - `scripts/railway_reference_consumers.py`: no service references either.
+  - `EDGE_MULTIUSER`, `EDGE_EMAIL_MODE`, `EDGE_EMAIL_ENABLED` and `EDGE_SESSION_IDLE_SECONDS` stay unset.
+- **Step 5:**
+  - `main` was fast-forwarded `47dce4e3` → `f34fecdc`. The changes were only edge-bff, three scripts, migrations and
+    records.
+  - edge-bff deployment `fc005323` waited for CI, then reached **SUCCESS**. Rollback target: `150686f9` (`637b0b96`).
+  - market-ai-orc was SKIPPED (its watch paths were not touched).
+  - Startup log: no error and no `account_seed_failed`.
+- **Step 6, from outside (24 of 24 checks):**
+  - `/ready` 200; `/api/v1/auth/config` gives `{"multiuser": false}`.
+  - These ten routes answer 404 `NOT_FOUND` without a session: register, register/verify, code/resend,
+    password/forgot, password/reset, password/change, sign-out-all, mfa/enroll, mfa/verify, and the Resend hook.
+  - The pages `/register`, `/verify`, `/forgot`, `/reset`, `/mfa` and `/login` answer 200.
+  - `/qrcode-generator.js` answers 200.
+  - The served `/edge-session.js` and `/edge-client.js` hold the `access.seed` rule.
+  - No `edge_registration` cookie was set.
+  - The session without a cookie gives 401 `UNAUTHENTICATED`; an unknown login gives 401 `INVALID_CREDENTIALS`.
+  - Still open: the user's own sign-in, with every tab and My metrics as before.
+- **Step 7:** job `036d0701`, read only, read the seed back (DATABASE_CHANGELOG.md).
+- **Step 8:** `.railway/railway.ts` was edited by hand to add `EDGE_CODE_SECRET: preserve()` and
+  `EDGE_MFA_KEY: preserve()` on edge-bff.
+  - `railway config plan`: "already up to date".
+  - `main` was fast-forwarded to `fcd134e8`. Every GitHub service has watch paths, so no deploy followed.
+
 ## 2026-11-16 — EXEC-MU-ACCOUNTS Phase 0 deploy, steps 1-4
 
 - **User:** go 2026-11-16 (EXEC.md EXEC-MU-ACCOUNTS: "B: go Fase 0 + Fase 1", "1 A, 2 A, 3 A, 4 A"; option A for

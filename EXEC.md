@@ -15548,7 +15548,7 @@ so the migration goes first; Orc refuses a request without an owner, which every
   memutuskan username akun admin (misalnya tetap `edge`, dengan pengecualian dari daftar cadangan untuk seed) dan
   mengisi email untuk reset password dan MFA. Tanpa itu, login lama `edge` tidak berlaku saat saklar menyala.
 
-### Phase 1 deploy steps (running since 2026-11-16: steps 1-4 done)
+### Phase 1 deploy steps (run 2026-11-16: steps 1-8, 10 and 11 done; the user's own sign-in of step 6 waits)
 
 Prepared 2026-11-17 by builder B5 for the main agent. Code: `git diff 47dce4e3..HEAD` on branch
 `claude/pensive-feynman-4ahfe3` (integrated at `925d1b1e`, then the checkers' fix rounds up to `c2e7885c`, ERRORS
@@ -15573,7 +15573,11 @@ files; `APPLIED.sha256` and `DATABASE_CHANGELOG.md` updated. Step 3: the `login_
 expected grants for all eleven tables (the provisioning script was not re-run). Step 4: `EDGE_CODE_SECRET` and
 `EDGE_MFA_KEY` set on edge-bff (dev) with `--skip-deploys`, made in the process, never printed; read back: length 64
 each, different; no service references either. `EDGE_MULTIUSER`, `EDGE_EMAIL_MODE`, `EDGE_EMAIL_ENABLED` and
-`EDGE_SESSION_IDLE_SECONDS` stay unset.
+`EDGE_SESSION_IDLE_SECONDS` stay unset. Step 5: M340 job `94d3230e` (0 and 0); `main` `47dce4e3` → `f34fecdc`;
+edge-bff `fc005323` SUCCESS after CI (rollback target `150686f9`); orc SKIPPED. Step 6 from outside: 24 of 24 checks
+(RAILWAY_CHANGELOG.md); the user's own sign-in is still open. Step 7: job `036d0701`, the seed as expected (one admin
+row `admin_1` on `edge-private`, scrypt verifier, nothing else). Step 8: `preserve()` for both secrets, plan up to date,
+`main` `fcd134e8`. Step 10: records written. Step 11: no `POSTGRES_MEMORY_CHECK READY` line; no restart.
 
 What changes for the current user with the switch off: nothing in sign-in or the tabs. Two things are new and visible
 in the data: user #1 is seeded into `edge_bff.users` at the first start, and the shell starts copying the `sync`

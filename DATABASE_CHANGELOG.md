@@ -21,7 +21,13 @@
     eleven tables; `public_grants` empty; sequences USAGE only;
   - every new table 0 rows and readable as `edge_bff_runtime`; every table commented.
 - **Not a large update** (small empty tables): no Postgres restart (AGENTS.md, Postgres memory).
-- **Next:** edge-bff seeds user #1 at its first start after the Phase 1 deploy; the seed read-back is runbook step 7.
+- **Seed, read back** (job `036d0701`, READ ONLY, after edge-bff `fc005323` started):
+  - one `users` row: `user_id` 1, `owner_key` `edge-private`, username `admin_1`, role `admin`, status `active`, no
+    email, `requested_username` NULL, no `registration_hash`;
+  - one `password` identity whose subject is the user id and whose verifier has the scrypt shape (the copy of
+    `EDGE_PASSWORD_VERIFIER`);
+  - no codes, MFA rows, recovery codes, outbox rows, audit rows or account sessions;
+  - no preferences yet: they come with the first load of EDGE after the deploy.
 
 ## 2026-11-17 — EDGE registration bound to its browser, MFA failure counts and locks (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 1 fix round) — applied 2026-11-16 (job `c039bac9`, entry above)
 
