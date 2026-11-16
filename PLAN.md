@@ -1088,9 +1088,24 @@ pendaftaran sendiri plus kode email. Approval untuk merencanakan, belum "go" eks
   USD 10/bulan) atau verifikasi merek. Kontrol akses halaman dan data per user tetap dikerjakan di BFF pada kedua pilihan.
 - **Keputusan user, 2026-11-16:** "Bangun sendiri di BFF" (opsi A: tabel user di `edge_bff`, scrypt, kode email di database
   kita, sesi cookie BFF tetap seperti sekarang; tanpa Supabase dan FreeSend).
-- **Pertanyaan terbuka:** (1) domain sendiri untuk email (SPF/DKIM) dan layanan email lewat HTTPS API, atau Gmail SMTP sebagai
-  TEMPORARY selama domain belum ada; (2) Google sign-in ikut di tahap 1 atau menyusul; (3) siapa boleh daftar (langsung aktif,
-  menunggu persetujuan admin, atau daftar email tertentu); (4) isian wajib form; (5) chat AI dibuka untuk user baru atau belum.
+- **Keputusan user, 2026-11-16 (kata user):** "Resend / Beli domain / 5 menit, langsung masuk, 8 karakter saja, MFA untuk
+  admin, menyusul. Semua for now, isian wajib seperti First Name, Last Name, ID, Email, Phone Number, email dll basic practice
+  saja." Artinya: email lewat Resend dengan domain sendiri (user membeli domain dan menyiapkan Resend); kode email berlaku
+  5 menit; user langsung masuk setelah kode registrasi benar (reset password tetap diarahkan ke halaman login); password
+  minimal 8 karakter (catatan: NIST/OWASP meminta 15 bila password satu-satunya faktor; dimitigasi dengan cek password bocor
+  dan pembatas per akun); MFA wajib untuk admin; login Google menyusul; semua orang boleh daftar untuk saat ini; isian
+  wajib nama depan, nama belakang, ID, email, nomor telepon.
+- **Arah arsitektur dari user, 2026-11-16 (kata user):** "setiap tab bisa diakses oleh user. Yang berbeda-beda, ada yang versi
+  admin, ada yang versi free, ada yang versi berbayar. Begitupun juga informasi atau konten yang ada di dalam masing-masing
+  setiap tab ... arsitektur harus se-fleksibel mungkin, dimana kita bisa gatekeep informasi-informasi di dalam satu tab
+  tertentu, tapi membuka informasi-informasi yang lain." Ditambah dashboard admin (jumlah user terdaftar, kapan login,
+  status/paket, tanggal kedaluwarsa) dan "ketika user klik login, they have to pay immediately. Nanti saya akan pilih payment
+  gateway, tapi for now kita siapkan dulu arsitekturnya. Sehingga nanti tinggal plug and play."
+- **Langkah berikut (disiapkan, belum dijalankan; user: "Konfirmasi saja dulu"):** inspeksi arsitektur read-only oleh 10
+  sub-agent Opus 5.5 medium, prompt di `verification/edge_multiuser/access_tiers/INSPECTION_PROMPTS.md`; hasilnya menjadi
+  rencana implementasi untuk "go".
+- **Pertanyaan terbuka:** (1) arti "ID" di form (nomor KTP/NIK, username, atau lainnya); (2) chat AI per paket, kini mengikuti
+  katalog kemampuan per paket; (3) payment gateway (dipilih user nanti).
 
 ## TERMINAL-IND-CARDS — dipindah ke `EXEC.md` EXEC-IND-CARDS (go 2026-11-01: "jalankan TERMINAL-IND-CARDS as well")
 
