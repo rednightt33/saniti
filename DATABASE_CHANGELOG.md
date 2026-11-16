@@ -1,5 +1,64 @@
 # Database changelog
 
+## 2026-11-17 — EDGE pending usernames and Resend webhook deliveries (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 1) — written, NOT applied yet
+
+- **User:** go 2026-11-16 for EXEC-MU-ACCOUNTS Phase 0 + Phase 1 ("B: go Fase 0 + Fase 1"; EXEC.md EXEC-MU-ACCOUNTS).
+  Operational schema `edge_bff`, no market data, no catalog row; not in `DATABASE_SCHEMA.md` (schema `public` only).
+- **`20261117_001_edge_bff_accounts_registration.sql`** (sha256 `ac27578425f86df6fe7a8df902f78595577f7ba06678e2bfc0345a19cc69f730`),
+  after `20261116_003` (its preflight refuses to run without `edge_bff.users`, and a second run):
+  - `edge_bff.users.username` may be NULL, only for a pending registration; the new column `requested_username`
+    (same rule as `username`, reserved names refused) holds the name asked for until the email code is proved, when
+    it becomes `username` (or `USERNAME_TAKEN`), so a pending registration never holds a name (contract section 4).
+    CHECK `users_username_or_pending`: a username, or status `pending` with a requested username.
+  - `edge_bff.email_hook_events` (`svix_id` primary key, `event_type`, `received_at`): each signed Resend webhook
+    delivery once, so a repeated delivery changes nothing (contract section 5).
+  - `edge_bff_runtime` gets SELECT, INSERT on `email_hook_events` only, PUBLIC nothing (verify block).
+  - Rollback body in the file (deletes pending registrations, which hold no username; deploy the previous edge-bff
+    first).
+- **Status:** written, tested in the edge-bff suite (integrated run at `925d1b1e`: 342 passed, 146 skipped without a
+  browser); **not applied to Railway**. It is applied together with `20261116_003` (EXEC.md EXEC-MU-ACCOUNTS, "Phase 1
+  deploy steps"; job params `verification/edge_multiuser/jobs/migration20261116_003_20261117_001{,_apply}.params.json`).
+  `APPLIED.sha256` gets its line only after the apply.
+
+## 2026-11-16 — EDGE accounts foundation (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 1) — written, NOT applied yet
+
+- **User:** go 2026-11-16 for EXEC-MU-ACCOUNTS Phase 0 + Phase 1 (EXEC.md EXEC-MU-ACCOUNTS; contract
+  `verification/edge_multiuser/access_tiers/CONTRACT.md` sections 1, 2, 4 and 4b). Operational schema `edge_bff`, no
+  market data, no catalog row; not in `DATABASE_SCHEMA.md` (schema `public` only), as `20261116_002`.
+- **`20261116_003_edge_bff_accounts_users.sql`** (sha256 `d5e2352bca935702d037a5e1abd252ac073849f34bd928748d46d92201dd4138`),
+  after `20261116_002` (preflight: the schema, the role and `auth_throttle` exist; no account table or new session
+  column exists yet):
+  - `users`: `user_id` identity primary key; `owner_key` UNIQUE, immutable (trigger `users_owner_key_rules` refuses a
+    change of `owner_key` or `user_id`, and any key other than `u_` + 24 hexadecimal digits except the first row, the
+    seed; reserved `default`, `someone-else`, `golden-*`, `test-*`); `username` UNIQUE (`^[a-z0-9_]{3,30}$`, reserved
+    admin, root, support, edge, system); `email` UNIQUE, lower-case, required for every generated account; names,
+    `phone_e164`; `role` admin/user; `status` pending/active/disabled; `created_at`, `last_sign_in_at`. Partial unique
+    index `users_one_seed`: at most one row with a key edge-bff did not make.
+  - `identities` (primary key `provider`, `subject`; UNIQUE `user_id`, `provider`; a password identity's subject is
+    the user id and its verifier the scrypt format), `email_codes` (HMAC hash, `expires_at` = created + 300 s,
+    `attempts` 0-5, `target_email` only for an email change; one live code per user and purpose, partial unique index),
+    `mfa_totp` (16-byte nonce, `confirmed_at`, `last_step`; the TOTP secret is derived from `EDGE_MFA_KEY`, never
+    stored), `mfa_recovery_codes` (hashed), `email_outbox` (idempotency key UNIQUE, status, lease, expiry, payload),
+    `email_suppression`, `admin_audit` (no UPDATE or DELETE grant), `user_preferences` (primary key `owner_key`,
+    `pref_key`; value at most 64 KiB; `version`).
+  - `edge_bff.sessions` gains `user_id` (FK, NULL for a switch-off session), `last_seen_at`, `mfa_passed_at`,
+    `created_ip_hash` (an HMAC, never the address).
+  - Grants to `edge_bff_runtime`, held exactly (verify block, every privilege checked one by one, PUBLIC nothing):
+    SELECT/INSERT/UPDATE/DELETE on users, identities, email_codes, mfa_totp, mfa_recovery_codes, user_preferences;
+    SELECT/INSERT/UPDATE on email_outbox and email_suppression; SELECT/INSERT on admin_audit; USAGE only on the four
+    identity sequences. The table holds no user after the migration: edge-bff seeds user #1 at its start.
+  - No index beyond the keys (users and sessions number in the thousands at most). `scripts/provision_edge_bff_login.py`
+    knows the grants (`ACCOUNT_GRANTS`, `ACCOUNT_SEQUENCES`, `REGISTRATION_GRANTS`). Rollback body in the file.
+  - Used by `apps/edge-bff/app/accounts.py`, `principal.py`, `auth_flows.py`, `mailer.py`, `mfa.py`, `preferences.py`.
+    With `EDGE_MULTIUSER` off edge-bff only seeds user #1 (owner `EDGE_OWNER`, role admin, username from `EDGE_LOGIN`
+    or `admin_1` when the login is reserved, as `edge` is; its password identity copied from `EDGE_PASSWORD_VERIFIER`,
+    so the password does not change) and serves the account preferences. `/ready` reads `users`, the new session
+    columns and `user_preferences`, so this edge-bff is not ready before the migration.
+- **Status:** written, tested in the edge-bff suite (`tests/test_principal.py`, `tests/test_auth_flows.py`; integrated
+  run at `925d1b1e`: 342 passed, 146 skipped without a browser); **not applied to Railway**. Order and read-back:
+  EXEC.md EXEC-MU-ACCOUNTS, "Phase 1 deploy steps (prepared, not run)". `APPLIED.sha256` gets its line only after the
+  apply.
+
 ## 2026-11-16 — EDGE sign-in throttle in PostgreSQL (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 0) — applied 2026-11-16
 
 - **User:** go 2026-11-16 for EXEC-MU-ACCOUNTS Phase 0 + Phase 1 ("B: go Fase 0 + Fase 1"; EXEC.md EXEC-MU-ACCOUNTS):

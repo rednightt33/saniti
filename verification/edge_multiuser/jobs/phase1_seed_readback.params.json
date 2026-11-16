@@ -1,0 +1,26 @@
+{
+ "mode": "APPLY",
+ "migrations": [],
+ "probes": [
+  [
+   "seed_user",
+   null,
+   "SELECT user_id, owner_key, username, role, status, email IS NOT NULL AS has_email, email_verified_at IS NOT NULL AS email_verified, requested_username, created_at FROM edge_bff.users ORDER BY user_id"
+  ],
+  [
+   "seed_identity",
+   null,
+   "SELECT u.owner_key, i.provider, i.subject = u.user_id::text AS subject_is_user_id, i.verifier ~ '^scrypt\\$[0-9a-f]{32}\\$[0-9a-f]{64}$' AS verifier_shape, i.created_at, i.updated_at FROM edge_bff.identities i JOIN edge_bff.users u USING (user_id) ORDER BY u.user_id"
+  ],
+  [
+   "account_tables_empty",
+   null,
+   "SELECT (SELECT count(*) FROM edge_bff.email_codes) AS codes, (SELECT count(*) FROM edge_bff.mfa_totp) AS mfa, (SELECT count(*) FROM edge_bff.mfa_recovery_codes) AS recovery, (SELECT count(*) FROM edge_bff.email_outbox) AS outbox, (SELECT count(*) FROM edge_bff.admin_audit) AS audit, (SELECT count(*) FROM edge_bff.sessions WHERE user_id IS NOT NULL) AS account_sessions"
+  ],
+  [
+   "preferences",
+   null,
+   "SELECT owner_key, count(*) AS keys, sum(octet_length(value::text)) AS bytes, max(updated_at) AS last FROM edge_bff.user_preferences GROUP BY owner_key ORDER BY owner_key"
+  ]
+ ]
+}

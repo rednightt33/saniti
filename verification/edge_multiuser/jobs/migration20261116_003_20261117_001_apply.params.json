@@ -1,0 +1,84 @@
+{
+ "mode": "APPLY",
+ "migrations": [
+  "20261116_003_edge_bff_accounts_users.sql",
+  "20261117_001_edge_bff_accounts_registration.sql"
+ ],
+ "probes": [
+  [
+   "tables",
+   null,
+   "SELECT table_name FROM information_schema.tables WHERE table_schema = 'edge_bff' AND table_name IN ('users', 'identities', 'email_codes', 'mfa_totp', 'mfa_recovery_codes', 'email_outbox', 'email_suppression', 'admin_audit', 'user_preferences', 'email_hook_events') ORDER BY table_name"
+  ],
+  [
+   "users_columns",
+   null,
+   "SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name = 'users' ORDER BY ordinal_position"
+  ],
+  [
+   "sessions_new_columns",
+   null,
+   "SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name = 'sessions' AND column_name IN ('user_id', 'last_seen_at', 'mfa_passed_at', 'created_ip_hash') ORDER BY column_name"
+  ],
+  [
+   "not_null",
+   null,
+   "SELECT table_name, string_agg(column_name, ',' ORDER BY ordinal_position) FILTER (WHERE is_nullable = 'NO') AS not_null FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name IN ('users', 'identities', 'email_codes', 'mfa_totp', 'mfa_recovery_codes', 'email_outbox', 'email_suppression', 'admin_audit', 'user_preferences', 'email_hook_events') GROUP BY table_name ORDER BY table_name"
+  ],
+  [
+   "keys",
+   null,
+   "SELECT c.relname, k.conname, k.contype, pg_get_constraintdef(k.oid) FROM pg_constraint k JOIN pg_class c ON c.oid = k.conrelid JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'edge_bff' AND c.relname IN ('users', 'identities', 'email_codes', 'mfa_totp', 'mfa_recovery_codes', 'email_outbox', 'email_suppression', 'admin_audit', 'user_preferences', 'email_hook_events') AND k.contype IN ('p', 'u', 'f') ORDER BY c.relname, k.contype, k.conname"
+  ],
+  [
+   "checks",
+   null,
+   "SELECT c.relname, k.conname, pg_get_constraintdef(k.oid) FROM pg_constraint k JOIN pg_class c ON c.oid = k.conrelid JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'edge_bff' AND (c.relname IN ('users', 'identities', 'email_codes', 'mfa_totp', 'mfa_recovery_codes', 'email_outbox', 'email_suppression', 'admin_audit', 'user_preferences', 'email_hook_events') OR c.relname = 'sessions') AND k.contype = 'c' ORDER BY c.relname, k.conname"
+  ],
+  [
+   "indexes",
+   null,
+   "SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = 'edge_bff' AND tablename IN ('users', 'identities', 'email_codes', 'mfa_totp', 'mfa_recovery_codes', 'email_outbox', 'email_suppression', 'admin_audit', 'user_preferences', 'email_hook_events') ORDER BY tablename, indexname"
+  ],
+  [
+   "owner_key_trigger",
+   null,
+   "SELECT t.tgname, p.proname, p.prosecdef, t.tgenabled FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid WHERE t.tgrelid = 'edge_bff.users'::regclass AND NOT t.tgisinternal"
+  ],
+  [
+   "runtime_grants",
+   null,
+   "SELECT e.t AS table_name, e.p AS expected, string_agg(x.priv, ',' ORDER BY x.priv) FILTER (WHERE has_table_privilege('edge_bff_runtime', 'edge_bff.' || e.t, x.priv)) AS held FROM (VALUES ('users', 'DELETE,INSERT,SELECT,UPDATE'), ('identities', 'DELETE,INSERT,SELECT,UPDATE'), ('email_codes', 'DELETE,INSERT,SELECT,UPDATE'), ('mfa_totp', 'DELETE,INSERT,SELECT,UPDATE'), ('mfa_recovery_codes', 'DELETE,INSERT,SELECT,UPDATE'), ('user_preferences', 'DELETE,INSERT,SELECT,UPDATE'), ('email_outbox', 'INSERT,SELECT,UPDATE'), ('email_suppression', 'INSERT,SELECT,UPDATE'), ('admin_audit', 'INSERT,SELECT'), ('email_hook_events', 'INSERT,SELECT'), ('sessions', 'DELETE,INSERT,SELECT,UPDATE')) AS e(t, p) CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS x(priv) GROUP BY e.t, e.p ORDER BY e.t"
+  ],
+  [
+   "login_grants",
+   null,
+   "SELECT e.t AS table_name, e.p AS expected, string_agg(x.priv, ',' ORDER BY x.priv) FILTER (WHERE has_table_privilege('edge_bff_login', 'edge_bff.' || e.t, x.priv)) AS held FROM (VALUES ('users', 'DELETE,INSERT,SELECT,UPDATE'), ('identities', 'DELETE,INSERT,SELECT,UPDATE'), ('email_codes', 'DELETE,INSERT,SELECT,UPDATE'), ('mfa_totp', 'DELETE,INSERT,SELECT,UPDATE'), ('mfa_recovery_codes', 'DELETE,INSERT,SELECT,UPDATE'), ('user_preferences', 'DELETE,INSERT,SELECT,UPDATE'), ('email_outbox', 'INSERT,SELECT,UPDATE'), ('email_suppression', 'INSERT,SELECT,UPDATE'), ('admin_audit', 'INSERT,SELECT'), ('email_hook_events', 'INSERT,SELECT'), ('sessions', 'DELETE,INSERT,SELECT,UPDATE')) AS e(t, p) CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS x(priv) GROUP BY e.t, e.p ORDER BY e.t"
+  ],
+  [
+   "public_grants",
+   null,
+   "SELECT e.t AS table_name, string_agg(x.priv, ',') FILTER (WHERE has_table_privilege('public', 'edge_bff.' || e.t, x.priv)) AS public_held FROM (VALUES ('users', 'DELETE,INSERT,SELECT,UPDATE'), ('identities', 'DELETE,INSERT,SELECT,UPDATE'), ('email_codes', 'DELETE,INSERT,SELECT,UPDATE'), ('mfa_totp', 'DELETE,INSERT,SELECT,UPDATE'), ('mfa_recovery_codes', 'DELETE,INSERT,SELECT,UPDATE'), ('user_preferences', 'DELETE,INSERT,SELECT,UPDATE'), ('email_outbox', 'INSERT,SELECT,UPDATE'), ('email_suppression', 'INSERT,SELECT,UPDATE'), ('admin_audit', 'INSERT,SELECT'), ('email_hook_events', 'INSERT,SELECT'), ('sessions', 'DELETE,INSERT,SELECT,UPDATE')) AS e(t, p) CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS x(priv) GROUP BY e.t ORDER BY e.t"
+  ],
+  [
+   "sequences",
+   null,
+   "SELECT s.relname, has_sequence_privilege('edge_bff_runtime', s.oid, 'USAGE') AS runtime_usage, has_sequence_privilege('edge_bff_runtime', s.oid, 'SELECT') OR has_sequence_privilege('edge_bff_runtime', s.oid, 'UPDATE') AS runtime_more, has_sequence_privilege('public', s.oid, 'USAGE, SELECT, UPDATE') AS public_any FROM pg_class s JOIN pg_namespace n ON n.oid = s.relnamespace WHERE n.nspname = 'edge_bff' AND s.relkind = 'S' AND s.relname IN ('users_user_id_seq', 'email_codes_code_id_seq', 'email_outbox_outbox_id_seq', 'admin_audit_audit_id_seq') ORDER BY s.relname"
+  ],
+  [
+   "rows",
+   null,
+   "SELECT (SELECT count(*) FROM edge_bff.users) AS users, (SELECT count(*) FROM edge_bff.identities) AS identities, (SELECT count(*) FROM edge_bff.email_outbox) AS outbox, (SELECT count(*) FROM edge_bff.user_preferences) AS preferences, (SELECT count(*) FROM edge_bff.email_hook_events) AS hook_events, (SELECT count(*) FROM edge_bff.sessions WHERE user_id IS NOT NULL) AS account_sessions"
+  ],
+  [
+   "runtime_reads",
+   "edge_bff_runtime",
+   "SELECT (SELECT count(*) FROM edge_bff.users) AS users, (SELECT count(*) FROM edge_bff.user_preferences) AS preferences, (SELECT count(*) FROM edge_bff.email_hook_events) AS hook_events"
+  ],
+  [
+   "comments",
+   null,
+   "SELECT c.relname, obj_description(c.oid, 'pg_class') IS NOT NULL AS has_comment FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'edge_bff' AND c.relkind = 'r' AND c.relname IN ('users', 'identities', 'email_codes', 'mfa_totp', 'mfa_recovery_codes', 'email_outbox', 'email_suppression', 'admin_audit', 'user_preferences', 'email_hook_events') ORDER BY c.relname"
+  ]
+ ]
+}
