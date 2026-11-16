@@ -14913,6 +14913,42 @@ aksi itu terjadi, sehingga ada-tidaknya nilai pada hari t bergantung pada aksi s
 - (C, SEMENTARA) dibiarkan seperti sekarang, dengan peringatan `FLOW_BASIS_CHANGE`.
 Saran: B sebelum deploy, A sebagai EXEC lanjutan.
 
+**Jawaban user, 2026-11-16:** "A dulu" (opsi A dikerjakan lebih dulu; PR, merge dan deploy menunggu A). Rencana P9 di bawah;
+eksekusi menunggu "go" user.
+
+**P9 — Harga broker pada basis harga (opsi A; M450, M458 butir 2).**
+*Fakta yang diukur (2026-11-16, read-only, `verification/backtest/basis/`):* aksi dengan tanggal ex 2016-03-01 s.d.
+2026-11-06 (`idx_event_annotation`: syarat lengkap pada 258 split, 34 reverse split, 92 bonus, 324 rights issue). Split:
+86 dari 87 yang terukur sudah satu basis di kedua sumber (Stockbit menyesuaikannya). Bonus: 37 satu basis, sisanya faktor
+di bawah 5 % (dalam toleransi). Rights issue dengan harga pelaksanaan di bawah pasar (faktor > 1,02): 98 dari 107 punya
+lonjakan basis sama dengan faktor dari syaratnya, P/TERP (selisih median 0,6 %, persentil 90 3,3 %); 3 satu basis; 6 data
+janggal (mis. ATIC 2018-06-25 syarat 1000:298666 pada Rp 1, faktor 244 lawan teramati 1,01). Rights di atas pasar: 38
+satu basis, 13 lonjakan = faktor, 3 lain. 87 rights terlalu sedikit hari broker (data 2016-2019).
+*Langkah:*
+1. Publisher (`apps/terminal-publisher/publisher.py`): per saham, per aksi harga, faktor basis dengan sumbernya:
+   lonjakan teramati (median VWAP/close 21 hari sebelum dan sesudah tanggal ex, board Regular) dibulatkan ke faktor syarat
+   bila selisihnya ≤ 4 %, ke 1 bila ≤ 4 % dari 1, lonjakan teramati bila kedua sisi stabil, selain itu "belum terselesaikan";
+   tanpa cukup hari broker: faktor syarat dihitung mundur dari aksi terbaru dengan close yang diterbitkan (rumus tertutup
+   f = ((lama+baru)·A − baru·X)/(lama·A), A = close cum yang disesuaikan × faktor aksi sesudahnya; diuji dulu pada 98 kasus
+   terukur). Ditulis sebagai blok `basis` terpisah di berkas events (Terminal hanya membaca `columns`, tidak terpengaruh);
+   masukannya ikut cap berkas events sehingga perubahan keputusan menerbitkan ulang. Tes publisher.
+2. Worker dan core (`datafile.ts`, kolom broker): membaca `basis`; faktor kumulatif F(t) = hasil kali faktor aksi dengan
+   tanggal ex sesudah t; lot beli dan jual × F(t) (rupiah tetap), sehingga setiap rumus Flow membaca harga broker pada
+   basis harga. Masker K3 a: aturan "sebelum aksi sebelum batas" dihapus; tetap ada masker untuk jendela yang melintasi aksi
+   yang belum terselesaikan (kausal), ditambah penjaga per hari (VWAP broker di luar rentang harga hari itu ±1 %, data hari
+   itu sendiri) untuk unduhan ulang tanpa penanda (PBSA). Peringatan `FLOW_BASIS_CHANGE` disesuaikan.
+3. Gerbang look-ahead: fixture dengan aksi (dunia mentah lawan dunia harga disesuaikan + `basis`: sinyal sama), pemotongan
+   data dengan `basis` tetap (metadata basis harga, seperti harga yang disesuaikan); `real_data.ts` membaca aksi dan `basis`;
+   COCO diuji ulang.
+4. Verifikasi data dev: sesudah penyesuaian, hari dengan VWAP di luar rentang per saham beraksi mendekati 0; daftar aksi
+   yang belum terselesaikan untuk user.
+5. Dokumen: CONTRACT 13, END_TO_END 18, README publisher, ERRORS M450 dan M458; deploy bersama Gerbang 2 (publisher lewat
+   CLI, satu run mode `events` untuk menerbitkan ulang berkas events saham beraksi = update besar, langkah restart
+   Postgres AGENTS; lalu worker, screener-worker, edge-bff).
+*Dampak:* nilai Flow dalam lot dan harga broker di Backtest sebelum rights issue berbeda dari tampilan Terminal (Terminal
+tetap mentah, "Terminal jangan disentuh"); nilai yang hanya rasio data broker tidak berubah; `data_version` berubah untuk
+saham yang berkas events-nya terbit ulang.
+
 ### Deploy (hanya setelah Gerbang 2) dan rollback
 
 1. PR branch → `main` (7B); CI hijau termasuk gerbang look-ahead; tidak ada job Backtest aktif (cek status job sebelum upload).
