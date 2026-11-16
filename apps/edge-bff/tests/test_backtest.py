@@ -1495,6 +1495,43 @@ def dockerignore(text):
     return patterns
 
 
+def test_the_image_builds_the_backtest_page_beside_the_sources_it_imports():
+    """apps/edge-bff/Dockerfile (ERRORS M461: the 2026-11-16 deploy failed when the page began to import the Screener's
+    entries and forms): the backtest stage installs from its lock file, places the Terminal source and the Screener
+    source beside the page as in the repository, builds; every file the page's source reaches outside its folder is in
+    those copied trees, and none of them imports a package (no node_modules is beside them in the stage)."""
+    import re
+    text = (Path(__file__).resolve().parents[1] / 'Dockerfile').read_text()
+    stage = text.split('FROM node:22-slim AS backtest', 1)[1].split('\nFROM ', 1)[0]
+    assert [line for line in stage.strip().splitlines() if line.strip() and not line.startswith('#')] == [
+        'WORKDIR /build/backtest', 'COPY backtest/package.json backtest/package-lock.json ./',
+        'RUN npm ci --no-audit --no-fund', 'COPY terminal/src /build/terminal/src',
+        'COPY screener/src /build/screener/src', 'COPY backtest/ ./', 'RUN npm run build']
+    root = Path(__file__).resolve().parents[1].resolve()
+    page = root / 'backtest'
+    spec_rx = re.compile(r"""(?:\bfrom|\bimport)\s*\(?\s*['"]([^'"]+)['"]""")
+    todo, seen, outside, packages = list((page / 'src').rglob('*.ts')), set(), set(), set()
+    while todo:
+        f = todo.pop().resolve()
+        if f in seen or not f.is_file():
+            continue
+        seen.add(f)
+        mine = f.is_relative_to(page)
+        if not mine:
+            outside.add(f.relative_to(root).as_posix())
+        if f.suffix in ('.json', '.css'):
+            continue        # data and styles import nothing (flowRegistry.json's tips hold "from '...'" prose)
+        for spec in spec_rx.findall(f.read_text()):
+            if spec.startswith('.'):
+                if spec.endswith(('.ts', '.json', '.css')):
+                    todo.append(f.parent / spec)
+            elif not mine:
+                packages.add((f.relative_to(root).as_posix(), spec))
+    assert any(p.startswith('screener/src/') for p in outside), 'the page reaches no Screener file: is the walk broken?'
+    assert [p for p in sorted(outside) if not (p.startswith('terminal/src/') or p.startswith('screener/src/'))] == []
+    assert packages == set()
+
+
 def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth():
     """apps/edge-bff/.dockerignore: a pattern matches from the context root only, so caches that appear in any folder
     need '**/' (a bare '__pycache__' left app/__pycache__ in the image). Local builds, dependencies and tests of the
@@ -1520,8 +1557,9 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
         assert docker_ignored(patterns, path), path
     copied = [source for line in (root / 'Dockerfile').read_text().splitlines() if line.startswith('COPY ') and '--from' not in line
               for source in line.split()[1:-1]]
+    # (the backtest stage also takes screener/src: its page reads the Screener's entries and forms, ERRORS M461)
     assert copied == ['terminal/package.json', 'terminal/package-lock.json', 'terminal/', 'backtest/package.json',
-                      'backtest/package-lock.json', 'terminal/src', 'backtest/', 'screener/package.json',
+                      'backtest/package-lock.json', 'terminal/src', 'screener/src', 'backtest/', 'screener/package.json',
                       'screener/package-lock.json', 'terminal/src', 'backtest/src', 'screener/', 'radar/package.json',
                       'radar/package-lock.json', 'radar/', 'overview/package.json', 'overview/package-lock.json', 'overview/',
                       'requirements.txt', 'app', 'static']

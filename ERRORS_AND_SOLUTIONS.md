@@ -8658,10 +8658,13 @@ in its staleness check.
   pages inside the whole repository (`backtest-lookahead.yml`, the smoke), where the files exist, so none saw it.
   Reproduced: the stage's files in an empty folder fail the same way, and pass with `screener/src` beside them.
 - **Solution:** `COPY screener/src /build/screener/src` in the `backtest` stage (as the `screener` stage copies
-  `backtest/src`). Class fix: `.github/workflows/edge-bff-image.yml` builds the image as Railway does (context
-  `apps/edge-bff`, its Dockerfile: every page stage and the Python image) on a push or pull request touching edge-bff,
-  so a module a stage does not copy fails before a merge deploys it.
+  `backtest/src`). Class fix, two layers: `tests/test_backtest.py
+  test_the_image_builds_the_backtest_page_beside_the_sources_it_imports` (the edge-bff suite, as the Screener stage's
+  own test: the stage's lines, every file the page reaches outside its folder inside the copied trees, no package
+  import there; it fails on the old Dockerfile) and `.github/workflows/edge-bff-image.yml`, which builds the image as
+  Railway does (context `apps/edge-bff`, its Dockerfile: every page stage and the Python image) on a push or pull
+  request touching edge-bff. The image test's exact COPY list (`test_the_image_context_...`) takes the new line.
 - **Class:** a build that runs in the whole repository proves nothing about an image built from a part of it; the
-  workers have `scripts/check_image_imports.mjs` for this, the multi-stage page image had no check.
+  workers have `scripts/check_image_imports.mjs` and the Screener stage its own test, the Backtest stage had none.
 - **Status:** FIXED (the image check in CI; the deploy recorded in `RAILWAY_CHANGELOG.md`).
 - **Lesson for new data:** none (build only).
