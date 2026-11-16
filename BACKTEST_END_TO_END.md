@@ -820,8 +820,9 @@ in the worker, class names only in the publisher).
   `RAILWAY_CHANGELOG.md` 2026-10-26 and 2026-10-27 entries. **Order (EXEC-BACKTEST-REVAMP, ERRORS M459 item 15):** the
   workers before edge-bff, because a new edge-bff sends `context` (rights, the owner's trials) that the older workers
   refuse: backtest-worker uploaded from the green commit, screener-worker, then edge-bff from `main`
-  (`apps/backtest-worker/README.md` Deploy). CI: `backtest-lookahead.yml` (workers, Screener and page) and
-  `backend-tests.yml` (edge-bff, terminal-publisher, telegram-monitor); `checkSuites` is not live yet (K10 a, applied
+  (`apps/backtest-worker/README.md` Deploy). CI: `backtest-lookahead.yml` (workers, Screener and page),
+  `backend-tests.yml` (edge-bff, terminal-publisher, telegram-monitor) and `backtest-page-smoke.yml` (the page's
+  Playwright smoke on its stub API, user 2026-11-16 "3A", ERRORS M460); `checkSuites` is not live yet (K10 a, applied
   with the deploy after Gate 3).
 - **Migrations**: `20261026_005` and `20261027_005`, applied in dev (DRYRUN then APPLY on orc-test-runner; logs in
   `verification/backtest/jobs/`).

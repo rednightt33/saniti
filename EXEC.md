@@ -15016,6 +15016,13 @@ bawah, termasuk cara screener-worker (unggah CLI dulu, rekomendasi, atau jam sep
 dari desain (chip kondisi dan baris header): biarkan 1:1 atau tampilkan chip yang muat dengan "+N more"; (3) smoke
 halaman masuk CI.
 
+**Jawaban user, 2026-11-16 (Gerbang 3):** "1A 2B 3A, go deploy". Artinya: (1A) PR, merge dan deploy dengan urutan di
+bawah, screener-worker diunggah lewat CLI dari commit yang sama sebelum merge (tanpa jeda panggilan Screener yang
+ditolak); (2B) bilah kondisi di atas grafik tetap satu baris setinggi desain dan menampilkan chip yang muat, sisanya
+"+N more" yang membuka jendela kondisi (baris header yang tidak muat tetap seperti desain); (3A) smoke test halaman
+Backtest masuk CI untuk setiap push yang menyentuh halaman. "go deploy" = go untuk PR, merge dan deploy ke dev sesuai
+langkah di bawah.
+
 ### Deploy (hanya setelah Gerbang 3, user 2026-11-16 "Opsi C") dan rollback
 
 1. PR branch → `main` (7B); CI hijau termasuk gerbang look-ahead; tidak ada job Backtest aktif (cek status job sebelum upload).

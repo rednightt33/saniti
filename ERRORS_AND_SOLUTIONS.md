@@ -8606,8 +8606,8 @@ in its staleness check.
      PG-3 to the line count of backtest.html's title, where the design names three tickers. Fix: the two rules removed
      (the page is the design's at 1024, cuts included), the note in the view bar (one line, its whole text as its
      title; the tabs and Full screen do not shrink for it), the header's texts and the title the design's
-     (`picked.ts titleNames` and its test removed). The 1024 cuts are the design's; whether to show the chips that fit
-     and "+N more" instead is the user's choice at Gate 3.
+     (`picked.ts titleNames` and its test removed). The user chose at Gate 3 (2026-11-16, "2B") the chips that fit the
+     one row and "+N more" for the rest (`filterbar.ts fit`); the header's cut rows stay the design's.
   6. *On a phone nothing could be added* (Agent 10 item 3, in the design too): the condition window is at least 760 px
      wide (`design.css` `#cw .qwin min-width`), so on 390 px its Add buttons, the condition column, Sort, Close and Done
      were off the screen and it could not scroll across; the results' fourth figure and "+ Compare with…" were cut.
@@ -8628,6 +8628,10 @@ in its staleness check.
      import) and `apps/backtest-worker/tests/catalog-copy.test.ts` (worker suite, CI): the copy equals
      `flowIndicators` without the admin entries and `NOT_PER_DAY`, flow on and off; a copy that keeps FL51 gives 45
      entries against the worker's 44 and fails it.
+  10. *A console error on every redraw while the chart is not shown* (the 1:1 runs, on both pages: "<rect> attribute
+      height: A negative value is not valid (-28)"): `lanes.ts` sized the trades' shade on the price pane as the pane's
+      height less its time scale, -28 in the Results view and in full screen. Fix: never below 0 (the design's own
+      script did the same). The 1:1 scenario also opened a hidden builder with its hidden button (f2: `#bRail` now).
 - **Checked, not changed:** the locked and "Not in backtest" states derive from the catalogs (`grammar.ts refusalOf`,
   the worker's `catalog.ts`, edge-bff `rights.py`), no hand list (Agent 10, verified); `reg.ts regMedian` reads no bar
   after the period, and in its fallback (fewer than 20 bars before the start) bars inside the period, as decided; the
@@ -8637,7 +8641,8 @@ in its staleness check.
   readers of its id behind (a null at run time, not a build error); a test copy of a rule a build cannot import drifts
   unless a test compares it; a port labels its own choices with the user's decision unless the decision's list is
   checked item by item.
-- **Status:** items 1-9 FIXED ON BRANCH, awaiting Gate 3 (deploy). Open, put to the user at Gate 3: the 1024 cuts
-  (item 5); the smoke and visual checks run only by hand (the visual check needs the user's design file, which is not
-  in the repository), running the smoke in CI.
+- **Status:** items 1-10 FIXED ON BRANCH; the user's Gate 3 answers (2026-11-16 "1A 2B 3A, go deploy"): the chips that
+  fit (item 5) and the smoke in CI (`.github/workflows/backtest-page-smoke.yml`, on a push or pull request touching the
+  page or a module it reads; class fix of item 4). The visual check stays by hand (the user's design file is not in
+  the repository).
 - **Lesson for new data:** none (page only).

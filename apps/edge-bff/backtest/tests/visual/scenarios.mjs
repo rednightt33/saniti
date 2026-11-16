@@ -70,7 +70,8 @@ export const SCENARIOS = {
   'e5-portfolio-banks-run': async page => { await run(page) },
   /* layout: the setup panel hidden, the results full screen, both back */
   'f1-panel-collapsed': async page => { await click(page, '#panelTg') },
-  'f2-results-fullscreen': async page => { await click(page, '#panelTg'); await click(page, '#fsBtn') },
+  // (a hidden builder opens again from its rail, #bRail: its own hide button is hidden with it)
+  'f2-results-fullscreen': async page => { await click(page, '#bRail'); await click(page, '#fsBtn') },
   'f3-fullscreen-closed': async page => { await click(page, '#fsBtn') },
   /* single stock again: an exit-signal template, then each stop mode with its run (robustness grid on the stop axis) */
   'g1-exit-template': async page => {

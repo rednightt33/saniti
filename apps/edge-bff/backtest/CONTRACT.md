@@ -871,9 +871,11 @@ is closed before block 5). The agreed fixes (decision 2a):
   copies a hidden row's text; its elements keep the old ids (`ctxTicker`, `ctxTitle`, `ctxPeriod`, `lastRun`,
   `staleTag`); its texts are the design's ("Last run": net return · Sharpe · max drawdown · trades).
 
-Everywhere else the page is the design's, also where the design cuts: at 1024 px the formula bar is one row and cuts
-the chips past its width, and the header clips the rows below its buttons (Agent 10 found two Stage D rules that wrapped
-and scrolled them without the user's approval: removed, M460 item 5; the choice is the user's at Gate 3). On a phone
+Everywhere else the page is the design's, also where the design cuts: the header clips the rows below its buttons (Agent
+10 found two Stage D rules that wrapped the chips and scrolled the header without the user's approval: removed, M460
+item 5). The formula bar is one row as tall as the design's and shows the chips that fit whole, "+N more" for the rest
+(user 2026-11-16 at Gate 3: "2B"; `filterbar.ts fit`, again when the bar's width changes; the design cut them, at 1024
+px only "A ADX > 25" was readable); on a phone it wraps and shows them all. On a phone
 (600 px or less), under the decision's "hides nothing": the condition window takes the whole screen (the design's is at
 least 760 px wide, so its Add buttons, Close and Done were off the screen), its categories a row that scrolls across,
 each indicator's row in two or three lines, the strategy panel in the list's place while it is open; the results'
@@ -904,5 +906,6 @@ condition window (`condwin.ts`, replacing the entry workspace):
 A new indicator's default threshold (`reg.ts regMedian`) is the median of its values on the shown ticker's bars before
 the period's start, and only when they hold fewer than 20 values the bars up to the period's end; it never reads a bar
 after the period. Checks: `tests/smoke/smoke.mjs` (the condition window, the theme that follows EDGE, every step of the
-page on the stub API), `tests/visual/compare.mjs` with `diff.py` (the design against `?fixture=design` at 1440, 1024 and
-390 px, light and dark).
+page on the stub API; in CI, `.github/workflows/backtest-page-smoke.yml`, user "3A"), `tests/visual/compare.mjs` with
+`diff.py` (the design against `?fixture=design` at 1440, 1024 and 390 px, light and dark; by hand, the design file is
+not in the repository).

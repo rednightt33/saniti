@@ -116,7 +116,9 @@ export function drawSignalLanes() {
     return `<button type="button" class="xs-tg ${on ? 'on' : ''}" role="switch" aria-checked="${on}" aria-label="${on ? 'Hide' : 'Show'} ${esc(name)}" title="${on ? 'Hide' : 'Show'} ${esc(name)} on the chart" data-xh="${id}" style="top:${narrow ? LY(k) + 1 : Y(k) + (rh - 16) / 2}px;left:${narrow ? W - 30 : LW - 38}px"><span></span></button>`;
   }).join('');
   host.querySelectorAll('[data-xh]').forEach((b: HTMLElement) => b.onclick = () => { S.hidden[b.dataset.xh!] = !S.hidden[b.dataset.xh!]; redraw() });
-  const pcEl = $('priceChart'), ph = pcEl.clientHeight - ts.height();
+  // the price pane's height under its time scale; 0 while the chart is not shown (the Results view, full screen): the
+  // shade is then drawn empty, never with a negative height (a console error on every redraw, M460 item 10)
+  const pcEl = $('priceChart'), ph = Math.max(0, pcEl.clientHeight - ts.height());
   shade.setAttribute('width', pcEl.clientWidth); shade.setAttribute('height', ph); shade.style.top = pcEl.offsetTop + 'px';
   shade.innerHTML = `<clipPath id="xsShClip"><rect x="${LW}" y="0" width="${PW}" height="${ph}"/></clipPath><g clip-path="url(#xsShClip)">` + TR.map(t => {
     const a = LANES.pos.get(t.i), b = LANES.pos.get(t.j);

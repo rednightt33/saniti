@@ -911,3 +911,4 @@ html,body{font:var(--fw-regular) var(--fs-base)/var(--lh-base) var(--sans);font-
 .viewbar .vnote{flex:0 1 auto;align-self:center;margin-bottom:4px;min-width:0;font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .viewbar .tabsrow>.vtabs,.viewbar .tabsrow>.hbtn{flex-shrink:0}   /* the note gives way first: the tabs' counts stay on one line */
 .viewbar .vnote[hidden]{display:none}
+.xfb-l .fchip[hidden]{display:none}   /* a chip that does not fit the row (filterbar.ts fit, user "2B") */
