@@ -8968,6 +8968,15 @@ code and its requester is part of the data model, not of the message.
   - **Confirmed sound by C4:** no account other than user #1 can get `seed: true` (the switch-off mapping, the
     `unknown` principal, `users_one_seed` and the owner-key trigger); an old cached client is no risk, because scripts
     are served `no-store`.
+  - **C4 re-check of `2433e50a`:** nothing blocking; every mark and stamp written since Phase 1 has the `owner:` form
+    (the session answer always carries `owner_key`; drawings stamp `edge.identity`), so a bare one is Phase 0's.
+    Recorded, non-blocking, OPEN:
+    - Older than this fix: a pre-M468 drawings copy (a bare list) is dropped when the Terminal is opened alone before
+      the shell, because the page never writes the mark (`drawingsApi.ts:20`). It affects only a browser not used
+      since before EXEC-DRAW-PANES (2026-11-07). The server copy of the drawings is unaffected.
+    - A late `cleared` from an old page of the previous account can remove the new account's own `edge-side-attach:*`
+      drafts in its tab. That tab already resets and reads the session again on `cleared`; a quoted passage is lost.
+      Possible fix: skip the sessionStorage clean-up when the receiving page's identity equals the current mark.
   - **Recorded, non-blocking:**
     - First device wins per preference, with no merge of lists.
     - The page may wait up to 3 s once for the first upload.

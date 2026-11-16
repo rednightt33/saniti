@@ -15548,7 +15548,7 @@ so the migration goes first; Orc refuses a request without an owner, which every
   memutuskan username akun admin (misalnya tetap `edge`, dengan pengecualian dari daftar cadangan untuk seed) dan
   mengisi email untuk reset password dan MFA. Tanpa itu, login lama `edge` tidak berlaku saat saklar menyala.
 
-### Phase 1 deploy steps (prepared, not run)
+### Phase 1 deploy steps (running since 2026-11-16: steps 1-4 done)
 
 Prepared 2026-11-17 by builder B5 for the main agent. Code: `git diff 47dce4e3..HEAD` on branch
 `claude/pensive-feynman-4ahfe3` (integrated at `925d1b1e`, then the checkers' fix rounds up to `c2e7885c`, ERRORS
@@ -15566,7 +15566,14 @@ Run log (main agent, 2026-11-16): the C3 B1 fix (`331aec25`, `access.seed`, ERRO
 vitest 941 passed. Step 1: job `fdc4ed8a`, 0 active EDGE jobs and 0 running orc turns; the account tables were absent.
 Step 2 DRYRUN: job `7b4c50ee`, the three bodies OK with the changelog sha256 values; every probe as expected (ten tables,
 `runtime_grants` and `login_grants` equal to `expected` for every table, `public_grants` empty, 0 rows, every table
-commented), then ROLLBACK. The remaining steps follow below as they run.
+commented), then ROLLBACK. The C4 check of `331aec25` found the Phase 0 mark case (fixed in `2433e50a`; its re-check
+found nothing blocking; ERRORS M478). Step 2 APPLY: M340 again (job `9522d9cd`: 0 and 0), then job `c039bac9` applied the
+three files with the same sha256 values; read back live: the same probes as the DRYRUN, 0 rows, 18 indexes of the
+files; `APPLIED.sha256` and `DATABASE_CHANGELOG.md` updated. Step 3: the `login_grants` probe of step 2 equals the
+expected grants for all eleven tables (the provisioning script was not re-run). Step 4: `EDGE_CODE_SECRET` and
+`EDGE_MFA_KEY` set on edge-bff (dev) with `--skip-deploys`, made in the process, never printed; read back: length 64
+each, different; no service references either. `EDGE_MULTIUSER`, `EDGE_EMAIL_MODE`, `EDGE_EMAIL_ENABLED` and
+`EDGE_SESSION_IDLE_SECONDS` stay unset.
 
 What changes for the current user with the switch off: nothing in sign-in or the tabs. Two things are new and visible
 in the data: user #1 is seeded into `edge_bff.users` at the first start, and the shell starts copying the `sync`

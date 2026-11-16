@@ -1,6 +1,29 @@
 # Database changelog
 
-## 2026-11-17 — EDGE registration bound to its browser, MFA failure counts and locks (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 1 fix round) — written, NOT applied yet
+## 2026-11-16 — EXEC-MU-ACCOUNTS Phase 1 migrations applied on dev (`20261116_003`, `20261117_001`, `20261117_002`)
+
+- **Go:** EXEC.md EXEC-MU-ACCOUNTS ("B: go Fase 0 + Fase 1"; "Phase 1 deploy steps", step 2). The switch
+  `EDGE_MULTIUSER` stays off.
+- **Before:** M340 jobs `fdc4ed8a` and `9522d9cd` (right before the apply) found 0 active EDGE jobs and 0 running orc
+  turns. The account tables were absent.
+- **DRYRUN** job `7b4c50ee`: the three bodies OK, then ROLLBACK.
+- **APPLY** job `c039bac9`, in order, one transaction per file:
+  - `20261116_003_edge_bff_accounts_users.sql` sha256 `d5e2352bca935702d037a5e1abd252ac073849f34bd928748d46d92201dd4138`;
+  - `20261117_001_edge_bff_accounts_registration.sql` sha256 `ac27578425f86df6fe7a8df902f78595577f7ba06678e2bfc0345a19cc69f730`;
+  - `20261117_002_edge_bff_accounts_registration_binding.sql` sha256 `35412e55e811923c44834af3b415e96bf2c7a85cdfa3f287d2183bdc963ee343`.
+- **Read back after the commit (the job's probes, live):**
+  - the ten tables present;
+  - `users` and the four new `sessions` columns, the NOT NULL columns, keys and CHECKs as the files define them;
+  - only the indexes of the files (18 in all, among them `users_one_seed`, `email_codes_one_live` and
+    `users_email_one_account`); `users_email_key` gone (`email_uniqueness` 0);
+  - the trigger `users_owner_key_rules`, not SECURITY DEFINER;
+  - `runtime_grants` and `login_grants` (the login through `edge_bff_runtime`) equal to the expected grants for all
+    eleven tables; `public_grants` empty; sequences USAGE only;
+  - every new table 0 rows and readable as `edge_bff_runtime`; every table commented.
+- **Not a large update** (small empty tables): no Postgres restart (AGENTS.md, Postgres memory).
+- **Next:** edge-bff seeds user #1 at its first start after the Phase 1 deploy; the seed read-back is runbook step 7.
+
+## 2026-11-17 — EDGE registration bound to its browser, MFA failure counts and locks (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 1 fix round) — applied 2026-11-16 (job `c039bac9`, entry above)
 
 - **Why:** the independent checkers' findings C1 P1-H1 / C2 #1 (pending-registration takeover) and C1 P1-M2 with its
   re-check N2 (MFA guessing, then a lock with no way back); ERRORS M478. Operational schema `edge_bff`, no market data,
@@ -25,7 +48,7 @@
   `verification/edge_multiuser/jobs/migration20261116_003_20261117_001_20261117_002{,_apply}.params.json`).
   `APPLIED.sha256` gets its line only after the apply.
 
-## 2026-11-17 — EDGE pending usernames and Resend webhook deliveries (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 1) — written, NOT applied yet
+## 2026-11-17 — EDGE pending usernames and Resend webhook deliveries (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 1) — applied 2026-11-16 (job `c039bac9`, entry above)
 
 - **User:** go 2026-11-16 for EXEC-MU-ACCOUNTS Phase 0 + Phase 1 ("B: go Fase 0 + Fase 1"; EXEC.md EXEC-MU-ACCOUNTS).
   Operational schema `edge_bff`, no market data, no catalog row; not in `DATABASE_SCHEMA.md` (schema `public` only).
@@ -46,7 +69,7 @@
   with `20261117_002`).
   `APPLIED.sha256` gets its line only after the apply.
 
-## 2026-11-16 — EDGE accounts foundation (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 1) — written, NOT applied yet
+## 2026-11-16 — EDGE accounts foundation (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 1) — applied 2026-11-16 (job `c039bac9`, entry above)
 
 - **User:** go 2026-11-16 for EXEC-MU-ACCOUNTS Phase 0 + Phase 1 (EXEC.md EXEC-MU-ACCOUNTS; contract
   `verification/edge_multiuser/access_tiers/CONTRACT.md` sections 1, 2, 4 and 4b). Operational schema `edge_bff`, no
