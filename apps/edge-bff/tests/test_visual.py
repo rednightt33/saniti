@@ -52,11 +52,14 @@ def browser_page(request):
             assert not errors, errors
             # the table download refused while its file is being prepared (test_ui_1019b) is an expected 409
             busy = request.node.name == 'test_a_table_being_prepared_says_so_and_a_typed_table_has_no_download'
-            allowed = lambda item: (item['status'] == 401 and item['path'] == '/api/v1/auth/session') or (item['status'] == 503 and item['path'] == '/api/v1/runs' and request.node.name == 'test_submit_error_keyboard_disabled_controls_and_resizing') \
+            # EXEC-MU-ACCOUNTS Phase 1: the sign-in page asks GET /api/v1/auth/config (public) whether registration is
+            # open; a server without that route (before B1b) answers 404, which the page reads as "off"
+            allowed = lambda item: (item['status'] == 401 and item['path'] == '/api/v1/auth/session') or (item['status'] == 404 and item['path'] == '/api/v1/auth/config') or (item['status'] == 503 and item['path'] == '/api/v1/runs' and request.node.name == 'test_submit_error_keyboard_disabled_controls_and_resizing') \
                 or (busy and item['status'] == 409 and item['path'].endswith('/export'))
             assert not [item for item in http_errors if not allowed(item)], http_errors
             unexpected_console = [item for item in console_errors if not (
                 'fonts.' in item['url'] or (item['url'].endswith('/api/v1/auth/session') and '401' in item['text'])
+                or (item['url'].endswith('/api/v1/auth/config') and '404' in item['text'])
                 or (item['url'].endswith('/api/v1/runs') and '503' in item['text'] and request.node.name == 'test_submit_error_keyboard_disabled_controls_and_resizing')
                 or (busy and item['url'].endswith('/export') and '409' in item['text']))]
             assert not unexpected_console, unexpected_console

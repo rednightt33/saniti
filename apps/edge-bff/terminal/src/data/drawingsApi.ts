@@ -78,7 +78,8 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
     const here = store.get(local);
     if (!fits(t, s)) return here || '[]';
     const sets = await listOf(t);
-    const who = await edge.session().then(x => x.login, () => edge.identity);
+    // Phase 1: the page's identity (owner:<owner key> once the session carries it, else the login), as the stamps hold
+    const who = await edge.session().then(() => edge.identity, () => edge.identity);
     const mine = ownCopy(here, who);
     if (here !== null && mine === null) store.remove(local);          // M468: another login's copy (or not a list)
     if (!sets) { unreachable(); return mine ? JSON.stringify(mine) : '[]' }

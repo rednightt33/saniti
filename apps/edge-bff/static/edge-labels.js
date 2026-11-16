@@ -161,5 +161,43 @@ window.EdgeLabels = {
   // misalkan Edge, - terminal, backtest, screener"): the browser tab's title on each page
   pages: { loading:"EDGE", signIn:"EDGE — Sign In", monitor:"EDGE — Monitor", terminal:"EDGE — Terminal",
     backtest:"EDGE — Backtest", screener:"EDGE — Screener", radar:"EDGE — Radar",
-    overview:"EDGE — Overview", watchlist:"EDGE — Watchlist" }
+    overview:"EDGE — Overview", watchlist:"EDGE — Watchlist",
+    register:"EDGE — Create Account", verify:"EDGE — Enter Code", forgot:"EDGE — Forgot Password",
+    reset:"EDGE — New Password", mfa:"EDGE — Authenticator" },
+  // EXEC-MU-ACCOUNTS Phase 1 (contract section 4; user: English labels): the account pages. A refusal shows the
+  // server's own message (error.message); `errors` is the fallback by code when the server sends none.
+  auth: {
+    login: { title:"Welcome to Edge", lead:"Sign in to your private workspace.", login:"Login", loginHint:"Username or email",
+      password:"Password", submit:"Sign In", busy:"Signing in…", create:"Create account", noAccount:"No account yet?",
+      forgot:"Forgot password?", resetDone:"Your password was changed. Sign in with the new password.",
+      unverified:"Your email is not verified yet. Enter the code we sent to your email." },
+    register: { title:"Create your account", lead:"Use your email to create an EDGE account.", username:"Username",
+      usernameHint:"3 to 30 lowercase letters, digits or _", firstName:"First name", lastName:"Last name", email:"Email",
+      phone:"Phone", phoneHint:"For example 0812 3456 7890 or +62 812 3456 7890", password:"Password",
+      passwordHint:"At least 8 characters", repeat:"Repeat password", submit:"Create account", busy:"Creating…",
+      haveAccount:"Already have an account?", signIn:"Sign in" },
+    verify: { title:"Check your email", sent:"We sent a code to your email.", sentTo:"We sent a code to", code:"Code",
+      codeHint:"6 digits", email:"Email", submit:"Verify", busy:"Verifying…", expiresIn:"The code expires in",
+      expired:"The code has expired. Send a new one.", resend:"Send a new code", resendIn:"You can send a new code in",
+      resent:"A new code is on its way.", back:"Back to sign in" },
+    forgot: { title:"Forgot your password?", lead:"Enter the email of your account. We will send you a code.",
+      email:"Email", submit:"Send code", busy:"Sending…", back:"Back to sign in" },
+    reset: { title:"Set a new password", sentTo:"We sent a code to", code:"Code", password:"New password",
+      passwordHint:"At least 8 characters", repeat:"Repeat new password", submit:"Change password", busy:"Changing…",
+      back:"Back to sign in" },
+    mfa: { title:"Authenticator code", lead:"Enter the 6-digit code from your authenticator app.", code:"Code",
+      codeHint:"6 digits", useRecovery:"Use a recovery code instead", useCode:"Use the authenticator code",
+      recovery:"Recovery code", submit:"Continue", busy:"Checking…", setup:"Set up an authenticator app",
+      enrolTitle:"Set up your authenticator", enrolLead:"Scan this QR code with your authenticator app, then enter the 6-digit code it shows.",
+      secret:"Or enter this key by hand", codesTitle:"Recovery codes",
+      codesLead:"Each code signs you in once if you lose your phone. They are shown only now: save them somewhere safe.",
+      saved:"I have saved my recovery codes", busySetup:"Preparing…", qrFailed:"The QR code could not be drawn here: enter the key by hand." },
+    check: { short:"The password needs at least 8 characters.", long:"The password can have at most 256 characters.",
+      mismatch:"The two passwords are not the same.", code:"Enter the 6 digits of the code." },
+    errors: { INVALID_CREDENTIALS:"The login or the password is not right.", CODE_INVALID_OR_EXPIRED:"That code is not valid or has expired. Send a new one.",
+      USERNAME_TAKEN:"That username is taken. Choose another one.", EMAIL_NOT_VERIFIED:"Your email is not verified yet.",
+      SIGN_IN_RATE_LIMIT:"Too many attempts. Wait a minute, then try again.", LIMIT_REACHED:"Too many attempts today. Try again tomorrow.",
+      INVALID_INPUT:"Check the fields and try again.", MFA_INVALID:"That code is not right. Try the newest code.",
+      fallback:"That did not work. Try again in a minute." }
+  }
 };
