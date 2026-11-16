@@ -773,6 +773,22 @@ def create_app(
             if payload.plan_reply is not None:
                 return refuse(ConversationError("PLAN_REPLY_NEEDS_SERVER_MODE", "plan_reply is for history_mode "
                                                 "SERVER; with CLIENT send the continuation of the plan.", 400))
+            if payload.conversation_id is not None:
+                # C2: the kept tables, run memory, exports and evidence of a conversation are keyed by its id, so a
+                # CLIENT run may name only a conversation its owner holds (the SERVER rule). Without the conversation
+                # store no conversation is held and none of those exist: the run goes on without the id (a CLIENT
+                # plan is then signed and checked without it, consistently)
+                if conversations is None:
+                    log_event("client_conversation_id_dropped", request_id=payload.request_id[:200])
+                    payload = payload.model_copy(update={"conversation_id": None})
+                else:
+                    try:
+                        if not conversations.holds(owner, payload.conversation_id):
+                            raise ConversationError("CONVERSATION_NOT_FOUND", "No such conversation for this owner; "
+                                                    "with history_mode CLIENT send conversation_id null or one of "
+                                                    "this owner's conversations.", 404)
+                    except ConversationError as error:
+                        return refuse(error)
             request, mode = routed(payload, payload.continuation)
             caller = current_caller_path.set(payload.analysis_path if mode.source == "CALLER" else None)
             try:

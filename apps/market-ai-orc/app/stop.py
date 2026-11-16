@@ -5,7 +5,8 @@ A run registers under its request id while it runs; POST /v1/agent/run/{request_
 read where the run already stops for its time limit (the start of each step of the loop, and before each mode 4 step),
 so no new paid model call starts after it; the call in flight finishes. The run then ends like a run whose time ran
 out: its last draft goes through every gate and reaches the user as a limitation, or a plain "stopped" line. The
-service runs one replica (railway.ts), so the registry lives in memory.
+service runs one replica (railway.ts), so the registry lives in memory. The registry is keyed by (owner, request id)
+(C1 L1): another owner sending the same request id registers its own entry and never replaces or removes this one.
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ import threading
 from typing import Any
 
 _lock = threading.Lock()
-_running: dict[str, tuple[str | None, threading.Event]] = {}
+_running: dict[tuple[str | None, str], threading.Event] = {}
 current_stop: contextvars.ContextVar[threading.Event | None] = contextvars.ContextVar("current_stop", default=None)
 
 
@@ -22,29 +23,32 @@ class running:
     """`with running(request_id, owner):` registers the run and makes its flag the current one."""
 
     def __init__(self, request_id: str, owner: str | None) -> None:
-        self.request_id, self.owner, self.token = request_id, owner, None
+        self.request_id, self.owner, self.token, self.event = request_id, owner, None, None
 
     def __enter__(self) -> threading.Event:
-        event = threading.Event()
+        event = self.event = threading.Event()
         with _lock:
-            _running[self.request_id] = (self.owner, event)
+            _running[(self.owner, self.request_id)] = event
         self.token = current_stop.set(event)
         return event
 
     def __exit__(self, *_: Any) -> None:
         current_stop.reset(self.token)
         with _lock:
-            _running.pop(self.request_id, None)
+            if _running.get((self.owner, self.request_id)) is self.event:  # only its own entry
+                _running.pop((self.owner, self.request_id), None)
 
 
 def stop(request_id: str, owner: str | None) -> str:
     """STOPPING, or NOT_RUNNING (unknown, finished, or another owner's run: never told apart, so no run is revealed).
     M475: only the run's own normalised owner stops it; a run or a caller without an owner never matches."""
-    with _lock:
-        found = _running.get(request_id)
-    if found is None or found[0] is None or owner is None or found[0] != owner:
+    if owner is None:
         return "NOT_RUNNING"
-    found[1].set()
+    with _lock:
+        found = _running.get((owner, request_id))
+    if found is None:
+        return "NOT_RUNNING"
+    found.set()
     return "STOPPING"
 
 

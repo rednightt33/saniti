@@ -554,6 +554,19 @@ class ConversationStore:
         return {key: value.isoformat() if hasattr(value, "isoformat") else _request_public(value)
                 for key, value in row.items()}
 
+    def holds(self, owner: str, conversation_id: str) -> bool:
+        """Whether this owner holds the conversation (C2: a CLIENT-history run may name only its own)."""
+        if not CONVERSATION_ID_RE.fullmatch(conversation_id):
+            return False
+        try:
+            with self._connect() as connection:
+                row = connection.execute(
+                    'SELECT 1 FROM public."AI_conversation" WHERE conversation_id = %s AND owner_key = %s',
+                    (conversation_id, owner)).fetchone()
+        except psycopg.Error as exc:
+            raise ConversationError("CONVERSATION_STORE_UNAVAILABLE", "The conversation store failed.", 503) from exc
+        return row is not None
+
     def data_record(self, owner: str, conversation_id: str) -> dict[str, Any] | None:
         """The conversation's data record (M47) for its owner, for the table download; a missing or foreign
         conversation is CONVERSATION_NOT_FOUND."""

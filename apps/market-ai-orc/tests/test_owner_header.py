@@ -180,3 +180,34 @@ def test_a_registry_entry_without_an_owner_never_matches() -> None:
         assert not flag.is_set()
     with stop.running("own_a", "owner-a") as flag:
         assert stop.stop("own_a", None) == "NOT_RUNNING" and not flag.is_set()
+
+
+def test_c2_without_the_store_a_client_run_goes_on_without_the_named_conversation() -> None:
+    seen: list = []
+
+    class Records(Answers):
+        def run(self, request, **extra):
+            seen.append(request.conversation_id)
+            return super().run(request, **extra)
+
+    with TestClient(create_app(make_settings(), orchestrator=Records())) as client:
+        response = client.post("/v1/agent/run", headers={**MAIN, "X-Saniti-Owner": "owner-a"},
+                               json={**RUN_BODY, "request_id": "own_c2", "conversation_id": "conv_" + "a" * 32})
+    assert response.status_code == 200 and seen == [None]
+
+
+def test_l1_the_registries_keep_each_owners_entry_for_the_same_request_id() -> None:
+    with stop.running("own_l1", "owner-a") as flag_a, progress.tracking("own_l1", "owner-a"):
+        with stop.running("own_l1", "golden-x") as flag_g, progress.tracking("own_l1", "golden-x"):
+            assert stop.stop("own_l1", "golden-x") == "STOPPING" and flag_g.is_set() and not flag_a.is_set()
+        assert progress.snapshot("own_l1", "owner-a")["status"] == "RUNNING"
+        assert stop.stop("own_l1", "owner-a") == "STOPPING" and flag_a.is_set()
+    assert stop.stop("own_l1", "owner-a") == "NOT_RUNNING"
+
+
+def test_m4_the_test_key_must_be_long_and_differ_from_the_main_key() -> None:
+    from app.config import ConfigError
+    for value in ("short", BASE_ENV["MARKET_AI_ORC_API_KEY"]):
+        with pytest.raises(ConfigError):
+            make_settings(MARKET_AI_ORC_TEST_KEY=value)
+    assert make_settings(MARKET_AI_ORC_TEST_KEY=TEST_KEY).internal_test_api_key == TEST_KEY

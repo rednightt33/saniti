@@ -5,7 +5,8 @@ starts and ends: understanding the question (the routers), each model call, each
 /v1/agent/requests/{request_id}/progress returns the steps in plain words (app/user_texts.py), so EDGE shows what the
 run is doing while it runs. Labels only, never arguments, values or model text. A finished run stays readable for
 KEEP_SECONDS, so the last poll sees its last step. The service runs one replica (railway.ts): the registry lives in
-memory, and a restart loses only the progress, never the run's answer.
+memory, and a restart loses only the progress, never the run's answer. The registry is keyed by (owner, request id)
+(C1 L1): another owner sending the same request id never replaces or hides this run's progress.
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ MAX_RUNS = 200
 MAX_STEPS = 60  # the newest steps of a long run; the count of earlier ones is reported
 
 _lock = threading.Lock()
-_runs: dict[str, "Run"] = {}
+_runs: dict[tuple[str | None, str], "Run"] = {}
 current_run: contextvars.ContextVar["Run | None"] = contextvars.ContextVar("current_progress", default=None)
 
 
@@ -65,7 +66,7 @@ class tracking:
                 _runs.pop(key, None)
             while len(_runs) >= MAX_RUNS:
                 _runs.pop(next(iter(_runs)))
-            _runs[self.request_id] = run
+            _runs[(self.owner, self.request_id)] = run
         self.token = current_run.set(run)
         return run
 
@@ -105,9 +106,11 @@ class step:
 def snapshot(request_id: str, owner: str | None) -> dict[str, Any] | None:
     """The run's progress, or None (unknown, expired, or another owner's run: never told apart). M475: only the run's
     own normalised owner reads it; a run or a caller without an owner never matches."""
+    if owner is None:
+        return None
     with _lock:
-        run = _runs.get(request_id)
-    if run is None or run.owner is None or owner is None or run.owner != owner:
+        run = _runs.get((owner, request_id))
+    if run is None or run.owner != owner:
         return None
     return run.view()
 

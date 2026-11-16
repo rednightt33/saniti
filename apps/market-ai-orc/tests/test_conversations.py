@@ -397,3 +397,19 @@ def test_edge_request_excludes_private_diagnostics(databases):
     body=api.client.get('/v1/agent/requests/edge-private',headers={**AUTH,'X-Saniti-Owner':'edge-private'}).json()
     assert body['response']['private_extension']=={'nested':[{'safe':'public'}]}
     assert body['response']['execution']['reasoning_tokens']==5  # usage count is not hidden reasoning text
+
+
+def test_c2_a_client_run_may_name_only_a_conversation_its_owner_holds(databases) -> None:
+    """C2 (EXEC-MU-ACCOUNTS Phase 0): a CLIENT-history run names its conversation_id in the body; the kept tables,
+    run memory, exports and evidence are keyed by that id, so it must be one the owner holds (the SERVER rule)."""
+    _, login = databases
+    api = Api(store_for(login), [answer("Milik A."), answer("CLIENT milik A.")])
+    held = api.post(server("c2-a1", "Pertanyaan A"), owner="owner-a").json()["conversation"]["conversation_id"]
+    client = {"message": "Lanjut", "history_mode": "CLIENT", "conversation_id": held}
+    foreign = api.post({**client, "request_id": "c2-b1"}, owner="owner-b")
+    unknown = api.post({**client, "request_id": "c2-b2", "conversation_id": "conv_" + "e" * 32}, owner="owner-b")
+    assert foreign.status_code == unknown.status_code == 404
+    assert foreign.json()["detail"]["code"] == unknown.json()["detail"]["code"] == "CONVERSATION_NOT_FOUND"
+    assert [r.conversation_id for r in api.seen] == [held]  # neither refused run reached the orchestrator
+    own = api.post({**client, "request_id": "c2-a2"}, owner="owner-a")
+    assert own.status_code == 200 and api.seen[-1].conversation_id == held
