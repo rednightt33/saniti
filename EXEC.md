@@ -14667,3 +14667,6 @@ tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terba
   Run Now publisher (file harian pertama); (2) push `main` (edge-bff, telegram-monitor); (3) segera sesudahnya migrasi
   DRYRUN lalu APPLY di dev (kode edge-bff lama menulis bintang tanpa list, jadi migrasi harus sesudah kode baru; di
   antaranya bintang Screener dan Watchlist menjawab 503 NOT_READY); (4) cek live sebagai pemilik.
+- **Keputusan user 2026-11-16 atas known (a) M448: "untuk nomor 1 kita go with A"**: diperbaiki sebelum rilis (halaman
+  tetap menampilkan list dengan "—" dan pesan di kepala halaman bila file harian tidak terbaca). Belum dikerjakan:
+  user akan memberi instruksi berikutnya. Known (b) (waktu `added_at` baru sesudah Undo) tetap dicatat saja.
