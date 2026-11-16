@@ -117,7 +117,9 @@ def test_the_settings_need_their_secrets_only_with_the_switch_on(settings):
                           ({'email_mode': 'smtp'}, 'EDGE_EMAIL_MODE'),
                           ({'email_mode': 'resend', 'email_from': 'EDGE <a@b.io>'}, 'RESEND_API_KEY'),
                           ({'email_mode': 'resend', 'resend_api_key': 're_x'}, 'EDGE_EMAIL_FROM'),
-                          ({'resend_webhook_secret': 'plain'}, 'RESEND_WEBHOOK_SECRET')]:
+                          ({'resend_webhook_secret': 'plain'}, 'RESEND_WEBHOOK_SECRET'),
+                          ({'multiuser': True, 'code_secret': 'c' * 40, 'mfa_key': 'm' * 40, 'environment': 'prod'},
+                           'EDGE_EMAIL_MODE=log is for')]:
         with pytest.raises(ValueError, match=words):
             dataclasses.replace(settings, **change).validate()
     dataclasses.replace(settings, multiuser=True, code_secret='c' * 32, mfa_key='m' * 32, email_mode='resend',
@@ -245,7 +247,7 @@ def test_resend_waits_60_seconds_and_sends_at_most_10_a_day(app, store):
 
 @pytest.mark.parametrize('change,field', [
     ({'username': 'ab'}, 'username'), ({'username': 'admin'}, 'username'), ({'email': 'not-an-email'}, 'email'),
-    ({'first_name': ' '}, 'first_name'), ({'phone': 'call me'}, 'phone'), ({'password': 'short', 'password_repeat': 'short'}, 'password'),
+    ({'first_name': ' '}, 'first_name'), ({'phone': 'call me'}, 'phone'), ({'phone': ''}, 'phone'), ({'phone': None}, 'phone'), ({'password': 'short', 'password_repeat': 'short'}, 'password'),
     ({'password_repeat': 'different'}, 'password_repeat'), ({'extra': 'x'}, 'extra'), ({'username': 5}, 'username')])
 def test_register_refuses_malformed_input_by_field(app, store, change, field):
     r = register(app, **change)
