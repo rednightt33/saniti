@@ -145,6 +145,16 @@ dengan rencana W1–W8:
 Akibatnya backend cukup: tabel list di server (W2–W3) dan satu file harian yang membaca satu tanggal dari Feature
 01/04/06, 30 penutupan, aksi korporasi dan Radar (tanpa file riwayat). Rencana W1/W4 disesuaikan sesudah user setuju.
 
+**Tinjauan user atas mockup, 2026-11-16:** "boleh kasih 10 design dalam 1 HTML dari sisi cardsnya, saya kurang sreg dengan
+garis horizontal yang saya bulatkan [garis pemisah antarbaris indikator], kemudian untuk badge radar fill hitam font
+putih, jangan lupa logo emiten juga. sudah ada setau saya di storage. 2 dan 3 keep."
+- Diputuskan: Price vs EMA 50/200 tetap (satu pembagian di baris yang sama); Foreign net 5D rank tetap (kolom tersimpan).
+- Lencana Radar: isi hitam, teks putih. Tanpa garis pemisah antarbaris indikator.
+- Logo emiten: sudah ada, `GET /api/terminal/v1/logo/{ticker}` (terminal-api, EXEC-TERMINAL-LOGO; versi dari referensi
+  `logos`, kolom ticker/file/sha256), diteruskan edge-bff (`apps/edge-bff/app/main.py:43-44`); dipakai Terminal
+  (`apps/edge-bff/terminal/src/app/context.ts:76`); tanpa logo → monogram.
+- 10 pilihan kartu dalam satu HTML (scratchpad sesi, data dev + logo dari storage), menunggu pilihan user.
+
 **Rencana eksekusi (usulan, menunggu go; pola EXEC-OVERVIEW):**
 - **W1 Rumus dan biaya.** Rumus setiap indikator dan persentil ditulis di `WATCHLIST_FORMULAS.md` (bahasa Indonesia
   sederhana, contoh nyata, dijaga skrip + tes seperti `OVERVIEW_FORMULAS.md`). Sumber: kolom tersimpan bila ada (RSI,
