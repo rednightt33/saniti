@@ -96,8 +96,9 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 | 429 | `SIGN_IN_RATE_LIMIT` | show the wait message |
 
 - `Retry-After` is set on every 429.
-- Messages are plain Indonesian, in `static/edge-labels.js` (front-end) and the route's message table (back-end); no
-  internal names.
+- Messages are plain English, like every EDGE interface label (EXEC-UI-1019B, user: "Ok 1 aja"), in
+  `static/edge-labels.js` (front-end) and `app/errors.py` (back-end); no internal names. Corrected 2026-11-16: the first
+  draft said Indonesian.
 
 ## 4. Authentication flows (switch on; OWASP Authentication and Forgot Password cheat sheets, NIST 800-63B-4)
 
@@ -178,8 +179,8 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
   - Svix signature over the raw body, timestamp tolerance 5 min.
   - UNIQUE `svix-id`.
   - Bounce or complaint → `email_suppression`.
-- **Templates:** plain Indonesian text plus simple HTML, one file per purpose, in `app/email_texts.py`. Subject for codes:
-  "Kode EDGE Anda: 123456".
+- **Templates:** plain English text plus simple HTML (the EDGE interface language, EXEC-UI-1019B), one file per purpose,
+  in `app/email_texts.py`. Subject for codes: "Your EDGE code: 123456".
 
 ## 6. Hooks route exemption (payments and email)
 

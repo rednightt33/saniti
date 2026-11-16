@@ -49,7 +49,7 @@ def test_ten_failures_across_two_instances_limit_the_login(settings, store):
             r = sign_in(client)
             assert r.status_code == 429, r.text
             error = r.json()['error']
-            assert error['code'] == 'SIGN_IN_RATE_LIMIT' and error['message'] and 'Tunggu' in error['message']
+            assert error['code'] == 'SIGN_IN_RATE_LIMIT' and error['message'] and 'Wait' in error['message']
             wait = int(r.headers['retry-after'])
             assert 1 <= wait <= 960 and error['details'] == {'retry_after_s': wait}
             assert 'edge_session' not in r.cookies

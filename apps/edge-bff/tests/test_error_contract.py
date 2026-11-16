@@ -3,7 +3,7 @@
 
 Rule (a): the front-end decides by error.code. How to pass (b): UNAUTHENTICATED -> sign in; CSRF_INVALID -> read the
 session again and retry once. Right (c): a write with the session's X-CSRF-Token passes. Wrong (c): the same write
-without it answers 403 CSRF_INVALID. Messages (d): app/errors.py MESSAGES, plain Indonesian.
+without it answers 403 CSRF_INVALID. Messages (d): app/errors.py MESSAGES, plain English (EXEC-UI-1019B).
 """
 from fastapi.testclient import TestClient
 

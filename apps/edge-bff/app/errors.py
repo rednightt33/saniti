@@ -3,20 +3,20 @@ refusals, FastAPI's included: {"error": {"code", "message", "details"}}. The fro
 the status alone: UNAUTHENTICATED (401) goes to sign-in, CSRF_INVALID (403) re-reads the session once and retries once,
 CAPABILITY_REQUIRED (403) keeps the session and shows that the feature is not open to this account.
 
-Messages are plain Indonesian for the person using EDGE, without internal names (AGENTS.md "Gates and evidence" (d):
-each names what is wrong and how to go on).
+Messages are plain English, like every EDGE interface label (EXEC-UI-1019B, user: "Ok 1 aja"), without internal names
+(AGENTS.md "Gates and evidence" (d): each names what is wrong and how to go on).
 """
 from fastapi.responses import JSONResponse
 
 MESSAGES = {
-    'UNAUTHENTICATED': 'Sesi Anda sudah berakhir atau belum masuk. Silakan masuk lagi.',
-    'CSRF_INVALID': 'Permintaan ini tidak bisa diverifikasi. Muat ulang halaman, lalu coba lagi.',
-    'CAPABILITY_REQUIRED': 'Fitur ini tidak tersedia untuk akun Anda.',
-    'SIGN_IN_RATE_LIMIT': 'Terlalu banyak percobaan masuk yang gagal. Tunggu sebentar, lalu coba lagi.',
-    'INVALID_INPUT': 'Isi permintaan tidak sesuai. Periksa isian Anda, lalu coba lagi.',
-    'NOT_FOUND': 'Halaman atau data yang diminta tidak ditemukan.',
-    'METHOD_NOT_ALLOWED': 'Cara permintaan ini tidak didukung.',
-    'REQUEST_REFUSED': 'Permintaan ini tidak dapat diproses.',
+    'UNAUTHENTICATED': 'Your session has ended or you are not signed in. Please sign in again.',
+    'CSRF_INVALID': 'This request could not be verified. Reload the page and try again.',
+    'CAPABILITY_REQUIRED': 'This feature is not included in your account.',
+    'SIGN_IN_RATE_LIMIT': 'Too many failed sign-in attempts. Wait a moment, then try again.',
+    'INVALID_INPUT': 'Some fields are not valid. Check them and try again.',
+    'NOT_FOUND': 'The page or item you asked for was not found.',
+    'METHOD_NOT_ALLOWED': 'This kind of request is not supported here.',
+    'REQUEST_REFUSED': 'This request could not be processed.',
 }
 
 # FastAPI's and Starlette's own refusals by status (a route raises HTTPException with one of these codes as its detail)
@@ -24,7 +24,7 @@ STATUS_CODES = {400: 'INVALID_INPUT', 401: 'UNAUTHENTICATED', 403: 'CSRF_INVALID
                 405: 'METHOD_NOT_ALLOWED', 422: 'INVALID_INPUT'}
 
 # The capabilities a Phase 0 route may require, with the name the person sees (CONTRACT.md section 3 details)
-CAPABILITY_NAMES = {'admin.manual': 'Agen manual (pemecahan masalah)'}
+CAPABILITY_NAMES = {'admin.manual': 'Manual agent (troubleshooting)'}
 
 
 class Refusal(Exception):
