@@ -10,6 +10,10 @@
 FROM node:22-slim
 
 ENV NODE_ENV=production
+# ERRORS M463 (user 2026-11-16 "Go untuk opsi 1"): a compute thread ends after its task (src/compute.ts); with two malloc
+# arenas and a low trim threshold glibc gives the memory it held back to the system (measured: 187 MB a second after a
+# 12-stock run, 267 MB without these; node:22-slim is Debian, glibc)
+ENV MALLOC_ARENA_MAX=2 MALLOC_TRIM_THRESHOLD_=131072
 WORKDIR /app
 COPY apps/backtest-worker/package.json ./apps/backtest-worker/package.json
 COPY apps/backtest-worker/src ./apps/backtest-worker/src
