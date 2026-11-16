@@ -8571,3 +8571,33 @@ in its staleness check.
 - **Lesson for new data:** a published decision that depends on later sessions carries the date it became known, and a
   reader treats it as unknown before; a fixture for look-ahead tests has the gaps of the real source (missing days,
   members that come and go).
+
+### M460 — Backtest page port (Stage D): shortcuts read a removed panel, the condition window lost the focus, a waiting lane's name was cut, and the page's browser checks had drifted unseen (2026-11-16, fixed on branch)
+
+- **Found by:** BACKTEST-REVAMP Stage D (D7, user 2026-11-16 "Opsi C"), running the page's browser checks on the port of the
+  user's design file: `tests/smoke/smoke.mjs` (Playwright on the stub API) and `tests/visual/compare.mjs` with `diff.py`
+  (the design against `?fixture=design`, 1440, 1024 and 390 px, light and dark).
+- **Verified, with root cause and solution (on branch `claude/hopeful-shannon-bqgb1a`):**
+  1. *The keyboard shortcuts `f` (full screen) and `[` (hide the builder) threw on every key press* ("Cannot read
+     properties of null (reading 'hidden')", smoke run of 2026-11-16). `layout.ts bindLayout` still skipped the keys
+     while the entry workspace (`#ews`) was open; Stage D removed that panel, so `$('ews')` was null. Fix: the keys stay
+     quiet while the condition window (`#cw`) is open, which replaced it. Class fix: `tests/ids.test.mjs` (the page suite,
+     CI): every id the page's code reads by name is in `index.html` or written by the page; it fails on the old code
+     ("ews (src/layout.ts)").
+  2. *Closing the condition window after an add or a remove lost the focus.* The window gives the focus back to the
+     element that opened it; an add draws the builder again, so that element was gone and the focus fell to the page.
+     Fix (`condwin.ts closeCondWin`): the element's new copy (the same id), else the builder's search box.
+  3. *A lane waiting for its data cut its own name* ("Broker net buy ·…", "Entry signal · l…"): `lanes.ts` added
+     "· loading" to the name before cutting it to the lane's room (17 characters on a desktop). Fix: the suffix only
+     where it fits whole; the ring in place of the lane's switch ("<name>: loading") says it either way.
+  4. *The smoke test had drifted from the page since 2026-10-27, unseen:* the icon links carry `?v=` (2026-11-03), the
+     ring keeps one speed with reduced motion (user 2026-11-09, M420), and the Stage D layout (the step tabs, the
+     condition window, the theme from EDGE, a phone's builder over the chart, the Results view without the header's
+     Run). Fix: the smoke follows the page (56 of 56 steps pass, no console error); `SMOKE_ONLY` runs one section; a
+     missing control fails its step in 10 s.
+- **Class:** a browser check that no CI job runs drifts from the page it guards; a panel removed from the markup leaves
+  readers of its id behind (a null at run time, not a build error).
+- **Status:** items 1-4 FIXED ON BRANCH, awaiting Gate 3 (deploy). Open: the smoke and visual checks run only by hand
+  (the visual check needs the user's design file, which is not in the repository); running the smoke in CI is put to
+  the user at Gate 3.
+- **Lesson for new data:** none (page only).
