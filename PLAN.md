@@ -153,7 +153,16 @@ putih, jangan lupa logo emiten juga. sudah ada setau saya di storage. 2 dan 3 ke
 - Logo emiten: sudah ada, `GET /api/terminal/v1/logo/{ticker}` (terminal-api, EXEC-TERMINAL-LOGO; versi dari referensi
   `logos`, kolom ticker/file/sha256), diteruskan edge-bff (`apps/edge-bff/app/main.py:43-44`); dipakai Terminal
   (`apps/edge-bff/terminal/src/app/context.ts:76`); tanpa logo → monogram.
-- 10 pilihan kartu dalam satu HTML (scratchpad sesi, data dev + logo dari storage), menunggu pilihan user.
+- 10 pilihan kartu dalam satu HTML (scratchpad sesi, data dev + logo dari storage).
+
+**User 2026-11-16: "3 chip, also di watchlist bisa filter by Radar dan by corp action?"**
+- Kartu = opsi 3 "Chip": logo, kode dan nama bertumpuk, harga/1D/1M, grafik 30 penutupan, indikator sebagai chip,
+  "Foreign flow as of <tanggal broker>" sekali bila ada indikator asing, lencana di bawah.
+- Filter (jawaban: bisa, tanpa data atau hitungan baru, dari isi file harian yang sama): dua tombol di baris list,
+  "Radar" (saringan apa saja atau satu saringan S1–S8, dengan jumlah saham per saringan) dan "Corporate action" (aksi
+  apa saja dalam 30 hari atau satu jenis: RUPS, Dividend, Public expose, …); bisa digabung; hanya mengubah tampilan list
+  yang terbuka, bukan isi list; "n of N" dan "Clear"; berlaku di Kartu dan Tabel. Dicoba di mockup (Core: Radar 8 dari
+  14, aksi korporasi AMMN dan UNVR). Menunggu persetujuan user.
 
 **Rencana eksekusi (usulan, menunggu go; pola EXEC-OVERVIEW):**
 - **W1 Rumus dan biaya.** Rumus setiap indikator dan persentil ditulis di `WATCHLIST_FORMULAS.md` (bahasa Indonesia
