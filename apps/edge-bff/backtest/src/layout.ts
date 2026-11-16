@@ -22,7 +22,7 @@ export const setFS = (on: boolean) => { document.body.classList.toggle('mainfs',
 /* the full-screen button and the keyboard shortcuts (not while typing, not while the workspace is open) */
 export const bindLayout = () => {
   $('fsBtn').onclick = () => setFS(!document.body.classList.contains('mainfs'));
-  document.addEventListener('keydown', e => { const t = e.target as HTMLElement; if(t.closest && t.closest('input,select,textarea')) return; if(!$('ews').hidden) return;
+  document.addEventListener('keydown', e => { const t = e.target as HTMLElement; if(t.closest && t.closest('input,select,textarea')) return; if(!$('cw').hidden) return;   // the condition window has its own keys
     if(e.key==='Escape' && document.body.classList.contains('mainfs')){ setFS(false); e.stopImmediatePropagation() }
     else if(e.key==='f' || e.key==='F'){ setFS(!document.body.classList.contains('mainfs')) }
     else if(e.key==='['){ setPanel(document.body.classList.contains('bcol')) } }, true);
