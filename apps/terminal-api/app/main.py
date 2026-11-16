@@ -252,7 +252,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         key alike, so the public answer tells nothing; the reason is logged."""
         wrong = private_call(request)
         if wrong:
-            log.warning('keyed request refused off the private host: %s; credential: %s; path %s', wrong,
+            log.warning('keyed request refused off the private host: %r; credential: %s; path %r', wrong,   # %r: C1 log forging
                         key_kind(request), request.scope.get('path'))   # not request.url: a malformed Host breaks it
             error(403, 'gateway_host_not_allowed', NOT_HERE)
 
