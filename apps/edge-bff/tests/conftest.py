@@ -29,6 +29,7 @@ def database():
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261116_002_edge_bff_accounts_auth_throttle.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261116_003_edge_bff_accounts_users.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261117_001_edge_bff_accounts_registration.sql').read_text())
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261117_002_edge_bff_accounts_registration_binding.sql').read_text())
             c.execute('CREATE TABLE public.market_private(secret text)')
         yield url
     finally:

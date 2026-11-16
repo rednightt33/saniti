@@ -294,12 +294,125 @@ def test_phone_numbers_become_e164():
     assert normal_phone('call me') is None and normal_phone('+0123') is None
 
 
-def test_sign_in_says_email_not_verified_only_after_the_right_password(app, store):
+def test_a_pending_registration_signing_in_gets_the_generic_401_and_a_fresh_code_on_this_browser(app, store):
+    """ERRORS M478 (C1 P1-M1): the right password of a pending registration answers exactly the wrong password's 401,
+    both set a registration cookie; within the send limits a fresh code is mailed and this browser can finish."""
     register(app)
-    r = app.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'ana@example.com', 'password': 'wrong one'})
-    assert (r.status_code, error_code(r)) == (401, 'INVALID_CREDENTIALS')
-    r = app.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'ana@example.com', 'password': PASSWORD})
-    assert (r.status_code, error_code(r)) == (403, 'EMAIL_NOT_VERIFIED') and 'set-cookie' not in r.headers
+    other = TestClient(app.app)                                  # another device of the same person
+    wrong = other.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'ana@example.com', 'password': 'wrong one'})
+    assert len(outbox(store, 'ana@example.com')) == 1
+    cooldown_over(store)
+    right = other.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'ana@example.com', 'password': PASSWORD})
+    assert (wrong.status_code, wrong.json()) == (right.status_code, right.json()) == (
+        401, {'error': {'code': 'INVALID_CREDENTIALS', 'message': wrong.json()['error']['message'], 'details': {}}})
+    assert 'edge_registration=' in wrong.headers['set-cookie'] and 'edge_registration=' in right.headers['set-cookie']
+    assert 'HttpOnly' in right.headers['set-cookie'] and 'SameSite=strict' in right.headers['set-cookie']
+    assert len(outbox(store, 'ana@example.com')) == 2                 # a fresh code for this browser
+    code = last_code(store, 'ana@example.com')
+    assert verify(app, code).status_code == 400                       # the first browser's cookie no longer names it
+    r = verify(other, code)
+    assert r.status_code == 200 and r.json()['username'] == 'ana_putri'
+
+
+def test_each_registration_is_bound_to_its_browser_and_the_verified_one_removes_the_others(app, store):
+    """ERRORS M478 (C1 P1-H1, C2 #1): a later registration of the address is its own pending row; a code activates
+    only the row whose cookie comes with it; verifying one deletes the other pending rows of the address."""
+    assert register(app).status_code == 202
+    mine = last_code(store, 'ana@example.com')
+    other = TestClient(app.app)
+    cooldown_over(store)
+    assert register(other, username='other_one', password='the other password').status_code == 202
+    theirs = last_code(store, 'ana@example.com')
+    rows = db(store, "SELECT requested_username, registration_hash FROM edge_bff.users WHERE email='ana@example.com' ORDER BY user_id")
+    assert [r['requested_username'] for r in rows] == ['ana_putri', 'other_one'] and all(len(r['registration_hash']) == 64 for r in rows)
+    assert error_code(verify(app, theirs)) == 'CODE_INVALID_OR_EXPIRED'      # another browser's code
+    assert error_code(TestClient(app.app).post('/api/v1/auth/register/verify', headers=ORIGIN,
+                                              json={'email': 'ana@example.com', 'code': mine})) == 'CODE_INVALID_OR_EXPIRED'
+    r = verify(app, mine)
+    assert r.status_code == 200 and r.json()['username'] == 'ana_putri'
+    assert 'edge_registration=""' in r.headers['set-cookie'] or 'edge_registration=;' in r.headers['set-cookie']
+    assert db(store, "SELECT status, registration_hash FROM edge_bff.users WHERE email='ana@example.com'") == [
+        {'status': 'active', 'registration_hash': None}]
+    assert error_code(verify(other, theirs)) == 'CODE_INVALID_OR_EXPIRED'
+    assert other.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'ana@example.com',
+                                                                   'password': 'the other password'}).status_code == 401
+    # a resend without this browser's registration cookie sends nothing
+    cooldown_over(store)
+    register(app, 'bob@example.com', 'bob_b')
+    cooldown_over(store)
+    stranger = TestClient(app.app)
+    stranger.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'bob@example.com', 'purpose': 'register'})
+    assert len(outbox(store, 'bob@example.com')) == 1
+
+
+def test_pending_sessions_have_their_own_cap(on, store):
+    from app.accounts import AccountStore, MAX_PENDING_SESSIONS, MAX_SESSIONS
+    from app.security import token_hash
+    accounts = AccountStore(store)
+    user = accounts.seed(on.owner, on.login, on.password_verifier, True)
+    user = {'user_id': user['user_id'], 'owner_key': on.owner}
+    for i in range(MAX_SESSIONS):
+        accounts.create_session(token_hash(f'real{i}'), user, 3600, None, True, True)
+    for i in range(MAX_PENDING_SESSIONS + 4):
+        accounts.create_session(token_hash(f'pending{i}'), user, 3600, None, False, True)
+    live = db(store, 'SELECT mfa_passed_at IS NOT NULL AS real FROM edge_bff.sessions WHERE revoked_at IS NULL')
+    assert sum(r['real'] for r in live) == MAX_SESSIONS and sum(not r['real'] for r in live) == MAX_PENDING_SESSIONS
+
+
+def test_mfa_lock_after_consecutive_failures_and_its_clearing(app, store, on):
+    flows = app.app.state.auth_flows
+    now = {'t': 1_800_000_000.0}
+    flows.clock = lambda: now['t']
+    h = admin_sign_in(app)
+    enrolled = app.post('/api/v1/auth/mfa/enroll', headers=h).json()
+    db(store, 'UPDATE edge_bff.mfa_totp SET totp_failures = 99, confirmed_at = now()')
+    assert error_code(app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': '000000'})) == 'MFA_CODE_INVALID'
+    r = app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': '000000'})
+    assert (r.status_code, error_code(r)) == (403, 'MFA_LOCKED') and 'recovery code' in r.json()['error']['message']
+    db(store, "DELETE FROM edge_bff.auth_throttle")
+    user_id, nonce = (lambda r: (r['user_id'], bytes(r['nonce'])))(db(store, 'SELECT user_id, nonce FROM edge_bff.mfa_totp')[0])
+    good = mfa.code_at(mfa.secret_of(on.mfa_key, user_id, nonce), int(now['t']) // 30)
+    assert error_code(app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': good})) == 'MFA_LOCKED'   # even right
+    db(store, "DELETE FROM edge_bff.auth_throttle")                                  # the 15-min throttle apart
+    for _ in range(10):
+        app.post('/api/v1/auth/mfa/verify', headers=h, json={'recovery_code': 'wrong-codes'})
+    db(store, "DELETE FROM edge_bff.auth_throttle")
+    r = app.post('/api/v1/auth/mfa/verify', headers=h, json={'recovery_code': enrolled['recovery_codes'][0]})
+    assert error_code(r) == 'MFA_LOCKED'                                            # 10 recovery failures
+    db(store, 'UPDATE edge_bff.mfa_totp SET recovery_failures = 9')
+    r = app.post('/api/v1/auth/mfa/verify', headers=h, json={'recovery_code': enrolled['recovery_codes'][0]})
+    assert r.status_code == 200                                                     # a success clears both counts
+    assert db(store, 'SELECT totp_failures, recovery_failures FROM edge_bff.mfa_totp') == [
+        {'totp_failures': 0, 'recovery_failures': 0}]
+
+
+def test_mfa_verify_gives_a_new_session_token_and_revokes_the_pending_one(app, store, on):
+    flows = app.app.state.auth_flows
+    now = {'t': 1_800_000_000.0}
+    flows.clock = lambda: now['t']
+    h = admin_sign_in(app)
+    pending = app.cookies.get('edge_session')
+    app.post('/api/v1/auth/mfa/enroll', headers=h)
+    user_id, nonce = (lambda r: (r['user_id'], bytes(r['nonce'])))(db(store, 'SELECT user_id, nonce FROM edge_bff.mfa_totp')[0])
+    r = app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': mfa.code_at(mfa.secret_of(on.mfa_key, user_id, nonce), int(now['t']) // 30)})
+    fresh = app.cookies.get('edge_session')
+    assert r.status_code == 200 and fresh != pending and r.json()['csrf_token'] != h['X-CSRF-Token']
+    old = TestClient(app.app)
+    old.cookies.set('edge_session', pending)
+    assert old.get('/api/v1/auth/session').status_code == 401
+    assert app.get('/api/v1/terminal/layouts').status_code == 200
+
+
+def test_a_legacy_raw_verifier_still_signs_in_and_new_ones_are_nfkc(settings):
+    import hashlib as _h
+    import secrets as _s
+    from app.security import password_verifier, verify_password
+    raw = 'cafe\u0301 au lait'
+    salt = _s.token_bytes(16)
+    legacy = f"scrypt${salt.hex()}${_h.scrypt(raw.encode(), salt=salt, n=16384, r=8, p=1, dklen=32).hex()}"
+    assert verify_password(raw, legacy)                                              # the raw text still works
+    assert verify_password('café au lait', password_verifier(raw))                   # NFC and NFD alike
+    assert verify_password(settings.login and 'local-test-password', settings.password_verifier)
 
 
 def test_pending_registrations_are_deleted_after_24_hours(app, store):

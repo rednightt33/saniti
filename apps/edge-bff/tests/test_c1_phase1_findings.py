@@ -27,11 +27,20 @@ def test_c1_p1_a_second_registration_cannot_set_the_password_of_a_pending_one(ap
     password is now the attacker's: the attacker signs in to the victim's account with the victim's email.
     The code proves the mailbox, not who chose the password; keep the first password until the code is proved, or
     bind the code to the registration (verifier) that asked for it."""
+    # B1b fix round: the attacker registers from its own browser (one TestClient is one browser; with the binding of
+    # ERRORS M478 a registration belongs to the browser that started it, so one client for both parties would model
+    # the victim re-registering itself)
+    from fastapi.testclient import TestClient
+    attacker = TestClient(app.app)
     assert register(app, VICTIM, 'victim_1').status_code == 202
+    mine = last_code(store, VICTIM)
     cooldown_over(store)
-    assert register(app, VICTIM, 'attacker_1', password=ATTACKER_PASSWORD).status_code == 202
-    r = verify(app, last_code(store, VICTIM), VICTIM)                 # the victim enters the code it just received
+    assert register(attacker, VICTIM, 'attacker_1', password=ATTACKER_PASSWORD).status_code == 202
+    newest = last_code(store, VICTIM)
+    assert verify(app, newest, VICTIM).status_code == 400             # the newest code is the attacker's registration's
+    r = verify(app, mine, VICTIM)                                     # the victim enters the code of its own registration
     assert r.status_code == 200, r.text
+    assert verify(attacker, newest, VICTIM).status_code == 400        # the attacker's registration is gone
     app.cookies.clear()
     taken = sign_in(app, VICTIM, ATTACKER_PASSWORD)
     assert taken.status_code == 401, f'the attacker signed in to the victim account: {taken.status_code} {taken.text}'

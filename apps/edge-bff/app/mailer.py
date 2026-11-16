@@ -29,6 +29,8 @@ import time
 import httpx
 from psycopg.types.json import Jsonb
 
+from .security import same_ascii
+
 logger = logging.getLogger('edge_bff.email')
 if not logger.hasHandlers():
     _handler = logging.StreamHandler()
@@ -208,7 +210,7 @@ def svix_verify(headers, raw, secret, now=None):
         return False
     msg_id, stamp, signatures = (headers.get('svix-id') or ''), (headers.get('svix-timestamp') or ''), \
         (headers.get('svix-signature') or '')
-    if not msg_id or not stamp.isdigit() or not signatures:
+    if not msg_id or not signatures or not all(x.isascii() for x in (msg_id, stamp, signatures)) or not stamp.isdigit():
         return False
     if abs((now if now is not None else time.time()) - int(stamp)) > HOOK_TOLERANCE_SECONDS:
         return False
@@ -217,5 +219,5 @@ def svix_verify(headers, raw, secret, now=None):
     except ValueError:
         return False
     expected = base64.b64encode(hmac.new(key, f'{msg_id}.{stamp}.'.encode() + (raw or b''), hashlib.sha256).digest()).decode()
-    return any(version == 'v1' and hmac.compare_digest(sig, expected)
+    return any(version == 'v1' and same_ascii(sig, expected)
                for version, _, sig in (part.partition(',') for part in signatures.split()))
