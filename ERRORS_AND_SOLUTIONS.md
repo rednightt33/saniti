@@ -5753,6 +5753,118 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
+### M430 — Orc: a missing owner header becomes the shared owner `default`; progress of an owner-less run is readable by every caller (2026-11-16, OPEN)
+
+- **Symptom (read-only inspection, `verification/edge_multiuser/access_tiers/FINDINGS.md`):** any holder of
+  `MARKET_AI_ORC_API_KEY` may name any owner in `X-Saniti-Owner`, and the orc-test-runner holds the same key
+  (`.railway/railway.ts:29-33`).
+- **Verified cause:**
+  - `owner_from_header` returns `DEFAULT_OWNER` for an empty header (`apps/market-ai-orc/app/conversations.py:97-99`).
+  - `progress.tracking` stores the raw header, and a `None` owner matches every caller (`progress.py:105-109`).
+- **Class:** identity accepted from a shared key without a per-caller scope.
+- **Solution (planned, Phase 0):**
+  - refuse a missing owner;
+  - give the test runner its own key, limited to test owners (Railway variable, needs approval);
+  - store and check the owner at every registry.
+- **Status:** OPEN. No external user exists yet.
+
+### M429 — Orc manual agent: every waiting step of every owner is listed to any caller (2026-11-16, OPEN)
+
+- **Symptom:** `/api/v1/dev/manual/steps` (edge-bff `main.py:598-610`) lists and answers model steps of any run.
+- **Verified cause:**
+  - `Step` stores no owner;
+  - `pending()` returns all steps with their full payload (`apps/market-ai-orc/app/manual_agent.py:112-116`);
+  - `answer()` accepts any step id;
+  - Orc's manual routes take no owner;
+  - edge-bff's POST uses `session`, not `write` (M259).
+- **Class:** a troubleshooting route that crosses owners.
+- **Solution (planned, Phase 0):** admin-only with MFA; steps keep their owner; `pending(owner)` and `answer(owner, …)`;
+  `write` on the POST.
+- **Status:** OPEN. Blocker before a second user.
+
+### M428 — Sign-out leaves account data in browser storage (2026-11-16, OPEN)
+
+- **Symptom:** after sign-out, the next person on the same browser inherits the previous account's data.
+- **Verified cause:** sign-out clears memory only (`apps/edge-bff/static/edge-client.js:11,138`). These keys are not
+  keyed per user and not cleared:
+  - `edge-side-attach:*` (quoted answers);
+  - `edge-model-choice`;
+  - `ml.*` (layout pointer, symbol, indicator lists);
+  - `scr.last` (the last screen definition);
+  - IndexedDB `terminal-files`.
+- **Class:** per-user state stored per browser.
+- **Solution (planned, Phase 0):** a storage registry (`browser` vs `user` keys, with a test that fails on an
+  unclassified key) cleared on sign-out or a change of user.
+- **Status:** OPEN.
+
+### M427 — No CI runs any test; the Terminal look check hard-codes another session's path (2026-11-16, OPEN)
+
+- **Symptom:** a change can merge with a failing suite.
+- **Verified cause:**
+  - `.github/workflows/` holds only `database-schema-docs.yml`;
+  - the edge-bff tests skip without `EDGE_TEST_POSTGRES_URL` (`apps/edge-bff/tests/conftest.py:13`);
+  - `verification/terminal_api/terminal_look/look_check11.mjs:8-10` imports absolute paths and writes into another
+    session's scratchpad.
+- **Class:** guarantees that depend on someone running the check by hand.
+- **Solution (planned, Phase 0):** a workflow for pytest (with a disposable Postgres) and vitest; the look check takes
+  its output directory from an argument or the environment.
+- **Status:** OPEN.
+
+### M426 — Every EDGE front-end reads any 403 as a CSRF or session failure (2026-11-16, OPEN)
+
+- **Symptom (by reading the code):** a plan refusal would trigger a retry or a sign-out instead of an upgrade message.
+- **Verified cause:**
+  - `terminal/src/data/layoutsApi.ts:50` retries on any 403;
+  - `screener/src/api/live.ts:36,69` and `backtest/src/api/live.ts:51` drop the session on any 401 or 403;
+  - `terminal/src/data/live.ts:70-72` shows "answered 403";
+  - FastAPI's own refusals answer `{"detail"}`, not `{"error":{"code"}}` (`apps/edge-bff/app/main.py:277-283`).
+- **Class:** an error contract keyed on the status code instead of a named code.
+- **Solution (planned, Phase 0):**
+  - one `{"error":{"code","message","details"}}` shape for 401 and 403, with `CSRF_INVALID`, `CAPABILITY_REQUIRED`,
+    `PLAN_EXPIRED`, `LIMIT_REACHED` and `MFA_REQUIRED`;
+  - one shared client module reads the code.
+- **Status:** OPEN.
+
+### M425 — terminal-api accepts the EDGE gateway key on its public domain (2026-11-16, OPEN)
+
+- **Symptom:** the per-user owner header planned in T2 would let any holder of the gateway key name any EDGE user.
+- **Verified cause:**
+  - terminal-api has `RAILWAY_PUBLIC_DOMAIN` set (`terminal-api-dev.up.railway.app`; read with
+    `railway variables`, names and that value only) and adds it to its origins (`apps/terminal-api/app/config.py:84`);
+  - `identify()` maps the gateway key to `Caller('gateway', email=proxy_subscriber)` with no check of where the
+    request came from (`apps/terminal-api/app/main.py:191-194`);
+  - the account cache key is `(kind, name or email or token_hash)` (`accounts.py:33-35`), so a per-owner identity would
+    be cached as one entry unless the owner enters the key.
+- **Class:** a private-service credential usable from the public edge.
+- **Solution (planned, Phase 0, before T2):**
+  - refuse the gateway key on the public host, or remove the public domain (decision D-T2);
+  - put the owner in the cache credential.
+- **Status:** OPEN.
+
+### M424 — The public Terminal bundle embeds a real BBCA broker summary (2026-11-16, OPEN)
+
+- **Symptom:** `/terminal-app/` and its assets are served without a session (`apps/edge-bff/app/main.py:363-376`).
+- **Verified cause:**
+  - the bundle includes the fixture constants `BROKSUM_PROFILE` and `BK_BASE`, "the real BBCA broker summary of
+    2023-12-18" (`apps/edge-bff/terminal/src/data/fixtureConstants.ts:1-3`);
+  - they are used by `?fixture=reference`.
+- **Class:** market data shipped as test fixture in a public asset (data terms, `verification/edge_multiuser/data_terms_exposure.md`).
+- **Solution (planned, Phase 0):** replace the fixture with synthetic numbers, or keep fixture mode out of the production
+  build.
+- **Status:** OPEN. Low severity: one day from 2023.
+
+### M423 — Terminal drawings saved in the browser are merged into whichever account signs in next (2026-11-16, OPEN)
+
+- **Symptom (by reading the code):** user A's unsynced drawings would join user B's account on a shared browser.
+- **Verified cause:**
+  - on `pagehide`, pending drawing sets are copied to localStorage `ml.drawings.*` with no user mark
+    (`apps/edge-bff/terminal/src/data/drawingsApi.ts:122`);
+  - `load()` merges every such set into the signed-in account (`:50-69`).
+- **Class:** an offline copy that is not bound to its owner.
+- **Solution (planned, Phase 0):** stamp each local set with the user that wrote it and merge only for that user, or
+  retire the offline copy.
+- **Status:** OPEN. Harmless with one user.
+
 ### M422 — Terminal: a long position, horizontal line or ray could not be dragged up or down; the chart moved instead (2026-11-10, fixed)
 
 - **Symptom (user screenshot, BBRI long position):** "bisa di gerakin kiri kanan, tapi tidak bisa atas bawah. Kalau saya

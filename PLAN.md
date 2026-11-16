@@ -1104,8 +1104,16 @@ pendaftaran sendiri plus kode email. Approval untuk merencanakan, belum "go" eks
 - **Langkah berikut (disiapkan, belum dijalankan; user: "Konfirmasi saja dulu"):** inspeksi arsitektur read-only oleh 10
   sub-agent Opus 5.5 medium, prompt di `verification/edge_multiuser/access_tiers/INSPECTION_PROMPTS.md`; hasilnya menjadi
   rencana implementasi untuk "go".
-- **Pertanyaan terbuka:** (1) arti "ID" di form (nomor KTP/NIK, username, atau lainnya); (2) chat AI per paket, kini mengikuti
-  katalog kemampuan per paket; (3) payment gateway (dipilih user nanti).
+- **Inspeksi dijalankan, 2026-11-16 (user: "Ok go."):** 10 sub-agent read-only selesai. Hasil gabungan dan rencana implementasi
+  tujuh fase (0 pengamanan, 1 akun, 2 katalog kemampuan, 3 gate per tab, 4 dashboard admin, 5 pembayaran, 6 peluncuran;
+  `EDGE_MULTIUSER` mati sampai fase 6) ada di `verification/edge_multiuser/access_tiers/FINDINGS.md`. Cacat baru dicatat di
+  `ERRORS_AND_SOLUTIONS.md` M423-M430. Rencana ini belum di-"go".
+- **Pertanyaan terbuka:**
+  1. Arti "ID" di form (nomor KTP/NIK, username, atau lainnya).
+  2. "Free" sebagai paket nyata dengan fitur terbatas, atau semua user tanpa bayar hanya melihat halaman bayar.
+  3. Domain publik terminal-api: dihapus, atau kunci gateway ditolak di sana (M425).
+  4. Fase mana yang di-"go" lebih dulu.
+  5. Isi per paket (indikator, data, hasil backtest, model AI) dan payment gateway dipilih nanti.
 
 ## TERMINAL-IND-CARDS — dipindah ke `EXEC.md` EXEC-IND-CARDS (go 2026-11-01: "jalankan TERMINAL-IND-CARDS as well")
 
