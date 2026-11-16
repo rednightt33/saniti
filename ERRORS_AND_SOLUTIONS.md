@@ -8929,7 +8929,22 @@ code and its requester is part of the data model, not of the message.
 - **C3 conformance check (2026-11-16, `3ed24bc2`):**
   - **Blocking B1:** with the switch off, a browser without the last-login mark cleared user #1's browser-only data (My
     metrics, favourites) instead of adopting and uploading it. The cause was the C2 #3 rule applied to the only possible
-    principal. Fix: adopt when the session's `access.version` is `env`; clear only with the switch on.
+    principal. The fix first planned (adopt when `access.version` is `env`) would still clear the same data on a
+    browser first opened after the switch goes on. Fix as built (2026-11-16, FIXED on branch, not deployed): the class
+    is "state written before the browser mark existed belongs to the one account EDGE had then". The session answer
+    gives `access.seed` (`app/principal.py`): true for user #1, which is the switch-off principal or the seed row, the one
+    owner key not of the `u_` form (`users_one_seed`). It is false for every registered account. `static/edge-client.js`
+    passes it to `noteIdentity` (`shared/edge-session.ts`). A browser with no mark adopts the seed's state and uploads
+    it once, with the switch off and on. It clears for any other account (C2 #3 unchanged), and a mark naming another
+    account still clears, even for the seed.
+    - The C3 test's call now carries `{ seed: true }`, which the switch-off answer carries; its assertions are
+      unchanged.
+    - Added cases: the seed after the switch is on; a registered account (`seed:false`) still clears; a mark of another
+      account clears for the seed too. Server: `test_principal.py` (switch off: `seed` true) and `test_auth_flows.py`
+      (the seed row true, a registered account false).
+    - Not covered: a browser whose mark was removed by hand and that holds another account's state, first signed in
+      by the seed. That state is then kept for the seed. It can only arise from a manual storage edit, since sign-out
+      removes the mark together with the state.
   - **Recorded, non-blocking:**
     - First device wins per preference, with no merge of lists.
     - The page may wait up to 3 s once for the first upload.

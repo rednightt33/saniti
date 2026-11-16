@@ -84,7 +84,7 @@ def test_switch_off_the_principal_is_user_one_and_the_session_keeps_todays_keys(
         # gave before Phase 1
         assert answer['access'] == {'plan': None, 'role': 'user', 'status': 'active', 'expires_at': None, 'mfa_ok': True,
                                     'capabilities': [], 'limits': {}, 'version': 'env', 'next': None,
-                                    'owner_key': settings.owner, 'mfa_enrolled': False}
+                                    'owner_key': settings.owner, 'mfa_enrolled': False, 'seed': True}
         assert answer['owner_key'] == settings.owner
     admins = dataclasses.replace(settings, admin_owners=(settings.owner,))
     with TestClient(create_app(admins, store, FakeOrc())) as c:

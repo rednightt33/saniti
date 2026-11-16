@@ -208,23 +208,26 @@ export function migrateIdentity(from: string, to: string) {
 }
 
 /** the shell, after a sign-in or a session read: another identity than the last one clears the previous account's
-    state first; then this one is the last. A browser with no mark adopts the identity and clears nothing (until Phase 0
-    EDGE had one account). A mark holding this account's login while the answer now carries its owner key is the same
-    account: the mark and its drawing stamps move to the owner key. `same`: the local state was this identity's. */
-export function noteIdentity(login: string, ownerKey?: string | null): { changed: boolean; same: boolean } {
+    state first; then this one is the last. A mark holding this account's login while the answer now carries its owner
+    key is the same account: the mark and its drawing stamps move to the owner key. `same`: the local state was this
+    identity's (edge-client.js then uploads its values with no server copy once).
+    A browser with no mark (EDGE last used there before the Phase 0 deploy, or the mark was removed) holds state of an
+    unknown account, with one exception: `seed`, the session answer's access.seed, says this is user #1, the one account
+    EDGE had before accounts, so state written before the mark existed can only be its (C3 Phase 1 B1: kept and uploaded
+    once, with the switch off and on). Any other identity never adopts it (C2 Phase 1 #3): only drawing copies stamped
+    by this same login are its (the one-time move to the owner key); anything else is cleared. */
+export function noteIdentity(login: string, ownerKey?: string | null, opts: { seed?: boolean } = {}): { changed: boolean; same: boolean } {
   const now = identityOf(login, ownerKey); if (!now) return { changed:false, same:false };
   const was = lastLogin();
-  // C2 Phase 1 #3: with accounts, a browser with no mark holds state of an unknown account (EDGE used there before the
-  // mark existed, or the mark was removed): it is never adopted by the first identity that signs in. Only drawing copies
-  // stamped by this same login are this account's (the one-time move to the owner key); anything else is cleared.
+  const seedAdopts = !was && opts.seed === true;
   const ownStamps = !was && hasStampsOf(norm(login));
   const upgraded = !!ownerKey && (was === norm(login) || ownStamps);
   if (upgraded) migrateIdentity(norm(login), now);
-  const unknown = !was && !ownStamps && hasUserState();
+  const unknown = !was && !ownStamps && !seedAdopts && hasUserState();
   const changed = (!!was && was !== now && !upgraded) || unknown;
   if (changed) clearUserState();
   try { areaOf('local')?.setItem(LAST_LOGIN_KEY, now) } catch { /* storage off: nothing of the account is kept either */ }
-  return { changed, same:(!!was && (was === now || upgraded)) || (!was && ownStamps) };
+  return { changed, same:(!!was && (was === now || upgraded)) || (!was && (ownStamps || seedAdopts)) };
 }
 /** noteIdentity's `changed` (Phase 0 callers) */
 export const noteLogin = (login: string, ownerKey?: string | null): boolean => noteIdentity(login, ownerKey).changed;

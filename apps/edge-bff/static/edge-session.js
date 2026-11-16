@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=7dc8d145d42f8568112a59a85cbcad6b12d2c9ce3a616ffd81aeca60462907ac by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=435dd9afb70007e3d02b00f70a0a3752c3f4fb672de467cce057075d9308723c by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -247,21 +247,22 @@ var EdgeSession = (() => {
       }
     }
   }
-  function noteIdentity(login, ownerKey) {
+  function noteIdentity(login, ownerKey, opts = {}) {
     const now = identityOf(login, ownerKey);
     if (!now) return { changed: false, same: false };
     const was = lastLogin();
+    const seedAdopts = !was && opts.seed === true;
     const ownStamps = !was && hasStampsOf(norm(login));
     const upgraded = !!ownerKey && (was === norm(login) || ownStamps);
     if (upgraded) migrateIdentity(norm(login), now);
-    const unknown = !was && !ownStamps && hasUserState();
+    const unknown = !was && !ownStamps && !seedAdopts && hasUserState();
     const changed = !!was && was !== now && !upgraded || unknown;
     if (changed) clearUserState();
     try {
       areaOf("local")?.setItem(LAST_LOGIN_KEY, now);
     } catch {
     }
-    return { changed, same: !!was && (was === now || upgraded) || !was && ownStamps };
+    return { changed, same: !!was && (was === now || upgraded) || !was && (ownStamps || seedAdopts) };
   }
   var noteLogin = (login, ownerKey) => noteIdentity(login, ownerKey).changed;
   function checkUser(login, ownerKey) {

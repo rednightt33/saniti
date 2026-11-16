@@ -30,12 +30,8 @@ def last_code(store, email):
     return rows[-1]['payload']['mask'][0]
 
 
-@pytest.fixture
-def live(settings, store):
-    sock = socket.socket(); sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
-    on = dataclasses.replace(settings, origin=f'http://127.0.0.1:{port}', multiuser=True, code_secret='c' * 40,
-                             mfa_key='m' * 40)
-    application = create_app(on, store, FakeOrc())
+def serve(settings, store, port, sock):
+    application = create_app(settings, store, FakeOrc())
     application.state.auth_flows.pwned_fetch = lambda prefix: ''        # never the real API in a test
     server = uvicorn.Server(uvicorn.Config(application, log_level='critical', access_log=False))
     thread = threading.Thread(target=server.run, kwargs={'sockets': [sock]}, daemon=True); thread.start()
@@ -44,10 +40,55 @@ def live(settings, store):
             break
         time.sleep(0.02)
     assert server.started
+    return server, thread
+
+
+@pytest.fixture
+def live(settings, store):
+    sock = socket.socket(); sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
+    on = dataclasses.replace(settings, origin=f'http://127.0.0.1:{port}', multiuser=True, code_secret='c' * 40,
+                             mfa_key='m' * 40)
+    server, thread = serve(on, store, port, sock)
     try:
         yield on, store
     finally:
         server.should_exit = True; thread.join(timeout=10); sock.close()
+
+
+@pytest.fixture
+def live_off(settings, store):
+    """the switch off (EDGE_MULTIUSER false), as on dev after the Phase 1 deploy"""
+    sock = socket.socket(); sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
+    off = dataclasses.replace(settings, origin=f'http://127.0.0.1:{port}')
+    server, thread = serve(off, store, port, sock)
+    try:
+        yield off, store
+    finally:
+        server.should_exit = True; thread.join(timeout=10); sock.close()
+
+
+def test_switch_off_user_one_keeps_a_browser_without_the_mark(live_off, page):
+    """ERRORS M478 C3 B1: EDGE last used on this browser before Phase 0 (no last-login mark), My metrics only in the
+    browser. The first sign-in after the deploy keeps them for user #1 (access.seed) and writes the mark."""
+    off, store = live_off
+    page.goto(off.origin + '/login')
+    page.evaluate("() => { localStorage.removeItem('edge-last-login'); localStorage.setItem('ml.my', '[{\"row\":\"rsi\"}]') }")
+    page.get_by_label('Login', exact=True).fill('owner')
+    page.get_by_label('Password', exact=True).fill('local-test-password')
+    page.get_by_role('button', name='Sign In').click()
+    page.get_by_placeholder('Ask a research question…').wait_for()
+    session = page.evaluate("() => fetch('/api/v1/auth/session').then(r => r.json())")
+    assert session['access']['seed'] is True and session['access']['version'] == 'env'
+    page.wait_for_function("() => localStorage.getItem('edge-last-login') !== null")
+    assert page.evaluate("() => localStorage.getItem('edge-last-login')") == 'owner:' + off.owner
+    assert page.evaluate("() => localStorage.getItem('ml.my')") == '[{"row":"rsi"}]'
+    # and uploaded once under user #1 (a sync key with no server copy yet, contract 4b)
+    for _ in range(100):
+        rows = db(store, "SELECT owner_key, value FROM edge_bff.user_preferences WHERE pref_key='ml.my'")
+        if rows:
+            break
+        time.sleep(0.05)
+    assert [(r['owner_key'], r['value']) for r in rows] == [(off.owner, '[{"row":"rsi"}]')]
 
 
 def fill_register(page, phone='0812 3456 7890', username='ana_putri'):

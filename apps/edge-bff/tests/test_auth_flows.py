@@ -165,7 +165,9 @@ def test_register_sends_a_code_and_verify_signs_in_directly(app, store):
     r = verify(app, code)
     assert r.status_code == 200 and r.json()['username'] == 'ana_putri' and r.json()['access']['role'] == 'user'
     assert r.json()['owner_key'] == user['owner_key'] and 'edge_session' in r.headers['set-cookie']
-    assert app.get('/api/v1/auth/session').json()['login'] == 'ana_putri'
+    session = app.get('/api/v1/auth/session').json()
+    # a registered account is never user #1: its browser never adopts state left before the last-login mark (C3 B1)
+    assert session['login'] == 'ana_putri' and session['access']['seed'] is False and r.json()['access']['seed'] is False
     user = db(store, 'SELECT * FROM edge_bff.users WHERE email=%s', 'ana@example.com')[0]
     assert (user['status'], user['username'], user['requested_username']) == ('active', 'ana_putri', None)
     assert user['email_verified_at'] and user['last_sign_in_at']
@@ -490,6 +492,7 @@ def test_admin_mfa_enrol_verify_replay_and_recovery(app, store, on):
     h = admin_sign_in(app)
     s = app.get('/api/v1/auth/session').json()
     assert s['access']['next'] == 'mfa' and s['access']['mfa_enrolled'] is False and s['csrf_token'] == h['X-CSRF-Token']
+    assert s['access']['seed'] is True                     # the seed row (owner key EDGE_OWNER) is user #1, switch on too
     for method, path in (('GET', '/api/v1/terminal/layouts'), ('GET', '/api/v1/preferences'), ('GET', '/api/v1/dev/manual/steps')):
         r = app.request(method, path)
         assert (r.status_code, error_code(r)) == (403, 'MFA_REQUIRED'), path

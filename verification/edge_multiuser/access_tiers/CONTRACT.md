@@ -118,7 +118,7 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 | `POST /api/v1/auth/mfa/enroll` | — | `otpauth://` URI plus 10 recovery codes, shown once; admin only |
 | `POST /api/v1/auth/mfa/verify` | `code` or `recovery_code` | sets `mfa_passed_at` |
 | `GET /api/v1/auth/config` | — | public, no session: `{"multiuser": bool}`. The sign-in page shows "Create account" and "Forgot password?" only when true (added 2026-11-16 for the page builder) |
-| `GET /api/v1/auth/session` | — | today's keys unchanged (`authenticated`, `login`, `csrf_token`, `capabilities` = configuration flags) plus `username` and `access: {plan, role, status, expires_at, mfa_ok, capabilities:[…], limits:{…}, version, next: null/"verify"/"mfa"/"pay"}` |
+| `GET /api/v1/auth/session` | — | today's keys unchanged (`authenticated`, `login`, `csrf_token`, `capabilities` = configuration flags) plus `username` and `access: {plan, role, status, expires_at, mfa_ok, capabilities:[…], limits:{…}, version, owner_key, mfa_enrolled, seed, next: null/"verify"/"mfa"/"pay"}`; `seed` is true only for user #1 (the switch-off principal or the seed row): a browser with no last-login mark keeps its state only for it (section 12) |
 
 **Registration rules:**
 - Enumeration: an existing email or username gets the same 202. An existing email receives "akun sudah ada, gunakan
@@ -315,6 +315,8 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 - **Storage registry:** every localStorage, sessionStorage and IndexedDB key is classified `browser` (theme, widths) or
   `user`.
   - Sign-out or a change of user clears the `user` keys, and the `terminal-files` and screener caches.
+  - A browser with no last-login mark is cleared at the first sign-in unless the session's `access.seed` is true
+    (user #1: state written before the mark existed can only be its; ERRORS M478 C3 B1).
   - A test fails on an unclassified key.
   - Drawings offline copies are stamped with the owner and merged only for it (M468).
 - **Shell pages:** `/register`, `/verify`, `/forgot`, `/reset`, `/mfa`, `/pay` (Phase 5 stub), `/admin` (Phase 4).

@@ -28,7 +28,7 @@ from datetime import datetime
 
 from fastapi import Depends, Request
 
-from .accounts import AccountStore
+from .accounts import OWNER_KEY, AccountStore
 from .errors import Refusal, capability_required
 from .security import csrf_token, same_ascii, token_hash
 
@@ -59,6 +59,9 @@ class Principal:
     token: str = field(default='', repr=False)
     # switch on: the account has a confirmed TOTP enrolment (the MFA page asks for a code, else it offers enrolment)
     mfa_enrolled: bool = False
+    # user #1, the account EDGE had before accounts (owner key EDGE_OWNER; the seed row, the one key not of the 'u_'
+    # form, users_one_seed): browser state left before the last-login mark existed can only be its (C3 Phase 1 B1)
+    seed: bool = False
 
     def can(self, capability):
         return EVERYTHING in self.capabilities or capability in self.capabilities
@@ -71,7 +74,7 @@ class Principal:
         return {'plan': self.plan_key, 'role': self.role, 'status': self.status,
                 'expires_at': self.expires_at.isoformat() if self.expires_at else None, 'mfa_ok': self.mfa_ok,
                 'capabilities': sorted(self.capabilities), 'limits': dict(self.limits), 'version': self.version,
-                'owner_key': self.owner_key, 'mfa_enrolled': self.mfa_enrolled,
+                'owner_key': self.owner_key, 'mfa_enrolled': self.mfa_enrolled, 'seed': self.seed,
                 'next': nxt if nxt is not None else (None if self.mfa_ok else 'mfa')}
 
 
@@ -92,7 +95,7 @@ def switch_off_principal(settings, owner, token='', seed=None):
                      username=seed.get('username') if first else None, role='admin' if admin else 'user', plan_key=None,
                      status='active', expires_at=None, mfa_ok=True,
                      capabilities=ROLE_CAPABILITIES['admin' if admin else 'user'], limits={},
-                     version=SWITCH_OFF_VERSION, token=token)
+                     version=SWITCH_OFF_VERSION, token=token, seed=first)
 
 
 def role_needs_mfa(role):
@@ -109,7 +112,7 @@ def account_principal(row, token=''):
                      plan_key=None, status=row['status'], expires_at=None,
                      mfa_ok=not needs_mfa or row.get('mfa_passed_at') is not None, capabilities=capabilities,
                      limits={}, version=version_of(row['role'], row['status'], capabilities), token=token,
-                     mfa_enrolled=bool(row.get('mfa_enrolled')))
+                     mfa_enrolled=bool(row.get('mfa_enrolled')), seed=not OWNER_KEY.fullmatch(row['owner_key']))
 
 
 class Auth:

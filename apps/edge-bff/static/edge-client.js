@@ -53,10 +53,10 @@
   // M473: another login than the last one on this browser clears the previous account's state before anything shows.
   // Phase 1: the identity is the stable owner key once the session answer carries it (owner:<key>), else the login;
   // then the account preferences (contract 4b) are read into this browser, and a local value of this same identity
-  // with no server copy goes up once.
+  // with no server copy goes up once. access.seed (user #1) keeps a browser's state from before the mark (C3 B1).
   const ownerOf = session => session?.owner_key ?? session?.access?.owner_key ?? null;
   const identity = session => { try { return ES()?.identityOf(session?.login || '', ownerOf(session)) ?? String(session?.login || '').trim().toLowerCase(); } catch { return String(session?.login || '').trim().toLowerCase(); } };
-  const noteLogin = session => { try { if (session?.login) return ES()?.noteIdentity(session.login, ownerOf(session)) || null; } catch { /* storage off */ } return null; };
+  const noteLogin = session => { try { if (session?.login) return ES()?.noteIdentity(session.login, ownerOf(session), {seed:session?.access?.seed === true}) || null; } catch { /* storage off */ } return null; };
   // the preferences routes ship with the Phase 1 session answer (its `access` object): an older server is never asked
   // (a session still waiting for the authenticator, access.next "mfa", reads none: they answer 403 MFA_REQUIRED)
   const loadPrefs = noted => { if (!auth?.access || auth.access.next) return Promise.resolve(false);
