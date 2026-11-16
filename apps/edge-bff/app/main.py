@@ -1,5 +1,4 @@
 import asyncio
-from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 import hmac
 import json
@@ -14,11 +13,14 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .backtest import Backtests
 from .client import OrcClient, OrcError, public_data
 from .config import Settings
+from .errors import Refusal, capability_required, http_refusal, refusal, validation_refusal
+from .hooks import is_hook_path
 from .layouts import Layouts
 from .presets import Presets
 from .drawings import Drawings
@@ -28,6 +30,7 @@ from .radar import Radar
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .security import csrf_token, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
+from .throttle import SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address, normal_login
 from .worker import Worker
 
 COOKIE = 'edge_session'
@@ -206,7 +209,8 @@ def create_app(settings=None, store=None, orc=None):
     overview = Overview(settings)                       # EXEC-OVERVIEW O4
     watchlist = Watchlist(settings, store)              # EXEC-WATCHLIST L3
     ready = {'value': False}
-    failures = defaultdict(deque)
+    # EXEC-MU-ACCOUNTS Phase 0: the sign-in throttle lives in PostgreSQL (app/throttle.py), shared by every instance
+    throttle = Throttle(store, settings.session_secret)
     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
     # (a client per request opened a new connection every time)
     terminal_http = {'client': None}
@@ -256,9 +260,18 @@ def create_app(settings=None, store=None, orc=None):
     async def orc_error(_, exc):
         return error(exc.code, exc.status)
 
+    # EXEC-MU-ACCOUNTS Phase 0 (CONTRACT.md section 3, M471): FastAPI's own refusals in the one error shape
     @app.exception_handler(RequestValidationError)
     async def validation_error(_, exc):
-        return error('INVALID_INPUT', 422)
+        return validation_refusal(exc)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error(_, exc):
+        return http_refusal(exc)
+
+    @app.exception_handler(Refusal)
+    async def refused(_, exc):
+        return refusal(exc.status, exc.code, exc.details, exc.headers)
 
     @app.exception_handler(Exception)
     async def unexpected(_, exc):
@@ -268,8 +281,10 @@ def create_app(settings=None, store=None, orc=None):
     @app.middleware('http')
     async def protections(request, call_next):
         if request.method in ('POST', 'PATCH', 'PUT', 'DELETE'):
-            # Same-origin writes, including login, cannot be driven by cross-site forms.
-            if request.headers.get('origin') != settings.origin:
+            # Same-origin writes, including login, cannot be driven by cross-site forms. EXEC-MU-ACCOUNTS (CONTRACT.md
+            # section 6): a hook (/api/v1/hooks/, app/hooks.py) comes from a provider, not a browser, and proves itself
+            # by a signature over the body instead; the size cap below and the headers still apply to it.
+            if not is_hook_path(request.url.path) and request.headers.get('origin') != settings.origin:
                 return error('ORIGIN_REJECTED', 403)
             total, chunks = 0, []
             async for chunk in request.stream():
@@ -299,15 +314,27 @@ def create_app(settings=None, store=None, orc=None):
         token = request.cookies.get(COOKIE, '')
         found = await asyncio.to_thread(store.session, token_hash(token)) if re.fullmatch(r'[0-9a-f]{64}', token) else None
         if not found or found['owner_key'] != settings.owner:
-            raise HTTPException(status_code=401, detail='Authentication required')
+            raise HTTPException(status_code=401, detail='UNAUTHENTICATED')
         # EXEC-BACKTEST-REVAMP P5: the session's owner for the routes that read it (backtest.py identity), never a body's
         request.state.owner = found['owner_key']
         return token
 
     async def write(request: Request, token=Depends(session)):
         if not hmac.compare_digest(request.headers.get('x-csrf-token', ''), csrf_token(token, settings.session_secret)):
-            raise HTTPException(status_code=403, detail='Invalid CSRF token')
+            raise HTTPException(status_code=403, detail='CSRF_INVALID')
         return token
+
+    # The route-table test (tests/test_route_table.py, CONTRACT.md 13.1) finds these in every /api route's dependencies
+    app.state.session_dependency, app.state.write_dependency = session, write
+
+    def admin_only(capability, base):
+        """A route for an owner listed in EDGE_ADMIN_OWNERS only (settings.admin_owners; default the one owner), after
+        the session (base = session) or the session and CSRF (base = write): 403 CAPABILITY_REQUIRED otherwise."""
+        async def check(request: Request, token=Depends(base)):
+            if request.state.owner not in settings.admin_owners:
+                raise capability_required(capability)
+            return token
+        return check
 
     async def snapshot(request_id):
         row = await asyncio.to_thread(store.job, settings.owner, request_id)
@@ -509,21 +536,19 @@ def create_app(settings=None, store=None, orc=None):
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):
-        ip = request.client.host if request.client else 'unknown'
-        # Bounded in-process attempt limiter; this deployment intentionally uses one uvicorn process.
-        if len(failures) > 1024:
-            failures.clear()
-        attempts = failures[ip]
-        now = time.monotonic()
-        while attempts and attempts[0] < now - 60:
-            attempts.popleft()
-        if len(attempts) >= 5:
-            return error('SIGN_IN_RATE_LIMIT', 429)
+        # EXEC-MU-ACCOUNTS Phase 0 (CONTRACT.md section 4 "Throttle"): 10 failures per login in 15 minutes, counted in
+        # PostgreSQL for every login typed (known or not, so a refusal says nothing about the account); the client
+        # address is counted too but not enforced until Railway's forwarded address is proved
+        login_key = normal_login(body.login)
+        wait = await asyncio.to_thread(throttle.retry_after, SIGNIN_LOGIN, login_key)
+        if wait:
+            return refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
+        # the password is checked before the login is compared, so a wrong login costs the same time as a wrong password
         password_ok = await asyncio.to_thread(verify_password, body.password, settings.password_verifier)
         if not hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode()) or not password_ok:
-            attempts.append(now)
+            await asyncio.to_thread(throttle.count, (SIGNIN_LOGIN, login_key), (SIGNIN_IP, client_address(request)))
             return error('INVALID_CREDENTIALS', 401)
-        attempts.clear()
+        await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
         old = request.cookies.get(COOKIE)
         if old:
             await asyncio.to_thread(store.revoke, token_hash(old))
@@ -633,7 +658,7 @@ def create_app(settings=None, store=None, orc=None):
         try:
             last = max(0, int(request.headers.get('last-event-id', '0')))
         except ValueError:
-            raise HTTPException(400, 'Invalid event cursor')
+            raise HTTPException(400, 'INVALID_INPUT')
         async def stream():
             version = last
             started = time.monotonic()
@@ -657,18 +682,19 @@ def create_app(settings=None, store=None, orc=None):
             'Cache-Control':'no-store, no-transform', 'X-Accel-Buffering':'no', 'Content-Encoding':'identity'})
 
     # EXEC-MANUAL (user 2026-10-17, troubleshooting only): Claude reads the waiting model calls of a run that chose
-    # the manual model and posts its reply; Orc decides (404 while its switch is off)
+    # the manual model and posts its reply; Orc decides (404 while its switch is off). EXEC-MU-ACCOUNTS Phase 0 (M259,
+    # M474): an admin owner's only (403 CAPABILITY_REQUIRED admin.manual), and the reply is a write (CSRF)
     @app.get('/api/v1/dev/manual/steps')
-    async def manual_steps(_=Depends(session)):
+    async def manual_steps(_=Depends(admin_only('admin.manual', session))):
         code, data = await asyncio.to_thread(orc.manual, settings.owner, 'GET', '')
         return JSONResponse(data, status_code=code)
 
     @app.post('/api/v1/dev/manual/steps/{step_id}')
-    async def manual_answer(step_id: str, request: Request, _=Depends(session)):
+    async def manual_answer(step_id: str, request: Request, _=Depends(admin_only('admin.manual', write))):
         try:
             body = await request.json()
         except ValueError:
-            raise HTTPException(400, 'Invalid JSON')
+            raise HTTPException(400, 'INVALID_INPUT')
         code, data = await asyncio.to_thread(orc.manual, settings.owner, 'POST', '/' + step_id[:64], body)
         return JSONResponse(data, status_code=code)
 
