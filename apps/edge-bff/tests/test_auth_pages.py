@@ -89,6 +89,59 @@ def test_register_then_the_code_page(fixture_server, page):
     assert sent[2:] == [{'email': 'ana@example.com', 'code': '123456'}, {'email': 'ana@example.com', 'code': '123456', 'username': 'ana_p'}]
 
 
+def test_a_refused_sign_in_points_a_new_account_to_its_code(fixture_server, page):
+    """A pending account's sign-in answers the generic 401 INVALID_CREDENTIALS (no enumeration; the server emails a new
+    code and sets the registration cookie): with registration open the page adds where to enter the code."""
+    origin, _ = fixture_server
+    refused = {'error': {'code': 'INVALID_CREDENTIALS', 'message': 'The login or the password is not right.', 'details': {}}}
+    page.route('**/api/v1/auth/sign-in', lambda r: answer(r, 401, refused))
+    page.goto(origin + '/login')
+    page.get_by_label('Login', exact=True).fill('ana@example.com')
+    page.get_by_label('Password', exact=True).fill('a long enough password')
+    page.get_by_role('button', name='Sign In').click()
+    page.get_by_role('alert').wait_for()
+    assert page.get_by_role('link', name='Verify page').count() == 0       # registration closed: the message only
+    page.route('**/api/v1/auth/config', lambda r: answer(r, 200, {'multiuser': True}))
+    page.goto(origin + '/login')
+    page.get_by_label('Login', exact=True).fill('ana@example.com')
+    page.get_by_label('Password', exact=True).fill('a long enough password')
+    page.get_by_role('button', name='Sign In').click()
+    page.get_by_role('alert').wait_for()
+    assert page.get_by_role('alert').inner_text() == 'The login or the password is not right.'
+    assert 'If you have just registered, check your email for a code' in page.locator('.auth-note').inner_text()
+    page.get_by_role('link', name='Verify page').click()
+    page.wait_for_function("() => location.pathname === '/verify'")
+    assert page.get_by_text('Enter the code in the same browser where you registered.').is_visible()
+    assert page.get_by_text('We sent a code to ana@example.com.').is_visible()
+
+
+def test_mfa_locked_offers_the_recovery_code_then_an_admin(fixture_server, page):
+    """403 MFA_LOCKED: details.locked "code" offers the recovery-code field; "recovery_code" leaves only an admin's
+    unlock. A verify that passes answers the rotated session's csrf_token, which replaces the pending one."""
+    origin, _ = fixture_server
+    answers = [(403, {'error': {'code': 'MFA_LOCKED', 'message': 'locked', 'details': {'locked': 'code', 'use': 'recovery_code'}}}),
+               (403, {'error': {'code': 'MFA_LOCKED', 'message': 'locked', 'details': {'locked': 'recovery_code'}}})]
+    sent = []
+    page.route('**/api/v1/auth/sign-in', lambda r: answer(r, 403, {'error': {'code': 'MFA_REQUIRED', 'message': 'Enter your code.',
+               'details': {'csrf_token': 'pending-token', 'mfa_enrolled': True}}}))
+    page.route('**/api/v1/auth/mfa/verify', lambda r: (sent.append(r.request.post_data_json), answer(r, *answers.pop(0))))
+    page.goto(origin + '/login')
+    page.get_by_label('Login', exact=True).fill('owner')
+    page.get_by_label('Password', exact=True).fill('local-test-password')
+    page.get_by_role('button', name='Sign In').click()
+    page.wait_for_function("() => location.pathname === '/mfa'")
+    assert page.locator('svg.auth-qr').count() == 0                    # enrolled: the code, no set-up
+    page.get_by_label('Code', exact=True).fill('123456')
+    page.get_by_role('button', name='Continue').click()
+    page.get_by_label('Recovery code', exact=True).wait_for()
+    assert page.get_by_role('alert').inner_text() == 'Too many wrong authenticator codes. Enter one of your recovery codes instead.'
+    page.get_by_label('Recovery code', exact=True).fill('code-01')
+    page.get_by_role('button', name='Continue').click()
+    page.get_by_text('Ask an admin to unlock your account.').wait_for()
+    assert page.get_by_role('button', name='Continue').is_disabled()
+    assert sent == [{'code': '123456'}, {'recovery_code': 'code-01'}]
+
+
 def test_forgot_password_code_new_password_back_to_sign_in(fixture_server, page):
     origin, _ = fixture_server
     sent = []

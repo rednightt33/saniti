@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=f8002f35bfce702af5395c4832b341b401680fe66e2d99e80baaf727f9c3a1c0 by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=7dc8d145d42f8568112a59a85cbcad6b12d2c9ce3a616ffd81aeca60462907ac by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -214,6 +214,27 @@ var EdgeSession = (() => {
     }))).then(() => void 0);
   }
   var identityOf = (login, ownerKey) => ownerKey ? `owner:${norm(ownerKey)}` : norm(login);
+  function hasUserState() {
+    for (const area of ["local", "session"]) {
+      const s = areaOf(area);
+      if (!s) continue;
+      if (keysOf(s).some((k) => k !== LAST_LOGIN_KEY && isUserKey(k, area))) return true;
+    }
+    return false;
+  }
+  function hasStampsOf(owner) {
+    const s = areaOf("local");
+    if (!s || !owner) return false;
+    return keysOf(s).some((k) => {
+      if (!k.startsWith("ml.drawings.")) return false;
+      try {
+        const v = JSON.parse(s.getItem(k) || "null");
+        return !!v && typeof v === "object" && !Array.isArray(v) && v.owner === owner;
+      } catch {
+        return false;
+      }
+    });
+  }
   function migrateIdentity(from, to) {
     const s = areaOf("local");
     if (!s || !from || !to || from === to) return;
@@ -230,15 +251,17 @@ var EdgeSession = (() => {
     const now = identityOf(login, ownerKey);
     if (!now) return { changed: false, same: false };
     const was = lastLogin();
-    const upgraded = !!ownerKey && was === norm(login);
-    if (upgraded) migrateIdentity(was, now);
-    const changed = !!was && was !== now && !upgraded;
+    const ownStamps = !was && hasStampsOf(norm(login));
+    const upgraded = !!ownerKey && (was === norm(login) || ownStamps);
+    if (upgraded) migrateIdentity(norm(login), now);
+    const unknown = !was && !ownStamps && hasUserState();
+    const changed = !!was && was !== now && !upgraded || unknown;
     if (changed) clearUserState();
     try {
       areaOf("local")?.setItem(LAST_LOGIN_KEY, now);
     } catch {
     }
-    return { changed, same: !!was && (was === now || upgraded) };
+    return { changed, same: !!was && (was === now || upgraded) || !was && ownStamps };
   }
   var noteLogin = (login, ownerKey) => noteIdentity(login, ownerKey).changed;
   function checkUser(login, ownerKey) {
@@ -464,18 +487,21 @@ var EdgeSession = (() => {
       p = null;
       throw e;
     }));
-    async function send(url, init = {}, retried = false) {
+    const changed = (message = "Another EDGE account signed in on this browser. Reload the page to continue as that account.") => new Response(JSON.stringify({ error: { code: "USER_CHANGED", message, details: {} } }), { status: 401, headers: { "Content-Type": "application/json" } });
+    async function send(url, init = {}, retried = false, expected = identity) {
       const method = String(init.method || "GET").toUpperCase();
       const write = WRITE.has(method);
       const headers = { ...init.headers || {} };
       if (write) {
+        if (retried && !expected) return changed();
         try {
           headers["X-CSRF-Token"] = (await session()).csrf;
         } catch (e) {
-          if (e instanceof SessionError && e.error?.code === "USER_CHANGED")
-            return new Response(JSON.stringify({ error: { code: "USER_CHANGED", message: e.message, details: {} } }), { status: 401, headers: { "Content-Type": "application/json" } });
+          if (e instanceof SessionError && e.error?.code === "USER_CHANGED") return changed(e.message);
           throw e;
         }
+        if (!retried && !expected) expected = identity;
+        if (expected && identity !== expected) return changed();
       }
       const res = await f(url, { credentials: "same-origin", ...init, method, headers });
       noteVersion(res);
@@ -484,7 +510,7 @@ var EdgeSession = (() => {
         const e = await errorOf(res.clone());
         if (e.kind === "csrf") {
           invalidate();
-          return send(url, init, true);
+          return send(url, init, true, expected);
         }
       }
       return res;
@@ -556,6 +582,7 @@ var EdgeSession = (() => {
         refused.add(key);
         return;
       }
+      if (!on) return;
       let res;
       try {
         res = await client.send(`${PREFERENCES_URL}/${encodeURIComponent(key)}`, {

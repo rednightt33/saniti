@@ -202,7 +202,9 @@
     forgotPassword: email => api('/auth/password/forgot', {email}),
     resetPassword: (email, code, password, password_repeat) => api('/auth/password/reset', {email, code, password, password_repeat}),
     mfaEnroll: () => api('/auth/mfa/enroll', {}),
-    mfaVerify: async answer => { await api('/auth/mfa/verify', answer); pending.csrf = ''; return Edge.adopt(auth); },
+    // passing MFA rotates the session token (OWASP): the answer's csrf_token replaces the pending one before any write
+    mfaVerify: async answer => { const fresh = await api('/auth/mfa/verify', answer); pending.csrf = '';
+      if (fresh?.csrf_token) auth = fresh; return Edge.adopt(fresh?.csrf_token ? fresh : auth); },
     notePreference: key => { try { ES()?.prefs.note(key); } catch { /* not offered */ } },
     // M473: sign-out removes every `user` key and the user caches (storage registry), and the last-login mark
     async signout() { try { await ES()?.prefs.flush(); } catch { /* best effort */ } stopPrefs();

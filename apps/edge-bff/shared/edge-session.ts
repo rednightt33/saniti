@@ -180,6 +180,21 @@ export function clearUserState(opts: { signOut?: boolean } = {}): Promise<void> 
    the owner key once (migrateIdentity). */
 export const identityOf = (login: string, ownerKey?: string | null) => ownerKey ? `owner:${norm(ownerKey)}` : norm(login);
 
+/** a `user` key (or our namespaces' unknown key) is held in this browser's storage */
+function hasUserState(): boolean {
+  for (const area of ['local', 'session'] as const) {
+    const s = areaOf(area); if (!s) continue;
+    if (keysOf(s).some(k => k !== LAST_LOGIN_KEY && isUserKey(k, area))) return true;
+  }
+  return false;
+}
+/** a drawing copy stamped with `owner` is held here */
+function hasStampsOf(owner: string): boolean {
+  const s = areaOf('local'); if (!s || !owner) return false;
+  return keysOf(s).some(k => { if (!k.startsWith('ml.drawings.')) return false;
+    try { const v = JSON.parse(s.getItem(k) || 'null'); return !!v && typeof v === 'object' && !Array.isArray(v) && v.owner === owner } catch { return false } });
+}
+
 /** the drawing copies stamped with `from` (the login) are stamped with `to` (the owner key): the same account */
 export function migrateIdentity(from: string, to: string) {
   const s = areaOf('local'); if (!s || !from || !to || from === to) return;
@@ -199,12 +214,17 @@ export function migrateIdentity(from: string, to: string) {
 export function noteIdentity(login: string, ownerKey?: string | null): { changed: boolean; same: boolean } {
   const now = identityOf(login, ownerKey); if (!now) return { changed:false, same:false };
   const was = lastLogin();
-  const upgraded = !!ownerKey && was === norm(login);
-  if (upgraded) migrateIdentity(was, now);
-  const changed = !!was && was !== now && !upgraded;
+  // C2 Phase 1 #3: with accounts, a browser with no mark holds state of an unknown account (EDGE used there before the
+  // mark existed, or the mark was removed): it is never adopted by the first identity that signs in. Only drawing copies
+  // stamped by this same login are this account's (the one-time move to the owner key); anything else is cleared.
+  const ownStamps = !was && hasStampsOf(norm(login));
+  const upgraded = !!ownerKey && (was === norm(login) || ownStamps);
+  if (upgraded) migrateIdentity(norm(login), now);
+  const unknown = !was && !ownStamps && hasUserState();
+  const changed = (!!was && was !== now && !upgraded) || unknown;
   if (changed) clearUserState();
   try { areaOf('local')?.setItem(LAST_LOGIN_KEY, now) } catch { /* storage off: nothing of the account is kept either */ }
-  return { changed, same:!!was && (was === now || upgraded) };
+  return { changed, same:(!!was && (was === now || upgraded)) || (!was && ownStamps) };
 }
 /** noteIdentity's `changed` (Phase 0 callers) */
 export const noteLogin = (login: string, ownerKey?: string | null): boolean => noteIdentity(login, ownerKey).changed;
@@ -404,18 +424,25 @@ export function sessionClient(fetchImpl?: typeof fetch) {
   /** fetch with the session: a write carries X-CSRF-Token; a 403 CSRF_INVALID (or the old "Invalid CSRF token")
       reads the session again and repeats the write once; a 401 forgets the session. Network failures and session
       read failures reject as they are (the caller words them); every other answer is returned as it is. */
-  async function send(url: string, init: RequestInit = {}, retried = false): Promise<Response> {
+  const changed = (message = 'Another EDGE account signed in on this browser. Reload the page to continue as that account.') =>
+    new Response(JSON.stringify({ error:{ code:'USER_CHANGED', message, details:{} } }), { status:401, headers:{ 'Content-Type':'application/json' } });
+  /* `expected`: the identity the write was asked for (the page's identity when send() was called). A write goes out only
+     for it: an identity forgotten (the shell's 'cleared' handler) or changed while the write waited is a change of user,
+     and a repeat is sent only when the session read again is that same identity (C2 Phase 1 #2). */
+  async function send(url: string, init: RequestInit = {}, retried = false, expected: string = identity): Promise<Response> {
     const method = String(init.method || 'GET').toUpperCase();
     const write = WRITE.has(method);
     const headers: Record<string, string> = { ...(init.headers as Record<string, string> || {}) };
     if (write) {
+      if (retried && !expected) return changed();
       try { headers['X-CSRF-Token'] = (await session()).csrf }
       catch (e) {
         // another account's session: the write is never sent; the page gets a 401 USER_CHANGED (sign in / reload)
-        if (e instanceof SessionError && e.error?.code === 'USER_CHANGED')
-          return new Response(JSON.stringify({ error:{ code:'USER_CHANGED', message:e.message, details:{} } }), { status:401, headers:{ 'Content-Type':'application/json' } });
+        if (e instanceof SessionError && e.error?.code === 'USER_CHANGED') return changed(e.message);
         throw e;
       }
+      if (!retried && !expected) expected = identity;                       // the page's first read: the write is this identity's
+      if (expected && identity !== expected) return changed();
     }
     const res = await f(url, { credentials:'same-origin', ...init, method, headers });
     noteVersion(res);
@@ -425,7 +452,7 @@ export function sessionClient(fetchImpl?: typeof fetch) {
     if (res.status === 403 && write && !retried) {
       const e = await errorOf(res.clone());
       // the repeat goes out only when the session read again is the page's own account (session() refuses another)
-      if (e.kind === 'csrf') { invalidate(); return send(url, init, true) }
+      if (e.kind === 'csrf') { invalidate(); return send(url, init, true, expected) }
     }
     return res;
   }
@@ -488,6 +515,7 @@ export function preferences(client: { send: SessionClient['send'] }, opts: { del
     const was = state.get(key);
     if (value === null || value === (was?.value ?? null)) return;
     if (jsonBytes(value) > valueBytes) { refused.add(key); return }          // the server would refuse it (value_bytes)
+    if (!on) return;                                                         // stopped (sign-out, another account): never written
     let res: Response;
     try {
       res = await client.send(`${PREFERENCES_URL}/${encodeURIComponent(key)}`, { method:'PUT', headers:{ 'Content-Type':'application/json' },
