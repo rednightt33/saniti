@@ -29,6 +29,13 @@ class Limit:
 
 SIGNIN_LOGIN = Limit('signin_email', 10, 900)
 SIGNIN_IP = Limit('signin_ip', 30, 900, enforced=False)
+# EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4 "Codes", "Throttle"): 20 failed code tries per user per day (a new
+# code does not reset it); 10 emails per address per day; 10 sends per client address per hour (recorded, not enforced,
+# like SIGNIN_IP); 10 failed MFA tries per user per 15 minutes (scope code_user, key 'mfa:<user_id>')
+CODE_USER = Limit('code_user', 20, 86400)
+SEND_EMAIL = Limit('send_email', 10, 86400)
+SEND_IP = Limit('send_ip', 10, 3600, enforced=False)
+MFA_USER = Limit('code_user', 10, 900)
 
 BUCKET = 'to_timestamp(floor(extract(epoch FROM now()) / %(bucket)s) * %(bucket)s)'
 

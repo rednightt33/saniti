@@ -47,6 +47,15 @@ MESSAGES = {
     'BRANCH_FAILED': 'A new conversation could not be started from this answer. Try again in a moment.',
     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4b): the account preferences
     'PREFERENCE_CONFLICT': 'This setting was changed on another device. The current value is attached; merge it and save again.',
+    # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4): registration, codes, passwords and MFA
+    'CODE_INVALID_OR_EXPIRED': 'This code is wrong, has expired or was already used. Check the latest EDGE email, or ask for a new code.',
+    'USERNAME_TAKEN': 'This username is already taken. Choose another one and send it with the same code.',
+    'EMAIL_NOT_VERIFIED': 'Your email address is not verified yet. Enter the code from the EDGE email, or ask for a new code.',
+    'PASSWORD_BREACHED': 'This password appears in known data breaches. Choose a different password.',
+    'CURRENT_PASSWORD_INVALID': 'Your current password is not correct. Check it and try again.',
+    'MFA_CODE_INVALID': 'This sign-in code is not correct or was already used. Enter the current code from your authenticator app, or an unused recovery code.',
+    'MFA_NOT_ENROLLED': 'Two-step sign-in is not set up for this account yet. Set it up first, then enter the code.',
+    'HOOK_SIGNATURE_INVALID': 'The webhook signature could not be verified. Check the signing secret of the webhook.',
     'PREFERENCE_LIMIT': 'Your account keeps too many settings or too large a setting. Remove some, then save again.',
 }
 

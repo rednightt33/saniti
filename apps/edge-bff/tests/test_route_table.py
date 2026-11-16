@@ -15,7 +15,11 @@ from app import hooks
 from app.main import create_app
 from conftest import FakeOrc
 
-PUBLIC = {'/api/v1/auth/sign-in', '/health', '/ready'}
+# EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4): the sign-in page's own routes (no session yet; 404 with the switch
+# off); the webhook is a hook route (signature, below)
+PUBLIC = {'/api/v1/auth/sign-in', '/health', '/ready', '/api/v1/auth/config', '/api/v1/auth/register',
+          '/api/v1/auth/register/verify', '/api/v1/auth/code/resend', '/api/v1/auth/password/forgot',
+          '/api/v1/auth/password/reset'}
 READS = {'GET', 'HEAD'}
 
 

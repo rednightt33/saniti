@@ -23,6 +23,8 @@ from .config import Settings
 from .errors import Refusal, http_refusal, refusal, validation_refusal
 from .hooks import is_hook_path
 from .layouts import Layouts
+from .auth_flows import AuthFlows
+from .mailer import EmailSender
 from .preferences import Preferences
 from .presets import Presets
 from .principal import Auth, Principal
@@ -217,6 +219,9 @@ def create_app(settings=None, store=None, orc=None):
     # EXEC-MU-ACCOUNTS Phase 1: the principal of every request (app/principal.py) and the account preferences
     auth = Auth(settings, store)
     preferences = Preferences(store)
+    # the email outbox's sender loop and the auth flows (registration, codes, MFA; CONTRACT.md sections 4 and 5)
+    sender = EmailSender(settings, store)
+    flows = AuthFlows(settings, store, auth, throttle, sender)
     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
     # (a client per request opened a new connection every time)
     terminal_http = {'client': None}
@@ -243,11 +248,15 @@ def create_app(settings=None, store=None, orc=None):
         # EDGE backtest: its own loop, only with a worker configured; it does not wait for /ready (a missing backtest
         # table keeps only the backtest feature off, BACKTEST_NOT_READY)
         backtest_task = asyncio.create_task(backtests.loop.run()) if settings.worker_enabled and backtests.loop else None
+        # the email sender: its own task, never behind an AI run or a backtest (switch on, with the worker)
+        email_task = asyncio.create_task(sender.run()) if settings.multiuser and settings.worker_enabled \
+            and settings.email_enabled and ready['value'] else None
         yield
         worker.stop()
+        sender.stop()
         if backtests.loop:
             backtests.loop.stop()
-        for running in (task, backtest_task):
+        for running in (task, backtest_task, email_task):
             if running:
                 running.cancel()
                 await asyncio.gather(running, return_exceptions=True)
@@ -261,10 +270,12 @@ def create_app(settings=None, store=None, orc=None):
         await radar.aclose()                          # EXEC-RADAR R6 (QA 2026-11-14): its client too
         await overview.aclose()
         await watchlist.aclose()
+        await sender.aclose()
 
     app = FastAPI(title='EDGE private gateway', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.worker, app.state.store, app.state.backtests = worker, store, backtests
     app.state.screeners = screeners
+    app.state.auth_flows, app.state.email_sender = flows, sender
     app.state.auth = auth                                 # EXEC-MU-ACCOUNTS Phase 1 (tests add routes with need and admin)
 
     def error(code, status):
@@ -373,6 +384,11 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/overview')
     @app.get('/watchlist')
     @app.get('/login')
+    @app.get('/register')                   # EXEC-MU-ACCOUNTS Phase 1: the account pages of the shell (contract 12)
+    @app.get('/verify')
+    @app.get('/forgot')
+    @app.get('/reset')
+    @app.get('/mfa')
     async def index():
         return FileResponse(STATIC / 'index.html', media_type='text/html')
 
@@ -568,6 +584,9 @@ def create_app(settings=None, store=None, orc=None):
             await asyncio.to_thread(throttle.count, (SIGNIN_IP, client_address(request)))
             return error('INVALID_CREDENTIALS', 401)
         await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
+        if account is not None and account['status'] != 'active':
+            # a registration whose email code was never entered: said only after the right password (no enumeration)
+            return refusal(403, 'EMAIL_NOT_VERIFIED')
         old = request.cookies.get(COOKIE)
         if old:
             await asyncio.to_thread(store.revoke, token_hash(old))
@@ -582,8 +601,12 @@ def create_app(settings=None, store=None, orc=None):
         p = await auth.resolve(token)
         if p is None:                              # an account disabled at this very moment
             return error('INVALID_CREDENTIALS', 401)
-        # EXEC-RADAR R7: the capabilities come with the sign-in too, so the shell's menu is right before any reload
-        response = JSONResponse(session_answer(p))
+        # EXEC-RADAR R7: the capabilities come with the sign-in too, so the shell's menu is right before any reload.
+        # An admin whose session has not passed MFA (switch on) gets the pending session's cookie and 403 MFA_REQUIRED
+        # with its CSRF token, for the MFA page's enrol or verify call
+        response = JSONResponse(session_answer(p)) if p.mfa_ok else refusal(
+            403, 'MFA_REQUIRED', {'csrf_token': csrf_token(token, settings.session_secret),
+                                  'mfa_enrolled': p.mfa_enrolled})
         response.set_cookie(COOKIE, token, max_age=settings.session_seconds, httponly=True,
                             secure=settings.secure_cookie, samesite='strict', path='/')
         return response
@@ -592,6 +615,7 @@ def create_app(settings=None, store=None, orc=None):
         """GET /api/v1/auth/session (and the sign-in answer): today's keys unchanged, plus username and access
         (CONTRACT.md sections 4 and 15). login: the configured login with the switch off, the username with it on."""
         return {'authenticated': True, 'login': p.username if settings.multiuser else settings.login,
+                'owner_key': p.owner_key,
                 'csrf_token': csrf_token(p.token, settings.session_secret), 'capabilities': capabilities(),
                 'username': p.username, 'access': jsonable_encoder(p.access())}
 
@@ -605,6 +629,10 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/api/v1/auth/session')
     async def get_session(p: Principal = Depends(auth.principal)):
         return session_answer(p)
+
+    # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md sections 4-6): registration, codes, reset and change, sign-out everywhere,
+    # admin MFA, the Resend webhook (app/auth_flows.py); every one answers 404 with the switch off, except auth/config
+    flows.routes(app, session_answer)
 
     @app.post('/api/v1/auth/sign-out')
     async def sign_out(p: Principal = Depends(auth.writer)):
