@@ -8769,7 +8769,7 @@ in its staleness check.
 - **Lesson for new data:** a data source whose per-entity history grows (broker rows per stock) needs a memory budget
   measured on its largest entities and enforced by the process that loads it, not only a row count.
 
-### M464 — A worker secret's value appeared in this session's terminal output (2026-11-16, open: rotation needs the user's approval)
+### M464 — A worker secret's value appeared in this session's terminal output (2026-11-16, fixed: rotated)
 
 - **Symptom:** while reading the backtest-worker's budget variables (`railway variables --kv`), the filter meant to
   hide secret values matched only names with `KEY` after the `=` sign, so the value of `BACKTEST_WORKER_KEY` was printed
@@ -8779,7 +8779,14 @@ in its staleness check.
 - **Solution:** read variables only through an allow list of names (`grep -E '^(NAME1|NAME2)='`), as the AI tools and
   models generators do. Rotation: a new `BACKTEST_WORKER_KEY` on backtest-worker, then a redeploy of its one consumer
   edge-bff (`scripts/railway_reference_consumers.py backtest-worker.BACKTEST_WORKER_KEY`), with the user's approval.
-- **Status:** OPEN (rotation not done).
+- **Rotation (user 2026-11-16: "Boleh rotasi kunci worker"):** at 11:50 UTC, with no Backtest job and no orc turn
+  running, a new 64-character `BACKTEST_WORKER_KEY` was made in the process (`secrets.token_urlsafe(48)`) and piped to
+  `railway variable set --stdin` on backtest-worker, never printed (only its length was read back); the worker
+  redeployed (`b087e1c4` SUCCESS) and its one consumer edge-bff with it (`20af8720`, then `59df442f` from
+  `scripts/railway_reference_consumers.py --redeploy`, SUCCESS 11:51 UTC). Checked through the new key:
+  edge-bff `/ready` 200 and `verification/backtest/revamp_dev_check.py` passed (catalog, a Flow run
+  `bt_ae3feced…` 48 trades, a point-in-time run `bt_4ffeab9f…` 3 trades, the preview 184 entries).
+- **Status:** FIXED (the shown value is no longer valid).
 - **Lesson for new data:** none (process).
 
 ### M465 — Backtest e2e check on dev: the phone screenshots timed out on the results tabs the builder covers (2026-11-16, fixed)

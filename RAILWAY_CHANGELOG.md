@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-11-16 — backtest-worker `BACKTEST_WORKER_KEY` rotated; edge-bff redeployed (ERRORS M464, user "Boleh rotasi kunci worker")
+
+- **Why:** the old value appeared in an agent session's terminal output (ERRORS M464); it was not committed or sent
+  anywhere else.
+- **Before (11:50 UTC):** no Backtest job active, no orc turn running.
+- **Action:** variable `BACKTEST_WORKER_KEY`, service backtest-worker, environment dev: replaced with a new 64-character
+  value made in the process and piped to `railway variable set --stdin` (never printed; the length read back). Its
+  one consumer (`scripts/railway_reference_consumers.py backtest-worker.BACKTEST_WORKER_KEY`): edge-bff, by reference.
+- **Deployments:** backtest-worker `b087e1c4` SUCCESS (the redeploy of `31e94b94`'s build); edge-bff `20af8720`
+  (started by the reference change) and `59df442f` (`--redeploy`) SUCCESS 11:51 UTC, source `fd539903` unchanged.
+- **Verified:** edge-bff `/ready` 200; `verification/backtest/revamp_dev_check.py` through the new key: catalog, a Flow
+  run (48 trades), a point-in-time run as an admin (3 trades), the signals preview (184 entries), all passed.
+
 ## 2026-11-16 — backtest-worker `31e94b94`: memory released after every task, 2 GB limit (ERRORS M463, user "Go untuk opsi 1")
 
 - **Go:** user 2026-11-16: "tidak apa-apa untuk naikkan ke 2 GB apabila run memang diperlukan", "RAM hanya berjalan
