@@ -9,12 +9,20 @@ EXEC-MU-RUNTIME Phase 1b (user 2026-10-28, option A; verification/edge_multiuser
 service accounts for the workers (accounts.py, config.py TERMINAL_SERVICE_KEY_<NAME>), the account read inside each
 grant's transaction after its lock and cached 60 s for the routes that grant nothing, the reference file index
 (bucket.py refs_index) and TERMINAL_POOL_MAX.
+
+EXEC-MU-ACCOUNTS Phase 0 (verification/edge_multiuser/access_tiers/CONTRACT.md section 7; ERRORS M470):
+- private-only mode: with no browser origin configured (config.py Settings.private_only, the state once the public
+  domain is removed) the direct cookie sign-in and every cookie route answer 403 direct_access_closed; the gateway key,
+  the service keys and the admin key keep working;
+- the EDGE gateway key is accepted only on a request addressed to the private host (Host terminal-api.railway.internal,
+  any port) that did not pass Railway's public edge (none of EDGE_HEADERS); otherwise 403 gateway_host_not_allowed.
 """
 import datetime as dt
 import json
 import re
 import time
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 from typing import Annotated, Literal, get_args
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
@@ -26,7 +34,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from . import quota
 from .accounts import AccountCache, Caller
 from .bucket import PAGE_FAMILIES, REF_NAME, XSECTION_NAME, radar_index, refs_index, xsection_index
-from .config import Settings, service_email, service_variable
+from .config import PRIVATE_HOST, Settings, service_email, service_variable
 from .security import client_ip, new_token, password_verifier, same_secret, token_hash, verify_password
 
 COOKIE = 'terminal_session'
@@ -37,6 +45,10 @@ OWNER_HEADER = 'x-terminal-proxy-owner'
 # T1: the services that may be granted cross-sectional files (one file holds every ticker); the gateway key keeps its
 # access until a later, separate step removes it (compatibility with the deployed screener-worker build)
 XSECTION_SERVICES = frozenset({'screener-worker'})
+# M470: headers Railway's public edge adds to every request it forwards; a call over the private network (edge-bff's
+# httpx client, which sends only content-type and the key) carries none of them. The gateway key is refused with any.
+EDGE_HEADERS = ('x-forwarded-for', 'x-forwarded-host', 'x-real-ip', 'forwarded', 'x-railway-edge')
+PRIVATE_URL = f'http://{PRIVATE_HOST}:8080'
 TICKER = re.compile(r'^[A-Z0-9]{1,12}$')
 BROKER = r'^[A-Z0-9]{2}$'
 API = '/api/terminal/v1'
@@ -163,8 +175,9 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             store.close()
 
     app = FastAPI(title='terminal-api', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
-    app.add_middleware(CORSMiddleware, allow_origins=list(settings.allowed_origins), allow_credentials=True,
-                       allow_methods=['GET', 'POST'], allow_headers=['Content-Type'])
+    if settings.allowed_origins:                             # private-only: no browser origin, no CORS answer at all
+        app.add_middleware(CORSMiddleware, allow_origins=list(settings.allowed_origins), allow_credentials=True,
+                           allow_methods=['GET', 'POST'], allow_headers=['Content-Type'])
 
     @app.middleware('http')
     async def headers(request: Request, call_next):
@@ -191,11 +204,39 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
     services = tuple((name, key, service_email(name)) for name, key in settings.service_keys)
     accounts = AccountCache()
 
+    def direct_closed(what):
+        """Private-only mode (Settings.private_only): no browser can reach this service, so a sign-in or a session
+        cookie is refused before any database read."""
+        error(403, 'direct_access_closed',
+              f'{what} is closed: this terminal-api runs private-only (no public domain; TERMINAL_ALLOWED_ORIGINS and '
+              f'RAILWAY_PUBLIC_DOMAIN are unset), so a direct sign-in or a session cookie is refused. Fix: open the '
+              f'Terminal in EDGE (/terminal), which reaches terminal-api through its gateway; a service calls '
+              f'{PRIVATE_URL} with its key in {PROXY_HEADER}. Example: GET {PRIVATE_URL}{API}/state with '
+              f'{PROXY_HEADER}: <the value of TERMINAL_SERVICE_KEY_<NAME>>.')
+
+    def private_call(request: Request):
+        """None when the request was addressed to a private host (settings.proxy_hosts, port ignored) and did not
+        pass the public edge; else what is wrong, for the refusal."""
+        host = request.headers.get('host', '')
+        try:
+            name = urlsplit('//' + host).hostname or ''
+        except ValueError:
+            name = ''
+        if name not in settings.proxy_hosts:
+            return f'the request was addressed to Host {host[:100]!r}'
+        edge = [h for h in EDGE_HEADERS if h in request.headers]
+        if edge:
+            return f'the request passed Railway\'s public edge (it carries {", ".join(edge)})'
+        return None
+
     def identify(request: Request) -> Caller:
         """Who is calling, from the request alone (no database): the gateway key, a service key or a session cookie.
-        A key in x-terminal-proxy-key that is neither is refused, never ignored."""
+        A key in x-terminal-proxy-key that is neither is refused, never ignored. The gateway key counts only on the
+        private host (private_call, M470); a cookie only while a browser origin is configured (private_only)."""
         key = request.headers.get(PROXY_HEADER)
         if key is None:
+            if settings.private_only:
+                direct_closed('A session cookie')
             token = request.cookies.get(COOKIE)
             if not token:
                 error(401, 'not_signed_in', 'Sign in first.')
@@ -203,6 +244,13 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         gateway_ok = bool(settings.proxy_key) and same_secret(key, settings.proxy_key)
         matched = [(name, email) for name, k, email in services if same_secret(key, k)]   # every key compared
         if gateway_ok:
+            wrong = private_call(request)
+            if wrong:
+                error(403, 'gateway_host_not_allowed',
+                      f'The EDGE gateway key in {PROXY_HEADER} is accepted only on the private host {PRIVATE_HOST}, '
+                      f'and {wrong}. Fix: call terminal-api over the Railway private network from edge-bff '
+                      f'(EDGE_TERMINAL_URL={PRIVATE_URL}), never through a public *.up.railway.app domain. Example: '
+                      f'GET {PRIVATE_URL}{API}/state with {PROXY_HEADER}: ${{{{terminal-api.TERMINAL_PROXY_KEY}}}}.')
             return Caller('gateway', email=settings.proxy_subscriber)
         if not matched:
             error(401, 'proxy_key_rejected',
@@ -229,6 +277,8 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         its own page's origin and CSRF token before forwarding; a service calls from the private network."""
         if proxied(request):
             return
+        if settings.private_only:
+            direct_closed(f'{request.method} {request.url.path} from a browser')
         if request.headers.get('origin', '').rstrip('/') not in settings.allowed_origins:
             error(403, 'origin_not_allowed', 'This request must come from the terminal page.')
 
@@ -382,6 +432,8 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
     # ---- auth ------------------------------------------------------------------------------------------------
     @app.post(f'{API}/auth/sign-in')
     def sign_in(body: SignIn, request: Request, response: Response):
+        if settings.private_only:                            # with or without a key: no browser can hold the cookie
+            direct_closed('The direct sign-in')
         same_origin_post(request)
         email, ip = body.email.strip().lower(), ip_of(request)
         outcome, token = 'failed', None

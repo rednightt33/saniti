@@ -17,6 +17,11 @@ POOL_MAX_DEFAULT = 8
 ROLE_CONNECTION_LIMIT = 20
 PROCESSES_PER_REPLICA = 2
 POOL_MAX_LIMIT = ROLE_CONNECTION_LIMIT // PROCESSES_PER_REPLICA
+# EXEC-MU-ACCOUNTS Phase 0 (CONTRACT.md section 7; ERRORS M470): terminal-api's Railway private name. The EDGE gateway
+# key is accepted only on a request addressed to it (edge-bff's EDGE_TERMINAL_URL must be http://PRIVATE_HOST:8080,
+# apps/edge-bff/app/config.py), never on a public *.up.railway.app domain or any other host.
+PRIVATE_HOST = 'terminal-api.railway.internal'
+PUBLIC_SUFFIX = '.up.railway.app'
 
 
 def service_variable(name):
@@ -77,6 +82,16 @@ class Settings:
     service_keys: tuple = ()
     # T9: TERMINAL_POOL_MAX, PostgreSQL connections per process
     pool_max: int = POOL_MAX_DEFAULT
+    # M470: the hosts (Host header, port ignored) on which the gateway key is accepted; fixed in code, not a variable
+    proxy_hosts: tuple = (PRIVATE_HOST,)
+
+    @property
+    def private_only(self):
+        """EXEC-MU-ACCOUNTS Phase 0 (user decision: the public domain is removed): no browser origin is configured
+        (TERMINAL_ALLOWED_ORIGINS and RAILWAY_PUBLIC_DOMAIN unset), so no browser can reach this service. The direct
+        cookie sign-in and every cookie route are then refused; the gateway key, the service keys and the admin key
+        keep working on the private network."""
+        return not self.allowed_origins
 
     @classmethod
     def from_env(cls):
@@ -109,8 +124,12 @@ class Settings:
             raise ValueError('TERMINAL_PROXY_KEY and TERMINAL_PROXY_SUBSCRIBER are set together or not at all')
         if self.proxy_key and len(self.proxy_key) < 32:
             raise ValueError('TERMINAL_PROXY_KEY must be at least 32 characters')
-        if not self.allowed_origins:
-            raise ValueError('TERMINAL_ALLOWED_ORIGINS or RAILWAY_PUBLIC_DOMAIN is required')
+        # no origin is no longer an error: it is the private-only mode (private_only), not a misconfiguration
+        for host in self.proxy_hosts:
+            if not host or host != host.lower() or host.endswith(PUBLIC_SUFFIX) or ':' in host:
+                raise ValueError(f'proxy host {host!r}: the gateway key is accepted only on a private host name in '
+                                 f'lower case without port, never a public {PUBLIC_SUFFIX} domain. Fix: keep the '
+                                 f'default ({PRIVATE_HOST!r})')
         if not 1 <= self.pool_max <= POOL_MAX_LIMIT:
             raise ValueError(f'TERMINAL_POOL_MAX must be 1-{POOL_MAX_LIMIT} connections per process: '
                              f'terminal_api_login holds at most {ROLE_CONNECTION_LIMIT} for all processes together and '
