@@ -1108,12 +1108,29 @@ pendaftaran sendiri plus kode email. Approval untuk merencanakan, belum "go" eks
   tujuh fase (0 pengamanan, 1 akun, 2 katalog kemampuan, 3 gate per tab, 4 dashboard admin, 5 pembayaran, 6 peluncuran;
   `EDGE_MULTIUSER` mati sampai fase 6) ada di `verification/edge_multiuser/access_tiers/FINDINGS.md`. Cacat baru dicatat di
   `ERRORS_AND_SOLUTIONS.md` M423-M430. Rencana ini belum di-"go".
+- **Keputusan user, 2026-11-16 (kata user):** "ID = username / Free = user hanya bisa akses terminal (misalkan ticker BBCA) dan
+  scroll sampai belakang, dan nanti mungkin ada 2 indikator yang di show. Tidak bisa tambah indikator dll. Bisa akses halaman
+  lain, hanya scroll, tapi tidak bisa klik. Kalau klik maka upgrade for full feature. / Terminal API publik (hapus)".
+  Artinya:
+  - "ID" di form adalah username.
+  - Free adalah paket nyata. Di Terminal: hanya ticker yang diizinkan (contoh BBCA; daftarnya data di katalog), seluruh
+    histori bisa di-scroll, sekitar 2 indikator tetap ditampilkan, tanpa menambah indikator atau fitur lain.
+  - Tab lain bisa dilihat dan di-scroll, tetapi setiap klik membuka ajakan upgrade.
+  - Domain publik terminal-api dihapus. Sebelum eksekusi, akan dicek bahwa tidak ada pemakai login langsung (M425).
+- **Penanganan tiga batasan untuk paket Free (usulan, 2026-11-16):**
+  - **Dikunci lewat data, bukan tampilan.** terminal-api hanya memberi file harga harian dari ticker yang diizinkan katalog.
+    Broker, event, intraday, IHSG pembanding dan ticker lain ditolak di server.
+  - **Indikator.** Indikator flow (FL..) mustahil dihitung tanpa data broker. Daftar indikator (`flowRegistry.json`,
+    `indRegistry.json`, sekarang ditanam di bundle publik) dipindah ke endpoint yang perlu login dan difilter per paket.
+    Indikator harga di ticker gratis masih bisa dihitung sendiri lewat devtools; risiko ini diterima karena hanya satu
+    ticker.
+  - **File campuran dan kedalaman histori.** Tidak perlu dipecah untuk Free, karena Free tidak menerima broker/event dan
+    boleh melihat seluruh histori. Nama kemampuan dibuat per jenis data sekarang. Pemecahan file (varian per kemampuan
+    dari publisher) dan paket per kedalaman histori baru dibuat bila kelak ada paket yang membutuhkannya.
 - **Pertanyaan terbuka:**
-  1. Arti "ID" di form (nomor KTP/NIK, username, atau lainnya).
-  2. "Free" sebagai paket nyata dengan fitur terbatas, atau semua user tanpa bayar hanya melihat halaman bayar.
-  3. Domain publik terminal-api: dihapus, atau kunci gateway ditolak di sana (M425).
-  4. Fase mana yang di-"go" lebih dulu.
-  5. Isi per paket (indikator, data, hasil backtest, model AI) dan payment gateway dipilih nanti.
+  1. Isi yang dilihat Free saat men-scroll tab lain: contoh statis, atau data nyata dengan klik terkunci.
+  2. Fase mana yang di-"go" lebih dulu.
+  3. Dua indikator Free, isi paket berbayar, dan payment gateway dipilih nanti.
 
 ## TERMINAL-IND-CARDS — dipindah ke `EXEC.md` EXEC-IND-CARDS (go 2026-11-01: "jalankan TERMINAL-IND-CARDS as well")
 
