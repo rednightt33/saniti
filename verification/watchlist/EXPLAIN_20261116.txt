@@ -1,0 +1,11 @@
+prices date 2026-11-13, broker date 2026-11-09
+dates (30 IHSG sessions)               0.0 ms        6 pages (   0.0 MB)  Limit  (cost=0.43..3.01 rows=30 width=4) (actual time=0.022..0.027 rows=30.00 loops=1)
+universe                               0.3 ms       88 pages (   0.7 MB)  Seq Scan on "IDX_Stock_Universe"  (cost=0.00..98.55 rows=844 width=50) (actual time=0.019.
+feature 01 (one date)                  1.5 ms      957 pages (   7.5 MB)  Hash Join  (cost=122.43..2445.05 rows=593 width=66) (actual time=0.385..1.424 rows=836.00
+feature 04 (one date)                  1.4 ms      979 pages (   7.6 MB)  Hash Join  (cost=121.29..3976.71 rows=941 width=53) (actual time=0.392..1.307 rows=836.00
+feature 06 (one broker date)           0.7 ms      172 pages (   1.3 MB)  Hash Join  (cost=121.03..2910.37 rows=273 width=30) (actual time=0.275..0.655 rows=834.00
+closes (30 dates)                    217.4 ms     3017 pages (  23.6 MB)  Hash Join  (cost=125.89..63448.18 rows=20961 width=51) (actual time=6.155..216.521 rows=25
+corporate actions (30 days)            1.1 ms      243 pages (   1.9 MB)  Hash Join  (cost=1027.32..1416.32 rows=95 width=28) (actual time=1.005..1.086 rows=93.00 l
+corporate actions loaded at            8.4 ms     3399 pages (  26.6 MB)  Aggregate  (cost=3641.38..3641.39 rows=1 width=8) (actual time=8.356..8.357 rows=1.00 loop
+radar (newest date)                    0.8 ms       84 pages (   0.7 MB)  Unique  (cost=6851.09..6855.75 rows=594 width=9) (actual time=0.681..0.750 rows=286.00 loo
+total                                231.6 ms     8945 pages (  69.9 MB)

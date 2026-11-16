@@ -32,6 +32,8 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
   overview      EXEC-OVERVIEW: rebuild every Market Overview file (overview.py) whatever its stamp, counting the stocks
                 above EMA50/EMA200 of every series date again (a large read of Feature 04); daily and backfill rebuild
                 them when the stamp changed, carrying what did not change (OVERVIEW_FORMULAS.md).
+  watchlist     EXEC-WATCHLIST: rebuild the Watchlist's daily file (watchlist.py) whatever its stamp; daily and backfill
+                rebuild it when its content changed (WATCHLIST_FORMULAS.md). One date of each source: not a large read.
   verify        compare every published file with SQL (row count, sums, first and last date); prints mismatches.
 The cross-sectional files (below) are rebuilt by the modes in XSECTION_REBUILT_BY: daily, backfill and packs rebuild
 `price` and `actions`, events rebuilds `actions`; every other mode carries the previous index entries forward. The broker
@@ -108,6 +110,8 @@ Objects (all under v1/; <sha> is the sha256 of the object's gzip bytes, ERRORS M
   overview/{name}.<sha16>.json.gz  EXEC-OVERVIEW (user go 2026-11-15): the Market Overview's files (overview.py:
                                    overview-meta, overview-series, overview-day-YYYY-MM-DD), indexed in state.json
                                    `overview`; `overview_carry` (publisher-private) holds what the next run reuses
+  watchlist/{name}.<sha16>.json.gz EXEC-WATCHLIST (user go 2026-11-16): the Watchlist's daily file (watchlist.py:
+                                   watchlist-stocks), indexed in state.json `watchlist`
 EXEC-TERMINAL-SPEED (user 2026-10-26): a ticker is five objects for the page instead of 21 (ERRORS M240: the bucket's
 cost is per object, ~0.8 s each, HTTP/1.1); the packs are listed in manifest `packs` with their sha256.
 Data files are written before the manifest that names them, and the xsection and content-keyed reference files before
@@ -142,6 +146,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 
 import overview
+import watchlist
 import radar
 
 SCHEMA_VERSION = 1
@@ -414,7 +419,8 @@ RUN_ALERT_MINUTES = 30
 HEALTH_SOURCE = 'Terminal_Publisher_Health'
 # the step a failed put belongs to, by its key's first part (a failed run's alert names it)
 PUT_STEPS = {'price': 'files', 'yield': 'files', 'broker': 'files', 'events': 'files', 'pack': 'packs', 'intraday': 'intraday', 'xsection': 'xsection',
-             'manifest': 'manifests', 'logo': 'refs', 'ref': 'refs', 'radar': 'radar', 'overview': 'overview'}
+             'manifest': 'manifests', 'logo': 'refs', 'ref': 'refs', 'radar': 'radar', 'overview': 'overview',
+             'watchlist': 'watchlist'}
 # cleanup_baseline gives up after this long and the run publishes without a cleanup (one hung listing page must not
 # hold the publication; the two listings take about 2 s on dev)
 BASELINE_SECONDS = 60
@@ -912,18 +918,24 @@ def overview_entries(raw):
     return page_entries(raw, 'overview')
 
 
+def watchlist_entries(raw):
+    return page_entries(raw, 'watchlist')
+
+
 # The EDGE pages whose files the publisher builds from the database (one mechanism, publish_page): family -> module.
 # A module gives MAINTAINED_BY, UNAVAILABLE, available(conn), busy(conn), stamp(conn) and files(conn, names, lists,
 # stream, carry, previous, present) -> (files, kept names, carry).
-PAGES = {'radar': radar, 'overview': overview}
+PAGES = {'radar': radar, 'overview': overview, 'watchlist': watchlist}
 OVERVIEW_KEY = indexed_key('overview')
-PAGE_KEYS = {'radar': RADAR_KEY, 'overview': OVERVIEW_KEY}
+WATCHLIST_KEY = indexed_key('watchlist')
+PAGE_KEYS = {'radar': RADAR_KEY, 'overview': OVERVIEW_KEY, 'watchlist': WATCHLIST_KEY}
 
 
 # The families whose objects a state.json index names instead of a manifest: family -> (state.json field, key pattern,
 # entries reader). collect_garbage treats every one alike (one mechanism). radar: EXEC-RADAR R5.
 INDEXED = {'xsection': ('xsection', XSECTION_KEY, xsection_entries), 'ref': ('refs', REF_KEY, ref_entries),
-           'radar': ('radar', RADAR_KEY, radar_entries), 'overview': ('overview', OVERVIEW_KEY, overview_entries)}
+           'radar': ('radar', RADAR_KEY, radar_entries), 'overview': ('overview', OVERVIEW_KEY, overview_entries),
+           'watchlist': ('watchlist', WATCHLIST_KEY, watchlist_entries)}
 # the modes that rebuild a page's files are the module's MAINTAINED_BY (radar.py, overview.py); every other mode
 # carries its index forward unchanged
 
@@ -1602,6 +1614,8 @@ class Publisher:
     radar_failed = property(lambda self: self.pages['radar']['failed'])
     overview = property(lambda self: self.pages['overview']['index'])
     overview_failed = property(lambda self: self.pages['overview']['failed'])
+    watchlist = property(lambda self: self.pages['watchlist']['index'])
+    watchlist_failed = property(lambda self: self.pages['watchlist']['failed'])
 
     def present_keys(self, family, previous):
         """The keys under `<family>/` of an indexed family (xsection, ref; one listing of that prefix; no cleanup runs
