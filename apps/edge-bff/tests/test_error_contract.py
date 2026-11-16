@@ -50,7 +50,7 @@ def test_fastapi_refusals_use_the_contract_shape(settings, store):
         # the existing codes keep their status and code
         assert c.post('/api/v1/runs', json={}).json()['error']['code'] == 'ORIGIN_REJECTED'
         assert c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'owner', 'password': 'x'}).json() == \
-            {'error': {'code': 'INVALID_CREDENTIALS'}}
+            {'error': {'code': 'INVALID_CREDENTIALS', 'message': MESSAGES['INVALID_CREDENTIALS'], 'details': {}}}
         assert c.get('/api/v1/runs/edge_unknown').status_code == 404
 
 
@@ -65,3 +65,33 @@ def test_the_origin_check_skips_exactly_the_hooks_prefix(settings, store):
         for path in ('/api/v1/hooksx/a', '/api/v1/hook/a', '/api/v1/runs', '/api/v2/hooks/a', '/hooks/a', '/api/v1/hooks'):
             r = c.post(path, content=b'{}')
             assert (r.status_code, r.json()['error']['code']) == (403, 'ORIGIN_REJECTED'), path
+
+
+def test_only_the_csrf_check_answers_csrf_invalid_and_old_codes_have_the_full_shape(settings, store):
+    """Any other 403 is FORBIDDEN (the clients do not retry it); an HTTPException cannot borrow CSRF_INVALID. The older
+    refusals (ORIGIN_REJECTED, REQUEST_TOO_LARGE, store and Orc codes) carry a message and details too."""
+    from fastapi import HTTPException
+    app = create_app(settings, store, FakeOrc())
+
+    @app.get('/api/v1/example/forbidden')
+    async def forbidden():
+        raise HTTPException(403)
+
+    @app.get('/api/v1/example/borrowed')
+    async def borrowed():
+        raise HTTPException(403, 'CSRF_INVALID')
+
+    @app.get('/api/v1/example/relayed')
+    async def relayed():
+        from app.client import OrcError
+        raise OrcError('SOME_ORC_CODE', 409)
+
+    with TestClient(app) as c:
+        shape(c.get('/api/v1/example/forbidden'), 403, 'FORBIDDEN')
+        shape(c.get('/api/v1/example/borrowed'), 403, 'FORBIDDEN')
+        relayed = c.get('/api/v1/example/relayed').json()['error']
+        assert relayed == {'code': 'SOME_ORC_CODE', 'message': MESSAGES['REQUEST_REFUSED'], 'details': {}}
+        shape(c.post('/api/v1/runs', json={}), 403, 'ORIGIN_REJECTED')
+        shape(c.post('/api/v1/runs', headers=ORIGIN, content=b'x' * 140000), 413, 'REQUEST_TOO_LARGE')
+        h = login(c)
+        shape(c.get('/api/v1/runs/edge_unknown', headers=h), 404, 'RUN_NOT_FOUND')

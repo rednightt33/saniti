@@ -27,6 +27,7 @@ import pytest
 from fastapi.testclient import TestClient
 import uvicorn
 
+from app.errors import MESSAGES
 from app import main, screener
 from app.main import create_app
 from conftest import FakeOrc
@@ -828,7 +829,7 @@ def test_a_body_over_the_house_cap_names_the_fix(app, worker):
     assert worker.calls == []
     other = c.post('/api/v1/backtests/signals', headers={**c.headers_for, 'content-type': 'application/json'},
                    content=b'{"x":"' + b'a' * 131072 + b'"}')
-    assert other.json() == {'error': {'code': 'REQUEST_TOO_LARGE'}}                # the house answer elsewhere
+    assert other.json() == {'error': {'code': 'REQUEST_TOO_LARGE', 'message': MESSAGES['REQUEST_TOO_LARGE'], 'details': {}}}                # the house answer elsewhere
 
 
 # ---- saved items ----------------------------------------------------------------------------------------------------

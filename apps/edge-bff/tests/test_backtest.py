@@ -27,6 +27,7 @@ import pytest
 from fastapi.testclient import TestClient
 import uvicorn
 
+from app.errors import MESSAGES
 from app import backtest, main
 from app.backtest import BacktestLoop, ResultTooLarge, WorkerClient, WorkerTimeout, WorkerUnavailable, loads, split_result
 from app.main import create_app
@@ -428,7 +429,7 @@ def test_idempotent_resubmit_conflict_and_bad_key(app, worker):
     assert again.json() == {'request_id': first.json()['request_id'], 'state': 'QUEUED', 'created': False}
     assert len(worker.posted('/v1/validate')) == 1       # the second answer came from the job table
     changed = submit(c, single('TLKM'), 'same-key')
-    assert changed.status_code == 409 and changed.json() == {'error': {'code': 'SUBMISSION_CONFLICT'}}
+    assert changed.status_code == 409 and changed.json() == {'error': {'code': 'SUBMISSION_CONFLICT', 'message': MESSAGES['SUBMISSION_CONFLICT'], 'details': {}}}
     bad = submit(c, single(), 'not a key!')
     assert bad.status_code == 422 and bad.json()['error'] == {'code': 'INVALID_INPUT', 'field': 'client_request_id'}
     assert c.post('/api/v1/backtests', headers=c.headers_for, content=b'[1]').json()['error']['code'] == 'INVALID_INPUT'
@@ -456,7 +457,7 @@ def test_the_picked_stocks_in_another_order_are_the_same_submission(app, worker)
     assert (row['request_id'], created) == (job_id, False)
     for other in (['BBCA', 'BBRI'], ['BBCA', 'BBRI', 'BMRI', 'TLKM'], ['BBCA', 'BBRI', 'BBRI'], ['BBCA', 'BBRI', 'BMRI', 'BMRI']):
         r = submit(c, portfolio(other), 'picked')
-        assert r.status_code == 409 and r.json() == {'error': {'code': 'SUBMISSION_CONFLICT'}}, other
+        assert r.status_code == 409 and r.json() == {'error': {'code': 'SUBMISSION_CONFLICT', 'message': MESSAGES['SUBMISSION_CONFLICT'], 'details': {}}}, other
     moved = portfolio(['BBCA', 'BBRI', 'BMRI'])
     moved['portfolio']['max_positions'] = 4
     assert submit(c, moved, 'picked').status_code == 409                     # the order aside, another request
@@ -553,7 +554,7 @@ def test_queue_limit_one_running_and_three_queued(app, worker):
     c = app
     ids = [submit(c, single(), f'k{i}').json()['request_id'] for i in range(3)]
     full = submit(c, single(), 'k3')
-    assert full.status_code == 429 and full.json() == {'error': {'code': 'QUEUE_FULL'}}
+    assert full.status_code == 429 and full.json() == {'error': {'code': 'QUEUE_FULL', 'message': MESSAGES['QUEUE_FULL'], 'details': {}}}
     assert submit(c, single(), 'k0').json()['request_id'] == ids[0]   # a known submission still answers
     store = c.app.state.backtests.store
     running = store.claim(90)
@@ -1411,8 +1412,8 @@ def test_ready_does_not_depend_on_the_backtest_tables(app, worker, backtest_tabl
         c.app.state.backtests.ready = False
         assert c.get('/ready').json() == {'status': 'ready'}
         r = submit(c, single(), 'nr')
-        assert r.status_code == 503 and r.json() == {'error': {'code': 'BACKTEST_NOT_READY'}}
-        assert c.get('/api/v1/backtests').json() == {'error': {'code': 'BACKTEST_NOT_READY'}}
+        assert r.status_code == 503 and r.json() == {'error': {'code': 'BACKTEST_NOT_READY', 'message': MESSAGES['BACKTEST_NOT_READY'], 'details': {}}}
+        assert c.get('/api/v1/backtests').json() == {'error': {'code': 'BACKTEST_NOT_READY', 'message': MESSAGES['BACKTEST_NOT_READY'], 'details': {}}}
         assert c.get('/api/v1/backtests/catalog').status_code == 503
         assert worker.calls == []
         assert c.get('/api/v1/conversations').status_code == 200        # the rest of EDGE is unaffected

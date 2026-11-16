@@ -6,8 +6,11 @@ PostgreSQL (edge_bff.auth_throttle, migration 20261116_002), shared by every edg
   CSRF tokens (security.py csrf_token) never collide with a throttle key.
 - Counts live in one-minute buckets; a limit sums the buckets that overlap its window (a bucket only partly inside
   counts whole, so the limit errs on the safe side by at most one minute).
-- Every count is one atomic UPSERT. The check runs before the password check and the count after it, so with several
-  instances a burst of concurrent tries can pass the limit by at most the tries in flight at that moment.
+- A sign-in try is decided and counted in one step before the password check (`attempt`): one transaction takes an
+  advisory lock on the scope and key hash, sums the window and, under the limit, adds the try with an atomic UPSERT.
+  A concurrent burst against one login, on any number of instances, therefore reaches the password check at most
+  `allowed` times per window (ERRORS C1 H1; OWASP: count the attempt atomically with the decision). A successful
+  sign-in clears the login's count, so only failed tries remain counted.
 - Enforced now: SIGNIN_LOGIN (10 failures per login per 15 minutes). Recorded, not enforced: SIGNIN_IP, until a probe
   proves which client address Railway's edge sends (CONTRACT.md section 4, "Client IP").
 """
@@ -51,18 +54,36 @@ class Throttle:
         return hmac.new(self.secret, b'edge_bff.auth_throttle\x00' + scope.encode() + b'\x00' + key.encode(),
                         hashlib.sha256).hexdigest()
 
+    def attempt(self, limit, key):
+        """Decide and count one try in one transaction: 0 when the try may go on (it is counted), else the seconds until
+        the oldest counted bucket leaves the window (the try is refused and not counted). A limit that is not enforced
+        only counts."""
+        if not limit.enforced:
+            self.count((limit, key))
+            return 0
+        hashed = self.key_hash(limit.scope, key)
+        with self.store.connect() as c:
+            c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))', ('auth_throttle:' + limit.scope + ':' + hashed,))
+            wait = self._wait(c, limit, hashed)
+            if not wait:
+                self._add(c, limit, hashed)
+        return wait
+
     def retry_after(self, limit, key):
         """0 while the key is under the limit (or the limit is not enforced), else the seconds until its oldest counted
-        bucket leaves the window (at least 1)."""
+        bucket leaves the window (at least 1). Reads only; a sign-in uses attempt."""
         if not limit.enforced:
             return 0
         with self.store.connect() as c:
-            row = c.execute('''SELECT coalesce(sum(count), 0) AS used,
+            return self._wait(c, limit, self.key_hash(limit.scope, key))
+
+    @staticmethod
+    def _wait(c, limit, hashed):
+        row = c.execute('''SELECT coalesce(sum(count), 0) AS used,
                        extract(epoch FROM min(window_start) + make_interval(secs => %(span)s) - now()) AS wait
                 FROM edge_bff.auth_throttle
                 WHERE scope = %(scope)s AND key_hash = %(key)s AND window_start > now() - make_interval(secs => %(span)s)''',
-                            {'scope': limit.scope, 'key': self.key_hash(limit.scope, key),
-                             'span': limit.window_seconds + BUCKET_SECONDS}).fetchone()
+                        {'scope': limit.scope, 'key': hashed, 'span': limit.window_seconds + BUCKET_SECONDS}).fetchone()
         if row['used'] < limit.allowed:
             return 0
         return max(1, math.ceil(float(row['wait'] or 1)))
@@ -71,10 +92,14 @@ class Throttle:
         """One more failure for each (limit, key), in one transaction; recorded whether or not the limit is enforced."""
         with self.store.connect() as c:
             for limit, key in events:
-                c.execute(f'''INSERT INTO edge_bff.auth_throttle(scope, key_hash, window_start, count)
+                self._add(c, limit, self.key_hash(limit.scope, key))
+
+    @staticmethod
+    def _add(c, limit, hashed):
+        c.execute(f'''INSERT INTO edge_bff.auth_throttle(scope, key_hash, window_start, count)
                     VALUES (%(scope)s, %(key)s, {BUCKET}, 1)
                     ON CONFLICT (scope, key_hash, window_start) DO UPDATE SET count = edge_bff.auth_throttle.count + 1''',
-                          {'scope': limit.scope, 'key': self.key_hash(limit.scope, key), 'bucket': BUCKET_SECONDS})
+                  {'scope': limit.scope, 'key': hashed, 'bucket': BUCKET_SECONDS})
 
     def clear(self, limit, key):
         """A successful sign-in forgets the login's failures (as the in-process limiter forgot them)."""
