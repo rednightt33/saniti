@@ -900,7 +900,7 @@ User go 2026-10-12 ("ok", `EXEC.md` EXEC-IMPL-1012, EXEC-JOINKEY and EXEC-RELEAS
   rows exist and their close equals the final source close. Queue readback is 24 `DONE`,
   all price and Feature04 Telegram ledgers are `SENT`, and the zero-change run produced a
   `SKIPPED` Feature04 execution. Semantic audit passed 148/148 active definitions with
-  59/59 Feature04 coverage; `DATABASE_SCHEMA.md` was regenerated from live introspection.
+  57/57 Feature04 coverage; `DATABASE_SCHEMA.md` was regenerated from live introspection.
 
 ## 2026-10-11 — Feature04 governed rename and source close
 
