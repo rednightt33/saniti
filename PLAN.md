@@ -109,13 +109,23 @@ multi-user); data pasar untuk semua saham dalam satu keluarga file publisher yan
 browser); katalog indikator diturunkan dari file itu (indikator baru = perubahan publisher saja, halaman ikut); halaman
 Vite di iframe seperti Overview, bahasa Inggris, ikon mata di rail.
 
-**Pertanyaan terbuka (dikirim ke user 2026-11-16):**
-1. Akun: dibangun sekarang untuk pemilik dan dikunci per akun (siap multi-user), atau menunggu EDGE-MULTIUSER?
-2. List: beberapa list bernama di server menggantikan keputusan P12 (satu list); bintang Screener masuk ke list mana?
-3. Indikator rilis pertama: hanya yang datanya ada (tanpa Bandar/Silent Accumulation/Supertrend, fundamental
-   disembunyikan), atau Bandar dkk. ikut dengan memindahkan rumus Terminal ke publisher?
-4. Sakelar notifikasi: disembunyikan dulu, atau disimpan sebagai preferensi saja?
-5. Tambahan: lencana aksi korporasi mendatang, lencana Radar hari ini, tombol buka Terminal.
+**Keputusan user 2026-11-16: "1A / 2A / 3A / 4A"** (atas pertanyaan yang dikirim hari itu):
+1. **1A:** dibangun sekarang untuk pemilik; setiap list dikunci per akun (`owner_key`), siap EDGE-MULTIUSER tanpa
+   perubahan data.
+2. **2A:** beberapa list bernama di server, menggantikan keputusan P12 (satu list). Bintang Screener memasukkan ke list
+   pertama; saham berbintang yang ada menjadi isi list pertama bernama "Watchlist".
+3. **3A:** rilis pertama hanya indikator yang datanya ada: RSI, MACD histogram, Bollinger %B, Volume vs 20D, jarak ke
+   high 52W, jarak ke SMA 200, Foreign Net 5D, Return 1M, Volatility/Beta/Max drawdown 1Y; bawaan RSI, 52W high,
+   Volume, Foreign Net 5D. Fundamental disembunyikan; Domestic Net dihapus; Bandar Balance / Silent Accumulation /
+   Supertrend tahap 2 (rumus Terminal dipindah ke publisher, dibuktikan sama dengan Terminal).
+4. **4A:** sakelar notifikasi disembunyikan dulu.
+
+**Masih terbuka:**
+5. Tambahan: lencana aksi korporasi mendatang di kartu (`stockbit_corporate_action`; termuat terakhir 2026-11-09, ikut
+   ronde Stockbit) dan/atau lencana Radar (`Feature_07_Radar_Result`, tanggal broker). User 2026-11-16: "5 tambahn apa
+   ya yang kamu maksud?" (dijelaskan dengan contoh dev hari itu: AMMN RUPS 17 Nov, PGAS public expose 19 Nov; BBCA dan
+   ASII lolos S1/S2/S6/S6Δ/S7 Radar pada 9 Nov).
+6. Definisi "selesai" di bawah belum dikonfirmasi user.
 
 **Seperti apa "selesai" (usulan, menunggu persetujuan):**
 1. Tab Watchlist di rail dan menu ☰ ponsel; bahasa Inggris; tampilan sama dengan Overview (token, kontrol, mode
