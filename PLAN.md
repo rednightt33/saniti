@@ -120,12 +120,43 @@ Vite di iframe seperti Overview, bahasa Inggris, ikon mata di rail.
    Supertrend tahap 2 (rumus Terminal dipindah ke publisher, dibuktikan sama dengan Terminal).
 4. **4A:** sakelar notifikasi disembunyikan dulu.
 
-**Masih terbuka:**
-5. Tambahan: lencana aksi korporasi mendatang di kartu (`stockbit_corporate_action`; termuat terakhir 2026-11-09, ikut
-   ronde Stockbit) dan/atau lencana Radar (`Feature_07_Radar_Result`, tanggal broker). User 2026-11-16: "5 tambahn apa
-   ya yang kamu maksud?" (dijelaskan dengan contoh dev hari itu: AMMN RUPS 17 Nov, PGAS public expose 19 Nov; BBCA dan
-   ASII lolos S1/S2/S6/S6Δ/S7 Radar pada 9 Nov).
-6. Definisi "selesai" di bawah belum dikonfirmasi user.
+5. **5A (user 2026-11-16: "A")**, sesudah bertanya "5 tambahn apa ya yang kamu maksud?" dan dijelaskan dengan contoh
+   dev hari itu (AMMN RUPS 17 Nov, PGAS public expose 19 Nov; BBCA dan ASII lolos S1/S2/S6/S6Δ/S7 Radar pada 9 Nov):
+   kedua lencana. Aksi korporasi mendatang (`stockbit_corporate_action`, termuat terakhir 2026-11-09, ikut ronde
+   Stockbit) dan saringan Radar yang lolos (`Feature_07_Radar_Result`, tanggal broker); masing-masing menulis tanggal
+   datanya.
+
+**Masih terbuka:** definisi "selesai" di bawah dan rencana eksekusi berikut (dikirim 2026-11-16), menunggu "go".
+
+**Rencana eksekusi (usulan, menunggu go; pola EXEC-OVERVIEW):**
+- **W1 Rumus dan biaya.** Rumus setiap indikator dan persentil ditulis di `WATCHLIST_FORMULAS.md` (bahasa Indonesia
+  sederhana, contoh nyata, dijaga skrip + tes seperti `OVERVIEW_FORMULAS.md`). Sumber: kolom tersimpan bila ada (RSI,
+  MACD, Bollinger, SMA 50 Feature 04; return 20 sesi, volume vs 20 hari Feature 01; Foreign Net 5D dan persentilnya
+  Feature 06), dihitung dari harga bila tidak (high 52W, SMA 200, beta/volatilitas/max drawdown 1Y). Biaya baca lari
+  pertama dan lari harian diukur di dev dengan `EXPLAIN (ANALYZE, BUFFERS)` (hanya baca) sebelum kode publisher.
+- **W2 Data list.** Migrasi `edge_bff`: tabel list (akun, nama, urutan, indikator) dan `watchlist_items` mendapat list;
+  saham berbintang yang ada menjadi list "Watchlist" (jumlahnya dibaca dulu; bila lebih dari batas per list, ditanyakan).
+- **W3 API edge-bff.** List: baca, buat, ganti nama, hapus (urungkan = buat ulang dari salinan), indikator per list atau
+  semua list; saham: tambah satu/banyak, hapus. Bintang Screener = list pertama. Setiap batas punya aturan, cara lolos,
+  contoh benar/salah dan pesan penolakan (aturan gate). Tes: login, batas, akun lain tidak bisa membaca/mengubah.
+- **W4 File publisher.** Keluarga `watchlist`: meta (tanggal data, katalog indikator, daftar saham), stocks (per saham:
+  harga, 1D, 1M, 30 sesi + SMA 50, nilai dan persentil indikator, lencana aksi korporasi dan Radar), history (deret
+  untuk persentil, dipakai ulang antar-lari seperti `overview-stocks`, tidak diunduh halaman). Daftar indikator halaman
+  diturunkan dari meta. terminal-api dan relay edge-bff mengikuti pola Overview; `capabilities.watchlist`.
+- **W5 Halaman.** Aplikasi Vite dari desain, bahasa Inggris, tampilan Overview: Kartu/Tabel, tab list, Add ticker,
+  New list, Indicators, hapus dengan urungkan, ganti nama, lencana, label tanggal data, buka Terminal; rail sesudah
+  Overview dan menu ☰; cek 1440/1152/390/360 px dan mode gelap.
+- **W6 Verifikasi independen.** Hitung ulang setiap angka dari PostgreSQL pada 3 tanggal; tinjauan kode independen.
+- **W7 Rilis dev (go per langkah).** Migrasi DRYRUN/APPLY, deploy publisher dan terminal-api, push `main` (edge-bff),
+  Run Now, restart Postgres bila update besar, cek live sebagai pemilik.
+- **W8 Catatan.** Skema, changelog, ERRORS, aturan baru di `AGENTS.md` untuk `WATCHLIST_FORMULAS.md`.
+
+**Keputusan kecil (bawaan; bisa diubah user):** 50 saham per list dan 8 indikator (dari desain), maksimal 20 list;
+kartu menampilkan 4 indikator pertama; persentil = bagian dari 252 nilai sesi sebelumnya milik saham itu yang ≤ nilai
+hari ini (Foreign Net 5D memakai kolom Feature 06 yang sudah ada); bar tebal di ≥ P85 atau ≤ P15; tanpa bar untuk
+Return 1M dan ukuran 1Y; "1M" = 20 sesi; garis putus = SMA 50; lencana aksi korporasi untuk 30 hari kalender sesudah
+tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terbaru, nama sama dengan halaman Radar;
+"Rename list" ditambahkan di menu ⋯ list (tidak ada di desain).
 
 **Seperti apa "selesai" (usulan, menunggu persetujuan):**
 1. Tab Watchlist di rail dan menu ☰ ponsel; bahasa Inggris; tampilan sama dengan Overview (token, kontrol, mode
