@@ -195,6 +195,12 @@ serta kepala kelompok (Technical, Price & volume, Foreign flow) jadi pill abu is
 putih); pratinjau kartu dihapus; area slot kosong ditegaskan (garis putus lebih gelap, latar abu, tombol + hitam,
 "4 slots left" tebal). Menunggu persetujuan user.
 
+**User 2026-11-16:** "Yang chose ganti dengan centang putih fill hijau terang kemudian applies to perlu diganti karena ini
+bukan grup indocator" (dengan /frontend-design). Diterapkan: penanda terpilih = lingkaran hijau `--up` berisi centang
+putih (tanpa teks, label aksesibel "Chosen"); "Applies to" diganti pilihan tempat menyimpan di kaki dialog, di samping
+Save: "Save to [Core only | All 3 lists]" (teks biasa, bukan pill); tata letak ponsel dirapikan (kolom tumbuh sesuai isi,
+"Save to" satu baris).
+
 **Rencana eksekusi (usulan, menunggu go; pola EXEC-OVERVIEW):**
 - **W1 Rumus dan biaya.** Rumus setiap indikator dan persentil ditulis di `WATCHLIST_FORMULAS.md` (bahasa Indonesia
   sederhana, contoh nyata, dijaga skrip + tes seperti `OVERVIEW_FORMULAS.md`). Sumber: kolom tersimpan bila ada (RSI,
