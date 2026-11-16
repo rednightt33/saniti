@@ -72,6 +72,68 @@ detail filter). Kartu dan hitungan: `SCREENER_LIBRARY.md`.
   backfill ≥ 250 sesi ditambah baseline 252 (update besar: restart Postgres sesudahnya), job harian setelah data broker,
   pendaftaran katalog, aplikasi halaman baru di frame EDGE seperti Screener.
 
+## WATCHLIST — halaman Watchlist untuk user (diminta 2026-11-16; rancangan, menunggu jawaban dan "go")
+
+**Kata user, 2026-11-16:** "Terlampir adalah another page yang perlu kita tambahkan. Feel free to lihat dulu, samakan HTML
+dengan page2 yang lain. Understood bahwa mungkin ada contradict dengan kondisi di backend, feel free to confirm with me
+beforehand. Kalau ada yang mau ditambahkan juga feel free to confirm. Ini adalah watchlist diperuntunkan untuk user
+nanti. If you think it can be enchanced, please suggest by considering backend condition. Setelahnya, define what
+finished should look like." Desain: [`verification/watchlist/design/watchlist_20261116.html`](verification/watchlist/design/watchlist_20261116.html)
+(prototipe; data dummy, disimpan di localStorage browser).
+
+**Isi desain:** beberapa list bernama sebagai tab (Core, Banks, …), tampilan Kartu atau Tabel, tambah saham (satu atau
+tempel banyak kode), buat/hapus list dengan urungkan, pilih sampai 8 indikator per list (kartu menampilkan 4 teratas),
+bar persentil "vs 1 tahun sendiri", sakelar notifikasi per list, menu "Buka detail" (belum terhubung).
+
+**Kondisi backend (dicek 2026-11-16 di kode):**
+- Akun: hanya satu pemilik (`EDGE_OWNER`, `apps/edge-bff/app/config.py:12-14`); sesi lain ditolak 401
+  (`app/main.py:287-292`). Multi-user ada di rencana EDGE-MULTIUSER (bagian di bawah), DIPENDING sejak 2026-10-28.
+- Sudah ada watchlist di server: `edge_bff.watchlist_items` (owner_key, ticker, added_at; satu list per pemilik, keputusan
+  P12 "one list, no named lists", `database/migrations/20261028_001_edge_bff_screener.sql:45-51`), maks 500
+  (`app/screener.py:78`), rute `/api/v1/screener/watchlist` (`:995-1016`), dipakai bintang di Screener.
+- Data indikator per saham: tersimpan RSI 14, MACD histogram, Bollinger band, SMA 50 (Feature 04), return 20 sesi,
+  volume vs rata-rata 20 hari, volatilitas 60 hari (Feature 01), net asing 5D dan persentilnya vs 252 hari (Feature
+  06). Bisa dihitung dari harga: jarak ke high 52 minggu, jarak ke SMA 200, beta 1Y, volatilitas 1Y, max drawdown 1Y.
+  Hanya di mesin Terminal (browser): Supertrend, Bandar Balance (FL24/25/29/48), Silent Accumulation (FL27). Tidak ada
+  sumbernya: PER, PBV, ROE, dividend yield (`SCREENER_ONBOARDING.md:1246`). Domestic Net = minus Foreign Net
+  (setiap transaksi punya pembeli dan penjual), jadi tidak menambah informasi.
+- Kesegaran: harga harian (final); intraday hanya sesi yang sudah selesai (cron 17:30 WIB); data broker/asing beberapa
+  hari di belakang harga (ronde Stockbit manual, token habis ±1 hari). Teks desain "harga sesi 1 · asing tertunda 15
+  menit" tidak sesuai.
+- Notifikasi ke user: tidak ada (hanya Telegram pemilik). Bahasa label EDGE: Inggris (`static/edge-labels.js:2-4`).
+- Aksi korporasi per saham ada (`stockbit_corporate_action`: dividen cum/ex, RUPS, public expose); hasil Radar per saham
+  per hari ada (`Feature_07_Radar_Result`).
+
+**Usulan arsitektur (pola Overview):** daftar list milik user di PostgreSQL `edge_bff` (dikunci per akun, siap
+multi-user); data pasar untuk semua saham dalam satu keluarga file publisher yang sama untuk semua user (dicache
+browser); katalog indikator diturunkan dari file itu (indikator baru = perubahan publisher saja, halaman ikut); halaman
+Vite di iframe seperti Overview, bahasa Inggris, ikon mata di rail.
+
+**Pertanyaan terbuka (dikirim ke user 2026-11-16):**
+1. Akun: dibangun sekarang untuk pemilik dan dikunci per akun (siap multi-user), atau menunggu EDGE-MULTIUSER?
+2. List: beberapa list bernama di server menggantikan keputusan P12 (satu list); bintang Screener masuk ke list mana?
+3. Indikator rilis pertama: hanya yang datanya ada (tanpa Bandar/Silent Accumulation/Supertrend, fundamental
+   disembunyikan), atau Bandar dkk. ikut dengan memindahkan rumus Terminal ke publisher?
+4. Sakelar notifikasi: disembunyikan dulu, atau disimpan sebagai preferensi saja?
+5. Tambahan: lencana aksi korporasi mendatang, lencana Radar hari ini, tombol buka Terminal.
+
+**Seperti apa "selesai" (usulan, menunggu persetujuan):**
+1. Tab Watchlist di rail dan menu ☰ ponsel; bahasa Inggris; tampilan sama dengan Overview (token, kontrol, mode
+   gelap); tanpa geser samping di 1440/1152/390/360 px.
+2. List tersimpan di server per akun: buat, ganti nama, hapus dengan urungkan, tambah/hapus saham (satu atau tempel
+   banyak), urutan; sama di perangkat dan browser mana pun; bintang Screener memakai data yang sama.
+3. Batas dijaga backend dengan pesan penolakan yang jelas (aturan gate: aturan, cara lolos, contoh benar/salah, pesan).
+4. Setiap angka di halaman sama dengan hitungan ulang independen dari PostgreSQL pada minimal 3 tanggal, termasuk bar
+   persentil.
+5. Halaman menulis tanggal data apa adanya ("Prices to …", "Broker data to …"); tidak ada klaim intraday atau 15 menit.
+6. Indikator yang tidak punya data tidak ditampilkan.
+7. File diperbarui sendiri sesudah loader harga dan ronde broker; biaya lari pertama diukur; restart Postgres bila
+   termasuk update besar.
+8. Tes publisher, edge-bff (login, batas, akun lain tidak bisa membaca list orang lain), halaman; cek live sebagai
+   pemilik.
+9. Dokumen rumus `WATCHLIST_FORMULAS.md` (bahasa Indonesia sederhana, dijaga tes seperti Overview), skema, changelog,
+   ERRORS untuk temuan.
+
 ## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
 
 **Kata user, 2026-11-14:** "Ini semua dimasukkan ke to-do list ya. Jadi goal dari yang saya minta adalah nanti akan
