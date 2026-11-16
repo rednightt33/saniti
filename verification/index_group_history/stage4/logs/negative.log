@@ -1,0 +1,34 @@
+{"event": "plan", "broker_first": "2024-01-02", "last": "2025-10-31", "window_first": "2024-05-30", "entities": 1, "up_to_date": [], "modes": {"GAGOES": ["continue", "2025-10-15"]}, "apply": true}
+{"event": "members_staged", "entities": 1, "periods": 2, "dated_periods": {}}
+{"event": "raw_month_staged", "start": "2024-05-30", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.01}
+{"event": "raw_month_staged", "start": "2024-06-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.04}
+{"event": "raw_month_staged", "start": "2024-07-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.04}
+{"event": "raw_month_staged", "start": "2024-08-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.04}
+{"event": "raw_month_staged", "start": "2024-09-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.04}
+{"event": "raw_month_staged", "start": "2024-10-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.05}
+{"event": "raw_month_staged", "start": "2024-11-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.04}
+{"event": "raw_month_staged", "start": "2024-12-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.04}
+{"event": "raw_month_staged", "start": "2025-01-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.03}
+{"event": "raw_month_staged", "start": "2025-02-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.04}
+{"event": "raw_month_staged", "start": "2025-03-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.05}
+{"event": "raw_month_staged", "start": "2025-04-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.04}
+{"event": "raw_month_staged", "start": "2025-05-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.05}
+{"event": "raw_month_staged", "start": "2025-06-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.05}
+{"event": "raw_month_staged", "start": "2025-07-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.06}
+{"event": "raw_month_staged", "start": "2025-08-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.04}
+{"event": "raw_month_staged", "start": "2025-09-01", "detail_entities": 1, "collapsed_entities": 1, "seconds": 0.06}
+Traceback (most recent call last):
+  File "/home/user/saniti/scripts/backfill_index_entities.py", line 434, in <module>
+    main()
+    ~~~~^^
+  File "/home/user/saniti/scripts/backfill_index_entities.py", line 430, in main
+    run(db, tickers, args.apply, args.batch, args.until, args.since)
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/saniti/scripts/backfill_index_entities.py", line 401, in run
+    read_months(db, history_first if k == 0 else p['window_first'], p['last'], names,
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                [e['ticker'] for e in todo] if k == 0 else [], p['window_first'])
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/saniti/scripts/backfill_index_entities.py", line 215, in read_months
+    raise RuntimeError(f'members raw/Feature 05 mismatch {lo}: {bad} keys (entities {read})')
+RuntimeError: members raw/Feature 05 mismatch 2025-10-01: 4 keys (entities ['GAGOES'])

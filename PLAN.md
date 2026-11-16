@@ -20,6 +20,251 @@ Aturan:
 
 Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
+## RADAR — halaman Radar untuk library screener S1-S8 (desain disetujui 2026-11-12 s.d. 2026-11-14; rancangan, belum "go")
+
+**Kata user:** "saya mau screener ini dijadikan page baru" (2026-11-12); "Sekarang kita akan fokus ke S1 sampai S7 tadi.
+Saya akan nampilkan HTML untuk kita integrasikan ke front ke back-end. Bisa rancang atau desain terlebih dahulu karena
+saya aware S1 dan S7 belum dibuild" (2026-11-14, dengan prototipe `index-r9.html`: papan kanban per filter dan halaman
+detail filter). Kartu dan hitungan: `SCREENER_LIBRARY.md`.
+
+- **Keputusan library (2026-11-12/13; belum tertulis di `SCREENER_LIBRARY.md`, ditulis saat eksekusi):**
+  - Gerbang likuiditas bawaan "Luas" (buang 50% total beli 5 sesi terkecil), "Likuid" sebagai pilihan: "Ok pilihan A".
+  - S1: syarat net asing 5 sesi ≥ 5% dari total beli 5 sesi: "1 ok pakai 5%".
+  - S2 tetap kartu sendiri (peringkat Δ antar saham): "S2 ok A".
+  - S3 dibandingkan di dalam 5 kelompok jumlah pembeli net (k), minimal 10 broker sementara: "S3 ok pakai kelompok".
+  - S4 dan S5 ditunda: "S4 skip dulu", "S5 skip dulu".
+  - S6: riwayat 252 sesi boleh melompati jeda ("A1 ok"); saham tanpa riwayat setahun hanya dibuang dari V2/V2Δ
+    ("B1 ok"); S6 = V1 + V2 sebagai paket tetap ("V1 dan V2 adalah filter sendiri"; "1 benar").
+  - S6Δ: satu kartu yang dibangun dari hasil S6 dengan pilihan V1Δ, V2Δ atau keduanya ("2 pilih A satu kartu").
+- **Keputusan halaman (2026-11-14, atas klarifikasi R9):**
+  - Kolom S1, S2, S3, S6, S6Δ, S7, S8; nama halaman tetap "Radar" ("A1 S8 ikut, dan halaman tetap bernama Radar").
+  - Nama kartu bahasa Inggris (Heavy foreign accumulation, Strengthening foreign flow, Concentrated net buying, Foreign
+    accumulation (5D), Foreign accumulation strengthening, Institutions in retail out, One-day foreign buying spike): "OK".
+  - Pilihan Index/Group (`Stock_List`) adalah saringan tampilan atas hasil, bawaan Semua; persentil antar saham S2/S3
+    tetap pada seluruh saham yang lolos gerbang: "B3 OK".
+  - Kontrol likuiditas = Luas / Likuid dengan batas Rupiah hari itu sebagai keterangan: "B4 OK".
+  - Tombol tingkat Longgar / Standar / Ketat, bawaan Standar: "B5 OK".
+  - Pill tanggal data per sumber (harga, broker) menggantikan pill intraday; hasil pada tanggal yang dimiliki semua
+    sumber: "B6 OK".
+  - Kolom "Score" diganti ukuran urut milik tiap filter, tanpa skor gabungan: "C7 OK".
+  - Kondisi A-D dan near miss seperti R9: "C8 as is tidak dirubah". Bacaan AI: syarat 5% tidak ditambahkan ke S2.
+  - Ringkasan backtest dihapus: "C9 hapus dulu".
+  - Follow tetap "Coming soon": "C10 ... nothing to do anything about it".
+  - Tanpa ekspor CSV; Open in Terminal tanpa indikator padanan; peringatan baca per filter, penanda pencilan/aksi
+    korporasi dan tata letak ponsel ditambahkan: "D11 ... Yang lain sudah OK".
+- **Keputusan tampilan atas R10 (2026-11-14):** desain final = `verification/radar/index-r10.html` ("Versi final yang
+  dipakai adalah R10 yang terakhir ya"); spesifikasi untuk pembangun front end: `verification/radar/RADAR_PAGE_SPEC.md`.
+  - Ikon Radar di rail kiri EDGE setelah Screener: "Untuk icon sudah oke".
+  - Garis harga 20 sesi di setiap kartu; tanpa blok "Why it is here" di pratinjau; titik terakhir sparkline kolom
+    hitam; pilihan terpilih isi hitam teks putih ("kembalikan jadi hitam ya ... boleh dibuat fillnya hitam, teksnya putih?").
+  - Halaman ini menu admin (pemilik); aturan filter boleh terlihat; versi pengguna biasa dibuat terpisah nanti: "tidak
+    usah for now. Ini adalah menu admin (which owner) nanti kita buat lagi saja khusus untuk user normal."
+  - Tinggi kolom mengikuti jumlah saham: "tinggi kotaknya itu menyesuaikan jumlah saham yang muncul di suatu filter".
+  - Jumlah saham ditampilkan sebagai titik per saham (opsi 8 dari `verification/radar/radar_count_options.html`): "Opsi 8".
+  - Jalur data: halaman membaca file harian yang ditulis publisher, bukan query per permintaan: "2. Ok".
+- **Masih terbuka:**
+  - ~~Ambang V1Δ dan V2Δ S6Δ~~: diputuskan 2026-11-14 ("1A", sesudah melihat hasil 20 tanggal di dev: V1Δ 10,4 / 18,2 /
+    28,6, V2Δ 32,1 / 59,3 / 77,6, `verification/radar/DEV_RUN.md`): tetap 12 / 20 / 35 dan 40 / 65 / 90. Label
+    "provisional" di dev dihapus lewat migrasi 004 setelah go (EXEC-RADAR).
+  - ~~Ukuran urut S6 dan S7~~: diputuskan 2026-11-14 (D3 "ok"): S6 rasio asing, S7 FL34 sekarang, S8 z robust.
+  - Rencana implementasi lengkap: `EXEC.md` EXEC-RADAR (ditulis 2026-11-14; D1-D7 dijawab 2026-11-14; menunggu go).
+- **Data yang dibutuhkan:** tabel ukuran harian per saham untuk semua filter (juga membuka S7 V2/V2Δ, library 12.3 #6),
+  backfill ≥ 250 sesi ditambah baseline 252 (update besar: restart Postgres sesudahnya), job harian setelah data broker,
+  pendaftaran katalog, aplikasi halaman baru di frame EDGE seperti Screener.
+
+## BACKTEST-REVAMP — tampilan Backtest mengikuti desain user, dan indikator Flow Terminal masuk Backtest (disetujui sebagai arah 2026-11-15; belum "go")
+
+**Kata user, 2026-11-15:** "Hanya halaman backtest saja kita revive." Lalu, dengan file desain
+`backtest-standalone.html` (unggahan user, 774.557 byte, dibuat di atas salinan statis halaman Backtest dari `main`
+`bf2381d`): "terlampir untuk backtest HTML yang akan kita jadikan desain untuk front-end di bagian backtest ... coba kamu
+cek di terminal mana indikator yang belum ada di backtest, karna kita juga akan tambahkan itu on this instance as well."
+
+**Hasil pemeriksaan, 2026-11-15** (kode `main` `fff296a7`; edge-bff live `5b8f85b1` SUCCESS; halaman Backtest tidak berubah
+sejak `bf2381d`, jadi salinan asli = halaman live kecuali datanya; uji di Chromium 1440 px dan 390 px, terang dan gelap):
+- Desain = salinan asli + 6 blok CSS baru (Builder v2, Signals v3/v4, EDGE Design Spec v1 type A, jendela kondisi,
+  header) + perubahan pada bundel JS hasil build (43 tempat, ~42 ribu karakter) + katalog `window.CWDATA` (178 baris,
+  diambil dari Screener) + 2 skrip kecil. Desain dibuat pada kode hasil build, bukan sumber TypeScript, jadi eksekusi =
+  menulis ulang di `apps/edge-bff/backtest/src` (markup `index.html`, `styles/backtest.css`, perender).
+- Fungsi yang diuji jalan tanpa error: Run (single dan portfolio), tab hasil, jendela "Add a condition" (cari, Esc),
+  tab builder Universe/Entry/Exit/Sizing/Costs, pemilih saham portfolio (PF7: combobox + filter Sector), tema gelap.
+- Jendela kondisi: 53 indikator registry punya 332 pilihan kondisi, 230 bisa dijalankan mesin sekarang; 102 tidak
+  (`between` 37, `rising` 11, `% distance` 27, `vs MA` 10, `band position` 9, lainnya 8) dan tidak bisa dipilih. 125
+  baris lain (candlestick 20, flow FL 48+3, fundamental 32, teknikal Screener 21) diberi label "Not in backtest yet".
+- Temuan tampilan: geser horizontal 58 px di ponsel hilang (asli: 58 px); di ponsel builder menutupi hasil sampai
+  disembunyikan, lalu kartu statistik terpotong di kanan; tombol tema disembunyikan dan halaman tidak membaca tema EDGE
+  (`edge-auth-monitor-theme`); di gelap kenop sakelar putih di atas lintasan terang; header kiri (`xsHd`) diisi skrip yang
+  menyalin teks elemen tersembunyi; label "Search 53 indicators" padahal jendela berisi 192 baris; catatan sumber data
+  ("Published data · long-only") disembunyikan.
+- Indikator Terminal yang belum ada di Backtest: teknikal tidak ada (53 sama; Terminal hanya menyembunyikan I37, I41 dari
+  menunya); Flow FL01-FL52 semuanya belum (menu Terminal menampilkan 49, FL07/FL35/FL36 disembunyikan). Backtest hanya
+  punya 3 kondisi flow sendiri (fnet, broker, top5). Rumusnya ada di `terminal/src/calc/flow.ts`, murni dan dibuat untuk
+  dipakai bersama. Yang perlu disiapkan: 9 indikator butuh jumlah transaksi `bf`/`sf` (FL01, FL02, FL04, FL05, FL06,
+  FL08, FL09, FL10, FL33) yang sudah diterbitkan publisher tetapi tidak dibaca `backtest/src/core/datafile.ts`
+  `brokerRows`; FL31 butuh baris insider dari file events. Risiko look-ahead (memilih broker dengan data sampai hari
+  terakhir): FL51 (`loadersTable`, akhir = candle terakhir), FL23/FL52 bawaan (`defaultInventoryBrokers`, 20 sesi
+  terakhir), anchored dengan cakupan Top-N (`frozen`: FL18, FL19, FL20, FL44, FL45). Persentil (`percentile`) hanya
+  memakai data sebelum t, aman. Audit lengkap tiap FL untuk look-ahead belum dibuat.
+
+**Keputusan user, 2026-11-15:** "1 setuju, 2a": (1) desain ini menggantikan `backtest.html` sebagai acuan 1:1
+(CONTRACT.md bagian 10 dan tes pembanding visual dipindah ke desain ini); (2a) temuan tampilan di atas diperbaiki saat
+eksekusi (builder di ponsel bisa ditutup, tema mengikuti tema EDGE `edge-auth-monitor-theme`, kontras sakelar gelap,
+label pencarian, catatan sumber data kembali, header kiri dibangun di sumber, bukan skrip penyalin teks).
+
+**Pemeriksaan lanjutan, 2026-11-15 (akar masalah kondisi yang belum bisa dijalankan):** mesin Backtest hanya menerima
+tiga jenis kondisi (`conditions.ts` 19-21, 251-254: indicator `lhs op rhs` dengan gt/lt/crosses, price_action, flow);
+Screener punya tata bahasa kondisi yang lebih luas (VALUE/STATE/EVENT atas `screener/src/core/transforms.ts`:
+pct_distance, band_position, rising, vs average, between, percentile, z-score, dan pola) yang dihitung atas seluruh
+riwayat lalu dinilai di satu hari (`evaluate.ts`). 20 pola candlestick sudah ada di inti Backtest
+(`backtest/src/core/candles.ts`, keputusan 2A 2026-11-07 "dipakai Screener dan nanti Backtest") tetapi belum dibuka
+sebagai jenis kondisi. Baris "Not in backtest yet" per akar masalah: tata bahasa kondisi (102 pilihan + 20 candlestick +
+15 teknikal Screener), aliran broker (51, sama dengan pertanyaan 3), data belum ada (32 fundamental, KSEI, konstituen
+indeks, papan, notasi khusus), indikator belum di registry (Ichimoku 2), lintas saham (RS rank 1).
+
+**Keputusan user, 2026-11-15 (lanjutan):** "Saya sebenarnya tidak terlalu important untuk rilis dalam waktu dekat front
+end. Kita bisa bereskan saja dulu kondisi back end. Setuju untuk usulanmu Usulan perbaikan: satu bahasa kondisi bersama
+(permanen)". Tentang look-ahead: "seharusnya tidak terjadi ... Jika berlaku untuk seluruh indikator, maka ini perlu
+diperbaiki." Dan: "Kalau A B C D mau di rilis bersama, tapi tidak ada lookahead bias, apa yang mesti kita buat?" Jadi:
+back end lebih dulu, tampilan menyusul; satu tata bahasa kondisi bersama (permanen) disetujui; indikator Flow A-D
+dirilis bersama dengan syarat tanpa look-ahead.
+
+**Uji look-ahead, 2026-11-15** (ERRORS M448; uji potong data atas data BBCA dev): bersih 53 indikator, 8 operator pola
+harga, 20 candlestick, 17 transform Screener, 44 dari 52 Flow; look-ahead hanya FL18, FL19, FL20, FL23, FL44, FL45,
+FL51, FL52 (524 variasi parameter), semuanya karena pemilihan broker otomatis sampai candle terakhir. Di luar rumus:
+FL31 (insider bertanggal transaksi, bukan pengumuman), FL34 (klasifikasi broker sekarang dipakai untuk semua tanggal),
+ambang bawaan halaman (`regMedian`, median seluruh riwayat), serta yang sudah diperingatkan (survivorship K6, harga
+campuran K4).
+
+**Keputusan user, 2026-11-15:** "FL31 skip saja dulu karna kita belum ada data insider." FL31 tidak masuk Backtest
+pada rilis ini (tetap berlabel "Not in backtest yet"); dibuka lagi bila data insider dengan tanggal tersedia ada.
+
+**Keputusan user, 2026-11-15:** "Kelompok 1 di drop saja, tapi kelompok 2 dan 3 di retain, dan harus disiapkan
+workaround supaya tidak ada luka head bias." Jadi: FL18, FL19, FL20, FL44, FL45 (kelompok broker beku) tidak masuk
+Backtest; FL23, FL52 (broker bawaan 20 sesi) dan FL51 (Loaders) masuk dengan versi titik-waktu (pemilihan broker pada
+hari t hanya dari data sampai t).
+
+**Prototipe dan ukuran, 2026-11-15** (scratchpad, bukan kode repo; data BBRI dev: 243.810 baris broker 2016-2026, 111
+broker, 2.140 bar harga): FL23 titik-waktu (top 3 pembeli bersih 20 sesi sampai t; nilai = posisi kumulatif kelompok) dan
+FL51 titik-waktu (top 3 penambah lot dari awal sampai t; nilai = harga beli rata-rata dan jarak close) lolos uji potong
+data (5 titik potong). Waktu hitung per saham: jumlah harian per broker 27 ms + FL23 20 ms + FL51 20 ms = 68 ms (Xeon
+2,1 GHz, sandbox), tanpa unduhan tambahan (file broker yang sama dengan kondisi flow sekarang). Rujukan run dev
+2026-10-27 (`apps/backtest-worker/README.md`): single dengan flow 1,31 s dingin / 0,45-0,58 s hangat; portofolio 12
+saham terbesar 7,05 s / 5,5 s. FL52 = rumus FL23 kumulatif di grafik harga (`calc/flow.ts:852-853`), jadi sebagai
+kondisi backtest identik dengan FL23.
+
+**Keputusan user, 2026-11-15 (menggantikan "kelompok 1 di drop"):** "Terminal jangan disentuh. Kit ainclude saja untuk
+seluruh indikator D, tapi artinya A-C dihitung berbeda dengan D kan? Arahnya adalah eksklutivitas, indikator D ini akan
+hanya avail untuk admin saja." Jadi: Terminal (`apps/edge-bff/terminal/`, termasuk `src/calc/flow.ts`) tidak diubah; kedelapan
+indikator D (FL18, FL19, FL20, FL23, FL44, FL45, FL51, FL52) masuk Backtest dalam versi titik-waktu yang tinggal di inti
+Backtest; indikator D hanya tersedia untuk admin, ditegakkan di back end (worker menolak tanpa hak), bukan hanya
+disembunyikan di halaman.
+
+**Prototipe kelompok 1, 2026-11-15** (scratchpad; BBRI dev): FL18, FL19, FL20, FL44, FL45 titik-waktu (top 3 pembeli
+bersih dari anchor sampai t; FL19 berjalan ulang saat kelompok berganti, 181 kali dalam 2.140 bar) lolos uji potong data;
+kelimanya 27 ms. Kedelapan D bersama-sama sekitar 95 ms per saham (termasuk jumlah harian 27 ms).
+
+**Catatan teknis:** EDGE belum punya peran; satu owner (`EDGE_OWNER`), Radar disebut "admin page" karena hanya owner
+yang ada (`apps/edge-bff/app/radar.py:1`). Hak admin untuk indikator D butuh mekanisme hak akses (edge-bff mengirim hak
+ke worker, worker menolak D tanpa hak, katalog menandai D) yang juga dipakai EDGE-MULTIUSER nanti.
+
+**Keputusan user, 2026-11-15:** "1C / 2 OK / 3 OK prepare saja dulu, agar nanti persiapan multiuser tidak perlu tweak
+arsitektur backtest terlalu banyak." Jadi: (1C) titik awal pemilihan broker FL51 dan anchor FL18, FL19, FL20, FL44, FL45
+adalah tanggal yang ditetapkan admin; (2) FL52 tidak menjadi kondisi tersendiri di Backtest, FL23 saja (rumus sama); (3)
+mekanisme hak akses disiapkan sekarang (edge-bff menentukan hak sesi, mengirimnya ke worker, worker menolak D tanpa hak,
+katalog menandai D), dengan owner = admin sampai EDGE-MULTIUSER.
+
+**Jawaban konfirmasi user, 2026-11-15:** "1A / 2 OK / 3 OK / 4 OK / 5 tidak apa2, leave as is untuk klasifikasinya karena
+tidak ada perubahan. / 7B". Jadi: (1A) tanggal awal FL51 dan anchor FL18, FL19, FL20, FL44, FL45 wajib diisi admin; tanpa
+itu permintaan ditolak; (2) internal Screener boleh diubah untuk tata bahasa bersama (Terminal tetap tidak); (3) uji
+look-ahead menjadi gerbang CI wajib; (4) hasil yang memakai kondisi Flow dan periodenya mencakup 2016-2020 diberi
+peringatan data broker tidak lengkap; (5) FL34 memakai klasifikasi `IDX_Broker_Profile` apa adanya untuk semua tanggal
+(user: klasifikasi tidak berubah; dicatat sebagai batasan yang diterima di ERRORS M448); (7B) dokumen dan kode digabung
+ke `main` bersama, lewat PR di Gerbang 2.
+
+**Cara kerja yang disetujui user, 2026-11-15:** "use a workflow — user secara eksplisit mengizinkan orkestrasi
+multi-agent untuk BACKTEST-REVAMP." Roadmap empat tahap: A (review rancangan, agent 1-4) lalu draft EXEC-BACKTEST-REVAMP;
+B (review rencana, agent 5-8) lalu revisi EXEC dan Gerbang 1 (berhenti, tunggu "go"); eksekusi back end; C (code review
+adversarial, agent 9) lalu Gerbang 2 (persetujuan PR, merge, deploy); D (port tampilan, agent 10) lalu Gerbang 3. Subagent
+opus effort medium (user 2026-11-15: "Ganti saja jadi opus 5.5 medium ya untuk subagentsnya"), read-only, paling
+banyak 4 paralel; prompt dari file user `111.txt` (Bagian Umum + Agent 1-10); laporan
+subagent diverifikasi ulang sebelum dipakai.
+
+**Tahap A selesai, 2026-11-15** (workflow `wf_44e981c7-788`, 4 agent opus medium, read-only; laporan di scratchpad sesi
+`stageA/r0-r3.md`; setiap temuan dipakai di bawah diverifikasi ulang oleh main agent dengan kode, query pgweb atau run):
+- Agent 1 (look-ahead, independen): 53 indikator (default + parameter pendek, panjang, ekstrem), kondisi inti, 20 candle,
+  transform Screener, rank dan likuiditas bersih pada BBCA, ALKA, BTEK, IHSG; Flow: tepat 8 bocor (sama dengan M448); uji
+  tingkat mesin (5 permintaan × 4 titik potong) bersih, diulang main agent: 0 beda selain `period_end` di hari potong.
+  Baru: harga yang disesuaikan mundur adalah look-ahead dan peringatannya hanya saat melewati 2026-09-12; PBSA dimuat
+  ulang setelah batas (ERRORS M449).
+- Agent 2 (makna titik-waktu D): FL18/19/20/44/45 dengan re-rank harian layak (lompatan nyata, persilangan palsu 0-6 dari
+  59-156; di hari terakhir sama persis dengan Terminal). FL23 titik-waktu "top 3 pembeli 20 sesi sampai t, posisi
+  kumulatif" tidak layak sebagai sinyal: kelompok berganti 32-35% hari, lompatan 25-36× aliran harian, perubahan 20 sesi
+  > 0 pada 100% hari (diulang main agent pada BBRI dan ACES). Koreksi main agent: broker bawaan FL23 di registry adalah
+  `auto_c` (2 pembeli + 1 penjual dari awal sampai candle terakhir, `flow.ts` `autoInventoryBrokers`), bukan "top 3 pembeli
+  20 sesi" (itu FL52, `defaultInventoryBrokers`); penjelasan ke user sebelumnya keliru. Juga: anchor yang salah format
+  diam-diam menjadi candle pertama (`flow.ts:389-393`), broker tak dikenal digambar 0 (`flow.ts:609`), FL23 me-ranking di
+  semua papan tetapi menjumlah di papan terpilih, Nego/Cash merusak VWAP, broker yang berhenti tetap di kelompok.
+- Agent 3 (tata bahasa bersama): layak untuk kondisi per saham non-flow (`conditionSignal` cocok dengan `evaluate()` di
+  setiap bar); impor dari inti Backtest ke Screener membuat siklus modul yang mematikan screener-worker saat start
+  (diulang main agent: `ReferenceError ... SCREENER_REGISTRY`); bentuk lineage runtuh untuk jenis baru (M452); versi mesin
+  tidak meng-hash subfolder; Donchian di Backtest tidak pernah terpicu (M451); perbedaan makna EVENT within vs jendela
+  masuk, bar 0, NA vs INDICATOR_OUTPUT_EMPTY, sisi "price" = volume; atribut universe, return_rank, rank lintas saham dan
+  flow Screener (jendela 60 sesi) belum bisa per hari tanpa look-ahead.
+- Agent 4 (data Flow): premis BBCA keliru (penurunan 2024-2026 nyata, tanpa aksi korporasi); rights issue: lot broker
+  skala asli, harga disesuaikan (COCO 1,82× sebelum ex-date, diulang main agent; 12 kejadian 1,26-19,5×); PBSA patah
+  skala 2026-09-01; PSSI lot pecahan; `gap_bars`/`unmatched_rows` tak pernah ditampilkan; `bf`/`sf` belum dibaca (M450).
+- Ditolak: Agent 2 F10 (lompatan garis Flow sebagai stop): stop dan trailing hanya boleh indikator overlay registry
+  (`engine.ts:111-119`, CONTRACT bagian 3), jadi tidak berlaku.
+- Operasional: memori Postgres 1,84-1,99 GB dari batas 2,0 GB sejak 15:00 UTC (sebelum agent membaca); skrip restart
+  butuh Railway CLI yang tidak ada di sesi ini; dilaporkan ke user di Gerbang 1.
+
+**Tahap B selesai, 2026-11-15** (workflow `wf_066acb26-8c2`, agent 5-8 opus medium, read-only; laporan di scratchpad sesi
+`stageB/r0-r3.md`; temuan dipakai setelah diverifikasi main agent):
+- Agent 5 (keamanan hak): halaman menghitung kondisi di browser dan asetnya terbuka tanpa sesi (live 200; M456), jadi D harus
+  hanya di worker; rute edge-bff memakai `settings.owner` konstan (`backtest.py:1249`); /signals meneruskan badan user, jadi
+  hak bisa dipalsukan tanpa amplop `{request, context}`; akses harus diperiksa di resolusi seri (kedalaman mana pun); Screener
+  sudah menawarkan versinya sendiri dari FL18/19/20/23/44/45 ke semua sesi (K8).
+- Agent 6 (performa): klaim 95 ms berlaku di setelan bawaan; top 20 = 291 ms per saham dan FL19 kuadratik; A-C 29 ms median per
+  indikator, sampai 401 ms; grid 25 sel menghitung ulang seri baru tanpa memo; batas memori live worker 1 GB tak tercatat, di
+  bawah puncak 1,31 GB (M455); biaya Railway ±USD 0,07-1,2 per 1.000 run; bangun dari tidur 3-15 detik.
+- Agent 7 (statistik): rumus PSR/DSR benar; percobaan dihitung per lini sehingga pencarian lintas saham/indikator lolos dari
+  DSR; OOS hanya pemisahan laporan; tanpa batas minimal transaksi; SURVIVORSHIP hanya portofolio; anchor yang dipilih admin
+  adalah hindsight yang tidak terdeteksi uji potong data (M457).
+- Agent 8 (kesesuaian rencana): urutan deploy draft mematikan semua backtest (worker lama menolak `context.rights`); versi
+  tidak mencakup `calc/flow.ts`/`flowRegistry.json` (M453); CI tidak menahan deploy (M455); peringatan 2016-2020 salah
+  diikat ke `gap_bars`; K1-K7 tanpa konteks; opsi K3(b)/K4(b)/K5(b)/K2 tanpa langkah; K2 tanpa opsi `auto_c` titik-waktu;
+  penolakan belum empat bagian; A-C = 43 (bukan 44); cacat baru belum di ERRORS (M453-M457 dicatat).
+- Tidak dipakai apa adanya: Agent 7 F1 "keluarkan ticker dari lineage" (membalik keputusan K3/PF4 di CONTRACT); diganti opsi
+  K6 hitungan pencarian per owner. Agent 7 F9 (Monte Carlo menganggap transaksi independen): SUSPECTED, ditunda (belum diukur
+  pada D). Agent 6 F6 (latensi bangun): hanya dokumen.
+- EXEC-BACKTEST-REVAMP direvisi (revisi 2): D pindah ke `apps/backtest-worker/src/pit/`; owner dan hak dari sesi; amplop
+  `{request, context}` untuk semua panggilan worker; worker dulu, edge-bff kemudian, rollback terbalik; memo seri dan satu
+  lintasan untuk anchored D; anggaran flow per job; peringatan statistik; K1-K11 ditulis ulang dengan konteks dan dampak.
+
+**Jawaban user di Gerbang 1, 2026-11-15:** "K9 B / yg lain ok": K9 (b) batas memori worker tetap 1 GB dengan isi job dibatasi;
+K1-K8, K10, K11 mengikuti saran (rincian di `EXEC.md` EXEC-BACKTEST-REVAMP, "Jawaban user di Gerbang 1"). K8 dibaca (b)
+(eksklusif admin juga di Screener) dari kata user "eksklutivitas, indikator D ini akan hanya avail untuk admin saja".
+
+**Konfirmasi user, 2026-11-15:** "1B. done restart coba cek": K8 (b) dikonfirmasi (tabel hak yang sama juga untuk Screener);
+Postgres di-restart user lewat Telegram (dibaca ulang: `pg_postmaster_start_time` 18:58:27 UTC, memori 2,0 → 0,09 GB pukul 19:00
+UTC).
+
+**"Go" user, 2026-11-15:** "Go". Eksekusi back end dipindah ke `EXEC.md` EXEC-BACKTEST-REVAMP (P0-P8, di branch; merge dan
+deploy menunggu Gerbang 2).
+
+## LEADERBOARD — 12 tabel peringkat (6 teknikal, 6 flow) (masuk to-do list 2026-11-14)
+
+**Kata user, 2026-11-14:** "Ini semua dimasukkan ke to-do list ya. Jadi goal dari yang saya minta adalah nanti akan
+dibuatkan page di mana saya akan minta ke kamu rekapan, kira-kira detail page-nya seperti apa." Spesifikasi:
+[`LEADERBOARD_SPEC.md`](LEADERBOARD_SPEC.md). Diputuskan: F6 = Institusi vs Ritel ("F6 boleh institusi vs ritel",
+2026-11-13). Terbuka: halaman (sendiri atau digabung), tanggal data, gerbang, slot T6, sudut tambahan (bagian 4 spesifikasi).
+
+## ROTATION-MAP — halaman rotasi sektor dan panel Analisis Sektor (masuk to-do list 2026-11-14)
+
+**Kata user:** "Ini akan menjadi page sendiri di luar screener yang tadi kita buat" (2026-11-13); "Ini semua dimasukkan
+ke to-do list ya" (2026-11-14). Spesifikasi dan semua keputusan (lensa Harga / Breadth / Arus asing, median, pembanding
+pasar sama bobot, excess return, sumbu asing nol mutlak, toggle median sektor/pasar, bawaan 60D): [`ROTATION_SPEC.md`](ROTATION_SPEC.md).
+Terbuka: anggota minimum kelompok, kelompok Indeks/Grup dari `Stock_List` (bagian 8 spesifikasi).
+
 ## SCREENER-FLOW-FROM-TERMINAL — preset bandar aktif dan screener flow dari indikator Terminal (disetujui sebagai arah, 2026-11-06)
 
 **Kata user, 2026-11-06:** "Iya, maksud saya screener-screener di bagian bandar tersebut semuanya menggunakan
@@ -1107,7 +1352,7 @@ pendaftaran sendiri plus kode email. Approval untuk merencanakan, belum "go" eks
 - **Inspeksi dijalankan, 2026-11-16 (user: "Ok go."):** 10 sub-agent read-only selesai. Hasil gabungan dan rencana implementasi
   tujuh fase (0 pengamanan, 1 akun, 2 katalog kemampuan, 3 gate per tab, 4 dashboard admin, 5 pembayaran, 6 peluncuran;
   `EDGE_MULTIUSER` mati sampai fase 6) ada di `verification/edge_multiuser/access_tiers/FINDINGS.md`. Cacat baru dicatat di
-  `ERRORS_AND_SOLUTIONS.md` M423-M430. Rencana ini belum di-"go".
+  `ERRORS_AND_SOLUTIONS.md` M468-M475. Rencana ini belum di-"go".
 - **Keputusan user, 2026-11-16 (kata user):** "ID = username / Free = user hanya bisa akses terminal (misalkan ticker BBCA) dan
   scroll sampai belakang, dan nanti mungkin ada 2 indikator yang di show. Tidak bisa tambah indikator dll. Bisa akses halaman
   lain, hanya scroll, tapi tidak bisa klik. Kalau klik maka upgrade for full feature. / Terminal API publik (hapus)".
@@ -1116,7 +1361,7 @@ pendaftaran sendiri plus kode email. Approval untuk merencanakan, belum "go" eks
   - Free adalah paket nyata. Di Terminal: hanya ticker yang diizinkan (contoh BBCA; daftarnya data di katalog), seluruh
     histori bisa di-scroll, sekitar 2 indikator tetap ditampilkan, tanpa menambah indikator atau fitur lain.
   - Tab lain bisa dilihat dan di-scroll, tetapi setiap klik membuka ajakan upgrade.
-  - Domain publik terminal-api dihapus. Sebelum eksekusi, akan dicek bahwa tidak ada pemakai login langsung (M425).
+  - Domain publik terminal-api dihapus. Sebelum eksekusi, akan dicek bahwa tidak ada pemakai login langsung (M470).
 - **Penanganan tiga batasan untuk paket Free (usulan, 2026-11-16):**
   - **Dikunci lewat data, bukan tampilan.** terminal-api hanya memberi file harga harian dari ticker yang diizinkan katalog.
     Broker, event, intraday, IHSG pembanding dan ticker lain ditolak di server.
@@ -1154,3 +1399,143 @@ pendaftaran sendiri plus kode email. Approval untuk merencanakan, belum "go" eks
 ## TERMINAL-IND-CARDS — dipindah ke `EXEC.md` EXEC-IND-CARDS (go 2026-11-01: "jalankan TERMINAL-IND-CARDS as well")
 
 ## FI-TERMINAL — dipindah ke `EXEC.md` EXEC-FI-TERMINAL (go 2026-11-01; audit dan koreksi data selesai, EXEC-FI-DATE)
+
+## INDEX-GROUP-HISTORY — riwayat 43 indeks dan 33 grup (KONGLO) untuk grafik kinerja (SELESAI 2026-11-15: tahap 1-9 dijalankan, hasil di EXEC.md EXEC-INDEX-GROUP-HISTORY; rencana di bawah sebagai catatan)
+
+**Kata user, 2026-11-15:** "Harga bisa disimpan di price stock Indonesia IDX saja. Karena di sana juga sudah ada IHSG.
+Dari 2018 enough terkait dengan riwayat." Lalu (tangkapan layar enam tabel `Feature_0x_..._INDEX`): indeks yang sudah ada
+harganya dimasukkan ke Feature 1; "group tidak usah dimasukkan ke fitur 1 karena kita tidak bisa menghitung base
+price-nya. Tapi kita bisa mulai dari fitur 2 sampai fitur 6"; contoh: net buy asing grup = kumulatif dari semua saham
+grup; "saya tidak mau ada proses yang menghitung ulang dari awal yang sudah existing. Jadi kita hanya insert saja
+sifatnya."
+
+**Fakta (dev hanya baca, kode `main` 63f334e1, 2026-11-15):**
+- `Stock_List`: 33 INDEX dan 33 KONGLO, dimuat dari Stockbit 2026-11-09; riwayat anggota baru sejak 2026-11-09.
+- Harga: hanya IHSG (`Price_Stock_Indonesia_IDX`, 2018-01-02..2026-11-13). TradingView punya ke-32 indeks lain (data
+  harian, tanpa volume), mulai 1990 (IHSG) s.d. 2024-09 (IDXVESTA28); lima nama berbeda: `BISNIS_27`, `SRI_KEHATI`,
+  `IDXSMC_LIQ`, `IDXSMC_COM`, `I_GRADE`. IHSG TradingView = database 10-13 Nov (OHLC sama).
+- Indeks dikenali dari `IDX_Stock_Universe."Security Type" = 'index'` (`is_universe_index`, migrasi 20261025_011): pipa
+  Feature 01/04 saham melewatinya, jadi baris harga indeks baru tidak memicu hitung ulang fitur saham.
+- `scripts/backfill_index_features.py` menulis per ticker (`apply_chunks`: `WHERE ticker=%s ... ON CONFLICT`); ticker baru
+  hanya menambah baris; IHSG tidak tersentuh. Agregat broker IHSG = semua simbol `IDX_Broker_Summary`; grup butuh
+  parameter daftar saham.
+- Pembaruan harian `_INDEX` hanya IHSG (`apps/stockbit-updater/refresh.py:330-349`).
+- Tidak ada kode indeks/grup yang bentrok dengan ticker saham.
+
+**Jawaban user, 2026-11-15:** "Dari 2022 saja ya / 1A / 2A / 3A / 4A / 5 yes", lalu "Buat implementation plan dulu.
+Inspect database, script, ensure semua dependensi termap. Bagaimana formula dihitung pada setiap fitur. Jangan sampai kita
+menginsert data yang formula wise berbeda dengan data existing." Artinya: riwayat mulai 2022; Feature 04 INDEX juga untuk
+indeks (1A); Feature 02-06 untuk indeks juga (2A); masa lalu memakai anggota hari ini (3A); diperbarui setiap hari (4A);
+Barito = grup Prajogo Pangestu (5). Belum ada go eksekusi.
+
+### Rencana implementasi (draft untuk review, 2026-11-15; diperiksa dari kode `main` 5d66612e dan dev hanya baca)
+
+**A. Cara setiap fitur dihitung sekarang (IHSG) — dipakai apa adanya, hanya masukannya berbeda**
+
+| Fitur | Fungsi yang menghitung (sama dengan fitur saham) | Masukan IHSG | Masukan baru |
+|---|---|---|---|
+| F01 | `refresh_feature_01_stock_daily`, disalin ke staging (`backfill_index_features.py:183-186`) | harga IHSG di `Price_Stock_Indonesia_IDX` | harga indeks dari TradingView di tabel yang sama |
+| F04 | `features/feature04/engine.py` `calculate` (`:187-191`), `asset_type='index'` | sama | sama |
+| F05 | jumlah `IDX_Broker_Summary` per tanggal, broker, jenis investor, papan (`:78-121`) | semua simbol | hanya anggota daftar (Stock_List) |
+| F02 | SQL `INSERT_TICKER` Feature 02 saham, kalender = tanggal F05 agregat (`:124-136`) | dari F05 agregat | sama |
+| F03 | `refresh_feature_03_stock_broker_daily`, HHI dikosongkan (kebijakan INDEX) (`:137-140`) | dari F02 | sama |
+| F06 | `refresh_feature_06`; frekuensi hanya bila semua baris punya frekuensi (`:142-181`) | dari F05 | sama |
+
+Yang bergantung pada titik mulai riwayat, bukan hanya rumus (Feature_Catalog `minimum_history`):
+- F04: EMA 200, SMI, swing state rekursif dari bar pertama ("Full available ordered ticker history"). IHSG mulai 2018-01-02.
+- F06: net kumulatif asing/domestik dijumlah sejak tanggal broker pertama (IHSG 2016-01-04); persentil butuh s.d. 312 sesi;
+  F02 s.d. 312 sesi; F01 s.d. 121 observasi.
+- Maka "dari 2022" yang sama rumusnya dengan IHSG = dihitung dari titik mulai yang sama (harga 2018-01-02, broker
+  2016-01-04) di staging, lalu yang ditulis ke tabel hanya baris >= 2022-01-03. Bila dihitung mulai 2022, rumus sama tetapi
+  nilai awal berbeda (EMA/SMI dimulai ulang, kumulatif mulai 0, persentil kosong s.d. 2023). Keputusan D1.
+
+**B. Peta dependensi (dicek)**
+
+| Bagian | Fakta | Akibat untuk rencana |
+|---|---|---|
+| `IDX_Stock_Universe` `Security Type='index'` | `is_universe_index()` (20261025_011): Feature 01/04 saham, recovery, intraday features melewati indeks | baris harga indeks tidak memicu hitung ulang fitur saham |
+| Trigger `validate_index_feature_identity` di tabel `_INDEX` | menolak ticker yang bukan indeks di universe | grup akan DITOLAK: perlu migrasi (izinkan kode grup Stock_List, hanya F02/03/05/06) |
+| `validate_idx_optional_volume` | volume kosong hanya untuk indeks universe | indeks TradingView tanpa volume: lolos |
+| price cron (`price_update.py read_universe`) | membaca seluruh universe | harga harian 32 indeks otomatis (4A) |
+| intraday (`intraday_update.py:279`) + `remark_intraday_sessions` | mengambil 5m-4h untuk semua universe; `index_bars` = jumlah bar SEMUA indeks; `intraday_bars_per_year` = 252 x rata-rata itu | WAJIB: intraday tetap hanya IHSG (filter di kode) sebelum indeks masuk universe, kalau tidak angka tahunan intraday salah ~33x |
+| terminal-publisher (`publisher.py:233,251`) | tiap ticker universe `index` = grafik harga + broker dari F05 INDEX | 32 indeks otomatis tampil di Terminal sesudah run publisher (pembaruan besar); grup tidak (bukan universe) |
+| terminal-api / edge-bff ticker `^[A-Z0-9]{1,12}$` (`terminal-api/app/main.py:40`) | tanda hubung dan >12 huruf ditolak | ticker indeks tanpa tanda hubung; ticker grup pendek (D3) |
+| Screener (`snapshot.ts:133`), Radar, Backtest | hanya `type='stock'` / IHSG disebut eksplisit | tidak berubah |
+| AI catalog `_INDEX` (20261025_005) | deskripsi "IHSG"; 43 kolom `cross_entity_aggregation = SUM` | migrasi katalog: SUM antar-ticker dilarang (IHSG + LQ45 + grup = dobel hitung), deskripsi ticker baru, versi semantik Feature_Catalog untuk himpunan simbol per ticker |
+| ai-data-coverage (`coverage_job.py:637-666`) | tiap kode indeks diharapkan sejak 2016; grup tidak dikenal | ubah harapan per ticker (mulai riwayatnya), tambahkan grup |
+| stockbit-updater `refresh_index` (`refresh.py:330-349`) | harian hanya IHSG | 4A: loop semua entitas, satu baca data untuk semua, inkremental (hanya hari baru) |
+
+**C. Tahap (setiap tahap dicek sebelum tahap berikut; deploy/migrasi/job hanya dengan go)**
+1. Kode intraday: hanya stok + IHSG (kalender). Tes. Sebelum langkah 2.
+2. Migrasi: 32 baris universe `index` (nama dan simbol TradingView, tabel pemetaan); kolom penghubung `Stock_List` -> ticker
+   INDEX (D3); trigger identitas menerima kode grup untuk F02/03/05/06 saja.
+3. Job harga sekali jalan: 32 indeks dari TradingView (cara ambil `price_update.py`), mulai sesuai D1, `is_final`, OHLC.
+   Cek: tanggal sama dengan kalender IHSG, sampel OHLC = TradingView.
+4. `backfill_index_features.py`: himpunan simbol per entitas dari Stock_List, banyak entitas dalam satu baca, tulis hanya
+   >= 2022-01-03 (D1); jalur IHSG tidak berubah (uji: IHSG dihitung ulang di staging = baris tersimpan, 0 beda, tidak ditulis).
+5. Uji coba (rollback) LQ45 + Prajogo Pangestu: (a) F05 grup = jumlah F05 saham anggota (persis); (b) F06 harian = jumlah F06
+   saham anggota per tanggal/papan; (c) sampel F02/F06 = hitung independen (`check_feature_06_sample.compute`);
+   (d) F01/F04 LQ45 = hitung ulang independen; (e) hash baris IHSG sebelum = sesudah. Ukur waktu dan baris -> perkiraan penuh.
+6. Isi penuh: job `run_job.sh` `large_write` (di luar B6 dan jadwal cron, cek M340), restart Postgres, baca balik jumlah.
+7. Migrasi katalog AI dan coverage (B); `AI_TOOLS.md` tidak berubah (tidak ada tool baru).
+8. Harian (4A): stockbit-updater semua entitas inkremental; deploy `deploy.sh` dengan go.
+9. Publisher: run untuk 32 indeks (pembaruan besar, restart sesudahnya); cek Terminal LQ45.
+10. Catatan: DATABASE_CHANGELOG, RAILWAY_CHANGELOG, ERRORS (bila ada), EXEC.
+
+**D. Keputusan yang masih terbuka**
+- D1 Titik mulai hitung: staging dari 2018 (harga) / 2016 (broker) dan tulis >= 2022 (sama dengan IHSG; harga 2018-2021
+  32 indeks ikut tersimpan, ±30 ribu baris) ATAU semua dari 2022 (nilai awal berbeda dari cara IHSG).
+- D2 Grafik grup di Terminal: rencana ini hanya data; tampilan grup jalur terpisah.
+- D3 Ticker grup (<= 12 huruf/angka, tanpa tanda hubung, tidak bentrok saham), mis. `GSALIM`, `GPRAJOGO`.
+- D4 Anggota berubah sesudah isi riwayat: hari baru memakai anggota terbaru, riwayat tidak dihitung ulang (insert saja),
+  perubahan dicatat.
+
+**Jawaban user, 2026-11-15:** "D1 A / D2 OK / D3 OK / D4 OK"; lalu: daftar grup diperbarui tiap putaran stockbit-updater,
+"Misalkan hari ini ada update di grup Barito di mana ada penambahan satu saham. Hari ini tanggal 28. Berarti start tanggal
+29. Table-table yang mengikutsertakan grup juga akan menambahkan satu saham tersebut per tanggal 29"; dan indeks sektor
+IDX (IDXINFRA, IDXENERGY, IDXFINANCE, ...) ditambahkan (daftar Excel user, 24 indeks).
+- D1 A: hitung dari titik mulai yang sama dengan IHSG (harga 2018-01-02 atau bar pertama indeks, broker 2016-01-04) di
+  staging, tulis baris >= 2022-01-03; harga indeks 2018 dst. tersimpan di `Price_Stock_Indonesia_IDX`.
+- D2: rencana ini data saja; tampilan grup jalur terpisah. D3: ticker grup berawalan G (<= 12, huruf/angka). D4: setuju.
+- **Aturan anggota per tanggal (dicek 2026-11-15):** sudah ada di database sebagai kolom turunan
+  `Stock_List_Member_History.pit_valid_from = greatest(valid_from, tanggal tercatat WIB + 1)` dan `pit_valid_to` (migrasi
+  20261109_001:121-124): tercatat tanggal 28 -> dihitung mulai 29, keluar juga mulai hari berikutnya. Entitas pada tanggal
+  d = saham dengan `pit_valid_from <= d < pit_valid_to`; sebelum catatan pertama (pit 2026-11-10) = anggota catatan pertama
+  (3A). Hitung harian inkremental membaca aturan yang sama untuk hari pemanasan, jadi baris lama tidak berubah dan tidak
+  ditulis ulang (`apply_chunks` hanya >= from_date).
+- **Indeks sektor (11, dicek di TradingView 2026-11-15):** IDX:IDXBASIC, IDXCYCLIC, IDXNONCYC, IDXENERGY, IDXFINANCE,
+  IDXHEALTH, IDXINDUST, IDXINFRA, IDXPROPERT, IDXTECHNO, IDXTRANS; semuanya ada sejak 2021-01-04 (klasifikasi IDX-IC). Ke-13
+  indeks lain di daftar user sudah ada di 32. Total 43 indeks + 33 grup. Anggota sektor untuk F02-06 diturunkan dari
+  `IDX_Stock_Universe."Sector"` (11 nilai = 11 sektor, 21 saham "Undefined" tidak masuk sektor mana pun) dengan aturan
+  per tanggal yang sama dari `IDX_Stock_Universe_History.pit_valid_from/pit_valid_to` (dicatat sejak 2026-09-28).
+- Belum ada go eksekusi.
+
+**Perkiraan waktu (2026-11-15, dari log, bukan ukuran baru):**
+- IHSG isi penuh 2026-10-24 (`verification/ihsg_feature_aggregation/bulk/apply_logs.jsonl`): 29,9 menit = baca broker
+  2016-2026 15 menit (128 bulan, 903 s) + F02 11,7 menit (619 pasangan broker/jenis/papan, satu SQL per pasangan) + cek dan
+  tulis 2,5 menit. Isi penuh IHSG 2026-11-09 sesudah batas memori 1 GB: 61 menit (`Monitoring_Stockbit_Update.index_result`
+  3.672,8 s); pembaruan inkremental harian IHSG 6,3 menit (379,3 s).
+- 76 entitas (43 indeks + 33 grup), F02 dihitung dari 330 sesi sebelum 2022 (cukup untuk jendela terpanjang 312; hanya
+  kumulatif F06 butuh 2016): perkiraan 7-14 menit per entitas -> 9-18 jam hitung untuk isi riwayat, dijalankan bertahap.
+  Harga 43 indeks dan F01/F04: menit. Ukuran pasti dari uji coba tahap 5 (LQ45 + Prajogo Pangestu).
+- Risiko 4A: dengan cara sekarang, pembaruan harian 76 entitas x ±6 menit = ±7-8 jam per putaran stockbit-updater (putaran
+  sekarang 61-84 menit). Perlu dipercepat dulu (F02 dihitung sekaligus untuk semua pasangan, bukan satu per satu; dibuktikan
+  0 beda dengan IHSG) sebelum harian diaktifkan.
+
+**Kata user, 2026-11-15:** "Apa hubungannya pembaharuan harian stok updater dengan bagaimana kita mengkalkulate harga dan
+fitur? ... Menurut saya terlalu lama untuk prosesnya. Kita bisa mulai dari 2024 saja untuk pengupdatean indeks. Jadi nggak
+apa-apa sedikit belang-belentong, IHSG sudah dari 2018, tapi indeks-indeks ini kita bisa mulai dari 2024."
+- Baris fitur indeks dan grup ditulis mulai 2024-01-02 (bukan 2022-01-03). IHSG tetap.
+- Yang tidak berubah (D1 A, menunggu konfirmasi): harga indeks tetap disimpan dari 2018 sebagai titik mulai EMA/SMI (murah);
+  F02/F06 dihitung dari 330 sesi sebelum 2024 (±September 2022); kumulatif F06 dari 2016 (hanya baca data broker sekali).
+- Perkiraan isi riwayat dengan kode sekarang: ±3,5-7 menit per entitas -> ±4,5-9 jam; lebih cepat bila F02 dihitung sekaligus
+  (diukur di uji coba). Mulai 2024 tidak mengubah biaya harian: pembaruan harian menghitung ulang 330 sesi pemanasan.
+- Usulan pembaruan harian: langkah INDEX dipisah dari putaran stockbit-updater (job sendiri sesudah data broker hari itu
+  masuk), dan F01/F04 indeks sesudah cron harga, tidak menunggu putaran Stockbit.
+
+**Ukuran nyata (dev hanya baca, 2026-11-15, data 2025):** kombinasi broker x jenis investor x papan dan baris per hari:
+Prajogo Pangestu 277 kombinasi, 121 baris/hari; LQ45 319, 164/hari; IHSG 449, 216/hari. Perkiraan 7-14 menit per entitas
+sebelumnya memakai 619 kombinasi IHSG 2016-2026, jadi terlalu besar. Koreksi (kode sekarang, F02 satu SQL per kombinasi
+±0,4-1,2 s): mulai 2022 ±4-8 jam, mulai 2024 ±2,5-5 jam; F02 dan F05 masing-masing ±12 juta baris (2022) atau ±7 juta (2024)
+untuk 76 entitas. Penyebab jam-jaman: ±23.000 SQL F02 terpisah (76 x ±300 kombinasi), bukan banyaknya data. F02 dihitung
+sekaligus untuk semua kombinasi dan entitas diusulkan sebagai langkah pertama (dibuktikan 0 beda dengan IHSG, diukur).

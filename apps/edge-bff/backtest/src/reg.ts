@@ -4,7 +4,8 @@
    the Terminal's field names, mapped here to the names the page reads). Every series comes from the BacktestApi. */
 import IND_REG from '../../terminal/src/data/indRegistry.json' with { type: 'json' };
 import { EXTRA_GROUPS as CORE_EXTRA, LEGACY, type LegacySpec, type RegCard } from './core/catalog.ts';
-import type { Card } from './api/types.ts';
+import type { Card, TestCard } from './api/types.ts';
+import { entryOf, testGroup } from './grammar.ts';
 import { API, CAT, DATA } from './env.ts';
 import { nf, OPS, toast } from './format.ts';
 import { S } from './state.ts';
@@ -36,15 +37,24 @@ export const regReady = (id: string) => API.ready({ type:'reg', ind:id } as RegC
 export const condReady = (c: Card) => API.ready(c);
 export const regDefaults = (r: RegRow) => Object.fromEntries(r.p.filter(x=>x.t!=='fixed').map(x => [x.k, x.d ?? (x.t==='boolean'?false:x.t==='enum'?(x.opt||[''])[0]:'')]));
 /* condition shape is derived from where the indicator is drawn: overlays compare price to the line, panels compare the line to a value */
-/* default threshold for panel indicators = the output's own median on the selected stock (derived from data, never a per-indicator constant) */
+/* default threshold for panel indicators = the output's own median on the selected stock (derived from data, never a
+   per-indicator constant). Stage D (decision 2a, user 2026-11-15): never from bars after the backtest period; it reads the
+   bars before the period's start (a threshold the strategy holds on its first day), and only when they hold fewer than
+   MEDIAN_MIN values the bars up to the period's end */
+const MEDIAN_MIN = 20;
 export const regMedian = (id: string, p: Record<string, unknown>, o: string) => { if(!regReady(id)) return 0; const outs = API.indicatorOutputs(S.sigTicker, id, p); if(!outs) return 0;
-  const v = Array.from(outs[o]||[]).filter(isFinite).sort((a,b)=>a-b); if(!v.length) return 0; const m = v[Math.floor(v.length/2)], mag = Math.pow(10, Math.floor(Math.log10(Math.abs(m)||1))-1); return Math.round(m/mag)*mag };
+  const days = DATA[S.sigTicker]?.dates ?? [], all = Array.from(outs[o]||[]), upTo = (d: string) => all.filter((x, i) => isFinite(x) && days[i] !== undefined && days[i] <= d);
+  const before = all.filter((x, i) => isFinite(x) && days[i] !== undefined && days[i] < S.from);
+  const v = (before.length >= MEDIAN_MIN ? before : upTo(S.to)).sort((a,b)=>a-b); if(!v.length) return 0; const m = v[Math.floor(v.length/2)], mag = Math.pow(10, Math.floor(Math.log10(Math.abs(m)||1))-1); return Math.round(m/mag)*mag };
 export const mkReg = (id: string): RegCard => { const r = REG_BY[id], p0 = regDefaults(r), base = r.zone==='panel' ? {lhs:{t:'out',o:r.out[0]}, op:'gt', rhs:{t:'val',v:regMedian(id, p0, r.out[0])}} : {lhs:{t:'price'}, op:'ca', rhs:{t:'out',o:r.out[0]}};
   return {id:Math.random().toString(36).slice(2,8), type:'reg', on:true, ind:id, p:regDefaults(r), ...base} as RegCard };
 export const priceLbl = (r: RegRow) => r.zone==='volume' ? 'Volume' : 'Close';
 export const sideLbl = (r: RegRow, s: any) => s.t==='price' ? priceLbl(r) : s.t==='out' ? OUT_LABEL(s.o) : nf(+s.v, (+s.v)%1?2:0);
-export interface CatView { group: string; reg?: boolean; label: string; desc: string; params: LegacySpec['params']; ops: string[]; opLabels?: Record<string, string>; noVal?: boolean; unit?: string; val?: number }
-export const catOf = (c: any): CatView => c.type!=='reg' ? CATALOG[c.type] : { group:'tech', reg:true, label:REG_BY[c.ind].name, desc:REG_BY[c.ind].short, params:[], ops:[], noVal:true, unit:'' };
+export interface CatView { group: string; reg?: boolean; label: string; desc: string; params: LegacySpec['params']; ops: string[]; opLabels?: Record<string, string>; noVal?: boolean; unit?: string; val?: number; test?: boolean }
+export const catOf = (c: any): CatView => c.type==='test' ? testView(c) : c.type!=='reg' ? CATALOG[c.type] : { group:'tech', reg:true, label:REG_BY[c.ind].name, desc:REG_BY[c.ind].short, params:[], ops:[], noVal:true, unit:'' };
+/** Stage D (D5): a test card as the page's views read a card (its entry's name and description, its group) */
+const testView = (c: TestCard): CatView => { const e = entryOf(c);
+  return { group:testGroup(c), label:e?.label ?? 'Condition', desc:e?.desc ?? '', params:[], ops:[], noVal:true, unit:'', test:true } as CatView };
 export const opLabel = (c: Card, op: string) => (catOf(c).opLabels||{})[op] || OPS[op] || op;
 export const regName = (c: RegCard) => { const r = REG_BY[c.ind], vals = r.p.filter(x=>x.t!=='fixed'&&x.t!=='enum'&&x.t!=='boolean').map(x=>c.p[x.k]).join(',');
   return `${r.name}${vals?` (${vals})`:''} · ${sideLbl(r,c.lhs)} ${OPS[c.op]} ${sideLbl(r,c.rhs)}` };
@@ -66,4 +76,7 @@ export const withinLimit = (before: Card[], after: Card[]) => { const max = CAT.
 export const switchedOn = (list: Card[], c: Card) => list.map(x => x===c ? {...x, on:true} as Card : x);
 
 /** whether any active card needs the broker data (flow cards; the reference's rank by foreign net is the server's) */
-export const needsFlow = () => !!CAT?.flow.available && [...S.conds, ...S.exitConds].some(c => c.type!=='reg' && CATALOG[c.type].group==='flow');
+// a test card's Flow indicator is computed by the worker: the page loads no broker data for it
+export const needsFlow = () => !!CAT?.flow.available && [...S.conds, ...S.exitConds].some(c => c.type!=='reg' && c.type!=='test' && CATALOG[c.type].group==='flow');
+/** Stage D (D6): whether a card is computed by the worker (its series come with the preview's detail) */
+export const serverCard = (c: Card) => c.type === 'test';

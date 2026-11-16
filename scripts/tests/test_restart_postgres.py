@@ -154,3 +154,73 @@ def test_every_report_passes_the_monitor_shape(cron, monkeypatch):
         full = dict(details, kind='manual-telegram', event=event)
         tm.build_postgres_restart_message(tm.parse_postgres_restart(f'pg-restart-manual-telegram-20261104T0300-{event}',
                                                                     full))
+
+
+# ERRORS M433: the Railway credential is the first one Railway accepts; none working is one NOT_RUN line, never a
+# traceback after a job's success line.
+class _Answer:
+    def __init__(self, body):
+        self.body = body
+
+    def read(self):
+        return rp.json.dumps(self.body).encode()
+
+
+@pytest.fixture
+def railway(monkeypatch):
+    """Railway replaced: `accept` names the credential values it accepts; `seen` the (header, value) pairs sent."""
+    state = {'accept': set(), 'seen': [], 'errors': None}
+    for name, _ in rp.CREDENTIALS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setitem(rp._auth, 'name', None)
+
+    def urlopen(req, timeout):
+        sent = {k.lower(): v for k, v in req.header_items()}
+        value = sent.get('project-access-token') or sent.get('authorization')
+        state['seen'].append(value)
+        if value not in state['accept']:
+            raise rp.urllib.error.HTTPError(req.full_url, 401, 'Unauthorized', {}, None)
+        if state['errors']:
+            return _Answer({'data': None, 'errors': [{'message': state['errors']}]})
+        return _Answer({'data': {'ok': True}})
+    monkeypatch.setattr(rp.urllib.request, 'urlopen', urlopen)
+    return state
+
+
+def test_a_refused_project_token_falls_back_to_the_session_credential(railway, monkeypatch):
+    monkeypatch.setenv('RAILWAY_TOKEN', 'stale-project-token')
+    monkeypatch.setenv('RAILWAY_API_TOKEN', 'session-token')
+    railway['accept'] = {'Bearer session-token'}
+    assert rp.gql('query{ok}', {}) == {'ok': True}
+    assert railway['seen'] == ['stale-project-token', 'Bearer session-token']
+    assert rp._auth['name'] == 'RAILWAY_API_TOKEN'
+    railway['seen'].clear()
+    rp.gql('query{ok}', {})                                   # the one that worked is tried first afterwards
+    assert railway['seen'] == ['Bearer session-token']
+
+
+def test_the_cron_token_comes_first_and_is_sent_as_a_project_token(railway, monkeypatch):
+    monkeypatch.setenv('RAILWAY_RESTART_TOKEN', 'cron-token')
+    monkeypatch.setenv('RAILWAY_API_TOKEN', 'session-token')
+    railway['accept'] = {'cron-token', 'Bearer session-token'}
+    rp.gql('query{ok}', {})
+    assert railway['seen'] == ['cron-token'] and rp._auth['name'] == 'RAILWAY_RESTART_TOKEN'
+
+
+def test_an_error_that_is_not_about_the_credential_is_not_retried(railway, monkeypatch):
+    monkeypatch.setenv('RAILWAY_TOKEN', 'project-token')
+    monkeypatch.setenv('RAILWAY_API_TOKEN', 'session-token')
+    railway['accept'] = {'project-token', 'Bearer session-token'}
+    railway['errors'] = 'Deployment not found'
+    with pytest.raises(SystemExit, match='Railway refused: Deployment not found'):
+        rp.gql('query{ok}', {})
+    assert railway['seen'] == ['project-token']
+
+
+def test_no_working_credential_is_one_not_run_line(railway, monkeypatch, capsys):
+    monkeypatch.setenv('RAILWAY_TOKEN', 'stale-project-token')
+    monkeypatch.setattr(rp.sys, 'argv', ['restart_postgres.py', '--apply'])
+    assert rp.main() == 4
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert len(lines) == 1 and lines[0].startswith('POSTGRES_RESTART NOT_RUN: ')
+    assert 'RAILWAY_TOKEN' in lines[0] and 'stale-project-token' not in lines[0]   # names only, never a value

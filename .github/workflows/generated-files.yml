@@ -1,0 +1,62 @@
+name: Generated files are current
+
+# EXEC-GEN-CHECK (user 2026-11-14: "2. A"; ERRORS M435): every check that a generated file equals what its generator
+# writes now runs on each push and pull request. The checks are the tests marked `generated_file`;
+# scripts/tests/test_generated_files.py fails when a generator has none. No database, no secrets, read-only.
+# A red run is fixed by running the generator named in the message and committing its output, never by removing a mark.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: generated-files-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-scripts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # openpyxl: the Flow registry is built from FLOW_INDICATORS_SPEC.xlsx; psycopg: collected by the database tests,
+      # which skip without SCHEMA_TEST_POSTGRES_URL
+      - run: pip install pytest==8.4.2 openpyxl==3.1.5 "psycopg[binary]==3.2.10"
+      - run: python -m pytest -m generated_file -q -rs scripts/tests
+
+  market-ai-orc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/market-ai-orc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -m generated_file -q -rs
+
+  market-python-sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/market-python-sandbox
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -m generated_file -q -rs

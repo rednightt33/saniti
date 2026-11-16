@@ -1,0 +1,19 @@
+{
+  "name": "edge-radar",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "EDGE Radar page (EXEC-RADAR R7, user go 2026-11-14): the screener library's filters S1-S8 as a board and a filter detail, built from the R10 design (verification/radar/index-r10.html). It shows the Radar files edge-bff relays (/api/v1/radar); every result is Feature 07's, the page computes no rule.",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "build:fixture": "vite build --mode fixture",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.1.9",
+    "vitest": "3.2.4"
+  }
+}

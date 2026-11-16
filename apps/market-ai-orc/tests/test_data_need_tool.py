@@ -340,6 +340,7 @@ def test_the_round_c_tool_migration_is_frozen() -> None:
     assert "20261003_007_round_c_tool_catalog.sql" in applied()
 
 
+@pytest.mark.generated_file  # EXEC-GEN-CHECK
 def test_the_newest_tool_migration_matches_the_tool_definitions() -> None:
     """The newest registration of each changed tool is generated from the registry under the dev flags
     (scripts/generate_tool_catalog_migration.py, newest round); a schema or description change needs a new round

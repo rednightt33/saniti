@@ -1,0 +1,19 @@
+{
+  "name": "edge-watchlist",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "EDGE Watchlist page (EXEC-WATCHLIST L5, user go 2026-11-16): the account's named lists of stocks with the indicators it chose, built from the approved light mockup watchlist_light_mockup.html. Its lists come from /api/v1/watchlist/lists and every figure from the publisher's watchlist-stocks file relayed by /api/v1/watchlist (apps/terminal-publisher/watchlist.py); the page computes no figure.",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "build:fixture": "vite build --mode fixture",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.1.9",
+    "vitest": "3.2.4"
+  }
+}

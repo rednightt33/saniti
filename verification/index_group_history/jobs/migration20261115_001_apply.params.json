@@ -1,0 +1,38 @@
+{
+ "mode": "APPLY",
+ "migrations": [
+  "20261115_001_feature_index_entity.sql"
+ ],
+ "probes": [
+  [
+   "entities_by_kind",
+   null,
+   "SELECT entity_kind, count(*), count(list_key), min(rows_from), bool_and(has_price) FROM public.\"Feature_Index_Entity\" GROUP BY 1 ORDER BY 1"
+  ],
+  [
+   "guard_reads_registry",
+   null,
+   "SELECT position('Feature_Index_Entity' in prosrc) > 0, md5(prosrc) FROM pg_proc WHERE oid = 'public.validate_index_feature_identity()'::regprocedure"
+  ],
+  [
+   "calendar_from_intraday_indexes",
+   null,
+   "SELECT position('EXISTS (SELECT 1 FROM public.price_stock_idx_intraday b WHERE b.ticker = idx.ticker)' in prosrc) > 0, md5(prosrc) FROM pg_proc WHERE oid = 'public.remark_intraday_sessions(text,date,date)'::regprocedure"
+  ],
+  [
+   "catalog_rows",
+   null,
+   "SELECT (SELECT count(*) FROM public.\"Table_Catalog\" WHERE table_name = 'Feature_Index_Entity'), (SELECT count(*) FROM public.\"Column_Catalog\" WHERE table_name = 'Feature_Index_Entity'), (SELECT count(*) FROM public.\"Table_Catalog\" WHERE table_name LIKE 'Feature\\_0%\\_INDEX' AND 'Feature_Index_Entity' = ANY (source_tables))"
+  ],
+  [
+   "pgweb_reader_select",
+   null,
+   "SELECT has_table_privilege('pgweb_reader', 'public.\"Feature_Index_Entity\"', 'SELECT')"
+  ],
+  [
+   "ihsg_rows_unchanged",
+   null,
+   "SELECT (SELECT count(*) FROM public.\"Feature_01_Stock_Daily_INDEX\"), (SELECT count(*) FROM public.\"Feature_06_Foreign_Domestic_INDEX\"), (SELECT count(DISTINCT ticker) FROM public.\"Feature_06_Foreign_Domestic_INDEX\")"
+  ]
+ ]
+}

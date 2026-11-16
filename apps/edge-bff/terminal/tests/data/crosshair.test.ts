@@ -34,3 +34,30 @@ describe('safe crosshair', () => {
     expect(Object.values(MAIN)[0]).toContain('L:safeCharts(');
   });
 });
+
+/* ERRORS M423: a hidden series is parked off its axis (an overlay scale) and goes back when shown */
+import { parkHiddenSeries } from '../../src/data/chartTime';
+describe('hidden series leave their axis', () => {
+  const chartWith = () => {
+    const seen: any[] = [];
+    const chart: any = { addSeries: (_t: any, o: any) => { const s: any = { o:{ ...o }, applyOptions: (x: any) => { s.o = { ...s.o, ...x }; seen.push(x) } }; return s } };
+    return { chart: parkHiddenSeries(chart), seen };
+  };
+  it('parks on hide and comes back on show', () => {
+    const { chart } = chartWith();
+    const s = chart.addSeries('line', { priceScaleId:'right' });
+    s.applyOptions({ visible:false });
+    expect(s.o.priceScaleId).toMatch(/^__hidden/);
+    s.applyOptions({ color:'#000' });                       // a change while hidden keeps it parked
+    expect(s.o.priceScaleId).toMatch(/^__hidden/);
+    s.applyOptions({ visible:true });
+    expect(s.o.priceScaleId).toBe('right');
+  });
+  it('a series created hidden starts parked and shows on its own scale', () => {
+    const { chart } = chartWith();
+    const s = chart.addSeries('line', { priceScaleId:'left', visible:false });
+    expect(s.o.priceScaleId).toMatch(/^__hidden/);
+    s.applyOptions({ visible:true });
+    expect(s.o.priceScaleId).toBe('left');
+  });
+});

@@ -131,7 +131,7 @@ const limit = (name: string, value: number, unit: string, rule: string, ok: stri
 function brokerDepthLimit(sessions: number): LimitEntry {
   const own = Math.min(10, Math.max(1, sessions - 1)), n = Math.max(1, sessions - own);
   return limit('broker_depth', sessions, 'sessions', `a flow condition reads at most the ${sessions} sessions of broker data the Screener holds: the indicator's own window plus the operator's N, length or within`,
-    `Bandar Balance · % over ${own} sessions with a percentile over ${n} sessions (${own + n} in all)`, `the same with a percentile over ${n + 5} sessions (${own + n + 5} in all; use a shorter window or N)`);
+    `Top Brokers · % over ${own} sessions with a percentile over ${n} sessions (${own + n} in all)`, `the same with a percentile over ${n + 5} sessions (${own + n + 5} in all; use a shorter window or N)`);
 }
 const limitsAt = (sessions: number): LimitEntry[] => [
   limit('max_conditions', L.max_conditions, 'conditions', `at most ${L.max_conditions} enabled conditions in one screen`, `a screen with ${L.max_conditions} enabled conditions`, `a screen with ${L.max_conditions + 1} enabled conditions (switch one off or remove it)`),

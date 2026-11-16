@@ -137,6 +137,15 @@ describe('cost basis', () => {
     const c2 = ctx([r(D[0], 'AA', 0, 1e6, 0, 10)], D);
     expect(computeFlow('FL19', c2, p).value[0]).toBeNull();
   });
+  it('EXEC-IC-NOPOS: FL19 and FL20 mark the candles with no net position since the anchor (the legend says why)', () => {
+    const c2 = ctx([r(D[0], 'AA', 0, 1e6, 0, 10), r(D[1], 'AA', 1e6, 0, 20, 0)], D);
+    for (const id of ['FL19', 'FL20']) {
+      const o: any = computeFlow(id, c2, p);
+      expect(o.value[0]).toBeNull(); expect(o._noPos[0]).toBe(1);        // sold 10 lots first: -10
+      expect(o._noPos[1]).toBe(0);                                       // bought 20 back: +10 lots held, a cost again
+      expect(o.value[1]).not.toBeNull();
+    }
+  });
   it('FL18 freezes the Top-N from the anchor to the last candle', () => {
     const rows2 = [r(D[0], 'AA', 100, 0, 1, 0), r(D[0], 'BB', 50, 0, 1, 0), r(D[1], 'BB', 200, 0, 1, 0)];
     near(computeFlow('FL18', ctx(rows2, D), { scope:'topn', top:1, rank:'net_buy', anchor:D[0] }).value[0], 50 / 100);

@@ -800,11 +800,17 @@ def portfolio_body(template, pick):
 
 def page_portfolio_setup(page, pick):
     """THE ONE PLACE THAT KNOWS HOW THE PAGE IS SWITCHED TO PORTFOLIO AND GIVEN ITS TICKERS (builder.ts, picker.ts):
-    the view tab #viewSeg [data-v="signals"], the summary row #sumbox [data-st="1"] (goStep 1), the mode switch
+    the view tab #viewSeg [data-v="signals"], the builder's step tab #rail [data-st="1"] (goStep 1; the design hides the
+    summary rows, Stage D), the mode switch
     #modeSeg [data-m="portfolio"], then each ticker typed in the search box #pkQ and its option clicked in #pkList (the
     option whose <b> is exactly the ticker). Checks the count pill #pkN against the pick."""
     page.click('#viewSeg [data-v="signals"]')
-    page.click('#sumbox [data-st="1"]')
+    # a builder closed before (the phone screenshots close it, and the page keeps it closed: layout.ts setPanel,
+    # ml.panel) opens with its rail, as the smoke test's showBuilder (ERRORS M465)
+    if page.evaluate("() => document.body.classList.contains('bcol')"):
+        page.click('#bRail')
+        page.wait_for_timeout(200)
+    page.click('#rail [data-st="1"]')
     page.click('#modeSeg [data-m="portfolio"]')
     page.wait_for_selector('#pkQ', timeout=10_000)
     for chip in page.query_selector_all('#pkChips [data-pk-del]'):   # the live page starts empty; the fixture does not
@@ -1062,6 +1068,12 @@ def main():
             if out['page']['done']['ok']:
                 for w, h in VIEWPORTS:
                     page.set_viewport_size({'width': w, 'height': h})
+                    # a phone (the design, as the smoke test's showChart): the open builder covers the main column, the
+                    # results show once it is closed (ERRORS M465)
+                    page.wait_for_timeout(300)
+                    if not page.evaluate("() => document.getElementById('main').getBoundingClientRect().width"):
+                        page.click('#panelTg')               # the page keeps it closed (layout.ts setPanel, ml.panel)
+                        page.wait_for_timeout(300)
                     for t in TABS:
                         try:
                             page.click(f'#rtabs [data-tab="{t}"]', timeout=10_000)
@@ -1072,6 +1084,9 @@ def main():
                         except Exception as e:
                             failed.append(f'{t} {w}x{h}: {type(e).__name__}')
                 page.set_viewport_size({'width': 1600, 'height': 1000})
+                if page.evaluate("() => document.body.classList.contains('bcol')"):
+                    page.click('#bRail')                     # the builder as the run found it (ERRORS M465)
+                    page.wait_for_timeout(200)
             out['screenshots'], out['screenshot_failures'] = shots, failed
             # the page shows errors (and the preview's warnings, which a fresh result does not fetch) as toasts: none is
             # expected from a run and its six tabs (run.ts:85/98, signals.ts:78-83 the chart's events/bars, overview.ts:42)

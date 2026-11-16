@@ -25,10 +25,10 @@ OUT = ROOT / 'apps/edge-bff/terminal/src/data/flowRegistry.json'
 
 # the menu subgroups (user 2026-10-30: "3. OK"), in menu order; an indicator's family is the part of its name before
 # " · ", the rest go to "Other"
-FAMILIES = ['Share', 'Transaction Size', 'Transactions', 'Concentration', 'Bandar Balance', 'Buy VWAP & Implied Cost',
+FAMILIES = ['Share', 'Transaction Size', 'Transactions', 'Concentration', 'Top Brokers', 'Buy VWAP & Implied Cost',
             'Net Flow', 'Ratio', 'Other']
 FAMILY_OF = {'Share': 'Share', 'Transaction Size': 'Transaction Size', 'Transactions': 'Transactions', 'Activity Spike': 'Transactions',
-             'Concentration HHI': 'Concentration', 'Concentration Top-N': 'Concentration', 'Bandar Balance': 'Bandar Balance',
+             'Concentration HHI': 'Concentration', 'Concentration Top-N': 'Concentration', 'Top Brokers': 'Top Brokers',
              'Buy VWAP': 'Buy VWAP & Implied Cost', 'Sell VWAP': 'Buy VWAP & Implied Cost', 'Implied Cost': 'Buy VWAP & Implied Cost',
              'Flow Ratio': 'Ratio',
              'Net Flow Percentile': 'Net Flow', 'Flow Percentile': 'Net Flow', 'Net Buy Persistence': 'Net Flow'}
@@ -254,13 +254,13 @@ def extra_indicators(by_id):
         return q
     top, boards, investors = take('FL24', 'top'), take('FL24', 'boards'), take('FL23', 'investors')
     return [
-        {'id': 'FL49', 'name': 'Foreign × Domestic · Daily Quadrant', 'family': 'Bandar Balance', 'place': 'pane', 'unit': 'quadrant',
+        {'id': 'FL49', 'name': 'Foreign × Domestic · Daily Quadrant', 'family': 'Top Brokers', 'place': 'pane', 'unit': 'quadrant',
          'needs_frequency': False, 'outputs': ['value'], 'terminal_only': True,
          'tip': 'Kuadran peta Foreign × Domestic setiap sesi: Top N pembeli dan penjual bersih, net mereka dipecah menjadi transaksi '
                 'asing dan domestik, dibagi total nilai beli. Satu sel per sesi; warnanya kuadran hari itu (hijau keduanya '
                 'akumulasi, oranye domestik menyerap, biru asing menyerap, merah keduanya distribusi, abu-abu datar).',
          'params': [top, boards, take('FL22', 'window', default=1)]},
-        {'id': 'FL50', 'name': 'Foreign × Domestic · Rotation', 'family': 'Bandar Balance', 'place': 'pane', 'unit': '%',
+        {'id': 'FL50', 'name': 'Foreign × Domestic · Rotation', 'family': 'Top Brokers', 'place': 'pane', 'unit': '%',
          'needs_frequency': False, 'outputs': ['foreign', 'domestic', 'verdict'], 'terminal_only': True,   # verdict: drawn while its parameter is on
          'tip': 'Porsi asing dan porsi domestik dari net Top N pembeli dan penjual bersih, dalam persen total nilai beli semua broker '
                 '(periode bergulir). Asing + domestik = verdict Top brokers. Domestik di atas nol dan asing di bawah nol: '

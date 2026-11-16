@@ -1,0 +1,7 @@
+JOB 4dd6f307-c75a-44fb-bc95-24848b5ad7ed
+0
+Traceback (most recent call last):
+JOB_EXIT 1
+POSTGRES_MEMORY_CHECK
+{"now": "2026-11-15T12:39:00+00:00", "refusals": ["inside the B6 window 12:00-13:20 UTC", "a cron runs within the margin: terminal-publisher (0,30 0,1,12 * * *) at 12:00 UTC"], "reasons": ["b6_window", "cron_due"], "postgres_memory_gb": 1.922661376, "active_statements": 0, "user_runs": {"edge_jobs": 0, "orc_turns": 0}, "verdict": "REFUSED", "railway_credential": "RAILWAY_API_TOKEN"}
+VAR_REMOVED

@@ -66,7 +66,7 @@ describe('catalog (P5_FLOW.md section 2)', () => {
     const k = KINDS as any;
     for (const f of FLOWS) for (const o of f.outputs) expect([f.id, o.key, o.kind === null || o.kind === undefined]).toEqual([f.id, o.key, false]);
     const missing = structuredClone(k); delete missing.indicators.FL24;
-    expect(() => G.flowEntries(REG, missing)).toThrow(/FL24 Bandar Balance · % has no row/);
+    expect(() => G.flowEntries(REG, missing)).toThrow(/FL24 Top Brokers · % has no row/);
     const noOutput = structuredClone(k); delete noOutput.indicators.FL11.outputs.change;
     expect(() => G.flowEntries(REG, noOutput)).toThrow(/FL11 output change has no kind/);
     const badKind = structuredClone(k); badKind.indicators.FL26.outputs.value = 'Z';
@@ -324,7 +324,7 @@ describe('evaluation date (P10 a) and the condition summary', () => {
     }
     expect(cell('AAAA')!.eval_date).toBe(LAST);
     expect(cell('BBBB')!.eval_date).toBe(WINDOW[58]);                                           // its last broker day has no price bar
-    expect(r.conditions[0]).toMatchObject({ source: 'flow', eval_date_basis: 'flow_date', metric: 'FL24.value — Bandar Balance · %', is_default: true, unit: '%',
+    expect(r.conditions[0]).toMatchObject({ source: 'flow', eval_date_basis: 'flow_date', metric: 'FL24.value — Top Brokers · %', is_default: true, unit: '%',
       params_resolved: { top: 3, boards: ['Regular'], investors: ['Foreign', 'Domestic'], window: 10 } });
     const none = runScreen({ universe: { security_types: ['stock'], tickers: ['DDDD'], price_min: null, adv20_min_idr: null }, logic: 'all', conditions: [{ id: 'a', enabled: true, test: { kind: 'value', metric: FL24, op: 'gt', value: -1000 } }] } as Definition, env(), { exhaustive: true });
     expect(none.conditions[0]).toMatchObject({ evaluated: 1, passed: 0, na: 1 });
@@ -433,7 +433,7 @@ describe('output types (OPERATORS.md section 4) and K7', () => {
     for (const m of [F('FL21', { baseline: 20 }), F('FL26', { window: 30 })]) expect(bind({ kind: 'state', lhs: m, op: 'gt', rhs: T('ma', m, { ma: 'SMA', length: 5 }) } as never)).toBe(null);
     expect(bind({ kind: 'event', within: 3, signal: { lhs: F('FL01'), op: 'crosses_above', rhs: T('ma', F('FL01'), { ma: 'SMA', length: 10 }) } } as never)).toBe(null);
   });
-  it('two series of one unit: the close against Buy VWAP · Rolling (both price levels) is a state and a cross; Bandar Balance · % against the close is refused naming both units', () => {
+  it('two series of one unit: the close against Buy VWAP · Rolling (both price levels) is a state and a cross; Top Brokers · % against the close is refused naming both units', () => {
     const close = { kind: 'price', field: 'close' } as never;
     expect(bind({ kind: 'state', lhs: close, op: 'gt', rhs: F('FL17') })).toBe(null);
     expect(bind({ kind: 'event', within: 5, signal: { lhs: close, op: 'crosses_above', rhs: F('FL17') } })).toBe(null);

@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EDGE — Radar</title>
+<style>
+/* =====================================================================
+   EDGE / Market Lab — Design Spec v1  (sumber: EDGE v6, screener.html)
+   ---------------------------------------------------------------------
+   Cara pakai
+   1. Pasang file ini paling awal (sebelum CSS halaman) + font Inter:
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+      <link rel="stylesheet" href="edge-design-spec.css">
+   2. Elemen polos (table, button, input, select, h1–h3, a) langsung
+      ikut gaya EDGE lewat layer "edge-base".
+   3. Komponen siap pakai: .card .btn .seg .tabs .pill .tog .inp .field
+      .tbl .kpi .kv .dialog .note .eyebrow .empty .switch
+   4. Mode gelap: <html class="dark"> atau <html data-theme="dark">.
+   Urutan layer: edge-base < edge-components < edge-utilities, jadi CSS
+   halaman (di luar layer) selalu menang tanpa perlu !important.
+   ===================================================================== */
+
+@layer edge-tokens, edge-base, edge-components, edge-utilities;
+
+/* ---------------------------------------------------------------------
+   1. TOKENS
+   --------------------------------------------------------------------- */
+@layer edge-tokens {
+:root{
+  /* Permukaan */
+  --bg:#fafafa;            /* latar halaman */
+  --surface:#ffffff;       /* kartu, tabel, input */
+  --surface-2:#f7f7f7;     /* hover baris tabel, kbd */
+  --hover:#f3f3f3;         /* hover tombol/menu */
+  --sel:#efefef;           /* item terpilih (seg, tab, pill netral) */
+  --border:#eaeaea;        /* semua garis 1px */
+  --border-2:#dcdcdc;      /* garis saat hover */
+
+  /* Teks */
+  --text:#171717;          /* utama, angka penting */
+  --text-2:#4d4d4d;        /* sekunder, label tombol */
+  --text-3:#8f8f8f;        /* keterangan, header tabel */
+
+  /* Semantik pasar (IDX: hijau naik, merah turun) */
+  --green:#087f5b;  --green-bg:rgba(8,153,129,.10);   /* teks naik / pill positif */
+  --red:#d62839;    --red-bg:rgba(242,54,69,.09);     /* teks turun / pill negatif */
+  --up:#089981;     --down:#f23645;                  /* candle, bar, garis chart */
+  --blue:#0070f3;   --blue-bg:rgba(0,112,243,.08);    /* fokus, link, nilai Custom */
+  --amber:#b45309;  --amber-bg:rgba(245,166,35,.14);  /* peringatan */
+  --violet:#7928ca; --navy:#17348c;                  /* aksen chart, broker lokal */
+
+  /* Seri chart (urutan tetap) */
+  --c1:#0070f3; --c2:#7928ca; --c3:#f5a623; --c4:#089981; --c5:#e5484d; --c6:#17348c;
+
+  /* Tipografi */
+  --sans:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
+  --fs-2xs:10.5px;  /* label kecil uppercase, badge */
+  --fs-xs:11px;     /* pill, catatan kecil */
+  --fs-sm:11.5px;   /* label field, note */
+  --fs-12:12px;     /* tombol kecil, sel tabel padat */
+  --fs-md:12.5px;   /* tabel, seg, menu */
+  --fs-base:13px;   /* teks body default */
+  --fs-lg:14px;     /* judul kartu */
+  --fs-xl:15px;     /* judul dialog */
+  --fs-2xl:18px;    /* angka KPI besar */
+  --fs-3xl:22px;    /* judul halaman (h1) */
+  --fw-regular:400; --fw-medium:500; --fw-semibold:600; --fw-bold:700;
+  --lh-base:1.5; --lh-tight:1.35;
+  --ls-caps:.05em;  /* letter-spacing teks uppercase */
+  --ls-title:-.01em;
+
+  /* Jarak (kelipatan 2/4) */
+  --s-1:2px; --s-2:4px; --s-3:6px; --s-4:8px; --s-5:10px; --s-6:12px;
+  --s-7:14px; --s-8:16px; --s-9:20px; --s-10:24px; --s-11:32px;
+
+  /* Radius */
+  --r-xs:4px;   /* kbd, input kecil */
+  --r-sm:6px;   /* item menu, tombol di dalam seg, ikon kecil */
+  --r-md:8px;   /* tombol, input, seg, search */
+  --r-lg:10px;  /* popover, kartu kecil */
+  --r-xl:12px;  /* kartu / panel */
+  --r-2xl:14px; /* dialog */
+  --r-pill:999px;
+
+  /* Ukuran kontrol */
+  --h-xs:22px;  /* seg kecil */
+  --h-sm:28px;  /* tombol kecil */
+  --h-md:32px;  /* tombol, input, select, tab */
+  --h-th:36px;  /* header tabel */
+  --h-row:44px; /* baris tabel normal (padat: 36px) */
+  --h-top:52px; /* top bar */
+
+  /* Bayangan & fokus */
+  --shadow:0 1px 2px rgba(0,0,0,.06),0 8px 20px -8px rgba(0,0,0,.22);          /* hover tombol/kartu */
+  --shadow-lg:0 12px 40px -12px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.06);   /* popover, dialog */
+  --ring:0 0 0 3px var(--blue-bg);
+
+  /* Lapisan */
+  --z-sticky:40; --z-pop:60; --z-modal:80; --z-toast:99;
+  color-scheme:light;
+}
+:root.dark,:root[data-theme="dark"]{
+  --bg:#0a0a0a; --surface:#111111; --surface-2:#161616; --hover:#1c1c1c; --sel:#232323;
+  --border:#262626; --border-2:#333333;
+  --text:#ededed; --text-2:#b4b4b4; --text-3:#7c7c7c;
+  --green:#3ecf8e; --green-bg:rgba(62,207,142,.12); --red:#ff6369; --red-bg:rgba(255,99,105,.12);
+  --blue:#52a8ff; --blue-bg:rgba(82,168,255,.12); --amber:#f5b041; --amber-bg:rgba(245,176,65,.14);
+  --violet:#bf7af0; --navy:#7d9bff;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 8px 24px -8px rgba(0,0,0,.7);
+  --shadow-lg:0 16px 48px -12px rgba(0,0,0,.8),0 0 0 1px #2a2a2a;
+  color-scheme:dark;
+}
+}
+
+/* ---------------------------------------------------------------------
+   2. BASE — elemen HTML polos langsung bergaya EDGE
+   --------------------------------------------------------------------- */
+@layer edge-base {
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:var(--fw-regular) var(--fs-base)/var(--lh-base) var(--sans);
+  font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+h1{margin:0;font-size:var(--fs-3xl);font-weight:var(--fw-semibold);letter-spacing:var(--ls-title);line-height:1.25}
+h2{margin:0;font-size:var(--fs-xl);font-weight:var(--fw-semibold);line-height:1.3}
+h3{margin:0;font-size:var(--fs-lg);font-weight:var(--fw-semibold);line-height:1.35}
+p{margin:0}
+small{font-size:var(--fs-sm);color:var(--text-3)}
+a{color:var(--blue);font-weight:var(--fw-medium);text-decoration:none}
+a:hover{text-decoration:underline}
+hr{border:0;border-top:1px solid var(--border);margin:var(--s-6) 0}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+::selection{background:var(--blue-bg)}
+
+/* tombol polos = tombol sekunder */
+button{font:inherit;color:inherit;cursor:pointer;height:var(--h-md);padding:0 var(--s-6);border-radius:var(--r-md);
+  border:1px solid var(--border);background:var(--surface);font-weight:var(--fw-medium);
+  display:inline-flex;align-items:center;justify-content:center;gap:var(--s-3);white-space:nowrap}
+button:hover:not(:disabled){border-color:transparent;box-shadow:var(--shadow)}
+button:disabled{cursor:not-allowed;opacity:.45}
+
+/* input polos */
+input:where([type="text"],[type="number"],[type="search"],[type="email"],[type="password"],[type="date"],:not([type])),select,textarea{
+  font:inherit;color:var(--text);height:var(--h-md);min-width:0;border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--surface);padding:0 var(--s-5);font-size:var(--fs-base);outline:none}
+textarea{height:auto;padding:var(--s-4) var(--s-5);resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}
+input[type="checkbox"],input[type="radio"],input[type="range"]{accent-color:var(--text)}
+label{font-size:var(--fs-sm);color:var(--text-3);font-weight:var(--fw-medium)}
+
+/* tabel polos */
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:var(--fs-md);background:var(--surface)}
+th{height:var(--h-th);padding:0 var(--s-5);text-align:right;font-weight:var(--fw-medium);color:var(--text-3);
+  border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface)}
+td{height:var(--h-row);padding:0 var(--s-5);text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+tbody tr:hover td{background:var(--surface-2)}
+caption{caption-side:top;text-align:left;padding:0 0 var(--s-4);font-weight:var(--fw-semibold)}
+kbd{font:var(--fw-medium) var(--fs-2xs) var(--sans);border:1px solid var(--border);border-radius:var(--r-xs);padding:1px 5px;color:var(--text-3);background:var(--surface-2)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;background:var(--hover);border-radius:var(--r-xs);padding:1px 4px}
+}
+
+/* ---------------------------------------------------------------------
+   3. KOMPONEN
+   --------------------------------------------------------------------- */
+@layer edge-components {
+/* Kartu / panel: border 1px, radius 12, tanpa bayangan */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);min-width:0}
+.card-h{display:flex;align-items:center;gap:var(--s-4);padding:var(--s-7) var(--s-8) var(--s-5)}
+.card-h h3,.card-h strong{font-size:var(--fs-lg);font-weight:var(--fw-semibold)}
+.card-b{padding:0 var(--s-8) var(--s-8)}
+.card-f{display:flex;gap:var(--s-4);justify-content:flex-end;padding:var(--s-6) var(--s-8);border-top:1px solid var(--border)}
+
+/* Teks pendukung */
+.eyebrow{display:block;font-size:var(--fs-xs);font-weight:var(--fw-semibold);color:var(--text-3);text-transform:uppercase;letter-spacing:var(--ls-caps)}
+.note{font-size:var(--fs-sm);color:var(--text-3);line-height:var(--lh-tight)}
+
+/* Tombol */
+.btn{height:var(--h-md);padding:0 var(--s-6);border-radius:var(--r-md);border:1px solid var(--border);background:var(--surface);color:var(--text);
+  font-weight:var(--fw-medium);font-size:var(--fs-base);display:inline-flex;align-items:center;justify-content:center;gap:var(--s-3);white-space:nowrap}
+.btn:hover:not(:disabled){border-color:transparent;box-shadow:var(--shadow)}
+.btn.primary{background:var(--text);color:var(--surface);border-color:var(--text)}
+.btn.ghost{border-color:transparent;background:none;box-shadow:none}
+.btn.ghost:hover:not(:disabled){background:var(--hover);box-shadow:none}
+.btn.danger{color:var(--red)}
+.btn.sm{height:var(--h-sm);padding:0 9px;font-size:var(--fs-12)}
+.btn.block{width:100%}
+.iconbtn{width:var(--h-md);height:var(--h-md);padding:0;border:0;background:none;border-radius:var(--r-md);display:inline-grid;place-items:center;color:var(--text-2);box-shadow:none}
+.iconbtn.sm{width:26px;height:26px;border-radius:var(--r-sm)}
+.iconbtn:hover:not(:disabled){background:var(--hover);color:var(--text);box-shadow:none}
+
+/* Segmented control (pilihan 2–5) */
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--border);border-radius:var(--r-md);padding:2px;gap:2px;background:var(--surface)}
+.seg button{height:26px;padding:0 var(--s-5);border:0;border-radius:var(--r-sm);background:none;box-shadow:none;font-size:var(--fs-md);font-weight:var(--fw-medium);color:var(--text-2)}
+.seg button:hover{color:var(--text);box-shadow:none}
+.seg button.on,.seg button[aria-pressed="true"]{background:var(--sel);color:var(--text)}
+.seg.sm button{height:var(--h-xs);padding:0 var(--s-4);font-size:var(--fs-sm)}
+
+/* Tabs (navigasi antar-view) */
+.tabs{display:flex;flex-wrap:wrap;gap:2px}
+.tabs button{height:var(--h-md);padding:0 var(--s-6);border:0;border-radius:7px;background:none;box-shadow:none;font-weight:var(--fw-medium);color:var(--text-2)}
+.tabs button:hover{color:var(--text);background:var(--hover);box-shadow:none}
+.tabs button.on,.tabs button[aria-selected="true"]{background:var(--sel);color:var(--text)}
+
+/* Pill (status/angka) dan Tog (chip filter yang bisa diklik) */
+.pill{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 var(--s-4);border-radius:var(--r-pill);font-size:var(--fs-xs);font-weight:var(--fw-semibold);background:var(--sel);color:var(--text-2);white-space:nowrap}
+.pill.pos{background:var(--green-bg);color:var(--green)}
+.pill.neg{background:var(--red-bg);color:var(--red)}
+.pill.warn{background:var(--amber-bg);color:var(--amber)}
+.pill.info{background:var(--blue-bg);color:var(--blue)}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.tog{height:26px;padding:0 var(--s-5);border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);box-shadow:none;font-size:var(--fs-12);font-weight:var(--fw-medium);color:var(--text-2)}
+.tog:hover:not(:disabled){border-color:var(--border-2);box-shadow:none;color:var(--text)}
+.tog.on,.tog[aria-pressed="true"]{background:var(--text);border-color:var(--text);color:var(--surface)}
+
+/* Field (label + input) */
+.field{display:grid;gap:var(--s-2)}
+.field>span,.field>label{font-size:var(--fs-sm);color:var(--text-3);font-weight:var(--fw-medium)}
+.field small{font-size:var(--fs-2xs);color:var(--text-3)}
+.inp,.sel{height:var(--h-md);width:100%;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);padding:0 var(--s-5);font-size:var(--fs-base);outline:none;min-width:0}
+.inp.sm,.sel.sm{height:var(--h-sm);font-size:var(--fs-12);padding:0 var(--s-4)}
+.inp:focus,.sel:focus,.inp.is-focus,.sel.is-focus{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}
+.inp.custom{border-color:var(--blue);color:var(--blue);font-weight:var(--fw-semibold)}  /* nilai ≠ default */
+.inp.custom:focus,.inp.custom.is-focus{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}  /* saat fokus: border abu seperti input lain, teks tetap biru */
+
+/* Tabel data */
+.tbl-wrap{overflow:auto;border-radius:inherit}
+.tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:var(--fs-md)}
+.tbl th{position:sticky;top:0;z-index:2;height:var(--h-th);padding:0 var(--s-5);background:var(--surface);font-weight:var(--fw-medium);color:var(--text-3);text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl th.sort{cursor:pointer;user-select:none}
+.tbl th.sort:hover{color:var(--text)}
+.tbl td{height:var(--h-row);padding:0 var(--s-5);text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl th.l,.tbl td.l,.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl.compact td{height:var(--h-th)}
+.tbl tbody tr{cursor:pointer}
+.tbl tbody tr:hover td{background:var(--surface-2)}
+.tbl tbody tr.sel td{background:var(--blue-bg)}
+.tbl tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--text)}
+.tbl .sym{font-weight:var(--fw-semibold);color:var(--text)}
+.tbl .sub{display:block;font-size:var(--fs-xs);color:var(--text-3);max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.tbl td.miss{color:var(--text-3);background:repeating-linear-gradient(135deg,transparent 0 6px,var(--surface-2) 6px 7px)}
+
+/* KPI & baris label–nilai */
+.kpi{border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-4) var(--s-5)}
+.kpi span{display:block;font-size:var(--fs-xs);color:var(--text-3)}
+.kpi b{font-size:var(--fs-lg);font-weight:var(--fw-semibold)}
+.kpi.lg b{font-size:var(--fs-2xl)}
+.kv{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s-4);padding:var(--s-3) 0;font-size:var(--fs-md);color:var(--text-2);border-bottom:1px solid var(--border)}
+.kv:last-child{border-bottom:0}
+.kv b{color:var(--text);font-weight:var(--fw-medium)}
+
+/* Popover, dialog, toast */
+.pop{position:absolute;z-index:var(--z-pop);min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);padding:var(--s-3)}
+.menu-item{width:100%;height:auto;white-space:normal;line-height:var(--lh-tight);display:flex;align-items:center;gap:var(--s-4);padding:7px var(--s-4);border:0;border-radius:var(--r-sm);background:none;box-shadow:none;font-size:var(--fs-md);font-weight:var(--fw-regular);text-align:left;justify-content:flex-start}
+.menu-item:hover{background:var(--hover);box-shadow:none}
+.menu-title{font-size:var(--fs-2xs);font-weight:var(--fw-bold);color:var(--text-3);text-transform:uppercase;letter-spacing:var(--ls-caps);padding:var(--s-3) var(--s-4) var(--s-2)}
+.backdrop{position:fixed;inset:0;z-index:var(--z-modal);background:rgba(0,0,0,.32);display:grid;place-items:center;padding:var(--s-9)}
+.dialog{width:min(520px,100%);max-height:calc(100vh - 40px);display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-2xl);box-shadow:var(--shadow-lg)}
+.dialog-head{padding:var(--s-8) 18px var(--s-6);border-bottom:1px solid var(--border)}
+.dialog-head strong{display:block;font-size:var(--fs-xl);font-weight:var(--fw-semibold)}
+.dialog-body{padding:var(--s-8) 18px;overflow:auto;display:grid;gap:var(--s-7)}
+.dialog-foot{display:flex;justify-content:flex-end;gap:var(--s-4);padding:var(--s-6) 18px;border-top:1px solid var(--border)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:var(--z-toast);background:var(--text);color:var(--surface);border-radius:var(--r-pill);padding:var(--s-4) var(--s-7);font-size:var(--fs-md);box-shadow:var(--shadow-lg)}
+
+/* Lain-lain */
+.switch{position:relative;width:32px;height:18px;padding:0;border:0;border-radius:var(--r-pill);background:var(--border-2);box-shadow:none;flex:0 0 auto}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.2);transition:.15s}
+.switch.on{background:var(--text)} .switch.on::after{left:16px}
+.empty{padding:36px var(--s-9);text-align:center;color:var(--text-3)}
+.empty strong{display:block;color:var(--text);font-size:var(--fs-lg);margin-bottom:var(--s-2)}
+}
+
+/* ---------------------------------------------------------------------
+   4. UTILITAS
+   --------------------------------------------------------------------- */
+@layer edge-utilities {
+.up{color:var(--green)} .down{color:var(--red)} .muted{color:var(--text-3)} .strong{color:var(--text);font-weight:var(--fw-semibold)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.custom-val{color:var(--blue);font-weight:var(--fw-semibold)}  /* parameter yang diubah dari default */
+.row{display:flex;align-items:center;gap:var(--s-4)} .stack{display:grid;gap:var(--s-4)} .grow{flex:1;min-width:0}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+}
+
+/* =====================================================================
+   v1.1 — PERLUASAN: skala warna, tema aksen, palet chart, katalog button
+   v1.2 — State fokus input: border abu (--focus-border) + bayangan (--focus-shadow)
+   ---------------------------------------------------------------------
+   Semua bersifat TAMBAHAN (opt-in). Tanpa atribut/kelas baru, tampilan
+   halaman lama sama persis dengan v1.
+   Pilihan global (pasang di <html>):
+     data-accent="blue|green|violet|navy"   warna tombol .primary, .tog.on, .switch.on
+     data-market="tv|cb"                    pasangan naik/turun: TradingView / ramah buta warna
+     data-palette="cb|muted"                seri chart --c1…--c6 (boleh di elemen mana pun)
+   Button = gaya × warna × ukuran, bebas dikombinasikan:
+     <button class="btn solid tone-blue lg">
+     gaya  : solid | soft | outline | ghost | link
+     warna : tone-blue | tone-green | tone-red | tone-amber | tone-violet | tone-navy  (kosong = netral)
+     ukuran: xs | sm | (default) | lg | xl      bentuk: round | icon
+     state : loading | disabled | aria-busy
+   ===================================================================== */
+
+/* ---------------------------------------------------------------------
+   5. TOKEN TAMBAHAN
+   --------------------------------------------------------------------- */
+@layer edge-tokens {
+:root{
+  /* Skala warna 50–900 (tetap di terang & gelap; dipakai untuk solid, ilustrasi, heatmap) */
+  --gray-50:#fafafa; --gray-100:#f3f3f3; --gray-200:#eaeaea; --gray-300:#dcdcdc; --gray-400:#bdbdbd;
+  --gray-500:#8f8f8f; --gray-600:#6b6b6b; --gray-700:#4d4d4d; --gray-800:#2e2e2e; --gray-900:#171717;
+
+  --blue-50:#eef6ff; --blue-100:#d9eaff; --blue-200:#b8d8ff; --blue-300:#86bdff; --blue-400:#4a9bff;
+  --blue-500:#0070f3; --blue-600:#005fd1; --blue-700:#004cab; --blue-800:#003b86; --blue-900:#002b63;
+
+  --green-50:#e8f8f4; --green-100:#c6efe5; --green-200:#93e0cd; --green-300:#5ccbb0; --green-400:#26b194;
+  --green-500:#089981; --green-600:#087f5b; --green-700:#076a4d; --green-800:#07523d; --green-900:#063d2e;
+
+  --red-50:#fff0f1; --red-100:#ffdde0; --red-200:#ffbcc2; --red-300:#ff8e98; --red-400:#f85d6b;
+  --red-500:#f23645; --red-600:#d62839; --red-700:#b01e2e; --red-800:#8a1724; --red-900:#65111b;
+
+  --amber-50:#fff8eb; --amber-100:#ffecc7; --amber-200:#ffd98f; --amber-300:#fbc157; --amber-400:#f5a623;
+  --amber-500:#d9890e; --amber-600:#b45309; --amber-700:#8f4108; --amber-800:#6e3207; --amber-900:#502406;
+
+  --violet-50:#f6efff; --violet-100:#ebdcff; --violet-200:#d9bdfb; --violet-300:#c096f2; --violet-400:#a46be4;
+  --violet-500:#8a43d6; --violet-600:#7928ca; --violet-700:#621fa6; --violet-800:#4c1a82; --violet-900:#38145f;
+
+  --navy-50:#eef2fc; --navy-100:#dbe3f8; --navy-200:#b9c8f0; --navy-300:#8fa5e0; --navy-400:#5c7bd0;
+  --navy-500:#2a4bb5; --navy-600:#17348c; --navy-700:#122b75; --navy-800:#0e215a; --navy-900:#0a1740;
+
+  /* Alias semantik (ikut tema) */
+  --success:var(--green); --danger:var(--red); --warning:var(--amber); --info:var(--blue);
+  --violet-bg:rgba(121,40,202,.09); --navy-bg:rgba(23,52,140,.09);
+  --up-bg:rgba(8,153,129,.18); --down-bg:rgba(242,54,69,.18);  /* volume bar, area chart */
+
+  /* Aksen: warna tombol .primary & kontrol aktif. Default = hitam/putih (v1) */
+  --accent:var(--text); --accent-fg:var(--surface); --accent-hover:color-mix(in srgb,var(--text) 82%,var(--surface));
+
+  /* Animasi kontrol */
+  --dur:.12s; --ease:cubic-bezier(.2,.6,.2,1);
+
+  /* v1.2 — State fokus input/select/textarea: border abu tipis + bayangan lembut (menggantikan cincin biru).
+     --fk = pengali bayangan (gelap = 3 supaya tetap terlihat di latar hitam) */
+  --fk:1;
+  --focus-border:color-mix(in srgb,var(--text) 38%,transparent);
+  --focus-shadow:0 1px 2px rgba(0,0,0,calc(.06*var(--fk))),0 6px 14px -4px rgba(0,0,0,calc(.14*var(--fk)));
+}
+:root.dark,:root[data-theme="dark"]{
+  --fk:3;
+  --violet-bg:rgba(191,122,240,.13); --navy-bg:rgba(125,155,255,.13);
+  --up-bg:rgba(8,153,129,.28); --down-bg:rgba(242,54,69,.28);
+}
+
+/* Aksen — pasang data-accent di <html> atau pembungkus mana pun */
+[data-accent="blue"]  {--accent:var(--blue-600);  --accent-fg:#fff; --accent-hover:var(--blue-700)}
+[data-accent="green"] {--accent:var(--green-600); --accent-fg:#fff; --accent-hover:var(--green-700)}
+[data-accent="violet"]{--accent:var(--violet-600);--accent-fg:#fff; --accent-hover:var(--violet-700)}
+[data-accent="navy"]  {--accent:var(--navy-600);  --accent-fg:#fff; --accent-hover:var(--navy-700)}
+
+/* Seri chart alternatif — boleh di elemen mana pun */
+[data-palette="cb"]   {--c1:#0072b2; --c2:#e69f00; --c3:#009e73; --c4:#cc79a7; --c5:#d55e00; --c6:#56b4e9}  /* Okabe–Ito, aman buta warna */
+[data-palette="muted"]{--c1:#4c78a8; --c2:#f58518; --c3:#54a24b; --c4:#b279a2; --c5:#e45756; --c6:#72b7b2}  /* redup, cocok untuk banyak seri */
+
+/* Pasangan naik/turun alternatif — pasang di <html> saja */
+:root[data-market="tv"]{--up:#26a69a; --down:#ef5350; --green:#12857a; --green-bg:rgba(38,166,154,.12); --red:#d6403f; --red-bg:rgba(239,83,80,.10);
+  --up-bg:rgba(38,166,154,.20); --down-bg:rgba(239,83,80,.20)}
+:root.dark[data-market="tv"]{--green:#4dd0c4; --green-bg:rgba(77,208,196,.13); --red:#ff7a77; --red-bg:rgba(255,122,119,.13)}
+:root[data-market="cb"]{--up:#0072b2; --down:#e69f00; --green:#0a63a0; --green-bg:rgba(0,114,178,.10); --red:#a85d00; --red-bg:rgba(230,159,0,.15);
+  --up-bg:rgba(0,114,178,.20); --down-bg:rgba(230,159,0,.24)}
+:root.dark[data-market="cb"]{--green:#56b4e9; --green-bg:rgba(86,180,233,.14); --red:#f0b030; --red-bg:rgba(240,176,48,.14)}
+}
+
+/* ---------------------------------------------------------------------
+   6. BUTTON — katalog (menambah, tidak mengganti .btn v1)
+   --------------------------------------------------------------------- */
+@keyframes edge-spin{to{transform:rotate(360deg)}}
+
+@layer edge-components {
+/* .primary kini mengikuti --accent (default tetap hitam/putih) */
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+[data-accent] .btn.primary:hover:not(:disabled),[data-accent].btn.primary:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
+[data-accent] .tog.on,[data-accent] .tog[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+[data-accent] .switch.on{background:var(--accent)}
+
+/* Variabel warna per tombol (netral = default) */
+.btn{--bc:var(--text); --bc-hover:color-mix(in srgb,var(--text) 82%,var(--surface)); --bc-fg:var(--surface);
+  --bc-ink:var(--text); --bc-line:var(--border-2);
+  --bc-soft:color-mix(in srgb,var(--bc-ink) 8%,transparent); --bc-soft-2:color-mix(in srgb,var(--bc-ink) 15%,transparent);
+  transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease),color var(--dur) var(--ease)}
+.btn.tone-blue  {--bc:var(--blue-600);  --bc-hover:var(--blue-700);  --bc-fg:#fff; --bc-ink:var(--blue);  --bc-line:color-mix(in srgb,var(--blue) 45%,transparent)}
+.btn.tone-green {--bc:var(--green-600); --bc-hover:var(--green-700); --bc-fg:#fff; --bc-ink:var(--green); --bc-line:color-mix(in srgb,var(--green) 45%,transparent)}
+.btn.tone-red   {--bc:var(--red-600);   --bc-hover:var(--red-700);   --bc-fg:#fff; --bc-ink:var(--red);   --bc-line:color-mix(in srgb,var(--red) 45%,transparent)}
+.btn.tone-amber {--bc:var(--amber-600); --bc-hover:var(--amber-700); --bc-fg:#fff; --bc-ink:var(--amber); --bc-line:color-mix(in srgb,var(--amber) 45%,transparent)}
+.btn.tone-violet{--bc:var(--violet-600);--bc-hover:var(--violet-700);--bc-fg:#fff; --bc-ink:var(--violet);--bc-line:color-mix(in srgb,var(--violet) 45%,transparent)}
+.btn.tone-navy  {--bc:var(--navy-600);  --bc-hover:var(--navy-700);  --bc-fg:#fff; --bc-ink:var(--navy);  --bc-line:color-mix(in srgb,var(--navy) 45%,transparent)}
+
+/* Gaya */
+.btn.solid{background:var(--bc);color:var(--bc-fg);border-color:var(--bc)}
+.btn.solid:is(:hover:not(:disabled),.is-hover){background:var(--bc-hover);border-color:var(--bc-hover);box-shadow:var(--shadow)}
+.btn.soft{background:var(--bc-soft);color:var(--bc-ink);border-color:transparent}
+.btn.soft:is(:hover:not(:disabled),.is-hover){background:var(--bc-soft-2);border-color:transparent;box-shadow:none}
+.btn.outline{background:transparent;color:var(--bc-ink);border-color:var(--bc-line)}
+.btn.outline:is(:hover:not(:disabled),.is-hover){background:var(--bc-soft);border-color:var(--bc-line);box-shadow:none}
+.btn.ghost{color:var(--bc-ink)}
+.btn.ghost:is(:hover:not(:disabled),.is-hover){background:var(--bc-soft);box-shadow:none}
+.btn.link{height:auto;padding:0 1px;border:0;border-radius:var(--r-xs);background:none;box-shadow:none;color:var(--bc-ink);text-decoration:underline;text-underline-offset:3px;text-decoration-color:color-mix(in srgb,var(--bc-ink) 35%,transparent)}
+.btn.link:is(:hover:not(:disabled),.is-hover){border:0;box-shadow:none;text-decoration-color:currentColor}
+
+/* State umum (kelas .is-* hanya untuk dokumentasi / uji visual) */
+.btn:is(:active:not(:disabled),.is-active){transform:translateY(.5px);filter:brightness(.96)}
+.btn.is-focus{outline:2px solid var(--blue);outline-offset:2px}
+.btn.loading,.btn[aria-busy="true"]{pointer-events:none;opacity:.78}
+.btn.loading::before,.btn[aria-busy="true"]::before{content:"";width:12px;height:12px;flex:none;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:edge-spin .7s linear infinite}
+
+/* Ukuran & bentuk */
+.btn.xs{height:24px;padding:0 7px;font-size:var(--fs-sm);border-radius:var(--r-sm);gap:var(--s-2)}
+.btn.lg{height:40px;padding:0 var(--s-8);font-size:var(--fs-lg)}
+.btn.xl{height:48px;padding:0 var(--s-10);font-size:var(--fs-xl);border-radius:var(--r-lg)}
+.btn.round{border-radius:var(--r-pill)}
+.btn.icon{width:var(--h-md);padding:0}
+.btn.icon.xs{width:24px} .btn.icon.sm{width:var(--h-sm)} .btn.icon.lg{width:40px} .btn.icon.xl{width:48px}
+.btn svg{width:1.15em;height:1.15em;flex:none}
+.btn .kbd,.btn kbd{margin-left:var(--s-2);background:color-mix(in srgb,currentColor 10%,transparent);border-color:color-mix(in srgb,currentColor 18%,transparent);color:inherit;opacity:.8}
+
+/* Transisi halus untuk perubahan state fokus input (v1.2) */
+.inp,.sel{transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+
+/* Grup tombol */
+.btn-group{display:inline-flex;vertical-align:middle}
+.btn-group>.btn{border-radius:0;position:relative}
+.btn-group>.btn+.btn{margin-left:-1px}
+.btn-group>.btn:first-child{border-radius:var(--r-md) 0 0 var(--r-md)}
+.btn-group>.btn:last-child{border-radius:0 var(--r-md) var(--r-md) 0}
+.btn-group>.btn:only-child{border-radius:var(--r-md)}
+.btn-group>.btn:is(:hover,:focus-visible,.on){z-index:1}
+.btn-group>.btn.on{background:var(--sel);border-color:var(--border-2)}
+}
+
+/* shell bersama (sidebar + top bar) — hanya memakai token EDGE spec */
+html,body{width:1600px;height:var(--vh,1000px);overflow:hidden}
+svg{display:block;flex:none}
+.ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ic-sm{width:14px;height:14px}
+.ic.filled{fill:currentColor}
+.app{display:grid;grid-template-columns:220px 1fr;grid-template-rows:minmax(0,1fr);height:var(--vh,1000px);overflow:hidden}
+.side{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:var(--s-7) var(--s-6)}
+.brand{display:flex;align-items:center;gap:var(--s-5);padding:var(--s-2) var(--s-4) var(--s-8)}
+.logo{width:26px;height:26px;border-radius:var(--r-sm);background:var(--text);color:var(--surface);display:grid;place-items:center;font-weight:var(--fw-bold);font-size:13px}
+.brand b{font-size:var(--fs-lg);font-weight:var(--fw-bold);letter-spacing:.04em}
+.nav .eyebrow{padding:var(--s-8) var(--s-5) var(--s-3)}
+.nav .eyebrow:first-child{padding-top:var(--s-2)}
+.nav a{display:flex;align-items:center;gap:var(--s-5);height:var(--h-md);padding:0 var(--s-5);border-radius:var(--r-md);color:var(--text-2);font-weight:var(--fw-medium);font-size:var(--fs-base)}
+.nav a .ic{color:var(--text-3)}
+.nav a:hover{background:var(--hover);color:var(--text);text-decoration:none}
+.nav a.on{background:var(--sel);color:var(--text)}
+.nav a.on .ic{color:var(--text)}
+.nav .n{margin-left:auto;font-size:var(--fs-xs);color:var(--text-3);font-weight:var(--fw-medium)}
+.side-foot{margin-top:auto;display:flex;align-items:center;gap:var(--s-5);padding:var(--s-5) var(--s-4) 0;border-top:1px solid var(--border)}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--sel);color:var(--text-2);display:grid;place-items:center;font-size:var(--fs-xs);font-weight:var(--fw-semibold)}
+.side-foot b{display:block;font-weight:var(--fw-medium);line-height:1.3}
+.side-foot small{display:block}
+
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+
+.page{flex:1;min-height:0;display:flex;flex-direction:column;padding:var(--s-9) var(--s-10)}
+.head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:var(--s-8)}
+.head p{margin-top:var(--s-1)}
+.head .actions{display:flex;align-items:center;gap:var(--s-4)}
+.sp-fill{flex:1}
+
+/* Radar + detail filter — hanya token spec */
+.page{overflow:hidden}
+.card-h .grow{flex:1}
+.card-h .hint{color:var(--text-3);font-size:var(--fs-12);font-weight:var(--fw-regular)}
+.lbl{font-size:var(--fs-12);color:var(--text-3);white-space:nowrap}
+.bar-t{display:flex;align-items:center;gap:var(--s-7);padding:0 var(--s-7);height:52px;margin-bottom:var(--s-8);flex:none}
+.bar-t .f{display:flex;align-items:center;gap:var(--s-4)}
+.bar-t .sp{flex:1}
+.bar-t .seg{flex-wrap:nowrap}.bar-t .seg button{white-space:nowrap}
+.bar-t .btn .m{color:var(--text-3);font-weight:var(--fw-regular)}
+.bar-t .srch{width:240px;display:flex;align-items:center;gap:var(--s-4);height:var(--h-sm);border:1px solid var(--border);border-radius:var(--r-md);padding:0 var(--s-4);color:var(--text-3);font-size:var(--fs-12)}
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:var(--s-8);margin-bottom:var(--s-8);flex:none}
+.k{height:76px;padding:var(--s-5) var(--s-7);display:flex;flex-direction:column;justify-content:space-between}
+.k .lb{font-size:var(--fs-xs);color:var(--text-3);font-weight:var(--fw-medium);line-height:18px}
+.k .v{font-size:var(--fs-2xl);font-weight:var(--fw-semibold);line-height:22px}
+.k .v small{font-size:var(--fs-md);font-weight:var(--fw-regular);color:var(--text-3);margin-left:var(--s-3)}
+.k .s{font-size:var(--fs-12);line-height:16px;color:var(--text-3)}
+.sym{font-weight:var(--fw-semibold)}
+.tag{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:var(--r-xs);font-size:var(--fs-2xs);font-weight:var(--fw-semibold);background:var(--sel);color:var(--text-2);white-space:nowrap}
+.tag.new{background:var(--blue-bg);color:var(--blue)}
+.tag.warn{background:var(--amber-bg);color:var(--amber)}
+
+/* ---------- Radar ---------- */
+.rg{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:var(--s-8)}
+.fgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:var(--s-8);min-height:0}
+.fc{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.fc .card-h{padding-bottom:var(--s-2);gap:var(--s-4)}
+.fc .card-h h3{font-size:var(--fs-base)}
+.fc .ds{padding:0 var(--s-7);font-size:var(--fs-12);color:var(--text-3);line-height:16px;height:32px;overflow:hidden}
+.fc .cnt{display:flex;align-items:flex-end;justify-content:space-between;padding:var(--s-4) var(--s-7) var(--s-3)}
+.fc .cnt b{font-size:var(--fs-2xl);font-weight:var(--fw-semibold);line-height:22px}
+.fc .cnt b small{font-size:var(--fs-12);font-weight:var(--fw-regular);color:var(--text-3);margin-left:var(--s-3)}
+.fc .cnt svg{display:block}
+.fc .rows{flex:1;min-height:0;border-top:1px solid var(--border)}
+.fr{display:grid;grid-template-columns:52px minmax(0,1fr) 58px;gap:var(--s-4);align-items:center;height:30px;padding:0 var(--s-7);font-size:var(--fs-12);border-bottom:1px solid var(--border)}
+.fr:last-child{border-bottom:0}
+.fr .r{text-align:right}
+.fr .t{display:flex;gap:var(--s-3);align-items:center;min-width:0}
+.fc .ft{padding:var(--s-4) var(--s-7) var(--s-5);display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-12);color:var(--text-3);border-top:1px solid var(--border)}
+.fc .ft a{color:var(--text);font-weight:var(--fw-medium);display:inline-flex;align-items:center;gap:var(--s-2)}
+.ms{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.mr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--s-2) var(--s-4);padding:var(--s-4) var(--s-8);border-top:1px solid var(--border)}
+.mr .sym{font-size:var(--fs-md)}
+.mr .n{font-size:var(--fs-12);color:var(--text-3)}
+.mr .c{text-align:right;font-size:var(--fs-12);font-weight:var(--fw-medium)}
+.mr .fs{grid-column:1/3;display:flex;gap:var(--s-2);flex-wrap:wrap}
+.cust{padding:var(--s-5) var(--s-8);border-top:1px solid var(--border);margin-top:auto}
+.cust .eyebrow{margin-bottom:var(--s-3)}
+.cust .ci{display:flex;justify-content:space-between;font-size:var(--fs-12);padding:3px 0;color:var(--text-2)}
+.cust .ci b{font-weight:var(--fw-medium);color:var(--text)}
+
+/* ---------- Detail ---------- */
+.rule{display:flex;align-items:center;flex-wrap:nowrap;gap:var(--s-4);padding:var(--s-5) var(--s-7);margin-bottom:var(--s-8);flex:none;overflow:hidden}
+.rule>*{flex:none}.rule .sp{flex:1}
+.chip{display:inline-flex;align-items:center;gap:var(--s-3);height:30px;padding:0 var(--s-4) 0 var(--s-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-size:var(--fs-md);color:var(--text);white-space:nowrap}
+.chip .bd{width:18px;height:18px;border-radius:var(--r-xs);background:var(--sel);color:var(--text-2);font-size:var(--fs-2xs);font-weight:var(--fw-bold);display:grid;place-items:center}
+.chip .op{color:var(--text-3)}
+.chip b{font-weight:var(--fw-semibold)}
+.chip b.cu{color:var(--blue)}
+.chip.plain{padding:0 var(--s-4)}
+.top3{display:grid;grid-template-columns:minmax(0,1fr) var(--rail-w);gap:var(--s-8);margin-bottom:var(--s-8);flex:none}
+.hist{padding:0 var(--s-7) var(--s-5);position:relative;flex:1;min-height:150px}
+.hist>svg{position:absolute;left:var(--s-7);top:0;display:block}
+.top3>.card:first-child{display:flex;flex-direction:column}
+.hs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s-5);padding:0 var(--s-8)}
+.hs .v{font-size:var(--fs-xl);font-weight:var(--fw-semibold)}
+.hs .l{font-size:var(--fs-xs);color:var(--text-3)}
+.hnote{padding:var(--s-5) var(--s-8) var(--s-6);font-size:var(--fs-12);color:var(--text-3);display:flex;justify-content:space-between;align-items:center}
+.dg{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) var(--rail-w);gap:var(--s-8)}
+.ct{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ct .tbl th,.ct .tbl td{font-size:var(--fs-12)}
+.ct .tbl td{height:40px}
+.ct .tbl th:first-child,.ct .tbl td:first-child{padding-left:var(--s-8)}
+.ct .tbl th:last-child,.ct .tbl td:last-child{padding-right:var(--s-8)}
+.ct .tk b{display:block;font-weight:var(--fw-semibold);font-size:var(--fs-md);line-height:15px}
+.ct .tk small{color:var(--text-3);font-size:var(--fs-xs)}
+.dots{display:inline-flex;gap:3px;vertical-align:middle}
+.dots i{width:16px;height:16px;border-radius:var(--r-xs);display:grid;place-items:center;font-style:normal;font-size:9.5px;font-weight:var(--fw-bold);background:var(--text);color:var(--surface)}
+.dots i.off{background:var(--gray-100);color:var(--text-3)}
+.pb{display:inline-flex;align-items:center;gap:var(--s-3);justify-content:flex-end}
+.pb .tr{width:56px;height:5px;border-radius:3px;background:var(--gray-200);position:relative}
+.pb .tr i{position:absolute;top:-2px;width:3px;height:9px;border-radius:1px;background:var(--gray-500)}
+.pb.hi .tr i{background:var(--text)}
+.pb.hi b{font-weight:var(--fw-semibold)}
+.pv{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.pv .sec{padding:0 var(--s-8) var(--s-6)}
+.pv .sec+.sec{border-top:1px solid var(--border);padding-top:var(--s-6)}
+.pv .eyebrow{margin-bottom:var(--s-4)}
+.chk{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:var(--s-4);align-items:center;padding:4px 0;font-size:var(--fs-12)}
+.chk .ok{color:var(--green)}
+.chk span{color:var(--text-2)}
+.chk b{font-weight:var(--fw-medium)}
+.kv2{display:flex;justify-content:space-between;padding:4px 0;font-size:var(--fs-12);color:var(--text-2)}
+.kv2 b{font-weight:var(--fw-medium);color:var(--text)}
+.acts{display:grid;grid-template-columns:1fr;gap:var(--s-3);margin-top:var(--s-4)}
+.acts .btn{justify-content:center}
+/* universe picker — sama dengan Market Overview */
+.uni{width:240px;justify-content:flex-start;gap:var(--s-4);padding:0 var(--s-5);font-weight:var(--fw-regular);color:var(--text-3)}
+.uni .ic{color:var(--text-3)}
+.uni .uv{flex:1;text-align:left;display:flex;align-items:center;gap:var(--s-4);color:var(--text)}
+.uni .uv b{font-weight:var(--fw-semibold)}
+.uni .uv span{color:var(--text-3)}
+.ct td.l .tag+.tag{margin-left:3px}
+.fc .ft span,.fc .ft a{white-space:nowrap}.fc .cnt b small{white-space:nowrap}.fc .cnt{gap:var(--s-4)}
+
+/* opsi layout Radar — tambahan di atas radar.css */
+.tbl th,.tbl td{font-size:var(--fs-12)}
+.card .tbl th:first-child,.card .tbl td:first-child{padding-left:var(--s-8)}
+.card .tbl th:last-child,.card .tbl td:last-child{padding-right:var(--s-8)}
+.card .tbl tbody tr:last-child td{border-bottom:0}
+.tbl td.l small,.tk small{display:block;color:var(--text-3);font-size:var(--fs-xs);line-height:14px}
+.tk b,.fn{display:block;font-weight:var(--fw-semibold);font-size:var(--fs-md);line-height:16px}
+.big{font-size:var(--fs-lg);font-weight:var(--fw-semibold)}
+.tkc{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;margin:0 4px 0 0;border:1px solid var(--border);border-radius:var(--r-sm);font-size:var(--fs-12);font-weight:var(--fw-semibold);background:var(--surface);white-space:nowrap}
+.tkc.nw{border-color:var(--blue);color:var(--blue);background:var(--blue-bg)}
+.tkc.out{color:var(--text-3);text-decoration:line-through;text-decoration-color:var(--gray-400)}
+.tkc.out i{font-style:normal;text-decoration:none;display:inline-grid;place-items:center;width:15px;height:15px;border-radius:var(--r-xs);background:var(--red-bg);color:var(--red);font-size:9.5px;font-weight:var(--fw-bold)}
+.tkc i{font-style:normal;font-weight:var(--fw-medium)}
+.tkc.lg{height:28px;padding:0 9px;margin:0 6px 6px 0;font-size:var(--fs-md)}
+.more{font-size:var(--fs-12);color:var(--text-3)}
+.ft1 .tbl td{height:58px}
+.ft1,.ct,.mxc,.chg,.feed,.act{overflow:hidden;min-height:0}
+/* 2 */
+.tabsc{padding:var(--s-3);margin-bottom:var(--s-8);flex:none}
+.ftabs{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:var(--s-2)}
+.ftabs button{height:52px;border:0;border-radius:var(--r-md);background:none;box-shadow:none;display:grid;grid-template-columns:1fr auto;align-items:center;text-align:left;padding:0 var(--s-5);gap:0 var(--s-3)}
+.ftabs button span{font-size:var(--fs-12);color:var(--text-2);font-weight:var(--fw-medium)}
+.ftabs button b{font-size:var(--fs-xl);font-weight:var(--fw-semibold);grid-row:1/3;grid-column:2}
+.ftabs button i{font-style:normal;font-size:var(--fs-xs);color:var(--blue)}
+.ftabs button.on{background:var(--sel)}
+.rg2{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:var(--s-8)}
+.ct .tbl td{height:40px}
+/* 3 */
+.mtx td,.mtx th{height:28px!important}
+.mtx th.c,.mtx td.c{text-align:center;padding:0 2px;width:46px}
+.dt{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--text);vertical-align:middle}
+.dt.nw{background:var(--blue);box-shadow:0 0 0 3px var(--blue-bg)}
+.dt.off{background:none;box-shadow:inset 0 0 0 1px var(--gray-300);width:7px;height:7px}
+.lg2{padding:0 var(--s-8) var(--s-6);display:flex;flex-direction:column;gap:var(--s-4);font-size:var(--fs-12);color:var(--text-2)}
+.lg2 div{display:flex;align-items:center;gap:var(--s-4)}
+.dist{padding:0 var(--s-8) var(--s-6)}
+.dr{display:grid;grid-template-columns:70px 1fr 28px;gap:var(--s-4);align-items:center;font-size:var(--fs-12);color:var(--text-2);padding:3px 0}
+.dr .b{height:10px;background:var(--gray-100);border-radius:2px;overflow:hidden}.dr .b i{display:block;height:100%;background:var(--gray-600)}
+.dr b{text-align:right;font-weight:var(--fw-medium)}
+/* 4 */
+.rg4{flex:1;min-height:0;display:grid;grid-template-columns:280px minmax(0,1fr);gap:var(--s-8)}
+.side{display:flex;flex-direction:column}
+.fl{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:var(--s-4);align-items:center;padding:var(--s-4) var(--s-7);border-top:1px solid var(--border)}
+.fl b{display:block;font-weight:var(--fw-semibold);font-size:var(--fs-md)}.fl small{display:block;color:var(--text-3);font-size:var(--fs-xs)}
+.fl em{font-style:normal;font-weight:var(--fw-semibold)}
+.cb{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--gray-400);display:grid;place-items:center}
+.cb.on{background:var(--text);border-color:var(--text);color:var(--surface)}.cb .ic{width:12px;height:12px}
+.side-f{margin-top:auto;border-top:1px solid var(--border);padding:var(--s-5) var(--s-7)}
+.opt2{display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-12);color:var(--text-2);padding:5px 0}
+.grp{display:flex;align-items:center;gap:var(--s-4);padding:var(--s-4) var(--s-8);background:var(--gray-50);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:var(--fs-xs);font-weight:var(--fw-semibold);letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.grp span{color:var(--text)}.grp a{display:inline-flex;align-items:center;gap:3px;text-transform:none;letter-spacing:0;color:var(--text);font-weight:var(--fw-medium)}
+.fd{display:grid;grid-template-columns:220px minmax(0,1fr) 70px 70px 70px 120px;gap:var(--s-5);align-items:center;height:42px;padding:0 var(--s-8);border-bottom:1px solid var(--border);font-size:var(--fs-12)}
+.fd .ft{display:flex;gap:4px}.fd .r{text-align:right}.fd .acts2{display:flex;gap:var(--s-2);justify-content:flex-end}
+/* 5 */
+.act{margin-bottom:var(--s-8);flex:none}
+.hm2{width:100%;border-collapse:separate;border-spacing:3px;padding:0 var(--s-6) var(--s-6)}
+.hm2 th{font-size:var(--fs-xs);color:var(--text-3);font-weight:var(--fw-medium);text-align:center;height:28px;line-height:12px}
+.hm2 th small{display:block;font-size:9.5px}
+.hm2 th.l,.hm2 td.l{text-align:left;padding-left:var(--s-3);width:210px}
+.hm2 td.l b{display:block;font-weight:var(--fw-semibold);font-size:var(--fs-md)}.hm2 td.l small{display:block;color:var(--text-3);font-size:var(--fs-xs)}
+.hm2 td{text-align:center;font-size:var(--fs-12);height:38px}
+.hm2 td span{display:grid;place-items:center;height:32px;border-radius:var(--r-xs);font-weight:var(--fw-medium)}
+.hm2 td.td span{box-shadow:inset 0 0 0 2px var(--blue)}
+.hm2 th.td{color:var(--blue);font-weight:var(--fw-semibold)}
+.hm2 tr.on td.l b{text-decoration:underline;text-underline-offset:3px}
+.rg5{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) var(--rail-w);gap:var(--s-8)}
+.chips2{padding:0 var(--s-8) var(--s-6);display:flex;flex-wrap:wrap}
+/* 6 */
+.kb{flex:1;min-height:0;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:var(--s-5)}
+.kc{display:flex;flex-direction:column;min-height:0;overflow:hidden;background:var(--gray-50)}
+.kc.on{border-color:var(--border-2);box-shadow:var(--shadow)}
+.kh{padding:var(--s-5) var(--s-5) var(--s-4);background:var(--surface);border-bottom:1px solid var(--border);border-radius:var(--r-xl) var(--r-xl) 0 0}
+.kh b{font-weight:var(--fw-semibold)}.kh em{font-style:normal;font-weight:var(--fw-semibold);font-size:var(--fs-lg)}
+.kh small{display:block;color:var(--text-3);font-size:var(--fs-xs);line-height:14px;height:28px;overflow:hidden;margin-top:2px}
+.kl{padding:var(--s-4);display:flex;flex-direction:column;gap:var(--s-3)}
+.ki{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-3) var(--s-4)}
+.ki .t{display:flex;justify-content:space-between;font-size:var(--fs-12)}.ki .t b{font-weight:var(--fw-semibold);font-size:var(--fs-md)}
+.ki .t2{display:flex;gap:3px;margin-top:3px}
+/* 7 */
+.sx td span{height:30px}.sx td span.sel{box-shadow:0 0 0 2px var(--blue)}
+/* 8 */
+.kpis.k3{grid-template-columns:repeat(4,minmax(0,1fr))}
+.chg .tbl td{height:50px}
+/* 9 */
+.rg9{flex:1;min-height:0;display:grid;grid-template-columns:260px minmax(0,1fr) 330px;gap:var(--s-8)}
+.nav9{overflow:hidden}
+.ni{display:flex;justify-content:space-between;gap:var(--s-4);padding:var(--s-4) var(--s-7);border-top:1px solid var(--border)}
+.ni.on{background:var(--sel)}
+.ni b{display:block;font-weight:var(--fw-semibold);font-size:var(--fs-md)}.ni small{display:block;color:var(--text-3);font-size:var(--fs-xs);line-height:14px}
+.ni .r{display:flex;flex-direction:column;align-items:flex-end;gap:3px}.ni em{font-style:normal;font-weight:var(--fw-semibold);font-size:var(--fs-lg)}
+.rule2{display:flex;flex-wrap:wrap;gap:var(--s-3);padding:0 var(--s-8) var(--s-5)}
+/* 10 */
+.tmc2{display:flex;flex-direction:column;min-height:0}
+.tm2{position:relative;flex:1;min-height:0;margin:0 var(--s-7) var(--s-5);border-radius:var(--r-md);overflow:hidden}
+.sh2{position:absolute;padding:1px 4px;font-size:var(--fs-2xs);font-weight:var(--fw-semibold);color:var(--text-2);white-space:nowrap;overflow:hidden;line-height:15px}
+.tl2{position:absolute;padding:4px 5px;box-shadow:inset 0 0 0 1px var(--surface);font-size:var(--fs-xs);line-height:1.25;overflow:hidden}
+.tl2 b{display:block;font-weight:var(--fw-semibold)}.tl2 span{font-size:var(--fs-2xs);opacity:.9}
+.tl2.nw{box-shadow:inset 0 0 0 1px var(--surface),inset 0 0 0 3px var(--blue)}
+.legend{display:flex;gap:var(--s-7);padding:0 var(--s-8) var(--s-6);font-size:var(--fs-12);color:var(--text-3);align-items:center}
+.legend i{display:inline-block;vertical-align:middle;margin-right:var(--s-3)}.legend .sw{width:14px;height:10px;border-radius:2px}
+.rg5 .card{overflow:hidden}
+
+/* prototype layer: makes the static mockup scroll and respond; reuses EDGE tokens */
+html,body{width:auto;height:100%;overflow:hidden}
+.app{height:100vh}
+.page{overflow:auto}
+.nav a{cursor:pointer}
+.side-foot{cursor:pointer;border-radius:var(--r-md)}
+.side-foot:hover{background:var(--hover)}
+/* kanban as real controls */
+.kb{min-height:560px}
+.kc{display:flex;flex-direction:column;min-height:0}
+.kc .kh{display:block;width:100%;height:auto;text-align:left;border:0;border-bottom:1px solid var(--border);border-radius:var(--r-xl) var(--r-xl) 0 0;box-shadow:none;cursor:pointer;font:inherit;color:var(--text)}
+.kc .kh:hover{background:var(--hover)}
+.kl{overflow:auto;flex:1;min-height:0}
+.ki{display:block;width:100%;height:auto;text-align:left;font:inherit;color:var(--text);cursor:pointer;box-shadow:none}
+.ki:hover{border-color:var(--border-2);box-shadow:var(--shadow)}
+.empty-col{color:var(--text-3);font-size:var(--fs-12);text-align:center;margin:var(--s-6) 0}
+.kb{position:relative}
+.kb-empty{position:absolute;left:50%;top:120px;transform:translateX(-50%);padding:var(--s-8);display:flex;flex-direction:column;gap:var(--s-4);align-items:center;text-align:center;box-shadow:var(--shadow-lg)}
+.bar-t .srch{position:relative}.bar-t .srch input{border:0;outline:none;background:none;font:inherit;font-size:var(--fs-12);color:var(--text);flex:1;min-width:0}
+.bar-t .srch:focus-within{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}
+.clr{width:20px;height:20px;padding:0;border:0;background:none;box-shadow:none;color:var(--text-3);display:grid;place-items:center;cursor:pointer;border-radius:var(--r-xs)}
+.clr:hover{background:var(--hover);color:var(--text)}
+.seg button[disabled]{opacity:.45;cursor:not-allowed}
+/* menus */
+.menu{padding:var(--s-3)}
+.menu-item{justify-content:space-between;cursor:pointer}
+.menu-item.on{background:var(--sel);font-weight:var(--fw-medium)}
+.menu-item[disabled]{color:var(--text-3);cursor:not-allowed}
+.menu-item .mr{color:var(--text-3);font-size:var(--fs-xs)}
+.menu-item:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.menu-note{padding:var(--s-3) var(--s-4) var(--s-2);font-size:var(--fs-xs);color:var(--text-3);line-height:15px}
+/* detail */
+.chip{cursor:pointer;height:30px;box-shadow:none;font:inherit;font-size:var(--fs-md)}
+.chip:hover{border-color:var(--border-2)}
+.ct{min-height:0}.dg{flex:none}.ct .tbl-wrap{overflow:auto}
+.ct .tbl tbody tr[data-s]{cursor:pointer}
+.ct .tbl tbody tr[data-s]:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.ct .tbl tr.sep td{height:30px;background:var(--gray-50);color:var(--text-3);font-size:var(--fs-xs);font-weight:var(--fw-semibold);letter-spacing:.04em}
+.btn.on-follow{background:var(--sel)}
+.lk{background:none;border:0;box-shadow:none;height:auto;padding:0;font:inherit;font-weight:var(--fw-medium);color:var(--text);display:inline-flex;align-items:center;gap:2px;cursor:pointer}
+.lk:hover{text-decoration:underline;text-underline-offset:3px}
+.chk .no{color:var(--red)}
+.blk{display:inline-flex;gap:2px;vertical-align:middle;margin-right:var(--s-3)}.blk i{width:5px;height:11px;border-radius:1px;background:var(--text)}
+.acts{padding:0 var(--s-8) var(--s-6)}
+/* modal + toast */
+.backdrop{position:fixed}
+.dialog{width:480px}
+.dialog-head{display:flex;align-items:flex-start;gap:var(--s-5)}
+.dialog-head p{color:var(--text-3);margin:var(--s-2) 0 0;font-size:var(--fs-md);line-height:18px}
+.dialog-head .x{margin-left:auto;width:28px;height:28px;padding:0;justify-content:center;color:var(--text-3)}
+.dialog-foot{justify-content:space-between}.dialog-foot .r{display:flex;gap:var(--s-4)}
+.note2{display:flex;gap:var(--s-4);padding:var(--s-5) var(--s-6);background:var(--gray-50);border:1px solid var(--border);border-radius:var(--r-lg);font-size:var(--fs-12);color:var(--text-2);line-height:17px}
+.note2 .ic{color:var(--text-3);margin-top:1px}
+.err{font-size:var(--fs-xs);color:var(--red)}
+.inp.bad{border-color:var(--red)}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:var(--z-toast);background:var(--text);color:var(--surface);border-radius:var(--r-pill);padding:var(--s-4) var(--s-7);font-size:var(--fs-md);box-shadow:var(--shadow-lg);max-width:80vw}
+#toast[hidden]{display:none}
+.missing{max-width:520px;margin:80px auto;padding:var(--s-10);display:grid;gap:var(--s-5);justify-items:start}
+.missing h1{margin:0}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+@media (max-width:1200px){.kb{grid-template-columns:repeat(4,minmax(200px,1fr))}.kc{min-height:420px}.top3,.dg{grid-template-columns:1fr}.rule{flex-wrap:wrap}}
+.kc .kh small{white-space:normal}
+.ki,.kc .kh{white-space:normal}
+
+/* sidebar removed */
+.app{grid-template-columns:minmax(0,1fr)}
+/* clickable histogram */
+#h60{outline:none;border-radius:var(--r-md)}#h60:focus-visible{box-shadow:0 0 0 2px var(--blue)}
+#h60 .hb{cursor:pointer}#h60 .hb:hover{fill:color-mix(in srgb,var(--text) 6%,transparent)}
+.dayp{margin:var(--s-4) var(--s-8) 0;border-top:1px solid var(--border);padding:var(--s-5) 0 var(--s-6)}
+.dayp .dh{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-2) var(--s-5);font-size:var(--fs-md);margin-bottom:var(--s-4)}
+.dayp .dh b{font-weight:var(--fw-semibold)}
+.dchips{display:flex;flex-wrap:wrap;gap:6px;max-height:96px;overflow-y:auto;align-content:flex-start}
+.dchips .tkc{cursor:pointer;margin:0;font:inherit;font-size:var(--fs-12);font-weight:var(--fw-semibold);box-shadow:none}
+.dchips .tkc:not(.nw):hover{border-color:var(--border-2)}
+.tkc.gone{color:var(--text-3);background:var(--gray-50);border-style:dashed}
+.dleg{margin:var(--s-4) 0 0;font-size:var(--fs-xs);color:var(--text-3);display:flex;align-items:center;gap:6px}
+.dleg .tkc{height:18px;font-size:var(--fs-2xs);margin:0}
+/* today card */
+.tdy .hs{margin-bottom:var(--s-4)}
+.tdl{display:grid;grid-template-columns:96px minmax(0,1fr);gap:var(--s-4);align-items:center;padding:var(--s-3) var(--s-8);font-size:var(--fs-12)}
+.tdl .tk3{display:flex;flex-wrap:wrap;gap:4px}.tdl .tkc{margin:0;height:20px;font-size:var(--fs-xs)}
+.tdy .hnote{border-top:1px solid var(--border);margin-top:var(--s-4);padding-top:var(--s-4)}
+
+/* candidates: Table | Cards */
+.vt-seg{margin-left:var(--s-5)}.vt-seg button{display:inline-flex;align-items:center;gap:5px}.vt-seg .ic{width:13px;height:13px}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:var(--s-6);padding:0 var(--s-7) var(--s-7);align-content:start}
+.cc2{padding:var(--s-5) var(--s-6);display:flex;flex-direction:column;gap:var(--s-3);cursor:pointer;min-width:0;border-radius:var(--r-lg)}
+.cc2:hover{border-color:var(--border-2);box-shadow:var(--shadow)}
+.cc2.picked{border-color:var(--border-2);box-shadow:var(--shadow)}
+.cc2:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.cc2.nm{background:var(--gray-50)}.cc2.nm .t b,.cc2.nm .pr b{color:var(--text-2)}
+.cc2 .t{display:flex;align-items:center;gap:var(--s-3)}.cc2 .t b{font-size:var(--fs-lg);font-weight:var(--fw-semibold)}.cc2 .t .sp{flex:1}
+.cc2 .nm2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:var(--fs-xs)}
+.cc2 .pr{display:flex;gap:var(--s-4);align-items:baseline;font-size:var(--fs-12)}.cc2 .pr b{font-size:var(--fs-md);font-weight:var(--fw-semibold)}
+.cspark{display:block;width:100%;height:40px}
+.cc2 .kvs2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px var(--s-4);font-size:var(--fs-xs);color:var(--text-3)}
+.cc2 .kvs2 span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cc2 .kvs2 b{color:var(--text);font-weight:var(--fw-medium)}
+.cc2 .ft{display:flex;align-items:center;gap:3px;flex-wrap:wrap;font-size:var(--fs-xs);border-top:1px solid var(--border);padding-top:var(--s-3)}.cc2 .ft .sp{flex:1}
+.rk{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--sel);font-size:var(--fs-2xs);font-weight:var(--fw-bold);color:var(--text-2)}
+.cg-sep{grid-column:1/-1;font-size:var(--fs-xs);font-weight:var(--fw-semibold);letter-spacing:.04em;color:var(--text-3);padding-top:var(--s-3);border-top:1px solid var(--border)}
+.cg-empty{grid-column:1/-1;text-align:center;padding:var(--s-9) 0;margin:0}
+
+/* preview hugs its content and stays in view while the candidate list scrolls */
+.dg{align-items:start}.dg>.pv{position:sticky;top:0}
+
+
+.cc2 .kvs2 span.full{grid-column:1/-1}
+
+/* ---------- State layer: selaras Market Screener v21 ----------
+   Satu bahasa state untuk semua komponen, diturunkan dari token (terang/gelap otomatis).
+   Aturan lama yang bentrok (hover baris, tepi chip terbuka, dsb.) sudah dihapus, bukan ditimpa. */
+:root{
+  --focus-border:var(--text-3);--focus-shadow:none;               /* fokus input & search: garis abu 1px, tanpa bayangan */
+  --shadow-sm:0 1px 2px rgba(0,0,0,.06),0 2px 8px -2px rgba(0,0,0,.10);
+  --pick:color-mix(in srgb,var(--blue) 6%,var(--surface));        /* baris terpilih */
+  --pick-hover:color-mix(in srgb,var(--blue) 9%,var(--surface));  /* baris terpilih + hover */
+  --raise:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border-2);    /* pilihan aktif di segmented */
+}
+:root.dark,:root[data-theme="dark"]{--shadow-sm:0 1px 2px rgba(0,0,0,.45),0 2px 8px -2px rgba(0,0,0,.55)}
+/* Terpilih */
+.seg{background:var(--surface-2)}
+.seg button.on,.seg button[aria-pressed="true"],.seg button[aria-selected="true"],.seg button[aria-checked="true"]{background:var(--surface);color:var(--text);box-shadow:var(--raise)}
+.tbl tbody tr.on td{background:var(--pick)}
+.tbl tbody tr.on td:first-child{box-shadow:inset 3px 0 0 var(--text)}
+/* Hover */
+.tbl tbody tr.on:hover td{background:var(--pick-hover)}
+.bar-t .srch:hover:not(:focus-within){border-color:var(--border-2)}
+.uni:hover:not(:disabled){border-color:var(--border-2);box-shadow:none}
+/* Pemicu menu yang sedang terbuka (berlaku untuk semua elemen dengan aria-haspopup) */
+[aria-haspopup][aria-expanded="true"],[aria-haspopup][aria-expanded="true"]:hover:not(:disabled){background:var(--sel);border-color:transparent;box-shadow:var(--shadow-sm)}
+
+
+/* scrollbars: thin, neutral, theme-aware */
+*::-webkit-scrollbar{width:4px;height:4px}
+*::-webkit-scrollbar-track,*::-webkit-scrollbar-corner{background:transparent}
+*::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--text-3) 40%,transparent);border-radius:999px}
+*::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--text-3) 65%,transparent)}
+@supports not selector(::-webkit-scrollbar){*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--text-3) 45%,transparent) transparent}}
+
+/* layout: one width for the right-hand column everywhere (Radar, detail top row, detail candidates row) */
+:root{--rail-w:380px;--ihsg:#1f3a68}
+:root.dark,:root[data-theme="dark"]{--ihsg:#8fb0e6}
+/* chart legend */
+.chart-h{flex-wrap:wrap;row-gap:var(--s-2)}
+.lg{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-12);color:var(--text-3);margin-left:var(--s-4)}
+.lg .sw{display:inline-block;flex:none}
+.lg .sw.bar{width:8px;height:10px;border-radius:1px;background:var(--gray-300)}
+.lg .sw.ln{width:14px;height:0;border-top:1.5px solid var(--ihsg)}
+/* candidates: title row, then one toolbar row (search | universe | liquidity | sort) */
+.ct .card-h>:not(.grow){flex:none;white-space:nowrap}
+.ct{container-type:inline-size}
+.ct-head{display:grid;grid-template-columns:1fr;grid-template-areas:"l" "r";align-items:center;gap:var(--s-5) var(--s-4);padding:var(--s-7) var(--s-8) var(--s-6)}
+.ct-head .card-h{grid-area:l;padding:0}
+.ct-head .srch{width:240px;display:flex;align-items:center;gap:var(--s-4);height:var(--h-sm);border:1px solid var(--border);border-radius:var(--r-md);padding:0 var(--s-4);color:var(--text-3);font-size:var(--fs-12);background:var(--surface);position:relative;min-width:0}
+.ct-head .srch input{border:0;outline:none;background:none;font:inherit;font-size:var(--fs-12);color:var(--text);flex:1;min-width:0}
+.ct-head .srch:hover:not(:focus-within){border-color:var(--border-2)}
+.ct-head .srch:focus-within{border-color:var(--focus-border);box-shadow:var(--focus-shadow)}
+.ct-r{grid-area:r;display:flex;align-items:center;justify-content:flex-end;gap:var(--s-4);flex-wrap:wrap}
+.ct-r .uni{width:152px}
+.ct-r .sortg{display:flex;align-items:center;gap:var(--s-4)}.ct-r .seg button{white-space:nowrap}
+/* wide card: one row (title group | search + filters + sort). Narrower: title row, then toolbar row. */
+@container (min-width:1220px){.ct-head{grid-template-columns:1fr auto;grid-template-areas:"l r"}}
+/* preview: price chart hover */
+.pvw{position:relative}
+.ptip{position:absolute;top:0;pointer-events:none;z-index:2;display:flex;align-items:center;gap:var(--s-4);padding:5px 8px;background:var(--surface);border:1px solid var(--border-2);border-radius:var(--r-md);box-shadow:var(--shadow);font-size:var(--fs-12);white-space:nowrap}
+.ptip[hidden]{display:none}.ptip .tp{font-variant-numeric:tabular-nums;font-weight:var(--fw-semibold)}
+.pvh{cursor:crosshair}
+.pv .acts{margin-top:0;padding-top:var(--s-6);border-top:1px solid var(--border)}
+
+/* ===== R10 additions ===== */
+/* EDGE shell rail (apps/edge-bff/static/index.html .side-nav, EXEC-NAV-LEFT): 56 px, 40 px buttons, 22 px icons at
+   stroke 1.7; shown here only so the new Radar icon can be judged in place. In EDGE the rail belongs to the shell and
+   the Radar page runs in its frame. */
+.app{grid-template-columns:56px minmax(0,1fr)}
+.side-nav{grid-column:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0;border-right:1px solid var(--border);background:var(--surface);min-height:0}
+.side-nav>button,.side-nav .side-actions>button{position:relative;display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:10px;background:none;color:var(--text-2);cursor:pointer;padding:0}
+.side-nav .side-actions>button{width:36px;height:36px}
+.side-nav>button:hover,.side-nav .side-actions>button:hover{background:var(--hover);color:var(--text)}
+.side-nav>button.active{background:var(--sel);color:var(--text)}
+.side-nav>button.active::before{content:"";position:absolute;left:-8px;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--text)}
+.side-nav button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.side-nav .brand-mark{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:var(--text);color:var(--surface);font-weight:700;margin-bottom:6px}
+.side-nav .side-actions{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:auto;padding-top:10px;border-top:1px solid var(--border);width:36px}
+.side-nav .side-actions>button.avatar{width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);font-weight:600;font-size:12px;margin-top:4px;cursor:pointer}
+.side-nav svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.side-nav .side-actions svg{width:20px;height:20px}
+.side-nav [data-tip]:hover::after,.side-nav [data-tip]:focus-visible::after{content:attr(data-tip);position:absolute;z-index:200;left:calc(100% + 12px);top:50%;transform:translateY(-50%);padding:6px 10px;border-radius:6px;background:#111;color:#fff;font:500 12px/1.2 var(--sans);white-space:nowrap;pointer-events:none;box-shadow:0 4px 12px rgb(0 0 0 / .18)}
+:root[data-theme="dark"] .side-nav [data-tip]:hover::after,:root[data-theme="dark"] .side-nav [data-tip]:focus-visible::after{background:#f4f4f5;color:#111}
+.side-nav .new-dot{position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--blue)}
+.main{grid-column:2}
+/* board: seven filters */
+.kb{grid-template-columns:repeat(7,minmax(0,1fr))}
+.bar-t .gh{font-size:var(--fs-xs);margin-left:calc(-1 * var(--s-3));white-space:nowrap}
+.kc .kh small{min-height:2.7em}
+/* detail */
+.crumb{margin:0 0 var(--s-2)}.crumb .lk{display:inline-flex;align-items:center;gap:2px;color:var(--text-3)}
+.note-read{display:flex;gap:var(--s-4);align-items:flex-start;padding:var(--s-5) var(--s-8);margin-bottom:var(--s-8);color:var(--text-2);font-size:var(--fs-md);line-height:var(--lh-tight)}
+.note-read .ic{flex:none;margin-top:1px;color:var(--text-3)}.note-read b{color:var(--text);font-weight:var(--fw-semibold)}
+.conds{display:flex;flex-wrap:wrap;gap:var(--s-3) var(--s-8);padding:0 var(--s-8) var(--s-5);font-size:var(--fs-xs);color:var(--text-2)}
+.conds span{display:inline-flex;align-items:center;gap:var(--s-3)}
+.conds i,.ck{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:3px;background:var(--text);color:var(--surface);font-style:normal;font-size:9.5px;font-weight:700}
+.ck{margin-right:var(--s-3)}.ck.off{background:var(--sel);color:var(--text-3)}
+.tbl tr.nm td{color:var(--text-3)}
+.eyebrow2{display:block;font-size:var(--fs-xs);font-weight:var(--fw-semibold);color:var(--text-3);margin-bottom:var(--s-3)}
+.flagnote{display:flex;gap:var(--s-4);margin:0 var(--s-8) var(--s-5);padding:var(--s-4) var(--s-5);border-radius:var(--r-md);background:var(--amber-bg);color:var(--amber);font-size:var(--fs-xs);line-height:var(--lh-tight)}
+.flagnote .ic{flex:none}
+/* phone: EDGE hides its rail below 720 px; the board scrolls sideways one filter at a time */
+@media (max-width:720px){
+ .app{grid-template-columns:minmax(0,1fr)}.side-nav{display:none}.main{grid-column:1}
+ .page{padding:var(--s-8)}
+ .head{flex-direction:column;align-items:flex-start;gap:var(--s-5)}.head .actions{flex-wrap:wrap}
+ .bar-t{flex-wrap:wrap;gap:var(--s-4)}.bar-t .srch{width:100%}
+ .kb{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:var(--s-5);min-height:0}
+ .kb>.kc{flex:0 0 82%;scroll-snap-align:start;min-height:360px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.ct-r{flex-wrap:wrap;row-gap:var(--s-4)}
+.ct-r .btn.uni{width:auto;min-width:0}
+/* dark theme: the grays R9 defined only for light (column bodies, chart bars, price line) */
+:root[data-theme="dark"]{--gray-50:#0f0f0f;--gray-100:#1a1a1a;--gray-300:#3a3a3a;--gray-500:#6f6f6f;--gray-900:#ededed}
+@media (max-width:720px){
+ .bar-t{height:auto;flex-wrap:wrap;padding:var(--s-5) var(--s-7)}
+ .bar-t .btn.uni{width:100%}
+ .bar-t .gh{margin-left:0}
+ .bar-t .sp{display:none}
+}
+/* board card: tags left, the 20-session price line at the bottom right */
+.ki .t2{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap;row-gap:var(--s-2)}
+.ki .ksp{margin-left:auto;display:inline-flex;flex:none;opacity:.9}
+/* selected option of every segmented control: ink fill, surface text (user 2026-11-14); in the dark theme the ink is
+   light and the text dark, so the selected option stays the strongest mark in both themes */
+.seg button.on,.seg button[aria-checked="true"]{background:var(--text);color:var(--surface)}
+.seg button.on:hover{color:var(--surface)}
+/* each column is as tall as its stocks (user 2026-11-14); a long column stops at the screen's height and scrolls inside */
+.kb{align-items:start;min-height:0;flex:none}
+.kb>.kc{min-height:0;max-height:calc(100vh - 210px)}
+.kb>.kc .kl{flex:0 1 auto}
+.kb>.kb-empty{position:static;transform:none;grid-column:1/-1;justify-self:center;margin-top:var(--s-4);box-shadow:none}
+@media (max-width:720px){.kb>.kc{min-height:0;max-height:70vh}}
+/* column count, option 8: one dot per stock (up to 10, then +N) beside the number; zero in grey */
+.kc .kh .cnt8{display:inline-flex;align-items:center;gap:2px;font-style:normal;font-variant-numeric:tabular-nums}
+.kc .kh .cnt8 i{width:5px;height:5px;border-radius:50%;background:var(--text)}
+.kc .kh .cnt8 em{font-style:normal;font-size:10px;color:var(--text-3);margin-left:1px}
+.kc .kh .cnt8 b{margin-left:6px;font-size:var(--fs-lg);font-weight:var(--fw-semibold);color:var(--text)}
+.kc .kh .cnt8.z b{color:var(--text-3)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="i-overview" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></symbol>
+<symbol id="i-radar" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/><path d="M8 8l4-4"/></symbol>
+<symbol id="i-watch" viewBox="0 0 16 16"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+<symbol id="i-terminal" viewBox="0 0 16 16"><path d="M4 3v10M8 2v9M12 4v10"/><rect x="3" y="5" width="2" height="5" rx=".5"/><rect x="7" y="4" width="2" height="5" rx=".5"/><rect x="11" y="6" width="2" height="6" rx=".5"/></symbol>
+<symbol id="i-backtest" viewBox="0 0 16 16"><path d="M2.5 8a5.5 5.5 0 1 0 1.8-4.1M2.5 2.5v3h3"/><path d="M8 5v3.2l2 1.3"/></symbol>
+<symbol id="i-research" viewBox="0 0 16 16"><path d="M3 3h10v7H8l-3 3v-3H3z"/><path d="M6 6.5h4"/></symbol>
+<symbol id="i-post" viewBox="0 0 16 16"><path d="M4 2h6l3 3v9H4z"/><path d="M10 2v3h3M6 8h5M6 10.5h5"/></symbol>
+<symbol id="i-saved" viewBox="0 0 16 16"><path d="M4.5 2.5h7v11L8 10.8 4.5 13.5z"/></symbol>
+<symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+<symbol id="i-chev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<symbol id="i-chevr" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+<symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+<symbol id="i-grip" viewBox="0 0 16 16"><circle cx="6" cy="4" r=".9" fill="currentColor"/><circle cx="10" cy="4" r=".9" fill="currentColor"/><circle cx="6" cy="8" r=".9" fill="currentColor"/><circle cx="10" cy="8" r=".9" fill="currentColor"/><circle cx="6" cy="12" r=".9" fill="currentColor"/><circle cx="10" cy="12" r=".9" fill="currentColor"/></symbol>
+<symbol id="i-cal" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/></symbol>
+<symbol id="i-filter" viewBox="0 0 16 16"><path d="M2.5 4h11M4.5 8h7M6.5 12h3"/></symbol>
+<symbol id="i-more" viewBox="0 0 16 16"><circle cx="3.5" cy="8" r="1" fill="currentColor"/><circle cx="8" cy="8" r="1" fill="currentColor"/><circle cx="12.5" cy="8" r="1" fill="currentColor"/></symbol>
+<symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 7.2V11M8 5v.1"/></symbol>
+<symbol id="i-cols" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M6 3v10M10 3v10"/></symbol>
+<symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+<symbol id="i-sort" viewBox="0 0 16 16"><path d="M5 3v10M2.5 10.5L5 13l2.5-2.5M11 13V3M8.5 5.5L11 3l2.5 2.5"/></symbol>
+<symbol id="i-share" viewBox="0 0 16 16"><path d="M8 10V2.5M5 5l3-3 3 3M3 9v4.5h10V9"/></symbol>
+<symbol id="i-expand" viewBox="0 0 16 16"><path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5L9 7M2.5 13.5L7 9"/></symbol>
+<symbol id="i-bulb" viewBox="0 0 16 16"><path d="M8 2.5a4 4 0 0 0-2.2 7.3c.4.3.7.8.7 1.3V12h3v-.9c0-.5.3-1 .7-1.3A4 4 0 0 0 8 2.5zM6.7 14h2.6"/></symbol>
+<symbol id="i-spark" viewBox="0 0 16 16"><path d="M8 2l1.4 3.6L13 7l-3.6 1.4L8 12l-1.4-3.6L3 7l3.6-1.4zM12.5 11l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3.5 8h9M9 4.5L12.5 8 9 11.5"/></symbol>
+<symbol id="i-chevl" viewBox="0 0 16 16"><path d="M10 4l-4 4 4 4"/></symbol></defs></svg>
+<div class="app">
+<nav class="side-nav" aria-label="Pages">
+ <span class="brand-mark" aria-hidden="true">E</span>
+ <button type="button" data-nav="monitor" data-tip="Monitor" aria-label="Monitor"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18.5 15l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8z"/></svg></button>
+ <button type="button" data-nav="terminal" data-tip="Terminal" aria-label="Terminal"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M6.5 15.5l3.5-4 3 2.5 4.5-6"/></svg></button>
+ <button type="button" data-nav="backtest" data-tip="Backtest" aria-label="Backtest"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.5M9.5 3h5M12 3v2.5"/></svg></button>
+ <button type="button" data-nav="screener" data-tip="Screener" aria-label="Screener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 1.5v-8z"/></svg></button>
+ <button type="button" data-nav="radar" data-tip="Radar" aria-label="Radar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4a16 16 0 0 1 16 16"/><path d="M4 10.5a9.5 9.5 0 0 1 9.5 9.5"/><path d="M4 20 13 11"/><circle cx="16.3" cy="8.2" r="1.3"/><circle cx="4" cy="20" r=".6"/></svg></button>
+ <div class="side-actions">
+  <button type="button" data-act="soon" data-tip="Research" aria-label="Research"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 16 4-5 4 3 5-8 5 3"/></svg></button>
+  <button type="button" data-act="theme" data-tip="Dark theme" aria-label="Switch theme"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+  <button type="button" data-act="soon" data-tip="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  <button type="button" class="avatar" data-act="soon" aria-label="Account">E</button>
+ </div>
+</nav>
+ <section class="main">
+  <main class="page" id="view" tabindex="-1"></main>
+ </section>
+</div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<script>
+(function(){
+'use strict';
+/* ================= helpers ================= */
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function rng(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const hsh=s=>{let h=7;for(const c of s)h=(h*31+c.charCodeAt(0))|0;return h};
+const ic=(n,c='ic ic-sm')=>`<svg class="${c}"><use href="#i-${n}"/></svg>`;
+const px=x=>Math.round(x).toLocaleString('en-US');
+const sg=(x,d=2)=>(x>0?'+':x<0?'−':'')+Math.abs(x).toFixed(d)+'%';
+const pt=(x,d=1)=>(x>0?'+':x<0?'−':'')+Math.abs(x).toFixed(d)+' pt';
+const rp=x=>(x>0?'+':x<0?'−':'')+'Rp '+Math.abs(x).toFixed(1)+'B';
+const cl=x=>x>0?'up':x<0?'down':'';
+const view=$('#view');
+let toastT;function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3200)}
+
+/* ================= data: illustrative, built from SCREENER_LIBRARY.md examples ================= */
+/* Prices, names and 1D change: dev database, 9 Nov 2026. Filter values: library examples (3 Nov for S1-S3, S6, S7;
+   9 Nov for S8). Day N, history and sparkline counts are made up. */
+const STK={ADMF:['Adira Dinamika Multi Finance',7800,0],ADRO:['Alamtri Resources Indonesia',2330,.87],ASMI:['Asuransi Maximus Graha Persada',21,0],
+ BINA:['Bank Ina Perdana',3610,-.82],BNBR:['Bakrie & Brothers',40,0],BOBA:['Formosa Ingredient Factory',173,-6.99],BOGA:['Apollo Global Interactive',1835,.55],
+ BTPS:['Bank BTPN Syariah',1035,2.99],CBDK:['Bangun Kosambi Sukses',2700,-.74],CDIA:['Chandra Daya Investasi',328,-.61],CNMA:['Nusantara Sejahtera Raya',69,-6.76],
+ COIN:['Indokripto Koin Semesta',284,-4.05],DEWA:['Darma Henwa',226,.89],DKFT:['Central Omega Resources',705,2.92],DOOH:['Era Media Sejahtera',212,15.85],
+ DRMA:['Dharma Polimetal',945,1.07],FORU:['Fortune Indonesia',74,8.82],FUTR:['Futura Energi Global',106,.95],GDST:['Gunawan Dianjaya Steel',88,2.33],
+ GEMS:['Golden Energy Mines',6750,0],ISAT:['Indosat',1405,-1.4],ITMG:['Indo Tambangraya Megah',24825,1.43],JARR:['Jhonlin Agro Raya',2280,0],
+ KLBF:['Kalbe Farma',740,-1.99],KOTA:['DMS Propertindo',53,-5.36],MARK:['Mark Dynamics Indonesia',990,-.5],MBMA:['Merdeka Battery Materials',302,0],
+ MPMX:['Mitra Pinasthika Mustika',1075,-.46],MSIN:['MNC Digital Entertainment',82,-3.53],MSJA:['Multi Spunindo Jaya',432,-6.9],MYOR:['Mayora Indah',1345,-1.1],
+ NATO:['Olympus Strategic Indonesia',930,2.2],PCAR:['Prima Cakrawala Abadi',57,3.64],PGAS:['Perusahaan Gas Negara',1485,3.85],RANS:['Rans Entertainment Indonesia',92,3.37],
+ RATU:['Raharja Energi Cepu',1900,-5.94],SMRA:['Summarecon Agung',258,2.38],SQMI:['Wilton Makmur Indonesia',68,3.03],SRTG:['Saratoga Investama Sedaya',1735,3.89],
+ SSIA:['Surya Semesta Internusa',1020,-1.45],TRIN:['Perintis Triniti Properti',75,-5.06],UNVR:['Unilever Indonesia',1525,.66],WIIM:['Wismilak Inti Makmur',1535,3.72],
+ ARKO:['Arkora Hydro',1210,.4],JECX:['Jaya Konstruksi',80,0]};
+/* index and group membership: Stock_List, read 2026-11-14 (current members) */
+const MEM={ADRO:'IDX30 IDX80 JII KOMPAS100 LQ45',ARKO:'ASTRA',BINA:'SALIM',BNBR:'KOMPAS100 BAKRIE',CBDK:'IDX80 KOMPAS100 SALIM',COIN:'KOMPAS100',
+ DEWA:'IDX30 IDX80 JII KOMPAS100 LQ45 BAKRIE',GEMS:'SINARMAS',ISAT:'IDX30 IDX80 KOMPAS100 LQ45',ITMG:'IDX80 KOMPAS100 LQ45',KLBF:'IDX30 IDX80 JII KOMPAS100 LQ45',
+ MBMA:'IDX30 IDX80 JII KOMPAS100 LQ45',MSIN:'MNC',MYOR:'IDX80 KOMPAS100',PGAS:'IDX30 IDX80 JII KOMPAS100 LQ45 DANANTARA',RATU:'IDX80 JII KOMPAS100',
+ SMRA:'KOMPAS100',SSIA:'IDX80 KOMPAS100 DJARUM',UNVR:'IDX80 JII KOMPAS100 LQ45'};
+const UNIS=[['all','All stocks','Universe'],...'LQ45 IDX30 IDX80 KOMPAS100 JII'.split(' ').map(c=>[c,c,'Index']),...[['DANANTARA','Danantara'],['SALIM','Salim'],['SINARMAS','Sinarmas'],['ASTRA','Astra'],['BAKRIE','Bakrie'],['DJARUM','Djarum'],['MNC','MNC']].map(([c,n])=>[c,n,'Group'])];
+const inUni=(t,u)=>u==='all'||(MEM[t]||'').split(' ').includes(u);
+/* gate: total buy of the last 5 sessions, Rp B; cut-offs of 9 Nov 2026 (dev database) */
+const GATE={broad:{label:'Broad',cut:1.85,help:'Drops the 50% of stocks with the smallest buying over 5 sessions'},liquid:{label:'Liquid',cut:17.61,help:'Drops the 80% of stocks with the smallest buying over 5 sessions'}};
+const LV=['Loose','Standard','Strict'];
+
+/* each filter: conditions are evaluated in the page from the row's values, so level and gate switch without a reload */
+const FILTERS=[
+ {id:'S1',name:'Heavy foreign accumulation',q:'Foreign net buying over 5 sessions that is unusually large for this stock.',
+  warn:'Unusual for this stock, not large in rupiah. A small stock can be unusual with little money; the 5% floor keeps those out.',
+  sortBy:'z-score',sort:v=>v.z,
+  conds:L=>[['Foreign net 5D above 0',v=>v.net>0],['Foreign net ≥ 5% of buying',v=>v.ratio>=5],[`Above P${[90,95,95][L]} of its own year${L===2?' and z ≥ 2':''}`,v=>v.pct>=[90,95,95][L]&&(L<2||v.z>=2)],['Net buying on 3 or more of 5 days',v=>v.days>=3]],
+  cols:[['Foreign 5D',v=>rp(v.net),v=>cl(v.net)],['of buying',v=>v.ratio.toFixed(1)+'%'],['vs own 1Y',v=>'P'+v.pct.toFixed(0)],['z',v=>v.z.toFixed(2)],['Buy days',v=>v.days+'/5']],
+  rows:{BOGA:{buy5:62.9,net:61.8,ratio:98.2,pct:100,z:7.85,days:4,flag:'One-day block: Rp 61.8B of the foreign net came on 28 Oct'},DKFT:{buy5:32.3,net:14.8,ratio:45.9,pct:95.2,z:1.48,days:3},
+   SQMI:{buy5:88.7,net:5.6,ratio:6.4,pct:96,z:.93,days:3},BINA:{buy5:39.1,net:1.3,ratio:3.2,pct:99.2,z:5.85,days:3},FORU:{buy5:87.8,net:3,ratio:3.4,pct:97.6,z:1.31,days:3},
+   NATO:{buy5:81.5,net:.3,ratio:.4,pct:98,z:.05,days:4},MPMX:{buy5:9.6,net:2.1,ratio:21.9,pct:99.6,z:4.44,days:4},PCAR:{buy5:3.4,net:.6,ratio:17.6,pct:99.2,z:3.96,days:3},
+   ASMI:{buy5:2.1,net:.2,ratio:9.5,pct:98.4,z:2.91,days:3}}},
+ {id:'S2',name:'Strengthening foreign flow',q:'Foreign buying that rose the most against the 5 sessions before, compared across stocks.',
+  warn:'A large rise often means a recovery from heavy selling (PGAS, MYOR, UNVR), not heavy buying.',
+  sortBy:'change',sort:v=>v.d,
+  conds:L=>[['Foreign net 5D above 0',v=>v.net>0],['Foreign ratio up vs prior 5 sessions',v=>v.d>0],[`Change in the top ${[25,10,5][L]}% of stocks`,v=>v.dp>=[75,90,95][L]]],
+  cols:[['Foreign 5D',v=>rp(v.net),v=>cl(v.net)],['Ratio now',v=>v.now.toFixed(1)+'%'],['5 sessions ago',v=>v.prev.toFixed(1)+'%'],['Change',v=>pt(v.d)],['Rank',v=>'P'+v.dp.toFixed(1)]],
+  rows:{BOGA:{buy5:62.9,net:61.8,now:98.2,prev:1.8,d:96.4,dp:100,flag:'One-day block: Rp 61.8B of the foreign net came on 28 Oct'},DKFT:{buy5:32.3,net:14.8,now:45.9,prev:-29.9,d:75.8,dp:98.6},
+   MSIN:{buy5:5.3,net:4.1,now:77.2,prev:3.3,d:73.9,dp:97.1},RANS:{buy5:26.7,net:11.7,now:43.8,prev:-10,d:53.8,dp:95.7},MYOR:{buy5:36.7,net:8.3,now:22.6,prev:-23.6,d:46.2,dp:94.3},
+   PGAS:{buy5:496.4,net:4,now:.8,prev:-33.3,d:34.1,dp:92.9},UNVR:{buy5:205.6,net:14.8,now:7.2,prev:-20.8,d:28.1,dp:91.4},KOTA:{buy5:73.3,net:15,now:20.5,prev:-5.5,d:26,dp:89.9}}},
+ {id:'S3',name:'Concentrated net buying',q:'Net buying held by a few brokers, compared with stocks that have a similar number of net buyers.',
+  warn:'Shows who is buying, not where the price goes. All investors are counted, so foreigners can be selling (ITMG: foreign net −Rp 87.8B).',
+  sortBy:'average rank',sort:v=>(v.gp+v.ip)/2,
+  conds:L=>[['At least 10 net buyers',v=>v.k>=10],[`Concentration ≥ P${[70,80,90][L]} in its group`,v=>v.gp>=[70,80,90][L]],[`Intensity ≥ P${[60,75,90][L]}`,v=>v.ip>=[60,75,90][L]]],
+  cols:[['Net buyers',v=>v.k],['Top 3 − even',v=>v.cr.toFixed(3)],['Group rank',v=>'P'+v.gp],['Intensity',v=>(v.it*100).toFixed(1)+'%'],['Rank',v=>'P'+v.ip],['Foreign 5D',v=>rp(v.fn),v=>cl(v.fn)]],
+  rows:{ITMG:{buy5:162.9,k:24,cr:.835,gp:100,it:.539,ip:94,fn:-87.8},BTPS:{buy5:44.5,k:12,cr:.743,gp:92,it:.659,ip:99,fn:-7.9},CBDK:{buy5:31.3,k:16,cr:.766,gp:97,it:.509,ip:91,fn:-.7},
+   SMRA:{buy5:33.8,k:13,cr:.738,gp:89,it:.625,ip:98,fn:-5.4},CNMA:{buy5:41.2,k:34,cr:.729,gp:94,it:.511,ip:92,fn:-1.6},ADMF:{buy5:21.6,k:22,cr:.743,gp:82,it:.897,ip:100,fn:-16.8},
+   BINA:{buy5:39.1,k:13,cr:.733,gp:83,it:.549,ip:94,fn:1.3},MARK:{buy5:19.9,k:12,cr:.733,gp:86,it:.481,ip:88,fn:7.2},ADRO:{buy5:311.4,k:30,cr:.702,gp:85,it:.452,ip:72,fn:-21.4}}},
+ {id:'S6',name:'Foreign accumulation (5D)',q:'Foreign net buying that is a large share of all buying and high for this stock’s own year.',
+  warn:'High for this stock, measured as a share of buying. Says nothing about rupiah size against other stocks.',
+  sortBy:'foreign ratio',sort:v=>v.ratio,
+  conds:L=>[['Foreign net 5D above 0',v=>v.net>0],[`Foreign ratio ≥ ${[3,5,10][L]}%`,v=>v.ratio>=[3,5,10][L]],[`Ratio ≥ P${[90,95,98][L]} of its own year`,v=>v.v2>=[90,95,98][L]]],
+  cols:[['Foreign 5D',v=>rp(v.net),v=>cl(v.net)],['Ratio',v=>v.ratio.toFixed(1)+'%'],['vs own 1Y',v=>'P'+v.v2.toFixed(1)],['Buy days',v=>v.days+'/5']],
+  rows:null},
+ {id:'S6D',label:'S6Δ',name:'Foreign accumulation, strengthening',q:'Stocks in S6 whose foreign ratio, or its rank in the stock’s own year, rose against 5 sessions ago.',
+  warn:'Built on S6. A rise can start from net selling; it is read together with S6’s level. Thresholds are proposed and not yet decided.',
+  sortBy:'change',sort:v=>ST.dmode==='v2'?v.v2d:v.v1d,
+  conds:L=>[...FILTERS[3].conds(L),
+   ST.dmode==='v1'?[`Ratio up ≥ ${[12,20,35][L]} pt vs 5 sessions ago`,v=>v.v1d>=[12,20,35][L]]:ST.dmode==='v2'?[`Rank up ≥ ${[40,65,90][L]} pt vs 5 sessions ago`,v=>v.v2d>=[40,65,90][L]]
+   :[`Ratio up ≥ ${[12,20,35][L]} pt and rank up ≥ ${[40,65,90][L]} pt`,v=>v.v1d>=[12,20,35][L]&&v.v2d>=[40,65,90][L]]],
+  cols:[['Ratio',v=>v.ratio.toFixed(1)+'%'],['Ratio change',v=>pt(v.v1d)],['vs own 1Y',v=>'P'+v.v2.toFixed(1)],['Rank change',v=>pt(v.v2d)],['Foreign 5D',v=>rp(v.net),v=>cl(v.net)]],
+  rows:null},
+ {id:'S7',name:'Institutions in, retail out',q:'Brokers serving institutions turned net buyers while retail brokers sold, against 5 sessions ago.',
+  warn:'Broker labels describe each broker’s usual clients, not the investor of each trade. One broker can make up the whole institutional side.',
+  sortBy:'FL34 now',sort:v=>v.now,
+  conds:L=>[[`FL34 up ≥ ${[10,20,40][L]} pt vs 5 sessions ago`,v=>v.now-v.prev>=[10,20,40][L]],['FL34 now at 0 or above',v=>v.now>=0],['Institutional net above 0',v=>v.inst>0],['Institutional side ≥ 5% of buying',v=>v.ip>=5]],
+  cols:[['FL34 before',v=>v.prev.toFixed(1)],['FL34 now',v=>v.now.toFixed(1)],['Change',v=>pt(v.now-v.prev)],['Institutional net',v=>rp(v.inst),v=>cl(v.inst)],['of buying',v=>v.ip.toFixed(1)+'%']],
+  rows:{CBDK:{buy5:31.3,prev:57,now:79.8,inst:13.19,ip:42.2},UNVR:{buy5:205.6,prev:-38.8,now:16.7,inst:22.76,ip:11.1},KOTA:{buy5:73.3,prev:-6.2,now:19,inst:9.79,ip:13.4},
+   JARR:{buy5:51.2,prev:-10.2,now:21.5,inst:.31,ip:.6},ISAT:{buy5:733.4,prev:-15,now:18.4,inst:16.19,ip:2.2}}},
+ {id:'S8',name:'One-day foreign buying spike',q:'One session of foreign net buying far above the stock’s usual day.',own:true,
+  warn:'One day of buying, often a single block. Strong = all three checks; Watch = large and unusual, but not in the top 5% of its own history.',
+  sortBy:'robust z',sort:v=>v.z,
+  conds:()=>[['Robust z ≥ 3 on the foreign ratio or on net vs ADV20',v=>v.z>=3],['Net ≥ 10% of 20-day average value',v=>v.x>=10],['Net ≥ P95 of its own days',v=>v.p>=95]],
+  cols:[['Foreign 1D',v=>rp(v.n1),v=>cl(v.n1)],['Robust z',v=>v.z.toFixed(1)],['of ADV20',v=>v.x.toFixed(0)+'%'],['vs own',v=>'P'+v.p],['Level',v=>v.p>=95?'Strong':'Watch']],
+  rows:{DOOH:{buy5:28.4,n1:6.2,z:7.4,x:41,p:100},DRMA:{buy5:21.7,n1:2.9,z:4.1,x:18,p:99},GEMS:{buy5:19.8,n1:4.4,z:3.6,x:22,p:98},GDST:{buy5:6.1,n1:.9,z:3.3,x:14,p:97},
+   BOBA:{buy5:4.8,n1:.6,z:3.1,x:12,p:96},SRTG:{buy5:24.9,n1:2.2,z:3.4,x:11,p:91},MSIN:{buy5:5.3,n1:.7,z:3.2,x:13,p:88},TRIN:{buy5:3.9,n1:.4,z:3.1,x:10,p:84},
+   MSJA:{buy5:2.6,n1:.3,z:3,x:12,p:90},FUTR:{buy5:12.8,n1:1.1,z:3.5,x:10,p:93}}}];
+FILTERS[3].rows=FILTERS[4].rows={BOGA:{buy5:62.9,net:61.8,ratio:98.2,v1d:96.4,v2:98.4,v2d:10.3,days:4,flag:'One-day block: Rp 61.8B of the foreign net came on 28 Oct'},
+ MSIN:{buy5:5.3,net:4.1,ratio:77.2,v1d:73.9,v2:99.6,v2d:40.1,days:3},DKFT:{buy5:32.3,net:14.8,ratio:45.9,v1d:75.8,v2:100,v2d:96.4,days:3},
+ ARKO:{buy5:36.9,net:11,ratio:29.8,v1d:17.7,v2:98.8,v2d:12.3,days:5},KOTA:{buy5:73.3,net:15,ratio:20.5,v1d:26,v2:99.6,v2d:92.5,days:5},
+ KLBF:{buy5:169.4,net:33.2,ratio:19.6,v1d:15.6,v2:98,v2d:15.9,days:4},COIN:{buy5:35.1,net:6.5,ratio:18.5,v1d:21.3,v2:98.4,v2d:59.1,days:3},
+ MBMA:{buy5:247.4,net:38.6,ratio:15.6,v1d:17.7,v2:97.6,v2d:47.2,days:4},CDIA:{buy5:82.4,net:10.8,ratio:13.1,v1d:25.2,v2:98.4,v2d:97.2,days:3},
+ RATU:{buy5:90.1,net:11.8,ratio:13.1,v1d:7.9,v2:98.4,v2d:11.9,days:4},DEWA:{buy5:797.1,net:82.9,ratio:10.4,v1d:12.5,v2:97.2,v2d:52.8,days:4},
+ SSIA:{buy5:68.1,net:6.2,ratio:9.1,v1d:11.6,v2:96,v2d:55.6,days:4},BNBR:{buy5:94.3,net:5,ratio:5.3,v1d:7.4,v2:95.2,v2d:69,days:2},
+ MYOR:{buy5:36.7,net:8.3,ratio:22.6,v1d:46.2,v2:94,v2d:31,days:3},WIIM:{buy5:54.6,net:14.1,ratio:25.9,v1d:30.2,v2:92.1,v2d:22.4,days:4}};
+const fid=f=>f.label||f.id;
+
+/* ================= state ================= */
+const ST={uni:'all',gate:'broad',lv:1,show:'all',q:'',dmode:'v1',last:'S1',detail:{sort:'own',prev:'1Y',q:'',day:0}};
+const met=(f,v)=>f.conds(ST.lv).map(c=>!!c[1](v));
+function evalRows(f,{withNear=false}={}){
+  const out=[],near=[];
+  for(const [t,v] of Object.entries(f.rows)){
+    if(v.buy5<GATE[ST.gate].cut||!inUni(t,ST.uni))continue;
+    const m=met(f,v),miss=m.filter(x=>!x).length;
+    if(f.own){if(m[0]&&m[1])out.push({t,v,m});else if(withNear&&miss===1)near.push({t,v,m});continue}
+    if(!miss)out.push({t,v,m});else if(withNear&&miss===1)near.push({t,v,m})}
+  out.sort((a,b)=>f.sort(b.v)-f.sort(a.v));near.sort((a,b)=>f.sort(b.v)-f.sort(a.v));return {hits:out,near}}
+const dayRaw=(f,t)=>{const r=rng(hsh(f.id+t))();return r<.38?1:1+Math.floor(r*9)};
+/* S6Δ is built on S6, so a stock cannot have been in S6Δ longer than in S6 */
+const dayOf=(f,t)=>f.id==='S6D'?Math.min(dayRaw(f,t),dayRaw(FILTERS[3],t)):dayRaw(f,t);
+const hitSet=f=>new Set(evalRows(f).hits.map(h=>h.t));
+function alsoIn(f,t){return FILTERS.filter(g=>g!==f&&hitSet(g).has(t))}
+const visibleHits=f=>evalRows(f).hits.filter(h=>{const d=dayOf(f,h.t);
+  if(ST.show==='new'&&d!==1)return false;if(ST.show==='multi'&&!alsoIn(f,h.t).length)return false;
+  if(ST.q&&!(h.t+' '+STK[h.t][0]).toLowerCase().includes(ST.q))return false;return true});
+const isDefault=()=>ST.uni==='all'&&ST.gate==='broad'&&ST.lv===1&&ST.show==='all'&&!ST.q;
+/* daily counts: illustrative series ending at today's count */
+function hist(f,len){const r=rng(hsh(f.id)*3+1),n=evalRows(f).hits.length;let v=Math.max(1,n*.7);const a=[];for(let i=0;i<len;i++){v=Math.max(0,v+(r()-.49)*1.8);a.push(Math.round(v))}a[len-1]=n;return a}
+const exits=f=>{const r=rng(hsh(f.id)+99),pool=Object.keys(f.rows).filter(t=>!hitSet(f).has(t));const n=Math.min(pool.length,1+Math.floor(r()*2));return pool.slice(0,n).map(t=>({t,why:met(f,f.rows[t]).findIndex(x=>!x)}))};
+
+/* ================= shared UI ================= */
+const sparkBars=(a,w,h,last)=>{const m=Math.max(1,...a),bw=w/a.length;return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${a.map((v,i)=>{const hh=Math.max(1.5,v/m*(h-2));return `<rect x="${i*bw+.5}" y="${h-hh}" width="${bw-1.5}" height="${hh}" rx="1" fill="${i===a.length-1?(last||'var(--text)'):'var(--gray-300)'}"/>`}).join('')}</svg>`};
+/* 20-session price line for a board card: direction of the stock, no filter internals */
+function priceSpark(t){const R=rng(hsh(t)+5),a=[];let v=1;for(let i=0;i<20;i++){v*=1+(R()-.49)*.04;a.push(v)}const lo=Math.min(...a),hi=Math.max(...a),up=a[19]>=a[0],W=46,H=16;
+  return `<svg class="ks" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${t} price, last 20 sessions, ${up?'up':'down'}"><polyline fill="none" stroke="${up?'var(--up)':'var(--down)'}" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" points="${a.map((x,i)=>(i/19*(W-2)+1).toFixed(1)+','+(1+(hi-x)/((hi-lo)||1)*(H-2)).toFixed(1)).join(' ')}"/></svg>`}
+/* the column's stock count: one dot per stock up to 10, then +N, and the number (option 8, user 2026-11-14) */
+const countMark=n=>`<span class="cnt8 ${n?'':'z'}" aria-hidden="true">${'<i></i>'.repeat(Math.min(n,10))}${n>10?`<em>+${n-10}</em>`:''}<b>${n}</b></span>`;
+const dayTag=d=>d===1?'<span class="tag new">New</span>':`<span class="tag">Day ${d}</span>`;
+const flagTag=v=>v.flag?`<span class="tag warn" title="${esc(v.flag)}">Outlier</span>`:'';
+function dropdown(btn,items,onPick,opts={}){closeMenus();const r=btn.getBoundingClientRect(),m=document.createElement('div');
+  m.className='pop menu';m.setAttribute('role','listbox');m.style.cssText=`position:fixed;left:${Math.max(8,Math.min(r.left,innerWidth-(opts.w||260)-12))}px;top:${r.bottom+6}px;width:${opts.w||260}px;z-index:var(--z-pop)`;
+  m.innerHTML=items.map(it=>it.title?`<div class="menu-title">${it.title}</div>`:it.note?`<div class="menu-note">${it.note}</div>`:`<button class="menu-item ${it.on?'on':''}" role="option" aria-selected="${!!it.on}" ${it.disabled?'disabled':''} data-v="${esc(it.v)}"><span>${it.label}</span>${it.right?`<span class="mr">${it.right}</span>`:''}</button>`).join('');
+  document.body.appendChild(m);btn.setAttribute('aria-expanded','true');const os=$$('.menu-item:not([disabled])',m);(os.find(b=>b.classList.contains('on'))||os[0])?.focus();
+  m.addEventListener('click',e=>{const b=e.target.closest('.menu-item');if(!b||b.disabled)return;closeMenus();onPick(b.dataset.v);btn.focus()});
+  m.addEventListener('keydown',e=>{const i=os.indexOf(document.activeElement);if(e.key==='ArrowDown'){e.preventDefault();os[(i+1)%os.length].focus()}if(e.key==='ArrowUp'){e.preventDefault();os[(i-1+os.length)%os.length].focus()}if(e.key==='Escape'){closeMenus();btn.focus()}});m._btn=btn}
+function closeMenus(){$$('.menu').forEach(m=>{m._btn?.setAttribute('aria-expanded','false');m.remove()})}
+document.addEventListener('mousedown',e=>{if(!e.target.closest('.menu')&&!e.target.closest('[aria-haspopup]'))closeMenus()});
+addEventListener('resize',closeMenus);addEventListener('scroll',closeMenus,true);
+const uniName=()=>UNIS.find(u=>u[0]===ST.uni);
+function uniMenu(btn,after){dropdown(btn,[{v:'all',label:'All stocks',on:ST.uni==='all'},{title:'Index'},...UNIS.filter(u=>u[2]==='Index').map(u=>({v:u[0],label:u[1],on:u[0]===ST.uni})),{title:'Group'},...UNIS.filter(u=>u[2]==='Group').map(u=>({v:u[0],label:u[1],on:u[0]===ST.uni})),{note:'Narrows the results shown. Ranks across stocks (S2, S3) stay computed on every stock that passes the gate.'}],v=>{ST.uni=v;after()},{w:270})}
+const uniBtn=(cls='btn uni',compact=false)=>{const u=uniName();return `<button class="${cls}" data-act="uni" aria-haspopup="listbox" aria-expanded="false" aria-label="Universe: ${esc(u[1])}">${compact?'':ic('search')}<span class="uv"><b>${esc(u[1])}</b>${compact?'':`<span>${u[2]}</span>`}</span>${ic('chev')}</button>`};
+const seg=(key,opts,lbl)=>`<div class="f"><span class="lbl" id="${key}L">${lbl}</span><div class="seg sm" role="radiogroup" aria-labelledby="${key}L" data-seg="${key}">${opts.map(([v,l,t])=>`<button role="radio" aria-checked="${String(ST[key])===String(v)}" class="${String(ST[key])===String(v)?'on':''}" data-v="${v}"${t?` title="${esc(t)}"`:''}>${l}</button>`).join('')}</div></div>`;
+const statusPills=()=>`<span class="pill" title="Daily prices loaded to this session"><span class="dot"></span>Prices to Thu 12 Nov</span><span class="pill warn" title="Broker data arrives after the price data. Results use the last date both sources have."><span class="dot"></span>Broker data to Mon 9 Nov</span>`;
+const dateBtn=()=>`<button class="btn" data-act="date" aria-haspopup="listbox" aria-expanded="false">${ic('cal')}Results for Mon 9 Nov${ic('chev')}</button>`;
+function bindDate(){const b=$('[data-act=date]');if(b)b.onclick=e=>dropdown(e.currentTarget,[{v:'9',label:'Mon 9 Nov · after close',on:true},{v:'6',label:'Fri 6 Nov · after close',disabled:true,right:'not in prototype'},{v:'5',label:'Thu 5 Nov · after close',disabled:true,right:'not in prototype'},{note:'A date has results once prices and broker data for it are both loaded.'}],()=>{},{w:300})}
+
+/* ================= view: Radar (board) ================= */
+function renderRadar(){
+  document.title='EDGE — Radar';
+  view.innerHTML=`<div class="head"><div><h1>Radar</h1><p class="muted">Stocks picked up by the screener library, and which filters found them. Candidates to study, not buy or sell signals.</p></div>
+   <div class="actions">${statusPills()}${dateBtn()}</div></div>
+  <div class="card bar-t">${uniBtn()}
+   ${seg('gate',[['broad','Broad',`${GATE.broad.help}. On 9 Nov: at least Rp ${GATE.broad.cut}B over 5 sessions`],['liquid','Liquid',`${GATE.liquid.help}. On 9 Nov: at least Rp ${GATE.liquid.cut}B over 5 sessions`]],'Gate')}
+   <span class="gh muted">≥ Rp ${GATE[ST.gate].cut}B / 5 days</span>
+   ${seg('lv',LV.map((l,i)=>[i,l]),'Level')}
+   ${seg('show',[['all','All hits'],['new','New today'],['multi','In 2+ filters']],'Show')}
+   <span class="sp"></span><label class="srch">${ic('search')}<input id="rq" placeholder="Find a ticker in results" value="${esc(ST.q)}" aria-label="Find a ticker in results"></label></div>
+  <div class="kb" id="kb"></div>`;
+  drawKanban();
+  $('[data-act=uni]',view).onclick=e=>uniMenu(e.currentTarget,renderRadar);bindDate();
+  $$('[data-seg]',view).forEach(s=>s.onclick=e=>{const b=e.target.closest('button');if(!b)return;ST[s.dataset.seg]=s.dataset.seg==='lv'?+b.dataset.v:b.dataset.v;renderRadar();$(`[data-seg=${s.dataset.seg}] .on`)?.focus()});
+  const q=$('#rq',view);q.oninput=()=>{ST.q=q.value.trim().toLowerCase();drawKanban()};q.onkeydown=e=>{if(e.key==='Escape'){q.value='';ST.q='';drawKanban()}};
+}
+function drawKanban(){
+  const kb=$('#kb');if(!kb)return;let tot=0;
+  kb.innerHTML=FILTERS.map(f=>{const hs=visibleHits(f),h=hist(f,20),d=h[19]-h[18];tot+=hs.length;
+   return `<section class="card kc ${f.id===ST.last?'on':''}" aria-label="${fid(f)} ${esc(f.name)}"><button class="kh" data-open="${f.id}" aria-label="Open ${fid(f)}, ${esc(f.name)}, ${hs.length} stocks"><div style="display:flex;align-items:center;gap:var(--s-3)"><b>${fid(f)}</b><span class="grow" style="flex:1"></span>${countMark(hs.length)}</div><small>${esc(f.name)}</small>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-3)">${sparkBars(h,70,18)}<span class="${isDefault()?cl(d):''}" style="font-size:var(--fs-xs)">${f.own&&ST.lv!==1?'<span class="muted" title="S8 has its own levels: Strong and Watch">own levels</span>':isDefault()?`${d>=0?'+':'−'}${Math.abs(d)} vs yday`:'<span class="muted">filtered</span>'}</span></div></button>
+   <div class="kl">${hs.map(h=>{const s=STK[h.t],o=alsoIn(f,h.t).length,lvl=f.own?(h.m[2]?'':'<span class="tag" title="Large and unusual, below the top 5% of its own history">Watch</span>'):'';
+    return `<button class="ki" data-open="${f.id}" data-stock="${h.t}" aria-label="${h.t}, ${sg(s[2])}"><div class="t"><b>${h.t}</b><span class="${cl(s[2])}">${sg(s[2])}</span></div><div class="t2">${dayTag(dayOf(f,h.t))}${lvl}${o?`<span class="tag" title="Also in ${alsoIn(f,h.t).map(fid).join(', ')}">+${o}</span>`:''}${flagTag(h.v)}<span class="ksp" title="Price, last 20 sessions">${priceSpark(h.t)}</span></div></button>`}).join('')||`<p class="empty-col">${emptyCol(f)}</p>`}</div></section>`}).join('');
+  if(!tot)kb.insertAdjacentHTML('beforeend',`<div class="kb-empty card"><b>No stocks match these settings.</b><span class="muted">Try All stocks, the Broad gate or the Loose level.</span><button class="btn sm" id="rst">Reset settings</button></div>`);
+  const r=$('#rst');if(r)r.onclick=()=>{Object.assign(ST,{uni:'all',gate:'broad',lv:1,show:'all',q:''});renderRadar()};
+  $$('[data-open]',kb).forEach(b=>b.onclick=()=>go(`#/filter/${b.dataset.open}${b.dataset.stock?'?s='+b.dataset.stock:''}`));
+}
+const emptyCol=f=>ST.q?'No match for this search.':ST.uni!=='all'?`None in ${esc(uniName()[1])} today.`:ST.show!=='all'?'None with this view.':`None pass at the ${LV[ST.lv]} level.`;
+
+/* ================= view: filter detail ================= */
+const HLEN=250,MONS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],DOWS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function tradingDays(n){const out=[];let d=new Date(Date.UTC(2026,10,9));while(out.length<n){if(d.getUTCDay()%6)out.unshift(new Date(d));d=new Date(d-864e5)}return out}
+const DAYS=tradingDays(HLEN);
+const IHSG=(()=>{const r=rng(2611),a=[];let v=0;for(let i=0;i<HLEN;i++){v+=(r()-.5)*1.6+Math.sin(i/23)*.35;a.push(v)}const lo=Math.min(...a),hi=Math.max(...a);return a.map(x=>6850+(x-lo)/(hi-lo)*1100)})();
+function renderDetail(id,stock){
+  const f=FILTERS.find(x=>x.id===id);if(!f)return renderMissing(`Filter ${esc(id)}`);
+  if(ST._f!==id){ST.detail.day=0;ST.detail.q='';ST._f=id}ST.last=id;document.title=`EDGE — Radar · ${fid(f)}`;
+  const {hits,near}=evalRows(f,{withNear:true}),qn=ST.detail.q.trim().toLowerCase(),keep=h=>!qn||(h.t+' '+STK[h.t][0]).toLowerCase().includes(qn);
+  let rows=hits.filter(keep);const nr=near.filter(keep);
+  if(ST.detail.sort==='new')rows.sort((a,b)=>dayOf(f,a.t)-dayOf(f,b.t)||f.sort(b.v)-f.sort(a.v));
+  const sel=rows.find(r=>r.t===stock)||nr.find(r=>r.t===stock)||rows[0];
+  const C=f.conds(ST.lv),L='ABCD';
+  view.innerHTML=`<div class="head"><div><p class="crumb"><button class="lk" data-go="#/radar">${ic('chevl')}Radar</button></p><h1 style="display:flex;align-items:center;gap:var(--s-5)">${fid(f)} · ${esc(f.name)}</h1><p class="muted">${esc(f.q)}</p></div>
+   <div class="actions">${statusPills()}<button class="btn" data-act="follow">${ic('saved')}Follow</button></div></div>
+  <div class="note-read card">${ic('info')}<span><b>How to read it.</b> ${esc(f.warn)} ${f.own?'S8 uses its own levels, so the Level switch does not change it.':''}</span></div>
+  <div class="top3"><div class="card"><div class="card-h chart-h"><h3>Stocks found per day</h3><span class="lg"><i class="sw bar"></i>Stocks found (left)</span><span class="lg"><i class="sw ln"></i>IHSG (right)</span><span class="grow"></span><span class="hint">Last 250 sessions · select a bar to see that day</span></div><div class="hist" id="h60"></div></div>
+   <div class="card tdy" id="tdy"></div></div>
+  <div class="dg"><div class="card ct"><div class="ct-head"><div class="card-h"><h3>Candidates</h3><span class="hint">${qn?`${rows.length} of ${hits.length}`:rows.length} stocks${f.own?'':` meet all ${C.length}`}${nr.length?` · ${nr.length} near miss${nr.length>1?'es':''}`:''} · ${LV[ST.lv]} · ${GATE[ST.gate].label} gate</span></div>
+    <div class="ct-r">${f.id==='S6D'?`<div class="sortg"><span class="lbl" id="dmL">Change in</span><div class="seg sm" role="radiogroup" aria-labelledby="dmL" data-dseg="dmode">${[['v1','Ratio'],['v2','Rank'],['both','Both']].map(([v,l])=>`<button role="radio" aria-checked="${ST.dmode===v}" class="${ST.dmode===v?'on':''}" data-v="${v}">${l}</button>`).join('')}</div></div>`:''}
+     <label class="srch">${ic('search')}<input id="cq" placeholder="Find a ticker or name" value="${esc(ST.detail.q)}" aria-label="Find a candidate" autocomplete="off"></label>${uniBtn('btn sm uni',true)}
+     <div class="sortg"><span class="lbl" id="soL">Sort</span><div class="seg sm" role="radiogroup" aria-labelledby="soL" data-dseg="sort">${[['own','By '+f.sortBy],['new','New first']].map(([v,l])=>`<button role="radio" aria-checked="${ST.detail.sort===v}" class="${ST.detail.sort===v?'on':''}" data-v="${v}">${l}</button>`).join('')}</div></div></div></div>
+    <div class="conds">${C.map((c,k)=>`<span><i>${L[k]}</i>${esc(c[0])}</span>`).join('')}</div>
+    <div class="tbl-wrap"><table class="tbl" id="tb"></table></div></div>
+   <div class="card pv" id="pv" aria-live="polite"></div></div>`;
+  const dots=m=>`<span class="dots" aria-label="${m.filter(Boolean).length} of ${m.length} conditions met">${m.map((x,k)=>`<i class="${x?'':'off'}" title="${esc(C[k][0])}: ${x?'met':'not met'}">${L[k]}</i>`).join('')}</span>`;
+  const also=t=>alsoIn(f,t).map(g=>`<span class="tag">${fid(g)}</span>`).join('')||'<span class="muted">—</span>';
+  const row=(r,nm)=>{const s=STK[r.t];return `<tr tabindex="0" data-s="${r.t}" class="${r===sel?'on':''} ${nm?'nm':''}" aria-selected="${r===sel}"><td class="l tk"><b>${r.t}</b><small>${esc(s[0])}</small></td><td>${dots(r.m)}</td><td class="${nm?'':cl(s[2])}">${sg(s[2])}</td>
+    ${f.cols.map(c=>`<td class="${c[2]&&!nm?c[2](r.v):''}">${c[1](r.v)}</td>`).join('')}<td class="l">${nm?'<span class="tag">Near miss</span>':dayTag(dayOf(f,r.t))}${flagTag(r.v)}</td><td class="l">${also(r.t)}</td></tr>`};
+  $('#tb').innerHTML=`<thead><tr><th class="l">Stock</th><th>Conditions</th><th>1D</th>${f.cols.map(c=>`<th>${c[0]}</th>`).join('')}<th class="l">In radar</th><th class="l">Also in</th></tr></thead><tbody>`+
+   (rows.map(r=>row(r)).join('')||`<tr><td colspan="${f.cols.length+5}" class="l muted" style="height:80px;text-align:center">${qn?`No candidate matches “${esc(ST.detail.q.trim())}”.`:`No stock passes at the ${LV[ST.lv]} level with this gate and universe.`}</td></tr>`)+
+   (nr.length?`<tr class="sep"><td colspan="${f.cols.length+5}" class="l">Near misses · all but one condition met</td></tr>`+nr.map(r=>row(r,1)).join(''):'')+'</tbody>';
+  $$('#tb tr[data-s]').forEach(tr=>{const pick=()=>{history.replaceState(null,'',`#/filter/${id}?s=${tr.dataset.s}`);renderDetail(id,tr.dataset.s);$(`#tb tr[data-s="${tr.dataset.s}"]`)?.focus()};tr.onclick=pick;
+   tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();pick()}if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();let n=e.key==='ArrowDown'?tr.nextElementSibling:tr.previousElementSibling;while(n&&!n.dataset.s)n=e.key==='ArrowDown'?n.nextElementSibling:n.previousElementSibling;n?.focus()}}});
+  drawToday(f);drawHist(f);preview(f,sel,C);
+  $('[data-act=follow]').onclick=()=>toast('Coming soon');$('[data-go]').onclick=()=>go('#/radar');
+  const cq=$('#cq');cq.oninput=()=>{const p=cq.selectionStart;ST.detail.q=cq.value;renderDetail(id,sel&&sel.t);const n=$('#cq');n.focus();n.setSelectionRange(p,p)};
+  $('[data-act=uni]').onclick=e=>uniMenu(e.currentTarget,()=>renderDetail(id,stock));
+  $$('[data-dseg]',view).forEach(s=>s.onclick=e=>{const b=e.target.closest('button');if(!b)return;if(s.dataset.dseg==='dmode')ST.dmode=b.dataset.v;else ST.detail.sort=b.dataset.v;renderDetail(id,sel&&sel.t);$(`[data-dseg=${s.dataset.dseg}] .on`)?.focus()});
+}
+function drawHist(f,noDay){const el=$('#h60');if(!el)return;const H60=hist(f,HLEN),cs=getComputedStyle(el),W=Math.round(el.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight)),H=Math.max(112,Math.round(el.clientHeight-parseFloat(cs.paddingBottom))),m=Math.max(1,...H60),PL=28,PR=46,bw=(W-PL-PR)/HLEN;
+  const selI=HLEN-1-ST.detail.day,fI=v=>v.toLocaleString('en-US',{maximumFractionDigits:0}),lo=Math.min(...IHSG)-40,hi=Math.max(...IHSG)+40,yI=v=>6+(1-(v-lo)/(hi-lo))*(H-24);
+  let s=`<line x1="${PL}" x2="${W-PR}" y1="${H-18}" y2="${H-18}" stroke="var(--border)"/>`;const step=m>12?5:m>6?2:1;
+  for(let v=0;v<=m;v+=step)s+=`<text x="20" y="${H-14-v/m*(H-26)}" text-anchor="end" font-size="10.5" fill="var(--text-3)">${v}</text>`;
+  for(let t=Math.ceil(Math.min(...IHSG)/250)*250;t<=Math.max(...IHSG);t+=250)s+=`<text x="${W-PR+8}" y="${yI(t)+3.5}" font-size="10.5" fill="var(--text-3)">${fI(t)}</text>`;
+  H60.forEach((v,i)=>{const h=v/m*(H-26);s+=`<rect x="${PL+i*bw+(bw>3?1:0)}" y="${H-18-h}" width="${Math.max(1,bw-(bw>3?2:.5))}" height="${h}" rx="${bw>3?1:0}" fill="${i===selI?'var(--text)':i===HLEN-1?'var(--gray-500)':'var(--gray-300)'}"/>`});
+  s+=`<polyline fill="none" stroke="var(--ihsg)" stroke-width="1.5" stroke-linejoin="round" points="${IHSG.map((v,i)=>`${(PL+(i+.5)*bw).toFixed(1)},${yI(v).toFixed(1)}`).join(' ')}"/>`;
+  H60.forEach((v,i)=>{const d=DAYS[i];s+=`<rect class="hb" data-i="${i}" x="${PL+i*bw}" y="0" width="${bw}" height="${H-18}" fill="transparent"><title>${DOWS[d.getUTCDay()]} ${d.getUTCDate()} ${MONS[d.getUTCMonth()]} · ${v} stocks</title></rect>`});
+  let lx=-99;DAYS.forEach((dd,i)=>{if(i===0||dd.getUTCMonth()!==DAYS[i-1].getUTCMonth()){const x=PL+i*bw;if(x-lx>36){s+=`<text x="${x}" y="${H-2}" font-size="10.5" fill="var(--text-3)">${MONS[dd.getUTCMonth()]}</text>`;lx=x}}});
+  el.innerHTML=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Stocks found per day and IHSG. Use left and right arrows to change day.">${s}</svg>`;el.tabIndex=0;
+  $$('.hb',el).forEach(r=>r.onclick=()=>{ST.detail.day=HLEN-1-+r.dataset.i;drawHist(f)});
+  el.onkeydown=e=>{if(e.key==='ArrowLeft'&&ST.detail.day<HLEN-1){e.preventDefault();ST.detail.day++;drawHist(f);el.focus()}if(e.key==='ArrowRight'&&ST.detail.day>0){e.preventDefault();ST.detail.day--;drawHist(f);el.focus()}};
+  if(!el._ro){el._ro=new ResizeObserver(()=>{const c=getComputedStyle(el),w=Math.round(el.clientWidth-parseFloat(c.paddingLeft)-parseFloat(c.paddingRight)),h=Math.max(112,Math.round(el.clientHeight-parseFloat(c.paddingBottom)));const sv=$('svg',el);if(sv&&(+sv.getAttribute('width')!==w||+sv.getAttribute('height')!==h))drawHist(f,true)});el._ro.observe(el)}
+  if(!noDay)drawDay(f)}
+function drawDay(f){const p=$('#dayp');if(!p)return;const k=ST.detail.day,d=DAYS[HLEN-1-k],today=k===0,cnt=hist(f,HLEN)[HLEN-1-k],hs=evalRows(f).hits.map(h=>h.t);
+  const r=rng(hsh(f.id)+k*7),pool=Object.keys(f.rows),mem=today?hs:pool.filter(()=>r()<.6).slice(0,cnt);
+  p.innerHTML=`<div class="dh"><b>${DOWS[d.getUTCDay()]} ${d.getUTCDate()} ${MONS[d.getUTCMonth()]}${today?' · today':''}</b><span class="muted">${cnt} stocks</span>${today?'':`<button class="lk" data-today>Back to today</button>`}</div>
+   <div class="dchips">${mem.map(t=>`<button class="tkc ${hs.includes(t)?(today&&dayOf(f,t)===1?'nw':''):'gone'}" data-t="${t}">${t}</button>`).join('')||'<span class="muted">No stocks this day.</span>'}</div>${today?'':'<p class="dleg"><span class="tkc">BOGA</span> still in today <span class="tkc gone">BOGA</span> no longer in</p>'}`;
+  const bt=$('[data-today]',p);if(bt)bt.onclick=()=>{ST.detail.day=0;drawHist(f)};
+  $$('.dchips .tkc',p).forEach(c=>c.onclick=()=>{const t=c.dataset.t;if(!hs.includes(t)){toast(`${t} is not in ${fid(f)} today, so it has no row in Candidates.`);return}history.replaceState(null,'',`#/filter/${f.id}?s=${t}`);renderDetail(f.id,t)})}
+function drawToday(f){const el=$('#tdy');if(!el)return;const hs=evalRows(f).hits,nw=hs.filter(h=>dayOf(f,h.t)===1),cont=hs.filter(h=>dayOf(f,h.t)>1),left=exits(f),avg=cont.length?cont.reduce((a,h)=>a+dayOf(f,h.t),0)/cont.length:0;
+  const ov=FILTERS.filter(g=>g!==f).map(g=>[g,hs.filter(h=>hitSet(g).has(h.t)).length]).sort((a,b)=>b[1]-a[1])[0],C=f.conds(ST.lv);
+  el.innerHTML=`<div class="card-h"><h3>Today in ${fid(f)}</h3><span class="hint">vs the previous session</span></div>
+   <div class="hs"><div><div class="v">${nw.length}</div><div class="l">entered</div></div><div><div class="v">${cont.length}</div><div class="l">stayed · avg ${avg.toFixed(1)} days</div></div><div><div class="v">${left.length}</div><div class="l">left</div></div></div>
+   <div class="tdl"><span class="muted">Left</span><span class="tk3">${left.map(o=>`<span class="tkc out" title="${esc(C[o.why]?.[0]||'')} no longer met">${o.t}<i>${'ABCD'[o.why]}</i></span>`).join('')||'<span class="muted">none</span>'}</span></div>
+   <div class="tdl"><span class="muted">Most overlap</span><span>${ov&&ov[1]?`<b>${fid(ov[0])}</b> · ${ov[1]} of ${hs.length} stocks also there`:'<span class="muted">none</span>'}</span></div>
+   <div class="dayp" id="dayp" aria-live="polite"></div>`}
+function preview(f,sel,C){const pv=$('#pv');if(!sel){pv.innerHTML=`<div class="card-h"><h3>No stock selected</h3></div><p class="muted" style="padding:0 var(--s-8) var(--s-8)">Select a candidate to see why it is here.</p>`;return}
+  const t=sel.t,S=STK[t],R=rng(hsh(t)),N=250,len={'3M':63,'6M':126,'1Y':250}[ST.detail.prev],I0=N-len;
+  const c=[];let v=1;for(let i=0;i<N;i++){v*=1+(R()-.49)*.035;c.push(v)}const k0=S[1]/c[N-1];for(let i=0;i<N;i++)c[i]*=k0;
+  const eps=[];let end=N-1,run=dayOf(f,t);if(sel.m.every(Boolean)||f.own&&sel.m[0]&&sel.m[1])eps.push([N-run,N-1]);else end=N-2-Math.floor(R()*5);
+  let st=eps.length?N-run-1:end;while(st>0){st-=6+Math.floor(R()*30);const L2=1+Math.floor(R()*5);if(st-L2<0)break;eps.unshift([st-L2+1,st]);st-=L2}
+  const vis=eps.filter(e=>e[1]>=I0),act=vis.reduce((a,e)=>a+e[1]-Math.max(e[0],I0)+1,0);
+  const pad=16,W=Math.round(pv.clientWidth-2*pad)||330,PL=38,H=96,BH=22,cc=c.slice(I0),lo=Math.min(...cc),hi=Math.max(...cc),bw=(W-PL)/len,xf=k=>PL+(k+.5)*bw,yf=x=>4+(hi-x)/(hi-lo)*(H-8),fd=i=>{const d=DAYS[i];return `${d.getUTCDate()} ${MONS[d.getUTCMonth()]}`};
+  const raw=(hi-lo)/3,mag=Math.pow(10,Math.floor(Math.log10(raw||1))),stp=Math.max(1,[1,2,2.5,5,10].map(n=>n*mag).find(x=>x>=raw));
+  let g='';for(let x=Math.ceil(lo/stp)*stp;x<=hi;x+=stp)g+=`<text x="${PL-6}" y="${(yf(x)+3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text-3)">${px(x)}</text>`;
+  vis.forEach(e=>{const a=Math.max(e[0],I0);g+=`<rect x="${PL+(a-I0)*bw}" y="0" width="${(e[1]-a+1)*bw}" height="${H}" fill="var(--gray-100)"/>`});
+  g+=`<polyline fill="none" stroke="var(--text)" stroke-width="1.3" stroke-linejoin="round" points="${cc.map((x,k)=>xf(k).toFixed(1)+','+yf(x).toFixed(1)).join(' ')}"/><rect x="${PL}" y="${H+6}" width="${W-PL}" height="${BH}" rx="3" fill="var(--gray-50)"/>`;
+  vis.forEach(e=>{const a=Math.max(e[0],I0);g+=`<rect x="${PL+(a-I0)*bw}" y="${H+9}" width="${Math.max(2,(e[1]-a+1)*bw)}" height="${BH-6}" fill="var(--text)"/>`});
+  let lx=-99;for(let k=0;k<len;k++){const i=I0+k;if(k===0||DAYS[i].getUTCMonth()!==DAYS[i-1].getUTCMonth()){const x=PL+k*bw;if(x-lx>40){g+=`<text x="${x}" y="${H+BH+20}" font-size="10" fill="var(--text-3)">${MONS[DAYS[i].getUTCMonth()]}</text>`;lx=x}}}
+  const recent=vis.slice(-3).reverse().map(e=>{const L2=e[1]-e[0]+1;return `<div class="kv2"><span>${fd(e[0])}${L2>1?' – '+fd(e[1]):''}</span><b>${e[1]===N-1?'<span class="tag new">Active · day '+L2+'</span>':L2+' day'+(L2>1?'s':'')}</b></div>`}).join('');
+  pv.innerHTML=`<div class="card-h"><h3>${t}</h3><span class="hint">${esc(S[0])}</span><span class="grow"></span><b style="font-weight:var(--fw-semibold)">${px(S[1])}</b><span class="${cl(S[2])}" style="font-size:var(--fs-12)">${sg(S[2])}</span></div>
+   ${sel.v.flag?`<div class="flagnote">${ic('info')}<span>${esc(sel.v.flag)}. Check for a block trade or corporate action before reading the flow.</span></div>`:''}
+   <div class="sec"><div style="display:flex;align-items:center;gap:var(--s-4);margin-bottom:var(--s-4)"><span class="eyebrow2" style="margin:0">When ${fid(f)} found it</span><span style="flex:1"></span><div class="seg sm" role="radiogroup" aria-label="Range" data-pv>${['3M','6M','1Y'].map(r=>`<button role="radio" aria-checked="${ST.detail.prev===r}" class="${ST.detail.prev===r?'on':''}" data-v="${r}">${r}</button>`).join('')}</div></div>
+    <svg width="${W}" height="${H+BH+24}" viewBox="0 0 ${W} ${H+BH+24}" role="img" aria-label="Price of ${t} with the days ${fid(f)} found it">${g}</svg>
+    <div class="kv2" style="margin-top:var(--s-3)"><span><b style="color:var(--text)">${act}</b> days found · <b style="color:var(--text)">${vis.length}</b> runs in ${ST.detail.prev}</span></div><div style="margin-top:var(--s-3)">${recent}</div></div>
+   <div class="acts"><button class="btn sm primary" data-act="term">Open ${t} in Terminal</button></div>`;
+  $('[data-act=term]',pv).onclick=()=>toast(`${t} opens in the Terminal (not part of this prototype).`);
+  $('[data-pv]',pv).onclick=e=>{const b=e.target.closest('button');if(!b)return;ST.detail.prev=b.dataset.v;preview(f,sel,C)}}
+
+/* ================= shell rail, routing ================= */
+function renderMissing(n){document.title='EDGE — '+n;view.innerHTML=`<div class="missing card"><h1>${esc(n)}</h1><p class="muted">This page is not part of this prototype. Only Radar and the filter detail page are included.</p><button class="btn primary" data-go="#/radar">Go to Radar</button></div>`;$('[data-go]',view).onclick=()=>go('#/radar')}
+function go(h){if(location.hash===h)route();else location.hash=h}
+function route(){closeMenus();const h=location.hash||'#/radar',[path,qs]=h.slice(1).split('?'),p=new URLSearchParams(qs||''),seg=path.split('/').filter(Boolean);
+  if(seg[0]==='filter')renderDetail(seg[1],p.get('s'));else if(!seg.length||seg[0]==='radar')renderRadar();
+  else renderMissing({monitor:'Monitor',terminal:'Terminal',backtest:'Backtest',screener:'Screener'}[seg[0]]||'Page');
+  $$('.side-nav [data-nav]').forEach(b=>{const on=b.dataset.nav===(seg[0]==='filter'||!seg.length?'radar':seg[0]);b.classList.toggle('active',on);on?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current')});view.scrollTop=0}
+addEventListener('hashchange',route);
+$$('.side-nav [data-nav]').forEach(b=>b.onclick=()=>go('#/'+b.dataset.nav));
+$('[data-act=theme]').onclick=e=>{const dark=document.documentElement.dataset.theme!=='dark';document.documentElement.dataset.theme=dark?'dark':'light';e.currentTarget.dataset.tip=dark?'Light theme':'Dark theme';route()};
+$$('[data-act=soon]').forEach(b=>b.onclick=()=>toast(`${b.getAttribute('aria-label')} is not part of this prototype.`));
+route();
+})();
+
+</script>
+<!--
+R10 PROTOTYPE NOTES (2026-11-14). Built from index-r9.html with the user's decisions of 2026-11-12 to 2026-11-14
+(PLAN.md RADAR). Visual system: EDGE Design Spec tokens, identical to apps/edge-bff/screener/src/styles/screener.css.
+Data: names, prices and 1D change from the dev database (9 Nov 2026); filter values from the worked examples in
+SCREENER_LIBRARY.md (3 Nov for S1-S3, S6, S7; 9 Nov for S8) and the S6 recount of 2026-11-12; index and group membership
+from Stock_List (read 2026-11-14). Made up: Day N, the daily counts and sparklines, past-day members, exits, price lines.
+A few S1 rows (MPMX, PCAR, ASMI) use z-scores of 9 Nov with an assumed percentile and buying. S6-delta thresholds and S8 sort are proposals.
+The left rail copies EDGE's shell rail (paths from apps/edge-bff/static/index.html) with one new item, Radar.
+Not in this prototype: other pages, Follow (Coming soon), Open in Terminal (message only), other dates.
+-->
+</body></html>

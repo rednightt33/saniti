@@ -48,6 +48,7 @@ export interface ResultInput {
   versions: { engine_version: string; registry_version: string; data_version: string; data_through: string };
   tickers: string[];
   prior_trials: { variant_hash: string; sharpe_daily: number }[];
+  owner_trials?: { variant_hash: string; sharpe_daily: number }[];   // K6 a (contract.ts JobContext.owner_trials)
   variant_hash: string; lineage_key: string; request_hash: string;
   sensitivity: null | {
     condition_id: string; xs: number[]; xs_display: number[];

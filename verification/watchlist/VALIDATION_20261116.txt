@@ -1,0 +1,5 @@
+run 2026-11-16T13:04:18Z: validate_watchlist.py <file built by build_dev.py> --older 2 (corporate actions from idx_event_annotation)
+2026-11-16 2026-11-09 2026-11-09 differences 0
+2026-11-11 2026-11-09 2026-11-09 differences 0
+2026-11-09 2026-11-09 2026-11-09 differences 0
+{"comparisons": 121554, "differences": 0, "first": []}

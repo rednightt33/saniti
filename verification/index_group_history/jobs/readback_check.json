@@ -1,0 +1,2 @@
+{"error":"pq: canceling statement due to statement timeout","status":400}
+WITH m(symbol, vf, vt) AS (VALUES ('BRPT','-infinity'::date,'infinity'::date),('TPIA','-infinity'::date,'infinity'::date),('PTRO','-infinity'::date,'infinity'::date),('BREN','-infinity'::date,'infinity'::date),('CUAN','-infinity'::date,'infinity'::date),('SINI','-infinity'::date,'infinity'::date),('RATU','-infinity'::date,'infinity'::date),('SSIA','-infinity'::date,'infinity'::date),('CDIA','-infi

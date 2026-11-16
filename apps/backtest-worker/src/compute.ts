@@ -1,9 +1,14 @@
 /* The compute threads (worker_threads, CONTRACT.md section 8): every job and every signals preview runs off the HTTP
-   thread, so status, cancel and health stay answered while a backtest computes. Each thread is long-lived and keeps its
-   own terminal-api client, so its memory cache (BACKTEST_CACHE_BYTES per thread) serves the next run of the same
-   tickers; the disk cache (BACKTEST_CACHE_DIR), when set, is one directory every thread's client shares under one
-   budget (terminal.ts DiskCache), so the files a preview downloaded serve the run after it on the job thread. The
-   server runs one task at a time per thread (one job thread, one preview thread).
+   thread, so status, cancel and health stay answered while a backtest computes. The server runs one task at a time per
+   thread (one job thread, one preview thread). ERRORS M463 (user 2026-11-16: "RAM hanya berjalan ketika ada request
+   saja"; "Go untuk opsi 1"): a thread ends as soon as it has no task left, so the memory its task held (the decoded
+   files, the series) goes back to the system within a second instead of staying until the next task or Railway's sleep
+   5-10 minutes later; the next task starts a new thread (about 0.2-0.3 s). The disk cache (BACKTEST_CACHE_DIR), when set,
+   is one directory every thread's client shares under one budget (terminal.ts DiskCache), so the files a preview
+   downloaded serve the run after it and the next thread; the memory cache (BACKTEST_CACHE_BYTES) lives as long as its
+   thread. Each thread's V8 heap is limited (config.ts threadHeapMb, from the container's memory): a thread over it ends
+   with ERR_WORKER_OUT_OF_MEMORY and only its task fails (server.ts: OUT_OF_MEMORY). thread_start and thread_end log the
+   process's memory (rss_bytes), so the memory of each step is in the log.
 
    main thread  ComputeThread.run(task, onProgress) -> { seq, done }  (done resolves with the outcome or rejects with
                 TaskFailed / ThreadStopped); cancel(seq) sets the shared flag (SharedArrayBuffer) to that task's number,
@@ -26,14 +31,14 @@ import { runJob, runSignals } from './run.ts';
 import type { References } from './validate.ts';
 
 export type Task =
-  | { kind: 'job'; request: unknown; context: Pick<JobContext, 'prior_trials'>; refs: References }
-  | { kind: 'signals'; request: unknown; refs: References };
+  | { kind: 'job'; request: unknown; context: Pick<JobContext, 'prior_trials' | 'owner_trials' | 'rights'>; refs: References }
+  | { kind: 'signals'; request: unknown; refs: References; rights?: string[] };
 export type Outcome =
   | { kind: 'job'; gzip: Uint8Array; json_bytes: number; duration_ms: number }
   | { kind: 'signals'; preview: SignalsPreview };
 
 /** What a thread needs: the configuration without functions (they cannot cross), the versions. */
-export interface ThreadConfig { limits: Config['limits']; maxResultBytes: Config['maxResultBytes']; flow: Config['flow']; terminal: Omit<Config['terminal'], 'fetch' | 'log'> }
+export interface ThreadConfig { limits: Config['limits']; maxResultBytes: Config['maxResultBytes']; flow: Config['flow']; terminal: Omit<Config['terminal'], 'fetch' | 'log'>; heapMb: number | null }
 interface ThreadData { role: 'compute'; name: string; config: ThreadConfig; versions: { engine_version: string; registry_version: string }; flag: Int32Array }
 type FromThread = { seq: number } & ({ type: 'progress'; progress: JobProgress } | { type: 'done'; outcome: Outcome } | { type: 'failed'; error: SerialError } | { type: 'log'; line: string });
 
@@ -63,7 +68,7 @@ export function packResult(result: BacktestResult, maxBytes: number): { gzip: Ui
 
 export const threadConfig = (c: Config): ThreadConfig => {
   const { fetch: _f, log: _l, ...terminal } = c.terminal;
-  return { limits: c.limits, maxResultBytes: c.maxResultBytes, flow: c.flow, terminal };
+  return { limits: c.limits, maxResultBytes: c.maxResultBytes, flow: c.flow, terminal, heapMb: c.memory.thread_heap_mb };
 };
 
 /* ---- main thread ------------------------------------------------------------------------------------------------ */
@@ -80,7 +85,10 @@ export class ComputeThread {
   constructor(name: string, config: ThreadConfig, versions: ThreadData['versions']) { this.name = name; this.data = { config, versions } }
 
   private spawn(): Worker {
-    const w = new Worker(new URL(import.meta.url), { workerData: { role: 'compute', name: this.name, flag: this.flag, ...this.data } satisfies ThreadData });
+    const heap = this.data.config.heapMb;
+    const w = new Worker(new URL(import.meta.url), { workerData: { role: 'compute', name: this.name, flag: this.flag, ...this.data } satisfies ThreadData,
+      ...(heap ? { resourceLimits: { maxOldGenerationSizeMb: heap } } : {}) });
+    log('info', 'thread_start', { thread: this.name, heap_mb: heap, rss_bytes: process.memoryUsage.rss() });
     w.on('message', (m: FromThread) => {
       if (m.type === 'log') { writeLine(m.line); return }
       const p = this.pending.get(m.seq);
@@ -88,11 +96,20 @@ export class ComputeThread {
       if (m.type === 'progress') { p.progress?.(m.progress); return }
       this.pending.delete(m.seq);
       if (m.type === 'done') p.resolve(m.outcome); else p.reject(new TaskFailed(m.error));
+      if (!this.pending.size) this.retire(w);
     });
     w.on('error', e => { log('error', 'compute_thread_error', { thread: this.name, ...errorFields(e, true) }); this.lost(w, new ThreadStopped('crashed', (e as { code?: string }).code ?? null)) });
     w.on('exit', code => this.lost(w, new ThreadStopped('crashed', `exit ${code}`)));
     w.unref();
     return w;
+  }
+  /** M463: a thread with no task left ends, and its memory goes back to the system; the next task (run) starts a new
+      one. Set aside first, so a task asked meanwhile goes to a new thread and none is lost. */
+  private retire(w: Worker): void {
+    if (this.worker !== w) return;
+    this.worker = null;
+    w.terminate().then(() => log('info', 'thread_end', { thread: this.name, reason: 'idle', rss_bytes: process.memoryUsage.rss() }),
+      e => log('error', 'thread_end_failed', { thread: this.name, ...errorFields(e) }));
   }
   /** Every task of a thread that is gone fails with the reason; the next task starts a new thread. */
   private lost(w: Worker, e: ThreadStopped): void {
@@ -118,6 +135,8 @@ export class ComputeThread {
     await w.terminate();
   }
   get busy(): boolean { return this.pending.size > 0 }
+  /** a thread is running (M463: none between tasks) */
+  get alive(): boolean { return this.worker !== null }
 }
 
 /* ---- the thread ------------------------------------------------------------------------------------------------- */
@@ -138,7 +157,7 @@ function startThread(d: ThreadData): void {
         if (hooks.shouldStop()) throw new Cancelled();             // a cancel that came while the result was packed
         port.postMessage({ seq, type: 'done', outcome: { kind: 'job', gzip, json_bytes, duration_ms: result.meta.duration_ms } }, [gzip.buffer]);
       } else {
-        port.postMessage({ seq, type: 'done', outcome: { kind: 'signals', preview: await runSignals(task.request, task.refs, env, hooks) } });
+        port.postMessage({ seq, type: 'done', outcome: { kind: 'signals', preview: await runSignals(task.request, task.refs, env, hooks, { rights: task.rights ?? [] }) } });
       }
     } catch (e) {
       const s = serialError(e);

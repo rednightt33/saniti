@@ -221,7 +221,8 @@ class FakeWorker:
                     return self.answer(200, {'ok': True, 'lineage_key': lineage_of(request), 'variant_hash': variant_of(request),
                                              'tickers': tickers_of(request)})
                 if route == ('POST', '/v1/signals'):
-                    for k, t in enumerate(body.get('tickers') or []):
+                    # EXEC-BACKTEST-REVAMP P5: {request, context}
+                    for k, t in enumerate((body.get('request') or {}).get('tickers') or []):
                         if t == 'NOPE':           # the worker's refusal of a picked stock it does not publish (validate.ts)
                             return self.answer(422, {'error': {'code': 'UNKNOWN_TICKER', 'field': f'tickers[{k}]',
                                                                'message': 'NOPE is not a published stock.'}})
@@ -368,7 +369,7 @@ def test_single_run_progress_result_and_events(app, worker):
     assert c.get(f'/api/v1/backtests/{job_id}/result').json()['error']['code'] == 'NOT_FINISHED'
     run_next(c)
     handed = worker.posted('/v1/jobs')[0]['body']
-    assert handed == {'job_id': job_id, 'request': single(), 'context': {'job_id': job_id, 'prior_trials': []}}
+    assert handed == {'job_id': job_id, 'request': single(), 'context': {'job_id': job_id, 'prior_trials': [], 'owner_trials': [], 'rights': []}}
     assert all(call['key'] == KEY for call in worker.calls)
     # progress of the previous read is stored while the job runs (the hook reads before the answer is stored)
     assert seen[1] == {'phase': 'backtest', 'done': 1, 'total': 2}
@@ -521,7 +522,7 @@ def test_a_number_beyond_a_double_is_invalid_input_and_reaches_no_worker(configu
         assert worker.calls == []
         edges = b'{"tickers":["BBCA"],"x":[1.7976931348623157e308,-5e-324,%d,-%d]}' % (least - 1, least - 1)
         assert c.post('/api/v1/backtests/signals', headers=headers, content=edges).status_code == 200
-        assert worker.posted('/v1/signals')[0]['body'] == loads(edges)
+        assert worker.posted('/v1/signals')[0]['body']['request'] == loads(edges)
     for raw in (b'1e400', b'-1e999', b'[1E400]', b'1' + b'0' * 400, b'[-%d]' % least):   # every caller of loads (a
         with pytest.raises(ValueError):                                                    # worker answer too) refuses it
             loads(raw)
@@ -542,7 +543,7 @@ def test_a_string_utf8_cannot_encode_is_invalid_input_and_reaches_no_worker(conf
         assert worker.calls == []
         pair = rb'{"tickers":["BBCA"],"x":"\ud83d\ude00"}'
         assert c.post('/api/v1/backtests/signals', headers=headers, content=pair).status_code == 200
-        assert worker.posted('/v1/signals')[0]['body'] == loads(pair) == {'tickers': ['BBCA'], 'x': '\U0001f600'}
+        assert worker.posted('/v1/signals')[0]['body']['request'] == loads(pair) == {'tickers': ['BBCA'], 'x': '\U0001f600'}
     for raw in (rb'"\ud800"', rb'["\udc00"]', b'"\xed\xb0\x80"'):   # every caller of loads (a worker answer too) refuses it
         with pytest.raises(ValueError):
             loads(raw)
@@ -583,13 +584,13 @@ def test_client_request_id_stays_here_and_every_other_key_reaches_the_worker_as_
     sent = {**single(), 'extra': {'list': [1, 2.5, None, True, 'Rp ✓'], 'big': 12345678901234567890, 'tiny': 5e-324,
                                   'sum': 0.1 + 0.2, 'empty': {}}}
     job_id = submit(c, sent, 'strip-1').json()['request_id']
-    assert worker.posted('/v1/validate')[0]['body'] == {'request': sent}       # sent without client_request_id
+    assert worker.posted('/v1/validate')[0]['body'] == {'request': sent, 'context': {'rights': []}}       # sent without client_request_id
     run_next(c)
     assert handed(worker, job_id)['request'] == sent                           # the stored request, as sent
     assert c.get('/api/v1/backtests').json()['items'][0]['request'] == sent
     # an explicit null key is taken out too (a new job under a generated key)
     r = c.post('/api/v1/backtests', headers=c.headers_for, json={**single(), 'client_request_id': None})
-    assert r.status_code == 202 and worker.posted('/v1/validate')[1]['body'] == {'request': single()}
+    assert r.status_code == 202 and worker.posted('/v1/validate')[1]['body'] == {'request': single(), 'context': {'rights': []}}
     assert all('client_request_id' not in json.dumps(x['body']) for x in worker.calls if x['body'])
 
 
@@ -1118,7 +1119,7 @@ def test_trials_are_the_reported_variants_and_go_to_the_next_run_in_first_record
     second_request = {**single(), 'entry': {**single()['entry'], 'window_bars': 5}}
     second = submit(c, second_request).json()['request_id']
     run_next(c)
-    assert handed(worker, second)['context'] == {'job_id': second, 'prior_trials': as_prior(reported)}
+    assert handed(worker, second)['context'] == {'job_id': second, 'prior_trials': as_prior(reported), 'owner_trials': as_prior(reported), 'rights': []}
     assert db(c, 'SELECT count(*) AS n FROM edge_bff.backtest_trials')[0]['n'] == 6
     # the first variant again on other data: nothing new is counted; the row holds what this run reported (its Sharpe,
     # kind and request) and keeps its first-recorded place
@@ -1362,7 +1363,7 @@ def test_catalog_is_cached_and_signals_are_proxied_without_a_trial(app, worker):
     preview = preview_of()
     r = c.post('/api/v1/backtests/signals', headers=c.headers_for, json=preview)
     assert r.status_code == 200 and r.json()['rows'][0] == {'ticker': 'BBCA', 'entry_signals': 4, 'last_signal': '2026-10-20'}
-    assert worker.posted('/v1/signals')[0]['body'] == preview               # as sent: the picked order is the worker's to drop
+    assert worker.posted('/v1/signals')[0]['body']['request'] == preview               # as sent: the picked order is the worker's to drop
     refused = c.post('/api/v1/backtests/signals', headers=c.headers_for, json=preview_of(['BBCA', 'NOPE']))
     assert refused.status_code == 422 and refused.json() == {'error': {'code': 'UNKNOWN_TICKER', 'field': 'tickers[1]',
                                                                        'message': 'NOPE is not a published stock.'}}
@@ -1494,6 +1495,43 @@ def dockerignore(text):
     return patterns
 
 
+def test_the_image_builds_the_backtest_page_beside_the_sources_it_imports():
+    """apps/edge-bff/Dockerfile (ERRORS M461: the 2026-11-16 deploy failed when the page began to import the Screener's
+    entries and forms): the backtest stage installs from its lock file, places the Terminal source and the Screener
+    source beside the page as in the repository, builds; every file the page's source reaches outside its folder is in
+    those copied trees, and none of them imports a package (no node_modules is beside them in the stage)."""
+    import re
+    text = (Path(__file__).resolve().parents[1] / 'Dockerfile').read_text()
+    stage = text.split('FROM node:22-slim AS backtest', 1)[1].split('\nFROM ', 1)[0]
+    assert [line for line in stage.strip().splitlines() if line.strip() and not line.startswith('#')] == [
+        'WORKDIR /build/backtest', 'COPY backtest/package.json backtest/package-lock.json ./',
+        'RUN npm ci --no-audit --no-fund', 'COPY terminal/src /build/terminal/src',
+        'COPY screener/src /build/screener/src', 'COPY backtest/ ./', 'RUN npm run build']
+    root = Path(__file__).resolve().parents[1].resolve()
+    page = root / 'backtest'
+    spec_rx = re.compile(r"""(?:\bfrom|\bimport)\s*\(?\s*['"]([^'"]+)['"]""")
+    todo, seen, outside, packages = list((page / 'src').rglob('*.ts')), set(), set(), set()
+    while todo:
+        f = todo.pop().resolve()
+        if f in seen or not f.is_file():
+            continue
+        seen.add(f)
+        mine = f.is_relative_to(page)
+        if not mine:
+            outside.add(f.relative_to(root).as_posix())
+        if f.suffix in ('.json', '.css'):
+            continue        # data and styles import nothing (flowRegistry.json's tips hold "from '...'" prose)
+        for spec in spec_rx.findall(f.read_text()):
+            if spec.startswith('.'):
+                if spec.endswith(('.ts', '.json', '.css')):
+                    todo.append(f.parent / spec)
+            elif not mine:
+                packages.add((f.relative_to(root).as_posix(), spec))
+    assert any(p.startswith('screener/src/') for p in outside), 'the page reaches no Screener file: is the walk broken?'
+    assert [p for p in sorted(outside) if not (p.startswith('terminal/src/') or p.startswith('screener/src/'))] == []
+    assert packages == set()
+
+
 def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth():
     """apps/edge-bff/.dockerignore: a pattern matches from the context root only, so caches that appear in any folder
     need '**/' (a bare '__pycache__' left app/__pycache__ in the image). Local builds, dependencies and tests of the
@@ -1509,23 +1547,39 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
                  'backtest/tests/fixture/api.ts', 'backtest/dist/index.html', 'backtest/dist-smoke/index.html',
                  'backtest/dist-fixture/index.html', 'static/backtest-app/index.html', 'screener/node_modules/vite/package.json',
                  'screener/tests/smoke/main.ts', 'screener/dist/index.html', 'screener/dist-smoke/index.html',
-                 'screener/dist-fixture/index.html', 'static/screener-app/index.html', 'screener/src/__pycache__/x.pyc'):
+                 'screener/dist-fixture/index.html', 'static/screener-app/index.html', 'screener/src/__pycache__/x.pyc',
+                 # EXEC-RADAR R7: the Radar page, the fourth
+                 'radar/node_modules/vite/package.json', 'radar/tests/fixture/data/radar-meta.json', 'radar/dist/index.html',
+                 'radar/dist-fixture/index.html', 'static/radar-app/index.html',
+                 # EXEC-OVERVIEW O5: the Market Overview page, the fifth
+                 'overview/node_modules/vite/package.json', 'overview/tests/fixture/data/overview-meta.json',
+                 'overview/dist/index.html', 'overview/dist-fixture/index.html', 'static/overview-app/index.html',
+                 # EXEC-WATCHLIST L5: the Watchlist page, the sixth
+                 'watchlist/node_modules/vite/package.json', 'watchlist/tests/fixture/watchlist-stocks.sample.json',
+                 'watchlist/dist/index.html', 'watchlist/dist-fixture/index.html', 'static/watchlist-app/index.html'):
         assert docker_ignored(patterns, path), path
     copied = [source for line in (root / 'Dockerfile').read_text().splitlines() if line.startswith('COPY ') and '--from' not in line
               for source in line.split()[1:-1]]
+    # (the backtest stage also takes screener/src: its page reads the Screener's entries and forms, ERRORS M461)
     assert copied == ['terminal/package.json', 'terminal/package-lock.json', 'terminal/', 'backtest/package.json',
-                      'backtest/package-lock.json', 'terminal/src', 'backtest/', 'screener/package.json',
-                      'screener/package-lock.json', 'terminal/src', 'backtest/src', 'screener/', 'requirements.txt',
-                      'app', 'static']
+                      'backtest/package-lock.json', 'terminal/src', 'screener/src', 'backtest/', 'screener/package.json',
+                      'screener/package-lock.json', 'terminal/src', 'backtest/src', 'screener/', 'radar/package.json',
+                      'radar/package-lock.json', 'radar/', 'overview/package.json', 'overview/package-lock.json', 'overview/',
+                      'watchlist/package.json', 'watchlist/package-lock.json', 'watchlist/', 'requirements.txt', 'app', 'static']
     # the copied sources, the files at the top of each copied folder (configuration, package files, index.html, the app's
     # modules, the static files) and the three pages' sources
-    top = [f'{folder}/{p.name}' for folder in ('app', 'static', 'terminal', 'backtest', 'screener') for p in (root / folder).iterdir()
+    top = [f'{folder}/{p.name}' for folder in ('app', 'static', 'terminal', 'backtest', 'screener', 'radar', 'overview', 'watchlist')
+           for p in (root / folder).iterdir()
            if p.is_file() and not p.name.startswith('.env') and p.suffix != '.pyc']
-    sources = [p.relative_to(root).as_posix() for folder in ('terminal/src', 'backtest/src', 'screener/src') for p in (root / folder).rglob('*')
+    sources = [p.relative_to(root).as_posix() for folder in ('terminal/src', 'backtest/src', 'screener/src', 'radar/src', 'overview/src', 'watchlist/src')
+               for p in (root / folder).rglob('*')
                if p.is_file() and '__pycache__' not in p.parts]
     needed = [*copied, *top, *sources]
     assert 'backtest/src/core/engine.ts' in needed and 'backtest/vite.config.ts' in needed and 'app/backtest.py' in needed
     assert 'screener/src/core/contract.ts' in needed and 'screener/vite.config.ts' in needed and 'app/screener.py' in needed
+    assert 'radar/src/app.ts' in needed and 'radar/vite.config.ts' in needed and 'app/radar.py' in needed
+    assert 'overview/src/app.ts' in needed and 'overview/vite.config.ts' in needed and 'app/overview.py' in needed
+    assert 'watchlist/src/app.ts' in needed and 'watchlist/vite.config.ts' in needed and 'app/watchlist.py' in needed
     assert [p for p in needed if docker_ignored(patterns, p.rstrip('/'))] == []
 
 
@@ -1746,7 +1800,7 @@ def test_a_newer_preview_of_the_owner_ends_the_one_in_flight(configured, store, 
             assert ended.status_code == 409 and ended.json() == REPLACED
             answered = second.result()
             assert answered.status_code == 200 and answered.json()['rows'] == ROWS
-        assert [c['body'] for c in worker.posted('/v1/signals')] == [older, newer]
+        assert [c['body']['request'] for c in worker.posted('/v1/signals')] == [older, newer]
         assert worker.abandoned == ['/v1/signals']                           # the older one's call, closed by edge-bff
         assert seen == {'open': 0, 'most': 1}
     finally:
@@ -1781,7 +1835,7 @@ def test_overlapping_previews_of_the_owner_leave_one_in_flight_and_hold_up_nothi
             assert listed.status_code == 200 and catalog.status_code == 200
             [latest] = [k for k, f in enumerate(pending) if not f.done()]
             assert seen['open'] == 1 and pending[latest].result().json()['rows'] == ROWS
-        sent = [x['body']['k'] for x in worker.posted('/v1/signals')]
+        sent = [x['body']['request']['k'] for x in worker.posted('/v1/signals')]
         assert latest in sent and len(worker.abandoned) == len(sent) - 1 and seen == {'open': 0, 'most': 1}
     finally:
         stop()
@@ -1872,7 +1926,7 @@ def test_a_preview_its_page_sent_before_a_newer_one_that_arrived_first_replaces_
             assert not current.done()
             answered = current.result()
             assert answered.status_code == 200 and answered.json()['rows'] == ROWS
-        assert [c['body'] for c in worker.posted('/v1/signals')] == [newer]   # without client_order: edge-bff's own
+        assert [c['body']['request'] for c in worker.posted('/v1/signals')] == [newer]   # without client_order: edge-bff's own
         assert worker.abandoned == [] and seen == {'open': 0, 'most': 1}
     finally:
         stop()
@@ -1906,7 +1960,7 @@ def test_between_pages_arrival_decides_and_a_late_preview_ends_no_other_page(con
             assert not second.done()
             answered = second.result()
             assert answered.status_code == 200 and answered.json()['rows'] == ROWS
-        assert [c['body'] for c in worker.posted('/v1/signals')] == [a2, b1]
+        assert [c['body']['request'] for c in worker.posted('/v1/signals')] == [a2, b1]
         assert worker.abandoned == ['/v1/signals'] and seen == {'open': 0, 'most': 1}   # page A's call, closed by edge-bff
     finally:
         stop()
@@ -1925,7 +1979,7 @@ def test_a_page_order_is_kept_after_its_preview_answered_and_for_the_latest_page
     assert late.status_code == 409 and late.json() == REPLACED
     assert [post(ordered('page-1', 2)).status_code, post(ordered('page-1', 3)).status_code, post(preview_of()).status_code] == [200] * 3
     assert len(worker.posted('/v1/signals')) == 4
-    assert all('client_order' not in x['body'] for x in worker.posted('/v1/signals')) and bt.previews == {}
+    assert all('client_order' not in x['body']['request'] for x in worker.posted('/v1/signals')) and bt.previews == {}
     monkeypatch.setattr(backtest, 'PREVIEW_PAGES', 2)
     assert post(ordered('page-2', 5)).status_code == 200                  # kept: page-1 (seq 3), page-2
     assert post(ordered('page-1', 4)).status_code == 200                  # page-1 arrived last: page-2, page-1
@@ -2212,3 +2266,86 @@ def test_a_cancelled_preview_is_logged_as_cancelled_not_ok(app, monkeypatch, cap
     (line,) = logged(caplog, 'backtest_preview')
     assert (line['outcome'], line['tickers'], line['replaced_older']) == ('CancelledError', 2, False)
     assert bt.settings.owner not in bt.previews
+
+
+# ---- EXEC-BACKTEST-REVAMP P5: owner and rights from the session ---------------------------------------------------------
+
+def test_rights_come_from_the_session_owner_never_from_a_body(configured, store, worker):
+    """An admin owner (EDGE_ADMIN_OWNERS) sends context.rights to every worker call; any other owner sends []; a body
+    that carries context is refused before the worker; the catalog shows an admin entry to an admin only (the kept
+    catalog too, while the worker cannot answer)."""
+    worker.catalog = {**worker.catalog, 'flow_indicators': [
+        {'id': 'FL11', 'name': 'Net Flow / Turnover Ratio', 'access': 'all', 'available': True, 'reason': None, 'date_param': None},
+        {'id': 'FL18', 'name': 'Buy VWAP · Anchored', 'access': 'admin', 'available': True, 'reason': None, 'date_param': 'anchor'}]}
+    for admins, rights, ids in [((), [], ['FL11']), ((configured.owner,), ['flow_point_in_time'], ['FL11', 'FL18'])]:
+        worker.calls.clear()
+        application = create_app(dataclasses.replace(configured, admin_owners=admins), store, FakeOrc())
+        with TestClient(application) as c:
+            c.headers_for = login(c)
+            assert [x['id'] for x in c.get('/api/v1/backtests/catalog').json()['flow_indicators']] == ids
+            worker.timeout_paths, worker.timeout_error = {'/v1/catalog'}, True
+            application.state.backtests.catalog['at'] = -1e9                 # stale: asked again, the worker fails, kept one served
+            assert [x['id'] for x in c.get('/api/v1/backtests/catalog').json()['flow_indicators']] == ids
+            worker.timeout_paths = set()
+            for path, body in [('/api/v1/backtests', {**single(), 'context': {'rights': ['flow_point_in_time']}}),
+                               ('/api/v1/backtests/signals', {**preview_of(), 'context': {'rights': ['flow_point_in_time']}})]:
+                r = c.post(path, headers=c.headers_for, json=body)
+                assert r.status_code == 422 and r.json()['error'] == {'code': 'UNKNOWN_FIELD', 'field': 'context', 'message': 'context is set by EDGE; remove it from the request.'}
+            assert not worker.posted('/v1/validate') and not worker.posted('/v1/signals')
+            assert c.post('/api/v1/backtests/signals', headers=c.headers_for, json=preview_of()).status_code == 200
+            assert worker.posted('/v1/signals')[-1]['body']['context'] == {'rights': rights}
+            assert submit(c, single(), f'r{len(admins)}').status_code == 202
+            assert worker.posted('/v1/validate')[-1]['body']['context'] == {'rights': rights}
+            run_next(c)
+            assert worker.posted('/v1/jobs')[-1]['body']['context']['rights'] == rights
+
+
+def test_a_queued_job_reads_its_owners_rights_when_it_is_dispatched(configured, store, worker):
+    """Queued as an admin, dispatched after the right was taken away: the worker gets no right (it refuses a
+    point-in-time condition, CONDITION_RESTRICTED)."""
+    application = create_app(dataclasses.replace(configured, admin_owners=(configured.owner,)), store, FakeOrc())
+    with TestClient(application) as c:
+        c.headers_for = login(c)
+        assert submit(c, single(), 'later').status_code == 202
+        run_next(c, dataclasses.replace(c.app.state.backtests.settings, admin_owners=()))
+        assert worker.posted('/v1/jobs')[-1]['body']['context']['rights'] == []
+
+
+def test_result_parts_are_read_for_their_owner_only(app, worker):
+    """BacktestStore.part / has join the job's owner: another owner's stored result is not found, even by its id."""
+    c = app
+    assert submit(c, single(), 'own').status_code == 202
+    job_id = run_next(c)
+    store = c.app.state.backtests.store
+    assert store.part(c.app.state.backtests.settings.owner, job_id, 'core') is not None
+    assert store.part('another-owner', job_id, 'core') is None and not store.has('another-owner', job_id, 'core')
+    db(c, "UPDATE edge_bff.backtest_jobs SET owner_key='another-owner' WHERE request_id=%s", job_id)
+    assert c.get(f'/api/v1/backtests/{job_id}/result').status_code == 404
+
+
+def test_admin_owners_are_checked_at_start():
+    from app.config import admin_owners_of
+    assert admin_owners_of(None, 'me') == ('me',)
+    assert admin_owners_of('me,you', 'me') == ('me', 'you')
+    for bad in ['', 'a,,b', ' me', 'me, you', 'me,me', 'a b']:
+        with pytest.raises(ValueError):
+            admin_owners_of(bad, 'me')
+
+
+def test_owner_trials_cross_every_line_of_the_owner_within_90_days(app, worker):
+    """K6 a: the next job's owner_trials hold the owner's variants of every line recorded in the last 90 days (another
+    line's too), each once; an older one is left out."""
+    c = app
+    first = submit(c, single('BBCA'), 'k6a').json()['request_id']
+    run_next(c)
+    other = submit(c, single('BMRI'), 'k6b').json()['request_id']     # another stock: another line in single mode
+    run_next(c)
+    lines = db(c, 'SELECT DISTINCT lineage_key FROM edge_bff.backtest_trials')
+    assert len(lines) == 2, 'two strategy lines'
+    recorded = db(c, 'SELECT variant_hash FROM edge_bff.backtest_trials ORDER BY recorded_seq')
+    db(c, "UPDATE edge_bff.backtest_trials SET updated_at = now() - interval '91 days' WHERE request_id=%s", first)
+    third = submit(c, single('BBCA', period={'from': '2020-01-02', 'to': '2026-10-23', 'oos_fraction': 0.3}), 'k6c').json()['request_id']
+    run_next(c)
+    sent = [t['variant_hash'] for t in handed(worker, third)['context']['owner_trials']]
+    kept = [r['variant_hash'] for r in db(c, 'SELECT variant_hash FROM edge_bff.backtest_trials WHERE request_id=%s ORDER BY recorded_seq', other)]
+    assert sent == kept and len(set(sent)) == len(sent) and len(recorded) > len(kept)

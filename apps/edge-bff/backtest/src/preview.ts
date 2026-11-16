@@ -13,7 +13,7 @@
      settings, the same short line and every row "—" with that error in its tooltip; any other failure is its message
      in the toast, and the same settings are not asked again until they change (review PG-2: a redraw, such as a zoom
      button or a legend chip, never asks or toasts again). */
-import type { SignalsPreview, SignalsPreviewRequest, Warning } from './core/contract.ts';
+import type { PreviewDetail, SignalsPreview, SignalsPreviewRequest, Warning } from './core/contract.ts';
 import { byTicker } from './core/signals.ts';
 import { isAbort } from './api/types.ts';
 import { stocksText } from './picked.ts';
@@ -55,6 +55,7 @@ export interface PreviewHooks {
 
 export class Previews {
   private answers = new Map<string, Rows>();
+  private details = new Map<string, PreviewDetail | null>();   // Stage D (D6): each answer's detail ticker (null: none)
   private pending: { key: string; ctl: AbortController } | null = null;
   private held: string | null = null;         // the settings whose preview another tab replaced, until a user action
   private refused: string | null = null;      // the settings whose preview failed, until the settings change
@@ -74,6 +75,7 @@ export class Previews {
     const mine = this.pending = { key, ctl:new AbortController() };
     this.hooks.ask(q, { signal:mine.ctl.signal }).then(p => {
       if (mine.ctl.signal.aborted) return;          // an API that answers anyway is not drawn either
+      this.details.set(key, p.detail ?? null);
       this.answered(key, portRows(p.rows, p.warnings), previewNote(p.warnings));
     }, e => {
       if (isAbort(e) || mine.ctl.signal.aborted) return;
@@ -81,6 +83,7 @@ export class Previews {
       if (code === 'PREVIEW_REPLACED') { this.held = key; return }
       if (code === 'UNIVERSE_EMPTY') {
         const left = { code, message:(e as Error).message };
+        this.details.set(key, null);
         this.answered(key, () => ({ n:null, last:null, left }), leftNote(new Set(q.tickers).size));
         return;
       }
@@ -97,6 +100,8 @@ export class Previews {
     this.shown = note;
     this.hooks.answered(fresh ? note : '');
   }
+  /** Stage D (D6): the detail of request `q`'s answer (undefined: not answered yet; null: none in it) */
+  detail(q: SignalsPreviewRequest | null): PreviewDetail | null | undefined { return q ? this.details.get(previewKey(q)) : null }
   /** abort the preview in flight (the page left portfolio mode, or its settings changed) */
   drop() { this.pending?.ctl.abort(); this.pending = null }
   /** the user acted on this page: a preview another tab replaced may be asked again at the next redraw */

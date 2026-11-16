@@ -1,0 +1,70 @@
+# EXEC-WATCHLIST live check on dev, 2026-11-16 13:30-13:50 UTC (main 854bcad6, edge-bff 41811cfa, publisher 55436c93, migration 20261116_001 applied)
+## verification/watchlist/live_check_dev.py
+ok   index 200
+index {'finished_at': '2026-11-16T13:08:27.407172+00:00', 'files': ['watchlist-stocks']}
+ok   file 200: schema 1, 862 stocks, prices 2026-11-16, broker 2026-11-09, radar 2026-11-09
+sample {'radar': 'AALI', 'event': 'ACST'}
+ok   lists 200: 1 lists before
+ok   star BBCA 204
+ok   star AALI 204
+ok   star ACST 204
+ok   the star fills the first list "Watchlist"
+ok   the Screener reads its stars from the first list
+ok   the last list is kept 409
+ok   create 201
+ok   rename 200
+ok   indicators 200
+ok   add 200: added ['ASII'], already ['TLKM']
+ok   remove a stock 204
+ok   Undo of a removed stock puts it back first
+ok   control character refused 422
+ok   9 indicators refused 422
+ok   over 50 stocks refused 422
+ok   delete 200: the deleted snapshot
+ok   Undo of a deleted list 201: back at position 1
+ok   cleanup 200: lists as before
+1440px before the Watchlist: ['401 /api/v1/auth/session']
+ok   1440px: lists [['Watchlist', 3]] (name, count)
+ok   1440px: one card per stock ['BBCA', 'AALI', 'ACST']
+ok   1440px: BBCA price 5,600 = file 5,600
+ok   1440px: BBCA Radar badge True (file True)
+ok   1440px: BBCA corporate-action badge False (file False)
+ok   1440px: AALI price 9,900 = file 9,900
+ok   1440px: AALI Radar badge True (file True)
+ok   1440px: AALI corporate-action badge False (file False)
+ok   1440px: ACST price 74 = file 74
+ok   1440px: ACST Radar badge False (file False)
+ok   1440px: ACST corporate-action badge True (file True)
+ok   1440px: the logo where the logo list has one, else the monogram ['logo', 'logo', 'logo'] (868 logos listed)
+ok   1440px: the figures were read
+ok   1440px: no sideways scroll (0)
+ok   1440px: no failed response or console error on the Watchlist []
+ok   1440px: the Radar filter shows ['BBCA', 'AALI']
+ok   1440px: the filter toast "Filtered: only stocks in Radar (9 Nov) · 2 of 3"
+390px before the Watchlist: ['401 /api/v1/auth/session', '401 /api/v1/auth/session']
+ok   390px: lists [['Watchlist', 3]] (name, count)
+ok   390px: one card per stock ['BBCA', 'AALI', 'ACST']
+ok   390px: BBCA price 5,600 = file 5,600
+ok   390px: BBCA Radar badge True (file True)
+ok   390px: BBCA corporate-action badge False (file False)
+ok   390px: AALI price 9,900 = file 9,900
+ok   390px: AALI Radar badge True (file True)
+ok   390px: AALI corporate-action badge False (file False)
+ok   390px: ACST price 74 = file 74
+ok   390px: ACST Radar badge False (file False)
+ok   390px: ACST corporate-action badge True (file True)
+ok   390px: the logo where the logo list has one, else the monogram ['logo', 'logo', 'logo'] (868 logos listed)
+ok   390px: the figures were read
+ok   390px: no sideways scroll (0)
+ok   390px: no failed response or console error on the Watchlist []
+ok   390px: the Radar filter shows ['BBCA', 'AALI']
+ok   390px: the filter toast "Filtered: only stocks in Radar (9 Nov) · 2 of 3"
+ok   unstar BBCA 204
+ok   unstar AALI 204
+ok   unstar ACST 204
+ok   cleanup: 1 list(s), no stock left
+{"checks_failed": 0, "failed": []}
+
+## verification/watchlist/validate_watchlist.py on the live file (independent recalculation from PostgreSQL)
+2026-11-16 2026-11-09 2026-11-09 differences 0
+{"comparisons": 40518, "differences": 0, "first": []}

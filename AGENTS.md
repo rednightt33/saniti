@@ -10,7 +10,22 @@ Before changing the backtest (`apps/edge-bff/backtest`, `apps/backtest-worker`, 
 publisher files and terminal-api routes it reads), read `BACKTEST_END_TO_END.md` (the flow from PostgreSQL to the page)
 and `apps/edge-bff/backtest/CONTRACT.md` (its rules).
 
-To update the broker tables after `IDX_Broker_Summary` changes (Feature 02, 03, 05, 06 and the `_INDEX` tables), follow `UPDATE_TABLE.md`: refresh order, checks, and the open gap that the loader in Git does not write `buy_freq`/`sell_freq`. To update the Stockbit corporate actions, insider movements and `idx_event_annotation` (ad hoc, with a token the user gives), follow `UPDATE_TABLE.md` part B.
+To update the broker tables after `IDX_Broker_Summary` changes (Feature 02, 03, 05, 06 and the `_INDEX` tables), follow `UPDATE_TABLE.md`: refresh order, checks, and the open gap that the loader in Git does not write `buy_freq`/`sell_freq`. To update the Stockbit corporate actions, insider movements and `idx_event_annotation` (ad hoc, with a token the user gives), follow `UPDATE_TABLE.md` part B. After a split, bonus share or rights issue (the daily Telegram "Basis harga lawan data broker" lists the ones that need it), follow `UPDATE_TABLE.md` part C: the price history is pulled again with the user's go, the broker data stays as it is, and the publisher measures the broker basis itself (EXEC-BACKTEST-REVAMP P9).
+
+## Backtest look-ahead gate
+
+User decision 2026-11-15 (EXEC-BACKTEST-REVAMP, decision 3: "uji look-ahead menjadi gerbang CI wajib"): a value the
+Backtest reads on day t may use only data up to t. `.github/workflows/backtest-lookahead.yml` runs, on every push and pull
+request, the worker suite (`apps/backtest-worker/tests/lookahead.test.ts`: every registry series, transform, pattern,
+Flow FL01-FL52 with every option and the engine as a whole on data cut at t, with a self-test that a centred average is
+caught; `pit.test.ts`, `flow-grammar.test.ts`, `grammar.test.ts`: the point-in-time indicators, the Flow indicators and
+the grammar through the worker's own path) and the Screener and page suites. A new indicator, Flow indicator, transform,
+pattern or condition kind enters the gate by the registries it is derived from; a test is never skipped to pass it
+(edge-bff and screener-worker are to deploy only on green checks, K10 a, applied with the deploy after Gate 3; until then
+`checkSuites` is off and a push to `main` deploys them, ERRORS M459). Before a release that changes what the Backtest
+reads, run the real-data check too (`verification/backtest/lookahead/README.md`). The Terminal (`apps/edge-bff/terminal`)
+keeps its own hindsight indicators (user: "Terminal jangan disentuh"); the Backtest reads their point-in-time versions
+(`apps/backtest-worker/src/pit/`, worker-only, admins only).
 
 ## Plans
 
@@ -80,6 +95,36 @@ A question that only makes sense to someone who has read the earlier turns or EX
    - Data: append source metadata and verification results to `DATABASE_CHANGELOG.md`.
    - Railway infrastructure/config/deployment: update `.railway/railway.ts` if applicable and append `RAILWAY_CHANGELOG.md`.
    - Documentation/process: update the relevant Markdown file.
+   - Generated files (user decision 2026-11-14, EXEC-GEN-CHECK, ERRORS M435): a file written by a script is rebuilt in
+     the same commit as its source and has a test marked `generated_file` that compares it with what the script writes
+     now. `.github/workflows/generated-files.yml` runs those tests on every push and pull request.
+     `scripts/tests/test_generated_files.py` fails when a script in a `scripts` folder named build/generate/snapshot, or
+     taking `--check`, has no such test and no reason in its `EXEMPT`. Fix a red run by running the generator its
+     message names; never remove a mark to pass. When a generated file loses its last reader, remove the file, its
+     generator and its test in the same commit.
+   - Radar formulas (user decision 2026-11-15: "formula2 yang live saat ini di DEV harus selalu terupdate MDnya, at
+     least untuk bagian radar dulu"): `RADAR_FORMULAS.md` explains every Radar formula in plain Indonesian with real
+     examples. A change of a Radar function (`refresh_feature_07`, `refresh_feature_07_day`, the `feature_07_*`
+     helpers) or of a row of `Feature_07_Radar_Rule`/`_Filter` updates it in the same task: apply on dev, run
+     `python3 scripts/radar_formulas_doc.py --write` (the live thresholds and code fingerprints), rewrite the
+     explanation and set its `explained-for` line to the new fingerprints. `scripts/tests/test_radar_formulas_doc.py`
+     (every push) compares the document with the applied migrations; `.github/workflows/database-schema-docs.yml` (every
+     day) rewrites the numbers from dev and turns red when the code changed but the explanation did not.
+   - Overview formulas (EXEC-OVERVIEW, the same rule): `OVERVIEW_FORMULAS.md` explains every figure of the Market
+     Overview page in plain Indonesian with real examples. A change of `apps/terminal-publisher/overview.py`,
+     `apps/edge-bff/overview/src/model.ts` or `public.overview_stock_size` updates it in the same commit: run
+     `python3 scripts/overview_formulas_doc.py --write` (constants and fingerprints, from the repository), rewrite the
+     explanation and set its `explained-for` line to the new fingerprints. `scripts/tests/test_overview_formulas_doc.py`
+     (every push) compares the document with the code; the daily workflow (`--check`) also compares the function on dev
+     with its newest migration. After a publisher deploy, the last element of state.json `overview_stamp` (`CODE`)
+     equals the document's `overview.py` fingerprint.
+   - Watchlist formulas (EXEC-WATCHLIST, the same rule): `WATCHLIST_FORMULAS.md` explains every figure, badge and limit
+     of the Watchlist page in plain Indonesian with real examples. A change of `apps/terminal-publisher/watchlist.py`
+     (catalog, dates, badges) or `apps/edge-bff/app/watchlist.py` (limits) updates it in the same commit: run
+     `python3 scripts/watchlist_formulas_doc.py --write`, rewrite the explanation and set its `explained-for` line to
+     the new fingerprints. `scripts/tests/test_watchlist_formulas_doc.py` (every push) compares the document with the
+     code. The page shows only the indicators of the file's catalog: a new indicator is a publisher change, never a
+     list written into the page.
    - EDGE front-end: wording goes in `apps/edge-bff/static/edge-labels.js`, Orc's response shape only in `static/edge-view.js`, the look in `static/index.html`; an edited one-file preview returns with `preview/edge_preview.py import` (README, Front-end structure). Backend lines for the user go in `apps/market-ai-orc/app/user_texts.py` (plain Indonesian, no internal names; `tests/test_user_texts.py`).
    - EDGE Terminal look (user decision 2026-11-07, ERRORS M385): every change to the Terminal's look (`apps/edge-bff/terminal/src/styles/`, markup or layout in `src/app/`) runs `node verification/terminal_api/terminal_look/look_check11.mjs` on the build before it is committed. It reads the rendered pixels and fails when a text start is more than 1px off its column, a heading's text is more than 1px off the middle of its band, any visible switch's knob is more than 0.5px off the middle of its track, or a control row is not one line with its market choice at the right. A new heading, switch or control row is added to the check in the same task; a failure is fixed or reported to the user, never skipped.
    - AI tools: when a model tool, a sandbox session helper, a method guide, or the switch that turns one on is added, removed, renamed or changed, regenerate `AI_TOOLS.md` in the same task with `scripts/generate_ai_tools_doc.py` (from `apps/market-ai-orc`, its venv). When a dev `AI_ENABLE_*` switch changes, regenerate with `--flags` built from `railway variables --kv` (names and true/false only, never other values) so the dev snapshot is current. Every new name needs its plain-language sentence in the generator's `PLAIN`. `apps/market-ai-orc/tests/test_ai_tools_doc.py` fails when the file and the code drift apart.
@@ -166,8 +211,10 @@ Why it matters:
 - Railway bills the Postgres container's memory, and that includes the Linux page cache a large read or write leaves
   behind.
 - The cache stays for hours after the work ends (it held 4 GB for 3 hours on 2026-11-02).
-- The container limit is 1 GB since 2026-11-06 (user: "minta tolong untuk memory progress di cap jadi 1 GB.. sekarang
-  4GB"; `.railway/railway.ts`, `Postgres.deploy.limitOverride`). The 1 GB test of 2026-11-03 made year-wide queries take
+- The container limit is 2 GB since 2026-11-09 (user: "Naikkan limit sementara ke 2 GB"; "Limit ram keep 2gb dulu,
+  nanti saya yg rubah"), after 1 GB from 2026-11-06 (user: "minta tolong untuk memory progress di cap jadi 1 GB..
+  sekarang 4GB") stopped a rebuild for memory; `.railway/railway.ts`, `Postgres.deploy.limitOverride` (recorded from the
+  live limit 2026-11-15, ERRORS M455). The 1 GB test of 2026-11-03 made year-wide queries take
   3–6 minutes (AI-shaped queries 0.1 s); 4 GB was used 2026-11-03 to 2026-11-06. Postgres itself uses about 0.1–0.3 GB at rest (`shared_buffers` 128 MB);
   the rest is cache.
 - To change the limit, run `python3 scripts/set_postgres_memory.py --gb N` (check: guards, the `railway.ts` edit, the
@@ -220,6 +267,10 @@ After a large update and its reader checks:
    `"large_write": true`. Every other job prints a `POSTGRES_MEMORY_CHECK` line at its end: when that line says
    `READY`, run step 1.
 3. Record the restart in `RAILWAY_CHANGELOG.md`.
+4. Market Overview (ERRORS M442): the publisher rechecks by content only the newest 3 market dates
+   (`RECHECK_SESSIONS`). When the update rewrote older dates of the price table, the IHSG bars, Feature 01, 04 or 06,
+   republish the Overview with the manual mode: `TERMINAL_PUBLISH_MODE=overview` on terminal-publisher, Run Now, then
+   back to `daily` (with the user's approval; it reads about 1.2 GB of Feature 04, so step 1 follows it).
 
 Before a deploy of `market-ai-orc` or a Postgres restart, check that no user run is active (`edge_bff.jobs` QUEUED,
 RUNNING or RECOVERING; `AI_conversation_turn` RUNNING); wait until none is (ERRORS M340).

@@ -171,9 +171,12 @@ def build(row):
     table=row.get('feature_table',row.get('table_name'));c=row.get('feature_column',row.get('column_name'))
     f=int(table.split('_')[1]);scope='index' if table.endswith('_INDEX') else 'stock'
     label,definition,meaning,kind=describe(f,c)
-    if scope=='index' and f in (2,3,5,6) and kind=='metric':definition+=' Lingkup INDEX menggabungkan seluruh simbol transaksi sumber, bukan hanya saham atau konstituen resmi IHSG.'
+    # EXEC-INDEX-GROUP-HISTORY (2026-11-15): an INDEX ticker is an entity of Feature_Index_Entity (IHSG, an index, a
+    # sector, a KONGLO group); its rows sum its member symbols by date, and rows of different tickers overlap
+    if scope=='index' and f in (2,3,5,6) and kind=='metric':definition+=' Lingkup INDEX: jumlah simbol anggota entitas pada tanggal itu (IHSG: seluruh simbol transaksi sumber), bukan konstituen resmi historis; ticker berbeda tumpang tindih sehingga tidak dijumlahkan.'
     if scope=='index' and c=='broker_concentration_hhi':definition='Sengaja NULL pada agregat INDEX sesuai keputusan pengguna; formula HHI saham tidak diterapkan.'
-    if scope=='index' and c=='ticker':definition='Kode indeks yang tervalidasi pada IDX_Stock_Universe dengan Security Type=index.'
+    if scope=='index' and c=='ticker':definition=('Kode indeks yang tervalidasi pada IDX_Stock_Universe dengan Security Type=index.' if f==1 else
+     'Kode entitas Feature_Index_Entity: IHSG, indeks IDX atau indeks sektor IDX-IC, atau grup konglomerat KONGLO (G + nama grup).')
     # stock Feature 06 sums known frequencies (SQL SUM skips NULL); only INDEX nulls a window with unknown frequency
     if scope=='stock' and f==6 and meaning.endswith('NULL jika input frekuensi tidak lengkap.'):
         meaning=meaning[:-len('NULL jika input frekuensi tidak lengkap.')]+'sesi tanpa data frekuensi dilewati; NULL hanya bila tidak ada sesi berfrekuensi dalam jendelanya atau penyebutnya nol.'
@@ -189,14 +192,14 @@ def build(row):
     if c.startswith('foreign_strength_') and c!='foreign_strength_momentum_5d':unit='Skor −100 sampai +100'
     if c=='foreign_strength_momentum_5d':unit='Poin skor'
     formula=row['calculation']
-    if c in ('ticker','date','trade_date','broker','investor_type','market_board','broker_classification','sector','industry'):formula='Salin identitas/metadata sumber sesuai grain; ticker INDEX ditentukan dari universe.' if scope=='index' else 'Salin identitas/metadata sumber sesuai grain.'
+    if c in ('ticker','date','trade_date','broker','investor_type','market_board','broker_classification','sector','industry'):formula=('Salin identitas/metadata sumber sesuai grain; ticker INDEX ditentukan dari universe.' if f==1 else 'Salin identitas/metadata sumber sesuai grain; ticker INDEX = kode entitas Feature_Index_Entity.') if scope=='index' else 'Salin identitas/metadata sumber sesuai grain.'
     if c.startswith('foreign_strength_') and c!='foreign_strength_momentum_5d':
         n=re.search(r'(\d+)d$',c)[1];formula=f'100 × Σ{n}(R) / Σ{n}(|R|); R=(foreign buy value−foreign sell value)/(foreign buy value+domestic buy value), turnover>0.'
     if scope=='index' and c=='broker_concentration_hhi':formula='NULL (kebijakan INDEX)'
     formula=explain_formula(formula,f,scope)
     caveat=row['misuse_warning']
     if scope=='stock' and f in (2,3,5,6):caveat+=' Scope stock menandai tabel non-INDEX, bukan jaminan setiap simbol adalah saham biasa. Sumber juga dapat memuat waran, right, dan instrumen lain; filter universe diperlukan untuk lingkup saham saja.'
-    if scope=='index' and f in (2,3,5,6):caveat+=' Agregat seluruh simbol sumber, termasuk instrumen non-saham; bukan riwayat konstituen resmi IHSG. Sesi rolling memakai kalender pasar agregat.'
+    if scope=='index' and f in (2,3,5,6):caveat+=' Agregat simbol anggota entitas per tanggal (IHSG: seluruh simbol sumber, termasuk instrumen non-saham); bukan riwayat konstituen resmi. Sesi rolling memakai sesi entitas itu sendiri. Ticker berbeda tumpang tindih: jangan dijumlahkan.'
     if f in (2,6):caveat+=' D adalah sesi observasi, bukan hari kalender. Baseline statistik mengecualikan hari ini.'
     if scope=='index' and f==6 and ('freq' in c or 'ticket' in c) and kind=='metric':caveat+=' Jumlah frekuensi harian memakai input yang diketahui; rasio/ticket/rolling berbasis frekuensi tetap NULL bila jendela input tidak lengkap.'
     grain='ticker × date' if f==1 else 'ticker × broker × investor_type × market_board × date' if f in (2,5) else 'ticker × market_board × date'

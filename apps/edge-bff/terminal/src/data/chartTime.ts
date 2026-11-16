@@ -71,3 +71,29 @@ export function safeCrosshair<C>(chart: C): C {
 export function safeCharts<T extends { createChart: (...a: any[]) => any }>(L: T): T {
   return { ...L, createChart:(...a: any[]) => safeCrosshair(L.createChart(...a)) };
 }
+
+/** ERRORS M423 (2026-11-11): a hidden series still sits on its price scale, so an indicator turned off (the eye) kept the
+    main chart's right axis showing a crosshair price ("0", "-0.4") with nothing drawn on it. Every series of this chart
+    that is hidden is parked on an overlay scale of its own (no axis), and goes back to its scale when shown again. */
+export function parkHiddenSeries<C>(chart: C): C {
+  const c: any = chart;
+  if (c.__parked) return chart;
+  c.__parked = true;
+  let n = 0;
+  const add = c.addSeries.bind(c);
+  c.addSeries = (type: any, options: any = {}, ...rest: any[]) => {
+    const home = options.priceScaleId ?? 'right', park = `__hidden${++n}`;
+    const s = add(type, options.visible === false ? { ...options, priceScaleId:park } : options, ...rest);
+    const apply = s.applyOptions.bind(s);
+    let parked = options.visible === false, scale = home;
+    s.applyOptions = (o: any) => {
+      if (o && o.priceScaleId !== undefined) scale = o.priceScaleId;
+      const vis = o && o.visible !== undefined ? o.visible : !parked;
+      const next = vis === false ? park : scale;
+      apply(o && (vis === false) !== parked || (o && o.priceScaleId !== undefined) ? { ...o, priceScaleId:next } : o);
+      parked = vis === false;
+    };
+    return s;
+  };
+  return chart;
+}

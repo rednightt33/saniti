@@ -1,0 +1,271 @@
+{
+ "checked_at": "2026-11-15T13:25:50Z",
+ "base": "https://edge-bff-dev.up.railway.app",
+ "index": {
+  "status": 200,
+  "ms": 957,
+  "finished_at": "2026-11-15T13:23:28.082856+00:00",
+  "files": 22,
+  "days": [
+   "overview-day-2026-10-19",
+   "overview-day-2026-11-13"
+  ]
+ },
+ "files": {
+  "overview-day-2026-10-19": {
+   "status": 200,
+   "bytes": 31546,
+   "ms": 882,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-10-20": {
+   "status": 200,
+   "bytes": 32268,
+   "ms": 849,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-10-21": {
+   "status": 200,
+   "bytes": 31709,
+   "ms": 866,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-10-22": {
+   "status": 200,
+   "bytes": 31621,
+   "ms": 960,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-10-23": {
+   "status": 200,
+   "bytes": 31330,
+   "ms": 856,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-10-26": {
+   "status": 200,
+   "bytes": 31550,
+   "ms": 908,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-10-27": {
+   "status": 200,
+   "bytes": 31330,
+   "ms": 786,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-10-28": {
+   "status": 200,
+   "bytes": 31267,
+   "ms": 791,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-10-29": {
+   "status": 200,
+   "bytes": 31232,
+   "ms": 901,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-10-30": {
+   "status": 200,
+   "bytes": 31215,
+   "ms": 902,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-11-02": {
+   "status": 200,
+   "bytes": 31552,
+   "ms": 873,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-11-03": {
+   "status": 200,
+   "bytes": 31493,
+   "ms": 1022,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-11-04": {
+   "status": 200,
+   "bytes": 31316,
+   "ms": 780,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-11-05": {
+   "status": 200,
+   "bytes": 31229,
+   "ms": 800,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-11-06": {
+   "status": 200,
+   "bytes": 30802,
+   "ms": 785,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-11-09": {
+   "status": 200,
+   "bytes": 30885,
+   "ms": 1096,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-11-10": {
+   "status": 200,
+   "bytes": 30785,
+   "ms": 748,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-11-11": {
+   "status": 200,
+   "bytes": 30789,
+   "ms": 1714,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-11-12": {
+   "status": 200,
+   "bytes": 30869,
+   "ms": 911,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-day-2026-11-13": {
+   "status": 200,
+   "bytes": 30849,
+   "ms": 850,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-meta": {
+   "status": 200,
+   "bytes": 20976,
+   "ms": 975,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "overview-series": {
+   "status": 200,
+   "bytes": 23832,
+   "ms": 803,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  }
+ },
+ "validation": {
+  "dates": [
+   "2026-10-20",
+   "2026-11-02",
+   "2026-11-13"
+  ],
+  "comparisons": 27833,
+  "differences": [],
+  "size_basis": "adv20_value",
+  "prices_through": "2026-11-13",
+  "broker_through": "2026-11-09"
+ },
+ "checks": [
+  {
+   "check": "no session: the index answers 401",
+   "ok": true,
+   "detail": 401
+  },
+  {
+   "check": "the session names the Overview",
+   "ok": true,
+   "detail": {
+    "deep_research": false,
+    "model_selection": true,
+    "cancel": true,
+    "tool_progress": false,
+    "retention_days_default": 30,
+    "radar": true,
+    "overview": true
+   }
+  },
+  {
+   "check": "index: meta, series and 20 day files",
+   "ok": true,
+   "detail": {
+    "status": 200,
+    "ms": 957,
+    "finished_at": "2026-11-15T13:23:28.082856+00:00",
+    "files": 22,
+    "days": [
+     "overview-day-2026-10-19",
+     "overview-day-2026-11-13"
+    ]
+   }
+  },
+  {
+   "check": "every file: its bytes have the index sha256",
+   "ok": true,
+   "detail": {}
+  },
+  {
+   "check": "a file named by its sha is cached for good",
+   "ok": true,
+   "detail": null
+  },
+  {
+   "check": "the files hold what dev holds (independent recalculation, 3 dates)",
+   "ok": true,
+   "detail": {
+    "dates": [
+     "2026-10-20",
+     "2026-11-02",
+     "2026-11-13"
+    ],
+    "comparisons": 27833,
+    "differences": [],
+    "size_basis": "adv20_value",
+    "prices_through": "2026-11-13",
+    "broker_through": "2026-11-09"
+   }
+  },
+  {
+   "check": "an older sha: 409 OVERVIEW_FILE_REPLACED",
+   "ok": true,
+   "detail": {
+    "status": 409,
+    "error": {
+     "code": "OVERVIEW_FILE_REPLACED",
+     "message": "A newer Market Overview publication replaced this file. Read GET /api/v1/overview/index again and ask for the file with its new sha.",
+     "details": {
+      "name": "overview-meta",
+      "sha256": "3af7d511c6fe36ebb2a178828f7df8bc4609be43685fb42151e5ef81d6114e37"
+     }
+    }
+   }
+  },
+  {
+   "check": "a wrong name: 400 OVERVIEW_INVALID_NAME",
+   "ok": true,
+   "detail": {
+    "status": 400,
+    "error": {
+     "code": "OVERVIEW_INVALID_NAME",
+     "message": "That is not a Market Overview file name. Names: overview-meta, overview-series, overview-day-YYYY-MM-DD; GET /api/v1/overview/index lists the published ones.",
+     "details": {
+      "name": "overview-x"
+     }
+    }
+   }
+  }
+ ]
+}

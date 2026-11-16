@@ -167,6 +167,31 @@ export function initDrawings(ctx: Ctx) {
     forget: (symbol: string) => { if (acct) acct.remove(...where(symbol)); store.remove(repo.key(symbol)) }
   };
 
+  /* EXEC-XABCD-PREVIEW (user 2026-11-11: "X A B C D yang biru adalah tradingview ... masukan exec untuk di benarkan", go
+     "Ini"): while a pattern's points are being placed, TradingView already draws the pattern so far (labels, fill, the
+     ratios of the legs placed). The library previews the patterns (XABCD, ABCD, Cypher, Head and shoulders, Triangle
+     pattern, Three drives, Elliott waves) as a bare polyline, although its own scene of a pattern draws any number of
+     points. The preview of such a tool is that scene of the points placed plus the aim point; any other tool, or a point
+     off screen, keeps the library's preview. */
+  const PATTERN_KINDS = new Set(['abcd-pattern', 'xabcd-pattern', 'cypher-pattern', 'head-and-shoulders', 'triangle-pattern',
+    'three-drives-pattern', 'elliott-impulse', 'elliott-correction', 'elliott-triangle', 'elliott-double-combo', 'elliott-triple-combo']);
+  function patternPreview(mgr: any) {
+    const own = mgr.previewScene.bind(mgr);
+    mgr.previewScene = (w: number, h: number) => {
+      const spec = mgr.spec, pending = mgr.pending, cursor = mgr.cursor;
+      if (!spec || !PATTERN_KINDS.has(spec.kind) || !pending?.length || !cursor) return own(w, h);
+      try {
+        const coords = mgr.coords, at = mgr.dataAt(mgr.aimAt(cursor));
+        if (!at) return own(w, h);
+        const points = [...pending, at].slice(0, spec.pointCount);
+        const pts = points.map((q: any) => { const x = coords.timeToX(q.time), y = coords.priceToY(q.price); return x == null || y == null ? null : { x, y } });
+        if (pts.some((q: any) => !q)) return own(w, h);
+        const d = { id:'__preview__', kind:spec.kind, points, style:LibAny.defaultStyleFor(spec.kind) };
+        /* the placed points carry TradingView's open anchor rings; the aim point does not */
+        return [...LibAny.sceneOf(d, pts, { w, h, coords, selected:false }), { t:'anchors', pts:pts.slice(0, pending.length) }];
+      } catch { return own(w, h) }
+    };
+  }
   const prefs = { magnet: store.get('ml.draw.magnet') === '1' };
   /* every new drawing starts black; fib levels follow, semantic colours (long/short position) are kept */
   const INK = '#171717';
@@ -180,6 +205,7 @@ export function initDrawings(ctx: Ctx) {
     return o;
   });
   const dm = new LibAny.DrawingManager(chart, candle, { magnet: prefs.magnet ? 'weak' : 'off', stayInDrawingMode: false });
+  patternPreview(dm);
   const listeners: ((json: string) => void)[] = [];
   /* live: the drawings of each Flow Timeline (EXEC-TERMINAL-FRESH: the chart's own; EXEC-TERMINAL-ASSETS: one more per added
      asset), each with its chart, plot element and .flow-wrap */

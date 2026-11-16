@@ -1,0 +1,9 @@
+JOB f64de936-f473-47b5-b952-f54e86870897
+0
+VERDICT PASS
+JOB_DONE
+JOB_EXIT 0
+POSTGRES_RESTART (large_write)
+{"now": "2026-11-15T18:41:00+00:00", "refusals": [], "reasons": [], "postgres_memory_gb": 1.993732096, "active_statements": 0, "user_runs": {"edge_jobs": 0, "orc_turns": 0}, "verdict": "RESTARTING", "railway_credential": "RAILWAY_API_TOKEN"}
+{"deployment": "147e89af-8b30-4ac3-a396-2ca4c379a24f", "start_before": "2026-11-15 18:13:38.052985+00", "start_after": "2026-11-15 18:41:38.432514+00", "seconds": 11, "edge_bff_ready": 200}
+VAR_REMOVED

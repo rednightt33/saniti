@@ -51,11 +51,18 @@ export function buildRequest(s: State, opts: { ready: (c: Card) => boolean; mont
 /** the request of the page's current settings */
 export const currentRequest = () => buildRequest(S, { ready: c => API.ready(c), monteCarloRuns: CAT.limits.monte_carlo_runs });
 
-/** the portfolio table's signal preview of the current settings, on the picked stocks (cards with an invalid input
-    are left out here: the preview shows what can be calculated, the run reports the error) */
+/** Stage D (D6): whether an enabled card of the strategy is computed by the worker (a test card), so the chart needs the
+    preview's detail */
+export const needsDetail = () => [...S.conds, ...S.exitConds].some(c => c.on && c.type === 'test');
+
+/** the signal preview of the current settings (cards with an invalid input are left out here: the preview shows what
+    can be calculated, the run reports the error): the portfolio table's, on the picked stocks; with a test card, the
+    chart's ticker's tracks too (single mode: that stock alone) */
 export function previewRequest(): SignalsPreviewRequest {
   const safe = (c: Card) => { if (!API.ready(c)) return false; try { toWire(c); return true } catch { return false } };
-  return { schema_version: 1, tickers: [...S.tickers], period: { from: S.from, to: S.to }, entry: entryOf(S, safe) };
+  const tickers = S.mode === 'portfolio' ? [...S.tickers] : [S.ticker], detail = needsDetail() && tickers.includes(S.sigTicker);
+  return { schema_version: 1, tickers, period: { from: S.from, to: S.to }, entry: entryOf(S, safe),
+    ...(detail ? { detail: { ticker: S.sigTicker, exit_signals: { logic: S.exitLogic, conditions: wire(S.exitConds, safe) } } } : {}) };
 }
 
 /** whether a request reads the broker files: an enabled flow condition (core/catalog.ts needsFlow) in the entry or exit

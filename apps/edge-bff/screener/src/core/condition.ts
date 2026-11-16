@@ -324,7 +324,7 @@ function typeAllows(r: ResolvedSeries, key: 'value' | 'range' | 'cross' | 'rank'
 function sameUnit(a: ResolvedSeries, b: ResolvedSeries, f: string): void {
   if (a.unit !== null && a.unit === b.unit && a.comparableWith === b.comparableWith) return;
   const words = (x: ResolvedSeries) => x.unit === null ? 'without a unit' : x.comparableWith ? `a ${x.comparableWith === 'close' ? 'price' : 'volume'} level` : `in ${x.unit}`;
-  throw new ScreenerError('INVALID_CONDITION', `${f}: ${a.label} is ${words(a)} and ${b.label} is ${words(b)}; a comparison of two series needs the same unit (right: close against Buy VWAP · Rolling, both price levels; wrong: Bandar Balance · % against the close).`, f, { allowed: [String(a.unit)] });
+  throw new ScreenerError('INVALID_CONDITION', `${f}: ${a.label} is ${words(a)} and ${b.label} is ${words(b)}; a comparison of two series needs the same unit (right: close against Buy VWAP · Rolling, both price levels; wrong: Top Brokers · % against the close).`, f, { allowed: [String(a.unit)] });
 }
 
 /** The measure that compares a series with a second one (OPERATORS.md operator 7; the operators block's measure with

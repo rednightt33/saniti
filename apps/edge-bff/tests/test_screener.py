@@ -34,7 +34,16 @@ from conftest import FakeOrc
 ORIGIN = {'Origin': 'http://testserver'}
 KEY = 's' * 40
 MIGRATION = Path(__file__).resolve().parents[3] / 'database/migrations/20261028_001_edge_bff_screener.sql'
-ROLLBACK = '\n'.join(line[3:] for line in MIGRATION.read_text().split('-- Rollback', 1)[1].splitlines()[1:] if line.startswith('-- '))
+# EXEC-WATCHLIST: migration 20261116_001 builds on watchlist_items, so dropping it drops the named lists first and
+# restoring it applies both (restore)
+WATCHLIST_MIGRATION = Path(__file__).resolve().parents[3] / 'database/migrations/20261116_001_edge_bff_watchlist_lists.sql'
+ROLLBACK = 'DROP TABLE IF EXISTS edge_bff.watchlist_lists CASCADE;\n' + '\n'.join(
+    line[3:] for line in MIGRATION.read_text().split('-- Rollback', 1)[1].splitlines()[1:] if line.startswith('-- '))
+
+
+def restore(conn):
+    conn.execute(MIGRATION.read_text())
+    conn.execute(WATCHLIST_MIGRATION.read_text())
 WRITE_ROUTES = (('POST', '/api/v1/screener/run'), ('POST', '/api/v1/screener/preview'), ('POST', '/api/v1/screener/validate'),
                 ('POST', '/api/v1/screener/counts'), ('PUT', '/api/v1/screener/items/scr_' + '1' * 32),
                 ('DELETE', '/api/v1/screener/items/scr_' + '1' * 32), ('PUT', '/api/v1/screener/watchlist/BBCA'),
@@ -104,6 +113,8 @@ class FakeScreenerWorker:
         self.max_length = 1000         # /v1/validate refuses an indicator length above it (PARAM_OUT_OF_RANGE)
         self.validate_versions = True  # /v1/validate answers carry versions (report 8.3: every worker answer)
         self.rows = 3                  # rows of a run answer
+        self.metrics = []              # the catalog's metrics (EXEC-BACKTEST-REVAMP P5: an admin entry in one test)
+        self.presets = []              # the catalog's presets (Stage C F6: one reading an admin entry in one test)
         self.published = '2026-10-27T13:03:23Z'   # data.published_at of every answer (state.json finished_at)
         self.pending = {}              # path -> how many more calls answer the worker-only 409 DATA_VERSION_PENDING
         self.sent = {}                 # path -> the last body bytes the route sent (gzip when it packed them)
@@ -191,9 +202,9 @@ class FakeScreenerWorker:
                 route = (method, self.path)
                 if route == ('GET', '/v1/catalog'):
                     return self.answer(200, {'versions': v, 'data': {**self.data(), 'refresh': worker.refresh},
-                                             'limits': worker.limits, 'indicators': [], 'metrics': [], 'fundamentals': [],
+                                             'limits': worker.limits, 'indicators': [], 'metrics': worker.metrics, 'fundamentals': [],
                                              'periods': {'1M': 21, '3M': 63, '6M': 126, '1Y': 252}, 'groupings': [],
-                                             'presets': []})
+                                             'presets': worker.presets})
                 if route == ('GET', '/v1/universe'):
                     return self.answer(200, {'versions': v, 'data': self.data(), 'rows': [
                         {'ticker': 'BBCA', 'name': 'Example Tbk', 'sector': 'Financials', 'industry': 'Banks', 'last': 1234,
@@ -391,8 +402,10 @@ def test_run_preview_validate_and_counts_are_relayed_as_sent(app, worker):
     c = app
     body = run_body()
     r = c.post('/api/v1/screener/run', headers=c.headers_for, json=body)
-    assert r.status_code == 200 and r.headers['content-encoding'] == 'gzip' and r.json()['echo'] == body
-    assert worker.called('/v1/run')[0]['body'] == body and worker.called('/v1/run')[0]['key'] == KEY
+    # EXEC-BACKTEST-REVAMP P5 (K8 b): edge-bff adds the session's rights as the body's context (this owner: none)
+    sent = {**body, 'context': {'rights': []}}
+    assert r.status_code == 200 and r.headers['content-encoding'] == 'gzip' and r.json()['echo'] == sent
+    assert worker.called('/v1/run')[0]['body'] == sent and worker.called('/v1/run')[0]['key'] == KEY
     p = c.post('/api/v1/screener/preview', headers=c.headers_for, json=preview_body(ticker='TLKM'))
     assert p.status_code == 200 and p.json()['ticker'] == 'TLKM'
     v = c.post('/api/v1/screener/validate', headers=c.headers_for, json={'schema_version': 1, 'definition': definition()})
@@ -791,7 +804,7 @@ def test_tables_missing_is_not_ready_and_the_rest_of_edge_is_unaffected(app, wor
         assert c.get('/api/v1/conversations').status_code == 200
     finally:
         with psycopg.connect(database, autocommit=True) as conn:
-            conn.execute(MIGRATION.read_text())
+            restore(conn)
     assert c.get('/api/v1/screener/items').json() == {'items': []}
     with psycopg.connect(database, autocommit=True) as conn:
         with pytest.raises(psycopg.errors.RaiseException, match='screener table exists'):
@@ -830,14 +843,14 @@ def test_saved_items_are_validated_created_replaced_and_deleted(app, worker):
     assert r.status_code == 200, r.text
     item = r.json()
     sent = worker.called('/v1/validate')[0]['body']
-    assert sent == {'schema_version': 1, 'definition': definition()}
+    assert sent == {'schema_version': 1, 'definition': definition(), 'context': {'rights': []}}
     assert item['definition'] == screen_item()['definition'] and item['revision'] == 1 and item['needs_review'] == []
     assert (item['registry_version'], item['screener_registry_version']) == ('registry-a', 'sregistry-a')
     assert item['definition_hash'] == sha(json.dumps(definition(), sort_keys=True)) and item['schema_version'] == 1
     m = put(c, 2, metric_item())
     assert m.status_code == 200 and m.json()['kind'] == 'metric'
     assert worker.called('/v1/validate')[1]['body'] == {'schema_version': 1, 'definition': {
-        'universe': screener.METRIC_UNIVERSE, 'conditions': [{'id': 'm', 'enabled': True, 'test': rsi_test()}], 'logic': 'all'}}
+        'universe': screener.METRIC_UNIVERSE, 'conditions': [{'id': 'm', 'enabled': True, 'test': rsi_test()}], 'logic': 'all'}, 'context': {'rights': []}}
     listed = c.get('/api/v1/screener/items?kind=screen').json()['items']
     assert [x['item_id'] for x in listed] == [item_id(1)] and listed[0] == item
     assert {x['item_id'] for x in c.get('/api/v1/screener/items').json()['items']} == {item_id(1), item_id(2)}
@@ -958,7 +971,8 @@ def test_items_and_watchlist_are_the_owners_own(app, worker):
     db(c, """INSERT INTO edge_bff.screener_items(item_id,owner_key,kind,name,definition,schema_version,registry_version,
              screener_registry_version,definition_hash) VALUES (%s,'someone-else','screen','Theirs','{}',1,'r','s',%s)""",
        item_id(7), sha('x'))
-    db(c, "INSERT INTO edge_bff.watchlist_items(owner_key,ticker) VALUES ('someone-else','TLKM')")
+    theirs = db(c, "INSERT INTO edge_bff.watchlist_lists(owner_key,name,position) VALUES ('someone-else','W',0) RETURNING list_id")[0]['list_id']
+    db(c, "INSERT INTO edge_bff.watchlist_items(owner_key,list_id,ticker,position) VALUES ('someone-else',%s,'TLKM',0)", theirs)
     assert c.get('/api/v1/screener/items').json() == {'items': []} and c.get('/api/v1/screener/watchlist').json() == {'tickers': []}
     assert put(c, 7, screen_item(revision=1)).json() == error('NOT_FOUND')
     assert put(c, 7, screen_item()).json() == error('REVISION_CONFLICT')
@@ -1064,7 +1078,7 @@ def test_the_migration_refuses_a_runtime_role_with_more_than_the_code_does(datab
                 conn.execute(f'ALTER DEFAULT PRIVILEGES IN SCHEMA edge_bff REVOKE {extra} ON TABLES FROM edge_bff_runtime')
             if conn.execute("SELECT to_regclass('edge_bff.screener_items')").fetchone()[0] is not None:
                 conn.execute(ROLLBACK)
-            conn.execute(MIGRATION.read_text())
+            restore(conn)
 
 
 def test_the_migration_refuses_public_with_any_privilege_on_the_screener_tables(database):
@@ -1094,7 +1108,7 @@ def test_the_migration_refuses_public_with_any_privilege_on_the_screener_tables(
                 conn.execute(f'ALTER DEFAULT PRIVILEGES IN SCHEMA edge_bff REVOKE {privilege} ON TABLES FROM PUBLIC')
             if conn.execute("SELECT to_regclass('edge_bff.screener_items')").fetchone()[0] is not None:
                 conn.execute(ROLLBACK)
-            conn.execute(MIGRATION.read_text())
+            restore(conn)
 
 
 def test_the_tables_hold_their_rules(database):
@@ -1118,11 +1132,13 @@ def test_the_tables_hold_their_rules(database):
         with pytest.raises(psycopg.errors.UniqueViolation):
             insert(conn, item_id=item_id(3))
         conn.rollback()
-        conn.execute("INSERT INTO edge_bff.watchlist_items(owner_key,ticker) VALUES ('o','BBCA')")
+        first = conn.execute("INSERT INTO edge_bff.watchlist_lists(owner_key,name,position) VALUES ('o','W',0) RETURNING list_id").fetchone()[0]
+        conn.execute("INSERT INTO edge_bff.watchlist_items(owner_key,list_id,ticker,position) VALUES ('o',%s,'BBCA',0)", (first,))
         for ticker in ('bbca', 'B-B', 'A' * 13):
             with pytest.raises(psycopg.errors.CheckViolation):
-                conn.execute("INSERT INTO edge_bff.watchlist_items(owner_key,ticker) VALUES ('o',%s)", (ticker,))
+                conn.execute("INSERT INTO edge_bff.watchlist_items(owner_key,list_id,ticker,position) VALUES ('o',%s,%s,1)", (first, ticker))
             conn.rollback()
+            first = conn.execute("INSERT INTO edge_bff.watchlist_lists(owner_key,name,position) VALUES ('o','W',0) RETURNING list_id").fetchone()[0]
         conn.rollback()
 
 
@@ -1149,11 +1165,16 @@ def test_provisioned_login_reaches_the_screener_tables_with_their_migration(data
                 (item_id(1), sha('d')))
             conn.execute("UPDATE edge_bff.screener_items SET revision=2")
             conn.execute("DELETE FROM edge_bff.screener_items")
-            conn.execute("INSERT INTO edge_bff.watchlist_items(owner_key,ticker) VALUES ('o','BBCA') ON CONFLICT DO NOTHING")
+            # EXEC-WATCHLIST (migration 20261116_001): a ticker belongs to a named list the login can create and delete
+            first = conn.execute("INSERT INTO edge_bff.watchlist_lists(owner_key,name,position) VALUES ('o','W',0) RETURNING list_id").fetchone()[0]
+            conn.execute("UPDATE edge_bff.watchlist_lists SET name='W2'")
+            conn.execute("INSERT INTO edge_bff.watchlist_items(owner_key,list_id,ticker,position) VALUES ('o',%s,'BBCA',0) "
+                         "ON CONFLICT DO NOTHING", (first,))
             conn.execute("DELETE FROM edge_bff.watchlist_items")
+            conn.execute("DELETE FROM edge_bff.watchlist_lists")
             conn.rollback()
             for sql in ("UPDATE edge_bff.watchlist_items SET ticker='X'", 'TRUNCATE edge_bff.screener_items',
-                        'TRUNCATE edge_bff.watchlist_items', 'SELECT * FROM public.market_private'):
+                        'TRUNCATE edge_bff.watchlist_items', 'TRUNCATE edge_bff.watchlist_lists', 'SELECT * FROM public.market_private'):
                 with pytest.raises(psycopg.errors.InsufficientPrivilege):
                     conn.execute(sql)
                 conn.rollback()
@@ -1180,7 +1201,7 @@ def test_provisioned_login_reaches_the_screener_tables_with_their_migration(data
     finally:
         with psycopg.connect(database, autocommit=True) as conn:
             if conn.execute("SELECT to_regclass('edge_bff.screener_items')").fetchone()[0] is None:
-                conn.execute(MIGRATION.read_text())
+                restore(conn)
             else:
                 conn.execute('GRANT SELECT, INSERT, DELETE ON edge_bff.watchlist_items TO edge_bff_runtime')
             conn.execute('DROP OWNED BY edge_bff_login')
@@ -1272,7 +1293,8 @@ def test_the_image_builds_the_screener_page_beside_the_sources_it_imports():
     import re
     text = (Path(__file__).resolve().parents[1] / 'Dockerfile').read_text()
     stage = text.split('FROM node:22-slim AS screener', 1)[1].split('\nFROM ', 1)[0]
-    assert [line for line in stage.strip().splitlines() if not line.startswith('#')] == [
+    # blank lines and comments are not instructions (EXEC-RADAR R7 added a stage after this one)
+    assert [line for line in stage.strip().splitlines() if line.strip() and not line.startswith('#')] == [
         'WORKDIR /build/screener', 'COPY screener/package.json screener/package-lock.json ./',
         'RUN npm ci --no-audit --no-fund', 'COPY terminal/src /build/terminal/src',
         'COPY backtest/src /build/backtest/src', 'COPY screener/ ./', 'RUN npm run build']
@@ -1350,3 +1372,29 @@ def test_screener_tab_in_the_browser(configured, store, worker, monkeypatch, tmp
     finally:
         stop()
     assert [c['path'] for c in worker.calls] == ['/health', '/v1/catalog']   # the reload: from edge-bff's kept catalog
+
+
+def test_screener_rights_from_the_session_and_the_catalog_per_session(configured, store, worker):
+    """EXEC-BACKTEST-REVAMP P5 (user K8 b): every worker call carries the session owner's rights; a body with context is
+    refused before the worker; the catalog's admin entries reach an admin only, with an ETag of their own."""
+    worker.metrics = [{'id': 'FL11', 'group': 'Flow', 'kind': 'flow'}, {'id': 'FL18', 'group': 'Flow', 'kind': 'flow', 'access': 'admin'}]
+    flow = lambda metric: {'conditions': [{'id': 'a', 'enabled': True, 'test': {'kind': 'value', 'metric': {'kind': 'flow', 'metric': metric, 'params': {}}, 'op': 'gt', 'value': 0}}]}
+    worker.presets = [{'id': 'plain', 'definition': flow('FL11')}, {'id': 'admin', 'definition': {'conditions': [{'id': 'b', 'test': {'kind': 'window', 'test': flow('FL18')['conditions'][0]['test']}}]}}]
+    seen = {}
+    for admins, rights in [((), []), ((configured.owner,), ['flow_point_in_time'])]:
+        application = create_app(dataclasses.replace(configured, admin_owners=admins), store, FakeOrc())
+        with TestClient(application) as c:
+            c.headers_for = login(c)
+            cat = c.get('/api/v1/screener/catalog')
+            assert cat.status_code == 200
+            ids = [m['id'] for m in cat.json().get('metrics', [])]
+            assert ('FL18' in ids) == bool(rights) and 'FL11' in ids
+            # Stage C F6: a preset reading an admin entry (at any depth) only with the right
+            assert [p['id'] for p in cat.json()['presets']] == (['plain', 'admin'] if rights else ['plain'])
+            seen[bool(rights)] = cat.headers['etag']
+            before = len(worker.calls)
+            r = c.post('/api/v1/screener/run', headers=c.headers_for, json={**run_body(seq=7), 'context': {'rights': ['flow_point_in_time']}})
+            assert r.status_code == 422 and r.json()['error']['code'] == 'UNKNOWN_FIELD' and len(worker.calls) == before
+            c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body(seq=8))
+            assert worker.called('/v1/run')[-1]['body']['context'] == {'rights': rights}
+    assert seen[True] != seen[False]

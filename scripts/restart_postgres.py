@@ -39,8 +39,10 @@ Cron use (postgres-memory-cron, `--cron`; every setting from the service's varia
   refused (a manual run always; a scheduled run when a guard stops it), check (mode check, every run but ticks).
   A scheduled run skipped for low memory or auto off sends nothing (log only).
 
-Credentials: RAILWAY_RESTART_TOKEN (postgres-memory-cron) or RAILWAY_TOKEN (agent), project tokens; DATABASE_URL when
-set (read-only session), otherwise pgweb. Nothing secret is printed.
+Credentials (ERRORS M433), the first one Railway accepts: RAILWAY_RESTART_TOKEN (postgres-memory-cron) or RAILWAY_TOKEN
+(project tokens), then RAILWAY_API_TOKEN (an account or agent-session token, sent as Bearer). When none works the
+script prints one line "POSTGRES_RESTART NOT_RUN: ..." and exits 4. DATABASE_URL when set (read-only session),
+otherwise pgweb. Nothing secret is printed; the output names the variable that worked.
 """
 import argparse
 import json
@@ -64,19 +66,72 @@ HARD = ('cron_due', 'b6_window')
 SOFT = ('active_statements', 'user_runs', 'runs_unreadable')
 
 
-def token():
-    return os.environ.get('RAILWAY_RESTART_TOKEN') or os.environ['RAILWAY_TOKEN']
+# ERRORS M433: the Railway credential is whichever the place running this has, tried in this order. A project token
+# (postgres-memory-cron's own, or an agent's) goes in the Project-Access-Token header; an account or session token
+# (an agent session behind its network proxy) goes in Authorization: Bearer. A credential Railway refuses is skipped
+# and the next one is tried; the one that worked is kept for the run. Only the variable names are ever printed.
+CREDENTIALS = (('RAILWAY_RESTART_TOKEN', 'Project-Access-Token'), ('RAILWAY_TOKEN', 'Project-Access-Token'),
+               ('RAILWAY_API_TOKEN', 'Authorization'))
+AUTH_REFUSED = ('not authorized', 'unauthorized', 'invalid token', 'authentication')
+_auth = {'name': None, 'tried': []}
+
+
+class RailwayAuthError(SystemExit):
+    """No credential of CREDENTIALS reached Railway; main() prints POSTGRES_RESTART NOT_RUN instead of a traceback."""
+
+
+def cli_env():
+    """The environment for the `railway` CLI: as here, except a RAILWAY_TOKEN Railway refuses is left out so the CLI
+    uses the session's own credential (M433; the CLI cannot combine a project token with an agent proxy's)."""
+    import shutil
+    env = dict(os.environ, _=shutil.which('railway') or 'railway')   # the CLI reads its own path from $_
+    if os.environ.get('RAILWAY_TOKEN'):
+        if _auth['name'] is None:
+            gql('query($id:String!){project(id:$id){name}}', {'id': PID})
+        if _auth['name'] != 'RAILWAY_TOKEN':
+            env.pop('RAILWAY_TOKEN')
+    return env
+
+
+def candidates():
+    """(variable name, header) for every credential set here, in CREDENTIALS order; the one that worked first."""
+    found = [(n, h) for n, h in CREDENTIALS if os.environ.get(n)]
+    if _auth['name']:
+        found.sort(key=lambda c: c[0] != _auth['name'])
+    return found
+
+
+def _post(query, variables, name, header):
+    value = os.environ[name]
+    headers = {'Content-Type': 'application/json', 'User-Agent': 'saniti-restart-postgres/3',
+               header: f'Bearer {value}' if header == 'Authorization' else value}
+    req = urllib.request.Request('https://backboard.railway.com/graphql/v2',
+                                 json.dumps({'query': query, 'variables': variables}).encode(), headers)
+    try:
+        return json.loads(urllib.request.urlopen(req, timeout=60).read())
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            return None                              # refused: try the next credential
+        raise
 
 
 def gql(query, variables):
-    req = urllib.request.Request('https://backboard.railway.com/graphql/v2',
-                                 json.dumps({'query': query, 'variables': variables}).encode(),
-                                 {'Content-Type': 'application/json', 'Project-Access-Token': token(),
-                                  'User-Agent': 'saniti-restart-postgres/2'})
-    body = json.loads(urllib.request.urlopen(req, timeout=60).read())
-    if body.get('errors'):
-        raise SystemExit('Railway refused: ' + '; '.join(str(e.get('message'))[:200] for e in body['errors']))
-    return body['data']
+    tried = []
+    for name, header in candidates():
+        body = _post(query, variables, name, header)
+        errors = (body or {}).get('errors') or []
+        if body is None or (errors and body.get('data') is None
+                            and all(any(w in str(e.get('message', '')).lower() for w in AUTH_REFUSED) for e in errors)):
+            tried.append(name)
+            continue
+        _auth['name'] = name
+        if errors:
+            raise SystemExit('Railway refused: ' + '; '.join(str(e.get('message'))[:200] for e in errors))
+        return body['data']
+    _auth['tried'] = tried
+    names = ', '.join(n for n, _ in CREDENTIALS)
+    raise RailwayAuthError(f'Railway refused every credential set here ({", ".join(tried) or "none set"}; '
+                           f'one of {names} is needed)')
 
 
 def query(sql):
@@ -255,11 +310,20 @@ def checks(args):
     return out, services
 
 
+def edge_domain():
+    """edge-bff's public domain in dev, read through the same Railway credential as every other call (M433: the CLI
+    may not hold one)."""
+    s = gql('query($id:String!){project(id:$id){services{edges{node{id name}}}}}', {'id': PID})
+    sid = next(e['node']['id'] for e in s['project']['services']['edges'] if e['node']['name'] == 'edge-bff')
+    d = gql('query($s:String!,$e:String!){domains(projectId:"' + PID + '",serviceId:$s,environmentId:$e)'
+            '{serviceDomains{domain}}}', {'s': sid, 'e': ENV})
+    return d['domains']['serviceDomains'][0]['domain']
+
+
 def edge_ready():
     url = os.environ.get('EDGE_BFF_URL')
     if not url:
-        domain = os.environ.get('RAILWAY_SERVICE_EDGE_BFF_URL') or json.loads(
-            os.popen('railway variables --service edge-bff --environment dev --json').read())['RAILWAY_PUBLIC_DOMAIN']
+        domain = os.environ.get('RAILWAY_SERVICE_EDGE_BFF_URL') or edge_domain()
         url = f'https://{domain}/ready'
     for _ in range(6):
         try:
@@ -413,12 +477,23 @@ def main():
     p.add_argument('--min-gb', type=float, default=0.8)
     p.add_argument('--margin', type=int, default=45)
     args = p.parse_args()
+    try:
+        return run(args)
+    except RailwayAuthError as e:
+        # ERRORS M433: one line a job's reader sees (run_job.sh prints the last lines), never a traceback
+        print(f'POSTGRES_RESTART NOT_RUN: {e} Postgres was not restarted; run python3 scripts/restart_postgres.py '
+              '(then --apply) where a Railway credential is set.')
+        return 4
+
+
+def run(args):
     if args.cron:
         return cron_main()
     out, services = checks(args)
     hard = [x for x, code in zip(out['refusals'], out['reasons']) if code in HARD]
     soft = [x for x in out['refusals'] if x not in hard]
     out['verdict'] = 'REFUSED' if hard or (soft and not args.force) else ('READY' if not args.apply else 'RESTARTING')
+    out['railway_credential'] = _auth['name']
     print(json.dumps(out, default=str))
     if args.apply and out['verdict'] == 'RESTARTING':
         print(json.dumps(restart(services), default=str))

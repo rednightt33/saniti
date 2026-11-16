@@ -43,8 +43,16 @@ const sha256 = (b: Buffer | string) => crypto.createHash('sha256').update(b).dig
 export function engineVersion(root = REPO_ROOT, nodeMajor = process.versions.node.split('.')[0]): string {
   const lines: string[] = [];
   for (const [entry, pattern] of ENGINE_SOURCES) {
-    const at = path.join(root, entry);
-    const files = fs.statSync(at).isDirectory() ? fs.readdirSync(at).filter(n => pattern.test(n)).sort().map(n => `${entry}/${n}`) : [entry];
+    // EXEC-BACKTEST-REVAMP P0.2: a directory is walked with its subfolders (the shared grammar lives in a subfolder of
+    // the backtest core), so a moved or new module cannot change an answer while the version stays the same
+    const files: string[] = [];
+    const walk = (rel: string) => {
+      const at = path.join(root, rel);
+      if (!fs.statSync(at).isDirectory()) { files.push(rel); return }
+      for (const d of fs.readdirSync(at, { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1))
+        if (d.isDirectory()) walk(`${rel}/${d.name}`); else if (pattern.test(d.name)) files.push(`${rel}/${d.name}`);
+    };
+    walk(entry);
     for (const f of files) lines.push(`${f}\t${sha256(fs.readFileSync(path.join(root, f)))}`);
   }
   lines.sort();

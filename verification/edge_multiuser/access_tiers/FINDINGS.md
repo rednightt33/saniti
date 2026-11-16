@@ -31,33 +31,33 @@ Adding users is therefore a change of structure (a per-request principal), not a
 | Monitor | models, reasoning, mode, lane, exports, runs and USD per day | model id + level (`apps/market-ai-orc/app/model_choices.py:57-59`); mode only after routing (`market-ai-orc/app/main.py:613-628`) | edge-bff before submit + Orc's allowed set; usage ledger |
 | Saved items | layouts, presets, drawings, screens, watchlist | row, by owner | store query; caps become plan limits (`layouts.py:37`, `presets.py:36`, `drawings.py:32-33`, `screener.py:77-78`) |
 
-## 3. Defects and risks found (recorded in `ERRORS_AND_SOLUTIONS.md` M423-M430 where new)
+## 3. Defects and risks found (recorded in `ERRORS_AND_SOLUTIONS.md` M468-M475 where new)
 
-1. Cross-owner exposure of the manual agent (`market-ai-orc/app/manual_agent.py:112-116`; `edge-bff/app/main.py:598-610`). M429.
+1. Cross-owner exposure of the manual agent (`market-ai-orc/app/manual_agent.py:112-116`; `edge-bff/app/main.py:598-610`). M474.
 2. Orc identity:
    - any holder of the shared key may name any owner; a missing header becomes `default`
      (`conversations.py:97-99`);
-   - progress of a run without an owner is readable by every caller. M430.
+   - progress of a run without an owner is readable by every caller. M475.
 3. terminal-api has a public domain (`terminal-api-dev.up.railway.app`, `RAILWAY_PUBLIC_DOMAIN` set) and identifies the
    gateway key with no source check (`terminal-api/app/main.py:191-194`).
    - Once the owner header is trusted (T2), the key alone names any user.
-   - The `AccountCache` key is `(kind, name/email/token)` (`accounts.py:33-35`), so per-owner identity must enter it. M425.
+   - The `AccountCache` key is `(kind, name/email/token)` (`accounts.py:33-35`), so per-owner identity must enter it. M470.
 4. All EDGE users share one terminal-api account:
    - quotas are overridden to 1e9 (TEMPORARY, `verification/terminal_api/jobs/quota_unlimited_edge_owner.sql`);
    - one advisory lock and one audit trail for everyone.
 5. Browser storage:
-   - unsynced drawings move into the next signed-in account (`terminal/src/data/drawingsApi.ts:50-69,122`). M423;
+   - unsynced drawings move into the next signed-in account (`terminal/src/data/drawingsApi.ts:50-69,122`). M468;
    - account data survives sign-out (`static/edge-client.js:11,138`; `ml.*`, `scr.last`, `edge-model-choice`,
-     `edge-side-attach:*`, IndexedDB `terminal-files`). M428.
+     `edge-side-attach:*`, IndexedDB `terminal-files`). M473.
 6. Every front-end treats any 403 as a CSRF or session failure:
    - `layoutsApi.ts:50` retries;
    - `screener/src/api/live.ts:36,69` and `backtest/src/api/live.ts:51` drop the session;
    - FastAPI refusals come out as `{"detail"}` (`main.py:277-283`).
 
-   A plan refusal would be misread. M426.
-7. The public Terminal bundle embeds a real BBCA broker summary of 2023-12-18 (`terminal/src/data/fixtureConstants.ts:1-3`). M424.
-8. No CI runs any test (`.github/workflows/` holds only `database-schema-docs.yml`).
-   `verification/terminal_api/terminal_look/look_check11.mjs:8-10` hard-codes another session's scratchpad. M427.
+   A plan refusal would be misread. M471.
+7. The public Terminal bundle embeds a real BBCA broker summary of 2023-12-18 (`terminal/src/data/fixtureConstants.ts:1-3`). M469.
+8. CI exists on `main` since 2026-11-16 and gates edge-bff deploys (`.github/workflows/backend-tests.yml`, M455).
+   `verification/terminal_api/terminal_look/look_check11.mjs:8-10` hard-codes another session's paths. M472.
 9. Single-process state:
    - in edge-bff: the sign-in limiter `main.py:457-466`, the model cache `:612`, backtest previews, and the screener
      `flight`/`pages`;
@@ -145,7 +145,7 @@ Adding users is therefore a change of structure (a per-request principal), not a
 
 | Phase | Content | Visible change |
 |---|---|---|
-| 0. Hardening | manual agent admin-only and owner-scoped with CSRF (M259, M429); Orc refuses a missing owner and the test runner gets its own key (Railway variable, needs approval); terminal-api refuses the gateway key on its public domain or the domain is removed (M425); sign-in throttle in Postgres; drawings fix and sign-out clean-up (M423, M428); 403 contract in the four front-ends (M426); fixture data replaced (M424); a CI workflow for pytest and vitest and a portable look check (M427) | none |
+| 0. Hardening | manual agent admin-only and owner-scoped with CSRF (M259, M474); Orc refuses a missing owner and the test runner gets its own key (Railway variable, needs approval); terminal-api refuses the gateway key on its public domain or the domain is removed (M470); sign-in throttle in Postgres; drawings fix and sign-out clean-up (M468, M473); 403 contract in the four front-ends (M471); fixture data replaced (M469); a portable look check (M472) | none |
 | 1. Accounts | users, identities, email codes, throttle, sessions, MFA, outbox; principal on every route; registration, code, forgot and reset pages; Resend sender; admin MFA; user #1 seeded | sign-up (behind the flag) |
 | 2. Catalog | plans, capabilities, subscriptions, usage; `need()`; entitlements in `/auth/session`; shared front-end module; locked wording; route-table test | none for the admin (all capabilities) |
 | 3. Gates per tab | Terminal T2 and the grant filter, per-user quotas; Backtest worker context and result sections; Screener worker check and cache key; Monitor allowed set and usage ledger | locked items for non-admin users |

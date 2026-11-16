@@ -25,6 +25,9 @@ from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
 from .client import public_data
+from .rights import catalog_for, refuse_context, rights_of
+
+OWNER_TRIAL_DAYS = 90        # contract.ts OWNER_TRIAL_DAYS (K6 a)
 from .store import StoreError
 from . import wake
 
@@ -604,12 +607,13 @@ class BacktestStore:
             return c.execute('''UPDATE edge_bff.backtest_jobs SET cancel_requested=true,updated_at=now()
                 WHERE owner_key=%s AND request_id=%s AND state='RUNNING' RETURNING *''', (owner, request_id)).fetchone()
 
-    def part(self, request_id, part):
-        """The stored gzip bytes of one part, checked against its sha256; None when there is none (pruned, or a ticker
-        the run did not have)."""
+    def part(self, owner, request_id, part):
+        """The stored gzip bytes of one part of the owner's job, checked against its sha256; None when there is none
+        (pruned, a ticker the run did not have, or another owner's job: EXEC-BACKTEST-REVAMP P5, joined on owner_key)."""
         with self.connect() as c:
-            row = c.execute('SELECT payload, sha256 FROM edge_bff.backtest_results WHERE request_id=%s AND part=%s',
-                            (request_id, part)).fetchone()
+            row = c.execute('''SELECT r.payload, r.sha256 FROM edge_bff.backtest_results r
+                JOIN edge_bff.backtest_jobs j ON j.request_id = r.request_id
+                WHERE j.owner_key=%s AND r.request_id=%s AND r.part=%s''', (owner, request_id, part)).fetchone()
         if not row:
             return None
         payload = bytes(row['payload'])
@@ -617,10 +621,10 @@ class BacktestStore:
             raise StoreError('RESULT_INTEGRITY', 500)
         return payload
 
-    def has(self, request_id, part):
+    def has(self, owner, request_id, part):
         with self.connect() as c:
-            return c.execute('SELECT 1 FROM edge_bff.backtest_results WHERE request_id=%s AND part=%s',
-                             (request_id, part)).fetchone() is not None
+            return c.execute('''SELECT 1 FROM edge_bff.backtest_results r JOIN edge_bff.backtest_jobs j ON j.request_id = r.request_id
+                WHERE j.owner_key=%s AND r.request_id=%s AND r.part=%s''', (owner, request_id, part)).fetchone() is not None
 
     # ---- the loop's side: claim, lease, progress, end -------------------------------------------------------------
 
@@ -683,6 +687,17 @@ class BacktestStore:
         with self.connect() as c:
             rows = c.execute('''SELECT variant_hash, sharpe_daily FROM edge_bff.backtest_trials
                 WHERE owner_key=%s AND lineage_key=%s ORDER BY recorded_seq''', (owner, lineage_key)).fetchall()
+        return [{'variant_hash': r['variant_hash'], 'sharpe_daily': r['sharpe_daily']} for r in rows]
+
+    def owner_trials(self, owner, days=OWNER_TRIAL_DAYS):
+        """EXEC-BACKTEST-REVAMP (user K6 a, 2026-11-15): JobContext.owner_trials: every distinct variant the owner had a
+        Sharpe recorded for in the last `days` days, across every strategy line (first-recorded order); the worker reports
+        a second deflated Sharpe over them, and the page shows the stricter of the two."""
+        with self.connect() as c:
+            rows = c.execute('''SELECT variant_hash, sharpe_daily FROM (
+                    SELECT DISTINCT ON (variant_hash) variant_hash, sharpe_daily, recorded_seq FROM edge_bff.backtest_trials
+                    WHERE owner_key=%s AND updated_at > now() - make_interval(days => %s) ORDER BY variant_hash, recorded_seq) t
+                ORDER BY recorded_seq''', (owner, days)).fetchall()
         return [{'variant_hash': r['variant_hash'], 'sharpe_daily': r['sharpe_daily']} for r in rows]
 
     def end(self, row, state, error=None, duration_ms=None):
@@ -898,11 +913,16 @@ class BacktestLoop:
                     await self.end_job(row, deadline, 'CANCELLED')
                     return False
                 prior = await self.call(self.store.prior_trials, row['owner_key'], row['lineage_key'])
+                owner_trials = await self.call(self.store.owner_trials, row['owner_key'])
             except psycopg.OperationalError as e:
                 self.store_failed('dispatch', job_id, e)
                 await self.sleep(self.settings.poll_seconds)
                 continue
-            body = {'job_id': job_id, 'request': row['request'], 'context': {'job_id': job_id, 'prior_trials': prior}}
+            # EXEC-BACKTEST-REVAMP P5: the owner's rights as they are now (an admin right taken away while the job
+            # waited: the worker refuses it, CONDITION_RESTRICTED)
+            body = {'job_id': job_id, 'request': row['request'],
+                    'context': {'job_id': job_id, 'prior_trials': prior, 'owner_trials': owner_trials,
+                                'rights': rights_of(self.settings, row['owner_key'])}}
             timing.fields['prior_trials'] = len(prior)
             try:
                 sent = time.monotonic()
@@ -1172,7 +1192,7 @@ class Backtests:
             raise CallerGone()
         return task.result()
 
-    async def latest_preview(self, owner, request, body, order=None):
+    async def latest_preview(self, owner, request, body, order=None, context=None):
         """The owner's signals preview, latest wins (CONTRACT.md P8): at most one preview per owner is in flight. A new
         one ends the one still in flight, whose worker call is closed and which answers 409 PREVIEW_REPLACED (unless
         its page's abort closed it already), and is sent to the worker once that one has ended. Pending previews so
@@ -1210,7 +1230,7 @@ class Backtests:
                 timed['owner_wait_ms'] = ms_since(waited)
             asked = time.monotonic()
             try:
-                return await self.ask('POST', '/v1/signals', body)
+                return await self.ask('POST', '/v1/signals', {'request': body, 'context': context or {'rights': []}})
             finally:
                 timed['worker_ms'] = ms_since(asked)
         outcome = 'ok'
@@ -1246,14 +1266,22 @@ class Backtests:
         return body
 
     def routes(self, app, session, write):
-        settings, owner = self.settings, self.settings.owner
+        settings = self.settings
+
+        # EXEC-BACKTEST-REVAMP P5: every route reads the session's owner (main.py session) and its rights (rights.py),
+        # never settings.owner nor a body's
+        async def identity(request: Request, _=Depends(session)):
+            return request.state.owner
+
+        async def writer(request: Request, _=Depends(write)):
+            return request.state.owner
 
         @app.exception_handler(BacktestError)
         async def backtest_error(_, exc):
             return JSONResponse(status_code=exc.status, content={'error': exc.error})
 
         @app.get('/api/v1/backtests/catalog')
-        async def catalog(_=Depends(session)):
+        async def catalog(owner: str = Depends(identity)):
             """The worker's Catalog, kept CATALOG_CACHE_SECONDS; while the worker cannot answer the last one is kept."""
             await self.guard()
             now = time.monotonic()
@@ -1265,30 +1293,34 @@ class Backtests:
                         raise
                 else:
                     self.catalog.update(at=now, data=data)
-            return JSONResponse(self.catalog['data'])
+            # the whole catalog is kept once; each session sees the entries its rights allow (the kept one too, while the
+            # worker cannot answer)
+            return JSONResponse(catalog_for(self.catalog['data'], rights_of(settings, owner)))
 
         @app.post('/api/v1/backtests/signals')
-        async def signals(request: Request, _=Depends(write)):
+        async def signals(request: Request, owner: str = Depends(writer)):
             """SignalsPreview of the picked stocks before a run (no job, no trial), computed by the worker while we wait;
             stopped there when the page leaves before it answers or a newer preview of the owner replaces it
             (latest_preview). client_order is edge-bff's order of a page's previews: it is taken out here, so the
             worker never gets it. A body refused here (422 INVALID_INPUT) is no preview and replaces none."""
             await self.guard()
             body = await self.json_object(request)
+            refuse_context(body)
             order = preview_order(body.pop('client_order', None))
             try:
-                return JSONResponse(await self.latest_preview(owner, request, body, order))
+                return JSONResponse(await self.latest_preview(owner, request, body, order, {'rights': rights_of(settings, owner)}))
             except CallerGone:
                 return Response(status_code=204)    # never sent: uvicorn drops an answer to a closed connection
 
         @app.post('/api/v1/backtests', status_code=202)
-        async def submit(request: Request, _=Depends(write)):
+        async def submit(request: Request, owner: str = Depends(writer)):
             """202 {request_id}: the request checked by the worker (its 422 relayed as it is) and queued; the same
             client_request_id returns the same job (the picked stocks in any order, same_request). client_request_id is
             edge-bff's submission key: it is taken out here, so neither /v1/validate nor /v1/jobs (the stored request)
             gets it; every other key goes on as sent."""
             await self.guard()
             body = await self.json_object(request)
+            refuse_context(body)
             key = body.pop('client_request_id', None)
             if key is None:
                 key = 'auto:' + secrets.token_hex(16)
@@ -1306,7 +1338,7 @@ class Backtests:
                 if row is None:
                     asked = time.monotonic()
                     try:
-                        checked = await self.ask('POST', '/v1/validate', {'request': body})
+                        checked = await self.ask('POST', '/v1/validate', {'request': body, 'context': {'rights': rights_of(settings, owner)}})
                     finally:
                         timed['validate_ms'] = ms_since(asked)
                     checked = checked if isinstance(checked, dict) and checked.get('ok') is True else {}
@@ -1329,35 +1361,35 @@ class Backtests:
                                                           'created': created})
 
         @app.get('/api/v1/backtests')
-        async def latest(limit: int = Query(default=30, ge=1, le=100), _=Depends(session)):
+        async def latest(limit: int = Query(default=30, ge=1, le=100), owner: str = Depends(identity)):
             """The owner's latest jobs, newest first: each JobStatus with the request it ran."""
             await self.guard()
             rows = await asyncio.to_thread(self.store.jobs, owner, limit)
             return {'items': [{**status_of(r), 'request': r['request']} for r in rows]}
 
         @app.get('/api/v1/backtests/{request_id}')
-        async def status(request_id: str, _=Depends(session)):
+        async def status(request_id: str, owner: str = Depends(identity)):
             await self.guard()
             return status_of(await asyncio.to_thread(self.store.job, owner, request_id))
 
-        async def finished(request_id):
+        async def finished(owner, request_id):
             row = await asyncio.to_thread(self.store.job, owner, request_id)
             if row['state'] != 'FINISHED':
                 raise BacktestError(409, {'code': 'NOT_FINISHED'})
             return row
 
         @app.get('/api/v1/backtests/{request_id}/result')
-        async def result(request_id: str, request: Request, _=Depends(session)):
+        async def result(request_id: str, request: Request, owner: str = Depends(identity)):
             """The core part; in single mode with the ticker's events part merged back into events, so the page gets
             the worker's BacktestResult as it was. 410 RESULT_EXPIRED after the 30 days."""
             await self.guard()
-            row = await finished(request_id)
-            core = await asyncio.to_thread(self.store.part, request_id, 'core')
+            row = await finished(owner, request_id)
+            core = await asyncio.to_thread(self.store.part, owner, request_id, 'core')
             if core is None:
                 raise BacktestError(410, {'code': 'RESULT_EXPIRED'})
             req = row['request']
             if req.get('mode') == 'single':
-                events = await asyncio.to_thread(self.store.part, request_id, f"events:{req['single']['ticker']}")
+                events = await asyncio.to_thread(self.store.part, owner, request_id, f"events:{req['single']['ticker']}")
                 if events is None:
                     raise BacktestError(410, {'code': 'RESULT_EXPIRED'})
                 def merge():
@@ -1369,19 +1401,19 @@ class Backtests:
 
         @app.get('/api/v1/backtests/{request_id}/events')
         async def events(request_id: str, request: Request, ticker: str = Query(pattern=r'^[A-Z0-9]{1,12}$'),
-                         _=Depends(session)):
+                         owner: str = Depends(identity)):
             """{conditions, exits} of one ticker of a finished run (the part events:<ticker>)."""
             await self.guard()
-            await finished(request_id)
-            payload = await asyncio.to_thread(self.store.part, request_id, f'events:{ticker}')
+            await finished(owner, request_id)
+            payload = await asyncio.to_thread(self.store.part, owner, request_id, f'events:{ticker}')
             if payload is None:
-                if not await asyncio.to_thread(self.store.has, request_id, 'core'):
+                if not await asyncio.to_thread(self.store.has, owner, request_id, 'core'):
                     raise BacktestError(410, {'code': 'RESULT_EXPIRED'})
                 raise BacktestError(404, {'code': 'EVENTS_NOT_FOUND', 'field': 'ticker'})
             return json_part(request, payload)
 
         @app.post('/api/v1/backtests/{request_id}/cancel')
-        async def cancel(request_id: str, _=Depends(write)):
+        async def cancel(request_id: str, owner: str = Depends(writer)):
             """202 with the job: a queued job is CANCELLED at once, a running one is stopped at the worker by the loop.
             409 NOT_RUNNING when it had already ended."""
             await self.guard()

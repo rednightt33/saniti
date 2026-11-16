@@ -1,0 +1,2 @@
+{"mode": "DRYRUN", "migrations": ["20261114_003_feature_07_radar_s3_lookup.sql"],
+ "probes": [["function", null, "SELECT position('CROSS JOIN LATERAL' in prosrc) > 0 FROM pg_proc WHERE proname = 'refresh_feature_07_day'"]]}

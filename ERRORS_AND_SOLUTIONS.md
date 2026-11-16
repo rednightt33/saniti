@@ -195,7 +195,7 @@ A new table (any asset class, any frequency) is ready for the AI only when every
 | D19 | 2026-09-12 | First Feature 01 migration failed | A renamed CTE alias; PostgreSQL rolled the whole transaction back | Alias corrected, absence of partial objects verified, re-applied | FIXED | Migrations run in one transaction and are rehearsed on a scratch database |
 | D20 | 2026-10-11 | Fixed-income prices had separate daily/recovery crons and monitoring rows, but no Feature04 enqueue or Telegram tracking path | Feature04 and telegram-monitor recognized only the IDX price source; the fixed-income updater source was deployed separately and is not present in this repository | Universe-classified database triggers enqueue only fixed-income `price/1D` tickers and translate each committed `Monitoring_Fixed_Income` row into a source-specific price event plus gated Feature04 run. Existing worker/monitor/trigger services were extended; cron services and schedules stay independent. Rollback trigger tests, 24-ticker backfill, and live Telegram completion passed | FIXED | A new source with its own scheduler needs a committed monitoring-to-feature bridge and source-specific notification acknowledgement; do not couple it through a hardcoded ticker list |
 | D21 | 2026-10-25 | Stockbit insider (`/insider/company/majorholder`, pulled 2026-10-25, not loaded): 38 percentage values are `±922337203685477.62`; 475 rows show previous % `0.00` although previous shares > 0 (e.g. ABBA 2020-02-25, 1,592,831,618 shares); 2.8% of previous/current % do not match shares ÷ shares outstanding; change % differs from current % − previous % in 22% of rows; the API `id` repeats across rows | Verified by recomputation (shares outstanding derived per ticker and date from holders ≥5%): 93.1% of 209,438 values match exactly and 3.3% within one last digit. The sentinel is an int64 overflow (division by a missing share base). Previous % uses the share base of the previous report: after a rights issue or placement it differs (546 of 1,278 previous-only mismatches match an earlier base, e.g. ACST 2020-09-07 86.13% → 73.11% with no change in shares). Change % is change shares ÷ current base (97% match), not the difference of the rounded percentages (78%), except when the base changed. `id` is the holder id, not a transaction id (153 rows stay identical on every transaction field). Shares: current − previous = change in 104,738 of 104,738 rows | Planned for `idx_event_annotation` (PLAN.md, EVENT-ANNOTATION): sentinel and placeholder 0 stored as NULL with a reason; a percentage-quality flag per row; key = transaction fields + sequence number | OPEN | A percentage needs its denominator: declare which base (previous or current report) each percentage uses and validate it by recomputation on the full history, not a sample; a source `id` is not a row key until its uniqueness is measured (A1.1, A1.4, A3.15a) |
-| D22 | 2026-10-27 | Split history is mixed in `Price_Stock_Indonesia_IDX`: PBSA closes 845 on 2026-10-13 and 384 on 2026-10-14 (its split ex-date) with every older row on the pre-split scale, while RAJA is adjusted across its 2026-07-16 split. Every indicator over such a boundary is distorted (Feature 04 PBSA 2026-10-27: `rsi_14` 22.8, `sma_50` 706.4 against a close near 300); the Backtest warns with `ADJUSTED_HISTORY_BOUNDARY` 2026-09-12 (CONTRACT.md K4). Second observed instance, FORU (rights issue, ex-date 2026-09-22): close 2,560 → 176, Feature 04 `bb_lower_20` negative on 16 sessions 2026-09-25..10-16 (lowest −2,114.1) and `sma_50` 1,484.04 against a close of 94 on 2026-10-27. Derived count (live 2026-10-28: `idx_event_annotation` family `CORPORATE_ACTION`, type in `PRICE_ACTION_TYPES` (`apps/edge-bff/backtest/src/core/datafile.ts:236`), ex-date from `ADJUSTED_HISTORY_BOUNDARY` to the last bar 2026-10-27): 8 price-affecting actions on 8 tickers: rights issues FORU 09-22, BAJA 09-28, ENRG 10-05 (1,440 → 1,030), VKTR 10-07 (835 → 670), AHAP 10-09, BRNA 10-09, BUVA 10-14 and the PBSA split 10-14; 5 more are dated later (MGLV, CBRE, PPGL, BMAS, PRDA, 2026-11-02..12-18). Found by the Screener audit (`verification/screener/AUDIT.md`) | Verified from code: `apps/idx-price-cron/price_update.py` asks TradingView for split-adjusted candles (`request_symbol`, `"adjustment": "splits"`) but only the last `--request-bars` (default 5) per run, and upserts them; rows loaded earlier are never rewritten, so a split after a row was loaded leaves that row on the old scale. Suspected, not verified: the history before 2026-09-12 was adjusted once at the bulk load. Verified 2026-10-31 (PRICE-GAP-0917, `verification/price_gap_0917/full_scan.py`, read-only): all 1,331,073 stored rows of 844 stocks against TradingView now: 829 stocks equal on every day since 2018 (the bulk-load history is adjusted, e.g. AGRO 2020-12-02 close 591.928975); AHAP, BUVA, ENRG, FORU, PBSA and VKTR on the raw scale from their first row to the day before the ex-date (constant ratio); 9 stocks differ by at most 0.0004 % on 2020-12-02 only. User decision 2026-10-31: the current TradingView version is correct for the six; plan PRICE-GAP-0917 (full re-pull of the six, Feature 01/04 full recalculation; S8 proposes detection in the daily price run). Done 2026-10-31 (EXEC-PRICE-GAP-0917): the six stocks' 10,229 stored rows replaced with TradingView's candles (PBSA 2026-10-08 from the stored candle ÷ 2, M313), Feature 01 and Feature 04 recalculated in full for them; every other stock already equals TradingView. Still OPEN as a class: the next price-affecting actions (MGLV 2026-11-02, PPGL and CBRE 2026-11-03, BMAS 2026-11-24, PRDA 2026-12-18) leave the same scale break until handled by hand with the same procedure (user: "S7 saja", S8 not approved). **Class:** any incrementally loaded series whose source revises history retroactively (splits, bonus shares, rights; later index rebasing, macro revisions); every consumer computed from it (Feature 01/04, Terminal, Backtest, Screener, AI answers) inherits it | None yet. The fix belongs to the data layer: on a split/bonus/rights event (`idx_event_annotation`), re-pull or rescale the ticker's full history, then let Feature 04 recalculate the affected suffix (needs the user's go). Until then the Backtest warns (`ADJUSTED_HISTORY_BOUNDARY`), and the Screener applies a TEMPORARY rule (user decision P4, 2026-10-28, `EXEC.md` EXEC-SCREENER): a ticker with such an action between the boundary and its last bar is hidden by default; when the user shows it through the filter, its row and its values are shown with a remark naming the action and the ex-date. Proposal: `FUTURE_PLAN.md` E2 | OPEN | A3.14: a source that adjusts history retroactively needs a history refresh triggered by the corporate-action event, not only a daily tail |
+| D22 | 2026-10-27 | Split history is mixed in `Price_Stock_Indonesia_IDX`: PBSA closes 845 on 2026-10-13 and 384 on 2026-10-14 (its split ex-date) with every older row on the pre-split scale, while RAJA is adjusted across its 2026-07-16 split. Every indicator over such a boundary is distorted (Feature 04 PBSA 2026-10-27: `rsi_14` 22.8, `sma_50` 706.4 against a close near 300); the Backtest warns with `ADJUSTED_HISTORY_BOUNDARY` 2026-09-12 (CONTRACT.md K4). Second observed instance, FORU (rights issue, ex-date 2026-09-22): close 2,560 → 176, Feature 04 `bb_lower_20` negative on 16 sessions 2026-09-25..10-16 (lowest −2,114.1) and `sma_50` 1,484.04 against a close of 94 on 2026-10-27. Derived count (live 2026-10-28: `idx_event_annotation` family `CORPORATE_ACTION`, type in `PRICE_ACTION_TYPES` (`apps/edge-bff/backtest/src/core/datafile.ts:236`), ex-date from `ADJUSTED_HISTORY_BOUNDARY` to the last bar 2026-10-27): 8 price-affecting actions on 8 tickers: rights issues FORU 09-22, BAJA 09-28, ENRG 10-05 (1,440 → 1,030), VKTR 10-07 (835 → 670), AHAP 10-09, BRNA 10-09, BUVA 10-14 and the PBSA split 10-14; 5 more are dated later (MGLV, CBRE, PPGL, BMAS, PRDA, 2026-11-02..12-18). Found by the Screener audit (`verification/screener/AUDIT.md`) | Verified from code: `apps/idx-price-cron/price_update.py` asks TradingView for split-adjusted candles (`request_symbol`, `"adjustment": "splits"`) but only the last `--request-bars` (default 5) per run, and upserts them; rows loaded earlier are never rewritten, so a split after a row was loaded leaves that row on the old scale. Suspected, not verified: the history before 2026-09-12 was adjusted once at the bulk load. Verified 2026-10-31 (PRICE-GAP-0917, `verification/price_gap_0917/full_scan.py`, read-only): all 1,331,073 stored rows of 844 stocks against TradingView now: 829 stocks equal on every day since 2018 (the bulk-load history is adjusted, e.g. AGRO 2020-12-02 close 591.928975); AHAP, BUVA, ENRG, FORU, PBSA and VKTR on the raw scale from their first row to the day before the ex-date (constant ratio); 9 stocks differ by at most 0.0004 % on 2020-12-02 only. User decision 2026-10-31: the current TradingView version is correct for the six; plan PRICE-GAP-0917 (full re-pull of the six, Feature 01/04 full recalculation; S8 proposes detection in the daily price run). Done 2026-10-31 (EXEC-PRICE-GAP-0917): the six stocks' 10,229 stored rows replaced with TradingView's candles (PBSA 2026-10-08 from the stored candle ÷ 2, M313), Feature 01 and Feature 04 recalculated in full for them; every other stock already equals TradingView. Still OPEN as a class: the next price-affecting actions (MGLV 2026-11-02, PPGL and CBRE 2026-11-03, BMAS 2026-11-24, PRDA 2026-12-18) leave the same scale break until handled by hand with the same procedure (user: "S7 saja", S8 not approved). **Class:** any incrementally loaded series whose source revises history retroactively (splits, bonus shares, rights; later index rebasing, macro revisions); every consumer computed from it (Feature 01/04, Terminal, Backtest, Screener, AI answers) inherits it | None yet. The fix belongs to the data layer: on a split/bonus/rights event (`idx_event_annotation`), re-pull or rescale the ticker's full history, then let Feature 04 recalculate the affected suffix (needs the user's go). Until then the Backtest warns (`ADJUSTED_HISTORY_BOUNDARY`), and the Screener applies a TEMPORARY rule (user decision P4, 2026-10-28, `EXEC.md` EXEC-SCREENER): a ticker with such an action between the boundary and its last bar is hidden by default; when the user shows it through the filter, its row and its values are shown with a remark naming the action and the ex-date. Proposal: `FUTURE_PLAN.md` E2. 2026-11-16 (EXEC-BACKTEST-REVAMP P9.4, user "opsi A"): the daily terminal-publisher run reports on Telegram the corporate actions of the last 60 days whose published close was not pulled again after them (`Broker_Basis_Report`), and `UPDATE_TABLE.md` part C lists the steps; the pull itself stays manual (S7) | OPEN | A3.14: a source that adjusts history retroactively needs a history refresh triggered by the corporate-action event, not only a daily tail |
 | D23 | 2026-10-27 | `Universe_Equity_Description` has `Sector` and `Industry` swapped relative to `IDX_Stock_Universe`: 844 of 844 rows are consistent with a swap; 841 differ, the other 3 are `Undefined` in both columns (XCID, XCIS, XSPI) (ADRO: Sector `Coal`, Industry `Energy`; BBCA: Sector `Banks`, Industry `Financials`; pgweb query 2026-10-27, re-checked 2026-10-28). The table is in the AI backend's table list (`apps/market-ai-backend/app/tools.py`) | Verified: `IDX_Stock_Universe` took its classification from this table on 2026-09-07 (migration `20260907_001`), and D01's swap (2026-09-12) corrected `IDX_Stock_Universe` only. **Class:** a column-meaning fix applied to one table while copies of the same columns live in other tables | None yet: a one-transaction swap of the two columns, verified against `IDX_Stock_Universe`, needs the user's go. The Screener reads classification from `IDX_Stock_Universe` only. Proposal: `FUTURE_PLAN.md` E3 | OPEN | A1.4: after fixing a column's meaning, search every table and catalog row that carries the same column and fix or document each |
 | D24 | 2026-10-27 | stockbit-updater round `3323340d` (`Monitoring_Stockbit_Update`, APPLY, deployment `255ca937`, 2026-10-27 14:18:02–14:24:52 UTC) ended `FAILED` with `TypeError: Object of type date is not JSON serializable`, after its broker step (no pending date, 0 rows) and its Feature step were recorded and before `index_result` (pgweb read 2026-10-28). The next round, `51a399f1` of a new deployment `168cfa9e` (14:28–14:53 UTC), succeeded; its `index_result` carries `"mode": "incremental"` and a `tickers.IHSG.price` block with first and last dates. None of these IDs is in `RAILWAY_CHANGELOG.md` or this file. Found by the Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/verify_flow.json`, additional findings) | Suspected: the deployed index step returned `date` objects inside `index_result`, and `record()` wraps a dict in psycopg `Jsonb` (`apps/stockbit-updater/updater.py:59-62`), which serialises with plain `json.dumps` (no `default=str`, unlike `emit()` at :44). Verified: the code of both deployments is not in Git: `refresh_index` at HEAD and at `origin/main` `010af1e` returns only `newest` and `seconds` (`apps/stockbit-updater/refresh.py:157-180`), no branch holds `incremental` or `p_from` there, and `deploy.sh` uploads the local working tree. Check: the `round_failed` trace in the log of deployment `255ca937`, and the uploaded source of `168cfa9e` compared with Git. **Class:** every JSON column written from Python values through `Jsonb` without a serialiser (dates, `Decimal`); every CLI-uploaded service deployed from a tree that is not committed (M217) | None yet: commit the deployed stockbit-updater code (from whoever deployed it), then give `record()` an explicit serialiser (`Jsonb(v, dumps=...)` with `default=str`) and a test that records each step's real payload; needs the user's go | OPEN | A load log writes its payloads with an explicit serialiser and is tested with the types the steps really return; the code a service runs is in Git before it is deployed |
 | D25 | 2026-10-27 | `Monitoring_Stockbit_Update` row `e3331473` (APPLY, deployment `255ca937`, started 2026-10-27 14:25:02 UTC, 10 s after round `3323340d` of the same deployment failed, D24) is still `RUNNING`: no `finished_at`, `updated_at` 14:25:08, broker step recorded, Feature step not (pgweb read 2026-10-28). Round `51a399f1` (deployment `168cfa9e`) started 14:28:31 and succeeded. A reader that waits for "no RUNNING row" would wait forever. Found by the Screener audit (`verification/screener/AUDIT.md`; `verification/screener/audit/verify_flow.json`, additional findings) | Suspected: the process was stopped during the Feature step, most likely when deployment `168cfa9e` replaced `255ca937` at 14:28:31. `updater.py` writes the final status only on a normal return or a caught `Exception` (`apps/stockbit-updater/updater.py:129-169`); it has no signal handler, and no start closes an earlier `RUNNING` row. Unknown: why a second round ran in the same deployment while the documented restart policy is `NEVER` (`apps/stockbit-updater/railway.json`, `PROJECT_CONTEXT.md:35`; `.railway/railway.ts:170-174` sets none). Check: the events and log of deployment `255ca937` (a restart; a SIGTERM at 14:28) and the live restart policy (`railway config plan`). **Class:** every run-log row whose writer can be killed by a deploy, a restart or the OOM killer (the `Monitoring_*` tables; per-date control rows such as `stockbit_full_broker_import_status` `fetching`) | None yet: at start, close older `RUNNING` rows of the service as `FAILED` with a `last_error` that names the abandoned round (the table's CHECK allows only `RUNNING`, `SUCCESS`, `FAILED`), and record `FAILED` on SIGTERM; readers take the newest row by `started_at` (as `UPDATE_TABLE.md` §0 reads it) or the publisher's `broker_through` (M243). Needs the user's go. The Screener gates on the newest row, never on the absence of a `RUNNING` row | OPEN | A run-log row reaches a final state even when its process is killed; a `RUNNING` row is never read as "a load is in progress" without a staleness rule |
@@ -5753,117 +5753,20 @@ saja"). Aksi korporasi berikutnya ditangani manual dengan prosedur yang sama.
 - **Status:** OPEN (fixture only, never in production; it changes no pattern answer, since the candle guards reject an
   inconsistent bar).
 
-### M430 — Orc: a missing owner header becomes the shared owner `default`; progress of an owner-less run is readable by every caller (2026-11-16, OPEN)
+### M423 — Terminal: the right price axis showed a crosshair price with no indicator on it (2026-11-11, fixed)
 
-- **Symptom (read-only inspection, `verification/edge_multiuser/access_tiers/FINDINGS.md`):** any holder of
-  `MARKET_AI_ORC_API_KEY` may name any owner in `X-Saniti-Owner`, and the orc-test-runner holds the same key
-  (`.railway/railway.ts:29-33`).
-- **Verified cause:**
-  - `owner_from_header` returns `DEFAULT_OWNER` for an empty header (`apps/market-ai-orc/app/conversations.py:97-99`).
-  - `progress.tracking` stores the raw header, and a `None` owner matches every caller (`progress.py:105-109`).
-- **Class:** identity accepted from a shared key without a per-caller scope.
-- **Solution (planned, Phase 0):**
-  - refuse a missing owner;
-  - give the test runner its own key, limited to test owners (Railway variable, needs approval);
-  - store and check the owner at every registry.
-- **Status:** OPEN. No external user exists yet.
-
-### M429 — Orc manual agent: every waiting step of every owner is listed to any caller (2026-11-16, OPEN)
-
-- **Symptom:** `/api/v1/dev/manual/steps` (edge-bff `main.py:598-610`) lists and answers model steps of any run.
-- **Verified cause:**
-  - `Step` stores no owner;
-  - `pending()` returns all steps with their full payload (`apps/market-ai-orc/app/manual_agent.py:112-116`);
-  - `answer()` accepts any step id;
-  - Orc's manual routes take no owner;
-  - edge-bff's POST uses `session`, not `write` (M259).
-- **Class:** a troubleshooting route that crosses owners.
-- **Solution (planned, Phase 0):** admin-only with MFA; steps keep their owner; `pending(owner)` and `answer(owner, …)`;
-  `write` on the POST.
-- **Status:** OPEN. Blocker before a second user.
-
-### M428 — Sign-out leaves account data in browser storage (2026-11-16, OPEN)
-
-- **Symptom:** after sign-out, the next person on the same browser inherits the previous account's data.
-- **Verified cause:** sign-out clears memory only (`apps/edge-bff/static/edge-client.js:11,138`). These keys are not
-  keyed per user and not cleared:
-  - `edge-side-attach:*` (quoted answers);
-  - `edge-model-choice`;
-  - `ml.*` (layout pointer, symbol, indicator lists);
-  - `scr.last` (the last screen definition);
-  - IndexedDB `terminal-files`.
-- **Class:** per-user state stored per browser.
-- **Solution (planned, Phase 0):** a storage registry (`browser` vs `user` keys, with a test that fails on an
-  unclassified key) cleared on sign-out or a change of user.
-- **Status:** OPEN.
-
-### M427 — No CI runs any test; the Terminal look check hard-codes another session's path (2026-11-16, OPEN)
-
-- **Symptom:** a change can merge with a failing suite.
-- **Verified cause:**
-  - `.github/workflows/` holds only `database-schema-docs.yml`;
-  - the edge-bff tests skip without `EDGE_TEST_POSTGRES_URL` (`apps/edge-bff/tests/conftest.py:13`);
-  - `verification/terminal_api/terminal_look/look_check11.mjs:8-10` imports absolute paths and writes into another
-    session's scratchpad.
-- **Class:** guarantees that depend on someone running the check by hand.
-- **Solution (planned, Phase 0):** a workflow for pytest (with a disposable Postgres) and vitest; the look check takes
-  its output directory from an argument or the environment.
-- **Status:** OPEN.
-
-### M426 — Every EDGE front-end reads any 403 as a CSRF or session failure (2026-11-16, OPEN)
-
-- **Symptom (by reading the code):** a plan refusal would trigger a retry or a sign-out instead of an upgrade message.
-- **Verified cause:**
-  - `terminal/src/data/layoutsApi.ts:50` retries on any 403;
-  - `screener/src/api/live.ts:36,69` and `backtest/src/api/live.ts:51` drop the session on any 401 or 403;
-  - `terminal/src/data/live.ts:70-72` shows "answered 403";
-  - FastAPI's own refusals answer `{"detail"}`, not `{"error":{"code"}}` (`apps/edge-bff/app/main.py:277-283`).
-- **Class:** an error contract keyed on the status code instead of a named code.
-- **Solution (planned, Phase 0):**
-  - one `{"error":{"code","message","details"}}` shape for 401 and 403, with `CSRF_INVALID`, `CAPABILITY_REQUIRED`,
-    `PLAN_EXPIRED`, `LIMIT_REACHED` and `MFA_REQUIRED`;
-  - one shared client module reads the code.
-- **Status:** OPEN.
-
-### M425 — terminal-api accepts the EDGE gateway key on its public domain (2026-11-16, OPEN)
-
-- **Symptom:** the per-user owner header planned in T2 would let any holder of the gateway key name any EDGE user.
-- **Verified cause:**
-  - terminal-api has `RAILWAY_PUBLIC_DOMAIN` set (`terminal-api-dev.up.railway.app`; read with
-    `railway variables`, names and that value only) and adds it to its origins (`apps/terminal-api/app/config.py:84`);
-  - `identify()` maps the gateway key to `Caller('gateway', email=proxy_subscriber)` with no check of where the
-    request came from (`apps/terminal-api/app/main.py:191-194`);
-  - the account cache key is `(kind, name or email or token_hash)` (`accounts.py:33-35`), so a per-owner identity would
-    be cached as one entry unless the owner enters the key.
-- **Class:** a private-service credential usable from the public edge.
-- **Solution (planned, Phase 0, before T2):**
-  - refuse the gateway key on the public host, or remove the public domain (decision D-T2);
-  - put the owner in the cache credential.
-- **Status:** OPEN.
-
-### M424 — The public Terminal bundle embeds a real BBCA broker summary (2026-11-16, OPEN)
-
-- **Symptom:** `/terminal-app/` and its assets are served without a session (`apps/edge-bff/app/main.py:363-376`).
-- **Verified cause:**
-  - the bundle includes the fixture constants `BROKSUM_PROFILE` and `BK_BASE`, "the real BBCA broker summary of
-    2023-12-18" (`apps/edge-bff/terminal/src/data/fixtureConstants.ts:1-3`);
-  - they are used by `?fixture=reference`.
-- **Class:** market data shipped as test fixture in a public asset (data terms, `verification/edge_multiuser/data_terms_exposure.md`).
-- **Solution (planned, Phase 0):** replace the fixture with synthetic numbers, or keep fixture mode out of the production
-  build.
-- **Status:** OPEN. Low severity: one day from 2023.
-
-### M423 — Terminal drawings saved in the browser are merged into whichever account signs in next (2026-11-16, OPEN)
-
-- **Symptom (by reading the code):** user A's unsynced drawings would join user B's account on a shared browser.
-- **Verified cause:**
-  - on `pagehide`, pending drawing sets are copied to localStorage `ml.drawings.*` with no user mark
-    (`apps/edge-bff/terminal/src/data/drawingsApi.ts:122`);
-  - `load()` merges every such set into the signed-in account (`:50-69`).
-- **Class:** an offline copy that is not bound to its owner.
-- **Solution (planned, Phase 0):** stamp each local set with the user that wrote it and merge only for that user, or
-  retire the offline copy.
-- **Status:** OPEN. Harmless with one user.
+- **Symptom (user screenshots, BBRI, layout "Ok"):** a value ("-0.4", "0.1") on the right axis at the crosshair,
+  "seharusnya itu tidak ada karena tidak ada indikator yang membutuhkan 2 axis currently added". Every indicator of the
+  layout was hidden (the eye); Broker Inventory on the price chart (FL52) draws on the right axis.
+- **Verified cause (stand-in, crosshair at the same point):** no indicator → empty right axis; FL52 hidden → a "0" label
+  on the right axis; FL52 shown → its own labels. A hidden series stays attached to its price scale, so the axis still
+  shows the crosshair price of an empty range. The right axis itself stays (its width matches the Flow Timeline's, so
+  candles sit over their bars).
+- **Class:** anything hidden that keeps a scale alive (any indicator, part or compared line on the main chart).
+- **Solution:** `data/chartTime.ts` `parkHiddenSeries` on the main chart (`app/chart.ts`): every hidden series moves to an
+  overlay scale of its own (no axis) and back to its scale when shown. Tests in `tests/data/crosshair.test.ts` (892 pass);
+  stand-in: hidden → no label, shown → labels back, eye off and on again in the same page → the same.
+- **Status:** fixed and live (edge-bff `e5ce180f`; served bundle equal to the checked build).
 
 ### M422 — Terminal: a long position, horizontal line or ray could not be dragged up or down; the chart moved instead (2026-11-10, fixed)
 
@@ -7674,3 +7577,1401 @@ restarted. Restored helpers from /workspace/artifacts/index-bulk, observed unint
 progress and verified final committed data. Keep one-off job IDs/recovery scripts in the persistent
 workspace and save logs before replacing a temporary deployment; never assume a local executor
 restart stopped an external database job.
+
+### M424 — Every dev service stopped: the Railway workspace reached its hard usage limit (2026-11-13, restored 2026-11-14)
+
+- **Symptom:** the user, 2026-11-13 ("boleh cek kondisi backend, sepertinya timeout ya"): the Terminal does not load.
+  `https://edge-bff-dev.up.railway.app/ready` answers 404 "Application not found"; pgweb the same.
+- **Verified cause (Railway API, 2026-11-13 ~15:00 UTC):** every running deployment went REMOVED within three seconds,
+  14:20:17-14:20:20 UTC (edge-bff, terminal-api, terminal-publisher, screener-worker, stockbit-updater, telegram-monitor,
+  orc-test-runner; terminal-api log: "Stopping Container", SIGTERM). No commit or deploy at that time. The workspace
+  customer reads `usageLimit.hardLimit` 30, `currentUsage` 29.71, billing period 2026-10-21 to 2026-11-21: Railway stops
+  every service when the hard limit is reached. The project's estimated usage is mostly memory (96,519 GB-minutes against
+  3,280 vCPU-minutes).
+- **Class:** any cost limit or billing state of the workspace stops the whole project at once, with no warning in our own
+  monitoring (telegram-monitor is stopped with it).
+- **Solution (open, the user's decision):** raise or remove the hard limit in the Railway workspace settings (Usage), then
+  redeploy the services and read each back at SUCCESS; Postgres first. Pending: a warning before the limit (soft limit 0
+  today) and a look at what holds memory.
+- **Restored 2026-11-14:** the user raised the limit; Railway restarted every service at 10:17 UTC by itself (28
+  SUCCESS, telegram-monitor SLEEPING by design, web-governor-test-runner REMOVED since 2026-11-04). screener-worker
+  failed its 300 s health check (terminal-api not up yet at its start, two bucket downloads 408); redeployed 10:22 UTC,
+  SUCCESS in one minute.
+- **screener-worker memory (user 2026-11-14: "cek RAM screener worker"):** awake it holds about 1.15 GB by design (the
+  snapshot and caches stay until it sleeps). The memory chart keeps its last value while it sleeps (1.15 GB flat from
+  10:34 UTC, status SLEEPING); the billed usage reads 0 GB-minutes for 2026-11-12 08:00 to 2026-11-13 14:20, when the
+  chart showed 0.95 GB flat. The chart is not the bill; Postgres is the largest billed memory (about 0.94 GB on average then).
+- **Not the cause of the 2026-11-12 BBTN screenshot:** the older broker years failed then while every service ran
+  (terminal-api read of the bucket cancelled at 07:41:09 UTC, 30 seconds after an edge-bff release).
+
+### M425 — Screener: "Open in Terminal" never opens the Terminal (2026-11-14, fixed on the branch; not deployed)
+
+- **Symptom:** in EDGE, a Screener row's Open in Terminal sets the ticker but the shell stays on the Screener.
+- **Verified cause (code, 2026-11-14):** the Screener posts an `edge-nav` message to its parent
+  (`apps/edge-bff/screener/src/preview.ts`), but the shell's only `message` listener is the Statistics one
+  (`apps/edge-bff/static/index.html:11419`); nothing in the shell reads `edge-nav`.
+- **Class:** every sub-app in an iframe that asks the shell to switch page (Screener now, Radar next, Backtest later).
+- **Solution (planned, EXEC-RADAR R7):** one shell listener for `edge-nav` that checks the sender is one of the shell's
+  own iframes and the target is a known page, used by Screener and Radar alike; a test for both.
+- **Built (branch `claude/keen-turing-56vw7y`, 2026-11-14):** one module-level listener in `static/index.html` (origin, a
+  frame of this document, a rail page) calls the shell's page switch; Chromium test `apps/edge-bff/tests/test_radar.py`
+  (from the Radar frame to the Terminal; from the top page or to `login`: nothing). First placed as a component
+  lifecycle of the app view, it broke the Sources list of an answer (`test_answer_view.py`, `.edge-source-ref` empty;
+  cause not traced); as one listener for the page's life the whole suite passes.
+- **Lesson:** a message one frame sends needs a test that the receiving frame acts on it.
+
+### M426 — Feature 06 held rows of codes outside the universe until 2026-11-05 (2026-11-14, mitigated for the Radar)
+
+- **Symptom:** a count of Feature 06 tickers per day drops from about 1,240-1,320 to about 857 on 2026-11-05.
+- **Verified cause (pgweb, 2026-11-14):** before 2026-11-05 Feature 06 has 383-462 codes a day that are not in
+  `IDX_Stock_Universe` (warrants, rights); since the universe-only refresh (EXEC-UNIVERSE-BROKER S2, 2026-11-05) none.
+  The older rows were not removed.
+- **Class:** any cross-section over Feature 05/06 (or 02/03) that takes "every ticker of the date" changes its population
+  on 2026-11-05: percentiles, medians, gate cut-offs, counts.
+- **Solution:** the Radar's universe G2 reads only `IDX_Stock_Universe` tickers (migration `20261114_001`,
+  `refresh_feature_07_day`); the same rule is in its catalog rows. Removing or flagging the old rows is not decided.
+- **Lesson:** a cross-section names its universe table; it never takes "all tickers present".
+
+### M427 — Radar day step: a plan made on missing statistics ran over ten minutes for one date (2026-11-14, fixed before release)
+
+- **Symptom (local rehearsal, PostgreSQL 16):** `refresh_feature_07_day` took 0.4 s per date after ANALYZE but more than
+  10 minutes for one date inside the backfill's DRYRUN transaction (cancelled), and 2 minutes in the first draft's
+  result step.
+- **Verified cause (EXPLAIN):** the date's rows were written moments before; `pg_class.reltuples` was 0, so the planner
+  estimated one row and chose nested loops that re-ran the 16-date activity count (and its DISTINCT over the whole
+  table) for every stock.
+- **Class:** every PL/pgSQL step that joins rows it or its caller has just written (Feature refreshes, publishers, any
+  job that inserts then reads in one transaction).
+- **Solution (migration `20261114_001` before it was applied):** the step reads the table only by index (the date, or the
+  16 dates found by one index probe each) into temporary tables, ANALYZEs them before any join, and writes back once by
+  primary key. Rehearsal: 0.35 s per date with reltuples 0, 0.22 s in the 250-date backfill.
+- **Lesson:** a step must not depend on statistics of rows written in the same run; analyze what it builds.
+
+### M428 — Screener library: "5 sessions" meant two different windows in one calculation (2026-11-14, decided: Feature 06 sessions)
+
+- **Symptom:** the Radar reproduces the library's counts of 3 Nov 2026 exactly for the gate (859; 687/430/258/172 kept),
+  S1, S3 "Likuid" (the same 11 tickers) and S7 (11/23), but not its gate cut-offs (Rp8.62/25.50 bn against 8.68/25.64)
+  nor two lists: S2 "Likuid" has KOTA where the library has MSIN, S6 "Likuid" 12 against 13 (MSIN).
+- **Verified cause (local rehearsal):** the library took the ratio from Feature 06 (its 5 sessions are the dates the
+  stock traded on any board, a Nego-only day counting zero on Regular), but the gate's 5 sessions and the "5 sessions
+  before" from the stock's last Regular rows. With that mix the library's cut-offs are reproduced to the cent
+  (0.30/2.30/8.68/25.64). MSIN traded only Nego on 27-30 Oct: one window holds Rp5.36 bn of Regular buying, the other
+  Rp60.0 bn. On 69 dates 1.9 stocks a day (at most 6) of about 857 are affected.
+- **Class:** every measure over "N sessions" of one board when a stock trades on other boards only (Nego, Tunai) or is
+  suspended.
+- **Solution (built; user 2026-11-14 "1 A"):** the Radar uses Feature 06's sessions for every window, lag and baseline
+  (one convention, the ratios equal Feature 06's stored ones); the library's figures that used Regular rows differ for
+  the few stocks with Nego- or Tunai-only days, accepted.
+- **S8 too (QA 2026-11-14):** the library's S8 trace (13.4, DOOH 9 Nov: z1 1.46, z3 3.34) reproduces exactly on the
+  last 252 Regular rows; the Radar on Feature 06 sessions gives z1 1.38, z3 3.52 (percentile 98.4 both). A z near the
+  cut-off of 3 can flip between the two conventions.
+- **Lesson:** a window's sessions are defined once, and every value in one formula uses that definition.
+
+### M429 — Radar: an own-year rank went missing for a whole year after one week without Regular buying (2026-11-14, fixed before release)
+
+- **Symptom (rehearsal):** ARKO and BNBR had no ratio rank on 2026-11-03 although they traded every day for a year.
+- **Verified cause:** five sessions in a row without a Regular trade (Nego only) give a ratio with a zero denominator
+  (NULL); the first draft required 252 complete values, so one NULL voided the rank for the next 252 sessions.
+- **Class:** every own-history rank or z-score over a ratio whose denominator can be zero.
+- **Solution (migration `20261114_001`):** the ratio's history is the 252 most recent previous sessions that have a
+  ratio, as a suspension is skipped (user "A1 ok"); a daily refresh reads 400 prior sessions so it equals a full one
+  (rehearsal: 63 tickers, 3,003 rows identical).
+- **Lesson:** a missing value from a zero denominator is skipped like a gap, not counted as missing data.
+
+### M430 — Radar result: a stock that left and was one condition short was written twice (2026-11-14, fixed before release)
+
+- **Symptom (rehearsal):** `duplicate key value violates unique constraint "Feature_07_Radar_Result_pkey"` on the second
+  result date.
+- **Verified cause:** "near" (one condition short) and "left" (a hit the date before, not now) overlap.
+- **Solution:** stored once, as left, with its met conditions (so the page still sees it is one condition away); near is
+  "one short and not a hit the date before". The independent validator applies the same rule (0 differences).
+- **Lesson:** statuses written to one key must be exclusive by definition, and the definition says which one wins.
+
+### M431 — Radar: findings of the five independent reviews of the branch (2026-11-14, fixed before release unless noted)
+
+Five reviewers (one per part: migration, round step and backfill, publisher and terminal-api, edge-bff and shell, page)
+read commit `60d610c` without the author's conclusions. No blocker. Fixed on the branch (each with a test or a rerun):
+
+| Part | Defect (class) | Fix |
+|---|---|---|
+| Rules | S7 condition D was 5/5/5; the approved library says 2/5/10 (SCREENER_LIBRARY.md 12.3 6a, user 2026-11-10) — a threshold copied from the page spec's Standard column only | rule rows 2/5/10; validator holds them |
+| Results | S8 "near" counted only A and B, so a stock two checks short was listed (spec: "all but one") | near = every condition but one; validator mirrors it |
+| Measures | a Regular session without its Feature 03 row made FL34 from a partial window (silent gap) | broker-class measures NULL unless the window's every session has its row |
+| Day step | a date without measure rows was written as an empty date (every previous hit "left") | refused with a message |
+| Day step | the S3 floor of 10 net buyers was hard-coded beside the rule table | read from rule S3:A |
+| Round | a Radar failure failed the whole broker round, hiding its changed dates from the publisher | a warning in `features.radar` and Telegram, the round stays SUCCESS (as the stock lists, D2) |
+| Round | corporate actions loaded later never refreshed the outlier note | events that changed redo the 20 newest result dates |
+| Round, job | the round check counted rows only | also the daily sums against Feature 06 and rows without their cross-section |
+| Job | no guard against a running round or a second job; publisher could publish half-filled tables | advisory lock `feature_07_radar_backfill` read by the round and the publisher; a running round refuses the job |
+| Publisher | the sweep's baseline did not name the Radar index, so its orphans were never swept | named; a test plants an orphan |
+| Publisher | an empty build or missing stock lists replaced the published Radar with nothing; a partial index was carried; a failure raised no alert | kept, rebuilt, `partial` alert with file `radar` |
+| Publisher | results of an older rule version could be read; the stamp missed late closes and list changes | version filter; stamp adds final closes from the newest date and the lists' membership |
+| edge-bff | a file replaced between the index and the grant could be cached for a year under the old sha | the grant's sha must equal the index's, else 409; immutable only when the URL's sha is served |
+| edge-bff | no size bound on the relayed read; a quota refusal read as an outage; each view took a grant | streamed up to the published size; `RADAR_QUOTA`; bytes kept by sha (32 MB) and 304 |
+| Page | seven columns below 1200 px (a later CSS rule won); the Universe menu closed on its own scroll; date and file errors silent; axis labels overlapped; values not escaped | four columns; menu scroll kept; messages; round axis steps; every value escaped |
+
+Decided by the user 2026-11-14 ("1 A, 2 A"): the session convention stays Feature 06's (M428); the outlier note keeps
+every corporate action type, RUPS and warrant trading included (12% of 9 Nov's Standard hits; no allow-list). S3 over
+250 live dates is now exercised on dev (M432; `verification/radar/DEV_RUN.md`, 0 differences); not yet exercised: a
+ticker added or removed, the stamp with real late prices. Lesson: a threshold is copied from
+the decision document, never from a summary table, and every derived row that reads a second source needs that source
+in its staleness check.
+
+### M432 — Radar day step: the S3 read scanned all of Feature 05 on dev, about 86 s a date (2026-11-14, fixed before release)
+
+- **Symptom:** the first fill's DRYRUN on dev (job `57232933`) estimated 359.5 minutes for the 250 day steps; the local
+  rehearsal had taken 0.22 s a date.
+- **Verified cause (read-only EXPLAIN on dev, 2026-11-14):** `refresh_feature_07_day` (migration `20261114_001`) joined
+  the gated stocks to `Feature_05_Foreign_Domestic_Broker_Detail` on the ticker and a per-stock date range
+  (`trade_date BETWEEN d.s5_from AND p_date`). A range that differs per row cannot become one index condition of a hash
+  join, so the planner hashed the stocks and read Feature 05 sequentially (45 M rows). The rehearsal's copy held
+  Feature 05 on 9 dates only (200,659 rows), where a sequential read costs nothing, so the plan did not show there.
+- **Class:** every read of a large Feature table (Feature 02, 03, 05, 06, the `_INDEX` tables) joined on a per-row
+  range or window: Radar S3 now, any later per-stock window over broker rows (S7 from Feature 05, the leaderboard and
+  rotation specs). A rehearsal on a cut copy cannot show the plan of the full table.
+- **Solution (migration `20261114_003`, applied on dev, jobs `70b5cc98` and `d85c7cb9`):** a `CROSS JOIN LATERAL` per
+  stock with `OFFSET 0` reads each stock's rows through the primary key (ticker, date). Read-only EXPLAIN ANALYZE: 0.6 s
+  for one date; the second DRYRUN (`475022cd`) estimated 3.9 minutes for 250 dates; the APPLY took 405 s in all. The
+  results are identical (locally 9,417 rows; on dev 0 differences in the independent recalculation, DEV_RUN.md).
+- **Lesson:** before a job runs on dev, EXPLAIN each statement that reads a large table on dev itself (read-only), not
+  only on a rehearsal copy; a join on a per-row range is written as a per-key lookup.
+
+### M433 — A job's automatic Postgres restart never runs in an agent session (2026-11-14, fixed)
+
+- **Symptom:** `scripts/onboarding/run_job.sh` with `"large_write": true` prints `POSTGRES_RESTART (large_write)` and then
+  `KeyError: 'RAILWAY_TOKEN'`; the job still ends `JOB_EXIT 0`. The same line on 2026-11-06 and 2026-11-07
+  (RAILWAY_CHANGELOG) and on every Radar job of 2026-11-14 (`verification/radar/jobs/`).
+- **Verified cause (code):** `scripts/restart_postgres.py:67-68` reads `RAILWAY_RESTART_TOKEN` or `RAILWAY_TOKEN` and sends
+  it as a `Project-Access-Token` header (line 74). An agent session has neither: its Railway access is the proxy's
+  account credential, which works only without a project token (RAILWAY_CHANGELOG 2026-11-07). So the restart after a
+  large write depends on someone noticing the traceback and running the check by hand.
+- **Class:** every script that calls Railway's API with its own token reading: `restart_postgres.py`,
+  `set_postgres_memory.py`, `set_postgres_restart_times.py` (and the cron's `deploy.sh`), whichever session runs them.
+- **Workaround used:** `restart_postgres.py` run unchanged except its authentication (the proxy's credential), every guard
+  kept: refused at 15:42 and 15:54 UTC for memory 0.475 and 0.497 GB (below 0.8 GB, nothing to free).
+- **Fixed (user 2026-11-14: "3 perbaiki, once done restart progress"):** `scripts/restart_postgres.py` `gql` tries the
+  credentials set where it runs, in order (`CREDENTIALS`): `RAILWAY_RESTART_TOKEN`, `RAILWAY_TOKEN` (project-token
+  header), `RAILWAY_API_TOKEN` (Bearer); one Railway refuses (401/403 or an authentication error) is skipped and the one
+  that worked is kept for the run; its name (never its value) is printed as `railway_credential`. None working is one
+  line `POSTGRES_RESTART NOT_RUN: …` and exit 4 (a cron run reports it as failed, as before). The same credential reads
+  edge-bff's domain (`edge_domain`, no CLI), and `cli_env()` gives the `railway` CLI of `set_postgres_memory.py` and
+  `set_postgres_restart_times.py` the environment without a refused `RAILWAY_TOKEN`; `verification/terminal_api/pgq.py`
+  reads its Railway credential only when its login cache is missing. Tests: `scripts/tests/test_restart_postgres.py`
+  (20 passed: fallback, order, a non-credential error not retried, the NOT_RUN line naming variables only).
+- **Verified live (2026-11-14):** run unchanged in this session (its `RAILWAY_TOKEN` refused) the check fell back to
+  `RAILWAY_API_TOKEN`; `--apply --min-gb 0` at 16:10 UTC (the user asked for the restart; every other guard kept: no
+  cron within 45 minutes, outside B6, 0 statements, 0 user runs) restarted Postgres in 10 s (start 10:17:21 → 16:10:17
+  UTC), edge-bff `/ready` 200; memory 0.49 → 0.08 GB. postgres-memory-cron keeps its uploaded copy (its own token comes
+  first, so its path is unchanged); the next `deploy.sh` upload carries the new code.
+- **Lesson:** a guard step that cannot run must say "not run" in one line the job's reader sees, never end in a
+  traceback after the job's success line.
+
+### M434 — Radar: the first result dates have no universe, the G2 window reads the Radar's own history (2026-11-14, fixed)
+
+- **Symptom (live check on dev, 2026-11-14):** `radar-days` lists 250 dates, but `Feature_07_Radar_Result` has rows on 246:
+  the gate rows of 2025-10-24, 10-27, 10-28 and 10-29 read universe 0, Broad 0, Liquid 0. The next 11 dates (2025-10-30
+  to 11-13) read a universe of 834-853 against about 855 afterwards.
+- **Verified cause (code, migration `20261114_003`, lines 40-52):** G2 counts each stock's sessions among "the last 16
+  market dates", and both the 16 dates and the counts are read from `Feature_07_Radar_Measure`, whose rows start at the
+  first fill's first date (2025-10-24). On the k-th date of that history only k dates exist, so no stock reaches 5
+  sessions before the 5th date, and up to the 16th date the window is shorter than 16. The newest 20 dates (the date
+  picker) and every date from 2025-11-14 on are unaffected; the independent recalculation did not see it because its
+  checked dates start in June 2026.
+- **Class:** every window measure whose history is read from the derived table it fills, at the start of that table: the
+  G2 window now; any later "N of the last M dates" rule of the Radar or a Feature table filled from a chosen start.
+- **Fixed (user 2026-11-14: "2 perbaiki sekarang"):** migration `20261114_005_feature_07_radar_g2_window.sql` (DRYRUN
+  `750b0e5f`, APPLY `36714ab7`): `refresh_feature_07_day` reads the 16 market dates (a Regular session of any ticker)
+  and each stock's Regular sessions from Feature 06 (read-only EXPLAIN ANALYZE on dev: 18,804 index rows, 27 ms); the
+  catalog row of `g2_eligible` names the new source. Every result date was then computed again in date order
+  (`verification/radar/redo_days_job.py`, DRYRUN `9caa52d3`, APPLY `478abe05`, 244 s, APPLY_OK), because a run of days
+  carries from one date to the next: universe 856 / 855 / 854 / 853 on 2025-10-24..29, 853-855 to 2025-11-13; the gate
+  rows from the 16th date on unchanged; result rows changed on 21 dates (2025-10-24 to 11-21), none later (3 and 9 Nov
+  2026 as before). The publisher republished the files (Run Now 17:13 UTC); live check 13/13
+  (`verification/radar/live_20261114_m434/`).
+- **Verified independently:** `validate_radar.py` (now taking the previous result date from the gate rows, as the SQL)
+  on every ticker of 2025-10-24, 10-27, 10-30, 11-05, 11-13, 11-14 and of six dates of 2026: 0 differences
+  (`verification/radar/validation_20261114/`). A first run differed for PJHB only: listed 2025-11-06, its broker rows
+  were missing from the extract (the extract's own window started before its listing), not from dev.
+- **Lesson:** a rolling window reads its history from the source table, never from a table whose first row is the
+  start of a fill; validate the first dates of a fill, not only recent ones.
+
+### M435 — The indicator notes file drifted from its sources for six days; its check runs only by hand (2026-11-14, fixed)
+
+- **Symptom:** on `main` `a936653` (2026-11-14) `scripts/tests/test_indicator_notes.py` fails:
+  "apps/edge-bff/terminal/src/data/indNotes.json differs from its sources: run scripts/build_indicator_notes.py".
+  Running the generator changes the file by +22/−2 lines: FL14 gains its `avg` output (the 10-day average option) and
+  FL49–FL52 are added at the end of the Flow list. The 53 technical entries do not change.
+- **Verified cause (Git and code, 2026-11-14):**
+  1. The file has had no reader since 2026-11-06. EXEC-TERMINAL-LOOK 2B (user 2026-11-06: "hilangkan semua indikator
+     card yang ada"; recorded as "Kartu (D), 2B: dihapus total, kode dan tesnya") removed the cards in `353776f`, and
+     with them the file's only readers, `app/indCard.ts:14` and `tests/data/ind_card.test.ts:6` (`git grep indNotes`
+     at `353776f^` and at `353776f`). The generator `scripts/build_indicator_notes.py`, its output and
+     `scripts/tests/test_indicator_notes.py` stayed.
+  2. On 2026-11-08 `b8fa1ea` (FL14 average, FL49–FL52; EXEC-FLOW-NEW-3, go "Ok go") and `0132bda` (FL51 option E,
+     FL52's own list of 10; go "aight sudah G / … / go.") changed the formula table of
+     `verification/terminal_api/flow_indicators/FORMULAS.md` without running the generator. `a78818f` (2026-11-06)
+     changed a paragraph outside the table, which the generator does not read. The last commit that touched the file is
+     `62eb212` (2026-11-05); `5bbebb3` only looks like one in a 50-commit clone, where it is the shallow boundary.
+  3. Nothing ran the check. With no reader, no Terminal test or build can fail. The repository's only GitHub workflow is
+     `.github/workflows/database-schema-docs.yml` (the daily schema snapshot), and there is no pre-commit hook
+     (`core.hooksPath` unset, no hook configuration). The Python check fails only when someone runs it.
+- **Source text is the approved one:** the new rows match the approvals in `EXEC.md` (EXEC-FLOW-NEW-3; the go of
+  2026-11-08 for Loaders option E and FL52's own list) and the code. In `apps/edge-bff/terminal/src/calc/flow.ts`:
+  - FL14 returns `{ asym, avg: meanOfLast(asym, 10) }` (lines 569–570);
+  - FL49 and FL50 come from `fdParts` and `fdShown` (846–849);
+  - FL51 is `loadersTable` with `side` and `top` (481–519);
+  - FL52 is FL23 with `view: 'cum', total: false` (853).
+  `flowRegistry.json` has the same 52 Flow ids and the same outputs (FL14 `asym, avg`; FL50 `foreign, domestic,
+  verdict`). EXEC-DQ-SIZE and EXEC-DQ-COLORS (2026-11-11) changed only how FL49 is drawn, not its value.
+- **Effect:** none for users. The Terminal build (`npm run build`) before and after the rebuild is byte-identical
+  (sha256 of all four files in `apps/edge-bff/static/terminal-app`), so this change needs no deploy. The look check
+  (`look_check11.mjs`) does not apply: no style, markup or layout changed, and the file is not in the page.
+- **Solution, step 1 (commit `911882d`):** `python3 scripts/build_indicator_notes.py` ("53 technical, 52 flow"). Checks:
+  - `--check` exit 0, and `scripts/tests/test_indicator_notes.py` passes;
+  - Terminal vitest: 893 passed; `npm run build` OK.
+  The other drift checks are current the same day: `scripts/tests/test_registries_current.py` (Backtest and Screener
+  registries), `scripts/build_flow_registry.py --check`, `scripts/terminal_indicator_spec.py --check`.
+- **Class:** every generated file whose only guard is a check someone must run by hand:
+  - `indNotes.json` and `flowRegistry.json`;
+  - the Backtest and Screener registries (M329 added their test; it is still run by hand);
+  - `INDICATOR_SPEC.md` and its migration (a `--check` without a test);
+  - `AI_TOOLS.md`, `AI_MODELS.md`, `AI_ROUTER.md` and the system-prompt snapshots (tests in `apps/market-ai-orc/tests`).
+  A sub-class: a generated file left behind when its reader is removed keeps a check that can fail but protects
+  nothing.
+- **Solution, step 2 (user 2026-11-14: "1. B / 2. A", EXEC-GEN-CHECK):**
+  - 1 B: `scripts/build_indicator_notes.py`, `indNotes.json` and `scripts/tests/test_indicator_notes.py` removed; the
+    handoff rows that named them updated. The Terminal build is still byte-identical; Terminal vitest 893 passed.
+  - 2 A: `.github/workflows/generated-files.yml` runs every test marked `generated_file` on each push and pull request,
+    in three jobs (repository scripts, market-ai-orc, market-python-sandbox; no database, no secrets). Marked: the
+    registry checks, the orc's AI_TOOLS / AI_MODELS / AI_ROUTER / prompt-history tests and its Tool_Catalog and
+    method-guide rows, the sandbox's method-guide and research-library migrations, and two new checks
+    (`INDICATOR_SPEC.md`, `FEATURE_07_RADAR.md`).
+  - `scripts/tests/test_generated_files.py` finds the generators instead of listing them (a script in a `scripts` folder
+    named build/generate/snapshot, or taking `--check`: 20 today) and fails when one has no marked test and no reason
+    in `EXEMPT` (8 at first; 7 since M436 was settled the same day: five applied-migration writers, a reader of a
+    database export, the restart dry run). Before the marks were added it failed and named 12.
+  - Local runs as in CI: scripts 7 passed, orc 11 passed, sandbox 2 passed. GitHub run `43616675930` (commit
+    `7fb0bde6`, branch `claude/affectionate-shannon-qmsxxb`): SUCCESS in 41 s, the same counts in its three jobs.
+- **Not covered:** a generator outside a `scripts` folder or named otherwise without `--check`; a file whose source is the
+  live database (`DATABASE_SCHEMA.md`, kept by the daily workflow). Railway still deploys a push without waiting for the
+  check (`checkSuites: false` on every service in `.railway/railway.ts`); changing that is a separate user decision.
+- **Status:** FIXED, on `main` `2ee7e9fa` (user 2026-11-15 "Ok merge"): the file and its chain are gone, and every
+  generated file with a check is checked on each push and pull request (GitHub run `43667398337` on `main`: success).
+  Deployed with no change in behaviour: edge-bff `a7f5cda0`, market-ai-orc `9ce82005`, market-python-sandbox `2db92783`
+  SUCCESS; edge-bff `/ready` 200. Railway keeps deploying without waiting for the check (user "2 B": `checkSuites`
+  stays `false`).
+- **Lesson:** a generated file needs its check in CI or a pre-commit step, so that a source change without the rebuild
+  fails before it reaches `main`. Removing a reader removes its generator chain (generator, output, test, handoff rows)
+  in the same commit, or records why the chain stays.
+
+### M436 — FEATURE_05_06_FOREIGN_DOMESTIC.md differs from its generator (2026-11-14, fixed)
+
+- **Found by:** the inventory for EXEC-GEN-CHECK (M435): `python3 scripts/generate_feature_05_06_catalog.py dictionary`
+  differs from the committed `FEATURE_05_06_FOREIGN_DOMESTIC.md` in 58 table rows, and the file has 33 lines of notes
+  (the IHSG validation of 2026-10-24, the INDEX history and `20261025_007`) that the generator does not write.
+- **Symptom (examples):** `buy_freq` / `sell_freq` source "from IDX_Broker_Summary_Freq" in the generator, "stored with
+  each Broker Summary row" in the file; the unit of the `foreign_net_percentile_*` columns "percent" in the generator,
+  "Percentile 0-100" in the file.
+- **Verified cause (dev, read-only through pgweb, `default_transaction_read_only` on, 2026-11-14 about 16:50 UTC):** the active
+  `Feature_Catalog` rows of both tables (102, all `v1`, last change 2026-10-25 15:21 UTC) equal the committed file in
+  all 612 cells compared (category, definition, formula, unit, NULL rule, minimum history). The generator differs in
+  26 cells (formula 2, NULL rule 16, unit 8), each one a correction of migration `20261025_012` (its comment: "The
+  texts are corrected at their owner, Feature_Catalog"). That migration changed the catalog and the file but not the
+  generator, whose v1 text is also the text of the applied `20261022_004`.
+- **Solution:** `scripts/generate_feature_05_06_catalog.py`:
+  - `migration` still writes the v1 text (byte-identical to the applied `20261022_004`);
+  - `dictionary` applies the corrections of every applied migration that carries an `m_vocab` correction table, read
+    from those files (63 rows in `20261025_012`, 26 of them for Feature 05/06; counted independently: 63), with the
+    migration's own rule (a text is replaced only where it still equals the old text), and appends the notes, now
+    kept in the generator as `NOTES`. Its output equals the committed file; no database row and no document changed.
+  - Two checks in `scripts/tests/test_generated_files.py`: the dictionary equals the file, and the migration output
+    equals the applied migration. Both fail when a v1 text is edited by hand in the generator; the first fails when the
+    file is edited by hand. The generator left `EXEMPT`.
+- **Status:** FIXED, on `main` `2ee7e9fa` (GitHub run `43667398337`: success).
+- **Lesson:** a correction migration that changes a generated text also changes what the generator writes, in the same
+  commit; a generator derives later corrections from the migrations rather than copying them.
+
+### M437 — Code that assumes the universe holds one index (2026-11-15, fixed)
+
+- **Found by:** the dependency map of EXEC-INDEX-GROUP-HISTORY (43 more indexes in `IDX_Stock_Universe`), before any
+  change on dev; nothing has failed yet.
+- **Verified cause (code and live functions, 2026-11-15):**
+  - `apps/idx-price-cron/intraday_update.py:279` loaded every universe row, so every new index would get 5m-4h bars;
+  - `remark_intraday_sessions` (live, md5 06a47619...) sums the bars of every universe index into `index_bars`, and
+    `intraday_bars_per_year` (the annualisation of the intraday features) is 252 x their mean: one more index with bars
+    doubles it, 43 more multiply it about 44-fold; its session calendar (and `intraday_update.py sessions_behind`) is the
+    union of every universe index's daily candles, so one stray candle adds a session (rehearsed: 45 instead of 44);
+  - `validate_index_feature_identity` accepted only universe indexes, so a group (not a universe row) could never be
+    written to the *_INDEX tables.
+- **Class:** every reader of `is_universe_index` that aggregates over "the" index (a calendar, a count, a sum) rather
+  than skipping indexes; readers that only skip indexes (`recovery_window.py:157`, `intraday_features.py:272`, the Feature
+  01/04 queues) are safe for any number.
+- **Solution (branch `claude/affectionate-shannon-qmsxxb`):** stage 1 `intraday_indexes` (an index is loaded and makes the
+  calendar only when it already has intraday bars; a new one named in `--tickers` is refused with its reason); migration
+  `20261115_001` (the same rule for `remark_intraday_sessions`' calendar; the guard reads `Feature_Index_Entity`).
+  Rehearsal: `verification/index_group_history/REHEARSAL.md` (identical output on today's data; the stray candle no
+  longer counts).
+- **Status:** FIXED 2026-11-15: idx-intraday-cron `1cddf79c` SUCCESS (HEAD `63da5cf3`), migration 20261115_001 applied
+  and read back (DATABASE_CHANGELOG 2026-11-15). Its first scheduled intraday run (Monday 10:30 UTC) exercises the code.
+- **Lesson:** a second instance of something the code has known only once (an index, a market, a calendar) is a schema
+  change: search every reader of its identifying predicate for a count, sum or union over it before adding it.
+
+### M438 — Price_Stock_Indonesia_IDX.ticker is varchar(4); 38 index tickers were refused (2026-11-15, fixed)
+
+- **Symptom:** the price history job of EXEC-INDEX-GROUP-HISTORY (APPLY, 2026-11-15 08:07 UTC) stored DBX, ISSI, JII, LQ45
+  and MBX and was refused for the other 38 indexes on `COPY idx_history_stage ... column ticker` (value too long).
+- **Verified cause (live schema):** `Price_Stock_Indonesia_IDX.ticker` is `character varying(4)`; the INDEX ticker rule
+  chosen in the plan (`Feature_Index_Entity_ticker_check`, letters and digits, at most 12, the terminal-api rule) allows
+  longer codes (BISNIS27, IDXENERGY, IDXLQ45LCL). The local rehearsal held the column's type but did not write a price
+  row for a long ticker, so the mismatch only showed on dev.
+- **Effect now:** the 43 rows of migration 20261115_002 are in the universe, and the daily price cron writes the whole
+  universe in one COPY (`price_update.py bulk_upsert_prices`), so its next run that queries the 38 fails for every
+  ticker until the column is widened or the 38 rows leave the universe: 2026-11-15 17:00 WIB (Friday's session, already
+  stored: a FAILED run and an alert, no data lost), then 2026-11-16 06:00 and 17:00 WIB (Monday's prices).
+- **Class:** a key a new kind of entity reuses (here the price table's ticker) with a width chosen for the first kind
+  (four-letter IDX stocks); the other tables of the INDEX flow use text, the broker summary varchar(32).
+- **Fix prepared (not applied, needs the user's go):** `20261115_003_price_ticker_varchar12.sql` (drop and re-create the one
+  trigger that names the column, `ALTER ... TYPE varchar(12)`; rehearsed: the table is not rewritten, the partial index
+  `Price_Stock_Indonesia_IDX_final_idx` is rebuilt, a 10-letter index row is stored, the volume guard still refuses a
+  non-index without volume). Then the price APPLY for the 38 again (same fingerprints).
+- **Status:** FIXED 2026-11-15 (user "A"): migration 20261115_003 applied (DRYRUN `9fcbdbf4`, APPLY `a96ff014`), the 38
+  stored (job `7331078f`, 60,809 rows; 43 indexes 71,509 rows read back). The scheduled daily price run of 10:03 UTC
+  (`Monitoring_Price_ALL`, 2026-11-13 session) SUCCESS: index 44 of 44 updated, stock 836 of 862 and fund 27 of 45
+  updated, 0 missing.
+- **Lesson:** a rehearsal writes one row of every new key shape into every table the flow writes, not only the tables the
+  migration changes.
+
+### M439 — Feature 06 of a continuing index or group restarted its cumulative nets at 0 (2026-11-15, fixed before release)
+
+- **Symptom:** the local test of `scripts/backfill_index_entities.py` (EXEC-INDEX-GROUP-HISTORY stage 4): the continuation
+  run (stored rows to 2025-09-30, new rows from 2025-10-01) failed its own independent Feature 06 check, foreign
+  cumulative net 4,494,742,260,373 instead of 4,595,392,466,603 (GAGOES, 2025-10-01, Nego). Nothing was written.
+- **Verified cause (code and the local run):** `refresh_feature_06(ticker, from)` continues from the stored row before
+  its range start (312 sessions before `from`); the IHSG incremental run seeds those rows from its stored history, which
+  reaches 2016. An entity's stored rows start at its `rows_from` (2024-01-02 on dev), so there was no stored row before
+  the range start and the cumulative started from 0.
+- **Class:** an incremental step that reads its starting state from earlier stored rows, reused for a table whose rows
+  start later than the source history (any entity of Feature_Index_Entity; later macro or cross-asset series stored
+  from a chosen date would meet the same).
+- **Fix (`backfill_index_entities.seed_anchors`, the layer that owns the cumulative):** the starting state is derived,
+  not looked up: per board the stored cumulative of the last row before the run minus the daily nets from the range
+  start (exact numeric), as an unwritten row before the range start. A board traded in the window with no stored row
+  (its cumulative before `rows_from` is not stored) makes that entity's Feature 06 read its whole broker history instead.
+- **Verified (local, `verification/index_group_history/stage4/README.md`):** first fill plus continuation equals one
+  first fill (all six tables, 0 differing); recompute from 2025-10-15 changes 0 rows; the board fallback equals the first
+  fill. IHSG unchanged (old vs branch script, 0 differing).
+- **Status:** FIXED before release.
+- **Lesson:** a table stored from a later date than its source history cannot take its running totals from its own
+  earlier rows; derive them from the last stored value and the source, and test a continuation against a full rebuild.
+
+### M440 — Market Overview: the first run's Feature 04 count was one statement near the publisher's 120 s timeout (2026-11-15, fixed before release)
+
+- **Found by:** the EXEC-OVERVIEW O1 measurement on dev (read-only EXPLAIN ANALYZE, `verification/overview/explain_dev.py`)
+  before the first publisher run; nothing has failed on dev.
+- **Verified cause:**
+  - `overview.py` counted the stocks above EMA50/EMA200 for every date not yet counted in one statement
+    (`BREADTH_SQL` with all dates). A first run, or the manual mode `overview`, has 300 such dates.
+  - Feature 04 is 2.5 GB and the rows of one older date are spread over the whole table (correlation of `trade_date`
+    -0.04). One statement of 20 older dates read 10,622 pages in 5.7 s on dev, so 300 dates take about 86 s cold.
+  - The publisher login `terminal_publisher_login` has `statement_timeout=120s` (`pg_db_role_setting`, dev,
+    2026-11-15). A slower disk or a busier database would have cancelled the first run.
+- **Class:** a publisher statement whose cost grows with the number of dates it covers, on a table whose rows are not
+  clustered by date (Feature 04, and any large Feature table loaded ticker by ticker). A daily run with one new date hides
+  it; only a first run, a manual rebuild or a formula change reaches it.
+- **Solution:** `BREADTH_CHUNK = 20` dates per statement (`apps/terminal-publisher/overview.py`), so no statement
+  grows with the number of dates. Test `test_a_full_count_reads_feature_04_in_bounded_chunks_each_date_once`. The 22
+  rehearsal files are byte-equal to the single-statement build.
+- **Status:** FIXED before release (branch `claude/keen-turing-56vw7y`, commit `fa4f093e`); the first run on dev (O7)
+  reads about 1.2 GB of Feature 04 and is followed by the Postgres restart check.
+- **Lesson for new data:** before a job reads "every date" of a large table, measure one bounded chunk of older dates
+  with EXPLAIN (ANALYZE, BUFFERS), multiply by the number of chunks, and compare with the role's `statement_timeout`.
+  Read in chunks whose size does not depend on how much history exists.
+
+### M441 — EXEC-OVERVIEW plan fact counted Feature 04 rows without the common-stock filter (2026-11-15, corrected)
+
+- **Found by:** the independent recalculation of O6 (`verification/overview/validate_overview.py`).
+- **Verified cause:** the plan's data fact "13 Nov: 862 stocks have EMA50, 166 above it" came from a count of
+  `Feature_04_Technical_Indicator` (Daily, equity) without `IDX_Stock_Universe."Security Type" = 'stock'`. With the
+  filter, as the page counts: 836 with EMA50, 162 above (19.38%); 828 with EMA200, 152 above (18.36%).
+- **Class:** a fact about "stocks" quoted from a Feature table that also holds other securities (funds, warrants,
+  indexes): the number depends on the universe filter, which the fact did not state.
+- **Solution:** EXEC.md (EXEC-OVERVIEW progress) and `verification/overview/REHEARSAL.md` state the corrected count and its
+  filter; `OVERVIEW_FORMULAS.md` section 10 names the filter.
+- **Status:** CORRECTED. No code used the wrong number.
+- **Lesson:** a count quoted as evidence names its filter (table, timeframe, asset type, universe) next to the number.
+
+### M442 — Market Overview: carried day files and counts were judged current by proxies, not by the rows they read (2026-11-15, fixed before release)
+
+- **Found by:** the independent code review of EXEC-OVERVIEW O6 (a separate agent, given the code and the formulas, not
+  my conclusions); each finding then verified against the code, the schedules in `.railway/railway.ts` and a test.
+- **Verified cause:** `overview.py` kept a day file when `[broker date, Feature 04 present]` was unchanged and carried the
+  stocks above EMA per date forever. The global stamp held maximum dates and counts. None of these is the content the
+  file was built from:
+  1. day files hold positions in `meta.stocks`. A new or removed stock changes the stamp (universe md5), the meta is
+     rebuilt, but the day files were kept: with one stock listed ahead of BBCA, every older day showed BBCA's figures
+     under the new ticker (test `test_a_new_stock_rebuilds_every_day_file_so_positions_match_the_meta`);
+  2. the publisher runs on the price signal (idx-price-cron 17:00 WIB); the IHSG bars load at 17:30 WIB
+     (idx-intraday-cron) and do not signal it. The stamp had no intraday part, so the newest day kept an empty 1D
+     chart until the next broker round;
+  3. Feature 01 and 04 are filled ticker by ticker by queue workers. A run during the fill built a partial day file
+     and a partial % above EMA; the next run (Feature 01 count changed) kept both;
+  4. page: a 409 made the page re-read the index only, so a day file of a newer publication could meet the old meta
+     (positions) and series (flow dates);
+  5. page: the 1D chart's range left out the prior close on a day trading wholly below it (the dashed line fell outside).
+- **Class:** an incremental output reused on a proxy key (maximum date, existence, count) instead of the content of its
+  inputs; and a file that references another file's positions published without it. Checked for the Radar: not
+  exposed (it rebuilds every file when its stamp, `max(calculated_at)` of the gate table, changes; nothing is carried).
+  The publisher's other carried files (broker days) were not checked in this task.
+- **Solution (`apps/terminal-publisher/overview.py`, `apps/edge-bff/overview/src/`):**
+  - content fingerprints (md5 of the rows) of every input dated within the newest `RECHECK_SESSIONS = 3` market
+    dates: prices of every code, IHSG 5m/1h bars, Feature 01, Feature 04 (with its counts) and Feature 06 at the broker
+    dates those days read. They enter the stamp, and each day file records the ones it read; a changed or newly
+    arrived one rebuilds exactly the days that read it;
+  - the counts above EMA of the window dates are always the fresh ones;
+  - every day key holds the md5 of the ticker list it indexes and of the market flow rows its figures read;
+  - the page reloads meta and series when the index names new ones (mock server: a republication mid-session, the
+    page fetched meta, series and the day again with the new shas); `rows()` skips a position the meta does not hold;
+    the 1D range includes the prior close.
+  - Cost on dev (EXPLAIN, read-only): the window statements 0.6 s, about 3,700 pages per run. All 20 dates by content
+    would be about 5.7 s and 23,000 pages, so older dates rely on the rule below.
+  - Tests: publisher 196 passed (4 new: late bars, fill and rewrite in the window, new stock, a date leaving the window
+    rebuilds nothing); page 15 passed. The rehearsal files are byte-equal; a second run rebuilds nothing.
+- **Status:** FIXED before release (branch `claude/keen-turing-56vw7y`).
+- **Rule for older dates:** a repair of dates older than the window (backfill, recompute, price correction) is published
+  by the manual mode `overview` (AGENTS.md, after a large update, step 4; OVERVIEW_FORMULAS.md section 13).
+- **Lesson:** a cached output is keyed on the content of what it read, at least for the part of history that loaders
+  still write; a file that refers to another file by position is rebuilt whenever that file's order changes.
+### M443 — The scheduled Postgres restart can fall between two statements of a long job (2026-11-15, known: not fixed)
+
+- **Symptom (found while planning EXEC-INDEX-GROUP-HISTORY stage 6, nothing broke):** a multi-hour job on
+  orc-test-runner (the index and group fill, about 3 hours) would overlap the 13:45 UTC run of postgres-memory-cron.
+- **Verified cause (code):** `scripts/restart_postgres.py` counts only client statements in state `active`
+  (`restart_postgres.py:299-303`) and waits up to 60 minutes until there is none. A long job that commits per chunk or
+  computes in Python between statements is `idle` or `idle in transaction` for a few seconds many times, so the restart
+  can start in such a gap: the job's connection and its temporary tables are lost and its last entity may be half
+  written.
+- **Class:** every long job of many statements (Feature backfills, publisher backfills, onboarding jobs) and the
+  scheduled restart; also an `idle in transaction` session of a user run.
+- **Mitigation now:** the fill starts after the 13:45 UTC restart (next 02:45 UTC); `backfill_index_entities.py`
+  continues an entity from its least advanced feature table, so a stopped run is resumed by running it again.
+- **Proposal (declined, 2026-11-16):** the guard also refuses while a client session is
+  `idle in transaction`, or while a job holds a declared session lock (one advisory lock key that long jobs take);
+  the refusal message names the session's application_name and start time.
+- **Status:** KNOWN, not fixed (user 2026-11-16: "Ya udah, masukin aja ke known error. Tidak usah diperbaiki."). Long jobs keep the mitigation: start them after a scheduled restart (09:45 / 20:45 WIB) or far from it, and make them resumable.
+- **Lesson:** a guard that checks one instant cannot see work that pauses; work that must not be cut declares itself.
+
+### M444 — The independent Feature 06 check refused an exact value: running float sums near zero (2026-11-15, fixed)
+
+- **Symptom:** the groups fill (EXEC-INDEX-GROUP-HISTORY stage 6, job `4dd6f307`) stopped before writing anything:
+  `F06 independent mismatch (2022-04-01, 'Nego')/foreign_strength_momentum_5d: 0.0 vs -2.9579048089090065e-05` (GAGOES,
+  the first group). Nothing was written (the check runs before `apply_chunks`).
+- **Verified cause (dev data, exact Decimal, `strength_exact.py` in the session; the test below):** in GAGOES's 20-session
+  Nego window the only non-zero daily foreign share is -7.5e-10 (all others 0), so the strength is exactly -100 on both
+  dates and the momentum exactly 0, the stored SQL (numeric) value. The check (`scripts/check_feature_06_sample.py`)
+  used pandas `rolling().sum()`, a running sum that keeps the rounding remainder (about 2e-16) of a -1 that had left the
+  window; against a window sum of 7.5e-10 the remainder made the strength -100.0000296.
+- **Class:** an independent float check of ratios of window sums (foreign strength, net-to-turnover, frequency shares)
+  where a window holds values far smaller than earlier ones: small groups and thin boards, any stock (the stock Feature
+  06 check and `apps/feature-05-06-job` use the same module); IHSG never reached it (its Nego shares are never tiny).
+- **Fix (the checking layer, not the data):** `wsum` sums each window from its own values (`sliding_window_view`,
+  `nansum`), with `rolling().sum()`'s rules for missing values; every rolling sum of the check uses it.
+  `scripts/tests/test_check_feature_06_sample.py`: same results as `rolling().sum()` on random data with gaps; on the
+  dev window shape the direct sum is off by rounding only (1.4e-14) while the running sum is off by 2.8e-06. Local IHSG
+  and entity checks pass with it.
+- **Status:** FIXED (the fill is run again).
+- **Lesson:** an independent check must be at least as exact as what it checks; a running sum is not.
+### M445 — The restart guard's hand path cannot see other accounts' sessions (2026-11-16, known: not fixed)
+
+- **Symptom (found while planning the fix of M443):** run by hand or at the end of a `run_job.sh` job,
+  `scripts/restart_postgres.py` reads `pg_stat_activity` as `pgweb`; a session of another account shows no state
+  (2026-11-15 11:07 UTC: the trial job's session `index-entities-backfill` had an empty state and
+  `<insufficient privilege>`).
+- **Verified cause (dev, 2026-11-16):** `pgweb` is not a member of `pg_read_all_stats`
+  (`pg_has_role(current_user,'pg_read_all_stats','member')` = false), so `state = 'active'` counts only its own session;
+  the guard at `restart_postgres.py:299-303` then reads 0 running statements while another job runs. The cron service
+  reads as the main account (`${{Postgres.DATABASE_URL}}`) and sees every session.
+- **Class:** every check that reads other sessions through a reader role (the restart guard by hand, `run_job.sh`'s
+  restart after a large write, any agent check of "is something running").
+- **Proposal (declined, 2026-11-16):** one read-only SECURITY DEFINER function for both paths, no query text (FUTURE_PLAN.md RESTART-GUARD).
+- **Status:** KNOWN, not fixed (user 2026-11-16). Until then: before a restart by hand or a `large_write` job, check running jobs with a query as the main account (or look at orc-test-runner and the cron services), not only the guard's verdict.
+- **Lesson:** a guard must read with the same view of the system in every path that runs it.
+
+### M446 — Market Overview on a phone: menus and popovers outgrew the screen, labels were cut or misleading, and no page menu existed (2026-11-15, fixed, deployed)
+
+- **Found by:** the user (screenshots: values not aligned, the universe list running off the page, the tile popover cut,
+  no hover on unlabelled tiles, controls on a second row at 125% zoom) and a mobile QA by five reviewers (user
+  2026-11-15: "Jalankan 5 subagents sonnet 5.5 high to review"); each finding measured again on dev before it was listed
+  (EXEC-OVERVIEW, "Daftar perbaikan"). Figures were right: 13,119 values on a phone equal an independent recalculation.
+- **Verified causes, by class:**
+  - **A, floating elements sized by assumption or not at all:** the tile popover was placed for a height of 130/150 px
+    (`app.ts`) while it measured 188 px in a map that clips (`.tm{overflow:hidden}`): 32 of 45 tiles clipped it on an
+    iPhone 13; the universe menu had no height limit (2,005 px for 67 lists); the date menu was anchored to the right of
+    a button at the left of a phone screen (x = -43 px).
+  - **B, text in narrow cells:** the values under the IHSG chart followed labels of one or two lines; OHLC values were
+    6-13 px wider than their cells at 390-360 px; KPI labels and "129 unchanged" were cut; sector headings cut without
+    "…"; dates split over two lines ("9 / Nov").
+  - **C, rounding at a unit boundary:** the unit was chosen before rounding ("+1000M", "Rp 1000.0B"); trillions had 1 or
+    2 decimals side by side.
+  - **D, labels:** IHSG 5D was measured from the first hourly bar (+5.17%) instead of the close before the period
+    (+5.82%, as every other 5D figure); a 1Y range had no year; foreign figures of the broker date carried no date;
+    Top Movers' losers were listed mildest first; sector short names differed between panels.
+  - **E, mouse only:** no hover on tiles; chart crosshairs only on `mousemove`; the universe search took the focus on a
+    phone (its keyboard covers the list); a tap in the shell did not close the page's menus.
+  - **F, accessibility:** each of up to 836 tiles was a Tab stop; five period groups had no group name; charts had no
+    text summary.
+  - **Shell:** at 720 px or less the left menu is hidden (`static/index.html`) and nothing replaced it: on a phone every
+    page but Monitor was reachable only by typing its address (before the Overview too).
+  - **Header controls on a second row, right-aligned** (user, zoom 125%): the design's own behaviour when a card is
+    narrower than its title plus its controls (the design file renders the same at 1152, 1280 and 1440 px).
+- **Solution (branch `claude/keen-turing-56vw7y`; user decisions 2026-11-15 "1B, 2B, 3 no hanya IHSG saja", "go,
+  kerjakan 1 lalu 2"):** popover and menus placed from their measured size, menus bounded with an inner scroll;
+  `fit()` derives each header's layout from what is drawn (words hidden first, then a left-aligned row of their own,
+  the words back when that row holds them) and turns OHLC 2 x 2 when a value overflows; bottom-aligned values,
+  wrapping labels, ellipsis headings, no-break dates; units chosen after rounding; 5D from the close before the
+  period, years on cross-year ranges, broker dates named; deepest fall first; one name table; tile hover tooltip;
+  pointer events on charts (`touch-action: pan-y`); no auto-focus on touch; one tab stop for the map with arrow keys;
+  named groups and chart summaries; Top Movers on the whole market (the universe is for the map only); the shell's
+  pages menu (☰) on a phone (1B). Not changed: the grey text token (2B).
+- **Checks:** page tests 17 passed; edge-bff suite 368 passed (a new phone test of the pages menu); fixture checks at
+  1440, 1152, 390 and 360 px: P1 values on one line, no OHLC overflow, no label cut, every header fits, one tab stop,
+  universe menu 440 px with an inner scroll, date menu inside the screen, 0 of 45 popovers clipped, hover on an
+  unlabelled tile, IHSG 5D +5.82%; interaction checks 33 passed.
+- **Status:** FIXED and deployed: edge-bff `0c882d2d` SUCCESS 2026-11-15 19:56 UTC (`main` `724d130c`, user "Oke,
+  jalankan."); measured on the live page as the owner at 1440 px and on a 390 px phone, 33/33 ok
+  (`verification/overview/live_20261115/live_page_check.txt`, RAILWAY_CHANGELOG).
+- **Lesson:** a floating element is placed from its measured size inside the box that clips it; a layout rule that
+  depends on text length is derived from the rendered result, not from a width table; a value's unit is chosen after
+  rounding.
+
+### M447 — Market Overview: a rupiah amount can break between "Rp" and its number (2026-11-15, known: not fixed)
+
+- **Found by:** the live page check after the second release (1440 px, Foreign Flow, Custom 1 Oct-13 Nov): the footer
+  reads "Market net −Rp" on one line and "19.85T" on the next (`verification/overview/live_20261115/live_custom_1440.png`).
+- **Verified cause:** `rp()` joins the currency and the number with an ordinary space (`apps/edge-bff/overview/src/model.ts:48`,
+  `'Rp ' + ...`), so the browser may wrap there whenever the text does not fit its box. The dates had the same problem
+  and use a no-break space since M446.
+- **Class:** every amount the page writes through `rp()` (KPI tiles, map tiles "Rp 1.69T/day", popovers, Foreign Flow
+  rows and footer, Custom); any future unit written as "word number" with a plain space.
+- **Proposed solution (waiting for the user):** a no-break space inside `rp()` (one change covers every amount), with a
+  page test that no amount contains a breakable space; checked at 1440/1152/390/360 px.
+- **Status:** KNOWN, not fixed; the figure itself is right. Recorded in EXEC-OVERVIEW.
+- **Lesson:** a value and its unit are one word for the line breaker: join them with a no-break space where the text is
+  built, not per label.
+
+### M448 — Look-ahead: eight Terminal Flow indicators choose their brokers with data up to the last candle; four data inputs carry no availability date (2026-11-15, fixed for the Backtest, deployed 2026-11-16)
+
+- **Found by:** BACKTEST-REVAMP (PLAN.md), before the Terminal Flow indicators enter the Backtest. User 2026-11-15:
+  "bisa mengintip masa depan, seharusnya tidak terjadi ... Jika berlaku untuk seluruh indikator, maka ini perlu
+  diperbaiki."
+- **Check (truncation test, read-only):** every series computed on the full data and on the data cut at day t; every
+  value on days up to t must be equal. Data: BBCA from dev (2,140 final daily bars 2018-01-02 to 2026-11-13; 67,190
+  Feature 05 rows from 2024-01-02 with `buy_freq`/`sell_freq`; 85 insider rows; `IDX_Broker_Profile` classes), read
+  through pgweb as `pgweb_reader`. Cuts: 6 dates for prices, 4 for flow. Result:
+  - clean: the 53 registry indicators (default parameters), the 8 price-action operators (`conditions.ts`
+    `PRICE_ACTION`), the 20 candlestick patterns (`candles.ts`), 17 Screener transforms (`transforms.ts`);
+  - look-ahead: 8 of 52 Flow indicators, and only these in a sweep of 524 parameter variants (every option of every
+    select, bool and multi parameter): FL18, FL19, FL20, FL44, FL45 (scope Top-N: `terminal/src/calc/flow.ts` `frozen`
+    ranks brokers from the anchor to `lastData`), FL23 and FL52 (default brokers: `defaultInventoryBrokers`, the last
+    20 sessions of the data), FL51 (`loadersTable`, end = the last candle). Example: FL18 on 2024-01-02 reads 9,396.67
+    with the data to 2026 and 9,396.53 with the data cut at 2024-07-15; FL51 lists broker SQ only with the full data.
+    The same indicators with brokers the user names (scope "selected") are clean.
+- **Not caught by a truncation test (data without an availability date):**
+  1. FL31 Insider Net Change: `idx_event_annotation` insider rows carry only `TRANSACTION_DATE` (104,998 rows; IDX
+     22,809 and KSEI 82,189; no disclosure date in `source_payload`), so a transaction is read on its trade date, before
+     it was reported;
+  2. FL34 Institutional vs Retail: `IDX_Broker_Profile.broker_classification` is the current observed profile, applied
+     to every date (`apps/terminal-publisher/publisher.py:1631`);
+  3. the Backtest page's default threshold of a new panel indicator is the median of the ticker's whole published
+     history (`apps/edge-bff/backtest/src/reg.ts:40-42` `regMedian`), dates after the test period included;
+  4. known and warned: today's ticker list and sectors (`SURVIVORSHIP`, decision K6), the back-adjusted history before
+     2026-09-12 (`ADJUSTED_HISTORY_BOUNDARY`, decision K4).
+- **Class:** a value at day t that depends on information not available at t: (a) in the calculation, a selection
+  (Top-N cohort, default broker list, loaders, a threshold) made over a window that reaches past t; (b) in the data, a
+  row dated by when the event happened rather than when it became known, or a static label applied to past dates. The
+  Terminal draws a chart of the past with hindsight; the Backtest must not. Any new data source (macro, cross-asset,
+  fundamentals) can carry (b).
+- **Proposed solution (not executed; PLAN.md BACKTEST-REVAMP):** one rule, value at t = function of the data available
+  at t: selections recomputed at each t from data up to t (or fixed by the user before the test); data with an
+  availability date beside the event date (or a stated conservative lag, TEMPORARY, until the source gives one);
+  defaults from data before the test period; a truncation test over every registry entry (derived from the registries,
+  so a new indicator is covered) and an engine-level test (trades closed up to t unchanged) as a CI gate.
+- **User decision 2026-11-15:** "Terminal jangan disentuh"; the eight enter the Backtest as point-in-time versions in
+  the Backtest core (admin only), FL31 skipped. Prototypes of all eight (re-selection at each t from data up to t) pass
+  the truncation test on BBRI (243,810 broker rows): about 95 ms per stock together. FL34 (user 2026-11-15: "leave as
+  is untuk klasifikasinya karena tidak ada perubahan"): the current `IDX_Broker_Profile` classification is used for
+  every date, an accepted limitation; item 2 above stays recorded.
+- **Solution (built on branch `claude/hopeful-shannon-bqgb1a`, 2026-11-15, EXEC-BACKTEST-REVAMP P3-P4):** the Backtest
+  reads the 41 clean Flow indicators per bar from the whole broker history (526 series equal computeFlow) and the
+  eight in point-in-time versions (`apps/backtest-worker/src/pit/`, worker-only): the brokers chosen again on each
+  candle from the anchor (start) to that candle with the Terminal's own choice, the Terminal's formula for them; equal
+  to the Terminal with named brokers on every candle after a 5-session warm-up and with chosen brokers on the last
+  candle; truncation clean on more than 300 cuts (`tests/pit.test.ts`). The anchor or start is required (user 1A),
+  top N at most 10, FL19/FL20 net buyers only, FL52 read as FL23, FL51 without `end`; admins only (right
+  `flow_point_in_time`, CONDITION_RESTRICTED otherwise; the session's rights arrive in P5). A named broker without rows
+  is decided on the rows up to the period's end (the first version read later rows; the gate caught it). FL34 reads
+  today's classification on every date (user decision 5, accepted limit).
+- **Status:** FIXED for the Backtest, deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`). The Terminal chart still draws its versions (the Terminal is not
+  changed, user decision). Whether the Screener reads them on past bars (its preview arrows) was not checked in this
+  task.
+- **Lesson for new data:** a table that feeds signals carries the date each row became known, not only the date it
+  describes; a classification used on past dates is dated too (Part A update proposed to the user 2026-11-15).
+
+### M449 — Back-adjusted price history is a look-ahead; the backtest warns only when a period crosses 2026-09-12, and PBSA was restated after it (2026-11-15, open)
+
+- **Found by:** BACKTEST-REVAMP Stage A, Agent 1 (independent look-ahead audit); verified by the main agent the same day.
+- **Verified:**
+  - `Price_Stock_Indonesia_IDX` BBCA: close 7,255 / 7,320 on 2021-10-11/12, 7,525 on 2021-10-13, the ex-date of the 1:5
+    split (`idx_event_annotation` STOCK_SPLIT 2021-10-13). The series runs on without a break, so the bars before the split
+    carry the split factor that was known only on 2021-10-13 (the traded price was about five times higher).
+  - Feature 05 lots are on the same adjusted basis for splits and bonus shares (Agent 4: Regular VWAP/close 0.985-1.009 on
+    20 such events), so lot counts before a later split are restated too.
+  - `apps/edge-bff/backtest/src/core/engine.ts:532-533` warns `ADJUSTED_HISTORY_BOUNDARY` only when
+    `from < 2026-09-12 && to >= 2026-09-12`; a period wholly before the boundary gets no warning.
+  - PBSA: all 1,813 final daily rows before 2026-09-12 have `ingestion_time` 2026-10-31 13:18 UTC; PBSA split 1:2 on
+    2026-10-14. Prices after the boundary are therefore back-adjusted too, against the boundary's statement (`engine.ts:157`).
+  - Effect through the engine (Agent 1 run, BBCA 2019-01-02..2020-12-30, published bars against bars rebuilt as traded):
+    breakout with capital Rp 2 m gives 12 trades on the published bars and 0 as traded (22 `insufficient_cash`);
+    `I35 volume_sma(20) > 60M` 9 entries against 0; `I30 ATR(14) > 400` 1 trade against 3; candle tick guard
+    (`min_range_ticks` 4) bullish engulfing 21 days against 43.
+- **Class:** a price or volume series restated with information from after its date (a later split, bonus or rights
+  factor, or a later re-download). Rules on ratios (RSI, returns, value in IDR) are unaffected; rules on absolute price or
+  share levels, lot sizing, cash feasibility and tick bands read levels the trader never saw.
+- **Proposed solution:** data layer (decision K4): an as-traded series beside the adjusted one, with a dated factor
+  table, so the engine can size and price on as-traded levels and compare across time on adjusted ones. Until then
+  (core engine and docs): a warning on every period with a later price-affecting action of a traded ticker, not only on a
+  crossing of 2026-09-12; CONTRACT section 7 states the hindsight effect; the boundary statement is corrected per ticker
+  (`ingestion_time` after the boundary).
+- **Interim solution (built on branch, 2026-11-15, EXEC-BACKTEST-REVAMP P7, user K4 a):** the engine warns per stock
+  (`PRICES_RESTATED`, listed tickers) whenever a split, bonus share or rights issue dated after the period's start and on
+  or before the boundary restates the prices inside the period, whatever the period's end; the as-traded price series
+  stays a separate data EXEC.
+- **Status:** OPEN. Corrects M448 item 4 ("known and warned").
+- **Lesson for new data:** a restated series carries the date of each restatement; "final" means final for that load,
+  not as traded.
+
+### M450 — Broker lots and prices on different bases: rights issues, a re-downloaded range (PBSA) and a post-ex-date fetch (PSSI); gap and dropped-row markers never surfaced (2026-11-15, open)
+
+- **Found by:** BACKTEST-REVAMP Stage A, Agent 4 (Flow data quality); verified by the main agent the same day.
+- **Verified:**
+  - Rights issues: Stockbit lots are not adjusted for rights, TradingView prices are. COCO (RIGHT_ISSUE 2026-07-09):
+    Regular VWAP Σbv/(100·Σbl) 290.9 against close 159.5 on 2026-07-08 (1.82×), 192.4 against 173 on 07-09, 157.8 against
+    155 on 07-13. Agent 4 measured 12 events at 1.26× to 19.5× before the ex-date; 293 RIGHT_ISSUE events on 187 tickers
+    since 2016 (`idx_event_annotation`).
+  - PBSA: Regular VWAP 841.1 against close 422.5 on 2026-08-31, 410.5 against 415 on 2026-09-01; lots 7,404 then 25,714.
+    The broker range 2026-09-01..10-23 was re-downloaded after the 1:2 split, the rows before it were not.
+  - PSSI (bonus 30:1, ex-date 2026-11-06): Regular buy lots 831.317007 and 793.57386 on 2026-11-04/05 (fractional;
+    whole numbers on 11-02/03), fetched after the ex-date.
+  - `gap_bars` and `unmatched_rows` (core `flow.ts`) have no reader outside tests; days with only Nego/Cash rows have no
+    price bar and their broker rows are dropped silently (Agent 4: PPGL 38 Nego days after its last price, Rp 94.95 bn).
+  - `BROKER_COLUMNS` (`apps/edge-bff/backtest/src/core/datafile.ts:166`) has no `bf`/`sf`, although the publisher writes them.
+- **Class:** any broker date fetched before or after a price-affecting action of its ticker on a basis other than the
+  price series, and any marker the core computes but never shows. Affects every indicator that compares a broker price with
+  the close (FL17-FL20, FL39, FL42-FL45, FL51 cost and distance) and every lot-based one across the event.
+- **Proposed solution:** data layer: a derived broker view on the price series' basis (lots × the cumulative factor of
+  each later rights issue, from `idx_event_annotation` ratios and exercise price, which are filled on every RIGHT_ISSUE
+  row), and a re-fetch or rescale of a ticker's broker history after a price-affecting action; a check comparing daily
+  Σlots·100 with price volume and Avg Buy/Sell with the day's range. Until then (core engine, worker): per-ticker warnings
+  for a broker window or anchor that contains a price-affecting action, for `gap_bars` inside the period
+  (`FLOW_SOURCE_GAP`) and for dropped rows by board.
+- **Status:** OPEN.
+- **Lesson for new data:** two series compared in one formula must be on one basis, and the loader records the basis
+  (the fetch date against the ex-dates) of every row.
+- **Verified further (2026-11-15, pgweb read-only):** the basis difference covers every date before an action whose
+  adjustment the published prices carry, not only the days around it: COCO Regular VWAP / close 1.766 (2025-11-03),
+  1.743 (2026-03-02), 1.768 (2026-06-15), 1.824 (2026-07-08), 1.018 after the 2026-07-09 rights issue; price volume /
+  (broker lots x 100) 1.74 on 2025-11-03.
+- **Interim solution (built on branch, EXEC-BACKTEST-REVAMP P3, K3 a; stricter than K3 a's wording, asked at Gate 2):**
+  the Backtest leaves a broker-price Flow value empty (the registry's family "Buy VWAP & Implied Cost" or a price unit)
+  where its window reads a session before an action dated on or before 2026-09-12 or across a later one, and warns per
+  stock: `FLOW_BASIS_CHANGE`, `FLOW_SOURCE_GAP` (the publisher's gap markers), `FLOW_ROWS_DROPPED` (rows on days
+  without a price bar, per board), and `FLOW_PRE_2021`. `bf`/`sf` are read by name. Not covered: a range re-downloaded
+  after an action (PBSA), which has no marker in the published files; the data-layer fix stays open.
+- **Status:** OPEN (data layer: a broker range re-downloaded after an action without a marker); the interim Backtest
+  guard and the P9 basis per action deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`).
+- **Stage C (M458 item 2):** the interim mask empties the bars before a pre-boundary action too, so a value's
+  availability depends on a later event; the choice of fix is open for the user (EXEC-BACKTEST-REVAMP, Gate 2).
+- **P9 (2026-11-16, user "A dulu", "opsi A"):** the rights-issue part of the proposed data-layer fix is built on the branch:
+  the publisher measures each action's broker basis and writes it into the events file, the worker puts the lots on the
+  price basis (M458 item 2). Open: a broker range re-downloaded after an action without a marker (PBSA) is only masked
+  (the per-day guard), not corrected; the gap and dropped-row markers stay as they are.
+
+### M451 — Backtest: "close crosses above (or is above) the Donchian upper band" can never be true (2026-11-15, fixed, deployed 2026-11-16)
+
+- **Found by:** BACKTEST-REVAMP Stage A, Agent 3; verified by the main agent.
+- **Verified:** `apps/edge-bff/terminal/src/calc/indicators.ts:345-347` Donchian upper = `kMax(H, length)`, which includes
+  the same bar's high, so the close never exceeds it; the backtest compares on the same bar
+  (`apps/edge-bff/backtest/src/core/conditions.ts:52-61`) and reads no compare lag (no `compare_lag` in
+  `apps/edge-bff/backtest/src` or `apps/backtest-worker/src`). The page's default card for an overlay indicator is
+  `price crosses_above out[0]` (`backtest/src/reg.ts:42`), and I10's first output is `upper`. The Screener reads the prior
+  band (`screener-registry.json` compare lag on I10 upper/lower). Agent 3: BBCA 2025, 0 days against 8 with the prior band.
+- **Class:** a comparison of a bar field with a band built from that bar's own extreme (any rolling max/min that includes
+  the current bar).
+- **Proposed solution:** core engine: the Screener's compare-lag rule in the shared condition grammar (BACKTEST-REVAMP),
+  with the user's approval because results of saved Donchian strategies change; or refuse price against Donchian
+  upper/lower until then. The `breakout` price-action condition (prior N bars) is unaffected.
+- **Solution (built on branch `claude/hopeful-shannon-bqgb1a`, 2026-11-15, user K5 a):** fixed at the catalog layer.
+  The Screener's registry generator writes its lag probe's verdict to `apps/edge-bff/backtest/src/core/compare-lag.json`
+  (every output a comparison with a bar field must read one bar late; today I10 upper and lower), checked by
+  `scripts/tests/test_registries_current.py`. The core's `indicatorCondition` reads it (`conditions.ts comparedOutput`),
+  so the page and the worker read the prior band, and an output the probe marks later is covered without a code
+  change. `tests/conditions-golden.json` was recorded again: exactly the eight Donchian price comparisons changed,
+  every other digest is the same; the oracle test applies the probe's file.
+- **Stage C (M458 item 10):** the Donchian price comparisons carry `compare_lag: 1` in their hash form, so a run after
+  K5 a is a trial of its own in the same line.
+- **Status:** FIXED, deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`).
+
+### M452 — Trial hashes: unknown condition kinds share one lineage shape, and the variant hash reads parameters as sent (2026-11-15, fixed, deployed 2026-11-16)
+
+- **Found by:** BACKTEST-REVAMP Stage A, Agent 3; verified by the main agent.
+- **Verified:** `apps/edge-bff/backtest/src/core/hash.ts:94-98` `conditionShape` knows `indicator` and `price_action`;
+  any other kind becomes `{kind, type, op}`, so conditions in the Screener's form (no `type`, no top-level `op`) would
+  all share one lineage shape. The variant hash reads conditions as sent (Agent 3: RSI with `params {}` and with
+  `{length: 14}` give two variant hashes for the same strategy).
+- **Class:** a trial key built from a closed list of shapes and from raw input rather than its normalized form.
+- **Proposed solution:** core engine: a recursive shape for every condition kind of the shared grammar (kinds,
+  operators, side kinds, ids; no numbers), the normalized form hashed, golden absolute hashes for legacy requests so a
+  refactor cannot rekey stored lineages silently.
+- **Solution (built on branch, 2026-11-15, user K7 a):** `hash.ts testShape` gives a grammar condition the shape of its
+  test at every depth (numbers become `n`, `params` left out, only references kept from `args`); the worker hashes the
+  request's hash form (`apps/backtest-worker/src/canonical.ts`: parameters completed, and a grammar condition that says
+  exactly what an indicator condition says written as that condition), at `/v1/validate` and in the job alike.
+  `tests/hash-golden.test.ts`: no lineage key changes; the variant and request hash change once for exactly the
+  requests whose conditions leave a parameter out (7 of the 20 golden requests, listed in `hash-golden-k7a.json`,
+  because the page's own Stochastic, Bollinger and Dip cards send partial parameters). `tests/canonical.test.ts`: 426
+  indicator-condition forms give the same entry signal on every bar of 8 real tickers in both forms and hash as one
+  trial.
+- **Lesson for new data:** a new condition kind or source reaches the hash only through its normalized form and a
+  recursive shape; a hash change is recorded in a golden on purpose.
+- **Status:** FIXED, deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`).
+
+### M453 — Backtest versions do not cover what the worker computes with: subfolders, the Flow formulas and flowRegistry.json; the worker image lacks flowRegistry.json (2026-11-15, fixed, deployed 2026-11-16)
+
+- **Found by:** BACKTEST-REVAMP Stage A (Agent 3) and Stage B (Agent 8); verified by the main agent.
+- **Verified:** `apps/backtest-worker/src/version.ts:18-30` hashes only the files directly in `apps/edge-bff/backtest/src/core`
+  and `apps/backtest-worker/src` (non-recursive `readdirSync`); `registry_version` covers `indRegistry.json` and
+  `calc/indicators.ts` only (`scripts/build-registry.mjs`). The screener worker also hashes `terminal/src/calc` and
+  `flowRegistry.json` (`apps/screener-worker/src/version.ts:29-37`). `apps/backtest-worker/Dockerfile` does not copy
+  `terminal/src/data/flowRegistry.json`, which `calc/flow.ts` imports.
+- **Class:** a reproducibility stamp that does not list every input of the computation; an image that does not copy
+  every file a module it may load imports (M405).
+- **Proposed solution:** worker: recursive SOURCES including `terminal/src/calc` and `flowRegistry.json`; Dockerfile COPY;
+  tests that an edit in each source changes ENGINE_VERSION; `check_image_imports` for both images (BACKTEST-REVAMP P0).
+- **Status:** FIXED, deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`) (P0-P1: `version.ts` walks subfolders and covers `calc/`, `flowRegistry.json` and the Screener core; the image copies `flowRegistry.json`, the Screener core and its generator; `tests/version.test.ts`, `tests/image-imports.test.ts`), awaiting Gate 2.
+
+### M454 — Terminal Flow helpers fail silently: a malformed anchor becomes the first candle, an unknown broker draws 0, FL23 ranks on all boards but sums on the chosen ones (2026-11-15, open; Terminal untouched by user decision)
+
+- **Found by:** BACKTEST-REVAMP Stage A (Agent 2); verified by the main agent.
+- **Verified:** `apps/edge-bff/terminal/src/calc/flow.ts:389-393` `anchorAt`: a value that is not `^\d{4}-\d{2}-\d{2}$` (and a
+  well-formed impossible date such as 2024-13-45) falls back to `ctx.dates[0]`; `:609` a broker missing from the rows gives
+  `d = 0` on every candle (a line of zeros, not null); `:429-434` `defaultInventoryBrokers` ranks on `grid(R, null, null)`
+  (all boards, investors) while the FL23 lines use `grid0(p)` (Regular by default).
+- **Class:** a guard that substitutes a default for an invalid input instead of refusing it.
+- **Proposed solution:** the Backtest's own point-in-time versions validate strictly and refuse (BACKTEST-REVAMP P4); the
+  Terminal stays as it is (user 2026-11-15: "Terminal jangan disentuh").
+- **Status:** OPEN for the Terminal (not changed, user decision). The Backtest does not inherit it: its point-in-time versions refuse a malformed anchor (`INVALID_ANCHOR`), "view" or none (`ANCHOR_REQUIRED`) and a named broker without rows (`UNKNOWN_BROKER`), and rank and sum on the same boards (`apps/backtest-worker/src/pit/`).
+
+### M455 — EDGE deploy and runtime configuration drift: CI does not gate deploys, backtest-worker runs under an undocumented 1 GB memory limit, Postgres runs at 2 GB while the config says 1 GB (2026-11-15, fixed, deployed 2026-11-16; the limit: M463)
+
+- **Found by:** BACKTEST-REVAMP Stage B (Agents 6 and 8); verified by the main agent (Railway GraphQL, read-only).
+- **Verified:**
+  - `.railway/railway.ts:218, 233`: edge-bff and screener-worker `checkSuites: false` (Railway deploys a push to `main`
+    whatever CI says); backtest-worker is a CLI upload (`RAILWAY_CHANGELOG.md:6150-6155`), outside CI.
+  - `serviceInstanceLimits` backtest-worker = 1,000,000,000 bytes (deployment `limitOverride` since 2026-11-07, Agent 6);
+    `railway.ts` has no limit for it. The measured peak of a 12-stock flow preview plus run was 1.31 GB
+    (`apps/backtest-worker/README.md:440`, 2026-10-27, before the limit). `BACKTEST_CACHE_BYTES` is 1.5 GB per thread.
+  - `serviceInstanceLimits` Postgres = 2,000,000,000 bytes; `railway.ts` and AGENTS.md say 1 GB (EXEC.md records the user's
+    raise to 2 GB).
+- **Class:** live configuration changed outside the config file (AGENTS step 5: `railway config pull` after a dashboard
+  change).
+- **Proposed solution:** `railway config pull` and record both limits; decide the worker limit with the user before the
+  Flow work ships; decide whether CI gates deploys (`checkSuites: true` or a required check on `main`).
+- **Status:** FIXED: `.railway/railway.ts` holds the live limits (backtest-worker 1 GB, K9 b; Postgres 2 GB) and
+  `checkSuites: true` for edge-bff and screener-worker (K10 a), applied 2026-11-16 with `railway config apply` (the
+  first edge-bff deploy after it waited for the checks on `main`, `RAILWAY_CHANGELOG.md`). The 1 GB limit is too low
+  for a preview and a 12-stock run together: M463.
+
+### M456 — Backtest page bundle and broker files are reachable outside the worker: the page computes conditions in the browser, and its assets need no session (2026-11-15, design constraint)
+
+- **Found by:** BACKTEST-REVAMP Stage B (Agent 5); verified by the main agent.
+- **Verified:** `apps/edge-bff/backtest/src/api/compute.ts:10, 61-72` evaluates `conditionSeries` in the browser on broker
+  files the page downloads through `/api/terminal/v1/bundle` (session only); `apps/edge-bff/app/main.py:394-406` serves
+  `/backtest-app/` and its assets without a session (live: `/backtest-app/` 200 without a cookie, catalog 401).
+- **Effect:** any formula placed in a core module the page imports ships to every visitor; an access rule enforced only in
+  the worker does not cover browser computation.
+- **Proposed solution:** admin-only series (BACKTEST-REVAMP D) live in modules only worker entry points import; an
+  import-graph test and a build check keep them out of the page bundle; the page asks the worker for their series.
+- **Status:** HELD, deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`): no module the page imports reaches `apps/backtest-worker/` (`apps/edge-bff/backtest/tests/worker-only.test.mjs`), the built bundle has no `pit/`, `flow_point_in_time` or `ANCHOR_REQUIRED` (checked 2026-11-15), and the point-in-time indicators are refused by the worker without the right; the page assets still need no session (unchanged).
+
+### M457 — Backtest statistics: trials counted per line only, out-of-sample not a holdout, no minimum trade count, survivorship warned only in portfolio mode (2026-11-15, built, deployed 2026-11-16)
+
+- **Found by:** BACKTEST-REVAMP Stage B (Agent 7); verified by the main agent.
+- **Verified:** `apps/edge-bff/backtest/src/core/hash.ts:94-125` lineage includes the single-mode ticker and each
+  condition's indicator/output, so trying another stock or indicator starts a new line with one trial (Agent 7: the best of
+  178 noise strategies has DSR 0.994 in its own line, 0.550 counted together); `hash.ts:46` leaves `oos_fraction` out of the
+  variant and nothing records that an OOS window was already seen; no minimum trade count exists (grep
+  MIN_TRADES|FEW_TRADES: none; Agent 7: 4 trades over 1,500 days give PSR 0.84); `engine.ts:536` emits SURVIVORSHIP only
+  `if (!single)`; `result.ts:197-200` OOS equity includes P&L of trades entered in-sample.
+- **Proposed solution:** BACKTEST-REVAMP: an owner-wide search count beside the per-line DSR, warnings (`FEW_TRADES`,
+  `OOS_ALREADY_SEEN`, `ANCHOR_INSIDE_PERIOD`, `OOS_STRADDLE`, `SURVIVORSHIP` in single mode), a grid spec per condition.
+- **Solution (built on branch, 2026-11-15, EXEC-BACKTEST-REVAMP, user K6 a):** `result.ts statWarnings`: `FEW_TRADES`
+  (< 30, or < 10 out of sample), `OOS_STRADDLE`, `DSR_SAMPLE_RULE`, `ANCHOR_INSIDE_PERIOD` (stronger after the cut);
+  `SURVIVORSHIP` in single mode too (engine). K6 a: edge-bff sends `context.owner_trials` (the owner's distinct variants
+  of the last 90 days, every line); the result carries `meta.trials.owner` and `robustness.deflated_owner` beside the
+  line's DSR (the page shows the stricter, Stage D). Not built: `OOS_ALREADY_SEEN` (needs the periods of earlier
+  variants, which edge-bff does not keep).
+- **Status:** BUILT (except OOS_ALREADY_SEEN), deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`).
+
+### M458 — Backtest revamp, Stage C review: the look-ahead gate missed two planted leaks, a named broker trading after the period decided a run, and smaller contract gaps (2026-11-15, fixed, deployed 2026-11-16)
+
+- **Found by:** BACKTEST-REVAMP Stage C, Agent 9 (independent adversarial review of the diff, read-only); each item
+  re-verified by the main agent in code and by test the same day. Agent 9 found the admin gate unbypassable in 16 forms,
+  the golden hashes of the base unchanged, 265 selected-broker Flow series and 24 point-in-time ones exactly equal to the
+  Terminal.
+- **Verified, with root cause and solution (fixed on branch `claude/hopeful-shannon-bqgb1a` unless marked):**
+  1. *Gate holes.* A leak planted in the point-in-time comparison (`pit/evaluate.ts dSignal` reading bar i+1) and one
+     in the empty-series decision (`signals.ts` passing no `last` for kind `test`) left all 243 worker tests green. Root
+     cause: the engine-level case of `tests/lookahead.test.ts` ran legacy conditions only; `pit.test.ts` cut `dSeries`,
+     never `dSignal`. Fix (tests): the engine case runs grammar, Flow (selected brokers too) and point-in-time conditions
+     in entry and exit, single and portfolio, and a series whose first value comes after the first cuts, comparing
+     refusals as outcomes; `pit.test.ts` cuts seven point-in-time conditions at five days with `last`. Re-planted: both
+     leaks now turn the suite red (worker 249 tests otherwise green).
+  2. *Broker-price mask reads a later action (OPEN, user decision).* `grammar.ts basisMask` and `pit/series.ts` empty a
+     broker-price value on every bar whose window starts before an action dated on or before 2026-09-12, bars before
+     the action included: the value's availability on day t depends on an action after t (a portfolio leaves the stock
+     out, a single run is refused, a rights issue after the period empties the period). Root cause: the published
+     prices before the boundary carry each later action's factor and the broker prices do not (M450), so the honest
+     value needs that factor, which no published file holds. Agent 9: 69 differences on a fixture with an action;
+     `verification/backtest/lookahead/real_data.ts` passed no actions, so its "0 leaks on COCO" did not reach this path.
+     Options and the recommendation are in `EXEC.md` EXEC-BACKTEST-REVAMP, Gate 2. Found 2026-11-16: the same rule
+     treated prices after 2026-09-12 as never reloaded, so after a price history is pulled again the days before the ex
+     date compared two scales without being masked. User 2026-11-16: "A dulu", then "opsi A". Fixed on branch (P9): the
+     publisher writes per action its broker basis (`publisher.py broker_basis`: the observed jump of broker VWAP / close
+     across the ex date against the terms factor, the rights issue's exact form f = ((old+new)A - new X)/(old A) from the
+     published close A and the later actions' factors; status terms, same, pending, unresolved; the close adjusted or
+     raw) into the events file's `basis` block; the worker multiplies the lots before a `terms` action by its factor
+     (`datafile.ts onPriceBasis`) and masks only from the data up to each bar (`apps/backtest-worker/src/basis.ts`: a bar
+     whose Regular VWAP is outside its own range by 1 %, or an action across which the basis is not settled). Evidence:
+     COCO 799 sessions off the price basis without the factors, 0 with them (factors 2.7097 and 1.7429); BBRI, GOTO,
+     ALKA 0; real-data look-ahead 0 leaks on the four with the basis; a 40-stock sample of 2025 flags 0 of 7,238
+     sessions on clean stocks and every session of VKTR (rights 2026-10-07, prices reloaded 2026-10-31, lots raw);
+     `verification/backtest/basis/`. The gate runs a corporate action (the published world gives the traded world's
+     signals; the engine on the data cut at t with the basis kept). The daily publisher run reports the recent actions
+     that need attention on Telegram (`Broker_Basis_Report`); the steps after an action are `UPDATE_TABLE.md` part C.
+  3. *A named broker trading only after the period.* The Terminal builds a stock's broker set from every row it is given
+     (`calc/flow.ts flowRows`, `cohort`), so a broker named in a Flow reference is 0 before its first row with the whole
+     history and empty (FL13: "no member: no value") on the data cut at t; a run ending before that broker's first row
+     was decided by later rows (FL13 `lt 1`: true on 149 bars against `FLOW_OUTPUT_EMPTY`). Fix (worker `grammar.ts
+     refuseLaterBrokers`): per stock, `UNKNOWN_BROKER` naming the broker, its first date and the fix, for every list of
+     the registry's kind `brokers` where it is in use (its `<prefix>scope` is `selected`, or it has none); a broker the
+     stock never traded keeps the Terminal's value. The gate's Flow variants now include the selected scope (78).
+  4. *window_bars split a strategy.* `canonical.ts` translated a grammar EVENT to an indicator condition only when its
+     `within` equalled `window_bars`, which reads no grammar condition: one strategy had two lines and two trials. Fix:
+     with grammar conditions only, the hash form translates at their common own window or not at all; the lineage key
+     is taken over `lineageForm` (each grammar condition that is an indicator condition at its own window written as one).
+  5. *The worker upload was not held by CI.* `.railway/railway.ts` sets `checkSuites` for edge-bff and screener-worker;
+     backtest-worker is a CLI upload, and the workflow's comment said the upload "records a green run" though no code
+     does. Fix (process, K10 a as decided): `apps/backtest-worker/README.md` Deploy (a green run on the uploaded commit,
+     its ID recorded); the comment corrected.
+  6. *A Screener preset non-admins see but cannot run.* `presets.json` "Broker Follow" reads FL23 (admin, inventory);
+     edge-bff filtered the catalog's `metrics` only. Fix (edge-bff `screener.py catalog_for`): a preset that reads an
+     admin entry at any depth is left out of a session without the right, derived from the catalog's own marks.
+  7. *Broker classification not in data_version.* FL34 and the `class:` scopes read today's labels; a relabelled list
+     gave other numbers under the same request hash. Fix (worker `run.ts versionOf`): when a grammar Flow condition reads
+     the broker rows, `data_version` covers the classification's hash (other runs keep theirs).
+  8. *FL34 inst / retail skipped the broker-list check* (a name pattern). Fix: the lists are the registry's kind `brokers`.
+  9. *Screener refusal details dropped* (`grammar.ts asValidation`). Fix: carried into the 422 answer.
+  10. *Smaller:* `ANCHOR_INSIDE_PERIOD` read switched-off conditions (fixed); CONTRACT 13.5 said the page shows the
+      stricter deflated Sharpe, which only Stage D will do (corrected); K5 a changed the trades of Donchian price
+      comparisons under the same variant hash (fixed: `compare_lag: 1` in their hash form, derived from the core's
+      `comparedOutput`, same line). Rejected: "`EDGE_ADMIN_OWNERS` empty refuses the start" is the intended guard against
+      a typo turning every right off; "no admins" is not needed while owner = admin (user, P5).
+  11. *Found while verifying:* the Screener build's tripwire (`scripts/screener/check_backtest_untouched.mjs`) stopped
+      with ENOENT because P0 widened `engine_version`'s sources (Terminal calc, flow registry, Screener core) and the
+      tripwire kept its own list. Fix: the list is the worker's `SOURCES`; the revamp's core and worker trees are recorded
+      as approved (EXEC-BACKTEST-REVAMP, "Go" 2026-11-15). The tripwire confirms the Terminal's indicators, Feature 04 and
+      the Stockbit updater unchanged; `git diff origin/main -- apps/edge-bff/terminal` is empty.
+- **Class:** a test that cuts the data at t only where the series is computed, not where its decisions are made (the
+  comparison, the empty-series refusal, the membership of a broker set), lets a later row decide a run; and a hash or
+  version that leaves out an input the run reads (a window, a reference label, a changed rule) merges what differs or
+  splits what is one.
+- **Status:** items 1-11 FIXED (item 2 by P9), deployed on dev 2026-11-16: publisher, telegram-monitor, worker,
+  screener-worker, edge-bff (`RAILWAY_CHANGELOG.md`). Item 3's refusal is replaced by a member per day (M459 items 2-3, 2026-11-16).
+- **Lesson for new data:** every input a run reads, a reference list included, enters `data_version`; a series built from
+  a set of members must take its members from the rows up to the period's end; a look-ahead test cuts the data at t at
+  every step that decides something, the refusal included.
+
+### M459 — Backtest revamp, Stage C2 review: the broker basis decided with sessions after the day, a named broker a member before it trades, the gate blind to days without broker rows, and deploy gaps (2026-11-16, fixed, deployed)
+
+- **Found by:** BACKTEST-REVAMP Stage C2 (user 2026-11-16 "Opsi C": two independent reviewers, Opus, medium effort,
+  read-only, the diff only): lens 1 correctness and look-ahead, lens 2 contracts, rights, deploy and cross-service
+  compatibility. Every item re-verified by the main agent in code, tests and data (pgweb, read-only) the same day. Lens 2
+  found the admin gate holding at every place it traced (worker, screener-worker, edge-bff catalogs, presets, previews,
+  queued jobs, counts).
+- **Verified, with root cause and solution (on branch `claude/hopeful-shannon-bqgb1a` unless marked):**
+  1. *Lens 1 F1: the broker basis is decided with sessions after the bar it governs.* `publisher.py broker_basis` sets
+     `pending`, `terms`, `same` or `unresolved` from up to 21 days after the ex date, so on the days ex..ex+21 a
+     broker-price value is present or empty, and the lots before ex are scaled or not, depending on later sessions (a
+     rights issue reads `terms` with 3 sessions after it and `unresolved` with 9 after a drift). The gate keeps the basis
+     block whole at every cut, so it could not see this. **Fix (user 2026-11-16 "A"):** the publisher decides an action
+     once its 21 days after the ex date have passed (column `decided`; `pending` before), from its own window only (a
+     rights issue's terms in the VWAP form, never the later actions' factors, so a later action never moves it; on the
+     fetched windows of 506 actions 21 decisions differ from the exact form taken alone, e.g. COCO 2025-10-09 now `terms`
+     2.69 against an observed 2.686, SQMI 2019 now `unresolved` and masked: `verification/backtest/basis/
+     compare_rule_2026-11-16.txt`); the worker treats an action as undecided on every bar before `decided` whatever the
+     file says (`basis.ts`), so no value on day t reads a decision made after t. Gate: `lookahead.test.ts` "before an
+     action is decided, its published status changes no value on day t" (pending at the cut against `terms` and
+     `unresolved` in the full data, FL17, FL11, FL01). The daily report leaves a pending action out.
+  2. *Lens 1 F2: a named broker is a member before its first row.* The Terminal's cohort (calc/flow.ts) takes the broker
+     set from every row it is given, so on the whole history a broker that starts trading the stock later counts as a
+     member (FL13 0) on earlier days, where the data up to that day has none (FL13 empty). Fix (worker `grammar.ts
+     tickerFlow`): computeFlow per stretch of sessions with the same named members (a name not trading yet replaced by a
+     code no row has) and joined; the Terminal file is unchanged.
+  3. *Lens 1 F3: the UNKNOWN_BROKER refusal of M458 item 3 read rows after the period.* A broker whose first row came
+     after the period refused the run (or left the stock out); on the data cut at the period's end it ran. Fix: the
+     refusal is gone; item 2 makes the value of each day its own.
+  4. *Lens 1 F4: the gate had broker rows on every session.* Fix (tests): the fixture drops every 29th session's broker
+     rows and the newest two, and the Flow variants name LATE and GONE (first row at session 200, last at 350). The wider
+     gate found a leak at once: FL27/FL28 had a value on a session without broker rows only because later rows extend the
+     window. Fix (worker): a Flow value on a session without broker rows is empty (as on the data up to it); the parity
+     test compares with the Terminal on the data up to each session.
+  5. *Lens 1 F6: lot values before a `terms` action differ from the Terminal's chart without a word.* Fix (core engine):
+     warning `FLOW_LOTS_RESTATED`.
+  6. *Lens 1 F7: a small action is never `terms`.* With |terms - 1| within the 4 % tolerance the status could only be
+     `same` (data: 45 rights issues within 2 % and 6 bonus shares of 3.6-5 % whose close carries the jump). Fix
+     (publisher): the nearer reading decides (terms when the jump is within tolerance of it and nearer to it than to 1).
+  7. *Lens 1 F8: an action without an ex date is missing from the basis.* 0 rows today (pgweb 2026-11-16: every price
+     action has `annotation_date = ex_date`). Fix (publisher, defensive): keyed on its annotation date, `unresolved`.
+  8. *Lens 1 F10: PRICES_RESTATED used a fixed boundary.* VKTR's 2026-10-07 rights issue, reloaded 2026-10-31, restated
+     prices without the warning. Fix (core): the basis' `price` side decides; the boundary only where the basis has none.
+  9. *Lens 1 F9: lot-based Flow windows mix scales across an unsettled action.* Fix (with item 1, user "A"): the
+     actions mask every Flow value (every family and point-in-time output) whose window crosses an undecided,
+     unresolved or not-reloaded action; the per-day guard (a broker VWAP outside the day's range) stays on the
+     broker-price values, as decided before (FLOW_BASIS_CHANGE now says "A Flow value").
+  10. *Lens 1 F11 = lens 2 F5: the daily publish measured the basis of every ticker with a price action.* Every new
+      candle changes the last price year's stamp. Fix (publisher): only a changed older year (a reloaded history) or a
+      recent action measures again.
+  11. *Lens 2 F7: the events file republished daily for 21 days after an action* (the digest held the measured numbers),
+      and *one Telegram report a day* (a later changed list was a duplicate). Fix: the digest holds the decisions only;
+      the report's id carries a digest of its list.
+  12. *Lens 2 F6: the basis report could exceed Telegram's 4,096 characters* (30 items: up to 5,498) and was then never
+      delivered. Fix (telegram-monitor): split into messages under `MAX_TELEGRAM_TEXT`.
+  13. *Lens 2 F3: no CI for edge-bff, terminal-publisher or telegram-monitor.* Fix: `.github/workflows/backend-tests.yml`
+      (edge-bff with a disposable Postgres, browser tests skipped without Playwright as elsewhere; `device_page` in
+      `tests/test_composer_layout.py` now skips the same way instead of erroring).
+  14. *Lens 2 F4: `.railway/railway.ts` recorded `checkSuites: true` that is not live.* Fix: the file records the live
+      `false` with a note; K10 a is applied with the deploy after Gate 3, with approval.
+  15. *Lens 2 F1, F2: the deploy order.* A new edge-bff sends `context` and `owner_trials`; the deployed backtest-worker and
+      screener-worker refuse them (422), so every run, preview and queued job fails until they are updated. Fix (docs):
+      the order (backtest-worker upload, then screener-worker, then edge-bff) in the worker README and
+      BACKTEST_END_TO_END; the choice is part of the Gate 3 deploy approval.
+  16. *Lens 1 F5: FL27/FL28 empty for about 20-40 sessions at the start of a stock's broker data,* where the Terminal has
+      values: the Screener core's window starts at the first broker date. Not a look-ahead (the Backtest is stricter);
+      kept, recorded here (changing it would change the Screener's values too).
+- **Not fixed, low:** lens 2 F7 `owner_trials` grows with use (every distinct variant of 90 days in each job body);
+  lens 2 F7 the K7 a hash form splits strategy lines at deploy (intended, one line in the deploy notes).
+- **Class:** a decision a run reads (a basis status, a broker set, a window's end) made on the whole history lets later
+  rows decide earlier days; a test fixture without the gaps of real data cannot see it.
+- **Status:** items 1-16 FIXED (1 and 9 by the user's "A"), deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`).
+- **Lesson for new data:** a published decision that depends on later sessions carries the date it became known, and a
+  reader treats it as unknown before; a fixture for look-ahead tests has the gaps of the real source (missing days,
+  members that come and go).
+
+### M460 — Backtest page port (Stage D): shortcuts read a removed panel, the focus lost, a waiting lane's name cut, the browser checks drifted, and the port departed from the design without approval (2026-11-16, fixed, deployed)
+
+- **Found by:** BACKTEST-REVAMP Stage D (D7, user 2026-11-16 "Opsi C"), running the page's browser checks on the port of the
+  user's design file: `tests/smoke/smoke.mjs` (Playwright on the stub API) and `tests/visual/compare.mjs` with `diff.py`
+  (the design against `?fixture=design`, 1440, 1024 and 390 px, light and dark); items 5-9 by Agent 10 (independent
+  review of the port, Opus, medium effort, read-only), each re-verified by the main agent in the screenshots and the
+  code the same day.
+- **Verified, with root cause and solution (on branch `claude/hopeful-shannon-bqgb1a`):**
+  1. *The keyboard shortcuts `f` (full screen) and `[` (hide the builder) threw on every key press* ("Cannot read
+     properties of null (reading 'hidden')", smoke run of 2026-11-16). `layout.ts bindLayout` still skipped the keys
+     while the entry workspace (`#ews`) was open; Stage D removed that panel, so `$('ews')` was null. Fix: the keys stay
+     quiet while the condition window (`#cw`) is open, which replaced it. Class fix: `tests/ids.test.mjs` (the page suite,
+     CI): every id the page's code reads by name is in `index.html` or written by the page; it fails on the old code
+     ("ews (src/layout.ts)").
+  2. *Closing the condition window after an add or a remove lost the focus.* The window gives the focus back to the
+     element that opened it; an add draws the builder again, so that element was gone and the focus fell to the page.
+     Fix (`condwin.ts closeCondWin`): the element's new copy (the same id), else the builder's search box.
+  3. *A lane waiting for its data cut its own name* ("Broker net buy ·…", "Entry signal · l…"): `lanes.ts` added
+     "· loading" to the name before cutting it to the lane's room (17 characters on a desktop). Fix: the suffix only
+     where it fits whole; the ring in place of the lane's switch ("<name>: loading") says it either way.
+  4. *The smoke test had drifted from the page since 2026-10-27, unseen:* the icon links carry `?v=` (2026-11-03), the
+     ring keeps one speed with reduced motion (user 2026-11-09, M420), and the Stage D layout (the step tabs, the
+     condition window, the theme from EDGE, a phone's builder over the chart, the Results view without the header's
+     Run). Fix: the smoke follows the page (56 of 56 steps pass, no console error); `SMOKE_ONLY` runs one section; a
+     missing control fails its step in 10 s.
+  5. *The port departed from the design where no agreed fix allowed it* (Agent 10 items 1-2). Two Stage D rules labelled
+     "decision 2a" were not among the agreed fixes: below 1280 px the formula bar's chips wrapped (3 rows at 1024, 5 in
+     portfolio mode: the chart shorter, the header's Period cut at "03 June 2019 – 23", the signal table below the
+     fold), and the header's rows scrolled (an unlabelled tab stop). The data source note (an agreed fix) sat under the
+     header's title, three lines of its 121 px column, and pushed "Run time" behind the Add indicator button at 1440
+     after a portfolio run. "Last run" added the labels "Net" and "DD"; the portfolio title was shortened by review
+     PG-3 to the line count of backtest.html's title, where the design names three tickers. Fix: the two rules removed
+     (the page is the design's at 1024, cuts included), the note in the view bar (one line, its whole text as its
+     title; the tabs and Full screen do not shrink for it), the header's texts and the title the design's
+     (`picked.ts titleNames` and its test removed). The user chose at Gate 3 (2026-11-16, "2B") the chips that fit the
+     one row and "+N more" for the rest (`filterbar.ts fit`); the header's cut rows stay the design's.
+  6. *On a phone nothing could be added* (Agent 10 item 3, in the design too): the condition window is at least 760 px
+     wide (`design.css` `#cw .qwin min-width`), so on 390 px its Add buttons, the condition column, Sort, Close and Done
+     were off the screen and it could not scroll across; the results' fourth figure and "+ Compare with…" were cut.
+     Fix, under the decision's "on a phone ... hides nothing": the 600 px block (the window the whole screen, its
+     categories a row that scrolls across, each indicator's row in two or three lines, the strategy panel in the
+     list's place while open; the figures two to a row; the comparison box under the title). The design's `.xs-sc`
+     rules are `!important`, so the phone rules match them.
+  7. *A row the page cannot calculate said "Check fields"* (Agent 10 item 4; Stochastic RSI, Money Flow Index): the
+     window showed that pill whenever the card was not ready. Fix (`condwin.ts rowHTML`): "Not calculated" (the
+     design's and the builder card's word, the flow reason as its title for a flow card), "Check fields" only for a
+     test card whose fields are not valid.
+  8. *The search label counted rows that cannot be added* (Agent 10 item 5): "Search 192 indicators to add" with 51 rows
+     "Not in backtest". Fix (`condwin.ts condWinCount`): the rows that can be added (141 in the fixture).
+  9. *The page tests' copy of the worker's catalog rule had drifted* (Agent 10 section A): the worker's catalog module
+     reads Node files, so the smoke stub and the fixture take a copy; it left out the anchored and inventory
+     indicators that a session without the admin right sees as "drawn on the Terminal only", had no insider reason and
+     kept FL51 (point in time, admin only, with no Screener formula). Fix: `tests/grammar-catalog.ts` (no browser-only
+     import) and `apps/backtest-worker/tests/catalog-copy.test.ts` (worker suite, CI): the copy equals
+     `flowIndicators` without the admin entries and `NOT_PER_DAY`, flow on and off; a copy that keeps FL51 gives 45
+     entries against the worker's 44 and fails it.
+  10. *A console error on every redraw while the chart is not shown* (the 1:1 runs, on both pages: "<rect> attribute
+      height: A negative value is not valid (-28)"): `lanes.ts` sized the trades' shade on the price pane as the pane's
+      height less its time scale, -28 in the Results view and in full screen. Fix: never below 0 (the design's own
+      script did the same). The 1:1 scenario also opened a hidden builder with its hidden button (f2: `#bRail` now).
+- **Checked, not changed:** the locked and "Not in backtest" states derive from the catalogs (`grammar.ts refusalOf`,
+  the worker's `catalog.ts`, edge-bff `rights.py`), no hand list (Agent 10, verified); `reg.ts regMedian` reads no bar
+  after the period, and in its fallback (fewer than 20 bars before the start) bars inside the period, as decided; the
+  results tabs have no tab roles and arrow keys do not switch them, as in the design; Tab stays inside the condition
+  window, Escape closes it and the focus returns (better than the design, which drops it).
+- **Class:** a browser check that no CI job runs drifts from the page it guards; a panel removed from the markup leaves
+  readers of its id behind (a null at run time, not a build error); a test copy of a rule a build cannot import drifts
+  unless a test compares it; a port labels its own choices with the user's decision unless the decision's list is
+  checked item by item.
+- **Status:** items 1-10 FIXED, deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`); the user's Gate 3 answers (2026-11-16 "1A 2B 3A, go deploy"): the chips that
+  fit (item 5) and the smoke in CI (`.github/workflows/backtest-page-smoke.yml`, on a push or pull request touching the
+  page or a module it reads; class fix of item 4). The visual check stays by hand (the user's design file is not in
+  the repository).
+- **Lesson for new data:** none (page only).
+
+### M461 — edge-bff deploy of the EXEC-BACKTEST-REVAMP merge failed: the Backtest page's image stage lacked the Screener source it imports (2026-11-16, fixed)
+
+- **Symptom:** after PR rednightt33/saniti#65 merged (`c5d3ee97`), edge-bff deployment `37a4ab62` FAILED in the build:
+  `src/grammar.ts: Cannot find module '../../screener/src/entries.ts'` (and `forms.ts`, `operators.ts`,
+  `core/contract.ts` from `condwin.ts`, `filterbar.ts`, `api/types.ts`, `api/live.ts`). The live edge-bff stayed
+  `0c882d2d`; the new workers accept its bodies (no `context`: no rights), so nothing was down.
+- **Verified root cause:** `apps/edge-bff/Dockerfile`'s `backtest` stage copied `terminal/src` and `backtest/` only;
+  Stage D's page imports the Screener's catalog entries, forms and contract (`screener/src`). Every CI job built the
+  pages inside the whole repository (`backtest-lookahead.yml`, the smoke), where the files exist, so none saw it.
+  Reproduced: the stage's files in an empty folder fail the same way, and pass with `screener/src` beside them.
+- **Solution:** `COPY screener/src /build/screener/src` in the `backtest` stage (as the `screener` stage copies
+  `backtest/src`). Class fix, two layers: `tests/test_backtest.py
+  test_the_image_builds_the_backtest_page_beside_the_sources_it_imports` (the edge-bff suite, as the Screener stage's
+  own test: the stage's lines, every file the page reaches outside its folder inside the copied trees, no package
+  import there; it fails on the old Dockerfile) and `.github/workflows/edge-bff-image.yml`, which builds the image as
+  Railway does (context `apps/edge-bff`, its Dockerfile: every page stage and the Python image) on a push or pull
+  request touching edge-bff. The image test's exact COPY list (`test_the_image_context_...`) takes the new line.
+- **Class:** a build that runs in the whole repository proves nothing about an image built from a part of it; the
+  workers have `scripts/check_image_imports.mjs` and the Screener stage its own test, the Backtest stage had none.
+- **Status:** FIXED (the image check in CI; the deploy recorded in `RAILWAY_CHANGELOG.md`).
+- **Lesson for new data:** none (build only).
+
+### M462 — Backtest page on dev: the condition window lost the Screener's rows when the screener-worker woke up, and the e2e check clicked a hidden row (2026-11-16, fixed)
+
+- **Symptom:** the dev end-to-end check after the EXEC-BACKTEST-REVAMP deploy (`verification/backtest/e2e_dev.py`,
+  09:40-09:43 UTC): single, repeat, refusal and cancel passed; `page_clean` failed on one
+  `GET /api/v1/screener/catalog` 503, and the portfolio step on `Page.click` timing out.
+- **Verified root causes:** (1) the 503 is edge-bff's `SCREENER_NOT_READY` with `Retry-After` (the screener-worker
+  sleeps when idle and answers so while it loads its data after waking, `app/screener.py`); the Screener page waits and
+  asks again (`screener/src/app.ts withRetry`), the Backtest page (Stage D, `api/live.ts screenerCatalog`) asked once,
+  so a first visit after the worker slept left the condition window with the Backtest presets only until a reload.
+  (2) `e2e_dev.py page_portfolio_setup` clicked `#sumbox [data-st="1"]`, the summary row the design hides (as the smoke
+  test did, M460 item 4).
+- **Solution:** (1) `api/live.ts`: `ApiFailure` carries the answer's Retry-After (read by the Screener page's own
+  `retryAfter`), and `screenerCatalog` follows the contract's rule the Screener page follows: `SCREENER_NOT_READY` asked
+  again after its Retry-After (at least a second, a minute of waits at most), `BUSY` twice, unavailable or unreachable
+  once (`tests/live.test.ts`: 503 then 200 gives the catalog on the second ask; a refusal that is not a wait fails at
+  once). (2) the e2e check opens step 1 with its tab `#rail [data-st="1"]`.
+- **Class:** a client of an edge-bff route that answers "wait and ask again" must follow the route's rule wherever it
+  is called from; a second page that reads the route copied the call but not the rule.
+- **Status:** FIXED (deployed with edge-bff, `RAILWAY_CHANGELOG.md` 2026-11-16).
+- **Lesson for new data:** none (page only).
+
+### M463 — Backtest worker on dev: a 12-stock portfolio run after its preview is killed with the worker (WORKER_LOST); the 1 GB limit is below what a preview and a run hold together (2026-11-16, fixed, deployed)
+
+- **Symptom:** the dev end-to-end check after the EXEC-BACKTEST-REVAMP deploy (`verification/backtest/e2e_dev.py`,
+  10:00-10:02 UTC): single, repeat, refusal and cancel passed; the portfolio run (12 stocks BBRI, TLKM, BBCA, ASII,
+  BMRI, ANTM, ADRO, PGAS, BBNI, BUMI, BRPT, UNVR; 2019-06-03 to 2026-11-09; ADX, stochastic, MACD divergence and two
+  flow conditions) ended `WORKER_LOST` after 18 s.
+- **Verified (worker log, deployment `e4cf8fdd`):** the page's 12-stock signals preview ended 10:02:07 with
+  `rss_bytes` 919 MB and `max_rss_bytes` 964 MB (container limit 1 GB); job `bt_6277ecbf…` started 10:02:09; the
+  process started again at 10:02:25 (`start` event) with no error line, and the job was unknown to it (404, edge-bff's
+  `WORKER_LOST`). Railway's 60-second memory samples do not show the spike (peak 0.58 GB).
+- **Verified (reproduced locally, the image's command on the same published files served by
+  `tests/fake-terminal.mjs`, process RSS sampled every 50 ms; harness kept in the session scratchpad):**
+
+  | Case | Preview peak | Preview, then run: peak |
+  |---|---|---|
+  | as deployed (16 tickers in flight, no heap cap) | 1,067 MB (927 on a second try) | 1,490-1,657 MB |
+  | worker before the revamp (`5bc6bdda`) | 1,028 MB | 1,623 MB |
+  | run alone, no preview | — | 942 MB |
+  | memory cache 50 MB (`BACKTEST_CACHE_BYTES`) | 1,025 MB | 1,565 MB |
+  | 4 tickers in flight (`BACKTEST_DOWNLOAD_CONCURRENCY=4`) | 758 MB | 1,197 MB |
+  | V8 heap cap 300 MB per thread (`NODE_OPTIONS=--max-old-space-size=300`) | 705 MB | 1,093 MB |
+  | 4 in flight + heap cap 300 MB | 541 MB | 811 MB (run 14 s) |
+  | the same request plus two grammar Flow conditions (FL11, FL02; the broker columns are kept), as deployed | 1,161 MB | 1,770 MB |
+  | the grammar Flow request, 4 in flight + heap cap 300 MB | 644 MB | 1,243 MB (run 24 s) |
+
+  The preview thread keeps about 600-850 MB after it ends (its heap is not given back), the run's thread then adds its
+  own; the memory cache of gzip files is not the cause; the broker columns of a grammar Flow condition live outside
+  the V8 heap, so a heap cap does not bound them.
+- **Root cause:** the worker's two compute threads (preview, job; `src/compute.ts`) each load up to 12 stocks' broker
+  data with nothing that bounds their sum, or one thread's own peak, to the container's memory; the container limit
+  (1 GB since 2026-11-07, kept by K9 b on 2026-11-15) is below what the page's normal sequence (preview, then the run)
+  holds. When the container exceeds it, the whole process is killed and every job in flight is lost, not only the
+  heavy one. The defect predates the revamp (same peak on `5bc6bdda`); the 2026-10-27 measurement (1.31 GB) had shown
+  it before the limit was set.
+- **Class:** any request mix whose decoded data plus the other thread's retained memory exceeds the container: a
+  portfolio of stocks with long broker histories, a preview followed by its run (always, from the page), two owners at
+  once, grammar Flow conditions (columns kept), the point-in-time indicators. A per-task refusal that names the
+  problem exists already for a thread over its own heap limit (`server.ts answerError`: `OUT_OF_MEMORY`, "choose fewer
+  stocks or a shorter period"), but no thread has such a limit, so the container kills the process first.
+- **Solution (user 2026-11-16: "tidak apa-apa untuk naikkan ke 2 GB apabila run memang diperlukan", "RAM hanya berjalan
+  ketika ada request saja", "Go untuk opsi 1"; rednightt33/saniti#69):** a compute thread ends once it has no task
+  left (`src/compute.ts`), so a task's memory goes back to the system within a second; each thread has a V8 heap limit
+  derived from the container's memory (`config.ts threadHeapMb`, (memory − 256 MB) ÷ 4: 412 MB at 2 GB;
+  `BACKTEST_THREAD_HEAP_MB` overrides), so a thread over it fails its own task with `OUT_OF_MEMORY` and the process
+  lives on; `thread_start` and `thread_end` log `rss_bytes`; the image sets `MALLOC_ARENA_MAX=2` and
+  `MALLOC_TRIM_THRESHOLD_=131072`; `BACKTEST_DOWNLOAD_CONCURRENCY` 16 → 4; the container limit 2 GB
+  (`.railway/railway.ts`). Measured with `verification/backtest/memory/`.
+- **Verified on dev (deployment `31e94b94`, 11:30 UTC):** the start line reads the container's 1,999,998,976 bytes and
+  a 412 MB heap per thread, `engine_version` `681b18d3ffe51792`; `e2e_dev.py` 11:33-11:35 UTC passed every step, the
+  12-stock portfolio FINISHED (worker 19.6 s; click to result 22.9 s); the worker's own lines: the 12-stock preview
+  peaked at 452 MB and the process went back to 187 MB when its thread ended, the run peaked at 462 MB and went back to
+  188 MB, a single run peaked at 245 MB and went back to 139 MB; Railway's per-minute memory peaked at 0.37 GB.
+- **Cost (measured on dev):** a task starts a thread (0.5-0.8 s) and reads its files from the disk cache on a new
+  thread: a single run took 1.9-2.5 s on a warm container (0.6-0.7 s before with a long-lived thread, 1.2-2.4 s on its
+  first run after a wake); the 12-stock run's loading took 17.3 s (53 files from disk, 8 small downloads), the decoding
+  on Railway's CPU.
+- **After a run (user 2026-11-16: "bisa nggak setelah selesai run langsung dibuat tidur atau otomatis di-cut?"):**
+  Railway's per-minute samples of the dev worker show the memory a task leaves staying flat until the next request or
+  the sleep (455 MB 09:49-09:59, 389-393 MB 10:04-10:11, 172 MB from 10:25; the deployment `SLEEPING` at 10:41 while
+  the graph repeats 172 MB). Railway puts a service to sleep 5-10 minutes after its last outbound traffic, with no
+  setting for it (docs.railway.com/reference/app-sleeping). Measured locally (same harness and files; process RSS):
+
+  | Variant | Peak, preview then run | 1 s after the run | 30 s after | Preview / run time |
+  |---|---|---|---|---|
+  | as deployed | 1,446 MB | 986 MB | 642 MB | 5.9 s / 6.7 s |
+  | each compute thread ends when it has no task left (scratch copy of `compute.ts`) | 1,123 MB | 322 MB | 322 MB | 6.4 s / 6.5 s |
+  | the same + 4 tickers in flight + heap cap 300 MB per thread | 571 MB | 267 MB | 267 MB | 7.1 s / 7.5 s |
+  | the same + `MALLOC_ARENA_MAX=2`, `MALLOC_TRIM_THRESHOLD_=131072` | 493 MB | 187 MB | 187 MB | 7.7 s / 8.1 s |
+  | heaviest (grammar Flow), threads end + 4 in flight + heap cap 300 MB | 764 MB | 263 MB | 263 MB | 11.4 s / 13.4 s |
+
+  The worker starts at 107-135 MB. A preview on a fresh thread took 1.84-1.96 s against 1.67 s on a warm one.
+- **Status:** FIXED, deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`).
+- **Lesson for new data:** a data source whose per-entity history grows (broker rows per stock) needs a memory budget
+  measured on its largest entities and enforced by the process that loads it, not only a row count.
+
+### M464 — A worker secret's value appeared in this session's terminal output (2026-11-16, fixed: rotated)
+
+- **Symptom:** while reading the backtest-worker's budget variables (`railway variables --kv`), the filter meant to
+  hide secret values matched only names with `KEY` after the `=` sign, so the value of `BACKTEST_WORKER_KEY` was printed
+  in the agent session's tool output. It was not committed, logged on Railway, or sent anywhere else.
+- **Root cause:** a deny filter on the output (redact what looks secret) instead of an allow list (print only the
+  named non-secret variables).
+- **Solution:** read variables only through an allow list of names (`grep -E '^(NAME1|NAME2)='`), as the AI tools and
+  models generators do. Rotation: a new `BACKTEST_WORKER_KEY` on backtest-worker, then a redeploy of its one consumer
+  edge-bff (`scripts/railway_reference_consumers.py backtest-worker.BACKTEST_WORKER_KEY`), with the user's approval.
+- **Rotation (user 2026-11-16: "Boleh rotasi kunci worker"):** at 11:50 UTC, with no Backtest job and no orc turn
+  running, a new 64-character `BACKTEST_WORKER_KEY` was made in the process (`secrets.token_urlsafe(48)`) and piped to
+  `railway variable set --stdin` on backtest-worker, never printed (only its length was read back); the worker
+  redeployed (`b087e1c4` SUCCESS) and its one consumer edge-bff with it (`20af8720`, then `59df442f` from
+  `scripts/railway_reference_consumers.py --redeploy`, SUCCESS 11:51 UTC). Checked through the new key:
+  edge-bff `/ready` 200 and `verification/backtest/revamp_dev_check.py` passed (catalog, a Flow run
+  `bt_ae3feced…` 48 trades, a point-in-time run `bt_4ffeab9f…` 3 trades, the preview 184 entries).
+- **Status:** FIXED (the shown value is no longer valid).
+- **Lesson for new data:** none (process).
+
+### M465 — Backtest e2e check on dev: the phone screenshots timed out on the results tabs the builder covers (2026-11-16, fixed)
+
+- **Symptom:** `verification/backtest/e2e_dev.py` (10:00 UTC): after the single run, every results tab at 390 x 844
+  failed with `TimeoutError` (six of six); 1600 and 1280 px passed.
+- **Verified root cause:** the ported page follows the design on a phone: the open builder covers the main column and
+  the chart and results show once it is closed (`#panelTg`; the smoke test's `showChart`). The e2e check resized to
+  390 px and clicked `#rtabs` under the builder. The page is right; the check had not followed the port (the same
+  class as M460 item 4 and M462 item 2).
+- **Solution:** the check closes the builder when the main column has no width before it clicks the tabs.
+- **Class:** a browser check written for one layout must open the layout's own way to a control at every width it
+  visits; the smoke test in CI holds the page's rule, the dev check copies it.
+- **Second step (11:30 UTC):** the page keeps a builder closed (`layout.ts setPanel`, `ml.panel`), so after the phone
+  screenshots the portfolio setup could not click the step tab (Page.click timeout); the check reopens it with its rail
+  after the screenshots and before the setup (the smoke test's `showBuilder`); rerun 11:33 UTC: every step passed.
+- **Status:** FIXED (rerun on dev 2026-11-16).
+- **Lesson for new data:** none (verification only).
+
+### M466 — Watchlist: findings of the independent review before release (2026-11-16, fixed and deployed on dev; one known)
+
+- **Found by:** the independent code review of EXEC-WATCHLIST L6 (`git diff 8bc5ddc2..`), each finding checked in the
+  code before it was fixed.
+- **Fixed (verified causes):**
+  1. A run while a feature worker was still writing the newest date counted it as complete as soon as one Feature 01
+     and one Feature 04 row existed (`watchlist.py` PRICE_DATE_SQL). Now a date is complete when the stocks with a final
+     close, their Feature 01 rows and those rows' Feature 04 rows are equally many (equal on every dev date, e.g. 836
+     on 13 Nov), checked one date at a time from the newest (counting 10 dates at once read 98k pages; one date 7,979).
+  2. The Radar badges read `max(rule_version)` as text and no version on the results; the Radar page reads
+     `public.feature_07_rule_version()`. Both queries now use it, and the file waits while the Radar's first fill runs
+     (`busy` = `radar.busy`).
+  3. A NaN or infinite stored float would have stopped the file (the publisher refuses non-JSON numbers): such a value
+     is now "no value".
+  4. Undo of a deleted list restored the page's copy from page load, losing stocks starred in the Screener since:
+     `DELETE /lists/{id}` now answers the list as it was when deleted and Undo uses that; a restored list takes back
+     its place (the lists from there move one down).
+  5. Deleting the first list moves the Screener star to the next list: the delete dialog now says so.
+  6. A value that reads as zero ("0.0%", "Rp 0") was still coloured by its unrounded sign; a small MACD histogram read
+     "0.0": colour follows the shown value, and values under 1 keep 2 decimals.
+  7. A list name with a control character (NUL) gave a 500: refused with a 422 naming the field.
+  8. The migration's rollback comment could fail when two lists shared an owner's lowest position: it keeps one list
+     per owner (`DISTINCT ON`). The migration was not applied anywhere yet.
+- **Release order (finding 1 of the review, verified):** the old edge-bff code inserts stars without a list, so the
+  migration must come after the new edge-bff code (before it, the new code answers 503 NOT_READY for the star and the
+  page, never a wrong write). And the page needs the daily file: publisher and terminal-api, and the file, come first.
+- **(a) fixed (user 2026-11-16: "untuk nomor 1 kita go with A"):** when the daily file cannot be read (the index or the
+  file: terminal-api down, over quota, not published yet) the page still shows the lists with "—", the reason in a
+  notice with "Try again", "Figures unavailable" in the header; list actions keep working; Indicators and the stock
+  search wait for the figures. Checked in a browser with the fixture's `?fail=index` and `?fail=file` at 1440 and 390 px.
+- **Known, not fixed:** (b) a restored list's stocks get a new `added_at` (the Screener's star time).
+- **Status 2026-11-16:** deployed on dev (publisher `55436c93`, edge-bff `41811cfa`, migration `20261116_001` applied
+  after the new edge-bff code, as the release order says); live check 59/59 (`verification/watchlist/LIVE_20261116.txt`).
+- **Found at release (2026-11-16, run 12:59 UTC, `watchlist_failed` step build, `InsufficientPrivilege`):** the publisher
+  reads as `terminal_market_reader`, which has no SELECT on `stockbit_corporate_action`; every dev check of the module
+  had run through pgweb, a role that has it. Fix at the source layer: the corporate actions are read from
+  `idx_event_annotation` (family `CORPORATE_ACTION`), the table the Terminal's event markers already read (one source
+  for both pages, no new grant). `verification/watchlist/reader_rights_dev.py` checks every relation and function named
+  in the module's SQL against the publisher's role (all readable). Lesson: a read check of a publisher module runs
+  under the publisher's own role, never only under an administrative or pgweb role.
+- **Lesson:** a "complete date" is derived from the date's own counts across the sources, never from the existence of
+  one row; a read of a family another page owns (Radar) uses that page's own selector (`feature_07_rule_version()`),
+  not a re-derivation.
+
+### M467 — Watchlist release: edge-bff held by Railway (CI check suite failed): SCREENER_ONBOARDING.md line pointers moved under the Watchlist edits (2026-11-16, fixed)
+
+- **Symptom:** the push of `main` `bed51b81` left edge-bff deployment `655a2e87` SKIPPED with "CI check suite failed";
+  the last edge-bff SUCCESS stayed `59df442f` (without the Watchlist).
+- **Verified root cause:** GitHub run `43873068101` (Backtest look-ahead gate, job `screener-worker`) failed one test,
+  `apps/screener-worker/tests/onboarding_pointers.test.ts:16`: 30 line pointers of `SCREENER_ONBOARDING.md` into
+  `apps/terminal-publisher/publisher.py`, `apps/edge-bff/app/main.py` and `apps/edge-bff/app/screener.py` no longer
+  started at the symbol written next to them, because the Watchlist edits added lines above them. The release ran the
+  publisher, terminal-api and edge-bff suites, not the screener-worker suite that checks this document. Railway's
+  `checkSuites` on edge-bff (REVAMP K10 a) held the deploy, as it should.
+- **Solution:** every pointer of the document into a file changed since `6e39ef8e` (57 pointers, with or without a
+  symbol) was moved through a line diff of that file (old line to new line; one pointer on a changed line, `WATCHLIST_LIMIT`,
+  checked by hand). The limit text now says 50 stocks in the first list (`PER_LIST`, EXEC-WATCHLIST 2A), not 500.
+  The screener-worker suite: 112 passed. edge-bff deployed on the green commit.
+- **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
+  `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
+### M475 — Orc: a missing owner header becomes the shared owner `default`; progress of an owner-less run is readable by every caller (2026-11-16, OPEN)
+
+- **Symptom (read-only inspection, `verification/edge_multiuser/access_tiers/FINDINGS.md`):** any holder of
+  `MARKET_AI_ORC_API_KEY` may name any owner in `X-Saniti-Owner`, and the orc-test-runner holds the same key
+  (`.railway/railway.ts:29-33`).
+- **Verified cause:**
+  - `owner_from_header` returns `DEFAULT_OWNER` for an empty header (`apps/market-ai-orc/app/conversations.py:97-99`).
+  - `progress.tracking` stores the raw header, and a `None` owner matches every caller (`progress.py:105-109`).
+- **Class:** identity accepted from a shared key without a per-caller scope.
+- **Solution (planned, Phase 0):**
+  - refuse a missing owner;
+  - give the test runner its own key, limited to test owners (Railway variable, needs approval);
+  - store and check the owner at every registry.
+- **Status:** OPEN. No external user exists yet.
+
+### M474 — Orc manual agent: every waiting step of every owner is listed to any caller (2026-11-16, OPEN)
+
+- **Symptom:** `/api/v1/dev/manual/steps` (edge-bff `main.py:598-610`) lists and answers model steps of any run.
+- **Verified cause:**
+  - `Step` stores no owner;
+  - `pending()` returns all steps with their full payload (`apps/market-ai-orc/app/manual_agent.py:112-116`);
+  - `answer()` accepts any step id;
+  - Orc's manual routes take no owner;
+  - edge-bff's POST uses `session`, not `write` (M259).
+- **Class:** a troubleshooting route that crosses owners.
+- **Solution (planned, Phase 0):** admin-only with MFA; steps keep their owner; `pending(owner)` and `answer(owner, …)`;
+  `write` on the POST.
+- **Status:** OPEN. Blocker before a second user.
+
+### M473 — Sign-out leaves account data in browser storage (2026-11-16, OPEN)
+
+- **Symptom:** after sign-out, the next person on the same browser inherits the previous account's data.
+- **Verified cause:** sign-out clears memory only (`apps/edge-bff/static/edge-client.js:11,138`). These keys are not
+  keyed per user and not cleared:
+  - `edge-side-attach:*` (quoted answers);
+  - `edge-model-choice`;
+  - `ml.*` (layout pointer, symbol, indicator lists);
+  - `scr.last` (the last screen definition);
+  - IndexedDB `terminal-files`.
+- **Class:** per-user state stored per browser.
+- **Solution (planned, Phase 0):** a storage registry (`browser` vs `user` keys, with a test that fails on an
+  unclassified key) cleared on sign-out or a change of user.
+- **Status:** OPEN.
+
+### M472 — The Terminal look check hard-codes another session's paths (2026-11-16, OPEN)
+
+- **Symptom:** `node verification/terminal_api/terminal_look/look_check11.mjs`, required by AGENTS.md for every
+  Terminal look change, writes into a scratchpad of an earlier session.
+- **Verified cause:** `look_check11.mjs:8-10` imports `/home/user/saniti/...` by absolute path and sets
+  `SP = '/tmp/claude-0/.../5abac1e8-.../scratchpad'`.
+- **Class:** a required check bound to one machine and one session.
+- **Solution (planned, Phase 0):** the output directory comes from an argument or the environment, and imports are
+  relative. CI already runs the backend suites on every push (`.github/workflows/backend-tests.yml`; deploy gating M455).
+- **Status:** OPEN.
+
+### M471 — Every EDGE front-end reads any 403 as a CSRF or session failure (2026-11-16, OPEN)
+
+- **Symptom (by reading the code):** a plan refusal would trigger a retry or a sign-out instead of an upgrade message.
+- **Verified cause:**
+  - `terminal/src/data/layoutsApi.ts:50` retries on any 403;
+  - `screener/src/api/live.ts:36,69` and `backtest/src/api/live.ts:51` drop the session on any 401 or 403;
+  - `terminal/src/data/live.ts:70-72` shows "answered 403";
+  - FastAPI's own refusals answer `{"detail"}`, not `{"error":{"code"}}` (`apps/edge-bff/app/main.py:277-283`).
+- **Class:** an error contract keyed on the status code instead of a named code.
+- **Solution (planned, Phase 0):**
+  - one `{"error":{"code","message","details"}}` shape for 401 and 403, with `CSRF_INVALID`, `CAPABILITY_REQUIRED`,
+    `PLAN_EXPIRED`, `LIMIT_REACHED` and `MFA_REQUIRED`;
+  - one shared client module reads the code.
+- **Status:** OPEN.
+
+### M470 — terminal-api accepts the EDGE gateway key on its public domain (2026-11-16, OPEN)
+
+- **Symptom:** the per-user owner header planned in T2 would let any holder of the gateway key name any EDGE user.
+- **Verified cause:**
+  - terminal-api has `RAILWAY_PUBLIC_DOMAIN` set (`terminal-api-dev.up.railway.app`; read with
+    `railway variables`, names and that value only) and adds it to its origins (`apps/terminal-api/app/config.py:84`);
+  - `identify()` maps the gateway key to `Caller('gateway', email=proxy_subscriber)` with no check of where the
+    request came from (`apps/terminal-api/app/main.py:191-194`);
+  - the account cache key is `(kind, name or email or token_hash)` (`accounts.py:33-35`), so a per-owner identity would
+    be cached as one entry unless the owner enters the key.
+- **Class:** a private-service credential usable from the public edge.
+- **Solution (planned, Phase 0, before T2):**
+  - refuse the gateway key on the public host, or remove the public domain (decision D-T2);
+  - put the owner in the cache credential.
+- **Status:** OPEN.
+
+### M469 — The public Terminal bundle embeds a real BBCA broker summary (2026-11-16, OPEN)
+
+- **Symptom:** `/terminal-app/` and its assets are served without a session (`apps/edge-bff/app/main.py:363-376`).
+- **Verified cause:**
+  - the bundle includes the fixture constants `BROKSUM_PROFILE` and `BK_BASE`, "the real BBCA broker summary of
+    2023-12-18" (`apps/edge-bff/terminal/src/data/fixtureConstants.ts:1-3`);
+  - they are used by `?fixture=reference`.
+- **Class:** market data shipped as test fixture in a public asset (data terms, `verification/edge_multiuser/data_terms_exposure.md`).
+- **Solution (planned, Phase 0):** replace the fixture with synthetic numbers, or keep fixture mode out of the production
+  build.
+- **Status:** OPEN. Low severity: one day from 2023.
+
+### M468 — Terminal drawings saved in the browser are merged into whichever account signs in next (2026-11-16, OPEN)
+
+- **Symptom (by reading the code):** user A's unsynced drawings would join user B's account on a shared browser.
+- **Verified cause:**
+  - on `pagehide`, pending drawing sets are copied to localStorage `ml.drawings.*` with no user mark
+    (`apps/edge-bff/terminal/src/data/drawingsApi.ts:122`);
+  - `load()` merges every such set into the signed-in account (`:50-69`).
+- **Class:** an offline copy that is not bound to its owner.
+- **Solution (planned, Phase 0):** stamp each local set with the user that wrote it and merge only for that user, or
+  retire the offline copy.
+- **Status:** OPEN. Harmless with one user.

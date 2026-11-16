@@ -1,14 +1,15 @@
 /* Playwright smoke run of the page on the stub BacktestApi (stub.ts, built by `vite build --mode smoke` into
-   dist-smoke/): boot, every builder step, the entry workspace, a run with every results tab, a sensitivity grid with a
+   dist-smoke/): boot, every builder step, the condition window, a run with every results tab, a sensitivity grid with a
    refused cell, the condition limit, the portfolio mode with its stock picker (PF7: the search box from the keyboard,
    the groupings' filters, add all, the chips), its signal table and a second run, the keyboard shortcuts and the
-   theme; then the market with markup in its strings (?hostile=1: no element is made from them and none of their
+   theme that follows EDGE; then the market with markup in its strings (?hostile=1: no element is made from them and none of their
    scripts runs, in every view and tooltip), the market with stocks every preview and run leaves out (?wide=1, on a
    phone's width: the limit of 12 stocks, the preview's one-line toast, the view bar's title, a left-out row asks no
    events, a stock without price data picked first, every picked stock left out) and the market with flow (?flow=1:
    the default end and the server's FLOW_DATA_THROUGH in the toast, the run note and a phone's width). Fails on any console error or page error.
    Usage: npm run smoke (builds dist-smoke first); SMOKE_DEBUG=1 prints each failure's whole message (Playwright's call
-   log). Uses the preinstalled Playwright; installs no browser. */
+   log); SMOKE_ONLY=<prefix> runs the steps whose name starts with it ("wide:", "hostile:", "flow:"). Uses the
+   preinstalled Playwright; installs no browser. */
 import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -38,6 +39,7 @@ const errors = [], steps = [];
 let step = 'boot', page;
 async function openPage(viewport = { width:1440, height:900 }) {
   page = await browser.newPage({ viewport });
+  page.setDefaultTimeout(10000);              // a missing control fails its step in 10 s, not Playwright's 30 s
   // the web font is not needed here (and the sandbox may have no network): an empty style sheet
   await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, route => route.fulfill({ status:200, contentType:'text/css', body:'' }));
   page.on('console', m => { if (m.type() === 'error') errors.push(`[${step}] console: ${m.text()}`) });
@@ -45,10 +47,11 @@ async function openPage(viewport = { width:1440, height:900 }) {
 }
 await openPage();
 const at = async (name, fn) => {
+  if (process.env.SMOKE_ONLY && !name.startsWith(process.env.SMOKE_ONLY)) return;   // one section (its steps share a prefix)
   step = name; const before = errors.length;
   try { await fn() } catch (e) { errors.push(`[${name}] ${process.env.SMOKE_DEBUG ? e.message.slice(0, 2500) : e.message.split('\n')[0]}`) }
   await page.waitForTimeout(150);
-  steps.push(`${errors.length === before ? 'ok  ' : 'FAIL'} ${name}`);
+  steps.push(`${errors.length === before ? 'ok  ' : 'FAIL'} ${name}`); console.log(steps.at(-1));
 };
 const text = sel => page.locator(sel).first().innerText();
 const expect = (ok, what) => { if (!ok) throw new Error(what) };
@@ -59,7 +62,8 @@ const boot = async (query = '') => {
   await page.evaluate(() => { const t = document.getElementById('toast'); window.__toasts = [];
     new MutationObserver(() => { if (!t.hidden) window.__toasts.push(t.textContent) }).observe(t, { attributes:true, childList:true, characterData:true, subtree:true }) });
   await page.waitForSelector('#builder .bs.on', { timeout:15000 });
-  await page.waitForFunction(() => document.querySelectorAll('#laneLabels span').length > 0, null, { timeout:15000 });
+  // the lanes, or a phone's open builder over the main column (the design: the chart is shown once the builder is closed)
+  await page.waitForFunction(() => document.querySelectorAll('#xsig [data-xh], #xsig .xs-wait').length > 0 || !document.getElementById('main').getBoundingClientRect().width, null, { timeout:15000 });
 };
 /* the toast's text once it shows one that matches `re` */
 const toastText = async re => {
@@ -70,34 +74,54 @@ const probe = () => page.evaluate(() => ({ toasts:window.__toasts.length, asks:w
 const toastsSince = n => page.evaluate(k => window.__toasts.slice(k), n);
 /* the picker (picker.ts): the picked stocks as the chips show them, the count, a grouping's select by its label */
 const chips = () => page.locator('#pkChips .chip b').allInnerTexts();
-const group = (label, value) => page.locator(`#pk label.fld:has(span:text-is("${label}")) select`).selectOption({ label:value });
+const group = async (label, value) => { await showBuilder(); return page.locator(`#pk label.fld:has(span:text-is("${label}")) select`).selectOption({ label:value }) };
 const options = () => page.locator('#pkList [role="option"] b').allInnerTexts();
 const tableRows = () => page.locator('#portSig [data-t]').evaluateAll(rs => rs.map(r => r.dataset.t));
+/* a phone (the design): the open builder covers the main column; the chart and its table are shown once it is closed */
+const showChart = async () => { if (!(await page.evaluate(() => document.getElementById('main').getBoundingClientRect().width))) { await page.click('#panelTg'); await page.waitForTimeout(200) } };
+const showBuilder = async () => { if (await page.evaluate(() => document.body.classList.contains('bcol'))) { await page.click('#bRail'); await page.waitForTimeout(200) } };
+/* Run as the user finds it: the header's button in the Signals view, the builder's in its foot (the Results view has
+   no header Run); the one shown */
+const clickRun = () => page.locator('.js-run:visible').first().click();
 await at('boot', async () => {
   await boot();
   expect((await text('#lastRun')).includes('Not run yet'), 'the page does not open in "Not run yet"');
   expect((await text('#resCard')).includes('No results yet.'), 'the results card is not empty at boot');
   // review finding (b): the EDGE icons are linked and answered
-  const icons = await page.evaluate(async () => Promise.all([...document.querySelectorAll('link[rel="icon"]')].map(async l => [l.getAttribute('href'), (await fetch(l.href)).status])));
+  // (the path: the query is EDGE's cache stamp, `?v=` as edge-bff's own index.html)
+  const icons = await page.evaluate(async () => Promise.all([...document.querySelectorAll('link[rel="icon"]')].map(async l => [new URL(l.href).pathname, (await fetch(l.href)).status])));
   expect(JSON.stringify(icons) === '[["/favicon.svg",200],["/favicon-32.png",200]]', `icons ${JSON.stringify(icons)}`);
 });
 for (const n of [1, 3, 4, 5, 2]) await at(`builder step ${n}`, async () => {
   await page.click(`#rail [data-st="${n}"]`);
   await page.waitForSelector(`#builder .bs.on[data-step="${n}"]`, { timeout:3000 });
 });
-await at('entry workspace', async () => {
+/* the condition window (Tahap D, condwin.ts): it opens on the search box, a search narrows its rows, a row is added to
+   the entry list and removed again from its own button, the sides switch, Escape closes it and gives the focus back */
+await at('condition window', async () => {
   await page.click('#wsOpen');
-  await page.waitForSelector('#ews:not([hidden])', { timeout:3000 });
-  await page.fill('#wsQ', 'rsi');
-  await page.locator('#wsList [data-wi]').first().click();
-  await page.fill('#wsQ', '');
-  await page.click('#wsTabs [data-wside="exit"]');
-  await page.click('#wsTabs [data-wside="entry"]');
+  await page.waitForSelector('#cw:not([hidden])', { timeout:3000 });
+  await page.waitForFunction(() => document.activeElement?.id === 'cwQ', null, { timeout:3000 });
+  const all = await page.locator('#cwList .qrow').count();
+  await page.fill('#cwQ', 'rsi');
+  const found = await page.locator('#cwList .qrow').count();
+  expect(found > 0 && found < all, `the search "rsi" lists ${found} of ${all} rows`);
+  const entries = async () => +(await text('#cwSide [data-cwside="entry"] .n'));
+  const n0 = await entries();
+  await page.locator('#cwList .qrow:not(.na) [data-cwadd]:not(.on)').first().click();
+  expect(await entries() === n0 + 1, `entry conditions after an add: ${await entries()}, before ${n0}`);
+  await page.locator('#cwList .qrow [data-cwadd].on').first().click();
+  expect(await entries() === n0, `entry conditions after the remove: ${await entries()}, before ${n0}`);
+  await page.fill('#cwQ', '');
+  await page.click('#cwSide [data-cwside="exit"]');
+  expect((await page.getAttribute('#cwSide [data-cwside="exit"]', 'class')).includes('on'), 'the exit side is not shown');
+  await page.click('#cwSide [data-cwside="entry"]');
   await page.keyboard.press('Escape');
-  await page.waitForSelector('#ews[hidden]', { state:'attached', timeout:3000 });
+  await page.waitForSelector('#cw[hidden]', { state:'attached', timeout:3000 });
+  expect(await page.evaluate(() => document.activeElement?.id) === 'wsOpen', 'the focus did not go back to the search box of the builder');
 });
 const runAndWait = async () => {
-  await page.click('#runTop');
+  await clickRun();
   await page.waitForFunction(() => /^Done in /.test(document.getElementById('runNote').textContent), null, { timeout:30000 });
 };
 await at('run (single)', async () => {
@@ -123,12 +147,15 @@ await at('settings change marks the result stale', async () => {
   await page.waitForSelector('#lastRun.is-stale', { timeout:3000 });
   expect(await page.evaluate(() => !document.getElementById('staleTag').hidden), 'the stale tag is hidden');
 });
-/* (from here a builder step is opened with its summary row: the rail hides the panel when its step is the current one) */
+/* a builder step is opened with its tab (design "Builder v2"); the strategy summary rows are hidden in the design ("tabs
+   already show each step"), their text is still the strategy's summary in the markup, which the checks below read */
 /* a volspike threshold of 1 makes the grid step to -1, a value the condition refuses: that column was not run */
 await at('sensitivity grid with a refused value', async () => {
-  await page.click('#sumbox [data-st="2"]');
+  await page.click('#rail [data-st=\"2\"]');
   await page.click('#builder [data-tpl="Breakout + volume"]');
-  const val = page.locator('#builder .cond:has(b:text-is("Volume spike")) [data-p="val"]');
+  const card = page.locator('#builder .cond:has(b:text-is("Volume spike"))');
+  if (await card.getAttribute('aria-expanded') !== 'true') await card.locator('.msum').click();   // a card opens for editing (design "Builder v2")
+  const val = card.locator('[data-p="val"]');
   await val.fill('1'); await val.evaluate(el => el.blur());
   await runAndWait();
   await page.click('#rtabs [data-tab="robust"]');
@@ -141,7 +168,7 @@ await at('sensitivity grid with a refused value', async () => {
 });
 /* the stub's limit is 4 active conditions per list: the template has 3, one more is added, the next is refused */
 await at('condition limit', async () => {
-  await page.click('#sumbox [data-st="2"]');
+  await page.click('#rail [data-st=\"2\"]');
   const active = () => page.evaluate(() => document.querySelectorAll('#builder [data-step="2"] .cond:not(.off)').length);
   const before = await active();
   await page.click('#addCond'); await page.click('#menu [data-add="rsi"]');
@@ -172,7 +199,7 @@ await at('portfolio mode: the reference\'s rows', async () => {
 });
 await at('run with no stock picked', async () => {
   const note = await text('#runNote');
-  await page.click('#runTop');
+  await clickRun();
   await toastText(/^Add at least one stock$/);
   expect(await text('#runNote') === note && !(await text('#lastRun')).includes('Running'), 'a run started without a stock');
 });
@@ -223,6 +250,7 @@ await at('picker: chips and the chart\'s ticker', async () => {
   expect(JSON.stringify(await tableRows()) === '["ASII","BBCA","BBRI"]', `table rows ${await tableRows()}`);
   const tk = await page.inputValue('#sigTicker');
   expect(['ASII', 'BBCA', 'BBRI'].includes(tk), `the chart shows ${tk}, which is not picked`);
+  // the design's title: the picked stocks by up to three tickers, the count, the positions (M460 item 5)
   expect((await text('#ctxTitle')) === 'ASII, BBCA, BBRI · 3 stocks · max 5 positions', `ctx title ${await text('#ctxTitle')}`);
 });
 /* two settings changes before the first preview answers: that preview is aborted and only the second one answers */
@@ -268,14 +296,21 @@ for (const tab of ['overview', 'returns', 'trades', 'risk', 'robust', 'list']) a
   await page.click(`#rtabs [data-tab="${tab}"]`);
   await page.waitForSelector(`#rtabs [data-tab="${tab}"].on`, { timeout:3000 });
 });
+/* the theme follows EDGE (decision 2a): the shell's key, changed in another frame (a storage event); the page has no
+   theme button of its own */
 await at('keyboard shortcuts and theme', async () => {
   await page.locator('body').click({ position:{ x:5, y:5 } }).catch(() => {});
   await page.keyboard.press('f'); expect(await page.evaluate(() => document.body.classList.contains('mainfs')), 'f did not open full screen');
   await page.keyboard.press('Escape'); expect(!(await page.evaluate(() => document.body.classList.contains('mainfs'))), 'Escape did not leave full screen');
   await page.keyboard.press('['); expect(await page.evaluate(() => document.body.classList.contains('bcol')), '[ did not hide the panel');
   await page.keyboard.press('[');
-  await page.click('#themeBtn'); await page.click('#themeBtn');
-  const keys = await page.evaluate(() => Object.keys(localStorage).sort());
+  expect(!(await page.locator('#themeBtn').count()), 'the page has a theme button of its own');
+  for (const t of ['dark', 'light']) {
+    await page.evaluate(v => { localStorage.setItem('edge-auth-monitor-theme', v); dispatchEvent(new StorageEvent('storage', { key:'edge-auth-monitor-theme', newValue:v })) }, t);
+    expect(await page.evaluate(() => document.documentElement.dataset.theme) === t, `the theme did not follow EDGE to ${t}`);
+  }
+  // (the theme key is EDGE's; fixture.* is the Screener test fixture's own cache, which the stub borrows)
+  const keys = (await page.evaluate(() => Object.keys(localStorage).sort())).filter(k => k !== 'edge-auth-monitor-theme' && !k.startsWith('fixture.'));
   expect(keys.every(k => k.startsWith('ml.')), `unexpected localStorage keys ${keys}`);
 });
 
@@ -302,9 +337,9 @@ await at('hostile: boot', async () => {
 });
 /* every stock picked from the search box, the markup one by the start of its ticker; the preview leaves it out (its
    row's tooltip has the markup reason) */
-const pickBySearch = async q => { await page.fill('#pkQ', q); await page.waitForSelector('#pkQ[aria-expanded="true"]', { timeout:3000 }); await page.keyboard.press('Enter') };
+const pickBySearch = async q => { await showBuilder(); await page.fill('#pkQ', q); await page.waitForSelector('#pkQ[aria-expanded="true"]', { timeout:3000 }); await page.keyboard.press('Enter') };
 await at('hostile: portfolio preview', async () => {
-  await page.click('#sumbox [data-st="1"]');
+  await page.click('#rail [data-st=\"1\"]');
   await page.click('#modeSeg [data-m="portfolio"]');
   for (const q of ['MAPI', 'ACES', 'BBCA', 'BBRI', 'TLKM', '"\'><img']) await pickBySearch(q);
   expect((await chips()).length === 6 && (await chips()).at(-1).includes('onerror='), 'the markup ticker is not a chip with its text');
@@ -345,7 +380,7 @@ await at('hostile: an error message', async () => {
    toast and its message, which names the stock, in the row's tooltip (review PG-2); the strategy summary names the
    picked stock, the view bar's title where it costs no line (review PG-3) */
 await at('hostile: the markup stock alone', async () => {
-  await page.click('#sumbox [data-st="1"]');
+  await page.click('#rail [data-st=\"1\"]');
   for (const t of ['MAPI', 'ACES', 'BBCA', 'BBRI', 'TLKM']) await page.click(`#pkChips [data-pk-del="${t}"]`);
   await toastText(/^1 stock left out \(see the — row\)$/);
   const tip = await page.getAttribute('#portSig td[data-tt]', 'data-tt');
@@ -356,7 +391,7 @@ await at('hostile: the markup stock alone', async () => {
   await noMarkup();
 });
 await at('hostile: single run on the markup ticker', async () => {
-  await page.click('#sumbox [data-st="1"]');
+  await page.click('#rail [data-st=\"1\"]');
   await page.click('#modeSeg [data-m="single"]');
   await page.locator('#builder [data-k="ticker"]').selectOption({ index:await markupOption('#builder [data-k="ticker"]') });
   await runAndWait();
@@ -371,7 +406,7 @@ const noSideScroll = async what => { const w = await page.evaluate(() => [...doc
   expect(!w.length, `${what}: the picker reaches past the window's width: ${w.slice(0, 5)}`) };
 await at('wide: the picker on a phone', async () => {
   await boot('?wide=1');
-  await page.click('#sumbox [data-st="1"]');
+  await page.click('#rail [data-st=\"1\"]');
   await page.click('#modeSeg [data-m="portfolio"]');
   await pickBySearch('BBCA');
   await page.click('#pkQ'); await page.fill('#pkQ', 'w');
@@ -398,22 +433,15 @@ await at('wide: the preview toast is one line', async () => {
   expect((await toastsSince(p0.toasts)).length === 1, `toasts: ${await toastsSince(p0.toasts)}`);
   await noSideScroll('group list');
 });
-/* review PG-3: the view bar's title never takes more lines than the reference's title of the same count in the same
-   view bar ("Banks · n stocks · max m positions"): on a phone, here the count alone; wide, three tickers (a resize) */
-const titleLines = () => page.evaluate(() => {
-  const el = document.getElementById('ctxTitle'), own = el.textContent;
-  const lines = () => { const r = document.createRange(); r.selectNodeContents(el); return new Set([...r.getClientRects()].map(x => Math.round(x.top))).size };
-  const mine = lines(); el.textContent = 'Banks · ' + own.match(/\d+ stocks? · max \d+ positions$/)[0];
-  const ref = lines(); el.textContent = own;
-  return { own, mine, ref };
-});
+/* the title on a phone (the builder closed: the chart's header shown) and wide (a resize): the design's form at both */
 await at('wide: the view bar title on a phone', async () => {
-  const t = await titleLines();
-  expect(t.mine <= t.ref && t.own === '9 stocks · max 5 positions', `the title "${t.own}" takes ${t.mine} lines, the reference's ${t.ref}`);
-  await page.setViewportSize({ width:1440, height:900 });
-  await page.waitForFunction(() => document.getElementById('ctxTitle').textContent === 'BBCA, WID1, WID2 +6 · 9 stocks · max 5 positions', null, { timeout:3000 });
-  await page.setViewportSize({ width:390, height:844 });
-  await page.waitForFunction(() => document.getElementById('ctxTitle').textContent === '9 stocks · max 5 positions', null, { timeout:3000 });
+  await showChart();
+  const title = 'BBCA, WID1, WID2 +6 · 9 stocks · max 5 positions';
+  expect(await text('#ctxTitle') === title, `the title on a phone "${await text('#ctxTitle')}"`);
+  await page.setViewportSize({ width:1440, height:900 }); await page.waitForTimeout(300);
+  expect(await text('#ctxTitle') === title, `the title wide "${await text('#ctxTitle')}"`);
+  await page.setViewportSize({ width:390, height:844 }); await page.waitForTimeout(300);
+  await showBuilder();
   expect((await text('#sumbox [data-st="1"] em')).startsWith('BBCA, WID1, WID2 +6 · max 5'), `step summary ${await text('#sumbox [data-st="1"] em')}`);
 });
 /* PF2: at most 12 stocks; add all stops at the limit and the next add is the limit toast */
@@ -435,6 +463,7 @@ await at('wide: a left-out row after the run', async () => {
   await page.waitForFunction(() => /^Done in /.test(document.getElementById('runNote').textContent), null, { timeout:30000 });
   await page.evaluate(() => document.querySelector('#viewSeg [data-v="signals"]').click());
   const p0 = await probe();
+  await showChart();
   await page.locator('#portSig [data-t="WID3"]').click();
   await page.waitForFunction(() => document.getElementById('sigTicker').value === 'WID3', null, { timeout:5000 });
   await page.waitForTimeout(500);
@@ -449,8 +478,9 @@ const unpickAll = async () => {
   expect(await text('#pkN') === '0 / 12', `count ${await text('#pkN')}`);
 };
 const redraw = async () => {
+  await showChart();
   for (const z of await page.locator('#zoomSeg [data-z]').all()) await z.click();
-  await page.locator('#sigChips [data-h]').first().click();
+  await page.locator('#xsig [data-xh]').first().click(); await page.locator('#xsig [data-xh]').first().click();   // a lane hidden and shown
   await page.waitForTimeout(400);
 };
 /* review PG-1: a published stock without price files picked first: the chart cannot draw it (its toast once) and shows
@@ -497,11 +527,11 @@ await at('wide: every picked stock left out', async () => {
 await page.close(); await openPage();
 await at('flow: default end and FLOW_DATA_THROUGH', async () => {
   await boot('?flow=1');
-  await page.click('#sumbox [data-st="1"]');
+  await page.click('#rail [data-st=\"1\"]');
   const to = page.locator('#builder [data-k="to"]'), [value, max] = await to.evaluate(el => [el.value, el.max]);
   expect(value < max, `the default end ${value} is not before the last price day ${max}`);
   await to.fill(max); await to.evaluate(el => el.blur());
-  await page.click('#runTop');
+  await clickRun();
   const msg = await toastText(/^The broker data is published through/);
   expect(msg.startsWith(`The broker data is published through ${value}:`), `the toast does not name the default end ${value}: ${msg}`);
   expect(!/^Done in /.test(await text('#runNote')), 'the refused run finished');
@@ -512,7 +542,8 @@ await at('flow: default end and FLOW_DATA_THROUGH', async () => {
 /* review PG-6: the server's message takes the phone's width (the reference's pill alone wraps at half the window) */
 await at('flow: FLOW_DATA_THROUGH on a phone', async () => {
   await page.setViewportSize({ width:390, height:844 });
-  await page.click('#runTop');
+  await showBuilder();
+  await page.click('#runBtn');                 // a phone: the open builder's own Run (the header's is under the builder)
   const msg = await toastText(/^The broker data is published through/);
   const box = await page.evaluate(() => { const b = document.getElementById('toast').getBoundingClientRect(); return { left:b.left, right:b.right, w:b.width } });
   expect(box.left >= 0 && box.right <= 390 && box.w > 195, `the toast ${JSON.stringify(box)} (${msg.length} characters)`);
@@ -528,11 +559,11 @@ await at('slow catalog: the page is ready before it, the lists say they are load
   await page.goto(`${origin}/backtest-app/?slowcat=2500`);
   await page.waitForSelector('#builder .bs.on', { timeout:2000 });
   expect(Date.now() - t0 < 2000, 'the builder waited for the catalog');
-  await page.waitForFunction(() => document.querySelectorAll('#laneLabels span').length > 0, null, { timeout:2000 });
+  await page.waitForFunction(() => document.querySelectorAll('#xsig [data-xh], #xsig .xs-wait').length > 0, null, { timeout:2000 });
   const opts = await page.locator('#builder [data-k="ticker"] option').allInnerTexts();
   expect(opts.length === 2 && opts[1] === 'Loading tickers…', `the ticker list before the catalog: ${JSON.stringify(opts)}`);
   expect(!(await page.locator('#runTop').isDisabled()), 'Run is disabled before the catalog');
-  await page.click('#runTop');
+  await clickRun();
   await page.waitForFunction(() => /^Done in /.test(document.getElementById('runNote').textContent), null, { timeout:15000 });
   const after = await page.locator('#builder [data-k="ticker"] option').allInnerTexts();
   expect(after.length > 2 && !after.some(x => /Loading/.test(x)), `the ticker list after the catalog: ${after.length} options`);
@@ -544,15 +575,17 @@ await at('slow catalog: the page is ready before it, the lists say they are load
 await page.close(); await openPage();
 await at('slow broker data: prices first, the page answers, the flow lanes fill later', async () => {
   await page.goto(`${origin}/backtest-app/?flow=1&flowms=1500`);
-  await page.waitForFunction(() => /loading/.test(document.getElementById('laneLabels').textContent), null, { timeout:1400 });
-  expect(await page.locator('#laneLabels .ml-spin').count() >= 2, 'no loading ring on the waiting lanes (a flow lane and Entry)');
+  await page.waitForFunction(() => document.querySelectorAll('#xsig .xs-wait').length > 0, null, { timeout:1400 });
+  expect(await page.locator('#xsig .xs-wait.ml-spin').count() >= 2, 'no loading ring on the waiting lanes (a flow lane and Entry)');
+  const cut = await page.evaluate(() => [...document.querySelectorAll('#xsig svg text')].map(t => t.textContent).filter(t => /·…$|· l…$/.test(t)));
+  expect(!cut.length, `a waiting lane's name is cut in its "· loading": ${cut}`);
   const t0 = Date.now(); await page.evaluate(() => 1);
   expect(Date.now() - t0 < 500, `the page took ${Date.now() - t0} ms to answer while the broker data loads`);
-  await page.waitForFunction(() => document.querySelectorAll('#laneLabels span').length > 1 && !/loading/.test(document.getElementById('laneLabels').textContent), null, { timeout:5000 });
+  await page.waitForFunction(() => document.querySelectorAll('#xsig [data-xh]').length > 1 && !document.querySelector('#xsig .xs-wait'), null, { timeout:5000 });
 });
 
 /* EXEC-BACKTEST-SPIN (user 2026-10-27: S1 "yes", S2 "yes", S3 "OK"): prices that arrive late. The chart is empty and
-   shows the shared loading ring with the ticker, one turn in 0.15 s (1.6 s with reduced motion); a ticker switch empties
+   shows the shared loading ring with the ticker, one turn in 0.15 s on every device (M420); a ticker switch empties
    the chart (no candles of the other stock) and names the new ticker; the run note shows the ring while it waits */
 const ring = async () => page.evaluate(() => {
   const el = document.getElementById('chartLoading'), r = el && el.querySelector('.ml-spin');
@@ -564,35 +597,36 @@ await at('slow prices: the chart shows the loading ring with the ticker, one tur
   await page.waitForSelector('#builder .bs.on', { timeout:2000 });
   const r = await ring();
   expect(r && r.shown && r.text === 'Loading MAPI' && r.turn === '0.15s', `the ring while the prices load: ${JSON.stringify(r)}`);
-  await page.waitForFunction(() => document.getElementById('chartLoading').hidden && document.querySelectorAll('#laneLabels span').length > 1, null, { timeout:5000 });
+  await page.waitForFunction(() => document.getElementById('chartLoading').hidden && document.querySelectorAll('#xsig [data-xh]').length > 1, null, { timeout:5000 });
 });
 await at('slow prices: a ticker switch empties the chart and names the new ticker', async () => {
   const other = await page.locator('#builder [data-k="ticker"] option').evaluateAll(os => os.map(o => o.textContent).find(t => t !== 'MAPI'));
-  await page.click('#sumbox [data-st="1"]');                         // step 1 holds the Ticker field
+  await page.click('#rail [data-st=\"1\"]');                         // step 1 holds the Ticker field
   await page.selectOption('#builder [data-k="ticker"]', other);
   await page.waitForFunction(() => !document.getElementById('chartLoading').hidden, null, { timeout:1000 });
-  const r = await ring(), chips = await text('#sigChips');
-  expect(r.text === `Loading ${other}` && chips === '', `after the switch: ${JSON.stringify(r)}, chips "${chips.slice(0, 60)}"`);
+  // the lanes hold no bar of the other stock (the signal chart's rows: label boxes at x 8, bars right of them)
+  const r = await ring(), bars = await page.evaluate(() => [...document.querySelectorAll('#xsig svg rect')].filter(e => e.getAttribute('x') !== '8').map(e => e.getAttribute('fill')));
+  expect(r.text === `Loading ${other}` && !bars.length, `after the switch: ${JSON.stringify(r)}, lane bars ${JSON.stringify(bars.slice(0, 6))}`);
   await page.waitForFunction(() => document.getElementById('chartLoading').hidden, null, { timeout:5000 });
 });
-await at('reduced motion: the ring turns slower (1.6 s), it does not stop', async () => {
+/* the same speed on every device (user 2026-11-09, ERRORS M420): reduced motion keeps the 0.15 s turn */
+await at('reduced motion: the ring keeps its one speed (0.15 s), it does not stop', async () => {
   await page.emulateMedia({ reducedMotion:'reduce' });
   await page.goto(`${origin}/backtest-app/?barsms=1500`);
   await page.waitForSelector('#builder .bs.on', { timeout:2000 });
   const r = await ring();
-  expect(r && r.shown && r.turn === '1.6s', `the ring with reduced motion: ${JSON.stringify(r)}`);
+  expect(r && r.shown && r.turn === '0.15s', `the ring with reduced motion: ${JSON.stringify(r)}`);
   await page.emulateMedia({ reducedMotion:'no-preference' });
 });
 await at('a run shows the loading ring in its note while it waits', async () => {
   await page.goto(`${origin}/backtest-app/?slowcat=1500`);
   await page.waitForSelector('#builder .bs.on', { timeout:2000 });
-  await page.click('#runTop');
+  await clickRun();
   expect(await page.locator('#runNote .ml-spin').count() === 1, `the run note while the run waits: "${await text('#runNote')}"`);
   await page.waitForFunction(() => /^Done in /.test(document.getElementById('runNote').textContent), null, { timeout:15000 });
   expect(await page.locator('#runNote .ml-spin').count() === 0, 'the ring stays after the run');
 });
 
 await browser.close(); server.close();
-console.log(steps.join('\n'));
 if (errors.length) { console.error(`\n${errors.length} error(s):\n` + errors.join('\n')); process.exit(1) }
 console.log('\nsmoke: no console errors');

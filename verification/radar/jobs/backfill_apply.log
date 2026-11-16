@@ -1,0 +1,29 @@
+Starting Container
+OUT {"q": "plan", "mode": "APPLY", "start": "2025-10-24", "newest": "2026-11-09", "result_sessions": 250, "tickers": 901, "existing_measure_rows": 0}
+OUT {"q": "tickers", "done": 100, "of": 901, "rows": 24245, "seconds": 20.2}
+OUT {"q": "tickers", "done": 200, "of": 901, "rows": 48607, "seconds": 40.3}
+OUT {"q": "tickers", "done": 300, "of": 901, "rows": 72907, "seconds": 62.3}
+OUT {"q": "tickers", "done": 400, "of": 901, "rows": 97276, "seconds": 82.6}
+OUT {"q": "tickers", "done": 500, "of": 901, "rows": 121745, "seconds": 101.4}
+OUT {"q": "tickers", "done": 600, "of": 901, "rows": 146361, "seconds": 121.1}
+OUT {"q": "tickers", "done": 700, "of": 901, "rows": 170354, "seconds": 137.0}
+OUT {"q": "tickers", "done": 800, "of": 901, "rows": 194452, "seconds": 155.1}
+OUT {"q": "tickers", "done": 900, "of": 901, "rows": 214742, "seconds": 170.0}
+OUT {"q": "tickers", "done": 901, "of": 901, "rows": 214992, "seconds": 170.1}
+OUT {"q": "days", "done": 25, "of": 250, "seconds": 20.5}
+OUT {"q": "days", "done": 50, "of": 250, "seconds": 42.8}
+OUT {"q": "days", "done": 75, "of": 250, "seconds": 65.0}
+OUT {"q": "days", "done": 100, "of": 250, "seconds": 85.7}
+OUT {"q": "days", "done": 125, "of": 250, "seconds": 106.2}
+OUT {"q": "days", "done": 150, "of": 250, "seconds": 127.5}
+OUT {"q": "days", "done": 175, "of": 250, "seconds": 148.3}
+OUT {"q": "days", "done": 200, "of": 250, "seconds": 172.1}
+OUT {"q": "days", "done": 225, "of": 250, "seconds": 195.5}
+OUT {"q": "days", "done": 250, "of": 250, "seconds": 216.1}
+JOB_DONE
+JOB_EXIT 0
+OUT {"q": "reconcile", "regular_rows": 214992, "measure_rows": 214992, "gate_rows": 250, "dates": 250, "net_equal": true, "buy_equal": true, "rows_without_cross_section": 0}
+OUT {"q": "check_date", "date": "2026-11-03", "gate": [859, 430, 172, "2299234700", "25498271520"], "standard_hits": [["S1", "standard", "broad", 6], ["S1", "standard", "liquid", 3], ["S2", "standard", "broad", 19], ["S2", "standard", "liquid", 7], ["S3", "standard", "broad", 30], ["S3", "standard", "liquid", 11], ["S6", "standard", "broad", 32], ["S6", "standard", "liquid", 12], ["S6D_BOTH", "standard", "broad", 7], ["S6D_BOTH", "standard", "liquid", 3], ["S6D_RANK", "standard", "broad", 11], ["S6D_RANK", "standard", "liquid", 4], ["S6D_RATIO", "standard", "broad", 15], ["S6D_RATIO", "standard", "liquid", 5], ["S7", "standard", "broad", 23], ["S7", "standard", "liquid", 11], ["S8", "standard", "broad", 10], ["S8", "standard", "liquid", 4]]}
+OUT {"q": "check_date", "date": "2026-11-09", "gate": [855, 428, 171, "1846339100", "17610768200"], "standard_hits": [["S1", "standard", "broad", 10], ["S1", "standard", "liquid", 3], ["S2", "standard", "broad", 20], ["S2", "standard", "liquid", 8], ["S3", "standard", "broad", 35], ["S3", "standard", "liquid", 14], ["S6", "standard", "broad", 31], ["S6", "standard", "liquid", 11], ["S6D_BOTH", "standard", "broad", 1], ["S6D_RANK", "standard", "broad", 4], ["S6D_RATIO", "standard", "broad", 10], ["S6D_RATIO", "standard", "liquid", 5], ["S7", "standard", "broad", 15], ["S7", "standard", "liquid", 11], ["S8", "standard", "broad", 24], ["S8", "standard", "liquid", 2]]}
+OUT {"q": "done", "seconds": 405.2, "measure_rows": 214992}
+VERDICT APPLY_OK

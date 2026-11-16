@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "about": "Indicator outputs a comparison with a bar field reads one bar late (the lag probe of build-screener-registry.mjs, report 6.8): price gt / crosses_above the output reads its gt entry, lt / crosses_below its lt entry. Generated: do not edit.",
+  "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
+  "price_compare_lag": {
+    "I10": {
+      "upper": {
+        "field": "close",
+        "gt": 1,
+        "lt": 0
+      },
+      "lower": {
+        "field": "close",
+        "gt": 0,
+        "lt": 1
+      }
+    }
+  }
+}

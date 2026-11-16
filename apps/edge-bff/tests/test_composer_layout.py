@@ -12,10 +12,12 @@ from test_visual import capture, saved, sign_in, submit
 @pytest.fixture(params=[(1920, 1080, False), (1280, 800, False), (390, 844, True), (360, 740, True)],
                 ids=['desktop-wide', 'desktop-compact', 'mobile', 'mobile-small'])
 def device_page(request):
-    from playwright.sync_api import sync_playwright
+    # Stage C2 (lens 2 F3): skipped without Playwright, as every other browser test is (backend-tests.yml runs the
+    # suite without it); the browser from EDGE_TEST_CHROMIUM as the others take it
+    sync_playwright = pytest.importorskip('playwright.sync_api').sync_playwright
     width, height, touch = request.param
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(executable_path='/usr/bin/chromium', headless=True, args=['--no-sandbox'])
+        browser = pw.chromium.launch(executable_path=os.environ.get('EDGE_TEST_CHROMIUM', '/usr/bin/chromium'), headless=True, args=['--no-sandbox'])
         context = browser.new_context(viewport={'width': width, 'height': height}, is_mobile=touch, has_touch=touch)
         page = context.new_page()
         page.set_default_timeout(6000)

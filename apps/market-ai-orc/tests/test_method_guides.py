@@ -9,6 +9,8 @@ import importlib.util
 import json
 from pathlib import Path
 
+import pytest
+
 from app import data_record as records
 from app import method_guides as G
 from app.orchestrator import METHOD_MENU_HEADER, AgentOrchestrator
@@ -57,6 +59,7 @@ def test_the_tool_opens_a_guide_a_library_method_or_names_what_exists() -> None:
     assert refused["code"] == "UNKNOWN_METHOD" and refused["available"] == ["event_study", "free_code", "lead_lag"]
 
 
+@pytest.mark.generated_file  # EXEC-GEN-CHECK
 def test_the_tool_definition_is_its_tool_catalog_row() -> None:
     script = Path(__file__).resolve().parents[3] / "scripts" / "generate_ai_method_guide_migration.py"
     if not script.exists():

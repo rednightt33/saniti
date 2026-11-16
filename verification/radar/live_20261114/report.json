@@ -1,0 +1,687 @@
+{
+ "checked_at": "2026-11-14T16:33:53Z",
+ "base": "https://edge-bff-dev.up.railway.app",
+ "index": {
+  "status": 200,
+  "ms": 925,
+  "finished_at": "2026-11-14T16:23:44.158209+00:00",
+  "files": 31,
+  "boards": [
+   "radar-board-2026-10-13",
+   "radar-board-2026-11-09"
+  ]
+ },
+ "files": {
+  "radar-board-2026-10-13": {
+   "status": 200,
+   "bytes": 72307,
+   "ms": 261,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-10-14": {
+   "status": 200,
+   "bytes": 73324,
+   "ms": 245,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-10-15": {
+   "status": 200,
+   "bytes": 77001,
+   "ms": 222,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-10-16": {
+   "status": 200,
+   "bytes": 77912,
+   "ms": 236,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-10-19": {
+   "status": 200,
+   "bytes": 81877,
+   "ms": 270,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-10-20": {
+   "status": 200,
+   "bytes": 81347,
+   "ms": 233,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-10-21": {
+   "status": 200,
+   "bytes": 79933,
+   "ms": 249,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-10-22": {
+   "status": 200,
+   "bytes": 81462,
+   "ms": 239,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-10-23": {
+   "status": 200,
+   "bytes": 79782,
+   "ms": 229,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-10-26": {
+   "status": 200,
+   "bytes": 72067,
+   "ms": 243,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-10-27": {
+   "status": 200,
+   "bytes": 68414,
+   "ms": 270,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-10-28": {
+   "status": 200,
+   "bytes": 65880,
+   "ms": 244,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-10-29": {
+   "status": 200,
+   "bytes": 66562,
+   "ms": 258,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-10-30": {
+   "status": 200,
+   "bytes": 68029,
+   "ms": 251,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-11-02": {
+   "status": 200,
+   "bytes": 75436,
+   "ms": 279,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-11-03": {
+   "status": 200,
+   "bytes": 75263,
+   "ms": 244,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-11-04": {
+   "status": 200,
+   "bytes": 75158,
+   "ms": 250,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-11-05": {
+   "status": 200,
+   "bytes": 77139,
+   "ms": 234,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-11-06": {
+   "status": 200,
+   "bytes": 76561,
+   "ms": 230,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-board-2026-11-09": {
+   "status": 200,
+   "bytes": 75503,
+   "ms": 247,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-days": {
+   "status": 200,
+   "bytes": 14724,
+   "ms": 203,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-f-s1": {
+   "status": 200,
+   "bytes": 236868,
+   "ms": 265,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-f-s2": {
+   "status": 200,
+   "bytes": 258376,
+   "ms": 247,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-f-s3": {
+   "status": 200,
+   "bytes": 280852,
+   "ms": 288,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-f-s6": {
+   "status": 200,
+   "bytes": 251306,
+   "ms": 247,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-f-s6d_both": {
+   "status": 200,
+   "bytes": 171847,
+   "ms": 230,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-f-s6d_rank": {
+   "status": 200,
+   "bytes": 206293,
+   "ms": 260,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-f-s6d_ratio": {
+   "status": 200,
+   "bytes": 186335,
+   "ms": 245,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-f-s7": {
+   "status": 200,
+   "bytes": 255297,
+   "ms": 250,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-f-s8": {
+   "status": 200,
+   "bytes": 233750,
+   "ms": 246,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  },
+  "radar-meta": {
+   "status": 200,
+   "bytes": 22410,
+   "ms": 222,
+   "sha_ok": true,
+   "cache": "private, max-age=31536000, immutable"
+  }
+ },
+ "days": {
+  "dates": 250,
+  "newest": "2026-11-09",
+  "db_dates": 250,
+  "db_newest": "2026-11-09",
+  "boards": 20,
+  "broker_through": "2026-11-09",
+  "prices_through": "2026-11-13"
+ },
+ "hits_newest": {
+  "groups": 44,
+  "differences": [],
+  "standard": [
+   [
+    "S1",
+    "broad",
+    10
+   ],
+   [
+    "S1",
+    "liquid",
+    3
+   ],
+   [
+    "S2",
+    "broad",
+    20
+   ],
+   [
+    "S2",
+    "liquid",
+    8
+   ],
+   [
+    "S3",
+    "broad",
+    35
+   ],
+   [
+    "S3",
+    "liquid",
+    14
+   ],
+   [
+    "S6",
+    "broad",
+    31
+   ],
+   [
+    "S6",
+    "liquid",
+    11
+   ],
+   [
+    "S6D_BOTH",
+    "broad",
+    1
+   ],
+   [
+    "S6D_RANK",
+    "broad",
+    4
+   ],
+   [
+    "S6D_RATIO",
+    "broad",
+    10
+   ],
+   [
+    "S6D_RATIO",
+    "liquid",
+    5
+   ],
+   [
+    "S7",
+    "broad",
+    15
+   ],
+   [
+    "S7",
+    "liquid",
+    11
+   ],
+   [
+    "S8",
+    "broad",
+    24
+   ],
+   [
+    "S8",
+    "liquid",
+    2
+   ]
+  ]
+ },
+ "board_newest": {
+  "rows": 3031,
+  "db_rows": 3031,
+  "stocks": 346
+ },
+ "s6d_rules": [
+  {
+   "filter": "S6D_BOTH",
+   "cond": "D",
+   "level": "loose",
+   "label": "Ratio up \u2265 12 pt and rank up \u2265 40 pt",
+   "threshold": 12.0,
+   "threshold2": 40.0,
+   "status": "provisional"
+  },
+  {
+   "filter": "S6D_BOTH",
+   "cond": "D",
+   "level": "standard",
+   "label": "Ratio up \u2265 20 pt and rank up \u2265 65 pt",
+   "threshold": 20.0,
+   "threshold2": 65.0,
+   "status": "provisional"
+  },
+  {
+   "filter": "S6D_BOTH",
+   "cond": "D",
+   "level": "strict",
+   "label": "Ratio up \u2265 35 pt and rank up \u2265 90 pt",
+   "threshold": 35.0,
+   "threshold2": 90.0,
+   "status": "provisional"
+  },
+  {
+   "filter": "S6D_RANK",
+   "cond": "D",
+   "level": "loose",
+   "label": "Rank up \u2265 40 pt vs 5 sessions ago",
+   "threshold": 40.0,
+   "threshold2": null,
+   "status": "provisional"
+  },
+  {
+   "filter": "S6D_RANK",
+   "cond": "D",
+   "level": "standard",
+   "label": "Rank up \u2265 65 pt vs 5 sessions ago",
+   "threshold": 65.0,
+   "threshold2": null,
+   "status": "provisional"
+  },
+  {
+   "filter": "S6D_RANK",
+   "cond": "D",
+   "level": "strict",
+   "label": "Rank up \u2265 90 pt vs 5 sessions ago",
+   "threshold": 90.0,
+   "threshold2": null,
+   "status": "provisional"
+  },
+  {
+   "filter": "S6D_RATIO",
+   "cond": "D",
+   "level": "loose",
+   "label": "Ratio up \u2265 12 pt vs 5 sessions ago",
+   "threshold": 12.0,
+   "threshold2": null,
+   "status": "provisional"
+  },
+  {
+   "filter": "S6D_RATIO",
+   "cond": "D",
+   "level": "standard",
+   "label": "Ratio up \u2265 20 pt vs 5 sessions ago",
+   "threshold": 20.0,
+   "threshold2": null,
+   "status": "provisional"
+  },
+  {
+   "filter": "S6D_RATIO",
+   "cond": "D",
+   "level": "strict",
+   "label": "Ratio up \u2265 35 pt vs 5 sessions ago",
+   "threshold": 35.0,
+   "threshold2": null,
+   "status": "provisional"
+  }
+ ],
+ "checks": [
+  {
+   "check": "no session: the index answers 401",
+   "ok": true,
+   "detail": 401
+  },
+  {
+   "check": "the session names the Radar",
+   "ok": true,
+   "detail": {
+    "deep_research": false,
+    "model_selection": true,
+    "cancel": true,
+    "tool_progress": false,
+    "retention_days_default": 30,
+    "radar": true
+   }
+  },
+  {
+   "check": "index: 31 files (meta, days, 20 boards, 9 filters)",
+   "ok": true,
+   "detail": {
+    "status": 200,
+    "ms": 925,
+    "finished_at": "2026-11-14T16:23:44.158209+00:00",
+    "files": 31,
+    "boards": [
+     "radar-board-2026-10-13",
+     "radar-board-2026-11-09"
+    ]
+   }
+  },
+  {
+   "check": "every file: its bytes have the index sha256",
+   "ok": true,
+   "detail": {}
+  },
+  {
+   "check": "a file named by its sha is cached for good",
+   "ok": true,
+   "detail": null
+  },
+  {
+   "check": "radar-days: the dates of the database",
+   "ok": true,
+   "detail": {
+    "dates": 250,
+    "newest": "2026-11-09",
+    "db_dates": 250,
+    "db_newest": "2026-11-09",
+    "boards": 20,
+    "broker_through": "2026-11-09",
+    "prices_through": "2026-11-13"
+   }
+  },
+  {
+   "check": "radar-days: the hit counts of 2026-11-09 equal the database",
+   "ok": true,
+   "detail": {
+    "groups": 44,
+    "differences": [],
+    "standard": [
+     [
+      "S1",
+      "broad",
+      10
+     ],
+     [
+      "S1",
+      "liquid",
+      3
+     ],
+     [
+      "S2",
+      "broad",
+      20
+     ],
+     [
+      "S2",
+      "liquid",
+      8
+     ],
+     [
+      "S3",
+      "broad",
+      35
+     ],
+     [
+      "S3",
+      "liquid",
+      14
+     ],
+     [
+      "S6",
+      "broad",
+      31
+     ],
+     [
+      "S6",
+      "liquid",
+      11
+     ],
+     [
+      "S6D_BOTH",
+      "broad",
+      1
+     ],
+     [
+      "S6D_RANK",
+      "broad",
+      4
+     ],
+     [
+      "S6D_RATIO",
+      "broad",
+      10
+     ],
+     [
+      "S6D_RATIO",
+      "liquid",
+      5
+     ],
+     [
+      "S7",
+      "broad",
+      15
+     ],
+     [
+      "S7",
+      "liquid",
+      11
+     ],
+     [
+      "S8",
+      "broad",
+      24
+     ],
+     [
+      "S8",
+      "liquid",
+      2
+     ]
+    ]
+   }
+  },
+  {
+   "check": "radar-board-2026-11-09: every result row of the date",
+   "ok": true,
+   "detail": {
+    "rows": 3031,
+    "db_rows": 3031,
+    "stocks": 346
+   }
+  },
+  {
+   "check": "radar-meta: S6-delta thresholds 12/20/35 and 40/65/90 (user 1A)",
+   "ok": true,
+   "detail": [
+    {
+     "filter": "S6D_BOTH",
+     "cond": "D",
+     "level": "loose",
+     "label": "Ratio up \u2265 12 pt and rank up \u2265 40 pt",
+     "threshold": 12.0,
+     "threshold2": 40.0,
+     "status": "provisional"
+    },
+    {
+     "filter": "S6D_BOTH",
+     "cond": "D",
+     "level": "standard",
+     "label": "Ratio up \u2265 20 pt and rank up \u2265 65 pt",
+     "threshold": 20.0,
+     "threshold2": 65.0,
+     "status": "provisional"
+    },
+    {
+     "filter": "S6D_BOTH",
+     "cond": "D",
+     "level": "strict",
+     "label": "Ratio up \u2265 35 pt and rank up \u2265 90 pt",
+     "threshold": 35.0,
+     "threshold2": 90.0,
+     "status": "provisional"
+    },
+    {
+     "filter": "S6D_RANK",
+     "cond": "D",
+     "level": "loose",
+     "label": "Rank up \u2265 40 pt vs 5 sessions ago",
+     "threshold": 40.0,
+     "threshold2": null,
+     "status": "provisional"
+    },
+    {
+     "filter": "S6D_RANK",
+     "cond": "D",
+     "level": "standard",
+     "label": "Rank up \u2265 65 pt vs 5 sessions ago",
+     "threshold": 65.0,
+     "threshold2": null,
+     "status": "provisional"
+    },
+    {
+     "filter": "S6D_RANK",
+     "cond": "D",
+     "level": "strict",
+     "label": "Rank up \u2265 90 pt vs 5 sessions ago",
+     "threshold": 90.0,
+     "threshold2": null,
+     "status": "provisional"
+    },
+    {
+     "filter": "S6D_RATIO",
+     "cond": "D",
+     "level": "loose",
+     "label": "Ratio up \u2265 12 pt vs 5 sessions ago",
+     "threshold": 12.0,
+     "threshold2": null,
+     "status": "provisional"
+    },
+    {
+     "filter": "S6D_RATIO",
+     "cond": "D",
+     "level": "standard",
+     "label": "Ratio up \u2265 20 pt vs 5 sessions ago",
+     "threshold": 20.0,
+     "threshold2": null,
+     "status": "provisional"
+    },
+    {
+     "filter": "S6D_RATIO",
+     "cond": "D",
+     "level": "strict",
+     "label": "Ratio up \u2265 35 pt vs 5 sessions ago",
+     "threshold": 35.0,
+     "threshold2": null,
+     "status": "provisional"
+    }
+   ]
+  },
+  {
+   "check": "an older sha: 409 RADAR_FILE_REPLACED with the current sha",
+   "ok": true,
+   "detail": {
+    "status": 409,
+    "error": {
+     "code": "RADAR_FILE_REPLACED",
+     "message": "A newer Radar publication replaced this file. Read GET /api/v1/radar/index again and ask for the file with its new sha.",
+     "details": {
+      "name": "radar-meta",
+      "sha256": "27698255f622f01b4c21cb95b1aaaff987235fef2781300f2910b223e70b1bea"
+     }
+    }
+   }
+  },
+  {
+   "check": "a wrong name: 400 RADAR_INVALID_NAME naming the valid names",
+   "ok": true,
+   "detail": {
+    "status": 400,
+    "error": {
+     "code": "RADAR_INVALID_NAME",
+     "message": "That is not a Radar file name. Names: radar-meta, radar-days, radar-board-YYYY-MM-DD, radar-f-<filter>; GET /api/v1/radar/index lists the published ones.",
+     "details": {
+      "name": "radar-x"
+     }
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,26 @@
+JOB 7331078f-39fd-4f2f-8ccb-eef67b7b9b0d
+0
+VERDICT PASS
+JOB_DONE APPLY
+JOB_EXIT 0
+POSTGRES_MEMORY_CHECK
+{"now": "2026-11-15T09:50:00+00:00", "refusals": ["memory 0.734572544 GB is below 0.8 GB: nothing to free", "a cron runs within the margin: idx-price-cron (0 10 * * *) at 10:00 UTC; ai-data-coverage (30 0,10 * * *) at 10:30 UTC; fixed-income-price-cron (0 10 * * *) at 10:00 UTC"], "reasons": ["memory_low", "cron_due"], "postgres_memory_gb": 0.734572544, "active_statements": 0, "user_runs": {"edge_jobs": 0, "orc_turns": 0}, "verdict": "REFUSED", "railway_credential": "RAILWAY_API_TOKEN"}
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import sys,json;v=json.load(sys.stdin);sys.exit(0 if not set(sys.argv[1:]) & set(v) else 1)
+                      ~~~~~~~~~^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/json/__init__.py", line 298, in load
+    return loads(fp.read(),
+        cls=cls, object_hook=object_hook,
+        parse_float=parse_float, parse_int=parse_int,
+        parse_constant=parse_constant, object_pairs_hook=object_pairs_hook, **kw)
+  File "/usr/local/lib/python3.13/json/__init__.py", line 352, in loads
+    return _default_decoder.decode(s)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "/usr/local/lib/python3.13/json/decoder.py", line 345, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/json/decoder.py", line 363, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+VAR_REMOVED

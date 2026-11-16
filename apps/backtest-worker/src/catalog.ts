@@ -6,6 +6,9 @@
    (its price files, checked against their manifest), the limits of the configuration, the versions, and whether the
    flow conditions are on (BACKTEST_FLOW_ENABLED, with the reason while they are off) with the date the broker data is
    published through (load.ts brokerDataThrough over every stock's manifest; asked only while flow is on). */
+import FLOW_REGISTRY from '../../edge-bff/terminal/src/data/flowRegistry.json' with { type: 'json' };
+import { FLOW_BY_ID } from '../../edge-bff/screener/src/core/flowmetrics.ts';
+import { D_SPECS } from './pit/spec.ts';
 import type { Catalog, Grouping } from '../../edge-bff/backtest/src/core/contract.ts';
 import { INDEX_TICKER } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { byTicker } from '../../edge-bff/backtest/src/core/signals.ts';
@@ -13,6 +16,7 @@ import type { Config } from './config.ts';
 import { brokerDataThrough } from './load.ts';
 import type { Publication, TerminalClient, TickerReference } from './terminal.ts';
 import { stocksOf, tradable } from './validate.ts';
+import { NOT_PER_DAY } from './grammar.ts';
 
 /** The portfolio picker's filters (PF6, 2026-10-27): one per grouping column, in the file's column order; per value the
     number of published stocks that have it, in value order (byTicker), and the stocks without a value (unclassified:
@@ -48,8 +52,27 @@ export async function buildCatalog(client: TerminalClient, cfg: Pick<Config, 'li
     groupings: groupingsOf(ref),
     flow: { available: cfg.flow.enabled, reason: cfg.flow.reason, brokers: brokers.map(b => b.code), data_through: flowThrough },
     limits: cfg.limits,
+    flow_indicators: flowIndicators(cfg.flow.enabled),
+    // Stage D (D5): the Screener's reference kinds a backtest refuses, with the refusal's reason (grammar.ts NOT_PER_DAY),
+    // so the page marks them in its condition window from the engine, not from a list of its own
+    grammar_refusals: { ...NOT_PER_DAY },
   };
 }
+
+/** The Flow indicators of the grammar (contract.ts Catalog.flow_indicators), from the Terminal's registry: the clean ones
+    the Screener computes with the Terminal module (grammar.ts), the point-in-time ones (pit/spec.ts, admins), and the
+    ones a backtest cannot read with the reason (FL31 and the rest of the registry). While flow is off none is available. */
+export function flowIndicators(flowOn: boolean): NonNullable<Catalog['flow_indicators']> {
+  return (FLOW_REGISTRY as { indicators: { id: string; name: string }[] }).indicators.map(r => {
+    const d = D_SPECS[r.id], e = FLOW_BY_ID[r.id], clean = !!e && e.compute === 'terminal' && !e.requires;
+    const reason = !flowOn ? FLOW_OFF : d || clean ? null
+      : e?.requires === 'insider' ? 'It needs insider transactions with the date they were made public, which are not published yet.'
+      : r.id === 'FL52' ? 'It is FL23 on the price chart: use FL23.'
+      : 'It is drawn on the Terminal only (its value is not a number per day).';
+    return { id: r.id, name: r.name, access: d || r.id === 'FL52' ? 'admin' : 'all', available: reason === null, reason, date_param: d ? d.date : null } as const;
+  });
+}
+const FLOW_OFF = 'Flow conditions are not available: the broker data is switched off on the backtest worker.';
 
 /** EXEC-BACKTEST-LOAD (user 2026-10-27: "Agar waktu loading bisa sama. Seperti bagian terminal."; K1): what is derived
     from the published files (the catalog, the reference lists) is kept until the publisher finishes another run

@@ -1,0 +1,6 @@
+# build outputs (the edge-bff Dockerfile builds dist/ into static/radar-app) and the fixture build
+dist/
+dist-fixture/
+# saved Radar files of a local rehearsal (tests/fixture/save.py writes them; never committed: they hold market data)
+tests/fixture/data/
+node_modules/

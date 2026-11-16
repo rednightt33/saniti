@@ -16,3 +16,15 @@ screener/node_modules
 screener/tests
 screener/dist*
 static/screener-app
+radar/node_modules
+radar/tests
+radar/dist*
+static/radar-app
+overview/node_modules
+overview/tests
+overview/dist*
+static/overview-app
+watchlist/node_modules
+watchlist/tests
+watchlist/dist*
+static/watchlist-app

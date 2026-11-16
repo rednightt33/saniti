@@ -1,5 +1,373 @@
 # Railway changelog
 
+## 2026-11-16 — EXEC-WATCHLIST on dev: terminal-api, terminal-publisher, telegram-monitor, edge-bff; migration 20261116_001
+
+- **Go:** user 2026-11-16 "Oke, synchronize dulu dengan branch main, kemudian kerjakan. Go." (the release order of
+  EXEC-WATCHLIST, ERRORS M466: publisher and terminal-api first, then `main`, then the migration right after edge-bff).
+- **Before each deploy and the migration:** no EDGE job active and no orc turn running (`user_runs` (0, 0)).
+- **terminal-api** `171d24b6` SUCCESS 12:21 UTC (CLI upload; page family `watchlist`).
+- **terminal-publisher** `b51c2f0b` (12:21 UTC, CLI upload): Run Now 12:48 UTC skipped (within 20 minutes after the
+  12:30 tick, `should_run`); Run Now 12:59 UTC `watchlist_failed` step build, `InsufficientPrivilege` (the publisher's
+  role cannot read `stockbit_corporate_action`, ERRORS M466). Fixed at the source (`idx_event_annotation`), `55436c93`
+  SUCCESS 13:05 UTC; Run Now 13:06 UTC built `watchlist-stocks` (1 file, 0.1 MB, 2 s; index `finished_at`
+  13:08:27 UTC). Not a large update (0.23 s, 8,945 pages, `verification/watchlist/EXPLAIN_20261116.txt`).
+- **`main`** `6e39ef8e` → `bed51b81` → `854bcad6`. telegram-monitor `dd93934a` SUCCESS (stage name `watchlist`).
+  edge-bff `655a2e87` SKIPPED "CI check suite failed": the screener-worker job of the look-ahead gate (run
+  `43873068101`) failed its `SCREENER_ONBOARDING.md` pointer test (ERRORS M467). After the fix (`854bcad6`, every
+  workflow green: look-ahead gate, backend tests, generated files) the push made `642a7b2d` SKIPPED (no watched file
+  changed), so the agent started `serviceInstanceDeployV2` on `854bcad6` → `41811cfa` SUCCESS 13:25 UTC.
+  Read back: `/ready` 200, `/watchlist` and `/watchlist-app/` 200, `/api/v1/watchlist/index` and `/lists` 401 without
+  a session.
+- **Migration** `20261116_001_edge_bff_watchlist_lists.sql` on orc-test-runner (idle; its last job `JOB_EXIT 0`):
+  DRYRUN `MIG DRYRUN_BODY_OK`, then APPLY `MIG APPLY` 13:28 UTC, sha256 `c01d6929…`, `VAR_REMOVED` both times
+  (DATABASE_CHANGELOG.md).
+- **Live check as the owner** (`verification/watchlist/live_check_dev.py`, `verification/watchlist/LIVE_20261116.txt`):
+  59/59 ok — file by sha256, the lists API round trip and its refusals, the Screener star into the first list, the
+  page at 1440 and 390 px (lists, cards, prices, logos, Radar and corporate-action badges, the Radar filter, no failed response
+  on the page, no sideways scroll). The live file recalculated from PostgreSQL: 40,518 comparisons, 0 differences.
+- **Postgres memory:** 1.99 GB at 13:27 UTC (the DRYRUN's `POSTGRES_MEMORY_CHECK`, refused: postgres-memory-cron due at
+  13:45 UTC). None of this was a large update; the scheduled restart ran at 13:47 UTC, memory 0.11 GB at 13:50 UTC.
+- **User feedback, same evening (Alt+A, logos in Add stocks; EXEC-WATCHLIST):** `main` `8ed943ed`, every workflow
+  green, edge-bff `ac4056fd` SUCCESS (deployed by the push). Live: the button shows `Alt+A`, Alt+A opens Add stocks,
+  the search row of BBCA shows the issuer logo.
+
+## 2026-11-16 — backtest-worker `BACKTEST_WORKER_KEY` rotated; edge-bff redeployed (ERRORS M464, user "Boleh rotasi kunci worker")
+
+- **Why:** the old value appeared in an agent session's terminal output (ERRORS M464); it was not committed or sent
+  anywhere else.
+- **Before (11:50 UTC):** no Backtest job active, no orc turn running.
+- **Action:** variable `BACKTEST_WORKER_KEY`, service backtest-worker, environment dev: replaced with a new 64-character
+  value made in the process and piped to `railway variable set --stdin` (never printed; the length read back). Its
+  one consumer (`scripts/railway_reference_consumers.py backtest-worker.BACKTEST_WORKER_KEY`): edge-bff, by reference.
+- **Deployments:** backtest-worker `b087e1c4` SUCCESS (the redeploy of `31e94b94`'s build); edge-bff `20af8720`
+  (started by the reference change) and `59df442f` (`--redeploy`) SUCCESS 11:51 UTC, source `fd539903` unchanged.
+- **Verified:** edge-bff `/ready` 200; `verification/backtest/revamp_dev_check.py` through the new key: catalog, a Flow
+  run (48 trades), a point-in-time run as an admin (3 trades), the signals preview (184 entries), all passed.
+
+## 2026-11-16 — backtest-worker `31e94b94`: memory released after every task, 2 GB limit (ERRORS M463, user "Go untuk opsi 1")
+
+- **Go:** user 2026-11-16: "tidak apa-apa untuk naikkan ke 2 GB apabila run memang diperlukan", "RAM hanya berjalan
+  ketika ada request saja", "Go untuk opsi 1". Code: rednightt33/saniti#69 (`9250827b`), every check green before
+  the upload.
+- **Before:** no Backtest job active (`edge_bff.jobs` 0, 11:28 UTC); the worker `e4cf8fdd` asleep.
+- **Variable:** `BACKTEST_DOWNLOAD_CONCURRENCY` 16 → 4 (`railway variable set --skip-deploys`), read back.
+- **Limit:** `railway config apply`: the plan held exactly `backtest-worker deploy.limitOverride.containers.memoryBytes`
+  1000000000 → 2000000000; read back from `serviceInstanceLimits` (2,000,000,000). The apply started a redeploy of the
+  old code (`b750d187`), replaced by the upload.
+- **Upload:** CLI upload of `git archive 9250827b` of the paths the Dockerfile copies, `--path-as-root` →
+  `31e94b94` SUCCESS 11:30 UTC; start line: `engine_version` `681b18d3ffe51792` (= the repository's), `memory`
+  `{container_bytes: 1999998976, thread_heap_mb: 412}`, concurrency 4.
+- **Checks:** `e2e_dev.py` 11:33-11:35 UTC: every step passed, the 12-stock portfolio FINISHED (19.6 s on the worker);
+  its preview peaked at 452 MB and its run at 462 MB, the process back to 187-189 MB as each thread ended
+  (`thread_end`); Railway's per-minute memory peaked at 0.37 GB (limit 2 GB). The first e2e run at 11:30 failed in the
+  check itself (the builder left closed after the phone screenshots, ERRORS M465), not on the page or the worker.
+- **Rollback:** CLI upload of the worker from `8194a16c` with `BACKTEST_DOWNLOAD_CONCURRENCY=16`; the limit back with
+  `railway.ts` (1 GB) and `railway config apply`.
+
+## 2026-11-16 — EXEC-BACKTEST-REVAMP deploy on dev (Gate 3, user "1A 2B 3A, go deploy", "ok lanjut")
+
+- **Before:** no Backtest job active and no orc turn running (edge_bff.jobs, `AI_conversation_turn`) before each upload
+  and merge. Rollback points (the deployments live before): edge-bff `0c882d2d`, screener-worker `eb9d30e1`,
+  backtest-worker `d9acefda`, telegram-monitor `bdbbca08`, terminal-publisher `65c25a7b`.
+- **backtest-worker** `e4cf8fdd` SUCCESS 09:22 UTC: CLI upload of `git archive 48a38519` (the PR head) of the paths its
+  Dockerfile copies, `--path-as-root`; start log `engine_version` `e3be5b3a63d4e629` = the repository's. Before the
+  merge, as the deploy order says (worker first).
+- **screener-worker:** CLI upload `4cfe1654` from `48a38519` (09:24 UTC) before the merge, then `cac24666` SUCCESS
+  from `main` `c5d3ee97` (the merge of rednightt33/saniti#65, 09:27 UTC).
+- **edge-bff:** `37a4ab62` from `c5d3ee97` FAILED in Railway's build (the Backtest page stage lacked the Screener
+  source, ERRORS M461); `041807ea` SUCCESS from `4e02ad6e` (rednightt33/saniti#66, 09:38 UTC); `f0c86a39` SUCCESS from
+  `fd539903` (rednightt33/saniti#67: the Screener catalog asked again while its worker loads, M462), which waited
+  (`WAITING`) for the checks on `main` and deployed at 09:59 UTC: K10 a in effect. `/ready` 200.
+- **telegram-monitor** `438e9c81` SUCCESS from `c5d3ee97` (source `Broker_Basis_Report`; GitHub-connected,
+  `checkSuites` off as before).
+- **K10 a:** `railway config apply` set `checkSuites: true` on edge-bff and screener-worker (the plan held exactly those
+  two changes, read back from `deploymentTriggers`); four live settings made outside the file were recorded in
+  `.railway/railway.ts` instead of applying their removal (Postgres 1 vCPU, market-python-sandbox 1 GB, two
+  telegram-monitor variables by name).
+- **terminal-publisher** `0f7f2a95` SUCCESS 09:32 UTC: CLI upload of `git archive 48a38519 apps/terminal-publisher`;
+  cron `0,30 0,1,12 * * *` kept. Its first run was the Run Now that telegram-monitor pressed after the price cron
+  (`terminal_publish_signal` `Monitoring_Price_ALL` 10:04:58 and `Monitoring_Fixed_Income` 10:04:42, both
+  `TRIGGERED`): mode daily, 864 events files changed (`EVENTS_FORMAT` 3, the basis per corporate action), basis measured
+  for 361 actions (4 need attention: 2 unresolved, 3 with a raw price), 1,768 files planned, 2,722 written, done in
+  294 s (10:10 UTC), then the 2,723 replaced files deleted after 600 s (none left, 10:21 UTC); the daily Telegram
+  "Basis harga lawan data broker" sent (`Telegram_Notification_Log` `broker-basis-2026-11-16-8960568a` SENT 10:21:40
+  UTC), with the existing broker-behind notice (broker data 5 sessions behind the prices). Reader check: BBRI's new events file is format 3 with
+  its basis (the 2021 rights issue `terms` 1.025), decoded by the worker's code; `verification/backtest/revamp_dev_check.py`
+  passed after it (Flow run `bt_ed5d0afe…` 48 trades, point-in-time run `bt_3619d46e…` 3 trades, preview 184 entries).
+- **Postgres restart after the large update:** `scripts/restart_postgres.py` at 10:14 UTC REFUSED (`cron_due`: the
+  10:00 and 10:30 crons; memory 1.99 GB, 0 statements, 0 user runs). Every minute until 14:30 UTC is inside a guard
+  (crons 10:30, 11:00, the publisher 12:00 and 12:30, B6 12:00-13:20, `postgres-memory-cron` 13:45); the scheduled
+  restart at 13:45 UTC (auto on, mode `apply`) covered it. Checked at 13:57 UTC: `pg_postmaster_start_time`
+  13:47:13 UTC, `Telegram_Notification_Log` `Postgres_Restart` COMPLETED SENT 13:47:09 and 13:50:24 UTC, Postgres memory
+  1.99 GB (13:40) → 0.11 GB (13:50), edge-bff `/ready` 200.
+- **Dev checks:** `e2e_dev.py` (10:00-10:02 UTC): page boot, single, repeat, refusal at submit and cancel passed; the
+  12-stock portfolio run ended `WORKER_LOST`: the worker process was killed above its 1 GB limit after the preview
+  (ERRORS M463, open: the user's decision); the six results tabs at 390 px timed out because the check clicked under
+  the open builder (M465, the check fixed); rerun `--only single` 10:23-10:24 UTC: all passed, 18 screenshots (1600,
+  1280 and 390 px, six tabs each). `revamp_dev_check.py`: catalog (52 Flow indicators, 48 available, the 8
+  point-in-time ones admin-only), a Flow run in the shared grammar and a point-in-time run as an admin, and the signals
+  preview, all passed.
+
+## 2026-11-16 — EXEC-BACKTEST-REVAMP Stage C2: `.railway/railway.ts` records the live `checkSuites` (no Railway change)
+
+- Lens 2 F4 (ERRORS M459 item 14): the 2026-11-15 entry wrote `checkSuites: true` for edge-bff and screener-worker into
+  `railway.ts` before applying it; the live triggers read `checkSuites: false` (edge-bff, screener-worker,
+  telegram-monitor, Railway `deploymentTriggers`, read-only, by the reviewer). The file now records the live `false`
+  with a note; K10 a (true for both) is applied with `railway config apply` at the deploy after Gate 3, with the user's
+  approval. No variable, service or deployment was changed.
+- The deploy order across services (M459 item 15) is in `apps/backtest-worker/README.md` (Deploy) and
+  `BACKTEST_END_TO_END.md`: backtest-worker upload, screener-worker, then edge-bff.
+
+## 2026-11-15 — EXEC-BACKTEST-REVAMP: `.railway/railway.ts` records the live limits and the CI gate (not applied yet)
+
+- Recorded from the live project (ERRORS M455, Railway `serviceInstanceLimits`, read-only): backtest-worker
+  `limitOverride` 1,000,000,000 bytes (set 2026-11-07, kept by user K9 b), Postgres 2,000,000,000 bytes (user 2026-11-09
+  "Limit ram keep 2gb dulu"). `railway.ts` said none and 1 GB.
+- K10 a (user 2026-11-15): `checkSuites: true` for edge-bff and screener-worker, so a push to `main` deploys only on green
+  checks (the look-ahead gate among them). Not applied: it takes effect with `railway config plan` and apply at the
+  deploy after Gate 2, with approval. No variable, service or deployment was changed in this step.
+
+## 2026-11-15 — Market Overview second release: terminal-publisher `65c25a7b`, edge-bff `0c882d2d` (`main` `724d130c`); Postgres restart (EXEC-OVERVIEW, user "Oke, jalankan.")
+
+- **Go:** user 2026-11-15 "Oke, jalankan." for steps 1-5 (deploy publisher, Run Now, restart Postgres, push `main`,
+  live check), stop on any failure. Content: the post-release fix list (ERRORS M446), the phone pages menu (1B), Top
+  Movers on all stocks, and F1 Custom (the publisher's new `overview-stocks` file).
+- **Before (19:50 UTC):** `restart_postgres.py` check READY: 0 running statements, 0 user runs (edge jobs 0, orc turns
+  0), no cron within 45 minutes, memory 1.82 GB. The branch had `main` `2c62125e` merged first (`724d130c`; ERRORS
+  entries renumbered: the Overview phone entry is M446). Main's new INDEX rows do not reach the Overview: every stock
+  query is limited to `IDX_Stock_Universe` stocks, the sectors are the same 11 entities.
+- **terminal-publisher `65c25a7b` SUCCESS (19:50 UTC):** CLI upload of `git archive 724d130c apps/terminal-publisher`
+  (M229 option A); uploaded `overview.py` md5 `28cfa754…` = `OVERVIEW_FORMULAS.md`. Cron `0,30 0,1,12 * * *` and
+  `TERMINAL_PUBLISH_MODE=daily` unchanged.
+- **Run Now 19:51:23 UTC** (`deploymentInstanceExecutionCreate`): done in 195.6 s; `overview` built 23 files (meta,
+  series, stocks, 20 days), 1.78 MB, 56.9 s, the first `overview-stocks` (862 stocks × 300 dates, 296 broker dates);
+  `radar` unchanged (31 files carried).
+- **Postgres restart:** `restart_postgres.py --apply` 19:55 UTC (memory 1.93 GB, 0 statements, 0 user runs): start time
+  18:58:27 → **19:55:23 UTC**, 11 s, edge-bff `/ready` 200.
+- **`main` `2c62125e` → `724d130c`** (fast-forward, 19:55:44 UTC): edge-bff `0c882d2d` SUCCESS (GitHub); every other
+  GitHub service SKIPPED (market-ai-orc included).
+- **Live check as the owner:** `verification/overview/live_check_dev.py` 8/8 PASS at 19:56:40 UTC (index finished
+  19:54:40): 23 files with their sha256, immutable caching, 409/400 refusals, the independent recalculation on
+  2026-10-20, 11-02 and 11-13 plus the `overview-stocks` rows: 33,870 comparisons, 0 differences
+  (`verification/overview/live_20261115/report_release2.json`). Page check
+  `verification/overview/live_page_check_dev.py`, 33/33 ok at 1440 px and on a 390 px phone (`live_page_check.txt`):
+  P1-P4 and B2 measured, the pages menu (6 pages, Overview first), Custom 1 Oct-13 Nov on the five panels equal to the
+  figures computed from the checked files (BBCA −9.47%, Top Movers STRK/TFCO/PTSP/BSWD/AKKU, Financials −4.7%, above
+  EMA50 19%, foreign buy Rp 122.15T), the address keeps the five ranges. Screenshots `live_custom_1440.png`,
+  `live_pages_menu_390.png`, `live_custom_390.png`.
+- **Open (not fixed):** at 1440 px the Foreign Flow footer breaks "Market net −Rp / 19.85T" between the currency and
+  the number (look only; the figure is right): ERRORS M447, waiting for the user.
+- **Rollback:** edge-bff redeploy of `960ef248`; terminal-publisher CLI upload of the `apps/terminal-publisher` tree of
+  `41699d9f` (its next run drops `overview-stocks` from the index; the page's Custom then says the data is missing).
+
+## 2026-11-15 — stockbit-updater deployed (index entities each round); orc-test-runner fill, catalog, publish; two Postgres restarts
+
+- orc-test-runner (DATABASE_URL set per run, removed: VAR_REMOVED each time): fill job `6f934738` (76 entities, PASS,
+  13:58-18:13 UTC; started by hand after a scheduler of mine missed the 13:47 restart: it compared `True` with `true`);
+  read-back job (PASS); catalog APPLY (PASS); publish job `f64de936` (`verification/index_group_history/publish_job.py`,
+  terminal-publisher's code `f69eb9e3` = deployed `8a49b4c8`, its bucket and database variables as references):
+  `broker-range` 2024-2026 for the 43 indexes, 129 files planned, 172 written (101.6 MB); `verify` 442 files 0
+  mismatches. A first publish attempt stopped at SET_FAILED (CLI), nothing ran, no variable left.
+- Postgres restart by the user (Telegram "🔄 Restart Postgres", 2026-11-15) after the read-only reviews of BACKTEST-REVAMP
+  Stages A-B (memory had been 1.84-2.0 GB of 2.0 GB since 15:00 UTC): `pg_postmaster_start_time` 18:58:27 UTC; memory
+  0.09 GB at 19:00 UTC (Railway metrics, read back by the main agent).
+- Postgres restarts by `run_job.sh` (`"large_write": true`): 18:13:38 UTC after the fill, 18:41:38 UTC after the
+  publish (memory 1.97 and 1.99 GB, 0 user runs, edge-bff ready 200). The scheduled restart ran at 13:47 UTC.
+- stockbit-updater CLI upload `bbd5aa7f` (deploy.sh from `78d95ad4`) SUCCESS: after IHSG each round runs every other
+  entity of Feature_Index_Entity (`refresh.refresh_index_entities`); a failure is a round warning. A cron service: the
+  deploy ran no round (0 RUNNING). The next round needs a new STOCKBIT_TOKEN (expired 2026-11-10).
+- Rollback: stockbit-updater `deploy.sh` from `28c41268`; the INDEX rows of the 76 entities are separate tickers
+  (`DELETE ... WHERE ticker <> 'IHSG'` on the six tables, only with the user's approval).
+
+## 2026-11-15 — market-sql-governor, market-python-sandbox, ai-data-coverage, telegram-monitor deployed (EXEC-INDEX-GROUP-HISTORY stages 7-8 code); orc-test-runner trial and catalog dry run
+
+- Merge of `claude/affectionate-shannon-qmsxxb` to `main` (`28c41268`, fast-forward; user go 2026-11-15 "Langsung go
+  tahap 4-9"), no user run active before (restart check: 0 EDGE jobs, 0 orc turns). GitHub deployments SUCCESS:
+  market-sql-governor `0b8db885`, market-python-sandbox `a6513801` (a SUM across the entity column of an INDEX table is
+  refused: the entities overlap), ai-data-coverage `10e033c8` (INDEX expectations per entity of Feature_Index_Entity),
+  telegram-monitor `04be07ae` (the round's line for the indexes, sectors and groups). market-ai-orc was not redeployed
+  (no watched path changed). stockbit-updater (stage 8) is not deployed yet: CLI upload after the fill.
+- orc-test-runner: stage 5 trial `e27be83e` (dry run LQ45 + GPRAJOGO, VERDICT PASS, 889 s, nothing written; attempts
+  1-2 did not run or stopped before any write: the Railway CLI was not on PATH, then the job wrapper printed a Decimal);
+  catalog migration 20261115_004 + vocabulary sync DRYRUN `77a5b9c6` (VERDICT PASS, rolled back). DATABASE_URL set only
+  for each run and removed (VAR_REMOVED).
+## 2026-11-15 — Market Overview released on dev: four services from `main` `41699d9f` (EXEC-OVERVIEW O7, user "Ok, jalankan semua.")
+
+- **Before (13:18 UTC):** 0 running statements, 0 user runs (edge jobs 0, orc turns 0); `main` was `28c41268`
+  (already merged into the branch): fast-forward to `41699d9f`. orc-test-runner ran the migration 20261115_020 jobs
+  first (DRYRUN `f53eff40`, APPLY `52e4a5f9`, `DATABASE_URL` reference set and removed, `VAR_REMOVED`;
+  `DATABASE_CHANGELOG.md`).
+- **Deployments, all SUCCESS (13:18-13:19 UTC):** edge-bff `af280efd` and telegram-monitor `bdbbca08` (GitHub, the
+  push); terminal-api `8dab3b1c` and terminal-publisher `a856f67c` (CLI upload of `git archive 41699d9f apps/<service>`).
+  screener-worker SKIPPED (no watched path changed). Read back: edge-bff `/ready` 200, `/overview` and
+  `/overview-app/` 200, `/api/v1/overview/index` 401 without a session; terminal-api `/ready` 200,
+  `/api/terminal/v1/overview` 403 `gateway_only` without the gateway key; publisher cron `0,30 0,1,12 * * *`, NEVER,
+  next 2026-11-16 00:00 UTC (unchanged). The uploaded `overview.py` (md5 `ec4d588d…`) equals `OVERVIEW_FORMULAS.md`.
+- **Publisher Run Now (daily) 13:20 UTC** (`deploymentInstanceExecutionCreate`): done in 191.3 s; `overview` built
+  22 files (meta, series, 20 days 2026-10-19..11-13), 0.67 MB, 37.4 s, the first count of 300 Feature 04 dates
+  included; `radar` unchanged (31 files carried).
+- **Live check** (`verification/overview/live_check_dev.py`, signed in as the owner): 8/8 PASS at 13:25:48 UTC
+  (`verification/overview/live_20261115/report.json`): 22 files with their sha256, immutable caching, 409/400
+  refusals, and the independent recalculation on 2026-10-20, 11-02 and 11-13: 27,833 comparisons, 0 differences. The
+  two runs before it (30 and 50 s after the publication) read the previous index: terminal-api reads state.json at most
+  every 60 s and edge-bff keeps the index 30 s (by design; the script's docstring says to wait 90 s). The page as the
+  owner: Overview first in the rail, Fri 13 Nov, KPIs equal to the recalculation, 45 LQ45 tiles
+  (`overview_live_1440.png`).
+- **Postgres:** 1.99 GB after the run (13:27 UTC); the manual restart was refused by its guard (the scheduled
+  postgres-memory-cron run at 13:45 UTC is within 45 minutes), so that scheduled run was the restart: start time
+  2026-11-15 07:47:21 → **13:47:00 UTC** (`pg_postmaster_start_time`, pgweb), memory **0.10 GB** at 13:53 UTC
+  (`restart_postgres.py` check). The live page signed in normally at 13:47:38.
+- **edge-bff `a3083980` SUCCESS (13:40 UTC, `main` `649c1173`, user "go, deploy edge-bff"):** the market map's
+  Performance colour is gray only at 0.00% (user choice "3"; EXEC-OVERVIEW). Only edge-bff deployed (the only changed
+  service folder). Read back on the live page as the owner: BBCA and ANTM light green, BMRI, PGEO and HRTA gray
+  (`verification/overview/live_20261115/overview_live_1440_choice3.png`).
+- **edge-bff `960ef248` SUCCESS (13:57 UTC, `main` `5b8f85b1`, user "Foreign buy samakan juga, go deploy"):** the
+  Foreign buy colour follows the same rule (gray only when a tile reads 0, a net under Rp 1 million). Only edge-bff
+  deployed. Read back on the live page as the owner, 1D: LQ45 15 light green, 28 light red, 2 darker, none gray; all
+  stocks 250 gray, 324 light green, 260 light red (`overview_live_1440_foreign_buy.png`).
+## 2026-11-15 — orc-test-runner jobs of EXEC-INDEX-GROUP-HISTORY step 3 (no service deployed)
+
+- **Go:** user 2026-11-15 "go langkah 3", then "A".
+- Jobs (`scripts/onboarding/run_job.sh`, `DATABASE_URL` reference set and removed each time, `VAR_REMOVED`): migration
+  20261115_002 DRYRUN `1076602d`, APPLY `3f68c3fa`; price PREFLIGHT, APPLY (5 stored, 38 refused, ERRORS M438); migration
+  20261115_003 DRYRUN `9fcbdbf4`, APPLY `a96ff014`; price APPLY `7331078f` (38). One start refused before running by the
+  runner check (`DEPLOYMENT_LIST_FAILED`), retried. Railway CLI 5.74.0, `RAILWAY_TOKEN` unset.
+- Postgres not restarted: the last check (09:50 UTC) refused it, memory 0.73 GB (below 0.8 GB) and crons within 45
+  minutes. `.railway/railway.ts` unchanged.
+
+## 2026-11-15 — idx-price-cron, idx-price-recovery-cron, idx-intraday-cron deployed (EXEC-INDEX-GROUP-HISTORY stage 1); Postgres restart
+
+- **Go:** user 2026-11-15 "Ok jalankan", "go langkah 1 dan 2".
+- `main` fast-forwarded to `63da5cf3`: idx-price-cron `a81179a3` and idx-price-recovery-cron `d2a15423` SUCCESS (watch
+  path `/apps/idx-price-cron/**`; their code is unchanged in behaviour). idx-intraday-cron is a CLI upload:
+  `apps/idx-price-cron/deploy_intraday.sh` from HEAD `63da5cf3`, deployment `1cddf79c` SUCCESS (rollback reference
+  `eb2a184f`). Its next run is the schedule (Monday 10:30 UTC); intraday now loads only indexes that already have
+  intraday bars (ERRORS M437). Railway CLI 5.74.0 with `RAILWAY_TOKEN` unset (the proxy's credential), as on 2026-11-14.
+- Jobs on orc-test-runner (migration 20261115_001, DATABASE_CHANGELOG): DRYRUN `2445a6ae`, APPLY `b4f43a1e`, `VAR_REMOVED`.
+- **Postgres restart:** the jobs' `POSTGRES_MEMORY_CHECK` said READY (1.07 GB): `scripts/restart_postgres.py --apply` at
+  07:47 UTC, every guard passed (no cron within 45 minutes, outside B6, 0 statements, 0 user runs), 10 s, edge-bff
+  `/ready` 200.
+- Seen, not caused here: Postgres had a new deployment `147e89af` created at 06:58:47 UTC (replacing `96161400`), before
+  this session touched Railway; a new deployment, not a crash restart, so not a memory kill. `.railway/railway.ts` unchanged.
+
+## 2026-11-15 — edge-bff `e8686596`: Radar column scrollbar only on hover
+
+- User 2026-11-15: a board column's scrollbar showed at rest; it now shows only while the pointer is over the column (or
+  a card in it has the keyboard focus), its 4 px kept so nothing moves. CSS only (`apps/edge-bff/radar/src/styles/radar.css`).
+- Before: 0 EDGE jobs, 0 orc turns, 0 statements. `main` `2c2832f` (the branch merged with main's EXEC-GEN-CHECK work;
+  generated-file checks and script tests pass) → edge-bff `e8686596` SUCCESS 04:10 UTC; `/ready` 200; the served Radar
+  stylesheet holds the hover rule. Checked in Chromium on the fixture build: hidden at rest, shown on hover, width unchanged.
+- Rollback: redeploy edge-bff `e48a7b86`.
+
+## 2026-11-15 — edge-bff, market-ai-orc, market-python-sandbox redeployed by the EXEC-GEN-CHECK merge (no behaviour change)
+
+- **Go:** user 2026-11-15 "Ok merge / 2 B". `main` fast-forwarded `0546ce38` → `2ee7e9fa` (ERRORS M435, M436).
+- **Before the push (ERRORS M340):** 0 EDGE jobs QUEUED/RUNNING/RECOVERING and 0 orc turns RUNNING (the query of
+  `scripts/restart_postgres.py` `user_runs`, through pgweb, read-only). Rollback references: edge-bff `e48a7b86`,
+  market-ai-orc `53bce7bd`, market-python-sandbox `0ae51eb4`.
+- **Deployments** (each service's watch path; the changed files are tests, `pytest.ini` and the deleted, unread
+  `apps/edge-bff/terminal/src/data/indNotes.json`): edge-bff `a7f5cda0`, market-ai-orc `9ce82005`,
+  market-python-sandbox `2db92783`, all SUCCESS at 02:22–02:24 UTC; edge-bff `/ready` 200.
+- **GitHub:** new workflow `.github/workflows/generated-files.yml` (generated-file checks on every push and pull
+  request, read-only, no secrets); run `43667398337` on `main`: success.
+- **Not changed (user "2 B"):** Railway does not wait for the GitHub check; `checkSuites: false` stays on every service.
+  `.railway/railway.ts` unchanged.
+
+## 2026-11-14 — orc-test-runner: Radar migrations 004, 005 and the redo of every date; publisher republished
+
+- **Go:** user 2026-11-14 "1 go, 2 perbaiki sekarang". Results: `DATABASE_CHANGELOG.md` 2026-11-14 (004, 005).
+- **Jobs** (`scripts/onboarding/run_job.sh`, orc-test-runner, `DATABASE_URL` reference set and removed each time,
+  `VAR_REMOVED`): migration 004 DRYRUN `44590053`, APPLY `51d17917`; migration 005 DRYRUN `750b0e5f`, APPLY
+  `36714ab7`; `verification/radar/redo_days_job.py` DRYRUN `9caa52d3`, APPLY `478abe05` (244 s); the Feature catalog
+  audit `b81bb354` (PASS). All `JOB_EXIT 0`. An earlier attempt to run 004 before the user's go was refused by the
+  session's permission check and changed nothing.
+- **Postgres:** each job's own check now runs (ERRORS M433): `memory_low` 0.43-0.49 GB, refused; the redo's
+  `large_write` restart step ran and refused for the same reason. 0.50 GB at 17:18 UTC after the publisher; no restart.
+- **terminal-publisher Run Now (daily) 17:13 UTC:** done in 186 s; `radar` built, 31 files, 11 new objects (3.63 MB),
+  29 s. Live check (`verification/radar/live_check_dev.py`): 13/13 PASS. No service was deployed.
+
+## 2026-11-14 — Radar released on dev: five services from `main` `f69eb9e` (EXEC-RADAR R9, user "2 OK")
+
+- **Before (16:17 UTC):** no cron within 45 minutes, outside B6, 0 running statements, 0 user runs (edge jobs 0, orc
+  turns 0), no RUNNING broker round (last round 2026-11-09). `main` was `a936653` (the branch's base): fast-forward to
+  `f69eb9e`.
+- **Deployments, all SUCCESS (16:18-16:19 UTC):** telegram-monitor `eab6b4b5` and edge-bff `e48a7b86` (GitHub, the
+  push); terminal-api `ff9d708c` and terminal-publisher `8a49b4c8` (CLI upload of `git archive f69eb9e apps/<service>`);
+  stockbit-updater `16fba518` (`apps/stockbit-updater/deploy.sh` from the same tree; a cron job, no round ran).
+  screener-worker SKIPPED (no watched path changed). Read back: publisher cron `0,30 0,1,12 * * *`, NEVER, next run
+  2026-11-15 00:00 UTC; stockbit-updater cron `0 15 1 1 *`, NEVER. edge-bff `/ready` 200, `/radar` and `/radar-app/`
+  200, `/api/v1/radar/index` 401 without a session; terminal-api `/ready` 200, `/api/terminal/v1/radar` 403
+  `gateway_only` without the gateway key.
+- **Publisher Run Now (daily) 16:20 UTC** (`deploymentInstanceExecutionCreate`): done in 205.7 s; `radar` built, 31
+  files, 3.62 MB, 50.3 s; nothing else to write (price, broker days, refs unchanged).
+- **Live check** (`verification/radar/live_check_dev.py`, signed in as the owner): 11/11 PASS
+  (`verification/radar/live_20261114/report.json`); the page renders the 9 Nov board without console errors
+  (`radar_live_1440.png`).
+- **Postgres** after the run: 0.48 GB, below 0.8 GB, no restart (`restart_postgres.py` check, 16:30 UTC).
+- **Rollback:** revert the Radar commits on `main` (edge-bff and telegram-monitor redeploy from GitHub), terminal-api and
+  terminal-publisher CLI upload of `git archive a936653 apps/<service>`, stockbit-updater `deploy.sh` from `a936653`;
+  the Radar files and tables are inert without the page.
+
+## 2026-11-14 — Postgres restart after the Radar first fill (user "3 perbaiki, once done restart progress"; ERRORS M433)
+
+- **Script:** `scripts/restart_postgres.py` with the M433 fix, run unchanged from this session (credential
+  `RAILWAY_API_TOKEN` after `RAILWAY_TOKEN` was refused). `--apply --min-gb 0`: the user asked for the restart, so the
+  0.8 GB memory threshold was not applied; every other guard was: no cron within 45 minutes, outside B6, 0 running
+  statements, 0 user runs (edge jobs 0, orc turns 0).
+- **Result:** Postgres deployment `96161400` restarted at 16:10 UTC in 10 s (start 2026-11-14 10:17:21 → 16:10:17 UTC);
+  edge-bff `/ready` 200 (domain read through the same credential). Memory 0.49 GB before, 0.08 GB at 16:11 UTC.
+- postgres-memory-cron was not redeployed: it keeps its uploaded copy of the script, whose first credential is its own
+  `RAILWAY_RESTART_TOKEN`, so its behaviour is unchanged. `.railway/railway.ts` unchanged.
+
+## 2026-11-14 — orc-test-runner: Radar migrations and first fill on dev (EXEC-RADAR, go "1 A, 2 A 3 A go")
+
+- **CLI:** Railway CLI 5.74.0 installed in the session's scratch folder (the preinstalled 4.68 has no `-p`); run with
+  `RAILWAY_TOKEN` unset so the proxy's account credential is used (a project-token header and that credential cannot
+  be combined, as on 2026-11-07). Nothing was changed in the project's configuration; no service was deployed.
+- **Jobs** (`scripts/onboarding/run_job.sh`, orc-test-runner, `DATABASE_URL` set as the reference
+  `${{Postgres.DATABASE_URL}}` with `--skip-deploys` for each run and removed after it: `VAR_REMOVED` every time):
+  migrations 001 + 002 DRYRUN `b1ffba1e` and APPLY `0d9f6fe9`; backfill DRYRUN `57232933`; migration 003 DRYRUN
+  `70b5cc98` and APPLY `d85c7cb9`; backfill DRYRUN `475022cd`; backfill APPLY `72049533` (405 s). All `JOB_EXIT 0`.
+  Transient CLI refusals (`DEPLOYMENT_LIST_FAILED`, runner busy) were retried; one variable read after `475022cd`
+  returned no JSON and was retried until `VAR_REMOVED`. Results: `DATABASE_CHANGELOG.md` 2026-11-14.
+- **Postgres restart:** the `large_write` step of the APPLY could not read Railway (`KeyError: 'RAILWAY_TOKEN'`, ERRORS
+  M433). `scripts/restart_postgres.py` run with the proxy's credential (its guards unchanged) refused it at 15:42 and
+  15:54 UTC: `memory_low`, 0.475 and 0.497 GB (below 0.8 GB, nothing to free), 0 statements, 0 user runs. No restart.
+  `.railway/railway.ts` unchanged.
+
+## 2026-11-14 — dev restored after the usage limit (ERRORS M424)
+
+- 2026-11-13 14:20 UTC every service stopped at the workspace hard limit; the user raised it 2026-11-14 and Railway
+  restarted the services at 10:17 UTC. screener-worker `6e9e5fa9` FAILED (health check); `deploymentRedeploy` →
+  `eb9d30e1` SUCCESS 10:23 UTC, SLEEPING 10:34 UTC. edge-bff `/ready` 200; Postgres started 10:17:21 UTC.
+
+## 2026-11-12 — edge-bff: Daily Quadrant colours in Settings (EXEC-DQ-COLORS)
+
+- `a5b6c862` → edge-bff `3ec43aad` SUCCESS 07:40 UTC. `/ready` 200; the served Terminal bundle holds the four quadrant
+  colour buttons.
+- Rollback: `serviceInstanceDeployV2` with `b68502cd`'s commit `0f0d127e`.
+
+## 2026-11-11 — edge-bff: Top Brokers names, Daily Quadrant bars (EXEC-TOPBROKERS-NAME, EXEC-DQ-SIZE)
+
+- `1daccc8a` → edge-bff `63a1f091` and screener-worker `4695622f` (the rename; registry rebuilt); `19ad0822` → edge-bff
+  `8c40a644` SUCCESS 17:47 UTC (Daily Quadrant bars and colour key). `/ready` 200; the served Terminal bundle is the local
+  build checked on the stand-in.
+- Rollback: `serviceInstanceDeployV2` with `5f9e35f5`.
+
+## 2026-11-11 — edge-bff and screener-worker `c098efb4`: Implied Cost no-position note (EXEC-IC-NOPOS)
+
+- Push deployed edge-bff `9a767abd` and screener-worker `9c8c5ee1`, both SUCCESS 17:20 UTC; `/ready` 200. screener-worker
+  passed its start-up registry check (new `calc/flow.ts` hash) and swapped to the publication of 12:06 UTC (`swap`,
+  `refresh` 60 broker days). The Screener's behaviour is unchanged: only the registry hash moved.
+- Rollback: `serviceInstanceDeployV2` with `a22f0972` on both.
+
+## 2026-11-11 — edge-bff: empty right axis without a crosshair price (M423), pattern preview (EXEC-XABCD-PREVIEW)
+
+- `f87d6816` → `e5ce180f` SUCCESS 15:57 UTC (M423); `86c0a2b6` → `453ceb5d` SUCCESS 16:00 UTC (pattern preview). Deployed by
+  the push (GitHub). `/ready` 200; the served Terminal bundle is the local build checked on the stand-in (right axis
+  with FL52 hidden and shown, eye off and on; XABCD preview; Terminal tests 892; look_check11 PASS).
+- Rollback: `serviceInstanceDeployV2` with `1d8c9d51`.
+
 ## 2026-11-10 — edge-bff: drawings drag up and down (M422), new drawing tools (EXEC-DRAW-DRAG-TOOLS)
 
 - `4bb10dd5` → `ae07aa89` SUCCESS 14:27 UTC (M422); `e02066c1` → `566502b0` SUCCESS 14:45 UTC (Parallel channel, Shapes

@@ -179,20 +179,27 @@ export interface BrokerGap { d: string; m: string }
     broker code, investor and board among the Feature 05 values, four finite values >= 0 (Feature 05 CHECK), dates
     non-decreasing within and across files, and one row per (date, broker, investor, board) (the Feature 05 key; a row
     in two files, e.g. a stale archive overlapping a yearly file, is DATA_INTEGRITY, where the Terminal would add it
-    twice). All documents must belong to one ticker. */
-export function brokerRows(docs: Columnar[]): BrokerRow[] {
+    twice). All documents must belong to one ticker. The transaction counts bf and sf (EXEC-BACKTEST-REVAMP P3) are read
+    by name where a file has them: a number of at least 0, or null; a row without one has NaN (never 0). */
+function eachBrokerRow(docs: Columnar[], visit: (d: string, b: string, i: string, m: string, bv: number, sv: number, bl: number, sl: number, bf: number, sf: number) => void): void {
   const isDate = dateCheck(), keys = new Set<string>(), owners = new Set<unknown>();
   const parts = docs.map((doc, k) => {
     const what = `broker file ${k + 1}${doc && typeof doc.ticker === 'string' ? ` of ${doc.ticker}` : ''}`;
     kind(doc, ['broker', 'broker-archive'], null, what);
     if (doc.ticker !== undefined) owners.add(doc.ticker);
-    return { what, first: Array.isArray(doc.d) && doc.d.length ? String(doc.d[0]) : '', c: cols(doc, BROKER_COLUMNS, what) };
+    const opt = (c: string) => Array.isArray(doc.columns) && doc.columns.includes(c) && Array.isArray(doc[c]) ? doc[c] as unknown[] : null;
+    return { what, first: Array.isArray(doc.d) && doc.d.length ? String(doc.d[0]) : '', c: cols(doc, BROKER_COLUMNS, what), bf: opt('bf'), sf: opt('sf') };
   }).filter(p => p.c[0].length);
   if (owners.size > 1) throw integrity(`The broker files belong to different tickers (${[...owners].join(', ')}).`);
-  const out: BrokerRow[] = [];
   let prev = '';
   for (const p of byFirstDate(parts)) {
     const [d, b, i, m, bv, sv, bl, sl] = p.c;
+    const count = (col: unknown[] | null, k: number, at: () => string, name: string): number => {
+      const x = col ? col[k] : null;
+      if (x === null || x === undefined) return NaN;
+      if (!fin(x) || (x as number) < 0) throw integrity(`${at()}: ${name} must be a number of at least 0 or null.`);
+      return x as number;
+    };
     for (let k = 0; k < d.length; k++) {
       const day = d[k], at = () => `${p.what}, row ${k + 1}`;
       if (!isDate(day)) throw integrity(`${at()}: ${JSON.stringify(day)} is not a date.`);
@@ -206,10 +213,41 @@ export function brokerRows(docs: Columnar[]): BrokerRow[] {
       const key = `${prev}|${b[k]}|${i[k]}|${m[k]}`;
       if (keys.has(key)) throw integrity(`${p.what}: the broker row ${key} appears twice in the published files.`);
       keys.add(key);
-      out.push({ d: prev, b: b[k] as string, i: i[k] as string, m: m[k] as string, bv: v[0] as number, sv: v[1] as number, bl: v[2] as number, sl: v[3] as number });
+      visit(prev, b[k] as string, i[k] as string, m[k] as string, v[0] as number, v[1] as number, v[2] as number, v[3] as number,
+        count(p.bf, k, at, 'bf'), count(p.sf, k, at, 'sf'));
     }
   }
+}
+export function brokerRows(docs: Columnar[]): BrokerRow[] {
+  const out: BrokerRow[] = [];
+  eachBrokerRow(docs, (d, b, i, m, bv, sv, bl, sl) => { out.push({ d, b, i, m, bv, sv, bl, sl }) });
   return out;
+}
+
+/** EXEC-BACKTEST-REVAMP P3: a ticker's broker rows as columns, the shape the Screener's flow series read
+    (screener/src/core/flowmetrics.ts BrokerRowsLike; brokerFlowRows turns it into the Terminal's FlowRows): D indexes
+    dates, B brokers, I investor_types, M boards; ordered by date, then the files' order; bf and sf NaN where the file
+    has no count. About 56 bytes a row, against an object per row in brokerRows (K9 b memory budget), so a run keeps it
+    for every ticker whose conditions read the Flow indicators. Same checks as brokerRows. */
+export interface BrokerColumns {
+  rows: number; dates: string[]; brokers: string[]; investor_types: string[]; boards: string[];
+  D: Int32Array; B: Int32Array; I: Uint8Array; M: Uint8Array;
+  BV: Float64Array; SV: Float64Array; BL: Float64Array; SL: Float64Array; BF: Float64Array; SF: Float64Array;
+}
+export function brokerColumns(docs: Columnar[]): BrokerColumns {
+  const dates: string[] = [], brokers: string[] = [], bAt = new Map<string, number>();
+  const investor_types = [...INVESTORS] as string[], boards = [...BOARDS] as string[];
+  const D: number[] = [], B: number[] = [], I: number[] = [], M: number[] = [], V: number[][] = [[], [], [], [], [], []];
+  eachBrokerRow(docs, (d, b, i, m, bv, sv, bl, sl, bf, sf) => {
+    if (dates[dates.length - 1] !== d) dates.push(d);
+    let j = bAt.get(b);
+    if (j === undefined) { j = brokers.length; brokers.push(b); bAt.set(b, j) }
+    D.push(dates.length - 1); B.push(j); I.push(investor_types.indexOf(i)); M.push(boards.indexOf(m));
+    V[0].push(bv); V[1].push(sv); V[2].push(bl); V[3].push(sl); V[4].push(bf); V[5].push(sf);
+  });
+  const f = (a: number[]) => Float64Array.from(a);
+  return { rows: D.length, dates, brokers, investor_types, boards, D: Int32Array.from(D), B: Int32Array.from(B), I: Uint8Array.from(I), M: Uint8Array.from(M),
+    BV: f(V[0]), SV: f(V[1]), BL: f(V[2]), SL: f(V[3]), BF: f(V[4]), SF: f(V[5]) };
 }
 
 /** The publisher's gap markers of broker documents ([[date, board], ...]); a document without `gap` has none. */
@@ -251,6 +289,66 @@ export function corporateActions(docs: Columnar[]): CorporateAction[] {
     }
   });
   return out.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+}
+
+/* ---- the broker basis (EXEC-BACKTEST-REVAMP P9) ------------------------------------------------------------------ */
+/* Option A (user 2026-11-16: "A dulu", then "opsi A"; ERRORS M450, M458 item 2): the publisher measures, per
+   price-affecting corporate action, whether the broker prices and the published prices are on one basis across it, and
+   writes the decision into the events file (`basis`, apps/terminal-publisher/publisher.py broker_basis):
+   - terms: the published prices carry the action and the broker lots do not (a rights issue); the lots of every date
+     before the ex date are multiplied by `factor`, so the broker prices are on the prices' basis (onPriceBasis);
+   - same: one basis on both sides (factor 1); pending: its window after the ex date is not complete yet; unresolved:
+     neither.
+   `price` says whether the published close carries the action (adjusted) or was not reloaded after it (raw, ERRORS D22).
+   `decided` (Stage C2, user 2026-11-16 "A", ERRORS M459): the date the decision holds from (ex + the rule's window
+   days); a reader treats the action as undecided on every date before it (backtest-worker basis.ts), whatever its
+   status says. An events file published before P9 has no block: its actions read as unresolved (factor 1), so a Flow
+   value across them is left empty, as a value whose basis is not known. */
+export const BASIS_STATUSES = ['terms', 'same', 'pending', 'unresolved'] as const;
+export type BasisStatus = typeof BASIS_STATUSES[number];
+export interface BasisAction { ex: string; type: string; factor: number; status: BasisStatus; price: 'adjusted' | 'raw' | null; decided: string }
+/** the publisher's window (publisher.py BASIS_WINDOW_DAYS), read from a block's rule when it has one */
+export const BASIS_WINDOW_DAYS = 21;
+const plusDays = (d: string, n: number) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86_400_000).toISOString().slice(0, 10);
+
+/** The actions with an unknown basis (an events file without the block). */
+export const unknownBasis = (actions: readonly CorporateAction[]): BasisAction[] =>
+  actions.map(a => ({ ex: a.date, type: a.type, factor: 1, status: 'unresolved' as const, price: null, decided: a.date }));
+
+/** Events documents -> the broker basis of the ticker's price actions, oldest first (unknownBasis of `actions` when no
+    document carries the block). */
+export function brokerBasis(docs: Columnar[], actions: readonly CorporateAction[]): BasisAction[] {
+  const isDate = dateCheck(), out: BasisAction[] = [];
+  let found = false;
+  docs.forEach((doc, k) => {
+    const b = (doc as { basis?: unknown }).basis;
+    if (b === undefined) return;
+    found = true;
+    const what = `events file ${k + 1}, basis`;
+    if (!b || typeof b !== 'object' || Array.isArray(b)) throw integrity(`${what} is not an object.`);
+    const [ex, type, factor, status, price] = cols(b as Columnar, ['ex', 'type', 'factor', 'status', 'price'], what);
+    // `decided` (Stage C2): a block without the column (none is published) reads ex + the rule's window
+    const rule = (b as { rule?: { window_days?: unknown } }).rule, days = typeof rule?.window_days === 'number' ? rule.window_days : BASIS_WINDOW_DAYS;
+    const dec = Array.isArray((b as { decided?: unknown }).decided) ? (b as { decided: unknown[] }).decided : null;
+    for (let j = 0; j < ex.length; j++) {
+      const f = factor[j], st = status[j], pr = price[j], d = dec ? dec[j] : isDate(ex[j]) ? plusDays(ex[j] as string, days) : null;
+      if (!isDate(ex[j]) || !PRICE_ACTION_TYPES.includes(type[j] as string) || typeof f !== 'number' || !Number.isFinite(f) || f <= 0
+          || !(BASIS_STATUSES as readonly unknown[]).includes(st) || !(pr === null || pr === 'adjusted' || pr === 'raw') || !isDate(d) || (d as string) < (ex[j] as string))
+        throw integrity(`${what}, row ${j + 1}: ${JSON.stringify([ex[j], type[j], f, st, pr, d])} is not an action's basis.`);
+      out.push({ ex: ex[j] as string, type: type[j] as string, factor: st === 'terms' ? f : 1, status: st as BasisStatus, price: pr as BasisAction['price'], decided: d as string });
+    }
+  });
+  return found ? out.sort((a, b) => a.ex < b.ex ? -1 : a.ex > b.ex ? 1 : 0) : unknownBasis(actions);
+}
+
+/** The broker columns with their lots on the published prices' basis: the buy and sell lots of each date multiplied by
+    the factors of the `terms` actions after it (rupiah and transaction counts unchanged), so a broker price (value /
+    lots) compares with the close. The columns themselves when no action is scaled. */
+export function onPriceBasis(c: BrokerColumns, basis: readonly BasisAction[]): BrokerColumns {
+  const scaled = basis.filter(a => a.status === 'terms' && a.factor !== 1);
+  if (!scaled.length || !c.rows) return c;
+  const F = c.dates.map(d => scaled.reduce((f, a) => a.ex > d ? f * a.factor : f, 1));
+  return { ...c, BL: Float64Array.from(c.BL, (x, k) => x * F[c.D[k]]), SL: Float64Array.from(c.SL, (x, k) => x * F[c.D[k]]) };
 }
 
 /* ---- alignment and version ------------------------------------------------------------------------------------ */

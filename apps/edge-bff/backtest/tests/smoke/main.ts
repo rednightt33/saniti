@@ -4,6 +4,7 @@
    catalog that answers that late (EXEC-BACKTEST-LOAD: the page draws at once, the lists say they are loading). */
 import '../../src/styles/backtest.css';
 import '../../../terminal/src/styles/spin.css';
+import '../../src/styles/design.css';
 import { boot } from '../../src/app.ts';
 import { stubApi } from './stub.ts';
 

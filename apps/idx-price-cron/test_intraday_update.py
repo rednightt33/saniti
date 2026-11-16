@@ -2,7 +2,8 @@ import unittest
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from intraday_update import BARS_PER_SESSION, MAX_BARS, requested_bars, rows_of, scale_check
+from intraday_update import (BARS_PER_SESSION, MAX_BARS, intraday_indexes, intraday_scope, requested_bars, rows_of,
+                             scale_check, sessions_behind)
 from price_update import Symbol
 
 
@@ -79,3 +80,58 @@ def test_the_loaders_hold_and_release_the_publisher_write_lock():
     pu.release_publish_write_lock(Conn())
     assert seen == [("SELECT pg_advisory_lock_shared(hashtext(%s))", ("terminal_publish_write",)),
                     ("SELECT pg_advisory_unlock_shared(hashtext(%s))", ("terminal_publish_write",))]
+
+
+# EXEC-INDEX-GROUP-HISTORY stage 1: only the indexes that already have intraday bars are loaded and form the calendar
+UNIVERSE = [Symbol(1, "Bank", "BBCA", "IDX:BBCA", "IDX", "stock"), Symbol(2, "Fund", "XIJI", "IDX:XIJI", "IDX", "fund"),
+            Symbol(3, "Composite", "IHSG", "IDX:COMPOSITE", "IDX", "index"),
+            Symbol(4, "LQ45", "LQ45", "IDX:LQ45", "IDX", "index"), Symbol(5, "Energy", "IDXENERGY", "IDX:IDXENERGY", "IDX", "index")]
+
+
+class FakeConn:
+    """Answers the two statements of intraday_indexes and sessions_behind from in-memory rows."""
+    def __init__(self, intraday_tickers, daily):
+        self.intraday, self.daily, self.calls = set(intraday_tickers), daily, []
+
+    def execute(self, sql, params=()):
+        self.calls.append((sql, params))
+        if "SELECT EXISTS" in sql:
+            return FakeResult([(params[0] in self.intraday,)])
+        if "max(session_date)" in sql:
+            return FakeResult([(t, date(2026, 10, 27)) for t in sorted(self.intraday)])
+        tickers, lo, hi = params
+        return FakeResult(sorted({(d,) for t, d in self.daily if t in tickers and lo < d <= hi}))
+
+
+class FakeResult:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def fetchone(self):
+        return self.rows[0]
+
+    def fetchall(self):
+        return self.rows
+
+
+def test_a_new_index_is_not_loaded_and_the_stocks_and_funds_are():
+    indexes = intraday_indexes(FakeConn({"IHSG", "BBCA"}, []), UNIVERSE)
+    assert indexes == {"IHSG"}                                       # derived from the stored bars, not a list
+    scope, refused = intraday_scope(UNIVERSE, indexes, set())
+    assert [s.ticker for s in scope] == ["BBCA", "XIJI", "IHSG"] and refused == []
+
+
+def test_naming_a_new_index_is_refused_and_naming_stocks_still_works():
+    scope, refused = intraday_scope(UNIVERSE, {"IHSG"}, {"LQ45", "BBCA"})
+    assert [s.ticker for s in scope] == ["BBCA"] and refused == ["LQ45"]
+    scope, refused = intraday_scope(UNIVERSE, {"IHSG"}, {"IHSG", "BBCA"})     # the case where nothing is refused
+    assert [s.ticker for s in scope] == ["BBCA", "IHSG"] and refused == []
+
+
+def test_the_session_calendar_is_the_intraday_index_only():
+    # LQ45 has a daily candle on 29 Oct that IHSG lacks: it must not count as a session behind
+    daily = [("IHSG", date(2026, 10, 28)), ("IHSG", date(2026, 10, 30)), ("LQ45", date(2026, 10, 29)),
+             ("LQ45", date(2026, 10, 30))]
+    conn = FakeConn({"IHSG", "BBCA"}, daily)
+    behind = sessions_behind(conn, UNIVERSE[:3], "1h", date(2026, 10, 31), {"IHSG"})
+    assert behind == {"BBCA": 2, "XIJI": None, "IHSG": 2}

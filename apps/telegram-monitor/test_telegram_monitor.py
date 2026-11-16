@@ -732,3 +732,110 @@ class PublishSignalTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_the_radar_step_is_one_line_and_its_failure_a_warning():
+    """EXEC-RADAR R2: features.radar of the round (QA 2026-11-14: a Radar failure no longer fails the round)."""
+    import telegram_monitor as tm
+    assert tm.radar_lines(None) == [] and tm.radar_lines({"skipped": "not backfilled"}) == []
+    assert tm.radar_lines({"tickers": 2, "since": "2026-11-06", "dates": ["2026-11-06", "2026-11-09"]}) == [
+        "Radar: 2 tanggal dihitung ulang (dari 2026-11-06)"]
+    line = tm.radar_lines({"failed": "RefreshFailed: Feature 07 reconcile"})[0]
+    assert line.startswith("⚠️ Radar tidak diperbarui") and "RefreshFailed" in line
+
+
+def test_the_index_entity_step_is_one_line_and_its_failure_a_warning():
+    """EXEC-INDEX-GROUP-HISTORY stage 8: index_result.entities of the round; a failure is a warning, IHSG stands."""
+    import telegram_monitor as tm
+    assert tm.index_entity_lines(None) == []
+    assert tm.index_entity_lines({"entities": 76, "since": None}) == ["Indeks, sektor dan grup: 76 entitas diperbarui"]
+    assert tm.index_entity_lines({"entities": 0}) == ["Indeks, sektor dan grup: sudah terbaru"]
+    line = tm.index_entity_lines({"failed": "RuntimeError: members raw/Feature 05 mismatch"})[0]
+    assert line.startswith("⚠️ Indeks, sektor dan grup tidak diperbarui") and "mismatch" in line
+
+
+class BrokerBasisReportTests(unittest.TestCase):
+    """EXEC-BACKTEST-REVAMP P9.4: terminal-publisher's daily list of corporate actions whose broker basis needs attention."""
+    ID = "broker-basis-2026-11-16"
+
+    def details(self, **overrides):
+        items = [{"ticker": "FORU", "ex": "2026-09-22", "type": "RIGHT_ISSUE", "status": "same", "price": "raw"},
+                 {"ticker": "PSSI", "ex": "2026-11-06", "type": "BONUS_SHARE", "status": "pending", "price": None},
+                 {"ticker": "ATIC", "ex": "2026-10-01", "type": "RIGHT_ISSUE", "status": "unresolved", "price": "adjusted"}]
+        values = {"date": "2026-11-16", "total": 3, "items": items}
+        values.update(overrides)
+        return values
+
+    def test_the_message_names_each_action_and_what_to_do(self):
+        import telegram_monitor as tm
+        text = tm.build_broker_basis_message(tm.parse_broker_basis(self.ID, self.details()))
+        self.assertIn("3 aksi korporasi perlu perhatian", text)
+        self.assertIn("FORU rights issue, ex 22 Sep 2026: riwayat harga belum ditarik ulang", text)
+        self.assertIn("PSSI saham bonus, ex 06 Nov 2026: menunggu cukup hari bursa", text)
+        self.assertIn("ATIC rights issue, ex 01 Oct 2026: selisih harga broker lawan harga tidak cocok", text)
+        self.assertIn("UPDATE_TABLE.md bagian C", text)
+        more = tm.build_broker_basis_message(tm.parse_broker_basis(self.ID, self.details(total=40)))
+        self.assertIn("dan 37 lainnya", more)
+
+    def test_anything_outside_the_fixed_shape_is_refused(self):
+        import telegram_monitor as tm
+        item = self.details()["items"][0]
+        for execution_id, details in (
+            ("broker-basis-2026-11-15", self.details()),                                  # date differs from the id
+            (self.ID, self.details(total=0)),
+            (self.ID, self.details(items=[])),
+            (self.ID, self.details(items=[{**item, "ticker": "foru; drop"}])),             # free text
+            (self.ID, self.details(items=[{**item, "type": "DIVIDEND"}])),                 # not a price action
+            (self.ID, self.details(items=[{**item, "status": "terms", "price": "adjusted"}])),   # needs no attention
+            (self.ID, self.details(items=[{**item, "ex": "2026-13-40"}])),
+            (self.ID, self.details(items=[{**item, "note": "x"}])),                         # unknown field
+            (self.ID, {**self.details(), "note": "x"}),
+            (self.ID, None),
+        ):
+            with self.subTest(execution_id=execution_id, details=details):
+                with self.assertRaises(ValueError):
+                    tm.parse_broker_basis(execution_id, details)
+
+    def test_the_monitor_sends_it_once_per_day(self):
+        import telegram_monitor as tm
+        sent, claims = [], {}
+
+        class Conn:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        def claim(connection, source, execution_id):
+            if (source, execution_id) in claims:
+                return "duplicate", claims[(source, execution_id)]
+            claims[(source, execution_id)] = len(claims) + 1
+            return "claimed", claims[(source, execution_id)]
+
+        monitor = TelegramMonitor.__new__(TelegramMonitor)
+        monitor.database_url, monitor.token, monitor.chat_id = "postgresql://unused", "t", "c"
+        monitor.send_message = lambda token, chat, text, *a: sent.append(text) or len(sent)
+        saved = tm.psycopg.connect, tm.claim_delivery, tm.mark_sent
+        tm.psycopg.connect = lambda *a, **k: Conn()
+        tm.claim_delivery, tm.mark_sent = claim, lambda c, log_id, ids: None
+        try:
+            self.assertEqual(monitor.notify(tm.BASIS_SOURCE, self.ID, self.details())[0], "sent")
+            self.assertEqual(monitor.notify(tm.BASIS_SOURCE, self.ID, self.details())[0], "duplicate")
+            # Stage C2 (lens 2 F7): a changed list the same day carries another digest in its id and is sent
+            self.assertEqual(monitor.notify(tm.BASIS_SOURCE, self.ID + "-0a1b2c3d", self.details())[0], "sent")
+        finally:
+            tm.psycopg.connect, tm.claim_delivery, tm.mark_sent = saved
+        self.assertEqual(len(sent), 2)
+
+    def test_a_long_report_is_split_under_telegrams_limit(self):
+        """Stage C2 (lens 2 F6): 30 items with long reasons reach about 5,500 characters; each message stays under the
+        limit and together they hold every line."""
+        import telegram_monitor as tm
+        item = {"ex": "2026-09-22", "type": "REVERSE_SPLIT", "status": "unresolved", "price": "raw"}
+        items = [{**item, "ticker": f"ABCDEFGHIJK{chr(65 + k % 26)}"} for k in range(30)]
+        report = tm.parse_broker_basis(self.ID + "-0a1b2c3d", self.details(total=30, items=items))
+        whole = tm.build_broker_basis_message(report)
+        self.assertGreater(len(whole), tm.MAX_TELEGRAM_TEXT)
+        parts = tm.build_broker_basis_messages(report)
+        self.assertGreater(len(parts), 1)
+        self.assertTrue(all(len(p) <= tm.MAX_TELEGRAM_TEXT for p in parts))
+        self.assertEqual("\n".join(parts), whole)
+        self.assertIn("UPDATE_TABLE.md bagian C", parts[-1])

@@ -1,0 +1,8 @@
+JOB 9caa52d3-a28e-4d3f-b2d7-24ed2aa8c1e3
+3
+VERDICT DRYRUN_OK (rolled back)
+JOB_DONE
+JOB_EXIT 0
+POSTGRES_MEMORY_CHECK
+{"now": "2026-11-14T17:01:00+00:00", "refusals": ["memory 0.458825728 GB is below 0.8 GB: nothing to free", "1 statements are running"], "reasons": ["memory_low", "active_statements"], "postgres_memory_gb": 0.458825728, "active_statements": 1, "user_runs": {"edge_jobs": 0, "orc_turns": 0}, "verdict": "REFUSED", "railway_credential": "RAILWAY_API_TOKEN"}
+VAR_REMOVED

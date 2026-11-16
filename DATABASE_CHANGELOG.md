@@ -1,5 +1,152 @@
 # Database changelog
 
+## 2026-11-16 — Named watchlists on the account (schema `edge_bff`, EXEC-WATCHLIST 2A) — applied on dev
+
+- **User:** "1A / 2A / 3A / 4A" (2026-11-16): lists keyed per account, several named lists on the server, the Screener
+  star into the first list, the existing stars become the list "Watchlist". Operational schema `edge_bff`, no market
+  data, no catalog row; not in `DATABASE_SCHEMA.md` (schema `public` only), as `20261107_001`.
+- **`20261116_001_edge_bff_watchlist_lists.sql`** (sha256 `c01d6929ae207b0f23c9ec48d74832c25b5ea5bd87b8e1686150c88d8aaa28bb`):
+  `edge_bff.watchlist_lists` (owner_key, list_id uuid, name 1–40 characters, position, indicators: null or 1–8 keys
+  `[a-z0-9_]{1,24}`; key (owner_key, list_id); one name per owner ignoring case); `edge_bff.watchlist_items` gains
+  `list_id` and `position` (NOT NULL), key (owner_key, list_id, ticker), a list's stocks go with it (ON DELETE
+  CASCADE). The preflight refuses an owner with more than 50 stars; the stars move into a list "Watchlist" at position
+  0. `edge_bff_runtime` gets SELECT/INSERT/UPDATE/DELETE on the lists (the items keep SELECT/INSERT/DELETE);
+  `scripts/provision_edge_bff_login.py` knows the grants. Rollback body in the file.
+- **Applied on dev 2026-11-16** right after edge-bff `41811cfa` (the old code wrote stars without a list): DRYRUN then
+  APPLY through `scripts/onboarding/run_job.sh scripts/onboarding/migration_job.py`
+  (`verification/watchlist/jobs/migration20261116_001{,_apply}.params.json`). Read back: 0 stars before (nothing to
+  move), the items' columns `owner_key, ticker, added_at, list_id, position` all NOT NULL, grants as above.
+  `APPLIED.sha256` updated. Live round trip as the owner: `verification/watchlist/LIVE_20261116.txt` (59/59).
+
+## 2026-11-15 — INDEX features of 43 indexes and 33 groups (2024-01-02 on); catalog 20261115_004 — applied on dev
+
+- EXEC-INDEX-GROUP-HISTORY stages 6-7 (user go 2026-11-15 "Langsung go tahap 4-9"). `scripts/backfill_index_entities.py`
+  on orc-test-runner, job `6f934738` (`verification/index_group_history/jobs/fill_all.*`), VERDICT PASS in 15,233 s:
+  76 entities of Feature_Index_Entity (32 indexes, 11 IDX-IC sectors, 33 KONGLO groups), first fill, rows from
+  2024-01-02 to the last broker date 2026-11-09 (prices to 2026-11-13). Every entity passed before its write: the
+  universe members' sums equal stock Feature 05 for every month 2016-2026, collapsed = broker rows in the window,
+  independent Feature 02/03/06 checks; each year chunk read back and rerun idempotent.
+- Rows added (no existing row touched; IHSG unchanged): Feature 01/04 INDEX 29,008 each (43 priced entities),
+  Feature 02/05 INDEX 6,045,057 each, Feature 03/06 INDEX 116,616 each.
+- Independent read-back (`verification/index_group_history/readback_check.py`, job, VERDICT PASS): every entity starts
+  at 2024-01-02, groups have no price rows; GPRAJOGO, GSALIM, LQ45, IDXENERGY: the stored foreign cumulative net of
+  2024-01-02 (Regular) equals the members' raw foreign buy minus sell since 2016-01-04, and Feature 05 of 2026-11-09
+  equals the members' raw sums (value and broker/investor/board count).
+- Attempt `4dd6f307` (groups) stopped before any write (ERRORS M444: the independent check's running float sums).
+- Migration `20261115_004_index_entities_catalog.sql` (sha256 `4dff11b3…`) with the vocabulary sync, job DRYRUN
+  `77a5b9c6` then APPLY (`jobs/catalog_apply.*`): six INDEX descriptions (entity lists from Feature_Index_Entity, the
+  rule never to add tickers), IHSG-scope phrases replaced in Feature_Catalog and every copy (0 left), ticker rows,
+  Feature_Catalog v2 (255 rows), Table_Catalog rules; Feature_Vocabulary 198 INDEX entries rebuilt and synced (rerun
+  0), `AI_column_catalog.description_id` equal to the vocabulary (139 metric rows carry the overlap sentence). Feature
+  catalog audit PASS (660 verified). Read back on dev.
+## 2026-11-15 — Market Overview tile size function (20261115_020) — applied on dev
+
+- **Go:** user 2026-11-15 "1 ok, 2 ok, 3 ok, go" (EXEC-OVERVIEW), then "Ok, jalankan semua." (release steps 1-5).
+- **20261115_020_overview_stock_size.sql** (sha256 `b38bde7dda476ef2…`):
+  - `public.overview_stock_size(p_date date) -> (ticker, size_value, size_basis)`: the market map's tile size, today
+    `adv20_value` = sum(close x volume) of the final daily rows over the market's 20 newest sessions up to `p_date`,
+    divided by 20 (decision 2: one source, replaced by market cap when shares outstanding exist);
+  - EXECUTE to `terminal_market_reader`, and SELECT on `Feature_01_Stock_Daily`, `Feature_04_Technical_Indicator`,
+    `Feature_06_Foreign_Domestic`, `Feature_06_Foreign_Domestic_INDEX` and `Feature_Index_Entity` (the publisher's
+    role read none of them before: `has_table_privilege` false for all five, read 2026-11-15);
+  - `Table_Catalog` of `Price_Stock_Indonesia_IDX` names the function in `related_functions`.
+- DRYRUN job `f53eff40`, APPLY job `52e4a5f9` (`verification/overview/jobs/`). Read back through pgweb: the function's
+  `md5(prosrc)` = `f451fc552b78a6174bc47b4e2a217293` (= the migration body and `OVERVIEW_FORMULAS.md`;
+  `scripts/overview_formulas_doc.py --check` OK); 887 rows for 2026-11-13, BBCA Rp 1,685.24 bn and BMRI Rp 824.79 bn
+  per day; the five SELECT grants and EXECUTE true; the publisher role reads every source (probe `publisher_reads`).
+- Measured before (read-only EXPLAIN ANALYZE): the body 0.4-1.4 s for one date, no scan of a large table
+  (`verification/overview/REHEARSAL.md`). `DATABASE_SCHEMA.md` is refreshed by the daily schema workflow (a full read of
+  the large tables, ERRORS M350), not by hand here.
+## 2026-11-15 — 43 indexes in IDX_Stock_Universe (20261115_002); price history of 5 of them — applied on dev
+
+- **Go:** user 2026-11-15 "go langkah 3" (EXEC-INDEX-GROUP-HISTORY).
+- **20261115_002_universe_index_rows.sql** (sha256 `e300a06eec721a97…`): 43 `Security Type` index rows (32 Stockbit
+  indexes, 11 IDX sector indexes) with their TradingView symbols. DRYRUN job `1076602d`, APPLY job `3f68c3fa`
+  (`verification/index_group_history/jobs/`). Read back: 44 universe indexes, 44 priced entities are universe indexes,
+  history capture 954 open rows (44 index), stocks 862 and funds 45 unchanged.
+- **Prices** (`verification/index_group_history/price_job.py` with `scripts/backfill_idx_price_ticker.py`, TradingView,
+  2018-01-02 or the index's first bar to 2026-11-13): PREFLIGHT 43 of 43 complete (bars = BBCA sessions from the first
+  bar, 0 gaps, 0 extra dates; 71,509 rows). APPLY stored **DBX, ISSI, JII, LQ45, MBX**, 2,140 rows each, read back equal
+  to the BBCA sessions. The 38 others were refused by the database: `Price_Stock_Indonesia_IDX.ticker` is `varchar(4)`
+  (ERRORS M438); each ticker's transaction rolled back, nothing partial was stored.
+- **20261115_003_price_ticker_varchar12.sql** (sha256 `bc9d71ef629e9823…`, user go "A", ERRORS M438): `ticker`
+  `varchar(4)` → `varchar(12)`; the trigger `idx_price_optional_volume_guard` dropped and re-created unchanged. DRYRUN job
+  `9fcbdbf4`, APPLY job `a96ff014`: table file unchanged (16638, no rewrite), 1,411,819 rows unchanged, three indexes
+  valid, four triggers enabled.
+- **Prices of the other 38** (job `7331078f`, same fingerprints as the preflight; a first start was refused before
+  running by the runner check, `DEPLOYMENT_LIST_FAILED`, nothing ran): 38 of 38 complete, 60,809 rows. Read back
+  (pgweb): 43 indexes, **71,509 rows**, all final, volume NULL (index), 2018-01-02 to 2026-11-13; closes of 2026-11-13 as
+  TradingView (LQ45 550.368, IDXENERGY 2,518.519, BISNIS27 390.905). The stock Feature 01/04 queues skip indexes.
+
+## 2026-11-15 — Feature_Index_Entity, the INDEX guard and the intraday calendar (20261115_001) — applied on dev
+
+- **Go:** user 2026-11-15 "Ok jalankan", "go langkah 1 dan 2" (EXEC-INDEX-GROUP-HISTORY step 2).
+- **20261115_001_feature_index_entity.sql** (sha256 `5aabff765287921281e1…`, ERRORS M437):
+  - new table `Feature_Index_Entity`: 77 entities of the *_INDEX tables (IHSG MARKET, 32 INDEX, 11 SECTOR, 33 GROUP),
+    each with its member source (every source symbol / Stockbit list / universe sector) and `rows_from` 2024-01-02 (IHSG
+    NULL); Table_Catalog 1 row, Column_Catalog 10 rows; SELECT for `pgweb_reader`;
+  - `validate_index_feature_identity` reads the registry: a group only in Feature 02/03/05/06, Feature 01/04 only for a
+    priced universe index, no row before `rows_from`, fixed-income tickers refused (md5 `e8d0fb84…` → `0bfc1bff…`);
+  - `remark_intraday_sessions`: session calendar from the indexes that have intraday bars (md5 `06a47619…` →
+    `f538af94…`); identical output on today's data (rehearsal, `verification/index_group_history/REHEARSAL.md`).
+- DRYRUN job `2445a6ae`, APPLY job `b4f43a1e` (`verification/index_group_history/jobs/`), both `JOB_EXIT 0`, `VAR_REMOVED`.
+- Read back (pgweb, read-only): 77 entities by kind 1/32/11/33; both function md5s as above; `IHSG` → `INDEX:467`,
+  `GPRAJOGO` → `KONGLO:57`; the six *_INDEX tables unchanged (IHSG only; Feature 01 INDEX 2,136 and Feature 06 INDEX
+  7,278 rows); `IDX_Stock_Universe` still 1 index (migration B 20261115_002 not applied).
+- `DATABASE_SCHEMA.md`: the new table appears with the scheduled refresh (`.github/workflows/database-schema-docs.yml`).
+
+## 2026-11-14 — Feature 07 Radar: S6Δ labels decided (004), G2 window from Feature 06 (005), every date redone — applied on dev
+
+- **Go:** user 2026-11-14 "1A" (S6Δ thresholds stay 12 / 20 / 35 and 40 / 65 / 90), then "1 go, 2 perbaiki sekarang".
+- **20261114_004_feature_07_radar_s6d_decided.sql** (sha256 `98abfc6d6244a407…`): the 9 rule rows of condition D of
+  S6D_RATIO, S6D_RANK and S6D_BOTH `provisional` → `decided`; the three filters' warning loses "Thresholds are
+  provisional.". Preflight requires the approved thresholds. DRYRUN `44590053`, APPLY `51d17917`; read back: 0
+  provisional rows, thresholds unchanged.
+- **20261114_005_feature_07_radar_g2_window.sql** (sha256 `081d1f56b48d35c5…`, ERRORS M434): `refresh_feature_07_day`
+  reads G2's 16 market dates and each stock's Regular sessions from `Feature_06_Foreign_Domestic` (not from the Radar's
+  own rows, which start at the first fill); `Feature_Catalog` and `Column_Catalog` of `g2_eligible` name the new source.
+  Measured on dev (read-only EXPLAIN ANALYZE): index-only scans, 18,804 rows, 27 ms. DRYRUN `750b0e5f`, APPLY
+  `36714ab7`; read back: the function reads Feature 06, the catalog row updated, G2 for 2025-10-24 = 856.
+- **Every result date redone** (`verification/radar/redo_days_job.py`, APPLY `478abe05`, 244 s, `large_write`):
+  universe on 2025-10-24..29 0 → 856 / 855 / 854 / 853; gate rows from the 16th date on unchanged; result rows changed on
+  21 dates (2025-10-24 to 11-21) and on no later date; 214,992 measure rows unchanged, sums equal to Feature 06.
+- **Verified:** independent recalculation of every ticker on 12 dates (6 of the first weeks, 6 of 2026): 0 differences;
+  `scripts/audit_feature_catalog_semantics.py` PASS (job `b81bb354`, 660 active definitions); live check 13/13.
+  Evidence: `verification/radar/DEV_RUN.md`, `verification/radar/jobs/`, `verification/radar/validation_20261114/`.
+- `FEATURE_07_RADAR.md` regenerated (`scripts/generate_feature_07_catalog.py dictionary`) with the new G2 text.
+
+## 2026-11-14 — Feature 07 Radar tables, catalog and first fill (EXEC-RADAR R1-R4) — applied on dev
+
+- **Go:** user 2026-11-14 "Ok go" (EXEC-RADAR from R1) and "1 A, 2 A 3 A go" (3 A: migrations 001 and 002 DRYRUN then
+  APPLY, the first fill DRYRUN then APPLY with a Postgres restart, each step reported; no merge to `main`, no deploy).
+- **20261114_001_feature_07_radar.sql** (sha256 `0b0808bcffcdb8bb…`): tables `Feature_07_Radar_Measure` (one row per
+  universe ticker and Regular session), `_Gate` (one row per date), `_Filter`, `_Rule` (rule version `radar-v1`, S7 D
+  2 / 5 / 10, S6Δ D provisional 12 / 20 / 35 and 40 / 65 / 90) and `_Result` (hit, near, left); functions
+  `refresh_feature_07(ticker, from)`, `refresh_feature_07_day(date)`, `feature_07_below_percentile`,
+  `feature_07_robust_z`, `feature_07_rule_version()`; SELECT for `terminal_market_reader` and `pgweb_reader`.
+- **20261114_002_catalog_feature_07_radar.sql** (sha256 `da46d238df449e90…`): 5 Table_Catalog, 88 Column_Catalog and 68
+  Feature_Catalog rows (generated by `scripts/generate_feature_07_catalog.py`).
+  DRYRUN job `b1ffba1e` and APPLY job `0d9f6fe9`: both bodies OK, the probes read back (rules per filter, S7 D, catalog
+  5 / 88 / 68, the publisher role reads `_Filter`, pgweb reads `_Rule`, 5 functions).
+- **20261114_003_feature_07_radar_s3_lookup.sql** (sha256 `8bce1a3f49d01357…`): `refresh_feature_07_day` reads each
+  gated stock's Feature 05 rows through the primary key (ERRORS M432). DRYRUN job `70b5cc98`, APPLY job `d85c7cb9`;
+  locally 9,417 result rows identical before and after.
+- **Performance (measured, dev, read-only EXPLAIN):** 001's S3 read was a hash join over a sequential scan of all of
+  Feature 05 (45 M rows), about 86 s a date (backfill DRYRUN `57232933`: day steps estimated 359.5 min); with 003 the
+  same rows read in 0.6 s and the DRYRUN `475022cd` estimated 3.9 min for all 250 dates. The day step's other reads
+  work on analyzed temporary tables (M427). No index added.
+- **First fill:** `verification/radar/backfill_job.py` APPLY, job `72049533`, 405 s: 250 result sessions
+  (2025-10-24 to 2026-11-09), 901 tickers, 214,992 measure rows = the Regular rows of Feature 06; daily net and buying
+  sums equal to Feature 06; 250 gate rows; 0 rows without their cross-section. VERDICT APPLY_OK.
+- **Verified independently:** `verification/radar/validate_radar.py` on every ticker of six dates against the dev
+  tables, with sources cut to the SQL's read window: 0 differences (`verification/radar/DEV_RUN.md`).
+- **Postgres restart:** checked at 15:42 and 15:54 UTC, refused: memory 0.475 and 0.497 GB, below the 0.8 GB threshold
+  (nothing to free); 0 statements, 0 user runs. The job's own `large_write` step did not run (ERRORS M433).
+- **Not yet done:** `DATABASE_SCHEMA.md` does not list the Feature 07 tables yet; its refresh
+  (`scripts/sync_database_schema.py`) is a large read (ERRORS M350) and is left for the scheduled refresh. No service
+  reads the tables yet: the round step (stockbit-updater), the publisher, terminal-api and edge-bff are on the branch,
+  not deployed. Logs: `verification/radar/jobs/`.
+
 ## 2026-11-09 — Stock lists for the Screener: publisher read grant (20261109_003) and English definitions (20261109_002) — applied
 
 - **Go:** user 2026-11-09 "Oke, jalankan perbaikan 3 dan 2" (EXEC-SCREENER-STOCK-LISTS; ERRORS M418).
@@ -760,7 +907,7 @@ User go 2026-10-12 ("ok", `EXEC.md` EXEC-IMPL-1012, EXEC-JOINKEY and EXEC-RELEAS
 - User approved physical target name `Feature_04_Technical_Indicator`, required all related runtime scripts to follow it, added `close` by `trade_date`, and requested all related documentation be updated. Applied forward migrations `20261011_008_rename_feature04_add_close.sql` (`66bceac1…babf`) and `20261011_009_complete_feature04_close_status.sql` (`3d9a1deb…f639`) after successful rolled-back rehearsals. Previously applied migrations and historical evidence remain immutable under the old spelling.
 - The renamed table has 57 columns and retains primary key `(ticker,trade_date,timeframe,asset_type)`. `close DOUBLE PRECISION NOT NULL` is copied by exact ticker/date from the universe-classified equity source or fixed-income `price`/`1D` source, with finite/nonnegative checks. Formulas and engine calculation version v3 are unchanged.
 - Live readback preserved 1,379,042 rows / 868 asset-ticker partitions: 1,318,633 equity rows across 844 tickers and 60,409 bonds rows across 24 tickers. There are zero NULL close values, zero equity source mismatch and zero bonds source mismatch. Old physical/catalog/relationship/constraint/index references are zero.
-- Catalog coverage is 57/57 physical/column/active-feature definitions; semantic audit PASS is 148/148 active definitions across four Feature tables. The Feature01 relationship explicitly filters Feature04 to equity, and the standard governed Feature-name validator has been restored.
+- Catalog coverage is 59/59 physical/column/active-feature definitions; semantic audit PASS is 148/148 active definitions across four Feature tables. The Feature01 relationship explicitly filters Feature04 to equity, and the standard governed Feature-name validator has been restored.
 - Initial queue-derived readiness inserted close status for only the 25 instruments currently represented in the queue. The readback caught this immediately; migration 009 instead derives all instruments from the target and completed 868/868 successful close statuses. Total Feature04 status rows are 44,268 (`868 × 51`), with zero nonterminal queue rows.
 - Post-deploy canaries replayed full history for equity `BBCA` and dynamically selected bond `ID01MY`. Both attempts finished `SUCCESS` with 51/51 outputs, zero failed columns, zero changed rows, zero close/source mismatch, and the queue returned to zero nonterminal rows.
 - Evidence: `verification/feature04/RENAME_CLOSE.md` and `rename_close_validation.json`. `DATABASE_SCHEMA.md` was refreshed by read-only introspection.

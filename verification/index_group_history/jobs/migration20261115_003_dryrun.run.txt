@@ -1,0 +1,9 @@
+JOB 9fcbdbf4-9f11-4a46-8f68-f64f36a2d23d
+4
+MIG DRYRUN 20261115_003_price_ticker_varchar12.sql sha256=bc9d71ef629e9823af42e1f496edf83fbf40d561529cec2f74490ba7ace3ac77
+MIG DRYRUN_BODY_OK 20261115_003_price_ticker_varchar12.sql
+JOB_DONE MIGRATION DRYRUN
+JOB_EXIT 0
+POSTGRES_MEMORY_CHECK
+{"now": "2026-11-15T09:45:00+00:00", "refusals": ["memory 0.661188608 GB is below 0.8 GB: nothing to free", "a cron runs within the margin: idx-price-cron (0 10 * * *) at 10:00 UTC; ai-data-coverage (30 0,10 * * *) at 10:30 UTC; fixed-income-price-cron (0 10 * * *) at 10:00 UTC"], "reasons": ["memory_low", "cron_due"], "postgres_memory_gb": 0.661188608, "active_statements": 0, "user_runs": {"edge_jobs": 0, "orc_turns": 0}, "verdict": "REFUSED", "railway_credential": "RAILWAY_API_TOKEN"}
+VAR_REMOVED

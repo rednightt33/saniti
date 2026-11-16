@@ -3,14 +3,14 @@
  "generated_by": "scripts/build_flow_registry.py",
  "source": {
   "file": "verification/terminal_api/flow_indicators/FLOW_INDICATORS_SPEC.xlsx",
-  "sha256": "29e0e54a8355772339573429ed728e9afe3769075f3e0ba4133945277b985c83"
+  "sha256": "55937dae132162f8db8fe33870e05a665a35fd806fc461ff629f856c94e20aa2"
  },
  "families": [
   "Share",
   "Transaction Size",
   "Transactions",
   "Concentration",
-  "Bandar Balance",
+  "Top Brokers",
   "Buy VWAP & Implied Cost",
   "Net Flow",
   "Ratio",
@@ -2960,8 +2960,8 @@
   },
   {
    "id": "FL24",
-   "name": "Bandar Balance · %",
-   "family": "Bandar Balance",
+   "name": "Top Brokers · %",
+   "family": "Top Brokers",
    "place": "pane",
    "unit": "%",
    "needs_frequency": false,
@@ -3027,15 +3027,15 @@
   },
   {
    "id": "FL25",
-   "name": "Bandar Balance · Rupiah",
-   "family": "Bandar Balance",
+   "name": "Top Brokers · Rupiah",
+   "family": "Top Brokers",
    "place": "pane",
    "unit": "IDR",
    "needs_frequency": false,
    "outputs": [
     "value"
    ],
-   "tip": "Sama dengan Bandar Balance, tetapi dalam Rupiah, tidak dibagi nilai transaksi.",
+   "tip": "Sama dengan Top Brokers · %, tetapi dalam Rupiah, tidak dibagi nilai transaksi.",
    "params": [
     {
      "key": "top",
@@ -3356,8 +3356,8 @@
   },
   {
    "id": "FL29",
-   "name": "Bandar Balance · Accumulation Days",
-   "family": "Bandar Balance",
+   "name": "Top Brokers · Accumulation Days",
+   "family": "Top Brokers",
    "place": "pane",
    "unit": "%",
    "needs_frequency": false,
@@ -5416,8 +5416,8 @@
   },
   {
    "id": "FL48",
-   "name": "Bandar Balance · Imbalance",
-   "family": "Bandar Balance",
+   "name": "Top Brokers · Imbalance",
+   "family": "Top Brokers",
    "place": "pane",
    "unit": "-1..1",
    "needs_frequency": false,
@@ -5501,7 +5501,7 @@
   {
    "id": "FL49",
    "name": "Foreign × Domestic · Daily Quadrant",
-   "family": "Bandar Balance",
+   "family": "Top Brokers",
    "place": "pane",
    "unit": "quadrant",
    "needs_frequency": false,
@@ -5548,7 +5548,7 @@
   {
    "id": "FL50",
    "name": "Foreign × Domestic · Rotation",
-   "family": "Bandar Balance",
+   "family": "Top Brokers",
    "place": "pane",
    "unit": "%",
    "needs_frequency": false,

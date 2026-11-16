@@ -701,6 +701,14 @@ def bind_catalog(spec: dict[str, Any], contract: dict[str, Any], limits: Limits,
         issues.add(None, "SUBJECT_TABLE_MISMATCH", "subject", subject)
 
 
+def overlapping_entity(meta: dict[str, Any], dropped: list[str]) -> str | None:
+    """EXEC-INDEX-GROUP-HISTORY (2026-11-15), the Governor's rule (extract.overlapping_entity): on a table of
+    entity_type INDEX each entity (an index, a sector, a group) already sums its member stocks and the members overlap,
+    so a SUM that drops the entity column counts a stock twice; returns that column, else None."""
+    entity = meta.get("entity_column")
+    return entity if entity and entity in dropped and str(meta.get("entity_type") or "").upper() == "INDEX" else None
+
+
 def grain_keys(meta: dict[str, Any]) -> list[str]:
     """The table's grain: entity, time and every other primary-key column, in that order."""
     return list(dict.fromkeys(c for c in (meta.get("entity_column"), meta.get("time_column"),
@@ -767,6 +775,10 @@ def bind_aggregate(spec: dict[str, Any], contract: dict[str, Any], issues: Issue
                 # the catalog has no rule that this column adds up across the dropped keys
                 issues.add(rid, "AGGREGATION_NOT_ADDITIVE", f"{where}.column",
                            f"{column}: no SUM across {', '.join(dropped)}")
+            elif function == "SUM" and (overlap := overlapping_entity(meta, dropped)):
+                issues.add(rid, "AGGREGATION_NOT_ADDITIVE", f"{where}.column",
+                           f"{column}: no SUM across {overlap}: the indexes and groups of this table overlap (a stock "
+                           f"is in several); keep {overlap} in group_by, brokers and boards of one {overlap} may be summed")
             elif function in ("MIN", "MAX") and (kind not in NUMERIC or semantic != "MEASURE"):
                 issues.add(rid, "AGGREGATION_NOT_ALLOWED", f"{where}.column", column)
             elif function == "COUNT_DISTINCT" and semantic not in ("IDENTIFIER", "DIMENSION", "TIME"):
@@ -811,7 +823,9 @@ def summary_options(meta: dict[str, Any], known: dict[str, dict[str, Any]], colu
     measure = sums[0] if sums else min_max[0]
     return {
         "group_by_allowed": [c for c, info in known.items() if (info or {}).get("group_by_allowed") or c in grain],
-        "keep_in_group_by": [time_column] if time_column else [],
+        # an INDEX table's entities overlap (overlapping_entity): its entity column stays too
+        "keep_in_group_by": [c for c in (time_column, entity if str(meta.get("entity_type") or "").upper() == "INDEX"
+                                         else None) if c],
         "drop_to_summarise": droppable,
         "sum_across_entities": sums,
         "min_max": min_max,

@@ -5,9 +5,9 @@ EXEC-GO-1025). How to run a round and read its result: `UPDATE_TABLE.md` section
 
 | File | Role |
 |---|---|
-| `updater.py` | One round per run (Run Now or the cron schedule): token expiry, broker load, Feature refresh, INDEX, event reload, stock lists, table status, monitoring row, Telegram |
+| `updater.py` | One round per run (Run Now or the cron schedule): token expiry, broker load, Feature refresh, INDEX, event reload, stock lists, Radar, table status, monitoring row, Telegram |
 | `broker_import.py` | The user's ticker-first Broker Summary importer: missing dates, symbols, six filters per symbol, `buy_freq`/`sell_freq`, per-date control in `stockbit_full_broker_import_status`; VERIFY compares 15 columns both ways. EXEC-UNIVERSE-BROKER L1: the codes that are not four letters are found per date broker-first (`discover_long`, 112 brokers × 6 filters), fetched ticker-first and cross-checked key by key (`cross_check`; a difference stops the date); `BROKER_LONG_CODES=false` loads four-letter symbols only |
-| `refresh.py` | Feature 05 per changed date, 02 and 06 per ticker, 03 per date, checks, INDEX tables when needed |
+| `refresh.py` | Feature 05 per changed date, 02 and 06 per ticker, 03 per date, checks, INDEX tables when needed; at the end of a round the Radar tables (`refresh_radar`, EXEC-RADAR: Feature 07 per stale ticker and date, a failure is a warning in `features.radar`) |
 | `stock_lists.py` | EXEC-STOCK-CATALOG: reads the 66 enabled `Stock_List` lists (33 indices, 33 KONGLO groups) and their members from Stockbit and applies them with `apply_stock_list_snapshot` (all lists or none). A refusal or failure writes a FAILED `Stock_List_Load_Log` row and is a warning in `Monitoring_Stockbit_Update.stock_lists`; the round stays SUCCESS (decision D2). Lists Stockbit shows outside `Stock_List` are reported, never loaded |
 | `test_stock_lists.py` | Its tests against a local PostgreSQL with migration 20261109_001 |
 | `stockbit_ihsg_daily.py` | The user's IHSG daily helper, unchanged |

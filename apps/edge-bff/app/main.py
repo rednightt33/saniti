@@ -22,6 +22,9 @@ from .config import Settings
 from .layouts import Layouts
 from .presets import Presets
 from .drawings import Drawings
+from .overview import Overview
+from .watchlist import Watchlist
+from .radar import Radar
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .security import csrf_token, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
@@ -58,10 +61,25 @@ BACKTEST_CSP = TERMINAL_CSP
 # preview is computed by the screener-worker and every answer comes from /api/v1/screener on this origin, so it reads no
 # rack file and connect-src is 'self' only.
 SCREENER_APP = STATIC / 'screener-app'
+# EXEC-RADAR R6 (user go 2026-11-14): the built Radar page (apps/edge-bff/radar -> static/radar-app), the Radar tab's
+# frame. Its data comes from /api/v1/radar on this origin (the bytes are relayed, app/radar.py), so it takes the
+# Screener page's policy (connect-src 'self').
+RADAR_APP = STATIC / 'radar-app'
+# EXEC-OVERVIEW O4 (user go 2026-11-15): the built Market Overview page (apps/edge-bff/overview -> static/overview-app),
+# the Overview tab's frame; its data comes from /api/v1/overview on this origin, so the same policy as the Radar's
+OVERVIEW_APP = STATIC / 'overview-app'
+# EXEC-WATCHLIST L5 (user go 2026-11-16): the built Watchlist page (apps/edge-bff/watchlist -> static/watchlist-app), the
+# Watchlist tab's frame; its lists come from /api/v1/watchlist/lists and its figures from /api/v1/watchlist (file)
+WATCHLIST_APP = STATIC / 'watchlist-app'
 SCREENER_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
                 "img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; "
                 "base-uri 'self'; frame-ancestors 'self'")
+# EXEC-WATCHLIST L5: the Watchlist page shows the Terminal's issuer logos; their list is the Terminal's reference file
+# (GET /api/terminal/v1/reference/logos answers a presigned URL on the bucket), so the page takes the Terminal page's
+# policy: the Screener's plus connect-src to the bucket (a host EDGE already uses; no new one). The images come from
+# /api/terminal/v1/logo/<T> on this origin.
+WATCHLIST_CSP = TERMINAL_CSP
 CONV = r'^conv_[0-9a-f]{32}$'
 CHOICES = r'^(QUICK_SUMMARY|ANALYSIS|RESEARCH|EXPLORE|FACT|CLARIFY|INSIGHT|CONTINUE|APPROVE|NEW_TOPIC)$'
 # EXEC-MODELS: the shape of a model id and the reasoning levels; Orc checks the choice against its offered models
@@ -184,6 +202,9 @@ def create_app(settings=None, store=None, orc=None):
     layouts = Layouts(settings, store)
     presets = Presets(settings, store)
     drawings = Drawings(settings, store)
+    radar = Radar(settings)
+    overview = Overview(settings)                       # EXEC-OVERVIEW O4
+    watchlist = Watchlist(settings, store)              # EXEC-WATCHLIST L3
     ready = {'value': False}
     failures = defaultdict(deque)
     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
@@ -216,6 +237,9 @@ def create_app(settings=None, store=None, orc=None):
             await asyncio.to_thread(store.close)
         if terminal_http['client'] is not None and hasattr(terminal_http['client'], 'aclose'):
             await terminal_http['client'].aclose()
+        await radar.aclose()                          # EXEC-RADAR R6 (QA 2026-11-14): its client too
+        await overview.aclose()
+        await watchlist.aclose()
 
     app = FastAPI(title='EDGE private gateway', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.worker, app.state.store, app.state.backtests = worker, store, backtests
@@ -268,7 +292,7 @@ def create_app(settings=None, store=None, orc=None):
             return response
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard)
-        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else SCREENER_CSP if request.url.path.startswith('/screener-app/') else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
         return response
 
     async def session(request: Request):
@@ -276,6 +300,8 @@ def create_app(settings=None, store=None, orc=None):
         found = await asyncio.to_thread(store.session, token_hash(token)) if re.fullmatch(r'[0-9a-f]{64}', token) else None
         if not found or found['owner_key'] != settings.owner:
             raise HTTPException(status_code=401, detail='Authentication required')
+        # EXEC-BACKTEST-REVAMP P5: the session's owner for the routes that read it (backtest.py identity), never a body's
+        request.state.owner = found['owner_key']
         return token
 
     async def write(request: Request, token=Depends(session)):
@@ -313,6 +339,9 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/terminal')
     @app.get('/backtest')
     @app.get('/screener')
+    @app.get('/radar')
+    @app.get('/overview')
+    @app.get('/watchlist')
     @app.get('/login')
     async def index():
         return FileResponse(STATIC / 'index.html', media_type='text/html')
@@ -406,6 +435,28 @@ def create_app(settings=None, store=None, orc=None):
             return error('NOT_FOUND', 404)
         return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
 
+    # EXEC-RADAR R6, EXEC-OVERVIEW O4: the Radar and Market Overview pages, served like the Screener page (no data in
+    # them; their hashed assets never change)
+    def page_app(prefix, folder):
+        async def page():
+            target = folder / 'index.html'
+            if not target.is_file():
+                return error('NOT_FOUND', 404)
+            return FileResponse(target, media_type='text/html')
+
+        async def asset(name: str):
+            target = folder / 'assets' / name
+            if not TERMINAL_ASSET.fullmatch(name) or not target.is_file():
+                return error('NOT_FOUND', 404)
+            return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
+
+        app.get(f'/{prefix}/', name=f'{prefix}_page')(page)
+        app.get(f'/{prefix}/assets/{{name}}', name=f'{prefix}_asset')(asset)
+
+    page_app('radar-app', RADAR_APP)
+    page_app('overview-app', OVERVIEW_APP)
+    page_app('watchlist-app', WATCHLIST_APP)
+
     # EXEC-TERMINAL-API T4 (user 2026-10-25: "edge-bff meneruskan /api/terminal/... ke terminal-api --> OK"): the owner's
     # EDGE session reaches terminal-api as its one terminal account (quotas and audit there); writes keep EDGE's
     # same-origin and CSRF checks. Only the data routes are forwarded.
@@ -451,6 +502,10 @@ def create_app(settings=None, store=None, orc=None):
     presets.routes(app, session, write)
     # EXEC-DRAW-PANES (user 2026-11-07: "semua gambar harus di simpan di akun EDGE"): the Terminal's drawings, /api/v1/terminal/drawings
     drawings.routes(app, session, write)
+    # EXEC-RADAR R6, EXEC-OVERVIEW O4: /api/v1/radar and /api/v1/overview (index and files), the owner's only
+    radar.routes(app, session)
+    overview.routes(app, session)
+    watchlist.routes(app, session, write)              # EXEC-WATCHLIST L3: the lists and the daily file
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):
@@ -474,16 +529,24 @@ def create_app(settings=None, store=None, orc=None):
             await asyncio.to_thread(store.revoke, token_hash(old))
         token = secrets.token_hex(32)
         await asyncio.to_thread(store.session_create, token_hash(token), settings.owner, settings.session_seconds)
-        response = JSONResponse({'authenticated': True, 'login': settings.login, 'csrf_token': csrf_token(token, settings.session_secret)})
+        # EXEC-RADAR R7: the capabilities come with the sign-in too, so the shell's menu is right before any reload
+        response = JSONResponse({'authenticated': True, 'login': settings.login, 'csrf_token': csrf_token(token, settings.session_secret),
+                                 'capabilities': capabilities()})
         response.set_cookie(COOKIE, token, max_age=settings.session_seconds, httponly=True,
                             secure=settings.secure_cookie, samesite='strict', path='/')
         return response
 
+    def capabilities():
+        return {'deep_research': False, 'model_selection': True, 'cancel': True, 'tool_progress': False,
+                'retention_days_default': 30,
+                # EXEC-RADAR R6, EXEC-OVERVIEW O4: the Radar and Overview tabs show only when their data can be read
+                'radar': bool(settings.terminal_url), 'overview': bool(settings.terminal_url),
+                'watchlist': bool(settings.terminal_url)}
+
     @app.get('/api/v1/auth/session')
     async def get_session(token=Depends(session)):
         return {'authenticated': True, 'login': settings.login, 'csrf_token': csrf_token(token, settings.session_secret),
-                'capabilities': {'deep_research': False, 'model_selection': True, 'cancel': True, 'tool_progress': False,
-                                 'retention_days_default': 30}}
+                'capabilities': capabilities()}
 
     @app.post('/api/v1/auth/sign-out')
     async def sign_out(token=Depends(write)):

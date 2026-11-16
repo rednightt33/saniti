@@ -1,0 +1,8 @@
+Starting Container
+MIG APPLY 20261115_003_price_ticker_varchar12.sql sha256=bc9d71ef629e9823af42e1f496edf83fbf40d561529cec2f74490ba7ace3ac77
+OUT {"q": "indexes_valid", "ms": 1, "part": 0, "rows": [["\"Price_Stock_Indonesia_IDX_date_idx\"", true], ["\"Price_Stock_Indonesia_IDX_final_idx\"", true], ["\"Price_Stock_Indonesia_IDX_pkey\"", true]]}
+OUT {"q": "triggers", "ms": 1, "part": 0, "rows": [["Price_Stock_Indonesia_IDX_enqueue_feature04", "O"], ["Price_Stock_Indonesia_IDX_enqueue_feature_01", "O"], ["database_table_status_change_tracker", "O"], ["idx_price_optional_volume_guard", "O"]]}
+JOB_DONE MIGRATION APPLY
+JOB_EXIT 0
+OUT {"q": "ticker_type_and_trigger", "ms": 4, "part": 0, "rows": [["character varying(12)", "CREATE TRIGGER idx_price_optional_volume_guard BEFORE INSERT OR UPDATE OF ticker, volume ON public.\"Price_Stock_Indonesia_IDX\" FOR EACH ROW EXECUTE FUNCTION validate_idx_optional_volume()"]]}
+OUT {"q": "table_file_and_rows", "ms": 68, "part": 0, "rows": [[16638, 1411819]]}

@@ -59,6 +59,22 @@ def xsection_index(raw):
     return content_index(raw, 'xsection', XSECTION_FIELDS)
 
 
+# EXEC-RADAR R5, EXEC-OVERVIEW: the EDGE pages whose files the publisher builds (publisher.py PAGES); each is served by
+# GET/POST /<family> to the EDGE gateway key only
+PAGE_FAMILIES = ('radar', 'overview', 'watchlist')   # EXEC-WATCHLIST: the Watchlist's daily file
+
+
+def page_index(raw, family):
+    """state.json `<family>` = {name: {key, sha256, bytes, rows, as_of}}, a page's files under content keys
+    v1/<family>/<name>.<first 16 hex of sha256>.json.gz, validated by the same rules (content_index). Never part of
+    /state (STATE_FIELDS): only GET/POST /<family>, for the EDGE gateway key, read it (Bucket.page)."""
+    return content_index(raw, family, XSECTION_FIELDS)
+
+
+def radar_index(raw):
+    return page_index(raw, 'radar')
+
+
 def refs_index(raw):
     """EXEC-MU-RUNTIME T5: state.json `refs` = {name: {key, sha256, bytes, rows}}, the publication's reference files
     (tickers, brokers, logos) under content keys v1/ref/<name>.<first 16 hex of sha256>.json.gz, validated by the same
@@ -115,6 +131,19 @@ class Bucket:
         out['xsection'] = xsection_index(out['xsection'])
         out['refs'] = refs_index(out['refs'])
         return out
+
+    def page(self, family):
+        """EXEC-RADAR R5, EXEC-OVERVIEW: (finished_at, the `<family>` index of the same state.json read) for GET/POST
+        /<family>; (None, None) while state.json was never readable, (finished_at, None) before the publisher writes
+        the index."""
+        self._fresh()
+        s = self._state
+        if not isinstance(s, dict):
+            return None, None
+        return s.get('finished_at'), page_index(s.get(family), family)
+
+    def radar(self):
+        return self.page('radar')
 
     def manifest(self, ticker):
         self._fresh()
