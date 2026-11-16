@@ -1,0 +1,5 @@
+run 2026-11-16T08:22:19Z: python3 verification/watchlist/validate_watchlist.py <file built by build_dev.py> --older 2
+2026-11-13 2026-11-09 2026-11-09 differences 0
+2026-11-10 2026-11-09 2026-11-09 differences 0
+2026-11-06 2026-11-06 2026-11-06 differences 0
+{"comparisons": 121554, "differences": 0, "first": []}
