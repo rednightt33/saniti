@@ -19,7 +19,7 @@ for tk in sorted(EP.tk.unique()):
     Kst, _ = stochastic(h[o:], l[o:], c[o:]); v3, _ = combine(zigzag(h[o:], l[o:], th), Kst, 5); piv = [o + p[0] for p in v3]
     minor = [t for t in range(5, len(P) - 5) if l[t] == l[t - 5:t + 6].min() and all(abs(t - p) > 10 for p in piv) and t >= di.get('2024-03-01', o + 40)]
     data[tk] = dict(P=P, names=names, X=X, h=h, l=l, c=c, di=di, th=th, minor=minor, N=len(P), errors=S['errors'])
-names = sorted(set.intersection(*[set(d['names']) for d in data.values()]))
+names = sorted(n for n in set.intersection(*[set(d['names']) for d in data.values()]) if not n.startswith('F:FL31.'))   # plan section 2: FL31 (insider data, empty here) excluded; FL23 (inventory of named brokers) drops out because its series names differ per stock
 for tk, d in data.items():
     idx = [d['names'].index(n) for n in names]; d['X'] = d['X'][idx]; d['names'] = names
 print(f'{len(EP)} episode, {EP.tk.nunique()} saham, {len(names)} deret (teknikal {sum(n.startswith("T:") for n in names)}, Flow {sum(n.startswith("F:") for n in names)}); galat indikator:', {tk: d['errors'] for tk, d in data.items() if d['errors']} or 'tidak ada')
@@ -99,7 +99,7 @@ def flags(PC):
 
 
 res = {}; nflag = {}
-with np.errstate(all='ignore'), pd.option_context('mode.use_inf_as_na', True):
+with np.errstate(all='ignore'):
     for T in TESTS:
         PC = np.array(pct[T]); f, med, nv, ag, ea, la = flags(PC); res[T] = dict(flag=f, med=med, nvalid=nv, agree=ag, early=ea, late=la); nflag[T] = int(f.sum())
     # null calibration: leave-one-out percentiles of the placebo windows, one random window per episode
