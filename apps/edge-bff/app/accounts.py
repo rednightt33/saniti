@@ -108,13 +108,14 @@ class AccountStore:
     # ---- the switch-on sign-in --------------------------------------------------------------------------------------
 
     def find_login(self, login):
-        """The active account a sign-in names (its username or its email, compared lower-cased) with its password
-        verifier, or None."""
+        """The active or pending account a sign-in names (its username or its email, compared lower-cased) with its
+        password verifier, or None (a disabled account is not found). The caller answers EMAIL_NOT_VERIFIED for a
+        pending one only after its password was right."""
         lowered = login.strip().lower()
         with self.store.connect() as c:
             return c.execute('''SELECT u.user_id, u.owner_key, u.username, u.role, u.status, i.verifier
                 FROM edge_bff.users u JOIN edge_bff.identities i ON i.user_id = u.user_id AND i.provider = 'password'
-                WHERE (u.username = %s OR u.email = %s) AND u.status = %s
+                WHERE (u.username = %s OR u.email = %s) AND u.status IN (%s, 'pending')
                 ORDER BY (u.username = %s) DESC LIMIT 1''', (lowered, lowered, ACTIVE, lowered)).fetchone()
 
     def create_session(self, hashed, user, seconds, ip_hash=None, mfa_passed=False):
@@ -140,3 +141,13 @@ class AccountStore:
         with self.store.connect() as c:
             return c.execute('UPDATE edge_bff.sessions SET revoked_at = now() WHERE user_id = %s AND revoked_at IS NULL',
                              (user_id,)).rowcount
+
+
+PENDING_HOURS = 24
+
+
+def purge_pending(connection):
+    """Registrations never verified, 24 h after they were made (CONTRACT.md section 4); their identity and codes go with
+    them (ON DELETE CASCADE). Called from Store.cleanup_sessions, the worker loop's hourly cleanup."""
+    connection.execute('''DELETE FROM edge_bff.users WHERE status = 'pending' AND email_verified_at IS NULL
+        AND created_at < now() - make_interval(hours => %s)''', (PENDING_HOURS,))

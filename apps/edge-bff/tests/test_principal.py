@@ -236,7 +236,7 @@ def on(settings, store, workers):
     bt, sc = workers
     with psycopg.connect(settings.database_url) as c:
         c.execute('TRUNCATE edge_bff.backtest_results, edge_bff.backtest_trials, edge_bff.backtest_jobs')
-    return dataclasses.replace(settings, multiuser=True, backtest_worker_url=bt.url, backtest_worker_key=BACKTEST_KEY,
+    return dataclasses.replace(settings, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40, backtest_worker_url=bt.url, backtest_worker_key=BACKTEST_KEY,
                                backtest_timeout_seconds=30, backtest_max_result_bytes=2 ** 20,
                                screener_worker_url=sc.url, screener_worker_key=SCREENER_KEY, screener_timeout_seconds=20)
 

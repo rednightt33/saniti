@@ -11,7 +11,11 @@ No hook route exists in Phase 0.
 """
 HOOK_PREFIX = '/api/v1/hooks/'
 
-HOOK_ROUTES = {}
+from .mailer import svix_verify  # noqa: E402
+
+# Phase 1: the Resend webhook (bounces and complaints), verified by its Svix signature with RESEND_WEBHOOK_SECRET
+# (verify(headers, raw_body, secret))
+HOOK_ROUTES = {'/api/v1/hooks/email/resend': svix_verify}
 
 
 def is_hook_path(path):

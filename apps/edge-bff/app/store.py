@@ -9,6 +9,7 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from psycopg.types.json import Jsonb
 
+from .accounts import purge_pending
 from .throttle import purge as purge_throttle
 
 TERMINAL = {'FINISHED', 'FAILED', 'INTERRUPTED'}
@@ -65,6 +66,9 @@ class Store:
             c.execute('SELECT user_id, owner_key FROM edge_bff.users LIMIT 0')
             c.execute('SELECT user_id, last_seen_at FROM edge_bff.sessions LIMIT 0')
             c.execute('SELECT 1 FROM edge_bff.user_preferences LIMIT 0')
+            # the auth flows (migration 20261117_001): pending registrations and the webhook's deliveries
+            c.execute('SELECT requested_username FROM edge_bff.users LIMIT 0')
+            c.execute('SELECT 1 FROM edge_bff.email_hook_events LIMIT 0')
 
     def session_create(self, hashed, owner, seconds):
         with self.connect() as c:
@@ -340,3 +344,4 @@ class Store:
         with self.connect() as c:
             c.execute('DELETE FROM edge_bff.sessions WHERE expires_at<now() OR revoked_at<now()-interval \'1 day\'')
             purge_throttle(c)   # EXEC-MU-ACCOUNTS Phase 0: throttle rows older than 2 days, at the same hourly cadence
+            purge_pending(c)    # EXEC-MU-ACCOUNTS Phase 1: registrations never verified, after 24 h
