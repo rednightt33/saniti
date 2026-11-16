@@ -189,6 +189,12 @@ EXCL, VKTR). Menunggu pilihan user.
 dari skala 50–900: Technical blue-600, Price & volume violet-600, Foreign flow green-600; latar --blue-bg /
 --violet-bg / --green-bg; tombol .btn/.primary/.ghost). Menunggu pilihan user.
 
+**User 2026-11-16 (pada dialog Indicators mockup):** "bulat emrah mungkin boleh di tambah ribobn / pills abu2 fill teks
+hitam? kotak biru remove nomor 1 juga perlu di emphasize". Diterapkan di mockup: "Applies to" dan pilihan Core/All lists
+serta kepala kelompok (Technical, Price & volume, Foreign flow) jadi pill abu isi, teks hitam (jumlah dalam lingkaran
+putih); pratinjau kartu dihapus; area slot kosong ditegaskan (garis putus lebih gelap, latar abu, tombol + hitam,
+"4 slots left" tebal). Menunggu persetujuan user.
+
 **Rencana eksekusi (usulan, menunggu go; pola EXEC-OVERVIEW):**
 - **W1 Rumus dan biaya.** Rumus setiap indikator dan persentil ditulis di `WATCHLIST_FORMULAS.md` (bahasa Indonesia
   sederhana, contoh nyata, dijaga skrip + tes seperti `OVERVIEW_FORMULAS.md`). Sumber: kolom tersimpan bila ada (RSI,
