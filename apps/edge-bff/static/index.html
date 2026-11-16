@@ -11286,6 +11286,8 @@ const paths = {
     navScreener: element("path", { d: "M4 5h16l-6 7.5V19l-4 1.5v-8z" }),
     // EXEC-OVERVIEW O4: the Market Overview icon of the design (four tiles, the market map)
     navOverview: element(fragment, null, element("rect", { x: "4", y: "4", width: "7", height: "7", rx: "1.5" }), element("rect", { x: "13", y: "4", width: "7", height: "7", rx: "1.5" }), element("rect", { x: "4", y: "13", width: "7", height: "7", rx: "1.5" }), element("rect", { x: "13", y: "13", width: "7", height: "7", rx: "1.5" })),
+    // EXEC-WATCHLIST L5: the Watchlist icon of the design (the eye, i-watch)
+    navWatchlist: element(fragment, null, element("path", { d: "M2.5 12S6.2 5.5 12 5.5 21.5 12 21.5 12 17.8 18.5 12 18.5 2.5 12 2.5 12z" }), element("circle", { cx: "12", cy: "12", r: "3" })),
     // EXEC-RADAR R7: the Radar icon of R10 (user 2026-11-14: "Untuk icon sudah oke")
     navRadar: element(fragment, null, element("path", { d: "M4 4a16 16 0 0 1 16 16" }), element("path", { d: "M4 10.5a9.5 9.5 0 0 1 9.5 9.5" }), element("path", { d: "M4 20 13 11" }), element("circle", { cx: "16.3", cy: "8.2", r: "1.3" }), element("circle", { cx: "4", cy: "20", r: ".6" })),
     export: element(fragment, null,
@@ -11376,11 +11378,11 @@ function SectionTitle({ children, action }) { return element("div", { className:
     action); }
 // EXEC-TERMINAL-API T3 (user 2026-10-25: "buat tab terpisah di sebelah monitor"): the financial terminal tab
 // EDGE backtest (CONTRACT.md section 10): the Backtest tab next to Terminal; EXEC-SCREENER: the Screener tab next to Backtest
-// EXEC-OVERVIEW O4 (decision 7, 2026-11-15: "OK"): the Overview tab first in the rail
-const nav = [[EdgeLabels.overview.nav, "overview"], ["Monitor", "monitor"], [EdgeLabels.terminal.nav, "terminal"], [EdgeLabels.backtest.nav, "backtest"], [EdgeLabels.screener.nav, "screener"], [EdgeLabels.radar.nav, "radar"]];
+// EXEC-OVERVIEW O4 (decision 7, 2026-11-15: "OK"): the Overview tab first in the rail; EXEC-WATCHLIST L5: Watchlist after it
+const nav = [[EdgeLabels.overview.nav, "overview"], [EdgeLabels.watchlist.nav, "watchlist"], ["Monitor", "monitor"], [EdgeLabels.terminal.nav, "terminal"], [EdgeLabels.backtest.nav, "backtest"], [EdgeLabels.screener.nav, "screener"], [EdgeLabels.radar.nav, "radar"]];
 // EXEC-RADAR R7, EXEC-OVERVIEW O4: an owner page shows only when the session says its data can be read
 // (/api/v1/auth/session capabilities)
-const OWNER_PAGES = ["overview", "radar"];
+const OWNER_PAGES = ["overview", "watchlist", "radar"];
 const navShown = ([, r]) => !OWNER_PAGES.includes(r) || Edge.auth?.capabilities?.[r] === true;
 // ERRORS M425 (EXEC-RADAR R7): a sub-app page in one of this shell's frames (Screener, Radar) asks for another page with
 // {type:"edge-nav", route}; only this origin, only from a frame of this document, only to a page of the rail. One
@@ -11389,7 +11391,7 @@ let shellGo = null;
 addEventListener("message", e => {
     if (e.origin !== location.origin || e.data?.type !== "edge-nav" || !shellGo) return;
     const frames = [...document.querySelectorAll("iframe.terminal-frame")].map(f => f.contentWindow);
-    if (!frames.includes(e.source) || !["terminal", "backtest", "screener", "radar", "overview"].includes(e.data.route)) return;
+    if (!frames.includes(e.source) || !["terminal", "backtest", "screener", "radar", "overview", "watchlist"].includes(e.data.route)) return;
     shellGo(e.data.route);
 });
 function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) {
@@ -11679,6 +11681,14 @@ function OverviewPage({ go }) {
     return element(Shell, { route: "overview", go: go, chart: true },
         element("main", { className: "terminal-page" },
             element("iframe", { className: "terminal-frame", src: "/overview-app/", title: EdgeLabels.overview.frameTitle })));
+}
+// EXEC-WATCHLIST L5 (user go 2026-11-16): the Watchlist is its own page (/watchlist-app/, built from apps/edge-bff/watchlist)
+// in the same kind of same-origin frame; its lists come from /api/v1/watchlist/lists and its figures from the publisher's
+// watchlist-stocks file (/api/v1/watchlist, the owner's only).
+function WatchlistPage({ go }) {
+    return element(Shell, { route: "watchlist", go: go, chart: true },
+        element("main", { className: "terminal-page" },
+            element("iframe", { className: "terminal-frame", src: "/watchlist-app/", title: EdgeLabels.watchlist.frameTitle })));
 }
 function Monitor({ go }) {
     const viewRecord = currentView;
@@ -13382,7 +13392,7 @@ function Flow({ run }) {
 
 function App() {
     const viewRecord = currentView;
-    const currentPath = () => ["/terminal","/backtest","/screener","/radar","/overview"].includes(routeLocation().pathname) ? routeLocation().pathname : ["/monitor","/markets"].includes(routeLocation().pathname) || routeLocation().pathname.startsWith("/c/") ? "/monitor" : "/login";
+    const currentPath = () => ["/terminal","/backtest","/screener","/radar","/overview","/watchlist"].includes(routeLocation().pathname) ? routeLocation().pathname : ["/monitor","/markets"].includes(routeLocation().pathname) || routeLocation().pathname.startsWith("/c/") ? "/monitor" : "/login";
     const authenticated=initialValue(viewRecord,"authenticated",()=>false),checked=initialValue(viewRecord,"checked",()=>false);
     onLifecycle(viewRecord,"auth",()=>{const sync=()=>updateValue(viewRecord,"authenticated",Boolean(Edge.auth));addEventListener("edge-auth",sync);Edge.session().then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
     const path = initialValue(viewRecord, "path", currentPath), setPath = next => updateValue(viewRecord, "path", next);
@@ -13399,11 +13409,11 @@ function App() {
     // EXEC-TERMINAL-IND-EDIT (user 2026-11-05): the browser tab names the page; the words are in edge-labels.js (pages)
     onLifecycle(viewRecord, "title", () => {
         const P = EdgeLabels.pages;
-        document.title = !checked ? P.loading : !authenticated ? P.signIn : path === "/terminal" ? P.terminal : path === "/backtest" ? P.backtest : path === "/screener" ? P.screener : path === "/radar" ? P.radar : path === "/overview" ? P.overview : P.monitor;
+        document.title = !checked ? P.loading : !authenticated ? P.signIn : path === "/terminal" ? P.terminal : path === "/backtest" ? P.backtest : path === "/screener" ? P.screener : path === "/radar" ? P.radar : path === "/overview" ? P.overview : path === "/watchlist" ? P.watchlist : P.monitor;
     }, [checked, authenticated, path]);
     const go = route => {
-        if (!["monitor", "markets", "terminal", "backtest", "screener", "radar", "overview", "/monitor", "/markets", "/terminal", "/backtest", "/screener", "/radar", "/overview", "/login", "/"].includes(route)) return;
-        const nextPath = ["terminal","/terminal"].includes(route) ? "/terminal" : ["backtest","/backtest"].includes(route) ? "/backtest" : ["screener","/screener"].includes(route) ? "/screener" : ["radar","/radar"].includes(route) ? "/radar" : ["overview","/overview"].includes(route) ? "/overview" : ["markets","/markets","monitor","/monitor"].includes(route) ? "/monitor" : "/login";
+        if (!["monitor", "markets", "terminal", "backtest", "screener", "radar", "overview", "watchlist", "/monitor", "/markets", "/terminal", "/backtest", "/screener", "/radar", "/overview", "/watchlist", "/login", "/"].includes(route)) return;
+        const nextPath = ["terminal","/terminal"].includes(route) ? "/terminal" : ["backtest","/backtest"].includes(route) ? "/backtest" : ["screener","/screener"].includes(route) ? "/screener" : ["radar","/radar"].includes(route) ? "/radar" : ["overview","/overview"].includes(route) ? "/overview" : ["watchlist","/watchlist"].includes(route) ? "/watchlist" : ["markets","/markets","monitor","/monitor"].includes(route) ? "/monitor" : "/login";
         // EXEC-CHAT-URL: signing in at /c/<id> stays on that conversation
         if (!(nextPath === "/monitor" && routeLocation().pathname.startsWith("/c/"))) routeHistory.pushState({}, "", nextPath);
         setPath(nextPath);
@@ -13416,7 +13426,7 @@ function App() {
     });
     themeState = { theme, toggle };
     shellGo = go;                                     // the edge-nav listener (below nav) switches pages with it
-    return !checked ? element("div",{className:"auth-page"},"Checking session…") : authenticated ? (path === "/terminal" ? element(TerminalPage,{go}) : path === "/backtest" ? element(BacktestPage,{go}) : path === "/screener" ? element(ScreenerPage,{go}) : path === "/radar" ? element(RadarPage,{go}) : path === "/overview" ? element(OverviewPage,{go}) : element(Monitor,{go})) : element(AuthPage,{mode:"login",go});
+    return !checked ? element("div",{className:"auth-page"},"Checking session…") : authenticated ? (path === "/terminal" ? element(TerminalPage,{go}) : path === "/backtest" ? element(BacktestPage,{go}) : path === "/screener" ? element(ScreenerPage,{go}) : path === "/radar" ? element(RadarPage,{go}) : path === "/overview" ? element(OverviewPage,{go}) : path === "/watchlist" ? element(WatchlistPage,{go}) : element(Monitor,{go})) : element(AuthPage,{mode:"login",go});
 }
 
 refresh();

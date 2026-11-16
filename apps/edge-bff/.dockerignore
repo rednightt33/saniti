@@ -24,3 +24,7 @@ overview/node_modules
 overview/tests
 overview/dist*
 static/overview-app
+watchlist/node_modules
+watchlist/tests
+watchlist/dist*
+static/watchlist-app

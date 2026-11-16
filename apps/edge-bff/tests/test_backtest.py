@@ -1515,7 +1515,10 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
                  'radar/dist-fixture/index.html', 'static/radar-app/index.html',
                  # EXEC-OVERVIEW O5: the Market Overview page, the fifth
                  'overview/node_modules/vite/package.json', 'overview/tests/fixture/data/overview-meta.json',
-                 'overview/dist/index.html', 'overview/dist-fixture/index.html', 'static/overview-app/index.html'):
+                 'overview/dist/index.html', 'overview/dist-fixture/index.html', 'static/overview-app/index.html',
+                 # EXEC-WATCHLIST L5: the Watchlist page, the sixth
+                 'watchlist/node_modules/vite/package.json', 'watchlist/tests/fixture/watchlist-stocks.sample.json',
+                 'watchlist/dist/index.html', 'watchlist/dist-fixture/index.html', 'static/watchlist-app/index.html'):
         assert docker_ignored(patterns, path), path
     copied = [source for line in (root / 'Dockerfile').read_text().splitlines() if line.startswith('COPY ') and '--from' not in line
               for source in line.split()[1:-1]]
@@ -1523,13 +1526,13 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
                       'backtest/package-lock.json', 'terminal/src', 'backtest/', 'screener/package.json',
                       'screener/package-lock.json', 'terminal/src', 'backtest/src', 'screener/', 'radar/package.json',
                       'radar/package-lock.json', 'radar/', 'overview/package.json', 'overview/package-lock.json', 'overview/',
-                      'requirements.txt', 'app', 'static']
+                      'watchlist/package.json', 'watchlist/package-lock.json', 'watchlist/', 'requirements.txt', 'app', 'static']
     # the copied sources, the files at the top of each copied folder (configuration, package files, index.html, the app's
     # modules, the static files) and the three pages' sources
-    top = [f'{folder}/{p.name}' for folder in ('app', 'static', 'terminal', 'backtest', 'screener', 'radar', 'overview')
+    top = [f'{folder}/{p.name}' for folder in ('app', 'static', 'terminal', 'backtest', 'screener', 'radar', 'overview', 'watchlist')
            for p in (root / folder).iterdir()
            if p.is_file() and not p.name.startswith('.env') and p.suffix != '.pyc']
-    sources = [p.relative_to(root).as_posix() for folder in ('terminal/src', 'backtest/src', 'screener/src', 'radar/src', 'overview/src')
+    sources = [p.relative_to(root).as_posix() for folder in ('terminal/src', 'backtest/src', 'screener/src', 'radar/src', 'overview/src', 'watchlist/src')
                for p in (root / folder).rglob('*')
                if p.is_file() and '__pycache__' not in p.parts]
     needed = [*copied, *top, *sources]
@@ -1537,6 +1540,7 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
     assert 'screener/src/core/contract.ts' in needed and 'screener/vite.config.ts' in needed and 'app/screener.py' in needed
     assert 'radar/src/app.ts' in needed and 'radar/vite.config.ts' in needed and 'app/radar.py' in needed
     assert 'overview/src/app.ts' in needed and 'overview/vite.config.ts' in needed and 'app/overview.py' in needed
+    assert 'watchlist/src/app.ts' in needed and 'watchlist/vite.config.ts' in needed and 'app/watchlist.py' in needed
     assert [p for p in needed if docker_ignored(patterns, p.rstrip('/'))] == []
 
 

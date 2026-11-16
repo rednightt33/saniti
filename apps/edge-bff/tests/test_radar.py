@@ -187,7 +187,7 @@ def test_the_shell_has_the_radar_tab_and_follows_edge_nav_only_from_its_frames(s
                 page.get_by_role('button', name='Sign In', exact=True).click()
                 tabs = page.locator('.side-nav > button[class*="nav-"]')
                 tabs.first.wait_for()
-                assert [tabs.nth(k).get_attribute('aria-label') for k in range(tabs.count())] == ['Overview', 'Monitor', 'Terminal', 'Backtest', 'Screener', 'Radar']
+                assert [tabs.nth(k).get_attribute('aria-label') for k in range(tabs.count())] == ['Overview', 'Watchlist', 'Monitor', 'Terminal', 'Backtest', 'Screener', 'Radar']
                 page.locator('.side-nav button.nav-radar').click()
                 page.wait_for_url(local.origin + '/radar')
                 frame = page.locator('iframe.terminal-frame')
@@ -213,7 +213,7 @@ def test_the_radar_tab_is_hidden_when_its_data_cannot_be_read(settings, store):
         r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'owner', 'password': 'local-test-password'})
         assert r.json()['capabilities']['radar'] is False
     page = (main.STATIC / 'index.html').read_text()
-    assert 'const OWNER_PAGES = ["overview", "radar"];' in page and 'Edge.auth?.capabilities?.[r] === true' in page
+    assert 'const OWNER_PAGES = ["overview", "watchlist", "radar"];' in page and 'Edge.auth?.capabilities?.[r] === true' in page
     assert 'nav.filter(navShown)' in page
 
 

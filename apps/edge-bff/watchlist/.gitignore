@@ -1,0 +1,6 @@
+# build outputs (the edge-bff Dockerfile builds dist/ into static/watchlist-app) and the fixture build
+dist/
+dist-fixture/
+node_modules/
+# a file built from a rehearsal database for a local look check (tests/fixture/main.ts; never committed: market data)
+tests/fixture/data/

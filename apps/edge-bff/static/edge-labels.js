@@ -143,6 +143,8 @@ window.EdgeLabels = {
   radar: { nav:"Radar", frameTitle:"Radar" },
   // EXEC-OVERVIEW O4 (decision 7, 2026-11-15): the Overview tab, first in the rail
   overview: { nav:"Overview", frameTitle:"Market overview" },
+  // EXEC-WATCHLIST L5 (user go 2026-11-16): the Watchlist tab, after Overview in the rail
+  watchlist: { nav:"Watchlist", frameTitle:"Watchlist" },
   // EXEC-OVERVIEW QA (user 2026-11-15: "1B"): on a phone (the left menu is hidden at 720 px or less) a menu button in the
   // EDGE bar lists the same pages
   shell: { pagesMenu:"Pages", openPages:"Open the pages menu", closePages:"Close the pages menu" },
@@ -150,5 +152,5 @@ window.EdgeLabels = {
   // misalkan Edge, - terminal, backtest, screener"): the browser tab's title on each page
   pages: { loading:"EDGE", signIn:"EDGE — Sign In", monitor:"EDGE — Monitor", terminal:"EDGE — Terminal",
     backtest:"EDGE — Backtest", screener:"EDGE — Screener", radar:"EDGE — Radar",
-    overview:"EDGE — Overview" }
+    overview:"EDGE — Overview", watchlist:"EDGE — Watchlist" }
 };

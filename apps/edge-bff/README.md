@@ -306,6 +306,29 @@ universe, period and metric and sums, weights or orders the publisher's rows. Op
 Tests: `tests/test_overview.py` (routes, refusals, the tab first in the rail and edge-nav in Chromium, the image stage),
 `overview/tests/` (`npm test`); look check and independent recalculation in `verification/overview/REHEARSAL.md`.
 
+## Watchlist tab (EXEC-WATCHLIST L5, 2026-11-16)
+
+The account's named lists of stocks, each with the indicators it shows, every text in English. Design: the approved
+light mockup `watchlist_light_mockup.html` (2026-11-16; its CSS is the Design Spec v1 and the page CSS of
+`verification/watchlist/design/watchlist_20261116.html`, copied into `watchlist/src/styles/watchlist.css`). The page
+`watchlist/` (TypeScript + Vite, no dependency) is built by the Dockerfile's `watchlist` stage into
+`static/watchlist-app/` (not kept in git) and shown in a frame at `/watchlist` (the tab right after Overview in the rail
+and the phone's pages menu; wording in `static/edge-labels.js`; the tab shows only with `capabilities.watchlist`).
+Figures: the publisher's `watchlist-stocks` file (`apps/terminal-publisher/watchlist.py`, `WATCHLIST_FORMULAS.md`)
+through `GET /api/v1/watchlist/index` and `/file/watchlist-stocks?sha=` (`app/pages.py`, as the Overview's). Lists:
+`/api/v1/watchlist/lists` (`app/watchlist.py`), every write with the session's CSRF token; the page takes its limits
+from the answer's `limits` and shows edge-bff's refusal message. A first visit with no list creates "Watchlist". The page
+offers exactly the file's `catalog` (a list's `indicators` null = the file's `default`; keys the catalog does not hold
+are skipped) and computes no figure: `watchlist/src/model.ts` only formats by unit, filters, sorts the view and builds
+the Undo bodies. Logos are the Terminal's (`/api/terminal/v1/reference/logos`, read at most every 12 hours per browser,
+and `/api/terminal/v1/logo/<T>?v=`); the logo list is a presigned bucket URL, so `/watchlist-app/` takes the Terminal
+page's policy (`WATCHLIST_CSP`). Open in Terminal and the Radar badge use `edge-nav` as the Overview and the Radar.
+Tests: `tests/test_watchlist.py` (the lists API), `tests/test_watchlist_page.py` (the page's route and policy, the tab
+after Overview, the pages menu, the capability, edge-nav, the image stage and, when built, the real page creating the
+first list and adding a stock in Chromium), `watchlist/tests/` (`npm test`). Look check: `npm run build:fixture` builds
+`dist-fixture/` on a made-up file (`tests/fixture/watchlist-stocks.sample.json`) and an in-memory list store
+(`?theme=dark`, `?empty=1`).
+
 ## Front-end structure: editing the page without touching the API (EXEC-X, 2026-10-08)
 
 The browser tab names the page (EXEC-TERMINAL-IND-EDIT, user 2026-11-05): `App()` in `static/index.html` sets
