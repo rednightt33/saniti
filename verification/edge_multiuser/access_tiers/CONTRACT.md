@@ -158,6 +158,27 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 - Required for role `admin` before any admin route. The current user (#1) enrols on first sign-in with the switch on.
   Switch off: no MFA, as today.
 
+## 4b. Account preferences on the server (Phase 1; user decision 2026-11-16)
+
+- **Table** `edge_bff.user_preferences`: (`owner_key`, `pref_key`) PK, `value jsonb` (size cap per key, e.g. 64 KB),
+  `updated_at`, `version`.
+  - Keys are the storage-registry entries of class `user` that are preferences or saved items, not caches. Examples:
+    `ml.my`, `ml.ind.favs`, `ml.assets.v1`, `edge-model-choice`, `scr.extraCols`, `scr.last`, the Terminal chart
+    settings.
+  - The registry gains a `sync: true` flag. A test fails when a `user` key with no server copy is neither `sync` nor
+    marked `cache`.
+- **Routes:**
+  - `GET /api/v1/preferences` returns this user's keys.
+  - `PUT /api/v1/preferences/{key}` (writer) uses optimistic versioning: on a stale version it answers 409 with the
+    current value.
+  - Limits per user: key count and bytes.
+- **Client** (`shared/edge-session.ts`):
+  - after the session read, it loads the server copy into memory and storage;
+  - writes go to both, the server debounced;
+  - on the first sign-in after this ships, a local value with no server copy is uploaded once, only when the page
+    identity equals the login that wrote it.
+- **Sign-out** keeps clearing the browser (Phase 0), so nothing remains on a shared computer and nothing is lost.
+
 ## 5. Email
 
 - **Switches:**

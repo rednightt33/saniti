@@ -15407,6 +15407,15 @@ tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terba
 - **Tetap di luar eksekusi ini:** gateway pembayaran nyata, isi paket berbayar, dua indikator Free, Privacy dan Terms
   (isinya dari user), izin data per sumber (MU2), dan penyalaan saklar (Fase 6).
 
+- **Keputusan user, 2026-11-16 (kata user):** "Iya, bersihkan pada saat logout, which is option A. Tapi nanti best
+  practice-nya adalah indikator-indikator atau informasi ini akan tied ke user ID kan. Jadi regardless komputernya di
+  mana, ketika user ID login, kalau dia sudah save metric dan lain-lain, ... maka otomatis tersebut back in place."
+  - Fase 0: logout membersihkan semua kunci browser kelas `user` (C3 blocking B1 diterima user). Data yang hanya ada
+    di browser (My metrics `ml.my`, favorit indikator `ml.ind.favs`, seri tambahan `ml.assets.v1`, pilihan model
+    `edge-model-choice`, kolom tambahan dan screen terakhir Screener) hilang saat logout sampai Fase 1.
+  - Fase 1 (ditambahkan ke lingkup): preferensi dan simpanan akun disimpan di server per user dan dipulihkan di
+    perangkat mana pun. Isi pertama diunggah dari browser saat sign-in pertama, bila datanya masih ada.
+
 ### Phase 0 deploy steps (prepared, not run)
 
 Prepared 2026-11-16 by builder B5 for the main agent. Code: branch `claude/pensive-feynman-4ahfe3` (integrated at
