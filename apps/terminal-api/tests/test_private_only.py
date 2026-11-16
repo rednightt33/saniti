@@ -12,6 +12,9 @@ from test_api import (ADMIN, BACKTEST, BACKTEST_KEY, NOW, ORIGIN, PRIVATE, PROXY
                       FakeBucket, FakeStore)
 
 GATEWAY = {'x-terminal-proxy-key': PROXY_KEY}
+GENERIC = {'error': 'gateway_host_not_allowed',
+           'message': 'This address does not accept keyed requests. Fix: call terminal-api from inside its own network, '
+                      'where your service is configured to reach it; a person opens the Terminal in EDGE.'}
 REQUIRED = {'TERMINAL_DATABASE_URL': 'postgresql://terminal_api_login@db/x', 'TERMINAL_ADMIN_KEY': 'k' * 40,
             'TERMINAL_BUCKET_NAME': 'b', 'TERMINAL_BUCKET_ENDPOINT': 'https://e', 'TERMINAL_BUCKET_REGION': 'auto',
             'TERMINAL_BUCKET_ACCESS_KEY_ID': 'a', 'TERMINAL_BUCKET_SECRET_ACCESS_KEY': 's',
@@ -25,7 +28,7 @@ def app_with(origins, host_url=PRIVATE):
                            'service_keys': (('backtest-worker', BACKTEST_KEY), ('screener-worker', SCREENER_KEY))})
     settings.validate()
     client = TestClient(create_app(settings, store, FakeBucket()), base_url=host_url)
-    r = client.post(f'{API}/admin/subscribers', headers=ADMIN, json={
+    r = client.post(f'{API}/admin/subscribers', headers={**ADMIN, 'host': PRIVATE_HOST}, json={
         'email': 'sub@example.com', 'display_name': 'Owner', 'password': 'correct horse battery',
         'expires_at': (NOW + dt.timedelta(days=30)).isoformat()})
     assert r.status_code == 201, r.text
@@ -125,17 +128,48 @@ def test_gateway_key_refused_on_a_public_or_other_host(origins, host, extra):
     client, store = app_with(origins)
     r = client.get(f'{API}/manifest/BBCA', headers={**GATEWAY, 'host': host, **extra})
     assert r.status_code == 403 and r.json()['error'] == 'gateway_host_not_allowed', r.text
-    message = r.json()['message']
-    assert f'only on the private host {PRIVATE_HOST}' in message and 'EDGE_TERMINAL_URL=http://' in message
+    assert r.json() == GENERIC                                              # nothing about the key, host or names
     r = client.post(f'{API}/bundle', headers={**GATEWAY, 'host': host, **extra},
                     json={'ticker': 'BBCA', 'datasets': ['price']})
     assert r.status_code == 403 and store.access == []                      # nothing granted, nothing counted
 
 
-def test_a_wrong_key_on_the_public_host_stays_proxy_key_rejected():
-    client, _ = app_with((ORIGIN,))
-    r = client.get(f'{API}/state', headers={'x-terminal-proxy-key': 'x' * 40, 'host': 'terminal-api-dev.up.railway.app'})
-    assert r.status_code == 401 and r.json()['error'] == 'proxy_key_rejected'
+@pytest.mark.parametrize('origins', [(), (ORIGIN,)])
+def test_off_the_private_host_a_valid_and_a_wrong_key_get_the_same_answer(origins, caplog):
+    """C1 M3: every key (gateway, service, admin) off the private host gets one generic answer, whether it is valid,
+    wrong or absent; the reason and the credential kind are in the server log, never the key."""
+    client, store = app_with(origins)
+    public = {'host': 'terminal-api-dev.up.railway.app', 'x-forwarded-for': '203.0.113.9'}
+    answers = []
+    for key in (GATEWAY, {'x-terminal-proxy-key': 'x' * 40}, BACKTEST, {'x-terminal-proxy-key': SCREENER_KEY}):
+        r = client.get(f'{API}/state', headers={**key, **public})
+        answers.append((r.status_code, r.json()))
+    for admin_key in (ADMIN, {'x-terminal-admin-key': 'z' * 40}, {}):
+        r = client.get(f'{API}/admin/subscribers', headers={**admin_key, **public})
+        answers.append((r.status_code, r.json()))
+    assert answers == [(403, GENERIC)] * 7
+    for text in (str(answers),):
+        for name in (PRIVATE_HOST, 'TERMINAL_', 'EDGE_TERMINAL_URL', 'gateway key', 'service key', 'backtest'):
+            assert name not in text
+    logged = caplog.text
+    assert 'credential: gateway' in logged and 'credential: admin' in logged and 'service backtest-worker' in logged
+    assert PROXY_KEY not in logged and BACKTEST_KEY not in logged and 'k' * 40 not in logged
+    assert store.access == []
+    # on the private host the admin key works, a wrong one keeps its own 401
+    assert client.get(f'{API}/admin/subscribers', headers={**ADMIN, 'host': PRIVATE_HOST}).status_code == 200
+    r = client.get(f'{API}/admin/subscribers', headers={'x-terminal-admin-key': 'z' * 40, 'host': PRIVATE_HOST})
+    assert r.status_code == 401 and r.json()['error'] == 'admin_key_required'
+
+
+def test_the_host_rule_reads_only_a_plain_name_and_port():
+    client, _ = app_with(())
+    for ok in (PRIVATE_HOST, f'{PRIVATE_HOST}:8080', 'Terminal-Api.Railway.Internal:1'):
+        assert client.get(f'{API}/state', headers={**GATEWAY, 'host': ok}).status_code == 200, ok
+    for bad in (f'{PRIVATE_HOST}.', f'{PRIVATE_HOST}:', f'{PRIVATE_HOST}:80a', f'{PRIVATE_HOST}:123456',
+                f'u@{PRIVATE_HOST}', f'{PRIVATE_HOST}/x', f'{PRIVATE_HOST}?x', f'{PRIVATE_HOST}#x', f' {PRIVATE_HOST}',
+                f'[{PRIVATE_HOST}]', f'{PRIVATE_HOST}:8080:1'):
+        r = client.get(f'{API}/state', headers={**GATEWAY, 'host': bad})
+        assert r.status_code == 403 and r.json() == GENERIC, bad
 
 
 def test_proxy_hosts_never_name_a_public_domain():
