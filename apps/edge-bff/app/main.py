@@ -23,6 +23,7 @@ from .layouts import Layouts
 from .presets import Presets
 from .drawings import Drawings
 from .overview import Overview
+from .watchlist import Watchlist
 from .radar import Radar
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .security import csrf_token, token_hash, verify_password
@@ -67,6 +68,9 @@ RADAR_APP = STATIC / 'radar-app'
 # EXEC-OVERVIEW O4 (user go 2026-11-15): the built Market Overview page (apps/edge-bff/overview -> static/overview-app),
 # the Overview tab's frame; its data comes from /api/v1/overview on this origin, so the same policy as the Radar's
 OVERVIEW_APP = STATIC / 'overview-app'
+# EXEC-WATCHLIST L5 (user go 2026-11-16): the built Watchlist page (apps/edge-bff/watchlist -> static/watchlist-app), the
+# Watchlist tab's frame; its lists come from /api/v1/watchlist/lists and its figures from /api/v1/watchlist (file)
+WATCHLIST_APP = STATIC / 'watchlist-app'
 SCREENER_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
                 "img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; "
@@ -195,6 +199,7 @@ def create_app(settings=None, store=None, orc=None):
     drawings = Drawings(settings, store)
     radar = Radar(settings)
     overview = Overview(settings)                       # EXEC-OVERVIEW O4
+    watchlist = Watchlist(settings, store)              # EXEC-WATCHLIST L3
     ready = {'value': False}
     failures = defaultdict(deque)
     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
@@ -229,6 +234,7 @@ def create_app(settings=None, store=None, orc=None):
             await terminal_http['client'].aclose()
         await radar.aclose()                          # EXEC-RADAR R6 (QA 2026-11-14): its client too
         await overview.aclose()
+        await watchlist.aclose()
 
     app = FastAPI(title='EDGE private gateway', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.worker, app.state.store, app.state.backtests = worker, store, backtests
@@ -281,7 +287,7 @@ def create_app(settings=None, store=None, orc=None):
             return response
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard)
-        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/', '/watchlist-app/')) else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
         return response
 
     async def session(request: Request):
@@ -328,6 +334,7 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/screener')
     @app.get('/radar')
     @app.get('/overview')
+    @app.get('/watchlist')
     @app.get('/login')
     async def index():
         return FileResponse(STATIC / 'index.html', media_type='text/html')
@@ -441,6 +448,7 @@ def create_app(settings=None, store=None, orc=None):
 
     page_app('radar-app', RADAR_APP)
     page_app('overview-app', OVERVIEW_APP)
+    page_app('watchlist-app', WATCHLIST_APP)
 
     # EXEC-TERMINAL-API T4 (user 2026-10-25: "edge-bff meneruskan /api/terminal/... ke terminal-api --> OK"): the owner's
     # EDGE session reaches terminal-api as its one terminal account (quotas and audit there); writes keep EDGE's
@@ -490,6 +498,7 @@ def create_app(settings=None, store=None, orc=None):
     # EXEC-RADAR R6, EXEC-OVERVIEW O4: /api/v1/radar and /api/v1/overview (index and files), the owner's only
     radar.routes(app, session)
     overview.routes(app, session)
+    watchlist.routes(app, session, write)              # EXEC-WATCHLIST L3: the lists and the daily file
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):
@@ -524,7 +533,8 @@ def create_app(settings=None, store=None, orc=None):
         return {'deep_research': False, 'model_selection': True, 'cancel': True, 'tool_progress': False,
                 'retention_days_default': 30,
                 # EXEC-RADAR R6, EXEC-OVERVIEW O4: the Radar and Overview tabs show only when their data can be read
-                'radar': bool(settings.terminal_url), 'overview': bool(settings.terminal_url)}
+                'radar': bool(settings.terminal_url), 'overview': bool(settings.terminal_url),
+                'watchlist': bool(settings.terminal_url)}
 
     @app.get('/api/v1/auth/session')
     async def get_session(token=Depends(session)):

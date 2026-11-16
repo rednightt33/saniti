@@ -34,7 +34,16 @@ from conftest import FakeOrc
 ORIGIN = {'Origin': 'http://testserver'}
 KEY = 's' * 40
 MIGRATION = Path(__file__).resolve().parents[3] / 'database/migrations/20261028_001_edge_bff_screener.sql'
-ROLLBACK = '\n'.join(line[3:] for line in MIGRATION.read_text().split('-- Rollback', 1)[1].splitlines()[1:] if line.startswith('-- '))
+# EXEC-WATCHLIST: migration 20261116_001 builds on watchlist_items, so dropping it drops the named lists first and
+# restoring it applies both (restore)
+WATCHLIST_MIGRATION = Path(__file__).resolve().parents[3] / 'database/migrations/20261116_001_edge_bff_watchlist_lists.sql'
+ROLLBACK = 'DROP TABLE IF EXISTS edge_bff.watchlist_lists CASCADE;\n' + '\n'.join(
+    line[3:] for line in MIGRATION.read_text().split('-- Rollback', 1)[1].splitlines()[1:] if line.startswith('-- '))
+
+
+def restore(conn):
+    conn.execute(MIGRATION.read_text())
+    conn.execute(WATCHLIST_MIGRATION.read_text())
 WRITE_ROUTES = (('POST', '/api/v1/screener/run'), ('POST', '/api/v1/screener/preview'), ('POST', '/api/v1/screener/validate'),
                 ('POST', '/api/v1/screener/counts'), ('PUT', '/api/v1/screener/items/scr_' + '1' * 32),
                 ('DELETE', '/api/v1/screener/items/scr_' + '1' * 32), ('PUT', '/api/v1/screener/watchlist/BBCA'),
@@ -791,7 +800,7 @@ def test_tables_missing_is_not_ready_and_the_rest_of_edge_is_unaffected(app, wor
         assert c.get('/api/v1/conversations').status_code == 200
     finally:
         with psycopg.connect(database, autocommit=True) as conn:
-            conn.execute(MIGRATION.read_text())
+            restore(conn)
     assert c.get('/api/v1/screener/items').json() == {'items': []}
     with psycopg.connect(database, autocommit=True) as conn:
         with pytest.raises(psycopg.errors.RaiseException, match='screener table exists'):
@@ -958,7 +967,8 @@ def test_items_and_watchlist_are_the_owners_own(app, worker):
     db(c, """INSERT INTO edge_bff.screener_items(item_id,owner_key,kind,name,definition,schema_version,registry_version,
              screener_registry_version,definition_hash) VALUES (%s,'someone-else','screen','Theirs','{}',1,'r','s',%s)""",
        item_id(7), sha('x'))
-    db(c, "INSERT INTO edge_bff.watchlist_items(owner_key,ticker) VALUES ('someone-else','TLKM')")
+    theirs = db(c, "INSERT INTO edge_bff.watchlist_lists(owner_key,name,position) VALUES ('someone-else','W',0) RETURNING list_id")[0]['list_id']
+    db(c, "INSERT INTO edge_bff.watchlist_items(owner_key,list_id,ticker,position) VALUES ('someone-else',%s,'TLKM',0)", theirs)
     assert c.get('/api/v1/screener/items').json() == {'items': []} and c.get('/api/v1/screener/watchlist').json() == {'tickers': []}
     assert put(c, 7, screen_item(revision=1)).json() == error('NOT_FOUND')
     assert put(c, 7, screen_item()).json() == error('REVISION_CONFLICT')
@@ -1064,7 +1074,7 @@ def test_the_migration_refuses_a_runtime_role_with_more_than_the_code_does(datab
                 conn.execute(f'ALTER DEFAULT PRIVILEGES IN SCHEMA edge_bff REVOKE {extra} ON TABLES FROM edge_bff_runtime')
             if conn.execute("SELECT to_regclass('edge_bff.screener_items')").fetchone()[0] is not None:
                 conn.execute(ROLLBACK)
-            conn.execute(MIGRATION.read_text())
+            restore(conn)
 
 
 def test_the_migration_refuses_public_with_any_privilege_on_the_screener_tables(database):
@@ -1094,7 +1104,7 @@ def test_the_migration_refuses_public_with_any_privilege_on_the_screener_tables(
                 conn.execute(f'ALTER DEFAULT PRIVILEGES IN SCHEMA edge_bff REVOKE {privilege} ON TABLES FROM PUBLIC')
             if conn.execute("SELECT to_regclass('edge_bff.screener_items')").fetchone()[0] is not None:
                 conn.execute(ROLLBACK)
-            conn.execute(MIGRATION.read_text())
+            restore(conn)
 
 
 def test_the_tables_hold_their_rules(database):
@@ -1118,11 +1128,13 @@ def test_the_tables_hold_their_rules(database):
         with pytest.raises(psycopg.errors.UniqueViolation):
             insert(conn, item_id=item_id(3))
         conn.rollback()
-        conn.execute("INSERT INTO edge_bff.watchlist_items(owner_key,ticker) VALUES ('o','BBCA')")
+        first = conn.execute("INSERT INTO edge_bff.watchlist_lists(owner_key,name,position) VALUES ('o','W',0) RETURNING list_id").fetchone()[0]
+        conn.execute("INSERT INTO edge_bff.watchlist_items(owner_key,list_id,ticker,position) VALUES ('o',%s,'BBCA',0)", (first,))
         for ticker in ('bbca', 'B-B', 'A' * 13):
             with pytest.raises(psycopg.errors.CheckViolation):
-                conn.execute("INSERT INTO edge_bff.watchlist_items(owner_key,ticker) VALUES ('o',%s)", (ticker,))
+                conn.execute("INSERT INTO edge_bff.watchlist_items(owner_key,list_id,ticker,position) VALUES ('o',%s,%s,1)", (first, ticker))
             conn.rollback()
+            first = conn.execute("INSERT INTO edge_bff.watchlist_lists(owner_key,name,position) VALUES ('o','W',0) RETURNING list_id").fetchone()[0]
         conn.rollback()
 
 
@@ -1149,11 +1161,16 @@ def test_provisioned_login_reaches_the_screener_tables_with_their_migration(data
                 (item_id(1), sha('d')))
             conn.execute("UPDATE edge_bff.screener_items SET revision=2")
             conn.execute("DELETE FROM edge_bff.screener_items")
-            conn.execute("INSERT INTO edge_bff.watchlist_items(owner_key,ticker) VALUES ('o','BBCA') ON CONFLICT DO NOTHING")
+            # EXEC-WATCHLIST (migration 20261116_001): a ticker belongs to a named list the login can create and delete
+            first = conn.execute("INSERT INTO edge_bff.watchlist_lists(owner_key,name,position) VALUES ('o','W',0) RETURNING list_id").fetchone()[0]
+            conn.execute("UPDATE edge_bff.watchlist_lists SET name='W2'")
+            conn.execute("INSERT INTO edge_bff.watchlist_items(owner_key,list_id,ticker,position) VALUES ('o',%s,'BBCA',0) "
+                         "ON CONFLICT DO NOTHING", (first,))
             conn.execute("DELETE FROM edge_bff.watchlist_items")
+            conn.execute("DELETE FROM edge_bff.watchlist_lists")
             conn.rollback()
             for sql in ("UPDATE edge_bff.watchlist_items SET ticker='X'", 'TRUNCATE edge_bff.screener_items',
-                        'TRUNCATE edge_bff.watchlist_items', 'SELECT * FROM public.market_private'):
+                        'TRUNCATE edge_bff.watchlist_items', 'TRUNCATE edge_bff.watchlist_lists', 'SELECT * FROM public.market_private'):
                 with pytest.raises(psycopg.errors.InsufficientPrivilege):
                     conn.execute(sql)
                 conn.rollback()
@@ -1180,7 +1197,7 @@ def test_provisioned_login_reaches_the_screener_tables_with_their_migration(data
     finally:
         with psycopg.connect(database, autocommit=True) as conn:
             if conn.execute("SELECT to_regclass('edge_bff.screener_items')").fetchone()[0] is None:
-                conn.execute(MIGRATION.read_text())
+                restore(conn)
             else:
                 conn.execute('GRANT SELECT, INSERT, DELETE ON edge_bff.watchlist_items TO edge_bff_runtime')
             conn.execute('DROP OWNED BY edge_bff_login')

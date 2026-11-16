@@ -9,11 +9,11 @@
   },
   {
     "name": "watchlist",
-    "value": 500,
+    "value": 50,
     "unit": "tickers",
-    "rule": "at most 500 tickers in the watchlist",
-    "example_ok": "watching a new ticker while 499 are watched",
-    "example_refused": "watching a new ticker while 500 are watched (remove one first)"
+    "rule": "at most 50 tickers in the watchlist",
+    "example_ok": "watching a new ticker while 49 are watched",
+    "example_refused": "watching a new ticker while 50 are watched (remove one first)"
   },
   {
     "name": "saved_definition_bytes",

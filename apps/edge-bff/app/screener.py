@@ -32,6 +32,7 @@ from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
 from . import wake
+from .watchlist import PER_LIST, WatchlistStore
 from .backtest import (CONTROL_TIMEOUT, PREVIEW_PAGES, Backtests, BacktestError, CallerGone, PreviewReplaced, accepts_gzip,
                        dumps, error_of, loads, preview_order)
 
@@ -75,7 +76,7 @@ HEALTH_TIMEOUT = 5
 # each"; report 11b: SCREENER_MAX_COUNTS is at least SCREEN_LIMIT, so every saved screen is counted in one counts call,
 # initially 50). SCREEN_LIMIT holds for each kind: at most 50 saved screens and 50 My metrics per owner.
 SCREEN_LIMIT = 50
-WATCHLIST_LIMIT = 500                               # store.py PIN_LIMIT precedent (500)
+WATCHLIST_LIMIT = PER_LIST                           # EXEC-WATCHLIST 2A: the star fills the first list (50, app/watchlist.py)
 # Not derivable: the Retry-After of 503 SCREENER_NOT_READY. A missing table waits for a migration (minutes at least);
 # a worker without a snapshot that names no wait of its own loads one in seconds to a few minutes (report 6.5, 11b S14).
 TABLES_RETRY_SECONDS = 60
@@ -492,29 +493,40 @@ class ScreenerStore:
         if not gone:
             raise failure('NOT_FOUND', 404)
 
+    # EXEC-WATCHLIST decision 2A (user 2026-11-16): the star is the first list of the Watchlist page
+    # (app/watchlist.py WatchlistStore.first), created when the account has none; WATCHLIST_LIMIT still caps it
     def watchlist(self, owner):
         with self.connect() as c:
-            return c.execute('''SELECT ticker, added_at FROM edge_bff.watchlist_items WHERE owner_key=%s
-                ORDER BY added_at, ticker''', (owner,)).fetchall()
+            first = WatchlistStore.first(c, owner, False)
+            if not first:
+                return []
+            return c.execute('''SELECT ticker, added_at FROM edge_bff.watchlist_items WHERE owner_key=%s AND list_id=%s
+                ORDER BY position, added_at, ticker''', (owner, first)).fetchall()
 
     def watch(self, owner, ticker):
-        """Add a ticker (idempotent: a watched one stays as it was); at most WATCHLIST_LIMIT per owner (422
+        """Add a ticker to the first list (idempotent: a watched one stays as it was); at most WATCHLIST_LIMIT (422
         LIMIT_EXCEEDED)."""
         limit = WATCHLIST_LIMIT
         with self.connect() as c:
             c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('watchlist:' + owner,))
-            if c.execute('SELECT 1 FROM edge_bff.watchlist_items WHERE owner_key=%s AND ticker=%s', (owner, ticker)).fetchone():
+            first = WatchlistStore.first(c, owner, True)
+            if c.execute('SELECT 1 FROM edge_bff.watchlist_items WHERE owner_key=%s AND list_id=%s AND ticker=%s',
+                         (owner, first, ticker)).fetchone():
                 return
-            held = c.execute('SELECT count(*) AS n FROM edge_bff.watchlist_items WHERE owner_key=%s', (owner,)).fetchone()['n']
-            if held >= limit:
+            held = c.execute('''SELECT count(*) AS n, coalesce(max(position), -1) AS top FROM edge_bff.watchlist_items
+                WHERE owner_key=%s AND list_id=%s''', (owner, first)).fetchone()
+            if held['n'] >= limit:
                 raise failure('LIMIT_EXCEEDED', 422, 'ticker', f'At most {limit} tickers in the watchlist: remove one before adding another.',
-                              {'limit': 'watchlist', 'allowed': limit, 'needed': held + 1})
-            c.execute('INSERT INTO edge_bff.watchlist_items(owner_key,ticker) VALUES (%s,%s) ON CONFLICT DO NOTHING',
-                      (owner, ticker))
+                              {'limit': 'watchlist', 'allowed': limit, 'needed': held['n'] + 1})
+            c.execute('''INSERT INTO edge_bff.watchlist_items(owner_key, list_id, ticker, position) VALUES (%s,%s,%s,%s)
+                ON CONFLICT DO NOTHING''', (owner, first, ticker, held['top'] + 1))
 
     def unwatch(self, owner, ticker):
         with self.connect() as c:
-            c.execute('DELETE FROM edge_bff.watchlist_items WHERE owner_key=%s AND ticker=%s', (owner, ticker))
+            first = WatchlistStore.first(c, owner, False)
+            if first:
+                c.execute('DELETE FROM edge_bff.watchlist_items WHERE owner_key=%s AND list_id=%s AND ticker=%s',
+                          (owner, first, ticker))
 
 
 @dataclass
