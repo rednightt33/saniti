@@ -9,6 +9,8 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from psycopg.types.json import Jsonb
 
+from .throttle import purge as purge_throttle
+
 TERMINAL = {'FINISHED', 'FAILED', 'INTERRUPTED'}
 logger = logging.getLogger('edge_bff.lifecycle')
 
@@ -55,6 +57,9 @@ class Store:
             c.execute('SELECT 1 FROM edge_bff.jobs LIMIT 0')
             c.execute('SELECT 1 FROM edge_bff.sessions LIMIT 0')
             c.execute('SELECT hidden_at FROM edge_bff.conversation_ui LIMIT 0')
+            # EXEC-MU-ACCOUNTS Phase 0: sign-in needs the throttle table (migration 20261116_002), so an edge-bff
+            # deployed before that migration is not ready rather than refusing every sign-in
+            c.execute('SELECT 1 FROM edge_bff.auth_throttle LIMIT 0')
 
     def session_create(self, hashed, owner, seconds):
         with self.connect() as c:
@@ -327,3 +332,4 @@ class Store:
     def cleanup_sessions(self):
         with self.connect() as c:
             c.execute('DELETE FROM edge_bff.sessions WHERE expires_at<now() OR revoked_at<now()-interval \'1 day\'')
+            purge_throttle(c)   # EXEC-MU-ACCOUNTS Phase 0: throttle rows older than 2 days, at the same hourly cadence
