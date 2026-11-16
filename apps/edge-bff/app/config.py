@@ -70,6 +70,17 @@ class Settings:
     # timeout of a switch-on session: EDGE_SESSION_IDLE_SECONDS (default 8 h)
     multiuser: bool = False
     session_idle_seconds: int = 28800
+    # EXEC-MU-ACCOUNTS Phase 1 auth flows (CONTRACT.md sections 4, 5, 16): needed only with the switch on (a missing value
+    # never stops a switch-off start; a value that is set is still checked). code_secret keys the email-code HMAC,
+    # mfa_key derives each admin's TOTP secret; email_mode log (the default: the email goes to the outbox row and the
+    # log, the code masked outside EDGE_ENVIRONMENT=local) or resend; email_enabled: the sender loop beside the worker
+    code_secret: str = ''
+    mfa_key: str = ''
+    email_mode: str = 'log'
+    email_enabled: bool = True
+    email_from: str = ''
+    resend_api_key: str = ''
+    resend_webhook_secret: str = ''
 
     @classmethod
     def from_env(cls):
@@ -102,7 +113,13 @@ class Settings:
                 screener_timeout_seconds=float(os.environ.get('SCREENER_TIMEOUT_SECONDS', '0')),
                 admin_owners=admin_owners_of(os.environ.get('EDGE_ADMIN_OWNERS'), required('EDGE_OWNER')),
                 multiuser=switch_of('EDGE_MULTIUSER'),
-                session_idle_seconds=int(os.environ.get('EDGE_SESSION_IDLE_SECONDS', '28800')))
+                session_idle_seconds=int(os.environ.get('EDGE_SESSION_IDLE_SECONDS', '28800')),
+                code_secret=os.environ.get('EDGE_CODE_SECRET', ''), mfa_key=os.environ.get('EDGE_MFA_KEY', ''),
+                email_mode=os.environ.get('EDGE_EMAIL_MODE', 'log').strip().lower(),
+                email_enabled=os.environ.get('EDGE_EMAIL_ENABLED', 'true').strip().lower() == 'true',
+                email_from=os.environ.get('EDGE_EMAIL_FROM', '').strip(),
+                resend_api_key=os.environ.get('RESEND_API_KEY', ''),
+                resend_webhook_secret=os.environ.get('RESEND_WEBHOOK_SECRET', ''))
         s.validate()
         return s
 
@@ -156,5 +173,16 @@ class Settings:
             raise ValueError('BACKTEST_QUEUED_PER_OWNER must be at least 1')
         if self.orc_timeout_seconds < 3900 or self.session_seconds < 60 or self.heartbeat_seconds <= 0 or self.poll_seconds <= 0 or self.lease_seconds < self.heartbeat_seconds * 2:
             raise ValueError('Invalid EDGE timeout/lease configuration')
+        for name, value in (('EDGE_CODE_SECRET', self.code_secret), ('EDGE_MFA_KEY', self.mfa_key)):
+            if (value or self.multiuser) and len(value) < 32:
+                raise ValueError(f'{name} must be at least 32 characters (required with EDGE_MULTIUSER=true)')
+        if self.email_mode not in ('log', 'resend'):
+            raise ValueError('EDGE_EMAIL_MODE is log or resend')
+        if self.email_mode == 'resend' and (not self.resend_api_key or '@' not in self.email_from):
+            raise ValueError('EDGE_EMAIL_MODE=resend needs RESEND_API_KEY and EDGE_EMAIL_FROM (an address, e.g. '
+                             'EDGE <no-reply@mail.example.com>)')
+        if self.resend_webhook_secret and not (self.resend_webhook_secret.startswith('whsec_')
+                                               and len(self.resend_webhook_secret) >= 30):
+            raise ValueError('RESEND_WEBHOOK_SECRET is the whsec_... signing secret of the Resend webhook')
         if self.session_idle_seconds < 60:
             raise ValueError('EDGE_SESSION_IDLE_SECONDS must be at least 60')

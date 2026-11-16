@@ -38,6 +38,9 @@ ADMIN_ACCESS = 'admin.access'
 SWITCH_OFF_VERSION = 'env'
 TOKEN = re.compile(r'[0-9a-f]{64}')
 # Phase 1 only: the capabilities of a role while no plan catalog exists (Phase 2 reads them from the catalog)
+# the routes a session that has not passed MFA may use (CONTRACT.md section 4 "Admin MFA")
+MFA_OPEN = frozenset({'/api/v1/auth/session', '/api/v1/auth/sign-out', '/api/v1/auth/mfa/enroll',
+                      '/api/v1/auth/mfa/verify'})
 ROLE_CAPABILITIES = {'admin': frozenset({EVERYTHING}), 'user': frozenset()}
 
 
@@ -55,6 +58,8 @@ class Principal:
     limits: dict = field(default_factory=dict, hash=False, compare=False)
     version: str = SWITCH_OFF_VERSION
     token: str = field(default='', repr=False)
+    # switch on: the account has a confirmed TOTP enrolment (the MFA page asks for a code, else it offers enrolment)
+    mfa_enrolled: bool = False
 
     def can(self, capability):
         return EVERYTHING in self.capabilities or capability in self.capabilities
@@ -67,6 +72,7 @@ class Principal:
         return {'plan': self.plan_key, 'role': self.role, 'status': self.status,
                 'expires_at': self.expires_at.isoformat() if self.expires_at else None, 'mfa_ok': self.mfa_ok,
                 'capabilities': sorted(self.capabilities), 'limits': dict(self.limits), 'version': self.version,
+                'owner_key': self.owner_key, 'mfa_enrolled': self.mfa_enrolled,
                 'next': nxt if nxt is not None else (None if self.mfa_ok else 'mfa')}
 
 
@@ -97,7 +103,8 @@ def account_principal(row, token=''):
     return Principal(user_id=row['user_id'], owner_key=row['owner_key'], username=row['username'], role=row['role'],
                      plan_key=None, status=row['status'], expires_at=None,
                      mfa_ok=not needs_mfa or row.get('mfa_passed_at') is not None, capabilities=capabilities,
-                     limits={}, version=version_of(row['role'], row['status'], capabilities), token=token)
+                     limits={}, version=version_of(row['role'], row['status'], capabilities), token=token,
+                     mfa_enrolled=bool(row.get('mfa_enrolled')))
 
 
 class Auth:
@@ -114,6 +121,10 @@ class Auth:
             found = await self.resolve(request.cookies.get('edge_session', ''))
             if found is None:
                 raise Refusal(401, 'UNAUTHENTICATED')
+            # a pending admin session (the password was right, the second factor not yet): only the MFA steps, the
+            # session read and sign-out; every other route answers 403 MFA_REQUIRED
+            if not found.mfa_ok and request.url.path not in MFA_OPEN:
+                raise Refusal(403, 'MFA_REQUIRED')
             # EXEC-BACKTEST-REVAMP P5: request.state.owner stays, set from the principal (never a body's)
             request.state.owner, request.state.principal = found.owner_key, found
             return found
