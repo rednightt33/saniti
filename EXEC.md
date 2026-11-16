@@ -14435,3 +14435,218 @@ Temuan selama O1 (sudah ditangani di kode):
   detik). File hasilnya identik.
 - Lari pertama membaca ±1,2 GB Feature 04: termasuk "update besar" (restart Postgres sesudahnya, aturan AGENTS.md).
 - Fakta "862 saham ber-EMA50, 166 di atasnya" di atas dihitung tanpa saringan saham biasa; hitungan halaman 836/162.
+
+## EXEC-WATCHLIST — halaman Watchlist untuk user: list di server, satu file harian ringan (go 2026-11-16 "Go" atas rencana L1–L8)
+
+**Kata user, 2026-11-16:** "Terlampir adalah another page yang perlu kita tambahkan. Feel free to lihat dulu, samakan HTML
+dengan page2 yang lain. Understood bahwa mungkin ada contradict dengan kondisi di backend, feel free to confirm with me
+beforehand. Kalau ada yang mau ditambahkan juga feel free to confirm. Ini adalah watchlist diperuntunkan untuk user
+nanti. If you think it can be enchanced, please suggest by considering backend condition. Setelahnya, define what
+finished should look like." Desain: [`verification/watchlist/design/watchlist_20261116.html`](verification/watchlist/design/watchlist_20261116.html)
+(prototipe; data dummy, disimpan di localStorage browser).
+
+**Isi desain:** beberapa list bernama sebagai tab (Core, Banks, …), tampilan Kartu atau Tabel, tambah saham (satu atau
+tempel banyak kode), buat/hapus list dengan urungkan, pilih sampai 8 indikator per list (kartu menampilkan 4 teratas),
+bar persentil "vs 1 tahun sendiri", sakelar notifikasi per list, menu "Buka detail" (belum terhubung).
+
+**Kondisi backend (dicek 2026-11-16 di kode):**
+- Akun: hanya satu pemilik (`EDGE_OWNER`, `apps/edge-bff/app/config.py:12-14`); sesi lain ditolak 401
+  (`app/main.py:287-292`). Multi-user ada di rencana EDGE-MULTIUSER (bagian di bawah), DIPENDING sejak 2026-10-28.
+- Sudah ada watchlist di server: `edge_bff.watchlist_items` (owner_key, ticker, added_at; satu list per pemilik, keputusan
+  P12 "one list, no named lists", `database/migrations/20261028_001_edge_bff_screener.sql:45-51`), maks 500
+  (`app/screener.py:78`), rute `/api/v1/screener/watchlist` (`:995-1016`), dipakai bintang di Screener.
+- Data indikator per saham: tersimpan RSI 14, MACD histogram, Bollinger band, SMA 50 (Feature 04), return 20 sesi,
+  volume vs rata-rata 20 hari, volatilitas 60 hari (Feature 01), net asing 5D dan persentilnya vs 252 hari (Feature
+  06). Bisa dihitung dari harga: jarak ke high 52 minggu, jarak ke SMA 200, beta 1Y, volatilitas 1Y, max drawdown 1Y.
+  Hanya di mesin Terminal (browser): Supertrend, Bandar Balance (FL24/25/29/48), Silent Accumulation (FL27). Tidak ada
+  sumbernya: PER, PBV, ROE, dividend yield (`SCREENER_ONBOARDING.md:1246`). Domestic Net = minus Foreign Net
+  (setiap transaksi punya pembeli dan penjual), jadi tidak menambah informasi.
+- Kesegaran: harga harian (final); intraday hanya sesi yang sudah selesai (cron 17:30 WIB); data broker/asing beberapa
+  hari di belakang harga (ronde Stockbit manual, token habis ±1 hari). Teks desain "harga sesi 1 · asing tertunda 15
+  menit" tidak sesuai.
+- Notifikasi ke user: tidak ada (hanya Telegram pemilik). Bahasa label EDGE: Inggris (`static/edge-labels.js:2-4`).
+- Aksi korporasi per saham ada (`stockbit_corporate_action`: dividen cum/ex, RUPS, public expose); hasil Radar per saham
+  per hari ada (`Feature_07_Radar_Result`).
+
+**Usulan arsitektur (pola Overview):** daftar list milik user di PostgreSQL `edge_bff` (dikunci per akun, siap
+multi-user); data pasar untuk semua saham dalam satu keluarga file publisher yang sama untuk semua user (dicache
+browser); katalog indikator diturunkan dari file itu (indikator baru = perubahan publisher saja, halaman ikut); halaman
+Vite di iframe seperti Overview, bahasa Inggris, ikon mata di rail.
+
+**Keputusan user 2026-11-16: "1A / 2A / 3A / 4A"** (atas pertanyaan yang dikirim hari itu):
+1. **1A:** dibangun sekarang untuk pemilik; setiap list dikunci per akun (`owner_key`), siap EDGE-MULTIUSER tanpa
+   perubahan data.
+2. **2A:** beberapa list bernama di server, menggantikan keputusan P12 (satu list). Bintang Screener memasukkan ke list
+   pertama; saham berbintang yang ada menjadi isi list pertama bernama "Watchlist".
+3. **3A:** rilis pertama hanya indikator yang datanya ada: RSI, MACD histogram, Bollinger %B, Volume vs 20D, jarak ke
+   high 52W, jarak ke SMA 200, Foreign Net 5D, Return 1M, Volatility/Beta/Max drawdown 1Y; bawaan RSI, 52W high,
+   Volume, Foreign Net 5D. Fundamental disembunyikan; Domestic Net dihapus; Bandar Balance / Silent Accumulation /
+   Supertrend tahap 2 (rumus Terminal dipindah ke publisher, dibuktikan sama dengan Terminal).
+4. **4A:** sakelar notifikasi disembunyikan dulu.
+
+5. **5A (user 2026-11-16: "A")**, sesudah bertanya "5 tambahn apa ya yang kamu maksud?" dan dijelaskan dengan contoh
+   dev hari itu (AMMN RUPS 17 Nov, PGAS public expose 19 Nov; BBCA dan ASII lolos S1/S2/S6/S6Δ/S7 Radar pada 9 Nov):
+   kedua lencana. Aksi korporasi mendatang (`stockbit_corporate_action`, termuat terakhir 2026-11-09, ikut ronde
+   Stockbit) dan saringan Radar yang lolos (`Feature_07_Radar_Result`, tanggal broker); masing-masing menulis tanggal
+   datanya.
+
+**Go user 2026-11-16: "Go"** (atas rencana W1–W8, keputusan kecil dan definisi "selesai" di bawah). Sebelum W1 dimulai,
+user menyela: **"Maaf, boleh minta kira2 HTML nanti FE akna jadi seperti apa before we design backend? Kalau bisa kita
+buat selight as possible yang mana tidak perlu ada calculation lagi (mis. percentile bar)"**. Eksekusi ditahan sampai
+user menyetujui tampilan.
+
+**Mockup ringan (2026-11-16, menunggu tinjauan user):** desain user dengan label Inggris dan data snapshot dev (harga 13
+Nov, broker 9 Nov); file di scratchpad sesi (berisi data pasar, tidak di-commit), dibangun dari desain di repo. Bedanya
+dengan rencana W1–W8:
+- tanpa bar persentil; setiap angka dibaca apa adanya dari kolom tersimpan, tanpa riwayat dan tanpa hitungan baru;
+- katalog indikator (14): RSI, MACD histogram, ADX (Feature 04); harga vs EMA 50 / EMA 200 (satu pembagian di baris
+  yang sama); return 5D/3M, volume vs rata-rata 20 hari, volatilitas 20D, jarak dari high 60D (Feature 01); net asing
+  1D/5D/20D dan peringkat net asing 5D yang sudah tersimpan (Feature 06, papan Regular); bawaan RSI, Volume, From 60D
+  high, Foreign 5D;
+- dibuang karena perlu hitungan riwayat: high 52W, SMA 200, beta/volatilitas/max drawdown 1Y, garis SMA 50 di grafik;
+- grafik kecil = 30 penutupan terakhir; lencana aksi korporasi (30 hari) dan Radar tetap; label tanggal data seperti
+  Overview; "Open in Terminal" di menu saham; "Rename" di menu list; sakelar notifikasi dihapus (4A).
+Akibatnya backend cukup: tabel list di server (W2–W3) dan satu file harian yang membaca satu tanggal dari Feature
+01/04/06, 30 penutupan, aksi korporasi dan Radar (tanpa file riwayat). Rencana W1/W4 disesuaikan sesudah user setuju.
+
+**Tinjauan user atas mockup, 2026-11-16:** "boleh kasih 10 design dalam 1 HTML dari sisi cardsnya, saya kurang sreg dengan
+garis horizontal yang saya bulatkan [garis pemisah antarbaris indikator], kemudian untuk badge radar fill hitam font
+putih, jangan lupa logo emiten juga. sudah ada setau saya di storage. 2 dan 3 keep."
+- Diputuskan: Price vs EMA 50/200 tetap (satu pembagian di baris yang sama); Foreign net 5D rank tetap (kolom tersimpan).
+- Lencana Radar: isi hitam, teks putih. Tanpa garis pemisah antarbaris indikator.
+- Logo emiten: sudah ada, `GET /api/terminal/v1/logo/{ticker}` (terminal-api, EXEC-TERMINAL-LOGO; versi dari referensi
+  `logos`, kolom ticker/file/sha256), diteruskan edge-bff (`apps/edge-bff/app/main.py:43-44`); dipakai Terminal
+  (`apps/edge-bff/terminal/src/app/context.ts:76`); tanpa logo → monogram.
+- 10 pilihan kartu dalam satu HTML (scratchpad sesi, data dev + logo dari storage).
+
+**User 2026-11-16: "3 chip, also di watchlist bisa filter by Radar dan by corp action?"**
+- Kartu = opsi 3 "Chip": logo, kode dan nama bertumpuk, harga/1D/1M, grafik 30 penutupan, indikator sebagai chip,
+  "Foreign flow as of <tanggal broker>" sekali bila ada indikator asing, lencana di bawah.
+- Filter (jawaban: bisa, tanpa data atau hitungan baru, dari isi file harian yang sama): dua tombol di baris list,
+  "Radar" (saringan apa saja atau satu saringan S1–S8, dengan jumlah saham per saringan) dan "Corporate action" (aksi
+  apa saja dalam 30 hari atau satu jenis: RUPS, Dividend, Public expose, …); bisa digabung; hanya mengubah tampilan list
+  yang terbuka, bukan isi list; "n of N" dan "Clear"; berlaku di Kartu dan Tabel. Dicoba di mockup (Core: Radar 8 dari
+  14, aksi korporasi AMMN dan UNVR). Menunggu persetujuan user.
+
+**User 2026-11-16 atas mockup tabel:** "1: mesti diganti jangan tulisa 30D, maybe trend or anything else? 2: 2 buat
+hoverstatekalau hover ke radar 3: kasih pill ya, solid green or red, fontnya putih 4. table indicator too plain, hanya
+hitam dan putih, boleh kasih 10 opsi dalam 1 HTML? 5. kotak merah radar dan corporate action tidak usah kalau di klik
+muncul drop down, hanya buat saja kalu klik radar maka ada pop up dibawah keluar "Filtered only stocks in radar"?
+begitupun untuk corporate action". Diterapkan di mockup:
+1. Kolom grafik kecil bernama "Trend" (30 penutupan terakhir di keterangan kursor).
+2. Kursor di lencana Radar membuka kotak: saringan yang lolos (kode + nama) dan tanggal Radar; klik membuka Radar.
+3. Nilai Foreign net (1D/5D/20D) di Tabel = pil isi hijau/merah, teks putih.
+4. 10 pilihan desain dialog Indicators berwarna (warna per kelompok: Technical biru, Price & volume ungu, Foreign flow
+   hijau) dalam satu HTML; menunggu pilihan user.
+5. Filter tanpa menu: klik "Radar" = hanya saham yang lolos Radar, klik "Corporate action" = hanya saham dengan aksi
+   korporasi 30 hari; klik lagi mematikan; pesan di bawah ("Filtered: only stocks in Radar (9 Nov) · 8 of 14").
+
+**User 2026-11-16:** "Buat tableindikator pakai design spec terlampir. Coba kasih 10 opsi dalam 1 HTML" (lampiran
+`edge-design-spec-type-A.css` dan halaman spec v1.2). Dibaca sebagai kolom indikator di tampilan Tabel (butir 4
+sebelumnya; 10 opsi dialog Indicators tetap tersedia bila itu yang dimaksud). 10 opsi tabel dibuat di atas spec v1.2
+(tone, skala 50–900, `--up-bg`/`--down-bg`, format angka spec), warna hanya untuk makna dari nilai tersimpan: zona RSI
+≥ 70 / ≤ 30, volume ≥ 1.5×, dekat high 60D ≥ −3% / ≤ −20%. Data: Core + empat saham nyata yang masuk zona (DKFT, BRPT,
+EXCL, VKTR). Menunggu pilihan user.
+
+**User 2026-11-16:** "Untuk table leave as is. Hanya panel indikator yang perlu di reskin." Tabel = mockup saat ini
+(pil Foreign solid, tanpa warna zona). 10 opsi panel Indicators dibuat ulang di atas Design Spec v1.2 (warna kelompok
+dari skala 50–900: Technical blue-600, Price & volume violet-600, Foreign flow green-600; latar --blue-bg /
+--violet-bg / --green-bg; tombol .btn/.primary/.ghost). Menunggu pilihan user.
+
+**User 2026-11-16 (pada dialog Indicators mockup):** "bulat emrah mungkin boleh di tambah ribobn / pills abu2 fill teks
+hitam? kotak biru remove nomor 1 juga perlu di emphasize". Diterapkan di mockup: "Applies to" dan pilihan Core/All lists
+serta kepala kelompok (Technical, Price & volume, Foreign flow) jadi pill abu isi, teks hitam (jumlah dalam lingkaran
+putih); pratinjau kartu dihapus; area slot kosong ditegaskan (garis putus lebih gelap, latar abu, tombol + hitam,
+"4 slots left" tebal). Menunggu persetujuan user.
+
+**User 2026-11-16:** "Yang chose ganti dengan centang putih fill hijau terang kemudian applies to perlu diganti karena ini
+bukan grup indocator" (dengan /frontend-design). Diterapkan: penanda terpilih = lingkaran hijau `--up` berisi centang
+putih (tanpa teks, label aksesibel "Chosen"); "Applies to" diganti pilihan tempat menyimpan di kaki dialog, di samping
+Save: "Save to [Core only | All 3 lists]" (teks biasa, bukan pill); tata letak ponsel dirapikan (kolom tumbuh sesuai isi,
+"Save to" satu baris).
+
+**User 2026-11-16: "Ok sesuai, lanjut kirim ringkasan rencana backend"** — tampilan Watchlist final (mockup terakhir:
+kartu Chip, tabel apa adanya, filter tombol, badge Radar hitam + hover, pil Foreign, dialog Indicators terakhir).
+
+**Rencana eksekusi versi ringan (2026-11-16, menggantikan W1–W8 dan keputusan kecil versi lama di bawah; menunggu go):**
+- **L1 Rumus dan biaya.** `WATCHLIST_FORMULAS.md`: asal setiap angka (kolom tersimpan apa adanya; vs EMA = satu
+  pembagian di baris yang sama), dijaga skrip + tes seperti `OVERVIEW_FORMULAS.md`. Biaya baca lari harian diukur di dev
+  (`EXPLAIN (ANALYZE, BUFFERS)`, hanya baca) sebelum kode: satu tanggal Feature 01/04, satu tanggal broker Feature 06,
+  30 tanggal harga, aksi korporasi 30 hari, satu tanggal Radar. Tanpa file riwayat, tanpa persentil baru.
+- **L2 Data list.** Migrasi `edge_bff`: tabel `watchlist_lists` (akun, id, nama, urutan, daftar kunci indikator) dan
+  `watchlist_items` mendapat list dan urutan. Saham berbintang yang ada menjadi list pertama "Watchlist" (jumlahnya
+  dibaca dulu lewat job; bila lebih dari 50, ditanyakan). DRYRUN lalu APPLY di dev.
+- **L3 API edge-bff.** `/api/v1/watchlist/lists`: baca semua, buat, ganti nama, ubah indikator (satu list atau semua),
+  hapus (urungkan = buat ulang dari salinan), tambah satu/banyak saham, hapus saham. Rute bintang Screener tetap dan
+  memakai list pertama. Batas: 20 list, 50 saham per list, 8 indikator; setiap penolakan punya aturan, cara lolos,
+  contoh benar/salah dan pesan (aturan gate). Server tidak menyimpan daftar indikator tetap: kunci diperiksa bentuknya,
+  katalog datang dari file data. Tes: tanpa sesi 401, batas, akun lain tidak bisa membaca/mengubah, Screener.
+- **L4 File harian.** Publisher keluarga `watchlist`, satu file `watchlist-stocks`: tanggal data, katalog indikator
+  (nama, kelompok, satuan, tanggal harga/broker), dan per saham (862): nama, sektor, harga, 1D, 1M, 30 penutupan, 14
+  nilai indikator, aksi korporasi 30 hari, saringan Radar yang lolos. terminal-api + relay edge-bff pola Overview;
+  `capabilities.watchlist`. Logo dari rute logo Terminal yang sudah ada.
+- **L5 Halaman.** Aplikasi Vite dari mockup final; rail sesudah Overview dan menu ☰; Open in Terminal; klik badge Radar
+  membuka Radar; cek 1440/1152/390/360 px dan mode gelap.
+- **L6 Verifikasi independen.** Setiap angka file dibandingkan dengan PostgreSQL (semua saham, tanggal file) ditambah
+  file yang dibangun lokal untuk 2 tanggal lebih lama; tinjauan kode independen.
+- **L7 Rilis dev (go per langkah).** Migrasi, deploy publisher dan terminal-api, push `main` (edge-bff), Run Now, cek
+  memori Postgres, cek live sebagai pemilik.
+- **L8 Catatan.** Skema dan changelog, ERRORS bila ada temuan, aturan baru di `AGENTS.md` untuk `WATCHLIST_FORMULAS.md`.
+
+**Definisi "selesai" versi ringan:** butir 1–3 dan 5–9 di bawah tetap; butir 4 menjadi "setiap angka sama dengan
+PostgreSQL pada tanggal file dan 2 tanggal lebih lama"; ditambah: filter Radar/Corporate action, badge dan hover Radar,
+logo, dan lari harian publisher tanpa beban besar (diukur).
+
+**Rencana eksekusi lama (diganti versi ringan di atas):**
+- **W1 Rumus dan biaya.** Rumus setiap indikator dan persentil ditulis di `WATCHLIST_FORMULAS.md` (bahasa Indonesia
+  sederhana, contoh nyata, dijaga skrip + tes seperti `OVERVIEW_FORMULAS.md`). Sumber: kolom tersimpan bila ada (RSI,
+  MACD, Bollinger, SMA 50 Feature 04; return 20 sesi, volume vs 20 hari Feature 01; Foreign Net 5D dan persentilnya
+  Feature 06), dihitung dari harga bila tidak (high 52W, SMA 200, beta/volatilitas/max drawdown 1Y). Biaya baca lari
+  pertama dan lari harian diukur di dev dengan `EXPLAIN (ANALYZE, BUFFERS)` (hanya baca) sebelum kode publisher.
+- **W2 Data list.** Migrasi `edge_bff`: tabel list (akun, nama, urutan, indikator) dan `watchlist_items` mendapat list;
+  saham berbintang yang ada menjadi list "Watchlist" (jumlahnya dibaca dulu; bila lebih dari batas per list, ditanyakan).
+- **W3 API edge-bff.** List: baca, buat, ganti nama, hapus (urungkan = buat ulang dari salinan), indikator per list atau
+  semua list; saham: tambah satu/banyak, hapus. Bintang Screener = list pertama. Setiap batas punya aturan, cara lolos,
+  contoh benar/salah dan pesan penolakan (aturan gate). Tes: login, batas, akun lain tidak bisa membaca/mengubah.
+- **W4 File publisher.** Keluarga `watchlist`: meta (tanggal data, katalog indikator, daftar saham), stocks (per saham:
+  harga, 1D, 1M, 30 sesi + SMA 50, nilai dan persentil indikator, lencana aksi korporasi dan Radar), history (deret
+  untuk persentil, dipakai ulang antar-lari seperti `overview-stocks`, tidak diunduh halaman). Daftar indikator halaman
+  diturunkan dari meta. terminal-api dan relay edge-bff mengikuti pola Overview; `capabilities.watchlist`.
+- **W5 Halaman.** Aplikasi Vite dari desain, bahasa Inggris, tampilan Overview: Kartu/Tabel, tab list, Add ticker,
+  New list, Indicators, hapus dengan urungkan, ganti nama, lencana, label tanggal data, buka Terminal; rail sesudah
+  Overview dan menu ☰; cek 1440/1152/390/360 px dan mode gelap.
+- **W6 Verifikasi independen.** Hitung ulang setiap angka dari PostgreSQL pada 3 tanggal; tinjauan kode independen.
+- **W7 Rilis dev (go per langkah).** Migrasi DRYRUN/APPLY, deploy publisher dan terminal-api, push `main` (edge-bff),
+  Run Now, restart Postgres bila update besar, cek live sebagai pemilik.
+- **W8 Catatan.** Skema, changelog, ERRORS, aturan baru di `AGENTS.md` untuk `WATCHLIST_FORMULAS.md`.
+
+**Keputusan kecil (bawaan; bisa diubah user):** 50 saham per list dan 8 indikator (dari desain), maksimal 20 list;
+kartu menampilkan 4 indikator pertama; persentil = bagian dari 252 nilai sesi sebelumnya milik saham itu yang ≤ nilai
+hari ini (Foreign Net 5D memakai kolom Feature 06 yang sudah ada); bar tebal di ≥ P85 atau ≤ P15; tanpa bar untuk
+Return 1M dan ukuran 1Y; "1M" = 20 sesi; garis putus = SMA 50; lencana aksi korporasi untuk 30 hari kalender sesudah
+tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terbaru, nama sama dengan halaman Radar;
+"Rename list" ditambahkan di menu ⋯ list (tidak ada di desain).
+
+**Seperti apa "selesai" (usulan, menunggu persetujuan):**
+1. Tab Watchlist di rail dan menu ☰ ponsel; bahasa Inggris; tampilan sama dengan Overview (token, kontrol, mode
+   gelap); tanpa geser samping di 1440/1152/390/360 px.
+2. List tersimpan di server per akun: buat, ganti nama, hapus dengan urungkan, tambah/hapus saham (satu atau tempel
+   banyak), urutan; sama di perangkat dan browser mana pun; bintang Screener memakai data yang sama.
+3. Batas dijaga backend dengan pesan penolakan yang jelas (aturan gate: aturan, cara lolos, contoh benar/salah, pesan).
+4. Setiap angka di halaman sama dengan hitungan ulang independen dari PostgreSQL pada minimal 3 tanggal, termasuk bar
+   persentil.
+5. Halaman menulis tanggal data apa adanya ("Prices to …", "Broker data to …"); tidak ada klaim intraday atau 15 menit.
+6. Indikator yang tidak punya data tidak ditampilkan.
+7. File diperbarui sendiri sesudah loader harga dan ronde broker; biaya lari pertama diukur; restart Postgres bila
+   termasuk update besar.
+8. Tes publisher, edge-bff (login, batas, akun lain tidak bisa membaca list orang lain), halaman; cek live sebagai
+   pemilik.
+9. Dokumen rumus `WATCHLIST_FORMULAS.md` (bahasa Indonesia sederhana, dijaga tes seperti Overview), skema, changelog,
+   ERRORS untuk temuan.
+
+**Go user 2026-11-16: "Go"** atas rencana eksekusi versi ringan L1–L8 dan definisi "selesai" versi ringan (dipindah dari
+`PLAN.md`). Eksekusi mulai L1 di branch `claude/keen-turing-56vw7y`; migrasi, deploy dan Run Now ditanyakan per langkah.
+
+### Kemajuan
+
+- L1: dimulai 2026-11-16.
