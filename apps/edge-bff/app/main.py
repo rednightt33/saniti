@@ -27,7 +27,7 @@ from .auth_flows import AuthFlows
 from .mailer import EmailSender
 from .preferences import Preferences
 from .presets import Presets
-from .principal import Auth, Principal
+from .principal import Auth, Principal, role_needs_mfa
 from .drawings import Drawings
 from .overview import Overview
 from .watchlist import Watchlist
@@ -567,14 +567,20 @@ def create_app(settings=None, store=None, orc=None):
         wait = await asyncio.to_thread(throttle.attempt, SIGNIN_LOGIN, login_key)
         if wait:
             return refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
-        account = None
+        account = restart = None
         if settings.multiuser:
-            # EXEC-MU-ACCOUNTS Phase 1 (switch on): the account named by its username or email, its password identity;
-            # an unknown login runs the same scrypt against the configured verifier, so the time tells nothing
+            # EXEC-MU-ACCOUNTS Phase 1 (switch on): the active account named by its username or email, its password
+            # identity; else the pending registrations of that address (the newest few). An unknown login runs the same
+            # scrypt against the configured verifier, so the time tells nothing
             account = await asyncio.to_thread(auth.accounts.find_login, body.login)
-            password_ok = await asyncio.to_thread(verify_password, body.password,
-                                                  account['verifier'] if account else settings.password_verifier)
-            known = account is not None and password_ok
+            if account is not None:
+                known = await asyncio.to_thread(verify_password, body.password, account['verifier'])
+            else:
+                known = False
+                for row in await asyncio.to_thread(auth.accounts.pending_logins, body.login) or [None]:
+                    if await asyncio.to_thread(verify_password, body.password,
+                                               row['verifier'] if row else settings.password_verifier) and row:
+                        restart = restart or row
         else:
             # the password is checked before the login is compared (against the one verifier, so an unknown login runs
             # the same scrypt as a known one): a wrong login costs the same time as a wrong password
@@ -582,11 +588,15 @@ def create_app(settings=None, store=None, orc=None):
             known = hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode()) and password_ok
         if not known:
             await asyncio.to_thread(throttle.count, (SIGNIN_IP, client_address(request)))
-            return error('INVALID_CREDENTIALS', 401)
+            response = error('INVALID_CREDENTIALS', 401)
+            if settings.multiuser:
+                # ERRORS M478 (C1 P1-M1): a pending registration with the right password answers the same 401 (no
+                # enumeration); within the send limits a fresh code is mailed and this browser gets that registration's
+                # cookie, so the person finishes on /verify. Every switch-on 401 sets a registration cookie, so the
+                # answers do not differ by a header either
+                await flows.restart_registration(response, restart, client_address(request))
+            return response
         await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
-        if account is not None and account['status'] != 'active':
-            # a registration whose email code was never entered: said only after the right password (no enumeration)
-            return refusal(403, 'EMAIL_NOT_VERIFIED')
         old = request.cookies.get(COOKIE)
         if old:
             await asyncio.to_thread(store.revoke, token_hash(old))
@@ -594,7 +604,8 @@ def create_app(settings=None, store=None, orc=None):
         if account is not None:
             # at most MAX_SESSIONS per account (the oldest revoked); the address only as its HMAC
             await asyncio.to_thread(auth.accounts.create_session, token_hash(token), account, settings.session_seconds,
-                                    throttle.key_hash(SIGNIN_IP.scope, client_address(request)))
+                                    throttle.key_hash(SIGNIN_IP.scope, client_address(request)), False,
+                                    role_needs_mfa(account['role']))
             await asyncio.to_thread(auth.accounts.signed_in, account['user_id'])
         else:
             await asyncio.to_thread(store.session_create, token_hash(token), auth.configured_owner(), settings.session_seconds)

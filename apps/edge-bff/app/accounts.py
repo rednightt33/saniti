@@ -24,6 +24,8 @@ RESERVED_USERNAMES = frozenset({'admin', 'root', 'support', 'edge', 'system'})
 SEED_FALLBACK_USERNAME = 'admin_1'
 EMAIL = re.compile(r'[^@\s]{1,64}@[^@\s]{1,189}\.[^@\s]{1,63}')
 MAX_SESSIONS = 5                  # CONTRACT.md section 4 "Sessions": at most 5 per user, the oldest is revoked
+MAX_PENDING_SESSIONS = 3          # sessions waiting for the admin's second factor, capped apart (C1 note)
+PENDING_CHECKED = 3               # pending registrations of an address a sign-in compares its password with
 TOUCH_SECONDS = 60                # CONTRACT.md section 2: last_seen_at is written at most once per 60 s per session
 ACTIVE = 'active'
 
@@ -110,20 +112,32 @@ class AccountStore:
     # ---- the switch-on sign-in --------------------------------------------------------------------------------------
 
     def find_login(self, login):
-        """The active or pending account a sign-in names (its username or its email, compared lower-cased) with its
-        password verifier, or None (a disabled account is not found). The caller answers EMAIL_NOT_VERIFIED for a
-        pending one only after its password was right."""
+        """The active account a sign-in names (its username or its email, compared lower-cased) with its password
+        verifier, or None (a disabled or pending one is not found here)."""
         lowered = login.strip().lower()
         with self.store.connect() as c:
-            return c.execute('''SELECT u.user_id, u.owner_key, u.username, u.role, u.status, i.verifier
+            return c.execute('''SELECT u.user_id, u.owner_key, u.username, u.role, u.status, u.email, i.verifier
                 FROM edge_bff.users u JOIN edge_bff.identities i ON i.user_id = u.user_id AND i.provider = 'password'
-                WHERE (u.username = %s OR u.email = %s) AND u.status IN (%s, 'pending')
+                WHERE (u.username = %s OR u.email = %s) AND u.status = %s
                 ORDER BY (u.username = %s) DESC LIMIT 1''', (lowered, lowered, ACTIVE, lowered)).fetchone()
 
-    def create_session(self, hashed, user, seconds, ip_hash=None, mfa_passed=False):
-        """A session of the account (owner_key kept beside user_id), then the account's oldest live sessions beyond
-        MAX_SESSIONS revoked, in one transaction under the account's lock (two sign-ins at once cannot both keep a
-        sixth). Returns the number revoked."""
+    def pending_logins(self, login):
+        """The newest PENDING_CHECKED pending registrations of an address with their verifiers (a sign-in with the right
+        password of one restarts its verification; ERRORS M478 C1 P1-M1)."""
+        lowered = login.strip().lower()
+        with self.store.connect() as c:
+            return c.execute('''SELECT u.user_id, u.owner_key, u.email, u.role, u.status, i.verifier
+                FROM edge_bff.users u JOIN edge_bff.identities i ON i.user_id = u.user_id AND i.provider = 'password'
+                WHERE u.email = %s AND u.status = 'pending' ORDER BY u.created_at DESC, u.user_id DESC LIMIT %s''',
+                             (lowered, PENDING_CHECKED)).fetchall()
+
+    def create_session(self, hashed, user, seconds, ip_hash=None, mfa_passed=False, mfa_user=False):
+        """A session of the account (owner_key kept beside user_id), then the account's oldest live sessions beyond the
+        cap revoked, in one transaction under the account's lock (two sign-ins at once cannot both keep one too many).
+        For an account that needs MFA (mfa_user), a session that has not passed it is pending: pending sessions have
+        their own cap (MAX_PENDING_SESSIONS) and never count towards, or revoke, the MAX_SESSIONS real ones (C1 note).
+        Returns the number revoked."""
+        pending = mfa_user and not mfa_passed
         with self.store.connect() as c:
             c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('sessions:' + str(user['user_id']),))
             c.execute('''INSERT INTO edge_bff.sessions(token_hash, owner_key, user_id, expires_at, last_seen_at,
@@ -131,8 +145,13 @@ class AccountStore:
                 VALUES (%s, %s, %s, now() + %s * interval '1 second', now(), CASE WHEN %s THEN now() END, %s)''',
                       (hashed, user['owner_key'], user['user_id'], seconds, mfa_passed, ip_hash))
             return c.execute('''UPDATE edge_bff.sessions SET revoked_at = now() WHERE token_hash IN (
-                    SELECT token_hash FROM edge_bff.sessions WHERE user_id = %s AND revoked_at IS NULL AND expires_at > now()
-                    ORDER BY created_at DESC, token_hash OFFSET %s)''', (user['user_id'], MAX_SESSIONS)).rowcount
+                    SELECT token_hash FROM edge_bff.sessions WHERE user_id = %(user)s AND revoked_at IS NULL
+                      AND expires_at > now()
+                      AND (CASE WHEN %(pending)s THEN mfa_passed_at IS NULL
+                                ELSE (mfa_passed_at IS NOT NULL OR NOT %(mfa_user)s) END)
+                    ORDER BY created_at DESC, token_hash OFFSET %(cap)s)''',
+                             {'user': user['user_id'], 'pending': pending, 'mfa_user': mfa_user,
+                              'cap': MAX_PENDING_SESSIONS if pending else MAX_SESSIONS}).rowcount
 
     def signed_in(self, user_id):
         with self.store.connect() as c:
