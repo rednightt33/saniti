@@ -33,3 +33,17 @@ def test_c1_the_gateway_host_rule_reads_only_a_plain_host(host):
     client, _ = app_with(())
     r = client.get(f'{API}/state', headers={**GATEWAY, 'host': host})
     assert r.status_code == 403 and r.json()['error'] == 'gateway_host_not_allowed', r.text
+
+
+def test_c1_recheck_the_refusal_log_line_cannot_be_forged_from_the_path(caplog):
+    """Re-check round (B3 9f7730a9): private_only_keys logs a refused request's path with %s from request.scope, the
+    percent-decoded path. A public caller sends /manifest/X%0A... and writes a line of its choosing into terminal-api's
+    log (log forging, e.g. a fake "credential: gateway" line). Log the path with repr, as the Host already is, or strip
+    control characters."""
+    client, _ = app_with(('https://terminal.example',))
+    forged = 'X%0Akeyed request accepted on the private host; credential: gateway'
+    with caplog.at_level('WARNING', logger='terminal-api'):
+        r = client.get(f'{API}/manifest/{forged}', headers={**GATEWAY, 'host': PUBLIC, **EDGE})
+    assert r.status_code == 403
+    lines = [rec.getMessage() for rec in caplog.records if rec.name == 'terminal-api']
+    assert lines and not any('\n' in line or '\r' in line for line in lines), lines
