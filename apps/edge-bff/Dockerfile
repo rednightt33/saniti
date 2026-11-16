@@ -1,9 +1,12 @@
 # EXEC-TERMINAL-API T5: the terminal page (terminal/, TypeScript + Vite) is built here and copied into static/terminal-app;
 # the build output is not kept in git.
+# EXEC-MU-ACCOUNTS Phase 0: every page imports the shared session module (shared/edge-session.ts), so each stage copies
+# shared/ beside its own folder as in the repository.
 FROM node:22-slim AS terminal
 WORKDIR /build/terminal
 COPY terminal/package.json terminal/package-lock.json ./
 RUN npm ci --no-audit --no-fund
+COPY shared /build/shared
 COPY terminal/ ./
 RUN npm run build
 
@@ -18,6 +21,7 @@ COPY backtest/package.json backtest/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY terminal/src /build/terminal/src
 COPY screener/src /build/screener/src
+COPY shared /build/shared
 COPY backtest/ ./
 RUN npm run build
 
@@ -33,6 +37,7 @@ COPY screener/package.json screener/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY terminal/src /build/terminal/src
 COPY backtest/src /build/backtest/src
+COPY shared /build/shared
 COPY screener/ ./
 RUN npm run build
 
@@ -43,6 +48,7 @@ FROM node:22-slim AS radar
 WORKDIR /build/radar
 COPY radar/package.json radar/package-lock.json ./
 RUN npm ci --no-audit --no-fund
+COPY shared /build/shared
 COPY radar/ ./
 RUN npm run build
 
@@ -54,6 +60,7 @@ FROM node:22-slim AS overview
 WORKDIR /build/overview
 COPY overview/package.json overview/package-lock.json ./
 RUN npm ci --no-audit --no-fund
+COPY shared /build/shared
 COPY overview/ ./
 RUN npm run build
 
@@ -65,6 +72,7 @@ FROM node:22-slim AS watchlist
 WORKDIR /build/watchlist
 COPY watchlist/package.json watchlist/package-lock.json ./
 RUN npm ci --no-audit --no-fund
+COPY shared /build/shared
 COPY watchlist/ ./
 RUN npm run build
 

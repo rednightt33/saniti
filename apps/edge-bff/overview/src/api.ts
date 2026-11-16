@@ -1,6 +1,7 @@
 /* EXEC-OVERVIEW O5: the page's only data path, edge-bff's /api/v1/overview (app/overview.py on app/pages.py) with this
    EDGE session. A file is asked for with its sha256, so the browser keeps it for good under that URL and a newer
    publication is a new URL. */
+import { accessText, isAccessRefusal, readError } from '../../shared/edge-session.ts';
 import type { OverviewApi, OverviewIndex } from './types.ts';
 
 export class OverviewError extends Error {
@@ -18,6 +19,9 @@ async function getJson<T>(url: string): Promise<T> {
   let body: any = null;
   try { body = await r.json() } catch { body = null }
   if (!r.ok) {
+    // EXEC-MU-ACCOUNTS Phase 0 (M471): a plan refusal keeps the session and is shown as its message (shared/edge-session.ts)
+    const info = readError(r.status, body, r.headers.get('Retry-After'));
+    if (isAccessRefusal(info)) throw new OverviewError(info.code, accessText(info) as string, r.status);
     const e = body?.error;
     throw new OverviewError(e?.code || 'OVERVIEW_UNAVAILABLE', e?.message || 'The market overview could not be read. Try again in a minute.', r.status);
   }

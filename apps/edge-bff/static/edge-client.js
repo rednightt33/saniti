@@ -3,22 +3,36 @@
   let auth = null;
   const followers = new Set();
   class ApiError extends Error {
-    constructor(code, status) { super(code); this.status = status; }
+    constructor(code, status, info) { super(code); this.status = status; this.info = info || null; }
   }
+  // EXEC-MU-ACCOUNTS Phase 0 (M471, M473): the error contract, the storage registry and the clean-up are the shared
+  // module's (apps/edge-bff/shared/edge-session.ts, loaded before this file as /edge-session.js, window.EdgeSession).
+  // Only a 401 resets the session (the sign-in page); only a 403 CSRF_INVALID reads the session again and repeats the
+  // write once; a plan refusal keeps the session and carries its words (EdgeLabels.access, error.text).
+  const ES = () => window.EdgeSession || null;
   // EXEC-MODELS: the offered models are read once per session, before the work page shows (sign-in or a restored
   // session waits up to 3 s for them), so their arrival never redraws the page while the user types
   let models = {data:null, failed:false, pending:null};
   const reset = () => { auth = null; models = {data:null, failed:false, pending:null}; followers.forEach(close => close()); followers.clear(); dispatchEvent(new Event('edge-auth')); };
-  async function api(path, body, method = body === undefined ? 'GET' : 'POST') {
+  async function api(path, body, method = body === undefined ? 'GET' : 'POST', retried = false) {
     const headers = method === 'GET' ? {} : { 'X-CSRF-Token':auth?.csrf_token || '', ...(body === undefined ? {} : {'Content-Type':'application/json'}) };
     const res = await fetch('/api/v1' + path, { method, headers, credentials:'same-origin', ...(body === undefined ? {} : {body:JSON.stringify(body)}) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
+      const info = ES()?.readError(res.status, data, res.headers.get('Retry-After')) || null;
       if (res.status === 401 && path !== '/auth/sign-in') reset();
-      throw new ApiError(data.error?.code || (res.status === 401 ? 'Authentication required' : 'Request unavailable'), res.status);
+      if (info?.kind === 'csrf' && method !== 'GET' && !retried && auth && path !== '/auth/sign-in') {
+        try { const fresh = await fetch('/api/v1/auth/session', {credentials:'same-origin'}); if (fresh.ok) { auth = await fresh.json(); return api(path, body, method, true); } } catch { /* the refusal below stands */ }
+      }
+      const error = new ApiError(data.error?.code || (info?.legacy && info.kind === 'csrf' ? info.code : res.status === 401 ? 'Authentication required' : 'Request unavailable'), res.status, info);
+      const words = info && ES()?.isAccessRefusal(info) ? (info.message || (window.EdgeLabels?.access || {})[info.code] || ES().accessText(info)) : null;
+      if (words) error.text = words;
+      throw error;
     }
     return data;
   }
+  // M473: another login than the last one on this browser clears the previous account's state before anything shows
+  const noteLogin = session => { try { if (session?.login) ES()?.noteLogin(session.login); } catch { /* storage off */ } };
   const terminal = s => ['FINISHED','FAILED','INTERRUPTED'].includes(s.state);
   // EXEC-X (M124): the frame stays English (user decision 2026-10-08) but says what the saved response is
   const DOMAIN = {COMPLETED:'Completed',AWAITING_CONFIRMATION:'Awaiting approval',NEEDS_CLARIFICATION:'Needs your reply',LIMITED:'Limited',FAILED:'Failed'};
@@ -132,9 +146,10 @@
   window.Edge = {
     api,follow,terminal,conversations,messages,adaptRun,stateRun,statusLabel,statusTone,shortTitle,
     get auth() { return auth; },
-    async session() { try { auth = await api('/auth/session'); } catch { auth = null; } if (auth) await settle(loadModels()); return auth; },
-    async signin(login,password) { auth = await api('/auth/sign-in',{login,password}); await settle(loadModels()); dispatchEvent(new Event('edge-auth')); return auth; },
-    async signout() { await api('/auth/sign-out',{}); reset(); },
+    async session() { try { auth = await api('/auth/session'); } catch { auth = null; } if (auth) { noteLogin(auth); await settle(loadModels()); } return auth; },
+    async signin(login,password) { auth = await api('/auth/sign-in',{login,password}); noteLogin(auth); await settle(loadModels()); dispatchEvent(new Event('edge-auth')); return auth; },
+    // M473: sign-out removes every `user` key and the user caches (storage registry), and the last-login mark
+    async signout() { try { await api('/auth/sign-out',{}); } finally { try { await ES()?.clearUserState({signOut:true}); } catch { /* storage off */ } } reset(); },
     createRun: body => api('/runs',body),
     modelList: () => models,
     loadModels: () => loadModels(),

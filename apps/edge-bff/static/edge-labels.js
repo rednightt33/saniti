@@ -10,6 +10,15 @@
    "Technical details" only (P4, 2026-10-08). */
 window.EdgeLabels = {
   servicesWaiting: "Waiting for services to be ready.",
+  // EXEC-MU-ACCOUNTS Phase 0 (M471): a session refusal that keeps the session, by its code, when the server sends no
+  // message of its own (the server's message is shown first)
+  access: {
+    CAPABILITY_REQUIRED:"This feature is not part of your EDGE plan. Upgrade the plan to use it; you are still signed in.",
+    PLAN_EXPIRED:"Your EDGE plan has ended. Renew it to use this again; you are still signed in.",
+    MFA_REQUIRED:"This needs your sign-in code. Enter the code from your authenticator app, then try again.",
+    LIMIT_REACHED:"You have reached your plan's limit. Try again later, or upgrade the plan.",
+    SIGN_IN_RATE_LIMIT:"Too many sign-in attempts. Wait a minute, then try again."
+  },
   fields: {
     objective:"Objective", universe:"Universe", time_scope:"Period", analysis_frequency:"Frequency", original_question:"Question",
     root_hypothesis:"Main hypothesis", hypothesis:"Hypothesis", angle_question:"Angle question", condition:"Condition",

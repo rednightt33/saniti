@@ -1297,7 +1297,7 @@ def test_the_image_builds_the_screener_page_beside_the_sources_it_imports():
     assert [line for line in stage.strip().splitlines() if line.strip() and not line.startswith('#')] == [
         'WORKDIR /build/screener', 'COPY screener/package.json screener/package-lock.json ./',
         'RUN npm ci --no-audit --no-fund', 'COPY terminal/src /build/terminal/src',
-        'COPY backtest/src /build/backtest/src', 'COPY screener/ ./', 'RUN npm run build']
+        'COPY backtest/src /build/backtest/src', 'COPY shared /build/shared', 'COPY screener/ ./', 'RUN npm run build']
     assert 'COPY --from=screener /build/screener/dist ./static/screener-app\n' in text
     root = Path(__file__).resolve().parents[1].resolve()
     page = root / 'screener'
@@ -1320,7 +1320,8 @@ def test_the_image_builds_the_screener_page_beside_the_sources_it_imports():
             elif not mine:
                 packages.add((f.relative_to(root).as_posix(), spec))
     assert outside, 'the screener page imports nothing outside its folder: is the walk broken?'
-    assert [p for p in sorted(outside) if not (p.startswith('terminal/src/') or p.startswith('backtest/src/'))] == []
+    # EXEC-MU-ACCOUNTS Phase 0: shared/ holds the session module every page imports (shared/edge-session.ts)
+    assert [p for p in sorted(outside) if not (p.startswith(('terminal/src/', 'backtest/src/', 'shared/')))] == []
     assert packages == set()
 
 

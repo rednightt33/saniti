@@ -1,0 +1,394 @@
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=1576dc4f860a8f5b8b1a9bea1a4bf1b34203fe41d8eac52dfcd2d3d665353b05 by shared/build-shell.mjs; do not edit */
+var EdgeSession = (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+  // shared/edge-session.ts
+  var edge_session_exports = {};
+  __export(edge_session_exports, {
+    ENTITLEMENTS_HEADER: () => ENTITLEMENTS_HEADER,
+    LAST_LOGIN_KEY: () => LAST_LOGIN_KEY,
+    SESSION_URL: () => SESSION_URL,
+    STORAGE: () => STORAGE,
+    SessionError: () => SessionError,
+    accessText: () => accessText,
+    checkUser: () => checkUser,
+    classify: () => classify,
+    clearUserState: () => clearUserState,
+    edge: () => edge,
+    errorOf: () => errorOf,
+    isAccessRefusal: () => isAccessRefusal,
+    isLastLogin: () => isLastLogin,
+    keepsSession: () => keepsSession,
+    lastLogin: () => lastLogin,
+    loginKey: () => loginKey,
+    noteLogin: () => noteLogin,
+    readError: () => readError,
+    retryAfter: () => retryAfter,
+    sessionClient: () => sessionClient
+  });
+  var STORAGE = Object.freeze([
+    // the shell (static/index.html, static/edge-client.js)
+    { key: "edge-auth-monitor-theme", match: "exact", area: "local", kind: "browser", where: "shell, all pages", what: "light or dark theme" },
+    { key: "edge-monitor-collapsed", match: "exact", area: "local", kind: "browser", where: "shell", what: "Monitor sidebar folded" },
+    { key: "edge-monitor-width", match: "exact", area: "local", kind: "browser", where: "shell", what: "Monitor sidebar width" },
+    { key: "edge-details-width", match: "exact", area: "local", kind: "browser", where: "shell", what: "details panel width" },
+    { key: "edge-details-open", match: "exact", area: "session", kind: "browser", where: "shell", what: "details panel open" },
+    { key: "edge-pins-height", match: "exact", area: "local", kind: "browser", where: "shell", what: "pinned answers panel height" },
+    { key: "edge-pins-open", match: "exact", area: "local", kind: "browser", where: "shell", what: "pinned answers panel open" },
+    { key: "edge-flow-open", match: "exact", area: "local", kind: "browser", where: "shell", what: "flow panel open" },
+    { key: "edge-sources-open:", match: "prefix", area: "local", kind: "browser", where: "shell", what: "a Sources part opened (by its title)" },
+    { key: "edge-last-login", match: "exact", area: "local", kind: "browser", where: "shared/edge-session.ts", what: "the login signed in last, to see a change of user; removed on sign-out" },
+    { key: "edge-side-attach:", match: "prefix", area: "session", kind: "user", where: "shell", what: "a passage quoted into a side chat (by conversation id)" },
+    { key: "edge-model-choice", match: "exact", area: "local", kind: "user", where: "shell", what: "the chosen AI model and level" },
+    { key: "edge-research-context", match: "exact", area: "session", kind: "user", where: "shell (legacy)", what: "an older research context; removed on load" },
+    { key: "edge-research-context", match: "exact", area: "local", kind: "user", where: "shell (legacy)", what: "an older research context; removed on load" },
+    { key: "edge-auth-monitor-conversations", match: "exact", area: "local", kind: "user", where: "shell (legacy)", what: "an older conversation list; removed on load" },
+    { key: "edge-auth-monitor-conversations", match: "exact", area: "session", kind: "user", where: "shell (legacy)", what: "an older conversation list; removed on load" },
+    { key: "edge-session", match: "exact", area: "local", kind: "user", where: "shell (legacy)", what: "an older session copy; removed on load" },
+    { key: "edge-session", match: "exact", area: "session", kind: "user", where: "shell (legacy)", what: "an older session copy; removed on load" },
+    { key: "edge-active-run", match: "exact", area: "local", kind: "user", where: "shell (legacy)", what: "an older running question; removed on load" },
+    { key: "edge-active-run", match: "exact", area: "session", kind: "user", where: "shell (legacy)", what: "an older running question; removed on load" },
+    // the Terminal (terminal/src): a chart's content and the account's saved things are the user's; panel sizes are the browser's
+    { key: "ml.symbol", match: "exact", area: "local", kind: "user", where: "Terminal, Backtest, Screener, Radar, Overview, Watchlist", what: "the ticker the Terminal opens on" },
+    { key: "ml.tf", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "timeframe" },
+    { key: "ml.tfs", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "timeframes the data offered" },
+    { key: "ml.fi.metric", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "bond yield or price" },
+    { key: "ml.chart.style", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "candle or line" },
+    { key: "ml.chart.mode", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "price or return" },
+    { key: "ml.vol.on", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "volume shown" },
+    { key: "ml.vol.removed", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "volume removed" },
+    { key: "ml.ind.v1", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "the indicators on the chart" },
+    { key: "ml.ind.filters", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "indicator filters" },
+    { key: "ml.ind.favs", match: "exact", area: "local", kind: "user", where: "Terminal", what: "favourite indicators" },
+    { key: "ml.ind.box", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "Indicators window size" },
+    { key: "ml.ind.navw", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "Indicators window group list width" },
+    { key: "ml.legend.hidden", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "indicator names hidden" },
+    { key: "ml.events.v1", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "event markers chosen" },
+    { key: "ml.flow.filters", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "Flow Timeline filters" },
+    { key: "ml.flow.cum", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "Flow Timeline cumulative line" },
+    { key: "ml.flow.collapsed", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "Flow Timeline folded" },
+    { key: "ml.flow.h", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "Flow Timeline height" },
+    { key: "ml.flow.ratio", match: "exact", area: "local", kind: "user", where: "Terminal (layout)", what: "Flow Timeline height share" },
+    { key: "ml.layout.", match: "prefix", area: "local", kind: "user", where: "Terminal", what: "the open saved layout, its autosave and base" },
+    { key: "ml.drawings.", match: "prefix", area: "local", kind: "user", where: "Terminal", what: "drawings kept while the account cannot be reached (stamped with the login, M468)" },
+    { key: "ml.assets.v1", match: "exact", area: "local", kind: "user", where: "Terminal", what: "series added to the chart" },
+    { key: "ml.assets.defaults", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "default look of an added series" },
+    { key: "ml.assets.flow.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "an added series pane folded or its height" },
+    { key: "ml.draw.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "drawing tool choices (cursor, line, shape, measure, magnet)" },
+    { key: "ml.stats.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "left panel width, fold, sections and order" },
+    { key: "ml.broker.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "right panel width, fold, sections and order" },
+    { key: "ml.acc.top", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "top brokers shown" },
+    { key: "ml.fd.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "Foreign x Domestic top count and readout" },
+    { key: "ml.win.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "floating window places and which are open" },
+    { key: "ml.winst.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "floating broker window sort and view" },
+    { key: "terminal-files", match: "exact", area: "idb", kind: "user", where: "Terminal, Backtest, Screener", what: "downloaded data files and the Screener's last result" },
+    // the Backtest (backtest/src)
+    { key: "ml.my", match: "exact", area: "local", kind: "user", where: "Backtest", what: "my conditions" },
+    { key: "ml.bw", match: "exact", area: "local", kind: "browser", where: "Backtest", what: "panel width" },
+    { key: "ml.panel", match: "exact", area: "local", kind: "browser", where: "Backtest", what: "panel shown" },
+    // the Screener (screener/src)
+    { key: "scr.last", match: "exact", area: "local", kind: "user", where: "Screener", what: "the last screen definition" },
+    { key: "scr.boot", match: "exact", area: "local", kind: "user", where: "Screener", what: "the cached first paint pointer (with its login)" },
+    { key: "scr.extraCols", match: "exact", area: "local", kind: "user", where: "Screener", what: "extra columns chosen" },
+    { key: "scr.panel", match: "exact", area: "local", kind: "browser", where: "Screener", what: "panel layout" },
+    { key: "scr.panes", match: "exact", area: "local", kind: "browser", where: "Screener", what: "pane sizes" },
+    { key: "scr.popsize", match: "exact", area: "local", kind: "browser", where: "Screener", what: "pop-up sizes" },
+    { key: "scr.colorder", match: "exact", area: "local", kind: "browser", where: "Screener", what: "column order" },
+    // the Watchlist (watchlist/src)
+    { key: "edge.watchlist.view", match: "exact", area: "local", kind: "user", where: "Watchlist", what: "the open list id and Table or Cards" },
+    { key: "edge.watchlist.logos", match: "exact", area: "local", kind: "browser", where: "Watchlist", what: "issuer logo list (public, 12 hours)" }
+  ]);
+  function classify(key, area = "local") {
+    let best = null;
+    for (const e of STORAGE) {
+      if (e.area !== area) continue;
+      if (e.match === "exact" ? key === e.key : key.startsWith(e.key)) {
+        if (e.match === "exact") return e;
+        if (!best || e.key.length > best.key.length) best = e;
+      }
+    }
+    return best;
+  }
+  var OURS = /^(?:ml\.|scr\.|edge[.:-])/;
+  var isUserKey = (key, area) => {
+    const e = classify(key, area);
+    return e ? e.kind === "user" : OURS.test(key);
+  };
+  var LAST_LOGIN_KEY = "edge-last-login";
+  var CHANNEL = "edge-session";
+  var norm = (login) => String(login || "").trim().toLowerCase();
+  function areaOf(area) {
+    try {
+      return area === "local" ? globalThis.localStorage ?? null : globalThis.sessionStorage ?? null;
+    } catch {
+      return null;
+    }
+  }
+  function keysOf(s) {
+    const out = [];
+    try {
+      for (let i = 0; i < s.length; i++) {
+        const k = s.key(i);
+        if (k !== null) out.push(k);
+      }
+    } catch {
+    }
+    return out;
+  }
+  function lastLogin() {
+    try {
+      return areaOf("local")?.getItem(LAST_LOGIN_KEY) || "";
+    } catch {
+      return "";
+    }
+  }
+  function post(message) {
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        const c = new BroadcastChannel(CHANNEL);
+        c.postMessage(message);
+        c.close();
+      }
+    } catch {
+    }
+  }
+  function clearUserState(opts = {}) {
+    for (const area of ["local", "session"]) {
+      const s = areaOf(area);
+      if (!s) continue;
+      for (const k of keysOf(s)) {
+        if (k === LAST_LOGIN_KEY ? !!opts.signOut : isUserKey(k, area)) {
+          try {
+            s.removeItem(k);
+          } catch {
+          }
+        }
+      }
+    }
+    post({ type: "cleared", signOut: !!opts.signOut });
+    const idb = (() => {
+      try {
+        return globalThis.indexedDB;
+      } catch {
+        return void 0;
+      }
+    })();
+    const names = STORAGE.filter((e) => e.area === "idb" && e.kind === "user").map((e) => e.key);
+    if (!idb) return Promise.resolve();
+    return Promise.all(names.map((n) => new Promise((done) => {
+      try {
+        const r = idb.deleteDatabase(n);
+        r.onsuccess = r.onerror = () => done();
+        r.onblocked = () => done();
+      } catch {
+        done();
+      }
+    }))).then(() => void 0);
+  }
+  function noteLogin(login) {
+    const now = norm(login);
+    if (!now) return false;
+    const was = lastLogin();
+    const changed = !!was && was !== now;
+    if (changed) clearUserState();
+    try {
+      areaOf("local")?.setItem(LAST_LOGIN_KEY, now);
+    } catch {
+    }
+    return changed;
+  }
+  function checkUser(login) {
+    const now = norm(login), was = lastLogin();
+    if (!now || !was || was === now) return false;
+    clearUserState();
+    return true;
+  }
+  var isLastLogin = (login) => !!norm(login) && lastLogin() === norm(login);
+  var loginKey = norm;
+  function retryAfter(h, now = Date.now()) {
+    if (!h) return null;
+    const s = Number(h);
+    if (Number.isFinite(s) && s >= 0) return Math.ceil(s);
+    const t = Date.parse(h);
+    return Number.isFinite(t) ? Math.max(0, Math.ceil((t - now) / 1e3)) : null;
+  }
+  var KIND = {
+    UNAUTHENTICATED: "signin",
+    CSRF_INVALID: "csrf",
+    CAPABILITY_REQUIRED: "upgrade",
+    PLAN_EXPIRED: "upgrade",
+    MFA_REQUIRED: "mfa",
+    LIMIT_REACHED: "limit",
+    SIGN_IN_RATE_LIMIT: "wait",
+    ORIGIN_REJECTED: "origin",
+    NOT_FOUND: "not_found"
+  };
+  function readError(status, body, retryAfterHeader) {
+    const err = body && typeof body.error === "object" && body.error ? body.error : null;
+    let code = "", message = "", legacy = false;
+    if (err) {
+      code = String(err.code || "");
+      message = typeof err.message === "string" ? err.message : "";
+    } else if (body && typeof body.error === "string") code = body.error;
+    else if (body && "detail" in body && (status === 401 || status === 403)) {
+      legacy = true;
+      const detail = typeof body.detail === "string" ? body.detail : "";
+      code = status === 401 ? "UNAUTHENTICATED" : /csrf/i.test(detail) ? "CSRF_INVALID" : "FORBIDDEN";
+      message = detail;
+    }
+    if (!code) code = status === 401 ? "UNAUTHENTICATED" : `HTTP_${status}`;
+    const details = err && err.details && typeof err.details === "object" ? err.details : {};
+    const fromDetails = typeof details.retry_after_s === "number" ? Math.ceil(details.retry_after_s) : null;
+    const kind = status === 401 ? "signin" : status === 403 && code === "CSRF_INVALID" ? "csrf" : KIND[code] && KIND[code] !== "signin" && KIND[code] !== "csrf" ? KIND[code] : "other";
+    return {
+      status,
+      code,
+      message,
+      details,
+      ...err && typeof err.field === "string" ? { field: err.field } : {},
+      retryAfter: retryAfter(retryAfterHeader) ?? fromDetails,
+      legacy,
+      kind
+    };
+  }
+  async function errorOf(res) {
+    let body = null;
+    try {
+      body = await res.json();
+    } catch {
+    }
+    return readError(res.status, body, res.headers?.get?.("Retry-After"));
+  }
+  var keepsSession = (e) => e.kind !== "signin";
+  var isAccessRefusal = (e) => e.kind === "upgrade" || e.kind === "mfa" || e.kind === "limit" || e.kind === "wait";
+  var secs = (n) => n == null ? "a minute" : n === 1 ? "1 second" : `${n} seconds`;
+  function accessText(e) {
+    const name = typeof e.details.display_name === "string" && e.details.display_name ? e.details.display_name : "";
+    switch (e.kind) {
+      case "signin":
+        return e.message && !e.legacy ? e.message : "Your EDGE sign-in has ended. Sign in to EDGE again, then open this page again.";
+      case "csrf":
+        return "This page's sign-in check failed. Reload the page and try again.";
+      case "upgrade":
+        return e.message || (e.code === "PLAN_EXPIRED" ? "Your EDGE plan has ended. Renew it to use this again; you are still signed in." : `${name || "This feature"} is not part of your EDGE plan. Upgrade the plan to use it; you are still signed in.`);
+      case "mfa":
+        return e.message || "This needs your sign-in code. Enter the code from your authenticator app in EDGE, then try again.";
+      case "limit":
+        return e.message || `You have reached your plan's limit. Try again in ${secs(e.retryAfter)}, or upgrade the plan.`;
+      case "wait":
+        return e.message || `Too many sign-in attempts. Wait ${secs(e.retryAfter)}, then try again.`;
+      default:
+        return null;
+    }
+  }
+  var SESSION_URL = "/api/v1/auth/session";
+  var ENTITLEMENTS_HEADER = "X-Edge-Entitlements";
+  var SessionError = class extends Error {
+    constructor(error, message) {
+      super(message);
+      this.error = error;
+    }
+  };
+  var clients = /* @__PURE__ */ new Set();
+  var entitlements = null;
+  var listening = false;
+  function listen() {
+    if (listening) return;
+    listening = true;
+    try {
+      if (typeof BroadcastChannel === "undefined") return;
+      const c = new BroadcastChannel(CHANNEL);
+      c.onmessage = (ev) => {
+        const t = ev?.data?.type;
+        if (t === "entitlements" || t === "cleared") clients.forEach((fn) => fn());
+      };
+      c.unref?.();
+    } catch {
+    }
+  }
+  function noteVersion(res) {
+    let v = null;
+    try {
+      v = res.headers?.get?.(ENTITLEMENTS_HEADER) ?? null;
+    } catch {
+      v = null;
+    }
+    if (!v || v === entitlements) return;
+    const first = entitlements === null;
+    entitlements = v;
+    if (!first) {
+      clients.forEach((fn) => fn());
+      post({ type: "entitlements", version: v });
+    }
+  }
+  var WRITE = /* @__PURE__ */ new Set(["POST", "PUT", "PATCH", "DELETE"]);
+  function sessionClient(fetchImpl) {
+    const f = fetchImpl ?? ((...a) => fetch(...a));
+    let p = null, now = null;
+    const invalidate = () => {
+      p = null;
+      now = null;
+    };
+    clients.add(invalidate);
+    listen();
+    const session = () => p || (p = (async () => {
+      let res;
+      try {
+        res = await f(SESSION_URL, { credentials: "same-origin" });
+      } catch {
+        throw new SessionError(null, "EDGE could not be reached. Check the connection and try again.");
+      }
+      if (!res.ok) {
+        const e = await errorOf(res);
+        throw new SessionError(e, accessText(e) || `EDGE answered ${res.status}.`);
+      }
+      noteVersion(res);
+      const d = await res.json().catch(() => ({}));
+      const s = { login: String(d?.login || ""), csrf: String(d?.csrf_token || ""), access: d?.access ?? null, raw: d };
+      checkUser(s.login);
+      now = s;
+      return s;
+    })().catch((e) => {
+      p = null;
+      throw e;
+    }));
+    async function send(url, init = {}, retried = false) {
+      const method = String(init.method || "GET").toUpperCase();
+      const write = WRITE.has(method);
+      const headers = { ...init.headers || {} };
+      if (write) headers["X-CSRF-Token"] = (await session()).csrf;
+      const res = await f(url, { credentials: "same-origin", ...init, method, headers });
+      noteVersion(res);
+      if (res.status === 401) invalidate();
+      if (res.status === 403 && write && !retried) {
+        const e = await errorOf(res.clone());
+        if (e.kind === "csrf") {
+          invalidate();
+          return send(url, init, true);
+        }
+      }
+      return res;
+    }
+    return { session, send, invalidate, get current() {
+      return now;
+    } };
+  }
+  var edge = sessionClient();
+  return __toCommonJS(edge_session_exports);
+})();

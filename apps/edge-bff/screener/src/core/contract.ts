@@ -71,7 +71,11 @@ export interface BrokerRef { code: string; name: string; type?: string }
 export interface BrokerWindow { first: string | null; last: string | null; sessions: number; complete: boolean }
 
 /** Error body, the edge-bff convention ({"error": {...}}; apps/edge-bff/backtest/CONTRACT.md section 11). TEMPORARY
-    exception (report 8.1, ERRORS M261): 401/403 of the auth dependencies are {"detail": ...}; the client maps them. */
+    exception (report 8.1, ERRORS M261): 401/403 of the auth dependencies are {"detail": ...}; the client maps them.
+    EXEC-MU-ACCOUNTS Phase 0 (M471): the session refusals edge-bff answers for every route, in the same shape, are
+    `SessionErrorCode`; the page reads them through apps/edge-bff/shared/edge-session.ts (api/live.ts), never this core. */
+export type SessionErrorCode = 'UNAUTHENTICATED' | 'CSRF_INVALID' | 'CAPABILITY_REQUIRED' | 'PLAN_EXPIRED' | 'MFA_REQUIRED'
+  | 'ORIGIN_REJECTED' | 'LIMIT_REACHED' | 'SIGN_IN_RATE_LIMIT';
 export interface ApiError { error: { code: ErrorCode | string; field?: string; message?: string; details?: Record<string, unknown> } }
 
 /** Refusal and failure codes, exactly the table of report 8.8. Each refusal names the field where there is one and
