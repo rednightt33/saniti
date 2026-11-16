@@ -14970,6 +14970,12 @@ sesudah tarik ulang, hari sebelum tanggal ex tidak dikosongkan dan membandingkan
 - Deploy (Gerbang 2) bertambah: terminal-publisher (CLI upload; run pertama menerbitkan ulang semua berkas events =
   update besar, restart Postgres) dan telegram-monitor (sumber baru harus aktif sebelum publisher mengirim).
 
+**Jawaban user, 2026-11-16 (Gerbang 2):** "Bisa run tahap C dan D dulu for final check lagi? Goalnya cari blind spot.
+Assign 2 more agents instead of 2. OPUS 5.5 medium"; atas pertanyaan klarifikasi (Tahap D = port tampilan, bukan
+pemeriksaan): "Opsi C" = tinjauan dua agen (Opus 5.5 medium, read-only, diff `origin/main..84c45921` tanpa ringkasan
+kita; sudut 1 kebenaran dan look-ahead, sudut 2 kontrak, hak, deploy dan kompatibilitas lintas layanan), lalu Tahap D
+(port tampilan dari desain user, ditinjau Agent 10) sebelum deploy, lalu Gerbang 3. PR, merge dan deploy menunggu.
+
 ### Deploy (hanya setelah Gerbang 2) dan rollback
 
 1. PR branch → `main` (7B); CI hijau termasuk gerbang look-ahead; tidak ada job Backtest aktif (cek status job sebelum upload).
