@@ -757,3 +757,98 @@ Shared front-end layer (`shared/`, M471, M473):
   `node shared/build-shell.mjs`.**
 - Terminal drawings kept in the browser while the account cannot be reached are stamped with the page's identity
   (never the last-login mark; nothing is kept while it is unknown) and join only that login's account (M468, M477).
+
+## Accounts (EXEC-MU-ACCOUNTS Phase 1, 2026-11-16/17)
+
+Phase 1 builds EDGE accounts behind the switch `EDGE_MULTIUSER` (default `false`; it goes on only at Phase 6). Contract:
+`verification/edge_multiuser/access_tiers/CONTRACT.md` sections 0-5 and 12. Tables: migrations `20261116_003` and
+`20261117_001` (`DATABASE_CHANGELOG.md`).
+
+The switch and what it changes:
+
+| | `EDGE_MULTIUSER=false` (default, today) | `EDGE_MULTIUSER=true` (Phase 6) |
+| --- | --- | --- |
+| Sign-in | `EDGE_LOGIN` / `EDGE_PASSWORD_VERIFIER`, exactly as before | a username or email and the account's password (`edge_bff.identities`) |
+| Principal | user #1: owner `EDGE_OWNER`, every capability (`*`), admin rights from `EDGE_ADMIN_OWNERS`, version `env` | the session's account: role `admin` every capability, role `user` none (the plan catalog of Phase 2 replaces this) |
+| Account routes (table below) | 404 `NOT_FOUND`, except `GET /api/v1/auth/config` = `{"multiuser": false}` | open |
+| Email sender loop | not started | started with the worker (`EDGE_EMAIL_ENABLED`) |
+| Admin MFA | none | required before any admin route (403 `MFA_REQUIRED`) |
+| Sessions | as before | idle timeout `EDGE_SESSION_IDLE_SECONDS` (default 28800), at most 5 per user, `last_seen_at` written at most once a minute |
+| Seed of user #1 | at every start when `edge_bff.users` is empty; its password identity follows `EDGE_PASSWORD_VERIFIER` | the identity is the account's own and is never overwritten |
+| Preferences (below) | served for user #1 | served per account |
+
+The seed: user #1 is the configured owner (`edge-private` on dev), role `admin`, status `active`. Its username is
+`EDGE_LOGIN` lower-cased when that fits the username rule and is not reserved, else `admin_1` (`edge` is reserved, so
+dev's seed is `admin_1`). Its password identity is a copy of `EDGE_PASSWORD_VERIFIER`, so the password does not
+change. Every replica takes one advisory lock, so two starting together make one row. A failed seed keeps the
+switch-off sign-in working (logged `account_seed_failed`); with the switch on it keeps the worker from starting.
+
+Principal (`app/principal.py`): the owner of every request comes from it and only from it. Every router takes
+`routes(app, auth)`: `auth.principal` (401 `UNAUTHENTICATED`), `auth.writer` (plus CSRF), `auth.need(capability)`
+(403 `CAPABILITY_REQUIRED`), `auth.admin()` (the capability and MFA). `tests/test_principal.py` greps `app/` for
+`settings.owner`: only the seed and the switch-off mapping may read it. `GET /api/v1/auth/session` keeps today's keys
+and adds `owner_key`, `username` and `access` (`plan`, `role`, `status`, `expires_at`, `mfa_ok`, `capabilities`,
+`limits`, `version`, `next`).
+
+Account routes (`app/auth_flows.py`; POST with the exact Origin; a refusal in the error contract's shape):
+
+| Route | Body | Answer |
+| --- | --- | --- |
+| GET `/auth/config` (public) | — | `{"multiuser": true/false}`; the sign-in page shows Register and "Forgot password?" only when true |
+| POST `/auth/register` | `username`, `first_name`, `last_name`, `email`, `phone`, `password`, `password_repeat` | always 202 `CODE_SENT` for valid input, whether the email or username exists or not; an existing address gets the "account exists" email instead of a code |
+| POST `/auth/register/verify` | `email`, `code` (`username` to choose another) | 200 and the session cookie; 400 `CODE_INVALID_OR_EXPIRED` for any wrong, expired or used code; 409 `USERNAME_TAKEN` only after the code is proved |
+| POST `/auth/code/resend` | `email`, `purpose` (`register`/`reset`) | always 202 |
+| POST `/auth/password/forgot` | `email` | always 202 |
+| POST `/auth/password/reset` | `email`, `code`, `password`, `password_repeat` | 200 `{"next": "sign_in"}`; every session revoked, nobody signed in, a notification email |
+| POST `/auth/password/change` (writer) | `current_password`, `password`, `password_repeat` | other sessions revoked, a notification email |
+| POST `/auth/sign-out-all` (writer) | — | every session of the account |
+| POST `/auth/mfa/enroll` (admin, write) | — | `otpauth://` URI and 10 recovery codes, shown once |
+| POST `/auth/mfa/verify` (writer) | `code` or `recovery_code` | the session's `mfa_passed_at`; the session answer |
+| POST `/hooks/email/resend` | Resend's signed event | Svix signature checked over the raw body; each `svix-id` once (`email_hook_events`); a bounce or complaint goes to `email_suppression` |
+
+Rules: codes are 6 digits, HMAC-SHA256 with `EDGE_CODE_SECRET`, valid 300 s, 5 tries each and at most 20 failed tries
+per user per day (429 `LIMIT_REACHED`); one email per address per 60 s and 10 a day; passwords 8 to 256 characters,
+any character, refused when found in Pwned Passwords (k-anonymity range API, 2 s; when it cannot answer the password is
+accepted and `PWNED_CHECK_UNAVAILABLE` logged); a phone is normalised to E.164 (`08…` → `+628…`), not verified; a
+pending user is deleted 24 h after creation.
+
+Email (`app/mailer.py`, `app/email_texts.py`, plain English): a code and its email are written in one transaction
+(`edge_bff.email_outbox`). The sender is its own task beside the backtest loop, claiming one row at a time with
+`FOR UPDATE SKIP LOCKED` and a lease.
+- `EDGE_EMAIL_MODE=log` (default): the email is written to the log, the code masked unless `EDGE_ENVIRONMENT=local`,
+  and the row is marked sent with its payload kept, so a dev tester reads the code from the row. Allowed only with
+  `EDGE_ENVIRONMENT` dev or local when the switch is on.
+- `EDGE_EMAIL_MODE=resend`: POST `https://api.resend.com/emails` with the row's `Idempotency-Key`; retried after 5 s,
+  30 s and 2 min, then `failed`; the payload is nulled once sent; a code email past its expiry becomes `expired`, never
+  sent. Needs `RESEND_API_KEY` and `EDGE_EMAIL_FROM` (an address); `RESEND_WEBHOOK_SECRET` (`whsec_…`) signs the
+  webhook at `/api/v1/hooks/email/resend`.
+
+Admin MFA (`app/mfa.py`): TOTP (RFC 6238, SHA-1, 30 s, 6 digits, ±1 step, a used step never accepted again). The secret
+is HMAC-SHA256(`EDGE_MFA_KEY`, user id ‖ a stored 16-byte nonce)[:20], never stored: changing `EDGE_MFA_KEY` after an
+admin has enrolled invalidates every authenticator, so the key is set once and kept. The `/mfa` page shows the QR code
+with the vendored `static/qrcode-generator.js` (qrcode-generator 1.4.4, MIT, licence in
+`static/qrcode-generator.LICENSE`), served from this origin.
+
+Variables (all checked at start; with the switch off a missing one never stops it, a set one is still checked):
+`EDGE_MULTIUSER` (true/false only), `EDGE_SESSION_IDLE_SECONDS` (at least 60), `EDGE_CODE_SECRET` and `EDGE_MFA_KEY`
+(at least 32 characters; required with the switch on), `EDGE_EMAIL_MODE` (log/resend), `EDGE_EMAIL_ENABLED`,
+`EDGE_EMAIL_FROM`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`.
+
+Preferences (`app/preferences.py`, contract 4b, user 2026-11-16): an account's preferences and saved items that the
+pages kept only in the browser come back on any device. `GET /api/v1/preferences` gives every key of the principal's
+owner with its version and the limits; `PUT /api/v1/preferences/{key}` (writer) `{value, version}`: 201 created, 200
+replaced, 409 `PREFERENCE_CONFLICT` with the current value for a stale version, 422 `PREFERENCE_LIMIT` (64 keys,
+64 KiB per value, 1 MiB in all). They work with the switch off too, for user #1.
+
+Front-end (`static/index.html`, `shared/edge-session.ts`):
+- One route table, `ROUTES` in `index.html`, read by `go()` and `currentPath`: the tab pages (`auth`), `/login`, and
+  the account pages `/register`, `/verify`, `/forgot`, `/reset` (`open`: shown only while `/auth/config` says
+  `multiuser`, else the sign-in page) and `/mfa`. `main.py` serves each path; a new page needs a row here and a route
+  there, and its words in `EdgeLabels.pages`.
+- Identity: a page keys its user by the session's `owner_key` (else the login), so a renamed username is the same user.
+- Sync rule of the storage registry: every `user` key is either `sync` (a preference or saved item, copied to the
+  account through `/api/v1/preferences`; only an exact localStorage key) or `cache` (the account holds the original
+  elsewhere, or it is transient). After its session read the shell loads the account copy into this browser and, when
+  the local state is this same identity's, uploads a local value the server lacks once; a change is written a second
+  later with the version it was read with. `tests/test_storage_registry.py` fails on a `user` key without exactly one
+  flag, and on a change of the synced set (`SYNCED`): a new synced key is a decision recorded in the test.

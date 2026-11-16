@@ -15542,3 +15542,106 @@ so the migration goes first; Orc refuses a request without an owner, which every
 10. **Postgres memory:** the migration is small (an empty table), not a large update. Restart Postgres only if the
     job's `POSTGRES_MEMORY_CHECK` line says `READY` (`python3 scripts/restart_postgres.py`, then `--apply`, after the
     M340 check), and record it in `RAILWAY_CHANGELOG.md`.
+
+### Phase 1 deploy steps (prepared, not run)
+
+Prepared 2026-11-17 by builder B5 for the main agent. Code: `git diff 47dce4e3..HEAD` on branch
+`claude/pensive-feynman-4ahfe3` (integrated at `925d1b1e`): migrations `20261116_003` (accounts foundation) and
+`20261117_001` (pending username, `email_hook_events`); `app/principal.py` and every router on the principal;
+`auth_flows.py`, `mailer.py`, `email_texts.py`, `mfa.py`, `passwords.py`, `preferences.py`; the pages `/register`,
+`/verify`, `/forgot`, `/reset`, `/mfa`; preferences sync (`apps/edge-bff/README.md`, "Accounts"). Integrated tests at
+`925d1b1e` (main agent): edge-bff 342 passed / 146 skipped without a browser; Terminal vitest 933; builds OK;
+`node shared/build-shell.mjs --check` OK. The independent checkers C1 and C2 are still running: do not start before
+their findings are fixed and the counts are updated here. Nothing below has run.
+
+What changes for the current user with the switch off: nothing in sign-in or the tabs. Two things are new and visible
+in the data: user #1 is seeded into `edge_bff.users` at the first start, and the shell starts copying the `sync`
+browser keys (model choice, Terminal chart settings, favourites, Screener columns, ...) to
+`edge_bff.user_preferences`. `EDGE_MULTIUSER` stays `false` in every step below.
+
+Order matters: this edge-bff's `/ready` (its healthcheck) reads `edge_bff.users`, the new session columns and
+`edge_bff.user_preferences`, so both migrations go first; a build deployed before them never takes traffic (Railway
+keeps the previous deployment serving). `/ready` does not read `requested_username` or `email_hook_events`, so apply
+the two migrations together, in one job.
+
+1. **No user run active (M340).** `edge_bff.jobs` has no QUEUED, RUNNING or RECOVERING row and `AI_conversation_turn`
+   no RUNNING row; repeat right before steps 2 and 5 and before any Postgres restart.
+   - Check: both counts 0 in the same job, right before the next step. Rollback: none (read only).
+2. **Migrations `20261116_003_edge_bff_accounts_users.sql`** (sha256 `d5e2352b…92201dd4138`) **and
+   `20261117_001_edge_bff_accounts_registration.sql`** (sha256 `ac275784…a19cc69f730`; full values in
+   `DATABASE_CHANGELOG.md`): DRYRUN, then APPLY, in that order in one job, through `scripts/onboarding/run_job.sh
+   scripts/onboarding/migration_job.py` with `verification/edge_multiuser/jobs/migration20261116_003_20261117_001.params.json`
+   and `..._apply.params.json`, both migration files passed as extras.
+   - Check (the probes, DRYRUN inside the rehearsal, APPLY after the commit): the `MIG ... sha256=` lines equal the
+     changelog; the ten tables present; `users` and the four new `sessions` columns; the NOT NULL columns, keys and
+     CHECKs as the files define them; only the indexes of the files (`users_one_seed`, `email_codes_one_live` and the
+     keys); the trigger `users_owner_key_rules` (not SECURITY DEFINER); `runtime_grants` and `login_grants` each equal
+     to `expected` for every table (the login through `edge_bff_runtime`), `public_grants` empty; sequences USAGE only
+     and nothing for PUBLIC; every new table 0 rows (the seed comes at edge-bff's start), readable as
+     `edge_bff_runtime`; every table commented. Then the two `APPLIED.sha256` lines and the changelog entries marked
+     applied.
+   - Rollback: a new forward migration with the rollback bodies at the end of the files, `20261117_001`'s first, applied
+     only after edge-bff is back on the previous build (the previous build reads none of these tables). With the
+     switch off the only data lost is the seed and the saved preferences.
+3. **Login privileges, read only.** Do **not** re-run `scripts/provision_edge_bff_login.py`: it also sets the login's
+   password, which a re-run would rotate under the running edge-bff (as Phase 0 recorded). The `login_grants` probe of
+   step 2 is the check: `edge_bff_login` holds, through `edge_bff_runtime`, exactly the grants of
+   `ACCOUNT_GRANTS`/`REGISTRATION_GRANTS`, and nothing for TRUNCATE, REFERENCES or TRIGGER.
+   - Check: as above. Rollback: none (read only).
+4. **Secrets `EDGE_CODE_SECRET` and `EDGE_MFA_KEY`** on edge-bff (contract section 16; part of Phase 1 in the go
+   "B: go Fase 0 + Fase 1"). Each is made in the process (`secrets.token_urlsafe(48)`, 64 characters) and piped to `railway
+   variable set --stdin --skip-deploys`; never printed; read back by length only (64) and that the two differ.
+   `EDGE_MFA_KEY` is set once and kept: changing it after an admin has enrolled invalidates every authenticator.
+   - Leave unset/unchanged: `EDGE_MULTIUSER` (unset = false), `EDGE_EMAIL_MODE` (unset = `log`),
+     `EDGE_EMAIL_ENABLED`, `EDGE_SESSION_IDLE_SECONDS` (default 28800).
+   - Email: `EDGE_EMAIL_MODE` stays `log` until the user's mail domain and Resend are ready (expected Thursday
+     2026-11-19). Then, as a separate step with the user: the user enters `RESEND_API_KEY` in the dashboard (never in
+     chat); `EDGE_EMAIL_FROM` (for example `EDGE <no-reply@mail.<domain>>`); in Resend a webhook to
+     `https://edge-bff-dev.up.railway.app/api/v1/hooks/email/resend` for bounces and complaints, whose `whsec_…`
+     signing secret the user enters as `RESEND_WEBHOOK_SECRET`; then `EDGE_EMAIL_MODE=resend` and a redeploy. edge-bff
+     refuses to start with `resend` but no key or sender address, and with the switch on and `log` outside dev/local.
+   - Check: lengths read back; `python3 scripts/railway_reference_consumers.py edge-bff.EDGE_CODE_SECRET` (and
+     `EDGE_MFA_KEY`) lists no consumer. Rollback: unset both; with the switch off edge-bff does not need them (a set
+     value is only checked for its length).
+5. **Merge to `main`** (go item 1): rebase or merge onto the current `main`, every suite of
+   `.github/workflows/backend-tests.yml` and `backtest-lookahead.yml` green on the branch, `git diff --check`, push.
+   edge-bff deploys after green checks (`checkSuites`); market-ai-orc, terminal-api and the workers do not change in
+   Phase 1 (check with `git diff --stat` that only `apps/edge-bff`, `scripts/provision_edge_bff_login.py`, migrations
+   and records changed; otherwise deploy the other services as Phase 0 did).
+   - Check: that exact edge-bff deployment at `SUCCESS`; `/ready` 200; the log shows `account_seeded` once (or
+     nothing on a later start), never `account_seed_failed`.
+   - Rollback: redeploy the previous edge-bff deployment (its id recorded before the push) or revert the merge. The
+     previous build ignores the new tables and columns.
+6. **Smoke checks with the switch off** (from outside; then the user's own sign-in, which the agent cannot do):
+   - `GET /api/v1/auth/config` → 200 `{"multiuser": false}`;
+   - each new route answers 404 `NOT_FOUND` without and with a session: `POST /api/v1/auth/register`,
+     `/register/verify`, `/code/resend`, `/password/forgot`, `/password/reset`, `/password/change`, `/sign-out-all`,
+     `/mfa/enroll`, `/mfa/verify`, `/api/v1/hooks/email/resend`;
+   - the pages `/register`, `/verify`, `/forgot`, `/reset` show the sign-in page (registration is closed), `/mfa` 200;
+     `/qrcode-generator.js` 200;
+   - `/api/v1/auth/session` without a cookie 401 `UNAUTHENTICATED`; a wrong login 401 `INVALID_CREDENTIALS`;
+   - the user: sign-in with the same login and password as before; every tab as today (Monitor, Terminal, Backtest,
+     Screener, Radar, Overview, Watchlist); `GET /api/v1/auth/session` has `owner_key` `edge-private` and
+     `access.version` `env`; `GET /api/v1/preferences` 200; a Terminal setting changed on one browser comes back on
+     another after sign-in.
+   - Check: each item; any failure stops here. Rollback: step 5's.
+7. **The seed of user #1, read back** (read only): `scripts/onboarding/run_job.sh scripts/onboarding/migration_job.py
+   verification/edge_multiuser/jobs/phase1_seed_readback.params.json` (APPLY with no migration: the probes run in a
+   READ ONLY transaction; no verifier, email or other value is printed). Expected: one `users` row, `owner_key`
+   `edge-private`, username `admin_1` (`EDGE_LOGIN` `edge` is reserved), role `admin`, status `active`,
+   `requested_username` NULL; one `password` identity whose subject is the user id and whose verifier has the scrypt
+   shape (it is the copy of `EDGE_PASSWORD_VERIFIER`: no password change, proved by the user's unchanged sign-in in
+   step 6); no codes, MFA rows, outbox rows, audit rows or account sessions; preferences only under `edge-private`.
+   - Rollback: none (read only). A wrong seed is fixed by a reviewed statement with the user's approval, never by
+     re-running the provisioning script.
+8. **Configuration as code:** add `EDGE_CODE_SECRET: preserve()` and `EDGE_MFA_KEY: preserve()` to edge-bff's env in
+   `.railway/railway.ts` (and later `EDGE_EMAIL_MODE`, `EDGE_EMAIL_FROM`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`,
+   each when it is set); edit by hand (a full `railway config pull --force --variables=managed` rewrites the file, as
+   Phase 0 recorded) and run `railway config plan`.
+   - Check: the plan says the configuration is up to date. Rollback: revert the `railway.ts` commit (it changes
+     nothing by itself; `railway config apply` is never run, R5).
+9. **Records:** `RAILWAY_CHANGELOG.md` (each job id, the deployment id and its `SUCCESS` time, the variable actions by
+   name, scope, action and verification only); `DATABASE_CHANGELOG.md` (applied, read-back, the seed) and
+   `APPLIED.sha256`; `ERRORS_AND_SOLUTIONS.md` (the checkers' consolidated entry, its statuses to deployed).
+10. **Postgres memory:** both migrations create small empty tables, not a large update. Restart Postgres only if a
+    job's `POSTGRES_MEMORY_CHECK` line says `READY` (after the M340 check), and record it in `RAILWAY_CHANGELOG.md`.
