@@ -26,11 +26,16 @@ export interface StorageEntry {
   match: 'exact' | 'prefix';
   area: StorageArea;                 // localStorage, sessionStorage, or an IndexedDB database name
   kind: StorageKind;
+  /* a `user` key is one of two (tests/test_storage_registry.py): `sync` (a preference or saved item, copied to the
+     account, contract 4b: GET/PUT /api/v1/preferences) or `cache` (the account holds the original elsewhere, or it is
+     transient: offline copies, pointers, caches, legacy keys) */
+  sync?: true;
+  cache?: true;
   where: string;                     // who writes it
   what: string;                      // what it holds, in plain words
 }
 
-/* One entry per line (the test reads this table line by line): { key, match, area, kind, where, what }. */
+/* One entry per line (the test reads this table line by line): { key, match, area, kind, sync|cache, where, what }. */
 export const STORAGE: readonly StorageEntry[] = Object.freeze([
   // the shell (static/index.html, static/edge-client.js)
   { key:'edge-auth-monitor-theme', match:'exact', area:'local', kind:'browser', where:'shell, all pages', what:'light or dark theme' },
@@ -42,41 +47,41 @@ export const STORAGE: readonly StorageEntry[] = Object.freeze([
   { key:'edge-pins-open', match:'exact', area:'local', kind:'browser', where:'shell', what:'pinned answers panel open' },
   { key:'edge-flow-open', match:'exact', area:'local', kind:'browser', where:'shell', what:'flow panel open' },
   { key:'edge-sources-open:', match:'prefix', area:'local', kind:'browser', where:'shell', what:'a Sources part opened (by its title)' },
-  { key:'edge-last-login', match:'exact', area:'local', kind:'browser', where:'shared/edge-session.ts', what:'the login signed in last, to see a change of user; removed on sign-out' },
-  { key:'edge-side-attach:', match:'prefix', area:'session', kind:'user', where:'shell', what:'a passage quoted into a side chat (by conversation id)' },
-  { key:'edge-model-choice', match:'exact', area:'local', kind:'user', where:'shell', what:'the chosen AI model and level' },
-  { key:'edge-research-context', match:'exact', area:'session', kind:'user', where:'shell (legacy)', what:'an older research context; removed on load' },
-  { key:'edge-research-context', match:'exact', area:'local', kind:'user', where:'shell (legacy)', what:'an older research context; removed on load' },
-  { key:'edge-auth-monitor-conversations', match:'exact', area:'local', kind:'user', where:'shell (legacy)', what:'an older conversation list; removed on load' },
-  { key:'edge-auth-monitor-conversations', match:'exact', area:'session', kind:'user', where:'shell (legacy)', what:'an older conversation list; removed on load' },
-  { key:'edge-session', match:'exact', area:'local', kind:'user', where:'shell (legacy)', what:'an older session copy; removed on load' },
-  { key:'edge-session', match:'exact', area:'session', kind:'user', where:'shell (legacy)', what:'an older session copy; removed on load' },
-  { key:'edge-active-run', match:'exact', area:'local', kind:'user', where:'shell (legacy)', what:'an older running question; removed on load' },
-  { key:'edge-active-run', match:'exact', area:'session', kind:'user', where:'shell (legacy)', what:'an older running question; removed on load' },
+  { key:'edge-last-login', match:'exact', area:'local', kind:'browser', where:'shared/edge-session.ts', what:'the identity signed in last (owner:<owner key>, else the login), to see a change of user; removed on sign-out' },
+  { key:'edge-side-attach:', match:'prefix', area:'session', kind:'user', cache:true, where:'shell', what:'a passage quoted into a side chat (by conversation id)' },
+  { key:'edge-model-choice', match:'exact', area:'local', kind:'user', sync:true, where:'shell', what:'the chosen AI model and level' },
+  { key:'edge-research-context', match:'exact', area:'session', kind:'user', cache:true, where:'shell (legacy)', what:'an older research context; removed on load' },
+  { key:'edge-research-context', match:'exact', area:'local', kind:'user', cache:true, where:'shell (legacy)', what:'an older research context; removed on load' },
+  { key:'edge-auth-monitor-conversations', match:'exact', area:'local', kind:'user', cache:true, where:'shell (legacy)', what:'an older conversation list; removed on load' },
+  { key:'edge-auth-monitor-conversations', match:'exact', area:'session', kind:'user', cache:true, where:'shell (legacy)', what:'an older conversation list; removed on load' },
+  { key:'edge-session', match:'exact', area:'local', kind:'user', cache:true, where:'shell (legacy)', what:'an older session copy; removed on load' },
+  { key:'edge-session', match:'exact', area:'session', kind:'user', cache:true, where:'shell (legacy)', what:'an older session copy; removed on load' },
+  { key:'edge-active-run', match:'exact', area:'local', kind:'user', cache:true, where:'shell (legacy)', what:'an older running question; removed on load' },
+  { key:'edge-active-run', match:'exact', area:'session', kind:'user', cache:true, where:'shell (legacy)', what:'an older running question; removed on load' },
   // the Terminal (terminal/src): a chart's content and the account's saved things are the user's; panel sizes are the browser's
-  { key:'ml.symbol', match:'exact', area:'local', kind:'user', where:'Terminal, Backtest, Screener, Radar, Overview, Watchlist', what:'the ticker the Terminal opens on' },
-  { key:'ml.tf', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'timeframe' },
+  { key:'ml.symbol', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal, Backtest, Screener, Radar, Overview, Watchlist', what:'the ticker the Terminal opens on' },
+  { key:'ml.tf', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'timeframe' },
   { key:'ml.tfs', match:'exact', area:'local', kind:'browser', where:'Terminal', what:'timeframes the data offered' },
-  { key:'ml.fi.metric', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'bond yield or price' },
-  { key:'ml.chart.style', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'candle or line' },
-  { key:'ml.chart.mode', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'price or return' },
-  { key:'ml.vol.on', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'volume shown' },
-  { key:'ml.vol.removed', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'volume removed' },
-  { key:'ml.ind.v1', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'the indicators on the chart' },
-  { key:'ml.ind.filters', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'indicator filters' },
-  { key:'ml.ind.favs', match:'exact', area:'local', kind:'user', where:'Terminal', what:'favourite indicators' },
+  { key:'ml.fi.metric', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'bond yield or price' },
+  { key:'ml.chart.style', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'candle or line' },
+  { key:'ml.chart.mode', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'price or return' },
+  { key:'ml.vol.on', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'volume shown' },
+  { key:'ml.vol.removed', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'volume removed' },
+  { key:'ml.ind.v1', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'the indicators on the chart' },
+  { key:'ml.ind.filters', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'indicator filters' },
+  { key:'ml.ind.favs', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal', what:'favourite indicators' },
   { key:'ml.ind.box', match:'exact', area:'local', kind:'browser', where:'Terminal', what:'Indicators window size' },
   { key:'ml.ind.navw', match:'exact', area:'local', kind:'browser', where:'Terminal', what:'Indicators window group list width' },
-  { key:'ml.legend.hidden', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'indicator names hidden' },
-  { key:'ml.events.v1', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'event markers chosen' },
-  { key:'ml.flow.filters', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'Flow Timeline filters' },
-  { key:'ml.flow.cum', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'Flow Timeline cumulative line' },
-  { key:'ml.flow.collapsed', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'Flow Timeline folded' },
-  { key:'ml.flow.h', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'Flow Timeline height' },
-  { key:'ml.flow.ratio', match:'exact', area:'local', kind:'user', where:'Terminal (layout)', what:'Flow Timeline height share' },
-  { key:'ml.layout.', match:'prefix', area:'local', kind:'user', where:'Terminal', what:'the open saved layout, its autosave and base' },
-  { key:'ml.drawings.', match:'prefix', area:'local', kind:'user', where:'Terminal', what:'drawings kept while the account cannot be reached (stamped with the login, M468)' },
-  { key:'ml.assets.v1', match:'exact', area:'local', kind:'user', where:'Terminal', what:'series added to the chart' },
+  { key:'ml.legend.hidden', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'indicator names hidden' },
+  { key:'ml.events.v1', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'event markers chosen' },
+  { key:'ml.flow.filters', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'Flow Timeline filters' },
+  { key:'ml.flow.cum', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'Flow Timeline cumulative line' },
+  { key:'ml.flow.collapsed', match:'exact', area:'local', kind:'user', cache:true, where:'Terminal (layout)', what:'Flow Timeline folded' },
+  { key:'ml.flow.h', match:'exact', area:'local', kind:'user', cache:true, where:'Terminal (layout)', what:'Flow Timeline height' },
+  { key:'ml.flow.ratio', match:'exact', area:'local', kind:'user', cache:true, where:'Terminal (layout)', what:'Flow Timeline height share' },
+  { key:'ml.layout.', match:'prefix', area:'local', kind:'user', cache:true, where:'Terminal', what:'the open saved layout, its autosave and base' },
+  { key:'ml.drawings.', match:'prefix', area:'local', kind:'user', cache:true, where:'Terminal', what:'drawings kept while the account cannot be reached (stamped with the login, M468)' },
+  { key:'ml.assets.v1', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal', what:'series added to the chart' },
   { key:'ml.assets.defaults', match:'exact', area:'local', kind:'browser', where:'Terminal', what:'default look of an added series' },
   { key:'ml.assets.flow.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'an added series pane folded or its height' },
   { key:'ml.draw.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'drawing tool choices (cursor, line, shape, measure, magnet)' },
@@ -86,21 +91,21 @@ export const STORAGE: readonly StorageEntry[] = Object.freeze([
   { key:'ml.fd.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'Foreign x Domestic top count and readout' },
   { key:'ml.win.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'floating window places and which are open' },
   { key:'ml.winst.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'floating broker window sort and view' },
-  { key:'terminal-files', match:'exact', area:'idb', kind:'user', where:'Terminal, Backtest, Screener', what:'downloaded data files and the Screener\'s last result' },
+  { key:'terminal-files', match:'exact', area:'idb', kind:'user', cache:true, where:'Terminal, Backtest, Screener', what:'downloaded data files and the Screener\'s last result' },
   // the Backtest (backtest/src)
-  { key:'ml.my', match:'exact', area:'local', kind:'user', where:'Backtest', what:'my conditions' },
+  { key:'ml.my', match:'exact', area:'local', kind:'user', sync:true, where:'Backtest', what:'my conditions' },
   { key:'ml.bw', match:'exact', area:'local', kind:'browser', where:'Backtest', what:'panel width' },
   { key:'ml.panel', match:'exact', area:'local', kind:'browser', where:'Backtest', what:'panel shown' },
   // the Screener (screener/src)
-  { key:'scr.last', match:'exact', area:'local', kind:'user', where:'Screener', what:'the last screen definition' },
-  { key:'scr.boot', match:'exact', area:'local', kind:'user', where:'Screener', what:'the cached first paint pointer (with its login)' },
-  { key:'scr.extraCols', match:'exact', area:'local', kind:'user', where:'Screener', what:'extra columns chosen' },
+  { key:'scr.last', match:'exact', area:'local', kind:'user', sync:true, where:'Screener', what:'the last screen definition' },
+  { key:'scr.boot', match:'exact', area:'local', kind:'user', cache:true, where:'Screener', what:'the cached first paint pointer (with its login)' },
+  { key:'scr.extraCols', match:'exact', area:'local', kind:'user', sync:true, where:'Screener', what:'extra columns chosen' },
   { key:'scr.panel', match:'exact', area:'local', kind:'browser', where:'Screener', what:'panel layout' },
   { key:'scr.panes', match:'exact', area:'local', kind:'browser', where:'Screener', what:'pane sizes' },
   { key:'scr.popsize', match:'exact', area:'local', kind:'browser', where:'Screener', what:'pop-up sizes' },
   { key:'scr.colorder', match:'exact', area:'local', kind:'browser', where:'Screener', what:'column order' },
   // the Watchlist (watchlist/src)
-  { key:'edge.watchlist.view', match:'exact', area:'local', kind:'user', where:'Watchlist', what:'the open list id and Table or Cards' },
+  { key:'edge.watchlist.view', match:'exact', area:'local', kind:'user', sync:true, where:'Watchlist', what:'the open list id and Table or Cards' },
   { key:'edge.watchlist.logos', match:'exact', area:'local', kind:'browser', where:'Watchlist', what:'issuer logo list (public, 12 hours)' },
 ]);
 
@@ -169,23 +174,48 @@ export function clearUserState(opts: { signOut?: boolean } = {}): Promise<void> 
   }))).then(() => undefined);
 }
 
-/** the shell, after a sign-in or a session read: another login than the last one clears the previous account's state
-    first; then this login is the last one. A browser with no mark (the first load after this change) adopts the login
-    and clears nothing: until now EDGE had one account. true when state was cleared. */
-export function noteLogin(login: string): boolean {
-  const now = norm(login); if (!now) return false;
-  const was = lastLogin();
-  const changed = !!was && was !== now;
-  if (changed) clearUserState();
-  try { areaOf('local')?.setItem(LAST_LOGIN_KEY, now) } catch { /* storage off: nothing of the account is kept either */ }
-  return changed;
+/* EXEC-MU-ACCOUNTS Phase 1: an identity is `owner:<owner key>` when the session answer carries the stable owner key
+   (contract section 2), else the login (Phase 0 and the switch off). A username cannot hold ':' (^[a-z0-9_]{3,30}$), so
+   the two forms never meet. The marks and the drawing stamps written with the login by the same account are moved to
+   the owner key once (migrateIdentity). */
+export const identityOf = (login: string, ownerKey?: string | null) => ownerKey ? `owner:${norm(ownerKey)}` : norm(login);
+
+/** the drawing copies stamped with `from` (the login) are stamped with `to` (the owner key): the same account */
+export function migrateIdentity(from: string, to: string) {
+  const s = areaOf('local'); if (!s || !from || !to || from === to) return;
+  for (const k of keysOf(s)) {
+    if (!k.startsWith('ml.drawings.')) continue;
+    try {
+      const v = JSON.parse(s.getItem(k) || 'null');
+      if (v && typeof v === 'object' && !Array.isArray(v) && v.owner === from) s.setItem(k, JSON.stringify({ ...v, owner:to }));
+    } catch { /* not a stamped copy */ }
+  }
 }
 
-/** a page (inside the shell's frame or opened alone): another login than the shell's last one clears the previous
-    account's state. A page never writes the mark (the shell does), so its own storage stays its own keys. */
-export function checkUser(login: string): boolean {
-  const now = norm(login), was = lastLogin();
+/** the shell, after a sign-in or a session read: another identity than the last one clears the previous account's
+    state first; then this one is the last. A browser with no mark adopts the identity and clears nothing (until Phase 0
+    EDGE had one account). A mark holding this account's login while the answer now carries its owner key is the same
+    account: the mark and its drawing stamps move to the owner key. `same`: the local state was this identity's. */
+export function noteIdentity(login: string, ownerKey?: string | null): { changed: boolean; same: boolean } {
+  const now = identityOf(login, ownerKey); if (!now) return { changed:false, same:false };
+  const was = lastLogin();
+  const upgraded = !!ownerKey && was === norm(login);
+  if (upgraded) migrateIdentity(was, now);
+  const changed = !!was && was !== now && !upgraded;
+  if (changed) clearUserState();
+  try { areaOf('local')?.setItem(LAST_LOGIN_KEY, now) } catch { /* storage off: nothing of the account is kept either */ }
+  return { changed, same:!!was && (was === now || upgraded) };
+}
+/** noteIdentity's `changed` (Phase 0 callers) */
+export const noteLogin = (login: string, ownerKey?: string | null): boolean => noteIdentity(login, ownerKey).changed;
+
+/** a page (inside the shell's frame or opened alone): another identity than the shell's last one clears the previous
+    account's state. A page never writes the mark (the shell does), so its own storage stays its own keys; a mark of
+    this account's login with its owner key now known is the same account (its stamps move, the shell moves the mark). */
+export function checkUser(login: string, ownerKey?: string | null): boolean {
+  const now = identityOf(login, ownerKey), was = lastLogin();
   if (!now || !was || was === now) return false;
+  if (ownerKey && was === norm(login)) { migrateIdentity(was, now); return false }
   clearUserState();
   return true;
 }
@@ -278,7 +308,7 @@ export function accessText(e: EdgeError): string | null {
 export const SESSION_URL = '/api/v1/auth/session';
 export const ENTITLEMENTS_HEADER = 'X-Edge-Entitlements';
 
-export interface EdgeSessionInfo { login: string; csrf: string; access: unknown; raw: any }
+export interface EdgeSessionInfo { login: string; ownerKey: string | null; csrf: string; access: unknown; raw: any }
 
 /** a failed session read: `error` is the refusal (kind 'signin' on a 401), or null when EDGE could not be reached */
 export class SessionError extends Error {
@@ -351,8 +381,13 @@ export function sessionClient(fetchImpl?: typeof fetch) {
     if (!res.ok) { const e = await errorOf(res); throw new SessionError(e, accessText(e) || `EDGE answered ${res.status}.`) }
     noteVersion(res);
     const d = await res.json().catch(() => ({}));
-    const s: EdgeSessionInfo = { login:String(d?.login || ''), csrf:String(d?.csrf_token || ''), access:d?.access ?? null, raw:d };
-    if (identity && norm(s.login) !== identity) {
+    const owner = d?.owner_key ?? d?.access?.owner_key;
+    const s: EdgeSessionInfo = { login:String(d?.login || ''), ownerKey:typeof owner === 'string' && owner ? owner : null,
+      csrf:String(d?.csrf_token || ''), access:d?.access ?? null, raw:d };
+    const id = identityOf(s.login, s.ownerKey);
+    // the same account, now named by its owner key (a deploy between two reads): the identity moves with it
+    if (identity && id !== identity && s.ownerKey && identity === norm(s.login)) { migrateIdentity(identity, id); identity = id }
+    if (identity && id !== identity) {
       // another account signed in on this browser since the page opened: never act for it with this page's state
       fireResets();
       void clearUserState();
@@ -360,8 +395,8 @@ export function sessionClient(fetchImpl?: typeof fetch) {
       const e = readError(401, { error:{ code:'USER_CHANGED', message:'Another EDGE account signed in on this browser. Reload the page to continue as that account.' } });
       throw new SessionError(e, e.message);
     }
-    checkUser(s.login);
-    if (!identity) identity = norm(s.login);
+    checkUser(s.login, s.ownerKey);
+    if (!identity) identity = id;
     now = s;
     return s;
   })().catch(e => { p = null; throw e });
@@ -395,10 +430,103 @@ export function sessionClient(fetchImpl?: typeof fetch) {
     return res;
   }
   return { session, send, invalidate, get current() { return now },
-    /** the login this page opened with ('' before its first session read) */
-    get identity() { return identity } };
+    /** the identity this page opened with ('' before its first session read): owner:<owner key>, else the login */
+    get identity() { return identity },
+    /** the shell only, on its own sign-out or sign-in: the next session read is a new identity, not a change of user */
+    forget() { invalidate(); identity = '' } };
 }
 export type SessionClient = ReturnType<typeof sessionClient>;
 
 /** the page's one session (global fetch, read when called so a test's stub is used) */
 export const edge: SessionClient = sessionClient();
+
+/* ---- account preferences (contract 4b) ---------------------------------------------------------------------------- */
+
+/** the keys copied to the account (registry `sync`) */
+export const SYNC_KEYS: readonly string[] = Object.freeze(STORAGE.filter(e => e.sync && e.match === 'exact' && e.area === 'local').map(e => e.key));
+export const PREFERENCES_URL = '/api/v1/preferences';
+const PREF_MAX = 65536;                              // contract 4b: the server's cap per key (64 KB)
+
+interface PrefState { version: number | null; value: string | null }
+/* the server's list, as {preferences: [{key, value, version}]} or {preferences: {key: {value, version}}} */
+function prefList(body: any): { key: string; value: unknown; version: number | null }[] {
+  const p = body?.preferences ?? body?.items ?? body;
+  const list = Array.isArray(p) ? p : p && typeof p === 'object' ? Object.entries(p).map(([key, v]: [string, any]) => ({ key, ...(v || {}) })) : [];
+  return list.filter((x: any) => x && typeof x.key === 'string').map((x: any) => ({ key:x.key, value:x.value, version:typeof x.version === 'number' ? x.version : null }));
+}
+/* a stored value is the text this browser keeps (localStorage holds text); a server value that is not text is kept as JSON */
+const asText = (v: unknown): string | null => v == null ? null : typeof v === 'string' ? v : JSON.stringify(v);
+
+/** the account copy of the `sync` keys, run by the shell after its session read (`client`: the shell's session).
+    load(): the server copy into this browser's storage; with `uploadLocal` (the local state is this identity's) a local
+    value with no server copy goes up once. note(key): a change, written to the server a moment later (`delayMs`), with
+    the version it was read with; 409 takes the server's value. Changes made in the pages' frames reach the shell as
+    `storage` events. stop(): nothing more is written (sign-out, another account). */
+export function preferences(client: { send: SessionClient['send'] }, opts: { delayMs?: number } = {}) {
+  const delay = opts.delayMs ?? 1000;
+  const state = new Map<string, PrefState>();
+  const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  let on = false, listening = false;
+  const local = () => areaOf('local');
+  const onStorage = (e: StorageEvent) => {
+    if (!on || !e.key || e.newValue === null || !SYNC_KEYS.includes(e.key)) return;     // a removal is a clean-up, never sent
+    try { if (e.storageArea && e.storageArea !== local()) return } catch { /* no storage */ }
+    note(e.key);
+  };
+  async function put(key: string): Promise<void> {
+    timers.delete(key);
+    if (!on) return;
+    let value: string | null = null;
+    try { value = local()?.getItem(key) ?? null } catch { value = null }
+    const was = state.get(key);
+    if (value === null || value === (was?.value ?? null) || value.length > PREF_MAX) return;
+    let res: Response;
+    try {
+      res = await client.send(`${PREFERENCES_URL}/${encodeURIComponent(key)}`, { method:'PUT', headers:{ 'Content-Type':'application/json' },
+        body:JSON.stringify({ value, ...(was?.version != null ? { version:was.version } : {}) }) });
+    } catch { return }                                                       // offline: the next change sends it
+    let body: any = null;
+    try { body = await res.json() } catch { body = null }
+    if (!on) return;
+    if (res.ok) { state.set(key, { value, version:typeof body?.version === 'number' ? body.version : (was?.version ?? 0) + 1 }); return }
+    if (res.status === 409) {
+      // another device changed it first: its value wins here too
+      const d = body?.error?.details ?? body?.current ?? {};
+      const server = asText(d.value), version = typeof d.version === 'number' ? d.version : null;
+      state.set(key, { value:server, version });
+      try { if (server === null) local()?.removeItem(key); else local()?.setItem(key, server) } catch { /* storage off */ }
+    }
+  }
+  function note(key: string) {
+    if (!on || !SYNC_KEYS.includes(key)) return;
+    const t = timers.get(key); if (t) clearTimeout(t);
+    timers.set(key, setTimeout(() => { void put(key) }, delay));
+  }
+  async function load(o: { uploadLocal?: boolean } = {}): Promise<boolean> {
+    let res: Response;
+    try { res = await client.send(PREFERENCES_URL) } catch { return false }
+    if (!res.ok) { try { await res.text() } catch { /* gone */ } return false }                                             // 404: the switch is off or not built yet
+    let body: any = null;
+    try { body = await res.json() } catch { return false }
+    state.clear(); on = true;
+    const s = local();
+    for (const p of prefList(body)) {
+      if (!SYNC_KEYS.includes(p.key)) continue;
+      const value = asText(p.value);
+      state.set(p.key, { value, version:p.version });
+      try { if (value === null) s?.removeItem(p.key); else if (s?.getItem(p.key) !== value) s?.setItem(p.key, value) } catch { /* storage off */ }
+    }
+    if (o.uploadLocal) for (const key of SYNC_KEYS) {
+      let v: string | null = null;
+      try { v = s?.getItem(key) ?? null } catch { v = null }
+      if (v !== null && !state.has(key)) await put(key);                     // once: the server holds it from now on
+    }
+    if (!listening && typeof addEventListener === 'function') { listening = true; addEventListener('storage', onStorage as EventListener) }
+    return true;
+  }
+  function stop() { on = false; timers.forEach(t => clearTimeout(t)); timers.clear(); state.clear() }
+  async function flush() { const keys = [...timers.keys()]; timers.forEach(t => clearTimeout(t)); timers.clear(); await Promise.all(keys.map(put)) }
+  return { load, note, stop, flush, get active() { return on }, state };
+}
+/** the shell's account preferences (on the page's session) */
+export const prefs = preferences(edge);
