@@ -1127,8 +1127,27 @@ pendaftaran sendiri plus kode email. Approval untuk merencanakan, belum "go" eks
   - **File campuran dan kedalaman histori.** Tidak perlu dipecah untuk Free, karena Free tidak menerima broker/event dan
     boleh melihat seluruh histori. Nama kemampuan dibuat per jenis data sekarang. Pemecahan file (varian per kemampuan
     dari publisher) dan paket per kedalaman histori baru dibuat bila kelak ada paket yang membutuhkannya.
+- **Keputusan user, 2026-11-16 (kata user):** "Tidak seluruh history, hanya misalkan 2 tahun. Atau nanti kita atur. / 1 A".
+  Artinya:
+  - Histori Free dibatasi, misalnya 2 tahun, sebagai batas angka di katalog.
+  - Tab lain untuk Free menampilkan contoh statis, tanpa data nyata.
+- **Arah dari user, 2026-11-16 (kata user):** admin adalah "playground untuk uji coba indikator-indikator yang baru rilis";
+  user berbayar hanya mendapat indikator tertentu; usul "kenapa tidak rumus saja yang kita remove", berlaku juga untuk
+  Backtest dan lainnya.
+- **Usulan penanganan (2026-11-16; menunggu konfirmasi):** dua lapis.
+  - **(1) Katalog rilis untuk definisi dan kode.**
+    - Tahap rilis per item (indikator, indikator flow, indikator backtest, metrik screener, preset, fitur) dicatat di repo:
+      `lab` (hanya admin) atau `released`. Item baru otomatis `lab`.
+    - Item `released` dibagi ke paket lewat katalog database, tanpa deploy.
+    - Definisi (registry) tidak lagi ditanam di bundle publik. Definisi disajikan lewat API yang difilter per user.
+    - Kode hitung item `lab` dipisah ke chunk yang hanya disajikan ke admin.
+    - Worker (backtest, screener) dan BFF menolak id yang tidak termasuk hak user. Bukti: worker memakai kode hitung yang
+      sama dengan browser (`apps/backtest-worker/src/errors.ts:8`, `apps/screener-worker/src/catalog.ts:28`).
+  - **(2) Pembatasan data.** Ticker, jenis data, dan kedaluwarsa histori tetap dibatasi di grant terminal-api. Untuk histori
+    terbatas, terminal-api memberi file per tahun (`price/{ticker}/{year}`, sudah ditulis publisher) dan tidak memberi
+    pack semua tahun.
 - **Pertanyaan terbuka:**
-  1. Isi yang dilihat Free saat men-scroll tab lain: contoh statis, atau data nyata dengan klik terkunci.
+  1. Konfirmasi usulan dua lapis di atas.
   2. Fase mana yang di-"go" lebih dulu.
   3. Dua indikator Free, isi paket berbayar, dan payment gateway dipilih nanti.
 
