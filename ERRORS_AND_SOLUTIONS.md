@@ -8875,6 +8875,53 @@ in its staleness check.
   The screener-worker suite: 112 passed. edge-bff deployed on the green commit.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
+### M478 — EXEC-MU-ACCOUNTS Phase 1: findings of the independent checkers C1 and C2 (2026-11-17, fixed on branch, not deployed)
+
+Two checkers read the integrated Phase 1 code against `verification/edge_multiuser/access_tiers/CONTRACT.md` only:
+C1 (security, failing tests `1f26fb44`: `apps/edge-bff/tests/test_c1_phase1_findings.py`; re-check `a590a1f1`:
+`tests/test_c1_phase1_recheck.py`) and C2 (isolation, `e4333d8c`: `tests/test_c2_phase1_isolation.py`,
+`terminal/tests/data/edge_session_phase1_c2.test.ts`). Each finding came as a test that failed on the code; the fix
+rounds make them pass (the C1 takeover and C2 hijack tests now model the attacker's own browser, one TestClient being
+one browser; their assertions are kept and extended). The account switch `EDGE_MULTIUSER` is off on every environment,
+so none of these was reachable. Every row: fixed on branch `claude/pensive-feynman-4ahfe3`, not deployed.
+
+| Id | Part | Defect (verified cause) | Fix (commit) |
+|---|---|---|---|
+| C1 P1-H1, C2 #1 (high) | registration | a second registration of a pending address replaced its password and username, so whoever registered last owned the account once the mailbox owner entered the newest code (pre-verification takeover) | every registration is its own pending row, bound to the browser that started it by an HttpOnly SameSite=Strict cookie `edge_registration` (path `/api/v1/auth/`, 24 h; its SHA-256 in `users.registration_hash`); a code activates only the row whose cookie comes with it; verifying deletes the address's other pending rows; a later registration never changes an earlier one. Migration `20261117_002`: `registration_hash`, one account per address among non-pending rows (`users_email_one_account` replaces `users_email_key`) (`53da005b`) |
+| C1 P1-M1 | sign-in | register, then sign-in, told whether an address had an account: `EMAIL_NOT_VERIFIED` after the right password of a pending account, `INVALID_CREDENTIALS` otherwise | a pending account's right password answers the same 401 `INVALID_CREDENTIALS`; within the send limits a fresh code is mailed and this browser gets the registration cookie. `EMAIL_NOT_VERIFIED` is no longer used; the sign-in page adds, with registration open, "If you have just registered, check your email for a code ..." with a link to Verify (`53da005b`, `888d7014`) |
+| C1 re-check N1 | sign-in timing | the fix ran one scrypt per pending registration, so the time still told whether an address had pending rows | every switch-on sign-in derives exactly 1 + `PENDING_CHECKED` (3) times, padded with the configured verifier, whatever the address holds; `verify_password` always derives both the NFKC and the raw form when they differ (`d2d11ab3`) |
+| C1 re-check N3 | registration cookie | every switch-on 401 replaced this browser's registration cookie, orphaning its registration | a 401 that restarted nothing sets this browser's own cookie again (an unused one when it has none); only a pending-password match replaces it (`d2d11ab3`) |
+| C1 P1-M2 | admin MFA | failures were limited per 15 minutes only, never capped (NIST SP 800-63B-4: at most 100 consecutive) | 100 consecutive wrong TOTP codes (10 recovery codes) lock that way in: 403 `MFA_LOCKED`; the 10 per 15 minutes throttle stays; counts in `mfa_totp` (migration `20261117_002`) (`53da005b`) |
+| C1 re-check N2 | admin MFA | the lock had no way back: only a success cleared it, with no time limit and no unlock | a lock lasts 24 h (`totp_locked_until`, `recovery_locked_until`), then the count restarts at 90 of 100 (8 of 10); a password reset by email code clears counts and locks; the operator unlock `scripts/edge_mfa_unlock.py` (private network, one `admin_audit` row with actor `operator`, prints no secret); `MFA_LOCKED` says "Wait 24 hours or reset your password by email; an operator can also unlock it." with `details.unlock_at`, and the `/mfa` page shows the unlock time in local time and the ways out (`d2d11ab3`, `83f4a64a`, `af04bf43`) |
+| C1 P1-L1 | MFA session | the session token was not renewed when MFA was passed | a new token at MFA verify, the pending one revoked; the shell takes the answer's CSRF token before any further write (`53da005b`, `83f4a64a`) |
+| C1 P1-L2 | settings | the new secrets appeared in `repr(Settings)` | `field(repr=False)` for every secret (`53da005b`) |
+| C1 P1-L3 | passwords | passwords were hashed without Unicode normalisation | NFKC before hashing, the length and the breach check; legacy raw verifiers still accepted (`53da005b`, `d2d11ab3`) |
+| C1 P1-L4 | Resend webhook, CSRF | a non-ASCII Svix signature raised `TypeError` (500) instead of 401 | signatures and CSRF tokens compared as ASCII bytes, non-ASCII refused generically (`53da005b`) |
+| C1 note | sessions | sessions waiting for the admin's second factor counted towards, and could revoke, the 5 real sessions | pending MFA sessions capped apart at 3 (`MAX_PENDING_SESSIONS`), never counted towards or revoking the real ones (`53da005b`) |
+| C2 #2 | front-end preferences | the shell's `cleared` handler forgot the page identity while a preference write was on the wire; the CSRF repeat then adopted the new account and wrote the previous account's value into it | a write goes out only for the identity it was asked for; a forgotten or changed identity answers `USER_CHANGED`; the CSRF repeat only when the session read again is that identity; `put()` checks it right before writing (`888d7014`) |
+| C2 #3 | front-end storage | a browser without a last-login mark adopted the first identity, and an unstamped drawings copy of user #1 joined that account | a browser with no mark and account state clears it instead of adopting it; drawing copies stamped by this same login are kept and move to its owner key (`888d7014`) |
+
+**Recorded decision N4 (registration emails), chosen in the second fix round (`d2d11ab3`):** a new registration of an
+address, from any browser, mails it at most once per hour and three times per day; these also count towards the
+address's 10 emails a day. A later registration within the limit answers the same 202 and changes nothing (the
+earlier code is not sent again). Why: registrations by others can then use at most 3 of the address's 10 daily emails.
+Cost: when someone else registered your address first, your own registration code can wait up to an hour, and at most
+three registrations a day reach the address.
+
+Open after the rounds:
+- `scripts/edge_mfa_unlock.py` takes `--username` and `--reason` on the command line, while
+  `scripts/onboarding/run_job.sh` runs its job as `python -u job.py` without arguments
+  (`scripts/onboarding/Dockerfile`), so the documented "run it as a job like the migrations" needs a small wrapper
+  `job.py` that passes the two values (from `params.json`) to `main([...])`. OPEN (process; no lock exists yet).
+- The migration's header comment says the MFA counts are reset "only by a success (or an admin, later)"; the code also
+  ends a lock after 24 h and clears it on a password reset (its column comments say so). Comment only; the migration is
+  not applied, but it is not edited after review either (AGENTS.md: a new migration if a change is needed).
+
+Integrated results after the rounds (builders): edge-bff 364 passed, 148 skipped (second fix round, `d2d11ab3`).
+Lesson: a fix for one finding is re-checked for the side channel it opens (a per-row derivation leaks the row count);
+a lock needs an end and a way out before it ships (AGENTS.md "Gates and evidence": how to pass); a binding between a
+code and its requester is part of the data model, not of the message.
+
 ### M477 — EXEC-MU-ACCOUNTS Phase 0: findings of the independent checkers C1 and C2 (2026-11-16, fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 Two checkers read the integrated Phase 0 code against `verification/edge_multiuser/access_tiers/CONTRACT.md` only:
