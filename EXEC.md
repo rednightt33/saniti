@@ -15344,3 +15344,9 @@ tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terba
   dihitung ulang dari PostgreSQL: 40.518 perbandingan, 0 beda. Catatan: `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md`.
 - **Belum dibuktikan (butir 7 definisi selesai):** file diperbarui sendiri oleh lari terjadwal publisher (07:30 WIB
   17 Nov adalah lari terjadwal pertama sesudah rilis). Known (b) M466 tetap terbuka.
+- **Masukan user 2026-11-16 sesudah rilis:** "Untuk menambah aset, kita juga bisa bikin shortcut Alt A di bagian
+  watchlist. ... saya search BBCA, yang keluar hanya ticker saja tapi tidak ada gambarnya. Yang saya maksud gambar adalah
+  logo perusahaan. Fix it." Dikerjakan: Alt+A membuka Add stocks (seperti Alt+S di Screener: tidak berlaku di kolom teks,
+  saat dialog/menu terbuka, atau sebelum list terbaca; petunjuk `Alt+A` di tombol Add ticker, disembunyikan di ponsel);
+  baris hasil cari dan saran di dialog memakai logo emiten (monogram bila tidak ada logo), digambar ulang begitu daftar
+  logo terbaca. Tes model 22 lulus; cek browser fixture 23/23 (1440 dan 390 px); suite edge-bff Watchlist/Screener 53 lulus.

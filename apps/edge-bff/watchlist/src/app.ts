@@ -96,7 +96,7 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
     const sub = FILE_ERR ? 'Your lists are shown without figures until they can be read again.' : st.view === 'cards'
       ? `One card per stock: price, ${sess}-session line and the first ${Math.min(CARD_IND, n)} indicators${rest.length ? ` (${rest.join(', ')} in Table only)` : ''}.`
       : `One row per stock: price, ${sess}-session line and ${n} indicators.`;
-    return `<div class="wlh"><div><h1>Watchlist</h1><p class="muted">${esc(sub)}</p></div><div class="act"><span class="pills">${pills()}</span><button class="btn" data-act="open-ind" ${FILE_ERR ? 'disabled title="Indicators come with the figures"' : ''}>${ic('cols')}Indicators <span class="muted">${n}</span></button><button class="btn primary" data-act="open-add">${ic('plus')}Add ticker</button></div></div>`;
+    return `<div class="wlh"><div><h1>Watchlist</h1><p class="muted">${esc(sub)}</p></div><div class="act"><span class="pills">${pills()}</span><button class="btn" data-act="open-ind" ${FILE_ERR ? 'disabled title="Indicators come with the figures"' : ''}>${ic('cols')}Indicators <span class="muted">${n}</span></button><button class="btn primary" data-act="open-add" aria-keyshortcuts="Alt+A" title="Add stocks to this list (Alt+A)">${ic('plus')}Add ticker<kbd>Alt+A</kbd></button></div></div>`;
   }
   function bar(l: WList) {
     const n = tk(l).length;
@@ -291,14 +291,14 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
       AD.hi = Math.min(AD.hi, Math.max(0, shown.length - 1));
       h += shown.map((u, i) => {
         const sx = adState(u.t), busy = AD!.busy.has(u.t);
-        return `<div class="ar ${i === AD!.hi ? 'on' : ''}" data-row="${esc(u.t)}"><div><b>${esc(u.t)}</b><span class="sub">${esc(u.n)}${u.sec && u.sec !== 'Undefined' ? DOT + esc(u.sec) : ''}</span></div><div class="r"><span>${M.fPx(u.last) || '<span class="na">No price</span>'}</span><span class="${M.cls(u.r1d)}">${u.last != null ? M.fPct(u.r1d) || '' : ''}</span></div>` +
+        return `<div class="ar ${i === AD!.hi ? 'on' : ''}" data-row="${esc(u.t)}"><div class="arid">${logo(u.t, 28)}<div><b>${esc(u.t)}</b><span class="sub">${esc(u.n)}${u.sec && u.sec !== 'Undefined' ? DOT + esc(u.sec) : ''}</span></div></div><div class="r"><span>${M.fPx(u.last) || '<span class="na">No price</span>'}</span><span class="${M.cls(u.r1d)}">${u.last != null ? M.fPct(u.r1d) || '' : ''}</span></div>` +
           (sx === 'added' ? '<span class="pill pos">✓ Added</span>' : sx === 'in' ? `<span class="pill">✓ In ${esc(l.name)}</span>` : sx === 'full' ? '<button class="btn sm" disabled>List is full</button>' : `<button class="btn sm" data-act="ad-one" data-t="${esc(u.t)}" ${busy ? 'disabled aria-busy="true"' : ''}>${ic('plus')}Add</button>`) + '</div>';
       }).join('');
       if (res.length > shown.length) h += `<div class="note morex">+${res.length - shown.length} more: refine the search</div>`;
     }
     q$('#adRes').innerHTML = h;
     q$('#adRecentH').hidden = q$('#adRecent').hidden = !AD.recent.length;
-    q$('#adRecent').innerHTML = AD.recent.map(t => { const sx = adState(t); return `<button class="tog ${sx !== 'can' ? 'done' : ''}" data-act="ad-one" data-t="${esc(t)}" ${sx !== 'can' ? 'disabled' : ''} title="${esc(S(t).n)}"><b>${esc(t)}</b>${sx === 'can' ? ic('plus') : '✓'}</button>` }).join('');
+    q$('#adRecent').innerHTML = AD.recent.map(t => { const sx = adState(t); return `<button class="tog ${sx !== 'can' ? 'done' : ''}" data-act="ad-one" data-t="${esc(t)}" ${sx !== 'can' ? 'disabled' : ''} title="${esc(S(t).n)}">${logo(t, 16)}<b>${esc(t)}</b>${sx === 'can' ? ic('plus') : '✓'}</button>` }).join('');
   }
   async function adAdd(ts: string[], quiet = false): Promise<string[]> {
     if (!AD) return [];
@@ -570,6 +570,9 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
   });
   document.addEventListener('keydown', e => {
     const tg = e.target as HTMLElement;
+    // Alt+A opens Add stocks, as Alt+S runs the Screener (screener/src/screen-gate.ts): left alone inside a text field
+    // (on some keyboards Alt+A types a character), while a dialog or menu is open, and before the lists are read
+    if (M.isAltA(e) && !M.typingTarget(tg) && !DLG && !MENU && LISTS.length && L()) { e.preventDefault(); openAdd(); return }
     if ((e.key === 'Enter' || e.key === ' ') && tg.matches?.('th[data-act="tsort"]') && !DLG) { e.preventDefault(); tg.click(); return }
     if (e.key === 'Escape') {
       if (MENU) { const f = MENU._for; closeMenuOf(); f?.focus(); e.preventDefault(); return }
@@ -647,7 +650,7 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
       }
       if (!L()) { st.active = LISTS[0].id; persist() }
       render();
-      void api.logos().then(m => { LOGOS = m || {}; if (Object.keys(LOGOS).length && !DLG && !MENU) render() });
+      void api.logos().then(m => { LOGOS = m || {}; if (!Object.keys(LOGOS).length) return; if (!DLG && !MENU) render(); else renderAdd() });
     } catch (e) {
       renderFailure(msg(e, 'The watchlist could not be read. Try again in a minute.'));
     }

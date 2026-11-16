@@ -199,3 +199,15 @@ export function restoreTickerBody(l: WList, t: string): { tickers: string[]; pos
   const x = l.tickers.find(y => y.ticker === t);
   return x ? { tickers: [t], position: x.position } : null;
 }
+
+/* ---- the Alt+A shortcut (Add stocks), shaped as the Screener's Alt+S (screener/src/screen-gate.ts) ---- */
+const TEXT_TYPES = /^(text|search|email|url|tel|password|number)$/;
+/** a field where Alt+A may type a character: the shortcut leaves it alone */
+export function typingTarget(el: Element | null): boolean {
+  if (!el) return false;
+  if ((el as HTMLElement).isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true;
+  return el.tagName === 'INPUT' && TEXT_TYPES.test(((el as HTMLInputElement).type || 'text').toLowerCase());
+}
+/** Alt+A alone (the physical A key, so a layout where Alt+A types "å" still counts); no repeat, no composition */
+export const isAltA = (e: Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'key' | 'code' | 'repeat' | 'isComposing'>) =>
+  !e.repeat && !e.isComposing && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.code === 'KeyA' || e.key === 'a' || e.key === 'A');

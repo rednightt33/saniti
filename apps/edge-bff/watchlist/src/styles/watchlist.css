@@ -415,6 +415,11 @@ html,body{min-height:100%}
 #adRes{overflow:auto;min-height:0}
 .ar{display:grid;grid-template-columns:minmax(0,1fr) auto 136px;gap:var(--s-5);align-items:center;padding:var(--s-4) 18px;font-size:var(--fs-12)}
 .ar.on{background:var(--hover)}
+.ar .arid{display:flex;align-items:center;gap:var(--s-4);min-width:0}
+.ar .arid>div{min-width:0}
+.recent .tog .lg{margin-right:2px}
+.btn.primary kbd{margin-left:var(--s-2);background:rgba(255,255,255,.18);border-color:transparent;color:#fff}
+@media (hover:none),(max-width:640px){.btn kbd{display:none}}
 .ar b{font-weight:var(--fw-semibold);font-size:var(--fs-md)}
 .ar .sub{display:block;font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ar .r{display:flex;flex-direction:column;align-items:flex-end;font-size:var(--fs-md)}

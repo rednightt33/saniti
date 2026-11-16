@@ -187,3 +187,30 @@ describe('review 2026-11-16: a value that reads as zero is not coloured', () => 
     expect(at('r5d', -0.06).k).toBe('down');
   });
 });
+
+describe('Alt+A (Add stocks), shaped as the Screener Alt+S', () => {
+  const k = (o: Partial<KeyboardEvent>) => ({ altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, key: '', code: '', repeat: false, isComposing: false, ...o });
+  it('is Alt with the A key alone, by the physical key too (a layout where Alt+A types å)', () => {
+    expect(M.isAltA(k({ altKey: true, code: 'KeyA', key: 'a' }))).toBe(true);
+    expect(M.isAltA(k({ altKey: true, code: 'KeyA', key: 'å' }))).toBe(true);
+    expect(M.isAltA(k({ altKey: true, key: 'A' }))).toBe(true);
+  });
+  it('is not A alone, Ctrl/Cmd/Shift with it, Alt+S, a held key or a composition', () => {
+    expect(M.isAltA(k({ code: 'KeyA', key: 'a' }))).toBe(false);
+    expect(M.isAltA(k({ altKey: true, ctrlKey: true, code: 'KeyA' }))).toBe(false);
+    expect(M.isAltA(k({ altKey: true, metaKey: true, code: 'KeyA' }))).toBe(false);
+    expect(M.isAltA(k({ altKey: true, shiftKey: true, code: 'KeyA' }))).toBe(false);
+    expect(M.isAltA(k({ altKey: true, code: 'KeyS', key: 's' }))).toBe(false);
+    expect(M.isAltA(k({ altKey: true, code: 'KeyA', repeat: true }))).toBe(false);
+    expect(M.isAltA(k({ altKey: true, code: 'KeyA', isComposing: true }))).toBe(false);
+  });
+  it('leaves a text field alone, not a button', () => {
+    const el = (tagName: string, type?: string) => ({ tagName, type, isContentEditable: false }) as unknown as Element;
+    expect(M.typingTarget(el('INPUT', 'search'))).toBe(true);
+    expect(M.typingTarget(el('INPUT'))).toBe(true);
+    expect(M.typingTarget(el('TEXTAREA'))).toBe(true);
+    expect(M.typingTarget(el('INPUT', 'checkbox'))).toBe(false);
+    expect(M.typingTarget(el('BUTTON'))).toBe(false);
+    expect(M.typingTarget(null)).toBe(false);
+  });
+});
