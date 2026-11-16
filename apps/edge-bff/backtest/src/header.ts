@@ -31,7 +31,7 @@ export function renderHeader() {
     // the design's wording: net return · Sharpe · max drawdown · trades, without the labels "Net" and "DD" (Agent 10, M460 item 5)
     : R ? `<span class="xh-k"><b class="${cls(R.st.tot)}">${pct(R.st.tot)}</b> · Sharpe <b>${num(R.st.sharpe)}</b> · <b class="down">${pct(R.st.mdd)}</b> · <b>${R.trades.length}</b> trades</span>`
     : '<span class="xh-mu">Not run yet · press Run backtest</span>';
-  box.innerHTML = `<div class="xh-id"><span class="xh-tk" id="ctxTicker">${esc(S.mode === 'single' ? S.ticker : 'PORTFOLIO')}</span><div class="xh-tt"><b id="ctxTitle">${S.mode === 'single' ? 'Single-stock backtest' : ''}</b></div></div>`
+  box.innerHTML = `<div class="xh-id"><span class="xh-tk" id="ctxTicker">${esc(S.mode === 'single' ? S.ticker : 'PORTFOLIO')}</span><b id="ctxTitle">${S.mode === 'single' ? 'Single-stock backtest' : ''}</b></div>`
     + row(ICON.period, 'Period', `<span id="ctxPeriod">${esc(fmtD(S.from))} – ${esc(fmtD(S.to))}</span>`)
     + row(ICON.oos, 'Out-of-sample', S.oos ? `Last ${S.oos}% of the period` : 'Off')
     + row(ICON.run, 'Last run', `<div id="lastRun" class="${stale ? 'is-stale' : ''}"><span class="xh-st" id="staleTag" ${stale ? '' : 'hidden'} title="Settings changed — run again to update results">Out of date</span>${run}</div>`)

@@ -14996,6 +14996,26 @@ terbitannya, dan mengosongkan setiap nilai Flow (semua keluarga, bukan hanya har
 tanggal ex aksi yang belum diputuskan, `unresolved`, atau berharga mentah. Penskalaan lot sebelum ex tetap bagian dari
 riwayat yang disesuaikan (K4 a, diperingatkan `FLOW_LOTS_RESTATED`). Laporan harian tidak lagi mendaftar `pending` biasa.
 
+**Kemajuan Opsi C, 2026-11-16 (Tahap D selesai di branch, ERRORS M460):** halaman Backtest di-port dari file desain user
+(acuan 1:1 sejak 2026-11-15) dengan perbaikan keputusan 2a; jendela kondisi dari katalog Screener (baris yang tidak bisa
+dibaca Backtest diturunkan dari katalog worker dan hak user, bukan daftar tangan); kartu `test` dihitung worker (D6).
+Pemeriksaan browser: smoke 56 dari 56 langkah tanpa error konsol; pembanding visual desain lawan halaman di 1440, 1024
+dan 390 px, terang dan gelap (`tests/visual/compare.mjs`, `BACKTEST_VISUAL_VIEWPORTS`): di 1440 dan 1024 px 132 cuplikan,
+rata-rata 0,5 % piksel berbeda, terbesar 2,0 % (label pencarian, catatan sumber data, header dibangun di kode: semua
+perbaikan yang disepakati). Cacat yang ditemukan dan
+diperbaiki: tombol pintas `f` dan `[` membaca panel yang dihapus (M460 item 1; tes `tests/ids.test.mjs`), fokus hilang
+sesudah menambah kondisi (item 2), nama lajur terpotong saat menunggu (item 3), smoke usang sejak 2026-10-27 (item 4).
+Agent 10 (Opus 5.5 medium, read-only) meninjau port; setiap temuan diverifikasi ulang: dua aturan yang saya beri label
+"2a" tanpa persetujuan user dihapus (1024 kembali 1:1 dengan desain), catatan sumber data pindah ke bilah tab, teks
+header dan judul portofolio mengikuti desain (item 5); di ponsel jendela kondisi dan angka hasil tidak lagi terpotong
+(item 6, desain pun terpotong); "Not calculated" (item 7); label pencarian menghitung baris yang bisa ditambah (item 8);
+salinan aturan katalog di tes halaman dikunci tes worker `catalog-copy.test.ts` (item 9). Tidak diubah: turunan status
+"Not in backtest" sudah benar; `regMedian` tidak membaca bar sesudah periode; tab hasil tanpa peran tab, sama dengan
+desain. **Pertanyaan terbuka ke user (Gerbang 3, 2026-11-16):** (1) persetujuan PR, merge dan deploy dengan urutan di
+bawah, termasuk cara screener-worker (unggah CLI dulu, rekomendasi, atau jam sepi); (2) potongan di 1024 px yang berasal
+dari desain (chip kondisi dan baris header): biarkan 1:1 atau tampilkan chip yang muat dengan "+N more"; (3) smoke
+halaman masuk CI.
+
 ### Deploy (hanya setelah Gerbang 3, user 2026-11-16 "Opsi C") dan rollback
 
 1. PR branch → `main` (7B); CI hijau termasuk gerbang look-ahead; tidak ada job Backtest aktif (cek status job sebelum upload).
