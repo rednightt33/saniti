@@ -347,12 +347,11 @@ class AuthFlows:
         async def register(request: Request, _on=Depends(switched_on)):
             b = fields_of(await request.body(), ('username', 'first_name', 'last_name', 'email', 'phone', 'password',
                                                  'password_repeat'),
-                          ('username', 'first_name', 'last_name', 'email', 'password', 'password_repeat'))
-            phone = None
-            if (b.get('phone') or '').strip():
-                phone = passwords.normal_phone(b['phone'])
-                if phone is None:
-                    raise invalid({'phone': 'Enter a phone number with its country code, e.g. +62 812 3456 7890 or 0812 3456 7890.'})
+                          ('username', 'first_name', 'last_name', 'email', 'phone', 'password', 'password_repeat'))
+            # the phone is a required field (user: "isian wajib seperti First Name, Last Name, ID, Email, Phone Number")
+            phone = passwords.normal_phone(b['phone'])
+            if phone is None:
+                raise invalid({'phone': 'Enter a phone number with its country code, e.g. +62 812 3456 7890 or 0812 3456 7890.'})
             f = {'username': checked_username(b['username']), 'first_name': checked_name(b['first_name'], 'first_name'),
                  'last_name': checked_name(b['last_name'], 'last_name'), 'email': checked_email(b['email']),
                  'phone': phone}

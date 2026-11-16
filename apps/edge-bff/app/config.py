@@ -124,6 +124,11 @@ class Settings:
         return s
 
     def validate(self):
+        # EXEC-MU-ACCOUNTS Phase 1: log mode keeps each code readable in its outbox row, so it is for dev only; with the
+        # switch off nothing is sent, so the default (log) never stops a switch-off start
+        if self.multiuser and self.email_mode == 'log' and self.environment not in ('dev', 'local'):
+            raise ValueError('EDGE_EMAIL_MODE=log is for EDGE_ENVIRONMENT dev or local only (codes stay readable in the '
+                             'outbox); set EDGE_EMAIL_MODE=resend with RESEND_API_KEY and EDGE_EMAIL_FROM')
         if not re.fullmatch(r'scrypt\$[0-9a-f]{32}\$[0-9a-f]{64}', self.password_verifier):
             raise ValueError('Invalid EDGE_PASSWORD_VERIFIER')
         if not re.fullmatch(r'[A-Za-z0-9._:@-]{1,128}', self.owner) or len(self.session_secret) < 32:
