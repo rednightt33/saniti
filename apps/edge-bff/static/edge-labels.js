@@ -193,7 +193,7 @@ window.EdgeLabels = {
       secret:"Or enter this key by hand", codesTitle:"Recovery codes",
       codesLead:"Each code signs you in once if you lose your phone. They are shown only now: save them somewhere safe.",
       saved:"I have saved my recovery codes", lockedCode:"Too many wrong authenticator codes. Enter one of your recovery codes instead.",
-      lockedAll:"Ask an admin to unlock your account.", busySetup:"Preparing…", qrFailed:"The QR code could not be drawn here: enter the key by hand." },
+      lockedAll:"Ask an admin to unlock your account.", unlockAt:"It unlocks on", busySetup:"Preparing…", qrFailed:"The QR code could not be drawn here: enter the key by hand." },
     check: { short:"The password needs at least 8 characters.", long:"The password can have at most 256 characters.",
       mismatch:"The two passwords are not the same.", code:"Enter the 6 digits of the code." },
     errors: { INVALID_CREDENTIALS:"The login or the password is not right.", CODE_INVALID_OR_EXPIRED:"That code is not valid or has expired. Send a new one.",

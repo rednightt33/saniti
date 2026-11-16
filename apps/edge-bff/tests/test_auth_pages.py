@@ -115,13 +115,17 @@ def test_a_refused_sign_in_points_a_new_account_to_its_code(fixture_server, page
     assert page.get_by_text('We sent a code to ana@example.com.').is_visible()
 
 
-def test_mfa_locked_offers_the_recovery_code_then_an_admin(fixture_server, page):
-    """403 MFA_LOCKED: details.locked "code" offers the recovery-code field; "recovery_code" leaves only an admin's
-    unlock. A verify that passes answers the rotated session's csrf_token, which replaces the pending one."""
+def test_mfa_locked_shows_the_message_the_unlock_time_and_the_ways_out(fixture_server, page):
+    """403 MFA_LOCKED (app/auth_flows.py): the server's message and details.unlock_at in this viewer's local time; with
+    details.use "recovery_code" the page switches to the recovery-code field; without it Continue waits for the unlock.
+    The Forgot password? link stays on the page (a password reset by email clears the lock)."""
     origin, _ = fixture_server
-    answers = [(403, {'error': {'code': 'MFA_LOCKED', 'message': 'locked', 'details': {'locked': 'code', 'use': 'recovery_code'}}}),
-               (403, {'error': {'code': 'MFA_LOCKED', 'message': 'locked', 'details': {'locked': 'recovery_code'}}})]
+    message = 'Too many wrong codes, so this way of signing in is locked. Wait 24 hours or reset your password by email; an operator can also unlock it.'
+    unlock = '2026-11-18T09:30:00+00:00'
+    answers = [(403, {'error': {'code': 'MFA_LOCKED', 'message': message, 'details': {'locked': 'code', 'unlock_at': unlock, 'use': 'recovery_code'}}}),
+               (403, {'error': {'code': 'MFA_LOCKED', 'message': message, 'details': {'locked': 'recovery_code', 'unlock_at': unlock}}})]
     sent = []
+    page.route('**/api/v1/auth/config', lambda r: answer(r, 200, {'multiuser': True}))
     page.route('**/api/v1/auth/sign-in', lambda r: answer(r, 403, {'error': {'code': 'MFA_REQUIRED', 'message': 'Enter your code.',
                'details': {'csrf_token': 'pending-token', 'mfa_enrolled': True}}}))
     page.route('**/api/v1/auth/mfa/verify', lambda r: (sent.append(r.request.post_data_json), answer(r, *answers.pop(0))))
@@ -131,15 +135,19 @@ def test_mfa_locked_offers_the_recovery_code_then_an_admin(fixture_server, page)
     page.get_by_role('button', name='Sign In').click()
     page.wait_for_function("() => location.pathname === '/mfa'")
     assert page.locator('svg.auth-qr').count() == 0                    # enrolled: the code, no set-up
+    local_time = page.evaluate("t => new Date(t).toLocaleString([], {dateStyle:'medium', timeStyle:'short'})", unlock)
     page.get_by_label('Code', exact=True).fill('123456')
     page.get_by_role('button', name='Continue').click()
-    page.get_by_label('Recovery code', exact=True).wait_for()
-    assert page.get_by_role('alert').inner_text() == 'Too many wrong authenticator codes. Enter one of your recovery codes instead.'
+    page.get_by_label('Recovery code', exact=True).wait_for()          # details.use: the recovery codes are still open
+    assert page.get_by_role('alert').inner_text() == message
+    assert page.get_by_role('status').inner_text() == f'It unlocks on {local_time}.'
     page.get_by_label('Recovery code', exact=True).fill('code-01')
     page.get_by_role('button', name='Continue').click()
-    page.get_by_text('Ask an admin to unlock your account.').wait_for()
-    assert page.get_by_role('button', name='Continue').is_disabled()
+    page.wait_for_function("() => document.querySelector('.auth-form-wrap form .btn.primary').disabled")
+    assert page.get_by_role('alert').inner_text() == message
     assert sent == [{'code': '123456'}, {'recovery_code': 'code-01'}]
+    page.get_by_role('link', name='Forgot password?').click()
+    page.wait_for_function("() => location.pathname === '/forgot'")
 
 
 def test_forgot_password_code_new_password_back_to_sign_in(fixture_server, page):

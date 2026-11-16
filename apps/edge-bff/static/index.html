@@ -11813,8 +11813,10 @@ function ResetForm({go, L}) {
 function MfaForm({go, L}) {
   const v = currentView, M = L.mfa, code = initialValue(v, "code", () => ""), recovery = initialValue(v, "recovery", () => false);
   const busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => ""), enrol = initialValue(v, "enrol", () => null), saved = initialValue(v, "saved", () => false);
-  // MFA_LOCKED: details.locked "code" leaves the recovery codes; "recovery_code" leaves only an admin's unlock
-  const locked = initialValue(v, "locked", () => "");
+  // MFA_LOCKED: the server's message and its unlock time (details.unlock_at, shown in this viewer's local time); with
+  // details.use "recovery_code" the recovery codes are still open, else this way waits for the unlock (or a password
+  // reset by email, which clears the lock: the Forgot password? link stays on this page)
+  const locked = initialValue(v, "locked", () => ""), unlockAt = initialValue(v, "unlockAt", () => "");
   // an account without an authenticator yet (access.mfa_enrolled false) starts on the set-up
   onLifecycle(v, "start", () => { if (Edge.auth?.access?.mfa_enrolled === false || authFlow.mfaEnrolled === false) startEnrol(); }, []);
   async function startEnrol() { if (busy) return; updateValue(v, "busy", true); updateValue(v, "error", "");
@@ -11825,8 +11827,11 @@ function MfaForm({go, L}) {
     updateValue(v, "busy", true); updateValue(v, "error", "");
     try { await Edge.mfaVerify(recovery ? {recovery_code:code.trim()} : {code}); updateValue(v, "enrol", null); authFlow.mfaEnrolled = null; go("/monitor"); }
     catch (e) {
-      if (e.info?.code === "MFA_LOCKED") { const what = e.info.details?.locked === "code" ? "code" : "recovery_code"; updateValue(v, "locked", what);
-        updateValue(v, "code", ""); if (what === "code") updateValue(v, "recovery", true); updateValue(v, "error", what === "code" ? M.lockedCode : M.lockedAll); }
+      if (e.info?.code === "MFA_LOCKED") { const d = e.info.details || {}, useRecovery = d.use === "recovery_code";
+        const at = typeof d.unlock_at === "string" && !Number.isNaN(Date.parse(d.unlock_at)) ? new Date(d.unlock_at).toLocaleString([], {dateStyle:"medium", timeStyle:"short"}) : "";
+        updateValue(v, "locked", useRecovery ? "code" : "all"); updateValue(v, "unlockAt", at); updateValue(v, "code", "");
+        if (useRecovery) updateValue(v, "recovery", true);
+        updateValue(v, "error", e.info.message || (useRecovery ? M.lockedCode : M.lockedAll)); }
       else updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } };
   const secret = enrol?.secret || (enrol?.uri ? (new URLSearchParams(enrol.uri.split("?")[1] || "").get("secret") || "") : "");
   const needsSave = Boolean(enrol && enrol.codes.length && !saved);
@@ -11843,10 +11848,12 @@ function MfaForm({go, L}) {
         ? element("input", {id:"auth-recovery-code", value:code, required:true, disabled:busy, autoComplete:"one-time-code", autoCapitalize:"none", onChange:e => updateValue(v, "code", e.target.value)})
         : element(CodeInput, {value:code, disabled:busy, onChange:next => updateValue(v, "code", next)})),
       error && element("p", {className:"auth-error", role:"alert"}, error),
-      element(Button, {kind:"primary", type:"submit", disabled:busy || needsSave || locked === "recovery_code"}, busy ? M.busy : M.submit)),
+      locked && unlockAt && element("p", {className:"auth-note", role:"status"}, M.unlockAt, " ", unlockAt, "."),
+      element(Button, {kind:"primary", type:"submit", disabled:busy || needsSave || locked === "all"}, busy ? M.busy : M.submit)),
     !enrol && !locked && element("p", {className:"auth-switch"},
       element("button", {type:"button", className:"text-link", onClick:() => { updateValue(v, "recovery", !recovery); updateValue(v, "code", ""); }}, recovery ? M.useCode : M.useRecovery)),
     !enrol && element("p", {className:"auth-switch"}, element("button", {type:"button", className:"text-link", disabled:busy, onClick:startEnrol}, busy ? M.busySetup : M.setup)),
+    element("p", {className:"auth-switch"}, authLink(go, "/forgot", L.login.forgot)),
     element("p", {className:"auth-switch"}, authLink(go, "/login", L.verify.back)));
 }
 function AuthField({ label, error, support, children }) {
