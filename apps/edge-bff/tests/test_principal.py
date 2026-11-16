@@ -171,7 +171,9 @@ def test_owner_key_is_immutable_and_reserved_keys_are_never_issued(settings, sto
     with pytest.raises(psycopg.errors.CheckViolation):                    # a generated account has an email
         db(store, "INSERT INTO edge_bff.users(owner_key, username) VALUES (%s,'bob')", new_owner_key())
     with pytest.raises(psycopg.errors.UniqueViolation):
-        db(store, "INSERT INTO edge_bff.users(owner_key, username, email) VALUES (%s,'bob','alice@example.com')", new_owner_key())
+        # one account per address (several pending registrations may name it: migration 20261117_002)
+        db(store, "INSERT INTO edge_bff.users(owner_key, username, email, status) VALUES (%s,'bob','alice@example.com','active')",
+           new_owner_key())
     # names and status may change; the other columns follow their rules
     assert db(store, "UPDATE edge_bff.users SET first_name='Alice', status='disabled' WHERE user_id=%s", user['user_id']) == 1
     with pytest.raises(psycopg.errors.CheckViolation):

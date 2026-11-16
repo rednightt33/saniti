@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 import re
 from urllib.parse import urlsplit
@@ -25,13 +25,14 @@ def switch_of(name):
 
 @dataclass(frozen=True)
 class Settings:
-    database_url: str
+    # secrets never appear in repr(settings) (a traceback, a log line; ERRORS M478 C1 P1-L2)
+    database_url: str = field(repr=False)
     orc_url: str
-    orc_key: str
+    orc_key: str = field(repr=False)
     owner: str
     login: str
-    password_verifier: str
-    session_secret: str
+    password_verifier: str = field(repr=False)
+    session_secret: str = field(repr=False)
     origin: str
     secure_cookie: bool = True
     session_seconds: int = 86400
@@ -44,14 +45,14 @@ class Settings:
     # EXEC-TERMINAL-API T4 (user 2026-10-25: "edge-bff meneruskan ... --> OK"): the private terminal-api address and the
     # gateway key it accepts for this owner; both empty = the Terminal tab shows its data as unavailable
     terminal_url: str = ''
-    terminal_proxy_key: str = ''
+    terminal_proxy_key: str = field(default='', repr=False)
     # EDGE backtest (CONTRACT.md section 9): the private backtest worker and its shared key; both empty = the feature is
     # off (BACKTEST_DISABLED). The job budget has no default: it is set with the worker (limits measured in the dev E2E,
     # K7b). One running and backtest_queued_per_owner queued jobs per owner. backtest_max_result_bytes: the most JSON a
     # finished job's result may unpack to when edge-bff takes it from the worker (read as it arrives, never past it;
     # over it the job is FAILED LIMIT_EXCEEDED); a limit like the job budget, so no default either (K7b).
     backtest_worker_url: str = ''
-    backtest_worker_key: str = ''
+    backtest_worker_key: str = field(default='', repr=False)
     backtest_timeout_seconds: float = 0
     backtest_queued_per_owner: int = 3
     backtest_max_result_bytes: int = 0
@@ -60,7 +61,7 @@ class Settings:
     # (its SCREENER_DEADLINE_MS in seconds), which every relayed call waits for plus one control call; no default, as
     # the worker's limits have none (report 8.9).
     screener_worker_url: str = ''
-    screener_worker_key: str = ''
+    screener_worker_key: str = field(default='', repr=False)
     screener_timeout_seconds: float = 0
     # EXEC-BACKTEST-REVAMP P5: the owners with every admin right (app/rights.py), EDGE_ADMIN_OWNERS as a comma list;
     # default the one owner (EDGE_OWNER) until EDGE-MULTIUSER
@@ -74,13 +75,13 @@ class Settings:
     # never stops a switch-off start; a value that is set is still checked). code_secret keys the email-code HMAC,
     # mfa_key derives each admin's TOTP secret; email_mode log (the default: the email goes to the outbox row and the
     # log, the code masked outside EDGE_ENVIRONMENT=local) or resend; email_enabled: the sender loop beside the worker
-    code_secret: str = ''
-    mfa_key: str = ''
+    code_secret: str = field(default='', repr=False)
+    mfa_key: str = field(default='', repr=False)
     email_mode: str = 'log'
     email_enabled: bool = True
     email_from: str = ''
-    resend_api_key: str = ''
-    resend_webhook_secret: str = ''
+    resend_api_key: str = field(default='', repr=False)
+    resend_webhook_secret: str = field(default='', repr=False)
 
     @classmethod
     def from_env(cls):

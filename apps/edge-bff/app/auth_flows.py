@@ -35,7 +35,7 @@ from .accounts import EMAIL, RESERVED_USERNAMES, USERNAME, new_owner_key
 from .errors import Refusal
 from .mailer import OutboxStore, enqueue, svix_verify
 from .principal import ADMIN_ACCESS, Principal
-from .security import password_verifier, token_hash, verify_password
+from .security import normal_password, password_verifier, token_hash, verify_password
 from .throttle import CODE_USER, MFA_USER, SEND_EMAIL, SEND_IP, SIGNIN_LOGIN, Throttle, client_address
 
 COOKIE = 'edge_session'
@@ -44,6 +44,13 @@ RESEND_SECONDS = 60
 CODE = re.compile(r'[0-9]{6}')
 PURPOSES = ('register', 'reset')
 ACCEPTED = {'status': 'CODE_SENT', 'resend_after_s': RESEND_SECONDS}
+# ERRORS M478 (C1 P1-H1, C2 #1): every registration is bound to the browser that started it by this HttpOnly cookie; the
+# email code activates a registration only together with it
+REGISTRATION_COOKIE = 'edge_registration'
+REGISTRATION_PATH = '/api/v1/auth/'
+REGISTRATION_SECONDS = 86400
+REGISTRATION_TOKEN = re.compile(r'[0-9a-f]{64}')
+TOTP_FAILURE_CAP, RECOVERY_FAILURE_CAP = 100, 10
 
 
 def invalid(reasons):
@@ -100,7 +107,8 @@ def checked_passwords(body):
     reason = passwords.length_problem(body.get('password'))
     if reason:
         raise invalid({'password': reason})
-    if body.get('password_repeat') != body['password']:
+    if not isinstance(body.get('password_repeat'), str) or \
+            normal_password(body['password_repeat']) != normal_password(body['password']):
         raise invalid({'password_repeat': 'The two passwords differ. Type the same password twice.'})
     return body['password']
 
@@ -167,39 +175,40 @@ class FlowStore:
 
     # ---- registration -----------------------------------------------------------------------------------------------
 
-    def register(self, f, verifier, ip):
-        """True when an email was queued. A new or pending address gets a pending account (its username requested,
-        not held) and a code; an active or disabled one gets the "account exists" email."""
+    def register(self, f, verifier, ip, registration):
+        """True when an email was queued. An address without an account gets a new pending registration of its own
+        (bound to the browser by `registration`, the SHA-256 of its registration cookie; an earlier pending registration
+        of the address is never changed) and a code; an address with an account gets the "account exists" email."""
         with self.store.connect() as c:
             self._lock(c, f['email'])
             if not self._may_send(c, f['email'], ip):
                 return False
-            user = c.execute('SELECT user_id, status FROM edge_bff.users WHERE email=%s FOR UPDATE', (f['email'],)).fetchone()
-            if user and user['status'] != 'pending':
+            if c.execute("SELECT 1 FROM edge_bff.users WHERE email=%s AND status<>'pending'", (f['email'],)).fetchone():
                 return bool(self._send(c, 'account_exists', f['email'], email_texts.account_exists_email()))
-            if user:
-                c.execute('''UPDATE edge_bff.users SET requested_username=%s, first_name=%s, last_name=%s, phone_e164=%s
-                    WHERE user_id=%s''', (f['username'], f['first_name'], f['last_name'], f['phone'], user['user_id']))
-                c.execute('''UPDATE edge_bff.identities SET verifier=%s, updated_at=now()
-                    WHERE user_id=%s AND provider='password' ''', (verifier, user['user_id']))
-                user_id = user['user_id']
-            else:
-                user_id = c.execute('''INSERT INTO edge_bff.users(owner_key, username, requested_username, email,
-                        first_name, last_name, phone_e164, role, status)
-                    VALUES (%s, NULL, %s, %s, %s, %s, %s, 'user', 'pending') RETURNING user_id''',
-                                    (new_owner_key(), f['username'], f['email'], f['first_name'], f['last_name'],
-                                     f['phone'])).fetchone()['user_id']
-                c.execute("""INSERT INTO edge_bff.identities(user_id, provider, subject, verifier)
-                    VALUES (%s, 'password', %s, %s)""", (user_id, str(user_id), verifier))
+            user_id = c.execute('''INSERT INTO edge_bff.users(owner_key, username, requested_username, email,
+                    first_name, last_name, phone_e164, role, status, registration_hash)
+                VALUES (%s, NULL, %s, %s, %s, %s, %s, 'user', 'pending', %s) RETURNING user_id''',
+                                (new_owner_key(), f['username'], f['email'], f['first_name'], f['last_name'],
+                                 f['phone'], registration)).fetchone()['user_id']
+            c.execute("""INSERT INTO edge_bff.identities(user_id, provider, subject, verifier)
+                VALUES (%s, 'password', %s, %s)""", (user_id, str(user_id), verifier))
             return self._issue_code(c, user_id, 'register', f['email'])
 
-    def verify_registration(self, email, code, username=None):
-        """('ok', user) with the account active and its code consumed | ('taken', None) (the code stays live) |
-        ('invalid', None) | ('limited', seconds)."""
+    @staticmethod
+    def _registration(c, email, registration):
+        """The pending registration of this address that this browser's cookie names, or None."""
+        if not registration:
+            return None
+        return c.execute('''SELECT user_id, owner_key, requested_username, email FROM edge_bff.users
+            WHERE email=%s AND status='pending' AND registration_hash=%s FOR UPDATE''', (email, registration)).fetchone()
+
+    def verify_registration(self, email, code, registration, username=None):
+        """('ok', user) with this browser's registration active (its own password, username, names and phone), its code
+        consumed and every other pending registration of the address deleted | ('taken', None) (the code stays live) |
+        ('invalid', None) | ('limited', seconds). Without the registration's cookie a code proves nothing."""
         with self.store.connect() as c:
             self._lock(c, email)
-            user = c.execute('''SELECT user_id, owner_key, requested_username FROM edge_bff.users
-                WHERE email=%s AND status='pending' FOR UPDATE''', (email,)).fetchone()
+            user = self._registration(c, email, registration)
             outcome, found = self._check_code(c, user, 'register', code)
             if outcome != 'ok':
                 return outcome, found
@@ -209,25 +218,42 @@ class FlowStore:
             try:
                 with c.transaction():
                     active = c.execute('''UPDATE edge_bff.users SET username=%s, requested_username=NULL, status='active',
-                        email_verified_at=now() WHERE user_id=%s RETURNING user_id, owner_key, username, role, status''',
-                                       (name, user['user_id'])).fetchone()
-            except pg_errors.UniqueViolation:
-                return 'taken', None
+                        email_verified_at=now(), registration_hash=NULL WHERE user_id=%s
+                        RETURNING user_id, owner_key, username, role, status''', (name, user['user_id'])).fetchone()
+            except pg_errors.UniqueViolation as e:
+                return ('taken' if 'username' in (e.diag.constraint_name or '') else 'invalid'), None
             c.execute('UPDATE edge_bff.email_codes SET consumed_at=now() WHERE code_id=%s', (found['code_id'],))
+            c.execute("DELETE FROM edge_bff.users WHERE email=%s AND status='pending' AND user_id<>%s",
+                      (email, user['user_id']))
             return 'ok', active
 
-    def resend(self, email, purpose, ip):
-        """A new code for a pending registration (register) or an active account (reset), within the send limits;
-        True when one was queued."""
+    def resend(self, email, purpose, ip, registration=None):
+        """A new code for this browser's pending registration (register) or for an active account (reset), within the
+        send limits; True when one was queued."""
         with self.store.connect() as c:
             self._lock(c, email)
             if not self._may_send(c, email, ip):
                 return False
-            user = c.execute('SELECT user_id, status FROM edge_bff.users WHERE email=%s FOR UPDATE', (email,)).fetchone()
-            wanted = 'pending' if purpose == 'register' else 'active'
-            if not user or user['status'] != wanted:
+            if purpose == 'register':
+                user = self._registration(c, email, registration)
+            else:
+                user = c.execute("SELECT user_id FROM edge_bff.users WHERE email=%s AND status='active' FOR UPDATE",
+                                 (email,)).fetchone()
+            if not user:
                 return False
             return self._issue_code(c, user['user_id'], purpose, email)
+
+    def restart(self, user_id, email, ip, registration):
+        """A sign-in with the right password of a pending registration (ERRORS M478, C1 P1-M1): within the send limits,
+        the registration moves to this browser (its cookie) and a fresh code is mailed; True when one was queued."""
+        with self.store.connect() as c:
+            self._lock(c, email)
+            if not self._may_send(c, email, ip):
+                return False
+            if not c.execute('''UPDATE edge_bff.users SET registration_hash=%s WHERE user_id=%s AND status='pending'
+                    RETURNING user_id''', (registration, user_id)).fetchone():
+                return False
+            return self._issue_code(c, user_id, 'register', email)
 
     def reset(self, email, code, verifier):
         """('ok', user) with the password replaced, every session revoked and the notification queued | ('invalid',
@@ -270,13 +296,15 @@ class FlowStore:
 
     def totp(self, user_id):
         with self.store.connect() as c:
-            return c.execute('SELECT nonce, confirmed_at, last_step FROM edge_bff.mfa_totp WHERE user_id=%s',
-                             (user_id,)).fetchone()
+            return c.execute('''SELECT nonce, confirmed_at, last_step, totp_failures, recovery_failures
+                FROM edge_bff.mfa_totp WHERE user_id=%s''', (user_id,)).fetchone()
 
     def enroll(self, user_id, nonce, hashes):
         with self.store.connect() as c:
             c.execute('''INSERT INTO edge_bff.mfa_totp(user_id, nonce) VALUES (%s,%s) ON CONFLICT (user_id)
                 DO UPDATE SET nonce=EXCLUDED.nonce, created_at=now(), confirmed_at=NULL, last_step=NULL''', (user_id, nonce))
+            # a new enrolment keeps the failure counts: only a success clears them (a pending session cannot replace a
+            # confirmed enrolment, so this resets nothing an attacker could use)
             c.execute('DELETE FROM edge_bff.mfa_recovery_codes WHERE user_id=%s', (user_id,))
             for h in hashes:
                 c.execute('INSERT INTO edge_bff.mfa_recovery_codes(user_id, code_hash) VALUES (%s,%s)', (user_id, h))
@@ -284,19 +312,24 @@ class FlowStore:
     def use_step(self, user_id, step):
         """True when the step is after the last one used (then it is the last one, and the enrolment is confirmed)."""
         with self.store.connect() as c:
-            return c.execute('''UPDATE edge_bff.mfa_totp SET last_step=%s, confirmed_at=coalesce(confirmed_at, now())
+            return c.execute('''UPDATE edge_bff.mfa_totp SET last_step=%s, confirmed_at=coalesce(confirmed_at, now()),
+                    totp_failures=0, recovery_failures=0
                 WHERE user_id=%s AND (last_step IS NULL OR last_step < %s) RETURNING user_id''',
                              (step, user_id, step)).fetchone() is not None
 
     def use_recovery(self, user_id, code_hash):
         with self.store.connect() as c:
-            return c.execute('''UPDATE edge_bff.mfa_recovery_codes SET used_at=now()
-                WHERE user_id=%s AND code_hash=%s AND used_at IS NULL RETURNING user_id''',
-                             (user_id, code_hash)).fetchone() is not None
+            if c.execute('''UPDATE edge_bff.mfa_recovery_codes SET used_at=now()
+                    WHERE user_id=%s AND code_hash=%s AND used_at IS NULL RETURNING user_id''', (user_id, code_hash)).fetchone():
+                c.execute('UPDATE edge_bff.mfa_totp SET totp_failures=0, recovery_failures=0 WHERE user_id=%s', (user_id,))
+                return True
+            return False
 
-    def mfa_passed(self, token_hash_):
+    def mfa_failed(self, user_id, kind):
+        """One more consecutive failure of `kind` (totp or recovery)."""
+        column = {'totp': 'totp_failures', 'recovery': 'recovery_failures'}[kind]
         with self.store.connect() as c:
-            c.execute('UPDATE edge_bff.sessions SET mfa_passed_at=now() WHERE token_hash=%s', (token_hash_,))
+            c.execute(f'UPDATE edge_bff.mfa_totp SET {column}={column}+1 WHERE user_id=%s', (user_id,))
 
 
 class AuthFlows:
@@ -306,6 +339,7 @@ class AuthFlows:
         self.outbox = OutboxStore(store)
         self.pwned_fetch = pwned_fetch          # tests replace the range API
         self.clock = time.time                  # tests freeze the TOTP clock
+        self.with_registration = None           # set by routes()
 
     def wake(self):
         if self.sender is not None:
@@ -313,6 +347,18 @@ class AuthFlows:
 
     async def breached(self, password):
         return await asyncio.to_thread(passwords.pwned, password, self.pwned_fetch)
+
+    async def restart_registration(self, response, row, ip):
+        """A switch-on sign-in refused 401 (main.py): set a registration cookie (always, so answers never differ), and
+        when the password was a pending registration's, move that registration to this cookie and mail a fresh code
+        within the send limits."""
+        registration = secrets.token_hex(32)
+        if row is not None and await asyncio.to_thread(self.store.restart, row['user_id'], row['email'], ip,
+                                                       token_hash(registration)):
+            self.wake()
+        if self.with_registration is not None:
+            self.with_registration(response, registration)
+        return response
 
     async def new_verifier(self, password):
         if await self.breached(password):
@@ -331,6 +377,16 @@ class AuthFlows:
             response.set_cookie(COOKIE, token, max_age=settings.session_seconds, httponly=True,
                                 secure=settings.secure_cookie, samesite='strict', path='/')
             return response
+
+        def registration_of(request):
+            raw = request.cookies.get(REGISTRATION_COOKIE, '')
+            return token_hash(raw) if REGISTRATION_TOKEN.fullmatch(raw) else None
+
+        def with_registration(response, token):
+            response.set_cookie(REGISTRATION_COOKIE, token, max_age=REGISTRATION_SECONDS, httponly=True,
+                                secure=settings.secure_cookie, samesite='strict', path=REGISTRATION_PATH)
+            return response
+        self.with_registration = with_registration
 
         def code_refusal(outcome, found):
             if outcome == 'limited':
@@ -356,16 +412,20 @@ class AuthFlows:
                  'last_name': checked_name(b['last_name'], 'last_name'), 'email': checked_email(b['email']),
                  'phone': phone}
             verifier = await self.new_verifier(checked_passwords(b))
-            if await asyncio.to_thread(store.register, f, verifier, client_address(request)):
+            # every valid registration answers alike and gets a registration cookie of its own (stored only as a hash,
+            # and only when a pending registration was made with it)
+            registration = secrets.token_hex(32)
+            if await asyncio.to_thread(store.register, f, verifier, client_address(request), token_hash(registration)):
                 self.wake()
-            return JSONResponse(ACCEPTED, status_code=202)
+            return with_registration(JSONResponse(ACCEPTED, status_code=202), registration)
 
         @app.post('/api/v1/auth/register/verify')
         async def register_verify(request: Request, _on=Depends(switched_on)):
             b = fields_of(await request.body(), ('email', 'code', 'username'), ('email', 'code'))
             email = checked_email(b['email'])
             username = checked_username(b['username']) if (b.get('username') or '').strip() else None
-            outcome, found = await asyncio.to_thread(store.verify_registration, email, b['code'].strip(), username)
+            outcome, found = await asyncio.to_thread(store.verify_registration, email, b['code'].strip(),
+                                                     registration_of(request), username)
             if outcome == 'taken':
                 raise Refusal(409, 'USERNAME_TAKEN', {'fields': ['username']})
             if outcome != 'ok':
@@ -377,14 +437,17 @@ class AuthFlows:
             p = await auth.resolve(token)
             if p is None:
                 raise Refusal(401, 'UNAUTHENTICATED')
-            return signed_in(p, token)
+            response = signed_in(p, token)
+            response.delete_cookie(REGISTRATION_COOKIE, path=REGISTRATION_PATH)
+            return response
 
         @app.post('/api/v1/auth/code/resend', status_code=202)
         async def code_resend(request: Request, _on=Depends(switched_on)):
             b = fields_of(await request.body(), ('email', 'purpose'), ('email', 'purpose'))
             if b['purpose'] not in PURPOSES:
                 raise invalid({'purpose': 'purpose is register or reset.'})
-            if await asyncio.to_thread(store.resend, checked_email(b['email']), b['purpose'], client_address(request)):
+            if await asyncio.to_thread(store.resend, checked_email(b['email']), b['purpose'], client_address(request),
+                                       registration_of(request)):
                 self.wake()
             return JSONResponse(ACCEPTED, status_code=202)
 
@@ -461,6 +524,12 @@ class AuthFlows:
             row = await asyncio.to_thread(store.totp, p.user_id) if p.user_id is not None else None
             if row is None:
                 raise Refusal(400, 'MFA_NOT_ENROLLED')
+            # NIST SP 800-63B-4: at most 100 consecutive failed codes per account (10 for recovery codes), counted
+            # across every window and cleared only by a success (ERRORS M478, C1 P1-M2)
+            if code and row['totp_failures'] >= TOTP_FAILURE_CAP:
+                raise Refusal(403, 'MFA_LOCKED', {'locked': 'code', 'use': 'recovery_code'})
+            if recovery and row['recovery_failures'] >= RECOVERY_FAILURE_CAP:
+                raise Refusal(403, 'MFA_LOCKED', {'locked': 'recovery_code'})
             if code:
                 step = mfa.matching_step(mfa.secret_of(settings.mfa_key, p.user_id, row['nonce']), code,
                                          mfa.step_now(self.clock))
@@ -469,10 +538,19 @@ class AuthFlows:
                 ok = row['confirmed_at'] is not None and await asyncio.to_thread(
                     store.use_recovery, p.user_id, mfa.recovery_hash(settings.mfa_key, p.user_id, recovery))
             if not ok:
+                await asyncio.to_thread(store.mfa_failed, p.user_id, 'totp' if code else 'recovery')
                 raise Refusal(400, 'MFA_CODE_INVALID', {'fields': ['code' if code else 'recovery_code']})
             await asyncio.to_thread(self.throttle.clear, MFA_USER, key)
-            await asyncio.to_thread(store.mfa_passed, token_hash(p.token))
-            return session_answer(await auth.resolve(p.token))
+            # OWASP Session Management: a new session token at the privilege change; the pending one is revoked
+            token = secrets.token_hex(32)
+            await asyncio.to_thread(auth.accounts.create_session, token_hash(token),
+                                    {'user_id': p.user_id, 'owner_key': p.owner_key}, settings.session_seconds,
+                                    self.throttle.key_hash('signin_ip', client_address(request)), True, True)
+            await asyncio.to_thread(auth.store.revoke, token_hash(p.token))
+            fresh = await auth.resolve(token)
+            if fresh is None:
+                raise Refusal(401, 'UNAUTHENTICATED')
+            return signed_in(fresh, token)
 
         @app.post('/api/v1/hooks/email/resend')
         async def resend_hook(request: Request, _on=Depends(switched_on)):

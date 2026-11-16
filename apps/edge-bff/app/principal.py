@@ -21,7 +21,6 @@ Dependencies (`Auth`, handed to every router as `routes(app, auth)`):
 """
 import asyncio
 import hashlib
-import hmac
 import json
 import re
 from dataclasses import dataclass, field
@@ -31,7 +30,7 @@ from fastapi import Depends, Request
 
 from .accounts import AccountStore
 from .errors import Refusal, capability_required
-from .security import csrf_token, token_hash
+from .security import csrf_token, same_ascii, token_hash
 
 EVERYTHING = '*'
 ADMIN_ACCESS = 'admin.access'
@@ -96,10 +95,16 @@ def switch_off_principal(settings, owner, token='', seed=None):
                      version=SWITCH_OFF_VERSION, token=token)
 
 
+def role_needs_mfa(role):
+    """Switch on: an account whose role holds the admin capability passes the second factor before any other route."""
+    capabilities = ROLE_CAPABILITIES.get(role, frozenset())
+    return EVERYTHING in capabilities or ADMIN_ACCESS in capabilities
+
+
 def account_principal(row, token=''):
     """A switch-on principal from an account row (accounts.py resolve or owner)."""
     capabilities = ROLE_CAPABILITIES.get(row['role'], frozenset())
-    needs_mfa = EVERYTHING in capabilities or ADMIN_ACCESS in capabilities
+    needs_mfa = role_needs_mfa(row['role'])
     return Principal(user_id=row['user_id'], owner_key=row['owner_key'], username=row['username'], role=row['role'],
                      plan_key=None, status=row['status'], expires_at=None,
                      mfa_ok=not needs_mfa or row.get('mfa_passed_at') is not None, capabilities=capabilities,
@@ -130,7 +135,7 @@ class Auth:
             return found
 
         async def write(request: Request, p: Principal = Depends(session)):
-            if not hmac.compare_digest(request.headers.get('x-csrf-token', ''), csrf_token(p.token, settings.session_secret)):
+            if not same_ascii(request.headers.get('x-csrf-token', ''), csrf_token(p.token, settings.session_secret)):
                 # the only place that answers CSRF_INVALID (the clients re-read the session and retry once on it)
                 raise Refusal(403, 'CSRF_INVALID')
             return p

@@ -19,11 +19,17 @@ def sign_in(c, login, password):
 
 
 def test_a_second_registration_of_a_pending_address_never_gives_its_author_the_verified_account(app, store):
+    # B1b fix round: the other party registers from its own browser (one TestClient is one browser)
+    from fastapi.testclient import TestClient
+    other = TestClient(app.app)
     assert register(app, VICTIM, 'victim_real', PASSWORD).status_code == 202
+    own = last_code(store, VICTIM)
     cooldown_over(store)                                    # the 60 s send limit of the address has passed
-    assert register(app, VICTIM, 'hijacker_name', OTHER_PASSWORD).status_code == 202
-    # the victim enters the newest code in the inbox and is signed in to the now active account
-    assert verify(app, last_code(store, VICTIM), VICTIM).status_code == 200
+    assert register(other, VICTIM, 'hijacker_name', OTHER_PASSWORD).status_code == 202
+    # the newest code in the inbox is the other party's registration's: it does not open the victim's registration
+    assert verify(app, last_code(store, VICTIM), VICTIM).status_code == 400
+    # the victim enters the code of its own registration and is signed in to the now active account
+    assert verify(app, own, VICTIM).status_code == 200
     app.cookies.clear()
     hijack = sign_in(app, 'hijacker_name', OTHER_PASSWORD)
     by_email = sign_in(app, VICTIM, OTHER_PASSWORD)

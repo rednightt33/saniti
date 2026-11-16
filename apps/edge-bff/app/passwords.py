@@ -15,6 +15,8 @@ import re
 
 import httpx
 
+from .security import normal_password
+
 logger = logging.getLogger('edge_bff.passwords')
 
 MIN_LENGTH, MAX_LENGTH = 8, 256
@@ -25,7 +27,7 @@ E164 = re.compile(r'\+[1-9][0-9]{6,14}')
 
 def length_problem(password):
     """None when the length is allowed, else the reason (shown to the person)."""
-    if not isinstance(password, str) or not MIN_LENGTH <= len(password) <= MAX_LENGTH:
+    if not isinstance(password, str) or not MIN_LENGTH <= len(normal_password(password)) <= MAX_LENGTH:
         return f'A password is {MIN_LENGTH} to {MAX_LENGTH} characters; any characters are allowed.'
     return None
 
@@ -42,7 +44,7 @@ def fetch_range(prefix):
 
 def pwned(password, fetch=None):
     """True when Pwned Passwords holds the password; False when not, or when the API cannot answer (logged)."""
-    digest = hashlib.sha1(password.encode('utf-8', 'surrogatepass')).hexdigest().upper()
+    digest = hashlib.sha1(normal_password(password).encode('utf-8', 'surrogatepass')).hexdigest().upper()
     text = (fetch or fetch_range)(digest[:5])
     if text is None:
         logger.warning(json.dumps({'event': 'PWNED_CHECK_UNAVAILABLE'}))
