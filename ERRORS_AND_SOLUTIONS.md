@@ -8158,7 +8158,7 @@ in its staleness check.
 - **Lesson:** a value and its unit are one word for the line breaker: join them with a no-break space where the text is
   built, not per label.
 
-### M448 — Look-ahead: eight Terminal Flow indicators choose their brokers with data up to the last candle; four data inputs carry no availability date (2026-11-15, open)
+### M448 — Look-ahead: eight Terminal Flow indicators choose their brokers with data up to the last candle; four data inputs carry no availability date (2026-11-15, fixed for the Backtest, deployed 2026-11-16)
 
 - **Found by:** BACKTEST-REVAMP (PLAN.md), before the Terminal Flow indicators enter the Backtest. User 2026-11-15:
   "bisa mengintip masa depan, seharusnya tidak terjadi ... Jika berlaku untuk seluruh indikator, maka ini perlu
@@ -8210,7 +8210,7 @@ in its staleness check.
   `flow_point_in_time`, CONDITION_RESTRICTED otherwise; the session's rights arrive in P5). A named broker without rows
   is decided on the rows up to the period's end (the first version read later rows; the gate caught it). FL34 reads
   today's classification on every date (user decision 5, accepted limit).
-- **Status:** OPEN until Gate 2 (merge and deploy). The Terminal chart still draws its versions (the Terminal is not
+- **Status:** FIXED for the Backtest, deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`). The Terminal chart still draws its versions (the Terminal is not
   changed, user decision). Whether the Screener reads them on past bars (its preview arrows) was not checked in this
   task.
 - **Lesson for new data:** a table that feeds signals carries the date each row became known, not only the date it
@@ -8286,7 +8286,8 @@ in its staleness check.
   stock: `FLOW_BASIS_CHANGE`, `FLOW_SOURCE_GAP` (the publisher's gap markers), `FLOW_ROWS_DROPPED` (rows on days
   without a price bar, per board), and `FLOW_PRE_2021`. `bf`/`sf` are read by name. Not covered: a range re-downloaded
   after an action (PBSA), which has no marker in the published files; the data-layer fix stays open.
-- **Status:** OPEN (data layer); interim Backtest guard built on branch, awaiting Gate 2.
+- **Status:** OPEN (data layer: a broker range re-downloaded after an action without a marker); the interim Backtest
+  guard and the P9 basis per action deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`).
 - **Stage C (M458 item 2):** the interim mask empties the bars before a pre-boundary action too, so a value's
   availability depends on a later event; the choice of fix is open for the user (EXEC-BACKTEST-REVAMP, Gate 2).
 - **P9 (2026-11-16, user "A dulu", "opsi A"):** the rights-issue part of the proposed data-layer fix is built on the branch:
@@ -8294,7 +8295,7 @@ in its staleness check.
   price basis (M458 item 2). Open: a broker range re-downloaded after an action without a marker (PBSA) is only masked
   (the per-day guard), not corrected; the gap and dropped-row markers stay as they are.
 
-### M451 — Backtest: "close crosses above (or is above) the Donchian upper band" can never be true (2026-11-15, open)
+### M451 — Backtest: "close crosses above (or is above) the Donchian upper band" can never be true (2026-11-15, fixed, deployed 2026-11-16)
 
 - **Found by:** BACKTEST-REVAMP Stage A, Agent 3; verified by the main agent.
 - **Verified:** `apps/edge-bff/terminal/src/calc/indicators.ts:345-347` Donchian upper = `kMax(H, length)`, which includes
@@ -8317,9 +8318,9 @@ in its staleness check.
   every other digest is the same; the oracle test applies the probe's file.
 - **Stage C (M458 item 10):** the Donchian price comparisons carry `compare_lag: 1` in their hash form, so a run after
   K5 a is a trial of its own in the same line.
-- **Status:** FIXED ON BRANCH, awaiting Gate 2 (merge and deploy).
+- **Status:** FIXED, deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`).
 
-### M452 — Trial hashes: unknown condition kinds share one lineage shape, and the variant hash reads parameters as sent (2026-11-15, open)
+### M452 — Trial hashes: unknown condition kinds share one lineage shape, and the variant hash reads parameters as sent (2026-11-15, fixed, deployed 2026-11-16)
 
 - **Found by:** BACKTEST-REVAMP Stage A, Agent 3; verified by the main agent.
 - **Verified:** `apps/edge-bff/backtest/src/core/hash.ts:94-98` `conditionShape` knows `indicator` and `price_action`;
@@ -8341,9 +8342,9 @@ in its staleness check.
   trial.
 - **Lesson for new data:** a new condition kind or source reaches the hash only through its normalized form and a
   recursive shape; a hash change is recorded in a golden on purpose.
-- **Status:** FIXED ON BRANCH, awaiting Gate 2 (merge and deploy).
+- **Status:** FIXED, deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`).
 
-### M453 — Backtest versions do not cover what the worker computes with: subfolders, the Flow formulas and flowRegistry.json; the worker image lacks flowRegistry.json (2026-11-15, open)
+### M453 — Backtest versions do not cover what the worker computes with: subfolders, the Flow formulas and flowRegistry.json; the worker image lacks flowRegistry.json (2026-11-15, fixed, deployed 2026-11-16)
 
 - **Found by:** BACKTEST-REVAMP Stage A (Agent 3) and Stage B (Agent 8); verified by the main agent.
 - **Verified:** `apps/backtest-worker/src/version.ts:18-30` hashes only the files directly in `apps/edge-bff/backtest/src/core`
@@ -8355,7 +8356,7 @@ in its staleness check.
   every file a module it may load imports (M405).
 - **Proposed solution:** worker: recursive SOURCES including `terminal/src/calc` and `flowRegistry.json`; Dockerfile COPY;
   tests that an edit in each source changes ENGINE_VERSION; `check_image_imports` for both images (BACKTEST-REVAMP P0).
-- **Status:** FIXED ON BRANCH (P0-P1: `version.ts` walks subfolders and covers `calc/`, `flowRegistry.json` and the Screener core; the image copies `flowRegistry.json`, the Screener core and its generator; `tests/version.test.ts`, `tests/image-imports.test.ts`), awaiting Gate 2.
+- **Status:** FIXED, deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`) (P0-P1: `version.ts` walks subfolders and covers `calc/`, `flowRegistry.json` and the Screener core; the image copies `flowRegistry.json`, the Screener core and its generator; `tests/version.test.ts`, `tests/image-imports.test.ts`), awaiting Gate 2.
 
 ### M454 — Terminal Flow helpers fail silently: a malformed anchor becomes the first candle, an unknown broker draws 0, FL23 ranks on all boards but sums on the chosen ones (2026-11-15, open; Terminal untouched by user decision)
 
@@ -8369,7 +8370,7 @@ in its staleness check.
   Terminal stays as it is (user 2026-11-15: "Terminal jangan disentuh").
 - **Status:** OPEN for the Terminal (not changed, user decision). The Backtest does not inherit it: its point-in-time versions refuse a malformed anchor (`INVALID_ANCHOR`), "view" or none (`ANCHOR_REQUIRED`) and a named broker without rows (`UNKNOWN_BROKER`), and rank and sum on the same boards (`apps/backtest-worker/src/pit/`).
 
-### M455 — EDGE deploy and runtime configuration drift: CI does not gate deploys, backtest-worker runs under an undocumented 1 GB memory limit, Postgres runs at 2 GB while the config says 1 GB (2026-11-15, open)
+### M455 — EDGE deploy and runtime configuration drift: CI does not gate deploys, backtest-worker runs under an undocumented 1 GB memory limit, Postgres runs at 2 GB while the config says 1 GB (2026-11-15, fixed, deployed 2026-11-16; the limit: M463)
 
 - **Found by:** BACKTEST-REVAMP Stage B (Agents 6 and 8); verified by the main agent (Railway GraphQL, read-only).
 - **Verified:**
@@ -8384,7 +8385,10 @@ in its staleness check.
   change).
 - **Proposed solution:** `railway config pull` and record both limits; decide the worker limit with the user before the
   Flow work ships; decide whether CI gates deploys (`checkSuites: true` or a required check on `main`).
-- **Status:** RECORDED ON BRANCH: `.railway/railway.ts` holds the live limits (backtest-worker 1 GB, K9 b; Postgres 2 GB) and `checkSuites: true` for edge-bff and screener-worker (K10 a); the CI change takes effect when the config is applied with the deploy after Gate 2 (`railway config plan`, then apply, with approval).
+- **Status:** FIXED: `.railway/railway.ts` holds the live limits (backtest-worker 1 GB, K9 b; Postgres 2 GB) and
+  `checkSuites: true` for edge-bff and screener-worker (K10 a), applied 2026-11-16 with `railway config apply` (the
+  first edge-bff deploy after it waited for the checks on `main`, `RAILWAY_CHANGELOG.md`). The 1 GB limit is too low
+  for a preview and a 12-stock run together: M463.
 
 ### M456 — Backtest page bundle and broker files are reachable outside the worker: the page computes conditions in the browser, and its assets need no session (2026-11-15, design constraint)
 
@@ -8396,9 +8400,9 @@ in its staleness check.
   the worker does not cover browser computation.
 - **Proposed solution:** admin-only series (BACKTEST-REVAMP D) live in modules only worker entry points import; an
   import-graph test and a build check keep them out of the page bundle; the page asks the worker for their series.
-- **Status:** HELD ON BRANCH: no module the page imports reaches `apps/backtest-worker/` (`apps/edge-bff/backtest/tests/worker-only.test.mjs`), the built bundle has no `pit/`, `flow_point_in_time` or `ANCHOR_REQUIRED` (checked 2026-11-15), and the point-in-time indicators are refused by the worker without the right; the page assets still need no session (unchanged).
+- **Status:** HELD, deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`): no module the page imports reaches `apps/backtest-worker/` (`apps/edge-bff/backtest/tests/worker-only.test.mjs`), the built bundle has no `pit/`, `flow_point_in_time` or `ANCHOR_REQUIRED` (checked 2026-11-15), and the point-in-time indicators are refused by the worker without the right; the page assets still need no session (unchanged).
 
-### M457 — Backtest statistics: trials counted per line only, out-of-sample not a holdout, no minimum trade count, survivorship warned only in portfolio mode (2026-11-15, open)
+### M457 — Backtest statistics: trials counted per line only, out-of-sample not a holdout, no minimum trade count, survivorship warned only in portfolio mode (2026-11-15, built, deployed 2026-11-16)
 
 - **Found by:** BACKTEST-REVAMP Stage B (Agent 7); verified by the main agent.
 - **Verified:** `apps/edge-bff/backtest/src/core/hash.ts:94-125` lineage includes the single-mode ticker and each
@@ -8415,9 +8419,9 @@ in its staleness check.
   of the last 90 days, every line); the result carries `meta.trials.owner` and `robustness.deflated_owner` beside the
   line's DSR (the page shows the stricter, Stage D). Not built: `OOS_ALREADY_SEEN` (needs the periods of earlier
   variants, which edge-bff does not keep).
-- **Status:** BUILT ON BRANCH (except OOS_ALREADY_SEEN), awaiting Gate 2.
+- **Status:** BUILT (except OOS_ALREADY_SEEN), deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`).
 
-### M458 — Backtest revamp, Stage C review: the look-ahead gate missed two planted leaks, a named broker trading after the period decided a run, and smaller contract gaps (2026-11-15, open: item 2)
+### M458 — Backtest revamp, Stage C review: the look-ahead gate missed two planted leaks, a named broker trading after the period decided a run, and smaller contract gaps (2026-11-15, fixed, deployed 2026-11-16)
 
 - **Found by:** BACKTEST-REVAMP Stage C, Agent 9 (independent adversarial review of the diff, read-only); each item
   re-verified by the main agent in code and by test the same day. Agent 9 found the admin gate unbypassable in 16 forms,
@@ -8490,13 +8494,13 @@ in its staleness check.
   comparison, the empty-series refusal, the membership of a broker set), lets a later row decide a run; and a hash or
   version that leaves out an input the run reads (a window, a reference label, a changed rule) merges what differs or
   splits what is one.
-- **Status:** items 1-11 FIXED ON BRANCH (item 2 by P9, 2026-11-16), awaiting Gate 2 (deploy: publisher, telegram-monitor,
-  worker, screener-worker, edge-bff). Item 3's refusal is replaced by a member per day (M459 items 2-3, 2026-11-16).
+- **Status:** items 1-11 FIXED (item 2 by P9), deployed on dev 2026-11-16: publisher, telegram-monitor, worker,
+  screener-worker, edge-bff (`RAILWAY_CHANGELOG.md`). Item 3's refusal is replaced by a member per day (M459 items 2-3, 2026-11-16).
 - **Lesson for new data:** every input a run reads, a reference list included, enters `data_version`; a series built from
   a set of members must take its members from the rows up to the period's end; a look-ahead test cuts the data at t at
   every step that decides something, the refusal included.
 
-### M459 — Backtest revamp, Stage C2 review: the broker basis decided with sessions after the day, a named broker a member before it trades, the gate blind to days without broker rows, and deploy gaps (2026-11-16, fixed on branch)
+### M459 — Backtest revamp, Stage C2 review: the broker basis decided with sessions after the day, a named broker a member before it trades, the gate blind to days without broker rows, and deploy gaps (2026-11-16, fixed, deployed)
 
 - **Found by:** BACKTEST-REVAMP Stage C2 (user 2026-11-16 "Opsi C": two independent reviewers, Opus, medium effort,
   read-only, the diff only): lens 1 correctness and look-ahead, lens 2 contracts, rights, deploy and cross-service
@@ -8567,12 +8571,12 @@ in its staleness check.
   lens 2 F7 the K7 a hash form splits strategy lines at deploy (intended, one line in the deploy notes).
 - **Class:** a decision a run reads (a basis status, a broker set, a window's end) made on the whole history lets later
   rows decide earlier days; a test fixture without the gaps of real data cannot see it.
-- **Status:** items 1-16 FIXED ON BRANCH (1 and 9 by the user's "A", 2026-11-16), awaiting Gate 3 (deploy).
+- **Status:** items 1-16 FIXED (1 and 9 by the user's "A"), deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`).
 - **Lesson for new data:** a published decision that depends on later sessions carries the date it became known, and a
   reader treats it as unknown before; a fixture for look-ahead tests has the gaps of the real source (missing days,
   members that come and go).
 
-### M460 — Backtest page port (Stage D): shortcuts read a removed panel, the focus lost, a waiting lane's name cut, the browser checks drifted, and the port departed from the design without approval (2026-11-16, fixed on branch)
+### M460 — Backtest page port (Stage D): shortcuts read a removed panel, the focus lost, a waiting lane's name cut, the browser checks drifted, and the port departed from the design without approval (2026-11-16, fixed, deployed)
 
 - **Found by:** BACKTEST-REVAMP Stage D (D7, user 2026-11-16 "Opsi C"), running the page's browser checks on the port of the
   user's design file: `tests/smoke/smoke.mjs` (Playwright on the stub API) and `tests/visual/compare.mjs` with `diff.py`
@@ -8641,7 +8645,7 @@ in its staleness check.
   readers of its id behind (a null at run time, not a build error); a test copy of a rule a build cannot import drifts
   unless a test compares it; a port labels its own choices with the user's decision unless the decision's list is
   checked item by item.
-- **Status:** items 1-10 FIXED ON BRANCH; the user's Gate 3 answers (2026-11-16 "1A 2B 3A, go deploy"): the chips that
+- **Status:** items 1-10 FIXED, deployed on dev 2026-11-16 (`RAILWAY_CHANGELOG.md`); the user's Gate 3 answers (2026-11-16 "1A 2B 3A, go deploy"): the chips that
   fit (item 5) and the smoke in CI (`.github/workflows/backtest-page-smoke.yml`, on a push or pull request touching the
   page or a module it reads; class fix of item 4). The visual check stays by hand (the user's design file is not in
   the repository).
@@ -8689,3 +8693,74 @@ in its staleness check.
   is called from; a second page that reads the route copied the call but not the rule.
 - **Status:** FIXED (deployed with edge-bff, `RAILWAY_CHANGELOG.md` 2026-11-16).
 - **Lesson for new data:** none (page only).
+
+### M463 — Backtest worker on dev: a 12-stock portfolio run after its preview is killed with the worker (WORKER_LOST); the 1 GB limit is below what a preview and a run hold together (2026-11-16, open: user decision)
+
+- **Symptom:** the dev end-to-end check after the EXEC-BACKTEST-REVAMP deploy (`verification/backtest/e2e_dev.py`,
+  10:00-10:02 UTC): single, repeat, refusal and cancel passed; the portfolio run (12 stocks BBRI, TLKM, BBCA, ASII,
+  BMRI, ANTM, ADRO, PGAS, BBNI, BUMI, BRPT, UNVR; 2019-06-03 to 2026-11-09; ADX, stochastic, MACD divergence and two
+  flow conditions) ended `WORKER_LOST` after 18 s.
+- **Verified (worker log, deployment `e4cf8fdd`):** the page's 12-stock signals preview ended 10:02:07 with
+  `rss_bytes` 919 MB and `max_rss_bytes` 964 MB (container limit 1 GB); job `bt_6277ecbf…` started 10:02:09; the
+  process started again at 10:02:25 (`start` event) with no error line, and the job was unknown to it (404, edge-bff's
+  `WORKER_LOST`). Railway's 60-second memory samples do not show the spike (peak 0.58 GB).
+- **Verified (reproduced locally, the image's command on the same published files served by
+  `tests/fake-terminal.mjs`, process RSS sampled every 50 ms; harness kept in the session scratchpad):**
+
+  | Case | Preview peak | Preview, then run: peak |
+  |---|---|---|
+  | as deployed (16 tickers in flight, no heap cap) | 1,067 MB (927 on a second try) | 1,490-1,657 MB |
+  | worker before the revamp (`5bc6bdda`) | 1,028 MB | 1,623 MB |
+  | run alone, no preview | — | 942 MB |
+  | memory cache 50 MB (`BACKTEST_CACHE_BYTES`) | 1,025 MB | 1,565 MB |
+  | 4 tickers in flight (`BACKTEST_DOWNLOAD_CONCURRENCY=4`) | 758 MB | 1,197 MB |
+  | V8 heap cap 300 MB per thread (`NODE_OPTIONS=--max-old-space-size=300`) | 705 MB | 1,093 MB |
+  | 4 in flight + heap cap 300 MB | 541 MB | 811 MB (run 14 s) |
+  | the same request plus two grammar Flow conditions (FL11, FL02; the broker columns are kept), as deployed | 1,161 MB | 1,770 MB |
+  | the grammar Flow request, 4 in flight + heap cap 300 MB | 644 MB | 1,243 MB (run 24 s) |
+
+  The preview thread keeps about 600-850 MB after it ends (its heap is not given back), the run's thread then adds its
+  own; the memory cache of gzip files is not the cause; the broker columns of a grammar Flow condition live outside
+  the V8 heap, so a heap cap does not bound them.
+- **Root cause:** the worker's two compute threads (preview, job; `src/compute.ts`) each load up to 12 stocks' broker
+  data with nothing that bounds their sum, or one thread's own peak, to the container's memory; the container limit
+  (1 GB since 2026-11-07, kept by K9 b on 2026-11-15) is below what the page's normal sequence (preview, then the run)
+  holds. When the container exceeds it, the whole process is killed and every job in flight is lost, not only the
+  heavy one. The defect predates the revamp (same peak on `5bc6bdda`); the 2026-10-27 measurement (1.31 GB) had shown
+  it before the limit was set.
+- **Class:** any request mix whose decoded data plus the other thread's retained memory exceeds the container: a
+  portfolio of stocks with long broker histories, a preview followed by its run (always, from the page), two owners at
+  once, grammar Flow conditions (columns kept), the point-in-time indicators. A per-task refusal that names the
+  problem exists already for a thread over its own heap limit (`server.ts answerError`: `OUT_OF_MEMORY`, "choose fewer
+  stocks or a shorter period"), but no thread has such a limit, so the container kills the process first.
+- **Solution:** open, the user's decision (options with these numbers in the report of 2026-11-16).
+- **Status:** OPEN.
+- **Lesson for new data:** a data source whose per-entity history grows (broker rows per stock) needs a memory budget
+  measured on its largest entities and enforced by the process that loads it, not only a row count.
+
+### M464 — A worker secret's value appeared in this session's terminal output (2026-11-16, open: rotation needs the user's approval)
+
+- **Symptom:** while reading the backtest-worker's budget variables (`railway variables --kv`), the filter meant to
+  hide secret values matched only names with `KEY` after the `=` sign, so the value of `BACKTEST_WORKER_KEY` was printed
+  in the agent session's tool output. It was not committed, logged on Railway, or sent anywhere else.
+- **Root cause:** a deny filter on the output (redact what looks secret) instead of an allow list (print only the
+  named non-secret variables).
+- **Solution:** read variables only through an allow list of names (`grep -E '^(NAME1|NAME2)='`), as the AI tools and
+  models generators do. Rotation: a new `BACKTEST_WORKER_KEY` on backtest-worker, then a redeploy of its one consumer
+  edge-bff (`scripts/railway_reference_consumers.py backtest-worker.BACKTEST_WORKER_KEY`), with the user's approval.
+- **Status:** OPEN (rotation not done).
+- **Lesson for new data:** none (process).
+
+### M465 — Backtest e2e check on dev: the phone screenshots timed out on the results tabs the builder covers (2026-11-16, fixed)
+
+- **Symptom:** `verification/backtest/e2e_dev.py` (10:00 UTC): after the single run, every results tab at 390 x 844
+  failed with `TimeoutError` (six of six); 1600 and 1280 px passed.
+- **Verified root cause:** the ported page follows the design on a phone: the open builder covers the main column and
+  the chart and results show once it is closed (`#panelTg`; the smoke test's `showChart`). The e2e check resized to
+  390 px and clicked `#rtabs` under the builder. The page is right; the check had not followed the port (the same
+  class as M460 item 4 and M462 item 2).
+- **Solution:** the check closes the builder when the main column has no width before it clicks the tabs.
+- **Class:** a browser check written for one layout must open the layout's own way to a control at every width it
+  visits; the smoke test in CI holds the page's rule, the dev check copies it.
+- **Status:** FIXED (rerun on dev 2026-11-16).
+- **Lesson for new data:** none (verification only).

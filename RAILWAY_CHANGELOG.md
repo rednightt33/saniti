@@ -1,5 +1,47 @@
 # Railway changelog
 
+## 2026-11-16 — EXEC-BACKTEST-REVAMP deploy on dev (Gate 3, user "1A 2B 3A, go deploy", "ok lanjut")
+
+- **Before:** no Backtest job active and no orc turn running (edge_bff.jobs, `AI_conversation_turn`) before each upload
+  and merge. Rollback points (the deployments live before): edge-bff `0c882d2d`, screener-worker `eb9d30e1`,
+  backtest-worker `d9acefda`, telegram-monitor `bdbbca08`, terminal-publisher `65c25a7b`.
+- **backtest-worker** `e4cf8fdd` SUCCESS 09:22 UTC: CLI upload of `git archive 48a38519` (the PR head) of the paths its
+  Dockerfile copies, `--path-as-root`; start log `engine_version` `e3be5b3a63d4e629` = the repository's. Before the
+  merge, as the deploy order says (worker first).
+- **screener-worker:** CLI upload `4cfe1654` from `48a38519` (09:24 UTC) before the merge, then `cac24666` SUCCESS
+  from `main` `c5d3ee97` (the merge of rednightt33/saniti#65, 09:27 UTC).
+- **edge-bff:** `37a4ab62` from `c5d3ee97` FAILED in Railway's build (the Backtest page stage lacked the Screener
+  source, ERRORS M461); `041807ea` SUCCESS from `4e02ad6e` (rednightt33/saniti#66, 09:38 UTC); `f0c86a39` SUCCESS from
+  `fd539903` (rednightt33/saniti#67: the Screener catalog asked again while its worker loads, M462), which waited
+  (`WAITING`) for the checks on `main` and deployed at 09:59 UTC: K10 a in effect. `/ready` 200.
+- **telegram-monitor** `438e9c81` SUCCESS from `c5d3ee97` (source `Broker_Basis_Report`; GitHub-connected,
+  `checkSuites` off as before).
+- **K10 a:** `railway config apply` set `checkSuites: true` on edge-bff and screener-worker (the plan held exactly those
+  two changes, read back from `deploymentTriggers`); four live settings made outside the file were recorded in
+  `.railway/railway.ts` instead of applying their removal (Postgres 1 vCPU, market-python-sandbox 1 GB, two
+  telegram-monitor variables by name).
+- **terminal-publisher** `0f7f2a95` SUCCESS 09:32 UTC: CLI upload of `git archive 48a38519 apps/terminal-publisher`;
+  cron `0,30 0,1,12 * * *` kept. Its first run was the Run Now that telegram-monitor pressed after the price cron
+  (`terminal_publish_signal` `Monitoring_Price_ALL` 10:04:58 and `Monitoring_Fixed_Income` 10:04:42, both
+  `TRIGGERED`): mode daily, 864 events files changed (`EVENTS_FORMAT` 3, the basis per corporate action), basis measured
+  for 361 actions (4 need attention: 2 unresolved, 3 with a raw price), 1,768 files planned, 2,722 written, done in
+  294 s (10:10 UTC), then the 2,723 replaced files deleted after 600 s (none left, 10:21 UTC); the daily Telegram
+  "Basis harga lawan data broker" sent (`Telegram_Notification_Log` `broker-basis-2026-11-16-8960568a` SENT 10:21:40
+  UTC), with the existing broker-behind notice (broker data 5 sessions behind the prices). Reader check: BBRI's new events file is format 3 with
+  its basis (the 2021 rights issue `terms` 1.025), decoded by the worker's code; `verification/backtest/revamp_dev_check.py`
+  passed after it (Flow run `bt_ed5d0afe…` 48 trades, point-in-time run `bt_3619d46e…` 3 trades, preview 184 entries).
+- **Postgres restart after the large update:** `scripts/restart_postgres.py` at 10:14 UTC REFUSED (`cron_due`: the
+  10:00 and 10:30 crons; memory 1.99 GB, 0 statements, 0 user runs). Every minute until 14:30 UTC is inside a guard
+  (crons 10:30, 11:00, the publisher 12:00 and 12:30, B6 12:00-13:20, `postgres-memory-cron` 13:45); the scheduled
+  restart at 13:45 UTC (auto on, mode `apply`) covers it, checked at 13:55 UTC.
+- **Dev checks:** `e2e_dev.py` (10:00-10:02 UTC): page boot, single, repeat, refusal at submit and cancel passed; the
+  12-stock portfolio run ended `WORKER_LOST`: the worker process was killed above its 1 GB limit after the preview
+  (ERRORS M463, open: the user's decision); the six results tabs at 390 px timed out because the check clicked under
+  the open builder (M465, the check fixed); rerun `--only single` 10:23-10:24 UTC: all passed, 18 screenshots (1600,
+  1280 and 390 px, six tabs each). `revamp_dev_check.py`: catalog (52 Flow indicators, 48 available, the 8
+  point-in-time ones admin-only), a Flow run in the shared grammar and a point-in-time run as an admin, and the signals
+  preview, all passed.
+
 ## 2026-11-16 — EXEC-BACKTEST-REVAMP Stage C2: `.railway/railway.ts` records the live `checkSuites` (no Railway change)
 
 - Lens 2 F4 (ERRORS M459 item 14): the 2026-11-15 entry wrote `checkSuites: true` for edge-bff and screener-worker into

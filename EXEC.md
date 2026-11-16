@@ -15041,10 +15041,30 @@ langkah di bawah.
 4. Verifikasi dev: `verification/backtest/e2e_dev.py`; satu run A-C; satu run D sebagai admin; panggilan worker tanpa hak ditolak;
    P6.4 data nyata; ukuran memori dan waktu dicatat (run 12 saham + pratinjau); halaman Backtest di EDGE (tema dari
    EDGE, jendela kondisi, satu run) di 1440 dan 390 px.
-5. **Rollback urutan terbalik:** edge-bff `960ef248` dulu, lalu screener-worker `eb9d30e1`, lalu backtest-worker `d9acefda`;
-   terminal-publisher dan telegram-monitor ke deployment sebelumnya; revert merge di `main`. Berkas events format 3 tetap
+5. **Rollback urutan terbalik:** edge-bff `0c882d2d` dulu (deploy aktif sebelum merge; `960ef248` di catatan awal sudah
+   tergantikan), lalu screener-worker `eb9d30e1`, lalu backtest-worker `d9acefda`; terminal-publisher `65c25a7b` dan
+   telegram-monitor `bdbbca08`; revert merge di `main`. Berkas events format 3 tetap
    terbaca oleh worker dan halaman lama: pembaca di `main` hanya memeriksa kolom dan `schema_version` (tetap 1) dan
    mengabaikan kunci `basis` dan `format` (`origin/main` `datafile.ts decodeColumnar`, `kind`, diperiksa 2026-11-16). Hasil lama tetap terjelaskan lewat `engine_version` per job; trial tidak di-reset.
+
+
+### Pelaksanaan deploy (2026-11-16)
+
+Rincian dan ID: `RAILWAY_CHANGELOG.md` 2026-11-16.
+- Langkah 1-3b selesai: backtest-worker `e4cf8fdd` (CLI, `48a38519`), screener-worker `cac24666` (`main` `c5d3ee97`),
+  edge-bff `f0c86a39` (`fd539903`, setelah perbaikan M461 di rednightt33/saniti#66 dan M462 di rednightt33/saniti#67;
+  deploy itu menunggu CI hijau: K10 a berlaku), telegram-monitor `438e9c81`, terminal-publisher `0f7f2a95` (CLI) dengan
+  run pertamanya 10:04-10:21 UTC (864 berkas events format 3, basis 361 aksi, laporan Telegram basis terkirim).
+- Restart Postgres sesudah update besar: ditolak penjaga (cron 10:00/10:30, lalu 11:00, publisher 12:00/12:30, B6,
+  cron restart 13:45); restart terjadwal 13:45 UTC (otomatis ON, mode apply) yang menanganinya, dicek 13:55 UTC.
+- Langkah 4: `revamp_dev_check.py` lulus (katalog; run Flow A-C 48 transaksi; run D sebagai admin 3 transaksi; pratinjau
+  184 sinyal); e2e: halaman, single, repeat, penolakan dan cancel lulus; **run portofolio 12 saham `WORKER_LOST`**
+  (M463: pratinjau lalu run memerlukan 1,5-1,8 GB, batas worker 1 GB; sudah terjadi sebelum revamp). Cek data nyata P6.4
+  sudah dijalankan pada kode yang sama sebelum Gerbang 3 (`verification/backtest/lookahead/results_2026-11-16.json`).
+  Panggilan worker tanpa hak (D ditolak) diuji di `apps/backtest-worker/tests/server.test.ts`, tidak di dev (butuh kunci
+  worker).
+- **Pertanyaan terbuka ke user (2026-11-16):** perbaikan M463 (batas memori worker, pilihan di laporan) dan rotasi
+  `BACKTEST_WORKER_KEY` (M464).
 
 ### Selesai berarti
 
