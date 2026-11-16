@@ -571,8 +571,10 @@ src/server.ts`. The loader resolves the Terminal's Vite-style extensionless impo
 - `loadConfig` (`src/config.ts`) and `checkRegistry` (`src/version.ts`) run first; a bad variable or a stale
   `backtest-registry.json` exits 1. `ENGINE_VERSION` is a 16-hex hash of every core file and `src/*.ts`;
   `REGISTRY_VERSION` a hash of `indRegistry.json` and `indicators.ts` (`scripts/build-registry.mjs registryVersion`).
-- Two long-lived `worker_threads` (`src/compute.ts ComputeThread`): `jobs` and `previews`, so status, cancel and health
-  stay answered while a job computes. One job and one preview compute at a time.
+- Two `worker_threads` (`src/compute.ts ComputeThread`): `jobs` and `previews`, so status, cancel and health stay
+  answered while a job computes. One job and one preview compute at a time. Each thread ends once it has no task left
+  and the next task starts a new one, so a task's memory goes back to the system within a second; each has a V8 heap
+  limit derived from the container's memory (ERRORS M463).
 - Every route but `/health` needs `x-backtest-worker-key` (`crypto.timingSafeEqual`), else 401.
 
 ### 7.2 Routes (`src/server.ts`; full rules in CONTRACT.md section 8)

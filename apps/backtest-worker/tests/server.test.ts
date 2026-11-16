@@ -24,7 +24,7 @@ import { hashForm, lineageForm } from '../src/canonical.ts';
 const lineageKey = (q: BacktestRequest) => coreLineageKey(lineageForm(q));
 const variantHash = (q: BacktestRequest) => coreVariantHash(hashForm(q));
 import { packResult } from '../src/compute.ts';
-import { FLOW_OFF_REASON, loadConfig } from '../src/config.ts';
+import { FLOW_OFF_REASON, MAIN_RESERVE_BYTES, containerMemoryBytes, loadConfig, threadHeapMb } from '../src/config.ts';
 import { PlannedClient } from '../src/load.ts';
 import { setLogSink } from '../src/log.ts';
 import { runJob, runSignals } from '../src/run.ts';
@@ -578,6 +578,71 @@ test('a job over BACKTEST_TIMEOUT_SECONDS ends FAILED TIMEOUT, its thread is sto
     assert.equal((await call('POST', '/v1/jobs', jobBody(next, pageDefault('BBCA')), { at })).status, 202);
     assert.equal((await until(next, at)).status.state, 'FINISHED');
   } finally { slow.bundleMs = 0; await t.close() }
+});
+
+/* ---- memory (ERRORS M463, user 2026-11-16 "Go untuk opsi 1") ---------------------------------------------------- */
+test('M463: a compute thread ends once it has no task left, the next task starts a new one, and the memory of each step is logged', async () => {
+  const t = createApp(loadConfig(ENV(), 2_000_000_000)), from = lines.length;
+  try {
+    const at = `http://127.0.0.1:${await t.listen(0, '127.0.0.1')}`;
+    assert.deepEqual([t.threads.jobs.alive, t.threads.previews.alive], [false, false], 'no thread before the first task');
+    for (const ticker of ['UNVR', 'BBCA']) {                       // a new thread for each job, both finish
+      const id = newId();
+      assert.equal((await call('POST', '/v1/jobs', jobBody(id, pageDefault(ticker)), { at })).status, 202);
+      assert.equal((await until(id, at)).status.state, 'FINISHED');
+      assert.equal(t.threads.jobs.alive, false, `the job thread ended after ${ticker}'s job`);
+      assert.equal((await call('GET', `/v1/jobs/${id}/result`, undefined, { at })).status, 200, 'its result stays with the HTTP thread');
+    }
+    const p = await call('POST', '/v1/signals', { schema_version: 1, tickers: STOCKS, period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry }, { at });
+    assert.equal(p.status, 200, p.body.toString());
+    assert.equal(t.threads.previews.alive, false, 'the preview thread ended after its preview');
+    // the log is shared by every app of this file: this app's threads are the ones started with its heap limit (the
+    // others have none here), and the ends are counted (another app's thread may end meanwhile)
+    const ended = (thread: string) => linesFrom(from).filter(o => o.event === 'thread_end' && o.thread === thread && o.reason === 'idle').length;
+    for (const t0 = Date.now(); ended('jobs') < 2 || ended('previews') < 1; await tick(10))
+      assert.ok(Date.now() - t0 < 10_000, 'thread_end was never logged');
+    const seen = linesFrom(from), heap = threadHeapMb(2_000_000_000);
+    const starts = seen.filter(o => o.event === 'thread_start' && o.heap_mb === heap), ends = seen.filter(o => o.event === 'thread_end');
+    assert.deepEqual(starts.map(o => o.thread), ['jobs', 'jobs', 'previews'], 'a new thread for each task, with the heap limit derived from the container');
+    for (const o of [...starts, ...ends]) assert.ok(Number.isInteger(o.rss_bytes) && o.rss_bytes > 0, JSON.stringify(o));
+  } finally { await t.close() }
+});
+
+test('M463: the heap limit of a compute thread comes from the container\'s memory, or from BACKTEST_THREAD_HEAP_MB', () => {
+  const read = (files: Record<string, string>) => (p: string) => { if (!(p in files)) throw new Error('ENOENT'); return files[p] };
+  assert.equal(containerMemoryBytes(read({ '/sys/fs/cgroup/memory.max': '2000000000\n' })), 2_000_000_000);         // cgroup v2
+  assert.equal(containerMemoryBytes(read({ '/sys/fs/cgroup/memory.max': 'max\n' })), null);                        // no limit
+  assert.equal(containerMemoryBytes(read({ '/sys/fs/cgroup/memory/memory.limit_in_bytes': '1073741824' })), 1_073_741_824);   // v1
+  assert.equal(containerMemoryBytes(read({ '/sys/fs/cgroup/memory/memory.limit_in_bytes': '9223372036854771712' })), null);   // v1, none
+  assert.equal(containerMemoryBytes(read({})), null);                                                               // a laptop
+  // the container less the HTTP thread's reserve, shared by two threads, half of each for its heap
+  assert.equal(threadHeapMb(2_000_000_000), Math.floor((2_000_000_000 - MAIN_RESERVE_BYTES) / 4 / 2 ** 20));
+  assert.equal(threadHeapMb(2_000_000_000), 412);
+  assert.equal(threadHeapMb(1_000_000_000), 174);
+  assert.equal(threadHeapMb(300_000_000), 64, 'never below 64 MB');
+  assert.equal(threadHeapMb(null), null);
+  assert.equal(loadConfig(ENV(), 2_000_000_000).memory.thread_heap_mb, 412);
+  assert.deepEqual(loadConfig(ENV(), null).memory, { container_bytes: null, thread_heap_mb: null });
+  assert.equal(loadConfig(ENV({ BACKTEST_THREAD_HEAP_MB: '300' }), 2_000_000_000).memory.thread_heap_mb, 300);
+  assert.equal(loadConfig(ENV({ BACKTEST_THREAD_HEAP_MB: '0' }), 2_000_000_000).memory.thread_heap_mb, null, '0: no limit');
+  assert.throws(() => loadConfig(ENV({ BACKTEST_THREAD_HEAP_MB: '-1' })), /BACKTEST_THREAD_HEAP_MB must be a whole number/);
+});
+
+test('M463: a job over its thread\'s heap ends FAILED OUT_OF_MEMORY with what to change; the worker keeps answering and the next task runs', async () => {
+  const t = createApp(loadConfig(ENV({ BACKTEST_THREAD_HEAP_MB: '8' })));
+  try {
+    const at = `http://127.0.0.1:${await t.listen(0, '127.0.0.1')}`, id = newId();
+    assert.equal((await call('POST', '/v1/jobs', jobBody(id, pageDefault('UNVR')), { at })).status, 202);
+    const { status } = await until(id, at);
+    assert.equal(status.state, 'FAILED');
+    assert.equal(status.error!.code, 'OUT_OF_MEMORY');
+    assert.match(status.error!.message, /fewer stocks or a shorter period/);
+    assert.equal((await call('GET', '/health', undefined, { at })).status, 200, 'the process lives on');
+    assert.equal(t.threads.jobs.alive, false);
+  } finally { await t.close() }
+  const next = newId();                                            // the shared app, its own limit: unaffected
+  assert.equal((await call('POST', '/v1/jobs', jobBody(next, pageDefault('BBCA')))).status, 202);
+  assert.equal((await until(next)).status.state, 'FINISHED');
 });
 
 /* ---- signals preview ------------------------------------------------------------------------------------------------ */

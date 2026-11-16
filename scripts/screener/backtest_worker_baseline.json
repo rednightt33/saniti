@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "about": "The approved state of apps/backtest-worker for scripts/screener/check_backtest_untouched.mjs: the tripwire passes a worker that differs from origin/main only while its content hash is worker_tree and the versions are these. Recorded with --record and changed only by a deliberate commit (EXEC-MU-RUNTIME).",
-  "base_commit": "5bc6bdda7157d234b9a3f22951687d4c282e8359",
-  "recorded_on": "aa1fd51483f37c00d7a2aaffb8b965d8894fc269",
+  "base_commit": "8194a16cbd83e8f260f2792cca8279e6b3724a70",
+  "recorded_on": "2eb8d0ce5898c9321b64b273821ab6b4edc1d5af",
   "recorded_at": "2026-11-16",
-  "engine_version": "e3be5b3a63d4e629",
-  "base_engine_version": "b85c67c25f6a707b",
+  "engine_version": "681b18d3ffe51792",
+  "base_engine_version": "e3be5b3a63d4e629",
   "registry_version": "514dc3df60a25aff",
-  "worker_tree": "59142a3193f3a9bed9d77f6c02ccb5f68c20244fd1603a877015141fb516a6bd",
+  "worker_tree": "e01e493ec050ad30dce0f70f37a73e5b8349e7b24d09ebe1a2ffed5e20142696",
   "worker_files": 64,
   "exec": {
     "section": "EXEC-BACKTEST-REVAMP",
-    "decision": "User 2026-11-15 (verbatim in EXEC-BACKTEST-REVAMP): \"Setuju untuk usulanmu ... satu bahasa kondisi bersama (permanen)\", \"Terminal jangan disentuh ... indikator D ini akan hanya avail untuk admin saja\", decisions 1A, K1-K11 (K8 \"1B\"), \"Go\" (Gerbang 1); 2026-11-16 at Gerbang 2: \"A dulu\", then \"opsi A\" (P9); \"Opsi C\" (two reviewers, then the page port, Stage C2 fixes); Stage C2 F1: \"A\" (the basis decided once its window is complete); merge and deploy wait for Gerbang 3"
+    "decision": "User 2026-11-16 (ERRORS M463, verbatim in EXEC-BACKTEST-REVAMP \"Pelaksanaan deploy\"): \"tidak apa-apa untuk naikkan ke 2 GB apabila run memang diperlukan. Tapi bisa nggak setelah selesai run langsung dibuat tidur atau otomatis di-cut? ... RAM hanya berjalan ketika ada request saja\", then \"Go untuk opsi 1\""
   },
-  "note": "P0-P8, Stage C, P9, Stage C2 and Stage D: grammar.ts (members per day, no Flow value on a session without broker rows, the basis mask on every family, NOT_PER_DAY in the catalog), basis.ts (undecided before decided, user A), canonical.ts, pit/, rights, owner trials, the preview detail (D6), the look-ahead gate (broker gaps, LATE/GONE, the decision before decided); Stage D D7: tests/catalog-copy.test.ts (the page tests copy of the catalog grammar part equals the worker rule, Agent 10)"
+  "note": "M463: a compute thread ends once it has no task left (compute.ts retire), a V8 heap limit per thread derived from the container memory (config.ts threadHeapMb, BACKTEST_THREAD_HEAP_MB), thread_start and thread_end log rss_bytes; the image sets MALLOC_ARENA_MAX=2 and MALLOC_TRIM_THRESHOLD_; three server tests; README memory section"
 }

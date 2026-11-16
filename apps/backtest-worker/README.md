@@ -18,7 +18,7 @@ Private HTTP service that computes the EDGE backtests. It is part of the backtes
 | File | Role |
 |---|---|
 | `src/server.ts` | `node:http` API: authentication, routes, the job record, the preview queue, timeouts, start-up checks |
-| `src/compute.ts` | the two long-lived `worker_threads` threads, one for jobs and one for signals previews; progress and results are sent as messages, cancellation uses a shared flag, `kill()` handles a run over its time |
+| `src/compute.ts` | the two `worker_threads` threads, one for jobs and one for signals previews, each ending once it has no task left (ERRORS M463) with a V8 heap limit derived from the container's memory; progress and results are sent as messages, cancellation uses a shared flag, `kill()` handles a run over its time |
 | `src/run.ts` | one job end to end (`runJob`) and one signals preview (`runSignals`) |
 | `src/validate.ts` | request checks before any download (unknown fields, page options, a portfolio's picked stocks, flow availability, broker codes against the broker list, the core's own validation) |
 | `src/load.ts` | reads the files of a run within the limits: every manifest first, a portfolio's tickers without published files left out, the limits checked, then each ticker's downloads from its manifest while its URLs can still serve them or every file it names is cached, else from a new one; a URL that expired all the same is fetched again once; the date the broker data is published through (`brokerDataThrough`) |
@@ -209,7 +209,8 @@ variable and never its value.
 | `TERMINAL_PROXY_KEY` | required | `${{terminal-api.TERMINAL_PROXY_KEY}}` | terminal-api gateway key (D-U1), ≥ 32 characters, never logged |
 | `BACKTEST_CACHE_BYTES` | required | 1500000000 | memory cache budget per thread (gzip bytes); 0 = none |
 | `BACKTEST_CACHE_DIR`, `BACKTEST_CACHE_DIR_BYTES` | off | `/tmp/backtest-cache`, 1073741824 (the container's own disk, one replica; about three times the whole published data set: the publisher's packs were 302 MB on 2026-10-26) | optional disk cache and its budget. Every thread (and every replica on the same volume) shares the directory, under one budget: the directory's total, least recently used by any of them removed first. The directory must be one uid 1000 can create or write; one it cannot is no disk cache (each download logs `terminal_cache_error`). The budget must leave room on the volume |
-| `BACKTEST_DOWNLOAD_CONCURRENCY` | required | 16 | HTTP requests in flight per thread |
+| `BACKTEST_DOWNLOAD_CONCURRENCY` | required | 4 (16 before 2026-11-16, ERRORS M463) | HTTP requests in flight per thread, and the stocks a thread loads at once (`load.ts loadMarket`): each decoded stock is held until its series are built, so it bounds a thread's peak (12 stocks: 1,067 MB with 16, 758 MB with 4, measured 2026-11-16) |
+| `BACKTEST_THREAD_HEAP_MB` | optional | unset (derived) | the V8 heap limit of each compute thread in MB, 0 = none; unset, `config.ts threadHeapMb`: (the container's memory − 256 MB) ÷ 4, from the cgroup limit (2 GB: 412 MB); none when no limit can be read |
 | `BACKTEST_DOWNLOAD_RETRIES` | required | 3 | retries of a network error or 5xx answer |
 | `BACKTEST_RETRY_BASE_MS` | required | 500 | backoff `base × 2^k` between retries |
 | `BACKTEST_HTTP_TIMEOUT_MS` | required | 60000 | per HTTP request, body included; also the margin a `/bundle` answer's URLs must have left to be used for a download (its age plus this under `expires_in_seconds`), so a shorter value asks fewer new answers |
@@ -241,8 +242,18 @@ it too.
 **Timeouts.** edge-bff has its own `BACKTEST_TIMEOUT_SECONDS`, which limits the whole job on its side, polling
 included. At that deadline edge-bff ends the job `TIMEOUT` and sends the worker a cancel.
 
-**Memory.** Each compute thread has its own client and memory cache. Memory is therefore up to 2 ×
-`BACKTEST_CACHE_BYTES`, plus the HTTP thread's IHSG files for the catalog. The disk cache (`BACKTEST_CACHE_DIR`) is
+**Memory (ERRORS M463, user 2026-11-16 "Go untuk opsi 1").** A compute thread ends as soon as it has no task left: the
+memory its task held (decoded files, series) goes back to the system within a second, instead of staying until the
+next task or Railway's sleep 5-10 minutes after the last traffic. The next task starts a new thread (about 0.2-0.3 s).
+Each thread's V8 heap is limited (`BACKTEST_THREAD_HEAP_MB`, derived from the container's memory): a thread over it
+ends with `ERR_WORKER_OUT_OF_MEMORY`, only its task fails (`OUT_OF_MEMORY`, "choose fewer stocks or a shorter
+period") and the process keeps answering, where the container would otherwise kill every task. The image sets
+`MALLOC_ARENA_MAX=2` and `MALLOC_TRIM_THRESHOLD_=131072`, so the memory a thread gave back leaves the process. Measured
+locally on the dev files (`verification/backtest/memory/`): a 12-stock preview then its run peaked at 1,446-1,657 MB
+before and 493 MB after (764 MB for the heaviest, grammar Flow conditions), and the process held 986 MB a second after
+the run before, 187 MB after. `thread_start` and `thread_end` log the process's `rss_bytes`, beside `preview_end` and
+`job_end`, so the memory of each step is in the log. Each compute thread has its own client and memory cache, for as
+long as the thread lives: up to 2 × `BACKTEST_CACHE_BYTES`, plus the HTTP thread's IHSG files for the catalog. The disk cache (`BACKTEST_CACHE_DIR`) is
 one for all of them. Every thread's client reads and writes the same directory, and so do a thread started again
 after `kill()` and another replica on the same volume. A file one of them put is read from disk by the others. After
 every put the cached files are brought within `BACKTEST_CACHE_DIR_BYTES` in all, the file least recently used by any
