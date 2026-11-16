@@ -8847,3 +8847,20 @@ in its staleness check.
 - **Lesson:** a "complete date" is derived from the date's own counts across the sources, never from the existence of
   one row; a read of a family another page owns (Radar) uses that page's own selector (`feature_07_rule_version()`),
   not a re-derivation.
+
+### M467 — Watchlist release: edge-bff held by Railway (CI check suite failed): SCREENER_ONBOARDING.md line pointers moved under the Watchlist edits (2026-11-16, fixed)
+
+- **Symptom:** the push of `main` `bed51b81` left edge-bff deployment `655a2e87` SKIPPED with "CI check suite failed";
+  the last edge-bff SUCCESS stayed `59df442f` (without the Watchlist).
+- **Verified root cause:** GitHub run `43873068101` (Backtest look-ahead gate, job `screener-worker`) failed one test,
+  `apps/screener-worker/tests/onboarding_pointers.test.ts:16`: 30 line pointers of `SCREENER_ONBOARDING.md` into
+  `apps/terminal-publisher/publisher.py`, `apps/edge-bff/app/main.py` and `apps/edge-bff/app/screener.py` no longer
+  started at the symbol written next to them, because the Watchlist edits added lines above them. The release ran the
+  publisher, terminal-api and edge-bff suites, not the screener-worker suite that checks this document. Railway's
+  `checkSuites` on edge-bff (REVAMP K10 a) held the deploy, as it should.
+- **Solution:** every pointer of the document into a file changed since `6e39ef8e` (57 pointers, with or without a
+  symbol) was moved through a line diff of that file (old line to new line; one pointer on a changed line, `WATCHLIST_LIMIT`,
+  checked by hand). The limit text now says 50 stocks in the first list (`PER_LIST`, EXEC-WATCHLIST 2A), not 500.
+  The screener-worker suite: 112 passed. edge-bff deployed on the green commit.
+- **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
+  `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
