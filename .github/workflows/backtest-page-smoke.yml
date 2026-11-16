@@ -15,6 +15,7 @@ on:
       - "apps/edge-bff/screener/tests/fixture/**"
       - "apps/edge-bff/terminal/src/**"
       - "apps/edge-bff/static/favicon*"
+      - "apps/edge-bff/shared/**"
       - ".github/workflows/backtest-page-smoke.yml"
   pull_request:
     paths:
@@ -23,6 +24,7 @@ on:
       - "apps/edge-bff/screener/tests/fixture/**"
       - "apps/edge-bff/terminal/src/**"
       - "apps/edge-bff/static/favicon*"
+      - "apps/edge-bff/shared/**"
       - ".github/workflows/backtest-page-smoke.yml"
 
 permissions:
