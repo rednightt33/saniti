@@ -596,13 +596,15 @@ test('M463: a compute thread ends once it has no task left, the next task starts
     const p = await call('POST', '/v1/signals', { schema_version: 1, tickers: STOCKS, period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry }, { at });
     assert.equal(p.status, 200, p.body.toString());
     assert.equal(t.threads.previews.alive, false, 'the preview thread ended after its preview');
-    for (const t0 = Date.now(); linesFrom(from).filter(o => o.event === 'thread_end').length < 3; await tick(10))
+    // the log is shared by every app of this file: this app's threads are the ones started with its heap limit (the
+    // others have none here), and the ends are counted (another app's thread may end meanwhile)
+    const ended = (thread: string) => linesFrom(from).filter(o => o.event === 'thread_end' && o.thread === thread && o.reason === 'idle').length;
+    for (const t0 = Date.now(); ended('jobs') < 2 || ended('previews') < 1; await tick(10))
       assert.ok(Date.now() - t0 < 10_000, 'thread_end was never logged');
-    const seen = linesFrom(from), starts = seen.filter(o => o.event === 'thread_start'), ends = seen.filter(o => o.event === 'thread_end');
-    assert.deepEqual(starts.map(o => o.thread), ['jobs', 'jobs', 'previews']);
-    assert.deepEqual(ends.map(o => [o.thread, o.reason]), [['jobs', 'idle'], ['jobs', 'idle'], ['previews', 'idle']]);
+    const seen = linesFrom(from), heap = threadHeapMb(2_000_000_000);
+    const starts = seen.filter(o => o.event === 'thread_start' && o.heap_mb === heap), ends = seen.filter(o => o.event === 'thread_end');
+    assert.deepEqual(starts.map(o => o.thread), ['jobs', 'jobs', 'previews'], 'a new thread for each task, with the heap limit derived from the container');
     for (const o of [...starts, ...ends]) assert.ok(Number.isInteger(o.rss_bytes) && o.rss_bytes > 0, JSON.stringify(o));
-    assert.ok(starts.every(o => o.heap_mb === threadHeapMb(2_000_000_000)), 'each thread starts with the heap limit derived from the container');
   } finally { await t.close() }
 });
 

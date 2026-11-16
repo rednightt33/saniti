@@ -217,10 +217,12 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     env: { BACKTEST_CACHE_BYTES: preserve(), BACKTEST_CACHE_DIR: preserve(), BACKTEST_CACHE_DIR_BYTES: preserve(), BACKTEST_DOWNLOAD_CONCURRENCY: preserve(), BACKTEST_DOWNLOAD_RETRIES: preserve(), BACKTEST_FILE_ORIGIN: preserve(), BACKTEST_FLOW_ENABLED: preserve(), BACKTEST_HTTP_TIMEOUT_MS: preserve(), BACKTEST_MAX_BROKER_ROWS: preserve(), BACKTEST_MAX_CONDITIONS: preserve(), BACKTEST_MAX_DOWNLOAD_BYTES: preserve(), BACKTEST_MAX_FILE_BYTES: preserve(), BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_RETRY_BASE_MS: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), TERMINAL_PROXY_KEY: preserve(), TERMINAL_URL: preserve() },
     // EXEC-U4-WORKERS (go 2026-11-02): sleeps when idle; edge-bff wakes it (apps/edge-bff/app/wake.py)
-    // EXEC-BACKTEST-REVAMP K9 b (user 2026-11-15, "K9 B"): the 1 GB limit set on 2026-11-07 stays, recorded here from the
-    // live limit (ERRORS M455); the run keeps within it by its budgets (BACKTEST_CACHE_BYTES, BACKTEST_MAX_BROKER_ROWS,
-    // BACKTEST_MAX_FLOW_SERIES), set with the deploy after Gate 2
-    deploy: { sleepApplication: true, limitOverride: { containers: { memoryBytes: 1000000000 } } },
+    // EXEC-BACKTEST-REVAMP K9 b (user 2026-11-15, "K9 B") kept 1 GB (set 2026-11-07, ERRORS M455); ERRORS M463: a
+    // 12-stock preview then its run needed 1.5-1.8 GB and the container killed the worker. User 2026-11-16: "tidak apa-apa
+    // untuk naikkan ke 2 GB apabila run memang diperlukan", "Go untuk opsi 1": 2 GB is the ceiling, while each compute
+    // thread ends after its task (memory back within a second) and its heap limit is derived from this limit
+    // (config.ts threadHeapMb: 412 MB at 2 GB). Railway bills the memory used, not the limit.
+    deploy: { sleepApplication: true, limitOverride: { containers: { memoryBytes: 2000000000 } } },
   });
   // EDGE Screener worker (apps/screener-worker, EXEC-SCREENER P3 a): built from GitHub main with the repository root as context
   // EXEC-BACKTEST-REVAMP K10 a (user 2026-11-15): a push to main is to deploy only once its GitHub checks pass (the
