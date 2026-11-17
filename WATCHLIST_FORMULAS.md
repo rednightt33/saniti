@@ -6,7 +6,7 @@ baru** ("selight as possible yang mana tidak perlu ada calculation lagi"). Karen
 yang **sudah tersimpan** di database, dibaca apa adanya. Satu-satunya hitungan adalah jarak harga ke EMA (satu pembagian
 di baris yang sama).
 
-<!-- explained-for: watchlist.py=6c3c265a21043c67e62c9874538e17b3, app/watchlist.py=9c701312427e5eb8a7478fc7aac3819c -->
+<!-- explained-for: watchlist.py=6c3c265a21043c67e62c9874538e17b3, app/watchlist.py=7050aef2b07a6edc0d08beca1902d45b -->
 
 ## 1. Dari mana angkanya datang
 
@@ -83,7 +83,13 @@ Kedua filter hanya mengubah tampilan list yang sedang dibuka, tidak mengubah isi
 ## 6. List dan batasnya
 
 List disimpan di server per akun, jadi sama di perangkat mana pun, dan akun lain tidak bisa membaca atau mengubahnya. Akunnya selalu akun yang sedang masuk (sejak EXEC-MU-ACCOUNTS Fase 1 dibaca dari sesi itu, bukan dari pengaturan server); batas dan angkanya tidak berubah.
-Bintang di Screener memakai list pertama (keputusan 2A). Batasnya (tabel di bawah) dijaga server. Setiap penolakan
+Sejak EXEC-MU-ACCOUNTS Fase 3a, halaman ini dan datanya perlu hak `watchlist.view` dari paket akun. Batas tiap akun
+adalah angka paketnya (`watchlist.lists`, `watchlist.per_list`, `watchlist.indicators`), tetapi tidak pernah lebih dari
+angka di tabel di bawah, yang tetap menjadi plafon server. Paket berbayar saat ini memakai angka yang sama (20, 50, 8),
+dan halaman menampilkan angka milik akun itu sendiri. Contoh: akun dengan batas paket 10 list tidak bisa membuat list
+ke-11; akun dengan batas 30 tetap berhenti di 20. Saklar multi-user masih mati, jadi akun pemilik memakai angka tabel.
+Bintang di Screener memakai list pertama (keputusan 2A) dan ikut perlu `watchlist.view`. Bila akun belum punya list,
+bintang hanya membuat list pertama selama batas list akun itu minimal 1. Batasnya (tabel di bawah) dijaga server. Setiap penolakan
 menyebut batas mana yang tercapai dan cara memperbaikinya, misalnya "At most 50 stocks in one list: it has 50, these
 would make 52. Remove some or use another list." Undo hapus list memakai isi list menurut server saat dihapus, dan
 mengembalikannya ke posisi semula. Nilai yang tampil sebagai nol (mis. "0.0%", "Rp 0") tidak diberi warna.
@@ -128,6 +134,6 @@ Ditulis oleh `scripts/watchlist_formulas_doc.py --write` dari kode di repo; jang
 | Kode | Sidik jari (md5) |
 |---|---|
 | `watchlist.py` | `6c3c265a21043c67e62c9874538e17b3` |
-| `app/watchlist.py` | `9c701312427e5eb8a7478fc7aac3819c` |
+| `app/watchlist.py` | `7050aef2b07a6edc0d08beca1902d45b` |
 
 <!-- watchlist-live:end -->
