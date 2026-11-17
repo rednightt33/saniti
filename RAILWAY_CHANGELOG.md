@@ -1,5 +1,35 @@
 # Railway changelog
 
+## 2026-11-17 — EXEC-MU-ACCOUNTS Phase 3a deploy (switch off): route gates per tab, plan caps
+
+- **User:** decisions D1-D8 of 2026-11-17 ("untuk AI saat ini hanya untuk admin only yah. 2A 3B 4B 5B 6A 7A ...";
+  EXEC.md EXEC-MU-ACCOUNTS; CONTRACT.md 8b). `EDGE_MULTIUSER` stays off.
+- **Before:**
+  - Builders B1 and B2 were integrated at `257a1e4c`. Checkers C1-C3 ran on it (C3: READY with the switch off). The fix
+    rounds followed (ERRORS M481).
+  - Local edge-bff suite: 640 passed; its one failure was fixed in `5baa5343`, and the affected files then passed
+    (112).
+  - Branch CI green on `24d6c70e`.
+  - `EDGE_ADMIN_OWNERS` is unset on edge-bff (read by name only), so the configured owner holds `*`.
+- **Step 1, M340:** jobs `f5b6d917` and `fd31f46a`, the second right before the push. Each found 0 active EDGE jobs and
+  0 running orc turns.
+- **Step 2:** migration `20261117_004_edge_bff_catalog_phase3a.sql`: DRYRUN `987077f3`, APPLY `3562a182`, read back
+  (DATABASE_CHANGELOG.md). Rows only: no Postgres restart.
+- **Step 3:** no variable changed.
+- **Step 4:**
+  - `main` was fast-forwarded `58bfe76e` → `24d6c70e`. The changes were edge-bff, the migration and records; no worker
+    or Orc watch path was touched.
+  - edge-bff deployment `49e7cf88` waited for CI on `main`, then reached **SUCCESS**. Rollback target: `1ed31cea`
+    (Phase 2).
+  - Start log clean: no `capability_names_failed` and no `account_seed_plan_*` warning.
+- **Step 5, from outside (44 of 44 checks):**
+  - the Phase 2 checks unchanged;
+  - 17 gated routes answer 401 `UNAUTHENTICATED` without a session, never 403 or 500: Backtest, Screener, the star,
+    Terminal saves, Watchlist lists, Monitor runs, models and conversations, the Overview/Radar/Watchlist page
+    indexes, and the Terminal proxy.
+- **Still open:** the user reloads open EDGE tabs (ERRORS M479) and checks every tab: the Monitor asks, the Backtest
+  submits, the Screener runs, the Watchlist star, and layouts and drawings save.
+
 ## 2026-11-17 — EXEC-MU-ACCOUNTS Phase 2 deploy (switch off): plan catalog and release stages
 
 - **User:** go 2026-11-16 (Phase 2 in "1 A, 2 A, 3 A, 4 A") and 2026-11-17 "sudah ada, pls continue" (EXEC.md

@@ -15794,10 +15794,17 @@ switch off; the previous build ignores the new tables.
    user 1 to `admin`, with no end, and 0 overrides.
 7. **Records:** `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md` (applied, read back), ERRORS statuses.
 
-### Phase 3a deploy steps (running since 2026-11-17)
+### Phase 3a deploy steps (run 2026-11-17; the user's check of step 6 waits)
 
-Run log: step 1, M340 job `f5b6d917` (0 and 0). Step 2: DRYRUN `987077f3`, then APPLY `3562a182` (sha256
-`9f4f7ec8…92cf7b77`), read back as expected (DATABASE_CHANGELOG.md).
+Run log:
+- Step 1: M340 jobs `f5b6d917` and `fd31f46a` (0 and 0).
+- Step 2: DRYRUN `987077f3`, then APPLY `3562a182` (sha256 `9f4f7ec8…92cf7b77`), read back as expected
+  (DATABASE_CHANGELOG.md).
+- Step 3: no variable.
+- Step 4: `main` `58bfe76e` → `24d6c70e`; edge-bff `49e7cf88` **SUCCESS** (rollback target `1ed31cea`); clean start log.
+- Step 5: 44 of 44 checks from outside.
+- Step 7: records written.
+- Waiting: step 6, the user's reload and check of every tab.
 
 Code: builders B1 (`d6eb902f`) and B2 (`933b88cb`), integrated at `257a1e4c`. Checkers C1-C3 ran on it, and the fix
 round followed (`c70568a3`, ERRORS M481). The switch stays off. With `EDGE_ADMIN_OWNERS` unset on dev (read 2026-11-17,
