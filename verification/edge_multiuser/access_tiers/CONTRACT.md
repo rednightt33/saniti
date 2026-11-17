@@ -391,7 +391,37 @@ unexpired overrides. An override replaces the plan's value for its key.
 - the catalog route filters per principal, and unknown kinds give 404;
 - with the switch off: the access object, `version` `env` and every Phase 1 test are unchanged.
 
-## 8b. Phase 3 plan: gates per tab (main agent, 2026-11-17; DRAFT, waits for the user's decisions D1-D8 in EXEC.md)
+## 8b. Phase 3 plan: gates per tab (main agent, 2026-11-17; decisions D1-D8 taken the same day, EXEC.md)
+
+**Decisions (user 2026-11-17):**
+- D1 and D8: the Monitor (AI) is admin only for now. The paid plan holds `monitor.example`, not `monitor.view`,
+  `monitor.chat` or `monitor.model`. The usage ledger, the daily question cap and per-plan AI data access are deferred
+  until the AI opens to a paid plan, so the Monitor parts of 3a below are only the route gates and the model checks.
+- D2 = A: exactly 730 calendar days back from the newest published date.
+- D3 = B: the free plan holds BBCA daily price only: no IHSG, no reference lists, no intraday.
+- D4 = B: the examples are a cut of real data from one past date, served only to a signed-in principal holding
+  `<tab>.example`, never in a public bundle (M469).
+- D5 = B: a lowered plan loses read access to old content until it is raised again (data kept). Reads need
+  `<tab>.view` or the item's own capability, writes need the run or save capability.
+- D6 = A: the paid limits are today's constants; the Terminal quota per owner is 60 tickers per hour, 200 per day, 300
+  files per hour and 500 MB per day.
+- D7 = A: the upgrade contact comes before Phase 6.
+
+**3a in detail** (edge-bff only):
+- Migration `20261117_004_edge_bff_catalog_phase3a.sql`:
+  - new capability rows:
+    - `admin.manual` (flag: the manual troubleshooting model; only `*` holds it);
+    - `terminal.presets` (flag);
+    - the limits `terminal.layouts_max` 50, `terminal.presets_max` 100, `terminal.drawings_max` 5000,
+      `screener.saved_items` 50 and `backtest.queued_jobs` 3;
+  - the paid plan loses `monitor.view`, `monitor.chat` and `monitor.model`, and gains `monitor.example`,
+    `terminal.presets` and those limit values;
+  - the trigger checks every new value.
+- Every value above comes from `config.py`/module constants today, which stay as the hard ceiling (HARD).
+- The switch-off principal of the configured owner is `*`. The test settings get `admin_owners = (owner,)`, as
+  production's default (`config.py` `admin_owners_of`); tests about a non-admin owner set it themselves.
+
+
 
 Source: three read-only inspections of `b3dd29bc` (Terminal data path, Backtest and Screener, Monitor and front-end).
 Today no route checks a plan: with the switch on a free account could run every tab. The switch stays off through

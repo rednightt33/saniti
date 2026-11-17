@@ -15444,6 +15444,22 @@ tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terba
     - D6: batas paket berbayar (nilai hari ini) dan kuota data Terminal per user;
     - D7: kontak upgrade (boleh menyusul);
     - D8: akses data oleh AI per paket.
+  - **Keputusan user (2026-11-17, kata user):** "untuk AI saat ini hanya untuk admin only yah. 2A 3B 4B 5B 6A 7A 8 refer
+    ke point 1, which AI hanya untuk ownerper saat ini."
+    - **D1 dan D8:** Monitor (AI) hanya untuk admin. Paket berbayar mendapat `monitor.example`, bukan `monitor.view`,
+      `monitor.chat` atau `monitor.model` (migrasi baru mengubah isi paket). Kuota pertanyaan, buku biaya per user,
+      level "max" dan akses data AI per paket ditunda sampai AI dibuka untuk paket berbayar. Model `saniti/claude-manual`
+      tetap hanya admin.
+    - **D2 = A:** 730 hari kalender, dihitung mundur dari tanggal data terbaru yang terbit.
+    - **D3 = B:** paket gratis hanya mendapat harga harian BBCA: tanpa IHSG, tanpa daftar ticker, tanpa intraday.
+    - **D4 = B:** contoh tab terkunci memakai potongan data asli dari satu tanggal lama. Contoh disajikan lewat rute yang
+      perlu login (`<tab>.example`) dan tidak pernah dimasukkan ke bundel publik (pelajaran M469). Izin data per
+      sumber (MU2) tetap dicek sebelum peluncuran.
+    - **D5 = B:** user yang paketnya turun kehilangan akses baca ke isi lamanya (percakapan, hasil backtest, screen
+      tersimpan, watchlist, layout, drawing, preset) sampai upgrade lagi. Datanya tidak dihapus.
+    - **D6 = A:** batas paket berbayar memakai angka hari ini, ditambah kuota data Terminal per user (60 ticker per
+      jam, 200 per hari, 300 berkas per jam, 500 MB per hari).
+    - **D7 = A:** kontak upgrade diisi sebelum peluncuran (Fase 6).
 
 ### Phase 0 deploy steps (run 2026-11-16, see RAILWAY_CHANGELOG.md; step 7 waits for the user)
 
