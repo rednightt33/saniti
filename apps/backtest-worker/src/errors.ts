@@ -1,5 +1,6 @@
 /* Errors of the worker in the contract's shape {error: {code, field?, message?, details?}} with the HTTP statuses of
-   CONTRACT.md section 11: validation 422, market data 424 (DATA_MISSING, DATA_INTEGRITY, DATA_UNAVAILABLE), the job
+   CONTRACT.md section 11: validation 422, an item outside the plan's context.allow 403 CAPABILITY_REQUIRED (access.ts,
+   EDGE multi-user Phase 3b), market data 424 (DATA_MISSING, DATA_INTEGRITY, DATA_UNAVAILABLE), the job
    protocol 401 / 404 / 409, a synchronous call over its time 504 TIMEOUT. A job's error is the same object in
    JobStatus.error. Anything unexpected is INTERNAL_ERROR without its message (it is logged, not answered). */
 import type { ApiError } from '../../edge-bff/backtest/src/core/contract.ts';

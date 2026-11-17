@@ -681,6 +681,9 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
   `CAPABILITY_REQUIRED` (or `PLAN_EXPIRED`) in edge-bff's error shape (`app/errors.py`): the catalog, the job list,
   status, result, events and cancel need `backtest.view`; signals and submit need `backtest.run`. The queued jobs per
   owner are `min(plan's backtest.queued_jobs, BACKTEST_QUEUED_PER_OWNER)`.
+- Items (EXEC-MU-ACCOUNTS Phase 3b, section 13.12): 403 `CAPABILITY_REQUIRED` in the worker's error shape, `field` the
+  JSON path of the item, `details {kind, id, capability}`, for an item outside `context.allow`; from validate, signals and
+  a job's hand-over (never a job), and as a job's `FAILED` error when the job thread's own re-check refuses it.
 
 ## 12. Decisions taken for the user (2026-10-26; PF1–PF8 and LA-1 2026-10-27)
 
@@ -806,7 +809,7 @@ STATE, EVENT, window with a point-in-time side, a price, a constant or any other
 | `FLOW_BUDGET_EXCEEDED` | more distinct Flow series than `limits.max_flow_series` (default 8) |
 | `UNKNOWN_BROKER` | a broker code outside the reference list (every list of kind `brokers`: `brokers`, `num_brokers`, `den_brokers`, FL34 `inst` / `retail`); for a stock, a named broker of a point-in-time indicator without rows up to the period's end, (Stage C refused a named broker of any Flow indicator whose first row is after the period's end; Stage C2, M459: that broker is simply not a member before its first row, so no later row decides a run); a portfolio leaves the stock out |
 | `UNKNOWN_FIELD` `context` | a body from the page that carries `context` (edge-bff) |
-| `INVALID_CONTEXT` | rights that are not a list of distinct known rights |
+| `INVALID_CONTEXT` | rights that are not a list of distinct known rights; a malformed `allow` or `limits` (13.12) |
 
 A refusal of the Screener's own validation of a grammar condition (for example `LIMIT_EXCEEDED`, `UNKNOWN_INDICATOR`,
 `PARAM_OUT_OF_RANGE`, `METRIC_UNAVAILABLE`) reaches the client with the Screener's code, field, message and `details`
@@ -837,7 +840,8 @@ scopes).
 
 **13.7 Worker API (section 8).** `/v1/validate {request, context}`, `/v1/signals {request, context}` (the bare request
 still read: the worker deploys first), `/v1/jobs {job_id, request, context}` with `context {job_id, prior_trials,
-owner_trials?, rights?}`; `context.rights` absent = none (fail closed). The catalog adds `flow_indicators` (`access` all
+owner_trials?, rights?, allow?, limits?}` (`allow` and `limits` in every context from EDGE multi-user Phase 3b, 13.12);
+`context.rights` absent = none (fail closed). The catalog adds `flow_indicators` (`access` all
 or admin, `available`, `reason`, `date_param`) and `limits.max_flow_series`. `engine_version` covers the Screener core.
 
 **13.8 edge-bff (section 9).** Owner and rights from the session (`app/rights.py`; `EDGE_ADMIN_OWNERS`, default
@@ -915,3 +919,53 @@ after the period. Checks: `tests/smoke/smoke.mjs` (the condition window, the the
 page on the stub API; in CI, `.github/workflows/backtest-page-smoke.yml`, user "3A"), `tests/visual/compare.mjs` with
 `diff.py` (the design against `?fixture=design` at 1440, 1024 and 390 px, light and dark; by hand, the design file is
 not in the repository).
+
+**13.12 Plan items and limits on the worker (EDGE multi-user Phase 3b; user go 2026-11-17 "Aman, lanjutkan";
+`verification/edge_multiuser/access_tiers/CONTRACT.md` 8b "3b in detail").** Every context (validate, signals, jobs)
+may carry, beside `rights`:
+- `allow` `{"indicator", "flow_indicator", "candle_pattern", "screener_metric"}`: each `"*"` (every id, lab included) or
+  a list of distinct non-empty ids (possibly empty), the principal's grants edge-bff expands against `releases.json`.
+  All four kinds are named; another key, a missing kind, `"*"` misspelt or a repeated id is 422 `INVALID_CONTEXT` at
+  `context.allow.<kind>`. The worker does not require the list sorted.
+- `limits` `{name: whole number}`: the plan's own per-request ceilings, each taken as `min(worker's, plan's)`, never
+  more: `max_positions`, `max_portfolio_tickers`, `max_conditions`, `max_flow_series`, `monte_carlo_runs` (at least 1),
+  `max_download_bytes` (at least 1), `max_broker_rows` (at least 0). Any other name (also `timeout_seconds`,
+  `queued_per_owner`, `window_bars`: not per-request limits of the worker) is 422 `INVALID_CONTEXT` at
+  `context.limits.<name>`. edge-bff sends `{}` today (no plan sets one). A check then refuses with the plan's value in
+  `details.allowed` (`LIMIT_EXCEEDED`, `INVALID_PORTFOLIO`, as section 3). The catalog keeps the worker's own limits.
+- Deploy step 1 (this worker): both optional; absent `allow` = every item, absent `limits` = the worker's, today's
+  behaviour. Step 2: edge-bff sends them on every call (`"*"` for every kind with the switch off). Step 3: a follow-up
+  worker requires `allow` (absent: `INVALID_CONTEXT`).
+- Internal calls (tests, the look-ahead gate suite: `checkRequest`, `checkSignalsRequest`, `runJob`, `runSignals`
+  without `allow`) get every item; only the HTTP layer (`server.ts contextGrants`) reads the context.
+
+An item outside `allow` is **403 `CAPABILITY_REQUIRED`**, `field` the JSON path of the item's id, `details {kind, id,
+capability}`, `capability` the family key: `backtest.indicator:<id>`, `backtest.flow_indicator:<id>`,
+`backtest.candle_pattern:<id>`, or `screener.metric:<id>` (a test condition reads the Screener's metrics). The message
+names the item and says the plan does not include it, for example `exit.stop.line.indicator: the indicator I09 is not
+included in your plan (backtest.indicator:I09); remove it or change the plan to run this strategy.` (right: a strategy
+whose items are all in the plan; wrong: a stop on a line the plan lacks). edge-bff relays it and adds `display_name`.
+
+Where (`apps/backtest-worker/src/validate.ts`, `access.ts`, `grammar.ts testItems`), enabled and switched-off conditions
+alike (both are stored with the job):
+- `exit.stop.line.indicator` and `exit.trailing.line.indicator`, whatever the stop and trailing modes (`lineItems`,
+  checked first, after the request's shape);
+- a registry indicator condition's `indicator` (`entry.conditions[i].indicator`, `exit.signals.conditions[i].indicator`);
+- every reference of a grammar test at any depth (`...test.metric.indicator`, `...test.rhs.indicator`,
+  `...test.signal.lhs.metric`, a window's `...test.test...`, a transform's `of` and `args`): an indicator reference's
+  `indicator` (kind `indicator`), a Flow reference's `metric` (`flow_indicator`; a point-in-time version keeps its FL id
+  and still needs the right `flow_point_in_time` after it), a pattern's `type` (`candle_pattern` for an id of
+  `candle-registry.json`, else `screener_metric`), a cross-section `metric` and a universe `attr` (`screener_metric`;
+  then refused anyway as not per day, 13.1);
+- the signals preview's `entry.conditions` and `detail.exit_signals.conditions` (that path; its other refusals keep
+  `exit.signals.conditions`, as before).
+The plan check of a condition list comes before the other checks of its conditions. Not checked by id: a transform's
+`fn`, a price field and a rank (no catalog id); the Screener's four transform metrics `hi52`, `lo52`, `rs` and
+`vol_ratio` (on the wire they are transforms, with no id). A legacy `price_action` or `flow` card whose `type` is a
+catalog id is checked by that id at `...conditions[i].type` (`validate.ts legacyItemKind`, derived from the registries
+at load: a `screener-metrics.json` metric id is `screener_metric`, a Flow id of the Screener registry, the Terminal's
+FL ids and `fnet`/`ksei_net`, is `flow_indicator`, a candlestick id `candle_pattern`); today `breakout`, `volspike` and
+`macross` (`screener.metric:<id>`) and `fnet` (`backtest.flow_indicator:fnet`). The legacy types with no catalog id are
+built in and not gated: `dip`, `macd`, `top5`, `broker`. A job is checked at the hand-over and
+again on the job thread (`run.ts runJob`), so a queued job edge-bff dispatches with a narrower `allow` ends `FAILED
+CAPABILITY_REQUIRED`.

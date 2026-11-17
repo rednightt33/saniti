@@ -842,3 +842,52 @@ test('P5: rights from the context only, fail closed; unknown rights and fields r
     (e: unknown) => (e as { code?: string; field?: string }).code === 'CONDITION_RESTRICTED' && (e as { field?: string }).field === `entry.conditions[${q.entry.conditions.length}].test.metric`);
   checkRequest(withD, refs, { limits: loadConfig(ENV()).limits, flow: { enabled: true, reason: null } }, new Set(['flow_point_in_time']));
 });
+
+/* ---- EDGE multi-user Phase 3b (CONTRACT 8b): context.allow and context.limits on every route ------------------------ */
+test('3b: an item outside context.allow is 403 CAPABILITY_REQUIRED on validate, jobs and signals; allow optional; limits lowered', async () => {
+  const none = { indicator: [], flow_indicator: [], candle_pattern: [], screener_metric: [] };
+  const all = { indicator: '*', flow_indicator: '*', candle_pattern: '*', screener_metric: '*' };
+  const q = pageDefault('UNVR');
+  const refused = (a: Answer) => ({ status: a.status, ...a.json().error });
+  const lineRefusal = { status: 403, code: 'CAPABILITY_REQUIRED', field: 'exit.stop.line.indicator', details: { kind: 'indicator', id: 'I09', capability: 'backtest.indicator:I09' },
+    message: 'exit.stop.line.indicator: the indicator I09 is not included in your plan (backtest.indicator:I09); remove it or change the plan to run this strategy.' };
+  // validate: refused, allowed with "*", allowed without allow (deploy step 1), malformed refused
+  assert.deepEqual(refused(await call('POST', '/v1/validate', { request: q, context: { rights: [], allow: none, limits: {} } })), lineRefusal);
+  const ok = await call('POST', '/v1/validate', { request: q, context: { allow: all, limits: {} } });
+  assert.equal(ok.status, 200, ok.body.toString());
+  const before = await call('POST', '/v1/validate', { request: q, context: { rights: [] } });
+  assert.deepEqual(before.json(), ok.json());
+  for (const [context, field] of [[{ allow: { ...all, indicator: 'I09' } }, 'context.allow.indicator'], [{ allow: { indicator: '*' } }, 'context.allow.flow_indicator'],
+    [{ limits: { timeout_seconds: 1 } }, 'context.limits.timeout_seconds'], [{ limits: [] }, 'context.limits']] as [unknown, string][]) {
+    const a = await call('POST', '/v1/validate', { request: q, context });
+    assert.deepEqual([a.status, a.json().error.code, a.json().error.field], [422, 'INVALID_CONTEXT', field], JSON.stringify(context));
+  }
+  // limits: the plan's value when smaller (the default entry has more than one enabled condition)
+  const low = await call('POST', '/v1/validate', { request: q, context: { allow: all, limits: { max_conditions: 1 } } });
+  assert.deepEqual([low.status, low.json().error.code, low.json().error.details.allowed], [422, 'LIMIT_EXCEEDED', 1]);
+  assert.equal((await call('POST', '/v1/validate', { request: q, context: { allow: all, limits: { max_conditions: 1000 } } })).status, 200);
+  // jobs: refused before it becomes a job; the job context takes allow and limits
+  const id = newId();
+  assert.deepEqual(refused(await call('POST', '/v1/jobs', { job_id: id, request: q, context: { job_id: id, prior_trials: [], allow: none, limits: {} } })), lineRefusal);
+  assert.equal((await call('GET', `/v1/jobs/${id}`)).status, 404);
+  const bad = await call('POST', '/v1/jobs', { job_id: id, request: q, context: { job_id: id, prior_trials: [], allow: { ...none, candle_pattern: '?' } } });
+  assert.deepEqual([bad.status, bad.json().error.field], [422, 'context.allow.candle_pattern']);
+  // signals: checked on the preview thread, the same refusal and status
+  const entry = { logic: 'any', at_least: 1, window_bars: 5, conditions: [{ id: 'r1', enabled: true, kind: 'indicator', indicator: 'I13', params: {}, lhs: { type: 'output', output: 'rsi' }, op: 'gt', rhs: { type: 'value', value: 50 } }] };
+  const preview = { schema_version: 1, tickers: ['UNVR'], period: { from: '2024-01-02', to: THROUGH }, entry };
+  const s = await call('POST', '/v1/signals', { request: preview, context: { allow: { ...all, indicator: ['I01'] } } });
+  assert.deepEqual(refused(s), { status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[0].indicator', details: { kind: 'indicator', id: 'I13', capability: 'backtest.indicator:I13' },
+    message: 'entry.conditions[0].indicator: the indicator I13 is not included in your plan (backtest.indicator:I13); remove it or change the plan to run this strategy.' });
+  assert.equal((await call('POST', '/v1/signals', { request: preview, context: { allow: { ...all, indicator: ['I13'] } } })).status, 200);
+  assert.equal((await call('POST', '/v1/signals', preview)).status, 200);              // the bare body of an older edge-bff
+  const few = await call('POST', '/v1/signals', { request: { ...preview, tickers: ['BBCA', 'UNVR'] }, context: { limits: { max_portfolio_tickers: 1 } } });
+  assert.deepEqual([few.status, few.json().error.code], [422, 'INVALID_PORTFOLIO']);
+});
+
+test('3b: the job re-checks on the job thread (run.ts runJob): an item outside allow ends it CAPABILITY_REQUIRED', async () => {
+  const q = pageDefault('UNVR');
+  await assert.rejects(runJob(q, { prior_trials: [], allow: { indicator: ['I01'], flow_indicator: '*', candle_pattern: '*', screener_metric: '*' } }, refs, directEnv()),
+    (e: unknown) => (e as { code?: string; status?: number; field?: string }).code === 'CAPABILITY_REQUIRED' && (e as { status: number }).status === 403 && (e as { field: string }).field === 'exit.stop.line.indicator');
+  await assert.rejects(runSignals({ schema_version: 1, tickers: ['UNVR'], period: { from: '2024-01-02', to: THROUGH }, entry: q.entry }, refs, directEnv(), {}, { limits: { max_conditions: 1 } }),
+    (e: unknown) => (e as { code?: string }).code === 'LIMIT_EXCEEDED');
+});

@@ -26,8 +26,12 @@
                                   UNKNOWN_JOB for any older job
    POST /v1/jobs/{id}/cancel      202 JobStatus; a running job stops at its next check and ends CANCELLED (a result
                                   that completes after the cancel is dropped); an ended job is left as it is
-   Errors: {"error": {code, field?, message?, details?}} with errors.ts statuses (validation 422, data 424, BUSY and
-   NOT_FINISHED 409, UNKNOWN_JOB 404, TIMEOUT 504). A job, a preview, a validation and a catalog each get
+   context (validate, signals, jobs): rights (P5), and from EDGE multi-user Phase 3b (access.ts) allow, the plan's items
+   per kind ("*" or the ids; absent: every item), and limits, the plan's per-request limits (the smaller of the
+   worker's and the plan's; absent: the worker's). An item outside allow is 403 CAPABILITY_REQUIRED (validate.ts);
+   a malformed allow or limits is 422 INVALID_CONTEXT.
+   Errors: {"error": {code, field?, message?, details?}} with errors.ts statuses (validation 422, a plan's item 403,
+   data 424, BUSY and NOT_FINISHED 409, UNKNOWN_JOB 404, TIMEOUT 504). A job, a preview, a validation and a catalog each get
    limits.timeout_seconds; a job or preview over it has its thread terminated (FAILED TIMEOUT / 504 TIMEOUT).
    Start: the registry artifact must match the files in the image (version.ts checkRegistry), and the Screener's
    registry and catalog too (grammar.ts grammarProblems, the conditions in its grammar), else exit 1. Logs are
@@ -48,6 +52,8 @@ import { errorFields, log } from './log.ts';
 import { checkPublished } from './run.ts';
 import { TerminalClient } from './terminal.ts';
 import { checkRequest } from './validate.ts';
+import { ALLOW_ALL, allowOf, applyLimits, limitsOf } from './access.ts';
+import type { Allow, PlanLimits } from './access.ts';
 import { D_RIGHT } from './pit/spec.ts';
 import type { CheckedRequest, References } from './validate.ts';
 import { hashForm, lineageForm } from './canonical.ts';
@@ -68,12 +74,17 @@ export function rightsOf(v: unknown, field = 'context.rights'): string[] {
   if (unknown !== undefined) throw invalid('INVALID_CONTEXT', field, `${field}: ${JSON.stringify(unknown)} is not a right the worker knows (${KNOWN_RIGHTS.join(', ')}).`);
   return v as string[];
 }
-/** The rights of a {request, context} body's context ({rights} only; absent: none). */
-function contextRights(c: unknown): string[] {
-  if (c === undefined) return [];
-  if (!c || typeof c !== 'object' || Array.isArray(c)) throw invalid('INVALID_CONTEXT', 'context', 'context must be an object {rights}.');
-  for (const k of Object.keys(c)) if (k !== 'rights') throw invalid('UNKNOWN_FIELD', `context.${k}`, `context.${k} is not a field of this context.`);
-  return rightsOf((c as { rights?: unknown }).rights);
+/** What a context grants (Phase 3b, access.ts): the rights, the plan's items (absent: every item) and the plan's
+    limits (absent: the worker's own). */
+export interface Grants { rights: string[]; allow: Allow; limits: PlanLimits }
+/** The grants of a {request, context} body's context ({rights, allow, limits}, each optional; absent: no rights, every
+    item, the worker's limits). */
+export function contextGrants(c: unknown): Grants {
+  if (c === undefined) return { rights: [], allow: ALLOW_ALL, limits: {} };
+  if (!c || typeof c !== 'object' || Array.isArray(c)) throw invalid('INVALID_CONTEXT', 'context', 'context must be an object {rights, allow, limits}.');
+  for (const k of Object.keys(c)) if (!['rights', 'allow', 'limits'].includes(k)) throw invalid('UNKNOWN_FIELD', `context.${k}`, `context.${k} is not a field of this context.`);
+  const x = c as { rights?: unknown; allow?: unknown; limits?: unknown };
+  return { rights: rightsOf(x.rights), allow: allowOf(x.allow), limits: limitsOf(x.limits) };
 }
 export const JOB_ID = /^bt_[0-9a-f]{32}$/;            // edge-bff backtest.py JOB_ID ('bt_' + secrets.token_hex(16))
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -228,7 +239,9 @@ export function createApp(cfg: Config): WorkerApp {
     return j;
   }
 
-  function checkJobBody(b: unknown): { job_id: string; request: unknown; prior_trials: { variant_hash: string; sharpe_daily: number }[]; owner_trials?: { variant_hash: string; sharpe_daily: number }[]; rights: string[] } {
+  /** The configuration a request is checked with: the worker's limits lowered to the plan's (access.ts applyLimits). */
+  const within_plan = (limits: PlanLimits): Config => Object.keys(limits).length ? { ...cfg, limits: applyLimits(cfg.limits, limits) } : cfg;
+  function checkJobBody(b: unknown): { job_id: string; request: unknown; prior_trials: { variant_hash: string; sharpe_daily: number }[]; owner_trials?: { variant_hash: string; sharpe_daily: number }[] } & Grants {
     if (!b || typeof b !== 'object' || Array.isArray(b)) throw invalid('INVALID_REQUEST', 'body', 'The body must be {job_id, request, context}.');
     const { job_id, request, context, ...rest } = b as Record<string, unknown>;
     const extra = Object.keys(rest)[0];
@@ -236,7 +249,7 @@ export function createApp(cfg: Config): WorkerApp {
     if (typeof job_id !== 'string' || !JOB_ID.test(job_id)) throw invalid('INVALID_JOB_ID', 'job_id', 'job_id must be bt_ followed by 32 lowercase hex characters.');
     if (!context || typeof context !== 'object' || Array.isArray(context)) throw invalid('INVALID_CONTEXT', 'context', 'context is required.');
     const c = context as Record<string, unknown>;
-    for (const k of Object.keys(c)) if (!['job_id', 'prior_trials', 'owner_trials', 'rights'].includes(k)) throw invalid('UNKNOWN_FIELD', `context.${k}`, `context.${k} is not a field of the job context.`);
+    for (const k of Object.keys(c)) if (!['job_id', 'prior_trials', 'owner_trials', 'rights', 'allow', 'limits'].includes(k)) throw invalid('UNKNOWN_FIELD', `context.${k}`, `context.${k} is not a field of the job context.`);
     if (c.job_id !== job_id) throw invalid('INVALID_CONTEXT', 'context.job_id', 'context.job_id must equal job_id.');
     if (!Array.isArray(c.prior_trials)) throw invalid('INVALID_CONTEXT', 'context.prior_trials', 'context.prior_trials must be a list.');
     if (c.owner_trials !== undefined && !Array.isArray(c.owner_trials)) throw invalid('INVALID_CONTEXT', 'context.owner_trials', 'context.owner_trials must be a list.');
@@ -251,7 +264,7 @@ export function createApp(cfg: Config): WorkerApp {
     const prior_trials = trialsOf(c.prior_trials, 'prior_trials');
     // K6 a: the owner's trials across lines (absent from an edge-bff before it: no owner-wide deflated Sharpe)
     const owner_trials = c.owner_trials === undefined ? undefined : trialsOf(c.owner_trials as unknown[], 'owner_trials');
-    return { job_id, request, prior_trials, owner_trials, rights: rightsOf(c.rights) };
+    return { job_id, request, prior_trials, owner_trials, rights: rightsOf(c.rights), allow: allowOf(c.allow), limits: limitsOf(c.limits) };
   }
 
   /* ---- previews: one at a time on the preview thread, the next ones wait in arrival order ---- */
@@ -326,11 +339,11 @@ export function createApp(cfg: Config): WorkerApp {
       allow('POST');
       const body = parseJson(raw) as { request?: unknown; context?: unknown } | null;
       if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(k => k !== 'request' && k !== 'context')) throw invalid('INVALID_REQUEST', 'body', 'The body must be {request, context}.');
-      const rights = contextRights(body.context);
+      const g = contextGrants(body.context), planned = within_plan(g.limits);
       const out = await within('The validation', (async () => {
-        const list = await refs(), checked = checkRequest(body.request, list, cfg, new Set(rights));
+        const list = await refs(), checked = checkRequest(body.request, list, planned, new Set(g.rights), g.allow);
         const q = canonicalRequest(body.request as BacktestRequest);        // the picked stocks in ticker order (PF3)
-        await checkPublished(q, checked, list, { client, config: cfg });
+        await checkPublished(q, checked, list, { client, config: planned });
         // the hash and lineage forms (canonical.ts, K7 a, Stage C F4), as the job hashes
         const [lineage_key, variant_hash] = await Promise.all([lineageKey(lineageForm(q)), variantHash(hashForm(q))]);
         return { ok: true, lineage_key, variant_hash, tickers: checked.tickers };
@@ -343,12 +356,12 @@ export function createApp(cfg: Config): WorkerApp {
       // read, with no rights: the deploy order puts the worker first)
       const raw0 = parseJson(raw), wrapped = !!raw0 && typeof raw0 === 'object' && !Array.isArray(raw0) && 'request' in raw0;
       if (wrapped && Object.keys(raw0 as object).some(k => k !== 'request' && k !== 'context')) throw invalid('INVALID_REQUEST', 'body', 'The body must be {request, context}.');
-      const body = wrapped ? (raw0 as { request: unknown }).request : raw0, rights = wrapped ? contextRights((raw0 as { context?: unknown }).context) : [];
+      const body = wrapped ? (raw0 as { request: unknown }).request : raw0, g = contextGrants(wrapped ? (raw0 as { context?: unknown }).context : undefined);
       const left = callerWatch(res), asked = performance.now();
       const list = await within('The reference list', refs());
       if (left()) return;                                                // nobody waits for it: never queued
       const picked = (body as { tickers?: unknown } | null)?.tickers;
-      const o = await preview({ kind: 'signals', request: body, refs: list, rights }, res,
+      const o = await preview({ kind: 'signals', request: body, refs: list, rights: g.rights, allow: g.allow, limits: g.limits }, res,
         { refs_ms: Math.round(performance.now() - asked), tickers: Array.isArray(picked) ? picked.length : null });
       return send(res, 200, o.kind === 'signals' ? o.preview : null);
     }
@@ -360,12 +373,12 @@ export function createApp(cfg: Config): WorkerApp {
       starting = true;
       const left = callerWatch(res);
       let list: References, checked: CheckedRequest;
-      try { list = await within('The validation', refs()); checked = checkRequest(b.request, list, cfg, new Set(b.rights)) }
+      try { list = await within('The validation', refs()); checked = checkRequest(b.request, list, within_plan(b.limits), new Set(b.rights), b.allow) }
       finally { starting = false }
       if (left()) return;                                                // nobody waits for its 202: never started
       if (job && running(job)) return fail(res, 409, { code: 'BUSY', message: 'Another backtest is running.' });
       replaced = job && job.status.state === 'FINISHED' ? job.id : null;
-      job = startJob(b.job_id, { kind: 'job', request: b.request, context: { prior_trials: b.prior_trials, ...(b.owner_trials ? { owner_trials: b.owner_trials } : {}), rights: b.rights }, refs: list },   // the previous job and its result are dropped
+      job = startJob(b.job_id, { kind: 'job', request: b.request, context: { prior_trials: b.prior_trials, ...(b.owner_trials ? { owner_trials: b.owner_trials } : {}), rights: b.rights, allow: b.allow, limits: b.limits }, refs: list },   // the previous job and its result are dropped
         { mode: (b.request as { mode?: unknown }).mode, tickers: checked.tickers.length, broker: checked.broker });
       return send(res, 202, { job_id: b.job_id });
     }

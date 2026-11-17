@@ -20,6 +20,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Calc, installGrammar } from '../../edge-bff/backtest/src/core/conditions.ts';
+import { CANDLE_IDS } from '../../edge-bff/backtest/src/core/candles.ts';
+import type { AllowKind } from './access.ts';
 import type { GrammarEvaluator, Signal, TestCondition } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { bindCondition, conditionSignal } from '../../edge-bff/screener/src/core/condition.ts';
@@ -132,6 +134,29 @@ function validateContext(limits: GrammarLimits, tickers: Iterable<string>): Vali
 /** The Flow references of a test with their field (validate.ts: broker files, FLOW_UNAVAILABLE, broker codes). */
 export function flowRefs(test: unknown, field: string): { field: string; ref: Record<string, unknown> }[] {
   return refKinds(test, field).filter(([k]) => k === 'flow').map(([, f, ref]) => ({ field: f, ref }));
+}
+
+/* EDGE multi-user Phase 3b (CONTRACT 8b): every catalog item a test names, with the JSON path of its id: an indicator
+   reference's indicator (kind indicator), a Flow reference's metric (flow_indicator; the point-in-time versions keep
+   their FL id), a pattern's type (candle_pattern for the 20 candlestick ids of the core's candle registry, else a
+   Screener pattern metric: screener_metric), a cross-section metric and a universe attribute (screener_metric; a
+   backtest refuses both anyway, checkTest). A transform, a price field and a rank have no id of their own (their inner
+   references are walked); the Screener's four transform metrics (hi52, lo52, rs, vol_ratio) are transforms on the wire,
+   so they carry no id and are not checked by id. A non-string id is left to the validation. */
+const ITEM_KEY: Record<string, [string, (id: string) => AllowKind]> = {
+  indicator: ['indicator', () => 'indicator'],
+  flow: ['metric', () => 'flow_indicator'],
+  pattern: ['type', id => CANDLE_IDS.includes(id) ? 'candle_pattern' : 'screener_metric'],
+  xsection: ['metric', () => 'screener_metric'],
+  universe: ['attr', () => 'screener_metric'],
+};
+export function testItems(test: unknown, field: string): { kind: AllowKind; id: string; field: string }[] {
+  const out: { kind: AllowKind; id: string; field: string }[] = [];
+  for (const [kind, at, ref] of refKinds(test, field)) {
+    const k = ITEM_KEY[kind], id = k ? ref[k[0]] : undefined;
+    if (k && typeof id === 'string') out.push({ kind: k[1](id), id, field: `${at}.${k[0]}` });
+  }
+  return out;
 }
 
 /* EXEC-BACKTEST-REVAMP P3 (K3 a, ERRORS M450), P9 (option A, M458 item 2), Stage C2 (user 2026-11-16 "A", M459 items

@@ -32,10 +32,15 @@ import { byTicker, isIsoDate, requestConditions } from '../../edge-bff/backtest/
 import type { ActiveCondition } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from './config.ts';
 import { invalid } from './errors.ts';
-import { checkTest, flowRefs, installBacktestGrammar } from './grammar.ts';
+import { checkTest, flowRefs, installBacktestGrammar, testItems } from './grammar.ts';
+import { ALLOW_ALL, requireItem } from './access.ts';
+import type { Allow } from './access.ts';
 import { D_RIGHT, isD } from './pit/spec.ts';
 import { canonicalJson } from '../../edge-bff/backtest/src/core/hash.ts';
 import { FLOW_BY_ID } from '../../edge-bff/screener/src/core/flowmetrics.ts';
+import SCREENER_METRICS from '../../edge-bff/screener/src/core/screener-metrics.json' with { type: 'json' };
+import { CANDLE_IDS } from '../../edge-bff/backtest/src/core/candles.ts';
+import type { AllowKind } from './access.ts';
 import type { BrokerRef, TickerRef } from './terminal.ts';
 
 // EXEC-BACKTEST-REVAMP P1: conditions in the Screener's grammar (kind 'test') are computed by the Screener core
@@ -126,10 +131,12 @@ export function pickedStocks(v: unknown, refs: References, max: number, field: s
 
 /* ---- conditions without bars --------------------------------------------------------------------------------------- */
 const EMPTY = { O: [], H: [], L: [], C: [], V: [], T: [] };
-interface Listed { field: string; cond: CoreCondition; enabled: boolean }
+/** field: where the condition's refusals point (a preview's detail.exit_signals as a run's exit.signals); path: its
+    JSON path in the body, which a CAPABILITY_REQUIRED refusal names (Phase 3b). */
+interface Listed { field: string; path: string; cond: CoreCondition; enabled: boolean }
 /** Every condition of a list, enabled or not, after requestConditions has checked the list, each object, id and flag. */
-const listed = (list: unknown, field: string): Listed[] =>
-  (list as CoreCondition[]).map((cond, k) => ({ field: `${field}[${k}]`, cond, enabled: (cond as { enabled?: boolean }).enabled !== false }));
+const listed = (list: unknown, field: string, path = field): Listed[] =>
+  (list as CoreCondition[]).map((cond, k) => ({ field: `${field}[${k}]`, path: `${path}[${k}]`, cond, enabled: (cond as { enabled?: boolean }).enabled !== false }));
 /** At most limits.max_conditions enabled conditions per list. */
 function withinConditions(lists: [readonly ActiveCondition[], string][], max: number): void {
   for (const [list, field] of lists) if (list.length > max)
@@ -151,9 +158,46 @@ function flowBrokers(ref: Record<string, unknown>, field: string, brokers: reado
 /** The rights a request's context carries (P5: set by edge-bff from the session; none when absent: fail closed). */
 export type Rights = ReadonlySet<string>;
 export const NO_RIGHTS: Rights = new Set();
-function checkConditions(list: readonly Listed[], flow: Config['flow'], brokers: readonly BrokerRef[], maxFlow = Number.MAX_SAFE_INTEGER, rights: Rights = NO_RIGHTS): Reads {
+/** The catalog kind of a legacy card's type (a price-action or flow card of the Backtest core), derived from the
+    registries at load so a future legacy type that matches a catalog id is gated by it: a Screener metric id
+    (screener-metrics.json metrics, the ids of releases.json screener_metric: breakout, volspike, macross today), a Flow
+    indicator id (the Screener registry's flows: flowRegistry.json and fnet, ksei_net; fnet today) or a candlestick id.
+    null: a built-in type with no catalog id (dip, macd, top5, broker today), not gated. */
+const METRIC_IDS = new Set((SCREENER_METRICS as { metrics: { id: string }[] }).metrics.map(m => m.id));
+export function legacyItemKind(type: string): AllowKind | null {
+  if (METRIC_IDS.has(type)) return 'screener_metric';
+  if (Object.prototype.hasOwnProperty.call(FLOW_BY_ID, type)) return 'flow_indicator';
+  if (CANDLE_IDS.includes(type)) return 'candle_pattern';
+  return null;
+}
+/** Phase 3b (CONTRACT 8b): every catalog item a condition names, enabled or switched off (it is stored with the job and
+    kept by the page), must be in the plan's allow, else 403 CAPABILITY_REQUIRED at the item's JSON path: a registry
+    indicator condition's indicator, every item of a grammar test (grammar.ts testItems), and a legacy price-action or
+    flow card whose type is a catalog id (legacyItemKind), so the legacy cards are no second path around the plan. */
+function conditionItems(list: readonly Listed[], allow: Allow): void {
+  if (allow === ALLOW_ALL) return;
+  for (const { path, cond: c } of list) {
+    if (c.kind === 'indicator' && typeof (c as { indicator?: unknown }).indicator === 'string') requireItem(allow, 'indicator', (c as { indicator: string }).indicator, `${path}.indicator`);
+    if (c.kind === 'test') for (const it of testItems((c as { test?: unknown }).test, `${path}.test`)) requireItem(allow, it.kind, it.id, it.field);
+    if ((c.kind === 'price_action' || c.kind === 'flow') && typeof (c as { type?: unknown }).type === 'string') {
+      const type = (c as { type: string }).type, kind = legacyItemKind(type);
+      if (kind) requireItem(allow, kind, type, `${path}.type`);
+    }
+  }
+}
+/** The price lines of the exits (stop and trailing), held to the plan whatever their mode: both are stored with the
+    job and hashed, as the numbers the chosen modes do not read (unreadTypes). */
+function lineItems(q: BacktestRequest, allow: Allow): void {
+  if (allow === ALLOW_ALL) return;
+  for (const part of ['stop', 'trailing'] as const) {
+    const id = (q.exit[part]?.line as { indicator?: unknown } | undefined)?.indicator;
+    if (typeof id === 'string') requireItem(allow, 'indicator', id, `exit.${part}.line.indicator`);
+  }
+}
+function checkConditions(list: readonly Listed[], flow: Config['flow'], brokers: readonly BrokerRef[], maxFlow = Number.MAX_SAFE_INTEGER, rights: Rights = NO_RIGHTS, allow: Allow = ALLOW_ALL): Reads {
   let needsBroker = false, columns = false;
   const series = new Set<string>();
+  conditionItems(list, allow);
   for (const { field, cond: c, enabled } of list) {
     if (!CONDITION_ID.test(c.id)) fail('INVALID_CONDITION', `${field}.id`, `${field}.id must be 1 to 6 lowercase letters or digits, as the page makes it.`);
     // EXEC-BACKTEST-REVAMP P4-P5: the point-in-time indicators are for admins only, enforced here at every depth of the
@@ -215,7 +259,7 @@ export interface CheckedRequest {
 }
 
 /** A backtest request checked as far as it can be without market data; ValidationError (422) otherwise. */
-export function checkRequest(input: unknown, refs: References, cfg: Pick<Config, 'limits' | 'flow'>, rights: Rights = NO_RIGHTS): CheckedRequest {
+export function checkRequest(input: unknown, refs: References, cfg: Pick<Config, 'limits' | 'flow'>, rights: Rights = NO_RIGHTS, allow: Allow = ALLOW_ALL): CheckedRequest {
   if (!isObject(input)) fail('INVALID_REQUEST', 'request', 'The request must be a JSON object.');
   const q = input as unknown as BacktestRequest;
   only(q, 'request', '');
@@ -259,13 +303,14 @@ export function checkRequest(input: unknown, refs: References, cfg: Pick<Config,
   }
   const active = requestConditions(q);
   unreadTypes(q);
+  lineItems(q, allow);
   withinConditions([[active.entry, 'entry.conditions'], [active.exit, 'exit.signals.conditions']], cfg.limits.max_conditions);
-  const reads = checkConditions([...listed(q.entry.conditions, 'entry.conditions'), ...listed(q.exit.signals.conditions, 'exit.signals.conditions')], cfg.flow, refs.brokers, cfg.limits.max_flow_series, rights);
+  const reads = checkConditions([...listed(q.entry.conditions, 'entry.conditions'), ...listed(q.exit.signals.conditions, 'exit.signals.conditions')], cfg.flow, refs.brokers, cfg.limits.max_flow_series, rights, allow);
   return { tickers, broker: broker || reads.broker, columns: reads.columns };
 }
 
 /** A signals preview request (SignalsPreviewRequest) checked the same way. */
-export function checkSignalsRequest(input: unknown, refs: References, cfg: Pick<Config, 'limits' | 'flow'>, rights: Rights = NO_RIGHTS): CheckedRequest {
+export function checkSignalsRequest(input: unknown, refs: References, cfg: Pick<Config, 'limits' | 'flow'>, rights: Rights = NO_RIGHTS, allow: Allow = ALLOW_ALL): CheckedRequest {
   if (!isObject(input)) fail('INVALID_REQUEST', 'request', 'The request must be a JSON object.');
   const q = input as unknown as SignalsPreviewRequest;
   only(q, 'preview', ''); only(q.period, 'preview_period', 'period'); entryFields(q.entry, 'entry');
@@ -287,7 +332,7 @@ export function checkSignalsRequest(input: unknown, refs: References, cfg: Pick<
   const active = requestConditions({ entry: q.entry, ...(isObject(exit) ? { exit: { signals: exit } } : {}) } as never);
   entryTypes(q.entry);
   withinConditions([[active.entry, 'entry.conditions'], [active.exit, 'exit.signals.conditions']], cfg.limits.max_conditions);
-  const reads = checkConditions([...listed(q.entry.conditions, 'entry.conditions'), ...(isObject(exit) ? listed(exit.conditions, 'exit.signals.conditions') : [])],
-    cfg.flow, refs.brokers, cfg.limits.max_flow_series, rights);
+  const reads = checkConditions([...listed(q.entry.conditions, 'entry.conditions'), ...(isObject(exit) ? listed(exit.conditions, 'exit.signals.conditions', 'detail.exit_signals.conditions') : [])],
+    cfg.flow, refs.brokers, cfg.limits.max_flow_series, rights, allow);
   return { tickers, broker: reads.broker, columns: reads.columns };
 }
