@@ -1479,3 +1479,59 @@ def test_the_review_cache_is_kept_per_context_digest(app, worker, monkeypatch):
                                          'message': REFUSED_METRIC['message'], 'details': named_metric()['details']}]
     assert {k[-1] for k in reviews} == {allow.digest(ADMIN_CONTEXT), allow.digest(narrow)}
     worker.refuse = {}
+
+
+# ---- C2 Phase 3b checker (isolation between plans): the catalog's preset counts --------------------------------------
+
+def test_c2_catalog_preset_counts_are_never_served_to_a_plan_without_the_presets_items(configured, store, worker):
+    """CONTRACT.md 8b "3b. Workers": edge-bff's catalog cache is keyed by the allow digest, and a result computed with an
+    item is never served to a principal that does not hold it. The worker's catalog carries each preset's match_count
+    and near_count, computed in the system lane with every item (screener-worker server.ts presets); edge-bff keeps one
+    catalog for everyone, filtered by rights only (Screeners.catalog_for). A principal whose allow leaves out FL05 must
+    not receive the counts of a preset that reads FL05 (as Stage C F6 leaves out a preset reading an admin entry)."""
+    from test_principal import db as run_sql, make_user, sign_in
+    flow = lambda metric: {'universe': {'security_types': ['stock']}, 'logic': 'all', 'conditions': [{'id': 'a', 'enabled': True, 'test': {
+        'kind': 'value', 'metric': {'kind': 'flow', 'metric': metric, 'params': {}}, 'op': 'gt', 'value': 0}}]}
+    worker.metrics = [{'id': 'FL11', 'group': 'Flow', 'kind': 'flow'}, {'id': 'FL05', 'group': 'Flow', 'kind': 'flow'}]
+    worker.presets = [{'id': 'held', 'definition': flow('FL11'), 'availability': 'AVAILABLE', 'match_count': 12, 'near_count': 3},
+                      {'id': 'not_held', 'definition': flow('FL05'), 'availability': 'AVAILABLE', 'match_count': 7, 'near_count': 2}]
+    on = dataclasses.replace(configured, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40)
+    application = create_app(on, store, FakeOrc())
+    with TestClient(application) as c:
+        user = make_user(store, 'narrow', 'narrow-password')
+        plan = run_sql(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'screener.run'
+            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')[0]['plan_key']
+        run_sql(store, "INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider) VALUES (%s, %s, 'active', 'test')",
+                user['user_id'], plan)
+        # the plan's flow indicators narrowed to FL11 for this account (an override, CONTRACT.md 8a)
+        run_sql(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
+            VALUES (%s, 'screener.flow_indicator', '{"ids": ["FL11"]}'::jsonb, 'c2 test')''', user['user_id'])
+        c.headers_for = sign_in(c, 'narrow', 'narrow-password')
+        c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body(seq=1))
+        assert worker.called('/v1/run')[-1]['body']['context']['allow']['flow_indicator'] == ['FL11']   # no FL05
+        cat = c.get('/api/v1/screener/catalog')
+        assert cat.status_code == 200
+        served = {p['id']: p for p in cat.json()['presets']}
+        leaked = served.get('not_held')
+        assert leaked is None or (leaked.get('match_count') is None and leaked.get('near_count') is None), (
+            f'the counts of a preset reading FL05, computed with every item, reached a principal without FL05: {leaked}')
+
+
+def test_c2_a_saved_screen_validated_under_one_plan_is_not_taken_as_reviewed_under_another(app, worker, monkeypatch):
+    """CONTRACT.md 8b: the saved-item review is per context digest, so one plan's answer never serves another. An item
+    saved (validated) under the current registry versions is listed with needs_review [] without asking the worker
+    (Screeners.reviewed: only a registry change re-validates), so the validation made under the plan it was saved with
+    stands for any later plan of the owner (D5: a lowered plan keeps the item, the run is refused)."""
+    c = app
+    assert put(c, 1, screen_item()).status_code == 200            # validated with the admin's context ('*')
+    calls = len(worker.called('/v1/validate'))
+    narrow = {'rights': [], 'allow': {k: [] for k in allow.KINDS}, 'limits': {}}
+    monkeypatch.setattr(screener, 'context_of', lambda principal, name: narrow)   # the owner's plan lowered
+    worker.refuse = {'/v1/validate': (403, REFUSED_METRIC)}
+    try:
+        items = c.get('/api/v1/screener/items').json()['items']
+    finally:
+        worker.refuse = {}
+    assert len(worker.called('/v1/validate')) == calls + 1 or items[0]['needs_review'], (
+        'the item was listed as reviewed under the narrower plan from the validation made under the wider one: '
+        f'needs_review {items[0]["needs_review"]}, no validation asked')
