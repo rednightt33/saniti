@@ -1,0 +1,83 @@
+{
+ "mode": "APPLY",
+ "migrations": [
+  "20261117_003_edge_bff_accounts_catalog.sql"
+ ],
+ "probes": [
+  [
+   "tables",
+   null,
+   "SELECT table_name FROM information_schema.tables WHERE table_schema = 'edge_bff' AND table_name IN ('plans', 'capabilities', 'plan_capabilities', 'user_capability_overrides', 'subscriptions') ORDER BY table_name"
+  ],
+  [
+   "columns",
+   null,
+   "SELECT table_name, string_agg(column_name || ':' || data_type || ':' || is_nullable, ', ' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name IN ('plans', 'capabilities', 'plan_capabilities', 'user_capability_overrides', 'subscriptions') GROUP BY table_name ORDER BY table_name"
+  ],
+  [
+   "keys",
+   null,
+   "SELECT c.relname, k.conname, k.contype, pg_get_constraintdef(k.oid) FROM pg_constraint k JOIN pg_class c ON c.oid = k.conrelid JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'edge_bff' AND c.relname IN ('plans', 'capabilities', 'plan_capabilities', 'user_capability_overrides', 'subscriptions') AND k.contype IN ('p', 'u', 'f') ORDER BY c.relname, k.contype, k.conname"
+  ],
+  [
+   "checks",
+   null,
+   "SELECT c.relname, k.conname, pg_get_constraintdef(k.oid) FROM pg_constraint k JOIN pg_class c ON c.oid = k.conrelid JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'edge_bff' AND c.relname IN ('plans', 'capabilities', 'plan_capabilities', 'user_capability_overrides', 'subscriptions') AND k.contype = 'c' ORDER BY c.relname, k.conname"
+  ],
+  [
+   "indexes",
+   null,
+   "SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = 'edge_bff' AND tablename IN ('plans', 'capabilities', 'plan_capabilities', 'user_capability_overrides', 'subscriptions') ORDER BY tablename, indexname"
+  ],
+  [
+   "runtime_grants",
+   null,
+   "SELECT e.t AS table_name, e.p AS expected, string_agg(x.priv, ',' ORDER BY x.priv) FILTER (WHERE has_table_privilege('edge_bff_runtime', 'edge_bff.' || e.t, x.priv)) AS held FROM (VALUES ('plans', 'SELECT'), ('capabilities', 'SELECT'), ('plan_capabilities', 'SELECT'), ('user_capability_overrides', 'INSERT,SELECT,UPDATE'), ('subscriptions', 'INSERT,SELECT,UPDATE')) AS e(t, p) CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS x(priv) GROUP BY e.t, e.p ORDER BY e.t"
+  ],
+  [
+   "login_grants",
+   null,
+   "SELECT e.t AS table_name, e.p AS expected, string_agg(x.priv, ',' ORDER BY x.priv) FILTER (WHERE has_table_privilege('edge_bff_login', 'edge_bff.' || e.t, x.priv)) AS held FROM (VALUES ('plans', 'SELECT'), ('capabilities', 'SELECT'), ('plan_capabilities', 'SELECT'), ('user_capability_overrides', 'INSERT,SELECT,UPDATE'), ('subscriptions', 'INSERT,SELECT,UPDATE')) AS e(t, p) CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS x(priv) GROUP BY e.t, e.p ORDER BY e.t"
+  ],
+  [
+   "public_grants",
+   null,
+   "SELECT e.t AS table_name, string_agg(x.priv, ',') FILTER (WHERE has_table_privilege('public', 'edge_bff.' || e.t, x.priv)) AS public_held FROM (VALUES ('plans', 'SELECT'), ('capabilities', 'SELECT'), ('plan_capabilities', 'SELECT'), ('user_capability_overrides', 'INSERT,SELECT,UPDATE'), ('subscriptions', 'INSERT,SELECT,UPDATE')) AS e(t, p) CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS x(priv) GROUP BY e.t ORDER BY e.t"
+  ],
+  [
+   "sequences",
+   null,
+   "SELECT s.relname, has_sequence_privilege('edge_bff_runtime', s.oid, 'USAGE') AS runtime_usage, has_sequence_privilege('edge_bff_runtime', s.oid, 'SELECT') OR has_sequence_privilege('edge_bff_runtime', s.oid, 'UPDATE') AS runtime_more, has_sequence_privilege('public', s.oid, 'USAGE, SELECT, UPDATE') AS public_any FROM pg_class s JOIN pg_namespace n ON n.oid = s.relnamespace WHERE n.nspname = 'edge_bff' AND s.relkind = 'S' AND s.relname = 'subscriptions_subscription_id_seq'"
+  ],
+  [
+   "plans",
+   null,
+   "SELECT plan_key, display_name, is_default FROM edge_bff.plans ORDER BY plan_key"
+  ],
+  [
+   "seed_counts",
+   null,
+   "SELECT (SELECT count(*) FROM edge_bff.capabilities) AS capabilities, (SELECT count(*) FROM edge_bff.capabilities WHERE char_length(means) > 0) AS with_means, (SELECT count(*) FROM edge_bff.plan_capabilities) AS plan_grants, (SELECT count(*) FROM edge_bff.user_capability_overrides) AS overrides, (SELECT count(*) FROM edge_bff.subscriptions) AS subscriptions"
+  ],
+  [
+   "plan_grants",
+   null,
+   "SELECT plan_key, count(*) AS grants, string_agg(capability_key || '=' || value::text, ' ' ORDER BY capability_key) AS values FROM edge_bff.plan_capabilities GROUP BY plan_key ORDER BY plan_key"
+  ],
+  [
+   "star_holders",
+   null,
+   "SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' ORDER BY plan_key"
+  ],
+  [
+   "runtime_reads",
+   "edge_bff_runtime",
+   "SELECT (SELECT count(*) FROM edge_bff.plans) AS plans, (SELECT count(*) FROM edge_bff.plan_capabilities) AS plan_grants, (SELECT count(*) FROM edge_bff.subscriptions) AS subscriptions"
+  ],
+  [
+   "comments",
+   null,
+   "SELECT c.relname, obj_description(c.oid, 'pg_class') IS NOT NULL AS has_comment FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'edge_bff' AND c.relkind = 'r' AND c.relname IN ('plans', 'capabilities', 'plan_capabilities', 'user_capability_overrides', 'subscriptions') ORDER BY c.relname"
+  ]
+ ]
+}

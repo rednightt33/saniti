@@ -15702,3 +15702,45 @@ before them never takes traffic (Railway keeps the previous deployment serving).
    `APPLIED.sha256`; `ERRORS_AND_SOLUTIONS.md` (the checkers' consolidated entry, its statuses to deployed).
 11. **Postgres memory:** the three migrations create small empty tables and columns, not a large update. Restart Postgres only if a
     job's `POSTGRES_MEMORY_CHECK` line says `READY` (after the M340 check), and record it in `RAILWAY_CHANGELOG.md`.
+
+### Phase 2 deploy steps (prepared 2026-11-17, not run)
+
+Code: the branch from `96a9ec94`. Builders B1 (server core, `ca33a49c`), B2 (release catalog, `c21d65fd`) and B3 (page
+module, `00166913`) were integrated at `8a55980b`. Checkers C1-C3 ran on it; fixes are recorded in ERRORS. The switch
+stays off throughout.
+
+What changes for the current user with the switch off: nothing visible.
+- At its first start, edge-bff gives user #1 a subscription to the plan holding `*`.
+- Every API answer carries `X-Edge-Entitlements: env`.
+- `GET /api/v1/catalog/{kind}` exists.
+
+Order: migration first. The new edge-bff logs `account_seed_plan_failed` without the tables, but stays ready with the
+switch off; the previous build ignores the new tables.
+
+1. **M340:** 0 active EDGE jobs and 0 running orc turns, right before steps 2 and 4.
+2. **Migration `20261117_003_edge_bff_accounts_catalog.sql`** (sha256 `b2d3560b3b3f9099ee5ec1ed7cd26830e1919f2cc341350f021b4cb6fdd2f2d6`): DRYRUN, then APPLY, through
+   `scripts/onboarding/run_job.sh scripts/onboarding/migration_job.py` with
+   `verification/edge_multiuser/jobs/migration20261117_003{,_apply}.params.json` and the file as an extra.
+   - Check:
+     - the five tables, columns, keys, CHECKs and the two partial UNIQUEs;
+     - `runtime_grants` and `login_grants` equal `expected`; `public_grants` empty; the sequence USAGE only;
+     - three plans, `free` the default; `star_holders` = `admin` only; 41 capabilities, each with `means`;
+     - the plan grants as CONTRACT.md 8a; 0 overrides and 0 subscriptions; every table commented.
+     - Then `APPLIED.sha256` and `DATABASE_CHANGELOG.md`.
+   - Rollback: the block at the end of the file, after edge-bff is back on the previous build.
+3. **Variables:** none.
+4. **Merge to `main`:** fast-forward after green branch CI and the local suites.
+   - edge-bff deploys after CI. The other services do not change (watch paths).
+   - Check: that exact deployment at `SUCCESS`; `/ready` 200; no `account_seed_plan_failed` or
+     `account_seed_plan_ambiguous` in the log.
+   - Rollback: the deployment recorded before the push.
+5. **Smoke from outside (switch off):**
+   - `/ready` 200; `/api/v1/auth/config` `{"multiuser": false}`;
+   - `/api/v1/catalog/indicator` without a session 401 `UNAUTHENTICATED`;
+   - the Phase 1 checks unchanged;
+   - the served `/edge-session.js` holds `catalog(`.
+   - The user, after a reload (ERRORS M479): every tab as before; `/api/v1/auth/session` `access.version` `env` with
+     `expired_plan` null.
+6. **Seed read-back** (read only): `phase2_seed_readback.params.json` shows one `active` `manual` subscription of
+   user 1 to `admin`, with no end, and 0 overrides.
+7. **Records:** `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md` (applied, read back), ERRORS statuses.

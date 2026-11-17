@@ -884,3 +884,38 @@ Front-end (`static/index.html`, `shared/edge-session.ts`):
   the local state is this same identity's, uploads a local value the server lacks once; a change is written a second
   later with the version it was read with. `tests/test_storage_registry.py` fails on a `user` key without exactly one
   flag, and on a change of the synced set (`SYNCED`): a new synced key is a decision recorded in the test.
+
+## Plans and releases (EXEC-MU-ACCOUNTS Phase 2, 2026-11-17)
+
+The switch `EDGE_MULTIUSER` stays off: the configured owner keeps every capability (`*`, version `env`) and nothing
+visible changes. With the switch on, access comes from data, never from code (CONTRACT.md section 8a):
+
+- **Plans** (`edge_bff.plans`, migration `20261117_003`): `admin`, `paid` and `free` (the default). The plan keys
+  appear only in that migration's seed; `tests/test_plan_catalog.py` fails on a plan key in `app/`.
+- **Capabilities** (`edge_bff.capabilities`): each has a kind and a plain-English meaning.
+  - `flag`: `true`.
+  - `limit`: a non-negative integer; no row means no limit.
+  - `list`: strings.
+  - `items`: `{ids, stages, all}`. An item `<family>:<id>`, for example `terminal.indicator:I01`, is held when its id
+    is listed, its release stage is listed, or `all` is true.
+- **Grants:** `plan_capabilities` (per plan, versioned) and `user_capability_overrides` (per user, with a reason and an
+  optional end). An override replaces the plan's value.
+- **Subscriptions** (`edge_bff.subscriptions`): one `active` row per user. A row counts only between `starts_at` and
+  `expires_at` (NULL = no end); expiry is decided at read time. A user without a live subscription gets the default
+  plan, and `access.expired_plan` names a plan that ended.
+- **Resolution** (`app/accounts.py`, one statement; `app/principal.py`): `p.can(key)` and `p.limit(key)`. A route
+  refuses with `CAPABILITY_REQUIRED`, or `PLAN_EXPIRED` when only the ended plan held the capability.
+  - The MFA requirement follows the resolved capabilities (`*` or `admin.access`).
+  - Every authenticated `/api/v1` answer carries `X-Edge-Entitlements` (the principal's version); the shared page
+    module reads the session again when it changes.
+- **User #1:** at start, edge-bff gives the seed account an active `manual` subscription with no end, to the plan that
+  holds `*` (found by data). The step is idempotent. Its log events are `account_seed_plan_ambiguous` and
+  `account_seed_plan_failed`.
+- **Release stages:** `catalog/releases.json` (hand-kept; `app/releases.py`) gives each indicator, Flow indicator,
+  candlestick pattern, Screener metric and Screener preset the stage `lab` (admin only) or `released`. An id missing
+  from the file is `lab`. `tests/test_releases.py` fails until a new registry id has its line, and its message prints
+  the line to add.
+- **Catalog route:** `GET /api/v1/catalog/{kind}` lists the entries the principal holds. The page module reads it with
+  `catalog(kind)`, cached in memory per entitlement version.
+- **To change what a plan holds:** UPDATE `edge_bff.plan_capabilities` (raise its `version`) through a reviewed migration
+  or operator statement, with the user's approval. It takes effect on the next request; no deploy is needed.

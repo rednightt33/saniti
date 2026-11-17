@@ -1,5 +1,35 @@
 # Database changelog
 
+## 2026-11-17 — EDGE plan catalog and subscriptions (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 2) — written, NOT applied yet
+
+- **Why:** plans as data (CONTRACT.md section 8a; go 2026-11-16 and 2026-11-17 "sudah ada, pls continue"). Operational
+  schema `edge_bff`, no market data, so no `Table_Catalog` rows (`DATABASE_CATALOG.md` covers schema `public`).
+- **`20261117_003_edge_bff_accounts_catalog.sql`** (sha256 `b2d3560b3b3f9099ee5ec1ed7cd26830e1919f2cc341350f021b4cb6fdd2f2d6`), after `20261117_002` (its preflight refuses to run
+  without `users.registration_hash`, and refuses a second run).
+- **Tables:**
+  - `plans`: one default (`plans_one_default`);
+  - `capabilities`: key, kind flag/limit/list/items, unit, plain-English `means`, display name;
+  - `plan_capabilities`: PK (plan, capability), `value` jsonb, `version`;
+  - `user_capability_overrides`: reason required, optional end;
+  - `subscriptions`: status, `starts_at`, `expires_at` NULL = no end, provider `manual`/`test`, one `active` per user
+    (`subscriptions_one_active`).
+- **Seed:** plans `admin`, `paid`, `free` (default); 41 capabilities with `means`; the grants of CONTRACT.md 8a.
+  - `admin`: `*`.
+  - `paid`: the tab views, the released items, and the Watchlist limits 20/50/8.
+  - `free`: Terminal BBCA, price data, 730 days, and the six tab examples.
+- **Grants:** to `edge_bff_runtime` only.
+  - The catalog is SELECT only.
+  - Overrides and subscriptions get SELECT, INSERT, UPDATE (no DELETE).
+  - The sequence gets USAGE.
+  - Nothing for PUBLIC.
+  - `scripts/provision_edge_bff_login.py` lists them.
+- **Indexes:** only the keys and the two partial UNIQUEs; no speculative index (a few rows per user).
+- **Rollback:** the block at the end of the file. Deploy the previous edge-bff first: the previous build reads none of
+  these tables.
+- **Status:** written and tested in the edge-bff suite; **not applied to Railway**.
+  - Job params: `verification/edge_multiuser/jobs/migration20261117_003{,_apply}.params.json`.
+  - Seed read-back after the deploy: `phase2_seed_readback.params.json`.
+
 ## 2026-11-16 — EXEC-MU-ACCOUNTS Phase 1 migrations applied on dev (`20261116_003`, `20261117_001`, `20261117_002`)
 
 - **Go:** EXEC.md EXEC-MU-ACCOUNTS ("B: go Fase 0 + Fase 1"; "Phase 1 deploy steps", step 2). The switch
