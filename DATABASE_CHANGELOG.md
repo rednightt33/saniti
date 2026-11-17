@@ -1,6 +1,6 @@
 # Database changelog
 
-## 2026-11-17 — EDGE plan catalog and subscriptions (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 2) — written, NOT applied yet
+## 2026-11-17 — EDGE plan catalog and subscriptions (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 2) — applied 2026-11-17 (job `2a413c69`)
 
 - **Why:** plans as data (CONTRACT.md section 8a; go 2026-11-16 and 2026-11-17 "sudah ada, pls continue"). Operational
   schema `edge_bff`, no market data, so no `Table_Catalog` rows (`DATABASE_CATALOG.md` covers schema `public`).
@@ -26,7 +26,22 @@
 - **Indexes:** only the keys and the two partial UNIQUEs; no speculative index (a few rows per user).
 - **Rollback:** the block at the end of the file. Deploy the previous edge-bff first: the previous build reads none of
   these tables.
-- **Status:** written and tested in the edge-bff suite; **not applied to Railway**.
+- **Fix round before the apply (ERRORS M480):** three triggers were added to the same file before it was applied
+  anywhere: `capability_value_check` on `plan_capabilities` and `user_capability_overrides`, and
+  `capabilities_kind_fixed` on `capabilities`. Both functions `SET search_path`. The sha256 above is the applied file.
+- **Applied on dev 2026-11-17:**
+  - M340 jobs `d04abfe3` and `976253a4`: 0 active EDGE jobs and 0 running orc turns.
+  - DRYRUN job `56fd2956`, then APPLY job `2a413c69`, with the sha256 above.
+  - Read back live:
+    - the five tables; `runtime_grants` and `login_grants` equal the expected ones; `public_grants` empty; the sequence
+      USAGE only;
+    - the three triggers, not SECURITY DEFINER, with no EXECUTE for PUBLIC;
+    - plans `admin`, `free` (default) and `paid`; `*` held by `admin` only;
+    - 41 capabilities, all with `means`; 41 plan grants (admin 1, free 11, paid 29);
+    - 0 overrides and 0 subscriptions; `edge_bff_runtime` reads 3/41/0; every table commented; 7 indexes (the keys and
+      the two partial UNIQUEs).
+  - Not a large update: no `POSTGRES_MEMORY_CHECK READY` line, no Postgres restart.
+- **Status:** applied; the seed subscription of user #1 comes with the first start of the Phase 2 edge-bff.
   - Job params: `verification/edge_multiuser/jobs/migration20261117_003{,_apply}.params.json`.
   - Seed read-back after the deploy: `phase2_seed_readback.params.json`.
 

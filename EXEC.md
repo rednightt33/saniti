@@ -15703,7 +15703,15 @@ before them never takes traffic (Railway keeps the previous deployment serving).
 11. **Postgres memory:** the three migrations create small empty tables and columns, not a large update. Restart Postgres only if a
     job's `POSTGRES_MEMORY_CHECK` line says `READY` (after the M340 check), and record it in `RAILWAY_CHANGELOG.md`.
 
-### Phase 2 deploy steps (prepared 2026-11-17, not run)
+### Phase 2 deploy steps (run 2026-11-17)
+
+Run log (main agent, 2026-11-17):
+- Local suites on `714336ee`: edge-bff 603 passed (Postgres and Chromium, the six apps rebuilt); Terminal vitest 962
+  passed.
+- C1 re-check of the fix round: nothing blocking (ERRORS M480).
+- Step 1: M340 jobs `d04abfe3` and `976253a4` (0 and 0).
+- Step 2: DRYRUN `56fd2956`, then APPLY `2a413c69`, sha256 `475374dd…fede41bb8`; read back as expected
+  (DATABASE_CHANGELOG.md).
 
 Code: the branch from `96a9ec94`. Builders B1 (server core, `ca33a49c`), B2 (release catalog, `c21d65fd`) and B3 (page
 module, `00166913`) were integrated at `8a55980b`. Checkers C1-C3 ran on it (C3: READY with the switch off); the fix
