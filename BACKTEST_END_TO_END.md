@@ -637,7 +637,7 @@ stocks) and of a result (versions, duration, trials, lineage key, events). Off (
 | Route | What happens |
 |---|---|
 | `GET /api/v1/backtests/catalog` | worker `/v1/catalog`, cached 60 s in process (`CATALOG_CACHE_SECONDS`); on a worker failure the last catalog is kept |
-| `POST /api/v1/backtests` (202) | `client_request_id` (absent = never idempotent); an existing one with the same request answers the same job (`same_request`), another request is 409 `SUBMISSION_CONFLICT`; else worker `/v1/validate` (its 422 and 424 relayed), then `BacktestStore.submit` under an owner lock: 429 `QUEUE_FULL` beyond `BACKTEST_QUEUED_PER_OWNER` (3), INSERT `bt_` + 32 hex |
+| `POST /api/v1/backtests` (202) | `client_request_id` (absent = never idempotent); an existing one with the same request answers the same job (`same_request`), another request is 409 `SUBMISSION_CONFLICT`; else worker `/v1/validate` (its 422 and 424 relayed), then `BacktestStore.submit` under an owner lock: 429 `QUEUE_FULL` beyond the account's `backtest.queued_jobs` (at most `BACKTEST_QUEUED_PER_OWNER`, 3; `details.limit`/`allowed`, `Retry-After` 30), INSERT `bt_` + 32 hex. Since EXEC-MU-ACCOUNTS Phase 3a the route needs `backtest.run`, the reads `backtest.view`; with the switch off the configured owner holds both |
 | `GET /api/v1/backtests`, `GET …/{id}` | list (30, max 100) and status (`status_of`: state, progress, error, times, sizes) |
 | `GET …/{id}/result` | the `core` part (sha256 re-checked: 500 `RESULT_INTEGRITY`; 410 `RESULT_EXPIRED` after retention); single mode merges the ticker's events part into it; sent gzip when the browser accepts it |
 | `GET …/{id}/events?ticker=` | one ticker's events part (portfolio charts) |
@@ -792,6 +792,7 @@ still pays sha256, inflate and decode.
 | `LIMIT_EXCEEDED` | worker (`max_download_bytes`, `max_broker_rows`, `max_conditions`, `max_result_bytes`), edge-bff (result size) | too big |
 | `DATA_MISSING`, `DATA_UNAVAILABLE`, `DATA_INTEGRITY` (424) | worker `terminal.ts`, page `live.ts` | no file, file unreachable, file not what its manifest says |
 | `BUSY`, `QUEUE_FULL`, `SUBMISSION_CONFLICT`, `PREVIEW_REPLACED` | worker, edge-bff | concurrency rules |
+| `CAPABILITY_REQUIRED`, `PLAN_EXPIRED` | edge-bff | the account's plan lacks `backtest.view` or `backtest.run` (EXEC-MU-ACCOUNTS Phase 3a); a queued job whose owner lost `backtest.run` ends FAILED with it at dispatch, without a worker call |
 | `TIMEOUT`, `WORKER_LOST`, `RESULT_NOT_STORED`, `RESULT_INVALID`, `OUT_OF_MEMORY` | edge-bff loop, worker | the job ended without a stored result |
 | `RESULT_EXPIRED`, `RESULT_INTEGRITY`, `NOT_FINISHED`, `EVENTS_NOT_FOUND` | edge-bff result routes | reading a result |
 

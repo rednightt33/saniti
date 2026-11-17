@@ -15793,3 +15793,42 @@ switch off; the previous build ignores the new tables.
 6. **Seed read-back** (read only): `phase2_seed_readback.params.json` shows one `active` `manual` subscription of
    user 1 to `admin`, with no end, and 0 overrides.
 7. **Records:** `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md` (applied, read back), ERRORS statuses.
+
+### Phase 3a deploy steps (prepared 2026-11-17, not run)
+
+Code: builders B1 (`d6eb902f`) and B2 (`933b88cb`), integrated at `257a1e4c`. Checkers C1-C3 ran on it, and the fix
+round followed (`c70568a3`, ERRORS M481). The switch stays off. With `EDGE_ADMIN_OWNERS` unset on dev (read 2026-11-17,
+name only), the configured owner holds `*`, so every tab, the Monitor, the page files and the Terminal work as today.
+
+What changes with the switch off:
+- the page files go out `private, no-cache` with their ETag (one 304 per file per load), instead of being kept a year
+  by the browser;
+- the paid plan's catalog rows change (migration `004`); nobody is on the paid plan yet.
+
+Order: the migration first. It changes rows only; with the switch off nothing reads them for the configured owner. The
+previous build ignores the new rows.
+
+1. **M340:** 0 active EDGE jobs and 0 running orc turns, right before steps 2 and 4.
+2. **Migration `20261117_004_edge_bff_catalog_phase3a.sql`** (sha256 `9f4f7ec81f7bb5c76c5ad1a9f351691daf7e7f42b346f448c93c8e4f92cf7b77`): DRYRUN, then APPLY, through
+   `scripts/onboarding/run_job.sh scripts/onboarding/migration_job.py` with
+   `verification/edge_multiuser/jobs/migration20261117_004{,_apply}.params.json` and the file as an extra.
+   - Check:
+     - 48 capabilities, each with `means`; the seven new rows with their units;
+     - the paid plan without `monitor.view`, `monitor.chat` or `monitor.model`, and with `monitor.example`,
+       `terminal.presets` and the limits 50/100/5000/50/3;
+     - no plan holding `admin.manual`; `*` held by `admin` only;
+     - the three triggers present;
+     - user 1's subscription unchanged; 0 overrides.
+     - Then `APPLIED.sha256` and `DATABASE_CHANGELOG.md`.
+   - Rollback: a forward migration restoring the paid rows, then deleting the seven capability rows.
+3. **Variables:** none. `EDGE_ADMIN_OWNERS` stays unset; the start now refuses a list without `EDGE_OWNER`.
+4. **Merge to `main`:** fast-forward after green branch CI (Backend tests, the look-ahead gate with the
+   SCREENER_ONBOARDING pointers, generated files) and the local suites.
+   - edge-bff deploys after CI.
+   - Check: that exact deployment at `SUCCESS`; `/ready` 200; a clean start log.
+   - Rollback: the deployment recorded before the push.
+5. **Smoke from outside (switch off):** the Phase 2 checks unchanged, plus every gated route answering 401 without a
+   session (never 403 or 500).
+6. **The user, after a reload (M479):** every tab as before. The Monitor asks, the Backtest submits, the Screener runs,
+   the Watchlist stars, and layouts and drawings save.
+7. **Records:** `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md` (applied, read back), and the ERRORS M481 status.

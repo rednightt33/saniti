@@ -942,6 +942,13 @@ CSRF check first) and refuses 403 `CAPABILITY_REQUIRED`, or `PLAN_EXPIRED` when 
 - `tests/test_phase3a_gates.py` walks `app.routes` of these modules: a new route without its `ROUTE_CAPS` entry, or
   without the `need` that entry names, fails with the entry to add.
 
+Fix round after the checkers (ERRORS M481):
+- the Screener star (`/api/v1/screener/watchlist`) also needs `watchlist.view`, and makes the first Watchlist list
+  only within `watchlist.lists`;
+- `QUEUE_FULL` names `details.limit` (`backtest.queued_jobs`) and `allowed`, and sets `Retry-After` 30;
+- with the switch off, the start refuses an `EDGE_ADMIN_OWNERS` that leaves out `EDGE_OWNER` (it would lock the one
+  account out of every tab).
+
 Saved-item caps are `min(plan limit, HARD)` (`Principal.capped`), HARD being the module constant, the storage
 guarantee no plan or override can raise: `terminal.layouts_max` (`LAYOUT_LIMIT` 50), `terminal.presets_max`
 (`PRESET_LIMIT` 100), `terminal.drawings_max` (`SET_LIMIT` 5000), `screener.saved_items` (`SCREEN_LIMIT` 50),
