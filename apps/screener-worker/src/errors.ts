@@ -21,6 +21,18 @@ export class HttpError extends Error {
 /** A contract refusal raised by the worker itself (the core's class, so the shape and status are the core's). */
 export const refuse = (code: WorkerErrorCode, message: string, field?: string, details?: Record<string, unknown>) => new ScreenerError(code, message, field, details);
 
+/** EXEC-MU-ACCOUNTS Phase 3b (verification/edge_multiuser/access_tiers/CONTRACT.md section 8b "3b in detail"): an item
+    of the definition outside the principal's `context.allow`. 403 CAPABILITY_REQUIRED is a session code of edge-bff
+    (contract.ts SessionErrorCode), not one of the core's report 8.8 codes (ERROR_STATUS, which the page maps), so the
+    worker raises it as this subclass: the core's error shape {code, field, message, details}, status 403. Raised on the
+    main thread only (run.ts checkAllow), so it never crosses a thread boundary (fromSerial). */
+export class CapabilityError extends ScreenerError {
+  constructor(message: string, field: string, details: { kind: string; id: string; capability: string }) {
+    super('CAPABILITY_REQUIRED' as WorkerErrorCode, message, field, details);
+  }
+  get status(): number { return 403 }
+}
+
 const body = (code: string, field?: string, message?: string, details?: Record<string, unknown>): ErrorBody =>
   ({ code, ...(field ? { field } : {}), ...(message ? { message } : {}), ...(details ? { details } : {}) });
 

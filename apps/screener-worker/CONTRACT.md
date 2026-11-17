@@ -92,6 +92,39 @@ In this order, before a computing request reaches a thread:
    higher `seq`) replaces a waiting older one, which answers `409 SCREEN_REPLACED` / `PREVIEW_REPLACED`.
 6. The deadline: `SCREENER_DEADLINE_MS` from arrival, queue included → `504 TIMEOUT`.
 
+## 4a. The context: rights, allow, limits (EXEC-BACKTEST-REVAMP P5; EXEC-MU-ACCOUNTS Phase 3b)
+
+Every request body (run, preview, counts, validate) may carry `context`, which edge-bff sets from the session (a page
+never sends it): `{rights?, allow?, limits?}`; `verification/edge_multiuser/access_tiers/CONTRACT.md` section 8b "3b
+in detail" is the specification. Any malformed part, or a field outside these three, is `422 INVALID_CONTEXT` naming
+it (`run.ts parseContext`).
+
+- `rights`: distinct known rights (today `flow_point_in_time`); absent: none. A definition reading an admin-only flow
+  version without it: `422 CONDITION_RESTRICTED` (`run.ts restrict`).
+- `allow` (deploy step 1 of 3b: optional, absent = everything, today's behaviour): an object with exactly the kinds
+  `indicator`, `flow_indicator`, `candle_pattern`, `screener_metric`, each `"*"` or a list of distinct ids (possibly
+  empty). Every item the normalized definition names is checked (`run.ts checkAllow`): indicator refs (`indicator`);
+  `flow.metric`, the Screener's own `fnet` and `ksei_net` included (`flow_indicator`); `pattern.type`, a candle id as
+  `candle_pattern` and every other pattern as `screener_metric`; `universe.attr` and `xsection.metric`
+  (`screener_metric`); wherever they sit (conditions on or switched off, window inner tests, both sides of a comparison,
+  a rank's or transform's `of` and reference arguments, `universe.metric_filters`; extra columns, saved My metrics and
+  presets reach the worker as such definitions). The four transform metrics `hi52`, `lo52`, `rs` and `vol_ratio` reach
+  the wire as their transform with no id and are not gated by id. An item outside `allow` answers `403
+  CAPABILITY_REQUIRED` with `field` (its JSON path, e.g. `definition.conditions[2].test.metric.indicator`), `details:
+  {kind, id, capability}` (`capability` = `screener.indicator:<id>`, `screener.flow_indicator:<id>`,
+  `screener.candle_pattern:<id>` or `screener.metric:<id>`) and a message naming the item, that the plan does not
+  include it, and how to pass. `/counts` answers it per entry (`{item_id, error}`), so one locked saved screen does not
+  fail the others.
+- `limits`: only `max_cpu_ms`, `owner_cpu_ms`, `owner_inflight`, `max_conditions`, `max_metric_filters`, `max_counts`
+  (whole numbers; at least 1, `max_metric_filters` at least 0); each request uses min(the worker's `SCREENER_*`
+  ceiling, the value). edge-bff sends `{}` today. The catalog's `limits[]` still states the worker's own ceilings.
+- Order on validate, run, preview and each counts entry: normalize (with the request's `max_conditions` and
+  `max_metric_filters`), then `restrict`, then `checkAllow`, then any cache read (`server.ts gate`). The result, counts
+  and preview caches keep their keys (section 5: nothing of the owner): an answer an admin filled is never served to a
+  principal without one of its items, because the refusal comes first.
+- Internal calls (the presets of a refresh, the tests' own `normalize`) are never gated; only the HTTP layer reads the
+  context.
+
 ## 5. Caches (8.10, 6d.2)
 
 - Result cache (gzip answer bytes): keyed by the snapshot identity (`price_data` plus the actions and reference
@@ -110,7 +143,8 @@ In this order, before a computing request reaches a thread:
 Every error is `{"error": {code, field?, message?, details?}}` with the statuses of report 8.8 (contract.ts
 `WORKER_ERROR_STATUS`); refusals name the field where there is one and the fix. Worker-only codes: `UNAUTHORIZED`
 (401), `NOT_FOUND` (404, a route), `METHOD_NOT_ALLOWED` (405), `INTERNAL_ERROR` / `OUT_OF_MEMORY` (500, logged with the
-stack, answered without it), and `DATA_VERSION_PENDING` (409).
+stack, answered without it), `DATA_VERSION_PENDING` (409), and `CAPABILITY_REQUIRED` (403, section 4a; edge-bff's
+session code, which it relays).
 
 ## 7. What the worker never does
 
