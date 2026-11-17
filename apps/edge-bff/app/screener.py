@@ -33,6 +33,7 @@ from psycopg.types.json import Jsonb
 
 from . import wake
 from .principal import Principal
+from .allow import NOTHING, context_of, digest, named
 from .rights import POINT_IN_TIME, refuse_context, rights_of
 from .watchlist import LISTS, PER_LIST, WatchlistStore
 from .backtest import (CONTROL_TIMEOUT, PREVIEW_PAGES, Backtests, BacktestError, CallerGone, PreviewReplaced, accepts_gzip,
@@ -56,7 +57,9 @@ RELAYED = {'INVALID_INPUT': 422, 'INVALID_CONDITION': 422, 'UNKNOWN_INDICATOR': 
            'METRIC_UNAVAILABLE': 422, 'LIMIT_EXCEEDED': 422, 'DATA_UNAVAILABLE': 424, 'DATA_INTEGRITY': 424, 'BUSY': 409,
            'DATA_VERSION_CHANGED': 409, 'REQUEST_TOO_LARGE': 413,
            # EXEC-BACKTEST-REVAMP P5 (K8 b): an admin-only entry without the session's right; a context not formed here
-           'CONDITION_RESTRICTED': 422, 'INVALID_CONTEXT': 422}
+           'CONDITION_RESTRICTED': 422, 'INVALID_CONTEXT': 422,
+           # EXEC-MU-ACCOUNTS Phase 3b (CONTRACT.md 8b): an item outside context.allow; relayed with its display_name
+           'CAPABILITY_REQUIRED': 403}
 PENDING_RETRY_SECONDS = 2                           # report 8.8 and 6d.4 rule 3: Retry-After of a DATA_VERSION_PENDING
 # Not derivable: the most bytes edge-bff reads of one worker answer (as received, and again once inflated). The worker
 # caps its own answers (SCREENER_MAX_RESPONSE_BYTES, 2 MB of JSON initially, report 8.9); this is only the backstop
@@ -714,7 +717,7 @@ class Screeners:
             if answer.status == 409 and found and found['code'] == 'DATA_VERSION_PENDING':
                 continue
             if found and RELAYED.get(found['code']) == answer.status:
-                raise ScreenerError(answer.status, found)
+                raise ScreenerError(answer.status, named(found))
             code = found['code'] if found and re.fullmatch(r'[A-Z0-9_]{1,40}', found['code']) else None
             logger.warning(json.dumps({'event': 'screener_worker_answer_outside_api', 'path': path, 'status': answer.status,
                                        'code': code}))
@@ -945,14 +948,15 @@ class Screeners:
         await self.current()
         return self.health['versions']
 
-    async def validated(self, kind, definition, rights=(), owner=None):
+    async def validated(self, kind, definition, context=NOTHING, owner=None):
         """{definition_hash, registry, screener_registry} of a saved item's definition, checked by the worker's
-        /v1/validate; its 422 is relayed (for a My metric with the field named from its test, not from the screen it is
+        /v1/validate with the principal's context (allow.py; nothing allowed without one); its 422 or 403
+        CAPABILITY_REQUIRED is relayed (for a My metric with the field named from its test, not from the screen it is
         validated in)."""
         try:
             data = (await self.ask('POST', '/v1/validate', {'schema_version': SCHEMA_VERSION,
                                                             'definition': validated_definition(kind, definition),
-                                                            'context': {'rights': list(rights)}}, owner=owner)).data
+                                                            'context': context}, owner=owner)).data
         except ScreenerError as e:
             field = e.error.get('field')
             if kind == 'metric' and isinstance(field, str) and METRIC_CONDITION in field:
@@ -970,13 +974,15 @@ class Screeners:
             raise failure('SCREENER_UNAVAILABLE', 503)
         return {'definition_hash': digest, 'registry': versions['registry'], 'screener_registry': versions['screener_registry']}
 
-    async def reviewed(self, rows, rights, owner):
+    async def reviewed(self, rows, context, owner):
         """SavedItem of each row with needs_review (report 8.7): an item saved under the registry versions the worker
         has now passed its validation then and needs none; one saved under others is validated again, and each refusal
         is listed with its field. Nothing is adjusted: the stored definition stays as saved. While the worker cannot
         answer an item is not reviewed (needs_review empty, nothing kept); once one question goes unanswered (the worker
         down, busy, not ready or past its deadline), the rest are listed unreviewed without asking, so the page's boot
-        list (PAGE LOAD SEQUENCE 6c S2, GET items) waits for at most one unanswered call, not one per saved item."""
+        list (PAGE LOAD SEQUENCE 6c S2, GET items) waits for at most one unanswered call, not one per saved item.
+        Phase 3b (CONTRACT.md 8b): a review is kept per context digest (rights, allow, limits), so one plan's answer
+        never serves another; an item the plan does not include is listed with its CAPABILITY_REQUIRED."""
         current = await self.versions_now() if rows else None
         out, answering = [], True
         for row in rows:
@@ -984,24 +990,24 @@ class Screeners:
             if isinstance(current, dict) and (row['registry_version'], row['screener_registry_version']) != (
                     current.get('registry'), current.get('screener_registry')):
                 key = (row['kind'], hashlib.sha256(dumps(row['definition'])).hexdigest(), current.get('registry'),
-                       current.get('screener_registry'), tuple(rights))
+                       current.get('screener_registry'), digest(context))
                 if key in self.reviews:
                     review = self.reviews[key]
                 elif answering:
-                    found = await self.review(row, key, rights, owner)
+                    found = await self.review(row, key, context, owner)
                     answering = found is not None
                     review = found or []
             out.append(item_of(row, review))
         return out
 
-    async def review(self, row, key, rights, owner):
+    async def review(self, row, key, context, owner):
         """needs_review of one row validated again (kept per definition and versions), or None when the worker did not
         answer the question (nothing kept)."""
         try:
-            await self.validated(row['kind'], row['definition'], rights, owner)
+            await self.validated(row['kind'], row['definition'], context, owner)
             found = []
         except ScreenerError as e:
-            if e.status != 422:
+            if e.status != 422 and e.error.get('code') != 'CAPABILITY_REQUIRED':
                 return None                # not reviewed now: the worker did not answer the question
             error = e.error
             found = [{'field': error.get('field') or 'definition', 'reason': error['code'],
@@ -1020,9 +1026,13 @@ class Screeners:
         def rights(request):
             return rights_of(request.state.principal)
 
+        def context(request):
+            # Phase 3b (CONTRACT.md 8b): {rights, allow, limits} of the session's principal (allow.py)
+            return context_of(request.state.principal, 'screener')
+
         def with_context(request, body):
             refuse_context(body)
-            return {**body, 'context': {'rights': rights(request)}}
+            return {**body, 'context': context(request)}
 
         viewer, runner, view_writer = auth.need(VIEW), auth.need(RUN, write=True), auth.need(VIEW, write=True)
 
@@ -1082,7 +1092,7 @@ class Screeners:
             if kind is not None and kind not in KINDS:
                 raise invalid('kind', 'kind is screen or metric (or left out for both)')
             rows = await asyncio.to_thread(self.store.items, p.owner_key, kind)
-            return JSONResponse({'items': await self.reviewed(rows, rights(request), p.owner_key)})
+            return JSONResponse({'items': await self.reviewed(rows, context(request), p.owner_key)})
 
         @app.put('/api/v1/screener/items/{item_id}')
         async def put_item(item_id: str, request: Request, p: Principal = Depends(runner)):
@@ -1092,7 +1102,7 @@ class Screeners:
             if not ITEM_ID.fullmatch(item_id):
                 raise invalid('item_id', 'item_id is scr_ followed by 32 lowercase hexadecimal digits')
             kind, name, definition, revision = checked_item(await self.json_object(request))
-            checked = await self.validated(kind, definition, rights(request), p.owner_key)
+            checked = await self.validated(kind, definition, context(request), p.owner_key)
             row, _ = await asyncio.to_thread(self.store.put, p.owner_key, item_id, kind, name, definition, checked, revision,
                                              caps_of(p)['saved_items'])
             return JSONResponse(item_of(row, []))

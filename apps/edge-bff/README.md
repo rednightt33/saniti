@@ -676,6 +676,18 @@ Where it applies:
 - Result parts are joined on `owner_key`.
 - The Screener routes carry the same rights and filter the Screener catalog per session (its own ETag).
 
+Items per plan (EXEC-MU-ACCOUNTS Phase 3b, CONTRACT.md 8b "3b in detail"), `app/allow.py`:
+- Every worker call that sends `rights` sends the whole `context: {rights, allow, limits}`: Backtest validate,
+  signals and the job context at dispatch (read from the owner's principal then); Screener validate, run, preview,
+  counts and a saved item's validation and review.
+- `allow` holds, per kind (`indicator`, `flow_indicator`, `candle_pattern`, `screener_metric`), `"*"` (the principal
+  holds `*`, or the family is `{"all": true}`) or the sorted ids of `catalog/releases.json` the principal holds in that
+  worker's family (Backtest: `backtest.*`, Screener: `screener.*`; both use `screener.metric` for metrics). With the
+  switch off the configured owner gets `"*"` for every kind. `limits` is `{}` until a plan sets a worker limit.
+- A worker's 403 `CAPABILITY_REQUIRED` is relayed as it is, with `details.display_name` added; a queued job the worker
+  refuses at dispatch ends `FAILED` with that refusal; a saved item it refuses on review lists it in `needs_review`.
+- The Screener's saved-item review cache is keyed by `allow.digest(context)`, so one plan's answer never serves another.
+
 ## Accounts groundwork (EXEC-MU-ACCOUNTS Phase 0, 2026-11-16)
 
 Phase 0 of the multi-user plan changes nothing the current user sees; it secures what a second account would reach.
