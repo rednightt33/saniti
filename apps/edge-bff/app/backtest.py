@@ -28,6 +28,7 @@ from .client import public_data
 from .accounts import AccountStore
 from .errors import Refusal, message_of
 from .principal import Principal, owner_principal
+from .allow import NOTHING, context_of, named
 from .rights import catalog_for, refuse_context, rights_of
 
 OWNER_TRIAL_DAYS = 90        # contract.ts OWNER_TRIAL_DAYS (K6 a)
@@ -926,9 +927,11 @@ class BacktestLoop:
                 prior = await self.call(self.store.prior_trials, row['owner_key'], row['lineage_key'])
                 owner_trials = await self.call(self.store.owner_trials, row['owner_key'])
                 # EXEC-BACKTEST-REVAMP P5, EXEC-MU-ACCOUNTS Phase 1: the owner's rights as they are now, from its
-                # principal (an admin right taken away while the job waited: the worker refuses it, CONDITION_RESTRICTED)
+                # principal (an admin right taken away while the job waited: the worker refuses it, CONDITION_RESTRICTED).
+                # Phase 3b (CONTRACT.md 8b): its allow and limits too (an item the plan lost meanwhile: the worker refuses
+                # it, 403 CAPABILITY_REQUIRED, and the job ends FAILED with that refusal)
                 principal = await self.call(self.access, row['owner_key'])
-                rights = rights_of(principal)
+                context = context_of(principal, 'backtest')
             except psycopg.OperationalError as e:
                 self.store_failed('dispatch', job_id, e)
                 await self.sleep(self.settings.poll_seconds)
@@ -941,8 +944,7 @@ class BacktestLoop:
                                                               'details': refused.details})
                 return False
             body = {'job_id': job_id, 'request': row['request'],
-                    'context': {'job_id': job_id, 'prior_trials': prior, 'owner_trials': owner_trials,
-                                'rights': rights}}
+                    'context': {'job_id': job_id, 'prior_trials': prior, 'owner_trials': owner_trials, **context}}
             timing.fields['prior_trials'] = len(prior)
             try:
                 sent = time.monotonic()
@@ -961,8 +963,9 @@ class BacktestLoop:
                     failures = 0
                     await self.sleep(self.settings.poll_seconds)
                     continue
-                # the worker refused the job (validation or data error at hand-over): its error, as it gave it
-                await self.end_job(row, deadline, 'FAILED', found)
+                # the worker refused the job (validation or data error at hand-over, CAPABILITY_REQUIRED with its
+                # display_name): its error, as it gave it
+                await self.end_job(row, deadline, 'FAILED', named(found))
                 return False
             except WorkerUnavailable:
                 failures += 1
@@ -1039,7 +1042,7 @@ class BacktestLoop:
                         held = ended
                         continue
                 elif state == 'FAILED':
-                    ended = await self.end_job(row, deadline, 'FAILED', error_of(data) or {'code': 'WORKER_FAILED'},
+                    ended = await self.end_job(row, deadline, 'FAILED', named(error_of(data)) or {'code': 'WORKER_FAILED'},
                                                duration) or True
                 elif state == 'CANCELLED':
                     ended = await self.end_job(row, deadline, 'CANCELLED', None, duration) or True
@@ -1177,7 +1180,7 @@ class Backtests:
             return data
         found = error_of(data)
         if 400 <= code < 500 and found:
-            raise BacktestError(code, found)
+            raise BacktestError(code, named(found))     # a 403 CAPABILITY_REQUIRED with its display_name (Phase 3b)
         raise BacktestError(503, {'code': 'BACKTEST_UNAVAILABLE'})
 
     @staticmethod
@@ -1250,7 +1253,8 @@ class Backtests:
                 timed['owner_wait_ms'] = ms_since(waited)
             asked = time.monotonic()
             try:
-                return await self.ask('POST', '/v1/signals', {'request': body, 'context': context or {'rights': []}})
+                # without a context (a call that is no route's) nothing is allowed: never more than a principal's
+                return await self.ask('POST', '/v1/signals', {'request': body, 'context': context or NOTHING})
             finally:
                 timed['worker_ms'] = ms_since(asked)
         outcome = 'ok'
@@ -1308,6 +1312,10 @@ class Backtests:
         def rights(request):
             return rights_of(request.state.principal)
 
+        def context(request):
+            # Phase 3b (CONTRACT.md 8b): {rights, allow, limits} of the session's principal on every worker call
+            return context_of(request.state.principal, 'backtest')
+
         @app.exception_handler(BacktestError)
         async def backtest_error(_, exc):
             return JSONResponse(status_code=exc.status, content={'error': exc.error})
@@ -1346,7 +1354,7 @@ class Backtests:
             refuse_context(body)
             order = preview_order(body.pop('client_order', None))
             try:
-                return JSONResponse(await self.latest_preview(owner, request, body, order, {'rights': rights(request)}))
+                return JSONResponse(await self.latest_preview(owner, request, body, order, context(request)))
             except CallerGone:
                 return Response(status_code=204)    # never sent: uvicorn drops an answer to a closed connection
 
@@ -1377,7 +1385,7 @@ class Backtests:
                 if row is None:
                     asked = time.monotonic()
                     try:
-                        checked = await self.ask('POST', '/v1/validate', {'request': body, 'context': {'rights': rights(request)}})
+                        checked = await self.ask('POST', '/v1/validate', {'request': body, 'context': context(request)})
                     finally:
                         timed['validate_ms'] = ms_since(asked)
                     checked = checked if isinstance(checked, dict) and checked.get('ok') is True else {}

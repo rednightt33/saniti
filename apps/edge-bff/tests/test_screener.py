@@ -28,10 +28,11 @@ from fastapi.testclient import TestClient
 import uvicorn
 
 from app.errors import MESSAGES
-from app import main, screener
+from app import allow, errors, main, screener
 from app.main import create_app
 from conftest import FakeOrc
-from test_backtest import ADMIN_RIGHTS    # the conftest settings' switch-off owner is an admin (Phase 3a)
+# the conftest settings' switch-off owner is an admin (Phase 3a): its whole context (Phase 3b: allow "*" for every kind)
+from test_backtest import ADMIN_CONTEXT, ADMIN_RIGHTS, paid_allow
 
 
 ORIGIN = {'Origin': 'http://testserver'}
@@ -406,7 +407,7 @@ def test_run_preview_validate_and_counts_are_relayed_as_sent(app, worker):
     body = run_body()
     r = c.post('/api/v1/screener/run', headers=c.headers_for, json=body)
     # EXEC-BACKTEST-REVAMP P5 (K8 b): edge-bff adds the session's rights as the body's context (this owner: none)
-    sent = {**body, 'context': {'rights': ADMIN_RIGHTS}}
+    sent = {**body, 'context': ADMIN_CONTEXT}
     assert r.status_code == 200 and r.headers['content-encoding'] == 'gzip' and r.json()['echo'] == sent
     assert worker.called('/v1/run')[0]['body'] == sent and worker.called('/v1/run')[0]['key'] == KEY
     p = c.post('/api/v1/screener/preview', headers=c.headers_for, json=preview_body(ticker='TLKM'))
@@ -851,14 +852,14 @@ def test_saved_items_are_validated_created_replaced_and_deleted(app, worker):
     assert r.status_code == 200, r.text
     item = r.json()
     sent = worker.called('/v1/validate')[0]['body']
-    assert sent == {'schema_version': 1, 'definition': definition(), 'context': {'rights': ADMIN_RIGHTS}}
+    assert sent == {'schema_version': 1, 'definition': definition(), 'context': ADMIN_CONTEXT}
     assert item['definition'] == screen_item()['definition'] and item['revision'] == 1 and item['needs_review'] == []
     assert (item['registry_version'], item['screener_registry_version']) == ('registry-a', 'sregistry-a')
     assert item['definition_hash'] == sha(json.dumps(definition(), sort_keys=True)) and item['schema_version'] == 1
     m = put(c, 2, metric_item())
     assert m.status_code == 200 and m.json()['kind'] == 'metric'
     assert worker.called('/v1/validate')[1]['body'] == {'schema_version': 1, 'definition': {
-        'universe': screener.METRIC_UNIVERSE, 'conditions': [{'id': 'm', 'enabled': True, 'test': rsi_test()}], 'logic': 'all'}, 'context': {'rights': ADMIN_RIGHTS}}
+        'universe': screener.METRIC_UNIVERSE, 'conditions': [{'id': 'm', 'enabled': True, 'test': rsi_test()}], 'logic': 'all'}, 'context': ADMIN_CONTEXT}
     listed = c.get('/api/v1/screener/items?kind=screen').json()['items']
     assert [x['item_id'] for x in listed] == [item_id(1)] and listed[0] == item
     assert {x['item_id'] for x in c.get('/api/v1/screener/items').json()['items']} == {item_id(1), item_id(2)}
@@ -1407,5 +1408,74 @@ def test_screener_rights_from_the_session_and_the_catalog_per_session(configured
             r = c.post('/api/v1/screener/run', headers=c.headers_for, json={**run_body(seq=7), 'context': {'rights': ['flow_point_in_time']}})
             assert r.status_code == 422 and r.json()['error']['code'] == 'UNKNOWN_FIELD' and len(worker.calls) == before
             c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body(seq=8))
-            assert worker.called('/v1/run')[-1]['body']['context'] == {'rights': rights}
+            # Phase 3b: the whole context ('*' for the admin, every released id for the paid plan)
+            assert worker.called('/v1/run')[-1]['body']['context'] == (
+                ADMIN_CONTEXT if rights else {'rights': [], 'allow': paid_allow(), 'limits': {}})
     assert seen[True] != seen[False]
+
+
+# ---- EXEC-MU-ACCOUNTS Phase 3b: context.allow, the review cache per digest, CAPABILITY_REQUIRED ------------------------
+
+REFUSED_METRIC = {'code': 'CAPABILITY_REQUIRED', 'field': 'conditions[0].test.metric',
+                  'message': 'The metric rsi of condition 1 is not part of your plan.',
+                  'details': {'kind': 'indicator', 'id': 'I13', 'capability': 'screener.indicator:I13'}}
+
+
+def named_metric():
+    return {**REFUSED_METRIC, 'details': {**REFUSED_METRIC['details'],
+                                          'display_name': errors.display_name('screener.indicator:I13')}}
+
+
+def test_every_screener_worker_call_carries_the_whole_context(app, worker):
+    """CONTRACT.md 8b "3b in detail": run, preview, validate, counts and a saved item's validation each send
+    {rights, allow, limits} of the session's principal (switch off, the configured owner: "*" for every kind)."""
+    c = app
+    c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body())
+    c.post('/api/v1/screener/preview', headers=c.headers_for, json=preview_body(ticker='TLKM'))
+    c.post('/api/v1/screener/validate', headers=c.headers_for, json={'schema_version': 1, 'definition': definition()})
+    c.post('/api/v1/screener/counts', headers=c.headers_for, json={'schema_version': 1, 'definitions': []})
+    assert put(c, 1, screen_item()).status_code == 200
+    for path in ('/v1/run', '/v1/preview', '/v1/validate', '/v1/counts'):
+        assert worker.called(path), path
+        assert all(x['body']['context'] == ADMIN_CONTEXT for x in worker.called(path)), path
+
+
+def test_a_workers_capability_refusal_is_relayed_with_its_display_name(app, worker):
+    """The worker's 403 CAPABILITY_REQUIRED of run and validate reaches the page with its status, code, field, message
+    and details, and details.display_name added; a saved item it refuses is not stored."""
+    c = app
+    worker.refuse['/v1/run'] = (403, REFUSED_METRIC)
+    r = c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body())
+    assert r.status_code == 403 and r.json() == {'error': named_metric()}
+    worker.refuse = {'/v1/validate': (403, REFUSED_METRIC)}
+    v = c.post('/api/v1/screener/validate', headers=c.headers_for, json={'schema_version': 1, 'definition': definition()})
+    assert v.status_code == 403 and v.json() == {'error': named_metric()}
+    saved = put(c, 1, screen_item())
+    assert saved.status_code == 403 and saved.json() == {'error': named_metric()}
+    assert db(c, 'SELECT count(*) AS n FROM edge_bff.screener_items')[0]['n'] == 0
+    worker.refuse = {}
+
+
+def test_the_review_cache_is_kept_per_context_digest(app, worker, monkeypatch):
+    """A saved item validated again on load is kept per (definition, versions, context digest): another plan's allow
+    asks the worker again instead of reading this one's answer; an item the plan does not include is listed with its
+    CAPABILITY_REQUIRED (with its display_name), not left unreviewed."""
+    c = app
+    assert put(c, 1, screen_item()).status_code == 200
+    worker.versions = versions('b', price_data=sha('price-a'))
+    c.app.state.screeners.health['at'] = None
+    calls = len(worker.called('/v1/validate'))
+    assert c.get('/api/v1/screener/items').json()['items'][0]['needs_review'] == []
+    reviews = c.app.state.screeners.reviews
+    assert len(worker.called('/v1/validate')) == calls + 1 and [k[-1] for k in reviews] == [allow.digest(ADMIN_CONTEXT)]
+    assert c.get('/api/v1/screener/items').status_code == 200 and len(worker.called('/v1/validate')) == calls + 1
+    narrow = {'rights': [], 'allow': {k: [] for k in allow.KINDS}, 'limits': {}}
+    monkeypatch.setattr(screener, 'context_of', lambda principal, name: narrow)
+    worker.refuse = {'/v1/validate': (403, REFUSED_METRIC)}
+    items = c.get('/api/v1/screener/items').json()['items']
+    assert len(worker.called('/v1/validate')) == calls + 2                  # not served from the other plan's answer
+    assert worker.called('/v1/validate')[-1]['body']['context'] == narrow
+    assert items[0]['needs_review'] == [{'field': REFUSED_METRIC['field'], 'reason': 'CAPABILITY_REQUIRED',
+                                         'message': REFUSED_METRIC['message'], 'details': named_metric()['details']}]
+    assert {k[-1] for k in reviews} == {allow.digest(ADMIN_CONTEXT), allow.digest(narrow)}
+    worker.refuse = {}

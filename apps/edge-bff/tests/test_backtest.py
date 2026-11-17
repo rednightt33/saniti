@@ -28,7 +28,7 @@ from fastapi.testclient import TestClient
 import uvicorn
 
 from app.errors import MESSAGES
-from app import backtest, main
+from app import allow, backtest, errors, main, releases
 from app.backtest import BacktestLoop, ResultTooLarge, WorkerClient, WorkerTimeout, WorkerUnavailable, loads, split_result
 from app.main import create_app
 from conftest import FakeOrc
@@ -36,6 +36,14 @@ from conftest import FakeOrc
 # the conftest settings' switch-off owner is an admin (EDGE_ADMIN_OWNERS unset means the owner, as in production;
 # EXEC-MU-ACCOUNTS Phase 3a), so edge-bff sends it the admin rights in every worker call's context
 ADMIN_RIGHTS = ['flow_point_in_time']
+# EXEC-MU-ACCOUNTS Phase 3b (CONTRACT.md 8b): the whole context of a worker call; that owner holds '*', so every kind
+# of allow is "*" and no plan sets a worker limit
+ADMIN_CONTEXT = {'rights': ADMIN_RIGHTS, 'allow': {k: '*' for k in allow.KINDS}, 'limits': {}}
+
+
+def paid_allow():
+    """The allow of the paid plan ({"stages": ["released"]} for every item family): every released id of the file."""
+    return {k: sorted(e['id'] for e in releases.entries(k) if e['stage'] == 'released') for k in allow.KINDS}
 
 ORIGIN = {'Origin': 'http://testserver'}
 KEY = 'w' * 40
@@ -139,7 +147,8 @@ class FakeWorker:
         self.unstarted = 0             # the next n POST /v1/jobs answer 503 and take no job (review V1: their caller left
                                        # while the worker read the reference lists)
         self.fail_with = None          # jobs end FAILED with this error
-        self.refuse_with = None        # POST /v1/jobs answers 422 with this error (a refusal at hand-over)
+        self.refuse_with = None        # POST /v1/jobs answers refuse_status with this error (a refusal at hand-over)
+        self.refuse_status = 422
         self.garbage = False           # the result is not JSON
         self.result_gone = False       # the result answers 410 RESULT_GONE (a newer job started there and replaced it)
         self.validate_error = None     # (status, error) for /v1/validate
@@ -241,7 +250,7 @@ class FakeWorker:
                             worker.busy -= 1
                             return self.answer(409, {'error': {'code': 'BUSY'}})
                         if worker.refuse_with:
-                            return self.answer(422, {'error': worker.refuse_with})
+                            return self.answer(worker.refuse_status, {'error': worker.refuse_with})
                         worker.jobs[body['job_id']] = {'request': body['request'], 'context': body['context'], 'polls': 0,
                                                        'cancelled': False}
                     if worker.lose_post_answer:
@@ -374,7 +383,7 @@ def test_single_run_progress_result_and_events(app, worker):
     assert c.get(f'/api/v1/backtests/{job_id}/result').json()['error']['code'] == 'NOT_FINISHED'
     run_next(c)
     handed = worker.posted('/v1/jobs')[0]['body']
-    assert handed == {'job_id': job_id, 'request': single(), 'context': {'job_id': job_id, 'prior_trials': [], 'owner_trials': [], 'rights': ADMIN_RIGHTS}}
+    assert handed == {'job_id': job_id, 'request': single(), 'context': {'job_id': job_id, 'prior_trials': [], 'owner_trials': [], **ADMIN_CONTEXT}}
     assert all(call['key'] == KEY for call in worker.calls)
     # progress of the previous read is stored while the job runs (the hook reads before the answer is stored)
     assert seen[1] == {'phase': 'backtest', 'done': 1, 'total': 2}
@@ -593,13 +602,13 @@ def test_client_request_id_stays_here_and_every_other_key_reaches_the_worker_as_
     sent = {**single(), 'extra': {'list': [1, 2.5, None, True, 'Rp ✓'], 'big': 12345678901234567890, 'tiny': 5e-324,
                                   'sum': 0.1 + 0.2, 'empty': {}}}
     job_id = submit(c, sent, 'strip-1').json()['request_id']
-    assert worker.posted('/v1/validate')[0]['body'] == {'request': sent, 'context': {'rights': ADMIN_RIGHTS}}       # sent without client_request_id
+    assert worker.posted('/v1/validate')[0]['body'] == {'request': sent, 'context': ADMIN_CONTEXT}       # sent without client_request_id
     run_next(c)
     assert handed(worker, job_id)['request'] == sent                           # the stored request, as sent
     assert c.get('/api/v1/backtests').json()['items'][0]['request'] == sent
     # an explicit null key is taken out too (a new job under a generated key)
     r = c.post('/api/v1/backtests', headers=c.headers_for, json={**single(), 'client_request_id': None})
-    assert r.status_code == 202 and worker.posted('/v1/validate')[1]['body'] == {'request': single(), 'context': {'rights': ADMIN_RIGHTS}}
+    assert r.status_code == 202 and worker.posted('/v1/validate')[1]['body'] == {'request': single(), 'context': ADMIN_CONTEXT}
     assert all('client_request_id' not in json.dumps(x['body']) for x in worker.calls if x['body'])
 
 
@@ -1128,7 +1137,7 @@ def test_trials_are_the_reported_variants_and_go_to_the_next_run_in_first_record
     second_request = {**single(), 'entry': {**single()['entry'], 'window_bars': 5}}
     second = submit(c, second_request).json()['request_id']
     run_next(c)
-    assert handed(worker, second)['context'] == {'job_id': second, 'prior_trials': as_prior(reported), 'owner_trials': as_prior(reported), 'rights': ADMIN_RIGHTS}
+    assert handed(worker, second)['context'] == {'job_id': second, 'prior_trials': as_prior(reported), 'owner_trials': as_prior(reported), **ADMIN_CONTEXT}
     assert db(c, 'SELECT count(*) AS n FROM edge_bff.backtest_trials')[0]['n'] == 6
     # the first variant again on other data: nothing new is counted; the row holds what this run reported (its Sharpe,
     # kind and request) and keeps its first-recorded place
@@ -2312,6 +2321,9 @@ def test_rights_come_from_the_session_owner_never_from_a_body(configured, store,
         {'id': 'FL11', 'name': 'Net Flow / Turnover Ratio', 'access': 'all', 'available': True, 'reason': None, 'date_param': None},
         {'id': 'FL18', 'name': 'Buy VWAP · Anchored', 'access': 'admin', 'available': True, 'reason': None, 'date_param': 'anchor'}]}
     for admin, rights, ids in [(False, [], ['FL11']), (True, ['flow_point_in_time'], ['FL11', 'FL18'])]:
+        # Phase 3b: the whole context: '*' for the admin, every released id for the paid plan (found by data)
+        sent = ADMIN_CONTEXT if admin else {'rights': [], 'allow': paid_allow(), 'limits': {}}
+        assert sent['rights'] == rights
         worker.calls.clear()
         chosen, signed = rights_session(configured, store, admin)
         application = create_app(chosen, store, FakeOrc())
@@ -2328,11 +2340,12 @@ def test_rights_come_from_the_session_owner_never_from_a_body(configured, store,
                 assert r.status_code == 422 and r.json()['error'] == {'code': 'UNKNOWN_FIELD', 'field': 'context', 'message': 'context is set by EDGE; remove it from the request.'}
             assert not worker.posted('/v1/validate') and not worker.posted('/v1/signals')
             assert c.post('/api/v1/backtests/signals', headers=c.headers_for, json=preview_of()).status_code == 200
-            assert worker.posted('/v1/signals')[-1]['body']['context'] == {'rights': rights}
+            assert worker.posted('/v1/signals')[-1]['body']['context'] == sent
             assert submit(c, single(), f'r{int(admin)}').status_code == 202
-            assert worker.posted('/v1/validate')[-1]['body']['context'] == {'rights': rights}
+            assert worker.posted('/v1/validate')[-1]['body']['context'] == sent
             run_next(c)
-            assert worker.posted('/v1/jobs')[-1]['body']['context']['rights'] == rights
+            job = worker.posted('/v1/jobs')[-1]['body']['context']
+            assert {k: job[k] for k in ('rights', 'allow', 'limits')} == sent
 
 
 def test_a_queued_job_reads_its_owners_rights_when_it_is_dispatched(configured, store, worker):
@@ -2351,6 +2364,8 @@ def test_a_queued_job_reads_its_owners_rights_when_it_is_dispatched(configured, 
                                                         grants={'backtest.run': True}, kinds={'backtest.run': 'flag'})
         asyncio.run(loop.process(bt.store.claim(90)))
         assert worker.posted('/v1/jobs')[-1]['body']['context']['rights'] == []
+        # Phase 3b: its allow is read at dispatch too (this principal holds no item family: nothing allowed)
+        assert worker.posted('/v1/jobs')[-1]['body']['context']['allow'] == {k: [] for k in allow.KINDS}
         # without backtest.run (a switch-off owner EDGE_ADMIN_OWNERS does not list): refused at dispatch
         sent = len(worker.posted('/v1/jobs'))
         assert submit(c, single('BBRI'), 'refused').status_code == 202
@@ -2397,3 +2412,42 @@ def test_owner_trials_cross_every_line_of_the_owner_within_90_days(app, worker):
     sent = [t['variant_hash'] for t in handed(worker, third)['context']['owner_trials']]
     kept = [r['variant_hash'] for r in db(c, 'SELECT variant_hash FROM edge_bff.backtest_trials WHERE request_id=%s ORDER BY recorded_seq', other)]
     assert sent == kept and len(set(sent)) == len(sent) and len(recorded) > len(kept)
+
+
+# ---- EXEC-MU-ACCOUNTS Phase 3b: context.allow and the worker's CAPABILITY_REQUIRED -------------------------------------
+
+REFUSED_ITEM = {'code': 'CAPABILITY_REQUIRED', 'field': 'entry.conditions[0].indicator',
+                'message': 'The indicator I13 of entry condition 1 is not part of your plan.',
+                'details': {'kind': 'indicator', 'id': 'I13', 'capability': 'backtest.indicator:I13'}}
+
+
+def named_refusal():
+    return {**REFUSED_ITEM, 'details': {**REFUSED_ITEM['details'],
+                                        'display_name': errors.display_name('backtest.indicator:I13')}}
+
+
+def test_a_workers_capability_refusal_is_relayed_with_its_display_name(app, worker):
+    """CONTRACT.md 8b "3b in detail": the worker's 403 CAPABILITY_REQUIRED of /v1/validate and /v1/signals reaches the
+    page unchanged (status, code, field, message, details) with details.display_name added; nothing is queued."""
+    c = app
+    assert named_refusal()['details']['display_name'] != 'backtest.indicator:I13'      # never the internal key
+    worker.validate_error = (403, REFUSED_ITEM)
+    r = submit(c, single(), 'item-refused')
+    assert r.status_code == 403 and r.json() == {'error': named_refusal()}
+    assert db(c, 'SELECT count(*) AS n FROM edge_bff.backtest_jobs')[0]['n'] == 0
+    worker.validate_error = None
+
+
+def test_a_queued_job_the_worker_refuses_an_item_at_dispatch_ends_failed_with_that_refusal(app, worker):
+    """The job was accepted, then the plan lost the item before dispatch: the worker refuses /v1/jobs with 403
+    CAPABILITY_REQUIRED (it checks the context read from the owner's principal then), and the job ends FAILED with that
+    refusal and its display_name."""
+    c = app
+    job = submit(c, single(), 'item-later').json()['request_id']
+    worker.refuse_with, worker.refuse_status = REFUSED_ITEM, 403
+    try:
+        run_next(c)
+    finally:
+        worker.refuse_with, worker.refuse_status = None, 422
+    status = c.get(f'/api/v1/backtests/{job}').json()
+    assert status['state'] == 'FAILED' and status['error'] == named_refusal()
