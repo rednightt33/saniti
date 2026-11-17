@@ -72,7 +72,8 @@ def test_settings_owner_is_read_only_by_the_seed_and_the_switch_off_mapping():
 
 
 def test_switch_off_the_principal_is_user_one_and_the_session_keeps_todays_keys(settings, store):
-    with TestClient(create_app(settings, store, FakeOrc())) as c:
+    # an owner EDGE_ADMIN_OWNERS does not list (the test settings list the configured owner since Phase 3a, as production)
+    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('someone-else',)), store, FakeOrc())) as c:
         login(c)
         answer = c.get('/api/v1/auth/session').json()
         assert {'authenticated', 'login', 'csrf_token', 'capabilities'} <= set(answer)
@@ -80,8 +81,7 @@ def test_switch_off_the_principal_is_user_one_and_the_session_keeps_todays_keys(
         seeded = db(store, 'SELECT user_id, owner_key, username, role, status FROM edge_bff.users')
         assert [(r['owner_key'], r['role'], r['status']) for r in seeded] == [(settings.owner, 'admin', 'active')]
         assert answer['username'] == seeded[0]['username'] == 'owner'
-        # the test settings list no admin owner (EDGE_ADMIN_OWNERS unset there means none): no capability, as rights.py
-        # gave before Phase 1
+        # EDGE_ADMIN_OWNERS lists another owner: no capability, as rights.py gave before Phase 1
         assert answer['access'] == {'plan': None, 'role': 'user', 'status': 'active', 'expires_at': None, 'mfa_ok': True,
                                     'capabilities': [], 'limits': {}, 'version': 'env', 'next': None,
                                     'owner_key': settings.owner, 'mfa_enrolled': False, 'seed': True, 'expired_plan': None}
@@ -154,6 +154,16 @@ def make_user(store, username, password, role='user', status='active', email=Non
                 SELECT %s, plan_key, 'active', 'test' FROM edge_bff.plan_capabilities WHERE capability_key = '*' ''',
                       (row['user_id'],))
     return dict(row)
+
+
+def with_monitor(store, user):
+    """EXEC-MU-ACCOUNTS Phase 3a (decision D1): the Monitor is in no plan but the admin's; a test about a plain account's
+    Monitor rows gives it the Monitor by overrides (view, chat, every model)."""
+    with store.connect() as c:
+        for key, value in (('monitor.view', 'true'), ('monitor.chat', 'true'), ('monitor.model', '{"all": true}')):
+            c.execute('''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
+                VALUES (%s, %s, %s::jsonb, 'test: the Monitor for a plain account')''', (user['user_id'], key, value))
+    return user
 
 
 def test_owner_key_is_immutable_and_reserved_keys_are_never_issued(settings, store):
@@ -265,7 +275,7 @@ def test_switch_on_sign_in_reads_the_accounts(on, store):
     with TestClient(app) as c:
         seeded = db(store, 'SELECT username FROM edge_bff.users')
         assert seeded == [{'username': 'owner'}]
-        alice = make_user(store, 'alice', 'alice-password')
+        alice = with_monitor(store, make_user(store, 'alice', 'alice-password'))
         assert c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'alice', 'password': 'wrong'}).status_code == 401
         assert c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'nobody', 'password': 'x'}).status_code == 401
         sign_in(c, 'ALICE@example.com', 'alice-password')                 # the email, any case
@@ -333,7 +343,8 @@ def test_two_users_see_none_of_each_others_rows(on, store, workers):
     app = create_app(on, store, orc)
     with TestClient(app) as a:
         b = TestClient(app)
-        alice, bob = make_user(store, 'alice', 'alice-password'), make_user(store, 'bob_b', 'bob-password')
+        alice = with_monitor(store, make_user(store, 'alice', 'alice-password'))
+        bob = with_monitor(store, make_user(store, 'bob_b', 'bob-password'))
         ha, hb = sign_in(a, 'alice', 'alice-password'), sign_in(b, 'bob_b', 'bob-password')
         lay, pre = 'lay_' + 'a' * 32, 'ipr_' + 'a' * 32
         # A's rows of every owned kind, made through the routes

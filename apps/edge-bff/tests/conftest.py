@@ -46,7 +46,7 @@ def store(database):
 
 @pytest.fixture
 def settings(database):
-    return Settings(database_url=database,orc_url='http://orc.invalid',orc_key='local-test-key',owner='local-test-owner',login='owner',password_verifier=password_verifier('local-test-password'),session_secret='local-test-secret-'*3,origin='http://testserver',environment='local',secure_cookie=False,worker_enabled=False,poll_seconds=0.005)
+    return Settings(database_url=database,orc_url='http://orc.invalid',orc_key='local-test-key',owner='local-test-owner',login='owner',password_verifier=password_verifier('local-test-password'),session_secret='local-test-secret-'*3,origin='http://testserver',environment='local',secure_cookie=False,worker_enabled=False,poll_seconds=0.005,admin_owners=('local-test-owner',))
 
 class FakeOrc:
     def __init__(self,status='COMPLETED'):self.status=status;self.saved={};self.calls=[]

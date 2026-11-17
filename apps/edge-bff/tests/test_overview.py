@@ -90,7 +90,7 @@ def test_its_index_and_files_come_from_terminal_apis_overview_routes_with_the_ga
     assert r.status_code == 200 and r.json()['files'][NAME]['sha256'] == SHA
     r = gw.get(f'/api/v1/overview/file/{NAME}?sha={SHA}')
     assert r.status_code == 200 and r.json() == {'schema': 1, 'date': '2026-11-13'}
-    assert r.headers['cache-control'] == 'private, max-age=31536000, immutable'
+    assert r.headers['cache-control'] == 'private, no-cache'          # Phase 3a: revalidated after the capability check
     terminal = [c for c in FakeHttp.calls if '/api/terminal/v1/' in c[1]]
     assert terminal and all(c[1].endswith('/api/terminal/v1/overview') and c[2]['x-terminal-proxy-key'] == KEY
                             for c in terminal)

@@ -47,8 +47,10 @@ class Orc:
 
 
 def worker(store, orc, timeout=1):
-    return Worker(SimpleNamespace(orc_timeout_seconds=timeout, lease_seconds=0,
-                                  poll_seconds=0.001), store, orc)
+    # EXEC-MU-ACCOUNTS Phase 3a: the worker re-checks the owner at dispatch; with the switch off the owner listed in
+    # EDGE_ADMIN_OWNERS (its default: the configured owner) holds every capability
+    return Worker(SimpleNamespace(orc_timeout_seconds=timeout, lease_seconds=0, poll_seconds=0.001, owner='owner',
+                                  admin_owners=('owner',)), store, orc)
 
 
 def test_waiting_does_not_exhaust_dispatch_attempts_and_recovers_with_the_same_id():

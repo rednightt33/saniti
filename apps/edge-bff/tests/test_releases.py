@@ -233,9 +233,9 @@ def test_signed_out_is_unauthenticated(settings, store):
 
 
 def test_switch_off_sign_in_through_the_real_principal(settings, store):
-    """The real Phase 1 principal: the test settings list no admin owner (no capability, an empty catalog); listed in
-    EDGE_ADMIN_OWNERS it holds `*` and every entry of the repository file."""
-    with TestClient(create_app(settings, store, FakeOrc())) as c:
+    """The real Phase 1 principal: an owner EDGE_ADMIN_OWNERS does not list has no capability (an empty catalog); listed
+    there (the default, as the test settings since Phase 3a) it holds `*` and every entry of the repository file."""
+    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('someone-else',)), store, FakeOrc())) as c:
         login(c)
         assert entries_of(c, 'indicator') == []
     admins = dataclasses.replace(settings, admin_owners=(settings.owner,))

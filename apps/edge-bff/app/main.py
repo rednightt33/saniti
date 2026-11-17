@@ -24,6 +24,7 @@ from .config import Settings
 from .errors import Refusal, http_refusal, refusal, validation_refusal
 from .hooks import is_hook_path
 from .layouts import Layouts
+from .monitor import ModelCatalog, run_refusal, visible as visible_models
 from .auth_flows import AuthFlows
 from .mailer import EmailSender
 from .preferences import Preferences
@@ -95,7 +96,10 @@ CHOICES = r'^(QUICK_SUMMARY|ANALYSIS|RESEARCH|EXPLORE|FACT|CLARIFY|INSIGHT|CONTI
 # EXEC-MODELS: the shape of a model id and the reasoning levels; Orc checks the choice against its offered models
 MODEL_ID = r'^[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._:-]*$'
 LEVELS = r'^(low|medium|high|max|off|on)$'  # EXEC-LOGOS: max (DeepSeek, GLM); Orc checks each model's own
-MODELS_CACHE_SECONDS = 600  # Orc reads OpenRouter's prices every hour; the page sees them within ten minutes
+# EXEC-MODELS: the model list is cached ten minutes (app/monitor.py MODELS_CACHE_SECONDS)
+# EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, decisions D1 and D5): the Monitor (AI) routes read with monitor.view and
+# write with monitor.chat; the Terminal proxy needs terminal.view (tests/test_phase3a_monitor_pages.py ROUTE_CAPS)
+MONITOR_VIEW, MONITOR_CHAT, TERMINAL_VIEW = 'monitor.view', 'monitor.chat', 'terminal.view'
 
 
 class Strict(BaseModel):
@@ -206,7 +210,9 @@ def create_app(settings=None, store=None, orc=None):
     settings.validate()
     store = store or Store(settings.database_url)
     orc = orc or OrcClient(settings)
-    worker = Worker(settings, store, orc)
+    # EXEC-MODELS: Orc's model list, shared by the models route, the submit's model rule and the worker's dispatch check
+    model_catalog = ModelCatalog(orc)
+    worker = Worker(settings, store, orc, model_catalog)
     backtests = Backtests(settings, store)
     screeners = Screeners(settings, store)
     layouts = Layouts(settings, store)
@@ -220,6 +226,8 @@ def create_app(settings=None, store=None, orc=None):
     throttle = Throttle(store, settings.session_secret)
     # EXEC-MU-ACCOUNTS Phase 1: the principal of every request (app/principal.py) and the account preferences
     auth = Auth(settings, store)
+    # Phase 3a: the worker re-checks the owner's principal when it dispatches a queued run (monitor.chat, the model)
+    worker.access = auth.owner_principal
     preferences = Preferences(store)
     # the email outbox's sender loop and the auth flows (registration, codes, MFA; CONTRACT.md sections 4 and 5)
     sender = EmailSender(settings, store)
@@ -365,9 +373,9 @@ def create_app(settings=None, store=None, orc=None):
     app.state.session_dependency, app.state.write_dependency = auth.principal, auth.writer
 
     async def still_signed_in(p):
-        """The SSE stream re-checks the principal on each loop (CONTRACT.md section 4 "Sessions")."""
+        """The SSE stream re-checks the principal (and, Phase 3a, its monitor.view) on each loop (CONTRACT.md 4, 8b)."""
         found = await auth.resolve(p.token)
-        return found is not None and found.owner_key == p.owner_key
+        return found is not None and found.owner_key == p.owner_key and found.can(MONITOR_VIEW)  # Phase 3a, D5
 
     async def snapshot(owner, request_id):
         row = await asyncio.to_thread(store.job, owner, request_id)
@@ -550,11 +558,11 @@ def create_app(settings=None, store=None, orc=None):
         return JSONResponse(status_code=answer.status_code, content=data)
 
     @app.get('/api/terminal/v1/{path:path}')
-    async def terminal_read(path: str, request: Request, p: Principal = Depends(auth.principal)):
+    async def terminal_read(path: str, request: Request, p: Principal = Depends(auth.need(TERMINAL_VIEW))):
         return await forward_terminal('GET', path, request)
 
     @app.post('/api/terminal/v1/{path:path}')
-    async def terminal_write(path: str, request: Request, p: Principal = Depends(auth.writer)):
+    async def terminal_write(path: str, request: Request, p: Principal = Depends(auth.need(TERMINAL_VIEW, write=True))):
         return await forward_terminal('POST', path, request)
 
     # EDGE backtest (CONTRACT.md section 9): /api/v1/backtests... with this session (writes with CSRF, as /api/v1/runs)
@@ -678,7 +686,12 @@ def create_app(settings=None, store=None, orc=None):
         return response
 
     @app.post('/api/v1/runs', status_code=202)
-    async def submit(body: RunInput, p: Principal = Depends(auth.writer)):
+    async def submit(body: RunInput, p: Principal = Depends(auth.need(MONITOR_CHAT, write=True))):
+        # Phase 3a: the run's model (the request's, else Orc's server default) must be one the principal holds, and the
+        # manual model needs admin.manual (app/monitor.py); refused before anything is stored or sent to Orc
+        refused = await run_refusal(p, body.model, model_catalog)
+        if refused is not None:
+            raise refused
         payload = body.model_dump(exclude_none=True, exclude={'submission_key', 'after_stop'})
         if body.conversation_id:
             await asyncio.to_thread(store.conversation, p.owner_key, body.conversation_id)
@@ -724,17 +737,17 @@ def create_app(settings=None, store=None, orc=None):
         return 'NOT_RUNNING'
 
     @app.post('/api/v1/runs/{request_id}/stop')
-    async def stop_run(request_id: str, p: Principal = Depends(auth.writer)):
+    async def stop_run(request_id: str, p: Principal = Depends(auth.need(MONITOR_CHAT, write=True))):
         row = await asyncio.to_thread(store.job, p.owner_key, request_id)
         status = await stop_job(p.owner_key, row)
         return JSONResponse({'status': status}, status_code=409 if status == 'NOT_RUNNING' else 202)
 
     @app.get('/api/v1/runs/{request_id}')
-    async def run_status(request_id: str, p: Principal = Depends(auth.principal)):
+    async def run_status(request_id: str, p: Principal = Depends(auth.need(MONITOR_VIEW))):
         return await snapshot(p.owner_key, request_id)
 
     @app.get('/api/v1/runs/{request_id}/progress')
-    async def run_progress(request_id: str, p: Principal = Depends(auth.principal)):
+    async def run_progress(request_id: str, p: Principal = Depends(auth.need(MONITOR_VIEW))):
         """EXEC-IMPL-1016 Fase 4.3 (UI-1015B): what the run is doing now, read from Orc while it runs (labels and
         times only; nothing is stored). NOT_RUNNING before Orc starts it, after it ends, or when Orc cannot answer."""
         await asyncio.to_thread(store.job, p.owner_key, request_id)  # the owner's run, or 404
@@ -745,12 +758,12 @@ def create_app(settings=None, store=None, orc=None):
         return found or {'status': 'NOT_RUNNING', 'steps': []}
 
     @app.get('/api/v1/runs')
-    async def active_run(p: Principal = Depends(auth.principal)):
+    async def active_run(p: Principal = Depends(auth.need(MONITOR_VIEW))):
         row = await asyncio.to_thread(store.active, p.owner_key)
         return {'active': await snapshot(p.owner_key, row["request_id"]) if row else None}
 
     @app.get('/api/v1/runs/{request_id}/events')
-    async def events(request_id: str, request: Request, p: Principal = Depends(auth.principal)):
+    async def events(request_id: str, request: Request, p: Principal = Depends(auth.need(MONITOR_VIEW))):
         await asyncio.to_thread(store.job, p.owner_key, request_id)
         try:
             last = max(0, int(request.headers.get('last-event-id', '0')))
@@ -795,34 +808,23 @@ def create_app(settings=None, store=None, orc=None):
         code, data = await asyncio.to_thread(orc.manual, p.owner_key, 'POST', '/' + step_id[:64], body)
         return JSONResponse(data, status_code=code)
 
-    models_cache = {'at': None, 'data': None}
-
     @app.get('/api/v1/models')
-    async def models(p: Principal = Depends(auth.principal)):
+    async def models(p: Principal = Depends(auth.need(MONITOR_VIEW))):
         """EXEC-MODELS: the models a message may choose, with their levels and prices, cached for ten minutes; when Orc
-        cannot answer, the last list is kept (none yet: the page hides the choice and sends none)."""
-        now = time.monotonic()
-        if models_cache['data'] is None or now - models_cache['at'] >= MODELS_CACHE_SECONDS:
-            try:
-                data = await asyncio.to_thread(orc.models, p.owner_key)
-            except OrcError:
-                data = None
-            if data:
-                models_cache.update(at=now, data=data)
-            elif models_cache['data'] is None:
-                raise OrcError('MODELS_UNAVAILABLE', 503)
-        return jsonable_encoder(models_cache['data'])
+        cannot answer, the last list is kept (none yet: the page hides the choice and sends none). Phase 3a: the shared
+        list is filtered per principal after the cache (only the models it holds; each default only when held)."""
+        return jsonable_encoder(visible_models(p, await model_catalog.read(p.owner_key)))
 
     @app.get('/api/v1/conversations')
     async def conversations(q: str = Query(default='', max_length=200), bookmarked: bool = False,
-                            offset: int = Query(default=0, ge=0), limit: int = Query(default=30, ge=1, le=100), p: Principal = Depends(auth.principal)):
+                            offset: int = Query(default=0, ge=0), limit: int = Query(default=30, ge=1, le=100), p: Principal = Depends(auth.need(MONITOR_VIEW))):
         items = await asyncio.to_thread(store.list_conversations, p.owner_key, q, bookmarked, offset, limit+1)
         return jsonable_encoder({'items': items[:limit], 'next_offset':offset+limit if len(items)>limit else None})
 
     @app.get('/api/v1/conversations/{conversation_id}/messages')
     async def messages(conversation_id: str, after: int = Query(default=-1, ge=-1),
                        limit: int = Query(default=20, ge=1, le=50), through: int | None = Query(default=None, ge=0),
-                       p: Principal = Depends(auth.principal)):
+                       p: Principal = Depends(auth.need(MONITOR_VIEW))):
         ui = await asyncio.to_thread(store.conversation, p.owner_key, conversation_id)
         data = await asyncio.to_thread(orc.messages, p.owner_key, conversation_id, after, limit, through)
         if data is None:
@@ -833,7 +835,7 @@ def create_app(settings=None, store=None, orc=None):
         return jsonable_encoder({'conversation':ui, **data, 'side_chats':sides})
 
     @app.post('/api/v1/runs/{request_id}/branch')
-    async def branch(request_id: str, body: BranchInput, p: Principal = Depends(auth.writer)):
+    async def branch(request_id: str, body: BranchInput, p: Principal = Depends(auth.need(MONITOR_CHAT, write=True))):
         """EXEC-ASK-BRANCH (user 2026-10-24): a new conversation continuing this answer (Orc keeps the history it
         continues; nothing is copied). A side chat is made once per answer and then opened again."""
         if body.kind == 'SIDE' and (existing := await asyncio.to_thread(store.side_chat, p.owner_key, request_id)):
@@ -847,14 +849,14 @@ def create_app(settings=None, store=None, orc=None):
                                                         body.title, body.kind, found['conversation_id'], request_id))
 
     @app.delete('/api/v1/conversations/{conversation_id}')
-    async def hide_conversation(conversation_id: str, p: Principal = Depends(auth.writer)):
+    async def hide_conversation(conversation_id: str, p: Principal = Depends(auth.need(MONITOR_CHAT, write=True))):
         """EXEC-DELETE: hide a conversation from the list; a running one is refused (its answer is still coming)."""
         if await asyncio.to_thread(store.active_conversation, p.owner_key, conversation_id):
             raise StoreError('CONVERSATION_RUNNING', 409)
         return jsonable_encoder(await asyncio.to_thread(store.hide, p.owner_key, conversation_id))
 
     @app.patch('/api/v1/conversations/{conversation_id}/preferences')
-    async def preferences(conversation_id: str, body: ConversationPreferences, p: Principal = Depends(auth.writer)):
+    async def preferences(conversation_id: str, body: ConversationPreferences, p: Principal = Depends(auth.need(MONITOR_CHAT, write=True))):
         await asyncio.to_thread(store.conversation, p.owner_key, conversation_id)
         if await asyncio.to_thread(orc.messages, p.owner_key, conversation_id) is None:
             raise StoreError('CONVERSATION_EXPIRED', 410)
@@ -862,7 +864,7 @@ def create_app(settings=None, store=None, orc=None):
                                                         **body.model_dump(exclude_none=True)))
 
     @app.patch('/api/v1/runs/{request_id}/preferences')
-    async def pin(request_id: str, body: Pin, p: Principal = Depends(auth.writer)):
+    async def pin(request_id: str, body: Pin, p: Principal = Depends(auth.need(MONITOR_CHAT, write=True))):
         row = await asyncio.to_thread(store.job, p.owner_key, request_id)
         found = await asyncio.to_thread(orc.request, p.owner_key, request_id)
         if not found or not found.get('response'):
@@ -871,7 +873,7 @@ def create_app(settings=None, store=None, orc=None):
                                                         request_id=request_id, pinned=body.pinned))
 
     @app.post('/api/v1/conversations/{conversation_id}/outputs/{output_id}/export')
-    async def export_table(conversation_id: str, output_id: str, body: TableExport, p: Principal = Depends(auth.writer)):
+    async def export_table(conversation_id: str, output_id: str, body: TableExport, p: Principal = Depends(auth.need(MONITOR_CHAT, write=True))):
         """The table download (user 2026-10-20): every row of an answer table as Excel; Orc writes the file (no model
         call) and the page then downloads it through the export route below."""
         if not re.fullmatch(r'out_[0-9a-f]{24}', output_id):
@@ -884,7 +886,7 @@ def create_app(settings=None, store=None, orc=None):
         return jsonable_encoder(data)
 
     @app.get('/api/v1/exports/{export_id}')
-    async def download(export_id: str, p: Principal = Depends(auth.principal)):
+    async def download(export_id: str, p: Principal = Depends(auth.need(MONITOR_VIEW))):
         if not re.fullmatch(r'exp_[0-9a-f]{24}', export_id):
             raise StoreError('EXPORT_NOT_FOUND', 404)
         # Orc enforces owner; use streaming transport so file size does not become a BFF response copy.

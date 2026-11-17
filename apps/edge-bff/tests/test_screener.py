@@ -32,6 +32,10 @@ from app import main, screener
 from app.main import create_app
 from conftest import FakeOrc
 
+# EXEC-MU-ACCOUNTS Phase 3a: the test settings' owner is an admin, as production's default (EDGE_ADMIN_OWNERS unset =
+# the configured owner), so the context carries its admin right; tests about a non-admin owner set admin_owners=()
+OWNER_RIGHTS = ['flow_point_in_time']
+
 ORIGIN = {'Origin': 'http://testserver'}
 KEY = 's' * 40
 MIGRATION = Path(__file__).resolve().parents[3] / 'database/migrations/20261028_001_edge_bff_screener.sql'
@@ -404,7 +408,7 @@ def test_run_preview_validate_and_counts_are_relayed_as_sent(app, worker):
     body = run_body()
     r = c.post('/api/v1/screener/run', headers=c.headers_for, json=body)
     # EXEC-BACKTEST-REVAMP P5 (K8 b): edge-bff adds the session's rights as the body's context (this owner: none)
-    sent = {**body, 'context': {'rights': []}}
+    sent = {**body, 'context': {'rights': OWNER_RIGHTS}}
     assert r.status_code == 200 and r.headers['content-encoding'] == 'gzip' and r.json()['echo'] == sent
     assert worker.called('/v1/run')[0]['body'] == sent and worker.called('/v1/run')[0]['key'] == KEY
     p = c.post('/api/v1/screener/preview', headers=c.headers_for, json=preview_body(ticker='TLKM'))
@@ -844,14 +848,14 @@ def test_saved_items_are_validated_created_replaced_and_deleted(app, worker):
     assert r.status_code == 200, r.text
     item = r.json()
     sent = worker.called('/v1/validate')[0]['body']
-    assert sent == {'schema_version': 1, 'definition': definition(), 'context': {'rights': []}}
+    assert sent == {'schema_version': 1, 'definition': definition(), 'context': {'rights': OWNER_RIGHTS}}
     assert item['definition'] == screen_item()['definition'] and item['revision'] == 1 and item['needs_review'] == []
     assert (item['registry_version'], item['screener_registry_version']) == ('registry-a', 'sregistry-a')
     assert item['definition_hash'] == sha(json.dumps(definition(), sort_keys=True)) and item['schema_version'] == 1
     m = put(c, 2, metric_item())
     assert m.status_code == 200 and m.json()['kind'] == 'metric'
     assert worker.called('/v1/validate')[1]['body'] == {'schema_version': 1, 'definition': {
-        'universe': screener.METRIC_UNIVERSE, 'conditions': [{'id': 'm', 'enabled': True, 'test': rsi_test()}], 'logic': 'all'}, 'context': {'rights': []}}
+        'universe': screener.METRIC_UNIVERSE, 'conditions': [{'id': 'm', 'enabled': True, 'test': rsi_test()}], 'logic': 'all'}, 'context': {'rights': OWNER_RIGHTS}}
     listed = c.get('/api/v1/screener/items?kind=screen').json()['items']
     assert [x['item_id'] for x in listed] == [item_id(1)] and listed[0] == item
     assert {x['item_id'] for x in c.get('/api/v1/screener/items').json()['items']} == {item_id(1), item_id(2)}

@@ -33,6 +33,10 @@ from app.backtest import BacktestLoop, ResultTooLarge, WorkerClient, WorkerTimeo
 from app.main import create_app
 from conftest import FakeOrc
 
+# EXEC-MU-ACCOUNTS Phase 3a: the test settings' owner is an admin, as production's default (EDGE_ADMIN_OWNERS unset =
+# the configured owner), so the context carries its admin right; tests about a non-admin owner set admin_owners=()
+OWNER_RIGHTS = ['flow_point_in_time']
+
 ORIGIN = {'Origin': 'http://testserver'}
 KEY = 'w' * 40
 MIGRATION = Path(__file__).resolve().parents[3] / 'database/migrations/20261026_005_edge_bff_backtest.sql'
@@ -370,7 +374,7 @@ def test_single_run_progress_result_and_events(app, worker):
     assert c.get(f'/api/v1/backtests/{job_id}/result').json()['error']['code'] == 'NOT_FINISHED'
     run_next(c)
     handed = worker.posted('/v1/jobs')[0]['body']
-    assert handed == {'job_id': job_id, 'request': single(), 'context': {'job_id': job_id, 'prior_trials': [], 'owner_trials': [], 'rights': []}}
+    assert handed == {'job_id': job_id, 'request': single(), 'context': {'job_id': job_id, 'prior_trials': [], 'owner_trials': [], 'rights': OWNER_RIGHTS}}
     assert all(call['key'] == KEY for call in worker.calls)
     # progress of the previous read is stored while the job runs (the hook reads before the answer is stored)
     assert seen[1] == {'phase': 'backtest', 'done': 1, 'total': 2}
@@ -585,13 +589,13 @@ def test_client_request_id_stays_here_and_every_other_key_reaches_the_worker_as_
     sent = {**single(), 'extra': {'list': [1, 2.5, None, True, 'Rp ✓'], 'big': 12345678901234567890, 'tiny': 5e-324,
                                   'sum': 0.1 + 0.2, 'empty': {}}}
     job_id = submit(c, sent, 'strip-1').json()['request_id']
-    assert worker.posted('/v1/validate')[0]['body'] == {'request': sent, 'context': {'rights': []}}       # sent without client_request_id
+    assert worker.posted('/v1/validate')[0]['body'] == {'request': sent, 'context': {'rights': OWNER_RIGHTS}}       # sent without client_request_id
     run_next(c)
     assert handed(worker, job_id)['request'] == sent                           # the stored request, as sent
     assert c.get('/api/v1/backtests').json()['items'][0]['request'] == sent
     # an explicit null key is taken out too (a new job under a generated key)
     r = c.post('/api/v1/backtests', headers=c.headers_for, json={**single(), 'client_request_id': None})
-    assert r.status_code == 202 and worker.posted('/v1/validate')[1]['body'] == {'request': single(), 'context': {'rights': []}}
+    assert r.status_code == 202 and worker.posted('/v1/validate')[1]['body'] == {'request': single(), 'context': {'rights': OWNER_RIGHTS}}
     assert all('client_request_id' not in json.dumps(x['body']) for x in worker.calls if x['body'])
 
 
@@ -1120,7 +1124,7 @@ def test_trials_are_the_reported_variants_and_go_to_the_next_run_in_first_record
     second_request = {**single(), 'entry': {**single()['entry'], 'window_bars': 5}}
     second = submit(c, second_request).json()['request_id']
     run_next(c)
-    assert handed(worker, second)['context'] == {'job_id': second, 'prior_trials': as_prior(reported), 'owner_trials': as_prior(reported), 'rights': []}
+    assert handed(worker, second)['context'] == {'job_id': second, 'prior_trials': as_prior(reported), 'owner_trials': as_prior(reported), 'rights': OWNER_RIGHTS}
     assert db(c, 'SELECT count(*) AS n FROM edge_bff.backtest_trials')[0]['n'] == 6
     # the first variant again on other data: nothing new is counted; the row holds what this run reported (its Sharpe,
     # kind and request) and keeps its first-recorded place
