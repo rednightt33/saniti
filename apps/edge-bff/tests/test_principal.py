@@ -156,6 +156,16 @@ def make_user(store, username, password, role='user', status='active', email=Non
     return dict(row)
 
 
+def with_monitor(store, user):
+    """EXEC-MU-ACCOUNTS Phase 3a (decision D1): the Monitor is in no plan but the admin's; a test about a plain account's
+    Monitor rows gives it the Monitor by overrides (view, chat, every model)."""
+    with store.connect() as c:
+        for key, value in (('monitor.view', 'true'), ('monitor.chat', 'true'), ('monitor.model', '{"all": true}')):
+            c.execute('''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
+                VALUES (%s, %s, %s::jsonb, 'test: the Monitor for a plain account')''', (user['user_id'], key, value))
+    return user
+
+
 def test_owner_key_is_immutable_and_reserved_keys_are_never_issued(settings, store):
     AccountStore(store).seed(settings.owner, settings.login, settings.password_verifier, False)
     user = make_user(store, 'alice', 'alice-password')
@@ -265,7 +275,7 @@ def test_switch_on_sign_in_reads_the_accounts(on, store):
     with TestClient(app) as c:
         seeded = db(store, 'SELECT username FROM edge_bff.users')
         assert seeded == [{'username': 'owner'}]
-        alice = make_user(store, 'alice', 'alice-password')
+        alice = with_monitor(store, make_user(store, 'alice', 'alice-password'))
         assert c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'alice', 'password': 'wrong'}).status_code == 401
         assert c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'nobody', 'password': 'x'}).status_code == 401
         sign_in(c, 'ALICE@example.com', 'alice-password')                 # the email, any case

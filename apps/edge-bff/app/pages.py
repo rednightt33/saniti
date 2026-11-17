@@ -7,8 +7,14 @@ reaches the browser.
 
   GET /api/v1/<family>/index              {finished_at, files: {name: {sha256, bytes, rows, as_of}}}
   GET /api/v1/<family>/file/<name>?sha=   the file's gzip JSON bytes (Content-Encoding gzip), checked against the
-                                          index's sha256; with ?sha= equal to the published one it is cached for good
-                                          (the URL names the content); another sha answers 409 <FAMILY>_FILE_REPLACED
+                                          index's sha256; another sha answers 409 <FAMILY>_FILE_REPLACED
+
+EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b "Page files", section 15): both routes need `<family>.view` (overview.view,
+radar.view, watchlist.view), checked by the route's dependency before the handler, so before the process caches shared
+by every user (the index, the bytes by sha) and before any terminal-api call. The browser keeps a file only with
+`Cache-Control: private, no-cache` and its ETag: it asks again every time, and a `?sha=` request with a matching
+If-None-Match is answered 304 only after the check (a year-long immutable copy would hand one user's files to the next
+user of the same browser without asking the server). With EDGE_MULTIUSER off the configured owner holds '*'.
 
 Every refusal names its cause and the way out (AGENTS.md "Gates and evidence" (d)).
 """
@@ -116,8 +122,9 @@ class PageFiles:
 
     def routes(self, app, auth):
         family = self.family
+        view = auth.need(f'{family}.view')               # Phase 3a: before the shared caches (docstring)
 
-        async def page_index(_=Depends(auth.principal)):
+        async def page_index(_=Depends(view)):
             if not self.settings.terminal_url:
                 return self.failure('NOT_CONFIGURED', 503)
             data = await self.index()
@@ -125,13 +132,17 @@ class PageFiles:
                 return self.failure('UNAVAILABLE', 503)
             return JSONResponse({'finished_at': data.get('finished_at'), 'files': data['files']})
 
-        async def page_file(name: str, request: Request, sha: str = "", _=Depends(auth.principal)):
+        async def page_file(name: str, request: Request, sha: str = "", _=Depends(view)):
             if not self.settings.terminal_url:
                 return self.failure('NOT_CONFIGURED', 503)
             if not self.name.fullmatch(name):
                 return self.failure('INVALID_NAME', 400, {'name': name[:64]})
             if sha and not SHA.fullmatch(sha):
                 return self.failure('INVALID_SHA', 400, {'sha': sha[:80]})
+            if sha and request.headers.get('if-none-match') == f'"{sha[:32]}"':
+                # the URL names the content and the capability was checked: the browser's copy stands (no index read,
+                # no grant), as the year-long copy did before, but now only after the server's check
+                return Response(status_code=304, headers={'ETag': f'"{sha[:32]}"', 'Cache-Control': 'private, no-cache'})
             data = await self.index()
             if data is None:
                 return self.failure('UNAVAILABLE', 503)
@@ -169,8 +180,7 @@ class PageFiles:
                     return self.failure('FILE_DAMAGED', 502, {'name': name})
                 self.keep(current, body)
             return Response(body, media_type='application/json', headers={
-                'Content-Encoding': 'gzip', 'ETag': f'"{current[:32]}"',
-                'Cache-Control': 'private, max-age=31536000, immutable' if sha == current else 'private, no-cache'})
+                'Content-Encoding': 'gzip', 'ETag': f'"{current[:32]}"', 'Cache-Control': 'private, no-cache'})
 
         app.get(f'/api/v1/{family}/index', name=f'{family}_index')(page_index)
         app.get(f'/api/v1/{family}/file/{{name}}', name=f'{family}_file')(page_file)

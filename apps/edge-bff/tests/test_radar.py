@@ -99,7 +99,7 @@ def test_index_and_file_bytes_are_relayed_with_the_gateway_key(gw):
     r = gw.get(f'/api/v1/radar/file/radar-days?sha={SHA}')
     assert r.status_code == 200 and r.json() == {'schema': 1, 'dates': ['2026-11-09']}       # gzip decoded by the client
     assert r.headers['content-encoding'] == 'gzip' and r.headers['etag'] == f'"{SHA[:32]}"'
-    assert r.headers['cache-control'] == 'private, max-age=31536000, immutable'
+    assert r.headers['cache-control'] == 'private, no-cache'          # Phase 3a: revalidated after the capability check
     terminal = [c for c in FakeHttp.calls if '/api/terminal/v1/radar' in c[1]]
     assert terminal and all(c[2]['x-terminal-proxy-key'] == KEY for c in terminal)
     assert all('bucket.example' not in json.dumps(r.json()) for r in [gw.get('/api/v1/radar/index')])  # no URL to the page

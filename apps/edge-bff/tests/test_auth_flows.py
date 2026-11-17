@@ -642,8 +642,14 @@ def test_the_sender_sends_while_an_ai_run_holds_the_worker(on, store):
 
 
 def login_admin_free(c, store):
-    """A plain user signed in (an admin's pending session reaches no run route)."""
+    """A plain user signed in (an admin's pending session reaches no run route). EXEC-MU-ACCOUNTS Phase 3a (decision
+    D1): the Monitor is not in the default plan, so this account is given it by overrides (view, chat, every model)."""
     make_account(c, store)
+    with store.connect() as conn:
+        for key, value in (('monitor.view', 'true'), ('monitor.chat', 'true'), ('monitor.model', '{"all": true}')):
+            conn.execute("""INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
+                SELECT user_id, %s, %s::jsonb, 'test: the Monitor for a plain user' FROM edge_bff.users
+                WHERE username = 'ana_putri'""", (key, value))
     r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'ana_putri', 'password': PASSWORD})
     return {**ORIGIN, 'X-CSRF-Token': r.json()['csrf_token']}
 

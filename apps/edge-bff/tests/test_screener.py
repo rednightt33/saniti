@@ -33,6 +33,7 @@ from app.main import create_app
 from conftest import FakeOrc
 from test_backtest import ADMIN_RIGHTS    # the conftest settings' switch-off owner is an admin (Phase 3a)
 
+
 ORIGIN = {'Origin': 'http://testserver'}
 KEY = 's' * 40
 MIGRATION = Path(__file__).resolve().parents[3] / 'database/migrations/20261028_001_edge_bff_screener.sql'

@@ -3,6 +3,11 @@ import asyncio
 import logging
 import time
 from .client import OrcError
+from .errors import Refusal
+from .monitor import ModelCatalog, run_refusal
+from .principal import owner_principal
+
+MONITOR_CHAT = 'monitor.chat'   # main.py MONITOR_CHAT: the capability a run needs (CONTRACT.md 8b, decision D5)
 
 logger = logging.getLogger('edge_bff.worker')
 
@@ -16,8 +21,12 @@ def router_title(response):
 
 
 class Worker:
-    def __init__(self, settings, store, orc):
+    def __init__(self, settings, store, orc, models=None):
         self.settings, self.store, self.orc = settings, store, orc
+        self.models = models or ModelCatalog(orc)
+        # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b): owner key -> its principal now (main.py sets the app's
+        # Auth.owner_principal; on its own, as a test builds it, the switch-off mapping)
+        self.access = lambda owner: owner_principal(settings, None, owner)
         self.stopping = asyncio.Event()
 
     async def call(self, fn, *args, **kwargs):
@@ -67,7 +76,31 @@ class Worker:
             beat.cancel()
             await asyncio.gather(beat, return_exceptions=True)
 
+    async def refused(self, row):
+        """Phase 3a (CONTRACT.md 8b, decision D5): before a run is sent to Orc, its owner must still hold monitor.chat
+        and the run's model (app/monitor.py); a plan lowered while the run waited ends it FAILED CAPABILITY_REQUIRED
+        (or PLAN_EXPIRED) with no Orc run. True when the run was ended here. With the switch off the configured owner
+        holds '*' (EDGE_ADMIN_OWNERS, default the one owner), so nothing changes for it."""
+        p = await self.call(self.access, row['owner_key'])
+        refusal = None if p.can(MONITOR_CHAT) else p.refusal(MONITOR_CHAT)
+        if refusal is None:
+            # OrcError when the default model cannot be read now: the run is RECOVERING and checked again
+            refusal = await run_refusal(p, (row['input'] or {}).get('model'), self.models)
+        if refusal is None:
+            return False
+        code = refusal.code if isinstance(refusal, Refusal) else 'CAPABILITY_REQUIRED'
+        logger.info('job_refused_at_dispatch')
+        await self.call(self.store.transition, row, 'FAILED', error_code=code)
+        return True
+
     async def execute(self, row):
+        if not row['attempt_count']:
+            # never dispatched: checked before any Orc call (a recovered run is checked before it is sent again, below)
+            try:
+                if await self.refused(row):
+                    return
+            except OrcError:
+                pass                                    # the loop below reaches the same check and its recovery
         deadline = time.monotonic() + self.settings.orc_timeout_seconds + self.settings.lease_seconds
         failures = 0
         while not self.stopping.is_set():
@@ -106,6 +139,8 @@ class Worker:
                     if (current['input'] or {}).get('stop_requested'):
                         # EXEC-Y Fase 1: stopped before it reached Orc; nothing is dispatched
                         await self.call(self.store.transition, row, 'FAILED', error_code='STOPPED_BY_USER')
+                        return
+                    if await self.refused(row):
                         return
                     if not await self.call(self.orc.execution_ready, row['owner_key']):
                         # No dispatch took place. Waiting cannot exhaust the three

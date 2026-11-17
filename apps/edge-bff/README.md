@@ -950,3 +950,21 @@ guarantee no plan or override can raise: `terminal.layouts_max` (`LAYOUT_LIMIT` 
 `presets`, `drawings`, `/api/v1/watchlist/lists` `limits`, the Screener catalog's `limits[]`) report the principal's
 own numbers. The paid seed holds today's values (migration `20261117_004`, decision D6). A lowered plan keeps the
 rows but cannot read them until it is raised again (D5); a replace of an existing item is never refused by a cap.
+
+## Route gates: Monitor, Terminal proxy, page files (EXEC-MU-ACCOUNTS Phase 3a, 2026-11-17)
+
+CONTRACT.md section 8b, decisions D1 and D5. With the switch off the configured owner holds `*` (EDGE_ADMIN_OWNERS
+unset = that owner), so nothing changes for it; an owner EDGE_ADMIN_OWNERS does not list is refused these routes too.
+
+- **Monitor (AI), admin only for now (D1):** every read (runs, progress, events, conversations, messages, models,
+  exports) needs `monitor.view`; every write (submit, stop, branch, pin, rename, hide, table export) needs
+  `monitor.chat`. A run's model (the request's, else Orc's `server_default`) must be held as `monitor.model:<id>`, and
+  `saniti/claude-manual` needs `admin.manual` (`app/monitor.py`). `/api/v1/models` keeps one shared cache and lists, per
+  principal, only the models it holds (a default only when held). Models and providers are not changed here.
+- **At dispatch** (`app/worker.py`): a queued run's owner is read again; without `monitor.chat` or the model the run ends
+  FAILED `CAPABILITY_REQUIRED` before any Orc call.
+- **Terminal proxy** (`/api/terminal/v1/*`): `terminal.view` before any call to terminal-api.
+- **Page files** (`app/pages.py`): `/api/v1/<family>/index` and `/file/<name>` need `overview.view`, `radar.view` or
+  `watchlist.view`, checked before the shared caches. Files are sent `private, no-cache` with their ETag; a `?sha=`
+  request with a matching If-None-Match answers 304 only after the check.
+- `tests/test_phase3a_monitor_pages.py` walks these routes: a new one needs its line in `ROUTE_CAPS`.
