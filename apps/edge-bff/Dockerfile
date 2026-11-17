@@ -83,6 +83,8 @@ COPY requirements.txt .
 # Railway accepts cache mounts only; use the image's trusted CA roots for verified package downloads.
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
+# EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): the release stage of every catalog item, read by app/releases.py at start
+COPY catalog ./catalog
 COPY static ./static
 COPY --from=terminal /build/static/terminal-app ./static/terminal-app
 COPY --from=backtest /build/backtest/dist ./static/backtest-app
@@ -90,6 +92,6 @@ COPY --from=screener /build/screener/dist ./static/screener-app
 COPY --from=radar /build/radar/dist ./static/radar-app
 COPY --from=overview /build/overview/dist ./static/overview-app
 COPY --from=watchlist /build/watchlist/dist ./static/watchlist-app
-RUN useradd --uid 10001 --create-home edge && chmod -R a+rX /app/app /app/static
+RUN useradd --uid 10001 --create-home edge && chmod -R a+rX /app/app /app/catalog /app/static
 USER edge
 CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--no-access-log", "--no-proxy-headers"]
