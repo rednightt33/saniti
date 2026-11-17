@@ -29,10 +29,11 @@ import { PlannedClient } from './load.ts';
 import { errorFields, log, setLogSink, writeLine } from './log.ts';
 import { runJob, runSignals } from './run.ts';
 import type { References } from './validate.ts';
+import type { Allow, PlanLimits } from './access.ts';
 
 export type Task =
-  | { kind: 'job'; request: unknown; context: Pick<JobContext, 'prior_trials' | 'owner_trials' | 'rights'>; refs: References }
-  | { kind: 'signals'; request: unknown; refs: References; rights?: string[] };
+  | { kind: 'job'; request: unknown; context: Pick<JobContext, 'prior_trials' | 'owner_trials' | 'rights'> & { allow?: Allow; limits?: PlanLimits }; refs: References }
+  | { kind: 'signals'; request: unknown; refs: References; rights?: string[]; allow?: Allow; limits?: PlanLimits };
 export type Outcome =
   | { kind: 'job'; gzip: Uint8Array; json_bytes: number; duration_ms: number }
   | { kind: 'signals'; preview: SignalsPreview };
@@ -157,7 +158,7 @@ function startThread(d: ThreadData): void {
         if (hooks.shouldStop()) throw new Cancelled();             // a cancel that came while the result was packed
         port.postMessage({ seq, type: 'done', outcome: { kind: 'job', gzip, json_bytes, duration_ms: result.meta.duration_ms } }, [gzip.buffer]);
       } else {
-        port.postMessage({ seq, type: 'done', outcome: { kind: 'signals', preview: await runSignals(task.request, task.refs, env, hooks, { rights: task.rights ?? [] }) } });
+        port.postMessage({ seq, type: 'done', outcome: { kind: 'signals', preview: await runSignals(task.request, task.refs, env, hooks, { rights: task.rights ?? [], allow: task.allow, limits: task.limits }) } });
       }
     } catch (e) {
       const s = serialError(e);

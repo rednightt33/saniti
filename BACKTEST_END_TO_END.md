@@ -582,9 +582,9 @@ src/server.ts`. The loader resolves the Terminal's Vite-style extensionless impo
 | Route | What happens |
 |---|---|
 | `GET /v1/catalog` | `buildCatalog` (`src/catalog.ts`): both reference files, an IHSG `/bundle` (calendar `data_through`, `first_date`), with flow on the publication's `broker_through` (terminal-api `/state`; without it, the newest broker `data_through` over every stock's `/manifest`, `load.ts brokerDataThrough`), groupings from the ticker columns, the limits. Kept per publication (`ByPublication`: `/state` asked at most every 60 s, a new `finished_at` builds again); built at start (`warm`). The reference lists for validation, previews and jobs are kept the same way. |
-| `POST /v1/validate {request}` | `checkRequest` (`src/validate.ts`: allow-listed fields, then the core's checks), `canonicalRequest`, then `checkPublished` (`src/run.ts`): manifests only, never `/bundle`: `FLOW_DATA_THROUGH`, IHSG `last_bar` (`PERIOD_AFTER_DATA`). Answers `{ok, lineage_key, variant_hash, tickers}` |
+| `POST /v1/validate {request, context}` | `contextGrants` (`context.rights`, `allow`, `limits`; section 18, Phase 3b), `checkRequest` (`src/validate.ts`: allow-listed fields, then the core's checks, then the plan's items), `canonicalRequest`, then `checkPublished` (`src/run.ts`): manifests only, never `/bundle`: `FLOW_DATA_THROUGH`, IHSG `last_bar` (`PERIOD_AFTER_DATA`). Answers `{ok, lineage_key, variant_hash, tickers}` |
 | `POST /v1/signals` | the preview: FIFO queue, one at a time on the `previews` thread; the deadline covers the queue wait; a caller that leaves is removed or its thread task cancelled (`runSignals`) |
-| `POST /v1/jobs {job_id, request, context}` | `checkJobBody` (`job_id` `bt_` + 32 hex; `context.prior_trials`), the same id again = 202 (idempotent), another job running = 409 `BUSY`, `checkRequest` again (a refusal never becomes a job), then `startJob` on the `jobs` thread with a timeout |
+| `POST /v1/jobs {job_id, request, context}` | `checkJobBody` (`job_id` `bt_` + 32 hex; `context.prior_trials`, `rights`, `allow`, `limits`), the same id again = 202 (idempotent), another job running = 409 `BUSY`, `checkRequest` again (a refusal never becomes a job), then `startJob` on the `jobs` thread with a timeout |
 | `GET /v1/jobs/{id}`, `/result`, `POST /cancel` | status; the stored gzip result (repeatable; 410 `RESULT_GONE` once a newer job replaced it); cancel sets an `Atomics` flag the thread reads between phases, tickers and every 256 engine steps |
 
 Only the latest job is kept, in memory; after a restart every id is 404 `UNKNOWN_JOB`, which edge-bff turns into
@@ -793,6 +793,8 @@ still pays sha256, inflate and decode.
 | `DATA_MISSING`, `DATA_UNAVAILABLE`, `DATA_INTEGRITY` (424) | worker `terminal.ts`, page `live.ts` | no file, file unreachable, file not what its manifest says |
 | `BUSY`, `QUEUE_FULL`, `SUBMISSION_CONFLICT`, `PREVIEW_REPLACED` | worker, edge-bff | concurrency rules |
 | `CAPABILITY_REQUIRED`, `PLAN_EXPIRED` | edge-bff | the account's plan lacks `backtest.view` or `backtest.run` (EXEC-MU-ACCOUNTS Phase 3a); a queued job whose owner lost `backtest.run` ends FAILED with it at dispatch, without a worker call |
+| `CAPABILITY_REQUIRED` (403, `details {kind, id, capability}`) | worker `validate.ts` (`access.ts requireItem`) | an item the request names (an indicator, a Flow indicator, a candlestick pattern, a Screener metric; at its JSON path) is outside `context.allow` (EXEC-MU-ACCOUNTS Phase 3b); from validate, signals and a job's hand-over, or a job's FAILED error from the job thread's re-check |
+| `INVALID_CONTEXT` | worker `server.ts` | `context.rights`, `allow` or `limits` malformed (an unknown kind or limit name, a value of the wrong shape) |
 | `TIMEOUT`, `WORKER_LOST`, `RESULT_NOT_STORED`, `RESULT_INVALID`, `OUT_OF_MEMORY` | edge-bff loop, worker | the job ended without a stored result |
 | `RESULT_EXPIRED`, `RESULT_INTEGRITY`, `NOT_FINISHED`, `EVENTS_NOT_FOUND` | edge-bff result routes | reading a result |
 
@@ -975,6 +977,15 @@ The rules are in `apps/edge-bff/backtest/CONTRACT.md` section 13; this is where 
   family) whose window crosses an undecided, unresolved or not-reloaded action is empty. The daily publisher run reports
   the recent actions that need attention on Telegram (`Broker_Basis_Report`: unresolved, or the price history not pulled
   again; a pending one is not listed); the steps after an action are `UPDATE_TABLE.md` part C.
+- **EDGE multi-user Phase 3b (EXEC-MU-ACCOUNTS; CONTRACT.md 13.12).** Stage 5: every context may carry `allow` (per
+  item kind, `"*"` or the ids the plan holds) and `limits` (the plan's per-request ceilings, each taken as the smaller of
+  the worker's and the plan's); `server.ts contextGrants` reads them, `src/access.ts` checks them (422
+  `INVALID_CONTEXT`). `validate.ts` refuses an item outside `allow` with 403 `CAPABILITY_REQUIRED` (`field` its JSON
+  path, `details.capability` the Backtest family key): the stop and trailing lines, registry indicator conditions and
+  every reference of a grammar test (`grammar.ts testItems`), enabled or switched off, in the entry, the exit signals
+  and the preview's `detail.exit_signals`. The job thread checks a job again (`run.ts runJob`). Deploy step 1: both are
+  optional (absent = every item, the worker's limits: today's behaviour); Stage 6 (edge-bff) sends them next; a later
+  worker requires `allow`. Internal calls (tests, the look-ahead gate) leave `allow` out and get every item.
 - **Known open items (section 13).**
   - The data-layer fix M449: an as-traded price series (broker lots on the price basis: P9).
   - `OOS_ALREADY_SEEN`.
