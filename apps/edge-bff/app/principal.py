@@ -146,6 +146,13 @@ class Principal:
         """A limit (non-negative integer) or list (strings) the plan sets; default when it sets none (no limit)."""
         return self.limits.get(capability, default)
 
+    def capped(self, capability, hard):
+        """Phase 3a (CONTRACT.md 8b "Saved-item caps"): min(the plan's limit, hard). hard is the module's constant, the
+        storage guarantee no plan or override can raise; no row (the switch-off principal '*', a plan without the
+        limit) gives hard. Call it after the capability check of the route: a plan without the capability has no row."""
+        value = self.limit(capability, hard)
+        return min(value, hard) if isinstance(value, int) and not isinstance(value, bool) else hard
+
     def refusal(self, capability):
         """The refusal for a capability this principal does not hold: PLAN_EXPIRED when only its ended plan held it
         (renewing that plan is the fix), else CAPABILITY_REQUIRED (upgrading is)."""

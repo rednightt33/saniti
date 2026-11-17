@@ -35,6 +35,10 @@ TICKER = re.compile(r'[A-Z0-9]{1,12}')
 KEY = re.compile(r'[a-z0-9_]{1,24}')
 TABLES_RETRY_SECONDS = 30
 FIRST_LIST = 'Watchlist'                                    # the list the Screener's star creates when none exists
+# EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): every list route needs watchlist.view; each limit is the plan's value,
+# at most the constant above (HARD, the storage guarantee no plan raises; Principal.capped)
+CAPABILITY = 'watchlist.view'
+LIMIT_KEYS = {'lists': 'watchlist.lists', 'tickers': 'watchlist.per_list', 'indicators': 'watchlist.indicators'}
 
 MESSAGES = {
     'WATCHLIST_NOT_READY': 'The watchlist tables are not installed yet; retry after the stated seconds.',
@@ -46,18 +50,27 @@ MESSAGES = {
 }
 
 
-def limits():
-    """The limits with their rule and one right and one wrong example (the wrong one ends with the fix)."""
+def caps_of(p=None):
+    """{lists, tickers, indicators}: the principal's limits, each min(plan value, HARD); HARD itself without one."""
+    hard = {'lists': LISTS, 'tickers': PER_LIST, 'indicators': INDICATORS}
+    return {k: p.capped(LIMIT_KEYS[k], v) if p is not None else v for k, v in hard.items()}
+
+
+def limits(caps=None):
+    """The limits with their rule and one right and one wrong example (the wrong one ends with the fix); caps: the
+    principal's own numbers (caps_of), HARD without them."""
+    caps = caps or caps_of()
+    lists, per_list, most = caps['lists'], caps['tickers'], caps['indicators']
     return [
-        {'name': 'lists', 'value': LISTS, 'unit': 'lists',
-         'rule': f'at most {LISTS} lists', 'example_ok': f'creating a list while you have {LISTS - 1}',
-         'example_refused': f'creating a list while you have {LISTS} (delete one first)'},
-        {'name': 'tickers', 'value': PER_LIST, 'unit': 'stocks',
-         'rule': f'at most {PER_LIST} stocks in one list', 'example_ok': f'adding a stock to a list of {PER_LIST - 1}',
-         'example_refused': f'adding a stock to a list of {PER_LIST} (remove one or use another list)'},
-        {'name': 'indicators', 'value': INDICATORS, 'unit': 'indicators',
-         'rule': f'1 to {INDICATORS} indicators per list', 'example_ok': f'saving {INDICATORS} indicators',
-         'example_refused': f'saving {INDICATORS + 1} indicators (remove one) or none (choose at least one)'},
+        {'name': 'lists', 'value': lists, 'unit': 'lists',
+         'rule': f'at most {lists} lists', 'example_ok': f'creating a list while you have {max(lists - 1, 0)}',
+         'example_refused': f'creating a list while you have {lists} (delete one first)'},
+        {'name': 'tickers', 'value': per_list, 'unit': 'stocks',
+         'rule': f'at most {per_list} stocks in one list', 'example_ok': f'adding a stock to a list of {max(per_list - 1, 0)}',
+         'example_refused': f'adding a stock to a list of {per_list} (remove one or use another list)'},
+        {'name': 'indicators', 'value': most, 'unit': 'indicators',
+         'rule': f'1 to {most} indicators per list', 'example_ok': f'saving {most} indicators',
+         'example_refused': f'saving {most + 1} indicators (remove one) or none (choose at least one)'},
         {'name': 'name', 'value': NAME_CHARS, 'unit': 'characters',
          'rule': f'a list name has 1 to {NAME_CHARS} characters and differs from your other lists (ignoring case)',
          'example_ok': 'Banks', 'example_refused': '"banks" next to "Banks" (pick another name)'},
@@ -93,24 +106,26 @@ def name_of(value):
     return value.strip()
 
 
-def tickers_of(value, field='tickers'):
+def tickers_of(value, field='tickers', per_list=None):
     if not isinstance(value, list) or not all(isinstance(t, str) and TICKER.fullmatch(t) for t in value):
         raise invalid(field, 'Each stock code is 1 to 12 capital letters or digits, e.g. BBCA.')
     out = list(dict.fromkeys(value))
-    if len(out) > PER_LIST:
-        raise over('tickers', PER_LIST, len(out), f'At most {PER_LIST} stocks in one list: this request has {len(out)}. '
+    per_list = PER_LIST if per_list is None else per_list
+    if len(out) > per_list:
+        raise over('tickers', per_list, len(out), f'At most {per_list} stocks in one list: this request has {len(out)}. '
                    'Remove some or use another list.')
     return out
 
 
-def indicators_of(value):
+def indicators_of(value, most=None):
     if value is None:
         return None                                     # the data file's default
     if not isinstance(value, list) or not all(isinstance(k, str) and KEY.fullmatch(k) for k in value):
         raise invalid('indicators', 'Indicators are keys from the indicator list, e.g. rsi.')
     out = list(dict.fromkeys(value))
-    if not 1 <= len(out) <= INDICATORS:
-        raise over('indicators', INDICATORS, len(out), f'Choose 1 to {INDICATORS} indicators: this has {len(out)}.')
+    most = INDICATORS if most is None else most
+    if not 1 <= len(out) <= most:
+        raise over('indicators', most, len(out), f'Choose 1 to {most} indicators: this has {len(out)}.')
     return out
 
 
@@ -172,13 +187,14 @@ class WatchlistStore:
         with self.connect() as c:
             return self._lists(c, owner)
 
-    def create(self, owner, name, tickers, indicators, position):
+    def create(self, owner, name, tickers, indicators, position, most=None):
         with self.connect() as c:
             self.lock(c, owner)
             held = c.execute('SELECT count(*) AS n, coalesce(max(position), -1) AS top FROM edge_bff.watchlist_lists '
                              'WHERE owner_key=%s', (owner,)).fetchone()
-            if held['n'] >= LISTS:
-                raise over('lists', LISTS, held['n'] + 1, f'At most {LISTS} lists: you have {held["n"]}. Delete one first.')
+            most = LISTS if most is None else most
+            if held['n'] >= most:
+                raise over('lists', most, held['n'] + 1, f'At most {most} lists: you have {held["n"]}. Delete one first.')
             if position is not None:          # Undo puts a list back at its place: the lists from there move one down
                 c.execute('UPDATE edge_bff.watchlist_lists SET position = position + 1 WHERE owner_key=%s AND position >= %s',
                           (owner, position))
@@ -227,7 +243,7 @@ class WatchlistStore:
             c.execute('DELETE FROM edge_bff.watchlist_lists WHERE owner_key=%s AND list_id=%s', (owner, list_id))
             return next(x for x in lists if x['id'] == list_id)
 
-    def add(self, owner, list_id, tickers, position):
+    def add(self, owner, list_id, tickers, position, per_list=None):
         """Add stocks to a list (a stock already in it stays where it is). position: where the first new one goes (Undo
         puts a removed stock back at its old place); default after the last."""
         with self.connect() as c:
@@ -237,9 +253,10 @@ class WatchlistStore:
                              (owner, list_id)).fetchall()
             known = {r['ticker'] for r in have}
             new = [t for t in tickers if t not in known]
-            if len(have) + len(new) > PER_LIST:
-                raise over('tickers', PER_LIST, len(have) + len(new),
-                           f'At most {PER_LIST} stocks in one list: it has {len(have)}, these would make {len(have) + len(new)}. '
+            per_list = PER_LIST if per_list is None else per_list
+            if len(have) + len(new) > per_list:
+                raise over('tickers', per_list, len(have) + len(new),
+                           f'At most {per_list} stocks in one list: it has {len(have)}, these would make {len(have) + len(new)}. '
                            'Remove some or use another list.')
             start = (max((r['position'] for r in have), default=-1) + 1) if position is None else position
             for n, t in enumerate(new):
@@ -286,6 +303,7 @@ class Watchlist:
 
     def routes(self, app, auth):
         self.files.routes(app, auth)
+        reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
 
         def answer(body, status=200):
             return JSONResponse(status_code=status, content=jsonable_encoder(body))
@@ -304,41 +322,46 @@ class Watchlist:
         app.add_exception_handler(WatchlistError, refused)
 
         @app.get('/api/v1/watchlist/lists')
-        async def lists(p: Principal = Depends(auth.principal)):
-            return answer({'lists': await asyncio.to_thread(self.store.lists, p.owner_key), 'limits': limits()})
+        async def lists(p: Principal = Depends(reader)):
+            return answer({'lists': await asyncio.to_thread(self.store.lists, p.owner_key), 'limits': limits(caps_of(p))})
 
         @app.post('/api/v1/watchlist/lists')
-        async def create(request: Request, p: Principal = Depends(auth.writer)):
+        async def create(request: Request, p: Principal = Depends(writer)):
             b = await body_of(request)
-            made = await asyncio.to_thread(self.store.create, p.owner_key, name_of(b.get('name')), tickers_of(b.get('tickers', [])),
-                                           indicators_of(b.get('indicators')), position_of(b.get('position')))
+            caps = caps_of(p)
+            made = await asyncio.to_thread(self.store.create, p.owner_key, name_of(b.get('name')),
+                                           tickers_of(b.get('tickers', []), per_list=caps['tickers']),
+                                           indicators_of(b.get('indicators'), caps['indicators']), position_of(b.get('position')),
+                                           caps['lists'])
             return answer({'list': made}, 201)
 
         @app.patch('/api/v1/watchlist/lists/{list_id}')
-        async def update(list_id: str, request: Request, p: Principal = Depends(auth.writer)):
+        async def update(list_id: str, request: Request, p: Principal = Depends(writer)):
             b = await body_of(request)
             name = name_of(b['name']) if 'name' in b else None
-            ind = indicators_of(b['indicators']) if 'indicators' in b else ...
+            ind = indicators_of(b['indicators'], caps_of(p)['indicators']) if 'indicators' in b else ...
             return answer({'list': await asyncio.to_thread(self.store.update, p.owner_key, list_id_of(list_id), name, ind)})
 
         @app.put('/api/v1/watchlist/indicators')
-        async def indicators_all(request: Request, p: Principal = Depends(auth.writer)):
+        async def indicators_all(request: Request, p: Principal = Depends(writer)):
             b = await body_of(request)
-            return answer({'lists': await asyncio.to_thread(self.store.indicators_all, p.owner_key, indicators_of(b.get('indicators')))})
+            return answer({'lists': await asyncio.to_thread(self.store.indicators_all, p.owner_key, indicators_of(b.get('indicators'), caps_of(p)['indicators']))})
 
         @app.delete('/api/v1/watchlist/lists/{list_id}')
-        async def delete(list_id: str, p: Principal = Depends(auth.writer)):
+        async def delete(list_id: str, p: Principal = Depends(writer)):
             return answer({'deleted': await asyncio.to_thread(self.store.delete, p.owner_key, list_id_of(list_id))})
 
         @app.post('/api/v1/watchlist/lists/{list_id}/tickers')
-        async def add(list_id: str, request: Request, p: Principal = Depends(auth.writer)):
+        async def add(list_id: str, request: Request, p: Principal = Depends(writer)):
             b = await body_of(request)
-            got = await asyncio.to_thread(self.store.add, p.owner_key, list_id_of(list_id), tickers_of(b.get('tickers')),
-                                          position_of(b.get('position')))
+            per_list = caps_of(p)['tickers']
+            got = await asyncio.to_thread(self.store.add, p.owner_key, list_id_of(list_id),
+                                          tickers_of(b.get('tickers'), per_list=per_list), position_of(b.get('position')),
+                                          per_list)
             return answer(got)
 
         @app.delete('/api/v1/watchlist/lists/{list_id}/tickers/{ticker}')
-        async def remove(list_id: str, ticker: str, p: Principal = Depends(auth.writer)):
+        async def remove(list_id: str, ticker: str, p: Principal = Depends(writer)):
             if not TICKER.fullmatch(ticker):
                 raise invalid('ticker', 'A stock code is 1 to 12 capital letters or digits, e.g. BBCA.')
             await asyncio.to_thread(self.store.remove, p.owner_key, list_id_of(list_id), ticker)

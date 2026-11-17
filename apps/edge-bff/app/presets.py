@@ -34,7 +34,8 @@ DEF_ID = re.compile(r'[A-Za-z0-9_]{1,40}')          # migration 20261106_002 (de
 CONFIG_KEYS = {'params', 'style', 'on', 'fold'}
 CONFIG_BYTES = 16384                                 # migration 20261106_002 (octet_length(config::text))
 SUMMARY_MAX = 300
-PRESET_LIMIT = 100
+PRESET_LIMIT = 100                                  # per owner (HARD of the plan's cap)
+CAPABILITY, LIMIT_KEY = 'terminal.presets', 'terminal.presets_max'   # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b)
 SCHEMA_VERSION = 1
 RETRY_SECONDS = 30
 FIELDS = ('preset_id', 'name', 'def_id', 'config', 'summary', 'schema_version', 'favorite', 'revision', 'created_at',
@@ -113,7 +114,7 @@ class PresetStore:
             return c.execute(f'''SELECT {", ".join(FIELDS)} FROM edge_bff.indicator_presets WHERE owner_key=%s
                 ORDER BY favorite DESC, used_at DESC, preset_id''', (owner,)).fetchall()
 
-    def put(self, owner, preset_id, name, def_id, config, summary, revision):
+    def put(self, owner, preset_id, name, def_id, config, summary, revision, limit=PRESET_LIMIT):
         with self.connect() as c:
             c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('presets:' + owner,))
             row = c.execute('SELECT revision FROM edge_bff.indicator_presets WHERE owner_key=%s AND preset_id=%s FOR UPDATE',
@@ -124,9 +125,9 @@ class PresetStore:
                         raise failure('REVISION_CONFLICT', 409, details={'revision': row['revision']})
                     held = c.execute('SELECT count(*) AS n FROM edge_bff.indicator_presets WHERE owner_key=%s',
                                      (owner,)).fetchone()['n']
-                    if held >= PRESET_LIMIT:
-                        raise failure('LIMIT_EXCEEDED', 422, message=f'At most {PRESET_LIMIT} presets: delete one before saving another.',
-                                      details={'limit': 'presets', 'allowed': PRESET_LIMIT, 'needed': held + 1})
+                    if held >= limit:
+                        raise failure('LIMIT_EXCEEDED', 422, message=f'At most {limit} presets: delete one before saving another.',
+                                      details={'limit': 'presets', 'allowed': limit, 'needed': held + 1})
                     created = c.execute('''INSERT INTO edge_bff.indicator_presets(preset_id,owner_key,name,def_id,config,summary,schema_version)
                         VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (preset_id) DO NOTHING RETURNING *''',
                         (preset_id, owner, name, def_id, Jsonb(config), summary, SCHEMA_VERSION)).fetchone()
@@ -188,14 +189,17 @@ class Presets:
 
     def routes(self, app, auth):
         store = self.store      # LayoutError answers through the layouts' handler
+        # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): every route needs terminal.presets; the cap is the plan's
+        # terminal.presets_max, at most PRESET_LIMIT
+        reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
 
         @app.get('/api/v1/terminal/presets')
-        async def presets(p: Principal = Depends(auth.principal)):
+        async def presets(p: Principal = Depends(reader)):
             rows = await asyncio.to_thread(store.list, p.owner_key)
-            return JSONResponse({'presets': [preset_of(r) for r in rows], 'limit': PRESET_LIMIT})
+            return JSONResponse({'presets': [preset_of(r) for r in rows], 'limit': p.capped(LIMIT_KEY, PRESET_LIMIT)})
 
         @app.put('/api/v1/terminal/presets/{preset_id}')
-        async def put_preset(preset_id: str, request: Request, p: Principal = Depends(auth.writer)):
+        async def put_preset(preset_id: str, request: Request, p: Principal = Depends(writer)):
             body = await self.body(request)
             unknown = set(body) - {'name', 'def_id', 'config', 'summary', 'revision'}
             if unknown:
@@ -211,11 +215,12 @@ class Presets:
             if revision is not None and (isinstance(revision, bool) or not isinstance(revision, int) or revision < 1):
                 raise invalid('revision', 'revision is the positive whole number the preset was read with')
             row, created = await asyncio.to_thread(store.put, p.owner_key, self.preset_id(preset_id), checked_name(body.get('name')),
-                                                   def_id, checked_config(body.get('config')), summary.strip(), revision)
+                                                   def_id, checked_config(body.get('config')), summary.strip(), revision,
+                                                   p.capped(LIMIT_KEY, PRESET_LIMIT))
             return JSONResponse(preset_of(row), status_code=201 if created else 200)
 
         @app.patch('/api/v1/terminal/presets/{preset_id}')
-        async def mark_preset(preset_id: str, request: Request, p: Principal = Depends(auth.writer)):
+        async def mark_preset(preset_id: str, request: Request, p: Principal = Depends(writer)):
             body = await self.body(request)
             favorite, used = body.get('favorite'), body.get('used')
             if set(body) - {'favorite', 'used'} or (favorite is not None and not isinstance(favorite, bool)) \
@@ -224,6 +229,6 @@ class Presets:
             return JSONResponse(preset_of(await asyncio.to_thread(store.mark, p.owner_key, self.preset_id(preset_id), favorite, bool(used))))
 
         @app.delete('/api/v1/terminal/presets/{preset_id}', status_code=204)
-        async def delete_preset(preset_id: str, p: Principal = Depends(auth.writer)):
+        async def delete_preset(preset_id: str, p: Principal = Depends(writer)):
             await asyncio.to_thread(store.delete, p.owner_key, self.preset_id(preset_id))
             return Response(status_code=204)

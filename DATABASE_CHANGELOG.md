@@ -1,5 +1,22 @@
 # Database changelog
 
+## 2026-11-17 — EDGE plan catalog Phase 3a rows (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 3a) — not applied yet
+
+- **Why:** the edge-bff route gates and saved-item caps of Phase 3a (CONTRACT.md 8b "3a in detail", decisions D1, D6
+  and D8 of the user 2026-11-17). Rows only, no table, column, grant or index change; operational schema `edge_bff`, so
+  no `Table_Catalog` rows.
+- **`20261117_004_edge_bff_catalog_phase3a.sql`**, after `20261117_003` (its preflight refuses to run without the
+  catalog and its value-shape trigger, and refuses a second run).
+- **New capabilities (7, 48 in all):** `admin.manual` and `terminal.presets` (flags), the limits
+  `terminal.layouts_max`, `terminal.presets_max`, `terminal.drawings_max`, `screener.saved_items` and
+  `backtest.queued_jobs`. No plan holds `admin.manual` (only `*`).
+- **Paid plan:** loses `monitor.view`, `monitor.chat` and `monitor.model` (the Monitor is admin only for now); gains
+  `monitor.example`, `terminal.presets` and the limits 50, 100, 5000, 50 and 3 (today's module constants, which stay
+  the hard ceiling in edge-bff).
+- **Verification:** the file's verify block (48 capabilities, the paid values, no Monitor row on paid, no plan with
+  `admin.manual`, one plan with `*`, a unit on every limit); `apps/edge-bff/tests/test_phase3a_gates.py` on a disposable
+  Postgres. To be applied on dev with the user's go, through the edge-multiuser migration job.
+
 ## 2026-11-17 — EDGE plan catalog and subscriptions (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 2) — applied 2026-11-17 (job `2a413c69`)
 
 - **Why:** plans as data (CONTRACT.md section 8a; go 2026-11-16 and 2026-11-17 "sudah ada, pls continue"). Operational

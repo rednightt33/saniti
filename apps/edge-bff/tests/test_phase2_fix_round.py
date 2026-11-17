@@ -126,7 +126,8 @@ def test_a_subscription_marked_expired_without_an_end_names_the_ended_plan(on, s
     subscribe(store, alice['user_id'], paid, status='expired')
     p = Auth(on, store).owner_principal(alice['owner_key'])
     assert p.expired_plan == paid and p.plan_key == plan_without_star(store, True)
-    assert p.refusal('monitor.chat').code == 'PLAN_EXPIRED'
+    # a capability only the ended plan held (Phase 3a: the Monitor left the paid plan, decision D1)
+    assert p.refusal('backtest.run').code == 'PLAN_EXPIRED'
 
 
 def test_the_version_follows_the_plans_end_and_the_release_stages(on, store, monkeypatch):

@@ -674,7 +674,13 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
   `RESULT_NOT_STORED` (the worker finished, but its result could not be stored: at once for a store failure no retry
   mends, or by `BACKTEST_TIMEOUT_SECONDS` while the database failed in a way a retry may mend; with a message; nothing
   stored, section 9 **[D-B2]**),
-  `WORKER_FAILED` (the worker reports `FAILED` without an error). Cancel → `CANCELLED`, without an error.
+  `WORKER_FAILED` (the worker reports `FAILED` without an error), `CAPABILITY_REQUIRED` or `PLAN_EXPIRED` (EXEC-MU-ACCOUNTS
+  Phase 3a: the owner's plan no longer holds `backtest.run` when the queued job is dispatched; `details.capability`,
+  with a message; the worker is never called). Cancel → `CANCELLED`, without an error.
+- Access (EXEC-MU-ACCOUNTS Phase 3a, `verification/edge_multiuser/access_tiers/CONTRACT.md` 8b, D5): 403
+  `CAPABILITY_REQUIRED` (or `PLAN_EXPIRED`) in edge-bff's error shape (`app/errors.py`): the catalog, the job list,
+  status, result, events and cancel need `backtest.view`; signals and submit need `backtest.run`. The queued jobs per
+  owner are `min(plan's backtest.queued_jobs, BACKTEST_QUEUED_PER_OWNER)`.
 
 ## 12. Decisions taken for the user (2026-10-26; PF1–PF8 and LA-1 2026-10-27)
 

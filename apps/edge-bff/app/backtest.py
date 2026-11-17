@@ -26,6 +26,7 @@ from psycopg.types.json import Jsonb
 
 from .client import public_data
 from .accounts import AccountStore
+from .errors import message_of
 from .principal import Principal, owner_principal
 from .rights import catalog_for, refuse_context, rights_of
 
@@ -62,6 +63,9 @@ CATALOG_CACHE_SECONDS = 60
 # by its page's next one arrives within a request's time, so only pages loaded since then matter; past this many, the
 # oldest page is forgotten and arrival order decides for it, as for a client that sends no order.
 PREVIEW_PAGES = 64
+# EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): the capabilities of the routes and of a queued job's dispatch, and the
+# plan's limit of queued jobs per owner (at most BACKTEST_QUEUED_PER_OWNER, the HARD of Principal.capped)
+VIEW, RUN, QUEUED_KEY = 'backtest.view', 'backtest.run', 'backtest.queued_jobs'
 # the job's error when a finished result could not be stored (CONTRACT.md section 9, D-B2): the logs hold why
 NOT_STORED = {'code': 'RESULT_NOT_STORED', 'message': 'The backtest finished, but edge-bff could not store its result.'}
 
@@ -922,11 +926,19 @@ class BacktestLoop:
                 owner_trials = await self.call(self.store.owner_trials, row['owner_key'])
                 # EXEC-BACKTEST-REVAMP P5, EXEC-MU-ACCOUNTS Phase 1: the owner's rights as they are now, from its
                 # principal (an admin right taken away while the job waited: the worker refuses it, CONDITION_RESTRICTED)
-                rights = rights_of(await self.call(self.access, row['owner_key']))
+                principal = await self.call(self.access, row['owner_key'])
+                rights = rights_of(principal)
             except psycopg.OperationalError as e:
                 self.store_failed('dispatch', job_id, e)
                 await self.sleep(self.settings.poll_seconds)
                 continue
+            if not principal.can(RUN):
+                # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b): the plan lost backtest.run while the job waited (a
+                # downgrade or an ended plan): the job ends with the principal's refusal, never reaching the worker
+                refused = principal.refusal(RUN)
+                await self.end_job(row, deadline, 'FAILED', {'code': refused.code, 'message': message_of(refused.code, 403),
+                                                              'details': refused.details})
+                return False
             body = {'job_id': job_id, 'request': row['request'],
                     'context': {'job_id': job_id, 'prior_trials': prior, 'owner_trials': owner_trials,
                                 'rights': rights}}
@@ -1279,11 +1291,17 @@ class Backtests:
             self.loop.access = auth.owner_principal
 
         # EXEC-BACKTEST-REVAMP P5, EXEC-MU-ACCOUNTS Phase 1: every route reads the principal's owner and its rights
-        # (rights.py), never the configured owner nor a body's
-        async def identity(p: Principal = Depends(auth.principal)):
+        # (rights.py), never the configured owner nor a body's. Phase 3a (CONTRACT.md 8b, D5): reads and cancel need
+        # backtest.view, signals and submit backtest.run (the dispatch checks backtest.run again, BacktestLoop.dispatch)
+        viewing, running, cancelling = auth.need(VIEW), auth.need(RUN, write=True), auth.need(VIEW, write=True)
+
+        async def identity(p: Principal = Depends(viewing)):
             return p.owner_key
 
-        async def writer(p: Principal = Depends(auth.writer)):
+        async def writer(p: Principal = Depends(running)):
+            return p.owner_key
+
+        async def canceller(p: Principal = Depends(cancelling)):
             return p.owner_key
 
         def rights(request):
@@ -1326,11 +1344,12 @@ class Backtests:
                 return Response(status_code=204)    # never sent: uvicorn drops an answer to a closed connection
 
         @app.post('/api/v1/backtests', status_code=202)
-        async def submit(request: Request, owner: str = Depends(writer)):
+        async def submit(request: Request, p: Principal = Depends(running)):
             """202 {request_id}: the request checked by the worker (its 422 relayed as it is) and queued; the same
             client_request_id returns the same job (the picked stocks in any order, same_request). client_request_id is
             edge-bff's submission key: it is taken out here, so neither /v1/validate nor /v1/jobs (the stored request)
             gets it; every other key goes on as sent."""
+            owner = p.owner_key
             await self.guard()
             body = await self.json_object(request)
             refuse_context(body)
@@ -1361,7 +1380,7 @@ class Backtests:
                     stored = time.monotonic()
                     try:
                         row, created = await asyncio.to_thread(self.store.submit, owner, key, body, lineage, variant,
-                                                               settings.backtest_queued_per_owner)
+                                                               p.capped(QUEUED_KEY, settings.backtest_queued_per_owner))
                     finally:
                         timed['store_ms'] = ms_since(stored)
                 elif not same_request(row['request'], body):
@@ -1426,7 +1445,7 @@ class Backtests:
             return json_part(request, payload)
 
         @app.post('/api/v1/backtests/{request_id}/cancel')
-        async def cancel(request_id: str, owner: str = Depends(writer)):
+        async def cancel(request_id: str, owner: str = Depends(canceller)):
             """202 with the job: a queued job is CANCELLED at once, a running one is stopped at the worker by the loop.
             409 NOT_RUNNING when it had already ended."""
             await self.guard()

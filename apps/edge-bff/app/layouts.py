@@ -36,7 +36,8 @@ NAME_MAX = 120                                      # migration 20261106_001: 1-
 SUMMARY_MAX = 120
 STATE_BYTES = 65536                                 # migration 20261106_001 (octet_length(state::text))
 STATE_KEYS = 64
-LAYOUT_LIMIT = 50                                   # per owner, as the screener's 50 saved screens
+LAYOUT_LIMIT = 50                                   # per owner, as the screener's 50 saved screens (HARD of the plan's cap)
+CAPABILITY, LIMIT_KEY = 'terminal.layouts', 'terminal.layouts_max'   # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b)
 SCHEMA_VERSION = 1
 RETRY_SECONDS = 30
 FIELDS = ('layout_id', 'name', 'summary', 'schema_version', 'favorite', 'revision', 'created_at', 'updated_at', 'opened_at')
@@ -138,8 +139,9 @@ class LayoutStore:
             raise failure('NOT_FOUND', 404)
         return row
 
-    def put(self, owner, layout_id, name, state, summary, revision):
-        """Create (revision None) or replace (the revision it was read with), serialised per owner. (row, created)."""
+    def put(self, owner, layout_id, name, state, summary, revision, limit=LAYOUT_LIMIT):
+        """Create (revision None) or replace (the revision it was read with), serialised per owner. (row, created).
+        limit: the principal's cap (Principal.capped, at most LAYOUT_LIMIT); a replace is never refused by it."""
         with self.connect() as c:
             c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('layouts:' + owner,))
             row = c.execute('SELECT revision FROM edge_bff.terminal_layouts WHERE owner_key=%s AND layout_id=%s FOR UPDATE',
@@ -150,9 +152,9 @@ class LayoutStore:
                         raise failure('REVISION_CONFLICT', 409, details={'revision': row['revision']})
                     held = c.execute('SELECT count(*) AS n FROM edge_bff.terminal_layouts WHERE owner_key=%s',
                                      (owner,)).fetchone()['n']
-                    if held >= LAYOUT_LIMIT:
-                        raise failure('LIMIT_EXCEEDED', 422, message=f'At most {LAYOUT_LIMIT} layouts: delete one before saving another.',
-                                      details={'limit': 'layouts', 'allowed': LAYOUT_LIMIT, 'needed': held + 1})
+                    if held >= limit:
+                        raise failure('LIMIT_EXCEEDED', 422, message=f'At most {limit} layouts: delete one before saving another.',
+                                      details={'limit': 'layouts', 'allowed': limit, 'needed': held + 1})
                     created = c.execute('''INSERT INTO edge_bff.terminal_layouts(layout_id,owner_key,name,state,summary,schema_version)
                         VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (layout_id) DO NOTHING RETURNING *''',
                         (layout_id, owner, name, Jsonb(state), summary, SCHEMA_VERSION)).fetchone()
@@ -215,22 +217,25 @@ class Layouts:
 
     def routes(self, app, auth):
         store = self.store
+        # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): every route, reads included, needs terminal.layouts; the cap is
+        # the plan's terminal.layouts_max, at most LAYOUT_LIMIT
+        reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
 
         @app.exception_handler(LayoutError)
         async def layout_error(_, exc):
             return JSONResponse(status_code=exc.status, content={'error': exc.error}, headers=exc.headers)
 
         @app.get('/api/v1/terminal/layouts')
-        async def layouts(p: Principal = Depends(auth.principal)):
+        async def layouts(p: Principal = Depends(reader)):
             rows = await asyncio.to_thread(store.list, p.owner_key)
-            return JSONResponse({'layouts': [layout_of(r) for r in rows], 'limit': LAYOUT_LIMIT})
+            return JSONResponse({'layouts': [layout_of(r) for r in rows], 'limit': p.capped(LIMIT_KEY, LAYOUT_LIMIT)})
 
         @app.get('/api/v1/terminal/layouts/{layout_id}')
-        async def layout(layout_id: str, p: Principal = Depends(auth.principal)):
+        async def layout(layout_id: str, p: Principal = Depends(reader)):
             return JSONResponse(layout_of(await asyncio.to_thread(store.get, p.owner_key, self.layout_id(layout_id)), True))
 
         @app.put('/api/v1/terminal/layouts/{layout_id}')
-        async def put_layout(layout_id: str, request: Request, p: Principal = Depends(auth.writer)):
+        async def put_layout(layout_id: str, request: Request, p: Principal = Depends(writer)):
             body = await self.body(request)
             unknown = set(body) - {'name', 'state', 'summary', 'revision'}
             if unknown:
@@ -243,11 +248,12 @@ class Layouts:
             if revision is not None and (isinstance(revision, bool) or not isinstance(revision, int) or revision < 1):
                 raise invalid('revision', 'revision is the positive whole number the layout was read with')
             row, created = await asyncio.to_thread(store.put, p.owner_key, self.layout_id(layout_id), checked_name(body.get('name')),
-                                                   checked_state(body.get('state')), summary.strip(), revision)
+                                                   checked_state(body.get('state')), summary.strip(), revision,
+                                                   p.capped(LIMIT_KEY, LAYOUT_LIMIT))
             return JSONResponse(layout_of(row, True), status_code=201 if created else 200)
 
         @app.patch('/api/v1/terminal/layouts/{layout_id}')
-        async def mark_layout(layout_id: str, request: Request, p: Principal = Depends(auth.writer)):
+        async def mark_layout(layout_id: str, request: Request, p: Principal = Depends(writer)):
             body = await self.body(request)
             favorite, opened = body.get('favorite'), body.get('opened')
             if set(body) - {'favorite', 'opened'} or (favorite is not None and not isinstance(favorite, bool)) \
@@ -256,6 +262,6 @@ class Layouts:
             return JSONResponse(layout_of(await asyncio.to_thread(store.mark, p.owner_key, self.layout_id(layout_id), favorite, bool(opened))))
 
         @app.delete('/api/v1/terminal/layouts/{layout_id}', status_code=204)
-        async def delete_layout(layout_id: str, p: Principal = Depends(auth.writer)):
+        async def delete_layout(layout_id: str, p: Principal = Depends(writer)):
             await asyncio.to_thread(store.delete, p.owner_key, self.layout_id(layout_id))
             return Response(status_code=204)
