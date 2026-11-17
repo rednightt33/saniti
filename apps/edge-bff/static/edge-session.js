@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=fb8f09bff727cd5df1f549f9fc69214f0be5456afc2a3f480e25129fab7355ce by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=f43dd0fa7758572f4bc17ae8c85b47849fd659214f59e6d7720b6cdd78199a54 by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -21,6 +21,7 @@ var EdgeSession = (() => {
   // shared/edge-session.ts
   var edge_session_exports = {};
   __export(edge_session_exports, {
+    CATALOG_URL: () => CATALOG_URL,
     ENTITLEMENTS_HEADER: () => ENTITLEMENTS_HEADER,
     LAST_LOGIN_KEY: () => LAST_LOGIN_KEY,
     PREFERENCES_URL: () => PREFERENCES_URL,
@@ -192,7 +193,14 @@ var EdgeSession = (() => {
       }
     }
   }
+  var memoryClears = /* @__PURE__ */ new Set();
   function clearUserState(opts = {}) {
+    memoryClears.forEach((fn) => {
+      try {
+        fn();
+      } catch {
+      }
+    });
     clearArea("local", !!opts.signOut);
     clearArea("session", !!opts.signOut);
     post({ type: "cleared", signOut: !!opts.signOut });
@@ -376,6 +384,8 @@ var EdgeSession = (() => {
   }
   var SESSION_URL = "/api/v1/auth/session";
   var ENTITLEMENTS_HEADER = "X-Edge-Entitlements";
+  var CATALOG_URL = "/api/v1/catalog/";
+  var isItemKey = (key) => key.includes(":");
   var SessionError = class extends Error {
     constructor(error, message) {
       super(message);
@@ -463,12 +473,23 @@ var EdgeSession = (() => {
     const f = fetchImpl ?? ((...a) => fetch(...a));
     let p = null, now = null;
     let identity = "";
+    const catalogs = /* @__PURE__ */ new Map();
+    let catalogGen = 0;
+    const dropCatalogs = () => {
+      catalogs.clear();
+      catalogGen++;
+    };
+    const catalogStamp = () => `${entitlements ?? ""}
+${identity}`;
     const invalidate = () => {
       p = null;
       now = null;
+      dropCatalogs();
     };
     clients.add(invalidate);
     listen();
+    resets.add(dropCatalogs);
+    memoryClears.add(dropCatalogs);
     const session = () => p || (p = (async () => {
       let res;
       try {
@@ -538,10 +559,64 @@ var EdgeSession = (() => {
       }
       return res;
     }
+    function access() {
+      const a = now?.access;
+      if (!a || typeof a !== "object" || Array.isArray(a)) return null;
+      return {
+        ...a,
+        capabilities: Array.isArray(a.capabilities) ? a.capabilities.filter((c) => typeof c === "string") : [],
+        limits: a.limits && typeof a.limits === "object" && !Array.isArray(a.limits) ? a.limits : {}
+      };
+    }
+    function can(key) {
+      const caps = access()?.capabilities ?? [];
+      if (caps.includes("*")) return true;
+      return !!key && !isItemKey(key) && caps.includes(key);
+    }
+    function limit(key) {
+      const v = access()?.limits?.[key];
+      if (typeof v === "number" && Number.isFinite(v)) return v;
+      if (Array.isArray(v)) return v.filter((x) => typeof x === "string");
+      return void 0;
+    }
+    function catalog(kind) {
+      return identity ? catalogOf(kind) : session().then(() => catalogOf(kind));
+    }
+    function catalogOf(kind) {
+      const hit = catalogs.get(kind);
+      if (hit && hit.stamp === catalogStamp()) return hit.answer;
+      const gen = catalogGen;
+      const entry = { stamp: catalogStamp(), answer: null };
+      entry.answer = (async () => {
+        let res;
+        try {
+          res = await send(CATALOG_URL + encodeURIComponent(kind));
+        } catch {
+          throw new SessionError(null, "EDGE could not be reached. Check the connection and try again.");
+        }
+        if (!res.ok) {
+          const e = await errorOf(res);
+          throw new SessionError(e, accessText(e) || e.message || `EDGE answered ${res.status}.`);
+        }
+        const d = await res.json().catch(() => null);
+        const entries = Array.isArray(d?.entries) ? d.entries.filter((x) => x && typeof x.id === "string").map((x) => Object.freeze({ id: x.id, stage: typeof x.stage === "string" ? x.stage : "lab" })) : [];
+        if (gen === catalogGen && catalogs.get(kind) === entry) entry.stamp = catalogStamp();
+        return Object.freeze({ kind: typeof d?.kind === "string" ? d.kind : kind, entries: Object.freeze(entries) });
+      })();
+      entry.answer.catch(() => {
+        if (catalogs.get(kind) === entry) catalogs.delete(kind);
+      });
+      catalogs.set(kind, entry);
+      return entry.answer;
+    }
     return {
       session,
       send,
       invalidate,
+      access,
+      can,
+      limit,
+      catalog,
       get current() {
         return now;
       },

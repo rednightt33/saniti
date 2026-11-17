@@ -17,7 +17,14 @@ window.EdgeLabels = {
     PLAN_EXPIRED:"Your EDGE plan has ended. Renew it to use this again; you are still signed in.",
     MFA_REQUIRED:"This needs your sign-in code. Enter the code from your authenticator app, then try again.",
     LIMIT_REACHED:"You have reached your plan's limit. Try again later, or upgrade the plan.",
-    SIGN_IN_RATE_LIMIT:"Too many sign-in attempts. Wait a minute, then try again."
+    SIGN_IN_RATE_LIMIT:"Too many sign-in attempts. Wait a minute, then try again.",
+    // Phase 2 (contract 8a, locked wording, EXEC-UI-1019B): a locked item, an item not released yet, the upgrade prompt,
+    // a plan that has ended, and a capability refusal shown as a toast. No page shows them before Phase 3.
+    paidPlan:"Available on a paid plan",
+    comingSoon:"Coming soon",
+    contactUpgrade:"Contact us to upgrade",
+    planEnded:"Your plan has ended",
+    refusedToast:"This is not part of your plan."
   },
   fields: {
     objective:"Objective", universe:"Universe", time_scope:"Period", analysis_frequency:"Frequency", original_question:"Question",
