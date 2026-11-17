@@ -31,6 +31,7 @@ from app.errors import MESSAGES
 from app import main, screener
 from app.main import create_app
 from conftest import FakeOrc
+from test_backtest import ADMIN_RIGHTS    # the conftest settings' switch-off owner is an admin (Phase 3a)
 
 ORIGIN = {'Origin': 'http://testserver'}
 KEY = 's' * 40
@@ -404,7 +405,7 @@ def test_run_preview_validate_and_counts_are_relayed_as_sent(app, worker):
     body = run_body()
     r = c.post('/api/v1/screener/run', headers=c.headers_for, json=body)
     # EXEC-BACKTEST-REVAMP P5 (K8 b): edge-bff adds the session's rights as the body's context (this owner: none)
-    sent = {**body, 'context': {'rights': []}}
+    sent = {**body, 'context': {'rights': ADMIN_RIGHTS}}
     assert r.status_code == 200 and r.headers['content-encoding'] == 'gzip' and r.json()['echo'] == sent
     assert worker.called('/v1/run')[0]['body'] == sent and worker.called('/v1/run')[0]['key'] == KEY
     p = c.post('/api/v1/screener/preview', headers=c.headers_for, json=preview_body(ticker='TLKM'))
@@ -758,7 +759,12 @@ def test_session_origin_and_csrf_are_required_and_every_write_route_checks_them(
     writes = [r for r in c.app.routes if getattr(r, 'path', '').startswith('/api/v1/screener/')
               and set(getattr(r, 'methods', ())) & {'POST', 'PUT', 'PATCH', 'DELETE'}]
     assert len(writes) == len(WRITE_ROUTES)
-    assert [r.path for r in writes if 'write' not in {d.call.__name__ for d in r.dependant.dependencies}] == []
+    # the write dependency directly, or through Phase 3a's auth.need(capability, write=True) (its check depends on write)
+    writer = c.app.state.write_dependency
+
+    def depends_on(dependant, call):
+        return any(d.call is call or depends_on(d, call) for d in dependant.dependencies)
+    assert [r.path for r in writes if not depends_on(r.dependant, writer)] == []
     assert sorted((m, r.path) for r in writes for m in r.methods) == sorted(
         (m, p.replace('scr_' + '1' * 32, '{item_id}').replace('/BBCA', '/{ticker}')) for m, p in WRITE_ROUTES)
     h = c.headers_for
@@ -844,14 +850,14 @@ def test_saved_items_are_validated_created_replaced_and_deleted(app, worker):
     assert r.status_code == 200, r.text
     item = r.json()
     sent = worker.called('/v1/validate')[0]['body']
-    assert sent == {'schema_version': 1, 'definition': definition(), 'context': {'rights': []}}
+    assert sent == {'schema_version': 1, 'definition': definition(), 'context': {'rights': ADMIN_RIGHTS}}
     assert item['definition'] == screen_item()['definition'] and item['revision'] == 1 and item['needs_review'] == []
     assert (item['registry_version'], item['screener_registry_version']) == ('registry-a', 'sregistry-a')
     assert item['definition_hash'] == sha(json.dumps(definition(), sort_keys=True)) and item['schema_version'] == 1
     m = put(c, 2, metric_item())
     assert m.status_code == 200 and m.json()['kind'] == 'metric'
     assert worker.called('/v1/validate')[1]['body'] == {'schema_version': 1, 'definition': {
-        'universe': screener.METRIC_UNIVERSE, 'conditions': [{'id': 'm', 'enabled': True, 'test': rsi_test()}], 'logic': 'all'}, 'context': {'rights': []}}
+        'universe': screener.METRIC_UNIVERSE, 'conditions': [{'id': 'm', 'enabled': True, 'test': rsi_test()}], 'logic': 'all'}, 'context': {'rights': ADMIN_RIGHTS}}
     listed = c.get('/api/v1/screener/items?kind=screen').json()['items']
     assert [x['item_id'] for x in listed] == [item_id(1)] and listed[0] == item
     assert {x['item_id'] for x in c.get('/api/v1/screener/items').json()['items']} == {item_id(1), item_id(2)}
@@ -1383,10 +1389,12 @@ def test_screener_rights_from_the_session_and_the_catalog_per_session(configured
     flow = lambda metric: {'conditions': [{'id': 'a', 'enabled': True, 'test': {'kind': 'value', 'metric': {'kind': 'flow', 'metric': metric, 'params': {}}, 'op': 'gt', 'value': 0}}]}
     worker.presets = [{'id': 'plain', 'definition': flow('FL11')}, {'id': 'admin', 'definition': {'conditions': [{'id': 'b', 'test': {'kind': 'window', 'test': flow('FL18')['conditions'][0]['test']}}]}}]
     seen = {}
-    for admins, rights in [((), []), ((configured.owner,), ['flow_point_in_time'])]:
-        application = create_app(dataclasses.replace(configured, admin_owners=admins), store, FakeOrc())
+    from test_backtest import rights_session      # Phase 3a: a session without the right keeps the Screener open
+    for admin, rights in [(False, []), (True, ['flow_point_in_time'])]:
+        chosen, signed = rights_session(configured, store, admin)
+        application = create_app(chosen, store, FakeOrc())
         with TestClient(application) as c:
-            c.headers_for = login(c)
+            c.headers_for = signed(c)
             cat = c.get('/api/v1/screener/catalog')
             assert cat.status_code == 200
             ids = [m['id'] for m in cat.json().get('metrics', [])]

@@ -81,6 +81,10 @@ HEALTH_TIMEOUT = 5
 # initially 50). SCREEN_LIMIT holds for each kind: at most 50 saved screens and 50 My metrics per owner.
 SCREEN_LIMIT = 50
 WATCHLIST_LIMIT = PER_LIST                           # EXEC-WATCHLIST 2A: the star fills the first list (50, app/watchlist.py)
+# EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): reads need screener.view, runs and saves screener.run; the saved items
+# and the star are capped by the plan's limits, at most the constants above (HARD; Principal.capped)
+VIEW, RUN = 'screener.view', 'screener.run'
+LIMIT_KEYS = {'saved_items': 'screener.saved_items', 'watchlist': 'watchlist.per_list'}
 # Not derivable: the Retry-After of 503 SCREENER_NOT_READY. A missing table waits for a migration (minutes at least);
 # a worker without a snapshot that names no wait of its own loads one in seconds to a few minutes (report 6.5, 11b S14).
 TABLES_RETRY_SECONDS = 60
@@ -453,12 +457,13 @@ class ScreenerStore:
             return c.execute('''SELECT * FROM edge_bff.screener_items WHERE owner_key=%s
                 ORDER BY kind, updated_at DESC, item_id''', (owner,)).fetchall()
 
-    def put(self, owner, item_id, kind, name, definition, checked, revision):
+    def put(self, owner, item_id, kind, name, definition, checked, revision, limit=None):
         """Create (revision None) or replace (the revision the item was read with) one item of the owner, serialised per
         owner by an advisory lock. (row, created). Refusals: 409 REVISION_CONFLICT (the id exists, or a stale revision),
         404 NOT_FOUND (replace of an item the owner does not have), 422 INVALID_INPUT kind (an item keeps its kind),
-        409 NAME_TAKEN (another item of the kind has the name), 422 LIMIT_EXCEEDED saved_items (limit per kind)."""
-        limit = SCREEN_LIMIT
+        409 NAME_TAKEN (another item of the kind has the name), 422 LIMIT_EXCEEDED saved_items (limit per kind: the
+        principal's, at most SCREEN_LIMIT)."""
+        limit = SCREEN_LIMIT if limit is None else limit
         values = (name, Jsonb(definition), SCHEMA_VERSION, checked['registry'], checked['screener_registry'],
                   checked['definition_hash'])
         with self.connect() as c:
@@ -519,10 +524,10 @@ class ScreenerStore:
             return c.execute('''SELECT ticker, added_at FROM edge_bff.watchlist_items WHERE owner_key=%s AND list_id=%s
                 ORDER BY position, added_at, ticker''', (owner, first)).fetchall()
 
-    def watch(self, owner, ticker):
+    def watch(self, owner, ticker, limit=None):
         """Add a ticker to the first list (idempotent: a watched one stays as it was); at most WATCHLIST_LIMIT (422
-        LIMIT_EXCEEDED)."""
-        limit = WATCHLIST_LIMIT
+        LIMIT_EXCEEDED; limit: the principal's, at most WATCHLIST_LIMIT)."""
+        limit = WATCHLIST_LIMIT if limit is None else limit
         with self.connect() as c:
             c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('watchlist:' + owner,))
             first = WatchlistStore.first(c, owner, True)
@@ -559,22 +564,30 @@ class Doc:
     stale: bool = False
 
 
-def own_limits():
+def caps_of(p=None):
+    """{saved_items, watchlist}: the principal's caps, each min(plan value, HARD); HARD itself without a principal."""
+    hard = {'saved_items': SCREEN_LIMIT, 'watchlist': WATCHLIST_LIMIT}
+    return {k: p.capped(LIMIT_KEYS[k], v) if p is not None else v for k, v in hard.items()}
+
+
+def own_limits(caps=None):
     """edge-bff's own limits as catalog limits[] entries (contract.ts LimitEntry; report 8.4 and 8.9: every limit is
     published with its rule, one right and one wrong example before the user meets it, AGENTS.md "Gates and evidence"),
     generated from the values. The words are shown as they are (Method & sources; a refusal quotes the rule, the unit
     as "this one needs N <unit>" and the fix in the closing parenthesis of example_refused), so they are plain words
     with no limit or code name; screener/tests/fixture/edge-bff-limits.json is the copy the page tests read, and
-    tests/test_screener.py checks that it equals this."""
+    tests/test_screener.py checks that it equals this. caps (caps_of): the principal's own numbers, HARD without."""
+    caps = caps or caps_of()
+    saved, watched = caps['saved_items'], caps['watchlist']
     return [
-        {'name': 'saved_items', 'value': SCREEN_LIMIT, 'unit': 'saved items',
-         'rule': f'at most {SCREEN_LIMIT} saved screens and {SCREEN_LIMIT} My metrics',
-         'example_ok': f'saving a new screen while {SCREEN_LIMIT - 1} are saved',
-         'example_refused': f'saving a new screen while {SCREEN_LIMIT} are saved (delete one first)'},
-        {'name': 'watchlist', 'value': WATCHLIST_LIMIT, 'unit': 'tickers',
-         'rule': f'at most {WATCHLIST_LIMIT} tickers in the watchlist',
-         'example_ok': f'watching a new ticker while {WATCHLIST_LIMIT - 1} are watched',
-         'example_refused': f'watching a new ticker while {WATCHLIST_LIMIT} are watched (remove one first)'},
+        {'name': 'saved_items', 'value': saved, 'unit': 'saved items',
+         'rule': f'at most {saved} saved screens and {saved} My metrics',
+         'example_ok': f'saving a new screen while {max(saved - 1, 0)} are saved',
+         'example_refused': f'saving a new screen while {saved} are saved (delete one first)'},
+        {'name': 'watchlist', 'value': watched, 'unit': 'tickers',
+         'rule': f'at most {watched} tickers in the watchlist',
+         'example_ok': f'watching a new ticker while {max(watched - 1, 0)} are watched',
+         'example_refused': f'watching a new ticker while {watched} are watched (remove one first)'},
         {'name': 'saved_definition_bytes', 'value': DEFINITION_BYTES, 'unit': 'bytes',
          'rule': f'a saved screen or My metric is at most {DEFINITION_BYTES:,} bytes of JSON as stored (a space after '
                  'each colon and comma)',
@@ -639,6 +652,7 @@ class Screeners:
         self.health = {'at': None, 'versions': None, 'key': None, 'refresh': None}
         self.docs = {}                 # 'catalog' | 'universe' -> Doc
         self.restricted = {}           # the catalog's ETag -> its Doc without the admin entries (catalog_for)
+        self.limited = {}              # (the catalog's ETag, caps) -> its Doc with a principal's own limits (limits_for)
         self.locks = {}                # one fetch at a time per document (and for /health): concurrent pages wait for it
         self.flight = {}               # (owner, lane, page) -> its call in flight (latest; page None without client_order)
         self.pages = {}                # (owner, lane) -> {page: the highest seq that arrived}, PREVIEW_PAGES at most
@@ -806,6 +820,27 @@ class Screeners:
             if len(self.restricted) > 8:
                 self.restricted.clear()
             self.restricted[doc.etag] = hit
+        return hit
+
+    def limits_for(self, doc, caps):
+        """EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b): the catalog with the principal's own limits (caps_of) in place of
+        the HARD entries edge-bff added (with_own_limits), with its own bytes and ETag; the document itself when the
+        caps are HARD (the switch-off principal, a paid plan at today's values)."""
+        if caps == caps_of():
+            return doc
+        key = (doc.etag, tuple(sorted(caps.items())))
+        hit = self.limited.get(key)
+        if hit is None:
+            data, hard = loads(doc.raw), own_limits()
+            if isinstance(data, dict) and isinstance(data.get('limits'), list):
+                mine = {x['name']: x for x in own_limits(caps)}
+                data = {**data, 'limits': [mine[x['name']] if isinstance(x, dict) and x in hard else x for x in data['limits']]}
+            raw = dumps(data)
+            hit = Doc(key=doc.key, raw=raw, gz=gzip.compress(raw, 6, mtime=0), etag='"' + hashlib.sha256(raw).hexdigest() + '"',
+                      price_data=doc.price_data, published_at=doc.published_at)
+            if len(self.limited) > 8:
+                self.limited.clear()
+            self.limited[key] = hit
         return hit
 
     @staticmethod
@@ -977,19 +1012,22 @@ class Screeners:
             refuse_context(body)
             return {**body, 'context': {'rights': rights(request)}}
 
+        viewer, runner, view_writer = auth.need(VIEW), auth.need(RUN, write=True), auth.need(VIEW, write=True)
+
         @app.exception_handler(ScreenerError)
         async def screener_error(_, exc):
             return JSONResponse(status_code=exc.status, content={'error': exc.error}, headers=exc.headers)
 
         @app.get('/api/v1/screener/catalog')
-        async def catalog(request: Request, p: Principal = Depends(auth.principal)):
+        async def catalog(request: Request, p: Principal = Depends(viewer)):
             """CatalogResponse (report 8.4) with edge-bff's own limits added, kept while the worker's state (versions and
             refresh, its /health) is the one it was fetched at; ETag and If-None-Match -> 304."""
             await self.guard()
-            return self.doc_answer(request, self.catalog_for(await self.doc('catalog', '/v1/catalog', p.owner_key), rights(request)))
+            doc = self.catalog_for(await self.doc('catalog', '/v1/catalog', p.owner_key), rights(request))
+            return self.doc_answer(request, self.limits_for(doc, caps_of(p)))
 
         @app.get('/api/v1/screener/universe')
-        async def universe(request: Request, p: Principal = Depends(auth.principal)):
+        async def universe(request: Request, p: Principal = Depends(viewer)):
             """UniverseResponse (report 8.4), kept as the catalog is; ETag and If-None-Match -> 304."""
             await self.guard()
             return self.doc_answer(request, await self.doc('universe', '/v1/universe', p.owner_key))
@@ -1005,28 +1043,28 @@ class Screeners:
             return await self.relayed(request, answer)
 
         @app.post('/api/v1/screener/run')
-        async def run(request: Request, p: Principal = Depends(auth.writer)):
+        async def run(request: Request, p: Principal = Depends(runner)):
             """RunResponse of one screen (report 8.5), latest wins per (owner, page) (409 SCREEN_REPLACED); the body goes
             to the worker as sent (contract.ts RunRequest, client_order included)."""
             return await lane('run', '/v1/run', request)
 
         @app.post('/api/v1/screener/preview')
-        async def preview(request: Request, p: Principal = Depends(auth.writer)):
+        async def preview(request: Request, p: Principal = Depends(runner)):
             """PreviewResponse of one ticker (report 8.6), latest wins per (owner, page) (409 PREVIEW_REPLACED)."""
             return await lane('preview', '/v1/preview', request)
 
         @app.post('/api/v1/screener/validate')
-        async def validate(request: Request, p: Principal = Depends(auth.writer)):
+        async def validate(request: Request, p: Principal = Depends(runner)):
             await self.guard()
             return await self.relayed(request, await self.ask('POST', '/v1/validate', with_context(request, await self.json_object(request)), relay=True, owner=p.owner_key))
 
         @app.post('/api/v1/screener/counts')
-        async def counts(request: Request, p: Principal = Depends(auth.writer)):
+        async def counts(request: Request, p: Principal = Depends(runner)):
             await self.guard()
             return await self.relayed(request, await self.ask('POST', '/v1/counts', with_context(request, await self.json_object(request)), relay=True, owner=p.owner_key))
 
         @app.get('/api/v1/screener/items')
-        async def items(request: Request, kind: str | None = None, p: Principal = Depends(auth.principal)):
+        async def items(request: Request, kind: str | None = None, p: Principal = Depends(viewer)):
             """{items: SavedItem[]} of the owner, one kind or both, the latest changed first, each with needs_review."""
             await self.guard()
             if kind is not None and kind not in KINDS:
@@ -1035,7 +1073,7 @@ class Screeners:
             return JSONResponse({'items': await self.reviewed(rows, rights(request), p.owner_key)})
 
         @app.put('/api/v1/screener/items/{item_id}')
-        async def put_item(item_id: str, request: Request, p: Principal = Depends(auth.writer)):
+        async def put_item(item_id: str, request: Request, p: Principal = Depends(runner)):
             """PutItemRequest -> the stored SavedItem: created without revision, replaced with the revision it was read
             with; the definition validated by the worker first (its refusal relayed as it is)."""
             await self.guard()
@@ -1043,11 +1081,12 @@ class Screeners:
                 raise invalid('item_id', 'item_id is scr_ followed by 32 lowercase hexadecimal digits')
             kind, name, definition, revision = checked_item(await self.json_object(request))
             checked = await self.validated(kind, definition, rights(request), p.owner_key)
-            row, _ = await asyncio.to_thread(self.store.put, p.owner_key, item_id, kind, name, definition, checked, revision)
+            row, _ = await asyncio.to_thread(self.store.put, p.owner_key, item_id, kind, name, definition, checked, revision,
+                                             caps_of(p)['saved_items'])
             return JSONResponse(item_of(row, []))
 
         @app.delete('/api/v1/screener/items/{item_id}', status_code=204)
-        async def delete_item(item_id: str, p: Principal = Depends(auth.writer)):
+        async def delete_item(item_id: str, p: Principal = Depends(view_writer)):
             await self.guard()
             if not ITEM_ID.fullmatch(item_id):
                 raise failure('NOT_FOUND', 404)
@@ -1055,7 +1094,7 @@ class Screeners:
             return Response(status_code=204)
 
         @app.get('/api/v1/screener/watchlist')
-        async def watchlist(p: Principal = Depends(auth.principal)):
+        async def watchlist(p: Principal = Depends(viewer)):
             await self.guard()
             rows = await asyncio.to_thread(self.store.watchlist, p.owner_key)
             return JSONResponse(jsonable_encoder({'tickers': [{'ticker': r['ticker'], 'added_at': r['added_at']} for r in rows]}))
@@ -1066,13 +1105,13 @@ class Screeners:
             return ticker
 
         @app.put('/api/v1/screener/watchlist/{ticker}', status_code=204)
-        async def watch(ticker: str, p: Principal = Depends(auth.writer)):
+        async def watch(ticker: str, p: Principal = Depends(runner)):
             await self.guard()
-            await asyncio.to_thread(self.store.watch, p.owner_key, ticker_of(ticker))
+            await asyncio.to_thread(self.store.watch, p.owner_key, ticker_of(ticker), caps_of(p)['watchlist'])
             return Response(status_code=204)
 
         @app.delete('/api/v1/screener/watchlist/{ticker}', status_code=204)
-        async def unwatch(ticker: str, p: Principal = Depends(auth.writer)):
+        async def unwatch(ticker: str, p: Principal = Depends(runner)):
             await self.guard()
             await asyncio.to_thread(self.store.unwatch, p.owner_key, ticker_of(ticker))
             return Response(status_code=204)

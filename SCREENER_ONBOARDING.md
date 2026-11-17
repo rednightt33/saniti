@@ -549,7 +549,7 @@ README "Logs".
 
 ## 1.8 Stage 5: edge-bff (BRANCH)
 
-`apps/edge-bff/app/screener.py` (`Screeners`, `:629`), mounted like the Backtest module (`apps/edge-bff/app/main.py:564`
+`apps/edge-bff/app/screener.py` (`Screeners`, `:642`), mounted like the Backtest module (`apps/edge-bff/app/main.py:564`
 `screeners.routes`):
 
 | Route under `/api/v1/screener/` | Auth | Worker route |
@@ -574,12 +574,12 @@ README "Logs".
   `test_catalog_and_universe_are_kept_per_worker_state_with_an_etag`,
   `test_a_newer_publication_seen_in_a_run_drops_the_cached_catalog_at_once`,
   `test_the_catalog_never_goes_back_and_ignores_transient_refresh_states`). edge-bff adds its own limits to the
-  catalog's `limits[]` (`own_limits`, `:562-593`: `saved_items` 50 per kind, `watchlist` 500,
+  catalog's `limits[]` (`own_limits`, `:573-606`: `saved_items` 50 per kind, `watchlist` 500,
   `saved_definition_bytes` 65,536, `request_bytes` 131,072, `inflight_per_page` 1).
-- **Latest wins** per (owner, page) through `client_order {page, seq}` (`latest`, `:833`); an older call answers 409
+- **Latest wins** per (owner, page) through `client_order {page, seq}` (`latest`, `:868`); an older call answers 409
   `SCREEN_REPLACED` or `PREVIEW_REPLACED`; a caller that left is stopped at the worker.
 - **Saved items** are validated by the worker before they are stored, with the `registry` and `screener_registry` of the
-  same answer (`validated`, `:901-923`; `/health` versions when an answer has none), and validated again on load when
+  same answer (`validated`, `:936-959`; `/health` versions when an answer has none), and validated again on load when
   they were saved under other versions ("needs review" with the field; nothing adjusted). Every store statement filters
   `owner_key`.
 - **Settings** (`apps/edge-bff/app/config.py:113-122`): `SCREENER_WORKER_URL` and `SCREENER_WORKER_KEY` together or not

@@ -924,3 +924,29 @@ visible changes. With the switch on, access comes from data, never from code (CO
   `catalog(kind)`, cached in memory per entitlement version.
 - **To change what a plan holds:** UPDATE `edge_bff.plan_capabilities` (raise its `version`) through a reviewed migration
   or operator statement, with the user's approval. It takes effect on the next request; no deploy is needed.
+
+## Route gates per tab (EXEC-MU-ACCOUNTS Phase 3a, 2026-11-17)
+
+With the switch off nothing changes: the configured owner's principal holds `*` (EDGE_ADMIN_OWNERS unset means that
+owner). With the switch on, each route asks `auth.need(capability)` (writes `auth.need(capability, write=True)`, the
+CSRF check first) and refuses 403 `CAPABILITY_REQUIRED`, or `PLAN_EXPIRED` when only the ended plan held it
+(CONTRACT.md 8b, decision D5: reads need the view or the item's capability, writes the run or save one):
+
+- Backtest (`app/backtest.py`): `backtest.view` for the catalog, the list, status, result, events and cancel;
+  `backtest.run` for signals and submit. A queued job is checked again at dispatch: an owner whose plan no longer holds
+  `backtest.run` gets the job FAILED `CAPABILITY_REQUIRED` (or `PLAN_EXPIRED`), and the worker is never called.
+- Screener (`app/screener.py`): `screener.view` for the catalog, universe, saved items and the star list;
+  `screener.run` for run, preview, validate, counts, saving an item and the star; deleting an item needs the view.
+- Terminal saves: `terminal.layouts`, `terminal.presets` and `terminal.drawings` on every route of their module.
+- Watchlist lists (`app/watchlist.py`): `watchlist.view` (the page files are gated in `app/pages.py`).
+- `tests/test_phase3a_gates.py` walks `app.routes` of these modules: a new route without its `ROUTE_CAPS` entry, or
+  without the `need` that entry names, fails with the entry to add.
+
+Saved-item caps are `min(plan limit, HARD)` (`Principal.capped`), HARD being the module constant, the storage
+guarantee no plan or override can raise: `terminal.layouts_max` (`LAYOUT_LIMIT` 50), `terminal.presets_max`
+(`PRESET_LIMIT` 100), `terminal.drawings_max` (`SET_LIMIT` 5000), `screener.saved_items` (`SCREEN_LIMIT` 50),
+`watchlist.lists`/`per_list`/`indicators` (20/50/8; `per_list` also caps the Screener's star) and
+`backtest.queued_jobs` (`BACKTEST_QUEUED_PER_OWNER` 3). The routes that publish limits (`/api/v1/terminal/layouts`,
+`presets`, `drawings`, `/api/v1/watchlist/lists` `limits`, the Screener catalog's `limits[]`) report the principal's
+own numbers. The paid seed holds today's values (migration `20261117_004`, decision D6). A lowered plan keeps the
+rows but cannot read them until it is raised again (D5); a replace of an existing item is never refused by a cap.

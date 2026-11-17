@@ -72,7 +72,9 @@ def test_settings_owner_is_read_only_by_the_seed_and_the_switch_off_mapping():
 
 
 def test_switch_off_the_principal_is_user_one_and_the_session_keeps_todays_keys(settings, store):
-    with TestClient(create_app(settings, store, FakeOrc())) as c:
+    # an EDGE_ADMIN_OWNERS that does not list the configured owner (the conftest settings list it, as production's
+    # default): no capability, as rights.py gave before Phase 1
+    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('someone-else',)), store, FakeOrc())) as c:
         login(c)
         answer = c.get('/api/v1/auth/session').json()
         assert {'authenticated', 'login', 'csrf_token', 'capabilities'} <= set(answer)
@@ -80,8 +82,6 @@ def test_switch_off_the_principal_is_user_one_and_the_session_keeps_todays_keys(
         seeded = db(store, 'SELECT user_id, owner_key, username, role, status FROM edge_bff.users')
         assert [(r['owner_key'], r['role'], r['status']) for r in seeded] == [(settings.owner, 'admin', 'active')]
         assert answer['username'] == seeded[0]['username'] == 'owner'
-        # the test settings list no admin owner (EDGE_ADMIN_OWNERS unset there means none): no capability, as rights.py
-        # gave before Phase 1
         assert answer['access'] == {'plan': None, 'role': 'user', 'status': 'active', 'expires_at': None, 'mfa_ok': True,
                                     'capabilities': [], 'limits': {}, 'version': 'env', 'next': None,
                                     'owner_key': settings.owner, 'mfa_enrolled': False, 'seed': True, 'expired_plan': None}
@@ -334,6 +334,16 @@ def test_two_users_see_none_of_each_others_rows(on, store, workers):
     with TestClient(app) as a:
         b = TestClient(app)
         alice, bob = make_user(store, 'alice', 'alice-password'), make_user(store, 'bob_b', 'bob-password')
+        # Phase 3a (CONTRACT.md 8b): the tabs need their capabilities, so both hold the plan that grants backtest.run
+        # (found by data) and the Monitor by override (admin only in the seed, decisions D1 and D8)
+        plan = db(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'backtest.run'
+            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')[0]['plan_key']
+        for user in (alice, bob):
+            db(store, '''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider) VALUES (%s, %s, 'active', 'test')''',
+               user['user_id'], plan)
+            for key, value in (('monitor.view', 'true'), ('monitor.chat', 'true'), ('monitor.model', '{"all": true}')):
+                db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
+                    VALUES (%s, %s, %s::jsonb, 'test')''', user['user_id'], key, value)
         ha, hb = sign_in(a, 'alice', 'alice-password'), sign_in(b, 'bob_b', 'bob-password')
         lay, pre = 'lay_' + 'a' * 32, 'ipr_' + 'a' * 32
         # A's rows of every owned kind, made through the routes

@@ -33,6 +33,10 @@ from app.backtest import BacktestLoop, ResultTooLarge, WorkerClient, WorkerTimeo
 from app.main import create_app
 from conftest import FakeOrc
 
+# the conftest settings' switch-off owner is an admin (EDGE_ADMIN_OWNERS unset means the owner, as in production;
+# EXEC-MU-ACCOUNTS Phase 3a), so edge-bff sends it the admin rights in every worker call's context
+ADMIN_RIGHTS = ['flow_point_in_time']
+
 ORIGIN = {'Origin': 'http://testserver'}
 KEY = 'w' * 40
 MIGRATION = Path(__file__).resolve().parents[3] / 'database/migrations/20261026_005_edge_bff_backtest.sql'
@@ -370,7 +374,7 @@ def test_single_run_progress_result_and_events(app, worker):
     assert c.get(f'/api/v1/backtests/{job_id}/result').json()['error']['code'] == 'NOT_FINISHED'
     run_next(c)
     handed = worker.posted('/v1/jobs')[0]['body']
-    assert handed == {'job_id': job_id, 'request': single(), 'context': {'job_id': job_id, 'prior_trials': [], 'owner_trials': [], 'rights': []}}
+    assert handed == {'job_id': job_id, 'request': single(), 'context': {'job_id': job_id, 'prior_trials': [], 'owner_trials': [], 'rights': ADMIN_RIGHTS}}
     assert all(call['key'] == KEY for call in worker.calls)
     # progress of the previous read is stored while the job runs (the hook reads before the answer is stored)
     assert seen[1] == {'phase': 'backtest', 'done': 1, 'total': 2}
@@ -585,13 +589,13 @@ def test_client_request_id_stays_here_and_every_other_key_reaches_the_worker_as_
     sent = {**single(), 'extra': {'list': [1, 2.5, None, True, 'Rp ✓'], 'big': 12345678901234567890, 'tiny': 5e-324,
                                   'sum': 0.1 + 0.2, 'empty': {}}}
     job_id = submit(c, sent, 'strip-1').json()['request_id']
-    assert worker.posted('/v1/validate')[0]['body'] == {'request': sent, 'context': {'rights': []}}       # sent without client_request_id
+    assert worker.posted('/v1/validate')[0]['body'] == {'request': sent, 'context': {'rights': ADMIN_RIGHTS}}       # sent without client_request_id
     run_next(c)
     assert handed(worker, job_id)['request'] == sent                           # the stored request, as sent
     assert c.get('/api/v1/backtests').json()['items'][0]['request'] == sent
     # an explicit null key is taken out too (a new job under a generated key)
     r = c.post('/api/v1/backtests', headers=c.headers_for, json={**single(), 'client_request_id': None})
-    assert r.status_code == 202 and worker.posted('/v1/validate')[1]['body'] == {'request': single(), 'context': {'rights': []}}
+    assert r.status_code == 202 and worker.posted('/v1/validate')[1]['body'] == {'request': single(), 'context': {'rights': ADMIN_RIGHTS}}
     assert all('client_request_id' not in json.dumps(x['body']) for x in worker.calls if x['body'])
 
 
@@ -1120,7 +1124,7 @@ def test_trials_are_the_reported_variants_and_go_to_the_next_run_in_first_record
     second_request = {**single(), 'entry': {**single()['entry'], 'window_bars': 5}}
     second = submit(c, second_request).json()['request_id']
     run_next(c)
-    assert handed(worker, second)['context'] == {'job_id': second, 'prior_trials': as_prior(reported), 'owner_trials': as_prior(reported), 'rights': []}
+    assert handed(worker, second)['context'] == {'job_id': second, 'prior_trials': as_prior(reported), 'owner_trials': as_prior(reported), 'rights': ADMIN_RIGHTS}
     assert db(c, 'SELECT count(*) AS n FROM edge_bff.backtest_trials')[0]['n'] == 6
     # the first variant again on other data: nothing new is counted; the row holds what this run reported (its Sharpe,
     # kind and request) and keeps its first-recorded place
@@ -2276,6 +2280,26 @@ def test_a_cancelled_preview_is_logged_as_cancelled_not_ok(app, monkeypatch, cap
 
 # ---- EXEC-BACKTEST-REVAMP P5: owner and rights from the session ---------------------------------------------------------
 
+def rights_session(configured, store, admin):
+    """EXEC-MU-ACCOUNTS Phase 3a: (settings, sign-in) of a session with the admin right (the switch-off owner listed in
+    EDGE_ADMIN_OWNERS, '*') or without it. Without it the tabs are still open: since Phase 3a a switch-off owner that
+    EDGE_ADMIN_OWNERS does not list holds no capability at all (no Backtest either), so the session without the right is
+    a switch-on account of the plan that grants backtest.run but not the point-in-time right (found by data)."""
+    if admin:
+        return dataclasses.replace(configured, admin_owners=(configured.owner,)), login
+    from test_principal import db as run_sql, make_user, sign_in
+    on = dataclasses.replace(configured, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40)
+
+    def signed(c):
+        user = make_user(store, 'plain', 'plain-password')
+        plan = run_sql(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'backtest.run'
+            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')[0]['plan_key']
+        run_sql(store, "INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider) VALUES (%s, %s, 'active', 'test')",
+                user['user_id'], plan)
+        return sign_in(c, 'plain', 'plain-password')
+    return on, signed
+
+
 def test_rights_come_from_the_session_owner_never_from_a_body(configured, store, worker):
     """An admin owner (EDGE_ADMIN_OWNERS) sends context.rights to every worker call; any other owner sends []; a body
     that carries context is refused before the worker; the catalog shows an admin entry to an admin only (the kept
@@ -2283,11 +2307,12 @@ def test_rights_come_from_the_session_owner_never_from_a_body(configured, store,
     worker.catalog = {**worker.catalog, 'flow_indicators': [
         {'id': 'FL11', 'name': 'Net Flow / Turnover Ratio', 'access': 'all', 'available': True, 'reason': None, 'date_param': None},
         {'id': 'FL18', 'name': 'Buy VWAP · Anchored', 'access': 'admin', 'available': True, 'reason': None, 'date_param': 'anchor'}]}
-    for admins, rights, ids in [((), [], ['FL11']), ((configured.owner,), ['flow_point_in_time'], ['FL11', 'FL18'])]:
+    for admin, rights, ids in [(False, [], ['FL11']), (True, ['flow_point_in_time'], ['FL11', 'FL18'])]:
         worker.calls.clear()
-        application = create_app(dataclasses.replace(configured, admin_owners=admins), store, FakeOrc())
+        chosen, signed = rights_session(configured, store, admin)
+        application = create_app(chosen, store, FakeOrc())
         with TestClient(application) as c:
-            c.headers_for = login(c)
+            c.headers_for = signed(c)
             assert [x['id'] for x in c.get('/api/v1/backtests/catalog').json()['flow_indicators']] == ids
             worker.timeout_paths, worker.timeout_error = {'/v1/catalog'}, True
             application.state.backtests.catalog['at'] = -1e9                 # stale: asked again, the worker fails, kept one served
@@ -2300,7 +2325,7 @@ def test_rights_come_from_the_session_owner_never_from_a_body(configured, store,
             assert not worker.posted('/v1/validate') and not worker.posted('/v1/signals')
             assert c.post('/api/v1/backtests/signals', headers=c.headers_for, json=preview_of()).status_code == 200
             assert worker.posted('/v1/signals')[-1]['body']['context'] == {'rights': rights}
-            assert submit(c, single(), f'r{len(admins)}').status_code == 202
+            assert submit(c, single(), f'r{int(admin)}').status_code == 202
             assert worker.posted('/v1/validate')[-1]['body']['context'] == {'rights': rights}
             run_next(c)
             assert worker.posted('/v1/jobs')[-1]['body']['context']['rights'] == rights
@@ -2308,13 +2333,26 @@ def test_rights_come_from_the_session_owner_never_from_a_body(configured, store,
 
 def test_a_queued_job_reads_its_owners_rights_when_it_is_dispatched(configured, store, worker):
     """Queued as an admin, dispatched after the right was taken away: the worker gets no right (it refuses a
-    point-in-time condition, CONDITION_RESTRICTED)."""
+    point-in-time condition, CONDITION_RESTRICTED). EXEC-MU-ACCOUNTS Phase 3a: the owner keeps backtest.run here (a plan
+    without the right); an owner that lost backtest.run too ends FAILED CAPABILITY_REQUIRED, the worker never called."""
+    from app.principal import switch_off_principal
     application = create_app(dataclasses.replace(configured, admin_owners=(configured.owner,)), store, FakeOrc())
     with TestClient(application) as c:
         c.headers_for = login(c)
         assert submit(c, single(), 'later').status_code == 202
-        run_next(c, dataclasses.replace(c.app.state.backtests.settings, admin_owners=()))
+        bt = c.app.state.backtests
+        unlisted = dataclasses.replace(bt.settings, admin_owners=())
+        loop = BacktestLoop(unlisted, bt.store, bt.worker)
+        loop.access = lambda owner: dataclasses.replace(switch_off_principal(unlisted, owner), capabilities=frozenset({'backtest.run'}),
+                                                        grants={'backtest.run': True}, kinds={'backtest.run': 'flag'})
+        asyncio.run(loop.process(bt.store.claim(90)))
         assert worker.posted('/v1/jobs')[-1]['body']['context']['rights'] == []
+        # without backtest.run (a switch-off owner EDGE_ADMIN_OWNERS does not list): refused at dispatch
+        sent = len(worker.posted('/v1/jobs'))
+        assert submit(c, single('BBRI'), 'refused').status_code == 202
+        job = run_next(c, unlisted)
+        assert len(worker.posted('/v1/jobs')) == sent
+        assert c.get(f'/api/v1/backtests/{job}').json()['error']['code'] == 'CAPABILITY_REQUIRED'
 
 
 def test_result_parts_are_read_for_their_owner_only(app, worker):

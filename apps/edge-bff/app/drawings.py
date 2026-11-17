@@ -31,7 +31,8 @@ from .principal import Principal
 TICKER = re.compile(r'[A-Z0-9]{1,12}')                   # terminal-api's ticker rule; migration 20261107_001
 SET_ID = re.compile(r'chart|flow|pane_[0-9a-f]{16}')     # migration 20261107_001; terminal src/data/drawingsApi.ts
 SET_BYTES = 100000                                        # migration 20261107_001 (octet_length(drawings::text))
-SET_LIMIT = 5000                                          # sets per owner (tickers x places)
+SET_LIMIT = 5000                                          # sets per owner (tickers x places; HARD of the plan's cap)
+CAPABILITY, LIMIT_KEY = 'terminal.drawings', 'terminal.drawings_max'   # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b)
 DEPTH = 10
 SCHEMA_VERSION = 1
 RETRY_SECONDS = 30
@@ -105,7 +106,7 @@ class DrawingStore:
             return c.execute(f'''SELECT {", ".join(FIELDS)} FROM edge_bff.terminal_drawings WHERE owner_key=%s AND ticker=%s
                 ORDER BY set_id''', (owner, ticker)).fetchall()
 
-    def put(self, owner, ticker, set_id, drawings, revision):
+    def put(self, owner, ticker, set_id, drawings, revision, limit=SET_LIMIT):
         with self.connect() as c:
             c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('drawings:' + owner,))
             row = c.execute('''SELECT revision FROM edge_bff.terminal_drawings WHERE owner_key=%s AND ticker=%s AND set_id=%s
@@ -116,10 +117,10 @@ class DrawingStore:
                         raise failure('REVISION_CONFLICT', 409, details={'revision': row['revision']})
                     held = c.execute('SELECT count(*) AS n FROM edge_bff.terminal_drawings WHERE owner_key=%s',
                                      (owner,)).fetchone()['n']
-                    if held >= SET_LIMIT:
-                        raise failure('LIMIT_EXCEEDED', 422, message=f'Drawings are kept for at most {SET_LIMIT:,} places '
+                    if held >= limit:
+                        raise failure('LIMIT_EXCEEDED', 422, message=f'Drawings are kept for at most {limit:,} places '
                                       '(tickers, Flow Timelines and panes): clear the drawings of a ticker you no longer use.',
-                                      details={'limit': 'sets', 'allowed': SET_LIMIT, 'needed': held + 1})
+                                      details={'limit': 'sets', 'allowed': limit, 'needed': held + 1})
                     return c.execute('''INSERT INTO edge_bff.terminal_drawings(owner_key,ticker,set_id,drawings,schema_version)
                         VALUES (%s,%s,%s,%s,%s) RETURNING *''', (owner, ticker, set_id, Jsonb(drawings), SCHEMA_VERSION)).fetchone(), True
                 if not row:
@@ -160,14 +161,17 @@ class Drawings:
 
     def routes(self, app, auth):
         store = self.store      # LayoutError answers through the layouts' handler
+        # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): every route needs terminal.drawings; the cap is the plan's
+        # terminal.drawings_max, at most SET_LIMIT
+        reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
 
         @app.get('/api/v1/terminal/drawings')
-        async def drawings(ticker: str = '', p: Principal = Depends(auth.principal)):
+        async def drawings(ticker: str = '', p: Principal = Depends(reader)):
             rows = await asyncio.to_thread(store.list, p.owner_key, self.ticker(ticker))
-            return JSONResponse({'sets': [set_of(r) for r in rows], 'limits': {'set_bytes': SET_BYTES, 'sets': SET_LIMIT}})
+            return JSONResponse({'sets': [set_of(r) for r in rows], 'limits': {'set_bytes': SET_BYTES, 'sets': p.capped(LIMIT_KEY, SET_LIMIT)}})
 
         @app.put('/api/v1/terminal/drawings/{ticker}/{set_id}')
-        async def put_drawings(ticker: str, set_id: str, request: Request, p: Principal = Depends(auth.writer)):
+        async def put_drawings(ticker: str, set_id: str, request: Request, p: Principal = Depends(writer)):
             try:
                 body = json.loads(await request.body() or b'null')
             except (ValueError, RecursionError):
@@ -181,10 +185,11 @@ class Drawings:
             if revision is not None and (isinstance(revision, bool) or not isinstance(revision, int) or revision < 1):
                 raise invalid('revision', 'revision is the positive whole number the drawings were read with')
             row, created = await asyncio.to_thread(store.put, p.owner_key, self.ticker(ticker), self.set_id(set_id),
-                                                   checked_drawings(body.get('drawings')), revision)
+                                                   checked_drawings(body.get('drawings')), revision,
+                                                   p.capped(LIMIT_KEY, SET_LIMIT))
             return JSONResponse(set_of(row), status_code=201 if created else 200)
 
         @app.delete('/api/v1/terminal/drawings/{ticker}/{set_id}', status_code=204)
-        async def delete_drawings(ticker: str, set_id: str, p: Principal = Depends(auth.writer)):
+        async def delete_drawings(ticker: str, set_id: str, p: Principal = Depends(writer)):
             await asyncio.to_thread(store.delete, p.owner_key, self.ticker(ticker), self.set_id(set_id))
             return Response(status_code=204)
