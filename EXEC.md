@@ -15430,6 +15430,21 @@ tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terba
     - perubahan worker (`context.rights`);
     - `usage_counters`.
 
+- **Fase 3, perencanaan (kata user, 2026-11-17):** "alright, please proceed", setelah agen menjelaskan Fase 3 (gate per
+  tab) dan bahwa agen akan kembali dengan keputusan sebelum membangun.
+  - Tiga inspeksi baca-saja pada `b3dd29bc`: jalur data Terminal, Backtest dan Screener, Monitor dan front-end.
+  - Spesifikasi draf: `CONTRACT.md` §8b, tahap 3a (gate server edge-bff), 3b (worker), 3c (data Terminal T2), 3d (M476),
+    3e (front-end) dan 3f (kode lab keluar dari bundel publik).
+  - Belum ada yang dibangun. Keputusan yang ditunggu:
+    - D1: kuota pertanyaan AI per hari untuk paket berbayar, batas biaya per bulan, dan level "max";
+    - D2: arti "730 hari terakhir" (hari kalender dari tanggal data terbaru, atau hari bursa);
+    - D3: isi paket gratis selain harga BBCA (IHSG, daftar ticker, logo; intraday tidak);
+    - D4: data contoh tab terkunci (sintetis, atau potongan data asli);
+    - D5: isi lama user yang paketnya turun (tetap bisa dibaca, atau terkunci);
+    - D6: batas paket berbayar (nilai hari ini) dan kuota data Terminal per user;
+    - D7: kontak upgrade (boleh menyusul);
+    - D8: akses data oleh AI per paket.
+
 ### Phase 0 deploy steps (run 2026-11-16, see RAILWAY_CHANGELOG.md; step 7 waits for the user)
 
 Prepared 2026-11-16 by builder B5 for the main agent. Code: branch `claude/pensive-feynman-4ahfe3` (integrated at

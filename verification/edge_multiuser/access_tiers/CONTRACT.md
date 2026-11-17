@@ -391,6 +391,122 @@ unexpired overrides. An override replaces the plan's value for its key.
 - the catalog route filters per principal, and unknown kinds give 404;
 - with the switch off: the access object, `version` `env` and every Phase 1 test are unchanged.
 
+## 8b. Phase 3 plan: gates per tab (main agent, 2026-11-17; DRAFT, waits for the user's decisions D1-D8 in EXEC.md)
+
+Source: three read-only inspections of `b3dd29bc` (Terminal data path, Backtest and Screener, Monitor and front-end).
+Today no route checks a plan: with the switch on a free account could run every tab. The switch stays off through
+Phase 3. Every gate keeps the switch-off principal (`*`) unchanged, so nothing changes for the current user. Each stage
+is built, checked, and deployed on its own.
+
+**3a. edge-bff server gates (no UI change).**
+- **Route capabilities.**
+  - Monitor: `monitor.chat` for submit, branch, export and conversation writes; `monitor.view` for reads.
+  - Backtest: `backtest.view` for catalog, list, status and results; `backtest.run` for signals and submit.
+  - Screener: `screener.view` for catalog, universe and items; `screener.run` for run, preview, validate, counts and
+    saving items.
+  - Terminal: `terminal.layouts`, `terminal.drawings` and `terminal.presets` (a new capability) on their writes.
+  - Watchlist: `watchlist.view`.
+  - The page files: `overview.view`, `radar.view` and `watchlist.view`, checked before the shared caches (`pages.py`).
+  - A route-walk test fails on a Backtest, Screener, Monitor, Terminal-save or page route without its `need`.
+- **Saved-item caps:** `min(p.limit(key, HARD), HARD)`, where HARD is today's constant and stays the storage
+  guarantee. New limit capabilities: `terminal.layouts_max`, `terminal.presets_max`, `terminal.drawings_max`,
+  `screener.saved_items`, `backtest.queued_jobs`. `limits()` and the answers report the principal's own numbers.
+  - The paid seed gets today's values (decision D6).
+  - The capability check comes before the limit (a free plan has no row).
+  - A plan lowered below what a user already holds keeps reads; new items are refused (decision D5).
+- **Monitor:**
+  - The model is resolved, the default when none is sent, and refused unless `p.can('monitor.model:<id>')`.
+  - `saniti/claude-manual` is refused without `admin.manual`, which becomes a catalog capability.
+  - `/api/v1/models` is filtered per principal.
+  - A usage ledger: `edge_bff.jobs` gains `model`, `reasoning_level`, `cost_usd` and `tokens`, filled from Orc's
+    answer; a recovered run reads its cost from Orc.
+  - The daily cap `monitor.questions_per_day` (decision D1) answers 429 `LIMIT_REACHED` with `retry_after_s` to the next
+    WIB midnight. The worker re-checks at dispatch.
+  - Models and providers do not change (AGENTS.md).
+- **Page files:** `Cache-Control: private, no-cache` with the ETag; `?sha=` requests revalidate (304 after the check).
+- **A migration** adds the new capability rows and their seed values (decisions D1, D6).
+
+**3b. Workers (Backtest, Screener).**
+- edge-bff sends `context.allow` `{kind: "*" | [ids]}` (the principal's item grants expanded against
+  `releases.json`) and `context.limits`.
+- Each worker refuses an item outside `allow` with 403 `CAPABILITY_REQUIRED` and `details.capability`/`field`, right
+  after `normalize` (Screener `restrict()`) or in `checkConditions`/`checkRequest`/`checkSignalsRequest` (Backtest,
+  including the stop and trailing lines, switched-off conditions and `detail.exit_signals`). It takes
+  `min(own ceiling, context.limits)`.
+- A queued job re-checks at dispatch and ends FAILED `CAPABILITY_REQUIRED`.
+- edge-bff's catalog and saved-item review caches are keyed by the allow digest.
+- Deploy order:
+  1. The workers accept `allow`/`limits` as optional.
+  2. edge-bff sends them (`*` with the switch off).
+  3. The workers require them.
+- The look-ahead gate keeps passing: internal calls default to "everything allowed"; the HTTP layer fails closed.
+
+**3c. Terminal data (T2).**
+- **terminal-api:**
+  - `terminal.subscriber.edge_owner_key` (migration; a row per EDGE owner, made on first use);
+  - `Caller.credential = ('gateway', owner_key)`;
+  - quotas per owner from the plan (decision D6), with the 1e9 override kept only on the admin row;
+  - the audit row carries the entitlements version.
+- **edge-bff `forward_terminal` and `PageFiles`:**
+  - send `x-terminal-proxy-owner` and `x-terminal-capabilities` (datasets, tickers, `history_days`, quota, version),
+    built from the principal; a client-supplied header is dropped;
+  - refuse a ticker or dataset the plan lacks with `CAPABILITY_REQUIRED` before any terminal-api call.
+- **terminal-api filters every path:**
+  - `/bundle` `chosen`: a locked dataset answers `{locked: true, capability}` with no URL or sha;
+  - `/files`, `/history`, `/manifest` and `/reference`;
+  - `/xsection` refuses the gateway key once an owner header is sent.
+- **Exactly the last N days (decision D2):** for a capped principal terminal-api serves a cut, relayed by edge-bff
+  (option A of the inspection; N read from the plan at request time). Packs, yearly objects and `/history` are refused.
+  The gzip encoding is deterministic, so the cut's sha256 is fixed and the browser cache works.
+- **Deploy order:**
+  1. The migration.
+  2. terminal-api accepts the headers.
+  3. edge-bff sends them.
+  4. terminal-api requires them.
+  5. Remove the 1e9 override for people (with approval).
+
+**3d. M476 (Radar data in the Watchlist file).**
+- The publisher splits `watchlist-stocks` into a base file and `watchlist-radar`; edge-bff serves the latter only with
+  `radar.view`.
+- Order: edge-bff (the page tolerates a missing `radar`), then the publisher, then a manual `watchlist` run.
+- `WATCHLIST_FORMULAS.md` is rebuilt in the same commit.
+
+**3e. Front-end.**
+- **The rail and the frames:**
+  - every tab is always shown;
+  - a tab without `<tab>.view` loads its app in example mode: an injected `exampleApi` reading synthetic files from
+    `GET /api/v1/examples/<tab>/...` (decision D4), gated by `<tab>.example`;
+  - every action rejects `CAPABILITY_REQUIRED`; one capture-phase click handler shows the upgrade prompt and lets
+    scrolling through.
+- **Terminal:**
+  - picks an allowed ticker (`limit('terminal.tickers')`); a stored refused ticker never locks the page;
+  - search marks locked tickers;
+  - lock prompts in the Flow and Broker panels, the indicator menu, compare and assets;
+  - a "History: last N days" note by the range selector;
+  - `look_check11.mjs` gains the new rows.
+- **Monitor:** the model list follows `/api/v1/models`, and an example conversation shows for a plan without
+  `monitor.view`.
+- **Catalogs:** Backtest and Screener read their catalogs from the routes. The upgrade prompt gets the contact
+  (decision D7).
+
+**3f. Lab code out of the public bundles (CONTRACT 8).**
+- The bundled definitions (`indRegistry.json`, `flowRegistry.json`, the backtest and screener registries) are read
+  through `GET /api/v1/catalog/{kind}`.
+- Lab formulas ship in a dynamic chunk served by an admin-only route.
+- A bundle test fails on a lab id or formula in a public chunk.
+- No item is `lab` today, so nothing leaks before 3f. Until 3f lands, a test fails when `releases.json` holds a `lab`
+  item, so the first lab item cannot ship in a public bundle.
+
+**Tests per stage** (with the code; checkers C1-C3 per stage as in Phases 1 and 2):
+- a free principal is refused on every route and on every second path to the same content:
+  - Terminal: `/files`, `/bundle` with `packs:false`, `/history`, the manifest and the references;
+  - Backtest: a lab item in a stop line, a switched-off condition or a queued job;
+  - Screener: an extra column, My metrics, `/counts`, a preset or a saved screen;
+  - pages: a shared cache filled by an admin first;
+- the switch-off principal passes every existing suite and the look-ahead gate unchanged;
+- a downgrade takes effect on the next request (the presigned URL window is 120 s; the browser cache is per sha and
+  never announced to a capped user).
+
 ## 9. Free plan (user decisions 2026-11-16)
 
 - **Terminal:**
