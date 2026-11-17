@@ -398,3 +398,25 @@ def test_no_plan_key_in_edge_bff_app():
     found = {path.name: uses for path in sorted(APP.rglob('*.py'))
              if (uses := plan_key_uses(path.read_text(), keys, roles))}
     assert found == {}
+
+
+# ---- the catalog route with the real principal (B2's app/catalog.py, switch on) ------------------------------------
+
+def test_the_catalog_route_filters_by_the_resolved_plan(on, store, monkeypatch):
+    from app import releases
+    indicators = [e['id'] for e in releases.entries('indicator')]
+    lab = indicators[-1]
+    monkeypatch.setattr(principal_module, 'stage_of',
+                        lambda kind, item: 'lab' if (kind, item) == ('indicator', lab) else releases.stage_of(kind, item))
+    released_plan = db(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'terminal.indicator'
+        AND value = '{"stages": ["released"]}' ''')[0]['plan_key']
+    with TestClient(create_app(on, store, FakeOrc())) as c:
+        make_user(store, 'fred', 'fred-password')
+        paul = make_user(store, 'paul', 'paul-password')
+        subscribe(store, paul['user_id'], released_plan)
+        sign_in(c, 'fred', 'fred-password')
+        assert c.get('/api/v1/catalog/indicator').json()['entries'] == []              # the default plan: {"ids": []}
+        sign_in(c, 'paul', 'paul-password')
+        got = [e['id'] for e in c.get('/api/v1/catalog/indicator').json()['entries']]
+        assert got == [i for i in indicators if i != lab] and lab not in got           # released held, lab refused
+        assert c.get('/api/v1/catalog/nothing').status_code == 404

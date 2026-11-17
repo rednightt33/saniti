@@ -18,6 +18,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .backtest import Backtests
+from . import catalog
 from .client import OrcClient, OrcError, public_data
 from .config import Settings
 from .errors import Refusal, http_refusal, refusal, validation_refusal
@@ -573,6 +574,7 @@ def create_app(settings=None, store=None, orc=None):
     watchlist.routes(app, auth)              # EXEC-WATCHLIST L3: the lists and the daily file
     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4b): the account's preferences, /api/v1/preferences
     preferences.routes(app, auth)
+    catalog.routes(app, auth)                # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): /api/v1/catalog/{kind}
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):
