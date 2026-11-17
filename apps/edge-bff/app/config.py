@@ -4,14 +4,19 @@ import re
 from urllib.parse import urlsplit
 
 
-def admin_owners_of(raw, owner):
+def admin_owners_of(raw, owner, multiuser=False):
     """EDGE_ADMIN_OWNERS: owners separated by commas, each as EDGE_OWNER is written; unset means the one owner. An empty
-    value, a blank entry ("a,,b"), spaces or a repeated owner stop the start (a typo must not turn every right off)."""
+    value, a blank entry ("a,,b"), spaces or a repeated owner stop the start (a typo must not turn every right off).
+    EXEC-MU-ACCOUNTS Phase 3a (C2/C3 R1): with the switch off an owner the list leaves out holds no capability, so a
+    list without EDGE_OWNER would lock the one account out of every tab; that too stops the start and names the fix."""
     if raw is None:
         return (owner,)
     parts = raw.split(',')
     if not raw or any(not p or p != p.strip() or not re.fullmatch(r'[A-Za-z0-9._:@-]{1,128}', p) for p in parts) or len(set(parts)) != len(parts):
         raise ValueError('Invalid EDGE_ADMIN_OWNERS: owners separated by commas, without blanks or spaces')
+    if not multiuser and owner not in parts:
+        raise ValueError('EDGE_ADMIN_OWNERS must list EDGE_OWNER while EDGE_MULTIUSER is off (unset it to mean '
+                         'EDGE_OWNER only): otherwise the configured account loses every tab')
     return tuple(parts)
 
 
@@ -112,7 +117,8 @@ class Settings:
                 screener_worker_url=os.environ.get('SCREENER_WORKER_URL', '').strip().rstrip('/'),
                 screener_worker_key=os.environ.get('SCREENER_WORKER_KEY', ''),
                 screener_timeout_seconds=float(os.environ.get('SCREENER_TIMEOUT_SECONDS', '0')),
-                admin_owners=admin_owners_of(os.environ.get('EDGE_ADMIN_OWNERS'), required('EDGE_OWNER')),
+                admin_owners=admin_owners_of(os.environ.get('EDGE_ADMIN_OWNERS'), required('EDGE_OWNER'),
+                                             switch_of('EDGE_MULTIUSER')),
                 multiuser=switch_of('EDGE_MULTIUSER'),
                 session_idle_seconds=int(os.environ.get('EDGE_SESSION_IDLE_SECONDS', '28800')),
                 code_secret=os.environ.get('EDGE_CODE_SECRET', ''), mfa_key=os.environ.get('EDGE_MFA_KEY', ''),
@@ -121,12 +127,6 @@ class Settings:
                 email_from=os.environ.get('EDGE_EMAIL_FROM', '').strip(),
                 resend_api_key=os.environ.get('RESEND_API_KEY', ''),
                 resend_webhook_secret=os.environ.get('RESEND_WEBHOOK_SECRET', ''))
-        # EXEC-MU-ACCOUNTS Phase 3a (C2/C3 R1): with the switch off, an owner EDGE_ADMIN_OWNERS does not list holds no
-        # capability, so a list that leaves out EDGE_OWNER would lock the one account out of every tab; that is a typo,
-        # never a wish: the start stops and names the fix (unset the variable, or list EDGE_OWNER in it)
-        if not s.multiuser and s.owner not in s.admin_owners:
-            raise ValueError('EDGE_ADMIN_OWNERS must list EDGE_OWNER while EDGE_MULTIUSER is off (unset it to mean '
-                             'EDGE_OWNER only): otherwise the configured account loses every tab')
         s.validate()
         return s
 
