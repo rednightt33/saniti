@@ -8905,6 +8905,13 @@ verdict READY for the deploy with the switch off. None found a crossing between 
 - **Lesson:**
   - A restriction (a limit, a list) is data too. A shape error in it must fail closed, as a missing grant does.
   - Check the value where it is written (the data model) and again where it is read.
+- **CI after the fix round:** the look-ahead gate failed on `e12c3de8` and `714336ee`. Its screener-worker job
+  `onboarding_pointers` found three `SCREENER_ONBOARDING.md` line pointers into `apps/edge-bff/app/main.py` shifted by
+  the new lines. The same happened in Phase 0. Fixed in `2d99e0b0` by matching each pointer to the line that holds its
+  symbol (54, 564, 84-87).
+  - Lesson: an edit to `apps/edge-bff/app/main.py` (or another file the document cites) runs
+    `node --test tests/onboarding_pointers.test.ts` in `apps/screener-worker` (as `package.json` `test` does) before
+    the push.
 
 ### M479 — An EDGE tab left open across deploys keeps running the old shell code (2026-11-17, OPEN: proposal)
 
