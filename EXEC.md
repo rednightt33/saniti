@@ -15718,12 +15718,12 @@ Order: migration first. The new edge-bff logs `account_seed_plan_failed` without
 switch off; the previous build ignores the new tables.
 
 1. **M340:** 0 active EDGE jobs and 0 running orc turns, right before steps 2 and 4.
-2. **Migration `20261117_003_edge_bff_accounts_catalog.sql`** (sha256 `fe2d59429759237bdbfea4a7756cd42d5ff5560bca213e4586b7a85f573174f5`): DRYRUN, then APPLY, through
+2. **Migration `20261117_003_edge_bff_accounts_catalog.sql`** (sha256 `475374dde05b9e6ee2c2841e9345a4b461250e7809805afa3386a97fede41bb8`): DRYRUN, then APPLY, through
    `scripts/onboarding/run_job.sh scripts/onboarding/migration_job.py` with
    `verification/edge_multiuser/jobs/migration20261117_003{,_apply}.params.json` and the file as an extra.
    - Check:
      - the five tables, columns, keys, CHECKs and the two partial UNIQUEs;
-     - the two value-shape triggers (`value_triggers`: not SECURITY DEFINER, no EXECUTE for PUBLIC);
+     - the three value-shape triggers (`value_triggers`: not SECURITY DEFINER, no EXECUTE for PUBLIC);
      - `runtime_grants` and `login_grants` equal `expected`; `public_grants` empty; the sequence USAGE only;
      - three plans, `free` the default; `star_holders` = `admin` only; 41 capabilities, each with `means`;
      - the plan grants as CONTRACT.md 8a; 0 overrides and 0 subscriptions; every table commented.

@@ -106,7 +106,7 @@ COMMENT ON COLUMN edge_bff.subscriptions.expires_at IS 'When the plan ends; NULL
 -- past this check (a kind changed later) still never widens access. flag: true or false (false takes a plan's flag
 -- away in an override); limit: a non-negative integer; list: an array of strings; items: an object with only ids
 -- (strings), stages ("lab" or "released") and all (a boolean).
-CREATE FUNCTION edge_bff.capability_value_check() RETURNS trigger LANGUAGE plpgsql AS $fn$
+CREATE FUNCTION edge_bff.capability_value_check() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $fn$
 DECLARE
     k text;
     v jsonb := NEW.value;
@@ -141,6 +141,23 @@ CREATE TRIGGER plan_capabilities_value_check BEFORE INSERT OR UPDATE ON edge_bff
 CREATE TRIGGER user_capability_overrides_value_check BEFORE INSERT OR UPDATE ON edge_bff.user_capability_overrides
     FOR EACH ROW EXECUTE FUNCTION edge_bff.capability_value_check();
 COMMENT ON FUNCTION edge_bff.capability_value_check() IS 'Refuses a plan_capabilities or user_capability_overrides value that does not fit its capability kind (flag true/false, limit non-negative integer, list of strings, items {ids, stages lab/released, all}); C1 Phase 2 F1.';
+-- a capability's kind cannot change while a plan or an override holds a value of it (C1 Phase 2 re-check): the values
+-- were checked against the old kind, and a limit read as another kind would be no limit
+CREATE FUNCTION edge_bff.capability_kind_fixed() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $fn$
+BEGIN
+    IF NEW.kind <> OLD.kind AND (
+           EXISTS (SELECT 1 FROM edge_bff.plan_capabilities WHERE capability_key = OLD.capability_key)
+        OR EXISTS (SELECT 1 FROM edge_bff.user_capability_overrides WHERE capability_key = OLD.capability_key)) THEN
+        RAISE EXCEPTION 'edge_bff.capabilities: % is % and values of it exist; it cannot become %', OLD.capability_key,
+            OLD.kind, NEW.kind
+            USING HINT = 'Add a new capability with the new kind and move the plans and overrides to it in the same migration.';
+    END IF;
+    RETURN NEW;
+END $fn$;
+REVOKE ALL ON FUNCTION edge_bff.capability_kind_fixed() FROM PUBLIC;
+CREATE TRIGGER capabilities_kind_fixed BEFORE UPDATE OF kind ON edge_bff.capabilities
+    FOR EACH ROW EXECUTE FUNCTION edge_bff.capability_kind_fixed();
+COMMENT ON FUNCTION edge_bff.capability_kind_fixed() IS 'Refuses a change of capabilities.kind while plan_capabilities or user_capability_overrides hold values of that capability (they were checked against the old kind).';
 
 -- the role grants nothing from Phase 2 on (the Phase 1 comment said admin holds every capability)
 COMMENT ON COLUMN edge_bff.users.role IS 'admin or user: the kind of account only. With EDGE_MULTIUSER on, what it may do comes from its plan (subscriptions, plan_capabilities) and overrides; MFA is required when those hold * or admin.access.';
@@ -278,8 +295,8 @@ BEGIN
         RAISE EXCEPTION 'a seed grant does not have the shape of its capability kind';
     END IF;
     IF (SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal AND tgname IN ('plan_capabilities_value_check',
-            'user_capability_overrides_value_check')) <> 2 THEN
-        RAISE EXCEPTION 'the two value-shape triggers are missing';
+            'user_capability_overrides_value_check', 'capabilities_kind_fixed')) <> 3 THEN
+        RAISE EXCEPTION 'the three value-shape triggers are missing';
     END IF;
     IF EXISTS (SELECT 1 FROM edge_bff.subscriptions) OR EXISTS (SELECT 1 FROM edge_bff.user_capability_overrides) THEN
         RAISE EXCEPTION 'subscriptions or overrides are not empty after their creation';
@@ -292,5 +309,5 @@ COMMIT;
 -- BEGIN;
 -- DROP TABLE edge_bff.subscriptions, edge_bff.user_capability_overrides, edge_bff.plan_capabilities,
 --     edge_bff.capabilities, edge_bff.plans;
--- DROP FUNCTION edge_bff.capability_value_check();
+-- DROP FUNCTION edge_bff.capability_value_check(), edge_bff.capability_kind_fixed();
 -- COMMIT;

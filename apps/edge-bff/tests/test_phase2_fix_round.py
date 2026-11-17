@@ -172,3 +172,15 @@ def test_the_runtime_role_writes_an_override_through_the_value_check(store):
             c.execute('''UPDATE edge_bff.user_capability_overrides SET value = '"365"' WHERE user_id = %s''',
                       (alice['user_id'],))
     assert db(store, 'SELECT value FROM edge_bff.user_capability_overrides')[0]['value'] == 365
+
+
+def test_a_capabilitys_kind_cannot_change_while_values_of_it_exist(store):
+    """C1 re-check: a limit whose kind became items or flag would read as no limit; the database refuses the change."""
+    with pytest.raises(psycopg.errors.RaiseException, match='cannot become items'):
+        db(store, "UPDATE edge_bff.capabilities SET kind = 'items' WHERE capability_key = 'terminal.history_days'")
+    db(store, "UPDATE edge_bff.capabilities SET means = means WHERE capability_key = 'terminal.history_days'")
+
+
+def test_the_read_side_holds_only_the_known_release_stages():
+    from app.principal import valid_value
+    assert valid_value('items', {'stages': ['released']}) and not valid_value('items', {'stages': ['LAB']})

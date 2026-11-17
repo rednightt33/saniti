@@ -11,9 +11,9 @@ These tests fail on 8a55980b (principal.py:73-83 read_grants, 189 limits; accoun
 
 Fix round (main agent): the migration now refuses such values when they are written (capability_value_check,
 tests/test_phase2_fix_round.py), and read_grants reads a wrong shape as the most restrictive value. The values below are
-written past the write-time check (`unchecked`) so these tests keep testing the read-time defence on its own (a value
-can still meet the wrong kind later, e.g. a capability whose kind a later migration changes); the assertions are as the
-checker wrote them.
+written past the write-time check (`unchecked`) so these tests keep testing the read-time defence on its own (defence
+in depth; a change of a capability's kind while values of it exist is refused too, capabilities_kind_fixed); the
+assertions are as the checker wrote them.
 """
 import dataclasses
 

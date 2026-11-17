@@ -32,7 +32,7 @@
   [
    "value_triggers",
    null,
-   "SELECT t.tgname, c.relname, p.proname, p.prosecdef, has_function_privilege('public', p.oid, 'EXECUTE') AS public_execute FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid JOIN pg_proc p ON p.oid = t.tgfoid WHERE NOT t.tgisinternal AND t.tgname IN ('plan_capabilities_value_check', 'user_capability_overrides_value_check') ORDER BY t.tgname"
+   "SELECT t.tgname, c.relname, p.proname, p.prosecdef, has_function_privilege('public', p.oid, 'EXECUTE') AS public_execute FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid JOIN pg_proc p ON p.oid = t.tgfoid WHERE NOT t.tgisinternal AND t.tgname IN ('plan_capabilities_value_check', 'user_capability_overrides_value_check', 'capabilities_kind_fixed') ORDER BY t.tgname"
   ],
   [
    "runtime_grants",

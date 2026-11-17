@@ -8897,6 +8897,7 @@ verdict READY for the deploy with the switch off. None found a crossing between 
 | C1 N3, C3 N2 | Phase 3, OPEN | `details.display_name` falls back to the internal key (`backtest.run`); the table's `display_name` is not read. | Phase 3, when refusals reach users' pages. |
 | C2 N4 | Phase 3, OPEN | A tab that receives the `entitlements` broadcast re-posts it once, so other tabs re-read the session one extra time. | Phase 3. |
 | C3 nits | fixed / OPEN | `task =asyncio` (fixed); the old docstring in `test_releases.py`; an unhandled 5xx has no header. | — |
+| C1 re-check of `e12c3de8` | non-blocking, fixed | Nothing blocking. Gaps: (1) a later migration that changed a capability's kind away from limit or list would make its values read as no limit; (2) the trigger function had no fixed `search_path`; (3) the read side accepted an unknown stage (it failed closed). | (1) Trigger `capabilities_kind_fixed` refuses a kind change while values of the capability exist. (2) Both functions `SET search_path = pg_catalog, pg_temp`. (3) `valid_value` holds only the stages `lab` and `released`. |
 
 - **Tests:** the Phase 2 and fix-round files pass, 116 + 31 tests.
 - **Previous edge-bff build:** C3 found that it runs unaffected with the new tables present. Only its own provisioning

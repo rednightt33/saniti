@@ -4,7 +4,7 @@
 
 - **Why:** plans as data (CONTRACT.md section 8a; go 2026-11-16 and 2026-11-17 "sudah ada, pls continue"). Operational
   schema `edge_bff`, no market data, so no `Table_Catalog` rows (`DATABASE_CATALOG.md` covers schema `public`).
-- **`20261117_003_edge_bff_accounts_catalog.sql`** (sha256 `fe2d59429759237bdbfea4a7756cd42d5ff5560bca213e4586b7a85f573174f5`), after `20261117_002` (its preflight refuses to run
+- **`20261117_003_edge_bff_accounts_catalog.sql`** (sha256 `475374dde05b9e6ee2c2841e9345a4b461250e7809805afa3386a97fede41bb8`), after `20261117_002` (its preflight refuses to run
   without `users.registration_hash`, and refuses a second run).
 - **Tables:**
   - `plans`: one default (`plans_one_default`);

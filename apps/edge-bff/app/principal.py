@@ -68,7 +68,8 @@ def valid_value(kind, value):
     if kind == 'items':
         return isinstance(value, dict) and set(value) <= ITEM_KEYS \
             and all(isinstance(value.get(k, []), list) and all(isinstance(x, str) for x in value.get(k, []))
-                    for k in ('ids', 'stages')) and isinstance(value.get('all', False), bool)
+                    for k in ('ids', 'stages')) and set(value.get('stages', ())) <= set(releases.STAGES) \
+            and isinstance(value.get('all', False), bool)
     return False
 
 
