@@ -503,8 +503,8 @@ is built, checked, and deployed on its own.
     - the ATR stop, the ATR target and the chandelier trailing stop (I30).
 
     Either each is gated by the item it computes, or it is recorded here as part of the Backtest itself, as the
-    transform metrics are. The checker's failing test waits on branch `c1-phase3b-pending`
-    (`apps/backtest-worker/tests/c1-phase3b.test.ts`) and lands with the decision, matching it.
+    transform metrics are. The checker's failing test waits in `pending/c1-phase3b.test.ts` (outside every suite;
+    `pending/README.md`) and goes back to `apps/backtest-worker/tests/` with the decision, matching it.
   - **O3b-2 (C1 non-blocking 1, user decision).** The Screener universe chips filter on `last`, `adv20_idr`, `bars` and
     `index_membership`, values shown in every result row and in `/universe`, so gating them by id cannot hide them.
     The transform `ma` computes the SMA/EMA of any series, as the registry indicators of the same name do. Recommended:

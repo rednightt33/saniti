@@ -8883,7 +8883,8 @@ Three checkers read the integrated Phase 3b against CONTRACT.md 8b only:
 
 Verdicts:
 - **C1 (security):** nothing blocking the deploy with the switch off; one finding blocks the switch-on. Failing test
-  `4188e3cf`, kept on branch `c1-phase3b-pending` until the user decides (O3b-1).
+  `4188e3cf`, kept in `verification/edge_multiuser/access_tiers/pending/` (outside every suite) until the user
+  decides (O3b-1).
 - **C2 (isolation):** nothing blocking the deploy; two findings for the switch-on. Failing tests `12e56960`, fixed in
   `74ed598f`.
 - **C3 (conformance):** READY for the deploy in the stated order. No code defect; two test gaps and the runbook.
