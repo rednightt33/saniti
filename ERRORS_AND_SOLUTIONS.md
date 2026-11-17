@@ -8875,6 +8875,38 @@ in its staleness check.
   The screener-worker suite: 112 passed. edge-bff deployed on the green commit.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
+### M482 — EXEC-MU-ACCOUNTS Phase 3b: findings of the independent checkers C1-C3 (2026-11-17, fixed on branch, not deployed; the OPEN rows wait for the switch-on)
+
+Three checkers read the integrated Phase 3b against CONTRACT.md 8b only:
+- the workers W1 (backtest-worker, `1510261b`) and W2 (screener-worker, `e06dff77`);
+- edge-bff E1 (`bc1eaf55`).
+
+Verdicts:
+- **C1 (security):** nothing blocking the deploy with the switch off; one finding blocks the switch-on. Failing test
+  `4188e3cf`, kept on branch `c1-phase3b-pending` until the user decides (O3b-1).
+- **C2 (isolation):** nothing blocking the deploy; two findings for the switch-on. Failing tests `12e56960`, fixed in
+  `74ed598f`.
+- **C3 (conformance):** READY for the deploy in the stated order. No code defect; two test gaps and the runbook.
+
+The fix round's own tests are in `apps/edge-bff/tests/test_phase3b_fix_round.py`.
+
+| Finding | Severity | Root cause (verified) | Fix |
+|---|---|---|---|
+| C2 F1 | blocks the switch-on | The screener-worker catalog gives each preset's match and near counts, computed in the system lane with every item. edge-bff filtered that catalog by rights only, so a plan without an item still saw the counts of a preset that reads it. | The worker lists each preset's `items` (`presetItems`, the same walk as the run's allow check; a test holds it equal for all 26 presets). edge-bff leaves out a preset with an item outside the principal's allow, and keeps no counts when `items` is absent (an older worker). Cached per allow digest. |
+| C2 F2 | blocks the switch-on | A saved Screener item was checked again only when the registry versions changed, so after a plan was lowered it showed no `needs_review` until it was run. | `reviewed()` asks the worker again under a narrowed context (any kind not `"*"`); the answer is cached per context digest. |
+| C1 F1 | OPEN, blocks the switch-on (user decision O3b-1) | Built-in Backtest options compute a catalog item without naming its id: `rank_by` `adx`/`rsi`/`vol`/`fnet` (I07, I13, I35, flow `fnet`), the legacy `macd` card (I06), and the ATR stop, target and chandelier (I30). `checkRequest` gates only ids a request names (`legacyItemKind`: a card whose type is a catalog id). | Waiting for the user: either gate each option by the item it computes, or record it as part of the Backtest in CONTRACT 8b. The failing test lands with the decision, changed to match. |
+| C1 n1 | OPEN (user decision O3b-2) | The Screener universe chips filter on `last`, `adv20_idr`, `bars` and `index_membership`, values every result row shows; the transform `ma` computes the SMA/EMA of any series. | Recommended: recorded as not gated (a gate cannot hide a value every row shows). |
+| C1 n4 | OPEN, step 3 | backtest-worker `/v1/signals` takes a body without the `{request, context}` wrapper as every item allowed. | Step 3 (the workers require `allow`) refuses that form too. |
+| C3 F1 | deploy order | The deployed workers refuse `context.allow` (backtest 422 `UNKNOWN_FIELD`, screener 422 `INVALID_INPUT`). A new edge-bff before them would fail every Backtest and Screener call and end queued jobs FAILED for good. edge-bff and screener-worker both build from `main`. | Both workers are uploaded by CLI from the green commit before the `main` push (EXEC.md, Phase 3b deploy steps). The new workers accept the old edge-bff (absent `allow`: every item). |
+| C3 F2 | records | No 3b runbook in EXEC.md. | Written: EXEC.md "Phase 3b deploy steps". |
+| C3 F3 | test gap | No test failed when a call site asked for the other worker's families: every test plan granted both alike. | `test_each_worker_gets_the_allow_of_its_own_families`: a plan narrowed in one worker's family only. Swapping the name at the Screener helper, the Backtest helper or the dispatch fails it (checked by mutation). |
+| C3 F4 | test gap | No test held `named()` on the job's status-poll FAILED path, or the `/v1/signals` relay of a 403. | Two tests in the fix-round file; dropping `named()` on the poll path fails the first (mutation). |
+| C3 F5 | recorded | A per-entry `CAPABILITY_REQUIRED` of `/counts` has no `display_name`: edge-bff relays those bytes. | Recorded in CONTRACT 8b; the page names the item from its own catalog (3e). |
+
+- **Lesson:** "every place an item can be named" misses the options that *compute* an item without naming it: a
+  ranking, an exit rule, a built-in card. When a gate is written per id, list what each built-in option reads (here,
+  `Calc.out` keys), not only the ids a request carries.
+
 ### M481 — EXEC-MU-ACCOUNTS Phase 3a: findings of the independent checkers C1-C3 (2026-11-17, fixed on branch, not deployed; deployed 2026-11-17 on dev with the switch off: `main` `24d6c70e`, edge-bff `49e7cf88` SUCCESS, migration job `3562a182`; the OPEN rows stay open)
 
 Three checkers read the integrated Phase 3a (`257a1e4c`: B1 route gates and caps, B2 Monitor and page files) against

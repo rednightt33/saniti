@@ -491,6 +491,28 @@ is built, checked, and deployed on its own.
   - The workers' internal calls (tests, the look-ahead gate) default to everything allowed; only the HTTP layer fails
     closed.
   - The backtest-worker deploys by CLI upload; the screener-worker deploys on green checks.
+- **Found by the 3b checkers (ERRORS M482).** Fixed before the deploy:
+  - the Screener catalog lists each preset's items, and edge-bff leaves out a preset with an item outside the allow;
+  - a saved item is reviewed again under a narrowed plan (C2).
+
+  **Open before the switch goes on** (with the switch off the owner holds `"*"`, so nothing changes now):
+  - **O3b-1 (C1 F1, user decision).** Backtest built-in options compute a catalog item without naming its id:
+    - `portfolio.rank_by` `adx`/`rsi`/`vol`/`fnet` (I07, I13, I35, flow `fnet`);
+    - the legacy `price_action` card `macd` (I06; with `bullish_divergence` it is the Screener metric
+      `macd_divergence`);
+    - the ATR stop, the ATR target and the chandelier trailing stop (I30).
+
+    Either each is gated by the item it computes, or it is recorded here as part of the Backtest itself, as the
+    transform metrics are. The checker's failing test waits on branch `c1-phase3b-pending`
+    (`apps/backtest-worker/tests/c1-phase3b.test.ts`) and lands with the decision, matching it.
+  - **O3b-2 (C1 non-blocking 1, user decision).** The Screener universe chips filter on `last`, `adv20_idr`, `bars` and
+    `index_membership`, values shown in every result row and in `/universe`, so gating them by id cannot hide them.
+    The transform `ma` computes the SMA/EMA of any series, as the registry indicators of the same name do. Recommended:
+    both recorded here as not gated.
+  - **Step 3** (the workers require `allow`) also refuses a `/v1/signals` body without the `{request, context}`
+    wrapper. Today that form gets every item (`backtest-worker/src/server.ts`; C1 non-blocking 4).
+  - A per-entry `CAPABILITY_REQUIRED` of the Screener's `/counts` reaches the page without `display_name`: edge-bff
+    relays those bytes and does not build that answer (C3 F5). The page names the item from its own catalog (3e).
 
 **3b. Workers (Backtest, Screener).**
 - edge-bff sends `context.allow` `{kind: "*" | [ids]}` (the principal's item grants expanded against

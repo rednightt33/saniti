@@ -15843,3 +15843,45 @@ previous build ignores the new rows.
 6. **The user, after a reload (M479):** every tab as before. The Monitor asks, the Backtest submits, the Screener runs,
    the Watchlist stars, and layouts and drawings save.
 7. **Records:** `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md` (applied, read back), and the ERRORS M481 status.
+
+### Phase 3b deploy steps (written 2026-11-17, not run yet)
+
+Code:
+- builders W1 (backtest-worker, `1510261b`), W2 (screener-worker, `e06dff77`) and E1 (edge-bff, `bc1eaf55`);
+- the C2 fix `74ed598f` (preset items in the worker catalog, the review per plan);
+- the fix-round tests (ERRORS M482).
+
+The checkers C1-C3 found nothing that blocks the deploy with the switch off. O3b-1 and O3b-2 (CONTRACT 8b) wait for the
+user's decision before the switch goes on. The switch stays off, and with `EDGE_ADMIN_OWNERS` unset the configured
+owner holds `*`. So every worker call carries `allow` `"*"` for every kind and `limits` `{}`, and each tab works as
+today. No migration and no variable change.
+
+Not needed: the real-data look-ahead check (`verification/backtest/lookahead/README.md`). 3b changes no value the
+Backtest reads; it only adds refusals that never apply to `"*"`.
+
+Order (C3 F1). The deployed workers refuse `context.allow`, so the new edge-bff must not start before both new workers.
+The new workers accept the old edge-bff body (no `allow`: every item). The page tolerates the catalog's new `items`
+field, because it reads the catalog without a key check.
+
+1. **M340:** 0 active EDGE jobs and 0 running orc turns, right before steps 3 and 5.
+2. **Green CI on exactly the commit to deploy** (the branch head, pushed): `Backtest look-ahead gate`, `Backend tests`,
+   `Generated files`, plus the local suites (backtest-worker, screener-worker, the Screener and Backtest pages, edge-bff).
+3. **backtest-worker** (service `9156a5c3`, project `8aef1702`, environment `4d3e5af2`):
+   - CLI upload of `git archive <commit>` of the paths its Dockerfile copies, with `--path-as-root`.
+   - Check: that deployment at `SUCCESS`, and the start log's `engine_version` equal to the repository's.
+   - Rollback: the deployment live before (read before the upload).
+4. **screener-worker** (service `bad6feef`): CLI upload from the same commit, before the `main` push.
+   - Check: `SUCCESS` and `/ready`.
+   - The `main` push then rebuilds the same code from GitHub.
+5. **`main`:** fast-forward to the same commit.
+   - edge-bff and screener-worker deploy after the checks on `main` (`checkSuites`, REVAMP K10 a).
+   - Check: each exact deployment at `SUCCESS`, edge-bff `/ready` 200, a clean start log.
+   - Rollback: the deployments recorded before the push.
+6. **Smoke from outside (switch off):** the 3a checks unchanged. Gated routes answer 401 without a session.
+7. **The user, after a reload (M479):** the Backtest previews, submits and finishes a run; the Screener runs, counts and
+   opens presets; saved screens list without a stray `needs_review`.
+8. **Records:** `RAILWAY_CHANGELOG.md`, the ERRORS M482 status, and this section's run log.
+
+Then step 3 of the wire (CONTRACT 8b) is a follow-up change. The workers require `allow` (absent: `INVALID_CONTEXT`),
+including on the unwrapped `/v1/signals` body. Its order: edge-bff is already sending `allow`, so the workers can be
+deployed alone.

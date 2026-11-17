@@ -152,6 +152,7 @@ class FakeWorker:
         self.garbage = False           # the result is not JSON
         self.result_gone = False       # the result answers 410 RESULT_GONE (a newer job started there and replaced it)
         self.validate_error = None     # (status, error) for /v1/validate
+        self.signals_error = None      # (status, error) for /v1/signals
         self.timeout_paths = set()     # these routes answer the worker's 504 TIMEOUT ...
         self.timeout_after = 0.0       # ... after this many seconds
         self.timeout_error = True      # False: that 504 carries no error body (not the worker's own answer)
@@ -236,6 +237,8 @@ class FakeWorker:
                                              'tickers': tickers_of(request)})
                 if route == ('POST', '/v1/signals'):
                     # EXEC-BACKTEST-REVAMP P5: {request, context}
+                    if worker.signals_error:
+                        return self.answer(worker.signals_error[0], {'error': worker.signals_error[1]})
                     for k, t in enumerate((body.get('request') or {}).get('tickers') or []):
                         if t == 'NOPE':           # the worker's refusal of a picked stock it does not publish (validate.ts)
                             return self.answer(422, {'error': {'code': 'UNKNOWN_TICKER', 'field': f'tickers[{k}]',
