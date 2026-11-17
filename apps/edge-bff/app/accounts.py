@@ -35,7 +35,8 @@ EVERYTHING = '*'
 # owner_key, username, role, status) and resolve its grants within the same statement:
 # - live: its active subscription that has started and not ended (expiry decided now, never by a cron);
 # - plan: the live subscription's plan and end, else the default plan (no end);
-# - lapsed: without a live one, the plan of its most recent subscription that ended (access.expired_plan);
+# - lapsed: without a live one, the plan of its most recent subscription that ended: active past its end, or marked
+#   expired with or without an end (C1 Phase 2 N3; access.expired_plan);
 # - plan_rows: the plan's plan_capabilities; overrides: its overrides that have not ended;
 # - merged: an override replaces the plan's value of its key (or adds the key), with the capability's kind.
 GRANTS = '''
@@ -46,8 +47,9 @@ GRANTS = '''
                              (SELECT plan_key FROM edge_bff.plans WHERE is_default)) AS plan_key,
                     (SELECT expires_at FROM live) AS plan_expires_at),
     lapsed AS (SELECT s.plan_key FROM edge_bff.subscriptions s JOIN found ON s.user_id = found.user_id
-        WHERE NOT EXISTS (SELECT 1 FROM live) AND s.status IN ('active', 'expired') AND s.expires_at <= now()
-        ORDER BY s.expires_at DESC LIMIT 1),
+        WHERE NOT EXISTS (SELECT 1 FROM live)
+          AND ((s.status = 'active' AND s.expires_at <= now()) OR s.status = 'expired')
+        ORDER BY coalesce(s.expires_at, s.last_event_at, s.created_at) DESC LIMIT 1),
     plan_rows AS (SELECT pc.capability_key, pc.value, pc.version FROM edge_bff.plan_capabilities pc
         JOIN plan ON pc.plan_key = plan.plan_key),
     overrides AS (SELECT o.capability_key, o.value FROM edge_bff.user_capability_overrides o
@@ -160,19 +162,26 @@ class AccountStore:
     def seed_subscription(self, user_id):
         """User #1 gets an active manual subscription with no end to the plan that holds every capability ('*'). The
         plan is found by data: exactly one plan holds '*'; otherwise nothing is given and account_seed_plan_ambiguous is
-        logged at warning. Idempotent (every replica takes the same advisory lock): an account that holds an active
-        subscription already (live or ended) is left as it is. Returns the plan key given or kept, or None."""
+        logged at warning. Given once (C1/C2/C3 Phase 2): only to the seed row (the one owner key not of the 'u_' form,
+        users_one_seed), and only while it has no subscription row at all, whatever its status. From then on the
+        subscription is the admin's: a cancelled or ended one is never given back at a restart. Idempotent (every
+        replica takes the same advisory lock). Returns the plan key given or held, or None."""
         with self.store.connect() as c:
             c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('accounts:seed_subscription',))
+            seed = c.execute('SELECT owner_key FROM edge_bff.users WHERE user_id = %s', (user_id,)).fetchone()
+            if seed is None or OWNER_KEY.fullmatch(seed['owner_key']):
+                logger.warning(json.dumps({'event': 'account_seed_plan_refused', 'user_id': user_id,
+                                           'reason': 'not the seed account'}))
+                return None
             plans = [r['plan_key'] for r in c.execute('''SELECT DISTINCT plan_key FROM edge_bff.plan_capabilities
                 WHERE capability_key = %s ORDER BY plan_key''', (EVERYTHING,)).fetchall()]
             if len(plans) != 1:
                 logger.warning(json.dumps({'event': 'account_seed_plan_ambiguous', 'plans': len(plans)}))
                 return None
-            held = c.execute("SELECT plan_key FROM edge_bff.subscriptions WHERE user_id = %s AND status = 'active'",
-                             (user_id,)).fetchone()
+            held = c.execute('''SELECT plan_key, status FROM edge_bff.subscriptions WHERE user_id = %s
+                ORDER BY (status = 'active') DESC, created_at DESC LIMIT 1''', (user_id,)).fetchone()
             if held is not None:
-                return held['plan_key']
+                return held['plan_key'] if held['status'] == 'active' else None
             c.execute('''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, expires_at, provider, provider_ref)
                 VALUES (%s, %s, 'active', NULL, 'manual', 'seed')''', (user_id, plans[0]))
             logger.info(json.dumps({'event': 'account_seed_subscribed', 'user_id': user_id}))

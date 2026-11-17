@@ -8875,6 +8875,36 @@ in its staleness check.
   The screener-worker suite: 112 passed. edge-bff deployed on the green commit.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
+### M480 — EXEC-MU-ACCOUNTS Phase 2: findings of the independent checkers C1-C3 (2026-11-17, fixed on branch, not deployed)
+
+Three checkers read the integrated Phase 2 code (`8a55980b`) against CONTRACT.md only. C1 (security) committed
+`7cf93f4d`, `tests/test_c1_phase2_fail_closed.py`. C2 (isolation) committed `3a1f8547`,
+`tests/test_c2_phase2_isolation.py`. C3 (conformance) committed `1f0f4e7e`, `tests/test_c3_phase2_check.py`, with the
+verdict READY for the deploy with the switch off. None found a crossing between users or plans. The fix round is in
+`tests/test_phase2_fix_round.py`.
+
+| Finding | Severity | Root cause (verified) | Fix |
+|---|---|---|---|
+| C1 F1 | blocks the switch-on | A limit or list value of the wrong shape was dropped on read, and `p.limit()` then answered None ("no limit"). Shown with a free account: `terminal.tickers` `"BBCA"` gave every ticker; `terminal.history_days` `"730"` gave unlimited history. | The class: a value that cannot be read must never widen access. (1) At write time, the migration's `capability_value_check` trigger on `plan_capabilities` and `user_capability_overrides` refuses any value that does not fit its kind; its hint shows the right shapes. (2) At read time, `read_grants` reads a wrong limit as 0 and a wrong list as [] (`RESTRICTIVE`). C1's tests write past the trigger to test (2) alone; their assertions are unchanged. |
+| C2 F1 | blocks the switch-on | `X-Edge-Entitlements` was added only on `/api/v1/` paths, so the Terminal's `/api/terminal/v1` data calls never carried it. | The header is set on every answer made for a principal, whatever the path. |
+| C1 N1, C2 N1, C3 N3 | before Phase 4 | The seed subscription looked only for an `active` row, so a cancelled one was given back at the next start. It also never checked that the account was the seed. | It is given once: only to the seed row (owner key not of the `u_` form), and only while that row has no subscription at all. Otherwise it logs `account_seed_plan_refused`. |
+| C1 N2 | design | `auth.admin(capability=...)` required MFA only through `role_needs_mfa` (`*` or `admin.access`), so a narrower admin capability could open an admin route without MFA. | `admin()` also requires `admin.access`. |
+| C1 N3 | minor | A subscription marked `expired` with no end named no ended plan. | The `lapsed` CTE counts `status='expired'` with or without an end. |
+| C1 N3, C3 N4 | minor | A flag override of `false` (taking a flag away) was logged as invalid on every request. | A flag may be true or false; false is not held. |
+| C2 N3, C1 N3, C3 N5 | minor | The version missed the plan's end and the release stages. | `version_of` adds `expires_at` and `releases.CURRENT.digest`. |
+| C3 N1 | minor | With the switch on and no catalog migration, `/ready` passed while every sign-in failed. | `store.ready(multiuser)` reads the five catalog tables when the switch is on. |
+| C2 N2 | accepted | The switch-off access object gains `expired_plan: null` (contract 8a lists it). | None (recorded). |
+| C1 N3, C3 N2 | Phase 3, OPEN | `details.display_name` falls back to the internal key (`backtest.run`); the table's `display_name` is not read. | Phase 3, when refusals reach users' pages. |
+| C2 N4 | Phase 3, OPEN | A tab that receives the `entitlements` broadcast re-posts it once, so other tabs re-read the session one extra time. | Phase 3. |
+| C3 nits | fixed / OPEN | `task =asyncio` (fixed); the old docstring in `test_releases.py`; an unhandled 5xx has no header. | — |
+
+- **Tests:** the Phase 2 and fix-round files pass, 116 + 31 tests.
+- **Previous edge-bff build:** C3 found that it runs unaffected with the new tables present. Only its own provisioning
+  script refuses them, so after the apply use only the new `scripts/provision_edge_bff_login.py`.
+- **Lesson:**
+  - A restriction (a limit, a list) is data too. A shape error in it must fail closed, as a missing grant does.
+  - Check the value where it is written (the data model) and again where it is read.
+
 ### M479 — An EDGE tab left open across deploys keeps running the old shell code (2026-11-17, OPEN: proposal)
 
 - **Symptom (user 2026-11-17, screenshot):** "bagian watchlistnya hilang". The Watchlist tab was missing from the rail

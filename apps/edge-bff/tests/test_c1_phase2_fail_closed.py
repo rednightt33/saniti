@@ -8,6 +8,12 @@ unlimited history. Flags and items fail closed (a malformed value grants nothing
 too (the plan's own value, or nothing allowed), never open.
 
 These tests fail on 8a55980b (principal.py:73-83 read_grants, 189 limits; accounts.py GRANTS `merged`).
+
+Fix round (main agent): the migration now refuses such values when they are written (capability_value_check,
+tests/test_phase2_fix_round.py), and read_grants reads a wrong shape as the most restrictive value. The values below are
+written past the write-time check (`unchecked`) so these tests keep testing the read-time defence on its own (a value
+can still meet the wrong kind later, e.g. a capability whose kind a later migration changes); the assertions are as the
+checker wrote them.
 """
 import dataclasses
 
@@ -22,6 +28,13 @@ def on(settings, store):
     return dataclasses.replace(settings, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40)
 
 
+def unchecked(store, sql, *args):
+    """A write past the write-time value check (the triggers do not fire for this transaction; superuser test DB)."""
+    with store.connect() as c:
+        c.execute('SET LOCAL session_replication_role = replica')
+        c.execute(sql, args)
+
+
 def default_plan(store):
     return db(store, 'SELECT plan_key FROM edge_bff.plans WHERE is_default')[0]['plan_key']
 
@@ -32,7 +45,7 @@ def test_a_malformed_list_override_never_lifts_the_restriction(on, store, value)
     auth = Auth(on, store)
     before = auth.owner_principal(alice['owner_key']).limit('terminal.tickers')
     assert before == ['BBCA']
-    db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
+    unchecked(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
         VALUES (%s, 'terminal.tickers', %s::jsonb, 'typo')''', alice['user_id'], value)
     after = auth.owner_principal(alice['owner_key']).limit('terminal.tickers')
     # None means "every ticker" to every reader of p.limit (and to the page's limit(), shared/edge-session.ts)
@@ -43,7 +56,7 @@ def test_a_malformed_list_override_never_lifts_the_restriction(on, store, value)
 def test_a_malformed_plan_limit_never_becomes_no_limit(on, store, value):
     plan = default_plan(store)
     try:
-        db(store, '''UPDATE edge_bff.plan_capabilities SET value = %s::jsonb
+        unchecked(store, '''UPDATE edge_bff.plan_capabilities SET value = %s::jsonb
             WHERE plan_key = %s AND capability_key = 'terminal.history_days' ''', value, plan)
         alice = make_user(store, 'alice', 'alice-password')
         got = Auth(on, store).owner_principal(alice['owner_key']).limit('terminal.history_days')

@@ -101,6 +101,47 @@ CREATE UNIQUE INDEX subscriptions_one_active ON edge_bff.subscriptions(user_id) 
 COMMENT ON TABLE edge_bff.subscriptions IS 'A user''s plan over time. The live one is status active with starts_at <= now() and (expires_at IS NULL or expires_at > now()), decided at read time, never by a cron; without one the user has the default plan. provider manual at launch (the admin activates a plan), test for the tests.';
 COMMENT ON COLUMN edge_bff.subscriptions.expires_at IS 'When the plan ends; NULL = no end. Past it the user resolves to the default plan and the session answer names the ended plan (access.expired_plan).';
 
+-- ---- value shapes (C1 Phase 2 F1): a value that does not fit its capability's kind is refused when written --------
+-- edge-bff also reads a wrong shape as the most restrictive value (app/principal.py read_grants), so a value that slips
+-- past this check (a kind changed later) still never widens access. flag: true or false (false takes a plan's flag
+-- away in an override); limit: a non-negative integer; list: an array of strings; items: an object with only ids
+-- (strings), stages ("lab" or "released") and all (a boolean).
+CREATE FUNCTION edge_bff.capability_value_check() RETURNS trigger LANGUAGE plpgsql AS $fn$
+DECLARE
+    k text;
+    v jsonb := NEW.value;
+    ok boolean;
+BEGIN
+    SELECT kind INTO k FROM edge_bff.capabilities WHERE capability_key = NEW.capability_key;
+    ok := CASE k
+        WHEN 'flag' THEN v IN ('true'::jsonb, 'false'::jsonb)
+        WHEN 'limit' THEN jsonb_typeof(v) = 'number' AND v::text ~ '^[0-9]+$'
+        WHEN 'list' THEN jsonb_typeof(v) = 'array'
+            AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v) e WHERE jsonb_typeof(e) <> 'string')
+        WHEN 'items' THEN jsonb_typeof(v) = 'object'
+            AND NOT EXISTS (SELECT 1 FROM jsonb_object_keys(v) x WHERE x NOT IN ('ids', 'stages', 'all'))
+            AND (NOT v ? 'ids' OR (jsonb_typeof(v -> 'ids') = 'array'
+                 AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v -> 'ids') e WHERE jsonb_typeof(e) <> 'string')))
+            AND (NOT v ? 'stages' OR (jsonb_typeof(v -> 'stages') = 'array'
+                 AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v -> 'stages') e
+                                 WHERE e NOT IN ('"lab"'::jsonb, '"released"'::jsonb))))
+            AND (NOT v ? 'all' OR jsonb_typeof(v -> 'all') = 'boolean')
+        ELSE false END;
+    IF NOT coalesce(ok, false) THEN
+        RAISE EXCEPTION 'edge_bff.%: the value % does not fit capability % (kind %)', TG_TABLE_NAME, v, NEW.capability_key,
+            coalesce(k, 'unknown')
+            USING HINT = 'flag: true or false; limit: a non-negative integer such as 730; list: an array of strings '
+                         'such as ["BBCA"]; items: {"ids": ["I01"], "stages": ["released"], "all": false}, each key optional';
+    END IF;
+    RETURN NEW;
+END $fn$;
+REVOKE ALL ON FUNCTION edge_bff.capability_value_check() FROM PUBLIC;
+CREATE TRIGGER plan_capabilities_value_check BEFORE INSERT OR UPDATE ON edge_bff.plan_capabilities
+    FOR EACH ROW EXECUTE FUNCTION edge_bff.capability_value_check();
+CREATE TRIGGER user_capability_overrides_value_check BEFORE INSERT OR UPDATE ON edge_bff.user_capability_overrides
+    FOR EACH ROW EXECUTE FUNCTION edge_bff.capability_value_check();
+COMMENT ON FUNCTION edge_bff.capability_value_check() IS 'Refuses a plan_capabilities or user_capability_overrides value that does not fit its capability kind (flag true/false, limit non-negative integer, list of strings, items {ids, stages lab/released, all}); C1 Phase 2 F1.';
+
 -- the role grants nothing from Phase 2 on (the Phase 1 comment said admin holds every capability)
 COMMENT ON COLUMN edge_bff.users.role IS 'admin or user: the kind of account only. With EDGE_MULTIUSER on, what it may do comes from its plan (subscriptions, plan_capabilities) and overrides; MFA is required when those hold * or admin.access.';
 
@@ -236,6 +277,10 @@ BEGIN
                    ELSE jsonb_typeof(pc.value) = 'object' END) THEN
         RAISE EXCEPTION 'a seed grant does not have the shape of its capability kind';
     END IF;
+    IF (SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal AND tgname IN ('plan_capabilities_value_check',
+            'user_capability_overrides_value_check')) <> 2 THEN
+        RAISE EXCEPTION 'the two value-shape triggers are missing';
+    END IF;
     IF EXISTS (SELECT 1 FROM edge_bff.subscriptions) OR EXISTS (SELECT 1 FROM edge_bff.user_capability_overrides) THEN
         RAISE EXCEPTION 'subscriptions or overrides are not empty after their creation';
     END IF;
@@ -247,4 +292,5 @@ COMMIT;
 -- BEGIN;
 -- DROP TABLE edge_bff.subscriptions, edge_bff.user_capability_overrides, edge_bff.plan_capabilities,
 --     edge_bff.capabilities, edge_bff.plans;
+-- DROP FUNCTION edge_bff.capability_value_check();
 -- COMMIT;

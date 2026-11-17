@@ -892,8 +892,10 @@ visible changes. With the switch on, access comes from data, never from code (CO
 
 - **Plans** (`edge_bff.plans`, migration `20261117_003`): `admin`, `paid` and `free` (the default). The plan keys
   appear only in that migration's seed; `tests/test_plan_catalog.py` fails on a plan key in `app/`.
-- **Capabilities** (`edge_bff.capabilities`): each has a kind and a plain-English meaning.
-  - `flag`: `true`.
+- **Capabilities** (`edge_bff.capabilities`): each has a kind and a plain-English meaning. The database refuses a
+  value that does not fit its kind (trigger `capability_value_check`). Should one be read anyway, it fails closed: a
+  limit reads 0 and a list reads [] (ERRORS M480).
+  - `flag`: `true`, or `false` in an override that takes the plan's flag away.
   - `limit`: a non-negative integer; no row means no limit.
   - `list`: strings.
   - `items`: `{ids, stages, all}`. An item `<family>:<id>`, for example `terminal.indicator:I01`, is held when its id
@@ -906,11 +908,14 @@ visible changes. With the switch on, access comes from data, never from code (CO
 - **Resolution** (`app/accounts.py`, one statement; `app/principal.py`): `p.can(key)` and `p.limit(key)`. A route
   refuses with `CAPABILITY_REQUIRED`, or `PLAN_EXPIRED` when only the ended plan held the capability.
   - The MFA requirement follows the resolved capabilities (`*` or `admin.access`).
-  - Every authenticated `/api/v1` answer carries `X-Edge-Entitlements` (the principal's version); the shared page
-    module reads the session again when it changes.
+  - Every answer made for a principal (any path, the Terminal's data calls included) carries `X-Edge-Entitlements`.
+    That is the principal's version, which also covers the plan's end and the release stages. The shared page module
+    reads the session again when it changes.
+  - An admin route always needs `admin.access` (and so MFA). With the switch on, `/ready` needs the catalog tables.
 - **User #1:** at start, edge-bff gives the seed account an active `manual` subscription with no end, to the plan that
-  holds `*` (found by data). The step is idempotent. Its log events are `account_seed_plan_ambiguous` and
-  `account_seed_plan_failed`.
+  holds `*` (found by data). It is given once, while the seed row has no subscription at all; a cancelled one is never
+  given back. Its log events are `account_seed_plan_ambiguous`,
+  `account_seed_plan_refused` and `account_seed_plan_failed`.
 - **Release stages:** `catalog/releases.json` (hand-kept; `app/releases.py`) gives each indicator, Flow indicator,
   candlestick pattern, Screener metric and Screener preset the stage `lab` (admin only) or `released`. An id missing
   from the file is `lab`. `tests/test_releases.py` fails until a new registry id has its line, and its message prints

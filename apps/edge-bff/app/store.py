@@ -53,8 +53,17 @@ class Store:
             c.execute("SET LOCAL statement_timeout = '5s'")
             yield c
 
-    def ready(self):
+    def ready(self, multiuser=False):
         with self.connect() as c:
+            if multiuser:
+                # EXEC-MU-ACCOUNTS Phase 2 (C3 N1): with the switch on every principal is resolved from the plan
+                # catalog (migration 20261117_003), so an edge-bff without it is not ready rather than refusing every
+                # sign-in; with the switch off nothing reads it and readiness does not depend on it
+                c.execute('SELECT 1 FROM edge_bff.plans LIMIT 0')
+                c.execute('SELECT 1 FROM edge_bff.capabilities LIMIT 0')
+                c.execute('SELECT 1 FROM edge_bff.plan_capabilities LIMIT 0')
+                c.execute('SELECT 1 FROM edge_bff.user_capability_overrides LIMIT 0')
+                c.execute('SELECT 1 FROM edge_bff.subscriptions LIMIT 0')
             c.execute('SELECT 1 FROM edge_bff.jobs LIMIT 0')
             c.execute('SELECT 1 FROM edge_bff.sessions LIMIT 0')
             c.execute('SELECT hidden_at FROM edge_bff.conversation_ui LIMIT 0')

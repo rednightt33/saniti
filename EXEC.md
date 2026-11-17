@@ -15706,8 +15706,8 @@ before them never takes traffic (Railway keeps the previous deployment serving).
 ### Phase 2 deploy steps (prepared 2026-11-17, not run)
 
 Code: the branch from `96a9ec94`. Builders B1 (server core, `ca33a49c`), B2 (release catalog, `c21d65fd`) and B3 (page
-module, `00166913`) were integrated at `8a55980b`. Checkers C1-C3 ran on it; fixes are recorded in ERRORS. The switch
-stays off throughout.
+module, `00166913`) were integrated at `8a55980b`. Checkers C1-C3 ran on it (C3: READY with the switch off); the fix
+round for their findings is ERRORS M480. The switch stays off throughout.
 
 What changes for the current user with the switch off: nothing visible.
 - At its first start, edge-bff gives user #1 a subscription to the plan holding `*`.
@@ -15718,11 +15718,12 @@ Order: migration first. The new edge-bff logs `account_seed_plan_failed` without
 switch off; the previous build ignores the new tables.
 
 1. **M340:** 0 active EDGE jobs and 0 running orc turns, right before steps 2 and 4.
-2. **Migration `20261117_003_edge_bff_accounts_catalog.sql`** (sha256 `b2d3560b3b3f9099ee5ec1ed7cd26830e1919f2cc341350f021b4cb6fdd2f2d6`): DRYRUN, then APPLY, through
+2. **Migration `20261117_003_edge_bff_accounts_catalog.sql`** (sha256 `fe2d59429759237bdbfea4a7756cd42d5ff5560bca213e4586b7a85f573174f5`): DRYRUN, then APPLY, through
    `scripts/onboarding/run_job.sh scripts/onboarding/migration_job.py` with
    `verification/edge_multiuser/jobs/migration20261117_003{,_apply}.params.json` and the file as an extra.
    - Check:
      - the five tables, columns, keys, CHECKs and the two partial UNIQUEs;
+     - the two value-shape triggers (`value_triggers`: not SECURITY DEFINER, no EXECUTE for PUBLIC);
      - `runtime_grants` and `login_grants` equal `expected`; `public_grants` empty; the sequence USAGE only;
      - three plans, `free` the default; `star_holders` = `admin` only; 41 capabilities, each with `means`;
      - the plan grants as CONTRACT.md 8a; 0 overrides and 0 subscriptions; every table commented.

@@ -193,7 +193,8 @@ def test_released_versus_lab_items_and_everything(on, store, monkeypatch):
 
 
 def test_value_shapes_are_checked_on_read(caplog):
-    assert valid_value('flag', True) and not valid_value('flag', 1) and not valid_value('flag', False)
+    # a flag may be false (an override taking the plan's flag away; fix round, C1 N3 / C3 N4), never another value
+    assert valid_value('flag', True) and valid_value('flag', False) and not valid_value('flag', 1)
     assert valid_value('limit', 0) and not valid_value('limit', -1) and not valid_value('limit', True)
     assert valid_value('list', ['a']) and not valid_value('list', 'a') and not valid_value('list', [1])
     assert valid_value('items', {}) and valid_value('items', {'ids': ['x'], 'stages': ['released'], 'all': False})
@@ -201,8 +202,11 @@ def test_value_shapes_are_checked_on_read(caplog):
         and not valid_value('items', {'all': 'yes'})
     with caplog.at_level(logging.WARNING, 'edge_bff.principal'):
         grants, kinds = read_grants({'a.b': {'kind': 'limit', 'value': 'x'}, 'c.d': {'kind': 'flag', 'value': True}})
-    assert grants == {'c.d': True} and holds(grants, kinds, 'c.d') and not holds(grants, kinds, 'a.b')
+    # a limit of the wrong shape fails closed: it reads 0, never "no limit" (fix round, C1 F1)
+    assert grants == {'a.b': 0, 'c.d': True} and holds(grants, kinds, 'c.d') and not holds(grants, kinds, 'a.b')
     assert 'capability_value_invalid' in caplog.text
+    grants, kinds = read_grants({'e.f': {'kind': 'flag', 'value': False}, 'g.h': {'kind': 'list', 'value': 'x'}})
+    assert grants == {'e.f': False, 'g.h': []} and not holds(grants, kinds, 'e.f')
 
 
 def test_mfa_follows_the_resolved_capabilities_not_the_role(on, store):

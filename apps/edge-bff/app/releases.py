@@ -11,6 +11,7 @@ message naming the problem rather than refusing items at run time.
 - `stage_of(kind, item_id)`: 'released' or 'lab'; an id the file does not list is 'lab' (a new item starts in the lab).
 - `entries(kind)`: the file's entries of a kind, in file order, as [{"id", "stage"}].
 """
+import hashlib
 import json
 from pathlib import Path
 
@@ -66,6 +67,10 @@ class Releases:
                 fail(f'{where} repeats {kind} {item_id!r}; keep one entry per kind and id')
             self._stage[(kind, item_id)] = stage
             self._entries[kind].append({'id': item_id, 'stage': stage})
+        # a short fingerprint of every (kind, id, stage): part of the principal's version (X-Edge-Entitlements), so a
+        # deploy that moves an item between lab and released reaches open pages' catalog caches (C1/C2 Phase 2)
+        self.digest = hashlib.sha256(json.dumps(sorted(f'{k}\t{i}\t{st}' for (k, i), st in self._stage.items()),
+                                                separators=(',', ':')).encode()).hexdigest()[:12]
 
     def stage_of(self, kind, item_id):
         return self._stage.get((kind, item_id), LAB)

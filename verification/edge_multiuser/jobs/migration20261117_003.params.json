@@ -30,6 +30,11 @@
    "SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = 'edge_bff' AND tablename IN ('plans', 'capabilities', 'plan_capabilities', 'user_capability_overrides', 'subscriptions') ORDER BY tablename, indexname"
   ],
   [
+   "value_triggers",
+   null,
+   "SELECT t.tgname, c.relname, p.proname, p.prosecdef, has_function_privilege('public', p.oid, 'EXECUTE') AS public_execute FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid JOIN pg_proc p ON p.oid = t.tgfoid WHERE NOT t.tgisinternal AND t.tgname IN ('plan_capabilities_value_check', 'user_capability_overrides_value_check') ORDER BY t.tgname"
+  ],
+  [
    "runtime_grants",
    null,
    "SELECT e.t AS table_name, e.p AS expected, string_agg(x.priv, ',' ORDER BY x.priv) FILTER (WHERE has_table_privilege('edge_bff_runtime', 'edge_bff.' || e.t, x.priv)) AS held FROM (VALUES ('plans', 'SELECT'), ('capabilities', 'SELECT'), ('plan_capabilities', 'SELECT'), ('user_capability_overrides', 'INSERT,SELECT,UPDATE'), ('subscriptions', 'INSERT,SELECT,UPDATE')) AS e(t, p) CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS x(priv) GROUP BY e.t, e.p ORDER BY e.t"

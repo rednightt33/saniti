@@ -292,7 +292,10 @@ INSERT, UPDATE (no DELETE). `scripts/provision_edge_bff_login.py` lists them (th
 `edge_bff_runtime`, as Phase 1).
 
 **Value shapes** (by `capabilities.kind`):
-- `flag`: `true`.
+- The database refuses a value that does not fit its kind when it is written (trigger `capability_value_check`).
+- edge-bff reads a wrong shape as the most restrictive value: a limit reads 0, a list reads [], and a flag or an item
+  family is not held. A value that cannot be read never widens access (ERRORS M480).
+- `flag`: `true`, or `false` (an override that takes a plan's flag away; not held).
 - `limit`: a non-negative integer. No row = no limit.
 - `list`: an array of strings.
 - `items`: `{"ids": [..], "stages": [..], "all": bool}` (each key optional). An item `<family>:<id>` is held when its
@@ -331,16 +334,20 @@ unexpired overrides. An override replaces the plan's value for its key.
   `capabilities` keeps the flag keys (and `*`); `limits` keeps limits and lists.
 - `p.can(key)`: `*` → true; a flag key → held; `<family>:<id>` → the family's `items` value as above. Unknown → false.
   `p.limit(key)` returns the limit or list.
-- `role_needs_mfa` is derived from the resolved capabilities (`*` or `admin.access`), no longer from `role` alone. A
+- `role_needs_mfa` is derived from the resolved capabilities (`*` or `admin.access`), no longer from `role` alone.
+  `auth.admin(...)` always requires `admin.access` too, so MFA always applies to an admin route (M480).
+- With the switch on, `/ready` requires the five catalog tables. A
   session pending MFA resolves its capabilities but `mfa_ok` stays false (403 `MFA_REQUIRED` as Phase 1).
 - An expired subscription resolves to the default plan. `access.expired_plan` names it, so the page can say so.
   `PLAN_EXPIRED` is the refusal code when a route needs a capability only the expired plan held.
 - **User #1:** at start, edge-bff gives the seed user (`seed: true`) an active `manual` subscription with no end, to
-  the plan that holds `*`. The plan is found by data (exactly one plan holds `*`; otherwise the start logs
+  the plan that holds `*`. It is given once, only to the seed row and only while that row has no subscription at all.
+  After that the subscription is the admin's: a cancelled one is never given back (M480). The plan is found by data (exactly one plan holds `*`; otherwise the start logs
   `account_seed_plan_ambiguous` and gives none). The step is idempotent.
 - `version`: a short hash of the plan key, status, the resolved grants and the `plan_capabilities` versions. It is sent
-  as `X-Edge-Entitlements` on every authenticated API answer (the shared module already re-reads the session on a
-  change).
+  as `X-Edge-Entitlements` on every answer made for a principal, whatever the path (`/api/v1`, `/api/terminal/v1`).
+  The shared module re-reads the session on a change. The hash also covers the plan's end and the release stages
+  (M480).
 
 **Release catalog.**
 - `apps/edge-bff/catalog/releases.json`: `{"schema_version": 1, "items": [{"kind", "id", "stage"}]}`. It is hand-kept

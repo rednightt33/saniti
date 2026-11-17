@@ -40,6 +40,7 @@ from fastapi import Depends, Request
 
 from .accounts import OWNER_KEY, AccountStore
 from .errors import Refusal, capability_required, plan_expired
+from . import releases
 from .releases import KIND_OF_FAMILY, stage_of
 from .security import csrf_token, same_ascii, token_hash
 
@@ -56,9 +57,10 @@ ITEM_KEYS = frozenset({'ids', 'stages', 'all'})
 
 
 def valid_value(kind, value):
-    """A catalog value of the shape of its kind (CONTRACT.md 8a "Value shapes")."""
+    """A catalog value of the shape of its kind (CONTRACT.md 8a "Value shapes"; a flag may be false: an override that
+    takes the plan's flag away). The database refuses any other shape at write time (capability_value_check)."""
     if kind == 'flag':
-        return value is True
+        return value is True or value is False
     if kind == 'limit':
         return isinstance(value, int) and not isinstance(value, bool) and value >= 0
     if kind == 'list':
@@ -70,16 +72,24 @@ def valid_value(kind, value):
     return False
 
 
+# C1 Phase 2 F1: a value that cannot be read never widens access. A flag or an item family of the wrong shape is not
+# held; a limit or a list of the wrong shape is the most restrictive value (0, no entries), never "no limit"
+RESTRICTIVE = {'limit': 0, 'list': []}
+
+
 def read_grants(rows, user_id=None):
-    """{key: value} of the rows {key: {kind, value}} the statement resolved, each of the shape of its kind; a value of
-    the wrong shape is not granted and is logged (by its key only)."""
+    """{key: value} of the rows {key: {kind, value}} the statement resolved, each of the shape of its kind. A value of
+    the wrong shape is logged (by its key only) and fails closed: a limit reads 0 and a list reads [] (RESTRICTIVE),
+    anything else is not granted."""
     grants, kinds = {}, {}
     for key, row in sorted((rows or {}).items()):
         kind, value = (row or {}).get('kind'), (row or {}).get('value')
         if valid_value(kind, value):
             grants[key], kinds[key] = value, kind
-        else:
-            logger.warning(json.dumps({'event': 'capability_value_invalid', 'capability': key, 'user_id': user_id}))
+            continue
+        logger.warning(json.dumps({'event': 'capability_value_invalid', 'capability': key, 'user_id': user_id}))
+        if kind in RESTRICTIVE:
+            grants[key], kinds[key] = RESTRICTIVE[kind], kind
     return grants, kinds
 
 
@@ -152,12 +162,13 @@ class Principal:
                 'next': nxt if nxt is not None else (None if self.mfa_ok else 'mfa')}
 
 
-def version_of(plan_key, status, grants, versions, expired_plan=None):
+def version_of(plan_key, status, grants, versions, expired_plan=None, expires_at=None):
     """A short fingerprint of what the principal may do (CONTRACT.md 8a): the plan key, the account status, the
-    resolved grants (overrides included), the plan_capabilities versions and the ended plan. It changes when access
-    changes, and is sent as X-Edge-Entitlements on every authenticated answer."""
-    raw = json.dumps([plan_key, status, grants, versions, expired_plan], sort_keys=True, separators=(',', ':'),
-                     default=str).encode()
+    resolved grants (overrides included), the plan_capabilities versions, the ended plan, the plan's end and the
+    release stages (C1/C2 Phase 2: an extension or a stage change reaches open pages). It changes when access changes,
+    and is sent as X-Edge-Entitlements on every authenticated answer."""
+    raw = json.dumps([plan_key, status, grants, versions, expired_plan, expires_at, releases.CURRENT.digest],
+                     sort_keys=True, separators=(',', ':'), default=str).encode()
     return 'db-' + hashlib.sha256(raw).hexdigest()[:12]
 
 
@@ -185,7 +196,7 @@ def role_needs_mfa(capabilities):
 def account_principal(row, token=''):
     """A switch-on principal from an account row with its resolved grants (accounts.py resolve or owner)."""
     grants, kinds = read_grants(row.get('grants'), row['user_id'])
-    capabilities = frozenset(k for k, kind in kinds.items() if kind == 'flag')
+    capabilities = frozenset(k for k, kind in kinds.items() if kind == 'flag' and grants[k] is True)
     limits = {k: grants[k] for k, kind in kinds.items() if kind in ('limit', 'list')}
     expired_plan = row.get('expired_plan')
     expired_grants, expired_kinds = read_grants(row.get('expired_grants'), row['user_id']) if expired_plan else ({}, {})
@@ -195,7 +206,7 @@ def account_principal(row, token=''):
                      mfa_ok=not needs_mfa or row.get('mfa_passed_at') is not None, capabilities=capabilities,
                      limits=limits,
                      version=version_of(row.get('plan_key'), row['status'], grants, row.get('versions') or {},
-                                        expired_plan),
+                                        expired_plan, row.get('plan_expires_at')),
                      token=token, mfa_enrolled=bool(row.get('mfa_enrolled')),
                      seed=not OWNER_KEY.fullmatch(row['owner_key']), grants=grants, kinds=kinds,
                      expired_plan=expired_plan, expired_grants=expired_grants, expired_kinds=expired_kinds)
@@ -289,12 +300,16 @@ class Auth:
         return self._needs[key]
 
     def admin(self, write=False, capability=ADMIN_ACCESS):
-        """need(capability) plus a session that proved MFA (switch on, an admin), else 403 MFA_REQUIRED."""
+        """need(capability) and need(admin.access), plus a session that proved MFA (switch on), else 403 MFA_REQUIRED
+        (CONTRACT.md section 2). admin.access is what requires the second factor, so an admin route can never be
+        opened by a narrower capability without it (C1 Phase 2 N2)."""
         key = ('admin', capability, write)
         if key not in self._needs:
             base = self.need(capability, write)
 
             async def check(p: Principal = Depends(base)):
+                if not p.can(ADMIN_ACCESS):
+                    raise p.refusal(ADMIN_ACCESS)
                 if not p.mfa_ok:
                     raise Refusal(403, 'MFA_REQUIRED')
                 return p

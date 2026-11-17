@@ -231,7 +231,7 @@ def create_app(settings=None, store=None, orc=None):
     @asynccontextmanager
     async def lifespan(app):
         try:
-            await asyncio.to_thread(store.ready)
+            await asyncio.to_thread(store.ready, settings.multiuser)
             ready['value'] = True
         except Exception:
             ready['value'] = False
@@ -256,7 +256,7 @@ def create_app(settings=None, store=None, orc=None):
                                                                            'error': type(e).__name__}))
                 if settings.multiuser:
                     ready['value'] = False
-        task =asyncio.create_task(worker.run()) if settings.worker_enabled and ready['value'] else None
+        task = asyncio.create_task(worker.run()) if settings.worker_enabled and ready['value'] else None
         # EDGE backtest: its own loop, only with a worker configured; it does not wait for /ready (a missing backtest
         # table keeps only the backtest feature off, BACKTEST_NOT_READY)
         backtest_task = asyncio.create_task(backtests.loop.run()) if settings.worker_enabled and backtests.loop else None
@@ -342,11 +342,11 @@ def create_app(settings=None, store=None, orc=None):
             request._body = b''.join(chunks)
         state = request.state                      # made before the routes run, so the principal they set is seen here
         response = await call_next(request)
-        # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): every authenticated /api/v1 answer (refusals included) carries the
-        # principal's access fingerprint; the shared session module re-reads the session when it changes. With the
-        # switch off it is always 'env'
+        # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): every answer made for a principal (refusals included; /api/v1, the
+        # Terminal's /api/terminal/v1 data calls and any later surface: C2 Phase 2 F1) carries the principal's access
+        # fingerprint; the shared session module re-reads the session when it changes. Switch off: always 'env'
         principal = getattr(state, 'principal', None)
-        if principal is not None and request.url.path.startswith('/api/v1/'):
+        if principal is not None:
             response.headers['X-Edge-Entitlements'] = principal.version
         response.headers.setdefault('Cache-Control', 'no-store')
         response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -386,7 +386,7 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/ready')
     async def readiness():
         try:
-            await asyncio.to_thread(store.ready)
+            await asyncio.to_thread(store.ready, settings.multiuser)
         except Exception:
             return error('NOT_READY', 503)
         return {'status': 'ready'}
