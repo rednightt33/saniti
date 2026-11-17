@@ -1,0 +1,58 @@
+{
+ "mode": "DRYRUN",
+ "migrations": [
+  "20261117_004_edge_bff_catalog_phase3a.sql"
+ ],
+ "probes": [
+  [
+   "capability_count",
+   null,
+   "SELECT count(*) AS capabilities, count(*) FILTER (WHERE char_length(means) > 0) AS with_means FROM edge_bff.capabilities"
+  ],
+  [
+   "new_capabilities",
+   null,
+   "SELECT capability_key, kind, unit, char_length(means) > 0 AS has_means FROM edge_bff.capabilities WHERE capability_key IN ('admin.manual', 'terminal.presets', 'terminal.layouts_max', 'terminal.presets_max', 'terminal.drawings_max', 'screener.saved_items', 'backtest.queued_jobs') ORDER BY capability_key"
+  ],
+  [
+   "plan_grants",
+   null,
+   "SELECT plan_key, count(*) AS grants, string_agg(capability_key || '=' || value::text, ' ' ORDER BY capability_key) AS values FROM edge_bff.plan_capabilities GROUP BY plan_key ORDER BY plan_key"
+  ],
+  [
+   "monitor_rows",
+   null,
+   "SELECT plan_key, capability_key, value FROM edge_bff.plan_capabilities WHERE capability_key LIKE 'monitor.%' ORDER BY plan_key, capability_key"
+  ],
+  [
+   "admin_manual_holders",
+   null,
+   "SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'admin.manual'"
+  ],
+  [
+   "star_holders",
+   null,
+   "SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*'"
+  ],
+  [
+   "value_triggers",
+   null,
+   "SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgname IN ('plan_capabilities_value_check', 'user_capability_overrides_value_check', 'capabilities_kind_fixed') ORDER BY tgname"
+  ],
+  [
+   "subscriptions",
+   null,
+   "SELECT user_id, plan_key, status, provider, expires_at FROM edge_bff.subscriptions ORDER BY subscription_id"
+  ],
+  [
+   "overrides",
+   null,
+   "SELECT count(*) FROM edge_bff.user_capability_overrides"
+  ],
+  [
+   "runtime_reads",
+   "edge_bff_runtime",
+   "SELECT (SELECT count(*) FROM edge_bff.capabilities) AS capabilities, (SELECT count(*) FROM edge_bff.plan_capabilities) AS plan_grants"
+  ]
+ ]
+}
