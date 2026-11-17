@@ -84,7 +84,7 @@ def test_switch_off_the_principal_is_user_one_and_the_session_keeps_todays_keys(
         # gave before Phase 1
         assert answer['access'] == {'plan': None, 'role': 'user', 'status': 'active', 'expires_at': None, 'mfa_ok': True,
                                     'capabilities': [], 'limits': {}, 'version': 'env', 'next': None,
-                                    'owner_key': settings.owner, 'mfa_enrolled': False, 'seed': True}
+                                    'owner_key': settings.owner, 'mfa_enrolled': False, 'seed': True, 'expired_plan': None}
         assert answer['owner_key'] == settings.owner
     admins = dataclasses.replace(settings, admin_owners=(settings.owner,))
     with TestClient(create_app(admins, store, FakeOrc())) as c:
@@ -139,7 +139,9 @@ def test_seed_identity_from_the_login():
 
 # ---- the account tables ---------------------------------------------------------------------------------------------
 
-def make_user(store, username, password, role='user', status='active', email=None):
+def make_user(store, username, password, role='user', status='active', email=None, everything=None):
+    """An account; Phase 2 (CONTRACT.md 8a): the role grants nothing, so an admin account (everything, default: role
+    admin) also gets an active subscription to the plan that holds '*' (found by data, as the seed of user #1)."""
     owner = new_owner_key()
     with store.connect() as c:
         row = c.execute('''INSERT INTO edge_bff.users(owner_key, username, email, email_verified_at, role, status)
@@ -147,6 +149,10 @@ def make_user(store, username, password, role='user', status='active', email=Non
                         (owner, username, email or f'{username}@example.com', role, status)).fetchone()
         c.execute("INSERT INTO edge_bff.identities(user_id, provider, subject, verifier) VALUES (%s,'password',%s,%s)",
                   (row['user_id'], str(row['user_id']), password_verifier(password)))
+        if role == 'admin' if everything is None else everything:
+            c.execute('''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider)
+                SELECT %s, plan_key, 'active', 'test' FROM edge_bff.plan_capabilities WHERE capability_key = '*' ''',
+                      (row['user_id'],))
     return dict(row)
 
 
@@ -265,7 +271,7 @@ def test_switch_on_sign_in_reads_the_accounts(on, store):
         sign_in(c, 'ALICE@example.com', 'alice-password')                 # the email, any case
         answer = c.get('/api/v1/auth/session').json()
         assert (answer['login'], answer['username']) == ('alice', 'alice')
-        assert answer['access']['role'] == 'user' and answer['access']['capabilities'] == [] and answer['access']['next'] is None
+        assert answer['access']['role'] == 'user' and '*' not in answer['access']['capabilities'] and 'admin.access' not in answer['access']['capabilities'] and answer['access']['next'] is None
         assert answer['access']['version'].startswith('db-')
         c.get('/api/v1/models')
         assert orc.owners[-1] == ('models', alice['owner_key'])

@@ -93,6 +93,18 @@ def capability_required(capability):
                                                 'display_name': CAPABILITY_NAMES.get(capability, capability)})
 
 
+def plan_expired(capability, plan):
+    """EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): the capability was held only by the account's plan that has ended.
+    (a) the rule is visible before acting: the session answer's access.expired_plan names the ended plan and
+    access.capabilities no longer lists what it gave; (b) to pass, renew the plan (the admin extends the subscription);
+    (c) right: an account whose paid plan is live runs a backtest; wrong: the same account the second after the plan's
+    end gets this refusal, not CAPABILITY_REQUIRED; (d) the message says the plan ended and to renew it, and details
+    name the capability and the ended plan."""
+    return Refusal(403, 'PLAN_EXPIRED', {'capability': capability,
+                                         'display_name': CAPABILITY_NAMES.get(capability, capability),
+                                         'expired_plan': plan})
+
+
 def http_refusal(exc):
     """A FastAPI/Starlette HTTPException: its detail when it is one of our codes, else the code of its status."""
     code = exc.detail if isinstance(exc.detail, str) and exc.detail in MESSAGES and exc.detail != 'CSRF_INVALID' else \
