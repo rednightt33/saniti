@@ -163,16 +163,17 @@ export class OwnerBudget {
     this.used.set(owner, list);
   }
   /** Refuses (LIMIT_EXCEEDED owner_cpu_budget) when spent + reserved + predicted would pass the limit. */
-  check(owner: string, reserved: number, predicted: number): void {
+  check(owner: string, reserved: number, predicted: number, planLimit?: number): void {
     if (owner === SYSTEM) return;
+    const limit = planLimit !== undefined ? Math.min(this.limit, planLimit) : this.limit;   // Phase 3b: min(own, plan)
     const list = this.window(owner), spent = list.reduce((s, x) => s + x.ms, 0), needed = Math.ceil(spent + reserved + predicted);
-    if (needed <= this.limit) return;
+    if (needed <= limit) return;
     // the wait until enough of the window has passed for this request (never less than one second)
-    let free = spent + reserved + predicted - this.limit, wait = OWNER_WINDOW_MS;
+    let free = spent + reserved + predicted - limit, wait = OWNER_WINDOW_MS;
     for (const x of [...list].sort((a, b) => a.at - b.at)) { free -= x.ms; if (free <= 0) { wait = x.at + OWNER_WINDOW_MS - this.now(); break } }
     const retry = Math.max(1, Math.ceil(wait / 1000));
-    throw refuse('LIMIT_EXCEEDED', `This user's screens used ${Math.round(spent)} ms of compute in the last minute and have ${Math.round(reserved)} ms waiting; with this one (about ${Math.round(predicted)} ms) that is above the ${this.limit} ms a user may use per minute. Wait ${retry} s, or use fewer custom conditions.`,
-      undefined, { limit: 'owner_cpu_budget', allowed: this.limit, needed, retry_after_seconds: retry });
+    throw refuse('LIMIT_EXCEEDED', `This user's screens used ${Math.round(spent)} ms of compute in the last minute and have ${Math.round(reserved)} ms waiting; with this one (about ${Math.round(predicted)} ms) that is above the ${limit} ms a user may use per minute. Wait ${retry} s, or use fewer custom conditions.`,
+      undefined, { limit: 'owner_cpu_budget', allowed: limit, needed, retry_after_seconds: retry });
   }
 }
 
@@ -184,6 +185,9 @@ export interface JobSpec {
   cost: number;                                  // predicted ms (run.ts estimateCost)
   deadlineAt: number;                            // performance.now() ms
   task: Task;
+  /** EXEC-MU-ACCOUNTS Phase 3b: the owner's plan ceiling of running jobs (context.limits.owner_inflight), applied as
+      min(SCREENER_OWNER_INFLIGHT, it); the latest request of an owner sets it for the owner's lane. */
+  inflight?: number;
 }
 interface Job extends JobSpec {
   state: 'waiting' | 'running' | 'ended';
@@ -204,6 +208,7 @@ export class Pool {
   private ptr = 0;
   private deficit = new Map<string, number>();
   private running = new Map<string, number>();
+  private inflight = new Map<string, number>();  // an owner's plan ceiling below ownerInflight (JobSpec.inflight)
   private reservedMs = new Map<string, number>();
   private waiting = 0;
   stats = { started: 0, replaced: 0, busy: 0, timeouts: 0, killed: 0 };
@@ -245,7 +250,9 @@ export class Pool {
         w.reject(refuse(REPLACED[w.kind], 'A newer request of the same page replaced this one.'));
       }
     }
-    const startsNow = !!this.idleThread() && (this.running.get(spec.owner) ?? 0) < this.o.ownerInflight && !lane.length;
+    if (spec.inflight !== undefined && spec.inflight < this.o.ownerInflight) this.inflight.set(spec.owner, Math.max(1, spec.inflight));
+    else this.inflight.delete(spec.owner);
+    const startsNow = !!this.idleThread() && (this.running.get(spec.owner) ?? 0) < this.cap(spec.owner) && !lane.length;
     // the system lane (the presets of a refresh) is outside the queue: its waiting jobs never make a user's request BUSY
     const waitingUsers = this.waiting - (this.lanes.get(SYSTEM)?.length ?? 0);
     if (spec.owner !== SYSTEM && waitingUsers >= this.o.queue && !startsNow) {
@@ -264,6 +271,8 @@ export class Pool {
     return { promise, cancel: () => this.stop(job, null) };
   }
 
+  /** The most jobs an owner may run at once: every thread for the system lane, else the owner's ceiling. */
+  private cap(owner: string): number { return owner === SYSTEM ? this.threads.length : this.inflight.get(owner) ?? this.o.ownerInflight }
   private idleThread(): ComputeThread | null { return this.threads.find(t => !t.busy) ?? null }
   private remove(job: Job): void {
     const lane = this.lanes.get(job.owner);
@@ -279,7 +288,7 @@ export class Pool {
     if ((this.lanes.get(owner)?.length ?? 0) > 0 || (this.running.get(owner) ?? 0) > 0) return;
     const k = this.ring.indexOf(owner);
     if (k >= 0) { this.ring.splice(k, 1); if (this.ptr > k) this.ptr-- }
-    this.lanes.delete(owner); this.deficit.delete(owner); this.running.delete(owner);
+    this.lanes.delete(owner); this.deficit.delete(owner); this.running.delete(owner); this.inflight.delete(owner);
   }
   private unreserve(job: Job): void {
     const left = this.reserved(job.owner) - job.cost;
@@ -327,14 +336,14 @@ export class Pool {
   }
   private pick(): Job | null {
     const quantum = Math.max(1, this.o.quantumMs);
-    const eligible = () => this.ring.filter(o => (this.lanes.get(o)?.length ?? 0) > 0 && (this.running.get(o) ?? 0) < (o === SYSTEM ? this.threads.length : this.o.ownerInflight));
+    const eligible = () => this.ring.filter(o => (this.lanes.get(o)?.length ?? 0) > 0 && (this.running.get(o) ?? 0) < this.cap(o));
     if (!eligible().length) return null;
     // at most enough rounds for the most expensive head to save its cost
     for (let guard = 0; guard < 1e6; guard++) {
       if (!this.ring.length) return null;
       this.ptr %= this.ring.length;
       const owner = this.ring[this.ptr], lane = this.lanes.get(owner) ?? [];
-      const can = lane.length > 0 && (this.running.get(owner) ?? 0) < (owner === SYSTEM ? this.threads.length : this.o.ownerInflight);
+      const can = lane.length > 0 && (this.running.get(owner) ?? 0) < this.cap(owner);
       if (!can) { if (!lane.length) this.deficit.set(owner, 0); this.ptr++; continue }
       const head = lane[0], cost = Math.max(1, head.cost);
       const d = (this.deficit.get(owner) ?? 0);

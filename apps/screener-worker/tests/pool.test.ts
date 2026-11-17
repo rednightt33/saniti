@@ -147,3 +147,24 @@ test('P33: an owner over SCREENER_OWNER_CPU_MS in the last minute is refused wit
   b.check('A', 0, 800);
   assert.equal(b.spent('A'), 200);
 });
+
+/* EXEC-MU-ACCOUNTS Phase 3b (CONTRACT 8b): a plan's context.limits lower the owner's ceilings, never raise them */
+test('Phase 3b: a plan\'s owner_inflight below SCREENER_OWNER_INFLIGHT runs fewer of the owner\'s jobs at once; above it changes nothing; other owners keep theirs', async () => {
+  reset();
+  const p = pool({ threads: 4, inflight: 2 });
+  const a = ['a1', 'a2', 'a3'].map(t => p.submit(job('A', t, 150, { inflight: 1 })));
+  const b = ['b1', 'b2', 'b3'].map(t => p.submit(job('B', t, 150, { inflight: 9 })));
+  await sleep(60);
+  assert.deepEqual(p.lanesView().A, { waiting: 2, running: 1 }, 'the plan\'s ceiling of 1');
+  assert.deepEqual(p.lanesView().B, { waiting: 1, running: 2 }, 'the worker\'s ceiling of 2, not the plan\'s 9');
+  await Promise.all([...a, ...b].map(r => r.promise));
+});
+
+test('Phase 3b: a plan\'s owner_cpu_ms below SCREENER_OWNER_CPU_MS refuses at the plan\'s value; above it, at the worker\'s', () => {
+  const b = new OwnerBudget(1000, () => 1_000_000);
+  b.record('A', 300);
+  b.check('A', 0, 200, 500);
+  assert.throws(() => b.check('A', 0, 201, 500), (e: unknown) => e instanceof ScreenerError && (e.details as any).allowed === 500 && /above the 500 ms/.test(e.message));
+  b.check('A', 0, 700, 5000);
+  assert.throws(() => b.check('A', 0, 701, 5000), (e: unknown) => e instanceof ScreenerError && (e.details as any).allowed === 1000);
+});

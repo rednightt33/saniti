@@ -45,7 +45,7 @@ import type { TickerReference } from '../../backtest-worker/src/terminal.ts';
 import { catalogDoc, metricAvailability, universeDoc } from './catalog.ts';
 import type { Doc } from './catalog.ts';
 import { cacheShare, describeConfig, loadConfig } from './config.ts';
-import type { Config } from './config.ts';
+import type { Config, Limits } from './config.ts';
 import { HttpError, fromSerial, refuse, toApiError } from './errors.ts';
 import { REPLICA, errorFields, log } from './log.ts';
 import { OwnerBudget, Pool, SYSTEM, TaskFailed, ThreadStopped } from './pool.ts';
@@ -53,7 +53,7 @@ import type { ComputeThread } from './pool.ts';
 import type { PreviewOutcome, PreviewTask } from './preview.ts';
 import { Refresher, TerminalApi } from './refresh.ts';
 import type { Held, RefreshHost } from './refresh.ts';
-import { countsAnswer, countsEnvelope, estimateCost, newCostTracker, normalize, previewEnvelope, restrict, resultKey, runEnvelope, validateEnvelope } from './run.ts';
+import { countsAnswer, countsEnvelope, effectiveLimits, estimateCost, gate, newCostTracker, normalize, previewEnvelope, resultKey, runEnvelope, validateEnvelope } from './run.ts';
 import type { CountsEntryOut, CountsTask, Envelope, Estimate, RunOptionsN, RunOutcome, RunTask } from './run.ts';
 import { flowContextOf, groupingsOf, materialize, referenceHash } from './snapshot.ts';
 import type { BuildStats, SnapshotDesc, SnapshotReference, TickerEntry } from './snapshot.ts';
@@ -403,16 +403,16 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
   /* ---- compute ---------------------------------------------------------------------------------------------- */
   interface Computed { gzip: Uint8Array; etag: string; match_count: number; near_count: number; cache_hit: boolean; outcome: RunOutcome | null; queue_ms: number; predicted_ms: number }
   /** One run (or a preset's) on a snapshot: the result cache, the budgets, the owner's lane (pool.ts). */
-  async function compute(s: Snap, def: Definition, hash: string, options: RunOptionsN, owner: string, order: Envelope['client_order'], res: http.ServerResponse | null, deadlineAt: number, system = false): Promise<Computed> {
+  async function compute(s: Snap, def: Definition, hash: string, options: RunOptionsN, owner: string, order: Envelope['client_order'], res: http.ServerResponse | null, deadlineAt: number, system = false, lim: Limits = L): Promise<Computed> {
     const k = resultKey(s.desc, hash, options);
     const hit = results.get(k);
     const c = counts.get(countsKey(s, hash));
     if (hit && c) return { gzip: hit.gzip, etag: hit.etag, match_count: c.match_count, near_count: c.near_count, cache_hit: true, outcome: null, queue_ms: 0, predicted_ms: 0 };
     const e = engine.estimate(def, s);
-    if (!system && e.needed_ms > L.max_cpu_ms) throw budgetRefusal('screen', e, L.max_cpu_ms, def);
-    if (!system) budget.check(owner, pool.reserved(owner), e.needed_ms);
+    if (!system && e.needed_ms > lim.max_cpu_ms) throw budgetRefusal('screen', e, lim.max_cpu_ms, def);
+    if (!system) budget.check(owner, pool.reserved(owner), e.needed_ms, lim.owner_cpu_ms);
     const task: RunTask = { kind: 'run', sid: s.sid, definition: def, hash, options, queue_ms: 0, s0_ms: e.s0_ms, versions: s.desc.versions, data: s.desc.data };
-    const job = pool.submit({ owner, kind: system ? 'system' : 'run', page: order?.page ?? null, order: order?.seq ?? null, cost: e.needed_ms, deadlineAt, task });
+    const job = pool.submit({ owner, kind: system ? 'system' : 'run', page: order?.page ?? null, order: order?.seq ?? null, cost: e.needed_ms, deadlineAt, task, inflight: lim.owner_inflight });
     res?.once('close', () => { if (!res.writableFinished) job.cancel() });
     const { outcome: o, queue_ms } = await job.promise;
     const out = o as RunOutcome;
@@ -451,6 +451,14 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     if (!sameKey(req.headers[WORKER_KEY_HEADER], key)) throw new HttpError(401, 'UNAUTHORIZED');
     refresher.touch();                                         // EXEC-U4-WORKERS: in use, the /state poll runs
     const owner = ownerOf(req), deadlineAt = arrived + L.deadline_ms;
+    /* EXEC-MU-ACCOUNTS Phase 3b (CONTRACT 8b "3b in detail"): the request's ceilings, min(SCREENER_*, context.limits),
+       and the snapshot as normalize sees it with the plan's max_conditions and max_metric_filters (validate.ts reads
+       them from vctx.limits). Then gate (rights, then context.allow) right after normalize and before any cache read:
+       the result and counts caches are keyed by the publication and the definition only (6d.2), so a result an admin
+       filled is never served to a principal without one of its items. */
+    const limitsOf = (e: Envelope): Limits => effectiveLimits(L, e.limits);
+    const forPlan = (s: Snap, lim: Limits): Snap => lim.max_conditions === L.max_conditions && lim.max_metric_filters === L.max_metric_filters ? s
+      : { ...s, vctx: { ...s.vctx, limits: { ...s.vctx.limits, max_conditions: lim.max_conditions, max_metric_filters: lim.max_metric_filters } } };
     if (path === '/v1/catalog') { allow('GET'); if (!current) throw notReady(); return sendDoc(req, res, current.catalog) }
     if (path === '/v1/universe') { allow('GET'); if (!current) throw notReady(); return sendDoc(req, res, current.universe) }
     if (path === '/v1/validate') {
@@ -458,20 +466,20 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       const e = validateEnvelope(parseJson(raw));
       const s = current;
       if (!s) throw notReady();
-      const n = await engine.normalize(e.definition, s);
-      restrict(n.normalized, e.rights);                          // EXEC-BACKTEST-REVAMP P5 (K8 b): admins only
+      const n = await engine.normalize(e.definition, forPlan(s, limitsOf(e)));
+      gate(n.normalized, e);                                     // P5 (K8 b) admins-only flow versions; Phase 3b allow
       // versions (additive): the registries the definition was checked against, so edge-bff stores them with the item
       return sendJson(res, 200, { valid: true, definition_hash: n.hash, normalized: n.normalized, versions: { ...s.desc.versions } });
     }
     if (path === '/v1/run') {
       allow('POST');
       const e = runEnvelope(parseJson(raw));
-      const s = await pinned(e.data_version);
-      const n = await engine.normalize(e.definition, s);
-      restrict(n.normalized, e.rights);
+      const s = await pinned(e.data_version), lim = limitsOf(e);
+      const n = await engine.normalize(e.definition, forPlan(s, lim));
+      gate(n.normalized, e);                                     // before compute's result-cache read
       let r: Computed | null = null, status = 'ok';
       try {
-        r = await compute(s, n.normalized, n.hash, e.options, owner, e.client_order, res, deadlineAt);
+        r = await compute(s, n.normalized, n.hash, e.options, owner, e.client_order, res, deadlineAt, false, lim);
         if (res.destroyed) { status = 'caller_left'; return }
         sendGzip(req, res, r.gzip, r.etag);
       } catch (x) { status = (x as Error)?.name === 'CallerLeft' ? 'caller_left' : toApiError(x).error.code; throw x }
@@ -481,20 +489,20 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     if (path === '/v1/preview') {
       allow('POST');
       const e = previewEnvelope(parseJson(raw));
-      const s = await pinned(e.data_version);
-      const n = await engine.normalize(e.definition, s);
-      restrict(n.normalized, e.rights);
+      const s = await pinned(e.data_version), lim = limitsOf(e);
+      const n = await engine.normalize(e.definition, forPlan(s, lim));
+      gate(n.normalized, e);                                     // before the preview cache read
       const ticker = e.ticker as string;
       if (!s.position.has(ticker) || !s.desc.rows.some(r => r.ticker === ticker)) throw refuse('INVALID_INPUT', `${ticker} is not a listed stock of this publication; look up a listed ticker instead.`, 'ticker');
       const k = resultKey(s.desc, n.hash, e.options, `preview:${ticker}`), hit = results.get(k);
       const line = (o: Record<string, unknown>) => log('info', 'preview', { definition_hash: n.hash, data_version: s.price_data, ticker, owner_tag: owner, replica: REPLICA, ...o, total_ms: Math.round(performance.now() - arrived) });
       if (hit) { sendGzip(req, res, hit.gzip, hit.etag); line({ cache_hit: true }); return }
       const est = engine.estimate(n.normalized, s, ticker);
-      if (est.needed_ms > L.max_cpu_ms) throw budgetRefusal('preview', est, L.max_cpu_ms, n.normalized);
-      budget.check(owner, pool.reserved(owner), est.needed_ms);
+      if (est.needed_ms > lim.max_cpu_ms) throw budgetRefusal('preview', est, lim.max_cpu_ms, n.normalized);
+      budget.check(owner, pool.reserved(owner), est.needed_ms, lim.owner_cpu_ms);
       const data = s.desc.data;                      // replaced by an advance: an answer computed before it is not cached (compute)
       const task: PreviewTask = { kind: 'preview', sid: s.sid, definition: n.normalized, ticker, periods: metrics.periods ?? null, versions: { ...s.desc.versions }, data: { ...data } };
-      const job = pool.submit({ owner, kind: 'preview', page: e.client_order?.page ?? null, order: e.client_order?.seq ?? null, cost: est.needed_ms, deadlineAt, task });
+      const job = pool.submit({ owner, kind: 'preview', page: e.client_order?.page ?? null, order: e.client_order?.seq ?? null, cost: est.needed_ms, deadlineAt, task, inflight: lim.owner_inflight });
       res.once('close', () => { if (!res.writableFinished) job.cancel() });
       const { outcome: o, queue_ms } = await job.promise;
       const out = o as PreviewOutcome;
@@ -507,19 +515,19 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     }
     if (path === '/v1/counts') {
       allow('POST');
-      const e = countsEnvelope(parseJson(raw), L.max_counts);
-      const s = await pinned(e.data_version);
+      const e = countsEnvelope(parseJson(raw), L.max_counts);          // max_counts: min(own, context.limits) there
+      const s = await pinned(e.data_version), lim = limitsOf(e), sp = forPlan(s, lim);
       const defs = e.definitions ?? [];
       const entries: (CountsEntryOut | null)[] = [], items: CountsTask['items'] = [];
       let cost = 0, hits = 0;
       for (const [k, d] of defs.entries()) {
         try {
-          const n = await engine.normalize(d.definition, s, `definitions[${k}].definition`);
-          restrict(n.normalized, e.rights, `definitions[${k}].definition`);
+          const n = await engine.normalize(d.definition, sp, `definitions[${k}].definition`);
+          gate(n.normalized, e, `definitions[${k}].definition`);   // per entry, before the counts cache read
           const c = counts.get(countsKey(s, n.hash));
           if (c) { hits++; entries.push({ item_id: d.item_id, match_count: c.match_count, near_count: c.near_count, busy_ms: 0 }); continue }
           const est = engine.estimate(n.normalized, s);
-          if (est.needed_ms > L.max_cpu_ms) throw budgetRefusal('screen', est, L.max_cpu_ms, n.normalized);
+          if (est.needed_ms > lim.max_cpu_ms) throw budgetRefusal('screen', est, lim.max_cpu_ms, n.normalized);
           cost += est.needed_ms;
           items.push({ item_id: d.item_id, definition: n.normalized, hash: n.hash });
           entries.push(null);
@@ -531,8 +539,8 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       }
       let queue_ms = 0, busy = 0, computed: CountsEntryOut[] = [];
       if (items.length) {
-        budget.check(owner, pool.reserved(owner), cost);
-        const job = pool.submit({ owner, kind: 'counts', page: null, order: null, cost, deadlineAt, task: { kind: 'counts_list', sid: s.sid, items } });
+        budget.check(owner, pool.reserved(owner), cost, lim.owner_cpu_ms);
+        const job = pool.submit({ owner, kind: 'counts', page: null, order: null, cost, deadlineAt, task: { kind: 'counts_list', sid: s.sid, items }, inflight: lim.owner_inflight });
         res.once('close', () => { if (!res.writableFinished) job.cancel() });
         const r = await job.promise;
         queue_ms = r.queue_ms;

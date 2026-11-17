@@ -42,7 +42,7 @@ import { canonicalJson } from '../../edge-bff/backtest/src/core/hash.ts';
 import { TickerView, barCount, brokerCounts, brokerRowCount, flowContextOf } from './snapshot.ts';
 import { BROKER_DAY_SESSIONS } from './broker.ts';
 import type { SnapshotDesc, ThreadSnapshot } from './snapshot.ts';
-import { refuse, toApiError } from './errors.ts';
+import { CapabilityError, refuse, toApiError } from './errors.ts';
 
 /* ================================================================================================================ */
 /* the request envelope (report 8.5, 8.6; the definition itself is validate.ts's)                                  */
@@ -56,22 +56,128 @@ function closed(v: Record<string, unknown>, allowed: readonly string[], at: stri
   for (const k of Object.keys(v)) if (!allowed.includes(k)) throw bad(at ? `${at}.${k}` : k, `${at ? `${at}.` : ''}${k} is not a field of this request; send only ${allowed.join(', ')}.`);
 }
 export interface RunOptionsN { exhaustive: boolean; explain: boolean }
-export interface Envelope { client_order: { page: string; seq: number } | null; data_version: string | null; definition: unknown; options: RunOptionsN; ticker?: string; definitions?: { item_id: string; definition: unknown }[]; rights: string[] }
+export interface Envelope { client_order: { page: string; seq: number } | null; data_version: string | null; definition: unknown; options: RunOptionsN; ticker?: string; definitions?: { item_id: string; definition: unknown }[]; rights: string[]; allow: Allow; limits: ContextLimits }
 
-/* EXEC-BACKTEST-REVAMP P5 (user K8 b, 2026-11-15): the rights edge-bff sets from the session, in the body's `context`
-   ({rights}); absent: none (fail closed). The Screener's versions of the indicators that choose their brokers with
-   later data in the Terminal (catalog.ts flowAdminOnly) need POINT_IN_TIME_RIGHT; read anywhere in a definition
-   without it, CONDITION_RESTRICTED names the field. */
+/* The body's `context`, which edge-bff sets from the session (a page never sends it): {rights?, allow?, limits?};
+   absent: no rights, everything allowed, no plan limits. Every malformed part is refused INVALID_CONTEXT naming its
+   field (a context edge-bff did not form).
+   - rights (EXEC-BACKTEST-REVAMP P5, user K8 b, 2026-11-15; absent: none, fail closed): the Screener's versions of the
+     indicators that choose their brokers with later data in the Terminal (catalog.ts flowAdminOnly) need
+     POINT_IN_TIME_RIGHT; read anywhere in a definition without it, CONDITION_RESTRICTED names the field (restrict).
+   - allow (EXEC-MU-ACCOUNTS Phase 3b, verification/edge_multiuser/access_tiers/CONTRACT.md section 8b "3b in detail"):
+     {indicator, flow_indicator, candle_pattern, screener_metric}, each "*" (every id) or a list of distinct ids
+     (possibly empty), edge-bff's expansion of the principal's screener.* grants against releases.json. Deploy step 1:
+     optional, absent = everything (today's behaviour); present, all four kinds are required. An item outside it is
+     refused 403 CAPABILITY_REQUIRED (checkAllow).
+   - limits: a plan's ceilings, only the keys of CONTEXT_LIMITS (edge-bff sends {} today); each takes min(the worker's
+     own SCREENER_* ceiling, the value) for this request (effectiveLimits). */
 export const KNOWN_RIGHTS: readonly string[] = [POINT_IN_TIME_RIGHT];
-function contextRights(c: unknown): string[] {
-  if (c === undefined) return [];
-  if (!obj(c)) throw bad('context', 'context must be {rights}.');
-  closed(c, ['rights'], 'context');
-  const v = c.rights;
+export const ALLOW_KINDS = ['indicator', 'flow_indicator', 'candle_pattern', 'screener_metric'] as const;
+export type AllowKind = typeof ALLOW_KINDS[number];
+export type Allow = Readonly<Record<AllowKind, '*' | ReadonlySet<string>>>;
+/** Everything allowed: an absent `allow` (deploy step 1) and every internal call (tests, the presets of a refresh). */
+export const ALLOW_ALL: Allow = Object.freeze({ indicator: '*', flow_indicator: '*', candle_pattern: '*', screener_metric: '*' });
+/** The Screener's capability family of each kind (CONTRACT 8b families table): details.capability = family:id. */
+export const CAPABILITY_FAMILY: Readonly<Record<AllowKind, string>> = Object.freeze({
+  indicator: 'screener.indicator', flow_indicator: 'screener.flow_indicator', candle_pattern: 'screener.candle_pattern', screener_metric: 'screener.metric',
+});
+export type ContextLimitName = 'max_cpu_ms' | 'owner_cpu_ms' | 'owner_inflight' | 'max_conditions' | 'max_metric_filters' | 'max_counts';
+/** The worker's per-request and per-owner ceilings a plan may lower, with the smallest value each accepts (config.ts:
+    SCREENER_MAX_CPU_MS, SCREENER_OWNER_CPU_MS, SCREENER_OWNER_INFLIGHT, SCREENER_MAX_CONDITIONS,
+    SCREENER_MAX_METRIC_FILTERS, SCREENER_MAX_COUNTS). */
+export const CONTEXT_LIMITS: Readonly<Record<ContextLimitName, number>> = Object.freeze({
+  max_cpu_ms: 1, owner_cpu_ms: 1, owner_inflight: 1, max_conditions: 1, max_metric_filters: 0, max_counts: 1,
+});
+export type ContextLimits = Partial<Record<ContextLimitName, number>>;
+export interface Context { rights: string[]; allow: Allow; limits: ContextLimits }
+const badContext = (field: string, message: string) => refuse('INVALID_CONTEXT', message, field);
+export function parseContext(c: unknown): Context {
+  if (c === undefined) return { rights: [], allow: ALLOW_ALL, limits: {} };
+  if (!obj(c)) throw badContext('context', 'context must be an object {rights?, allow?, limits?} set by edge-bff.');
+  for (const k of Object.keys(c)) if (!['rights', 'allow', 'limits'].includes(k)) throw badContext(`context.${k}`, `context.${k} is not a field of the context; send only rights, allow, limits.`);
+  return { rights: contextRights(c.rights), allow: contextAllow(c.allow), limits: contextLimits(c.limits) };
+}
+function contextRights(v: unknown): string[] {
   if (v === undefined) return [];
   if (!Array.isArray(v) || v.some(x => typeof x !== 'string' || !KNOWN_RIGHTS.includes(x)) || new Set(v).size !== v.length)
-    throw refuse('INVALID_CONTEXT', `context.rights must be a list of distinct rights (${KNOWN_RIGHTS.join(', ')}).`, 'context.rights');
+    throw badContext('context.rights', `context.rights must be a list of distinct rights (${KNOWN_RIGHTS.join(', ')}).`);
   return v as string[];
+}
+const ALLOW_HOW = `each of ${ALLOW_KINDS.join(', ')} is "*" or a list of distinct ids (right: {"indicator": "*", "flow_indicator": ["FL01"], "candle_pattern": [], "screener_metric": "*"}; wrong: {"indicator": "I01"})`;
+function contextAllow(v: unknown): Allow {
+  if (v === undefined) return ALLOW_ALL;                         // deploy step 1: absent = everything
+  if (!obj(v)) throw badContext('context.allow', `context.allow must be an object: ${ALLOW_HOW}.`);
+  for (const k of Object.keys(v)) if (!(ALLOW_KINDS as readonly string[]).includes(k)) throw badContext(`context.allow.${k}`, `context.allow.${k} is not a kind; ${ALLOW_HOW}.`);
+  const out = {} as Record<AllowKind, '*' | ReadonlySet<string>>;
+  for (const k of ALLOW_KINDS) {
+    const x = v[k];
+    if (x === undefined) throw badContext(`context.allow.${k}`, `context.allow.${k} is missing: ${ALLOW_HOW}.`);
+    if (x === '*') { out[k] = '*'; continue }
+    if (!Array.isArray(x) || x.some(i => typeof i !== 'string' || !i) || new Set(x).size !== x.length) throw badContext(`context.allow.${k}`, `context.allow.${k} must be "*" or a list of distinct ids: ${ALLOW_HOW}.`);
+    out[k] = new Set(x as string[]);
+  }
+  return Object.freeze(out);
+}
+function contextLimits(v: unknown): ContextLimits {
+  if (v === undefined) return {};
+  const names = Object.keys(CONTEXT_LIMITS) as ContextLimitName[];
+  if (!obj(v)) throw badContext('context.limits', `context.limits must be an object of the plan's limits (${names.join(', ')}), {} for none.`);
+  const out: ContextLimits = {};
+  for (const [k, x] of Object.entries(v)) {
+    if (!(names as string[]).includes(k)) throw badContext(`context.limits.${k}`, `context.limits.${k} is not a limit of the Screener worker; send only ${names.join(', ')}.`);
+    const min = CONTEXT_LIMITS[k as ContextLimitName];
+    if (!Number.isSafeInteger(x) || (x as number) < min) throw badContext(`context.limits.${k}`, `context.limits.${k} must be a whole number of at least ${min}.`);
+    out[k as ContextLimitName] = x as number;
+  }
+  return out;
+}
+/** The worker's own ceilings, each lowered to the plan's where the plan sets a lower one (min(own, context.limits)). */
+export function effectiveLimits<T extends Record<ContextLimitName, number>>(own: T, limits: ContextLimits): T {
+  const out = { ...own };
+  for (const [k, x] of Object.entries(limits) as [ContextLimitName, number][]) (out as Record<ContextLimitName, number>)[k] = Math.min(own[k], x);
+  return out;
+}
+
+/** The items a definition names, each with its kind, id and JSON path (of the normalized definition: validate.ts keeps
+    the order of conditions and filters, so the path is the request's). Every reference anywhere counts: conditions on
+    or switched off, window inner tests, both sides of a comparison, a rank's or a transform's `of` and its reference
+    arguments, universe.metric_filters, and the conditions an extra column or a saved My metric is sent as. A pattern
+    type is a candle_pattern when it is a candle id (candles.ts CANDLE_IDS), else a screener_metric. A transform `fn`
+    (the four transform metrics hi52, lo52, rs and vol_ratio reach the wire as their transform, with no id of their
+    own) and a price field are not gated by id (CONTRACT 8b). */
+export function definitionItems(definition: unknown, field = 'definition'): { kind: AllowKind; id: string; field: string }[] {
+  const out: { kind: AllowKind; id: string; field: string }[] = [];
+  const walk = (x: unknown, f: string): void => {
+    if (Array.isArray(x)) { x.forEach((v, k) => walk(v, `${f}[${k}]`)); return }
+    if (!obj(x)) return;
+    if (x.kind === 'indicator' && typeof x.indicator === 'string') out.push({ kind: 'indicator', id: x.indicator, field: `${f}.indicator` });
+    else if (x.kind === 'flow' && typeof x.metric === 'string') out.push({ kind: 'flow_indicator', id: x.metric, field: `${f}.metric` });
+    else if (x.kind === 'pattern' && typeof x.type === 'string') out.push({ kind: CANDLE_IDS.includes(x.type) ? 'candle_pattern' : 'screener_metric', id: x.type, field: `${f}.type` });
+    else if (x.kind === 'xsection' && typeof x.metric === 'string') out.push({ kind: 'screener_metric', id: x.metric, field: `${f}.metric` });
+    else if (x.kind === 'universe' && typeof x.attr === 'string') out.push({ kind: 'screener_metric', id: x.attr, field: `${f}.attr` });
+    for (const [k, v] of Object.entries(x)) walk(v, `${f}.${k}`);
+  };
+  walk(definition, field);
+  return out;
+}
+const KIND_WORDS: Readonly<Record<AllowKind, string>> = { indicator: 'indicator', flow_indicator: 'flow indicator', candle_pattern: 'candlestick pattern', screener_metric: 'Screener metric' };
+const itemName = (kind: AllowKind, id: string): string => {
+  const name = kind === 'indicator' ? SBY_ID[id]?.name : kind === 'flow_indicator' ? FLOW_BY_ID[id]?.name : METRICS_CATALOG.metrics.find(m => m.id === id)?.label;
+  return name ? `${id} (${name})` : id;
+};
+/** The first item of the definition outside `allow`, refused 403 CAPABILITY_REQUIRED (CONTRACT 8b "Worker refusal"):
+    field its JSON path, details {kind, id, capability}, the message naming the item and how to pass. server.ts calls it
+    (through gate) right after normalize and before any cache read, so a result cached for another principal is never
+    served to one without the item. */
+export function checkAllow(definition: unknown, allow: Allow, field = 'definition'): void {
+  if (ALLOW_KINDS.every(k => allow[k] === '*')) return;
+  for (const it of definitionItems(definition, field)) {
+    const a = allow[it.kind];
+    if (a === '*' || a.has(it.id)) continue;
+    const capability = `${CAPABILITY_FAMILY[it.kind]}:${it.id}`;
+    throw new CapabilityError(`${it.field}: the ${KIND_WORDS[it.kind]} ${itemName(it.kind, it.id)} is not included in your plan (${capability}). To run the screen, remove it (a condition, a switched-off condition, a filter or an extra column), or upgrade the plan.`,
+      it.field, { kind: it.kind, id: it.id, capability });
+  }
 }
 /** The definition's references to an admin-only flow entry, refused without the right (CONDITION_RESTRICTED). */
 export function restrict(definition: unknown, rights: readonly string[], field = 'definition'): void {
@@ -84,6 +190,12 @@ export function restrict(definition: unknown, rights: readonly string[], field =
     for (const [k, v] of Object.entries(x)) walk(v, `${f}.${k}`);
   };
   walk(definition, field);
+}
+/** Both gates of a normalized definition, in this order: the admin-only flow versions (rights), then the plan (allow).
+    Internal callers pass ALLOW_ALL; only the HTTP layer reads `allow` from the body. */
+export function gate(definition: unknown, e: Pick<Envelope, 'rights' | 'allow'>, field = 'definition'): void {
+  restrict(definition, e.rights, field);
+  checkAllow(definition, e.allow, field);
 }
 
 function schema(b: Record<string, unknown>): void {
@@ -113,7 +225,7 @@ export function runEnvelope(b: unknown): Envelope {
     for (const k of ['exhaustive', 'explain'] as const) if (b.options[k] !== undefined && typeof b.options[k] !== 'boolean') throw bad(`options.${k}`, `options.${k} must be true or false.`);
     options = { exhaustive: b.options.exhaustive === true, explain: b.options.explain === true };
   }
-  return { client_order: order(b.client_order), data_version: version(b.data_version, false), definition: b.definition, options, rights: contextRights(b.context) };
+  return { client_order: order(b.client_order), data_version: version(b.data_version, false), definition: b.definition, options, ...parseContext(b.context) };
 }
 /** POST /v1/preview {schema_version, client_order, definition, ticker, data_version}. */
 export function previewEnvelope(b: unknown): Envelope {
@@ -121,13 +233,15 @@ export function previewEnvelope(b: unknown): Envelope {
   closed(b, ['schema_version', 'client_order', 'data_version', 'definition', 'ticker', 'context'], '');
   schema(b);
   if (typeof b.ticker !== 'string' || !/^[A-Z0-9]{1,12}$/.test(b.ticker)) throw bad('ticker', 'ticker must be a listed ticker (1-12 capital letters or digits).');
-  return { client_order: order(b.client_order), data_version: version(b.data_version, true), definition: b.definition, options: { exhaustive: true, explain: false }, ticker: b.ticker, rights: contextRights(b.context) };
+  return { client_order: order(b.client_order), data_version: version(b.data_version, true), definition: b.definition, options: { exhaustive: true, explain: false }, ticker: b.ticker, ...parseContext(b.context) };
 }
 /** POST /v1/counts {schema_version, data_version?, definitions: [{item_id, definition}]} (at most max_counts). */
 export function countsEnvelope(b: unknown, maxCounts: number): Envelope {
   if (!obj(b)) throw bad('body', 'The body must be a counts request {schema_version, definitions}.');
   closed(b, ['schema_version', 'data_version', 'definitions', 'context'], '');
   schema(b);
+  const context = parseContext(b.context);
+  if (context.limits.max_counts !== undefined) maxCounts = Math.min(maxCounts, context.limits.max_counts);   // Phase 3b: min(own, plan)
   if (!Array.isArray(b.definitions)) throw bad('definitions', 'definitions must be a list of {item_id, definition}.');
   if (b.definitions.length > maxCounts)
     throw refuse('LIMIT_EXCEEDED', `A counts request holds at most ${maxCounts} definitions; this one has ${b.definitions.length}. Ask for the rest in a second request.`, 'definitions', { limit: 'max_counts', allowed: maxCounts, needed: b.definitions.length });
@@ -140,14 +254,14 @@ export function countsEnvelope(b: unknown, maxCounts: number): Envelope {
     seen.add(d.item_id);
     return { item_id: d.item_id, definition: d.definition };
   });
-  return { client_order: null, data_version: version(b.data_version, false), definition: null, options: { exhaustive: false, explain: false }, definitions, rights: contextRights(b.context) };
+  return { client_order: null, data_version: version(b.data_version, false), definition: null, options: { exhaustive: false, explain: false }, definitions, ...context };
 }
 /** POST /v1/validate {schema_version, definition}. */
 export function validateEnvelope(b: unknown): Envelope {
   if (!obj(b)) throw bad('body', 'The body must be {schema_version, definition}.');
   closed(b, ['schema_version', 'definition', 'context'], '');
   schema(b);
-  return { client_order: null, data_version: null, definition: b.definition, options: { exhaustive: false, explain: false }, rights: contextRights(b.context) };
+  return { client_order: null, data_version: null, definition: b.definition, options: { exhaustive: false, explain: false }, ...parseContext(b.context) };
 }
 
 /* ================================================================================================================ */

@@ -149,7 +149,7 @@ From the user's decisions (DECIDED 2026-10-28, `EXEC.md` EXEC-SCREENER) and the 
    reordered (`validate.ts` header; `registry.ts` header: the backtest core's `resolveParams` first, then only
    narrowing).
 7. **Versions in every answer (I6).** Each answer names the data, engine and registry versions that produced it (section
-   1.13); every computed answer opens with them (`apps/screener-worker/src/run.ts:319-327`).
+   1.13); every computed answer opens with them (`apps/screener-worker/src/run.ts:433-441`).
 8. **Stale tickers and unadjusted price breaks are hidden by default (P4, P4.1 A).** Both chips default on: absent
    means on (`universe.ts:56`, `traded_on_eval_date !== false`, `exclude_price_breaks !== false`). Shown through a chip,
    their rows carry a remark with the reason (`STALE` with the last bar date; `PRICE_BREAK` with the action, ex-date,
@@ -310,7 +310,7 @@ and the borrowed backtest-worker files.
   and cache hits; K compute threads (`SCREENER_THREADS`) run screens, previews and counts; a builder thread is started
   for one refresh and killed after it (`apps/screener-worker/src/server.ts:250`, `:277`). Every thread runs under
   `SCREENER_THREAD_HEAP_MB` (`pool.ts:56-66`, `resourceLimits.maxOldGenerationSizeMb`): a thread that needs more stops
-  alone, its request answers `500 OUT_OF_MEMORY` (`server.ts:566`), and it is started again with every snapshot
+  alone, its request answers `500 OUT_OF_MEMORY` (`server.ts:574`), and it is started again with every snapshot
   installed before it takes work (`pool.ts:99-107`). Tests: `tests/heap.test.ts`, `tests/pool.test.ts` "a thread that
   does not stop is terminated after the grace and started again with the snapshots installed".
 - **Configuration** (`apps/screener-worker/src/config.ts:79-132` `loadConfig`): 30 variables, every limit without a default; a missing or
@@ -348,7 +348,7 @@ and the borrowed backtest-worker files.
    (`refresh.ts:461-470`).
 8. **Pre-warm, digest, install, presets, documents, swap** (`server.ts` host `complete`, `:267-304`): the pinned series
    are computed on the builder alone while a snapshot serves, at a cold start on the builder and every compute thread
-   in chunks (`:265-273`); `snapshot_digest`; install on every compute thread, all-or-nothing (`pool.ts:219-225`); the
+   in chunks (`:265-273`); `snapshot_digest`; install on every compute thread, all-or-nothing (`pool.ts:224-230`); the
    available presets are computed in the system lane and pinned in the result cache (`server.ts:358-372`); catalog and
    universe documents; the swap (`server.ts:334-348`). The previous snapshot keeps serving requests pinned to it for
    `SCREENER_PREVIOUS_GRACE_S`, then is dropped with its caches.
@@ -467,9 +467,9 @@ unevaluated conditions is pruned iff m + r < θ. It never hides a match or a nea
 oracle on random whole screens).
 
 **Cost and budget.** Before any compute the worker prices the worst case on the S0 survivors
-(`apps/screener-worker/src/run.ts:300-338` `estimateCost`: each condition's stage; for S3 the predicted ms of its series
-that are not pinned, from `costUnits` `:226-285` over the core's `costTracker`, `plan.ts:151`, which learns ms per unit
-per replica with an exponential mean, alpha 0.2, `run.ts:142`, seeded by the registry's provisional 5.96 ns per bar per
+(`apps/screener-worker/src/run.ts:414-452` `estimateCost`: each condition's stage; for S3 the predicted ms of its series
+that are not pinned, from `costUnits` `:340-399` over the core's `costTracker`, `plan.ts:151`, which learns ms per unit
+per replica with an exponential mean, alpha 0.2, `run.ts:285`, seeded by the registry's provisional 5.96 ns per bar per
 length unit; a flow kernel by its stock's broker rows and brokers x sessions grid and a measured prior per way it is
 computed, the broker-data series and window context once per stock, every cold series observed with its time shared
 among its kernels: `verification/screener/BENCHMARK_FLOW_COST.md`, QA unit B). Above `SCREENER_MAX_CPU_MS` the request
@@ -483,19 +483,19 @@ In this order (`src/pool.ts` header `:4-23`; `server.ts:403-424` `compute`):
 
 1. a result-cache hit (and a counts hit) is answered at once, outside every queue and budget;
 2. the per-request compute budget (above);
-3. the per-owner budget (`OwnerBudget`, `pool.ts:149-177`): the thread ms an owner tag used in the last 60 s plus the
+3. the per-owner budget (`OwnerBudget`, `pool.ts:149-178`): the thread ms an owner tag used in the last 60 s plus the
    predicted ms it has waiting or running, against `SCREENER_OWNER_CPU_MS`; above it `422 LIMIT_EXCEEDED
    owner_cpu_budget` with `retry_after_seconds`;
 4. the replica queue: at most `SCREENER_QUEUE` users' requests wait, else `409 BUSY`; the system lane (the presets of a
-   refresh) is not counted (`pool.ts:249-255`; test `tests/pool.test.ts` and the integration's defect 7);
+   refresh) is not counted (`pool.ts:256-262`; test `tests/pool.test.ts` and the integration's defect 7);
 5. the owner's lane: at most `SCREENER_OWNER_INFLIGHT` of its requests run at once; a free thread takes the next one by
    deficit round robin across lanes weighted by predicted cost, quantum `SCREENER_MAX_CPU_MS / 4`
-   (`pool.ts:328-352`; `server.ts:218`), so a heavy user slows only themself; a newer request of the same page replaces
-   a waiting older one (`pool.ts:241-247`; it answers `409 SCREEN_REPLACED` or `PREVIEW_REPLACED`, `REPLACED` `:196`).
+   (`pool.ts:337-361`; `server.ts:218`), so a heavy user slows only themself; a newer request of the same page replaces
+   a waiting older one (`pool.ts:246-252`; it answers `409 SCREEN_REPLACED` or `PREVIEW_REPLACED`, `REPLACED` `:200`).
 
 The deadline is `SCREENER_DEADLINE_MS` from arrival, queue included (`504 TIMEOUT`); a running request past it, or one
 whose caller left, is asked to stop through a shared flag the planner checks between tickers, and its thread is
-terminated after 1 s (`KILL_GRACE_MS`, `pool.ts:31`, `:305-316`). Tests: `tests/pool.test.ts` (inflight, round robin,
+terminated after 1 s (`KILL_GRACE_MS`, `pool.ts:31`, `:314-325`). Tests: `tests/pool.test.ts` (inflight, round robin,
 cost-weighted DRR, BUSY, replacement, deadline, kill and respawn, a caller that leaves, P33),
 `tests/server.test.ts` "compute_budget: ..." and "P33: an owner over SCREENER_OWNER_CPU_MS per minute is refused with
 the seconds to wait; another owner is not; a cache hit is never refused". LOCAL fairness (`BENCHMARK_LOCAL.md`
@@ -506,17 +506,17 @@ with K - 1 it rose 1.6 times.
 
 | Cache (per replica) | Key | Bound | Code |
 |---|---|---|---|
-| Result cache: run and preview answers as gzip bytes with `ETag` | `resultKey`: kind, `sid`, `screener_engine`, `registry`, `screener_registry`, `definition_hash`, `exhaustive`, `explain` (preview adds the ticker); nothing of the owner | one share of `SCREENER_CACHE_BYTES`, LRU; the presets pinned | `run.ts:134-135`, `server.ts:100-125` |
+| Result cache: run and preview answers as gzip bytes with `ETag` | `resultKey`: kind, `sid`, `screener_engine`, `registry`, `screener_registry`, `definition_hash`, `exhaustive`, `explain` (preview adds the ticker); nothing of the owner | one share of `SCREENER_CACHE_BYTES`, LRU; the presets pinned | `run.ts:248-249`, `server.ts:100-125` |
 | Counts cache | (snapshot, definition hash) | 50,000 entries (`COUNTS_KEEP`), LRU; the presets pinned | `server.ts:131-152` |
 | Series LRU (custom parameters) and the pinned tails | `seriesKey` (`metrics.ts:321`) per ticker | one share of `SCREENER_CACHE_BYTES` per compute thread; pinned tails not counted | `metrics.ts:328` `SeriesCache`, `snapshot.ts:438-454` |
-| One request's views | ticker | `CALC_KEEP` 256 tickers hold a `Calc` (released on eviction) | `run.ts:218`, `:227-267` |
+| One request's views | ticker | `CALC_KEEP` 256 tickers hold a `Calc` (released on eviction) | `run.ts:332`, `:341-381` |
 | Disk cache of the files | sha256 | `SCREENER_CACHE_DIR_BYTES` in `SCREENER_CACHE_DIR` (the container's disk, no volume) | `TerminalClient` `DiskCache` |
 | Catalog and universe documents | the publication and its outcome | one each | `apps/screener-worker/src/catalog.ts:93-120` (JSON, gzip level 9, `ETag` = sha256 of the JSON bytes) |
 
 `SCREENER_CACHE_BYTES` is split K + 1 ways (`apps/screener-worker/src/config.ts:136` `cacheShare`). Every cache is dropped with its snapshot.
 Two owners with one definition share one computation byte for byte (test `tests/server.test.ts` "the result cache: two
 owners with one definition share one computation, byte for byte"). An answer computed before an advance is sent to its
-caller but never cached under the newer publication (`server.ts:413-416`, `:484-491`; semantic review S4; test
+caller but never cached under the newer publication (`server.ts:413-416`, `:492-499`; semantic review S4; test
 `tests/refresh.test.ts` "a screen still computing when the same files advance the publication is never cached under the
 newer one").
 
@@ -1117,7 +1117,8 @@ Tick every line or record why it does not apply. "Evidence" is what you cite in 
 | Check | Evidence |
 |---|---|
 | The file in the worker's file list (today `PHASE1_FILES`, `snapshot.ts:81`): the refresh requires it in the index (`refresh.ts:317-319`), caps it before any grant, grants it only when neither cache holds it, downloads it on the builder with sha256 and size checks and decodes it with the shared decoders (`decodeColumnar`/`inflateVerified`); its sha256 joins the skip-unchanged rule (`refresh.ts:339`) and the snapshot identity `sid` (`snapshot.ts:96`). A file that is optional needs its own rule, as the broker day files have (P4, `broker.ts`): the Phase 1 list makes a missing file fail the refresh | `tests/refresh.test.ts` |
-| The metric bound: a new kind or a new source in `condition.ts` (flow is refused at bind until Phase 2, `condition.ts:182`), costed in `apps/screener-worker/src/run.ts:226-281` `costUnits` or pinned in the snapshot | condition and estimate tests |
+| The metric bound: a new kind or a new source in `condition.ts` (flow is refused at bind until Phase 2, `condition.ts:182`), costed in `apps/screener-worker/src/run.ts:340-395` `costUnits` or pinned in the snapshot | condition and estimate tests |
+| Plan gate (EXEC-MU-ACCOUNTS Phase 3b): a new indicator, flow entry, candlestick pattern, pattern, cross-sectional metric or universe attribute is gated by its id with no worker change: the worker's `checkAllow` walks every reference of the normalized definition and refuses an id outside the body's `context.allow` (`403 CAPABILITY_REQUIRED`, capability `screener.indicator:`, `screener.flow_indicator:`, `screener.candle_pattern:` or `screener.metric:` plus the id; `apps/screener-worker/CONTRACT.md` section 4a). The id needs its entry in `apps/edge-bff/catalog/releases.json`. A new reference kind, or an id carried in another field, is added to `definitionItems` with its test | `apps/edge-bff/tests/test_releases.py`; `apps/screener-worker/tests/allow.test.ts` |
 | Cross-checks on load (counts, dates, a self-check against a stored oracle where one exists); a failure keeps the previous snapshot and logs `REFRESH_FAILED` | a fixture with a corrupted sha256 |
 | Units converted once, at the decoder, from the document's `units`; raw units on the wire | a unit test |
 | Alignment: the as-of rule for each cell (own bars, market sessions, or backward as-of on availability) and the `eval_date` each cell reports | a fixture across a holiday |
@@ -1192,7 +1193,7 @@ first needs the optional-file rule of L5 before a new file joins the list.
   is then tailed by `series()`, so a recursive input stays exact. Its comparison lag comes from the same probe as the
   registry's (a rolling maximum of the high reads the previous bar as the right side of a price comparison; test
   `tests/core/catalog.test.ts` "the comparison lag of rolling_max / rolling_min ..."). The worker prices it as O(N·n)
-  over its largest numeric argument (`apps/screener-worker/src/run.ts:153-171`) until the tracker has measured it.
+  over its largest numeric argument (`apps/screener-worker/src/run.ts:267-285`) until the tracker has measured it.
   `screener_engine` changes; the Backtest does not.
 - **A new formula** (Ichimoku, or any indicator not among the 53) goes into `F` and `indRegistry.json` through a
   **registry release** (P6, DECIDED with the go), never as a screener transform. Worked example 2.11.
