@@ -34,7 +34,7 @@ from psycopg.types.json import Jsonb
 from . import wake
 from .principal import Principal
 from .rights import POINT_IN_TIME, refuse_context, rights_of
-from .watchlist import PER_LIST, WatchlistStore
+from .watchlist import LISTS, PER_LIST, WatchlistStore
 from .backtest import (CONTROL_TIMEOUT, PREVIEW_PAGES, Backtests, BacktestError, CallerGone, PreviewReplaced, accepts_gzip,
                        dumps, error_of, loads, preview_order)
 
@@ -84,7 +84,10 @@ WATCHLIST_LIMIT = PER_LIST                           # EXEC-WATCHLIST 2A: the st
 # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): reads need screener.view, runs and saves screener.run; the saved items
 # and the star are capped by the plan's limits, at most the constants above (HARD; Principal.capped)
 VIEW, RUN = 'screener.view', 'screener.run'
-LIMIT_KEYS = {'saved_items': 'screener.saved_items', 'watchlist': 'watchlist.per_list'}
+LIMIT_KEYS = {'saved_items': 'screener.saved_items', 'watchlist': 'watchlist.per_list', 'lists': 'watchlist.lists'}
+# the star reads and writes the Watchlist's first list, so it needs the Watchlist too (C2 Phase 3a: data of another tab
+# needs that tab's capability as well as the Screener's)
+WATCHLIST_VIEW = 'watchlist.view'
 # Not derivable: the Retry-After of 503 SCREENER_NOT_READY. A missing table waits for a migration (minutes at least);
 # a worker without a snapshot that names no wait of its own loads one in seconds to a few minutes (report 6.5, 11b S14).
 TABLES_RETRY_SECONDS = 60
@@ -524,13 +527,21 @@ class ScreenerStore:
             return c.execute('''SELECT ticker, added_at FROM edge_bff.watchlist_items WHERE owner_key=%s AND list_id=%s
                 ORDER BY position, added_at, ticker''', (owner, first)).fetchall()
 
-    def watch(self, owner, ticker, limit=None):
+    def watch(self, owner, ticker, limit=None, lists=None):
         """Add a ticker to the first list (idempotent: a watched one stays as it was); at most WATCHLIST_LIMIT (422
-        LIMIT_EXCEEDED; limit: the principal's, at most WATCHLIST_LIMIT)."""
+        LIMIT_EXCEEDED; limit: the principal's, at most WATCHLIST_LIMIT). The first list is created only within the
+        principal's lists cap (lists; C2 Phase 3a: the star never makes a list POST /watchlist/lists would refuse)."""
         limit = WATCHLIST_LIMIT if limit is None else limit
+        lists = LISTS if lists is None else lists
         with self.connect() as c:
             c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('watchlist:' + owner,))
-            first = WatchlistStore.first(c, owner, True)
+            first = WatchlistStore.first(c, owner, False)
+            if not first:
+                if lists < 1:
+                    raise failure('LIMIT_EXCEEDED', 422, 'ticker',
+                                  'Your plan holds no watchlist: a list is needed before a ticker can be starred.',
+                                  {'limit': 'watchlist.lists', 'allowed': lists, 'needed': 1})
+                first = WatchlistStore.first(c, owner, True)
             if c.execute('SELECT 1 FROM edge_bff.watchlist_items WHERE owner_key=%s AND list_id=%s AND ticker=%s',
                          (owner, first, ticker)).fetchone():
                 return
@@ -565,8 +576,9 @@ class Doc:
 
 
 def caps_of(p=None):
-    """{saved_items, watchlist}: the principal's caps, each min(plan value, HARD); HARD itself without a principal."""
-    hard = {'saved_items': SCREEN_LIMIT, 'watchlist': WATCHLIST_LIMIT}
+    """{saved_items, watchlist, lists}: the principal's caps, each min(plan value, HARD); HARD itself without a
+    principal."""
+    hard = {'saved_items': SCREEN_LIMIT, 'watchlist': WATCHLIST_LIMIT, 'lists': LISTS}
     return {k: p.capped(LIMIT_KEYS[k], v) if p is not None else v for k, v in hard.items()}
 
 
@@ -1093,8 +1105,10 @@ class Screeners:
             await asyncio.to_thread(self.store.delete, p.owner_key, item_id)
             return Response(status_code=204)
 
+        watch_viewer = auth.need(WATCHLIST_VIEW)
+
         @app.get('/api/v1/screener/watchlist')
-        async def watchlist(p: Principal = Depends(viewer)):
+        async def watchlist(p: Principal = Depends(viewer), _: Principal = Depends(watch_viewer)):
             await self.guard()
             rows = await asyncio.to_thread(self.store.watchlist, p.owner_key)
             return JSONResponse(jsonable_encoder({'tickers': [{'ticker': r['ticker'], 'added_at': r['added_at']} for r in rows]}))
@@ -1105,13 +1119,14 @@ class Screeners:
             return ticker
 
         @app.put('/api/v1/screener/watchlist/{ticker}', status_code=204)
-        async def watch(ticker: str, p: Principal = Depends(runner)):
+        async def watch(ticker: str, p: Principal = Depends(runner), _: Principal = Depends(watch_viewer)):
             await self.guard()
-            await asyncio.to_thread(self.store.watch, p.owner_key, ticker_of(ticker), caps_of(p)['watchlist'])
+            caps = caps_of(p)
+            await asyncio.to_thread(self.store.watch, p.owner_key, ticker_of(ticker), caps['watchlist'], caps['lists'])
             return Response(status_code=204)
 
         @app.delete('/api/v1/screener/watchlist/{ticker}', status_code=204)
-        async def unwatch(ticker: str, p: Principal = Depends(runner)):
+        async def unwatch(ticker: str, p: Principal = Depends(runner), _: Principal = Depends(watch_viewer)):
             await self.guard()
             await asyncio.to_thread(self.store.unwatch, p.owner_key, ticker_of(ticker))
             return Response(status_code=204)

@@ -26,7 +26,7 @@ from psycopg.types.json import Jsonb
 
 from .client import public_data
 from .accounts import AccountStore
-from .errors import message_of
+from .errors import Refusal, message_of
 from .principal import Principal, owner_principal
 from .rights import catalog_for, refuse_context, rights_of
 
@@ -66,6 +66,7 @@ PREVIEW_PAGES = 64
 # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): the capabilities of the routes and of a queued job's dispatch, and the
 # plan's limit of queued jobs per owner (at most BACKTEST_QUEUED_PER_OWNER, the HARD of Principal.capped)
 VIEW, RUN, QUEUED_KEY = 'backtest.view', 'backtest.run', 'backtest.queued_jobs'
+QUEUE_RETRY_SECONDS = 30          # QUEUE_FULL's Retry-After: one queued job usually starts within seconds
 # the job's error when a finished result could not be stored (CONTRACT.md section 9, D-B2): the logs hold why
 NOT_STORED = {'code': 'RESULT_NOT_STORED', 'message': 'The backtest finished, but edge-bff could not store its result.'}
 
@@ -1387,6 +1388,13 @@ class Backtests:
                     raise StoreError('SUBMISSION_CONFLICT')
             except (BacktestError, StoreError) as e:
                 submitted(code=e.error.get('code') if isinstance(e, BacktestError) else e.code)
+                if isinstance(e, StoreError) and e.code == 'QUEUE_FULL':
+                    # C3 Phase 3a F1 (CONTRACT.md 3, AGENTS.md "Gates and evidence"): the limit is the plan's
+                    # (access.limits shows it before acting); the refusal names it and the account's own number, and
+                    # says when to try again (a queued job usually starts within seconds)
+                    allowed = p.capped(QUEUED_KEY, settings.backtest_queued_per_owner)
+                    raise Refusal(429, 'QUEUE_FULL', {'limit': QUEUED_KEY, 'allowed': allowed},
+                                  {'Retry-After': str(QUEUE_RETRY_SECONDS)}) from None
                 raise
             submitted(request_id=row['request_id'], created=created)
             return JSONResponse(status_code=202, content={'request_id': row['request_id'], 'state': row['state'],

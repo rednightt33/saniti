@@ -121,6 +121,12 @@ class Settings:
                 email_from=os.environ.get('EDGE_EMAIL_FROM', '').strip(),
                 resend_api_key=os.environ.get('RESEND_API_KEY', ''),
                 resend_webhook_secret=os.environ.get('RESEND_WEBHOOK_SECRET', ''))
+        # EXEC-MU-ACCOUNTS Phase 3a (C2/C3 R1): with the switch off, an owner EDGE_ADMIN_OWNERS does not list holds no
+        # capability, so a list that leaves out EDGE_OWNER would lock the one account out of every tab; that is a typo,
+        # never a wish: the start stops and names the fix (unset the variable, or list EDGE_OWNER in it)
+        if not s.multiuser and s.owner not in s.admin_owners:
+            raise ValueError('EDGE_ADMIN_OWNERS must list EDGE_OWNER while EDGE_MULTIUSER is off (unset it to mean '
+                             'EDGE_OWNER only): otherwise the configured account loses every tab')
         s.validate()
         return s
 
