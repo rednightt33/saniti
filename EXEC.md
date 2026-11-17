@@ -15844,7 +15844,21 @@ previous build ignores the new rows.
    the Watchlist stars, and layouts and drawings save.
 7. **Records:** `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md` (applied, read back), and the ERRORS M481 status.
 
-### Phase 3b deploy steps (written 2026-11-17, not run yet)
+### Phase 3b deploy steps (written and run 2026-11-17; step 7 waits for the user)
+
+Run log:
+- Step 1: M340 at 10:11 and 10:16 UTC: 0 active EDGE jobs, 0 orc turns, 0 open Backtest jobs.
+- Step 2: CI on `3698a8a4`: look-ahead gate `44061826781`, Backend tests `44061826872`, Generated files `44061826843`;
+  local suites green.
+- Step 3: backtest-worker `3e27dd56` **SUCCESS**, `engine_version` `ad213ebfc0d54829` (= the repository's). Rollback
+  `b087e1c4`.
+- Step 4: screener-worker `77563efa` **SUCCESS**. Rollback `0b517ec0`.
+- Step 5: `main` `848a9d41` → `3698a8a4`. edge-bff `335d78b3` **SUCCESS** (rollback `49e7cf88`) and screener-worker
+  `12810270` **SUCCESS**, both after the checks on `main`; clean start logs.
+- Step 6: 44 of 44 checks from outside.
+- Step 8: records written (`RAILWAY_CHANGELOG.md`, ERRORS M482).
+- Step 7: waiting for the user.
+
 
 Code:
 - builders W1 (backtest-worker, `1510261b`), W2 (screener-worker, `e06dff77`) and E1 (edge-bff, `bc1eaf55`);

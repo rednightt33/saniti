@@ -8875,7 +8875,7 @@ in its staleness check.
   The screener-worker suite: 112 passed. edge-bff deployed on the green commit.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
-### M482 — EXEC-MU-ACCOUNTS Phase 3b: findings of the independent checkers C1-C3 (2026-11-17, fixed on branch, not deployed; the OPEN rows wait for the switch-on)
+### M482 — EXEC-MU-ACCOUNTS Phase 3b: findings of the independent checkers C1-C3 (2026-11-17, fixed on branch; deployed 2026-11-17 on dev with the switch off: `main` `3698a8a4`, backtest-worker `3e27dd56`, screener-worker `77563efa`/`12810270`, edge-bff `335d78b3` SUCCESS; the OPEN rows wait for the switch-on)
 
 Three checkers read the integrated Phase 3b against CONTRACT.md 8b only:
 - the workers W1 (backtest-worker, `1510261b`) and W2 (screener-worker, `e06dff77`);

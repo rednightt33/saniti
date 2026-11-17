@@ -1,5 +1,31 @@
 # Railway changelog
 
+## 2026-11-17 — EXEC-MU-ACCOUNTS Phase 3b deploy (switch off): item gates in both workers
+
+- **User:** "Aman, lanjutkan" (2026-11-17, after checking the Phase 3a tabs; EXEC.md EXEC-MU-ACCOUNTS, CONTRACT.md 8b).
+  `EDGE_MULTIUSER` stays off; no variable and no migration changed.
+- **Before:**
+  - Checkers C1-C3 on the integrated 3b: nothing blocking with the switch off (ERRORS M482). The fix round is
+    `74ed598f`, `30d8ec09` and `3698a8a4`.
+  - Local suites: backtest-worker 266/266, screener-worker 125/125, Screener page 1354, edge-bff 186 (the 3b files).
+  - Branch CI on `3698a8a4`: look-ahead gate run `44061826781`, Backend tests `44061826872` and Generated files
+    `44061826843`, all green.
+  - M340 (job reads of `edge_bff.jobs`, `AI_conversation_turn` and `edge_bff.backtest_jobs`): 0 active at 10:11 and
+    10:16 UTC.
+  - Rollback points: backtest-worker `b087e1c4`, screener-worker `0b517ec0`, edge-bff `49e7cf88`.
+- **Order** (C3 F1: the deployed workers refused `context.allow`):
+  1. **backtest-worker `3e27dd56`** SUCCESS 10:12 UTC. CLI upload of `git archive 3698a8a4` of the paths its
+     Dockerfile copies, with the Dockerfile at the root and `--path-as-root`. Start log `engine_version`
+     `ad213ebfc0d54829`, equal to the repository's.
+  2. **screener-worker `77563efa`** SUCCESS 10:14 UTC. CLI upload from the same commit, before the `main` push. Clean
+     start log.
+  3. **`main` `848a9d41` → `3698a8a4`** (fast-forward, 10:16 UTC). Both services waited (`WAITING`) for the checks on
+     `main` (K10 a):
+     - edge-bff `335d78b3` SUCCESS 10:21 UTC, clean start log;
+     - screener-worker `12810270` SUCCESS 10:21 UTC (the same code from GitHub).
+- **Checks:** smoke from outside 44/44 (`/ready` 200; every gated route 401 without a session).
+- **Waiting:** the user's check of the Backtest and the Screener after a reload (EXEC.md, Phase 3b deploy steps, step 7).
+
 ## 2026-11-17 — EXEC-MU-ACCOUNTS Phase 3a deploy (switch off): route gates per tab, plan caps
 
 - **User:** decisions D1-D8 of 2026-11-17 ("untuk AI saat ini hanya untuk admin only yah. 2A 3B 4B 5B 6A 7A ...";
