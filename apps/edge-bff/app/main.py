@@ -29,7 +29,7 @@ from .mailer import EmailSender
 from .preferences import Preferences
 from .presets import Presets
 from .accounts import PENDING_CHECKED
-from .principal import Auth, Principal, role_needs_mfa
+from .principal import Auth, Principal
 from .drawings import Drawings
 from .overview import Overview
 from .watchlist import Watchlist
@@ -246,7 +246,17 @@ def create_app(settings=None, store=None, orc=None):
                                                                            'error': type(e).__name__}))
                 if settings.multiuser:
                     ready['value'] = False
-        task = asyncio.create_task(worker.run()) if settings.worker_enabled and ready['value'] else None
+            # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): user #1's subscription to the plan holding every capability,
+            # found by data (account_seed_plan_ambiguous otherwise); idempotent. A failure (the catalog migration not
+            # applied yet) changes nothing with the switch off; with it on nothing resolves without the catalog
+            try:
+                await asyncio.to_thread(auth.seed_plan)
+            except Exception as e:                     # noqa: BLE001 - logged by its class only (no secret in it)
+                logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_plan_failed',
+                                                                           'error': type(e).__name__}))
+                if settings.multiuser:
+                    ready['value'] = False
+        task =asyncio.create_task(worker.run()) if settings.worker_enabled and ready['value'] else None
         # EDGE backtest: its own loop, only with a worker configured; it does not wait for /ready (a missing backtest
         # table keeps only the backtest feature off, BACKTEST_NOT_READY)
         backtest_task = asyncio.create_task(backtests.loop.run()) if settings.worker_enabled and backtests.loop else None
@@ -330,7 +340,14 @@ def create_app(settings=None, store=None, orc=None):
                     return error('REQUEST_TOO_LARGE', 413)
                 chunks.append(chunk)
             request._body = b''.join(chunks)
+        state = request.state                      # made before the routes run, so the principal they set is seen here
         response = await call_next(request)
+        # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): every authenticated /api/v1 answer (refusals included) carries the
+        # principal's access fingerprint; the shared session module re-reads the session when it changes. With the
+        # switch off it is always 'env'
+        principal = getattr(state, 'principal', None)
+        if principal is not None and request.url.path.startswith('/api/v1/'):
+            response.headers['X-Edge-Entitlements'] = principal.version
         response.headers.setdefault('Cache-Control', 'no-store')
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'same-origin'
@@ -610,13 +627,16 @@ def create_app(settings=None, store=None, orc=None):
             # at most MAX_SESSIONS per account (the oldest revoked); the address only as its HMAC
             await asyncio.to_thread(auth.accounts.create_session, token_hash(token), account, settings.session_seconds,
                                     throttle.key_hash(SIGNIN_IP.scope, client_address(request)), False,
-                                    role_needs_mfa(account['role']))
+                                    # Phase 2: MFA by the account's resolved capabilities ('*' or admin.access)
+                                    await asyncio.to_thread(auth.needs_mfa, account['owner_key']))
             await asyncio.to_thread(auth.accounts.signed_in, account['user_id'])
         else:
             await asyncio.to_thread(store.session_create, token_hash(token), auth.configured_owner(), settings.session_seconds)
         p = await auth.resolve(token)
         if p is None:                              # an account disabled at this very moment
             return error('INVALID_CREDENTIALS', 401)
+        request.state.principal = p                # its X-Edge-Entitlements on the sign-in answer too
+
         # EXEC-RADAR R7: the capabilities come with the sign-in too, so the shell's menu is right before any reload.
         # An admin whose session has not passed MFA (switch on) gets the pending session's cookie and 403 MFA_REQUIRED
         # with its CSRF token, for the MFA page's enrol or verify call

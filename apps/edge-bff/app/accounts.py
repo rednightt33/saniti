@@ -3,8 +3,9 @@
 
 This module is the foundation the auth flows (registration, codes, reset, MFA, email; builder B1b) build on:
 - `seed`: user #1 at start, idempotent across replicas (advisory lock);
-- `resolve`: the session of a request joined to its account, in one statement (principal.py);
-- `owner`: an account by its owner key (the backtest loop's rights at dispatch);
+- `resolve`: the session of a request joined to its account and its plan's grants, in one statement (principal.py);
+- `owner`: an account by its owner key with its grants (the backtest loop's rights at dispatch; the sign-in's MFA);
+- `seed_subscription`: user #1's subscription to the plan that holds every capability (Phase 2), idempotent;
 - `find_login`, `create_session`, `signed_in`: the switch-on sign-in (main.py), with at most MAX_SESSIONS per user.
 
 Every statement names the account it reads or changes; the configured owner reaches `seed` as an argument (principal.py).
@@ -28,6 +29,45 @@ MAX_PENDING_SESSIONS = 3          # sessions waiting for the admin's second fact
 PENDING_CHECKED = 3               # pending registrations of an address a sign-in compares its password with
 TOUCH_SECONDS = 60                # CONTRACT.md section 2: last_seen_at is written at most once per 60 s per session
 ACTIVE = 'active'
+EVERYTHING = '*'
+
+# EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a "Resolution"): the CTEs that follow a CTE `found` (one account: user_id,
+# owner_key, username, role, status) and resolve its grants within the same statement:
+# - live: its active subscription that has started and not ended (expiry decided now, never by a cron);
+# - plan: the live subscription's plan and end, else the default plan (no end);
+# - lapsed: without a live one, the plan of its most recent subscription that ended (access.expired_plan);
+# - plan_rows: the plan's plan_capabilities; overrides: its overrides that have not ended;
+# - merged: an override replaces the plan's value of its key (or adds the key), with the capability's kind.
+GRANTS = '''
+    live AS (SELECT s.plan_key, s.expires_at FROM edge_bff.subscriptions s JOIN found ON s.user_id = found.user_id
+        WHERE s.status = 'active' AND s.starts_at <= now() AND (s.expires_at IS NULL OR s.expires_at > now())
+        ORDER BY s.starts_at DESC LIMIT 1),
+    plan AS (SELECT coalesce((SELECT plan_key FROM live),
+                             (SELECT plan_key FROM edge_bff.plans WHERE is_default)) AS plan_key,
+                    (SELECT expires_at FROM live) AS plan_expires_at),
+    lapsed AS (SELECT s.plan_key FROM edge_bff.subscriptions s JOIN found ON s.user_id = found.user_id
+        WHERE NOT EXISTS (SELECT 1 FROM live) AND s.status IN ('active', 'expired') AND s.expires_at <= now()
+        ORDER BY s.expires_at DESC LIMIT 1),
+    plan_rows AS (SELECT pc.capability_key, pc.value, pc.version FROM edge_bff.plan_capabilities pc
+        JOIN plan ON pc.plan_key = plan.plan_key),
+    overrides AS (SELECT o.capability_key, o.value FROM edge_bff.user_capability_overrides o
+        JOIN found ON o.user_id = found.user_id WHERE o.expires_at IS NULL OR o.expires_at > now()),
+    merged AS (SELECT m.capability_key, m.value, c.kind FROM (
+            SELECT capability_key, value FROM overrides
+            UNION ALL
+            SELECT capability_key, value FROM plan_rows p
+            WHERE NOT EXISTS (SELECT 1 FROM overrides o WHERE o.capability_key = p.capability_key)) m
+        JOIN edge_bff.capabilities c ON c.capability_key = m.capability_key)'''
+# the columns those CTEs give: the resolved plan and its end, the ended plan, the grants {key: {kind, value}}, the
+# plan_capabilities versions {key: version}, and the ended plan's own grants (PLAN_EXPIRED is decided by them)
+GRANT_COLUMNS = '''plan.plan_key, plan.plan_expires_at, (SELECT plan_key FROM lapsed) AS expired_plan,
+        (SELECT coalesce(jsonb_object_agg(capability_key, jsonb_build_object('kind', kind, 'value', value)), '{}'::jsonb)
+         FROM merged) AS grants,
+        (SELECT coalesce(jsonb_object_agg(capability_key, version), '{}'::jsonb) FROM plan_rows) AS versions,
+        (SELECT coalesce(jsonb_object_agg(pc.capability_key, jsonb_build_object('kind', c.kind, 'value', pc.value)),
+                         '{}'::jsonb)
+         FROM edge_bff.plan_capabilities pc JOIN edge_bff.capabilities c ON c.capability_key = pc.capability_key
+         WHERE pc.plan_key = (SELECT plan_key FROM lapsed)) AS expired_grants'''
 
 
 def new_owner_key():
@@ -85,9 +125,11 @@ class AccountStore:
     # ---- the principal's rows ---------------------------------------------------------------------------------------
 
     def resolve(self, hashed, idle_seconds):
-        """The session and its account in one statement (CONTRACT.md section 2): an active account, a session neither
-        revoked, expired nor idle beyond idle_seconds; last_seen_at is written in the same statement at most once per
-        TOUCH_SECONDS. None when any of these fails (the caller answers 401)."""
+        """The session, its account and the account's resolved grants in one statement (CONTRACT.md sections 2 and 8a):
+        an active account, a session neither revoked, expired nor idle beyond idle_seconds; last_seen_at is written in
+        the same statement at most once per TOUCH_SECONDS. The grants (GRANTS): the active, unexpired subscription's
+        plan, else the default plan; that plan's plan_capabilities; the account's unexpired overrides, each replacing
+        the plan's value of its key. None when a session or account check fails (the caller answers 401)."""
         with self.store.connect() as c:
             return c.execute('''WITH found AS (
                     SELECT s.token_hash, s.mfa_passed_at, u.user_id, u.owner_key, u.username, u.role, u.status,
@@ -97,17 +139,44 @@ class AccountStore:
                       AND s.owner_key = u.owner_key AND u.status = %(active)s
                       AND coalesce(s.last_seen_at, s.created_at) > now() - make_interval(secs => %(idle)s)),
                 touched AS (UPDATE edge_bff.sessions t SET last_seen_at = now() FROM found
-                    WHERE t.token_hash = found.token_hash AND found.stale RETURNING 1)
-                SELECT user_id, owner_key, username, role, status, mfa_passed_at,
+                    WHERE t.token_hash = found.token_hash AND found.stale RETURNING 1),''' + GRANTS + '''
+                SELECT found.user_id, owner_key, username, role, status, mfa_passed_at,
                        EXISTS (SELECT 1 FROM edge_bff.mfa_totp m WHERE m.user_id = found.user_id
-                               AND m.confirmed_at IS NOT NULL) AS mfa_enrolled FROM found''',
+                               AND m.confirmed_at IS NOT NULL) AS mfa_enrolled, ''' + GRANT_COLUMNS + '''
+                FROM found CROSS JOIN plan''',
                              {'hashed': hashed, 'idle': idle_seconds, 'touch': TOUCH_SECONDS, 'active': ACTIVE}).fetchone()
 
     def owner(self, owner_key):
-        """An active account by its owner key (the backtest loop reads its owner's rights when it dispatches), or None."""
+        """An active account by its owner key with its resolved grants (as resolve), or None: the backtest loop reads
+        its owner's rights when it dispatches, the switch-on sign-in decides by them whether MFA is needed."""
         with self.store.connect() as c:
-            return c.execute('''SELECT user_id, owner_key, username, role, status FROM edge_bff.users
-                WHERE owner_key=%s AND status=%s''', (owner_key, ACTIVE)).fetchone()
+            return c.execute('''WITH found AS (SELECT user_id, owner_key, username, role, status FROM edge_bff.users
+                    WHERE owner_key = %(owner)s AND status = %(active)s),''' + GRANTS + '''
+                SELECT found.user_id, owner_key, username, role, status, ''' + GRANT_COLUMNS + '''
+                FROM found CROSS JOIN plan''', {'owner': owner_key, 'active': ACTIVE}).fetchone()
+
+    # ---- the seed subscription of user #1 (CONTRACT.md 8a "User #1") ------------------------------------------------
+
+    def seed_subscription(self, user_id):
+        """User #1 gets an active manual subscription with no end to the plan that holds every capability ('*'). The
+        plan is found by data: exactly one plan holds '*'; otherwise nothing is given and account_seed_plan_ambiguous is
+        logged at warning. Idempotent (every replica takes the same advisory lock): an account that holds an active
+        subscription already (live or ended) is left as it is. Returns the plan key given or kept, or None."""
+        with self.store.connect() as c:
+            c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('accounts:seed_subscription',))
+            plans = [r['plan_key'] for r in c.execute('''SELECT DISTINCT plan_key FROM edge_bff.plan_capabilities
+                WHERE capability_key = %s ORDER BY plan_key''', (EVERYTHING,)).fetchall()]
+            if len(plans) != 1:
+                logger.warning(json.dumps({'event': 'account_seed_plan_ambiguous', 'plans': len(plans)}))
+                return None
+            held = c.execute("SELECT plan_key FROM edge_bff.subscriptions WHERE user_id = %s AND status = 'active'",
+                             (user_id,)).fetchone()
+            if held is not None:
+                return held['plan_key']
+            c.execute('''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, expires_at, provider, provider_ref)
+                VALUES (%s, %s, 'active', NULL, 'manual', 'seed')''', (user_id, plans[0]))
+            logger.info(json.dumps({'event': 'account_seed_subscribed', 'user_id': user_id}))
+            return plans[0]
 
     # ---- the switch-on sign-in --------------------------------------------------------------------------------------
 
