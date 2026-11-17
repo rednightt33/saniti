@@ -12,7 +12,9 @@
    - the storage registry: every localStorage, sessionStorage and IndexedDB key of the shell and the six pages, classed
      `browser` (how this browser shows EDGE: theme, widths, folds) or `user` (anything that belongs to an account);
      clearUserState() removes the `user` ones on sign-out and when another login signs in on this browser (M473).
-     tests/test_storage_registry.py fails on a key found in the code that is not classed here.
+     tests/test_storage_registry.py fails on a key found in the code that is not classed here;
+   - what the account holds (Phase 2, contract 8a): access(), can(key) and limit(key) mirror the server from the session
+     answer's `access`; catalog(kind) reads GET /api/v1/catalog/{kind}, kept in memory only (no storage key).
 
    No figure, no market data and no wording of the pages lives here; the messages below are only the fallbacks for the
    session refusals when the server sends none (the server's own `message` is shown first). */
@@ -160,7 +162,10 @@ function clearArea(area: 'local' | 'session', signOut: boolean) {
     if (k === LAST_LOGIN_KEY ? signOut : isUserKey(k, area)) { try { s.removeItem(k) } catch { /* storage off */ } }
   }
 }
+/* Phase 2: what a page holds in memory for its account (the catalog answers) goes with the user state */
+const memoryClears = new Set<() => void>();
 export function clearUserState(opts: { signOut?: boolean } = {}): Promise<void> {
+  memoryClears.forEach(fn => { try { fn() } catch { /* the others still run */ } });
   clearArea('local', !!opts.signOut);
   clearArea('session', !!opts.signOut);
   post({ type:'cleared', signOut:!!opts.signOut });
@@ -355,6 +360,24 @@ export const ENTITLEMENTS_HEADER = 'X-Edge-Entitlements';
 
 export interface EdgeSessionInfo { login: string; ownerKey: string | null; csrf: string; access: unknown; raw: any }
 
+/* EXEC-MU-ACCOUNTS Phase 2 (contract sections 4 and 8a): the session answer's `access` object. `capabilities` holds the
+   flag keys the account holds (`*`: every capability, the admin plan and the switch-off principal, version 'env');
+   `limits` holds the limits (a number) and the lists (strings); a key with no entry has no limit. */
+export interface EdgeAccess {
+  plan?: string | null; role?: string | null; status?: string | null; expires_at?: string | null; expired_plan?: string | null;
+  mfa_ok?: boolean; mfa_enrolled?: boolean; seed?: boolean; owner_key?: string | null; next?: string | null;
+  capabilities: string[];
+  limits: Record<string, number | string[]>;
+  version?: string | null;
+  [other: string]: unknown;
+}
+export const CATALOG_URL = '/api/v1/catalog/';
+export interface CatalogEntry { id: string; stage: string }
+export interface CatalogAnswer { kind: string; entries: readonly CatalogEntry[] }
+/** an item key `<family>:<id>` (for example terminal.indicator:I01): held by stage or id, which the session answer does
+    not carry, so can() decides it only for `*`; use catalog(kind) for the items the account holds */
+const isItemKey = (key: string) => key.includes(':');
+
 /** a failed session read: `error` is the refusal (kind 'signin' on a 401), or null when EDGE could not be reached */
 export class SessionError extends Error {
   constructor(public error: EdgeError | null, message: string) { super(message) }
@@ -419,8 +442,16 @@ export function sessionClient(fetchImpl?: typeof fetch) {
   /* the login of this page's first session read: the account the page's memory belongs to. It never changes; a later
      read of another login is refused (C1 M1, C2 #2). Phase 1: switch to the session answer's stable owner key. */
   let identity = '';
-  const invalidate = () => { p = null; now = null };
+  /* Phase 2: catalog(kind) answers, in memory only (never browser storage), stamped with the X-Edge-Entitlements version
+     and the page identity they were read under. Dropped with the session (a new version, a 'cleared' broadcast, a 401:
+     invalidate below), when this page clears the user state, and on onReset (another account). */
+  const catalogs = new Map<string, { stamp: string; answer: Promise<CatalogAnswer> }>();
+  let catalogGen = 0;
+  const dropCatalogs = () => { catalogs.clear(); catalogGen++ };
+  const catalogStamp = () => `${entitlements ?? ''}\n${identity}`;
+  const invalidate = () => { p = null; now = null; dropCatalogs() };
   clients.add(invalidate); listen();
+  resets.add(dropCatalogs); memoryClears.add(dropCatalogs);
   const session = (): Promise<EdgeSessionInfo> => p ||= (async () => {
     let res: Response;
     try { res = await f(SESSION_URL, { credentials:'same-origin' }) }
@@ -483,7 +514,60 @@ export function sessionClient(fetchImpl?: typeof fetch) {
     }
     return res;
   }
-  return { session, send, invalidate, get current() { return now },
+
+  /* ---- Phase 2: what the account holds (contract 8a; the server decides, these only mirror it for the page) ---- */
+
+  /** the last session answer's `access` object, or null (no session read yet, or read again after a change) */
+  function access(): EdgeAccess | null {
+    const a: any = now?.access;
+    if (!a || typeof a !== 'object' || Array.isArray(a)) return null;
+    return { ...a, capabilities:Array.isArray(a.capabilities) ? a.capabilities.filter((c: unknown) => typeof c === 'string') : [],
+      limits:a.limits && typeof a.limits === 'object' && !Array.isArray(a.limits) ? a.limits : {} };
+  }
+  /** the server's p.can(key) for flags: `*` holds every key; a flag key is held when the session answer lists it. An item
+      key `<family>:<id>` is false unless `*` is held (use catalog(kind)); a limit or list key is read with limit() */
+  function can(key: string): boolean {
+    const caps = access()?.capabilities ?? [];
+    if (caps.includes('*')) return true;
+    return !!key && !isItemKey(key) && caps.includes(key);
+  }
+  /** the server's p.limit(key): a number (a limit) or a list of strings; undefined when absent, which means no limit */
+  function limit(key: string): number | string[] | undefined {
+    const v = access()?.limits?.[key];
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    if (Array.isArray(v)) return v.filter(x => typeof x === 'string');
+    return undefined;
+  }
+  /** GET /api/v1/catalog/{kind}: {kind, entries:[{id, stage}]}, the items of that kind the account holds. Kept in memory
+      per X-Edge-Entitlements version and page identity. A refusal (404 NOT_FOUND for an unknown kind, 401) rejects with
+      a SessionError carrying the EdgeError; EDGE out of reach rejects with a SessionError whose error is null. A
+      refusal is never kept. The page's first session read comes first (the identity the answers belong to). */
+  function catalog(kind: string): Promise<CatalogAnswer> {
+    return identity ? catalogOf(kind) : session().then(() => catalogOf(kind));
+  }
+  function catalogOf(kind: string): Promise<CatalogAnswer> {
+    const hit = catalogs.get(kind);
+    if (hit && hit.stamp === catalogStamp()) return hit.answer;
+    const gen = catalogGen;
+    const entry = { stamp:catalogStamp(), answer:null as unknown as Promise<CatalogAnswer> };
+    entry.answer = (async () => {
+      let res: Response;
+      try { res = await send(CATALOG_URL + encodeURIComponent(kind)) }
+      catch { throw new SessionError(null, 'EDGE could not be reached. Check the connection and try again.') }
+      if (!res.ok) { const e = await errorOf(res); throw new SessionError(e, accessText(e) || e.message || `EDGE answered ${res.status}.`) }
+      const d: any = await res.json().catch(() => null);
+      const entries = Array.isArray(d?.entries) ? d.entries.filter((x: any) => x && typeof x.id === 'string')
+        .map((x: any) => Object.freeze({ id:x.id, stage:typeof x.stage === 'string' ? x.stage : 'lab' })) : [];
+      // the answer carries the version it was decided under (a first version noted by this very answer included)
+      if (gen === catalogGen && catalogs.get(kind) === entry) entry.stamp = catalogStamp();
+      return Object.freeze({ kind:typeof d?.kind === 'string' ? d.kind : kind, entries:Object.freeze(entries) });
+    })();
+    entry.answer.catch(() => { if (catalogs.get(kind) === entry) catalogs.delete(kind) });
+    catalogs.set(kind, entry);
+    return entry.answer;
+  }
+
+  return { session, send, invalidate, access, can, limit, catalog, get current() { return now },
     /** the identity this page opened with ('' before its first session read): owner:<owner key>, else the login */
     get identity() { return identity },
     /** the shell only, on its own sign-out or sign-in: the next session read is a new identity, not a change of user */
