@@ -570,6 +570,9 @@ export interface CatalogPreset {
   /** additive (page O2): the table's default sort when the preset opens (the prototype's per-preset sort; key 'c:<condition
       id>' or a column key); absent = the page's default (match first) */
   view?: SavedView;
+  /** additive (EXEC-MU-ACCOUNTS Phase 3b): the items the definition reads, by the worker's allow walk; edge-bff leaves a
+      preset out for a plan that does not hold all of them */
+  items?: { kind: 'indicator' | 'flow_indicator' | 'candle_pattern' | 'screener_metric'; id: string }[];
 }
 export interface CatalogResponse {
   versions: Versions; data: DataStatus;

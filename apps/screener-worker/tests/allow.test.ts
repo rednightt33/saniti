@@ -207,3 +207,21 @@ test('internal calls are never gated: the presets of the refresh were computed i
   assert.ok(presets.length > 0);
   assert.ok(presets.some(p => p.match_count !== null), 'at least one preset counted');
 });
+
+/* EXEC-MU-ACCOUNTS Phase 3b, C2 F1: each preset in the catalog carries `items`, the distinct items its definition reads
+   by the allow check's own walk; edge-bff leaves a preset out for a plan that does not hold all of them. The two must
+   agree on every real preset: an allow without any one of the items refuses the preset when it is run. */
+test('every preset lists the items the allow check reads, and an allow without one of them refuses it', async () => {
+  const { presetItems } = await import('../src/run.ts');
+  const { PRESETS } = await import('../../edge-bff/screener/src/core/catalog.ts');
+  assert.ok(PRESETS.presets.length > 0);
+  for (const p of PRESETS.presets) {
+    const items = presetItems(p.definition);
+    const walked = definitionItems(p.definition).map(({ kind, id }) => `${kind}:${id}`);
+    assert.deepEqual(items.map(i => `${i.kind}:${i.id}`), [...new Set(walked)].sort(), p.id);
+    for (const missing of items) {
+      const allow = { ...ALLOW_ALL, [missing.kind]: new Set<string>() } as typeof ALLOW_ALL;
+      assert.throws(() => checkAllow(p.definition, allow), (e: any) => e?.error?.code === 'CAPABILITY_REQUIRED' || e?.code === 'CAPABILITY_REQUIRED', `${p.id} without ${missing.kind}:${missing.id}`);
+    }
+  }
+});

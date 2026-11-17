@@ -160,6 +160,12 @@ export function definitionItems(definition: unknown, field = 'definition'): { ki
   walk(definition, field);
   return out;
 }
+/** The distinct items a preset's definition reads ({kind, id}, sorted), by the allow check's own walk (C2 Phase 3b F1). */
+export function presetItems(definition: unknown): { kind: AllowKind; id: string }[] {
+  const seen = new Map<string, { kind: AllowKind; id: string }>();
+  for (const { kind, id } of definitionItems(definition)) seen.set(`${kind}\u0000${id}`, { kind, id });
+  return [...seen.values()].sort((a, b) => a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id));
+}
 const KIND_WORDS: Readonly<Record<AllowKind, string>> = { indicator: 'indicator', flow_indicator: 'flow indicator', candle_pattern: 'candlestick pattern', screener_metric: 'Screener metric' };
 const itemName = (kind: AllowKind, id: string): string => {
   const name = kind === 'indicator' ? SBY_ID[id]?.name : kind === 'flow_indicator' ? FLOW_BY_ID[id]?.name : METRICS_CATALOG.metrics.find(m => m.id === id)?.label;

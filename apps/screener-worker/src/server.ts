@@ -53,7 +53,7 @@ import type { ComputeThread } from './pool.ts';
 import type { PreviewOutcome, PreviewTask } from './preview.ts';
 import { Refresher, TerminalApi } from './refresh.ts';
 import type { Held, RefreshHost } from './refresh.ts';
-import { countsAnswer, countsEnvelope, effectiveLimits, estimateCost, gate, newCostTracker, normalize, previewEnvelope, resultKey, runEnvelope, validateEnvelope } from './run.ts';
+import { countsAnswer, countsEnvelope, effectiveLimits, estimateCost, gate, newCostTracker, normalize, presetItems, previewEnvelope, resultKey, runEnvelope, validateEnvelope } from './run.ts';
 import type { CountsEntryOut, CountsTask, Envelope, Estimate, RunOptionsN, RunOutcome, RunTask } from './run.ts';
 import { flowContextOf, groupingsOf, materialize, referenceHash } from './snapshot.ts';
 import type { BuildStats, SnapshotDesc, SnapshotReference, TickerEntry } from './snapshot.ts';
@@ -365,7 +365,10 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       before the swap. */
   async function presets(s: Snap): Promise<CatalogPreset[]> {
     return Promise.all(presetDefs.map(async (p): Promise<CatalogPreset> => {
-      const base = { id: p.id, category: p.category, name: p.name, why: p.why, definition: p.definition, ...(p.view ? { view: p.view } : {}) };
+      // EXEC-MU-ACCOUNTS Phase 3b (C2 F1): the items the preset reads, by the same walk as the allow check (checkAllow),
+      // so edge-bff leaves the preset (and its counts, computed with every item) out for a plan without one of them
+      const base = { id: p.id, category: p.category, name: p.name, why: p.why, definition: p.definition, ...(p.view ? { view: p.view } : {}),
+                     items: presetItems(p.definition) };
       const a = presetAvailability(p, s.availability, metrics);
       if (a.availability !== 'AVAILABLE') return { ...base, availability: a.availability, reason: a.reason, match_count: null, near_count: null, unavailable_legs: a.unavailable_legs };
       try {

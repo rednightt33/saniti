@@ -467,8 +467,8 @@ unevaluated conditions is pruned iff m + r < θ. It never hides a match or a nea
 oracle on random whole screens).
 
 **Cost and budget.** Before any compute the worker prices the worst case on the S0 survivors
-(`apps/screener-worker/src/run.ts:414-452` `estimateCost`: each condition's stage; for S3 the predicted ms of its series
-that are not pinned, from `costUnits` `:340-399` over the core's `costTracker`, `plan.ts:151`, which learns ms per unit
+(`apps/screener-worker/src/run.ts:420-458` `estimateCost`: each condition's stage; for S3 the predicted ms of its series
+that are not pinned, from `costUnits` `:346-405` over the core's `costTracker`, `plan.ts:151`, which learns ms per unit
 per replica with an exponential mean, alpha 0.2, `run.ts:285`, seeded by the registry's provisional 5.96 ns per bar per
 length unit; a flow kernel by its stock's broker rows and brokers x sessions grid and a measured prior per way it is
 computed, the broker-data series and window context once per stock, every cold series observed with its time shared
@@ -479,7 +479,7 @@ series 24-62 times until the tracker has seen it and mispredicts up to 4.36 time
 
 ### 1.7.6 Admission, lanes and per-owner budgets (P33, built in Phase 1)
 
-In this order (`src/pool.ts` header `:4-23`; `server.ts:403-424` `compute`):
+In this order (`src/pool.ts` header `:4-23`; `server.ts:406-427` `compute`):
 
 1. a result-cache hit (and a counts hit) is answered at once, outside every queue and budget;
 2. the per-request compute budget (above);
@@ -520,7 +520,7 @@ caller but never cached under the newer publication (`server.ts:413-416`, `:492-
 `tests/refresh.test.ts` "a screen still computing when the same files advance the publication is never cached under the
 newer one").
 
-**Pinning** (`server.ts:392-401` `pinned`): `data_version` pins run, counts and preview to the current snapshot, or to
+**Pinning** (`server.ts:395-404` `pinned`): `data_version` pins run, counts and preview to the current snapshot, or to
 the previous one during `SCREENER_PREVIOUS_GRACE_S`; an older version answers `409 DATA_VERSION_CHANGED`; one this
 replica has not loaded while terminal-api names a newer publication answers `409 DATA_VERSION_PENDING` (edge-bff
 retries it once). Test: `tests/refresh.test.ts` "versions: a run pinned to the previous snapshot is served in the grace
@@ -531,7 +531,7 @@ window and refused after it ...".
 Header `x-screener-worker-key` (at least 32 characters, compared in constant time, `server.ts:155-159`) on every route
 except `/health` and `/ready`; `x-screener-owner` (16 hex: the first 16 of HMAC-SHA256(`SCREENER_WORKER_KEY`,
 `owner_key`) computed by edge-bff) selects the owner's lane and budget (`server.ts:428-433`). Routes (`server.ts` header
-`:5-16`, `contract.ts:673` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
+`:5-16`, `contract.ts:676` `WORKER_ROUTES`): `GET /health` (versions, `published_at`, `snapshot_age_seconds`, refresh
 state), `GET /ready` (200 only with a loaded snapshot, else 503 `SCREENER_NOT_READY` with `Retry-After`: the Railway
 healthcheck), `GET /v1/catalog` and `/v1/universe` (`ETag`, `304`), `POST /v1/run`, `/v1/preview`, `/v1/counts` (gzip
 with `ETag`), `POST /v1/validate` (`{valid, definition_hash, normalized, versions}`; `versions` is additive,
@@ -549,7 +549,7 @@ README "Logs".
 
 ## 1.8 Stage 5: edge-bff (BRANCH)
 
-`apps/edge-bff/app/screener.py` (`Screeners`, `:657`), mounted like the Backtest module (`apps/edge-bff/app/main.py:577`
+`apps/edge-bff/app/screener.py` (`Screeners`, `:680`), mounted like the Backtest module (`apps/edge-bff/app/main.py:577`
 `screeners.routes`):
 
 Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session and the capability named; with
@@ -577,12 +577,12 @@ Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session 
   `test_catalog_and_universe_are_kept_per_worker_state_with_an_etag`,
   `test_a_newer_publication_seen_in_a_run_drops_the_cached_catalog_at_once`,
   `test_the_catalog_never_goes_back_and_ignores_transient_refresh_states`). edge-bff adds its own limits to the
-  catalog's `limits[]` (`own_limits`, `:588-621`: `saved_items` 50 per kind, `watchlist` 500,
+  catalog's `limits[]` (`own_limits`, `:611-644`: `saved_items` 50 per kind, `watchlist` 500,
   `saved_definition_bytes` 65,536, `request_bytes` 131,072, `inflight_per_page` 1).
-- **Latest wins** per (owner, page) through `client_order {page, seq}` (`latest`, `:883`); an older call answers 409
+- **Latest wins** per (owner, page) through `client_order {page, seq}` (`latest`, `:901`); an older call answers 409
   `SCREEN_REPLACED` or `PREVIEW_REPLACED`; a caller that left is stopped at the worker.
 - **Saved items** are validated by the worker before they are stored, with the `registry` and `screener_registry` of the
-  same answer (`validated`, `:951-975`; `/health` versions when an answer has none), and validated again on load when
+  same answer (`validated`, `:980-1004`; `/health` versions when an answer has none), and validated again on load when
   they were saved under other versions ("needs review" with the field; nothing adjusted). Every store statement filters
   `owner_key`.
 - **Settings** (`apps/edge-bff/app/config.py:113-122`): `SCREENER_WORKER_URL` and `SCREENER_WORKER_KEY` together or not
@@ -1117,7 +1117,7 @@ Tick every line or record why it does not apply. "Evidence" is what you cite in 
 | Check | Evidence |
 |---|---|
 | The file in the worker's file list (today `PHASE1_FILES`, `snapshot.ts:81`): the refresh requires it in the index (`refresh.ts:317-319`), caps it before any grant, grants it only when neither cache holds it, downloads it on the builder with sha256 and size checks and decodes it with the shared decoders (`decodeColumnar`/`inflateVerified`); its sha256 joins the skip-unchanged rule (`refresh.ts:339`) and the snapshot identity `sid` (`snapshot.ts:96`). A file that is optional needs its own rule, as the broker day files have (P4, `broker.ts`): the Phase 1 list makes a missing file fail the refresh | `tests/refresh.test.ts` |
-| The metric bound: a new kind or a new source in `condition.ts` (flow is refused at bind until Phase 2, `condition.ts:182`), costed in `apps/screener-worker/src/run.ts:340-395` `costUnits` or pinned in the snapshot | condition and estimate tests |
+| The metric bound: a new kind or a new source in `condition.ts` (flow is refused at bind until Phase 2, `condition.ts:182`), costed in `apps/screener-worker/src/run.ts:346-401` `costUnits` or pinned in the snapshot | condition and estimate tests |
 | Plan gate (EXEC-MU-ACCOUNTS Phase 3b): a new indicator, flow entry, candlestick pattern, pattern, cross-sectional metric or universe attribute is gated by its id with no worker change: the worker's `checkAllow` walks every reference of the normalized definition and refuses an id outside the body's `context.allow` (`403 CAPABILITY_REQUIRED`, capability `screener.indicator:`, `screener.flow_indicator:`, `screener.candle_pattern:` or `screener.metric:` plus the id; `apps/screener-worker/CONTRACT.md` section 4a). The id needs its entry in `apps/edge-bff/catalog/releases.json`. A new reference kind, or an id carried in another field, is added to `definitionItems` with its test | `apps/edge-bff/tests/test_releases.py`; `apps/screener-worker/tests/allow.test.ts` |
 | Cross-checks on load (counts, dates, a self-check against a stored oracle where one exists); a failure keeps the previous snapshot and logs `REFRESH_FAILED` | a fixture with a corrupted sha256 |
 | Units converted once, at the decoder, from the document's `units`; raw units on the wire | a unit test |

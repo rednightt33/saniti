@@ -137,6 +137,29 @@ def reads_any(x, ids):
     return False
 
 
+def held_item(allow, item):
+    """Whether an allow ({kind: "*" | [ids]}) holds a preset item {kind, id}; an unknown kind is not held."""
+    if not isinstance(item, dict):
+        return False
+    granted = allow.get(item.get('kind'))
+    return granted == '*' or (isinstance(granted, list) and item.get('id') in granted)
+
+
+def presets_held(presets, allow):
+    """EXEC-MU-ACCOUNTS Phase 3b (C2 F1): the presets a principal may see with their counts: a preset whose `items` (the
+    worker's own allow walk) are all held stays as it is, one with an item outside allow is left out, and one without
+    `items` (an older worker) stays without counts, never with counts computed for every item."""
+    out = []
+    for preset in presets:
+        items = preset.get('items') if isinstance(preset, dict) else None
+        if isinstance(items, list):
+            if all(held_item(allow, i) for i in items):
+                out.append(preset)
+        elif isinstance(preset, dict):
+            out.append({**preset, 'match_count': None, 'near_count': None})
+    return out
+
+
 class ScreenerError(Exception):
     """An answer in the contract's error shape {"error": {code, field?, message?, details?}} with its HTTP status (and
     headers: Retry-After of 503 SCREENER_NOT_READY)."""
@@ -813,16 +836,22 @@ class Screeners:
         return Doc(key=key, raw=raw, gz=gzip.compress(raw, 6, mtime=0), etag='"' + hashlib.sha256(raw).hexdigest() + '"',
                    price_data=price_data_of(data), published_at=published_of(data))
 
-    def catalog_for(self, doc, rights):
+    def catalog_for(self, doc, rights, allow=None):
         """EXEC-BACKTEST-REVAMP P5 (K8 b): the catalog as a session sees it: without POINT_IN_TIME, the entries marked
         access 'admin' are left out, with their own bytes and ETag (kept per document, so a session without the right
-        never gets the admin catalog's ETag or a 304 for it)."""
-        if POINT_IN_TIME in rights:
+        never gets the admin catalog's ETag or a 304 for it). EXEC-MU-ACCOUNTS Phase 3b (C2 F1): with an allow that does
+        not hold every item, a preset reading an item outside it is left out (its counts were computed with every item);
+        a preset without the worker's `items` (an older worker) keeps no counts. Kept per (document, right, allow)."""
+        everything = allow is None or all(v == '*' for v in allow.values())
+        if POINT_IN_TIME in rights and everything:
             return doc
-        hit = self.restricted.get(doc.etag)
+        key = (doc.etag, POINT_IN_TIME in rights, None if everything else dumps(allow))
+        hit = self.restricted.get(key)
         if hit is None:
             data = loads(doc.raw)
-            if isinstance(data, dict) and isinstance(data.get('metrics'), list):
+            if not everything and isinstance(data, dict) and isinstance(data.get('presets'), list):
+                data = {**data, 'presets': presets_held(data['presets'], allow)}
+            if POINT_IN_TIME not in rights and isinstance(data, dict) and isinstance(data.get('metrics'), list):
                 admin = {m.get('id') for m in data['metrics'] if isinstance(m, dict) and m.get('access') == 'admin'}
                 data = {**data, 'metrics': [m for m in data['metrics'] if not (isinstance(m, dict) and m.get('access') == 'admin')]}
                 # Stage C F6 (ERRORS M458): a preset that reads an admin entry would be refused when run
@@ -832,9 +861,9 @@ class Screeners:
             raw = dumps(data)
             hit = Doc(key=doc.key, raw=raw, gz=gzip.compress(raw, 6, mtime=0), etag='"' + hashlib.sha256(raw).hexdigest() + '"',
                       price_data=doc.price_data, published_at=doc.published_at)
-            if len(self.restricted) > 8:
+            if len(self.restricted) > 32:
                 self.restricted.clear()
-            self.restricted[doc.etag] = hit
+            self.restricted[key] = hit
         return hit
 
     def limits_for(self, doc, caps):
@@ -987,8 +1016,12 @@ class Screeners:
         out, answering = [], True
         for row in rows:
             review = []
-            if isinstance(current, dict) and (row['registry_version'], row['screener_registry_version']) != (
-                    current.get('registry'), current.get('screener_registry')):
+            # Phase 3b (C2 F2): the validation made when the item was saved holds only for the registry versions and the
+            # plan of that moment; a principal that does not hold every item has the item checked again under its own
+            # context (kept per digest), so a lowered plan sees the item it can no longer run
+            narrowed = not all(v == '*' for v in (context.get('allow') or {}).values())
+            if isinstance(current, dict) and (narrowed or (row['registry_version'], row['screener_registry_version']) != (
+                    current.get('registry'), current.get('screener_registry'))):
                 key = (row['kind'], hashlib.sha256(dumps(row['definition'])).hexdigest(), current.get('registry'),
                        current.get('screener_registry'), digest(context))
                 if key in self.reviews:
@@ -1045,7 +1078,8 @@ class Screeners:
             """CatalogResponse (report 8.4) with edge-bff's own limits added, kept while the worker's state (versions and
             refresh, its /health) is the one it was fetched at; ETag and If-None-Match -> 304."""
             await self.guard()
-            doc = self.catalog_for(await self.doc('catalog', '/v1/catalog', p.owner_key), rights(request))
+            doc = self.catalog_for(await self.doc('catalog', '/v1/catalog', p.owner_key), rights(request),
+                                   context(request)['allow'])
             return self.doc_answer(request, self.limits_for(doc, caps_of(p)))
 
         @app.get('/api/v1/screener/universe')
