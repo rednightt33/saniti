@@ -982,7 +982,7 @@ The rules are in `apps/edge-bff/backtest/CONTRACT.md` section 13; this is where 
   the worker's and the plan's); `server.ts contextGrants` reads them, `src/access.ts` checks them (422
   `INVALID_CONTEXT`). `validate.ts` refuses an item outside `allow` with 403 `CAPABILITY_REQUIRED` (`field` its JSON
   path, `details.capability` the Backtest family key): the stop and trailing lines, registry indicator conditions and
-  every reference of a grammar test (`grammar.ts testItems`), enabled or switched off, in the entry, the exit signals
+  every reference of a grammar test (`grammar.ts testItems`), a legacy card whose type is a catalog id (`breakout`, `volspike`, `macross`, `fnet` today; `dip`, `macd`, `top5`, `broker` are built in), enabled or switched off, in the entry, the exit signals
   and the preview's `detail.exit_signals`. The job thread checks a job again (`run.ts runJob`). Deploy step 1: both are
   optional (absent = every item, the worker's limits: today's behaviour); Stage 6 (edge-bff) sends them next; a later
   worker requires `allow`. Internal calls (tests, the look-ahead gate) leave `allow` out and get every item.

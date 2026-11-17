@@ -961,7 +961,11 @@ alike (both are stored with the job):
   `exit.signals.conditions`, as before).
 The plan check of a condition list comes before the other checks of its conditions. Not checked by id: a transform's
 `fn`, a price field and a rank (no catalog id); the Screener's four transform metrics `hi52`, `lo52`, `rs` and
-`vol_ratio` (on the wire they are transforms, with no id); the legacy `price_action` and `flow` cards (Backtest
-condition types, not catalog items; open question in the Phase 3b report). A job is checked at the hand-over and
+`vol_ratio` (on the wire they are transforms, with no id). A legacy `price_action` or `flow` card whose `type` is a
+catalog id is checked by that id at `...conditions[i].type` (`validate.ts legacyItemKind`, derived from the registries
+at load: a `screener-metrics.json` metric id is `screener_metric`, a Flow id of the Screener registry, the Terminal's
+FL ids and `fnet`/`ksei_net`, is `flow_indicator`, a candlestick id `candle_pattern`); today `breakout`, `volspike` and
+`macross` (`screener.metric:<id>`) and `fnet` (`backtest.flow_indicator:fnet`). The legacy types with no catalog id are
+built in and not gated: `dip`, `macd`, `top5`, `broker`. A job is checked at the hand-over and
 again on the job thread (`run.ts runJob`), so a queued job edge-bff dispatches with a narrower `allow` ends `FAILED
 CAPABILITY_REQUIRED`.

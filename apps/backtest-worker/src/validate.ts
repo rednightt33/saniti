@@ -38,6 +38,9 @@ import type { Allow } from './access.ts';
 import { D_RIGHT, isD } from './pit/spec.ts';
 import { canonicalJson } from '../../edge-bff/backtest/src/core/hash.ts';
 import { FLOW_BY_ID } from '../../edge-bff/screener/src/core/flowmetrics.ts';
+import SCREENER_METRICS from '../../edge-bff/screener/src/core/screener-metrics.json' with { type: 'json' };
+import { CANDLE_IDS } from '../../edge-bff/backtest/src/core/candles.ts';
+import type { AllowKind } from './access.ts';
 import type { BrokerRef, TickerRef } from './terminal.ts';
 
 // EXEC-BACKTEST-REVAMP P1: conditions in the Screener's grammar (kind 'test') are computed by the Screener core
@@ -155,15 +158,31 @@ function flowBrokers(ref: Record<string, unknown>, field: string, brokers: reado
 /** The rights a request's context carries (P5: set by edge-bff from the session; none when absent: fail closed). */
 export type Rights = ReadonlySet<string>;
 export const NO_RIGHTS: Rights = new Set();
+/** The catalog kind of a legacy card's type (a price-action or flow card of the Backtest core), derived from the
+    registries at load so a future legacy type that matches a catalog id is gated by it: a Screener metric id
+    (screener-metrics.json metrics, the ids of releases.json screener_metric: breakout, volspike, macross today), a Flow
+    indicator id (the Screener registry's flows: flowRegistry.json and fnet, ksei_net; fnet today) or a candlestick id.
+    null: a built-in type with no catalog id (dip, macd, top5, broker today), not gated. */
+const METRIC_IDS = new Set((SCREENER_METRICS as { metrics: { id: string }[] }).metrics.map(m => m.id));
+export function legacyItemKind(type: string): AllowKind | null {
+  if (METRIC_IDS.has(type)) return 'screener_metric';
+  if (Object.prototype.hasOwnProperty.call(FLOW_BY_ID, type)) return 'flow_indicator';
+  if (CANDLE_IDS.includes(type)) return 'candle_pattern';
+  return null;
+}
 /** Phase 3b (CONTRACT 8b): every catalog item a condition names, enabled or switched off (it is stored with the job and
     kept by the page), must be in the plan's allow, else 403 CAPABILITY_REQUIRED at the item's JSON path: a registry
-    indicator condition's indicator, and every item of a grammar test (grammar.ts testItems). The legacy price-action
-    and flow cards name Backtest condition types, not catalog items, so they are not checked by id. */
+    indicator condition's indicator, every item of a grammar test (grammar.ts testItems), and a legacy price-action or
+    flow card whose type is a catalog id (legacyItemKind), so the legacy cards are no second path around the plan. */
 function conditionItems(list: readonly Listed[], allow: Allow): void {
   if (allow === ALLOW_ALL) return;
   for (const { path, cond: c } of list) {
     if (c.kind === 'indicator' && typeof (c as { indicator?: unknown }).indicator === 'string') requireItem(allow, 'indicator', (c as { indicator: string }).indicator, `${path}.indicator`);
     if (c.kind === 'test') for (const it of testItems((c as { test?: unknown }).test, `${path}.test`)) requireItem(allow, it.kind, it.id, it.field);
+    if ((c.kind === 'price_action' || c.kind === 'flow') && typeof (c as { type?: unknown }).type === 'string') {
+      const type = (c as { type: string }).type, kind = legacyItemKind(type);
+      if (kind) requireItem(allow, kind, type, `${path}.type`);
+    }
   }
 }
 /** The price lines of the exits (stop and trailing), held to the plan whatever their mode: both are stored with the

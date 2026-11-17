@@ -205,3 +205,28 @@ test('limits: the plan lowers a limit (the smaller of the two), never raises one
   assert.equal(refusal(() => checkSignalsRequest(p, REFS, CFG)), null);
   assert.equal(refusal(() => checkSignalsRequest(p, REFS, { ...CFG, limits: applyLimits(CFG.limits, { max_portfolio_tickers: 1 }) }))?.code, 'INVALID_PORTFOLIO');
 });
+
+test('legacy cards: a type that is a catalog id is gated by that id (derived from the registries); a built-in type is not', async () => {
+  const { LEGACY, legacyCard, legacyToCondition } = await import('../../edge-bff/backtest/src/core/catalog.ts');
+  const { legacyItemKind } = await import('../src/validate.ts');
+  const card = (t: string, over: Record<string, unknown> = {}) => legacyToCondition(legacyCard(t as never, 'c1', over as never));
+  const with_ = (kind: string, ids: string[]) => allowOf({ indicator: '*', flow_indicator: '*', candle_pattern: '*', screener_metric: '*', [kind]: ids });
+  // the overlap today, derived: breakout, volspike, macross (Screener metrics), fnet (a Flow indicator); the rest built in
+  const kinds = Object.fromEntries(Object.keys(LEGACY).map(t => [t, (card(t) as { kind: string }).kind === 'indicator' ? 'registry' : legacyItemKind((card(t) as { type: string }).type)]));
+  assert.deepEqual(kinds, { adx: 'registry', dmi: 'registry', stoch: 'registry', rsi: 'registry', macd: null, ma: 'registry', macross: 'screener_metric', volspike: 'screener_metric',
+    breakout: 'screener_metric', bb: 'registry', dip: null, fnet: 'flow_indicator', broker: null, top5: null });
+  const breakout = request([card('breakout')]);
+  assert.deepEqual(refusal(() => checkRequest(breakout, REFS, CFG, undefined, with_('screener_metric', ['volspike']))), {
+    status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[0].type', details: { kind: 'screener_metric', id: 'breakout', capability: 'screener.metric:breakout' },
+    message: 'entry.conditions[0].type: the Screener metric breakout is not included in your plan (screener.metric:breakout); remove it or change the plan to run this strategy.' });
+  assert.equal(refusal(() => checkRequest(breakout, REFS, CFG, undefined, with_('screener_metric', ['breakout']))), null);
+  // a switched-off fnet card in the exit signals: refused at its path, allowed with fnet
+  const fnet = request([card('breakout')], [{ ...card('fnet'), id: 'x1', enabled: false } as Condition]);
+  assert.deepEqual(refusal(() => checkRequest(fnet, REFS, CFG, undefined, with_('flow_indicator', ['FL01'])))?.details, { kind: 'flow_indicator', id: 'fnet', capability: 'backtest.flow_indicator:fnet' });
+  assert.equal(refusal(() => checkRequest(fnet, REFS, CFG, undefined, with_('flow_indicator', ['FL01'])))?.field, 'exit.signals.conditions[0].type');
+  assert.equal(refusal(() => checkRequest(fnet, REFS, CFG, undefined, with_('flow_indicator', ['fnet']))), null);
+  // built-in types (dip, macd, top5, broker) pass with nothing of their kinds allowed
+  const builtIn = request([card('dip'), card('macd'), card('top5'), card('broker', { broker: 'YU' })].map((c, k) => ({ ...c, id: `b${k}` }) as Condition));
+  const nothing = allowOf({ indicator: '*', flow_indicator: [], candle_pattern: [], screener_metric: [] });
+  assert.equal(refusal(() => checkRequest(builtIn, REFS, CFG, undefined, nothing)), null);
+});
