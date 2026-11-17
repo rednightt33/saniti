@@ -15416,6 +15416,20 @@ tanggal harga; lencana Radar = saringan berstatus lolos pada tanggal Radar terba
   - Fase 1 (ditambahkan ke lingkup): preferensi dan simpanan akun disimpan di server per user dan dipulihkan di
     perangkat mana pun. Isi pertama diunggah dari browser saat sign-in pertama, bila datanya masih ada.
 
+- **Fase 2, lanjut (kata user, 2026-11-17):** "sudah ada, pls continue", setelah agen mengusulkan Fase 2 dengan nilai
+  awal ini:
+  - paket gratis: Terminal BBCA, riwayat 730 hari, 0 indikator (dua indikator dipilih user nanti);
+  - semua item yang ada sekarang berstatus `released`, kecuali yang user tandai lab;
+  - saklar tetap mati.
+  - Spesifikasi: `verification/edge_multiuser/access_tiers/CONTRACT.md` §8a.
+  - Pembagian kerja: 3 pembangun paralel (inti server, katalog rilis, front-end), lalu catatan, lalu 3 pemeriksa
+    independen. Ini lebih sedikit dari 5 pembangun yang disetujui, karena lingkupnya lebih kecil.
+  - Ditunda ke Fase 3 (gate per tab), karena baru dipakai di sana:
+    - definisi indikator yang disajikan server, alih-alih dibundel;
+    - chunk lab;
+    - perubahan worker (`context.rights`);
+    - `usage_counters`.
+
 ### Phase 0 deploy steps (run 2026-11-16, see RAILWAY_CHANGELOG.md; step 7 waits for the user)
 
 Prepared 2026-11-16 by builder B5 for the main agent. Code: branch `claude/pensive-feynman-4ahfe3` (integrated at
@@ -15548,7 +15562,7 @@ so the migration goes first; Orc refuses a request without an owner, which every
   memutuskan username akun admin (misalnya tetap `edge`, dengan pengecualian dari daftar cadangan untuk seed) dan
   mengisi email untuk reset password dan MFA. Tanpa itu, login lama `edge` tidak berlaku saat saklar menyala.
 
-### Phase 1 deploy steps (run 2026-11-16: steps 1-8, 10 and 11 done; the user's own sign-in of step 6 waits)
+### Phase 1 deploy steps (run 2026-11-16, done 2026-11-17)
 
 Prepared 2026-11-17 by builder B5 for the main agent. Code: `git diff 47dce4e3..HEAD` on branch
 `claude/pensive-feynman-4ahfe3` (integrated at `925d1b1e`, then the checkers' fix rounds up to `c2e7885c`, ERRORS
@@ -15578,6 +15592,9 @@ edge-bff `fc005323` SUCCESS after CI (rollback target `150686f9`); orc SKIPPED. 
 (RAILWAY_CHANGELOG.md); the user's own sign-in is still open. Step 7: job `036d0701`, the seed as expected (one admin
 row `admin_1` on `edge-private`, scrypt verifier, nothing else). Step 8: `preserve()` for both secrets, plan up to date,
 `main` `fcd134e8`. Step 10: records written. Step 11: no `POSTGRES_MEMORY_CHECK READY` line; no restart.
+Step 6, the user's part (2026-11-17): the user signed in ("Ok bisa"). The Watchlist tab was missing in a tab opened
+before the Watchlist release (ERRORS M479); after a reload "sudah ada". Read back (job `7f4bfc79`): 7 preference keys
+uploaded under `edge-private` at 03:16 UTC, version 1 each, no other owner. Phase 1 is done on dev with the switch off.
 
 What changes for the current user with the switch off: nothing in sign-in or the tabs. Two things are new and visible
 in the data: user #1 is seeded into `edge_bff.users` at the first start, and the shell starts copying the `sync`

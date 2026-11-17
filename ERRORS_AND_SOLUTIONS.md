@@ -8875,6 +8875,30 @@ in its staleness check.
   The screener-worker suite: 112 passed. edge-bff deployed on the green commit.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
+### M479 — An EDGE tab left open across deploys keeps running the old shell code (2026-11-17, OPEN: proposal)
+
+- **Symptom (user 2026-11-17, screenshot):** "bagian watchlistnya hilang". The Watchlist tab was missing from the rail
+  while Overview and Radar showed. The same tab had signed in twice after the Phase 1 deploy (sessions at 02:5x and
+  03:01 UTC), yet no account preference had reached the server.
+- **Verified root cause:** the shell is one single-page application. A sign-in inside an open tab does not load
+  `index.html`, `edge-client.js` or `edge-session.js` again; only a reload does. The tab had been loaded before
+  EXEC-WATCHLIST reached dev (2026-11-16 12:21 UTC), so its rail had no Watchlist entry, and its client had no
+  preferences sync (Phase 1).
+- **Evidence:**
+  - The served shell equals `static/index.html` (byte compare, `no-store`).
+  - The server answers `capabilities.watchlist` with the same rule as Overview and Radar (`app/main.py:641`).
+  - A local Chromium run with dev-like settings shows the full rail.
+  - After the user reloaded ("sudah ada"), the Watchlist showed again. Within minutes the account held 7 preference
+    keys under `edge-private` (job `7f4bfc79`, 03:16 UTC, every version 1, no other owner).
+- **Solution now:** the user reloaded the tab.
+- **Class:** any page code shipped by a deploy (shell, apps, shared module) reaches an open tab only on a reload. This
+  matters more from Phase 2 on: a plan change, a new gate or a new route can meet an old client.
+- **Proposal (not built):** edge-bff sends a build id header on every API answer. The shared module compares it with
+  the id the page loaded with, and on a change it shows "EDGE was updated, reload" (or reloads when no edit is
+  pending). The same channel as `X-Edge-Entitlements`.
+- **Lesson:** after a deploy that changes page code, ask the user to reload open EDGE tabs before checking a change by
+  eye.
+
 ### M478 — EXEC-MU-ACCOUNTS Phase 1: findings of the independent checkers C1 and C2 (2026-11-17, fixed on branch, not deployed; deployed 2026-11-16 on dev with the switch off (`main` `f34fecdc`: edge-bff `fc005323` SUCCESS; migrations job `c039bac9`); C3 B1 and C4 included; the switch-on parts take effect only at Phase 6)
 
 Two checkers read the integrated Phase 1 code against `verification/edge_multiuser/access_tiers/CONTRACT.md` only:

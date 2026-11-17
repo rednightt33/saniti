@@ -270,6 +270,120 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 - **Lab code** ships in a separate chunk served only to principals holding the lab capability, through
   `/{app}-app/lab/{name}` (admin-only route). The released code stays in the main bundle for speed.
 
+## 8a. Phase 2 build specification (main agent, 2026-11-17; refines sections 1, 2 and 8)
+
+Go: EXEC.md EXEC-MU-ACCOUNTS (Phase 2 in the go of 2026-11-16; user 2026-11-17 "sudah ada, pls continue" after the
+proposal below). The switch stays off: with `EDGE_MULTIUSER` off nothing visible changes and the switch-off principal
+keeps `*` and version `env`.
+
+**Migration `20261117_003_edge_bff_accounts_catalog.sql`** (schema `edge_bff`, one forward file, preflight refusing a
+second run, rollback body at the end, every table commented, grants to `edge_bff_runtime` only):
+
+| Table | Columns | Rules |
+|---|---|---|
+| `plans` | `plan_key text PK` (`^[a-z][a-z0-9_]{1,31}$`), `display_name`, `is_default bool NOT NULL DEFAULT false`, `created_at` | partial UNIQUE: one default |
+| `capabilities` | `capability_key text PK`, `kind` (`flag`/`limit`/`list`/`items`), `unit`, `means`, `display_name` | key `^[a-z*][a-z0-9_.*]{0,63}$` |
+| `plan_capabilities` | `plan_key FK`, `capability_key FK`, `value jsonb NOT NULL`, `version int NOT NULL DEFAULT 1`, `updated_at` | PK (`plan_key`, `capability_key`); value shape CHECK per kind is done by edge-bff on read |
+| `user_capability_overrides` | `user_id FK`, `capability_key FK`, `value jsonb NOT NULL`, `reason text NOT NULL`, `expires_at NULL`, `created_at`, `created_by_user_id NULL` | PK (`user_id`, `capability_key`); an expired override is ignored at read time |
+| `subscriptions` | `subscription_id identity PK`, `user_id FK`, `plan_key FK`, `status` (`pending`/`active`/`past_due`/`cancelled`/`expired`/`refunded`), `starts_at`, `expires_at NULL` (NULL = no end), `provider` (`manual`/`test`), `provider_ref`, `last_event_at`, `created_at` | partial UNIQUE (`user_id`) WHERE `status='active'`; expiry decided at read time, never by a cron |
+
+Grants: `plans`, `capabilities`, `plan_capabilities` SELECT; `user_capability_overrides` and `subscriptions` SELECT,
+INSERT, UPDATE (no DELETE). `scripts/provision_edge_bff_login.py` lists them (the login gets them through
+`edge_bff_runtime`, as Phase 1).
+
+**Value shapes** (by `capabilities.kind`):
+- `flag`: `true`.
+- `limit`: a non-negative integer. No row = no limit.
+- `list`: an array of strings.
+- `items`: `{"ids": [..], "stages": [..], "all": bool}` (each key optional). An item `<family>:<id>` is held when its
+  id is in `ids`, or its release stage (below) is in `stages`, or `all` is true.
+
+**Seed (in the migration; the only place plan keys appear, a test greps `apps/edge-bff/app` for them):**
+- Plans `admin`, `paid`, `free`; `free` is the default.
+- `admin`: `*` only (every capability, every stage).
+- `paid`:
+  - every `<tab>.view` (monitor, terminal, backtest, screener, overview, radar, watchlist);
+  - every item family with `{"stages": ["released"]}`, and `terminal.dataset` and `monitor.model` with `{"all": true}`;
+  - the flags `monitor.chat`, `backtest.run`, `screener.run`, `terminal.drawings`, `terminal.layouts`,
+    `terminal.compare`, `terminal.assets`;
+  - the limits `watchlist.lists` 20, `watchlist.per_list` 50, `watchlist.indicators` 8 (today's values,
+    `app/watchlist.py`).
+- `free` (section 9):
+  - `terminal.view`;
+  - `terminal.dataset` `{"ids": ["price"]}`;
+  - `terminal.tickers` `["BBCA"]`;
+  - `terminal.history_days` 730;
+  - `terminal.indicator` `{"ids": []}` (the user picks two later);
+  - `<tab>.example` for the six other tabs.
+- Capability rows:
+  - `*`, `admin.access`, `backtest.flow_point_in_time`;
+  - `<tab>.view` and `<tab>.example` for the seven tabs;
+  - the flags and limits above, and `terminal.tickers`, `terminal.history_days`;
+  - the item families `terminal.indicator`, `terminal.flow_indicator`, `terminal.dataset`, `backtest.indicator`,
+    `backtest.flow_indicator`, `backtest.candle_pattern`, `screener.indicator`, `screener.flow_indicator`,
+    `screener.candle_pattern`, `screener.metric`, `screener.preset`, `monitor.model`.
+  - Each row has `means` in plain English.
+
+**Resolution (switch on).** One statement joins the session, the user, the active subscription (`status='active'`
+and (`expires_at` IS NULL or `> now()`)) or else the default plan, that plan's `plan_capabilities`, and the user's
+unexpired overrides. An override replaces the plan's value for its key.
+- `Principal` gains `plan_key` (resolved), `expires_at` (the subscription's), and `grants` (key → value).
+  `capabilities` keeps the flag keys (and `*`); `limits` keeps limits and lists.
+- `p.can(key)`: `*` → true; a flag key → held; `<family>:<id>` → the family's `items` value as above. Unknown → false.
+  `p.limit(key)` returns the limit or list.
+- `role_needs_mfa` is derived from the resolved capabilities (`*` or `admin.access`), no longer from `role` alone. A
+  session pending MFA resolves its capabilities but `mfa_ok` stays false (403 `MFA_REQUIRED` as Phase 1).
+- An expired subscription resolves to the default plan. `access.expired_plan` names it, so the page can say so.
+  `PLAN_EXPIRED` is the refusal code when a route needs a capability only the expired plan held.
+- **User #1:** at start, edge-bff gives the seed user (`seed: true`) an active `manual` subscription with no end, to
+  the plan that holds `*`. The plan is found by data (exactly one plan holds `*`; otherwise the start logs
+  `account_seed_plan_ambiguous` and gives none). The step is idempotent.
+- `version`: a short hash of the plan key, status, the resolved grants and the `plan_capabilities` versions. It is sent
+  as `X-Edge-Entitlements` on every authenticated API answer (the shared module already re-reads the session on a
+  change).
+
+**Release catalog.**
+- `apps/edge-bff/catalog/releases.json`: `{"schema_version": 1, "items": [{"kind", "id", "stage"}]}`. It is hand-kept
+  data (no generator), and the image copies it.
+- Kinds and their registries (the id space is shared across tabs):
+  - `indicator`: `terminal/src/data/indRegistry.json`;
+  - `flow_indicator`: `flowRegistry.json` `indicators`;
+  - `candle_pattern`: the Backtest/Screener candlestick pattern ids;
+  - `screener_metric`: `screener-metrics.json` `metrics`;
+  - `screener_preset`: `presets.json` `presets`.
+- Families map to kinds: `<tab>.indicator` → `indicator`, `<tab>.flow_indicator` → `flow_indicator`,
+  `<tab>.candle_pattern` → `candle_pattern`, `screener.metric` → `screener_metric`, `screener.preset` →
+  `screener_preset`.
+- Initial stage: `released` for every item that exists today (user 2026-11-17, with the proposal). An id missing from
+  the file is `lab` at run time. A test fails when a registry id has no entry, or an entry names no registry id.
+- The point-in-time Flow versions stay behind the flag `backtest.flow_point_in_time` (admin). The workers and their
+  `context.rights` do not change in Phase 2 (Phase 3).
+- `app/releases.py` loads the file once and exposes `stage_of(kind, id)` and `KIND_OF_FAMILY`.
+- `GET /api/v1/catalog/{kind}` (principal) returns `{"kind", "entries": [{"id", "stage"}]}` for the entries the
+  principal holds in any family of that kind, and 404 `NOT_FOUND` for an unknown kind. Definitions stay in the bundles
+  until Phase 3 moves them behind this route.
+
+**Front-end (no visible change).**
+- `shared/edge-session.ts`:
+  - `access()` returns the session answer's `access`;
+  - `can(key)` and `limit(key)` mirror the server for flags and limits (`*` → true);
+  - `catalog(kind)` reads the route above, cached per `X-Edge-Entitlements` version and cleared with the user state.
+- `edge-labels.js` gets the locked wording in English (EXEC-UI-1019B): "Available on a paid plan", "Coming soon", and
+  "Contact us to upgrade".
+
+**Phase 2 acceptance tests (with the code):**
+- a catalog-only change (an UPDATE of `plan_capabilities`) changes the next request's access and `X-Edge-Entitlements`
+  with no restart;
+- a subscription that expired one second ago resolves to `free`;
+- an expired override is ignored;
+- an item `released` vs `lab` for `paid` (lab refused, released held), `*` holds both;
+- the default plan when no subscription exists;
+- the seed subscription is idempotent and refuses an ambiguous `*` plan;
+- no plan key in `apps/edge-bff/app`;
+- releases complete against the registries;
+- the catalog route filters per principal, and unknown kinds give 404;
+- with the switch off: the access object, `version` `env` and every Phase 1 test are unchanged.
+
 ## 9. Free plan (user decisions 2026-11-16)
 
 - **Terminal:**
