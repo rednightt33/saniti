@@ -15712,6 +15712,15 @@ Run log (main agent, 2026-11-17):
 - Step 1: M340 jobs `d04abfe3` and `976253a4` (0 and 0).
 - Step 2: DRYRUN `56fd2956`, then APPLY `2a413c69`, sha256 `475374dd…fede41bb8`; read back as expected
   (DATABASE_CHANGELOG.md).
+- Step 3: no variable.
+- Step 4: the branch CI was green on `f9c0cd69` after the SCREENER_ONBOARDING pointer fix (M480).
+  - M340 job `35fe5d1f` (0 and 0).
+  - `main` `96a9ec94` → `f9c0cd69`.
+  - edge-bff `1ed31cea` **SUCCESS** (rollback target `fc005323`); clean start log.
+- Step 5: 27 of 27 checks from outside.
+- Step 6: job `3dcf14f2`, the seed subscription as expected.
+- Step 7: records written.
+- Waiting: the user reloads open tabs and checks every tab.
 
 Code: the branch from `96a9ec94`. Builders B1 (server core, `ca33a49c`), B2 (release catalog, `c21d65fd`) and B3 (page
 module, `00166913`) were integrated at `8a55980b`. Checkers C1-C3 ran on it (C3: READY with the switch off); the fix

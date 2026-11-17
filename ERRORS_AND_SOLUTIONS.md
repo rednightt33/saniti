@@ -8875,7 +8875,7 @@ in its staleness check.
   The screener-worker suite: 112 passed. edge-bff deployed on the green commit.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
-### M480 — EXEC-MU-ACCOUNTS Phase 2: findings of the independent checkers C1-C3 (2026-11-17, fixed on branch, not deployed)
+### M480 — EXEC-MU-ACCOUNTS Phase 2: findings of the independent checkers C1-C3 (2026-11-17, fixed on branch, not deployed; deployed 2026-11-17 on dev with the switch off: `main` `f9c0cd69`, edge-bff `1ed31cea` SUCCESS, migration job `2a413c69`; the Phase 3 items stay OPEN)
 
 Three checkers read the integrated Phase 2 code (`8a55980b`) against CONTRACT.md only. C1 (security) committed
 `7cf93f4d`, `tests/test_c1_phase2_fail_closed.py`. C2 (isolation) committed `3a1f8547`,

@@ -1,5 +1,33 @@
 # Railway changelog
 
+## 2026-11-17 — EXEC-MU-ACCOUNTS Phase 2 deploy (switch off): plan catalog and release stages
+
+- **User:** go 2026-11-16 (Phase 2 in "1 A, 2 A, 3 A, 4 A") and 2026-11-17 "sudah ada, pls continue" (EXEC.md
+  EXEC-MU-ACCOUNTS; CONTRACT.md 8a). `EDGE_MULTIUSER` stays off.
+- **Before:**
+  - Builders B1-B3 were integrated at `8a55980b`. Checkers C1-C3 ran on it; the fix round followed, and the C1
+    re-check found nothing blocking (ERRORS M480).
+  - Local suites on `714336ee`: edge-bff 603 passed (Postgres, Chromium, the six apps rebuilt); Terminal vitest 962;
+    screener-worker 112.
+  - Branch CI green on `f9c0cd69`, after the SCREENER_ONBOARDING pointer fix (M480).
+- **Step 1, M340:** jobs `d04abfe3`, `976253a4` and `35fe5d1f`, the last right before the push. Each found 0 active EDGE
+  jobs and 0 running orc turns.
+- **Step 2:** migration `20261117_003_edge_bff_accounts_catalog.sql`: DRYRUN `56fd2956`, APPLY `2a413c69`, read back
+  (DATABASE_CHANGELOG.md). Not a large update: no Postgres restart.
+- **Step 3:** no variable changed.
+- **Step 4:**
+  - `main` was fast-forwarded `96a9ec94` → `f9c0cd69`. The changes were edge-bff, the migration, one script and
+    records, so no other service's watch path was touched.
+  - edge-bff deployment `1ed31cea` waited for CI, then reached **SUCCESS**. Rollback target: `fc005323` (Phase 1).
+  - Start log: no error and no `account_seed_plan_*` warning.
+- **Step 5, from outside (27 of 27 checks):**
+  - The Phase 1 checks unchanged.
+  - `/api/v1/catalog/indicator` without a session gives 401 `UNAUTHENTICATED`, with no `X-Edge-Entitlements`.
+  - The served `/edge-session.js` holds `catalog(` and `limit(`; `/edge-labels.js` holds the locked wording.
+- **Step 6:** job `3dcf14f2` (read only) read back the seed. User 1 (`edge-private`) has one `active` `manual`
+  subscription to `admin`, started, with no end. It is the only subscription row; 0 overrides.
+- **Still open:** the user reloads open EDGE tabs (ERRORS M479) and checks every tab as before.
+
 ## 2026-11-16 — EXEC-MU-ACCOUNTS Phase 1 deploy (switch off), steps 1-8
 
 - **User:** go 2026-11-16 (EXEC.md EXEC-MU-ACCOUNTS: "B: go Fase 0 + Fase 1", "1 A, 2 A, 3 A, 4 A": merge to `main`

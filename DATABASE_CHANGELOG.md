@@ -41,7 +41,9 @@
     - 0 overrides and 0 subscriptions; `edge_bff_runtime` reads 3/41/0; every table commented; 7 indexes (the keys and
       the two partial UNIQUEs).
   - Not a large update: no `POSTGRES_MEMORY_CHECK READY` line, no Postgres restart.
-- **Status:** applied; the seed subscription of user #1 comes with the first start of the Phase 2 edge-bff.
+- **Status:** applied.
+- **Seed read back** (job `3dcf14f2`, after edge-bff `1ed31cea` started): user 1 (`edge-private`) has one `active`
+  `manual` subscription to `admin`, started, with no end; it is the only subscription row, and there are 0 overrides.
   - Job params: `verification/edge_multiuser/jobs/migration20261117_003{,_apply}.params.json`.
   - Seed read-back after the deploy: `phase2_seed_readback.params.json`.
 
