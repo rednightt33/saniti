@@ -1,6 +1,6 @@
 # Database changelog
 
-## 2026-11-17 — EDGE plan catalog Phase 3a rows (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 3a) — not applied yet
+## 2026-11-17 — EDGE plan catalog Phase 3a rows (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 3a) — applied 2026-11-17 (job `3562a182`)
 
 - **Why:** the edge-bff route gates and saved-item caps of Phase 3a (CONTRACT.md 8b "3a in detail", decisions D1, D6
   and D8 of the user 2026-11-17). Rows only, no table, column, grant or index change; operational schema `edge_bff`, so
@@ -16,6 +16,19 @@
 - **Verification:** the file's verify block (48 capabilities, the paid values, no Monitor row on paid, no plan with
   `admin.manual`, one plan with `*`, a unit on every limit); `apps/edge-bff/tests/test_phase3a_gates.py` on a disposable
   Postgres. To be applied on dev with the user's go, through the edge-multiuser migration job.
+- **Applied on dev 2026-11-17** (go: EXEC.md EXEC-MU-ACCOUNTS, decisions D1-D8):
+  - M340 job `f5b6d917`: 0 active EDGE jobs and 0 running orc turns.
+  - DRYRUN job `987077f3`, then APPLY job `3562a182`, sha256
+    `9f4f7ec81f7bb5c76c5ad1a9f351691daf7e7f42b346f448c93c8e4f92cf7b77`.
+  - Read back live:
+    - 48 capabilities, all with `means`; the seven new rows with their units (`backtests`, `saved items`, `places`,
+      `layouts`, `presets`);
+    - plan grants: admin 1, free 11, paid 33;
+    - `monitor.*` rows only `monitor.example` on free and paid;
+    - `admin.manual` held by no plan; `*` by `admin` only;
+    - the three triggers present;
+    - user 1's subscription unchanged (active, manual, no end); 0 overrides; `edge_bff_runtime` reads 48/45.
+  - Not a large update: no Postgres restart.
 
 ## 2026-11-17 — EDGE plan catalog and subscriptions (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 2) — applied 2026-11-17 (job `2a413c69`)
 
