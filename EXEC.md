@@ -15794,7 +15794,10 @@ switch off; the previous build ignores the new tables.
    user 1 to `admin`, with no end, and 0 overrides.
 7. **Records:** `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md` (applied, read back), ERRORS statuses.
 
-### Phase 3a deploy steps (prepared 2026-11-17, not run)
+### Phase 3a deploy steps (running since 2026-11-17)
+
+Run log: step 1, M340 job `f5b6d917` (0 and 0). Step 2: DRYRUN `987077f3`, then APPLY `3562a182` (sha256
+`9f4f7ec8…92cf7b77`), read back as expected (DATABASE_CHANGELOG.md).
 
 Code: builders B1 (`d6eb902f`) and B2 (`933b88cb`), integrated at `257a1e4c`. Checkers C1-C3 ran on it, and the fix
 round followed (`c70568a3`, ERRORS M481). The switch stays off. With `EDGE_ADMIN_OWNERS` unset on dev (read 2026-11-17,

@@ -8903,6 +8903,15 @@ CONTRACT.md only. C1 (security): nothing blocking the deploy, no route open with
 - **Lesson:** an action that writes into another tab's data (the star into the Watchlist) needs every capability of the
   data it touches, and the caps of that data. Check each route for the data it reads and writes, not for the tab that
   serves it.
+- **CI after the fix round:**
+  - **Generated files:** `test_watchlist_formulas_doc` failed. B1 had changed `apps/edge-bff/app/watchlist.py` (the
+    caps), and `WATCHLIST_FORMULAS.md` was not rebuilt. Fixed in `f96ba2a1`: the generator was run, the explanation
+    gained the plan limits, and the `explained-for` line was set.
+  - **Backend tests:** the start guard first read `s.owner` in `from_env`. `test_settings_owner_is_read_only` allows
+    `settings.owner` only in the seed and the switch-off mapping. The guard moved into `admin_owners_of`, which reads
+    `EDGE_OWNER` from the environment (`5baa5343`).
+  - **Lesson for builders:** a change to a file with a formulas document (`watchlist.py`, `overview.py`, the Radar
+    functions) runs its generator in the same commit (AGENTS.md); a builder brief names it.
 
 ### M480 — EXEC-MU-ACCOUNTS Phase 2: findings of the independent checkers C1-C3 (2026-11-17, fixed on branch, not deployed; deployed 2026-11-17 on dev with the switch off: `main` `f9c0cd69`, edge-bff `1ed31cea` SUCCESS, migration job `2a413c69`; the Phase 3 items stay OPEN)
 
