@@ -27,8 +27,7 @@
   - 17 gated routes answer 401 `UNAUTHENTICATED` without a session, never 403 or 500: Backtest, Screener, the star,
     Terminal saves, Watchlist lists, Monitor runs, models and conversations, the Overview/Radar/Watchlist page
     indexes, and the Terminal proxy.
-- **Still open:** the user reloads open EDGE tabs (ERRORS M479) and checks every tab: the Monitor asks, the Backtest
-  submits, the Screener runs, the Watchlist star, and layouts and drawings save.
+- **Step 6:** the user reloaded and checked every tab ("Aman, lanjutkan", 2026-11-17).
 
 ## 2026-11-17 — EXEC-MU-ACCOUNTS Phase 2 deploy (switch off): plan catalog and release stages
 

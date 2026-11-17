@@ -456,6 +456,42 @@ is built, checked, and deployed on its own.
 - **Page files:** `Cache-Control: private, no-cache` with the ETag; `?sha=` requests revalidate (304 after the check).
 - **A migration** adds the new capability rows and their seed values (decisions D1, D6).
 
+**3b in detail** (user go 2026-11-17 "Aman, lanjutkan"; the wire both workers and edge-bff build to):
+- **`context`** (the body field edge-bff already sends; a page never sends it):
+  `{"rights": [..], "allow": {"indicator": "*" | [ids], "flow_indicator": ..., "candle_pattern": ...,
+  "screener_metric": ...}, "limits": {..}}`.
+  - Each `allow` value is `"*"` (every id, lab included) or a sorted list of ids (possibly empty).
+  - `limits` holds only keys a plan sets (none today), so edge-bff sends `{}`.
+- **Families per worker** (edge-bff expands each against `releases.entries(kind)` with `p.can(family + ':' + id)`; `*`
+  or a family value with `all: true` gives `"*"`):
+
+  | Kind | Backtest worker | Screener worker |
+  |---|---|---|
+  | `indicator` | `backtest.indicator` | `screener.indicator` |
+  | `flow_indicator` | `backtest.flow_indicator` | `screener.flow_indicator` |
+  | `candle_pattern` | `backtest.candle_pattern` | `screener.candle_pattern` |
+  | `screener_metric` | `screener.metric` (a Backtest test condition uses the Screener's metrics) | `screener.metric` |
+
+- **Worker refusal:** HTTP 403 with the worker's error shape, carrying `code` `CAPABILITY_REQUIRED`, `field` (the JSON
+  path of the item, e.g. `conditions[2].test.indicator` or `exit.stop.line.indicator`) and
+  `details: {"kind", "id", "capability"}`. `capability` is the family key of that worker, e.g. `backtest.indicator:I07`.
+  The message names the item and says the plan does not include it.
+  - edge-bff relays it unchanged, and adds `display_name` (`errors.display_name`) where it builds the answer.
+- **Where each worker checks:**
+  - Screener: right after `normalize` (`restrict()`), before any cache read; `/counts` refuses per entry.
+  - Backtest: in `checkConditions`, `checkRequest` and `checkSignalsRequest`, covering the stop and trailing lines,
+    switched-off conditions and `detail.exit_signals`.
+  - Every place an item can be named counts (the inspection list in EXEC.md, Phase 3 plan).
+  - The four transform metrics (hi52, lo52, rs, vol_ratio) keep no id on the wire and are not gated by id (recorded).
+- **Deploy order:**
+  1. Both workers accept `allow`/`limits` as optional; absent means everything, which is today's behaviour.
+  2. edge-bff sends them on every worker call. With the switch off the configured owner gets `"*"` for every kind.
+  3. A follow-up worker change requires `allow` (absent: `INVALID_CONTEXT`).
+- **Runtime and tests:**
+  - The workers' internal calls (tests, the look-ahead gate) default to everything allowed; only the HTTP layer fails
+    closed.
+  - The backtest-worker deploys by CLI upload; the screener-worker deploys on green checks.
+
 **3b. Workers (Backtest, Screener).**
 - edge-bff sends `context.allow` `{kind: "*" | [ids]}` (the principal's item grants expanded against
   `releases.json`) and `context.limits`.

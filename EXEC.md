@@ -15794,7 +15794,7 @@ switch off; the previous build ignores the new tables.
    user 1 to `admin`, with no end, and 0 overrides.
 7. **Records:** `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md` (applied, read back), ERRORS statuses.
 
-### Phase 3a deploy steps (run 2026-11-17; the user's check of step 6 waits)
+### Phase 3a deploy steps (run and done 2026-11-17)
 
 Run log:
 - Step 1: M340 jobs `f5b6d917` and `fd31f46a` (0 and 0).
@@ -15804,7 +15804,8 @@ Run log:
 - Step 4: `main` `58bfe76e` → `24d6c70e`; edge-bff `49e7cf88` **SUCCESS** (rollback target `1ed31cea`); clean start log.
 - Step 5: 44 of 44 checks from outside.
 - Step 7: records written.
-- Waiting: step 6, the user's reload and check of every tab.
+- Step 6 (the user, 2026-11-17): "Aman, lanjutkan" after reloading and checking every tab. Phase 3a is done on dev
+  with the switch off; 3b starts on the same go.
 
 Code: builders B1 (`d6eb902f`) and B2 (`933b88cb`), integrated at `257a1e4c`. Checkers C1-C3 ran on it, and the fix
 round followed (`c70568a3`, ERRORS M481). The switch stays off. With `EDGE_ADMIN_OWNERS` unset on dev (read 2026-11-17,
