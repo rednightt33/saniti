@@ -558,7 +558,11 @@ def test_queue_limit_one_running_and_three_queued(app, worker):
     c = app
     ids = [submit(c, single(), f'k{i}').json()['request_id'] for i in range(3)]
     full = submit(c, single(), 'k3')
-    assert full.status_code == 429 and full.json() == {'error': {'code': 'QUEUE_FULL', 'message': MESSAGES['QUEUE_FULL'], 'details': {}}}
+    # EXEC-MU-ACCOUNTS Phase 3a (C1 F2, CONTRACT.md 3): the queue cap is the plan's backtest.queued_jobs, so its refusal
+    # is LIMIT_REACHED with the limit, the account's own number and when to try again (Retry-After)
+    assert full.status_code == 429 and full.headers['retry-after'] == '30' and full.json() == {'error': {
+        'code': 'LIMIT_REACHED', 'message': MESSAGES['LIMIT_REACHED'],
+        'details': {'limit': 'backtest.queued_jobs', 'allowed': 3, 'retry_after_s': 30}}}
     assert submit(c, single(), 'k0').json()['request_id'] == ids[0]   # a known submission still answers
     store = c.app.state.backtests.store
     running = store.claim(90)

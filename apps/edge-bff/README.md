@@ -945,7 +945,10 @@ CSRF check first) and refuses 403 `CAPABILITY_REQUIRED`, or `PLAN_EXPIRED` when 
 Fix round after the checkers (ERRORS M481):
 - the Screener star (`/api/v1/screener/watchlist`) also needs `watchlist.view`, and makes the first Watchlist list
   only within `watchlist.lists`;
-- `QUEUE_FULL` names `details.limit` (`backtest.queued_jobs`) and `allowed`, and sets `Retry-After` 30;
+- a full backtest queue answers 429 `LIMIT_REACHED` naming `details.limit` (`backtest.queued_jobs`), `allowed` and
+  `retry_after_s`, with `Retry-After` 30; the Backtest catalog's `limits.queued_per_owner` shows the account's own number;
+- refusals name the capability as the person sees it (`details.display_name` from `edge_bff.capabilities`, read at
+  start and at most every 300 s), never the internal key;
 - with the switch off, the start refuses an `EDGE_ADMIN_OWNERS` that leaves out `EDGE_OWNER` (it would lock the one
   account out of every tab).
 

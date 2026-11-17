@@ -132,7 +132,7 @@ def test_a_subscription_that_expired_a_second_ago_resolves_to_the_default_plan(o
         assert 'backtest.run' not in ended['capabilities'] and ended['version'] != live['version']
         r = c.post('/api/v1/example/run', headers=h)
         assert r.status_code == 403 and r.json()['error']['code'] == 'PLAN_EXPIRED'
-        assert r.json()['error']['details'] == {'capability': 'backtest.run', 'display_name': 'backtest.run',
+        assert r.json()['error']['details'] == {'capability': 'backtest.run', 'display_name': 'Run backtests',
                                                 'expired_plan': plan}
         assert 'Renew' in r.json()['error']['message']
         # a capability neither plan held stays CAPABILITY_REQUIRED

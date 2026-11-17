@@ -258,6 +258,11 @@ def create_app(settings=None, store=None, orc=None):
             # found by data (account_seed_plan_ambiguous otherwise); idempotent. A failure (the catalog migration not
             # applied yet) changes nothing with the switch off; with it on nothing resolves without the catalog
             try:
+                await asyncio.to_thread(auth.refresh_names)      # Phase 3a (C1 F3): refusals name what the person sees
+            except Exception as e:                     # noqa: BLE001 - the plain phrase stays until the next read
+                logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'capability_names_failed',
+                                                                           'error': type(e).__name__}))
+            try:
                 await asyncio.to_thread(auth.seed_plan)
             except Exception as e:                     # noqa: BLE001 - logged by its class only (no secret in it)
                 logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_plan_failed',

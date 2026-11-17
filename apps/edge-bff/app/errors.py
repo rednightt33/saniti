@@ -67,6 +67,27 @@ STATUS_CODES = {400: 'INVALID_INPUT', 401: 'UNAUTHENTICATED', 403: 'FORBIDDEN', 
 
 # The capabilities a Phase 0 route may require, with the name the person sees (CONTRACT.md section 3 details)
 CAPABILITY_NAMES = {'admin.manual': 'Manual agent (troubleshooting)'}
+# C1 Phase 3a F3: the names the person sees come from the catalog (edge_bff.capabilities.display_name), loaded by
+# Auth.refresh_names at start and again at most every NAMES_SECONDS when a route refuses; never the internal key
+_names = {}
+UNNAMED = 'This part of EDGE'
+
+
+def set_display_names(names):
+    """Replaces the catalog's names (capability key -> display name)."""
+    global _names
+    _names = dict(names)
+
+
+def display_name(capability):
+    """The name the person sees for a capability: the catalog's, an item <family>:<id> as the family's name and the id,
+    the Phase 0 table, else a plain phrase (an internal key is never shown)."""
+    if capability in _names:
+        return _names[capability]
+    family, sep, item = capability.partition(':')
+    if sep and family in _names:
+        return f'{_names[family]}: {item}'
+    return CAPABILITY_NAMES.get(capability, UNNAMED)
 
 
 class Refusal(Exception):
@@ -89,8 +110,7 @@ def refusal(status, code, details=None, headers=None):
 
 
 def capability_required(capability):
-    return Refusal(403, 'CAPABILITY_REQUIRED', {'capability': capability,
-                                                'display_name': CAPABILITY_NAMES.get(capability, capability)})
+    return Refusal(403, 'CAPABILITY_REQUIRED', {'capability': capability, 'display_name': display_name(capability)})
 
 
 def plan_expired(capability, plan):
@@ -101,7 +121,7 @@ def plan_expired(capability, plan):
     end gets this refusal, not CAPABILITY_REQUIRED; (d) the message says the plan ended and to renew it, and details
     name the capability and the ended plan."""
     return Refusal(403, 'PLAN_EXPIRED', {'capability': capability,
-                                         'display_name': CAPABILITY_NAMES.get(capability, capability),
+                                         'display_name': display_name(capability),
                                          'expired_plan': plan})
 
 

@@ -327,7 +327,7 @@ def test_the_queued_backtest_limit_follows_the_plan(on, store):
         h = sign_in(c, 'alice', 'alice-password')
         assert c.post(BT, headers=h, json={**single(), 'client_request_id': 'one'}).status_code == 202
         r = c.post(BT, headers=h, json={**single('BBRI'), 'client_request_id': 'two'})
-        assert r.status_code == 429 and r.json()['error']['code'] == 'QUEUE_FULL', r.text
+        assert r.status_code == 429 and r.json()['error']['code'] == 'LIMIT_REACHED', r.text    # C1 F2: a plan limit
 
 
 # ---- D5: a lowered plan loses the reads; a queued job is checked again at dispatch ----------------------------------

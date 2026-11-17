@@ -8878,7 +8878,8 @@ in its staleness check.
 ### M481 — EXEC-MU-ACCOUNTS Phase 3a: findings of the independent checkers C1-C3 (2026-11-17, fixed on branch, not deployed)
 
 Three checkers read the integrated Phase 3a (`257a1e4c`: B1 route gates and caps, B2 Monitor and page files) against
-CONTRACT.md only.
+CONTRACT.md only. C1 (security): nothing blocking the deploy, no route open without its capability; failing tests
+`0daa5be7` (`tests/test_c1_phase3a_findings.py`), three that block the switch-on.
 - C3 (conformance): READY with the switch off, with one precondition; failing test `c85ce34d`
   (`tests/test_c3_phase3a_check.py`).
 - C2 (isolation): nothing blocking, no crossing between users or plans; failing tests `27148282`
@@ -8888,13 +8889,16 @@ CONTRACT.md only.
 
 | Finding | Severity | Root cause (verified) | Fix |
 |---|---|---|---|
-| C3 F1 | blocks the switch-on | `backtest.queued_jobs` became a plan limit, but its refusal stayed `StoreError('QUEUE_FULL', 429)`: no `Retry-After`, and no limit or allowed number (CONTRACT 3; Gates and evidence (a), (d)). | 429 `QUEUE_FULL` with `details.limit` `backtest.queued_jobs`, `allowed` (the account's own number) and `Retry-After` 30. The number is also in the session's `access.limits`. |
+| C3 F1, C1 F2 | blocks the switch-on | `backtest.queued_jobs` became a plan limit, but its refusal stayed `StoreError('QUEUE_FULL', 429)`: no `Retry-After`, and no limit or allowed number (CONTRACT 3; Gates and evidence (a), (d)). | 429 `LIMIT_REACHED` (the contract's code for a plan limit) with `details.limit` `backtest.queued_jobs`, `allowed` (the account's own number), `retry_after_s` 30, and the `Retry-After` header. |
+| C1 F1 | blocks the switch-on | The Backtest catalog relayed the worker's `limits.queued_per_owner` (the hard 3) to every principal, while the submit refused at the plan's number. | The catalog answers `min(worker value, the principal's capped backtest.queued_jobs)`: the rule shown is the one applied. |
+| C1 F3, M480 C1 N3/C3 N2 | blocks the switch-on | `details.display_name` fell back to the internal key (`backtest.view`), because `CAPABILITY_NAMES` knew only `admin.manual`. | The names come from `edge_bff.capabilities.display_name`: `Auth.refresh_names` loads them at start, and a refusing route reads them again at most every 300 s. An item is shown as its family's name and its id. An unknown key shows "This part of EDGE", never the key. The Phase 2 test that locked the raw key now expects the catalog's name. |
+| C1 N1 | non-blocking | A Monitor submit without a model is refused naming `monitor.model:<server default>`, which `/api/v1/models` hides from that principal. | Recorded; only `*` holds `monitor.chat` today (D1). |
 | C2 1, C3 | non-blocking | The Screener star reads and writes the Watchlist's first list but needed only `screener.view`/`screener.run`. | It also needs `watchlist.view`. The class: an action on another tab's data needs that tab's capability too. |
 | C2 2 | non-blocking | `WatchlistStore.first(create=True)` made the first list without the `watchlist.lists` cap. | The star makes the first list only when the cap is at least 1 (422 `LIMIT_EXCEEDED` otherwise); an existing first list is always used. |
 | C2 3, C3 R1 | deploy precondition | Since 3a, a switch-off owner that `EDGE_ADMIN_OWNERS` does not list holds no capability, so a list that leaves out `EDGE_OWNER` would lock the one account out of every tab. | Checked on dev: the variable is unset, so the configured owner holds `*`. With the switch off, `Settings.from_env` refuses to start with a list that leaves out `EDGE_OWNER`. |
 | C2 4 | accepted | With the plan lowered, `stop_run` needs `monitor.chat`, so a run already dispatched cannot be stopped by its owner. | Recorded. Queued runs and jobs are refused at dispatch, and the Monitor is admin only for now (D1). |
 | C3 gaps | OPEN | The SSE `monitor.view` re-check (`main.py` `still_signed_in`) has no test. The 3a route walk is scoped by module. | A full `/api` walk run by C3 found no ungated route. |
-| C3 records | fixed | Missing: the migration job params, the 3a runbook, the Auth column of `SCREENER_ONBOARDING.md` §1.8, and the endings in `BACKTEST_END_TO_END.md`. | Job params `98762487`; the rest in this round. `display_name` from the table stays OPEN (M480). |
+| C3 records | fixed | Missing: the migration job params, the 3a runbook, the Auth column of `SCREENER_ONBOARDING.md` §1.8, and the endings in `BACKTEST_END_TO_END.md`. | Job params `98762487`; the rest in this round. |
 
 - **Lesson:** an action that writes into another tab's data (the star into the Watchlist) needs every capability of the
   data it touches, and the caps of that data. Check each route for the data it reads and writes, not for the tab that

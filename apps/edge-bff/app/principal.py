@@ -33,13 +33,14 @@ import hashlib
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 
 from fastapi import Depends, Request
 
 from .accounts import OWNER_KEY, AccountStore
-from .errors import Refusal, capability_required, plan_expired
+from .errors import Refusal, capability_required, plan_expired, set_display_names
 from . import releases
 from .releases import KIND_OF_FAMILY, stage_of
 from .security import csrf_token, same_ascii, token_hash
@@ -223,9 +224,12 @@ def account_principal(row, token=''):
 class Auth:
     """The principal dependencies of one app (CONTRACT.md section 2)."""
 
+    NAMES_SECONDS = 300           # the catalog's display names are read again at most this often (C1 Phase 3a F3)
+
     def __init__(self, settings, store, accounts=None):
         self.settings, self.store = settings, store
         self.accounts = accounts or AccountStore(store)
+        self._names_at = None
         self.seed = None                                 # {user_id, username} of user #1 once seeded (main.py lifespan)
         self._needs = {}
 
@@ -257,6 +261,17 @@ class Auth:
         s = self.settings
         self.seed = self.accounts.seed(s.owner, s.login, s.password_verifier, s.multiuser)
         return self.seed
+
+    def refresh_names(self, force=True):
+        """The catalog's display names into the refusals (errors.display_name); blocking, a thread. Without the catalog
+        (before its migration) the refusals keep the plain phrase."""
+        now = time.monotonic()
+        if not force and self._names_at is not None and now - self._names_at < self.NAMES_SECONDS:
+            return
+        self._names_at = now
+        with self.store.connect() as c:
+            rows = c.execute('SELECT capability_key, display_name FROM edge_bff.capabilities').fetchall()
+        set_display_names({r['capability_key']: r['display_name'] for r in rows})
 
     def seed_plan(self):
         """Phase 2 (CONTRACT.md 8a "User #1"): the seed user's subscription to the plan that holds every capability
@@ -302,6 +317,10 @@ class Auth:
 
             async def check(p: Principal = Depends(base)):
                 if not p.can(capability):
+                    try:
+                        await asyncio.to_thread(self.refresh_names, False)
+                    except Exception:                         # noqa: BLE001 - the plain phrase stays
+                        pass
                     raise p.refusal(capability)
                 return p
             self._needs[key] = check

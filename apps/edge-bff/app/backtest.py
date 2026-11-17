@@ -1326,8 +1326,14 @@ class Backtests:
                 else:
                     self.catalog.update(at=now, data=data)
             # the whole catalog is kept once; each session sees the entries its rights allow (the kept one too, while the
-            # worker cannot answer)
-            return JSONResponse(catalog_for(self.catalog['data'], rights(request)))
+            # worker cannot answer), and its own queue limit (C1 Phase 3a F1: the rule shown is the one applied)
+            shown = catalog_for(self.catalog['data'], rights(request))
+            p = getattr(request.state, 'principal', None)
+            limits = shown.get('limits') if isinstance(shown, dict) else None
+            if p is not None and isinstance(limits, dict) and isinstance(limits.get('queued_per_owner'), int):
+                own = p.capped(QUEUED_KEY, settings.backtest_queued_per_owner)
+                shown = {**shown, 'limits': {**limits, 'queued_per_owner': min(limits['queued_per_owner'], own)}}
+            return JSONResponse(shown)
 
         @app.post('/api/v1/backtests/signals')
         async def signals(request: Request, owner: str = Depends(writer)):
@@ -1389,11 +1395,12 @@ class Backtests:
             except (BacktestError, StoreError) as e:
                 submitted(code=e.error.get('code') if isinstance(e, BacktestError) else e.code)
                 if isinstance(e, StoreError) and e.code == 'QUEUE_FULL':
-                    # C3 Phase 3a F1 (CONTRACT.md 3, AGENTS.md "Gates and evidence"): the limit is the plan's
-                    # (access.limits shows it before acting); the refusal names it and the account's own number, and
-                    # says when to try again (a queued job usually starts within seconds)
+                    # C3/C1 Phase 3a F1-F2 (CONTRACT.md 3, AGENTS.md "Gates and evidence"): the limit is the plan's
+                    # (the catalog's limits.queued_per_owner and access.limits show it before acting); the refusal is
+                    # LIMIT_REACHED naming it and the account's own number, and says when to try again
                     allowed = p.capped(QUEUED_KEY, settings.backtest_queued_per_owner)
-                    raise Refusal(429, 'QUEUE_FULL', {'limit': QUEUED_KEY, 'allowed': allowed},
+                    raise Refusal(429, 'LIMIT_REACHED', {'limit': QUEUED_KEY, 'allowed': allowed,
+                                                         'retry_after_s': QUEUE_RETRY_SECONDS},
                                   {'Retry-After': str(QUEUE_RETRY_SECONDS)}) from None
                 raise
             submitted(request_id=row['request_id'], created=created)
