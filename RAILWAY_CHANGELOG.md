@@ -24,7 +24,7 @@
      - edge-bff `335d78b3` SUCCESS 10:21 UTC, clean start log;
      - screener-worker `12810270` SUCCESS 10:21 UTC (the same code from GitHub).
 - **Checks:** smoke from outside 44/44 (`/ready` 200; every gated route 401 without a session).
-- **Waiting:** the user's check of the Backtest and the Screener after a reload (EXEC.md, Phase 3b deploy steps, step 7).
+- **The user's check (2026-11-18):** "Backtest dan Screener sudah saya cek, aman".
 
 ## 2026-11-17 — EXEC-MU-ACCOUNTS Phase 3a deploy (switch off): route gates per tab, plan caps
 

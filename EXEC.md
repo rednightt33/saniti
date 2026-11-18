@@ -15844,7 +15844,7 @@ previous build ignores the new rows.
    the Watchlist stars, and layouts and drawings save.
 7. **Records:** `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md` (applied, read back), and the ERRORS M481 status.
 
-### Phase 3b deploy steps (written and run 2026-11-17; step 7 waits for the user)
+### Phase 3b deploy steps (run and done 2026-11-17/18)
 
 Run log:
 - Step 1: M340 at 10:11 and 10:16 UTC: 0 active EDGE jobs, 0 orc turns, 0 open Backtest jobs.
@@ -15857,7 +15857,7 @@ Run log:
   `12810270` **SUCCESS**, both after the checks on `main`; clean start logs.
 - Step 6: 44 of 44 checks from outside.
 - Step 8: records written (`RAILWAY_CHANGELOG.md`, ERRORS M482).
-- Step 7: waiting for the user.
+- Step 7 (the user, 2026-11-18): "Backtest dan Screener sudah saya cek, aman". Phase 3b is done on dev with the switch off.
 
 
 Code:
