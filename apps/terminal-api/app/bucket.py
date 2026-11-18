@@ -174,6 +174,14 @@ class Bucket:
         body = self.s3.get_object(Bucket=self.name, Key=f'{PREFIX}/logo/{name}')['Body'].read()
         return body, 'image/svg+xml' if name.endswith('.svg') else 'image/png', sha
 
+    def read(self, key):
+        """EXEC-MU-ACCOUNTS Phase 3c: the bytes of one published file, read server-side for a cut (cut.py), or None
+        when it is absent."""
+        try:
+            return self.s3.get_object(Bucket=self.name, Key=key)['Body'].read()
+        except self.s3.exceptions.NoSuchKey:
+            return None
+
     def presign(self, key, ttl):
         return self.s3.generate_presigned_url('get_object', Params={'Bucket': self.name, 'Key': key}, ExpiresIn=ttl)
 

@@ -878,7 +878,9 @@ def test_service_key_acts_as_its_own_account_and_cannot_name_an_owner():
         assert 'backtest-worker' in m and 'can never name an owner' in m and 'Fix:' in m and 'Example:' in m
     r = client.post(f'{API}/bundle', headers={**BACKTEST, 'x-terminal-proxy-owner': 'owner-a'}, json={'ticker': 'BBCA'})
     assert r.status_code == 400 and len(store.access) == rows
-    assert client.get(f'{API}/state', headers={**GATEWAY, 'x-terminal-proxy-owner': 'owner-a'}).status_code == 200
+    # EXEC-MU-ACCOUNTS Phase 3c (T2 built): the gateway names an owner with both headers or neither; one alone is 400
+    r = client.get(f'{API}/state', headers={**GATEWAY, 'x-terminal-proxy-owner': 'owner-a'})
+    assert r.status_code == 400 and r.json()['field'] == 'x-terminal-capabilities'
     # a service account never signs in, whatever its password, and never uses a person's routes
     r = TestClient(client.app, base_url=PRIVATE, headers={'origin': ORIGIN}).post(f'{API}/auth/sign-in', json={
         'email': 'backtest-worker@terminal.local', 'password': 'a service never signs in'})

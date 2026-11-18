@@ -1,5 +1,6 @@
 """PostgreSQL access through terminal_api_login: schema terminal (accounts, sessions, quotas, audit) and read-only
 fallback queries on the market tables. Every market query is parameterized and bounded by the caller."""
+import hashlib
 from contextlib import contextmanager
 
 from psycopg.rows import dict_row
@@ -22,11 +23,27 @@ BROKER_HISTORY = ('SELECT trade_date::text, broker, investor_type, market_board,
 ACCOUNT = 'subscriber_id, email, display_name, expires_at, kind'
 # What the migrations after the terminal schema (20261025_100) added and this build reads, without reading a row: a
 # missing column, table or privilege fails the statement. 20261026_100: access_log.file_count; 20261028_100
-# (EXEC-MU-RUNTIME T1): subscriber.kind and usage_hour.
+# (EXEC-MU-RUNTIME T1): subscriber.kind and usage_hour. 20261118_100 (EXEC-MU-ACCOUNTS Phase 3c):
+# subscriber.edge_owner_key and access_log.version.
 READY = ('SELECT 1 FROM terminal.quota LIMIT 1',
          'SELECT file_count FROM terminal.access_log LIMIT 0',
          'SELECT kind FROM terminal.subscriber LIMIT 0',
-         'SELECT hour_start, grants, files, bytes FROM terminal.usage_hour LIMIT 0')
+         'SELECT hour_start, grants, files, bytes FROM terminal.usage_hour LIMIT 0',
+         'SELECT edge_owner_key FROM terminal.subscriber LIMIT 0',
+         'SELECT version FROM terminal.access_log LIMIT 0')
+# EXEC-MU-ACCOUNTS Phase 3c: an EDGE owner's row (kind 'owner', migration 20261118_100). terminal.subscriber needs an
+# email, a display name, a verifier and an end: a synthetic address no mail reaches (under the reserved .local name of
+# the service accounts, config.py SERVICE_DOMAIN) derived from the owner key, the all-zero verifier no password derives
+# (an owner never signs in: sign-in and session_subscriber take kind 'person' only) and the service rows' end.
+OWNER_DOMAIN = 'edge-owner.terminal.local'
+NO_PASSWORD = 'scrypt$' + '0' * 32 + '$' + '0' * 64
+OWNER_EXPIRES = '2100-01-01T00:00:00Z'
+
+
+def owner_email(owner_key):
+    """u_0123... -> owner-<first 32 hex of its sha256>@edge-owner.terminal.local: lower case, as the email check
+    requires (an owner key may hold capitals, ':' or '@')."""
+    return f'owner-{hashlib.sha256(owner_key.encode()).hexdigest()[:32]}@{OWNER_DOMAIN}'
 
 
 class Store:
@@ -97,12 +114,13 @@ class Store:
             'bytes = u.bytes + EXCLUDED.bytes RETURNING hour_start, grants, files, bytes', (sid, files, bytes_)).fetchone()
 
     @staticmethod
-    def log_access(c, sid, kind, ticker, ip, dataset=None, year=None, key=None, bytes_=0, keys=None):
-        """One row; `keys` (EXEC-TERMINAL-SPEED): every file a /bundle grants, counted in file_count."""
+    def log_access(c, sid, kind, ticker, ip, dataset=None, year=None, key=None, bytes_=0, keys=None, version=None):
+        """One row; `keys` (EXEC-TERMINAL-SPEED): every file a /bundle grants, counted in file_count. `version`
+        (EXEC-MU-ACCOUNTS Phase 3c): the entitlements version of x-terminal-capabilities, null without the header."""
         c.execute('INSERT INTO terminal.access_log(subscriber_id, kind, ticker, dataset, year, object_key, bytes, ip, '
-                  'file_count, object_keys) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                  'file_count, object_keys, version) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
                   (sid, kind, ticker, dataset, year, key or (keys[0] if keys else None), bytes_, ip,
-                   len(keys) if keys else 1, keys))
+                   len(keys) if keys else 1, keys, version))
 
     @staticmethod
     def prune(c, days):
@@ -154,6 +172,24 @@ class Store:
                          'WHERE email = %s AND kind = %s AND active AND expires_at > now()', (email, kind)).fetchone()
 
     @staticmethod
+    def owner_account(c, owner_key):
+        """EXEC-MU-ACCOUNTS Phase 3c: the usable row of an EDGE owner (kind 'owner'), made on first use. Race-safe: two
+        first calls of one owner both INSERT ... ON CONFLICT DO NOTHING (every unique index is an arbiter:
+        edge_owner_key and the email derived from it), and the one that inserted nothing reads the row the other
+        made. None when the row is inactive or expired (the administrator turned the owner off)."""
+        select = (f'SELECT {ACCOUNT}, active AND expires_at > now() AS usable FROM terminal.subscriber '
+                  "WHERE edge_owner_key = %s AND kind = 'owner'")
+        row = c.execute(select, (owner_key,)).fetchone()
+        if row is None:
+            c.execute('INSERT INTO terminal.subscriber(email, display_name, password_hash, expires_at, kind, '
+                      "edge_owner_key) VALUES (%s, %s, %s, %s, 'owner', %s) ON CONFLICT DO NOTHING",
+                      (owner_email(owner_key), f'EDGE owner {owner_key}'[:120], NO_PASSWORD, OWNER_EXPIRES, owner_key))
+            row = c.execute(select, (owner_key,)).fetchone()
+        if row is None or not row['usable']:
+            return None
+        return {k: row[k] for k in ('subscriber_id', 'email', 'display_name', 'expires_at', 'kind')}
+
+    @staticmethod
     def revoke_session(c, token_hash):
         c.execute('UPDATE terminal.session SET revoked_at = now() WHERE token_hash = %s AND revoked_at IS NULL',
                   (token_hash,))
@@ -180,7 +216,7 @@ class Store:
     @staticmethod
     def list_subscribers(c):
         return c.execute(
-            'SELECT u.subscriber_id, u.email, u.display_name, u.kind, u.active, u.expires_at, u.disabled_reason, u.created_at, '
+            'SELECT u.subscriber_id, u.email, u.display_name, u.kind, u.edge_owner_key, u.active, u.expires_at, u.disabled_reason, u.created_at, '
             '(SELECT max(at) FROM terminal.access_log a WHERE a.subscriber_id = u.subscriber_id) AS last_access, '
             "(SELECT coalesce(sum(bytes), 0) FROM terminal.access_log a WHERE a.subscriber_id = u.subscriber_id "
             "AND at > now() - interval '1 day') AS bytes_day "

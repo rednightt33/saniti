@@ -19,6 +19,20 @@ EXEC-MU-ACCOUNTS Phase 0 (verification/edge_multiuser/access_tiers/CONTRACT.md s
   public edge (none of EDGE_HEADERS). Otherwise the answer is 403 gateway_host_not_allowed with one generic message,
   the same whether the key is valid, wrong or absent (C1 M3, L2): the public answer never says a key is real nor names
   the private host or a variable; the detailed reason goes to the server log only (never the key).
+
+EXEC-MU-ACCOUNTS Phase 3c (T2; CONTRACT.md section 8b "3c in detail"): beside the gateway key edge-bff may name the EDGE
+owner and its plan (x-terminal-proxy-owner, x-terminal-capabilities; entitlements.py). Without both headers nothing
+changes. With them:
+- the owner has its own terminal.subscriber row (kind 'owner', edge_owner_key; made on first use), and the caller's
+  credential is ('gateway', owner): the account cache, the usage and the audit rows (with the header's version) are the
+  owner's;
+- quotas (decision D6): an `admin` owner (holding *) gets the gateway subscriber's own limits (its overrides included),
+  counted on the owner's own row; any other owner the terminal.quota defaults overlaid by the header's `quota`;
+- every data route passes the owner's plan (ROUTE_ACCESS lists how each route is gated; tests/test_phase3c.py walks the
+  routes): tickers (terminal.tickers), datasets (terminal.dataset:<id>, with `intraday` and `reference`) and the history
+  window (terminal.history_days). A refusal is 403 capability_required with the `capability` it lacks;
+- a capped owner (history_days N) gets each dated dataset of /bundle as one cut file (cut.py: exactly the rows dated
+  after data_through - N days, deterministic gzip), served by GET /cut/{ticker}/{dataset} and counted there.
 """
 import datetime as dt
 import json
@@ -36,15 +50,17 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from . import quota
 from .accounts import AccountCache, Caller
-from .bucket import PAGE_FAMILIES, REF_NAME, XSECTION_NAME, radar_index, refs_index, xsection_index
+from .bucket import PAGE_FAMILIES, REF_NAME, SHA256, XSECTION_NAME, radar_index, refs_index, xsection_index
 from .config import PRIVATE_HOST, Settings, service_email, service_variable
+from .cut import CutCache, CutError, make_cut
+from .entitlements import (CAPS_HEADER, EXAMPLE as CAPS_EXAMPLE, EXTRA_DATASETS, OWNER_HEADER, HeaderError,
+                           parse_capabilities, parse_owner, window_after)
 from .security import client_ip, new_token, password_verifier, same_secret, token_hash, verify_password
 
 COOKIE = 'terminal_session'
 PROXY_HEADER = 'x-terminal-proxy-key'
-# T2 (EXEC-MU-RUNTIME Phase 4, not built): the gateway will name the EDGE owner in this header. A service key acts as
-# its own account and may never name one (T1); the gateway's header is ignored until T2, as before.
-OWNER_HEADER = 'x-terminal-proxy-owner'
+# T2 (EXEC-MU-ACCOUNTS Phase 3c): the gateway names the EDGE owner in OWNER_HEADER and its plan in CAPS_HEADER
+# (entitlements.py). A service key acts as its own account and may never name one (T1).
 # T1: the services that may be granted cross-sectional files (one file holds every ticker); the gateway key keeps its
 # access until a later, separate step removes it (compatibility with the deployed screener-worker build)
 XSECTION_SERVICES = frozenset({'screener-worker'})
@@ -102,6 +118,23 @@ class FilesRequest(Strict):
 
 
 BUNDLE_DATASET = Literal['price', 'broker', 'events', 'yield']
+# EXEC-MU-ACCOUNTS Phase 3c: the dataset ids a plan grants (terminal.dataset:<id>): every per-ticker file dataset of
+# /bundle, each one dated (its files carry the date column `d`, so a capped owner gets it as a cut, cut.py), plus the
+# intraday bars and the reference files (entitlements.EXTRA_DATASETS), which are not cut
+DATED = tuple(get_args(BUNDLE_DATASET))
+DATASETS = DATED + EXTRA_DATASETS
+HISTORY_DATASET = {'history_price': 'price', 'history_broker': 'broker'}
+# how each API route is gated for an EDGE owner (tests/test_phase3c.py fails on a route under API without an entry):
+# 'owner': tickers, datasets and the window of the owner's plan (the gate functions below); 'filtered': answers only
+# what the plan may see (no refusal); 'no-owner': refuses an owner header; 'no-data': carries no data file (decided,
+# README); 'page': EDGE pages edge-bff gates itself, the owner only audited; 'account': sign-in and password routes
+# (no gateway); 'admin': the administrator key
+ROUTE_ACCESS = {'/reference/{name}': 'owner', '/files': 'owner', '/bundle': 'owner', '/manifest/{ticker}': 'owner',
+                '/history/price': 'owner', '/history/broker': 'owner', '/cut/{ticker}/{dataset}': 'owner',
+                '/state': 'filtered', '/xsection': 'no-owner', '/logo/{ticker}': 'no-data',
+                **{f'/{family}': 'page' for family in PAGE_FAMILIES},
+                '/auth/sign-in': 'account', '/auth/sign-out': 'account', '/auth/session': 'account',
+                '/auth/change-password': 'account', '/admin/subscribers': 'admin', '/admin/subscribers/{sid}': 'admin'}
 
 
 class BundleRequest(Strict):
@@ -163,8 +196,15 @@ class SubscriberChange(Strict):
     password: str | None = Field(default=None, min_length=12, max_length=1024)
 
 
-def error(status, code, message):
-    raise HTTPException(status, detail={'error': code, 'message': message})
+def error(status, code, message, **extra):
+    raise HTTPException(status, detail={'error': code, 'message': message, **extra})
+
+
+def lacks(capability, what, fix):
+    """EXEC-MU-ACCOUNTS Phase 3c: 403 capability_required, the existing error shape with the capability the owner's plan
+    lacks (edge-bff names it to the person with its display_name and refuses most of these before calling here)."""
+    error(403, 'capability_required', f"{what} is not in the plan of this EDGE account ({capability}). Fix: {fix}",
+          capability=capability)
 
 
 def create_app(settings: Settings | None = None, store=None, bucket=None):
@@ -257,11 +297,44 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             error(403, 'gateway_host_not_allowed', NOT_HERE)
 
     def identify(request: Request) -> Caller:
+        """Who is calling, from the request alone (no database), decided once per request (request.state)."""
+        caller = getattr(request.state, 'caller', None)
+        if caller is None:
+            caller = request.state.caller = identify_now(request)
+        return caller
+
+    def owner_of(request: Request):
+        """EXEC-MU-ACCOUNTS Phase 3c: (owner, Capabilities) of a gateway call that names an EDGE owner, (None, None)
+        when it sends neither header (the gateway's one account, as before). One header without the other, or a
+        header that breaks its rule, is 400 naming the header or field, the rule and a right example."""
+        owner, caps = request.headers.get(OWNER_HEADER), request.headers.get(CAPS_HEADER)
+        if owner is None and caps is None:
+            return None, None
+        if owner is None or caps is None:
+            missing, sent = (OWNER_HEADER, CAPS_HEADER) if owner is None else (CAPS_HEADER, OWNER_HEADER)
+            error(400, 'invalid_owner_headers',
+                  f'{sent} was sent without {missing}: the EDGE gateway names an owner with both headers or with '
+                  f'neither. Fix: send both, built from the principal. Example: {OWNER_HEADER}: '
+                  f'u_0123456789abcdef01234567 and {CAPS_HEADER}: {CAPS_EXAMPLE}.', field=missing)
+        try:
+            return parse_owner(owner), parse_capabilities(caps, DATASETS)
+        except HeaderError as e:
+            error(400, 'invalid_owner_headers', str(e), field=e.field)
+
+    def identify_now(request: Request) -> Caller:
         """Who is calling, from the request alone (no database): the gateway key, a service key or a session cookie.
         A key in x-terminal-proxy-key that is neither is refused, never ignored. Every key counts only on the private
-        host (private_only_keys, M470, C1 M3); a cookie only while a browser origin is configured (private_only)."""
+        host (private_only_keys, M470, C1 M3); a cookie only while a browser origin is configured (private_only).
+        Phase 3c: the owner headers count only beside the gateway key (owner_of)."""
         key = request.headers.get(PROXY_HEADER)
         if key is None:
+            if OWNER_HEADER in request.headers or CAPS_HEADER in request.headers:
+                if settings.private_only:
+                    direct_closed('A request without a key')
+                error(400, 'owner_not_allowed',
+                      f'{OWNER_HEADER} and {CAPS_HEADER} count only beside the EDGE gateway key in {PROXY_HEADER}; a '
+                      f'session never names an owner. Fix: send no owner header with a session cookie. Example: GET '
+                      f'{API}/manifest/BBCA with only the cookie.')
             if settings.private_only:
                 direct_closed('A session cookie')
             token = request.cookies.get(COOKIE)
@@ -272,7 +345,8 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         gateway_ok = bool(settings.proxy_key) and same_secret(key, settings.proxy_key)
         matched = [(name, email) for name, k, email in services if same_secret(key, k)]   # every key compared
         if gateway_ok:
-            return Caller('gateway', email=settings.proxy_subscriber)
+            owner, caps = owner_of(request)
+            return Caller('gateway', email=settings.proxy_subscriber, owner=owner, caps=caps)
         if not matched:
             error(401, 'proxy_key_rejected',
                   f'The {PROXY_HEADER} header holds no key this terminal-api knows: neither the EDGE gateway key '
@@ -281,9 +355,9 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                   'Example: TERMINAL_PROXY_KEY=${{terminal-api.TERMINAL_SERVICE_KEY_BACKTEST_WORKER}} on '
                   'backtest-worker.')
         name, email = matched[0]
-        if OWNER_HEADER in request.headers:
+        if OWNER_HEADER in request.headers or CAPS_HEADER in request.headers:
             error(400, 'owner_not_allowed',
-                  f'{OWNER_HEADER} was sent with the service key of {name}. A service key acts as its own account '
+                  f'{OWNER_HEADER} or {CAPS_HEADER} was sent with the service key of {name}. A service key acts as its own account '
                   f'({email}) and can never name an owner; only the EDGE gateway names one. Fix: send '
                   f'{PROXY_HEADER} alone. Example: GET {API}/state with only {PROXY_HEADER}: <the value of '
                   f'{service_variable(name)}>.')
@@ -307,9 +381,19 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         """The caller's account row as it is now, or None: missing, inactive, expired, or a session that ended."""
         if caller.kind == 'session':
             return store.session_subscriber(c, caller.token_hash)
-        return store.account(c, caller.email, 'service' if caller.kind == 'service' else 'person')
+        row = store.account(c, caller.email, 'service' if caller.kind == 'service' else 'person')
+        if row is None or caller.owner is None:
+            return row
+        # Phase 3c: an owner acts through the gateway, so both the gateway's account and the owner's own row must be
+        # active; the owner's row is the one counted and audited, the gateway's id gives an admin owner its limits
+        mine = store.owner_account(c, caller.owner)
+        return {**mine, 'gateway_id': row['subscriber_id']} if mine else None
 
     def refuse(caller: Caller):
+        if caller.kind == 'gateway' and caller.owner is not None:
+            error(401, 'session_ended', f'The terminal account of this gateway, or the row of the EDGE owner '
+                                        f'{caller.owner} (terminal.subscriber kind owner), is not active. Fix: the '
+                                        f'administrator sets both active (POST {API}/admin/subscribers/<id>).')
         if caller.kind == 'gateway':
             error(401, 'session_ended', 'The terminal account of this gateway is not active.')
         if caller.kind == 'service':
@@ -385,6 +469,14 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         session or another service is refused. Signing in would not help, so the refusal is 403, not 401; a wrong key
         is 401 proxy_key_rejected as on every route."""
         caller = identify(request) if PROXY_HEADER in request.headers else None
+        if caller and caller.owner is not None:
+            # Phase 3c: one file holds every ticker, so no EDGE owner's plan can be applied to it
+            error(403, 'gateway_only', f'POST {API}/xsection grants cross-sectional files (every ticker in one file), '
+                                       f'which no EDGE owner\'s plan can be applied to, so the gateway key is refused '
+                                       f'with {OWNER_HEADER}. Fix: the screener-worker reads them with its own '
+                                       f'service key ({service_variable("screener-worker")}); one ticker\'s files: '
+                                       f'POST {API}/bundle. Example: {PROXY_HEADER}: '
+                                       f'${{{{terminal-api.{service_variable("screener-worker")}}}}}.')
         if caller and (caller.kind == 'gateway' or (caller.kind == 'service' and caller.name in XSECTION_SERVICES)):
             return known(request)[0]
         who = f'the service key of {caller.name}' if caller else 'a subscriber session'
@@ -437,6 +529,66 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
     def take(c, sid, refusal):
         if refusal:
             error(429, 'quota_exceeded', refusal.message())
+
+    # ---- EXEC-MU-ACCOUNTS Phase 3c: the owner's plan (every data route; ROUTE_ACCESS) -------------------------------
+    def plan(caller: Caller):
+        """The Capabilities that limit this caller, or None (no owner header, or an owner holding *: no filter)."""
+        caps = caller.caps if caller.owner is not None else None
+        return None if caps is None or caps.admin else caps
+
+    def need_ticker(caller: Caller, ticker):
+        caps = plan(caller)
+        if caps and not caps.ticker_ok(ticker):
+            some = ', '.join(sorted(caps.tickers)[:10]) or 'none'
+            lacks('terminal.tickers', f'The ticker {ticker}',
+                  f'open a ticker the plan includes ({some}), or raise the plan. Example: POST {API}/bundle '
+                  f'{{"ticker": "{min(caps.tickers) if caps.tickers else "BBCA"}", "datasets": ["price"]}}.')
+
+    def need_dataset(caller: Caller, dataset):
+        caps = plan(caller)
+        if caps and not caps.dataset_ok(dataset):
+            some = ', '.join(sorted(caps.datasets)) or 'none'
+            lacks(f'terminal.dataset:{dataset}', f'The data set {dataset}',
+                  f'ask only for the data sets the plan includes ({some}), or raise the plan.')
+
+    def window(caller: Caller, m, dataset):
+        """The last date NOT served to a capped owner for `dataset` (entitlements.window_after), else None."""
+        caps = plan(caller)
+        if not caps or caps.history_days is None:
+            return None
+        after = window_after(((m.get('datasets') or {}).get(dataset) or {}).get('data_through'), caps.history_days)
+        if after is None:
+            lacks('terminal.history_days', f'{dataset} history (no data_through to count the window from)',
+                  'nothing of this data set can be served inside the plan\'s window; ask for another data set.')
+        return after
+
+    def beyond(caller: Caller, dataset, what, after):
+        caps = plan(caller)
+        lacks('terminal.history_days', what,
+              f'the plan shows the last {caps.history_days} calendar days of {dataset} (rows dated after '
+              f'{after.isoformat()}); a capped account reads them as one cut from POST {API}/bundle, which answers '
+              f'each dated data set with one file. Example: POST {API}/bundle {{"ticker": "BBCA", "datasets": '
+              f'["{dataset}"], "packs": true}}.')
+
+    def limits_of(c, caller: Caller, row):
+        """Decision D6. No owner header: the account's own limits (terminal.quota with its overrides), as before. An
+        owner holding * (admin): the gateway subscriber's own limits, overrides included (today's 1e9), never copied to
+        another row; the usage they are checked against is the owner's own row. Any other owner: the terminal.quota
+        defaults (no override of any row) overlaid by the header's `quota`; a key it leaves out keeps the default."""
+        if caller.owner is None:
+            return store.limits(c, row['subscriber_id'])
+        if caller.caps.admin:
+            return store.limits(c, row['gateway_id'])
+        return {**store.limits(c, 0), **dict(caller.caps.quota)}
+
+    def version_of(caller: Caller):
+        return caller.caps.version if caller.owner is not None else None
+
+    def audit(c, sid, caller, *args, **kwargs):
+        """store.log_access with the entitlements version of an owner's call (a keyword only then, so the audit row of
+        a call without the headers is written exactly as before)."""
+        version = version_of(caller)
+        store.log_access(c, sid, *args, **kwargs, **({'version': version} if version is not None else {}))
 
     # ---- health ----------------------------------------------------------------------------------------------
     @app.get('/health')
@@ -522,7 +674,9 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         """One reference file, counted against the quota under the REF pseudo-ticker (never an opened ticker), one audit
         row. EXEC-MU-RUNTIME T5: the publication's content key when state.json's `refs` index names the file (the
         answer then carries its sha256, bytes and rows, and its bytes count); otherwise, for a publication before the
-        index, the fixed key REF_FILES, with sha256, bytes and rows null. A client never names a key."""
+        index, the fixed key REF_FILES, with sha256, bytes and rows null. A client never names a key. Phase 3c: an
+        owner's plan needs the dataset `reference` (a reference file is no history: never cut)."""
+        need_dataset(caller, 'reference')
         state = bucket.state()
         index = refs_index((state or {}).get('refs')) or {}
         entry = index.get(name) if REF_NAME.fullmatch(name) else None
@@ -548,27 +702,47 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox"})
 
     @app.get(f'{API}/state')
-    def publication(who=Depends(reader)):
+    def publication(who=Depends(known)):
         """EXEC-BACKTEST-LOAD (user 2026-10-27, K1): the publication the files belong to (state.json, read for the manifest
         cache, at most manifest_cache_seconds old). No file is granted: no quota, no audit row. A reader keeps what it
         derives from the files (the backtest catalog) until finished_at changes. EXEC-SCREENER: `xsection` is the
         run's cross-sectional file index ({name: {key, sha256, bytes, rows, as_of}}, null before the publisher writes
         one); it names keys and hashes but grants nothing (the bucket is private), so a reader with the file cached by
         sha256 asks POST /xsection only for the files it lacks. EXEC-MU-RUNTIME T5: `refs` is the reference file index
-        ({name: {key, sha256, bytes, rows}}, null before the publisher writes one), which /reference grants from."""
+        ({name: {key, sha256, bytes, rows}}, null before the publisher writes one), which /reference grants from.
+        Phase 3c: no data file, so no refusal; for an owner whose plan is not * `xsection` is null (it is never granted
+        to an owner) and so is `refs` without the dataset `reference`."""
+        caller = who[0]
         state = bucket.state()
         if not state:
             error(503, 'state_unavailable', 'The publication state could not be read; try again shortly.')
+        if plan(caller):
+            state = {**state, 'xsection': None,
+                     'refs': state.get('refs') if plan(caller).dataset_ok('reference') else None}
         return state
 
     @app.get(f'{API}/manifest/{{ticker}}')
-    def manifest(ticker: str, who=Depends(reader)):
+    def manifest(ticker: str, who=Depends(known)):
+        """Phase 3c: for an owner, a ticker outside its plan is refused, a data set outside it answers {locked,
+        capability}, and with a history cap only the files /files would grant are listed (each entirely after the
+        window start), with `cut` {history_days, after}."""
+        caller = who[0]
+        need_ticker(caller, ticker)
         m = ticker_manifest(ticker)
-        return {'ticker': ticker, 'window': m.get('window'), 'generated_at': m.get('generated_at'),
-                'datasets': {name: {'data_through': ds.get('data_through'),
-                                    'years': {y: {k: f[k] for k in ('bytes', 'rows', 'first', 'last', 'sha256')}
-                                              for y, f in sorted(ds.get('files', {}).items())}}
-                             for name, ds in m.get('datasets', {}).items()}}
+        caps, out = plan(caller), {}
+        for name, ds in m.get('datasets', {}).items():
+            if caps and not caps.dataset_ok(name):
+                out[name] = {'locked': True, 'capability': f'terminal.dataset:{name}'}
+                continue
+            files = sorted(ds.get('files', {}).items())
+            entry = {'data_through': ds.get('data_through')}
+            if caps and caps.history_days is not None:
+                after = window_after(ds.get('data_through'), caps.history_days)
+                files = [(y, f) for y, f in files if after and str(f.get('first') or '')[:10] > after.isoformat()]
+                entry['cut'] = {'history_days': caps.history_days, 'after': after.isoformat() if after else None}
+            out[name] = {**entry, 'years': {y: {k: f[k] for k in ('bytes', 'rows', 'first', 'last', 'sha256')}
+                                            for y, f in files}}
+        return {'ticker': ticker, 'window': m.get('window'), 'generated_at': m.get('generated_at'), 'datasets': out}
 
     pruned = {'at': None}                                    # the first grant of a worker prunes once
 
@@ -582,8 +756,9 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         size = sum(f['bytes'] for _, _, f in chosen)
         ip = ip_of(request)
         with store.tx() as c:
-            sid = admit(c, caller)['subscriber_id']
-            limits = store.limits(c, sid)
+            row = admit(c, caller)
+            sid = row['subscriber_id']
+            limits = limits_of(c, caller, row)
             if caller.kind == 'service':
                 refusal = quota.check_service(caller.name, limits, store.meter(c, sid, len(chosen), size))
                 if refusal:
@@ -592,15 +767,23 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                 take(c, sid, quota.check(limits, store.usage(c, sid), files=len(chosen), ticker=ticker, bytes_=size))
             ttl = limits['url_ttl_seconds']
             if one_row:
-                store.log_access(c, sid, 'file', ticker, ip, dataset=row_dataset, bytes_=size, keys=[f['key'] for _, _, f in chosen])
+                audit(c, sid, caller, 'file', ticker, ip, dataset=row_dataset, bytes_=size, keys=[f['key'] for _, _, f in chosen])
             else:
                 for dataset, y, f in chosen:
-                    store.log_access(c, sid, 'file', ticker, ip, dataset=dataset, year=y, key=f['key'], bytes_=f['bytes'])
+                    audit(c, sid, caller, 'file', ticker, ip, dataset=dataset, year=y, key=f['key'], bytes_=f['bytes'])
         if (pruned['at'] is None or time.monotonic() - pruned['at'] > PRUNE_EVERY_SECONDS) and hasattr(store, 'prune'):
             pruned['at'] = time.monotonic()                  # at most once per worker per 6 hours, outside the quota lock
             with store.tx() as c:
                 store.prune(c, ACCESS_LOG_DAYS)
         return ttl
+
+    def ticker_quota(caller: Caller, ticker):
+        """Phase 3c: a capped owner's /bundle grants no presigned file (its cuts are counted when GET /cut serves them),
+        but it is still held to the ticker quotas before any cut is built (no audit row: nothing is granted yet)."""
+        with store.tx() as c:
+            row = admit(c, caller)
+            take(c, row['subscriber_id'], quota.check(limits_of(c, caller, row), store.usage(c, row['subscriber_id']),
+                                                      ticker=ticker))
 
     def file_answer(y, f, ttl):
         return {'year': y, 'url': bucket.presign(f['key'], ttl), 'sha256': f['sha256'], 'bytes': f['bytes'],
@@ -608,7 +791,11 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
 
     @app.post(f'{API}/files')
     def files(body: FilesRequest, request: Request, caller=Depends(granted)):
+        """Phase 3c: an owner needs the ticker and the data set; with a history cap only a file entirely after the window
+        start (its manifest `first`) is granted, any other is refused (terminal.history_days)."""
         same_origin_post(request)
+        need_ticker(caller, body.ticker)
+        need_dataset(caller, body.dataset)
         m = ticker_manifest(body.ticker)
         published = m.get('datasets', {}).get(body.dataset, {}).get('files', {})
         if body.dataset == 'events':
@@ -624,19 +811,51 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                                                  f'years: {sorted(int(y) for y in published if y.isdigit())}. '
                                                  'Older data: /history.')
         chosen = [(body.dataset, y, published[i]) for y, i in zip(years, ids)]
+        after = window(caller, m, body.dataset)
+        if after is not None:
+            old = [i for (_, _, f), i in zip(chosen, ids) if not str(f.get('first') or '')[:10] > after.isoformat()]
+            if old:
+                beyond(caller, body.dataset, f'The {body.dataset} file(s) {", ".join(old)} of {body.ticker} (rows on or '
+                                             f'before {after.isoformat()})', after)
         ttl = grant(request, caller, body.ticker, chosen)
         return {'ticker': body.ticker, 'dataset': body.dataset, 'expires_in_seconds': ttl, 'encoding': 'gzip json',
                 'files': [file_answer(y, f, ttl) for _, y, f in chosen]}
 
+    cuts = CutCache()
+
+    def cut_of(m, ticker, dataset, days):
+        """The Cut (cut.py) of a dated dataset, None when no row is in the window; CutError when it cannot be cut."""
+        return make_cut(bucket.read, m, ticker, dataset, days, cuts)
+
+    def cut_url(ticker, dataset, sha):
+        return f'{API}/cut/{ticker}/{dataset}?sha256={sha}'
+
     @app.post(f'{API}/bundle')
     def bundle(body: BundleRequest, request: Request, caller=Depends(granted)):
         """The manifest and every published file of the asked datasets of one ticker (oldest year first); a dataset the
-        ticker does not have (broker for an index, events for a ticker without events) answers with no files."""
+        ticker does not have (broker for an index, events for a ticker without events) answers with no files.
+
+        Phase 3c, for an owner whose plan is not *: a ticker outside the plan is refused (terminal.tickers); a dataset
+        outside it answers {"locked": true, "capability": "terminal.dataset:<id>"} with no URL, sha or rows (the asked
+        intraday timeframe likewise, dataset `intraday`). With a history cap N every dated dataset answers one file,
+        its cut (cut.py), in the pack shape the page reads: {"year": null, "pack": "cut", "url":
+        "/api/terminal/v1/cut/<TICKER>/<dataset>?sha256=<hex>" (relative: edge-bff relays it), "sha256", "bytes",
+        "rows"}; `packs` makes no difference, intraday bars are not cut ({locked, capability terminal.history_days,
+        reason}) and a dataset that cannot be cut answers {locked, capability terminal.history_days, reason}, never
+        its whole files."""
         same_origin_post(request)
+        need_ticker(caller, body.ticker)
         m = ticker_manifest(body.ticker)
+        caps = plan(caller)
+        names = list(dict.fromkeys(body.datasets))
+        locked = {n: {'locked': True, 'capability': f'terminal.dataset:{n}'}
+                  for n in names if caps and not caps.dataset_ok(n)}
+        capped = [n for n in names if n not in locked and caps and caps.history_days is not None]
         packs = m.get('packs', {}) if body.packs else {}
         chosen = []
-        for name in dict.fromkeys(body.datasets):
+        for name in names:
+            if name in locked or name in capped:
+                continue
             published = m.get('datasets', {}).get(name, {}).get('files', {})
             ids = ['all'] if name == 'events' else sorted((y for y in published if y.isdigit()), key=int)
             if name in ('price', 'yield') and name in packs:
@@ -649,21 +868,48 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             chosen += [(name, None if i == 'all' else int(i), published[i]) for i in ids if i in published]
         intraday = m.get('intraday') or {}
         series = intraday.get(body.timeframe) if body.timeframe else None
-        if series:
+        intraday_lock = None
+        if body.timeframe and caps and not caps.dataset_ok('intraday'):
+            intraday_lock = {'locked': True, 'capability': 'terminal.dataset:intraday'}
+        elif body.timeframe and caps and caps.history_days is not None:
+            intraday_lock = {'locked': True, 'capability': 'terminal.history_days',
+                             'reason': 'intraday bars are not cut to a window of days, so a plan with a history '
+                                       'limit is not served them'}
+        if series and not intraday_lock:
             chosen += [('intraday', part, series['files'][part]) for part in ('archive', 'current')
                        if part in series.get('files', {})]
+        made = {}
+        if capped:
+            ticker_quota(caller, body.ticker)                # before any bucket read of a cut
+            for name in capped:
+                try:
+                    made[name] = cut_of(m, body.ticker, name, caps.history_days)
+                except CutError as e:
+                    locked[name] = {'locked': True, 'capability': 'terminal.history_days',
+                                    'reason': f'{name} cannot be cut to the plan\'s window: {e.reason}'}
         ttl = grant(request, caller, body.ticker, chosen, one_row=True) if chosen else 0
         out = {}
-        for name in dict.fromkeys(body.datasets):
+        for name in names:
+            if name in locked:
+                out[name] = locked[name]
+                continue
             ds = m.get('datasets', {}).get(name, {})
             out[name] = {'data_through': ds.get('data_through'), 'first_year': ds.get('first_year'),
                          'files': [{**file_answer(None if isinstance(y, str) else y, f, ttl), **({'pack': y} if isinstance(y, str) else {})}
                                    for n, y, f in chosen if n == name]}
+            if name in made:
+                cut = made[name]
+                out[name]['files'] = [] if cut is None else [
+                    {'year': None, 'url': cut_url(body.ticker, name, cut.sha256), 'sha256': cut.sha256,
+                     'bytes': cut.bytes, 'rows': cut.rows, 'pack': 'cut'}]
+                out[name]['cut'] = {'history_days': caps.history_days,
+                                    'after': window_after(ds.get('data_through'), caps.history_days).isoformat()}
         if body.timeframe:
             # the asked timeframe: its files (archive first, then the current period) and how to read them; no files
             # when the ticker has none of it
-            out['intraday'] = {'timeframe': body.timeframe, 'files': [
-                {**file_answer(None, f, ttl), 'part': part} for n, part, f in chosen if n == 'intraday'],
+            out['intraday'] = {'timeframe': body.timeframe, **intraday_lock} if intraday_lock else {
+                'timeframe': body.timeframe, 'files': [
+                    {**file_answer(None, f, ttl), 'part': part} for n, part, f in chosen if n == 'intraday'],
                 **{k: (series or {}).get(k) for k in ('first', 'last', 'rows', 'bars_per_year', 'timezone',
                                                       'utc_offset_seconds', 'period', 'current')}}
         # every intraday timeframe of the ticker, so a page knows which it can offer before asking for one
@@ -672,6 +918,41 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         return {'ticker': body.ticker, 'window': m.get('window'), 'generated_at': m.get('generated_at'),
                 'expires_in_seconds': ttl, 'encoding': 'gzip json', 'datasets': out, 'timeframes': timeframes,
                 'kind': m.get('kind', 'equity'), 'instrument': m.get('instrument')}
+
+    @app.get(f'{API}/cut/{{ticker}}/{{dataset}}')
+    def cut_file(ticker: str, dataset: str, request: Request,
+                 sha256: str = Query(pattern=SHA256.pattern), caller=Depends(granted)):
+        """Phase 3c (decision D2 = A): the cut of one dated dataset of one ticker for the owner whose plan caps the
+        history at N days, N read from x-terminal-capabilities only (never from the query). The answer is the cut's
+        gzip bytes as they are (application/gzip, no Content-Encoding: the page checks the sha256 of these very
+        bytes), with ETag and X-Terminal-Cut-Sha256. It is counted as one file of its bytes, with one audit row
+        (object_key cut/<TICKER>/<dataset>/<N>/<sha256>). `sha256` is the one /bundle announced: when the publication
+        changed since, the current cut is served, the page's check fails and it asks a new /bundle (rack.ts)."""
+        caps = plan(caller)
+        if not caps or caps.history_days is None:
+            error(404, 'no_cut', f'GET {API}/cut serves a cut only to an EDGE owner whose plan limits the history '
+                                 f'(x-terminal-capabilities "history_days": N); this caller has no limit. Fix: ask POST '
+                                 f'{API}/bundle, whose answer names every file to read. Example: POST {API}/bundle '
+                                 f'{{"ticker": "BBCA", "datasets": ["price"], "packs": true}}.')
+        if dataset not in DATED:
+            error(404, 'unknown_dataset', f'A cut is made of a dated data set: {", ".join(DATED)}; {dataset[:32]!r} is '
+                                          f'not one. Example: GET {API}/cut/BBCA/price?sha256=<the hex /bundle gave>.')
+        need_ticker(caller, ticker)
+        need_dataset(caller, dataset)
+        m = ticker_manifest(ticker)
+        try:
+            cut = cut_of(m, ticker, dataset, caps.history_days)
+        except CutError as e:
+            error(503, 'cut_unavailable', f'{dataset} of {ticker} cannot be cut to the plan\'s window: {e.reason}. It is '
+                                          'not served whole; try again after the next publication.')
+        if cut is None:
+            error(404, 'no_rows_in_window', f'{dataset} of {ticker} has no row in the plan\'s last '
+                                            f'{caps.history_days} days; POST {API}/bundle answers it with no file.')
+        grant(request, caller, ticker, [(dataset, None, {'key': f'cut/{ticker}/{dataset}/{caps.history_days}/{cut.sha256}',
+                                                          'bytes': cut.bytes})])
+        return Response(cut.body, media_type='application/gzip',
+                        headers={'ETag': f'"{cut.sha256}"', 'X-Terminal-Cut-Sha256': cut.sha256,
+                                 'X-Terminal-Cut-Rows': str(cut.rows)})
 
     @app.post(f'{API}/xsection')
     def xsection(body: XsectionRequest, request: Request, caller=Depends(xsection_caller)):
@@ -746,12 +1027,21 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                                               f'request them with POST {API}/files. History serves older dates only.')
 
     def run_history(request, caller, ticker, kind, fetch, cols, max_days, lo, hi):
+        """Phase 3c: an owner needs the ticker and the data set (price or broker); with a history cap a range that
+        starts on or before the window start is refused (terminal.history_days), so /history never serves older rows."""
         service_only_files(caller, f'GET {API}/history/{kind.removeprefix("history_")}')
+        dataset = HISTORY_DATASET[kind]
+        need_ticker(caller, ticker)
+        need_dataset(caller, dataset)
         m = ticker_manifest(ticker)
-        history_range(m, 'price' if kind == 'history_price' else 'broker', lo, hi, max_days)
+        after = window(caller, m, dataset)
+        if after is not None and lo <= after:
+            beyond(caller, dataset, f'{dataset} history from {lo.isoformat()}', after)
+        history_range(m, dataset, lo, hi, max_days)
         with store.tx() as c:
-            sid = admit(c, caller)['subscriber_id']
-            limits = store.limits(c, sid)
+            row = admit(c, caller)
+            sid = row['subscriber_id']
+            limits = limits_of(c, caller, row)
             take(c, sid, quota.check(limits, store.usage(c, sid), history=1, ticker=ticker))
             rows = fetch(c)
             data = ({n: [r[k] for r in rows] for n, k in zip(cols, rows[0].keys())} if rows
@@ -759,7 +1049,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             body = {'ticker': ticker, 'from': lo.isoformat(), 'to': hi.isoformat(), 'columns': cols, **data}
             size = len(json.dumps(body, separators=(',', ':')))
             take(c, sid, quota.check(limits, store.usage(c, sid), bytes_=size))
-            store.log_access(c, sid, kind, ticker, ip_of(request), bytes_=size)
+            audit(c, sid, caller, kind, ticker, ip_of(request), bytes_=size)
         return body
 
     @app.get(f'{API}/history/price')
