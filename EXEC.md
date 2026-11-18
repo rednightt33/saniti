@@ -15865,8 +15865,9 @@ Code:
 - the C2 fix `74ed598f` (preset items in the worker catalog, the review per plan);
 - the fix-round tests (ERRORS M482).
 
-The checkers C1-C3 found nothing that blocks the deploy with the switch off. O3b-1 (CONTRACT 8b) waits for the
-user's decision before the switch goes on; O3b-2 was decided 2026-11-18 (user: "Terkait dengan pertanyaan kedua,
+The checkers C1-C3 found nothing that blocks the deploy with the switch off. O3b-1 (CONTRACT 8b), technical part decided 2026-11-18
+(user: "Semua indikator technical sekarang dibuka ... ADX, RSI, dan sebagainya ... bisa diakses oleh user berbayar";
+the technical built-ins are not gated); its flow part waits for the user's decision before the switch goes on; O3b-2 was decided 2026-11-18 (user: "Terkait dengan pertanyaan kedua,
 oke, setuju": the universe chips and the `ma` transform are not gated). The switch stays off, and with `EDGE_ADMIN_OWNERS` unset the configured
 owner holds `*`. So every worker call carries `allow` `"*"` for every kind and `limits` `{}`, and each tab works as
 today. No migration and no variable change.
