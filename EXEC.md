@@ -15957,3 +15957,11 @@ dipakai accross chat sebagai referencec?"
 
   The session's workflow size guideline (under 10 agents per workflow) is kept by running the checks as several
   workflows in sequence.
+- **Re-check of Phases 0-3b (the user, 2026-11-18):** "Cek juga fase sebelumnya, bisa? Jangan sampai fase 3C di bangun
+  dari broken block fase2 sebelumnya. My bad, harusnya ultracode checker dimulai dari awal instead of tengah jalan."
+  - An ultracode re-check of the deployed Phases 0, 1, 2, 3a and 3b is running at xhigh:
+    - round 1: seven finders, one lens each (P0 runtime, P1 authentication, P1 per-user state, P2 entitlements, P3a
+      route gates, P3b worker gates, migrations/grants/records/CI);
+    - then refuters on every finding, further rounds until one finds nothing new, and a completeness critic.
+  - 3c is not merged or deployed until the re-check's findings that affect it are fixed. The 3c builders keep working
+    in their worktrees and rebase onto the fixes.
