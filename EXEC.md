@@ -15900,3 +15900,32 @@ field, because it reads the catalog without a key check.
 Then step 3 of the wire (CONTRACT 8b) is a follow-up change. The workers require `allow` (absent: `INVALID_CONTEXT`),
 including on the unwrapped `/v1/signals` body. Its order: edge-bff is already sending `allow`, so the workers can be
 deployed alone.
+
+## EXEC-DESIGN-SYSTEM — design system EDGE yang dipakai lintas chat (go 2026-11-18)
+
+**Asal:** EDGE Reference Pack 2026-11-17 (salinan apa adanya 8 halaman, di luar Git karena berisi data pasar). User
+2026-11-18: "Kamu bisa buat itu jadi design system? Jangan jalankan dulu. Kalau iya, apakah design sistem tersebut bisa
+dipakai accross chat sebagai referencec?"
+
+**Keputusan user 2026-11-18:**
+- "C": disimpan di dua tempat, skill di repo `.claude/skills/edge-design-system/` (sumber) dan artifact Design System
+  di claude.ai (salinan, dibangun dari skill).
+- Bahan tambahan dari user (2026-11-18, "Tambahkan ini juga" / "Ini juga"): spec v1 dan halamannya, kandidat widget
+  Watchlist, window Foreign × Domestic, Verdict Change Drivers, bentuk indikator hitungan hari, kandidat panel kanan.
+- "v1.2, contoh pola disesuaikan token, 11 usulan setuju, go": spec v1.2 dasar (bukan v1); file desain diambil polanya
+  dengan ukuran token; 11 versi resmi disetujui: (1) token spec v1.2 utuh; (2) kelas terpilih `.on` + aria; (3) tombol
+  segmented terpilih putih timbul di jalur abu (isi hitam tetap khusus Radar); (4) tab bergaris bawah; (5) pill tanggal
+  hijau harga, oranye broker; (6) baris tabel 36 px; (7) angka gaya Inggris dengan minus U+2212 untuk halaman baru
+  (Backtest dibiarkan); (8) fokus input garis abu tanpa bayangan; (9) ikon sprite `.ic` 16 px garis 1,6; (10) tombol
+  utama hitam, varian hijau "siap jalan" untuk tombol yang menjalankan proses; (11) Terminal bukan acuan dan tidak
+  diubah. Hanya untuk halaman baru; halaman lama tidak diubah.
+
+### Hasil (2026-11-18)
+- Repo: `.claude/skills/edge-design-system/`: `SKILL.md` (aturan), `assets/` (spec-v1.2.css, edge-canonical.css,
+  icons.svg, edge-ds.js, showcase.html), `reference/` (components, charts, patterns, new-page), `tools/build_artifact.py`,
+  `README.md`. Satu baris di `AGENTS.md`. Showcase dicek di 1440 px terang/gelap dan 390 px: tanpa error konsol, tanpa
+  geser samping, font Inter.
+- claude.ai: artifact Design System https://claude.ai/artifact/SQwji2RLWXAf8ZKEcfcNww (104 token warna terang/gelap,
+  tipografi, jarak, radius, bayangan, tinggi kontrol; 23 komponen dengan pratinjau langsung; README; sampul), dibangun
+  oleh `tools/build_artifact.py`; semua pratinjau dirender lokal terang/gelap tanpa error. Privat sampai dibagikan dari
+  menu Share.
