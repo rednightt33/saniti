@@ -12,6 +12,7 @@ Phase 1 Principal (app/principal.py) knows `*` and exact keys only, the item gra
 """
 import dataclasses
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -34,6 +35,21 @@ def ids(path, *keys):
     return [row['id'] for row in data]
 
 
+def legacy_flow_types():
+    """The Backtest's legacy flow cards (backtest/src/core/catalog.ts LEGACY, the entries of group 'flow': fnet, broker
+    and top5 today), read from the TypeScript source as data: each `<type>: { group: '<group>', ...` line of the LEGACY
+    object. They read broker data, so they are flow items of the catalog (CONTRACT.md 8b "3b follow-up", user decision
+    2026-11-18); backtest-worker src/validate.ts legacyItemKind gates them by the same group."""
+    src = (BFF / 'backtest/src/core/catalog.ts').read_text(encoding='utf-8')
+    block = re.search(r'export const LEGACY: Record<LegacyType, LegacySpec> = \{\n(.*?)\n\};', src, re.S)
+    assert block, 'backtest/src/core/catalog.ts: the LEGACY object was not found; update legacy_flow_types()'
+    rows = re.findall(r"^\s*(\w+): \{ group: '(\w+)'", block.group(1), re.M)
+    assert len(rows) == block.group(1).count('group:'), 'a LEGACY entry is not on one line `<type>: { group: ...`'
+    types = re.search(r'export type LegacyType = (.*?);', src).group(1)
+    assert {t for t, _ in rows} == set(re.findall(r"'(\w+)'", types)), 'LEGACY and LegacyType differ'
+    return [t for t, group in rows if group == 'flow']
+
+
 def registry_ids():
     """Each kind's ids from the registries the product reads (CONTRACT.md 8a, 'Kinds and their registries')."""
     indicators = ids('terminal/src/data/indRegistry.json')
@@ -44,9 +60,11 @@ def registry_ids():
     assert set(ids('screener/src/core/screener-registry.json', 'candles')) == set(candles)
     return {
         'indicator': indicators,
-        # the Terminal's FL01-FL52, plus the Screener's own entries (fnet, ksei_net) of screener-registry.json flows
+        # the Terminal's FL01-FL52, plus the Screener's own entries (fnet, ksei_net) of screener-registry.json flows,
+        # plus the Backtest's legacy flow cards (fnet, broker, top5; 3b follow-up)
         'flow_indicator': list(dict.fromkeys(ids('terminal/src/data/flowRegistry.json', 'indicators')
-                                             + ids('screener/src/core/screener-registry.json', 'flows'))),
+                                             + ids('screener/src/core/screener-registry.json', 'flows')
+                                             + legacy_flow_types())),
         'candle_pattern': candles,
         'screener_metric': ids('screener/src/core/screener-metrics.json', 'metrics'),
         'screener_preset': ids('screener/src/core/presets.json', 'presets'),
@@ -73,7 +91,7 @@ def test_every_item_of_today_is_released():
     current = releases.load(FILE)
     assert {e['stage'] for kind in KINDS for e in current.entries(kind)} == {'released'}
     assert {kind: len(current.entries(kind)) for kind in KINDS} == {
-        'indicator': 53, 'flow_indicator': 54, 'candle_pattern': 20, 'screener_metric': 55, 'screener_preset': 26}
+        'indicator': 53, 'flow_indicator': 56, 'candle_pattern': 20, 'screener_metric': 55, 'screener_preset': 26}
 
 
 def test_the_module_loads_the_repository_file_and_an_unknown_id_is_lab():
@@ -87,19 +105,29 @@ def test_the_module_loads_the_repository_file_and_an_unknown_id_is_lab():
 
 
 def test_kind_of_family_covers_every_item_family_of_section_8a():
+    # the 3b follow-up (user decision 2026-11-18, "gate-nya adalah terminal"): the indicator and Flow items of every tab
+    # are the Terminal's families; migration 20261118_001 removed backtest/screener.indicator and .flow_indicator
     assert KIND_OF_FAMILY == {
-        'terminal.indicator': 'indicator', 'backtest.indicator': 'indicator', 'screener.indicator': 'indicator',
-        'terminal.flow_indicator': 'flow_indicator', 'backtest.flow_indicator': 'flow_indicator',
-        'screener.flow_indicator': 'flow_indicator', 'backtest.candle_pattern': 'candle_pattern',
-        'screener.candle_pattern': 'candle_pattern', 'screener.metric': 'screener_metric',
-        'screener.preset': 'screener_preset'}
+        'terminal.indicator': 'indicator', 'terminal.flow_indicator': 'flow_indicator',
+        'backtest.candle_pattern': 'candle_pattern', 'screener.candle_pattern': 'candle_pattern',
+        'screener.metric': 'screener_metric', 'screener.preset': 'screener_preset'}
     assert set(KIND_OF_FAMILY.values()) == set(KINDS)
-    # every item family the seed names (8a "Capability rows"), terminal.dataset and monitor.model excepted (they have
-    # no release stage: data sets and models, not catalog items)
-    seeded = {'terminal.indicator', 'terminal.flow_indicator', 'terminal.dataset', 'backtest.indicator',
-              'backtest.flow_indicator', 'backtest.candle_pattern', 'screener.indicator', 'screener.flow_indicator',
+    # every item family the seed names (8a "Capability rows", less the four of 20261118_001), terminal.dataset and
+    # monitor.model excepted (they have no release stage: data sets and models, not catalog items)
+    seeded = {'terminal.indicator', 'terminal.flow_indicator', 'terminal.dataset', 'backtest.candle_pattern',
               'screener.candle_pattern', 'screener.metric', 'screener.preset', 'monitor.model'}
     assert seeded - set(KIND_OF_FAMILY) == {'terminal.dataset', 'monitor.model'}
+    assert set(KIND_OF_FAMILY) - seeded == set()
+
+
+def test_the_legacy_flow_cards_are_flow_items_and_the_technical_cards_are_not():
+    """3b follow-up: the Backtest's built-in cards that read broker data are flow items of the catalog, released; the
+    technical ones (macd, dip and the cards mapped to registry indicators) are part of the Backtest (CONTRACT.md 8b)."""
+    assert legacy_flow_types() == ['fnet', 'broker', 'top5']
+    flows = {e['id']: e['stage'] for e in releases.load(FILE).entries('flow_indicator')}
+    assert all(flows.get(t) == 'released' for t in legacy_flow_types())
+    listed = {e['id'] for kind in KINDS for e in releases.load(FILE).entries(kind)}
+    assert not {'macd', 'dip', 'adx', 'rsi'} & listed
 
 
 def item(kind='indicator', id='I01', stage='released'):
@@ -171,6 +199,7 @@ def lab_file(tmp_path, monkeypatch):
     path = tmp_path / 'releases.json'
     path.write_text(json.dumps({'schema_version': 1, 'note': 'test', 'items': [
         item(id='I01'), item(id='I02', stage='lab'), item(id='I03'), item('flow_indicator', 'FL24'),
+        item('candle_pattern', 'CP01'), item('candle_pattern', 'CP02', 'lab'),
         item('screener_metric', 'rs'), item('screener_preset', 'brk52', 'lab')]}))
     monkeypatch.setattr(releases, 'CURRENT', releases.load(path))
 
@@ -193,7 +222,7 @@ def test_everything_holds_every_entry_at_any_stage(settings, store, lab_file):
         assert entries_of(c, 'indicator') == [{'id': 'I01', 'stage': 'released'}, {'id': 'I02', 'stage': 'lab'},
                                               {'id': 'I03', 'stage': 'released'}]
         assert entries_of(c, 'screener_preset') == [{'id': 'brk52', 'stage': 'lab'}]
-        assert entries_of(c, 'candle_pattern') == []
+        assert entries_of(c, 'candle_pattern') == [{'id': 'CP01', 'stage': 'released'}, {'id': 'CP02', 'stage': 'lab'}]
 
 
 def test_released_stage_on_one_family_holds_only_released_entries_of_that_kind(settings, store, lab_file):
@@ -208,12 +237,14 @@ def test_ids_grant_holds_exactly_those_ids_and_any_family_of_the_kind_counts(set
     with TestClient(app_as(settings, store, StubPrincipal({'terminal.indicator': {'ids': ['I01']}}))) as c:
         assert entries_of(c, 'indicator') == [{'id': 'I01', 'stage': 'released'}]
         assert entries_of(c, 'flow_indicator') == []
-    # a lab id granted by id in another tab's family of the same kind is held too
-    p = StubPrincipal({'terminal.indicator': {'ids': ['I01']}, 'screener.indicator': {'ids': ['I02']},
+    # a lab id granted by id in another tab's family of the same kind is held too (the candlestick patterns keep a
+    # family per tab; the indicators have only the Terminal's since the 3b follow-up)
+    p = StubPrincipal({'backtest.candle_pattern': {'ids': ['CP01']}, 'screener.candle_pattern': {'ids': ['CP02']},
                        'screener.preset': {'all': True}})
     with TestClient(app_as(settings, store, p)) as c:
-        assert entries_of(c, 'indicator') == [{'id': 'I01', 'stage': 'released'}, {'id': 'I02', 'stage': 'lab'}]
+        assert entries_of(c, 'candle_pattern') == [{'id': 'CP01', 'stage': 'released'}, {'id': 'CP02', 'stage': 'lab'}]
         assert entries_of(c, 'screener_preset') == [{'id': 'brk52', 'stage': 'lab'}]
+        assert entries_of(c, 'indicator') == []
 
 
 def test_an_unknown_kind_is_not_found_and_names_the_known_kinds(settings, store):

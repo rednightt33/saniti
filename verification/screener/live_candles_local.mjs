@@ -294,7 +294,9 @@ async function startEdge(workerPort, prices, login, password) {
       if (req.method === 'GET' && ['/api/v1/screener/catalog', '/api/v1/screener/universe'].includes(u.pathname)) return pass(await relay('GET', u.pathname.replace('/api/v1/screener', '/v1'), null));
       if (req.method === 'POST' && u.pathname === '/api/v1/screener/run') {
         if (edge.tamper.refuse?.(JSON.parse(body.toString()))) return json(422, { error: { code: 'LIMIT_EXCEEDED', field: 'definition', message: 'This screen needs about 31000 ms of compute; the limit is 20000 ms.', details: { limit: 'compute_budget', allowed: 20000, needed: 31000, costliest: 'c' } } });
-        const r = await relay('POST', '/v1/run', body);
+        // edge-bff adds the context to the page's body (the worker requires context.allow since the 3b follow-up,
+        // step 3); this stand-in is the switch-off owner: every item
+        const r = await relay('POST', '/v1/run', Buffer.from(JSON.stringify({ ...JSON.parse(body.toString()), context: { allow: { indicator: '*', flow_indicator: '*', candle_pattern: '*', screener_metric: '*' } } })));
         if (!edge.tamper.run || r.status !== 200) return pass(r);
         const doc = JSON.parse((r.headers['content-encoding'] === 'gzip' ? zlib.gunzipSync(r.body) : r.body).toString());
         return json(200, edge.tamper.run(doc, JSON.parse(body.toString())));

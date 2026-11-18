@@ -2421,19 +2421,19 @@ def test_owner_trials_cross_every_line_of_the_owner_within_90_days(app, worker):
 
 REFUSED_ITEM = {'code': 'CAPABILITY_REQUIRED', 'field': 'entry.conditions[0].indicator',
                 'message': 'The indicator I13 of entry condition 1 is not part of your plan.',
-                'details': {'kind': 'indicator', 'id': 'I13', 'capability': 'backtest.indicator:I13'}}
+                'details': {'kind': 'indicator', 'id': 'I13', 'capability': 'terminal.indicator:I13'}}
 
 
 def named_refusal():
     return {**REFUSED_ITEM, 'details': {**REFUSED_ITEM['details'],
-                                        'display_name': errors.display_name('backtest.indicator:I13')}}
+                                        'display_name': errors.display_name('terminal.indicator:I13')}}
 
 
 def test_a_workers_capability_refusal_is_relayed_with_its_display_name(app, worker):
     """CONTRACT.md 8b "3b in detail": the worker's 403 CAPABILITY_REQUIRED of /v1/validate and /v1/signals reaches the
     page unchanged (status, code, field, message, details) with details.display_name added; nothing is queued."""
     c = app
-    assert named_refusal()['details']['display_name'] != 'backtest.indicator:I13'      # never the internal key
+    assert named_refusal()['details']['display_name'] != 'terminal.indicator:I13'      # never the internal key
     worker.validate_error = (403, REFUSED_ITEM)
     r = submit(c, single(), 'item-refused')
     assert r.status_code == 403 and r.json() == {'error': named_refusal()}

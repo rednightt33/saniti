@@ -3,7 +3,8 @@ Backtest and Screener workers, `{"rights", "allow", "limits"}`, built from the p
 refuse_context), when the call is made (a queued backtest reads its owner's principal at dispatch).
 
 - `allow` holds, for each item kind the workers gate, `"*"` (every id, lab included) or the sorted ids of the release
-  file (releases.entries) the principal holds in that worker's family (`p.can(family + ':' + id)`). `"*"` when the
+  file (releases.entries) the principal holds in that worker's family (`p.can(family + ':' + id)`; FAMILIES: the
+  indicator and Flow kinds of both workers read the Terminal's grants). `"*"` when the
   principal holds everything (`*`; the switch-off owner listed in EDGE_ADMIN_OWNERS) or the family's value is
   `{"all": true}`. An id the release file does not list is never sent (tests/test_releases.py keeps every registry id
   in the file).
@@ -22,11 +23,16 @@ from .rights import rights_of
 
 EVERYTHING = '*'
 KINDS = ('indicator', 'flow_indicator', 'candle_pattern', 'screener_metric')
-# CONTRACT.md 8b "Families per worker": a Backtest test condition uses the Screener's metrics (screener.metric)
+# CONTRACT.md 8b "Families per worker", changed by the "3b follow-up" (user decision 2026-11-18, O3b-1: "Pokoknya gate-nya
+# adalah terminal"): the Terminal's item grants decide the indicator and Flow items of the Backtest and the Screener too,
+# so no tab can differ from the Terminal (the backtest.* and screener.* families of those two kinds were removed by
+# migration 20261118_001). A Backtest test condition uses the Screener's metrics (screener.metric). The workers name the
+# same family in a refusal's details.capability (backtest-worker src/access.ts FAMILY, screener-worker src/run.ts
+# CAPABILITY_FAMILY; tests/test_allow.py reads both).
 FAMILIES = {
-    'backtest': {'indicator': 'backtest.indicator', 'flow_indicator': 'backtest.flow_indicator',
+    'backtest': {'indicator': 'terminal.indicator', 'flow_indicator': 'terminal.flow_indicator',
                  'candle_pattern': 'backtest.candle_pattern', 'screener_metric': 'screener.metric'},
-    'screener': {'indicator': 'screener.indicator', 'flow_indicator': 'screener.flow_indicator',
+    'screener': {'indicator': 'terminal.indicator', 'flow_indicator': 'terminal.flow_indicator',
                  'candle_pattern': 'screener.candle_pattern', 'screener_metric': 'screener.metric'},
 }
 CAPABILITY_REQUIRED = 'CAPABILITY_REQUIRED'

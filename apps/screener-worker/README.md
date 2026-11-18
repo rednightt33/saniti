@@ -342,9 +342,12 @@ compute `anchored` or `inventory`). Their catalog entries are marked `access: 'a
 anywhere is refused without the right `flow_point_in_time` (`run.ts restrict`, `CONDITION_RESTRICTED` 422) in
 validate, run, preview and counts. edge-bff leaves these entries out of the catalog of a session without the right.
 
-Plan items (EXEC-MU-ACCOUNTS Phase 3b, deploy step 1): the context also takes `allow` (the principal's
-`screener.indicator`, `screener.flow_indicator`, `screener.candle_pattern` and `screener.metric` grants, each `"*"` or a
-list of ids) and `limits` (a plan's lower ceilings). Absent `allow` means everything, today's behaviour. An item of the
-definition outside `allow` is refused `403 CAPABILITY_REQUIRED` (`run.ts checkAllow`, after `restrict`, before any
-cache read); `/counts` refuses per entry. The rules are in `CONTRACT.md` section 4a; the tests in `tests/allow.test.ts`.
+Plan items (EXEC-MU-ACCOUNTS Phase 3b and its follow-up): the context also takes `allow` (the principal's
+`terminal.indicator`, `terminal.flow_indicator`, `screener.candle_pattern` and `screener.metric` grants, each `"*"` or
+a list of ids: the indicator and Flow items are the Terminal's grants, user decision 2026-11-18) and `limits` (a plan's
+lower ceilings). `allow` is required (step 3 of the 3b deploy order): a body without it, or without a context, is `422
+INVALID_CONTEXT` at `context.allow`; edge-bff sends it on every call, and only the internal calls (the presets of a
+refresh, the core's tests) get everything. An item of the definition outside `allow` is refused `403
+CAPABILITY_REQUIRED` (`run.ts checkAllow`, after `restrict`, before any cache read); `/counts` refuses per entry. The
+tests' `call` (`tests/helpers.ts`) adds edge-bff's context to an object body that names none. The rules are in `CONTRACT.md` section 4a; the tests in `tests/allow.test.ts`.
 The suite runs in CI (`.github/workflows/backtest-lookahead.yml`).

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "note": "Hand-kept release stage of every catalog item (EXEC-MU-ACCOUNTS Phase 2; verification/edge_multiuser/access_tiers/CONTRACT.md section 8a). No script writes this file. stage is 'released' or 'lab'; an id missing here is 'lab' at run time (app/releases.py). Every item that existed on 2026-11-17 is 'released' (user decision 2026-11-17). Kinds and the registries their ids come from: indicator (terminal/src/data/indRegistry.json, the same ids as backtest-registry.json and screener-registry.json indicators); flow_indicator (terminal/src/data/flowRegistry.json indicators, plus the Screener's own entries fnet and ksei_net of screener-registry.json flows); candle_pattern (backtest/src/core/candle-registry.json patterns); screener_metric (screener/src/core/screener-metrics.json metrics); screener_preset (screener/src/core/presets.json presets). tests/test_releases.py fails when a registry id has no entry here or an entry names no registry id.",
+  "note": "Hand-kept release stage of every catalog item (EXEC-MU-ACCOUNTS Phase 2; verification/edge_multiuser/access_tiers/CONTRACT.md section 8a). No script writes this file. stage is 'released' or 'lab'; an id missing here is 'lab' at run time (app/releases.py). Every item that existed on 2026-11-17 is 'released' (user decision 2026-11-17). Kinds and the registries their ids come from: indicator (terminal/src/data/indRegistry.json, the same ids as backtest-registry.json and screener-registry.json indicators); flow_indicator (terminal/src/data/flowRegistry.json indicators, plus the Screener's own entries fnet and ksei_net of screener-registry.json flows, plus the Backtest's legacy flow cards of backtest/src/core/catalog.ts LEGACY group flow: fnet, broker and top5, released 2026-11-18 with the 3b follow-up, CONTRACT.md 8b); candle_pattern (backtest/src/core/candle-registry.json patterns); screener_metric (screener/src/core/screener-metrics.json metrics); screener_preset (screener/src/core/presets.json presets). tests/test_releases.py fails when a registry id has no entry here or an entry names no registry id.",
   "items": [
     {"kind": "indicator", "id": "I01", "stage": "released"},
     {"kind": "indicator", "id": "I02", "stage": "released"},
@@ -109,6 +109,8 @@
     {"kind": "flow_indicator", "id": "FL52", "stage": "released"},
     {"kind": "flow_indicator", "id": "fnet", "stage": "released"},
     {"kind": "flow_indicator", "id": "ksei_net", "stage": "released"},
+    {"kind": "flow_indicator", "id": "broker", "stage": "released"},
+    {"kind": "flow_indicator", "id": "top5", "stage": "released"},
     {"kind": "candle_pattern", "id": "hammer", "stage": "released"},
     {"kind": "candle_pattern", "id": "hanging_man", "stage": "released"},
     {"kind": "candle_pattern", "id": "inverted_hammer", "stage": "released"},

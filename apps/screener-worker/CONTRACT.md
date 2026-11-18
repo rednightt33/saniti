@@ -94,14 +94,19 @@ In this order, before a computing request reaches a thread:
 
 ## 4a. The context: rights, allow, limits (EXEC-BACKTEST-REVAMP P5; EXEC-MU-ACCOUNTS Phase 3b)
 
-Every request body (run, preview, counts, validate) may carry `context`, which edge-bff sets from the session (a page
-never sends it): `{rights?, allow?, limits?}`; `verification/edge_multiuser/access_tiers/CONTRACT.md` section 8b "3b
-in detail" is the specification. Any malformed part, or a field outside these three, is `422 INVALID_CONTEXT` naming
-it (`run.ts parseContext`).
+Every request body (run, preview, counts, validate) carries `context`, which edge-bff sets from the session (a page
+never sends it): `{rights?, allow, limits?}`; `verification/edge_multiuser/access_tiers/CONTRACT.md` section 8b "3b
+in detail" and "3b follow-up" are the specification. Any malformed part, or a field outside these three, is `422
+INVALID_CONTEXT` naming it (`run.ts parseContext`). Since step 3 of the 3b deploy order `allow` is required: a body
+without a context, or a context without `allow`, is `422 INVALID_CONTEXT` at `context.allow`, the message saying how to
+pass it with a right and a wrong example (right: `{"indicator": "*", "flow_indicator": ["FL01"], "candle_pattern": [],
+"screener_metric": "*"}`; wrong: no allow, or `{"indicator": "I01"}`).
 
 - `rights`: distinct known rights (today `flow_point_in_time`); absent: none. A definition reading an admin-only flow
   version without it: `422 CONDITION_RESTRICTED` (`run.ts restrict`).
-- `allow` (deploy step 1 of 3b: optional, absent = everything, today's behaviour): an object with exactly the kinds
+- `allow` (required since step 3; edge-bff expands the indicator and Flow kinds from the Terminal's grants,
+  `terminal.indicator` and `terminal.flow_indicator`, user decision 2026-11-18 "gate-nya adalah terminal"): an object
+  with exactly the kinds
   `indicator`, `flow_indicator`, `candle_pattern`, `screener_metric`, each `"*"` or a list of distinct ids (possibly
   empty). Every item the normalized definition names is checked (`run.ts checkAllow`): indicator refs (`indicator`);
   `flow.metric`, the Screener's own `fnet` and `ksei_net` included (`flow_indicator`); `pattern.type`, a candle id as
@@ -111,8 +116,9 @@ it (`run.ts parseContext`).
   presets reach the worker as such definitions). The four transform metrics `hi52`, `lo52`, `rs` and `vol_ratio` reach
   the wire as their transform with no id and are not gated by id. An item outside `allow` answers `403
   CAPABILITY_REQUIRED` with `field` (its JSON path, e.g. `definition.conditions[2].test.metric.indicator`), `details:
-  {kind, id, capability}` (`capability` = `screener.indicator:<id>`, `screener.flow_indicator:<id>`,
-  `screener.candle_pattern:<id>` or `screener.metric:<id>`) and a message naming the item, that the plan does not
+  {kind, id, capability}` (`capability` = `terminal.indicator:<id>`, `terminal.flow_indicator:<id>`,
+  `screener.candle_pattern:<id>` or `screener.metric:<id>`: the family edge-bff expands for this worker, `run.ts
+  CAPABILITY_FAMILY` = edge-bff `app/allow.py FAMILIES`) and a message naming the item, that the plan does not
   include it, and how to pass. `/counts` answers it per entry (`{item_id, error}`), so one locked saved screen does not
   fail the others.
 - `limits`: only `max_cpu_ms`, `owner_cpu_ms`, `owner_inflight`, `max_conditions`, `max_metric_filters`, `max_counts`

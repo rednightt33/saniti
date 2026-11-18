@@ -82,7 +82,7 @@ describe('access(), can() and limit() mirror the server (contract 8a)', () => {
     const c = sessionClient(server({ plan:null, role:'admin', status:'active', version:'env', capabilities:['*'], limits:{}, seed:true, mfa_ok:true }).f as any);
     await c.session();
     expect(c.access()?.version).toBe('env');
-    expect([c.can('terminal.view'), c.can('admin.access'), c.can('backtest.flow_indicator:FL01')]).toEqual([true, true, true]);
+    expect([c.can('terminal.view'), c.can('admin.access'), c.can('terminal.flow_indicator:FL01')]).toEqual([true, true, true]);
   });
   it('a session answer with no access object (an older server) holds nothing and has no limits', async () => {
     const c = sessionClient(server(undefined).f as any);

@@ -179,7 +179,8 @@ def test_released_versus_lab_items_and_everything(on, store, monkeypatch):
     subscribe(store, admin['user_id'], everything_plan)
     p, a = principal_of(on, store, paid['owner_key']), principal_of(on, store, admin['owner_key'])
     assert p.can('terminal.indicator:I01') and not p.can('terminal.indicator:I99')           # released held, lab refused
-    assert p.can('backtest.flow_indicator:FL24') and not p.can('backtest.flow_indicator:FL99')
+    assert p.can('terminal.flow_indicator:FL24') and not p.can('terminal.flow_indicator:FL99')
+    assert not p.can('backtest.flow_indicator:FL24')      # removed by 20261118_001: the Terminal's family decides
     assert p.can('terminal.dataset:anything') and not p.can('monitor.model:x/y')               # {"all": true}; the Monitor
     # left the paid plan in Phase 3a (decisions D1 and D8: admin only)
     assert p.limit('watchlist.lists') == 20 and p.limit('watchlist.per_list') == 50 and p.limit('watchlist.indicators') == 8
@@ -327,7 +328,8 @@ def test_the_runtime_role_reads_the_catalog_and_never_deletes_a_subscription(sto
 
 def test_every_seed_capability_has_a_plain_meaning(store):
     rows = db(store, 'SELECT capability_key, kind, means, display_name FROM edge_bff.capabilities')
-    assert len(rows) == 48                     # the 41 of 20261117_003 and the 7 of Phase 3a (20261117_004)
+    # the 41 of 20261117_003, the 7 of Phase 3a (20261117_004), less the 4 families of the 3b follow-up (20261118_001)
+    assert len(rows) == 44
     for r in rows:
         assert len(r['means']) >= 20 and r['means'].endswith('.') and not re.search(r'[A-Z]{2,}_', r['means']), r
 

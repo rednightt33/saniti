@@ -8,7 +8,8 @@
                                   200 {ok: true, lineage_key, variant_hash, tickers} | 422 (validate.ts on the reference
                                   ticker and broker lists, then run.ts checkPublished on terminal-api's manifests:
                                   FLOW_DATA_THROUGH, PERIOD_AFTER_DATA; no /bundle, no file)
-   POST /v1/signals               SignalsPreviewRequest -> SignalsPreview, computed on the preview thread while the
+   POST /v1/signals {request, context}
+                                  SignalsPreviewRequest -> SignalsPreview, computed on the preview thread while the
                                   caller waits; one preview at a time, the next ones wait in arrival order; a preview
                                   whose caller leaves is dropped from the queue or stopped, and one whose caller left
                                   while its reference lists were read is never queued (review V1)
@@ -27,9 +28,12 @@
    POST /v1/jobs/{id}/cancel      202 JobStatus; a running job stops at its next check and ends CANCELLED (a result
                                   that completes after the cancel is dropped); an ended job is left as it is
    context (validate, signals, jobs): rights (P5), and from EDGE multi-user Phase 3b (access.ts) allow, the plan's items
-   per kind ("*" or the ids; absent: every item), and limits, the plan's per-request limits (the smaller of the
-   worker's and the plan's; absent: the worker's). An item outside allow is 403 CAPABILITY_REQUIRED (validate.ts);
-   a malformed allow or limits is 422 INVALID_CONTEXT.
+   per kind ("*" or the ids), and limits, the plan's per-request limits (the smaller of the worker's and the plan's;
+   absent: the worker's). allow is required (step 3 of the 3b deploy order, CONTRACT 8b "3b follow-up"): a body
+   without a context, or a context without allow, is 422 INVALID_CONTEXT naming context.allow with a right example,
+   and a /v1/signals body without the {request, context} wrapper is refused the same way (it would carry no allow).
+   Only the internal calls (tests, the look-ahead gate) leave allow out and get every item. An item outside allow is
+   403 CAPABILITY_REQUIRED (validate.ts); a malformed allow or limits is 422 INVALID_CONTEXT.
    Errors: {"error": {code, field?, message?, details?}} with errors.ts statuses (validation 422, a plan's item 403,
    data 424, BUSY and NOT_FINISHED 409, UNKNOWN_JOB 404, TIMEOUT 504). A job, a preview, a validation and a catalog each get
    limits.timeout_seconds; a job or preview over it has its thread terminated (FAILED TIMEOUT / 504 TIMEOUT).
@@ -52,7 +56,7 @@ import { errorFields, log } from './log.ts';
 import { checkPublished } from './run.ts';
 import { TerminalClient } from './terminal.ts';
 import { checkRequest } from './validate.ts';
-import { ALLOW_ALL, allowOf, applyLimits, limitsOf } from './access.ts';
+import { ALLOW_HOW, applyLimits, limitsOf, requiredAllowOf } from './access.ts';
 import type { Allow, PlanLimits } from './access.ts';
 import { D_RIGHT } from './pit/spec.ts';
 import type { CheckedRequest, References } from './validate.ts';
@@ -77,14 +81,15 @@ export function rightsOf(v: unknown, field = 'context.rights'): string[] {
 /** What a context grants (Phase 3b, access.ts): the rights, the plan's items (absent: every item) and the plan's
     limits (absent: the worker's own). */
 export interface Grants { rights: string[]; allow: Allow; limits: PlanLimits }
-/** The grants of a {request, context} body's context ({rights, allow, limits}, each optional; absent: no rights, every
-    item, the worker's limits). */
+/** The grants of a {request, context} body's context ({rights, allow, limits}): allow required (step 3 of the 3b
+    deploy order; absent, or no context at all, INVALID_CONTEXT naming context.allow); rights absent: none; limits
+    absent: the worker's own. */
 export function contextGrants(c: unknown): Grants {
-  if (c === undefined) return { rights: [], allow: ALLOW_ALL, limits: {} };
+  if (c === undefined) throw invalid('INVALID_CONTEXT', 'context.allow', `The body has no context: send {request, context: {rights, allow, limits}}; ${ALLOW_HOW}.`);
   if (!c || typeof c !== 'object' || Array.isArray(c)) throw invalid('INVALID_CONTEXT', 'context', 'context must be an object {rights, allow, limits}.');
   for (const k of Object.keys(c)) if (!['rights', 'allow', 'limits'].includes(k)) throw invalid('UNKNOWN_FIELD', `context.${k}`, `context.${k} is not a field of this context.`);
   const x = c as { rights?: unknown; allow?: unknown; limits?: unknown };
-  return { rights: rightsOf(x.rights), allow: allowOf(x.allow), limits: limitsOf(x.limits) };
+  return { rights: rightsOf(x.rights), allow: requiredAllowOf(x.allow), limits: limitsOf(x.limits) };
 }
 export const JOB_ID = /^bt_[0-9a-f]{32}$/;            // edge-bff backtest.py JOB_ID ('bt_' + secrets.token_hex(16))
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -264,7 +269,7 @@ export function createApp(cfg: Config): WorkerApp {
     const prior_trials = trialsOf(c.prior_trials, 'prior_trials');
     // K6 a: the owner's trials across lines (absent from an edge-bff before it: no owner-wide deflated Sharpe)
     const owner_trials = c.owner_trials === undefined ? undefined : trialsOf(c.owner_trials as unknown[], 'owner_trials');
-    return { job_id, request, prior_trials, owner_trials, rights: rightsOf(c.rights), allow: allowOf(c.allow), limits: limitsOf(c.limits) };
+    return { job_id, request, prior_trials, owner_trials, rights: rightsOf(c.rights), allow: requiredAllowOf(c.allow), limits: limitsOf(c.limits) };
   }
 
   /* ---- previews: one at a time on the preview thread, the next ones wait in arrival order ---- */
@@ -352,11 +357,14 @@ export function createApp(cfg: Config): WorkerApp {
     }
     if (path === '/v1/signals') {
       allow('POST');
-      // EXEC-BACKTEST-REVAMP P5: {request, context} as /v1/jobs (the bare request of an edge-bff from before P5 is still
-      // read, with no rights: the deploy order puts the worker first)
+      // EXEC-BACKTEST-REVAMP P5: {request, context} as /v1/jobs. The bare request an edge-bff from before P5 sent was
+      // read until step 3 of the 3b deploy order (CONTRACT 8b "3b follow-up"): it carries no allow, so it is refused
+      // INVALID_CONTEXT context.allow, as a wrapped body without allow is
       const raw0 = parseJson(raw), wrapped = !!raw0 && typeof raw0 === 'object' && !Array.isArray(raw0) && 'request' in raw0;
-      if (wrapped && Object.keys(raw0 as object).some(k => k !== 'request' && k !== 'context')) throw invalid('INVALID_REQUEST', 'body', 'The body must be {request, context}.');
-      const body = wrapped ? (raw0 as { request: unknown }).request : raw0, g = contextGrants(wrapped ? (raw0 as { context?: unknown }).context : undefined);
+      if (!wrapped && !!raw0 && typeof raw0 === 'object' && !Array.isArray(raw0) && 'schema_version' in raw0)
+        throw invalid('INVALID_CONTEXT', 'context.allow', `The body is a bare signals request with no context: send {request: <the preview request>, context: {rights, allow, limits}}; ${ALLOW_HOW}.`);
+      if (!wrapped || Object.keys(raw0 as object).some(k => k !== 'request' && k !== 'context')) throw invalid('INVALID_REQUEST', 'body', 'The body must be {request, context}.');
+      const body = (raw0 as { request: unknown }).request, g = contextGrants((raw0 as { context?: unknown }).context);
       const left = callerWatch(res), asked = performance.now();
       const list = await within('The reference list', refs());
       if (left()) return;                                                // nobody waits for it: never queued

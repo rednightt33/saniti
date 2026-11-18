@@ -69,7 +69,9 @@ const mark = (name, extraFields = {}) => { steps.push({ name, rss_mb: MB(rss()),
 const after = async (label, seconds) => { let at = 0; for (const s of seconds) { await sleep((s - at) * 1000); at = s; mark(`${label} +${s}s`) } };
 const base = `http://127.0.0.1:${PORT}`, H = { 'content-type': 'application/json', 'x-backtest-worker-key': KEY };
 const post = (p, body) => fetch(base + p, { method: 'POST', headers: H, body: JSON.stringify(body) });
-const preview = tickers => post('/v1/signals', { request: { schema_version: 1, tickers, period: { from: q.period.from, to: q.period.to }, entry: q.entry }, context: { rights: [] } });
+// the context edge-bff sends (the worker requires context.allow since the 3b follow-up, step 3): every item
+const ALLOW = { indicator: '*', flow_indicator: '*', candle_pattern: '*', screener_metric: '*' };
+const preview = tickers => post('/v1/signals', { request: { schema_version: 1, tickers, period: { from: q.period.from, to: q.period.to }, entry: q.entry }, context: { rights: [], allow: ALLOW } });
 
 for (let i = 0; i < 300; i++) { try { if ((await fetch(base + '/health')).ok) break } catch {} await sleep(100) }
 mark('started');
@@ -77,7 +79,7 @@ let t0 = performance.now(), r = await preview(picked);
 mark(`preview of ${picked.length} stock(s)`, { status: r.status, ms: Math.round(performance.now() - t0), rows: ((await r.json()).rows || []).length });
 await after('after the preview', [1, 3]);
 const id = 'bt_' + 'a'.repeat(32);
-t0 = performance.now(); r = await post('/v1/jobs', { job_id: id, request: q, context: { job_id: id, prior_trials: [], rights: [] } });
+t0 = performance.now(); r = await post('/v1/jobs', { job_id: id, request: q, context: { job_id: id, prior_trials: [], rights: [], allow: ALLOW } });
 let st = { state: `submit ${r.status}` };
 if (r.status === 202) for (;;) {
   await sleep(200);

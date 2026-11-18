@@ -921,10 +921,12 @@ page on the stub API; in CI, `.github/workflows/backtest-page-smoke.yml`, user "
 not in the repository).
 
 **13.12 Plan items and limits on the worker (EDGE multi-user Phase 3b; user go 2026-11-17 "Aman, lanjutkan";
-`verification/edge_multiuser/access_tiers/CONTRACT.md` 8b "3b in detail").** Every context (validate, signals, jobs)
-may carry, beside `rights`:
+`verification/edge_multiuser/access_tiers/CONTRACT.md` 8b "3b in detail" and "3b follow-up", user decision 2026-11-18,
+O3b-1).** Every context (validate, signals, jobs) carries, beside `rights`:
 - `allow` `{"indicator", "flow_indicator", "candle_pattern", "screener_metric"}`: each `"*"` (every id, lab included) or
-  a list of distinct non-empty ids (possibly empty), the principal's grants edge-bff expands against `releases.json`.
+  a list of distinct non-empty ids (possibly empty), the principal's grants edge-bff expands against `releases.json`
+  (the indicator and Flow kinds from the Terminal's grants, `terminal.indicator` and `terminal.flow_indicator`: "gate-nya
+  adalah terminal", so the Backtest never offers an item the Terminal closes).
   All four kinds are named; another key, a missing kind, `"*"` misspelt or a repeated id is 422 `INVALID_CONTEXT` at
   `context.allow.<kind>`. The worker does not require the list sorted.
 - `limits` `{name: whole number}`: the plan's own per-request ceilings, each taken as `min(worker's, plan's)`, never
@@ -933,18 +935,22 @@ may carry, beside `rights`:
   `queued_per_owner`, `window_bars`: not per-request limits of the worker) is 422 `INVALID_CONTEXT` at
   `context.limits.<name>`. edge-bff sends `{}` today (no plan sets one). A check then refuses with the plan's value in
   `details.allowed` (`LIMIT_EXCEEDED`, `INVALID_PORTFOLIO`, as section 3). The catalog keeps the worker's own limits.
-- Deploy step 1 (this worker): both optional; absent `allow` = every item, absent `limits` = the worker's, today's
-  behaviour. Step 2: edge-bff sends them on every call (`"*"` for every kind with the switch off). Step 3: a follow-up
-  worker requires `allow` (absent: `INVALID_CONTEXT`).
+- Deploy order: step 1, the worker took both as optional; step 2, edge-bff sends them on every call (`"*"` for every
+  kind with the switch off); step 3 (the 3b follow-up), the worker requires `allow`: a body without a context, or a
+  context without `allow`, is 422 `INVALID_CONTEXT` at `context.allow`, the message naming how to pass it with a right
+  and a wrong example (`access.ts ALLOW_HOW`). A `/v1/signals` body without the `{request, context}` wrapper (the bare
+  preview of an edge-bff from before P5) is refused the same way. `limits` stays optional (absent: the worker's).
 - Internal calls (tests, the look-ahead gate suite: `checkRequest`, `checkSignalsRequest`, `runJob`, `runSignals`
-  without `allow`) get every item; only the HTTP layer (`server.ts contextGrants`) reads the context.
+  without `allow`) get every item; only the HTTP layer (`server.ts contextGrants`, `checkJobBody`) reads the context.
 
 An item outside `allow` is **403 `CAPABILITY_REQUIRED`**, `field` the JSON path of the item's id, `details {kind, id,
-capability}`, `capability` the family key: `backtest.indicator:<id>`, `backtest.flow_indicator:<id>`,
-`backtest.candle_pattern:<id>`, or `screener.metric:<id>` (a test condition reads the Screener's metrics). The message
-names the item and says the plan does not include it, for example `exit.stop.line.indicator: the indicator I09 is not
-included in your plan (backtest.indicator:I09); remove it or change the plan to run this strategy.` (right: a strategy
-whose items are all in the plan; wrong: a stop on a line the plan lacks). edge-bff relays it and adds `display_name`.
+capability}`, `capability` the family key edge-bff expands for this worker (`access.ts FAMILY` = edge-bff
+`app/allow.py FAMILIES`, held by `tests/test_allow.py`): `terminal.indicator:<id>`, `terminal.flow_indicator:<id>` (the
+Terminal's grants since the 3b follow-up), `backtest.candle_pattern:<id>`, or `screener.metric:<id>` (a test condition
+reads the Screener's metrics). The message names the item and says the plan does not include it, for example
+`exit.stop.line.indicator: the indicator I09 is not included in your plan (terminal.indicator:I09); remove it or change
+the plan to run this strategy.` (right: a strategy whose items are all in the plan; wrong: a stop on a line the plan
+lacks). edge-bff relays it and adds `display_name` (the catalog's, "Terminal indicators: I09").
 
 Where (`apps/backtest-worker/src/validate.ts`, `access.ts`, `grammar.ts testItems`), enabled and switched-off conditions
 alike (both are stored with the job):
@@ -964,8 +970,25 @@ The plan check of a condition list comes before the other checks of its conditio
 `vol_ratio` (on the wire they are transforms, with no id). A legacy `price_action` or `flow` card whose `type` is a
 catalog id is checked by that id at `...conditions[i].type` (`validate.ts legacyItemKind`, derived from the registries
 at load: a `screener-metrics.json` metric id is `screener_metric`, a Flow id of the Screener registry, the Terminal's
-FL ids and `fnet`/`ksei_net`, is `flow_indicator`, a candlestick id `candle_pattern`); today `breakout`, `volspike` and
-`macross` (`screener.metric:<id>`) and `fnet` (`backtest.flow_indicator:fnet`). The legacy types with no catalog id are
-built in and not gated: `dip`, `macd`, `top5`, `broker`. A job is checked at the hand-over and
-again on the job thread (`run.ts runJob`), so a queued job edge-bff dispatches with a narrower `allow` ends `FAILED
-CAPABILITY_REQUIRED`.
+FL ids and `fnet`/`ksei_net`, or a card of the core's flow group, `catalog.ts LEGACY` group `flow`, is `flow_indicator`,
+a candlestick id `candle_pattern`); today `breakout`, `volspike` and `macross` (`screener.metric:<id>`) and `fnet`,
+`broker` and `top5` (`terminal.flow_indicator:<id>`). A job is checked at the hand-over and again on the job thread
+(`run.ts runJob`), so a queued job edge-bff dispatches with a narrower `allow` ends `FAILED CAPABILITY_REQUIRED`.
+
+**The built-in options (O3b-1, user decision 2026-11-18).** Some options compute a catalog item without naming its id.
+The user's words: "Semua indikator technical sekarang dibuka, ya ditutup potentially hanya indikator yang sifatnya flow
+... ADX, RSI, dan sebagainya, pokoknya indikator yang untuk yang technical by nature itu nanti bisa diakses oleh user
+berbayar" and "menu yang akan ditutup di terminal adalah menu yang sifatnya flow". So:
+
+| Option | Computes | Gated |
+|---|---|---|
+| `portfolio.rank_by` `adx` / `vol` / `rsi` | I07 / I35 / I13 (`signals.ts rankScores`) | no: part of the Backtest |
+| `portfolio.rank_by` `fnet` | the Screener flow entry `fnet` | yes, by `fnet` at `portfolio.rank_by` (`signals.ts RANK_ITEM`) |
+| the legacy `price_action` card `macd` (and `dip`) | I06 (`dip`: the day's return) | no: part of the Backtest |
+| the ATR stop, the ATR target, the chandelier trailing stop | I30 (`engine.ts atrParams`) | no: part of the Backtest |
+| the legacy `flow` cards `fnet`, `broker`, `top5` | broker data | yes, each by its own id (catalog items, `releases.json`) |
+
+`RANK_ITEM` in `core/signals.ts` names the item each ranking reads (`null` for none); `validate.ts checkRequest` gates
+from it, before the broker data is asked for, so a new ranking that reads an item is gated by declaring it there
+(`tests/c1-phase3b.test.ts`). A new legacy flow card is a catalog item by its group: edge-bff
+`tests/test_releases.py` derives the flow ids from `LEGACY` and fails until `releases.json` lists it.

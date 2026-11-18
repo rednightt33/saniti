@@ -5,7 +5,11 @@ beside app/, so the file is ../catalog/releases.json from this package both in t
 the image). The file is read once, when this module is imported, so a malformed file stops edge-bff at start with a
 message naming the problem rather than refusing items at run time.
 
-- `KINDS`: the item kinds of the file (each with its registry, tests/test_releases.py).
+- `KINDS`: the item kinds of the file (each with its registry, tests/test_releases.py). The ids of a kind are derived
+  there from the registries the product reads; flow_indicator also takes the Backtest's legacy flow cards
+  (backtest/src/core/catalog.ts LEGACY, group 'flow': fnet, broker, top5), read from the TypeScript source as data
+  (CONTRACT.md 8b "3b follow-up"). The image carries only this file, never the registries, so the derivation is the
+  test's, the stages the file's.
 - `KIND_OF_FAMILY`: the capability family of an item (`<tab>.<item kind>`, the part before ':' of
   `terminal.indicator:I01`) mapped to its kind; the id space of a kind is shared by every tab.
 - `stage_of(kind, item_id)`: 'released' or 'lab'; an id the file does not list is 'lab' (a new item starts in the lab).
@@ -21,9 +25,9 @@ STAGES = ('lab', 'released')
 LAB = 'lab'
 KINDS = ('indicator', 'flow_indicator', 'candle_pattern', 'screener_metric', 'screener_preset')
 KIND_OF_FAMILY = {
-    'terminal.indicator': 'indicator', 'backtest.indicator': 'indicator', 'screener.indicator': 'indicator',
-    'terminal.flow_indicator': 'flow_indicator', 'backtest.flow_indicator': 'flow_indicator',
-    'screener.flow_indicator': 'flow_indicator',
+    # the indicator and Flow items of every tab are granted by the Terminal's families (3b follow-up, user decision
+    # 2026-11-18; migration 20261118_001 removed backtest/screener.indicator and backtest/screener.flow_indicator)
+    'terminal.indicator': 'indicator', 'terminal.flow_indicator': 'flow_indicator',
     'backtest.candle_pattern': 'candle_pattern', 'screener.candle_pattern': 'candle_pattern',
     'screener.metric': 'screener_metric',
     'screener.preset': 'screener_preset',

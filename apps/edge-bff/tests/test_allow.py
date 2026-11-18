@@ -1,7 +1,9 @@
 """EXEC-MU-ACCOUNTS Phase 3b (CONTRACT.md 8b "3b in detail"): the worker context's allow, limits and digest
 (app/allow.py), built from a principal only. The wire of each worker call is checked in test_backtest.py and
 test_screener.py; here the expansion itself, against a test release file that holds a lab id."""
+import re
 import types
+from pathlib import Path
 
 import pytest
 
@@ -59,14 +61,46 @@ def test_a_paid_plan_of_released_stages_gets_every_released_id_and_no_lab_id():
 
 
 def test_all_true_is_star_and_ids_only_are_those_ids_of_the_file():
-    p = principal({'backtest.indicator': ('items', {'all': True}),
-                   'backtest.flow_indicator': ('items', {'ids': ['FL90', 'FL11']}),
-                   'backtest.candle_pattern': ('items', {'ids': []}),
+    p = principal({'terminal.indicator': ('items', {'all': True}),
+                   'terminal.flow_indicator': ('items', {'ids': ['FL90', 'FL11']}),
+                   'backtest.candle_pattern': ('items', {'ids': ['CP01']}),
                    'screener.metric': ('items', {'ids': ['lab_m', 'not_in_the_file']})})
-    assert allow_of(p, 'backtest') == {'indicator': '*', 'flow_indicator': ['FL11', 'FL90'], 'candle_pattern': [],
+    assert allow_of(p, 'backtest') == {'indicator': '*', 'flow_indicator': ['FL11', 'FL90'], 'candle_pattern': ['CP01'],
                                        'screener_metric': ['lab_m']}
-    # the Screener reads its own families for three kinds and shares screener.metric
-    assert allow_of(p, 'screener') == {'indicator': [], 'flow_indicator': [], 'candle_pattern': [], 'screener_metric': ['lab_m']}
+    # the 3b follow-up (user decision 2026-11-18, "gate-nya adalah terminal"): both workers read the Terminal's
+    # indicator and Flow grants and share screener.metric; the candlestick patterns keep a family per worker
+    assert allow_of(p, 'screener') == {'indicator': '*', 'flow_indicator': ['FL11', 'FL90'], 'candle_pattern': [],
+                                       'screener_metric': ['lab_m']}
+
+
+def test_the_indicator_and_flow_families_of_both_workers_are_the_terminals():
+    """CONTRACT.md 8b "3b follow-up": one source, so no tab can differ from the Terminal; the removed tab families
+    (migration 20261118_001) grant nothing even when a stale row would still name one."""
+    for worker in ('backtest', 'screener'):
+        assert FAMILIES[worker]['indicator'] == 'terminal.indicator'
+        assert FAMILIES[worker]['flow_indicator'] == 'terminal.flow_indicator'
+    stale = principal({'backtest.indicator': ('items', {'all': True}), 'screener.flow_indicator': ('items', {'all': True})})
+    for worker in ('backtest', 'screener'):
+        assert allow_of(stale, worker) == {k: [] for k in KINDS}
+
+
+ROOT = Path(__file__).resolve().parents[3]
+
+
+def worker_families(path, name):
+    """A worker's family table ({kind: family}) read from its TypeScript source as data."""
+    src = (ROOT / path).read_text(encoding='utf-8')
+    block = re.search(name + r'[^=]*= (?:Object\.freeze\()?\{(.*?)\}', src, re.S)
+    assert block, f'{path}: {name} not found'
+    return dict(re.findall(r"(\w+): '([a-z_.]+)'", block.group(1)))
+
+
+def test_each_worker_names_the_family_edge_bff_checks_in_its_refusal():
+    """A worker's 403 CAPABILITY_REQUIRED carries details.capability = <family>:<id>; the family must be the one
+    allow.FAMILIES expands for that worker, so the refusal names the grant the plan lacks and its display_name is the
+    catalog's (errors.display_name of a family that has a capabilities row)."""
+    assert worker_families('apps/backtest-worker/src/access.ts', 'export const FAMILY') == FAMILIES['backtest']
+    assert worker_families('apps/screener-worker/src/run.ts', 'export const CAPABILITY_FAMILY') == FAMILIES['screener']
 
 
 def test_the_digest_follows_rights_allow_and_limits():
@@ -80,10 +114,10 @@ def test_the_digest_follows_rights_allow_and_limits():
 
 
 def test_a_worker_capability_refusal_gets_the_display_name(monkeypatch):
-    monkeypatch.setattr(errors, '_names', {'backtest.indicator': 'Backtest indicators'})
+    monkeypatch.setattr(errors, '_names', {'terminal.indicator': 'Terminal indicators'})
     refused = {'code': 'CAPABILITY_REQUIRED', 'field': 'entry.conditions[0].indicator', 'message': 'I07 is not in the plan.',
-               'details': {'kind': 'indicator', 'id': 'I07', 'capability': 'backtest.indicator:I07'}}
-    assert named(refused) == {**refused, 'details': {**refused['details'], 'display_name': 'Backtest indicators: I07'}}
+               'details': {'kind': 'indicator', 'id': 'I07', 'capability': 'terminal.indicator:I07'}}
+    assert named(refused) == {**refused, 'details': {**refused['details'], 'display_name': 'Terminal indicators: I07'}}
     assert named({'code': 'INVALID_CONDITION', 'field': 'x'}) == {'code': 'INVALID_CONDITION', 'field': 'x'}
     assert named({'code': 'CAPABILITY_REQUIRED'}) == {'code': 'CAPABILITY_REQUIRED'}      # nothing to name
     monkeypatch.setattr(errors, '_names', {})

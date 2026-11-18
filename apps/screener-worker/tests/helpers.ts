@@ -33,8 +33,19 @@ export function captureLogs(): { lines: Record<string, any>[]; events(name: stri
 }
 
 export interface Answer { status: number; headers: http.IncomingHttpHeaders; body: any; raw: Buffer }
+/** The context edge-bff sends on every call of the routes below (EXEC-MU-ACCOUNTS 3b, step 3 of the deploy order,
+    CONTRACT 8b "3b follow-up": the worker requires context.allow): the switch-off owner's, every item. call() adds it to
+    a JSON object body of those routes that names no context, so each test reads as edge-bff's call. A test of the
+    context itself sends its own `context` (kept as it is, with or without allow), or the body as a string, sent exactly
+    as written (allow.test.ts: the refusal of a body without one). */
+export const EDGE_CONTEXT = Object.freeze({ allow: Object.freeze({ indicator: '*', flow_indicator: '*', candle_pattern: '*', screener_metric: '*' }) });
+const CONTEXT_ROUTES = new Set(['/v1/run', '/v1/preview', '/v1/validate', '/v1/counts']);
+const asEdgeSends = (method: string, path: string, body: unknown): unknown =>
+  method === 'POST' && CONTEXT_ROUTES.has(path.split('?')[0]) && !!body && typeof body === 'object' && !Array.isArray(body) && !('context' in body)
+    ? { ...body, context: EDGE_CONTEXT } : body;
 /** One request to the worker; gzip answers inflated; JSON parsed. */
 export function call(port: number, method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<Answer> {
+  body = asEdgeSends(method, path, body);
   return new Promise((ok, no) => {
     const data = body === undefined ? null : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
     const req = http.request({ host: '127.0.0.1', port, method, path, headers: { 'accept-encoding': 'gzip', ...(data ? { 'content-type': 'application/json', 'content-length': String(data.length) } : {}), ...headers } }, res => {
