@@ -576,6 +576,72 @@ is built, checked, and deployed on its own.
   4. terminal-api requires them.
   5. Remove the 1e9 override for people (with approval).
 
+**3c in detail** (user go 2026-11-18 "Ok, lanjutkan fase selanjutnya"; the wire terminal-api and edge-bff build to).
+The switch stays off. The configured owner holds `*`, so its header says `admin: true` and every path answers exactly as
+today.
+- **Headers** (edge-bff → terminal-api, only beside the gateway key on the private host):
+  - `x-terminal-proxy-owner`: the principal's `owner_key`.
+  - `x-terminal-capabilities`: compact ASCII JSON, at most 8 KiB:
+    `{"v":1,"version":"<principal version>","admin":bool,"tickers":"*"|[..],"datasets":"*"|[..],"history_days":null|N,"quota":{..}}`.
+  - Field meanings:
+    - `admin`: the principal holds `*`.
+    - `tickers`: `terminal.tickers` (no row: `"*"`).
+    - `datasets`: the ids `p.can('terminal.dataset:<id>')` grants, over terminal-api's own dataset names (price,
+      broker, events, yield), plus `intraday` and `reference`.
+    - `history_days`: the capped `terminal.history_days`, or `null` when none.
+    - `quota`: only the Terminal quota limits the plan sets (below).
+  - A request from the page that carries either header is refused before terminal-api (never relayed, never trusted).
+- **edge-bff refuses first:** a ticker outside `tickers`, or a dataset outside `datasets`, gets 403
+  `CAPABILITY_REQUIRED` naming `terminal.tickers` or `terminal.dataset:<id>`, with its `display_name`, before any
+  terminal-api call. A reference file without `reference` is refused the same way.
+- **terminal-api (owner rows):**
+  - a migration adds `terminal.subscriber.edge_owner_key` (unique, null for every other subscriber);
+  - a row per owner is made on first use;
+  - `Caller.credential` becomes `('gateway', owner_key)`, so usage and audit are per owner;
+  - `terminal.access_log` gains the entitlements `version`.
+- **Quotas (decision D6):**
+  - `admin: true` uses the gateway subscriber's own limits (today's, with its 1e9 override). The override stays on that
+    one row; step 5 of the deploy order removes it only with the user's approval.
+  - Any other owner: terminal-api's `terminal.quota` defaults, overlaid by the header's `quota`. A key the header
+    leaves out keeps the default, never "unlimited".
+  - New plan limits (edge_bff migration), the paid and free rows at D6's numbers:
+    `terminal.tickers_per_hour` 60, `terminal.tickers_per_day` 200, `terminal.files_per_hour` 300,
+    `terminal.megabytes_per_day` 500.
+  - `history_per_hour` keeps the default (20).
+- **Every path filters:**
+  - `/bundle`: a dataset outside `datasets` answers `{"locked": true, "capability": "terminal.dataset:<id>"}` with no
+    URL, sha or rows.
+  - `/files`, `/history`, `/manifest` and `/reference`: refuse or filter by the same fields.
+  - `/xsection`: refuses the gateway key once an owner header is sent; only the screener-worker's service key reads it.
+- **Exactly the last N days (decision D2 = A):** with `history_days` N set:
+  - The window is the rows dated after `data_through − N` calendar days, `data_through` being the dataset's newest
+    published date.
+  - `/bundle` answers each dated dataset with one "cut" file (the shape the Terminal page already reads for a pack).
+    Its URL is an edge-bff relay path to terminal-api's cut route; terminal-api builds the cut from the published files,
+    with deterministic gzip (mtime 0).
+  - The cut has a fixed sha256 per (data, N), so the browser cache works. It is counted as one file of its bytes.
+  - Packs, yearly files and `/history` beyond the window are refused (403 `CAPABILITY_REQUIRED`
+    `terminal.history_days`).
+  - A dataset that cannot be cut is refused with a reason, never served whole.
+- **Not in 3c** (3e):
+  - the page's lock prompts and its handling of `locked` and the cut beyond what it already reads;
+  - the free plan's two indicators.
+
+**3b follow-up** (decided 2026-11-18, O3b-1; built with 3c):
+- **Families from the Terminal:** `allow.FAMILIES` takes the `indicator` and `flow_indicator` grants of both workers
+  from `terminal.indicator` and `terminal.flow_indicator`. A forward migration removes the four rows that are no
+  longer read: `backtest.indicator`, `backtest.flow_indicator`, `screener.indicator` and `screener.flow_indicator`.
+- **Broker-data built-ins follow flow:**
+  - the legacy Backtest `broker` and `top5` cards become `flow_indicator` items. `releases.py` derives them from the
+    Backtest catalog's flow group, `releases.json` lists them as released, and `legacyItemKind` gates them by id;
+  - `portfolio.rank_by` `fnet` is gated by `fnet`, read from the ranking table itself;
+  - the technical built-ins stay open.
+- **Step 3 of the wire:**
+  - the workers' HTTP layer requires `context.allow`; absent, it answers `INVALID_CONTEXT`;
+  - an unwrapped `/v1/signals` body is refused too;
+  - internal calls keep "everything".
+- The C1 pending test returns to `apps/backtest-worker/tests/`, changed to match.
+
 **3d. M476 (Radar data in the Watchlist file).**
 - The publisher splits `watchlist-stocks` into a base file and `watchlist-radar`; edge-bff serves the latter only with
   `radar.view`.

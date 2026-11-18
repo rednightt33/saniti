@@ -15932,3 +15932,17 @@ dipakai accross chat sebagai referencec?"
   tipografi, jarak, radius, bayangan, tinggi kontrol; 23 komponen dengan pratinjau langsung; README; sampul), dibangun
   oleh `tools/build_artifact.py`; semua pratinjau dirender lokal terang/gelap tanpa error. Privat sampai dibagikan dari
   menu Share.
+
+### Phase 3c and the 3b follow-up (go 2026-11-18; building)
+
+- **Go (the user, 2026-11-18):** "Ok, lanjutkan fase selanjutnya", after the O3b-1 decisions of the same day ("Pokoknya
+  gate-nya adalah terminal ... menu yang akan ditutup di terminal adalah menu yang sifatnya flow").
+- **Specification:** CONTRACT.md 8b, "3c in detail" and "3b follow-up".
+- **Builders:**
+  - T (terminal-api: owner rows, header, per-path filters, the cut, quotas);
+  - E (edge-bff: headers, the refusals before terminal-api, the cut relay, the quota rows of the plan catalog);
+  - W (the 3b follow-up: families from the Terminal, broker-data built-ins, step 3 of the wire).
+- Then checkers C1-C3, as in every phase.
+- **Assumption (non-material, the user may change it in the Phase 4 dashboard):** the free plan gets the same Terminal
+  quota numbers as the paid one. D6 named the paid plan only, and the free plan opens one ticker (BBCA).
+- The switch stays off; nothing changes for the configured owner.
