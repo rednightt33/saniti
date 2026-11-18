@@ -505,10 +505,11 @@ is built, checked, and deployed on its own.
     Either each is gated by the item it computes, or it is recorded here as part of the Backtest itself, as the
     transform metrics are. The checker's failing test waits in `pending/c1-phase3b.test.ts` (outside every suite;
     `pending/README.md`) and goes back to `apps/backtest-worker/tests/` with the decision, matching it.
-  - **O3b-2 (C1 non-blocking 1, user decision).** The Screener universe chips filter on `last`, `adv20_idr`, `bars` and
-    `index_membership`, values shown in every result row and in `/universe`, so gating them by id cannot hide them.
-    The transform `ma` computes the SMA/EMA of any series, as the registry indicators of the same name do. Recommended:
-    both recorded here as not gated.
+  - **O3b-2 (C1 non-blocking 1), decided 2026-11-18** (user: "Terkait dengan pertanyaan kedua, oke, setuju"): not
+    gated. The Screener universe chips filter on `last`, `adv20_idr`, `bars` and `index_membership`, values shown in
+    every result row and in `/universe`, so gating them by id cannot hide them. The transform `ma` computes the SMA/EMA
+    of any series, as the registry indicators of the same name do. Both are part of the Screener and the Backtest
+    themselves, as the four transform metrics are.
   - **Step 3** (the workers require `allow`) also refuses a `/v1/signals` body without the `{request, context}`
     wrapper. Today that form gets every item (`backtest-worker/src/server.ts`; C1 non-blocking 4).
   - A per-entry `CAPABILITY_REQUIRED` of the Screener's `/counts` reaches the page without `display_name`: edge-bff
