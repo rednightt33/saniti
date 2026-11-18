@@ -92,3 +92,25 @@ def test_a_changed_plan_value_leaves_a_trace(database):
             conn.execute("""UPDATE edge_bff.plan_capabilities SET value = %s::jsonb, version = %s, updated_at = %s
                 WHERE plan_key = 'free' AND capability_key = 'terminal.history_days'""",
                          (str(before[0]), before[1], before[2]))
+
+
+def test_purging_a_pending_registration_never_changes_an_audit_row(store):
+    """admin_audit is append-only for edge-bff (no UPDATE, no DELETE; CONTRACT section 1), but its user columns are
+    foreign keys ON DELETE SET NULL, so the hourly purge of never-verified registrations (accounts.purge_pending, run as
+    edge_bff_runtime) rewrites every audit row that names the purged account: the row no longer says whom the admin
+    acted on (Phase 4: "resend a code" to a pending account is audited)."""
+    from app.accounts import new_owner_key, purge_pending
+    with store.connect() as c:
+        pending = c.execute("""INSERT INTO edge_bff.users(owner_key, email, requested_username, status, created_at)
+            VALUES (%s, 'pending@x.io', 'pending_1', 'pending', now() - interval '25 hours') RETURNING user_id""",
+                            (new_owner_key(),)).fetchone()['user_id']
+        audit = c.execute("""INSERT INTO edge_bff.admin_audit(action, target_user_id, reason)
+            VALUES ('user.resend_code', %s, 'asked by phone') RETURNING audit_id""", (pending,)).fetchone()['audit_id']
+    with store.connect() as c:
+        c.execute('SET LOCAL ROLE edge_bff_runtime')
+        assert not c.execute("SELECT has_table_privilege('edge_bff_runtime', 'edge_bff.admin_audit', 'UPDATE') AS u"
+                             ).fetchone()['u']
+        purge_pending(c)
+    with store.connect() as c:
+        row = c.execute('SELECT target_user_id FROM edge_bff.admin_audit WHERE audit_id = %s', (audit,)).fetchone()
+    assert row['target_user_id'] == pending, 'the purge rewrote an audit row (target_user_id set to NULL)'
