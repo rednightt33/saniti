@@ -80,12 +80,19 @@ export class DownloadError extends Error {
   constructor(status: number) { super(status ? `A data file could not be downloaded (${status}).` : 'A data file could not be downloaded.'); this.status = status }
 }
 
-/** The bytes of a presigned file (no cookies to the storage host), asked again as the header says. */
+/** EXEC-MU-ACCOUNTS Phase 3c: a file of this origin (a path such as /api/terminal/v1/cut/<T>/<ds>?sha256=, the cut
+    edge-bff relays for a plan with the last N days) goes with the EDGE session cookie; a presigned URL of the storage host
+    (absolute, or protocol-relative //host) goes without any cookie, as before. */
+export function credentialsFor(url: string): 'same-origin' | 'omit' {
+  return url.startsWith('/') && !url.startsWith('//') ? 'same-origin' : 'omit';
+}
+
+/** The bytes of a published file (no cookies to the storage host; the session to this origin), asked again as the header says. */
 export async function fetchFile(url: string): Promise<Uint8Array<ArrayBuffer>> {
   let status = 0;
   for (let k = 0; ; k++) {
     try {
-      const res = await fetch(url, { credentials:'omit' });
+      const res = await fetch(url, { credentials:credentialsFor(url) });
       status = res.status;
       if (res.ok) return new Uint8Array(await res.arrayBuffer());   // a body cut off on the way rejects here
       if (status < 500) break;

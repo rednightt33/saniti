@@ -75,7 +75,10 @@ def test_the_default_plan_without_a_subscription(on, store):
         flags = {r['capability_key'] for r in db(store, '''SELECT pc.capability_key FROM edge_bff.plan_capabilities pc
             JOIN edge_bff.capabilities c USING (capability_key) WHERE plan_key = %s AND kind = 'flag' ''', default)}
         assert set(got['capabilities']) == flags and 'terminal.view' in flags and 'backtest.run' not in flags
-        assert got['limits'] == {'terminal.tickers': ['BBCA'], 'terminal.history_days': 730}
+        # Phase 3c (20261118_002): the free plan's Terminal quota limits (D6's numbers, an assumption the user may change)
+        assert got['limits'] == {'terminal.tickers': ['BBCA'], 'terminal.history_days': 730, 'terminal.tickers_per_hour': 60,
+                                 'terminal.tickers_per_day': 200, 'terminal.files_per_hour': 300,
+                                 'terminal.megabytes_per_day': 500}
         assert header == got['version'] and header.startswith('db-')
 
 
@@ -327,7 +330,8 @@ def test_the_runtime_role_reads_the_catalog_and_never_deletes_a_subscription(sto
 
 def test_every_seed_capability_has_a_plain_meaning(store):
     rows = db(store, 'SELECT capability_key, kind, means, display_name FROM edge_bff.capabilities')
-    assert len(rows) == 48                     # the 41 of 20261117_003 and the 7 of Phase 3a (20261117_004)
+    # the 41 of 20261117_003, the 7 of Phase 3a (20261117_004) and the 4 Terminal quotas of Phase 3c (20261118_002)
+    assert len(rows) == 52
     for r in rows:
         assert len(r['means']) >= 20 and r['means'].endswith('.') and not re.search(r'[A-Z]{2,}_', r['means']), r
 

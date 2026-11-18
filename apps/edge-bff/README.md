@@ -990,3 +990,61 @@ unset = that owner), so nothing changes for it; an owner EDGE_ADMIN_OWNERS does 
   `watchlist.view`, checked before the shared caches. Files are sent `private, no-cache` with their ETag; a `?sha=`
   request with a matching If-None-Match answers 304 only after the check.
 - `tests/test_phase3a_monitor_pages.py` walks these routes: a new one needs its line in `ROUTE_CAPS`.
+
+## Terminal data gate: headers and refusals (EXEC-MU-ACCOUNTS Phase 3c, 2026-11-18)
+
+CONTRACT.md 8b "3c in detail", decisions D2, D3 and D6. One module, `app/terminal_access.py`, builds what terminal-api
+is told and refuses what the plan lacks; `tests/test_terminal_access.py` checks it. With the switch off the configured
+owner holds `*`: its header says `admin: true`, its body is forwarded byte for byte and terminal-api answers as before.
+
+- **Headers** (`headers(settings, p)`, the only place the proxy key is read): every terminal-api call made for a
+  principal, from the proxy (`main.py forward_terminal`) and from the page files (`pages.py PageFiles`), carries
+  `x-terminal-proxy-key`, `x-terminal-proxy-owner: <owner_key>` and `x-terminal-capabilities`, compact ASCII JSON of at
+  most 8 KiB built from the principal only:
+  `{"v":1,"version":"<principal version>","admin":bool,"tickers":"*"|[..],"datasets":"*"|[..],"history_days":null|N,"quota":{..}}`.
+  - `admin`: `*` is held (then `tickers` and `datasets` are `"*"`, `history_days` null, `quota` `{}`);
+  - `tickers`: the list `terminal.tickers` (no row: `"*"`);
+  - `datasets`: the ids of `DATASET_IDS` (terminal-api's `price`, `broker`, `events`, `yield`, then `intraday` and
+    `reference`) that `p.can('terminal.dataset:<id>')` grants, always a list for a principal without `*`;
+  - `history_days`: `terminal.history_days` (no row: null);
+  - `quota`: the limits the plan sets of `terminal.tickers_per_hour`, `tickers_per_day`, `files_per_hour` and
+    `megabytes_per_day` (migration `20261118_002`: paid and free 60, 200, 300, 500), under terminal-api's own names;
+    one the plan leaves out is left out, and terminal-api keeps its default. terminal-api takes 1 to 10^9: a larger value
+    is sent as 10^9, and 0 answers 429 `LIMIT_REACHED` (`details.limit`, `retry_after_s` 3600, `Retry-After`) before
+    terminal-api is asked (leaving it out would give the wider default).
+  - Both terminal headers always go together beside the gateway key (terminal-api refuses one alone); an owner key
+    outside terminal-api's rule `^[A-Za-z0-9._:@-]{1,128}$` answers 503 `TERMINAL_UNAVAILABLE`, logged.
+  - The dataset and quota names are read from `apps/terminal-api` by the test, so they are written in one place here.
+  - Longer than 8 KiB (a list of about 900 tickers): 503 `TERMINAL_UNAVAILABLE`, logged; never cut short.
+- **Page-sent headers:** a request to a terminal-forwarding route that carries `x-terminal-proxy-key`,
+  `x-terminal-proxy-owner` or `x-terminal-capabilities` is refused 400 `HEADER_NOT_ALLOWED` (`details.header`) before
+  anything else (`terminal_access.guard`); no request header is ever copied to terminal-api.
+- **Refused first** (`terminal_access.check`, a principal without `*`), 403 `CAPABILITY_REQUIRED` with
+  `details.capability` and `details.display_name`, before any terminal-api call:
+  - a ticker outside `tickers` (`terminal.tickers`): `manifest/<T>`, `logo/<T>` (a logo carries no market data, but one
+    rule for every ticker path keeps the class closed; the page shows its monogram), `files`, `bundle`,
+    `history/*?ticker=` (exactly one) and `cut/<T>/<dataset>`;
+  - a dataset outside `datasets` (`terminal.dataset:<id>`): `files`' dataset, `history/price` and `history/broker`,
+    `cut/<T>/<dataset>`, `reference/*` as `reference`;
+  - a `bundle` whose every asked dataset is locked (its `datasets`, terminal-api's default `price, broker, events` when
+    absent, plus `intraday` with a `timeframe`); with one open dataset it is forwarded and terminal-api answers the
+    locked ones `{locked: true, capability}`;
+  - `history/*` while `history_days` is set (`terminal.history_days`): it serves only the dates before the published
+    files, outside the last N days;
+  - a body or query that cannot be read (not JSON, not an object, a ticker that is not text, a repeated `ticker`):
+    422 `INVALID_INPUT`. The checked JSON is what is forwarded (re-serialised), so terminal-api reads what was checked.
+  - A forwarded GET route the check does not know is refused (fail closed); the test ties the route regex to it.
+- **terminal-api's own refusals:** its 403 `{"error": "capability_required", "capability": ..}` (on any forwarded route,
+  the cut included) is answered in EDGE's shape, 403 `CAPABILITY_REQUIRED` with `details.capability` and
+  `details.display_name`; every other answer passes through as before.
+- **The cut** `GET /api/terminal/v1/cut/<TICKER>/<dataset>` (`price`, `broker`, `events`, `yield`; D2 = A;
+  terminal-api builds it with deterministic gzip and answers `application/gzip`). `/bundle` names a capped owner's files
+  `{"year": null, "pack": "cut", "url": "/api/terminal/v1/cut/<T>/<ds>?sha256=<hex>", ..}`; the query is forwarded. The
+  bytes are read raw from terminal-api and relayed exactly (no JSON parse, no decoding, no Content-Encoding added or
+  relayed), with only Content-Type, Content-Length (checked against the bytes read), ETag, X-Terminal-Cut-Sha256 and
+  Cache-Control, the latter always `private`; at most 64 MiB. Another status passes through as JSON.
+  - The page loads a URL of this origin (one starting with `/`) with the session cookie (`credentials: 'same-origin'`,
+    `terminal/src/data/rack.ts` `credentialsFor`), and a presigned URL of the storage host still without any cookie
+    (`omit`); `terminal/tests/data/cut_credentials.test.ts`.
+- **Route walk:** every route that calls terminal-api (`terminal_read`, `terminal_write`, `page_index`, `page_file`)
+  depends on `terminal_access.guard`, and no other module reads the proxy key, so a new route cannot skip either.
