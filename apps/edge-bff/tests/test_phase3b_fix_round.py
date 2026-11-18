@@ -3,11 +3,13 @@
 - C3 F3: each worker gets the allow of its own capability families (allow.FAMILIES): a plan that holds an item family of
   one worker but not the same family of the other sends the ids to the one and none to the other, on every call site
   (the Backtest's validate, signals and dispatch; the Screener's run and validate). A swap of the worker name at a call
-  site fails here.
+  site fails here. Since the 3b follow-up (user decision 2026-11-18) the candlestick patterns are the kind with a family
+  per worker, and the Terminal's indicator family reaches both workers.
 - C3 F4: a worker's 403 CAPABILITY_REQUIRED reaches the page with its display_name on the two paths no test held: a job
   the worker ends FAILED while it runs (the status poll) and the signals preview.
 C2's probes are in test_screener.py (the catalog's preset counts per allow, the review per plan); C1 F1 (built-in options
-of the Backtest that compute an item) waits for the user's decision (CONTRACT.md 8b, "open before the switch goes on").
+of the Backtest that compute an item) was decided 2026-11-18 (O3b-1, CONTRACT.md 8b "3b follow-up") and is held by
+apps/backtest-worker/tests/c1-phase3b.test.ts.
 """
 from fastapi.testclient import TestClient
 
@@ -24,12 +26,15 @@ def test_each_worker_gets_the_allow_of_its_own_families(on, store, workers):
     bt, sc = workers
     with TestClient(create_app(on, store, FakeOrc())) as c:
         alice = paid_user(store, 'alice')
-        override(store, alice['user_id'], 'screener.indicator', '{"ids": []}')          # the Screener's indicators taken
-        override(store, alice['user_id'], 'backtest.candle_pattern', '{"ids": []}')     # the Backtest's patterns taken
-        c.headers_for = sign_in(c, 'alice', 'alice-password')
         released = paid_allow()
-        backtest_allow = {**released, 'candle_pattern': []}
-        screener_allow = {**released, 'indicator': []}
+        one = released['candle_pattern'][0]
+        override(store, alice['user_id'], 'terminal.indicator', '{"ids": []}')          # the Terminal's indicators taken
+        override(store, alice['user_id'], 'backtest.candle_pattern', '{"ids": []}')     # the Backtest's patterns taken
+        override(store, alice['user_id'], 'screener.candle_pattern', '{"ids": ["%s"]}' % one)   # one Screener pattern
+        c.headers_for = sign_in(c, 'alice', 'alice-password')
+        # the Terminal's indicator grant reaches both workers (3b follow-up); each worker its own candlestick family
+        backtest_allow = {**released, 'indicator': [], 'candle_pattern': []}
+        screener_allow = {**released, 'indicator': [], 'candle_pattern': [one]}
         assert c.post('/api/v1/backtests/signals', headers=c.headers_for, json=preview_of()).status_code == 200
         assert bt.posted('/v1/signals')[-1]['body']['context']['allow'] == backtest_allow
         assert c.post('/api/v1/backtests', headers=c.headers_for, json={**single(), 'client_request_id': 'f3'}).status_code == 202

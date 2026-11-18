@@ -1418,12 +1418,12 @@ def test_screener_rights_from_the_session_and_the_catalog_per_session(configured
 
 REFUSED_METRIC = {'code': 'CAPABILITY_REQUIRED', 'field': 'conditions[0].test.metric',
                   'message': 'The metric rsi of condition 1 is not part of your plan.',
-                  'details': {'kind': 'indicator', 'id': 'I13', 'capability': 'screener.indicator:I13'}}
+                  'details': {'kind': 'indicator', 'id': 'I13', 'capability': 'terminal.indicator:I13'}}
 
 
 def named_metric():
     return {**REFUSED_METRIC, 'details': {**REFUSED_METRIC['details'],
-                                          'display_name': errors.display_name('screener.indicator:I13')}}
+                                          'display_name': errors.display_name('terminal.indicator:I13')}}
 
 
 def test_every_screener_worker_call_carries_the_whole_context(app, worker):
@@ -1503,9 +1503,10 @@ def test_c2_catalog_preset_counts_are_never_served_to_a_plan_without_the_presets
             AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')[0]['plan_key']
         run_sql(store, "INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider) VALUES (%s, %s, 'active', 'test')",
                 user['user_id'], plan)
-        # the plan's flow indicators narrowed to FL11 for this account (an override, CONTRACT.md 8a)
+        # the plan's flow indicators narrowed to FL11 for this account (an override, CONTRACT.md 8a), on the Terminal's
+        # family, which decides the Screener's Flow items too (3b follow-up, user decision 2026-11-18)
         run_sql(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
-            VALUES (%s, 'screener.flow_indicator', '{"ids": ["FL11"]}'::jsonb, 'c2 test')''', user['user_id'])
+            VALUES (%s, 'terminal.flow_indicator', '{"ids": ["FL11"]}'::jsonb, 'c2 test')''', user['user_id'])
         c.headers_for = sign_in(c, 'narrow', 'narrow-password')
         c.post('/api/v1/screener/run', headers=c.headers_for, json=run_body(seq=1))
         assert worker.called('/v1/run')[-1]['body']['context']['allow']['flow_indicator'] == ['FL11']   # no FL05

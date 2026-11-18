@@ -108,7 +108,8 @@ async function instance(label: string, cacheDir: string, jobs: { name: string; r
     const id = `bt_${label.charCodeAt(0).toString(16)}${(++n).toString(16).padStart(6, '0')}${'0'.repeat(24)}`;
     phasePeak = 0;
     const s0 = performance.now();
-    const p = await call('POST', '/v1/jobs', { job_id: id, request: j.request, context: { job_id: id, prior_trials: [] } });
+    // the context edge-bff sends (the worker requires context.allow since the 3b follow-up, step 3): every item
+    const p = await call('POST', '/v1/jobs', { job_id: id, request: j.request, context: { job_id: id, prior_trials: [], allow: { indicator: '*', flow_indicator: '*', candle_pattern: '*', screener_metric: '*' } } });
     if (p.status !== 202) { res.jobs.push({ name: j.name, submit_status: p.status, body: p.body.toString().slice(0, 400) }); continue }
     let st: any;
     for (;;) { const a = await call('GET', `/v1/jobs/${id}`); st = JSON.parse(a.body.toString()); if (['FINISHED', 'FAILED', 'CANCELLED'].includes(st.state)) break; await new Promise(r => setTimeout(r, 25)) }

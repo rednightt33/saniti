@@ -140,7 +140,16 @@ export function conditionsWithin(sig: TickerSignals, j: number): string[] {
 
 /* ---- portfolio ranking and liquidity (CONTRACT section 6) -------------------------------------------------- */
 export type RankBy = 'adx' | 'fnet' | 'vol' | 'rsi';
-export const RANK_BY: RankBy[] = ['adx', 'fnet', 'vol', 'rsi'];
+/** The catalog item each ranking reads, which a plan must hold to rank by it (EXEC-MU-ACCOUNTS 3b follow-up, user
+    decision 2026-11-18: "Semua indikator technical sekarang dibuka ... menu yang akan ditutup di terminal adalah menu
+    yang sifatnya flow"; verification/edge_multiuser/access_tiers/CONTRACT.md 8b). `fnet` sums the Screener's flow entry
+    fnet, the series the legacy fnet card reads, so it is gated by that item; the technical rankings (ADX, volume ratio,
+    RSI) are part of the Backtest and name none (null). The worker gates portfolio.rank_by from this table
+    (backtest-worker src/validate.ts), so a new ranking that reads an item is gated by declaring it here. */
+export const RANK_ITEM: Readonly<Record<RankBy, { kind: 'indicator' | 'flow_indicator' | 'candle_pattern' | 'screener_metric'; id: string } | null>> = {
+  adx: null, fnet: { kind: 'flow_indicator', id: 'fnet' }, vol: null, rsi: null,
+};
+export const RANK_BY: RankBy[] = Object.keys(RANK_ITEM) as RankBy[];
 /* The page's rankScore: adx(D, 14), rollsum(fnet, 5), v / sma(v, 20) of the bar before, -rsi(c, 14); here on the
    registry indicators I07 (DI length 14, ADX smoothing 14), I35 (length 20) and I13 (length 14, close). */
 const RANK = { adx: { di_length: 14, adx_smoothing: 14 }, fnet_bars: 5, vol: { length: 20 }, rsi: { length: 14 } };

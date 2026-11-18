@@ -172,7 +172,11 @@ function call(method: string, path: string, body?: unknown, o: { key?: string | 
 const tick = (ms: number) => new Promise(r => setTimeout(r, ms));
 let n = 0;
 const newId = () => `bt_${(++n).toString(16).padStart(8, '0')}${'0'.repeat(24)}`;
-const jobBody = (job_id: string, request: unknown, prior_trials: unknown[] = []) => ({ job_id, request, context: { job_id, prior_trials } });
+/** The context edge-bff sends on every call (step 3 of the 3b deploy order, CONTRACT 8b "3b follow-up": the worker's
+    HTTP layer requires context.allow): the switch-off owner's, every item. The tests of the refusal send their own. */
+const EDGE = { allow: { indicator: '*', flow_indicator: '*', candle_pattern: '*', screener_metric: '*' } } as const;
+const sig = (request: unknown) => ({ request, context: EDGE });
+const jobBody = (job_id: string, request: unknown, prior_trials: unknown[] = []) => ({ job_id, request, context: { job_id, prior_trials, ...EDGE } });
 /** Polls the job until it ends; the distinct phases seen on the way. */
 async function until(id: string, at = base, ms = 30_000): Promise<{ status: JobStatus; phases: string[] }> {
   const phases: string[] = [], t0 = Date.now();
@@ -210,7 +214,7 @@ test('every route but /health needs x-backtest-worker-key', async () => {
   try {
     for (let k = 0; k < 3; k++) {
       assert.equal((await call('POST', '/v1/jobs', { job_id: newId(), request: pageDefault('UNVR') }, { key: null, agent })).status, 401);
-      assert.equal((await call('POST', '/v1/validate', { request: {} }, { agent })).status, 422);
+      assert.equal((await call('POST', '/v1/validate', { context: EDGE, request: {} }, { agent })).status, 422);
     }
   } finally { agent.destroy() }
   assert.equal((await call('GET', '/v1/nothing')).status, 404);
@@ -249,9 +253,9 @@ test('catalog: the published tickers with their groups, the groupings, the broke
     assert.equal(manifests() - m0, STOCKS.length, 'one manifest per stock (no index)');
     // the broker list of terminal-api reaches the validation: an unlisted code is UNKNOWN_BROKER, a listed one passes
     const q = pageDefault('UNVR'), withBroker = (code: string) => ({ ...q, entry: { ...q.entry, conditions: [...q.entry.conditions, legacyToCondition(legacyCard('broker', 'b1', { broker: code, len: 5, val: 0 }))] } });
-    const x = await call('POST', '/v1/validate', { request: withBroker('XX') }, { at });
+    const x = await call('POST', '/v1/validate', { context: EDGE, request: withBroker('XX') }, { at });
     assert.equal(x.status, 422); assert.deepEqual([x.json().error.code, x.json().error.field], ['UNKNOWN_BROKER', 'entry.conditions[3].params.broker']);
-    assert.equal((await call('POST', '/v1/validate', { request: withBroker('ZP') }, { at })).status, 200);
+    assert.equal((await call('POST', '/v1/validate', { context: EDGE, request: withBroker('ZP') }, { at })).status, 200);
     const j = await call('POST', '/v1/jobs', jobBody(newId(), withBroker('XX')), { at });
     assert.equal(j.status, 422); assert.equal(j.json().error.code, 'UNKNOWN_BROKER');
   } finally { await on.close() }
@@ -271,7 +275,7 @@ test('catalog per publication (EXEC-BACKTEST-LOAD K1): built once per /state fin
     const r1 = fake.requests.length;
     assert.deepEqual((await call('GET', '/v1/catalog', undefined, { at })).json(), a.json());
     assert.equal(fake.requests.length, r1, 'within the check interval: nothing asked');
-    const v = await call('POST', '/v1/validate', { request: pageDefault('UNVR') }, { at });
+    const v = await call('POST', '/v1/validate', { context: EDGE, request: pageDefault('UNVR') }, { at });
     assert.equal(v.status, 200);
     assert.equal(fake.requests.slice(r1).filter(x => x.path.startsWith('/api/terminal/v1/reference/')).length, 2, 'the validation keeps its own lists, once');
   } finally { await on.close(); fake.state = null }
@@ -279,24 +283,24 @@ test('catalog per publication (EXEC-BACKTEST-LOAD K1): built once per /state fin
 
 test('validate: the hashes and tickers of a valid request, the field of a refused one, nothing started', async () => {
   const q = pageDefault('UNVR');
-  const a = await call('POST', '/v1/validate', { request: q });
+  const a = await call('POST', '/v1/validate', { context: EDGE, request: q });
   assert.equal(a.status, 200, a.body.toString());
   assert.deepEqual(a.json(), { ok: true, lineage_key: await lineageKey(q), variant_hash: await variantHash(q), tickers: ['UNVR'] });
   // three picked stocks, in any order (PF3): the same answer, the hashes of the sorted request
-  const picked = await call('POST', '/v1/validate', { request: portfolioDefault(SECTOR_A) });
+  const picked = await call('POST', '/v1/validate', { context: EDGE, request: portfolioDefault(SECTOR_A) });
   assert.deepEqual(picked.json(), { ok: true, lineage_key: await lineageKey(portfolioDefault(SECTOR_A)), variant_hash: await variantHash(portfolioDefault(SECTOR_A)), tickers: SECTOR_A });
-  assert.deepEqual((await call('POST', '/v1/validate', { request: portfolioDefault(['UNVR', 'BBCA', 'GOTO']) })).json(), picked.json());
+  assert.deepEqual((await call('POST', '/v1/validate', { context: EDGE, request: portfolioDefault(['UNVR', 'BBCA', 'GOTO']) })).json(), picked.json());
   const refused: [unknown, string, string][] = [
-    [{ request: { ...q, single: { ticker: 'IHSG', benchmark: 'buy_and_hold' } } }, 'UNKNOWN_TICKER', 'single.ticker'],
-    [{ request: portfolioDefault(['BBCA', 'IHSG']) }, 'UNKNOWN_TICKER', 'portfolio.tickers[1]'],
-    [{ request: portfolioDefault(Array.from({ length: MAX_PORTFOLIO_TICKERS + 1 }, (_, k) => `S${k}`)) }, 'INVALID_PORTFOLIO', 'portfolio.tickers'],
-    [{ request: { ...q, extra: 1 } }, 'UNKNOWN_FIELD', 'extra'],
-    [{ request: { ...q, client_request_id: 'c'.repeat(32) } }, 'UNKNOWN_FIELD', 'client_request_id'],   // edge-bff strips it
-    [{ request: { ...q, period: { ...q.period, from: '2019-02-30' } } }, 'INVALID_PERIOD', 'period.from'],
-    [{ request: { ...q, entry: { ...q.entry, conditions: [...q.entry.conditions, legacyToCondition(legacyCard('fnet', 'f1', { len: 5, val: 0 }))] } } }, 'FLOW_UNAVAILABLE', 'entry.conditions[3]'],
-    [{ request: q, more: 1 }, 'INVALID_REQUEST', 'body'],
+    [{ context: EDGE, request: { ...q, single: { ticker: 'IHSG', benchmark: 'buy_and_hold' } } }, 'UNKNOWN_TICKER', 'single.ticker'],
+    [{ context: EDGE, request: portfolioDefault(['BBCA', 'IHSG']) }, 'UNKNOWN_TICKER', 'portfolio.tickers[1]'],
+    [{ context: EDGE, request: portfolioDefault(Array.from({ length: MAX_PORTFOLIO_TICKERS + 1 }, (_, k) => `S${k}`)) }, 'INVALID_PORTFOLIO', 'portfolio.tickers'],
+    [{ context: EDGE, request: { ...q, extra: 1 } }, 'UNKNOWN_FIELD', 'extra'],
+    [{ context: EDGE, request: { ...q, client_request_id: 'c'.repeat(32) } }, 'UNKNOWN_FIELD', 'client_request_id'],   // edge-bff strips it
+    [{ context: EDGE, request: { ...q, period: { ...q.period, from: '2019-02-30' } } }, 'INVALID_PERIOD', 'period.from'],
+    [{ context: EDGE, request: { ...q, entry: { ...q.entry, conditions: [...q.entry.conditions, legacyToCondition(legacyCard('fnet', 'f1', { len: 5, val: 0 }))] } } }, 'FLOW_UNAVAILABLE', 'entry.conditions[3]'],
+    [{ context: EDGE, request: q, more: 1 }, 'INVALID_REQUEST', 'body'],
     [[q], 'INVALID_REQUEST', 'body'],
-    [{}, 'INVALID_REQUEST', 'request'],
+    [{ context: EDGE }, 'INVALID_REQUEST', 'request'],
   ];
   for (const [body, code, field] of refused) {
     const r = await call('POST', '/v1/validate', body);
@@ -311,7 +315,7 @@ test('validate: the hashes and tickers of a valid request, the field of a refuse
   // but the reference lists
   for (const to of ['2026-10-26', '2026-10-24']) {                     // the day after IHSG's last bar (a Saturday) is after it too
     const late = { ...q, period: { ...q.period, to } }, r0 = fake.requests.length;
-    const after = await call('POST', '/v1/validate', { request: late });
+    const after = await call('POST', '/v1/validate', { context: EDGE, request: late });
     const seen = fake.requests.slice(r0).map(x => x.path);
     assert.equal(after.status, 422, after.body.toString());
     // EXEC-BACKTEST-LOAD: /state names the publication (no file, no quota); this fake has none, so nothing is kept
@@ -321,7 +325,7 @@ test('validate: the hashes and tickers of a valid request, the field of a refuse
     assert.deepEqual([after.json().error.code, after.json().error.field, after.json().error.message], ['PERIOD_AFTER_DATA', 'period.to', job.message]);
     assert.equal(job.message, `period.to is after the latest published bar (${FX.get('IHSG')!.T.at(-1)}).`);
   }
-  assert.equal((await call('POST', '/v1/validate', { request: { ...q, period: { ...q.period, to: THROUGH } } })).status, 200, 'period.to on the last bar');
+  assert.equal((await call('POST', '/v1/validate', { context: EDGE, request: { ...q, period: { ...q.period, to: THROUGH } } })).status, 200, 'period.to on the last bar');
 });
 
 test('validate with flow on: FLOW_DATA_THROUGH on the stocks\' manifests (the catalog\'s date) before PERIOD_AFTER_DATA, as the job', async () => {
@@ -330,7 +334,7 @@ test('validate with flow on: FLOW_DATA_THROUGH on the stocks\' manifests (the ca
     const at = `http://127.0.0.1:${await t.listen(0, '127.0.0.1')}`, q = pageDefault('UNVR');
     const flow = { ...q, entry: { ...q.entry, conditions: [...q.entry.conditions, legacyToCondition(legacyCard('fnet', 'f1', { len: 5, val: 0 }))] } };
     const asked = async (request: unknown) => {
-      const r0 = fake.requests.length, a = await call('POST', '/v1/validate', { request }, { at }), seen = fake.requests.slice(r0).map(x => x.path);
+      const r0 = fake.requests.length, a = await call('POST', '/v1/validate', { context: EDGE, request }, { at }), seen = fake.requests.slice(r0).map(x => x.path);
       assert.ok(!seen.includes('/api/terminal/v1/bundle') && seen.every(x => !x.startsWith('/bucket/v1/') || x.startsWith('/bucket/v1/ref/')), seen.join(' '));
       return { a, manifests: seen.filter(x => x.startsWith('/api/terminal/v1/manifest/')).map(x => x.slice('/api/terminal/v1/manifest/'.length)) };
     };
@@ -511,7 +515,7 @@ test('a field the chosen mode does not read is checked before the hand-over: a 4
   const text = JSON.stringify(pageDefault('UNVR')).replace('"line":{"indicator":"I09","output":"supertrend"}',
     `"line":{"indicator":"I09","output":"supertrend","params":${'{"a":'.repeat(depth)}1${'}'.repeat(depth)}}`);
   assert.ok(text.length > 25_000 && text.length < 128 * 1024, String(text.length));
-  for (const [path, raw] of [['/v1/validate', `{"request":${text}}`], ['/v1/jobs', `{"job_id":"${id}","request":${text},"context":{"job_id":"${id}","prior_trials":[]}}`]]) {
+  for (const [path, raw] of [['/v1/validate', `{"request":${text},"context":${JSON.stringify(EDGE)}}`], ['/v1/jobs', `{"job_id":"${id}","request":${text},"context":{"job_id":"${id}","prior_trials":[],"allow":${JSON.stringify(EDGE.allow)}}}`]]) {
     const a = await call('POST', path, undefined, { raw });
     assert.equal(a.status, 422, `${path}: ${a.body.toString().slice(0, 200)}`);
     assert.deepEqual([a.json().error.code, a.json().error.field], ['PARAM_NOT_ACCEPTED', 'exit.stop.line.params.a'], path);
@@ -571,7 +575,7 @@ test('a job over BACKTEST_TIMEOUT_SECONDS ends FAILED TIMEOUT, its thread is sto
     assert.ok(performance.now() - t0 < 1450, 'ended at the deadline, not when the download came back');
     assert.equal(t.threads.jobs.busy, false);
     // a preview over the time: 504 TIMEOUT
-    const p = await call('POST', '/v1/signals', { schema_version: 1, tickers: STOCKS, period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry }, { at });
+    const p = await call('POST', '/v1/signals', sig({ schema_version: 1, tickers: STOCKS, period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry }), { at });
     assert.equal(p.status, 504); assert.equal(p.json().error.code, 'TIMEOUT');
     slow.bundleMs = 0;
     const next = newId();
@@ -593,7 +597,7 @@ test('M463: a compute thread ends once it has no task left, the next task starts
       assert.equal(t.threads.jobs.alive, false, `the job thread ended after ${ticker}'s job`);
       assert.equal((await call('GET', `/v1/jobs/${id}/result`, undefined, { at })).status, 200, 'its result stays with the HTTP thread');
     }
-    const p = await call('POST', '/v1/signals', { schema_version: 1, tickers: STOCKS, period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry }, { at });
+    const p = await call('POST', '/v1/signals', sig({ schema_version: 1, tickers: STOCKS, period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry }), { at });
     assert.equal(p.status, 200, p.body.toString());
     assert.equal(t.threads.previews.alive, false, 'the preview thread ended after its preview');
     // the log is shared by every app of this file: this app's threads are the ones started with its heap limit (the
@@ -649,13 +653,13 @@ test('M463: a job over its thread\'s heap ends FAILED OUT_OF_MEMORY with what to
 test('signals preview: the rows run.ts computes, its refusals, and a preview the caller abandoned does not block the next', async () => {
   const body = { schema_version: 1, tickers: STOCKS, period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry };
   const t0 = performance.now();
-  const a = await call('POST', '/v1/signals', body);
+  const a = await call('POST', '/v1/signals', sig(body));
   observed.preview_ms = Math.round(performance.now() - t0);
   assert.equal(a.status, 200, a.body.toString());
   const p = a.json() as SignalsPreview;
   assert.deepEqual(p, await runSignals(body, refs, directEnv()));
   assert.deepEqual(p.rows.map(r => r.ticker), STOCKS);
-  const bad = await call('POST', '/v1/signals', { ...body, tickers: ['BBCA', 'NOPE'] });
+  const bad = await call('POST', '/v1/signals', sig({ ...body, tickers: ['BBCA', 'NOPE'] }));
   assert.equal(bad.status, 422); assert.deepEqual([bad.json().error.code, bad.json().error.field], ['UNKNOWN_TICKER', 'tickers[1]']);
   // previews run while a job runs (their own thread)
   slow.bundleMs = 300;
@@ -663,11 +667,11 @@ test('signals preview: the rows run.ts computes, its refusals, and a preview the
   try {
     assert.equal((await call('POST', '/v1/jobs', jobBody(id, pageDefault('UNVR')))).status, 202);
     const ac = new AbortController();
-    const gone = call('POST', '/v1/signals', body, { signal: ac.signal }).catch(e => e);
+    const gone = call('POST', '/v1/signals', sig(body), { signal: ac.signal }).catch(e => e);
     await tick(100); ac.abort();
     assert.equal((await gone).name, 'AbortError');
     slow.bundleMs = 0;
-    const b = await call('POST', '/v1/signals', body);
+    const b = await call('POST', '/v1/signals', sig(body));
     assert.equal(b.status, 200); assert.deepEqual(b.json(), p);
   } finally { slow.bundleMs = 0 }
   assert.equal((await until(id)).status.state, 'FINISHED');
@@ -694,11 +698,11 @@ test('a caller that leaves while the worker waits for the reference lists queues
   };
   try {
     const at = `http://127.0.0.1:${await t.listen(0, '127.0.0.1')}`, b0 = fake.requests.length;
-    await leave('/v1/signals', preview(['BBCA']), at);
-    const next = await call('POST', '/v1/signals', preview(['UNVR']), { at });
+    await leave('/v1/signals', sig(preview(['BBCA'])), at);
+    const next = await call('POST', '/v1/signals', sig(preview(['UNVR'])), { at });
     assert.equal(next.status, 200, next.body.toString());
     assert.deepEqual(next.json(), await runSignals(preview(['UNVR']), refs, directEnv()));
-    const after = await call('POST', '/v1/signals', preview(['GOTO']), { at });
+    const after = await call('POST', '/v1/signals', sig(preview(['GOTO'])), { at });
     assert.equal(after.status, 200, after.body.toString());
     assert.deepEqual(previews, [['UNVR'], ['GOTO']], 'the abandoned preview never reached the preview thread, so the next one waited for nothing');
     // and it loaded no data: the bundles asked since are the two previews' own (a fresh thread: nothing is cached)
@@ -800,18 +804,18 @@ test('preview_end: each preview\'s wait in the queue (preview_wait_ms), its comp
   slow.bundleMs = 300;
   try {
     const from = lines.length;
-    const first = call('POST', '/v1/signals', body(STOCKS));
+    const first = call('POST', '/v1/signals', sig(body(STOCKS)));
     await tick(80);
     const ac = new AbortController();
-    const left = call('POST', '/v1/signals', body(['GOTO']), { signal: ac.signal }).catch(e => e);   // queued behind it
+    const left = call('POST', '/v1/signals', sig(body(['GOTO'])), { signal: ac.signal }).catch(e => e);   // queued behind it
     await tick(30);
-    const second = call('POST', '/v1/signals', body(['BBCA']));
+    const second = call('POST', '/v1/signals', sig(body(['BBCA'])));
     await tick(30); ac.abort();
     assert.equal((await left).name, 'AbortError');
     const [a, b] = await Promise.all([first, second]);
     assert.equal(a.status, 200); assert.equal(b.status, 200);
     slow.bundleMs = 0;
-    assert.equal((await call('POST', '/v1/signals', body(['BBCA', 'NOPE']))).status, 422);
+    assert.equal((await call('POST', '/v1/signals', sig(body(['BBCA', 'NOPE'])))).status, 422);
     const ends = linesFrom(from).filter(o => o.event === 'preview_end'), by = (n: number, outcome: string) => ends.find(o => o.tickers === n && o.outcome === outcome)!;
     assert.equal(ends.length, 4);
     const [p1, gone, p2, bad] = [by(STOCKS.length, 'ok'), by(1, 'left'), by(1, 'ok'), by(2, 'failed')];
@@ -844,21 +848,19 @@ test('P5: rights from the context only, fail closed; unknown rights and fields r
 });
 
 /* ---- EDGE multi-user Phase 3b (CONTRACT 8b): context.allow and context.limits on every route ------------------------ */
-test('3b: an item outside context.allow is 403 CAPABILITY_REQUIRED on validate, jobs and signals; allow optional; limits lowered', async () => {
+test('3b: an item outside context.allow is 403 CAPABILITY_REQUIRED on validate, jobs and signals; limits lowered', async () => {
   const none = { indicator: [], flow_indicator: [], candle_pattern: [], screener_metric: [] };
   const all = { indicator: '*', flow_indicator: '*', candle_pattern: '*', screener_metric: '*' };
   const q = pageDefault('UNVR');
   const refused = (a: Answer) => ({ status: a.status, ...a.json().error });
-  const lineRefusal = { status: 403, code: 'CAPABILITY_REQUIRED', field: 'exit.stop.line.indicator', details: { kind: 'indicator', id: 'I09', capability: 'backtest.indicator:I09' },
-    message: 'exit.stop.line.indicator: the indicator I09 is not included in your plan (backtest.indicator:I09); remove it or change the plan to run this strategy.' };
-  // validate: refused, allowed with "*", allowed without allow (deploy step 1), malformed refused
+  const lineRefusal = { status: 403, code: 'CAPABILITY_REQUIRED', field: 'exit.stop.line.indicator', details: { kind: 'indicator', id: 'I09', capability: 'terminal.indicator:I09' },
+    message: 'exit.stop.line.indicator: the indicator I09 is not included in your plan (terminal.indicator:I09); remove it or change the plan to run this strategy.' };
+  // validate: refused, allowed with "*", malformed refused (without allow: the step 3 test below)
   assert.deepEqual(refused(await call('POST', '/v1/validate', { request: q, context: { rights: [], allow: none, limits: {} } })), lineRefusal);
   const ok = await call('POST', '/v1/validate', { request: q, context: { allow: all, limits: {} } });
   assert.equal(ok.status, 200, ok.body.toString());
-  const before = await call('POST', '/v1/validate', { request: q, context: { rights: [] } });
-  assert.deepEqual(before.json(), ok.json());
   for (const [context, field] of [[{ allow: { ...all, indicator: 'I09' } }, 'context.allow.indicator'], [{ allow: { indicator: '*' } }, 'context.allow.flow_indicator'],
-    [{ limits: { timeout_seconds: 1 } }, 'context.limits.timeout_seconds'], [{ limits: [] }, 'context.limits']] as [unknown, string][]) {
+    [{ allow: all, limits: { timeout_seconds: 1 } }, 'context.limits.timeout_seconds'], [{ allow: all, limits: [] }, 'context.limits']] as [unknown, string][]) {
     const a = await call('POST', '/v1/validate', { request: q, context });
     assert.deepEqual([a.status, a.json().error.code, a.json().error.field], [422, 'INVALID_CONTEXT', field], JSON.stringify(context));
   }
@@ -876,12 +878,38 @@ test('3b: an item outside context.allow is 403 CAPABILITY_REQUIRED on validate, 
   const entry = { logic: 'any', at_least: 1, window_bars: 5, conditions: [{ id: 'r1', enabled: true, kind: 'indicator', indicator: 'I13', params: {}, lhs: { type: 'output', output: 'rsi' }, op: 'gt', rhs: { type: 'value', value: 50 } }] };
   const preview = { schema_version: 1, tickers: ['UNVR'], period: { from: '2024-01-02', to: THROUGH }, entry };
   const s = await call('POST', '/v1/signals', { request: preview, context: { allow: { ...all, indicator: ['I01'] } } });
-  assert.deepEqual(refused(s), { status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[0].indicator', details: { kind: 'indicator', id: 'I13', capability: 'backtest.indicator:I13' },
-    message: 'entry.conditions[0].indicator: the indicator I13 is not included in your plan (backtest.indicator:I13); remove it or change the plan to run this strategy.' });
+  assert.deepEqual(refused(s), { status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[0].indicator', details: { kind: 'indicator', id: 'I13', capability: 'terminal.indicator:I13' },
+    message: 'entry.conditions[0].indicator: the indicator I13 is not included in your plan (terminal.indicator:I13); remove it or change the plan to run this strategy.' });
   assert.equal((await call('POST', '/v1/signals', { request: preview, context: { allow: { ...all, indicator: ['I13'] } } })).status, 200);
-  assert.equal((await call('POST', '/v1/signals', preview)).status, 200);              // the bare body of an older edge-bff
-  const few = await call('POST', '/v1/signals', { request: { ...preview, tickers: ['BBCA', 'UNVR'] }, context: { limits: { max_portfolio_tickers: 1 } } });
+  const few = await call('POST', '/v1/signals', { request: { ...preview, tickers: ['BBCA', 'UNVR'] }, context: { allow: all, limits: { max_portfolio_tickers: 1 } } });
   assert.deepEqual([few.status, few.json().error.code], [422, 'INVALID_PORTFOLIO']);
+});
+
+test('3b step 3: the HTTP layer requires context.allow on validate, jobs and signals, and refuses a bare signals body', async () => {
+  // CONTRACT 8b "3b follow-up" (step 3 of the 3b deploy order): absent, INVALID_CONTEXT naming context.allow with how to
+  // pass it and a right example (AGENTS.md "Gates and evidence"); nothing is computed or queued
+  const q = pageDefault('UNVR'), id = newId();
+  const preview = { schema_version: 1, tickers: ['UNVR'], period: { from: '2024-01-02', to: THROUGH }, entry: q.entry };
+  const refusedWithout = async (path: string, body: unknown, what: string) => {
+    const a = await call('POST', path, body);
+    assert.deepEqual([a.status, a.json().error.code, a.json().error.field], [422, 'INVALID_CONTEXT', 'context.allow'], `${what}: ${a.body}`);
+    const m: string = a.json().error.message;
+    assert.ok(m.includes('context.allow') && m.includes('right: {"indicator": "*"') && m.includes('wrong: no allow'), m);
+  };
+  await refusedWithout('/v1/validate', { request: q }, 'validate, no context');
+  await refusedWithout('/v1/validate', { request: q, context: { rights: [], limits: {} } }, 'validate, a context without allow');
+  await refusedWithout('/v1/jobs', { job_id: id, request: q, context: { job_id: id, prior_trials: [] } }, 'jobs, a context without allow');
+  assert.equal((await call('GET', `/v1/jobs/${id}`)).status, 404, 'no job was made');
+  await refusedWithout('/v1/signals', { request: preview }, 'signals, no context');
+  await refusedWithout('/v1/signals', { request: preview, context: { rights: [] } }, 'signals, a context without allow');
+  await refusedWithout('/v1/signals', preview, 'signals, the bare body of an edge-bff from before P5');
+  const other = await call('POST', '/v1/signals', [preview]);
+  assert.deepEqual([other.status, other.json().error.code, other.json().error.field], [422, 'INVALID_REQUEST', 'body']);
+  // with allow, each passes
+  assert.equal((await call('POST', '/v1/validate', { request: q, context: EDGE })).status, 200);
+  assert.equal((await call('POST', '/v1/signals', sig(preview))).status, 200);
+  // the internal calls (tests, the look-ahead gate) keep every item: run.ts without an allow
+  assert.equal((await runSignals(preview, refs, directEnv())).rows.length, 1);
 });
 
 test('3b: the job re-checks on the job thread (run.ts runJob): an item outside allow ends it CAPABILITY_REQUIRED', async () => {

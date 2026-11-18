@@ -472,9 +472,13 @@ is built, checked, and deployed on its own.
   | `candle_pattern` | `backtest.candle_pattern` | `screener.candle_pattern` |
   | `screener_metric` | `screener.metric` (a Backtest test condition uses the Screener's metrics) | `screener.metric` |
 
+  Changed by the 3b follow-up (below): `indicator` and `flow_indicator` are `terminal.indicator` and
+  `terminal.flow_indicator` for both workers.
+
 - **Worker refusal:** HTTP 403 with the worker's error shape, carrying `code` `CAPABILITY_REQUIRED`, `field` (the JSON
   path of the item, e.g. `conditions[2].test.indicator` or `exit.stop.line.indicator`) and
-  `details: {"kind", "id", "capability"}`. `capability` is the family key of that worker, e.g. `backtest.indicator:I07`.
+  `details: {"kind", "id", "capability"}`. `capability` is the family key of that worker, e.g. `backtest.indicator:I07`
+  (since the 3b follow-up `terminal.indicator:I07`).
   The message names the item and says the plan does not include it.
   - edge-bff relays it unchanged, and adds `display_name` (`errors.display_name`) where it builds the answer.
 - **Where each worker checks:**
@@ -525,8 +529,8 @@ is built, checked, and deployed on its own.
       - Not flow by nature, and so not closed with it: Screener `silent` (labelled Flow, computed from price and
         volume) and the universe chips (O3b-2).
     - The free plan's indicators ("dan gratis juga"): the user said 2026-11-18 "Abaikan maksud dan gratis juga";
-      decision D3 stands (the BBCA daily price, its two indicators chosen later, asked at 3c). The checker's failing test waits in `pending/c1-phase3b.test.ts` (outside every suite;
-    `pending/README.md`) and goes back to `apps/backtest-worker/tests/` with the decision, matching it.
+      decision D3 stands (the BBCA daily price, its two indicators chosen later, asked at 3c). The checker's failing test waited in `pending/c1-phase3b.test.ts` (outside every suite;
+    `pending/README.md`) and went back to `apps/backtest-worker/tests/c1-phase3b.test.ts` with the follow-up, matching the decision.
   - **O3b-2 (C1 non-blocking 1), decided 2026-11-18** (user: "Terkait dengan pertanyaan kedua, oke, setuju"): not
     gated. The Screener universe chips filter on `last`, `adv20_idr`, `bars` and `index_membership`, values shown in
     every result row and in `/universe`, so gating them by id cannot hide them. The transform `ma` computes the SMA/EMA
@@ -655,6 +659,30 @@ today.
   - an unwrapped `/v1/signals` body is refused too;
   - internal calls keep "everything".
 - The C1 pending test returns to `apps/backtest-worker/tests/`, changed to match.
+- **Built** (builder W, 2026-11-18, on the branch; not deployed, migration not applied):
+  - `app/allow.py FAMILIES` (both workers: `terminal.indicator`, `terminal.flow_indicator`); `app/releases.py
+    KIND_OF_FAMILY` drops the four families; migration `20261118_001_edge_bff_item_families_from_terminal.sql` removes
+    them from `plan_capabilities`, `user_capability_overrides` and `capabilities` (48 → 44 rows), refuses a second run,
+    reports the overrides it would remove and refuses when there is one, and verifies that the paid plan holds
+    `terminal.indicator` and `terminal.flow_indicator` = `{"stages": ["released"]}`. The two rows' `means` now name the
+    Backtest and the Screener.
+  - The wire's `details.capability` names the family edge-bff expands for that worker, so it is now
+    `terminal.indicator:<id>` / `terminal.flow_indicator:<id>` on both workers (`access.ts FAMILY`, `run.ts
+    CAPABILITY_FAMILY`; edge-bff `tests/test_allow.py` reads both tables and compares them with `FAMILIES`), and
+    `display_name` is the catalog's ("Terminal Flow indicators: fnet"). The candlestick patterns and Screener metrics
+    keep their families.
+  - `broker` and `top5` are released `flow_indicator` items (`releases.json`; `tests/test_releases.py` derives the flow
+    ids from `backtest/src/core/catalog.ts LEGACY` group `flow`, read as data; `validate.ts legacyItemKind` gates by the
+    same group). `core/signals.ts RANK_ITEM` names the item each ranking reads (`fnet` only); `validate.ts checkRequest`
+    gates `portfolio.rank_by` from it, before the broker data is asked for.
+  - Step 3: both workers' HTTP layer requires `context.allow` (`INVALID_CONTEXT` at `context.allow`, with a right and a
+    wrong example); the backtest-worker refuses a `/v1/signals` body without `{request, context}` the same way.
+  - Deviation: `app/releases.py` reads only `releases.json` at run time (the image carries no registry), so the
+    derivation of the flow ids lives in `tests/test_releases.py`, as for every other registry; `releases.py` documents it.
+  - Callers of the workers' HTTP API outside edge-bff and the workers' own tests that sent no `allow`, changed with it
+    to send every item: `verification/backtest/memory/measure.mjs`, `verification/edge_multiuser/runtime/bench/scripts/
+    bt_cold.mts`, `verification/screener/live_candles_local.mjs` (its stand-in edge). The screener-worker tests' `call`
+    adds edge-bff's context to an object body without one (`tests/helpers.ts`).
 
 **3d. M476 (Radar data in the Watchlist file).**
 - The publisher splits `watchlist-stocks` into a base file and `watchlist-radar`; edge-bff serves the latter only with

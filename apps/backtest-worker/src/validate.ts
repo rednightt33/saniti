@@ -28,7 +28,8 @@ import { Calc, PRICE_ACTION, conditionSeries, flowConditionShape } from '../../e
 import type { Condition as CoreCondition, FlowCondition } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { lineOf, portfolioTickers, validateRun } from '../../edge-bff/backtest/src/core/engine.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
-import { byTicker, isIsoDate, requestConditions } from '../../edge-bff/backtest/src/core/signals.ts';
+import { RANK_ITEM, byTicker, isIsoDate, requestConditions } from '../../edge-bff/backtest/src/core/signals.ts';
+import { LEGACY } from '../../edge-bff/backtest/src/core/catalog.ts';
 import type { ActiveCondition } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from './config.ts';
 import { invalid } from './errors.ts';
@@ -161,12 +162,16 @@ export const NO_RIGHTS: Rights = new Set();
 /** The catalog kind of a legacy card's type (a price-action or flow card of the Backtest core), derived from the
     registries at load so a future legacy type that matches a catalog id is gated by it: a Screener metric id
     (screener-metrics.json metrics, the ids of releases.json screener_metric: breakout, volspike, macross today), a Flow
-    indicator id (the Screener registry's flows: flowRegistry.json and fnet, ksei_net; fnet today) or a candlestick id.
-    null: a built-in type with no catalog id (dip, macd, top5, broker today), not gated. */
+    indicator id (the Screener registry's flows: flowRegistry.json and fnet, ksei_net; fnet today), a legacy card of
+    the core's flow group (catalog.ts LEGACY group 'flow': fnet, broker, top5; they read broker data, so they follow
+    the flow rule, CONTRACT 8b "3b follow-up", user decision 2026-11-18; releases.json lists them, edge-bff
+    tests/test_releases.py derives them from the same group) or a candlestick id. null: a built-in technical type with
+    no catalog id (dip, macd today), part of the Backtest and not gated. */
 const METRIC_IDS = new Set((SCREENER_METRICS as { metrics: { id: string }[] }).metrics.map(m => m.id));
+const LEGACY_FLOW = new Set(Object.entries(LEGACY).filter(([, s]) => s.group === 'flow').map(([t]) => t));
 export function legacyItemKind(type: string): AllowKind | null {
   if (METRIC_IDS.has(type)) return 'screener_metric';
-  if (Object.prototype.hasOwnProperty.call(FLOW_BY_ID, type)) return 'flow_indicator';
+  if (Object.prototype.hasOwnProperty.call(FLOW_BY_ID, type) || LEGACY_FLOW.has(type)) return 'flow_indicator';
   if (CANDLE_IDS.includes(type)) return 'candle_pattern';
   return null;
 }
@@ -186,7 +191,8 @@ function conditionItems(list: readonly Listed[], allow: Allow): void {
   }
 }
 /** The price lines of the exits (stop and trailing), held to the plan whatever their mode: both are stored with the
-    job and hashed, as the numbers the chosen modes do not read (unreadTypes). */
+    job and hashed, as the numbers the chosen modes do not read (unreadTypes). The ATR stop, target and chandelier
+    compute I30 as part of the Backtest and name no item (CONTRACT 8b "3b follow-up", user decision 2026-11-18). */
 function lineItems(q: BacktestRequest, allow: Allow): void {
   if (allow === ALLOW_ALL) return;
   for (const part of ['stop', 'trailing'] as const) {
@@ -296,6 +302,10 @@ export function checkRequest(input: unknown, refs: References, cfg: Pick<Config,
   } else {
     const p = q.portfolio!;
     tickers = pickedStocks(p.tickers, refs, cfg.limits.max_portfolio_tickers, 'portfolio.tickers');
+    // the item the ranking reads (signals.ts RANK_ITEM: rank_by 'fnet' the flow item fnet; the technical rankings adx,
+    // vol and rsi none, part of the Backtest), held to the plan before its data is asked for (CONTRACT 8b "3b follow-up")
+    const rank = RANK_ITEM[p.rank_by];
+    if (rank) requireItem(allow, rank.kind, rank.id, 'portfolio.rank_by');
     if (p.rank_by === 'fnet') {
       if (!cfg.flow.enabled) fail('FLOW_UNAVAILABLE', 'portfolio.rank_by', `Ranking by foreign net flow needs the broker data, which is not available. ${cfg.flow.reason ?? ''}`.trim());
       broker = true;

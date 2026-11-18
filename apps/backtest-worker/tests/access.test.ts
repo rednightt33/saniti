@@ -1,7 +1,8 @@
 /* EDGE multi-user Phase 3b (verification/edge_multiuser/access_tiers/CONTRACT.md section 8b, "3b in detail"): the plan's
    items (context.allow) and limits (context.limits) as validate.ts and run.ts apply them, without the HTTP layer
    (tests/server.test.ts calls the routes). Every place a request names an item is refused with the item's JSON path and
-   its Backtest capability when allow lacks it, and passes when allow holds it; "*" and an absent allow pass everything;
+   its Backtest capability when allow lacks it, and passes when allow holds it; "*" and an absent allow (an internal
+   call) pass everything, while the HTTP layer requires allow (server.ts contextGrants, step 3 of the 3b deploy order);
    a malformed allow or limits is INVALID_CONTEXT; a plan's limit is the smaller of the two. No market data. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -114,8 +115,10 @@ test('every place an item is named: refused 403 CAPABILITY_REQUIRED at its JSON 
     assert.deepEqual(r && { status: r.status, code: r.code, field: r.field, details: r.details }, { status: 403, code: 'CAPABILITY_REQUIRED', field: first[0], details: { kind, id, capability } }, key);
     assert.ok(r!.message!.includes(id) && r!.message!.includes('not included in your plan') && r!.message!.includes(capability), r!.message);
   }
-  // the families: a Backtest item is backtest.<kind>, a Screener metric screener.metric
-  assert.deepEqual(FAMILY, { indicator: 'backtest.indicator', flow_indicator: 'backtest.flow_indicator', candle_pattern: 'backtest.candle_pattern', screener_metric: 'screener.metric' });
+  // the families (edge-bff app/allow.py FAMILIES; CONTRACT 8b "3b follow-up", user 2026-11-18 "gate-nya adalah
+  // terminal"): the indicator and Flow items are the Terminal's grants, a candlestick pattern backtest.candle_pattern,
+  // a Screener metric screener.metric
+  assert.deepEqual(FAMILY, { indicator: 'terminal.indicator', flow_indicator: 'terminal.flow_indicator', candle_pattern: 'backtest.candle_pattern', screener_metric: 'screener.metric' });
   // every candle id of the core's registry is a candle_pattern; any other pattern type a screener_metric
   for (const id of CANDLE_IDS) assert.equal(testItems({ kind: 'state', pattern: { kind: 'pattern', type: id } }, 't')[0].kind, 'candle_pattern', id);
   assert.equal(testItems({ kind: 'state', pattern: { kind: 'pattern', type: 'squeeze' } }, 't')[0].kind, 'screener_metric');
@@ -137,7 +140,7 @@ test('a price line is checked whatever its mode, and the point-in-time right sti
   const d = request([IND('a1'), T('d1', { kind: 'value', metric: { kind: 'flow', metric: 'FL45', params: { anchor: '2026-01-02' } }, op: 'gt', value: 5 }, false)]);
   const all = allowOf({ indicator: '*', flow_indicator: ['FL45'], candle_pattern: [], screener_metric: [] });
   const none = allowOf({ indicator: '*', flow_indicator: ['FL01'], candle_pattern: [], screener_metric: [] });
-  assert.deepEqual(refusal(() => checkRequest(d, REFS, CFG, new Set(['flow_point_in_time']), none))?.details, { kind: 'flow_indicator', id: 'FL45', capability: 'backtest.flow_indicator:FL45' });
+  assert.deepEqual(refusal(() => checkRequest(d, REFS, CFG, new Set(['flow_point_in_time']), none))?.details, { kind: 'flow_indicator', id: 'FL45', capability: 'terminal.flow_indicator:FL45' });
   assert.equal(refusal(() => checkRequest(d, REFS, CFG, new Set(), all))?.code, 'CONDITION_RESTRICTED');
   assert.equal(refusal(() => checkRequest(d, REFS, CFG, new Set(['flow_point_in_time']), all)), null);
 });
@@ -149,8 +152,8 @@ test('signals preview: the entry and detail.exit_signals items, the latter at th
   assert.equal(refusal(() => checkSignalsRequest(p, REFS, CFG))?.status, 422);
   const only = (ids: string[], metrics: string[] = []) => allowOf({ indicator: ids, flow_indicator: [], candle_pattern: [], screener_metric: metrics });
   assert.deepEqual(refusal(() => checkSignalsRequest(p, REFS, CFG, undefined, only([]))), {
-    status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[0].indicator', details: { kind: 'indicator', id: 'I13', capability: 'backtest.indicator:I13' },
-    message: 'entry.conditions[0].indicator: the indicator I13 is not included in your plan (backtest.indicator:I13); remove it or change the plan to run this strategy.' });
+    status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[0].indicator', details: { kind: 'indicator', id: 'I13', capability: 'terminal.indicator:I13' },
+    message: 'entry.conditions[0].indicator: the indicator I13 is not included in your plan (terminal.indicator:I13); remove it or change the plan to run this strategy.' });
   // a switched-off exit condition naming an unknown pattern type: the plan check comes first, and names the true path
   assert.deepEqual(refusal(() => checkSignalsRequest(p, REFS, CFG, undefined, only(['I13'])))?.field, 'detail.exit_signals.conditions[1].test.pattern.type');
   assert.deepEqual(refusal(() => checkSignalsRequest(p, REFS, CFG, undefined, only(['I13'])))?.details, { kind: 'screener_metric', id: 'doji_star_not_a_candle', capability: 'screener.metric:doji_star_not_a_candle' });
@@ -184,8 +187,14 @@ test('allow and limits: the shapes refused as INVALID_CONTEXT, with the key and 
     const r = refusal(() => limitsOf(v));
     assert.deepEqual(r && [r.status, r.code, r.field], [422, 'INVALID_CONTEXT', field], JSON.stringify(v));
   }
-  // the context as a whole (server.ts contextGrants): each part optional, any other key refused
-  assert.deepEqual(contextGrants(undefined), { rights: [], allow: ALLOW_ALL, limits: {} });
+  // the context as a whole (server.ts contextGrants): allow required (step 3), rights and limits optional, any other
+  // key refused; the refusal of a missing allow names context.allow and shows a right example
+  for (const c of [undefined, {}, { rights: [], limits: {} }]) {
+    const r = refusal(() => contextGrants(c));
+    assert.deepEqual(r && [r.status, r.code, r.field], [422, 'INVALID_CONTEXT', 'context.allow'], JSON.stringify(c));
+    assert.ok(r!.message!.includes('right: {"indicator": "*"') && r!.message!.includes('wrong: no allow'), r!.message);
+  }
+  assert.deepEqual(contextGrants({ allow: ok }), { rights: [], allow: ok, limits: {} });
   assert.deepEqual(contextGrants({ rights: [], allow: ok, limits: {} }), { rights: [], allow: ok, limits: {} });
   assert.deepEqual(refusal(() => contextGrants({ allow: ok, plan: 'paid' }))?.field, 'context.plan');
   assert.deepEqual(refusal(() => contextGrants({ allow: { ...ok, indicator: 'I01' } }))?.field, 'context.allow.indicator');
@@ -211,10 +220,11 @@ test('legacy cards: a type that is a catalog id is gated by that id (derived fro
   const { legacyItemKind } = await import('../src/validate.ts');
   const card = (t: string, over: Record<string, unknown> = {}) => legacyToCondition(legacyCard(t as never, 'c1', over as never));
   const with_ = (kind: string, ids: string[]) => allowOf({ indicator: '*', flow_indicator: '*', candle_pattern: '*', screener_metric: '*', [kind]: ids });
-  // the overlap today, derived: breakout, volspike, macross (Screener metrics), fnet (a Flow indicator); the rest built in
+  // the overlap today, derived: breakout, volspike, macross (Screener metrics), fnet (a Flow indicator), broker and top5
+  // (the core's flow group: they read broker data, CONTRACT 8b "3b follow-up"); macd and dip built in
   const kinds = Object.fromEntries(Object.keys(LEGACY).map(t => [t, (card(t) as { kind: string }).kind === 'indicator' ? 'registry' : legacyItemKind((card(t) as { type: string }).type)]));
   assert.deepEqual(kinds, { adx: 'registry', dmi: 'registry', stoch: 'registry', rsi: 'registry', macd: null, ma: 'registry', macross: 'screener_metric', volspike: 'screener_metric',
-    breakout: 'screener_metric', bb: 'registry', dip: null, fnet: 'flow_indicator', broker: null, top5: null });
+    breakout: 'screener_metric', bb: 'registry', dip: null, fnet: 'flow_indicator', broker: 'flow_indicator', top5: 'flow_indicator' });
   const breakout = request([card('breakout')]);
   assert.deepEqual(refusal(() => checkRequest(breakout, REFS, CFG, undefined, with_('screener_metric', ['volspike']))), {
     status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[0].type', details: { kind: 'screener_metric', id: 'breakout', capability: 'screener.metric:breakout' },
@@ -222,11 +232,19 @@ test('legacy cards: a type that is a catalog id is gated by that id (derived fro
   assert.equal(refusal(() => checkRequest(breakout, REFS, CFG, undefined, with_('screener_metric', ['breakout']))), null);
   // a switched-off fnet card in the exit signals: refused at its path, allowed with fnet
   const fnet = request([card('breakout')], [{ ...card('fnet'), id: 'x1', enabled: false } as Condition]);
-  assert.deepEqual(refusal(() => checkRequest(fnet, REFS, CFG, undefined, with_('flow_indicator', ['FL01'])))?.details, { kind: 'flow_indicator', id: 'fnet', capability: 'backtest.flow_indicator:fnet' });
+  assert.deepEqual(refusal(() => checkRequest(fnet, REFS, CFG, undefined, with_('flow_indicator', ['FL01'])))?.details, { kind: 'flow_indicator', id: 'fnet', capability: 'terminal.flow_indicator:fnet' });
   assert.equal(refusal(() => checkRequest(fnet, REFS, CFG, undefined, with_('flow_indicator', ['FL01'])))?.field, 'exit.signals.conditions[0].type');
   assert.equal(refusal(() => checkRequest(fnet, REFS, CFG, undefined, with_('flow_indicator', ['fnet']))), null);
-  // built-in types (dip, macd, top5, broker) pass with nothing of their kinds allowed
-  const builtIn = request([card('dip'), card('macd'), card('top5'), card('broker', { broker: 'YU' })].map((c, k) => ({ ...c, id: `b${k}` }) as Condition));
+  // the technical built-in types (dip, macd) pass with nothing of their kinds allowed
+  const builtIn = request([card('dip'), card('macd')].map((c, k) => ({ ...c, id: `b${k}` }) as Condition));
   const nothing = allowOf({ indicator: '*', flow_indicator: [], candle_pattern: [], screener_metric: [] });
   assert.equal(refusal(() => checkRequest(builtIn, REFS, CFG, undefined, nothing)), null);
+  // broker and top5 are gated by their own id, enabled or switched off
+  for (const [t, over] of [['broker', { broker: 'YU' }], ['top5', {}]] as [string, Record<string, unknown>][]) {
+    const q = request([card('breakout'), { ...card(t, over), id: 'f1', enabled: false } as Condition]);
+    assert.deepEqual(refusal(() => checkRequest(q, REFS, CFG, undefined, with_('flow_indicator', ['fnet']))), {
+      status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[1].type', details: { kind: 'flow_indicator', id: t, capability: `terminal.flow_indicator:${t}` },
+      message: `entry.conditions[1].type: the Flow indicator ${t} is not included in your plan (terminal.flow_indicator:${t}); remove it or change the plan to run this strategy.` }, t);
+    assert.equal(refusal(() => checkRequest(q, REFS, CFG, undefined, with_('flow_indicator', [t]))), null, t);
+  }
 });

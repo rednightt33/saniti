@@ -1,8 +1,10 @@
-/* EXEC-MU-ACCOUNTS Phase 3b, deploy step 1 (verification/edge_multiuser/access_tiers/CONTRACT.md section 8b "3b in
-   detail"): the body's `context.allow` and `context.limits` (run.ts parseContext, checkAllow, effectiveLimits; server.ts
-   gate after normalize). Locked here: every place a definition can name an item refused 403 CAPABILITY_REQUIRED with its
-   JSON path and the Screener family capability when `allow` lacks it, and accepted when it holds it; "*" allows all;
-   an absent allow is everything (step 1, today's behaviour); a malformed context INVALID_CONTEXT naming the field; the
+/* EXEC-MU-ACCOUNTS Phase 3b (verification/edge_multiuser/access_tiers/CONTRACT.md section 8b "3b in detail", and the
+   "3b follow-up": the families from the Terminal, step 3 of the deploy order): the body's `context.allow` and
+   `context.limits` (run.ts parseContext, checkAllow, effectiveLimits; server.ts gate after normalize). Locked here: every
+   place a definition can name an item refused 403 CAPABILITY_REQUIRED with its JSON path and the capability edge-bff
+   checks (the Terminal's family for the indicator and Flow kinds) when `allow` lacks it, and accepted when it holds it;
+   "*" allows all; an absent allow, or no context, refused INVALID_CONTEXT naming context.allow on every route (step 3);
+   a malformed context INVALID_CONTEXT naming the field; the
    limits as min(the worker's own ceiling, the plan's); a result cached for a principal with the item still refused for
    one without it; /counts refusing per entry; the internal calls (presets, normalize) never gated. */
 import assert from 'node:assert/strict';
@@ -48,7 +50,8 @@ const EXPECTED: [string, string, string][] = [       // [kind, id, field] in the
   ['screener_metric', 'return_rank', 'definition.conditions[7].test.metric.metric'],
   ['flow_indicator', 'fnet', 'definition.conditions[8].test.metric.metric'],
 ];
-const FAMILY: Record<string, string> = { indicator: 'screener.indicator', flow_indicator: 'screener.flow_indicator', candle_pattern: 'screener.candle_pattern', screener_metric: 'screener.metric' };
+// the capability edge-bff checks (app/allow.py FAMILIES): the Terminal's for the indicator and Flow kinds (3b follow-up)
+const FAMILY: Record<string, string> = { indicator: 'terminal.indicator', flow_indicator: 'terminal.flow_indicator', candle_pattern: 'screener.candle_pattern', screener_metric: 'screener.metric' };
 const idsOf = (kind: string) => EXPECTED.filter(e => e[0] === kind).map(e => e[1]);
 const exact = () => Object.fromEntries(Object.keys(FAMILY).map(k => [k, idsOf(k)]));
 
@@ -75,13 +78,16 @@ test('checkAllow: each item outside allow refused 403 CAPABILITY_REQUIRED with i
   }
 });
 
-test('the context: absent allow is everything (deploy step 1); malformed allow, limits or context refused INVALID_CONTEXT naming the field', () => {
-  assert.equal(parseContext(undefined).allow, ALLOW_ALL);
-  assert.equal(parseContext({ rights: [] }).allow, ALLOW_ALL);
+test('the context: allow required (step 3); malformed allow, limits or context refused INVALID_CONTEXT naming the field', () => {
   assert.deepEqual(parseContext({ allow: ALL, limits: {} }).limits, {});
+  assert.deepEqual(parseContext({ allow: ALL }), { rights: [], allow: parseContext({ allow: ALL }).allow, limits: {} });
   const bad = (c: unknown, field: string) => assert.throws(() => parseContext(c), (e: any) => {
     assert.deepEqual([e.code, e.status, e.field], ['INVALID_CONTEXT', 422, field]); assert.ok(e.message.length > 20); return true;
   }, JSON.stringify(c));
+  for (const c of [undefined, {}, { rights: [] }, { rights: [], limits: {} }]) {
+    bad(c, 'context.allow');
+    assert.throws(() => parseContext(c), (e: any) => /right: \{"indicator": "\*"/.test(e.message) && /wrong: no allow/.test(e.message), JSON.stringify(c));
+  }
   bad([], 'context');
   bad({ who: 1 }, 'context.who');
   bad({ rights: ['root'] }, 'context.rights');
@@ -91,11 +97,11 @@ test('the context: absent allow is everything (deploy step 1); malformed allow, 
   bad({ allow: { ...ALL, indicator: 'I01' } }, 'context.allow.indicator');
   bad({ allow: { ...ALL, indicator: ['I01', 'I01'] } }, 'context.allow.indicator');
   bad({ allow: { ...ALL, indicator: [1] } }, 'context.allow.indicator');
-  bad({ limits: [] }, 'context.limits');
-  bad({ limits: { max_rows: 5 } }, 'context.limits.max_rows');
-  bad({ limits: { max_conditions: 0 } }, 'context.limits.max_conditions');
-  bad({ limits: { max_counts: 1.5 } }, 'context.limits.max_counts');
-  assert.deepEqual(parseContext({ limits: { max_metric_filters: 0 } }).limits, { max_metric_filters: 0 });
+  bad({ allow: ALL, limits: [] }, 'context.limits');
+  bad({ allow: ALL, limits: { max_rows: 5 } }, 'context.limits.max_rows');
+  bad({ allow: ALL, limits: { max_conditions: 0 } }, 'context.limits.max_conditions');
+  bad({ allow: ALL, limits: { max_counts: 1.5 } }, 'context.limits.max_counts');
+  assert.deepEqual(parseContext({ allow: ALL, limits: { max_metric_filters: 0 } }).limits, { max_metric_filters: 0 });
 });
 
 test('limits: min(the worker\'s own ceiling, the plan\'s), never above the worker\'s', () => {
@@ -126,11 +132,10 @@ const refused = (r: { status: number; body: any }, field: string, capability: st
   assert.deepEqual([r.body.error.code, r.body.error.field, r.body.error.details.capability], ['CAPABILITY_REQUIRED', field, capability]);
 };
 
-test('/v1/validate: every place of the full definition refused without its item (the exact field and capability), accepted with it, with "*", and without allow', async () => {
-  const v = (context?: unknown) => call(port, 'POST', '/v1/validate', { schema_version: 1, definition: FULL, ...(context ? { context } : {}) }, auth(OWNER_A));
-  const ok = await v();
+test('/v1/validate: every place of the full definition refused without its item (the exact field and capability), accepted with it and with "*"', async () => {
+  const v = (context: unknown) => call(port, 'POST', '/v1/validate', { schema_version: 1, definition: FULL, context }, auth(OWNER_A));
+  const ok = await v({ allow: ALL, limits: {} });
   assert.equal(ok.status, 200, JSON.stringify(ok.body));
-  assert.equal((await v({ allow: ALL, limits: {} })).status, 200);
   assert.equal((await v({ allow: exact(), limits: {} })).status, 200);
   for (const [kind, id, field] of EXPECTED) refused(await v({ allow: without(kind, id, idsOf(kind)), limits: {} }), field, `${FAMILY[kind]}:${id}`);
   // a saved My metric is validated by edge-bff as the one condition of a screen (app/screener.py validated_definition)
@@ -146,9 +151,9 @@ test('/v1/run: a result cached for a principal with the item is still refused fo
   const first = await call(port, 'POST', '/v1/run', body(1, { allow: ALL, limits: {} }), auth(OWNER_A));
   assert.equal(first.status, 200, JSON.stringify(first.body));
   const hits = app.results.hits;
-  refused(await call(port, 'POST', '/v1/run', body(2, { allow: LOCKED, limits: {} }), auth(OWNER_A)), 'definition.conditions[0].test.metric.indicator', 'screener.indicator:I13');
+  refused(await call(port, 'POST', '/v1/run', body(2, { allow: LOCKED, limits: {} }), auth(OWNER_A)), 'definition.conditions[0].test.metric.indicator', 'terminal.indicator:I13');
   assert.equal(app.results.hits, hits, 'refused before the result cache is read');
-  const again = await call(port, 'POST', '/v1/run', body(3), auth(OWNER_A));             // no context: everything (step 1)
+  const again = await call(port, 'POST', '/v1/run', body(3, { allow: { ...LOCKED, indicator: ['I13'] } }), auth(OWNER_A));   // another principal with I13
   assert.equal(again.status, 200);
   assert.equal(app.results.hits, hits + 1, 'the cached answer serves a principal with the item');
   // extra columns (static/extra-columns.ts): the anchor `bars gt 0` and the columns as VALUE tests
@@ -156,23 +161,23 @@ test('/v1/run: a result cached for a principal with the item is still refused fo
     { id: 'x0', enabled: true, test: { kind: 'value', metric: { kind: 'universe', attr: 'bars' }, op: 'gt', value: 0 } },
     { id: 'x1', enabled: true, test: { kind: 'value', metric: { kind: 'transform', fn: 'pct_distance', of: { kind: 'indicator', indicator: 'I05', params: {}, output: 'kama' }, args: {} }, op: 'gt', value: -1e9 } }] };
   const run = (context: unknown) => call(port, 'POST', '/v1/run', { schema_version: 1, client_order: { page: 'aux', seq: 1 }, definition: extra, context }, auth(OWNER_A));
-  refused(await run({ allow: { ...ALL, indicator: ['I13'] } }), 'definition.conditions[1].test.metric.of.indicator', 'screener.indicator:I05');
+  refused(await run({ allow: { ...ALL, indicator: ['I13'] } }), 'definition.conditions[1].test.metric.of.indicator', 'terminal.indicator:I05');
   refused(await run({ allow: { ...ALL, screener_metric: [] } }), 'definition.conditions[0].test.metric.attr', 'screener.metric:bars');
   assert.equal((await run({ allow: { ...ALL, indicator: ['I05'], screener_metric: ['bars'] } })).status, 200);
 });
 
 test('/v1/preview: refused before its cache read, cached or not', async () => {
-  const body = (context?: unknown) => ({ schema_version: 1, client_order: { page: 'pv', seq: 1 }, definition: SMALL, ticker: ticker(), data_version: dataVersion(), ...(context ? { context } : {}) });
-  assert.equal((await call(port, 'POST', '/v1/preview', body(), auth(OWNER_A))).status, 200);
+  const body = (context: unknown) => ({ schema_version: 1, client_order: { page: 'pv', seq: 1 }, definition: SMALL, ticker: ticker(), data_version: dataVersion(), context });
+  assert.equal((await call(port, 'POST', '/v1/preview', body({ allow: ALL }), auth(OWNER_A))).status, 200);
   const hits = app.results.hits;
-  refused(await call(port, 'POST', '/v1/preview', body({ allow: LOCKED }), auth(OWNER_A)), 'definition.conditions[0].test.metric.indicator', 'screener.indicator:I13');
+  refused(await call(port, 'POST', '/v1/preview', body({ allow: LOCKED }), auth(OWNER_A)), 'definition.conditions[0].test.metric.indicator', 'terminal.indicator:I13');
   assert.equal(app.results.hits, hits);
 });
 
 test('/v1/counts: a locked entry answers its own CAPABILITY_REQUIRED, the others their counts; a cached count is still refused', async () => {
   const candle = { universe: U, conditions: [{ id: 'a', enabled: true, test: { kind: 'event', signal: { pattern: { kind: 'pattern', type: 'hammer', params: {} } }, within: 3 } }], logic: 'all' };
-  const counts = (context?: unknown) => call(port, 'POST', '/v1/counts', { schema_version: 1, definitions: [{ item_id: 'rsi', definition: SMALL }, { item_id: 'candle', definition: candle }], ...(context ? { context } : {}) }, auth(OWNER_A));
-  const open = await counts();
+  const counts = (context: unknown) => call(port, 'POST', '/v1/counts', { schema_version: 1, definitions: [{ item_id: 'rsi', definition: SMALL }, { item_id: 'candle', definition: candle }], context }, auth(OWNER_A));
+  const open = await counts({ allow: ALL });
   assert.equal(open.status, 200, JSON.stringify(open.body));
   assert.ok(open.body.counts.every((c: any) => 'match_count' in c), JSON.stringify(open.body.counts));
   const r = await counts({ allow: { ...ALL, candle_pattern: ['doji_star_not_held'] }, limits: {} });
@@ -191,15 +196,35 @@ test('limits over HTTP: max_conditions, max_counts and max_cpu_ms take the lower
   assert.equal((await v({ max_conditions: L.max_conditions + 10 })).status, 200, 'a plan value above the worker\'s ceiling changes nothing');
   const c = await v({ max_conditions: 1 });
   assert.deepEqual([c.status, c.body.error.code], [422, 'LIMIT_EXCEEDED'], JSON.stringify(c.body));
-  const n = await call(port, 'POST', '/v1/counts', { schema_version: 1, definitions: [{ item_id: 'a', definition: SMALL }, { item_id: 'b', definition: SMALL }], context: { limits: { max_counts: 1 } } }, auth(OWNER_A));
+  const n = await call(port, 'POST', '/v1/counts', { schema_version: 1, definitions: [{ item_id: 'a', definition: SMALL }, { item_id: 'b', definition: SMALL }], context: { allow: ALL, limits: { max_counts: 1 } } }, auth(OWNER_A));
   assert.deepEqual([n.status, n.body.error.code, n.body.error.details.limit, n.body.error.details.allowed], [422, 'LIMIT_EXCEEDED', 'max_counts', 1]);
   // an anchored flow condition (cost.test.ts): costed above 1 ms on this fixture, within the worker's own budget
   const anchored = { kind: 'transform', fn: 'percentile', of: { kind: 'flow', metric: 'FL18', params: { anchor_sessions: 40 } }, args: { length: 10 } };
   const custom = { ...SMALL, conditions: [{ id: 'a', enabled: true, test: { kind: 'value', metric: anchored, op: 'ge', value: 50 } }] };
-  const lim = (limits: unknown) => call(port, 'POST', '/v1/run', { schema_version: 1, client_order: { page: 'lim', seq: 1 }, definition: custom, context: { rights: ['flow_point_in_time'], limits } }, auth(OWNER_A));
+  const lim = (limits: unknown) => call(port, 'POST', '/v1/run', { schema_version: 1, client_order: { page: 'lim', seq: 1 }, definition: custom, context: { rights: ['flow_point_in_time'], allow: ALL, limits } }, auth(OWNER_A));
   const b = await lim({ max_cpu_ms: 1 });
   assert.deepEqual([b.status, b.body.error.code, b.body.error.details.limit, b.body.error.details.allowed], [422, 'LIMIT_EXCEEDED', 'compute_budget', 1], JSON.stringify(b.body));
   assert.equal((await lim({ max_cpu_ms: 10_000_000 })).status, 200, 'the worker\'s own budget when the plan\'s is higher');
+});
+
+test('step 3: every route refuses a body without context.allow INVALID_CONTEXT naming context.allow, with a right example', async () => {
+  // CONTRACT 8b "3b follow-up": edge-bff sends allow on every call; a body without it is not computed, cached or counted.
+  // The bodies go as strings, exactly as written (helpers.ts call adds edge-bff's context to an object body)
+  const bodies: [string, Record<string, unknown>][] = [
+    ['/v1/validate', { schema_version: 1, definition: SMALL }],
+    ['/v1/run', { schema_version: 1, client_order: { page: 's3', seq: 1 }, definition: SMALL }],
+    ['/v1/preview', { schema_version: 1, client_order: { page: 's3', seq: 2 }, definition: SMALL, ticker: ticker(), data_version: dataVersion() }],
+    ['/v1/counts', { schema_version: 1, definitions: [{ item_id: 'a', definition: SMALL }] }],
+  ];
+  const hits = app.results.hits;
+  for (const [path, body] of bodies) for (const context of [undefined, { rights: [] }, { rights: [], limits: {} }]) {
+    const r = await call(port, 'POST', path, JSON.stringify(context === undefined ? body : { ...body, context }), auth(OWNER_A));
+    assert.deepEqual([r.status, r.body.error.code, r.body.error.field], [422, 'INVALID_CONTEXT', 'context.allow'], `${path} ${JSON.stringify(context)}: ${JSON.stringify(r.body)}`);
+    assert.ok(/right: \{"indicator": "\*"/.test(r.body.error.message) && /wrong: no allow/.test(r.body.error.message), r.body.error.message);
+    // with allow the same body passes
+    if (context) assert.equal((await call(port, 'POST', path, JSON.stringify({ ...body, context: { ...context, allow: ALL } }), auth(OWNER_A))).status, 200, path);
+  }
+  assert.ok(app.results.hits >= hits);
 });
 
 test('internal calls are never gated: the presets of the refresh were computed in the system lane with everything allowed', () => {

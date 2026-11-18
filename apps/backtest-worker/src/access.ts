@@ -5,8 +5,9 @@
    context.allow  {indicator, flow_indicator, candle_pattern, screener_metric}: each "*" (every id, lab included) or a
                   list of distinct ids (possibly empty), the principal's grants expanded by edge-bff against
                   releases.json. All four kinds are named; any other key, or a value of another shape, is
-                  INVALID_CONTEXT. Absent: every item (deploy step 1 of 3b: an edge-bff that does not send it yet keeps
-                  today's behaviour; step 3 makes it required).
+                  INVALID_CONTEXT. Required on the HTTP layer since step 3 of the 3b deploy order (server.ts: absent,
+                  or no context, is INVALID_CONTEXT naming context.allow, requiredAllowOf); allowOf's undefined =
+                  ALLOW_ALL is for the internal calls only.
    context.limits {name: whole number}: a plan's own ceilings, for the worker's per-request limits (LIMIT_KEYS); the
                   worker takes min(its own, the plan's), never more. Absent or {}: the worker's own. Any other name is
                   INVALID_CONTEXT (timeout_seconds, queued_per_owner and window_bars are not per-request limits here).
@@ -25,16 +26,28 @@ export type AllowKind = (typeof ALLOW_KINDS)[number];
 export type Allow = Readonly<Record<AllowKind, '*' | readonly string[]>>;
 export const ALLOW_ALL: Allow = Object.freeze({ indicator: '*', flow_indicator: '*', candle_pattern: '*', screener_metric: '*' });
 
-/** The capability family of each kind on the Backtest (CONTRACT 8b families table): a Backtest test condition reads the
-    Screener's metrics, so their family is the Screener's. */
+/** The capability family of each kind on the Backtest, the one edge-bff expands for this worker (app/allow.py FAMILIES;
+    edge-bff tests/test_allow.py reads this table and fails when the two differ), so details.capability names the grant
+    the plan lacks and edge-bff's display_name finds it in the catalog. CONTRACT 8b "3b follow-up" (user decision
+    2026-11-18, "gate-nya adalah terminal"): the indicator and Flow items are the Terminal's grants; a Backtest test
+    condition reads the Screener's metrics, so their family is the Screener's; the candlestick patterns are the
+    Backtest's own. */
 export const FAMILY: Readonly<Record<AllowKind, string>> = {
-  indicator: 'backtest.indicator', flow_indicator: 'backtest.flow_indicator', candle_pattern: 'backtest.candle_pattern', screener_metric: 'screener.metric',
+  indicator: 'terminal.indicator', flow_indicator: 'terminal.flow_indicator', candle_pattern: 'backtest.candle_pattern', screener_metric: 'screener.metric',
 };
 const WORDS: Readonly<Record<AllowKind, string>> = { indicator: 'indicator', flow_indicator: 'Flow indicator', candle_pattern: 'candlestick pattern', screener_metric: 'Screener metric' };
 
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
-/** context.allow checked (undefined: ALLOW_ALL), or INVALID_CONTEXT naming the key and the expected shape. */
+/** How to pass context.allow, with a right and a wrong example (AGENTS.md "Gates and evidence"). */
+export const ALLOW_HOW = `context.allow names every kind (${ALLOW_KINDS.join(', ')}), each "*" or a list of distinct ids; right: {"indicator": "*", "flow_indicator": ["FL01", "fnet"], "candle_pattern": [], "screener_metric": "*"}; wrong: no allow, or {"indicator": "I01"}`;
+/** context.allow of an HTTP request (step 3 of the 3b deploy order): required; edge-bff sends it on every call. */
+export function requiredAllowOf(v: unknown, field = 'context.allow'): Allow {
+  if (v === undefined) throw invalid('INVALID_CONTEXT', field, `${field} is required: edge-bff sends the plan's items on every call. ${ALLOW_HOW}.`);
+  return allowOf(v, field);
+}
+/** context.allow checked (undefined: ALLOW_ALL, for the internal calls), or INVALID_CONTEXT naming the key and the
+    expected shape. */
 export function allowOf(v: unknown, field = 'context.allow'): Allow {
   if (v === undefined) return ALLOW_ALL;
   const shape = `{${ALLOW_KINDS.map(k => `"${k}": "*" | [ids]`).join(', ')}}`;

@@ -24,7 +24,7 @@ import type { WorkerApp } from '../src/server.ts';
 import { ThreadSnapshot, brokerCounts, brokerRowCount, buildSnapshot, flowContextOf, groupingsOf, materialize } from '../src/snapshot.ts';
 import { brokerRowsOf as fakeRows, encodeBrokerDay, startFakeTerminal, universe, xsectionBrokerDoc } from './fake-terminal.mjs';
 import { CAP, WITHIN, input, market } from './fixtures.ts';
-import { OWNER_A, PROXY, auth, call, captureLogs, configFor } from './helpers.ts';
+import { EDGE_CONTEXT, OWNER_A, PROXY, auth, call, captureLogs, configFor } from './helpers.ts';
 
 captureLogs();
 const FLOW = SCREENER_REGISTRY.cost_model.flow, NS = FLOW.ns_per_unit.terminal, SESSIONS = 60;
@@ -182,7 +182,7 @@ test('compute_budget on a flow screen: refused before compute with how to pass (
   // FL18's Screener version is for admins (EXEC-BACKTEST-REVAMP P5, K8 b): without the right it is refused before any cost
   const restricted = await call(port, 'POST', '/v1/run', { schema_version: 1, client_order: { page: 'p', seq: 1 }, definition, options: { exhaustive: true } }, auth(OWNER_A));
   assert.deepEqual([restricted.status, restricted.body.error.code, restricted.body.error.field], [422, 'CONDITION_RESTRICTED', 'definition.conditions[0].test.metric.of']);
-  const r = await call(port, 'POST', '/v1/run', { schema_version: 1, client_order: { page: 'p', seq: 1 }, definition, options: { exhaustive: true }, context: { rights: ['flow_point_in_time'] } }, auth(OWNER_A));
+  const r = await call(port, 'POST', '/v1/run', { schema_version: 1, client_order: { page: 'p', seq: 1 }, definition, options: { exhaustive: true }, context: { rights: ['flow_point_in_time'], allow: EDGE_CONTEXT.allow } }, auth(OWNER_A));
   assert.equal(r.status, 422);
   assert.deepEqual([r.body.error.code, r.body.error.details.limit, r.body.error.details.allowed, r.body.error.details.costliest], ['LIMIT_EXCEEDED', 'compute_budget', 1, 'a']);
   assert.match(r.body.error.message, /above the 1 ms budget; the costliest is condition 1\. To pass, use default parameters, fewer custom or flow conditions, shorter lengths, windows or anchors, or a narrower universe \(right: .*; wrong: .*anchored.*\)\.$/);

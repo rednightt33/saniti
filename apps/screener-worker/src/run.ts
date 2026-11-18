@@ -58,28 +58,34 @@ function closed(v: Record<string, unknown>, allowed: readonly string[], at: stri
 export interface RunOptionsN { exhaustive: boolean; explain: boolean }
 export interface Envelope { client_order: { page: string; seq: number } | null; data_version: string | null; definition: unknown; options: RunOptionsN; ticker?: string; definitions?: { item_id: string; definition: unknown }[]; rights: string[]; allow: Allow; limits: ContextLimits }
 
-/* The body's `context`, which edge-bff sets from the session (a page never sends it): {rights?, allow?, limits?};
-   absent: no rights, everything allowed, no plan limits. Every malformed part is refused INVALID_CONTEXT naming its
-   field (a context edge-bff did not form).
+/* The body's `context`, which edge-bff sets from the session (a page never sends it): {rights?, allow, limits?}. Read
+   by the HTTP envelopes only (the internal calls, the presets of a refresh and the tests of the core, never build one
+   and keep ALLOW_ALL). Since step 3 of the 3b deploy order (CONTRACT 8b "3b follow-up") allow is required: a body with
+   no context, or a context without allow, is refused INVALID_CONTEXT naming context.allow, with how to pass it and a
+   right example. Every malformed part is refused INVALID_CONTEXT naming its field (a context edge-bff did not form).
    - rights (EXEC-BACKTEST-REVAMP P5, user K8 b, 2026-11-15; absent: none, fail closed): the Screener's versions of the
      indicators that choose their brokers with later data in the Terminal (catalog.ts flowAdminOnly) need
      POINT_IN_TIME_RIGHT; read anywhere in a definition without it, CONDITION_RESTRICTED names the field (restrict).
    - allow (EXEC-MU-ACCOUNTS Phase 3b, verification/edge_multiuser/access_tiers/CONTRACT.md section 8b "3b in detail"):
      {indicator, flow_indicator, candle_pattern, screener_metric}, each "*" (every id) or a list of distinct ids
-     (possibly empty), edge-bff's expansion of the principal's screener.* grants against releases.json. Deploy step 1:
-     optional, absent = everything (today's behaviour); present, all four kinds are required. An item outside it is
-     refused 403 CAPABILITY_REQUIRED (checkAllow).
+     (possibly empty), edge-bff's expansion of the principal's grants against releases.json (the indicator and Flow
+     kinds from the Terminal's terminal.indicator and terminal.flow_indicator, the 3b follow-up; the candlestick
+     patterns from screener.candle_pattern, the metrics from screener.metric). Required, all four kinds named. An item
+     outside it is refused 403 CAPABILITY_REQUIRED (checkAllow).
    - limits: a plan's ceilings, only the keys of CONTEXT_LIMITS (edge-bff sends {} today); each takes min(the worker's
      own SCREENER_* ceiling, the value) for this request (effectiveLimits). */
 export const KNOWN_RIGHTS: readonly string[] = [POINT_IN_TIME_RIGHT];
 export const ALLOW_KINDS = ['indicator', 'flow_indicator', 'candle_pattern', 'screener_metric'] as const;
 export type AllowKind = typeof ALLOW_KINDS[number];
 export type Allow = Readonly<Record<AllowKind, '*' | ReadonlySet<string>>>;
-/** Everything allowed: an absent `allow` (deploy step 1) and every internal call (tests, the presets of a refresh). */
+/** Everything allowed: every internal call (tests of the core, the presets of a refresh); never an HTTP body. */
 export const ALLOW_ALL: Allow = Object.freeze({ indicator: '*', flow_indicator: '*', candle_pattern: '*', screener_metric: '*' });
-/** The Screener's capability family of each kind (CONTRACT 8b families table): details.capability = family:id. */
+/** The Screener's capability family of each kind, the one edge-bff expands for this worker (app/allow.py FAMILIES;
+    edge-bff tests/test_allow.py reads this table and fails when the two differ): details.capability = family:id, so it
+    names the grant the plan lacks and edge-bff's display_name finds it in the catalog. CONTRACT 8b "3b follow-up"
+    (user decision 2026-11-18, "gate-nya adalah terminal"): the indicator and Flow items are the Terminal's grants. */
 export const CAPABILITY_FAMILY: Readonly<Record<AllowKind, string>> = Object.freeze({
-  indicator: 'screener.indicator', flow_indicator: 'screener.flow_indicator', candle_pattern: 'screener.candle_pattern', screener_metric: 'screener.metric',
+  indicator: 'terminal.indicator', flow_indicator: 'terminal.flow_indicator', candle_pattern: 'screener.candle_pattern', screener_metric: 'screener.metric',
 });
 export type ContextLimitName = 'max_cpu_ms' | 'owner_cpu_ms' | 'owner_inflight' | 'max_conditions' | 'max_metric_filters' | 'max_counts';
 /** The worker's per-request and per-owner ceilings a plan may lower, with the smallest value each accepts (config.ts:
@@ -92,8 +98,8 @@ export type ContextLimits = Partial<Record<ContextLimitName, number>>;
 export interface Context { rights: string[]; allow: Allow; limits: ContextLimits }
 const badContext = (field: string, message: string) => refuse('INVALID_CONTEXT', message, field);
 export function parseContext(c: unknown): Context {
-  if (c === undefined) return { rights: [], allow: ALLOW_ALL, limits: {} };
-  if (!obj(c)) throw badContext('context', 'context must be an object {rights?, allow?, limits?} set by edge-bff.');
+  if (c === undefined) throw badContext('context.allow', `The body has no context: edge-bff sends context {rights, allow, limits} on every call; ${ALLOW_HOW}.`);
+  if (!obj(c)) throw badContext('context', 'context must be an object {rights?, allow, limits?} set by edge-bff.');
   for (const k of Object.keys(c)) if (!['rights', 'allow', 'limits'].includes(k)) throw badContext(`context.${k}`, `context.${k} is not a field of the context; send only rights, allow, limits.`);
   return { rights: contextRights(c.rights), allow: contextAllow(c.allow), limits: contextLimits(c.limits) };
 }
@@ -103,9 +109,9 @@ function contextRights(v: unknown): string[] {
     throw badContext('context.rights', `context.rights must be a list of distinct rights (${KNOWN_RIGHTS.join(', ')}).`);
   return v as string[];
 }
-const ALLOW_HOW = `each of ${ALLOW_KINDS.join(', ')} is "*" or a list of distinct ids (right: {"indicator": "*", "flow_indicator": ["FL01"], "candle_pattern": [], "screener_metric": "*"}; wrong: {"indicator": "I01"})`;
+const ALLOW_HOW = `context.allow names each of ${ALLOW_KINDS.join(', ')}, each "*" or a list of distinct ids (right: {"indicator": "*", "flow_indicator": ["FL01"], "candle_pattern": [], "screener_metric": "*"}; wrong: no allow, or {"indicator": "I01"})`;
 function contextAllow(v: unknown): Allow {
-  if (v === undefined) return ALLOW_ALL;                         // deploy step 1: absent = everything
+  if (v === undefined) throw badContext('context.allow', `context.allow is required: edge-bff sends the plan's items on every call; ${ALLOW_HOW}.`);
   if (!obj(v)) throw badContext('context.allow', `context.allow must be an object: ${ALLOW_HOW}.`);
   for (const k of Object.keys(v)) if (!(ALLOW_KINDS as readonly string[]).includes(k)) throw badContext(`context.allow.${k}`, `context.allow.${k} is not a kind; ${ALLOW_HOW}.`);
   const out = {} as Record<AllowKind, '*' | ReadonlySet<string>>;
