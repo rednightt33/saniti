@@ -20,20 +20,6 @@ Aturan:
 
 Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
-## DESIGN-SYSTEM — design system EDGE yang dipakai lintas chat (tempat simpan disetujui 2026-11-18; belum "go")
-
-- **Asal:** EDGE Reference Pack (2026-11-17): salinan apa adanya 8 halaman EDGE (page.html offline, sumber, screenshot,
-  `components.md`, `charts.md`, `tokens-diff.md`, `GAPS.md`), dikirim ke user sebagai zip (tidak di repo: berisi data
-  pasar). User 2026-11-18: "Kamu bisa buat itu jadi design system? Jangan jalankan dulu. Kalau iya, apakah design sistem
-  tersebut bisa dipakai accross chat sebagai referencec?"
-- **Keputusan user 2026-11-18: "C"** — disimpan di dua tempat: (A) skill di repo
-  `.claude/skills/edge-design-system/` (dibaca sesi Claude Code yang membuka repo ini; satu baris di `AGENTS.md`;
-  gambar contoh dengan data dummy) sebagai sumber utama, dan (B) artifact Design System di claude.ai (dipakai chat
-  claude.ai mana pun di akun user) sebagai etalase; keduanya disinkronkan setiap kali design system berubah.
-- **Pertanyaan terbuka:** versi resmi untuk pola yang tidak seragam antarhalaman (status terpilih `.on`/`.active`,
-  tombol segmented terpilih, gaya tab, pill tanggal, tinggi baris tabel, format angka, fokus input, ikon). Usulan dikirim
-  ke user 2026-11-18; eksekusi menunggu persetujuan pilihan itu dan "go".
-
 ## RADAR — halaman Radar untuk library screener S1-S8 (desain disetujui 2026-11-12 s.d. 2026-11-14; rancangan, belum "go")
 
 **Kata user:** "saya mau screener ini dijadikan page baru" (2026-11-12); "Sekarang kita akan fokus ke S1 sampai S7 tadi.

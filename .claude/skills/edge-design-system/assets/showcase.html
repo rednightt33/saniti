@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EDGE Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="spec-v1.2.css">
+<link rel="stylesheet" href="edge-canonical.css">
+<style>
+/* showcase-only layout (not part of the system) */
+body{padding:var(--s-9) var(--s-10) 64px}
+.wrap{max-width:1280px;margin:0 auto;display:grid;gap:var(--s-8)}
+.wrap>*{min-width:0}
+.sec>h2{margin:var(--s-8) 0 var(--s-2)}
+.sec>p.note{margin-bottom:var(--s-6);max-width:760px}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:var(--s-8);align-items:start}
+.g3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:var(--s-8);align-items:start}
+.demo-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-4)}
+.chartbox{position:relative}
+.tm{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;border-radius:var(--r-md);overflow:hidden}
+.tm div{padding:var(--s-3) var(--s-4);font-size:var(--fs-xs);line-height:1.3;min-height:48px}
+.tm b{display:block;font-size:var(--fs-12)}
+.static-dialog{position:relative;display:grid;place-items:center;padding:var(--s-9);border-radius:var(--r-xl);background:rgba(0,0,0,.32)}
+.static-pop{position:relative;display:inline-block}
+.static-pop .pop{position:static;width:240px}
+.static-toast{position:static;transform:none;display:inline-block}
+.static-ttip{position:static;display:inline-block}
+.rng{position:relative;height:8px;background:var(--surface-2);border-radius:4px}
+.rng i{position:absolute;top:-3px;width:3px;height:14px;border-radius:2px;background:var(--text);transform:translateX(-50%)}
+.legend{display:flex;flex-wrap:wrap;gap:var(--s-7);font-size:var(--fs-12);color:var(--text-2)}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:var(--s-3);vertical-align:0}
+.swatch{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--s-4)}
+.swatch div{border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;font-size:var(--fs-xs)}
+.swatch span{display:block;height:36px}
+.swatch code{display:block;padding:var(--s-3) var(--s-4);background:none}
+@media (max-width:640px){.side{width:100%}.mx{min-width:0;font-size:var(--fs-2xs)}.win .tbl-wrap,.win-b{overflow-x:auto}body{padding:var(--s-8) var(--s-8) 48px}.tm{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="i-overview" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></symbol>
+<symbol id="i-radar" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/><path d="M8 8l4-4"/></symbol>
+<symbol id="i-watch" viewBox="0 0 16 16"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+<symbol id="i-terminal" viewBox="0 0 16 16"><path d="M4 3v10M8 2v9M12 4v10"/><rect x="3" y="5" width="2" height="5" rx=".5"/><rect x="7" y="4" width="2" height="5" rx=".5"/><rect x="11" y="6" width="2" height="6" rx=".5"/></symbol>
+<symbol id="i-backtest" viewBox="0 0 16 16"><path d="M2.5 8a5.5 5.5 0 1 0 1.8-4.1M2.5 2.5v3h3"/><path d="M8 5v3.2l2 1.3"/></symbol>
+<symbol id="i-research" viewBox="0 0 16 16"><path d="M3 3h10v7H8l-3 3v-3H3z"/><path d="M6 6.5h4"/></symbol>
+<symbol id="i-post" viewBox="0 0 16 16"><path d="M4 2h6l3 3v9H4z"/><path d="M10 2v3h3M6 8h5M6 10.5h5"/></symbol>
+<symbol id="i-saved" viewBox="0 0 16 16"><path d="M4.5 2.5h7v11L8 10.8 4.5 13.5z"/></symbol>
+<symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+<symbol id="i-chev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<symbol id="i-chevr" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+<symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+<symbol id="i-grip" viewBox="0 0 16 16"><circle cx="6" cy="4" r=".9" fill="currentColor"/><circle cx="10" cy="4" r=".9" fill="currentColor"/><circle cx="6" cy="8" r=".9" fill="currentColor"/><circle cx="10" cy="8" r=".9" fill="currentColor"/><circle cx="6" cy="12" r=".9" fill="currentColor"/><circle cx="10" cy="12" r=".9" fill="currentColor"/></symbol>
+<symbol id="i-cal" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/></symbol>
+<symbol id="i-filter" viewBox="0 0 16 16"><path d="M2.5 4h11M4.5 8h7M6.5 12h3"/></symbol>
+<symbol id="i-more" viewBox="0 0 16 16"><circle cx="3.5" cy="8" r="1" fill="currentColor"/><circle cx="8" cy="8" r="1" fill="currentColor"/><circle cx="12.5" cy="8" r="1" fill="currentColor"/></symbol>
+<symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 7.2V11M8 5v.1"/></symbol>
+<symbol id="i-cols" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M6 3v10M10 3v10"/></symbol>
+<symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7"/></symbol>
+<symbol id="i-sort" viewBox="0 0 16 16"><path d="M5 3v10M2.5 10.5L5 13l2.5-2.5M11 13V3M8.5 5.5L11 3l2.5 2.5"/></symbol>
+<symbol id="i-share" viewBox="0 0 16 16"><path d="M8 10V2.5M5 5l3-3 3 3M3 9v4.5h10V9"/></symbol>
+<symbol id="i-expand" viewBox="0 0 16 16"><path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5L9 7M2.5 13.5L7 9"/></symbol>
+<symbol id="i-bulb" viewBox="0 0 16 16"><path d="M8 2.5a4 4 0 0 0-2.2 7.3c.4.3.7.8.7 1.3V12h3v-.9c0-.5.3-1 .7-1.3A4 4 0 0 0 8 2.5zM6.7 14h2.6"/></symbol>
+<symbol id="i-spark" viewBox="0 0 16 16"><path d="M8 2l1.4 3.6L13 7l-3.6 1.4L8 12l-1.4-3.6L3 7l3.6-1.4zM12.5 11l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3.5 8h9M9 4.5L12.5 8 9 11.5"/></symbol>
+</defs></svg>
+<div class="wrap">
+
+<header class="head">
+  <div><h1>EDGE Design System</h1><p>Spec v1.2 plus the canonical layer of 2026-11-18. Every value here is a token; all data is made up.</p></div>
+  <div class="actions">
+    <span class="pill pos"><span class="dot"></span>Prices to Mon 17 Nov</span>
+    <span class="pill warn"><span class="dot"></span>Broker data to Mon 9 Nov</span>
+    <button class="btn" id="themeBtn" type="button"><svg class="ic ic-sm"><use href="#i-spark"/></svg>Dark theme</button>
+    <button class="btn primary" type="button" aria-keyshortcuts="Alt+A" title="Add stocks (Alt+A)"><svg class="ic ic-sm"><use href="#i-plus"/></svg>Add ticker<kbd>Alt+A</kbd></button>
+  </div>
+</header>
+
+<section class="sec"><h2>Tokens</h2><p class="note">Surfaces, text and market colours follow the theme. Charts use --up / --down for direction and --c1…--c6 for series, in that order.</p>
+<div class="swatch" id="swatch"></div></section>
+
+<section class="sec"><h2>KPI tiles</h2><p class="note">Label (with its timeframe), one-line purpose, value at 18px/600, change line, 64×26 sparkline (up when the last value is at or above the first). A tile for broker data carries the amber date pill.</p>
+<div class="kpis" id="kpis"></div></section>
+
+<section class="sec"><h2>Card header and charts</h2><p class="note">Title over a 12px grey subtitle on the left, "Period" plus a small segmented control on the right. Hand-made SVG: grid --chart-grid, zero line --chart-base, axis labels 10.5px --text-3, lines 1.6px; the hover read-out is a surface card (.ctip).</p>
+<div class="g2">
+  <div class="card"><div class="card-h"><div class="ttl"><h3>Sector Performance</h3><span class="ttl-s">Cumulative return vs IHSG</span></div><span class="pctl"><span class="plab">Period</span><div class="seg sm" role="group" aria-label="Period"><button type="button">20D</button><button type="button" class="on" aria-pressed="true">60D</button><button type="button">YTD</button><button type="button">1Y</button></div></span></div>
+    <div class="card-b"><div class="chartbox" id="lineBox"></div><div class="legend" id="lineLegend"></div></div></div>
+  <div class="card"><div class="card-h"><div class="ttl"><h3>Foreign Flow</h3><span class="ttl-s">All stocks · Regular board</span></div><span class="pctl"><span class="plab">Period</span><div class="seg sm" role="group" aria-label="Period"><button type="button" class="on" aria-pressed="true">1D</button><button type="button">5D</button><button type="button">1M</button></div></span></div>
+    <div class="card-b"><div class="g2" style="gap:var(--s-6)"><div><span class="eyebrow" style="margin-bottom:var(--s-3)">Net buy</span><div id="buyBars"></div></div><div><span class="eyebrow" style="margin-bottom:var(--s-3)">Net sell</span><div id="sellBars"></div></div></div>
+    <p class="note" style="margin-top:var(--s-5)">Broker data to Mon 9 Nov · market net <b class="up">+Rp 85.1B</b></p></div></div>
+</div></section>
+
+<section class="sec"><h2>Treemap colours</h2><p class="note">Seven steps of the 1-day change: ≥3%, ≥1.5%, ≥0.5% green; within ±0.5% grey; then the red steps. Text is white on the two darker steps.</p>
+<div class="tm" id="tm"></div></section>
+
+<section class="sec"><h2>Controls</h2>
+<div class="card"><div class="card-b" style="padding-top:var(--s-8);display:grid;gap:var(--s-8)">
+  <div class="tabs" role="tablist"><button role="tab" aria-selected="true">Core<span class="cnt">10</span></button><button role="tab" aria-selected="false">Banks<span class="cnt">2</span></button><button role="tab" aria-selected="false">Commodities<span class="cnt">4</span></button></div>
+  <div class="demo-row"><div class="seg" role="group" aria-label="View"><button type="button">Table</button><button type="button" class="on" aria-pressed="true">Cards</button></div>
+    <button class="tog on" aria-pressed="true" type="button">Radar</button><button class="tog" aria-pressed="false" type="button">Corporate action</button>
+    <button class="switch on" role="switch" aria-checked="true" aria-label="Near misses" type="button"></button><span class="muted">Near misses</span></div>
+  <div class="demo-row"><button class="btn primary" type="button">Open Terminal</button><button class="btn primary ready" type="button"><svg class="ic ic-sm"><use href="#i-arrow"/></svg>Screen now<kbd>Alt+S</kbd></button><button class="btn" type="button">Save screen</button><button class="btn ghost" type="button">Reset</button><button class="btn danger" type="button">Delete list</button><button class="btn sm" type="button">Small</button><button class="iconbtn" aria-label="More" type="button"><svg class="ic"><use href="#i-more"/></svg></button><button class="btn" aria-haspopup="menu" aria-expanded="true" type="button">Open menu<svg class="ic ic-sm"><use href="#i-chev"/></svg></button></div>
+  <div class="demo-row"><span class="pill">Neutral</span><span class="pill pos">+2.26%</span><span class="pill neg">−1.33%</span><span class="pill warn">9 Nov</span><span class="pill info"><svg class="ic ic-sm"><use href="#i-cal"/></svg>RUPS 17 Nov</span><span class="pill" style="background:var(--text);color:var(--surface)"><svg class="ic ic-sm"><use href="#i-radar"/></svg>Radar S6</span></div>
+  <div class="g3"><label class="field"><span>List name</span><input class="inp" value="Core" aria-label="List name"></label><label class="field"><span>Search</span><input class="inp" placeholder="Search code or name, e.g. AD"></label><label class="field"><span>Custom value</span><input class="inp custom" value="25"></label></div>
+</div></div></section>
+
+<section class="sec"><h2>Table</h2><p class="note">Dense 36px rows (the standard), sticky 36px header, numbers right-aligned, the symbol bold with a grey name under it, the selected row marked with .on.</p>
+<div class="card"><div class="tbl-wrap"><table class="tbl" id="tbl"></table></div></div></section>
+
+<section class="sec"><h2>Overlays</h2><p class="note">Shown open here. A menu is a .pop of .menu-item; a dialog sits on a .backdrop; a toast is an ink pill at the bottom centre; a hint tooltip (.ttip) is an ink box.</p>
+<div class="g3">
+  <div class="static-pop"><div class="pop" role="menu"><div class="menu-title">List</div><button class="menu-item" role="menuitem">Rename</button><button class="menu-item" role="menuitem">Indicators…</button><button class="menu-item" role="menuitem" style="color:var(--red)">Delete list</button></div></div>
+  <div class="static-dialog"><div class="dialog" role="dialog" aria-label="Delete list"><div class="dialog-head"><strong>Delete “Banks”?</strong><span class="note">2 stocks. You can undo for 8 seconds.</span></div><div class="dialog-foot"><button class="btn" type="button">Cancel</button><button class="btn danger" type="button">Delete list</button></div></div></div>
+  <div style="display:grid;gap:var(--s-6);align-content:start"><span class="toast static-toast">Filtered: only stocks in Radar (9 Nov) · 2 of 3 <button class="btn sm ghost" style="color:inherit" type="button">Undo</button></span>
+    <span class="ttip static-ttip"><span class="t">Turnover (1D)</span><span class="r"><span>Value traded</span><b>Rp 5.95T</b></span><span class="r"><span>vs 20D average</span><b class="up">+0.61×</b></span></span></div>
+</div></section>
+
+<section class="sec"><h2>Empty state</h2><div class="card"><div class="empty"><strong>No stock meets at least 1 of 2 conditions</strong>Loosen a threshold, switch the match to Any, or show near misses.<div class="demo-row" style="justify-content:center;margin-top:var(--s-6)"><button class="btn sm" type="button">Show near misses (0)</button><button class="btn sm" type="button">Match at least 1</button></div></div></div></section>
+
+<section class="sec"><h2>Patterns from the design proposals</h2><p class="note">Adapted to the tokens: compact widget cards, a 320px right-panel card, a floating window, day-count boxes, a heat strip, a signal matrix, an event timeline and a 52-week range bar.</p>
+<div class="g3" id="widgets"></div>
+<div class="g2" style="margin-top:var(--s-8)">
+  <div class="side"><div class="card"><div class="card-h"><h3>Flow &amp; Broker</h3><span class="grow"></span><button class="iconbtn sm" aria-label="More" type="button"><svg class="ic ic-sm"><use href="#i-more"/></svg></button></div>
+    <div class="card-b"><div class="kpis" style="grid-template-columns:repeat(3,1fr);gap:var(--s-4)"><div class="kpi"><span>Net 5D</span><b class="up">+38.4B</b></div><div class="kpi"><span>Streak</span><b>+5 d</b></div><div class="kpi"><span>Top 3</span><b>61%</b></div></div>
+      <span class="eyebrow" style="margin:var(--s-6) 0 var(--s-3)">Accumulation days · 20D</span><div id="kofn"></div>
+      <span class="eyebrow" style="margin:var(--s-6) 0 var(--s-3)">Net flow streak · 30 sessions</span><div id="heat"></div></div></div></div>
+  <div class="win"><div class="win-h"><strong>Foreign × Domestic</strong><small>ALFQ · Regular · Top 3 · to Mon 9 Nov</small><span class="acts"><button class="iconbtn sm" aria-label="Pin" type="button"><svg class="ic ic-sm"><use href="#i-saved"/></svg></button><button class="iconbtn sm" aria-label="Close" type="button"><svg class="ic ic-sm"><use href="#i-x"/></svg></button></span></div>
+    <div class="win-b"><div class="win-ctl"><div class="seg sm" role="group" aria-label="Period"><button type="button">1D</button><button type="button" class="on" aria-pressed="true">5D</button><button type="button">20D</button></div><select class="sel sm" style="width:auto" aria-label="Top N"><option>Top 3</option></select></div>
+      <table class="tbl compact"><thead><tr><th>Party</th><th>Buy %</th><th>Sell %</th><th>Net pt</th></tr></thead><tbody><tr><td><span class="sym">Foreign</span></td><td>34.2</td><td>41.8</td><td class="down">−7.6</td></tr><tr class="on"><td><span class="sym">Domestic</span></td><td>65.8</td><td>58.2</td><td class="up">+7.6</td></tr></tbody></table>
+      <p class="note" style="margin-top:var(--s-5)">Verdict = Foreign + Domestic, in points of buy value.</p></div></div>
+</div>
+<div class="g2" style="margin-top:var(--s-8)">
+  <div class="card"><div class="card-h"><h3>Signal matrix</h3></div><div class="card-b"><div class="mx" id="mx"></div></div></div>
+  <div class="card"><div class="card-h"><h3>This week</h3></div><div class="card-b"><div class="tl"><div class="e pos">ALFQ crossed its 52-week high<small>Alert · 15:42</small></div><div class="e info">INTQ entered the Radar<small>Signal · 09:05 · Big Accumulation</small></div><div class="e neg">GALQ fell below 2,800<small>Alert · 14:12</small></div><div class="e">BETQ cum date, dividend<small>Corporate action · 20 Nov</small></div></div>
+    <span class="eyebrow" style="margin:var(--s-7) 0 var(--s-3)">52-week range</span><div id="rng" style="display:grid;gap:var(--s-5)"></div></div></div>
+</div></section>
+
+</div>
+<script src="edge-ds.js"></script>
+<script>
+(function () {
+  var D = EdgeDS, $ = function (s) { return document.querySelector(s); };
+  var seed = 7; function rnd() { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }
+  function walk(n, drift, vol) { var v = 100, a = []; for (var i = 0; i < n; i++) { a.push(v); v *= 1 + drift / 100 / n + (rnd() - .5) * (vol || .012); } return a; }
+  /* tokens */
+  var TOK = ['--bg','--surface','--surface-2','--sel','--border','--text','--text-2','--text-3','--up','--down','--green','--red','--blue','--amber','--violet','--navy','--c1','--c2','--c3','--c4','--c5','--c6'];
+  $('#swatch').innerHTML = TOK.map(function (t) { return '<div><span style="background:var(' + t + ')"></span><code>' + t + '</code></div>'; }).join('');
+  /* KPI tiles */
+  var K = [['IHSG','1D','Composite · vs prior close','4,649.64','<b class="up">+81.36 · +1.78%</b>', walk(30, 4)],
+           ['Breadth','1D','Advancers / decliners','564 / 143','A/D 3.94× · 129 unchanged', null],
+           ['Turnover','1D','Value traded · Regular','Rp 5.95T','<b>0.61×</b> 20D average', walk(30, 2, .05), 'warn'],
+           ['Foreign net','1D','Net buy · Regular','<span class="up">+Rp 85.1B</span>','10D <b class="down">−Rp 2.05T</b>', walk(30, -3), 'warn']];
+  $('#kpis').innerHTML = K.map(function (k) {
+    return '<div class="card ktile" tabindex="0"><div class="lb"><span>' + k[0] + ' (' + k[1] + ')</span>' + (k[6] ? '<span class="pill warn">9 Nov</span>' : '') + '</div><div class="ksub">' + k[2] + '</div><div><div class="v">' + k[3] + '</div>' +
+      (k[0] === 'Breadth' ? '<div class="adbar"><i style="flex:564;background:var(--up)"></i><i style="flex:129;background:var(--gray-300)"></i><i style="flex:143;background:var(--down)"></i></div>' : '') +
+      '<div class="s">' + k[4] + '</div></div>' + (k[5] ? D.spark(k[5], k[0] === 'Turnover' ? { color: 'var(--text-3)' } : {}) : '') + '</div>';
+  }).join('');
+  /* line chart with hover card */
+  var dates = []; for (var i = 0; i < 60; i++) { var d = new Date(Date.UTC(2026, 7, 20 + Math.round(i * 1.45))); dates.push(d.toISOString().slice(0, 10)); }
+  var S = [['Financials','var(--c1)',-8],['Energy','var(--c2)',-22],['Industrials','var(--c3)',-14],['Infra','var(--c4)',-34],['IHSG','var(--text)',-12,true]].map(function (s) {
+    var w = walk(60, s[2], .02), base = w[0]; return { name: s[0], color: s[1], dash: s[3], w: s[3] ? 1.4 : 1.6, values: w.map(function (v) { return (v / base - 1) * 100; }) }; });
+  var box = $('#lineBox'); box.innerHTML = D.lines(S, dates, { zero: true, label: 'Sector Performance' }) + '<div class="ctip" hidden></div>';
+  $('#lineLegend').innerHTML = S.map(function (s) { return '<span><i style="background:' + s.color + '"></i>' + s.name + ' <b class="' + D.cls(s.values[59]) + '">' + D.pct(s.values[59], 1) + '</b></span>'; }).join('');
+  var tip = box.querySelector('.ctip');
+  box.addEventListener('mousemove', function (e) {
+    var r = box.getBoundingClientRect(), i = Math.max(0, Math.min(59, Math.round((e.clientX - r.left - 40 * r.width / 520) / ((516 - 40) * r.width / 520) * 59)));
+    tip.innerHTML = '<span class="d">' + D.dateLabel(dates[i]) + ' · day ' + (i + 1) + ' of 60</span>' + S.slice().sort(function (a, b) { return b.values[i] - a.values[i]; }).map(function (s) { return '<span class="r"><i style="background:' + s.color + '"></i><span>' + s.name + '</span><b class="' + D.cls(s.values[i]) + '">' + D.pct(s.values[i], 1) + '</b></span>'; }).join('');
+    tip.hidden = false; tip.style.left = Math.min(e.clientX - r.left + 12, r.width - 170) + 'px'; tip.style.top = '8px';
+  });
+  box.addEventListener('mouseleave', function () { tip.hidden = true; });
+  /* foreign bars */
+  $('#buyBars').innerHTML = D.hbars([['ALFQ',414e9],['OKZX',268e9],['FUHX',31e9],['HIBX',20e9]].map(function (r) { return { label: r[0], value: r[1], text: D.amount(r[1]) }; }));
+  $('#sellBars').innerHTML = D.hbars([['HOMX',-330e9],['PYJX',-179e9],['XXBX',-90e9],['OKXX',-71e9]].map(function (r) { return { label: r[0], value: r[1], text: D.amount(r[1]) }; }));
+  /* treemap colours */
+  var CH = [4.79, 3.01, 1.94, 1.07, .63, .2, 0, -.31, -.77, -1.39, -2.85, -5.13];
+  $('#tm').innerHTML = CH.map(function (c, i) { var col = D.changeColor(c, true); return '<div style="background:' + col[0] + ';color:' + col[1] + '"><b>' + ['ALFQ','BETQ','CAKQ','DELQ','EKAQ','FAJQ','GALQ','HARQ','INTQ','JAYQ','KRTQ','LOKQ'][i] + '</b>' + D.pct(c) + '</div>'; }).join('');
+  /* table */
+  var R = [['ALFQ','PT Alfa Energi Nusantara Tbk',2480,.12,-3.2,-99.6e9],['BETQ','PT Bank Beta Sejahtera Tbk',9150,-.2,.3,1.97e12],['CAKQ','PT Cakra Tambang Mineral Tbk',3330,3.8,-15.1,24.5e9],['DELQ','PT Delta Pangan Lestari Tbk',6725,-1.82,7.9,156.7e9],['EKAQ','PT Eka Menara Telekomunikasi Tbk',3010,-1.18,12.9,18.2e9]];
+  $('#tbl').innerHTML = '<thead><tr><th>Stock</th><th>Last</th><th>1D</th><th>1M</th><th>Foreign 5D</th><th class="l">Signal</th></tr></thead><tbody>' + R.map(function (r, i) {
+    return '<tr' + (i === 1 ? ' class="on"' : '') + '><td><span class="sym">' + r[0] + '</span><span class="sub">' + r[1] + '</span></td><td>' + D.price(r[2]) + '</td><td class="' + D.cls(r[3]) + '">' + D.pct(r[3]) + '</td><td class="' + D.cls(r[4]) + '">' + D.pct(r[4], 1) + '</td><td class="' + D.cls(r[5]) + '">' + D.rp(r[5], true) + '</td><td class="l">' + (i % 2 ? '<span class="pill pos">Accumulation</span>' : '<span class="muted">—</span>') + '</td></tr>'; }).join('') + '</tbody>';
+  /* widget cards (Watchlist slot proposals, adapted) */
+  var avg = .74;
+  $('#widgets').innerHTML = [
+    '<div class="card"><div class="card-h"><h3>Performance today</h3><span class="grow"></span><button class="iconbtn sm" aria-label="More" type="button"><svg class="ic ic-sm"><use href="#i-more"/></svg></button></div><div class="card-b"><div class="v" style="font-size:var(--fs-2xl);font-weight:600" class="up"><span class="up">' + D.pct(avg) + '</span></div><div class="kv"><span>IHSG</span><b class="up">+0.18%</b></div>' + D.trend(walk(20, 1.2), 26) + '<p class="note" style="margin-top:var(--s-3)">Average of 24 stocks, equal weight.</p></div></div>',
+    '<div class="card"><div class="card-h"><h3>Up / Down / Flat</h3></div><div class="card-b"><div style="font-size:var(--fs-2xl);font-weight:600"><span class="up">14</span> / <span class="down">8</span> / 2</div><div class="adbar" style="height:10px;margin:var(--s-4) 0"><i style="flex:14;background:var(--up)"></i><i style="flex:2;background:var(--gray-300)"></i><i style="flex:8;background:var(--down)"></i></div><p class="note">Close of Mon 17 Nov</p></div></div>',
+    '<div class="card"><div class="card-h"><h3>Exposure by sector</h3></div><div class="card-b"><div class="adbar" style="height:10px"><i style="flex:6;background:var(--c1)"></i><i style="flex:5;background:var(--c2)"></i><i style="flex:4;background:var(--c3)"></i><i style="flex:4;background:var(--c4)"></i><i style="flex:3;background:var(--c5)"></i><i style="flex:2;background:var(--c6)"></i></div><div style="margin-top:var(--s-4)"><div class="kv"><span>Financials</span><b>25.0% <span class="up">+0.41%</span></b></div><div class="kv"><span>Basic materials</span><b>20.8% <span class="up">+1.62%</span></b></div><div class="kv"><span>Energy</span><b>16.7% <span class="down">−0.52%</span></b></div></div></div></div>'
+  ].join('');
+  $('#kofn').innerHTML = D.kofn([11,12,12,13,12,11,11,10,11,12,13,14,14,15,14,13,12,12,13,14,15,15,14,13,13,12,11,11,12,13], 20);
+  $('#heat').innerHTML = D.heat([1,2,3,-1,1,-1,-2,-3,-4,1,2,3,4,5,-1,1,2,-1,-2,1,2,3,4,5,6,7,-1,1,-1,-2]);
+  var MX = ['Technical','Momentum','Foreign','Bandar','Fundamental'], lv = ['s','n','w'];
+  $('#mx').innerHTML = '<div></div>' + MX.map(function (m) { return '<div class="h">' + m + '</div>'; }).join('') + ['ALFQ','BETQ','CAKQ','DELQ','EKAQ'].map(function (t, r) {
+    return '<div class="sym">' + t + '</div>' + MX.map(function (_, c) { var k = lv[(r * 2 + c) % 3]; return '<div class="c ' + k + '">' + (k === 's' ? 'Strong' : k === 'w' ? 'Weak' : 'Neutral') + '</div>'; }).join(''); }).join('');
+  $('#rng').innerHTML = [['ALFQ',88],['BETQ',41],['CAKQ',12]].map(function (r) { return '<div class="hbar" style="grid-template-columns:44px 1fr 40px"><span class="sym">' + r[0] + '</span><div class="rng"><i style="left:' + r[1] + '%"></i></div><span class="val muted">' + r[1] + '%</span></div>'; }).join('');
+  /* theme */
+  $('#themeBtn').addEventListener('click', function () { var dark = document.documentElement.dataset.theme !== 'dark'; document.documentElement.dataset.theme = dark ? 'dark' : 'light'; this.lastChild.textContent = dark ? 'Light theme' : 'Dark theme'; });
+  if (new URLSearchParams(location.search).get('theme') === 'dark') $('#themeBtn').click();
+})();
+</script>
+</body>
+</html>
