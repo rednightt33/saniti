@@ -27,6 +27,8 @@ MESSAGES = {
     'SERVICE_UNAVAILABLE': 'EDGE cannot answer right now. Wait a moment, then try again.',
     'NOT_READY': 'EDGE is starting. Wait a moment, then try again.',
     'TERMINAL_UNAVAILABLE': 'Market data cannot be reached right now. Wait a moment, then try again.',
+    # EXEC-MU-ACCOUNTS Phase 3c (CONTRACT.md 8b "3c in detail"): a header only EDGE itself sets towards the market data
+    'HEADER_NOT_ALLOWED': 'This request carries a header that only EDGE itself may set. Reload the page and try again without it.',
     'ORC_UNAVAILABLE': 'The assistant cannot be reached right now. Wait a moment, then try again.',
     'MODELS_UNAVAILABLE': 'The list of models cannot be read right now. Wait a moment, then try again.',
     'RUN_NOT_FOUND': 'This question was not found.',

@@ -16,6 +16,12 @@ by every user (the index, the bytes by sha) and before any terminal-api call. Th
 If-None-Match is answered 304 only after the check (a year-long immutable copy would hand one user's files to the next
 user of the same browser without asking the server). With EDGE_MULTIUSER off the configured owner holds '*'.
 
+EXEC-MU-ACCOUNTS Phase 3c (CONTRACT.md 8b "3c in detail"): every terminal-api call carries the principal's headers
+(app/terminal_access.py headers: x-terminal-proxy-owner, x-terminal-capabilities), and a request carrying one of them is
+refused 400 HEADER_NOT_ALLOWED (terminal_access.guard) before the caches. The shared index is read with the headers of
+the principal whose request found it stale; the page files have no ticker or dataset of their own (the family's view
+capability gates them).
+
 Every refusal names its cause and the way out (AGENTS.md "Gates and evidence" (d)).
 """
 from __future__ import annotations
@@ -27,6 +33,8 @@ import time
 import httpx
 from fastapi import Depends, Request
 from fastapi.responses import JSONResponse, Response
+
+from . import terminal_access
 
 SHA = re.compile(r'[0-9a-f]{64}')
 INDEX_SECONDS = 30          # the index is read again at most this often (terminal-api caches state.json for 60 s)
@@ -100,18 +108,18 @@ class PageFiles:
             self.http = httpx.AsyncClient(timeout=30)
         return self.http
 
-    async def terminal(self, method, path, body=None):
+    async def terminal(self, p, method, path, body=None):
         return await self.client().request(
             method, f'{self.settings.terminal_url}/api/terminal/v1/{path}', content=body,
-            headers={'content-type': 'application/json', 'x-terminal-proxy-key': self.settings.terminal_proxy_key})
+            headers=terminal_access.headers(self.settings, p))
 
-    async def index(self, fresh=False):
+    async def index(self, p, fresh=False):
         """terminal-api's index of the family, kept INDEX_SECONDS; None when terminal-api cannot answer."""
         now = self.clock()
         if not fresh and self.cached is not None and now - self.cached_at < INDEX_SECONDS:
             return self.cached
         try:
-            answer = await self.terminal('GET', self.family)
+            answer = await self.terminal(p, 'GET', self.family)
             data = answer.json() if answer.status_code == 200 else None
         except (httpx.HTTPError, ValueError):
             data = None
@@ -122,17 +130,18 @@ class PageFiles:
 
     def routes(self, app, auth):
         family = self.family
-        view = auth.need(f'{family}.view')               # Phase 3a: before the shared caches (docstring)
+        # Phase 3a: before the shared caches (docstring); Phase 3c: the page-sent terminal headers refused first
+        view = terminal_access.guard(auth.need(f'{family}.view'))
 
-        async def page_index(_=Depends(view)):
+        async def page_index(p=Depends(view)):
             if not self.settings.terminal_url:
                 return self.failure('NOT_CONFIGURED', 503)
-            data = await self.index()
+            data = await self.index(p)
             if data is None:
                 return self.failure('UNAVAILABLE', 503)
             return JSONResponse({'finished_at': data.get('finished_at'), 'files': data['files']})
 
-        async def page_file(name: str, request: Request, sha: str = "", _=Depends(view)):
+        async def page_file(name: str, request: Request, sha: str = "", p=Depends(view)):
             if not self.settings.terminal_url:
                 return self.failure('NOT_CONFIGURED', 503)
             if not self.name.fullmatch(name):
@@ -143,12 +152,12 @@ class PageFiles:
                 # the URL names the content and the capability was checked: the browser's copy stands (no index read,
                 # no grant), as the year-long copy did before, but now only after the server's check
                 return Response(status_code=304, headers={'ETag': f'"{sha[:32]}"', 'Cache-Control': 'private, no-cache'})
-            data = await self.index()
+            data = await self.index(p)
             if data is None:
                 return self.failure('UNAVAILABLE', 503)
             entry = data['files'].get(name)
             if sha and (entry is None or entry.get('sha256') != sha):
-                data = await self.index(fresh=True) or data              # a publication may have come out since
+                data = await self.index(p, fresh=True) or data              # a publication may have come out since
                 entry = data['files'].get(name)
             if entry is None:
                 return self.failure('FILE_NOT_PUBLISHED', 404, {'name': name})
@@ -160,7 +169,7 @@ class PageFiles:
             body = self.bodies.get(current)
             if body is None:
                 try:
-                    granted = await self.terminal('POST', family, body=f'{{"names": ["{name}"]}}'.encode())
+                    granted = await self.terminal(p, 'POST', family, body=f'{{"names": ["{name}"]}}'.encode())
                     if granted.status_code == 404:
                         return self.failure('FILE_REPLACED', 409, {'name': name})
                     if granted.status_code == 429:

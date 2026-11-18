@@ -18,7 +18,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .backtest import Backtests
-from . import catalog
+from . import catalog, terminal_access
 from .client import OrcClient, OrcError, public_data
 from .config import Settings
 from .errors import Refusal, http_refusal, refusal, validation_refusal
@@ -52,9 +52,18 @@ TERMINAL_ASSET = re.compile(r'[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.(?:js|css|wof
 # reference/<name>: the gateway checks only the name's shape (terminal-api's REF_NAME); terminal-api owns the list of
 # reference files and answers 404 unknown_reference for any other name, so a new reference file (fixed_income,
 # EXEC-FI-TERMINAL, M327) needs no change here
-TERMINAL_ROUTES = {'GET': re.compile(r'manifest/[A-Z0-9]{1,12}|reference/[a-z0-9][a-z0-9_-]{0,31}|history/(?:price|broker)'
-                                      r'|logo/[A-Z0-9]{1,12}'),   # logo: EXEC-TERMINAL-LOGO
+# EXEC-MU-ACCOUNTS Phase 3c (CONTRACT.md 8b "3c in detail"): cut/<TICKER>/<dataset>, the last N days of a dataset that
+# terminal-api cuts for a principal with terminal.history_days (decision D2 = A), relayed byte for byte (relay_cut);
+# its datasets and /history's come from app/terminal_access.py (terminal-api's own names)
+TERMINAL_ROUTES = {'GET': re.compile(r'manifest/[A-Z0-9]{1,12}|reference/[a-z0-9][a-z0-9_-]{0,31}'
+                                      rf'|history/(?:{"|".join(terminal_access.HISTORY_DATASETS)})'
+                                      r'|logo/[A-Z0-9]{1,12}'   # logo: EXEC-TERMINAL-LOGO
+                                      rf'|cut/[A-Z0-9]{{1,12}}/(?:{"|".join(terminal_access.CUT_DATASETS)})'),
                    'POST': re.compile(r'files|bundle')}   # bundle: every file of one ticker in one call (EXEC-TERMINAL-UI-1026 U6)
+# the cut's answer: its gzip bytes exactly (no JSON parse, no decoding, no Content-Encoding, so the page's sha256 check
+# holds), with only these headers of terminal-api's, at most TERMINAL_CUT_BYTES
+TERMINAL_CUT_HEADERS = ('content-type', 'etag', 'x-terminal-cut-sha256', 'cache-control')
+TERMINAL_CUT_BYTES = 64 * 1024 * 1024
 # The terminal page has no inline script; it downloads its files from the private bucket by presigned URL (virtual-host
 # addressing, https://<bucket>.t3.storageapi.dev). Inline style attributes are kept: the reference page builds them.
 TERMINAL_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
@@ -538,18 +547,32 @@ def create_app(settings=None, store=None, orc=None):
     # EXEC-TERMINAL-API T4 (user 2026-10-25: "edge-bff meneruskan /api/terminal/... ke terminal-api --> OK"): the owner's
     # EDGE session reaches terminal-api as its one terminal account (quotas and audit there); writes keep EDGE's
     # same-origin and CSRF checks. Only the data routes are forwarded.
-    async def forward_terminal(method: str, path: str, request: Request):
+    # EXEC-MU-ACCOUNTS Phase 3c (CONTRACT.md 8b "3c in detail", app/terminal_access.py): every call carries the
+    # principal's x-terminal-proxy-owner and x-terminal-capabilities (built from the principal only; a page-sent one is
+    # refused by the route's terminal_access.guard), and a ticker or dataset the plan lacks is refused 403
+    # CAPABILITY_REQUIRED before terminal-api is asked (terminal_access.check). With the switch off the configured owner
+    # holds '*': admin, the body forwarded unchanged.
+    async def forward_terminal(method: str, path: str, request: Request, p: Principal):
         if not settings.terminal_url:
             return error('TERMINAL_UNAVAILABLE', 503)
         if not TERMINAL_ROUTES[method].fullmatch(path):
             return error('NOT_FOUND', 404)
         body = await request.body() if method == 'POST' else None
+        try:
+            body = terminal_access.check(p, method, path, request.query_params, body)
+        except Refusal as refused:
+            if refused.code != 'CAPABILITY_REQUIRED':
+                raise
+            await refuse_capability(p, refused.details['capability'])
+        headers = terminal_access.headers(settings, p)
         if terminal_http['client'] is None:
             terminal_http['client'] = httpx.AsyncClient(timeout=30)
+        url = f'{settings.terminal_url}/api/terminal/v1/{path}'
+        if path.startswith('cut/'):
+            return await relay_cut(url, request, headers, p)
         try:
-            answer = await terminal_http['client'].request(
-                method, f'{settings.terminal_url}/api/terminal/v1/{path}', params=request.query_params,
-                content=body, headers={'content-type': 'application/json', 'x-terminal-proxy-key': settings.terminal_proxy_key})
+            answer = await terminal_http['client'].request(method, url, params=request.query_params, content=body,
+                                                           headers=headers)
         except httpx.HTTPError:
             return error('TERMINAL_UNAVAILABLE', 503)
         if answer.status_code == 200 and answer.headers.get('content-type', '').startswith('image/'):
@@ -560,15 +583,61 @@ def create_app(settings=None, store=None, orc=None):
             data = answer.json()
         except ValueError:
             return error('TERMINAL_UNAVAILABLE', 503)
+        if (capability := terminal_access.answered_capability(answer.status_code, data)) is not None:
+            await refuse_capability(p, capability)                    # terminal-api's own check, in EDGE's shape
         return JSONResponse(status_code=answer.status_code, content=data)
 
+    async def refuse_capability(p, capability):
+        try:
+            await asyncio.to_thread(auth.refresh_names, False)        # the catalog's name, as auth.need does
+        except Exception:                                             # noqa: BLE001 - the plain phrase stays
+            pass
+        raise p.refusal(capability)
+
+    async def relay_cut(url, request, headers, p):
+        """Phase 3c (decision D2 = A): terminal-api's cut of the last N days (application/gzip), its bytes exactly as sent
+        (read raw, never decoded or parsed, no Content-Encoding added or relayed; the page checks their sha256 against
+        /bundle's), with TERMINAL_CUT_HEADERS and always Cache-Control private (the bytes are this principal's). The
+        query (the page's ?sha256=) is forwarded. Another status passes through as JSON, like every forwarded answer;
+        terminal-api's capability_required in EDGE's CAPABILITY_REQUIRED shape."""
+        try:
+            async with terminal_http['client'].stream('GET', url, params=request.query_params, headers=headers) as answer:
+                if answer.status_code != 200:
+                    await answer.aread()
+                    try:
+                        data = answer.json()
+                    except ValueError:
+                        return error('TERMINAL_UNAVAILABLE', 503)
+                    if (capability := terminal_access.answered_capability(answer.status_code, data)) is not None:
+                        await refuse_capability(p, capability)
+                    return JSONResponse(status_code=answer.status_code, content=data)
+                raw = bytearray()
+                async for chunk in answer.aiter_raw():
+                    raw += chunk
+                    if len(raw) > TERMINAL_CUT_BYTES:
+                        return error('TERMINAL_UNAVAILABLE', 503)
+                sent = {k: answer.headers[k] for k in TERMINAL_CUT_HEADERS if k in answer.headers}
+                length = answer.headers.get('content-length')
+        except httpx.HTTPError:
+            return error('TERMINAL_UNAVAILABLE', 503)
+        if length is not None and length != str(len(raw)):
+            return error('TERMINAL_UNAVAILABLE', 503)                # cut short on the way: never relayed as whole
+        cache = [t.strip() for t in sent.pop('cache-control', '').split(',')
+                 if t.strip() and t.strip().lower() not in ('public', 'private')]
+        sent['cache-control'] = ', '.join(['private', *(cache or ['no-cache'])])
+        media = sent.pop('content-type', 'application/octet-stream')
+        return Response(bytes(raw), media_type=media, headers={**sent, 'content-length': str(len(raw))})
+
+    terminal_read_gate = terminal_access.guard(auth.need(TERMINAL_VIEW))
+    terminal_write_gate = terminal_access.guard(auth.need(TERMINAL_VIEW, write=True))
+
     @app.get('/api/terminal/v1/{path:path}')
-    async def terminal_read(path: str, request: Request, p: Principal = Depends(auth.need(TERMINAL_VIEW))):
-        return await forward_terminal('GET', path, request)
+    async def terminal_read(path: str, request: Request, p: Principal = Depends(terminal_read_gate)):
+        return await forward_terminal('GET', path, request, p)
 
     @app.post('/api/terminal/v1/{path:path}')
-    async def terminal_write(path: str, request: Request, p: Principal = Depends(auth.need(TERMINAL_VIEW, write=True))):
-        return await forward_terminal('POST', path, request)
+    async def terminal_write(path: str, request: Request, p: Principal = Depends(terminal_write_gate)):
+        return await forward_terminal('POST', path, request, p)
 
     # EDGE backtest (CONTRACT.md section 9): /api/v1/backtests... with this session (writes with CSRF, as /api/v1/runs)
     # EXEC-MU-ACCOUNTS Phase 1: every router takes routes(app, auth) (auth.principal, auth.writer, auth.need, auth.admin)
