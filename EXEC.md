@@ -15867,7 +15867,9 @@ Code:
 
 The checkers C1-C3 found nothing that blocks the deploy with the switch off. O3b-1 (CONTRACT 8b), technical part decided 2026-11-18
 (user: "Semua indikator technical sekarang dibuka ... ADX, RSI, dan sebagainya ... bisa diakses oleh user berbayar";
-the technical built-ins are not gated); its flow part waits for the user's decision before the switch goes on; O3b-2 was decided 2026-11-18 (user: "Terkait dengan pertanyaan kedua,
+the technical built-ins are not gated), flow part decided the same day (user: "Pokoknya gate-nya adalah terminal ...
+menu yang akan ditutup di terminal adalah menu yang sifatnya flow": the Terminal's grants decide the Backtest and
+Screener items too, and the broker-data built-ins follow the flow rule; built with the step-3 follow-up and 3e); O3b-2 was decided 2026-11-18 (user: "Terkait dengan pertanyaan kedua,
 oke, setuju": the universe chips and the `ma` transform are not gated). The switch stays off, and with `EDGE_ADMIN_OWNERS` unset the configured
 owner holds `*`. So every worker call carries `allow` `"*"` for every kind and `limits` `{}`, and each tab works as
 today. No migration and no variable change.

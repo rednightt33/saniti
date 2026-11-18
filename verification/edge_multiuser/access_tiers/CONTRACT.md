@@ -511,11 +511,21 @@ is built, checked, and deployed on its own.
     nature itu nanti bisa diakses oleh user berbayar."
     - The built-ins that compute a technical indicator are part of the Backtest and not gated: `rank_by`
       `adx`/`rsi`/`vol`, the ATR stop, target and chandelier, and the legacy `macd` card.
-    - **Open:** the built-ins that read broker data without a catalog id of their own: `rank_by` `fnet` (the same
-      series as the flow item `fnet`), and the legacy `broker` and `top5` cards (the page's "Flow & bandarmology"
-      group). Proposed: they follow the flow rule.
-    - **Open:** the free plan's indicators ("dan gratis juga"; decision D3 gave the free plan the BBCA daily price only,
-      with its two indicators chosen later). The checker's failing test waits in `pending/c1-phase3b.test.ts` (outside every suite;
+    - **Flow part decided 2026-11-18.** The user's words: "Pokoknya gate-nya adalah terminal ... Semua indikator yang
+      nantinya akan ditutup di terminal, itu nanti juga tidak ada menu, baik di add screener dan di add backtest juga.
+      Dan menu yang akan ditutup di terminal adalah menu yang sifatnya flow."
+      - **One source:** the Terminal's item grants of a plan (`terminal.indicator`, `terminal.flow_indicator`) decide
+        the indicator and flow items of the Backtest and the Screener too. The separate `backtest.*`/`screener.*`
+        families of those two kinds are derived from them, never set apart, so no tab can differ from the Terminal.
+      - **Menus and server alike:** an item the plan does not hold is left out of the Screener and Backtest menus (3e),
+        and the workers refuse it (3b).
+      - The built-ins that read broker data follow the flow rule (the agent's reading of "sifatnya flow"; the user
+        named no exception): `rank_by` `fnet` follows the item `fnet`; the legacy `broker` and `top5` cards are
+        registered as flow items of the catalog, so they are gated by id like `fnet`.
+      - Not flow by nature, and so not closed with it: Screener `silent` (labelled Flow, computed from price and
+        volume) and the universe chips (O3b-2).
+    - The free plan's indicators ("dan gratis juga"): the user said 2026-11-18 "Abaikan maksud dan gratis juga";
+      decision D3 stands (the BBCA daily price, its two indicators chosen later, asked at 3c). The checker's failing test waits in `pending/c1-phase3b.test.ts` (outside every suite;
     `pending/README.md`) and goes back to `apps/backtest-worker/tests/` with the decision, matching it.
   - **O3b-2 (C1 non-blocking 1), decided 2026-11-18** (user: "Terkait dengan pertanyaan kedua, oke, setuju"): not
     gated. The Screener universe chips filter on `last`, `adv20_idr`, `bars` and `index_membership`, values shown in
