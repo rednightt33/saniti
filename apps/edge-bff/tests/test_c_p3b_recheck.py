@@ -40,19 +40,29 @@ def worker_families():
             'screener': parse('apps/screener-worker/src/run.ts', 'CAPABILITY_FAMILY')}
 
 
+def relayed_capability(worker, kind, family):
+    """details.capability of the worker's refusal as edge-bff relays it to the page (allow.named): either side may own
+    the mapping, the page sees this one."""
+    refused = {'code': 'CAPABILITY_REQUIRED', 'field': 'x', 'message': 'm',
+               'details': {'kind': kind, 'id': 'I07', 'capability': f'{family}:I07'}}
+    return allow.named(refused)['details']['capability']
+
+
 def test_f2_a_worker_refusal_names_the_family_edge_bff_decides_the_item_by():
     families = worker_families()
     for worker in ('backtest', 'screener'):
         assert set(families[worker]) == set(allow.KINDS), (worker, families[worker])
         for kind in allow.KINDS:
-            assert families[worker][kind] == allow.FAMILIES[worker][kind], (
-                f'the {worker} worker names {families[worker][kind]}:<id> in CAPABILITY_REQUIRED, but edge-bff decides '
-                f'its {kind} items by {allow.FAMILIES[worker][kind]}')
+            shown = relayed_capability(worker, kind, families[worker][kind]).partition(':')[0]
+            assert shown == allow.FAMILIES[worker][kind], (
+                f'the {worker} worker refusal reaches the page naming {shown}:<id>, but edge-bff decides its {kind} '
+                f'items by {allow.FAMILIES[worker][kind]}')
     # O3b-1 (user 2026-11-18, CONTRACT.md 8b "3b follow-up"): the Terminal's grants decide both workers' indicator and
     # Flow items, so the refusal must name the Terminal family once the follow-up lands (both sides together)
     for worker in ('backtest', 'screener'):
-        assert families[worker]['indicator'] == 'terminal.indicator', (worker, families[worker]['indicator'])
-        assert families[worker]['flow_indicator'] == 'terminal.flow_indicator', (worker, families[worker]['flow_indicator'])
+        for kind, family in (('indicator', 'terminal.indicator'), ('flow_indicator', 'terminal.flow_indicator')):
+            shown = relayed_capability(worker, kind, families[worker][kind]).partition(':')[0]
+            assert shown == family, (worker, kind, shown)
 
 
 def flow(metric):
