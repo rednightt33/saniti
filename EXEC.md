@@ -15949,3 +15949,11 @@ dipakai accross chat sebagai referencec?"
 - **Agent levels (the user, 2026-11-18):** "Habis ini ganti jadi extra, pemeriksa juga extra." After the three 3c
   builders, which run at medium, every builder and checker runs at reasoning effort xhigh. This replaces the rule of
   medium builders and high checkers.
+- **Checks with ultracode (the user, 2026-11-18):** "Ok, pemeriksaan 3c dan seterusnya pakai ultracode xhigh dan
+  seterusnya." From the 3c checks on, every check runs as a workflow (ultracode) at reasoning effort xhigh:
+  - finders from several angles, repeated until a round finds nothing new;
+  - each finding put to independent refuters before it is reported;
+  - a completeness critic at the end.
+
+  The session's workflow size guideline (under 10 agents per workflow) is kept by running the checks as several
+  workflows in sequence.
