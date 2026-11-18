@@ -626,6 +626,20 @@ today.
 - **Not in 3c** (3e):
   - the page's lock prompts and its handling of `locked` and the cut beyond what it already reads;
   - the free plan's two indicators.
+- **Built (terminal-api, builder T, 2026-11-18; `apps/terminal-api/README.md` "EDGE owners and their plans").** Where
+  the build reads or adds to the text above:
+  - The window: rows dated strictly after `data_through − N` (N = 730, data_through 2026-11-17: 2024-11-18 is the
+    first date served).
+  - Counting: a cut is counted once, when `GET /cut` serves it (one file of its bytes, one audit row). `/bundle` checks
+    the ticker quotas before it builds cuts, but logs no row for them.
+  - "Beyond the window": `/files` still grants a yearly file that lies entirely inside the window (its `first` after
+    the window start); packs, older yearly files and the events `all` file are refused.
+  - Intraday bars are not cut: under a history cap `/bundle` answers them locked with `terminal.history_days`.
+  - A lone owner header, a header that breaks a rule, or `admin: true` with any limit is 400 with the field named.
+  - Admin owner: the gateway's limits, counted on the owner's own row.
+  - **Open for the page (3e or edge-bff):** `rack.ts` `fetchFile` downloads with `credentials: 'omit'`, so the
+    relative cut URL reaches edge-bff without the session cookie. A capped page needs `credentials: 'same-origin'` for a
+    same-origin URL (or another way to authorise the relay) before a cut can load.
 
 **3b follow-up** (decided 2026-11-18, O3b-1; built with 3c):
 - **Families from the Terminal:** `allow.FAMILIES` takes the `indicator` and `flow_indicator` grants of both workers

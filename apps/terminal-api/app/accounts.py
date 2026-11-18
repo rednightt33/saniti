@@ -24,14 +24,23 @@ MAX_ENTRIES = 4096          # sessions are per sign-in; beyond this the cache st
 @dataclass(frozen=True)
 class Caller:
     """kind: 'gateway' (TERMINAL_PROXY_KEY, its account TERMINAL_PROXY_SUBSCRIBER), 'service' (a service key; `name`
-    the service, its account `email`) or 'session' (a sign-in cookie; `token_hash`)."""
+    the service, its account `email`) or 'session' (a sign-in cookie; `token_hash`).
+
+    EXEC-MU-ACCOUNTS Phase 3c (T2): a gateway call that names an EDGE owner (x-terminal-proxy-owner with
+    x-terminal-capabilities, entitlements.py) carries `owner` and `caps`; its credential is ('gateway', owner), so the
+    account cache, the usage and the audit rows are the owner's own row (terminal.subscriber.edge_owner_key). A gateway
+    call without the headers keeps ('gateway', TERMINAL_PROXY_SUBSCRIBER), as before."""
     kind: str
     name: str | None = None
     email: str | None = None
     token_hash: str | None = None
+    owner: str | None = None
+    caps: object = None                                   # entitlements.Capabilities with `owner`
 
     @property
     def credential(self):
+        if self.kind == 'gateway' and self.owner is not None:
+            return ('gateway', self.owner)
         return (self.kind, self.name or self.email or self.token_hash)
 
     @property
