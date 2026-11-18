@@ -33,6 +33,7 @@ def test_the_migration_refuses_a_second_run(database):
 def test_an_override_of_a_removed_family_is_reported_and_refused_then_the_migration_applies(database, store):
     user, plan = make_user(store, 'followup', 'followup-password'), paid_plan(store)
     with psycopg.connect(database, autocommit=True) as conn:
+        before = conn.execute('SELECT count(*) FROM edge_bff.capabilities').fetchone()[0]   # with every later migration
         # the catalog as before 20261118_001: the four rows, the paid plan's grants and one user's override
         conn.execute('''INSERT INTO edge_bff.capabilities(capability_key, kind, unit, means, display_name)
             SELECT k, 'items', NULL, 'A test row of a removed family, restored by this test.', k
@@ -53,7 +54,7 @@ def test_an_override_of_a_removed_family_is_reported_and_refused_then_the_migrat
         # without the override it applies: the database is as the conftest left it
         conn.execute("DELETE FROM edge_bff.user_capability_overrides WHERE reason = 'followup test'")
         conn.execute(MIGRATION.read_text())
-        assert conn.execute('SELECT count(*) FROM edge_bff.capabilities').fetchone()[0] == 44
+        assert conn.execute('SELECT count(*) FROM edge_bff.capabilities').fetchone()[0] == before
         for table in ('capabilities', 'plan_capabilities', 'user_capability_overrides'):
             assert conn.execute(f'SELECT count(*) FROM edge_bff.{table} WHERE capability_key = ANY(%s)',
                                 (list(REMOVED),)).fetchone()[0] == 0, table

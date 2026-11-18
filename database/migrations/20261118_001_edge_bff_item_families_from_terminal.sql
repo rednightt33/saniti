@@ -63,9 +63,8 @@ DO $verify$
 DECLARE
     k text;
 BEGIN
-    IF (SELECT count(*) FROM edge_bff.capabilities) <> 44 THEN
-        RAISE EXCEPTION 'the capabilities differ from the 48 of 20261117_004 less the 4 removed families';
-    END IF;
+    -- no total count: a later migration (20261118_002) adds capabilities; the preflight required the 4 families, and
+    -- the check below proves they are gone, so exactly 4 rows left the catalog
     IF EXISTS (SELECT 1 FROM edge_bff.capabilities WHERE capability_key IN ('backtest.indicator', 'backtest.flow_indicator',
                    'screener.indicator', 'screener.flow_indicator'))
        OR EXISTS (SELECT 1 FROM edge_bff.plan_capabilities WHERE capability_key IN ('backtest.indicator',
