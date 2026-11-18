@@ -15946,3 +15946,6 @@ dipakai accross chat sebagai referencec?"
 - **Assumption (non-material, the user may change it in the Phase 4 dashboard):** the free plan gets the same Terminal
   quota numbers as the paid one. D6 named the paid plan only, and the free plan opens one ticker (BBCA).
 - The switch stays off; nothing changes for the configured owner.
+- **Agent levels (the user, 2026-11-18):** "Habis ini ganti jadi extra, pemeriksa juga extra." After the three 3c
+  builders, which run at medium, every builder and checker runs at reasoning effort xhigh. This replaces the rule of
+  medium builders and high checkers.
