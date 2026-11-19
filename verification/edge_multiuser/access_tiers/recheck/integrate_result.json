@@ -1,0 +1,365 @@
+{
+ "int1": {
+  "branch": "fix-int",
+  "head": "9a22ee751236fb9332239dd0251317f51ebc59b8",
+  "done": [
+   "Made local branch fix-int at 97b4ecb5 (rel-base). Merged the five fix branches in order, one merge commit each: fix-terminal e6dfab52 -> e19b0eca, fix-site ccdfb177 -> 8a737ed3, fix-auth 419ee368 -> e6123c07, fix-plans 27961340 -> 9d8b55cf, fix-records 905bad65 -> fad74ab1. Every merge message ends with the two attribution lines.",
+   "Conflicts resolved so both tracks' intent is kept. (1) apps/edge-bff/tests/conftest.py applies the migrations in number order: 010-012, 020-023, 030, 040, 050. (2) config.py keeps the site track's email-log and EDGE_SITE checks and uses the auth track's is_verifier. (3) main.py: the sign-in clears its throttle count only after the session is made (auth, R2-9), and the old session is read under the __Host- name (plans); both tracks' imports are kept. (4) errors.py: every refusal message comes from the plans track's words(), which falls back to message_of(code, status, details), so the auth track's SIGN_IN_RATE_LIMIT still states its own wait. UnexpectedErrors and failure_class are kept. (5) security.py keeps both the verifier costs and the __Host- cookie names. (6) principal.py refresh_names reads both the capability kind (live_view flags) and the plan names (PLAN_EXPIRED). (7) backtest.py imports BETA and words. (8) edge-labels.js keeps USER_CHANGED and the auth track's sign-in wait wording. (9) test_c2_e2e_people.py takes the union of both tracks' imports. (10) auth_flows.py takes the union of imports, hooks included. (11) pending/README.md keeps test_cp0_runner_key.py and drops the test_r2_trace_beta_live.py row, since that test moved back to apps/edge-bff/tests.",
+   "Fixed a bug where two tracks meet: the auth track's register route (R1-11) read the held registration cookie under its plain name. On https the plans track gives that cookie the __Host- name (R2-22), so the read now uses registration_cookie (apps/edge-bff/app/auth_flows.py, register route).",
+   "Two tracks had separate purge mechanisms. The auth track's outbox purge (R2-24) is now the fourth entry of the site track's store.PURGES (R2-33), after the pending purge, so the hourly housekeeping runs it in batches, each in its own transaction, with the try-lock. To support this, edge_bff.purge_email_outbox now takes max_rows (NULL or anything above 10 000 means 10 000). This changed the unapplied migration database/migrations/20261119_012_edge_bff_email_outbox_purge.sql (function signature, comment, grants, verify block, rollback), store.ready (it reads purge_email_outbox(integer)), mailer.purge_outbox(c, limit) and two lines of the edge-bff README.",
+   "Fixed a failure the site track did not see because it did not run terminal-api's tests. The planned edge-bff-live block in .railway/railway.ts was written as a commented service(\"edge-bff-live\", {...}) call. apps/terminal-api/tests/test_api.py::test_railway_healthcheck_probes_the_port_the_app_listens_on reads every service call in the file, comments included, so it treated the block as a declared service. The fix is in railway.ts, not the test: the block keeps every setting, and only the call's opening and closing lines are replaced by a line naming the service (commit 9a22ee75).",
+   "Changed one test, with a stated reason: apps/edge-bff/tests/test_beta_live_site.py::test_a_purge_another_instance_runs_is_skipped_and_every_purge_is_bounded. It pinned PURGES to the site track's three purges, and the merged design has four, as the site track's own notes foresaw. The test is stronger now: it also holds the outbox purge to the batch bound (7 rows in batches of 3 give 3, 3, 1, 0). Commit 2fddd030.",
+   "SCREENER_ONBOARDING.md: the pointers into the merged edge-bff main.py and screener.py are moved to the right lines: TERMINAL_ROUTES at main.py:72, Screeners at screener.py:681, screeners.routes at main.py:767, /screener at 522, the screener-app routes at 620-632, SCREENER_CSP at 108-111 (commit c6e87ee2).",
+   "Every test from the re-check's findings passes on HEAD: the edge-bff test_c2_*, test_c_p*, test_cdb_*, test_cp0_*, test_cp1a_* and test_r2_* files, the Terminal c_p1s_* vitests, and the workers' c-p3b-recheck tests. Tests the builders changed with a stated reason stay as they changed them.",
+   "Postgres cluster int1 (port 55571) was used for every Postgres suite and is now stopped. Nothing was pushed or deployed, Railway was not called and no remote database was touched. `git diff --check 97b4ecb5 HEAD` is clean."
+  ],
+  "not_done": [
+   "None of the shared records were written: ERRORS_AND_SOLUTIONS.md, DATABASE_SCHEMA.md, DATABASE_CHANGELOG.md, RAILWAY_CHANGELOG.md and EXEC.md status. The five track notes (verification/edge_multiuser/fix_round/{terminal,site,auth,plans,records}.md) list what each record must say. This step was integration only. Add to those notes: 20261119_012 now creates purge_email_outbox(max_rows integer), and the outbox purge runs as store.PURGES 'outbox' in the hourly housekeeping.",
+   "The decisions after the fix round are not built into code. 1a (R1-35): conditions on the attributes every row shows are not gated by id. 5a (R2-28): Inter served from EDGE itself; the page CSPs in main.py still allow fonts.googleapis.com and fonts.gstatic.com. 6 (R2-27): account deletion as recommended. From the fix round itself: outbox rows deleted after 30 days, with used codes and webhook events (only the 24-hour purge for addresses with no account is built); public_data on the Terminal relay's successful answers (M260); and the gateway expiry moved to 2100-01-01 through the admin API, which is a database step.",
+   "Decision 1 of the fix round (the free plan and the guest see and search the whole ticker list; any ticker other than their own opens a sign-in or upgrade box) is not built. On HEAD, fix-terminal's R2-32 serves the free plan reference lists that hold BBCA only. Its test apps/edge-bff/tests/test_c2_e2e_people.py::test_the_free_plans_terminal_opens_on_bbca_with_nothing_remembered asserts that BBRI and TLKM are not on the page. That expectation contradicts decision 1 and must change when the decision is built (3c/3e); I left it as is because building it is outside integration.",
+   "Decision 4 (R1-2: keep MARKET_AI_ORC_API_KEY on orc-test-runner, 'leave as is') makes verification/edge_multiuser/access_tiers/pending/test_cp0_runner_key.py and its README row obsolete: they wait for the variable to be deleted. The README row and CONTRACT 7 ('R1-2 open') should be rewritten to the decision, including the privacy text stating that agents' jobs on the runner may read conversations. I left the pending test unchanged, since it is outside every suite.",
+   "Not run, as allowed: the Terminal look check (verification/terminal_api/terminal_look/look_check11.mjs). There is no look change in the integration; the only Terminal source change is the R1-20 key removal in src/app/assets.ts. One attempt without its data folder argument timed out waiting for #indMenu; that was not investigated. Also not run: the Screener smoke scripts and the real-data look-ahead check."
+  ],
+  "decisions_needed": [
+   {
+    "topic": "Seed mark after a password rehash (auth R2-29 meets site R2-2)",
+    "context": "User #1 is the admin account that exists from the start. While the switch is off, the start-up copies the admin's password from the setting EDGE_PASSWORD_VERIFIER into the account, but only while the account still holds the copy the start-up itself wrote. It tells by a fingerprint of that copy (identities.seed_verifier_sha256, site track). Separately, the auth track replaces an old-format password hash with a new one at the next switch-on sign-in; the password stays the same. After that replacement the stored hash no longer matches the fingerprint, so every later beta start treats the account as having set its own password and stops copying from EDGE_PASSWORD_VERIFIER. If the admin later changes EDGE_PASSWORD_VERIFIER on the beta, the live site keeps the old password. No test covers this case, and it only matters once the switch is on (the live site).",
+    "options": "A: keep as merged (after the first switch-on sign-in, the account counts as having its own password; changing the admin password then means a change or reset on live). B: when the rehash replaces a hash that is still the start-up's copy, update the fingerprint too, so later changes to EDGE_PASSWORD_VERIFIER keep reaching the account; the start-up would then write the old-format hash back and the next sign-in would rehash it again.",
+    "recommendation": "A, since it is safe and matches the R2-2 rule ('never overwritten once the identity differs from the seed's copy'); record it in CONTRACT 1 next to the seed mark."
+   }
+  ],
+  "suites": [
+   {
+    "name": "edge-bff pytest, full tests/ (Postgres int1:55571, Chromium /opt/pw-browsers/chromium, all six pages built), final run on HEAD 9a22ee75",
+    "result": "890 passed, 0 failed, 0 skipped (21m30s). The first run, on fad74ab1, had 1 failed and 889 passed: test_beta_live_site.py::test_a_purge_another_instance_runs_is_skipped_and_every_purge_is_bounded, fixed in 2fddd030 by updating the test to the merged design (see done)."
+   },
+   {
+    "name": "terminal-api pytest (TERMINAL_TEST_POSTGRES_URL with terminal migrations 20261025_100, 20261026_100, 20261028_100, 20261118_100 on stub market tables)",
+    "result": "160 passed. The first run had 1 failed: test_api.py::test_railway_healthcheck_probes_the_port_the_app_listens_on, fixed in railway.ts (9a22ee75)."
+   },
+   {
+    "name": "backtest-worker npm test",
+    "result": "277 passed, 0 failed"
+   },
+   {
+    "name": "screener-worker npm test",
+    "result": "127 passed, 0 failed (onboarding_pointers green after c6e87ee2)"
+   },
+   {
+    "name": "market-ai-orc pytest with ORC_TEST_POSTGRES_URL",
+    "result": "2202 passed, 0 skipped"
+   },
+   {
+    "name": "page vitests (after npm ci and npm run build, tsc --noEmit included, for all six)",
+    "result": "terminal 968 passed; backtest 91 passed; screener 1355 passed, 1 skipped; radar 8 passed; overview 22 passed; watchlist 22 passed"
+   },
+   {
+    "name": "scripts pytest (scripts/tests, generated-file tests included; SCHEMA_TEST_POSTGRES_URL set)",
+    "result": "95 passed (without SCHEMA_TEST_POSTGRES_URL: 94 passed, 1 skipped)"
+   },
+   {
+    "name": "node shared/build-shell.mjs --check (apps/edge-bff)",
+    "result": "static/edge-session.js and catalog/storage_sync.json match shared/edge-session.ts"
+   },
+   {
+    "name": "git diff --check 97b4ecb5 HEAD",
+    "result": "clean"
+   }
+  ],
+  "migrations": [
+   "database/migrations/20261119_010_edge_bff_password_identity.sql (auth, unapplied)",
+   "database/migrations/20261119_011_edge_bff_mfa_pending_enrolment.sql (auth, unapplied)",
+   "database/migrations/20261119_012_edge_bff_email_outbox_purge.sql (auth, unapplied; changed at integration: edge_bff.purge_email_outbox(max_rows integer), NULL or above 10 000 = 10 000, for the housekeeping's batches)",
+   "database/migrations/20261119_020_edge_bff_jobs_site.sql (site, unapplied)",
+   "database/migrations/20261119_021_edge_bff_backtest_jobs_site.sql (site, unapplied)",
+   "database/migrations/20261119_022_edge_bff_seed_verifier_mark.sql (site, unapplied)",
+   "database/migrations/20261119_023_edge_bff_account_reference_indexes.sql (site, unapplied)",
+   "database/migrations/20261119_030_edge_bff_plan_data_scope.sql (plans, unapplied)",
+   "database/migrations/20261119_040_edge_bff_audit_ids_and_catalog_trace.sql (records, unapplied)",
+   "database/migrations/20261119_050_edge_bff_capability_domains.sql (terminal, unapplied)",
+   "Apply order: 010, 011, 012, 020, 021, 022, 023, 030, 040, 050, after 20261118_001/002, as in apps/edge-bff/tests/conftest.py. Once 010-012 and 020-022 are applied, a build of this branch answers /ready 503 until they are, because store.ready reads their columns and purge_email_outbox(integer)."
+  ],
+  "notes": "The integration is done and every suite is green on fix-int at 9a22ee75. Worktree: /home/user/saniti/.claude/worktrees/wf_b29fb015-e03-1. Logs of the final runs are in /tmp/claude-0/-home-user-saniti/f3bec3b8-f6e3-5a54-b257-4a56b384bdc8/scratchpad/ (edge_full2.log, orc.log, backtest_worker.log, screener_worker.log, vitest_*.log).\n\nDeploy order, from the builders' notes:\n- Apply migrations 010-012 and 020-022 before this edge-bff starts.\n- terminal-api goes before or together with this edge-bff.\n- Do not roll back below the auth track's version once a switch-on sign-in has rehashed a verifier.\n\nSmall leftovers, not changed:\n- pyflakes reports an unused public_data import and an unused local variable 'row' in apps/edge-bff/app/main.py. Both are already on fix-terminal; the unused import is tied to M260, decided 'a', to be built.\n- Two different wait wordings remain on purpose, because tests of both tracks hold them: errors.wait_text ('less than a minute', for the sign-in throttle) and errors.wait_words ('30 seconds', for plan limits)."
+ },
+ "built": [
+  {
+   "branch": "dec-small",
+   "head": "05eaf038",
+   "done": [
+    "1. Email retention of 30 days (Decisions from the fix round, item 2, 'a'). I changed migration 20261119_012 in place; it is unapplied, and its two indexes and its EXECUTE grant are kept. purge_email_outbox now also deletes every sent, failed, expired or suppressed row of every address once it is 30 days old. The 24 h rule for addresses with no account stays. Pending and sending rows are never deleted. A new function, purge_email_hook_events, deletes webhook deliveries after 30 days; it is SECURITY DEFINER with a fixed search_path and only edge_bff_runtime may execute it. A new accounts.purge_codes deletes email codes 30 days after they were used, or after they expired unused; a live code is never deleted. store.PURGES gains 'codes' and 'hook_events', and store.ready() checks for the new function. email_suppression is never purged. edge_bff_runtime still holds no DELETE on the outbox or on the webhook deliveries. Tests run as a login with only the runtime grants, with rows aged 29 and 31 days on each side of each rule.",
+    "2. A new authenticator now needs an MFA pass within the last 10 minutes. FlowStore.enroll checks the request session's mfa_passed_at under the enrolment's row lock, using the database clock. An older pass, or none, gets 403 MFA_REQUIRED with details {mfa_enrolled: true, recent_s: 600}, and errors.words gives it its own sentence. After that refusal, the /mfa page in edge-app.js takes a fresh code and then starts the set-up again by itself. The first enrolment is unchanged. The re-check's own test (test_cp1a_f3: re-enrol right after a verify) and test_fix_auth's re-enrolment test pass unchanged. A Chromium test covers the page.",
+    "3. public_data on the Terminal relay (ERRORS M260, 'a'). terminal_access.relayed now returns a pair (refusal, data). For a 2xx answer, the data has passed through client.public_data. A cut's bytes and a logo are still relayed unparsed. Callers: main.py forward_terminal and relay_cut, and pages.py index. The file grant keeps the raw answer, because only edge-bff reads its presigned URL. I first checked that no page module or forwarded terminal-api route reads a PRIVATE_KEYS field. New route-walk test in tests/test_decisions_small.py: it takes every route that holds terminal_access.guard (derived from the app) and one sample per top-level alternative of main.TERMINAL_ROUTES; a stand-in terminal-api plants private keys and an internal address in every answer, and none reaches a page. A self-test removes the filter and finds the planted values.",
+    "4. R1-35 ('1a'): Screener conditions on the attributes every answer shows are no longer gated by id. The one definition is in the Screener catalog: screener-metrics.json universe entries name the /universe row field that shows their value ('row': last, chg_1d_pct, adv20_idr, bars, index_membership -> indices). Core catalog.ts derives SHOWN_ATTRIBUTES from it, and catalogProblems checks it. screener-worker definitionItems skips these attributes, so the extra-columns anchor 'bars gt 0' needs no grant. edge-bff reads the same file in app/catalog.py; the Dockerfile copies it beside app/, and test_backtest's COPY list gains it. catalog.ungated is the single rule used by allow.allow_of and catalog.holds_entry. New apps/screener-worker/tests/shown.test.ts checks the definition against the rows the worker actually answers, in both directions. allow.test.ts changed, with the reason in its comments: FULL's chg_1d_pct filter is no longer an item, so an I07 adx filter now covers the metric_filters place; the adv20_idr My metric and the bars anchor pass with no grant. SCREENER_ONBOARDING.md pointers were moved.",
+    "5. Inter is served by EDGE itself (R2-28, '5a pakai inter'). static/fonts holds Inter 4.001 (Google Fonts v18, taken from @fontsource-variable/inter 5.2.5 on npm), with the variable weight axis in seven subsets. OFL.txt carries the SIL OFL 1.1 text and 'Copyright 2016 The Inter Project Authors', read from the font files. There are two stylesheets with the weights each page asked Google for: inter-400-700.css and the Terminal's inter-400-600.css. They are served at GET /fonts/{name}. Every CSP now has style-src 'self' 'unsafe-inline' and font-src 'self', and no page, stylesheet or module names a Google host. The font stubs in the page smoke and visual scripts were updated. The look check's stand-in (serve.mjs) now serves /fonts/ the way edge-bff does. look_check11 PASSes on the rebuilt Terminal, and the browser confirmed Inter loaded from /fonts/. CONTRACT section 18 no longer lists Google Fonts as a recipient; test_contract_records now expects the host to be absent.",
+    "6. CONTRACT.md records added for: R1-37 and R2-41 item 4 ('2a': the flow rule does not cover the Overview and Watchlist foreign-net columns), R1-18 ('3a': items hidden after a lowered plan until it is raised again, kept), and R1-2 (the key stays on orc-test-runner by the user's choice). For R1-2, section 18 now names the reach (every user's conversations once the switch is on), and pending/README.md gives the reason the test stays in pending/. Also recorded: R2-27 (email_suppression keeps the address and reason; Phase 5 payment records are kept pseudonymised for the legal period) and R2-41 item 9 (a registration started on another browser is registered again). A new block 'Decisions after the fix round' lists all seven. Everything this track built is marked built: sections 1, 4, 5 and 8b O3b-2, plus the decisions 2 and 6.",
+    "Notes: verification/edge_multiuser/fix_round/decisions.md (root causes, fixes, tests, records for other tracks, suite results). README updated for retention, MFA recency, the relay filter and the font layer."
+   ],
+   "not_done": [
+    "EXEC.md is not edited. fix-int's EXEC.md predates the 'Decisions after the fix round' section, which exists only on the session branch (f2562fbf) and already holds the user's words and the 10-minute design value. ERRORS_AND_SOLUTIONS.md, DATABASE_SCHEMA.md and DATABASE_CHANGELOG.md are not edited either; decisions.md lists what they must say: M260 fixed on the branch, and _012's second function with its read-back.",
+    ".claude/skills/edge-design-system/assets/spec-v1.2.css still @imports Google Fonts. Changing the design system means rebuilding its claude.ai copy, which is a remote publish and outside this track. A page built from it would fail the new no-Google test.",
+    "Not run: the page smoke and visual scripts whose font stubs changed (backtest npm run smoke, tests/visual/*, the screener smoke scripts). Each passes node --check. apps/market-python-sandbox generated-file tests cannot collect here because duckdb is not installed.",
+    "Known flaky, pre-existing: test_composer_layout.py::test_submit_history_and_fixed_headers[mobile] and [mobile-small] also fail when run alone. With the old Google Fonts import restored, [mobile] alone fails 2 of 4, so the self-hosted font does not cause it."
+   ],
+   "decisions_needed": [],
+   "migrations": [
+    "database/migrations/20261119_012_edge_bff_email_outbox_purge.sql (unapplied; changed in place): purge_email_outbox now also deletes every terminal-state row after 30 days; new SECURITY DEFINER purge_email_hook_events(integer), EXECUTE for edge_bff_runtime only; the $verify$ block checks both functions and that the runtime cannot DELETE or TRUNCATE the outbox or the webhook deliveries; the indexes and the existing grant are kept; the rollback comment also drops the new function."
+   ],
+   "suites": [
+    {
+     "name": "edge-bff pytest full tests/ (Postgres dec_small:55572, Chromium)",
+     "result": "900 passed, 3 failed: test_backtest.py::test_a_queued_job_reads_its_owners_rights_when_it_is_dispatched (expectation changed with '1a' in d5229ebf; passes alone since); test_composer_layout.py::test_submit_history_and_fixed_headers[mobile] and [mobile-small] (known flaky; alone they pass 1 of 3 and 1 of 2; with the old Google import restored, [mobile] fails 2 of 4 too)"
+    },
+    {
+     "name": "terminal-api pytest (TERMINAL_TEST_POSTGRES_URL = a database with the terminal migrations applied)",
+     "result": "160 passed"
+    },
+    {
+     "name": "backtest-worker npm test",
+     "result": "277 passed (an earlier run under load: 276 passed and 1 timing failure, 'a job over BACKTEST_TIMEOUT_SECONDS ends FAILED TIMEOUT', which passes alone and in the rerun)"
+    },
+    {
+     "name": "screener-worker npm test",
+     "result": "131 passed (an earlier run failed only onboarding_pointers, on SCREENER_ONBOARDING pointers into main.py; fixed in f56fb659)"
+    },
+    {
+     "name": "market-ai-orc pytest with ORC_TEST_POSTGRES_URL",
+     "result": "2202 passed"
+    },
+    {
+     "name": "page vitests terminal/backtest/screener/radar/overview/watchlist",
+     "result": "968 / 91 / 1355 (+1 skipped) / 8 / 22 / 22 passed (the screener golden-grammar test timed out once under load; it passes alone and in the full rerun)"
+    },
+    {
+     "name": "page builds (six apps)",
+     "result": "OK"
+    },
+    {
+     "name": "scripts/tests pytest (generated-file tests included)",
+     "result": "94 passed, 1 skipped (SCHEMA_TEST_POSTGRES_URL not set)"
+    },
+    {
+     "name": "node shared/build-shell.mjs --check (apps/edge-bff)",
+     "result": "OK"
+    },
+    {
+     "name": "Terminal look check look_check11.mjs",
+     "result": "PASS, errs [], Inter loaded from /fonts/"
+    }
+   ],
+   "notes": "The Postgres cluster dec_small is stopped. Nothing was pushed or deployed, no Railway call was made, and no remote database was touched. Tests changed because the decisions changed their expectations, each with the reason in a comment: test_beta_live_site (six purges), test_terminal_fix_round (relayed returns a pair; the refusal assertions are unchanged), allow.test.ts (R1-35), test_backtest (the image COPY list and the dispatch allow), test_contract_records (the Google host must be gone). Readings recorded in decisions.md: 'used codes' means codes that can no longer be used (used, or expired unused); the shown attributes are also listed as held by /api/v1/catalog (one rule with allow), except a lab-stage one on the live site. Noted but not changed: the four transform metrics (hi52, lo52, rs, vol_ratio) are still listed by grant in edge-bff's catalog, which matters for the 3e menus."
+  },
+  {
+   "branch": "dec-guest",
+   "head": "60754668",
+   "done": [
+    "1. The whole ticker list for every plan. terminal-api app/refcut.py names_only works it out from each file's own columns, not from a list of file names. A file keyed by ticker whose other columns hold only text or null is sent whole. A file is filtered when it has a column named after a dataset (<dataset>_...), a column of 64-hex digests, or a number or list value. Applied to the publisher's real columns: the ticker list is whole; logos and fixed_income keep the plan's tickers; brokers follow the broker dataset; stock_lists get no rows. Commit 7d793ad2. Tests: apps/terminal-api/tests/test_guest_tickers.py.",
+    "2. Guest plan. Migration database/migrations/20261119_070_edge_bff_guest_plan_and_test_accounts.sql (not applied) adds edge_bff.plans.for_guests: at most one guest plan, never the default plan. It seeds a plan 'guest' with the free plan's Terminal grants: view, tickers [BBCA], dataset price, 730 days, no indicator items.",
+    "2. Guest principal. apps/edge-bff/app/principal.py guest_principal reads the guest plan on every guest request, through the same read_grants, can() and version code as every plan. Changing the plan's rows changes what guests see with no code change (tested). A guest never holds '*', admin.access, an admin right or a beta-only key.",
+    "2. Guest routes. Only routes declared with auth.need(..., guests=True) or auth.visitor accept a guest: the /api/terminal/v1 relay, GET /api/v1/catalog/{kind} and the new GET /api/v1/auth/guest. Every other route still answers 401; the route walk lists the open routes in GUEST_OPEN. Guests are switched by EDGE_GUESTS: on by default on the live site, off on the beta, and refused at start when EDGE_MULTIUSER is off.",
+    "2. Client address. client_of reads the right-most X-Forwarded-For entry (the hop Railway's edge adds) and uses it only if it parses as an IP address. With no readable address there is no guest principal and the answer is 401 (fail closed). The socket peer is used only when EDGE_ENVIRONMENT=local.",
+    "2. Per-visitor quotas. edge-bff sends x-terminal-client, a 32-hex HMAC of the address (never the address itself). terminal-api then counts usage, the quota lock, frees_in and audit rows per visitor under the one guest owner 'edge-guest'. Without the header the owner's row is counted as a whole, which is stricter. Migration database/migrations/20261119_170_terminal_access_log_client.sql (not applied) adds client_key and the partial index access_log_client_at. Measured locally: 151 ms / 300,665 buffers without the index, 0.26 ms / 107 buffers with it.",
+    "3. Boxes. apps/edge-bff/terminal/src/data/live.ts lockRules works out what is locked from the session's access and the catalog route, not from a list in the page. The search lists every ticker and marks the ones the plan lacks; a remembered ticker the plan does not hold never locks the page. A locked ticker, a locked indicator, or layouts without terminal.layouts makes the Terminal ask the shell for a box (app/locked.ts). The shell's LockedDialog shows sign in / create account to a guest, and to an account the upgrade box with 'Coming soon' plus EDGE_UPGRADE_CONTACT (or that the contact comes soon). Wording is in static/edge-labels.js EdgeLabels.locked. The shared module got allowGuest(); static/edge-session.js was rebuilt with node shared/build-shell.mjs. look_check11 PASS on the built Terminal.",
+    "4. Pre-launch mode, EDGE_PRELAUNCH (on by default on the live site). Registration, its verify step and register-code resends answer 403 REGISTRATION_CLOSED, and the register page says registration opens soon. Only the admin (by catalog: '*' or admin.access) and accounts with users.test_account can sign in; everyone else gets 403 SIGN_IN_CLOSED. The test_account mark only changes together with its admin_audit row in the same transaction (deferred trigger). scripts/edge_test_account.py and scripts/onboarding/edge_test_account_job.py create or mark a test account for an address and a plan; they print only user id, username, plan and outcome. Guests can still open the Terminal.",
+    "Notes: verification/edge_multiuser/fix_round/guest.md (design, the client address on Railway, EXPLAIN evidence, tests changed with reasons, text for the shared records, deploy order and rollback floors, readings, decisions, suites). READMEs and the .railway/railway.ts edge-bff-live comment are updated; SCREENER_ONBOARDING.md pointers moved with the changed main.py lines.",
+    "Tests changed because a 2026-11-19 decision replaced what they expected: terminal-api test_terminal_fix_round.py expected the BBCA-only ticker-list copy; its fixed_income fixture now has the publisher's columns. edge-bff test_c2_e2e_people.py free-plan reload test expected a BBCA-only list download. test_route_table.py now lets the GUEST_OPEN routes use the visitor dependency. test_plan_catalog.py's plan-key check now reads every plan seed (adds guest). test_auth_flows.py test_config_with_the_switch_on now expects the new config keys."
+   ],
+   "not_done": [
+    "Shared records not edited, as the other fix-round tracks also left them to the records track: CONTRACT.md, ERRORS_AND_SOLUTIONS.md, DATABASE_SCHEMA.md, DATABASE_CHANGELOG.md, EXEC.md, RAILWAY_CHANGELOG.md. The exact text for each is in guest.md under 'Records'.",
+    "Migrations 20261119_070 and 20261119_170 are not applied anywhere except the disposable local cluster. 20261119_170 builds an index that reads terminal.access_log once, so AGENTS.md's Postgres restart after a large update applies after it.",
+    "The Railway client-address probe (CONTRACT section 4) was not run; it needs a Railway call.",
+    "Out of scope: other 3e lock prompts (the Flow and Broker panels, compare, assets), and restored chart indicators the plan does not hold."
+   ],
+   "decisions_needed": [
+    {
+     "topic": "Client-address probe before guests go live",
+     "context": "Visitors' Terminal quotas are counted per client address. The address is taken from the right-most X-Forwarded-For entry that Railway's edge adds. The Phase 0 probe that would prove what Railway really sends has not run. If Railway gave every visitor the same address, all visitors would share one quota (stricter, never looser).",
+     "options": "(a) run the probe (a Railway call, with the user's go) before the live site opens to visitors; (b) open guests without it",
+     "recommendation": "a"
+    },
+    {
+     "topic": "A ceiling for all visitors together",
+     "context": "Quotas per address do not limit a visitor who changes address. Each visitor gets terminal-api's default quotas: 60 files and 30 tickers per hour, 150 tickers and 300 MB per day. The guest plan has no quota rows of its own.",
+     "options": "(a) no total ceiling for now; (b) add a total per hour for the guest owner as a new terminal-api quota (data)",
+     "recommendation": "a until the live site has traffic numbers"
+    },
+    {
+     "topic": "Bonds and logos for the free plan and guests",
+     "context": "Under the column rule the bonds list stays filtered (its columns carry yield and price dates) and the logo list stays filtered. edge-bff already refuses another ticker's logo image, a Phase 3c rule. So the search shows no bonds and shows monograms instead of logos for locked tickers.",
+     "options": "(a) keep as is; (b) treat the bonds list as names only so bonds appear in search, locked, and/or open logo images to every plan",
+     "recommendation": "a"
+    }
+   ],
+   "suites": [
+    {
+     "name": "edge-bff pytest, full tests/ (Postgres 16 dec_guest:55573, Chromium, all pages built)",
+     "result": "903 tests: 900 passed, 3 failed. Failed: test_backtest.py::test_a_queued_job_reads_its_owners_rights_when_it_is_dispatched, test_composer_layout.py::test_submit_history_and_fixed_headers[mobile] (the known flaky one), test_composer_layout.py::test_submit_history_and_fixed_headers[mobile-small]. All three pass when run again alone; mobile-small passed 3 of 3 on this branch and also on the base's app/static files; the run had the page vitests and worker suites running beside it. After printing its result the pytest process did not exit (a thread kept polling the test database), so it was stopped and its database dropped."
+    },
+    {
+     "name": "terminal-api pytest (TERMINAL_TEST_POSTGRES_URL, terminal migrations through 20261119_170)",
+     "result": "170 passed"
+    },
+    {
+     "name": "market-ai-orc pytest (ORC_TEST_POSTGRES_URL)",
+     "result": "2204 passed"
+    },
+    {
+     "name": "backtest-worker npm test",
+     "result": "277 passed when run alone. Beside the edge-bff run, the known timing test 'a job over BACKTEST_TIMEOUT_SECONDS ends FAILED TIMEOUT' failed once. npm run registry:check: current"
+    },
+    {
+     "name": "screener-worker npm test",
+     "result": "127 passed, after moving the onboarding pointers (d47eefbe)"
+    },
+    {
+     "name": "Terminal vitest",
+     "result": "973 passed (38 files)"
+    },
+    {
+     "name": "backtest page vitest",
+     "result": "91 passed"
+    },
+    {
+     "name": "screener page vitest",
+     "result": "1355 passed, 1 skipped"
+    },
+    {
+     "name": "radar vitest",
+     "result": "8 passed"
+    },
+    {
+     "name": "overview vitest",
+     "result": "22 passed"
+    },
+    {
+     "name": "watchlist vitest",
+     "result": "22 passed"
+    },
+    {
+     "name": "scripts pytest (scripts/tests, generated-file tests included)",
+     "result": "94 passed, 1 skipped"
+    },
+    {
+     "name": "node shared/build-shell.mjs --check",
+     "result": "match"
+    },
+    {
+     "name": "look_check11.mjs on the Terminal build",
+     "result": "PASS"
+    }
+   ],
+   "migrations": [
+    "database/migrations/20261119_070_edge_bff_guest_plan_and_test_accounts.sql (not applied; added to apps/edge-bff/tests/conftest.py after 20261119_050)",
+    "database/migrations/20261119_170_terminal_access_log_client.sql (not applied; the index build reads terminal.access_log once, so restart Postgres after it)"
+   ],
+   "notes": "The decision texts quoted in the task (\"Decisions from the fix round\", \"Testing on the live site\") are only in the main checkout's EXEC.md, not in fix-int's; I read them there.\n\nTwo things beyond the four items were needed for the guest Terminal to work cleanly:\n- A guest's drawings last only as long as the page; nothing is written to the account or the browser.\n- Presets are not offered to a principal without terminal.presets.\n\nMerge points with the dec-small track:\n- apps/edge-bff/tests/conftest.py: one migration line after 20261119_050.\n- Both main.py files: SCREENER_ONBOARDING.md pointers follow their line numbers.\n\nNo storage key was added. The guest owner key 'edge-guest' is reserved and refused for EDGE_OWNER and EDGE_ADMIN_OWNERS.\n\nThe Postgres cluster dec_guest is stopped. Screenshots of the boxes (1440 and 390 px, light and dark) are in /tmp/claude-0/-home-user-saniti/f3bec3b8-f6e3-5a54-b257-4a56b384bdc8/scratchpad/shots."
+  }
+ ],
+ "int2": {
+  "branch": "fix-int2",
+  "head": "613c3925",
+  "done": [
+   "Ran git checkout -B fix-int2 fix-int (9a22ee75). Merged dec-small (05eaf038) with no conflict as 108847fb. Merged dec-guest (60754668) as 9ba074dd. Its one conflict was a line pointer in SCREENER_ONBOARDING.md into apps/edge-bff/app/main.py; I set it to the merged line of `screeners.routes` (:788), and the screener-worker onboarding_pointers test passes. I checked the overlapping files (main.py, terminal_access.py, store.py, errors.py, accounts.py, auth_flows.py, catalog.py, edge-app.js, index.html): both intents are kept. Examples: `relayed` returns (refusal, data) with public_data, and the guest's x-terminal-client header is added; PURGES has six entries and /ready reads plans.for_guests and users.test_account; the 10-minute MFA pass and the pre-launch sign-in both work.",
+   "790c28fc: apps/terminal-api/tests/conftest.py. Three real-server tests from the fix round failed with UndefinedTable on the bare PostgreSQL that CI's terminal-api job gives them: test_terminal_fix_round.py::test_frees_in_reads_the_window_on_a_real_server, ::test_the_gateway_state_reads_the_row_on_a_real_server and test_guest_tickers.py::test_the_store_counts_each_visitor_apart_on_a_real_server. The builders had run them on a database they set up by hand. The conftest now builds a throwaway database from every *_terminal_*.sql migration that creates or alters a terminal.* object, with empty stand-ins for the public tables those files grant on (both read from the files, not listed by hand), and drops it and its roles at the end. A server that already has the schema is used as it is. Result: 170 passed on a bare PostgreSQL 16.",
+   "f8e7a855: a defect that appeared only once both branches were merged. In the Terminal's live.ts, the guest track put `await lockRules()` between starting the reference reads and awaiting the ticker list. A ticker list refused in that gap became an unhandled rejection in the page. The fix gives tickersP its handler when it starts, as the other promises there already have. New test tests/data/live_refusal_during_locks.test.ts fails without the line (checked by removing it). This was the cause of the two browser errors at teardown: test_fix_plans.py::test_the_account_menu_changes_the_password_and_signs_out_everywhere and test_c2web_browser.py::test_c2web_w3_the_shell_reads_its_session_again_when_the_plan_changes.",
+   "6a14747e: changed the set-up of three edge-bff tests; no expectation changed. test_releases.py app_as also overrides app.state.visitor_dependency, because decision 1a made the catalog route a visitor route (4 tests were getting 401). test_phase3a_monitor_pages.py expects auth.need(..., guests=True) on the routes in test_route_table.GUEST_OPEN. test_r2_trace_beta_live.py's live site is the one after launch (prelaunch_enabled False); the default pre-launch mode was refusing its paid account with 403 SIGN_IN_CLOSED.",
+   "2debe007 and 613c3925: ERRORS_AND_SOLUTIONS.md M483-M503, 21 entries placed above M482, newest first as in that block. Each entry is one defect class and names its findings: M483 relay (R1-1, R1-26, M260); M484 wording (R1-33, R1-34, R2-14, R2-15, R2-30); M485 plan-limit codes (R1-23, R1-29, R2-39); M486 entitlement values and wire (R1-22, R1-24, R1-25, R2-4, R2-5); M487 free plan and guest Terminal (R2-32); M488 gate placement (R1-5, R1-31, R1-32, R1-35, R1-36, R1-37, R2-41 item 4); M489 preference store (R1-18, R1-30); M490 browser state (R1-17, R1-19, R1-20, R1-38, R2-16, R2-17, R2-31); M491 two sites on one database (R2-1, R2-2, R2-7, R2-8, R2-13, R2-23, R2-26, R2-38); M492 background loops (R2-3, R2-33, R2-36); M493 tables without purge or index (R2-24, R2-34, R2-35); M494 auth limits (R1-8, R1-9, R1-10, R1-12, R1-13, R1-16, R2-10); M495 password work (R2-29, R2-37); M496 credential races (R1-7, R2-9, R2-11, R2-12); M497 input rules (R1-11, R1-14, R2-18); M498 service identities (R1-2, R1-3, R1-4); M499 headers and account pages (R2-19 to R2-22); M500 personal data (R2-25, R2-27, R2-28); M501 database guards (R1-41 to R1-43); M502 tests and CI (R1-15, R1-21, R1-27, R1-28, R1-39, R1-40, R1-44, R1-46, R2-40, plus the terminal-api conftest finding); M503 records (R1-6, R1-45, R2-6, R2-41). All 87 findings are covered. Status is 'fixed on branch fix-int2, not deployed', or ACCEPTED where the user's 2026-11-19 decision keeps a behaviour (R1-2, R1-37 with R2-41 item 4, R1-9 item 3). Each entry has a lesson.",
+   "Corrected old statuses in place, nothing deleted (R1-45): M259 and M468-M482 now each carry one current status in the heading and the Status line. M472 stays OPEN for look_check8/9/10/12/13, checked by grep. M475 and M477 record the main key on orc-test-runner as ACCEPTED. M473's sentence about the registry test is corrected (R1-44). M478's N4 bound is corrected (R1-13). M480's display-name row is marked FIXED by M481. M481's 'C3 gaps' row is closed (R1-27, R1-28). M260 is now built (decision 6 'a').",
+   "7466811b: CONTRACT.md records the guest track left for integration: the 'to build' marks for decision 1 and the pre-launch mode are now 'built, track guest', across sections 1, 2, 3, 4, 8b, 9, 12, 16 and 17. Added there: plans.for_guests, users.test_account, the guest principal, GET /api/v1/auth/guest, the new config keys, REGISTRATION_CLOSED and SIGN_IN_CLOSED, x-terminal-client, names_only, EDGE_GUESTS, EDGE_PRELAUNCH and EDGE_UPGRADE_CONTACT. The client-address probe stays open.",
+   "I did not touch EXEC.md, the changelogs or DATABASE_SCHEMA.md. I did not push or deploy, made no Railway call and touched no remote database. Postgres cluster int2 (port 55574) is stopped."
+  ],
+  "not_done": [
+   "Still open after the fix round, each recorded in its ERRORS entry: terminal-api has no handler for unexpected exceptions (the terminal-api part of R2-25, M500). scripts/restart_postgres.py checks only edge-bff's /ready after a restart (R2-36, M492; to do when the live service is created). The per-client sign-in bound SIGNIN_IP waits for the Railway client-address probe (R2-37, M495). auth_throttle has no window_start index yet (M493). The 3c refusal sites in main.py refuse_capability and terminal_access still do not pass item and amount to p.refusal (R1-23 hand-off, M485). look_check8/9/10/12/13 still hard-code paths (M472). The gateway row's end date moves to 2100-01-01 before switch-on; that is a live data change, decision 5 (M498).",
+   ".claude/skills/edge-design-system/assets/spec-v1.2.css still @imports Google Fonts (noted by the decisions track). Changing the design system means rebuilding its claude.ai copy, which is a remote publish, so I left it.",
+   "Not run here: the edge-bff Docker image build (edge-bff-image.yml), because no Docker daemon is available. dec-small's Dockerfile change (copying screener-metrics.json) is covered only by test_backtest.py's COPY-list test.",
+   "EXEC.md, RAILWAY_CHANGELOG.md, DATABASE_CHANGELOG.md and DATABASE_SCHEMA.md are left to the main agent, as instructed. That includes the unapplied migrations 20261119_010/011/012/020/021/022/023/030/040/050/070/170 and the guest track's EXPLAIN evidence.",
+   "Not pushed. CI has not run on fix-int2."
+  ],
+  "decisions_needed": [
+   {
+    "topic": "Probe the visitor's address on Railway before guests open on the live site",
+    "context": "The live website will let a visitor without an account open the Terminal, using the 'guest' plan (today BBCA's chart). Each visitor's download limits are counted from their address, which edge-bff reads from the last hop of Railway's X-Forwarded-For header. The check that proves what Railway's edge actually sends (CONTRACT section 4, 'Client IP') has never run. If Railway sent one address for everyone, every visitor would share one quota: stricter, never looser.",
+    "options": "(a) Run the probe before the live site opens to visitors. It is one Railway call and needs your go. (b) Open guests without it and accept the shared-quota worst case.",
+    "recommendation": "(a). The same probe also unblocks the per-address sign-in limit (SIGNIN_IP, R2-37)."
+   },
+   {
+    "topic": "A ceiling for all visitors together",
+    "context": "Today each visitor gets terminal-api's default quotas per address: 60 files and 30 tickers an hour, 150 tickers and 300 MB a day. A visitor who keeps changing address is not bounded by that. The guest plan has no quota row of its own.",
+    "options": "(a) No overall ceiling for now. (b) A total per hour for the guest owner, set as data (a new terminal-api quota).",
+    "recommendation": "(b) before launch: it is a data row and bounds the cost no matter how many addresses are used."
+   },
+   {
+    "topic": "Bonds and logos in the search for the free plan and guests",
+    "context": "Since decision 1 the free plan and guests see the whole ticker list, with locks. The bond list stays filtered because its columns carry dataset dates, so bonds do not appear in their search. Logos stay filtered because edge-bff refuses another ticker's logo image, so locked tickers show a monogram.",
+    "options": "(a) Keep as is. (b) Treat the bond list as names only, so bonds appear in the search with a lock, and/or open logo images to every plan.",
+    "recommendation": "(a) until the live site is tried; it is the fail-closed reading."
+   },
+   {
+    "topic": "Readings the tracks took on the live site, for the main agent to confirm with the user",
+    "context": "The site track masked monitor.example (the whole Monitor tab) and backtest.flow_point_in_time on the live site. EDGE_HOUSEKEEPING_ENABLED defaults to true on both sites (to be set to false on edge-bff once edge-bff-live runs). The guest track reads the pre-launch 'admin' from the catalog ('*' or admin.access).",
+    "options": "Confirm each, or change it. Each is one setting or one line.",
+    "recommendation": "Confirm. Each follows the user's 'beta hanya admin' and 'AI admin only' decisions."
+   }
+  ],
+  "suites": [
+   {
+    "name": "edge-bff pytest, full tests/ (Postgres 55574, Chromium /opt/pw-browsers/chromium, all six pages built), first run",
+    "result": "917 passed, 6 failed, 2 errors. All 8 came from the merge and are fixed: test_releases.py 4 (test_everything_holds_every_entry_at_any_stage, test_released_stage_on_one_family_holds_only_released_entries_of_that_kind, test_ids_grant_holds_exactly_those_ids_and_any_family_of_the_kind_counts, test_an_unknown_kind_is_not_found_and_names_the_known_kinds), test_phase3a_monitor_pages.py::test_every_monitor_terminal_and_page_route_needs_its_capability, test_r2_trace_beta_live.py::test_a_job_queued_on_the_live_site_is_dispatched_by_the_live_site_only, and teardown errors in test_c2web_browser.py::test_c2web_w3_the_shell_reads_its_session_again_when_the_plan_changes and test_fix_plans.py::test_the_account_menu_changes_the_password_and_signs_out_everywhere. After the fixes all 46 tests in those files and test_route_table.py pass."
+   },
+   {
+    "name": "edge-bff pytest, full tests/, final run on 613c3925's code",
+    "result": "921 passed, 2 failed. test_ask_branch.py::test_branch_opens_a_new_tab_that_continues_the_answer passes alone (2 of 2), so it is a load timing failure. test_composer_layout.py::test_submit_history_and_fixed_headers[mobile-small] passes 1 of 3 alone; this is the known flaky composer test, recorded as also failing on main in Phase 0 and by the decisions track. Nothing this integration changed touches it."
+   },
+   {
+    "name": "terminal-api pytest (TERMINAL_TEST_POSTGRES_URL)",
+    "result": "170 passed, both on a bare PostgreSQL 16 with the new conftest and on a database set up by hand. Before the conftest fix, a bare server failed 3: test_terminal_fix_round.py::test_frees_in_reads_the_window_on_a_real_server, ::test_the_gateway_state_reads_the_row_on_a_real_server, test_guest_tickers.py::test_the_store_counts_each_visitor_apart_on_a_real_server."
+   },
+   {
+    "name": "backtest-worker npm run registry:check and npm test",
+    "result": "Registry current. First run 276/277: server.test.ts 'preview_end: each preview's wait in the queue ...' failed under load. That file alone: 29/29; two more full runs: 277/277."
+   },
+   {
+    "name": "screener-worker npm test",
+    "result": "131 passed, including onboarding_pointers and shown.test.ts."
+   },
+   {
+    "name": "market-ai-orc pytest (ORC_TEST_POSTGRES_URL)",
+    "result": "2204 passed."
+   },
+   {
+    "name": "Page vitests",
+    "result": "terminal 973 passed, then 974 with the new test (39 files); backtest 91; screener 1355 passed + 1 skipped; radar 8; overview 22; watchlist 22. All six npm run build (tsc plus vite) OK."
+   },
+   {
+    "name": "scripts tests (python3 -m pytest scripts/tests)",
+    "result": "94 passed, 1 skipped (test_sync_database_schema_status needs SCHEMA_TEST_POSTGRES_URL; with it that test passed)."
+   },
+   {
+    "name": "Generated-file tests (-m generated_file)",
+    "result": "scripts/tests 19 passed; market-ai-orc 11 passed; edge-bff 2 passed with EDGE_TEST_REQUIRE_NODE=1."
+   },
+   {
+    "name": "node shared/build-shell.mjs --check (apps/edge-bff)",
+    "result": "static/edge-session.js and catalog/storage_sync.json match shared/edge-session.ts."
+   },
+   {
+    "name": "Terminal look check (look_check11.mjs on the merged build)",
+    "result": "PASS, errs []."
+   },
+   {
+    "name": "Backtest page smoke (npm run smoke, NODE_PATH=/opt/node-tools/node_modules)",
+    "result": "Every step ok, no console errors."
+   },
+   {
+    "name": "git diff --check fix-int..HEAD",
+    "result": "clean"
+   }
+  ],
+  "migrations": [
+   "database/migrations/20261119_012_edge_bff_email_outbox_purge.sql (unapplied; changed by dec-small: 30-day retention, purge_email_hook_events)",
+   "database/migrations/20261119_070_edge_bff_guest_plan_and_test_accounts.sql (unapplied; dec-guest)",
+   "database/migrations/20261119_170_terminal_access_log_client.sql (unapplied; dec-guest)",
+   "Already on fix-int, still unapplied: 20261119_010, _011, _020, _021, _022, _023, _030, _040, _050 (edge_bff) and the 3c migrations 20261118_001, _002, _100"
+  ],
+  "notes": "The paths that matter, all under /home/user/saniti/.claude/worktrees/wf_b29fb015-e03-4:\n- the new entries: ERRORS_AND_SOLUTIONS.md M483-M503 (lines about 8879-9570), with the old statuses corrected below them;\n- apps/terminal-api/tests/conftest.py;\n- apps/edge-bff/terminal/src/data/live.ts (line 302) and apps/edge-bff/terminal/tests/data/live_refusal_during_locks.test.ts;\n- verification/edge_multiuser/access_tiers/CONTRACT.md.\n\nTwo things to know:\n- The 'Decisions from the fix round' and 'Decisions after the fix round' sections are not in fix-int's EXEC.md. I read the user's words from the main checkout's EXEC.md (/home/user/saniti/EXEC.md, lines 16001-16040).\n- recheck/r2_result.json and fix_round_result.json exist only in the main checkout's working tree (/home/user/saniti/verification/edge_multiuser/access_tiers/recheck/), not on this branch. The ERRORS entries cite them by their repository path.\n\nLogs of the two full edge-bff runs, in /tmp/claude-0/-home-user-saniti/f3bec3b8-f6e3-5a54-b257-4a56b384bdc8/scratchpad/: edgebff_full.log and edgebff_full2.log."
+ }
+}
