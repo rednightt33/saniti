@@ -9328,6 +9328,14 @@ in its staleness check.
   `tests/test_c2web_browser.py::test_c2web_w3_*`, `w4_*`, `test_c2_e2e_people.py::test_a_plan_raised_to_one_that_needs_mfa_asks_for_the_authenticator_without_a_reload`,
   Terminal vitest `tests/data/c_p1s_drawings_plan.test.ts`, `c_p1s_browser_keys.test.ts`,
   `tests/test_storage_registry.py::test_a_browser_key_family_never_names_a_ticker_or_symbol`.
+- **Found at this integration (the same class, a page that did not follow what it waits for):** track guest put
+  `await lockRules()` (the plan's locks, read from the catalog route for a principal without `*`) between starting the
+  Terminal's reference reads and awaiting the ticker list, so a ticker list refused meanwhile (503
+  `TERMINAL_UNAVAILABLE`) was an unhandled rejection in the page besides the error `liveData` throws (Playwright
+  `pageerror` in `tests/test_fix_plans.py::test_the_account_menu_changes_the_password_and_signs_out_everywhere` and
+  `test_c2web_browser.py::test_c2web_w3_*`). Fix (`f8e7a855`): the ticker list's promise gets its handler when it is
+  started, as the broker list's, the first `/bundle`'s and the early download's already had;
+  `terminal/tests/data/live_refusal_during_locks.test.ts` fails without it.
 - **Status:** fixed on branch fix-int2, not deployed. M471's and M473's own fixes stand; these were sites they did not
   reach.
 - **Lesson:** every browser copy of an entitlement-bearing answer is keyed by the entitlements version as well as the
@@ -9427,6 +9435,10 @@ in its staleness check.
   (4, Chromium); terminal-api `test_guest_tickers.py` (10), `test_terminal_fix_round.py`; Terminal vitest
   `tests/data/guest_session.test.ts`. Changed with the decision: terminal-api's free-plan reference tests (BBCA-alone
   list), `test_c2_e2e_people.py` (its reload case), `test_route_table.py` (`GUEST_OPEN`), `test_plan_catalog.py`.
+  At this integration (`6a14747e`, set-ups only, no expectation changed): `test_releases.py` overrides the visitor
+  dependency beside the session one (the catalog route is a visitor route), `test_phase3a_monitor_pages.py` expects
+  `auth.need(..., guests=True)` on the `GUEST_OPEN` routes, and `test_r2_trace_beta_live.py`'s live site is the one
+  after the launch (`prelaunch_enabled` false: the pre-launch default refused its paid account with `SIGN_IN_CLOSED`).
 - **Status:** fixed on branch fix-int2, not deployed; migrations `20261119_070` and `20261119_170` not applied. Open
   before guests go live: the client-address probe of CONTRACT 4 (worst case without it: every visitor shares one quota,
   stricter, never wider).
