@@ -149,6 +149,30 @@ started this run: "1a 2a 3a 4 leave as is, ini setau saya untuk ai bisa lihat lo
 - R2-41 item 9 ("ok"): section 10: a person on another browser registers again.
 - A block "Decisions after the fix round" beside the decisions of 2026-11-19 lists all seven with where each is.
 
-## Suites
+## Later commits
 
-See the end of this file (written after the full run).
+| Commit | What |
+|---|---|
+| `98534d22` | CONTRACT section 4's enrol route row marks the ten-minute pass built |
+| `f56fb659` | SCREENER_ONBOARDING.md pointers into edge-bff `main.py` moved with the font lines |
+| `d5229ebf` | `test_backtest.py`: a queued job's allow at dispatch holds the shown attributes (the expectation changes with "1a") |
+
+## Suites (cluster `dec_small`, port 55572; Chromium `/opt/pw-browsers/chromium`)
+
+| Suite | Result |
+|---|---|
+| edge-bff pytest, full `tests/`, with Postgres and Chromium (app code of the final head) | 900 passed, 3 failed: `test_backtest.py::test_a_queued_job_reads_its_owners_rights_when_it_is_dispatched` (its expectation changed with "1a", `d5229ebf`; passes alone since), `test_composer_layout.py::test_submit_history_and_fixed_headers[mobile]` and `[mobile-small]` (the known flaky test; alone they pass 1 of 3 and 1 of 2; with the shell's old Google Fonts import restored for the comparison, `[mobile]` alone fails 2 of 4 as well, so the self-hosted font does not cause it: "element is not visible" on the history drawer after a reload) |
+| terminal-api pytest (`TERMINAL_TEST_POSTGRES_URL` a database with the terminal migrations `20261025_100`, `20261026_100`, `20261028_100`, `20261118_100` and stand-in market tables) | 160 passed |
+| backtest-worker `npm test` | 277 passed (a first run beside the edge-bff suite: 276, the timing test "a job over BACKTEST_TIMEOUT_SECONDS ends FAILED TIMEOUT" failed under load and passes alone and in the rerun) |
+| screener-worker `npm test` | 131 passed (with `tests/shown.test.ts`; the first run found the SCREENER_ONBOARDING pointers into `main.py`, fixed in `f56fb659`) |
+| market-ai-orc pytest with `ORC_TEST_POSTGRES_URL` | 2202 passed |
+| page vitests: terminal / backtest / screener / radar / overview / watchlist | 968 / 91 / 1355 + 1 skipped / 8 / 22 / 22 passed (the screener's golden grammar test timed out at 5 s once under load; alone 1.3 s, and the full rerun passed) |
+| page builds (all six, `npm run build`) | OK; Vite notes `/fonts/inter-*.css` stays to be resolved at run time (edge-bff serves it) |
+| `scripts/tests` pytest (the generated-file tests included) | 94 passed, 1 skipped (`test_sync_database_schema_status.py`: `SCHEMA_TEST_POSTGRES_URL` not set) |
+| `node shared/build-shell.mjs --check` (apps/edge-bff) | OK |
+| `node verification/terminal_api/terminal_look/look_check11.mjs` on the rebuilt Terminal | PASS, `errs []`, Inter loaded from `/fonts/` |
+
+Not run: the page smoke and visual scripts whose font stub changed (backtest `npm run smoke`, `tests/visual/*`, the
+screener smoke scripts); `node --check` passes on each, and their stub regex matches the `/fonts/` sheet and Google's
+hosts. `apps/market-python-sandbox` generated-file tests cannot collect here (`duckdb` is not installed); the track
+does not touch it.
