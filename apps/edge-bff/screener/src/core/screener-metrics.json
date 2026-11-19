@@ -1344,6 +1344,7 @@
       "id": "last",
       "group": "Universe",
       "kind": "universe",
+      "row": "last",
       "label": "Last close",
       "params": [],
       "tests": [
@@ -1363,6 +1364,7 @@
       "id": "chg_1d_pct",
       "group": "Universe",
       "kind": "universe",
+      "row": "chg_1d_pct",
       "label": "1-day change",
       "params": [],
       "tests": [
@@ -1382,6 +1384,7 @@
       "id": "adv20_idr",
       "group": "Flow",
       "kind": "universe",
+      "row": "adv20_idr",
       "label": "Average daily value (20 sessions)",
       "params": [],
       "tests": [
@@ -1406,6 +1409,7 @@
       "id": "bars",
       "group": "Universe",
       "kind": "universe",
+      "row": "bars",
       "label": "History length",
       "params": [],
       "tests": [
@@ -1425,6 +1429,7 @@
       "id": "index_membership",
       "group": "Universe",
       "kind": "universe",
+      "row": "indices",
       "label": "Index membership (LQ45, IDX30, IDX80, ISSI)",
       "params": [],
       "tests": [

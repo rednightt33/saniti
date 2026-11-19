@@ -56,12 +56,23 @@ def enqueue(c, purpose, to_email, mail, expires_at=None, key=None):
 
 
 def purge_outbox(c, limit=None):
-    """ERRORS R2-24 (migration 20261119_012): the sent, failed, expired or suppressed rows older than 24 h of addresses
-    with no row in edge_bff.users (a registration never verified, purged after 24 h as CONTRACT 4 says, or an address
-    never registered), at most limit of them (None: the function's own cap, 10 000), through
+    """ERRORS R2-24 and the retention decided 2026-11-19 ("a", 30 days; migration 20261119_012): the sent, failed,
+    expired or suppressed rows made more than 30 days ago (every address, an account's too), and those older than 24 h
+    of addresses with no row in edge_bff.users (a registration never verified, purged after 24 h as CONTRACT 4 says, or
+    an address never registered); never a row still pending or sending; at most limit of them (None: the function's own
+    cap, 10 000), through
     edge_bff.purge_email_outbox(integer) (edge_bff_runtime holds no DELETE on the outbox). Returns how many were deleted.
     Called from Store.purge, the hourly housekeeping (worker.Housekeeping; store.PURGES 'outbox')."""
     return c.execute('SELECT edge_bff.purge_email_outbox(%s) AS n', (limit,)).fetchone()['n']
+
+
+def purge_hook_events(c, limit=None):
+    """The retention decided 2026-11-19 ("a", 30 days; migration 20261119_012): the webhook deliveries received more
+    than 30 days ago, at most limit of them (None: the function's own cap, 10 000), through
+    edge_bff.purge_email_hook_events(integer) (edge_bff_runtime holds no DELETE on edge_bff.email_hook_events). A
+    delivery repeated after that is past Svix's retries and its signature's 5-minute tolerance (HOOK_TOLERANCE_SECONDS),
+    so the svix-id it was kept for is no longer needed. Called from Store.purge (store.PURGES 'hook_events')."""
+    return c.execute('SELECT edge_bff.purge_email_hook_events(%s) AS n', (limit,)).fetchone()['n']
 
 
 def masked_address(email):

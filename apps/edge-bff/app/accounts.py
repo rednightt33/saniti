@@ -339,3 +339,19 @@ def purge_pending(connection, limit=None):
     return connection.execute('''DELETE FROM edge_bff.users WHERE user_id IN (SELECT user_id FROM edge_bff.users
         WHERE status = 'pending' AND email_verified_at IS NULL AND created_at < now() - make_interval(hours => %s)
         LIMIT %s)''', (PENDING_HOURS, limit)).rowcount
+
+
+# EXEC-MU-ACCOUNTS "Decisions from the fix round" item 2 (user 2026-11-19: "a"): email codes, outbox rows and webhook
+# deliveries are kept 30 days (the outbox and the deliveries by migration 20261119_012's functions, which hold the same
+# number; tests/test_decisions_small.py ages a row of each to either side of it)
+EMAIL_RETENTION_DAYS = 30
+
+
+def purge_codes(connection, limit=None):
+    """Email codes that can no longer be used, EMAIL_RETENTION_DAYS after they ended: used (consumed_at) or, never
+    used, expired (expires_at, 300 s after they were made). A live code is never deleted, so the one-live-code rule
+    (email_codes_one_live) and the 5 tries are unchanged. At most limit of them (None: every one); the codes deleted.
+    Called from Store.purge, the hourly housekeeping (worker.Housekeeping; store.PURGES 'codes')."""
+    return connection.execute('''DELETE FROM edge_bff.email_codes WHERE code_id IN (SELECT code_id FROM edge_bff.email_codes
+        WHERE coalesce(consumed_at, expires_at) < now() - make_interval(days => %s) ORDER BY code_id LIMIT %s)''',
+                              (EMAIL_RETENTION_DAYS, limit)).rowcount

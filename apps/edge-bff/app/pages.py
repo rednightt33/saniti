@@ -137,8 +137,10 @@ class PageFiles:
             return self.cached
         try:
             answer = await self.terminal(sent, 'GET', self.family)
-            data = answer.json() if answer.status_code == 200 else None
-            if terminal_access.relayed(p, answer.status_code, data, answer.headers, self.family) is not None:
+            refused, data = terminal_access.relayed(p, answer.status_code,
+                                                    answer.json() if answer.status_code == 200 else None,
+                                                    answer.headers, self.family)
+            if refused is not None:
                 data = None
         except (httpx.HTTPError, ValueError):
             data = None
@@ -197,7 +199,9 @@ class PageFiles:
                         answer = granted.json()
                     except ValueError:
                         answer = None
-                    refused = terminal_access.relayed(p, granted.status_code, answer, granted.headers, family)
+                    # the grant's presigned URL is read here only (the page gets the file's checked bytes), so the
+                    # unfiltered answer is used; relayed decides the refusal
+                    refused, _ = terminal_access.relayed(p, granted.status_code, answer, granted.headers, family)
                     if refused is not None and refused.code == 'LIMIT_REACHED':
                         # R1-26: the Terminal quota the page files count against (CONTRACT.md section 3)
                         return refusal(refused.status, refused.code, refused.details, refused.headers)

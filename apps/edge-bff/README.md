@@ -90,7 +90,7 @@ broker summary are dropped from the bundle (`tests/data/fixture_bundle.test.mjs`
 Rules and decisions: `backtest/CONTRACT.md`; wire types: `backtest/src/core/contract.ts`. The page `backtest/`
 (TypeScript + Vite) is built by the Dockerfile's `backtest` stage into `static/backtest-app/` (not kept in git) and
 shown under the EDGE top bar in a frame at `/backtest` (Backtest tab, next to Terminal). `/backtest-app/` has the
-terminal page's CSP (its own scripts only, inline style attributes, Google Fonts, and `connect-src` to the bucket
+terminal page's CSP (its own scripts only, inline style attributes, EDGE's own Inter, and `connect-src` to the bucket
 because the signal preview downloads the files `/api/terminal/v1/bundle` presigns). The computation runs in the private
 `backtest-worker` (Node); edge-bff queues the jobs, keeps the results and counts the trials.
 
@@ -348,6 +348,7 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 | View contract | `static/edge-view.js` (`EdgeView.toView`) | Orc's response shape changes; the only code that reads it |
 | Words | `static/edge-labels.js` | wording, a label, a code's words, a status name |
 | Look and layout | `static/index.html` (markup, CSS) and `static/edge-app.js` (the renderers and the shell's app) | anything visual; renderers read the view model only |
+| Font | `static/fonts/` (Inter 4.001, the variable weight axis in Google's seven subsets, SIL Open Font License 1.1 in `OFL.txt`; `inter-400-700.css` for the shell and five pages, `inter-400-600.css` for the Terminal, the weights each asked Google Fonts for), served at `/fonts/<name>` | never from Google Fonts (re-check R2-28, user 2026-11-19 "5a pakai inter"): every policy keeps `font-src 'self'`, a page links one of the two sheets (`tests/test_decisions_small.py`) |
 
 The shell runs no inline script (EXEC-MU-ACCOUNTS fix round, re-check R2-19): the head's viewport script is
 `static/edge-boot.js` and the app is `static/edge-app.js`, so its policy keeps `script-src 'self'` without
@@ -917,7 +918,12 @@ the same whatever the verifier's age. A reset, a change, a sign-in and an MFA ve
 only while what they rest on still holds (R2-9). A phone is normalised to E.164 (`08…` → `+628…`), not verified; a
 pending user is deleted 24 h after creation, and 24 h after they were made the sent, failed, expired or suppressed
 outbox rows of an address with no account go too (`edge_bff.purge_email_outbox(max_rows)`, migration `20261119_012`,
-the housekeeping's batches; the runtime holds no DELETE on the outbox; R2-24).
+the housekeeping's batches; the runtime holds no DELETE on the outbox; R2-24). Retention (the user's decision of
+2026-11-19, "a"): every sent, failed, expired or suppressed outbox row of every address goes 30 days after it was made
+(the same function), with the email codes no longer usable (used, or expired unused) 30 days after they ended
+(`store.PURGES` `codes`) and the handled webhook deliveries 30 days after they arrived
+(`edge_bff.purge_email_hook_events(max_rows)`, `hook_events`; the runtime holds no DELETE on them either); a row not
+yet sent, a live code and `email_suppression` are kept.
 
 Email (`app/mailer.py`, `app/email_texts.py`, plain English): a code and its email are written in one transaction
 (`edge_bff.email_outbox`). The sender is its own task beside the backtest loop, claiming one row at a time with
@@ -938,8 +944,10 @@ Besides the 10 tries per 15 minutes, 100 consecutive wrong authenticator codes (
 `details.unlock_at`; the `/mfa` page shows it in local time, switches to the recovery-code field when only the
 authenticator is locked, and keeps "Forgot password?"). A lock lasts 24 h, then the count restarts at 90 (8), so 10 (2)
 more tries come before the next lock; a correct code resets the counts; a password reset by email code clears counts
-and locks. A confirmed authenticator is replaced only by a session that passed MFA, and only when a code of the new
-one proves it: until then the new enrolment waits beside it (`mfa_totp.pending_nonce`, recovery codes marked
+and locks. A confirmed authenticator is replaced only by a session that passed MFA within the last 10 minutes
+(`auth_flows.MFA_RECENT_SECONDS`, decided with the enrolment's row lock; an older pass answers 403 `MFA_REQUIRED` with
+`details.recent_s` 600, and the `/mfa` page asks for a code of the current authenticator, then starts the set-up again),
+and only when a code of the new one proves it: until then the new enrolment waits beside it (`mfa_totp.pending_nonce`, recovery codes marked
 `pending`, migration `20261119_011`) and the old authenticator and its recovery codes keep working (R1-7). A code
 confirms only the enrolment it was checked against (R2-11); the cap is decided and counted under the enrolment's row
 lock (R2-12). Operator unlock: `scripts/edge_mfa_unlock.py --username <name> --reason "<why>"`, run as a job on the
@@ -1132,6 +1140,11 @@ owner holds `*`: its header says `admin: true`, its body is forwarded byte for b
   - for a principal without `*`, an answer without `x-terminal-capabilities-applied: 1 <version>` (a terminal-api from
     before Phase 3c ignores the owner headers and would serve the plan in full) is 503 `TERMINAL_UNAVAILABLE`, logged
     (`terminal_capabilities_not_applied`); the switch-off owner holds `*` and needs none;
+  - an acknowledged 2xx JSON answer reaches the page through `client.public_data` (ERRORS M260, the user's go
+    2026-11-19 "a"): no private key (`PRIVATE_KEYS`: `reasoning`, `token`, `api_key`, ...) and no `*.railway.internal`
+    address, as every Orc and worker relay; a cut's bytes and a logo are relayed as they are (never parsed). The walk
+    in `tests/test_decisions_small.py` calls every route holding `terminal_access.guard` with each kind of proxy path,
+    terminal-api planting both in every answer;
   - its 403 `capability_required` is 403 `CAPABILITY_REQUIRED` with `details.capability` and `details.display_name`;
   - its 429 is 429 `LIMIT_REACHED` with `details.limit` (`terminal.<quota>`), `details.allowed`,
     `details.retry_after_s` and `Retry-After`, from the fields terminal-api adds (an hour when it names none);

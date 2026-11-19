@@ -9,9 +9,9 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from psycopg.types.json import Jsonb
 
-from .accounts import purge_pending
+from .accounts import purge_codes, purge_pending
 from .config import BETA
-from .mailer import purge_outbox
+from .mailer import purge_hook_events, purge_outbox
 from .throttle import purge as purge_throttle
 
 TERMINAL = {'FINISHED', 'FAILED', 'INTERRUPTED'}
@@ -90,6 +90,7 @@ class Store:
             c.execute('SELECT pending_nonce, pending_created_at FROM edge_bff.mfa_totp LIMIT 0')
             c.execute('SELECT pending FROM edge_bff.mfa_recovery_codes LIMIT 0')
             c.execute("SELECT 'edge_bff.purge_email_outbox(integer)'::regprocedure")
+            c.execute("SELECT 'edge_bff.purge_email_hook_events(integer)'::regprocedure")    # the 30-day retention
             # ERRORS R2-2 (migration 20261119_022): the seed copies the environment's password only over its own copy
             c.execute('SELECT seed_verifier_sha256 FROM edge_bff.identities LIMIT 0')
 
@@ -402,5 +403,8 @@ PURGE_BATCH = 500
 # name -> purge(connection, limit) -> rows deleted; each runs hourly in worker.Housekeeping, in this order. EXEC-MU-ACCOUNTS
 # Phase 0: throttle rows older than 2 days; Phase 1: registrations never verified, after 24 h (their identity and codes
 # cascade); ERRORS R2-24: then, each batch in a transaction of its own (seeing the registrations purged before it), the
-# outbox rows of addresses left with no account (migration 20261119_012; the only delete of the outbox edge-bff can make)
-PURGES = {'sessions': purge_sessions, 'throttle': purge_throttle, 'pending': purge_pending, 'outbox': purge_outbox}
+# outbox rows of addresses left with no account (migration 20261119_012; the only delete of the outbox edge-bff can make);
+# the retention decided 2026-11-19 ("a", 30 days): the outbox purge also takes every address's rows after 30 days, and
+# the used email codes and the handled webhook deliveries go after 30 days (accounts.purge_codes, mailer.purge_hook_events)
+PURGES = {'sessions': purge_sessions, 'throttle': purge_throttle, 'pending': purge_pending, 'outbox': purge_outbox,
+          'codes': purge_codes, 'hook_events': purge_hook_events}

@@ -89,8 +89,10 @@ def test_every_terminal_api_answer_maps_onto_the_contract(settings, upstream, wa
     status, body, headers = upstream
     p = switch_off_principal(settings, settings.owner)                   # holds '*': acknowledged by definition
     with caplog.at_level(logging.WARNING, 'edge_bff.terminal_access'):
-        refused = terminal_access.relayed(p, status, body, headers, 'manifest/BBCA')
-    assert isinstance(refused, Refusal)
+        # ERRORS M260 (the user's go 2026-11-19, "a"): relayed hands back the pair (refusal, the page's data), so the
+        # one rule also filters a 2xx's JSON (public_data); a refusal carries no data
+        refused, data = terminal_access.relayed(p, status, body, headers, 'manifest/BBCA')
+    assert isinstance(refused, Refusal) and data is None
     code_status, code, details = want
     assert (refused.status, refused.code) == (code_status, code), (refused.status, refused.code, refused.details)
     if code == 'CAPABILITY_REQUIRED':
@@ -104,7 +106,7 @@ def test_every_terminal_api_answer_maps_onto_the_contract(settings, upstream, wa
     if code == 'TERMINAL_UNAVAILABLE':
         logged = [json.loads(r.getMessage()) for r in caplog.records if 'terminal_refused' in r.getMessage()]
         assert logged and logged[-1]['status'] == status and logged[-1]['code'] == (body or {}).get('error')
-    assert terminal_access.relayed(p, 200, {'ok': True}, httpx.Headers(), 'manifest/BBCA') is None
+    assert terminal_access.relayed(p, 200, {'ok': True}, httpx.Headers(), 'manifest/BBCA') == (None, {'ok': True})
 
 
 def test_a_relayed_refusal_reaches_the_page_and_the_session_stays(switched_off, store, monkeypatch):

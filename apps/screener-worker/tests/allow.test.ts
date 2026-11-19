@@ -9,6 +9,7 @@
    one without it; /counts refusing per entry; the internal calls (presets, normalize) never gated. */
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
+import { SHOWN_ATTRIBUTES } from '../../edge-bff/screener/src/core/catalog.ts';
 import { ALLOW_ALL, checkAllow, definitionItems, effectiveLimits, parseContext } from '../src/run.ts';
 import { createApp } from '../src/server.ts';
 import type { WorkerApp } from '../src/server.ts';
@@ -22,9 +23,13 @@ const ALL = { indicator: '*', flow_indicator: '*', candle_pattern: '*', screener
 /** `allow` with every id of the definition but the one left out (and "*" for the other kinds). */
 const without = (kind: string, id: string, ids: string[]) => ({ ...ALL, [kind]: ids.filter(x => x !== id) });
 
-/* One definition naming an item at every place the wire allows (indices fixed: the expected paths below). */
+/* One definition naming an item at every place the wire allows (indices fixed: the expected paths below). Its first
+   metric filter reads chg_1d_pct, a universe attribute every answer shows: not an item (catalog.ts SHOWN_ATTRIBUTES;
+   CONTRACT 8b O3b-2 and re-check R1-35, user 2026-11-19 "1a"; until then it was the walk's first item), so the filter
+   place is covered by the second, an indicator. */
 const FULL = {
-  universe: { ...U, metric_filters: [{ kind: 'value', metric: { kind: 'universe', attr: 'chg_1d_pct' }, op: 'gt', value: -100 }] },
+  universe: { ...U, metric_filters: [{ kind: 'value', metric: { kind: 'universe', attr: 'chg_1d_pct' }, op: 'gt', value: -100 },
+    { kind: 'value', metric: { kind: 'indicator', indicator: 'I07', params: {}, output: 'adx' }, op: 'gt', value: -1 }] },
   conditions: [
     { id: 'a', enabled: true, test: { kind: 'value', metric: RSI, op: 'lt', value: 101 } },
     { id: 'b', enabled: true, test: { kind: 'event', signal: { pattern: { kind: 'pattern', type: 'hammer', params: {} } }, within: 3 } },
@@ -39,7 +44,7 @@ const FULL = {
   logic: 'any',
 };
 const EXPECTED: [string, string, string][] = [       // [kind, id, field] in the walk's order
-  ['screener_metric', 'chg_1d_pct', 'definition.universe.metric_filters[0].metric.attr'],
+  ['indicator', 'I07', 'definition.universe.metric_filters[1].metric.indicator'],
   ['indicator', 'I13', 'definition.conditions[0].test.metric.indicator'],
   ['candle_pattern', 'hammer', 'definition.conditions[1].test.signal.pattern.type'],
   ['screener_metric', 'breakout', 'definition.conditions[2].test.pattern.type'],
@@ -62,6 +67,16 @@ test('the walk names every item of a definition with its kind and JSON path; the
   assert.deepEqual(definitionItems({ universe: U, conditions: [{ id: 'a', enabled: true, test: { kind: 'value', metric: hi52, op: 'gt', value: 0 } }], logic: 'all' }), []);
   // a counts entry's path
   assert.equal(definitionItems(FULL, 'definitions[3].definition')[1].field, 'definitions[3].definition.conditions[0].test.metric.indicator');
+});
+
+test('a universe attribute every answer shows is not an item (O3b-2, R1-35 "1a"); any other universe attribute is', () => {
+  assert.deepEqual([...SHOWN_ATTRIBUTES.keys()].sort(), ['adv20_idr', 'bars', 'chg_1d_pct', 'index_membership', 'last']);
+  const on = (attr: string) => ({ universe: U, logic: 'all', conditions: [{ id: 'a', enabled: true, test: { kind: 'value', metric: { kind: 'universe', attr }, op: 'gt', value: 0 } }] });
+  for (const attr of SHOWN_ATTRIBUTES.keys()) {
+    assert.deepEqual(definitionItems(on(attr)), [], attr);
+    checkAllow(on(attr), parseContext({ allow: { ...ALL, screener_metric: [] } }).allow);
+  }
+  assert.deepEqual(definitionItems(on('cap')).map(i => [i.kind, i.id, i.field]), [['screener_metric', 'cap', 'definition.conditions[0].test.metric.attr']]);
 });
 
 test('checkAllow: each item outside allow refused 403 CAPABILITY_REQUIRED with its field and capability; inside allowed; "*" allows all', () => {
@@ -138,15 +153,19 @@ test('/v1/validate: every place of the full definition refused without its item 
   assert.equal(ok.status, 200, JSON.stringify(ok.body));
   assert.equal((await v({ allow: exact(), limits: {} })).status, 200);
   for (const [kind, id, field] of EXPECTED) refused(await v({ allow: without(kind, id, idsOf(kind)), limits: {} }), field, `${FAMILY[kind]}:${id}`);
-  // a saved My metric is validated by edge-bff as the one condition of a screen (app/screener.py validated_definition)
-  const myMetric = { universe: { security_types: ['stock'] }, conditions: [{ id: 'm', enabled: true, test: { kind: 'value', metric: { kind: 'universe', attr: 'adv20_idr' }, op: 'gt', value: 0 } }], logic: 'all' };
-  refused(await call(port, 'POST', '/v1/validate', { schema_version: 1, definition: myMetric, context: { allow: { ...ALL, screener_metric: ['last'] } } }, auth(OWNER_A)), 'definition.conditions[0].test.metric.attr', 'screener.metric:adv20_idr');
+  // a saved My metric is validated by edge-bff as the one condition of a screen (app/screener.py validated_definition):
+  // one on a universe attribute every answer shows needs no grant (R1-35 "1a"; it was refused without
+  // screener.metric:adv20_idr before), one on any other Screener metric does
+  const myMetric = (metric: unknown, op = 'gt') => ({ universe: { security_types: ['stock'] }, conditions: [{ id: 'm', enabled: true, test: { kind: 'value', metric, op, value: 0 } }], logic: 'all' });
+  const shown = await call(port, 'POST', '/v1/validate', { schema_version: 1, definition: myMetric({ kind: 'universe', attr: 'adv20_idr' }), context: { allow: { ...ALL, screener_metric: [] } } }, auth(OWNER_A));
+  assert.equal(shown.status, 200, JSON.stringify(shown.body));
+  refused(await call(port, 'POST', '/v1/validate', { schema_version: 1, definition: myMetric({ kind: 'xsection', metric: 'return_rank', params: {} }, 'ge'), context: { allow: { ...ALL, screener_metric: ['last'] } } }, auth(OWNER_A)), 'definition.conditions[0].test.metric.metric', 'screener.metric:return_rank');
   // a malformed context is INVALID_CONTEXT before anything else
   const m = await v({ allow: { indicator: '*' } });
   assert.deepEqual([m.status, m.body.error.code, m.body.error.field], [422, 'INVALID_CONTEXT', 'context.allow.flow_indicator']);
 });
 
-test('/v1/run: a result cached for a principal with the item is still refused for one without it; the extra-column request (anchor bars, one VALUE test per column) is gated too', async () => {
+test('/v1/run: a result cached for a principal with the item is still refused for one without it; the extra-column request (one VALUE test per column) is gated too, its anchor (bars) needs no grant', async () => {
   const body = (seq: number, context?: unknown) => ({ schema_version: 1, client_order: { page: 'p', seq }, definition: SMALL, ...(context ? { context } : {}) });
   const first = await call(port, 'POST', '/v1/run', body(1, { allow: ALL, limits: {} }), auth(OWNER_A));
   assert.equal(first.status, 200, JSON.stringify(first.body));
@@ -162,7 +181,10 @@ test('/v1/run: a result cached for a principal with the item is still refused fo
     { id: 'x1', enabled: true, test: { kind: 'value', metric: { kind: 'transform', fn: 'pct_distance', of: { kind: 'indicator', indicator: 'I05', params: {}, output: 'kama' }, args: {} }, op: 'gt', value: -1e9 } }] };
   const run = (context: unknown) => call(port, 'POST', '/v1/run', { schema_version: 1, client_order: { page: 'aux', seq: 1 }, definition: extra, context }, auth(OWNER_A));
   refused(await run({ allow: { ...ALL, indicator: ['I13'] } }), 'definition.conditions[1].test.metric.of.indicator', 'terminal.indicator:I05');
-  refused(await run({ allow: { ...ALL, screener_metric: [] } }), 'definition.conditions[0].test.metric.attr', 'screener.metric:bars');
+  // re-check R1-35 (user 2026-11-19, "1a"): the anchor reads bars, which /universe shows for every stock, so it no longer
+  // needs screener.metric:bars (until then refused naming a metric the person never chose)
+  const anchored = await run({ allow: { ...ALL, indicator: ['I05'], screener_metric: [] } });
+  assert.equal(anchored.status, 200, JSON.stringify(anchored.body));
   assert.equal((await run({ allow: { ...ALL, indicator: ['I05'], screener_metric: ['bars'] } })).status, 200);
 });
 

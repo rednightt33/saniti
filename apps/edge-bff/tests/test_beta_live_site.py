@@ -306,8 +306,10 @@ def test_a_purge_another_instance_runs_is_skipped_and_every_purge_is_bounded(sto
         other.execute("SELECT pg_advisory_unlock(hashtextextended('housekeeping:sessions', 0))")
     assert [store.purge('sessions', 3) for _ in range(4)] == [3, 3, 1, 0]
     # fix-round integration: the auth track's outbox purge (ERRORS R2-24, migration 20261119_012) is the fourth entry,
-    # as this track's notes foresaw ("any new purge is one entry in store.PURGES"), and is held to the same bound
-    assert set(PURGES) == {'sessions', 'throttle', 'pending', 'outbox'}
+    # as this track's notes foresaw ("any new purge is one entry in store.PURGES"), and is held to the same bound.
+    # The retention decided 2026-11-19 ("a", 30 days; track decisions) adds the used email codes and the webhook
+    # deliveries as two more entries (tests/test_decisions_small.py holds them to the same bound)
+    assert set(PURGES) == {'sessions', 'throttle', 'pending', 'outbox', 'codes', 'hook_events'}
     db(store, "INSERT INTO edge_bff.email_outbox(idempotency_key, purpose, to_email, status, sent_at, created_at) "
               "SELECT 'k' || g, 'register', 'gone' || g || '@example.com', 'sent', now() - interval '2 days', "
               "now() - interval '2 days' FROM generate_series(1, 7) g")

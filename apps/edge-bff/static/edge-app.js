@@ -797,13 +797,19 @@ function MfaForm({go, L}) {
   const locked = initialValue(v, "locked", () => ""), unlockAt = initialValue(v, "unlockAt", () => "");
   // an account without an authenticator yet (access.mfa_enrolled false) starts on the set-up
   onLifecycle(v, "start", () => { if (Edge.auth?.access?.mfa_enrolled === false || authFlow.mfaEnrolled === false) startEnrol(); }, []);
+  // a new authenticator beside a confirmed one needs a code entered in the last minutes (MFA_REQUIRED with
+  // details.recent_s): the code form below takes it, and its success starts the set-up again here (resumeEnrol)
+  const resumeEnrol = initialValue(v, "resumeEnrol", () => false);
   async function startEnrol() { if (busy) return; updateValue(v, "busy", true); updateValue(v, "error", "");
-    try { const a = await Edge.mfaEnroll(); updateValue(v, "enrol", {uri:a.otpauth_uri || "", secret:a.secret || "", codes:Array.isArray(a.recovery_codes) ? a.recovery_codes : []}); updateValue(v, "recovery", false); }
-    catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } }
+    try { const a = await Edge.mfaEnroll(); updateValue(v, "resumeEnrol", false); updateValue(v, "enrol", {uri:a.otpauth_uri || "", secret:a.secret || "", codes:Array.isArray(a.recovery_codes) ? a.recovery_codes : []}); updateValue(v, "recovery", false); }
+    catch (e) { if (e.info?.code === "MFA_REQUIRED" && typeof e.info.details?.recent_s === "number") updateValue(v, "resumeEnrol", true);
+      updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } }
   const submit = async e => { e.preventDefault(); if (busy) return;
     if (!recovery && !/^\d{6}$/.test(code)) { updateValue(v, "error", L.check.code); return; }
     updateValue(v, "busy", true); updateValue(v, "error", "");
-    try { await Edge.mfaVerify(recovery ? {recovery_code:code.trim()} : {code}); updateValue(v, "enrol", null); authFlow.mfaEnrolled = null; go(landing()); }
+    try { await Edge.mfaVerify(recovery ? {recovery_code:code.trim()} : {code}); updateValue(v, "enrol", null); authFlow.mfaEnrolled = null;
+      if (resumeEnrol && !enrol) { updateValue(v, "code", ""); updateValue(v, "busy", false); await startEnrol(); return; }
+      go(landing()); }
     catch (e) {
       if (e.info?.code === "MFA_LOCKED") { const d = e.info.details || {}, useRecovery = d.use === "recovery_code";
         const at = typeof d.unlock_at === "string" && !Number.isNaN(Date.parse(d.unlock_at)) ? new Date(d.unlock_at).toLocaleString([], {dateStyle:"medium", timeStyle:"short"}) : "";
