@@ -199,4 +199,3 @@ def test_the_store_counts_each_visitor_apart_on_a_real_server():
                               "VALUES (%s, 'file', 'BBCA', NULL, '10.0.0.1')", (sid,))
     finally:
         store.close()
-
