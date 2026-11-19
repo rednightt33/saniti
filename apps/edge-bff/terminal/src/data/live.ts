@@ -66,6 +66,9 @@ const roleLabel = (role: string) => role.toLowerCase().split('_').map((w, i) => 
    is shown as its message, not as "answered 403"; only a 401 asks to sign in again; a 403 CSRF_INVALID is repeated once.
    `csrf` is kept for the callers' signatures: the shared module sets the header itself. */
 const SIGN_IN = 'Sign in to EDGE first, then open the Terminal tab again.';
+/* EXEC-MU-ACCOUNTS re-check R2-32: a plan whose ticker list holds no published ticker (terminal-api answers a plan
+   without the reference lists with its own tickers only) */
+const NO_TICKER = 'No ticker of your EDGE plan is published yet. Upgrade the plan to open others; you are still signed in.';
 async function api(path: string, _csrf: string, body?: unknown) {
   let res: Response;
   try {
@@ -77,8 +80,12 @@ async function api(path: string, _csrf: string, body?: unknown) {
   if (!res.ok) {
     const info = readError(res.status, data, res.headers.get('Retry-After'));
     const msg = data && (data.message || (data.error && (data.error.code || data.error)));
+    /* re-check R1-1: edge-bff relays every terminal-api refusal in the contract's shape with EDGE's own words (a
+       terminal-api 401 or 403 about its own account is 503 TERMINAL_UNAVAILABLE): those words, never the code */
+    const words = data && typeof data.error === 'object' && data.error && !info.legacy ? info.message : '';
     throw new TerminalError(res.status === 401 ? SIGN_IN
       : isAccessRefusal(info) ? accessText(info) as string
+      : words ? words
       : res.status === 429 ? `Download limit reached: ${msg || 'try again later'}.`
       : `The terminal data service answered ${res.status}${msg ? ` (${msg})` : ''}.`, res.status, info.code);
   }
@@ -318,7 +325,8 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
   const instruments: Instrument[] = [...tickers.map(t => [t.ticker, t.name || t.ticker, sectorOf(t), 0,
       { market:`IDX · ${detail(t.instrument) || typeWord(t.type)}` }] as Instrument),
     ...bonds.map((b: any) => [b.ticker, b.name || b.ticker, 'Fixed income', 0, { market:'Fixed income', place:b.country || undefined }] as Instrument)];
-  const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0].ticker;
+  const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0]?.ticker ?? bonds[0]?.ticker;
+  if (!SYMBOL) throw new TerminalError(NO_TICKER);
   const bond = bondOf.get(SYMBOL);
   const isIndex = tickers.some(t => t.ticker === SYMBOL && t.type === 'index');     // EXEC-IHSG-FLOW
   const ready = SYMBOL === guess && (await guessP.then(f => isBondAnswer(f) === !!bond, () => false)) ? await early
