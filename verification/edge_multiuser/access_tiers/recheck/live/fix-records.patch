@@ -1,0 +1,293 @@
+From d71bc8363c232d2307077f2f8fb9cd90618228cf Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 09:33:03 +0000
+Subject: [PATCH 1/2] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
+ key test waits in pending/ for the Railway deletion; the code side held by a
+ test (no code the runner runs reads the main Orc key)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ .../tests/test_main_key_readers.py            | 44 +++++++++++++++++++
+ .../access_tiers/pending/README.md            |  1 +
+ .../pending}/test_cp0_runner_key.py           |  0
+ 3 files changed, 45 insertions(+)
+ create mode 100644 apps/market-ai-orc/tests/test_main_key_readers.py
+ rename {apps/market-ai-orc/tests => verification/edge_multiuser/access_tiers/pending}/test_cp0_runner_key.py (100%)
+
+diff --git a/apps/market-ai-orc/tests/test_main_key_readers.py b/apps/market-ai-orc/tests/test_main_key_readers.py
+new file mode 100644
+index 00000000..e6e55fcc
+--- /dev/null
++++ b/apps/market-ai-orc/tests/test_main_key_readers.py
+@@ -0,0 +1,44 @@
++"""EXEC-MU-ACCOUNTS fix round (re-check R1-2; ERRORS M475, M477): the code side of retiring market-ai-orc's main key
++from orc-test-runner.
++
++MARKET_AI_ORC_API_KEY may name any owner; MARKET_AI_ORC_TEST_KEY only test owners (golden-*, test-*, someone-else).
++orc-test-runner is the project's general job box: it runs apps/orc-test-runner itself and every job that
++scripts/onboarding/run_job.sh uploads from scripts/ and verification/. The variable is still on the service
++(.railway/railway.ts; verification/edge_multiuser/access_tiers/pending/test_cp0_runner_key.py waits for its deletion
++with the user's go). This test holds the precondition of that deletion: no code the runner can run reads the main key,
++so deleting it breaks nothing, and a job that starts reading it fails here before it is uploaded.
++
++The readers allowed are derived, not listed by file: the two services that hold the key on Railway and their tests.
++"""
++import pathlib
++import re
++
++ROOT = pathlib.Path(__file__).resolve().parents[3]
++KEY = 'MARKET_AI_ORC_API_KEY'
++# what orc-test-runner runs: its own folder and every job script run_job.sh uploads (any path under these)
++RUNNER_CODE = ('apps/orc-test-runner', 'scripts', 'verification')
++CODE = {'.py', '.sh', '.mjs', '.js', '.ts', '.mts'}
++
++
++def readers(top):
++    for path in sorted((ROOT / top).rglob('*')):
++        if path.suffix not in CODE or 'node_modules' in path.parts or not path.is_file():
++            continue
++        text = path.read_text(errors='replace')
++        if re.search(r'\b' + KEY + r'\b', text):
++            yield path.relative_to(ROOT).as_posix()
++
++
++def test_no_code_the_runner_runs_reads_the_main_orc_key():
++    found = [path for top in RUNNER_CODE for path in readers(top)
++             # the pending test reads railway.ts for the variable's name, not the environment
++             if not path.endswith('pending/test_cp0_runner_key.py')]
++    assert found == [], (
++        f'{found} name {KEY}: orc-test-runner runs this code, and the main key may name any owner (M475). Use '
++        'MARKET_AI_ORC_TEST_KEY with a test owner (golden-*, test-*, someone-else), as apps/orc-test-runner/run.py does')
++
++
++def test_the_runner_reads_only_the_test_key():
++    run = (ROOT / 'apps/orc-test-runner/run.py').read_text()
++    assert 'os.environ["MARKET_AI_ORC_TEST_KEY"]' in run
++    assert KEY not in run
+diff --git a/verification/edge_multiuser/access_tiers/pending/README.md b/verification/edge_multiuser/access_tiers/pending/README.md
+index b1912754..0e61085f 100644
+--- a/verification/edge_multiuser/access_tiers/pending/README.md
++++ b/verification/edge_multiuser/access_tiers/pending/README.md
+@@ -7,6 +7,7 @@ decision lands with the test, changed to match it, in the suite it came from.
+ | File | From | Decision | Goes back to |
+ |---|---|---|---|
+ 
++| `test_cp0_runner_key.py` | C-P0, re-check round 1 of Phases 0-3b (2026-11-18, finding R1-2) | Not a design decision: a Railway change with the user's go. orc-test-runner still holds `MARKET_AI_ORC_API_KEY` (`.railway/railway.ts`, the live project as code), the Orc key that may name any owner (M475). The code side is done: `apps/orc-test-runner/run.py` reads only `MARKET_AI_ORC_TEST_KEY`, and `apps/market-ai-orc/tests/test_main_key_readers.py` holds that no file the runner runs (its own folder, `scripts/`, `verification/`) reads the main key, so deleting it cannot break the runner. The test turns green only when the main agent deletes the variable on orc-test-runner (the user's go), runs `railway config pull --force` and `railway config plan`; it cannot pass by a code change, and in `apps/market-ai-orc/tests/` it would hold every edge-bff deploy (backend-tests.yml is in its check suite) | `apps/market-ai-orc/tests/` (its `ROOT` is `parents[3]` from that folder), unchanged, in the commit that records the deletion |
+ | `test_r2_trace_beta_live.py` | C2-TRACE, re-check round 2 of Phases 0-3b (2026-11-19) | The two-site design (EXEC.md EXEC-MU-ACCOUNTS: two edge-bff services on one database; open). The tests hold that a shared row made under one site's rules is read and changed only under those rules: a queued job is dispatched by the rules of the site that queued it, and a start of one site does not rewrite user #1's password identity set on the other. The design decides how (a site column on the queue tables and one loop per site, or one switch state for both, or a seed that never copies while another site has the switch on); the tests change to match it | `apps/edge-bff/tests/` (its imports are relative to that folder) |
+ 
+ No other test waits here now. The last one, `c1-phase3b.test.ts` (C1, Phase 3b, `4188e3cf`, ERRORS M482), went back with
+diff --git a/apps/market-ai-orc/tests/test_cp0_runner_key.py b/verification/edge_multiuser/access_tiers/pending/test_cp0_runner_key.py
+similarity index 100%
+rename from apps/market-ai-orc/tests/test_cp0_runner_key.py
+rename to verification/edge_multiuser/access_tiers/pending/test_cp0_runner_key.py
+-- 
+2.43.0
+
+
+From 22d4defe17a0d98db4ffb77a15f4f824f7cda532 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 09:35:21 +0000
+Subject: [PATCH 2/2] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
+ hook route verifies by a dependency built from HOOK_ROUTES; the route walk
+ covers the whole table (signed hooks, a capability gate or a named
+ principal-only reason on every /api route)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/app/auth_flows.py         | 14 +++----
+ apps/edge-bff/app/hooks.py              | 26 +++++++++++-
+ apps/edge-bff/tests/test_route_table.py | 56 +++++++++++++++++++++++--
+ 3 files changed, 84 insertions(+), 12 deletions(-)
+
+diff --git a/apps/edge-bff/app/auth_flows.py b/apps/edge-bff/app/auth_flows.py
+index 1b8953ed..5cc84e3d 100644
+--- a/apps/edge-bff/app/auth_flows.py
++++ b/apps/edge-bff/app/auth_flows.py
+@@ -31,10 +31,10 @@ from fastapi.encoders import jsonable_encoder
+ from fastapi.responses import JSONResponse
+ from psycopg import errors as pg_errors
+ 
+-from . import email_texts, mfa, passwords
++from . import email_texts, hooks, mfa, passwords
+ from .accounts import EMAIL, RESERVED_USERNAMES, USERNAME, new_owner_key
+ from .errors import Refusal
+-from .mailer import OutboxStore, enqueue, svix_verify
++from .mailer import OutboxStore, enqueue
+ from .principal import ADMIN_ACCESS, Principal
+ from .security import normal_password, password_verifier, token_hash, verify_password
+ from .throttle import (CODE_USER, MFA_USER, REGISTER_DAY, REGISTER_HOUR, SEND_EMAIL, SEND_IP, SIGNIN_LOGIN, Throttle,
+@@ -591,12 +591,12 @@ class AuthFlows:
+             return signed_in(fresh, token)
+ 
+         @app.post('/api/v1/hooks/email/resend')
+-        async def resend_hook(request: Request, _on=Depends(switched_on)):
++        async def resend_hook(request: Request, _on=Depends(switched_on),
++                              raw=Depends(hooks.signed('/api/v1/hooks/email/resend',
++                                                       lambda: settings.resend_webhook_secret))):
+             """Resend's bounces and complaints (CONTRACT.md sections 5 and 6): no session; the Svix signature over the
+-            raw body proves the sender; a repeated svix-id changes nothing."""
+-            raw = getattr(request, '_body', None) or await request.body()
+-            if not svix_verify(request.headers, raw, settings.resend_webhook_secret):
+-                raise Refusal(401, 'HOOK_SIGNATURE_INVALID')
++            raw body proves the sender (hooks.signed, before this body runs: re-check R1-15); a repeated svix-id changes
++            nothing."""
+             try:
+                 event = json.loads(raw)
+                 kind = event.get('type') if isinstance(event, dict) else None
+diff --git a/apps/edge-bff/app/hooks.py b/apps/edge-bff/app/hooks.py
+index cb7c77cb..775a6bd6 100644
+--- a/apps/edge-bff/app/hooks.py
++++ b/apps/edge-bff/app/hooks.py
+@@ -6,9 +6,16 @@ headers stay. A hook route has no session and no CSRF token: it must verify a si
+ (`request._body`, buffered by `protections`) before it reads or changes anything.
+ 
+ Every route under HOOK_PREFIX is registered in HOOK_ROUTES, path -> the function that verifies its signature
+-(verify(headers, raw_body) -> bool). tests/test_route_table.py fails on a route under the prefix that is missing here.
+-No hook route exists in Phase 0.
++(verify(headers, raw_body, secret) -> bool), and carries the dependency `signed(path, secret)` built from that entry:
++it verifies the raw body before the handler runs, refuses 401 HOOK_SIGNATURE_INVALID otherwise, and hands the handler
++the verified bytes. A registry entry therefore means verification, whatever the handler does (fix round, re-check
++R1-15): tests/test_route_table.py fails on a route under the prefix that is missing here or does not carry `signed`
++for its own path and verifier.
+ """
++from fastapi import Request
++
++from .errors import Refusal
++
+ HOOK_PREFIX = '/api/v1/hooks/'
+ 
+ from .mailer import svix_verify  # noqa: E402
+@@ -20,3 +27,18 @@ HOOK_ROUTES = {'/api/v1/hooks/email/resend': svix_verify}
+ 
+ def is_hook_path(path):
+     return path.startswith(HOOK_PREFIX)
++
++
++def signed(path, secret, registry=None):
++    """The dependency of the hook route `path`: the raw body, once its signature verifies with `secret` (a value, or a
++    function returning it at request time) by the route's verifier in the registry. A path without an entry fails when
++    the route is built, not when a request comes."""
++    verify = (HOOK_ROUTES if registry is None else registry)[path]
++
++    async def signature(request: Request):
++        raw = getattr(request, '_body', None) or await request.body()
++        if not verify(request.headers, raw, secret() if callable(secret) else secret):
++            raise Refusal(401, 'HOOK_SIGNATURE_INVALID')
++        return raw
++    signature.hook_path, signature.verifier = path, verify
++    return signature
+diff --git a/apps/edge-bff/tests/test_route_table.py b/apps/edge-bff/tests/test_route_table.py
+index ed71cd2a..7f845889 100644
+--- a/apps/edge-bff/tests/test_route_table.py
++++ b/apps/edge-bff/tests/test_route_table.py
+@@ -3,7 +3,13 @@
+ Derived from app.routes, not from a list of the routes written today:
+ - every /api route is either in PUBLIC or depends (directly or through another dependency) on the session dependency;
+ - every /api route that is not a GET depends on the write dependency (session and CSRF), sign-in and hooks excepted;
+-- every route under /api/v1/hooks/ is registered in app.hooks.HOOK_ROUTES with its signature verifier;
++- every route under /api/v1/hooks/ is registered in app.hooks.HOOK_ROUTES and carries app.hooks.signed for its own
++  path and verifier, so the signature is checked before the handler runs (fix round, re-check R1-15: a registry entry
++  alone said nothing about the handler);
++- every other /api route carries a capability gate (auth.need or auth.admin, found in its dependency tree) or is named
++  in PRINCIPAL_ONLY with the reason it needs none (fix round, re-check R1-27, ERRORS M481 "C3 gaps": the walks of
++  tests/test_phase3a_gates.py and tests/test_phase3a_monitor_pages.py are scoped by module and path, so a new module, a
++  new path family or a new tab, such as 3e's examples or a relay outside /api/terminal/v1/, escaped every walk);
+ - no route outside /api takes a write method (it would escape the walk).
+ """
+ import dataclasses
+@@ -21,6 +27,20 @@ PUBLIC = {'/api/v1/auth/sign-in', '/health', '/ready', '/api/v1/auth/config', '/
+           '/api/v1/auth/register/verify', '/api/v1/auth/code/resend', '/api/v1/auth/password/forgot',
+           '/api/v1/auth/password/reset'}
+ READS = {'GET', 'HEAD'}
++# (method, path) -> why the route needs no capability: it serves or changes only the account's own sign-in state, or it
++# filters what it answers by the principal itself. A route not named here, in PUBLIC or under the hooks prefix carries
++# auth.need(<capability>) or auth.admin(); the walk names the entry to add for a new one.
++PRINCIPAL_ONLY = {
++    ('GET', '/api/v1/auth/session'): 'the session answer itself (who is signed in, the access object)',
++    ('POST', '/api/v1/auth/sign-out'): "the account's own sign-out",
++    ('POST', '/api/v1/auth/sign-out-all'): "the account's own sessions",
++    ('POST', '/api/v1/auth/password/change'): "the account's own password",
++    ('POST', '/api/v1/auth/mfa/verify'): "the account's own second factor (a pending session passes it here)",
++    ('GET', '/api/v1/catalog/{kind}'): 'answers only the entries the principal holds (catalog.py, CONTRACT 8a)',
++    ('GET', '/api/v1/preferences'): "the account's own preferences; a key's tab capability is checked per key (R1-18)",
++    ('PUT', '/api/v1/preferences/{key}'): "the account's own preferences; a key's tab capability is checked per key "
++                                          '(R1-18)',
++}
+ 
+ 
+ def configured(settings):
+@@ -38,9 +58,15 @@ def calls(dependant):
+         yield from calls(dependency)
+ 
+ 
++def gates(app):
++    """The capability checks of the app: every auth.need(...) and auth.admin(...) dependency built so far."""
++    return set(app.state.auth._needs.values())
++
++
+ def problems(app, registry=None):
+     registry = hooks.HOOK_ROUTES if registry is None else registry
+     session, write = app.state.session_dependency, app.state.write_dependency
++    gated = gates(app)
+     found = []
+     for route in app.routes:
+         if isinstance(route, Mount):
+@@ -56,8 +82,13 @@ def problems(app, registry=None):
+             continue
+         used = set(calls(route.dependant))
+         if hooks.is_hook_path(route.path):
+-            if not callable(registry.get(route.path)):
++            verify = registry.get(route.path)
++            if not callable(verify):
+                 found.append(f'{route.path}: a hook route without a signature verifier in HOOK_ROUTES')
++            elif not any(getattr(c, 'hook_path', None) == route.path and getattr(c, 'verifier', None) is verify
++                         for c in used):
++                found.append(f"{route.path}: a hook route that does not carry hooks.signed('{route.path}', <secret>) "
++                             'as a dependency, so nothing verifies its signature before the handler runs')
+             continue
+         if route.path in PUBLIC:
+             continue
+@@ -65,6 +96,14 @@ def problems(app, registry=None):
+             found.append(f'{route.path} {sorted(methods)}: no session dependency')
+         if methods - READS and write not in used:
+             found.append(f'{route.path} {sorted(methods)}: a write without the write (CSRF) dependency')
++        if not used & gated:
++            for method in sorted(methods):
++                if (method, route.path) not in PRINCIPAL_ONLY:
++                    found.append(f'{method} {route.path} ({route.endpoint.__module__}): no capability gate; carry '
++                                 "auth.need('<tab>.view or the run/save capability'"
++                                 f"{', write=True' if method not in READS else ''}) or auth.admin(), or, when it "
++                                 "serves only the account's own state, add "
++                                 f"PRINCIPAL_ONLY[('{method}', '{route.path}')] = '<why it needs no capability>'")
+     return found
+ 
+ 
+@@ -96,11 +135,22 @@ def test_the_walk_refuses_what_it_must(settings, store):
+     async def unregistered_hook():
+         return {}
+ 
++    registry = {'/api/v1/hooks/example-signed': lambda h, b, s: False}
++
++    @app.post('/api/v1/hooks/example-signed')
++    async def signed_hook(raw=Depends(hooks.signed('/api/v1/hooks/example-signed', 'secret', registry))):
++        return {}
++
+     found = problems(app)
+     assert any('/api/v1/example/session-only' in f and 'CSRF' in f for f in found), found
+     assert any('/api/v1/example/open' in f and 'no session' in f for f in found), found
++    assert any('/api/v1/example/session-only' in f and 'no capability gate' in f for f in found), found
+     assert any('/api/v1/hooks/example' in f for f in found), found
+-    assert not any('/api/v1/hooks/example' in f for f in problems(app, {'/api/v1/hooks/example': lambda h, b: False}))
++    # re-check R1-15 (changed with the fix): a registry entry alone no longer passes; the route must carry
++    # hooks.signed for its own path and verifier
++    with_entry = problems(app, {**registry, '/api/v1/hooks/example': lambda h, b, s: False})
++    assert any("/api/v1/hooks/example:" in f and 'hooks.signed' in f for f in with_entry), with_entry
++    assert not any('/api/v1/hooks/example-signed' in f for f in problems(app, registry))
+     app.router.routes.append(Route('/upload', lambda r: None, methods=['POST']))
+     assert any('/upload' in f for f in problems(app))
+ 
+-- 
+2.43.0
+
