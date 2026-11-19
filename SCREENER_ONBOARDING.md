@@ -549,7 +549,7 @@ README "Logs".
 
 ## 1.8 Stage 5: edge-bff (BRANCH)
 
-`apps/edge-bff/app/screener.py` (`Screeners`, `:680`), mounted like the Backtest module (`apps/edge-bff/app/main.py:646`
+`apps/edge-bff/app/screener.py` (`Screeners`, `:681`), mounted like the Backtest module (`apps/edge-bff/app/main.py:657`
 `screeners.routes`):
 
 Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session and the capability named; with
@@ -564,25 +564,25 @@ Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session 
 
 - **Relay as bytes.** `run`, `preview` and `counts` are passed through as the worker's gzip bytes with its `ETag`
   (`validate` as the worker's JSON); edge-bff reads only the first 4,096 inflated bytes for `price_data` and
-  `published_at` (`PEEK_BYTES`, `screener.py:68`) and parses only error bodies (and a validation's hash and versions
+  `published_at` (`PEEK_BYTES`, `screener.py:70`) and parses only error bodies (and a validation's hash and versions
   for a saved item). Test `test_relayed_answers_are_the_workers_gzip_bytes_never_parsed`.
-- **Refusals.** The worker's contract refusals are relayed at their status (`RELAYED`, `screener.py:56`); any other
+- **Refusals.** The worker's contract refusals are relayed at their status (`RELAYED`, `screener.py:58`); any other
   4xx is `503 SCREENER_UNAVAILABLE` (test `test_worker_refusals_outside_the_contract_are_unavailable`); a
   `DATA_VERSION_PENDING` is asked once more on a new connection, then `503 SCREENER_NOT_READY` with `Retry-After` 2
-  (`PENDING_RETRY_SECONDS`, `:63`).
+  (`PENDING_RETRY_SECONDS`, `:65`).
 - **Catalog and universe** are kept in memory per worker state (versions, `published_at` and refresh, read from `/health`
-  at most every 60 s, `HEALTH_SECONDS`, `:78`; `published_at` because an advance keeps the versions but not the documents,
+  at most every 60 s, `HEALTH_SECONDS`, `:80`; `published_at` because an advance keeps the versions but not the documents,
   ERRORS M299, test `test_the_catalog_and_universe_follow_a_publication_that_keeps_the_versions`), dropped at once when
   any answer names a newer publication, and never go back to an older one; `ETag` and `304` (tests
   `test_catalog_and_universe_are_kept_per_worker_state_with_an_etag`,
   `test_a_newer_publication_seen_in_a_run_drops_the_cached_catalog_at_once`,
   `test_the_catalog_never_goes_back_and_ignores_transient_refresh_states`). edge-bff adds its own limits to the
-  catalog's `limits[]` (`own_limits`, `:611-644`: `saved_items` 50 per kind, `watchlist` 500,
+  catalog's `limits[]` (`own_limits`, `:612-645`: `saved_items` 50 per kind, `watchlist` 500,
   `saved_definition_bytes` 65,536, `request_bytes` 131,072, `inflight_per_page` 1).
-- **Latest wins** per (owner, page) through `client_order {page, seq}` (`latest`, `:901`); an older call answers 409
+- **Latest wins** per (owner, page) through `client_order {page, seq}` (`latest`, `:908`); an older call answers 409
   `SCREEN_REPLACED` or `PREVIEW_REPLACED`; a caller that left is stopped at the worker.
 - **Saved items** are validated by the worker before they are stored, with the `registry` and `screener_registry` of the
-  same answer (`validated`, `:980-1004`; `/health` versions when an answer has none), and validated again on load when
+  same answer (`validated`, `:987-1011`; `/health` versions when an answer has none), and validated again on load when
   they were saved under other versions ("needs review" with the field; nothing adjusted). Every store statement filters
   `owner_key`.
 - **Settings** (`apps/edge-bff/app/config.py:113-122`): `SCREENER_WORKER_URL` and `SCREENER_WORKER_KEY` together or not
@@ -841,7 +841,7 @@ variable.
 | Response, request | 4,194,304 bytes of JSON; 131,072 bytes of body | `SCREENER_MAX_RESPONSE_BYTES`, `SCREENER_MAX_REQUEST_BYTES` |
 | One xsection file (gzip), inflated, one refresh | 2 × the measured size: 24,000,000 / 150,000,000 / 24,000,000 locally; re-derived from the first dev publisher run | `SCREENER_MAX_FILE_BYTES`, `SCREENER_MAX_INFLATED_BYTES`, `SCREENER_MAX_REFRESH_BYTES` |
 | Threads, heap, caches, memory | K = 2, 512 MB per thread, 256 MiB of caches, a 2.75 GB replica | `SCREENER_THREADS`, `SCREENER_THREAD_HEAP_MB`, `SCREENER_CACHE_BYTES`, Railway memory limit |
-| Saved items, watchlist (edge-bff constants) | 50 saved screens and 50 My metrics per owner; 50 tickers in the first watchlist (`PER_LIST`, EXEC-WATCHLIST 2A) | `SCREEN_LIMIT` (`screener.py:84`), `WATCHLIST_LIMIT` (`:86`) |
+| Saved items, watchlist (edge-bff constants) | 50 saved screens and 50 My metrics per owner; 50 tickers in the first watchlist (`PER_LIST`, EXEC-WATCHLIST 2A) | `SCREEN_LIMIT` (`screener.py:85`), `WATCHLIST_LIMIT` (`:89`) |
 | terminal-api default quota (one shared gateway subscriber) | `files_per_hour` 60, `megabytes_per_day` 300 (`database/migrations/20261025_100_create_terminal_schema.sql:79-83`); overridden to 1e9 on dev, TEMPORARY (decision U1); a service key has its own hourly ceilings instead (EXEC-MU-RUNTIME T1, `BACKTEST_END_TO_END.md` 6.1) | `terminal.quota` |
 
 **Onboarding consequence:** a new file must fit `SCREENER_MAX_FILE_BYTES`, `SCREENER_MAX_INFLATED_BYTES` and
