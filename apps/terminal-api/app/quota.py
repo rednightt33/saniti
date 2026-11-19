@@ -20,30 +20,48 @@ class Usage:
     history_hour: int
 
 
+# the length of each rolling window in seconds: the longest a refused request can have to wait (ERRORS M471 class,
+# re-check R1-1/R1-26: every 429 says when to try again)
+WINDOW_SECONDS = {'hour': 3600, '24 hours': 86400}
+
+
 @dataclass(frozen=True)
 class Refusal:
+    """A person's (or an EDGE owner's) quota refused a request. `excess`: how much of the window's use must leave it
+    before this request fits (files, history reads or bytes; 1 for a new ticker), from which the store finds when that
+    happens (Store.frees_in)."""
     quota: str
     limit: int
     window: str
+    excess: int = 1
 
-    def message(self):
-        return (f'Quota {self.quota} reached ({self.limit} per {self.window}). It frees up as older requests leave the '
-                f'rolling {self.window}; ask the administrator if you need a higher limit.')
+    @property
+    def longest_wait(self):
+        return WINDOW_SECONDS[self.window]
+
+    def message(self, wait=None):
+        when = (f'It frees up as older requests leave the rolling {self.window}' if wait is None else
+                f'Try again in {wait} seconds, when older requests have left the rolling {self.window}')
+        return (f'Quota {self.quota} reached ({self.limit} per {self.window}). {when}; ask the administrator if you '
+                f'need a higher limit.')
 
 
 def check(limits: dict, usage: Usage, *, files: int = 0, ticker: str | None = None, bytes_: int = 0,
           history: int = 0) -> Refusal | None:
     if files and usage.files_hour + files > limits['files_per_hour']:
-        return Refusal('files_per_hour', limits['files_per_hour'], 'hour')
+        return Refusal('files_per_hour', limits['files_per_hour'], 'hour',
+                       usage.files_hour + files - limits['files_per_hour'])
     if history and usage.history_hour + history > limits['history_per_hour']:
-        return Refusal('history_per_hour', limits['history_per_hour'], 'hour')
+        return Refusal('history_per_hour', limits['history_per_hour'], 'hour',
+                       usage.history_hour + history - limits['history_per_hour'])
     if ticker and ticker != REF:
         if ticker not in usage.tickers_hour and len(usage.tickers_hour) + 1 > limits['tickers_per_hour']:
             return Refusal('tickers_per_hour', limits['tickers_per_hour'], 'hour')
         if ticker not in usage.tickers_day and len(usage.tickers_day) + 1 > limits['tickers_per_day']:
             return Refusal('tickers_per_day', limits['tickers_per_day'], '24 hours')
     if bytes_ and usage.bytes_day + bytes_ > limits['megabytes_per_day'] * 1_000_000:
-        return Refusal('megabytes_per_day', limits['megabytes_per_day'], '24 hours')
+        return Refusal('megabytes_per_day', limits['megabytes_per_day'], '24 hours',
+                       usage.bytes_day + bytes_ - limits['megabytes_per_day'] * 1_000_000)
     return None
 
 
@@ -63,6 +81,11 @@ class ServiceRefusal:
     unit: str
     used: int | float         # megabytes keep their fraction (check_service)
     hour_start: dt.datetime
+
+    def seconds_left(self, now=None):
+        """Whole seconds until the next clock hour starts (the ceiling's reset), at least 1: the Retry-After."""
+        now = now or dt.datetime.now(dt.timezone.utc)
+        return max(1, math.ceil((self.hour_start + dt.timedelta(hours=1) - now).total_seconds()))
 
     def message(self):
         reset = (self.hour_start + dt.timedelta(hours=1)).astimezone(dt.timezone.utc).strftime('%H:%M UTC')

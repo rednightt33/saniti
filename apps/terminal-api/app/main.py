@@ -87,6 +87,7 @@ LOGO_CACHE_SECONDS = 7 * 24 * 3600
 ACCESS_LOG_DAYS = 90            # EXEC-TERMINAL-SPEED (user 2026-10-26): audit rows are kept 90 days
 PRUNE_EVERY_SECONDS = 6 * 3600
 MAX_XSECTION_NAMES = 16         # EXEC-SCREENER: names per /xsection call (Phase 1 indexes 2, Phase 2 about 5)
+SIGN_IN_WAIT = 15 * 60          # the failed sign-ins are counted over 15 minutes (store.failed_sign_ins)
 
 
 class Strict(BaseModel):
@@ -196,8 +197,14 @@ class SubscriberChange(Strict):
     password: str | None = Field(default=None, min_length=12, max_length=1024)
 
 
-def error(status, code, message, **extra):
-    raise HTTPException(status, detail={'error': code, 'message': message, **extra})
+def error(status, code, message, headers=None, **extra):
+    raise HTTPException(status, detail={'error': code, 'message': message, **extra}, headers=headers)
+
+
+def wait_error(code, message, wait, **extra):
+    """EXEC-MU-ACCOUNTS re-check R1-1/R1-26: every 429 says when to try again, as a body field `retry_after_s` (whole
+    seconds, at least 1) and as the Retry-After header; edge-bff relays it as 429 LIMIT_REACHED."""
+    error(429, code, message, headers={'Retry-After': str(wait)}, retry_after_s=wait, **extra)
 
 
 def lacks(capability, what, fix):
@@ -527,8 +534,14 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         return m
 
     def take(c, sid, refusal):
+        """A quota refusal (quota.check) as 429 quota_exceeded with the quota's name, its limit, its window and when the
+        refused request fits (Store.frees_in; the window's length when the store cannot tell), so a relay can name the
+        limit and the wait without reading the message (re-check R1-1/R1-26)."""
         if refusal:
-            error(429, 'quota_exceeded', refusal.message())
+            found = store.frees_in(c, sid, refusal) if hasattr(store, 'frees_in') else None
+            wait = min(found or refusal.longest_wait, refusal.longest_wait)
+            wait_error('quota_exceeded', refusal.message(wait), wait, quota=refusal.quota, limit=refusal.limit,
+                       window=refusal.window)
 
     # ---- EXEC-MU-ACCOUNTS Phase 3c: the owner's plan (every data route; ROUTE_ACCESS) -------------------------------
     def plan(caller: Caller):
@@ -630,7 +643,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                     outcome = 'inactive'
                 store.record_sign_in(c, email, ip, outcome == 'ok')
         if outcome == 'throttled':
-            error(429, 'too_many_attempts', 'Too many failed sign-ins. Wait 15 minutes and try again.')
+            wait_error('too_many_attempts', 'Too many failed sign-ins. Wait 15 minutes and try again.', SIGN_IN_WAIT)
         if outcome == 'inactive':
             error(403, 'subscription_inactive', 'Your subscription is not active. Contact the administrator.')
         allowed = outcome == 'ok'
@@ -762,7 +775,8 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             if caller.kind == 'service':
                 refusal = quota.check_service(caller.name, limits, store.meter(c, sid, len(chosen), size))
                 if refusal:
-                    error(429, 'service_ceiling_reached', refusal.message())
+                    wait_error('service_ceiling_reached', refusal.message(), refusal.seconds_left(),
+                               quota=refusal.quota, limit=refusal.limit)
             else:
                 take(c, sid, quota.check(limits, store.usage(c, sid), files=len(chosen), ticker=ticker, bytes_=size))
             ttl = limits['url_ttl_seconds']

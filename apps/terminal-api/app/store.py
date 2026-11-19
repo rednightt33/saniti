@@ -1,6 +1,7 @@
 """PostgreSQL access through terminal_api_login: schema terminal (accounts, sessions, quotas, audit) and read-only
 fallback queries on the market tables. Every market query is parameterized and bounded by the caller."""
 import hashlib
+import math
 from contextlib import contextmanager
 
 from psycopg.rows import dict_row
@@ -21,6 +22,23 @@ BROKER_HISTORY = ('SELECT trade_date::text, broker, investor_type, market_board,
 
 
 ACCOUNT = 'subscriber_id, email, display_name, expires_at, kind'
+# Store.frees_in: when a refused quota's rolling window has let enough use go. The amount column and the rows each quota
+# counts are the ones Store.usage sums (keep the two together); the oldest rows leave first, and the row whose leaving
+# makes the cumulative amount reach the excess names the time. Tickers: a new ticker fits once one ticker's newest read
+# has left the window.
+_LEAVES = ('SELECT extract(epoch FROM at + interval {w} - now()) AS wait FROM (SELECT at, sum({amount}) OVER '
+           '(ORDER BY at, access_id ROWS UNBOUNDED PRECEDING) AS gone FROM terminal.access_log WHERE subscriber_id = %s '
+           'AND at > now() - interval {w}{rows}) t WHERE gone >= %s ORDER BY at LIMIT 1')
+_TICKER_LEAVES = ('SELECT extract(epoch FROM min(newest) + interval {w} - now()) AS wait FROM (SELECT max(at) AS newest '
+                  'FROM terminal.access_log WHERE ticker <> %s AND subscriber_id = %s AND at > now() - interval {w} '
+                  'GROUP BY ticker) t')
+FREES = {
+    'files_per_hour': _LEAVES.format(w="'1 hour'", amount='file_count', rows=" AND kind = 'file'"),
+    'history_per_hour': _LEAVES.format(w="'1 hour'", amount='1', rows=" AND kind LIKE 'history%%'"),
+    'megabytes_per_day': _LEAVES.format(w="'1 day'", amount='bytes', rows=''),
+    'tickers_per_hour': _TICKER_LEAVES.format(w="'1 hour'"),
+    'tickers_per_day': _TICKER_LEAVES.format(w="'1 day'"),
+}
 # What the migrations after the terminal schema (20261025_100) added and this build reads, without reading a row: a
 # missing column, table or privilege fails the statement. 20261026_100: access_log.file_count; 20261028_100
 # (EXEC-MU-RUNTIME T1): subscriber.kind and usage_hour. 20261118_100 (EXEC-MU-ACCOUNTS Phase 3c):
@@ -100,6 +118,18 @@ class Store:
             (REF, REF, sid)).fetchone()
         return Usage(r['files_hour'], frozenset(r['tickers_hour']), frozenset(r['tickers_day']), r['bytes_day'],
                      r['history_hour'])
+
+    @staticmethod
+    def frees_in(c, sid, refusal):
+        """EXEC-MU-ACCOUNTS re-check R1-1/R1-26: whole seconds until the rolling window of a refused quota has let
+        enough of the account's use go for the refused request to fit (quota.Refusal.excess), read only when a request
+        is refused (FREES, on the index subscriber_id, at). None when the window's rows never free enough (the request
+        alone is larger than the limit): the caller then names the window's length."""
+        sql = FREES.get(refusal.quota)
+        if sql is None:
+            return None
+        row = c.execute(sql, (REF, sid) if refusal.quota.startswith('tickers') else (sid, refusal.excess)).fetchone()
+        return None if row is None or row['wait'] is None else max(1, math.ceil(row['wait']))
 
     @staticmethod
     def meter(c, sid, files, bytes_):
