@@ -69,8 +69,8 @@ const roleLabel = (role: string) => role.toLowerCase().split('_').map((w, i) => 
    is shown as its message, not as "answered 403"; only a 401 asks to sign in again; a 403 CSRF_INVALID is repeated once.
    `csrf` is kept for the callers' signatures: the shared module sets the header itself. */
 const SIGN_IN = 'Sign in to EDGE first, then open the Terminal tab again.';
-/* EXEC-MU-ACCOUNTS re-check R2-32: a plan whose ticker list holds no published ticker (terminal-api answers a plan
-   without the reference lists with its own tickers only) */
+/* EXEC-MU-ACCOUNTS re-check R2-32: a plan none of whose tickers is published (the ticker list is whole since decision 1
+   of 2026-11-19, track guest; the page opens only a ticker the plan holds) */
 const NO_TICKER = 'No ticker of your EDGE plan is published yet. Upgrade the plan to open others; you are still signed in.';
 async function api(path: string, _csrf: string, body?: unknown) {
   let res: Response;

@@ -124,14 +124,25 @@ CONTRACT.md section 8b "3c in detail"; code `app/entitlements.py` (the headers),
   `{"locked": true, "capability": "terminal.dataset:<id>"}` (no url, sha or rows); the asked intraday timeframe likewise
   (`intraday`).
 - `/files`, `/history/price|broker`, `/manifest/{t}`: the ticker and the dataset.
-- `/reference/{name}` (re-check R2-32, `app/refcut.py`; decision D3 = B read as "no list of other tickers"): with the
-  dataset `reference` the published file, as before. Without it the plan's own copy, built from the published file
-  server-side: a file with a `ticker` column keeps the rows of the plan's tickers; the broker list keeps every row with
-  the dataset `broker` and none without it; any other file (the stock lists) has no rows. It is answered in the shape of
-  a cut, `{"url": "/api/terminal/v1/reference/<name>/cut?sha256=<hex>", "expires_in_seconds": 0, "sha256", "bytes",
-  "rows"}`, and `GET /reference/{name}/cut` serves the bytes, counted as one file with one audit row
-  (`object_key` `refcut/<name>/<sha256>`). A file that cannot be filtered is 503 `reference_unavailable`, never served
-  whole. The free plan's ticker list holds BBCA alone, so the Terminal draws it.
+- `/reference/{name}` (re-check R2-32, `app/refcut.py`; decision 1 of 2026-11-19, track guest: "user tetap bisa search
+  ticker"): with the dataset `reference` the published file, as before. Without it the plan's own copy, built from the
+  published file server-side, read from each file's own columns: a file keyed by `ticker` that only names its
+  instruments (every other column text or null, none named `<dataset>_...` after a dataset served here, none of 64-hex
+  digests: `names_only`) keeps every row, which is the ticker list today (every owner edge-bff forwards holds
+  `terminal.view`, the guest too); any other file with a `ticker` column (the logos' image index, the bonds' data dates)
+  keeps the rows of the plan's tickers; the broker list keeps every row with the dataset `broker` and none without it;
+  any other file (the stock lists) has no rows. It is answered in the shape of a cut, `{"url":
+  "/api/terminal/v1/reference/<name>/cut?sha256=<hex>", "expires_in_seconds": 0, "sha256", "bytes", "rows"}`, and `GET
+  /reference/{name}/cut` serves the bytes, counted as one file with one audit row (`object_key`
+  `refcut/<name>/<sha256>`). A file that cannot be filtered is 503 `reference_unavailable`, never served whole. The
+  free plan searches every ticker and opens BBCA.
+- **Visitors of the guest plan** (track guest, migration `20261119_170`): every visitor reaches terminal-api under one
+  owner (edge-bff's guest owner, `edge-guest`), and edge-bff adds `x-terminal-client`, the visitor's opaque key (32 hex,
+  an HMAC edge-bff makes of the client address; never the address). Beside both owner headers of an owner that does not
+  hold `*`, it makes the owner's quotas count per visitor: the usage, the lock of the quota check and the audit rows
+  (`terminal.access_log.client_key`, read through the partial index `access_log_client_at`). Without it the owner's row
+  is counted as a whole (stricter, never wider). Anywhere else (no owner headers, an admin owner, a service key, a
+  cookie, a value that is not 32 lower-case hex) it is 400 with the header named.
 - `/xsection`: the gateway key is refused with an owner header, whatever the plan; only the screener-worker's key reads it.
 - `/state`: no data file, no refusal; `xsection` is null for such an owner, and `refs` is null without `reference`.
 - `/logo/{t}`: an image, not data, so no filter here (edge-bff refuses another ticker's logo first, and a plan without the

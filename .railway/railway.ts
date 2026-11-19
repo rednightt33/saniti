@@ -294,6 +294,9 @@ export default defineRailway(() => {
   //     // the loops: EDGE_AI_WORKER_ENABLED unset (off on the live site), the backtest loop (its own site's jobs), the
   //     // email sender and the hourly housekeeping on; once this site runs, edge-bff (the beta) gets
   //     // EDGE_HOUSEKEEPING_ENABLED=false, so the live site is the housekeeping's one owner
+  //     // track guest (decisions of 2026-11-19): EDGE_GUESTS and EDGE_PRELAUNCH unset (both on for the live site:
+  //     // visitors open the Terminal, registration is closed and only the admin and test accounts sign in); at the
+  //     // launch EDGE_PRELAUNCH: "false". EDGE_UPGRADE_CONTACT: the upgrade box's contact (plain text; unset: "comes soon")
   //     PORT: "8080",
   //   },
   const aiDataCoverage = service("ai-data-coverage", {
