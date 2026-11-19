@@ -258,8 +258,11 @@ export default defineRailway(() => {
   // (RAILWAY_CHANGELOG.md 2026-11-19). edge-bff above is the beta (EDGE_SITE unset = beta, EDGE_MULTIUSER off, the admin
   // only); only the website is doubled, every other service and the database are shared. Rules the code holds
   // (apps/edge-bff/app/config.py validate): EDGE_SITE=live needs EDGE_MULTIUSER=true, the beta refuses it, the live site
-  // runs no AI job loop, and the email mode is resend (log is for EDGE_ENVIRONMENT=local only).
-  // const edgeBffLive = service("edge-bff-live", {
+  // runs no AI job loop, and the email mode is resend (log is for EDGE_ENVIRONMENT=local only). Its settings follow,
+  // written as the body of its service() call once it is created (the call itself is not written here: this file's
+  // readers, such as apps/terminal-api/tests/test_api.py, take every service call in it, a comment's too, for a
+  // declared service).
+  // edge-bff-live:
   //   // its own branch: "push ke live" moves `live` to a version every suite passed on the beta (EXEC.md detail 3)
   //   source: github("rednightt33/saniti", { branch: "live", checkSuites: true, rootDirectory: "/apps/edge-bff" }),
   //   build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
@@ -293,7 +296,6 @@ export default defineRailway(() => {
   //     // EDGE_HOUSEKEEPING_ENABLED=false, so the live site is the housekeeping's one owner
   //     PORT: "8080",
   //   },
-  // });
   const aiDataCoverage = service("ai-data-coverage", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/ai-data-coverage" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/ai-data-coverage/**"] },
