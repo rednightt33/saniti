@@ -11,11 +11,17 @@ saved items on the server, edge_bff.user_preferences (migration 20261116_003), r
   for all values together (sizes as PostgreSQL stores the JSON text).
 
 The key is a storage key of the page registry (shared/edge-session.ts STORAGE, class user and sync); the server checks
-its shape only, so a new registry key needs no server change. Every statement names the owner.
+its shape, and (re-check R1-18, CONTRACT.md 8b D5: "Reads need <tab>.view") the capability the registry entry names
+(`cap`, the view of the tab whose data the key holds; catalog/storage_sync.json, written by shared/build-shell.mjs from
+the registry): GET leaves out a key whose capability the principal does not hold, PUT refuses it (403
+CAPABILITY_REQUIRED, or PLAN_EXPIRED when the ended plan held it). The rows are kept (D5: data kept until the plan holds
+the tab again). A key the registry does not name, or names for every tab, needs only the principal. Every statement
+names the owner.
 """
 import asyncio
 import json
 import re
+from pathlib import Path
 
 from fastapi import Depends, Request
 from fastapi.encoders import jsonable_encoder
@@ -30,6 +36,16 @@ KEYS = 64
 VALUE_BYTES = 65536                                        # the migration's value CHECK
 TOTAL_BYTES = 1048576
 LIMITS = {'keys': KEYS, 'value_bytes': VALUE_BYTES, 'total_bytes': TOTAL_BYTES}
+# the registry's sync keys and the capability each needs (None: every tab's), as shared/build-shell.mjs wrote them; the
+# image copies catalog/ beside app/ (as for releases.json)
+SYNC_FILE = Path(__file__).resolve().parent.parent / 'catalog' / 'storage_sync.json'
+CAPABILITY_OF = json.loads(SYNC_FILE.read_text(encoding='utf-8'))['keys']
+
+
+def readable(p, key):
+    """Whether the principal may read and write a preference key: its registry capability held (or none named)."""
+    capability = CAPABILITY_OF.get(key)
+    return capability is None or p.can(capability)
 
 
 def invalid(field, why):
@@ -119,12 +135,19 @@ class Preferences:
         @app.get('/api/v1/preferences')
         async def preferences(p: Principal = Depends(auth.principal)):
             rows = await asyncio.to_thread(self.store.all, p.owner_key)
-            return JSONResponse(jsonable_encoder({'preferences': {r['pref_key']: item_of(r) for r in rows},
+            return JSONResponse(jsonable_encoder({'preferences': {r['pref_key']: item_of(r) for r in rows
+                                                                  if readable(p, r['pref_key'])},
                                                   'limits': LIMITS}))
 
         @app.put('/api/v1/preferences/{key}')
         async def put_preference(key: str, request: Request, p: Principal = Depends(auth.writer)):
             value, version = checked_body(await request.body())
+            if not readable(p, checked_key(key)):
+                try:
+                    await asyncio.to_thread(auth.refresh_names, False)
+                except Exception:                         # noqa: BLE001 - the plain phrase stays
+                    pass
+                raise p.refusal(CAPABILITY_OF[key])
             row, created = await asyncio.to_thread(self.store.put, p.owner_key, checked_key(key), value, version)
             return JSONResponse(jsonable_encoder({'key': row['pref_key'], **item_of(row)}),
                                 status_code=201 if created else 200)

@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=f43dd0fa7758572f4bc17ae8c85b47849fd659214f59e6d7720b6cdd78199a54 by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=5c17de310ac1d991fb7efc733cdcde99777d27391c940182b341044d2101af37 by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -67,7 +67,7 @@ var EdgeSession = (() => {
     { key: "edge-sources-open:", match: "prefix", area: "local", kind: "browser", where: "shell", what: "a Sources part opened (by its title)" },
     { key: "edge-last-login", match: "exact", area: "local", kind: "browser", where: "shared/edge-session.ts", what: "the identity signed in last (owner:<owner key>, else the login), to see a change of user; removed on sign-out" },
     { key: "edge-side-attach:", match: "prefix", area: "session", kind: "user", cache: true, where: "shell", what: "a passage quoted into a side chat (by conversation id)" },
-    { key: "edge-model-choice", match: "exact", area: "local", kind: "user", sync: true, where: "shell", what: "the chosen AI model and level" },
+    { key: "edge-model-choice", match: "exact", area: "local", kind: "user", sync: true, cap: "monitor.view", where: "shell", what: "the chosen AI model and level" },
     { key: "edge-research-context", match: "exact", area: "session", kind: "user", cache: true, where: "shell (legacy)", what: "an older research context; removed on load" },
     { key: "edge-research-context", match: "exact", area: "local", kind: "user", cache: true, where: "shell (legacy)", what: "an older research context; removed on load" },
     { key: "edge-auth-monitor-conversations", match: "exact", area: "local", kind: "user", cache: true, where: "shell (legacy)", what: "an older conversation list; removed on load" },
@@ -78,28 +78,28 @@ var EdgeSession = (() => {
     { key: "edge-active-run", match: "exact", area: "session", kind: "user", cache: true, where: "shell (legacy)", what: "an older running question; removed on load" },
     // the Terminal (terminal/src): a chart's content and the account's saved things are the user's; panel sizes are the browser's
     { key: "ml.symbol", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal, Backtest, Screener, Radar, Overview, Watchlist", what: "the ticker the Terminal opens on" },
-    { key: "ml.tf", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "timeframe" },
+    { key: "ml.tf", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "timeframe" },
     { key: "ml.tfs", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "timeframes the data offered" },
-    { key: "ml.fi.metric", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "bond yield or price" },
-    { key: "ml.chart.style", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "candle or line" },
-    { key: "ml.chart.mode", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "price or return" },
-    { key: "ml.vol.on", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "volume shown" },
-    { key: "ml.vol.removed", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "volume removed" },
-    { key: "ml.ind.v1", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "the indicators on the chart" },
-    { key: "ml.ind.filters", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "indicator filters" },
-    { key: "ml.ind.favs", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal", what: "favourite indicators" },
+    { key: "ml.fi.metric", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "bond yield or price" },
+    { key: "ml.chart.style", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "candle or line" },
+    { key: "ml.chart.mode", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "price or return" },
+    { key: "ml.vol.on", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "volume shown" },
+    { key: "ml.vol.removed", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "volume removed" },
+    { key: "ml.ind.v1", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "the indicators on the chart" },
+    { key: "ml.ind.filters", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "indicator filters" },
+    { key: "ml.ind.favs", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal", what: "favourite indicators" },
     { key: "ml.ind.box", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "Indicators window size" },
     { key: "ml.ind.navw", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "Indicators window group list width" },
-    { key: "ml.legend.hidden", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "indicator names hidden" },
-    { key: "ml.events.v1", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "event markers chosen" },
-    { key: "ml.flow.filters", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "Flow Timeline filters" },
-    { key: "ml.flow.cum", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "Flow Timeline cumulative line" },
+    { key: "ml.legend.hidden", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "indicator names hidden" },
+    { key: "ml.events.v1", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "event markers chosen" },
+    { key: "ml.flow.filters", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "Flow Timeline filters" },
+    { key: "ml.flow.cum", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "Flow Timeline cumulative line" },
     { key: "ml.flow.collapsed", match: "exact", area: "local", kind: "user", cache: true, where: "Terminal (layout)", what: "Flow Timeline folded" },
     { key: "ml.flow.h", match: "exact", area: "local", kind: "user", cache: true, where: "Terminal (layout)", what: "Flow Timeline height" },
     { key: "ml.flow.ratio", match: "exact", area: "local", kind: "user", cache: true, where: "Terminal (layout)", what: "Flow Timeline height share" },
     { key: "ml.layout.", match: "prefix", area: "local", kind: "user", cache: true, where: "Terminal", what: "the open saved layout, its autosave and base" },
     { key: "ml.drawings.", match: "prefix", area: "local", kind: "user", cache: true, where: "Terminal", what: "drawings kept while the account cannot be reached (stamped with the login, M468)" },
-    { key: "ml.assets.v1", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal", what: "series added to the chart" },
+    { key: "ml.assets.v1", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal", what: "series added to the chart" },
     { key: "ml.assets.defaults", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "default look of an added series" },
     { key: "ml.assets.flow.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "an added series pane folded or its height" },
     { key: "ml.draw.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "drawing tool choices (cursor, line, shape, measure, magnet)" },
@@ -111,19 +111,19 @@ var EdgeSession = (() => {
     { key: "ml.winst.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "floating broker window sort and view" },
     { key: "terminal-files", match: "exact", area: "idb", kind: "user", cache: true, where: "Terminal, Backtest, Screener", what: "downloaded data files and the Screener's last result" },
     // the Backtest (backtest/src)
-    { key: "ml.my", match: "exact", area: "local", kind: "user", sync: true, where: "Backtest", what: "my conditions" },
+    { key: "ml.my", match: "exact", area: "local", kind: "user", sync: true, cap: "backtest.view", where: "Backtest", what: "my conditions" },
     { key: "ml.bw", match: "exact", area: "local", kind: "browser", where: "Backtest", what: "panel width" },
     { key: "ml.panel", match: "exact", area: "local", kind: "browser", where: "Backtest", what: "panel shown" },
     // the Screener (screener/src)
-    { key: "scr.last", match: "exact", area: "local", kind: "user", sync: true, where: "Screener", what: "the last screen definition" },
+    { key: "scr.last", match: "exact", area: "local", kind: "user", sync: true, cap: "screener.view", where: "Screener", what: "the last screen definition" },
     { key: "scr.boot", match: "exact", area: "local", kind: "user", cache: true, where: "Screener", what: "the cached first paint pointer (with its login)" },
-    { key: "scr.extraCols", match: "exact", area: "local", kind: "user", sync: true, where: "Screener", what: "extra columns chosen" },
+    { key: "scr.extraCols", match: "exact", area: "local", kind: "user", sync: true, cap: "screener.view", where: "Screener", what: "extra columns chosen" },
     { key: "scr.panel", match: "exact", area: "local", kind: "browser", where: "Screener", what: "panel layout" },
     { key: "scr.panes", match: "exact", area: "local", kind: "browser", where: "Screener", what: "pane sizes" },
     { key: "scr.popsize", match: "exact", area: "local", kind: "browser", where: "Screener", what: "pop-up sizes" },
     { key: "scr.colorder", match: "exact", area: "local", kind: "browser", where: "Screener", what: "column order" },
     // the Watchlist (watchlist/src)
-    { key: "edge.watchlist.view", match: "exact", area: "local", kind: "user", sync: true, where: "Watchlist", what: "the open list id and Table or Cards" },
+    { key: "edge.watchlist.view", match: "exact", area: "local", kind: "user", sync: true, cap: "watchlist.view", where: "Watchlist", what: "the open list id and Table or Cards" },
     { key: "edge.watchlist.logos", match: "exact", area: "local", kind: "browser", where: "Watchlist", what: "issuer logo list (public, 12 hours)" }
   ]);
   function classify(key, area = "local") {
@@ -716,6 +716,7 @@ ${identity}`;
         return;
       }
       if (res.status === 422 && error?.code === "PREFERENCE_LIMIT") refused.add(key);
+      else if (res.status === 403 && isAccessRefusal(readError(res.status, body))) refused.add(key);
     }
     function note(key) {
       if (!on || !SYNC_KEYS.includes(key) || refused.has(key)) return;

@@ -145,7 +145,9 @@ def test_user_keys_named_by_the_contract_are_user():
         assert kinds.get((key, 'local')) == 'browser', key
 
 
-FLAGS = re.compile(r"\{ key:'((?:[^'\\]|\\.)*)', match:'(exact|prefix)', area:'(local|session|idb)', kind:'(browser|user)', ((?:sync|cache):true, )?where:")
+FLAGS = re.compile(r"\{ key:'((?:[^'\\]|\\.)*)', match:'(exact|prefix)', area:'(local|session|idb)', kind:'(browser|user)', ((?:sync|cache):true, )?(?:cap:'[a-z][a-z0-9_.]*', )?where:")
+# re-check R1-18: a sync entry's capability (cap), the view of the tab whose data it holds
+CAP = re.compile(r"\{ key:'((?:[^'\\]|\\.)*)', match:'exact', area:'local', kind:'user', sync:true, (?:cap:'([a-z][a-z0-9_.]*)', )?where:")
 # contract 4b (EXEC-MU-ACCOUNTS Phase 1): the account preferences copied to the server (GET/PUT /api/v1/preferences)
 SYNCED = {'edge-model-choice', 'ml.symbol', 'ml.tf', 'ml.fi.metric', 'ml.chart.style', 'ml.chart.mode', 'ml.vol.on',
           'ml.vol.removed', 'ml.ind.v1', 'ml.ind.filters', 'ml.ind.favs', 'ml.legend.hidden', 'ml.events.v1',
@@ -184,3 +186,19 @@ def test_shell_loads_the_session_module_before_its_client():
     assert html.index('<script src="/edge-session.js"></script>') < html.index('<script src="/edge-client.js"></script>')
     client = (ROOT / 'static' / 'edge-client.js').read_text()
     assert 'clearUserState({signOut:true})' in client and 'noteLogin(' in client
+
+
+def test_the_server_reads_each_sync_key_with_the_capability_the_registry_names():
+    """Re-check R1-18 (CONTRACT.md 8b D5: reads need <tab>.view): catalog/storage_sync.json, which app/preferences.py
+    reads, is the registry's sync keys with their `cap` (shared/build-shell.mjs writes both from shared/edge-session.ts;
+    run it after editing the registry). A key of one tab names that tab's view capability; only a key every tab reads
+    (its `where` names several tabs) names none."""
+    import json
+    written = json.loads((ROOT / 'catalog' / 'storage_sync.json').read_text())['keys']
+    declared = {k: cap or None for k, cap in CAP.findall(SHARED.read_text())}
+    assert written == declared, ('catalog/storage_sync.json is not the registry of shared/edge-session.ts: run '
+                                 'node shared/build-shell.mjs')
+    assert set(declared) == SYNCED
+    shared = {k for k, cap in declared.items() if cap is None}
+    assert shared == {'ml.symbol'}, f'sync keys with no tab capability (only a key every tab shares has none): {shared}'
+    assert all(cap.endswith('.view') for cap in declared.values() if cap), declared
