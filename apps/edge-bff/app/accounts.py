@@ -10,6 +10,7 @@ This module is the foundation the auth flows (registration, codes, reset, MFA, e
 
 Every statement names the account it reads or changes; the configured owner reaches `seed` as an argument (principal.py).
 """
+import hashlib
 import json
 import logging
 import re
@@ -82,6 +83,11 @@ def reserved_owner(key):
     return key in ('default', 'someone-else', 'edge-private') or key.startswith(('golden-', 'test-'))
 
 
+def seed_mark(verifier):
+    """identities.seed_verifier_sha256 of a verifier the seed writes: its sha256 (hex), never the verifier itself."""
+    return hashlib.sha256((verifier or '').encode()).hexdigest()
+
+
 def seed_identity(login):
     """(username, email or None) of user #1 from EDGE_LOGIN: the login lower-cased when it fits the username rule and
     is not reserved, else SEED_FALLBACK_USERNAME; the login as the email when it is one."""
@@ -100,11 +106,16 @@ class AccountStore:
     def seed(self, owner, login, verifier, multiuser):
         """User #1 = the configured owner (EDGE_OWNER), role admin, its password identity from EDGE_PASSWORD_VERIFIER.
         Made once, when the table holds no user; every replica takes the same advisory lock, so two starting together
-        make one row. While the switch is off the environment is the source of the password, so a changed
-        EDGE_PASSWORD_VERIFIER is copied to the identity (sign-in works the same the moment the switch goes on); with
-        the switch on the identity is the account's own and is never overwritten. Returns {user_id, username} of user
-        #1, or None when the table holds other users and none is the configured owner (logged)."""
+        make one row. While the switch is off a changed EDGE_PASSWORD_VERIFIER is copied to the identity (sign-in works
+        the same the moment the switch goes on), but only over the seed's own copy: identities.seed_verifier_sha256
+        holds the sha256 of the verifier the seed last wrote, so once the account set its own password (a change or a
+        reset with the switch on, on the live site) the identity differs from it and is never overwritten again (ERRORS
+        R2-2: a switch-off start, such as every beta deploy, would bring back the password the admin replaced). With
+        the switch on the identity is the account's own and is never overwritten. The switch-off sign-in itself reads
+        EDGE_PASSWORD_VERIFIER, not the identity (main.py). Returns {user_id, username} of user #1, or None when the
+        table holds other users and none is the configured owner (logged)."""
         username, email = seed_identity(login)
+        mark = seed_mark(verifier)
         with self.store.connect() as c:
             c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('accounts:seed',))
             row = c.execute('SELECT user_id, username FROM edge_bff.users WHERE owner_key=%s', (owner,)).fetchone()
@@ -115,13 +126,19 @@ class AccountStore:
                 row = c.execute('''INSERT INTO edge_bff.users(owner_key, username, email, email_verified_at, role, status)
                     VALUES (%s, %s, %s, CASE WHEN %s::text IS NULL THEN NULL ELSE now() END, 'admin', 'active')
                     RETURNING user_id, username''', (owner, username, email, email)).fetchone()
-                c.execute('''INSERT INTO edge_bff.identities(user_id, provider, subject, verifier)
-                    VALUES (%s, 'password', %s, %s)''', (row['user_id'], str(row['user_id']), verifier))
+                c.execute('''INSERT INTO edge_bff.identities(user_id, provider, subject, verifier, seed_verifier_sha256)
+                    VALUES (%s, 'password', %s, %s, %s)''', (row['user_id'], str(row['user_id']), verifier, mark))
                 logger.info(json.dumps({'event': 'account_seeded', 'user_id': row['user_id']}))
             elif not multiuser:
-                c.execute('''UPDATE edge_bff.identities SET verifier=%s, updated_at=now()
-                    WHERE user_id=%s AND provider='password' AND verifier IS DISTINCT FROM %s''',
-                          (verifier, row['user_id'], verifier))
+                held = c.execute('''SELECT verifier, seed_verifier_sha256 FROM edge_bff.identities
+                    WHERE user_id=%s AND provider='password' FOR UPDATE''', (row['user_id'],)).fetchone()
+                if held is not None and held['seed_verifier_sha256'] != seed_mark(held['verifier']):
+                    # the account's own password (set with the switch on): kept; the switch-off sign-in still takes
+                    # EDGE_PASSWORD_VERIFIER, the switch-on one this identity
+                    logger.info(json.dumps({'event': 'account_seed_password_kept', 'user_id': row['user_id']}))
+                elif held is not None and (held['verifier'] != verifier or held['seed_verifier_sha256'] != mark):
+                    c.execute('''UPDATE edge_bff.identities SET verifier=%s, seed_verifier_sha256=%s, updated_at=now()
+                        WHERE user_id=%s AND provider='password' ''', (verifier, mark, row['user_id']))
             return dict(row)
 
     # ---- the principal's rows ---------------------------------------------------------------------------------------
@@ -245,8 +262,10 @@ class AccountStore:
 PENDING_HOURS = 24
 
 
-def purge_pending(connection):
+def purge_pending(connection, limit=None):
     """Registrations never verified, 24 h after they were made (CONTRACT.md section 4); their identity and codes go with
-    them (ON DELETE CASCADE). Called from Store.cleanup_sessions, the worker loop's hourly cleanup."""
-    connection.execute('''DELETE FROM edge_bff.users WHERE status = 'pending' AND email_verified_at IS NULL
-        AND created_at < now() - make_interval(hours => %s)''', (PENDING_HOURS,))
+    them (ON DELETE CASCADE). At most limit of them (None: every one); the accounts deleted. Called from Store.purge, the
+    hourly housekeeping (worker.Housekeeping)."""
+    return connection.execute('''DELETE FROM edge_bff.users WHERE user_id IN (SELECT user_id FROM edge_bff.users
+        WHERE status = 'pending' AND email_verified_at IS NULL AND created_at < now() - make_interval(hours => %s)
+        LIMIT %s)''', (PENDING_HOURS, limit)).rowcount

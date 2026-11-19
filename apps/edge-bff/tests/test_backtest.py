@@ -50,6 +50,15 @@ KEY = 'w' * 40
 MIGRATION = Path(__file__).resolve().parents[3] / 'database/migrations/20261026_005_edge_bff_backtest.sql'
 ERROR_COMMENT = Path(__file__).resolve().parents[3] / 'database/migrations/20261027_005_edge_bff_backtest_error_comment.sql'
 ROLLBACK = '\n'.join(line[3:] for line in MIGRATION.read_text().split('-- Rollback', 1)[1].splitlines()[1:] if line.startswith('-- '))
+# EXEC-MU-ACCOUNTS beta/live (fix round, track site): the site column of the jobs, added by a later migration; a test that
+# takes 20261026_005 out puts both back (recreate)
+SITE = Path(__file__).resolve().parents[3] / 'database/migrations/20261119_021_edge_bff_backtest_jobs_site.sql'
+
+
+def recreate(conn):
+    """The backtest tables as the migrations leave them: 20261026_005, then the jobs' site column (20261119_021)."""
+    conn.execute(MIGRATION.read_text())
+    conn.execute(SITE.read_text())
 
 
 def sha(text):
@@ -316,7 +325,7 @@ def backtest_tables(database):
     with psycopg.connect(database, autocommit=True) as c:
         applied = c.execute("SELECT to_regclass('edge_bff.backtest_jobs')").fetchone()[0] is None
         if applied:
-            c.execute(MIGRATION.read_text())
+            recreate(c)
     yield database
     if applied:
         with psycopg.connect(database, autocommit=True) as c:
@@ -1036,7 +1045,7 @@ def test_provisioned_login_reaches_the_backtest_tables_with_their_migration(back
     finally:
         with psycopg.connect(database, autocommit=True) as conn:
             if conn.execute("SELECT to_regclass('edge_bff.backtest_trials')").fetchone()[0] is None:
-                conn.execute(MIGRATION.read_text())
+                recreate(conn)
             else:
                 conn.execute('GRANT SELECT, INSERT, UPDATE ON edge_bff.backtest_trials TO edge_bff_runtime')
             conn.execute('DROP OWNED BY edge_bff_login')
@@ -1083,7 +1092,7 @@ def test_the_migration_refuses_a_runtime_role_with_more_than_the_code_does(backt
                 conn.execute(f'ALTER DEFAULT PRIVILEGES IN SCHEMA edge_bff REVOKE {extra} ON TABLES FROM edge_bff_runtime')
             if conn.execute("SELECT to_regclass('edge_bff.backtest_jobs')").fetchone()[0] is not None:
                 conn.execute(ROLLBACK)                      # applied with an extra privilege: taken out again
-            conn.execute(MIGRATION.read_text())
+            recreate(conn)
 
 
 def test_the_migration_refuses_public_with_any_privilege_on_the_backtest_tables(backtest_tables):
@@ -1115,7 +1124,7 @@ def test_the_migration_refuses_public_with_any_privilege_on_the_backtest_tables(
                 conn.execute(f'ALTER DEFAULT PRIVILEGES IN SCHEMA edge_bff REVOKE {privilege} ON TABLES FROM PUBLIC')
             if conn.execute("SELECT to_regclass('edge_bff.backtest_jobs')").fetchone()[0] is not None:
                 conn.execute(ROLLBACK)
-            conn.execute(MIGRATION.read_text())
+            recreate(conn)
 
 
 def handed(worker, job_id):
@@ -1439,7 +1448,7 @@ def test_ready_does_not_depend_on_the_backtest_tables(app, worker, backtest_tabl
         assert c.get('/api/v1/conversations').status_code == 200        # the rest of EDGE is unaffected
     finally:
         with psycopg.connect(backtest_tables, autocommit=True) as conn:
-            conn.execute(MIGRATION.read_text())
+            recreate(conn)
     assert submit(c, single(), 'nr').status_code == 202
     with psycopg.connect(backtest_tables, autocommit=True) as conn:
         with pytest.raises(psycopg.errors.RaiseException, match='backtest table exists'):

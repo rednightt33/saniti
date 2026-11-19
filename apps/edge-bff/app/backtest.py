@@ -26,6 +26,7 @@ from psycopg.types.json import Jsonb
 
 from .client import public_data
 from .accounts import AccountStore
+from .config import BETA
 from .errors import Refusal, message_of
 from .principal import Principal, owner_principal
 from .allow import NOTHING, context_of, named
@@ -54,7 +55,9 @@ HEX64 = re.compile(r'[0-9a-f]{64}')
 ENDED = ('FINISHED', 'FAILED', 'CANCELLED')
 TABLES = ('backtest_jobs', 'backtest_results', 'backtest_trials')
 RESULT_DAYS = 30           # CONTRACT.md section 9: results are kept 30 days
-PRUNE_SECONDS = 3600       # as the ORC loop's session cleanup (worker.py): once an hour
+PRUNE_SECONDS = 3600       # as the hourly housekeeping (worker.py Housekeeping): once an hour
+PRUNE_BATCH = 200          # result parts deleted per transaction (each part is up to a whole result)
+PRUNE_BATCHES = 20         # batches per prune turn
 WORKER_RETRIES = 3         # consecutive unanswered worker calls before WORKER_LOST (the house's STOP_RETRIES, Orc's 3 attempts)
 CONTROL_TIMEOUT = 30       # seconds for one control call to the worker (the terminal gateway's client timeout, main.py)
 # Not derivable from the code or the data: the catalog changes when the publisher publishes (daily) or the worker is
@@ -538,23 +541,29 @@ class WorkerClient:
 
 class BacktestStore:
     """edge_bff.backtest_jobs / backtest_results / backtest_trials through the house Store's connections. A missing
-    table (the migration not applied yet) is BACKTEST_NOT_READY; /ready never reads these tables."""
+    table (the migration not applied yet) is BACKTEST_NOT_READY; /ready never reads these tables.
 
-    def __init__(self, store):
-        self.store = store
+    EXEC-MU-ACCOUNTS beta/live (ERRORS R2-7, R2-38; migration 20261119_021): `site` is the website this store serves
+    (config.SITES). A job carries the site it was queued on, and this site's loop claims, reaps and prunes only its own
+    jobs, so a job is dispatched by the code and the rules (the principal, the release file) of the site that took it."""
+
+    def __init__(self, store, site=BETA):
+        self.store, self.site = store, site
 
     @contextmanager
     def connect(self):
         try:
             with self.store.connect() as c:
                 yield c
-        except psycopg.errors.UndefinedTable as e:
+        except (psycopg.errors.UndefinedTable, psycopg.errors.UndefinedColumn) as e:
+            # a table or column this build reads is missing: its migration is not applied yet
             raise StoreError('BACKTEST_NOT_READY', 503) from e
 
     def ready(self):
         with self.connect() as c:
             for table in TABLES:
                 c.execute(f'SELECT 1 FROM edge_bff.{table} LIMIT 0')
+            c.execute('SELECT site FROM edge_bff.backtest_jobs LIMIT 0')        # 20261119_021
 
     @staticmethod
     def _log(row, **extra):
@@ -584,8 +593,9 @@ class BacktestStore:
             if queued >= queued_limit:
                 raise StoreError('QUEUE_FULL', 429)
             row = c.execute('''INSERT INTO edge_bff.backtest_jobs(request_id,owner_key,submission_key,request,lineage_key,
-                    variant_hash) VALUES (%s,%s,%s,%s,%s,%s) RETURNING *''',
-                (('bt_' + secrets.token_hex(16)), owner, key, Jsonb(request), lineage_key, variant_hash)).fetchone()
+                    variant_hash,site) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *''',
+                (('bt_' + secrets.token_hex(16)), owner, key, Jsonb(request), lineage_key, variant_hash,
+                 self.site)).fetchone()
             self._log(row)
             return row, True
 
@@ -637,27 +647,29 @@ class BacktestStore:
     # ---- the loop's side: claim, lease, progress, end -------------------------------------------------------------
 
     def reap(self):
-        """RUNNING jobs whose lease expired (edge-bff stopped or lost the database while following them): FAILED
-        WORKER_LOST, never handed to the worker again. Their ids, so the worker can be told to stop them."""
+        """This site's RUNNING jobs whose lease expired (edge-bff stopped or lost the database while following them):
+        FAILED WORKER_LOST, never handed to the worker again. Their ids, so the worker can be told to stop them."""
         with self.connect() as c:
             rows = c.execute('''UPDATE edge_bff.backtest_jobs SET state='FAILED',error=%s,lease_token=NULL,
                 lease_expires_at=NULL,finished_at=now(),updated_at=now()
-                WHERE state='RUNNING' AND lease_expires_at<now() RETURNING *''', (Jsonb({'code': 'WORKER_LOST'}),)).fetchall()
+                WHERE state='RUNNING' AND lease_expires_at<now() AND site=%s RETURNING *''',
+                (Jsonb({'code': 'WORKER_LOST'}), self.site)).fetchall()
         for row in rows:
             self._log(row, reason='lease_expired')
         return [r['request_id'] for r in rows]
 
     def claim(self, seconds):
-        """The oldest queued job of an owner with nothing running, RUNNING under a new lease."""
+        """This site's oldest queued job of an owner with nothing running (on either site: one running job per owner),
+        RUNNING under a new lease."""
         with self.connect() as c:
             return c.execute('''WITH next AS (
-                    SELECT j.request_id FROM edge_bff.backtest_jobs j WHERE j.state='QUEUED' AND NOT EXISTS (
+                    SELECT j.request_id FROM edge_bff.backtest_jobs j WHERE j.state='QUEUED' AND j.site=%s AND NOT EXISTS (
                         SELECT 1 FROM edge_bff.backtest_jobs r WHERE r.owner_key=j.owner_key AND r.state='RUNNING')
                     ORDER BY j.created_at, j.request_id FOR UPDATE SKIP LOCKED LIMIT 1)
                 UPDATE edge_bff.backtest_jobs SET state='RUNNING',lease_token=%s,
                     lease_expires_at=now()+%s*interval '1 second',started_at=now(),updated_at=now()
                 WHERE request_id=(SELECT request_id FROM next) RETURNING *''',
-                (secrets.token_hex(16), seconds)).fetchone()
+                (self.site, secrets.token_hex(16), seconds)).fetchone()
 
     # The lease token fences every call of the job's follower: only the follower holds it, and only the job's end or
     # reap (a lease that expired) clears it, each in an UPDATE that locks the row, so one of them wins. An expired
@@ -746,10 +758,20 @@ class BacktestStore:
         self._log(changed, parts=len(parts), bytes=changed['result_bytes'])
         return changed
 
-    def prune(self, days=RESULT_DAYS):
+    def prune(self, days=RESULT_DAYS, limit=PRUNE_BATCH):
+        """Result parts of this site's jobs older than `days`, at most `limit` of them (one transaction; the loop calls
+        it again while a batch is full); the parts deleted."""
         with self.connect() as c:
-            return c.execute("DELETE FROM edge_bff.backtest_results WHERE created_at<now()-%s*interval '1 day'",
-                             (days,)).rowcount
+            return c.execute('''DELETE FROM edge_bff.backtest_results WHERE (request_id, part) IN (
+                    SELECT r.request_id, r.part FROM edge_bff.backtest_results r
+                    JOIN edge_bff.backtest_jobs j ON j.request_id = r.request_id
+                    WHERE r.created_at<now()-%s*interval '1 day' AND j.site=%s LIMIT %s)''',
+                             (days, self.site, limit)).rowcount
+
+
+def not_ready_error(e):
+    """The StoreError BACKTEST_NOT_READY (the backtest tables are missing), else None."""
+    return e if isinstance(e, StoreError) and e.code == 'BACKTEST_NOT_READY' else None
 
 
 class BacktestLoop:
@@ -783,14 +805,30 @@ class BacktestLoop:
     async def run(self):
         # None: not pruned yet, so at the start. Never 0: time.monotonic() counts from an unspecified point (on Linux the
         # host's boot), so on a host up for less than PRUNE_SECONDS a 0 would skip the start's prune.
-        pruned_at, not_ready = None, False
+        pruned_at, not_ready, prune_failures = None, False, 0
         while not self.stopping.is_set():
+            # ERRORS R2-33: the prune and the reap are each tried on their own, so one that fails never stops the claim
+            # of the queued jobs; a failed prune is tried again after a backoff that doubles up to PRUNE_SECONDS
+            if pruned_at is None or time.monotonic() - pruned_at > PRUNE_SECONDS:
+                try:
+                    for _ in range(PRUNE_BATCHES):
+                        if (await self.call(self.store.prune) or 0) < PRUNE_BATCH:
+                            break
+                    pruned_at, prune_failures = time.monotonic(), 0
+                except Exception as e:
+                    prune_failures += 1
+                    # the next try after the backoff: pruned_at as if the last prune were that long before it
+                    wait = min(PRUNE_SECONDS, self.settings.poll_seconds * 2 ** prune_failures)
+                    pruned_at = time.monotonic() - PRUNE_SECONDS + wait
+                    if not_ready_error(e) is None:     # the missing tables are reported once, by the claim below
+                        logger.error(json.dumps({'event': 'backtest_prune_failed', **self.failure(e)}))
             try:
-                if pruned_at is None or time.monotonic() - pruned_at > PRUNE_SECONDS:
-                    await self.call(self.store.prune)
-                    pruned_at = time.monotonic()
                 for lost in await self.call(self.store.reap):
                     await self.cancel_quietly(lost)    # the worker may still compute it: free it for the next job
+            except Exception as e:
+                if not_ready_error(e) is None:
+                    logger.error(json.dumps({'event': 'backtest_reap_failed', **self.failure(e)}))
+            try:
                 row = await self.call(self.store.claim, self.settings.lease_seconds)
                 not_ready = False
                 if row:
@@ -1143,7 +1181,7 @@ class Backtests:
 
     def __init__(self, settings, store, worker=None):
         self.settings = settings
-        self.store = BacktestStore(store)
+        self.store = BacktestStore(store, settings.site)
         self.worker = worker or (WorkerClient(settings) if settings.backtest_worker_url else None)
         self.loop = BacktestLoop(settings, self.store, self.worker) if self.worker else None
         self.ready = False

@@ -571,7 +571,9 @@ Sources are drawn only from actual evidence/annotations/data_record. Usage/cost 
 | EDGE_SESSION_SECONDS | 86400 |
 | EDGE_ORC_TIMEOUT_SECONDS | 3900, must exceed active Orc maximum + margin (minimum 3900 seconds) |
 | EDGE_LEASE_SECONDS / EDGE_HEARTBEAT_SECONDS | 90 / 20 |
-| EDGE_POLL_SECONDS / EDGE_WORKER_ENABLED | 2 / true |
+| EDGE_POLL_SECONDS / EDGE_WORKER_ENABLED | 2 / true (false: no background loop at all, local runs and the tests) |
+| EDGE_SITE | unset = `beta` (this service); `live` only on edge-bff-live (section "Beta and live websites") |
+| EDGE_AI_WORKER_ENABLED / EDGE_BACKTEST_LOOP_ENABLED / EDGE_HOUSEKEEPING_ENABLED | unset: the AI job loop on the beta only, the backtest loop and the hourly housekeeping on; true or false only (a typo stops the start) |
 
 Use one uvicorn process/one replica initially. Disable request access logs and proxy headers. Authentication attempt
 limiting lives in PostgreSQL (`edge_bff.auth_throttle`, EXEC-MU-ACCOUNTS Phase 0), so it holds across restarts and
@@ -775,6 +777,43 @@ Shared front-end layer (`shared/`, M471, M473):
 - Terminal drawings kept in the browser while the account cannot be reached are stamped with the page's identity
   (never the last-login mark; nothing is kept while it is unknown) and join only that login's account (M468, M477).
 
+## Beta and live websites (EXEC-MU-ACCOUNTS "Production environment", user decisions 2026-11-19)
+
+One Railway environment, two websites on one database: the beta is this service, edge-bff, at its Railway address, for
+the admin only, with `EDGE_MULTIUSER` off as today; the live site is a second service, edge-bff-live, on the user's
+domain, with the switch on. Only the website is doubled: the database, the market-file bucket, terminal-api,
+backtest-worker, screener-worker, the AI and every data job are one and shared. `EDGE_SITE` (`beta`, the default, or
+`live`) tells the two apart (fix round of the round-2 re-check, ERRORS R2-1, R2-2, R2-3, R2-7, R2-8, R2-13, R2-23,
+R2-26, R2-33, R2-34, R2-36, R2-38; `.railway/railway.ts` holds the live service as a comment until its variables are set).
+
+- **Impossible pairings stop the start** (`config.py validate`): `EDGE_SITE=live` without `EDGE_MULTIUSER=true`; the beta
+  with the switch on (outside `EDGE_ENVIRONMENT=local`, where the tests run both); `EDGE_AI_WORKER_ENABLED=true` on the
+  live site; `EDGE_EMAIL_MODE=log` with the switch on outside `local` (it was allowed in `dev`, the Railway environment
+  both sites run in), unless `EDGE_EMAIL_LOG_ALLOWED=true` says so on purpose (a test with no real person).
+- **Each queued row carries its site** (`edge_bff.jobs.site`, `edge_bff.backtest_jobs.site`, migrations `20261119_020`
+  and `_021`, default `beta`: every earlier row is the admin's). Each site's loop claims, reaps and prunes only its own
+  site's jobs, so a job is dispatched by the code, the principal and the release file of the site that took it.
+- **The loops** (each with its switch, all off with `EDGE_WORKER_ENABLED=false`): the AI job loop on the beta only (AI is
+  admin-only, D1); a backtest loop on each site; the email sender only where the switch is on (the live site); the
+  hourly housekeeping (`app/worker.py Housekeeping`: expired sessions, throttle rows, never-verified registrations) in
+  its own task, each purge in its own transaction and try, in batches of 500, retried after a doubling backoff, and
+  skipped while the other site runs the same purge (an advisory try-lock). Once edge-bff-live runs, the beta gets
+  `EDGE_HOUSEKEEPING_ENABLED=false` so the live site is its one owner.
+- **What the live site does not serve** (`principal.py beta_only`, `live_view`): the Monitor (AI) and admin tabs, the
+  admin rights of `rights.py` and every item at the lab stage. Their routes answer 404 `NOT_FOUND` there, before the
+  session is read (`/monitor` and `/c/<id>` too), and every principal is masked: it never holds them, `'*'` included
+  (it reads as every flag capability of the catalog that is not beta-only; the workers' `allow` is never `"*"` there).
+  The second factor is decided by the account's own grants, so user #1 still needs it on the live site.
+- **Sessions are bound to their site**: the beta (switch off) accepts only sessions without an account, the live site
+  only an account's sessions.
+- **Start-up** (ERRORS R2-3, R2-36): readiness, the seeds and the catalog names run before the loops; while they fail
+  (a database restarting, a migration not applied), `/ready` answers 503, no loop runs, and the attempt is made again
+  every `EDGE_POLL_SECONDS` (and on each `/ready`), logged `startup_not_ready`, then `startup_done`.
+- **`GET /version`** answers `{"site", "commit"}` (`RAILWAY_GIT_COMMIT_SHA`, null when unset), for the push to live.
+- **Shared secrets** (ERRORS R2-8, R2-26): `EDGE_SESSION_SECRET` (throttle and CSRF HMAC), `EDGE_CODE_SECRET` (email
+  codes) and `EDGE_MFA_KEY` (the one TOTP row per user) key rows of the shared tables, so edge-bff-live holds edge-bff's
+  values as Railway references (`${{edge-bff.NAME}}`), never values of its own.
+
 ## Accounts (EXEC-MU-ACCOUNTS Phase 1, 2026-11-16/17)
 
 Phase 1 builds EDGE accounts behind the switch `EDGE_MULTIUSER` (default `false`; it goes on only at Phase 6). Contract:
@@ -789,17 +828,21 @@ The switch and what it changes:
 | Sign-in | `EDGE_LOGIN` / `EDGE_PASSWORD_VERIFIER`, exactly as before | a username or email and the account's password (`edge_bff.identities`) |
 | Principal | user #1: owner `EDGE_OWNER`, every capability (`*`), admin rights from `EDGE_ADMIN_OWNERS`, version `env` | the session's account: role `admin` every capability, role `user` none (the plan catalog of Phase 2 replaces this) |
 | Account routes (table below) | 404 `NOT_FOUND`, except `GET /api/v1/auth/config` = `{"multiuser": false}` | open |
-| Email sender loop | not started | started with the worker (`EDGE_EMAIL_ENABLED`) |
+| Email sender loop | not started | started with the worker (`EDGE_EMAIL_ENABLED`; an error `email_sender_off` is logged when it is off) |
 | Admin MFA | none | required before any admin route (403 `MFA_REQUIRED`) |
-| Sessions | as before | idle timeout `EDGE_SESSION_IDLE_SECONDS` (default 28800), at most 5 per user, `last_seen_at` written at most once a minute; sessions still waiting for the admin's second factor capped apart at 3, never counted towards or revoking the 5; a new session token when MFA is passed |
-| Seed of user #1 | at every start when `edge_bff.users` is empty; its password identity follows `EDGE_PASSWORD_VERIFIER` | the identity is the account's own and is never overwritten |
+| Sessions | as before, and only a session the switch-off sign-in made (no account: `user_id` NULL); an account's session never opens a switch-off site (ERRORS R2-1) | idle timeout `EDGE_SESSION_IDLE_SECONDS` (default 28800), at most 5 per user, `last_seen_at` written at most once a minute; sessions still waiting for the admin's second factor capped apart at 3, never counted towards or revoking the 5; a new session token when MFA is passed |
+| Seed of user #1 | at every start when `edge_bff.users` is empty; its password identity follows `EDGE_PASSWORD_VERIFIER` while it holds the seed's own copy (`identities.seed_verifier_sha256`); once the account set its own password with the switch on, it is never overwritten (ERRORS R2-2) | the identity is the account's own and is never overwritten |
 | Preferences (below) | served for user #1 | served per account |
 
 The seed: user #1 is the configured owner (`edge-private` on dev), role `admin`, status `active`. Its username is
 `EDGE_LOGIN` lower-cased when that fits the username rule and is not reserved, else `admin_1` (`edge` is reserved, so
 dev's seed is `admin_1`). Its password identity is a copy of `EDGE_PASSWORD_VERIFIER`, so the password does not
 change. Every replica takes one advisory lock, so two starting together make one row. A failed seed keeps the
-switch-off sign-in working (logged `account_seed_failed`); with the switch on it keeps the worker from starting.
+switch-off sign-in working (logged `account_seed_failed`); with the switch on the start-up is tried again and no loop
+starts until it succeeds (`/ready` answers 503 meanwhile). A switch-off start copies a changed `EDGE_PASSWORD_VERIFIER`
+only over the seed's own copy: `identities.seed_verifier_sha256` is the sha256 of the verifier the seed last wrote, and a
+password change or reset on the switch-on site (the live one) writes another verifier, which no later start overwrites
+(migration `20261119_022`). The switch-off sign-in itself still reads `EDGE_PASSWORD_VERIFIER`.
 
 Principal (`app/principal.py`): the owner of every request comes from it and only from it. Every router takes
 `routes(app, auth)`: `auth.principal` (401 `UNAUTHENTICATED`), `auth.writer` (plus CSRF), `auth.need(capability)`
@@ -851,8 +894,10 @@ Email (`app/mailer.py`, `app/email_texts.py`, plain English): a code and its ema
 (`edge_bff.email_outbox`). The sender is its own task beside the backtest loop, claiming one row at a time with
 `FOR UPDATE SKIP LOCKED` and a lease.
 - `EDGE_EMAIL_MODE=log` (default): the email is written to the log, the code masked unless `EDGE_ENVIRONMENT=local`,
-  and the row is marked sent with its payload kept, so a dev tester reads the code from the row. Allowed only with
-  `EDGE_ENVIRONMENT` dev or local when the switch is on.
+  and the row is marked sent with its payload kept, so a tester reads the code from the row. Allowed only with
+  `EDGE_ENVIRONMENT=local` when the switch is on (ERRORS R2-26: no longer `dev`, the Railway environment of the live
+  site too), or with the explicit `EDGE_EMAIL_LOG_ALLOWED=true` for a test of the live site before its Resend key, with
+  no real person (logged `email_log_mode_allowed` at every start while it is on).
 - `EDGE_EMAIL_MODE=resend`: POST `https://api.resend.com/emails` with the row's `Idempotency-Key`; retried after 5 s,
   30 s and 2 min, then `failed`; the payload is nulled once sent; a code email past its expiry becomes `expired`, never
   sent. Needs `RESEND_API_KEY` and `EDGE_EMAIL_FROM` (an address); `RESEND_WEBHOOK_SECRET` (`whsec_…`) signs the
@@ -875,8 +920,8 @@ with the vendored `static/qrcode-generator.js` (qrcode-generator 1.4.4, MIT, lic
 Variables (all checked at start; with the switch off a missing one never stops it, a set one is still checked; the
 secrets never appear in `repr(Settings)`):
 `EDGE_MULTIUSER` (true/false only), `EDGE_SESSION_IDLE_SECONDS` (at least 60), `EDGE_CODE_SECRET` and `EDGE_MFA_KEY`
-(at least 32 characters; required with the switch on), `EDGE_EMAIL_MODE` (log/resend), `EDGE_EMAIL_ENABLED`,
-`EDGE_EMAIL_FROM`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`.
+(at least 32 characters; required with the switch on), `EDGE_EMAIL_MODE` (log/resend), `EDGE_EMAIL_ENABLED` (true/false
+only, like every loop switch), `EDGE_EMAIL_FROM`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `EDGE_SITE` (beta/live).
 
 Preferences (`app/preferences.py`, contract 4b, user 2026-11-16): an account's preferences and saved items that the
 pages kept only in the browser come back on any device. `GET /api/v1/preferences` gives every key of the principal's

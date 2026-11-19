@@ -119,8 +119,9 @@ class Throttle:
                       (limit.scope, self.key_hash(limit.scope, key)))
 
 
-def purge(connection):
-    """Rows older than 2 days (CONTRACT.md section 1); called from Store.cleanup_sessions, the worker loop's hourly
-    cleanup, on the same connection and transaction."""
-    connection.execute('DELETE FROM edge_bff.auth_throttle WHERE window_start < now() - make_interval(secs => %s)',
-                       (PURGE_AFTER_SECONDS,))
+def purge(connection, limit=None):
+    """Rows older than 2 days (CONTRACT.md section 1), at most limit of them (None: every one); the rows deleted. Called
+    from Store.purge, the hourly housekeeping (worker.Housekeeping), on its connection and transaction."""
+    return connection.execute('''DELETE FROM edge_bff.auth_throttle WHERE (scope, key_hash, window_start) IN (
+            SELECT scope, key_hash, window_start FROM edge_bff.auth_throttle
+            WHERE window_start < now() - make_interval(secs => %s) LIMIT %s)''', (PURGE_AFTER_SECONDS, limit)).rowcount
