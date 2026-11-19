@@ -31,10 +31,10 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from psycopg import errors as pg_errors
 
-from . import email_texts, mfa, passwords
+from . import email_texts, hooks, mfa, passwords
 from .accounts import EMAIL, RESERVED_USERNAMES, USERNAME, new_owner_key
 from .errors import Refusal
-from .mailer import OutboxStore, enqueue, svix_verify
+from .mailer import OutboxStore, enqueue
 from .principal import ADMIN_ACCESS, Principal
 from .security import normal_password, password_verifier, token_hash, verify_password
 from .throttle import (CODE_USER, MFA_USER, REGISTER_DAY, REGISTER_HOUR, SEND_EMAIL, SEND_IP, SIGNIN_LOGIN, Throttle,
@@ -591,12 +591,12 @@ class AuthFlows:
             return signed_in(fresh, token)
 
         @app.post('/api/v1/hooks/email/resend')
-        async def resend_hook(request: Request, _on=Depends(switched_on)):
+        async def resend_hook(request: Request, _on=Depends(switched_on),
+                              raw=Depends(hooks.signed('/api/v1/hooks/email/resend',
+                                                       lambda: settings.resend_webhook_secret))):
             """Resend's bounces and complaints (CONTRACT.md sections 5 and 6): no session; the Svix signature over the
-            raw body proves the sender; a repeated svix-id changes nothing."""
-            raw = getattr(request, '_body', None) or await request.body()
-            if not svix_verify(request.headers, raw, settings.resend_webhook_secret):
-                raise Refusal(401, 'HOOK_SIGNATURE_INVALID')
+            raw body proves the sender (hooks.signed, before this body runs: re-check R1-15); a repeated svix-id changes
+            nothing."""
             try:
                 event = json.loads(raw)
                 kind = event.get('type') if isinstance(event, dict) else None
