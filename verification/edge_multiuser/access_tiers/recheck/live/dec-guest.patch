@@ -1,7 +1,7 @@
 From 88d75b8e27614970adb2c6d9950b130dc6285aea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:22:44 +0000
-Subject: [PATCH 01/56] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26):
+Subject: [PATCH 01/59] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26):
  every terminal-api 429 names its quota and when to try again
 
 quota_exceeded carries quota, limit, window and retry_after_s (Store.frees_in: when the rolling window lets the
@@ -337,7 +337,7 @@ index 00000000..1b97b475
 From e5f0c18176c143415631c5fb983843cea38b3e50 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:24:56 +0000
-Subject: [PATCH 02/56] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
+Subject: [PATCH 02/59] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
  terminal-api leaves out unknown datasets, takes history_days 0, acknowledges
  the applied header
 
@@ -587,7 +587,7 @@ index 1b97b475..89f69688 100644
 From d959a594942a346d292f67be79d11630bd5b2162 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:30:47 +0000
-Subject: [PATCH 03/56] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
+Subject: [PATCH 03/59] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
  reference lists filtered to the plan; the gateway account on /ready
 
 An owner whose plan lacks the dataset reference gets its own copy of each reference file (app/refcut.py: the rows of
@@ -1162,7 +1162,7 @@ index 89f69688..bc66a9f0 100644
 From 570e607cfa06be44e7d7926946941f597627fea6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:36:59 +0000
-Subject: [PATCH 04/56] EXEC-MU-ACCOUNTS fix round (terminal,
+Subject: [PATCH 04/59] EXEC-MU-ACCOUNTS fix round (terminal,
  R1-1/R1-26/R1-22/R2-4/R2-32): one relay rule for every terminal-api answer
 
 terminal_access.relayed is the rule forward_terminal, relay_cut and PageFiles share: a terminal-api 401 or 403 about
@@ -1840,7 +1840,7 @@ index 90f357d9..6af924b7 100644
 From 0713d5053e3eb87c750b4074b1a9558898956d04 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:38:26 +0000
-Subject: [PATCH 05/56] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests
+Subject: [PATCH 05/59] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests
  of the relay rule, the acknowledgement, history 0, the page-file refusals
  before the caches and the reference copy relay
 
@@ -2114,7 +2114,7 @@ index 00000000..1240c974
 From c17efdf1f905c655a98325b8c9cf5e260bc1a330 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:41:40 +0000
-Subject: [PATCH 06/56] EXEC-MU-ACCOUNTS fix round (track site): migrations
+Subject: [PATCH 06/59] EXEC-MU-ACCOUNTS fix round (track site): migrations
  20261119_020-023 (the queues' site, the seed's mark, the indexes on the
  references to users) and the test harness
 
@@ -2505,7 +2505,7 @@ index 00000000..4ac242f5
 From 8aed704adeafafdcab31e9d0338073c0145b3d27 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:41:52 +0000
-Subject: [PATCH 07/56] EXEC-MU-ACCOUNTS fix round (track site): two edge-bff
+Subject: [PATCH 07/59] EXEC-MU-ACCOUNTS fix round (track site): two edge-bff
  sites on one database, the start-up, the background loops
 
 - EDGE_SITE (beta, the default, or live); config.validate refuses live without EDGE_MULTIUSER, the beta with it (outside
@@ -4346,7 +4346,7 @@ index b1912754..b05f4698 100644
 From eaa7bc28340a9d4374530acb3bdbd3cbd8a1a8e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:42:12 +0000
-Subject: [PATCH 08/56] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
+Subject: [PATCH 08/59] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
  domain per capability in the catalog, read by the value trigger
 
 Migration 20261119_050 (not applied): edge_bff.capabilities gains value_min, value_max and item_pattern;
@@ -4728,7 +4728,7 @@ index 00000000..5dcc217f
 From 9099a1f4de4d7d39736a7f2fc40eebf2ce56d7cf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:44:52 +0000
-Subject: [PATCH 09/56] EXEC-MU-ACCOUNTS fix round (track site): an explicit
+Subject: [PATCH 09/59] EXEC-MU-ACCOUNTS fix round (track site): an explicit
  switch for log mode on a deployed site, the sender-off line at every
  switch-on start, the worker's default claim read when called
 
@@ -4871,7 +4871,7 @@ index e6ed73f7..ab0afcd0 100644
 From 9b83ea196e2b17dedf5f5bc76eb8a186d32dfd0f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:45:45 +0000
-Subject: [PATCH 10/56] EXEC-MU-ACCOUNTS fix round (terminal, R2-32): the free
+Subject: [PATCH 10/59] EXEC-MU-ACCOUNTS fix round (terminal, R2-32): the free
  plan's Terminal draws BBCA
 
 The e2e fake terminal-api now answers the header edge-bff really sends with terminal-api's own code (entitlements,
@@ -5139,7 +5139,7 @@ index 5faf7ca1..ad858b55 100644
 From f82419c0941877b307fe2357c8ff2114c68f6958 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:46:37 +0000
-Subject: [PATCH 11/56] EXEC-MU-ACCOUNTS fix round (terminal):
+Subject: [PATCH 11/59] EXEC-MU-ACCOUNTS fix round (terminal):
  SCREENER_ONBOARDING.md pointers into terminal-api and edge-bff main.py moved
  with their lines (screener-worker onboarding_pointers test)
 
@@ -5228,7 +5228,7 @@ index 6a313a75..1006309b 100644
 From 34edaafa4248403f9660a32fd94728359e48c0df Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:47:16 +0000
-Subject: [PATCH 12/56] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff README
+Subject: [PATCH 12/59] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff README
  follows the relay rule, the reference copies, the header mapping and the
  page-file caches
 
@@ -5317,7 +5317,7 @@ index 976016a8..85d0851f 100644
 From e48042eac2458582d814a4aeb5c9f3084edc60a7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:54:00 +0000
-Subject: [PATCH 13/56] EXEC-MU-ACCOUNTS fix round (terminal): notes per
+Subject: [PATCH 13/59] EXEC-MU-ACCOUNTS fix round (terminal): notes per
  finding, what the shared records must say, the decisions only the user can
  take
 
@@ -5583,7 +5583,7 @@ index 00000000..7b1c5317
 From ae02340396c5211c58fce4bc04028785b63c021d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:54:24 +0000
-Subject: [PATCH 14/56] EXEC-MU-ACCOUNTS fix round (terminal): terminal-api
+Subject: [PATCH 14/59] EXEC-MU-ACCOUNTS fix round (terminal): terminal-api
  README, the logo line follows the reference copies
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5613,7 +5613,7 @@ index 8b62323d..e523a13a 100644
 From ccdfb1772f0fab41d6754b2a4d1cd9e3669e2b36 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:00:12 +0000
-Subject: [PATCH 15/56] EXEC-MU-ACCOUNTS fix round (track site): notes for the
+Subject: [PATCH 15/59] EXEC-MU-ACCOUNTS fix round (track site): notes for the
  records (findings, tests, EXPLAIN evidence, suites)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5878,7 +5878,7 @@ index 00000000..af3f0b6a
 From bd1d506525535c8d352fb08a667d827ceb936567 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:02:43 +0000
-Subject: [PATCH 16/56] EXEC-MU-ACCOUNTS fix round (terminal, R2-4): the C2
+Subject: [PATCH 16/59] EXEC-MU-ACCOUNTS fix round (terminal, R2-4): the C2
  Phase 2 isolation test's fake terminal-api acknowledges the owner header, as
  terminal-api does
 
@@ -5921,7 +5921,7 @@ index 9d082941..f1f04a18 100644
 From e6dfab52206226635e0f38ca752b16c6afd5c0ed Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:04:03 +0000
-Subject: [PATCH 17/56] EXEC-MU-ACCOUNTS fix round (terminal): the suites'
+Subject: [PATCH 17/59] EXEC-MU-ACCOUNTS fix round (terminal): the suites'
  results in the track notes
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5957,7 +5957,7 @@ index 7b1c5317..1a4617b2 100644
 From b16d57288f42b49682d60bfab255d454f20d9739 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:13:40 +0000
-Subject: [PATCH 18/56] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
+Subject: [PATCH 18/59] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
  for lists and limits, no shared restrictive list, the seed plan is the one
  whose '*' is true, access.limits reports the applied cap, MFA_REQUIRED says
  whether an authenticator is set up
@@ -6396,7 +6396,7 @@ index 205d728e..79f4b2e7 100644
 From 68542f2fb3036e6ef993b948b48fb7e37f1983e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:26:59 +0000
-Subject: [PATCH 19/56] EXEC-MU-ACCOUNTS fix round (plans): refusals worded
+Subject: [PATCH 19/59] EXEC-MU-ACCOUNTS fix round (plans): refusals worded
  from their code and details; no internal key in a worker's capability message
 
 Re-check R2-15: errors.words names the item (display_name), the ended plan, the plan limit with the account's number and
@@ -6748,7 +6748,7 @@ index 4f57f457..6b36df04 100644
 From 296129a5dc45ccfadc9c657500d4c9a113dffacc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:29:25 +0000
-Subject: [PATCH 20/56] EXEC-MU-ACCOUNTS fix round (plans): the Screener
+Subject: [PATCH 20/59] EXEC-MU-ACCOUNTS fix round (plans): the Screener
  catalog lists only the presets the plan holds, by the rule of /api/v1/catalog
 
 Re-check R1-32: catalog.holds_entry is the one rule (any family of the kind), read by the generic catalog route and the
@@ -6903,7 +6903,7 @@ index 48c86772..3e149b2b 100644
 From 8884b38b089e66df85c1b65c6a4870aee54a6f19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:32:25 +0000
-Subject: [PATCH 21/56] EXEC-MU-ACCOUNTS fix round (plans): an account
+Subject: [PATCH 21/59] EXEC-MU-ACCOUNTS fix round (plans): an account
  preference of one tab is served and stored only while the plan holds that tab
 
 Re-check R1-18 and R1-30 (CONTRACT.md 8b D5: reads need <tab>.view): each sync entry of the storage registry names the
@@ -7374,7 +7374,7 @@ index a5c52e65..6c5d0c00 100644
 From 54398ef3d816fd905313bb78d03dbeae312bc428 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:39:51 +0000
-Subject: [PATCH 22/56] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
+Subject: [PATCH 22/59] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
  refusals in words, lands a non-admin account on the Terminal, follows a
  change of plan and a session ended under a frame
 
@@ -7926,7 +7926,7 @@ index 3be7fc42..97afe4f1 100644
 From e79a1b37ec8461894de0a4cf927be2e51a38f1da Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:40:01 +0000
-Subject: [PATCH 23/56] EXEC-MU-ACCOUNTS fix round, track auth: sign-in limits,
+Subject: [PATCH 23/59] EXEC-MU-ACCOUNTS fix round, track auth: sign-in limits,
  credential races, MFA re-enrolment, password cost, outbox purge
 
 Findings of the ultracode re-check (rounds 1 and 2) fixed in edge-bff, each with its committed failing test now
@@ -10318,7 +10318,7 @@ index 4052d11f..444aef1e 100644
 From 6bd43074c959de211bdda838e97fb3e5eca3ba9f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:45:57 +0000
-Subject: [PATCH 24/56] EXEC-MU-ACCOUNTS fix round (plans): the Screener's
+Subject: [PATCH 24/59] EXEC-MU-ACCOUNTS fix round (plans): the Screener's
  cached paint follows the plan; a drawings refusal is said in its words and
  keeps nothing in the browser
 
@@ -10648,7 +10648,7 @@ index 2b23a78c..be09eda6 100644
 From 61155dd2dbc5bf8b8694c7d66c720fdfe4844c46 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:46:54 +0000
-Subject: [PATCH 25/56] EXEC-MU-ACCOUNTS fix round (plans): an added series'
+Subject: [PATCH 25/59] EXEC-MU-ACCOUNTS fix round (plans): an added series'
  pane keys are the account's and leave with the series
 
 Re-check R1-20: the prefix ml.assets.flow. (fold and height per added series, named by its ticker) is a user cache
@@ -10742,7 +10742,7 @@ index 6c5d0c00..78ede8d0 100644
 From bcdb0705707af84337ceb5fa02e9e96f28597f1f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:51:03 +0000
-Subject: [PATCH 26/56] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
+Subject: [PATCH 26/59] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
  registration cookies on https, HSTS, form-action in every page policy
 
 Re-check R2-22: on a Secure origin the cookies are __Host-edge_session and __Host-edge_registration (Path=/, no
@@ -11081,7 +11081,7 @@ index 275a776a..bae4c119 100644
 From 081c378f3e8b769a9dbc570121dd0618fce5403d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:54:18 +0000
-Subject: [PATCH 27/56] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
+Subject: [PATCH 27/59] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
  Password and sign-in page (password change, sign out everywhere)
 
 Re-check R2-20: with accounts on (GET /api/v1/auth/config), the account menu opens a dialog for the Phase 1 password
@@ -11314,7 +11314,7 @@ index bae4c119..7d13a9af 100644
 From be55357c5ff111788f3be6095b31e796f69160c9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:55:50 +0000
-Subject: [PATCH 28/56] EXEC-MU-ACCOUNTS fix round (plans): one rule for a
+Subject: [PATCH 28/59] EXEC-MU-ACCOUNTS fix round (plans): one rule for a
  person's name at registration, and one for showing it
 
 Re-check R2-18: app/text_rules.py stores a first or last name in NFC with single spaces and refuses control, hidden
@@ -11458,7 +11458,7 @@ index 7d13a9af..c0414ee6 100644
 From 78455b93bce3e343a60aa888086854fdfeed0fea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:00:42 +0000
-Subject: [PATCH 29/56] EXEC-MU-ACCOUNTS fix round (plans): every plan limit
+Subject: [PATCH 29/59] EXEC-MU-ACCOUNTS fix round (plans): every plan limit
  answers one code, LIMIT_REACHED naming its capability key
 
 Re-check R2-39 (CONTRACT.md section 3): the saved-item caps (layouts, presets, places with drawings, saved screens and
@@ -11950,7 +11950,7 @@ index 1cea2cd5..b3da03f0 100644
 From 419ee36823575c52f229af37f8a6599bb9f8c463 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:01:46 +0000
-Subject: [PATCH 30/56] EXEC-MU-ACCOUNTS fix round, track auth: notes for the
+Subject: [PATCH 30/59] EXEC-MU-ACCOUNTS fix round, track auth: notes for the
  records, the code-purpose drift test, the last reserved placeholder
 
 - verification/edge_multiuser/fix_round/auth.md: root cause, fix and tests of each finding of the track, what
@@ -12180,7 +12180,7 @@ index 00000000..be7ca824
 From fc3cbf2933403c4d0cdafef84f76ae2deee1275e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:02:13 +0000
-Subject: [PATCH 31/56] SCREENER_ONBOARDING.md: line pointers into edge-bff
+Subject: [PATCH 31/59] SCREENER_ONBOARDING.md: line pointers into edge-bff
  screener.py and main.py moved with the fix round's lines
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -12251,7 +12251,7 @@ index 6a313a75..239ec42b 100644
 From b36e621af0417827137b36018443c9ea5d927988 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:05:30 +0000
-Subject: [PATCH 32/56] EXEC-MU-ACCOUNTS fix round (plans): the shell runs no
+Subject: [PATCH 32/59] EXEC-MU-ACCOUNTS fix round (plans): the shell runs no
  inline script; its policy drops script-src 'unsafe-inline'
 
 Re-check R2-19: the head's viewport script moved to static/edge-boot.js and the shell's app to static/edge-app.js (a
@@ -17839,7 +17839,7 @@ index cc5b4fee..32a843c0 100644
 From db1eadac57e5ce7b44bec319e25013647a558d0b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:06:13 +0000
-Subject: [PATCH 33/56] EXEC-MU-ACCOUNTS fix round (plans): the Watchlist's
+Subject: [PATCH 33/59] EXEC-MU-ACCOUNTS fix round (plans): the Watchlist's
  copy of the logo reference list leaves with the account
 
 Re-check R1-17 (other site named by the refuters): edge.watchlist.logos holds the content of a reference file the plan
@@ -17891,7 +17891,7 @@ index 3dca0656..053568f6 100644
 From 40725f4ae44a9890ee92f8d2bd2500caf4480f11 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:07:53 +0000
-Subject: [PATCH 34/56] EXEC-MU-ACCOUNTS fix round (plans): notes per finding,
+Subject: [PATCH 34/59] EXEC-MU-ACCOUNTS fix round (plans): notes per finding,
  the records to write, the decisions left, the script move for integration
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18187,7 +18187,7 @@ index 00000000..ea7fd66e
 From edd0e434d892ef7d3db6f156a2180c0494c0b4b6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:09:11 +0000
-Subject: [PATCH 35/56] Terminal registry test: edge.watchlist.logos is cleared
+Subject: [PATCH 35/59] Terminal registry test: edge.watchlist.logos is cleared
  with the account (fix round, re-check R1-17 other site)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18226,7 +18226,7 @@ index 96453e49..fe15d3c9 100644
 From c779d1e01309fe37aba11771c2593c7503a2b4f9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:13:24 +0000
-Subject: [PATCH 36/56] principal.py: the comment of the MFA check sits above
+Subject: [PATCH 36/59] principal.py: the comment of the MFA check sits above
  it again
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18260,7 +18260,7 @@ index cf07386b..878e8613 100644
 From 09f4ae3e6ed81e60c14752d7f5dbbcee41df6ddd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:14:28 +0000
-Subject: [PATCH 37/56] main.py: the one-time cookie move never overrides a
+Subject: [PATCH 37/59] main.py: the one-time cookie move never overrides a
  route's own cookie answer (sign-in, sign-out)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18292,7 +18292,7 @@ index 7b839f5b..aac63795 100644
 From d71bc8363c232d2307077f2f8fb9cd90618228cf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:33:03 +0000
-Subject: [PATCH 38/56] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
+Subject: [PATCH 38/59] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
  key test waits in pending/ for the Railway deletion; the code side held by a
  test (no code the runner runs reads the main Orc key)
 
@@ -18379,7 +18379,7 @@ rename to verification/edge_multiuser/access_tiers/pending/test_cp0_runner_key.p
 From 22d4defe17a0d98db4ffb77a15f4f824f7cda532 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:35:21 +0000
-Subject: [PATCH 39/56] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
+Subject: [PATCH 39/59] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
  hook route verifies by a dependency built from HOOK_ROUTES; the route walk
  covers the whole table (signed hooks, a capability gate or a named
  principal-only reason on every /api route)
@@ -18586,7 +18586,7 @@ index ed71cd2a..7f845889 100644
 From 5f204d11e7db3de2fa9590e929a74c469cec84e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:39:59 +0000
-Subject: [PATCH 40/56] EXEC-MU-ACCOUNTS fix round (records, R1-41, R1-42,
+Subject: [PATCH 40/59] EXEC-MU-ACCOUNTS fix round (records, R1-41, R1-42,
  R1-43, R1-45, R1-46): migration 20261119_040 (audit and provenance ids
  without a referential action, catalog trace triggers, the kind comment and
  history_days means to the code and D2, a column-privilege guard), the
@@ -19102,7 +19102,7 @@ index 00000000..0377546a
 From 64e5fe94bf846432cdbb44359a564a2f0c9a6071 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:40:43 +0000
-Subject: [PATCH 41/56] EXEC-MU-ACCOUNTS fix round (records, R1-28): the run
+Subject: [PATCH 41/59] EXEC-MU-ACCOUNTS fix round (records, R1-28): the run
  stream's monitor.view re-check held by a live-server test (fails when
  still_signed_in stops asking for it)
 
@@ -19178,7 +19178,7 @@ index 00000000..c2a21bdf
 From e96cf7c952ffd68bf03363c4c65a359f4b252bc2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:47:16 +0000
-Subject: [PATCH 42/56] EXEC-MU-ACCOUNTS fix round (plans): the catalog refuses
+Subject: [PATCH 42/59] EXEC-MU-ACCOUNTS fix round (plans): the catalog refuses
  a Terminal limit beside the Backtest's or the Screener's own data access
  (re-check R1-36, the user's "2a")
 
@@ -19845,7 +19845,7 @@ index 699c7b0e..26220a9f 100644
 From 4bdf1cc69840167d82fb97a77e60b05aab3b031c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:47:16 +0000
-Subject: [PATCH 43/56] Backtest and Screener frame tests: the shell's tab code
+Subject: [PATCH 43/59] Backtest and Screener frame tests: the shell's tab code
  is read from edge-app.js (the R2-19 script move)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -19904,7 +19904,7 @@ index 7b8f6d07..d976a1d5 100644
 From 9d31dc07eb2cd29777e107e2b35148af30e2ebc2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:02:11 +0000
-Subject: [PATCH 44/56] EXEC-MU-ACCOUNTS fix round (records): work in progress
+Subject: [PATCH 44/59] EXEC-MU-ACCOUNTS fix round (records): work in progress
  saved when the usage limit stopped the builder (unreviewed;
  test_zz_tmp_walk.py is a scratch probe)
 
@@ -20281,7 +20281,7 @@ index 00000000..8a1f7462
 From 26c38da5b5bd1d24dcee759681a02b90f95b57fb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:12:45 +0000
-Subject: [PATCH 45/56] EXEC-MU-ACCOUNTS fix round (records, R1-21): the
+Subject: [PATCH 45/59] EXEC-MU-ACCOUNTS fix round (records, R1-21): the
  two-user walk covers every /api route and every owned kind, derived from
  app.routes and information_schema; one event loop for both people; an owned
  id answers what an id nobody made answers; the scratch probe removed
@@ -20493,7 +20493,7 @@ index 8a1f7462..00000000
 From 51451d52afbe787f993280eb373e11616f4759ec Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:26:07 +0000
-Subject: [PATCH 46/56] EXEC-MU-ACCOUNTS fix round (records, R1-39, R1-40,
+Subject: [PATCH 46/59] EXEC-MU-ACCOUNTS fix round (records, R1-39, R1-40,
  R1-44): CI runs the page suites, edge-bff's browser tests (Playwright,
  Chromium, the built pages) and Orc's Postgres tests; the shell copy is
  compared with its build by a generated_file test; generators found anywhere
@@ -20947,7 +20947,7 @@ index ec7ef606..3b04267c 100644
 From 77e57322263ebe16d440686978e35f4bce1ea75f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:26:07 +0000
-Subject: [PATCH 47/56] EXEC-MU-ACCOUNTS fix round (records, R2-40): tests of
+Subject: [PATCH 47/59] EXEC-MU-ACCOUNTS fix round (records, R2-40): tests of
  the contract requirements no test held (absolute session lifetime in both
  modes, Retry-After on every 429, entitlements on the signed-in answers, names
  from the start, a future subscription, SEND_IP, a pending session's sign-out,
@@ -21222,7 +21222,7 @@ index e67a334c..52f85235 100644
 From 279613408cb4cb0652140e55133c53958fe10467 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:32:15 +0000
-Subject: [PATCH 48/56] EXEC-MU-ACCOUNTS fix round (plans): the cap modules'
+Subject: [PATCH 48/59] EXEC-MU-ACCOUNTS fix round (plans): the cap modules'
  headers and the README say 403 LIMIT_REACHED for a plan cap (re-check R2-39);
  notes: the migration of "2a", the R1-35 anchor, the suite results
 
@@ -21424,7 +21424,7 @@ index 26220a9f..f77a707a 100644
 From 511848a0a060abcb22088ddae22d6d965e1f6074 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:36:36 +0000
-Subject: [PATCH 49/56] EXEC-MU-ACCOUNTS fix round (records): CONTRACT.md
+Subject: [PATCH 49/59] EXEC-MU-ACCOUNTS fix round (records): CONTRACT.md
  brought to the code and the user's decisions of 2026-11-19 (the beta/live
  site, pre-launch mode, the guest, the free plan's whole ticker list, outbox
  30 days, forgot kept, one Terminal quota, the restricted-plan rule, the
@@ -22479,7 +22479,7 @@ index 32cce206..c0ea7359 100644
 From 65211eabab3b1795223191776964a24f8aee0cd7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:39:06 +0000
-Subject: [PATCH 50/56] EXEC-MU-ACCOUNTS fix round (records): notes per finding
+Subject: [PATCH 50/59] EXEC-MU-ACCOUNTS fix round (records): notes per finding
  and the records to write; the pending tests' table renders again
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -22789,7 +22789,7 @@ index 00000000..19efae89
 From 905bad655565e9482f2bddd8ab85e73ede5ea3f5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:41:58 +0000
-Subject: [PATCH 51/56] EXEC-MU-ACCOUNTS fix round (records): the merge notes;
+Subject: [PATCH 51/59] EXEC-MU-ACCOUNTS fix round (records): the merge notes;
  CONTRACT 13 names the one local step (the Terminal look check)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -22851,7 +22851,7 @@ index 19efae89..07520384 100644
 From c6e87ee27bebbddc039ee0a9a0fe163cc4fa4242 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 12:44:46 +0000
-Subject: [PATCH 52/56] SCREENER_ONBOARDING.md: pointers into edge-bff main.py
+Subject: [PATCH 52/59] SCREENER_ONBOARDING.md: pointers into edge-bff main.py
  and screener.py moved with the merged fix-round lines (screener-worker
  onboarding_pointers)
 
@@ -22901,7 +22901,7 @@ index 0324c609..76c2882c 100644
 From 2fddd030fb8537045529a987cb855aa51c6c473b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 13:07:48 +0000
-Subject: [PATCH 53/56] edge-bff test_beta_live_site: the housekeeping's purges
+Subject: [PATCH 53/59] edge-bff test_beta_live_site: the housekeeping's purges
  are four after the merge (the outbox purge of the auth track, R2-24), and the
  outbox purge is held to the same batch bound
 
@@ -22941,7 +22941,7 @@ index ab0afcd0..407473a1 100644
 From 9a22ee751236fb9332239dd0251317f51ebc59b8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 13:11:13 +0000
-Subject: [PATCH 54/56] .railway/railway.ts: the planned edge-bff-live is
+Subject: [PATCH 54/59] .railway/railway.ts: the planned edge-bff-live is
  written as its settings, without a service() call in the comment
 
 The site track's comment block opened with a commented service("edge-bff-live", {...}) call. The terminal-api test
@@ -22990,7 +22990,7 @@ index c99c6ffc..86e679a8 100644
 From 7d793ad22a92a373ab2d6803acf1759b3be23f19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 13:57:54 +0000
-Subject: [PATCH 55/56] terminal-api (track guest): the whole ticker list for
+Subject: [PATCH 55/59] terminal-api (track guest): the whole ticker list for
  every plan, derived from each reference file's columns; visitors of one owner
  counted apart (x-terminal-client, migration 20261119_170, not applied)
 
@@ -23910,7 +23910,7 @@ index 00000000..56ed9b70
 From 101e92911feb297fbfc4e4a1cb265b6952e6d8a9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 14:14:13 +0000
-Subject: [PATCH 56/56] edge-bff (track guest): the guest principal from the
+Subject: [PATCH 56/59] edge-bff (track guest): the guest principal from the
  catalog's guest plan, the pre-launch mode, the audited test-account mark
  (migration 20261119_070, not applied)
 
@@ -25473,6 +25473,1333 @@ index 00000000..e2140001
 +code = edge_test_account.main(args)
 +print("JOB_DONE")
 +sys.exit(code)
+-- 
+2.43.0
+
+
+From 4c7dad6d47ec1ef54c1077660be4c7a61402c92c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 14:28:55 +0000
+Subject: [PATCH 57/59] EDGE front-end (track guest): the guest Terminal, the
+ sign-in and upgrade boxes, the closed registration page
+
+Decision 1 of 2026-11-19 ("user tetap bisa search ticker, tapi ketika dia klik ticker selain bbca maka akan keluar pop
+up box to login (jika belum login) dan jika sudah login maka akan keluar pop up box (to upgrade plan)"; "1a"):
+- shared/edge-session.ts allowGuest(): a page a visitor may open reads GET /api/v1/auth/guest on a 401 (the guest
+  plan's access; no login mark, no clean-up); a visitor who signs in, or an account whose session ends, reloads the
+  page as the other (static/edge-session.js rebuilt with shared/build-shell.mjs).
+- Terminal: live.ts lockRules derives what is locked from the access and the catalog route (never a list in the page);
+  the remembered ticker never locks the page; the search lists every ticker and marks the locked ones; a locked ticker,
+  indicator or feature (layouts) asks EDGE for the box (app/locked.ts); a visitor's drawings last as long as the page;
+  presets are not offered without terminal.presets.
+- Shell: /terminal without an account where the site has guests; LockedDialog (sign in / create account for a visitor,
+  "Coming soon" and EDGE_UPGRADE_CONTACT for an account); the register and verify pages say registration opens soon in
+  the pre-launch mode; the sign-in page offers the Terminal without an account. Words in edge-labels.js (locked,
+  auth.closed, auth.login.guest, the two new refusal codes).
+- Tests: test_guest_browser.py (guest BBCA and the whole list, the sign-in box, the upgrade box with the contact, a
+  locked indicator, pre-launch pages), terminal tests/data/guest_session.test.ts. test_c2_e2e_people.py changed with
+  the decision: it asked for the BBCA-alone copy of the ticker list. look_check11 PASS on the build.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/shared/edge-session.ts          |  44 +++++-
+ apps/edge-bff/static/edge-app.js              |  72 ++++++++--
+ apps/edge-bff/static/edge-client.js           |   9 +-
+ apps/edge-bff/static/edge-labels.js           |  27 +++-
+ apps/edge-bff/static/edge-session.js          |  43 +++++-
+ apps/edge-bff/static/index.html               |  30 ++++
+ apps/edge-bff/terminal/src/app/drawings.ts    |  17 ++-
+ apps/edge-bff/terminal/src/app/indMenu.ts     |  13 +-
+ apps/edge-bff/terminal/src/app/layouts.ts     |   6 +-
+ apps/edge-bff/terminal/src/app/locked.ts      |  27 ++++
+ apps/edge-bff/terminal/src/app/presets.ts     |   3 +-
+ apps/edge-bff/terminal/src/app/search.ts      |   8 +-
+ apps/edge-bff/terminal/src/data/live.ts       |  39 +++++-
+ apps/edge-bff/terminal/src/data/types.ts      |  13 +-
+ .../edge-bff/terminal/src/styles/terminal.css |   5 +
+ .../terminal/tests/data/guest_session.test.ts |  93 +++++++++++++
+ apps/edge-bff/tests/test_c2_e2e_people.py     |  13 +-
+ apps/edge-bff/tests/test_guest_browser.py     | 129 ++++++++++++++++++
+ 18 files changed, 554 insertions(+), 37 deletions(-)
+ create mode 100644 apps/edge-bff/terminal/src/app/locked.ts
+ create mode 100644 apps/edge-bff/terminal/tests/data/guest_session.test.ts
+ create mode 100644 apps/edge-bff/tests/test_guest_browser.py
+
+diff --git a/apps/edge-bff/shared/edge-session.ts b/apps/edge-bff/shared/edge-session.ts
+index 0c3cbfc8..fda7b696 100644
+--- a/apps/edge-bff/shared/edge-session.ts
++++ b/apps/edge-bff/shared/edge-session.ts
+@@ -14,7 +14,12 @@
+      clearUserState() removes the `user` ones on sign-out and when another login signs in on this browser (M473).
+      tests/test_storage_registry.py fails on a key found in the code that is not classed here;
+    - what the account holds (Phase 2, contract 8a): access(), can(key) and limit(key) mirror the server from the session
+-     answer's `access`; catalog(kind) reads GET /api/v1/catalog/{kind}, kept in memory only (no storage key).
++     answer's `access`; catalog(kind) reads GET /api/v1/catalog/{kind}, kept in memory only (no storage key);
++   - the guest (track guest, decision 1 of 2026-11-19 "1a"): a page that a visitor without an account may open (the
++     Terminal) calls allowGuest(); its session read then answers a 401 with GET /api/v1/auth/guest, the guest plan's
++     access (`guest` true, no login, no CSRF token), and access(), can(), limit() and catalog() read it like an account's.
++     A visitor is never a user of this browser's storage: no last-login mark, no clean-up; a visitor who signs in, or an
++     account whose session ended, reloads the page as the other.
+ 
+    No figure, no market data and no wording of the pages lives here; the messages below are only the fallbacks for the
+    session refusals when the server sends none (the server's own `message` is shown first). */
+@@ -362,7 +367,11 @@ export function accessText(e: EdgeError): string | null {
+ export const SESSION_URL = '/api/v1/auth/session';
+ export const ENTITLEMENTS_HEADER = 'X-Edge-Entitlements';
+ 
+-export interface EdgeSessionInfo { login: string; ownerKey: string | null; csrf: string; access: unknown; raw: any }
++export interface EdgeSessionInfo { login: string; ownerKey: string | null; csrf: string; access: unknown; raw: any; guest?: boolean }
++/* track guest: what a visitor without an account holds (app/main.py GET /api/v1/auth/guest), and the identity of such a
++   page (never a login or an owner key: identityOf makes neither) */
++export const GUEST_URL = '/api/v1/auth/guest';
++export const GUEST_IDENTITY = 'guest:';
+ 
+ /* EXEC-MU-ACCOUNTS Phase 2 (contract sections 4 and 8a): the session answer's `access` object. `capabilities` holds the
+    flag keys the account holds (`*`: every capability, the admin plan and the switch-off principal, version 'env');
+@@ -487,12 +496,31 @@ export function sessionClient(fetchImpl?: typeof fetch) {
+   const invalidate = () => { p = null; now = null; dropCatalogs() };
+   clients.add(invalidate); listen();
+   resets.add(dropCatalogs); memoryClears.add(dropCatalogs);
++  /* track guest: whether this page may run as a visitor without an account (allowGuest), and the guest plan's answer of
++     GET /api/v1/auth/guest, or null (guests off on this site, no readable client address, or a session after all) */
++  let guests = false;
++  async function guestRead(): Promise<EdgeSessionInfo | null> {
++    let res: Response;
++    try { res = await f(GUEST_URL, { credentials:'same-origin' }) } catch { return null }
++    const d: any = await res.json().catch(() => null);
++    if (!res.ok || d?.visitor !== true) return null;
++    noteVersion(res);
++    return { login:'', ownerKey:null, csrf:'', access:d?.access ?? null, raw:d, guest:true };
++  }
+   const session = (): Promise<EdgeSessionInfo> => p ||= (async () => {
+     let res: Response;
+     try { res = await f(SESSION_URL, { credentials:'same-origin' }) }
+     catch { throw new SessionError(null, 'EDGE could not be reached. Check the connection and try again.') }
+     if (!res.ok) {
+       const e = await errorOf(res);
++      const visitor = res.status === 401 && guests ? await guestRead() : null;
++      if (visitor) {
++        // an account whose session ended on this page: the page's memory is that account's, so it reloads as a visitor
++        if (identity && identity !== GUEST_IDENTITY) { fireResets(); reloadPage() }
++        if (!identity) identity = GUEST_IDENTITY;
++        now = visitor;
++        return visitor;
++      }
+       if (res.status === 401) saySignedOut();
+       throw new SessionError(e, accessText(e) || `EDGE answered ${res.status}.`);
+     }
+@@ -504,6 +532,14 @@ export function sessionClient(fetchImpl?: typeof fetch) {
+     const id = identityOf(s.login, s.ownerKey);
+     // the same account, now named by its owner key (a deploy between two reads): the identity moves with it
+     if (identity && id !== identity && s.ownerKey && identity === norm(s.login)) { migrateIdentity(identity, id); identity = id }
++    if (identity === GUEST_IDENTITY) {
++      // a visitor of this page signed in (another tab, the sign-in box): a visitor holds nothing of an account, so
++      // nothing is cleared; the page reloads as the account (its own state, preferences and limits)
++      fireResets();
++      reloadPage();
++      const e = readError(401, { error:{ code:'USER_CHANGED', message:'You signed in to EDGE. Reload the page to continue with your account.' } });
++      throw new SessionError(e, e.message);
++    }
+     if (identity && id !== identity) {
+       // another account signed in on this browser since the page opened: never act for it with this page's state
+       fireResets();
+@@ -607,6 +643,10 @@ export function sessionClient(fetchImpl?: typeof fetch) {
+   }
+ 
+   return { session, send, invalidate, access, can, limit, catalog, get current() { return now },
++    /** track guest: this page may run as a visitor without an account (the Terminal); call before the first read */
++    allowGuest() { guests = true },
++    /** track guest: the session read is a visitor's (the guest plan's access), not an account's */
++    get guest() { return !!now?.guest },
+     /** the identity this page opened with ('' before its first session read): owner:<owner key>, else the login */
+     get identity() { return identity },
+     /** the shell only, on its own sign-out or sign-in: the next session read is a new identity, not a change of user */
+diff --git a/apps/edge-bff/static/edge-app.js b/apps/edge-bff/static/edge-app.js
+index ad70490b..1219deeb 100644
+--- a/apps/edge-bff/static/edge-app.js
++++ b/apps/edge-bff/static/edge-app.js
+@@ -356,8 +356,20 @@ addEventListener("message", e => {
+     if (!frames.includes(e.source) || !["terminal", "backtest", "screener", "radar", "overview", "watchlist"].includes(e.data.route)) return;
+     shellGo(e.data.route);
+ });
+-function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) {
++function Shell({ route, go, children, chart = false, mobilePanelOpen = false, guest = false }) {
+     const viewRecord = currentView;
++    // track guest (decision 1 of 2026-11-19): the box the Terminal asks for when the principal does not hold a ticker, an
++    // indicator or a feature it chose ({type:"locked", kind, id, name} from its frame, this origin only): sign in for a
++    // visitor without an account (guest), upgrade for an account (LockedDialog)
++    const locked = initialValue(viewRecord, "locked", () => null), setLocked = next => updateValue(viewRecord, "locked", next);
++    onLifecycle(viewRecord, "locked-box", () => {
++        const onMsg = e => { const frame = document.querySelector(".terminal-page iframe.terminal-frame");
++            if (e.origin !== location.origin || !frame || e.source !== frame.contentWindow || e.data?.source !== "terminal" || e.data.type !== "locked") return;
++            const name = typeof e.data.name === "string" ? e.data.name.slice(0, 120) : "", id = typeof e.data.id === "string" ? e.data.id.slice(0, 64) : "";
++            setLocked({kind: String(e.data.kind || ""), id, name: name || id}); };
++        addEventListener("message", onMsg);
++        return () => removeEventListener("message", onMsg);
++    }, []);
+     const { theme, toggle } = themeState;
+     const accountOpen = initialValue(viewRecord, "accountOpen", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setAccountOpen = next => updateValue(viewRecord, "accountOpen", next);
+     const accountView = initialValue(viewRecord, "accountView", () => ((() => { const seed = null; return typeof seed === "function" ? seed() : seed; })())), setAccountView = next => updateValue(viewRecord, "accountView", next);
+@@ -440,6 +452,7 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
+                 element(IconButton, { icon: "help", title: "Support unavailable", disabled: true, buttonRef: supportRef }),
+                 element(IconButton, { icon: "theme", onClick: toggle, title: `Switch to ${theme === "dark" ? "light" : "dark"} theme` }),
+                 element(IconButton, { icon: "settings", selected: settingsOpen, onClick: () => setSettingsOpen(true), title: "Settings", buttonRef: settingsRef }),
++                guest ? element(Button, { kind: "primary", onClick: () => go("/login") }, EdgeLabels.auth.login.signInTop) :
+                 element("button", { ref: avatarRef, className: `avatar ${accountOpen ? "open" : ""}`, onClick: () => setAccountOpen(!accountOpen), "aria-label": "Account menu", "aria-haspopup": "menu", "aria-expanded": accountOpen }, "E"),
+                 accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openSecurity: accountsOn ? () => setSecurityOpen(true) : null, openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } }))),
+         /* EXEC-NAV-LEFT (user 2026-11-09: "kita akan pindahkan 4 tersebut ke kiri", menu A: icons only, the name in the
+@@ -458,12 +471,14 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
+                 element("button", { type: "button", "data-tip": theme === "dark" ? "Light theme" : "Dark theme", "aria-label": `Switch to ${theme === "dark" ? "light" : "dark"} theme`, onClick: toggle }, element(Icon, { name: "theme", size: 20 })),
+                 element("button", { type: "button", ref: settingsRef, "data-tip": "Settings", "aria-label": "Settings", className: settingsOpen ? "active" : "", onClick: () => setSettingsOpen(true) }, element(Icon, { name: "settings", size: 20 })),
+                 element("span", { className: "side-account" },
++                    guest ? element("button", { type: "button", className: "avatar side-signin", "data-tip": EdgeLabels.auth.login.signInTop, "aria-label": EdgeLabels.auth.login.signInTop, onClick: () => go("/login") }, element(Icon, { name: "user" })) :
+                     element("button", { ref: avatarRef, className: `avatar ${accountOpen ? "open" : ""}`, "data-tip": accountOpen ? undefined : "Account", onClick: () => setAccountOpen(!accountOpen), "aria-label": "Account menu", "aria-haspopup": "menu", "aria-expanded": accountOpen }, "E"),
+                     accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openSecurity: accountsOn ? () => setSecurityOpen(true) : null, openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } })))),
+         children,
+         false && element(AccountDialog, { view: accountView, setView: setAccountView, close: () => setAccountView(null), returnFocusRef: avatarRef }),
+         settingsOpen && element(SettingsDialog, { close: () => setSettingsOpen(false), notify: notify, returnFocusRef: settingsRef }),
+         securityOpen && element(SecurityDialog, { close: () => setSecurityOpen(false), returnFocusRef: avatarRef, signedOut: () => { setSecurityOpen(false); go("/login"); } }),
++        locked && element(LockedDialog, { item: locked, guest, go, close: () => setLocked(null) }),
+         edgeTableDialog && element(TableDialog, { key: "edge-table-dialog", spec: edgeTableDialog }),
+         false && element(SupportDialog, { route: route, close: () => setSupportOpen(false), returnFocusRef: supportRef }),
+         false && element(GlobalMarketSearch, { go: go, close: () => setGlobalSearchOpen(false) }),
+@@ -543,6 +558,33 @@ function DialogShell({ title, description, close, children, className = "", retu
+                 element(IconButton, { icon: "close", title: "Close", onClick: close })),
+             children));
+ }
++// track guest (decision 1 of 2026-11-19; words EdgeLabels.locked; the look the design system's dialog, the shell's
++// DialogShell): a visitor without an account is asked to sign in (or to create an account while registration is open,
++// GET /api/v1/auth/config), an account is told the item is not in its plan, upgrading is coming soon (D7 "segera hadir")
++// and the contact of EDGE_UPGRADE_CONTACT, shown as text, or that it comes soon
++function LockedDialog({ item, guest, go, close }) {
++    const v = currentView, L = EdgeLabels.locked, A = EdgeLabels.access;
++    const config = initialValue(v, "config", () => null);
++    onLifecycle(v, "config", () => { let live = true; Edge.config().then(c => { if (live) updateValue(v, "config", c); }); return () => { live = false; }; }, []);
++    const name = (item.kind === "feature" && L.features[item.id]) || item.name || item.id;
++    const title = (guest ? L.guestTitle : L.upgradeTitle).replace("{name}", name);
++    const open = config?.registration === true;
++    // the dialog's first focus is its main button (DialogShell focuses [data-dialog-initial-focus])
++    const primary = (text, onClick) => element("button", { type: "button", className: "btn primary", "data-dialog-initial-focus": true, onClick },
++        " ", element("span", { className: "btn-label" }, text));
++    if (guest) return element(DialogShell, { title, description: open ? L.guestLead : L.guestLeadClosed, close, className: "locked-dialog" },
++        element("div", { className: "locked-actions" },
++            open && element(Button, { onClick: () => { close(); go("/register"); } }, L.register),
++            primary(L.signIn, () => { close(); go("/login"); })));
++    const contact = config?.upgradeContact || null;
++    return element(DialogShell, { title, description: L.upgradeLead, close, className: "locked-dialog" },
++        element("div", { className: "locked-body" },
++            element("span", { className: "pill locked-soon" }, A.comingSoon),
++            contact ? element("p", { className: "locked-contact" }, L.contact, " ", element("strong", null, contact))
++                : element("p", { className: "locked-contact" }, L.contactSoon)),
++        element("div", { className: "locked-actions" },
++            primary(L.close, close)));
++}
+ function SettingsDialog({close,returnFocusRef}) {
+  return element(DialogShell,{title:"Appearance",description:"Preferences for this browser",close,returnFocusRef},element(Button,{onClick:themeState.toggle},"Switch theme"));
+ }
+@@ -647,6 +689,8 @@ function AuthShell({title, lead, children, go}) {
+ const authLink = (go, to, text) => element("a", {href:to, className:"auth-link", onClick:e => { e.preventDefault(); go(to); }}, text);
+ function AuthPage({go, mode = "login"}) {
+   const L = EdgeLabels.auth;
++  if (mode === "closed") return element(AuthShell, {go, title:L.closed.title, lead:L.closed.lead},
++    element("p", {className:"auth-switch"}, authLink(go, "/terminal", L.closed.terminal), " · ", authLink(go, "/login", L.closed.back)));
+   if (mode === "register") return element(RegisterForm, {go, L});
+   if (mode === "verify") return element(CodeForm, {go, L});
+   if (mode === "forgot") return element(ForgotForm, {go, L});
+@@ -656,7 +700,10 @@ function AuthPage({go, mode = "login"}) {
+ }
+ function LoginForm({go, L}) {
+  const v=currentView,login=initialValue(v,"login",()=>""),password=initialValue(v,"password",()=>""),busy=initialValue(v,"busy",()=>false),error=initialValue(v,"error",()=>""),open=initialValue(v,"open",()=>false),hint=initialValue(v,"hint",()=>false);
+- onLifecycle(v,"config",()=>{let live=true;Edge.config().then(c=>{if(live)updateValue(v,"open",c.multiuser);});return()=>{live=false;};},[]);
++ // track guest: "Create account" only while registration is open (not in the pre-launch mode), "Forgot password?" with
++ // accounts on, and the Terminal without an account where the site has guests
++ const registration=initialValue(v,"registration",()=>false),guests=initialValue(v,"guests",()=>false);
++ onLifecycle(v,"config",()=>{let live=true;Edge.config().then(c=>{if(live){updateValue(v,"open",c.multiuser);updateValue(v,"registration",c.registration===true);updateValue(v,"guests",c.guests===true);}});return()=>{live=false;};},[]);
+  const notice=authFlow.notice;
+  const submit=async e=>{e.preventDefault();if(busy)return;updateValue(v,"busy",true);updateValue(v,"error","");authFlow.notice="";
+   try{await Edge.signin(login,password);updateValue(v,"password","");go(landing());}
+@@ -677,7 +724,8 @@ function LoginForm({go, L}) {
+    error&&element("p",{className:"auth-error",role:"alert"},error),
+    error&&hint&&open&&element("p",{className:"auth-note"},L.login.justRegistered," ",authLink(go,"/verify",L.login.verifyLink),"."),
+    element(Button,{kind:"primary",type:"submit",disabled:busy},busy?L.login.busy:L.login.submit)),
+-  open&&element("p",{className:"auth-switch"},L.login.noAccount," ",authLink(go,"/register",L.login.create)));
++  registration&&element("p",{className:"auth-switch"},L.login.noAccount," ",authLink(go,"/register",L.login.create)),
++  guests&&element("p",{className:"auth-switch"},authLink(go,"/terminal",L.login.guest)));
+ }
+ function RegisterForm({go, L}) {
+   const v = currentView, R = L.register, f = initialValue(v, "f", () => ({username:"", first_name:"", last_name:"", email:"", phone:"", password:"", password_repeat:""}));
+@@ -868,8 +916,8 @@ const conversationGroup = (iso) => { const days = Math.floor((Date.now() - new D
+ // EXEC-TERMINAL-API T3/T5: the terminal is its own page (/terminal-app/, built from apps/edge-bff/terminal) shown in a
+ // same-origin frame under the EDGE top bar, so its stylesheet and EDGE's never mix; its data comes through
+ // /api/terminal/... with this EDGE session.
+-function TerminalPage({ go }) {
+-    return element(Shell, { route: "terminal", go: go, chart: true },
++function TerminalPage({ go, guest = false }) {
++    return element(Shell, { route: "terminal", go: go, chart: true, guest },
+         element("main", { className: "terminal-page" },
+             element("iframe", { className: "terminal-frame", src: "/terminal-app/?in=edge", title: EdgeLabels.terminal.frameTitle })));
+ }
+@@ -2635,7 +2683,10 @@ function App() {
+     const viewRecord = currentView;
+     const currentPath = () => { const p = routeLocation().pathname; return p.startsWith("/c/") ? "/monitor" : routeOf(p)?.path === p ? p : p === "/markets" ? "/monitor" : "/login"; };
+     const authenticated=initialValue(viewRecord,"authenticated",()=>false),checked=initialValue(viewRecord,"checked",()=>false),open=initialValue(viewRecord,"open",()=>false);
+-    onLifecycle(viewRecord,"config",()=>{let live=true;Edge.config().then(c=>{if(live)updateValue(viewRecord,"open",c.multiuser);});return()=>{live=false;};},[]);
++    // track guest: the pre-launch mode closes the register and verify pages (they say registration opens soon), and a
++    // visitor without an account opens the Terminal where the site has guests (GET /api/v1/auth/config)
++    const prelaunch=initialValue(viewRecord,"prelaunch",()=>false),guests=initialValue(viewRecord,"guests",()=>false);
++    onLifecycle(viewRecord,"config",()=>{let live=true;Edge.config().then(c=>{if(live){updateValue(viewRecord,"open",c.multiuser);updateValue(viewRecord,"prelaunch",c.prelaunch===true);updateValue(viewRecord,"guests",c.guests===true);}});return()=>{live=false;};},[]);
+     onLifecycle(viewRecord,"auth",()=>{const sync=()=>{updateValue(viewRecord,"authenticated",Boolean(Edge.auth));updateValue(viewRecord,"accessVersion",Edge.auth?.access?.version ?? null);};addEventListener("edge-auth",sync);Edge.session().then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
+     const path = initialValue(viewRecord, "path", currentPath), setPath = next => updateValue(viewRecord, "path", next);
+     // which account page shows, or null for a workspace page: a session that waits for the authenticator (access.next
+@@ -2646,6 +2697,7 @@ function App() {
+         if (authenticated) return null;
+         if (!r || r.auth !== false) return "login";
+         if (r.open && !open) return "login";
++        if (prelaunch && (r.mode === "register" || r.mode === "verify")) return "closed";
+         return r.mode; };
+     const theme = initialValue(viewRecord, "theme", () => localStorage.getItem("edge-auth-monitor-theme") || "light"), setTheme = next => updateValue(viewRecord, "theme", next);
+     onLifecycle(viewRecord, "navigation", () => {
+@@ -2660,8 +2712,9 @@ function App() {
+     // EXEC-TERMINAL-IND-EDIT (user 2026-11-05): the browser tab names the page; the words are in edge-labels.js (pages)
+     onLifecycle(viewRecord, "title", () => {
+         const P = EdgeLabels.pages, r = routeOf(path), m = authMode();
+-        document.title = !checked ? P.loading : !authenticated || r?.auth === false ? P[m === "login" ? "signIn" : m] || P.signIn : P[r?.title] || P.monitor;
+-    }, [checked, authenticated, path, open]);
++        document.title = !checked ? P.loading : !authenticated && guests && path === "/terminal" ? P.terminal
++            : !authenticated || r?.auth === false ? P[m === "login" ? "signIn" : m] || P.signIn : P[r?.title] || P.monitor;
++    }, [checked, authenticated, path, open, guests, prelaunch]);
+     const go = route => {
+         const target = routeOf(route);
+         if (!target) return;
+@@ -2679,6 +2732,9 @@ function App() {
+     themeState = { theme, toggle };
+     shellGo = go;                                     // the edge-nav listener (below nav) switches pages with it
+     if (!checked) return element("div",{className:"auth-page"},"Checking session…");
++    // track guest: a visitor without an account on the Terminal page, where the site has guests; every other page asks
++    // to sign in (its routes answer 401 without a session)
++    if (!authenticated && guests && path === "/terminal") return element(TerminalPage,{go,guest:true});
+     const mode = authMode();
+     if (!authenticated || mode !== null) return element(AuthPage,{mode:mode || "login",go,key:mode || "login"});
+     // signed in on an account page (a reload at /login): the account's landing page (re-check R2-14)
+diff --git a/apps/edge-bff/static/edge-client.js b/apps/edge-bff/static/edge-client.js
+index 216ef694..ff813287 100644
+--- a/apps/edge-bff/static/edge-client.js
++++ b/apps/edge-bff/static/edge-client.js
+@@ -96,7 +96,14 @@
+   let config = null;
+   const readConfig = () => config || (config = fetch('/api/v1/auth/config', {credentials:'same-origin'})
+     // the body is always read, also of a 404: an answer whose body is never read stays open in the browser
+-    .then(r => r.json().catch(() => ({})).then(d => r.ok ? d : {})).then(d => ({multiuser: d?.multiuser === true})).catch(() => ({multiuser:false})));
++    // track guest (decision 1 and the pre-launch decisions of 2026-11-19): with accounts on, whether registration is
++    // open (an older server without the key: open), the pre-launch mode, whether a visitor opens the Terminal, and the
++    // upgrade box's contact (null: the box says it comes soon)
++    .then(r => r.json().catch(() => ({})).then(d => r.ok ? d : {})).then(d => ({multiuser: d?.multiuser === true,
++      registration: d?.multiuser === true && d?.registration !== false, prelaunch: d?.prelaunch === true,
++      guests: d?.multiuser === true && d?.guests === true,
++      upgradeContact: typeof d?.upgrade_contact === 'string' && d.upgrade_contact ? d.upgrade_contact : null}))
++    .catch(() => ({multiuser:false, registration:false, prelaunch:false, guests:false, upgradeContact:null})));
+   const terminal = s => ['FINISHED','FAILED','INTERRUPTED'].includes(s.state);
+   // EXEC-X (M124): the frame stays English (user decision 2026-10-08) but says what the saved response is
+   const DOMAIN = {COMPLETED:'Completed',AWAITING_CONFIRMATION:'Awaiting approval',NEEDS_CLARIFICATION:'Needs your reply',LIMITED:'Limited',FAILED:'Failed'};
+diff --git a/apps/edge-bff/static/edge-labels.js b/apps/edge-bff/static/edge-labels.js
+index f0c7179d..c93c9749 100644
+--- a/apps/edge-bff/static/edge-labels.js
++++ b/apps/edge-bff/static/edge-labels.js
+@@ -171,13 +171,36 @@ window.EdgeLabels = {
+     overview:"EDGE — Overview", watchlist:"EDGE — Watchlist",
+     register:"EDGE — Create Account", verify:"EDGE — Enter Code", forgot:"EDGE — Forgot Password",
+     reset:"EDGE — New Password", mfa:"EDGE — Authenticator" },
++  // track guest (decision 1 of 2026-11-19, the user: "ketika dia klik ticker selain bbca maka akan keluar pop up box to
++  // login (jika belum login) dan jika sudah login maka akan keluar pop up box (to upgrade plan)"): the box the Terminal
++  // opens for a ticker, an indicator or a feature the principal does not hold ({name}: the item). Without an account:
++  // sign in or create one; with one: the upgrade box, "segera hadir" (access.comingSoon) and the contact of
++  // EDGE_UPGRADE_CONTACT, or, while it is not set, that it comes soon. `mark`: the lock beside a locked row
++  locked: {
++    mark:"Locked",
++    guestTitle:"Sign in to open {name}",
++    guestLead:"Without an account EDGE shows part of the Terminal. Sign in to see more, or create an account.",
++    guestLeadClosed:"Without an account EDGE shows part of the Terminal. Sign in to see more; registration opens soon.",
++    signIn:"Sign in", register:"Create account",
++    upgradeTitle:"{name} is not in your plan",
++    upgradeLead:"Your EDGE plan does not include this yet. Upgrading is coming soon.",
++    contact:"Contact us to upgrade:", contactSoon:"How to contact us about upgrading will be shown here soon.",
++    close:"Close",
++    features:{ "terminal.layouts":"Saved chart layouts", "terminal.presets":"Indicator presets" }
++  },
+   // EXEC-MU-ACCOUNTS Phase 1 (contract section 4; user: English labels): the account pages. A refusal shows the
+   // server's own message (error.message); `errors` is the fallback by code when the server sends none.
+   auth: {
+     login: { title:"Welcome to Edge", lead:"Sign in to your private workspace.", login:"Login", loginHint:"Username or email",
+       password:"Password", submit:"Sign In", busy:"Signing in…", create:"Create account", noAccount:"No account yet?",
+       forgot:"Forgot password?", resetDone:"Your password was changed. Sign in with the new password.",
+-      justRegistered:"If you have just registered, check your email for a code and enter it on the", verifyLink:"Verify page" },
++      justRegistered:"If you have just registered, check your email for a code and enter it on the", verifyLink:"Verify page",
++      // track guest: where visitors open the Terminal without an account (shown when the site has guests)
++      guest:"Open the Terminal without an account", signInTop:"Sign in" },
++    // track guest (the pre-launch mode, the user 2026-11-19: "Terbuka, tapi belum bisa mendaftar"): the register page
++    // while registration is closed
++    closed: { title:"Registration opens soon", lead:"EDGE is not taking new accounts yet. You can open the Terminal without an account.",
++      terminal:"Open the Terminal", back:"Back to sign in" },
+     register: { title:"Create your account", lead:"Use your email to create an EDGE account.", username:"Username",
+       usernameHint:"3 to 30 lowercase letters, digits or _", firstName:"First name", lastName:"Last name", email:"Email",
+       phone:"Phone", phoneHint:"For example 0812 3456 7890 or +62 812 3456 7890", password:"Password",
+@@ -218,6 +241,8 @@ window.EdgeLabels = {
+       USER_CHANGED:"Another EDGE account signed in on this browser. Reload the page to continue as that account.",
+       SIGN_IN_RATE_LIMIT:"Too many attempts. Wait a few minutes, then try again.", LIMIT_REACHED:"Too many attempts today. Try again tomorrow.",
+       INVALID_INPUT:"Check the fields and try again.", MFA_INVALID:"That code is not right. Try the newest code.",
++      REGISTRATION_CLOSED:"Registration opens soon. You can still open the Terminal without an account.",
++      SIGN_IN_CLOSED:"EDGE opens to accounts soon. Until then only test accounts can sign in.",
+       fallback:"That did not work. Try again in a minute." }
+   }
+ };
+diff --git a/apps/edge-bff/static/edge-session.js b/apps/edge-bff/static/edge-session.js
+index 053568f6..c65470e4 100644
+--- a/apps/edge-bff/static/edge-session.js
++++ b/apps/edge-bff/static/edge-session.js
+@@ -1,4 +1,4 @@
+-/* generated from apps/edge-bff/shared/edge-session.ts sha256=618dc7adf2577f5f9f00c47e8074304795071331cd4c0d41c60502266127063b by shared/build-shell.mjs; do not edit */
++/* generated from apps/edge-bff/shared/edge-session.ts sha256=9ece5cce8232864f82e961a49887fdc4b656f2dc10cf743d488185bc51b71240 by shared/build-shell.mjs; do not edit */
+ var EdgeSession = (() => {
+   var __defProp = Object.defineProperty;
+   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+@@ -23,6 +23,8 @@ var EdgeSession = (() => {
+   __export(edge_session_exports, {
+     CATALOG_URL: () => CATALOG_URL,
+     ENTITLEMENTS_HEADER: () => ENTITLEMENTS_HEADER,
++    GUEST_IDENTITY: () => GUEST_IDENTITY,
++    GUEST_URL: () => GUEST_URL,
+     LAST_LOGIN_KEY: () => LAST_LOGIN_KEY,
+     PREFERENCES_URL: () => PREFERENCES_URL,
+     SESSION_URL: () => SESSION_URL,
+@@ -387,6 +389,8 @@ var EdgeSession = (() => {
+   }
+   var SESSION_URL = "/api/v1/auth/session";
+   var ENTITLEMENTS_HEADER = "X-Edge-Entitlements";
++  var GUEST_URL = "/api/v1/auth/guest";
++  var GUEST_IDENTITY = "guest:";
+   var CATALOG_URL = "/api/v1/catalog/";
+   var isItemKey = (key) => key.includes(":");
+   var SessionError = class extends Error {
+@@ -543,6 +547,19 @@ ${identity}`;
+     listen();
+     resets.add(dropCatalogs);
+     memoryClears.add(dropCatalogs);
++    let guests = false;
++    async function guestRead() {
++      let res;
++      try {
++        res = await f(GUEST_URL, { credentials: "same-origin" });
++      } catch {
++        return null;
++      }
++      const d = await res.json().catch(() => null);
++      if (!res.ok || d?.visitor !== true) return null;
++      noteVersion(res);
++      return { login: "", ownerKey: null, csrf: "", access: d?.access ?? null, raw: d, guest: true };
++    }
+     const session = () => p || (p = (async () => {
+       let res;
+       try {
+@@ -552,6 +569,16 @@ ${identity}`;
+       }
+       if (!res.ok) {
+         const e = await errorOf(res);
++        const visitor = res.status === 401 && guests ? await guestRead() : null;
++        if (visitor) {
++          if (identity && identity !== GUEST_IDENTITY) {
++            fireResets();
++            reloadPage();
++          }
++          if (!identity) identity = GUEST_IDENTITY;
++          now = visitor;
++          return visitor;
++        }
+         if (res.status === 401) saySignedOut();
+         throw new SessionError(e, accessText(e) || `EDGE answered ${res.status}.`);
+       }
+@@ -570,6 +597,12 @@ ${identity}`;
+         migrateIdentity(identity, id);
+         identity = id;
+       }
++      if (identity === GUEST_IDENTITY) {
++        fireResets();
++        reloadPage();
++        const e = readError(401, { error: { code: "USER_CHANGED", message: "You signed in to EDGE. Reload the page to continue with your account." } });
++        throw new SessionError(e, e.message);
++      }
+       if (identity && id !== identity) {
+         fireResets();
+         void clearUserState();
+@@ -677,6 +710,14 @@ ${identity}`;
+       get current() {
+         return now;
+       },
++      /** track guest: this page may run as a visitor without an account (the Terminal); call before the first read */
++      allowGuest() {
++        guests = true;
++      },
++      /** track guest: the session read is a visitor's (the guest plan's access), not an account's */
++      get guest() {
++        return !!now?.guest;
++      },
+       /** the identity this page opened with ('' before its first session read): owner:<owner key>, else the login */
+       get identity() {
+         return identity;
+diff --git a/apps/edge-bff/static/index.html b/apps/edge-bff/static/index.html
+index b3150ae9..d7f1b298 100644
+--- a/apps/edge-bff/static/index.html
++++ b/apps/edge-bff/static/index.html
+@@ -1981,6 +1981,36 @@ h1 {
+ .security-dialog>.btn {
+   margin-bottom: 18px;
+ }
++/* track guest (decision 1 of 2026-11-19): the box of a ticker, indicator or feature the principal does not hold (the
++   design system's dialog: head, body, actions at the right; the main action ink) */
++.locked-dialog {
++  width: min(440px,calc(100vw - 32px));
++  overflow-y: auto;
++}
++.locked-dialog .locked-body {
++  display: flex;
++  flex-direction: column;
++  align-items: flex-start;
++  gap: 10px;
++  padding: 16px 18px 0;
++}
++.locked-dialog .locked-contact {
++  margin: 0;
++  font-size: .875rem;
++  line-height: 1.45;
++  overflow-wrap: anywhere;
++}
++.locked-dialog .locked-soon {
++  font-size: 11px;
++  font-weight: 600;
++}
++.locked-dialog .locked-actions {
++  display: flex;
++  justify-content: flex-end;
++  flex-wrap: wrap;
++  gap: 8px;
++  padding: 16px 18px 18px;
++}
+ .dialog-head {
+   min-height: 66px;
+   display: flex;
+diff --git a/apps/edge-bff/terminal/src/app/drawings.ts b/apps/edge-bff/terminal/src/app/drawings.ts
+index c5b9df8a..8b5df8f9 100644
+--- a/apps/edge-bff/terminal/src/app/drawings.ts
++++ b/apps/edge-bff/terminal/src/app/drawings.ts
+@@ -145,26 +145,31 @@ export function initDrawings(ctx: Ctx) {
+      set is kept on the EDGE account (data/drawingsApi.ts): the price chart's (key = the ticker), each Flow Timeline's
+      (`flow.TICKER`) and each indicator pane's (`pane.TICKER.<pane id>`); this browser keeps a set only while the account
+      cannot be reached. The fixture keeps the browser's storage (the reference's behaviour). */
+-  const acct = ctx.M.mode === 'live' ? accountDrawings(say) : null;
++  /* track guest: a visitor without an account has no account to keep drawings in, and its browser keeps nothing either
++     (as for a plan whose drawings the account refuses, re-check R1-19): its drawings last as long as the page */
++  const guest = ctx.M.mode === 'live' && !!ctx.M.locks?.guest;
++  const acct = ctx.M.mode === 'live' && !guest ? accountDrawings(say) : null;
++  const page = new Map<string, string>();
++  const keep = guest ? { get:(k: string) => page.get(k) ?? null, set:(k: string, v: string) => { page.set(k, v) }, remove:(k: string) => { page.delete(k) } } : store;
+   const where = (key: string): [string, string] => key.startsWith('flow.') ? [key.slice(5), 'flow']
+     : key.startsWith('pane.') ? [key.split('.')[1], 'pane_' + key.split('.')[2]] : [key, 'chart'];
+   const repo = {
+     key: (symbol: string) => `ml.drawings.${symbol}`,
+     load: async (symbol: string) => {
+-      const legacy = store.get(`${repo.key(symbol)}.intraday`);
+-      if (legacy !== null) { store.set(repo.key(symbol), mergeSets(store.get(repo.key(symbol)) || '[]', legacy)); store.remove(`${repo.key(symbol)}.intraday`) }
+-      const json = acct ? await acct.load(...where(symbol), repo.key(symbol)) : store.get(repo.key(symbol)) || '[]';
++      const legacy = keep.get(`${repo.key(symbol)}.intraday`);
++      if (legacy !== null) { keep.set(repo.key(symbol), mergeSets(keep.get(repo.key(symbol)) || '[]', legacy)); keep.remove(`${repo.key(symbol)}.intraday`) }
++      const json = acct ? await acct.load(...where(symbol), repo.key(symbol)) : keep.get(repo.key(symbol)) || '[]';
+       const shown = intraday ? onIntradayCandles(json, dates) : onDailyCandles(json, barOf, lastSession, tf !== 'D');
+       memos.set(symbol, shownTimes(json, shown));
+       return shown;
+     },
+     save: (symbol: string, json: string) => {
+       const stored = storedTimes(json, memos.get(symbol) || new Map());
+-      if (acct) acct.save(...where(symbol), stored, repo.key(symbol)); else store.set(repo.key(symbol), stored);
++      if (acct) acct.save(...where(symbol), stored, repo.key(symbol)); else keep.set(repo.key(symbol), stored);
+       return Promise.resolve();
+     },
+     /** a pane's set when the user removes the pane (2A: its drawings go with it; Undo brings them back through save) */
+-    forget: (symbol: string) => { if (acct) acct.remove(...where(symbol)); store.remove(repo.key(symbol)) }
++    forget: (symbol: string) => { if (acct) acct.remove(...where(symbol)); keep.remove(repo.key(symbol)) }
+   };
+ 
+   /* EXEC-XABCD-PREVIEW (user 2026-11-11: "X A B C D yang biru adalah tradingview ... masukan exec untuk di benarkan", go
+diff --git a/apps/edge-bff/terminal/src/app/indMenu.ts b/apps/edge-bff/terminal/src/app/indMenu.ts
+index 667c8a5b..ed44202d 100644
+--- a/apps/edge-bff/terminal/src/app/indMenu.ts
++++ b/apps/edge-bff/terminal/src/app/indMenu.ts
+@@ -12,6 +12,7 @@ import { $, store } from './context';
+ import { draggable, fitInView, shiftOf } from './draggable';
+ import { FLOW_REG, SINGLE_SECURITY } from './flowIndicators';
+ import { ALL_INPUTS, fits, inputsOf, needsOf, type Input } from '../data/inputs';
++import { askLocked, lockMark } from './locked';
+ 
+ export interface MenuItem { id: string; name: string; group: string; kind: 'Technical' | 'Flow' | 'Base'; place: string; unit: string; tip: string; short?: string }
+ 
+@@ -213,9 +214,9 @@ export function initIndMenu(ctx: Ctx) {
+   const rowHtml = (i: MenuItem, wide: boolean) => {
+       /* EXEC-IND-PRESETS (user 2026-11-06: "C bisa di-replace dengan indikator definition, bagian D remove entirely"): the
+          grey line is the indicator's definition; the Place · Unit column is gone */
+-      const n = onChart(i), fav = favs.has(i.id), d = i.tip || '';
+-      return `<div class="im-row" role="listitem" tabindex="0" data-id="${esc(i.id)}"><button type="button" class="im-star${fav ? ' on' : ''}" data-star="${esc(i.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Remove from' : 'Add to'} favorites">${STAR}</button>`
+-        + `<div><div class="nm"><span class="nmt">${esc(i.name)}</span>${i.kind === 'Base' ? '' : `<small>${esc(i.id)}</small>`}${n ? `<em>${i.kind === 'Base' ? 'On chart' : `${n} on chart`}</em>` : ''}</div>`
++      const n = onChart(i), fav = favs.has(i.id), d = i.tip || '', lock = locked(i);
++      return `<div class="im-row${lock ? ' locked' : ''}" role="listitem" tabindex="0" data-id="${esc(i.id)}"><button type="button" class="im-star${fav ? ' on' : ''}" data-star="${esc(i.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Remove from' : 'Add to'} favorites">${STAR}</button>`
++        + `<div><div class="nm"><span class="nmt">${esc(i.name)}</span>${i.kind === 'Base' ? '' : `<small>${esc(i.id)}</small>`}${lock ? lockMark('im-lock') : ''}${n ? `<em>${i.kind === 'Base' ? 'On chart' : `${n} on chart`}</em>` : ''}</div>`
+         + `<div class="pa" title="${esc(d)}">${esc(d || (i.kind === 'Base' ? 'Volume bars under the price chart' : ''))}</div></div>`
+         + `<button type="button" class="im-add" data-add="${esc(i.id)}" aria-label="Add ${esc(i.name)}">Add</button></div>`;
+   };
+@@ -254,12 +255,18 @@ export function initIndMenu(ctx: Ctx) {
+   });
+   document.addEventListener('pointerdown', e => { if (!pmenu.hidden && !pmenu.contains(e.target as Node)) pmenu.hidden = true }, true);
+   const byId = (id: string) => items.find(i => i.id === id)!;
++  /* track guest: what the catalog does not list for the principal (live.ts lockRules); the base volume is not an item */
++  function locked(i: MenuItem) {
++    return i.kind !== 'Base' && !!ctx.M.locks?.item(i.kind === 'Flow' ? 'flow_indicator' : 'indicator', i.id);
++  }
+   let toastTimer: any = 0;
+   const note = (text: string) => {
+     toast.textContent = text; toast.classList.add('show');
+     clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 1600);
+   };
+   const add = (i: MenuItem) => {
++    // track guest (decision 1 of 2026-11-19): an indicator the principal does not hold opens the box (locked.ts)
++    if (locked(i)) { askLocked({ kind:i.kind === 'Flow' ? 'flow_indicator' : 'indicator', id:i.id, name:i.name }); return }
+     if (i.kind === 'Base') { if (volCtl.removed) volCtl.setRemoved(false); note(volCtl.removed ? `${i.name} could not be added` : `${i.name} is on the chart`) }
+     else if (Ind.byName[i.name]) { const before = Ind.countOf(Ind.byName[i.name]); Ind.add(Ind.byName[i.name]);
+       note(Ind.countOf(Ind.byName[i.name]) > before ? `${i.name} added` : `${i.name} could not be added`) }
+diff --git a/apps/edge-bff/terminal/src/app/layouts.ts b/apps/edge-bff/terminal/src/app/layouts.ts
+index e2f29328..8ec68ced 100644
+--- a/apps/edge-bff/terminal/src/app/layouts.ts
++++ b/apps/edge-bff/terminal/src/app/layouts.ts
+@@ -14,6 +14,7 @@
+ import type { Ctx } from './context';
+ import { $, store, storeWatch } from './context';
+ import { LayoutApiError, layoutsApi, newLayoutId, type LayoutMeta } from '../data/layoutsApi';
++import { askLocked } from './locked';
+ 
+ export const LAYOUT_KEYS = ['ml.ind.v1', 'ml.tf', 'ml.chart.style', 'ml.chart.mode', 'ml.vol.on', 'ml.vol.removed', 'ml.events.v1',
+   'ml.fi.metric', 'ml.ind.filters', 'ml.flow.filters', 'ml.flow.cum', 'ml.flow.collapsed', 'ml.flow.h', 'ml.flow.ratio',
+@@ -242,7 +243,10 @@ export function initLayouts(ctx: Ctx) {
+     renderMenu(); place(); keepFocus(sel);
+   }
+   function closeMenu(focus = false) { if (menu.hidden) return; menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); if (focus) btn.focus() }
+-  btn.addEventListener('click', () => menu.hidden ? openMenu() : closeMenu());
++  /* track guest: a principal without terminal.layouts (a visitor, the free plan) gets the box (sign in, or upgrade)
++     instead of a menu whose every read and save the server refuses */
++  btn.addEventListener('click', () => { if (ctx.M.locks?.feature('terminal.layouts')) { askLocked({ kind:'feature', id:'terminal.layouts' }); return }
++    menu.hidden ? openMenu() : closeMenu() });
+   document.addEventListener('pointerdown', e => { const t = e.target as Node; if (!menu.hidden && !menu.contains(t) && !btn.contains(t)) closeMenu() }, true);
+   addEventListener('resize', () => { if (!menu.hidden) place() });
+   // Escape closes the menu wherever the focus is (a star click redraws the menu)
+diff --git a/apps/edge-bff/terminal/src/app/locked.ts b/apps/edge-bff/terminal/src/app/locked.ts
+new file mode 100644
+index 00000000..70267307
+--- /dev/null
++++ b/apps/edge-bff/terminal/src/app/locked.ts
+@@ -0,0 +1,27 @@
++/* Track guest (EXEC-MU-ACCOUNTS, decision 1 of 2026-11-19: "user tetap bisa search ticker, tapi ketika dia klik ticker
++   selain bbca maka akan keluar pop up box to login (jika belum login) dan jika sudah login maka akan keluar pop up box (to
++   upgrade plan)"; verification/edge_multiuser/fix_round/guest.md): a ticker, an indicator or a feature the principal does
++   not hold (MarketData.locks, read from the server's access and catalog in live.ts) opens a box. EDGE's shell draws it
++   (static/edge-app.js LockedDialog: its words are static/edge-labels.js EdgeLabels.locked, its look the design system's
++   dialog): it knows whether the visitor is signed in (sign in or register) or not (upgrade), so the Terminal only says
++   what was asked. Opened alone, outside EDGE, the Terminal goes to EDGE's Terminal page, where the box is. */
++
++export interface LockedItem { kind: 'ticker' | 'indicator' | 'flow_indicator' | 'feature'; id: string; name?: string }
++
++export function askLocked(item: LockedItem) {
++  const shell = window.parent !== window ? window.parent : null;
++  if (shell) { shell.postMessage({ source:'terminal', type:'locked', kind:item.kind, id:item.id, name:item.name || item.id }, location.origin); return }
++  location.href = '/terminal';
++}
++
++/** the word of the lock mark, from the shell's labels (the Terminal runs in EDGE's frame, same origin) */
++export function lockWord(): string {
++  try { const w = (window.parent as any)?.EdgeLabels?.locked?.mark; if (typeof w === 'string' && w) return w } catch { /* not EDGE's frame */ }
++  return 'Locked';
++}
++
++/** the lock mark (an inline 12 px icon in the text's colour, the word as its name for screen readers and its tooltip) */
++export const lockMark = (cls = 'tk-lock') => {
++  const w = lockWord().replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
++  return `<span class="${cls}" role="img" aria-label="${w}" title="${w}"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg></span>`;
++};
+diff --git a/apps/edge-bff/terminal/src/app/presets.ts b/apps/edge-bff/terminal/src/app/presets.ts
+index a3626dfb..99b77d5a 100644
+--- a/apps/edge-bff/terminal/src/app/presets.ts
++++ b/apps/edge-bff/terminal/src/app/presets.ts
+@@ -21,7 +21,8 @@ export interface PresetsSurface {
+ }
+ 
+ export function initPresets(ctx: Ctx): PresetsSurface | null {
+-  if (ctx.M.mode !== 'live') return null;
++  // track guest: a principal without terminal.presets (a visitor, the free plan) is offered no presets (nothing to read)
++  if (ctx.M.mode !== 'live' || ctx.M.locks?.feature('terminal.presets')) return null;
+   const { Ind } = ctx;
+   let list: Preset[] = [], error = '', loading = false;
+   const changed = () => S.onChange?.();
+diff --git a/apps/edge-bff/terminal/src/app/search.ts b/apps/edge-bff/terminal/src/app/search.ts
+index b7464c18..eedac4fc 100644
+--- a/apps/edge-bff/terminal/src/app/search.ts
++++ b/apps/edge-bff/terminal/src/app/search.ts
+@@ -3,6 +3,7 @@
+    published ticker reference with its sector). */
+ import type { Ctx } from './context';
+ import { $, hasLogos, logoHtml, onLogos, store } from './context';
++import { askLocked, lockMark } from './locked';
+ 
+ export function initSearch(ctx: Ctx) {
+   const { SYMBOL, INSTRUMENTS } = ctx;
+@@ -43,7 +44,7 @@ export function initSearch(ctx: Ctx) {
+       const row = r => { const i = shown.indexOf(r);
+         return `<button type="button" class="gp-row${i === active ? ' is-active' : ''}" role="option" aria-selected="${i === active}" data-i="${i}">
+             ${hasLogos() ? `<span class="gp-avatar has-logo">${logoHtml(r[0])}</span>` : `<span class="gp-avatar">${r[0].slice(0, 2)}</span>`}
+-            <span class="gp-meta"><span class="gp-ticker">${r[0]}${tagOf(r[0]) ? `<span class="gp-cur">${tagOf(r[0])}</span>` : ''}</span><span class="gp-company">${esc(r[1])}</span></span>
++            <span class="gp-meta"><span class="gp-ticker">${r[0]}${tagOf(r[0]) ? `<span class="gp-cur">${tagOf(r[0])}</span>` : ''}${r[4]?.locked ? lockMark('gp-lock') : ''}</span><span class="gp-company">${esc(r[1])}</span></span>
+             <span class="gp-rightmeta">${grouped && !r[4]?.place ? '' : `<span class="gp-sector">${esc(r[4]?.place || r[2])}</span>`}<span class="gp-market">${esc(r[4]?.market || 'IDX · Equity')}</span></span></button>` };
+       results.innerHTML = !shown.length ? '<p class="gp-empty">No instruments found</p>'
+         : grouped ? groups.map(([sec, rows]) => `<div class="gp-group">${esc(sec)}</div>` + rows.map(row).join('')).join('') : found.map(row).join('');
+@@ -51,7 +52,10 @@ export function initSearch(ctx: Ctx) {
+       toggle.classList.toggle('active', grouped); toggle.setAttribute('aria-pressed', String(grouped));
+       const cur = results.querySelector('.is-active'); if(cur) cur.scrollIntoView({ block:'nearest' });
+     }
+-    const choose = r => { close(); if(use.pick){ if(r) use.pick(r); return } if(r && r[0] !== SYMBOL){ store.set('ml.symbol', r[0]); location.reload() } };
++    /* track guest (decision 1 of 2026-11-19): a ticker the plan does not hold is listed and searched like any other; choosing
++       it opens the box (sign in, or upgrade) instead of the chart (locked.ts) */
++    const choose = r => { close(); if(r && r[4]?.locked){ askLocked({ kind:'ticker', id:r[0], name:r[1] }); return }
++      if(use.pick){ if(r) use.pick(r); return } if(r && r[0] !== SYMBOL){ store.set('ml.symbol', r[0]); location.reload() } };
+     function close() { if(!layer) return; layer.remove(); layer = null; document.removeEventListener('keydown', onKey, true); if(opener && opener.focus) opener.focus() }
+     const onKey = (e: any) => { if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); close() } else if(e.key === 'Tab'){ e.preventDefault(); input.focus() } };
+     document.addEventListener('keydown', onKey, true);
+diff --git a/apps/edge-bff/terminal/src/data/live.ts b/apps/edge-bff/terminal/src/data/live.ts
+index 65b6857e..6c455bef 100644
+--- a/apps/edge-bff/terminal/src/data/live.ts
++++ b/apps/edge-bff/terminal/src/data/live.ts
+@@ -1,7 +1,7 @@
+ /* Live data: the pre-published files of the rack (bucket terminal-display) reached through EDGE's /api/terminal
+    gateway (FRONTEND_HANDOFF.md). The page asks for presigned URLs and downloads the gzip JSON files itself.
+    Everything is mapped into the reference page's own shapes (types.ts). */
+-import type { AssetBar, Bar, Combo, CompareSpec, InsiderTx, Instrument, MarketData, MarketEvent, Point, VolumePoint } from './types';
++import type { AssetBar, Bar, Combo, CompareSpec, InsiderTx, Instrument, Locks, MarketData, MarketEvent, Point, VolumePoint } from './types';
+ import { barRows, brokerData, download, priceRows, rowsOf, type PriceRow, type WorkerAnswer } from './worker';
+ import { INTEGRITY_MESSAGE, isIntegrity, type FileRef } from './rack';
+ import { aggregateRows, alignCandles, alignCandlesCarry, buckets, candleOf, dayOfCandles, dayOfKey, isIntraday, type Timeframe } from './timeframe';
+@@ -9,6 +9,9 @@ import { fileStats, mark } from '../app/perf';
+ import { accessText, edge, isAccessRefusal, readError, SessionError } from '../../../shared/edge-session';
+ 
+ const API = '/api/terminal/v1';
++/* track guest (decision 1 of 2026-11-19, "1a"): the Terminal is the page a visitor without an account opens; its session
++   read then answers with the guest plan's access (shared/edge-session.ts allowGuest) */
++edge.allowGuest();
+ 
+ /** `code` DATA_INTEGRITY: a file was not the one terminal-api announced (rack.ts IntegrityError; `detail` what differed,
+     never a URL) */
+@@ -98,6 +101,22 @@ async function session(): Promise<string> {
+     throw sessionFailure(e);
+   }
+ }
++
++/* track guest (decision 1 of 2026-11-19: "user tetap bisa search ticker, tapi ketika dia klik ticker selain bbca maka akan
++   keluar pop up box"): what the principal does not hold, derived from what the server says it holds, never from a list
++   here: a ticker outside its terminal.tickers (no list: every ticker), an indicator or Flow indicator the catalog route
++   does not list for it (`*` holds every one, so no catalog is read), a feature flag it lacks. An answer without
++   `access` (a server before the catalog) locks nothing, as before; a catalog that cannot be read locks its kind. */
++export async function lockRules(): Promise<Locks> {
++  const a = edge.access(), guest = edge.guest;
++  if (!a) return { guest, ticker:() => false, item:() => false, feature:() => false };
++  const all = a.capabilities.includes('*'), tickers = edge.limit('terminal.tickers');
++  const held: Record<'indicator' | 'flow_indicator', Set<string>> = { indicator:new Set(), flow_indicator:new Set() };
++  if (!all) await Promise.all((['indicator', 'flow_indicator'] as const).map(kind => edge.catalog(kind)
++    .then(c => { held[kind] = new Set(c.entries.map(e => e.id)) }, () => {})));
++  return { guest, ticker:t => Array.isArray(tickers) && !tickers.includes(t), item:(kind, id) => !all && !held[kind].has(id),
++    feature:cap => !edge.can(cap) };
++}
+ /* a session that could not be read: a plan refusal's message, EDGE out of reach, or the sign-in sentence */
+ function sessionFailure(e: unknown): unknown {
+   if (!(e instanceof SessionError)) return e;
+@@ -267,6 +286,7 @@ function alignBars(keys: string[], rows: PriceRow[]): Bar[] {
+ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondMetric: 'yield' | 'price' = 'yield'): Promise<MarketData> {
+   const csrf = await session();
+   mark('session');
++  const locksP = lockRules();
+   /* EXEC-MU-RUNTIME T5/T7: a reference file the publication's refs index names comes with its sha256 and size, and is
+      checked and cached as a data file; without them (an older terminal-api or publication) it is the fixed-key copy no
+      index describes, read as it comes */
+@@ -278,7 +298,11 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
+   /* EXEC-TERMINAL-LOGO: ticker → logo version (sha256 prefix); a ticker without one shows its monogram */
+   const logosP = reference('logos').then(rows => Object.fromEntries(rows.map((r: any) => [r.ticker, String(r.sha256).slice(0, 12)])), () => ({}));
+   brokerRefP.catch(() => {});
+-  const guess = stored || 'MAPI';
++  const locks = await locksP;
++  /* track guest: a remembered ticker the plan does not hold never locks the page: the first ticker of the plan instead */
++  const planTickers = edge.limit('terminal.tickers');
++  const firstHeld = Array.isArray(planTickers) ? planTickers[0] : undefined;
++  const guess = [stored, 'MAPI', firstHeld].find(t => t && !locks.ticker(t)) || stored || 'MAPI';
+   const want = isIntraday(tf) ? tf : undefined;                // EXEC-INTRADAY-FEATURES C3
+   /* EXEC-FI-TERMINAL: the government bonds (ref/fixed_income), a group of their own in the search; the remembered
+      ticker's first answer also asks for a bond's yield files, so a bond needs no second /bundle (a stock has none) */
+@@ -322,10 +346,13 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
+   const detail = (i?: string | null) => i && i !== 'common' && i !== 'Undefined' ? i.toUpperCase() : '';
+   const sectorOf = (t: typeof tickers[number]) => t.sector && t.sector !== 'Undefined' ? t.sector
+     : detail(t.instrument) || t.sector || (t.type === 'index' ? 'Index' : 'Other');
++  /* track guest: every ticker of the list is searchable; one the plan does not hold is marked (search.ts opens the box) */
++  const lockedOf = (t: string) => locks.ticker(t) ? { locked:true } : {};
+   const instruments: Instrument[] = [...tickers.map(t => [t.ticker, t.name || t.ticker, sectorOf(t), 0,
+-      { market:`IDX · ${detail(t.instrument) || typeWord(t.type)}` }] as Instrument),
+-    ...bonds.map((b: any) => [b.ticker, b.name || b.ticker, 'Fixed income', 0, { market:'Fixed income', place:b.country || undefined }] as Instrument)];
+-  const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0]?.ticker ?? bonds[0]?.ticker;
++      { market:`IDX · ${detail(t.instrument) || typeWord(t.type)}`, ...lockedOf(t.ticker) }] as Instrument),
++    ...bonds.map((b: any) => [b.ticker, b.name || b.ticker, 'Fixed income', 0, { market:'Fixed income', place:b.country || undefined, ...lockedOf(b.ticker) }] as Instrument)];
++  const open = (t: string | null | undefined) => !!t && known.has(t) && !locks.ticker(t);
++  const SYMBOL = [stored, 'MAPI'].find(open) ?? tickers.find(t => open(t.ticker))?.ticker ?? bonds.find((b: any) => open(b.ticker))?.ticker;
+   if (!SYMBOL) throw new TerminalError(NO_TICKER);
+   const bond = bondOf.get(SYMBOL);
+   const isIndex = tickers.some(t => t.ticker === SYMBOL && t.type === 'index');     // EXEC-IHSG-FLOW
+@@ -446,7 +473,7 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
+ 
+   return {
+     /* ERRORS M333: the logo list arrives after the chart (main.ts setLogos); a bond shows its country's flag */
+-    mode:'live', symbol:SYMBOL, instruments, ohlc, volume, lineData, catalog, loadCompare, ihsg:[], loadIhsg, logosLater:logosP,
++    mode:'live', symbol:SYMBOL, instruments, locks, ohlc, volume, lineData, catalog, loadCompare, ihsg:[], loadIhsg, logosLater:logosP,
+     countries:Object.fromEntries(bonds.filter((b: any) => b.country).map((b: any) => [b.ticker, b.country])),
+     loadInsider, brokerClass,
+     loadAsset, loadAssetFlow, isBond:(t: string) => bondOf.has(t),
+diff --git a/apps/edge-bff/terminal/src/data/types.ts b/apps/edge-bff/terminal/src/data/types.ts
+index 1629922f..49bb616c 100644
+--- a/apps/edge-bff/terminal/src/data/types.ts
++++ b/apps/edge-bff/terminal/src/data/types.ts
+@@ -14,7 +14,16 @@ export interface VolumePoint extends Point { color: string; none?: boolean }
+ 
+ /** [ticker, name, sector, last price, where] — the reference's INSTRUMENTS row (the price only seeds the fixture);
+     `where` (live): the market it trades in ("IDX · Equity", "Fixed income") and a bond's country, for the search */
+-export interface InstrumentPlace { market: string; place?: string }
++export interface InstrumentPlace { market: string; place?: string; locked?: boolean }
++/** track guest (decision 1 of 2026-11-19): what the principal does not hold, read from its session answer's access and
++    the catalog route (live.ts lockRules), never from a list in the page. `guest`: a visitor without an account (the box
++    says sign in), else an account (the box says upgrade). A locked item opens the box (locked.ts) */
++export interface Locks {
++  guest: boolean;
++  ticker(ticker: string): boolean;
++  item(kind: 'indicator' | 'flow_indicator', id: string): boolean;
++  feature(capability: string): boolean;
++}
+ export type Instrument = [string, string, string, number, InstrumentPlace?];
+ 
+ /** one compare series of the Add Series panel */
+@@ -46,6 +55,8 @@ export interface MarketData {
+   mode: 'fixture' | 'live';
+   symbol: string;
+   instruments: Instrument[];
++  /** live (track guest): what the principal does not hold; absent in the fixture (nothing locked) */
++  locks?: Locks;
+   ohlc: Bar[];
+   volume: VolumePoint[];
+   lineData: Point[];
+diff --git a/apps/edge-bff/terminal/src/styles/terminal.css b/apps/edge-bff/terminal/src/styles/terminal.css
+index 2a504744..bce08bad 100644
+--- a/apps/edge-bff/terminal/src/styles/terminal.css
++++ b/apps/edge-bff/terminal/src/styles/terminal.css
+@@ -607,6 +607,10 @@ body{font-variant-numeric:tabular-nums}
+ .gp-ticker{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;letter-spacing:-.01em}
+ .gp-cur{padding:1px 6px;border-radius:999px;background:var(--sel);color:var(--text-3);font-size:10px;font-weight:500}
+ .gp-row.is-active .gp-cur{background:var(--surface)}
++/* track guest (decision 1 of 2026-11-19): a ticker the plan does not hold is listed with a lock; choosing it opens EDGE's
++   box (locked.ts) */
++.gp-lock,.im-lock{display:inline-flex;align-items:center;color:var(--text-3);flex:none}
++.gp-lock svg,.im-lock svg{display:block}
+ .gp-company{overflow:hidden;color:var(--text-3);font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+ .gp-rightmeta{min-width:88px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:2px}
+ .gp-sector{color:var(--text-3);font-size:10px;font-weight:500;line-height:1.2;white-space:nowrap}
+@@ -1154,6 +1158,7 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
+ .im-row:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}
+ .im-row .nm{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;font-size:13.5px;font-weight:var(--fw-semibold);color:var(--text);line-height:1.3}
+ .im-row .nm small{font-size:var(--fs-2xs);font-weight:var(--fw-medium);color:var(--text-3)}
++.im-row.locked .nmt{color:var(--text-2)}
+ .im-row .nm em{font-style:normal;font-size:var(--fs-2xs);font-weight:var(--fw-medium);color:var(--green);background:rgba(8,153,129,.10);border-radius:var(--r-pill);padding:1px 7px}
+ .im-row .pa{margin-top:2px;font-size:var(--fs-12);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .im-row .mt{font-size:var(--fs-12);color:var(--text-2);line-height:1.3;min-width:0}
+diff --git a/apps/edge-bff/terminal/tests/data/guest_session.test.ts b/apps/edge-bff/terminal/tests/data/guest_session.test.ts
+new file mode 100644
+index 00000000..72092b1d
+--- /dev/null
++++ b/apps/edge-bff/terminal/tests/data/guest_session.test.ts
+@@ -0,0 +1,93 @@
++/* Track guest (EXEC-MU-ACCOUNTS, decision 1 of 2026-11-19; verification/edge_multiuser/fix_round/guest.md): a page that
++   a visitor without an account may open (the Terminal, allowGuest) reads the guest plan's access when the session route
++   answers 401; access(), can(), limit() and catalog() read it like an account's; a page that did not ask for it stays
++   signed out; a visitor holds nothing of this browser's storage. live.ts lockRules derives what is locked from that
++   access and the catalog route, never from a list in the page. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { ENTITLEMENTS_HEADER, GUEST_URL, LAST_LOGIN_KEY, SessionError, sessionClient } from '../../../shared/edge-session';
++import labelsSource from '../../../static/edge-labels.js?raw';
++
++function memoryStorage() {
++  const m = new Map<string, string>();
++  return { get length() { return m.size }, key:(i: number) => [...m.keys()][i] ?? null, getItem:(k: string) => m.get(k) ?? null,
++    setItem:(k: string, v: string) => { m.set(k, String(v)) }, removeItem:(k: string) => { m.delete(k) }, clear:() => m.clear(), m };
++}
++let local: ReturnType<typeof memoryStorage>;
++beforeEach(() => {
++  local = memoryStorage();
++  vi.stubGlobal('localStorage', local); vi.stubGlobal('sessionStorage', memoryStorage());
++  vi.stubGlobal('indexedDB', { deleteDatabase:() => { const r: any = {}; setTimeout(() => r.onsuccess?.()); return r } });
++});
++afterEach(() => vi.unstubAllGlobals());
++
++const answer = (status: number, body: unknown, version = '') => new Response(JSON.stringify(body),
++  { status, headers:{ 'Content-Type':'application/json', ...(version ? { [ENTITLEMENTS_HEADER]:version } : {}) } });
++const GUEST_ACCESS = { plan:'guest', role:'visitor', status:'visitor', mfa_ok:true, seed:false, owner_key:null, next:null,
++  version:'db-0123456789ab', capabilities:['terminal.view'], limits:{ 'terminal.tickers':['BBCA'], 'terminal.history_days':730 } };
++const UNAUTH = { error:{ code:'UNAUTHENTICATED', message:'Your session has ended or you are not signed in. Please sign in again.', details:{} } };
++
++function server(opts: { guest?: number; entries?: string[] } = {}) {
++  const calls: string[] = [];
++  const f = vi.fn(async (url: any) => {
++    const u = String(url); calls.push(u);
++    if (u === '/api/v1/auth/session') return answer(401, UNAUTH);
++    if (u === GUEST_URL) return (opts.guest ?? 200) === 200
++      ? answer(200, { authenticated:false, visitor:true, login:'', owner_key:null, csrf_token:'', access:GUEST_ACCESS }, 'db-0123456789ab')
++      : answer(opts.guest!, UNAUTH);
++    const m = /^\/api\/v1\/catalog\/(.+)$/.exec(u);
++    if (m) return answer(200, { kind:m[1], entries:(opts.entries || []).map(id => ({ id, stage:'released' })) }, 'db-0123456789ab');
++    return answer(200, {});
++  });
++  return { f, calls };
++}
++
++describe('a visitor without an account (allowGuest)', () => {
++  it('reads the guest plan\'s access when the session route answers 401', async () => {
++    const s = server(), c = sessionClient(s.f as any);
++    c.allowGuest();
++    const info = await c.session();
++    expect(info.guest).toBe(true);
++    expect(info.csrf).toBe('');
++    expect(c.guest).toBe(true);
++    expect(c.can('terminal.view')).toBe(true);
++    expect(c.can('terminal.layouts')).toBe(false);
++    expect(c.limit('terminal.tickers')).toEqual(['BBCA']);
++    expect(c.identity).toBe('guest:');
++    expect(s.calls).toEqual(['/api/v1/auth/session', GUEST_URL]);
++    // a visitor is never a user of this browser: no last-login mark, nothing cleared
++    local.setItem('ml.symbol', 'BBCA');
++    expect(local.getItem(LAST_LOGIN_KEY)).toBeNull();
++    expect(local.getItem('ml.symbol')).toBe('BBCA');
++  });
++  it('reads the catalogs it holds like an account', async () => {
++    const s = server({ entries:['I01'] }), c = sessionClient(s.f as any);
++    c.allowGuest();
++    await c.session();
++    expect((await c.catalog('indicator')).entries.map(e => e.id)).toEqual(['I01']);
++  });
++  it('a site without guests (the guest route refuses) stays signed out', async () => {
++    const c = sessionClient(server({ guest:401 }).f as any);
++    c.allowGuest();
++    await expect(c.session()).rejects.toBeInstanceOf(SessionError);
++    await expect(c.session()).rejects.toMatchObject({ error:{ kind:'signin' } });
++    expect(c.guest).toBe(false);
++  });
++  it('a page that did not ask for guests never reads the guest route', async () => {
++    const s = server(), c = sessionClient(s.f as any);
++    await expect(c.session()).rejects.toMatchObject({ error:{ kind:'signin' } });
++    expect(s.calls).not.toContain(GUEST_URL);
++  });
++});
++
++describe('the words of the box are the shell\'s (static/edge-labels.js EdgeLabels.locked)', () => {
++  it('names sign in for a visitor and the upgrade for an account', () => {
++    const w = (globalThis as any).window = {} as any;
++    new Function('window', labelsSource)(w);
++    const L = w.EdgeLabels.locked;
++    expect(L.guestTitle).toContain('{name}');
++    expect(L.upgradeTitle).toContain('{name}');
++    expect(L.signIn && L.register && L.contact && L.contactSoon && L.mark).toBeTruthy();
++    expect(w.EdgeLabels.access.comingSoon).toBe('Coming soon');
++    delete (globalThis as any).window;
++  });
++});
+diff --git a/apps/edge-bff/tests/test_c2_e2e_people.py b/apps/edge-bff/tests/test_c2_e2e_people.py
+index 48140f5c..7c91cf88 100644
+--- a/apps/edge-bff/tests/test_c2_e2e_people.py
++++ b/apps/edge-bff/tests/test_c2_e2e_people.py
+@@ -120,15 +120,20 @@ def test_the_free_plans_terminal_draws_bbca_with_the_answers_phase_3c_gives_it(l
+     assert drawn, ('with the reference files refused (D3) the free plan\'s Terminal draws nothing, BBCA included: '
+                    f'{text[:300]}')
+     asked = [c['path'] for c in live.terminal.calls[calls:]]
+-    assert any(p.startswith('/api/terminal/v1/reference/tickers/cut') for p in asked), asked
++    # track guest (decision 1 of 2026-11-19; this test asked for the BBCA-alone copy of the ticker list): the ticker
++    # list is the plan's whole copy now, byte for byte the list this browser keeps from the first load (its cache by
++    # sha256), so it is announced and not downloaded again; a file with data per ticker still comes as the plan's copy
++    assert '/api/terminal/v1/reference/tickers' in asked, asked
++    assert any(p.startswith('/api/terminal/v1/reference/brokers/cut') for p in asked), asked
+     assert any(p.startswith('/api/terminal/v1/cut/BBCA/price') for p in asked), asked
+     assert not [k for k in live.terminal.downloads[downloads:] if k.startswith('ref/')], 'a full reference list was downloaded'
+ 
+ 
+ def test_the_free_plans_terminal_opens_on_bbca_with_nothing_remembered(live, chromium):
+-    """Re-check R2-32 (fix round, track terminal): with no ticker remembered the page asks for its default (MAPI), which
+-    the plan refuses, and draws the first ticker of the list it is given, which terminal-api's copy for the free plan
+-    holds alone: BBCA. No list of another ticker reaches the page (D3 = B, "tanpa daftar ticker")."""
++    """Re-check R2-32 (fix round, track terminal): with no ticker remembered the page draws the plan's own ticker, BBCA,
++    and no other ticker's data. Track guest (decision 1 of 2026-11-19, which replaces D3 = B's "tanpa daftar ticker"):
++    the ticker list it is given is the whole list (searchable, the others locked), and the page skips its default
++    (MAPI), which the plan does not hold, for the plan's first ticker."""
+     if not (ROOT / 'static' / 'terminal-app' / 'index.html').is_file():
+         pytest.skip('the Terminal page is not built (cd apps/edge-bff/terminal && npm run build)')
+     live.terminal.apply_header = True
+diff --git a/apps/edge-bff/tests/test_guest_browser.py b/apps/edge-bff/tests/test_guest_browser.py
+new file mode 100644
+index 00000000..8ea44402
+--- /dev/null
++++ b/apps/edge-bff/tests/test_guest_browser.py
+@@ -0,0 +1,129 @@
++"""EXEC-MU-ACCOUNTS fix round, track guest (verification/edge_multiuser/fix_round/guest.md), in a real browser with
++EDGE_MULTIUSER on (harness: tests/e2e_people.py; terminal-api's answers come from its own code, apply_header):
++
++- a visitor without an account opens the Terminal, sees BBCA drawn and the whole ticker list in the search, and a
++  ticker the guest plan does not hold opens the sign-in box (sign in goes to the sign-in page);
++- a free account gets the upgrade box instead ("Coming soon" and the upgrade contact);
++- in the pre-launch mode the register page says registration opens soon, and the sign-in page offers the Terminal.
++
++Needs EDGE_TEST_POSTGRES_URL, Playwright with EDGE_TEST_CHROMIUM and the built Terminal page."""
++import dataclasses
++import time
++
++import pytest
++
++playwright = pytest.importorskip('playwright.sync_api')
++
++from e2e_people import CHROMIUM, ROOT, Live, browser_context, register, shell_navigate, terminal_drawn  # noqa: E402
++
++CONTACT = 'sales@example.com'
++
++
++@pytest.fixture
++def live(settings, store, monkeypatch):
++    on = Live(dataclasses.replace(settings, guests_enabled=True, upgrade_contact=CONTACT), store, monkeypatch)
++    on.terminal.apply_header = True
++    try:
++        yield on
++    finally:
++        on.close()
++
++
++@pytest.fixture
++def chromium(live):
++    if not (ROOT / 'static' / 'terminal-app' / 'index.html').is_file():
++        pytest.skip('the Terminal page is not built (cd apps/edge-bff/terminal && npm run build)')
++    with playwright.sync_playwright() as pw:
++        browser = pw.chromium.launch(executable_path=CHROMIUM, headless=True, args=live.terminal.browser_args())
++        try:
++            yield browser
++        finally:
++            browser.close()
++
++
++def search_and_choose(page, ticker):
++    """The Terminal's search (its search button), the ticker typed and chosen with Enter; the rows it listed."""
++    frame = page.frame_locator('iframe.terminal-frame')
++    frame.locator('#symSearch').click()
++    box = frame.locator('.gp-dialog input')
++    box.fill(ticker)
++    rows = frame.locator('.gp-row .gp-ticker').all_inner_texts()
++    box.press('Enter')
++    return rows
++
++
++def locked_box(page, seconds=10):
++    dialog = page.locator('.dialog.locked-dialog')
++    dialog.wait_for(timeout=seconds * 1000)
++    return dialog
++
++
++def test_a_visitor_sees_bbca_and_every_ticker_and_another_ticker_asks_to_sign_in(live, chromium):
++    page = browser_context(chromium).new_page()
++    page.goto(live.origin + '/terminal')
++    drawn, text = terminal_drawn(page)
++    assert drawn, f'the guest Terminal did not draw: {text[:300]}'
++    assert page.evaluate('() => location.pathname') == '/terminal' and page.evaluate('() => Edge.auth') is None
++    frame = page.frame_locator('iframe.terminal-frame')
++    assert frame.locator('#symText').inner_text() == 'BBCA'
++    # the whole ticker list is searched; the tickers the guest plan does not hold carry the lock
++    frame.locator('#symSearch').click()
++    listed = frame.locator('.gp-row .gp-ticker').all_inner_texts()
++    assert {'BBCA', 'BBRI'} <= {t.split()[0] for t in listed}, listed
++    assert frame.locator('.gp-row:has-text("BBRI") .gp-lock').count() == 1
++    assert frame.locator('.gp-row:has-text("BBCA") .gp-lock').count() == 0
++    frame.locator('.gp-dialog input').press('Escape')
++    search_and_choose(page, 'BBRI')
++    dialog = locked_box(page)
++    assert 'Sign in to open' in dialog.inner_text() and 'Bank Rakyat Indonesia' in dialog.inner_text()
++    assert dialog.get_by_role('button', name='Create account').count() == 1       # registration is open here
++    # the chart stays on BBCA (no other ticker's data was asked for)
++    assert not [c for c in live.terminal.calls if 'BBRI' in c['body'] or '/BBRI' in c['path']]
++    dialog.get_by_role('button', name='Sign in').click()
++    page.wait_for_function("() => location.pathname === '/login'")
++    # no call of the guest ever reached an account route (they answer 401: the page never asks them)
++    assert page.evaluate('() => Edge.auth') is None
++
++
++def test_a_free_account_gets_the_upgrade_box_with_the_contact(live, chromium):
++    page = browser_context(chromium).new_page()
++    register(page, live, 'free_user', 'free@example.com')
++    shell_navigate(page, '/terminal')
++    drawn, text = terminal_drawn(page)
++    assert drawn, f'the free plan\'s Terminal did not draw: {text[:300]}'
++    search_and_choose(page, 'TLKM')
++    dialog = locked_box(page)
++    words = dialog.inner_text()
++    assert 'is not in your plan' in words and 'Coming soon' in words and CONTACT in words, words
++    assert dialog.get_by_role('button', name='Sign in').count() == 0
++    dialog.locator('.locked-actions').get_by_role('button', name='Close').click()
++    assert page.locator('.dialog.locked-dialog').count() == 0
++
++
++def test_an_indicator_the_plan_does_not_hold_opens_the_box(live, chromium):
++    page = browser_context(chromium).new_page()
++    page.goto(live.origin + '/terminal')
++    drawn, text = terminal_drawn(page)
++    assert drawn, text[:300]
++    frame = page.frame_locator('iframe.terminal-frame')
++    frame.locator('#indBtn').click()
++    row = frame.locator('.im-row.locked').first
++    row.wait_for(timeout=10000)
++    assert row.locator('.im-lock').count() == 1
++    row.locator('.im-add').click()
++    assert 'Sign in to open' in locked_box(page).inner_text()
++
++
++def test_prelaunch_shows_registration_closed_and_offers_the_terminal(settings, store, monkeypatch, chromium, live):
++    pre = Live(dataclasses.replace(settings, guests_enabled=True, prelaunch_enabled=True), store, monkeypatch)
++    try:
++        page = browser_context(chromium).new_page()
++        page.goto(pre.origin + '/login')
++        page.get_by_role('link', name='Open the Terminal without an account').wait_for(timeout=10000)
++        assert page.get_by_role('link', name='Create account').count() == 0
++        page.goto(pre.origin + '/register')
++        page.get_by_text('Registration opens soon').wait_for(timeout=10000)
++        assert page.get_by_label('Username', exact=True).count() == 0
++        time.sleep(0.2)
++    finally:
++        pre.close()
+-- 
+2.43.0
+
+
+From 2ad40fcb51069169d5bf45f4937b37bf43e8bdd3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 14:29:56 +0000
+Subject: [PATCH 58/59] Docs (track guest): edge-bff README guests, boxes and
+ pre-launch; terminal-api README whole ticker list and x-terminal-client;
+ railway.ts edge-bff-live comment names EDGE_GUESTS, EDGE_PRELAUNCH,
+ EDGE_UPGRADE_CONTACT
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ .railway/railway.ts                     |  3 ++
+ apps/edge-bff/README.md                 | 43 ++++++++++++++++++++++++-
+ apps/edge-bff/terminal/src/data/live.ts |  4 +--
+ apps/terminal-api/README.md             | 27 +++++++++++-----
+ 4 files changed, 66 insertions(+), 11 deletions(-)
+
+diff --git a/.railway/railway.ts b/.railway/railway.ts
+index 86e679a8..ec018025 100644
+--- a/.railway/railway.ts
++++ b/.railway/railway.ts
+@@ -294,6 +294,9 @@ export default defineRailway(() => {
+   //     // the loops: EDGE_AI_WORKER_ENABLED unset (off on the live site), the backtest loop (its own site's jobs), the
+   //     // email sender and the hourly housekeeping on; once this site runs, edge-bff (the beta) gets
+   //     // EDGE_HOUSEKEEPING_ENABLED=false, so the live site is the housekeeping's one owner
++  //     // track guest (decisions of 2026-11-19): EDGE_GUESTS and EDGE_PRELAUNCH unset (both on for the live site:
++  //     // visitors open the Terminal, registration is closed and only the admin and test accounts sign in); at the
++  //     // launch EDGE_PRELAUNCH: "false". EDGE_UPGRADE_CONTACT: the upgrade box's contact (plain text; unset: "comes soon")
+   //     PORT: "8080",
+   //   },
+   const aiDataCoverage = service("ai-data-coverage", {
+diff --git a/apps/edge-bff/README.md b/apps/edge-bff/README.md
+index 05e84d87..5366d8c3 100644
+--- a/apps/edge-bff/README.md
++++ b/apps/edge-bff/README.md
+@@ -833,6 +833,46 @@ R2-26, R2-33, R2-34, R2-36, R2-38; `.railway/railway.ts` holds the live service
+   codes) and `EDGE_MFA_KEY` (the one TOTP row per user) key rows of the shared tables, so edge-bff-live holds edge-bff's
+   values as Railway references (`${{edge-bff.NAME}}`), never values of its own.
+ 
++### Guests, the boxes and the pre-launch mode (track guest, decisions of 2026-11-19)
++
++The user's words: "user tetap bisa search ticker, tapi ketika dia klik ticker selain bbca maka akan keluar pop up box to
++login (jika belum login) dan jika sudah login maka akan keluar pop up box (to upgrade plan)"; "1a - bukan hanya chart,
++nanti ada indikator dll yg juga mungkin di show ke user. jadi design harus plug and play dan fluid"; for the live site
++before the launch "Terbuka, tapi belum bisa mendaftar", "Dan hanya admin yang bisa login (saya)", then "A". Notes:
++`verification/edge_multiuser/fix_round/guest.md`.
++
++- **The guest plan** (migration `20261119_070`): `edge_bff.plans.for_guests` marks the one plan a visitor without an
++  account gets (seed `guest`: the free plan's Terminal grants, BBCA, price, 730 days, no indicator). Its rows are read
++  on every guest request through the same `read_grants` and `can()` as every plan (`principal.py guest_principal`), so
++  a change of its rows changes what visitors see with no code; it never holds `*`, `admin.access`, an admin right or a
++  beta-only key, whatever its rows say.
++- **Where a visitor gets it** (`EDGE_GUESTS`, default on the live site, refused with the switch off): only on the routes
++  that ask for it, `auth.need(capability, guests=True)` and `auth.visitor`: the Terminal relay `/api/terminal/v1/*`, `GET
++  /api/v1/catalog/{kind}` and `GET /api/v1/auth/guest` (the guest plan's access in the session answer's shape, `visitor`
++  true, no CSRF token). Every other route answers 401 without a session, so the shell shows the sign-in page there
++  (`tests/test_route_table.py GUEST_OPEN`). A guest writes without CSRF (no session to ride; the Origin check holds).
++- **The client address** (`principal.py client_of`): the right-most `X-Forwarded-For` entry, the hop Railway's edge adds
++  to every request it forwards, when it is an IP address; without one (a request that did not pass the edge, or a hop
++  that is not an address) there is no guest principal and the answer is 401 (fail closed). The socket peer counts only on
++  a developer machine (`EDGE_ENVIRONMENT=local`). The visitor's key towards terminal-api (`x-terminal-client`) is an HMAC
++  of the address under `EDGE_SESSION_SECRET`, never the address; terminal-api counts each visitor's quotas with it.
++- **The boxes** (`terminal/src/app/locked.ts`, the shell's `LockedDialog`, words `EdgeLabels.locked`): the Terminal
++  derives what is locked from the session answer's access and the catalog route (`live.ts lockRules`), lists every
++  ticker in its search with a lock on the ones the plan lacks, and asks the shell for the box when one is chosen, or a
++  locked indicator, or the saved layouts without `terminal.layouts`: a visitor gets "Sign in" (and "Create account"
++  while registration is open), an account the upgrade box ("Coming soon" and `EDGE_UPGRADE_CONTACT`, or that the contact
++  comes soon). A visitor's drawings last as long as the page.
++- **The pre-launch mode** (`EDGE_PRELAUNCH`, default on the live site until the launch, refused with the switch off):
++  registration, its code and its resends answer 403 `REGISTRATION_CLOSED` (the register page says registration opens
++  soon); only the admin (an account whose grants hold `*` or `admin.access`) and the accounts marked
++  `edge_bff.users.test_account` sign in; every other account gets 403 `SIGN_IN_CLOSED` after its password was checked
++  like any other. The mark changes only beside its `admin_audit` row of the same transaction (a deferred trigger);
++  `scripts/edge_test_account.py` makes or marks a test account for an address and a plan (as a job:
++  `scripts/onboarding/edge_test_account_job.py`), and the person sets the password with "Forgot password". Visitors
++  still open the Terminal.
++- **`GET /api/v1/auth/config`** with the switch on: `{"multiuser", "registration", "prelaunch", "guests",
++  "upgrade_contact"}`; with it off `{"multiuser": false}` as before.
++
+ ## Accounts (EXEC-MU-ACCOUNTS Phase 1, 2026-11-16/17)
+ 
+ Phase 1 builds EDGE accounts behind the switch `EDGE_MULTIUSER` (default `false`; it goes on only at Phase 6). Contract:
+@@ -1117,7 +1157,8 @@ owner holds `*`: its header says `admin: true`, its body is forwarded byte for b
+     `cut/<T>/<dataset>`;
+   - with `history_days` 0, every dated path (`files`, `bundle`, `cut/*`, `history/*`): `terminal.history_days`;
+   - `reference/*` is not refused (re-check R2-32): terminal-api answers a plan without the dataset `reference` with
+-    its own copy of the file (the rows of its tickers; the broker list only with `broker`), announced as
++    its own copy of the file (the whole ticker list since decision 1 of 2026-11-19, track guest; the rows of its
++    tickers in a file with data per ticker; the broker list only with `broker`), announced as
+     `/api/terminal/v1/reference/<name>/cut?sha256=<hex>` and relayed byte for byte like a cut;
+   - a `bundle` whose every asked dataset is locked (its `datasets`, terminal-api's default `price, broker, events` when
+     absent, plus `intraday` with a `timeframe`); with one open dataset it is forwarded and terminal-api answers the
+diff --git a/apps/edge-bff/terminal/src/data/live.ts b/apps/edge-bff/terminal/src/data/live.ts
+index 6c455bef..e433f19e 100644
+--- a/apps/edge-bff/terminal/src/data/live.ts
++++ b/apps/edge-bff/terminal/src/data/live.ts
+@@ -69,8 +69,8 @@ const roleLabel = (role: string) => role.toLowerCase().split('_').map((w, i) =>
+    is shown as its message, not as "answered 403"; only a 401 asks to sign in again; a 403 CSRF_INVALID is repeated once.
+    `csrf` is kept for the callers' signatures: the shared module sets the header itself. */
+ const SIGN_IN = 'Sign in to EDGE first, then open the Terminal tab again.';
+-/* EXEC-MU-ACCOUNTS re-check R2-32: a plan whose ticker list holds no published ticker (terminal-api answers a plan
+-   without the reference lists with its own tickers only) */
++/* EXEC-MU-ACCOUNTS re-check R2-32: a plan none of whose tickers is published (the ticker list is whole since decision 1
++   of 2026-11-19, track guest; the page opens only a ticker the plan holds) */
+ const NO_TICKER = 'No ticker of your EDGE plan is published yet. Upgrade the plan to open others; you are still signed in.';
+ async function api(path: string, _csrf: string, body?: unknown) {
+   let res: Response;
+diff --git a/apps/terminal-api/README.md b/apps/terminal-api/README.md
+index e523a13a..0bb69464 100644
+--- a/apps/terminal-api/README.md
++++ b/apps/terminal-api/README.md
+@@ -124,14 +124,25 @@ CONTRACT.md section 8b "3c in detail"; code `app/entitlements.py` (the headers),
+   `{"locked": true, "capability": "terminal.dataset:<id>"}` (no url, sha or rows); the asked intraday timeframe likewise
+   (`intraday`).
+ - `/files`, `/history/price|broker`, `/manifest/{t}`: the ticker and the dataset.
+-- `/reference/{name}` (re-check R2-32, `app/refcut.py`; decision D3 = B read as "no list of other tickers"): with the
+-  dataset `reference` the published file, as before. Without it the plan's own copy, built from the published file
+-  server-side: a file with a `ticker` column keeps the rows of the plan's tickers; the broker list keeps every row with
+-  the dataset `broker` and none without it; any other file (the stock lists) has no rows. It is answered in the shape of
+-  a cut, `{"url": "/api/terminal/v1/reference/<name>/cut?sha256=<hex>", "expires_in_seconds": 0, "sha256", "bytes",
+-  "rows"}`, and `GET /reference/{name}/cut` serves the bytes, counted as one file with one audit row
+-  (`object_key` `refcut/<name>/<sha256>`). A file that cannot be filtered is 503 `reference_unavailable`, never served
+-  whole. The free plan's ticker list holds BBCA alone, so the Terminal draws it.
++- `/reference/{name}` (re-check R2-32, `app/refcut.py`; decision 1 of 2026-11-19, track guest: "user tetap bisa search
++  ticker"): with the dataset `reference` the published file, as before. Without it the plan's own copy, built from the
++  published file server-side, read from each file's own columns: a file keyed by `ticker` that only names its
++  instruments (every other column text or null, none named `<dataset>_...` after a dataset served here, none of 64-hex
++  digests: `names_only`) keeps every row, which is the ticker list today (every owner edge-bff forwards holds
++  `terminal.view`, the guest too); any other file with a `ticker` column (the logos' image index, the bonds' data dates)
++  keeps the rows of the plan's tickers; the broker list keeps every row with the dataset `broker` and none without it;
++  any other file (the stock lists) has no rows. It is answered in the shape of a cut, `{"url":
++  "/api/terminal/v1/reference/<name>/cut?sha256=<hex>", "expires_in_seconds": 0, "sha256", "bytes", "rows"}`, and `GET
++  /reference/{name}/cut` serves the bytes, counted as one file with one audit row (`object_key`
++  `refcut/<name>/<sha256>`). A file that cannot be filtered is 503 `reference_unavailable`, never served whole. The
++  free plan searches every ticker and opens BBCA.
++- **Visitors of the guest plan** (track guest, migration `20261119_170`): every visitor reaches terminal-api under one
++  owner (edge-bff's guest owner, `edge-guest`), and edge-bff adds `x-terminal-client`, the visitor's opaque key (32 hex,
++  an HMAC edge-bff makes of the client address; never the address). Beside both owner headers of an owner that does not
++  hold `*`, it makes the owner's quotas count per visitor: the usage, the lock of the quota check and the audit rows
++  (`terminal.access_log.client_key`, read through the partial index `access_log_client_at`). Without it the owner's row
++  is counted as a whole (stricter, never wider). Anywhere else (no owner headers, an admin owner, a service key, a
++  cookie, a value that is not 32 lower-case hex) it is 400 with the header named.
+ - `/xsection`: the gateway key is refused with an owner header, whatever the plan; only the screener-worker's key reads it.
+ - `/state`: no data file, no refusal; `xsection` is null for such an owner, and `refs` is null without `reference`.
+ - `/logo/{t}`: an image, not data, so no filter here (edge-bff refuses another ticker's logo first, and a plan without the
+-- 
+2.43.0
+
+
+From d47eefbe71d5d094e4ac5cc596e472ee746b82db Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 14:33:20 +0000
+Subject: [PATCH 59/59] SCREENER_ONBOARDING.md: pointers into terminal-api and
+ edge-bff main.py moved with the track guest lines (screener-worker
+ onboarding_pointers)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ SCREENER_ONBOARDING.md | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/SCREENER_ONBOARDING.md b/SCREENER_ONBOARDING.md
+index 76c2882c..f3fbc74e 100644
+--- a/SCREENER_ONBOARDING.md
++++ b/SCREENER_ONBOARDING.md
+@@ -104,7 +104,7 @@ same publication of the same data.
+ | Market tables | `database/migrations/`, `DATABASE_SCHEMA.md` | FACT | Railway `Postgres` (sfo) | the source rows | — |
+ | terminal-publisher | `apps/terminal-publisher/publisher.py` | FACT; the xsection writer BRANCH (`publish_xsection`, `publisher.py:1557`) | Railway cron, CLI upload, sfo | read-only DB login, bucket write credentials | serves readers |
+ | Bucket `terminal-display` | written by the publisher | FACT | Railway bucket, sin | every published file | — |
+-| terminal-api | `apps/terminal-api/app/` | FACT; `xsection` on `/state` and `POST /xsection` BRANCH (`bucket.py:51` `xsection_index`, `apps/terminal-api/app/main.py:509` `xsection`) | FastAPI, CLI upload, sfo | bucket credentials, quotas, audit and service accounts (schema `terminal`) | streams a data file |
++| terminal-api | `apps/terminal-api/app/` | FACT; `xsection` on `/state` and `POST /xsection` BRANCH (`bucket.py:51` `xsection_index`, `apps/terminal-api/app/main.py:532` `xsection`) | FastAPI, CLI upload, sfo | bucket credentials, quotas, audit and service accounts (schema `terminal`) | streams a data file |
+ | Shared formulas | `apps/edge-bff/terminal/src/calc/indicators.ts`, `terminal/src/data/indRegistry.json` | FACT, unchanged by the Screener | TypeScript, imported | the 53 indicator formulas and their registry | — |
+ | Backtest shared core | `apps/edge-bff/backtest/src/core/` | FACT, unchanged by the Screener | TypeScript, imported | parameter contract (`registry.ts`), `Calc`, `compare`, patterns, file decoding (`datafile.ts`) | — |
+ | Screener core | `apps/edge-bff/screener/src/core/` (18 files) and its generator `apps/edge-bff/screener/scripts/build-screener-registry.mjs` | BRANCH | TypeScript imported by the worker; the page imports only `contract.ts` and `universe.ts` | contract, registry and metric catalog, validation, series path, transforms and patterns, evaluation, planner, universe and cross-section rules | defines an indicator formula |
+@@ -277,13 +277,13 @@ cache and quotas.
+ | Route | Status | Answer | Quota, audit |
+ |---|---|---|---|
+ | `GET /api/terminal/v1/state` | FACT on `main` (EXEC-BACKTEST-LOAD); the `xsection` and `refs` fields BRANCH (`bucket.py:11` `STATE_FIELDS`; `xsection_index` `bucket.py:51`, `refs_index` `bucket.py:78`) | `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, the `xsection` index (well-formed entries only, else null) and `refs` | none |
+-| `POST /api/terminal/v1/xsection {names}` | BRANCH (`apps/terminal-api/app/main.py:1063`; caller check `xsection_caller`, `main.py:492`) | per name a presigned URL, `sha256`, `bytes`, `rows`, `as_of`; a name not in the index answers 404 `xsection_not_published` with the indexed names | only the screener-worker's service key (`XSECTION_SERVICES`, `main.py:74`; `TERMINAL_SERVICE_KEY_SCREENER_WORKER`, EXEC-MU-RUNTIME T1) or, until a later step removes it, the gateway key; anything else 403 `gateway_only`. One audit row under the `REF` pseudo-ticker (`apps/terminal-api/app/quota.py:11`), dataset `xsection`; file quota = number of names; bytes counted |
++| `POST /api/terminal/v1/xsection {names}` | BRANCH (`apps/terminal-api/app/main.py:1096`; caller check `xsection_caller`, `main.py:515`) | per name a presigned URL, `sha256`, `bytes`, `rows`, `as_of`; a name not in the index answers 404 `xsection_not_published` with the indexed names | only the screener-worker's service key (`XSECTION_SERVICES`, `main.py:82`; `TERMINAL_SERVICE_KEY_SCREENER_WORKER`, EXEC-MU-RUNTIME T1) or, until a later step removes it, the gateway key; anything else 403 `gateway_only`. One audit row under the `REF` pseudo-ticker (`apps/terminal-api/app/quota.py:11`), dataset `xsection`; file quota = number of names; bytes counted |
+ 
+ Rules a new file must meet at terminal-api (`bucket.py:13` `XSECTION_NAME` and `xsection_index`): the name matches
+ `^[a-z0-9][a-z0-9_-]{0,31}$`; the index entry has exactly `key`, `sha256` (64 hex), `bytes` (≥ 1), `rows` (≥ 0) and
+ `as_of` (a string of at most 64 characters, else null); the key is `v1/xsection/<name>.<first 16 hex of the
+ sha256>.json.gz`. An entry that breaks a rule is dropped from `/state` and never presigned. A call asks at most 16
+-names (`MAX_XSECTION_NAMES`, `main.py:97`). Tests: `apps/terminal-api/tests/test_api.py`
++names (`MAX_XSECTION_NAMES`, `main.py:105`). Tests: `apps/terminal-api/tests/test_api.py`
+ `test_xsection_index_keeps_only_well_formed_entries`, `test_xsection_presigns_only_keys_of_the_xsection_family`,
+ `test_xsection_grants_the_indexed_files_to_the_gateway_in_one_audit_row_under_ref` and the other `test_xsection_*`.
+ 
+@@ -549,7 +549,7 @@ README "Logs".
+ 
+ ## 1.8 Stage 5: edge-bff (BRANCH)
+ 
+-`apps/edge-bff/app/screener.py` (`Screeners`, `:681`), mounted like the Backtest module (`apps/edge-bff/app/main.py:767`
++`apps/edge-bff/app/screener.py` (`Screeners`, `:681`), mounted like the Backtest module (`apps/edge-bff/app/main.py:771`
+ `screeners.routes`):
+ 
+ Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session and the capability named; with
+@@ -997,7 +997,7 @@ What changes, per class (yes = always; maybe = depends; no = never):
+ | L9 AI exposure | AI formula row | no | optional onboarding | optional onboarding | optional onboarding | optional onboarding |
+ 
+ Notes: "no" for terminal-api rests on `/xsection` validating names against the index (BRANCH, section 1.6); a new
+-service that reads `/xsection` needs its name in `XSECTION_SERVICES` (`apps/terminal-api/app/main.py:74`). "A wire kind
++service that reads `/xsection` needs its name in `XSECTION_SERVICES` (`apps/terminal-api/app/main.py:82`). "A wire kind
+ the first time" means the first macro series needs one new reference kind in `contract.ts` `MetricRef` and in
+ `apps/edge-bff/screener/src/core/catalog.ts:240` `KINDS` (worked example 2.13); a fundamental or a universe attribute is `kind: 'universe'`, read from a
+ field of the worker's universe row (`condition.ts:152-166`; `apps/edge-bff/screener/src/core/contract.ts:466-468`), so
 -- 
 2.43.0
 
