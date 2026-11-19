@@ -1,7 +1,7 @@
 From b16d57288f42b49682d60bfab255d454f20d9739 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:13:40 +0000
-Subject: [PATCH 01/20] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
+Subject: [PATCH 01/21] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
  for lists and limits, no shared restrictive list, the seed plan is the one
  whose '*' is true, access.limits reports the applied cap, MFA_REQUIRED says
  whether an authenticator is set up
@@ -440,7 +440,7 @@ index 205d728e..79f4b2e7 100644
 From 68542f2fb3036e6ef993b948b48fb7e37f1983e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:26:59 +0000
-Subject: [PATCH 02/20] EXEC-MU-ACCOUNTS fix round (plans): refusals worded
+Subject: [PATCH 02/21] EXEC-MU-ACCOUNTS fix round (plans): refusals worded
  from their code and details; no internal key in a worker's capability message
 
 Re-check R2-15: errors.words names the item (display_name), the ended plan, the plan limit with the account's number and
@@ -792,7 +792,7 @@ index 4f57f457..6b36df04 100644
 From 296129a5dc45ccfadc9c657500d4c9a113dffacc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:29:25 +0000
-Subject: [PATCH 03/20] EXEC-MU-ACCOUNTS fix round (plans): the Screener
+Subject: [PATCH 03/21] EXEC-MU-ACCOUNTS fix round (plans): the Screener
  catalog lists only the presets the plan holds, by the rule of /api/v1/catalog
 
 Re-check R1-32: catalog.holds_entry is the one rule (any family of the kind), read by the generic catalog route and the
@@ -947,7 +947,7 @@ index 48c86772..3e149b2b 100644
 From 8884b38b089e66df85c1b65c6a4870aee54a6f19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:32:25 +0000
-Subject: [PATCH 04/20] EXEC-MU-ACCOUNTS fix round (plans): an account
+Subject: [PATCH 04/21] EXEC-MU-ACCOUNTS fix round (plans): an account
  preference of one tab is served and stored only while the plan holds that tab
 
 Re-check R1-18 and R1-30 (CONTRACT.md 8b D5: reads need <tab>.view): each sync entry of the storage registry names the
@@ -1418,7 +1418,7 @@ index a5c52e65..6c5d0c00 100644
 From 54398ef3d816fd905313bb78d03dbeae312bc428 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:39:51 +0000
-Subject: [PATCH 05/20] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
+Subject: [PATCH 05/21] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
  refusals in words, lands a non-admin account on the Terminal, follows a
  change of plan and a session ended under a frame
 
@@ -1970,7 +1970,7 @@ index 3be7fc42..97afe4f1 100644
 From 6bd43074c959de211bdda838e97fb3e5eca3ba9f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:45:57 +0000
-Subject: [PATCH 06/20] EXEC-MU-ACCOUNTS fix round (plans): the Screener's
+Subject: [PATCH 06/21] EXEC-MU-ACCOUNTS fix round (plans): the Screener's
  cached paint follows the plan; a drawings refusal is said in its words and
  keeps nothing in the browser
 
@@ -2300,7 +2300,7 @@ index 2b23a78c..be09eda6 100644
 From 61155dd2dbc5bf8b8694c7d66c720fdfe4844c46 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:46:54 +0000
-Subject: [PATCH 07/20] EXEC-MU-ACCOUNTS fix round (plans): an added series'
+Subject: [PATCH 07/21] EXEC-MU-ACCOUNTS fix round (plans): an added series'
  pane keys are the account's and leave with the series
 
 Re-check R1-20: the prefix ml.assets.flow. (fold and height per added series, named by its ticker) is a user cache
@@ -2394,7 +2394,7 @@ index 6c5d0c00..78ede8d0 100644
 From bcdb0705707af84337ceb5fa02e9e96f28597f1f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:51:03 +0000
-Subject: [PATCH 08/20] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
+Subject: [PATCH 08/21] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
  registration cookies on https, HSTS, form-action in every page policy
 
 Re-check R2-22: on a Secure origin the cookies are __Host-edge_session and __Host-edge_registration (Path=/, no
@@ -2733,7 +2733,7 @@ index 275a776a..bae4c119 100644
 From 081c378f3e8b769a9dbc570121dd0618fce5403d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:54:18 +0000
-Subject: [PATCH 09/20] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
+Subject: [PATCH 09/21] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
  Password and sign-in page (password change, sign out everywhere)
 
 Re-check R2-20: with accounts on (GET /api/v1/auth/config), the account menu opens a dialog for the Phase 1 password
@@ -2966,7 +2966,7 @@ index bae4c119..7d13a9af 100644
 From be55357c5ff111788f3be6095b31e796f69160c9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:55:50 +0000
-Subject: [PATCH 10/20] EXEC-MU-ACCOUNTS fix round (plans): one rule for a
+Subject: [PATCH 10/21] EXEC-MU-ACCOUNTS fix round (plans): one rule for a
  person's name at registration, and one for showing it
 
 Re-check R2-18: app/text_rules.py stores a first or last name in NFC with single spaces and refuses control, hidden
@@ -3110,7 +3110,7 @@ index 7d13a9af..c0414ee6 100644
 From 78455b93bce3e343a60aa888086854fdfeed0fea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:00:42 +0000
-Subject: [PATCH 11/20] EXEC-MU-ACCOUNTS fix round (plans): every plan limit
+Subject: [PATCH 11/21] EXEC-MU-ACCOUNTS fix round (plans): every plan limit
  answers one code, LIMIT_REACHED naming its capability key
 
 Re-check R2-39 (CONTRACT.md section 3): the saved-item caps (layouts, presets, places with drawings, saved screens and
@@ -3602,7 +3602,7 @@ index 1cea2cd5..b3da03f0 100644
 From fc3cbf2933403c4d0cdafef84f76ae2deee1275e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:02:13 +0000
-Subject: [PATCH 12/20] SCREENER_ONBOARDING.md: line pointers into edge-bff
+Subject: [PATCH 12/21] SCREENER_ONBOARDING.md: line pointers into edge-bff
  screener.py and main.py moved with the fix round's lines
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -3673,7 +3673,7 @@ index 6a313a75..239ec42b 100644
 From b36e621af0417827137b36018443c9ea5d927988 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:05:30 +0000
-Subject: [PATCH 13/20] EXEC-MU-ACCOUNTS fix round (plans): the shell runs no
+Subject: [PATCH 13/21] EXEC-MU-ACCOUNTS fix round (plans): the shell runs no
  inline script; its policy drops script-src 'unsafe-inline'
 
 Re-check R2-19: the head's viewport script moved to static/edge-boot.js and the shell's app to static/edge-app.js (a
@@ -9261,7 +9261,7 @@ index cc5b4fee..32a843c0 100644
 From db1eadac57e5ce7b44bec319e25013647a558d0b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:06:13 +0000
-Subject: [PATCH 14/20] EXEC-MU-ACCOUNTS fix round (plans): the Watchlist's
+Subject: [PATCH 14/21] EXEC-MU-ACCOUNTS fix round (plans): the Watchlist's
  copy of the logo reference list leaves with the account
 
 Re-check R1-17 (other site named by the refuters): edge.watchlist.logos holds the content of a reference file the plan
@@ -9313,7 +9313,7 @@ index 3dca0656..053568f6 100644
 From 40725f4ae44a9890ee92f8d2bd2500caf4480f11 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:07:53 +0000
-Subject: [PATCH 15/20] EXEC-MU-ACCOUNTS fix round (plans): notes per finding,
+Subject: [PATCH 15/21] EXEC-MU-ACCOUNTS fix round (plans): notes per finding,
  the records to write, the decisions left, the script move for integration
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -9609,7 +9609,7 @@ index 00000000..ea7fd66e
 From edd0e434d892ef7d3db6f156a2180c0494c0b4b6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:09:11 +0000
-Subject: [PATCH 16/20] Terminal registry test: edge.watchlist.logos is cleared
+Subject: [PATCH 16/21] Terminal registry test: edge.watchlist.logos is cleared
  with the account (fix round, re-check R1-17 other site)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -9648,7 +9648,7 @@ index 96453e49..fe15d3c9 100644
 From c779d1e01309fe37aba11771c2593c7503a2b4f9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:13:24 +0000
-Subject: [PATCH 17/20] principal.py: the comment of the MFA check sits above
+Subject: [PATCH 17/21] principal.py: the comment of the MFA check sits above
  it again
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -9682,7 +9682,7 @@ index cf07386b..878e8613 100644
 From 09f4ae3e6ed81e60c14752d7f5dbbcee41df6ddd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:14:28 +0000
-Subject: [PATCH 18/20] main.py: the one-time cookie move never overrides a
+Subject: [PATCH 18/21] main.py: the one-time cookie move never overrides a
  route's own cookie answer (sign-in, sign-out)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -9714,7 +9714,7 @@ index 7b839f5b..aac63795 100644
 From e96cf7c952ffd68bf03363c4c65a359f4b252bc2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:47:16 +0000
-Subject: [PATCH 19/20] EXEC-MU-ACCOUNTS fix round (plans): the catalog refuses
+Subject: [PATCH 19/21] EXEC-MU-ACCOUNTS fix round (plans): the catalog refuses
  a Terminal limit beside the Backtest's or the Screener's own data access
  (re-check R1-36, the user's "2a")
 
@@ -10381,7 +10381,7 @@ index 699c7b0e..26220a9f 100644
 From 4bdf1cc69840167d82fb97a77e60b05aab3b031c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:47:16 +0000
-Subject: [PATCH 20/20] Backtest and Screener frame tests: the shell's tab code
+Subject: [PATCH 20/21] Backtest and Screener frame tests: the shell's tab code
  is read from edge-app.js (the R2-19 script move)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -10433,6 +10433,208 @@ index 7b8f6d07..d976a1d5 100644
      assert page.headers['content-security-policy'] == c.get('/terminal').headers['content-security-policy']   # EDGE's own policy
      frame = c.get('/screener-app/')
      assert frame.status_code == 200 and 'EDGE Screener' in frame.text and frame.headers['cache-control'] == 'no-store'
+-- 
+2.43.0
+
+
+From 279613408cb4cb0652140e55133c53958fe10467 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 11:32:15 +0000
+Subject: [PATCH 21/21] EXEC-MU-ACCOUNTS fix round (plans): the cap modules'
+ headers and the README say 403 LIMIT_REACHED for a plan cap (re-check R2-39);
+ notes: the migration of "2a", the R1-35 anchor, the suite results
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/README.md                       | 10 ++---
+ apps/edge-bff/app/drawings.py                 |  5 ++-
+ apps/edge-bff/app/layouts.py                  |  6 +--
+ apps/edge-bff/app/presets.py                  |  5 ++-
+ apps/edge-bff/app/screener.py                 |  8 ++--
+ .../edge_multiuser/fix_round/plans.md         | 37 ++++++++++++++++++-
+ 6 files changed, 53 insertions(+), 18 deletions(-)
+
+diff --git a/apps/edge-bff/README.md b/apps/edge-bff/README.md
+index a21bd847..9a4c1c7f 100644
+--- a/apps/edge-bff/README.md
++++ b/apps/edge-bff/README.md
+@@ -36,7 +36,7 @@ Saved layouts (user 2026-11-06: "di akun edge. Tidak usah mengganti saham."), ED
+ | --- | --- |
+ | GET `/api/v1/terminal/layouts` | `{layouts: [Layout without state], limit}` of the owner, the most recently opened first |
+ | GET `/api/v1/terminal/layouts/{layout_id}` | the Layout with `state` (setting name -> text); 404 `NOT_FOUND` |
+-| PUT `/api/v1/terminal/layouts/{layout_id}` | `{name, state, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field (more than 64 settings, text with NUL or an unpaired surrogate included), 422 `LIMIT_EXCEEDED` (50 layouts, 65,536 bytes of state); a body over 131,072 bytes is 413 before the route |
++| PUT `/api/v1/terminal/layouts/{layout_id}` | `{name, state, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field (more than 64 settings, text with NUL or an unpaired surrogate included), 422 `LIMIT_EXCEEDED` (65,536 bytes of state), 403 `LIMIT_REACHED` (the plan's `terminal.layouts_max`, at most 50 layouts; `details.limit` the capability key, `allowed`, `needed`); a body over 131,072 bytes is 413 before the route |
+ | PATCH `/api/v1/terminal/layouts/{layout_id}` | `{favorite?, opened?: true}`: the star, or the Recently used order; no revision |
+ | DELETE `/api/v1/terminal/layouts/{layout_id}` | 204; 404 `NOT_FOUND` |
+ 
+@@ -50,7 +50,7 @@ ticker. A preset is a template: changing the indicator on the chart does not cha
+ | Route | Contract |
+ | --- | --- |
+ | GET `/api/v1/terminal/presets` | `{presets: [Preset with config], limit}` of the owner, favorites first, then the most recently used |
+-| PUT `/api/v1/terminal/presets/{preset_id}` | `{name, def_id, config, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); `config` is `{params, style?, on?, fold?}` (objects at most 8 deep, text without NUL or an unpaired surrogate, at most 16,384 bytes); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (100 presets, `preset_bytes`) |
++| PUT `/api/v1/terminal/presets/{preset_id}` | `{name, def_id, config, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); `config` is `{params, style?, on?, fold?}` (objects at most 8 deep, text without NUL or an unpaired surrogate, at most 16,384 bytes); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (`preset_bytes`), 403 `LIMIT_REACHED` (the plan's `terminal.presets_max`, at most 100) |
+ | PATCH `/api/v1/terminal/presets/{preset_id}` | `{favorite?, used?: true}`: the star, or the used order; no revision |
+ | DELETE `/api/v1/terminal/presets/{preset_id}` | 204; 404 `NOT_FOUND` |
+ 
+@@ -68,7 +68,7 @@ come back with Undo. EDGE session, writes with CSRF:
+ | Route | Contract |
+ | --- | --- |
+ | GET `/api/v1/terminal/drawings?ticker=BBRI` | `{sets: [{ticker, set_id, drawings, revision, ...}], limits}` of the owner for that ticker |
+-| PUT `/api/v1/terminal/drawings/{ticker}/{set_id}` | `{drawings, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); `drawings` is the drawing library's list (at most 10 levels, at most 100,000 bytes); 409 `REVISION_CONFLICT` (`details.revision`), 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (5,000 sets per owner, `set_bytes`) |
++| PUT `/api/v1/terminal/drawings/{ticker}/{set_id}` | `{drawings, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); `drawings` is the drawing library's list (at most 10 levels, at most 100,000 bytes); 409 `REVISION_CONFLICT` (`details.revision`), 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (`set_bytes`), 403 `LIMIT_REACHED` (the plan's `terminal.drawings_max`, at most 5,000 sets per owner) |
+ | DELETE `/api/v1/terminal/drawings/{ticker}/{set_id}` | 204; 404 `NOT_FOUND` |
+ 
+ Without the table every drawings route answers 503 `DRAWINGS_NOT_READY` with `Retry-After: 30`; the page then keeps the
+@@ -215,10 +215,10 @@ and My metrics' Add all open it; the detailed Indicators window is gone. The pre
+ | POST `/api/v1/screener/validate` | `ValidateRequest` -> `{valid, definition_hash, normalized}` or the worker's 422 |
+ | POST `/api/v1/screener/counts` | `CountsRequest` -> `CountsResponse` (the worker's limit on definitions), as the run |
+ | GET `/api/v1/screener/items?kind=screen\|metric` | `{items: SavedItem[]}` of the owner (one kind, or both without `kind`), latest changed first, each with `needs_review` |
+-| PUT `/api/v1/screener/items/{item_id}` | `{kind, name, definition, revision?}` -> the stored item: no `revision` creates, the revision it was read with replaces (revision + 1); validated by the worker first (`/v1/validate`, its refusal relayed); 409 `REVISION_CONFLICT` (the id exists, or a stale revision), 409 `NAME_TAKEN` (`name` per owner and kind), 404 `NOT_FOUND`, 422 `LIMIT_EXCEEDED` |
++| PUT `/api/v1/screener/items/{item_id}` | `{kind, name, definition, revision?}` -> the stored item: no `revision` creates, the revision it was read with replaces (revision + 1); validated by the worker first (`/v1/validate`, its refusal relayed); 409 `REVISION_CONFLICT` (the id exists, or a stale revision), 409 `NAME_TAKEN` (`name` per owner and kind), 404 `NOT_FOUND`, 403 `LIMIT_REACHED` (the plan's `screener.saved_items` per kind) |
+ | DELETE `/api/v1/screener/items/{item_id}` | 204; 404 `NOT_FOUND` |
+ | GET `/api/v1/screener/watchlist` | `{tickers: [{ticker, added_at}]}` (one list per owner) |
+-| PUT / DELETE `/api/v1/screener/watchlist/{ticker}` | 204, idempotent; 422 `INVALID_INPUT` (`ticker`, terminal-api's rule `^[A-Z0-9]{1,12}$`), 422 `LIMIT_EXCEEDED` |
++| PUT / DELETE `/api/v1/screener/watchlist/{ticker}` | 204, idempotent; 422 `INVALID_INPUT` (`ticker`, terminal-api's rule `^[A-Z0-9]{1,12}$`), 403 `LIMIT_REACHED` (the plan's `watchlist.per_list`, or `watchlist.lists` when the first list is made) |
+ 
+ Errors are `{"error": {code, field?, message?, details?}}`; every refusal edge-bff gives itself names the field where
+ there is one and the fix (AGENTS.md "Gates and evidence"). A body that is not a JSON object the contract can carry is
+diff --git a/apps/edge-bff/app/drawings.py b/apps/edge-bff/app/drawings.py
+index f25c5237..abd5fc35 100644
+--- a/apps/edge-bff/app/drawings.py
++++ b/apps/edge-bff/app/drawings.py
+@@ -11,8 +11,9 @@ Routes (session; writes also with the CSRF header, as /api/v1/terminal/layouts):
+   PUT    /api/v1/terminal/drawings/{ticker}/{set_id}    {drawings, revision?}: create (no revision) or replace
+   DELETE /api/v1/terminal/drawings/{ticker}/{set_id}
+ Errors: {"error": {code, field?, message, details?}} (the layouts' shape and handler): 422 INVALID_INPUT by field /
+-LIMIT_EXCEEDED (SET_LIMIT sets, SET_BYTES per set), 404 NOT_FOUND, 409 REVISION_CONFLICT, 503 DRAWINGS_NOT_READY
+-(migration not applied). A body over 131,072 bytes is refused before the route (main.py, 413).
++LIMIT_EXCEEDED (SET_BYTES per set), 403 LIMIT_REACHED (the plan's sets cap, at most SET_LIMIT; errors.plan_cap), 404
++NOT_FOUND, 409 REVISION_CONFLICT, 503 DRAWINGS_NOT_READY (migration not applied). A body over 131,072 bytes is refused
++before the route (main.py, 413).
+ """
+ import asyncio
+ from contextlib import contextmanager
+diff --git a/apps/edge-bff/app/layouts.py b/apps/edge-bff/app/layouts.py
+index de5771ce..7a6984bb 100644
+--- a/apps/edge-bff/app/layouts.py
++++ b/apps/edge-bff/app/layouts.py
+@@ -13,9 +13,9 @@ Routes (session; writes also with the CSRF header, as /api/v1/screener):
+   DELETE /api/v1/terminal/layouts/{layout_id}
+ Errors: {"error": {code, field?, message, details?}}: 422 INVALID_INPUT (a field the API does not take, a name, summary or
+ state out of shape, more than STATE_KEYS settings, text PostgreSQL cannot store: NUL or an unpaired surrogate) /
+-LIMIT_EXCEEDED (LAYOUT_LIMIT layouts, STATE_BYTES of state), 404 NOT_FOUND, 409 REVISION_CONFLICT (details.revision: the
+-stored one) / NAME_TAKEN, 503 LAYOUTS_NOT_READY (migration not applied). A body over 131,072 bytes is refused before it
+-reaches these routes (main.py, 413 REQUEST_TOO_LARGE).
++LIMIT_EXCEEDED (STATE_BYTES of state), 403 LIMIT_REACHED (the plan's cap, at most LAYOUT_LIMIT; errors.plan_cap), 404
++NOT_FOUND, 409 REVISION_CONFLICT (details.revision: the stored one) / NAME_TAKEN, 503 LAYOUTS_NOT_READY (migration not
++applied). A body over 131,072 bytes is refused before it reaches these routes (main.py, 413 REQUEST_TOO_LARGE).
+ """
+ import asyncio
+ from contextlib import contextmanager
+diff --git a/apps/edge-bff/app/presets.py b/apps/edge-bff/app/presets.py
+index a6505e8a..4cefb89e 100644
+--- a/apps/edge-bff/app/presets.py
++++ b/apps/edge-bff/app/presets.py
+@@ -12,8 +12,9 @@ Routes (session; writes also with the CSRF header, as /api/v1/terminal/layouts):
+   PATCH  /api/v1/terminal/presets/{preset_id}   {favorite?, used?}: star it, or mark it used (no revision)
+   DELETE /api/v1/terminal/presets/{preset_id}
+ Errors: {"error": {code, field?, message, details?}} (the layouts' shape and handler): 422 INVALID_INPUT by field /
+-LIMIT_EXCEEDED (PRESET_LIMIT presets, CONFIG_BYTES of config), 404 NOT_FOUND, 409 REVISION_CONFLICT / NAME_TAKEN,
+-503 PRESETS_NOT_READY (migration not applied). A body over 131,072 bytes is refused before the route (main.py, 413).
++LIMIT_EXCEEDED (CONFIG_BYTES of config), 403 LIMIT_REACHED (the plan's cap, at most PRESET_LIMIT; errors.plan_cap),
++404 NOT_FOUND, 409 REVISION_CONFLICT / NAME_TAKEN, 503 PRESETS_NOT_READY (migration not applied). A body over 131,072
++bytes is refused before the route (main.py, 413).
+ """
+ import asyncio
+ from contextlib import contextmanager
+diff --git a/apps/edge-bff/app/screener.py b/apps/edge-bff/app/screener.py
+index 55739006..2108c5a7 100644
+--- a/apps/edge-bff/app/screener.py
++++ b/apps/edge-bff/app/screener.py
+@@ -493,8 +493,8 @@ class ScreenerStore:
+         """Create (revision None) or replace (the revision the item was read with) one item of the owner, serialised per
+         owner by an advisory lock. (row, created). Refusals: 409 REVISION_CONFLICT (the id exists, or a stale revision),
+         404 NOT_FOUND (replace of an item the owner does not have), 422 INVALID_INPUT kind (an item keeps its kind),
+-        409 NAME_TAKEN (another item of the kind has the name), 422 LIMIT_EXCEEDED saved_items (limit per kind: the
+-        principal's, at most SCREEN_LIMIT)."""
++        409 NAME_TAKEN (another item of the kind has the name), 403 LIMIT_REACHED saved_items (limit per kind: the
++        principal's, at most SCREEN_LIMIT; errors.plan_cap)."""
+         limit = SCREEN_LIMIT if limit is None else limit
+         values = (name, Jsonb(definition), SCHEMA_VERSION, checked['registry'], checked['screener_registry'],
+                   checked['definition_hash'])
+@@ -556,8 +556,8 @@ class ScreenerStore:
+                 ORDER BY position, added_at, ticker''', (owner, first)).fetchall()
+ 
+     def watch(self, owner, ticker, limit=None, lists=None):
+-        """Add a ticker to the first list (idempotent: a watched one stays as it was); at most WATCHLIST_LIMIT (422
+-        LIMIT_EXCEEDED; limit: the principal's, at most WATCHLIST_LIMIT). The first list is created only within the
++        """Add a ticker to the first list (idempotent: a watched one stays as it was); at most WATCHLIST_LIMIT (403
++        LIMIT_REACHED; limit: the principal's, at most WATCHLIST_LIMIT). The first list is created only within the
+         principal's lists cap (lists; C2 Phase 3a: the star never makes a list POST /watchlist/lists would refuse)."""
+         limit = WATCHLIST_LIMIT if limit is None else limit
+         lists = LISTS if lists is None else lists
+diff --git a/verification/edge_multiuser/fix_round/plans.md b/verification/edge_multiuser/fix_round/plans.md
+index 26220a9f..f77a707a 100644
+--- a/verification/edge_multiuser/fix_round/plans.md
++++ b/verification/edge_multiuser/fix_round/plans.md
+@@ -153,6 +153,9 @@ The findings and their three refuters' verdicts: `verification/edge_multiuser/ac
+   plan's words (`errors.plan_cap`). A cap answers 403 (waiting frees nothing); the backtest queue (frees itself) stays
+   429 with Retry-After (the re-check's W2 test locks 429 for the queue). An empty indicator choice is INVALID_INPUT.
+   The Watchlist page fixture mirrors it. WATCHLIST_FORMULAS.md explanation and fingerprint rewritten (AGENTS.md).
++  The module headers of layouts, presets, drawings and screener.py, and the route table of `apps/edge-bff/README.md`,
++  say 403 LIMIT_REACHED for the plan caps; 422 LIMIT_EXCEEDED stays only for the size limits of one item (bytes of
++  state, config or drawings; a screen's request size), which are not plan limits.
+ - Tests changed with the finding (it names them): test_layouts, test_presets, test_drawings, test_watchlist,
+   test_phase3a_gates, test_screener, test_c2_probe_phase3a.
+ - Records: CONTRACT 3 needs the sentence (proposed): "LIMIT_REACHED is every plan limit's code, details.limit the
+@@ -261,6 +264,11 @@ The findings and their three refuters' verdicts: `verification/edge_multiuser/ac
+   Screener's extra-columns anchor `bars gt 0` therefore needs screener.metric:bars. The user's O3b-2 reason ("values
+   shown in every result row and in /universe, so gating them by id cannot hide them") fits the conditions too, but the
+   decision named the chips only, and the three refuters asked for the user's word. Options in decisions_needed.
++  No seeded plan reaches it (paid holds every released metric, free has no screener.view); only a Phase 4 override
++  that narrows screener.metric does. The extra-columns anchor is left as it is until the answer: with option A it
++  needs no item; with option B it moves to a test the worker does not gate (for example `price close gt 0`, checked
++  through `tests/page/extra-columns-core.test.ts` for the edge case of a ticker without a finite last close), and
++  `apps/screener-worker/tests/allow.test.ts:160` changes with it.
+ - R1-37: the Overview and Watchlist files carry every stock's foreign net (broker data), gated only by their view
+   capability. Not changed (the user's rule: "the gate is the Terminal: flow menus closed"); options in decisions_needed.
+ 
+@@ -283,7 +291,32 @@ The findings and their three refuters' verdicts: `verification/edge_multiuser/ac
+     `signed-out` (R2-16, R2-17); landing (R2-14); the Password and sign-in dialog (R2-20); no inline script (R2-19).
+ - EXEC.md: the fix round's track status; the D5 reading taken for the preference store (R1-18) and the landing on the
+   Terminal (R2-14) as the computed task's decisions.
+-- DATABASE_CHANGELOG.md / DATABASE_SCHEMA.md: no new migration; the unapplied 20261118_001 and _002 verify blocks
+-  changed (`'*' = true`).
++- DATABASE_CHANGELOG.md / DATABASE_SCHEMA.md: one new migration, `20261119_030_edge_bff_plan_data_scope.sql` (not
++  applied; the column `edge_bff.capabilities.data_scope`, the functions `data_scope_conflict`, `data_scope_conflicts`,
++  `data_scope_guard` and the five triggers; see R1-36 above for what to read back at deploy); the unapplied
++  20261118_001 and _002 verify blocks changed (`'*' = true`).
+ - RAILWAY_CHANGELOG.md: nothing (no deploy). At deploy: the admin's session cookie moves to `__Host-edge_session` on
+   its next request (switch off), no sign-out.
++
++## Suites (last run on this branch, 2026-11-19)
++
++- edge-bff pytest (Postgres fx_plans, port 55564, Chromium): 725 passed, 56 failed, 2 skipped. Every failure belongs to
++  another track's finding: test_c2_ops_recheck (R2-33..37), test_c_p2_terminal_wire_domain (R1-22), test_c_p3a_probes
++  (3: R1-26 twice, R1-27), test_cdb_ci_coverage (R1-39/40/44), test_cdb_grants_and_records (R1-41..43),
++  test_cp0_reserved_owner (R1-3), test_cp0_terminal_relay (R1-1), test_cp1a_phase1_auth_check (R1-7..15), test_r2_life
++  (R2-24, R2-25), test_r2_race (R2-9..12), test_r2_skew (R2-1..3); and two timing failures under load that pass alone
++  (test_composer_layout mobile, the known flaky one; test_ui_1031 status dots: 3 runs alone and one with
++  test_composer_layout, all green; green on the base too). This track's tests are all green (test_fix_plans,
++  test_plan_data_scope, test_c_p2_recheck, test_c2web_browser, test_c2_e2e_people, test_c_p1s_preferences_plan,
++  test_c_p3b_recheck, test_allow, test_storage_registry, the R1-29 probe).
++- terminal-api pytest: 142 passed, 1 skipped (not changed by this track).
++- backtest-worker npm test: 277 tests, 276 passed; the one failure (server.test.ts "a job over
++  BACKTEST_TIMEOUT_SECONDS ends FAILED TIMEOUT") is timing under the edge-bff run and passes alone.
++- screener-worker npm test: 127 passed.
++- Page vitests: screener 1356 (1355 passed, 1 skipped, after `npm run build`: the bundle tests read dist/), terminal 968
++  passed, watchlist 21 passed (1 skipped), backtest 91 passed (after `npm run build`), overview 21 passed (1 skipped),
++  radar 7 passed (1 skipped). Typecheck (tsc --noEmit) clean for screener, backtest, terminal and watchlist.
++- Screener smoke: `tests/smoke/c_p1s_plan_refused_cache.mjs` exit 0; `tests/smoke/smoke.mjs` 6 failures, the same 6 on
++  the base 97b4ecb5 (Add a condition, Customize widths, Patterns columns, Flow P5c, long tasks).
++- scripts pytest: 94 passed, 1 skipped. `node shared/build-shell.mjs --check`: the shell copy and
++  catalog/storage_sync.json match.
 -- 
 2.43.0
 

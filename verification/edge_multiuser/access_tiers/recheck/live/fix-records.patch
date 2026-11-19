@@ -1,7 +1,7 @@
 From d71bc8363c232d2307077f2f8fb9cd90618228cf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:33:03 +0000
-Subject: [PATCH 1/6] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
+Subject: [PATCH 1/8] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
  key test waits in pending/ for the Railway deletion; the code side held by a
  test (no code the runner runs reads the main Orc key)
 
@@ -88,7 +88,7 @@ rename to verification/edge_multiuser/access_tiers/pending/test_cp0_runner_key.p
 From 22d4defe17a0d98db4ffb77a15f4f824f7cda532 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:35:21 +0000
-Subject: [PATCH 2/6] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
+Subject: [PATCH 2/8] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
  hook route verifies by a dependency built from HOOK_ROUTES; the route walk
  covers the whole table (signed hooks, a capability gate or a named
  principal-only reason on every /api route)
@@ -295,7 +295,7 @@ index ed71cd2a..7f845889 100644
 From 5f204d11e7db3de2fa9590e929a74c469cec84e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:39:59 +0000
-Subject: [PATCH 3/6] EXEC-MU-ACCOUNTS fix round (records, R1-41, R1-42, R1-43,
+Subject: [PATCH 3/8] EXEC-MU-ACCOUNTS fix round (records, R1-41, R1-42, R1-43,
  R1-45, R1-46): migration 20261119_040 (audit and provenance ids without a
  referential action, catalog trace triggers, the kind comment and history_days
  means to the code and D2, a column-privilege guard), the provisioning script
@@ -811,7 +811,7 @@ index 00000000..0377546a
 From 64e5fe94bf846432cdbb44359a564a2f0c9a6071 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:40:43 +0000
-Subject: [PATCH 4/6] EXEC-MU-ACCOUNTS fix round (records, R1-28): the run
+Subject: [PATCH 4/8] EXEC-MU-ACCOUNTS fix round (records, R1-28): the run
  stream's monitor.view re-check held by a live-server test (fails when
  still_signed_in stops asking for it)
 
@@ -887,7 +887,7 @@ index 00000000..c2a21bdf
 From 9d31dc07eb2cd29777e107e2b35148af30e2ebc2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:02:11 +0000
-Subject: [PATCH 5/6] EXEC-MU-ACCOUNTS fix round (records): work in progress
+Subject: [PATCH 5/8] EXEC-MU-ACCOUNTS fix round (records): work in progress
  saved when the usage limit stopped the builder (unreviewed;
  test_zz_tmp_walk.py is a scratch probe)
 
@@ -1264,7 +1264,7 @@ index 00000000..8a1f7462
 From 26c38da5b5bd1d24dcee759681a02b90f95b57fb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:12:45 +0000
-Subject: [PATCH 6/6] EXEC-MU-ACCOUNTS fix round (records, R1-21): the two-user
+Subject: [PATCH 6/8] EXEC-MU-ACCOUNTS fix round (records, R1-21): the two-user
  walk covers every /api route and every owned kind, derived from app.routes
  and information_schema; one event loop for both people; an owned id answers
  what an id nobody made answers; the scratch probe removed
@@ -1469,6 +1469,735 @@ index 8a1f7462..00000000
 -        out.append(f"{','.join(methods):12} {r.path:60} {r.endpoint.__module__:18} "
 -                   f"{'S' if sess in used else '-'}{'W' if wr in used else '-'} {held} {names}")
 -    open(OUT, 'w').write('\n'.join(out))
+-- 
+2.43.0
+
+
+From 51451d52afbe787f993280eb373e11616f4759ec Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 11:26:07 +0000
+Subject: [PATCH 7/8] EXEC-MU-ACCOUNTS fix round (records, R1-39, R1-40,
+ R1-44): CI runs the page suites, edge-bff's browser tests (Playwright,
+ Chromium, the built pages) and Orc's Postgres tests; the shell copy is
+ compared with its build by a generated_file test; generators found anywhere
+ by their --check flag
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ .github/workflows/backend-tests.yml          |  83 +++++++++++++--
+ .github/workflows/generated-files.yml        |  24 +++++
+ apps/edge-bff/tests/conftest.py              |   4 +
+ apps/edge-bff/tests/test_cdb_ci_coverage.py  | 103 ++++++++++++++++++-
+ apps/edge-bff/tests/test_shell_copy_build.py |  61 +++++++++++
+ apps/market-ai-orc/requirements-dev.txt      |   4 +
+ scripts/tests/test_generated_files.py        |  18 +++-
+ 7 files changed, 283 insertions(+), 14 deletions(-)
+ create mode 100644 apps/edge-bff/tests/test_shell_copy_build.py
+
+diff --git a/.github/workflows/backend-tests.yml b/.github/workflows/backend-tests.yml
+index c2aa8ff4..52325436 100644
+--- a/.github/workflows/backend-tests.yml
++++ b/.github/workflows/backend-tests.yml
+@@ -4,15 +4,27 @@ name: Backend tests
+ # edge-bff (rights and owners from the session, the catalogs filtered per session, the Screener's context, the backtest
+ # store and its owner joins), terminal-publisher (the P9 broker basis in the events file) and telegram-monitor (the
+ # Broker_Basis_Report message). Each suite runs here on every push and pull request. edge-bff's suite needs a
+-# disposable Postgres (tests/conftest.py EDGE_TEST_POSTGRES_URL: it creates and drops its own database); its browser
+-# tests skip without Playwright (pytest.importorskip), as they do on a machine without it, so this job checks the server.
+-# No secrets, read-only.
++# disposable Postgres (tests/conftest.py EDGE_TEST_POSTGRES_URL: it creates and drops its own database). No secrets,
++# read-only.
+ # EXEC-MU-ACCOUNTS Phase 0 (2026-11-16): market-ai-orc (owner header, test key, per-owner registries) and terminal-api
+ # (private-only mode, private host rule for every key) are not gated on Railway, so their suites run here too.
+-# market-ai-orc runs without Postgres (ORC_TEST_POSTGRES_URL unset: its Postgres tests skip, as on a machine without
+-# one; with a Postgres 3 test_request_data errors predate Phase 0). terminal-api's one server test (tests/test_api.py,
+-# a dropped connection replaced) uses a disposable Postgres (TERMINAL_TEST_POSTGRES_URL). Every job of this workflow is
+-# part of the check suite that gates edge-bff's deploy (checkSuites), so a red job here holds that deploy too.
++# terminal-api's one server test (tests/test_api.py, a dropped connection replaced) uses a disposable Postgres
++# (TERMINAL_TEST_POSTGRES_URL). Every job of this workflow is part of the check suite that gates edge-bff's deploy
++# (checkSuites, once K10 a turns it on; ERRORS M459), so a red job here holds that deploy too.
++# EXEC-MU-ACCOUNTS fix round (re-check R1-39, R1-40, 2026-11-19): CONTRACT section 13 says every acceptance test runs in
++# CI, and three kinds did not:
++# - edge-bff's browser tests (the account pages, the front-end contract, B on A's browser, CONTRACT 13.8) skipped
++#   without Playwright; the job now installs Playwright with Chromium and builds the pages those tests open (the
++#   Terminal, the Watchlist), so they run;
++# - the page suites (apps/edge-bff/terminal holds the tests of the shared session module: sign-out clearing, change of
++#   user, access.seed, the 403 contract) ran in no workflow; job edge-bff-pages runs them (the Screener's and the
++#   Backtest page's run in backtest-lookahead.yml);
++# - market-ai-orc's Postgres tests (conversation ownership, the C2 CLIENT-history fix, branch lineage and export
++#   ownership per owner) skipped without ORC_TEST_POSTGRES_URL; the job now has a disposable Postgres. The three
++#   test_request_data errors that kept it off were a missing dependency of those tests (the SQL Governor's package,
++#   which they run end to end, needs pyarrow); requirements-dev.txt now names the Governor's requirements.
++# apps/edge-bff/tests/test_cdb_ci_coverage.py checks that every package under apps/ with a test script is run by some
++# workflow, and that these jobs keep their Postgres and their browser.
+ 
+ on:
+   push:
+@@ -28,7 +40,7 @@ concurrency:
+ jobs:
+   edge-bff:
+     runs-on: ubuntu-latest
+-    timeout-minutes: 20
++    timeout-minutes: 60
+     services:
+       postgres:
+         image: postgres:16
+@@ -46,14 +58,51 @@ jobs:
+         working-directory: apps/edge-bff
+     env:
+       EDGE_TEST_POSTGRES_URL: postgresql://postgres@127.0.0.1:5432/postgres
++      # a generated_file test that cannot find the Terminal's esbuild fails here instead of skipping
++      EDGE_TEST_REQUIRE_NODE: "1"
+     steps:
+       - uses: actions/checkout@v4
+       - uses: actions/setup-python@v5
+         with:
+           python-version: "3.12"
+-      - run: pip install -r requirements.txt pytest==8.4.2
++      - uses: actions/setup-node@v4
++        with:
++          node-version: "22"
++      # requirements-dev.txt: the server's requirements, pytest and Playwright (the browser tests)
++      - run: pip install -r requirements-dev.txt
++      - name: Chromium for the browser tests (tests read its path from EDGE_TEST_CHROMIUM)
++        run: |
++          python -m playwright install --with-deps chromium
++          echo "EDGE_TEST_CHROMIUM=$(python -c 'from playwright.sync_api import sync_playwright as s; p = s().start(); print(p.chromium.executable_path); p.stop()')" >> "$GITHUB_ENV"
++      - name: The pages the browser tests open (the Terminal's install also gives shared/build-shell.mjs its esbuild)
++        run: |
++          (cd terminal && npm ci && npm run build)
++          (cd watchlist && npm ci && npm run build)
+       - run: python -m pytest -q -p no:cacheprovider tests
+ 
++  # EXEC-MU-ACCOUNTS fix round (re-check R1-39): the page suites no other workflow runs. Each step typechecks, builds
++  # and runs the page's vitest suite (the Screener's and the Backtest page's are in backtest-lookahead.yml).
++  edge-bff-pages:
++    runs-on: ubuntu-latest
++    timeout-minutes: 30
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions/setup-node@v4
++        with:
++          node-version: "22"
++      - name: Terminal (typecheck, build, tests incl. the shared session module, shared/edge-session.ts)
++        working-directory: apps/edge-bff/terminal
++        run: npm ci && npm run build && npx vitest run
++      - name: Overview (typecheck, build, tests)
++        working-directory: apps/edge-bff/overview
++        run: npm ci && npm run build && npx vitest run
++      - name: Radar (typecheck, build, tests)
++        working-directory: apps/edge-bff/radar
++        run: npm ci && npm run build && npx vitest run
++      - name: Watchlist (typecheck, build, tests)
++        working-directory: apps/edge-bff/watchlist
++        run: npm ci && npm run build && npx vitest run
++
+   terminal-publisher:
+     runs-on: ubuntu-latest
+     timeout-minutes: 15
+@@ -85,9 +134,25 @@ jobs:
+   market-ai-orc:
+     runs-on: ubuntu-latest
+     timeout-minutes: 30
++    services:
++      postgres:
++        image: postgres:16
++        env:
++          POSTGRES_HOST_AUTH_METHOD: trust
++        ports:
++          - 5432:5432
++        options: >-
++          --health-cmd "pg_isready -U postgres"
++          --health-interval 5s
++          --health-timeout 5s
++          --health-retries 10
+     defaults:
+       run:
+         working-directory: apps/market-ai-orc
++    env:
++      # the Postgres tests (each makes and drops its own database): conversation ownership and the C2 CLIENT-history
++      # fix (tests/test_conversations.py), branch lineage, export ownership and the catalogs (CONTRACT 13.3, 13.6)
++      ORC_TEST_POSTGRES_URL: postgresql://postgres@127.0.0.1:5432/postgres
+     steps:
+       - uses: actions/checkout@v4
+       - uses: actions/setup-python@v5
+diff --git a/.github/workflows/generated-files.yml b/.github/workflows/generated-files.yml
+index aaa9209e..b1f6312c 100644
+--- a/.github/workflows/generated-files.yml
++++ b/.github/workflows/generated-files.yml
+@@ -47,6 +47,30 @@ jobs:
+       - run: pip install -r requirements-dev.txt
+       - run: python -m pytest -m generated_file -q -rs
+ 
++  # EXEC-MU-ACCOUNTS fix round (re-check R1-44): static/edge-session.js, the shell's copy of shared/edge-session.ts
++  # (tests/test_shell_copy_build.py runs `node shared/build-shell.mjs --check` with the Terminal page's esbuild)
++  edge-bff:
++    runs-on: ubuntu-latest
++    timeout-minutes: 15
++    defaults:
++      run:
++        working-directory: apps/edge-bff
++    env:
++      EDGE_TEST_REQUIRE_NODE: "1"
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions/setup-python@v5
++        with:
++          python-version: "3.12"
++      - uses: actions/setup-node@v4
++        with:
++          node-version: "22"
++      - name: The Terminal page's esbuild (shared/build-shell.mjs builds with it)
++        working-directory: apps/edge-bff/terminal
++        run: npm ci
++      - run: pip install -r requirements.txt pytest==8.4.2
++      - run: python -m pytest -m generated_file -q -rs tests
++
+   market-python-sandbox:
+     runs-on: ubuntu-latest
+     timeout-minutes: 15
+diff --git a/apps/edge-bff/tests/conftest.py b/apps/edge-bff/tests/conftest.py
+index 669d8757..e5e718b0 100644
+--- a/apps/edge-bff/tests/conftest.py
++++ b/apps/edge-bff/tests/conftest.py
+@@ -8,6 +8,10 @@ from app.config import Settings
+ from app.security import password_verifier
+ from app.store import Store
+ 
++def pytest_configure(config):
++    # AGENTS.md "Generated files": .github/workflows/generated-files.yml runs the tests with this mark
++    config.addinivalue_line('markers', 'generated_file: a generated file equals what its generator writes now')
++
+ @pytest.fixture(scope='session')
+ def database():
+     admin=os.environ.get('EDGE_TEST_POSTGRES_URL','')
+diff --git a/apps/edge-bff/tests/test_cdb_ci_coverage.py b/apps/edge-bff/tests/test_cdb_ci_coverage.py
+index ad60c10c..434c8feb 100644
+--- a/apps/edge-bff/tests/test_cdb_ci_coverage.py
++++ b/apps/edge-bff/tests/test_cdb_ci_coverage.py
+@@ -7,11 +7,23 @@ and static/edge-session.js rebuilt as AGENTS.md says, the edge-bff suite passes,
+ Terminal vitest suite fails (12 tests: edge_session.test.ts, c3_phase1_switch_off.test.ts, c4_seed_phase0_mark.test.ts),
+ and no workflow runs it. A hand edit of static/edge-session.js that keeps its first line passes
+ tests/test_storage_registry.py; only `node shared/build-shell.mjs --check` fails, and no workflow runs it either.
++
++Fix round (records track, 2026-11-19). The refuters of R1-39 and R1-44 noted that the first two checks locked one
++instance and one form: the Terminal alone of the page suites no workflow ran (overview, radar and watchlist too), and
++a workflow line holding `build-shell.mjs --check`, while AGENTS.md's own form for a generated file is a test marked
++generated_file that generated-files.yml runs. The checks below hold the properties instead, derived from the
++repository: every package under apps/ with a test script is run by a workflow step in its folder; the shell copy is
++compared with its build by a workflow step or by a generated_file test that a workflow runs with the Terminal's
++esbuild installed; the edge-bff job installs Playwright with Chromium, so its browser tests (CONTRACT 13.8) run.
+ """
++import json
++import re
++import subprocess
+ from pathlib import Path
+ 
+ ROOT = Path(__file__).resolve().parents[3]
+ WORKFLOWS = sorted((ROOT / '.github/workflows').glob('*.yml'))
++TEST_COMMAND = re.compile(r'\bnpm (run )?test\b|\bvitest run\b|\bnode --test\b')
+ 
+ 
+ def runs(fragment, directory=None):
+@@ -27,6 +39,52 @@ def runs(fragment, directory=None):
+     return False
+ 
+ 
++def jobs(path):
++    """{job name: {'directory': its default working-directory or None, 'text', 'steps': [{'directory', 'text'}]}} of
++    a workflow file, read by indentation (the house workflows: jobs at 2 spaces, `steps:` at 4, each step's `- ` at 6
++    and its keys at 8; a job's `defaults: run: working-directory:` comes before its steps)."""
++    found, job, step, in_jobs = {}, None, None, False
++    for line in path.read_text().splitlines():
++        if not line.strip() or line.lstrip().startswith('#'):
++            continue
++        if not line.startswith(' '):
++            in_jobs = line == 'jobs:'
++            continue
++        if not in_jobs:
++            continue
++        if re.fullmatch(r'  [A-Za-z0-9_-]+:', line):
++            job, step = found.setdefault(line.strip()[:-1], {'directory': None, 'text': '', 'steps': []}), None
++            continue
++        if job is None:
++            continue
++        job['text'] += line + '\n'
++        if re.match(r'    \S', line):                      # a key of the job itself (steps:, env:, defaults:, ...)
++            step = None
++        elif line.startswith('      - ') and re.search(r'^    steps:$', job['text'], re.M):
++            step = {'directory': None, 'text': ''}
++            job['steps'].append(step)
++        directory = re.match(r'\s*(?:- )?working-directory:\s*(\S+)', line)
++        if step is not None:
++            step['text'] += line + '\n'
++            if directory:
++                step['directory'] = directory.group(1)
++        elif directory:
++            job['directory'] = directory.group(1)
++    return found
++
++
++def every_step():
++    for path in WORKFLOWS:
++        for name, job in jobs(path).items():
++            for step in job['steps']:
++                yield path.name, name, step['directory'] or job['directory'], step['text']
++
++
++def tracked(pattern):
++    out = subprocess.run(['git', 'ls-files', pattern], cwd=ROOT, capture_output=True, text=True, check=True).stdout
++    return [ROOT / line for line in out.splitlines() if line and 'node_modules' not in line]
++
++
+ def test_ci_runs_the_terminal_vitest_suite_that_holds_the_session_module_tests():
+     # apps/edge-bff/terminal/tests/data/edge_session*.test.ts, c1_security_findings, c3_phase1_switch_off,
+     # c4_seed_phase0_mark, fixture_bundle (M468, M469, M471, M473, M478): shared/edge-session.ts is tested only there
+@@ -35,11 +93,49 @@ def test_ci_runs_the_terminal_vitest_suite_that_holds_the_session_module_tests()
+         'user, access.seed, the 403 contract) is tested by no CI job; add the step to a workflow in edge-bff\'s checks')
+ 
+ 
++def test_every_package_with_a_test_script_is_run_by_a_workflow():
++    """The general class of R1-39: suites that exist but are wired into no workflow (found from the package files)."""
++    packages = []
++    for manifest in tracked('apps/*package.json'):
++        if 'test' in (json.loads(manifest.read_text()).get('scripts') or {}):
++            packages.append(manifest.parent.relative_to(ROOT).as_posix())
++    assert 'apps/edge-bff/terminal' in packages and len(packages) >= 8, packages
++    steps = list(every_step())
++    unrun = [p for p in packages if not any(d == p and TEST_COMMAND.search(text) for _, _, d, text in steps)]
++    assert unrun == [], (f'no workflow step runs the tests of {unrun}: add a step with working-directory set to the '
++                         'folder and `npm test` (or `npx vitest run`) to a workflow of edge-bff\'s checks '
++                         '(backend-tests.yml edge-bff-pages)')
++
++
+ def test_ci_compares_the_shell_copy_with_its_build():
+-    assert runs('build-shell.mjs --check'), (
++    by_step = runs('build-shell.mjs --check')
++    marked = [p for p in tracked('apps/edge-bff/tests/test_*.py')
++              if 'generated_file' in (text := p.read_text()) and 'build-shell.mjs' in text and '--check' in text]
++    generated = jobs(ROOT / '.github/workflows/generated-files.yml')
++    by_marked_test = bool(marked) and any(
++        job['directory'] == 'apps/edge-bff' and '-m generated_file' in job['text']
++        and any(s['directory'] == 'apps/edge-bff/terminal' and 'npm ci' in s['text'] for s in job['steps'])
++        and 'EDGE_TEST_REQUIRE_NODE: "1"' in job['text']
++        for job in generated.values())
++    assert by_step or by_marked_test, (
+         'no workflow runs `node shared/build-shell.mjs --check`: tests/test_storage_registry.py compares only the '
+         'source sha256 in the first line of static/edge-session.js, so an edited body ships unseen (AGENTS.md: a '
+-        'generated file has a generated_file test that compares it with what the script writes now)')
++        'generated file has a generated_file test that compares it with what the script writes now, run by '
++        'generated-files.yml with the Terminal page\'s `npm ci` first)')
++
++
++def test_the_edge_bff_job_runs_its_browser_tests():
++    """CONTRACT 13.8 (B on A's browser) and the account-page tests are Playwright tests: without Playwright and
++    Chromium in the job they skip (pytest.importorskip), as every one of them did in CI before the fix round."""
++    job = jobs(ROOT / '.github/workflows/backend-tests.yml')['edge-bff']
++    text = job['text']
++    assert 'requirements-dev.txt' in text, 'the edge-bff job installs requirements.txt only: Playwright is in -dev'
++    assert 'playwright install' in text and 'chromium' in text, 'the edge-bff job installs no Chromium'
++    assert 'EDGE_TEST_CHROMIUM' in text, 'the browser tests read the browser from EDGE_TEST_CHROMIUM'
++    assert 'playwright' in (ROOT / 'apps/edge-bff/requirements-dev.txt').read_text()
++    # the browser tests that open a built page skip without it (test_c2_e2e_people: the Terminal; the Watchlist page)
++    for page in ('terminal', 'watchlist'):
++        assert re.search(rf'cd {page} && npm ci && npm run build', text), f'the edge-bff job does not build {page}'
+ 
+ 
+ def test_ci_runs_orc_conversation_ownership_against_postgres():
+@@ -51,3 +147,6 @@ def test_ci_runs_orc_conversation_ownership_against_postgres():
+     assert 'ORC_TEST_POSTGRES_URL' in orc, (
+         'backend-tests.yml runs market-ai-orc without ORC_TEST_POSTGRES_URL, so test_conversations.py (the owner '
+         'isolation of conversations and the C2 CLIENT-history fix) is skipped in CI')
++    assert 'image: postgres:16' in orc, 'ORC_TEST_POSTGRES_URL needs a Postgres service in the job'
++    # the three test_request_data tests run the SQL Governor's package end to end: its requirements are theirs
++    assert '../market-sql-governor/requirements.txt' in (ROOT / 'apps/market-ai-orc/requirements-dev.txt').read_text()
+diff --git a/apps/edge-bff/tests/test_shell_copy_build.py b/apps/edge-bff/tests/test_shell_copy_build.py
+new file mode 100644
+index 00000000..8d99f254
+--- /dev/null
++++ b/apps/edge-bff/tests/test_shell_copy_build.py
+@@ -0,0 +1,61 @@
++"""EXEC-MU-ACCOUNTS fix round (records track, re-check R1-44): static/edge-session.js is the build of the shared session
++module, compared by the generator itself.
++
++tests/test_storage_registry.py compares only the source sha256 named in the copy's first line, so a hand edit of the
++copy's body (a merge conflict, a quick fix) kept every suite green while the shell served code that differs from the
++tested source (sign-out clearing, the CSRF retry). `node shared/build-shell.mjs --check` rebuilds the copy in memory
++and compares every byte (and, since the fix round's plans track, catalog/storage_sync.json with it). AGENTS.md
++"Generated files": a file written by a script has a test marked generated_file that compares it with what the script
++writes now; .github/workflows/generated-files.yml runs these tests on every push and pull request, and
++scripts/tests/test_generated_files.py finds this generator by its `--check` flag.
++
++The generator needs the esbuild of the Terminal page (`npm ci` in apps/edge-bff/terminal). Without it the test skips
++on a developer machine; in CI (EDGE_TEST_REQUIRE_NODE=1) it fails instead, so a missing install never passes unseen.
++"""
++import os
++import shutil
++import subprocess
++from pathlib import Path
++
++import pytest
++
++pytestmark = pytest.mark.generated_file
++
++EDGE = Path(__file__).resolve().parents[1]
++
++
++def test_the_shell_copy_of_the_session_module_is_its_build():
++    missing = [what for what, ok in (('node', shutil.which('node')),
++                                     ('the Terminal page\'s esbuild (npm ci in apps/edge-bff/terminal)',
++                                      (EDGE / 'terminal/node_modules/esbuild/package.json').is_file())) if not ok]
++    if missing:
++        if os.environ.get('EDGE_TEST_REQUIRE_NODE') == '1':
++            pytest.fail(f'shared/build-shell.mjs --check cannot run here: {", ".join(missing)} missing')
++        pytest.skip(f'shared/build-shell.mjs --check needs {", ".join(missing)}')
++    run = subprocess.run(['node', 'shared/build-shell.mjs', '--check'], cwd=EDGE, capture_output=True, text=True,
++                         timeout=120)
++    assert run.returncode == 0, (f'{run.stdout}{run.stderr}static/edge-session.js is not the build of '
++                                 'shared/edge-session.ts: run `node shared/build-shell.mjs` from apps/edge-bff and '
++                                 'commit its output (never edit the copy by hand)')
++
++
++def test_a_hand_edit_of_the_copy_is_caught(tmp_path):
++    """The comparison is of the whole file, not its first line: the edit the re-check made (removeItem -> getItem in
++    the body, first line kept) fails the check."""
++    if not shutil.which('node') or not (EDGE / 'terminal/node_modules/esbuild/package.json').is_file():
++        if os.environ.get('EDGE_TEST_REQUIRE_NODE') == '1':
++            pytest.fail('node or the Terminal page\'s esbuild is missing')
++        pytest.skip('needs node and the Terminal page\'s esbuild')
++    copy = tmp_path / 'edge'
++    for part in ('shared', 'static', 'catalog'):
++        shutil.copytree(EDGE / part, copy / part)
++    (copy / 'terminal').mkdir()
++    shutil.copy(EDGE / 'terminal/package.json', copy / 'terminal/package.json')
++    os.symlink(EDGE / 'terminal/node_modules', copy / 'terminal/node_modules')
++    shell = copy / 'static/edge-session.js'
++    text = shell.read_text()
++    assert 'removeItem(' in text
++    shell.write_text(text.replace('removeItem(', 'getItem(', 1))
++    run = subprocess.run(['node', 'shared/build-shell.mjs', '--check'], cwd=copy, capture_output=True, text=True,
++                         timeout=120)
++    assert run.returncode == 1, run.stdout + run.stderr
+diff --git a/apps/market-ai-orc/requirements-dev.txt b/apps/market-ai-orc/requirements-dev.txt
+index 44dca339..b164c7b7 100644
+--- a/apps/market-ai-orc/requirements-dev.txt
++++ b/apps/market-ai-orc/requirements-dev.txt
+@@ -1,2 +1,6 @@
+ -r requirements.txt
+ pytest==8.4.2
++# tests/test_request_data.py runs the SQL Governor's own package end to end (its Postgres tests); the Governor's
++# dependencies are those tests' dependencies (pyarrow for its snapshots). EXEC-MU-ACCOUNTS fix round, re-check R1-40:
++# without them the three tests erred whenever ORC_TEST_POSTGRES_URL was set, and CI skipped every Postgres test.
++-r ../market-sql-governor/requirements.txt
+diff --git a/scripts/tests/test_generated_files.py b/scripts/tests/test_generated_files.py
+index ec7ef606..3b04267c 100644
+--- a/scripts/tests/test_generated_files.py
++++ b/scripts/tests/test_generated_files.py
+@@ -34,13 +34,25 @@ def tracked(*patterns):
+     return [ROOT / line for line in out.splitlines() if line]
+ 
+ 
++# a script that reads a `--check` flag itself (argparse, sys.argv, process.argv), wherever it lives
++TAKES_CHECK = re.compile(r'''add_argument\(\s*['"]--check['"]|['"]--check['"]\s+in\s+sys\.argv|'''
++                         r'''argv\.includes\(\s*['"]--check['"]\s*\)''')
++TEST_FILE = re.compile(r'(^test_.*\.py|\.test\.[cm]?[jt]s)$')
++
++
+ def generators():
+-    """Scripts directly in a folder named `scripts` (not in node_modules), found by name or by a `--check` flag."""
++    """Scripts directly in a folder named `scripts` (not in node_modules), found by name or by a `--check` flag, and
++    any other tracked script that reads a `--check` flag itself (EXEC-MU-ACCOUNTS fix round, re-check R1-44:
++    apps/edge-bff/shared/build-shell.mjs writes static/edge-session.js and sits in no `scripts` folder)."""
+     found = {}
+     for path in tracked('*.py', '*.mjs', '*.js'):
+-        if path.parent.name != 'scripts' or 'node_modules' in path.parts:
++        if 'node_modules' in path.parts or TEST_FILE.search(path.name):
+             continue
+-        if re.match(r'(build|generate|snapshot)[_-]', path.name) or '--check' in path.read_text(errors='replace'):
++        text = path.read_text(errors='replace')
++        if path.parent.name == 'scripts':
++            if re.match(r'(build|generate|snapshot)[_-]', path.name) or '--check' in text:
++                found[path.stem] = path
++        elif TAKES_CHECK.search(text):
+             found[path.stem] = path
+     return found
+ 
+-- 
+2.43.0
+
+
+From 77e57322263ebe16d440686978e35f4bce1ea75f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 11:26:07 +0000
+Subject: [PATCH 8/8] EXEC-MU-ACCOUNTS fix round (records, R2-40): tests of the
+ contract requirements no test held (absolute session lifetime in both modes,
+ Retry-After on every 429, entitlements on the signed-in answers, names from
+ the start, a future subscription, SEND_IP, a pending session's sign-out,
+ plain words in every message table, no-store on every walked answer);
+ register/verify carries X-Edge-Entitlements; NOT_CONFIGURED in plain words
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/app/auth_flows.py               |   3 +
+ apps/edge-bff/app/pages.py                    |   6 +-
+ .../tests/test_contract_requirements.py       | 197 ++++++++++++++++++
+ .../tests/test_two_users_every_route.py       |   6 +
+ 4 files changed, 210 insertions(+), 2 deletions(-)
+ create mode 100644 apps/edge-bff/tests/test_contract_requirements.py
+
+diff --git a/apps/edge-bff/app/auth_flows.py b/apps/edge-bff/app/auth_flows.py
+index 5cc84e3d..79d1182d 100644
+--- a/apps/edge-bff/app/auth_flows.py
++++ b/apps/edge-bff/app/auth_flows.py
+@@ -466,6 +466,9 @@ class AuthFlows:
+             p = await auth.resolve(token)
+             if p is None:
+                 raise Refusal(401, 'UNAUTHENTICATED')
++            # CONTRACT.md 8a: every answer made for a principal carries its X-Edge-Entitlements, this signed-in answer
++            # too (as the sign-in's; re-check R2-40 item 4)
++            request.state.principal = p
+             response = signed_in(p, token)
+             response.delete_cookie(REGISTRATION_COOKIE, path=REGISTRATION_PATH)
+             return response
+diff --git a/apps/edge-bff/app/pages.py b/apps/edge-bff/app/pages.py
+index 5752f863..a21e69bb 100644
+--- a/apps/edge-bff/app/pages.py
++++ b/apps/edge-bff/app/pages.py
+@@ -48,8 +48,10 @@ def messages(family, label, names):
+     return {
+         'UNAVAILABLE': f'The {label} data could not be read from the terminal service. Try again in a minute; nothing '
+                        'on this page changed.',
+-        'NOT_CONFIGURED': f'The {label} needs the terminal service, which this server is not connected to '
+-                          '(EDGE_TERMINAL_URL and TERMINAL_PROXY_KEY on edge-bff).',
++        # plain words only (CONTRACT.md 3; re-check R2-40 item 10): the code <FAMILY>_NOT_CONFIGURED tells the operator
++        # that the terminal service's two settings are unset (app/config.py, settings.terminal_url)
++        'NOT_CONFIGURED': f'The {label} is not available on this server right now. Nothing on this page changed; try '
++                          'again later.',
+         'INVALID_NAME': f'That is not a {label} file name. Names: {names}; GET /api/v1/{family}/index lists the '
+                         'published ones.',
+         'INVALID_SHA': 'The sha parameter must be the 64 lowercase hexadecimal characters of the file\'s sha256 as '
+diff --git a/apps/edge-bff/tests/test_contract_requirements.py b/apps/edge-bff/tests/test_contract_requirements.py
+new file mode 100644
+index 00000000..44526f17
+--- /dev/null
++++ b/apps/edge-bff/tests/test_contract_requirements.py
+@@ -0,0 +1,197 @@
++"""EXEC-MU-ACCOUNTS fix round (records track, re-check R2-40): contract requirements whose code no test held.
++
++The re-check removed each of these lines and every suite stayed green, because each requirement was tested only through
++a neighbour (the idle timeout, the code-try Retry-After, the need() refusal path). Each test below fails on the mutation
++the finder ran (named in its docstring). Where the class can recur in new code, the test is derived from the code
++(every 429 an answer is built with, every message table, every /api answer of the two-user walk in
++test_two_users_every_route.py for the default no-store) instead of naming one site.
++"""
++import ast
++import dataclasses
++import re
++from pathlib import Path
++
++from fastapi.testclient import TestClient
++
++from app import errors
++from app.main import create_app
++from conftest import FakeOrc
++from test_auth_flows import admin_sign_in, app, error_code, last_code, on, register, verify  # noqa: F401 - fixtures
++from test_edge import ORIGIN, login
++from test_principal import db, make_user, sign_in
++
++APP = Path(__file__).resolve().parents[1] / 'app'
++
++
++# ---- sessions: the absolute lifetime in both modes (CONTRACT 2 and 4: 24 h, idle 8 h) ---------------------------------
++
++def test_an_expired_session_answers_401_with_the_switch_off(settings, store):
++    """Mutation survived: store.session without `AND expires_at>now()` (a switch-off session never expired)."""
++    with TestClient(create_app(settings, store, FakeOrc())) as c:
++        login(c)
++        assert c.get('/api/v1/auth/session').status_code == 200
++        db(store, """UPDATE edge_bff.sessions SET created_at = now() - interval '25 hours',
++            expires_at = now() - interval '1 second'""")
++        r = c.get('/api/v1/auth/session')
++        assert r.status_code == 401 and r.json()['error']['code'] == 'UNAUTHENTICATED', r.text
++
++
++def test_an_expired_session_answers_401_with_the_switch_on_although_it_was_used_a_moment_ago(app, store):
++    """Mutation survived: accounts.resolve without `s.expires_at > now()` (a session used within the idle window lived
++    for ever)."""
++    make_user(store, 'alice', 'alice-password')
++    sign_in(app, 'alice', 'alice-password')
++    assert app.get('/api/v1/auth/session').status_code == 200
++    db(store, """UPDATE edge_bff.sessions SET created_at = now() - interval '25 hours',
++        expires_at = now() - interval '1 second', last_seen_at = now()""")
++    r = app.get('/api/v1/auth/session')
++    assert r.status_code == 401 and error_code(r) == 'UNAUTHENTICATED', r.text
++
++
++# ---- 429: Retry-After on every one (CONTRACT 3) -----------------------------------------------------------------------
++
++def test_the_mfa_tries_limit_answers_with_retry_after(app):
++    """Mutation survived: the Retry-After header of 429 LIMIT_REACHED mfa_tries removed."""
++    h = admin_sign_in(app)
++    app.post('/api/v1/auth/mfa/enroll', headers=h)
++    answers = [app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': '000000'}) for _ in range(11)]
++    limited = [r for r in answers if r.status_code == 429]
++    assert limited, [r.status_code for r in answers]
++    r = limited[0]
++    assert error_code(r) == 'LIMIT_REACHED' and int(r.headers['Retry-After']) > 0, (r.headers, r.text)
++    assert int(r.headers['Retry-After']) == r.json()['error']['details']['retry_after_s']
++
++
++ANSWER_BUILDERS = {'Refusal', 'refusal', 'failure', 'error', 'JSONResponse', 'Response'}
++
++
++def builders_of_429():
++    """Every call in app/ that builds an answer (a refusal, a failure, a response) with the status 429."""
++    for path in sorted(APP.glob('*.py')):
++        text = path.read_text()
++        for node in ast.walk(ast.parse(text)):
++            if not isinstance(node, ast.Call):
++                continue
++            name = node.func.attr if isinstance(node.func, ast.Attribute) else getattr(node.func, 'id', '')
++            values = [*node.args, *(k.value for k in node.keywords)]
++            if name in ANSWER_BUILDERS and any(isinstance(v, ast.Constant) and v.value == 429 for v in values):
++                yield path.name, node.lineno, ast.get_source_segment(text, node)
++
++
++def test_every_429_an_answer_is_built_with_says_when_to_try_again():
++    """The class of R2-40 item 3 (and R1-26): a 429 without Retry-After leaves the page to guess. Every call that builds
++    an answer with 429 passes a Retry-After header; a new limit fails here until it does."""
++    found = list(builders_of_429())
++    assert len(found) >= 3, found                      # the walk sees the known limits (sign-in, codes, MFA, queue)
++    missing = [f'{name}:{line}' for name, line, source in found if 'Retry-After' not in source]
++    assert missing == [], (f'429 answers without a Retry-After header: {missing}. Pass headers={{"Retry-After": '
++                           'str(seconds)}} and details.retry_after_s (CONTRACT.md section 3)')
++
++
++# ---- X-Edge-Entitlements on the signed-in answers (CONTRACT 8a: every answer made for a principal) --------------------
++
++def test_the_sign_in_and_the_registration_answers_carry_the_entitlements_version(app, store):
++    """Mutation survived: the sign-in answer without request.state.principal; register/verify never set it."""
++    assert register(app).status_code == 202
++    made = verify(app, last_code(store, 'ana@example.com'))
++    assert made.status_code == 200, made.text
++    assert made.headers.get('X-Edge-Entitlements') == made.json()['access']['version'], made.headers
++    app.post('/api/v1/auth/sign-out', headers={**ORIGIN, 'X-CSRF-Token': made.json()['csrf_token']})
++    signed = app.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'ana_putri',
++                                                                    'password': 'a long enough password'})
++    assert signed.status_code == 200, signed.text
++    assert signed.headers.get('X-Edge-Entitlements') == signed.json()['access']['version'], signed.headers
++
++
++# ---- the names refusals show come from the catalog at start (C1 Phase 3a F3) ------------------------------------------
++
++def test_refusals_name_the_catalogs_items_from_the_start_without_a_refusal_first(on, store):
++    """Mutation survived: the start-up load of the display names removed (only a need() refusal loaded them, so a
++    refusal outside auth.need, as the backtest loop's dispatch or a worker's relayed one, showed the plain phrase)."""
++    errors.set_display_names({})
++    with TestClient(create_app(on, store, FakeOrc())):
++        rows = db(store, "SELECT capability_key, display_name FROM edge_bff.capabilities WHERE capability_key <> '*'")
++        assert rows
++        shown = {r['capability_key']: errors.display_name(r['capability_key']) for r in rows}
++        assert shown == {r['capability_key']: r['display_name'] for r in rows}
++
++
++# ---- a subscription that has not started yet (CONTRACT 8a) ------------------------------------------------------------
++
++def test_a_subscription_that_starts_tomorrow_gives_the_default_plan_today(app, store):
++    """Mutation survived: the GRANTS live CTE without `s.starts_at <= now()`."""
++    user = make_user(store, 'alice', 'alice-password')
++    paid = db(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'backtest.run'
++        AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')[0]['plan_key']
++    default = db(store, 'SELECT plan_key FROM edge_bff.plans WHERE is_default')[0]['plan_key']
++    db(store, '''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider, starts_at)
++        VALUES (%s, %s, 'active', 'test', now() + interval '1 day')''', user['user_id'], paid)
++    sign_in(app, 'alice', 'alice-password')
++    access = app.get('/api/v1/auth/session').json()['access']
++    assert access['plan'] == default and 'backtest.run' not in access['capabilities'], access
++    db(store, "UPDATE edge_bff.subscriptions SET starts_at = now() - interval '1 second' WHERE user_id = %s",
++       user['user_id'])
++    assert app.get('/api/v1/auth/session').json()['access']['plan'] == paid
++
++
++# ---- sends per client address are recorded until the probe (CONTRACT 4 "Client IP") -----------------------------------
++
++def test_an_email_send_records_the_client_address_count(app, store):
++    """Mutation survived: the SEND_IP row no longer written (the per-address count the probe will turn on)."""
++    assert db(store, "SELECT count(*) AS n FROM edge_bff.auth_throttle WHERE scope = 'send_ip'")[0]['n'] == 0
++    assert register(app).status_code == 202
++    assert db(store, "SELECT coalesce(sum(count), 0) AS n FROM edge_bff.auth_throttle WHERE scope = 'send_ip'")[0]['n'] >= 1
++
++
++# ---- a session waiting for its second factor may sign out (CONTRACT 4 "Admin MFA") -------------------------------------
++
++def test_a_session_waiting_for_mfa_can_sign_out(app, store):
++    """Mutation survived: sign-out removed from MFA_OPEN (the pending session could not end itself)."""
++    h = admin_sign_in(app)
++    r = app.post('/api/v1/auth/sign-out', headers=h)
++    assert r.status_code in (200, 204), r.text
++    assert db(store, 'SELECT count(*) AS n FROM edge_bff.sessions WHERE revoked_at IS NULL')[0]['n'] == 0
++    assert app.get('/api/v1/auth/session').status_code == 401
++
++
++# ---- plain words in every message table (CONTRACT 3; EXEC-UI-1019B) ---------------------------------------------------
++
++CODE = re.compile(r'^[A-Z][A-Z0-9_]+$')
++SETTING = re.compile(r'\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b')         # a setting or an internal code, as EDGE_TERMINAL_URL
++INTERNAL = ('csrf', 'token', 'edge_', 'fastapi', 'owner_key', 'http')
++
++
++def text_of(node):
++    if isinstance(node, ast.Constant) and isinstance(node.value, str):
++        return node.value
++    if isinstance(node, ast.JoinedStr):
++        return ''.join(v.value if isinstance(v, ast.Constant) else '{}' for v in node.values)
++    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
++        left, right = text_of(node.left), text_of(node.right)
++        return None if left is None or right is None else left + right
++    return None
++
++
++def message_tables():
++    """Every dict literal in app/ that maps codes (UPPER_CASE) to sentences: errors.MESSAGES and each module's own."""
++    for path in sorted(APP.glob('*.py')):
++        for node in ast.walk(ast.parse(path.read_text())):
++            if not isinstance(node, ast.Dict) or len(node.keys) < 2:
++                continue
++            if not all(isinstance(k, ast.Constant) and isinstance(k.value, str) and CODE.match(k.value) for k in node.keys):
++                continue
++            texts = [text_of(v) for v in node.values]
++            if all(t is not None and ' ' in t for t in texts):
++                yield path.name, node.lineno, dict(zip((k.value for k in node.keys), texts))
++
++
++def test_every_message_table_speaks_plain_words():
++    """test_error_contract.py held errors.MESSAGES only; the same rule over every table found pages.py NOT_CONFIGURED
++    naming EDGE_TERMINAL_URL and TERMINAL_PROXY_KEY, which the Radar, Overview and Watchlist pages show."""
++    tables = list(message_tables())
++    assert {'errors.py', 'pages.py'} <= {name for name, _, _ in tables}, tables
++    wrong = [f'{name}:{line} {code}: {SETTING.findall(text) or [w for w in INTERNAL if w in text.lower()]}'
++             for name, line, table in tables for code, text in table.items()
++             if SETTING.search(text) or any(w in text.lower() for w in INTERNAL)]
++    assert wrong == [], ('messages people see name settings or internal words (say what happened and what to do; the '
++                         f'code already tells the operator): {wrong}')
+diff --git a/apps/edge-bff/tests/test_two_users_every_route.py b/apps/edge-bff/tests/test_two_users_every_route.py
+index e67a334c..52f85235 100644
+--- a/apps/edge-bff/tests/test_two_users_every_route.py
++++ b/apps/edge-bff/tests/test_two_users_every_route.py
+@@ -265,6 +265,12 @@ def test_b_reaches_nothing_of_a_on_any_route(on, store, workers, monkeypatch):
+                 headers, params = (hb if method != 'GET' else None), ({'ticker': 'BBRI'} if method == 'GET' else None)
+                 r = b.request(method, path, headers=headers, json=body, params=params)
+                 walked += 1
++                # CONTRACT 13.8 (re-check R2-40 item 6): a per-user answer never enters a shared browser's HTTP cache;
++                # an answer without its own Cache-Control is no-store, one with its own keeps it private
++                cache = r.headers.get('cache-control', '')
++                if 'no-store' not in cache and not ('private' in cache and 'application/json' not in
++                                                    r.headers.get('content-type', '')):
++                    problems.append(f'{method} {path}: Cache-Control {cache!r} on a {r.status_code} answer')
+                 sent = set(re.findall(r'[A-Za-z0-9_]+', path))
+                 leaked = [m for m in content if m in r.text and m not in sent]
+                 if leaked:
 -- 
 2.43.0
 
