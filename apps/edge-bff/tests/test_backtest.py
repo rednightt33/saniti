@@ -28,7 +28,7 @@ from fastapi.testclient import TestClient
 import uvicorn
 
 from app.errors import MESSAGES
-from app import allow, backtest, errors, main, releases
+from app import allow, backtest, catalog, errors, main, releases
 from app.backtest import BacktestLoop, ResultTooLarge, WorkerClient, WorkerTimeout, WorkerUnavailable, loads, split_result
 from app.main import create_app
 from conftest import FakeOrc
@@ -2383,8 +2383,11 @@ def test_a_queued_job_reads_its_owners_rights_when_it_is_dispatched(configured, 
                                                         grants={'backtest.run': True}, kinds={'backtest.run': 'flag'})
         asyncio.run(loop.process(bt.store.claim(90)))
         assert worker.posted('/v1/jobs')[-1]['body']['context']['rights'] == []
-        # Phase 3b: its allow is read at dispatch too (this principal holds no item family: nothing allowed)
-        assert worker.posted('/v1/jobs')[-1]['body']['context']['allow'] == {k: [] for k in allow.KINDS}
+        # Phase 3b: its allow is read at dispatch too (this principal holds no item family: nothing allowed but what is
+        # part of a tab itself, the universe attributes every Screener answer shows: re-check R1-35, the user's "1a"
+        # of 2026-11-19, app/catalog.py ungated; until then the list was empty)
+        assert worker.posted('/v1/jobs')[-1]['body']['context']['allow'] == {
+            **{k: [] for k in allow.KINDS}, 'screener_metric': sorted(catalog.SHOWN_ATTRIBUTES)}
         # without backtest.run (a switch-off owner EDGE_ADMIN_OWNERS does not list): refused at dispatch
         sent = len(worker.posted('/v1/jobs'))
         assert submit(c, single('BBRI'), 'refused').status_code == 202
