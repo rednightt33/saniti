@@ -129,7 +129,7 @@ def url_of(path):
 def paid_plan(store):
     """The plan that grants backtest.run without '*' (found by data, as the code does: no plan key in code)."""
     rows = db(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'backtest.run'
-        AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')
+        AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')
     assert len(rows) == 1, rows
     return rows[0]['plan_key']
 

@@ -304,6 +304,8 @@ class Watchlist:
     def routes(self, app, auth):
         self.files.routes(app, auth)
         reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
+        for name, hard in caps_of().items():          # the session's access.limits reports the applied caps (R1-29)
+            auth.ceiling(LIMIT_KEYS[name], hard)
 
         def answer(body, status=200):
             return JSONResponse(status_code=status, content=jsonable_encoder(body))

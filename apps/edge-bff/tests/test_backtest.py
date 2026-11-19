@@ -2309,7 +2309,7 @@ def rights_session(configured, store, admin):
     def signed(c):
         user = make_user(store, 'plain', 'plain-password')
         plan = run_sql(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'backtest.run'
-            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')[0]['plan_key']
+            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')[0]['plan_key']
         run_sql(store, "INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider) VALUES (%s, %s, 'active', 'test')",
                 user['user_id'], plan)
         return sign_in(c, 'plain', 'plain-password')

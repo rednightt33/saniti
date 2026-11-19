@@ -138,7 +138,7 @@ def switched_off(settings, api):
 
 def paid_plan(store):
     rows = db(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'backtest.run'
-        AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')
+        AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')
     assert len(rows) == 1, rows
     return rows[0]['plan_key']
 
@@ -527,7 +527,7 @@ def test_the_quota_migration_holds_d6s_numbers_for_paid_and_free(store):
         by_plan.setdefault(r['plan_key'], {})[r['capability_key'].removeprefix('terminal.')] = r['value']
     assert by_plan == {paid_plan(store): QUOTA, db(store, 'SELECT plan_key FROM edge_bff.plans WHERE is_default')[0]['plan_key']: QUOTA}
     assert not db(store, '''SELECT 1 FROM edge_bff.plan_capabilities WHERE capability_key LIKE 'terminal.%%_per_%%'
-        AND plan_key IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')
+        AND plan_key IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')
 
 
 def test_the_quota_migration_refuses_a_second_run(database):

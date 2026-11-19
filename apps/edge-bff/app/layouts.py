@@ -220,6 +220,7 @@ class Layouts:
         # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): every route, reads included, needs terminal.layouts; the cap is
         # the plan's terminal.layouts_max, at most LAYOUT_LIMIT
         reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
+        auth.ceiling(LIMIT_KEY, LAYOUT_LIMIT)          # the session's access.limits reports the applied cap (R1-29)
 
         @app.exception_handler(LayoutError)
         async def layout_error(_, exc):

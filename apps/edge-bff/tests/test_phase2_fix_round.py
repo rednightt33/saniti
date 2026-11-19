@@ -29,7 +29,7 @@ from test_principal import db, make_user
 
 def plan_without_star(store, default):
     return db(store, '''SELECT plan_key FROM edge_bff.plans WHERE is_default = %s AND plan_key NOT IN
-        (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''', default)[0]['plan_key']
+        (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''', default)[0]['plan_key']
 
 
 # ---- write-time value shapes ----------------------------------------------------------------------------------------

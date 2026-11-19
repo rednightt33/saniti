@@ -1053,6 +1053,8 @@ class Screeners:
     # ---- routes -----------------------------------------------------------------------------------------------------
 
     def routes(self, app, auth):
+        for name, hard in caps_of().items():          # the session's access.limits reports the applied caps (R1-29)
+            auth.ceiling(LIMIT_KEYS[name], hard)
         # EXEC-BACKTEST-REVAMP P5 (user K8 b), EXEC-MU-ACCOUNTS Phase 1: the principal's rights (rights.py) go to every
         # worker call in the body's context; a page body that carries one is refused before the worker. Every call
         # carries the principal's owner tag; nothing here reads the configured owner.

@@ -1291,6 +1291,7 @@ class Backtests:
 
     def routes(self, app, auth):
         settings = self.settings
+        auth.ceiling(QUEUED_KEY, settings.backtest_queued_per_owner)   # access.limits reports the applied cap (R1-29)
         # EXEC-MU-ACCOUNTS Phase 1: the loop reads a queued job's owner's rights from the same principal resolution
         if self.loop:
             self.loop.access = auth.owner_principal

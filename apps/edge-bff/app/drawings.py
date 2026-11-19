@@ -164,6 +164,7 @@ class Drawings:
         # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): every route needs terminal.drawings; the cap is the plan's
         # terminal.drawings_max, at most SET_LIMIT
         reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
+        auth.ceiling(LIMIT_KEY, SET_LIMIT)             # the session's access.limits reports the applied cap (R1-29)
 
         @app.get('/api/v1/terminal/drawings')
         async def drawings(ticker: str = '', p: Principal = Depends(reader)):

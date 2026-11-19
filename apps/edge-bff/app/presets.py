@@ -192,6 +192,7 @@ class Presets:
         # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): every route needs terminal.presets; the cap is the plan's
         # terminal.presets_max, at most PRESET_LIMIT
         reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
+        auth.ceiling(LIMIT_KEY, PRESET_LIMIT)          # the session's access.limits reports the applied cap (R1-29)
 
         @app.get('/api/v1/terminal/presets')
         async def presets(p: Principal = Depends(reader)):

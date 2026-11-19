@@ -1500,7 +1500,7 @@ def test_c2_catalog_preset_counts_are_never_served_to_a_plan_without_the_presets
     with TestClient(application) as c:
         user = make_user(store, 'narrow', 'narrow-password')
         plan = run_sql(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'screener.run'
-            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')[0]['plan_key']
+            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')[0]['plan_key']
         run_sql(store, "INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider) VALUES (%s, %s, 'active', 'test')",
                 user['user_id'], plan)
         # the plan's flow indicators narrowed to FL11 for this account (an override, CONTRACT.md 8a), on the Terminal's

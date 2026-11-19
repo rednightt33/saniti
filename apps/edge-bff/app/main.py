@@ -735,7 +735,7 @@ def create_app(settings=None, store=None, orc=None):
         return {'authenticated': True, 'login': p.username if settings.multiuser else settings.login,
                 'owner_key': p.owner_key,
                 'csrf_token': csrf_token(p.token, settings.session_secret), 'capabilities': capabilities(),
-                'username': p.username, 'access': jsonable_encoder(p.access())}
+                'username': p.username, 'access': jsonable_encoder(p.access(ceilings=auth.ceilings))}
 
     def capabilities():
         return {'deep_research': False, 'model_selection': True, 'cancel': True, 'tool_progress': False,

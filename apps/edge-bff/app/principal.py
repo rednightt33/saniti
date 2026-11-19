@@ -75,8 +75,16 @@ def valid_value(kind, value):
 
 
 # C1 Phase 2 F1: a value that cannot be read never widens access. A flag or an item family of the wrong shape is not
-# held; a limit or a list of the wrong shape is the most restrictive value (0, no entries), never "no limit"
-RESTRICTIVE = {'limit': 0, 'list': []}
+# held; a limit or a list of the wrong shape is the most restrictive value (0, no entries), never "no limit". Immutable
+# here and copied per read (re-check R1-24): a consumer that adds to the list it was given changes its own copy only,
+# never the value of the next principal whose list cannot be read
+RESTRICTIVE = {'limit': 0, 'list': ()}
+
+
+def restrictive(kind):
+    """A new most restrictive value of a limit or list kind (never a shared object)."""
+    value = RESTRICTIVE[kind]
+    return list(value) if kind == 'list' else value
 
 
 def read_grants(rows, user_id=None):
@@ -91,7 +99,7 @@ def read_grants(rows, user_id=None):
             continue
         logger.warning(json.dumps({'event': 'capability_value_invalid', 'capability': key, 'user_id': user_id}))
         if kind in RESTRICTIVE:
-            grants[key], kinds[key] = RESTRICTIVE[kind], kind
+            grants[key], kinds[key] = restrictive(kind), kind
     return grants, kinds
 
 
@@ -154,18 +162,43 @@ class Principal:
         value = self.limit(capability, hard)
         return min(value, hard) if isinstance(value, int) and not isinstance(value, bool) else hard
 
-    def refusal(self, capability):
-        """The refusal for a capability this principal does not hold: PLAN_EXPIRED when only its ended plan held it
-        (renewing that plan is the fix), else CAPABILITY_REQUIRED (upgrading is)."""
-        if self.expired_plan and holds(self.expired_grants, self.expired_kinds, capability):
+    def refusal(self, capability, item=None, amount=None):
+        """The refusal for a request this principal may not make: PLAN_EXPIRED when the account's ended plan would have
+        allowed it (renewing that plan is the fix; ended_allows), else CAPABILITY_REQUIRED (upgrading is). `item` (a
+        list member asked, e.g. a ticker) and `amount` (a number asked, e.g. a window in days) let a list or a limit be
+        judged against the ended plan's own value (CONTRACT.md 8a; re-check R1-23)."""
+        if self.ended_allows(capability, item, amount):
             return plan_expired(capability, self.expired_plan)
         return capability_required(capability)
 
-    def access(self, nxt=None):
-        """The session answer's `access` object (CONTRACT.md section 4, GET /api/v1/auth/session)."""
+    def ended_allows(self, capability, item=None, amount=None):
+        """Whether the account's ended plan would have allowed this request. A flag or an item family: held as can()
+        holds it. A list or a limit (its kind read from the ended plan's row, else the current plan's): allowed when the
+        ended plan set no such restriction (no row: every member, no limit), its list holds `item`, or `amount` is
+        within its limit; without `item` or `amount` only the first case is known."""
+        if not self.expired_plan:
+            return False
+        grants, kinds = self.expired_grants, self.expired_kinds
+        kind = kinds.get(capability) or self.kinds.get(capability)
+        if kind not in ('list', 'limit'):
+            return holds(grants, kinds, capability)
+        if grants.get(EVERYTHING) is True or capability not in kinds:
+            return True
+        value = grants[capability]
+        if kind == 'list':
+            return item is not None and item in value
+        return isinstance(amount, int) and not isinstance(amount, bool) and amount <= value
+
+    def access(self, nxt=None, ceilings=None):
+        """The session answer's `access` object (CONTRACT.md section 4, GET /api/v1/auth/session). `ceilings`
+        (Auth.ceilings: a limit key -> its module's HARD): a limit is reported as the routes apply it, min(plan, HARD)
+        (Principal.capped; re-check R1-29), so the page's limit(key) is the number the server enforces."""
+        ceilings = ceilings or {}
+        limits = {k: self.capped(k, ceilings[k]) if k in ceilings and self.kinds.get(k, 'limit') == 'limit' else v
+                  for k, v in self.limits.items()}
         return {'plan': self.plan_key, 'role': self.role, 'status': self.status,
                 'expires_at': self.expires_at.isoformat() if self.expires_at else None, 'mfa_ok': self.mfa_ok,
-                'capabilities': sorted(self.capabilities), 'limits': dict(self.limits), 'version': self.version,
+                'capabilities': sorted(self.capabilities), 'limits': limits, 'version': self.version,
                 'owner_key': self.owner_key, 'mfa_enrolled': self.mfa_enrolled, 'seed': self.seed,
                 'expired_plan': self.expired_plan,
                 'next': nxt if nxt is not None else (None if self.mfa_ok else 'mfa')}
@@ -232,6 +265,8 @@ class Auth:
         self._names_at = None
         self.seed = None                                 # {user_id, username} of user #1 once seeded (main.py lifespan)
         self._needs = {}
+        # re-check R1-29: each module's HARD of a plan limit (ceiling), so the session answer reports what is applied
+        self.ceilings = {}
 
         # named session and write as before Phase 1 (tests read the dependency names)
         async def session(request: Request):
@@ -241,7 +276,9 @@ class Auth:
             # a pending admin session (the password was right, the second factor not yet): only the MFA steps, the
             # session read and sign-out; every other route answers 403 MFA_REQUIRED
             if not found.mfa_ok and request.url.path not in MFA_OPEN:
-                raise Refusal(403, 'MFA_REQUIRED')
+                # re-check R2-31: whether an authenticator is set up, as the sign-in answer says, so the words and the
+                # shell can offer the set-up to an account raised to a plan that needs the second factor
+                raise Refusal(403, 'MFA_REQUIRED', {'mfa_enrolled': found.mfa_enrolled})
             # EXEC-BACKTEST-REVAMP P5: request.state.owner stays, set from the principal (never a body's)
             request.state.owner, request.state.principal = found.owner_key, found
             return found
@@ -338,10 +375,18 @@ class Auth:
                 if not p.can(ADMIN_ACCESS):
                     raise p.refusal(ADMIN_ACCESS)
                 if not p.mfa_ok:
-                    raise Refusal(403, 'MFA_REQUIRED')
+                    raise Refusal(403, 'MFA_REQUIRED', {'mfa_enrolled': p.mfa_enrolled})
                 return p
             self._needs[key] = check
         return self._needs[key]
+
+    def ceiling(self, capability, hard):
+        """A module's HARD for the plan limit `capability` (the storage guarantee Principal.capped applies), declared
+        where the module registers its routes; the session answer's access.limits reports min(plan, HARD) for it. The
+        lowest wins when two modules apply the same key. Returns hard."""
+        was = self.ceilings.get(capability)
+        self.ceilings[capability] = hard if was is None else min(was, hard)
+        return hard
 
 
 def owner_principal(settings, accounts, owner_key):
