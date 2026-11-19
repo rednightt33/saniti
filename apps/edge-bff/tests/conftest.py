@@ -34,6 +34,11 @@ def database():
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261117_004_edge_bff_catalog_phase3a.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261118_001_edge_bff_item_families_from_terminal.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261118_002_edge_bff_terminal_quota.sql').read_text())
+            # EXEC-MU-ACCOUNTS beta/live fix round (track site): the queues' site, the seed's mark, the account indexes
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_020_edge_bff_jobs_site.sql').read_text())
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_021_edge_bff_backtest_jobs_site.sql').read_text())
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_022_edge_bff_seed_verifier_mark.sql').read_text())
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_023_edge_bff_account_reference_indexes.sql').read_text())
             c.execute('CREATE TABLE public.market_private(secret text)')
         yield url
     finally:
