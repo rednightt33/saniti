@@ -1,7 +1,7 @@
 From 88d75b8e27614970adb2c6d9950b130dc6285aea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:22:44 +0000
-Subject: [PATCH 01/54] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26):
+Subject: [PATCH 01/55] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26):
  every terminal-api 429 names its quota and when to try again
 
 quota_exceeded carries quota, limit, window and retry_after_s (Store.frees_in: when the rolling window lets the
@@ -337,7 +337,7 @@ index 00000000..1b97b475
 From e5f0c18176c143415631c5fb983843cea38b3e50 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:24:56 +0000
-Subject: [PATCH 02/54] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
+Subject: [PATCH 02/55] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
  terminal-api leaves out unknown datasets, takes history_days 0, acknowledges
  the applied header
 
@@ -587,7 +587,7 @@ index 1b97b475..89f69688 100644
 From d959a594942a346d292f67be79d11630bd5b2162 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:30:47 +0000
-Subject: [PATCH 03/54] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
+Subject: [PATCH 03/55] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
  reference lists filtered to the plan; the gateway account on /ready
 
 An owner whose plan lacks the dataset reference gets its own copy of each reference file (app/refcut.py: the rows of
@@ -1162,7 +1162,7 @@ index 89f69688..bc66a9f0 100644
 From 570e607cfa06be44e7d7926946941f597627fea6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:36:59 +0000
-Subject: [PATCH 04/54] EXEC-MU-ACCOUNTS fix round (terminal,
+Subject: [PATCH 04/55] EXEC-MU-ACCOUNTS fix round (terminal,
  R1-1/R1-26/R1-22/R2-4/R2-32): one relay rule for every terminal-api answer
 
 terminal_access.relayed is the rule forward_terminal, relay_cut and PageFiles share: a terminal-api 401 or 403 about
@@ -1840,7 +1840,7 @@ index 90f357d9..6af924b7 100644
 From 0713d5053e3eb87c750b4074b1a9558898956d04 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:38:26 +0000
-Subject: [PATCH 05/54] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests
+Subject: [PATCH 05/55] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests
  of the relay rule, the acknowledgement, history 0, the page-file refusals
  before the caches and the reference copy relay
 
@@ -2114,7 +2114,7 @@ index 00000000..1240c974
 From c17efdf1f905c655a98325b8c9cf5e260bc1a330 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:41:40 +0000
-Subject: [PATCH 06/54] EXEC-MU-ACCOUNTS fix round (track site): migrations
+Subject: [PATCH 06/55] EXEC-MU-ACCOUNTS fix round (track site): migrations
  20261119_020-023 (the queues' site, the seed's mark, the indexes on the
  references to users) and the test harness
 
@@ -2505,7 +2505,7 @@ index 00000000..4ac242f5
 From 8aed704adeafafdcab31e9d0338073c0145b3d27 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:41:52 +0000
-Subject: [PATCH 07/54] EXEC-MU-ACCOUNTS fix round (track site): two edge-bff
+Subject: [PATCH 07/55] EXEC-MU-ACCOUNTS fix round (track site): two edge-bff
  sites on one database, the start-up, the background loops
 
 - EDGE_SITE (beta, the default, or live); config.validate refuses live without EDGE_MULTIUSER, the beta with it (outside
@@ -4346,7 +4346,7 @@ index b1912754..b05f4698 100644
 From eaa7bc28340a9d4374530acb3bdbd3cbd8a1a8e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:42:12 +0000
-Subject: [PATCH 08/54] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
+Subject: [PATCH 08/55] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
  domain per capability in the catalog, read by the value trigger
 
 Migration 20261119_050 (not applied): edge_bff.capabilities gains value_min, value_max and item_pattern;
@@ -4728,7 +4728,7 @@ index 00000000..5dcc217f
 From 9099a1f4de4d7d39736a7f2fc40eebf2ce56d7cf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:44:52 +0000
-Subject: [PATCH 09/54] EXEC-MU-ACCOUNTS fix round (track site): an explicit
+Subject: [PATCH 09/55] EXEC-MU-ACCOUNTS fix round (track site): an explicit
  switch for log mode on a deployed site, the sender-off line at every
  switch-on start, the worker's default claim read when called
 
@@ -4871,7 +4871,7 @@ index e6ed73f7..ab0afcd0 100644
 From 9b83ea196e2b17dedf5f5bc76eb8a186d32dfd0f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:45:45 +0000
-Subject: [PATCH 10/54] EXEC-MU-ACCOUNTS fix round (terminal, R2-32): the free
+Subject: [PATCH 10/55] EXEC-MU-ACCOUNTS fix round (terminal, R2-32): the free
  plan's Terminal draws BBCA
 
 The e2e fake terminal-api now answers the header edge-bff really sends with terminal-api's own code (entitlements,
@@ -5139,7 +5139,7 @@ index 5faf7ca1..ad858b55 100644
 From f82419c0941877b307fe2357c8ff2114c68f6958 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:46:37 +0000
-Subject: [PATCH 11/54] EXEC-MU-ACCOUNTS fix round (terminal):
+Subject: [PATCH 11/55] EXEC-MU-ACCOUNTS fix round (terminal):
  SCREENER_ONBOARDING.md pointers into terminal-api and edge-bff main.py moved
  with their lines (screener-worker onboarding_pointers test)
 
@@ -5228,7 +5228,7 @@ index 6a313a75..1006309b 100644
 From 34edaafa4248403f9660a32fd94728359e48c0df Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:47:16 +0000
-Subject: [PATCH 12/54] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff README
+Subject: [PATCH 12/55] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff README
  follows the relay rule, the reference copies, the header mapping and the
  page-file caches
 
@@ -5317,7 +5317,7 @@ index 976016a8..85d0851f 100644
 From e48042eac2458582d814a4aeb5c9f3084edc60a7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:54:00 +0000
-Subject: [PATCH 13/54] EXEC-MU-ACCOUNTS fix round (terminal): notes per
+Subject: [PATCH 13/55] EXEC-MU-ACCOUNTS fix round (terminal): notes per
  finding, what the shared records must say, the decisions only the user can
  take
 
@@ -5583,7 +5583,7 @@ index 00000000..7b1c5317
 From ae02340396c5211c58fce4bc04028785b63c021d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:54:24 +0000
-Subject: [PATCH 14/54] EXEC-MU-ACCOUNTS fix round (terminal): terminal-api
+Subject: [PATCH 14/55] EXEC-MU-ACCOUNTS fix round (terminal): terminal-api
  README, the logo line follows the reference copies
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5613,7 +5613,7 @@ index 8b62323d..e523a13a 100644
 From ccdfb1772f0fab41d6754b2a4d1cd9e3669e2b36 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:00:12 +0000
-Subject: [PATCH 15/54] EXEC-MU-ACCOUNTS fix round (track site): notes for the
+Subject: [PATCH 15/55] EXEC-MU-ACCOUNTS fix round (track site): notes for the
  records (findings, tests, EXPLAIN evidence, suites)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5878,7 +5878,7 @@ index 00000000..af3f0b6a
 From bd1d506525535c8d352fb08a667d827ceb936567 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:02:43 +0000
-Subject: [PATCH 16/54] EXEC-MU-ACCOUNTS fix round (terminal, R2-4): the C2
+Subject: [PATCH 16/55] EXEC-MU-ACCOUNTS fix round (terminal, R2-4): the C2
  Phase 2 isolation test's fake terminal-api acknowledges the owner header, as
  terminal-api does
 
@@ -5921,7 +5921,7 @@ index 9d082941..f1f04a18 100644
 From e6dfab52206226635e0f38ca752b16c6afd5c0ed Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:04:03 +0000
-Subject: [PATCH 17/54] EXEC-MU-ACCOUNTS fix round (terminal): the suites'
+Subject: [PATCH 17/55] EXEC-MU-ACCOUNTS fix round (terminal): the suites'
  results in the track notes
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5957,7 +5957,7 @@ index 7b1c5317..1a4617b2 100644
 From b16d57288f42b49682d60bfab255d454f20d9739 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:13:40 +0000
-Subject: [PATCH 18/54] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
+Subject: [PATCH 18/55] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
  for lists and limits, no shared restrictive list, the seed plan is the one
  whose '*' is true, access.limits reports the applied cap, MFA_REQUIRED says
  whether an authenticator is set up
@@ -6396,7 +6396,7 @@ index 205d728e..79f4b2e7 100644
 From 68542f2fb3036e6ef993b948b48fb7e37f1983e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:26:59 +0000
-Subject: [PATCH 19/54] EXEC-MU-ACCOUNTS fix round (plans): refusals worded
+Subject: [PATCH 19/55] EXEC-MU-ACCOUNTS fix round (plans): refusals worded
  from their code and details; no internal key in a worker's capability message
 
 Re-check R2-15: errors.words names the item (display_name), the ended plan, the plan limit with the account's number and
@@ -6748,7 +6748,7 @@ index 4f57f457..6b36df04 100644
 From 296129a5dc45ccfadc9c657500d4c9a113dffacc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:29:25 +0000
-Subject: [PATCH 20/54] EXEC-MU-ACCOUNTS fix round (plans): the Screener
+Subject: [PATCH 20/55] EXEC-MU-ACCOUNTS fix round (plans): the Screener
  catalog lists only the presets the plan holds, by the rule of /api/v1/catalog
 
 Re-check R1-32: catalog.holds_entry is the one rule (any family of the kind), read by the generic catalog route and the
@@ -6903,7 +6903,7 @@ index 48c86772..3e149b2b 100644
 From 8884b38b089e66df85c1b65c6a4870aee54a6f19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:32:25 +0000
-Subject: [PATCH 21/54] EXEC-MU-ACCOUNTS fix round (plans): an account
+Subject: [PATCH 21/55] EXEC-MU-ACCOUNTS fix round (plans): an account
  preference of one tab is served and stored only while the plan holds that tab
 
 Re-check R1-18 and R1-30 (CONTRACT.md 8b D5: reads need <tab>.view): each sync entry of the storage registry names the
@@ -7374,7 +7374,7 @@ index a5c52e65..6c5d0c00 100644
 From 54398ef3d816fd905313bb78d03dbeae312bc428 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:39:51 +0000
-Subject: [PATCH 22/54] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
+Subject: [PATCH 22/55] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
  refusals in words, lands a non-admin account on the Terminal, follows a
  change of plan and a session ended under a frame
 
@@ -7926,7 +7926,7 @@ index 3be7fc42..97afe4f1 100644
 From e79a1b37ec8461894de0a4cf927be2e51a38f1da Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:40:01 +0000
-Subject: [PATCH 23/54] EXEC-MU-ACCOUNTS fix round, track auth: sign-in limits,
+Subject: [PATCH 23/55] EXEC-MU-ACCOUNTS fix round, track auth: sign-in limits,
  credential races, MFA re-enrolment, password cost, outbox purge
 
 Findings of the ultracode re-check (rounds 1 and 2) fixed in edge-bff, each with its committed failing test now
@@ -10318,7 +10318,7 @@ index 4052d11f..444aef1e 100644
 From 6bd43074c959de211bdda838e97fb3e5eca3ba9f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:45:57 +0000
-Subject: [PATCH 24/54] EXEC-MU-ACCOUNTS fix round (plans): the Screener's
+Subject: [PATCH 24/55] EXEC-MU-ACCOUNTS fix round (plans): the Screener's
  cached paint follows the plan; a drawings refusal is said in its words and
  keeps nothing in the browser
 
@@ -10648,7 +10648,7 @@ index 2b23a78c..be09eda6 100644
 From 61155dd2dbc5bf8b8694c7d66c720fdfe4844c46 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:46:54 +0000
-Subject: [PATCH 25/54] EXEC-MU-ACCOUNTS fix round (plans): an added series'
+Subject: [PATCH 25/55] EXEC-MU-ACCOUNTS fix round (plans): an added series'
  pane keys are the account's and leave with the series
 
 Re-check R1-20: the prefix ml.assets.flow. (fold and height per added series, named by its ticker) is a user cache
@@ -10742,7 +10742,7 @@ index 6c5d0c00..78ede8d0 100644
 From bcdb0705707af84337ceb5fa02e9e96f28597f1f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:51:03 +0000
-Subject: [PATCH 26/54] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
+Subject: [PATCH 26/55] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
  registration cookies on https, HSTS, form-action in every page policy
 
 Re-check R2-22: on a Secure origin the cookies are __Host-edge_session and __Host-edge_registration (Path=/, no
@@ -11081,7 +11081,7 @@ index 275a776a..bae4c119 100644
 From 081c378f3e8b769a9dbc570121dd0618fce5403d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:54:18 +0000
-Subject: [PATCH 27/54] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
+Subject: [PATCH 27/55] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
  Password and sign-in page (password change, sign out everywhere)
 
 Re-check R2-20: with accounts on (GET /api/v1/auth/config), the account menu opens a dialog for the Phase 1 password
@@ -11314,7 +11314,7 @@ index bae4c119..7d13a9af 100644
 From be55357c5ff111788f3be6095b31e796f69160c9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:55:50 +0000
-Subject: [PATCH 28/54] EXEC-MU-ACCOUNTS fix round (plans): one rule for a
+Subject: [PATCH 28/55] EXEC-MU-ACCOUNTS fix round (plans): one rule for a
  person's name at registration, and one for showing it
 
 Re-check R2-18: app/text_rules.py stores a first or last name in NFC with single spaces and refuses control, hidden
@@ -11458,7 +11458,7 @@ index 7d13a9af..c0414ee6 100644
 From 78455b93bce3e343a60aa888086854fdfeed0fea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:00:42 +0000
-Subject: [PATCH 29/54] EXEC-MU-ACCOUNTS fix round (plans): every plan limit
+Subject: [PATCH 29/55] EXEC-MU-ACCOUNTS fix round (plans): every plan limit
  answers one code, LIMIT_REACHED naming its capability key
 
 Re-check R2-39 (CONTRACT.md section 3): the saved-item caps (layouts, presets, places with drawings, saved screens and
@@ -11950,7 +11950,7 @@ index 1cea2cd5..b3da03f0 100644
 From 419ee36823575c52f229af37f8a6599bb9f8c463 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:01:46 +0000
-Subject: [PATCH 30/54] EXEC-MU-ACCOUNTS fix round, track auth: notes for the
+Subject: [PATCH 30/55] EXEC-MU-ACCOUNTS fix round, track auth: notes for the
  records, the code-purpose drift test, the last reserved placeholder
 
 - verification/edge_multiuser/fix_round/auth.md: root cause, fix and tests of each finding of the track, what
@@ -12180,7 +12180,7 @@ index 00000000..be7ca824
 From fc3cbf2933403c4d0cdafef84f76ae2deee1275e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:02:13 +0000
-Subject: [PATCH 31/54] SCREENER_ONBOARDING.md: line pointers into edge-bff
+Subject: [PATCH 31/55] SCREENER_ONBOARDING.md: line pointers into edge-bff
  screener.py and main.py moved with the fix round's lines
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -12251,7 +12251,7 @@ index 6a313a75..239ec42b 100644
 From b36e621af0417827137b36018443c9ea5d927988 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:05:30 +0000
-Subject: [PATCH 32/54] EXEC-MU-ACCOUNTS fix round (plans): the shell runs no
+Subject: [PATCH 32/55] EXEC-MU-ACCOUNTS fix round (plans): the shell runs no
  inline script; its policy drops script-src 'unsafe-inline'
 
 Re-check R2-19: the head's viewport script moved to static/edge-boot.js and the shell's app to static/edge-app.js (a
@@ -17839,7 +17839,7 @@ index cc5b4fee..32a843c0 100644
 From db1eadac57e5ce7b44bec319e25013647a558d0b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:06:13 +0000
-Subject: [PATCH 33/54] EXEC-MU-ACCOUNTS fix round (plans): the Watchlist's
+Subject: [PATCH 33/55] EXEC-MU-ACCOUNTS fix round (plans): the Watchlist's
  copy of the logo reference list leaves with the account
 
 Re-check R1-17 (other site named by the refuters): edge.watchlist.logos holds the content of a reference file the plan
@@ -17891,7 +17891,7 @@ index 3dca0656..053568f6 100644
 From 40725f4ae44a9890ee92f8d2bd2500caf4480f11 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:07:53 +0000
-Subject: [PATCH 34/54] EXEC-MU-ACCOUNTS fix round (plans): notes per finding,
+Subject: [PATCH 34/55] EXEC-MU-ACCOUNTS fix round (plans): notes per finding,
  the records to write, the decisions left, the script move for integration
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18187,7 +18187,7 @@ index 00000000..ea7fd66e
 From edd0e434d892ef7d3db6f156a2180c0494c0b4b6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:09:11 +0000
-Subject: [PATCH 35/54] Terminal registry test: edge.watchlist.logos is cleared
+Subject: [PATCH 35/55] Terminal registry test: edge.watchlist.logos is cleared
  with the account (fix round, re-check R1-17 other site)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18226,7 +18226,7 @@ index 96453e49..fe15d3c9 100644
 From c779d1e01309fe37aba11771c2593c7503a2b4f9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:13:24 +0000
-Subject: [PATCH 36/54] principal.py: the comment of the MFA check sits above
+Subject: [PATCH 36/55] principal.py: the comment of the MFA check sits above
  it again
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18260,7 +18260,7 @@ index cf07386b..878e8613 100644
 From 09f4ae3e6ed81e60c14752d7f5dbbcee41df6ddd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:14:28 +0000
-Subject: [PATCH 37/54] main.py: the one-time cookie move never overrides a
+Subject: [PATCH 37/55] main.py: the one-time cookie move never overrides a
  route's own cookie answer (sign-in, sign-out)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18292,7 +18292,7 @@ index 7b839f5b..aac63795 100644
 From d71bc8363c232d2307077f2f8fb9cd90618228cf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:33:03 +0000
-Subject: [PATCH 38/54] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
+Subject: [PATCH 38/55] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
  key test waits in pending/ for the Railway deletion; the code side held by a
  test (no code the runner runs reads the main Orc key)
 
@@ -18379,7 +18379,7 @@ rename to verification/edge_multiuser/access_tiers/pending/test_cp0_runner_key.p
 From 22d4defe17a0d98db4ffb77a15f4f824f7cda532 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:35:21 +0000
-Subject: [PATCH 39/54] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
+Subject: [PATCH 39/55] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
  hook route verifies by a dependency built from HOOK_ROUTES; the route walk
  covers the whole table (signed hooks, a capability gate or a named
  principal-only reason on every /api route)
@@ -18586,7 +18586,7 @@ index ed71cd2a..7f845889 100644
 From 5f204d11e7db3de2fa9590e929a74c469cec84e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:39:59 +0000
-Subject: [PATCH 40/54] EXEC-MU-ACCOUNTS fix round (records, R1-41, R1-42,
+Subject: [PATCH 40/55] EXEC-MU-ACCOUNTS fix round (records, R1-41, R1-42,
  R1-43, R1-45, R1-46): migration 20261119_040 (audit and provenance ids
  without a referential action, catalog trace triggers, the kind comment and
  history_days means to the code and D2, a column-privilege guard), the
@@ -19102,7 +19102,7 @@ index 00000000..0377546a
 From 64e5fe94bf846432cdbb44359a564a2f0c9a6071 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:40:43 +0000
-Subject: [PATCH 41/54] EXEC-MU-ACCOUNTS fix round (records, R1-28): the run
+Subject: [PATCH 41/55] EXEC-MU-ACCOUNTS fix round (records, R1-28): the run
  stream's monitor.view re-check held by a live-server test (fails when
  still_signed_in stops asking for it)
 
@@ -19178,7 +19178,7 @@ index 00000000..c2a21bdf
 From e96cf7c952ffd68bf03363c4c65a359f4b252bc2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:47:16 +0000
-Subject: [PATCH 42/54] EXEC-MU-ACCOUNTS fix round (plans): the catalog refuses
+Subject: [PATCH 42/55] EXEC-MU-ACCOUNTS fix round (plans): the catalog refuses
  a Terminal limit beside the Backtest's or the Screener's own data access
  (re-check R1-36, the user's "2a")
 
@@ -19845,7 +19845,7 @@ index 699c7b0e..26220a9f 100644
 From 4bdf1cc69840167d82fb97a77e60b05aab3b031c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:47:16 +0000
-Subject: [PATCH 43/54] Backtest and Screener frame tests: the shell's tab code
+Subject: [PATCH 43/55] Backtest and Screener frame tests: the shell's tab code
  is read from edge-app.js (the R2-19 script move)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -19904,7 +19904,7 @@ index 7b8f6d07..d976a1d5 100644
 From 9d31dc07eb2cd29777e107e2b35148af30e2ebc2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:02:11 +0000
-Subject: [PATCH 44/54] EXEC-MU-ACCOUNTS fix round (records): work in progress
+Subject: [PATCH 44/55] EXEC-MU-ACCOUNTS fix round (records): work in progress
  saved when the usage limit stopped the builder (unreviewed;
  test_zz_tmp_walk.py is a scratch probe)
 
@@ -20281,7 +20281,7 @@ index 00000000..8a1f7462
 From 26c38da5b5bd1d24dcee759681a02b90f95b57fb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:12:45 +0000
-Subject: [PATCH 45/54] EXEC-MU-ACCOUNTS fix round (records, R1-21): the
+Subject: [PATCH 45/55] EXEC-MU-ACCOUNTS fix round (records, R1-21): the
  two-user walk covers every /api route and every owned kind, derived from
  app.routes and information_schema; one event loop for both people; an owned
  id answers what an id nobody made answers; the scratch probe removed
@@ -20493,7 +20493,7 @@ index 8a1f7462..00000000
 From 51451d52afbe787f993280eb373e11616f4759ec Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:26:07 +0000
-Subject: [PATCH 46/54] EXEC-MU-ACCOUNTS fix round (records, R1-39, R1-40,
+Subject: [PATCH 46/55] EXEC-MU-ACCOUNTS fix round (records, R1-39, R1-40,
  R1-44): CI runs the page suites, edge-bff's browser tests (Playwright,
  Chromium, the built pages) and Orc's Postgres tests; the shell copy is
  compared with its build by a generated_file test; generators found anywhere
@@ -20947,7 +20947,7 @@ index ec7ef606..3b04267c 100644
 From 77e57322263ebe16d440686978e35f4bce1ea75f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:26:07 +0000
-Subject: [PATCH 47/54] EXEC-MU-ACCOUNTS fix round (records, R2-40): tests of
+Subject: [PATCH 47/55] EXEC-MU-ACCOUNTS fix round (records, R2-40): tests of
  the contract requirements no test held (absolute session lifetime in both
  modes, Retry-After on every 429, entitlements on the signed-in answers, names
  from the start, a future subscription, SEND_IP, a pending session's sign-out,
@@ -21222,7 +21222,7 @@ index e67a334c..52f85235 100644
 From 279613408cb4cb0652140e55133c53958fe10467 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:32:15 +0000
-Subject: [PATCH 48/54] EXEC-MU-ACCOUNTS fix round (plans): the cap modules'
+Subject: [PATCH 48/55] EXEC-MU-ACCOUNTS fix round (plans): the cap modules'
  headers and the README say 403 LIMIT_REACHED for a plan cap (re-check R2-39);
  notes: the migration of "2a", the R1-35 anchor, the suite results
 
@@ -21424,7 +21424,7 @@ index 26220a9f..f77a707a 100644
 From 511848a0a060abcb22088ddae22d6d965e1f6074 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:36:36 +0000
-Subject: [PATCH 49/54] EXEC-MU-ACCOUNTS fix round (records): CONTRACT.md
+Subject: [PATCH 49/55] EXEC-MU-ACCOUNTS fix round (records): CONTRACT.md
  brought to the code and the user's decisions of 2026-11-19 (the beta/live
  site, pre-launch mode, the guest, the free plan's whole ticker list, outbox
  30 days, forgot kept, one Terminal quota, the restricted-plan rule, the
@@ -22479,7 +22479,7 @@ index 32cce206..c0ea7359 100644
 From 65211eabab3b1795223191776964a24f8aee0cd7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:39:06 +0000
-Subject: [PATCH 50/54] EXEC-MU-ACCOUNTS fix round (records): notes per finding
+Subject: [PATCH 50/55] EXEC-MU-ACCOUNTS fix round (records): notes per finding
  and the records to write; the pending tests' table renders again
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -22789,7 +22789,7 @@ index 00000000..19efae89
 From 905bad655565e9482f2bddd8ab85e73ede5ea3f5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:41:58 +0000
-Subject: [PATCH 51/54] EXEC-MU-ACCOUNTS fix round (records): the merge notes;
+Subject: [PATCH 51/55] EXEC-MU-ACCOUNTS fix round (records): the merge notes;
  CONTRACT 13 names the one local step (the Terminal look check)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -22851,7 +22851,7 @@ index 19efae89..07520384 100644
 From c6e87ee27bebbddc039ee0a9a0fe163cc4fa4242 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 12:44:46 +0000
-Subject: [PATCH 52/54] SCREENER_ONBOARDING.md: pointers into edge-bff main.py
+Subject: [PATCH 52/55] SCREENER_ONBOARDING.md: pointers into edge-bff main.py
  and screener.py moved with the merged fix-round lines (screener-worker
  onboarding_pointers)
 
@@ -22901,7 +22901,7 @@ index 0324c609..76c2882c 100644
 From 2fddd030fb8537045529a987cb855aa51c6c473b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 13:07:48 +0000
-Subject: [PATCH 53/54] edge-bff test_beta_live_site: the housekeeping's purges
+Subject: [PATCH 53/55] edge-bff test_beta_live_site: the housekeeping's purges
  are four after the merge (the outbox purge of the auth track, R2-24), and the
  outbox purge is held to the same batch bound
 
@@ -22941,7 +22941,7 @@ index ab0afcd0..407473a1 100644
 From 9a22ee751236fb9332239dd0251317f51ebc59b8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 13:11:13 +0000
-Subject: [PATCH 54/54] .railway/railway.ts: the planned edge-bff-live is
+Subject: [PATCH 54/55] .railway/railway.ts: the planned edge-bff-live is
  written as its settings, without a service() call in the comment
 
 The site track's comment block opened with a commented service("edge-bff-live", {...}) call. The terminal-api test
@@ -22983,6 +22983,926 @@ index c99c6ffc..86e679a8 100644
    const aiDataCoverage = service("ai-data-coverage", {
      source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/ai-data-coverage" }),
      build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/ai-data-coverage/**"] },
+-- 
+2.43.0
+
+
+From 7d793ad22a92a373ab2d6803acf1759b3be23f19 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 13:57:54 +0000
+Subject: [PATCH 55/55] terminal-api (track guest): the whole ticker list for
+ every plan, derived from each reference file's columns; visitors of one owner
+ counted apart (x-terminal-client, migration 20261119_170, not applied)
+
+Decision 1 of 2026-11-19 (EXEC.md "Decisions from the fix round"): refcut.names_only keeps every row of a ticker-keyed
+file that only names its instruments (the ticker list); the logos (digest index), the bonds (dataset columns) and the
+broker and stock lists keep the plan's filter. The test that locked the replaced R2-32 reading (a ticker list of BBCA
+alone) now holds the decision; the fixed_income fixture carries the publisher's FI_COLUMNS.
+
+Guests: x-terminal-client (32 hex, beside both owner headers of an owner that does not hold *) makes the usage, its
+lock and the audit rows per visitor (terminal.access_log.client_key, partial index access_log_client_at); without it the
+owner's row counts as a whole (stricter).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/tests/e2e_people.py             |   4 +-
+ apps/terminal-api/app/accounts.py             |   7 +-
+ apps/terminal-api/app/entitlements.py         |  18 ++
+ apps/terminal-api/app/main.py                 |  77 +++++--
+ apps/terminal-api/app/refcut.py               |  62 ++++--
+ apps/terminal-api/app/store.py                |  58 +++--
+ apps/terminal-api/tests/test_guest_tickers.py | 202 ++++++++++++++++++
+ .../tests/test_terminal_fix_round.py          |  27 ++-
+ ...0261119_170_terminal_access_log_client.sql |  85 ++++++++
+ 9 files changed, 473 insertions(+), 67 deletions(-)
+ create mode 100644 apps/terminal-api/tests/test_guest_tickers.py
+ create mode 100644 database/migrations/20261119_170_terminal_access_log_client.sql
+
+diff --git a/apps/edge-bff/tests/e2e_people.py b/apps/edge-bff/tests/e2e_people.py
+index ddea897b..92cb34b4 100644
+--- a/apps/edge-bff/tests/e2e_people.py
++++ b/apps/edge-bff/tests/e2e_people.py
+@@ -188,7 +188,9 @@ class FakeTerminalApi:
+                     if caps is not None and not caps.dataset_ok('reference'):
+                         # terminal-api's refcut.py: the plan's own copy, announced in the shape of a cut
+                         refcut = terminal_api('refcut')
+-                        copy, _ = refcut.encode(refcut.build(json.loads(gzip.decompress(fake.refs[name])), name, caps))
++                        copy, _ = refcut.encode(refcut.build(json.loads(gzip.decompress(fake.refs[name])), name, caps,
++                                                             ('price', 'broker', 'events', 'yield', 'intraday',
++                                                              'reference')))
+                         sha_ = own_copy(f'reference/{name}', name, copy)
+                         doc = json.loads(gzip.decompress(copy))
+                         return self.answer(200, {'url': f'/api/terminal/v1/reference/{name}/cut?sha256={sha_}',
+diff --git a/apps/terminal-api/app/accounts.py b/apps/terminal-api/app/accounts.py
+index b7f3f573..22251159 100644
+--- a/apps/terminal-api/app/accounts.py
++++ b/apps/terminal-api/app/accounts.py
+@@ -29,13 +29,18 @@ class Caller:
+     EXEC-MU-ACCOUNTS Phase 3c (T2): a gateway call that names an EDGE owner (x-terminal-proxy-owner with
+     x-terminal-capabilities, entitlements.py) carries `owner` and `caps`; its credential is ('gateway', owner), so the
+     account cache, the usage and the audit rows are the owner's own row (terminal.subscriber.edge_owner_key). A gateway
+-    call without the headers keeps ('gateway', TERMINAL_PROXY_SUBSCRIBER), as before."""
++    call without the headers keeps ('gateway', TERMINAL_PROXY_SUBSCRIBER), as before.
++
++    Track guest (decision 1 of 2026-11-19): a gateway call for a visitor of EDGE's guest plan also carries `client`
++    (x-terminal-client, the visitor's opaque key): the account row and the cache stay the owner's, the quota usage, its
++    lock and the audit rows are the visitor's (main.py meter)."""
+     kind: str
+     name: str | None = None
+     email: str | None = None
+     token_hash: str | None = None
+     owner: str | None = None
+     caps: object = None                                   # entitlements.Capabilities with `owner`
++    client: str | None = None                             # the visitor key beside `owner` (guests only)
+ 
+     @property
+     def credential(self):
+diff --git a/apps/terminal-api/app/entitlements.py b/apps/terminal-api/app/entitlements.py
+index bf0690f5..a868d9a6 100644
+--- a/apps/terminal-api/app/entitlements.py
++++ b/apps/terminal-api/app/entitlements.py
+@@ -47,6 +47,13 @@ MAX_HISTORY_DAYS = 36600                                        # 100 years: bey
+ MIN_HISTORY_DAYS = 0                                            # 0: no dated row up to data_through (R1-22)
+ # R2-4: the acknowledgement of an applied header, on every answer to an owner call (applied())
+ APPLIED_HEADER = 'x-terminal-capabilities-applied'
++# Track guest (decision 1 of 2026-11-19, "1a"; verification/edge_multiuser/fix_round/guest.md): the visitors of EDGE's
++# guest plan reach terminal-api under one owner, and edge-bff names each visitor by an opaque key of its client
++# address (an HMAC edge-bff makes, 32 hex; never the address itself), so the quotas are counted per visitor (main.py
++# meter). Without it an owner's calls share the owner's one row: stricter, never wider (fail closed).
++CLIENT_HEADER = 'x-terminal-client'
++CLIENT_RE = re.compile(r'^[0-9a-f]{32}$')
++CLIENT_EXAMPLE = '0123456789abcdef0123456789abcdef'
+ MAX_QUOTA = 1_000_000_000
+ # the Terminal quota names a plan may set (terminal.quota rows of the same names); a key left out keeps its default
+ QUOTA_KEYS = ('files_per_hour', 'tickers_per_hour', 'tickers_per_day', 'megabytes_per_day', 'history_per_hour')
+@@ -102,6 +109,17 @@ def parse_owner(raw):
+     return value
+ 
+ 
++def parse_client(raw):
++    """The visitor key of CLIENT_HEADER (32 lower-case hex), or HeaderError naming the header."""
++    value = raw.strip()
++    if not CLIENT_RE.fullmatch(value):
++        raise HeaderError(CLIENT_HEADER, f'{CLIENT_HEADER} must be the visitor key edge-bff makes from the client '
++                                         f'address, 32 lower-case hexadecimal characters (rule {CLIENT_RE.pattern}); '
++                                         f'{len(raw)} characters were sent. Fix: send the key of the guest principal, '
++                                         f'never the address itself. Example: {CLIENT_HEADER}: {CLIENT_EXAMPLE}.')
++    return value
++
++
+ def parse_capabilities(raw, datasets):
+     """The header's Capabilities, or HeaderError naming the field. `datasets`: every dataset id this terminal-api
+     knows (main.py DATASETS, derived from its own definitions)."""
+diff --git a/apps/terminal-api/app/main.py b/apps/terminal-api/app/main.py
+index d8aef06f..45f0d36c 100644
+--- a/apps/terminal-api/app/main.py
++++ b/apps/terminal-api/app/main.py
+@@ -39,6 +39,13 @@ when to try again (retry_after_s, Retry-After; R1-1, R1-26); an owner's answers
+ (R2-4); an unknown dataset id of the header is left out (R2-5); history_days 0 is the empty window (R1-22); an owner
+ without the dataset `reference` gets its own copy of each reference file (refcut.py, GET /reference/{name}/cut; R2-32);
+ /ready reports the state of the gateway's own account (R1-4).
++
++Track guest (decision 1 of 2026-11-19, "1a"; verification/edge_multiuser/fix_round/guest.md): the visitors of EDGE's
++guest plan reach terminal-api under one owner row; edge-bff adds x-terminal-client (the visitor's opaque key) and the
++quotas of that owner are then counted per visitor: the usage, its lock and the audit rows carry the key
++(terminal.access_log.client_key, migration 20261119_170; meter()). A call without it is counted on the owner's row as
++a whole (stricter, never wider). Every plan that holds terminal.view, and the guest, reads the whole ticker list
++(refcut.py names_only).
+ """
+ import datetime as dt
+ import json
+@@ -61,8 +68,9 @@ from .bucket import PAGE_FAMILIES, REF_NAME, SHA256, XSECTION_NAME, radar_index,
+ from .config import PRIVATE_HOST, Settings, service_email, service_variable
+ from .cut import CutCache, CutError, make_cut
+ from .refcut import RefError, make_copy
+-from .entitlements import (APPLIED_HEADER, CAPS_HEADER, EXAMPLE as CAPS_EXAMPLE, EXTRA_DATASETS, OWNER_HEADER,
+-                           HeaderError, applied, parse_capabilities, parse_owner, window_after)
++from .entitlements import (APPLIED_HEADER, CAPS_HEADER, CLIENT_EXAMPLE, CLIENT_HEADER, EXAMPLE as CAPS_EXAMPLE,
++                           EXTRA_DATASETS, OWNER_HEADER, HeaderError, applied, parse_capabilities, parse_client,
++                           parse_owner, window_after)
+ from .security import client_ip, new_token, password_verifier, same_secret, token_hash, verify_password
+ 
+ COOKIE = 'terminal_session'
+@@ -325,12 +333,21 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
+         return caller
+ 
+     def owner_of(request: Request):
+-        """EXEC-MU-ACCOUNTS Phase 3c: (owner, Capabilities) of a gateway call that names an EDGE owner, (None, None)
+-        when it sends neither header (the gateway's one account, as before). One header without the other, or a
+-        header that breaks its rule, is 400 naming the header or field, the rule and a right example."""
++        """EXEC-MU-ACCOUNTS Phase 3c: (owner, Capabilities, client) of a gateway call that names an EDGE owner,
++        (None, None, None) when it sends neither header (the gateway's one account, as before). One header without the
++        other, or a header that breaks its rule, is 400 naming the header or field, the rule and a right example.
++        Track guest: `client` is the visitor key of x-terminal-client, allowed only beside both owner headers of an
++        owner that does not hold * (a visitor of the guest plan), else None."""
+         owner, caps = request.headers.get(OWNER_HEADER), request.headers.get(CAPS_HEADER)
++        client = request.headers.get(CLIENT_HEADER)
+         if owner is None and caps is None:
+-            return None, None
++            if client is not None:
++                error(400, 'invalid_owner_headers',
++                      f'{CLIENT_HEADER} was sent without {OWNER_HEADER} and {CAPS_HEADER}: a visitor key counts only '
++                      f'for an EDGE owner. Fix: send it beside both owner headers of the guest plan, or not at all. '
++                      f'Example: {OWNER_HEADER}: edge-guest, {CAPS_HEADER}: {CAPS_EXAMPLE}, {CLIENT_HEADER}: '
++                      f'{CLIENT_EXAMPLE}.', field=CLIENT_HEADER)
++            return None, None, None
+         if owner is None or caps is None:
+             missing, sent = (OWNER_HEADER, CAPS_HEADER) if owner is None else (CAPS_HEADER, OWNER_HEADER)
+             error(400, 'invalid_owner_headers',
+@@ -338,9 +355,15 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
+                   f'neither. Fix: send both, built from the principal. Example: {OWNER_HEADER}: '
+                   f'u_0123456789abcdef01234567 and {CAPS_HEADER}: {CAPS_EXAMPLE}.', field=missing)
+         try:
+-            found = parse_owner(owner), parse_capabilities(caps, DATASETS)
++            found = parse_owner(owner), parse_capabilities(caps, DATASETS), (
++                parse_client(client) if client is not None else None)
+         except HeaderError as e:
+             error(400, 'invalid_owner_headers', str(e), field=e.field)
++        if found[2] is not None and found[1].admin:
++            error(400, 'invalid_owner_headers',
++                  f'{CLIENT_HEADER} was sent for an owner holding * ("admin": true): a visitor key belongs to the '
++                  f'guest plan only. Fix: send no {CLIENT_HEADER} for a signed-in principal. Example: '
++                  f'{CAPS_HEADER}: {CAPS_EXAMPLE} with {CLIENT_HEADER}: {CLIENT_EXAMPLE}.', field=CLIENT_HEADER)
+         if found[1].ignored:
+             # R2-5: an edge-bff that knows more datasets than this terminal-api (a deploy in between): not served anyway
+             log.warning(json.dumps({'event': 'owner_datasets_ignored', 'datasets': list(found[1].ignored),
+@@ -354,7 +377,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
+         Phase 3c: the owner headers count only beside the gateway key (owner_of)."""
+         key = request.headers.get(PROXY_HEADER)
+         if key is None:
+-            if OWNER_HEADER in request.headers or CAPS_HEADER in request.headers:
++            if OWNER_HEADER in request.headers or CAPS_HEADER in request.headers or CLIENT_HEADER in request.headers:
+                 if settings.private_only:
+                     direct_closed('A request without a key')
+                 error(400, 'owner_not_allowed',
+@@ -371,8 +394,8 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
+         gateway_ok = bool(settings.proxy_key) and same_secret(key, settings.proxy_key)
+         matched = [(name, email) for name, k, email in services if same_secret(key, k)]   # every key compared
+         if gateway_ok:
+-            owner, caps = owner_of(request)
+-            return Caller('gateway', email=settings.proxy_subscriber, owner=owner, caps=caps)
++            owner, caps, client = owner_of(request)
++            return Caller('gateway', email=settings.proxy_subscriber, owner=owner, caps=caps, client=client)
+         if not matched:
+             error(401, 'proxy_key_rejected',
+                   f'The {PROXY_HEADER} header holds no key this terminal-api knows: neither the EDGE gateway key '
+@@ -381,7 +404,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
+                   'Example: TERMINAL_PROXY_KEY=${{terminal-api.TERMINAL_SERVICE_KEY_BACKTEST_WORKER}} on '
+                   'backtest-worker.')
+         name, email = matched[0]
+-        if OWNER_HEADER in request.headers or CAPS_HEADER in request.headers:
++        if OWNER_HEADER in request.headers or CAPS_HEADER in request.headers or CLIENT_HEADER in request.headers:
+             error(400, 'owner_not_allowed',
+                   f'{OWNER_HEADER} or {CAPS_HEADER} was sent with the service key of {name}. A service key acts as its own account '
+                   f'({email}) and can never name an owner; only the EDGE gateway names one. Fix: send '
+@@ -477,11 +500,11 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
+             if not row:
+                 refuse(caller)
+             sid = row['subscriber_id']
+-        store.lock_subscriber(c, sid)
++        store.lock_subscriber(c, sid, **meter(caller))
+         row = lookup(c, caller)                              # after the lock
+         if row and row['subscriber_id'] != sid:
+             sid = row['subscriber_id']
+-            store.lock_subscriber(c, sid)
++            store.lock_subscriber(c, sid, **meter(caller))
+             row = lookup(c, caller)
+         if not row or row['subscriber_id'] != sid:
+             accounts.drop(caller)
+@@ -552,12 +575,19 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
+             error(404, 'unknown_ticker', f'No published data for {ticker}.')
+         return m
+ 
+-    def take(c, sid, refusal):
++    def meter(caller: Caller):
++        """Track guest: the keyword that makes the store count a visitor of the guest plan on its own (its usage, the
++        lock its quota check takes, its audit rows): {'client': key} beside the owner headers, else {} (every row of
++        the account, exactly as before; a store without visitor keys is never asked for one)."""
++        return {'client': caller.client} if caller.client is not None else {}
++
++    def take(c, sid, refusal, caller: Caller | None = None):
+         """A quota refusal (quota.check) as 429 quota_exceeded with the quota's name, its limit, its window and when the
+         refused request fits (Store.frees_in; the window's length when the store cannot tell), so a relay can name the
+         limit and the wait without reading the message (re-check R1-1/R1-26)."""
+         if refusal:
+-            found = store.frees_in(c, sid, refusal) if hasattr(store, 'frees_in') else None
++            found = (store.frees_in(c, sid, refusal, **(meter(caller) if caller else {}))
++                     if hasattr(store, 'frees_in') else None)
+             wait = min(found or refusal.longest_wait, refusal.longest_wait)
+             wait_error('quota_exceeded', refusal.message(wait), wait, quota=refusal.quota, limit=refusal.limit,
+                        window=refusal.window)
+@@ -620,7 +650,8 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
+         """store.log_access with the entitlements version of an owner's call (a keyword only then, so the audit row of
+         a call without the headers is written exactly as before)."""
+         version = version_of(caller)
+-        store.log_access(c, sid, *args, **kwargs, **({'version': version} if version is not None else {}))
++        store.log_access(c, sid, *args, **kwargs, **({'version': version} if version is not None else {}),
++                         **meter(caller))
+ 
+     # ---- health ----------------------------------------------------------------------------------------------
+     @app.get('/health')
+@@ -747,7 +778,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
+             return None
+         _, source = reference_source(name)
+         try:
+-            return make_copy(bucket.read, name, source, caps, refcopies)
++            return make_copy(bucket.read, name, source, caps, refcopies, DATASETS)
+         except RefError as e:
+             error(503, 'reference_unavailable', f'The reference file {name} cannot be filtered to the plan: {e.reason}. '
+                                                 'It is not served whole; try again after the next publication.')
+@@ -870,7 +901,8 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
+                     wait_error('service_ceiling_reached', refusal.message(), refusal.seconds_left(),
+                                quota=refusal.quota, limit=refusal.limit)
+             else:
+-                take(c, sid, quota.check(limits, store.usage(c, sid), files=len(chosen), ticker=ticker, bytes_=size))
++                take(c, sid, quota.check(limits, store.usage(c, sid, **meter(caller)), files=len(chosen),
++                                         ticker=ticker, bytes_=size), caller)
+             ttl = limits['url_ttl_seconds']
+             if one_row:
+                 audit(c, sid, caller, 'file', ticker, ip, dataset=row_dataset, bytes_=size, keys=[f['key'] for _, _, f in chosen])
+@@ -888,8 +920,9 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
+         but it is still held to the ticker quotas before any cut is built (no audit row: nothing is granted yet)."""
+         with store.tx() as c:
+             row = admit(c, caller)
+-            take(c, row['subscriber_id'], quota.check(limits_of(c, caller, row), store.usage(c, row['subscriber_id']),
+-                                                      ticker=ticker))
++            take(c, row['subscriber_id'], quota.check(limits_of(c, caller, row),
++                                                      store.usage(c, row['subscriber_id'], **meter(caller)),
++                                                      ticker=ticker), caller)
+ 
+     def file_answer(y, f, ttl):
+         return {'year': y, 'url': bucket.presign(f['key'], ttl), 'sha256': f['sha256'], 'bytes': f['bytes'],
+@@ -1148,13 +1181,13 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
+             row = admit(c, caller)
+             sid = row['subscriber_id']
+             limits = limits_of(c, caller, row)
+-            take(c, sid, quota.check(limits, store.usage(c, sid), history=1, ticker=ticker))
++            take(c, sid, quota.check(limits, store.usage(c, sid, **meter(caller)), history=1, ticker=ticker), caller)
+             rows = fetch(c)
+             data = ({n: [r[k] for r in rows] for n, k in zip(cols, rows[0].keys())} if rows
+                     else {n: [] for n in cols})
+             body = {'ticker': ticker, 'from': lo.isoformat(), 'to': hi.isoformat(), 'columns': cols, **data}
+             size = len(json.dumps(body, separators=(',', ':')))
+-            take(c, sid, quota.check(limits, store.usage(c, sid), bytes_=size))
++            take(c, sid, quota.check(limits, store.usage(c, sid, **meter(caller)), bytes_=size), caller)
+             audit(c, sid, caller, kind, ticker, ip_of(request), bytes_=size)
+         return body
+ 
+diff --git a/apps/terminal-api/app/refcut.py b/apps/terminal-api/app/refcut.py
+index 5f9f6a4a..af45e1f9 100644
+--- a/apps/terminal-api/app/refcut.py
++++ b/apps/terminal-api/app/refcut.py
+@@ -1,19 +1,28 @@
+ """EXEC-MU-ACCOUNTS re-check R2-32 (fix round, track terminal; verification/edge_multiuser/fix_round/terminal.md): the
+ reference files (the ticker list, the broker list, the logos, the bonds, the stock lists) of an EDGE owner whose plan
+ does not hold the dataset `reference` (the reference lists in full) are served as the plan's own copy, built here from
+-the published file read server-side, so the plan never receives a presigned URL to a list that names other tickers.
+-Decision D3 = B ("tanpa daftar ticker") read as: no list of other tickers. The free plan (BBCA, price) gets the ticker
+-list holding BBCA alone, its logo row and no broker, bond or stock-list row, and the Terminal draws BBCA as it draws any
+-ticker.
++the published file read server-side, so the plan never receives a presigned URL to a list that carries other tickers'
++data.
++
++Decision 1 of 2026-11-19 (EXEC.md EXEC-MU-ACCOUNTS "Decisions from the fix round": "user tetap bisa search ticker, tapi
++ketika dia klik ticker selain bbca maka akan keluar pop up box"; track guest, verification/edge_multiuser/fix_round/
++guest.md): every plan that holds terminal.view (every owner edge-bff forwards: its Terminal routes need it) and the
++guest see and search the whole ticker list; the files that carry data per ticker keep the plan's filter. It replaces
++the reading of D3 that served the free plan a ticker list of BBCA alone.
+ 
+ Which rows a plan keeps is read from each file's own columns, never from a list of files:
+ - a file whose `columns` include TICKER_COLUMN (`ticker`, the publisher's name for the instrument in every file keyed by
+-  one: tickers, logos, fixed_income) keeps the rows of the plan's tickers (every row when the plan's tickers are "*");
++  one) and that only names the instruments (names_only: every other column holds text or nothing, no column is named
++  after a dataset terminal-api serves, and none is a column of published objects' digests) keeps every row: the ticker
++  list (ticker, name, type, sector, industry, instrument) today;
++- any other file with that column keeps the rows of the plan's tickers (every row when the plan's tickers are "*"): the
++  logos (an index of published images: `sha256` holds 64-hex digests, and each image follows the plan's tickers) and
++  the bonds (`yield_first` ... `price_last`: the dates of the datasets `yield` and `price`) today;
+ - a file without that column lists the keys of one dataset's rows (BY_DATASET: the broker list names the brokers of the
+   broker data): every row when the plan holds that dataset, none otherwise;
+ - any other file has no rows (fail closed): stock_lists today, whose members are lists of tickers no rule above reads.
+-  A new reference file is served to such a plan only once its rule is written here (tests/test_terminal_fix_round.py
+-  walks the publisher's REF_NAMES).
++  A new reference file is served to such a plan only once its rule is decided here (tests/test_terminal_fix_round.py
++  walks the publisher's REF_NAMES, tests/test_guest_tickers.py the publisher's own columns).
+ 
+ The copy keeps the file's scalar and object fields and its `columns`, each column cut to the kept rows; a list outside
+ `columns` is left out (it could name anything). A file whose columns are not lists of one length cannot be filtered
+@@ -23,11 +32,15 @@ kept in the bounded CutCache keyed by (name, the source's sha256 or key, the pla
+ import gzip
+ import hashlib
+ import json
++import re
+ 
+ from .cut import Cut, encode
+ 
+ TICKER_COLUMN = 'ticker'
+ BY_DATASET = {'brokers': 'broker'}
++# a published object's digest (the publisher's sha256 of a file it wrote): a column of these makes a file an index of
++# published objects, whose rows follow what the plan may read
++DIGEST = re.compile(r'[0-9a-f]{64}')
+ 
+ 
+ class RefError(Exception):
+@@ -37,8 +50,26 @@ class RefError(Exception):
+         self.reason = reason
+ 
+ 
+-def keep(doc, name, caps):
+-    """The row indices of the columnar reference document `doc` the plan `caps` may see (module docstring)."""
++def names_only(doc, columns, datasets):
++    """Whether a ticker-keyed reference document only names its instruments (module docstring): every column but the
++    ticker holds text or null (a number or a list is data), none is named `<dataset>_...` after a dataset terminal-api
++    serves (`datasets`), and none holds only 64-hex digests (an index of published objects)."""
++    for c in columns:
++        if c == TICKER_COLUMN:
++            continue
++        if any(c.startswith(d + '_') for d in datasets):
++            return False
++        values = [v for v in doc[c] if v is not None]
++        if any(not isinstance(v, str) for v in values):
++            return False
++        if values and all(DIGEST.fullmatch(v) for v in values):
++            return False
++    return True
++
++
++def keep(doc, name, caps, datasets=()):
++    """The row indices of the columnar reference document `doc` the plan `caps` may see (module docstring). `datasets`:
++    the dataset ids terminal-api serves (main.py DATASETS), which names_only reads."""
+     columns = doc.get('columns') if isinstance(doc, dict) else None
+     if not isinstance(columns, list) or not columns or any(not isinstance(doc.get(c), list) for c in columns):
+         raise RefError(f'the reference file {name} is not columnar (columns with one list each)')
+@@ -46,14 +77,16 @@ def keep(doc, name, caps):
+     if any(len(doc[c]) != size for c in columns):
+         raise RefError(f'the reference file {name}: its columns have unequal lengths')
+     if TICKER_COLUMN in columns:
++        if names_only(doc, columns, datasets):
++            return list(range(size))
+         return [k for k, t in enumerate(doc[TICKER_COLUMN]) if isinstance(t, str) and caps.ticker_ok(t)]
+     dataset = BY_DATASET.get(name)
+     return list(range(size)) if dataset is not None and caps.dataset_ok(dataset) else []
+ 
+ 
+-def build(doc, name, caps):
++def build(doc, name, caps, datasets=()):
+     """The plan's copy of the reference document `doc`."""
+-    rows = keep(doc, name, caps)
++    rows = keep(doc, name, caps, datasets)
+     columns = doc['columns']
+     meta = {k: v for k, v in doc.items() if k not in columns and k != 'columns' and not isinstance(v, list)}
+     return {**meta, 'columns': columns, **{c: [doc[c][k] for k in rows] for c in columns}}
+@@ -66,9 +99,10 @@ def filter_key(name, caps):
+     return (tickers, caps.dataset_ok(BY_DATASET[name]) if name in BY_DATASET else None)
+ 
+ 
+-def make_copy(read, name, source, caps, cache):
++def make_copy(read, name, source, caps, cache, datasets=()):
+     """The Cut of the plan's copy of the reference file `name`. `source`: its index entry {key, sha256} or, for a
+-    publication before the refs index, {key} of its fixed key (read as it is). `read(key)` returns the gzip bytes."""
++    publication before the refs index, {key} of its fixed key (read as it is). `read(key)` returns the gzip bytes.
++    `datasets`: the dataset ids terminal-api serves (names_only)."""
+     key = (name, source.get('sha256') or source['key'], filter_key(name, caps))
+ 
+     def make():
+@@ -81,7 +115,7 @@ def make_copy(read, name, source, caps, cache):
+             doc = json.loads(gzip.decompress(body))
+         except (OSError, EOFError, ValueError):
+             raise RefError(f'the published reference file {name} is not gzip JSON') from None
+-        copy = build(doc, name, caps)
++        copy = build(doc, name, caps, datasets)
+         out, sha = encode(copy)
+         return Cut(out, sha, len(copy[copy['columns'][0]]))
+     return cache.get_or_build(key, make)
+diff --git a/apps/terminal-api/app/store.py b/apps/terminal-api/app/store.py
+index 0dad0897..ac30e9e4 100644
+--- a/apps/terminal-api/app/store.py
++++ b/apps/terminal-api/app/store.py
+@@ -26,29 +26,34 @@ ACCOUNT = 'subscriber_id, email, display_name, expires_at, kind'
+ # counts are the ones Store.usage sums (keep the two together); the oldest rows leave first, and the row whose leaving
+ # makes the cumulative amount reach the excess names the time. Tickers: a new ticker fits once one ticker's newest read
+ # has left the window.
++# Track guest (main.py meter): a visitor of the guest plan is counted on its own rows of the guest owner,
++# `client_key = %s` beside the subscriber (CLIENT, filled in only for such a call; the index access_log_client_at,
++# migration 20261119_170)
++CLIENT = ' AND client_key = %s'
+ _LEAVES = ('SELECT extract(epoch FROM at + interval {w} - now()) AS wait FROM (SELECT at, sum({amount}) OVER '
+-           '(ORDER BY at, access_id ROWS UNBOUNDED PRECEDING) AS gone FROM terminal.access_log WHERE subscriber_id = %s '
+-           'AND at > now() - interval {w}{rows}) t WHERE gone >= %s ORDER BY at LIMIT 1')
++           '(ORDER BY at, access_id ROWS UNBOUNDED PRECEDING) AS gone FROM terminal.access_log WHERE subscriber_id = %s'
++           '{client} AND at > now() - interval {w}{rows}) t WHERE gone >= %s ORDER BY at LIMIT 1')
+ _TICKER_LEAVES = ('SELECT extract(epoch FROM min(newest) + interval {w} - now()) AS wait FROM (SELECT max(at) AS newest '
+-                  'FROM terminal.access_log WHERE ticker <> %s AND subscriber_id = %s AND at > now() - interval {w} '
+-                  'GROUP BY ticker) t')
++                  'FROM terminal.access_log WHERE ticker <> %s AND subscriber_id = %s{client} '
++                  'AND at > now() - interval {w} GROUP BY ticker) t')
+ FREES = {
+-    'files_per_hour': _LEAVES.format(w="'1 hour'", amount='file_count', rows=" AND kind = 'file'"),
+-    'history_per_hour': _LEAVES.format(w="'1 hour'", amount='1', rows=" AND kind LIKE 'history%%'"),
+-    'megabytes_per_day': _LEAVES.format(w="'1 day'", amount='bytes', rows=''),
+-    'tickers_per_hour': _TICKER_LEAVES.format(w="'1 hour'"),
+-    'tickers_per_day': _TICKER_LEAVES.format(w="'1 day'"),
++    'files_per_hour': _LEAVES.format(w="'1 hour'", amount='file_count', rows=" AND kind = 'file'", client='{client}'),
++    'history_per_hour': _LEAVES.format(w="'1 hour'", amount='1', rows=" AND kind LIKE 'history%%'", client='{client}'),
++    'megabytes_per_day': _LEAVES.format(w="'1 day'", amount='bytes', rows='', client='{client}'),
++    'tickers_per_hour': _TICKER_LEAVES.format(w="'1 hour'", client='{client}'),
++    'tickers_per_day': _TICKER_LEAVES.format(w="'1 day'", client='{client}'),
+ }
+ # What the migrations after the terminal schema (20261025_100) added and this build reads, without reading a row: a
+ # missing column, table or privilege fails the statement. 20261026_100: access_log.file_count; 20261028_100
+ # (EXEC-MU-RUNTIME T1): subscriber.kind and usage_hour. 20261118_100 (EXEC-MU-ACCOUNTS Phase 3c):
+-# subscriber.edge_owner_key and access_log.version.
++# subscriber.edge_owner_key and access_log.version. 20261119_170 (track guest): access_log.client_key.
+ READY = ('SELECT 1 FROM terminal.quota LIMIT 1',
+          'SELECT file_count FROM terminal.access_log LIMIT 0',
+          'SELECT kind FROM terminal.subscriber LIMIT 0',
+          'SELECT hour_start, grants, files, bytes FROM terminal.usage_hour LIMIT 0',
+          'SELECT edge_owner_key FROM terminal.subscriber LIMIT 0',
+-         'SELECT version FROM terminal.access_log LIMIT 0')
++         'SELECT version FROM terminal.access_log LIMIT 0',
++         'SELECT client_key FROM terminal.access_log LIMIT 0')
+ # EXEC-MU-ACCOUNTS Phase 3c: an EDGE owner's row (kind 'owner', migration 20261118_100). terminal.subscriber needs an
+ # email, a display name, a verifier and an end: a synthetic address no mail reaches (under the reserved .local name of
+ # the service accounts, config.py SERVICE_DOMAIN) derived from the owner key, the all-zero verifier no password derives
+@@ -95,7 +100,12 @@ class Store:
+ 
+     # ---- quotas ----------------------------------------------------------------------------------------------
+     @staticmethod
+-    def lock_subscriber(c, sid):
++    def lock_subscriber(c, sid, client=None):
++        """The account's lock for a grant; track guest: a visitor's own lock under the guest owner (one key per visitor,
++        so the visitors of the one guest row do not wait for each other; two that share a hash only wait longer)."""
++        if client is not None:
++            c.execute("SELECT pg_advisory_xact_lock(hashtext('terminal.client:' || %s), %s::int)", (client, sid))
++            return
+         c.execute("SELECT pg_advisory_xact_lock(hashtext('terminal.subscriber'), %s::int)", (sid,))
+ 
+     @staticmethod
+@@ -106,7 +116,8 @@ class Store:
+         return {r['name']: r['value'] for r in rows}
+ 
+     @staticmethod
+-    def usage(c, sid):
++    def usage(c, sid, client=None):
++        """The rolling usage of the account; track guest: of one visitor of the guest owner (`client`)."""
+         r = c.execute(
+             "SELECT coalesce(sum(file_count) FILTER (WHERE kind = 'file' AND at > now() - interval '1 hour'), 0) AS files_hour, "
+             "coalesce(array_agg(DISTINCT ticker) FILTER (WHERE ticker <> %s AND at > now() - interval '1 hour'), "
+@@ -114,13 +125,14 @@ class Store:
+             "coalesce(array_agg(DISTINCT ticker) FILTER (WHERE ticker <> %s), '{}') AS tickers_day, "
+             'coalesce(sum(bytes), 0)::bigint AS bytes_day, '
+             "count(*) FILTER (WHERE kind LIKE 'history%%' AND at > now() - interval '1 hour') AS history_hour "
+-            "FROM terminal.access_log WHERE subscriber_id = %s AND at > now() - interval '1 day'",
+-            (REF, REF, sid)).fetchone()
++            "FROM terminal.access_log WHERE subscriber_id = %s" + (CLIENT if client is not None else '')
++            + " AND at > now() - interval '1 day'",
++            (REF, REF, sid) + ((client,) if client is not None else ())).fetchone()
+         return Usage(r['files_hour'], frozenset(r['tickers_hour']), frozenset(r['tickers_day']), r['bytes_day'],
+                      r['history_hour'])
+ 
+     @staticmethod
+-    def frees_in(c, sid, refusal):
++    def frees_in(c, sid, refusal, client=None):
+         """EXEC-MU-ACCOUNTS re-check R1-1/R1-26: whole seconds until the rolling window of a refused quota has let
+         enough of the account's use go for the refused request to fit (quota.Refusal.excess), read only when a request
+         is refused (FREES, on the index subscriber_id, at). None when the window's rows never free enough (the request
+@@ -128,7 +140,9 @@ class Store:
+         sql = FREES.get(refusal.quota)
+         if sql is None:
+             return None
+-        row = c.execute(sql, (REF, sid) if refusal.quota.startswith('tickers') else (sid, refusal.excess)).fetchone()
++        sql = sql.format(client=CLIENT if client is not None else '')
++        mine = (sid,) + ((client,) if client is not None else ())
++        row = c.execute(sql, (REF,) + mine if refusal.quota.startswith('tickers') else mine + (refusal.excess,)).fetchone()
+         return None if row is None or row['wait'] is None else max(1, math.ceil(row['wait']))
+ 
+     @staticmethod
+@@ -144,13 +158,15 @@ class Store:
+             'bytes = u.bytes + EXCLUDED.bytes RETURNING hour_start, grants, files, bytes', (sid, files, bytes_)).fetchone()
+ 
+     @staticmethod
+-    def log_access(c, sid, kind, ticker, ip, dataset=None, year=None, key=None, bytes_=0, keys=None, version=None):
++    def log_access(c, sid, kind, ticker, ip, dataset=None, year=None, key=None, bytes_=0, keys=None, version=None,
++                   client=None):
+         """One row; `keys` (EXEC-TERMINAL-SPEED): every file a /bundle grants, counted in file_count. `version`
+-        (EXEC-MU-ACCOUNTS Phase 3c): the entitlements version of x-terminal-capabilities, null without the header."""
++        (EXEC-MU-ACCOUNTS Phase 3c): the entitlements version of x-terminal-capabilities, null without the header.
++        `client` (track guest): the visitor key of a guest's call, null otherwise."""
+         c.execute('INSERT INTO terminal.access_log(subscriber_id, kind, ticker, dataset, year, object_key, bytes, ip, '
+-                  'file_count, object_keys, version) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
++                  'file_count, object_keys, version, client_key) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                   (sid, kind, ticker, dataset, year, key or (keys[0] if keys else None), bytes_, ip,
+-                   len(keys) if keys else 1, keys, version))
++                   len(keys) if keys else 1, keys, version, client))
+ 
+     @staticmethod
+     def prune(c, days):
+diff --git a/apps/terminal-api/tests/test_guest_tickers.py b/apps/terminal-api/tests/test_guest_tickers.py
+new file mode 100644
+index 00000000..c28e7a74
+--- /dev/null
++++ b/apps/terminal-api/tests/test_guest_tickers.py
+@@ -0,0 +1,202 @@
++"""EXEC-MU-ACCOUNTS fix round, track guest (decision 1 of 2026-11-19; verification/edge_multiuser/fix_round/guest.md):
++terminal-api's part of the guest Terminal and of the whole ticker list.
++
++- The ticker list is whole for every owner (every plan that holds terminal.view, and the guest); the reference files
++  that carry data per ticker keep the plan's filter. Which file is which is derived from its own columns
++  (refcut.names_only), checked here against the columns the publisher really writes.
++- x-terminal-client: the visitors of the guest plan share one owner row, and each is counted on its own (usage, lock,
++  audit row); a call without the key is counted on the owner's row as a whole (stricter, never wider).
++"""
++import ast
++import os
++import re
++from pathlib import Path
++
++import pytest
++
++from app import quota, refcut
++from app.entitlements import Capabilities
++from app.main import API, DATASETS
++from test_phase3c import ADMIN_CAPS, GATEWAY, CutBucket, OwnerStore, caps, make, owner
++
++PUBLISHER = Path(__file__).resolve().parents[2] / 'terminal-publisher' / 'publisher.py'
++VISITOR_A, VISITOR_B = 'a' * 32, 'b' * 32
++GUEST_OWNER = 'edge-guest'
++
++
++def publisher_columns():
++    """The columns of each reference file as publisher.py writes them, read from its source (no import: the publisher
++    needs its own dependencies)."""
++    text = PUBLISHER.read_text()
++    tree = ast.parse(text)
++    consts = {t.id: ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
++              for t in n.targets if isinstance(t, ast.Name) and t.id in ('FI_COLUMNS', 'STOCK_LIST_COLUMNS')}
++    tickers = ast.literal_eval(re.search(r"names = (\['ticker', 'name'[^\]]*\])", text).group(1))
++    brokers = ast.literal_eval(re.search(r"brokers_doc = \{'schema_version': SCHEMA_VERSION, 'columns': (\[[^\]]*\])",
++                                         text).group(1))
++    logos = ast.literal_eval(re.search(r"doc = \{'schema_version': SCHEMA_VERSION, 'columns': (\['ticker', 'file'[^\]]*\])",
++                                       text).group(1))
++    return {'tickers': tickers, 'brokers': brokers, 'logos': logos, 'fixed_income': consts['FI_COLUMNS'],
++            'stock_lists': consts['STOCK_LIST_COLUMNS']}
++
++
++SAMPLE = {                       # one realistic value per column, of the type the publisher writes
++    'ticker': 'TLKM', 'name': 'Telkom Indonesia', 'type': 'stock', 'sector': 'Infrastructures', 'industry': 'Telecom',
++    'instrument': 'common', 'file': 'TLKM.png', 'sha256': 'c' * 64, 'source': 'stockbit', 'fetched_at': '2026-11-01',
++    'country': 'ID', 'yield_unit': 'PCT', 'price_unit': 'PCTPAR', 'yield_first': '2010-01-04',
++    'yield_last': '2026-11-17', 'price_first': '2010-01-04', 'price_last': '2026-11-17', 'code': 'YP',
++    'classification': 'Retail-heavy', 'list_key': 'INDEX:LQ45', 'kind': 'INDEX', 'definition': 'LQ45',
++    'as_of': '2026-11-17', 'members': ['BBCA', 'TLKM'],
++}
++FREE_CAPS = Capabilities('db-0123456789ab', False, frozenset({'BBCA'}), frozenset({'price'}), 730, ())
++
++
++def test_the_ticker_list_is_whole_and_every_file_with_data_per_ticker_keeps_the_plans_filter():
++    """The rule read on the publisher's own columns: the ticker list names its instruments only (whole); the logos (an
++    index of published images), the bonds (their data dates) follow the plan's tickers; the broker list follows the
++    broker dataset; the stock lists have no rule (no rows)."""
++    columns = publisher_columns()
++    assert set(columns) == set(re.findall(r"'([a-z_]+)'", re.search(r'^REF_NAMES = \(([^)]*)\)', PUBLISHER.read_text(),
++                                                                      re.M).group(1)))
++    kept = {}
++    for name, cols in columns.items():
++        doc = {'schema_version': 1, 'columns': cols, **{c: [SAMPLE[c], SAMPLE[c]] for c in cols}}
++        if 'ticker' in cols:
++            doc['ticker'] = ['BBCA', 'TLKM']
++        kept[name] = refcut.keep(doc, name, FREE_CAPS, DATASETS)
++    assert kept == {'tickers': [0, 1], 'logos': [0], 'fixed_income': [0], 'brokers': [], 'stock_lists': []}, kept
++    assert refcut.names_only({'columns': columns['tickers'], **{c: [SAMPLE[c]] for c in columns['tickers']}},
++                             columns['tickers'], DATASETS)
++
++
++def test_names_only_is_read_from_the_columns_never_from_the_files_name():
++    """A ticker-keyed file is whole only while every other column holds text: a figure, a list, a dataset's column or a
++    column of digests makes it a file with data per ticker (fail closed for a new column)."""
++    base = {'columns': ['ticker', 'name'], 'ticker': ['BBCA', 'TLKM'], 'name': ['BCA', 'Telkom']}
++    assert refcut.names_only(base, base['columns'], DATASETS)
++    for column, values in (('last_close', [9150.0, 2950.0]), ('members', [['A'], ['B']]),
++                           ('price_last', ['2026-11-17', '2026-11-17']), ('digest', ['d' * 64, 'e' * 64]),
++                           ('broker_top', ['YP', 'CC'])):
++        doc = {**base, 'columns': base['columns'] + [column], column: values}
++        assert not refcut.names_only(doc, doc['columns'], DATASETS), column
++        assert refcut.keep(doc, 'tickers', FREE_CAPS, DATASETS) == [0], column
++    # a column of nothing yet (every value null) still names nothing
++    empty = {**base, 'columns': ['ticker', 'name', 'sector'], 'sector': [None, None]}
++    assert refcut.keep(empty, 'tickers', FREE_CAPS, DATASETS) == [0, 1]
++
++
++def test_the_test_fixtures_carry_the_publishers_columns():
++    from test_terminal_fix_round import REFERENCE_FILES
++    columns = publisher_columns()
++    assert REFERENCE_FILES['fixed_income']['columns'] == columns['fixed_income']
++    assert REFERENCE_FILES['logos']['columns'] == columns['logos']
++
++
++# ---- x-terminal-client: the guest plan's visitors are counted one by one ----------------------------------------------
++
++class VisitorStore(OwnerStore):
++    """OwnerStore with the visitor key of migration 20261119_170 (terminal.access_log.client_key)."""
++    def lock_subscriber(self, c, sid, client=None):
++        self.events.append(('lock', sid, client))
++
++    def usage(self, c, sid, client=None):
++        mine = [a for a in self.access if a['sid'] == sid and (client is None or a.get('client') == client)]
++        tickers = frozenset(a['ticker'] for a in mine if a['ticker'] != quota.REF)
++        return quota.Usage(sum(a.get('files', 1) for a in mine if a['kind'] == 'file'), tickers, tickers,
++                           sum(a['bytes'] for a in mine), sum(1 for a in mine if a['kind'].startswith('history')))
++
++    def log_access(self, c, sid, kind, ticker, ip, dataset=None, year=None, key=None, bytes_=0, keys=None, version=None,
++                   client=None):
++        super().log_access(c, sid, kind, ticker, ip, dataset, year, key, bytes_, keys, version)
++        self.access[-1]['client'] = client
++
++
++GUEST_CAPS = caps(tickers=['BBCA'], datasets=['price'], history_days=None, quota={'files_per_hour': 1})
++
++
++def guest(visitor=None):
++    return {**owner(GUEST_OWNER, GUEST_CAPS), **({'x-terminal-client': visitor} if visitor else {})}
++
++
++def bundle(client, headers):
++    return client.post(f'{API}/bundle', headers=headers, json={'ticker': 'BBCA', 'datasets': ['price'], 'packs': True})
++
++
++def test_each_visitor_of_the_guest_owner_has_its_own_quota_and_a_call_without_a_key_shares_the_owners():
++    client, store, _ = make(CutBucket(), VisitorStore())
++    assert bundle(client, guest(VISITOR_A)).status_code == 200
++    r = bundle(client, guest(VISITOR_A))
++    assert r.status_code == 429 and r.json()['quota'] == 'files_per_hour', r.text           # the visitor's own hour
++    assert bundle(client, guest(VISITOR_B)).status_code == 200                              # another visitor: its own
++    rows = [a for a in store.access if a['kind'] == 'file']
++    assert [a['client'] for a in rows] == [VISITOR_A, VISITOR_B]
++    assert len({a['sid'] for a in rows}) == 1                                               # one guest owner row
++    assert ('lock', rows[0]['sid'], VISITOR_A) in store.events and ('lock', rows[0]['sid'], VISITOR_B) in store.events
++    # the owner without a visitor key: every visitor's rows of its row count (fail closed: stricter, never wider)
++    r = bundle(client, guest())
++    assert r.status_code == 429 and r.json()['quota'] == 'files_per_hour'
++
++
++@pytest.mark.parametrize('headers, field', [
++    ({**GATEWAY, 'x-terminal-client': VISITOR_A}, 'x-terminal-client'),                     # no owner headers
++    ({**owner(GUEST_OWNER, ADMIN_CAPS), 'x-terminal-client': VISITOR_A}, 'x-terminal-client'),   # an owner holding *
++    ({**owner(GUEST_OWNER, GUEST_CAPS), 'x-terminal-client': '10.0.0.1'}, 'x-terminal-client'),   # an address, not a key
++    ({**owner(GUEST_OWNER, GUEST_CAPS), 'x-terminal-client': 'A' * 32}, 'x-terminal-client'),
++])
++def test_a_visitor_key_that_breaks_its_rule_is_refused_naming_the_header(headers, field):
++    client, _, _ = make(CutBucket(), VisitorStore())
++    r = client.get(f'{API}/manifest/BBCA', headers=headers)
++    assert r.status_code == 400, r.text
++    body = r.json()
++    assert body['error'] == 'invalid_owner_headers' and body['field'] == field
++    assert 'Fix:' in body['message'] and 'Example:' in body['message'] and '10.0.0.1' not in body['message']
++
++
++def test_a_service_key_or_a_cookie_never_names_a_visitor():
++    from test_api import BACKTEST_KEY, services_client
++    client, _, _ = services_client()
++    r = client.get(f'{API}/state', headers={'x-terminal-proxy-key': BACKTEST_KEY, 'x-terminal-client': VISITOR_A})
++    assert r.status_code == 400 and r.json()['error'] == 'owner_not_allowed'
++    r = client.get(f'{API}/state', headers={'x-terminal-client': VISITOR_A})
++    assert r.status_code in (400, 403) and r.json()['error'] in ('owner_not_allowed', 'direct_access_closed')
++
++
++# ---- on a real server: the store counts and locks per visitor -----------------------------------------------------
++
++def test_the_store_counts_each_visitor_apart_on_a_real_server():
++    url = os.environ.get('TERMINAL_TEST_POSTGRES_URL')
++    if not url:
++        pytest.skip('TERMINAL_TEST_POSTGRES_URL is not set')
++    from app.store import Store
++    store = Store(url, max_size=2)
++    store.open()
++    try:
++        with store.tx() as c:
++            sid = store.owner_account(c, f'edge-guest-{os.getpid()}')['subscriber_id']
++            for visitor, ticker in ((VISITOR_A, 'BBCA'), (VISITOR_A, 'BBRI'), (VISITOR_B, 'BBCA')):
++                store.lock_subscriber(c, sid, client=visitor)
++                store.log_access(c, sid, 'file', ticker, None, dataset='bundle', bytes_=10, keys=['k1', 'k2'],
++                                 version='db-0123456789ab', client=visitor)
++            a, b, whole = store.usage(c, sid, client=VISITOR_A), store.usage(c, sid, client=VISITOR_B), store.usage(c, sid)
++            assert (a.files_hour, a.tickers_hour, a.bytes_day) == (4, frozenset({'BBCA', 'BBRI'}), 20)
++            assert (b.files_hour, b.tickers_hour) == (2, frozenset({'BBCA'}))
++            assert whole.files_hour == 6                                    # the owner as a whole: every visitor
++            refusal = quota.Refusal('files_per_hour', 4, 'hour', 1)
++            assert 3500 < store.frees_in(c, sid, refusal, client=VISITOR_A) <= 3600
++            assert 3500 < store.frees_in(c, sid, quota.Refusal('tickers_per_hour', 1, 'hour'), client=VISITOR_B) <= 3600
++            rows = c.execute('SELECT client_key FROM terminal.access_log WHERE subscriber_id = %s ORDER BY access_id',
++                             (sid,)).fetchall()
++            assert [r['client_key'] for r in rows] == [VISITOR_A, VISITOR_A, VISITOR_B]
++            plan = '\n'.join(r['QUERY PLAN'] for r in c.execute(
++                "EXPLAIN SELECT count(*) FROM terminal.access_log WHERE subscriber_id = %s AND client_key = %s "
++                "AND at > now() - interval '1 day'", (sid, VISITOR_A)).fetchall())
++            assert 'access_log_client_at' in plan or 'Seq Scan' in plan                 # tiny table: either is fine
++            c.execute('DELETE FROM terminal.access_log WHERE subscriber_id = %s', (sid,))
++            c.execute('DELETE FROM terminal.subscriber WHERE subscriber_id = %s', (sid,))
++            with pytest.raises(Exception):
++                with c.transaction():
++                    c.execute("INSERT INTO terminal.access_log(subscriber_id, kind, ticker, ip, client_key) "
++                              "VALUES (%s, 'file', 'BBCA', NULL, '10.0.0.1')", (sid,))
++    finally:
++        store.close()
++
+diff --git a/apps/terminal-api/tests/test_terminal_fix_round.py b/apps/terminal-api/tests/test_terminal_fix_round.py
+index bc66a9f0..e5b4444c 100644
+--- a/apps/terminal-api/tests/test_terminal_fix_round.py
++++ b/apps/terminal-api/tests/test_terminal_fix_round.py
+@@ -8,8 +8,9 @@ terminal.md): terminal-api's side of the relay contract.
+ - R1-22: history_days 0 is the empty window (the value a plan whose limit reads as 0 sends), so page files still work.
+ - R2-4: every answer to an owner call carries x-terminal-capabilities-applied, so edge-bff can refuse the answer of a
+   terminal-api that ignored the owner headers.
+-- R2-32: an owner whose plan lacks the dataset `reference` gets its own copy of each reference file (refcut.py): the
+-  free plan's ticker list names BBCA alone, and no copy names another ticker.
++- R2-32: an owner whose plan lacks the dataset `reference` gets its own copy of each reference file (refcut.py); since
++  decision 1 of 2026-11-19 (track guest) the ticker list is whole for every plan, and no copy of a file that carries
++  data per ticker names another ticker.
+ - R1-4: /ready reports the gateway's own account (ok, expiring, expired, inactive, missing) and stays ready.
+ """
+ import datetime as dt
+@@ -184,8 +185,12 @@ REFERENCE_FILES = {
+     'logos': {'schema_version': 1, 'columns': ['ticker', 'file', 'sha256', 'source', 'fetched_at'],
+               'ticker': ['BBCA', 'TLKM'], 'file': ['BBCA.png', 'TLKM.svg'], 'sha256': ['a' * 64, 'b' * 64],
+               'source': ['tv', 'tv'], 'fetched_at': ['2026-11-01', '2026-11-01'], 'generated_at': '2026-11-01'},
+-    'fixed_income': {'schema_version': 1, 'columns': ['ticker', 'name', 'country'], 'ticker': ['FR0100'],
+-                     'name': ['FR0100'], 'country': ['ID'], 'means': 'government bonds'},
++    # the publisher's FI_COLUMNS (tests/test_guest_tickers.py compares): the bonds' names and the dates of their data
++    'fixed_income': {'schema_version': 1, 'columns': ['ticker', 'name', 'country', 'yield_unit', 'price_unit',
++                                                      'yield_first', 'yield_last', 'price_first', 'price_last'],
++                     'ticker': ['FR0100'], 'name': ['FR0100'], 'country': ['ID'], 'yield_unit': ['PCT'],
++                     'price_unit': ['PCTPAR'], 'yield_first': ['2010-01-04'], 'yield_last': ['2026-11-17'],
++                     'price_first': ['2010-01-04'], 'price_last': ['2026-11-17'], 'means': 'government bonds'},
+     'stock_lists': {'schema_version': 1, 'columns': ['list_key', 'kind', 'code', 'name', 'members'],
+                     'list_key': ['INDEX:LQ45'], 'kind': ['INDEX'], 'code': ['LQ45'], 'name': ['LQ45'],
+                     'members': [['BBCA', 'BBRI', 'TLKM']]},
+@@ -225,16 +230,20 @@ def own_copy(client, headers, name):
+     return doc, r.content
+ 
+ 
+-def test_the_free_plan_gets_reference_lists_that_name_its_own_tickers_only():
++def test_the_free_plan_gets_the_whole_ticker_list_and_its_own_rows_of_every_other_reference_file():
++    """Decision 1 of 2026-11-19 (it replaces the R2-32 reading of D3 this test held, a ticker list of BBCA alone): the
++    plan searches every ticker; the files that carry data per ticker (the logos' image index, the bonds' data dates, the
++    broker list, the stock lists) keep the plan's filter, so none of them names another ticker."""
+     from test_phase3c import FREE
+     client, store, bucket = reference_app()
+     copies = {name: own_copy(client, FREE, name) for name in REFERENCE_FILES}
+-    assert copies['tickers'][0]['ticker'] == ['BBCA'] and copies['tickers'][0]['name'] == ['Bank Central Asia']
++    assert copies['tickers'][0]['ticker'] == REFERENCE_FILES['tickers']['ticker']
++    assert copies['tickers'][0]['name'] == REFERENCE_FILES['tickers']['name']
+     assert copies['logos'][0]['ticker'] == ['BBCA'] and copies['logos'][0]['generated_at'] == '2026-11-01'
+     assert copies['brokers'][0]['code'] == [] and copies['brokers'][0]['type_means'] == 'broker domicile'
+     assert copies['fixed_income'][0]['ticker'] == [] and copies['stock_lists'][0]['members'] == []
+     for name, (doc, raw) in copies.items():
+-        for other in OTHERS:
++        for other in OTHERS if name != 'tickers' else ():
+             assert other not in str(doc), (name, other)
+     # counted when served: one audit row per copy read, under REF, none for the announcements
+     rows = [a for a in store.access if a['dataset'] == 'reference']
+@@ -250,7 +259,9 @@ def test_the_broker_list_follows_the_broker_dataset_and_the_full_lists_follow_re
+     client, store, _ = reference_app()
+     brokers = owner(capabilities=caps(tickers=['BBCA', 'TLKM'], datasets=['price', 'broker']))
+     assert own_copy(client, brokers, 'brokers')[0]['code'] == ['YP', 'CC']
+-    assert own_copy(client, brokers, 'tickers')[0]['ticker'] == ['BBCA', 'TLKM']
++    # decision 1 of 2026-11-19: the ticker list is whole for every plan; the logos follow the plan's tickers
++    assert own_copy(client, brokers, 'tickers')[0]['ticker'] == ['BBCA', 'BBRI', 'TLKM', 'IHSG']
++    assert own_copy(client, brokers, 'logos')[0]['ticker'] == ['BBCA', 'TLKM']
+     # every ticker and no reference lists: every ticker row, still a copy (the dataset decides, not the tickers)
+     every = owner(capabilities=caps(tickers='*', datasets=['price']))
+     assert own_copy(client, every, 'tickers')[0]['ticker'] == ['BBCA', 'BBRI', 'TLKM', 'IHSG']
+diff --git a/database/migrations/20261119_170_terminal_access_log_client.sql b/database/migrations/20261119_170_terminal_access_log_client.sql
+new file mode 100644
+index 00000000..56ed9b70
+--- /dev/null
++++ b/database/migrations/20261119_170_terminal_access_log_client.sql
+@@ -0,0 +1,85 @@
++-- EXEC-MU-ACCOUNTS fix round, track guest (decision 1 of 2026-11-19, the user: "1a - bukan hanya chart, nanti ada
++-- indikator dll yg juga mungkin di show ke user. jadi design harus plug and play dan fluid, karna ticker dan indikatornya
++-- bisa berubah"; EXEC.md EXEC-MU-ACCOUNTS "Decisions from the fix round"; verification/edge_multiuser/fix_round/
++-- guest.md): a visitor without an account opens the Terminal. Every visitor reaches terminal-api under one EDGE owner
++-- (edge-bff's guest owner, one terminal.subscriber row of kind owner, 20261118_100), and the per-owner quota of Phase 3c
++-- cannot hold one row per visitor, so edge-bff names each visitor by an opaque key of its client address
++-- (x-terminal-client: an HMAC edge-bff makes, 32 hex; never the address) and terminal-api counts that owner's quotas per
++-- visitor.
++-- - terminal.access_log.client_key: the visitor key of a guest's call; null for every other call and every existing
++--   row. Its check is added NOT VALID: the existing rows (all null) are not scanned, and every new row is checked.
++-- - index access_log_client_at (subscriber_id, client_key, at DESC) WHERE client_key IS NOT NULL: the usage read of each
++--   guest grant (app/store.py usage, frees_in) is per visitor; without it every grant would read every visitor's rows of
++--   the day under the one guest row (EXPLAIN evidence: guest.md "EXPLAIN evidence"). Partial: no other row is indexed,
++--   so the build reads the table once and writes only the rows of guests (none yet).
++-- Operational schema terminal: no Table/Column_Catalog row (as 20261025_100 ... 20261118_100). No market table, role,
++-- login, grant or existing row changes: terminal_runtime reaches the column through its existing table grants (SELECT,
++-- INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA terminal, 20261025_100). Applied once: the preflight refuses a second
++-- run. The index build reads terminal.access_log once (90 days of audit rows): AGENTS.md "Postgres memory after large
++-- updates" (an index on a large table) applies after it. Rollback block at the end (comment).
++BEGIN;
++SET LOCAL lock_timeout = '5s';
++SET LOCAL statement_timeout = '10min';
++DO $preflight$
++BEGIN
++    IF to_regclass('terminal.access_log') IS NULL THEN
++        RAISE EXCEPTION 'terminal.access_log is missing: apply 20261025_100 first';
++    END IF;
++    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'terminal'
++                   AND table_name = 'access_log' AND column_name = 'version') THEN
++        RAISE EXCEPTION 'terminal.access_log.version is missing: apply 20261118_100 first';
++    END IF;
++    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'terminal'
++               AND table_name = 'access_log' AND column_name = 'client_key') THEN
++        RAISE EXCEPTION 'terminal.access_log.client_key exists: already applied';
++    END IF;
++    IF to_regclass('terminal.access_log_client_at') IS NOT NULL THEN
++        RAISE EXCEPTION 'the index terminal.access_log_client_at exists: reconcile before applying';
++    END IF;
++END $preflight$;
++
++ALTER TABLE terminal.access_log ADD COLUMN client_key text;
++ALTER TABLE terminal.access_log
++    ADD CONSTRAINT access_log_client_key_check CHECK (client_key IS NULL OR client_key ~ '^[0-9a-f]{32}$') NOT VALID;
++CREATE INDEX access_log_client_at ON terminal.access_log (subscriber_id, client_key, at DESC)
++    WHERE client_key IS NOT NULL;
++
++COMMENT ON COLUMN terminal.access_log.client_key IS
++    'EXEC-MU-ACCOUNTS track guest: the visitor key (x-terminal-client, 32 hex, an HMAC edge-bff makes of the client address; never the address) of a call for a visitor of the guest plan, whose quotas are counted per visitor under the guest owner row; null for every other call and for rows before 20261119_170.';
++COMMENT ON INDEX terminal.access_log_client_at IS
++    'Track guest: the usage read of a guest grant, per visitor of the one guest owner row (app/store.py usage, frees_in).';
++
++DO $verify$
++BEGIN
++    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'terminal' AND table_name = 'access_log'
++                   AND column_name = 'client_key' AND is_nullable = 'YES' AND data_type = 'text')
++       OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'terminal.access_log'::regclass
++                      AND conname = 'access_log_client_key_check' AND contype = 'c') THEN
++        RAISE EXCEPTION 'terminal.access_log.client_key or its check is missing';
++    END IF;
++    IF NOT EXISTS (SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
++                   WHERE c.oid = 'terminal.access_log_client_at'::regclass AND i.indisvalid
++                   AND pg_get_expr(i.indpred, i.indrelid) LIKE '%client_key IS NOT NULL%') THEN
++        RAISE EXCEPTION 'the partial index terminal.access_log_client_at is missing or not valid';
++    END IF;
++    IF EXISTS (SELECT 1 FROM terminal.access_log WHERE client_key IS NOT NULL) THEN
++        RAISE EXCEPTION 'an existing audit row has a visitor key';
++    END IF;
++    -- terminal-api reads and writes the column through its existing table grants
++    IF NOT (has_column_privilege('terminal_runtime', 'terminal.access_log', 'client_key', 'SELECT')
++            AND has_column_privilege('terminal_runtime', 'terminal.access_log', 'client_key', 'INSERT')) THEN
++        RAISE EXCEPTION 'terminal_runtime cannot use terminal.access_log.client_key';
++    END IF;
++    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'terminal_api_login')
++       AND NOT has_column_privilege('terminal_api_login', 'terminal.access_log', 'client_key', 'INSERT') THEN
++        RAISE EXCEPTION 'terminal_api_login does not reach terminal.access_log.client_key';
++    END IF;
++END $verify$;
++COMMIT;
++
++-- Rollback (a new forward migration with this body), only after terminal-api runs code that does not read client_key
++-- (its /ready lists it, app/store.py READY) and edge-bff no longer sends x-terminal-client:
++-- BEGIN;
++-- DROP INDEX terminal.access_log_client_at;
++-- ALTER TABLE terminal.access_log DROP CONSTRAINT access_log_client_key_check, DROP COLUMN client_key;
++-- COMMIT;
 -- 
 2.43.0
 

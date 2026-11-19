@@ -1,7 +1,7 @@
 From 88d75b8e27614970adb2c6d9950b130dc6285aea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:22:44 +0000
-Subject: [PATCH 01/54] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26):
+Subject: [PATCH 01/56] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26):
  every terminal-api 429 names its quota and when to try again
 
 quota_exceeded carries quota, limit, window and retry_after_s (Store.frees_in: when the rolling window lets the
@@ -337,7 +337,7 @@ index 00000000..1b97b475
 From e5f0c18176c143415631c5fb983843cea38b3e50 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:24:56 +0000
-Subject: [PATCH 02/54] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
+Subject: [PATCH 02/56] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
  terminal-api leaves out unknown datasets, takes history_days 0, acknowledges
  the applied header
 
@@ -587,7 +587,7 @@ index 1b97b475..89f69688 100644
 From d959a594942a346d292f67be79d11630bd5b2162 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:30:47 +0000
-Subject: [PATCH 03/54] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
+Subject: [PATCH 03/56] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
  reference lists filtered to the plan; the gateway account on /ready
 
 An owner whose plan lacks the dataset reference gets its own copy of each reference file (app/refcut.py: the rows of
@@ -1162,7 +1162,7 @@ index 89f69688..bc66a9f0 100644
 From 570e607cfa06be44e7d7926946941f597627fea6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:36:59 +0000
-Subject: [PATCH 04/54] EXEC-MU-ACCOUNTS fix round (terminal,
+Subject: [PATCH 04/56] EXEC-MU-ACCOUNTS fix round (terminal,
  R1-1/R1-26/R1-22/R2-4/R2-32): one relay rule for every terminal-api answer
 
 terminal_access.relayed is the rule forward_terminal, relay_cut and PageFiles share: a terminal-api 401 or 403 about
@@ -1840,7 +1840,7 @@ index 90f357d9..6af924b7 100644
 From 0713d5053e3eb87c750b4074b1a9558898956d04 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:38:26 +0000
-Subject: [PATCH 05/54] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests
+Subject: [PATCH 05/56] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests
  of the relay rule, the acknowledgement, history 0, the page-file refusals
  before the caches and the reference copy relay
 
@@ -2114,7 +2114,7 @@ index 00000000..1240c974
 From c17efdf1f905c655a98325b8c9cf5e260bc1a330 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:41:40 +0000
-Subject: [PATCH 06/54] EXEC-MU-ACCOUNTS fix round (track site): migrations
+Subject: [PATCH 06/56] EXEC-MU-ACCOUNTS fix round (track site): migrations
  20261119_020-023 (the queues' site, the seed's mark, the indexes on the
  references to users) and the test harness
 
@@ -2505,7 +2505,7 @@ index 00000000..4ac242f5
 From 8aed704adeafafdcab31e9d0338073c0145b3d27 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:41:52 +0000
-Subject: [PATCH 07/54] EXEC-MU-ACCOUNTS fix round (track site): two edge-bff
+Subject: [PATCH 07/56] EXEC-MU-ACCOUNTS fix round (track site): two edge-bff
  sites on one database, the start-up, the background loops
 
 - EDGE_SITE (beta, the default, or live); config.validate refuses live without EDGE_MULTIUSER, the beta with it (outside
@@ -4346,7 +4346,7 @@ index b1912754..b05f4698 100644
 From eaa7bc28340a9d4374530acb3bdbd3cbd8a1a8e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:42:12 +0000
-Subject: [PATCH 08/54] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
+Subject: [PATCH 08/56] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
  domain per capability in the catalog, read by the value trigger
 
 Migration 20261119_050 (not applied): edge_bff.capabilities gains value_min, value_max and item_pattern;
@@ -4728,7 +4728,7 @@ index 00000000..5dcc217f
 From 9099a1f4de4d7d39736a7f2fc40eebf2ce56d7cf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:44:52 +0000
-Subject: [PATCH 09/54] EXEC-MU-ACCOUNTS fix round (track site): an explicit
+Subject: [PATCH 09/56] EXEC-MU-ACCOUNTS fix round (track site): an explicit
  switch for log mode on a deployed site, the sender-off line at every
  switch-on start, the worker's default claim read when called
 
@@ -4871,7 +4871,7 @@ index e6ed73f7..ab0afcd0 100644
 From 9b83ea196e2b17dedf5f5bc76eb8a186d32dfd0f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:45:45 +0000
-Subject: [PATCH 10/54] EXEC-MU-ACCOUNTS fix round (terminal, R2-32): the free
+Subject: [PATCH 10/56] EXEC-MU-ACCOUNTS fix round (terminal, R2-32): the free
  plan's Terminal draws BBCA
 
 The e2e fake terminal-api now answers the header edge-bff really sends with terminal-api's own code (entitlements,
@@ -5139,7 +5139,7 @@ index 5faf7ca1..ad858b55 100644
 From f82419c0941877b307fe2357c8ff2114c68f6958 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:46:37 +0000
-Subject: [PATCH 11/54] EXEC-MU-ACCOUNTS fix round (terminal):
+Subject: [PATCH 11/56] EXEC-MU-ACCOUNTS fix round (terminal):
  SCREENER_ONBOARDING.md pointers into terminal-api and edge-bff main.py moved
  with their lines (screener-worker onboarding_pointers test)
 
@@ -5228,7 +5228,7 @@ index 6a313a75..1006309b 100644
 From 34edaafa4248403f9660a32fd94728359e48c0df Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:47:16 +0000
-Subject: [PATCH 12/54] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff README
+Subject: [PATCH 12/56] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff README
  follows the relay rule, the reference copies, the header mapping and the
  page-file caches
 
@@ -5317,7 +5317,7 @@ index 976016a8..85d0851f 100644
 From e48042eac2458582d814a4aeb5c9f3084edc60a7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:54:00 +0000
-Subject: [PATCH 13/54] EXEC-MU-ACCOUNTS fix round (terminal): notes per
+Subject: [PATCH 13/56] EXEC-MU-ACCOUNTS fix round (terminal): notes per
  finding, what the shared records must say, the decisions only the user can
  take
 
@@ -5583,7 +5583,7 @@ index 00000000..7b1c5317
 From ae02340396c5211c58fce4bc04028785b63c021d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:54:24 +0000
-Subject: [PATCH 14/54] EXEC-MU-ACCOUNTS fix round (terminal): terminal-api
+Subject: [PATCH 14/56] EXEC-MU-ACCOUNTS fix round (terminal): terminal-api
  README, the logo line follows the reference copies
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5613,7 +5613,7 @@ index 8b62323d..e523a13a 100644
 From ccdfb1772f0fab41d6754b2a4d1cd9e3669e2b36 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:00:12 +0000
-Subject: [PATCH 15/54] EXEC-MU-ACCOUNTS fix round (track site): notes for the
+Subject: [PATCH 15/56] EXEC-MU-ACCOUNTS fix round (track site): notes for the
  records (findings, tests, EXPLAIN evidence, suites)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5878,7 +5878,7 @@ index 00000000..af3f0b6a
 From bd1d506525535c8d352fb08a667d827ceb936567 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:02:43 +0000
-Subject: [PATCH 16/54] EXEC-MU-ACCOUNTS fix round (terminal, R2-4): the C2
+Subject: [PATCH 16/56] EXEC-MU-ACCOUNTS fix round (terminal, R2-4): the C2
  Phase 2 isolation test's fake terminal-api acknowledges the owner header, as
  terminal-api does
 
@@ -5921,7 +5921,7 @@ index 9d082941..f1f04a18 100644
 From e6dfab52206226635e0f38ca752b16c6afd5c0ed Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:04:03 +0000
-Subject: [PATCH 17/54] EXEC-MU-ACCOUNTS fix round (terminal): the suites'
+Subject: [PATCH 17/56] EXEC-MU-ACCOUNTS fix round (terminal): the suites'
  results in the track notes
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5957,7 +5957,7 @@ index 7b1c5317..1a4617b2 100644
 From b16d57288f42b49682d60bfab255d454f20d9739 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:13:40 +0000
-Subject: [PATCH 18/54] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
+Subject: [PATCH 18/56] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
  for lists and limits, no shared restrictive list, the seed plan is the one
  whose '*' is true, access.limits reports the applied cap, MFA_REQUIRED says
  whether an authenticator is set up
@@ -6396,7 +6396,7 @@ index 205d728e..79f4b2e7 100644
 From 68542f2fb3036e6ef993b948b48fb7e37f1983e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:26:59 +0000
-Subject: [PATCH 19/54] EXEC-MU-ACCOUNTS fix round (plans): refusals worded
+Subject: [PATCH 19/56] EXEC-MU-ACCOUNTS fix round (plans): refusals worded
  from their code and details; no internal key in a worker's capability message
 
 Re-check R2-15: errors.words names the item (display_name), the ended plan, the plan limit with the account's number and
@@ -6748,7 +6748,7 @@ index 4f57f457..6b36df04 100644
 From 296129a5dc45ccfadc9c657500d4c9a113dffacc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:29:25 +0000
-Subject: [PATCH 20/54] EXEC-MU-ACCOUNTS fix round (plans): the Screener
+Subject: [PATCH 20/56] EXEC-MU-ACCOUNTS fix round (plans): the Screener
  catalog lists only the presets the plan holds, by the rule of /api/v1/catalog
 
 Re-check R1-32: catalog.holds_entry is the one rule (any family of the kind), read by the generic catalog route and the
@@ -6903,7 +6903,7 @@ index 48c86772..3e149b2b 100644
 From 8884b38b089e66df85c1b65c6a4870aee54a6f19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:32:25 +0000
-Subject: [PATCH 21/54] EXEC-MU-ACCOUNTS fix round (plans): an account
+Subject: [PATCH 21/56] EXEC-MU-ACCOUNTS fix round (plans): an account
  preference of one tab is served and stored only while the plan holds that tab
 
 Re-check R1-18 and R1-30 (CONTRACT.md 8b D5: reads need <tab>.view): each sync entry of the storage registry names the
@@ -7374,7 +7374,7 @@ index a5c52e65..6c5d0c00 100644
 From 54398ef3d816fd905313bb78d03dbeae312bc428 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:39:51 +0000
-Subject: [PATCH 22/54] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
+Subject: [PATCH 22/56] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
  refusals in words, lands a non-admin account on the Terminal, follows a
  change of plan and a session ended under a frame
 
@@ -7926,7 +7926,7 @@ index 3be7fc42..97afe4f1 100644
 From e79a1b37ec8461894de0a4cf927be2e51a38f1da Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:40:01 +0000
-Subject: [PATCH 23/54] EXEC-MU-ACCOUNTS fix round, track auth: sign-in limits,
+Subject: [PATCH 23/56] EXEC-MU-ACCOUNTS fix round, track auth: sign-in limits,
  credential races, MFA re-enrolment, password cost, outbox purge
 
 Findings of the ultracode re-check (rounds 1 and 2) fixed in edge-bff, each with its committed failing test now
@@ -10318,7 +10318,7 @@ index 4052d11f..444aef1e 100644
 From 6bd43074c959de211bdda838e97fb3e5eca3ba9f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:45:57 +0000
-Subject: [PATCH 24/54] EXEC-MU-ACCOUNTS fix round (plans): the Screener's
+Subject: [PATCH 24/56] EXEC-MU-ACCOUNTS fix round (plans): the Screener's
  cached paint follows the plan; a drawings refusal is said in its words and
  keeps nothing in the browser
 
@@ -10648,7 +10648,7 @@ index 2b23a78c..be09eda6 100644
 From 61155dd2dbc5bf8b8694c7d66c720fdfe4844c46 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:46:54 +0000
-Subject: [PATCH 25/54] EXEC-MU-ACCOUNTS fix round (plans): an added series'
+Subject: [PATCH 25/56] EXEC-MU-ACCOUNTS fix round (plans): an added series'
  pane keys are the account's and leave with the series
 
 Re-check R1-20: the prefix ml.assets.flow. (fold and height per added series, named by its ticker) is a user cache
@@ -10742,7 +10742,7 @@ index 6c5d0c00..78ede8d0 100644
 From bcdb0705707af84337ceb5fa02e9e96f28597f1f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:51:03 +0000
-Subject: [PATCH 26/54] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
+Subject: [PATCH 26/56] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
  registration cookies on https, HSTS, form-action in every page policy
 
 Re-check R2-22: on a Secure origin the cookies are __Host-edge_session and __Host-edge_registration (Path=/, no
@@ -11081,7 +11081,7 @@ index 275a776a..bae4c119 100644
 From 081c378f3e8b769a9dbc570121dd0618fce5403d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:54:18 +0000
-Subject: [PATCH 27/54] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
+Subject: [PATCH 27/56] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
  Password and sign-in page (password change, sign out everywhere)
 
 Re-check R2-20: with accounts on (GET /api/v1/auth/config), the account menu opens a dialog for the Phase 1 password
@@ -11314,7 +11314,7 @@ index bae4c119..7d13a9af 100644
 From be55357c5ff111788f3be6095b31e796f69160c9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:55:50 +0000
-Subject: [PATCH 28/54] EXEC-MU-ACCOUNTS fix round (plans): one rule for a
+Subject: [PATCH 28/56] EXEC-MU-ACCOUNTS fix round (plans): one rule for a
  person's name at registration, and one for showing it
 
 Re-check R2-18: app/text_rules.py stores a first or last name in NFC with single spaces and refuses control, hidden
@@ -11458,7 +11458,7 @@ index 7d13a9af..c0414ee6 100644
 From 78455b93bce3e343a60aa888086854fdfeed0fea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:00:42 +0000
-Subject: [PATCH 29/54] EXEC-MU-ACCOUNTS fix round (plans): every plan limit
+Subject: [PATCH 29/56] EXEC-MU-ACCOUNTS fix round (plans): every plan limit
  answers one code, LIMIT_REACHED naming its capability key
 
 Re-check R2-39 (CONTRACT.md section 3): the saved-item caps (layouts, presets, places with drawings, saved screens and
@@ -11950,7 +11950,7 @@ index 1cea2cd5..b3da03f0 100644
 From 419ee36823575c52f229af37f8a6599bb9f8c463 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:01:46 +0000
-Subject: [PATCH 30/54] EXEC-MU-ACCOUNTS fix round, track auth: notes for the
+Subject: [PATCH 30/56] EXEC-MU-ACCOUNTS fix round, track auth: notes for the
  records, the code-purpose drift test, the last reserved placeholder
 
 - verification/edge_multiuser/fix_round/auth.md: root cause, fix and tests of each finding of the track, what
@@ -12180,7 +12180,7 @@ index 00000000..be7ca824
 From fc3cbf2933403c4d0cdafef84f76ae2deee1275e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:02:13 +0000
-Subject: [PATCH 31/54] SCREENER_ONBOARDING.md: line pointers into edge-bff
+Subject: [PATCH 31/56] SCREENER_ONBOARDING.md: line pointers into edge-bff
  screener.py and main.py moved with the fix round's lines
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -12251,7 +12251,7 @@ index 6a313a75..239ec42b 100644
 From b36e621af0417827137b36018443c9ea5d927988 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:05:30 +0000
-Subject: [PATCH 32/54] EXEC-MU-ACCOUNTS fix round (plans): the shell runs no
+Subject: [PATCH 32/56] EXEC-MU-ACCOUNTS fix round (plans): the shell runs no
  inline script; its policy drops script-src 'unsafe-inline'
 
 Re-check R2-19: the head's viewport script moved to static/edge-boot.js and the shell's app to static/edge-app.js (a
@@ -17839,7 +17839,7 @@ index cc5b4fee..32a843c0 100644
 From db1eadac57e5ce7b44bec319e25013647a558d0b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:06:13 +0000
-Subject: [PATCH 33/54] EXEC-MU-ACCOUNTS fix round (plans): the Watchlist's
+Subject: [PATCH 33/56] EXEC-MU-ACCOUNTS fix round (plans): the Watchlist's
  copy of the logo reference list leaves with the account
 
 Re-check R1-17 (other site named by the refuters): edge.watchlist.logos holds the content of a reference file the plan
@@ -17891,7 +17891,7 @@ index 3dca0656..053568f6 100644
 From 40725f4ae44a9890ee92f8d2bd2500caf4480f11 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:07:53 +0000
-Subject: [PATCH 34/54] EXEC-MU-ACCOUNTS fix round (plans): notes per finding,
+Subject: [PATCH 34/56] EXEC-MU-ACCOUNTS fix round (plans): notes per finding,
  the records to write, the decisions left, the script move for integration
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18187,7 +18187,7 @@ index 00000000..ea7fd66e
 From edd0e434d892ef7d3db6f156a2180c0494c0b4b6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:09:11 +0000
-Subject: [PATCH 35/54] Terminal registry test: edge.watchlist.logos is cleared
+Subject: [PATCH 35/56] Terminal registry test: edge.watchlist.logos is cleared
  with the account (fix round, re-check R1-17 other site)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18226,7 +18226,7 @@ index 96453e49..fe15d3c9 100644
 From c779d1e01309fe37aba11771c2593c7503a2b4f9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:13:24 +0000
-Subject: [PATCH 36/54] principal.py: the comment of the MFA check sits above
+Subject: [PATCH 36/56] principal.py: the comment of the MFA check sits above
  it again
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18260,7 +18260,7 @@ index cf07386b..878e8613 100644
 From 09f4ae3e6ed81e60c14752d7f5dbbcee41df6ddd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:14:28 +0000
-Subject: [PATCH 37/54] main.py: the one-time cookie move never overrides a
+Subject: [PATCH 37/56] main.py: the one-time cookie move never overrides a
  route's own cookie answer (sign-in, sign-out)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18292,7 +18292,7 @@ index 7b839f5b..aac63795 100644
 From d71bc8363c232d2307077f2f8fb9cd90618228cf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:33:03 +0000
-Subject: [PATCH 38/54] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
+Subject: [PATCH 38/56] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
  key test waits in pending/ for the Railway deletion; the code side held by a
  test (no code the runner runs reads the main Orc key)
 
@@ -18379,7 +18379,7 @@ rename to verification/edge_multiuser/access_tiers/pending/test_cp0_runner_key.p
 From 22d4defe17a0d98db4ffb77a15f4f824f7cda532 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:35:21 +0000
-Subject: [PATCH 39/54] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
+Subject: [PATCH 39/56] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
  hook route verifies by a dependency built from HOOK_ROUTES; the route walk
  covers the whole table (signed hooks, a capability gate or a named
  principal-only reason on every /api route)
@@ -18586,7 +18586,7 @@ index ed71cd2a..7f845889 100644
 From 5f204d11e7db3de2fa9590e929a74c469cec84e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:39:59 +0000
-Subject: [PATCH 40/54] EXEC-MU-ACCOUNTS fix round (records, R1-41, R1-42,
+Subject: [PATCH 40/56] EXEC-MU-ACCOUNTS fix round (records, R1-41, R1-42,
  R1-43, R1-45, R1-46): migration 20261119_040 (audit and provenance ids
  without a referential action, catalog trace triggers, the kind comment and
  history_days means to the code and D2, a column-privilege guard), the
@@ -19102,7 +19102,7 @@ index 00000000..0377546a
 From 64e5fe94bf846432cdbb44359a564a2f0c9a6071 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:40:43 +0000
-Subject: [PATCH 41/54] EXEC-MU-ACCOUNTS fix round (records, R1-28): the run
+Subject: [PATCH 41/56] EXEC-MU-ACCOUNTS fix round (records, R1-28): the run
  stream's monitor.view re-check held by a live-server test (fails when
  still_signed_in stops asking for it)
 
@@ -19178,7 +19178,7 @@ index 00000000..c2a21bdf
 From e96cf7c952ffd68bf03363c4c65a359f4b252bc2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:47:16 +0000
-Subject: [PATCH 42/54] EXEC-MU-ACCOUNTS fix round (plans): the catalog refuses
+Subject: [PATCH 42/56] EXEC-MU-ACCOUNTS fix round (plans): the catalog refuses
  a Terminal limit beside the Backtest's or the Screener's own data access
  (re-check R1-36, the user's "2a")
 
@@ -19845,7 +19845,7 @@ index 699c7b0e..26220a9f 100644
 From 4bdf1cc69840167d82fb97a77e60b05aab3b031c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:47:16 +0000
-Subject: [PATCH 43/54] Backtest and Screener frame tests: the shell's tab code
+Subject: [PATCH 43/56] Backtest and Screener frame tests: the shell's tab code
  is read from edge-app.js (the R2-19 script move)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -19904,7 +19904,7 @@ index 7b8f6d07..d976a1d5 100644
 From 9d31dc07eb2cd29777e107e2b35148af30e2ebc2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:02:11 +0000
-Subject: [PATCH 44/54] EXEC-MU-ACCOUNTS fix round (records): work in progress
+Subject: [PATCH 44/56] EXEC-MU-ACCOUNTS fix round (records): work in progress
  saved when the usage limit stopped the builder (unreviewed;
  test_zz_tmp_walk.py is a scratch probe)
 
@@ -20281,7 +20281,7 @@ index 00000000..8a1f7462
 From 26c38da5b5bd1d24dcee759681a02b90f95b57fb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:12:45 +0000
-Subject: [PATCH 45/54] EXEC-MU-ACCOUNTS fix round (records, R1-21): the
+Subject: [PATCH 45/56] EXEC-MU-ACCOUNTS fix round (records, R1-21): the
  two-user walk covers every /api route and every owned kind, derived from
  app.routes and information_schema; one event loop for both people; an owned
  id answers what an id nobody made answers; the scratch probe removed
@@ -20493,7 +20493,7 @@ index 8a1f7462..00000000
 From 51451d52afbe787f993280eb373e11616f4759ec Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:26:07 +0000
-Subject: [PATCH 46/54] EXEC-MU-ACCOUNTS fix round (records, R1-39, R1-40,
+Subject: [PATCH 46/56] EXEC-MU-ACCOUNTS fix round (records, R1-39, R1-40,
  R1-44): CI runs the page suites, edge-bff's browser tests (Playwright,
  Chromium, the built pages) and Orc's Postgres tests; the shell copy is
  compared with its build by a generated_file test; generators found anywhere
@@ -20947,7 +20947,7 @@ index ec7ef606..3b04267c 100644
 From 77e57322263ebe16d440686978e35f4bce1ea75f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:26:07 +0000
-Subject: [PATCH 47/54] EXEC-MU-ACCOUNTS fix round (records, R2-40): tests of
+Subject: [PATCH 47/56] EXEC-MU-ACCOUNTS fix round (records, R2-40): tests of
  the contract requirements no test held (absolute session lifetime in both
  modes, Retry-After on every 429, entitlements on the signed-in answers, names
  from the start, a future subscription, SEND_IP, a pending session's sign-out,
@@ -21222,7 +21222,7 @@ index e67a334c..52f85235 100644
 From 279613408cb4cb0652140e55133c53958fe10467 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:32:15 +0000
-Subject: [PATCH 48/54] EXEC-MU-ACCOUNTS fix round (plans): the cap modules'
+Subject: [PATCH 48/56] EXEC-MU-ACCOUNTS fix round (plans): the cap modules'
  headers and the README say 403 LIMIT_REACHED for a plan cap (re-check R2-39);
  notes: the migration of "2a", the R1-35 anchor, the suite results
 
@@ -21424,7 +21424,7 @@ index 26220a9f..f77a707a 100644
 From 511848a0a060abcb22088ddae22d6d965e1f6074 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:36:36 +0000
-Subject: [PATCH 49/54] EXEC-MU-ACCOUNTS fix round (records): CONTRACT.md
+Subject: [PATCH 49/56] EXEC-MU-ACCOUNTS fix round (records): CONTRACT.md
  brought to the code and the user's decisions of 2026-11-19 (the beta/live
  site, pre-launch mode, the guest, the free plan's whole ticker list, outbox
  30 days, forgot kept, one Terminal quota, the restricted-plan rule, the
@@ -22479,7 +22479,7 @@ index 32cce206..c0ea7359 100644
 From 65211eabab3b1795223191776964a24f8aee0cd7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:39:06 +0000
-Subject: [PATCH 50/54] EXEC-MU-ACCOUNTS fix round (records): notes per finding
+Subject: [PATCH 50/56] EXEC-MU-ACCOUNTS fix round (records): notes per finding
  and the records to write; the pending tests' table renders again
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -22789,7 +22789,7 @@ index 00000000..19efae89
 From 905bad655565e9482f2bddd8ab85e73ede5ea3f5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:41:58 +0000
-Subject: [PATCH 51/54] EXEC-MU-ACCOUNTS fix round (records): the merge notes;
+Subject: [PATCH 51/56] EXEC-MU-ACCOUNTS fix round (records): the merge notes;
  CONTRACT 13 names the one local step (the Terminal look check)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -22851,7 +22851,7 @@ index 19efae89..07520384 100644
 From c6e87ee27bebbddc039ee0a9a0fe163cc4fa4242 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 12:44:46 +0000
-Subject: [PATCH 52/54] SCREENER_ONBOARDING.md: pointers into edge-bff main.py
+Subject: [PATCH 52/56] SCREENER_ONBOARDING.md: pointers into edge-bff main.py
  and screener.py moved with the merged fix-round lines (screener-worker
  onboarding_pointers)
 
@@ -22901,7 +22901,7 @@ index 0324c609..76c2882c 100644
 From 2fddd030fb8537045529a987cb855aa51c6c473b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 13:07:48 +0000
-Subject: [PATCH 53/54] edge-bff test_beta_live_site: the housekeeping's purges
+Subject: [PATCH 53/56] edge-bff test_beta_live_site: the housekeeping's purges
  are four after the merge (the outbox purge of the auth track, R2-24), and the
  outbox purge is held to the same batch bound
 
@@ -22941,7 +22941,7 @@ index ab0afcd0..407473a1 100644
 From 9a22ee751236fb9332239dd0251317f51ebc59b8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 13:11:13 +0000
-Subject: [PATCH 54/54] .railway/railway.ts: the planned edge-bff-live is
+Subject: [PATCH 54/56] .railway/railway.ts: the planned edge-bff-live is
  written as its settings, without a service() call in the comment
 
 The site track's comment block opened with a commented service("edge-bff-live", {...}) call. The terminal-api test
@@ -22983,6 +22983,981 @@ index c99c6ffc..86e679a8 100644
    const aiDataCoverage = service("ai-data-coverage", {
      source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/ai-data-coverage" }),
      build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/ai-data-coverage/**"] },
+-- 
+2.43.0
+
+
+From a3eaaae4e8d1112b06c9758bb5498b5da692427d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 14:02:37 +0000
+Subject: [PATCH 55/56] EXEC-MU-ACCOUNTS fix round, track decisions: email
+ retention 30 days, a recent MFA pass for a new authenticator, public_data on
+ the Terminal relay
+
+- Outbox, used email codes and webhook deliveries kept 30 days (user 2026-11-19, "a"): migration 20261119_012
+  (unapplied) widens purge_email_outbox to every address's sent/failed/expired/suppressed rows after 30 days and adds
+  purge_email_hook_events (SECURITY DEFINER, EXECUTE for edge_bff_runtime only); store.PURGES gains codes and
+  hook_events; the index and the grant of 012 are kept.
+- A new authenticator beside a confirmed one needs MFA passed within 10 minutes (the main agent's design value):
+  FlowStore.enroll reads the session's mfa_passed_at under the enrolment's row lock; 403 MFA_REQUIRED with
+  details.recent_s; the /mfa page asks for a fresh code and starts the set-up again.
+- ERRORS M260 (user's go "a"): terminal_access.relayed returns (refusal, public data); a 2xx JSON answer reaches the
+  page through client.public_data; a route walk over every guarded route plants private keys and an internal address.
+- test_beta_live_site's PURGES set and test_terminal_fix_round's relayed return shape follow the decisions.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/README.md                       |  18 +-
+ apps/edge-bff/app/accounts.py                 |  16 +
+ apps/edge-bff/app/auth_flows.py               |  30 +-
+ apps/edge-bff/app/errors.py                   |   9 +-
+ apps/edge-bff/app/mailer.py                   |  17 +-
+ apps/edge-bff/app/main.py                     |  12 +-
+ apps/edge-bff/app/pages.py                    |  10 +-
+ apps/edge-bff/app/store.py                    |  12 +-
+ apps/edge-bff/app/terminal_access.py          |  23 +-
+ apps/edge-bff/app/worker.py                   |   4 +-
+ apps/edge-bff/static/edge-app.js              |  12 +-
+ apps/edge-bff/tests/test_beta_live_site.py    |   6 +-
+ apps/edge-bff/tests/test_decisions_small.py   | 307 ++++++++++++++++++
+ .../edge-bff/tests/test_terminal_fix_round.py |   8 +-
+ ...261119_012_edge_bff_email_outbox_purge.sql |  66 +++-
+ 15 files changed, 492 insertions(+), 58 deletions(-)
+ create mode 100644 apps/edge-bff/tests/test_decisions_small.py
+
+diff --git a/apps/edge-bff/README.md b/apps/edge-bff/README.md
+index 05e84d87..80b8c9bd 100644
+--- a/apps/edge-bff/README.md
++++ b/apps/edge-bff/README.md
+@@ -917,7 +917,12 @@ the same whatever the verifier's age. A reset, a change, a sign-in and an MFA ve
+ only while what they rest on still holds (R2-9). A phone is normalised to E.164 (`08…` → `+628…`), not verified; a
+ pending user is deleted 24 h after creation, and 24 h after they were made the sent, failed, expired or suppressed
+ outbox rows of an address with no account go too (`edge_bff.purge_email_outbox(max_rows)`, migration `20261119_012`,
+-the housekeeping's batches; the runtime holds no DELETE on the outbox; R2-24).
++the housekeeping's batches; the runtime holds no DELETE on the outbox; R2-24). Retention (the user's decision of
++2026-11-19, "a"): every sent, failed, expired or suppressed outbox row of every address goes 30 days after it was made
++(the same function), with the email codes no longer usable (used, or expired unused) 30 days after they ended
++(`store.PURGES` `codes`) and the handled webhook deliveries 30 days after they arrived
++(`edge_bff.purge_email_hook_events(max_rows)`, `hook_events`; the runtime holds no DELETE on them either); a row not
++yet sent, a live code and `email_suppression` are kept.
+ 
+ Email (`app/mailer.py`, `app/email_texts.py`, plain English): a code and its email are written in one transaction
+ (`edge_bff.email_outbox`). The sender is its own task beside the backtest loop, claiming one row at a time with
+@@ -938,8 +943,10 @@ Besides the 10 tries per 15 minutes, 100 consecutive wrong authenticator codes (
+ `details.unlock_at`; the `/mfa` page shows it in local time, switches to the recovery-code field when only the
+ authenticator is locked, and keeps "Forgot password?"). A lock lasts 24 h, then the count restarts at 90 (8), so 10 (2)
+ more tries come before the next lock; a correct code resets the counts; a password reset by email code clears counts
+-and locks. A confirmed authenticator is replaced only by a session that passed MFA, and only when a code of the new
+-one proves it: until then the new enrolment waits beside it (`mfa_totp.pending_nonce`, recovery codes marked
++and locks. A confirmed authenticator is replaced only by a session that passed MFA within the last 10 minutes
++(`auth_flows.MFA_RECENT_SECONDS`, decided with the enrolment's row lock; an older pass answers 403 `MFA_REQUIRED` with
++`details.recent_s` 600, and the `/mfa` page asks for a code of the current authenticator, then starts the set-up again),
++and only when a code of the new one proves it: until then the new enrolment waits beside it (`mfa_totp.pending_nonce`, recovery codes marked
+ `pending`, migration `20261119_011`) and the old authenticator and its recovery codes keep working (R1-7). A code
+ confirms only the enrolment it was checked against (R2-11); the cap is decided and counted under the enrolment's row
+ lock (R2-12). Operator unlock: `scripts/edge_mfa_unlock.py --username <name> --reason "<why>"`, run as a job on the
+@@ -1132,6 +1139,11 @@ owner holds `*`: its header says `admin: true`, its body is forwarded byte for b
+   - for a principal without `*`, an answer without `x-terminal-capabilities-applied: 1 <version>` (a terminal-api from
+     before Phase 3c ignores the owner headers and would serve the plan in full) is 503 `TERMINAL_UNAVAILABLE`, logged
+     (`terminal_capabilities_not_applied`); the switch-off owner holds `*` and needs none;
++  - an acknowledged 2xx JSON answer reaches the page through `client.public_data` (ERRORS M260, the user's go
++    2026-11-19 "a"): no private key (`PRIVATE_KEYS`: `reasoning`, `token`, `api_key`, ...) and no `*.railway.internal`
++    address, as every Orc and worker relay; a cut's bytes and a logo are relayed as they are (never parsed). The walk
++    in `tests/test_decisions_small.py` calls every route holding `terminal_access.guard` with each kind of proxy path,
++    terminal-api planting both in every answer;
+   - its 403 `capability_required` is 403 `CAPABILITY_REQUIRED` with `details.capability` and `details.display_name`;
+   - its 429 is 429 `LIMIT_REACHED` with `details.limit` (`terminal.<quota>`), `details.allowed`,
+     `details.retry_after_s` and `Retry-After`, from the fields terminal-api adds (an hour when it names none);
+diff --git a/apps/edge-bff/app/accounts.py b/apps/edge-bff/app/accounts.py
+index 4830f874..6679d64e 100644
+--- a/apps/edge-bff/app/accounts.py
++++ b/apps/edge-bff/app/accounts.py
+@@ -339,3 +339,19 @@ def purge_pending(connection, limit=None):
+     return connection.execute('''DELETE FROM edge_bff.users WHERE user_id IN (SELECT user_id FROM edge_bff.users
+         WHERE status = 'pending' AND email_verified_at IS NULL AND created_at < now() - make_interval(hours => %s)
+         LIMIT %s)''', (PENDING_HOURS, limit)).rowcount
++
++
++# EXEC-MU-ACCOUNTS "Decisions from the fix round" item 2 (user 2026-11-19: "a"): email codes, outbox rows and webhook
++# deliveries are kept 30 days (the outbox and the deliveries by migration 20261119_012's functions, which hold the same
++# number; tests/test_decisions_small.py ages a row of each to either side of it)
++EMAIL_RETENTION_DAYS = 30
++
++
++def purge_codes(connection, limit=None):
++    """Email codes that can no longer be used, EMAIL_RETENTION_DAYS after they ended: used (consumed_at) or, never
++    used, expired (expires_at, 300 s after they were made). A live code is never deleted, so the one-live-code rule
++    (email_codes_one_live) and the 5 tries are unchanged. At most limit of them (None: every one); the codes deleted.
++    Called from Store.purge, the hourly housekeeping (worker.Housekeeping; store.PURGES 'codes')."""
++    return connection.execute('''DELETE FROM edge_bff.email_codes WHERE code_id IN (SELECT code_id FROM edge_bff.email_codes
++        WHERE coalesce(consumed_at, expires_at) < now() - make_interval(days => %s) ORDER BY code_id LIMIT %s)''',
++                              (EMAIL_RETENTION_DAYS, limit)).rowcount
+diff --git a/apps/edge-bff/app/auth_flows.py b/apps/edge-bff/app/auth_flows.py
+index 5758598f..65a7d95b 100644
+--- a/apps/edge-bff/app/auth_flows.py
++++ b/apps/edge-bff/app/auth_flows.py
+@@ -72,6 +72,10 @@ REGISTRATION_TOKEN = re.compile(r'[0-9a-f]{64}')
+ TOTP_FAILURE_CAP, RECOVERY_FAILURE_CAP = 100, 10
+ TOTP_RESTART, RECOVERY_RESTART = 90, 8          # the count after a lock ends: 10 (2) more tries before the next lock
+ LOCK_SECONDS = 86400
++# EXEC-MU-ACCOUNTS "Decisions after the fix round" (the main agent's design value, told to the user 2026-11-19): starting
++# a new authenticator beside a confirmed one needs the second factor passed within this many seconds (the session's
++# mfa_passed_at); an older pass verifies again first (POST /api/v1/auth/mfa/verify makes a session passed now)
++MFA_RECENT_SECONDS = 600
+ 
+ 
+ class CheckedStep(NamedTuple):
+@@ -391,14 +395,15 @@ class FlowStore:
+         with self.store.connect() as c:
+             return c.execute(f'SELECT {self.TOTP_COLUMNS} FROM edge_bff.mfa_totp WHERE user_id=%s', (user_id,)).fetchone()
+ 
+-    def enroll(self, user_id, nonce, hashes, mfa_ok):
++    def enroll(self, user_id, nonce, hashes, session_hash):
+         """'ok' | 'mfa_required', decided and written under the enrolment's row lock (ERRORS R2-9: the permission is
+         part of the write). With no confirmed enrolment the account's one candidate is replaced (the first enrolment,
+         CONTRACT 4: any session of the account, the admin enrols at switch-on). With a confirmed one only a session that
+-        passed MFA may start a new one, and it waits beside the confirmed one (pending_nonce and recovery codes marked
+-        pending) until a code of the new authenticator confirms it (use_step): the confirmed factor, its replay guard
+-        and its recovery codes keep working meanwhile (ERRORS R1-7). Failure counts are kept: only a success clears
+-        them."""
++        passed MFA within MFA_RECENT_SECONDS may start a new one (session_hash: the request's session, read in this
++        transaction by the database's clock; a pass made earlier, or none, verifies again first), and it waits beside
++        the confirmed one (pending_nonce and recovery codes marked pending) until a code of the new authenticator
++        confirms it (use_step): the confirmed factor, its replay guard and its recovery codes keep working meanwhile
++        (ERRORS R1-7). Failure counts are kept: only a success clears them."""
+         with self.store.connect() as c:
+             c.execute('INSERT INTO edge_bff.mfa_totp(user_id, nonce) VALUES (%s,%s) ON CONFLICT (user_id) DO NOTHING',
+                       (user_id, nonce))
+@@ -409,7 +414,10 @@ class FlowStore:
+                     pending_created_at=NULL WHERE user_id=%s''', (nonce, user_id))
+                 c.execute('DELETE FROM edge_bff.mfa_recovery_codes WHERE user_id=%s', (user_id,))
+                 pending = False
+-            elif not mfa_ok:
++            elif not c.execute('''SELECT 1 FROM edge_bff.sessions WHERE token_hash=%s AND user_id=%s
++                    AND revoked_at IS NULL AND expires_at > now()
++                    AND mfa_passed_at > now() - make_interval(secs => %s)''',
++                               (session_hash, user_id, MFA_RECENT_SECONDS)).fetchone():
+                 return 'mfa_required'
+             else:
+                 c.execute('UPDATE edge_bff.mfa_totp SET pending_nonce=%s, pending_created_at=now() WHERE user_id=%s',
+@@ -698,14 +706,16 @@ class AuthFlows:
+         @app.post('/api/v1/auth/mfa/enroll')
+         async def mfa_enroll(_on=Depends(switched_on), p: Principal = Depends(auth.need(ADMIN_ACCESS, write=True))):
+             """otpauth URI and 10 recovery codes, shown once. A confirmed enrolment is replaced only by a session that
+-            passed MFA (else 403 MFA_REQUIRED: a password alone never resets the second factor), and only once a code
+-            of the new authenticator confirms it (FlowStore.enroll, ERRORS R1-7): until then the confirmed one works."""
++            passed MFA within the last MFA_RECENT_SECONDS (else 403 MFA_REQUIRED with details.recent_s: a password alone
++            never resets the second factor, and an older pass enters a fresh code first, POST /api/v1/auth/mfa/verify),
++            and only once a code of the new authenticator confirms it (FlowStore.enroll, ERRORS R1-7): until then the
++            confirmed one works."""
+             nonce = secrets.token_bytes(16)
+             codes = [mfa.new_recovery_code() for _ in range(mfa.RECOVERY_CODES)]
+             if await asyncio.to_thread(store.enroll, p.user_id, nonce,
+                                        [mfa.recovery_hash(settings.mfa_key, p.user_id, x) for x in codes],
+-                                       p.mfa_ok) != 'ok':
+-                raise Refusal(403, 'MFA_REQUIRED')
++                                       token_hash(p.token)) != 'ok':
++                raise Refusal(403, 'MFA_REQUIRED', {'mfa_enrolled': True, 'recent_s': MFA_RECENT_SECONDS})
+             secret = mfa.secret_of(settings.mfa_key, p.user_id, nonce)
+             return {'otpauth_uri': mfa.otpauth_uri(secret, p.username or str(p.user_id)),
+                     'secret': base64.b32encode(secret).decode().rstrip('='), 'recovery_codes': codes}
+diff --git a/apps/edge-bff/app/errors.py b/apps/edge-bff/app/errors.py
+index a97a0389..8f0d4b8a 100644
+--- a/apps/edge-bff/app/errors.py
++++ b/apps/edge-bff/app/errors.py
+@@ -168,7 +168,8 @@ def words(code, status, details=None):
+     - CAPABILITY_REQUIRED names the item (display_name); PLAN_EXPIRED also the ended plan (its name in the catalog);
+     - LIMIT_REACHED of a plan limit (is_plan_limit) names it, the account's own number (allowed) and the wait (or, with
+       no wait, to remove one); of anything else it names the wait and no plan, since no plan decides it;
+-    - MFA_REQUIRED says to set the authenticator up when the account has none (details.mfa_enrolled false);
++    - MFA_REQUIRED says to set the authenticator up when the account has none (details.mfa_enrolled false), and to
++      enter a fresh code first when a new authenticator needs a recent pass (details.recent_s, the seconds);
+     - every other code: its fixed sentence (message_of; one holding {wait} says the refusal's own wait)."""
+     d = details if isinstance(details, dict) else {}
+     if code == 'CAPABILITY_REQUIRED':
+@@ -195,6 +196,12 @@ def words(code, status, details=None):
+     elif code == 'MFA_REQUIRED' and d.get('mfa_enrolled') is False:
+         return ('This needs two-step sign-in, which is not set up for this account yet. Set up an authenticator app '
+                 'when EDGE asks for it, then try again.')
++    elif code == 'MFA_REQUIRED' and isinstance(d.get('recent_s'), int) and not isinstance(d['recent_s'], bool) \
++            and d['recent_s'] >= 60:
++        minutes = d['recent_s'] // 60
++        return (f'Setting up a new authenticator needs a code from your current one entered in the last {minutes} '
++                f'minute{"s" if minutes != 1 else ""}. Enter the code from your authenticator app, then start the set-up '
++                'again.')
+     return message_of(code, status, d)
+ 
+ 
+diff --git a/apps/edge-bff/app/mailer.py b/apps/edge-bff/app/mailer.py
+index 3fb9be30..7a647001 100644
+--- a/apps/edge-bff/app/mailer.py
++++ b/apps/edge-bff/app/mailer.py
+@@ -56,14 +56,25 @@ def enqueue(c, purpose, to_email, mail, expires_at=None, key=None):
+ 
+ 
+ def purge_outbox(c, limit=None):
+-    """ERRORS R2-24 (migration 20261119_012): the sent, failed, expired or suppressed rows older than 24 h of addresses
+-    with no row in edge_bff.users (a registration never verified, purged after 24 h as CONTRACT 4 says, or an address
+-    never registered), at most limit of them (None: the function's own cap, 10 000), through
++    """ERRORS R2-24 and the retention decided 2026-11-19 ("a", 30 days; migration 20261119_012): the sent, failed,
++    expired or suppressed rows made more than 30 days ago (every address, an account's too), and those older than 24 h
++    of addresses with no row in edge_bff.users (a registration never verified, purged after 24 h as CONTRACT 4 says, or
++    an address never registered); never a row still pending or sending; at most limit of them (None: the function's own
++    cap, 10 000), through
+     edge_bff.purge_email_outbox(integer) (edge_bff_runtime holds no DELETE on the outbox). Returns how many were deleted.
+     Called from Store.purge, the hourly housekeeping (worker.Housekeeping; store.PURGES 'outbox')."""
+     return c.execute('SELECT edge_bff.purge_email_outbox(%s) AS n', (limit,)).fetchone()['n']
+ 
+ 
++def purge_hook_events(c, limit=None):
++    """The retention decided 2026-11-19 ("a", 30 days; migration 20261119_012): the webhook deliveries received more
++    than 30 days ago, at most limit of them (None: the function's own cap, 10 000), through
++    edge_bff.purge_email_hook_events(integer) (edge_bff_runtime holds no DELETE on edge_bff.email_hook_events). A
++    delivery repeated after that is past Svix's retries and its signature's 5-minute tolerance (HOOK_TOLERANCE_SECONDS),
++    so the svix-id it was kept for is no longer needed. Called from Store.purge (store.PURGES 'hook_events')."""
++    return c.execute('SELECT edge_bff.purge_email_hook_events(%s) AS n', (limit,)).fetchone()['n']
++
++
+ def masked_address(email):
+     local, _, domain = email.partition('@')
+     return (local[:1] + '***@' + domain) if domain else '***'
+diff --git a/apps/edge-bff/app/main.py b/apps/edge-bff/app/main.py
+index 216e592b..056d9c17 100644
+--- a/apps/edge-bff/app/main.py
++++ b/apps/edge-bff/app/main.py
+@@ -662,8 +662,9 @@ def create_app(settings=None, store=None, orc=None):
+     # CAPABILITY_REQUIRED before terminal-api is asked (terminal_access.check). With the switch off the configured owner
+     # holds '*': admin, the body forwarded unchanged.
+     # Re-check R1-1, R1-26, R2-4: every answer goes through terminal_access.relayed, the one rule for what reaches the
+-    # page: an acknowledged 2xx as it is; a refusal in the contract's shape (a terminal-api 401 or 403 about its own
+-    # account or key is 503 TERMINAL_UNAVAILABLE, never the EDGE sign-in; a 429 LIMIT_REACHED with Retry-After).
++    # page: an acknowledged 2xx, its JSON through client.public_data (ERRORS M260); a refusal in the contract's shape (a
++    # terminal-api 401 or 403 about its own account or key is 503 TERMINAL_UNAVAILABLE, never the EDGE sign-in; a 429
++    # LIMIT_REACHED with Retry-After).
+     async def forward_terminal(method: str, path: str, request: Request, p: Principal):
+         if not settings.terminal_url:
+             return error('TERMINAL_UNAVAILABLE', 503)
+@@ -690,7 +691,8 @@ def create_app(settings=None, store=None, orc=None):
+             data = None if image else answer.json()
+         except ValueError:
+             data = None
+-        if (refused := terminal_access.relayed(p, answer.status_code, data, answer.headers, path)) is not None:
++        refused, data = terminal_access.relayed(p, answer.status_code, data, answer.headers, path)
++        if refused is not None:
+             await refuse(p, refused)
+         if image:
+             # a ticker's logo passes through as it is, with terminal-api's caching and its no-script CSP
+@@ -728,9 +730,9 @@ def create_app(settings=None, store=None, orc=None):
+                         data = answer.json()
+                     except ValueError:
+                         data = None
+-                    refused = terminal_access.relayed(p, answer.status_code, data, answer.headers, path)
++                    refused, _ = terminal_access.relayed(p, answer.status_code, data, answer.headers, path)
+                     await refuse(p, refused or Refusal(503, 'TERMINAL_UNAVAILABLE'))
+-                if (refused := terminal_access.relayed(p, 200, None, answer.headers, path)) is not None:
++                if (refused := terminal_access.relayed(p, 200, None, answer.headers, path)[0]) is not None:
+                     await refuse(p, refused)
+                 raw = bytearray()
+                 async for chunk in answer.aiter_raw():
+diff --git a/apps/edge-bff/app/pages.py b/apps/edge-bff/app/pages.py
+index 0cd6f169..9294f14f 100644
+--- a/apps/edge-bff/app/pages.py
++++ b/apps/edge-bff/app/pages.py
+@@ -137,8 +137,10 @@ class PageFiles:
+             return self.cached
+         try:
+             answer = await self.terminal(sent, 'GET', self.family)
+-            data = answer.json() if answer.status_code == 200 else None
+-            if terminal_access.relayed(p, answer.status_code, data, answer.headers, self.family) is not None:
++            refused, data = terminal_access.relayed(p, answer.status_code,
++                                                    answer.json() if answer.status_code == 200 else None,
++                                                    answer.headers, self.family)
++            if refused is not None:
+                 data = None
+         except (httpx.HTTPError, ValueError):
+             data = None
+@@ -197,7 +199,9 @@ class PageFiles:
+                         answer = granted.json()
+                     except ValueError:
+                         answer = None
+-                    refused = terminal_access.relayed(p, granted.status_code, answer, granted.headers, family)
++                    # the grant's presigned URL is read here only (the page gets the file's checked bytes), so the
++                    # unfiltered answer is used; relayed decides the refusal
++                    refused, _ = terminal_access.relayed(p, granted.status_code, answer, granted.headers, family)
+                     if refused is not None and refused.code == 'LIMIT_REACHED':
+                         # R1-26: the Terminal quota the page files count against (CONTRACT.md section 3)
+                         return refusal(refused.status, refused.code, refused.details, refused.headers)
+diff --git a/apps/edge-bff/app/store.py b/apps/edge-bff/app/store.py
+index bcb295ed..c4266f79 100644
+--- a/apps/edge-bff/app/store.py
++++ b/apps/edge-bff/app/store.py
+@@ -9,9 +9,9 @@ from psycopg.rows import dict_row
+ from psycopg_pool import ConnectionPool
+ from psycopg.types.json import Jsonb
+ 
+-from .accounts import purge_pending
++from .accounts import purge_codes, purge_pending
+ from .config import BETA
+-from .mailer import purge_outbox
++from .mailer import purge_hook_events, purge_outbox
+ from .throttle import purge as purge_throttle
+ 
+ TERMINAL = {'FINISHED', 'FAILED', 'INTERRUPTED'}
+@@ -90,6 +90,7 @@ class Store:
+             c.execute('SELECT pending_nonce, pending_created_at FROM edge_bff.mfa_totp LIMIT 0')
+             c.execute('SELECT pending FROM edge_bff.mfa_recovery_codes LIMIT 0')
+             c.execute("SELECT 'edge_bff.purge_email_outbox(integer)'::regprocedure")
++            c.execute("SELECT 'edge_bff.purge_email_hook_events(integer)'::regprocedure")    # the 30-day retention
+             # ERRORS R2-2 (migration 20261119_022): the seed copies the environment's password only over its own copy
+             c.execute('SELECT seed_verifier_sha256 FROM edge_bff.identities LIMIT 0')
+ 
+@@ -402,5 +403,8 @@ PURGE_BATCH = 500
+ # name -> purge(connection, limit) -> rows deleted; each runs hourly in worker.Housekeeping, in this order. EXEC-MU-ACCOUNTS
+ # Phase 0: throttle rows older than 2 days; Phase 1: registrations never verified, after 24 h (their identity and codes
+ # cascade); ERRORS R2-24: then, each batch in a transaction of its own (seeing the registrations purged before it), the
+-# outbox rows of addresses left with no account (migration 20261119_012; the only delete of the outbox edge-bff can make)
+-PURGES = {'sessions': purge_sessions, 'throttle': purge_throttle, 'pending': purge_pending, 'outbox': purge_outbox}
++# outbox rows of addresses left with no account (migration 20261119_012; the only delete of the outbox edge-bff can make);
++# the retention decided 2026-11-19 ("a", 30 days): the outbox purge also takes every address's rows after 30 days, and
++# the used email codes and the handled webhook deliveries go after 30 days (accounts.purge_codes, mailer.purge_hook_events)
++PURGES = {'sessions': purge_sessions, 'throttle': purge_throttle, 'pending': purge_pending, 'outbox': purge_outbox,
++          'codes': purge_codes, 'hook_events': purge_hook_events}
+diff --git a/apps/edge-bff/app/terminal_access.py b/apps/edge-bff/app/terminal_access.py
+index 6ce1bed5..d99bb327 100644
+--- a/apps/edge-bff/app/terminal_access.py
++++ b/apps/edge-bff/app/terminal_access.py
+@@ -27,6 +27,9 @@ Re-check fix round (track terminal; verification/edge_multiuser/fix_round/termin
+   with 403 CAPABILITY_REQUIRED terminal.history_days, so the page files (no history window) keep working; a ticker
+   outside terminal-api's rule (TICKER) is left out and logged, never sent; a quota of 0 is 403 CAPABILITY_REQUIRED
+   naming the limit (waiting would not help, so it is not a 429).
++- ERRORS M260 (the user's go 2026-11-19, "a"): a 2xx JSON answer reaches the page only through client.public_data, in
++  `relayed` (no private key, no *.railway.internal address), as every Orc and worker relay does; tests/
++  test_decisions_small.py walks every route that calls terminal-api with a planted answer.
+ - R1-1, R1-26: `relayed` is the one rule for every terminal-api answer edge-bff relays (main.py forward_terminal and
+   relay_cut, pages.py PageFiles), so each refusal reaches the page in the contract's shape (CONTRACT.md section 3): a
+   401, or a 403 other than capability_required, is about terminal-api's own account, key or host rule, never the EDGE
+@@ -68,6 +71,7 @@ import re
+ 
+ from fastapi import Depends, Request
+ 
++from .client import public_data
+ from .errors import Refusal, capability_required
+ 
+ logger = logging.getLogger('edge_bff.terminal_access')
+@@ -301,15 +305,24 @@ def _wait(data, headers):
+ 
+ 
+ def relayed(p, status, data, headers, where):
+-    """The one rule for a terminal-api answer edge-bff relays (module docstring, R1-1, R1-26, R2-4): None when the
+-    answer may go to the page as it is (a 2xx terminal-api acknowledged), else the Refusal in the contract's shape.
+-    `data`: the answer's JSON (None when it has none); `where`: the route, for the log only."""
++    """The one rule for a terminal-api answer edge-bff relays (module docstring, R1-1, R1-26, R2-4, M260): a pair
++    (refusal, data). (None, public data) when the answer may go to the page (a 2xx terminal-api acknowledged): its JSON
++    through client.public_data, the house filter of every upstream relay (ERRORS M260, the user's go 2026-11-19 "a"):
++    no private key (PRIVATE_KEYS: reasoning, token, api_key, ...) and no *.railway.internal address reaches the page,
++    whatever terminal-api answers (None stays None: a cut's bytes or a logo are relayed as they are, never parsed).
++    (Refusal, None) otherwise, in the contract's shape. `data`: the answer's JSON (None when it has none); `where`: the
++    route, for the log only."""
+     if not acknowledged(p, headers):
+         logger.warning(json.dumps({'event': 'terminal_capabilities_not_applied', 'status': status, 'where': where[:80],
+                                    'fix': 'terminal-api is older than Phase 3c: deploy terminal-api first'}))
+-        return Refusal(503, 'TERMINAL_UNAVAILABLE')
++        return Refusal(503, 'TERMINAL_UNAVAILABLE'), None
+     if 200 <= status < 300:
+-        return None
++        return None, public_data(data)
++    return refused_answer(status, data, headers, where), None
++
++
++def refused_answer(status, data, headers, where):
++    """A non-2xx terminal-api answer as the Refusal the page gets (relayed)."""
+     data = data if isinstance(data, dict) else {}
+     code = data.get('error') if isinstance(data.get('error'), str) else None
+     reason = {'reason': code} if code and REASON.fullmatch(code) else {}
+diff --git a/apps/edge-bff/app/worker.py b/apps/edge-bff/app/worker.py
+index 7b486d9c..73292359 100644
+--- a/apps/edge-bff/app/worker.py
++++ b/apps/edge-bff/app/worker.py
+@@ -186,7 +186,9 @@ class Worker:
+ class Housekeeping:
+     """The hourly housekeeping (EXEC-MU-ACCOUNTS; ERRORS R2-33), its own task beside the loops (main.py; switch
+     EDGE_HOUSEKEEPING_ENABLED): each purge of store.PURGES (expired and old revoked sessions, throttle rows older than 2
+-    days, registrations never verified after 24 h) runs at the start, whatever the clock reads, then once an hour.
++    days, registrations never verified after 24 h, the outbox rows of an address with no account after 24 h, and every
++    outbox row, used email code and webhook delivery after 30 days) runs at the start, whatever the clock reads, then
++    once an hour.
+ 
+     - Each purge is tried on its own (store.purge: its own transaction, batches of store.PURGE_BATCH rows, at most
+       MAX_BATCHES a turn), so a failing one (a timeout, a lock wait, a grant a migration left out) stops neither the
+diff --git a/apps/edge-bff/static/edge-app.js b/apps/edge-bff/static/edge-app.js
+index ad70490b..68297730 100644
+--- a/apps/edge-bff/static/edge-app.js
++++ b/apps/edge-bff/static/edge-app.js
+@@ -797,13 +797,19 @@ function MfaForm({go, L}) {
+   const locked = initialValue(v, "locked", () => ""), unlockAt = initialValue(v, "unlockAt", () => "");
+   // an account without an authenticator yet (access.mfa_enrolled false) starts on the set-up
+   onLifecycle(v, "start", () => { if (Edge.auth?.access?.mfa_enrolled === false || authFlow.mfaEnrolled === false) startEnrol(); }, []);
++  // a new authenticator beside a confirmed one needs a code entered in the last minutes (MFA_REQUIRED with
++  // details.recent_s): the code form below takes it, and its success starts the set-up again here (resumeEnrol)
++  const resumeEnrol = initialValue(v, "resumeEnrol", () => false);
+   async function startEnrol() { if (busy) return; updateValue(v, "busy", true); updateValue(v, "error", "");
+-    try { const a = await Edge.mfaEnroll(); updateValue(v, "enrol", {uri:a.otpauth_uri || "", secret:a.secret || "", codes:Array.isArray(a.recovery_codes) ? a.recovery_codes : []}); updateValue(v, "recovery", false); }
+-    catch (e) { updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } }
++    try { const a = await Edge.mfaEnroll(); updateValue(v, "resumeEnrol", false); updateValue(v, "enrol", {uri:a.otpauth_uri || "", secret:a.secret || "", codes:Array.isArray(a.recovery_codes) ? a.recovery_codes : []}); updateValue(v, "recovery", false); }
++    catch (e) { if (e.info?.code === "MFA_REQUIRED" && typeof e.info.details?.recent_s === "number") updateValue(v, "resumeEnrol", true);
++      updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } }
+   const submit = async e => { e.preventDefault(); if (busy) return;
+     if (!recovery && !/^\d{6}$/.test(code)) { updateValue(v, "error", L.check.code); return; }
+     updateValue(v, "busy", true); updateValue(v, "error", "");
+-    try { await Edge.mfaVerify(recovery ? {recovery_code:code.trim()} : {code}); updateValue(v, "enrol", null); authFlow.mfaEnrolled = null; go(landing()); }
++    try { await Edge.mfaVerify(recovery ? {recovery_code:code.trim()} : {code}); updateValue(v, "enrol", null); authFlow.mfaEnrolled = null;
++      if (resumeEnrol && !enrol) { updateValue(v, "code", ""); updateValue(v, "busy", false); await startEnrol(); return; }
++      go(landing()); }
+     catch (e) {
+       if (e.info?.code === "MFA_LOCKED") { const d = e.info.details || {}, useRecovery = d.use === "recovery_code";
+         const at = typeof d.unlock_at === "string" && !Number.isNaN(Date.parse(d.unlock_at)) ? new Date(d.unlock_at).toLocaleString([], {dateStyle:"medium", timeStyle:"short"}) : "";
+diff --git a/apps/edge-bff/tests/test_beta_live_site.py b/apps/edge-bff/tests/test_beta_live_site.py
+index 407473a1..54b5d14d 100644
+--- a/apps/edge-bff/tests/test_beta_live_site.py
++++ b/apps/edge-bff/tests/test_beta_live_site.py
+@@ -306,8 +306,10 @@ def test_a_purge_another_instance_runs_is_skipped_and_every_purge_is_bounded(sto
+         other.execute("SELECT pg_advisory_unlock(hashtextextended('housekeeping:sessions', 0))")
+     assert [store.purge('sessions', 3) for _ in range(4)] == [3, 3, 1, 0]
+     # fix-round integration: the auth track's outbox purge (ERRORS R2-24, migration 20261119_012) is the fourth entry,
+-    # as this track's notes foresaw ("any new purge is one entry in store.PURGES"), and is held to the same bound
+-    assert set(PURGES) == {'sessions', 'throttle', 'pending', 'outbox'}
++    # as this track's notes foresaw ("any new purge is one entry in store.PURGES"), and is held to the same bound.
++    # The retention decided 2026-11-19 ("a", 30 days; track decisions) adds the used email codes and the webhook
++    # deliveries as two more entries (tests/test_decisions_small.py holds them to the same bound)
++    assert set(PURGES) == {'sessions', 'throttle', 'pending', 'outbox', 'codes', 'hook_events'}
+     db(store, "INSERT INTO edge_bff.email_outbox(idempotency_key, purpose, to_email, status, sent_at, created_at) "
+               "SELECT 'k' || g, 'register', 'gone' || g || '@example.com', 'sent', now() - interval '2 days', "
+               "now() - interval '2 days' FROM generate_series(1, 7) g")
+diff --git a/apps/edge-bff/tests/test_decisions_small.py b/apps/edge-bff/tests/test_decisions_small.py
+new file mode 100644
+index 00000000..44d39764
+--- /dev/null
++++ b/apps/edge-bff/tests/test_decisions_small.py
+@@ -0,0 +1,307 @@
++"""EXEC-MU-ACCOUNTS fix round, track decisions (verification/edge_multiuser/fix_round/decisions.md): the user's small
++decisions of 2026-11-19 and the main agent's design value, built.
++
++- Retention ("Decisions from the fix round" item 2, user: "a"): every sent, failed, expired or suppressed outbox row of
++  every address goes 30 days after it was made (an address with no account after 24 h, as before, R2-24), with the used
++  email codes and the handled webhook deliveries; a live code, an unsent row and a suppression are kept. The hourly
++  housekeeping makes it as the production login (edge_bff_runtime's grants, no DELETE on the outbox or the deliveries).
++- MFA re-enrolment (the main agent's design value, EXEC "Decisions after the fix round"): starting a new authenticator
++  beside a confirmed one needs a second factor passed within MFA_RECENT_SECONDS (10 minutes); an older pass is answered
++  403 MFA_REQUIRED with details.recent_s, and a fresh code (POST /api/v1/auth/mfa/verify) opens it again.
++- ERRORS M260 (the user's go, "a"): a terminal-api 2xx JSON answer reaches a page only through client.public_data, in
++  terminal_access.relayed. The walk derives the routes from the app (every route holding terminal_access.guard) and
++  each kind of proxy path from main.TERMINAL_ROUTES, plants private keys and an internal address in every answer, and
++  finds none on any page; its self-test finds them once the filter is taken out.
++"""
++import dataclasses
++import re
++import uuid
++from urllib.parse import urlsplit, urlunsplit
++
++import httpx
++import psycopg
++import pytest
++from fastapi.routing import APIRoute
++from fastapi.testclient import TestClient
++
++from app import main, mfa, terminal_access
++from app.accounts import EMAIL_RETENTION_DAYS
++from app.auth_flows import MFA_RECENT_SECONDS
++from app.errors import words
++from app.main import create_app
++from app.store import PURGE_BATCH, PURGES, Store
++from conftest import FakeOrc
++from test_auth_flows import admin_sign_in, app, db, error_code, on, outbox  # noqa: F401 - the fixtures
++from test_edge import ORIGIN, login
++from test_terminal_access import KEY, PAGE, PAGE_SHA, URL, FakeApi, dependency_calls
++
++
++@pytest.fixture
++def runtime_store(database):
++    """The store as production runs it: a login holding only edge_bff_runtime's grants (as test_r2_life.py)."""
++    name = 'dec_small_' + uuid.uuid4().hex[:8]
++    with psycopg.connect(database, autocommit=True) as c:
++        c.execute(f'CREATE ROLE "{name}" LOGIN INHERIT IN ROLE edge_bff_runtime')
++    p = urlsplit(database)
++    s = Store(urlunsplit((p.scheme, f'{name}@{p.hostname}:{p.port}', p.path, p.query, p.fragment)))
++    try:
++        yield s
++    finally:
++        s.close()
++        with psycopg.connect(database, autocommit=True) as c:
++            c.execute(f'DROP ROLE "{name}"')
++
++
++# ---- retention: 30 days ------------------------------------------------------------------------------------------------
++
++def account(store, email):
++    return db(store, "INSERT INTO edge_bff.users(owner_key, username, email, status) VALUES ('u_' || %s, %s, %s, 'active') "
++                     "RETURNING user_id", uuid.uuid4().hex[:24], 'u' + uuid.uuid4().hex[:12], email)[0]['user_id']
++
++
++def mail(store, key, to, status, days):
++    db(store, "INSERT INTO edge_bff.email_outbox(idempotency_key, purpose, to_email, status, sent_at, created_at) "
++              "VALUES (%s, 'reset', %s, %s, CASE WHEN %s = 'sent' THEN now() - make_interval(days => %s) END, "
++              "now() - make_interval(days => %s))", key, to, status, status, days, days)
++
++
++def code(store, user_id, purpose, days, consumed):
++    """A code made `days` ago (its 300 s life ended then too), used at that time when `consumed`."""
++    db(store, "INSERT INTO edge_bff.email_codes(purpose, user_id, code_hash, created_at, expires_at, consumed_at) "
++              "VALUES (%s, %s, %s, now() - make_interval(days => %s), now() - make_interval(days => %s) + interval '300 seconds', "
++              "CASE WHEN %s THEN now() - make_interval(days => %s) END)",
++       purpose, user_id, uuid.uuid4().hex + uuid.uuid4().hex, days, days, consumed, days)
++
++
++def test_outbox_rows_codes_and_deliveries_are_kept_30_days_then_purged_as_the_production_login(store, runtime_store):
++    assert EMAIL_RETENTION_DAYS == 30
++    older, younger = EMAIL_RETENTION_DAYS + 1, EMAIL_RETENTION_DAYS - 1
++    ana = account(store, 'ana@example.com')
++    for key, status, days in (('old-sent', 'sent', older), ('old-failed', 'failed', older), ('old-expired', 'expired', older),
++                              ('old-suppressed', 'suppressed', older), ('young-sent', 'sent', younger),
++                              ('old-pending', 'pending', older + 30), ('old-sending', 'sending', older)):
++        mail(store, key, 'ana@example.com', status, days)
++    mail(store, 'gone-day', 'gone@example.com', 'sent', 2)            # no account: after 24 h (R2-24), unchanged
++    for purpose, days, consumed in (('reset', older, True), ('register', younger, True), ('email_change', older, False)):
++        if purpose == 'email_change':
++            db(store, "INSERT INTO edge_bff.email_codes(purpose, user_id, code_hash, target_email, created_at, expires_at) "
++                      "VALUES ('email_change', %s, %s, 'new@example.com', now() - make_interval(days => %s), "
++                      "now() - make_interval(days => %s) + interval '300 seconds')",
++               ana, uuid.uuid4().hex * 2, days, days)
++        else:
++            code(store, ana, purpose, days, consumed)
++    db(store, "INSERT INTO edge_bff.email_codes(purpose, user_id, code_hash, created_at, expires_at) "
++              "VALUES ('reset', %s, %s, now(), now() + interval '300 seconds')", ana, 'f' * 64)        # live: kept
++    for svix, days in (('msg_old', older), ('msg_young', younger)):
++        db(store, "INSERT INTO edge_bff.email_hook_events(svix_id, event_type, received_at) "
++                  "VALUES (%s, 'email.delivered', now() - make_interval(days => %s))", svix, days)
++    db(store, "INSERT INTO edge_bff.email_suppression(email, reason, at) VALUES ('ana@example.com', 'bounce', "
++              "now() - interval '400 days')")
++
++    runtime_store.cleanup_sessions()                       # the hourly housekeeping, as edge_bff_runtime
++
++    assert sorted(r['idempotency_key'] for r in outbox(store)) == ['old-pending', 'old-sending', 'young-sent']
++    left = db(store, 'SELECT purpose, consumed_at IS NOT NULL AS used, expires_at > now() AS live FROM edge_bff.email_codes '
++                     'ORDER BY code_id')
++    assert left == [{'purpose': 'register', 'used': True, 'live': False}, {'purpose': 'reset', 'used': False, 'live': True}]
++    assert [r['svix_id'] for r in db(store, 'SELECT svix_id FROM edge_bff.email_hook_events')] == ['msg_young']
++    # a bounce or complaint stays: the address is not mailed again (CONTRACT section 10, "Account deletion")
++    assert db(store, 'SELECT email, reason FROM edge_bff.email_suppression') == [{'email': 'ana@example.com', 'reason': 'bounce'}]
++
++
++def test_the_retention_purges_are_housekeeping_entries_held_to_the_batch_bound(store):
++    assert list(PURGES)[-3:] == ['outbox', 'codes', 'hook_events']
++    ana = account(store, 'bo@example.com')
++    for k in range(7):
++        mail(store, f'k{k}', 'bo@example.com', 'sent', 40)
++        code(store, ana, 'reset', 40, True)
++        db(store, "INSERT INTO edge_bff.email_hook_events(svix_id, received_at) VALUES (%s, now() - interval '40 days')",
++           f'msg_{k}')
++    for name in ('outbox', 'codes', 'hook_events'):
++        assert [store.purge(name, 3) for _ in range(4)] == [3, 3, 1, 0], name
++    assert PURGE_BATCH >= 3
++
++
++def test_the_runtime_still_cannot_delete_the_outbox_or_the_deliveries_itself(store):
++    grants = db(store, '''SELECT t, has_table_privilege('edge_bff_runtime', 'edge_bff.' || t, 'DELETE') AS d
++        FROM unnest(ARRAY['email_outbox', 'email_hook_events', 'email_codes']) t ORDER BY t''')
++    assert grants == [{'t': 'email_codes', 'd': True}, {'t': 'email_hook_events', 'd': False}, {'t': 'email_outbox', 'd': False}]
++    functions = db(store, '''SELECT p.proname, p.prosecdef, p.proconfig,
++            has_function_privilege('edge_bff_runtime', p.oid, 'EXECUTE') AS runtime,
++            has_function_privilege('public', p.oid, 'EXECUTE') AS public
++        FROM pg_proc p WHERE p.pronamespace = 'edge_bff'::regnamespace AND p.proname LIKE 'purge_email_%%' ORDER BY 1''')
++    assert [(f['proname'], f['prosecdef'], f['runtime'], f['public']) for f in functions] == [
++        ('purge_email_hook_events', True, True, False), ('purge_email_outbox', True, True, False)]
++    assert all(f['proconfig'] == ['search_path=pg_catalog, edge_bff'] for f in functions)
++
++
++# ---- MFA: a new authenticator needs a recent second factor ---------------------------------------------------------------
++
++def enrolled_admin(app, store, on):
++    """The admin with a confirmed authenticator and a session that has just passed MFA: its headers, the secret, the
++    page clock and the first enrolment's answer."""
++    flows = app.app.state.auth_flows
++    now = {'t': 1_800_000_000.0}
++    flows.clock = lambda: now['t']
++    h = admin_sign_in(app)
++    first = app.post('/api/v1/auth/mfa/enroll', headers=h).json()
++    secret = mfa.secret_of(on.mfa_key, *(lambda r: (r['user_id'], bytes(r['nonce'])))(
++        db(store, 'SELECT user_id, nonce FROM edge_bff.mfa_totp')[0]))
++    ok = app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': mfa.code_at(secret, int(now['t']) // 30)})
++    assert ok.status_code == 200 and ok.json()['access']['mfa_ok'] is True
++    return {**ORIGIN, 'X-CSRF-Token': ok.json()['csrf_token']}, secret, now, first
++
++
++def age_mfa_pass(store, seconds):
++    db(store, 'UPDATE edge_bff.sessions SET mfa_passed_at = mfa_passed_at - make_interval(secs => %s) '
++              'WHERE mfa_passed_at IS NOT NULL AND revoked_at IS NULL', seconds)
++
++
++def test_a_new_authenticator_needs_a_second_factor_passed_within_ten_minutes(app, store, on):
++    assert MFA_RECENT_SECONDS == 600
++    h, secret, now, _ = enrolled_admin(app, store, on)
++    # within the ten minutes: the waiting enrolment is made (R1-7), as the re-check's own test expects
++    age_mfa_pass(store, MFA_RECENT_SECONDS - 60)
++    assert app.post('/api/v1/auth/mfa/enroll', headers=h).status_code == 200
++    waiting = db(store, 'SELECT pending_nonce FROM edge_bff.mfa_totp')[0]['pending_nonce']
++    # past them: refused, and nothing of the waiting enrolment changes
++    age_mfa_pass(store, 120)
++    r = app.post('/api/v1/auth/mfa/enroll', headers=h)
++    assert (r.status_code, error_code(r)) == (403, 'MFA_REQUIRED'), r.text
++    assert r.json()['error']['details'] == {'mfa_enrolled': True, 'recent_s': MFA_RECENT_SECONDS}
++    assert r.json()['error']['message'] == words('MFA_REQUIRED', 403, {'mfa_enrolled': True, 'recent_s': 600})
++    assert '10 minutes' in r.json()['error']['message'] and 'authenticator' in r.json()['error']['message']
++    assert db(store, 'SELECT pending_nonce FROM edge_bff.mfa_totp')[0]['pending_nonce'] == waiting
++    # the session is still signed in and passed MFA (every other route works): only the set-up asks for a fresh code
++    assert app.get('/api/v1/auth/session').json()['access']['mfa_ok'] is True
++    # a fresh code from the current authenticator opens it again
++    now['t'] += 30
++    fresh = app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': mfa.code_at(secret, int(now['t']) // 30)})
++    assert fresh.status_code == 200, fresh.text
++    again = app.post('/api/v1/auth/mfa/enroll', headers={**ORIGIN, 'X-CSRF-Token': fresh.json()['csrf_token']})
++    assert again.status_code == 200, again.text
++
++
++def test_the_first_enrolment_needs_no_recent_pass(app, store, on):
++    """CONTRACT 4: with no confirmed authenticator any session of the account sets one up (the admin enrols at
++    switch-on), so the ten minutes apply only beside a confirmed one."""
++    h = admin_sign_in(app)
++    assert app.post('/api/v1/auth/mfa/enroll', headers=h).status_code == 200
++    assert app.post('/api/v1/auth/mfa/enroll', headers=h).status_code == 200      # the candidate is replaced
++
++
++# ---- ERRORS M260: public_data on every relay of terminal-api's JSON -----------------------------------------------------
++
++PLANTED = 'planted-private-value-0123456789'
++INTERNAL = 'http://terminal-api.railway.internal:8080/api/terminal/v1/state'
++FAMILY_SAMPLE = {'radar': 'radar-days', 'overview': 'overview-meta', 'watchlist': 'watchlist-stocks'}
++
++
++class Planted(FakeApi):
++    """terminal-api answering every JSON call 2xx with what must never reach a page: private keys (client.PRIVATE_KEYS)
++    beside the real fields, and an internal address in a string, at the top and nested."""
++
++    def answer(self, method, url, content):
++        if '/logo/' in url:
++            return httpx.Response(200, content=b'<svg/>', headers={'content-type': 'image/svg+xml'})
++        family = url.rsplit('/', 1)[1]
++        if family in FAMILY_SAMPLE and method == 'GET':
++            return httpx.Response(200, json={'finished_at': '2026-11-14T10:00:00Z', 'api_key': PLANTED, 'files': {
++                FAMILY_SAMPLE[family]: {'sha256': PAGE_SHA, 'bytes': len(PAGE), 'token': PLANTED, 'note': INTERNAL}}})
++        if family in FAMILY_SAMPLE:
++            return httpx.Response(200, json={'files': [{'name': FAMILY_SAMPLE[family], 'url': 'https://bucket.example/f',
++                                                        'sha256': PAGE_SHA, 'bytes': len(PAGE), 'token': PLANTED}]})
++        return httpx.Response(200, json={'ticker': 'BBCA', 'ok': True, 'token': PLANTED, 'where': INTERNAL,
++                                         'files': [{'name': 'x', 'reasoning': PLANTED, 'note': f'see {INTERNAL}'}]})
++
++
++def guarded_routes(app):
++    """Every route that calls terminal-api for a principal: the ones whose dependencies hold terminal_access.guard
++    (derived from the app, as tests/test_terminal_access.py finds them)."""
++    return [r for r in app.routes if isinstance(r, APIRoute)
++            and any(getattr(call, 'terminal_guard', False) for call in dependency_calls(r.dependant))]
++
++
++def top_alternatives(pattern):
++    """The alternatives of a regex at its top level (a '|' inside a group belongs to the group)."""
++    out, depth, part = [], 0, ''
++    for ch in pattern:
++        depth += {'(': 1, ')': -1}.get(ch, 0)
++        if ch == '|' and depth == 0:
++            out.append(part)
++            part = ''
++        else:
++            part += ch
++    return [*out, part]
++
++
++def terminal_samples():
++    """(method, path, body) for each kind of path the proxy forwards: one at least per alternative of
++    main.TERMINAL_ROUTES, so a new kind of terminal-api route fails here until it has a sample."""
++    gets = ['manifest/BBCA', 'reference/tickers', *[f'history/{d}' for d in terminal_access.HISTORY_DATASETS], 'logo/BBCA',
++            *[f'cut/BBCA/{d}' for d in terminal_access.CUT_DATASETS], 'reference/tickers/cut']
++    posts = {'files': {'ticker': 'BBCA', 'dataset': 'price', 'years': [2026]}, 'bundle': {'ticker': 'BBCA', 'datasets': ['price']}}
++    for method, samples in (('GET', gets), ('POST', list(posts))):
++        assert all(main.TERMINAL_ROUTES[method].fullmatch(s) for s in samples), samples
++        for alternative in top_alternatives(main.TERMINAL_ROUTES[method].pattern):
++            assert any(re.fullmatch(alternative, s) for s in samples), f'{method} {alternative}: add a sample path'
++    return [('GET', s, None) for s in gets] + [('POST', s, b) for s, b in posts.items()]
++
++
++def walk(c, app, h):
++    """Every guarded route called with each of its sample paths: [(route, path, answer)] of the calls that reached
++    terminal-api."""
++    out = []
++    for route in guarded_routes(app):
++        for method in sorted(route.methods):
++            if route.path == '/api/terminal/v1/{path:path}':
++                calls = [(m, f'/api/terminal/v1/{s}', b) for m, s, b in terminal_samples() if m == method]
++            else:
++                family = route.path.split('/')[3]
++                assert family in FAMILY_SAMPLE, f'{route.path}: add the family {family} to FAMILY_SAMPLE'
++                calls = [(method, route.path.replace('{name}', FAMILY_SAMPLE[family]), None)]
++            for m, path, body in calls:
++                before = len(FakeApi.calls)
++                r = c.post(path, headers=h, json=body) if m == 'POST' else c.get(path)
++                if len(FakeApi.calls) > before:
++                    out.append((route.path, path, r))
++    return out
++
++
++def leaks(r):
++    text = r.content.decode('utf-8', 'replace') if 'json' in r.headers.get('content-type', '') else ''
++    return PLANTED in text or 'railway.internal' in text
++
++
++def planted_app(settings, store, monkeypatch):
++    monkeypatch.setattr(main.httpx, 'AsyncClient', Planted)        # one module: the proxy's and the page files' client
++    FakeApi.calls, FakeApi.cut_headers = [], {}
++    return create_app(dataclasses.replace(settings, terminal_url=URL, terminal_proxy_key=KEY), store, FakeOrc())
++
++
++def test_no_private_key_or_internal_address_of_terminal_api_reaches_a_page(settings, store, monkeypatch):
++    app = planted_app(settings, store, monkeypatch)
++    with TestClient(app) as c:
++        answers = walk(c, app, login(c))
++    # every guarded route was reached, and each kind of proxy path
++    assert {route for route, _, _ in answers} == {r.path for r in guarded_routes(app)}
++    assert {p.split('/')[4] for route, p, _ in answers if route.startswith('/api/terminal/')} >= {
++        'manifest', 'reference', 'history', 'logo', 'cut', 'files', 'bundle'}
++    json_ok = {p: r for _, p, r in answers if r.status_code == 200 and 'json' in r.headers.get('content-type', '')}
++    assert {'/api/terminal/v1/manifest/BBCA', '/api/terminal/v1/bundle', '/api/v1/radar/index'} <= set(json_ok), sorted(json_ok)
++    assert [(p, r.status_code) for _, p, r in answers if leaks(r)] == []
++    # the public part of each answer is kept: only the private keys and the internal address are taken out
++    assert json_ok['/api/terminal/v1/manifest/BBCA'].json() == {
++        'ticker': 'BBCA', 'ok': True, 'where': '[internal address]', 'files': [{'name': 'x', 'note': 'see [internal address]'}]}
++    assert json_ok['/api/v1/radar/index'].json()['files'] == {
++        'radar-days': {'sha256': PAGE_SHA, 'bytes': len(PAGE), 'note': '[internal address]'}}
++
++
++def test_the_walk_finds_a_relay_without_the_filter(settings, store, monkeypatch):
++    """Self-test: with the filter taken out of the one rule, the same walk finds the planted values (so the test above
++    cannot pass by reaching no answer)."""
++    app = planted_app(settings, store, monkeypatch)
++    monkeypatch.setattr(terminal_access, 'public_data', lambda value: value)
++    with TestClient(app) as c:
++        found = {p for _, p, r in walk(c, app, login(c)) if leaks(r)}
++    assert {'/api/terminal/v1/manifest/BBCA', '/api/terminal/v1/files', '/api/v1/radar/index'} <= found, found
+diff --git a/apps/edge-bff/tests/test_terminal_fix_round.py b/apps/edge-bff/tests/test_terminal_fix_round.py
+index 9168f2e7..b5f26cbd 100644
+--- a/apps/edge-bff/tests/test_terminal_fix_round.py
++++ b/apps/edge-bff/tests/test_terminal_fix_round.py
+@@ -89,8 +89,10 @@ def test_every_terminal_api_answer_maps_onto_the_contract(settings, upstream, wa
+     status, body, headers = upstream
+     p = switch_off_principal(settings, settings.owner)                   # holds '*': acknowledged by definition
+     with caplog.at_level(logging.WARNING, 'edge_bff.terminal_access'):
+-        refused = terminal_access.relayed(p, status, body, headers, 'manifest/BBCA')
+-    assert isinstance(refused, Refusal)
++        # ERRORS M260 (the user's go 2026-11-19, "a"): relayed hands back the pair (refusal, the page's data), so the
++        # one rule also filters a 2xx's JSON (public_data); a refusal carries no data
++        refused, data = terminal_access.relayed(p, status, body, headers, 'manifest/BBCA')
++    assert isinstance(refused, Refusal) and data is None
+     code_status, code, details = want
+     assert (refused.status, refused.code) == (code_status, code), (refused.status, refused.code, refused.details)
+     if code == 'CAPABILITY_REQUIRED':
+@@ -104,7 +106,7 @@ def test_every_terminal_api_answer_maps_onto_the_contract(settings, upstream, wa
+     if code == 'TERMINAL_UNAVAILABLE':
+         logged = [json.loads(r.getMessage()) for r in caplog.records if 'terminal_refused' in r.getMessage()]
+         assert logged and logged[-1]['status'] == status and logged[-1]['code'] == (body or {}).get('error')
+-    assert terminal_access.relayed(p, 200, {'ok': True}, httpx.Headers(), 'manifest/BBCA') is None
++    assert terminal_access.relayed(p, 200, {'ok': True}, httpx.Headers(), 'manifest/BBCA') == (None, {'ok': True})
+ 
+ 
+ def test_a_relayed_refusal_reaches_the_page_and_the_session_stays(switched_off, store, monkeypatch):
+diff --git a/database/migrations/20261119_012_edge_bff_email_outbox_purge.sql b/database/migrations/20261119_012_edge_bff_email_outbox_purge.sql
+index 62761b00..4904f037 100644
+--- a/database/migrations/20261119_012_edge_bff_email_outbox_purge.sql
++++ b/database/migrations/20261119_012_edge_bff_email_outbox_purge.sql
+@@ -16,8 +16,17 @@
+ --    suppressed outbox row older than 24 h. The function edge_bff.purge_email_outbox(max_rows) deletes exactly those, at
+ --    most max_rows per call (NULL: 10 000, and never more; the hourly housekeeping passes its batch, store.PURGE_BATCH,
+ --    each batch in its own transaction); edge_bff_runtime may execute it and still holds no DELETE on the table, so the
+---    rule is the only delete edge-bff can make. The rows of an address that has an account are kept: their retention is a decision of the
+---    user (fix_round/auth.md, decisions; the Privacy text names it), applied later by replacing this function.
++--    rule is the only delete edge-bff can make.
++-- 3. Retention (EXEC-MU-ACCOUNTS "Decisions from the fix round" item 2, user 2026-11-19: "a", deleted after 30 days, with
++--    used codes and webhook events; verification/edge_multiuser/fix_round/decisions.md): besides rule 2, every sent,
++--    failed, expired or suppressed outbox row of every address (an account's included) is deleted 30 days after it was
++--    made, by the same function; a row still pending or sending is never deleted. The handled webhook deliveries
++--    (edge_bff.email_hook_events, kept so a repeated svix-id changes nothing; Svix retries for days, and its timestamp
++--    tolerance is 5 minutes) are deleted 30 days after they were received by edge_bff.purge_email_hook_events(max_rows),
++--    the same way (edge_bff_runtime holds SELECT and INSERT on that table, 20261117_001, and no DELETE). The used email
++--    codes go with them, by edge-bff itself (edge_bff_runtime holds DELETE on edge_bff.email_codes since 20261116_003;
++--    store.py PURGES 'codes'). email_suppression is not touched: an address that bounced or complained stays suppressed
++--    (CONTRACT section 10, "Account deletion": its address and reason are kept).
+ -- Forward-only; refuses a second run; rollback block at the end (comment).
+ BEGIN;
+ SET LOCAL lock_timeout = '5s';
+@@ -27,9 +36,13 @@ BEGIN
+     IF to_regclass('edge_bff.email_outbox') IS NULL OR to_regclass('edge_bff.users') IS NULL THEN
+         RAISE EXCEPTION 'edge_bff.email_outbox or edge_bff.users is missing: apply 20261116_003 first';
+     END IF;
++    IF to_regclass('edge_bff.email_hook_events') IS NULL THEN
++        RAISE EXCEPTION 'edge_bff.email_hook_events is missing: apply 20261117_001 first';
++    END IF;
+     IF to_regclass('edge_bff.email_outbox_to_email_created') IS NOT NULL OR to_regclass('edge_bff.email_outbox_unsent') IS NOT NULL
+-       OR EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'purge_email_outbox' AND pronamespace = 'edge_bff'::regnamespace) THEN
+-        RAISE EXCEPTION 'an index or the function of this migration exists: reconcile before applying';
++       OR EXISTS (SELECT 1 FROM pg_proc WHERE proname IN ('purge_email_outbox', 'purge_email_hook_events')
++                  AND pronamespace = 'edge_bff'::regnamespace) THEN
++        RAISE EXCEPTION 'an index or a function of this migration exists: reconcile before applying';
+     END IF;
+ END $preflight$;
+ 
+@@ -41,32 +54,54 @@ SET search_path = pg_catalog, edge_bff AS $fn$
+     WITH gone AS (
+         SELECT o.outbox_id FROM edge_bff.email_outbox o
+         WHERE o.status IN ('sent', 'failed', 'expired', 'suppressed')
+-          AND o.created_at < now() - interval '24 hours'
+-          AND NOT EXISTS (SELECT 1 FROM edge_bff.users u WHERE u.email = o.to_email)
++          AND (o.created_at < now() - interval '30 days'
++               OR (o.created_at < now() - interval '24 hours'
++                   AND NOT EXISTS (SELECT 1 FROM edge_bff.users u WHERE u.email = o.to_email)))
+         ORDER BY o.outbox_id LIMIT greatest(1, least(coalesce(max_rows, 10000), 10000))),
+     deleted AS (DELETE FROM edge_bff.email_outbox o USING gone WHERE o.outbox_id = gone.outbox_id RETURNING 1)
+     SELECT count(*)::integer FROM deleted
+ $fn$;
+-COMMENT ON FUNCTION edge_bff.purge_email_outbox(integer) IS 'ERRORS R2-24: deletes (at most max_rows per call, NULL or more than 10 000 = 10 000) the sent, failed, expired or suppressed outbox rows older than 24 h of addresses with no row in edge_bff.users; called hourly by edge-bff (store.py PURGES outbox, worker.Housekeeping). The rows of an address with an account are kept until the user sets their retention.';
++COMMENT ON FUNCTION edge_bff.purge_email_outbox(integer) IS 'ERRORS R2-24 and the retention decided 2026-11-19 ("a", 30 days): deletes (at most max_rows per call, NULL or more than 10 000 = 10 000) the sent, failed, expired or suppressed outbox rows made more than 30 days ago, and those made more than 24 h ago of addresses with no row in edge_bff.users; never a pending or sending row; called hourly by edge-bff (store.py PURGES outbox, worker.Housekeeping).';
+ REVOKE ALL ON FUNCTION edge_bff.purge_email_outbox(integer) FROM PUBLIC;
+ GRANT EXECUTE ON FUNCTION edge_bff.purge_email_outbox(integer) TO edge_bff_runtime;
+-COMMENT ON TABLE edge_bff.email_outbox IS 'EDGE emails to send (Resend, Idempotency-Key = idempotency_key). A code email carries expires_at = the code expiry and is never sent after it; payload is nulled once sent. Rows of an address with no account are deleted 24 h after they were made (purge_email_outbox); edge_bff_runtime holds no DELETE.';
++COMMENT ON TABLE edge_bff.email_outbox IS 'EDGE emails to send (Resend, Idempotency-Key = idempotency_key). A code email carries expires_at = the code expiry and is never sent after it; payload is nulled once sent. A sent, failed, expired or suppressed row is deleted 30 days after it was made, or 24 h after for an address with no account (purge_email_outbox); edge_bff_runtime holds no DELETE.';
++
++CREATE FUNCTION edge_bff.purge_email_hook_events(max_rows integer) RETURNS integer LANGUAGE sql SECURITY DEFINER
++SET search_path = pg_catalog, edge_bff AS $fn$
++    WITH gone AS (
++        SELECT e.svix_id FROM edge_bff.email_hook_events e
++        WHERE e.received_at < now() - interval '30 days'
++        ORDER BY e.received_at, e.svix_id LIMIT greatest(1, least(coalesce(max_rows, 10000), 10000))),
++    deleted AS (DELETE FROM edge_bff.email_hook_events e USING gone WHERE e.svix_id = gone.svix_id RETURNING 1)
++    SELECT count(*)::integer FROM deleted
++$fn$;
++COMMENT ON FUNCTION edge_bff.purge_email_hook_events(integer) IS 'The retention decided 2026-11-19 ("a", 30 days): deletes (at most max_rows per call, NULL or more than 10 000 = 10 000) the webhook deliveries received more than 30 days ago; called hourly by edge-bff (store.py PURGES hook_events, worker.Housekeeping).';
++REVOKE ALL ON FUNCTION edge_bff.purge_email_hook_events(integer) FROM PUBLIC;
++GRANT EXECUTE ON FUNCTION edge_bff.purge_email_hook_events(integer) TO edge_bff_runtime;
++COMMENT ON TABLE edge_bff.email_hook_events IS 'Each signed Resend webhook delivery (svix-id) once; a repeated delivery changes nothing. Deleted 30 days after it was received (purge_email_hook_events); edge_bff_runtime holds no DELETE.';
+ 
+ DO $verify$
++DECLARE
++    fn text;
+ BEGIN
+     -- the runtime still cannot delete from the outbox itself (20261116_003), and may run the purge only
+     IF has_table_privilege('edge_bff_runtime', 'edge_bff.email_outbox', 'DELETE')
+        OR has_table_privilege('edge_bff_runtime', 'edge_bff.email_outbox', 'TRUNCATE') THEN
+         RAISE EXCEPTION 'edge_bff_runtime may delete from edge_bff.email_outbox';
+     END IF;
+-    IF NOT has_function_privilege('edge_bff_runtime', 'edge_bff.purge_email_outbox(integer)', 'EXECUTE')
+-       OR has_function_privilege('public', 'edge_bff.purge_email_outbox(integer)', 'EXECUTE') THEN
+-        RAISE EXCEPTION 'edge_bff.purge_email_outbox(integer) is not for edge_bff_runtime only';
+-    END IF;
+-    IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE oid = 'edge_bff.purge_email_outbox(integer)'::regprocedure AND prosecdef
+-                   AND proconfig @> ARRAY['search_path=pg_catalog, edge_bff']) THEN
+-        RAISE EXCEPTION 'edge_bff.purge_email_outbox(integer) must be SECURITY DEFINER with a fixed search_path';
++    IF has_table_privilege('edge_bff_runtime', 'edge_bff.email_hook_events', 'DELETE')
++       OR has_table_privilege('edge_bff_runtime', 'edge_bff.email_hook_events', 'TRUNCATE') THEN
++        RAISE EXCEPTION 'edge_bff_runtime may delete from edge_bff.email_hook_events';
+     END IF;
++    FOR fn IN SELECT unnest(ARRAY['edge_bff.purge_email_outbox(integer)', 'edge_bff.purge_email_hook_events(integer)']) LOOP
++        IF NOT has_function_privilege('edge_bff_runtime', fn, 'EXECUTE') OR has_function_privilege('public', fn, 'EXECUTE') THEN
++            RAISE EXCEPTION '% is not for edge_bff_runtime only', fn;
++        END IF;
++        IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE oid = fn::regprocedure AND prosecdef
++                       AND proconfig @> ARRAY['search_path=pg_catalog, edge_bff']) THEN
++            RAISE EXCEPTION '% must be SECURITY DEFINER with a fixed search_path', fn;
++        END IF;
++    END LOOP;
+     IF (SELECT count(*) FROM pg_indexes WHERE schemaname = 'edge_bff' AND tablename = 'email_outbox'
+         AND indexname IN ('email_outbox_to_email_created', 'email_outbox_unsent')) <> 2 THEN
+         RAISE EXCEPTION 'an index of edge_bff.email_outbox is missing';
+@@ -76,6 +111,7 @@ COMMIT;
+ 
+ -- Rollback (a new forward migration with this body; deploy an edge-bff that does not call the purge first):
+ -- BEGIN;
++-- DROP FUNCTION edge_bff.purge_email_hook_events(integer);
+ -- DROP FUNCTION edge_bff.purge_email_outbox(integer);
+ -- DROP INDEX edge_bff.email_outbox_unsent, edge_bff.email_outbox_to_email_created;
+ -- COMMIT;
+-- 
+2.43.0
+
+
+From 36dbe2272e81aef03f05633b92d107891dede26c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 14:03:17 +0000
+Subject: [PATCH 56/56] EXEC-MU-ACCOUNTS fix round, track decisions: the /mfa
+ page test of the ten-minute re-check (a fresh code, then the set-up again)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/tests/test_decisions_small.py | 36 +++++++++++++++++++++
+ 1 file changed, 36 insertions(+)
+
+diff --git a/apps/edge-bff/tests/test_decisions_small.py b/apps/edge-bff/tests/test_decisions_small.py
+index 44d39764..f2a30614 100644
+--- a/apps/edge-bff/tests/test_decisions_small.py
++++ b/apps/edge-bff/tests/test_decisions_small.py
+@@ -31,7 +31,9 @@ from app.errors import words
+ from app.main import create_app
+ from app.store import PURGE_BATCH, PURGES, Store
+ from conftest import FakeOrc
++from test_answer_view import fixture_server  # noqa: F401 - the fixture
+ from test_auth_flows import admin_sign_in, app, db, error_code, on, outbox  # noqa: F401 - the fixtures
++from test_auth_pages import answer, page  # noqa: F401 - the fixture
+ from test_edge import ORIGIN, login
+ from test_terminal_access import KEY, PAGE, PAGE_SHA, URL, FakeApi, dependency_calls
+ 
+@@ -190,6 +192,40 @@ def test_the_first_enrolment_needs_no_recent_pass(app, store, on):
+     assert app.post('/api/v1/auth/mfa/enroll', headers=h).status_code == 200      # the candidate is replaced
+ 
+ 
++def test_the_mfa_page_takes_a_fresh_code_then_starts_the_set_up_again(fixture_server, page):
++    """The page side of the ten minutes: the refusal's own sentence is shown above the code form, and the code's
++    success starts the set-up again instead of leaving the page."""
++    origin, _ = fixture_server
++    calls, enrol = [], {'n': 0}
++    refused = {'error': {'code': 'MFA_REQUIRED', 'message': words('MFA_REQUIRED', 403, {'mfa_enrolled': True, 'recent_s': 600}),
++                         'details': {'mfa_enrolled': True, 'recent_s': 600}}}
++    codes = [f'code-{i:02d}' for i in range(10)]
++
++    def enroll(route):
++        enrol['n'] += 1
++        calls.append('enroll')
++        if enrol['n'] == 1:
++            return answer(route, 403, refused)
++        return answer(route, 200, {'otpauth_uri': 'otpauth://totp/EDGE:owner?secret=JBSWY3DPEHPK3PXP&issuer=EDGE',
++                                   'recovery_codes': codes})
++    page.route('**/api/v1/auth/sign-in', lambda r: answer(r, 403, {'error': {'code': 'MFA_REQUIRED', 'message': 'Enter your authenticator code.', 'details': {'csrf_token': 'pending-token'}}}))
++    page.route('**/api/v1/auth/mfa/enroll', enroll)
++    page.route('**/api/v1/auth/mfa/verify', lambda r: (calls.append('verify'), answer(r, 200, {'ok': True})))
++    page.goto(origin + '/login')
++    page.get_by_label('Login', exact=True).fill('owner')
++    page.get_by_label('Password', exact=True).fill('local-test-password')
++    page.get_by_role('button', name='Sign In').click()
++    page.wait_for_function("() => location.pathname === '/mfa'")
++    page.get_by_role('button', name='Set up an authenticator app').click()
++    page.get_by_role('alert').wait_for()
++    assert page.get_by_role('alert').inner_text() == refused['error']['message']
++    page.get_by_label('Code', exact=True).fill('123456')
++    page.get_by_role('button', name='Continue').click()
++    page.locator('svg.auth-qr path').wait_for()
++    assert page.locator('.auth-codes li').all_inner_texts() == codes and calls == ['enroll', 'verify', 'enroll']
++    assert page.evaluate('location.pathname') == '/mfa'
++
++
+ # ---- ERRORS M260: public_data on every relay of terminal-api's JSON -----------------------------------------------------
+ 
+ PLANTED = 'planted-private-value-0123456789'
 -- 
 2.43.0
 
