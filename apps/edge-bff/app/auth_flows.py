@@ -38,6 +38,7 @@ from .mailer import OutboxStore, enqueue, svix_verify
 from .principal import ADMIN_ACCESS, Principal
 from .security import (REGISTRATION_COOKIE as REGISTRATION, SESSION_COOKIE, cookie_name, normal_password,
                        password_verifier, registration_path, token_hash, verify_password)
+from .text_rules import person_name
 from .throttle import (CODE_USER, MFA_USER, REGISTER_DAY, REGISTER_HOUR, SEND_EMAIL, SEND_IP, SIGNIN_LOGIN, Throttle,
                        client_address)
 
@@ -101,9 +102,11 @@ def checked_email(value, field='email'):
 
 
 def checked_name(value, field):
-    name = ' '.join((value or '').split())
-    if not 1 <= len(name) <= 100:
-        raise invalid({field: 'Enter 1 to 100 characters.'})
+    """A first or last name by the one rule for a person's name (app/text_rules.py, re-check R2-18): NFC, one space
+    between words, 1 to 100 characters, no control, hidden format or markup character."""
+    name, problem = person_name(value)
+    if problem:
+        raise invalid({field: problem})
     return name
 
 

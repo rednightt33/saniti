@@ -112,3 +112,35 @@ def test_the_account_menu_changes_the_password_and_signs_out_everywhere(live, pa
     page.get_by_role('button', name='Sign out everywhere').click()
     page.get_by_label('Login', exact=True).wait_for()
     assert db(store, 'SELECT count(*) AS n FROM edge_bff.sessions WHERE user_id = %s AND revoked_at IS NULL', uid)[0]['n'] == 0
+
+
+# ---- R2-18: one rule for a person's name, and one for showing it ----------------------------------------------------
+
+def test_a_name_is_stored_as_nfc_text_without_hidden_control_or_markup_characters():
+    """R2-18: registration stores a name in NFC with single spaces; a bidi override, a zero-width space, a control
+    character or < > is refused with a sentence; the joiners some scripts need are kept; an exported cell never starts
+    a formula."""
+    from app.text_rules import export_cell, person_name
+    assert person_name('  Ana   Putri ') == ('Ana Putri', '')
+    assert person_name('cafe\u0301')[0] == 'caf\u00e9'                                  # NFC, never NFKC
+    assert person_name('\u0915\u094d\u200d\u0937') == ('\u0915\u094d\u200d\u0937', '')    # a joiner of a script stays
+    assert person_name('Ana\u2028Putri') == ('Ana Putri', '')          # a line separator is white space: one space
+    for bad in ('Ana\u202eimda', 'A\u200bna', 'Ana\x07', '<b>Ana</b>', '', 'x' * 101):
+        name, problem = person_name(bad)
+        assert problem and ' ' in problem, bad
+    assert [export_cell(v) for v in ('=1+1', '+62', '-x', '@a', 'Ana')] == ["'=1+1", "'+62", "'-x", "'@a", 'Ana']
+
+
+def test_registration_refuses_a_name_with_a_bidi_override(settings, store):
+    """R2-18 at the route: the field and the sentence say what to change."""
+    import dataclasses
+    on = dataclasses.replace(settings, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40)
+    application = create_app(on, store, FakeOrc())
+    application.state.auth_flows.pwned_fetch = lambda prefix: ''
+    with TestClient(application) as c:
+        r = c.post('/api/v1/auth/register', headers={'origin': 'http://testserver'}, json={
+            'username': 'ana_putri', 'first_name': 'Ana\u202eimda', 'last_name': 'Putri', 'email': 'ana@example.com',
+            'phone': '0812 3456 7890', 'password': 'a long enough password', 'password_repeat': 'a long enough password'})
+        assert r.status_code in (400, 422), r.text
+        error = r.json()['error']
+        assert error['code'] == 'INVALID_INPUT' and 'first_name' in error['details']['fields'], r.text
