@@ -1,7 +1,7 @@
 From 88d75b8e27614970adb2c6d9950b130dc6285aea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:22:44 +0000
-Subject: [PATCH 01/11] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26):
+Subject: [PATCH 01/13] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26):
  every terminal-api 429 names its quota and when to try again
 
 quota_exceeded carries quota, limit, window and retry_after_s (Store.frees_in: when the rolling window lets the
@@ -337,7 +337,7 @@ index 00000000..1b97b475
 From e5f0c18176c143415631c5fb983843cea38b3e50 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:24:56 +0000
-Subject: [PATCH 02/11] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
+Subject: [PATCH 02/13] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
  terminal-api leaves out unknown datasets, takes history_days 0, acknowledges
  the applied header
 
@@ -587,7 +587,7 @@ index 1b97b475..89f69688 100644
 From d959a594942a346d292f67be79d11630bd5b2162 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:30:47 +0000
-Subject: [PATCH 03/11] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
+Subject: [PATCH 03/13] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
  reference lists filtered to the plan; the gateway account on /ready
 
 An owner whose plan lacks the dataset reference gets its own copy of each reference file (app/refcut.py: the rows of
@@ -1162,7 +1162,7 @@ index 89f69688..bc66a9f0 100644
 From 570e607cfa06be44e7d7926946941f597627fea6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:36:59 +0000
-Subject: [PATCH 04/11] EXEC-MU-ACCOUNTS fix round (terminal,
+Subject: [PATCH 04/13] EXEC-MU-ACCOUNTS fix round (terminal,
  R1-1/R1-26/R1-22/R2-4/R2-32): one relay rule for every terminal-api answer
 
 terminal_access.relayed is the rule forward_terminal, relay_cut and PageFiles share: a terminal-api 401 or 403 about
@@ -1840,7 +1840,7 @@ index 90f357d9..6af924b7 100644
 From 0713d5053e3eb87c750b4074b1a9558898956d04 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:38:26 +0000
-Subject: [PATCH 05/11] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests
+Subject: [PATCH 05/13] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests
  of the relay rule, the acknowledgement, history 0, the page-file refusals
  before the caches and the reference copy relay
 
@@ -2114,7 +2114,7 @@ index 00000000..1240c974
 From eaa7bc28340a9d4374530acb3bdbd3cbd8a1a8e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:42:12 +0000
-Subject: [PATCH 06/11] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
+Subject: [PATCH 06/13] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
  domain per capability in the catalog, read by the value trigger
 
 Migration 20261119_050 (not applied): edge_bff.capabilities gains value_min, value_max and item_pattern;
@@ -2496,7 +2496,7 @@ index 00000000..5dcc217f
 From 9b83ea196e2b17dedf5f5bc76eb8a186d32dfd0f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:45:45 +0000
-Subject: [PATCH 07/11] EXEC-MU-ACCOUNTS fix round (terminal, R2-32): the free
+Subject: [PATCH 07/13] EXEC-MU-ACCOUNTS fix round (terminal, R2-32): the free
  plan's Terminal draws BBCA
 
 The e2e fake terminal-api now answers the header edge-bff really sends with terminal-api's own code (entitlements,
@@ -2764,7 +2764,7 @@ index 5faf7ca1..ad858b55 100644
 From f82419c0941877b307fe2357c8ff2114c68f6958 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:46:37 +0000
-Subject: [PATCH 08/11] EXEC-MU-ACCOUNTS fix round (terminal):
+Subject: [PATCH 08/13] EXEC-MU-ACCOUNTS fix round (terminal):
  SCREENER_ONBOARDING.md pointers into terminal-api and edge-bff main.py moved
  with their lines (screener-worker onboarding_pointers test)
 
@@ -2853,7 +2853,7 @@ index 6a313a75..1006309b 100644
 From 34edaafa4248403f9660a32fd94728359e48c0df Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:47:16 +0000
-Subject: [PATCH 09/11] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff README
+Subject: [PATCH 09/13] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff README
  follows the relay rule, the reference copies, the header mapping and the
  page-file caches
 
@@ -2942,7 +2942,7 @@ index 976016a8..85d0851f 100644
 From e48042eac2458582d814a4aeb5c9f3084edc60a7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:54:00 +0000
-Subject: [PATCH 10/11] EXEC-MU-ACCOUNTS fix round (terminal): notes per
+Subject: [PATCH 10/13] EXEC-MU-ACCOUNTS fix round (terminal): notes per
  finding, what the shared records must say, the decisions only the user can
  take
 
@@ -3208,7 +3208,7 @@ index 00000000..7b1c5317
 From ae02340396c5211c58fce4bc04028785b63c021d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:54:24 +0000
-Subject: [PATCH 11/11] EXEC-MU-ACCOUNTS fix round (terminal): terminal-api
+Subject: [PATCH 11/13] EXEC-MU-ACCOUNTS fix round (terminal): terminal-api
  README, the logo line follows the reference copies
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -3231,6 +3231,85 @@ index 8b62323d..e523a13a 100644
  - The page routes (`/radar`, `/overview`, `/watchlist`): the headers are accepted for the per-owner audit and quota, with
    no new refusal (edge-bff gates those tabs itself). edge-bff keeps a page file it relayed in a process cache by sha256
    (`apps/edge-bff/app/pages.py`), so a file is granted, counted and audited here for the first owner that reads it in an
+-- 
+2.43.0
+
+
+From bd1d506525535c8d352fb08a667d827ceb936567 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 08:02:43 +0000
+Subject: [PATCH 12/13] EXEC-MU-ACCOUNTS fix round (terminal, R2-4): the C2
+ Phase 2 isolation test's fake terminal-api acknowledges the owner header, as
+ terminal-api does
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/tests/test_c2_phase2_isolation.py | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/apps/edge-bff/tests/test_c2_phase2_isolation.py b/apps/edge-bff/tests/test_c2_phase2_isolation.py
+index 9d082941..f1f04a18 100644
+--- a/apps/edge-bff/tests/test_c2_phase2_isolation.py
++++ b/apps/edge-bff/tests/test_c2_phase2_isolation.py
+@@ -2,6 +2,7 @@
+ 
+ Each test names the contract line it holds the code to."""
+ import dataclasses
++import json
+ 
+ import httpx
+ import pytest
+@@ -90,7 +91,12 @@ def test_the_terminal_proxy_answer_carries_the_entitlements_version(on, store, m
+             return {'ok': True}
+ 
+     async def fake_request(self, method, url, **kw):
+-        return Answer()
++        # terminal-api (Phase 3c, EXEC-MU-ACCOUNTS re-check R2-4) acknowledges the owner header it applied, without
++        # which edge-bff relays no answer for a capped principal
++        answer = Answer()
++        answer.headers = {**Answer.headers, 'x-terminal-capabilities-applied':
++                          f"1 {json.loads(kw['headers']['x-terminal-capabilities'])['version']}"}
++        return answer
+     monkeypatch.setattr(httpx.AsyncClient, 'request', fake_request)
+     with TestClient(create_app(terminal, store, FakeOrc())) as c:
+         make_user(store, 'erin', 'erin-password')
+-- 
+2.43.0
+
+
+From e6dfab52206226635e0f38ca752b16c6afd5c0ed Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 08:04:03 +0000
+Subject: [PATCH 13/13] EXEC-MU-ACCOUNTS fix round (terminal): the suites'
+ results in the track notes
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ verification/edge_multiuser/fix_round/terminal.md | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/verification/edge_multiuser/fix_round/terminal.md b/verification/edge_multiuser/fix_round/terminal.md
+index 7b1c5317..1a4617b2 100644
+--- a/verification/edge_multiuser/fix_round/terminal.md
++++ b/verification/edge_multiuser/fix_round/terminal.md
+@@ -237,6 +237,13 @@ Findings of this track: R1-1, R1-26, R1-22, R2-4, R2-5, R2-32, R1-4, R1-5, R1-31
+ 5. **R2-32's reading of D3.** The fix follows the task's reading ("no list of other tickers": the free plan gets lists
+    naming BBCA alone). The relayed user request is "A"; EXEC.md should carry the user's words for it.
+ 
+-## Suites (this branch, local, PostgreSQL 16 on port 55561)
++## Suites (this branch, local, PostgreSQL 16 on port 55561, Chromium /opt/pw-browsers/chromium, Terminal page built)
+ 
+-See the final report of this track for the results; failures that belong to other tracks' findings are listed by file.
++| Suite | Result |
++|---|---|
++| edge-bff pytest (full) | 735 passed, 60 failed, 1 skipped. Against the base run (71 failed): every test of this track's findings now passes (`test_cp0_terminal_relay.py` 2, `test_c_p2_terminal_wire_domain.py` 6, `test_c_p3a_probes.py -k retry_after` 2, `test_c2_e2e_people.py` free-plan test). Two new failures: `test_c2_phase2_isolation.py::test_the_terminal_proxy_answer_carries_the_entitlements_version` (its fake terminal-api did not acknowledge; fixed in `bd1d5065`, passes) and the known flaky `test_composer_layout.py::test_submit_history_and_fixed_headers[mobile]` (passes alone). The other 58 are other tracks' re-check tests, failing at the base too: `test_c2_e2e_people.py` 2 (Monitor words, MFA after a plan change), `test_c2_ops_recheck.py` 8, `test_c2web_browser.py` 6, `test_c_p1s_preferences_plan.py` 1, `test_c_p2_recheck.py` 3, `test_c_p3a_probes.py` 2 (route walks, access.limits), `test_c_p3b_recheck.py` 1, `test_cdb_ci_coverage.py` 3, `test_cdb_grants_and_records.py` 5, `test_cp0_reserved_owner.py` 4, `test_cp1a_phase1_auth_check.py` 10, `test_r2_life.py` 2, `test_r2_race.py` 7, `test_r2_skew.py` 4 |
++| terminal-api pytest (with `TERMINAL_TEST_POSTGRES_URL`, terminal schema migrations applied) | 160 passed |
++| Terminal page vitest (`apps/edge-bff/terminal`) | 965 passed, 3 failed: `tests/data/c_p1s_browser_keys.test.ts` 2 and `tests/data/c_p1s_drawings_plan.test.ts` 1 (re-check C-P1S, another track; they test `shared/edge-session.ts` and `drawingsApi.ts`, untouched here) |
++| screener-worker npm test | 126 passed, 1 failed: `tests/c-p3b-recheck.test.ts` F-msg (another track); `onboarding_pointers.test.ts` passes after `f82419c0` |
++| backtest-worker npm test | 276 passed, 1 failed: `c-p3b-recheck` F-msg (another track) |
++| scripts tests | 94 passed, 1 skipped |
 -- 
 2.43.0
 
