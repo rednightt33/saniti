@@ -1,0 +1,184 @@
+From b06dff2673ab0c2856f2ed529678ff365f54e68a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 19:02:04 +0000
+Subject: [PATCH 8/9] EXEC-MU-ACCOUNTS re-check C-DB (Phases 0-3b): failing
+ tests of verified grant, record and CI findings
+
+- column privileges pass every grant guard (provisioning script, the 20261116_003 verify block): the runtime
+  could update the audit's reason or read a market column while the script reports only the operational tables;
+- an UPDATE of a plan grant leaves plan_capabilities.updated_at and version unchanged;
+- no workflow runs the Terminal vitest suite (the session module's tests), node shared/build-shell.mjs --check,
+  or market-ai-orc's Postgres tests (conversation ownership, the Phase 0 C2 fix).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+(cherry picked from commit 8ab2cee84d9de9da9340f94c08fc6309512aa92f)
+---
+ apps/edge-bff/tests/test_cdb_ci_coverage.py   | 53 +++++++++++
+ .../tests/test_cdb_grants_and_records.py      | 94 +++++++++++++++++++
+ 2 files changed, 147 insertions(+)
+ create mode 100644 apps/edge-bff/tests/test_cdb_ci_coverage.py
+ create mode 100644 apps/edge-bff/tests/test_cdb_grants_and_records.py
+
+diff --git a/apps/edge-bff/tests/test_cdb_ci_coverage.py b/apps/edge-bff/tests/test_cdb_ci_coverage.py
+new file mode 100644
+index 00000000..ad60c10c
+--- /dev/null
++++ b/apps/edge-bff/tests/test_cdb_ci_coverage.py
+@@ -0,0 +1,53 @@
++"""C-DB re-check of EXEC-MU-ACCOUNTS Phases 0-3b (2026-11-18): the multi-user tests CI never runs. Failing tests of
++verified findings; the fix round makes them pass.
++
++edge-bff deploys only on green checks (checkSuites), and CONTRACT section 13 says every acceptance test runs in CI. Shown
++by mutation on 93c9f645: with clearUserState keeping every user key (a sign-out that leaves the account's data, M473)
++and static/edge-session.js rebuilt as AGENTS.md says, the edge-bff suite passes, with and without Chromium; only the
++Terminal vitest suite fails (12 tests: edge_session.test.ts, c3_phase1_switch_off.test.ts, c4_seed_phase0_mark.test.ts),
++and no workflow runs it. A hand edit of static/edge-session.js that keeps its first line passes
++tests/test_storage_registry.py; only `node shared/build-shell.mjs --check` fails, and no workflow runs it either.
++"""
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parents[3]
++WORKFLOWS = sorted((ROOT / '.github/workflows').glob('*.yml'))
++
++
++def runs(fragment, directory=None):
++    """A workflow step runs a command holding `fragment` (in `directory` when given: its working-directory)."""
++    for path in WORKFLOWS:
++        text = path.read_text()
++        lines = text.splitlines()
++        for i, line in enumerate(lines):
++            if fragment in line and 'run' in ''.join(lines[max(0, i - 3):i + 1]):
++                window = '\n'.join(lines[max(0, i - 6):i + 1])
++                if directory is None or directory in window:
++                    return True
++    return False
++
++
++def test_ci_runs_the_terminal_vitest_suite_that_holds_the_session_module_tests():
++    # apps/edge-bff/terminal/tests/data/edge_session*.test.ts, c1_security_findings, c3_phase1_switch_off,
++    # c4_seed_phase0_mark, fixture_bundle (M468, M469, M471, M473, M478): shared/edge-session.ts is tested only there
++    assert runs('vitest', 'apps/edge-bff/terminal'), (
++        'no workflow runs `npx vitest run` in apps/edge-bff/terminal: the session module (sign-out clearing, change of '
++        'user, access.seed, the 403 contract) is tested by no CI job; add the step to a workflow in edge-bff\'s checks')
++
++
++def test_ci_compares_the_shell_copy_with_its_build():
++    assert runs('build-shell.mjs --check'), (
++        'no workflow runs `node shared/build-shell.mjs --check`: tests/test_storage_registry.py compares only the '
++        'source sha256 in the first line of static/edge-session.js, so an edited body ships unseen (AGENTS.md: a '
++        'generated file has a generated_file test that compares it with what the script writes now)')
++
++
++def test_ci_runs_orc_conversation_ownership_against_postgres():
++    # apps/market-ai-orc/tests/test_conversations.py (pytestmark skipif without ORC_TEST_POSTGRES_URL) holds the
++    # Phase 0 C2 fix test test_c2_a_client_run_may_name_only_a_conversation_its_owner_holds and the owner isolation
++    # test test_another_owner_cannot_continue_or_read_a_conversation (CONTRACT section 13.3)
++    text = (ROOT / '.github/workflows/backend-tests.yml').read_text()
++    orc = text[text.index('  market-ai-orc:'):text.index('  terminal-api:')]
++    assert 'ORC_TEST_POSTGRES_URL' in orc, (
++        'backend-tests.yml runs market-ai-orc without ORC_TEST_POSTGRES_URL, so test_conversations.py (the owner '
++        'isolation of conversations and the C2 CLIENT-history fix) is skipped in CI')
+diff --git a/apps/edge-bff/tests/test_cdb_grants_and_records.py b/apps/edge-bff/tests/test_cdb_grants_and_records.py
+new file mode 100644
+index 00000000..ea0161eb
+--- /dev/null
++++ b/apps/edge-bff/tests/test_cdb_grants_and_records.py
+@@ -0,0 +1,94 @@
++"""C-DB re-check of EXEC-MU-ACCOUNTS Phases 0-3b (2026-11-18, lens: migrations, grants, records, CI). Failing tests of
++verified findings; the fix round makes them pass.
++
++1. Column privileges slip past every grant guard. The migrations' $verify$ blocks, scripts/provision_edge_bff_login.py
++   and the apply jobs' runtime_grants/login_grants probes all ask has_table_privilege, which is false for a privilege
++   held on columns only. A column grant therefore lets the runtime rewrite the audit (no UPDATE on admin_audit, CONTRACT
++   section 1) or read a market table, while the provisioning script still prints "only the N operational tables
++   reachable".
++2. plan_capabilities keeps no trace of a change: an UPDATE of a plan's value (the "catalog-only change" of CONTRACT 8a,
++   made by an operator) leaves updated_at and version as they were, so the table cannot tell when or whether a grant
++   changed.
++"""
++import importlib.util
++import secrets
++from pathlib import Path
++
++import psycopg
++import pytest
++
++ROOT = Path(__file__).resolve().parents[3]
++
++
++def provisioning():
++    spec = importlib.util.spec_from_file_location('edge_provision_cdb', ROOT / 'scripts/provision_edge_bff_login.py')
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++
++def drop_login(database):
++    with psycopg.connect(database, autocommit=True) as conn:
++        conn.execute("""DO $$BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'edge_bff_login') THEN
++            DROP OWNED BY edge_bff_login; DROP ROLE edge_bff_login; END IF; END$$""")
++
++
++@pytest.mark.parametrize('grant, revoke', [
++    # the audit is read and added to only (20261116_003; CONTRACT section 1 "no UPDATE or DELETE grant")
++    ('GRANT UPDATE (reason) ON edge_bff.admin_audit TO edge_bff_runtime',
++     'REVOKE UPDATE (reason) ON edge_bff.admin_audit FROM edge_bff_runtime'),
++    # a market table is never reachable from the EDGE login (test_edge.py's public.market_private)
++    ('GRANT SELECT (secret) ON public.market_private TO edge_bff_runtime',
++     'REVOKE SELECT (secret) ON public.market_private FROM edge_bff_runtime'),
++])
++def test_provisioning_refuses_a_privilege_held_on_columns_only(database, monkeypatch, grant, revoke):
++    module = provisioning()
++    monkeypatch.setenv('DATABASE_URL', database)
++    monkeypatch.setenv('EDGE_DB_PASSWORD', secrets.token_hex(24))
++    with psycopg.connect(database, autocommit=True) as conn:
++        conn.execute(grant)
++        # the privilege is real: has_any_column_privilege sees it, has_table_privilege (every guard's check) does not
++        role, table, privilege = ('edge_bff_runtime', grant.split(' ON ')[1].split(' TO ')[0], grant.split()[1])
++        assert conn.execute('SELECT has_any_column_privilege(%s, %s, %s)', (role, table, privilege)).fetchone()[0]
++        assert not conn.execute('SELECT has_table_privilege(%s, %s, %s)', (role, table, privilege)).fetchone()[0]
++    try:
++        with pytest.raises(RuntimeError, match='Unexpected EDGE|unexpected reachable'):
++            module.main()
++    finally:
++        with psycopg.connect(database, autocommit=True) as conn:
++            conn.execute(revoke)
++        drop_login(database)
++
++
++def test_the_migration_verify_block_refuses_an_audit_column_update(database):
++    """20261116_003's own $verify$ block, run again on the migrated database with a column UPDATE on the audit."""
++    text = (ROOT / 'database/migrations/20261116_003_edge_bff_accounts_users.sql').read_text()
++    block = text[text.index('DO $verify$'):text.index('END $verify$;') + len('END $verify$;')]
++    with psycopg.connect(database, autocommit=True) as conn:
++        conn.execute('TRUNCATE edge_bff.users CASCADE')
++        conn.execute('GRANT UPDATE (reason) ON edge_bff.admin_audit TO edge_bff_runtime')
++        try:
++            with pytest.raises(psycopg.errors.RaiseException):
++                conn.execute(block)
++        finally:
++            conn.execute('REVOKE UPDATE (reason) ON edge_bff.admin_audit FROM edge_bff_runtime')
++
++
++def test_a_changed_plan_value_leaves_a_trace(database):
++    """An operator's UPDATE of a plan grant (CONTRACT 8a: a catalog-only change takes effect with no deploy) must move
++    updated_at, and version (the column the X-Edge-Entitlements fingerprint names), so the change can be found."""
++    with psycopg.connect(database, autocommit=True) as conn:
++        before = conn.execute("""SELECT value, version, updated_at FROM edge_bff.plan_capabilities
++            WHERE plan_key = 'free' AND capability_key = 'terminal.history_days'""").fetchone()
++        conn.execute("""UPDATE edge_bff.plan_capabilities SET value = '365'
++            WHERE plan_key = 'free' AND capability_key = 'terminal.history_days'""")
++        try:
++            after = conn.execute("""SELECT value, version, updated_at FROM edge_bff.plan_capabilities
++                WHERE plan_key = 'free' AND capability_key = 'terminal.history_days'""").fetchone()
++            assert after[0] == 365
++            assert after[2] > before[2], 'plan_capabilities.updated_at did not move with the change'
++            assert after[1] > before[1], 'plan_capabilities.version did not rise with the change'
++        finally:
++            conn.execute("""UPDATE edge_bff.plan_capabilities SET value = %s::jsonb, version = %s, updated_at = %s
++                WHERE plan_key = 'free' AND capability_key = 'terminal.history_days'""",
++                         (str(before[0]), before[1], before[2]))
+-- 
+2.43.0
+

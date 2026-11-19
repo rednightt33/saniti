@@ -1,0 +1,58 @@
+From 02f66b40c34caf6edc2b2a3583d9b08be778c753 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 18:17:32 +0000
+Subject: [PATCH 7/9] EXEC-MU-ACCOUNTS re-check of Phase 3b (checker C-P3B): F2
+ test reads the capability as the page receives it
+
+The F2 test now checks details.capability after edge-bff's relay (allow.named), so it holds whichever side owns
+the family mapping; a follow-up that changes edge-bff's families alone still fails it (checked by simulation).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+(cherry picked from commit 3d75fb1dae3fa4e77c281c4b27788862ffd8ed12)
+---
+ apps/edge-bff/tests/test_c_p3b_recheck.py | 20 +++++++++++++++-----
+ 1 file changed, 15 insertions(+), 5 deletions(-)
+
+diff --git a/apps/edge-bff/tests/test_c_p3b_recheck.py b/apps/edge-bff/tests/test_c_p3b_recheck.py
+index 2aa33d2e..e8542810 100644
+--- a/apps/edge-bff/tests/test_c_p3b_recheck.py
++++ b/apps/edge-bff/tests/test_c_p3b_recheck.py
+@@ -40,19 +40,29 @@ def worker_families():
+             'screener': parse('apps/screener-worker/src/run.ts', 'CAPABILITY_FAMILY')}
+ 
+ 
++def relayed_capability(worker, kind, family):
++    """details.capability of the worker's refusal as edge-bff relays it to the page (allow.named): either side may own
++    the mapping, the page sees this one."""
++    refused = {'code': 'CAPABILITY_REQUIRED', 'field': 'x', 'message': 'm',
++               'details': {'kind': kind, 'id': 'I07', 'capability': f'{family}:I07'}}
++    return allow.named(refused)['details']['capability']
++
++
+ def test_f2_a_worker_refusal_names_the_family_edge_bff_decides_the_item_by():
+     families = worker_families()
+     for worker in ('backtest', 'screener'):
+         assert set(families[worker]) == set(allow.KINDS), (worker, families[worker])
+         for kind in allow.KINDS:
+-            assert families[worker][kind] == allow.FAMILIES[worker][kind], (
+-                f'the {worker} worker names {families[worker][kind]}:<id> in CAPABILITY_REQUIRED, but edge-bff decides '
+-                f'its {kind} items by {allow.FAMILIES[worker][kind]}')
++            shown = relayed_capability(worker, kind, families[worker][kind]).partition(':')[0]
++            assert shown == allow.FAMILIES[worker][kind], (
++                f'the {worker} worker refusal reaches the page naming {shown}:<id>, but edge-bff decides its {kind} '
++                f'items by {allow.FAMILIES[worker][kind]}')
+     # O3b-1 (user 2026-11-18, CONTRACT.md 8b "3b follow-up"): the Terminal's grants decide both workers' indicator and
+     # Flow items, so the refusal must name the Terminal family once the follow-up lands (both sides together)
+     for worker in ('backtest', 'screener'):
+-        assert families[worker]['indicator'] == 'terminal.indicator', (worker, families[worker]['indicator'])
+-        assert families[worker]['flow_indicator'] == 'terminal.flow_indicator', (worker, families[worker]['flow_indicator'])
++        for kind, family in (('indicator', 'terminal.indicator'), ('flow_indicator', 'terminal.flow_indicator')):
++            shown = relayed_capability(worker, kind, families[worker][kind]).partition(':')[0]
++            assert shown == family, (worker, kind, shown)
+ 
+ 
+ def flow(metric):
+-- 
+2.43.0
+

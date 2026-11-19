@@ -1,0 +1,259 @@
+From 12669c630ce1adf17ec3390d163a130f44d0203c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 17:52:06 +0000
+Subject: [PATCH 3/9] EXEC-MU-ACCOUNTS ultracode re-check C-P1S (Phase 1
+ per-user state): four failing probes
+
+- tests/test_c_p1s_preferences_plan.py: /api/v1/preferences reads and writes the Backtest's My conditions (ml.my) and
+  the Screener's last screen (scr.last) for a plan that holds neither tab (D5).
+- screener/tests/smoke/c_p1s_plan_refused_cache.mjs: the Screener's cached paint (scr.boot + terminal-files, keyed by
+  login) still shows the last result's rows after the catalog and the run answer 403 CAPABILITY_REQUIRED (D5).
+- terminal/tests/data/c_p1s_drawings_plan.test.ts: a 403 CAPABILITY_REQUIRED on the drawings routes is read as "the
+  account cannot be reached": the drawing is kept in the browser and the message names a connection failure.
+- terminal/tests/data/c_p1s_browser_keys.test.ts: ml.assets.flow.{collapsed,h}.<TICKER> (class browser) survive
+  sign-out and a change of user, naming the tickers the account added as series.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+(cherry picked from commit 299f52d046067d89db8919f41a218adb5a09a133)
+---
+ .../tests/smoke/c_p1s_plan_refused_cache.mjs  | 54 +++++++++++++++++++
+ .../tests/data/c_p1s_browser_keys.test.ts     | 52 ++++++++++++++++++
+ .../tests/data/c_p1s_drawings_plan.test.ts    | 47 ++++++++++++++++
+ .../tests/test_c_p1s_preferences_plan.py      | 50 +++++++++++++++++
+ 4 files changed, 203 insertions(+)
+ create mode 100644 apps/edge-bff/screener/tests/smoke/c_p1s_plan_refused_cache.mjs
+ create mode 100644 apps/edge-bff/terminal/tests/data/c_p1s_browser_keys.test.ts
+ create mode 100644 apps/edge-bff/terminal/tests/data/c_p1s_drawings_plan.test.ts
+ create mode 100644 apps/edge-bff/tests/test_c_p1s_preferences_plan.py
+
+diff --git a/apps/edge-bff/screener/tests/smoke/c_p1s_plan_refused_cache.mjs b/apps/edge-bff/screener/tests/smoke/c_p1s_plan_refused_cache.mjs
+new file mode 100644
+index 00000000..dbc311e7
+--- /dev/null
++++ b/apps/edge-bff/screener/tests/smoke/c_p1s_plan_refused_cache.mjs
+@@ -0,0 +1,54 @@
++/* C-P1S independent check (EXEC-MU-ACCOUNTS, ultracode re-check of Phases 0-3b; CONTRACT.md 8b decision D5 "a lowered
++   plan loses read access to old content until it is raised again", 8b "a downgrade takes effect on the next request
++   (... the browser cache is per sha and never announced to a capped user)", 13.7 "a free principal is refused on every
++   second path to the same content").
++
++   The Screener's cached paint (src/api/boot-cache.ts, report PAGE LOAD SEQUENCE 6c.3-6c.5) keeps the last screen's
++   result in the browser (IndexedDB terminal-files + localStorage scr.boot), keyed by the login only. app.ts bootPage
++   draws it after the session answer (S3: "only after an authenticated answer"), which every signed-in principal gets
++   whatever its plan, and keeps it when the catalog is then refused (S4: `if (!ctx.catalog) bootFailed(...) else
++   { ctx.runError = ...; refresh('results') }`; results.ts shows the rows under a note when there are rows). So the same
++   login, after its plan lost the Screener (screener.view: the catalog, universe, run and items all answer 403
++   CAPABILITY_REQUIRED), still sees the last result's rows (tickers, prices, metric values) from the browser.
++
++   Run (from apps/edge-bff/screener): npx vite build --mode smoke && node tests/smoke/c_p1s_plan_refused_cache.mjs
++   Exit 1 while the defect holds. */
++import { createRequire } from 'node:module';
++import { serve } from './serve.mjs';
++const { chromium } = createRequire(import.meta.url)('playwright');
++
++const srv = await serve('dist-smoke');
++const browser = await chromium.launch();
++const failures = [];
++try {
++  const ctx = await browser.newContext({ viewport:{ width:1440, height:950 } });
++  const page = await ctx.newPage();
++  page.setDefaultTimeout(15000);
++  await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, r => r.fulfill({ status:200, contentType:'text/css', body:'' }));
++  const go = q => page.goto(`${srv.origin}/screener-app/${q || ''}`);
++  const ready = () => page.waitForSelector('#app[data-boot="results"]', { timeout:15000 });
++  const idle = () => page.waitForFunction(() => !document.querySelector('#resMeta .ml-loading') && !document.querySelector('#pageActs .top-screen[aria-busy]'), null, { timeout:10000 });
++  const rows = () => page.locator('#resPane table.res tbody tr').count();
++
++  // 1. the plan holds the Screener: a preset screen runs and its result is cached for this login
++  await go(); await ready(); await page.waitForTimeout(500);
++  await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith('scr.')) localStorage.removeItem(k) });
++  await go(); await ready();
++  await page.click('[data-open="p:golden"]');
++  await page.evaluate(() => document.activeElement?.blur?.()); await page.waitForTimeout(30);
++  await page.click('#pageActs .top-screen'); await idle();
++  await page.waitForTimeout(800);                                  // the pointer is written after the answer
++  const before = await rows();
++  if (!before) failures.push('setup: the preset screen showed no rows to cache');
++
++  // 2. the same login, now on a plan without the Screener: the server refuses the catalog and every run
++  await go('?fail=catalog:CAPABILITY_REQUIRED:403:9,run:CAPABILITY_REQUIRED:403:9');
++  await page.waitForTimeout(2500);
++  const after = await rows();
++  const shown = await page.locator('#resPane').innerText();
++  if (after > 0) failures.push(`after the plan refused the Screener (403 CAPABILITY_REQUIRED on the catalog and the run), the page still shows ${after} rows of the cached last result (before: ${before}); first lines: ${JSON.stringify(shown.split('\n').slice(0, 6))}`);
++} finally {
++  await browser.close(); await srv.close();
++}
++if (failures.length) { console.log('FAIL\n' + failures.join('\n')); process.exit(1) }
++console.log('ok: a refused plan shows nothing of the cached result');
+diff --git a/apps/edge-bff/terminal/tests/data/c_p1s_browser_keys.test.ts b/apps/edge-bff/terminal/tests/data/c_p1s_browser_keys.test.ts
+new file mode 100644
+index 00000000..d0754bc4
+--- /dev/null
++++ b/apps/edge-bff/terminal/tests/data/c_p1s_browser_keys.test.ts
+@@ -0,0 +1,52 @@
++/* C-P1S independent check (EXEC-MU-ACCOUNTS, ultracode re-check of Phases 0-3b; CONTRACT.md section 12, ERRORS M473;
++   user 2026-11-16, EXEC.md EXEC-MU-ACCOUNTS: "Iya, bersihkan pada saat logout", which names `ml.assets.v1`, the series
++   added to the chart, as account data cleared at sign-out).
++
++   The Terminal keeps the fold and the height of each added series' Flow Timeline pane in localStorage under a key that
++   names the series' ticker: `ml.assets.flow.collapsed.<TICKER>` (written for every added series when its pane is made,
++   terminal/src/app/assets.ts setCollapsed) and `ml.assets.flow.h.<TICKER>` (assets.ts setH). The registry
++   (shared/edge-session.ts STORAGE) classes the prefix `ml.assets.flow.` as `browser`, so sign-out and a change of user
++   keep them, and nothing ever removes them (not even removing the series). The next person on the browser reads which
++   tickers the previous account compared from the key names, although the account's own list (`ml.assets.v1`) is
++   cleared. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { clearUserState, LAST_LOGIN_KEY, noteIdentity } from '../../../shared/edge-session';
++
++function memoryStorage() {
++  const m = new Map<string, string>();
++  return { get length() { return m.size }, key:(i: number) => [...m.keys()][i] ?? null, getItem:(k: string) => m.get(k) ?? null,
++    setItem:(k: string, v: string) => { m.set(k, String(v)) }, removeItem:(k: string) => { m.delete(k) }, clear:() => m.clear(), m };
++}
++let local: ReturnType<typeof memoryStorage>;
++beforeEach(() => {
++  local = memoryStorage(); vi.stubGlobal('localStorage', local); vi.stubGlobal('sessionStorage', memoryStorage());
++  vi.stubGlobal('indexedDB', { deleteDatabase:() => { const r: any = {}; setTimeout(() => r.onsuccess?.()); return r } });
++});
++afterEach(() => vi.unstubAllGlobals());
++
++/** what account A's Terminal leaves in localStorage after adding BBRI and TLKM as series (assets.ts) */
++function accountAddedTwoSeries() {
++  local.setItem(LAST_LOGIN_KEY, 'owner:u_aaaaaaaaaaaaaaaaaaaaaaaa');
++  local.setItem('ml.assets.v1', JSON.stringify([{ ticker:'BBRI' }, { ticker:'TLKM' }]));
++  local.setItem('ml.assets.flow.collapsed.BBRI', '0');            // setCollapsed(pane.collapsed) when the pane is made
++  local.setItem('ml.assets.flow.collapsed.TLKM', '1');
++  local.setItem('ml.assets.flow.h.TLKM', '180');                    // setH after a drag of the pane's grip
++  local.setItem('ml.stats.w', '300');                               // a real browser setting: stays
++}
++const naming = (tickers: string[]) => [...local.m.keys()].filter(k => tickers.some(t => k.endsWith('.' + t)));
++
++describe('the series an account added leave nothing behind (contract 12, M473)', () => {
++  it('sign-out removes every key that names an added series', async () => {
++    accountAddedTwoSeries();
++    await clearUserState({ signOut:true });
++    expect(local.getItem('ml.assets.v1')).toBeNull();                // the account's list goes
++    expect(local.getItem('ml.stats.w')).toBe('300');                  // a browser setting stays
++    expect(naming(['BBRI', 'TLKM'])).toEqual([]);                     // ...and so must the keys that name its tickers
++  });
++  it('another account signing in on the browser inherits no key that names the previous account\'s series', () => {
++    accountAddedTwoSeries();
++    expect(noteIdentity('bob_b', 'u_bbbbbbbbbbbbbbbbbbbbbbbb').changed).toBe(true);
++    expect(local.getItem('ml.assets.v1')).toBeNull();
++    expect(naming(['BBRI', 'TLKM'])).toEqual([]);
++  });
++});
+diff --git a/apps/edge-bff/terminal/tests/data/c_p1s_drawings_plan.test.ts b/apps/edge-bff/terminal/tests/data/c_p1s_drawings_plan.test.ts
+new file mode 100644
+index 00000000..70447d57
+--- /dev/null
++++ b/apps/edge-bff/terminal/tests/data/c_p1s_drawings_plan.test.ts
+@@ -0,0 +1,47 @@
++/* C-P1S independent check (EXEC-MU-ACCOUNTS, ultracode re-check of Phases 0-3b): the Terminal's drawings (M468's
++   offline copy, Phase 0/1) against Phase 3a's gate `terminal.drawings` (CONTRACT.md 8b; section 9: the free plan has
++   "No add-indicator, drawing, layout, compare or asset capability") and AGENTS.md "Gates and evidence" (d): a refusal
++   names where the problem is and how to fix it.
++
++   terminal/src/data/drawingsApi.ts listOf() maps every failure of GET /api/v1/terminal/drawings to null (`() => null`),
++   the "account cannot be reached" case. A plan refusal (403 CAPABILITY_REQUIRED) is read the same way: load() says
++   "could not be saved to your EDGE account just now ... move to the account when it can be reached" and save() keeps the
++   drawing in this browser (keepCopy), where every later load shows it again. So a principal without terminal.drawings
++   draws and keeps drawings, is told the connection failed, and never sees why (its plan). */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { edge } from '../../../shared/edge-session';
++import { accountDrawings } from '../../src/data/drawingsApi';
++
++function memoryStorage() {
++  const m = new Map<string, string>();
++  return { get length() { return m.size }, key:(i: number) => [...m.keys()][i] ?? null, getItem:(k: string) => m.get(k) ?? null,
++    setItem:(k: string, v: string) => { m.set(k, String(v)) }, removeItem:(k: string) => { m.delete(k) }, clear:() => m.clear(), m };
++}
++const answer = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers:{ 'Content-Type':'application/json' } });
++const REFUSED = { error:{ code:'CAPABILITY_REQUIRED', message:'Drawings is not part of your EDGE plan. Upgrade the plan to use it; you are still signed in.',
++  details:{ capability:'terminal.drawings', display_name:'Drawings' } } };
++let local: ReturnType<typeof memoryStorage>;
++beforeEach(() => {
++  local = memoryStorage();
++  vi.stubGlobal('localStorage', local); vi.stubGlobal('sessionStorage', memoryStorage());
++  vi.stubGlobal('window', { addEventListener() {} });
++  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
++    if (url === '/api/v1/auth/session') return answer(200, { login:'free_user', owner_key:'u_cccccccccccccccccccccccc', csrf_token:'csrf' });
++    return answer(403, REFUSED);                           // every drawings route: the plan lacks terminal.drawings
++  }));
++});
++afterEach(() => { vi.unstubAllGlobals(); edge.invalidate() });
++
++describe('a plan without terminal.drawings', () => {
++  it('is told its plan does not include drawings, and no drawing is kept for it in the browser', async () => {
++    const said: string[] = [];
++    const drawings = accountDrawings(t => { said.push(t) }, 0);
++    await edge.session();
++    await drawings.load('BBCA', 'chart', 'ml.drawings.BBCA');
++    drawings.save('BBCA', 'chart', '[{"id":"d1","kind":"trend-line"}]', 'ml.drawings.BBCA');
++    await new Promise(r => setTimeout(r, 30));
++    expect(said.some(t => /could not be saved to your EDGE account just now/.test(t)), `a plan refusal worded as a connection failure: ${JSON.stringify(said)}`).toBe(false);
++    expect(said.some(t => /not part of your EDGE plan/.test(t)), `the refusal's own words never reach the page: ${JSON.stringify(said)}`).toBe(true);
++    expect(local.getItem('ml.drawings.BBCA'), 'the refused drawing is kept in the browser and shown on every load').toBeNull();
++  });
++});
+diff --git a/apps/edge-bff/tests/test_c_p1s_preferences_plan.py b/apps/edge-bff/tests/test_c_p1s_preferences_plan.py
+new file mode 100644
+index 00000000..879ef2b6
+--- /dev/null
++++ b/apps/edge-bff/tests/test_c_p1s_preferences_plan.py
+@@ -0,0 +1,50 @@
++"""C-P1S independent check (EXEC-MU-ACCOUNTS, ultracode re-check of Phases 0-3b): Phase 1's account preferences
++(CONTRACT.md 4b, app/preferences.py) against Phase 3a's decision D5 (CONTRACT.md 8b, user 2026-11-17: "user yang
++paketnya turun kehilangan akses baca ke isi lamanya (percakapan, hasil backtest, screen tersimpan, watchlist, layout,
++drawing, preset) sampai upgrade lagi"; "Reads need <tab>.view or the item's own capability, writes need the run or save
++capability") and 13.7 ("a free principal is refused on every second path to the same content").
++
++GET and PUT /api/v1/preferences need only the principal (`auth.principal`, `auth.writer`): no tab capability. The keys
++they carry are the saved items and the content of the tabs (shared/edge-session.ts STORAGE `sync`; contract 4b names
++them "preferences or saved items"): the Backtest's My conditions (`ml.my`), the Screener's last screen definition and
++its extra columns (`scr.last`, `scr.extraCols`), the Monitor's model choice, the Watchlist's open list. A principal whose
++plan no longer holds the Backtest or the Screener is refused every route of those tabs, yet reads (and writes) their
++saved items here. The same class as M481 C2 1 (the Screener star writing the Watchlist's data with only
++screener.view): a route that reads or writes another tab's data needs that tab's capability.
++"""
++from fastapi.testclient import TestClient
++
++from app.main import create_app
++from conftest import FakeOrc
++from test_principal import db, make_user, on, sign_in, workers  # noqa: F401
++from test_phase3a_gates import BT, SC, paid_user
++
++PREFS = '/api/v1/preferences'
++MY_CONDITIONS = [{'name': 'RSI under 30', 'condition': {'indicator': 'I13', 'op': 'lt', 'value': 30}}]
++LAST_SCREEN = {'name': 'Golden Cross', 'definition': {'conditions': [{'metric': 'macd_divergence'}]}}
++
++
++def test_a_plan_without_the_backtest_and_the_screener_neither_reads_nor_writes_their_saved_items(on, store):
++    with TestClient(create_app(on, store, FakeOrc())) as c:
++        alice = paid_user(store, 'alice')
++        h = sign_in(c, 'alice', 'alice-password')
++        # on the paid plan: the Backtest's My conditions and the Screener's last screen are saved to the account
++        assert c.put(f'{PREFS}/ml.my', headers=h, json={'value': MY_CONDITIONS, 'version': None}).status_code == 201
++        assert c.put(f'{PREFS}/scr.last', headers=h, json={'value': LAST_SCREEN, 'version': None}).status_code == 201
++        assert c.get(f'{BT}/catalog').status_code != 403 and c.get(f'{SC}/items').status_code != 403
++
++        # the plan is lowered (the subscription ends: the default plan, which holds neither tab)
++        db(store, "UPDATE edge_bff.subscriptions SET status = 'cancelled' WHERE user_id = %s", alice['user_id'])
++        h = sign_in(c, 'alice', 'alice-password')
++        assert c.get(BT).status_code == 403 and c.get(f'{SC}/items').status_code == 403      # D5 holds on the tabs
++
++        held = c.get(PREFS)
++        assert held.status_code == 200
++        keys = set(held.json()['preferences'])
++        assert 'ml.my' not in keys, ('the Backtest\'s My conditions are read through /api/v1/preferences by a plan that '
++                                     'holds no backtest.view (D5)')
++        assert 'scr.last' not in keys, ('the Screener\'s last screen is read through /api/v1/preferences by a plan that '
++                                        'holds no screener.view (D5)')
++        wrote = c.put(f'{PREFS}/ml.my', headers=h, json={'value': MY_CONDITIONS + MY_CONDITIONS, 'version': 1})
++        assert wrote.status_code == 403 and wrote.json()['error']['code'] in ('CAPABILITY_REQUIRED', 'PLAN_EXPIRED'), (
++            'a plan without the Backtest saves Backtest conditions through /api/v1/preferences', wrote.status_code, wrote.text)
+-- 
+2.43.0
+

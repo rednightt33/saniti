@@ -1,0 +1,2 @@
+# Patches keep the trailing spaces of git format-patch (context lines, the "-- " signature)
+*.patch -whitespace

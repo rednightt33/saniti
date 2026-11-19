@@ -1,0 +1,182 @@
+From 358cd047d334bba4365617343656c835f57b19f6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 17:23:56 +0000
+Subject: [PATCH 1/9] EXEC-MU-ACCOUNTS checker C-P0: failing tests for Phase 0
+ runtime and downstream identity findings
+
+- edge-bff forward_terminal relays terminal-api's own 401 and 429 unchanged (CONTRACT.md section 3):
+  tests/test_cp0_terminal_relay.py
+- EDGE_OWNER may be an owner key Orc reserves for the test key (M475): tests/test_cp0_reserved_owner.py
+- orc-test-runner still holds MARKET_AI_ORC_API_KEY (M475, M477): market-ai-orc tests/test_cp0_runner_key.py
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+(cherry picked from commit d50893f64cab54ea8a4f5d398599b37c1b1587bb)
+---
+ .../edge-bff/tests/test_cp0_reserved_owner.py | 24 ++++++
+ .../edge-bff/tests/test_cp0_terminal_relay.py | 82 +++++++++++++++++++
+ .../tests/test_cp0_runner_key.py              | 32 ++++++++
+ 3 files changed, 138 insertions(+)
+ create mode 100644 apps/edge-bff/tests/test_cp0_reserved_owner.py
+ create mode 100644 apps/edge-bff/tests/test_cp0_terminal_relay.py
+ create mode 100644 apps/market-ai-orc/tests/test_cp0_runner_key.py
+
+diff --git a/apps/edge-bff/tests/test_cp0_reserved_owner.py b/apps/edge-bff/tests/test_cp0_reserved_owner.py
+new file mode 100644
+index 00000000..b95298a8
+--- /dev/null
++++ b/apps/edge-bff/tests/test_cp0_reserved_owner.py
+@@ -0,0 +1,24 @@
++"""Checker C-P0 (EXEC-MU-ACCOUNTS Phase 0, CONTRACT.md sections 1 and 7; ERRORS M475): EDGE_OWNER may be an owner key
++Orc reserves for tests.
++
++market-ai-orc lets MARKET_AI_ORC_TEST_KEY (orc-test-runner) name exactly the owners golden-*, test-* and someone-else
++(conversations.py TEST_OWNER_RE); the boundary holds only while no EDGE account has such a key. A server-made key is
++'u_' + hex (accounts.py new_owner_key) and the users trigger refuses the reserved keys
++(20261116_003 users_owner_key_rules). EDGE_OWNER, the one key that is configured, is checked only against Orc's general
++shape (config.py validate: [A-Za-z0-9._:@-]{1,128}). With the switch off a refused seed is only logged
++(main.py lifespan: account_seed_failed) and the switch-off principal still runs as EDGE_OWNER (principal.py resolve),
++so EDGE_OWNER=golden-x would make user #1's conversations, runs, progress, exports and manual steps readable with the
++test key. 'default' is Orc's old shared owner (M475).
++"""
++import dataclasses
++
++import pytest
++
++from app.accounts import reserved_owner
++
++
++@pytest.mark.parametrize('owner', ['golden-suite', 'test-x', 'someone-else', 'default'])
++def test_edge_owner_is_never_a_reserved_owner_key(settings, owner):
++    assert reserved_owner(owner) or owner == 'default'
++    with pytest.raises(ValueError):
++        dataclasses.replace(settings, owner=owner, admin_owners=(owner,)).validate()
+diff --git a/apps/edge-bff/tests/test_cp0_terminal_relay.py b/apps/edge-bff/tests/test_cp0_terminal_relay.py
+new file mode 100644
+index 00000000..8eec3fab
+--- /dev/null
++++ b/apps/edge-bff/tests/test_cp0_terminal_relay.py
+@@ -0,0 +1,82 @@
++"""Checker C-P0 (EXEC-MU-ACCOUNTS, Phase 0 runtime and downstream identity): the Terminal gateway relays terminal-api's
++own status codes and flat error bodies to the page unchanged (main.py forward_terminal, the last line:
++`JSONResponse(status_code=answer.status_code, content=data)`).
++
++CONTRACT.md section 3: every edge-bff refusal has the shape {"error": {"code", "message", "details"}}; a 401 means
++UNAUTHENTICATED and the page goes to sign-in; a 429 is LIMIT_REACHED with Retry-After. A terminal-api 401 is about
++terminal-api's own account (the gateway subscriber inactive or past its expires_at, 2027-10-25 for subscriber 2,
++DATABASE_CHANGELOG.md 2026-10-25; or a rotated TERMINAL_PROXY_KEY that edge-bff has not been redeployed with, M308),
++never about the EDGE session, which is valid here. Relayed as a 401, the shared module drops the session
++(shared/edge-session.ts send(): `if (res.status === 401) invalidate()`) and the Terminal page says "Sign in to EDGE
++first" (terminal/src/data/live.ts api()); signing in again cannot help.
++
++Phase 3c makes both answers routine: per-owner terminal-api quotas at D6 numbers (429 for paid and free users) and
++per-owner subscriber rows that follow a disable (401 session_ended for that owner).
++"""
++import dataclasses
++
++import httpx
++import pytest
++from fastapi.testclient import TestClient
++
++from app import main
++from app.main import create_app
++from conftest import FakeOrc
++
++ORIGIN = {'Origin': 'http://testserver'}
++KEY = 'g' * 40
++
++
++def login(c):
++    r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'owner', 'password': 'local-test-password'})
++    assert r.status_code == 200, r.text
++    return {**ORIGIN, 'X-CSRF-Token': r.json()['csrf_token']}
++
++
++class Upstream:
++    """Stands in for httpx.AsyncClient and answers like terminal-api does (app/main.py error(): a flat body)."""
++    answer = None
++
++    def __init__(self, timeout):
++        pass
++
++    async def request(self, method, url, params=None, content=None, headers=None):
++        return Upstream.answer
++
++
++@pytest.fixture
++def gateway(settings, store, monkeypatch):
++    monkeypatch.setattr(main.httpx, 'AsyncClient', Upstream)
++    configured = dataclasses.replace(settings, terminal_url='http://terminal-api.railway.internal:8080',
++                                     terminal_proxy_key=KEY)
++    with TestClient(create_app(configured, store, FakeOrc())) as c:
++        yield c
++
++
++def test_a_terminal_api_401_is_not_relayed_as_the_edge_sign_out(gateway):
++    """terminal-api's 401 session_ended (main.py refuse(), caller kind 'gateway') while the EDGE session is valid."""
++    c = gateway
++    login(c)
++    Upstream.answer = httpx.Response(401, json={'error': 'session_ended',
++                                                'message': 'The terminal account of this gateway is not active.'})
++    r = c.get('/api/terminal/v1/manifest/BBCA')
++    assert c.get('/api/v1/auth/session').status_code == 200            # the EDGE session is fine
++    assert r.status_code != 401, ('a terminal-api 401 reached the page as a 401: the page drops a valid EDGE session '
++                                  'and asks the user to sign in again')
++    body = r.json()
++    assert isinstance(body.get('error'), dict) and body['error'].get('code'), body   # the contract shape
++
++
++def test_a_terminal_api_429_reaches_the_page_in_the_contract_shape_with_retry_after(gateway):
++    """terminal-api's 429 quota_exceeded (main.py take()); CONTRACT.md section 3: 429 LIMIT_REACHED, Retry-After on
++    every 429."""
++    c = gateway
++    h = login(c)
++    Upstream.answer = httpx.Response(429, json={'error': 'quota_exceeded', 'message': 'Quota files_per_hour reached '
++                                                '(300 per hour). It frees up as older requests leave the rolling hour; '
++                                                'ask the administrator if you need a higher limit.'})
++    r = c.post('/api/terminal/v1/bundle', headers=h, json={'ticker': 'BBCA', 'datasets': ['price']})
++    assert r.status_code == 429
++    assert r.headers.get('retry-after'), 'a 429 without Retry-After (CONTRACT.md section 3: set on every 429)'
++    body = r.json()
++    assert isinstance(body.get('error'), dict) and body['error'].get('code') == 'LIMIT_REACHED', body
+diff --git a/apps/market-ai-orc/tests/test_cp0_runner_key.py b/apps/market-ai-orc/tests/test_cp0_runner_key.py
+new file mode 100644
+index 00000000..d4b19077
+--- /dev/null
++++ b/apps/market-ai-orc/tests/test_cp0_runner_key.py
+@@ -0,0 +1,32 @@
++"""Checker C-P0 (EXEC-MU-ACCOUNTS Phase 0, CONTRACT.md section 7 and 16; ERRORS M475, M477): orc-test-runner still
++holds market-ai-orc's main key.
++
++M475's class is "identity accepted from a shared key without a per-caller scope": the test runner held
++MARKET_AI_ORC_API_KEY, which may name any owner. The fix gave the runner MARKET_AI_ORC_TEST_KEY (test owners only) and
++made run.py read only that key (M477 C1 M4). The main key itself was left on the service "until a runner suite passes
++with the test key" (RAILWAY_CHANGELOG.md 2026-11-16 Phase 0, step 4 and "Still open"); no later entry removes it, and
++.railway/railway.ts (the live project as code) still lists it. The service is the project's general job box (one-off
++jobs with a temporary DATABASE_URL, RAILWAY_CHANGELOG.md), so any code uploaded there can read the main key and name a
++real user's owner (u_...) once EDGE_MULTIUSER is on. The open item is recorded only in that changelog line, not in
++M475/M477's status nor in CONTRACT.md 8b's "Open before the switch goes on".
++"""
++import pathlib
++import re
++
++ROOT = pathlib.Path(__file__).resolve().parents[3]
++
++
++def service_env(name):
++    text = (ROOT / '.railway/railway.ts').read_text()
++    block = re.search(r'service\("' + re.escape(name) + r'", \{(.*?)\n  \}\);', text, re.S)
++    assert block, f'{name} block not found in .railway/railway.ts'
++    env = re.search(r'env: \{([^}]*)\}', block.group(1))
++    return set(re.findall(r'([A-Z][A-Z0-9_]+): ', env.group(1))) if env else set()
++
++
++def test_orc_test_runner_holds_only_the_test_key():
++    env = service_env('orc-test-runner')
++    assert 'MARKET_AI_ORC_TEST_KEY' in env
++    assert 'MARKET_AI_ORC_API_KEY' not in env, (
++        'orc-test-runner still holds MARKET_AI_ORC_API_KEY, the key that may name any owner (M475): remove it from '
++        'the service after a runner suite has passed with MARKET_AI_ORC_TEST_KEY, then drop it from .railway/railway.ts')
+-- 
+2.43.0
+

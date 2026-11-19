@@ -1,0 +1,631 @@
+{
+ "findings_seen": [
+  {
+   "id": "R1-1",
+   "phase": "0",
+   "severity": "blocks-3c",
+   "title": "The Terminal gateway passes terminal-api's own 401 and 429 straight to the page: a signed-in user is told to sign in again, and quota refusals have no LIMIT_REACHED code and no Retry-After",
+   "files": [
+    "apps/edge-bff/app/main.py",
+    "apps/edge-bff/shared/edge-session.ts",
+    "apps/edge-bff/terminal/src/data/live.ts",
+    "apps/edge-bff/watchlist/src/api.ts",
+    "apps/edge-bff/app/pages.py",
+    "apps/terminal-api/app/main.py",
+    "apps/edge-bff/tests/test_terminal.py"
+   ],
+   "general_class": "An upstream service's status code and error body reused as the gateway's own answer, so an upstream account problem looks like the user's session. The same mechanism appears in PageFiles (429 without Retry-After), in the 3c cut relay route still to be built, and in every page that reads /api/terminal/v1: Terminal live.ts, backtest/src/api/live.ts (/bundle), watchlist/src/api.ts (logos). M260 (OPEN) is the same relay lacking public_data, so both belong in one relay helper."
+  },
+  {
+   "id": "R1-2",
+   "phase": "0",
+   "severity": "blocks-switch-on",
+   "title": "orc-test-runner still holds MARKET_AI_ORC_API_KEY, the Orc key that may name any owner, so the M475 fix is incomplete at the credential level",
+   "files": [
+    ".railway/railway.ts",
+    "RAILWAY_CHANGELOG.md",
+    "EXEC.md",
+    "ERRORS_AND_SOLUTIONS.md",
+    "apps/orc-test-runner/run.py"
+   ],
+   "general_class": "A credential retired in code but left in a service's environment. Check every service moved to a narrower key: the workers' TERMINAL_PROXY_KEY now references their service keys (RAILWAY_CHANGELOG.md:6871, :6899); AUDIT_STORE_READER_KEY was deleted from orc-test-runner (:3198). For 3c, the terminal-api gateway key must stay on edge-bff only, because with 3c its owner and admin headers are trusted."
+  },
+  {
+   "id": "R1-3",
+   "phase": "0",
+   "severity": "non-blocking",
+   "title": "EDGE_OWNER may be set to an owner key Orc reserves for the test key; with the switch off EDGE then runs user #1 under it",
+   "files": [
+    "apps/edge-bff/app/config.py",
+    "apps/edge-bff/app/main.py",
+    "apps/edge-bff/app/principal.py",
+    "apps/edge-bff/app/accounts.py",
+    "database/migrations/20261116_003_edge_bff_accounts_users.sql",
+    "apps/market-ai-orc/app/conversations.py"
+   ],
+   "general_class": "An identity boundary that depends on a key namespace: the reserved-key rule covers server-made keys and DB rows but not the configured key. The same applies to EDGE_ADMIN_OWNERS entries and, in 3c, to terminal.subscriber.edge_owner_key made from the switch-off owner."
+  },
+  {
+   "id": "R1-4",
+   "phase": "0",
+   "severity": "non-blocking",
+   "title": "The EDGE gateway's terminal-api account expires 2027-10-25 and nothing tracks the date; at expiry every Terminal call fails, and through the relay above it looks like a sign-out",
+   "files": [
+    "DATABASE_CHANGELOG.md",
+    "apps/terminal-api/app/store.py",
+    "apps/terminal-api/app/main.py",
+    "database/migrations/20261028_100_terminal_service_accounts.sql"
+   ],
+   "general_class": "A time-limited row holding up a service credential, with no expiry monitoring. 3c's per-owner rows will need an expiry policy too (from the EDGE plan, not a fixed date)."
+  },
+  {
+   "id": "R1-5",
+   "phase": "cross",
+   "severity": "non-blocking",
+   "title": "PageFiles' shared caches mean 3c's per-owner terminal-api audit and quota would record only the first owner to read each page file",
+   "files": [
+    "apps/edge-bff/app/pages.py",
+    "apps/edge-bff/tests/test_radar.py",
+    "verification/edge_multiuser/access_tiers/CONTRACT.md"
+   ],
+   "general_class": "A shared process cache in front of a per-principal audit or quota. The same question applies to any 3c cut cache in edge-bff and to the screener and backtest caches if per-owner terminal-api audit is extended to them."
+  },
+  {
+   "id": "R1-6",
+   "phase": "3a",
+   "severity": "records",
+   "title": "CONTRACT section 7's Phase 3 Orc capabilities header (X-Saniti-Capabilities: levels, modes, lane, export) is neither built nor recorded as deferred",
+   "files": [
+    "verification/edge_multiuser/access_tiers/CONTRACT.md",
+    "apps/edge-bff/app/client.py",
+    "apps/edge-bff/app/monitor.py"
+   ],
+   "general_class": "A contract clause superseded by a later decision without a record, so the later phase's spec silently drops it."
+  },
+  {
+   "id": "R1-7",
+   "phase": "1",
+   "severity": "blocks-switch-on",
+   "title": "F3: an MFA-passed re-enrolment drops confirmed_at, so a password-only session can enrol its own authenticator and take the admin's second factor",
+   "files": [
+    "apps/edge-bff/app/auth_flows.py",
+    "scripts/edge_mfa_unlock.py"
+   ],
+   "general_class": "A security setting replaced in place before its replacement is proved, so the old guarantee lapses when the change starts. Same mechanism to avoid in: the email change (purpose email_change exists in email_codes; Phase 4) if the old address is unlinked before the new one is confirmed; recovery-code regeneration; Phase 4/5 admin actions that end the old subscription or role row before the new one is active. Starting a factor change also needs a fresh proof of the current factor (OWASP MFA cheat sheet), which no route asks for today."
+  },
+  {
+   "id": "R1-8",
+   "phase": "1",
+   "severity": "blocks-switch-on",
+   "title": "F2: password/reset answers 429 LIMIT_REACHED after 20 wrong codes only for an address that has an account (enumeration oracle)",
+   "files": [
+    "apps/edge-bff/app/auth_flows.py"
+   ],
+   "general_class": "A per-account limit that answers only when the account exists. The sign-in avoids it by counting every typed login (SIGNIN_LOGIN); register, forgot and code/resend answer the same 202 inside their limits; register/verify needs the registration cookie. To keep in mind for every later unauthenticated route with a per-user limit: the email change (Phase 4), an admin 'resend a code', payment flows by email (Phase 5)."
+  },
+  {
+   "id": "R1-9",
+   "phase": "cross",
+   "severity": "blocks-switch-on",
+   "title": "F8: anyone who types a login can keep it at the sign-in limit; a reset by email code does not lift it, a stranger can also kill the live reset code and use up the reset emails, and the message promises a one-minute wait",
+   "files": [
+    "apps/edge-bff/app/throttle.py",
+    "apps/edge-bff/app/main.py",
+    "apps/edge-bff/app/auth_flows.py",
+    "apps/edge-bff/app/errors.py",
+    "apps/edge-bff/static/edge-labels.js"
+   ],
+   "general_class": "A limit keyed by a public identifier that anyone can drive to its cap, with no proof-based way out, and whose message understates the wait. Instances: SIGNIN_LOGIN (switch off and on), CODE_USER through reset (20 wrong codes lock an account's codes 24 h, contract-chosen), SEND_EMAIL and the one-live-code rule through forgot. The MFA lock has ways out (N2). Phase 3c's per-owner Terminal quotas are keyed by the session's owner_key, not a typed value, so they are not in this class."
+  },
+  {
+   "id": "R1-10",
+   "phase": "1",
+   "severity": "non-blocking",
+   "title": "F1: throttle keys '<prefix>:<value>' share a scope with caller-typed keys: the login 'change:<user_id>' locks that user's password change, and the address 'register:<email>' uses up <email>'s new-registration limit",
+   "files": [
+    "apps/edge-bff/app/auth_flows.py",
+    "apps/edge-bff/app/throttle.py",
+    "apps/edge-bff/app/main.py"
+   ],
+   "general_class": "Domain separation by string prefix inside a shared HMAC scope, where another route feeds caller-chosen text into the same scope. Same scope sharing today: CODE_USER ('<user_id>') and MFA_USER ('mfa:<user_id>') in code_user (safe now, neither takes typed text). Any later limit added to an existing scope with a prefix (Phase 4 admin actions, Phase 5 payments) inherits it."
+  },
+  {
+   "id": "R1-11",
+   "phase": "1",
+   "severity": "non-blocking",
+   "title": "F4: registering again in the same browser within the hour replaces the registration cookie, so the code already mailed can no longer finish the first registration",
+   "files": [
+    "apps/edge-bff/app/auth_flows.py"
+   ],
+   "general_class": "An answer that always sets a fresh binding cookie when it made nothing orphans the browser's live binding. Instances: register (open), sign-in 401 (fixed N3). Later browser-bound flows (Phase 5 checkout return) must keep the held binding the same way."
+  },
+  {
+   "id": "R1-12",
+   "phase": "1",
+   "severity": "non-blocking",
+   "title": "F5: USERNAME_TAKEN uses none of the code's 5 tries, so one proved code looks up any number of usernames",
+   "files": [
+    "apps/edge-bff/app/auth_flows.py"
+   ],
+   "general_class": "A gate whose proof is checked but not counted per answer. The contract puts USERNAME_TAKEN behind the code to stop enumeration; the same applies to any later availability answer behind a code (an email change to a taken address, Phase 4)."
+  },
+  {
+   "id": "R1-13",
+   "phase": "1",
+   "severity": "non-blocking",
+   "title": "F6: one registration by another browser plus its resends uses all 10 of the address's daily emails, against the recorded decision N4",
+   "files": [
+    "apps/edge-bff/app/auth_flows.py",
+    "ERRORS_AND_SOLUTIONS.md"
+   ],
+   "general_class": "A per-address send budget shared between the address owner and anyone who names the address: registration resends and restarts (here) and password/forgot for an existing account (see F8's probe)."
+  },
+  {
+   "id": "R1-14",
+   "phase": "1",
+   "severity": "non-blocking",
+   "title": "F7: the sign-in body caps login at 200 characters while registration accepts emails of up to 254",
+   "files": [
+    "apps/edge-bff/app/main.py",
+    "apps/edge-bff/app/auth_flows.py"
+   ],
+   "general_class": "Two validators of one value with different bounds; check every field the registration accepts against the sign-in, reset and later admin forms (username 30, email 254, password 256 normalised vs 1024 raw, which errs the safe way)."
+  },
+  {
+   "id": "R1-15",
+   "phase": "0",
+   "severity": "records",
+   "title": "F9: the route-walk test accepts a hook route listed in HOOK_ROUTES whether or not its handler verifies the signature",
+   "files": [
+    "apps/edge-bff/tests/test_route_table.py",
+    "apps/edge-bff/app/hooks.py"
+   ],
+   "general_class": "A registry membership check standing in for a behavioural guarantee. The payment hooks (CONTRACT 11) are the next routes under the prefix."
+  },
+  {
+   "id": "R1-16",
+   "phase": "cross",
+   "severity": "non-blocking",
+   "title": "F10: no consecutive-failure cap per account for the password (NIST SP 800-63B-4 3.2.2: at most 100), while the MFA got one",
+   "files": [
+    "apps/edge-bff/app/throttle.py",
+    "apps/edge-bff/app/main.py"
+   ],
+   "general_class": "Rate limit per identifier but no bound per subscriber account across identifiers and windows; any later login identifier (Google identity, CONTRACT 1) adds another window."
+  },
+  {
+   "id": "R1-17",
+   "phase": "cross",
+   "severity": "blocks-switch-on",
+   "title": "The Screener's cached paint shows the last result after the plan lost the Screener (and never asks when the plan only narrowed)",
+   "files": [
+    "apps/edge-bff/screener/src/api/boot-cache.ts",
+    "apps/edge-bff/screener/src/app.ts",
+    "apps/edge-bff/screener/src/results.ts",
+    "apps/edge-bff/screener/src/run.ts"
+   ],
+   "general_class": "A browser copy of an answer computed under a principal's entitlements, read again on the strength of the session (or the login) alone instead of on an answer the current plan earned. Every such cache must be keyed by the entitlements version as well as the identity, or confirmed by a gated answer before it is drawn. The Terminal's file cache is safe: it reads only the shas that /bundle announces on that load (rack.ts announced/readVerified), so 3c's cut files are not built on this. The same class: `edge.watchlist.logos` (class browser) keeps the content of the `logos` reference file, the ticke"
+  },
+  {
+   "id": "R1-18",
+   "phase": "cross",
+   "severity": "blocks-switch-on",
+   "title": "/api/v1/preferences serves and stores the tabs' saved items with no tab capability (D5 bypass through Phase 1's preference store)",
+   "files": [
+    "apps/edge-bff/app/preferences.py",
+    "apps/edge-bff/shared/edge-session.ts"
+   ],
+   "general_class": "A route that reads or writes another tab's data needs that tab's capability, the M481 C2 1 lesson (the Screener star writing the Watchlist). A generic per-account key/value store carries data of every tab. Which capability a key needs is decided by the key, not by the route, so the registry entry should name its tab and the server should check it per key on GET (filter) and PUT (refuse). The same mechanism applies to any later generic store, such as an admin or usage store."
+  },
+  {
+   "id": "R1-19",
+   "phase": "cross",
+   "severity": "blocks-switch-on",
+   "title": "A drawings refusal (403 CAPABILITY_REQUIRED) is read as 'account unreachable': the drawing is kept in the browser and the message names a connection failure",
+   "files": [
+    "apps/edge-bff/terminal/src/data/drawingsApi.ts"
+   ],
+   "general_class": "An offline or fallback path that treats a plan refusal like a network failure and carries on locally. Each client fallback must tell CAPABILITY_REQUIRED, PLAN_EXPIRED and LIMIT_REACHED (403/429, isAccessRefusal) apart from status 0/5xx. Layouts and presets do (savedClient's sentence uses accessText); the drawings' listOf does not. Contract 8b 3e lists lock prompts for Flow, Broker, the indicator menu, compare and assets, but not drawings, so 3e as written would miss this. 3c's Terminal data client should keep the same rule for /bundle and /files refusals (live.ts does today)."
+  },
+  {
+   "id": "R1-20",
+   "phase": "0",
+   "severity": "non-blocking",
+   "title": "Browser-class keys named after the added series' tickers survive sign-out and a change of user",
+   "files": [
+    "apps/edge-bff/shared/edge-session.ts",
+    "apps/edge-bff/terminal/src/app/assets.ts"
+   ],
+   "general_class": "A `browser` key family whose key names carry account content: classification by prefix misses user data in the suffix. Checked the other browser families: ml.stats.*, ml.broker.*, ml.fd.*, ml.win.* (window ids bs/acc/inv/fd), ml.draw.*, edge-sources-open:<fixed UI labels> carry no account content. ml.winst.* holds a chosen broker-window period (dates), which is borderline. Any per-ticker or per-item UI state that 3c or 3e adds (for example a dismissed lock prompt per ticker) belongs to the same class."
+  },
+  {
+   "id": "R1-21",
+   "phase": "1",
+   "severity": "records",
+   "title": "The two-user acceptance test (CONTRACT 13.3) leaves out several owned kinds and every cross-owner write by id",
+   "files": [
+    "apps/edge-bff/tests/test_principal.py",
+    "apps/edge-bff/tests/conftest.py"
+   ],
+   "general_class": "The 13.3 test lists kinds by hand, while the route table already gives every owned route. A route-derived two-user walk (as the 3a route walk derives capabilities) would cover new routes automatically, 3c's included."
+  },
+  {
+   "id": "R1-22",
+   "phase": "cross",
+   "severity": "blocks-3c",
+   "title": "Values Phase 2 accepts, or reads as the most restrictive (limit 0), break the 3c x-terminal-capabilities header: terminal-api answers 400 for every Terminal call of the account",
+   "files": [
+    "database/migrations/20261117_003_edge_bff_accounts_catalog.sql",
+    "apps/edge-bff/app/principal.py",
+    "apps/edge-bff/tests/test_phase2_fix_round.py",
+    "apps/edge-bff/app/terminal_access.py (p3c-int)",
+    "apps/terminal-api/app/entitlements.py (p3c-int)",
+    "apps/terminal-api/app/main.py (p3c-int)"
+   ],
+   "general_class": "Phase 2 has one value domain per kind, while each consumer has its own narrower domain, so a value the catalog accepts can be out of range for the wire that carries it. The same mechanism reaches the 3c quota limits: a RESTRICTIVE 0 becomes 429 'try again later' with Retry-After 3600, although waiting does not help. It also reaches any later limit or list a worker or service validates (context.limits for the workers, Phase 3e page limits). Another check: JS and Python truthiness treat 0 and [] like 'no limit' (None). 3c uses `is None` (terminal_access.py:82, 91), but every new consumer must do"
+  },
+  {
+   "id": "R1-23",
+   "phase": "2",
+   "severity": "blocks-switch-on",
+   "title": "Principal.refusal never answers PLAN_EXPIRED for a list or limit restriction (terminal.tickers, terminal.history_days), which 3c refuses through p.refusal",
+   "files": [
+    "apps/edge-bff/app/principal.py",
+    "apps/edge-bff/app/main.py (p3c-int refuse_capability)",
+    "verification/edge_multiuser/access_tiers/CONTRACT.md"
+   ],
+   "general_class": "The refusal API takes a capability key without the item or amount asked. So any restriction whose 'held' depends on a value (a list member, a number within a limit) cannot follow the PLAN_EXPIRED rule. This covers the 3c refusals (tickers, history), the 3a saved-item caps (LIMIT_REACHED for watchlist, layouts, presets, drawings and backtest.queued_jobs after a lapse), the 3c quota and later limits. Also, CONTRACT 8b '3c in detail' says CAPABILITY_REQUIRED for a ticker outside tickers, which contradicts 8a. The contract needs one sentence that settles it."
+  },
+  {
+   "id": "R1-24",
+   "phase": "2",
+   "severity": "non-blocking",
+   "title": "read_grants hands the same RESTRICTIVE list object to every principal with a malformed list value",
+   "files": [
+    "apps/edge-bff/app/principal.py"
+   ],
+   "general_class": "A shared mutable default inside a per-request entitlement object. This applies to any list kind added later and to the 3e mirrors. The front-end limit() returns a filtered copy, which is safe."
+  },
+  {
+   "id": "R1-25",
+   "phase": "2",
+   "severity": "non-blocking",
+   "title": "seed_subscription treats a plan holding '*' = false as the plan that holds every capability",
+   "files": [
+    "apps/edge-bff/app/accounts.py",
+    "database/migrations/20261117_003_edge_bff_accounts_catalog.sql",
+    "database/migrations/20261117_004_edge_bff_catalog_phase3a.sql"
+   ],
+   "general_class": "Code that asks 'which plan holds X' by row existence, after flags started to allow false. The same check is needed in the Phase 4 admin page, the payment adapter's plan lookup and every migration verify that counts '*' holders."
+  },
+  {
+   "id": "R1-26",
+   "phase": "0",
+   "severity": "blocks-3c",
+   "title": "Two edge-bff 429 answers lack Retry-After: the page-file quota refusal and the Terminal gateway relay. These are the paths 3c's per-owner Terminal quotas reach the page through",
+   "files": [
+    "apps/edge-bff/app/pages.py",
+    "apps/edge-bff/app/main.py",
+    "apps/terminal-api/app/main.py",
+    "verification/edge_multiuser/access_tiers/CONTRACT.md"
+   ],
+   "general_class": "An edge-bff path that relays or rebuilds another service's refusal (forward_terminal, PageFiles for overview, radar and watchlist, and any 3c relay such as the cut route) drops that service's headers and code, so the contract's 429 rules never reach the page. The same class covers any future relay of a quota refusal (Orc's daily question cap when the AI opens, D1)."
+  },
+  {
+   "id": "R1-27",
+   "phase": "3a",
+   "severity": "records",
+   "title": "M481 'C3 gaps' (OPEN) confirmed: the 3a route walks are scoped by module and path, so a new principal-only content route (3e examples, a 3c relay outside /api/terminal/v1) is reported by no walk",
+   "files": [
+    "apps/edge-bff/tests/test_phase3a_gates.py",
+    "apps/edge-bff/tests/test_phase3a_monitor_pages.py",
+    "apps/edge-bff/tests/test_route_table.py"
+   ],
+   "general_class": "A capability walk scoped by module or path instead of by the whole route table. Any new module, path family or tab (examples, the cut relay, Phase 4 admin routes, Phase 5 payment routes) escapes it."
+  },
+  {
+   "id": "R1-28",
+   "phase": "3a",
+   "severity": "records",
+   "title": "M481 'C3 gaps' (OPEN) confirmed: the SSE monitor.view re-check works but no test holds it, and a TestClient cannot test it",
+   "files": [
+    "apps/edge-bff/app/main.py",
+    "apps/edge-bff/tests/test_phase3a_monitor_pages.py"
+   ],
+   "general_class": "Behaviour of long-lived answers (SSE, streamed relays) tested through Starlette TestClient, which buffers the whole stream: the re-check of a stream and the cut-off of a running relay need a live-server test (as test_auth_pages_live.serve does)."
+  },
+  {
+   "id": "R1-29",
+   "phase": "3a",
+   "severity": "non-blocking",
+   "title": "The session's access.limits reports the plan's raw value, not the min(plan, HARD) every route applies",
+   "files": [
+    "apps/edge-bff/app/principal.py",
+    "apps/edge-bff/shared/edge-session.ts",
+    "database/migrations/20261117_003_edge_bff_accounts_catalog.sql"
+   ],
+   "general_class": "A limit reported in two places, the session's access.limits and each route's own limits() or limit field, from two computations. The same holds for any future capped limit that the page reads via limit(key) instead of its route."
+  },
+  {
+   "id": "R1-30",
+   "phase": "3a",
+   "severity": "non-blocking",
+   "title": "D5 second path: the account preferences route serves and stores tab content (Backtest 'My metrics' ml.my, the Screener's last screen scr.last) without that tab's capability",
+   "files": [
+    "apps/edge-bff/app/preferences.py",
+    "apps/edge-bff/shared/edge-session.ts",
+    "apps/edge-bff/backtest/src/condwin.ts"
+   ],
+   "general_class": "A per-user store that is not a tab's own route (preferences, or any later generic store) carries a tab's saved items, so the tab's read and save capabilities do not cover them."
+  },
+  {
+   "id": "R1-31",
+   "phase": "3a",
+   "severity": "records",
+   "title": "3c design gaps on the code it builds on: Terminal data limits bind only the Terminal paths, and PageFiles' owner-free shared caches conflict with per-owner headers, usage and audit",
+   "files": [
+    "apps/edge-bff/app/allow.py",
+    "apps/edge-bff/app/pages.py",
+    "verification/edge_multiuser/access_tiers/CONTRACT.md"
+   ],
+   "general_class": "A data restriction enforced on one path (the Terminal proxy) while other tabs read the same data through their own workers or files, and owner-free shared caches placed in front of a call that becomes per owner."
+  },
+  {
+   "id": "R1-32",
+   "phase": "3b",
+   "severity": "blocks-switch-on",
+   "title": "F1: no route reads the capability screener.preset, so the Screener catalog lists presets (with their counts) that the plan does not hold",
+   "files": [
+    "apps/edge-bff/app/screener.py",
+    "database/migrations/20261117_003_edge_bff_accounts_catalog.sql",
+    "apps/edge-bff/app/releases.py",
+    "verification/edge_multiuser/access_tiers/CONTRACT.md"
+   ],
+   "general_class": "A catalog capability that a migration seeds and documents, but that no route reads: a gate promised by the catalog and never enforced. Same class in the seed: terminal.compare and terminal.assets have 0 reads in apps/edge-bff (server or page). terminal.dataset, terminal.tickers and terminal.history_days have 0 reads until 3c, and the <tab>.example flags until 3e. 3c and 3e should each list which seeded capability they make readable. A test should fail on a seeded capability with no reader that is not on an explicit 'later phase' list."
+  },
+  {
+   "id": "R1-33",
+   "phase": "3b",
+   "severity": "blocks-3c",
+   "title": "F2: the workers hard-code their own capability family in CAPABILITY_REQUIRED, but the 3b follow-up (built with 3c) moves the indicator and Flow grants to terminal.* and deletes the backtest.*/screener.* rows",
+   "files": [
+    "apps/backtest-worker/src/access.ts",
+    "apps/screener-worker/src/run.ts",
+    "apps/edge-bff/app/allow.py",
+    "apps/edge-bff/app/errors.py",
+    "verification/edge_multiuser/access_tiers/CONTRACT.md"
+   ],
+   "general_class": "Two services name the same decision separately: edge-bff decides the grant, the worker names it in its refusal, and nothing binds the two. The same mechanism applies wherever a refusal is produced by a service other than the one that owns the catalog. In 3c that is terminal-api refusing with terminal.dataset:<id>, terminal.history_days or terminal.tickers, built from a header edge-bff sends. In later tabs it is Orc's refusals when the AI opens to plans. Each needs a cross-service test that the named capability is a live catalog row and the one the decision was made by."
+  },
+  {
+   "id": "R1-34",
+   "phase": "3b",
+   "severity": "blocks-switch-on",
+   "title": "F-msg: the workers' CAPABILITY_REQUIRED message carries the internal capability key, and every EDGE page shows the server's message to the person",
+   "files": [
+    "apps/backtest-worker/src/access.ts",
+    "apps/screener-worker/src/run.ts",
+    "apps/edge-bff/shared/edge-session.ts",
+    "apps/edge-bff/backtest/src/api/live.ts",
+    "apps/edge-bff/screener/src/api/live.ts",
+    "apps/backtest-worker/tests/access.test.ts"
+   ],
+   "general_class": "A message for the person is written by a service other than edge-bff and relayed verbatim, bypassing edge-bff's wording rules (display names, no internal keys). The same path exists for every worker refusal relayed as is (CONDITION_RESTRICTED, LIMIT_EXCEEDED) and for 3c's terminal-api refusals that edge-bff will relay (locked datasets, the history cut). Either the producer words them for people or edge-bff replaces the message from code and details."
+  },
+  {
+   "id": "R1-35",
+   "phase": "3b",
+   "severity": "non-blocking",
+   "title": "O3b-2 variant: values shown in every result row and in /universe stay gated by id as conditions (chg_1d_pct, never named in O3b-2; and the page's own extra-columns anchor 'bars gt 0' needs screener.metric:bars)",
+   "files": [
+    "apps/screener-worker/src/run.ts",
+    "apps/edge-bff/screener/src/core/contract.ts",
+    "apps/edge-bff/screener/src/extra-columns.ts",
+    "apps/screener-worker/tests/allow.test.ts",
+    "verification/edge_multiuser/access_tiers/CONTRACT.md"
+   ],
+   "general_class": "A gate by id on a value that another answer of the same tab serves ungated (rows, /universe), and a page-built condition that silently depends on an item grant. The same check applies to 3c (a dataset locked in /bundle but present inside another file such as the reference list or a pack) and to the Overview and Watchlist files."
+  },
+  {
+   "id": "R1-36",
+   "phase": "cross",
+   "severity": "non-blocking",
+   "title": "Terminal data limits (tickers, datasets, history_days, quotas) bind only the /api/terminal/v1 path: the Backtest and Screener workers read everything with their own service keys, and the Backtest page reads the Terminal route itself",
+   "files": [
+    "apps/edge-bff/app/allow.py",
+    "apps/backtest-worker/src/config.ts",
+    "apps/screener-worker/src/config.ts",
+    ".railway/railway.ts",
+    "apps/edge-bff/backtest/src/api/live.ts",
+    "apps/edge-bff/app/main.py",
+    "apps/edge-bff/watchlist/src/api.ts"
+   ],
+   "general_class": "Plan limits defined for one tab's data path, while other tabs reach the same data through service accounts (workers) or through that tab's route (the Backtest and Watchlist pages). This is the cross-tab coupling of ERRORS M481 C2 1 in reverse: a tab silently needs another tab's capabilities and limits. It applies to 3c (every terminal.* limit), the Watchlist and Overview pages, and the AI when it opens to plans."
+  },
+  {
+   "id": "R1-37",
+   "phase": "cross",
+   "severity": "non-blocking",
+   "title": "Flow values outside the flow gate: the Overview and Watchlist page files carry every stock's foreign net (broker data), gated only by overview.view and watchlist.view",
+   "files": [
+    "apps/terminal-publisher/watchlist.py",
+    "apps/terminal-publisher/overview.py",
+    "apps/edge-bff/app/pages.py",
+    "verification/edge_multiuser/access_tiers/CONTRACT.md"
+   ],
+   "general_class": "Publisher page files bundle values of a gated kind into one shared file per tab (the M476 class), so an item gate cannot reach them. This applies to 3d and to any future flow or custom indicator added to a page file."
+  },
+  {
+   "id": "R1-38",
+   "phase": "3b",
+   "severity": "non-blocking",
+   "title": "The Screener page's boot cache paints the last result and catalog of an earlier plan after a narrowing: the pointer is keyed by login and data versions, not the entitlements version",
+   "files": [
+    "apps/edge-bff/screener/src/api/boot-cache.ts",
+    "apps/edge-bff/screener/src/app.ts",
+    "apps/edge-bff/app/screener.py"
+   ],
+   "general_class": "Client caches of item-dependent answers keyed by data version instead of the principal's version (X-Edge-Entitlements). The same check applies to the Backtest page's results and any page keeping answers in IndexedDB or localStorage. 3c's Terminal file cache is safe by sha (the cut has its own sha)."
+  },
+  {
+   "id": "R1-39",
+   "phase": "cross",
+   "severity": "blocks-switch-on",
+   "title": "CI never runs the shared session module's tests (Terminal vitest) or the account-page browser tests; a sign-out that keeps the account's data (M473 regression) passes every CI job",
+   "files": [
+    ".github/workflows/backend-tests.yml",
+    ".github/workflows/backtest-lookahead.yml",
+    ".github/workflows/edge-bff-image.yml",
+    "apps/edge-bff/terminal/package.json",
+    "apps/edge-bff/terminal/tests/data/edge_session.test.ts",
+    "apps/edge-bff/terminal/tests/data/c3_phase1_switch_off.test.ts",
+    "apps/edge-bff/terminal/tests/data/c4_seed_phase0_mark.test.ts",
+    "apps/edge-bff/shared/edge-session.ts",
+    "apps/edge-bff/tests/test_auth_pages.py",
+    "apps/edge-bff/tests/test_auth_pages_live.py"
+   ],
+   "general_class": "Suites that exist but are wired into no workflow: apps/edge-bff/terminal (34 files), overview, radar and watchlist page tests (2 files each), and every Playwright test of edge-bff (149, among them the M471 front-end contract and the account pages). Any later tab change (3e lock prompts, 3f lab chunk, the Terminal's handling of 3c's locked datasets and cut files) lands in these untested-in-CI suites."
+  },
+  {
+   "id": "R1-40",
+   "phase": "0",
+   "severity": "blocks-switch-on",
+   "title": "market-ai-orc's conversation-ownership tests (incl. the Phase 0 C2 CLIENT-history fix) are skipped in CI; removing the fix leaves the Orc job green",
+   "files": [
+    ".github/workflows/backend-tests.yml",
+    "apps/market-ai-orc/tests/test_conversations.py",
+    "apps/market-ai-orc/tests/test_conversation_branch.py",
+    "apps/market-ai-orc/app/main.py"
+   ],
+   "general_class": "Every Postgres-backed Orc test (372 skipped in CI): conversation ownership (test_another_owner_cannot_continue_or_read_a_conversation), branch lineage per owner, export ownership (test_export.py:115). The same mechanism (a suite needing a service CI does not start) applies to any future owner-isolation test placed in those files."
+  },
+  {
+   "id": "R1-41",
+   "phase": "1",
+   "severity": "non-blocking",
+   "title": "Column-level privileges pass every grant guard: the $verify$ blocks, provision_edge_bff_login.py and the apply-job probes check has_table_privilege only",
+   "files": [
+    "scripts/provision_edge_bff_login.py",
+    "database/migrations/20261116_002_edge_bff_accounts_auth_throttle.sql",
+    "database/migrations/20261116_003_edge_bff_accounts_users.sql",
+    "database/migrations/20261117_001_edge_bff_accounts_registration.sql",
+    "database/migrations/20261117_003_edge_bff_accounts_catalog.sql",
+    "verification/edge_multiuser/jobs/migration20261117_003_apply.params.json",
+    "verification/edge_multiuser/jobs/migration20261116_003_20261117_001_20261117_002_apply.params.json",
+    "DATABASE_CHANGELOG.md"
+   ],
+   "general_class": "Every grant guard in the repository built on has_table_privilege: all edge_bff $verify$ blocks (20261008_002 onwards), the provisioning script, the apply-job probes, and the market-ai reader roles' checks; 3c's new grants (terminal.subscriber column, the edge_bff quota rows) will copy the same pattern."
+  },
+  {
+   "id": "R1-42",
+   "phase": "1",
+   "severity": "non-blocking",
+   "title": "admin_audit is rewritten by user deletion: its FKs are ON DELETE SET NULL, so the hourly pending-account purge nulls the target of audit rows",
+   "files": [
+    "database/migrations/20261116_003_edge_bff_accounts_users.sql",
+    "apps/edge-bff/app/accounts.py",
+    "apps/edge-bff/app/auth_flows.py"
+   ],
+   "general_class": "Provenance columns with ON DELETE SET NULL: user_capability_overrides.created_by_user_id (20261117_003:80) loses who granted an override; Phase 5 payment_events and any audit-like table referencing users will hit the same mechanism."
+  },
+  {
+   "id": "R1-43",
+   "phase": "2",
+   "severity": "non-blocking",
+   "title": "A change of the plan catalog leaves no trace: plan_capabilities.updated_at and version are not maintained on UPDATE, and overrides have no updated_at/updated_by",
+   "files": [
+    "database/migrations/20261117_003_edge_bff_accounts_catalog.sql"
+   ],
+   "general_class": "Operator-edited data tables without an update trigger or audit: plans, capabilities, plan_capabilities, user_capability_overrides, subscriptions (last_event_at only); 3c adds its Terminal quota rows to plan_capabilities."
+  },
+  {
+   "id": "R1-44",
+   "phase": "0",
+   "severity": "non-blocking",
+   "title": "static/edge-session.js (the shell's copy of the session module) is compared with its build by no CI job; the generated-file rule misses build-shell.mjs",
+   "files": [
+    "apps/edge-bff/tests/test_storage_registry.py",
+    "apps/edge-bff/shared/build-shell.mjs",
+    "scripts/tests/test_generated_files.py",
+    "ERRORS_AND_SOLUTIONS.md"
+   ],
+   "general_class": "Generated files whose generator sits outside a `scripts` folder; header-only freshness checks."
+  },
+  {
+   "id": "R1-45",
+   "phase": "cross",
+   "severity": "records",
+   "title": "Records contradict themselves or the decisions: M468-M475 say OPEN/not deployed under 'deployed' headings; the live capabilities.kind comment says wrong shapes are 'ignored'; terminal.history_days means 'back from today' against D2",
+   "files": [
+    "ERRORS_AND_SOLUTIONS.md",
+    "database/migrations/20261117_003_edge_bff_accounts_catalog.sql"
+   ],
+   "general_class": "Live database comments and seed texts frozen in applied migrations; ERRORS headings grown by appending."
+  },
+  {
+   "id": "R1-46",
+   "phase": "1",
+   "severity": "records",
+   "title": "Three database backstops no test locks: users_registration_pending, the email-code attempts cap, users_one_seed",
+   "files": [
+    "database/migrations/20261116_003_edge_bff_accounts_users.sql",
+    "database/migrations/20261117_002_edge_bff_accounts_registration_binding.sql"
+   ],
+   "general_class": "Defence-in-depth constraints duplicated in application code."
+  }
+ ],
+ "refuter_notes": [
+  "A:repro: All 16 committed failing tests of this batch (2 relay, 4 reserved-owner, 10 auth-check, 1 runner key) fail at ae9a1d8f at their asserted lines for the stated reasons. Copied unchanged onto 41067e7d (p3c-int), they fail at the same lines: no finding of this batch is fixed on p3c-int.",
+  "A:repro: R1-3's proposed fix is unsafe as written: apps/edge-bff/app/accounts.py:80-82 reserved_owner() returns True for 'edge-private', which is dev's live EDGE_OWNER (RAILWAY_CHANGELOG.md:5659). validate() runs in Settings.from_env, so refusing reserved_owner(owner) would stop edge-bff at start. Key the check on Orc's TEST_OWNER_RE plus 'default', and add a control case for 'edge-private'.",
+  "A:repro: On p3c-int, terminal-api lookup() requires the gateway subscriber row to be usable before it reads any owner row. The gateway row's 2027-10-25 expiry (R1-4) therefore stops every owner, not only the admin.",
+  "A:repro: p3c-int apps/terminal-api/README.md:115-116 says the page routes' owner headers are 'accepted for the per-owner audit and quota'. edge-bff's PageFiles sends them only on a cache miss (R1-5), so that record should be corrected or the decision taken with 3c.",
+  "A:repro: R1-9's switch-off half is reachable on dev today: anyone who sends 10 sign-in tries per 15 min on the login 'edge' keeps the owner's correct password refused, and with the switch off there is no reset route.",
+  "A:repro: Postgres cluster ref_A_repro (port 55521) was started for these runs and stopped afterwards. The worktree is clean at ae9a1d8f; the temporary probe and the copied tests were removed and nothing was committed.",
+  "A:code: R1-3: the proposed fix 'validate() refuses reserved_owner(owner)' would break production. accounts.reserved_owner includes 'edge-private' (accounts.py:82), which is the live EDGE_OWNER (RAILWAY_CHANGELOG.md:5659) and the default admin owner. The fix must use Orc's test-owner forms only, and its test must assert that edge-private still validates.",
+  "A:code: R1-10: a per-Limit label would silently break REGISTER_DAY. REGISTER_HOUR and REGISTER_DAY are one counter read with two windows (auth_flows.py:193-196 adds only under REGISTER_HOUR's hash). Use one label per counter.",
+  "A:code: R1-1: the general fix needs terminal-api to expose the quota name and the wait as body fields (quota.py:29-31 Refusal.message is prose only). The 'one relay helper' must also cover p3c-int's relay_cut (main.py:613), which copies the pass-through.",
+  "A:code: R1-2: no runner suite is needed before deleting MARKET_AI_ORC_API_KEY from orc-test-runner. run.py:14 reads only MARKET_AI_ORC_TEST_KEY, and no script under scripts/ or verification/ reads the main key.",
+  "A:code: R1-9: the switch-off sign-in lock-out (anyone who types 'edge' 10 times per 15 minutes keeps the owner out) is live on dev now, since Phase 0 replaced the per-IP limiter.",
+  "A:code: All 16 committed failing tests (C-P0 relay 2, reserved owner 4, C-P1A F1-F9 10) and the orc runner-key test fail at ae9a1d8f for the stated reasons. They were run on my own cluster ref_A_code (port 55522), which is now stopped; the worktree is unchanged.",
+  "A:spec: All 16 committed failing tests of the batch (test_cp0_terminal_relay 2, test_cp0_reserved_owner 4, test_cp1a_phase1_auth_check 10, market-ai-orc test_cp0_runner_key 1) were re-run on ae9a1d8f and fail as claimed. The edge-bff ones were also run against p3c-int 41067e7d code (git archive into the scratchpad with the tests copied in) and still fail, so p3c-int fixes none of R1-1..R1-16. auth_flows.py, throttle.py, accounts.py, config.py and railway.ts are unchanged there.",
+  "A:spec: R1-2's test reads .railway/railway.ts and can turn green only after an approved Railway change. It runs in the market-ai-orc job of backend-tests.yml, and edge-bff deploys only on green checks, so keep it in pending/ (as c1-phase3b was) until the user's go, or it blocks every deploy.",
+  "A:spec: R1-3's proposed fix would break the live start: reserved_owner() in accounts.py:82 includes 'edge-private', the live EDGE_OWNER and seed. Refuse the Orc test-owner set (golden-*, test-*, someone-else) plus 'default' instead, and add a positive control test for edge-private.",
+  "A:spec: R1-9 and R1-16 should be one question to the user: per-identifier and per-account limits, the per-IP probe, and the way back (a proved reset clears both). R1-8 and R1-10 should share one HMAC-label change in Throttle.key_hash, so the R1-8 address count cannot collide with the '<user_id>' and 'mfa:<user_id>' keys of scope code_user.",
+  "A:spec: R1-4 on p3c-int: lookup() requires the gateway row (expires 2027-10-25 per DATABASE_CHANGELOG.md:3587) before any owner row, so the gateway row becomes a single point of failure for every owner, not only the admin. The owner rows themselves get 2100-01-01 (store.py:40).",
+  "A:spec: Postgres cluster ref_A_spec (port 55523) was used and stopped; the scratch extraction was removed; nothing was committed, pushed or deployed.",
+  "B:repro: All 13 committed tests in this batch were run at ae9a1d8f on my own cluster (ref_B_repro, port 55524, stopped at the end) and fail at their asserted lines for the stated reasons. There were no import or fixture errors and no reruns were needed. R1-22's test skips at ae9a1d8f as designed; I ran it on a git-archive copy of 41067e7d, where it fails 6 of 6. Every other python test in the batch also fails, the same way, on that p3c-int copy.",
+  "B:repro: The Screener smoke probe (R1-17) needs playwright, resolved here with NODE_PATH=/opt/node-tools/node_modules. It ran from a fresh 'npm ci' in apps/edge-bff/screener and terminal (node_modules were missing in the worktree). Those folders are git-ignored, and the working tree is clean.",
+  "B:repro: R1-18 and R1-30 are one defect; R1-30 is marked a duplicate of R1-18. Both depend on a user decision about D5's reach. The D5 list in EXEC.md:15458 names conversations, backtest results, saved screens, watchlist, layout, drawing and preset, not the preference-held ml.my or scr.last.",
+  "B:repro: R1-27 and R1-28 restate ERRORS M481 'C3 gaps' (OPEN). For R1-28 the finder's live-server probe passes, and fails when still_signed_in drops the monitor.view check (my mutation test). It is ready to commit as the regression test.",
+  "B:repro: Not in my batch, met by chance: p3c-int's relay_cut (main.py:611-613) rebuilds terminal-api's JSON refusals the same way as forward_terminal (headers dropped). It belongs to the R1-26 class and should be fixed with it.",
+  "B:repro: Not in my batch: the p3c-int migrations 20261118_001 and _002 are not applied yet. The '*' row-existence counts in them (R1-25) can still be corrected in place; 003 and 004 cannot.",
+  "B:code: All committed tests were run on ae9a1d8f (cluster ref_B_code, port 55525, now stopped), and the edge-bff ones also on a git-archive extract of p3c-int 41067e7d at /tmp/claude-0/-home-user-saniti/f3bec3b8-f6e3-5a54-b257-4a56b384bdc8/scratchpad/refB_p3c. Every one fails for its stated reason on both, so none of R1-17..R1-31 is fixed on p3c-int.",
+  "B:code: Found by chance (R1-18 path): shared/edge-session.ts:653 marks a key refused only on 422 PREFERENCE_LIMIT. Any new 403 on PUT /api/v1/preferences would be retried on every change.",
+  "B:code: Found by chance (R1-26 path): p3c-int adds relay_cut, a third relay that rebuilds a non-200 terminal-api answer as JSONResponse(status, data) and drops its headers.",
+  "B:code: R1-25: the applied migrations 003:283 and 004:86 must stay unedited. Only p3c-int's unapplied 20261118_001/002 and the code and tests can take the value = true filter.",
+  "B:code: R1-23's general class overreaches on the saved-item caps. With today's seed a lapse falls to a free plan without those flags, so the flag check refuses first with PLAN_EXPIRED.",
+  "B:spec: Cross-batch duplicates to merge: R1-17 with R1-38 (Screener boot cache), R1-26 with R1-1 (forward_terminal 429 relay; R1-1 adds the 401 relay), R1-31 with R1-36 (part 1) and R1-5 (part 2). R1-30 duplicates R1-18 within this batch.",
+  "B:spec: R1-22 and R1-29 share one data-model class: Phase 2 has a value domain per kind while consumers need one per capability (the wire's 1..36600, ticker pattern, HARD caps). A declared domain per capability in edge_bff.capabilities, read by capability_value_check, would serve both. 3c's mapping layer still has to send RESTRICTIVE 0 to a named refusal.",
+  "B:spec: R1-18 is the R1-27 class in practice: the module-scoped 3a walk (GATED_MODULES) has no app.preferences, so a whole-table walk would have flagged it.",
+  "B:spec: Commit ids in the finders' JSON (299f52d0, b6ea9e7f, ed3fc1f5) are pre-rebase. On ae9a1d8f the same tests are in 12669c63 (C-P1S), 279a933b (C-P2) and 7a6809da (C-P3A).",
+  "B:spec: Tests I ran on ae9a1d8f with my cluster on port 55526 (now stopped): test_c_p1s_preferences_plan, test_c_p2_recheck (3), test_c_p3a_probes (4): 8 failed, 1 skipped, as claimed. Terminal vitest c_p1s_drawings_plan and c_p1s_browser_keys: 3 failed. Screener smoke c_p1s_plan_refused_cache: FAIL, 7 cached rows. test_c_p2_terminal_wire_domain against a git-archive copy of 41067e7d: 6 failed. Nothing was committed; the worktree is clean (node_modules and dist-smoke are ignored).",
+  "B:spec: By the way: on a refused catalog the Screener's cached paint also shows 'The screener could not answer this request. Retry' instead of the plan refusal's words, a Gates (d) gap in the same path as R1-17.",
+  "B:spec: By the way: p3c-int relay_cut (main.py:599-612) relays a non-200 cut answer as JSON with no headers, so the R1-26 fix must cover relay_cut too.",
+  "C:repro: Reproduction base: commit ae9a1d8f, my own Postgres cluster (ref_C_repro, port 55527, now stopped). The 10 committed edge-bff finder tests of this batch and the 2 worker tests all fail at their asserted lines for the stated reasons; none fails on an import or a fixture. On an export of p3c-int (41067e7d) with the tests copied in, only R1-33's test passes.",
+  "C:repro: To run the edge-bff suite as CI does, I hid Playwright with an ImportError shim on PYTHONPATH, because CI installs only requirements.txt. The base suite gives 509 passed and 149 skipped. Without the shim, a local run errors on browser tests unless EDGE_TEST_CHROMIUM is set.",
+  "C:repro: At ae9a1d8f, 24 tests fail in the other finders' committed files (test_cp0_*, test_cp1a_*, test_c_p1s_*, test_c_p2_recheck, test_c_p3a_probes). Exclude those files when judging a mutation against the base suite.",
+  "C:repro: Found by chance, recorded on p3c-int as open for 3e: terminal/src/data/rack.ts fetchFile downloads with credentials 'omit', so the relative cut URL reaches edge-bff without the session cookie and a capped principal's cut cannot load. The Backtest page loads through the same rack module (backtest/src/api/live.ts re-exports from terminal/src/data/rack.ts), so with history_days set its chart would fail in the same way. This bears on R1-36.",
+  "C:repro: market-ai-orc has checkSuites false (.railway/railway.ts:90), so even with Postgres added to its CI job (R1-40), a red run would not hold an Orc deploy. Gating it on checks would need the user's approval.",
+  "C:repro: My worktree was left clean: no commits, and every mutation and probe was reverted or deleted. I ran npm ci in apps/edge-bff/terminal of my worktree; node_modules is ignored by git.",
+  "C:code: How I worked: I checked out ae9a1d8f and exported 41067e7d (p3c-int) to /tmp/claude-0/-home-user-saniti/f3bec3b8-f6e3-5a54-b257-4a56b384bdc8/scratchpad/refC/p3c. I ran every finder test of this batch on both trees, on my cluster ref_C_code (port 55528), which is now stopped. Only R1-33's test passes on p3c-int; every other finder test still fails there. The worktree is clean and nothing was committed.",
+  "C:code: The mutation runs used throwaway copies of ae9a1d8f under /tmp/claude-0/-home-user-saniti/f3bec3b8-f6e3-5a54-b257-4a56b384bdc8/scratchpad/refC/ (base and full), never the worktree. The full-suite log is /tmp/claude-0/-home-user-saniti/f3bec3b8-f6e3-5a54-b257-4a56b384bdc8/scratchpad/refC/mut_full.log.",
+  "C:code: Incidental, folded into R1-36: on p3c-int, the shared page-file cache (apps/edge-bff/app/pages.py:41, :172) asks terminal-api for a grant only on a cache miss, under the headers of the principal who missed. Page-file bytes are therefore charged to that first asker's D6 quota (quota.REF), not to each reader.",
+  "C:code: Incidental, folded into R1-34: the Screener /counts per-entry CAPABILITY_REQUIRED bypasses allow.named entirely (recorded as M482 C3 F5), so it keeps the worker message with the key and has no display_name. An edge-bff wording fix for R1-34 should cover the /counts entries too, or the page's 3e wording must.",
+  "C:code: R1-32 and R1-35 share a class with the Screener catalog's metric list. The generic /api/v1/catalog/{kind} route (catalog.py:16-18) and the tab-specific catalog (screener.py catalog_for) decide what a principal sees separately. A single derivation (catalog.held) used by both would close R1-32 and the 3e metric menus at once.",
+  "C:spec: My cluster ref_C_spec (port 55529) was used for every run and is now stopped. I checked p3c-int from a git archive of 41067e7d in the scratchpad, since removed. Nothing was committed and the worktree is clean.",
+  "C:spec: Finder tests run at ae9a1d8f: all 10 edge-bff tests of this batch fail as claimed. On the p3c-int tree, only test_f2 (R1-33) passes; R1-32, R1-41 (3 tests), R1-42 and R1-43 still fail.",
+  "C:spec: By chance: edge_bff.subscriptions.user_id is ON DELETE CASCADE (20261117_003), so deleting a user would delete its subscription history. That matters for Phase 5 payment records and belongs to R1-42's provenance class.",
+  "C:spec: By chance: on an entitlements change, edge-session.ts:429-432 only re-reads the session. No user cache pointer (scr.boot, terminal-files) is dropped, which is the general mechanism behind R1-38.",
+  "C:spec: R1-32's test message says 'no route reads screener.preset'. GET /api/v1/catalog/screener_preset does read it (apps/edge-bff/app/catalog.py:16-19); the gap is the Screener's own catalog."
+ ]
+}

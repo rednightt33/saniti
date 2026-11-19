@@ -1,0 +1,233 @@
+From 5b6d87c0983ecd7954e74a26e2f9017a66d89d06 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 17:26:20 +0000
+Subject: [PATCH 2/9] EXEC-MU-ACCOUNTS Phase 1 re-check C-P1A: failing tests of
+ the auth-flow findings (no fix)
+
+apps/edge-bff/tests/test_cp1a_phase1_auth_check.py, one test per finding:
+- F1 throttle keys '<prefix>:<value>' in one scope collide with caller-typed keys (change:<user_id>, register:<email>)
+- F2 password/reset answers 429 after 20 wrong codes only for an address with an account (enumeration)
+- F3 an MFA-passed re-enrolment drops confirmed_at, so a password-only session enrols its own authenticator
+- F4 a second registration in the same browser replaces the cookie of the first, whose code then fails
+- F5 USERNAME_TAKEN uses no code try, so one code looks up any number of usernames
+- F6 one registration by another browser plus its resends uses all 10 daily emails (against N4)
+- F7 the sign-in body caps login at 200 characters while emails of up to 254 register
+- F8 a reset by email code does not lift a sign-in limit anyone can reach by typing the login
+- F9 the route walk accepts a hook route listed in HOOK_ROUTES whose handler never verifies
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+(cherry picked from commit d352cbae0d111bc342c031df48d37bbaf1e2d594)
+---
+ .../tests/test_cp1a_phase1_auth_check.py      | 199 ++++++++++++++++++
+ 1 file changed, 199 insertions(+)
+ create mode 100644 apps/edge-bff/tests/test_cp1a_phase1_auth_check.py
+
+diff --git a/apps/edge-bff/tests/test_cp1a_phase1_auth_check.py b/apps/edge-bff/tests/test_cp1a_phase1_auth_check.py
+new file mode 100644
+index 00000000..da90802a
+--- /dev/null
++++ b/apps/edge-bff/tests/test_cp1a_phase1_auth_check.py
+@@ -0,0 +1,199 @@
++"""EXEC-MU-ACCOUNTS Phase 1 re-check by C-P1A (CONTRACT.md sections 3-6): failing tests of the defects found in the
++authentication flows after the first three checkers. Each test states the property the contract (or a recorded
++decision in ERRORS M478) promises; the fix round makes them pass.
++
++- F1: a throttle key built as '<prefix>:<value>' inside one scope can be produced by a caller-typed value of the same
++  scope: the login 'change:<user_id>' at sign-in shares the password-change count of that user, and the address
++  'register:<email>' shares the new-registration count of <email> (throttle.py SIGNIN_LOGIN, REGISTER_HOUR).
++- F2: password/reset answers 429 LIMIT_REACHED after 20 wrong codes only for an address that has an account, and 400 for
++  ever for any other: an enumeration oracle (CONTRACT 4 "Enumeration", 13.4 "identical answers").
++- F3: an admin's re-enrolment, made by a session that passed MFA, sets confirmed_at NULL at once, so a password-only
++  (pending) session may then enrol its own authenticator and pass MFA (auth_flows.py enroll, mfa_enroll).
++- F4: a second registration from the same browser within the hour changes nothing on the server but replaces the
++  browser's registration cookie, so the first registration's code can no longer be verified (the N3 class, M478).
++- F5: a proved code answers USERNAME_TAKEN without using one of its 5 tries, so one code looks up any number of
++  usernames (the contract gates the answer behind the code; the gate has no count).
++- F6: one registration by another browser plus its resends uses every one of the address's 10 daily emails, against
++  the recorded decision N4 ("registrations by others can then use at most 3 of the address's 10 daily emails").
++- F7: the sign-in body caps login at 200 characters while a registered email may have 254, so such an account cannot
++  sign in with its email.
++- F8: the per-login sign-in limit is reached by anyone who types the login; a password reset by email code (which
++  answers {"next": "sign_in"}) does not lift it, so a targeted account has no way back while the tries continue.
++- F9: the route-table check accepts any hook route listed in HOOK_ROUTES, whether or not its handler verifies the
++  signature (CONTRACT 6: "a route-table test refuses any other route under that prefix without a signature check").
++"""
++from fastapi.testclient import TestClient
++
++from app import mfa
++from test_auth_flows import (PASSWORD, admin_sign_in, app, cooldown_over, db, error_code, hour_over, last_code,  # noqa: F401
++                             make_account, on, outbox, register, verify)
++from test_edge import ORIGIN
++
++
++def sign_in(c, login, password):
++    return c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': login, 'password': password})
++
++
++def wrong(code):
++    return '000000' if code != '000000' else '111111'
++
++
++# ---- F1: throttle keys of one scope collide with caller-typed keys ------------------------------------------------------
++
++def test_cp1a_f1_a_typed_login_cannot_lock_another_accounts_password_change(app, store):
++    r = make_account(app, store)
++    user_id = db(store, "SELECT user_id FROM edge_bff.users WHERE email='ana@example.com'")[0]['user_id']
++    h = {**ORIGIN, 'X-CSRF-Token': r.json()['csrf_token']}
++    stranger = TestClient(app.app)                              # no session, no account: only the sign-in form
++    for _ in range(10):
++        assert sign_in(stranger, f'change:{user_id}', 'any guess').status_code == 401
++    body = {'current_password': PASSWORD, 'password': 'another password', 'password_repeat': 'another password'}
++    r = app.post('/api/v1/auth/password/change', headers=h, json=body)
++    # the account itself made no wrong try: its change must not be refused by someone else's sign-in tries
++    assert (r.status_code, r.json()) == (200, {'status': 'PASSWORD_CHANGED'}), r.text
++
++
++def test_cp1a_f1_another_address_cannot_use_up_the_new_registration_limit_of_an_address(app, store):
++    attacker = TestClient(app.app)
++    # an address whose text is 'register:' + the victim's address (a colon is allowed in the local part)
++    assert register(attacker, 'register:vic@example.com', 'eve_one').status_code == 202
++    victim = TestClient(app.app)
++    assert register(victim, 'vic@example.com', 'vic_real').status_code == 202
++    # nobody registered vic@example.com before: its own registration must get its code
++    assert [m['purpose'] for m in outbox(store, 'vic@example.com')] == ['register']
++
++
++# ---- F2: the code limit answers only for addresses with an account -------------------------------------------------------
++
++def test_cp1a_f2_reset_answers_alike_for_an_account_and_an_unknown_address_after_many_wrong_codes(app, store):
++    make_account(app, store)
++    stranger = TestClient(app.app)
++
++    def tries(email):
++        body = {'email': email, 'code': '000000', 'password': 'my new password', 'password_repeat': 'my new password'}
++        return [stranger.post('/api/v1/auth/password/reset', headers=ORIGIN, json=body).status_code for _ in range(21)]
++    existing, unknown = tries('ana@example.com'), tries('nobody@example.com')
++    # CONTRACT 4 "Enumeration" and 13.4: the answers must not tell whether the address has an account
++    assert existing == unknown, (existing[-3:], unknown[-3:])
++
++
++# ---- F3: a re-enrolment opens the second factor to the password alone ----------------------------------------------------
++
++def test_cp1a_f3_a_password_alone_cannot_enrol_while_a_reenrolment_waits(app, store, on):
++    flows = app.app.state.auth_flows
++    now = {'t': 1_800_000_000.0}
++    flows.clock = lambda: now['t']
++    h = admin_sign_in(app)
++    app.post('/api/v1/auth/mfa/enroll', headers=h)
++    user_id, nonce = (lambda r: (r['user_id'], bytes(r['nonce'])))(db(store, 'SELECT user_id, nonce FROM edge_bff.mfa_totp')[0])
++    first = mfa.secret_of(on.mfa_key, user_id, nonce)
++    step = int(now['t']) // 30
++    ok = app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': mfa.code_at(first, step)})
++    assert ok.status_code == 200 and ok.json()['access']['mfa_ok'] is True
++    # the real admin, MFA passed, starts a new enrolment (a new phone) and has not confirmed it yet
++    h_ok = {**ORIGIN, 'X-CSRF-Token': ok.json()['csrf_token']}
++    assert app.post('/api/v1/auth/mfa/enroll', headers=h_ok).status_code == 200
++    # someone with the password only: a pending session
++    thief = TestClient(app.app)
++    r = sign_in(thief, 'owner', 'local-test-password')
++    assert (r.status_code, error_code(r)) == (403, 'MFA_REQUIRED')
++    th = {**ORIGIN, 'X-CSRF-Token': r.json()['error']['details']['csrf_token']}
++    r = thief.post('/api/v1/auth/mfa/enroll', headers=th)
++    # the account had a confirmed factor: a password alone must never replace it (the rule mfa_enroll states)
++    assert (r.status_code, error_code(r) if r.status_code != 200 else None) == (403, 'MFA_REQUIRED'), r.text
++
++
++# ---- F4: registering again in the same browser orphans the first registration --------------------------------------------
++
++def test_cp1a_f4_a_second_registration_in_the_same_browser_keeps_the_first_verifiable(app, store):
++    assert register(app).status_code == 202
++    code = last_code(store, 'ana@example.com')
++    # the person goes back and sends the form again within the hour: the server makes nothing (N4) ...
++    assert register(app).status_code == 202
++    assert len(outbox(store, 'ana@example.com')) == 1
++    # ... so the code already mailed must still finish the registration in this browser
++    r = verify(app, code)
++    assert r.status_code == 200, r.text
++
++
++# ---- F5: USERNAME_TAKEN without a try ------------------------------------------------------------------------------------
++
++def test_cp1a_f5_one_code_cannot_look_up_unlimited_usernames(app, store):
++    taken = [f'user_{i}' for i in range(6)]
++    for i, name in enumerate(taken):
++        make_account(TestClient(app.app), store, f'u{i}@example.com', name)
++    eve = TestClient(app.app)
++    assert register(eve, 'eve@example.com', 'eve_free').status_code == 202
++    code = last_code(store, 'eve@example.com')
++    answers = [verify(eve, code, 'eve@example.com', username=name).status_code for name in taken]
++    # the code proves the mailbox once; like a wrong code, each answer about another account uses one of its 5 tries
++    assert answers.count(409) <= 5, answers
++
++
++# ---- F6: the N4 bound on registrations by others ---------------------------------------------------------------------------
++
++def test_cp1a_f6_registrations_by_others_use_at_most_three_of_the_addresss_daily_emails(app, store):
++    victim = TestClient(app.app)
++    assert register(victim, 'vic@example.com', 'vic_real').status_code == 202
++    hour_over(store)
++    attacker = TestClient(app.app)
++    assert register(attacker, 'vic@example.com', 'eve_two', password='the attackers password').status_code == 202
++    for _ in range(9):
++        cooldown_over(store)
++        attacker.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'vic@example.com', 'purpose': 'register'})
++    cooldown_over(store)
++    before = len(outbox(store, 'vic@example.com'))
++    victim.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'vic@example.com', 'purpose': 'register'})
++    # ERRORS M478 N4: registrations by others use at most 3 of the 10, so the address owner can still get a code
++    assert len(outbox(store, 'vic@example.com')) == before + 1, before
++
++
++# ---- F7: a long email cannot sign in --------------------------------------------------------------------------------------
++
++def test_cp1a_f7_an_account_signs_in_with_any_email_registration_accepted(app, store):
++    email = 'a' * 60 + '@' + 'b' * 150 + '.com'                  # 215 characters: accepted (at most 254)
++    make_account(app, store, email, 'long_mail')
++    r = sign_in(TestClient(app.app), email, PASSWORD)
++    assert r.status_code == 200, r.text
++
++
++# ---- F8: a targeted sign-in lock has no way back ----------------------------------------------------------------------------
++
++def test_cp1a_f8_a_password_reset_by_email_code_lets_the_account_sign_in(app, store):
++    make_account(app, store)
++    stranger = TestClient(app.app)
++    for login in ('ana_putri', 'ana@example.com'):
++        for _ in range(10):
++            sign_in(stranger, login, 'any guess')
++    cooldown_over(store)
++    assert app.post('/api/v1/auth/password/forgot', headers=ORIGIN, json={'email': 'ana@example.com'}).status_code == 202
++    body = {'email': 'ana@example.com', 'code': last_code(store, 'ana@example.com'), 'password': 'my new password',
++            'password_repeat': 'my new password'}
++    r = app.post('/api/v1/auth/password/reset', headers=ORIGIN, json=body)
++    assert (r.status_code, r.json()) == (200, {'next': 'sign_in'})
++    # the reset proved the mailbox and said the next step is signing in: that step must not be refused
++    r = sign_in(TestClient(app.app), 'ana_putri', 'my new password')
++    assert r.status_code == 200, r.text
++
++
++# ---- F9: the hook check is by registry membership only ----------------------------------------------------------------------
++
++def test_cp1a_f9_the_route_walk_refuses_a_hook_whose_handler_never_checks_the_signature(settings, store):
++    from app import hooks
++    from app.mailer import svix_verify
++    from app.main import create_app
++    from conftest import FakeOrc
++    from test_route_table import configured, problems
++    application = create_app(configured(settings), store, FakeOrc())
++    changed = []
++
++    @application.post('/api/v1/hooks/example')
++    async def unchecked_hook():                         # listed with a verifier, yet never calls it
++        changed.append(1)
++        return {}
++    registry = {**hooks.HOOK_ROUTES, '/api/v1/hooks/example': svix_verify}
++    with TestClient(application) as c:
++        assert c.post('/api/v1/hooks/example', json={}).status_code == 200 and changed   # unsigned, and applied
++    # CONTRACT 6: the route-table test refuses a route under the prefix without a signature check
++    found = problems(application, registry)
++    assert any('/api/v1/hooks/example' in f for f in found), found
+-- 
+2.43.0
+

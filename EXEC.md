@@ -15968,7 +15968,18 @@ dipakai accross chat sebagai referencec?"
   - Round 1 (2026-11-18/19): 46 findings (4 blocks-3c, 12 blocks-switch-on, 22 non-blocking, 8 records), 43 of them
     shown with code or a failing test. The failing tests are gathered on the local branch `recheck-tests` (main
     bf273f52 plus the finders' nine test commits). Three refuters per finding (reproduce, code path, specification and
-    decisions) are judging them; the first run stopped on the 5-hour usage limit and was resumed 2026-11-19.
+    decisions) judged them (the first run stopped on the 5-hour usage limit and was resumed 2026-11-19): all 46
+    survive; R1-33 is already fixed on the 3c branch.
+  - Round 2 (2026-11-19): seven finders from new angles (deploy order and version skew, races, the browser as an
+    attacker, data lifecycle and privacy, switch on end to end as three people, operations and performance, contract
+    traceability), told the 46 findings so they report only new ones.
+  - **Saving the work (the user, 2026-11-19):** "please pause and stop apabila limit reached 5 hours dan save work
+    supaya kejadian sebelumnya tidak hilang".
+    - Every round's findings, verdicts, failing tests (as patches) and workflow scripts are copied into
+      `verification/edge_multiuser/access_tiers/recheck/` and pushed to the session branch when the round ends.
+    - Workflow scripts stop starting new agents after the first agent that fails, so a limit stop leaves the finished
+      agents' work in the cache; the run is resumed after the limit resets, not started again.
+    - At most one heavy workflow runs at a time where the work allows it.
 
 ### Production environment (user decisions 2026-11-19; open details asked)
 
