@@ -25,6 +25,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
+from .errors import plan_cap
 from .layouts import LayoutError, invalid, storable
 from .principal import Principal
 
@@ -118,9 +119,8 @@ class DrawingStore:
                     held = c.execute('SELECT count(*) AS n FROM edge_bff.terminal_drawings WHERE owner_key=%s',
                                      (owner,)).fetchone()['n']
                     if held >= limit:
-                        raise failure('LIMIT_EXCEEDED', 422, message=f'Drawings are kept for at most {limit:,} places '
-                                      '(tickers, Flow Timelines and panes): clear the drawings of a ticker you no longer use.',
-                                      details={'limit': 'sets', 'allowed': limit, 'needed': held + 1})
+                        code, status, message, details = plan_cap(LIMIT_KEY, limit, held + 1)    # re-check R2-39
+                        raise failure(code, status, message=message, details=details)
                     return c.execute('''INSERT INTO edge_bff.terminal_drawings(owner_key,ticker,set_id,drawings,schema_version)
                         VALUES (%s,%s,%s,%s,%s) RETURNING *''', (owner, ticker, set_id, Jsonb(drawings), SCHEMA_VERSION)).fetchone(), True
                 if not row:

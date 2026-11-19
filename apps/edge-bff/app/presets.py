@@ -26,6 +26,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
+from .errors import plan_cap
 from .layouts import LayoutError, checked_name, invalid, storable
 from .principal import Principal
 
@@ -126,8 +127,8 @@ class PresetStore:
                     held = c.execute('SELECT count(*) AS n FROM edge_bff.indicator_presets WHERE owner_key=%s',
                                      (owner,)).fetchone()['n']
                     if held >= limit:
-                        raise failure('LIMIT_EXCEEDED', 422, message=f'At most {limit} presets: delete one before saving another.',
-                                      details={'limit': 'presets', 'allowed': limit, 'needed': held + 1})
+                        code, status, message, details = plan_cap(LIMIT_KEY, limit, held + 1)    # re-check R2-39
+                        raise failure(code, status, message=message, details=details)
                     created = c.execute('''INSERT INTO edge_bff.indicator_presets(preset_id,owner_key,name,def_id,config,summary,schema_version)
                         VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (preset_id) DO NOTHING RETURNING *''',
                         (preset_id, owner, name, def_id, Jsonb(config), summary, SCHEMA_VERSION)).fetchone()

@@ -48,8 +48,8 @@ def test_screener_star_does_not_create_a_list_beyond_the_lists_cap(on, store):
         alice = paid_user(store, 'alice')
         override(store, alice['user_id'], 'watchlist.lists', '0')
         h = sign_in(c, 'alice', 'alice-password')
-        assert c.post(f'{WL}/lists', headers=h, json={'name': 'Mine'}).status_code == 422
+        assert c.post(f'{WL}/lists', headers=h, json={'name': 'Mine'}).status_code == 403     # re-check R2-39
         put = c.put(f'{SC}/watchlist/BBCA', headers=h)
         lists = c.get(f'{WL}/lists').json()['lists']
         print('PUT', put.status_code, 'lists', len(lists))
-        assert put.status_code == 422 and lists == []
+        assert put.status_code == 403 and lists == []                                       # re-check R2-39

@@ -31,6 +31,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
+from .errors import plan_cap
 from . import wake
 from .principal import Principal
 from .allow import NOTHING, context_of, digest, named
@@ -508,9 +509,8 @@ class ScreenerStore:
                     held = c.execute('SELECT count(*) AS n FROM edge_bff.screener_items WHERE owner_key=%s AND kind=%s',
                                      (owner, kind)).fetchone()['n']
                     if held >= limit:
-                        noun = 'saved screens' if kind == 'screen' else 'My metrics'
-                        raise failure('LIMIT_EXCEEDED', 422, message=f'At most {limit} {noun}: delete one before saving another.',
-                                      details={'limit': 'saved_items', 'allowed': limit, 'needed': held + 1})
+                        code, status, message, details = plan_cap(LIMIT_KEYS['saved_items'], limit, held + 1)  # R2-39
+                        raise failure(code, status, message=message, details=details)
                     created = c.execute('''INSERT INTO edge_bff.screener_items(item_id,owner_key,kind,name,definition,
                             schema_version,registry_version,screener_registry_version,definition_hash)
                         VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (item_id) DO NOTHING RETURNING *''',
@@ -566,9 +566,8 @@ class ScreenerStore:
             first = WatchlistStore.first(c, owner, False)
             if not first:
                 if lists < 1:
-                    raise failure('LIMIT_EXCEEDED', 422, 'ticker',
-                                  'Your plan holds no watchlist: a list is needed before a ticker can be starred.',
-                                  {'limit': 'watchlist.lists', 'allowed': lists, 'needed': 1})
+                    code, status, message, details = plan_cap(LIMIT_KEYS['lists'], lists, 1)     # re-check R2-39
+                    raise failure(code, status, 'ticker', message, details)
                 first = WatchlistStore.first(c, owner, True)
             if c.execute('SELECT 1 FROM edge_bff.watchlist_items WHERE owner_key=%s AND list_id=%s AND ticker=%s',
                          (owner, first, ticker)).fetchone():
@@ -576,8 +575,8 @@ class ScreenerStore:
             held = c.execute('''SELECT count(*) AS n, coalesce(max(position), -1) AS top FROM edge_bff.watchlist_items
                 WHERE owner_key=%s AND list_id=%s''', (owner, first)).fetchone()
             if held['n'] >= limit:
-                raise failure('LIMIT_EXCEEDED', 422, 'ticker', f'At most {limit} tickers in the watchlist: remove one before adding another.',
-                              {'limit': 'watchlist', 'allowed': limit, 'needed': held['n'] + 1})
+                code, status, message, details = plan_cap(LIMIT_KEYS['watchlist'], limit, held['n'] + 1)  # R2-39
+                raise failure(code, status, 'ticker', message, details)
             c.execute('''INSERT INTO edge_bff.watchlist_items(owner_key, list_id, ticker, position) VALUES (%s,%s,%s,%s)
                 ON CONFLICT DO NOTHING''', (owner, first, ticker, held['top'] + 1))
 

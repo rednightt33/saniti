@@ -23,6 +23,7 @@ from fastapi import Depends, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.encoders import jsonable_encoder
 
+from .errors import plan_cap
 from .pages import PageFiles
 from .principal import Principal
 
@@ -93,7 +94,10 @@ def invalid(field, message):
 
 
 def over(limit, allowed, needed, message):
-    return failure('LIMIT_EXCEEDED', 422, limit, message, {'limit': limit, 'allowed': allowed, 'needed': needed})
+    """A plan cap of the lists (re-check R2-39: errors.plan_cap, 403 LIMIT_REACHED naming the capability key); the
+    field stays the local name (lists, tickers, indicators), the request's part to change."""
+    code, status, words_, details = plan_cap(LIMIT_KEYS[limit], allowed, needed)
+    return failure(code, status, limit, words_, details)
 
 
 # ---- input shapes (the body is checked here, field by field, so a refusal names the field and the fix) ---------------
@@ -124,7 +128,9 @@ def indicators_of(value, most=None):
         raise invalid('indicators', 'Indicators are keys from the indicator list, e.g. rsi.')
     out = list(dict.fromkeys(value))
     most = INDICATORS if most is None else most
-    if not 1 <= len(out) <= most:
+    if not out:
+        raise invalid('indicators', f'Choose 1 to {most} indicators: this has none.')
+    if len(out) > most:
         raise over('indicators', most, len(out), f'Choose 1 to {most} indicators: this has {len(out)}.')
     return out
 

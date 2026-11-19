@@ -11,13 +11,15 @@ export interface Layout extends LayoutMeta { state: Record<string, string> }
 
 import { accessText, edge, isAccessRefusal, readError, SessionError, type EdgeError } from '../../../shared/edge-session';
 
-/* access: a refusal of the account's plan, role or limits (the shared module's isAccessRefusal), never an outage: a
-   caller with an offline path keeps nothing for it (re-check R1-19) */
+/* access: the plan (or the second factor) does not let this account use the feature (the shared module's kinds
+   'upgrade' and 'mfa'), never an outage: a caller with an offline path keeps nothing for it (re-check R1-19). A cap
+   reached (LIMIT_REACHED, kind 'limit') is not one: the feature stays, one item more is refused. */
 export class LayoutApiError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: any, public access = false) { super(message) }
 }
 
 const LATER = 'Try again in a minute; your chart is unchanged.';
+const locks = (info: EdgeError) => info.kind === 'upgrade' || info.kind === 'mfa';
 /* EXEC-MU-ACCOUNTS Phase 0 (M471): the session, CSRF and the error contract are the shared module's
    (apps/edge-bff/shared/edge-session.ts): only a 403 CSRF_INVALID reads the session again and repeats the write once; a
    plan refusal (CAPABILITY_REQUIRED, PLAN_EXPIRED, LIMIT_REACHED, MFA_REQUIRED) is shown as its message and keeps the
@@ -26,7 +28,7 @@ const token = () => edge.session().then(s => s.csrf, (e: any) => Promise.reject(
   ? new LayoutApiError(e.error.status, e.error.kind === 'signin' ? 'SESSION' : e.error.code,
       e.error.kind === 'signin' ? 'Your EDGE sign-in has ended: sign in to EDGE again, then reload this page.'
         : accessText(e.error) || `Saved layouts are not available right now (EDGE answered ${e.error.status}). ${LATER}`,
-      e.error.details, isAccessRefusal(e.error))
+      e.error.details, locks(e.error))
   : new LayoutApiError(0, 'NETWORK', `Saved layouts could not be reached: check the connection. ${LATER}`)));
 
 /** the plain sentence for a refusal without its own message (or with one meant for developers); `what` names the saved
@@ -55,7 +57,7 @@ export const savedClient = (BASE: string, what: string) => {
   if (!res.ok) {
     const info = readError(res.status, data, res.headers.get('Retry-After')), e = data?.error || {};
     throw new LayoutApiError(res.status, e.code || (info.legacy ? info.code : String(res.status)), sentence(res.status, e, what, info), e.details,
-      isAccessRefusal(info));
+      locks(info));
   }
   return data as T;
   };

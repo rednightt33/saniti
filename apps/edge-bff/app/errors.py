@@ -135,9 +135,10 @@ def named_in(details):
 
 
 def is_plan_limit(limit):
-    """Whether a LIMIT_REACHED's details.limit is a plan limit: a capability of the catalog (else a throttle that no
-    plan decides, such as the email-code and authenticator-code tries)."""
-    return isinstance(limit, str) and limit in _names
+    """Whether a LIMIT_REACHED's details.limit is a plan limit: a capability key (<tab>.<name>, the catalog's form;
+    its name when the catalog is loaded), else a throttle that no plan decides, such as the email-code and
+    authenticator-code tries ('code_tries', 'mfa_tries')."""
+    return isinstance(limit, str) and (limit in _names or '.' in limit)
 
 
 def words(code, status, details=None):
@@ -168,12 +169,23 @@ def words(code, status, details=None):
             count = f' ({allowed})' if isinstance(allowed, int) and not isinstance(allowed, bool) else ''
             then = (f'Try again in {wait}, or upgrade the plan.' if wait
                     else 'Remove one you no longer need, or upgrade the plan.')
-            return f"You have reached your plan's limit for {_names[limit]}{count}. {then}"
+            what = f' for {_names[limit]}' if limit in _names else ''
+            return f"You have reached your plan's limit{what}{count}. {then}"
         return f'Too many attempts. Wait {wait or "a while"}, then try again.'
     elif code == 'MFA_REQUIRED' and d.get('mfa_enrolled') is False:
         return ('This needs two-step sign-in, which is not set up for this account yet. Set up an authenticator app '
                 'when EDGE asks for it, then try again.')
     return message_of(code, status)
+
+
+def plan_cap(capability, allowed, needed):
+    """Re-check R2-39 (CONTRACT.md section 3): a saved-item cap of the plan (layouts, presets, places with drawings,
+    saved screens and metrics, watchlists and their tickers and indicators) reached. One code for every plan limit,
+    LIMIT_REACHED, with details.limit the capability key, allowed the account's own number and needed what the request
+    would make; 403, since waiting frees nothing (removing one or a larger plan does; the queue of backtests, which frees
+    itself, answers 429 with Retry-After). (code, status, message, details) for a module's failure()."""
+    details = {'limit': capability, 'allowed': allowed, 'needed': needed}
+    return 'LIMIT_REACHED', 403, words('LIMIT_REACHED', 403, details), details
 
 
 def refusal(status, code, details=None, headers=None):

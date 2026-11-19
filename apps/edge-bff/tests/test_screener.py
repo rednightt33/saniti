@@ -934,8 +934,9 @@ def test_saved_items_limits(app, worker, monkeypatch):
     monkeypatch.setattr(screener, 'SCREEN_LIMIT', 2)
     assert [put(c, k, screen_item(f's{k}')).status_code for k in (1, 2)] == [200, 200]
     over = put(c, 3, screen_item('s3'))
-    assert over.status_code == 422 and over.json() == error('LIMIT_EXCEEDED', message='At most 2 saved screens: delete one before saving another.',
-                                                             details={'limit': 'saved_items', 'allowed': 2, 'needed': 3})
+    # re-check R2-39: a plan cap is 403 LIMIT_REACHED naming its capability key, in the plan's words
+    assert over.status_code == 403 and over.json() == error('LIMIT_REACHED', message="You have reached your plan's limit for Saved screens (2). Remove one you no longer need, or upgrade the plan.",
+                                                             details={'limit': 'screener.saved_items', 'allowed': 2, 'needed': 3})
     assert put(c, 1, screen_item('s1b', revision=1)).status_code == 200      # a replace is no new item
     assert put(c, 4, metric_item('m1')).status_code == 200                   # the limit is per kind
     calls = len(worker.called('/v1/validate'))
@@ -1056,9 +1057,9 @@ def test_watchlist_add_list_remove_and_its_limit(app, worker, monkeypatch):
         assert c.delete(f'/api/v1/screener/watchlist/{bad}', headers=h).status_code == 422
     monkeypatch.setattr(screener, 'WATCHLIST_LIMIT', 2)
     over = c.put('/api/v1/screener/watchlist/BMRI', headers=h)
-    assert over.status_code == 422 and over.json() == error(
-        'LIMIT_EXCEEDED', 'ticker', 'At most 2 tickers in the watchlist: remove one before adding another.',
-        {'limit': 'watchlist', 'allowed': 2, 'needed': 3})
+    assert over.status_code == 403 and over.json() == error(                 # re-check R2-39
+        'LIMIT_REACHED', 'ticker', "You have reached your plan's limit for Tickers per watchlist (2). Remove one you no longer need, or upgrade the plan.",
+        {'limit': 'watchlist.per_list', 'allowed': 2, 'needed': 3})
     assert c.put('/api/v1/screener/watchlist/TLKM', headers=h).status_code == 204     # a watched one: no new row
     assert [c.delete('/api/v1/screener/watchlist/TLKM', headers=h).status_code for _ in range(2)] == [204, 204]
     assert [x['ticker'] for x in c.get('/api/v1/screener/watchlist').json()['tickers']] == ['BBCA']

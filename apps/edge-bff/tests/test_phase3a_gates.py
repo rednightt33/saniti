@@ -264,41 +264,43 @@ def test_a_lowered_limit_is_refused_at_that_limit_and_reported(on, store):
         h = sign_in(c, 'alice', 'alice-password')
 
         def refused(r, limit, allowed=1, needed=2):
-            assert r.status_code == 422, r.text
+            # re-check R2-39 (CONTRACT.md section 3): one code for every plan limit, LIMIT_REACHED naming the capability
+            # key; 403 for a cap (waiting frees nothing)
+            assert r.status_code == 403, r.text
             error = r.json()['error']
-            assert error['code'] == 'LIMIT_EXCEEDED' and error['details'] == {'limit': limit, 'allowed': allowed, 'needed': needed}, error
+            assert error['code'] == 'LIMIT_REACHED' and error['details'] == {'limit': limit, 'allowed': allowed, 'needed': needed}, error
             return error
 
         # layouts
         assert c.put(f'{LAY}/lay_{"1" * 32}', headers=h, json={'name': 'A', 'state': {'ml.tf': 'D'}}).status_code == 201
-        assert 'At most 1 layouts' in refused(c.put(f'{LAY}/lay_{"2" * 32}', headers=h, json={'name': 'B', 'state': {}}), 'layouts')['message']
+        assert "plan's limit for Saved layouts (1)" in refused(c.put(f'{LAY}/lay_{"2" * 32}', headers=h, json={'name': 'B', 'state': {}}), 'terminal.layouts_max')['message']
         assert c.get(LAY).json()['limit'] == 1
         # a replace is no new item: never refused by the cap
         assert c.put(f'{LAY}/lay_{"1" * 32}', headers=h, json={'name': 'A2', 'state': {}, 'revision': 1}).status_code == 200
         # presets
         assert c.put(f'{PRE}/ipr_{"1" * 32}', headers=h, json={'name': 'P', 'def_id': 'FL03', 'config': PRESET_CONFIG}).status_code == 201
-        refused(c.put(f'{PRE}/ipr_{"2" * 32}', headers=h, json={'name': 'Q', 'def_id': 'FL03', 'config': PRESET_CONFIG}), 'presets')
+        refused(c.put(f'{PRE}/ipr_{"2" * 32}', headers=h, json={'name': 'Q', 'def_id': 'FL03', 'config': PRESET_CONFIG}), 'terminal.presets_max')
         assert c.get(PRE).json()['limit'] == 1
         # drawings
         line = {'id': 'd1', 'kind': 'trend-line', 'points': [{'time': '2026-10-01', 'price': 58.6}, {'time': '2026-11-03', 'price': 61.2}]}
         assert c.put(f'{DRW}/BBRI/chart', headers=h, json={'drawings': [line]}).status_code == 201
-        refused(c.put(f'{DRW}/BBCA/chart', headers=h, json={'drawings': [line]}), 'sets')
+        refused(c.put(f'{DRW}/BBCA/chart', headers=h, json={'drawings': [line]}), 'terminal.drawings_max')
         assert c.get(DRW, params={'ticker': 'BBRI'}).json()['limits']['sets'] == 1
         # screener saved items, and the star (watchlist.per_list)
         assert c.put(f'{SC}/items/{item_id(1)}', headers=h, json=screen_item()).status_code == 200
-        refused(c.put(f'{SC}/items/{item_id(2)}', headers=h, json=screen_item(name='Second')), 'saved_items')
+        refused(c.put(f'{SC}/items/{item_id(2)}', headers=h, json=screen_item(name='Second')), 'screener.saved_items')
         assert c.put(f'{SC}/watchlist/BBCA', headers=h).status_code == 204
-        refused(c.put(f'{SC}/watchlist/BBRI', headers=h), 'watchlist')
+        refused(c.put(f'{SC}/watchlist/BBRI', headers=h), 'watchlist.per_list')
         published = {x['name']: x['value'] for x in c.get(f'{SC}/catalog').json()['limits']}
         assert (published['saved_items'], published['watchlist']) == (1, 1)
         # the watchlist lists (the star made the first list)
         listed = c.get(f'{WL}/lists').json()
         assert {x['name']: x['value'] for x in listed['limits']} == {'lists': 1, 'tickers': 1, 'indicators': 1,
                                                                     'name': watchlist.NAME_CHARS}
-        refused(c.post(f'{WL}/lists', headers=h, json={'name': 'Second'}), 'lists')
+        refused(c.post(f'{WL}/lists', headers=h, json={'name': 'Second'}), 'watchlist.lists')
         first = listed['lists'][0]['id']
-        refused(c.post(f'{WL}/lists/{first}/tickers', headers=h, json={'tickers': ['BBRI']}), 'tickers')
-        refused(c.patch(f'{WL}/lists/{first}', headers=h, json={'indicators': ['rsi', 'fn5']}), 'indicators')
+        refused(c.post(f'{WL}/lists/{first}/tickers', headers=h, json={'tickers': ['BBRI']}), 'watchlist.per_list')
+        refused(c.patch(f'{WL}/lists/{first}', headers=h, json={'indicators': ['rsi', 'fn5']}), 'watchlist.indicators')
         # an override above HARD stays at HARD (the storage guarantee)
         override(store, alice['user_id'], 'terminal.layouts_max', '100000')
         assert c.get(LAY).json()['limit'] == layouts.LAYOUT_LIMIT

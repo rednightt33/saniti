@@ -6,7 +6,7 @@ baru** ("selight as possible yang mana tidak perlu ada calculation lagi"). Karen
 yang **sudah tersimpan** di database, dibaca apa adanya. Satu-satunya hitungan adalah jarak harga ke EMA (satu pembagian
 di baris yang sama).
 
-<!-- explained-for: watchlist.py=6c3c265a21043c67e62c9874538e17b3, app/watchlist.py=7050aef2b07a6edc0d08beca1902d45b -->
+<!-- explained-for: watchlist.py=6c3c265a21043c67e62c9874538e17b3, app/watchlist.py=c7759c02b0c8f7efcc22cd478f01dcd1 -->
 
 ## 1. Dari mana angkanya datang
 
@@ -90,8 +90,11 @@ dan halaman menampilkan angka milik akun itu sendiri. Contoh: akun dengan batas 
 ke-11; akun dengan batas 30 tetap berhenti di 20. Saklar multi-user masih mati, jadi akun pemilik memakai angka tabel.
 Bintang di Screener memakai list pertama (keputusan 2A) dan ikut perlu `watchlist.view`. Bila akun belum punya list,
 bintang hanya membuat list pertama selama batas list akun itu minimal 1. Batasnya (tabel di bawah) dijaga server. Setiap penolakan
-menyebut batas mana yang tercapai dan cara memperbaikinya, misalnya "At most 50 stocks in one list: it has 50, these
-would make 52. Remove some or use another list." Undo hapus list memakai isi list menurut server saat dihapus, dan
+menyebut batas mana yang tercapai dan cara memperbaikinya. Sejak fix round re-check R2-39, batas list, saham per list dan
+indikator per list adalah batas paket: server menjawab 403 `LIMIT_REACHED` dengan nama hak paketnya (misalnya
+`watchlist.per_list`), angka milik akun dan angka yang diminta, dan kalimatnya, misalnya "You have reached your plan's
+limit for Tickers per watchlist (50). Remove one you no longer need, or upgrade the plan." Memilih nol indikator bukan
+batas paket: itu isian yang tidak sah (422 `INVALID_INPUT`). Undo hapus list memakai isi list menurut server saat dihapus, dan
 mengembalikannya ke posisi semula. Nilai yang tampil sebagai nol (mis. "0.0%", "Rp 0") tidak diberi warna.
 
 <!-- watchlist-live:start -->
@@ -134,6 +137,6 @@ Ditulis oleh `scripts/watchlist_formulas_doc.py --write` dari kode di repo; jang
 | Kode | Sidik jari (md5) |
 |---|---|
 | `watchlist.py` | `6c3c265a21043c67e62c9874538e17b3` |
-| `app/watchlist.py` | `7050aef2b07a6edc0d08beca1902d45b` |
+| `app/watchlist.py` | `c7759c02b0c8f7efcc22cd478f01dcd1` |
 
 <!-- watchlist-live:end -->
