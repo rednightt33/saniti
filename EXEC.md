@@ -16028,6 +16028,18 @@ dipakai accross chat sebagai referencec?"
   6. R2-27, account deletion: "ok rekomendasi" (email_suppression keeps the address and reason only; Phase 5 payment
      records kept pseudonymised for the legal period).
   7. R2-41 item 9, an admin "resend code" for a registration on another browser: "ok" (the person registers again).
+- **Integration (2026-11-19):** the five fix branches merged (fix-int), then two builders built the decisions above
+  (dec-small: outbox 30 days, MFA step-up within 10 minutes, public_data on the relay (M260), Screener conditions on
+  the always-shown attributes, Inter served by EDGE; dec-guest: the whole ticker list for the free plan and guests with
+  sign-in and upgrade boxes, the guest plan in the catalog, the pre-launch mode with test accounts), then merged again
+  (fix-int2) with the ERRORS entries of the re-check. Merged onto the session branch (`5d563cfa`); not deployed. Suites
+  on fix-int2: edge-bff 921 passed and 2 failed (both pass alone: test_ask_branch load timing and the known flaky
+  composer test), terminal-api 170, backtest-worker 277, screener-worker 131, market-ai-orc 2204, page vitests green.
+  - Design value taken by the main agent: after a password rehash on the live site, user #1 counts as having its own
+    password, so the beta's start no longer copies EDGE_PASSWORD_VERIFIER over it (the R2-2 rule).
+  - Open for the user (asked 2026-11-19): the Railway client-address probe before guests open; an overall hourly
+    ceiling for all guests; bonds and logos in the free and guest search; the readings of the live mask (the whole
+    Monitor tab and the point-in-time Flow hidden on live, housekeeping only on live).
   2. Email outbox rows: "a" (deleted after 30 days, with used codes and webhook events).
   3. "Forgot password" pressed by someone else: "a" (kept as it is: each new code replaces the previous one; the
      address's 10 emails a day stay shared).
