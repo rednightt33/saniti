@@ -305,7 +305,13 @@ def test_a_purge_another_instance_runs_is_skipped_and_every_purge_is_bounded(sto
         assert store.purge('sessions', 3) is None                                    # the other website purges now
         other.execute("SELECT pg_advisory_unlock(hashtextextended('housekeeping:sessions', 0))")
     assert [store.purge('sessions', 3) for _ in range(4)] == [3, 3, 1, 0]
-    assert set(PURGES) == {'sessions', 'throttle', 'pending'}
+    # fix-round integration: the auth track's outbox purge (ERRORS R2-24, migration 20261119_012) is the fourth entry,
+    # as this track's notes foresaw ("any new purge is one entry in store.PURGES"), and is held to the same bound
+    assert set(PURGES) == {'sessions', 'throttle', 'pending', 'outbox'}
+    db(store, "INSERT INTO edge_bff.email_outbox(idempotency_key, purpose, to_email, status, sent_at, created_at) "
+              "SELECT 'k' || g, 'register', 'gone' || g || '@example.com', 'sent', now() - interval '2 days', "
+              "now() - interval '2 days' FROM generate_series(1, 7) g")
+    assert [store.purge('outbox', 3) for _ in range(4)] == [3, 3, 1, 0]
 
 
 # ---- the start-up ----------------------------------------------------------------------------------------------------
