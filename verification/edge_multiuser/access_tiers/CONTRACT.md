@@ -7,7 +7,8 @@ Evidence: `FINDINGS.md` (this folder) and the delta inspection of the new tabs (
 Brought to the code and the decisions on 2026-11-19 (fix round of the ultracode re-check, records track): the user's
 decisions of 2026-11-19 (EXEC.md EXEC-MU-ACCOUNTS, "Production environment" and "Decisions from the fix round"), the
 beta/live architecture (section 17), the fixes of the five fix-round tracks (branches `fix-auth`, `fix-site`,
-`fix-plans`, `fix-terminal`, `fix-records`, integrated by the main agent) and the clauses the re-check found the code no
+`fix-plans`, `fix-terminal`, `fix-records`, integrated by the main agent; then `dec-small` and `dec-guest`, the user's
+decisions after the fix round, integrated on `fix-int2`) and the clauses the re-check found the code no
 longer follows (R1-6, R2-41). Marks used from here on:
 - **Built** (deployed, or on the named branch and not deployed);
 - **To build (3c / 3e / Phase 4 ...)**: decided, not yet in code;
@@ -57,7 +58,8 @@ Every new refusal follows AGENTS.md "Gates and evidence":
 | `email_suppression` | `email`, `reason` (`bounce`/`complaint`), `at` | Filled by the signed Resend webhook. Never purged, and kept when an account is deleted: the address and the reason only (R2-27, the user's "ok rekomendasi", 2026-11-19; section 10) |
 | `email_hook_events` | `svix_id` PK, `event_type`, `received_at` (20261117_001) | Each signed delivery once (a repeated svix-id changes nothing); deleted 30 days after it was received by `edge_bff.purge_email_hook_events(max_rows)` (SECURITY DEFINER; the runtime holds SELECT and INSERT only; decision 2 of 2026-11-19, "a"; built, track decisions, migration `20261119_012`) |
 | `admin_audit` | `audit_id`, `actor_user_id`, `action`, `target_user_id`, `before jsonb`, `after jsonb`, `reason`, `ip_hash`, `at` | Written in the same transaction as the change; no UPDATE or DELETE grant. `actor_user_id` and `target_user_id` are plain numbers, no foreign key: a deleted account's audit rows keep its id (pseudonymous, never rewritten). Rule for every audit or provenance column that names a user (`user_capability_overrides.created_by_user_id` too): no `ON DELETE SET NULL` or `CASCADE` (20261119_040; built, `fix-records`, R1-42) |
-| Phase 2: `plans` | `plan_key PK`, `display_name`, `is_default bool` | Seed: `admin`, `paid`, `free` (data, not code); a `guest` plan is added for visitors who are not signed in (section 9; **to build, 3c**) |
+| Phase 2: `plans` | `plan_key PK`, `display_name`, `is_default bool`; `for_guests bool` (20261119_070) | Seed: `admin`, `paid`, `free` (data, not code); the `guest` plan for visitors who are not signed in (`for_guests` true: at most one such plan, `plans_one_guest`, and never the default, `plans_guest_not_default`; section 9; built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed)) |
+| `users.test_account` | `bool`, default false (20261119_070) | The mark of an account that may sign in on the live site in pre-launch mode (section 17); set and cleared only by `scripts/edge_test_account.py` (a job, `scripts/onboarding/edge_test_account_job.py`), each change with its `admin_audit` row, held by two deferred constraint triggers (`edge_bff.test_account_audited()`, no EXECUTE for PUBLIC); built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed) |
 | Phase 2: `capabilities` | `capability_key PK`, `kind` (`flag`/`limit`/`list`/`items`), `unit`, `means`, `display_name`; `value_min`, `value_max`, `item_pattern` (20261119_050); `data_scope` (20261119_030) | A value domain per capability, checked when a value is written (section 8a; built, `fix-terminal`, R1-22); the data-scope marks of the restricted-plan rule (section 8a; built, `fix-plans`, R1-36) |
 | Phase 2: `plan_capabilities` | `plan_key`, `capability_key`, `value jsonb`, `version int`, `updated_at` | PK (`plan_key`, `capability_key`). A change of the value raises `version` by one and sets `updated_at` (trigger `plan_capabilities_trace`, 20261119_040; built, `fix-records`, R1-43) |
 | Phase 2: `user_capability_overrides` | `user_id`, `capability_key`, `value jsonb`, `reason`, `expires_at`, `created_at`, `created_by_user_id`, `updated_at` (20261119_040) | Admin-set, audited: a change of value, reason or end sets `updated_at`; who changed it is the Phase 4 `admin_audit` row of the same transaction |
@@ -91,7 +93,19 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
   - On the live site every principal is masked to what the live site offers (section 17: no Monitor, no admin pages, no
     lab item, `*` included); built, `fix-site`.
   - A visitor without a session on the live site resolves to the guest principal: the `guest` plan's grants, for the
-    Terminal routes it opens (section 9; **to build, 3c**). Every other route keeps answering 401 without a session.
+    Terminal routes it opens (section 9; built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed)). Every other route keeps answering 401 without a session.
+    - Only routes that ask for it admit a visitor: `auth.need(capability, guests=True)` and `auth.visitor`
+      (`GET|POST /api/terminal/v1/{path}`, `GET /api/v1/catalog/{kind}`, `GET /api/v1/auth/guest`); the route walk
+      (`tests/test_route_table.py` `GUEST_OPEN`) names them with their reason and fails on any other.
+    - The guest plan is read on every guest request like every plan (`accounts.guest_plan`, `principal.guest_principal`),
+      so a change of its rows applies on the next request; a visitor never holds `*`, `admin.access`, an admin right or
+      a beta-only key (dropped and logged `guest_capability_dropped`), and never a lab item.
+    - Who is a visitor: a request whose session cookie resolves to no session; a guest writes without CSRF (no session a
+      cross-site page could ride; the Origin check of every write holds). Its owner key at terminal-api is `edge-guest`
+      (`accounts.GUEST_OWNER`, never issued, refused for `EDGE_OWNER` and `EDGE_ADMIN_OWNERS`).
+    - Its client address is the right-most `X-Forwarded-For` hop that parses as an address (`principal.client_of`);
+      without one there is no guest (401). The socket peer counts only with `EDGE_ENVIRONMENT=local`. Open: the
+      client-address probe of section 4 before guests are offered on live.
 - **`last_seen_at`** is updated at most once per 60 s per session.
 - **Dependencies** (in a new `app/principal.py`, used by every router):
   - `principal` replaces `session`;
@@ -120,6 +134,8 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 | 403 | `MFA_REQUIRED` | ask for the code |
 | 403 | `ORIGIN_REJECTED` | unchanged |
 | 403 | `LIMIT_REACHED` (`details.limit`, `allowed`, `needed`) | a saved-item cap (waiting frees nothing): remove one or upgrade |
+| 403 | `REGISTRATION_CLOSED` | the live site in pre-launch mode: registration opens soon (section 17; built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed)) |
+| 403 | `SIGN_IN_CLOSED` | the live site in pre-launch mode: only the admin and test accounts sign in (section 17; built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed)) |
 | 404 | `NOT_FOUND` | another user's item, so nothing reveals that it exists; on the live site also every beta-only route (section 17) |
 | 429 | `LIMIT_REACHED` (`details.limit`, `retry_after_s`) | show the limit message and the wait |
 | 429 | `SIGN_IN_RATE_LIMIT` (`details.retry_after_s`) | show the wait message (its words name the wait) |
@@ -165,7 +181,8 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 | `POST /api/v1/auth/sign-out-all` | — | every session of the user |
 | `POST /api/v1/auth/mfa/enroll` | — | `otpauth://` URI plus 10 recovery codes, shown once; admin only. Beside a confirmed authenticator only a session that passed MFA may start a new one, which waits until a code of it proves it (built, `fix-auth`, R1-7); that MFA pass must be within the last 10 minutes (the main agent's design value, told to the user 2026-11-19; built, track decisions: else 403 `MFA_REQUIRED` with `details.recent_s` 600, "Admin MFA" below) |
 | `POST /api/v1/auth/mfa/verify` | `code` or `recovery_code` | sets `mfa_passed_at` |
-| `GET /api/v1/auth/config` | — | public, no session: `{"multiuser": bool}`. The sign-in page shows "Create account" and "Forgot password?" only when true (added 2026-11-16 for the page builder) |
+| `GET /api/v1/auth/config` | — | public, no session: `{"multiuser": bool}`. The sign-in page shows "Create account" and "Forgot password?" only when true (added 2026-11-16 for the page builder). With the switch on also `registration` (false in pre-launch mode), `prelaunch`, `guests` and `upgrade_contact` (null when not set) (built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed)) |
+| `GET /api/v1/auth/guest` | — | the visitor's access: with no session, the guest plan's access in the session answer's shape with `visitor` true (no login, owner key or CSRF token); a signed-in principal gets its own session answer with `visitor` false; 401 where guests are off or the client address cannot be read (built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed)) |
 | `GET /api/v1/auth/session` | — | today's keys unchanged (`authenticated`, `login`, `csrf_token`, `capabilities` = configuration flags) plus `username`, a top-level `owner_key` (the same as `access.owner_key`, M481) and `access: {plan, role, status, expires_at, expired_plan, mfa_ok, capabilities:[…], limits:{…}, version, owner_key, mfa_enrolled, seed, next: null/"verify"/"mfa"/"pay"}`; `access.limits` reports the numbers the routes apply, min(plan, HARD) (built, `fix-plans`, R1-29); `seed` is true only for user #1 (the switch-off principal or the seed row): a browser with no last-login mark keeps its state only for it (section 12) |
 
 **Registration rules:**
@@ -173,7 +190,9 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
   exists" (the user's words were "akun sudah ada, gunakan Lupa Password"; English per EXEC-UI-1019B,
   `app/email_texts.py`).
 - On the live site in pre-launch mode registration is closed, with a plain refusal on the page (decision 2026-11-19
-  "Terbuka, tapi belum bisa mendaftar"; section 17; **to build**).
+  "Terbuka, tapi belum bisa mendaftar"; section 17; built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed)): `register`, `register/verify` and a
+  `code/resend` for `register` answer 403 `REGISTRATION_CLOSED`, the same for every address; the reset stays open (the
+  test accounts set their passwords with it).
 - Username taken: the conflict is decided at verify time. The pending registration with a taken username gets
   `USERNAME_TAKEN` only after the email code is proved (the code owner may choose another).
 - Password:
@@ -570,16 +589,17 @@ catalog-only change reaches the browser through `X-Edge-Entitlements`.
    The free plan sees and searches the whole ticker list; a ticker other than its own opens a box: sign in when not
    signed in, upgrade when signed in. Data stays limited to the plan's tickers. This replaces the 3c reading of D3 that
    served the free plan reference lists naming BBCA only (`fix-terminal` R2-32 option a, `apps/terminal-api/app/
-   refcut.py`): the ticker list the search reads is served whole to every plan (**to build, 3c**); the files that carry
-   data per ticker keep the plan's filter.
+   refcut.py`): the ticker list the search reads is served whole to every plan (built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed): which lists are
+   names only is derived from each file's columns, `refcut.names_only`); the files that carry data per ticker keep the
+   plan's filter.
    - Visitors not signed in ("1a - bukan hanya chart, nanti ada indikator dll yg juga mungkin di show ke user. jadi
      design harus plug and play dan fluid, karna ticker dan indikatornya bisa berubah"): a visitor without an account
      opens the Terminal and sees what a guest is given (today BBCA's chart; later indicators and more); every other
      ticker or item opens the sign-in box. What a guest and the free plan see is data in the plan catalog (a `guest`
      plan beside `free` and `paid`: its tickers, datasets, indicators, history days), changed without code; a new
-     ticker or indicator needs no code change. **To build:** 3c (the guest principal, the reference lists, limits per
-     client address for guests, which need the client-address probe of section 4 first) and 3e (the sign-in and upgrade
-     boxes).
+     ticker or indicator needs no code change. Built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed): the guest principal (section 2), the
+     reference lists, the limits per visitor (`x-terminal-client`, below), the sign-in and upgrade boxes (section 12).
+     Open: the client-address probe of section 4 before guests are offered on live.
    - The restricted-plan rule ("2a"): section 8a; built, `fix-plans`.
 2. Email outbox rows: "a" (deleted after 30 days, with used codes and webhook events): sections 1 and 5; built, track
    decisions (migration `20261119_012` and `store.PURGES`).
@@ -826,6 +846,13 @@ today.
       a value above terminal-api's bound is sent as the bound (built, `fix-terminal`, R1-22).
     - `quota`: only the Terminal quota limits the plan sets (below).
   - A request from the page that carries either header is refused before terminal-api (never relayed, never trusted).
+  - `x-terminal-client` (guests only; built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed), migration `20261119_170`): 32 lower-case hex of an HMAC of
+    the visitor's address under `EDGE_SESSION_SECRET` with its own label, never the address. Beside the owner headers of
+    an owner that does not hold `*`, terminal-api counts that owner's quotas, waits and audit rows
+    (`terminal.access_log.client_key`) per visitor; without it the owner's row counts as a whole (stricter). terminal-api
+    refuses it without owner headers, with an admin owner, with a service key or a cookie, or in another shape (400
+    naming the header). The page can never send it. The guest plan sets no Terminal quota, so each visitor gets
+    terminal-api's `terminal.quota` defaults.
   - terminal-api leaves out (and logs) a dataset id it does not know, instead of refusing every call (R2-5); unknown
     fields, quota names and `v` are still refused.
   - **Acknowledgement** (built, `fix-terminal`, R2-4): terminal-api answers every owner call, refusals included, with
@@ -861,8 +888,9 @@ today.
     own copy of each reference file (`apps/terminal-api/app/refcut.py`: a `ticker` column keeps the plan's tickers;
     the broker list keeps every row only with `broker`; any other file has no rows), announced in the shape of a cut and
     relayed by edge-bff byte for byte; a file that cannot be filtered is 503 `reference_unavailable`, never served
-    whole. **Changed by decision 1 of 2026-11-19 (to build, 3c):** the ticker list the search reads is served whole to
-    every plan and to the guest (they see and search every ticker; a ticker outside the plan opens the sign-in or
+    whole. **Changed by decision 1 of 2026-11-19 (built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed)):** the ticker list the search reads is served
+    whole to every plan and to the guest (a ticker-keyed file is names only when every other column holds text or null,
+    no column is named after a dataset and none holds only digests; today the ticker list alone) (they see and search every ticker; a ticker outside the plan opens the sign-in or
     upgrade box, 3e); the other reference files keep the plan's filter.
   - `/xsection`: refuses the gateway key once an owner header is sent; only the screener-worker's service key reads it.
 - **What the Terminal data limits bind** (R1-31, R1-36): `terminal.tickers`, `terminal.dataset` and
@@ -996,7 +1024,7 @@ today.
 **Tests per stage** (with the code; checkers C1-C3 per stage as in Phases 1 and 2):
 - a free principal is refused on every route and on every second path to the same content:
   - Terminal: `/files`, `/bundle` with `packs:false`, `/history` and the manifest of another ticker; it gets the
-    reference files as the plan's own copies (built), and after decision 1 the whole ticker list (to build);
+    reference files as the plan's own copies (built), and after decision 1 the whole ticker list (built, track guest);
   - Backtest: a lab item in a stop line, a switched-off condition or a queued job;
   - Screener: an extra column, My metrics, `/counts`, a preset or a saved screen;
   - pages: a shared cache filled by an admin first;
@@ -1012,13 +1040,17 @@ today.
   - two indicator capabilities (ids chosen by the user later; seed none).
   - No add-indicator, drawing, layout, compare or asset capability.
   - The whole ticker list for search (decision 1 of 2026-11-19); a ticker other than BBCA opens the upgrade box
-    (3e). Data stays BBCA's (**to build, 3c/3e**).
+    (3e). Data stays BBCA's (built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed)).
   - The Terminal quota numbers are the paid plan's (the 3c assumption, EXEC.md; the user may change them in the
     Phase 4 dashboard).
-- **Guest** (a visitor who is not signed in, decision 1 of 2026-11-19, "1a"; **to build, 3c/3e**): a `guest` plan in the
+- **Guest** (a visitor who is not signed in, decision 1 of 2026-11-19, "1a"; built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed); migration
+  `20261119_070` not applied): a `guest` plan in the
   catalog beside `free` and `paid` holds what a guest sees (today BBCA's chart; its tickers, datasets, indicators and
   history days are data, so a new ticker or indicator needs no code). Every other ticker or item opens the sign-in box.
-  Its limits are kept per client address. The restricted-plan rule of 8a applies to it as to any plan.
+  Its limits are kept per visitor (`x-terminal-client`, section 8b). The restricted-plan rule of 8a applies to it as to
+  any plan (the migration's `$verify$` runs `data_scope_conflicts('guest', NULL)`). Seed: `terminal.view`,
+  `terminal.tickers` `["BBCA"]`, `terminal.dataset` `{"ids": ["price"]}`, `terminal.history_days` 730,
+  `terminal.indicator` `{"ids": []}`; no quota row.
 - **Other tabs:** `<tab>.example` only.
   - The page shows its example: a cut of real data from one past date, served only to a signed-in principal holding
     `<tab>.example`, never in a public bundle (decision D4, which replaces the "static example ... no live data" of the
@@ -1117,7 +1149,9 @@ today.
   - The shell runs no inline script: `static/edge-boot.js` and `static/edge-app.js` (built, `fix-plans`, R2-19).
   - The sign-in box (the guest) and the upgrade box (a signed-in plan) of decision 1 of 2026-11-19, and the plain
     pre-launch refusals of the live site (closed registration, sign-in for the admin and test accounts only; section
-    17) are words in `edge-labels.js` (**to build, 3e and the live site**).
+    17) are words in `edge-labels.js` (built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed): the shell's `LockedDialog`, the Terminal's locks on
+    tickers and indicators, the closed register page; the upgrade box names `EDGE_UPGRADE_CONTACT`, or says the contact
+    comes soon).
 - **Locked items** show a lock or a static teaser and the upgrade prompt; never data.
 
 ## 13. Acceptance tests (each phase adds its own; all run in CI)
@@ -1270,6 +1304,9 @@ hand.
   Railway references to edge-bff's (`${{edge-bff.NAME}}`), so one rotation reaches both sites; each start line
   (`startup_done`) shows a mark of each shared secret, so two services' lines tell whether they hold the same values
   (R2-8). The service is declared as a comment block in `.railway/railway.ts` until it is created (with the user's go).
+- edge-bff and edge-bff-live (track guest, built in code): `EDGE_GUESTS` (true/false; unset: on for the live site, off
+  for the beta; `true` with the switch off stops the start), `EDGE_PRELAUNCH` (unset: on for the live site),
+  `EDGE_UPGRADE_CONTACT` (the upgrade box's contact; D7 = A, filled before the launch).
 - market-ai-orc and orc-test-runner: `MARKET_AI_ORC_TEST_KEY` (test-runner switches to it). orc-test-runner keeps
   `MARKET_AI_ORC_API_KEY` by the user's choice (section 7, R1-2, 2026-11-19).
 - terminal-api: public domain removed (after the check). Its gateway key (`TERMINAL_PROXY_KEY` of edge-bff) is held by
@@ -1305,8 +1342,10 @@ and "4 keputusan tambahan kamu jangan dimasukin" (no guardrail work beyond what 
   login (saya)"; then "A" for trying the plans): the live website can be opened by anyone; registration is closed with a
   plain refusal on the page; only the admin and accounts marked as test accounts (made by the main agent for the user's
   own addresses, who set their passwords through "Forgot password", which needs Resend) may sign in; every other account
-  is refused until the launch, in plain words. **To build** (a setting of the live site and a test-account mark; none
-  exists yet). The website code goes on edge-bff-live only after the fix round's security fixes, 3c deployed and Resend
+  is refused until the launch, in plain words. Built, track guest (`dec-guest`, integrated on `fix-int2`; not deployed): `EDGE_PRELAUNCH` (section 16),
+  `users.test_account` (section 1), 403 `REGISTRATION_CLOSED` and `SIGN_IN_CLOSED` (section 3); the admin is read from
+  the catalog (`*` or `admin.access`, as the second factor is decided), and every other account is refused after its
+  password was checked like any other, with no session made. The website code goes on edge-bff-live only after the fix round's security fixes, 3c deployed and Resend
   ready ("Ok kita tunggu 1-3").
 - **Two sites on one database** (built, `fix-site`): the AI and backtest queues carry their site (`jobs.site`,
   `backtest_jobs.site`) and each site claims, reaps and prunes only its own; the AI loop runs only on the beta; the
