@@ -1,5 +1,26 @@
 # Railway changelog
 
+## 2026-11-19 — EXEC-MU-ACCOUNTS: empty live website service and its custom domain
+
+User 2026-11-19: "Tolong tambahkan app.edgefinance.id sebagai custom domain di layanan Railway yang menjalankan website
+EDGE"; then, after the question which service (the live website is a second service by the agreed design):
+"edgefinance.id - ini website untuk user public. berarti opsi A ya" (the root domain is the public website on Hostinger
+and is not touched).
+- Before: the service list held no `edge-bff-live`; `edge-bff` had only `edge-bff-dev.up.railway.app`.
+- Created the empty service `edge-bff-live` (ID `3baa0d66-41ce-4986-9b56-93b4d13a4e10`, environment `dev`) with
+  `railway add --service edge-bff-live`: no source, no image, no variables of its own (only Railway's), no deployment
+  (status Offline). The CLI ended with an error after the creation step ("Project not found" at the variable prompt);
+  the service list reads the service back.
+- Added the custom domain `app.edgefinance.id` (domain ID `91e8ea92-c3ed-497b-a509-a07bd911ae92`, target port 8080):
+  verified no, certificate validating ownership. DNS records Railway asks for: CNAME `app` and TXT
+  `_railway-verify.app` (values given to the user for Hostinger; they are public DNS data).
+- `.railway/railway.ts`: `railway config pull --force` needs a `--variables` mode, and earlier pulls rewrote the whole
+  file (2026-10-25 entries), and `railway config plan` fails here (the railway/iac package asks for a newer CLI than the
+  5.71.0 it finds). The service is recorded in `railway.ts` by hand as a comment until it gets its source and
+  variables.
+- Nothing serves on the domain until the live website is built. Rollback: `railway domain delete` of the domain ID,
+  then delete the empty service.
+
 ## 2026-11-17 — EXEC-MU-ACCOUNTS Phase 3b deploy (switch off): item gates in both workers
 
 - **User:** "Aman, lanjutkan" (2026-11-17, after checking the Phase 3a tabs; EXEC.md EXEC-MU-ACCOUNTS, CONTRACT.md 8b).

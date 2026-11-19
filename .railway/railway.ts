@@ -243,6 +243,9 @@ export default defineRailway(() => {
     deploy: { restartPolicyType: "ALWAYS", limitOverride: { containers: { memoryBytes: 2750000000 } }, sleepApplication: true },
     env: { SCREENER_CACHE_BYTES: preserve(), SCREENER_CACHE_DIR: preserve(), SCREENER_CACHE_DIR_BYTES: preserve(), SCREENER_CAP_BUDGET_MS: preserve(), SCREENER_DEADLINE_MS: preserve(), SCREENER_DOWNLOAD_CONCURRENCY: preserve(), SCREENER_DOWNLOAD_RETRIES: preserve(), SCREENER_FILE_ORIGIN: preserve(), SCREENER_HTTP_TIMEOUT_MS: preserve(), SCREENER_MAX_CONDITIONS: preserve(), SCREENER_MAX_COUNTS: preserve(), SCREENER_MAX_CPU_MS: preserve(), SCREENER_MAX_FILE_BYTES: preserve(), SCREENER_MAX_INFLATED_BYTES: preserve(), SCREENER_MAX_METRIC_FILTERS: preserve(), SCREENER_MAX_REFRESH_BYTES: preserve(), SCREENER_MAX_REQUEST_BYTES: preserve(), SCREENER_MAX_RESPONSE_BYTES: preserve(), SCREENER_OWNER_CPU_MS: preserve(), SCREENER_OWNER_INFLIGHT: preserve(), SCREENER_PREVIOUS_GRACE_S: preserve(), SCREENER_QUEUE: preserve(), SCREENER_RETRY_BASE_MS: preserve(), SCREENER_THREADS: preserve(), SCREENER_THREAD_HEAP_MB: preserve(), SCREENER_WITHIN_MAX: preserve(), SCREENER_WORKER_KEY: preserve(), TERMINAL_PROXY_KEY: preserve(), TERMINAL_URL: preserve() },
   });
+  // 2026-11-19 (EXEC-MU-ACCOUNTS, the live website of the agreed beta/live design): the service "edge-bff-live"
+  // (3baa0d66-41ce-4986-9b56-93b4d13a4e10) exists empty, with the custom domain app.edgefinance.id (port 8080), created
+  // by the CLI; it is declared here once it gets its source and variables (RAILWAY_CHANGELOG.md 2026-11-19).
   const edgeBff = service("edge-bff", {
     source: github("rednightt33/saniti", { checkSuites: true, rootDirectory: "/apps/edge-bff" }),   // K10 a, as screener-worker
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
