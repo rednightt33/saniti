@@ -1,7 +1,7 @@
 From 88d75b8e27614970adb2c6d9950b130dc6285aea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:22:44 +0000
-Subject: [PATCH 01/55] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26):
+Subject: [PATCH 01/56] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26):
  every terminal-api 429 names its quota and when to try again
 
 quota_exceeded carries quota, limit, window and retry_after_s (Store.frees_in: when the rolling window lets the
@@ -337,7 +337,7 @@ index 00000000..1b97b475
 From e5f0c18176c143415631c5fb983843cea38b3e50 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:24:56 +0000
-Subject: [PATCH 02/55] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
+Subject: [PATCH 02/56] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
  terminal-api leaves out unknown datasets, takes history_days 0, acknowledges
  the applied header
 
@@ -587,7 +587,7 @@ index 1b97b475..89f69688 100644
 From d959a594942a346d292f67be79d11630bd5b2162 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:30:47 +0000
-Subject: [PATCH 03/55] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
+Subject: [PATCH 03/56] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
  reference lists filtered to the plan; the gateway account on /ready
 
 An owner whose plan lacks the dataset reference gets its own copy of each reference file (app/refcut.py: the rows of
@@ -1162,7 +1162,7 @@ index 89f69688..bc66a9f0 100644
 From 570e607cfa06be44e7d7926946941f597627fea6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:36:59 +0000
-Subject: [PATCH 04/55] EXEC-MU-ACCOUNTS fix round (terminal,
+Subject: [PATCH 04/56] EXEC-MU-ACCOUNTS fix round (terminal,
  R1-1/R1-26/R1-22/R2-4/R2-32): one relay rule for every terminal-api answer
 
 terminal_access.relayed is the rule forward_terminal, relay_cut and PageFiles share: a terminal-api 401 or 403 about
@@ -1840,7 +1840,7 @@ index 90f357d9..6af924b7 100644
 From 0713d5053e3eb87c750b4074b1a9558898956d04 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:38:26 +0000
-Subject: [PATCH 05/55] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests
+Subject: [PATCH 05/56] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests
  of the relay rule, the acknowledgement, history 0, the page-file refusals
  before the caches and the reference copy relay
 
@@ -2114,7 +2114,7 @@ index 00000000..1240c974
 From c17efdf1f905c655a98325b8c9cf5e260bc1a330 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:41:40 +0000
-Subject: [PATCH 06/55] EXEC-MU-ACCOUNTS fix round (track site): migrations
+Subject: [PATCH 06/56] EXEC-MU-ACCOUNTS fix round (track site): migrations
  20261119_020-023 (the queues' site, the seed's mark, the indexes on the
  references to users) and the test harness
 
@@ -2505,7 +2505,7 @@ index 00000000..4ac242f5
 From 8aed704adeafafdcab31e9d0338073c0145b3d27 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:41:52 +0000
-Subject: [PATCH 07/55] EXEC-MU-ACCOUNTS fix round (track site): two edge-bff
+Subject: [PATCH 07/56] EXEC-MU-ACCOUNTS fix round (track site): two edge-bff
  sites on one database, the start-up, the background loops
 
 - EDGE_SITE (beta, the default, or live); config.validate refuses live without EDGE_MULTIUSER, the beta with it (outside
@@ -4346,7 +4346,7 @@ index b1912754..b05f4698 100644
 From eaa7bc28340a9d4374530acb3bdbd3cbd8a1a8e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:42:12 +0000
-Subject: [PATCH 08/55] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
+Subject: [PATCH 08/56] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
  domain per capability in the catalog, read by the value trigger
 
 Migration 20261119_050 (not applied): edge_bff.capabilities gains value_min, value_max and item_pattern;
@@ -4728,7 +4728,7 @@ index 00000000..5dcc217f
 From 9099a1f4de4d7d39736a7f2fc40eebf2ce56d7cf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:44:52 +0000
-Subject: [PATCH 09/55] EXEC-MU-ACCOUNTS fix round (track site): an explicit
+Subject: [PATCH 09/56] EXEC-MU-ACCOUNTS fix round (track site): an explicit
  switch for log mode on a deployed site, the sender-off line at every
  switch-on start, the worker's default claim read when called
 
@@ -4871,7 +4871,7 @@ index e6ed73f7..ab0afcd0 100644
 From 9b83ea196e2b17dedf5f5bc76eb8a186d32dfd0f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:45:45 +0000
-Subject: [PATCH 10/55] EXEC-MU-ACCOUNTS fix round (terminal, R2-32): the free
+Subject: [PATCH 10/56] EXEC-MU-ACCOUNTS fix round (terminal, R2-32): the free
  plan's Terminal draws BBCA
 
 The e2e fake terminal-api now answers the header edge-bff really sends with terminal-api's own code (entitlements,
@@ -5139,7 +5139,7 @@ index 5faf7ca1..ad858b55 100644
 From f82419c0941877b307fe2357c8ff2114c68f6958 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:46:37 +0000
-Subject: [PATCH 11/55] EXEC-MU-ACCOUNTS fix round (terminal):
+Subject: [PATCH 11/56] EXEC-MU-ACCOUNTS fix round (terminal):
  SCREENER_ONBOARDING.md pointers into terminal-api and edge-bff main.py moved
  with their lines (screener-worker onboarding_pointers test)
 
@@ -5228,7 +5228,7 @@ index 6a313a75..1006309b 100644
 From 34edaafa4248403f9660a32fd94728359e48c0df Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:47:16 +0000
-Subject: [PATCH 12/55] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff README
+Subject: [PATCH 12/56] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff README
  follows the relay rule, the reference copies, the header mapping and the
  page-file caches
 
@@ -5317,7 +5317,7 @@ index 976016a8..85d0851f 100644
 From e48042eac2458582d814a4aeb5c9f3084edc60a7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:54:00 +0000
-Subject: [PATCH 13/55] EXEC-MU-ACCOUNTS fix round (terminal): notes per
+Subject: [PATCH 13/56] EXEC-MU-ACCOUNTS fix round (terminal): notes per
  finding, what the shared records must say, the decisions only the user can
  take
 
@@ -5583,7 +5583,7 @@ index 00000000..7b1c5317
 From ae02340396c5211c58fce4bc04028785b63c021d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:54:24 +0000
-Subject: [PATCH 14/55] EXEC-MU-ACCOUNTS fix round (terminal): terminal-api
+Subject: [PATCH 14/56] EXEC-MU-ACCOUNTS fix round (terminal): terminal-api
  README, the logo line follows the reference copies
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5613,7 +5613,7 @@ index 8b62323d..e523a13a 100644
 From ccdfb1772f0fab41d6754b2a4d1cd9e3669e2b36 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:00:12 +0000
-Subject: [PATCH 15/55] EXEC-MU-ACCOUNTS fix round (track site): notes for the
+Subject: [PATCH 15/56] EXEC-MU-ACCOUNTS fix round (track site): notes for the
  records (findings, tests, EXPLAIN evidence, suites)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5878,7 +5878,7 @@ index 00000000..af3f0b6a
 From bd1d506525535c8d352fb08a667d827ceb936567 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:02:43 +0000
-Subject: [PATCH 16/55] EXEC-MU-ACCOUNTS fix round (terminal, R2-4): the C2
+Subject: [PATCH 16/56] EXEC-MU-ACCOUNTS fix round (terminal, R2-4): the C2
  Phase 2 isolation test's fake terminal-api acknowledges the owner header, as
  terminal-api does
 
@@ -5921,7 +5921,7 @@ index 9d082941..f1f04a18 100644
 From e6dfab52206226635e0f38ca752b16c6afd5c0ed Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:04:03 +0000
-Subject: [PATCH 17/55] EXEC-MU-ACCOUNTS fix round (terminal): the suites'
+Subject: [PATCH 17/56] EXEC-MU-ACCOUNTS fix round (terminal): the suites'
  results in the track notes
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5957,7 +5957,7 @@ index 7b1c5317..1a4617b2 100644
 From b16d57288f42b49682d60bfab255d454f20d9739 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:13:40 +0000
-Subject: [PATCH 18/55] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
+Subject: [PATCH 18/56] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
  for lists and limits, no shared restrictive list, the seed plan is the one
  whose '*' is true, access.limits reports the applied cap, MFA_REQUIRED says
  whether an authenticator is set up
@@ -6396,7 +6396,7 @@ index 205d728e..79f4b2e7 100644
 From 68542f2fb3036e6ef993b948b48fb7e37f1983e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:26:59 +0000
-Subject: [PATCH 19/55] EXEC-MU-ACCOUNTS fix round (plans): refusals worded
+Subject: [PATCH 19/56] EXEC-MU-ACCOUNTS fix round (plans): refusals worded
  from their code and details; no internal key in a worker's capability message
 
 Re-check R2-15: errors.words names the item (display_name), the ended plan, the plan limit with the account's number and
@@ -6748,7 +6748,7 @@ index 4f57f457..6b36df04 100644
 From 296129a5dc45ccfadc9c657500d4c9a113dffacc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:29:25 +0000
-Subject: [PATCH 20/55] EXEC-MU-ACCOUNTS fix round (plans): the Screener
+Subject: [PATCH 20/56] EXEC-MU-ACCOUNTS fix round (plans): the Screener
  catalog lists only the presets the plan holds, by the rule of /api/v1/catalog
 
 Re-check R1-32: catalog.holds_entry is the one rule (any family of the kind), read by the generic catalog route and the
@@ -6903,7 +6903,7 @@ index 48c86772..3e149b2b 100644
 From 8884b38b089e66df85c1b65c6a4870aee54a6f19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:32:25 +0000
-Subject: [PATCH 21/55] EXEC-MU-ACCOUNTS fix round (plans): an account
+Subject: [PATCH 21/56] EXEC-MU-ACCOUNTS fix round (plans): an account
  preference of one tab is served and stored only while the plan holds that tab
 
 Re-check R1-18 and R1-30 (CONTRACT.md 8b D5: reads need <tab>.view): each sync entry of the storage registry names the
@@ -7374,7 +7374,7 @@ index a5c52e65..6c5d0c00 100644
 From 54398ef3d816fd905313bb78d03dbeae312bc428 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:39:51 +0000
-Subject: [PATCH 22/55] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
+Subject: [PATCH 22/56] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
  refusals in words, lands a non-admin account on the Terminal, follows a
  change of plan and a session ended under a frame
 
@@ -7926,7 +7926,7 @@ index 3be7fc42..97afe4f1 100644
 From e79a1b37ec8461894de0a4cf927be2e51a38f1da Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:40:01 +0000
-Subject: [PATCH 23/55] EXEC-MU-ACCOUNTS fix round, track auth: sign-in limits,
+Subject: [PATCH 23/56] EXEC-MU-ACCOUNTS fix round, track auth: sign-in limits,
  credential races, MFA re-enrolment, password cost, outbox purge
 
 Findings of the ultracode re-check (rounds 1 and 2) fixed in edge-bff, each with its committed failing test now
@@ -10318,7 +10318,7 @@ index 4052d11f..444aef1e 100644
 From 6bd43074c959de211bdda838e97fb3e5eca3ba9f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:45:57 +0000
-Subject: [PATCH 24/55] EXEC-MU-ACCOUNTS fix round (plans): the Screener's
+Subject: [PATCH 24/56] EXEC-MU-ACCOUNTS fix round (plans): the Screener's
  cached paint follows the plan; a drawings refusal is said in its words and
  keeps nothing in the browser
 
@@ -10648,7 +10648,7 @@ index 2b23a78c..be09eda6 100644
 From 61155dd2dbc5bf8b8694c7d66c720fdfe4844c46 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:46:54 +0000
-Subject: [PATCH 25/55] EXEC-MU-ACCOUNTS fix round (plans): an added series'
+Subject: [PATCH 25/56] EXEC-MU-ACCOUNTS fix round (plans): an added series'
  pane keys are the account's and leave with the series
 
 Re-check R1-20: the prefix ml.assets.flow. (fold and height per added series, named by its ticker) is a user cache
@@ -10742,7 +10742,7 @@ index 6c5d0c00..78ede8d0 100644
 From bcdb0705707af84337ceb5fa02e9e96f28597f1f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:51:03 +0000
-Subject: [PATCH 26/55] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
+Subject: [PATCH 26/56] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
  registration cookies on https, HSTS, form-action in every page policy
 
 Re-check R2-22: on a Secure origin the cookies are __Host-edge_session and __Host-edge_registration (Path=/, no
@@ -11081,7 +11081,7 @@ index 275a776a..bae4c119 100644
 From 081c378f3e8b769a9dbc570121dd0618fce5403d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:54:18 +0000
-Subject: [PATCH 27/55] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
+Subject: [PATCH 27/56] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
  Password and sign-in page (password change, sign out everywhere)
 
 Re-check R2-20: with accounts on (GET /api/v1/auth/config), the account menu opens a dialog for the Phase 1 password
@@ -11314,7 +11314,7 @@ index bae4c119..7d13a9af 100644
 From be55357c5ff111788f3be6095b31e796f69160c9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:55:50 +0000
-Subject: [PATCH 28/55] EXEC-MU-ACCOUNTS fix round (plans): one rule for a
+Subject: [PATCH 28/56] EXEC-MU-ACCOUNTS fix round (plans): one rule for a
  person's name at registration, and one for showing it
 
 Re-check R2-18: app/text_rules.py stores a first or last name in NFC with single spaces and refuses control, hidden
@@ -11458,7 +11458,7 @@ index 7d13a9af..c0414ee6 100644
 From 78455b93bce3e343a60aa888086854fdfeed0fea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:00:42 +0000
-Subject: [PATCH 29/55] EXEC-MU-ACCOUNTS fix round (plans): every plan limit
+Subject: [PATCH 29/56] EXEC-MU-ACCOUNTS fix round (plans): every plan limit
  answers one code, LIMIT_REACHED naming its capability key
 
 Re-check R2-39 (CONTRACT.md section 3): the saved-item caps (layouts, presets, places with drawings, saved screens and
@@ -11950,7 +11950,7 @@ index 1cea2cd5..b3da03f0 100644
 From 419ee36823575c52f229af37f8a6599bb9f8c463 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:01:46 +0000
-Subject: [PATCH 30/55] EXEC-MU-ACCOUNTS fix round, track auth: notes for the
+Subject: [PATCH 30/56] EXEC-MU-ACCOUNTS fix round, track auth: notes for the
  records, the code-purpose drift test, the last reserved placeholder
 
 - verification/edge_multiuser/fix_round/auth.md: root cause, fix and tests of each finding of the track, what
@@ -12180,7 +12180,7 @@ index 00000000..be7ca824
 From fc3cbf2933403c4d0cdafef84f76ae2deee1275e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:02:13 +0000
-Subject: [PATCH 31/55] SCREENER_ONBOARDING.md: line pointers into edge-bff
+Subject: [PATCH 31/56] SCREENER_ONBOARDING.md: line pointers into edge-bff
  screener.py and main.py moved with the fix round's lines
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -12251,7 +12251,7 @@ index 6a313a75..239ec42b 100644
 From b36e621af0417827137b36018443c9ea5d927988 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:05:30 +0000
-Subject: [PATCH 32/55] EXEC-MU-ACCOUNTS fix round (plans): the shell runs no
+Subject: [PATCH 32/56] EXEC-MU-ACCOUNTS fix round (plans): the shell runs no
  inline script; its policy drops script-src 'unsafe-inline'
 
 Re-check R2-19: the head's viewport script moved to static/edge-boot.js and the shell's app to static/edge-app.js (a
@@ -17839,7 +17839,7 @@ index cc5b4fee..32a843c0 100644
 From db1eadac57e5ce7b44bec319e25013647a558d0b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:06:13 +0000
-Subject: [PATCH 33/55] EXEC-MU-ACCOUNTS fix round (plans): the Watchlist's
+Subject: [PATCH 33/56] EXEC-MU-ACCOUNTS fix round (plans): the Watchlist's
  copy of the logo reference list leaves with the account
 
 Re-check R1-17 (other site named by the refuters): edge.watchlist.logos holds the content of a reference file the plan
@@ -17891,7 +17891,7 @@ index 3dca0656..053568f6 100644
 From 40725f4ae44a9890ee92f8d2bd2500caf4480f11 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:07:53 +0000
-Subject: [PATCH 34/55] EXEC-MU-ACCOUNTS fix round (plans): notes per finding,
+Subject: [PATCH 34/56] EXEC-MU-ACCOUNTS fix round (plans): notes per finding,
  the records to write, the decisions left, the script move for integration
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18187,7 +18187,7 @@ index 00000000..ea7fd66e
 From edd0e434d892ef7d3db6f156a2180c0494c0b4b6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:09:11 +0000
-Subject: [PATCH 35/55] Terminal registry test: edge.watchlist.logos is cleared
+Subject: [PATCH 35/56] Terminal registry test: edge.watchlist.logos is cleared
  with the account (fix round, re-check R1-17 other site)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18226,7 +18226,7 @@ index 96453e49..fe15d3c9 100644
 From c779d1e01309fe37aba11771c2593c7503a2b4f9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:13:24 +0000
-Subject: [PATCH 36/55] principal.py: the comment of the MFA check sits above
+Subject: [PATCH 36/56] principal.py: the comment of the MFA check sits above
  it again
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18260,7 +18260,7 @@ index cf07386b..878e8613 100644
 From 09f4ae3e6ed81e60c14752d7f5dbbcee41df6ddd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:14:28 +0000
-Subject: [PATCH 37/55] main.py: the one-time cookie move never overrides a
+Subject: [PATCH 37/56] main.py: the one-time cookie move never overrides a
  route's own cookie answer (sign-in, sign-out)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18292,7 +18292,7 @@ index 7b839f5b..aac63795 100644
 From d71bc8363c232d2307077f2f8fb9cd90618228cf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:33:03 +0000
-Subject: [PATCH 38/55] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
+Subject: [PATCH 38/56] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
  key test waits in pending/ for the Railway deletion; the code side held by a
  test (no code the runner runs reads the main Orc key)
 
@@ -18379,7 +18379,7 @@ rename to verification/edge_multiuser/access_tiers/pending/test_cp0_runner_key.p
 From 22d4defe17a0d98db4ffb77a15f4f824f7cda532 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:35:21 +0000
-Subject: [PATCH 39/55] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
+Subject: [PATCH 39/56] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
  hook route verifies by a dependency built from HOOK_ROUTES; the route walk
  covers the whole table (signed hooks, a capability gate or a named
  principal-only reason on every /api route)
@@ -18586,7 +18586,7 @@ index ed71cd2a..7f845889 100644
 From 5f204d11e7db3de2fa9590e929a74c469cec84e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:39:59 +0000
-Subject: [PATCH 40/55] EXEC-MU-ACCOUNTS fix round (records, R1-41, R1-42,
+Subject: [PATCH 40/56] EXEC-MU-ACCOUNTS fix round (records, R1-41, R1-42,
  R1-43, R1-45, R1-46): migration 20261119_040 (audit and provenance ids
  without a referential action, catalog trace triggers, the kind comment and
  history_days means to the code and D2, a column-privilege guard), the
@@ -19102,7 +19102,7 @@ index 00000000..0377546a
 From 64e5fe94bf846432cdbb44359a564a2f0c9a6071 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:40:43 +0000
-Subject: [PATCH 41/55] EXEC-MU-ACCOUNTS fix round (records, R1-28): the run
+Subject: [PATCH 41/56] EXEC-MU-ACCOUNTS fix round (records, R1-28): the run
  stream's monitor.view re-check held by a live-server test (fails when
  still_signed_in stops asking for it)
 
@@ -19178,7 +19178,7 @@ index 00000000..c2a21bdf
 From e96cf7c952ffd68bf03363c4c65a359f4b252bc2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:47:16 +0000
-Subject: [PATCH 42/55] EXEC-MU-ACCOUNTS fix round (plans): the catalog refuses
+Subject: [PATCH 42/56] EXEC-MU-ACCOUNTS fix round (plans): the catalog refuses
  a Terminal limit beside the Backtest's or the Screener's own data access
  (re-check R1-36, the user's "2a")
 
@@ -19845,7 +19845,7 @@ index 699c7b0e..26220a9f 100644
 From 4bdf1cc69840167d82fb97a77e60b05aab3b031c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:47:16 +0000
-Subject: [PATCH 43/55] Backtest and Screener frame tests: the shell's tab code
+Subject: [PATCH 43/56] Backtest and Screener frame tests: the shell's tab code
  is read from edge-app.js (the R2-19 script move)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -19904,7 +19904,7 @@ index 7b8f6d07..d976a1d5 100644
 From 9d31dc07eb2cd29777e107e2b35148af30e2ebc2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:02:11 +0000
-Subject: [PATCH 44/55] EXEC-MU-ACCOUNTS fix round (records): work in progress
+Subject: [PATCH 44/56] EXEC-MU-ACCOUNTS fix round (records): work in progress
  saved when the usage limit stopped the builder (unreviewed;
  test_zz_tmp_walk.py is a scratch probe)
 
@@ -20281,7 +20281,7 @@ index 00000000..8a1f7462
 From 26c38da5b5bd1d24dcee759681a02b90f95b57fb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:12:45 +0000
-Subject: [PATCH 45/55] EXEC-MU-ACCOUNTS fix round (records, R1-21): the
+Subject: [PATCH 45/56] EXEC-MU-ACCOUNTS fix round (records, R1-21): the
  two-user walk covers every /api route and every owned kind, derived from
  app.routes and information_schema; one event loop for both people; an owned
  id answers what an id nobody made answers; the scratch probe removed
@@ -20493,7 +20493,7 @@ index 8a1f7462..00000000
 From 51451d52afbe787f993280eb373e11616f4759ec Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:26:07 +0000
-Subject: [PATCH 46/55] EXEC-MU-ACCOUNTS fix round (records, R1-39, R1-40,
+Subject: [PATCH 46/56] EXEC-MU-ACCOUNTS fix round (records, R1-39, R1-40,
  R1-44): CI runs the page suites, edge-bff's browser tests (Playwright,
  Chromium, the built pages) and Orc's Postgres tests; the shell copy is
  compared with its build by a generated_file test; generators found anywhere
@@ -20947,7 +20947,7 @@ index ec7ef606..3b04267c 100644
 From 77e57322263ebe16d440686978e35f4bce1ea75f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:26:07 +0000
-Subject: [PATCH 47/55] EXEC-MU-ACCOUNTS fix round (records, R2-40): tests of
+Subject: [PATCH 47/56] EXEC-MU-ACCOUNTS fix round (records, R2-40): tests of
  the contract requirements no test held (absolute session lifetime in both
  modes, Retry-After on every 429, entitlements on the signed-in answers, names
  from the start, a future subscription, SEND_IP, a pending session's sign-out,
@@ -21222,7 +21222,7 @@ index e67a334c..52f85235 100644
 From 279613408cb4cb0652140e55133c53958fe10467 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:32:15 +0000
-Subject: [PATCH 48/55] EXEC-MU-ACCOUNTS fix round (plans): the cap modules'
+Subject: [PATCH 48/56] EXEC-MU-ACCOUNTS fix round (plans): the cap modules'
  headers and the README say 403 LIMIT_REACHED for a plan cap (re-check R2-39);
  notes: the migration of "2a", the R1-35 anchor, the suite results
 
@@ -21424,7 +21424,7 @@ index 26220a9f..f77a707a 100644
 From 511848a0a060abcb22088ddae22d6d965e1f6074 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:36:36 +0000
-Subject: [PATCH 49/55] EXEC-MU-ACCOUNTS fix round (records): CONTRACT.md
+Subject: [PATCH 49/56] EXEC-MU-ACCOUNTS fix round (records): CONTRACT.md
  brought to the code and the user's decisions of 2026-11-19 (the beta/live
  site, pre-launch mode, the guest, the free plan's whole ticker list, outbox
  30 days, forgot kept, one Terminal quota, the restricted-plan rule, the
@@ -22479,7 +22479,7 @@ index 32cce206..c0ea7359 100644
 From 65211eabab3b1795223191776964a24f8aee0cd7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:39:06 +0000
-Subject: [PATCH 50/55] EXEC-MU-ACCOUNTS fix round (records): notes per finding
+Subject: [PATCH 50/56] EXEC-MU-ACCOUNTS fix round (records): notes per finding
  and the records to write; the pending tests' table renders again
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -22789,7 +22789,7 @@ index 00000000..19efae89
 From 905bad655565e9482f2bddd8ab85e73ede5ea3f5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:41:58 +0000
-Subject: [PATCH 51/55] EXEC-MU-ACCOUNTS fix round (records): the merge notes;
+Subject: [PATCH 51/56] EXEC-MU-ACCOUNTS fix round (records): the merge notes;
  CONTRACT 13 names the one local step (the Terminal look check)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -22851,7 +22851,7 @@ index 19efae89..07520384 100644
 From c6e87ee27bebbddc039ee0a9a0fe163cc4fa4242 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 12:44:46 +0000
-Subject: [PATCH 52/55] SCREENER_ONBOARDING.md: pointers into edge-bff main.py
+Subject: [PATCH 52/56] SCREENER_ONBOARDING.md: pointers into edge-bff main.py
  and screener.py moved with the merged fix-round lines (screener-worker
  onboarding_pointers)
 
@@ -22901,7 +22901,7 @@ index 0324c609..76c2882c 100644
 From 2fddd030fb8537045529a987cb855aa51c6c473b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 13:07:48 +0000
-Subject: [PATCH 53/55] edge-bff test_beta_live_site: the housekeeping's purges
+Subject: [PATCH 53/56] edge-bff test_beta_live_site: the housekeeping's purges
  are four after the merge (the outbox purge of the auth track, R2-24), and the
  outbox purge is held to the same batch bound
 
@@ -22941,7 +22941,7 @@ index ab0afcd0..407473a1 100644
 From 9a22ee751236fb9332239dd0251317f51ebc59b8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 13:11:13 +0000
-Subject: [PATCH 54/55] .railway/railway.ts: the planned edge-bff-live is
+Subject: [PATCH 54/56] .railway/railway.ts: the planned edge-bff-live is
  written as its settings, without a service() call in the comment
 
 The site track's comment block opened with a commented service("edge-bff-live", {...}) call. The terminal-api test
@@ -22990,7 +22990,7 @@ index c99c6ffc..86e679a8 100644
 From 7d793ad22a92a373ab2d6803acf1759b3be23f19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 13:57:54 +0000
-Subject: [PATCH 55/55] terminal-api (track guest): the whole ticker list for
+Subject: [PATCH 55/56] terminal-api (track guest): the whole ticker list for
  every plan, derived from each reference file's columns; visitors of one owner
  counted apart (x-terminal-client, migration 20261119_170, not applied)
 
@@ -23903,6 +23903,1576 @@ index 00000000..56ed9b70
 +-- DROP INDEX terminal.access_log_client_at;
 +-- ALTER TABLE terminal.access_log DROP CONSTRAINT access_log_client_key_check, DROP COLUMN client_key;
 +-- COMMIT;
+-- 
+2.43.0
+
+
+From 101e92911feb297fbfc4e4a1cb265b6952e6d8a9 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 14:14:13 +0000
+Subject: [PATCH 56/56] edge-bff (track guest): the guest principal from the
+ catalog's guest plan, the pre-launch mode, the audited test-account mark
+ (migration 20261119_070, not applied)
+
+Decision 1 of 2026-11-19 ("1a") and the pre-launch decisions of the same day (EXEC.md "Decisions from the fix
+round", "Testing on the live site"):
+- principal.py guest_principal: a visitor without a session on a site with guests (EDGE_GUESTS, default on live, never
+  with the switch off) gets the grants of the one plan marked for_guests, read on every request (a change of its rows
+  changes what guests see); never '*', admin.access, an admin right or a beta-only key. Only auth.need(..., guests=True)
+  and auth.visitor routes admit it (the Terminal relay, the catalog, GET /api/v1/auth/guest); every other route 401.
+- client_of: the right-most X-Forwarded-For hop (Railway's edge) when it is an IP; none, no guest (the socket peer only
+  locally). terminal_access sends x-terminal-client (an HMAC of it) for a guest.
+- EDGE_PRELAUNCH (default on live): register, verify and register resends 403 REGISTRATION_CLOSED; sign-in only for the
+  admin (the catalog's '*'/admin.access) and test_account accounts, else 403 SIGN_IN_CLOSED; GET /api/v1/auth/config
+  says registration, prelaunch, guests, upgrade_contact (EDGE_UPGRADE_CONTACT) with the switch on.
+- users.test_account changes only beside its admin_audit row (deferred trigger); scripts/edge_test_account.py (and its
+  run_job wrapper) makes or marks a test account for an address and a plan without printing secrets.
+
+Tests changed with the decision: the route walk admits GUEST_OPEN routes on the visitor dependency; the plan-key grep
+reads every plan seed (guest added); the switch-on config answer carries the new keys.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/app/accounts.py                 |  23 +-
+ apps/edge-bff/app/auth_flows.py               |  24 +-
+ apps/edge-bff/app/catalog.py                  |   4 +-
+ apps/edge-bff/app/config.py                   |  46 ++-
+ apps/edge-bff/app/errors.py                   |   4 +
+ apps/edge-bff/app/main.py                     |  37 +-
+ apps/edge-bff/app/principal.py                | 139 ++++++-
+ apps/edge-bff/app/store.py                    |   4 +
+ apps/edge-bff/app/terminal_access.py          |  23 +-
+ apps/edge-bff/tests/conftest.py               |   2 +
+ apps/edge-bff/tests/test_auth_flows.py        |   6 +-
+ apps/edge-bff/tests/test_guest.py             | 376 ++++++++++++++++++
+ apps/edge-bff/tests/test_plan_catalog.py      |  15 +-
+ apps/edge-bff/tests/test_route_table.py       |  32 +-
+ ..._edge_bff_guest_plan_and_test_accounts.sql | 184 +++++++++
+ scripts/edge_test_account.py                  | 160 ++++++++
+ scripts/onboarding/edge_test_account_job.py   |  22 +
+ 17 files changed, 1065 insertions(+), 36 deletions(-)
+ create mode 100644 apps/edge-bff/tests/test_guest.py
+ create mode 100644 database/migrations/20261119_070_edge_bff_guest_plan_and_test_accounts.sql
+ create mode 100644 scripts/edge_test_account.py
+ create mode 100644 scripts/onboarding/edge_test_account_job.py
+
+diff --git a/apps/edge-bff/app/accounts.py b/apps/edge-bff/app/accounts.py
+index 4830f874..ca3008b4 100644
+--- a/apps/edge-bff/app/accounts.py
++++ b/apps/edge-bff/app/accounts.py
+@@ -49,6 +49,9 @@ PASSWORD_FAILURE_CAP, PASSWORD_RESTART, PASSWORD_LOCK_SECONDS = 100, 90, 86400
+ # may name exactly these (tests/test_cp0_reserved_owner.py compares the two patterns, so they cannot drift apart)
+ ORC_TEST_OWNER = re.compile(r'golden-[A-Za-z0-9._:@-]+|test-[A-Za-z0-9._:@-]+|someone-else')
+ ORC_SHARED_OWNER = 'default'      # Orc's one shared owner before M475
++# track guest (principal.py guest_principal): the one owner key of every visitor of the guest plan, never an account's
++# (never issued: reserved_owner; refused for EDGE_OWNER and EDGE_ADMIN_OWNERS: config.py validate)
++GUEST_OWNER = 'edge-guest'
+ 
+ # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a "Resolution"): the CTEs that follow a CTE `found` (one account: user_id,
+ # owner_key, username, role, status) and resolve its grants within the same statement:
+@@ -104,7 +107,7 @@ def orc_reserved_owner(key):
+ 
+ def reserved_owner(key):
+     """Keys never issued to a new account (Orc's reserved owners and the seed's own)."""
+-    return orc_reserved_owner(key) or key == 'edge-private' or key.startswith(('golden-', 'test-'))
++    return orc_reserved_owner(key) or key in ('edge-private', GUEST_OWNER) or key.startswith(('golden-', 'test-'))
+ 
+ 
+ def seed_mark(verifier):
+@@ -198,6 +201,21 @@ class AccountStore:
+                 SELECT found.user_id, owner_key, username, role, status, ''' + GRANT_COLUMNS + '''
+                 FROM found CROSS JOIN plan''', {'owner': owner_key, 'active': ACTIVE}).fetchone()
+ 
++    def guest_plan(self):
++        """Track guest (principal.py guest_principal): the one plan marked for guests (edge_bff.plans.for_guests,
++        migration 20261119_070) with its grants {key: {kind, value}} and its plan_capabilities versions, read on every
++        guest request (a catalog change applies on the next one, no restart), or None when no plan is marked."""
++        with self.store.connect() as c:
++            return c.execute('''SELECT p.plan_key,
++                    coalesce(jsonb_object_agg(pc.capability_key, jsonb_build_object('kind', c.kind, 'value', pc.value))
++                             FILTER (WHERE pc.capability_key IS NOT NULL), '{}'::jsonb) AS grants,
++                    coalesce(jsonb_object_agg(pc.capability_key, pc.version) FILTER (WHERE pc.capability_key IS NOT NULL),
++                             '{}'::jsonb) AS versions
++                FROM edge_bff.plans p
++                LEFT JOIN edge_bff.plan_capabilities pc ON pc.plan_key = p.plan_key
++                LEFT JOIN edge_bff.capabilities c ON c.capability_key = pc.capability_key
++                WHERE p.for_guests GROUP BY p.plan_key''').fetchone()
++
+     # ---- the seed subscription of user #1 (CONTRACT.md 8a "User #1") ------------------------------------------------
+ 
+     def seed_subscription(self, user_id):
+@@ -237,7 +255,8 @@ class AccountStore:
+         verifier, or None (a disabled or pending one is not found here)."""
+         lowered = login.strip().lower()
+         with self.store.connect() as c:
+-            return c.execute('''SELECT u.user_id, u.owner_key, u.username, u.role, u.status, u.email, i.verifier
++            return c.execute('''SELECT u.user_id, u.owner_key, u.username, u.role, u.status, u.email, u.test_account,
++                    i.verifier
+                 FROM edge_bff.users u JOIN edge_bff.identities i ON i.user_id = u.user_id AND i.provider = 'password'
+                 WHERE (u.username = %s OR u.email = %s) AND u.status = %s
+                 ORDER BY (u.username = %s) DESC LIMIT 1''', (lowered, lowered, ACTIVE, lowered)).fetchone()
+diff --git a/apps/edge-bff/app/auth_flows.py b/apps/edge-bff/app/auth_flows.py
+index 5758598f..cd9cf3c3 100644
+--- a/apps/edge-bff/app/auth_flows.py
++++ b/apps/edge-bff/app/auth_flows.py
+@@ -547,6 +547,14 @@ class AuthFlows:
+             if not settings.multiuser:
+                 raise Refusal(404, 'NOT_FOUND')
+ 
++        async def registration_open():
++            """Track guest: the pre-launch mode of the live site (Settings.prelaunch; the user, 2026-11-19: "Terbuka, tapi
++            belum bisa mendaftar") closes registration with a plain sentence (403 REGISTRATION_CLOSED, the same for
++            every address, so it tells nothing about one); the reset of an account's password stays open (the test
++            accounts set theirs with it)."""
++            if settings.prelaunch:
++                raise Refusal(403, 'REGISTRATION_CLOSED')
++
+         def signed_in(p, token, status=200):
+             response = JSONResponse(session_answer(p), status_code=status)
+             response.set_cookie(session_cookie, token, max_age=settings.session_seconds, httponly=True,
+@@ -571,11 +579,17 @@ class AuthFlows:
+ 
+         @app.get('/api/v1/auth/config')
+         async def config():
+-            """Public: whether registration and "Forgot password?" are open (the sign-in page reads it)."""
+-            return {'multiuser': settings.multiuser}
++            """Public: whether registration and "Forgot password?" are open (the sign-in page reads it). Track guest,
++            with the switch on: `registration` (false in the pre-launch mode: the register page says it opens soon),
++            `prelaunch`, `guests` (a visitor opens the Terminal) and `upgrade_contact` (the upgrade box's contact, null
++            when not set: the box says the contact comes soon). With the switch off the answer is as before."""
++            if not settings.multiuser:
++                return {'multiuser': False}
++            return {'multiuser': True, 'registration': not settings.prelaunch, 'prelaunch': settings.prelaunch,
++                    'guests': settings.guests, 'upgrade_contact': settings.upgrade_contact or None}
+ 
+         @app.post('/api/v1/auth/register', status_code=202)
+-        async def register(request: Request, _on=Depends(switched_on)):
++        async def register(request: Request, _on=Depends(switched_on), _open=Depends(registration_open)):
+             b = fields_of(await request.body(), ('username', 'first_name', 'last_name', 'email', 'phone', 'password',
+                                                  'password_repeat'),
+                           ('username', 'first_name', 'last_name', 'email', 'phone', 'password', 'password_repeat'))
+@@ -600,7 +614,7 @@ class AuthFlows:
+             return with_registration(JSONResponse(ACCEPTED, status_code=202), held if keep_held else registration)
+ 
+         @app.post('/api/v1/auth/register/verify')
+-        async def register_verify(request: Request, _on=Depends(switched_on)):
++        async def register_verify(request: Request, _on=Depends(switched_on), _open=Depends(registration_open)):
+             b = fields_of(await request.body(), ('email', 'code', 'username'), ('email', 'code'))
+             email = checked_email(b['email'])
+             username = checked_username(b['username']) if (b.get('username') or '').strip() else None
+@@ -629,6 +643,8 @@ class AuthFlows:
+             b = fields_of(await request.body(), ('email', 'purpose'), ('email', 'purpose'))
+             if b['purpose'] not in PURPOSES:
+                 raise invalid({'purpose': 'purpose is register or reset.'})
++            if b['purpose'] == 'register':
++                await registration_open()
+             if await asyncio.to_thread(store.resend, checked_email(b['email']), b['purpose'], client_address(request),
+                                        registration_of(request)):
+                 self.wake()
+diff --git a/apps/edge-bff/app/catalog.py b/apps/edge-bff/app/catalog.py
+index f02b91fc..9990f62c 100644
+--- a/apps/edge-bff/app/catalog.py
++++ b/apps/edge-bff/app/catalog.py
+@@ -43,8 +43,10 @@ def held(p, kind):
+ 
+ 
+ def routes(app, auth):
++    # track guest: the Terminal reads which indicators the principal holds here, so a visitor (the guest plan's
++    # principal, auth.visitor) reaches it too
+     @app.get('/api/v1/catalog/{kind}')
+-    async def catalog(kind: str, p: Principal = Depends(auth.principal)):
++    async def catalog(kind: str, p: Principal = Depends(auth.visitor)):
+         if kind not in releases.KINDS:
+             raise Refusal(404, 'NOT_FOUND', {'kind': kind, 'known_kinds': list(releases.KINDS)})
+         return {'kind': kind, 'entries': held(p, kind)}
+diff --git a/apps/edge-bff/app/config.py b/apps/edge-bff/app/config.py
+index 66115790..5e237629 100644
+--- a/apps/edge-bff/app/config.py
++++ b/apps/edge-bff/app/config.py
+@@ -5,7 +5,7 @@ import os
+ import re
+ from urllib.parse import urlsplit
+ 
+-from .accounts import orc_reserved_owner
++from .accounts import GUEST_OWNER, orc_reserved_owner
+ from .security import is_verifier
+ 
+ 
+@@ -45,6 +45,10 @@ def optional_switch(name):
+ # service keeps its behaviour.
+ BETA, LIVE = 'beta', 'live'
+ SITES = (BETA, LIVE)
++# Track guest (verification/edge_multiuser/fix_round/guest.md): the upgrade contact the upgrade box shows
++# (EDGE_UPGRADE_CONTACT, decision D7: "segera hadir" and the contact; empty: the box says the contact comes soon). One
++# line of plain text, at most 200 characters (an address, a link or a phone number), shown as text.
++CONTACT = re.compile(r'[^\x00-\x1f\x7f<>]{1,200}')
+ 
+ 
+ @dataclass(frozen=True)
+@@ -122,6 +126,27 @@ class Settings:
+     housekeeping_enabled: bool = True
+     # the commit this build runs (Railway's RAILWAY_GIT_COMMIT_SHA), answered by GET /version
+     commit_sha: str = ''
++    # track guest (decision 1 of 2026-11-19, "1a"): whether a visitor without an account opens the Terminal with the
++    # guest plan's grants (EDGE_GUESTS; None = the site's default: on the live site, off on the beta). Never with the
++    # switch off (the beta: the admin's alone; validate refuses EDGE_GUESTS=true there)
++    guests_enabled: bool | None = None
++    # the pre-launch mode of the live site (the user, 2026-11-19: "Terbuka, tapi belum bisa mendaftar", "Dan hanya admin
++    # yang bisa login (saya)", then "A"): registration closed, sign-in only for the admin and the accounts marked as
++    # test accounts (EDGE_PRELAUNCH; None = the site's default: on the live site until the launch). Visitors still open
++    # the Terminal. Only with the switch on
++    prelaunch_enabled: bool | None = None
++    # the upgrade box's contact (EDGE_UPGRADE_CONTACT, CONTACT); empty: the box says the contact comes soon
++    upgrade_contact: str = ''
++
++    @property
++    def guests(self):
++        """Whether the guest principal exists on this site (principal.py): the switch on, and EDGE_GUESTS, else live."""
++        return self.multiuser and (self.site == LIVE if self.guests_enabled is None else self.guests_enabled)
++
++    @property
++    def prelaunch(self):
++        """Whether the pre-launch mode holds: the switch on, and EDGE_PRELAUNCH, else the live site."""
++        return self.multiuser and (self.site == LIVE if self.prelaunch_enabled is None else self.prelaunch_enabled)
+ 
+     @property
+     def ai_worker(self):
+@@ -183,7 +208,10 @@ class Settings:
+                 ai_worker_enabled=optional_switch('EDGE_AI_WORKER_ENABLED'),
+                 backtest_loop_enabled=switch_of('EDGE_BACKTEST_LOOP_ENABLED', 'true'),
+                 housekeeping_enabled=switch_of('EDGE_HOUSEKEEPING_ENABLED', 'true'),
+-                commit_sha=os.environ.get('RAILWAY_GIT_COMMIT_SHA', '').strip())
++                commit_sha=os.environ.get('RAILWAY_GIT_COMMIT_SHA', '').strip(),
++                guests_enabled=optional_switch('EDGE_GUESTS'),
++                prelaunch_enabled=optional_switch('EDGE_PRELAUNCH'),
++                upgrade_contact=os.environ.get('EDGE_UPGRADE_CONTACT', '').strip())
+         s.validate()
+         return s
+ 
+@@ -208,6 +236,17 @@ class Settings:
+         if self.site == BETA and self.multiuser and self.environment != 'local':
+             raise ValueError('EDGE_SITE=beta runs with EDGE_MULTIUSER=false (the beta is the admin\'s only); accounts '
+                              'sign in on the live site (EDGE_SITE=live)')
++        # track guest: the guest plan and the pre-launch mode are the live site's (accounts on); on the beta (the
++        # switch off, the admin's alone) neither exists, so setting either there is a mistake
++        if self.guests_enabled and not self.multiuser:
++            raise ValueError('EDGE_GUESTS=true needs EDGE_MULTIUSER=true: visitors open the Terminal on the live site '
++                             'only; the beta (EDGE_MULTIUSER=false) is the admin\'s alone. Unset EDGE_GUESTS here')
++        if self.prelaunch_enabled and not self.multiuser:
++            raise ValueError('EDGE_PRELAUNCH=true needs EDGE_MULTIUSER=true: the pre-launch mode closes registration and '
++                             'sign-in on the live site; the beta has neither. Unset EDGE_PRELAUNCH here')
++        if self.upgrade_contact and not CONTACT.fullmatch(self.upgrade_contact):
++            raise ValueError('EDGE_UPGRADE_CONTACT is one line of plain text of at most 200 characters, without < or > '
++                             '(an address, a link or a phone number), e.g. sales@example.com; or unset it')
+         if self.site == LIVE and self.ai_worker_enabled:
+             raise ValueError('EDGE_AI_WORKER_ENABLED=true is for the beta only: the live site has no AI (decision D1); '
+                              'unset it on the live site')
+@@ -221,6 +260,9 @@ class Settings:
+         # ERRORS R1-3: an owner key Orc reserves for its test key (or its old shared owner) would put user #1's
+         # conversations and runs within that key's reach; refused for EDGE_OWNER and every EDGE_ADMIN_OWNERS entry
+         for name, keys in (('EDGE_OWNER', (self.owner,)), ('EDGE_ADMIN_OWNERS', self.admin_owners)):
++            if GUEST_OWNER in keys:
++                raise ValueError(f'{name} may not be {GUEST_OWNER}, the owner key of every visitor of the guest plan '
++                                 '(terminal-api\'s guest owner row). Use an owner key of your own, e.g. edge-private')
+             if any(orc_reserved_owner(k) for k in keys):
+                 raise ValueError(f'{name} may not be an owner key market-ai-orc reserves (golden-*, test-*, '
+                                  'someone-else: its test key may name them; default: its old shared owner). Use an '
+diff --git a/apps/edge-bff/app/errors.py b/apps/edge-bff/app/errors.py
+index a97a0389..a5ab9dad 100644
+--- a/apps/edge-bff/app/errors.py
++++ b/apps/edge-bff/app/errors.py
+@@ -66,6 +66,10 @@ MESSAGES = {
+     'MFA_NOT_ENROLLED': 'Two-step sign-in is not set up for this account yet. Set it up first, then enter the code.',
+     'HOOK_SIGNATURE_INVALID': 'The webhook signature could not be verified. Check the signing secret of the webhook.',
+     'PREFERENCE_LIMIT': 'Your account keeps too many settings or too large a setting. Remove some, then save again.',
++    # track guest (the pre-launch mode of the live site, the user 2026-11-19: "Terbuka, tapi belum bisa mendaftar",
++    # "Dan hanya admin yang bisa login (saya)"): plain refusals; the Terminal stays open to visitors
++    'REGISTRATION_CLOSED': 'Registration opens soon. EDGE is not taking new accounts yet; you can still open the Terminal without an account.',
++    'SIGN_IN_CLOSED': 'EDGE opens to accounts soon. Until then only test accounts can sign in; you can still open the Terminal without an account.',
+ }
+ 
+ # FastAPI's and Starlette's own refusals by status (a route raises HTTPException with one of these codes as its detail)
+diff --git a/apps/edge-bff/app/main.py b/apps/edge-bff/app/main.py
+index 216e592b..6638383c 100644
+--- a/apps/edge-bff/app/main.py
++++ b/apps/edge-bff/app/main.py
+@@ -475,6 +475,8 @@ def create_app(settings=None, store=None, orc=None):
+     # replaces the session dependency and auth.writer the write (CSRF) one. The route-table test
+     # (tests/test_route_table.py, CONTRACT.md 13.1) finds these in every /api route's dependencies.
+     app.state.session_dependency, app.state.write_dependency = auth.principal, auth.writer
++    # track guest: the visitor dependencies (the guest plan's principal without a session; tests/test_route_table.py GUEST_OPEN)
++    app.state.visitor_dependency, app.state.visitor_write_dependency = auth.visitor, auth.visitor_writer
+ 
+     async def still_signed_in(p):
+         """The SSE stream re-checks the principal (and, Phase 3a, its monitor.view) on each loop (CONTRACT.md 4, 8b)."""
+@@ -749,8 +751,10 @@ def create_app(settings=None, store=None, orc=None):
+         media = sent.pop('content-type', 'application/octet-stream')
+         return Response(bytes(raw), media_type=media, headers={**sent, 'content-length': str(len(raw))})
+ 
+-    terminal_read_gate = terminal_access.guard(auth.need(TERMINAL_VIEW))
+-    terminal_write_gate = terminal_access.guard(auth.need(TERMINAL_VIEW, write=True))
++    # track guest (decision 1 of 2026-11-19, "1a"; principal.py): the Terminal's data relay is the one route family a
++    # visitor without an account reaches (guests=True: the guest plan's principal, 401 where guests are off)
++    terminal_read_gate = terminal_access.guard(auth.need(TERMINAL_VIEW, guests=True))
++    terminal_write_gate = terminal_access.guard(auth.need(TERMINAL_VIEW, write=True, guests=True))
+ 
+     @app.get('/api/terminal/v1/{path:path}')
+     async def terminal_read(path: str, request: Request, p: Principal = Depends(terminal_read_gate)):
+@@ -825,13 +829,25 @@ def create_app(settings=None, store=None, orc=None):
+         if not known:
+             await asyncio.to_thread(throttle.count, (SIGNIN_IP, address))
+             response = error('INVALID_CREDENTIALS', 401)
+-            if settings.multiuser:
++            # track guest: in the pre-launch mode registration is closed, so no pending registration is restarted (every
++            # 401 there answers alike, without a registration cookie)
++            if settings.multiuser and not settings.prelaunch:
+                 # ERRORS M478 (C1 P1-M1): a pending registration with the right password answers the same 401 (no
+                 # enumeration); within the send limits a fresh code is mailed and this browser gets that registration's
+                 # cookie, so the person finishes on /verify. Every switch-on 401 sets a registration cookie, so the
+                 # answers do not differ by a header either
+                 await flows.restart_registration(response, restart, address, request)
+             return response
++        # track guest (the pre-launch mode of the live site; the user, 2026-11-19: "Dan hanya admin yang bisa login
++        # (saya)", then "A": the admin and the accounts marked as test accounts): only an account whose grants make it
++        # the admin ('*' or admin.access, the catalog's, as the second factor is decided) or one marked test_account
++        # (migration 20261119_070, set only by an audited step) signs in; every other account is refused with a plain
++        # sentence, after its password was checked like any other, and no session is made
++        needs_mfa = await asyncio.to_thread(auth.needs_mfa, account['owner_key']) if account is not None else False
++        if account is not None and settings.prelaunch and not (needs_mfa or account.get('test_account')):
++            logging.getLogger('edge_bff.accounts').info(json.dumps({'event': 'sign_in_closed',
++                                                                   'user_id': account['user_id']}))
++            return error('SIGN_IN_CLOSED', 403)
+         old = request.cookies.get(session_cookie) or (None if settings.multiuser else request.cookies.get(COOKIE))
+         if old:
+             await asyncio.to_thread(store.revoke, token_hash(old))
+@@ -843,7 +859,7 @@ def create_app(settings=None, store=None, orc=None):
+             made = await asyncio.to_thread(auth.accounts.create_session, token_hash(token), account,
+                                            settings.session_seconds, throttle.key_hash(SIGNIN_IP, address), False,
+                                            # Phase 2: MFA by the account's resolved capabilities ('*' or admin.access)
+-                                           await asyncio.to_thread(auth.needs_mfa, account['owner_key']),
++                                           needs_mfa,
+                                            account['verifier'], None, rehash)
+             if made is None:
+                 return error('INVALID_CREDENTIALS', 401)
+@@ -887,6 +903,19 @@ def create_app(settings=None, store=None, orc=None):
+     async def get_session(p: Principal = Depends(auth.principal)):
+         return session_answer(p)
+ 
++    # track guest (decision 1 of 2026-11-19, "1a"; principal.py): what the Terminal holds for this request when it has no
++    # session: the guest plan's access, in the session answer's shape with `visitor` true (no login, no owner key, no
++    # CSRF token: a guest writes without one). A signed-in principal gets its own session answer with `visitor` false.
++    # Where guests are off (the beta, EDGE_GUESTS=false) or the client address cannot be read, 401 UNAUTHENTICATED: the
++    # page goes to sign-in.
++    @app.get('/api/v1/auth/guest')
++    async def get_guest(p: Principal = Depends(auth.visitor)):
++        if not p.guest:
++            return {**session_answer(p), 'visitor': False}
++        return {'authenticated': False, 'visitor': True, 'login': '', 'owner_key': None, 'csrf_token': '',
++                'capabilities': capabilities(), 'username': None,
++                'access': {**jsonable_encoder(p.access(ceilings=auth.ceilings)), 'owner_key': None}}
++
+     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md sections 4-6): registration, codes, reset and change, sign-out everywhere,
+     # admin MFA, the Resend webhook (app/auth_flows.py); every one answers 404 with the switch off, except auth/config
+     flows.routes(app, session_answer)
+diff --git a/apps/edge-bff/app/principal.py b/apps/edge-bff/app/principal.py
+index 589830c8..70cf3fc4 100644
+--- a/apps/edge-bff/app/principal.py
++++ b/apps/edge-bff/app/principal.py
+@@ -36,10 +36,30 @@ The two websites (EXEC-MU-ACCOUNTS "Production environment", user decisions 2026
+   the Monitor (AI, decision D1) and admin tabs, the admin rights of rights.py, every item at the lab stage), whatever its
+   plan grants, '*' included; `auth.need` of a beta-only capability answers 404 NOT_FOUND there, as for a route the site
+   does not have. The second factor is decided by the account's own grants, so user #1 still needs it on the live site.
++
++Guests (track guest, decision 1 of 2026-11-19, the user: "1a - bukan hanya chart, nanti ada indikator dll yg juga
++mungkin di show ke user. jadi design harus plug and play dan fluid"; verification/edge_multiuser/fix_round/guest.md):
++- a visitor without a session (no cookie, or one that resolves to no session) on a site with guests on
++  (Settings.guests: the live site unless EDGE_GUESTS=false; never with EDGE_MULTIUSER off) is the guest principal: the
++  grants of the one plan marked for_guests (edge_bff.plans, migration 20261119_070), read on every request through
++  read_grants as every plan's are (guest_principal), so a change of its rows changes what visitors see without code;
++- it exists only for the routes that ask for it (`auth.need(capability, guests=True)`, `auth.visitor`): the Terminal's
++  data relay and the catalogs the Terminal reads. Every other route keeps answering 401 UNAUTHENTICATED, so the page
++  goes to sign-in;
++- it never holds everything, the admin access, an admin right or a beta-only capability, whatever the plan's rows say
++  (fail closed, logged guest_capability_dropped); its owner key is GUEST_OWNER for every visitor (terminal-api's one
++  guest owner row), and `client` names the visitor: an HMAC of its client address (guest_client), which terminal-api
++  counts its quotas by (x-terminal-client). The address is the right-most X-Forwarded-For entry, the hop Railway's
++  edge adds to every request it forwards (client_of); without a readable address (no header or not an IP address; the
++  socket peer only on a developer machine, EDGE_ENVIRONMENT=local) there is no guest principal: 401 (fail closed);
++- a guest writes without CSRF: it has no session a cross-site page could ride, and the Origin check of every write
++  (main.py protections) still holds.
+ """
+ import asyncio
+ import dataclasses
+ import hashlib
++import hmac
++import ipaddress
+ import json
+ import logging
+ import re
+@@ -49,7 +69,7 @@ from datetime import datetime
+ 
+ from fastapi import Depends, Request
+ 
+-from .accounts import OWNER_KEY, AccountStore
++from .accounts import GUEST_OWNER, OWNER_KEY, AccountStore
+ from .config import LIVE
+ from .errors import Refusal, capability_required, plan_expired, set_display_names
+ from . import releases
+@@ -72,6 +92,10 @@ ITEM_KEYS = frozenset({'ids', 'stages', 'all'})
+ # beta-only keys are those of these tabs, the admin rights rights.py grants (ADMIN_RIGHTS) and the lab-stage items.
+ BETA_ONLY_TABS = frozenset({'monitor', 'admin'})
+ ADMIN_RIGHT_CAPABILITIES = frozenset(RIGHT_CAPABILITIES.values())
++# Track guest (module docstring): the one owner key of every visitor (never an account's, which are u_<hex>; config.py
++# refuses it for EDGE_OWNER and EDGE_ADMIN_OWNERS), and the role and status a guest principal names (it has no account)
++VISITOR = 'visitor'
++GUEST_CLIENT_LABEL = b'edge_bff.guest_client\x00'
+ 
+ 
+ def beta_only(key):
+@@ -175,6 +199,9 @@ class Principal:
+     expired_kinds: dict = field(default_factory=dict, hash=False, compare=False, repr=False)
+     # the live site's view (live_view): no beta-only capability is held, whatever the grants say
+     live: bool = False
++    # track guest: a visitor without an account (guest_principal) and its visitor key, an HMAC of its client address
++    guest: bool = False
++    client: str = field(default='', repr=False)
+ 
+     def can(self, capability):
+         """'*' holds everything; a flag key is held when granted; '<family>:<id>' by the family's items value (its ids,
+@@ -275,6 +302,51 @@ def live_view(p, flags=()):
+                                version='db-' + hashlib.sha256(raw).hexdigest()[:12])
+ 
+ 
++def client_of(request, local=False):
++    """The visitor's client address: the right-most X-Forwarded-For entry, the hop Railway's edge adds to every request
++    it forwards from the internet (a hop a client wrote itself stays to its left), when it is an IP address; on a
++    developer machine (`local`, EDGE_ENVIRONMENT=local), with no such header, the socket peer. None otherwise: a request
++    that did not pass the edge, or a header that is not an address, gets no guest principal (fail closed)."""
++    forwarded = request.headers.get('x-forwarded-for')
++    if forwarded is not None:
++        candidate = forwarded.split(',')[-1].strip()
++    elif local and request.client:
++        candidate = request.client.host
++    else:
++        return None
++    try:
++        return str(ipaddress.ip_address(candidate))
++    except ValueError:
++        return None
++
++
++def guest_client(secret, address):
++    """The visitor key of a client address: 32 hex of an HMAC with EDGE_SESSION_SECRET under its own label (never the
++    address itself, and no other HMAC of the same secret, such as the throttle's or CSRF's, can equal it)."""
++    return hmac.new(secret.encode(), GUEST_CLIENT_LABEL + address.encode(), hashlib.sha256).hexdigest()[:32]
++
++
++# what a visitor never holds, whatever the guest plan's rows say (module docstring)
++GUEST_NEVER = frozenset({EVERYTHING, ADMIN_ACCESS}) | ADMIN_RIGHT_CAPABILITIES
++
++
++def guest_principal(row, client):
++    """The guest principal from the guest plan's row ({plan_key, grants {key: {kind, value}}, versions}; accounts.py
++    guest_plan) and the visitor key: the plan's grants read as every plan's are (read_grants), without GUEST_NEVER and
++    the beta-only keys (dropped and logged), and `live` set so no beta-only item is held either."""
++    grants, kinds = read_grants(row.get('grants'))
++    for key in sorted(k for k in grants if k in GUEST_NEVER or beta_only(k)):
++        logger.warning(json.dumps({'event': 'guest_capability_dropped', 'capability': key}))
++        grants.pop(key)
++        kinds.pop(key)
++    capabilities = frozenset(k for k, kind in kinds.items() if kind == 'flag' and grants[k] is True)
++    limits = {k: grants[k] for k, kind in kinds.items() if kind in ('limit', 'list')}
++    return Principal(user_id=None, owner_key=GUEST_OWNER, username=None, role=VISITOR, plan_key=row.get('plan_key'),
++                     status=VISITOR, expires_at=None, mfa_ok=True, capabilities=capabilities, limits=limits,
++                     version=version_of(row.get('plan_key'), VISITOR, grants, row.get('versions') or {}),
++                     grants=grants, kinds=kinds, live=True, guest=True, client=client)
++
++
+ def role_needs_mfa(capabilities):
+     """Switch on: an account whose resolved capabilities hold everything or the admin access passes the second factor
+     before any other route (CONTRACT.md 8a: derived from the catalog, no longer from the role)."""
+@@ -318,7 +390,9 @@ class Auth:
+         # named session and write as before Phase 1 (tests read the dependency names)
+         cookie = cookie_name(SESSION_COOKIE, settings.secure_cookie)
+ 
+-        async def session(request: Request):
++        async def signed_in(request: Request):
++            """The principal of the request's session, or None when it has none (the caller answers 401, or the
++            guest routes make a guest principal); a session that still waits for the second factor is refused here."""
+             token = request.cookies.get(cookie, '')
+             if not token and cookie != SESSION_COOKIE and not settings.multiuser:
+                 # re-check R2-22: the configured owner's session from before the __Host- name, read once under the old
+@@ -327,7 +401,7 @@ class Auth:
+                 token = request.cookies.get(SESSION_COOKIE, '')
+             found = await self.resolve(token)
+             if found is None:
+-                raise Refusal(401, 'UNAUTHENTICATED')
++                return None
+             # the refusals below carry the principal's X-Edge-Entitlements too (main.py protections), so a page whose
+             # account now needs the second factor reads its session again (re-check R2-31)
+             request.state.principal = found
+@@ -341,13 +415,40 @@ class Auth:
+             request.state.owner, request.state.principal = found.owner_key, found
+             return found
+ 
+-        async def write(request: Request, p: Principal = Depends(session)):
++        async def session(request: Request):
++            found = await signed_in(request)
++            if found is None:
++                raise Refusal(401, 'UNAUTHENTICATED')
++            return found
++
++        def check_csrf(request, p):
+             if not same_ascii(request.headers.get('x-csrf-token', ''), csrf_token(p.token, settings.session_secret)):
+                 # the only place that answers CSRF_INVALID (the clients re-read the session and retry once on it)
+                 raise Refusal(403, 'CSRF_INVALID')
++
++        async def write(request: Request, p: Principal = Depends(session)):
++            check_csrf(request, p)
++            return p
++
++        # track guest (module docstring): the session's principal, else the guest principal, else 401; a guest writes
++        # without CSRF (no session to ride; the Origin check of every write holds)
++        async def visitor(request: Request):
++            found = await signed_in(request)
++            if found is not None:
++                return found
++            guest = await self.guest(request)
++            if guest is None:
++                raise Refusal(401, 'UNAUTHENTICATED')
++            request.state.owner, request.state.principal = guest.owner_key, guest
++            return guest
++
++        async def visitor_write(request: Request, p: Principal = Depends(visitor)):
++            if not p.guest:
++                check_csrf(request, p)
+             return p
+ 
+         self.principal, self.writer = session, write
++        self.visitor, self.visitor_writer = visitor, visitor_write
+ 
+     def seed_user(self):
+         """User #1 from the configuration (accounts.py seed; blocking, a thread): owner_key EDGE_OWNER, the username
+@@ -401,6 +502,21 @@ class Auth:
+         row = await asyncio.to_thread(self.accounts.resolve, hashed, self.settings.session_idle_seconds)
+         return self.site_view(account_principal(row, token)) if row else None
+ 
++    async def guest(self, request):
++        """The guest principal of a request without a session (module docstring), or None: guests are off on this site
++        (Settings.guests), the client address cannot be read (client_of, fail closed), or no plan is marked for guests
++        (logged guest_plan_missing; a value that cannot be read never widens access)."""
++        if not self.settings.guests:
++            return None
++        address = client_of(request, self.settings.environment == 'local')
++        if address is None:
++            return None
++        row = await asyncio.to_thread(self.accounts.guest_plan)
++        if row is None:
++            logger.warning(json.dumps({'event': 'guest_plan_missing'}))
++            return None
++        return self.site_view(guest_principal(row, guest_client(self.settings.session_secret, address)))
++
+     def site_view(self, p):
+         """The principal as this site serves it: live_view on the live site, else as it is."""
+         return live_view(p, self.flags) if self.settings.site == LIVE else p
+@@ -410,20 +526,23 @@ class Auth:
+         dispatches a queued job). Switch on: an owner with no active account has no capability. Blocking (a thread)."""
+         return self.site_view(owner_principal(self.settings, self.accounts, owner_key))
+ 
+-    def need(self, capability, write=False):
++    def need(self, capability, write=False, guests=False):
+         """A dependency: the principal (with CSRF when write) holding the capability, else 403 CAPABILITY_REQUIRED (or
+         PLAN_EXPIRED when only the account's ended plan held it). On the live site a beta-only capability (the Monitor,
+-        the admin routes) answers 404 NOT_FOUND before the session is read: the route is not one the site has."""
+-        key = ('need', capability, write)
+-        if key not in self._needs and self.settings.site == LIVE and beta_only(capability):
++        the admin routes) answers 404 NOT_FOUND before the session is read: the route is not one the site has. Track
++        guest: `guests` makes the route one a visitor reaches (auth.visitor: the guest principal without a session);
++        only the Terminal's data relay asks for it (tests/test_route_table.py GUEST_OPEN)."""
++        key = ('need', capability, write) + (('guests',) if guests else ())
++        if guests:
++            base = self.visitor_writer if write else self.visitor
++        else:
+             base = self.writer if write else self.principal
++        if key not in self._needs and self.settings.site == LIVE and beta_only(capability):
+ 
+             async def absent(_: None = Depends(not_on_this_site), p: Principal = Depends(base)):
+                 return p                                      # never reached: not_on_this_site refuses first
+             self._needs[key] = absent
+         if key not in self._needs:
+-            base = self.writer if write else self.principal
+-
+             async def check(p: Principal = Depends(base)):
+                 if not p.can(capability):
+                     try:
+diff --git a/apps/edge-bff/app/store.py b/apps/edge-bff/app/store.py
+index bcb295ed..6e5b20c5 100644
+--- a/apps/edge-bff/app/store.py
++++ b/apps/edge-bff/app/store.py
+@@ -66,6 +66,10 @@ class Store:
+                 c.execute('SELECT 1 FROM edge_bff.plan_capabilities LIMIT 0')
+                 c.execute('SELECT 1 FROM edge_bff.user_capability_overrides LIMIT 0')
+                 c.execute('SELECT 1 FROM edge_bff.subscriptions LIMIT 0')
++                # track guest (migration 20261119_070): the guest plan's mark and the test-account mark, read by every
++                # guest request and every pre-launch sign-in; with the switch off nothing reads them
++                c.execute('SELECT for_guests FROM edge_bff.plans LIMIT 0')
++                c.execute('SELECT test_account FROM edge_bff.users LIMIT 0')
+             # EXEC-MU-ACCOUNTS beta/live (migrations 20261119_020 and _021): every queued row names its site
+             c.execute('SELECT site FROM edge_bff.jobs LIMIT 0')
+             c.execute('SELECT 1 FROM edge_bff.sessions LIMIT 0')
+diff --git a/apps/edge-bff/app/terminal_access.py b/apps/edge-bff/app/terminal_access.py
+index 6ce1bed5..218e9411 100644
+--- a/apps/edge-bff/app/terminal_access.py
++++ b/apps/edge-bff/app/terminal_access.py
+@@ -103,6 +103,12 @@ EVERYTHING = '*'
+ TICKERS, HISTORY_DAYS, DATASET = 'terminal.tickers', 'terminal.history_days', 'terminal.dataset'
+ OWNER_HEADER, CAPABILITIES_HEADER, KEY_HEADER = 'x-terminal-proxy-owner', 'x-terminal-capabilities', 'x-terminal-proxy-key'
+ RESERVED = (KEY_HEADER, OWNER_HEADER, CAPABILITIES_HEADER)
++# track guest (terminal-api entitlements.py CLIENT_HEADER, CLIENT_RE): the visitor key of a guest principal, by which
++# terminal-api counts each visitor's quotas under the one guest owner; sent only for a guest, and like RESERVED never
++# taken from the page (PAGE_REFUSED)
++CLIENT_HEADER = 'x-terminal-client'
++CLIENT = re.compile(r'[0-9a-f]{32}')
++PAGE_REFUSED = RESERVED + (CLIENT_HEADER,)
+ MAX_HEADER_BYTES = 8192
+ 
+ 
+@@ -163,12 +169,21 @@ def capabilities_header(p):
+ 
+ def headers(settings, p):
+     """The headers of every terminal-api call made for the principal p (the only place they are built): both terminal
+-    headers always beside the gateway key (terminal-api refuses one without the other)."""
++    headers always beside the gateway key (terminal-api refuses one without the other). Track guest: a guest principal
++    (principal.py guest_principal) also names its visitor (CLIENT_HEADER, its HMAC key, never the address), so
++    terminal-api counts that visitor's quotas on their own; a guest without a well-formed key is refused 503 (never
++    counted on the guest owner's whole row by mistake: that row's quota would then be every visitor's at once)."""
+     if not OWNER_KEY.fullmatch(p.owner_key or ''):
+         logger.warning(json.dumps({'event': 'terminal_owner_key_invalid'}))
+         raise Refusal(503, 'TERMINAL_UNAVAILABLE')
+-    return {'content-type': 'application/json', KEY_HEADER: settings.terminal_proxy_key,
+-            OWNER_HEADER: p.owner_key, CAPABILITIES_HEADER: capabilities_header(p)}
++    out = {'content-type': 'application/json', KEY_HEADER: settings.terminal_proxy_key,
++           OWNER_HEADER: p.owner_key, CAPABILITIES_HEADER: capabilities_header(p)}
++    if p.guest:
++        if admin(p) or not CLIENT.fullmatch(getattr(p, 'client', '') or ''):
++            logger.warning(json.dumps({'event': 'terminal_guest_client_invalid'}))
++            raise Refusal(503, 'TERMINAL_UNAVAILABLE')
++        out[CLIENT_HEADER] = p.client
++    return out
+ 
+ 
+ _guards = {}
+@@ -188,7 +203,7 @@ def guard(base):
+ 
+ 
+ def refuse_reserved(request):
+-    for name in RESERVED:
++    for name in PAGE_REFUSED:
+         if name in request.headers:
+             raise Refusal(400, 'HEADER_NOT_ALLOWED', {'header': name})
+ 
+diff --git a/apps/edge-bff/tests/conftest.py b/apps/edge-bff/tests/conftest.py
+index 653dadba..0eca0ddf 100644
+--- a/apps/edge-bff/tests/conftest.py
++++ b/apps/edge-bff/tests/conftest.py
+@@ -52,6 +52,8 @@ def database():
+             # the records fix round (verification/edge_multiuser/fix_round/records.md, re-check R1-41..R1-46)
+             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_040_edge_bff_audit_ids_and_catalog_trace.sql').read_text())
+             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_050_edge_bff_capability_domains.sql').read_text())
++            # the guest fix round (verification/edge_multiuser/fix_round/guest.md): the guest plan and the test-account mark
++            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_070_edge_bff_guest_plan_and_test_accounts.sql').read_text())
+             c.execute('CREATE TABLE public.market_private(secret text)')
+         yield url
+     finally:
+diff --git a/apps/edge-bff/tests/test_auth_flows.py b/apps/edge-bff/tests/test_auth_flows.py
+index f7616efc..083d0c0a 100644
+--- a/apps/edge-bff/tests/test_auth_flows.py
++++ b/apps/edge-bff/tests/test_auth_flows.py
+@@ -112,7 +112,11 @@ def test_switch_off_every_new_route_answers_404_and_config_says_so(settings, sto
+ 
+ 
+ def test_config_with_the_switch_on(app):
+-    assert app.get('/api/v1/auth/config').json() == {'multiuser': True}
++    # track guest (decision 1 and the pre-launch decision of 2026-11-19; this test held {"multiuser": true} alone): with
++    # the switch on the page also learns whether registration is open, the pre-launch mode, the guests and the upgrade
++    # contact; the switch-off answer stays {"multiuser": false} (test above)
++    assert app.get('/api/v1/auth/config').json() == {'multiuser': True, 'registration': True, 'prelaunch': False,
++                                                     'guests': False, 'upgrade_contact': None}
+ 
+ 
+ def test_the_settings_need_their_secrets_only_with_the_switch_on(settings):
+diff --git a/apps/edge-bff/tests/test_guest.py b/apps/edge-bff/tests/test_guest.py
+new file mode 100644
+index 00000000..bb24e84c
+--- /dev/null
++++ b/apps/edge-bff/tests/test_guest.py
+@@ -0,0 +1,376 @@
++"""EXEC-MU-ACCOUNTS fix round, track guest (verification/edge_multiuser/fix_round/guest.md): the guest principal, the
++pre-launch mode of the live site and the test-account mark (edge-bff's side).
++
++- A visitor without an account reaches the Terminal's data relay and the catalogs with the guest plan's grants, read
++  from the catalog on every request (a change of the plan's rows changes what guests see, no code); every other route
++  answers 401 UNAUTHENTICATED; the guest's calls name the guest owner and a visitor key (an HMAC of the client address,
++  never the address) to terminal-api; no readable client address, no guest (fail closed); guests never exist with the
++  switch off.
++- The pre-launch mode closes registration and lets only the admin and the accounts marked as test accounts sign in;
++  the mark changes only beside its audit row (migration 20261119_070), which scripts/edge_test_account.py writes.
++"""
++import dataclasses
++import json
++import os
++import subprocess
++import sys
++from pathlib import Path
++
++import psycopg
++import pytest
++from fastapi.testclient import TestClient
++
++from app import principal as principal_module, terminal_access
++from app.config import BETA, LIVE, Settings
++from app.main import create_app
++from conftest import FakeOrc
++from test_edge import ORIGIN
++from test_principal import db, make_user, on, sign_in, workers  # noqa: F401 - the fixtures
++from test_terminal_access import FakeApi, URL, KEY, api, sent_caps, subscribe, terminal_calls  # noqa: F401
++
++ROOT = Path(__file__).resolve().parents[3]
++MIGRATION = ROOT / 'database/migrations/20261119_070_edge_bff_guest_plan_and_test_accounts.sql'
++VISITOR = {'x-forwarded-for': '203.0.113.7'}           # the hop Railway's edge adds (TEST-NET-3)
++OTHER_VISITOR = {'x-forwarded-for': '198.51.100.9, 203.0.113.8'}
++
++
++@pytest.fixture
++def guests(on, api):
++    """The switch on with guests, as the live site has them (a local beta: config.validate takes it locally)."""
++    return dataclasses.replace(on, terminal_url=URL, terminal_proxy_key=KEY, guests_enabled=True)
++
++
++def guest_plan(store):
++    return db(store, 'SELECT plan_key FROM edge_bff.plans WHERE for_guests')[0]['plan_key']
++
++
++# ---- the guest principal ------------------------------------------------------------------------------------------
++
++def test_a_visitor_reads_bbca_and_the_whole_ticker_list_and_is_refused_another_ticker(guests, store):
++    with TestClient(create_app(guests, store, FakeOrc())) as c:
++        r = c.get('/api/v1/auth/guest', headers=VISITOR)
++        assert r.status_code == 200, r.text
++        body = r.json()
++        assert body['visitor'] is True and body['authenticated'] is False and body['csrf_token'] == ''
++        assert body['owner_key'] is None and body['access']['owner_key'] is None
++        assert body['access']['capabilities'] == ['terminal.view'] and body['access']['limits']['terminal.tickers'] == ['BBCA']
++        assert body['access']['plan'] == guest_plan(store) and r.headers['x-edge-entitlements'].startswith('db-')
++        # BBCA's chart and the ticker list go to terminal-api under the guest owner, with the visitor's key
++        for method, path, payload in (('GET', 'reference/tickers', None), ('GET', 'manifest/BBCA', None),
++                                      ('POST', 'bundle', {'ticker': 'BBCA', 'datasets': ['price'], 'packs': True})):
++            r = c.request(method, f'/api/terminal/v1/{path}', headers={**VISITOR, **ORIGIN}, json=payload)
++            assert r.status_code == 200, (path, r.text)
++            call = terminal_calls()[-1]
++            caps = sent_caps(call)
++            assert call['headers'][terminal_access.OWNER_HEADER] == principal_module.GUEST_OWNER
++            assert caps['admin'] is False and caps['tickers'] == ['BBCA'] and caps['datasets'] == ['price']
++            assert caps['history_days'] == 730 and caps['quota'] == {}     # terminal-api's defaults, per visitor
++            client = call['headers'][terminal_access.CLIENT_HEADER]
++            assert terminal_access.CLIENT.fullmatch(client) and '203.0.113.7' not in json.dumps(call['headers'])
++        # another ticker: CAPABILITY_REQUIRED before terminal-api (the page opens the sign-in box for a guest)
++        n = len(FakeApi.calls)
++        r = c.post('/api/terminal/v1/bundle', headers={**VISITOR, **ORIGIN}, json={'ticker': 'BBRI', 'datasets': ['price']})
++        assert r.status_code == 403 and r.json()['error']['code'] == 'CAPABILITY_REQUIRED'
++        assert r.json()['error']['details']['capability'] == 'terminal.tickers' and len(FakeApi.calls) == n
++        # each visitor has its own key; one visitor keeps its key from call to call
++        c.get('/api/terminal/v1/manifest/BBCA', headers=OTHER_VISITOR)
++        assert terminal_calls()[-1]['headers'][terminal_access.CLIENT_HEADER] not in (client, '')
++        c.get('/api/terminal/v1/manifest/BBCA', headers=VISITOR)
++        assert terminal_calls()[-1]['headers'][terminal_access.CLIENT_HEADER] == client
++        # the catalogs the Terminal reads: what the guest plan holds (no indicator yet)
++        r = c.get('/api/v1/catalog/indicator', headers=VISITOR)
++        assert r.status_code == 200 and r.json()['entries'] == []
++
++
++def test_every_other_route_answers_401_to_a_visitor(guests, store):
++    with TestClient(create_app(guests, store, FakeOrc())) as c:
++        for method, path in (('GET', '/api/v1/auth/session'), ('GET', '/api/v1/preferences'),
++                             ('GET', '/api/v1/terminal/layouts'), ('GET', '/api/v1/terminal/drawings?ticker=BBCA'),
++                             ('GET', '/api/v1/terminal/presets'), ('GET', '/api/v1/watchlist/lists'),
++                             ('GET', '/api/v1/backtests'), ('GET', '/api/v1/screener/catalog'),
++                             ('GET', '/api/v1/overview/index'), ('GET', '/api/v1/runs'), ('GET', '/api/v1/models')):
++            r = c.request(method, path, headers={**VISITOR, **ORIGIN})
++            assert r.status_code == 401 and r.json()['error']['code'] == 'UNAUTHENTICATED', (path, r.status_code, r.text)
++        assert terminal_calls() == []
++
++
++def test_a_change_of_the_guest_plans_rows_changes_what_a_visitor_sees_without_code(guests, store):
++    plan = guest_plan(store)
++    with TestClient(create_app(guests, store, FakeOrc())) as c:
++        before = c.get('/api/v1/auth/guest', headers=VISITOR).json()['access']
++        assert c.post('/api/terminal/v1/bundle', headers={**VISITOR, **ORIGIN},
++                      json={'ticker': 'TLKM', 'datasets': ['price']}).status_code == 403
++        try:
++            db(store, '''UPDATE edge_bff.plan_capabilities SET value = '["BBCA", "TLKM"]' WHERE plan_key = %s
++                AND capability_key = 'terminal.tickers' ''', plan)
++            db(store, '''UPDATE edge_bff.plan_capabilities SET value = '{"ids": ["I01"]}' WHERE plan_key = %s
++                AND capability_key = 'terminal.indicator' ''', plan)
++            after = c.get('/api/v1/auth/guest', headers=VISITOR).json()['access']
++            assert after['limits']['terminal.tickers'] == ['BBCA', 'TLKM'] and after['version'] != before['version']
++            r = c.post('/api/terminal/v1/bundle', headers={**VISITOR, **ORIGIN}, json={'ticker': 'TLKM', 'datasets': ['price']})
++            assert r.status_code == 200 and sent_caps(terminal_calls()[-1])['tickers'] == ['BBCA', 'TLKM']
++            assert [e['id'] for e in c.get('/api/v1/catalog/indicator', headers=VISITOR).json()['entries']] == ['I01']
++        finally:
++            db(store, '''UPDATE edge_bff.plan_capabilities SET value = '["BBCA"]' WHERE plan_key = %s
++                AND capability_key = 'terminal.tickers' ''', plan)
++            db(store, '''UPDATE edge_bff.plan_capabilities SET value = '{"ids": []}' WHERE plan_key = %s
++                AND capability_key = 'terminal.indicator' ''', plan)
++
++
++def test_a_visitor_never_holds_everything_whatever_the_guest_plans_rows_say(guests, store, caplog):
++    plan = guest_plan(store)
++    with TestClient(create_app(guests, store, FakeOrc())) as c:
++        try:
++            db(store, '''INSERT INTO edge_bff.plan_capabilities(plan_key, capability_key, value) VALUES
++                (%s, '*', 'true'), (%s, 'admin.access', 'true')''', plan, plan)
++            with caplog.at_level('WARNING', 'edge_bff.principal'):
++                access = c.get('/api/v1/auth/guest', headers=VISITOR).json()['access']
++            assert '*' not in access['capabilities'] and 'admin.access' not in access['capabilities']
++            assert 'guest_capability_dropped' in caplog.text
++            c.get('/api/terminal/v1/manifest/BBCA', headers=VISITOR)
++            assert sent_caps(terminal_calls()[-1])['admin'] is False
++            r = c.get('/api/terminal/v1/manifest/TLKM', headers=VISITOR)
++            assert r.status_code == 403
++        finally:
++            db(store, "DELETE FROM edge_bff.plan_capabilities WHERE plan_key = %s AND capability_key IN ('*', 'admin.access')", plan)
++
++
++def test_no_readable_client_address_means_no_guest(guests, store):
++    """Fail closed: a request that did not pass Railway's edge (no X-Forwarded-For) or whose right-most hop is not an
++    address gets no guest principal; the socket peer counts only on a developer machine."""
++    # the test client's socket peer is 'testclient', not an address: even locally it gives no guest
++    with TestClient(create_app(guests, store, FakeOrc())) as c:
++        for headers in ({}, {'x-forwarded-for': 'not-an-address'}, {'x-forwarded-for': '203.0.113.7, unknown'}):
++            r = c.get('/api/terminal/v1/manifest/BBCA', headers=headers)
++            assert r.status_code == 401 and r.json()['error']['code'] == 'UNAUTHENTICATED', (headers, r.text)
++        assert terminal_calls() == []
++    from starlette.requests import Request
++    request = lambda h, peer='127.0.0.1': Request({'type': 'http', 'headers': [(k.encode(), v.encode()) for k, v in h.items()],
++                                                  'client': (peer, 5000)})
++    assert principal_module.client_of(request({'x-forwarded-for': '198.51.100.9, 203.0.113.7'})) == '203.0.113.7'
++    assert principal_module.client_of(request({})) is None
++    assert principal_module.client_of(request({}), local=True) == '127.0.0.1'
++    assert principal_module.client_of(request({'x-forwarded-for': 'junk'}), local=True) is None
++
++
++def test_guests_are_refused_with_the_switch_off_and_off_on_the_beta_by_default(settings, on, store, api):
++    with pytest.raises(ValueError, match='EDGE_GUESTS=true needs EDGE_MULTIUSER=true'):
++        dataclasses.replace(settings, guests_enabled=True).validate()
++    assert not dataclasses.replace(settings, guests_enabled=None).guests                 # switch off: never
++    assert not on.guests                                                                # a switch-on beta: off by default
++    assert dataclasses.replace(on, site=LIVE).guests and dataclasses.replace(on, site=LIVE).prelaunch
++    assert not dataclasses.replace(on, site=LIVE, guests_enabled=False).guests           # configurable on the live site
++    with TestClient(create_app(dataclasses.replace(settings, terminal_url=URL, terminal_proxy_key=KEY), store,
++                               FakeOrc())) as c:
++        r = c.get('/api/terminal/v1/manifest/BBCA', headers=VISITOR)
++        assert r.status_code == 401 and c.get('/api/v1/auth/guest', headers=VISITOR).status_code == 401
++        assert c.get('/api/v1/auth/config').json() == {'multiuser': False}
++    with TestClient(create_app(dataclasses.replace(on, terminal_url=URL, terminal_proxy_key=KEY), store,
++                               FakeOrc())) as c:
++        assert c.get('/api/terminal/v1/manifest/BBCA', headers=VISITOR).status_code == 401
++        assert c.get('/api/v1/auth/config').json()['guests'] is False
++    assert terminal_calls() == []
++
++
++def test_a_signed_in_account_keeps_its_own_principal_on_the_guest_routes(guests, store):
++    with TestClient(create_app(guests, store, FakeOrc())) as c:
++        make_user(store, 'freda', 'freda-password')
++        h = sign_in(c, 'freda', 'freda-password')
++        r = c.get('/api/v1/auth/guest', headers={**h, **VISITOR})
++        assert r.status_code == 200 and r.json()['visitor'] is False and r.json()['csrf_token']
++        c.get('/api/terminal/v1/manifest/BBCA', headers={**h, **VISITOR})
++        call = terminal_calls()[-1]
++        assert call['headers'][terminal_access.OWNER_HEADER].startswith('u_')
++        assert terminal_access.CLIENT_HEADER not in call['headers']
++        # a write of the account still needs its CSRF token; a guest's write needs none (it has no session)
++        r = c.post('/api/terminal/v1/bundle', headers={**ORIGIN, **VISITOR}, json={'ticker': 'BBCA', 'datasets': ['price']})
++        assert r.status_code == 403 and r.json()['error']['code'] == 'CSRF_INVALID'
++    with TestClient(create_app(guests, store, FakeOrc())) as fresh:
++        r = fresh.post('/api/terminal/v1/bundle', headers={**ORIGIN, **VISITOR}, json={'ticker': 'BBCA', 'datasets': ['price']})
++        assert r.status_code == 200
++        r = fresh.post('/api/terminal/v1/bundle', headers={'origin': 'https://elsewhere.example', **VISITOR},
++                       json={'ticker': 'BBCA', 'datasets': ['price']})
++        assert r.status_code == 403 and r.json()['error']['code'] == 'ORIGIN_REJECTED'
++
++
++def test_a_page_sent_visitor_key_is_refused(guests, store):
++    with TestClient(create_app(guests, store, FakeOrc())) as c:
++        r = c.get('/api/terminal/v1/manifest/BBCA', headers={**VISITOR, terminal_access.CLIENT_HEADER: 'a' * 32})
++        assert r.status_code == 400 and r.json()['error']['code'] == 'HEADER_NOT_ALLOWED'
++        assert terminal_calls() == []
++
++
++def test_the_guest_owner_is_never_an_account_or_the_configured_owner(settings):
++    from app.accounts import reserved_owner
++    assert reserved_owner(principal_module.GUEST_OWNER)
++    for change in ({'owner': principal_module.GUEST_OWNER, 'admin_owners': (principal_module.GUEST_OWNER,)},
++                   {'admin_owners': (settings.owner, principal_module.GUEST_OWNER)}):
++        with pytest.raises(ValueError, match='owner key of every visitor'):
++            dataclasses.replace(settings, **change).validate()
++
++
++# ---- the pre-launch mode ------------------------------------------------------------------------------------------
++
++@pytest.fixture
++def prelaunch(guests):
++    return dataclasses.replace(guests, prelaunch_enabled=True, upgrade_contact='sales@example.com')
++
++
++def test_prelaunch_closes_registration_with_a_plain_sentence(prelaunch, store):
++    with TestClient(create_app(prelaunch, store, FakeOrc())) as c:
++        config = c.get('/api/v1/auth/config').json()
++        assert config == {'multiuser': True, 'registration': False, 'prelaunch': True, 'guests': True,
++                          'upgrade_contact': 'sales@example.com'}
++        for path, body in (('/api/v1/auth/register', {'username': 'newbie', 'first_name': 'New', 'last_name': 'Bie',
++                                                      'email': 'newbie@example.com', 'phone': '+6281234567890',
++                                                      'password': 'long enough pw', 'password_repeat': 'long enough pw'}),
++                           ('/api/v1/auth/register/verify', {'email': 'newbie@example.com', 'code': '123456'}),
++                           ('/api/v1/auth/code/resend', {'email': 'newbie@example.com', 'purpose': 'register'})):
++            r = c.post(path, headers=ORIGIN, json=body)
++            assert r.status_code == 403, (path, r.text)
++            error = r.json()['error']
++            assert error['code'] == 'REGISTRATION_CLOSED' and error['message'].startswith('Registration opens soon')
++        assert db(store, "SELECT count(*) AS n FROM edge_bff.users WHERE status = 'pending'")[0]['n'] == 0
++        assert db(store, 'SELECT count(*) AS n FROM edge_bff.email_outbox')[0]['n'] == 0
++        # the reset of an account's password stays open (the test accounts set theirs with it)
++        r = c.post('/api/v1/auth/password/forgot', headers=ORIGIN, json={'email': 'someone@example.com'})
++        assert r.status_code == 202
++        # visitors still open the Terminal (the website is open)
++        assert c.get('/api/terminal/v1/manifest/BBCA', headers=VISITOR).status_code == 200
++
++
++def test_prelaunch_lets_only_the_admin_and_test_accounts_sign_in(prelaunch, store):
++    with TestClient(create_app(prelaunch, store, FakeOrc())) as c:
++        make_user(store, 'paula', 'paula-password')                    # an account like any other: refused
++        tess = make_user(store, 'tessa', 'tessa-password')
++        make_user(store, 'adele', 'adele-password', role='admin')      # holds '*' by the catalog: the admin
++        r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'paula', 'password': 'paula-password'})
++        assert r.status_code == 403 and r.json()['error']['code'] == 'SIGN_IN_CLOSED', r.text
++        assert 'only test accounts' in r.json()['error']['message'] and 'set-cookie' not in r.headers
++        assert db(store, 'SELECT count(*) AS n FROM edge_bff.sessions')[0]['n'] == 0
++        # a wrong password still answers as a wrong password
++        r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'paula', 'password': 'wrong password'})
++        assert r.status_code == 401 and r.json()['error']['code'] == 'INVALID_CREDENTIALS'
++        # the admin signs in (and is asked for its second factor, as always)
++        r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'adele', 'password': 'adele-password'})
++        assert r.status_code == 403 and r.json()['error']['code'] == 'MFA_REQUIRED'
++        # a test account, marked by an audited step, signs in
++        with psycopg.connect(prelaunch.database_url) as conn:
++            conn.execute('''INSERT INTO edge_bff.admin_audit(action, target_user_id, after, reason)
++                VALUES ('account.test_mark', %s, '{"test_account": true}', 'operator: test')''', (tess['user_id'],))
++            conn.execute('UPDATE edge_bff.users SET test_account = true WHERE user_id = %s', (tess['user_id'],))
++        r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'tessa', 'password': 'tessa-password'})
++        assert r.status_code == 200, r.text
++    with TestClient(create_app(dataclasses.replace(prelaunch, prelaunch_enabled=False), store, FakeOrc())) as c:
++        assert c.post('/api/v1/auth/sign-in', headers=ORIGIN,
++                      json={'login': 'paula', 'password': 'paula-password'}).status_code == 200
++
++
++def test_prelaunch_needs_the_switch_and_the_contact_is_one_plain_line(settings, on):
++    with pytest.raises(ValueError, match='EDGE_PRELAUNCH=true needs EDGE_MULTIUSER=true'):
++        dataclasses.replace(settings, prelaunch_enabled=True).validate()
++    assert not dataclasses.replace(on, prelaunch_enabled=False, site=LIVE).prelaunch
++    for bad in ('<a href=x>x</a>', 'line\nbreak', 'x' * 201):
++        with pytest.raises(ValueError, match='EDGE_UPGRADE_CONTACT'):
++            dataclasses.replace(on, upgrade_contact=bad).validate()
++    dataclasses.replace(on, upgrade_contact='WhatsApp +62 812 3456 7890 or sales@example.com').validate()
++
++
++def test_the_settings_read_the_three_new_variables(monkeypatch):
++    base = {'EDGE_DATABASE_URL': 'postgresql://u@h/db', 'EDGE_ORC_URL': 'http://orc', 'MARKET_AI_ORC_API_KEY': 'k',
++            'EDGE_OWNER': 'edge-private', 'EDGE_LOGIN': 'owner', 'EDGE_SESSION_SECRET': 's' * 40,
++            'EDGE_PUBLIC_ORIGIN': 'http://localhost', 'EDGE_ENVIRONMENT': 'local', 'EDGE_SECURE_COOKIE': 'false',
++            'EDGE_PASSWORD_VERIFIER': __import__('app.security', fromlist=['x']).password_verifier('pw'),
++            'EDGE_MULTIUSER': 'true', 'EDGE_CODE_SECRET': 'c' * 40, 'EDGE_MFA_KEY': 'm' * 40}
++    for k, v in base.items():
++        monkeypatch.setenv(k, v)
++    for k in ('EDGE_GUESTS', 'EDGE_PRELAUNCH', 'EDGE_UPGRADE_CONTACT', 'EDGE_SITE'):
++        monkeypatch.delenv(k, raising=False)
++    s = Settings.from_env()
++    assert (s.site, s.guests, s.prelaunch, s.upgrade_contact) == (BETA, False, False, '')
++    monkeypatch.setenv('EDGE_GUESTS', 'true')
++    monkeypatch.setenv('EDGE_PRELAUNCH', 'true')
++    monkeypatch.setenv('EDGE_UPGRADE_CONTACT', '  sales@example.com ')
++    s = Settings.from_env()
++    assert (s.guests, s.prelaunch, s.upgrade_contact) == (True, True, 'sales@example.com')
++    monkeypatch.setenv('EDGE_GUESTS', 'yes')
++    with pytest.raises(ValueError, match='EDGE_GUESTS is true or false'):
++        Settings.from_env()
++
++
++# ---- the test-account mark and its script ----------------------------------------------------------------------------
++
++def test_the_mark_changes_only_beside_its_audit_row(database, store):
++    user = make_user(store, 'markus', 'markus-password')
++    with psycopg.connect(database) as conn:
++        with pytest.raises(psycopg.errors.CheckViolation, match='without its audit row') as e:
++            conn.execute('UPDATE edge_bff.users SET test_account = true WHERE user_id = %s', (user['user_id'],))
++            conn.commit()                                                # deferred: refused at the commit
++        assert e.value.diag.constraint_name == 'users_test_account_audited'
++        assert 'scripts/edge_test_account.py' in e.value.diag.message_hint
++        conn.rollback()
++        with pytest.raises(psycopg.errors.CheckViolation):              # an audit row of another value is not its row
++            conn.execute("INSERT INTO edge_bff.admin_audit(action, target_user_id, after, reason) "
++                         "VALUES ('account.test_mark', %s, '{\"test_account\": false}', 'operator: wrong value')",
++                         (user['user_id'],))
++            conn.execute('UPDATE edge_bff.users SET test_account = true WHERE user_id = %s', (user['user_id'],))
++            conn.commit()
++        conn.rollback()
++        conn.execute("INSERT INTO edge_bff.admin_audit(action, target_user_id, after, reason) "
++                     "VALUES ('account.test_mark', %s, '{\"test_account\": true}', 'operator: right')", (user['user_id'],))
++        conn.execute('UPDATE edge_bff.users SET test_account = true WHERE user_id = %s', (user['user_id'],))
++        conn.commit()
++    assert db(store, 'SELECT test_account FROM edge_bff.users WHERE user_id = %s', user['user_id'])[0]['test_account']
++
++
++def run_script(database, *args):
++    env = {**os.environ, 'DATABASE_URL': database}
++    r = subprocess.run([sys.executable, str(ROOT / 'scripts/edge_test_account.py'), *args], env=env,
++                       capture_output=True, text=True, timeout=60)
++    return r.returncode, (json.loads(r.stdout) if r.stdout.strip() else None), r.stdout + r.stderr
++
++
++def test_the_script_makes_a_test_account_for_an_address_and_a_plan_without_printing_secrets(database, store, prelaunch):
++    from test_terminal_access import paid_plan
++    paid = paid_plan(store)
++    code, out, text = run_script(database, '--email', 'Tester.One@Example.com', '--plan', paid, '--reason', 'the user asked')
++    assert code == 0 and out['outcome'] == 'created' and out['plan'] == paid and out['test_account'] is True, text
++    assert 'example.com' not in text.lower() and 'scrypt' not in text and 'postgresql' not in text
++    row = db(store, """SELECT u.username, u.status, u.test_account, u.email_verified_at IS NOT NULL AS verified,
++            s.plan_key, s.provider, a.action, a.reason FROM edge_bff.users u
++        JOIN edge_bff.subscriptions s ON s.user_id = u.user_id JOIN edge_bff.admin_audit a ON a.target_user_id = u.user_id
++        WHERE u.email = 'tester.one@example.com' """)
++    assert row == [{'username': 'tester_one', 'status': 'active', 'test_account': True, 'verified': True,
++                    'plan_key': paid, 'provider': 'test', 'action': 'account.test_mark',
++                    'reason': 'operator: the user asked'}]
++    # nobody signs in before the user sets a password with "Forgot password" (a verifier no password opens)
++    with TestClient(create_app(prelaunch, store, FakeOrc())) as c:
++        r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'tester_one', 'password': 'any password at all'})
++        assert r.status_code == 401
++    # a second run changes nothing; another plan while one is active is refused; the default plan needs no subscription
++    again = run_script(database, '--email', 'tester.one@example.com', '--plan', paid, '--reason', 'again')
++    assert again[1]['outcome'] == 'marked'
++    free = db(store, 'SELECT plan_key FROM edge_bff.plans WHERE is_default')[0]['plan_key']
++    code, out, _ = run_script(database, '--email', 'tester.one@example.com', '--plan', free, '--reason', 'down')
++    assert code == 1 and out['outcome'] == 'refused_other_subscription'
++    code, out, _ = run_script(database, '--email', 'tester.two@example.com', '--plan', free, '--reason', 'the user asked')
++    assert code == 0 and out['outcome'] == 'created'
++    assert db(store, """SELECT count(*) AS n FROM edge_bff.subscriptions s JOIN edge_bff.users u USING (user_id)
++        WHERE u.email = 'tester.two@example.com' """)[0]['n'] == 0
++    # the admin's plan and the guest plan are never a test account's; --off removes the mark only
++    admin_plan = db(store, "SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' "
++                           "AND value = 'true'::jsonb")[0]['plan_key']
++    for plan in (admin_plan, guest_plan(store), 'no_such_plan'):
++        code, out, _ = run_script(database, '--email', 'tester.three@example.com', '--plan', plan, '--reason', 'x')
++        assert code == 1 and out['outcome'].startswith('refused'), (plan, out)
++    code, out, _ = run_script(database, '--email', 'tester.one@example.com', '--plan', paid, '--reason', 'done', '--off')
++    assert code == 0 and out['outcome'] == 'unmarked'
++    assert db(store, "SELECT test_account FROM edge_bff.users WHERE email = 'tester.one@example.com'")[0]['test_account'] is False
++    assert db(store, """SELECT count(*) AS n FROM edge_bff.admin_audit WHERE action = 'account.test_mark'
++        AND target_user_id IN (SELECT user_id FROM edge_bff.users WHERE email LIKE 'tester.%%')""")[0]['n'] == 3
++
++
++def test_the_migration_refuses_a_second_run(database):
++    with psycopg.connect(database, autocommit=True) as conn:
++        with pytest.raises(psycopg.errors.RaiseException, match='already applied'):
++            conn.execute(MIGRATION.read_text())
+diff --git a/apps/edge-bff/tests/test_plan_catalog.py b/apps/edge-bff/tests/test_plan_catalog.py
+index 7ea3108a..f3056ed2 100644
+--- a/apps/edge-bff/tests/test_plan_catalog.py
++++ b/apps/edge-bff/tests/test_plan_catalog.py
+@@ -341,10 +341,14 @@ def test_every_seed_capability_has_a_plain_meaning(store):
+ # ---- no plan key in code ------------------------------------------------------------------------------------------
+ 
+ def plan_keys():
+-    """The plan keys of the seed, read from the migration (the only place they may appear)."""
+-    block = re.search(r'INSERT INTO edge_bff\.plans\(plan_key, display_name, is_default\) VALUES(.*?);',
+-                      MIGRATION.read_text(), re.S).group(1)
+-    return set(re.findall(r"\('([a-z][a-z0-9_]*)',", block))
++    """The plan keys of the seeds, read from every migration that adds a plan (the only places they may appear): the
++    catalog's (20261117_003) and, since track guest, the guest plan's (20261119_070)."""
++    keys = set()
++    for path in sorted((ROOT / 'database/migrations').glob('*_edge_bff_*.sql')):
++        for block in re.findall(r'INSERT INTO edge_bff\.plans\(plan_key, display_name, is_default(?:, for_guests)?\) '
++                                r'VALUES(.*?);', path.read_text(), re.S):
++            keys |= set(re.findall(r"\('([a-z][a-z0-9_]*)',", block))
++    return keys
+ 
+ 
+ def role_names():
+@@ -405,7 +409,8 @@ def test_the_rule_catches_a_planted_plan_key():
+ def test_no_plan_key_in_edge_bff_app():
+     """CONTRACT.md section 0 and 8a: plan keys are data (the catalog seed migration), never code."""
+     keys, roles = plan_keys(), role_names()
+-    assert keys == {'admin', 'paid', 'free'} and 'admin' in roles
++    # track guest (decision 1 of 2026-11-19): the guest plan joins the seeded plans, and its key is data too
++    assert keys == {'admin', 'paid', 'free', 'guest'} and 'admin' in roles
+     found = {path.name: uses for path in sorted(APP.rglob('*.py'))
+              if (uses := plan_key_uses(path.read_text(), keys, roles))}
+     assert found == {}
+diff --git a/apps/edge-bff/tests/test_route_table.py b/apps/edge-bff/tests/test_route_table.py
+index 7f845889..337ad8ce 100644
+--- a/apps/edge-bff/tests/test_route_table.py
++++ b/apps/edge-bff/tests/test_route_table.py
+@@ -10,7 +10,12 @@ Derived from app.routes, not from a list of the routes written today:
+   in PRINCIPAL_ONLY with the reason it needs none (fix round, re-check R1-27, ERRORS M481 "C3 gaps": the walks of
+   tests/test_phase3a_gates.py and tests/test_phase3a_monitor_pages.py are scoped by module and path, so a new module, a
+   new path family or a new tab, such as 3e's examples or a relay outside /api/terminal/v1/, escaped every walk);
+-- no route outside /api takes a write method (it would escape the walk).
++- no route outside /api takes a write method (it would escape the walk);
++- track guest (decision 1 of 2026-11-19, "1a"): a route a visitor without an account reaches depends on the visitor
++  dependency (auth.visitor, the guest plan's principal) instead of the session one, and is named in GUEST_OPEN with the
++  reason; a guest write depends on the visitor-write dependency (the session's CSRF, or a guest's none). This changes
++  the rule "every /api route depends on the session" for exactly those routes (the decision: the Terminal opens without
++  an account); every other route keeps it.
+ """
+ import dataclasses
+ 
+@@ -40,6 +45,15 @@ PRINCIPAL_ONLY = {
+     ('GET', '/api/v1/preferences'): "the account's own preferences; a key's tab capability is checked per key (R1-18)",
+     ('PUT', '/api/v1/preferences/{key}'): "the account's own preferences; a key's tab capability is checked per key "
+                                           '(R1-18)',
++    ('GET', '/api/v1/auth/guest'): 'what this request holds without a session (the guest plan) or with one (its session)',
++}
++# (method, path) -> why a visitor without an account reaches it (track guest; principal.py guest_principal): the
++# Terminal's data relay and the catalog the Terminal reads its items from, and the guest answer itself
++GUEST_OPEN = {
++    ('GET', '/api/terminal/v1/{path:path}'): "the Terminal's data, for what the guest plan grants (terminal.view)",
++    ('POST', '/api/terminal/v1/{path:path}'): "the Terminal's data, for what the guest plan grants (terminal.view)",
++    ('GET', '/api/v1/catalog/{kind}'): 'the items the Terminal shows the principal (catalog.py, CONTRACT 8a)',
++    ('GET', '/api/v1/auth/guest'): "what a visitor holds (the guest plan's access)",
+ }
+ 
+ 
+@@ -66,6 +80,7 @@ def gates(app):
+ def problems(app, registry=None):
+     registry = hooks.HOOK_ROUTES if registry is None else registry
+     session, write = app.state.session_dependency, app.state.write_dependency
++    visitor, visitor_write = app.state.visitor_dependency, app.state.visitor_write_dependency
+     gated = gates(app)
+     found = []
+     for route in app.routes:
+@@ -92,9 +107,15 @@ def problems(app, registry=None):
+             continue
+         if route.path in PUBLIC:
+             continue
+-        if session not in used:
++        guest = visitor in used
++        for method in sorted(methods):
++            if guest and (method, route.path) not in GUEST_OPEN:
++                found.append(f'{method} {route.path}: a visitor without an account reaches it (auth.visitor) but '
++                             f"GUEST_OPEN does not name it; add GUEST_OPEN[('{method}', '{route.path}')] = '<why>' or "
++                             'depend on auth.principal')
++        if session not in used and not guest:
+             found.append(f'{route.path} {sorted(methods)}: no session dependency')
+-        if methods - READS and write not in used:
++        if methods - READS and write not in used and not (guest and visitor_write in used):
+             found.append(f'{route.path} {sorted(methods)}: a write without the write (CSRF) dependency')
+         if not used & gated:
+             for method in sorted(methods):
+@@ -112,6 +133,11 @@ def test_every_api_route_carries_the_session_and_every_write_carries_csrf(settin
+     assert problems(app) == []
+     paths = {route.path for route in app.routes}
+     assert PUBLIC <= paths, PUBLIC - paths                       # the public list names no route that has gone
++    # every GUEST_OPEN entry is a route that really admits visitors (no stale entry widens the list)
++    visitor = app.state.visitor_dependency
++    admitted = {(m, r.path) for r in app.routes if isinstance(r, APIRoute) and visitor in set(calls(r.dependant))
++                for m in r.methods}
++    assert admitted == set(GUEST_OPEN), admitted ^ set(GUEST_OPEN)
+     api = [r for r in app.routes if isinstance(r, APIRoute) and r.path.startswith('/api/')]
+     assert len(api) > 40 and any(set(r.methods) - READS for r in api)   # the walk really covers the table
+ 
+diff --git a/database/migrations/20261119_070_edge_bff_guest_plan_and_test_accounts.sql b/database/migrations/20261119_070_edge_bff_guest_plan_and_test_accounts.sql
+new file mode 100644
+index 00000000..e7e5c347
+--- /dev/null
++++ b/database/migrations/20261119_070_edge_bff_guest_plan_and_test_accounts.sql
+@@ -0,0 +1,184 @@
++-- EDGE multi-user fix round, track guest (EXEC-MU-ACCOUNTS; verification/edge_multiuser/fix_round/guest.md), behind the
++-- switch EDGE_MULTIUSER (off on the beta; with it off edge-bff reads none of these rows or columns):
++--
++-- 1. The guest plan (decision 1 of 2026-11-19, the user: "1a - bukan hanya chart, nanti ada indikator dll yg juga
++--    mungkin di show ke user. jadi design harus plug and play dan fluid, karna ticker dan indikatornya bisa berubah"):
++--    a visitor without an account opens the Terminal and sees what the guest plan grants. edge_bff.plans.for_guests marks
++--    the one plan whose grants a visitor gets (partial UNIQUE plans_one_guest; never the default plan, CHECK
++--    plans_guest_not_default), read through the same plan_capabilities, value checks and principal as every other plan
++--    (app/principal.py guest_principal), so a change of its rows changes what visitors see on the next request, without
++--    code. Seed: plan 'guest' ("Guest") with the free plan's Terminal grants (terminal.view, terminal.tickers
++--    ["BBCA"], terminal.dataset {"ids": ["price"]}, terminal.history_days 730, terminal.indicator {"ids": []}: no
++--    indicator yet). No Terminal quota row: terminal-api's terminal.quota defaults apply to each visitor on its own
++--    (x-terminal-client, 20261119_170); a quota row added to this plan later overlays them, as for every plan. The
++--    restricted-plan rule (20261119_030) applies to it as to every plan: it holds no Backtest or Screener access.
++-- 2. Test accounts for the live site's pre-launch mode (the user, 2026-11-19: "Terbuka, tapi belum bisa mendaftar",
++--    "Dan hanya admin yang bisa login (saya)", then "A": besides the admin only accounts marked as test accounts):
++--    edge_bff.users.test_account (false by default). A change of the mark is accepted only beside its admin_audit row
++--    of the same transaction (action 'account.test_mark', the account as target, after = {"test_account": <value>}):
++--    a deferred constraint trigger (users_test_account_audited) refuses it otherwise with SQLSTATE 23514, so the mark is
++--    set only by an audited step (scripts/edge_test_account.py today, the Phase 4 admin API later).
++--
++-- No table grant changes: edge_bff_runtime reads plans (SELECT) and reads and writes users and admin_audit through its
++-- existing grants (20261116_003, 20261117_003). The trigger function is executable by nobody (a trigger needs no
++-- grant). Refuses a second run. Forward-only; rollback block at the end (comment).
++BEGIN;
++SET LOCAL lock_timeout = '5s';
++SET LOCAL statement_timeout = '1min';
++DO $preflight$
++BEGIN
++    IF to_regclass('edge_bff.plans') IS NULL OR to_regclass('edge_bff.plan_capabilities') IS NULL
++       OR to_regclass('edge_bff.users') IS NULL OR to_regclass('edge_bff.admin_audit') IS NULL THEN
++        RAISE EXCEPTION 'the EDGE accounts or the plan catalog are missing: apply 20261116_003 and 20261117_003 first';
++    END IF;
++    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'edge_bff'
++               AND ((table_name = 'plans' AND column_name = 'for_guests')
++                    OR (table_name = 'users' AND column_name = 'test_account'))) THEN
++        RAISE EXCEPTION 'edge_bff.plans.for_guests or edge_bff.users.test_account exists: already applied';
++    END IF;
++    IF EXISTS (SELECT 1 FROM edge_bff.plans WHERE plan_key = 'guest') THEN
++        RAISE EXCEPTION 'a plan guest exists: reconcile before applying';
++    END IF;
++    IF (SELECT count(*) FROM edge_bff.capabilities WHERE capability_key IN ('terminal.view', 'terminal.tickers',
++            'terminal.dataset', 'terminal.history_days', 'terminal.indicator')) <> 5 THEN
++        RAISE EXCEPTION 'a Terminal capability of 20261117_003 is missing: apply it first';
++    END IF;
++END $preflight$;
++
++-- ---- 1. the guest plan -----------------------------------------------------------------------------------------------
++ALTER TABLE edge_bff.plans
++    ADD COLUMN for_guests boolean NOT NULL DEFAULT false,
++    ADD CONSTRAINT plans_guest_not_default CHECK (NOT (for_guests AND is_default));
++CREATE UNIQUE INDEX plans_one_guest ON edge_bff.plans ((true)) WHERE for_guests;
++COMMENT ON COLUMN edge_bff.plans.for_guests IS
++    'EXEC-MU-ACCOUNTS track guest: the one plan whose grants a visitor without an account gets on the live site (EDGE_GUESTS), read like any plan; never the default plan.';
++
++INSERT INTO edge_bff.plans(plan_key, display_name, is_default, for_guests) VALUES ('guest', 'Guest', false, true);
++INSERT INTO edge_bff.plan_capabilities(plan_key, capability_key, value) VALUES
++    ('guest', 'terminal.view', 'true'),
++    ('guest', 'terminal.tickers', '["BBCA"]'),
++    ('guest', 'terminal.dataset', '{"ids": ["price"]}'),
++    ('guest', 'terminal.history_days', '730'),
++    ('guest', 'terminal.indicator', '{"ids": []}');
++
++-- ---- 2. test accounts ------------------------------------------------------------------------------------------------
++ALTER TABLE edge_bff.users ADD COLUMN test_account boolean NOT NULL DEFAULT false;
++COMMENT ON COLUMN edge_bff.users.test_account IS
++    'EXEC-MU-ACCOUNTS track guest: an account the pre-launch mode of the live site (EDGE_PRELAUNCH) lets sign in beside the admin; changed only beside its admin_audit row (action account.test_mark) of the same transaction (trigger users_test_account_audited).';
++
++CREATE FUNCTION edge_bff.test_account_audited() RETURNS trigger LANGUAGE plpgsql
++SET search_path = pg_catalog, edge_bff AS $fn$
++BEGIN
++    -- the audit row of this transaction (admin_audit.at defaults to the transaction's start, CURRENT_TIMESTAMP)
++    IF NOT EXISTS (SELECT 1 FROM edge_bff.admin_audit a WHERE a.action = 'account.test_mark'
++                   AND a.target_user_id = NEW.user_id AND a.at = CURRENT_TIMESTAMP
++                   AND jsonb_typeof(a.after -> 'test_account') = 'boolean'
++                   AND (a.after ->> 'test_account')::boolean = NEW.test_account) THEN
++        RAISE EXCEPTION USING ERRCODE = 'check_violation', CONSTRAINT = 'users_test_account_audited',
++            MESSAGE = format('the test-account mark of user %s changed to %s without its audit row', NEW.user_id,
++                             NEW.test_account),
++            HINT = 'Change edge_bff.users.test_account only with an edge_bff.admin_audit row in the same transaction: '
++                   || 'action account.test_mark, target_user_id the account, after {"test_account": <the new value>}. '
++                   || 'Use scripts/edge_test_account.py. Right: INSERT INTO edge_bff.admin_audit(action, '
++                   || 'target_user_id, after, reason) VALUES (''account.test_mark'', 7, ''{"test_account": true}'', '
++                   || '''operator: ...'') then UPDATE edge_bff.users SET test_account = true WHERE user_id = 7. '
++                   || 'Wrong: the UPDATE alone.';
++    END IF;
++    RETURN NULL;
++END $fn$;
++REVOKE ALL ON FUNCTION edge_bff.test_account_audited() FROM PUBLIC;
++COMMENT ON FUNCTION edge_bff.test_account_audited() IS
++    'EXEC-MU-ACCOUNTS track guest: refuses a change of edge_bff.users.test_account without its admin_audit row of the same transaction (deferred to the commit).';
++CREATE CONSTRAINT TRIGGER users_test_account_audited AFTER INSERT ON edge_bff.users
++    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.test_account)
++    EXECUTE FUNCTION edge_bff.test_account_audited();
++CREATE CONSTRAINT TRIGGER users_test_account_audited_change AFTER UPDATE OF test_account ON edge_bff.users
++    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (OLD.test_account IS DISTINCT FROM NEW.test_account)
++    EXECUTE FUNCTION edge_bff.test_account_audited();
++
++DO $verify$
++DECLARE
++    probe bigint;
++BEGIN
++    IF (SELECT count(*) FROM edge_bff.plans WHERE for_guests) <> 1
++       OR NOT EXISTS (SELECT 1 FROM edge_bff.plans WHERE plan_key = 'guest' AND for_guests AND NOT is_default)
++       OR (SELECT count(*) FROM edge_bff.plans WHERE is_default) <> 1 THEN
++        RAISE EXCEPTION 'the guest plan is not the one plan for guests, or the default plan changed';
++    END IF;
++    -- the guest plan holds the five Terminal grants and nothing else; where the free plan holds the same key, the
++    -- same value (seeded like the free plan's Terminal grants)
++    IF (SELECT count(*) FROM edge_bff.plan_capabilities WHERE plan_key = 'guest') <> 5
++       OR EXISTS (SELECT 1 FROM edge_bff.plan_capabilities g JOIN edge_bff.plan_capabilities f
++                  ON f.capability_key = g.capability_key AND f.plan_key = 'free'
++                  WHERE g.plan_key = 'guest' AND f.value <> g.value) THEN
++        RAISE EXCEPTION 'the guest plan''s rows are not the free plan''s five Terminal grants';
++    END IF;
++    IF NOT EXISTS (SELECT 1 FROM edge_bff.plan_capabilities WHERE plan_key = 'guest' AND capability_key = 'terminal.tickers'
++                   AND value = '["BBCA"]'::jsonb)
++       OR NOT EXISTS (SELECT 1 FROM edge_bff.plan_capabilities WHERE plan_key = 'guest'
++                      AND capability_key = 'terminal.history_days' AND value = '730'::jsonb)
++       OR EXISTS (SELECT 1 FROM edge_bff.plan_capabilities WHERE plan_key = 'guest' AND capability_key = '*') THEN
++        RAISE EXCEPTION 'the guest plan''s Terminal rows are not BBCA, 730 days and no *';
++    END IF;
++    IF to_regprocedure('edge_bff.data_scope_conflicts(text, bigint)') IS NOT NULL THEN
++        IF EXISTS (SELECT 1 FROM edge_bff.data_scope_conflicts('guest', NULL)) THEN
++            RAISE EXCEPTION 'the guest plan clashes with the restricted-plan rule (20261119_030)';
++        END IF;
++    END IF;
++    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name = 'users'
++                   AND column_name = 'test_account' AND is_nullable = 'NO' AND column_default = 'false')
++       OR EXISTS (SELECT 1 FROM edge_bff.users WHERE test_account) THEN
++        RAISE EXCEPTION 'edge_bff.users.test_account is not a NOT NULL false column, or an existing account is marked';
++    END IF;
++    IF (SELECT count(*) FROM pg_trigger WHERE tgrelid = 'edge_bff.users'::regclass AND tgconstraint <> 0
++        AND tgdeferrable AND tginitdeferred
++        AND tgname IN ('users_test_account_audited', 'users_test_account_audited_change')) <> 2 THEN
++        RAISE EXCEPTION 'the two deferred triggers of the test-account mark are missing';
++    END IF;
++    IF has_function_privilege('public', 'edge_bff.test_account_audited()', 'EXECUTE') THEN
++        RAISE EXCEPTION 'PUBLIC may execute edge_bff.test_account_audited()';
++    END IF;
++    -- the runtime reaches the new columns through its existing grants
++    IF NOT (has_column_privilege('edge_bff_runtime', 'edge_bff.plans', 'for_guests', 'SELECT')
++            AND has_column_privilege('edge_bff_runtime', 'edge_bff.users', 'test_account', 'SELECT')) THEN
++        RAISE EXCEPTION 'edge_bff_runtime cannot read edge_bff.plans.for_guests or edge_bff.users.test_account';
++    END IF;
++    -- its own examples, rolled back: the mark with its audit row is accepted, without it refused at the commit point
++    BEGIN
++        INSERT INTO edge_bff.users(owner_key, username, email, status) VALUES
++            ('u_' || substr(md5(random()::text), 1, 24), 'guestprobe_' || substr(md5(random()::text), 1, 8),
++             'probe-' || substr(md5(random()::text), 1, 8) || '@example.invalid', 'active') RETURNING user_id INTO probe;
++        INSERT INTO edge_bff.admin_audit(action, target_user_id, after, reason)
++            VALUES ('account.test_mark', probe, '{"test_account": true}', 'operator: migration probe');
++        UPDATE edge_bff.users SET test_account = true WHERE user_id = probe;
++        SET CONSTRAINTS edge_bff.users_test_account_audited_change IMMEDIATE;
++        SET CONSTRAINTS edge_bff.users_test_account_audited_change DEFERRED;
++        BEGIN
++            UPDATE edge_bff.users SET test_account = false WHERE user_id = probe;
++            SET CONSTRAINTS edge_bff.users_test_account_audited_change IMMEDIATE;
++            RAISE EXCEPTION 'probe: an unaudited change of the mark was accepted';
++        EXCEPTION WHEN check_violation THEN
++            NULL;
++        END;
++        RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'probe done';
++    EXCEPTION WHEN raise_exception THEN
++        IF SQLERRM <> 'probe done' THEN
++            RAISE;
++        END IF;
++    END;
++    SET CONSTRAINTS edge_bff.users_test_account_audited, edge_bff.users_test_account_audited_change DEFERRED;
++END $verify$;
++COMMIT;
++
++-- Rollback (a new forward migration with this body), only after edge-bff runs code that reads neither column (its
++-- /ready lists both with the switch on, app/store.py ready):
++-- BEGIN;
++-- DROP TRIGGER users_test_account_audited ON edge_bff.users;
++-- DROP TRIGGER users_test_account_audited_change ON edge_bff.users;
++-- DROP FUNCTION edge_bff.test_account_audited();
++-- ALTER TABLE edge_bff.users DROP COLUMN test_account;
++-- DELETE FROM edge_bff.plan_capabilities WHERE plan_key = 'guest';
++-- DELETE FROM edge_bff.plans WHERE plan_key = 'guest';
++-- DROP INDEX edge_bff.plans_one_guest;
++-- ALTER TABLE edge_bff.plans DROP CONSTRAINT plans_guest_not_default, DROP COLUMN for_guests;
++-- COMMIT;
+diff --git a/scripts/edge_test_account.py b/scripts/edge_test_account.py
+new file mode 100644
+index 00000000..65721994
+--- /dev/null
++++ b/scripts/edge_test_account.py
+@@ -0,0 +1,160 @@
++#!/usr/bin/env python3
++"""EXEC-MU-ACCOUNTS fix round, track guest (verification/edge_multiuser/fix_round/guest.md): a test account of the live
++site's pre-launch mode, for one of the user's own addresses and a plan.
++
++The user, 2026-11-19 (EXEC.md EXEC-MU-ACCOUNTS): "Dan hanya admin yang bisa login (saya)", then "A" for trying the free
++and paid plans: besides the admin only accounts marked as test accounts (made by the main agent for the user's own
++addresses, who set their passwords through "Forgot password") sign in on the live site until the launch.
++
++What it does, in one transaction, with one edge_bff.admin_audit row (actor 'operator', action account.test_mark, the
++reason given), which migration 20261119_070's trigger requires for every change of the mark:
++- no account with the address: makes one (owner key u_<24 hex>, the username given or made from the address, the names
++  given or "Test Account", status active, the address marked verified: it is the user's own and the first reset proves
++  the mailbox again), with a password identity no password opens (a random verifier: the user sets the password with
++  "Forgot password"), marked test_account;
++- an active account with the address: marks it;
++- the plan: the default plan needs no subscription; any other plan gets an active subscription (provider 'test',
++  provider_ref 'test-account'). A plan that holds '*' (the admin's), the guest plan, an unknown plan, or an account that
++  already has an active subscription to another plan is refused (exit 1): the admin changes those in the Phase 4
++  dashboard;
++- `--off`: removes the mark (the account and its subscription stay).
++
++Run it as a job on the private network (scripts/onboarding/run_job.sh with scripts/onboarding/edge_test_account_job.py),
++never over a public URL:
++    DATABASE_URL=... python3 scripts/edge_test_account.py --email <address> --plan <plan key> --reason "<why, who asked>"
++It needs DATABASE_URL (a role that may write edge_bff.users, identities, subscriptions and admin_audit) and prints only
++the user id, the username, the plan and the outcome; never the URL, a secret, a verifier or the address. Exit 1 when the
++request is refused (the outcome names why).
++"""
++import argparse
++import json
++import os
++import re
++import secrets
++import sys
++
++import psycopg
++from psycopg.rows import dict_row
++from psycopg.types.json import Jsonb
++
++EMAIL = re.compile(r'[^@\s]+@[^@\s]+\.[^@\s]+')
++USERNAME = re.compile(r'[a-z0-9_]{3,30}')
++PLAN = re.compile(r'[a-z][a-z0-9_]{1,31}')
++RESERVED_USERNAMES = {'admin', 'root', 'support', 'edge', 'system'}
++NAME = re.compile(r'[^\x00-\x1f\x7f<>]{1,100}')
++
++
++def unusable_verifier():
++    """A verifier of the shape edge-bff reads (app/security.py, scrypt$n=..$<salt>$<hash>) whose hash is random: no
++    password derives it, so nobody signs in before the user sets a password with "Forgot password"."""
++    return f'scrypt$n=16384,r=8,p=5${secrets.token_hex(16)}${secrets.token_hex(32)}'
++
++
++def username_for(c, email, wanted):
++    """The username given, else the address's local part made to fit ^[a-z0-9_]{3,30}$, with a number when taken."""
++    if wanted:
++        return wanted
++    base = re.sub(r'[^a-z0-9_]', '_', email.split('@')[0].lower())[:24].strip('_') or 'tester'
++    base = base if len(base) >= 3 else (base + '_test')[:24]
++    if base in RESERVED_USERNAMES:
++        base = base + '_test'
++    for n in range(0, 1000):
++        name = base if n == 0 else f'{base[:24]}_{n}'
++        if not c.execute('SELECT 1 FROM edge_bff.users WHERE username = %s', (name,)).fetchone():
++            return name
++    raise SystemExit('no free username: pass --username')
++
++
++def audit(c, user_id, before, after, reason):
++    c.execute('''INSERT INTO edge_bff.admin_audit(actor_user_id, action, target_user_id, before, after, reason)
++        VALUES (NULL, 'account.test_mark', %s, %s, %s, %s)''',
++              (user_id, Jsonb({'actor': 'operator', **before}), Jsonb({'actor': 'operator', **after}),
++               ('operator: ' + reason)[:1000]))
++
++
++def apply(url, email, plan, reason, username=None, first='Test', last='Account', off=False):
++    """{outcome, user_id, username, plan, test_account}; outcome 'refused_*' names a refusal (nothing changed)."""
++    with psycopg.connect(url, row_factory=dict_row) as c:
++        c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))', ('edge_test_account:' + email,))
++        found = c.execute('''SELECT user_id, username, status, test_account FROM edge_bff.users WHERE email = %s
++            AND status <> 'pending' FOR UPDATE''', (email,)).fetchone()
++        if off:
++            if found is None:
++                return {'outcome': 'refused_no_account'}
++            if found['test_account']:
++                audit(c, found['user_id'], {'test_account': True}, {'test_account': False}, reason)
++                c.execute('UPDATE edge_bff.users SET test_account = false WHERE user_id = %s', (found['user_id'],))
++            return {'outcome': 'unmarked', 'user_id': found['user_id'], 'username': found['username'],
++                    'test_account': False}
++        row = c.execute('''SELECT p.plan_key, p.is_default, p.for_guests,
++                EXISTS (SELECT 1 FROM edge_bff.plan_capabilities pc WHERE pc.plan_key = p.plan_key
++                        AND pc.capability_key IN ('*', 'admin.access') AND pc.value = 'true'::jsonb) AS admin
++            FROM edge_bff.plans p WHERE p.plan_key = %s''', (plan,)).fetchone()
++        if row is None:
++            return {'outcome': 'refused_unknown_plan', 'plan': plan}
++        if row['admin'] or row['for_guests']:
++            return {'outcome': 'refused_plan_not_for_test_accounts', 'plan': plan}
++        if found is not None and found['status'] != 'active':
++            return {'outcome': 'refused_account_not_active', 'user_id': found['user_id']}
++        if found is None:
++            name = username_for(c, email, username)
++            created = c.execute('''INSERT INTO edge_bff.users(owner_key, username, email, email_verified_at, first_name,
++                    last_name, role, status) VALUES (%s, %s, %s, now(), %s, %s, 'user', 'active')
++                RETURNING user_id, username''', ('u_' + secrets.token_hex(12), name, email, first, last)).fetchone()
++            c.execute('''INSERT INTO edge_bff.identities(user_id, provider, subject, verifier)
++                VALUES (%s, 'password', %s, %s)''', (created['user_id'], str(created['user_id']), unusable_verifier()))
++            found = {'user_id': created['user_id'], 'username': created['username'], 'test_account': False}
++            outcome = 'created'
++        else:
++            outcome = 'marked'
++        live = c.execute('''SELECT plan_key FROM edge_bff.subscriptions WHERE user_id = %s AND status = 'active'
++            AND starts_at <= now() AND (expires_at IS NULL OR expires_at > now())''', (found['user_id'],)).fetchone()
++        if live is not None and live['plan_key'] != plan:
++            c.rollback()
++            return {'outcome': 'refused_other_subscription', 'user_id': found['user_id'], 'plan': live['plan_key']}
++        if live is None and not row['is_default']:
++            c.execute('''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider, provider_ref)
++                VALUES (%s, %s, 'active', 'test', 'test-account')''', (found['user_id'], plan))
++        if not found['test_account']:
++            audit(c, found['user_id'], {'test_account': False, 'plan': live['plan_key'] if live else None},
++                  {'test_account': True, 'plan': plan}, reason)
++            c.execute('UPDATE edge_bff.users SET test_account = true WHERE user_id = %s', (found['user_id'],))
++        return {'outcome': outcome, 'user_id': found['user_id'], 'username': found['username'], 'plan': plan,
++                'test_account': True}
++
++
++def main(argv=None):
++    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
++    parser.add_argument('--email', required=True)
++    parser.add_argument('--plan', required=True)
++    parser.add_argument('--reason', required=True)
++    parser.add_argument('--username')
++    parser.add_argument('--first-name', default='Test')
++    parser.add_argument('--last-name', default='Account')
++    parser.add_argument('--off', action='store_true')
++    args = parser.parse_args(argv)
++    url = os.environ.get('DATABASE_URL', '')
++    if not url:
++        raise SystemExit('DATABASE_URL is required')
++    email = args.email.strip().lower()
++    if not EMAIL.fullmatch(email) or len(email) > 254:
++        raise SystemExit('--email is one address, e.g. name@example.com')
++    if not PLAN.fullmatch(args.plan) or not args.reason.strip():
++        raise SystemExit('--plan is a plan key (a-z 0-9 _) and --reason is required')
++    if args.username and (not USERNAME.fullmatch(args.username) or args.username in RESERVED_USERNAMES):
++        raise SystemExit('--username is a-z 0-9 _ (3 to 30) and not admin, root, support, edge or system')
++    if not (NAME.fullmatch(args.first_name.strip()) and NAME.fullmatch(args.last_name.strip())):
++        raise SystemExit('--first-name and --last-name are 1 to 100 characters of plain text')
++    try:
++        done = apply(url, email, args.plan, args.reason.strip(), args.username, args.first_name.strip(),
++                     args.last_name.strip(), args.off)
++    except psycopg.Error as e:
++        # driver errors may include connection details or the address: only the class and the SQLSTATE
++        raise SystemExit(json.dumps({'event': 'edge_test_account', 'outcome': 'failed', 'error': type(e).__name__,
++                                     'sqlstate': getattr(e, 'sqlstate', None)}))
++    print(json.dumps({'event': 'edge_test_account', **done}))
++    return 1 if done['outcome'].startswith('refused') else 0
++
++
++if __name__ == '__main__':
++    sys.exit(main())
+diff --git a/scripts/onboarding/edge_test_account_job.py b/scripts/onboarding/edge_test_account_job.py
+new file mode 100644
+index 00000000..e2140001
+--- /dev/null
++++ b/scripts/onboarding/edge_test_account_job.py
+@@ -0,0 +1,22 @@
++"""EXEC-MU-ACCOUNTS fix round, track guest: run scripts/edge_test_account.py as a job on the private network.
++
++run_job.sh starts `python -u job.py` without arguments, so this wrapper reads them from params.json:
++    {"email": "<the user's own address>", "plan": "<plan key>", "reason": "<why, who asked>", "off": false}
++Stage it with the script as an extra:
++    scripts/onboarding/run_job.sh scripts/onboarding/edge_test_account_job.py params.json log.txt scripts/edge_test_account.py
++Only for the user's own addresses, with the user's go (EXEC.md EXEC-MU-ACCOUNTS, the pre-launch mode). Keep params.json
++out of Git (it names an address). Prints what the script prints (user id, username, plan, outcome), never a secret or
++the address.
++"""
++import json
++import sys
++
++import edge_test_account
++
++p = json.load(open("params.json"))
++args = ["--email", str(p["email"]), "--plan", str(p["plan"]), "--reason", str(p["reason"])]
++args += ["--off"] if p.get("off") else []
++args += ["--username", str(p["username"])] if p.get("username") else []
++code = edge_test_account.main(args)
++print("JOB_DONE")
++sys.exit(code)
 -- 
 2.43.0
 
