@@ -1,0 +1,2406 @@
+From aadbd5aefc2777208a6bcca589c847f27217292d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 17:23:56 +0000
+Subject: [PATCH 01/13] EXEC-MU-ACCOUNTS checker C-P0: failing tests for Phase
+ 0 runtime and downstream identity findings
+
+- edge-bff forward_terminal relays terminal-api's own 401 and 429 unchanged (CONTRACT.md section 3):
+  tests/test_cp0_terminal_relay.py
+- EDGE_OWNER may be an owner key Orc reserves for the test key (M475): tests/test_cp0_reserved_owner.py
+- orc-test-runner still holds MARKET_AI_ORC_API_KEY (M475, M477): market-ai-orc tests/test_cp0_runner_key.py
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+(cherry picked from commit d50893f64cab54ea8a4f5d398599b37c1b1587bb)
+---
+ .../edge-bff/tests/test_cp0_reserved_owner.py | 24 ++++++
+ .../edge-bff/tests/test_cp0_terminal_relay.py | 82 +++++++++++++++++++
+ .../tests/test_cp0_runner_key.py              | 32 ++++++++
+ 3 files changed, 138 insertions(+)
+ create mode 100644 apps/edge-bff/tests/test_cp0_reserved_owner.py
+ create mode 100644 apps/edge-bff/tests/test_cp0_terminal_relay.py
+ create mode 100644 apps/market-ai-orc/tests/test_cp0_runner_key.py
+
+diff --git a/apps/edge-bff/tests/test_cp0_reserved_owner.py b/apps/edge-bff/tests/test_cp0_reserved_owner.py
+new file mode 100644
+index 00000000..b95298a8
+--- /dev/null
++++ b/apps/edge-bff/tests/test_cp0_reserved_owner.py
+@@ -0,0 +1,24 @@
++"""Checker C-P0 (EXEC-MU-ACCOUNTS Phase 0, CONTRACT.md sections 1 and 7; ERRORS M475): EDGE_OWNER may be an owner key
++Orc reserves for tests.
++
++market-ai-orc lets MARKET_AI_ORC_TEST_KEY (orc-test-runner) name exactly the owners golden-*, test-* and someone-else
++(conversations.py TEST_OWNER_RE); the boundary holds only while no EDGE account has such a key. A server-made key is
++'u_' + hex (accounts.py new_owner_key) and the users trigger refuses the reserved keys
++(20261116_003 users_owner_key_rules). EDGE_OWNER, the one key that is configured, is checked only against Orc's general
++shape (config.py validate: [A-Za-z0-9._:@-]{1,128}). With the switch off a refused seed is only logged
++(main.py lifespan: account_seed_failed) and the switch-off principal still runs as EDGE_OWNER (principal.py resolve),
++so EDGE_OWNER=golden-x would make user #1's conversations, runs, progress, exports and manual steps readable with the
++test key. 'default' is Orc's old shared owner (M475).
++"""
++import dataclasses
++
++import pytest
++
++from app.accounts import reserved_owner
++
++
++@pytest.mark.parametrize('owner', ['golden-suite', 'test-x', 'someone-else', 'default'])
++def test_edge_owner_is_never_a_reserved_owner_key(settings, owner):
++    assert reserved_owner(owner) or owner == 'default'
++    with pytest.raises(ValueError):
++        dataclasses.replace(settings, owner=owner, admin_owners=(owner,)).validate()
+diff --git a/apps/edge-bff/tests/test_cp0_terminal_relay.py b/apps/edge-bff/tests/test_cp0_terminal_relay.py
+new file mode 100644
+index 00000000..8eec3fab
+--- /dev/null
++++ b/apps/edge-bff/tests/test_cp0_terminal_relay.py
+@@ -0,0 +1,82 @@
++"""Checker C-P0 (EXEC-MU-ACCOUNTS, Phase 0 runtime and downstream identity): the Terminal gateway relays terminal-api's
++own status codes and flat error bodies to the page unchanged (main.py forward_terminal, the last line:
++`JSONResponse(status_code=answer.status_code, content=data)`).
++
++CONTRACT.md section 3: every edge-bff refusal has the shape {"error": {"code", "message", "details"}}; a 401 means
++UNAUTHENTICATED and the page goes to sign-in; a 429 is LIMIT_REACHED with Retry-After. A terminal-api 401 is about
++terminal-api's own account (the gateway subscriber inactive or past its expires_at, 2027-10-25 for subscriber 2,
++DATABASE_CHANGELOG.md 2026-10-25; or a rotated TERMINAL_PROXY_KEY that edge-bff has not been redeployed with, M308),
++never about the EDGE session, which is valid here. Relayed as a 401, the shared module drops the session
++(shared/edge-session.ts send(): `if (res.status === 401) invalidate()`) and the Terminal page says "Sign in to EDGE
++first" (terminal/src/data/live.ts api()); signing in again cannot help.
++
++Phase 3c makes both answers routine: per-owner terminal-api quotas at D6 numbers (429 for paid and free users) and
++per-owner subscriber rows that follow a disable (401 session_ended for that owner).
++"""
++import dataclasses
++
++import httpx
++import pytest
++from fastapi.testclient import TestClient
++
++from app import main
++from app.main import create_app
++from conftest import FakeOrc
++
++ORIGIN = {'Origin': 'http://testserver'}
++KEY = 'g' * 40
++
++
++def login(c):
++    r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'owner', 'password': 'local-test-password'})
++    assert r.status_code == 200, r.text
++    return {**ORIGIN, 'X-CSRF-Token': r.json()['csrf_token']}
++
++
++class Upstream:
++    """Stands in for httpx.AsyncClient and answers like terminal-api does (app/main.py error(): a flat body)."""
++    answer = None
++
++    def __init__(self, timeout):
++        pass
++
++    async def request(self, method, url, params=None, content=None, headers=None):
++        return Upstream.answer
++
++
++@pytest.fixture
++def gateway(settings, store, monkeypatch):
++    monkeypatch.setattr(main.httpx, 'AsyncClient', Upstream)
++    configured = dataclasses.replace(settings, terminal_url='http://terminal-api.railway.internal:8080',
++                                     terminal_proxy_key=KEY)
++    with TestClient(create_app(configured, store, FakeOrc())) as c:
++        yield c
++
++
++def test_a_terminal_api_401_is_not_relayed_as_the_edge_sign_out(gateway):
++    """terminal-api's 401 session_ended (main.py refuse(), caller kind 'gateway') while the EDGE session is valid."""
++    c = gateway
++    login(c)
++    Upstream.answer = httpx.Response(401, json={'error': 'session_ended',
++                                                'message': 'The terminal account of this gateway is not active.'})
++    r = c.get('/api/terminal/v1/manifest/BBCA')
++    assert c.get('/api/v1/auth/session').status_code == 200            # the EDGE session is fine
++    assert r.status_code != 401, ('a terminal-api 401 reached the page as a 401: the page drops a valid EDGE session '
++                                  'and asks the user to sign in again')
++    body = r.json()
++    assert isinstance(body.get('error'), dict) and body['error'].get('code'), body   # the contract shape
++
++
++def test_a_terminal_api_429_reaches_the_page_in_the_contract_shape_with_retry_after(gateway):
++    """terminal-api's 429 quota_exceeded (main.py take()); CONTRACT.md section 3: 429 LIMIT_REACHED, Retry-After on
++    every 429."""
++    c = gateway
++    h = login(c)
++    Upstream.answer = httpx.Response(429, json={'error': 'quota_exceeded', 'message': 'Quota files_per_hour reached '
++                                                '(300 per hour). It frees up as older requests leave the rolling hour; '
++                                                'ask the administrator if you need a higher limit.'})
++    r = c.post('/api/terminal/v1/bundle', headers=h, json={'ticker': 'BBCA', 'datasets': ['price']})
++    assert r.status_code == 429
++    assert r.headers.get('retry-after'), 'a 429 without Retry-After (CONTRACT.md section 3: set on every 429)'
++    body = r.json()
++    assert isinstance(body.get('error'), dict) and body['error'].get('code') == 'LIMIT_REACHED', body
+diff --git a/apps/market-ai-orc/tests/test_cp0_runner_key.py b/apps/market-ai-orc/tests/test_cp0_runner_key.py
+new file mode 100644
+index 00000000..d4b19077
+--- /dev/null
++++ b/apps/market-ai-orc/tests/test_cp0_runner_key.py
+@@ -0,0 +1,32 @@
++"""Checker C-P0 (EXEC-MU-ACCOUNTS Phase 0, CONTRACT.md section 7 and 16; ERRORS M475, M477): orc-test-runner still
++holds market-ai-orc's main key.
++
++M475's class is "identity accepted from a shared key without a per-caller scope": the test runner held
++MARKET_AI_ORC_API_KEY, which may name any owner. The fix gave the runner MARKET_AI_ORC_TEST_KEY (test owners only) and
++made run.py read only that key (M477 C1 M4). The main key itself was left on the service "until a runner suite passes
++with the test key" (RAILWAY_CHANGELOG.md 2026-11-16 Phase 0, step 4 and "Still open"); no later entry removes it, and
++.railway/railway.ts (the live project as code) still lists it. The service is the project's general job box (one-off
++jobs with a temporary DATABASE_URL, RAILWAY_CHANGELOG.md), so any code uploaded there can read the main key and name a
++real user's owner (u_...) once EDGE_MULTIUSER is on. The open item is recorded only in that changelog line, not in
++M475/M477's status nor in CONTRACT.md 8b's "Open before the switch goes on".
++"""
++import pathlib
++import re
++
++ROOT = pathlib.Path(__file__).resolve().parents[3]
++
++
++def service_env(name):
++    text = (ROOT / '.railway/railway.ts').read_text()
++    block = re.search(r'service\("' + re.escape(name) + r'", \{(.*?)\n  \}\);', text, re.S)
++    assert block, f'{name} block not found in .railway/railway.ts'
++    env = re.search(r'env: \{([^}]*)\}', block.group(1))
++    return set(re.findall(r'([A-Z][A-Z0-9_]+): ', env.group(1))) if env else set()
++
++
++def test_orc_test_runner_holds_only_the_test_key():
++    env = service_env('orc-test-runner')
++    assert 'MARKET_AI_ORC_TEST_KEY' in env
++    assert 'MARKET_AI_ORC_API_KEY' not in env, (
++        'orc-test-runner still holds MARKET_AI_ORC_API_KEY, the key that may name any owner (M475): remove it from '
++        'the service after a runner suite has passed with MARKET_AI_ORC_TEST_KEY, then drop it from .railway/railway.ts')
+-- 
+2.43.0
+
+
+From 81992e2108f0cde711fe2f9612380d14640d7a11 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 17:26:20 +0000
+Subject: [PATCH 02/13] EXEC-MU-ACCOUNTS Phase 1 re-check C-P1A: failing tests
+ of the auth-flow findings (no fix)
+
+apps/edge-bff/tests/test_cp1a_phase1_auth_check.py, one test per finding:
+- F1 throttle keys '<prefix>:<value>' in one scope collide with caller-typed keys (change:<user_id>, register:<email>)
+- F2 password/reset answers 429 after 20 wrong codes only for an address with an account (enumeration)
+- F3 an MFA-passed re-enrolment drops confirmed_at, so a password-only session enrols its own authenticator
+- F4 a second registration in the same browser replaces the cookie of the first, whose code then fails
+- F5 USERNAME_TAKEN uses no code try, so one code looks up any number of usernames
+- F6 one registration by another browser plus its resends uses all 10 daily emails (against N4)
+- F7 the sign-in body caps login at 200 characters while emails of up to 254 register
+- F8 a reset by email code does not lift a sign-in limit anyone can reach by typing the login
+- F9 the route walk accepts a hook route listed in HOOK_ROUTES whose handler never verifies
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+(cherry picked from commit d352cbae0d111bc342c031df48d37bbaf1e2d594)
+---
+ .../tests/test_cp1a_phase1_auth_check.py      | 199 ++++++++++++++++++
+ 1 file changed, 199 insertions(+)
+ create mode 100644 apps/edge-bff/tests/test_cp1a_phase1_auth_check.py
+
+diff --git a/apps/edge-bff/tests/test_cp1a_phase1_auth_check.py b/apps/edge-bff/tests/test_cp1a_phase1_auth_check.py
+new file mode 100644
+index 00000000..da90802a
+--- /dev/null
++++ b/apps/edge-bff/tests/test_cp1a_phase1_auth_check.py
+@@ -0,0 +1,199 @@
++"""EXEC-MU-ACCOUNTS Phase 1 re-check by C-P1A (CONTRACT.md sections 3-6): failing tests of the defects found in the
++authentication flows after the first three checkers. Each test states the property the contract (or a recorded
++decision in ERRORS M478) promises; the fix round makes them pass.
++
++- F1: a throttle key built as '<prefix>:<value>' inside one scope can be produced by a caller-typed value of the same
++  scope: the login 'change:<user_id>' at sign-in shares the password-change count of that user, and the address
++  'register:<email>' shares the new-registration count of <email> (throttle.py SIGNIN_LOGIN, REGISTER_HOUR).
++- F2: password/reset answers 429 LIMIT_REACHED after 20 wrong codes only for an address that has an account, and 400 for
++  ever for any other: an enumeration oracle (CONTRACT 4 "Enumeration", 13.4 "identical answers").
++- F3: an admin's re-enrolment, made by a session that passed MFA, sets confirmed_at NULL at once, so a password-only
++  (pending) session may then enrol its own authenticator and pass MFA (auth_flows.py enroll, mfa_enroll).
++- F4: a second registration from the same browser within the hour changes nothing on the server but replaces the
++  browser's registration cookie, so the first registration's code can no longer be verified (the N3 class, M478).
++- F5: a proved code answers USERNAME_TAKEN without using one of its 5 tries, so one code looks up any number of
++  usernames (the contract gates the answer behind the code; the gate has no count).
++- F6: one registration by another browser plus its resends uses every one of the address's 10 daily emails, against
++  the recorded decision N4 ("registrations by others can then use at most 3 of the address's 10 daily emails").
++- F7: the sign-in body caps login at 200 characters while a registered email may have 254, so such an account cannot
++  sign in with its email.
++- F8: the per-login sign-in limit is reached by anyone who types the login; a password reset by email code (which
++  answers {"next": "sign_in"}) does not lift it, so a targeted account has no way back while the tries continue.
++- F9: the route-table check accepts any hook route listed in HOOK_ROUTES, whether or not its handler verifies the
++  signature (CONTRACT 6: "a route-table test refuses any other route under that prefix without a signature check").
++"""
++from fastapi.testclient import TestClient
++
++from app import mfa
++from test_auth_flows import (PASSWORD, admin_sign_in, app, cooldown_over, db, error_code, hour_over, last_code,  # noqa: F401
++                             make_account, on, outbox, register, verify)
++from test_edge import ORIGIN
++
++
++def sign_in(c, login, password):
++    return c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': login, 'password': password})
++
++
++def wrong(code):
++    return '000000' if code != '000000' else '111111'
++
++
++# ---- F1: throttle keys of one scope collide with caller-typed keys ------------------------------------------------------
++
++def test_cp1a_f1_a_typed_login_cannot_lock_another_accounts_password_change(app, store):
++    r = make_account(app, store)
++    user_id = db(store, "SELECT user_id FROM edge_bff.users WHERE email='ana@example.com'")[0]['user_id']
++    h = {**ORIGIN, 'X-CSRF-Token': r.json()['csrf_token']}
++    stranger = TestClient(app.app)                              # no session, no account: only the sign-in form
++    for _ in range(10):
++        assert sign_in(stranger, f'change:{user_id}', 'any guess').status_code == 401
++    body = {'current_password': PASSWORD, 'password': 'another password', 'password_repeat': 'another password'}
++    r = app.post('/api/v1/auth/password/change', headers=h, json=body)
++    # the account itself made no wrong try: its change must not be refused by someone else's sign-in tries
++    assert (r.status_code, r.json()) == (200, {'status': 'PASSWORD_CHANGED'}), r.text
++
++
++def test_cp1a_f1_another_address_cannot_use_up_the_new_registration_limit_of_an_address(app, store):
++    attacker = TestClient(app.app)
++    # an address whose text is 'register:' + the victim's address (a colon is allowed in the local part)
++    assert register(attacker, 'register:vic@example.com', 'eve_one').status_code == 202
++    victim = TestClient(app.app)
++    assert register(victim, 'vic@example.com', 'vic_real').status_code == 202
++    # nobody registered vic@example.com before: its own registration must get its code
++    assert [m['purpose'] for m in outbox(store, 'vic@example.com')] == ['register']
++
++
++# ---- F2: the code limit answers only for addresses with an account -------------------------------------------------------
++
++def test_cp1a_f2_reset_answers_alike_for_an_account_and_an_unknown_address_after_many_wrong_codes(app, store):
++    make_account(app, store)
++    stranger = TestClient(app.app)
++
++    def tries(email):
++        body = {'email': email, 'code': '000000', 'password': 'my new password', 'password_repeat': 'my new password'}
++        return [stranger.post('/api/v1/auth/password/reset', headers=ORIGIN, json=body).status_code for _ in range(21)]
++    existing, unknown = tries('ana@example.com'), tries('nobody@example.com')
++    # CONTRACT 4 "Enumeration" and 13.4: the answers must not tell whether the address has an account
++    assert existing == unknown, (existing[-3:], unknown[-3:])
++
++
++# ---- F3: a re-enrolment opens the second factor to the password alone ----------------------------------------------------
++
++def test_cp1a_f3_a_password_alone_cannot_enrol_while_a_reenrolment_waits(app, store, on):
++    flows = app.app.state.auth_flows
++    now = {'t': 1_800_000_000.0}
++    flows.clock = lambda: now['t']
++    h = admin_sign_in(app)
++    app.post('/api/v1/auth/mfa/enroll', headers=h)
++    user_id, nonce = (lambda r: (r['user_id'], bytes(r['nonce'])))(db(store, 'SELECT user_id, nonce FROM edge_bff.mfa_totp')[0])
++    first = mfa.secret_of(on.mfa_key, user_id, nonce)
++    step = int(now['t']) // 30
++    ok = app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': mfa.code_at(first, step)})
++    assert ok.status_code == 200 and ok.json()['access']['mfa_ok'] is True
++    # the real admin, MFA passed, starts a new enrolment (a new phone) and has not confirmed it yet
++    h_ok = {**ORIGIN, 'X-CSRF-Token': ok.json()['csrf_token']}
++    assert app.post('/api/v1/auth/mfa/enroll', headers=h_ok).status_code == 200
++    # someone with the password only: a pending session
++    thief = TestClient(app.app)
++    r = sign_in(thief, 'owner', 'local-test-password')
++    assert (r.status_code, error_code(r)) == (403, 'MFA_REQUIRED')
++    th = {**ORIGIN, 'X-CSRF-Token': r.json()['error']['details']['csrf_token']}
++    r = thief.post('/api/v1/auth/mfa/enroll', headers=th)
++    # the account had a confirmed factor: a password alone must never replace it (the rule mfa_enroll states)
++    assert (r.status_code, error_code(r) if r.status_code != 200 else None) == (403, 'MFA_REQUIRED'), r.text
++
++
++# ---- F4: registering again in the same browser orphans the first registration --------------------------------------------
++
++def test_cp1a_f4_a_second_registration_in_the_same_browser_keeps_the_first_verifiable(app, store):
++    assert register(app).status_code == 202
++    code = last_code(store, 'ana@example.com')
++    # the person goes back and sends the form again within the hour: the server makes nothing (N4) ...
++    assert register(app).status_code == 202
++    assert len(outbox(store, 'ana@example.com')) == 1
++    # ... so the code already mailed must still finish the registration in this browser
++    r = verify(app, code)
++    assert r.status_code == 200, r.text
++
++
++# ---- F5: USERNAME_TAKEN without a try ------------------------------------------------------------------------------------
++
++def test_cp1a_f5_one_code_cannot_look_up_unlimited_usernames(app, store):
++    taken = [f'user_{i}' for i in range(6)]
++    for i, name in enumerate(taken):
++        make_account(TestClient(app.app), store, f'u{i}@example.com', name)
++    eve = TestClient(app.app)
++    assert register(eve, 'eve@example.com', 'eve_free').status_code == 202
++    code = last_code(store, 'eve@example.com')
++    answers = [verify(eve, code, 'eve@example.com', username=name).status_code for name in taken]
++    # the code proves the mailbox once; like a wrong code, each answer about another account uses one of its 5 tries
++    assert answers.count(409) <= 5, answers
++
++
++# ---- F6: the N4 bound on registrations by others ---------------------------------------------------------------------------
++
++def test_cp1a_f6_registrations_by_others_use_at_most_three_of_the_addresss_daily_emails(app, store):
++    victim = TestClient(app.app)
++    assert register(victim, 'vic@example.com', 'vic_real').status_code == 202
++    hour_over(store)
++    attacker = TestClient(app.app)
++    assert register(attacker, 'vic@example.com', 'eve_two', password='the attackers password').status_code == 202
++    for _ in range(9):
++        cooldown_over(store)
++        attacker.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'vic@example.com', 'purpose': 'register'})
++    cooldown_over(store)
++    before = len(outbox(store, 'vic@example.com'))
++    victim.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'vic@example.com', 'purpose': 'register'})
++    # ERRORS M478 N4: registrations by others use at most 3 of the 10, so the address owner can still get a code
++    assert len(outbox(store, 'vic@example.com')) == before + 1, before
++
++
++# ---- F7: a long email cannot sign in --------------------------------------------------------------------------------------
++
++def test_cp1a_f7_an_account_signs_in_with_any_email_registration_accepted(app, store):
++    email = 'a' * 60 + '@' + 'b' * 150 + '.com'                  # 215 characters: accepted (at most 254)
++    make_account(app, store, email, 'long_mail')
++    r = sign_in(TestClient(app.app), email, PASSWORD)
++    assert r.status_code == 200, r.text
++
++
++# ---- F8: a targeted sign-in lock has no way back ----------------------------------------------------------------------------
++
++def test_cp1a_f8_a_password_reset_by_email_code_lets_the_account_sign_in(app, store):
++    make_account(app, store)
++    stranger = TestClient(app.app)
++    for login in ('ana_putri', 'ana@example.com'):
++        for _ in range(10):
++            sign_in(stranger, login, 'any guess')
++    cooldown_over(store)
++    assert app.post('/api/v1/auth/password/forgot', headers=ORIGIN, json={'email': 'ana@example.com'}).status_code == 202
++    body = {'email': 'ana@example.com', 'code': last_code(store, 'ana@example.com'), 'password': 'my new password',
++            'password_repeat': 'my new password'}
++    r = app.post('/api/v1/auth/password/reset', headers=ORIGIN, json=body)
++    assert (r.status_code, r.json()) == (200, {'next': 'sign_in'})
++    # the reset proved the mailbox and said the next step is signing in: that step must not be refused
++    r = sign_in(TestClient(app.app), 'ana_putri', 'my new password')
++    assert r.status_code == 200, r.text
++
++
++# ---- F9: the hook check is by registry membership only ----------------------------------------------------------------------
++
++def test_cp1a_f9_the_route_walk_refuses_a_hook_whose_handler_never_checks_the_signature(settings, store):
++    from app import hooks
++    from app.mailer import svix_verify
++    from app.main import create_app
++    from conftest import FakeOrc
++    from test_route_table import configured, problems
++    application = create_app(configured(settings), store, FakeOrc())
++    changed = []
++
++    @application.post('/api/v1/hooks/example')
++    async def unchecked_hook():                         # listed with a verifier, yet never calls it
++        changed.append(1)
++        return {}
++    registry = {**hooks.HOOK_ROUTES, '/api/v1/hooks/example': svix_verify}
++    with TestClient(application) as c:
++        assert c.post('/api/v1/hooks/example', json={}).status_code == 200 and changed   # unsigned, and applied
++    # CONTRACT 6: the route-table test refuses a route under the prefix without a signature check
++    found = problems(application, registry)
++    assert any('/api/v1/hooks/example' in f for f in found), found
+-- 
+2.43.0
+
+
+From 754ab74a0d49676554432a9c39220020ad852419 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 17:52:06 +0000
+Subject: [PATCH 03/13] EXEC-MU-ACCOUNTS ultracode re-check C-P1S (Phase 1
+ per-user state): four failing probes
+
+- tests/test_c_p1s_preferences_plan.py: /api/v1/preferences reads and writes the Backtest's My conditions (ml.my) and
+  the Screener's last screen (scr.last) for a plan that holds neither tab (D5).
+- screener/tests/smoke/c_p1s_plan_refused_cache.mjs: the Screener's cached paint (scr.boot + terminal-files, keyed by
+  login) still shows the last result's rows after the catalog and the run answer 403 CAPABILITY_REQUIRED (D5).
+- terminal/tests/data/c_p1s_drawings_plan.test.ts: a 403 CAPABILITY_REQUIRED on the drawings routes is read as "the
+  account cannot be reached": the drawing is kept in the browser and the message names a connection failure.
+- terminal/tests/data/c_p1s_browser_keys.test.ts: ml.assets.flow.{collapsed,h}.<TICKER> (class browser) survive
+  sign-out and a change of user, naming the tickers the account added as series.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+(cherry picked from commit 299f52d046067d89db8919f41a218adb5a09a133)
+---
+ .../tests/smoke/c_p1s_plan_refused_cache.mjs  | 54 +++++++++++++++++++
+ .../tests/data/c_p1s_browser_keys.test.ts     | 52 ++++++++++++++++++
+ .../tests/data/c_p1s_drawings_plan.test.ts    | 47 ++++++++++++++++
+ .../tests/test_c_p1s_preferences_plan.py      | 50 +++++++++++++++++
+ 4 files changed, 203 insertions(+)
+ create mode 100644 apps/edge-bff/screener/tests/smoke/c_p1s_plan_refused_cache.mjs
+ create mode 100644 apps/edge-bff/terminal/tests/data/c_p1s_browser_keys.test.ts
+ create mode 100644 apps/edge-bff/terminal/tests/data/c_p1s_drawings_plan.test.ts
+ create mode 100644 apps/edge-bff/tests/test_c_p1s_preferences_plan.py
+
+diff --git a/apps/edge-bff/screener/tests/smoke/c_p1s_plan_refused_cache.mjs b/apps/edge-bff/screener/tests/smoke/c_p1s_plan_refused_cache.mjs
+new file mode 100644
+index 00000000..dbc311e7
+--- /dev/null
++++ b/apps/edge-bff/screener/tests/smoke/c_p1s_plan_refused_cache.mjs
+@@ -0,0 +1,54 @@
++/* C-P1S independent check (EXEC-MU-ACCOUNTS, ultracode re-check of Phases 0-3b; CONTRACT.md 8b decision D5 "a lowered
++   plan loses read access to old content until it is raised again", 8b "a downgrade takes effect on the next request
++   (... the browser cache is per sha and never announced to a capped user)", 13.7 "a free principal is refused on every
++   second path to the same content").
++
++   The Screener's cached paint (src/api/boot-cache.ts, report PAGE LOAD SEQUENCE 6c.3-6c.5) keeps the last screen's
++   result in the browser (IndexedDB terminal-files + localStorage scr.boot), keyed by the login only. app.ts bootPage
++   draws it after the session answer (S3: "only after an authenticated answer"), which every signed-in principal gets
++   whatever its plan, and keeps it when the catalog is then refused (S4: `if (!ctx.catalog) bootFailed(...) else
++   { ctx.runError = ...; refresh('results') }`; results.ts shows the rows under a note when there are rows). So the same
++   login, after its plan lost the Screener (screener.view: the catalog, universe, run and items all answer 403
++   CAPABILITY_REQUIRED), still sees the last result's rows (tickers, prices, metric values) from the browser.
++
++   Run (from apps/edge-bff/screener): npx vite build --mode smoke && node tests/smoke/c_p1s_plan_refused_cache.mjs
++   Exit 1 while the defect holds. */
++import { createRequire } from 'node:module';
++import { serve } from './serve.mjs';
++const { chromium } = createRequire(import.meta.url)('playwright');
++
++const srv = await serve('dist-smoke');
++const browser = await chromium.launch();
++const failures = [];
++try {
++  const ctx = await browser.newContext({ viewport:{ width:1440, height:950 } });
++  const page = await ctx.newPage();
++  page.setDefaultTimeout(15000);
++  await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, r => r.fulfill({ status:200, contentType:'text/css', body:'' }));
++  const go = q => page.goto(`${srv.origin}/screener-app/${q || ''}`);
++  const ready = () => page.waitForSelector('#app[data-boot="results"]', { timeout:15000 });
++  const idle = () => page.waitForFunction(() => !document.querySelector('#resMeta .ml-loading') && !document.querySelector('#pageActs .top-screen[aria-busy]'), null, { timeout:10000 });
++  const rows = () => page.locator('#resPane table.res tbody tr').count();
++
++  // 1. the plan holds the Screener: a preset screen runs and its result is cached for this login
++  await go(); await ready(); await page.waitForTimeout(500);
++  await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith('scr.')) localStorage.removeItem(k) });
++  await go(); await ready();
++  await page.click('[data-open="p:golden"]');
++  await page.evaluate(() => document.activeElement?.blur?.()); await page.waitForTimeout(30);
++  await page.click('#pageActs .top-screen'); await idle();
++  await page.waitForTimeout(800);                                  // the pointer is written after the answer
++  const before = await rows();
++  if (!before) failures.push('setup: the preset screen showed no rows to cache');
++
++  // 2. the same login, now on a plan without the Screener: the server refuses the catalog and every run
++  await go('?fail=catalog:CAPABILITY_REQUIRED:403:9,run:CAPABILITY_REQUIRED:403:9');
++  await page.waitForTimeout(2500);
++  const after = await rows();
++  const shown = await page.locator('#resPane').innerText();
++  if (after > 0) failures.push(`after the plan refused the Screener (403 CAPABILITY_REQUIRED on the catalog and the run), the page still shows ${after} rows of the cached last result (before: ${before}); first lines: ${JSON.stringify(shown.split('\n').slice(0, 6))}`);
++} finally {
++  await browser.close(); await srv.close();
++}
++if (failures.length) { console.log('FAIL\n' + failures.join('\n')); process.exit(1) }
++console.log('ok: a refused plan shows nothing of the cached result');
+diff --git a/apps/edge-bff/terminal/tests/data/c_p1s_browser_keys.test.ts b/apps/edge-bff/terminal/tests/data/c_p1s_browser_keys.test.ts
+new file mode 100644
+index 00000000..d0754bc4
+--- /dev/null
++++ b/apps/edge-bff/terminal/tests/data/c_p1s_browser_keys.test.ts
+@@ -0,0 +1,52 @@
++/* C-P1S independent check (EXEC-MU-ACCOUNTS, ultracode re-check of Phases 0-3b; CONTRACT.md section 12, ERRORS M473;
++   user 2026-11-16, EXEC.md EXEC-MU-ACCOUNTS: "Iya, bersihkan pada saat logout", which names `ml.assets.v1`, the series
++   added to the chart, as account data cleared at sign-out).
++
++   The Terminal keeps the fold and the height of each added series' Flow Timeline pane in localStorage under a key that
++   names the series' ticker: `ml.assets.flow.collapsed.<TICKER>` (written for every added series when its pane is made,
++   terminal/src/app/assets.ts setCollapsed) and `ml.assets.flow.h.<TICKER>` (assets.ts setH). The registry
++   (shared/edge-session.ts STORAGE) classes the prefix `ml.assets.flow.` as `browser`, so sign-out and a change of user
++   keep them, and nothing ever removes them (not even removing the series). The next person on the browser reads which
++   tickers the previous account compared from the key names, although the account's own list (`ml.assets.v1`) is
++   cleared. */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { clearUserState, LAST_LOGIN_KEY, noteIdentity } from '../../../shared/edge-session';
++
++function memoryStorage() {
++  const m = new Map<string, string>();
++  return { get length() { return m.size }, key:(i: number) => [...m.keys()][i] ?? null, getItem:(k: string) => m.get(k) ?? null,
++    setItem:(k: string, v: string) => { m.set(k, String(v)) }, removeItem:(k: string) => { m.delete(k) }, clear:() => m.clear(), m };
++}
++let local: ReturnType<typeof memoryStorage>;
++beforeEach(() => {
++  local = memoryStorage(); vi.stubGlobal('localStorage', local); vi.stubGlobal('sessionStorage', memoryStorage());
++  vi.stubGlobal('indexedDB', { deleteDatabase:() => { const r: any = {}; setTimeout(() => r.onsuccess?.()); return r } });
++});
++afterEach(() => vi.unstubAllGlobals());
++
++/** what account A's Terminal leaves in localStorage after adding BBRI and TLKM as series (assets.ts) */
++function accountAddedTwoSeries() {
++  local.setItem(LAST_LOGIN_KEY, 'owner:u_aaaaaaaaaaaaaaaaaaaaaaaa');
++  local.setItem('ml.assets.v1', JSON.stringify([{ ticker:'BBRI' }, { ticker:'TLKM' }]));
++  local.setItem('ml.assets.flow.collapsed.BBRI', '0');            // setCollapsed(pane.collapsed) when the pane is made
++  local.setItem('ml.assets.flow.collapsed.TLKM', '1');
++  local.setItem('ml.assets.flow.h.TLKM', '180');                    // setH after a drag of the pane's grip
++  local.setItem('ml.stats.w', '300');                               // a real browser setting: stays
++}
++const naming = (tickers: string[]) => [...local.m.keys()].filter(k => tickers.some(t => k.endsWith('.' + t)));
++
++describe('the series an account added leave nothing behind (contract 12, M473)', () => {
++  it('sign-out removes every key that names an added series', async () => {
++    accountAddedTwoSeries();
++    await clearUserState({ signOut:true });
++    expect(local.getItem('ml.assets.v1')).toBeNull();                // the account's list goes
++    expect(local.getItem('ml.stats.w')).toBe('300');                  // a browser setting stays
++    expect(naming(['BBRI', 'TLKM'])).toEqual([]);                     // ...and so must the keys that name its tickers
++  });
++  it('another account signing in on the browser inherits no key that names the previous account\'s series', () => {
++    accountAddedTwoSeries();
++    expect(noteIdentity('bob_b', 'u_bbbbbbbbbbbbbbbbbbbbbbbb').changed).toBe(true);
++    expect(local.getItem('ml.assets.v1')).toBeNull();
++    expect(naming(['BBRI', 'TLKM'])).toEqual([]);
++  });
++});
+diff --git a/apps/edge-bff/terminal/tests/data/c_p1s_drawings_plan.test.ts b/apps/edge-bff/terminal/tests/data/c_p1s_drawings_plan.test.ts
+new file mode 100644
+index 00000000..70447d57
+--- /dev/null
++++ b/apps/edge-bff/terminal/tests/data/c_p1s_drawings_plan.test.ts
+@@ -0,0 +1,47 @@
++/* C-P1S independent check (EXEC-MU-ACCOUNTS, ultracode re-check of Phases 0-3b): the Terminal's drawings (M468's
++   offline copy, Phase 0/1) against Phase 3a's gate `terminal.drawings` (CONTRACT.md 8b; section 9: the free plan has
++   "No add-indicator, drawing, layout, compare or asset capability") and AGENTS.md "Gates and evidence" (d): a refusal
++   names where the problem is and how to fix it.
++
++   terminal/src/data/drawingsApi.ts listOf() maps every failure of GET /api/v1/terminal/drawings to null (`() => null`),
++   the "account cannot be reached" case. A plan refusal (403 CAPABILITY_REQUIRED) is read the same way: load() says
++   "could not be saved to your EDGE account just now ... move to the account when it can be reached" and save() keeps the
++   drawing in this browser (keepCopy), where every later load shows it again. So a principal without terminal.drawings
++   draws and keeps drawings, is told the connection failed, and never sees why (its plan). */
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { edge } from '../../../shared/edge-session';
++import { accountDrawings } from '../../src/data/drawingsApi';
++
++function memoryStorage() {
++  const m = new Map<string, string>();
++  return { get length() { return m.size }, key:(i: number) => [...m.keys()][i] ?? null, getItem:(k: string) => m.get(k) ?? null,
++    setItem:(k: string, v: string) => { m.set(k, String(v)) }, removeItem:(k: string) => { m.delete(k) }, clear:() => m.clear(), m };
++}
++const answer = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers:{ 'Content-Type':'application/json' } });
++const REFUSED = { error:{ code:'CAPABILITY_REQUIRED', message:'Drawings is not part of your EDGE plan. Upgrade the plan to use it; you are still signed in.',
++  details:{ capability:'terminal.drawings', display_name:'Drawings' } } };
++let local: ReturnType<typeof memoryStorage>;
++beforeEach(() => {
++  local = memoryStorage();
++  vi.stubGlobal('localStorage', local); vi.stubGlobal('sessionStorage', memoryStorage());
++  vi.stubGlobal('window', { addEventListener() {} });
++  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
++    if (url === '/api/v1/auth/session') return answer(200, { login:'free_user', owner_key:'u_cccccccccccccccccccccccc', csrf_token:'csrf' });
++    return answer(403, REFUSED);                           // every drawings route: the plan lacks terminal.drawings
++  }));
++});
++afterEach(() => { vi.unstubAllGlobals(); edge.invalidate() });
++
++describe('a plan without terminal.drawings', () => {
++  it('is told its plan does not include drawings, and no drawing is kept for it in the browser', async () => {
++    const said: string[] = [];
++    const drawings = accountDrawings(t => { said.push(t) }, 0);
++    await edge.session();
++    await drawings.load('BBCA', 'chart', 'ml.drawings.BBCA');
++    drawings.save('BBCA', 'chart', '[{"id":"d1","kind":"trend-line"}]', 'ml.drawings.BBCA');
++    await new Promise(r => setTimeout(r, 30));
++    expect(said.some(t => /could not be saved to your EDGE account just now/.test(t)), `a plan refusal worded as a connection failure: ${JSON.stringify(said)}`).toBe(false);
++    expect(said.some(t => /not part of your EDGE plan/.test(t)), `the refusal's own words never reach the page: ${JSON.stringify(said)}`).toBe(true);
++    expect(local.getItem('ml.drawings.BBCA'), 'the refused drawing is kept in the browser and shown on every load').toBeNull();
++  });
++});
+diff --git a/apps/edge-bff/tests/test_c_p1s_preferences_plan.py b/apps/edge-bff/tests/test_c_p1s_preferences_plan.py
+new file mode 100644
+index 00000000..879ef2b6
+--- /dev/null
++++ b/apps/edge-bff/tests/test_c_p1s_preferences_plan.py
+@@ -0,0 +1,50 @@
++"""C-P1S independent check (EXEC-MU-ACCOUNTS, ultracode re-check of Phases 0-3b): Phase 1's account preferences
++(CONTRACT.md 4b, app/preferences.py) against Phase 3a's decision D5 (CONTRACT.md 8b, user 2026-11-17: "user yang
++paketnya turun kehilangan akses baca ke isi lamanya (percakapan, hasil backtest, screen tersimpan, watchlist, layout,
++drawing, preset) sampai upgrade lagi"; "Reads need <tab>.view or the item's own capability, writes need the run or save
++capability") and 13.7 ("a free principal is refused on every second path to the same content").
++
++GET and PUT /api/v1/preferences need only the principal (`auth.principal`, `auth.writer`): no tab capability. The keys
++they carry are the saved items and the content of the tabs (shared/edge-session.ts STORAGE `sync`; contract 4b names
++them "preferences or saved items"): the Backtest's My conditions (`ml.my`), the Screener's last screen definition and
++its extra columns (`scr.last`, `scr.extraCols`), the Monitor's model choice, the Watchlist's open list. A principal whose
++plan no longer holds the Backtest or the Screener is refused every route of those tabs, yet reads (and writes) their
++saved items here. The same class as M481 C2 1 (the Screener star writing the Watchlist's data with only
++screener.view): a route that reads or writes another tab's data needs that tab's capability.
++"""
++from fastapi.testclient import TestClient
++
++from app.main import create_app
++from conftest import FakeOrc
++from test_principal import db, make_user, on, sign_in, workers  # noqa: F401
++from test_phase3a_gates import BT, SC, paid_user
++
++PREFS = '/api/v1/preferences'
++MY_CONDITIONS = [{'name': 'RSI under 30', 'condition': {'indicator': 'I13', 'op': 'lt', 'value': 30}}]
++LAST_SCREEN = {'name': 'Golden Cross', 'definition': {'conditions': [{'metric': 'macd_divergence'}]}}
++
++
++def test_a_plan_without_the_backtest_and_the_screener_neither_reads_nor_writes_their_saved_items(on, store):
++    with TestClient(create_app(on, store, FakeOrc())) as c:
++        alice = paid_user(store, 'alice')
++        h = sign_in(c, 'alice', 'alice-password')
++        # on the paid plan: the Backtest's My conditions and the Screener's last screen are saved to the account
++        assert c.put(f'{PREFS}/ml.my', headers=h, json={'value': MY_CONDITIONS, 'version': None}).status_code == 201
++        assert c.put(f'{PREFS}/scr.last', headers=h, json={'value': LAST_SCREEN, 'version': None}).status_code == 201
++        assert c.get(f'{BT}/catalog').status_code != 403 and c.get(f'{SC}/items').status_code != 403
++
++        # the plan is lowered (the subscription ends: the default plan, which holds neither tab)
++        db(store, "UPDATE edge_bff.subscriptions SET status = 'cancelled' WHERE user_id = %s", alice['user_id'])
++        h = sign_in(c, 'alice', 'alice-password')
++        assert c.get(BT).status_code == 403 and c.get(f'{SC}/items').status_code == 403      # D5 holds on the tabs
++
++        held = c.get(PREFS)
++        assert held.status_code == 200
++        keys = set(held.json()['preferences'])
++        assert 'ml.my' not in keys, ('the Backtest\'s My conditions are read through /api/v1/preferences by a plan that '
++                                     'holds no backtest.view (D5)')
++        assert 'scr.last' not in keys, ('the Screener\'s last screen is read through /api/v1/preferences by a plan that '
++                                        'holds no screener.view (D5)')
++        wrote = c.put(f'{PREFS}/ml.my', headers=h, json={'value': MY_CONDITIONS + MY_CONDITIONS, 'version': 1})
++        assert wrote.status_code == 403 and wrote.json()['error']['code'] in ('CAPABILITY_REQUIRED', 'PLAN_EXPIRED'), (
++            'a plan without the Backtest saves Backtest conditions through /api/v1/preferences', wrote.status_code, wrote.text)
+-- 
+2.43.0
+
+
+From d2114bb1b36cb0452714094dd6541724d34a6e75 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 17:45:51 +0000
+Subject: [PATCH 04/13] EXEC-MU-ACCOUNTS ultracode re-check C-P2 (Phase 2
+ entitlements): failing tests of verified findings
+
+- test_c_p2_recheck.py: Principal.refusal gives CAPABILITY_REQUIRED, never PLAN_EXPIRED, for the list and limit
+  restrictions (terminal.tickers, terminal.history_days) that Phase 3c refuses through p.refusal; RESTRICTIVE's list is
+  one shared object handed to every principal with a malformed list; seed_subscription counts a '*' = false row as
+  holding every capability.
+- test_c_p2_terminal_wire_domain.py: values Phase 2 accepts or produces (history_days 0 or above 36600, tickers outside
+  ^[A-Z0-9]{1,12}$, the RESTRICTIVE 0) make terminal-api refuse the 3c x-terminal-capabilities header 400 for every
+  Terminal call; skips until Phase 3c's terminal_access.py is in the tree (6 failures on p3c-int 7f95aff9).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+(cherry picked from commit b6ea9e7f0970150ee7e07bd47ffd9dfe673bcdfd)
+---
+ apps/edge-bff/tests/test_c_p2_recheck.py      | 113 ++++++++++++++++++
+ .../tests/test_c_p2_terminal_wire_domain.py   |  76 ++++++++++++
+ 2 files changed, 189 insertions(+)
+ create mode 100644 apps/edge-bff/tests/test_c_p2_recheck.py
+ create mode 100644 apps/edge-bff/tests/test_c_p2_terminal_wire_domain.py
+
+diff --git a/apps/edge-bff/tests/test_c_p2_recheck.py b/apps/edge-bff/tests/test_c_p2_recheck.py
+new file mode 100644
+index 00000000..d0ccf0ae
+--- /dev/null
++++ b/apps/edge-bff/tests/test_c_p2_recheck.py
+@@ -0,0 +1,113 @@
++"""EXEC-MU-ACCOUNTS ultracode re-check of Phase 2 (checker C-P2, 2026-11-18; user: "Cek juga fase sebelumnya ... Jangan
++sampai fase 3C di bangun dari broken block fase2 sebelumnya"). Failing tests of VERIFIED findings in the Phase 2
++entitlements (app/principal.py, app/accounts.py; CONTRACT.md sections 2, 8 and 8a) that Phase 3c builds on:
++
++1. Principal.refusal() decides PLAN_EXPIRED only for flags and item families. For a list or a limit (the Terminal's
++   terminal.tickers and terminal.history_days, the two restrictions 3c refuses through p.refusal in main.py
++   refuse_capability) it always answers CAPABILITY_REQUIRED, also when the plan that ended set no such restriction
++   (no row = every ticker, no history limit). CONTRACT.md 8a: "PLAN_EXPIRED is the refusal code when a route needs a
++   capability only the expired plan held". The same expired account is told "renew" for the broker data set and
++   "upgrade" for a second ticker or older history.
++2. read_grants gives every principal whose list value is malformed the same list object (RESTRICTIVE['list']): a
++   consumer that adds to the list it was handed (p.limit('terminal.tickers')) widens the next such principal, another
++   account included.
++3. seed_subscription counts a plan holding '*' = false (a flag may be false since the M480 fix round) as holding every
++   capability: one such row makes the seed plan ambiguous, and an admin plan whose '*' is false is still given to
++   user #1.
++"""
++import logging
++
++import pytest
++
++from app import principal as principal_module
++from app.accounts import AccountStore
++from app.principal import Auth, account_principal, read_grants
++from test_plan_catalog import on, subscribe  # noqa: F401 - the fixture `on`
++from test_principal import db, make_user
++
++
++# ---- 1. PLAN_EXPIRED for the Terminal's list and limit restrictions -------------------------------------------------
++
++def test_an_ended_plan_without_a_ticker_list_or_history_limit_gives_plan_expired(on, store):
++    alice = make_user(store, 'alice', 'alice-password')
++    # the plan that grants the broker data set and sets neither restriction (found by data, as the code does)
++    plan = db(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'terminal.dataset'
++        AND value = '{"all": true}'::jsonb''')[0]['plan_key']
++    held = {r['capability_key'] for r in db(store, 'SELECT capability_key FROM edge_bff.plan_capabilities '
++                                                   'WHERE plan_key = %s', plan)}
++    assert '*' not in held and not held & {'terminal.tickers', 'terminal.history_days'}
++    subscribe(store, alice['user_id'], plan, starts="now() - interval '2 days'", expires="now() - interval '1 second'")
++    p = Auth(on, store).owner_principal(alice['owner_key'])
++    assert p.expired_plan == plan
++    # the default plan restricts both: one ticker, 730 days
++    assert isinstance(p.limit('terminal.tickers'), list) and isinstance(p.limit('terminal.history_days'), int)
++    # an item family the ended plan held: renewing it is the fix (passes today)
++    assert p.refusal('terminal.dataset:broker').code == 'PLAN_EXPIRED'
++    # the ended plan showed every ticker and every date: renewing it is the fix here too (fails today:
++    # CAPABILITY_REQUIRED, "Upgrade the plan")
++    for key in ('terminal.tickers', 'terminal.history_days'):
++        refused = p.refusal(key)
++        assert (key, refused.code) == (key, 'PLAN_EXPIRED'), refused.details
++        assert refused.details.get('expired_plan') == plan
++
++
++# ---- 2. the most restrictive list is never shared between principals ------------------------------------------------
++
++def row_of(user_id, grants):
++    return {'user_id': user_id, 'owner_key': 'u_' + f'{user_id:024x}', 'username': f'user{user_id}', 'role': 'user',
++            'status': 'active', 'plan_key': 'p', 'grants': grants, 'versions': {}, 'mfa_passed_at': None}
++
++
++def test_a_malformed_list_reads_as_a_new_empty_list_for_each_principal(caplog):
++    malformed = {'terminal.view': {'kind': 'flag', 'value': True},
++                 'terminal.tickers': {'kind': 'list', 'value': 'BBCA'}}        # a string, not an array
++    try:
++        with caplog.at_level(logging.WARNING, 'edge_bff.principal'):
++            a = account_principal(row_of(1, malformed))
++            given = a.limit('terminal.tickers')
++            assert given == []
++            try:
++                given.append('BBRI')           # a consumer that adds to the list it was given (a benchmark ticker)
++            except AttributeError:
++                return                         # an immutable value cannot leak
++            b = account_principal(row_of(2, malformed))                       # another account
++        assert b.limit('terminal.tickers') == [], 'a list one principal changed reached another account'
++        assert read_grants(malformed)[0]['terminal.tickers'] == []
++    finally:
++        restrictive = principal_module.RESTRICTIVE.get('list')
++        if isinstance(restrictive, list):
++            restrictive.clear()                # never leave the module's value changed for the other tests
++
++
++# ---- 3. the seed plan is the one plan whose '*' is true -------------------------------------------------------------
++
++def star_plans(store):
++    return {r['plan_key']: r['value'] for r in db(store, '''SELECT plan_key, value FROM edge_bff.plan_capabilities
++        WHERE capability_key = '*' ''')}
++
++
++def test_the_seed_plan_is_the_plan_whose_star_is_true(settings, store, caplog):
++    seed = AccountStore(store).seed(settings.owner, settings.login, settings.password_verifier, False)
++    before = star_plans(store)
++    [admin] = [k for k, v in before.items() if v is True]
++    other = db(store, 'SELECT plan_key FROM edge_bff.plans WHERE plan_key <> %s ORDER BY plan_key LIMIT 1',
++               admin)[0]['plan_key']
++    try:
++        # an explicit "not everything" on another plan: the trigger accepts it (a flag may be false)
++        db(store, '''INSERT INTO edge_bff.plan_capabilities(plan_key, capability_key, value) VALUES (%s, '*', 'false')''',
++           other)
++        with caplog.at_level(logging.WARNING, 'edge_bff.accounts'):
++            given = AccountStore(store).seed_subscription(seed['user_id'])
++        assert given == admin, f'seed plan {given!r}; log: {caplog.text}'   # fails today: None, "ambiguous"
++        db(store, 'DELETE FROM edge_bff.subscriptions WHERE user_id = %s', seed['user_id'])
++        db(store, 'DELETE FROM edge_bff.plan_capabilities WHERE plan_key = %s AND capability_key = %s', other, '*')
++        # the one plan naming '*' says false: no plan holds every capability, so nothing is given
++        db(store, '''UPDATE edge_bff.plan_capabilities SET value = 'false' WHERE plan_key = %s AND capability_key = '*' ''',
++           admin)
++        assert AccountStore(store).seed_subscription(seed['user_id']) is None
++    finally:
++        db(store, 'DELETE FROM edge_bff.subscriptions WHERE user_id = %s', seed['user_id'])
++        db(store, 'DELETE FROM edge_bff.plan_capabilities WHERE plan_key = %s AND capability_key = %s', other, '*')
++        db(store, '''UPDATE edge_bff.plan_capabilities SET value = 'true' WHERE plan_key = %s AND capability_key = '*' ''',
++           admin)
++    assert star_plans(store) == before
+diff --git a/apps/edge-bff/tests/test_c_p2_terminal_wire_domain.py b/apps/edge-bff/tests/test_c_p2_terminal_wire_domain.py
+new file mode 100644
+index 00000000..a3b6f1fd
+--- /dev/null
++++ b/apps/edge-bff/tests/test_c_p2_terminal_wire_domain.py
+@@ -0,0 +1,76 @@
++"""EXEC-MU-ACCOUNTS ultracode re-check of Phase 2 (checker C-P2, 2026-11-18): the Phase 2 value model against the
++Phase 3c wire (CONTRACT.md 8a "Value shapes", 8b "3c in detail").
++
++Phase 2 accepts any non-negative integer for a limit and any array of strings for a list (capability_value_check,
++principal.valid_value), and reads a value it cannot read as the most restrictive one, a limit 0 and a list []
++(principal.RESTRICTIVE; ERRORS M480 C1 F1). terminal-api's x-terminal-capabilities takes history_days only as null or
++1..36600 and tickers only as ^[A-Z0-9]{1,12}$ (apps/terminal-api/app/entitlements.py parse_capabilities), and answers
++any other header 400 invalid_owner_headers. edge-bff builds the header from the principal for every Terminal call
++(app/terminal_access.py capabilities_header, main.py forward_terminal, pages.py PageFiles), so one such value fails
++every Terminal and page-file call of the account with terminal-api's internal 400, never a named CAPABILITY_REQUIRED.
++
++The rule this file holds: for every value Phase 2 accepts or produces for the Terminal capabilities, edge-bff either
++refuses before terminal-api in the contract's shape (403 CAPABILITY_REQUIRED, 429 LIMIT_REACHED) or sends a header
++terminal-api accepts. It skips until Phase 3c's app/terminal_access.py and terminal-api's entitlements.py exist.
++"""
++import importlib.util
++from pathlib import Path
++
++import pytest
++
++from app.errors import Refusal
++from app.principal import account_principal, valid_value
++
++terminal_access = pytest.importorskip('app.terminal_access')
++ROOT = Path(__file__).resolve().parents[3]
++ENTITLEMENTS = ROOT / 'apps/terminal-api/app/entitlements.py'
++if not ENTITLEMENTS.exists():
++    pytest.skip('terminal-api entitlements.py (Phase 3c) is not in this tree', allow_module_level=True)
++_spec = importlib.util.spec_from_file_location('terminal_api_entitlements', ENTITLEMENTS)
++entitlements = importlib.util.module_from_spec(_spec)
++_spec.loader.exec_module(entitlements)
++KNOWN = terminal_access.DATASET_IDS
++
++BASE = {'terminal.view': {'kind': 'flag', 'value': True},
++        'terminal.dataset': {'kind': 'items', 'value': {'ids': ['price']}}}
++CASES = {
++    # values the trigger accepts and Phase 2's own tests call "the right shape" (test_phase2_fix_round.py)
++    'history_days 0': {'terminal.history_days': {'kind': 'limit', 'value': 0}},
++    'history_days 40000': {'terminal.history_days': {'kind': 'limit', 'value': 40000}},
++    'tickers lower case': {'terminal.tickers': {'kind': 'list', 'value': ['bbca']}},
++    'tickers with a space': {'terminal.tickers': {'kind': 'list', 'value': [' BBCA']}},
++    'tickers empty name': {'terminal.tickers': {'kind': 'list', 'value': ['BBCA', '']}},
++    # a value that cannot be read: Phase 2 reads it as 0 (RESTRICTIVE), the most restrictive value
++    'history_days malformed': {'terminal.history_days': {'kind': 'limit', 'value': '730'}},
++}
++
++
++def principal(extra):
++    row = {'user_id': 9, 'owner_key': 'u_' + 'a' * 24, 'username': 'free1', 'role': 'user', 'status': 'active',
++           'plan_key': 'free', 'grants': {**BASE, **extra}, 'versions': {}, 'mfa_passed_at': None}
++    return account_principal(row)
++
++
++@pytest.mark.parametrize('name', sorted(CASES))
++def test_a_value_phase_2_accepts_never_breaks_the_terminal_header(name):
++    extra = CASES[name]
++    key, = extra
++    if name != 'history_days malformed':
++        assert valid_value(extra[key]['kind'], extra[key]['value'])          # Phase 2 takes it as it is
++    p = principal(extra)
++    try:
++        header = terminal_access.capabilities_header(p)
++    except Refusal as refused:                       # refused before terminal-api, in the contract's shape: passes
++        assert (refused.status, refused.code) in ((403, 'CAPABILITY_REQUIRED'), (429, 'LIMIT_REACHED')), refused.code
++        return
++    try:
++        caps = entitlements.parse_capabilities(header, KNOWN)
++    except entitlements.HeaderError as e:
++        pytest.fail(f'{name}: edge-bff sends {header} and terminal-api refuses it 400 invalid_owner_headers '
++                    f'(field {e.field}): every Terminal call of this account fails')
++    # what terminal-api then serves is never wider than the principal's own value
++    value = p.limit(key)
++    if key == 'terminal.tickers':
++        assert caps.tickers is not None and caps.tickers <= {v.strip().upper() for v in value}
++    else:
++        assert caps.history_days is not None and caps.history_days <= value
+-- 
+2.43.0
+
+
+From 21859284f2d79e57edeca7b692c3cffb1ae0b3d8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 18:06:54 +0000
+Subject: [PATCH 05/13] EXEC-MU-ACCOUNTS re-check C-P3A: failing tests of the
+ verified Phase 3a findings
+
+- Retry-After on every 429 (CONTRACT 3): the page-file grant (pages.py) and the Terminal gateway relay (main.py
+  forward_terminal), where 3c's per-owner Terminal quotas reach the page;
+- the 3a route walks are scoped by module and path (ERRORS M481 C3 gaps, OPEN): a principal-only route outside them
+  is reported by none;
+- access.limits of the session names the plan's raw value, not the min(plan, HARD) the routes apply.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+(cherry picked from commit ed3fc1f5faf2a4421a954189598839cd60501001)
+---
+ apps/edge-bff/tests/test_c_p3a_probes.py | 78 ++++++++++++++++++++++++
+ 1 file changed, 78 insertions(+)
+ create mode 100644 apps/edge-bff/tests/test_c_p3a_probes.py
+
+diff --git a/apps/edge-bff/tests/test_c_p3a_probes.py b/apps/edge-bff/tests/test_c_p3a_probes.py
+new file mode 100644
+index 00000000..7bb0a32e
+--- /dev/null
++++ b/apps/edge-bff/tests/test_c_p3a_probes.py
+@@ -0,0 +1,78 @@
++"""C-P3A (ultracode re-check of Phases 0-3b, user 2026-11-18 "Cek juga fase sebelumnya"; lens: Phase 3a route gates
++and caps, CONTRACT.md 8b, decisions D1-D8). Failing tests of the verified findings, written against main 93c9f645;
++the fix round makes them pass.
++
++- Retry-After on every 429 (CONTRACT 3): the page-file grant and the Terminal gateway relay, the two paths 3c's
++  per-owner Terminal quotas (decision D6) reach the page through;
++- the 3a route walks are scoped by module and path (ERRORS M481 "C3 gaps", OPEN): a new route that serves a tab's content
++  with the principal only is reported by none;
++- the session's access.limits names the plan's raw value, not the min(plan, HARD) the routes apply.
++"""
++from fastapi import Depends
++from fastapi.testclient import TestClient
++
++from app.main import create_app
++from conftest import FakeOrc
++from test_principal import on, workers  # noqa: F401 - the fixtures (switch on, the fake workers)
++from test_radar import FakeHttp, gw  # noqa: F401 - the fixture
++from test_radar import login as radar_login
++from test_terminal import gateway  # noqa: F401 - the fixture
++from test_terminal import login as terminal_login
++
++
++# ---- CONTRACT 3 "Retry-After is set on every 429" ---------------------------------------------------------------------
++
++def test_a_page_file_quota_refusal_sets_retry_after(gw):
++    """pages.py page_file: terminal-api's 429 on a page-file grant answers <FAMILY>_QUOTA 429 without Retry-After."""
++    radar_login(gw)
++    FakeHttp.grant_status = 429
++    r = gw.get('/api/v1/radar/file/radar-days')
++    assert r.status_code == 429
++    assert 'retry-after' in r.headers, dict(r.headers)
++
++
++def test_a_terminal_quota_refusal_relayed_by_the_gateway_sets_retry_after(gateway):
++    """main.py forward_terminal: a JSON answer is rebuilt as JSONResponse(status, content) only, so terminal-api's 429
++    (quota_exceeded, itself sent without the header) reaches the page with no Retry-After; any header terminal-api adds
++    is dropped too."""
++    h = terminal_login(gateway)
++    r = gateway.post('/api/terminal/v1/files', headers=h, json={'ticker': 'BBCA', 'dataset': 'price', 'years': [2026]})
++    assert r.status_code == 429
++    assert 'retry-after' in r.headers, dict(r.headers)
++
++
++# ---- ERRORS M481 "C3 gaps" (OPEN): the 3a route walks are scoped by module and path ------------------------------------
++
++def test_a_new_gated_route_outside_the_scoped_walks_is_reported(settings, store):
++    """A route that serves a tab's content with the principal only (e.g. 3e's GET /api/v1/examples/<tab>/..., gated by
++    <tab>.example in CONTRACT 8b, or a 3c relay placed outside /api/terminal/v1/) is reported by no walk:
++    test_phase3a_gates walks six modules, test_phase3a_monitor_pages one path pattern, test_route_table the session only."""
++    from test_phase3a_gates import gate_problems
++    from test_phase3a_monitor_pages import IN_SCOPE, ROUTE_CAPS as MONITOR_CAPS
++    from test_route_table import configured, problems
++    app = create_app(configured(settings), store, FakeOrc())
++
++    async def example(tab: str, name: str, p=Depends(app.state.auth.principal)):
++        return {}
++    app.get('/api/v1/examples/{tab}/{name}')(example)
++    found = gate_problems(app) + problems(app) + [
++        path for path in (r.path for r in app.routes)
++        if IN_SCOPE.fullmatch(path) and not any(path == p for _, p in MONITOR_CAPS)]
++    assert any('/api/v1/examples/' in f for f in found), found
++
++
++# ---- CONTRACT 8b "limits() and the answers report the principal's own numbers" -----------------------------------------
++
++def test_the_session_access_limits_are_the_numbers_the_routes_apply(on, store):
++    """principal.py Principal.access: `limits` is the plan's raw value; the routes apply min(plan, HARD)
++    (Principal.capped). capability_value_check accepts a value above HARD, so the session answer (the page's
++    limit(key), shared/edge-session.ts) names a number the server never applies."""
++    from test_phase3a_gates import override, paid_user
++    from test_principal import sign_in
++    with TestClient(create_app(on, store, FakeOrc())) as c:
++        alice = paid_user(store, 'alice')
++        override(store, alice['user_id'], 'terminal.layouts_max', '100000')
++        sign_in(c, 'alice', 'alice-password')
++        applied = c.get('/api/v1/terminal/layouts').json()['limit']
++        assert applied == 50
++        assert c.get('/api/v1/auth/session').json()['access']['limits']['terminal.layouts_max'] == applied
+-- 
+2.43.0
+
+
+From a1586bda27969adfa2cdab0b36ed8aec72c82314 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 18:16:39 +0000
+Subject: [PATCH 06/13] EXEC-MU-ACCOUNTS re-check of Phase 3b (checker C-P3B):
+ failing tests of the verified findings
+
+User 2026-11-18: "Cek juga fase sebelumnya, bisa? Jangan sampai fase 3C di bangun dari broken block fase2
+sebelumnya." Tests only, no fix; the fix round makes them pass.
+
+- F1 (apps/edge-bff/tests/test_c_p3b_recheck.py): the capability screener.preset is read by no route; the
+  Screener catalog lists a preset the account does not hold.
+- F2 (same file): the workers name their own hard-coded families in CAPABILITY_REQUIRED, while the 3b follow-up
+  moves the indicator and Flow grants to terminal.* and deletes the backtest.*/screener.* rows.
+- F-msg (apps/backtest-worker/tests/c-p3b-recheck.test.ts, apps/screener-worker/tests/c-p3b-recheck.test.ts):
+  the workers' CAPABILITY_REQUIRED message carries the internal capability key, which every EDGE page shows.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+(cherry picked from commit 114737d30c726464af65e663124f3937e4f4e2a0)
+---
+ .../tests/c-p3b-recheck.test.ts               | 34 ++++++++
+ apps/edge-bff/tests/test_c_p3b_recheck.py     | 84 +++++++++++++++++++
+ .../tests/c-p3b-recheck.test.ts               | 32 +++++++
+ 3 files changed, 150 insertions(+)
+ create mode 100644 apps/backtest-worker/tests/c-p3b-recheck.test.ts
+ create mode 100644 apps/edge-bff/tests/test_c_p3b_recheck.py
+ create mode 100644 apps/screener-worker/tests/c-p3b-recheck.test.ts
+
+diff --git a/apps/backtest-worker/tests/c-p3b-recheck.test.ts b/apps/backtest-worker/tests/c-p3b-recheck.test.ts
+new file mode 100644
+index 00000000..6bd71b93
+--- /dev/null
++++ b/apps/backtest-worker/tests/c-p3b-recheck.test.ts
+@@ -0,0 +1,34 @@
++/* EXEC-MU-ACCOUNTS re-check of Phase 3b (checker C-P3B, 2026-11-18; user: "Cek juga fase sebelumnya ... Jangan sampai
++   fase 3C di bangun dari broken block fase2 sebelumnya"). A failing test of a verified finding; the fix round makes it
++   pass.
++
++   F-msg: the worker's 403 CAPABILITY_REQUIRED message carries the internal capability key ("... is not included in your
++   plan (backtest.indicator:I07) ..."; access.ts requireItem). edge-bff relays it unchanged (app/allow.py named adds
++   details.display_name only), and every EDGE page shows the server's message first (shared/edge-session.ts accessText,
++   case 'upgrade': `e.message || ...`; backtest/src/api/live.ts failure), so the person reads the key. ERRORS M481 C1 F3
++   fixed the same class for details.display_name ("an internal key is never shown", app/errors.py display_name); the
++   message path was left out. After the 3b follow-up (CONTRACT 8b) the key named is also one the follow-up's migration
++   deletes. The fix: the message names the item (its id and name) and the plan in plain words; the key stays in
++   details.capability only (the access.test.ts assertion that the message includes it changes with the fix). */
++import assert from 'node:assert/strict';
++import { test } from 'node:test';
++import { allowOf, requireItem } from '../src/access.ts';
++import { WorkerError, toApiError } from '../src/errors.ts';
++
++const NONE = allowOf({ indicator: [], flow_indicator: [], candle_pattern: [], screener_metric: [] });
++
++test('F-msg: a CAPABILITY_REQUIRED message the person reads names the item, never the internal capability key', () => {
++  const cases: [Parameters<typeof requireItem>[1], string][] = [['indicator', 'I07'], ['flow_indicator', 'FL24'], ['candle_pattern', 'hammer'], ['screener_metric', 'breakout']];
++  for (const [kind, id] of cases) {
++    let message = '', capability = '';
++    try { requireItem(NONE, kind, id, 'entry.conditions[0].x') } catch (e) {
++      assert.ok(e instanceof WorkerError);
++      const a = toApiError(e);
++      message = a.error.message ?? ''; capability = String((a.error.details as { capability?: unknown }).capability);
++    }
++    assert.ok(capability.includes(':'), `the refusal keeps details.capability (${capability})`);
++    assert.ok(message.includes(id), message);
++    assert.ok(!message.includes(capability) && !/\b(backtest|screener|terminal)\.[a-z_]+:/.test(message),
++      `the message shown to the person carries the internal capability key: ${message}`);
++  }
++});
+diff --git a/apps/edge-bff/tests/test_c_p3b_recheck.py b/apps/edge-bff/tests/test_c_p3b_recheck.py
+new file mode 100644
+index 00000000..2aa33d2e
+--- /dev/null
++++ b/apps/edge-bff/tests/test_c_p3b_recheck.py
+@@ -0,0 +1,84 @@
++"""EXEC-MU-ACCOUNTS re-check of Phase 3b (checker C-P3B, 2026-11-18; user: "Cek juga fase sebelumnya ... Jangan sampai
++fase 3C di bangun dari broken block fase2 sebelumnya"). Failing tests of the verified findings; the fix round makes
++them pass (CONTRACT.md 8a "Capability rows", 8b "3b in detail").
++
++- F1: the catalog capability `screener.preset` ("Which ready-made Screener presets the account may open",
++  migration 20261117_003 line 211) is read by no route. The Screener catalog leaves a preset out only when one of its
++  items is outside the allow (Screeners.catalog_for, presets_held; C2 Phase 3b F1), never by the preset's own grant
++  `screener.preset:<id>`, so a plan or override that takes a preset away (or a preset moved to `lab` in releases.json)
++  still lists it, with the match and near counts computed for it in the system lane.
++- F2: a worker's CAPABILITY_REQUIRED names its own hard-coded family (backtest-worker src/access.ts FAMILY, screener-worker
++  src/run.ts CAPABILITY_FAMILY: `backtest.indicator:<id>`, `screener.indicator:<id>`), while edge-bff decides the item
++  from app/allow.py FAMILIES. The 3b follow-up (CONTRACT.md 8b, decided O3b-1, built with 3c) moves the indicator and
++  Flow grants of both workers to `terminal.indicator` / `terminal.flow_indicator` and its migration deletes the four
++  `backtest.*`/`screener.*` rows; neither the follow-up text nor "Worker refusal" changes the workers' families, so the
++  refusal would name a capability that no longer exists (display_name falls back to "This part of EDGE") and that no
++  admin can grant. The first block holds the two in step; the second is the decided target the follow-up builds.
++"""
++import re
++from pathlib import Path
++
++from fastapi.testclient import TestClient
++
++from app import allow
++from app.main import create_app
++from conftest import FakeOrc
++from test_phase3a_gates import override, paid_user
++from test_principal import on, sign_in, workers  # noqa: F401 - the fixtures
++
++ROOT = Path(__file__).resolve().parents[3]
++
++
++def worker_families():
++    """{worker: {kind: family}} as each worker writes details.capability (its source, the code that is deployed)."""
++    def parse(path, name):
++        text = (ROOT / path).read_text(encoding='utf-8')
++        found = re.search(r'export const ' + name + r'\b[^=]*=\s*(?:Object\.freeze\()?\{(.*?)\}', text, re.S)
++        assert found, f'{name} not found in {path}'
++        return dict(re.findall(r"(\w+):\s*'([a-z_.]+)'", found.group(1)))
++    return {'backtest': parse('apps/backtest-worker/src/access.ts', 'FAMILY'),
++            'screener': parse('apps/screener-worker/src/run.ts', 'CAPABILITY_FAMILY')}
++
++
++def test_f2_a_worker_refusal_names_the_family_edge_bff_decides_the_item_by():
++    families = worker_families()
++    for worker in ('backtest', 'screener'):
++        assert set(families[worker]) == set(allow.KINDS), (worker, families[worker])
++        for kind in allow.KINDS:
++            assert families[worker][kind] == allow.FAMILIES[worker][kind], (
++                f'the {worker} worker names {families[worker][kind]}:<id> in CAPABILITY_REQUIRED, but edge-bff decides '
++                f'its {kind} items by {allow.FAMILIES[worker][kind]}')
++    # O3b-1 (user 2026-11-18, CONTRACT.md 8b "3b follow-up"): the Terminal's grants decide both workers' indicator and
++    # Flow items, so the refusal must name the Terminal family once the follow-up lands (both sides together)
++    for worker in ('backtest', 'screener'):
++        assert families[worker]['indicator'] == 'terminal.indicator', (worker, families[worker]['indicator'])
++        assert families[worker]['flow_indicator'] == 'terminal.flow_indicator', (worker, families[worker]['flow_indicator'])
++
++
++def flow(metric):
++    return {'universe': {'security_types': ['stock']}, 'logic': 'all', 'conditions': [{'id': 'a', 'enabled': True, 'test': {
++        'kind': 'value', 'metric': {'kind': 'flow', 'metric': metric, 'params': {}}, 'op': 'gt', 'value': 0}}]}
++
++
++def test_f1_a_preset_the_plan_does_not_hold_is_not_listed_in_the_screener_catalog(on, store, workers):
++    """A paid account whose `screener.preset` grant is narrowed to `brk52` (an override, CONTRACT.md 8a) holds every
++    item of both presets (FL11 is released), so only the preset grant can tell them apart. The catalog must not list
++    the preset `golden` the account does not hold, nor its counts."""
++    _, sc = workers
++    sc.metrics = [{'id': 'FL11', 'group': 'Flow', 'kind': 'flow'}]
++    items = [{'kind': 'flow_indicator', 'id': 'FL11'}]
++    sc.presets = [{'id': 'brk52', 'definition': flow('FL11'), 'items': items, 'availability': 'AVAILABLE',
++                   'match_count': 12, 'near_count': 3},
++                  {'id': 'golden', 'definition': flow('FL11'), 'items': items, 'availability': 'AVAILABLE',
++                   'match_count': 7, 'near_count': 2}]
++    with TestClient(create_app(on, store, FakeOrc())) as c:
++        alice = paid_user(store, 'alice')
++        override(store, alice['user_id'], 'screener.preset', '{"ids": ["brk52"]}')
++        c.headers_for = sign_in(c, 'alice', 'alice-password')
++        cat = c.get('/api/v1/screener/catalog')
++        assert cat.status_code == 200, cat.text
++        listed = [p['id'] for p in cat.json()['presets']]
++        assert 'brk52' in listed
++        assert 'golden' not in listed, (
++            'the Screener catalog lists a preset whose capability screener.preset:golden the account does not hold '
++            f'(listed: {listed}); no route reads screener.preset')
+diff --git a/apps/screener-worker/tests/c-p3b-recheck.test.ts b/apps/screener-worker/tests/c-p3b-recheck.test.ts
+new file mode 100644
+index 00000000..3cec1867
+--- /dev/null
++++ b/apps/screener-worker/tests/c-p3b-recheck.test.ts
+@@ -0,0 +1,32 @@
++/* EXEC-MU-ACCOUNTS re-check of Phase 3b (checker C-P3B, 2026-11-18; user: "Cek juga fase sebelumnya ... Jangan sampai
++   fase 3C di bangun dari broken block fase2 sebelumnya"). A failing test of a verified finding; the fix round makes it
++   pass.
++
++   F-msg: the worker's 403 CAPABILITY_REQUIRED message carries the internal capability key ("... is not included in your
++   plan (screener.indicator:I13) ..."; run.ts checkAllow). edge-bff relays it unchanged (app/allow.py named adds
++   details.display_name only), and the Screener page shows the server's message first (shared/edge-session.ts
++   accessText, case 'upgrade'), so the person reads the key. ERRORS M481 C1 F3 fixed the same class for
++   details.display_name ("an internal key is never shown"); the message path was left out. The fix: the message names
++   the item in plain words; the key stays in details.capability only. */
++import assert from 'node:assert/strict';
++import { test } from 'node:test';
++import { checkAllow, parseContext } from '../src/run.ts';
++
++const NONE = parseContext({ allow: { indicator: [], flow_indicator: [], candle_pattern: [], screener_metric: [] } }).allow;
++const DEF = (test: unknown) => ({ universe: { security_types: ['stock'] }, logic: 'all', conditions: [{ id: 'a', enabled: true, test }] });
++
++test('F-msg: a CAPABILITY_REQUIRED message the person reads names the item, never the internal capability key', () => {
++  const tests = [
++    { kind: 'value', metric: { kind: 'indicator', indicator: 'I13', params: {}, output: 'rsi' }, op: 'lt', value: 30 },
++    { kind: 'value', metric: { kind: 'flow', metric: 'FL24', params: {} }, op: 'gt', value: 0 },
++    { kind: 'state', pattern: { kind: 'pattern', type: 'hammer', params: {} } },
++    { kind: 'state', pattern: { kind: 'pattern', type: 'breakout', params: {} } },
++  ];
++  for (const t of tests) {
++    let message = '', capability = '';
++    try { checkAllow(DEF(t), NONE) } catch (e: any) { message = e.message; capability = String(e.details?.capability) }
++    assert.ok(capability.includes(':'), `the refusal keeps details.capability (${capability})`);
++    assert.ok(!message.includes(capability) && !/\b(backtest|screener|terminal)\.[a-z_]+:/.test(message),
++      `the message shown to the person carries the internal capability key: ${message}`);
++  }
++});
+-- 
+2.43.0
+
+
+From 47938152d356b9d717a74b4d2e5ab44b764330ec Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 18:17:32 +0000
+Subject: [PATCH 07/13] EXEC-MU-ACCOUNTS re-check of Phase 3b (checker C-P3B):
+ F2 test reads the capability as the page receives it
+
+The F2 test now checks details.capability after edge-bff's relay (allow.named), so it holds whichever side owns
+the family mapping; a follow-up that changes edge-bff's families alone still fails it (checked by simulation).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+(cherry picked from commit 3d75fb1dae3fa4e77c281c4b27788862ffd8ed12)
+---
+ apps/edge-bff/tests/test_c_p3b_recheck.py | 20 +++++++++++++++-----
+ 1 file changed, 15 insertions(+), 5 deletions(-)
+
+diff --git a/apps/edge-bff/tests/test_c_p3b_recheck.py b/apps/edge-bff/tests/test_c_p3b_recheck.py
+index 2aa33d2e..e8542810 100644
+--- a/apps/edge-bff/tests/test_c_p3b_recheck.py
++++ b/apps/edge-bff/tests/test_c_p3b_recheck.py
+@@ -40,19 +40,29 @@ def worker_families():
+             'screener': parse('apps/screener-worker/src/run.ts', 'CAPABILITY_FAMILY')}
+ 
+ 
++def relayed_capability(worker, kind, family):
++    """details.capability of the worker's refusal as edge-bff relays it to the page (allow.named): either side may own
++    the mapping, the page sees this one."""
++    refused = {'code': 'CAPABILITY_REQUIRED', 'field': 'x', 'message': 'm',
++               'details': {'kind': kind, 'id': 'I07', 'capability': f'{family}:I07'}}
++    return allow.named(refused)['details']['capability']
++
++
+ def test_f2_a_worker_refusal_names_the_family_edge_bff_decides_the_item_by():
+     families = worker_families()
+     for worker in ('backtest', 'screener'):
+         assert set(families[worker]) == set(allow.KINDS), (worker, families[worker])
+         for kind in allow.KINDS:
+-            assert families[worker][kind] == allow.FAMILIES[worker][kind], (
+-                f'the {worker} worker names {families[worker][kind]}:<id> in CAPABILITY_REQUIRED, but edge-bff decides '
+-                f'its {kind} items by {allow.FAMILIES[worker][kind]}')
++            shown = relayed_capability(worker, kind, families[worker][kind]).partition(':')[0]
++            assert shown == allow.FAMILIES[worker][kind], (
++                f'the {worker} worker refusal reaches the page naming {shown}:<id>, but edge-bff decides its {kind} '
++                f'items by {allow.FAMILIES[worker][kind]}')
+     # O3b-1 (user 2026-11-18, CONTRACT.md 8b "3b follow-up"): the Terminal's grants decide both workers' indicator and
+     # Flow items, so the refusal must name the Terminal family once the follow-up lands (both sides together)
+     for worker in ('backtest', 'screener'):
+-        assert families[worker]['indicator'] == 'terminal.indicator', (worker, families[worker]['indicator'])
+-        assert families[worker]['flow_indicator'] == 'terminal.flow_indicator', (worker, families[worker]['flow_indicator'])
++        for kind, family in (('indicator', 'terminal.indicator'), ('flow_indicator', 'terminal.flow_indicator')):
++            shown = relayed_capability(worker, kind, families[worker][kind]).partition(':')[0]
++            assert shown == family, (worker, kind, shown)
+ 
+ 
+ def flow(metric):
+-- 
+2.43.0
+
+
+From ecac36e8c7acd6d2e400d691a2c3f680ef2cec37 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 19:02:04 +0000
+Subject: [PATCH 08/13] EXEC-MU-ACCOUNTS re-check C-DB (Phases 0-3b): failing
+ tests of verified grant, record and CI findings
+
+- column privileges pass every grant guard (provisioning script, the 20261116_003 verify block): the runtime
+  could update the audit's reason or read a market column while the script reports only the operational tables;
+- an UPDATE of a plan grant leaves plan_capabilities.updated_at and version unchanged;
+- no workflow runs the Terminal vitest suite (the session module's tests), node shared/build-shell.mjs --check,
+  or market-ai-orc's Postgres tests (conversation ownership, the Phase 0 C2 fix).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+(cherry picked from commit 8ab2cee84d9de9da9340f94c08fc6309512aa92f)
+---
+ apps/edge-bff/tests/test_cdb_ci_coverage.py   | 53 +++++++++++
+ .../tests/test_cdb_grants_and_records.py      | 94 +++++++++++++++++++
+ 2 files changed, 147 insertions(+)
+ create mode 100644 apps/edge-bff/tests/test_cdb_ci_coverage.py
+ create mode 100644 apps/edge-bff/tests/test_cdb_grants_and_records.py
+
+diff --git a/apps/edge-bff/tests/test_cdb_ci_coverage.py b/apps/edge-bff/tests/test_cdb_ci_coverage.py
+new file mode 100644
+index 00000000..ad60c10c
+--- /dev/null
++++ b/apps/edge-bff/tests/test_cdb_ci_coverage.py
+@@ -0,0 +1,53 @@
++"""C-DB re-check of EXEC-MU-ACCOUNTS Phases 0-3b (2026-11-18): the multi-user tests CI never runs. Failing tests of
++verified findings; the fix round makes them pass.
++
++edge-bff deploys only on green checks (checkSuites), and CONTRACT section 13 says every acceptance test runs in CI. Shown
++by mutation on 93c9f645: with clearUserState keeping every user key (a sign-out that leaves the account's data, M473)
++and static/edge-session.js rebuilt as AGENTS.md says, the edge-bff suite passes, with and without Chromium; only the
++Terminal vitest suite fails (12 tests: edge_session.test.ts, c3_phase1_switch_off.test.ts, c4_seed_phase0_mark.test.ts),
++and no workflow runs it. A hand edit of static/edge-session.js that keeps its first line passes
++tests/test_storage_registry.py; only `node shared/build-shell.mjs --check` fails, and no workflow runs it either.
++"""
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parents[3]
++WORKFLOWS = sorted((ROOT / '.github/workflows').glob('*.yml'))
++
++
++def runs(fragment, directory=None):
++    """A workflow step runs a command holding `fragment` (in `directory` when given: its working-directory)."""
++    for path in WORKFLOWS:
++        text = path.read_text()
++        lines = text.splitlines()
++        for i, line in enumerate(lines):
++            if fragment in line and 'run' in ''.join(lines[max(0, i - 3):i + 1]):
++                window = '\n'.join(lines[max(0, i - 6):i + 1])
++                if directory is None or directory in window:
++                    return True
++    return False
++
++
++def test_ci_runs_the_terminal_vitest_suite_that_holds_the_session_module_tests():
++    # apps/edge-bff/terminal/tests/data/edge_session*.test.ts, c1_security_findings, c3_phase1_switch_off,
++    # c4_seed_phase0_mark, fixture_bundle (M468, M469, M471, M473, M478): shared/edge-session.ts is tested only there
++    assert runs('vitest', 'apps/edge-bff/terminal'), (
++        'no workflow runs `npx vitest run` in apps/edge-bff/terminal: the session module (sign-out clearing, change of '
++        'user, access.seed, the 403 contract) is tested by no CI job; add the step to a workflow in edge-bff\'s checks')
++
++
++def test_ci_compares_the_shell_copy_with_its_build():
++    assert runs('build-shell.mjs --check'), (
++        'no workflow runs `node shared/build-shell.mjs --check`: tests/test_storage_registry.py compares only the '
++        'source sha256 in the first line of static/edge-session.js, so an edited body ships unseen (AGENTS.md: a '
++        'generated file has a generated_file test that compares it with what the script writes now)')
++
++
++def test_ci_runs_orc_conversation_ownership_against_postgres():
++    # apps/market-ai-orc/tests/test_conversations.py (pytestmark skipif without ORC_TEST_POSTGRES_URL) holds the
++    # Phase 0 C2 fix test test_c2_a_client_run_may_name_only_a_conversation_its_owner_holds and the owner isolation
++    # test test_another_owner_cannot_continue_or_read_a_conversation (CONTRACT section 13.3)
++    text = (ROOT / '.github/workflows/backend-tests.yml').read_text()
++    orc = text[text.index('  market-ai-orc:'):text.index('  terminal-api:')]
++    assert 'ORC_TEST_POSTGRES_URL' in orc, (
++        'backend-tests.yml runs market-ai-orc without ORC_TEST_POSTGRES_URL, so test_conversations.py (the owner '
++        'isolation of conversations and the C2 CLIENT-history fix) is skipped in CI')
+diff --git a/apps/edge-bff/tests/test_cdb_grants_and_records.py b/apps/edge-bff/tests/test_cdb_grants_and_records.py
+new file mode 100644
+index 00000000..ea0161eb
+--- /dev/null
++++ b/apps/edge-bff/tests/test_cdb_grants_and_records.py
+@@ -0,0 +1,94 @@
++"""C-DB re-check of EXEC-MU-ACCOUNTS Phases 0-3b (2026-11-18, lens: migrations, grants, records, CI). Failing tests of
++verified findings; the fix round makes them pass.
++
++1. Column privileges slip past every grant guard. The migrations' $verify$ blocks, scripts/provision_edge_bff_login.py
++   and the apply jobs' runtime_grants/login_grants probes all ask has_table_privilege, which is false for a privilege
++   held on columns only. A column grant therefore lets the runtime rewrite the audit (no UPDATE on admin_audit, CONTRACT
++   section 1) or read a market table, while the provisioning script still prints "only the N operational tables
++   reachable".
++2. plan_capabilities keeps no trace of a change: an UPDATE of a plan's value (the "catalog-only change" of CONTRACT 8a,
++   made by an operator) leaves updated_at and version as they were, so the table cannot tell when or whether a grant
++   changed.
++"""
++import importlib.util
++import secrets
++from pathlib import Path
++
++import psycopg
++import pytest
++
++ROOT = Path(__file__).resolve().parents[3]
++
++
++def provisioning():
++    spec = importlib.util.spec_from_file_location('edge_provision_cdb', ROOT / 'scripts/provision_edge_bff_login.py')
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++
++def drop_login(database):
++    with psycopg.connect(database, autocommit=True) as conn:
++        conn.execute("""DO $$BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'edge_bff_login') THEN
++            DROP OWNED BY edge_bff_login; DROP ROLE edge_bff_login; END IF; END$$""")
++
++
++@pytest.mark.parametrize('grant, revoke', [
++    # the audit is read and added to only (20261116_003; CONTRACT section 1 "no UPDATE or DELETE grant")
++    ('GRANT UPDATE (reason) ON edge_bff.admin_audit TO edge_bff_runtime',
++     'REVOKE UPDATE (reason) ON edge_bff.admin_audit FROM edge_bff_runtime'),
++    # a market table is never reachable from the EDGE login (test_edge.py's public.market_private)
++    ('GRANT SELECT (secret) ON public.market_private TO edge_bff_runtime',
++     'REVOKE SELECT (secret) ON public.market_private FROM edge_bff_runtime'),
++])
++def test_provisioning_refuses_a_privilege_held_on_columns_only(database, monkeypatch, grant, revoke):
++    module = provisioning()
++    monkeypatch.setenv('DATABASE_URL', database)
++    monkeypatch.setenv('EDGE_DB_PASSWORD', secrets.token_hex(24))
++    with psycopg.connect(database, autocommit=True) as conn:
++        conn.execute(grant)
++        # the privilege is real: has_any_column_privilege sees it, has_table_privilege (every guard's check) does not
++        role, table, privilege = ('edge_bff_runtime', grant.split(' ON ')[1].split(' TO ')[0], grant.split()[1])
++        assert conn.execute('SELECT has_any_column_privilege(%s, %s, %s)', (role, table, privilege)).fetchone()[0]
++        assert not conn.execute('SELECT has_table_privilege(%s, %s, %s)', (role, table, privilege)).fetchone()[0]
++    try:
++        with pytest.raises(RuntimeError, match='Unexpected EDGE|unexpected reachable'):
++            module.main()
++    finally:
++        with psycopg.connect(database, autocommit=True) as conn:
++            conn.execute(revoke)
++        drop_login(database)
++
++
++def test_the_migration_verify_block_refuses_an_audit_column_update(database):
++    """20261116_003's own $verify$ block, run again on the migrated database with a column UPDATE on the audit."""
++    text = (ROOT / 'database/migrations/20261116_003_edge_bff_accounts_users.sql').read_text()
++    block = text[text.index('DO $verify$'):text.index('END $verify$;') + len('END $verify$;')]
++    with psycopg.connect(database, autocommit=True) as conn:
++        conn.execute('TRUNCATE edge_bff.users CASCADE')
++        conn.execute('GRANT UPDATE (reason) ON edge_bff.admin_audit TO edge_bff_runtime')
++        try:
++            with pytest.raises(psycopg.errors.RaiseException):
++                conn.execute(block)
++        finally:
++            conn.execute('REVOKE UPDATE (reason) ON edge_bff.admin_audit FROM edge_bff_runtime')
++
++
++def test_a_changed_plan_value_leaves_a_trace(database):
++    """An operator's UPDATE of a plan grant (CONTRACT 8a: a catalog-only change takes effect with no deploy) must move
++    updated_at, and version (the column the X-Edge-Entitlements fingerprint names), so the change can be found."""
++    with psycopg.connect(database, autocommit=True) as conn:
++        before = conn.execute("""SELECT value, version, updated_at FROM edge_bff.plan_capabilities
++            WHERE plan_key = 'free' AND capability_key = 'terminal.history_days'""").fetchone()
++        conn.execute("""UPDATE edge_bff.plan_capabilities SET value = '365'
++            WHERE plan_key = 'free' AND capability_key = 'terminal.history_days'""")
++        try:
++            after = conn.execute("""SELECT value, version, updated_at FROM edge_bff.plan_capabilities
++                WHERE plan_key = 'free' AND capability_key = 'terminal.history_days'""").fetchone()
++            assert after[0] == 365
++            assert after[2] > before[2], 'plan_capabilities.updated_at did not move with the change'
++            assert after[1] > before[1], 'plan_capabilities.version did not rise with the change'
++        finally:
++            conn.execute("""UPDATE edge_bff.plan_capabilities SET value = %s::jsonb, version = %s, updated_at = %s
++                WHERE plan_key = 'free' AND capability_key = 'terminal.history_days'""",
++                         (str(before[0]), before[1], before[2]))
+-- 
+2.43.0
+
+
+From a2c01ab90603e7de8d15b594febc1a8e426373ca Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 19:17:54 +0000
+Subject: [PATCH 09/13] EXEC-MU-ACCOUNTS re-check C-DB: failing test, the
+ pending-account purge rewrites admin_audit rows
+
+admin_audit.actor_user_id and target_user_id are ON DELETE SET NULL, so accounts.purge_pending (run as
+edge_bff_runtime, which holds no UPDATE on the audit) sets the target of an audit row naming the purged
+registration to NULL.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+(cherry picked from commit 7c185e524c28a9b6a2f063bc860a08f198cdd7ed)
+---
+ .../tests/test_cdb_grants_and_records.py      | 22 +++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/apps/edge-bff/tests/test_cdb_grants_and_records.py b/apps/edge-bff/tests/test_cdb_grants_and_records.py
+index ea0161eb..91984d94 100644
+--- a/apps/edge-bff/tests/test_cdb_grants_and_records.py
++++ b/apps/edge-bff/tests/test_cdb_grants_and_records.py
+@@ -92,3 +92,25 @@ def test_a_changed_plan_value_leaves_a_trace(database):
+             conn.execute("""UPDATE edge_bff.plan_capabilities SET value = %s::jsonb, version = %s, updated_at = %s
+                 WHERE plan_key = 'free' AND capability_key = 'terminal.history_days'""",
+                          (str(before[0]), before[1], before[2]))
++
++
++def test_purging_a_pending_registration_never_changes_an_audit_row(store):
++    """admin_audit is append-only for edge-bff (no UPDATE, no DELETE; CONTRACT section 1), but its user columns are
++    foreign keys ON DELETE SET NULL, so the hourly purge of never-verified registrations (accounts.purge_pending, run as
++    edge_bff_runtime) rewrites every audit row that names the purged account: the row no longer says whom the admin
++    acted on (Phase 4: "resend a code" to a pending account is audited)."""
++    from app.accounts import new_owner_key, purge_pending
++    with store.connect() as c:
++        pending = c.execute("""INSERT INTO edge_bff.users(owner_key, email, requested_username, status, created_at)
++            VALUES (%s, 'pending@x.io', 'pending_1', 'pending', now() - interval '25 hours') RETURNING user_id""",
++                            (new_owner_key(),)).fetchone()['user_id']
++        audit = c.execute("""INSERT INTO edge_bff.admin_audit(action, target_user_id, reason)
++            VALUES ('user.resend_code', %s, 'asked by phone') RETURNING audit_id""", (pending,)).fetchone()['audit_id']
++    with store.connect() as c:
++        c.execute('SET LOCAL ROLE edge_bff_runtime')
++        assert not c.execute("SELECT has_table_privilege('edge_bff_runtime', 'edge_bff.admin_audit', 'UPDATE') AS u"
++                             ).fetchone()['u']
++        purge_pending(c)
++    with store.connect() as c:
++        row = c.execute('SELECT target_user_id FROM edge_bff.admin_audit WHERE audit_id = %s', (audit,)).fetchone()
++    assert row['target_user_id'] == pending, 'the purge rewrote an audit row (target_user_id set to NULL)'
+-- 
+2.43.0
+
+
+From 91ab50fb06db8870c19c92134c09c4642c781ac5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 02:18:16 +0000
+Subject: [PATCH 10/13] EXEC-MU-ACCOUNTS re-check round 2 (checker C2-SKEW,
+ version skew and deploy order): failing tests of the verified findings
+
+- F1: a switch-on session that has not passed MFA is a full admin session under an edge-bff with the switch off
+- F2: a switch-off start overwrites the password user #1 changed with the switch on
+- F3: the start's one readiness read decides the loops: a start during a database outage serves with no AI job
+  worker, and a build that never becomes ready still claims and dispatches queued backtests
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/tests/test_r2_skew.py | 149 ++++++++++++++++++++++++++++
+ 1 file changed, 149 insertions(+)
+ create mode 100644 apps/edge-bff/tests/test_r2_skew.py
+
+diff --git a/apps/edge-bff/tests/test_r2_skew.py b/apps/edge-bff/tests/test_r2_skew.py
+new file mode 100644
+index 00000000..7a7c4b00
+--- /dev/null
++++ b/apps/edge-bff/tests/test_r2_skew.py
+@@ -0,0 +1,149 @@
++"""EXEC-MU-ACCOUNTS re-check, round 2, checker C2-SKEW (version skew and deploy order). Failing tests of the verified
++findings; the fix round makes them pass.
++
++- F1: a switch-on session that has not passed MFA (or is idle, or of a disabled account) is a full admin session under
++  any edge-bff that runs with EDGE_MULTIUSER off: the switch's way back, an older rollback build, or a second edge-bff
++  service with the switch off on the same database. The switch-off resolution reads only token, revoked and expiry
++  (store.session), although the column comment says a switch-off session is the one with user_id NULL.
++- F2: a start with the switch off copies EDGE_PASSWORD_VERIFIER over user #1's password identity, so a password the
++  admin changed with the switch on is undone by the switch's way back or by every start of a switch-off edge-bff on the
++  same database, and the old password signs in again.
++- F3: the start decides once, from one readiness read, which background loops run, while /ready is read again on every
++  healthcheck: a start during a database outage (a Postgres restart) or before its migration (then applied within the
++  healthcheck window) serves traffic with no AI job worker; and a start that never becomes ready still runs the backtest
++  job loop, which claims and dispatches queued jobs.
++"""
++import dataclasses
++import time
++
++import psycopg
++from fastapi.testclient import TestClient
++
++from app.main import create_app
++from app.store import Store
++from conftest import FakeOrc
++from test_backtest import backtest_tables, configured, single, submit, worker  # noqa: F401 - fixtures and helpers
++from test_edge import ORIGIN, login
++
++PASSWORD = 'local-test-password'
++
++
++def switched_on(settings):
++    return dataclasses.replace(settings, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40)
++
++
++def db(store, sql, *args):
++    with store.connect() as c:
++        cur = c.execute(sql, args)
++        return cur.fetchall() if cur.description else cur.rowcount
++
++
++# ---- F1 ---------------------------------------------------------------------------------------------------------------
++
++def test_a_switch_on_session_that_has_not_passed_mfa_opens_nothing_with_the_switch_off(settings, store):
++    on = switched_on(settings)
++    with TestClient(create_app(on, store, FakeOrc())) as c:
++        r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'owner', 'password': PASSWORD})
++        assert r.status_code == 403 and r.json()['error']['code'] == 'MFA_REQUIRED'      # the password only
++        token = c.cookies.get('edge_session')
++        assert c.get('/api/v1/conversations').json()['error']['code'] == 'MFA_REQUIRED'
++    pending = db(store, 'SELECT user_id, owner_key, mfa_passed_at FROM edge_bff.sessions WHERE revoked_at IS NULL')
++    assert len(pending) == 1 and pending[0]['user_id'] is not None and pending[0]['mfa_passed_at'] is None
++    assert pending[0]['owner_key'] == settings.owner                                   # user #1 keeps EDGE_OWNER
++
++    # the same database under an edge-bff with the switch off (EDGE_MULTIUSER back to false, a rollback build, or the
++    # second edge-bff service of the beta/live plan)
++    with TestClient(create_app(settings, store, FakeOrc())) as c:
++        c.cookies.set('edge_session', token)
++        r = c.get('/api/v1/auth/session')
++        assert r.status_code == 401, ('a password-only switch-on session became a switch-off admin session: '
++                                      f'{r.status_code} {r.json().get("access")}')
++        # control: a session made by the switch-off sign-in itself still works
++        c.cookies.clear()
++        login(c)
++        assert c.get('/api/v1/auth/session').json()['access']['capabilities'] == ['*']
++
++
++# ---- F2 ---------------------------------------------------------------------------------------------------------------
++
++def test_a_switch_off_start_keeps_the_password_user_one_changed_with_the_switch_on(settings, store):
++    on = switched_on(settings)
++    new_password = 'a-fresh-long-password-2026'
++    app = create_app(on, store, FakeOrc())
++    app.state.auth_flows.pwned_fetch = lambda prefix: ''                 # never the real range API in a test
++    with TestClient(app) as c:
++        r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'owner', 'password': PASSWORD})
++        headers = {**ORIGIN, 'X-CSRF-Token': r.json()['error']['details']['csrf_token']}
++        db(store, 'UPDATE edge_bff.sessions SET mfa_passed_at = now() WHERE revoked_at IS NULL')   # MFA passed
++        r = c.post('/api/v1/auth/password/change', headers=headers,
++                   json={'current_password': PASSWORD, 'password': new_password, 'password_repeat': new_password})
++        assert r.status_code == 200, r.text
++    changed = db(store, "SELECT verifier FROM edge_bff.identities WHERE provider = 'password'")[0]['verifier']
++
++    # one start with the switch off on the same database (the switch's way back, or the other edge-bff service)
++    with TestClient(create_app(settings, store, FakeOrc())):
++        pass
++
++    assert db(store, "SELECT verifier FROM edge_bff.identities WHERE provider = 'password'")[0]['verifier'] == changed, \
++        'the switch-off start overwrote the password the account set itself with EDGE_PASSWORD_VERIFIER'
++    with TestClient(create_app(on, store, FakeOrc())) as c:
++        old = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'owner', 'password': PASSWORD})
++        assert old.status_code == 401, 'the password the admin replaced signs in again'
++        new = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'owner', 'password': new_password})
++        assert new.status_code == 403 and new.json()['error']['code'] == 'MFA_REQUIRED'
++
++
++# ---- F3 ---------------------------------------------------------------------------------------------------------------
++
++class OutageAtStart(Store):
++    """A store whose first `failures` readiness reads fail, as when edge-bff starts while Postgres restarts (about 12 s,
++    scripts/restart_postgres.py) or before its migration is applied; later reads succeed."""
++
++    def __init__(self, url, failures=1):
++        super().__init__(url)
++        self.failures = failures
++
++    def ready(self, multiuser=False):
++        if self.failures:
++            self.failures -= 1
++            raise psycopg.OperationalError('the database system is starting up')
++        return super().ready(multiuser)
++
++
++def test_a_start_during_a_database_outage_runs_the_ai_worker_once_it_is_ready(settings, store):
++    on_worker = dataclasses.replace(settings, worker_enabled=True)
++    with TestClient(create_app(on_worker, OutageAtStart(settings.database_url), FakeOrc())) as c:
++        assert c.get('/ready').status_code == 200          # Railway's healthcheck passes: the deployment takes traffic
++        h = login(c)
++        r = c.post('/api/v1/runs', headers=h, json={'message': 'Explain GOTO', 'submission_key': 'after-outage'})
++        assert r.status_code == 202, r.text
++        request_id = r.json()['request_id']
++        state = None
++        for _ in range(400):
++            state = c.get(f'/api/v1/runs/{request_id}').json()['state']
++            if state in ('FINISHED', 'FAILED', 'INTERRUPTED'):
++                break
++            time.sleep(0.01)
++        assert state == 'FINISHED', f'a ready deployment never dispatched the run (state {state}): no job worker runs'
++
++
++class NeverReady(Store):
++    """A store whose readiness read always fails: an edge-bff build deployed before its migration."""
++
++    def ready(self, multiuser=False):
++        raise psycopg.errors.UndefinedTable('relation "edge_bff.auth_throttle" does not exist')
++
++
++def test_a_build_that_is_not_ready_claims_no_backtest_job(configured, store, worker):  # noqa: F811 - fixtures
++    with TestClient(create_app(configured, store, FakeOrc())) as c:                    # the serving build, no loop
++        c.headers_for = login(c)
++        job_id = submit(c, single(), 'queued-before-the-deploy').json()['request_id']
++    assert db(store, 'SELECT state FROM edge_bff.backtest_jobs WHERE request_id=%s', job_id)[0]['state'] == 'QUEUED'
++
++    new_build = dataclasses.replace(configured, worker_enabled=True)
++    with TestClient(create_app(new_build, NeverReady(configured.database_url), FakeOrc())) as c:
++        assert c.get('/ready').status_code == 503          # never takes traffic (EXEC.md Phase 0 and 1 "Order")
++        time.sleep(1.0)
++    state = db(store, 'SELECT state FROM edge_bff.backtest_jobs WHERE request_id=%s', job_id)[0]['state']
++    assert not worker.posted('/v1/jobs') and state == 'QUEUED', \
++        f'a build that never became ready claimed the queued job (state {state}) and handed it to the worker'
+-- 
+2.43.0
+
+
+From 19211f9a72be5222812dd5b5c740dd639e316fa3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 02:18:40 +0000
+Subject: [PATCH 11/13] EXEC-MU-ACCOUNTS re-check round 2 (checker C2-RACE):
+ failing tests of verified race findings
+
+- R2-RACE-1: a password change in flight undoes a password reset; a sign-in in flight with the old password
+  leaves a live session after the reset.
+- R2-RACE-3: an MFA code confirms the enrolment another session made after the code was checked.
+- R2-RACE-2: a burst of MFA tries at the consecutive-failure cap or after a lock ended is checked in full.
+- R2-RACE-4: a password_changed or account_exists email holds back the reset code for 60 s (202 CODE_SENT).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/tests/test_r2_race.py | 284 ++++++++++++++++++++++++++++
+ 1 file changed, 284 insertions(+)
+ create mode 100644 apps/edge-bff/tests/test_r2_race.py
+
+diff --git a/apps/edge-bff/tests/test_r2_race.py b/apps/edge-bff/tests/test_r2_race.py
+new file mode 100644
+index 00000000..784c13dd
+--- /dev/null
++++ b/apps/edge-bff/tests/test_r2_race.py
+@@ -0,0 +1,284 @@
++"""EXEC-MU-ACCOUNTS re-check, round 2 (checker C2-RACE, lens: concurrency and races). Failing tests of verified findings.
++
++Each test runs the requests concurrently in threads against the real Postgres cluster (EDGE_TEST_POSTGRES_URL). A
++threading.Event holds one request at the point a real request spends its time (the Pwned Passwords range call, the
++scrypt derivation) while the other request runs, so the interleaving a burst or a slow network gives is reproduced
++every time.
++
++R2-RACE-1: a credential or session write authorised by a proof read before a concurrent password reset lands after it.
++  - a password change in flight (its current password proved, its new password at the Pwned check) overwrites the
++    password a reset set a moment later, although the reset revoked the changing session;
++  - a sign-in in flight with the old password (its verifier read, its derivations running) makes a live session after
++    the reset revoked every session, so the reset does not end the access of someone who held the old password.
++R2-RACE-2: the MFA consecutive-failure cap and its lock are read outside any lock of the account: every try of a burst
++  reaches the code check, past the 100-failure cap (TOTP) or past the restart allowance after a lock ended (recovery).
++"""
++import hashlib
++import threading
++
++import pytest
++from fastapi.testclient import TestClient
++
++from app import auth_flows as flows_module
++from app import main as main_module
++from app import mfa
++from app.security import normal_password
++from test_auth_flows import (PASSWORD, admin_sign_in, app, cooldown_over, db, error_code, hour_over,  # noqa: F401
++                             last_code, make_account, on, outbox)
++from test_edge import ORIGIN
++
++ATTACKER_PASSWORD = 'the attacker chose this one'
++RESET_PASSWORD = 'the owner reset to this one'
++WAIT = 20
++
++
++def range_prefix(password):
++    return hashlib.sha1(normal_password(password).encode('utf-8', 'surrogatepass')).hexdigest().upper()[:5]
++
++
++def reset_by_email(client, store, email, password):
++    """The owner's "Forgot password?" and reset, from a browser with no session."""
++    cooldown_over(store)
++    assert client.post('/api/v1/auth/password/forgot', headers=ORIGIN, json={'email': email}).status_code == 202
++    body = {'email': email, 'code': last_code(store, email), 'password': password, 'password_repeat': password}
++    r = client.post('/api/v1/auth/password/reset', headers=ORIGIN, json=body)
++    assert r.status_code == 200, r.text
++
++
++def sign_in_status(client, password):
++    return client.post('/api/v1/auth/sign-in', headers=ORIGIN,
++                       json={'login': 'ana_putri', 'password': password}).status_code
++
++
++def run_in_thread(fn):
++    out = {}
++
++    def target():
++        try:
++            out['value'] = fn()
++        except BaseException as e:                     # noqa: BLE001 - re-raised in the test thread
++            out['error'] = e
++    t = threading.Thread(target=target, daemon=True)
++    t.start()
++    return t, out
++
++
++# ---- R2-RACE-1 ---------------------------------------------------------------------------------------------------------
++
++def test_a_password_change_in_flight_does_not_undo_a_password_reset(app, store):
++    """CONTRACT.md section 4: a reset revokes every session, and the reset's password is the account's. A change whose
++    current password was proved before the reset, and whose write lands after it, must not replace the reset's
++    password: its session was revoked by the reset. Today store.change writes the verifier unconditionally
++    (auth_flows.py:290-307), so the holder of a stolen session and the old password keeps the account through a reset."""
++    r = make_account(app, store)                       # the stolen session: its holder also knows PASSWORD
++    stolen = {**ORIGIN, 'X-CSRF-Token': r.json()['csrf_token']}
++    flows = app.app.state.auth_flows
++    reached, release = threading.Event(), threading.Event()
++
++    def pwned_range(prefix):                           # the range API call of the change's new password is slow
++        if prefix == range_prefix(ATTACKER_PASSWORD):
++            reached.set()
++            release.wait(WAIT)
++        return ''
++    flows.pwned_fetch = pwned_range
++    body = {'current_password': PASSWORD, 'password': ATTACKER_PASSWORD, 'password_repeat': ATTACKER_PASSWORD}
++    thread, out = run_in_thread(lambda: app.post('/api/v1/auth/password/change', headers=stolen, json=body))
++    try:
++        assert reached.wait(WAIT), 'the change never reached the Pwned check'
++        owner = TestClient(app.app)                    # the account's owner, in another browser
++        reset_by_email(owner, store, 'ana@example.com', RESET_PASSWORD)
++        assert db(store, 'SELECT count(*) AS n FROM edge_bff.sessions WHERE revoked_at IS NULL')[0]['n'] == 0
++    finally:
++        release.set()
++        thread.join(WAIT)
++    assert 'error' not in out, out.get('error')
++    probe = TestClient(app.app)
++    assert (sign_in_status(probe, RESET_PASSWORD), sign_in_status(probe, ATTACKER_PASSWORD)) == (200, 401), (
++        'the change that began before the reset replaced the reset password: '
++        f'change answered {out["value"].status_code} {out["value"].text}')
++
++
++def test_a_sign_in_in_flight_does_not_outlive_a_password_reset(app, store, monkeypatch):
++    """CONTRACT.md section 4 ("Revoke all on password change or reset"): after a reset no session of the account is
++    live. A sign-in with the old password whose verifier was read before the reset, and whose session is made after it
++    (main.py:610-641: find_login, then 1 + PENDING_CHECKED derivations, then create_session with no check that the
++    verifier it proved is still the account's), leaves a live session the reset never revoked."""
++    make_account(app, store)
++    real = main_module.verify_password
++    reached, release = threading.Event(), threading.Event()
++    armed = {'on': True}
++
++    def slow_verify(password, verifier):              # the derivations of the in-flight sign-in take their time
++        if armed['on'] and password == PASSWORD:
++            armed['on'] = False
++            reached.set()
++            release.wait(WAIT)
++        return real(password, verifier)
++    monkeypatch.setattr(main_module, 'verify_password', slow_verify)
++    holder = TestClient(app.app)                       # someone who holds the old password
++    thread, out = run_in_thread(lambda: holder.post('/api/v1/auth/sign-in', headers=ORIGIN,
++                                                    json={'login': 'ana_putri', 'password': PASSWORD}))
++    try:
++        assert reached.wait(WAIT), 'the sign-in never reached its password derivation'
++        reset_by_email(TestClient(app.app), store, 'ana@example.com', RESET_PASSWORD)
++    finally:
++        release.set()
++        thread.join(WAIT)
++    assert 'error' not in out, out.get('error')
++    live = db(store, 'SELECT count(*) AS n FROM edge_bff.sessions WHERE revoked_at IS NULL')[0]['n']
++    session = holder.get('/api/v1/auth/session').status_code
++    assert (live, session) == (0, 401), (
++        f'a sign-in proved by the replaced password made a live session after the reset (sign-in answered '
++        f'{out["value"].status_code}; live sessions {live}; its session read answers {session})')
++
++
++def test_an_mfa_code_confirms_only_the_enrolment_it_was_checked_against(app, store, on, monkeypatch):
++    """auth_flows.py:553-574: mfa/verify reads the enrolment (store.totp), checks the code against that row's nonce, then
++    use_step confirms whatever row the account holds now (WHERE user_id AND last_step < step: no nonce in it). An enrol
++    of another pending session landing in between (store.enroll upserts a new nonce with last_step NULL) is confirmed
++    by the admin's code: the admin sees 200 and mfa_ok, the authenticator the admin scanned no longer works, and the
++    confirmed second factor is the other session's (it has the password, and now the factor)."""
++    flows = app.app.state.auth_flows
++    now = {'t': 1_800_000_000.0}
++    flows.clock = lambda: now['t']
++    admin = admin_sign_in(app)
++    mine = app.post('/api/v1/auth/mfa/enroll', headers=admin).json()['secret']
++    other = TestClient(app.app)                        # another pending session of the account (the password only)
++    other_h = admin_sign_in(other)
++    real_use = flows.store.use_step
++    reached, release = threading.Event(), threading.Event()
++
++    def use_step(user_id, step):                       # the admin's code was checked; its confirmation is on its way
++        reached.set()
++        release.wait(WAIT)
++        return real_use(user_id, step)
++    monkeypatch.setattr(flows.store, 'use_step', use_step)
++    import base64
++    secret = base64.b32decode(mine + '=' * (-len(mine) % 8))
++    step = int(now['t']) // 30
++    thread, out = run_in_thread(lambda: app.post('/api/v1/auth/mfa/verify', headers=admin,
++                                                 json={'code': mfa.code_at(secret, step)}))
++    try:
++        assert reached.wait(WAIT), 'the verify never reached its confirmation'
++        # today 200: the enrolment was not confirmed yet when this enrol was checked (a fix may refuse it instead)
++        theirs = other.post('/api/v1/auth/mfa/enroll', headers=other_h)
++    finally:
++        release.set()
++        thread.join(WAIT)
++    monkeypatch.setattr(flows.store, 'use_step', real_use)
++    assert 'error' not in out, out.get('error')
++    if out['value'].status_code != 200:
++        return                                         # the admin was told the code did not confirm: nothing to check
++    # the admin's verify answered 200 (mfa_ok): the factor confirmed must be the one the admin's code was checked against
++    fresh = TestClient(app.app)
++    now['t'] += 30                                     # a later step: no replay of the step used above
++    h = admin_sign_in(fresh)
++    admin_code = fresh.post('/api/v1/auth/mfa/verify', headers=h,
++                            json={'code': mfa.code_at(secret, step + 1)}).status_code
++    their_code = None
++    if theirs.status_code == 200:
++        their_secret = base64.b32decode(theirs.json()['secret'] + '=' * (-len(theirs.json()['secret']) % 8))
++        now['t'] += 30
++        h = admin_sign_in(fresh)
++        their_code = fresh.post('/api/v1/auth/mfa/verify', headers=h,
++                                json={'code': mfa.code_at(their_secret, step + 2)}).status_code
++    assert admin_code == 200 and their_code != 200, (
++        "the admin's verify answered 200, but it confirmed the enrolment another session made after the admin's code "
++        f"was checked: the admin's authenticator now answers {admin_code}, the other session's answers {their_code}")
++
++
++
++# ---- R2-RACE-2 ---------------------------------------------------------------------------------------------------------
++
++@pytest.mark.parametrize('field, failures, locked_until, allowed', [
++    # the 100th consecutive TOTP failure starts the 24-hour lock (NIST SP 800-63B-4: at most 100 consecutive failures)
++    ('code', flows_module.TOTP_FAILURE_CAP - 1, None, 1),
++    # a recovery lock that ended a second ago leaves RECOVERY_FAILURE_CAP - RECOVERY_RESTART tries (N2)
++    ('recovery_code', flows_module.RECOVERY_FAILURE_CAP, 1_800_000_000 - 1,
++     flows_module.RECOVERY_FAILURE_CAP - flows_module.RECOVERY_RESTART)])
++def test_a_burst_at_the_mfa_cap_checks_only_the_tries_left(app, store, on, monkeypatch, field, failures, locked_until,
++                                                            allowed):
++    """auth_flows.py:553-579: the consecutive-failure count and its lock are read (store.totp) in one transaction,
++    lock_over restarts the count in a second and mfa_failed adds the failure in a third, none under a lock of the
++    account. Tries sent together all read the same count, so every try of a burst reaches the code check (up to
++    MFA_USER, 10 per 15 minutes): past the 100-failure cap (TOTP at 99: all 5 checked, 104 consecutive failures) or
++    past the restart allowance after a lock ended (recovery: 5 checked where 2 are left)."""
++    flows = app.app.state.auth_flows
++    now = {'t': 1_800_000_000.0}
++    flows.clock = lambda: now['t']
++    h = admin_sign_in(app)
++    app.post('/api/v1/auth/mfa/enroll', headers=h)
++    kind = 'totp' if field == 'code' else 'recovery'
++    db(store, f'UPDATE edge_bff.mfa_totp SET confirmed_at = now(), {kind}_failures = %s, {kind}_locked_until = %s',
++       failures, locked_until)
++    burst = 5
++    # the tries of the burst arrive together: each has read the row before any of them goes on. A build that reads the
++    # row under a lock of the account never fills the barrier; its tries then go on one by one after the short timeout
++    gate = threading.Barrier(burst, timeout=3)
++    real_totp = flows.store.totp
++
++    def totp(user_id):
++        row = real_totp(user_id)
++        try:
++            gate.wait()
++        except threading.BrokenBarrierError:
++            pass
++        return row
++    monkeypatch.setattr(flows.store, 'totp', totp)
++    db(store, 'DELETE FROM edge_bff.auth_throttle')
++    wrong = '000000' if field == 'code' else 'aaaaa-aaaaa'
++    threads = [run_in_thread(lambda: app.post('/api/v1/auth/mfa/verify', headers=h, json={field: wrong}))
++               for _ in range(burst)]
++    for t, _ in threads:
++        t.join(WAIT)
++    assert all('error' not in out for _, out in threads), [out.get('error') for _, out in threads]
++    answers = sorted(error_code(out['value']) for _, out in threads)
++    checked = answers.count('MFA_CODE_INVALID')       # a try whose wrong code was checked (MFA_LOCKED: not checked)
++    row = db(store, f'SELECT {kind}_failures AS n FROM edge_bff.mfa_totp')[0]
++    assert checked == allowed, (
++        f'{checked} of {burst} parallel {field} tries were checked (allowed {allowed}); answers {answers}; '
++        f'consecutive failures now {row["n"]}')
++
++
++# ---- R2-RACE-4 ---------------------------------------------------------------------------------------------------------
++
++def reset_codes(store, email):
++    return [r for r in outbox(store, email) if r['purpose'] == 'reset']
++
++
++def test_a_password_changed_email_does_not_hold_back_the_reset_it_asks_for(app, store):
++    """email_texts.py:42-47: the password_changed email says 'If you did not, use "Forgot password?" ... at once'. The
++    send rule of every code email (auth_flows.py:137-143, _may_send) refuses when ANY outbox row to the address is
++    younger than 60 s, and the notification is such a row (enqueue, auth_flows.py:286, 307). So the reset asked for at
++    once answers 202 CODE_SENT and mails nothing; whoever holds a session and the password (it set it) keeps every
++    reset email of the owner back by changing the password at least once a minute (a successful change clears its own
++    throttle, auth_flows.py:516)."""
++    r = make_account(app, store)
++    h = {**ORIGIN, 'X-CSRF-Token': r.json()['csrf_token']}
++    cooldown_over(store)                               # the registration code email is older than a minute
++    body = {'current_password': PASSWORD, 'password': ATTACKER_PASSWORD, 'password_repeat': ATTACKER_PASSWORD}
++    assert app.post('/api/v1/auth/password/change', headers=h, json=body).status_code == 200
++    assert outbox(store, 'ana@example.com')[-1]['purpose'] == 'password_changed'
++    owner = TestClient(app.app)
++    answer = owner.post('/api/v1/auth/password/forgot', headers=ORIGIN, json={'email': 'ana@example.com'})
++    assert answer.json() == flows_module.ACCEPTED      # the page tells the owner a code was sent
++    assert len(reset_codes(store, 'ana@example.com')) == 1, (
++        'the reset the password_changed email asks for was answered CODE_SENT but no reset code was queued')
++
++
++def test_a_strangers_registration_does_not_hold_back_the_owners_reset(app, store):
++    """The same rule from another user: anyone who registers with the owner's address (the 'account exists' email,
++    once an hour, REGISTER_HOUR) holds the owner's "Forgot password?" back for the next 60 s, with the same 202
++    CODE_SENT. That email too tells the owner to use "Forgot password?"."""
++    make_account(app, store)
++    hour_over(store)                                   # the account's own registration is more than an hour old
++    stranger = TestClient(app.app)
++    body = {'username': 'someone_else', 'first_name': 'S', 'last_name': 'T', 'email': 'ana@example.com',
++            'phone': '0812 0000 0000', 'password': 'a stranger password', 'password_repeat': 'a stranger password'}
++    assert stranger.post('/api/v1/auth/register', headers=ORIGIN, json=body).status_code == 202
++    assert outbox(store, 'ana@example.com')[-1]['purpose'] == 'account_exists'
++    owner = TestClient(app.app)
++    assert owner.post('/api/v1/auth/password/forgot', headers=ORIGIN,
++                      json={'email': 'ana@example.com'}).json() == flows_module.ACCEPTED
++    assert len(reset_codes(store, 'ana@example.com')) == 1, (
++        "a stranger's registration held back the owner's reset code: 202 CODE_SENT and no code queued")
+-- 
+2.43.0
+
+
+From 3de2546f0c78960ab4c7de0a2905abaf1578dc9c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 02:43:06 +0000
+Subject: [PATCH 12/13] EXEC-MU-ACCOUNTS re-check round 2 (checker C2-WEB, the
+ browser as attacker and user): failing tests of the verified findings
+
+- W1: the Monitor shows a refusal's code (CAPABILITY_REQUIRED) instead of its words; every non-admin sign-in lands there
+- W2: CAPABILITY_REQUIRED and LIMIT_REACHED carry one fixed sentence per code; the name, limit and wait stay in
+  details, which no page shows (auth code and MFA throttles told to upgrade a plan; the queued-backtest limit unnamed)
+- W3: the shell's own session (Edge.auth) never follows X-Edge-Entitlements or the frames' broadcast
+- W4: a session that ends under a tab's frame (401) leaves the shell signed in, with no way to sign in again
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/tests/test_c2web_browser.py | 204 ++++++++++++++++++++++
+ 1 file changed, 204 insertions(+)
+ create mode 100644 apps/edge-bff/tests/test_c2web_browser.py
+
+diff --git a/apps/edge-bff/tests/test_c2web_browser.py b/apps/edge-bff/tests/test_c2web_browser.py
+new file mode 100644
+index 00000000..3be7fc42
+--- /dev/null
++++ b/apps/edge-bff/tests/test_c2web_browser.py
+@@ -0,0 +1,204 @@
++"""Round 2 re-check of EXEC-MU-ACCOUNTS Phases 0-3b, checker C2-WEB (the browser as an attacker and as a user).
++
++Failing tests of verified findings; the fix round makes them pass. Each names the finding, its evidence and why it
++matters for the person in front of the page (AGENTS.md "Gates and evidence" (d): every refusal names the problem and
++the way out)."""
++import dataclasses
++import re
++from pathlib import Path
++
++from fastapi.testclient import TestClient
++
++from app.main import create_app
++from conftest import FakeOrc
++from test_auth_pages import page  # noqa: F401 (fixture)
++from test_auth_pages_live import live  # noqa: F401 (fixture)
++from test_backtest import single
++from test_phase3a_gates import BT, override, paid_user
++from test_principal import db, make_user, on, sign_in, workers  # noqa: F401 (fixtures)
++
++ORIGIN = 'http://testserver'
++CODE = re.compile(r'[A-Z][A-Z0-9_]{3,}')                          # a refusal code as edge-bff sends it
++
++
++def signed_in(page, on, login):
++    """The shell's sign-in page, as the person uses it; every sign-in lands on /monitor (index.html LoginForm)."""
++    page.goto(on.origin + '/login')
++    page.get_by_label('Login', exact=True).fill(login)
++    page.get_by_label('Password', exact=True).fill(login + '-password')
++    page.get_by_role('button', name='Sign In').click()
++    page.wait_for_function("() => location.pathname === '/monitor' && Edge.auth !== null")
++
++
++def on_app(settings, store):
++    on = dataclasses.replace(settings, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40)
++    application = create_app(on, store, FakeOrc())
++    application.state.auth_flows.pwned_fetch = lambda prefix: ''
++    return on, application
++
++
++# ---- W1: the Monitor shows a refusal's code, never its words ------------------------------------------------------
++
++def test_c2web_w1_a_paid_account_lands_on_the_monitor_and_reads_words_not_a_code(live, page):
++    """Every sign-in goes to /monitor (static/index.html LoginForm, CodeForm, MfaForm: go("/monitor")). With the switch
++    on the paid and free plans hold no monitor.view (decision D1), so the Monitor's first read, GET
++    /api/v1/conversations, answers 403 CAPABILITY_REQUIRED. The Monitor's catch shows e.message, the ApiError's code
++    (static/edge-client.js: super(code)), not error.text (the plan words set by the M471 fix) nor the server's message:
++    the person sees the bare code CAPABILITY_REQUIRED in a red alert, with no words and no way out."""
++    on, store = live
++    paid_user(store, 'paula')
++    signed_in(page, on, 'paula')
++    page.wait_for_timeout(2000)                                   # the Monitor's first reads (conversations, runs)
++    said = [t.strip() for t in page.locator('[role=alert]').all_inner_texts() if t.strip()]
++    # (3e may show an example conversation instead of a refusal; then nothing is said and the test passes)
++    codes = [t for t in said if CODE.fullmatch(t) or 'CAPABILITY_REQUIRED' in t]
++    assert not codes, f'the Monitor shows the refusal code itself to the person: {codes!r}'
++    assert all(' ' in t for t in said), f'a refusal on the Monitor is not worded for the person: {said!r}'
++
++
++# ---- W2: an abuse throttle answered with the plan-limit message ---------------------------------------------------
++
++def test_c2web_w2_too_many_wrong_email_codes_is_not_worded_as_a_plan_limit(settings, store):
++    """auth_flows.code_refusal answers 20 wrong email codes a day with 429 LIMIT_REACHED (limit code_tries), and
++    errors.refusal gives every LIMIT_REACHED the plan message "You have reached your plan's limit. Try again later, or
++    upgrade the plan." The /verify and /reset pages show the server's message first (index.html authText), so a person
++    who is not even signed in (no plan) is told to upgrade a plan; the shell's own right label (EdgeLabels.auth.errors
++    LIMIT_REACHED "Too many attempts today. Try again tomorrow.") is never shown."""
++    on, application = on_app(settings, store)
++    make_user(store, 'rita', 'rita-password', email='rita@example.com')
++    with TestClient(application) as c:
++        h = {'origin': ORIGIN}
++        assert c.post('/api/v1/auth/password/forgot', headers=h, json={'email': 'rita@example.com'}).status_code == 202
++        body = {'email': 'rita@example.com', 'code': '000000', 'password': 'a long enough password',
++                'password_repeat': 'a long enough password'}
++        answer = None
++        for _ in range(25):
++            answer = c.post('/api/v1/auth/password/reset', headers=h, json=body)
++            if answer.status_code == 429:
++                break
++        assert answer.status_code == 429, answer.text
++        error = answer.json()['error']
++        assert error['code'] == 'LIMIT_REACHED' and error['details']['limit'] == 'code_tries'
++        assert 'plan' not in error['message'].lower(), \
++            f'a person with no session is told to upgrade a plan after wrong email codes: {error["message"]!r}'
++
++
++def test_c2web_w2_too_many_wrong_mfa_codes_is_not_worded_as_a_plan_limit(settings, store):
++    """The same for the admin's authenticator page: 10 wrong codes in 15 minutes answer 429 LIMIT_REACHED (limit
++    mfa_tries) with the plan message, and the /mfa page shows it (authText): the admin is told to upgrade a plan, and the
++    wait (Retry-After, up to 15 minutes) is never named."""
++    on, application = on_app(settings, store)
++    with TestClient(application) as c:
++        h = {'origin': ORIGIN}
++        signed = c.post('/api/v1/auth/sign-in', headers=h, json={'login': 'owner', 'password': 'local-test-password'})
++        assert signed.status_code == 403 and signed.json()['error']['code'] == 'MFA_REQUIRED', signed.text
++        h['x-csrf-token'] = signed.json()['error']['details']['csrf_token']
++        assert c.post('/api/v1/auth/mfa/enroll', headers=h, json={}).status_code == 200
++        answer = None
++        for _ in range(15):
++            answer = c.post('/api/v1/auth/mfa/verify', headers=h, json={'code': '000000'})
++            if answer.status_code == 429:
++                break
++        assert answer.status_code == 429, answer.text
++        error = answer.json()['error']
++        assert error['code'] == 'LIMIT_REACHED' and error['details']['limit'] == 'mfa_tries'
++        assert 'plan' not in error['message'].lower(), \
++            f'the admin is told to upgrade a plan after wrong authenticator codes: {error["message"]!r}'
++
++
++def shown(page, status, body, retry_after=None):
++    """What a page built on the shared session module shows for this answer (accessText(readError(...)), the sentence
++    the Radar, Overview, Watchlist, Backtest, Screener and Terminal clients put on screen); static/edge-session.js is the
++    shell's build of shared/edge-session.ts (tests/test_storage_registry.py holds them equal)."""
++    page.set_content('<!doctype html><title>refusal</title>')
++    page.add_script_tag(path=str(Path(__file__).resolve().parents[1] / 'static' / 'edge-session.js'))
++    return page.evaluate('([s, b, r]) => EdgeSession.accessText(EdgeSession.readError(s, b, r))', [status, body, retry_after])
++
++
++def test_c2web_w2_a_capability_refusal_reaches_the_page_with_the_name_edge_bff_sends(on, store, page):
++    """M481 C1 F3 gave every CAPABILITY_REQUIRED a person-facing details.display_name (the catalog's), and 3c refuses a
++    ticker or data set the same way (CONTRACT 8b "3c in detail": "naming terminal.tickers or terminal.dataset:<id>, with
++    its display_name"). But errors.refusal sends the one fixed sentence of the code ("This feature is not part of your
++    EDGE plan..."), and accessText shows the server's sentence first: the name is never shown to the person."""
++    with TestClient(create_app(on, store, FakeOrc())) as c:
++        paula = paid_user(store, 'paula')
++        override(store, paula['user_id'], 'radar.view', 'false')          # a plan without the Radar
++        h = sign_in(c, 'paula', 'paula-password')
++        r = c.get('/api/v1/radar/index', headers=h)
++        assert r.status_code == 403 and r.json()['error']['code'] == 'CAPABILITY_REQUIRED', r.text
++        name = r.json()['error']['details']['display_name']
++        assert name == 'Radar', r.text                                       # the catalog's name, as edge-bff sends it
++        said = shown(page, 403, r.json())
++    assert name in said, f'the page never names what the plan lacks ({name!r} is in details only): {said!r}'
++
++
++def test_c2web_w2_the_queued_backtest_limit_reaches_the_page_with_its_number_and_wait(on, store, page):
++    """M481 C3 F1/C1 F2 made the queue cap a 429 LIMIT_REACHED with details.limit, allowed and retry_after_s (Gates (a),
++    (d)). The message is the generic plan sentence, and accessText shows it first, so the Backtest page (api/live.ts
++    failure: accessText(info)) says neither that it is the queued backtests, nor the account's number, nor the wait."""
++    with TestClient(create_app(on, store, FakeOrc())) as c:
++        alice = paid_user(store, 'alice')
++        override(store, alice['user_id'], 'backtest.queued_jobs', '1')
++        h = sign_in(c, 'alice', 'alice-password')
++        assert c.post(BT, headers=h, json={**single(), 'client_request_id': 'one'}).status_code == 202
++        r = c.post(BT, headers=h, json={**single('BBRI'), 'client_request_id': 'two'})
++        assert r.status_code == 429 and r.json()['error']['details']['allowed'] == 1, r.text
++        said = shown(page, 429, r.json(), r.headers.get('retry-after'))
++    assert 'backtest' in said.lower() or 'queue' in said.lower(), \
++        f'the page does not say which limit was reached (details.limit {r.json()["error"]["details"]["limit"]!r}): {said!r}'
++
++
++# ---- W3: the shell's own session never follows a change of plan ---------------------------------------------------
++
++def test_c2web_w3_the_shell_reads_its_session_again_when_the_plan_changes(live, page):
++    """CONTRACT 12: "The version header X-Edge-Entitlements makes it re-read the session; a change is broadcast". The
++    shell talks to edge-bff through its own client (static/edge-client.js api()), which never reads the header, and the
++    'entitlements' broadcast of a frame reaches only the shared module's own client (edge-session.ts listen ->
++    clients.forEach(invalidate)), never edge-client.js `auth`. So Edge.auth (its access: capabilities, limits, plan,
++    next, mfa_enrolled) keeps what the account held at sign-in until the tab is reloaded: what 3e's Monitor example mode
++    and the frames' example mode would decide from."""
++    on, store = live
++    paula = paid_user(store, 'paula')
++    signed_in(page, on, 'paula')
++    before = page.evaluate('() => Edge.auth.access.version')
++    assert 'backtest.view' in page.evaluate('() => Edge.auth.access.capabilities')
++    override(store, paula['user_id'], 'backtest.view', 'false')           # the admin narrows the plan (Phase 4)
++    now = page.evaluate("() => fetch('/api/v1/auth/session').then(r => r.headers.get('X-Edge-Entitlements'))")
++    assert now != before                                                   # the server says the access changed
++    page.evaluate("() => Edge.api('/preferences')")                       # the shell's next call carries it too
++    # and a frame of this origin that saw the new version broadcasts it (edge-session.ts noteVersion -> post)
++    page.evaluate("() => new BroadcastChannel('edge-session').postMessage({type:'entitlements', version:'x', from:'frame'})")
++    page.wait_for_timeout(1500)
++    held = page.evaluate('() => [Edge.auth.access.version, Edge.auth.access.capabilities]')
++    assert held[0] == now and 'backtest.view' not in held[1], \
++        f'the shell still holds the access of sign-in ({before}) after the plan changed to {now}: {held}'
++
++
++# ---- W4: a session that ended under a tab's frame leaves the shell signed in -------------------------------------
++
++# a stand-in for any tab's built page (Terminal, Backtest, Screener, Radar, Overview, Watchlist): its data call goes
++# through the shared session module, as theirs do (shared/edge-session.ts send)
++FRAME = '''<!doctype html><title>frame</title><script src="/edge-session.js"></script>
++<script>EdgeSession.edge.send('/api/v1/preferences').then(r => { document.title = 'answered ' + r.status })</script>'''
++
++
++def test_c2web_w4_a_session_that_ended_under_a_frame_takes_the_shell_to_sign_in(live, page):
++    """CONTRACT 3: 401 UNAUTHENTICATED -> "go to sign-in". With the switch on a session ends after 8 h idle
++    (EDGE_SESSION_IDLE_SECONDS) or by sign-out-all, password reset, disable or role change (CONTRACT 4). A tab's page in
++    the shell's frame then gets 401 and only shows its own sentence ("Your EDGE session ended. Sign in again, then open
++    the Radar.", radar/src/api.ts:17; the same in overview, watchlist, terminal, backtest, screener): send() only
++    invalidates its own client on a 401 (edge-session.ts send: `if (res.status === 401) invalidate()`), nothing tells the
++    shell, and the shell has no sign-in on screen. The rail, the account menu and the other tabs stay up around a dead
++    session, and the sentence's fix (sign in again) has no control."""
++    on, store = live
++    paid_user(store, 'paula')
++    page.route('**/terminal-app/**', lambda route: route.fulfill(status=200, content_type='text/html', body=FRAME))
++    signed_in(page, on, 'paula')
++    db(store, 'UPDATE edge_bff.sessions SET revoked_at = now() WHERE revoked_at IS NULL')   # the session ends (idle, reset)
++    page.evaluate("() => { history.pushState({}, '', '/terminal'); dispatchEvent(new PopStateEvent('popstate')) }")
++    # the frame's call was answered 401 (or the shell already shows the sign-in page)
++    page.wait_for_function("() => document.querySelector('iframe.terminal-frame')?.contentDocument?.title === 'answered 401'"
++                           " || !!document.querySelector('#auth-login')")
++    page.wait_for_timeout(2000)
++    assert page.get_by_label('Login', exact=True).count() == 1, \
++        'the frame was answered 401 and the shell still shows the signed-in workspace, with no way to sign in again'
+-- 
+2.43.0
+
+
+From 69ea6104260d981f38d579d16498ed6a8a6e99e9 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 02:40:48 +0000
+Subject: [PATCH 13/13] EXEC-MU-ACCOUNTS re-check round 2 (checker C2-LIFE,
+ data lifecycle, privacy and logs): failing tests of the verified findings
+
+- L1: the hourly purge deletes a never-verified registration but leaves every email_outbox row naming its address
+  (no retention; edge_bff_runtime holds no DELETE on the outbox), so an address anyone typed stays for ever.
+- L2: an unexpected exception is answered 503, but Starlette re-raises it and uvicorn logs its full text, PostgreSQL's
+  DETAIL row included (the person's email, names and phone), against main.py's "no exception body/traceback" rule.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/tests/test_r2_life.py | 147 ++++++++++++++++++++++++++++
+ 1 file changed, 147 insertions(+)
+ create mode 100644 apps/edge-bff/tests/test_r2_life.py
+
+diff --git a/apps/edge-bff/tests/test_r2_life.py b/apps/edge-bff/tests/test_r2_life.py
+new file mode 100644
+index 00000000..fd66a0a1
+--- /dev/null
++++ b/apps/edge-bff/tests/test_r2_life.py
+@@ -0,0 +1,147 @@
++"""EXEC-MU-ACCOUNTS re-check round 2, checker C2-LIFE (data lifecycle, privacy and logs): failing tests of the verified
++findings. Each test names the rule it holds; the fix round makes them pass.
++
++- L1: the hourly purge deletes a never-verified registration (CONTRACT.md section 4: "A pending user is deleted 24 h
++  after creation if never verified"), but every email_outbox row that names its address stays for ever: the outbox has
++  no retention, and edge_bff_runtime holds no DELETE on it (20261116_003:225), so the purge cannot remove them either.
++- L2: an exception no route expected is answered 503 SERVICE_UNAVAILABLE by main.py's handler, whose comment says no
++  exception body or traceback is written because database errors may contain secrets; Starlette re-raises it after the
++  handler and uvicorn logs it with its full text, PostgreSQL's DETAIL included ("Failing row contains (...)": the
++  person's email, names and phone).
++"""
++import asyncio
++import dataclasses
++import logging
++import socket
++import threading
++import time
++import uuid
++from urllib.parse import urlsplit, urlunsplit
++
++import httpx
++import psycopg
++import pytest
++import uvicorn
++from fastapi.testclient import TestClient
++
++from app.mailer import EmailSender
++from app.main import create_app
++from app.store import Store
++from conftest import FakeOrc
++from test_auth_flows import SECRET, db, outbox, register
++
++STRANGER = 'someone.else@example.com'
++
++
++@pytest.fixture
++def on(settings):
++    return dataclasses.replace(settings, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40,
++                               resend_webhook_secret=SECRET)
++
++
++@pytest.fixture
++def app(on, store):
++    application = create_app(on, store, FakeOrc())
++    application.state.auth_flows.pwned_fetch = lambda prefix: ''          # never the real API in a test
++    with TestClient(application) as c:
++        yield c
++
++
++@pytest.fixture
++def runtime_store(database):
++    """The store as production runs it: a login that holds only edge_bff_runtime's grants (edge_bff_login on dev,
++    scripts/provision_edge_bff_login.py), so a statement the grants refuse fails here as it would there."""
++    name = 'r2_life_' + uuid.uuid4().hex[:8]
++    with psycopg.connect(database, autocommit=True) as c:
++        c.execute(f'CREATE ROLE "{name}" LOGIN INHERIT IN ROLE edge_bff_runtime')
++    p = urlsplit(database)
++    s = Store(urlunsplit((p.scheme, f'{name}@{p.hostname}:{p.port}', p.path, p.query, p.fragment)))
++    try:
++        yield s
++    finally:
++        s.close()
++        with psycopg.connect(database, autocommit=True) as c:
++            c.execute(f'DROP ROLE "{name}"')
++
++
++def test_l1_the_purge_of_a_never_verified_registration_leaves_no_row_naming_its_address(app, store, on, runtime_store):
++    """CONTRACT.md section 4 deletes a pending registration after 24 h, and anyone may type any address into the
++    registration form. The registration's code email was sent (Resend, payload nulled); a day later the hourly cleanup
++    runs as the production login. Afterwards nothing in edge_bff may still say that this address was registered: today
++    the users row goes (with its identity and code, ON DELETE CASCADE) but the outbox row keeps to_email, purpose
++    'register', the times and the provider id for ever, and edge_bff_runtime cannot delete it."""
++    assert register(app, STRANGER, 'some_one').status_code == 202
++    sender = EmailSender(dataclasses.replace(on, email_mode='resend', resend_api_key='re_test_key',
++                                             email_from='EDGE <no-reply@mail.example.com>'), store,
++                         transport=httpx.MockTransport(lambda r: httpx.Response(200, json={'id': 'em_1'})))
++
++    async def send():
++        assert await sender.step() is True
++        await sender.aclose()
++    asyncio.run(send())
++    assert [(r['status'], r['payload']) for r in outbox(store, STRANGER)] == [('sent', None)]
++    db(store, "UPDATE edge_bff.users SET created_at = now() - interval '25 hours' WHERE email=%s", STRANGER)
++    db(store, "UPDATE edge_bff.email_outbox SET created_at = created_at - interval '25 hours', "
++              "sent_at = sent_at - interval '25 hours' WHERE to_email=%s", STRANGER)
++    runtime_store.cleanup_sessions()                       # the worker loop's hourly cleanup, as edge_bff_runtime
++    assert db(store, 'SELECT user_id FROM edge_bff.users WHERE email=%s', STRANGER) == [], 'the purge did not run'
++    left = [(r['purpose'], r['status']) for r in outbox(store, STRANGER)]
++    assert left == [], (f'the registration was purged but its outbox rows still name {STRANGER}: {left}; the outbox '
++                        'needs a retention (and edge_bff_runtime a DELETE grant for it)')
++
++
++# ---- L2 -------------------------------------------------------------------------------------------------------------
++
++class Captured(logging.Handler):
++    def __init__(self):
++        super().__init__(logging.DEBUG)
++        self.lines = []
++
++    def emit(self, record):
++        self.lines.append(self.format(record))
++
++
++def test_l2_an_unexpected_database_error_never_writes_the_persons_data_to_the_server_log(on, store):
++    """main.py:331-334 answers any unexpected exception 503 and says no exception body or traceback is written
++    (database errors may contain secrets; worker.py:56 and backtest.py failure_of keep that rule for the loops). Under
++    uvicorn, as on Railway (Dockerfile CMD), the request path breaks it: Starlette's ServerErrorMiddleware re-raises
++    after the handler and uvicorn.error logs 'Exception in ASGI application' with the exception's text, whose DETAIL
++    lists the failing row. The unexpected error here is a database constraint the running edge-bff does not know (the
++    beta/live case: a migration applied for the beta while the live version still writes the old shape); the person's
++    registration then fails with 503 and their email, names and phone go to the log."""
++    with store.connect() as c:
++        c.execute("ALTER TABLE edge_bff.users ADD CONSTRAINT r2_life_probe CHECK (phone_e164 NOT LIKE '+628%')")
++    sock = socket.socket(); sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
++    settings = dataclasses.replace(on, origin=f'http://127.0.0.1:{port}')
++    application = create_app(settings, store, FakeOrc())
++    application.state.auth_flows.pwned_fetch = lambda prefix: ''
++    captured = Captured()
++    error_log = logging.getLogger('uvicorn.error')
++    error_log.addHandler(captured)
++    server = uvicorn.Server(uvicorn.Config(application, log_level='error', log_config=None, access_log=False))
++    thread = threading.Thread(target=server.run, kwargs={'sockets': [sock]}, daemon=True); thread.start()
++    try:
++        for _ in range(200):
++            if server.started:
++                break
++            time.sleep(0.02)
++        assert server.started
++        r = httpx.post(f'http://127.0.0.1:{port}/api/v1/auth/register', headers={'Origin': settings.origin}, json={
++            'username': 'leak_probe', 'first_name': 'Sinta', 'last_name': 'Probe', 'email': 'sinta.probe@example.com',
++            'phone': '0812 9999 0000', 'password': 'a long enough password', 'password_repeat': 'a long enough password'},
++            timeout=20)
++        assert r.status_code == 503 and r.json()['error']['code'] == 'SERVICE_UNAVAILABLE', r.text
++        for _ in range(50):                                    # uvicorn logs right after the answer
++            if captured.lines:
++                break
++            time.sleep(0.02)
++    finally:
++        server.should_exit = True; thread.join(timeout=10); sock.close()
++        error_log.removeHandler(captured)
++        with store.connect() as c:
++            c.execute('ALTER TABLE edge_bff.users DROP CONSTRAINT r2_life_probe')
++        store.close()                                      # the server's lifespan closed the pool; this read reopened it
++    text = '\n'.join(captured.lines)
++    leaked = [d for d in ('sinta.probe@example.com', '+6281299990000', 'Sinta') if d in text]
++    assert not leaked, ('the server log holds the person\'s data from an unexpected database error: '
++                        f'{leaked}; first line: {text.splitlines()[0] if text else ""!r}')
+-- 
+2.43.0
+
