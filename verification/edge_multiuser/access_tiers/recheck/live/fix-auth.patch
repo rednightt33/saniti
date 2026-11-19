@@ -1,0 +1,2391 @@
+From e79a1b37ec8461894de0a4cf927be2e51a38f1da Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 08:40:01 +0000
+Subject: [PATCH] EXEC-MU-ACCOUNTS fix round, track auth: sign-in limits,
+ credential races, MFA re-enrolment, password cost, outbox purge
+
+Findings of the ultracode re-check (rounds 1 and 2) fixed in edge-bff, each with its committed failing test now
+passing:
+- R1-3: EDGE_OWNER and EDGE_ADMIN_OWNERS may not be an owner key Orc reserves for its test key (golden-*, test-*,
+  someone-else) or 'default'; edge-private still validates; the pattern is compared with Orc's.
+- R1-7, R2-11, R2-12: a re-enrolment waits beside the confirmed authenticator (migration 20261119_011) and is
+  swapped only by a code of the new one; a code confirms only the enrolment it was checked against; the MFA cap is
+  decided, checked and counted under the enrolment's row lock.
+- R1-8: failed reset codes counted per address for every address.
+- R1-9, R1-16: the sign-in limit is per login and client address; per account at most 100 consecutive failed
+  passwords (migration 20261119_010), answered as a wrong password while locked; a reset by email code lifts both;
+  the limit's message says its own wait.
+- R1-10: one HMAC label per throttle counter; REGISTER_HOUR/DAY share one; the password change has its own.
+- R1-11, R1-12, R1-13, R1-14: the held registration cookie is kept; USERNAME_TAKEN uses a code try; a registration
+  is mailed at most 3 times a day; the sign-in login takes the 254-character email bound.
+- R2-9: credential writes and sessions made from a proof serialise on the account's users row and check the proof.
+- R2-10: only code emails hold the next code back 60 s.
+- R2-24, R2-35: outbox indexes for the hot reads and a SECURITY DEFINER purge of rows of addresses with no account
+  (migration 20261119_012); the runtime still holds no DELETE on the outbox.
+- R2-25: an outermost middleware answers unexpected exceptions 503 and logs class and SQLSTATE only.
+- R2-29: scrypt N=2^14 r=8 p=5 with a versioned verifier; old verifiers check at the same cost and are rehashed at
+  the next sign-in.
+- R2-37: password work runs on its own pool with an admission limit (503 with Retry-After).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/README.md                       |  59 ++-
+ apps/edge-bff/app/accounts.py                 |  84 +++-
+ apps/edge-bff/app/auth_flows.py               | 467 ++++++++++++------
+ apps/edge-bff/app/config.py                   |  15 +-
+ apps/edge-bff/app/errors.py                   |  72 ++-
+ apps/edge-bff/app/mailer.py                   |   8 +
+ apps/edge-bff/app/main.py                     | 108 ++--
+ apps/edge-bff/app/passwords.py                |  40 ++
+ apps/edge-bff/app/security.py                 |  65 ++-
+ apps/edge-bff/app/store.py                    |  12 +
+ apps/edge-bff/app/throttle.py                 |  83 ++--
+ apps/edge-bff/static/edge-labels.js           |   4 +-
+ apps/edge-bff/tests/conftest.py               |   4 +
+ apps/edge-bff/tests/test_auth_flows.py        |  10 +-
+ apps/edge-bff/tests/test_auth_throttle.py     |  10 +-
+ .../edge-bff/tests/test_cp0_reserved_owner.py |  25 +
+ apps/edge-bff/tests/test_fix_auth.py          | 222 +++++++++
+ apps/edge-bff/tests/test_manual_routes.py     |   2 +-
+ apps/edge-bff/tests/test_principal.py         |   8 +-
+ apps/edge-bff/tests/test_releases.py          |   2 +-
+ ...0261119_010_edge_bff_password_identity.sql |  70 +++
+ ...119_011_edge_bff_mfa_pending_enrolment.sql |  68 +++
+ ...261119_012_edge_bff_email_outbox_purge.sql |  80 +++
+ scripts/edge_mfa_unlock.py                    |  15 +-
+ 24 files changed, 1262 insertions(+), 271 deletions(-)
+ create mode 100644 apps/edge-bff/tests/test_fix_auth.py
+ create mode 100644 database/migrations/20261119_010_edge_bff_password_identity.sql
+ create mode 100644 database/migrations/20261119_011_edge_bff_mfa_pending_enrolment.sql
+ create mode 100644 database/migrations/20261119_012_edge_bff_email_outbox_purge.sql
+
+diff --git a/apps/edge-bff/README.md b/apps/edge-bff/README.md
+index 976016a8..1b9983b2 100644
+--- a/apps/edge-bff/README.md
++++ b/apps/edge-bff/README.md
+@@ -577,7 +577,9 @@ Use one uvicorn process/one replica initially. Disable request access logs and p
+ limiting lives in PostgreSQL (`edge_bff.auth_throttle`, EXEC-MU-ACCOUNTS Phase 0), so it holds across restarts and
+ instances. HTTPS termination is Railway's responsibility. No plaintext password, database credential,
+ Orc key, session secret or Railway token is bundled or stored in Git. Public errors are generic; private diagnostic
+-keys/addresses are filtered. The original inline renderer requires CSP `unsafe-inline`; unsafe-eval is not enabled.
++keys/addresses are filtered. An exception no handler expected is answered 503 by the outermost middleware
++(`errors.UnexpectedErrors`) and logged by its class and SQLSTATE only, so its text (a failing row's personal data)
++never reaches the server log (re-check R2-25). The original inline renderer requires CSP `unsafe-inline`; unsafe-eval is not enabled.
+ 
+ ## Local validation
+ 
+@@ -695,11 +697,21 @@ The contract is `verification/edge_multiuser/access_tiers/CONTRACT.md` (sections
+ are ERRORS M259, M468, M469, M471, M472 and M473.
+ 
+ Sign-in throttle (`app/throttle.py`, table `edge_bff.auth_throttle`, migration `20261116_002`):
+-- 10 sign-in tries per login (case-folded, trimmed) in 15 minutes, counted in PostgreSQL, so every instance and
+-  every restart sees the same count. Each try is decided and counted in one locked transaction before the password
+-  check (`throttle.attempt`: advisory lock on the scope and key hash, window sum, UPSERT), so a concurrent burst
+-  reaches the password check at most 10 times (C1 H1, ERRORS M477). The next try answers 429 `SIGN_IN_RATE_LIMIT`
+-  with `details.retry_after_s` and `Retry-After`. A success clears the login's count, so only failed tries remain.
++- 10 sign-in tries per login (case-folded, trimmed) and client address in 15 minutes, counted in PostgreSQL, so every
++  instance and every restart sees the same count; tries from another address do not keep the account out (re-check
++  R1-9). Each try is decided and counted in one locked transaction before the password check (`throttle.attempt`:
++  advisory lock on the scope and key hash, window sum, UPSERT), so a concurrent burst reaches the password check at
++  most 10 times (C1 H1, ERRORS M477). The next try answers 429 `SIGN_IN_RATE_LIMIT` with `details.retry_after_s`,
++  `Retry-After` and the wait in its message. A success clears that count, so only failed tries remain. Each counter
++  has its own label inside the key's HMAC (R1-10), so no typed value can produce another counter's key.
++- Switch on, per account (R1-16, NIST SP 800-63B-4): at most 100 consecutive failed passwords over both logins and
++  every address (`identities.sign_in_failures`, migration `20261119_010`), decided and counted before the check; the
++  100th locks the password 24 h, answered as a wrong password; then the count restarts at 90. A success, a reset by
++  email code (which also clears the resetting client's per-login count) or a change clears it; the operator unlock
++  (below) too.
++- Password work (every derivation and Pwned Passwords call: sign-in, registration, reset, change) runs on its own pool
++  of 4 threads (`passwords.PasswordWork`), never on the default executor the database calls use; over 16 requests at
++  once the next is answered 503 `SERVICE_UNAVAILABLE` with `Retry-After` (R2-37).
+ - Every login typed is counted, known or not, and the password is checked before the login is compared, so neither
+   the answer nor its timing tells whether an account exists.
+ - The client address (right-most `X-Forwarded-For`, else the socket peer) is recorded under `signin_ip` (30 in 15
+@@ -839,13 +851,23 @@ has none). Every switch-on sign-in derives the password exactly 1 + `PENDING_CHE
+ configured verifier, so its time says nothing about how many registrations an address has.
+ 
+ Rules: codes are 6 digits, HMAC-SHA256 with `EDGE_CODE_SECRET`, valid 300 s, 5 tries each and at most 20 failed tries
+-per user per day (429 `LIMIT_REACHED`); one email per address per 60 s and 10 a day; a new registration of an
+-address (from any browser) mails it at most once per hour and three times a day, inside those 10 (a later one in the
+-hour answers the same 202 and changes nothing; recorded decision N4 in M478: whoever's address was registered by
+-someone else first may wait up to an hour for their own code); passwords 8 to 256 characters after NFKC normalisation
+-(verifiers made before it are still accepted), any character, refused when found in Pwned Passwords (k-anonymity range API, 2 s; when it cannot answer the password is
+-accepted and `PWNED_CHECK_UNAVAILABLE` logged); a phone is normalised to E.164 (`08…` → `+628…`), not verified; a
+-pending user is deleted 24 h after creation.
++per user per day (429 `LIMIT_REACHED`); a reset's failed codes are also counted per address, whether or not it has an
++account, so that 429 tells nothing about the address (R1-8); a `USERNAME_TAKEN` answer uses one of the code's 5 tries
++(R1-12). One code email per address per 60 s (a notification email never holds a code back, R2-10) and 10 emails a
++day; a new registration of an address (from any browser) mails it at most once per hour and three times a day, inside
++those 10 (a later one in the hour answers the same 202 and changes nothing; recorded decision N4 in M478: whoever's
++address was registered by someone else first may wait up to an hour for their own code), and one registration is
++mailed at most 3 times a day (its code, resends and sign-in restarts; R1-13). Registering again from the same browser
++when nothing new was made keeps that browser's registration cookie (R1-11). Passwords 8 to 256 characters after NFKC
++normalisation (verifiers made before it are still accepted), any character, refused when found in Pwned Passwords
++(k-anonymity range API, 2 s; when it cannot answer the password is accepted and `PWNED_CHECK_UNAVAILABLE` logged); a
++verifier is scrypt N=2^14, r=8, p=5 (OWASP's minimum equivalent, `scrypt$n=16384,r=8,p=5$<salt>$<hash>`; R2-29), and
++one of the cost before it (`scrypt$<salt>$<hash>`, p=1) still signs in and is replaced at that sign-in; a check costs
++the same whatever the verifier's age. A reset, a change, a sign-in and an MFA verify write under the account's lock and
++only while what they rest on still holds (R2-9). A phone is normalised to E.164 (`08…` → `+628…`), not verified; a
++pending user is deleted 24 h after creation, and 24 h after they were made the sent, failed, expired or suppressed
++outbox rows of an address with no account go too (`edge_bff.purge_email_outbox()`, migration `20261119_012`; the
++runtime holds no DELETE on the outbox; R2-24).
+ 
+ Email (`app/mailer.py`, `app/email_texts.py`, plain English): a code and its email are written in one transaction
+ (`edge_bff.email_outbox`). The sender is its own task beside the backtest loop, claiming one row at a time with
+@@ -864,9 +886,14 @@ Besides the 10 tries per 15 minutes, 100 consecutive wrong authenticator codes (
+ `details.unlock_at`; the `/mfa` page shows it in local time, switches to the recovery-code field when only the
+ authenticator is locked, and keeps "Forgot password?"). A lock lasts 24 h, then the count restarts at 90 (8), so 10 (2)
+ more tries come before the next lock; a correct code resets the counts; a password reset by email code clears counts
+-and locks. Operator unlock: `scripts/edge_mfa_unlock.py --username <name> --reason "<why>"`, run as a job on the
+-private network only (EXEC.md EXEC-MU-ACCOUNTS, Phase 1 deploy steps, step 9); it clears that account's counts and
+-locks, writes one `admin_audit` row with actor `operator`, and prints only the user id and the counts. The secret
++and locks. A confirmed authenticator is replaced only by a session that passed MFA, and only when a code of the new
++one proves it: until then the new enrolment waits beside it (`mfa_totp.pending_nonce`, recovery codes marked
++`pending`, migration `20261119_011`) and the old authenticator and its recovery codes keep working (R1-7). A code
++confirms only the enrolment it was checked against (R2-11); the cap is decided and counted under the enrolment's row
++lock (R2-12). Operator unlock: `scripts/edge_mfa_unlock.py --username <name> --reason "<why>"`, run as a job on the
++private network only (EXEC.md EXEC-MU-ACCOUNTS, Phase 1 deploy steps, step 9); it clears that account's MFA and
++password counts and locks, writes one `admin_audit` row with actor `operator`, and prints only the user id and the
++counts. The secret
+ is HMAC-SHA256(`EDGE_MFA_KEY`, user id ‖ a stored 16-byte nonce)[:20], never stored: changing `EDGE_MFA_KEY` after an
+ admin has enrolled invalidates every authenticator, so the key is set once and kept. The `/mfa` page shows the QR code
+ with the vendored `static/qrcode-generator.js` (qrcode-generator 1.4.4, MIT, licence in
+diff --git a/apps/edge-bff/app/accounts.py b/apps/edge-bff/app/accounts.py
+index 725e83e3..f27ec836 100644
+--- a/apps/edge-bff/app/accounts.py
++++ b/apps/edge-bff/app/accounts.py
+@@ -6,7 +6,14 @@ This module is the foundation the auth flows (registration, codes, reset, MFA, e
+ - `resolve`: the session of a request joined to its account and its plan's grants, in one statement (principal.py);
+ - `owner`: an account by its owner key with its grants (the backtest loop's rights at dispatch; the sign-in's MFA);
+ - `seed_subscription`: user #1's subscription to the plan that holds every capability (Phase 2), idempotent;
+-- `find_login`, `create_session`, `signed_in`: the switch-on sign-in (main.py), with at most MAX_SESSIONS per user.
++- `find_login`, `sign_in_try`, `create_session`, `signed_in`: the switch-on sign-in (main.py), with at most
++  MAX_SESSIONS per user and at most PASSWORD_FAILURE_CAP consecutive failed passwords per account.
++
++Credential writes and the sessions they rest on are serialised by the account's users row (SELECT ... FOR UPDATE,
++`lock_account`): `create_session` takes it and checks, in its own transaction, the proof the request rests on (the
++verifier the sign-in proved, or the pending session an MFA verify replaces); a password reset or change and
++`revoke_all` take it before they write. So a sign-in, change or verify proved before a reset is refused after it, and a
++session made before the reset is seen and revoked by it (ERRORS R2-9).
+ 
+ Every statement names the account it reads or changes; the configured owner reaches `seed` as an argument (principal.py).
+ """
+@@ -24,12 +31,23 @@ RESERVED_USERNAMES = frozenset({'admin', 'root', 'support', 'edge', 'system'})
+ # does not fit ^[a-z0-9_]{3,30}$ (a hyphen), so the seed takes 'admin_1'
+ SEED_FALLBACK_USERNAME = 'admin_1'
+ EMAIL = re.compile(r'[^@\s]{1,64}@[^@\s]{1,189}\.[^@\s]{1,63}')
++EMAIL_MAX = 254                   # the longest address an account may have: registration, sign-in and reset share it
+ MAX_SESSIONS = 5                  # CONTRACT.md section 4 "Sessions": at most 5 per user, the oldest is revoked
+ MAX_PENDING_SESSIONS = 3          # sessions waiting for the admin's second factor, capped apart (C1 note)
+ PENDING_CHECKED = 3               # pending registrations of an address a sign-in compares its password with
+ TOUCH_SECONDS = 60                # CONTRACT.md section 2: last_seen_at is written at most once per 60 s per session
+ ACTIVE = 'active'
+ EVERYTHING = '*'
++# NIST SP 800-63B-4 3.2.2 (ERRORS R1-16): at most 100 consecutive failed passwords per account, over both its logins
++# (username and email) and every client address. The 100th starts a lock of PASSWORD_LOCK_SECONDS during which a
++# sign-in of the account is answered as a wrong password (OWASP Authentication: the same answer whether the password is
++# wrong or the account locked). A success, a password reset proved by the email code (the way back, R1-9) or a change
++# clears it; after a lock the count restarts at PASSWORD_RESTART, as the MFA counts do (ERRORS M478 N2)
++PASSWORD_FAILURE_CAP, PASSWORD_RESTART, PASSWORD_LOCK_SECONDS = 100, 90, 86400
++# market-ai-orc's test-key owners (app/conversations.py TEST_OWNER_RE, M475): a caller holding MARKET_AI_ORC_TEST_KEY
++# may name exactly these (tests/test_cp0_reserved_owner.py compares the two patterns, so they cannot drift apart)
++ORC_TEST_OWNER = re.compile(r'golden-[A-Za-z0-9._:@-]+|test-[A-Za-z0-9._:@-]+|someone-else')
++ORC_SHARED_OWNER = 'default'      # Orc's one shared owner before M475
+ 
+ # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a "Resolution"): the CTEs that follow a CTE `found` (one account: user_id,
+ # owner_key, username, role, status) and resolve its grants within the same statement:
+@@ -77,9 +95,15 @@ def new_owner_key():
+     return 'u_' + secrets.token_hex(12)
+ 
+ 
++def orc_reserved_owner(key):
++    """An owner key Orc reserves: one its test key may name, or its old shared owner. EDGE_OWNER and EDGE_ADMIN_OWNERS
++    may not be one (config.py validate; ERRORS R1-3), or user #1's data would sit within the test key's reach."""
++    return key == ORC_SHARED_OWNER or ORC_TEST_OWNER.fullmatch(key) is not None
++
++
+ def reserved_owner(key):
+-    """Keys never issued to a new account (Orc's test owners, the shared 'default' and the seed's own)."""
+-    return key in ('default', 'someone-else', 'edge-private') or key.startswith(('golden-', 'test-'))
++    """Keys never issued to a new account (Orc's reserved owners and the seed's own)."""
++    return orc_reserved_owner(key) or key == 'edge-private' or key.startswith(('golden-', 'test-'))
+ 
+ 
+ def seed_identity(login):
+@@ -87,7 +111,7 @@ def seed_identity(login):
+     is not reserved, else SEED_FALLBACK_USERNAME; the login as the email when it is one."""
+     lowered = login.strip().lower()
+     username = lowered if USERNAME.fullmatch(lowered) and lowered not in RESERVED_USERNAMES else SEED_FALLBACK_USERNAME
+-    email = lowered if EMAIL.fullmatch(lowered) and len(lowered) <= 254 else None
++    email = lowered if EMAIL.fullmatch(lowered) and len(lowered) <= EMAIL_MAX else None
+     return username, email
+ 
+ 
+@@ -199,6 +223,25 @@ class AccountStore:
+                 WHERE (u.username = %s OR u.email = %s) AND u.status = %s
+                 ORDER BY (u.username = %s) DESC LIMIT 1''', (lowered, lowered, ACTIVE, lowered)).fetchone()
+ 
++    def sign_in_try(self, user_id):
++        """One password try of the account, decided and counted in one statement before the password is checked (the
++        R2-12 lesson: tries sent together cannot all pass a count each read before the others added theirs). True when
++        the try may be checked (it is counted; a success clears the count), False while the account is locked. A lock
++        that has ended restarts the count at PASSWORD_RESTART; the try that reaches PASSWORD_FAILURE_CAP starts the
++        lock (that try is still checked: it is the 100th)."""
++        with self.store.connect() as c:
++            return c.execute('''UPDATE edge_bff.identities SET
++                    sign_in_failures = (CASE WHEN sign_in_locked_until IS NOT NULL THEN %(restart)s
++                                             ELSE sign_in_failures END) + 1,
++                    sign_in_locked_until = CASE WHEN (CASE WHEN sign_in_locked_until IS NOT NULL THEN %(restart)s
++                                                           ELSE sign_in_failures END) + 1 >= %(cap)s
++                                                THEN now() + make_interval(secs => %(lock)s) END
++                WHERE user_id = %(user)s AND provider = 'password'
++                  AND (sign_in_locked_until IS NULL OR sign_in_locked_until <= now())
++                RETURNING sign_in_failures''', {'user': user_id, 'restart': PASSWORD_RESTART,
++                                               'cap': PASSWORD_FAILURE_CAP,
++                                               'lock': PASSWORD_LOCK_SECONDS}).fetchone() is not None
++
+     def pending_logins(self, login):
+         """The newest PENDING_CHECKED pending registrations of an address with their verifiers (a sign-in with the right
+         password of one restarts its verification; ERRORS M478 C1 P1-M1)."""
+@@ -209,15 +252,38 @@ class AccountStore:
+                 WHERE u.email = %s AND u.status = 'pending' ORDER BY u.created_at DESC, u.user_id DESC LIMIT %s''',
+                              (lowered, PENDING_CHECKED)).fetchall()
+ 
+-    def create_session(self, hashed, user, seconds, ip_hash=None, mfa_passed=False, mfa_user=False):
++    @staticmethod
++    def lock_account(c, user_id):
++        """The account's users row, locked for the rest of the caller's transaction (the module docstring); None when
++        the account is not active."""
++        return c.execute('SELECT user_id FROM edge_bff.users WHERE user_id = %s AND status = %s FOR UPDATE',
++                         (user_id, ACTIVE)).fetchone()
++
++    def create_session(self, hashed, user, seconds, ip_hash=None, mfa_passed=False, mfa_user=False, proved=None,
++                       replaces=None, rehash=None):
+         """A session of the account (owner_key kept beside user_id), then the account's oldest live sessions beyond the
+         cap revoked, in one transaction under the account's lock (two sign-ins at once cannot both keep one too many).
+         For an account that needs MFA (mfa_user), a session that has not passed it is pending: pending sessions have
+         their own cap (MAX_PENDING_SESSIONS) and never count towards, or revoke, the MAX_SESSIONS real ones (C1 note).
+-        Returns the number revoked."""
++        The proof the session rests on is checked under the lock (ERRORS R2-9): `proved`, the verifier a sign-in
++        proved, must still be the account's (its failure count is then cleared, and `rehash`, the same password at the
++        current cost, takes its place: ERRORS R2-29); `replaces`, the pending session an MFA verify upgrades, must still
++        be live, and is revoked in the same transaction. Returns the number revoked, or None when the account or the
++        proof no longer holds (nothing is made)."""
+         pending = mfa_user and not mfa_passed
+         with self.store.connect() as c:
+-            c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('sessions:' + str(user['user_id']),))
++            if self.lock_account(c, user['user_id']) is None:
++                return None
++            if proved is not None and c.execute('''UPDATE edge_bff.identities
++                    SET sign_in_failures = 0, sign_in_locked_until = NULL, verifier = coalesce(%(new)s, verifier),
++                        updated_at = CASE WHEN %(new)s::text IS NULL THEN updated_at ELSE now() END
++                    WHERE user_id = %(user)s AND provider = 'password' AND verifier = %(proved)s
++                    RETURNING user_id''', {'new': rehash, 'user': user['user_id'], 'proved': proved}).fetchone() is None:
++                return None
++            if replaces is not None and c.execute('''UPDATE edge_bff.sessions SET revoked_at = now()
++                    WHERE token_hash = %s AND user_id = %s AND revoked_at IS NULL AND expires_at > now()
++                    RETURNING token_hash''', (replaces, user['user_id'])).fetchone() is None:
++                return None
+             c.execute('''INSERT INTO edge_bff.sessions(token_hash, owner_key, user_id, expires_at, last_seen_at,
+                     mfa_passed_at, created_ip_hash)
+                 VALUES (%s, %s, %s, now() + %s * interval '1 second', now(), CASE WHEN %s THEN now() END, %s)''',
+@@ -236,8 +302,10 @@ class AccountStore:
+             c.execute('UPDATE edge_bff.users SET last_sign_in_at = now() WHERE user_id = %s', (user_id,))
+ 
+     def revoke_all(self, user_id):
+-        """Every live session of the account (password change or reset, disable, role change; CONTRACT.md section 4)."""
++        """Every live session of the account (password change or reset, disable, role change; CONTRACT.md section 4),
++        under the account's lock: a session being made from an earlier proof is either seen here or refused."""
+         with self.store.connect() as c:
++            c.execute('SELECT user_id FROM edge_bff.users WHERE user_id = %s FOR UPDATE', (user_id,))
+             return c.execute('UPDATE edge_bff.sessions SET revoked_at = now() WHERE user_id = %s AND revoked_at IS NULL',
+                              (user_id,)).rowcount
+ 
+diff --git a/apps/edge-bff/app/auth_flows.py b/apps/edge-bff/app/auth_flows.py
+index 1b8953ed..ddbe8adc 100644
+--- a/apps/edge-bff/app/auth_flows.py
++++ b/apps/edge-bff/app/auth_flows.py
+@@ -11,10 +11,21 @@ Rules (OWASP Authentication and Forgot Password cheat sheets, NIST SP 800-63B-4)
+ - Codes: 6 digits from secrets, stored as HMAC-SHA256 with EDGE_CODE_SECRET, valid 300 s, 5 tries each, at most 20
+   failed tries per user per day (a new code does not reset the count), compared in constant time; one live code per
+   user and purpose. A wrong, expired or used code answers the same 400 CODE_INVALID_OR_EXPIRED.
+-- Sending: at most one email per address per 60 s and 10 per day (SEND_EMAIL); inside those limits nothing is sent and
+-  nothing changes, with the same 202. Sends per client address are recorded (SEND_IP), not enforced.
+-- A reset revokes every session and signs nobody in (200 {"next": "sign_in"}); a change revokes the other sessions;
+-  both send a notification email.
++  The failed reset codes are also counted per address, whether or not it has an account (ERRORS R1-8), so the 429 after
++  20 tells nothing about the address; a USERNAME_TAKEN answer uses one of the code's 5 tries (R1-12).
++- Sending: at most one code email per address per 60 s (a notification email never holds a code back: R2-10) and 10
++  emails per day (SEND_EMAIL); one pending registration is mailed at most 3 times a day (its code, resends and sign-in
++  restarts: REGISTRATION_MAIL, R1-13); inside those limits nothing is sent and nothing changes, with the same 202.
++  Sends per client address are recorded (SEND_IP), not enforced.
++- A reset revokes every session and signs nobody in (200 {"next": "sign_in"}); it also lifts the account's sign-in
++  limits (the consecutive-failure cap, and the per-login count of the resetting client: R1-9, R1-16). A change revokes
++  the other sessions. Both send a notification email. Each writes under the account's lock and only while what it
++  rests on still holds (the session, the verifier proved: R2-9; accounts.py).
++- Admin MFA: a confirmed enrolment is replaced only by a session that passed MFA, and only once a code of the new
++  authenticator proves it: until then the new one waits beside it (pending_nonce, pending recovery codes) and the
++  confirmed factor keeps working (R1-7). A code confirms only the enrolment it was checked against (R2-11), and the
++  consecutive-failure cap is decided and counted under the enrolment's row lock (R2-12).
++- Password work (derivations, Pwned Passwords) runs on passwords.PasswordWork, never on the default executor (R2-37).
+ """
+ import asyncio
+ import base64
+@@ -25,6 +36,7 @@ import re
+ import secrets
+ import time
+ from datetime import datetime, timezone
++from typing import NamedTuple
+ 
+ from fastapi import Depends, Request
+ from fastapi.encoders import jsonable_encoder
+@@ -32,19 +44,23 @@ from fastapi.responses import JSONResponse
+ from psycopg import errors as pg_errors
+ 
+ from . import email_texts, mfa, passwords
+-from .accounts import EMAIL, RESERVED_USERNAMES, USERNAME, new_owner_key
++from .accounts import EMAIL, EMAIL_MAX, RESERVED_USERNAMES, USERNAME, AccountStore, new_owner_key
+ from .errors import Refusal
+ from .mailer import OutboxStore, enqueue, svix_verify
+ from .principal import ADMIN_ACCESS, Principal
+ from .security import normal_password, password_verifier, token_hash, verify_password
+-from .throttle import (CODE_USER, MFA_USER, REGISTER_DAY, REGISTER_HOUR, SEND_EMAIL, SEND_IP, SIGNIN_LOGIN, Throttle,
+-                       client_address)
++from .throttle import (CODE_ADDRESS, CODE_USER, MFA_USER, PASSWORD_CHANGE, REGISTER_DAY, REGISTER_HOUR,
++                       REGISTRATION_MAIL, SEND_EMAIL, SEND_IP, SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address,
++                       normal_login)
+ 
+ COOKIE = 'edge_session'
+ CODE_SECONDS = 300
+ RESEND_SECONDS = 60
+ CODE = re.compile(r'[0-9]{6}')
+ PURPOSES = ('register', 'reset')
++# the purposes of edge_bff.email_codes (its CHECK): an outbox row of one of these carries a code (_issue_code sends it
++# under the code's purpose); the 60-second gap between code emails of an address reads only these rows (ERRORS R2-10)
++CODE_PURPOSES = ('register', 'reset', 'email_change')
+ ACCEPTED = {'status': 'CODE_SENT', 'resend_after_s': RESEND_SECONDS}
+ # ERRORS M478 (C1 P1-H1, C2 #1): every registration is bound to the browser that started it by this HttpOnly cookie; the
+ # email code activates a registration only together with it
+@@ -57,6 +73,13 @@ TOTP_RESTART, RECOVERY_RESTART = 90, 8          # the count after a lock ends: 1
+ LOCK_SECONDS = 86400
+ 
+ 
++class CheckedStep(NamedTuple):
++    """A TOTP step a code matched, with the enrolment (its nonce) it was checked against: use_step confirms that
++    enrolment only (ERRORS R2-11), never whatever the account holds by then."""
++    nonce: bytes
++    step: int
++
++
+ def invalid(reasons):
+     """400 INVALID_INPUT naming each field and how to fix it (never its value)."""
+     return Refusal(400, 'INVALID_INPUT', {'fields': list(reasons), 'reasons': reasons})
+@@ -95,7 +118,7 @@ def checked_username(value, field='username'):
+ 
+ def checked_email(value, field='email'):
+     email = (value or '').strip().lower()
+-    if not EMAIL.fullmatch(email) or len(email) > 254:
++    if not EMAIL.fullmatch(email) or len(email) > EMAIL_MAX:
+         raise invalid({field: 'Enter an email address like name@example.com.'})
+     return email
+ 
+@@ -128,26 +151,36 @@ class FlowStore:
+                         + str(user_id).encode() + b'\x00' + code.encode(), hashlib.sha256).hexdigest()
+ 
+     def _h(self, limit, key):
+-        return self.throttle.key_hash(limit.scope, key)
++        return self.throttle.key_hash(limit, key)
+ 
+     @staticmethod
+     def _lock(c, email):
+         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('register:' + email,))
+ 
+     def _may_send(self, c, email, ip):
+-        """Count the send try of the client address (recorded only); True when the address may get an email now."""
++        """Count the send try of the client address (recorded only); True when the address may get a code email now:
++        under its daily budget, and no code email to it in the last RESEND_SECONDS. A notification (password_changed,
++        account_exists) is not a code and never holds the next code back (ERRORS R2-10: it held back the very reset
++        it tells the owner to ask for)."""
+         Throttle._add(c, SEND_IP, self._h(SEND_IP, ip))
+         if Throttle._wait(c, SEND_EMAIL, self._h(SEND_EMAIL, email)):
+             return False
+-        return c.execute('''SELECT 1 FROM edge_bff.email_outbox WHERE to_email=%s
+-            AND created_at > now() - make_interval(secs => %s) LIMIT 1''', (email, RESEND_SECONDS)).fetchone() is None
++        return c.execute('''SELECT 1 FROM edge_bff.email_outbox WHERE to_email=%s AND purpose = ANY(%s)
++            AND created_at > now() - make_interval(secs => %s) LIMIT 1''',
++                         (email, list(CODE_PURPOSES), RESEND_SECONDS)).fetchone() is None
+ 
+     def _send(self, c, purpose, email, mail, expires_at=None, key=None):
+         Throttle._add(c, SEND_EMAIL, self._h(SEND_EMAIL, email))
+         return enqueue(c, purpose, email, mail, expires_at, key)
+ 
+     def _issue_code(self, c, user_id, purpose, email):
+-        """A new code (the live one consumed first) and its email, in the caller's transaction."""
++        """A new code (the live one consumed first) and its email, in the caller's transaction; False (nothing changes)
++        when the code is a pending registration's and that registration was mailed REGISTRATION_MAIL times today."""
++        if purpose == 'register':
++            mailed = self._h(REGISTRATION_MAIL, str(user_id))
++            if Throttle._wait(c, REGISTRATION_MAIL, mailed):
++                return False
++            Throttle._add(c, REGISTRATION_MAIL, mailed)
+         c.execute('''UPDATE edge_bff.email_codes SET consumed_at=now()
+             WHERE user_id=%s AND purpose=%s AND consumed_at IS NULL''', (user_id, purpose))
+         code = f'{secrets.randbelow(10 ** 6):06d}'
+@@ -157,53 +190,73 @@ class FlowStore:
+         self._send(c, purpose, email, email_texts.code_email(purpose, code), row['expires_at'], f'code:{row["code_id"]}')
+         return True
+ 
+-    def _check_code(self, c, user, purpose, code):
++    def _check_code(self, c, user, purpose, code, email=None):
+         """('ok', code row) | ('invalid', None) | ('limited', seconds). A wrong try raises the code's attempts (the code
+-        is dead at 5) and the user's daily count; the daily cap is read first, so a new code never resets it."""
+-        if user is None:
+-            hmac.compare_digest(self.code_hash(0, purpose, code), self.code_hash(0, purpose, '000000'))
+-            return 'invalid', None
+-        wait = Throttle._wait(c, CODE_USER, self._h(CODE_USER, str(user['user_id'])))
++        is dead at 5) and the user's daily count; the daily cap is read first, so a new code never resets it. With
++        `email` (a reset, typed by anyone) the address's own daily count is read and raised too, whether or not the
++        address has an account, so the cap answers alike for every address (ERRORS R1-8). The caller holds the address's
++        lock (_lock), so the read and the count of one address are serial."""
++        by_address = self._h(CODE_ADDRESS, email) if email else None
++        wait = (Throttle._wait(c, CODE_ADDRESS, by_address) if by_address else 0) or (
++            Throttle._wait(c, CODE_USER, self._h(CODE_USER, str(user['user_id']))) if user is not None else 0)
+         if wait:
+             return 'limited', wait
+-        row = c.execute('''SELECT code_id, code_hash, attempts FROM edge_bff.email_codes WHERE user_id=%s AND purpose=%s
+-            AND consumed_at IS NULL AND expires_at > now() AND attempts < 5 FOR UPDATE''', (user['user_id'], purpose)).fetchone()
+-        given = self.code_hash(user['user_id'], purpose, code if CODE.fullmatch(code or '') else 'x')
+-        if row and hmac.compare_digest(row['code_hash'], given):
+-            return 'ok', row
+-        if row:
+-            c.execute('''UPDATE edge_bff.email_codes SET attempts=attempts+1,
+-                consumed_at=CASE WHEN attempts+1 >= 5 THEN now() END WHERE code_id=%s''', (row['code_id'],))
+-        Throttle._add(c, CODE_USER, self._h(CODE_USER, str(user['user_id'])))
++        row = None
++        if user is None:
++            hmac.compare_digest(self.code_hash(0, purpose, code), self.code_hash(0, purpose, '000000'))
++        else:
++            row = c.execute('''SELECT code_id, code_hash, attempts FROM edge_bff.email_codes WHERE user_id=%s
++                AND purpose=%s AND consumed_at IS NULL AND expires_at > now() AND attempts < 5 FOR UPDATE''',
++                            (user['user_id'], purpose)).fetchone()
++            given = self.code_hash(user['user_id'], purpose, code if CODE.fullmatch(code or '') else 'x')
++            if row and hmac.compare_digest(row['code_hash'], given):
++                return 'ok', row
++            if row:
++                c.execute('''UPDATE edge_bff.email_codes SET attempts=attempts+1,
++                    consumed_at=CASE WHEN attempts+1 >= 5 THEN now() END WHERE code_id=%s''', (row['code_id'],))
++            Throttle._add(c, CODE_USER, self._h(CODE_USER, str(user['user_id'])))
++        if by_address:
++            Throttle._add(c, CODE_ADDRESS, by_address)
+         return 'invalid', None
+ 
+     # ---- registration -----------------------------------------------------------------------------------------------
+ 
+-    def register(self, f, verifier, ip, registration):
+-        """True when an email was queued. An address without an account gets a new pending registration of its own
+-        (bound to the browser by `registration`, the SHA-256 of its registration cookie; an earlier pending registration
+-        of the address is never changed) and a code; an address with an account gets the "account exists" email."""
++    def register(self, f, verifier, ip, registration, held=None):
++        """(queued, keep_held). queued: an email was queued. An address without an account gets a new pending
++        registration of its own (bound to the browser by `registration`, the SHA-256 of its new registration cookie; an
++        earlier pending registration of the address is never changed) and a code; an address with an account gets the
++        "account exists" email. keep_held (ERRORS R1-11, the N3 class): nothing was made and `held`, the hash of the
++        cookie this browser already holds, names a pending registration of this same address, so the browser keeps
++        that cookie and the code already mailed still finishes it (only its holder learns that its row exists)."""
+         with self.store.connect() as c:
+             self._lock(c, f['email'])
+-            if not self._may_send(c, f['email'], ip):
+-                return False
+-            # ERRORS M478 re-check (N4): a new registration (from any browser) mails an address at most once per hour
+-            # and three times per day, so registrations by others use at most 3 of the address's 10 daily emails; a
+-            # later one in the hour answers the same 202 and changes nothing (the earlier code is not re-sent)
+-            key = self._h(REGISTER_HOUR, 'register:' + f['email'])
+-            if Throttle._wait(c, REGISTER_HOUR, key) or Throttle._wait(c, REGISTER_DAY, key):
+-                return False
+-            Throttle._add(c, REGISTER_HOUR, key)
+-            if c.execute("SELECT 1 FROM edge_bff.users WHERE email=%s AND status<>'pending'", (f['email'],)).fetchone():
+-                return bool(self._send(c, 'account_exists', f['email'], email_texts.account_exists_email()))
+-            user_id = c.execute('''INSERT INTO edge_bff.users(owner_key, username, requested_username, email,
+-                    first_name, last_name, phone_e164, role, status, registration_hash)
+-                VALUES (%s, NULL, %s, %s, %s, %s, %s, 'user', 'pending', %s) RETURNING user_id''',
+-                                (new_owner_key(), f['username'], f['email'], f['first_name'], f['last_name'],
+-                                 f['phone'], registration)).fetchone()['user_id']
+-            c.execute("""INSERT INTO edge_bff.identities(user_id, provider, subject, verifier)
+-                VALUES (%s, 'password', %s, %s)""", (user_id, str(user_id), verifier))
+-            return self._issue_code(c, user_id, 'register', f['email'])
++            made = self._register(c, f, verifier, ip, registration)
++            if made is not None:
++                return made, False
++            return False, held is not None and self._registration(c, f['email'], held) is not None
++
++    def _register(self, c, f, verifier, ip, registration):
++        """True or False (queued) when a row or an email was made, None when nothing changed (the limits)."""
++        if not self._may_send(c, f['email'], ip):
++            return None
++        # ERRORS M478 re-check (N4): a new registration (from any browser) mails an address at most once per hour and
++        # three times per day; a later one in the hour answers the same 202 and changes nothing (the earlier code is
++        # not re-sent). With REGISTRATION_MAIL (3 emails per registration) the registrations of others use at most 6
++        # of the address's 10 daily emails once its owner has registered (R1-13)
++        key = self._h(REGISTER_HOUR, f['email'])
++        if Throttle._wait(c, REGISTER_HOUR, key) or Throttle._wait(c, REGISTER_DAY, key):
++            return None
++        Throttle._add(c, REGISTER_HOUR, key)
++        if c.execute("SELECT 1 FROM edge_bff.users WHERE email=%s AND status<>'pending'", (f['email'],)).fetchone():
++            return bool(self._send(c, 'account_exists', f['email'], email_texts.account_exists_email()))
++        user_id = c.execute('''INSERT INTO edge_bff.users(owner_key, username, requested_username, email,
++                first_name, last_name, phone_e164, role, status, registration_hash)
++            VALUES (%s, NULL, %s, %s, %s, %s, %s, 'user', 'pending', %s) RETURNING user_id''',
++                            (new_owner_key(), f['username'], f['email'], f['first_name'], f['last_name'],
++                             f['phone'], registration)).fetchone()['user_id']
++        c.execute("""INSERT INTO edge_bff.identities(user_id, provider, subject, verifier)
++            VALUES (%s, 'password', %s, %s)""", (user_id, str(user_id), verifier))
++        return self._issue_code(c, user_id, 'register', f['email'])
+ 
+     @staticmethod
+     def _registration(c, email, registration):
+@@ -215,24 +268,30 @@ class FlowStore:
+ 
+     def verify_registration(self, email, code, registration, username=None):
+         """('ok', user) with this browser's registration active (its own password, username, names and phone), its code
+-        consumed and every other pending registration of the address deleted | ('taken', None) (the code stays live) |
+-        ('invalid', None) | ('limited', seconds). Without the registration's cookie a code proves nothing."""
++        consumed and every other pending registration of the address deleted | ('taken', None) (the code stays live, one
++        of its 5 tries used: ERRORS R1-12, so one code cannot look up any number of usernames) | ('invalid', None) |
++        ('limited', seconds). Without the registration's cookie a code proves nothing."""
+         with self.store.connect() as c:
+             self._lock(c, email)
+             user = self._registration(c, email, registration)
+             outcome, found = self._check_code(c, user, 'register', code)
+             if outcome != 'ok':
+                 return outcome, found
++
++            def taken():
++                c.execute('''UPDATE edge_bff.email_codes SET attempts=attempts+1,
++                    consumed_at=CASE WHEN attempts+1 >= 5 THEN now() END WHERE code_id=%s''', (found['code_id'],))
++                return 'taken', None
+             name = username or user['requested_username']
+             if c.execute('SELECT 1 FROM edge_bff.users WHERE username=%s', (name,)).fetchone():
+-                return 'taken', None
++                return taken()
+             try:
+                 with c.transaction():
+                     active = c.execute('''UPDATE edge_bff.users SET username=%s, requested_username=NULL, status='active',
+                         email_verified_at=now(), registration_hash=NULL WHERE user_id=%s
+                         RETURNING user_id, owner_key, username, role, status''', (name, user['user_id'])).fetchone()
+             except pg_errors.UniqueViolation as e:
+-                return ('taken' if 'username' in (e.diag.constraint_name or '') else 'invalid'), None
++                return taken() if 'username' in (e.diag.constraint_name or '') else ('invalid', None)
+             c.execute('UPDATE edge_bff.email_codes SET consumed_at=now() WHERE code_id=%s', (found['code_id'],))
+             c.execute("DELETE FROM edge_bff.users WHERE email=%s AND status='pending' AND user_id<>%s",
+                       (email, user['user_id']))
+@@ -267,13 +326,14 @@ class FlowStore:
+             return self._issue_code(c, user_id, 'register', email)
+ 
+     def reset(self, email, code, verifier):
+-        """('ok', user) with the password replaced, every session revoked and the notification queued | ('invalid',
+-        None) | ('limited', seconds)."""
++        """('ok', user {user_id, email, username}) with the password replaced, every session revoked and the
++        notification queued | ('invalid', None) | ('limited', seconds). The account's users row is locked first
++        (accounts.py: a sign-in or change proved before the reset is then refused, a session made before it revoked)."""
+         with self.store.connect() as c:
+             self._lock(c, email)
+-            user = c.execute("SELECT user_id, email FROM edge_bff.users WHERE email=%s AND status='active' FOR UPDATE",
+-                             (email,)).fetchone()
+-            outcome, found = self._check_code(c, user, 'reset', code)
++            user = c.execute('''SELECT user_id, email, username FROM edge_bff.users WHERE email=%s AND status='active'
++                FOR UPDATE''', (email,)).fetchone()
++            outcome, found = self._check_code(c, user, 'reset', code, email)
+             if outcome != 'ok':
+                 return outcome, found
+             c.execute('UPDATE edge_bff.email_codes SET consumed_at=now() WHERE code_id=%s', (found['code_id'],))
+@@ -288,8 +348,9 @@ class FlowStore:
+ 
+     @staticmethod
+     def _set_password(c, user_id, verifier):
+-        c.execute('''UPDATE edge_bff.identities SET verifier=%s, updated_at=now() WHERE user_id=%s AND provider='password' ''',
+-                  (verifier, user_id))
++        """The new verifier; a new password also ends the consecutive-failure count and lock of the old one (R1-16)."""
++        c.execute('''UPDATE edge_bff.identities SET verifier=%s, updated_at=now(), sign_in_failures=0,
++            sign_in_locked_until=NULL WHERE user_id=%s AND provider='password' ''', (verifier, user_id))
+ 
+     def account(self, user_id):
+         with self.store.connect() as c:
+@@ -297,81 +358,157 @@ class FlowStore:
+                 JOIN edge_bff.identities i ON i.user_id=u.user_id AND i.provider='password' WHERE u.user_id=%s''',
+                              (user_id,)).fetchone()
+ 
+-    def change(self, user_id, verifier, keep_token_hash, email):
+-        """The new password, every other session revoked, the notification queued."""
++    def change(self, user_id, verifier, keep_token_hash, email, proved):
++        """'ok': the new password, every other session revoked, the notification queued. Under the account's lock and
++        only while the proof still holds (ERRORS R2-9): 'session_ended' when the changing session was revoked meanwhile
++        (a reset, a sign-out everywhere), 'password_changed' when the verifier the current password proved was
++        replaced meanwhile; nothing changes then."""
+         with self.store.connect() as c:
++            if AccountStore.lock_account(c, user_id) is None or not c.execute('''SELECT 1 FROM edge_bff.sessions
++                    WHERE token_hash=%s AND user_id=%s AND revoked_at IS NULL AND expires_at > now()''',
++                                                                               (keep_token_hash, user_id)).fetchone():
++                return 'session_ended'
++            if not c.execute('''SELECT 1 FROM edge_bff.identities WHERE user_id=%s AND provider='password'
++                    AND verifier=%s''', (user_id, proved)).fetchone():
++                return 'password_changed'
+             self._set_password(c, user_id, verifier)
+             c.execute('''UPDATE edge_bff.sessions SET revoked_at=now() WHERE user_id=%s AND revoked_at IS NULL
+                 AND token_hash<>%s''', (user_id, keep_token_hash))
+             if email:
+                 enqueue(c, 'password_changed', email, email_texts.password_changed_email())
++            return 'ok'
+ 
+     # ---- MFA --------------------------------------------------------------------------------------------------------
+ 
++    TOTP_COLUMNS = '''nonce, confirmed_at, last_step, pending_nonce, totp_failures, recovery_failures,
++        totp_locked_until, recovery_locked_until'''
++
+     def totp(self, user_id):
++        """The account's enrolment row, read without a lock (MFA_NOT_ENROLLED; the decisions are made by mfa_try)."""
+         with self.store.connect() as c:
+-            return c.execute('''SELECT nonce, confirmed_at, last_step, totp_failures, recovery_failures,
+-                    totp_locked_until, recovery_locked_until
+-                FROM edge_bff.mfa_totp WHERE user_id=%s''', (user_id,)).fetchone()
+-
+-    def enroll(self, user_id, nonce, hashes):
++            return c.execute(f'SELECT {self.TOTP_COLUMNS} FROM edge_bff.mfa_totp WHERE user_id=%s', (user_id,)).fetchone()
++
++    def enroll(self, user_id, nonce, hashes, mfa_ok):
++        """'ok' | 'mfa_required', decided and written under the enrolment's row lock (ERRORS R2-9: the permission is
++        part of the write). With no confirmed enrolment the account's one candidate is replaced (the first enrolment,
++        CONTRACT 4: any session of the account, the admin enrols at switch-on). With a confirmed one only a session that
++        passed MFA may start a new one, and it waits beside the confirmed one (pending_nonce and recovery codes marked
++        pending) until a code of the new authenticator confirms it (use_step): the confirmed factor, its replay guard
++        and its recovery codes keep working meanwhile (ERRORS R1-7). Failure counts are kept: only a success clears
++        them."""
+         with self.store.connect() as c:
+-            c.execute('''INSERT INTO edge_bff.mfa_totp(user_id, nonce) VALUES (%s,%s) ON CONFLICT (user_id)
+-                DO UPDATE SET nonce=EXCLUDED.nonce, created_at=now(), confirmed_at=NULL, last_step=NULL''', (user_id, nonce))
+-            # a new enrolment keeps the failure counts: only a success clears them (a pending session cannot replace a
+-            # confirmed enrolment, so this resets nothing an attacker could use)
+-            c.execute('DELETE FROM edge_bff.mfa_recovery_codes WHERE user_id=%s', (user_id,))
++            c.execute('INSERT INTO edge_bff.mfa_totp(user_id, nonce) VALUES (%s,%s) ON CONFLICT (user_id) DO NOTHING',
++                      (user_id, nonce))
++            row = c.execute('SELECT nonce, confirmed_at FROM edge_bff.mfa_totp WHERE user_id=%s FOR UPDATE',
++                            (user_id,)).fetchone()
++            if row['confirmed_at'] is None:
++                c.execute('''UPDATE edge_bff.mfa_totp SET nonce=%s, created_at=now(), last_step=NULL, pending_nonce=NULL,
++                    pending_created_at=NULL WHERE user_id=%s''', (nonce, user_id))
++                c.execute('DELETE FROM edge_bff.mfa_recovery_codes WHERE user_id=%s', (user_id,))
++                pending = False
++            elif not mfa_ok:
++                return 'mfa_required'
++            else:
++                c.execute('UPDATE edge_bff.mfa_totp SET pending_nonce=%s, pending_created_at=now() WHERE user_id=%s',
++                          (nonce, user_id))
++                c.execute('DELETE FROM edge_bff.mfa_recovery_codes WHERE user_id=%s AND pending', (user_id,))
++                pending = True
+             for h in hashes:
+-                c.execute('INSERT INTO edge_bff.mfa_recovery_codes(user_id, code_hash) VALUES (%s,%s)', (user_id, h))
+-
+-    def use_step(self, user_id, step):
+-        """True when the step is after the last one used (then it is the last one, and the enrolment is confirmed)."""
++                c.execute('INSERT INTO edge_bff.mfa_recovery_codes(user_id, code_hash, pending) VALUES (%s,%s,%s)',
++                          (user_id, h, pending))
++            return 'ok'
++
++    def mfa_try(self, user_id, kind, now, check):
++        """One MFA try decided, checked and (when wrong) counted in one transaction under the enrolment's row lock, so
++        tries sent together reach the check one at a time against the count the previous one left (ERRORS R2-12; NIST
++        SP 800-63B-4: at most TOTP_FAILURE_CAP consecutive failures). A lock that has ended restarts the count (N2).
++        check(row, c) answers, on the same connection: a CheckedStep (a TOTP code matched; use_step confirms it after
++        this transaction), True (a recovery code was used), or None (wrong). Returns ('not_enrolled', None),
++        ('locked', row), ('invalid', None), ('matched', CheckedStep) or ('ok', None)."""
++        count, until, cap, restart = {
++            'totp': ('totp_failures', 'totp_locked_until', TOTP_FAILURE_CAP, TOTP_RESTART),
++            'recovery': ('recovery_failures', 'recovery_locked_until', RECOVERY_FAILURE_CAP, RECOVERY_RESTART)}[kind]
+         with self.store.connect() as c:
+-            return c.execute('''UPDATE edge_bff.mfa_totp SET last_step=%s, confirmed_at=coalesce(confirmed_at, now()),
+-                    totp_failures=0, recovery_failures=0, totp_locked_until=NULL, recovery_locked_until=NULL
+-                WHERE user_id=%s AND (last_step IS NULL OR last_step < %s) RETURNING user_id''',
+-                             (step, user_id, step)).fetchone() is not None
++            row = c.execute(f'SELECT {self.TOTP_COLUMNS} FROM edge_bff.mfa_totp WHERE user_id=%s FOR UPDATE',
++                            (user_id,)).fetchone()
++            if row is None:
++                return 'not_enrolled', None
++            if row[count] >= cap:
++                if row[until] is not None and now < row[until]:
++                    return 'locked', row
++                row = c.execute(f'''UPDATE edge_bff.mfa_totp SET {count}=%s, {until}=NULL WHERE user_id=%s
++                    RETURNING {self.TOTP_COLUMNS}''', (restart, user_id)).fetchone()
++            found = check(row, c)
++            if found is None:
++                c.execute(f'''UPDATE edge_bff.mfa_totp SET {count}={count}+1,
++                    {until}=CASE WHEN {count}+1 >= %s THEN %s ELSE {until} END WHERE user_id=%s''',
++                          (cap, int(now) + LOCK_SECONDS, user_id))
++                return 'invalid', None
++            if isinstance(found, CheckedStep):
++                return 'matched', found
++            c.execute('''UPDATE edge_bff.mfa_totp SET totp_failures=0, recovery_failures=0, totp_locked_until=NULL,
++                recovery_locked_until=NULL WHERE user_id=%s''', (user_id,))
++            return 'ok', None
+ 
+-    def use_recovery(self, user_id, code_hash):
++    @staticmethod
++    def recovery_check(user_id, code_hash):
++        """The check of mfa_try for a recovery code: one unused code of the confirmed enrolment (never one of a
++        re-enrolment still waiting) is used, in mfa_try's transaction."""
++        def check(row, c):
++            if row['confirmed_at'] is None:
++                return None
++            return c.execute('''UPDATE edge_bff.mfa_recovery_codes SET used_at=now() WHERE user_id=%s AND code_hash=%s
++                AND used_at IS NULL AND NOT pending RETURNING user_id''', (user_id, code_hash)).fetchone() and True
++        return check
++
++    def use_step(self, user_id, checked):
++        """True when `checked` (a CheckedStep) still names an enrolment of the account (ERRORS R2-11: never the one
++        another session wrote after the check) and its step is after the last one used: that enrolment is then the
++        confirmed one with this step as its last. A waiting re-enrolment proved this way replaces the confirmed one,
++        its recovery codes the old ones (ERRORS R1-7)."""
++        nonce, step = checked
+         with self.store.connect() as c:
+-            if c.execute('''UPDATE edge_bff.mfa_recovery_codes SET used_at=now()
+-                    WHERE user_id=%s AND code_hash=%s AND used_at IS NULL RETURNING user_id''', (user_id, code_hash)).fetchone():
+-                c.execute('''UPDATE edge_bff.mfa_totp SET totp_failures=0, recovery_failures=0, totp_locked_until=NULL,
+-                    recovery_locked_until=NULL WHERE user_id=%s''', (user_id,))
++            if c.execute('''UPDATE edge_bff.mfa_totp SET last_step=%s, confirmed_at=coalesce(confirmed_at, now()),
++                    totp_failures=0, recovery_failures=0, totp_locked_until=NULL, recovery_locked_until=NULL
++                WHERE user_id=%s AND nonce=%s AND (last_step IS NULL OR last_step < %s) RETURNING user_id''',
++                         (step, user_id, nonce, step)).fetchone():
+                 return True
+-            return False
++            if not c.execute('''UPDATE edge_bff.mfa_totp SET nonce=pending_nonce, pending_nonce=NULL,
++                    pending_created_at=NULL, created_at=now(), confirmed_at=now(), last_step=%s, totp_failures=0,
++                    recovery_failures=0, totp_locked_until=NULL, recovery_locked_until=NULL
++                WHERE user_id=%s AND pending_nonce=%s RETURNING user_id''', (step, user_id, nonce)).fetchone():
++                return False
++            c.execute('DELETE FROM edge_bff.mfa_recovery_codes WHERE user_id=%s AND NOT pending', (user_id,))
++            c.execute('UPDATE edge_bff.mfa_recovery_codes SET pending=false WHERE user_id=%s', (user_id,))
++            return True
+ 
+     def mfa_failed(self, user_id, kind, cap, lock_until):
+-        """One more consecutive failure of `kind` (totp or recovery); reaching the cap starts a lock until lock_until."""
++        """One more consecutive failure of `kind` (totp or recovery); reaching the cap starts a lock until lock_until.
++        For a matched code use_step refused (a replayed step, an enrolment replaced since the check)."""
+         count, until = {'totp': ('totp_failures', 'totp_locked_until'),
+                         'recovery': ('recovery_failures', 'recovery_locked_until')}[kind]
+         with self.store.connect() as c:
+             c.execute(f'''UPDATE edge_bff.mfa_totp SET {count}={count}+1,
+                 {until}=CASE WHEN {count}+1 >= %s THEN %s ELSE {until} END WHERE user_id=%s''', (cap, lock_until, user_id))
+ 
+-    def lock_over(self, user_id, kind, restart):
+-        """A lock that has ended: the count restarts just below the cap (a few more tries before the next lock)."""
+-        count, until = {'totp': ('totp_failures', 'totp_locked_until'),
+-                        'recovery': ('recovery_failures', 'recovery_locked_until')}[kind]
+-        with self.store.connect() as c:
+-            c.execute(f'UPDATE edge_bff.mfa_totp SET {count}=%s, {until}=NULL WHERE user_id=%s', (restart, user_id))
+-
+ 
+ class AuthFlows:
+-    def __init__(self, settings, store, auth, throttle, sender=None, pwned_fetch=None):
++    def __init__(self, settings, store, auth, throttle, sender=None, pwned_fetch=None, password_work=None):
+         self.settings, self.auth, self.throttle, self.sender = settings, auth, throttle, sender
+         self.store = FlowStore(settings, store, throttle)
+         self.outbox = OutboxStore(store)
+         self.pwned_fetch = pwned_fetch          # tests replace the range API
+         self.clock = time.time                  # tests freeze the TOTP clock
+         self.with_registration = None           # set by routes()
++        # ERRORS R2-37: the derivations and the Pwned Passwords calls run here, never on the default executor
++        self.password_work = password_work or passwords.PasswordWork()
+ 
+     def wake(self):
+         if self.sender is not None:
+             self.sender.wake()
+ 
+     async def breached(self, password):
+-        return await asyncio.to_thread(passwords.pwned, password, self.pwned_fetch)
++        return await self.password_work.run(passwords.pwned, password, self.pwned_fetch)
+ 
+     async def restart_registration(self, response, row, ip, request=None):
+         """A switch-on sign-in refused 401 (main.py). Every such answer carries a registration cookie, so the headers
+@@ -390,9 +527,11 @@ class AuthFlows:
+         return response
+ 
+     async def new_verifier(self, password):
++        """The verifier of a new password (refused when breached), on the password pool; the caller holds a request
++        slot of it (password_work.admitted_request)."""
+         if await self.breached(password):
+             raise Refusal(400, 'PASSWORD_BREACHED', {'fields': ['password']})
+-        return await asyncio.to_thread(password_verifier, password)
++        return await self.password_work.run(password_verifier, password)
+ 
+     def routes(self, app, session_answer):
+         settings, auth, store = self.settings, self.auth, self.store
+@@ -440,13 +579,18 @@ class AuthFlows:
+             f = {'username': checked_username(b['username']), 'first_name': checked_name(b['first_name'], 'first_name'),
+                  'last_name': checked_name(b['last_name'], 'last_name'), 'email': checked_email(b['email']),
+                  'phone': phone}
+-            verifier = await self.new_verifier(checked_passwords(b))
++            async with self.password_work.admitted_request():
++                verifier = await self.new_verifier(checked_passwords(b))
+             # every valid registration answers alike and gets a registration cookie of its own (stored only as a hash,
+-            # and only when a pending registration was made with it)
+-            registration = secrets.token_hex(32)
+-            if await asyncio.to_thread(store.register, f, verifier, client_address(request), token_hash(registration)):
++            # and only when a pending registration was made with it). ERRORS R1-11: when nothing was made, a browser
++            # whose own cookie names a pending registration of this address keeps it, so its mailed code still works
++            registration, held = secrets.token_hex(32), request.cookies.get(REGISTRATION_COOKIE, '')
++            held = held if REGISTRATION_TOKEN.fullmatch(held) else None
++            queued, keep_held = await asyncio.to_thread(store.register, f, verifier, client_address(request),
++                                                        token_hash(registration), token_hash(held) if held else None)
++            if queued:
+                 self.wake()
+-            return with_registration(JSONResponse(ACCEPTED, status_code=202), registration)
++            return with_registration(JSONResponse(ACCEPTED, status_code=202), held if keep_held else registration)
+ 
+         @app.post('/api/v1/auth/register/verify')
+         async def register_verify(request: Request, _on=Depends(switched_on)):
+@@ -461,7 +605,7 @@ class AuthFlows:
+                 raise code_refusal(outcome, found)
+             token = secrets.token_hex(32)
+             await asyncio.to_thread(auth.accounts.create_session, token_hash(token), found, settings.session_seconds,
+-                                    self.throttle.key_hash('signin_ip', client_address(request)))
++                                    self.throttle.key_hash(SIGNIN_IP, client_address(request)))
+             await asyncio.to_thread(auth.accounts.signed_in, found['user_id'])
+             p = await auth.resolve(token)
+             if p is None:
+@@ -492,10 +636,17 @@ class AuthFlows:
+             b = fields_of(await request.body(), ('email', 'code', 'password', 'password_repeat'),
+                           ('email', 'code', 'password', 'password_repeat'))
+             email = checked_email(b['email'])
+-            verifier = await self.new_verifier(checked_passwords(b))
++            async with self.password_work.admitted_request():
++                verifier = await self.new_verifier(checked_passwords(b))
+             outcome, found = await asyncio.to_thread(store.reset, email, b['code'].strip(), verifier)
+             if outcome != 'ok':
+                 raise code_refusal(outcome, found)
++            # ERRORS R1-9: the reset proved the mailbox, and its answer says to sign in next: this client's sign-in
++            # count of the account's logins goes (the account's failure cap went with the new password, _set_password)
++            address = client_address(request)
++            await asyncio.to_thread(self.throttle.clear, SIGNIN_LOGIN, *((normal_login(login), address)
++                                                                         for login in (found['username'], found['email'])
++                                                                         if login))
+             self.wake()
+             response = JSONResponse({'next': 'sign_in'})
+             response.delete_cookie(COOKIE, path='/')
+@@ -505,16 +656,25 @@ class AuthFlows:
+         async def password_change(request: Request, _on=Depends(switched_on), p: Principal = Depends(auth.writer)):
+             b = fields_of(await request.body(), ('current_password', 'password', 'password_repeat'),
+                           ('current_password', 'password', 'password_repeat'))
+-            key = f'change:{p.user_id}'
+-            wait = await asyncio.to_thread(self.throttle.attempt, SIGNIN_LOGIN, key)
+-            if wait:
+-                raise Refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
+-            account = await asyncio.to_thread(store.account, p.user_id)
+-            if not account or not await asyncio.to_thread(verify_password, b['current_password'], account['verifier']):
++            # its own counter (ERRORS R1-10: it shared the sign-in's, so the login 'change:<id>' typed at sign-in locked it)
++            key = str(p.user_id)
++            async with self.password_work.admitted_request():
++                wait = await asyncio.to_thread(self.throttle.attempt, PASSWORD_CHANGE, key)
++                if wait:
++                    raise Refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
++                account = await asyncio.to_thread(store.account, p.user_id)
++                if not account or not await self.password_work.run(verify_password, b['current_password'],
++                                                                   account['verifier']):
++                    raise Refusal(400, 'CURRENT_PASSWORD_INVALID', {'fields': ['current_password']})
++                verifier = await self.new_verifier(checked_passwords(b))
++            # ERRORS R2-9: written only while this session is live and the proved verifier is still the account's
++            outcome = await asyncio.to_thread(store.change, p.user_id, verifier, token_hash(p.token), account['email'],
++                                              account['verifier'])
++            if outcome == 'session_ended':
++                raise Refusal(401, 'UNAUTHENTICATED')
++            if outcome == 'password_changed':
+                 raise Refusal(400, 'CURRENT_PASSWORD_INVALID', {'fields': ['current_password']})
+-            verifier = await self.new_verifier(checked_passwords(b))
+-            await asyncio.to_thread(self.throttle.clear, SIGNIN_LOGIN, key)
+-            await asyncio.to_thread(store.change, p.user_id, verifier, token_hash(p.token), account['email'])
++            await asyncio.to_thread(self.throttle.clear, PASSWORD_CHANGE, key)
+             self.wake()
+             return {'status': 'PASSWORD_CHANGED'}
+ 
+@@ -528,14 +688,14 @@ class AuthFlows:
+         @app.post('/api/v1/auth/mfa/enroll')
+         async def mfa_enroll(_on=Depends(switched_on), p: Principal = Depends(auth.need(ADMIN_ACCESS, write=True))):
+             """otpauth URI and 10 recovery codes, shown once. A confirmed enrolment is replaced only by a session that
+-            passed MFA (else 403 MFA_REQUIRED: a password alone never resets the second factor)."""
+-            current = await asyncio.to_thread(store.totp, p.user_id)
+-            if current and current['confirmed_at'] and not p.mfa_ok:
+-                raise Refusal(403, 'MFA_REQUIRED')
++            passed MFA (else 403 MFA_REQUIRED: a password alone never resets the second factor), and only once a code
++            of the new authenticator confirms it (FlowStore.enroll, ERRORS R1-7): until then the confirmed one works."""
+             nonce = secrets.token_bytes(16)
+             codes = [mfa.new_recovery_code() for _ in range(mfa.RECOVERY_CODES)]
+-            await asyncio.to_thread(store.enroll, p.user_id, nonce,
+-                                    [mfa.recovery_hash(settings.mfa_key, p.user_id, x) for x in codes])
++            if await asyncio.to_thread(store.enroll, p.user_id, nonce,
++                                       [mfa.recovery_hash(settings.mfa_key, p.user_id, x) for x in codes],
++                                       p.mfa_ok) != 'ok':
++                raise Refusal(403, 'MFA_REQUIRED')
+             secret = mfa.secret_of(settings.mfa_key, p.user_id, nonce)
+             return {'otpauth_uri': mfa.otpauth_uri(secret, p.username or str(p.user_id)),
+                     'secret': base64.b32encode(secret).decode().rstrip('='), 'recovery_codes': codes}
+@@ -546,45 +706,56 @@ class AuthFlows:
+             code, recovery = (b.get('code') or '').strip(), (b.get('recovery_code') or '').strip()
+             if bool(code) == bool(recovery):
+                 raise invalid({'code': 'Send code (6 digits from the authenticator app) or recovery_code, not both.'})
+-            key = f'mfa:{p.user_id}'
++            key = str(p.user_id)
+             wait = await asyncio.to_thread(self.throttle.attempt, MFA_USER, key)
+             if wait:
+                 raise Refusal(429, 'LIMIT_REACHED', {'limit': 'mfa_tries', 'retry_after_s': wait}, {'Retry-After': str(wait)})
+-            row = await asyncio.to_thread(store.totp, p.user_id) if p.user_id is not None else None
+-            if row is None:
++            if p.user_id is None or await asyncio.to_thread(store.totp, p.user_id) is None:
+                 raise Refusal(400, 'MFA_NOT_ENROLLED')
+             # NIST SP 800-63B-4: at most 100 consecutive failed codes per account (10 for recovery codes), counted
+-            # across every window and cleared only by a success (ERRORS M478, C1 P1-M2)
+-            # A lock lasts LOCK_SECONDS from the failure that reached the cap; then the count restarts just below it
+-            # (N2). A password reset by email code or the operator (scripts/edge_mfa_unlock.py) clears it earlier.
+-            kind, cap, restart = ('totp', TOTP_FAILURE_CAP, TOTP_RESTART) if code else \
+-                ('recovery', RECOVERY_FAILURE_CAP, RECOVERY_RESTART)
++            # across every window and cleared only by a success (ERRORS M478, C1 P1-M2), decided, checked and counted
++            # under the enrolment's row lock (FlowStore.mfa_try, ERRORS R2-12). A lock lasts LOCK_SECONDS from the
++            # failure that reached the cap; then the count restarts just below it (N2). A password reset by email code
++            # or the operator (scripts/edge_mfa_unlock.py) clears it earlier.
++            kind, cap = ('totp', TOTP_FAILURE_CAP) if code else ('recovery', RECOVERY_FAILURE_CAP)
+             now = self.clock()
+-            if row[f'{kind}_failures'] >= cap:
+-                until = row[f'{kind}_locked_until']
+-                if until is not None and now < until:
+-                    raise Refusal(403, 'MFA_LOCKED', {
+-                        'locked': 'code' if code else 'recovery_code',
+-                        'unlock_at': datetime.fromtimestamp(until, timezone.utc).isoformat(),
+-                        **({'use': 'recovery_code'} if code and row['recovery_failures'] < RECOVERY_FAILURE_CAP else {})})
+-                await asyncio.to_thread(store.lock_over, p.user_id, kind, restart)
+             if code:
+-                step = mfa.matching_step(mfa.secret_of(settings.mfa_key, p.user_id, row['nonce']), code,
+-                                         mfa.step_now(self.clock))
+-                ok = step is not None and await asyncio.to_thread(store.use_step, p.user_id, step)
++                def check(row, _c):
++                    # the confirmed (or first) enrolment first, then a re-enrolment waiting beside it (R1-7)
++                    for nonce in (row['nonce'], row['pending_nonce']):
++                        if nonce is not None:
++                            step = mfa.matching_step(mfa.secret_of(settings.mfa_key, p.user_id, bytes(nonce)), code,
++                                                     mfa.step_now(self.clock))
++                            if step is not None:
++                                return CheckedStep(bytes(nonce), step)
++                    return None
+             else:
+-                ok = row['confirmed_at'] is not None and await asyncio.to_thread(
+-                    store.use_recovery, p.user_id, mfa.recovery_hash(settings.mfa_key, p.user_id, recovery))
++                check = FlowStore.recovery_check(p.user_id, mfa.recovery_hash(settings.mfa_key, p.user_id, recovery))
++            outcome, found = await asyncio.to_thread(store.mfa_try, p.user_id, kind, now, check)
++            if outcome == 'not_enrolled':
++                raise Refusal(400, 'MFA_NOT_ENROLLED')
++            if outcome == 'locked':
++                raise Refusal(403, 'MFA_LOCKED', {
++                    'locked': 'code' if code else 'recovery_code',
++                    'unlock_at': datetime.fromtimestamp(found[f'{kind}_locked_until'], timezone.utc).isoformat(),
++                    **({'use': 'recovery_code'} if code and found['recovery_failures'] < RECOVERY_FAILURE_CAP else {})})
++            # a matched code confirms the enrolment it was checked against, if that is still the account's (R2-11);
++            # a replayed step or an enrolment replaced since the check counts as a failure
++            ok = outcome == 'ok' or (outcome == 'matched' and await asyncio.to_thread(store.use_step, p.user_id, found))
+             if not ok:
+-                await asyncio.to_thread(store.mfa_failed, p.user_id, kind, cap, int(now) + LOCK_SECONDS)
++                if outcome == 'matched':
++                    await asyncio.to_thread(store.mfa_failed, p.user_id, kind, cap, int(now) + LOCK_SECONDS)
+                 raise Refusal(400, 'MFA_CODE_INVALID', {'fields': ['code' if code else 'recovery_code']})
+             await asyncio.to_thread(self.throttle.clear, MFA_USER, key)
+-            # OWASP Session Management: a new session token at the privilege change; the pending one is revoked
++            # OWASP Session Management: a new session token at the privilege change. ERRORS R2-9: made only while the
++            # pending session is still live, and that session is revoked in the same transaction, so a reset or a
++            # sign-out everywhere since this request began leaves no session behind
+             token = secrets.token_hex(32)
+-            await asyncio.to_thread(auth.accounts.create_session, token_hash(token),
+-                                    {'user_id': p.user_id, 'owner_key': p.owner_key}, settings.session_seconds,
+-                                    self.throttle.key_hash('signin_ip', client_address(request)), True, True)
+-            await asyncio.to_thread(auth.store.revoke, token_hash(p.token))
++            if await asyncio.to_thread(auth.accounts.create_session, token_hash(token),
++                                       {'user_id': p.user_id, 'owner_key': p.owner_key}, settings.session_seconds,
++                                       self.throttle.key_hash(SIGNIN_IP, client_address(request)), True, True,
++                                       None, token_hash(p.token)) is None:
++                raise Refusal(401, 'UNAUTHENTICATED')
+             fresh = await auth.resolve(token)
+             if fresh is None:
+                 raise Refusal(401, 'UNAUTHENTICATED')
+diff --git a/apps/edge-bff/app/config.py b/apps/edge-bff/app/config.py
+index a38772b3..8543d7b4 100644
+--- a/apps/edge-bff/app/config.py
++++ b/apps/edge-bff/app/config.py
+@@ -3,6 +3,9 @@ import os
+ import re
+ from urllib.parse import urlsplit
+ 
++from .accounts import orc_reserved_owner
++from .security import is_verifier
++
+ 
+ def admin_owners_of(raw, owner, multiuser=False):
+     """EDGE_ADMIN_OWNERS: owners separated by commas, each as EDGE_OWNER is written; unset means the one owner. An empty
+@@ -136,12 +139,20 @@ class Settings:
+         if self.multiuser and self.email_mode == 'log' and self.environment not in ('dev', 'local'):
+             raise ValueError('EDGE_EMAIL_MODE=log is for EDGE_ENVIRONMENT dev or local only (codes stay readable in the '
+                              'outbox); set EDGE_EMAIL_MODE=resend with RESEND_API_KEY and EDGE_EMAIL_FROM')
+-        if not re.fullmatch(r'scrypt\$[0-9a-f]{32}\$[0-9a-f]{64}', self.password_verifier):
+-            raise ValueError('Invalid EDGE_PASSWORD_VERIFIER')
++        # ERRORS R2-29: either form app/security.py reads (the current cost, or the form before it, still accepted)
++        if not is_verifier(self.password_verifier):
++            raise ValueError('Invalid EDGE_PASSWORD_VERIFIER (make one with apps/edge-bff/password_hash.py)')
+         if not re.fullmatch(r'[A-Za-z0-9._:@-]{1,128}', self.owner) or len(self.session_secret) < 32:
+             raise ValueError('Invalid EDGE owner/session configuration')
+         if not all(isinstance(o, str) and re.fullmatch(r'[A-Za-z0-9._:@-]{1,128}', o) for o in self.admin_owners):
+             raise ValueError('Invalid EDGE_ADMIN_OWNERS')
++        # ERRORS R1-3: an owner key Orc reserves for its test key (or its old shared owner) would put user #1's
++        # conversations and runs within that key's reach; refused for EDGE_OWNER and every EDGE_ADMIN_OWNERS entry
++        for name, keys in (('EDGE_OWNER', (self.owner,)), ('EDGE_ADMIN_OWNERS', self.admin_owners)):
++            if any(orc_reserved_owner(k) for k in keys):
++                raise ValueError(f'{name} may not be an owner key market-ai-orc reserves (golden-*, test-*, '
++                                 'someone-else: its test key may name them; default: its old shared owner). Use an '
++                                 'owner key of your own, e.g. edge-private')
+         host = urlsplit(self.orc_url).hostname
+         if self.environment != 'local' and (host != 'market-ai-orc.railway.internal' or urlsplit(self.orc_url).scheme != 'http'):
+             raise ValueError('EDGE_ORC_URL must use the existing Railway private Orc endpoint')
+diff --git a/apps/edge-bff/app/errors.py b/apps/edge-bff/app/errors.py
+index 55aff304..853250cc 100644
+--- a/apps/edge-bff/app/errors.py
++++ b/apps/edge-bff/app/errors.py
+@@ -6,8 +6,14 @@ CAPABILITY_REQUIRED (403) keeps the session and shows that the feature is not op
+ Messages are plain English, like every EDGE interface label (EXEC-UI-1019B, user: "Ok 1 aja"), without internal names
+ (AGENTS.md "Gates and evidence" (d): each names what is wrong and how to go on).
+ """
++import json
++import logging
++import math
++
+ from fastapi.responses import JSONResponse
+ 
++logger = logging.getLogger('edge_bff.errors')
++
+ MESSAGES = {
+     'UNAUTHENTICATED': 'Your session has ended or you are not signed in. Please sign in again.',
+     'CSRF_INVALID': 'This request could not be verified. Reload the page and try again.',
+@@ -15,7 +21,8 @@ MESSAGES = {
+     'PLAN_EXPIRED': 'Your EDGE plan has ended. Renew it to use this again; you are still signed in.',
+     'MFA_REQUIRED': 'This needs your sign-in code. Enter the code from your authenticator app, then try again.',
+     'LIMIT_REACHED': "You have reached your plan's limit. Try again later, or upgrade the plan.",
+-    'SIGN_IN_RATE_LIMIT': 'Too many sign-in attempts. Wait a minute, then try again.',
++    # {wait}: the refusal's own wait in words (details.retry_after_s; ERRORS R1-9: it said "a minute" for up to 16)
++    'SIGN_IN_RATE_LIMIT': 'Too many sign-in attempts from here. Wait {wait}, then try again.',
+     'INVALID_INPUT': 'Some fields are not valid. Check them and try again.',
+     'NOT_FOUND': 'The page or item you asked for was not found.',
+     'METHOD_NOT_ALLOWED': 'This kind of request is not supported here.',
+@@ -100,15 +107,70 @@ class Refusal(Exception):
+         super().__init__(code)
+ 
+ 
+-def message_of(code, status):
++def wait_text(seconds):
++    """A wait in words: 'less than a minute', '16 minutes', '3 hours'; 'a few minutes' when it is not known."""
++    if not isinstance(seconds, (int, float)) or isinstance(seconds, bool) or seconds <= 0:
++        return 'a few minutes'
++    if seconds < 60:
++        return 'less than a minute'
++    minutes = math.ceil(seconds / 60)
++    if minutes < 120:
++        return f'{minutes} minute{"s" if minutes != 1 else ""}'
++    return f'{math.ceil(minutes / 60)} hours'
++
++
++def message_of(code, status, details=None):
+     """The code's message; a code without one (a code relayed from another service) gets the message of its status
+-    class, so every refusal carries a message."""
+-    return MESSAGES.get(code) or MESSAGES['SERVICE_UNAVAILABLE' if status >= 500 else 'REQUEST_REFUSED']
++    class, so every refusal carries a message. A message that holds {wait} says the refusal's own wait
++    (details.retry_after_s)."""
++    text = MESSAGES.get(code) or MESSAGES['SERVICE_UNAVAILABLE' if status >= 500 else 'REQUEST_REFUSED']
++    return text.replace('{wait}', wait_text((details or {}).get('retry_after_s'))) if '{wait}' in text else text
+ 
+ 
+ def refusal(status, code, details=None, headers=None):
+     return JSONResponse(status_code=status, headers=headers, content={'error': {
+-        'code': code, 'message': message_of(code, status), 'details': details or {}}})
++        'code': code, 'message': message_of(code, status, details), 'details': details or {}}})
++
++
++def failure_class(e):
++    """What a log line may say about an exception nobody expected: its class, and a database error's SQLSTATE, never
++    its text (a DETAIL line lists a failing row: an email, names, a phone; ERRORS R2-25)."""
++    out = {'error': f'{type(e).__module__}.{type(e).__qualname__}'}
++    sqlstate = getattr(e, 'sqlstate', None)
++    if isinstance(sqlstate, str):
++        out['sqlstate'] = sqlstate
++    return out
++
++
++class UnexpectedErrors:
++    """The outermost middleware of edge-bff (ERRORS R2-25). Starlette's ServerErrorMiddleware answers an unexpected
++    exception with the app's handler and then re-raises it, and uvicorn logs it with its full text. This catches such
++    an exception first: it logs only failure_class (method and path beside it) and answers 503 SERVICE_UNAVAILABLE in
++    the contract's shape when nothing was sent yet. Nothing re-raises, so the server writes nothing."""
++
++    def __init__(self, app):
++        self.app = app
++
++    async def __call__(self, scope, receive, send):
++        if scope['type'] != 'http':
++            await self.app(scope, receive, send)
++            return
++        started = False
++
++        async def sending(message):
++            nonlocal started
++            if message['type'] == 'http.response.start':
++                started = True
++            await send(message)
++        try:
++            await self.app(scope, receive, sending)
++        except Exception as e:                      # noqa: BLE001 - logged by its class only (failure_class)
++            logger.error(json.dumps({'event': 'request_failed', 'method': scope.get('method'), 'path': scope.get('path'),
++                                     **failure_class(e)}))
++            if not started:
++                response = refusal(503, 'SERVICE_UNAVAILABLE', headers={'Cache-Control': 'no-store',
++                                                                        'X-Content-Type-Options': 'nosniff'})
++                await response(scope, receive, send)
+ 
+ 
+ def capability_required(capability):
+diff --git a/apps/edge-bff/app/mailer.py b/apps/edge-bff/app/mailer.py
+index 34f25680..68cfd27d 100644
+--- a/apps/edge-bff/app/mailer.py
++++ b/apps/edge-bff/app/mailer.py
+@@ -55,6 +55,14 @@ def enqueue(c, purpose, to_email, mail, expires_at=None, key=None):
+     return row['outbox_id'] if row else None
+ 
+ 
++def purge_outbox(c):
++    """ERRORS R2-24 (migration 20261119_012): the sent, failed, expired or suppressed rows older than 24 h of addresses
++    with no row in edge_bff.users (a registration never verified, purged after 24 h as CONTRACT 4 says, or an address
++    never registered), at most 10 000 per call, through edge_bff.purge_email_outbox() (edge_bff_runtime holds no DELETE
++    on the outbox). Returns how many were deleted."""
++    return c.execute('SELECT edge_bff.purge_email_outbox() AS n').fetchone()['n']
++
++
+ def masked_address(email):
+     local, _, domain = email.partition('@')
+     return (local[:1] + '***@' + domain) if domain else '***'
+diff --git a/apps/edge-bff/app/main.py b/apps/edge-bff/app/main.py
+index 33aa5a3e..1e463c9e 100644
+--- a/apps/edge-bff/app/main.py
++++ b/apps/edge-bff/app/main.py
+@@ -21,7 +21,7 @@ from .backtest import Backtests
+ from . import catalog, terminal_access
+ from .client import OrcClient, OrcError, public_data
+ from .config import Settings
+-from .errors import Refusal, http_refusal, refusal, validation_refusal
++from .errors import Refusal, UnexpectedErrors, http_refusal, refusal, validation_refusal
+ from .hooks import is_hook_path
+ from .layouts import Layouts
+ from .monitor import ModelCatalog, run_refusal, visible as visible_models
+@@ -29,14 +29,15 @@ from .auth_flows import AuthFlows
+ from .mailer import EmailSender
+ from .preferences import Preferences
+ from .presets import Presets
+-from .accounts import PENDING_CHECKED
++from .accounts import EMAIL_MAX, PENDING_CHECKED
++from .passwords import PasswordWork
+ from .principal import Auth, Principal
+ from .drawings import Drawings
+ from .overview import Overview
+ from .watchlist import Watchlist
+ from .radar import Radar
+ from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
+-from .security import csrf_token, token_hash, verify_password
++from .security import csrf_token, needs_rehash, password_verifier, token_hash, verify_password
+ from .store import Store, StoreError, TERMINAL
+ from .throttle import SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address, normal_login
+ from .worker import Worker
+@@ -116,7 +117,8 @@ class Strict(BaseModel):
+ 
+ 
+ class Login(Strict):
+-    login: str = Field(min_length=1, max_length=200)
++    # ERRORS R1-14: as long as the longest email an account may have (the login is a username or an email)
++    login: str = Field(min_length=1, max_length=EMAIL_MAX)
+     password: str = Field(min_length=1, max_length=1024)
+ 
+ 
+@@ -240,7 +242,9 @@ def create_app(settings=None, store=None, orc=None):
+     preferences = Preferences(store)
+     # the email outbox's sender loop and the auth flows (registration, codes, MFA; CONTRACT.md sections 4 and 5)
+     sender = EmailSender(settings, store)
+-    flows = AuthFlows(settings, store, auth, throttle, sender)
++    # ERRORS R2-37: every password derivation and Pwned Passwords call runs on this pool, apart from the database's
++    password_work = PasswordWork()
++    flows = AuthFlows(settings, store, auth, throttle, sender, password_work=password_work)
+     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
+     # (a client per request opened a new connection every time)
+     terminal_http = {'client': None}
+@@ -305,6 +309,7 @@ def create_app(settings=None, store=None, orc=None):
+         await overview.aclose()
+         await watchlist.aclose()
+         await sender.aclose()
++        password_work.close()
+ 
+     app = FastAPI(title='EDGE private gateway', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+     app.state.worker, app.state.store, app.state.backtests = worker, store, backtests
+@@ -381,6 +386,11 @@ def create_app(settings=None, store=None, orc=None):
+         response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+         return response
+ 
++    # ERRORS R2-25: added last, so it is the outermost middleware: an exception no handler expected is answered 503
++    # here and logged by its class and SQLSTATE only, and never reaches Starlette's ServerErrorMiddleware, which
++    # re-raises it to the server, whose log line would carry the exception's text (a failing row's personal data)
++    app.add_middleware(UnexpectedErrors)
++
+     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 2): the principal of every request (app/principal.py); auth.principal
+     # replaces the session dependency and auth.writer the write (CSRF) one. The route-table test
+     # (tests/test_route_table.py, CONTRACT.md 13.1) finds these in every /api route's dependencies.
+@@ -660,60 +670,76 @@ def create_app(settings=None, store=None, orc=None):
+ 
+     @app.post('/api/v1/auth/sign-in')
+     async def sign_in(body: Login, request: Request):
+-        # EXEC-MU-ACCOUNTS Phase 0 (CONTRACT.md section 4 "Throttle"): 10 failures per login in 15 minutes, counted in
+-        # PostgreSQL for every login typed (known or not, so a refusal says nothing about the account). The try is
++        # EXEC-MU-ACCOUNTS Phase 0 (CONTRACT.md section 4 "Throttle"): 10 failures per login and client address in 15
++        # minutes, counted in PostgreSQL for every login typed (known or not, so a refusal says nothing about the
++        # account; ERRORS R1-9: keyed by the login alone, anyone who typed it could keep its owner out). The try is
+         # decided and counted in one locked step before the password check (C1 H1: a concurrent burst cannot pass the
+-        # limit); a success clears the count. The client address is counted on failure but not enforced until
++        # limit); a success clears the count. The client address alone is counted on failure but not enforced until
+         # Railway's forwarded address is proved.
+-        login_key = normal_login(body.login)
+-        wait = await asyncio.to_thread(throttle.attempt, SIGNIN_LOGIN, login_key)
+-        if wait:
+-            return refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
+-        account = restart = None
+-        if settings.multiuser:
+-            # EXEC-MU-ACCOUNTS Phase 1 (switch on): the active account named by its username or email, its password
+-            # identity, and the pending registrations of that address (the newest PENDING_CHECKED). Every sign-in runs
+-            # exactly 1 + PENDING_CHECKED password derivations, padded with the configured verifier, whatever the
+-            # address holds (ERRORS M478 re-check: the time tells nothing; OWASP Authentication)
+-            account = await asyncio.to_thread(auth.accounts.find_login, body.login)
+-            pending = list(await asyncio.to_thread(auth.accounts.pending_logins, body.login))[:PENDING_CHECKED]
+-            known = await asyncio.to_thread(verify_password, body.password,
+-                                            account['verifier'] if account else settings.password_verifier)
+-            known = known and account is not None
+-            for row in pending + [None] * (PENDING_CHECKED - len(pending)):
+-                matched = await asyncio.to_thread(verify_password, body.password,
+-                                                  row['verifier'] if row else settings.password_verifier)
+-                if matched and row is not None and account is None:
+-                    restart = restart or row
+-        else:
+-            # the password is checked before the login is compared (against the one verifier, so an unknown login runs
+-            # the same scrypt as a known one): a wrong login costs the same time as a wrong password
+-            password_ok = await asyncio.to_thread(verify_password, body.password, settings.password_verifier)
+-            known = hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode()) and password_ok
++        address = client_address(request)
++        login_key = (normal_login(body.login), address)
++        # ERRORS R2-37: the password work of a sign-in runs on its own pool (passwords.PasswordWork), never on the
++        # default executor every database call uses; a request over its limit is answered 503 before any try counts
++        async with password_work.admitted_request():
++            wait = await asyncio.to_thread(throttle.attempt, SIGNIN_LOGIN, login_key)
++            if wait:
++                return refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
++            account = restart = rehash = None
++            if settings.multiuser:
++                # EXEC-MU-ACCOUNTS Phase 1 (switch on): the active account named by its username or email, its
++                # password identity, and the pending registrations of that address (the newest PENDING_CHECKED). Every
++                # sign-in runs exactly 1 + PENDING_CHECKED password derivations, padded with the configured verifier,
++                # whatever the address holds (ERRORS M478 re-check: the time tells nothing; OWASP Authentication)
++                account = await asyncio.to_thread(auth.accounts.find_login, body.login)
++                pending = list(await asyncio.to_thread(auth.accounts.pending_logins, body.login))[:PENDING_CHECKED]
++                # ERRORS R1-16: the account's consecutive failures, decided and counted before the check (a locked
++                # account answers as a wrong password); the same statement runs for a login that names no account
++                checked = await asyncio.to_thread(auth.accounts.sign_in_try, account['user_id'] if account else None)
++                known = await password_work.run(verify_password, body.password,
++                                                account['verifier'] if account else settings.password_verifier)
++                known = known and account is not None and checked
++                for row in pending + [None] * (PENDING_CHECKED - len(pending)):
++                    matched = await password_work.run(verify_password, body.password,
++                                                      row['verifier'] if row else settings.password_verifier)
++                    if matched and row is not None and account is None:
++                        restart = restart or row
++                if known and needs_rehash(account['verifier']):
++                    # ERRORS R2-29: a verifier of the cost before R2-29 is replaced by one at the current cost
++                    rehash = await password_work.run(password_verifier, body.password)
++            else:
++                # the password is checked before the login is compared (against the one verifier, so an unknown login
++                # runs the same scrypt as a known one): a wrong login costs the same time as a wrong password
++                password_ok = await password_work.run(verify_password, body.password, settings.password_verifier)
++                known = hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode()) and password_ok
+         if not known:
+-            await asyncio.to_thread(throttle.count, (SIGNIN_IP, client_address(request)))
++            await asyncio.to_thread(throttle.count, (SIGNIN_IP, address))
+             response = error('INVALID_CREDENTIALS', 401)
+             if settings.multiuser:
+                 # ERRORS M478 (C1 P1-M1): a pending registration with the right password answers the same 401 (no
+                 # enumeration); within the send limits a fresh code is mailed and this browser gets that registration's
+                 # cookie, so the person finishes on /verify. Every switch-on 401 sets a registration cookie, so the
+                 # answers do not differ by a header either
+-                await flows.restart_registration(response, restart, client_address(request), request)
++                await flows.restart_registration(response, restart, address, request)
+             return response
+-        await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
+         old = request.cookies.get(COOKIE)
+         if old:
+             await asyncio.to_thread(store.revoke, token_hash(old))
+         token = secrets.token_hex(32)
+         if account is not None:
+-            # at most MAX_SESSIONS per account (the oldest revoked); the address only as its HMAC
+-            await asyncio.to_thread(auth.accounts.create_session, token_hash(token), account, settings.session_seconds,
+-                                    throttle.key_hash(SIGNIN_IP.scope, client_address(request)), False,
+-                                    # Phase 2: MFA by the account's resolved capabilities ('*' or admin.access)
+-                                    await asyncio.to_thread(auth.needs_mfa, account['owner_key']))
++            # at most MAX_SESSIONS per account (the oldest revoked); the address only as its HMAC. ERRORS R2-9: made
++            # only while the verifier this sign-in proved is still the account's (a reset or change landed during the
++            # check refuses it, as a wrong password)
++            made = await asyncio.to_thread(auth.accounts.create_session, token_hash(token), account,
++                                           settings.session_seconds, throttle.key_hash(SIGNIN_IP, address), False,
++                                           # Phase 2: MFA by the account's resolved capabilities ('*' or admin.access)
++                                           await asyncio.to_thread(auth.needs_mfa, account['owner_key']),
++                                           account['verifier'], None, rehash)
++            if made is None:
++                return error('INVALID_CREDENTIALS', 401)
+             await asyncio.to_thread(auth.accounts.signed_in, account['user_id'])
+         else:
+             await asyncio.to_thread(store.session_create, token_hash(token), auth.configured_owner(), settings.session_seconds)
++        await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
+         p = await auth.resolve(token)
+         if p is None:                              # an account disabled at this very moment
+             return error('INVALID_CREDENTIALS', 401)
+diff --git a/apps/edge-bff/app/passwords.py b/apps/edge-bff/app/passwords.py
+index 16b8b508..104a20cc 100644
+--- a/apps/edge-bff/app/passwords.py
++++ b/apps/edge-bff/app/passwords.py
+@@ -7,7 +7,15 @@
+   suffix is compared here; padded rows (count 0) never match. When the API cannot answer, the password is accepted and
+   PWNED_CHECK_UNAVAILABLE is logged (fail-open, the contract's recorded decision).
+ - A phone is normalised to E.164; an Indonesian 08... becomes +628...; it is not verified.
++- Where password work runs (ERRORS R2-37): every password derivation and Pwned Passwords call of a request (sign-in,
++  registration, reset, change) runs on PasswordWork's own small thread pool, never on the event loop's default executor
++  that every database call uses, so a burst of sign-ins with made-up logins cannot hold the signed-in users' requests.
++  At most PasswordWork.LIMIT requests do password work at once (running or waiting for a thread); one more is answered
++  503 SERVICE_UNAVAILABLE with Retry-After at once, so under a flood only password requests wait.
+ """
++import asyncio
++from concurrent.futures import ThreadPoolExecutor
++from contextlib import asynccontextmanager
+ import hashlib
+ import json
+ import logging
+@@ -15,10 +23,42 @@ import re
+ 
+ import httpx
+ 
++from .errors import Refusal
+ from .security import normal_password
+ 
+ logger = logging.getLogger('edge_bff.passwords')
+ 
++
++class PasswordWork:
++    """The pool of password work (the module docstring). WORKERS threads (each derivation holds 16 MiB while it runs);
++    LIMIT requests admitted at once; a request over it is refused 503 with Retry-After RETRY_SECONDS."""
++    WORKERS, LIMIT, RETRY_SECONDS = 4, 16, 5
++
++    def __init__(self):
++        self.executor = ThreadPoolExecutor(max_workers=self.WORKERS, thread_name_prefix='edge-password')
++        self.admitted = 0                       # read and changed on the event loop only
++
++    @asynccontextmanager
++    async def admitted_request(self):
++        """One request's password work; 503 SERVICE_UNAVAILABLE when LIMIT requests already do password work."""
++        if self.admitted >= self.LIMIT:
++            logger.warning(json.dumps({'event': 'password_work_full', 'admitted': self.admitted}))
++            raise Refusal(503, 'SERVICE_UNAVAILABLE', {'retry_after_s': self.RETRY_SECONDS},
++                          {'Retry-After': str(self.RETRY_SECONDS)})
++        self.admitted += 1
++        try:
++            yield self
++        finally:
++            self.admitted -= 1
++
++    async def run(self, fn, *args):
++        """fn(*args) on the pool's threads (a derivation, a Pwned Passwords call)."""
++        return await asyncio.get_running_loop().run_in_executor(self.executor, fn, *args)
++
++    def close(self):
++        self.executor.shutdown(wait=False, cancel_futures=True)
++
++
+ MIN_LENGTH, MAX_LENGTH = 8, 256
+ RANGE_URL = 'https://api.pwnedpasswords.com/range/'
+ TIMEOUT = 2.0
+diff --git a/apps/edge-bff/app/security.py b/apps/edge-bff/app/security.py
+index ac1b6254..df9fe993 100644
+--- a/apps/edge-bff/app/security.py
++++ b/apps/edge-bff/app/security.py
+@@ -1,8 +1,19 @@
+ import hashlib
+ import hmac
++import re
+ import secrets
+ import unicodedata
+ 
++# ERRORS R2-29 (OWASP Password Storage Cheat Sheet: scrypt N=2^17, r=8, p=1, or an equivalent; at 16 MiB the equivalent
++# is N=2^14, r=8, p=5): the cost (N, r, p) of every new verifier. A verifier names its cost
++# ('scrypt$n=16384,r=8,p=5$<salt>$<hash>'); one without (the form before R2-29, 'scrypt$<salt>$<hash>') has LEGACY's and
++# is still accepted, then replaced at the account's next sign-in (accounts.py create_session `rehash`). Only the costs
++# in COSTS are read, so a verifier cannot ask for an unbounded derivation.
++COST = (16384, 8, 5)
++LEGACY = (16384, 8, 1)
++COSTS = frozenset({COST, LEGACY})
++VERIFIER = re.compile(r'scrypt\$(?:n=([0-9]{1,7}),r=([0-9]{1,2}),p=([0-9]{1,2})\$)?([0-9a-f]{32})\$([0-9a-f]{64})')
++
+ 
+ def normal_password(password: str) -> str:
+     """EXEC-MU-ACCOUNTS Phase 1 fix round (ERRORS M478, C1 P1-L3; NIST SP 800-63B-4): a password is NFKC-normalised
+@@ -11,14 +22,54 @@ def normal_password(password: str) -> str:
+     return unicodedata.normalize('NFKC', password)
+ 
+ 
++def _derive(text, salt, cost):
++    n, r, p = cost
++    return hashlib.scrypt(text.encode(), salt=salt, n=n, r=r, p=p, dklen=32)
++
++
+ def _scrypt(text, salt):
+-    return hashlib.scrypt(text.encode(), salt=salt, n=16384, r=8, p=1, dklen=32)
++    """One derivation at the current cost: the work every password check pays (tests hold it to fill the pool)."""
++    return _derive(text, salt, COST)
+ 
+ 
+ def password_verifier(password: str) -> str:
+     salt = secrets.token_bytes(16)
+     value = _scrypt(normal_password(password), salt)
+-    return f'scrypt${salt.hex()}${value.hex()}'
++    n, r, p = COST
++    return f'scrypt$n={n},r={r},p={p}${salt.hex()}${value.hex()}'
++
++
++def verifier_parts(verifier):
++    """(cost, salt bytes, hash hex) of a verifier of a cost in COSTS, else None."""
++    found = VERIFIER.fullmatch(verifier) if isinstance(verifier, str) else None
++    if found is None:
++        return None
++    cost = tuple(int(x) for x in found.group(1, 2, 3)) if found.group(1) else LEGACY
++    return (cost, bytes.fromhex(found.group(4)), found.group(5)) if cost in COSTS else None
++
++
++def is_verifier(verifier) -> bool:
++    """The shape of a verifier this module makes or reads (EDGE_PASSWORD_VERIFIER, config.py)."""
++    return verifier_parts(verifier) is not None
++
++
++def needs_rehash(verifier) -> bool:
++    """True when a readable verifier is not at the current cost (it is replaced at the next sign-in)."""
++    parts = verifier_parts(verifier)
++    return parts is not None and parts[0] != COST
++
++
++def _matches(text, salt, value, cost):
++    """One form checked at the verifier's cost and padded to the current cost (scrypt's work grows with p, so p=1 plus
++    p=4 is the work of p=5): a check costs the same whatever the verifier's age, so the time tells nothing about it
++    (ERRORS M478 N1: the time of a sign-in tells nothing about the account)."""
++    if cost == COST:
++        derived = _scrypt(text, salt)
++    else:
++        derived = _derive(text, salt, cost)
++        if cost[:2] == COST[:2] and cost[2] < COST[2]:
++            _derive(text, salt, (COST[0], COST[1], COST[2] - cost[2]))
++    return hmac.compare_digest(derived.hex().encode(), value.encode())
+ 
+ 
+ def verify_password(password: str, verifier: str) -> bool:
+@@ -26,14 +77,14 @@ def verify_password(password: str, verifier: str) -> bool:
+     EDGE_PASSWORD_VERIFIER) is still accepted. When the two forms differ both are always derived, so the number of
+     derivations depends only on the text typed, never on which form (or whether any) matched."""
+     try:
+-        scheme, salt, value = verifier.split('$')
+-        if scheme != 'scrypt' or len(password) > 1024:
++        parts = verifier_parts(verifier)
++        if parts is None or len(password) > 1024:
+             return False
+-        salt = bytes.fromhex(salt)
++        cost, salt, value = parts
+         normal = normal_password(password)
+-        ok = hmac.compare_digest(_scrypt(normal, salt).hex().encode(), value.encode())
++        ok = _matches(normal, salt, value, cost)
+         if normal != password:
+-            ok = hmac.compare_digest(_scrypt(password, salt).hex().encode(), value.encode()) or ok
++            ok = _matches(password, salt, value, cost) or ok
+         return ok
+     except (ValueError, TypeError, UnicodeEncodeError):
+         return False
+diff --git a/apps/edge-bff/app/store.py b/apps/edge-bff/app/store.py
+index 3eae5369..d2d7e389 100644
+--- a/apps/edge-bff/app/store.py
++++ b/apps/edge-bff/app/store.py
+@@ -10,6 +10,7 @@ from psycopg_pool import ConnectionPool
+ from psycopg.types.json import Jsonb
+ 
+ from .accounts import purge_pending
++from .mailer import purge_outbox
+ from .throttle import purge as purge_throttle
+ 
+ TERMINAL = {'FINISHED', 'FAILED', 'INTERRUPTED'}
+@@ -80,6 +81,13 @@ class Store:
+             c.execute('SELECT 1 FROM edge_bff.email_hook_events LIMIT 0')
+             c.execute('SELECT registration_hash FROM edge_bff.users LIMIT 0')     # 20261117_002
+             c.execute('SELECT totp_failures, recovery_failures, totp_locked_until, recovery_locked_until FROM edge_bff.mfa_totp LIMIT 0')
++            # the auth fix round (ERRORS R1-7, R1-16, R2-24, R2-29): the password identity's failure count and both
++            # verifier forms (20261119_010), the waiting MFA enrolment (20261119_011), the outbox purge the hourly
++            # cleanup runs in both modes (20261119_012)
++            c.execute('SELECT sign_in_failures, sign_in_locked_until FROM edge_bff.identities LIMIT 0')
++            c.execute('SELECT pending_nonce, pending_created_at FROM edge_bff.mfa_totp LIMIT 0')
++            c.execute('SELECT pending FROM edge_bff.mfa_recovery_codes LIMIT 0')
++            c.execute("SELECT 'edge_bff.purge_email_outbox()'::regprocedure")
+ 
+     def session_create(self, hashed, owner, seconds):
+         with self.connect() as c:
+@@ -356,3 +364,7 @@ class Store:
+             c.execute('DELETE FROM edge_bff.sessions WHERE expires_at<now() OR revoked_at<now()-interval \'1 day\'')
+             purge_throttle(c)   # EXEC-MU-ACCOUNTS Phase 0: throttle rows older than 2 days, at the same hourly cadence
+             purge_pending(c)    # EXEC-MU-ACCOUNTS Phase 1: registrations never verified, after 24 h
++        # ERRORS R2-24: then, in a transaction of its own (seeing the registrations purged above), the outbox rows of
++        # addresses left with no account (migration 20261119_012; the only delete of the outbox edge-bff can make)
++        with self.connect() as c:
++            purge_outbox(c)
+diff --git a/apps/edge-bff/app/throttle.py b/apps/edge-bff/app/throttle.py
+index 09a4d5ef..181e24ba 100644
+--- a/apps/edge-bff/app/throttle.py
++++ b/apps/edge-bff/app/throttle.py
+@@ -1,21 +1,27 @@
+ """EDGE multi-user Phase 0 (EXEC-MU-ACCOUNTS; CONTRACT.md sections 1 and 4 "Throttle"): the sign-in throttle in
+ PostgreSQL (edge_bff.auth_throttle, migration 20261116_002), shared by every edge-bff instance.
+ 
+-- A key (the login typed at sign-in, a client address) is stored only as key_hash = HMAC-SHA256 with
+-  EDGE_SESSION_SECRET of its normalised form, with a domain label and the scope in the message, so the same secret's
+-  CSRF tokens (security.py csrf_token) never collide with a throttle key.
++- A key (the login typed at sign-in with the client address, an email address, a user id) is stored only as key_hash =
++  HMAC-SHA256 with EDGE_SESSION_SECRET of its normalised form, with a domain label, the scope and the counter's own
++  label in the message, so the same secret's CSRF tokens (security.py csrf_token) never collide with a throttle key and
++  no text a caller types can produce the key of another counter (ERRORS R1-10: the login 'change:<user_id>' was the
++  key of that user's password-change count). Two limits read one counter when they share its label (REGISTER_HOUR and
++  REGISTER_DAY: one count of new registrations, read over an hour and over a day).
+ - Counts live in one-minute buckets; a limit sums the buckets that overlap its window (a bucket only partly inside
+   counts whole, so the limit errs on the safe side by at most one minute).
+ - A sign-in try is decided and counted in one step before the password check (`attempt`): one transaction takes an
+   advisory lock on the scope and key hash, sums the window and, under the limit, adds the try with an atomic UPSERT.
+-  A concurrent burst against one login, on any number of instances, therefore reaches the password check at most
++  A concurrent burst against one key, on any number of instances, therefore reaches the password check at most
+   `allowed` times per window (ERRORS C1 H1; OWASP: count the attempt atomically with the decision). A successful
+-  sign-in clears the login's count, so only failed tries remain counted.
+-- Enforced now: SIGNIN_LOGIN (10 failures per login per 15 minutes). Recorded, not enforced: SIGNIN_IP, until a probe
+-  proves which client address Railway's edge sends (CONTRACT.md section 4, "Client IP").
++  sign-in clears its key's count, so only failed tries remain counted.
++- Enforced now: SIGNIN_LOGIN, 10 failures per login and client address per 15 minutes (ERRORS R1-9: keyed by the login
++  alone, anyone who typed a login could keep its owner out; the per-account cap of consecutive failures, accounts.py,
++  bounds the guesses across addresses). Recorded, not enforced: SIGNIN_IP, until a probe proves which client address
++  Railway's edge sends (CONTRACT.md section 4, "Client IP").
+ """
+ import hashlib
+ import hmac
++import json
+ import math
+ 
+ BUCKET_SECONDS = 60
+@@ -23,23 +29,38 @@ PURGE_AFTER_SECONDS = 2 * 86400
+ 
+ 
+ class Limit:
+-    def __init__(self, scope, allowed, window_seconds, enforced=True):
+-        self.scope, self.allowed, self.window_seconds, self.enforced = scope, allowed, window_seconds, enforced
++    """`allowed` events of one counter in `window_seconds`. `scope` is the table's scope (its CHECK lists them);
++    `counter` is the counter's own label inside the key hash, one per counted thing."""
+ 
++    def __init__(self, scope, counter, allowed, window_seconds, enforced=True):
++        self.scope, self.counter, self.allowed, self.window_seconds, self.enforced = \
++            scope, counter, allowed, window_seconds, enforced
+ 
+-SIGNIN_LOGIN = Limit('signin_email', 10, 900)
+-SIGNIN_IP = Limit('signin_ip', 30, 900, enforced=False)
++
++# the sign-in: key (normalised login, client address)
++SIGNIN_LOGIN = Limit('signin_email', 'signin_login_address', 10, 900)
++# the client address of every failed sign-in; also the label of the address hash a session keeps (created_ip_hash)
++SIGNIN_IP = Limit('signin_ip', 'signin_address', 30, 900, enforced=False)
+ # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4 "Codes", "Throttle"): 20 failed code tries per user per day (a new
+ # code does not reset it); 10 emails per address per day; 10 sends per client address per hour (recorded, not enforced,
+-# like SIGNIN_IP); 10 failed MFA tries per user per 15 minutes (scope code_user, key 'mfa:<user_id>')
+-CODE_USER = Limit('code_user', 20, 86400)
+-SEND_EMAIL = Limit('send_email', 10, 86400)
+-SEND_IP = Limit('send_ip', 10, 3600, enforced=False)
+-MFA_USER = Limit('code_user', 10, 900)
++# like SIGNIN_IP); 10 failed MFA tries per user per 15 minutes; 10 failed current passwords per user per 15 minutes
++# (a password change)
++CODE_USER = Limit('code_user', 'code_user', 20, 86400)
++# ERRORS R1-8: the failed reset codes of an address, counted whether or not the address has an account, so the 429
++# after 20 wrong codes tells nothing about the address
++CODE_ADDRESS = Limit('code_user', 'code_address', 20, 86400)
++SEND_EMAIL = Limit('send_email', 'send_email', 10, 86400)
++SEND_IP = Limit('send_ip', 'send_address', 10, 3600, enforced=False)
++MFA_USER = Limit('code_user', 'mfa_user', 10, 900)
++PASSWORD_CHANGE = Limit('signin_email', 'password_change', 10, 900)
+ # ERRORS M478 re-check (N4): new registrations of one address, from any browser, mail it at most once per hour and three
+-# times per day (scope send_email, key 'register:<email>'); they also count towards SEND_EMAIL
+-REGISTER_HOUR = Limit('send_email', 1, 3600)
+-REGISTER_DAY = Limit('send_email', 3, 86400)
++# times per day (one counter, key the address, read over both windows); they also count towards SEND_EMAIL
++REGISTER_HOUR = Limit('send_email', 'register', 1, 3600)
++REGISTER_DAY = Limit('send_email', 'register', 3, 86400)
++# ERRORS R1-13: every email of one pending registration (its code, a resend, a sign-in restart) counts here, key the
++# registration's user id: a registration is mailed at most 3 times a day, so the 3 registrations a day N4 allows use at
++# most 9 of the address's 10 emails, and the 2 of them made by others (the owner's own being the third) at most 6
++REGISTRATION_MAIL = Limit('send_email', 'registration_mail', 3, 86400)
+ 
+ BUCKET = 'to_timestamp(floor(extract(epoch FROM now()) / %(bucket)s) * %(bucket)s)'
+ 
+@@ -61,8 +82,12 @@ class Throttle:
+     def __init__(self, store, secret):
+         self.store, self.secret = store, secret.encode()
+ 
+-    def key_hash(self, scope, key):
+-        return hmac.new(self.secret, b'edge_bff.auth_throttle\x00' + scope.encode() + b'\x00' + key.encode(),
++    def key_hash(self, limit, key):
++        """The stored hash of `key` for `limit`'s counter. A key of several parts (a tuple: the login and the client
++        address) is written as a JSON list, so no part can run into the next."""
++        text = json.dumps(list(key)) if isinstance(key, tuple) else key
++        return hmac.new(self.secret, b'edge_bff.auth_throttle\x00' + limit.scope.encode() + b'\x00'
++                        + limit.counter.encode() + b'\x00' + text.encode('utf-8', 'surrogatepass'),
+                         hashlib.sha256).hexdigest()
+ 
+     def attempt(self, limit, key):
+@@ -72,7 +97,7 @@ class Throttle:
+         if not limit.enforced:
+             self.count((limit, key))
+             return 0
+-        hashed = self.key_hash(limit.scope, key)
++        hashed = self.key_hash(limit, key)
+         with self.store.connect() as c:
+             c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))', ('auth_throttle:' + limit.scope + ':' + hashed,))
+             wait = self._wait(c, limit, hashed)
+@@ -86,7 +111,7 @@ class Throttle:
+         if not limit.enforced:
+             return 0
+         with self.store.connect() as c:
+-            return self._wait(c, limit, self.key_hash(limit.scope, key))
++            return self._wait(c, limit, self.key_hash(limit, key))
+ 
+     @staticmethod
+     def _wait(c, limit, hashed):
+@@ -103,7 +128,7 @@ class Throttle:
+         """One more failure for each (limit, key), in one transaction; recorded whether or not the limit is enforced."""
+         with self.store.connect() as c:
+             for limit, key in events:
+-                self._add(c, limit, self.key_hash(limit.scope, key))
++                self._add(c, limit, self.key_hash(limit, key))
+ 
+     @staticmethod
+     def _add(c, limit, hashed):
+@@ -112,11 +137,13 @@ class Throttle:
+                     ON CONFLICT (scope, key_hash, window_start) DO UPDATE SET count = edge_bff.auth_throttle.count + 1''',
+                   {'scope': limit.scope, 'key': hashed, 'bucket': BUCKET_SECONDS})
+ 
+-    def clear(self, limit, key):
+-        """A successful sign-in forgets the login's failures (as the in-process limiter forgot them)."""
++    def clear(self, limit, *keys):
++        """A successful sign-in forgets its key's failures (as the in-process limiter forgot them); a password reset
++        proved by the email code forgets the account's logins from the resetting client (ERRORS R1-9)."""
+         with self.store.connect() as c:
+-            c.execute('DELETE FROM edge_bff.auth_throttle WHERE scope = %s AND key_hash = %s',
+-                      (limit.scope, self.key_hash(limit.scope, key)))
++            for key in keys:
++                c.execute('DELETE FROM edge_bff.auth_throttle WHERE scope = %s AND key_hash = %s',
++                          (limit.scope, self.key_hash(limit, key)))
+ 
+ 
+ def purge(connection):
+diff --git a/apps/edge-bff/static/edge-labels.js b/apps/edge-bff/static/edge-labels.js
+index e8d8e5ce..90f88d4d 100644
+--- a/apps/edge-bff/static/edge-labels.js
++++ b/apps/edge-bff/static/edge-labels.js
+@@ -17,7 +17,7 @@ window.EdgeLabels = {
+     PLAN_EXPIRED:"Your EDGE plan has ended. Renew it to use this again; you are still signed in.",
+     MFA_REQUIRED:"This needs your sign-in code. Enter the code from your authenticator app, then try again.",
+     LIMIT_REACHED:"You have reached your plan's limit. Try again later, or upgrade the plan.",
+-    SIGN_IN_RATE_LIMIT:"Too many sign-in attempts. Wait a minute, then try again.",
++    SIGN_IN_RATE_LIMIT:"Too many sign-in attempts from here. Wait a few minutes, then try again.",
+     // Phase 2 (contract 8a, locked wording, EXEC-UI-1019B): a locked item, an item not released yet, the upgrade prompt,
+     // a plan that has ended, and a capability refusal shown as a toast. No page shows them before Phase 3.
+     paidPlan:"Available on a paid plan",
+@@ -205,7 +205,7 @@ window.EdgeLabels = {
+       mismatch:"The two passwords are not the same.", code:"Enter the 6 digits of the code." },
+     errors: { INVALID_CREDENTIALS:"The login or the password is not right.", CODE_INVALID_OR_EXPIRED:"That code is not valid or has expired. Send a new one.",
+       USERNAME_TAKEN:"That username is taken. Choose another one.",
+-      SIGN_IN_RATE_LIMIT:"Too many attempts. Wait a minute, then try again.", LIMIT_REACHED:"Too many attempts today. Try again tomorrow.",
++      SIGN_IN_RATE_LIMIT:"Too many attempts. Wait a few minutes, then try again.", LIMIT_REACHED:"Too many attempts today. Try again tomorrow.",
+       INVALID_INPUT:"Check the fields and try again.", MFA_INVALID:"That code is not right. Try the newest code.",
+       fallback:"That did not work. Try again in a minute." }
+   }
+diff --git a/apps/edge-bff/tests/conftest.py b/apps/edge-bff/tests/conftest.py
+index c135fff5..df68b07e 100644
+--- a/apps/edge-bff/tests/conftest.py
++++ b/apps/edge-bff/tests/conftest.py
+@@ -34,6 +34,10 @@ def database():
+             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261117_004_edge_bff_catalog_phase3a.sql').read_text())
+             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261118_001_edge_bff_item_families_from_terminal.sql').read_text())
+             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261118_002_edge_bff_terminal_quota.sql').read_text())
++            # the auth fix round of the re-check (verification/edge_multiuser/fix_round/auth.md)
++            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_010_edge_bff_password_identity.sql').read_text())
++            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_011_edge_bff_mfa_pending_enrolment.sql').read_text())
++            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_012_edge_bff_email_outbox_purge.sql').read_text())
+             c.execute('CREATE TABLE public.market_private(secret text)')
+         yield url
+     finally:
+diff --git a/apps/edge-bff/tests/test_auth_flows.py b/apps/edge-bff/tests/test_auth_flows.py
+index 20349361..f7616efc 100644
+--- a/apps/edge-bff/tests/test_auth_flows.py
++++ b/apps/edge-bff/tests/test_auth_flows.py
+@@ -241,10 +241,18 @@ def test_resend_waits_60_seconds_and_sends_at_most_10_a_day(app, store):
+     app.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'ana@example.com', 'purpose': 'register'})
+     assert len(outbox(store, 'ana@example.com')) == 2
+     assert error_code(verify(app, first)) == 'CODE_INVALID_OR_EXPIRED'                    # the new code replaced it
++    # ERRORS R1-13 (fix round): one pending registration is mailed at most 3 times a day (its code and two resends),
++    # so the registrations of others cannot use up the address's emails
+     for _ in range(12):
+         cooldown_over(store)
+         app.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'ana@example.com', 'purpose': 'register'})
+-    assert len(outbox(store, 'ana@example.com')) == 10
++    assert len(outbox(store, 'ana@example.com')) == 3
++    # the address's own budget (SEND_EMAIL): 10 a day, here through the reset codes of an account
++    make_account(TestClient(app.app), store, 'bea@example.com', 'bea_sari')
++    for _ in range(12):
++        cooldown_over(store)
++        app.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'bea@example.com', 'purpose': 'reset'})
++    assert len(outbox(store, 'bea@example.com')) == 10
+     for body in ({'email': 'nobody@example.com', 'purpose': 'register'}, {'email': 'nobody@example.com', 'purpose': 'reset'}):
+         r = app.post('/api/v1/auth/code/resend', headers=ORIGIN, json=body)
+         assert (r.status_code, r.json()) == (202, flows_module.ACCEPTED)
+diff --git a/apps/edge-bff/tests/test_auth_throttle.py b/apps/edge-bff/tests/test_auth_throttle.py
+index d0cd493a..404a70a9 100644
+--- a/apps/edge-bff/tests/test_auth_throttle.py
++++ b/apps/edge-bff/tests/test_auth_throttle.py
+@@ -88,7 +88,7 @@ def test_the_client_address_is_recorded_but_not_enforced(settings, store):
+         assert sign_in(c).status_code == 200
+     ip = [r for r in rows(store) if r['scope'] == 'signin_ip']
+     assert len(ip) >= 1 and sum(r['count'] for r in ip) == 32 > SIGNIN_IP.allowed
+-    assert ip[0]['key_hash'] == Throttle(store, settings.session_secret).key_hash('signin_ip', '203.0.113.7')
++    assert ip[0]['key_hash'] == Throttle(store, settings.session_secret).key_hash(SIGNIN_IP, '203.0.113.7')
+ 
+ 
+ def test_keys_are_stored_only_as_keyed_hashes(settings, store):
+@@ -98,9 +98,9 @@ def test_keys_are_stored_only_as_keyed_hashes(settings, store):
+     assert {r['scope'] for r in found} == {'signin_email', 'signin_ip'}
+     login = [r['key_hash'] for r in found if r['scope'] == 'signin_email'][0]
+     throttle = Throttle(store, settings.session_secret)
+-    assert login == throttle.key_hash('signin_email', 'someone@example.com')
++    assert login == throttle.key_hash(SIGNIN_LOGIN, ('someone@example.com', 'testclient'))
+     assert login != hashlib.sha256(b'someone@example.com').hexdigest()
+-    assert login != Throttle(store, 'another-secret-' * 3).key_hash('signin_email', 'someone@example.com')
++    assert login != Throttle(store, 'another-secret-' * 3).key_hash(SIGNIN_LOGIN, ('someone@example.com', 'testclient'))
+     with store.connect() as db:
+         dump = str(db.execute('SELECT * FROM edge_bff.auth_throttle').fetchall()).lower()
+     assert 'someone' not in dump and 'example' not in dump and 'testclient' not in dump
+@@ -131,9 +131,9 @@ def test_rows_older_than_two_days_are_purged_with_the_sessions(settings, store):
+     throttle.count((SIGNIN_LOGIN, 'fresh'), (SIGNIN_LOGIN, 'old'))
+     with store.connect() as db:
+         db.execute("UPDATE edge_bff.auth_throttle SET window_start = now() - interval '2 days 1 minute' WHERE key_hash = %s",
+-                   (throttle.key_hash('signin_email', 'old'),))
++                   (throttle.key_hash(SIGNIN_LOGIN, 'old'),))
+     store.cleanup_sessions()
+-    assert [r['key_hash'] for r in rows(store)] == [throttle.key_hash('signin_email', 'fresh')]
++    assert [r['key_hash'] for r in rows(store)] == [throttle.key_hash(SIGNIN_LOGIN, 'fresh')]
+ 
+ 
+ def test_the_migration_refuses_a_second_run_and_grants_no_truncate(database, store):
+diff --git a/apps/edge-bff/tests/test_cp0_reserved_owner.py b/apps/edge-bff/tests/test_cp0_reserved_owner.py
+index b95298a8..673f38e0 100644
+--- a/apps/edge-bff/tests/test_cp0_reserved_owner.py
++++ b/apps/edge-bff/tests/test_cp0_reserved_owner.py
+@@ -22,3 +22,28 @@ def test_edge_owner_is_never_a_reserved_owner_key(settings, owner):
+     assert reserved_owner(owner) or owner == 'default'
+     with pytest.raises(ValueError):
+         dataclasses.replace(settings, owner=owner, admin_owners=(owner,)).validate()
++
++
++# ---- fix round (verification/edge_multiuser/fix_round/auth.md, R1-3) ---------------------------------------------------
++# The refuters' correction: the check must not refuse edge-private (the live EDGE_OWNER and the seed's own key, which
++# accounts.reserved_owner also reserves), so it is keyed on Orc's test-owner rule and 'default' only.
++
++@pytest.mark.parametrize('owner', ['edge-private', 'local-test-owner', 'owner-1', 'golden', 'testing-x'])
++def test_an_owner_key_orc_does_not_reserve_still_validates(settings, owner):
++    dataclasses.replace(settings, owner=owner, admin_owners=(owner,)).validate()
++
++
++def test_an_admin_owner_orc_reserves_is_refused_too(settings):
++    with pytest.raises(ValueError, match='EDGE_ADMIN_OWNERS'):
++        dataclasses.replace(settings, admin_owners=(settings.owner, 'golden-suite')).validate()
++
++
++def test_edge_bff_reads_the_same_test_owner_rule_as_market_ai_orc():
++    """One rule in two services (market-ai-orc app/conversations.py TEST_OWNER_RE, edge-bff accounts.ORC_TEST_OWNER):
++    the pattern texts stay the same, so the boundary cannot move in one service only."""
++    import re
++    from pathlib import Path
++    from app.accounts import ORC_TEST_OWNER
++    source = (Path(__file__).resolve().parents[2] / 'market-ai-orc/app/conversations.py').read_text()
++    orc = re.search(r'TEST_OWNER_RE = re\.compile\(r"\^\((.+)\)\$"\)', source).group(1)
++    assert orc == ORC_TEST_OWNER.pattern
+diff --git a/apps/edge-bff/tests/test_fix_auth.py b/apps/edge-bff/tests/test_fix_auth.py
+new file mode 100644
+index 00000000..3b4ececf
+--- /dev/null
++++ b/apps/edge-bff/tests/test_fix_auth.py
+@@ -0,0 +1,222 @@
++"""EXEC-MU-ACCOUNTS fix round of the ultracode re-check, track auth (verification/edge_multiuser/fix_round/auth.md).
++The re-check's own failing tests (test_cp0_reserved_owner, test_cp1a_phase1_auth_check, test_r2_race, test_r2_life,
++test_c2_ops_recheck) are the acceptance of their findings; these lock the parts of the fixes they do not reach:
++
++- R1-9: the sign-in limit is per login and client address, so tries from elsewhere do not keep an account out.
++- R1-16: at most 100 consecutive failed passwords per account (both logins, every address), then 24 h answered as a
++  wrong password; a reset proved by the email code lifts it; after the lock 10 more tries (as the MFA counts).
++- R1-7: a re-enrolment waits beside the confirmed authenticator, which keeps working (its recovery codes too) until a
++  code of the new one confirms it; then the old codes stop.
++- R2-29: new verifiers carry the OWASP cost; a verifier of the old cost still signs in and is replaced at once, and a
++  check costs the same whatever the verifier's age.
++- R2-24: the outbox purge keeps the rows of an address that has an account, and rows not yet sent.
++- R2-37: over the password pool's limit a request is answered 503 with Retry-After at once.
++- R1-9 (wording): a sign-in limit's message says its own wait.
++"""
++import base64
++import hashlib
++import secrets
++
++import pytest
++from fastapi.testclient import TestClient
++
++from app import mfa, security
++from app.accounts import PASSWORD_FAILURE_CAP, PASSWORD_RESTART
++from app.errors import message_of
++from app.main import create_app
++from app.passwords import PasswordWork
++from conftest import FakeOrc
++from test_auth_flows import (PASSWORD, admin_sign_in, app, cooldown_over, db, error_code, last_code,  # noqa: F401
++                             make_account, on, outbox)
++from test_edge import ORIGIN, login
++
++
++def sign_in(c, login_, password, address=None):
++    headers = {**ORIGIN, **({'X-Forwarded-For': address} if address else {})}
++    return c.post('/api/v1/auth/sign-in', headers=headers, json={'login': login_, 'password': password})
++
++
++# ---- R1-9: per login and client address ----------------------------------------------------------------------------
++
++def test_tries_from_another_address_do_not_keep_the_owner_out(settings, store):
++    with TestClient(create_app(settings, store, FakeOrc())) as c:
++        for _ in range(10):
++            assert sign_in(c, 'owner', 'wrong', '198.51.100.7').status_code == 401
++        r = sign_in(c, 'owner', 'wrong', '198.51.100.7')
++        assert r.status_code == 429 and error_code(r) == 'SIGN_IN_RATE_LIMIT'
++        assert sign_in(c, 'owner', 'local-test-password', '203.0.113.9').status_code == 200
++
++
++def test_a_sign_in_limit_says_its_own_wait():
++    assert message_of('SIGN_IN_RATE_LIMIT', 429, {'retry_after_s': 931}) == (
++        'Too many sign-in attempts from here. Wait 16 minutes, then try again.')
++    assert message_of('SIGN_IN_RATE_LIMIT', 429, {'retry_after_s': 30}).endswith('Wait less than a minute, then try again.')
++    assert 'a few minutes' in message_of('SIGN_IN_RATE_LIMIT', 429, {})
++
++
++# ---- R1-16: the per-account cap of consecutive failures --------------------------------------------------------------
++
++def fail_across_addresses(c, n, logins=('ana_putri', 'ana@example.com')):
++    """n wrong passwords spread over both logins and several client addresses (each under its own 10 per 15 min)."""
++    for i in range(n):
++        assert sign_in(c, logins[i % len(logins)], 'not the password', f'198.51.100.{i // 9 + 1}').status_code == 401
++
++
++def failures(store):
++    return db(store, "SELECT sign_in_failures, sign_in_locked_until FROM edge_bff.identities i JOIN edge_bff.users u "
++                     "USING (user_id) WHERE u.email='ana@example.com'")[0]
++
++
++def test_the_100th_consecutive_failure_locks_the_password_and_a_reset_lifts_it(app, store):
++    make_account(app, store)
++    stranger = TestClient(app.app)
++    fail_across_addresses(stranger, 3)                       # one count for the account, whatever login and address
++    assert failures(store) == {'sign_in_failures': 3, 'sign_in_locked_until': None}
++    db(store, 'UPDATE edge_bff.identities SET sign_in_failures = %s WHERE sign_in_failures = 3', PASSWORD_FAILURE_CAP - 4)
++    fail_across_addresses(stranger, 3)
++    assert failures(store)['sign_in_failures'] == PASSWORD_FAILURE_CAP - 1 and failures(store)['sign_in_locked_until'] is None
++    fail_across_addresses(stranger, 1)                       # the 100th: still checked, and it starts the lock
++    row = failures(store)
++    assert row['sign_in_failures'] == PASSWORD_FAILURE_CAP and row['sign_in_locked_until'] is not None
++    # locked: the right password from a fresh address is answered as a wrong one (OWASP: the same answer), uncounted
++    r = sign_in(TestClient(app.app), 'ana_putri', PASSWORD, '203.0.113.50')
++    assert (r.status_code, error_code(r)) == (401, 'INVALID_CREDENTIALS')
++    assert failures(store)['sign_in_failures'] == PASSWORD_FAILURE_CAP
++    # the way back: a reset proved by the email code
++    cooldown_over(store)
++    assert app.post('/api/v1/auth/password/forgot', headers=ORIGIN, json={'email': 'ana@example.com'}).status_code == 202
++    body = {'email': 'ana@example.com', 'code': last_code(store, 'ana@example.com'), 'password': 'my new password',
++            'password_repeat': 'my new password'}
++    assert app.post('/api/v1/auth/password/reset', headers=ORIGIN, json=body).status_code == 200
++    assert sign_in(TestClient(app.app), 'ana@example.com', 'my new password', '203.0.113.50').status_code == 200
++
++
++def test_after_the_lock_ends_ten_more_tries_and_a_success_clears_the_count(app, store):
++    make_account(app, store)
++    db(store, "UPDATE edge_bff.identities SET sign_in_failures = %s, sign_in_locked_until = now() - interval '1 second' "
++              "WHERE user_id = (SELECT user_id FROM edge_bff.users WHERE email = 'ana@example.com')", PASSWORD_FAILURE_CAP)
++    fail_across_addresses(TestClient(app.app), PASSWORD_FAILURE_CAP - PASSWORD_RESTART - 1, ('ana_putri',))
++    assert failures(store) == {'sign_in_failures': PASSWORD_FAILURE_CAP - 1, 'sign_in_locked_until': None}
++    # the 10th try after the lock: still checked (it is the 100th), here the right password: signs in and clears
++    assert sign_in(TestClient(app.app), 'ana_putri', PASSWORD, '203.0.113.60').status_code == 200
++    assert failures(store) == {'sign_in_failures': 0, 'sign_in_locked_until': None}
++
++
++# ---- R1-7: a re-enrolment waits beside the confirmed authenticator ---------------------------------------------------
++
++def test_the_confirmed_authenticator_works_until_the_new_one_is_proved(app, store, on):
++    flows = app.app.state.auth_flows
++    now = {'t': 1_800_000_000.0}
++    flows.clock = lambda: now['t']
++    h = admin_sign_in(app)
++    first = app.post('/api/v1/auth/mfa/enroll', headers=h).json()
++    old = base64.b32decode(first['secret'] + '=' * (-len(first['secret']) % 8))
++    step = int(now['t']) // 30
++    ok = app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': mfa.code_at(old, step)})
++    assert ok.status_code == 200
++    h_ok = {**ORIGIN, 'X-CSRF-Token': ok.json()['csrf_token']}
++    second = app.post('/api/v1/auth/mfa/enroll', headers=h_ok).json()
++    new = base64.b32decode(second['secret'] + '=' * (-len(second['secret']) % 8))
++    # meanwhile the old authenticator and an old recovery code still sign in; a new recovery code does not yet
++    other = TestClient(app.app)
++    now['t'] += 30
++    assert other.post('/api/v1/auth/mfa/verify', headers=admin_sign_in(other),
++                      json={'code': mfa.code_at(old, step + 1)}).status_code == 200
++    other = TestClient(app.app)
++    assert error_code(other.post('/api/v1/auth/mfa/verify', headers=admin_sign_in(other),
++                                 json={'recovery_code': second['recovery_codes'][0]})) == 'MFA_CODE_INVALID'
++    other = TestClient(app.app)
++    assert other.post('/api/v1/auth/mfa/verify', headers=admin_sign_in(other),
++                      json={'recovery_code': first['recovery_codes'][0]}).status_code == 200
++    # a code of the new authenticator confirms it: from then on the old one and its codes stop
++    now['t'] += 30
++    assert app.post('/api/v1/auth/mfa/verify', headers=h_ok, json={'code': mfa.code_at(new, step + 2)}).status_code == 200
++    assert db(store, 'SELECT pending_nonce FROM edge_bff.mfa_totp') == [{'pending_nonce': None}]
++    now['t'] += 30
++    other = TestClient(app.app)
++    assert error_code(other.post('/api/v1/auth/mfa/verify', headers=admin_sign_in(other),
++                                 json={'code': mfa.code_at(old, step + 3)})) == 'MFA_CODE_INVALID'
++    other = TestClient(app.app)
++    assert error_code(other.post('/api/v1/auth/mfa/verify', headers=admin_sign_in(other),
++                                 json={'recovery_code': first['recovery_codes'][1]})) == 'MFA_CODE_INVALID'
++    other = TestClient(app.app)
++    assert other.post('/api/v1/auth/mfa/verify', headers=admin_sign_in(other),
++                      json={'recovery_code': second['recovery_codes'][0]}).status_code == 200
++
++
++# ---- R2-29: the scrypt cost ------------------------------------------------------------------------------------------
++
++def legacy_verifier(password):
++    salt = secrets.token_bytes(16)
++    value = hashlib.scrypt(security.normal_password(password).encode(), salt=salt, n=16384, r=8, p=1, dklen=32)
++    return f'scrypt${salt.hex()}${value.hex()}'
++
++
++def test_new_verifiers_carry_the_owasp_cost_and_old_ones_still_check():
++    made = security.password_verifier('a long enough password')
++    assert made.startswith('scrypt$n=16384,r=8,p=5$') and security.verifier_parts(made)[0] == security.COST
++    assert security.verify_password('a long enough password', made)
++    old = legacy_verifier('a long enough password')
++    assert security.verify_password('a long enough password', old) and security.needs_rehash(old)
++    assert not security.needs_rehash(made)
++    # an unknown cost is never derived (a verifier cannot ask for an unbounded derivation)
++    assert not security.verify_password('x', made.replace('p=5', 'p=9'))
++    assert not security.is_verifier('scrypt$n=1048576,r=8,p=1$' + '0' * 32 + '$' + '0' * 64)
++
++
++def test_a_check_costs_the_same_whatever_the_verifiers_age(monkeypatch):
++    work = []
++    real = security._derive
++    monkeypatch.setattr(security, '_derive', lambda text, salt, cost: work.append(cost[2]) or real(text, salt, cost))
++    security.verify_password('a long enough password', security.password_verifier('a long enough password'))
++    new, work[:] = sum(work[1:]), []                      # the first derivation made the verifier
++    security.verify_password('a long enough password', legacy_verifier('a long enough password'))
++    assert new == sum(work) == security.COST[2]
++
++
++def test_a_sign_in_replaces_a_verifier_of_the_old_cost(app, store):
++    make_account(app, store)
++    db(store, "UPDATE edge_bff.identities SET verifier = %s WHERE user_id = (SELECT user_id FROM edge_bff.users "
++              "WHERE email = 'ana@example.com')", legacy_verifier(PASSWORD))
++    assert sign_in(TestClient(app.app), 'ana_putri', PASSWORD).status_code == 200
++    stored = db(store, "SELECT verifier FROM edge_bff.identities i JOIN edge_bff.users u USING (user_id) "
++                       "WHERE u.email = 'ana@example.com'")[0]['verifier']
++    assert stored.startswith('scrypt$n=16384,r=8,p=5$') and security.verify_password(PASSWORD, stored)
++    assert sign_in(TestClient(app.app), 'ana_putri', PASSWORD).status_code == 200
++
++
++def test_the_configured_verifier_may_be_of_either_cost(settings):
++    import dataclasses
++    for verifier in (legacy_verifier('local-test-password'), security.password_verifier('local-test-password')):
++        dataclasses.replace(settings, password_verifier=verifier).validate()
++    with pytest.raises(ValueError, match='EDGE_PASSWORD_VERIFIER'):
++        dataclasses.replace(settings, password_verifier='scrypt$n=16384,r=8,p=7$' + '0' * 32 + '$' + '0' * 64).validate()
++
++
++# ---- R2-24: what the outbox purge keeps ------------------------------------------------------------------------------
++
++def test_the_outbox_purge_keeps_an_accounts_rows_and_unsent_rows(store):
++    db(store, "INSERT INTO edge_bff.users(owner_key, username, email, status) VALUES ('u_' || repeat('a', 24), "
++              "'kept_one', 'kept@example.com', 'active')")
++    for key, to, status in (('a', 'kept@example.com', 'sent'), ('b', 'gone@example.com', 'sent'),
++                            ('c', 'gone@example.com', 'failed'), ('d', 'gone@example.com', 'pending'),
++                            ('e', 'fresh@example.com', 'sent')):
++        db(store, "INSERT INTO edge_bff.email_outbox(idempotency_key, purpose, to_email, status, sent_at, created_at) "
++                  "VALUES (%s, 'reset', %s, %s, CASE WHEN %s = 'sent' THEN now() END, now() - interval '25 hours')",
++           key, to, status, status)
++    db(store, "UPDATE edge_bff.email_outbox SET created_at = now() WHERE idempotency_key = 'e'")
++    store.cleanup_sessions()
++    assert sorted(r['idempotency_key'] for r in outbox(store)) == ['a', 'd', 'e']
++
++
++# ---- R2-37: the password pool's admission --------------------------------------------------------------------------
++
++def test_a_request_over_the_password_pools_limit_is_answered_503_at_once(settings, store, monkeypatch):
++    monkeypatch.setattr(PasswordWork, 'LIMIT', 0)
++    with TestClient(create_app(settings, store, FakeOrc())) as c:
++        r = sign_in(c, 'owner', 'local-test-password')
++        assert (r.status_code, error_code(r), r.headers['retry-after']) == (503, 'SERVICE_UNAVAILABLE', '5')
++        assert db(store, 'SELECT count(*) AS n FROM edge_bff.auth_throttle')[0]['n'] == 0    # no try was counted
++    monkeypatch.setattr(PasswordWork, 'LIMIT', 16)
++    with TestClient(create_app(settings, store, FakeOrc())) as c:
++        login(c)
+diff --git a/apps/edge-bff/tests/test_manual_routes.py b/apps/edge-bff/tests/test_manual_routes.py
+index 86ac9283..51594505 100644
+--- a/apps/edge-bff/tests/test_manual_routes.py
++++ b/apps/edge-bff/tests/test_manual_routes.py
+@@ -50,7 +50,7 @@ def test_manual_steps_need_a_session_and_are_passed_to_orc(settings, store):
+ def test_manual_routes_refuse_an_owner_who_is_not_an_admin(settings, store):
+     """M474 (edge-bff side): an owner outside EDGE_ADMIN_OWNERS reaches neither route, and Orc is never asked."""
+     orc = ManualOrc()
+-    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('someone-else',)), store, orc)) as c:
++    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('another-owner',)), store, orc)) as c:
+         h = login(c)
+         for r in (c.get('/api/v1/dev/manual/steps'), c.post('/api/v1/dev/manual/steps/s1', headers=h, json={})):
+             assert r.status_code == 403, r.text
+diff --git a/apps/edge-bff/tests/test_principal.py b/apps/edge-bff/tests/test_principal.py
+index 992fd4a5..18669ac0 100644
+--- a/apps/edge-bff/tests/test_principal.py
++++ b/apps/edge-bff/tests/test_principal.py
+@@ -74,7 +74,7 @@ def test_settings_owner_is_read_only_by_the_seed_and_the_switch_off_mapping():
+ def test_switch_off_the_principal_is_user_one_and_the_session_keeps_todays_keys(settings, store):
+     # an EDGE_ADMIN_OWNERS that does not list the configured owner (the conftest settings list it, as production's
+     # default): no capability, as rights.py gave before Phase 1
+-    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('someone-else',)), store, FakeOrc())) as c:
++    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('another-owner',)), store, FakeOrc())) as c:
+         login(c)
+         answer = c.get('/api/v1/auth/session').json()
+         assert {'authenticated', 'login', 'csrf_token', 'capabilities'} <= set(answer)
+@@ -98,11 +98,11 @@ def test_switch_off_the_principal_is_user_one_and_the_session_keeps_todays_keys(
+ 
+ 
+ def test_switch_off_rights_equal_todays_rights(settings):
+-    for admins, rights in [((), []), ((settings.owner,), ['flow_point_in_time']), (('someone-else',), [])]:
++    for admins, rights in [((), []), ((settings.owner,), ['flow_point_in_time']), (('another-owner',), [])]:
+         s = dataclasses.replace(settings, admin_owners=admins)
+         assert rights_of(switch_off_principal(s, s.owner)) == rights
+-    s = dataclasses.replace(settings, admin_owners=('someone-else',))
+-    assert rights_of(switch_off_principal(s, 'someone-else')) == ['flow_point_in_time']   # a queued job's admin owner
++    s = dataclasses.replace(settings, admin_owners=('another-owner',))
++    assert rights_of(switch_off_principal(s, 'another-owner')) == ['flow_point_in_time']   # a queued job's admin owner
+ 
+ 
+ def test_the_seed_is_made_once_across_replicas_and_follows_the_configured_password(settings, store):
+diff --git a/apps/edge-bff/tests/test_releases.py b/apps/edge-bff/tests/test_releases.py
+index 9a4516ef..7d6b46a8 100644
+--- a/apps/edge-bff/tests/test_releases.py
++++ b/apps/edge-bff/tests/test_releases.py
+@@ -266,7 +266,7 @@ def test_signed_out_is_unauthenticated(settings, store):
+ def test_switch_off_sign_in_through_the_real_principal(settings, store):
+     """The real Phase 1 principal: an owner EDGE_ADMIN_OWNERS does not list has no capability (an empty catalog); listed
+     there (the conftest settings, as production's default) it holds `*` and every entry of the repository file."""
+-    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('someone-else',)), store, FakeOrc())) as c:
++    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('another-owner',)), store, FakeOrc())) as c:
+         login(c)
+         assert entries_of(c, 'indicator') == []
+     admins = dataclasses.replace(settings, admin_owners=(settings.owner,))
+diff --git a/database/migrations/20261119_010_edge_bff_password_identity.sql b/database/migrations/20261119_010_edge_bff_password_identity.sql
+new file mode 100644
+index 00000000..b46bae47
+--- /dev/null
++++ b/database/migrations/20261119_010_edge_bff_password_identity.sql
+@@ -0,0 +1,70 @@
++-- EDGE multi-user, fix round of the ultracode re-check (EXEC-MU-ACCOUNTS; verification/edge_multiuser/fix_round/auth.md;
++-- contract verification/edge_multiuser/access_tiers/CONTRACT.md section 4). The password identity of an account
++-- (edge_bff.identities, 20261116_003), behind the switch EDGE_MULTIUSER (off until Phase 6: with it off edge-bff only
++-- copies EDGE_PASSWORD_VERIFIER into user #1's identity and reads none of the new columns). Two changes:
++-- 1. ERRORS R2-29 (OWASP Password Storage Cheat Sheet: scrypt N=2^17, r=8, p=1, or an equivalent such as N=2^14, r=8,
++--    p=5): a verifier may name its cost, 'scrypt$n=16384,r=8,p=5$<salt hex 32>$<hash hex 64>' (app/security.py, every
++--    new verifier). The form before it, 'scrypt$<salt>$<hash>' (N=2^14, r=8, p=1), stays valid: edge-bff reads both and
++--    replaces the old one at the account's next sign-in (accounts.py create_session `rehash`). The CHECK
++--    identities_password is replaced by one that accepts both; edge-bff accepts only the costs it lists (security.py
++--    COSTS), the CHECK only the shape.
++-- 2. ERRORS R1-16 (NIST SP 800-63B-4 3.2.2: at most 100 consecutive failed attempts per subscriber account): the
++--    consecutive failed passwords of the account over both its logins (username and email) and every client address
++--    (sign_in_failures), and the end of the lock the 100th starts (sign_in_locked_until, 24 h). A success, a password
++--    reset proved by the email code or a change sets them back to 0 and NULL (ERRORS R1-9: the way back); after a lock
++--    the count restarts at 90 (as the MFA counts of 20261117_002, decision N2 of ERRORS M478).
++-- No grant changes (edge_bff_runtime already holds SELECT, INSERT, UPDATE, DELETE on identities). No index: every read
++-- and write of these columns is by the primary key's user_id (UNIQUE (user_id, provider)). Forward-only; refuses a
++-- second run; rollback block at the end (comment).
++BEGIN;
++SET LOCAL lock_timeout = '5s';
++SET LOCAL statement_timeout = '1min';
++DO $preflight$
++BEGIN
++    IF to_regclass('edge_bff.identities') IS NULL OR NOT EXISTS (SELECT 1 FROM pg_constraint
++            WHERE conrelid = 'edge_bff.identities'::regclass AND conname = 'identities_password') THEN
++        RAISE EXCEPTION 'edge_bff.identities or its identities_password check is missing: apply 20261116_003 first';
++    END IF;
++    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name = 'identities'
++               AND column_name IN ('sign_in_failures', 'sign_in_locked_until')) THEN
++        RAISE EXCEPTION 'a column of this migration exists: reconcile before applying';
++    END IF;
++END $preflight$;
++
++ALTER TABLE edge_bff.identities
++    DROP CONSTRAINT identities_password,
++    -- a password identity: its subject is the user_id and its verifier one of the two scrypt forms of app/security.py
++    ADD CONSTRAINT identities_password CHECK (provider <> 'password' OR (subject = user_id::text
++        AND verifier ~ '^scrypt\$(n=[0-9]{1,7},r=[0-9]{1,2},p=[0-9]{1,2}\$)?[0-9a-f]{32}\$[0-9a-f]{64}$')),
++    ADD COLUMN sign_in_failures integer NOT NULL DEFAULT 0 CHECK (sign_in_failures >= 0),
++    ADD COLUMN sign_in_locked_until timestamptz;
++COMMENT ON COLUMN edge_bff.identities.verifier IS 'Password: scrypt$n=<N>,r=<r>,p=<p>$<salt hex>$<hash hex> (app/security.py COST, N=2^14 r=8 p=5), or the form before 20261119_010, scrypt$<salt>$<hash> (N=2^14 r=8 p=1), replaced at the next sign-in.';
++COMMENT ON COLUMN edge_bff.identities.sign_in_failures IS 'Consecutive failed passwords of the account (both logins, every client address), counted before each check; at 100 sign-in is locked 24 h (answered as a wrong password); a success, a reset by email code or a change sets 0 (NIST SP 800-63B-4).';
++COMMENT ON COLUMN edge_bff.identities.sign_in_locked_until IS 'When the password lock the 100th consecutive failure started ends; NULL = no lock. After it the count restarts at 90.';
++
++DO $verify$
++BEGIN
++    IF EXISTS (SELECT 1 FROM edge_bff.identities WHERE provider = 'password' AND sign_in_failures <> 0) THEN
++        RAISE EXCEPTION 'an identity starts with failures';
++    END IF;
++    -- the existing verifiers (the form before this migration) still satisfy the new check: it was re-validated by the
++    -- ADD CONSTRAINT above; both forms are accepted, nothing else is
++    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'edge_bff.identities'::regclass
++                   AND conname = 'identities_password' AND convalidated) THEN
++        RAISE EXCEPTION 'identities_password is missing or not validated';
++    END IF;
++    IF NOT has_table_privilege('edge_bff_runtime', 'edge_bff.identities', 'UPDATE')
++       OR has_table_privilege('public', 'edge_bff.identities', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE') THEN
++        RAISE EXCEPTION 'the grants of edge_bff.identities differ from 20261116_003';
++    END IF;
++END $verify$;
++COMMIT;
++
++-- Rollback (a new forward migration with this body; deploy an edge-bff that writes only the old form first, and replace
++-- every verifier of the new form first, or those accounts cannot sign in: the old form cannot hold their cost):
++-- BEGIN;
++-- ALTER TABLE edge_bff.identities DROP COLUMN sign_in_failures, DROP COLUMN sign_in_locked_until,
++--     DROP CONSTRAINT identities_password,
++--     ADD CONSTRAINT identities_password CHECK (provider <> 'password' OR (subject = user_id::text
++--         AND verifier ~ '^scrypt\$[0-9a-f]{32}\$[0-9a-f]{64}$'));
++-- COMMIT;
+diff --git a/database/migrations/20261119_011_edge_bff_mfa_pending_enrolment.sql b/database/migrations/20261119_011_edge_bff_mfa_pending_enrolment.sql
+new file mode 100644
+index 00000000..1b78035c
+--- /dev/null
++++ b/database/migrations/20261119_011_edge_bff_mfa_pending_enrolment.sql
+@@ -0,0 +1,68 @@
++-- EDGE multi-user, fix round of the ultracode re-check (EXEC-MU-ACCOUNTS; verification/edge_multiuser/fix_round/auth.md;
++-- contract verification/edge_multiuser/access_tiers/CONTRACT.md section 4 "Admin MFA"), behind the switch EDGE_MULTIUSER
++-- (off until Phase 6; with it off nothing reads these tables).
++-- ERRORS R1-7: a new enrolment of an admin's authenticator overwrote the one mfa_totp row at once (confirmed_at NULL,
++-- the recovery codes deleted), so from the moment an admin who had passed MFA began setting up a new phone, the account
++-- had no confirmed second factor: a password-only session could enrol its own authenticator and take the admin's.
++-- Now a confirmed enrolment and a new one wait side by side:
++--   mfa_totp.pending_nonce / pending_created_at  the new enrolment's nonce (its TOTP secret is HMAC(EDGE_MFA_KEY,
++--                                                user_id || nonce), never stored) while it is not confirmed;
++--   mfa_recovery_codes.pending                   the new enrolment's recovery codes, never accepted until it is.
++-- The first code of the new authenticator (app/auth_flows.py use_step) moves pending_nonce to nonce and makes its
++-- recovery codes the account's; until then the confirmed authenticator, its replay guard (last_step) and its recovery
++-- codes keep working. A first enrolment (no confirmed one yet) still uses nonce with confirmed_at NULL.
++-- No grant changes (edge_bff_runtime already holds SELECT, INSERT, UPDATE, DELETE on both tables). No index: every read
++-- and write is by user_id (mfa_totp's primary key; mfa_recovery_codes' primary key (user_id, code_hash)).
++-- Forward-only; refuses a second run; rollback block at the end (comment).
++BEGIN;
++SET LOCAL lock_timeout = '5s';
++SET LOCAL statement_timeout = '1min';
++DO $preflight$
++BEGIN
++    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name = 'mfa_totp'
++                   AND column_name = 'totp_failures') THEN
++        RAISE EXCEPTION 'edge_bff.mfa_totp.totp_failures is missing: apply 20261117_002 first';
++    END IF;
++    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'edge_bff'
++               AND ((table_name = 'mfa_totp' AND column_name IN ('pending_nonce', 'pending_created_at'))
++                    OR (table_name = 'mfa_recovery_codes' AND column_name = 'pending'))) THEN
++        RAISE EXCEPTION 'a column of this migration exists: reconcile before applying';
++    END IF;
++END $preflight$;
++
++ALTER TABLE edge_bff.mfa_totp
++    ADD COLUMN pending_nonce bytea CHECK (octet_length(pending_nonce) = 16),
++    ADD COLUMN pending_created_at timestamptz,
++    -- a new enrolment waits only beside a confirmed one, and never names the confirmed nonce
++    ADD CONSTRAINT mfa_totp_pending CHECK ((pending_nonce IS NULL) = (pending_created_at IS NULL)
++        AND (pending_nonce IS NULL OR (confirmed_at IS NOT NULL AND pending_nonce <> nonce)));
++COMMENT ON COLUMN edge_bff.mfa_totp.pending_nonce IS 'A new enrolment begun by a session that passed MFA, waiting for its first code; the confirmed nonce keeps working until then (use_step makes it the nonce).';
++COMMENT ON COLUMN edge_bff.mfa_totp.pending_created_at IS 'When the waiting enrolment (pending_nonce) was begun.';
++
++ALTER TABLE edge_bff.mfa_recovery_codes
++    ADD COLUMN pending boolean NOT NULL DEFAULT false;
++COMMENT ON COLUMN edge_bff.mfa_recovery_codes.pending IS 'A code of the waiting enrolment (mfa_totp.pending_nonce): never accepted; becomes the account''s (false) when that enrolment is confirmed, and the old codes are deleted then.';
++
++DO $verify$
++BEGIN
++    IF EXISTS (SELECT 1 FROM edge_bff.mfa_totp WHERE pending_nonce IS NOT NULL)
++       OR EXISTS (SELECT 1 FROM edge_bff.mfa_recovery_codes WHERE pending) THEN
++        RAISE EXCEPTION 'an enrolment starts as waiting';
++    END IF;
++    IF NOT has_table_privilege('edge_bff_runtime', 'edge_bff.mfa_totp', 'UPDATE')
++       OR NOT has_table_privilege('edge_bff_runtime', 'edge_bff.mfa_recovery_codes', 'UPDATE')
++       OR has_table_privilege('public', 'edge_bff.mfa_totp', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE')
++       OR has_table_privilege('public', 'edge_bff.mfa_recovery_codes', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE') THEN
++        RAISE EXCEPTION 'the grants of the MFA tables differ from 20261116_003';
++    END IF;
++END $verify$;
++COMMIT;
++
++-- Rollback (a new forward migration with this body; deploy the previous edge-bff first; a waiting enrolment is lost,
++-- its admin begins it again):
++-- BEGIN;
++-- DELETE FROM edge_bff.mfa_recovery_codes WHERE pending;
++-- ALTER TABLE edge_bff.mfa_recovery_codes DROP COLUMN pending;
++-- ALTER TABLE edge_bff.mfa_totp DROP CONSTRAINT mfa_totp_pending, DROP COLUMN pending_nonce,
++--     DROP COLUMN pending_created_at;
++-- COMMIT;
+diff --git a/database/migrations/20261119_012_edge_bff_email_outbox_purge.sql b/database/migrations/20261119_012_edge_bff_email_outbox_purge.sql
+new file mode 100644
+index 00000000..2160222c
+--- /dev/null
++++ b/database/migrations/20261119_012_edge_bff_email_outbox_purge.sql
+@@ -0,0 +1,80 @@
++-- EDGE multi-user, fix round of the ultracode re-check (EXEC-MU-ACCOUNTS; verification/edge_multiuser/fix_round/auth.md;
++-- contract verification/edge_multiuser/access_tiers/CONTRACT.md sections 1, 4 and 5), behind the switch EDGE_MULTIUSER
++-- (off until Phase 6; with it off nothing is written to the outbox, so both reads and the purge find no row).
++-- 1. ERRORS R2-35: the hot reads of edge_bff.email_outbox scanned every email ever sent: the 60-second gap between code
++--    emails of an address (app/auth_flows.py _may_send, on every register, resend, forgot and sign-in restart, by
++--    to_email and created_at) and the sender's claim every 5 s (app/mailer.py OutboxStore.claim: the expired and
++--    suppressed UPDATEs and the SELECT ... FOR UPDATE SKIP LOCKED, all on rows still pending or sending). Two indexes:
++--      email_outbox_to_email_created  (to_email, created_at)          _may_send; the purge by address
++--      email_outbox_unsent            (next_at) WHERE pending/sending  the claim (a handful of rows, whatever the size)
++--    Measured (EXPLAIN, 20 000 sent rows, tests/test_c2_ops_recheck.py): without them all four statements are Seq Scans;
++--    with them none is (the finder's control and this migration's run, fix_round/auth.md).
++-- 2. ERRORS R2-24: the hourly purge deleted a registration never verified 24 h after it was made (CONTRACT 4), but every
++--    outbox row naming its address stayed for ever, and edge_bff_runtime holds no DELETE on the outbox (20261116_003:
++--    "never deleted"). The rule here follows CONTRACT 4's: an address that has no row in edge_bff.users (no account and
++--    no pending registration: never verified and purged, or never registered) keeps no sent, failed, expired or
++--    suppressed outbox row older than 24 h. The function edge_bff.purge_email_outbox() deletes exactly those, at most
++--    10 000 per call; edge_bff_runtime may execute it and still holds no DELETE on the table, so the rule is the only
++--    delete edge-bff can make. The rows of an address that has an account are kept: their retention is a decision of the
++--    user (fix_round/auth.md, decisions; the Privacy text names it), applied later by replacing this function.
++-- Forward-only; refuses a second run; rollback block at the end (comment).
++BEGIN;
++SET LOCAL lock_timeout = '5s';
++SET LOCAL statement_timeout = '1min';
++DO $preflight$
++BEGIN
++    IF to_regclass('edge_bff.email_outbox') IS NULL OR to_regclass('edge_bff.users') IS NULL THEN
++        RAISE EXCEPTION 'edge_bff.email_outbox or edge_bff.users is missing: apply 20261116_003 first';
++    END IF;
++    IF to_regclass('edge_bff.email_outbox_to_email_created') IS NOT NULL OR to_regclass('edge_bff.email_outbox_unsent') IS NOT NULL
++       OR to_regprocedure('edge_bff.purge_email_outbox()') IS NOT NULL THEN
++        RAISE EXCEPTION 'an index or the function of this migration exists: reconcile before applying';
++    END IF;
++END $preflight$;
++
++CREATE INDEX email_outbox_to_email_created ON edge_bff.email_outbox (to_email, created_at);
++CREATE INDEX email_outbox_unsent ON edge_bff.email_outbox (next_at) WHERE status IN ('pending', 'sending');
++
++CREATE FUNCTION edge_bff.purge_email_outbox() RETURNS integer LANGUAGE sql SECURITY DEFINER
++SET search_path = pg_catalog, edge_bff AS $fn$
++    WITH gone AS (
++        SELECT o.outbox_id FROM edge_bff.email_outbox o
++        WHERE o.status IN ('sent', 'failed', 'expired', 'suppressed')
++          AND o.created_at < now() - interval '24 hours'
++          AND NOT EXISTS (SELECT 1 FROM edge_bff.users u WHERE u.email = o.to_email)
++        ORDER BY o.outbox_id LIMIT 10000),
++    deleted AS (DELETE FROM edge_bff.email_outbox o USING gone WHERE o.outbox_id = gone.outbox_id RETURNING 1)
++    SELECT count(*)::integer FROM deleted
++$fn$;
++COMMENT ON FUNCTION edge_bff.purge_email_outbox() IS 'ERRORS R2-24: deletes (at most 10 000 per call) the sent, failed, expired or suppressed outbox rows older than 24 h of addresses with no row in edge_bff.users; called hourly by edge-bff (store.py cleanup_sessions). The rows of an address with an account are kept until the user sets their retention.';
++REVOKE ALL ON FUNCTION edge_bff.purge_email_outbox() FROM PUBLIC;
++GRANT EXECUTE ON FUNCTION edge_bff.purge_email_outbox() TO edge_bff_runtime;
++COMMENT ON TABLE edge_bff.email_outbox IS 'EDGE emails to send (Resend, Idempotency-Key = idempotency_key). A code email carries expires_at = the code expiry and is never sent after it; payload is nulled once sent. Rows of an address with no account are deleted 24 h after they were made (purge_email_outbox); edge_bff_runtime holds no DELETE.';
++
++DO $verify$
++BEGIN
++    -- the runtime still cannot delete from the outbox itself (20261116_003), and may run the purge only
++    IF has_table_privilege('edge_bff_runtime', 'edge_bff.email_outbox', 'DELETE')
++       OR has_table_privilege('edge_bff_runtime', 'edge_bff.email_outbox', 'TRUNCATE') THEN
++        RAISE EXCEPTION 'edge_bff_runtime may delete from edge_bff.email_outbox';
++    END IF;
++    IF NOT has_function_privilege('edge_bff_runtime', 'edge_bff.purge_email_outbox()', 'EXECUTE')
++       OR has_function_privilege('public', 'edge_bff.purge_email_outbox()', 'EXECUTE') THEN
++        RAISE EXCEPTION 'edge_bff.purge_email_outbox() is not for edge_bff_runtime only';
++    END IF;
++    IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE oid = 'edge_bff.purge_email_outbox()'::regprocedure AND prosecdef
++                   AND proconfig @> ARRAY['search_path=pg_catalog, edge_bff']) THEN
++        RAISE EXCEPTION 'edge_bff.purge_email_outbox() must be SECURITY DEFINER with a fixed search_path';
++    END IF;
++    IF (SELECT count(*) FROM pg_indexes WHERE schemaname = 'edge_bff' AND tablename = 'email_outbox'
++        AND indexname IN ('email_outbox_to_email_created', 'email_outbox_unsent')) <> 2 THEN
++        RAISE EXCEPTION 'an index of edge_bff.email_outbox is missing';
++    END IF;
++END $verify$;
++COMMIT;
++
++-- Rollback (a new forward migration with this body; deploy an edge-bff that does not call the purge first):
++-- BEGIN;
++-- DROP FUNCTION edge_bff.purge_email_outbox();
++-- DROP INDEX edge_bff.email_outbox_unsent, edge_bff.email_outbox_to_email_created;
++-- COMMIT;
+diff --git a/scripts/edge_mfa_unlock.py b/scripts/edge_mfa_unlock.py
+index 4052d11f..444aef1e 100644
+--- a/scripts/edge_mfa_unlock.py
++++ b/scripts/edge_mfa_unlock.py
+@@ -1,9 +1,11 @@
+ #!/usr/bin/env python3
+ """EXEC-MU-ACCOUNTS Phase 1 (ERRORS M478 re-check N2): the operator unlock of an EDGE account's second factor.
+ 
+-Clears the consecutive-failure counts and the locks of the account's TOTP enrolment (edge_bff.mfa_totp) and writes one
++Clears the consecutive-failure counts and the locks of the account's TOTP enrolment (edge_bff.mfa_totp) and of its
++password (edge_bff.identities sign_in_failures and sign_in_locked_until, migration 20261119_010: NIST's cap of 100
++consecutive failures; ERRORS R1-16, the way back of an admin without an email address, who has no reset) and writes one
+ edge_bff.admin_audit row in the same transaction (actor 'operator', the reason given). It changes nothing else: the
+-enrolment, the recovery codes and the sessions stay.
++enrolment, the recovery codes, the password and the sessions stay.
+ 
+ Run it as a job on the private network (scripts/onboarding/run_job.sh, like the migrations), never over a public URL:
+     DATABASE_URL=... python3 scripts/edge_mfa_unlock.py --username <username> --reason "<why, who asked>"
+@@ -36,6 +38,15 @@ def unlock(url, username, reason):
+         c.execute('''UPDATE edge_bff.mfa_totp SET totp_failures=0, recovery_failures=0, totp_locked_until=NULL,
+             recovery_locked_until=NULL WHERE user_id=%s''', (row['user_id'],))
+         after = {'totp_failures': 0, 'recovery_failures': 0, 'totp_locked_until': None, 'recovery_locked_until': None}
++        password = c.execute('''SELECT sign_in_failures, sign_in_locked_until FROM edge_bff.identities
++            WHERE user_id=%s AND provider='password' FOR UPDATE''', (row['user_id'],)).fetchone()
++        if password is not None:
++            before.update({'sign_in_failures': password['sign_in_failures'],
++                           'sign_in_locked_until': password['sign_in_locked_until'].isoformat()
++                           if password['sign_in_locked_until'] else None})
++            c.execute('''UPDATE edge_bff.identities SET sign_in_failures=0, sign_in_locked_until=NULL
++                WHERE user_id=%s AND provider='password' ''', (row['user_id'],))
++            after.update({'sign_in_failures': 0, 'sign_in_locked_until': None})
+         c.execute('''INSERT INTO edge_bff.admin_audit(actor_user_id, action, target_user_id, before, after, reason)
+             VALUES (NULL, 'mfa.unlock', %s, %s, %s, %s)''',
+                   (row['user_id'], Jsonb({'actor': 'operator', **before}), Jsonb({'actor': 'operator', **after}),
+-- 
+2.43.0
+

@@ -1,7 +1,7 @@
 From b16d57288f42b49682d60bfab255d454f20d9739 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:13:40 +0000
-Subject: [PATCH 1/4] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
+Subject: [PATCH 1/5] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
  for lists and limits, no shared restrictive list, the seed plan is the one
  whose '*' is true, access.limits reports the applied cap, MFA_REQUIRED says
  whether an authenticator is set up
@@ -440,7 +440,7 @@ index 205d728e..79f4b2e7 100644
 From 68542f2fb3036e6ef993b948b48fb7e37f1983e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:26:59 +0000
-Subject: [PATCH 2/4] EXEC-MU-ACCOUNTS fix round (plans): refusals worded from
+Subject: [PATCH 2/5] EXEC-MU-ACCOUNTS fix round (plans): refusals worded from
  their code and details; no internal key in a worker's capability message
 
 Re-check R2-15: errors.words names the item (display_name), the ended plan, the plan limit with the account's number and
@@ -792,7 +792,7 @@ index 4f57f457..6b36df04 100644
 From 296129a5dc45ccfadc9c657500d4c9a113dffacc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:29:25 +0000
-Subject: [PATCH 3/4] EXEC-MU-ACCOUNTS fix round (plans): the Screener catalog
+Subject: [PATCH 3/5] EXEC-MU-ACCOUNTS fix round (plans): the Screener catalog
  lists only the presets the plan holds, by the rule of /api/v1/catalog
 
 Re-check R1-32: catalog.holds_entry is the one rule (any family of the kind), read by the generic catalog route and the
@@ -947,7 +947,7 @@ index 48c86772..3e149b2b 100644
 From 8884b38b089e66df85c1b65c6a4870aee54a6f19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:32:25 +0000
-Subject: [PATCH 4/4] EXEC-MU-ACCOUNTS fix round (plans): an account preference
+Subject: [PATCH 4/5] EXEC-MU-ACCOUNTS fix round (plans): an account preference
  of one tab is served and stored only while the plan holds that tab
 
 Re-check R1-18 and R1-30 (CONTRACT.md 8b D5: reads need <tab>.view): each sync entry of the storage registry names the
@@ -1411,6 +1411,558 @@ index a5c52e65..6c5d0c00 100644
 +    shared = {k for k, cap in declared.items() if cap is None}
 +    assert shared == {'ml.symbol'}, f'sync keys with no tab capability (only a key every tab shares has none): {shared}'
 +    assert all(cap.endswith('.view') for cap in declared.values() if cap), declared
+-- 
+2.43.0
+
+
+From 54398ef3d816fd905313bb78d03dbeae312bc428 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 08:39:51 +0000
+Subject: [PATCH 5/5] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
+ refusals in words, lands a non-admin account on the Terminal, follows a
+ change of plan and a session ended under a frame
+
+Re-check R2-14, R2-30: edge-client.js ApiError carries the person's words as its message and the code as .code (the
+export's busy check reads the code); a sign-in lands on the Monitor only for an account whose access holds it, else on
+the Terminal. R2-16, R2-31: the shell reads its session again (and the model list and preferences) when
+X-Edge-Entitlements changes on its own answers or in a frame's broadcast (shared module onVersion); MFA_REQUIRED
+carries the principal's version and mfa_enrolled. R2-17: a page whose own session ended (401) says so on the channel and
+to its parent (onSignedOut), and the shell reads its session and goes to sign-in on a 401.
+
+Tests whose landing expectation follows the Terminal decision wait for the landing page instead of the Monitor's
+composer (test_c2web_browser signed_in and W1, e2e_people register, test_c2_e2e_people, test_auth_pages_live).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/app/principal.py              |  3 +
+ apps/edge-bff/shared/edge-session.ts        | 45 +++++++++++++--
+ apps/edge-bff/static/edge-client.js         | 33 ++++++++++-
+ apps/edge-bff/static/edge-labels.js         |  1 +
+ apps/edge-bff/static/edge-session.js        | 61 ++++++++++++++++++++-
+ apps/edge-bff/static/index.html             | 20 ++++---
+ apps/edge-bff/tests/e2e_people.py           |  9 ++-
+ apps/edge-bff/tests/test_auth_pages_live.py | 12 +++-
+ apps/edge-bff/tests/test_c2_e2e_people.py   | 16 ++++--
+ apps/edge-bff/tests/test_c2web_browser.py   |  9 ++-
+ 10 files changed, 182 insertions(+), 27 deletions(-)
+
+diff --git a/apps/edge-bff/app/principal.py b/apps/edge-bff/app/principal.py
+index ed96c955..b6c27ef5 100644
+--- a/apps/edge-bff/app/principal.py
++++ b/apps/edge-bff/app/principal.py
+@@ -275,6 +275,9 @@ class Auth:
+                 raise Refusal(401, 'UNAUTHENTICATED')
+             # a pending admin session (the password was right, the second factor not yet): only the MFA steps, the
+             # session read and sign-out; every other route answers 403 MFA_REQUIRED
++            # the refusals below carry the principal's X-Edge-Entitlements too (main.py protections), so a page whose
++            # account now needs the second factor reads its session again (re-check R2-31)
++            request.state.principal = found
+             if not found.mfa_ok and request.url.path not in MFA_OPEN:
+                 # re-check R2-31: whether an authenticator is set up, as the sign-in answer says, so the words and the
+                 # shell can offer the set-up to an account raised to a plan that needs the second factor
+diff --git a/apps/edge-bff/shared/edge-session.ts b/apps/edge-bff/shared/edge-session.ts
+index a6807306..1d254a1c 100644
+--- a/apps/edge-bff/shared/edge-session.ts
++++ b/apps/edge-bff/shared/edge-session.ts
+@@ -398,9 +398,38 @@ export function onReset(fn: () => void): () => void { resets.add(fn); return ()
+ const clearedHooks = new Set<() => void>();
+ /** `fn` runs when another page cleared the user state (a sign-out, or another account signed in) */
+ export function onCleared(fn: () => void): () => void { clearedHooks.add(fn); return () => { clearedHooks.delete(fn) } }
++/* re-check R2-16, R2-31: a new X-Edge-Entitlements version, seen by this page or broadcast by another (a frame), for a
++   client that keeps its own copy of the session (the shell's edge-client.js `auth`, the model list) */
++const versionHooks = new Set<(version: string | null) => void>();
++const fireVersion = (v: string | null) => versionHooks.forEach(fn => { try { fn(v) } catch { /* the others still run */ } });
++/** `fn` runs when the account's access may have changed (a new X-Edge-Entitlements here or in another page) */
++export function onVersion(fn: (version: string | null) => void): () => void { versionHooks.add(fn); return () => { versionHooks.delete(fn) } }
++/* re-check R2-17 (CONTRACT.md 3: a 401 UNAUTHENTICATED goes to sign-in): a page whose own session ended (idle, sign-out
++   everywhere, a reset or a disable elsewhere) says so to the shell, which holds the sign-in page; a frame has none */
++const signedOutHooks = new Set<() => void>();
++const fireSignedOut = () => signedOutHooks.forEach(fn => { try { fn() } catch { /* the others still run */ } });
++/** `fn` runs when another page of this browser met a 401 of its own session (the shell then reads its own session) */
++export function onSignedOut(fn: () => void): () => void { signedOutHooks.add(fn); return () => { signedOutHooks.delete(fn) } }
++export const SIGNED_OUT = 'signed-out';
++function saySignedOut() {
++  post({ type:SIGNED_OUT });
++  // the shell's frames also tell their parent directly (a browser without BroadcastChannel); same origin only
++  try { if (typeof window !== 'undefined' && window.parent && window.parent !== window) window.parent.postMessage({ type:'edge-session', event:SIGNED_OUT }, location.origin) } catch { /* no parent */ }
++}
+ let role: 'app' | 'shell' = 'app';
+-/** the shell says so at load: a page ('app', the default) reloads on 'cleared'; the shell keeps its own sign-in flow */
+-export function setRole(r: 'app' | 'shell') { role = r }
++let parentListening = false;
++/** the shell says so at load: a page ('app', the default) reloads on 'cleared'; the shell keeps its own sign-in flow
++    and hears a frame's ended session (onSignedOut) */
++export function setRole(r: 'app' | 'shell') {
++  role = r; listen();
++  if (r === 'shell' && !parentListening && typeof addEventListener === 'function') {
++    parentListening = true;
++    addEventListener('message', ((e: MessageEvent) => {
++      try { if (e.origin !== location.origin || e.data?.type !== 'edge-session' || e.data?.event !== SIGNED_OUT) return } catch { return }
++      fireSignedOut();
++    }) as EventListener);
++  }
++}
+ /** reloads an app page (its in-memory state and singletons must not outlive its account); nothing outside a browser */
+ export function reloadPage() {
+   try { if (role === 'app' && typeof location !== 'undefined' && typeof location.reload === 'function') location.reload() } catch { /* not a page */ }
+@@ -416,6 +445,8 @@ function listen() {
+       if (ev?.data?.from === PAGE_ID) return;
+       const t = ev?.data?.type;
+       if (t === 'entitlements' || t === 'cleared') clients.forEach(fn => fn());
++      if (t === 'entitlements') fireVersion(typeof ev?.data?.version === 'string' ? ev.data.version : null);
++      if (t === SIGNED_OUT) fireSignedOut();
+       // another tab signed out or another account signed in: nothing of this page's account may survive in memory
+       if (t === 'cleared') {
+         // sessionStorage is per tab: the page that signed out (or saw another account) cleared only its own (C4)
+@@ -433,7 +464,7 @@ function noteVersion(res: Response) {
+   try { v = res.headers?.get?.(ENTITLEMENTS_HEADER) ?? null } catch { v = null }
+   if (!v || v === entitlements) return;
+   const first = entitlements === null; entitlements = v;
+-  if (!first) { clients.forEach(fn => fn()); post({ type:'entitlements', version:v }) }
++  if (!first) { clients.forEach(fn => fn()); post({ type:'entitlements', version:v }); fireVersion(v) }
+ }
+ 
+ const WRITE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+@@ -460,7 +491,11 @@ export function sessionClient(fetchImpl?: typeof fetch) {
+     let res: Response;
+     try { res = await f(SESSION_URL, { credentials:'same-origin' }) }
+     catch { throw new SessionError(null, 'EDGE could not be reached. Check the connection and try again.') }
+-    if (!res.ok) { const e = await errorOf(res); throw new SessionError(e, accessText(e) || `EDGE answered ${res.status}.`) }
++    if (!res.ok) {
++      const e = await errorOf(res);
++      if (res.status === 401) saySignedOut();
++      throw new SessionError(e, accessText(e) || `EDGE answered ${res.status}.`);
++    }
+     noteVersion(res);
+     const d = await res.json().catch(() => ({}));
+     const owner = d?.owner_key ?? d?.access?.owner_key;
+@@ -510,7 +545,7 @@ export function sessionClient(fetchImpl?: typeof fetch) {
+     noteVersion(res);
+     // a 401 of the page's own account (its session expired) keeps pending writes: they are stamped with the page's
+     // identity and join that account again; only another login, USER_CHANGED or 'cleared' drops them
+-    if (res.status === 401) invalidate();
++    if (res.status === 401) { invalidate(); saySignedOut() }
+     if (res.status === 403 && write && !retried) {
+       const e = await errorOf(res.clone());
+       // the repeat goes out only when the session read again is the page's own account (session() refuses another)
+diff --git a/apps/edge-bff/static/edge-client.js b/apps/edge-bff/static/edge-client.js
+index 6d9e5ff1..a7c96e68 100644
+--- a/apps/edge-bff/static/edge-client.js
++++ b/apps/edge-bff/static/edge-client.js
+@@ -2,8 +2,10 @@
+ (() => {
+   let auth = null;
+   const followers = new Set();
++  // re-check R2-14, R2-30: the message of a refusal is its words for the person (the server's message, else the access
++  // words), which every page and the Monitor show; the code is .code (and .info.code) for the decisions
+   class ApiError extends Error {
+-    constructor(code, status, info) { super(code); this.status = status; this.info = info || null; }
++    constructor(code, status, info, words) { super(words || code); this.code = code; this.status = status; this.info = info || null; }
+   }
+   // EXEC-MU-ACCOUNTS Phase 0 (M471, M473): the error contract, the storage registry and the clean-up are the shared
+   // module's (apps/edge-bff/shared/edge-session.ts, loaded before this file as /edge-session.js, window.EdgeSession).
+@@ -15,6 +17,28 @@
+   // in-memory views of the previous account (reset shows the sign-in page) and reads the session again, showing the
+   // account signed in now. This tab's own broadcasts never reach it, so there is no loop.
+   try { ES()?.onCleared(() => { stopPrefs(); reset(); window.Edge.session().then(a => { if (a) dispatchEvent(new Event('edge-auth')); }); }); } catch { /* not offered */ }
++  // re-check R2-16, R2-31 (CONTRACT.md 8a, 12): the access changed (a new X-Edge-Entitlements on this page's answers or
++  // a frame's broadcast): the session is read again into `auth`, the model list read again, and the page redraws from
++  // them (an account raised to a plan that needs the authenticator is taken to /mfa; a narrowed one loses what it lost)
++  let rereading = null;
++  const followVersion = version => {
++    if (!auth || (version && auth.access?.version === version)) return rereading;
++    return rereading ||= (async () => {
++      try {
++        const fresh = await api('/auth/session');
++        if (fresh && identity(fresh) === identity(auth)) {
++          auth = fresh; models = {data:null, failed:false, pending:null};
++          await settle(Promise.all([loadModels(), loadPrefs(null)]));
++          dispatchEvent(new Event('edge-auth'));
++        }
++      } catch { /* a 401 already reset the page; anything else keeps the session as it is */ }
++      finally { rereading = null; }
++    })();
++  };
++  try { ES()?.onVersion(followVersion); } catch { /* not offered */ }
++  // re-check R2-17 (CONTRACT.md 3): a frame's own session ended (401): the shell reads its session, and a 401 there takes
++  // it to the sign-in page (api() resets on its own 401)
++  try { ES()?.onSignedOut(() => { if (auth) api('/auth/session').catch(() => { /* reset by the 401, or kept */ }); }); } catch { /* not offered */ }
+   // EXEC-MODELS: the offered models are read once per session, before the work page shows (sign-in or a restored
+   // session waits up to 3 s for them), so their arrival never redraws the page while the user types
+   let models = {data:null, failed:false, pending:null};
+@@ -26,6 +50,8 @@
+     const headers = method === 'GET' ? {} : { 'X-CSRF-Token':auth?.csrf_token || pending.csrf || '', ...(body === undefined ? {} : {'Content-Type':'application/json'}) };
+     const res = await fetch('/api/v1' + path, { method, headers, credentials:'same-origin', ...(body === undefined ? {} : {body:JSON.stringify(body)}) });
+     const data = await res.json().catch(() => ({}));
++    const version = res.headers.get('X-Edge-Entitlements');
++    if (version && auth?.access?.version && version !== auth.access.version && path !== '/auth/session' && !PUBLIC_AUTH.test(path)) void followVersion(version);
+     if (!res.ok) {
+       const info = ES()?.readError(res.status, data, res.headers.get('Retry-After')) || null;
+       if (res.status === 401 && !PUBLIC_AUTH.test(path)) reset();
+@@ -40,11 +66,12 @@
+           try { await ES()?.clearUserState(); } catch { /* storage off */ }
+           reset();
+           try { location.reload(); } catch { /* not a page */ }
+-          throw new ApiError('USER_CHANGED', 401, info);
++          throw new ApiError('USER_CHANGED', 401, info, window.EdgeLabels?.auth?.errors?.USER_CHANGED || null);
+         }
+       }
+-      const error = new ApiError(data.error?.code || (info?.legacy && info.kind === 'csrf' ? info.code : res.status === 401 ? 'Authentication required' : 'Request unavailable'), res.status, info);
++      const code = data.error?.code || (info?.legacy && info.kind === 'csrf' ? info.code : res.status === 401 ? 'Authentication required' : 'Request unavailable');
+       const words = info && ES()?.isAccessRefusal(info) ? (info.message || (window.EdgeLabels?.access || {})[info.code] || ES().accessText(info)) : null;
++      const error = new ApiError(code, res.status, info, words || info?.message || null);
+       if (words) error.text = words;
+       throw error;
+     }
+diff --git a/apps/edge-bff/static/edge-labels.js b/apps/edge-bff/static/edge-labels.js
+index e8d8e5ce..ad7ae47a 100644
+--- a/apps/edge-bff/static/edge-labels.js
++++ b/apps/edge-bff/static/edge-labels.js
+@@ -205,6 +205,7 @@ window.EdgeLabels = {
+       mismatch:"The two passwords are not the same.", code:"Enter the 6 digits of the code." },
+     errors: { INVALID_CREDENTIALS:"The login or the password is not right.", CODE_INVALID_OR_EXPIRED:"That code is not valid or has expired. Send a new one.",
+       USERNAME_TAKEN:"That username is taken. Choose another one.",
++      USER_CHANGED:"Another EDGE account signed in on this browser. Reload the page to continue as that account.",
+       SIGN_IN_RATE_LIMIT:"Too many attempts. Wait a minute, then try again.", LIMIT_REACHED:"Too many attempts today. Try again tomorrow.",
+       INVALID_INPUT:"Check the fields and try again.", MFA_INVALID:"That code is not right. Try the newest code.",
+       fallback:"That did not work. Try again in a minute." }
+diff --git a/apps/edge-bff/static/edge-session.js b/apps/edge-bff/static/edge-session.js
+index 91bc83b7..96104a12 100644
+--- a/apps/edge-bff/static/edge-session.js
++++ b/apps/edge-bff/static/edge-session.js
+@@ -1,4 +1,4 @@
+-/* generated from apps/edge-bff/shared/edge-session.ts sha256=5c17de310ac1d991fb7efc733cdcde99777d27391c940182b341044d2101af37 by shared/build-shell.mjs; do not edit */
++/* generated from apps/edge-bff/shared/edge-session.ts sha256=fdf34928792121f1e83a538b32da60a7db997662014cce3d9143a44b6bb6e3e8 by shared/build-shell.mjs; do not edit */
+ var EdgeSession = (() => {
+   var __defProp = Object.defineProperty;
+   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+@@ -26,6 +26,7 @@ var EdgeSession = (() => {
+     LAST_LOGIN_KEY: () => LAST_LOGIN_KEY,
+     PREFERENCES_URL: () => PREFERENCES_URL,
+     SESSION_URL: () => SESSION_URL,
++    SIGNED_OUT: () => SIGNED_OUT,
+     STORAGE: () => STORAGE,
+     SYNC_KEYS: () => SYNC_KEYS,
+     SessionError: () => SessionError,
+@@ -46,6 +47,8 @@ var EdgeSession = (() => {
+     noteLogin: () => noteLogin,
+     onCleared: () => onCleared,
+     onReset: () => onReset,
++    onSignedOut: () => onSignedOut,
++    onVersion: () => onVersion,
+     preferences: () => preferences,
+     prefs: () => prefs,
+     readError: () => readError,
+@@ -413,9 +416,56 @@ var EdgeSession = (() => {
+       clearedHooks.delete(fn);
+     };
+   }
++  var versionHooks = /* @__PURE__ */ new Set();
++  var fireVersion = (v) => versionHooks.forEach((fn) => {
++    try {
++      fn(v);
++    } catch {
++    }
++  });
++  function onVersion(fn) {
++    versionHooks.add(fn);
++    return () => {
++      versionHooks.delete(fn);
++    };
++  }
++  var signedOutHooks = /* @__PURE__ */ new Set();
++  var fireSignedOut = () => signedOutHooks.forEach((fn) => {
++    try {
++      fn();
++    } catch {
++    }
++  });
++  function onSignedOut(fn) {
++    signedOutHooks.add(fn);
++    return () => {
++      signedOutHooks.delete(fn);
++    };
++  }
++  var SIGNED_OUT = "signed-out";
++  function saySignedOut() {
++    post({ type: SIGNED_OUT });
++    try {
++      if (typeof window !== "undefined" && window.parent && window.parent !== window) window.parent.postMessage({ type: "edge-session", event: SIGNED_OUT }, location.origin);
++    } catch {
++    }
++  }
+   var role = "app";
++  var parentListening = false;
+   function setRole(r) {
+     role = r;
++    listen();
++    if (r === "shell" && !parentListening && typeof addEventListener === "function") {
++      parentListening = true;
++      addEventListener("message", ((e) => {
++        try {
++          if (e.origin !== location.origin || e.data?.type !== "edge-session" || e.data?.event !== SIGNED_OUT) return;
++        } catch {
++          return;
++        }
++        fireSignedOut();
++      }));
++    }
+   }
+   function reloadPage() {
+     try {
+@@ -435,6 +485,8 @@ var EdgeSession = (() => {
+         if (ev?.data?.from === PAGE_ID) return;
+         const t = ev?.data?.type;
+         if (t === "entitlements" || t === "cleared") clients.forEach((fn) => fn());
++        if (t === "entitlements") fireVersion(typeof ev?.data?.version === "string" ? ev.data.version : null);
++        if (t === SIGNED_OUT) fireSignedOut();
+         if (t === "cleared") {
+           clearArea("session", !!ev?.data?.signOut);
+           clearedHooks.forEach((fn) => {
+@@ -466,6 +518,7 @@ var EdgeSession = (() => {
+     if (!first) {
+       clients.forEach((fn) => fn());
+       post({ type: "entitlements", version: v });
++      fireVersion(v);
+     }
+   }
+   var WRITE = /* @__PURE__ */ new Set(["POST", "PUT", "PATCH", "DELETE"]);
+@@ -499,6 +552,7 @@ ${identity}`;
+       }
+       if (!res.ok) {
+         const e = await errorOf(res);
++        if (res.status === 401) saySignedOut();
+         throw new SessionError(e, accessText(e) || `EDGE answered ${res.status}.`);
+       }
+       noteVersion(res);
+@@ -549,7 +603,10 @@ ${identity}`;
+       }
+       const res = await f(url, { credentials: "same-origin", ...init, method, headers });
+       noteVersion(res);
+-      if (res.status === 401) invalidate();
++      if (res.status === 401) {
++        invalidate();
++        saySignedOut();
++      }
+       if (res.status === 403 && write && !retried) {
+         const e = await errorOf(res.clone());
+         if (e.kind === "csrf") {
+diff --git a/apps/edge-bff/static/index.html b/apps/edge-bff/static/index.html
+index 1a362cf6..4aa0ac77 100644
+--- a/apps/edge-bff/static/index.html
++++ b/apps/edge-bff/static/index.html
+@@ -11634,7 +11634,11 @@ function PublicThemeButton() {
+ // this page's memory (authFlow), never in storage or the address.
+ const authFlow = {email:"", purpose:"register", sentAt:0, notice:"", resendAfter:60, mfaEnrolled:null};
+ const CODE_SECONDS = 300, RESEND_SECONDS = 60;
+-const authText = error => error?.info?.message || EdgeLabels.auth.errors[error?.info?.code || error?.message] || error?.text || EdgeLabels.auth.errors.fallback;
++const authText = error => error?.info?.message || EdgeLabels.auth.errors[error?.info?.code || error?.code] || error?.text || EdgeLabels.auth.errors.fallback;
++// re-check R2-14 (decision D1: the assistant is the admin's): a sign-in lands on the Monitor only for an account whose
++// access holds it ('*' or monitor.view; the switch-off owner holds '*'); any other account lands on the Terminal
++const landing = () => { const caps = Edge.auth?.access?.capabilities;
++    return !Array.isArray(caps) || caps.includes("*") || caps.includes("monitor.view") ? "/monitor" : "/terminal"; };
+ const passwordProblem = (password, repeat) => { const C = EdgeLabels.auth.check;
+   return password.length < 8 ? C.short : password.length > 256 ? C.long : password !== repeat ? C.mismatch : ""; };
+ // a code was sent: the server says when a new one may be asked for (resend_after_s, 60 s)
+@@ -11681,7 +11685,7 @@ function LoginForm({go, L}) {
+  onLifecycle(v,"config",()=>{let live=true;Edge.config().then(c=>{if(live)updateValue(v,"open",c.multiuser);});return()=>{live=false;};},[]);
+  const notice=authFlow.notice;
+  const submit=async e=>{e.preventDefault();if(busy)return;updateValue(v,"busy",true);updateValue(v,"error","");authFlow.notice="";
+-  try{await Edge.signin(login,password);updateValue(v,"password","");go("/monitor");}
++  try{await Edge.signin(login,password);updateValue(v,"password","");go(landing());}
+   catch(e){const code=e.info?.code;
+    if(code==="MFA_REQUIRED"){authFlow.mfaEnrolled=typeof e.info.details?.mfa_enrolled==="boolean"?e.info.details.mfa_enrolled:null;updateValue(v,"password","");go("/mfa");return;}
+    // a pending registration answers the same 401 as a wrong password (no enumeration; the server emails a new code):
+@@ -11753,7 +11757,7 @@ function CodeForm({go, L}) {
+   const {left, wait} = useClock(v);
+   const submit = async e => { e.preventDefault(); if (busy) return; if (!/^\d{6}$/.test(code)) { updateValue(v, "error", L.check.code); return; }
+     authFlow.email = email.trim(); updateValue(v, "busy", true); updateValue(v, "error", ""); updateValue(v, "bad", {});
+-    try { await Edge.verifyEmail(authFlow.email, code, taken ? username.trim().toLowerCase() : undefined); authFlow.notice = ""; go("/monitor"); }
++    try { await Edge.verifyEmail(authFlow.email, code, taken ? username.trim().toLowerCase() : undefined); authFlow.notice = ""; go(landing()); }
+     catch (e) { if (e.info?.code === "USERNAME_TAKEN") { updateValue(v, "taken", true); updateValue(v, "error", e.info.message || V.usernameTaken); }
+       else { updateValue(v, "error", authText(e)); updateValue(v, "bad", fieldsOf(e)); } } finally { updateValue(v, "busy", false); } };
+   const notice = authFlow.notice;
+@@ -11825,7 +11829,7 @@ function MfaForm({go, L}) {
+   const submit = async e => { e.preventDefault(); if (busy) return;
+     if (!recovery && !/^\d{6}$/.test(code)) { updateValue(v, "error", L.check.code); return; }
+     updateValue(v, "busy", true); updateValue(v, "error", "");
+-    try { await Edge.mfaVerify(recovery ? {recovery_code:code.trim()} : {code}); updateValue(v, "enrol", null); authFlow.mfaEnrolled = null; go("/monitor"); }
++    try { await Edge.mfaVerify(recovery ? {recovery_code:code.trim()} : {code}); updateValue(v, "enrol", null); authFlow.mfaEnrolled = null; go(landing()); }
+     catch (e) {
+       if (e.info?.code === "MFA_LOCKED") { const d = e.info.details || {}, useRecovery = d.use === "recovery_code";
+         const at = typeof d.unlock_at === "string" && !Number.isNaN(Date.parse(d.unlock_at)) ? new Date(d.unlock_at).toLocaleString([], {dateStyle:"medium", timeStyle:"short"}) : "";
+@@ -13344,7 +13348,7 @@ async function downloadTable(view, download) {
+     document.body.append(link); link.click(); link.remove();
+     updateValue(view, "download", null);
+   } catch (error) {
+-    const state = error?.message === "EXPORT_IN_PROGRESS" ? "busy" : "failed";
++    const state = (error?.code ?? error?.message) === "EXPORT_IN_PROGRESS" ? "busy" : "failed";
+     updateValue(view, "download", state);
+     setTimeout(() => { if (view.state.download === state) updateValue(view, "download", null); }, TABLE_DOWNLOAD_NOTE_MS);
+   }
+@@ -13658,7 +13662,7 @@ function App() {
+     const currentPath = () => { const p = routeLocation().pathname; return p.startsWith("/c/") ? "/monitor" : routeOf(p)?.path === p ? p : p === "/markets" ? "/monitor" : "/login"; };
+     const authenticated=initialValue(viewRecord,"authenticated",()=>false),checked=initialValue(viewRecord,"checked",()=>false),open=initialValue(viewRecord,"open",()=>false);
+     onLifecycle(viewRecord,"config",()=>{let live=true;Edge.config().then(c=>{if(live)updateValue(viewRecord,"open",c.multiuser);});return()=>{live=false;};},[]);
+-    onLifecycle(viewRecord,"auth",()=>{const sync=()=>updateValue(viewRecord,"authenticated",Boolean(Edge.auth));addEventListener("edge-auth",sync);Edge.session().then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
++    onLifecycle(viewRecord,"auth",()=>{const sync=()=>{updateValue(viewRecord,"authenticated",Boolean(Edge.auth));updateValue(viewRecord,"accessVersion",Edge.auth?.access?.version ?? null);};addEventListener("edge-auth",sync);Edge.session().then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
+     const path = initialValue(viewRecord, "path", currentPath), setPath = next => updateValue(viewRecord, "path", next);
+     // which account page shows, or null for a workspace page: a session that waits for the authenticator (access.next
+     // "mfa") always shows /mfa; signed in, the account pages lead to the workspace; an `open` page needs registration
+@@ -13703,7 +13707,9 @@ function App() {
+     if (!checked) return element("div",{className:"auth-page"},"Checking session…");
+     const mode = authMode();
+     if (!authenticated || mode !== null) return element(AuthPage,{mode:mode || "login",go,key:mode || "login"});
+-    return path === "/terminal" ? element(TerminalPage,{go}) : path === "/backtest" ? element(BacktestPage,{go}) : path === "/screener" ? element(ScreenerPage,{go}) : path === "/radar" ? element(RadarPage,{go}) : path === "/overview" ? element(OverviewPage,{go}) : path === "/watchlist" ? element(WatchlistPage,{go}) : element(Monitor,{go});
++    // signed in on an account page (a reload at /login): the account's landing page (re-check R2-14)
++    const shown = routeOf(path)?.auth === false ? landing() : path;
++    return shown === "/terminal" ? element(TerminalPage,{go}) : shown === "/backtest" ? element(BacktestPage,{go}) : shown === "/screener" ? element(ScreenerPage,{go}) : shown === "/radar" ? element(RadarPage,{go}) : shown === "/overview" ? element(OverviewPage,{go}) : shown === "/watchlist" ? element(WatchlistPage,{go}) : element(Monitor,{go});
+ }
+ 
+ refresh();
+diff --git a/apps/edge-bff/tests/e2e_people.py b/apps/edge-bff/tests/e2e_people.py
+index 290fa6b3..a569c262 100644
+--- a/apps/edge-bff/tests/e2e_people.py
++++ b/apps/edge-bff/tests/e2e_people.py
+@@ -308,7 +308,14 @@ def register(page, live, username, email):
+     page.wait_for_function("() => location.pathname === '/verify'")
+     page.get_by_label('Code', exact=True).fill(last_code(live.store, email))
+     page.get_by_role('button', name='Verify').click()
+-    page.get_by_placeholder('Ask a research question…').wait_for(timeout=15000)
++    signed_in_workspace(page)
++
++
++def signed_in_workspace(page, seconds=15):
++    """The shell signed in on its landing page: the Monitor for an account that holds it, else the Terminal (fix round,
++    re-check R2-14: a new account holds no monitor.view, decision D1)."""
++    page.wait_for_function("() => window.Edge && Edge.auth !== null && ['/monitor', '/terminal'].includes(location.pathname)",
++                           timeout=seconds * 1000)
+ 
+ 
+ def sign_in(page, live, login, password):
+diff --git a/apps/edge-bff/tests/test_auth_pages_live.py b/apps/edge-bff/tests/test_auth_pages_live.py
+index b6702386..ec2ee3ee 100644
+--- a/apps/edge-bff/tests/test_auth_pages_live.py
++++ b/apps/edge-bff/tests/test_auth_pages_live.py
+@@ -67,6 +67,12 @@ def live_off(settings, store):
+         server.should_exit = True; thread.join(timeout=10); sock.close()
+ 
+ 
++def signed_in_workspace(page):
++    """Signed in, on the account's landing page: the Monitor for an account that holds it, else the Terminal (fix round,
++    re-check R2-14: a registered account holds no monitor.view, decision D1)."""
++    page.wait_for_function("() => window.Edge && Edge.auth !== null && ['/monitor', '/terminal'].includes(location.pathname)")
++
++
+ def test_switch_off_user_one_keeps_a_browser_without_the_mark(live_off, page):
+     """ERRORS M478 C3 B1: EDGE last used on this browser before Phase 0 (no last-login mark), My metrics only in the
+     browser. The first sign-in after the deploy keeps them for user #1 (access.seed) and writes the mark."""
+@@ -114,7 +120,7 @@ def test_register_with_the_emailed_code_signs_in_directly(live, page):
+     assert page.get_by_text('You can send a new code in').is_visible()   # resend_after_s of the answer
+     page.get_by_label('Code', exact=True).fill(last_code(store, 'ana@example.com'))
+     page.get_by_role('button', name='Verify').click()
+-    page.get_by_placeholder('Ask a research question…').wait_for()       # signed in directly (user decision)
++    signed_in_workspace(page)       # signed in directly (user decision)
+     session = page.evaluate("() => fetch('/api/v1/auth/session').then(r => r.json())")
+     assert session['username'] == 'ana_putri' and session['owner_key'].startswith('u_')
+     assert page.evaluate("() => localStorage.getItem('edge-last-login')") == 'owner:' + session['owner_key']
+@@ -128,7 +134,7 @@ def test_forgot_password_resets_and_the_new_password_signs_in(live, page):
+     page.wait_for_function("() => location.pathname === '/verify'")
+     page.get_by_label('Code', exact=True).fill(last_code(store, 'ana@example.com'))
+     page.get_by_role('button', name='Verify').click()
+-    page.get_by_placeholder('Ask a research question…').wait_for()
++    signed_in_workspace(page)
+     page.evaluate("() => Edge.signout()")
+     # one code per email per 60 s (contract section 4): the registration's code is a minute old here
+     db(store, "UPDATE edge_bff.email_outbox SET created_at = created_at - interval '61 seconds'")
+@@ -146,7 +152,7 @@ def test_forgot_password_resets_and_the_new_password_signs_in(live, page):
+     page.get_by_label('Login', exact=True).fill('ana_putri')
+     page.get_by_label('Password', exact=True).fill('another long password')
+     page.get_by_role('button', name='Sign In').click()
+-    page.get_by_placeholder('Ask a research question…').wait_for()
++    signed_in_workspace(page)
+ 
+ 
+ def test_the_admin_enrols_the_authenticator_and_signs_in(live, page):
+diff --git a/apps/edge-bff/tests/test_c2_e2e_people.py b/apps/edge-bff/tests/test_c2_e2e_people.py
+index 5faf7ca1..e7fec680 100644
+--- a/apps/edge-bff/tests/test_c2_e2e_people.py
++++ b/apps/edge-bff/tests/test_c2_e2e_people.py
+@@ -18,8 +18,12 @@ import pytest
+ 
+ playwright = pytest.importorskip('playwright.sync_api')
+ 
++import re  # noqa: E402
++
+ from e2e_people import (CHROMIUM, REFUSAL_WORDS, ROOT, Live, browser_context, capability_refusal, register,  # noqa: E402
+-                        shell_navigate, terminal_drawn)
++                        shell_navigate, signed_in_workspace, terminal_drawn)
++
++CODE = re.compile(r'[A-Z][A-Z0-9_]{3,}')
+ 
+ 
+ @pytest.fixture
+@@ -53,13 +57,17 @@ def test_the_monitor_shows_a_plan_refusal_in_words_not_its_code(live, chromium):
+     Monitor shows error.message, the code (index.html Monitor: setApiError(e.message))."""
+     page = browser_context(chromium).new_page()
+     register(page, live, 'free_user', 'free@example.com')
++    # fix round: a new account lands on the Terminal (re-check R2-14), so the Monitor is opened from the rail; its words
++    # name what the plan lacks (re-check R2-15: errors.words), so the alert is compared with words, not one sentence
++    assert page.evaluate('() => location.pathname') == '/terminal'
++    shell_navigate(page, '/monitor')
+     shown = monitor_alert(page)
+     assert shown != 'CAPABILITY_REQUIRED', 'the Monitor shows the internal code of the refusal, not its words'
+-    assert shown == REFUSAL_WORDS
++    assert not CODE.fullmatch(shown) and 'Monitor' in shown and 'plan' in shown, shown
+     live.subscribe('free_user', 'paid')                 # the paid plan holds monitor.example only (D1)
+     page.reload()
+     page.get_by_placeholder('Ask a research question…').wait_for(timeout=15000)
+-    assert monitor_alert(page) == REFUSAL_WORDS
++    assert monitor_alert(page) == shown
+ 
+ 
+ def test_a_plan_raised_to_one_that_needs_mfa_asks_for_the_authenticator_without_a_reload(live, chromium):
+@@ -72,7 +80,7 @@ def test_a_plan_raised_to_one_that_needs_mfa_asks_for_the_authenticator_without_
+     register(page, live, 'paid_user', 'paid@example.com')
+     live.subscribe('paid_user', 'paid')
+     page.reload()
+-    page.get_by_placeholder('Ask a research question…').wait_for(timeout=15000)
++    signed_in_workspace(page)                           # fix round: the landing page (re-check R2-14)
+     live.subscribe('paid_user', 'admin')
+     shell_navigate(page, '/terminal')                   # the frame's calls answer MFA_REQUIRED with the new version
+     time.sleep(3)
+diff --git a/apps/edge-bff/tests/test_c2web_browser.py b/apps/edge-bff/tests/test_c2web_browser.py
+index 3be7fc42..97afe4f1 100644
+--- a/apps/edge-bff/tests/test_c2web_browser.py
++++ b/apps/edge-bff/tests/test_c2web_browser.py
+@@ -22,12 +22,13 @@ CODE = re.compile(r'[A-Z][A-Z0-9_]{3,}')                          # a refusal co
+ 
+ 
+ def signed_in(page, on, login):
+-    """The shell's sign-in page, as the person uses it; every sign-in lands on /monitor (index.html LoginForm)."""
++    """The shell's sign-in page, as the person uses it. A sign-in lands on the Monitor for an account that holds it and
++    on the Terminal for any other (fix round, re-check R2-14: the paid and free plans hold no monitor.view, D1)."""
+     page.goto(on.origin + '/login')
+     page.get_by_label('Login', exact=True).fill(login)
+     page.get_by_label('Password', exact=True).fill(login + '-password')
+     page.get_by_role('button', name='Sign In').click()
+-    page.wait_for_function("() => location.pathname === '/monitor' && Edge.auth !== null")
++    page.wait_for_function("() => ['/monitor', '/terminal'].includes(location.pathname) && Edge.auth !== null")
+ 
+ 
+ def on_app(settings, store):
+@@ -48,6 +49,10 @@ def test_c2web_w1_a_paid_account_lands_on_the_monitor_and_reads_words_not_a_code
+     on, store = live
+     paid_user(store, 'paula')
+     signed_in(page, on, 'paula')
++    # fix round (re-check R2-14, the decision to land a non-admin account on the Terminal): the paid account lands on
++    # the Terminal, and the Monitor, opened from the rail, says why it is closed in words
++    assert page.evaluate('() => location.pathname') == '/terminal'
++    page.evaluate("() => { history.pushState({}, '', '/monitor'); dispatchEvent(new PopStateEvent('popstate')) }")
+     page.wait_for_timeout(2000)                                   # the Monitor's first reads (conversations, runs)
+     said = [t.strip() for t in page.locator('[role=alert]').all_inner_texts() if t.strip()]
+     # (3e may show an example conversation instead of a refusal; then nothing is said and the test passes)
 -- 
 2.43.0
 
