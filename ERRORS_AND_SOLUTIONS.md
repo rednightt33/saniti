@@ -3265,7 +3265,7 @@ change yet.
 - **Solution:** none yet: `Depends(write)` on the route; a test that walks `app.routes` and asserts that every POST,
   PUT, PATCH and DELETE route except sign-in depends on `write` (derived from the route table, not from a list); the
   403 case sent with the Origin. Needs the user's go.
-- **Status:** OPEN (low severity: the Origin check holds). Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed).
+- **Status:** FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed). History: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`). (One current status since 2026-11-19, re-check R1-45, M503.)
   - Solution built (EXEC-MU-ACCOUNTS Phase 0, B1): `POST /api/v1/dev/manual/steps/{step_id}` now depends on
     `admin_only('admin.manual', write)` (session, CSRF, and an owner in `EDGE_ADMIN_OWNERS`), the GET on
     `admin_only('admin.manual', session)` (`apps/edge-bff/app/main.py`, manual routes).
@@ -3289,7 +3289,10 @@ change yet.
 - **Class:** every relay of upstream JSON in edge-bff (the Terminal today, a Screener worker next).
 - **Solution:** none yet: `public_data` on the gateway's JSON, after checking that no terminal-api field the page reads
   is in `PRIVATE_KEYS`, plus a route-walking test that every relay applies it; needs the user's go.
-- **Status:** OPEN.
+- **Solution built (the user's go 2026-11-19, EXEC.md EXEC-MU-ACCOUNTS "Decisions from the fix round" item 6, "a"):**
+  `terminal_access.relayed`, the one rule of every terminal-api answer edge-bff relays, passes an acknowledged 2xx JSON
+  answer through `client.public_data`; `tests/test_decisions_small.py` walks every route that calls terminal-api (M483).
+- **Status:** fixed on branch fix-int2, not deployed (M483).
 - **Lesson:** what may reach the browser is filtered in one relay helper that every route uses, and a test that walks
   the routes proves it.
 
@@ -8875,7 +8878,700 @@ in its staleness check.
   The screener-worker suite: 112 passed. edge-bff deployed on the green commit.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
-### M482 — EXEC-MU-ACCOUNTS Phase 3b: findings of the independent checkers C1-C3 (2026-11-17, fixed on branch; deployed 2026-11-17 on dev with the switch off: `main` `3698a8a4`, backtest-worker `3e27dd56`, screener-worker `77563efa`/`12810270`, edge-bff `335d78b3` SUCCESS; the user's check 2026-11-18 "aman"; O3b-1 and O3b-2 decided 2026-11-18, built in the 3b follow-up with 3c)
+
+### M503 — Records that contradicted the code, the decisions or themselves (2026-11-18/19, re-check R1-6, R1-45, R2-6, R2-41; fixed on branch fix-int2, not deployed)
+
+- **Found by:** the ultracode re-check of Phases 0-3b, like M483-M502 (the sources are named in M483).
+- **Symptom:** CONTRACT 7's Phase 3 Orc capabilities header (`X-Saniti-Capabilities`) was neither built nor recorded
+  as deferred (R1-6); M468-M475 (and M259, M477, M478, M480, M481) said "OPEN ... not deployed" under headings that
+  said "deployed"; the live comment of `capabilities.kind` said a wrong shape is "ignored" (it reads as the most
+  restrictive since M480), and `terminal.history_days` meant "back from today" against D2 (R1-45); rollback points were
+  listed per service with no order or compatibility floor (R2-6); CONTRACT.md, the single source for every builder and
+  checker, still stated clauses the code no longer follows or never built (R2-41: 13 items, among them
+  `EMAIL_NOT_VERIFIED`, `backtest.result`, per-file page capabilities, `starts_at`).
+- **Root cause (verified):** statuses appended to headings without updating the body in place (AGENTS.md: update in
+  place); live comments and seed texts frozen in applied migrations; contract clauses superseded by later decisions
+  without a record in the contract.
+- **Solution:** CONTRACT.md brought to the code and to the decisions of 2026-11-19 section by section (track records,
+  then tracks decisions and guest): section 7 marks the Orc header deferred under D1; section 17 holds the rollback
+  floors (3b, the 3b follow-up's step 3, `20261118_001`, 3c steps 3 and 4, the verifier form, the site queues, the
+  pre-Phase-1 builds, 3d, the guest build) and the rule that the live site stays at or above every floor; the R2-41
+  items in sections 1, 2, 4, 7, 8, 8a, 8b, 9, 10 and 15. Migration `20261119_040` part 3 (not applied) resets the
+  `capabilities.kind` comment and the `terminal.history_days` means. In this file: M259 and M468-M481 carry one current
+  status each (heading and Status line, nothing deleted); M473's sentence on `test_storage_registry.py` and M478's N4
+  bound are corrected; M260 and M481 "C3 gaps" carry their new state.
+- **Tests:** `tests/test_contract_records.py` (the deletion procedure against the migrations, the recipients against
+  the code and pages); the 040 `$verify$` block.
+- **Status:** fixed on branch fix-int2, not deployed (the contract and this file are records; the migration not
+  applied).
+- **Lesson:** a contract clause changes in the commit that changes the behaviour; a status is updated in place, never
+  appended; a live comment frozen in an applied migration is reset by a forward migration.
+
+### M502 — Tests and CI that did not hold what they claimed: suites wired into no workflow, walks scoped by hand, membership standing in for behaviour, requirements held by no test (2026-11-18/19, re-check R1-15, R1-21, R1-27, R1-28, R1-39, R1-40, R1-44, R1-46, R2-40, and one found at integration; fixed on branch fix-int2, not deployed)
+
+- **Symptom:**
+  - CI never ran the shared session module's tests (Terminal vitest), the Overview, Radar and Watchlist page tests, or
+    any Playwright test of edge-bff, so a sign-out that keeps the account's data (an M473 regression) passed every job
+    (R1-39); market-ai-orc's conversation-ownership tests were skipped in CI (R1-40); `static/edge-session.js` was
+    compared with its build by no job, and the generated-file rule missed `build-shell.mjs` (R1-44);
+  - the two-user acceptance test (CONTRACT 13.3) left out several owned kinds and every cross-owner write by id
+    (R1-21); the 3a route walks were scoped by module and path (R1-27, M481 "C3 gaps"); the SSE `monitor.view`
+    re-check had no test, and a TestClient cannot test it (R1-28, M481 "C3 gaps");
+  - the route walk accepted a hook route listed in `HOOK_ROUTES` whatever its handler did (R1-15); three database
+    backstops no test locked (R1-46); contract requirements whose code no test held (the session's absolute lifetime
+    in both modes, the MFA 429 `Retry-After`, the default `no-store`, the names loaded at start and others) (R2-40);
+  - found at this integration: terminal-api's three real-server tests of the fix round
+    (`test_terminal_fix_round.py::test_frees_in_reads_the_window_on_a_real_server`,
+    `::test_the_gateway_state_reads_the_row_on_a_real_server`, `test_guest_tickers.py::test_the_store_counts_each_visitor_apart_on_a_real_server`)
+    failed with `UndefinedTable terminal.subscriber` on the bare PostgreSQL that CI's terminal-api job provides; the
+    builders had run them on a database they prepared by hand.
+- **Root cause (verified):** suites existed without a workflow step (the edge-bff job installed `requirements.txt`
+  only, so every Playwright test skipped; the Orc job had no Postgres, and the three `test_request_data` errors that
+  kept it off were the SQL Governor's missing `pyarrow`); `test_storage_registry.py` compared only the source sha256
+  named in the copy's first line, and `scripts/tests/test_generated_files.py` looked for generators only in `scripts`
+  folders; walks listed kinds and modules by hand; a registry membership stood in for the behaviour it names; tests
+  needing a schema assumed one instead of building it.
+- **Solution:**
+  - `.github/workflows/backend-tests.yml`: job `edge-bff-pages` (Terminal, Overview, Radar, Watchlist: build and
+    vitest); job `edge-bff` installs `requirements-dev.txt` and Chromium and builds the Terminal and Watchlist pages;
+    the Orc job gets `postgres:16` and `ORC_TEST_POSTGRES_URL`, and `apps/market-ai-orc/requirements-dev.txt` names the
+    Governor's requirements; `generated-files.yml` job `edge-bff`; `apps/edge-bff/tests/test_shell_copy_build.py`
+    (marked `generated_file`) runs `node shared/build-shell.mjs --check`; `generators()` finds any tracked script that
+    reads `--check` itself; `EDGE_TEST_REQUIRE_NODE=1` turns a missing toolchain into a failure in CI;
+  - `tests/test_two_users_every_route.py` derives the owned kinds from the schema (every `edge_bff` table with an owner
+    key) and the routes from `app.routes`; `test_route_table.py` walks every `/api` route; `test_run_stream_live.py`
+    runs edge-bff on a live local server; `app/hooks.py signed(path, secret)` is the dependency every hook route
+    carries, built from its `HOOK_ROUTES` entry; `test_db_backstops.py`; `test_contract_requirements.py` (one test per
+    requirement, each failing on the finder's mutation; two code fixes it found: `register_verify` sets
+    `request.state.principal`, and `pages.py` `NOT_CONFIGURED` no longer names the settings);
+  - integration (commit `790c28fc`): `apps/terminal-api/tests/conftest.py` builds, for a server without the terminal
+    schema, a disposable database from every `*_terminal_*.sql` migration that creates or alters a `terminal.*`
+    object, after empty stand-ins of the public tables those files grant on (both derived from the files), and drops it
+    and its roles at the end; a server that already holds the schema is used as it is.
+- **Tests:** `tests/test_cdb_ci_coverage.py` (every package under `apps/` with a test script is run by a workflow step;
+  the edge-bff job runs its browser tests; the Orc job its Postgres tests; the shell copy compared), the files named
+  above; terminal-api 170 passed on a bare PostgreSQL 16 with the new conftest. Changed (refuters' corrections):
+  `test_cdb_ci_coverage.py` holds the property, not one workflow form; `test_cdb_grants_and_records.py` runs 040's
+  block.
+- **Status:** fixed on branch fix-int2, not deployed (the workflows run once the branch is pushed). M481's "C3 gaps"
+  are closed by R1-27 and R1-28.
+- **Lesson:** a suite wired into no workflow is not a test, and CI fails on a missing toolchain instead of skipping; a
+  walk derives its scope from the whole route table and the schema; a registry membership never stands in for the
+  behaviour it names; a long-lived answer is tested on a live server; a requirement is tested by itself; a test that
+  needs a schema builds it from the migrations.
+
+### M501 — Database guards and history: column privileges passed every grant guard, a user deletion rewrote audit rows, catalog changes left no trace (2026-11-18, re-check R1-41, R1-42, R1-43; fixed on branch fix-int2, not deployed)
+
+- **Symptom:** a privilege held on columns only passed every `$verify$` block, `scripts/provision_edge_bff_login.py`
+  and the apply-job probes (R1-41); the hourly pending-account purge nulled the target of `admin_audit` rows (R1-42); a
+  change of the plan catalog left no trace: `plan_capabilities.updated_at` and `version` were not maintained, and
+  overrides had no `updated_at` (R1-43).
+- **Root cause (verified):** every grant guard was built on `has_table_privilege` only; `admin_audit.actor_user_id`,
+  `target_user_id` and `user_capability_overrides.created_by_user_id` were foreign keys `ON DELETE SET NULL`, run as
+  the table owner; values that feed a version had defaults, no triggers.
+- **Solution:** migration `20261119_040_edge_bff_audit_ids_and_catalog_trace.sql` (not applied): drops those three
+  foreign keys (the ids stay as plain numbers, pseudonymous, never rewritten; CONTRACT 1); trigger
+  `plan_capabilities_trace` raises `version` and sets `updated_at` when a value changes, and
+  `user_capability_overrides.updated_at` is set by `user_capability_overrides_trace` (who changed it is the Phase 4
+  `admin_audit` row); its `$verify$` refuses any column privilege held by `edge_bff_runtime`, `edge_bff_login` or
+  PUBLIC; the provisioning script refuses one held directly, through a role or through PUBLIC. Dry-run, apply and
+  read-back jobs: `verification/edge_multiuser/jobs/migration20261119_040*.params.json`,
+  `column_grants_readback.params.json`.
+- **Tests:** `tests/test_cdb_grants_and_records.py`, `test_db_backstops.py`. Changed: the audit-column test now runs
+  040's `$verify$` block (20261116_003 is applied and can never change).
+- **Status:** fixed on branch fix-int2, not deployed; migration `20261119_040` not applied. With `20261119_023` before
+  it, its two `admin_audit` indexes stay (harmless).
+- **Lesson:** grant guards read column privileges too; an audit or provenance id never carries a referential action;
+  a value that feeds a version is kept by a trigger, not a default.
+
+### M500 — Personal data reaching places no record named: exception text with names in the log, every visitor's address sent to Google Fonts, no account-deletion procedure (2026-11-19, re-check R2-25, R2-27, R2-28; fixed on branch fix-int2, not deployed; terminal-api's part OPEN)
+
+- **Symptom:** an unexpected exception was answered 503, but Starlette re-raised it and uvicorn logged its full text,
+  so PostgreSQL's DETAIL row (email, names, phone) reached the edge-bff log (R2-25); every EDGE page, the sign-in page
+  included, sent each visitor's IP address and user agent to Google Fonts, and no record listed the recipients of
+  personal data (R2-28); no account-deletion procedure existed, and a deletion would leave every owner-keyed row,
+  Orc's conversations and terminal's owner rows (R2-27).
+- **Root cause (verified):** framework logging of unhandled exceptions bypasses the app's redaction rule; third-party
+  requests from pages were never listed; owner-keyed stores have no referential links (by design) and no one
+  procedure.
+- **Solution:**
+  - R2-25: `errors.UnexpectedErrors` (`apps/edge-bff/app/errors.py:237`), the outermost middleware, answers 503 in the
+    contract's shape and logs `request_failed` with method, path, class and SQLSTATE only, never re-raising;
+  - R2-28, the user's "5a pakai inter" (2026-11-19, "Decisions after the fix round" item 5): Inter 4.001 served by EDGE
+    itself (`apps/edge-bff/static/fonts/`: the variable woff2 files in Google's seven subsets, two stylesheets, the OFL
+    licence; `GET /fonts/{name}` with a name pattern); every page policy is `font-src 'self'`; no page, stylesheet or
+    module names a Google host. CONTRACT 18 lists who receives personal data (Resend, the bucket host, Pwned Passwords
+    with a 5-character hash prefix, Railway, OpenRouter for the admin, the Phase 5 payment provider; Google Fonts no
+    longer);
+  - R2-27, the user's "ok rekomendasi" (item 6): CONTRACT 10 "Account deletion" lists every store that names an
+    account and its step: `email_suppression` keeps the address and reason only; Phase 5 payment records kept
+    pseudonymised for the legal period; to build as a Phase 4 admin action (by hand with the user's go per account
+    until then).
+- **Tests:** `tests/test_r2_life.py::test_l2*`; `test_decisions_small.py` (no Google host anywhere, each page's sheet,
+  every policy, the files, the licence, refused names); `test_contract_records.py::test_every_third_party_host_is_a_recorded_recipient_of_personal_data`
+  (changed with the decision: it must no longer find `fonts.googleapis.com`),
+  `::test_the_deletion_procedure_names_every_store_that_names_an_account`. The Terminal look check
+  (`verification/terminal_api/terminal_look/look_check11.mjs`, its stand-in serving `/fonts/`): PASS on the rebuilt
+  Terminal (track decisions).
+- **Status:** fixed on branch fix-int2, not deployed. OPEN: terminal-api has no handler for unexpected exceptions
+  (`apps/terminal-api/app/main.py` maps only `HTTPException` and validation errors), which 3c's owner-row writes need;
+  `.claude/skills/edge-design-system/assets/spec-v1.2.css` still `@import`s Google Fonts (changing the design system
+  rebuilds its claude.ai copy, a publish outside this branch).
+- **Lesson:** every service catches what it did not expect before the framework logs it; a page loads nothing from a
+  third party that the records do not name as a recipient; every owned store has its line in one deletion procedure
+  when it is created.
+
+### M499 — Browser security headers and account pages: inline scripts in the shell's policy, no form-action, no HSTS, cookies without `__Host-`, no page for the password change (2026-11-19, re-check R2-19, R2-20, R2-21, R2-22; fixed on branch fix-int2, not deployed)
+
+- **Symptom:** the shell's CSP kept `script-src 'unsafe-inline'` for its two inline scripts (about 2,600 lines) and had
+  no `form-action`, on the page that will host the Phase 4 admin views of other users' data (R2-19); no page offered the
+  Phase 1 password change or sign-out everywhere (R2-20); no `Strict-Transport-Security`, so the first visit to the live
+  domain could be stripped to HTTP on the sign-in page (R2-21); on the live custom domain sibling hosts are same-site,
+  and the session and registration cookies lacked the `__Host-` prefix (cookie tossing) (R2-22).
+- **Root cause (verified):** headers no service set, and routes built without a page, on a design that until now had
+  one user on a Railway host.
+- **Solution:** the shell's scripts moved to `static/edge-boot.js` and `static/edge-app.js` (a mechanical move;
+  `verification/edge_multiuser/fix_round/plans_move_scripts.py` redoes it), `script-src 'self'` and `form-action 'self'`
+  on every page policy; the account menu's "Password and sign-in" dialog (change password, sign out everywhere; words
+  in `edge-labels.js`); an https origin sends `Strict-Transport-Security: max-age=31536000` (host only, no preload);
+  on a secure origin the cookies are `__Host-edge_session` and `__Host-edge_registration`, with a one-time move of the
+  old name with the switch off.
+- **Tests:** `tests/test_fix_plans.py` (no inline script and no `unsafe-inline`; the dialog, in Chromium; HSTS and the
+  host-only cookie; the cookie move); the dialog was also checked by eye at 1280 and 390 px (track plans).
+- **Status:** fixed on branch fix-int2, not deployed. At deploy: the admin's cookie moves to `__Host-edge_session` on
+  its next request, without a sign-out.
+- **Lesson:** a page that will show other accounts' data gets the strict policy before the data arrives; transport
+  and cookie headers are set by the service, tested on an https origin; every route a person needs has its page.
+
+### M498 — Service identities and credentials: a reserved owner key accepted for `EDGE_OWNER`, the main Orc key kept on orc-test-runner, the gateway's terminal-api account expiring unwatched (2026-11-18, re-check R1-2, R1-3, R1-4; R1-3 fixed on branch fix-int2, not deployed; R1-2 ACCEPTED; R1-4 partly)
+
+- **Symptom:** `EDGE_OWNER` (and an `EDGE_ADMIN_OWNERS` entry) could be set to an owner key Orc reserves for its test
+  key, so with the switch off EDGE would run user #1 under it (R1-3); orc-test-runner still holds
+  `MARKET_AI_ORC_API_KEY`, the Orc key that may name any owner, so once the switch is on any job uploaded there can read
+  every user's conversations (R1-2); the EDGE gateway's terminal-api account expires 2027-10-25 and nothing tracks the
+  date: at expiry every Terminal call fails, which through M483's old relay looked like a sign-out (R1-4).
+- **Root cause (verified):** the reserved-key rule covered server-made keys and database rows but not the configured
+  key; Phase 0 step 4 left the main key on the runner until a runner suite passed with the test key, and no later step
+  removed it (`.railway/railway.ts` declares it beside `MARKET_AI_ORC_TEST_KEY`); the gateway subscriber is a
+  `person` row made "through 2027-10-25" (`DATABASE_CHANGELOG.md:3587`), and `store.account` takes only `active AND
+  expires_at > now()`.
+- **Solution:**
+  - R1-3: `accounts.ORC_TEST_OWNER` (Orc's pattern, compared with Orc's text by a test) and `orc_reserved_owner`;
+    `config.validate` refuses them for `EDGE_OWNER` and every `EDGE_ADMIN_OWNERS` entry, naming the forms with
+    `edge-private` as the example (which still validates); the guest owner `edge-guest` is reserved the same way;
+  - R1-2: the user decided 2026-11-19 ("leave as is, ini setau saya untuk ai bisa lihat log untuk proses enhancement
+    di belakang", "Decisions after the fix round" item 4): the key stays, so agents' jobs on the runner may read
+    conversations for improvement work; CONTRACT 7, 16 and 18 record it, the Privacy text has to state that with the
+    switch on this reaches every user's conversations; `apps/market-ai-orc/tests/test_main_key_readers.py` holds that no
+    code the runner runs today reads the key; the re-check's `test_cp0_runner_key.py` stays in
+    `verification/edge_multiuser/access_tiers/pending/` with that reason;
+  - R1-4: terminal-api's `/ready` reports `gateway_account` {`state`, `days_left`} and logs `gateway_account_<state>`
+    unless ok, without making the service unready; the user decided 2026-11-19 ("a", "Decisions from the fix round"
+    item 5) to extend the row to 2100-01-01 through the audited admin API before the switch goes on (the live row read
+    first, the change recorded in `DATABASE_CHANGELOG.md`).
+- **Tests:** `apps/edge-bff/tests/test_cp0_reserved_owner.py` (with controls that `edge-private` and four other keys
+  validate); terminal-api `test_ready_reports_the_gateway_account_and_stays_ready`,
+  `test_the_gateway_state_reads_the_row_on_a_real_server`. Changed: the admin-owner placeholders `'someone-else'` and
+  `'golden-a'` in four test files (Orc reserves them).
+- **Status:** R1-3 fixed on branch fix-int2, not deployed. R1-2 ACCEPTED (user 2026-11-19). R1-4: the warning fixed
+  on fix-int2, not deployed; the live row's new end OPEN until before the switch goes on.
+- **Lesson:** an identity boundary that rests on a key namespace covers the configured keys too; a credential retired
+  in code is removed from every environment, or its keeping is a recorded decision; a time-limited row that holds up a
+  service credential is watched (a health field and a log line) long before its date.
+
+### M497 — Registration and sign-in input rules: a fresh cookie orphaned the browser's registration, two bounds for one email, names with markup and invisible characters (2026-11-18/19, re-check R1-11, R1-14, R2-18; fixed on branch fix-int2, not deployed)
+
+- **Symptom:** registering again in the same browser within the hour replaced the registration cookie, so the code
+  already mailed could no longer finish the first registration (R1-11); the sign-in body capped the login at 200
+  characters while registration accepted emails of up to 254 (R1-14); registration stored first and last names with
+  markup, bidi overrides, invisible and control characters and formula prefixes, with no rule for showing them to
+  another account (Phase 4 admin pages, exports) (R2-18).
+- **Root cause (verified):** the register route always set a fresh binding cookie when it made nothing; two validators
+  of one value with different bounds; free text from one account had no shape rule.
+- **Solution:** `FlowStore.register` returns `keep_held` when nothing was made and the browser's own cookie names a
+  pending row of the same address (no other address revealed); `accounts.EMAIL_MAX = 254` shared by `checked_email`,
+  `seed_identity` and `Login`; `app/text_rules.py`: NFC, single spaces, 1-100 characters, refusing Cc, Cf (except
+  ZWJ/ZWNJ), Cs, Co, Cn, Zl/Zp, `<` and `>` with a sentence; `export_cell` prefixes a leading `= + - @`, tab or CR with
+  an apostrophe; names are shown through text nodes.
+- **Tests:** `tests/test_cp1a_phase1_auth_check.py` (f4, f7), `test_fix_plans.py` (the name rule and the registration
+  route).
+- **Status:** fixed on branch fix-int2, not deployed.
+- **Lesson:** one value has one validator shared by every form that takes it; free text that another account will see
+  has a shape rule at write time and is shown as text, never markup.
+
+### M496 — Credential state replaced or confirmed against a value read earlier: re-enrolment dropped the confirmed factor, writes proved before a reset applied after it, a code confirmed another session's enrolment, MFA bursts passed the cap (2026-11-18/19, re-check R1-7, R2-9, R2-11, R2-12; fixed on branch fix-int2, not deployed)
+
+- **Symptom:**
+  - an MFA-passed re-enrolment dropped `confirmed_at`, so a password-only session could enrol its own authenticator
+    and take the admin's second factor (R1-7);
+  - a password change or a sign-in proved before a password reset was still applied after it: the change replaced the
+    password the reset set, and the sign-in left a live session the reset never revoked (R2-9);
+  - an MFA code confirmed the enrolment another session wrote after the code was checked (R2-11);
+  - MFA tries sent together all passed the consecutive-failure check: a burst at 99 reached 104 (R2-12).
+- **Root cause (verified):** the one `mfa_totp` row was overwritten in place before the new factor was proved, and the
+  permission was read outside the write; credential writes and session inserts checked no proof in their own
+  transaction and took no common lock; `use_step` confirmed by user id only; the MFA cap was read in one transaction,
+  restarted in a second and counted in a third.
+- **Solution:** migration `20261119_011` (not applied): `mfa_totp.pending_nonce`, `pending_created_at` and
+  `mfa_recovery_codes.pending`; `FlowStore.enroll` decides under the row lock, and a new authenticator beside a
+  confirmed one waits until a code of it proves it, the confirmed one working meanwhile; with the main agent's design
+  value told to the user (2026-11-19), it starts only from a session that passed MFA within the last 10 minutes
+  (`MFA_RECENT_SECONDS`, `apps/edge-bff/app/auth_flows.py:78`, read in the same transaction by the database's clock;
+  else 403 `MFA_REQUIRED` with `details.recent_s`, and the `/mfa` page asks a fresh code, then starts the set-up
+  again). The account's users row is the lock of every credential write (`AccountStore.lock_account`):
+  `create_session` compare-and-sets the verifier the sign-in proved, `FlowStore.change` checks the changing session
+  and the proved verifier, `revoke_all` takes it. `use_step(user_id, CheckedStep(nonce, step))` confirms only the
+  enrolment whose nonce was checked. `FlowStore.mfa_try` decides, checks and counts in one transaction under `SELECT
+  ... FOR UPDATE`.
+- **Tests:** `tests/test_cp1a_phase1_auth_check.py` (f3), `test_fix_auth.py::test_the_confirmed_authenticator_works_until_the_new_one_is_proved`,
+  `test_r2_race.py` (change and sign-in in flight, the confirmation, the bursts), `test_decisions_small.py` (within,
+  past and after a fresh code; the first enrolment; the `/mfa` page in Chromium).
+- **Status:** fixed on branch fix-int2, not deployed; migration `20261119_011` not applied.
+- **Lesson:** a security setting is replaced only once its replacement is proved; a write authorised by an earlier
+  proof checks that proof under a lock in its own transaction; a cap is decided and counted under one lock.
+
+### M495 — Password work: verifiers below OWASP's cost, and every password check on the thread pool all database calls share (2026-11-19, re-check R2-29, R2-37; fixed on branch fix-int2, not deployed; the per-client bound OPEN)
+
+- **Symptom:** verifiers used scrypt N=2^14, r=8, p=1, below OWASP's minimum equivalent (p=5 at this N), with no
+  recorded decision (R2-29); a burst of sign-ins with made-up logins stalled every signed-in user's requests, since
+  nothing bounded sign-ins per client and every derivation ran on the default executor (R2-37).
+- **Root cause (verified):** security parameters inherited from the single-user design without a decision once real
+  accounts arrive; CPU-heavy unauthenticated work on the shared executor next to all database I/O.
+- **Solution:** `security.COST = (16384, 8, 5)` and the verifier names its cost (`scrypt$n=16384,r=8,p=5$<salt>$<hash>`);
+  an old verifier is checked at p=1 and padded with a p=4 derivation, so every check costs the same (M478 N1 kept);
+  a switch-on sign-in with an old verifier stores the new one in its `create_session` transaction; migration
+  `20261119_010` widens the `identities_password` CHECK to both forms. `passwords.PasswordWork`
+  (`apps/edge-bff/app/passwords.py:32`): 4 threads of its own, at most 16 requests in password work at once, the next
+  503 `SERVICE_UNAVAILABLE` with `Retry-After: 5` before any try is counted; the Pwned Passwords call runs there too.
+  Measured: 52 ms per derivation at p=1, 235 ms at p=5. The cost was taken as a design value and told to the user
+  (2026-11-19).
+- **Tests:** `tests/test_fix_auth.py` (new verifiers, equal cost, rehash at sign-in, either form configured, the pool's
+  503), `test_c2_ops_recheck.py::test_a_burst_of_sign_ins_with_made_up_logins_does_not_hold_the_signed_in_users_requests`.
+- **Status:** fixed on branch fix-int2, not deployed; migration `20261119_010` not applied. Rollback floor: once a
+  switch-on sign-in rehashed a verifier, an edge-bff before this branch cannot read it. OPEN: the per-client bound
+  (`SIGNIN_IP`, 30 failures per address per 15 min) waits for the Railway client-address probe of CONTRACT 4 (an
+  enforced per-address limit on a shared address would lock everyone out).
+- **Lesson:** a verifier names its cost so the cost can change; CPU-heavy work reachable without a session gets its
+  own bounded pool; a security parameter "as today" is decided again when real accounts arrive.
+
+### M494 — Authentication limits keyed or counted wrongly: answers that told whether an account exists, limits anyone could hold at their cap, shared counter scopes, sends that held back the reset code (2026-11-18/19, re-check R1-8, R1-9, R1-10, R1-12, R1-13, R1-16, R2-10; fixed on branch fix-int2, not deployed)
+
+- **Symptom:**
+  - the reset answered 429 `LIMIT_REACHED` after 20 wrong codes only for an address with an account (R1-8);
+  - anyone who typed a login could keep it at the sign-in limit, a reset by email code did not lift it, and the
+    message promised a one-minute wait (R1-9);
+  - throttle keys `<prefix>:<value>` shared a scope with caller-typed keys: the login `change:<user_id>` locked that
+    user's password change (R1-10);
+  - `USERNAME_TAKEN` used none of the code's five tries, so one proved code looked up any number of usernames (R1-12);
+  - one registration by another browser plus its resends used all ten of the address's daily emails, against the
+    recorded decision N4 (R1-13);
+  - no consecutive-failure cap per account for the password (NIST SP 800-63B-4: at most 100) (R1-16);
+  - a "password changed" or "account exists" email held back for 60 s the reset code that the email tells the owner to
+    request (R2-10).
+- **Root cause (verified):** the reset's failed codes were counted only under an existing account's user id;
+  `SIGNIN_LOGIN` was keyed by the typed login alone and cleared only by a success; `key_hash` separated keys by scope
+  only; a `taken` answer after a proved code used no try; resends and sign-in restarts were bounded only by the
+  address's shared budget; no per-account password count existed; `_may_send`'s gap counted every outbox row.
+- **Solution (track auth, `fix_round/auth.md`):** counter `CODE_ADDRESS` (the address, 20 a day) raised on every reset
+  try; `SIGNIN_LOGIN` keyed by (normalised login, client address), cleared for the resetting client by a reset proved by
+  the email code, its message carrying the wait; a `counter` label inside the HMAC of every throttle key; both `taken`
+  answers raise the code's attempts; `REGISTRATION_MAIL` (one pending registration mailed at most 3 times a day);
+  `AccountStore.sign_in_try` (`apps/edge-bff/app/accounts.py:264`) decides and counts in one UPDATE before the check, a
+  24 h lock at the 100th consecutive failure answered as a wrong password, restarting at 90, cleared by a success, a
+  reset, a change or `scripts/edge_mfa_unlock.py`, with the switch on only; the 60 s gap reads code purposes only
+  (`CODE_PURPOSES`). Migration `20261119_010` (not applied) adds `identities.sign_in_failures` and
+  `sign_in_locked_until`.
+- **Tests:** `tests/test_cp1a_phase1_auth_check.py` (f1, f2, f5, f6, f8), `test_fix_auth.py`,
+  `test_r2_race.py::*hold_back*`. Changed: `test_auth_flows.py::test_resend_waits_60_seconds_and_sends_at_most_10_a_day`
+  (one registration stops at 3; the address's 10 a day shown through reset codes), `test_auth_throttle.py` (the new
+  key).
+- **Status:** fixed on branch fix-int2, not deployed. ACCEPTED (user 2026-11-19, "Decisions from the fix round" item
+  3, "a"): a "Forgot password" pressed by someone else still replaces the live code, and the address's 10 emails a day
+  stay shared (R1-9 item 3, R1-13's remainder). By design (the main agent's design value told to the user): no
+  100-failure cap on the beta, which keeps a long random admin password. M478's record of N4 is corrected in place.
+- **Lesson:** a limit keyed by a public identifier is keyed with the client too and has a proof-based way out; a cap
+  on a value anyone may type counts alike whether or not an account exists; every counter has its own label inside
+  the key hash; a send gate counts only the sends it exists for.
+
+### M493 — Operational tables without purge or index: outbox rows naming an address kept for ever, its hot reads scanning every email sent, foreign keys to users without an index (2026-11-19, re-check R2-24, R2-34, R2-35; fixed on branch fix-int2, not deployed)
+
+- **Symptom:** the hourly purge deleted a never-verified registration, but every `email_outbox` row naming its address
+  stayed, and edge-bff could not delete outbox rows at all (R2-24); the unauthenticated register, resend and forgot
+  cooldown read and the sender's three claim statements every 5 s scanned the whole outbox (R2-35); the pending purge
+  cost about 25 ms per account (200 accounts: 5.8 s) and every request of an account without a live plan scanned all
+  subscriptions (R2-34). Used email codes and webhook deliveries also piled up.
+- **Root cause (verified):** rows that name a person by value (an address) escape both the cascade of a user deletion
+  and every purge keyed on users; the outbox was append-only with a status queue on top, no DELETE grant and no index
+  for its reads; foreign keys to `edge_bff.users` were added without an index on the referencing column ("the tables
+  are small"), while Postgres scans each referencing table per deleted parent.
+- **Solution:**
+  - migration `20261119_012_edge_bff_email_outbox_purge.sql` (not applied): indexes `email_outbox_to_email_created` and
+    `email_outbox_unsent`; `edge_bff.purge_email_outbox(max_rows)` (SECURITY DEFINER, fixed `search_path`, EXECUTE for
+    `edge_bff_runtime` only; the runtime still holds no DELETE) deletes the sent, failed, expired or suppressed rows of
+    addresses with no account after 24 h and, with the user's decision of 2026-11-19 ("a", "Decisions from the fix
+    round" item 2), every such row after 30 days; `purge_email_hook_events` deletes webhook deliveries after 30 days;
+    `accounts.purge_codes` (`EMAIL_RETENTION_DAYS = 30`) deletes codes that can no longer be used 30 days after they
+    ended; `email_suppression` is never purged (decision R2-27, M500);
+  - migration `20261119_023_edge_bff_account_reference_indexes.sql` (not applied): six indexes on the foreign keys to
+    users; its `$verify$` refuses a foreign key to users without a leading non-partial index. Bounded EXPLAIN (ANALYZE,
+    BUFFERS) at the finder's sizes: the purge of 200 pending accounts 5830.7 ms to 27.4 ms; the resolve of an ended
+    plan 4.68 ms to 0.66 ms; the session cap 8.96 ms to 0.13 ms; `revoke_all` 9.27 ms to 0.24 ms (`fix_round/site.md`).
+- **Tests:** `tests/test_r2_life.py::test_l1*`, `test_fix_auth.py::test_the_outbox_purge_keeps_an_accounts_rows_and_unsent_rows`,
+  `test_c2_ops_recheck.py::test_the_outbox_reads_of_every_send_and_every_sender_turn_use_an_index`,
+  `::test_every_reference_to_an_account_has_an_index`, `test_decisions_small.py` (29 and 31 days on each side of each
+  rule, as a login with the runtime's grants only). Changed with the decision: `test_beta_live_site.py` (six purges,
+  not four).
+- **Status:** fixed on branch fix-int2, not deployed; migrations `20261119_012` and `_023` not applied. OPEN (R2-37):
+  `auth_throttle` grows one row per made-up login; its purge is batched now, an index on `window_start` waits for a
+  measurement.
+- **Lesson:** every operational table gets, with its first row, a retention rule, the index of each hot read and a
+  purge the runtime can run; a row that names a person by value needs its own purge; every foreign key gets an index
+  on its referencing column.
+
+### M492 — Background loops: readiness read once at start, maintenance sharing a try and a transaction with the queue, loop switches that turn off on a typo (2026-11-19, re-check R2-3, R2-33, R2-36; fixed on branch fix-int2, not deployed)
+
+- **Symptom:** a start during a database outage or before its migration served traffic with no AI worker, clean-up or
+  email sender while `/ready` answered 200, and a never-ready build still ran the backtest loop (R2-3, R2-36); a
+  failing hourly clean-up stopped every queued AI run, and the three purges were one 5 s transaction (R2-33);
+  `EDGE_EMAIL_ENABLED` and `EDGE_WORKER_ENABLED` read any value but `true` as off (R2-36).
+- **Root cause (verified):** the lifespan read `store.ready` once and gated the loops on it, while `/ready` re-read it
+  on every healthcheck; `Worker.run` ran `cleanup_sessions` and the claim in one try, with `cleaned_at` set only on
+  success, so a failing clean-up was retried every poll and the claim never reached; `BacktestLoop.run` had the same
+  coupling (prune, reap, claim).
+- **Solution:** `start_up()` (`apps/edge-bff/app/main.py:299`): one attempt under a lock (readiness, seed, catalog names,
+  seed plan, then the loops), retried every `EDGE_POLL_SECONDS` and on each `/ready`, which answers 503 until it
+  succeeded; no loop runs before; with the switch on a failing seed fails the attempt. The purges moved to
+  `worker.Housekeeping` (`app/worker.py:186`), a task of its own: each purge its own transaction, batches of 500, at
+  most 20 a turn, its own try, a doubling backoff up to an hour, a try-lock so two sites never run one purge at once.
+  `BacktestLoop.run` tries prune, reap and claim apart. Loop switches parse with `switch_of`, so a typo stops the start;
+  `email_sender_off` is logged at error level when the switch is on and no sender runs.
+- **Tests:** `tests/test_r2_skew.py::test_a_start_during_a_database_outage_runs_the_ai_worker_once_it_is_ready`,
+  `::test_a_build_that_is_not_ready_claims_no_backtest_job`, `test_c2_ops_recheck.py` (the clean-up, the sender and the
+  worker after a start-up error, the typo switches), `test_beta_live_site.py` (a failing purge, a failing prune).
+  Changed: `test_edge.py` (the "clean at the start, then hourly" rule now held on `Housekeeping`, since the purges left
+  the AI loop).
+- **Status:** fixed on branch fix-int2, not deployed. OPEN: `scripts/restart_postgres.py` reads only `edge-bff`'s
+  `/ready` after a restart (`edge_ready`, `:323`); it gains `edge-bff-live` with the live service (a Railway step).
+- **Lesson:** a background loop starts only after the readiness the healthcheck reports, and the healthcheck sees a
+  missing loop; maintenance never shares a try or a transaction with the primary work; a switch that turns a loop off
+  refuses a value it does not know.
+
+### M491 — Two websites on one database: each site's loops and start-up judged the other's rows by their own switch, code and secrets (2026-11-19, re-check R2-1, R2-2, R2-7, R2-8, R2-13, R2-23, R2-26, R2-38; fixed on branch fix-int2, not deployed)
+
+- **Symptom (the beta/live plan decided 2026-11-19: `edge-bff` the admin's beta with the switch off, `edge-bff-live` the
+  users' site with it on, one database):**
+  - a switch-on session that had not passed MFA, was idle, or belonged to a disabled user #1 became a full `*` session
+    under any edge-bff running with the switch off (R2-1);
+  - every switch-off start copied `EDGE_PASSWORD_VERIFIER` over user #1's password identity, undoing a password change
+    made with the switch on (R2-2);
+  - each site's loops claimed the other's rows (AI jobs, backtest jobs, the email outbox) and processed them under
+    their own switch and code: the switch-off beta would end live users' queued jobs `FAILED CAPABILITY_REQUIRED`
+    (R2-7, R2-13, R2-23, R2-38);
+  - three per-service secrets key shared rows (`EDGE_SESSION_SECRET` for the throttle and CSRF, `EDGE_CODE_SECRET` for
+    email codes, `EDGE_MFA_KEY` for the one `mfa_totp` row per user) with nothing recording that both sites need the
+    same values, and the email log mode was allowed with the switch on in `EDGE_ENVIRONMENT=dev`, where the live site
+    runs (R2-8, R2-26).
+- **Root cause (verified):** `store.session` checked only token, revocation and expiry, while the column comment of
+  `20261116_003` says a switch-off session has `user_id` NULL; `AccountStore.seed` ran `UPDATE identities SET verifier
+  = env` with nothing to tell its own copy from the account's password; the queues had no site column, every claim
+  took any row, and `EDGE_WORKER_ENABLED` started every loop together; per-service configuration keyed shared rows.
+- **Solution (track site, `fix_round/site.md`):**
+  - `store.session` adds `AND user_id IS NULL` (`apps/edge-bff/app/store.py:105`), which also ties each session to the
+    site that made it under the decided pairing;
+  - migration `20261119_022` adds `identities.seed_verifier_sha256`; the seed copies the environment's verifier only
+    while the identity still holds the seed's own copy (`account_seed_password_kept` logged otherwise);
+  - migrations `20261119_020` and `_021` add `site` (`beta` or `live`) to `edge_bff.jobs` and `edge_bff.backtest_jobs`;
+    each site claims, reaps and prunes only its own; per-loop switches (`EDGE_AI_WORKER_ENABLED`, beta only;
+    `EDGE_BACKTEST_LOOP_ENABLED`; `EDGE_HOUSEKEEPING_ENABLED`); the email sender runs only with the switch on (live);
+  - `EDGE_SITE` (beta or live); `config.validate` refuses the pairings the decision rules out; on live every principal
+    is `live_view` (no Monitor or admin capability, no admin right, no lab item, `*` included) and those routes answer
+    404; MFA is decided by the account's own grants, so user #1 needs it on live;
+  - `config.shared_key_marks()` logs a 12-hex HMAC mark of each shared secret in every `startup_done` line, and
+    `.railway/railway.ts` names `edge-bff-live`'s secrets as `${{edge-bff.NAME}}` references; log mode with the switch
+    on needs `EDGE_ENVIRONMENT=local` or an explicit `EDGE_EMAIL_LOG_ALLOWED=true`.
+- **Tests:** `tests/test_r2_skew.py`, `test_beta_live_site.py` (17), `test_r2_trace_beta_live.py` (moved from
+  `pending/` and written for the decided pairing: the checker wrote it for a switch-on beta, which `config.validate`
+  now refuses; the rule and its outcome assertions are unchanged).
+- **Status:** fixed on branch fix-int2, not deployed; migrations `20261119_020`-`_022` not applied (a build of this
+  branch answers `/ready` 503 until they are). To do with the live service: set `EDGE_HOUSEKEEPING_ENABLED=false` on
+  `edge-bff` once `edge-bff-live` runs; the Phase 6 rollback revokes sessions `WHERE user_id IS NOT NULL` before any
+  pre-Phase-1 build starts.
+- **Lesson:** when two service versions share one database, every row a loop claims carries its owner (the site) or
+  the loop has one owner by configuration; a weaker resolver never accepts rows a stronger one wrote; a start-up step
+  never rewrites a row another mode lets the user change; configuration that keys shared rows is the same value on
+  every service, and the start log shows it.
+
+### M490 — Browser state did not follow a change of plan or of user: cached paints of an earlier plan, a shell that never re-read its session, a frame's sign-out unseen, a plan refusal kept as an offline copy, ticker-named keys surviving sign-out (2026-11-18/19, re-check R1-17, R1-19, R1-20, R1-38, R2-16, R2-17, R2-31; fixed on branch fix-int2, not deployed)
+
+- **Symptom:**
+  - the Screener's boot cache painted the last result and catalog of an earlier plan after the plan lost or narrowed
+    the Screener (R1-17, R1-38);
+  - the shell's own session (`Edge.auth`, the model list) never followed `X-Edge-Entitlements`, so an account raised
+    to a plan that needs the second factor was stuck until a reload (R2-16, R2-31);
+  - a session that ended under a tab's frame left the shell signed in (R2-17);
+  - a drawings refusal (403 `CAPABILITY_REQUIRED`) was read as "account unreachable": the drawing was kept in the
+    browser and the message named a connection failure (R1-19);
+  - `browser`-class keys named after the added series' tickers survived sign-out and a change of user (R1-20).
+- **Root cause (verified):** browser copies of answers computed under a principal's entitlements were keyed by login
+  and data version, not by the entitlements version; the shell held a second, unversioned copy of the session beside
+  the shared module's; a frame's session outcome had no channel to the shell; the drawings fallback treated a plan
+  refusal like a network failure; classing a key family by prefix missed account content in the suffix
+  (`ml.assets.flow.<ticker>`).
+- **Solution:** the Screener pointer's identity is the login with `access.version` (`cacheId`) and a refused catalog
+  drops the pointer and the rows; the shared module's `onVersion(fn)` and `edge-client.js` read the header on their own
+  answers and re-read the session, models and preferences; `principal.py` sets `request.state.principal` before the
+  MFA check so `MFA_REQUIRED` carries the header; on a 401 of its own session the shared module posts `signed-out` to
+  the channel and its parent, and the shell re-reads its session; `drawingsApi.ts` keeps the refusal, says its words
+  once and keeps no local copy (a cap does not lock the drawings); `ml.assets.flow.` is a `user` cache family and the
+  registry test refuses a `browser` key built from a ticker or symbol; `edge.watchlist.logos` became a user cache.
+- **Tests:** `screener/tests/smoke/c_p1s_plan_refused_cache.mjs`, `screener/tests/page/page.test.ts`,
+  `tests/test_c2web_browser.py::test_c2web_w3_*`, `w4_*`, `test_c2_e2e_people.py::test_a_plan_raised_to_one_that_needs_mfa_asks_for_the_authenticator_without_a_reload`,
+  Terminal vitest `tests/data/c_p1s_drawings_plan.test.ts`, `c_p1s_browser_keys.test.ts`,
+  `tests/test_storage_registry.py::test_a_browser_key_family_never_names_a_ticker_or_symbol`.
+- **Status:** fixed on branch fix-int2, not deployed. M471's and M473's own fixes stand; these were sites they did not
+  reach.
+- **Lesson:** every browser copy of an entitlement-bearing answer is keyed by the entitlements version as well as the
+  identity, and there is one copy of the session per page that follows it; a client fallback tells a plan refusal
+  (403 or 429 with a named code) from status 0 or 5xx.
+
+### M489 — The account preference store served and stored a tab's saved items without that tab's capability (2026-11-18, re-check R1-18, R1-30; fixed on branch fix-int2, not deployed)
+
+- **Symptom:** after a plan was lowered, `/api/v1/preferences` still served and stored the Backtest's "My conditions"
+  (`ml.my`, up to 50 cards, kept nowhere else), the Screener's last screen (`scr.last`) and its extra columns: D5's
+  "a lowered plan loses read access to its old content" did not hold for them.
+- **Root cause (verified):** the generic preference store (CONTRACT 4b) predates D5; its routes needed only the
+  principal, and which capability a key needs is decided by the key, not by the route.
+- **Solution:** each `sync` entry of the storage registry (`apps/edge-bff/shared/edge-session.ts` `STORAGE`) names its
+  tab's view capability (`cap`); `node shared/build-shell.mjs` writes them to `catalog/storage_sync.json` (and
+  `--check` compares both); `app/preferences.py` leaves such a key out of GET and refuses its PUT (403
+  `CAPABILITY_REQUIRED` or `PLAN_EXPIRED`); the rows are kept and come back on upgrade; the shared module stops writing
+  a refused key. The reading was confirmed by the user on 2026-11-19 ("3a": hidden until the plan is raised again,
+  kept; D5).
+- **Tests:** `tests/test_c_p1s_preferences_plan.py`, `test_fix_plans.py` (served while held, refused and kept
+  otherwise), `test_storage_registry.py::test_the_server_reads_each_sync_key_with_the_capability_the_registry_names`.
+- **Status:** fixed on branch fix-int2, not deployed.
+- **Lesson:** a store that is not a tab's own route but carries a tab's data needs that tab's capability, declared
+  per key where the key is registered (the M481 lesson for routes, applied to stores).
+
+### M488 — Gates placed on one path while the same values reach the person by another: a seeded capability no route reads, gated conditions on values every row shows, Terminal limits that bind the Terminal path only, page files behind shared caches (2026-11-18, re-check R1-5, R1-31, R1-32, R1-35, R1-36, R1-37, with R2-41 item 4; fixed on branch fix-int2, not deployed; R1-37 accepted)
+
+- **Symptom:**
+  - no route read `screener.preset`, so the Screener catalog listed presets, with their match counts, that the plan
+    does not hold (R1-32);
+  - a Screener condition on `chg_1d_pct`, `bars` and the other attributes every result row and `/universe` show was
+    refused by id, and the page's own extra-columns anchor `bars gt 0` needed `screener.metric:bars` (R1-35);
+  - `terminal.tickers`, `terminal.dataset` and `terminal.history_days` bind only `/api/terminal/v1`: the workers read
+    with their own service keys, the Overview and Watchlist files need only their tab's view (R1-31, R1-36);
+  - the Overview and Watchlist files carry every stock's foreign net (broker data), gated only by `overview.view` and
+    `watchlist.view`; the Watchlist's flow keys `fn1`, `fn5`, `fn20`, `fp5` are checked for shape only (R1-37, R2-41
+    item 4);
+  - the page files sit in caches shared by every user, so terminal-api counts and audits a file only for the first
+    reader per process (R1-5, R1-31).
+- **Root cause (verified):** gates were written per path or per id where the value is read, not where it is shown:
+  a catalog row seeded and documented without a reader; O3b-2 exempted the universe chips only; the data limits were
+  designed for the Terminal proxy alone; publisher page files bundle values of a gated kind into one shared file per
+  tab (the M476 class).
+- **Solution:**
+  - R1-32: `catalog.holds_entry(p, kind, id)` (`apps/edge-bff/app/catalog.py:47`) is the one rule of every answer that
+    lists items; the Screener catalog uses it, and its cache is keyed by the preset grant;
+  - R1-35, the user's "1a" (2026-11-19, EXEC.md "Decisions after the fix round" item 1): the attributes every answer
+    shows are not gated by id, from one definition in the Screener catalog (`screener-metrics.json` entries naming
+    their `/universe` row field, `row`); screener-worker `definitionItems` skips them and edge-bff's `catalog.ungated`
+    is the one rule of `allow.allow_of` and `holds_entry` (a lab-stage one still not held on the live site);
+  - R1-36, the user's "2a": migration `20261119_030_edge_bff_plan_data_scope.sql` (not applied) marks the Terminal
+    limits and the every-stock capabilities (`capabilities.data_scope`), and triggers refuse a plan or override that
+    holds both (`terminal_limit_with_every_stock`, a hint with the way out); the Backtest page's chart reads and the
+    Watchlist logos count in the one per-owner Terminal quota (decision 4, "a");
+  - R1-37 and R2-41 item 4, the user's "2a": the flow rule does not cover the Overview and Watchlist foreign-net
+    columns; nothing changes until a plan closes flow (CONTRACT 8b, 15);
+  - R1-5, R1-31: recorded as built (once per process and sha256, never wider); `PageFiles` builds the principal's
+    terminal headers before the caches, so edge-bff's own refusals hold whether the cache is warm or cold.
+- **Tests:** `tests/test_c_p3b_recheck.py::test_f1_a_preset_the_plan_does_not_hold_is_not_listed_in_the_screener_catalog`,
+  `test_plan_data_scope.py`, `test_decisions_small.py` (the shown set, the allow, the catalog),
+  `test_terminal_fix_round.py::test_a_page_file_refusal_of_the_principal_holds_when_another_account_warmed_the_cache`;
+  `apps/screener-worker/tests/shown.test.ts` (the definition held to the rows the worker answers, both ways). Changed
+  with the decisions: screener-worker `allow.test.ts`, edge-bff `test_backtest.py` (a queued job's allow at dispatch),
+  `test_terminal_access.py` (the paid narrowing closes the every-stock capabilities first), `test_screener.py`
+  (released preset ids).
+- **Status:** fixed on branch fix-int2, not deployed; migration `20261119_030` not applied. R1-37 and R2-41 item 4:
+  ACCEPTED (user 2026-11-19, "2a"). R1-5: BY DESIGN (lenient page-file counting; per-reader counting is a Phase 4
+  option). Noted for 3e: the four transform metrics (`hi52`, `lo52`, `rs`, `vol_ratio`) are not gated by the worker
+  but still listed by grant in edge-bff's catalog.
+- **Lesson:** before writing a gate, list every path by which the value reaches the person (rows, files, other tabs'
+  workers, page-built conditions) and gate where it is shown; a catalog capability with no reader is a promise the
+  code does not keep, so every seeded capability needs a route that reads it.
+
+### M487 — Under Phase 3c the free plan's Terminal drew nothing, not even BBCA (2026-11-19, re-check R2-32; fixed on branch fix-int2, not deployed; the fix replaced by the user's decision of 2026-11-19)
+
+- **Symptom:** a free account opening the Terminal under 3c saw no chart at all (`test_c2_e2e_people.py`, Chromium,
+  the Terminal page built).
+- **Root cause (verified):** `live.ts liveData` awaits the ticker list before it draws, and 3c refused every reference
+  file to a plan without `terminal.dataset:reference` (base `terminal_access.check`, `head == 'reference'`): a per-path
+  refusal of a file the page treats as required, chosen without checking the page's load order.
+- **Solution:** first (track terminal, the reading of D3 = B "no list of other tickers"): terminal-api served such a
+  plan its own copy of each reference file (`apps/terminal-api/app/refcut.py`, rows kept by each file's own columns).
+  Then the user's decision of 2026-11-19 ("tidak, user tetap bisa search ticker, tapi ketika dia klik ticker selain
+  bbca maka akan keluar pop up box to login (jika belum login) dan jika sudah login maka akan keluar pop up box (to
+  upgrade plan)"; with "1a" for visitors) replaced that reading (track guest, `fix_round/guest.md`):
+  - the ticker list is whole for every owner edge-bff forwards; which lists are names-only is derived from each file's
+    columns (`refcut.names_only`: text columns only, no `<dataset>_` column, no digest column), so a new column of
+    figures turns a list back to filtered; the logos, the bonds and the brokers keep the plan's filter;
+  - the page lists every ticker; a ticker the plan does not hold carries a lock and opens the sign-in box (visitor)
+    or the upgrade box (signed in), with the contact when `EDGE_UPGRADE_CONTACT` is set;
+  - what a visitor without an account sees is the catalog's guest plan (migration `20261119_070`, not applied:
+    `plans.for_guests`, seed `guest` with the free plan's Terminal rows), read through the same code as every plan,
+    on the routes the route walk lists in `GUEST_OPEN`; visitors are counted apart at terminal-api by
+    `x-terminal-client` (an HMAC of the client address, never the address; migration `20261119_170`, not applied).
+- **Tests:** `tests/test_c2_e2e_people.py::test_the_free_plans_terminal_draws_bbca_with_the_answers_phase_3c_gives_it`,
+  `::test_the_free_plans_terminal_opens_on_bbca_with_nothing_remembered`, `test_guest.py` (16), `test_guest_browser.py`
+  (4, Chromium); terminal-api `test_guest_tickers.py` (10), `test_terminal_fix_round.py`; Terminal vitest
+  `tests/data/guest_session.test.ts`. Changed with the decision: terminal-api's free-plan reference tests (BBCA-alone
+  list), `test_c2_e2e_people.py` (its reload case), `test_route_table.py` (`GUEST_OPEN`), `test_plan_catalog.py`.
+- **Status:** fixed on branch fix-int2, not deployed; migrations `20261119_070` and `20261119_170` not applied. Open
+  before guests go live: the client-address probe of CONTRACT 4 (worst case without it: every visitor shares one quota,
+  stricter, never wider).
+- **Lesson:** before a path refuses a file to a plan, check what the page needs to draw at all; what a visitor or a
+  plan sees is catalog data read by the one entitlement path, and the routes that admit visitors are named in one
+  table the route walk holds.
+
+### M486 — Entitlement values broke their wire or their readers: catalog values out of terminal-api's range, no proof the header was applied, an unknown dataset failing every call, a shared mutable default, the seed plan found by row existence (2026-11-18/19, re-check R1-22, R1-24, R1-25, R2-4, R2-5; fixed on branch fix-int2, not deployed)
+
+- **Symptom:**
+  - a value the catalog accepts (`terminal.history_days` 0 or above 36600, a ticker outside `^[A-Z0-9]{1,12}$`, a
+    malformed limit read as 0) made terminal-api answer 400 `invalid_owner_headers` for every Terminal call of the
+    account (R1-22);
+  - a terminal-api below 3c (a rollback or an upload mix-up) would ignore `x-terminal-capabilities` and serve a capped
+    principal in full (R2-4);
+  - one dataset id the receiving terminal-api does not know (a dataset added to edge-bff first, through the paid
+    plan's `{all: true}`) failed every call with 400 (R2-5);
+  - every principal with a malformed list got the same list object (R1-24);
+  - the seed subscription took a plan holding `'*' = false` for the plan holding everything (R1-25).
+- **Root cause (verified):** the catalog held one value domain per kind (`20261117_003` `capability_value_check`,
+  `principal.valid_value`) while each consumer has its own narrower one, and `terminal_access.capabilities` copied the
+  values with a type check only; the header had no acknowledgement; terminal-api's `parse_capabilities` refused an
+  unknown dataset id; `read_grants` stored the module-level `RESTRICTIVE['list']` itself; "which plan holds `*`" was
+  asked by row existence after M480 allowed a flag to be false.
+- **Solution:**
+  - read side: `capabilities` (`terminal_access.py:138`) maps every value onto the wire (history above the bound sent
+    as the bound; 0 sent as 0, which terminal-api now takes as the empty window, and `check` refuses every dated path
+    first with 403 `terminal.history_days`; a malformed ticker left out and logged); a quota of 0 is 403
+    `CAPABILITY_REQUIRED` naming the limit, not 429 with a wait;
+  - catalog: migration `20261119_050_edge_bff_capability_domains.sql` (not applied): `value_min`, `value_max`,
+    `item_pattern` on `edge_bff.capabilities`, `capability_value_check` refusing values outside them,
+    `capability_domain_holds`, six domains equal to terminal-api's bounds;
+  - acknowledgement: terminal-api sets `x-terminal-capabilities-applied: 1 <version>` on every answer to an owner call;
+    `relayed` answers 503 for a principal without `*` when it is missing or names another version;
+  - terminal-api leaves out an unknown dataset id and logs `owner_datasets_ignored` (fails closed);
+  - `RESTRICTIVE` holds immutable values and `restrictive(kind)` returns a new list; `seed_subscription` and the
+    unapplied 3c verify blocks read `value = 'true'::jsonb`.
+- **Tests:** `tests/test_c_p2_terminal_wire_domain.py` (6), `test_terminal_fix_round.py`, `test_c_p2_recheck.py`;
+  terminal-api `test_every_answer_to_an_owner_call_carries_the_applied_version`,
+  `test_an_unknown_dataset_id_is_left_out_and_logged`. Changed: `test_phase2_fix_round.py` (`history_days` `'0'` is
+  `'1'`), `test_terminal_access.py` (quota 0 is 403), terminal-api `test_phase3c.py` `BAD` rows.
+- **Status:** fixed on branch fix-int2, not deployed; migration `20261119_050` not applied. Deploy floor: while
+  `EDGE_MULTIUSER` is on, terminal-api is never rolled back below 3c; add a dataset on terminal-api first and remove it
+  on edge-bff first (CONTRACT 8b, 17).
+- **Lesson:** each capability has one declared value domain in the catalog that every consumer's wire can carry; an
+  entitlement sent to a separately deployed service needs proof it was applied; an unknown entry on an allow-list is
+  "not granted", never a failure of the whole request; a default handed to many principals is immutable.
+
+### M485 — One plan-limit concept answered with different codes and numbers: caps 422, the queue 429, `PLAN_EXPIRED` never for a list or limit, `access.limits` the raw value (2026-11-18/19, re-check R1-23, R1-29, R2-39; fixed on branch fix-int2, not deployed)
+
+- **Symptom:** the saved-item caps answered 422 `LIMIT_EXCEEDED` while the backtest queue cap answered 429
+  `LIMIT_REACHED`, so the shared module treated only one as a plan refusal; an ended plan that set no ticker list or
+  history limit gave `CAPABILITY_REQUIRED` ("upgrade") instead of `PLAN_EXPIRED` ("renew"); the session's
+  `access.limits` showed the plan's raw number while each route applied `min(plan, HARD)`.
+- **Root cause (verified):** each module wrote its own cap refusal; `Principal.refusal(capability)` judged
+  `PLAN_EXPIRED` by `holds()`, which knows flags and items only (a list or limit is never "held"); the ceilings HARD
+  live in each module's code and the session answer printed `Principal.limits` unchanged.
+- **Solution:** `errors.plan_cap` gives every plan cap 403 `LIMIT_REACHED` with `details.limit`, `allowed`, `needed`;
+  a limit that waiting frees (the backtest queue, the Terminal quotas) stays 429 with `Retry-After`; 422
+  `LIMIT_EXCEEDED` stays only for the size of one item. `Principal.refusal(capability, item, amount)` and
+  `ended_allows()` judge a list or limit by the ended plan's row (`apps/edge-bff/app/principal.py:224-233`). Each
+  module declares its HARD with `auth.ceiling(key, hard)` and `Principal.access(ceilings=...)` reports the capped value.
+  `WATCHLIST_FORMULAS.md` rewritten with its generator (AGENTS.md).
+- **Tests:** `tests/test_c_p2_recheck.py::test_an_ended_plan_without_a_ticker_list_or_history_limit_gives_plan_expired`,
+  `test_c_p3a_probes.py::test_the_session_access_limits_are_the_numbers_the_routes_apply`; changed with the finding:
+  `test_layouts`, `test_presets`, `test_drawings`, `test_watchlist`, `test_phase3a_gates`, `test_screener`,
+  `test_c2_probe_phase3a`.
+- **Status:** fixed on branch fix-int2, not deployed. Open hand-off: the 3c refusal sites pass the ticker and the
+  window as `item` and `amount` so an ended plan with its own narrower list is judged too (`fix_round/plans.md`).
+- **Lesson:** one contract concept has one code, one shape and one number wherever it is answered or shown; a refusal
+  API takes what was asked (item, amount), not only the capability key.
+
+### M484 — Refusals reached the person as codes or fixed sentences: the Monitor showed `CAPABILITY_REQUIRED`, the workers named internal keys, the throttles said "upgrade" (2026-11-18/19, re-check R1-33, R1-34, R2-14, R2-15, R2-30; fixed on branch fix-int2, not deployed)
+
+- **Symptom:** every `CAPABILITY_REQUIRED` and `LIMIT_REACHED` carried one fixed sentence per code, so the item, the
+  limit and the wait stayed in `details` that no page shows; the email-code and MFA throttles told the person to
+  upgrade a plan; the workers' `CAPABILITY_REQUIRED` message carried the internal key (`backtest.indicator:I07`) and
+  every page shows the server's message; the Monitor showed the code (`CAPABILITY_REQUIRED`, `MFA_REQUIRED`) and every
+  non-admin sign-in landed on the Monitor, which such an account cannot use. After the 3b follow-up the workers would
+  have named a family the catalog no longer holds (R1-33).
+- **Root cause (verified):** `errors.refusal` took the message from the code alone (`message_of`); the workers built
+  their sentences and `details.capability` from their own constants (backtest-worker `access.ts` `FAMILY`,
+  screener-worker `run.ts` `CAPABILITY_FAMILY`) and edge-bff relayed them unchanged; `edge-client.js` `ApiError` put
+  the code in `message` (`super(code)`), the words only on `error.text`, and the Monitor shows `e.message`;
+  `LoginForm`, `CodeForm` and `MfaForm` all went to `/monitor`.
+- **Solution:**
+  - `errors.words(code, status, details)` (`apps/edge-bff/app/errors.py:168`) is the one wording: the item's display
+    name, the ended plan's name, a plan limit with the account's number and the wait (or "remove one or upgrade"),
+    only the wait for the auth throttles, the set-up sentence for `MFA_REQUIRED` with `mfa_enrolled` false and, since
+    the decisions track, the fresh-code sentence with `recent_s`;
+  - the workers name the item without the internal key (the key stays in `details.capability`), and their families
+    are the Terminal's (`terminal.indicator`, `terminal.flow_indicator`; R1-33, fixed on the 3c branch; edge-bff
+    `tests/test_allow.py` reads both tables); `allow.named` keeps a worker sentence unless it carries a key or family;
+  - `ApiError`'s message is the person's words, the code on `.code`; a sign-in lands on the Monitor only for `*` or
+    `monitor.view`, else on the Terminal (`landing()`).
+- **Tests:** `tests/test_c2web_browser.py::test_c2web_w1_*`, `w2_*` (Chromium), `test_c2_e2e_people.py::test_the_monitor_shows_a_plan_refusal_in_words_not_its_code`,
+  `test_allow.py`; `apps/backtest-worker/tests/c-p3b-recheck.test.ts`, `apps/screener-worker/tests/c-p3b-recheck.test.ts`.
+  Changed: the workers' exact-message tests (they locked the key in the sentence) and the sign-in landing tests (the
+  Terminal landing).
+- **Status:** fixed on branch fix-int2, not deployed.
+- **Lesson:** the words a person reads are built where the contract lives (edge-bff), from the code and its details;
+  a service that refuses on another service's behalf names the item, not the grant key, and a page shows words, never
+  a code.
+
+### M483 — EDGE relayed terminal-api's own answers as they were: its 401 read as a sign-out, its 429 had no wait, its JSON passed unfiltered (2026-11-18, re-check R1-1, R1-26, with M260; fixed on branch fix-int2, not deployed)
+
+- **Found by:** the ultracode re-check of the deployed Phases 0-3b (EXEC.md EXEC-MU-ACCOUNTS, round 1 and round 2;
+  findings and the three refuters' verdicts per finding: `verification/edge_multiuser/access_tiers/recheck/r1_findings.json`,
+  `r1_verdicts.json`, `r2_result.json`; each fix-round track's result: `recheck/fix_round_result.json` and
+  `verification/edge_multiuser/fix_round/<track>.md`). The entries M483-M503 are this re-check's classes; every fix is
+  integrated on branch `fix-int2` (tracks terminal, site, auth, plans, records, then decisions and guest).
+- **Symptom:** with 3c's per-owner calls, a terminal-api 401 about its own gateway account or key (`session_ended`,
+  `proxy_key_rejected`) reached the page as a 401, which the shared session module reads as a sign-out; a quota
+  refusal reached the page as 429 `quota_exceeded` without `Retry-After`, `LIMIT_REACHED` or the quota's name; the page
+  files' grant answered 429 `QUOTA` without `Retry-After`. The successful JSON bodies reached the page without
+  `client.public_data`, the filter of every Orc and worker relay (M260).
+- **Root cause (verified):** `forward_terminal` ended with `JSONResponse(status_code=answer.status_code, content=data)`
+  and `relay_cut` did the same for a non-200 (base `apps/edge-bff/app/main.py:588`, `:613`); `PageFiles` answered
+  `failure('QUOTA', 429)` (base `pages.py:175-176`); terminal-api's `take()` raised a text-only 429. Only
+  `capability_required` was mapped. Three relay paths, each with its own copy of the rule.
+- **Solution:** one rule for every terminal-api answer edge-bff passes on, `terminal_access.relayed`
+  (`apps/edge-bff/app/terminal_access.py:322`), used by `forward_terminal`, `relay_cut` and `PageFiles`:
+  - a 401, a 403 other than `capability_required`, a 400 about edge-bff's own owner headers and every 5xx are 503
+    `TERMINAL_UNAVAILABLE`, logged `terminal_refused`;
+  - a 429 is 429 `LIMIT_REACHED` with `details.limit` `terminal.<quota>`, `allowed`, `retry_after_s` and `Retry-After`;
+    a 400 is `INVALID_INPUT`, a 404 `NOT_FOUND`, each with terminal-api's code as `details.reason`; terminal-api's
+    prose never reaches the page;
+  - terminal-api's `take()` sends `quota`, `limit`, `window`, `retry_after_s` and `Retry-After` (the wait from
+    `Store.frees_in`); the service ceiling and the sign-in throttle send `Retry-After` too;
+  - with the user's go of 2026-11-19 (EXEC.md "Decisions from the fix round" item 6, "a"), an acknowledged 2xx JSON
+    answer goes through `client.public_data` in the same rule (`relayed` returns `(refusal, data)`); a cut's bytes and
+    a logo pass as they are. Checked first that no page module or forwarded route reads a key of `PRIVATE_KEYS`
+    (`fix_round/decisions.md` section 3).
+- **Tests:** `apps/edge-bff/tests/test_cp0_terminal_relay.py` (the re-check's), `test_terminal_fix_round.py` (16
+  mappings; the session stays), `test_c_p3a_probes.py -k retry_after`, `test_decisions_small.py` (every route holding
+  `terminal_access.guard`, derived from the app, against a stand-in terminal-api that plants private keys and an
+  internal address; a self-test finds the plants without the filter); terminal-api `tests/test_terminal_fix_round.py`.
+  Changed because they locked the pass-through the contract forbids (named by the refuters): `test_terminal.py:84`,
+  `test_radar.py:123-125`.
+- **Status:** fixed on branch fix-int2, not deployed (M260 with it).
+- **Lesson:** a relay of another service has one rule for every answer it passes on, in one helper every route uses:
+  refusals are rebuilt in the contract's shape (an upstream service's own account or key problem is never the user's
+  session; a 429 carries its wait), and successful bodies pass the house filter.
+
+### M482 — EXEC-MU-ACCOUNTS Phase 3b: findings of the independent checkers C1-C3 (2026-11-17; FIXED, deployed 2026-11-17 on dev with the switch off: `main` `3698a8a4`, backtest-worker `3e27dd56`, screener-worker `77563efa`/`12810270`, edge-bff `335d78b3` SUCCESS; the user's check 2026-11-18 "aman"; O3b-1 and O3b-2 decided 2026-11-18, built in the 3b follow-up with 3c, on branch fix-int2, not deployed; the re-check's findings in these parts: M484, M488)
 
 Three checkers read the integrated Phase 3b against CONTRACT.md 8b only:
 - the workers W1 (backtest-worker, `1510261b`) and W2 (screener-worker, `e06dff77`);
@@ -8908,7 +9604,7 @@ The fix round's own tests are in `apps/edge-bff/tests/test_phase3b_fix_round.py`
   ranking, an exit rule, a built-in card. When a gate is written per id, list what each built-in option reads (here,
   `Calc.out` keys), not only the ids a request carries.
 
-### M481 — EXEC-MU-ACCOUNTS Phase 3a: findings of the independent checkers C1-C3 (2026-11-17, fixed on branch, not deployed; deployed 2026-11-17 on dev with the switch off: `main` `24d6c70e`, edge-bff `49e7cf88` SUCCESS, migration job `3562a182`; the OPEN rows stay open)
+### M481 — EXEC-MU-ACCOUNTS Phase 3a: findings of the independent checkers C1-C3 (2026-11-17; FIXED, deployed 2026-11-17 on dev with the switch off: `main` `24d6c70e`, edge-bff `49e7cf88` SUCCESS, migration job `3562a182`; the "C3 gaps" row fixed on branch fix-int2, not deployed, M502)
 
 Three checkers read the integrated Phase 3a (`257a1e4c`: B1 route gates and caps, B2 Monitor and page files) against
 CONTRACT.md only. C1 (security): nothing blocking the deploy, no route open without its capability; failing tests
@@ -8930,7 +9626,7 @@ CONTRACT.md only. C1 (security): nothing blocking the deploy, no route open with
 | C2 2 | non-blocking | `WatchlistStore.first(create=True)` made the first list without the `watchlist.lists` cap. | The star makes the first list only when the cap is at least 1 (422 `LIMIT_EXCEEDED` otherwise); an existing first list is always used. |
 | C2 3, C3 R1 | deploy precondition | Since 3a, a switch-off owner that `EDGE_ADMIN_OWNERS` does not list holds no capability, so a list that leaves out `EDGE_OWNER` would lock the one account out of every tab. | Checked on dev: the variable is unset, so the configured owner holds `*`. With the switch off, `Settings.from_env` refuses to start with a list that leaves out `EDGE_OWNER`. |
 | C2 4 | accepted | With the plan lowered, `stop_run` needs `monitor.chat`, so a run already dispatched cannot be stopped by its owner. | Recorded. Queued runs and jobs are refused at dispatch, and the Monitor is admin only for now (D1). |
-| C3 gaps | OPEN | The SSE `monitor.view` re-check (`main.py` `still_signed_in`) has no test. The 3a route walk is scoped by module. | A full `/api` walk run by C3 found no ungated route. |
+| C3 gaps | fixed on branch fix-int2, not deployed (re-check R1-27, R1-28, M502) | The SSE `monitor.view` re-check (`main.py` `still_signed_in`) has no test. The 3a route walk is scoped by module. | A full `/api` walk run by C3 found no ungated route. Since the fix round: `tests/test_route_table.py` walks every `/api` route of the app, and `tests/test_run_stream_live.py` ends the run stream on a live local server once the plan loses `monitor.view`. |
 | C3 records | fixed | Missing: the migration job params, the 3a runbook, the Auth column of `SCREENER_ONBOARDING.md` §1.8, and the endings in `BACKTEST_END_TO_END.md`. | Job params `98762487`; the rest in this round. |
 
 - **Lesson:** an action that writes into another tab's data (the star into the Watchlist) needs every capability of the
@@ -8946,7 +9642,7 @@ CONTRACT.md only. C1 (security): nothing blocking the deploy, no route open with
   - **Lesson for builders:** a change to a file with a formulas document (`watchlist.py`, `overview.py`, the Radar
     functions) runs its generator in the same commit (AGENTS.md); a builder brief names it.
 
-### M480 — EXEC-MU-ACCOUNTS Phase 2: findings of the independent checkers C1-C3 (2026-11-17, fixed on branch, not deployed; deployed 2026-11-17 on dev with the switch off: `main` `f9c0cd69`, edge-bff `1ed31cea` SUCCESS, migration job `2a413c69`; the Phase 3 items stay OPEN)
+### M480 — EXEC-MU-ACCOUNTS Phase 2: findings of the independent checkers C1-C3 (2026-11-17; FIXED, deployed 2026-11-17 on dev with the switch off: `main` `f9c0cd69`, edge-bff `1ed31cea` SUCCESS, migration job `2a413c69`; of the Phase 3 rows, the display names FIXED with M481, the rest OPEN; more in the same parts found by the re-check: M485, M486)
 
 Three checkers read the integrated Phase 2 code (`8a55980b`) against CONTRACT.md only. C1 (security) committed
 `7cf93f4d`, `tests/test_c1_phase2_fail_closed.py`. C2 (isolation) committed `3a1f8547`,
@@ -8965,7 +9661,7 @@ verdict READY for the deploy with the switch off. None found a crossing between 
 | C2 N3, C1 N3, C3 N5 | minor | The version missed the plan's end and the release stages. | `version_of` adds `expires_at` and `releases.CURRENT.digest`. |
 | C3 N1 | minor | With the switch on and no catalog migration, `/ready` passed while every sign-in failed. | `store.ready(multiuser)` reads the five catalog tables when the switch is on. |
 | C2 N2 | accepted | The switch-off access object gains `expired_plan: null` (contract 8a lists it). | None (recorded). |
-| C1 N3, C3 N2 | Phase 3, OPEN | `details.display_name` falls back to the internal key (`backtest.run`); the table's `display_name` is not read. | Phase 3, when refusals reach users' pages. |
+| C1 N3, C3 N2 | Phase 3, FIXED (M481 C1 F3, deployed 2026-11-17) | `details.display_name` falls back to the internal key (`backtest.run`); the table's `display_name` is not read. | Phase 3, when refusals reach users' pages: built in 3a (M481 C1 F3, the names from `edge_bff.capabilities.display_name`). |
 | C2 N4 | Phase 3, OPEN | A tab that receives the `entitlements` broadcast re-posts it once, so other tabs re-read the session one extra time. | Phase 3. |
 | C3 nits | fixed / OPEN | `task =asyncio` (fixed); the old docstring in `test_releases.py`; an unhandled 5xx has no header. | — |
 | C1 re-check of `e12c3de8` | non-blocking, fixed | Nothing blocking. Gaps: (1) a later migration that changed a capability's kind away from limit or list would make its values read as no limit; (2) the trigger function had no fixed `search_path`; (3) the read side accepted an unknown stage (it failed closed). | (1) Trigger `capabilities_kind_fixed` refuses a kind change while values of the capability exist. (2) Both functions `SET search_path = pg_catalog, pg_temp`. (3) `valid_value` holds only the stages `lab` and `released`. |
@@ -9008,7 +9704,7 @@ verdict READY for the deploy with the switch off. None found a crossing between 
 - **Lesson:** after a deploy that changes page code, ask the user to reload open EDGE tabs before checking a change by
   eye.
 
-### M478 — EXEC-MU-ACCOUNTS Phase 1: findings of the independent checkers C1 and C2 (2026-11-17, fixed on branch, not deployed; deployed 2026-11-16 on dev with the switch off (`main` `f34fecdc`: edge-bff `fc005323` SUCCESS; migrations job `c039bac9`); C3 B1 and C4 included; the switch-on parts take effect only at Phase 6)
+### M478 — EXEC-MU-ACCOUNTS Phase 1: findings of the independent checkers C1 and C2 (2026-11-17; FIXED, deployed 2026-11-16 on dev with the switch off (`main` `f34fecdc`: edge-bff `fc005323` SUCCESS; migrations job `c039bac9`); C3 B1 and C4 included; the switch-on parts take effect only at Phase 6; N4 corrected, and more in the same parts found by the re-check: M494, M496, M497)
 
 Two checkers read the integrated Phase 1 code against `verification/edge_multiuser/access_tiers/CONTRACT.md` only:
 C1 (security, failing tests `1f26fb44`: `apps/edge-bff/tests/test_c1_phase1_findings.py`; re-check `a590a1f1`:
@@ -9016,7 +9712,8 @@ C1 (security, failing tests `1f26fb44`: `apps/edge-bff/tests/test_c1_phase1_find
 `terminal/tests/data/edge_session_phase1_c2.test.ts`). Each finding came as a test that failed on the code; the fix
 rounds make them pass (the C1 takeover and C2 hijack tests now model the attacker's own browser, one TestClient being
 one browser; their assertions are kept and extended). The account switch `EDGE_MULTIUSER` is off on every environment,
-so none of these was reachable. Every row: fixed on branch `claude/pensive-feynman-4ahfe3`, not deployed.
+so none of these was reachable. Every row: fixed on branch `claude/pensive-feynman-4ahfe3`, deployed 2026-11-16 on dev
+with the switch off (`main` `f34fecdc`). (One current status since 2026-11-19, re-check R1-45, M503.)
 
 | Id | Part | Defect (verified cause) | Fix (commit) |
 |---|---|---|---|
@@ -9040,6 +9737,11 @@ address's 10 emails a day. A later registration within the limit answers the sam
 earlier code is not sent again). Why: registrations by others can then use at most 3 of the address's 10 daily emails.
 Cost: when someone else registered your address first, your own registration code can wait up to an hour, and at most
 three registrations a day reach the address.
+**Correction (2026-11-19, re-check R1-13, M494):** the premise above was false. N4 bounded new registrations only;
+resends and sign-in restarts of a registration made by another browser were bounded by the address's shared budget
+alone, so one such registration could use all 10 daily emails. Since the fix round (`REGISTRATION_MAIL`, fixed on
+branch fix-int2, not deployed) one pending registration is mailed at most 3 times a day, so the registrations of
+others use at most 6 of the address's 10 daily emails once its owner has registered.
 
 Open after the rounds:
 - `scripts/edge_mfa_unlock.py` takes `--username` and `--reason` on the command line, while
@@ -9063,7 +9765,7 @@ code and its requester is part of the data model, not of the message.
   - **Blocking B1:** with the switch off, a browser without the last-login mark cleared user #1's browser-only data (My
     metrics, favourites) instead of adopting and uploading it. The cause was the C2 #3 rule applied to the only possible
     principal. The fix first planned (adopt when `access.version` is `env`) would still clear the same data on a
-    browser first opened after the switch goes on. Fix as built (2026-11-16, FIXED on branch, not deployed): the class
+    browser first opened after the switch goes on. Fix as built (2026-11-16, FIXED, deployed with `main` `f34fecdc`): the class
     is "state written before the browser mark existed belongs to the one account EDGE had then". The session answer
     gives `access.seed` (`app/principal.py`): true for user #1, which is the switch-off principal or the seed row, the one
     owner key not of the `u_` form (`users_one_seed`). It is false for every registered account. `static/edge-client.js`
@@ -9086,7 +9788,7 @@ code and its requester is part of the data model, not of the message.
     username). `noteIdentity` read `seed` only without a mark, so `edge` ≠ `admin_1` cleared user #1's state and left
     its `edge` drawing stamps behind. An app page opened alone cleared it the same way through `checkUser`, which never
     saw `seed`.
-  - **Fix (FIXED on branch, not deployed):** a mark or stamp of the bare-login form can only be Phase 0's, when EDGE
+  - **Fix (FIXED, deployed with `main` `f34fecdc`):** a mark or stamp of the bare-login form can only be Phase 0's, when EDGE
     had one account. With `seed`, `noteIdentity` and `checkUser` keep that state and move the bare stamps to the owner
     identity (`seedKeeps`, `migrateBare`). `sessionClient` passes `access.seed` to `checkUser`. Without `seed` the
     C2 #3 rule is unchanged.
@@ -9116,13 +9818,15 @@ code and its requester is part of the data model, not of the message.
     - The seed username is `admin_1`, because `edge` is reserved by a CHECK in `20261116_003`. Keeping `edge` needs a
       new migration, and the seed needs an email for password reset. To be decided before Phase 6.
 
-### M477 — EXEC-MU-ACCOUNTS Phase 0: findings of the independent checkers C1 and C2 (2026-11-16, fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
+### M477 — EXEC-MU-ACCOUNTS Phase 0: findings of the independent checkers C1 and C2 (2026-11-16; FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed); the main Orc key on orc-test-runner kept by the user's decision of 2026-11-19, M498)
 
 Two checkers read the integrated Phase 0 code against `verification/edge_multiuser/access_tiers/CONTRACT.md` only:
 C1 (security, commit `8c9babc4`, failing tests `test_c1_security_findings.py` in edge-bff, market-ai-orc and
 terminal-api, `terminal/tests/data/c1_security_findings.test.ts`) and C2 (isolation, commit `f3e1ff4a`,
 `apps/market-ai-orc/tests/test_c2_client_history_owner.py`, `terminal/tests/data/edge_session_user_change.test.ts`).
-Each finding came as a test that failed on the code; the fix round makes them pass unchanged. Every row: fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
+Each finding came as a test that failed on the code; the fix round makes them pass unchanged. Every row: fixed on
+branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), deployed 2026-11-16 on dev with `main`
+`637b0b96`. (One current status since 2026-11-19, re-check R1-45, M503.)
 
 | Id | Part | Defect (verified cause) | Fix (commit) |
 |---|---|---|---|
@@ -9137,7 +9841,7 @@ Each finding came as a test that failed on the code; the fix round makes them pa
 | C1/C2 round (error shape) | edge-bff (M471) | any 403 `HTTPException` was mapped to `CSRF_INVALID`, so a client would retry a plan refusal; the older `error()` helper sent only `code` | only the CSRF check answers `CSRF_INVALID`; any other 403 is `FORBIDDEN`; every `main.py` refusal has `code`, `message`, `details` (`f3410489`) |
 | C2 (lock) | edge-bff job submission | `store.submit` locked the bare owner string, a key another lock could equal | the key is `'jobs:' + owner`, like every other edge-bff lock (`f3410489`) |
 
-Re-check by the same checkers after the fix round (integrated at `4f4f9ded`), both fixed on branch, not deployed:
+Re-check by the same checkers after the fix round (integrated at `4f4f9ded`), both fixed, deployed with `main` `637b0b96`:
 
 | Id | Part | Defect (verified cause) | Fix (commit) |
 |---|---|---|---|
@@ -9169,7 +9873,7 @@ view; a client-supplied id is checked against the caller's ownership on every pa
   check the capability before the shared cache.
 - **Status:** OPEN. Harmless with one user.
 
-### M475 — Orc: a missing owner header becomes the shared owner `default`; progress of an owner-less run is readable by every caller (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
+### M475 — Orc: a missing owner header becomes the shared owner `default`; progress of an owner-less run is readable by every caller (2026-11-16; FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed); `MARKET_AI_ORC_API_KEY` kept on orc-test-runner: ACCEPTED by the user 2026-11-19, M498)
 
 - **Symptom (read-only inspection, `verification/edge_multiuser/access_tiers/FINDINGS.md`):** any holder of
   `MARKET_AI_ORC_API_KEY` may name any owner in `X-Saniti-Owner`, and the orc-test-runner holds the same key
@@ -9203,10 +9907,12 @@ view; a client-supplied id is checked against the caller's ownership on every pa
   holds (C2 #1, high: the test key reached a user's conversation through it); the test key must be at least 32
   characters and differ from the main key, else `ConfigError` at start (C1 M4); stop, progress and the manual
   fallback list are keyed by (owner, request id) (C1 L1). Orc 1815 passed / 367 skipped without Postgres.
-- **Status:** OPEN. No external user exists yet. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed; the Railway variable
-  `MARKET_AI_ORC_TEST_KEY` is not set yet (EXEC.md EXEC-MU-ACCOUNTS, "Phase 0 deploy steps"). Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
+- **Status:** FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed); `MARKET_AI_ORC_TEST_KEY` set on market-ai-orc and
+  referenced by orc-test-runner (RAILWAY_CHANGELOG.md, Phase 0 step 4). The main key `MARKET_AI_ORC_API_KEY` stays on
+  orc-test-runner: ACCEPTED, the user's decision of 2026-11-19 ("leave as is, ini setau saya untuk ai bisa lihat log
+  untuk proses enhancement di belakang"; re-check R1-2, M498). History: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), then its fix round (merge `34cfcc13`). (One current status since 2026-11-19, re-check R1-45, M503.)
 
-### M474 — Orc manual agent: every waiting step of every owner is listed to any caller (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
+### M474 — Orc manual agent: every waiting step of every owner is listed to any caller (2026-11-16; FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 - **Symptom:** `/api/v1/dev/manual/steps` (edge-bff `main.py:598-610`) lists and answers model steps of any run.
 - **Verified cause:**
@@ -9229,9 +9935,9 @@ view; a client-supplied id is checked against the caller's ownership on every pa
     answered by B), `apps/edge-bff/tests/test_manual_routes.py`.
 - **Fix round (M477, C1 L1, `88c06bd0`):** the manual agent's fallback list is keyed by (owner, request id), like
   stop and progress, so another owner's run with the same request id cannot touch it.
-- **Status:** OPEN. Blocker before a second user. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed. Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
+- **Status:** FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed). History: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), then its fix round (merge `34cfcc13`). (One current status since 2026-11-19, re-check R1-45, M503.)
 
-### M473 — Sign-out leaves account data in browser storage (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
+### M473 — Sign-out leaves account data in browser storage (2026-11-16; FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed); more sites found by the re-check, M490)
 
 - **Symptom:** after sign-out, the next person on the same browser inherits the previous account's data.
 - **Verified cause:** sign-out clears memory only (`apps/edge-bff/static/edge-client.js:11,138`). These keys are not
@@ -9255,10 +9961,15 @@ view; a client-supplied id is checked against the caller's ownership on every pa
     the source's sha256).
   - Tests: `apps/edge-bff/tests/test_storage_registry.py` fails on a storage key found in the code without an entry,
     and when `static/edge-session.js` is not the build of the source; `terminal/tests/data/edge_session.test.ts`.
+    Corrected 2026-11-19 (re-check R1-44, M502): `test_storage_registry.py` compares only the source sha256 named in
+    the copy's first line; the whole-file comparison is `tests/test_shell_copy_build.py` (`node shared/build-shell.mjs
+    --check`, marked `generated_file`).
     Terminal vitest 908 passed; `node shared/build-shell.mjs --check` passes.
-- **Status:** OPEN. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed.
+- **Status:** FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed). History: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`). The re-check found one more account family kept
+  under a `browser` name (`ml.assets.flow.<ticker>`, R1-20) and a Screener cache keyed without the plan (R1-17,
+  R1-38): M490, fixed on branch fix-int2, not deployed. (One current status since 2026-11-19, re-check R1-45, M503.)
 
-### M472 — The Terminal look check hard-codes another session's paths (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
+### M472 — The Terminal look check hard-codes another session's paths (2026-11-16; OPEN: `look_check11.mjs` FIXED, deployed with `main` `637b0b96`; look_check8/9/10/12/13 still hard-code paths)
 
 - **Symptom:** `node verification/terminal_api/terminal_look/look_check11.mjs`, required by AGENTS.md for every
   Terminal look change, writes into a scratchpad of an earlier session.
@@ -9275,9 +9986,11 @@ view; a client-supplied id is checked against the caller's ownership on every pa
   in `verification/terminal_api/terminal_look/` still hard-code `/home/user/saniti/...` or a session scratchpad
   (grep, 2026-11-16). AGENTS.md requires only `look_check11.mjs`; the others fail on another machine until they get
   the same change.
-- **Status:** OPEN. Update 2026-11-16: `look_check11.mjs` fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed; look_check8/9/10/12/13 not changed.
+- **Status:** OPEN for `look_check8.mjs`, `look_check9.mjs`, `look_check10.mjs`, `look_check12.mjs` and
+  `look_check13.mjs` (they still name `/home/user/saniti/...` or a session scratchpad; grep 2026-11-19). FIXED for
+  `look_check11.mjs`, the one AGENTS.md requires (merge `31f0bf01`, in `main` `637b0b96` on 2026-11-16). (One current status since 2026-11-19, re-check R1-45, M503.)
 
-### M471 — Every EDGE front-end reads any 403 as a CSRF or session failure (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
+### M471 — Every EDGE front-end reads any 403 as a CSRF or session failure (2026-11-16; FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed); two more sites found by the re-check, M484 and M490)
 
 - **Symptom (by reading the code):** a plan refusal would trigger a retry or a sign-out instead of an upgrade message.
 - **Verified cause:**
@@ -9316,9 +10029,11 @@ view; a client-supplied id is checked against the caller's ownership on every pa
     writes are dropped and an app page reloads on the `cleared` broadcast.
   - `599ff8a9`: server (`app/errors.py`) and page (`EdgeLabels.access`) share one English wording.
   - edge-bff 278 passed / 139 skipped; Terminal vitest 914.
-- **Status:** OPEN. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed. Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
+- **Status:** FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed). History: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), then its fix round (merge `34cfcc13`). The re-check of 2026-11-18/19 found two
+  front-end sites the contract did not reach yet: the drawings fallback (R1-19, M490) and the Monitor showing the code
+  (R2-14, R2-30, M484); both fixed on branch fix-int2, not deployed. (One current status since 2026-11-19, re-check R1-45, M503.)
 
-### M470 — terminal-api accepts the EDGE gateway key on its public domain (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
+### M470 — terminal-api accepts the EDGE gateway key on its public domain (2026-11-16; FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 - **Symptom:** the per-user owner header planned in T2 would let any holder of the gateway key name any EDGE user.
 - **Verified cause:**
@@ -9368,10 +10083,10 @@ view; a client-supplied id is checked against the caller's ownership on every pa
     `verification/terminal_api/validate.py`, `verification/terminal_api/quota_live.py`) must run on the private
     network, at once after the deploy, not only after the domain removal.
   - terminal-api suite 99 passed.
-- **Status:** OPEN. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed; `TERMINAL_ALLOWED_ORIGINS` is still set and the public domain is not
-  removed yet (EXEC.md EXEC-MU-ACCOUNTS, "Phase 0 deploy steps"). Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
+- **Status:** FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed): `TERMINAL_ALLOWED_ORIGINS` removed and the public domain gone
+  (RAILWAY_CHANGELOG.md, Phase 0 step 6). History: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), then its fix round (merge `34cfcc13`). (One current status since 2026-11-19, re-check R1-45, M503.)
 
-### M469 — The public Terminal bundle embeds a real BBCA broker summary (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
+### M469 — The public Terminal bundle embeds a real BBCA broker summary (2026-11-16; FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 - **Symptom:** `/terminal-app/` and its assets are served without a session (`apps/edge-bff/app/main.py:363-376`).
 - **Verified cause:**
@@ -9394,13 +10109,13 @@ view; a client-supplied id is checked against the caller's ownership on every pa
   (`terminal/src/data/fixtureConstants.ts`, used by the 1:1 check) and is kept out of the production bundle; the
   production build has 0 matches of it, and only a `--mode fixture` build contains it (main agent, integrated check at
   `4f4f9ded`). The public page `/terminal-app/` therefore no longer ships it.
-- **Status:** OPEN. Low severity: one day from 2023. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed.
+- **Status:** FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed). Low severity: one day from 2023. History: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`). (One current status since 2026-11-19, re-check R1-45, M503.)
 - **Lesson (Vite `MODE` vs `DEV`):** a build-time switch that removes code from production keys on
   `import.meta.env.MODE` (set only by `--mode`), not on `import.meta.env.DEV` or `PROD`: those follow `NODE_ENV`, so a
   production build run with `NODE_ENV=development` or `test` (a CI step or a shell that exports it) would keep the
   fixture and its data in the public bundle. Test the built bundle, not the source.
 
-### M468 — Terminal drawings saved in the browser are merged into whichever account signs in next (2026-11-16, OPEN; fixed on branch, not deployed; deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
+### M468 — Terminal drawings saved in the browser are merged into whichever account signs in next (2026-11-16; FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed))
 
 - **Symptom (by reading the code):** user A's unsynced drawings would join user B's account on a shared browser.
 - **Verified cause:**
@@ -9422,4 +10137,4 @@ view; a client-supplied id is checked against the caller's ownership on every pa
   `terminal/tests/data/edge_session_user_change.test.ts`. Corrected by the last fix round (`1888e8b2`): pending changes
   are kept, stamped with the page's identity, when the user's own session ends (401), and dropped only on
   `USER_CHANGED` (another login) or another page's `cleared` broadcast.
-- **Status:** OPEN. Harmless with one user. Update 2026-11-16: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), not deployed. Then fixed on branch `claude/pensive-feynman-4ahfe3` (fix round, merge `34cfcc13`), not deployed.
+- **Status:** FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed). Harmless with one user before that. History: fixed on branch `claude/pensive-feynman-4ahfe3` (merge `31f0bf01`), then its fix round (merge `34cfcc13`). (One current status since 2026-11-19, re-check R1-45, M503.)
