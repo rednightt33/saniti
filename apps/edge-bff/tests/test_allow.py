@@ -124,6 +124,19 @@ def test_a_worker_capability_refusal_gets_the_display_name(monkeypatch):
     assert named(refused)['details']['display_name'] == errors.UNNAMED                    # never the internal key
 
 
+def test_a_relayed_message_that_carries_the_internal_key_is_worded_by_edge_bff(monkeypatch):
+    """Re-check R1-34: a service's message that names the capability key (or its family) reaches the person in
+    edge-bff's words, with the item's name; a message without the key stays the worker's (it names the condition)."""
+    monkeypatch.setattr(errors, '_names', {'terminal.indicator': 'Terminal indicators'})
+    for message in ('I07 is not in the plan (terminal.indicator:I07).', 'needs terminal.indicator', '', None):
+        refused = {'code': 'CAPABILITY_REQUIRED', 'field': 'entry.conditions[0].indicator', 'message': message,
+                   'details': {'kind': 'indicator', 'id': 'I07', 'capability': 'terminal.indicator:I07'}}
+        out = named(refused)
+        assert out['message'] == ('Terminal indicators: I07 is not part of your EDGE plan. Upgrade the plan to use it; '
+                                  'you are still signed in.'), message
+        assert out['field'] == refused['field'] and out['details']['capability'] == 'terminal.indicator:I07'
+
+
 def test_the_principal_dataclass_has_what_allow_reads():
     p = Principal(user_id=None, owner_key='x', username=None, role='user', plan_key=None, status='unknown',
                   expires_at=None, mfa_ok=False, capabilities=frozenset(), version='none')

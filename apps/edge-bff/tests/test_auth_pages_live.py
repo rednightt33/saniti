@@ -67,6 +67,12 @@ def live_off(settings, store):
         server.should_exit = True; thread.join(timeout=10); sock.close()
 
 
+def signed_in_workspace(page):
+    """Signed in, on the account's landing page: the Monitor for an account that holds it, else the Terminal (fix round,
+    re-check R2-14: a registered account holds no monitor.view, decision D1)."""
+    page.wait_for_function("() => window.Edge && Edge.auth !== null && ['/monitor', '/terminal'].includes(location.pathname)")
+
+
 def test_switch_off_user_one_keeps_a_browser_without_the_mark(live_off, page):
     """ERRORS M478 C3 B1: EDGE last used on this browser before Phase 0 (no last-login mark), My metrics only in the
     browser. The first sign-in after the deploy keeps them for user #1 (access.seed) and writes the mark."""
@@ -114,7 +120,7 @@ def test_register_with_the_emailed_code_signs_in_directly(live, page):
     assert page.get_by_text('You can send a new code in').is_visible()   # resend_after_s of the answer
     page.get_by_label('Code', exact=True).fill(last_code(store, 'ana@example.com'))
     page.get_by_role('button', name='Verify').click()
-    page.get_by_placeholder('Ask a research question…').wait_for()       # signed in directly (user decision)
+    signed_in_workspace(page)       # signed in directly (user decision)
     session = page.evaluate("() => fetch('/api/v1/auth/session').then(r => r.json())")
     assert session['username'] == 'ana_putri' and session['owner_key'].startswith('u_')
     assert page.evaluate("() => localStorage.getItem('edge-last-login')") == 'owner:' + session['owner_key']
@@ -128,7 +134,7 @@ def test_forgot_password_resets_and_the_new_password_signs_in(live, page):
     page.wait_for_function("() => location.pathname === '/verify'")
     page.get_by_label('Code', exact=True).fill(last_code(store, 'ana@example.com'))
     page.get_by_role('button', name='Verify').click()
-    page.get_by_placeholder('Ask a research question…').wait_for()
+    signed_in_workspace(page)
     page.evaluate("() => Edge.signout()")
     # one code per email per 60 s (contract section 4): the registration's code is a minute old here
     db(store, "UPDATE edge_bff.email_outbox SET created_at = created_at - interval '61 seconds'")
@@ -146,7 +152,7 @@ def test_forgot_password_resets_and_the_new_password_signs_in(live, page):
     page.get_by_label('Login', exact=True).fill('ana_putri')
     page.get_by_label('Password', exact=True).fill('another long password')
     page.get_by_role('button', name='Sign In').click()
-    page.get_by_placeholder('Ask a research question…').wait_for()
+    signed_in_workspace(page)
 
 
 def test_the_admin_enrols_the_authenticator_and_signs_in(live, page):

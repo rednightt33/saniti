@@ -87,7 +87,8 @@ def test_size_and_count_limits(app, monkeypatch):
     monkeypatch.setattr(L, 'LAYOUT_LIMIT', 1)
     put(app, A)
     r = put(app, B, name='Two')
-    assert r.status_code == 422 and r.json()['error']['details'] == {'limit': 'layouts', 'allowed': 1, 'needed': 2}
+    assert r.status_code == 403 and r.json()['error']['code'] == 'LIMIT_REACHED'  # re-check R2-39: a plan cap is 403 LIMIT_REACHED naming its capability key
+    assert r.json()['error']['details'] == {'limit': 'terminal.layouts_max', 'allowed': 1, 'needed': 2}
 
 
 def test_session_and_csrf_are_required(app):

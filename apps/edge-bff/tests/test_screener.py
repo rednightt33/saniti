@@ -934,8 +934,9 @@ def test_saved_items_limits(app, worker, monkeypatch):
     monkeypatch.setattr(screener, 'SCREEN_LIMIT', 2)
     assert [put(c, k, screen_item(f's{k}')).status_code for k in (1, 2)] == [200, 200]
     over = put(c, 3, screen_item('s3'))
-    assert over.status_code == 422 and over.json() == error('LIMIT_EXCEEDED', message='At most 2 saved screens: delete one before saving another.',
-                                                             details={'limit': 'saved_items', 'allowed': 2, 'needed': 3})
+    # re-check R2-39: a plan cap is 403 LIMIT_REACHED naming its capability key, in the plan's words
+    assert over.status_code == 403 and over.json() == error('LIMIT_REACHED', message="You have reached your plan's limit for Saved screens (2). Remove one you no longer need, or upgrade the plan.",
+                                                             details={'limit': 'screener.saved_items', 'allowed': 2, 'needed': 3})
     assert put(c, 1, screen_item('s1b', revision=1)).status_code == 200      # a replace is no new item
     assert put(c, 4, metric_item('m1')).status_code == 200                   # the limit is per kind
     calls = len(worker.called('/v1/validate'))
@@ -1056,9 +1057,9 @@ def test_watchlist_add_list_remove_and_its_limit(app, worker, monkeypatch):
         assert c.delete(f'/api/v1/screener/watchlist/{bad}', headers=h).status_code == 422
     monkeypatch.setattr(screener, 'WATCHLIST_LIMIT', 2)
     over = c.put('/api/v1/screener/watchlist/BMRI', headers=h)
-    assert over.status_code == 422 and over.json() == error(
-        'LIMIT_EXCEEDED', 'ticker', 'At most 2 tickers in the watchlist: remove one before adding another.',
-        {'limit': 'watchlist', 'allowed': 2, 'needed': 3})
+    assert over.status_code == 403 and over.json() == error(                 # re-check R2-39
+        'LIMIT_REACHED', 'ticker', "You have reached your plan's limit for Tickers per watchlist (2). Remove one you no longer need, or upgrade the plan.",
+        {'limit': 'watchlist.per_list', 'allowed': 2, 'needed': 3})
     assert c.put('/api/v1/screener/watchlist/TLKM', headers=h).status_code == 204     # a watched one: no new row
     assert [c.delete('/api/v1/screener/watchlist/TLKM', headers=h).status_code for _ in range(2)] == [204, 204]
     assert [x['ticker'] for x in c.get('/api/v1/screener/watchlist').json()['tickers']] == ['BBCA']
@@ -1271,11 +1272,13 @@ def test_screener_tab_page_and_its_frame_csp(app, monkeypatch, tmp_path):
     (tmp_path / 'assets' / 'index-abc123.js').write_text('void 0')
     monkeypatch.setattr(main, 'SCREENER_APP', tmp_path)
     page = c.get('/screener')
-    assert page.status_code == 200 and 'function ScreenerPage' in page.text and '"/screener-app/"' in page.text
+    shell = page.text + c.get('/edge-app.js').text           # the shell's app is a file of its own (re-check R2-19)
+    assert page.status_code == 200 and '<script src="/edge-app.js"></script>' in page.text
+    assert 'function ScreenerPage' in shell and '"/screener-app/"' in shell
     # the tab's wording is in edge-labels.js (AGENTS.md), used like the other tabs'
     assert 'screener: { nav:"Screener", frameTitle:"Stock screener" }' in c.get('/edge-labels.js').text
-    assert '[EdgeLabels.screener.nav, "screener"]' in page.text and 'title: EdgeLabels.screener.frameTitle' in page.text
-    assert '"Screener"' not in page.text and '"Stock screener"' not in page.text
+    assert '[EdgeLabels.screener.nav, "screener"]' in shell and 'title: EdgeLabels.screener.frameTitle' in shell
+    assert '"Screener"' not in shell and '"Stock screener"' not in shell
     assert page.headers['content-security-policy'] == c.get('/terminal').headers['content-security-policy']   # EDGE's own policy
     frame = c.get('/screener-app/')
     assert frame.status_code == 200 and 'EDGE Screener' in frame.text and frame.headers['cache-control'] == 'no-store'
@@ -1389,7 +1392,9 @@ def test_screener_rights_from_the_session_and_the_catalog_per_session(configured
     refused before the worker; the catalog's admin entries reach an admin only, with an ETag of their own."""
     worker.metrics = [{'id': 'FL11', 'group': 'Flow', 'kind': 'flow'}, {'id': 'FL18', 'group': 'Flow', 'kind': 'flow', 'access': 'admin'}]
     flow = lambda metric: {'conditions': [{'id': 'a', 'enabled': True, 'test': {'kind': 'value', 'metric': {'kind': 'flow', 'metric': metric, 'params': {}}, 'op': 'gt', 'value': 0}}]}
-    worker.presets = [{'id': 'plain', 'definition': flow('FL11')}, {'id': 'admin', 'definition': {'conditions': [{'id': 'b', 'test': {'kind': 'window', 'test': flow('FL18')['conditions'][0]['test']}}]}}]
+    # two released presets of the release file (re-check R1-32: a preset is listed only when the plan holds it, and a
+    # plan holds released ones; an id the file does not list is a lab item)
+    worker.presets = [{'id': 'brk52', 'definition': flow('FL11')}, {'id': 'golden', 'definition': {'conditions': [{'id': 'b', 'test': {'kind': 'window', 'test': flow('FL18')['conditions'][0]['test']}}]}}]
     seen = {}
     from test_backtest import rights_session      # Phase 3a: a session without the right keeps the Screener open
     for admin, rights in [(False, []), (True, ['flow_point_in_time'])]:
@@ -1402,7 +1407,7 @@ def test_screener_rights_from_the_session_and_the_catalog_per_session(configured
             ids = [m['id'] for m in cat.json().get('metrics', [])]
             assert ('FL18' in ids) == bool(rights) and 'FL11' in ids
             # Stage C F6: a preset reading an admin entry (at any depth) only with the right
-            assert [p['id'] for p in cat.json()['presets']] == (['plain', 'admin'] if rights else ['plain'])
+            assert [p['id'] for p in cat.json()['presets']] == (['brk52', 'golden'] if rights else ['brk52'])
             seen[bool(rights)] = cat.headers['etag']
             before = len(worker.calls)
             r = c.post('/api/v1/screener/run', headers=c.headers_for, json={**run_body(seq=7), 'context': {'rights': ['flow_point_in_time']}})
@@ -1500,7 +1505,7 @@ def test_c2_catalog_preset_counts_are_never_served_to_a_plan_without_the_presets
     with TestClient(application) as c:
         user = make_user(store, 'narrow', 'narrow-password')
         plan = run_sql(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'screener.run'
-            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')[0]['plan_key']
+            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')[0]['plan_key']
         run_sql(store, "INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider) VALUES (%s, %s, 'active', 'test')",
                 user['user_id'], plan)
         # the plan's flow indicators narrowed to FL11 for this account (an override, CONTRACT.md 8a), on the Terminal's

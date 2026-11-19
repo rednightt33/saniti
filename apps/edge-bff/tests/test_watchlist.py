@@ -88,13 +88,14 @@ def test_every_limit_is_published_and_a_refusal_names_the_limit_and_the_fix(app,
     a = make(c, 'A', tickers=['AAAA', 'BBBB'])
     make(c, 'B')
     r = c.post(LISTS, headers=c.h, json={'name': 'C'})
-    assert r.status_code == 422 and r.json()['error']['details'] == {'limit': 'lists', 'allowed': 2, 'needed': 3}
-    assert 'Delete one first' in r.json()['error']['message']
+    # re-check R2-39: a plan cap is 403 LIMIT_REACHED naming its capability key; the field names the request's part
+    assert r.status_code == 403 and r.json()['error']['details'] == {'limit': 'watchlist.lists', 'allowed': 2, 'needed': 3}
+    assert r.json()['error']['field'] == 'lists' and 'Remove one' in r.json()['error']['message']
     r = c.post(f'{LISTS}/{a["id"]}/tickers', headers=c.h, json={'tickers': ['CCCC', 'DDDD']})
-    assert r.status_code == 422 and r.json()['error']['details'] == {'limit': 'tickers', 'allowed': 3, 'needed': 4}
+    assert r.status_code == 403 and r.json()['error']['details'] == {'limit': 'watchlist.per_list', 'allowed': 3, 'needed': 4}
     assert names(c)[0] == ('A', ['AAAA', 'BBBB'])                      # refused whole: nothing half-added
     r = c.patch(f'{LISTS}/{a["id"]}', headers=c.h, json={'indicators': [f'k{n}' for n in range(9)]})
-    assert r.status_code == 422 and r.json()['error']['details']['limit'] == 'indicators'
+    assert r.status_code == 403 and r.json()['error']['details']['limit'] == 'watchlist.indicators'
     assert c.patch(f'{LISTS}/{a["id"]}', headers=c.h, json={'indicators': []}).status_code == 422
     r = c.patch(f'{LISTS}/{a["id"]}', headers=c.h, json={'name': 'b'})
     assert r.status_code == 409 and r.json()['error']['code'] == 'NAME_TAKEN'

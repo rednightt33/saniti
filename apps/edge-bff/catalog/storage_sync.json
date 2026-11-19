@@ -1,0 +1,25 @@
+{
+ "note": "generated from apps/edge-bff/shared/edge-session.ts STORAGE (sync keys and their cap) by shared/build-shell.mjs; do not edit",
+ "keys": {
+  "edge-model-choice": "monitor.view",
+  "ml.symbol": null,
+  "ml.tf": "terminal.view",
+  "ml.fi.metric": "terminal.view",
+  "ml.chart.style": "terminal.view",
+  "ml.chart.mode": "terminal.view",
+  "ml.vol.on": "terminal.view",
+  "ml.vol.removed": "terminal.view",
+  "ml.ind.v1": "terminal.view",
+  "ml.ind.filters": "terminal.view",
+  "ml.ind.favs": "terminal.view",
+  "ml.legend.hidden": "terminal.view",
+  "ml.events.v1": "terminal.view",
+  "ml.flow.filters": "terminal.view",
+  "ml.flow.cum": "terminal.view",
+  "ml.assets.v1": "terminal.view",
+  "ml.my": "backtest.view",
+  "scr.last": "screener.view",
+  "scr.extraCols": "screener.view",
+  "edge.watchlist.view": "watchlist.view"
+ }
+}

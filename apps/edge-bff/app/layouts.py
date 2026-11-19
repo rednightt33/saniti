@@ -13,9 +13,9 @@ Routes (session; writes also with the CSRF header, as /api/v1/screener):
   DELETE /api/v1/terminal/layouts/{layout_id}
 Errors: {"error": {code, field?, message, details?}}: 422 INVALID_INPUT (a field the API does not take, a name, summary or
 state out of shape, more than STATE_KEYS settings, text PostgreSQL cannot store: NUL or an unpaired surrogate) /
-LIMIT_EXCEEDED (LAYOUT_LIMIT layouts, STATE_BYTES of state), 404 NOT_FOUND, 409 REVISION_CONFLICT (details.revision: the
-stored one) / NAME_TAKEN, 503 LAYOUTS_NOT_READY (migration not applied). A body over 131,072 bytes is refused before it
-reaches these routes (main.py, 413 REQUEST_TOO_LARGE).
+LIMIT_EXCEEDED (STATE_BYTES of state), 403 LIMIT_REACHED (the plan's cap, at most LAYOUT_LIMIT; errors.plan_cap), 404
+NOT_FOUND, 409 REVISION_CONFLICT (details.revision: the stored one) / NAME_TAKEN, 503 LAYOUTS_NOT_READY (migration not
+applied). A body over 131,072 bytes is refused before it reaches these routes (main.py, 413 REQUEST_TOO_LARGE).
 """
 import asyncio
 from contextlib import contextmanager
@@ -28,6 +28,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
+from .errors import plan_cap
 from .principal import Principal
 
 LAYOUT_ID = re.compile(r'lay_[0-9a-f]{32}')         # migration 20261106_001; terminal src/data/layoutsApi.ts
@@ -153,8 +154,8 @@ class LayoutStore:
                     held = c.execute('SELECT count(*) AS n FROM edge_bff.terminal_layouts WHERE owner_key=%s',
                                      (owner,)).fetchone()['n']
                     if held >= limit:
-                        raise failure('LIMIT_EXCEEDED', 422, message=f'At most {limit} layouts: delete one before saving another.',
-                                      details={'limit': 'layouts', 'allowed': limit, 'needed': held + 1})
+                        code, status, message, details = plan_cap(LIMIT_KEY, limit, held + 1)    # re-check R2-39
+                        raise failure(code, status, message=message, details=details)
                     created = c.execute('''INSERT INTO edge_bff.terminal_layouts(layout_id,owner_key,name,state,summary,schema_version)
                         VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (layout_id) DO NOTHING RETURNING *''',
                         (layout_id, owner, name, Jsonb(state), summary, SCHEMA_VERSION)).fetchone()
@@ -220,6 +221,7 @@ class Layouts:
         # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): every route, reads included, needs terminal.layouts; the cap is
         # the plan's terminal.layouts_max, at most LAYOUT_LIMIT
         reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
+        auth.ceiling(LIMIT_KEY, LAYOUT_LIMIT)          # the session's access.limits reports the applied cap (R1-29)
 
         @app.exception_handler(LayoutError)
         async def layout_error(_, exc):

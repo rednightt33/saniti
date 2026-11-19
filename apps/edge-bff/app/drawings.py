@@ -11,8 +11,9 @@ Routes (session; writes also with the CSRF header, as /api/v1/terminal/layouts):
   PUT    /api/v1/terminal/drawings/{ticker}/{set_id}    {drawings, revision?}: create (no revision) or replace
   DELETE /api/v1/terminal/drawings/{ticker}/{set_id}
 Errors: {"error": {code, field?, message, details?}} (the layouts' shape and handler): 422 INVALID_INPUT by field /
-LIMIT_EXCEEDED (SET_LIMIT sets, SET_BYTES per set), 404 NOT_FOUND, 409 REVISION_CONFLICT, 503 DRAWINGS_NOT_READY
-(migration not applied). A body over 131,072 bytes is refused before the route (main.py, 413).
+LIMIT_EXCEEDED (SET_BYTES per set), 403 LIMIT_REACHED (the plan's sets cap, at most SET_LIMIT; errors.plan_cap), 404
+NOT_FOUND, 409 REVISION_CONFLICT, 503 DRAWINGS_NOT_READY (migration not applied). A body over 131,072 bytes is refused
+before the route (main.py, 413).
 """
 import asyncio
 from contextlib import contextmanager
@@ -25,6 +26,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
+from .errors import plan_cap
 from .layouts import LayoutError, invalid, storable
 from .principal import Principal
 
@@ -118,9 +120,8 @@ class DrawingStore:
                     held = c.execute('SELECT count(*) AS n FROM edge_bff.terminal_drawings WHERE owner_key=%s',
                                      (owner,)).fetchone()['n']
                     if held >= limit:
-                        raise failure('LIMIT_EXCEEDED', 422, message=f'Drawings are kept for at most {limit:,} places '
-                                      '(tickers, Flow Timelines and panes): clear the drawings of a ticker you no longer use.',
-                                      details={'limit': 'sets', 'allowed': limit, 'needed': held + 1})
+                        code, status, message, details = plan_cap(LIMIT_KEY, limit, held + 1)    # re-check R2-39
+                        raise failure(code, status, message=message, details=details)
                     return c.execute('''INSERT INTO edge_bff.terminal_drawings(owner_key,ticker,set_id,drawings,schema_version)
                         VALUES (%s,%s,%s,%s,%s) RETURNING *''', (owner, ticker, set_id, Jsonb(drawings), SCHEMA_VERSION)).fetchone(), True
                 if not row:
@@ -164,6 +165,7 @@ class Drawings:
         # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): every route needs terminal.drawings; the cap is the plan's
         # terminal.drawings_max, at most SET_LIMIT
         reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
+        auth.ceiling(LIMIT_KEY, SET_LIMIT)             # the session's access.limits reports the applied cap (R1-29)
 
         @app.get('/api/v1/terminal/drawings')
         async def drawings(ticker: str = '', p: Principal = Depends(reader)):

@@ -49,7 +49,8 @@ const newId = () => typeof crypto !== 'undefined' && 'randomUUID' in crypto ? cr
 export function liveApi(opts: { fetchImpl?: typeof fetch } = {}): ScreenerApi {
   const f: typeof fetch = opts.fetchImpl ?? ((...a) => fetch(...a));
   const edge = sessionClient(f);
-  const session = (): Promise<Session> => edge.session().then(s => ({ login:s.login, csrf:s.csrf }), e => {
+  const session = (): Promise<Session> => edge.session().then(s => ({ login:s.login, csrf:s.csrf,
+    access:typeof (s.access as { version?: unknown } | null)?.version === 'string' ? (s.access as { version: string }).version : null }), e => {
     const info = e instanceof SessionError ? e.error : null;
     if (!info) throw new ApiFailure(T.unreachable, 'NETWORK');
     if (!isAccessRefusal(info)) throw new ApiFailure(T.signIn, 'UNAUTHENTICATED', info.status);

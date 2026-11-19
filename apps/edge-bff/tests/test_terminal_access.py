@@ -145,7 +145,7 @@ def switched_off(settings, api):
 
 def paid_plan(store):
     rows = db(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'backtest.run'
-        AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')
+        AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')
     assert len(rows) == 1, rows
     return rows[0]['plan_key']
 
@@ -352,7 +352,12 @@ def test_a_paid_principal_gets_every_ticker_and_dataset(switched_on, store):
             assert call['headers']['x-terminal-proxy-owner'] == user['owner_key']
             assert sent_caps(call) == {'v': 1, 'version': r.headers['x-edge-entitlements'], 'admin': False, 'tickers': '*',
                                        'datasets': ALL_DATASETS, 'history_days': None, 'quota': QUOTA}
-        # a plan narrowed by an override: refused at once, on the next request
+        # a plan narrowed by an override: refused at once, on the next request. The catalog takes a Terminal limit
+        # only once the account's Backtest and Screener are closed, since their workers read every stock (re-check
+        # R1-36, user decision 2026-11-19 "2a", migration 20261119_030: the capabilities marked every_stock)
+        db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
+            SELECT %s, capability_key, 'false', 'test' FROM edge_bff.capabilities WHERE data_scope = 'every_stock' ''',
+           user['user_id'])
         db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
             VALUES (%s, 'terminal.dataset', '{"ids": ["price"]}', 'test')''', user['user_id'])
         r = c.get('/api/terminal/v1/cut/BBCA/broker')
@@ -541,7 +546,7 @@ def test_the_quota_migration_holds_d6s_numbers_for_paid_and_free(store):
         by_plan.setdefault(r['plan_key'], {})[r['capability_key'].removeprefix('terminal.')] = r['value']
     assert by_plan == {paid_plan(store): QUOTA, db(store, 'SELECT plan_key FROM edge_bff.plans WHERE is_default')[0]['plan_key']: QUOTA}
     assert not db(store, '''SELECT 1 FROM edge_bff.plan_capabilities WHERE capability_key LIKE 'terminal.%%_per_%%'
-        AND plan_key IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')
+        AND plan_key IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')
 
 
 def test_the_quota_migration_refuses_a_second_run(database):

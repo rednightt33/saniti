@@ -582,7 +582,9 @@ def test_queue_limit_one_running_and_three_queued(app, worker):
     # EXEC-MU-ACCOUNTS Phase 3a (C1 F2, CONTRACT.md 3): the queue cap is the plan's backtest.queued_jobs, so its refusal
     # is LIMIT_REACHED with the limit, the account's own number and when to try again (Retry-After)
     assert full.status_code == 429 and full.headers['retry-after'] == '30' and full.json() == {'error': {
-        'code': 'LIMIT_REACHED', 'message': MESSAGES['LIMIT_REACHED'],
+        # re-check R2-15: the words name the limit, the account's number and the wait (errors.words)
+        'code': 'LIMIT_REACHED', 'message': ("You have reached your plan's limit for Queued backtests (3). "
+                                             'Try again in 30 seconds, or upgrade the plan.'),
         'details': {'limit': 'backtest.queued_jobs', 'allowed': 3, 'retry_after_s': 30}}}
     assert submit(c, single(), 'k0').json()['request_id'] == ids[0]   # a known submission still answers
     store = c.app.state.backtests.store
@@ -1470,11 +1472,13 @@ def test_backtest_tab_page_and_its_frame_csp(app, monkeypatch, tmp_path):
     (tmp_path / 'assets' / 'index-abc123.js').write_text('void 0')
     monkeypatch.setattr(main, 'BACKTEST_APP', tmp_path)
     page = c.get('/backtest')
-    assert page.status_code == 200 and 'EDGE' in page.text and 'function BacktestPage' in page.text and '"/backtest-app/"' in page.text
+    shell = page.text + c.get('/edge-app.js').text           # the shell's app is a file of its own (re-check R2-19)
+    assert page.status_code == 200 and 'EDGE' in page.text and '<script src="/edge-app.js"></script>' in page.text
+    assert 'function BacktestPage' in shell and '"/backtest-app/"' in shell
     # the tab's wording is in edge-labels.js (AGENTS.md), used like the Terminal tab's
     assert 'backtest: { nav:"Backtest", frameTitle:"Backtest" }' in c.get('/edge-labels.js').text
-    assert '[EdgeLabels.backtest.nav, "backtest"]' in page.text and 'title: EdgeLabels.backtest.frameTitle' in page.text
-    assert '"Backtest"' not in page.text
+    assert '[EdgeLabels.backtest.nav, "backtest"]' in shell and 'title: EdgeLabels.backtest.frameTitle' in shell
+    assert '"Backtest"' not in shell
     assert page.headers['content-security-policy'] == c.get('/terminal').headers['content-security-policy']   # EDGE's own policy
     frame = c.get('/backtest-app/')
     assert frame.status_code == 200 and 'Market Lab Backtest' in frame.text
@@ -2318,7 +2322,7 @@ def rights_session(configured, store, admin):
     def signed(c):
         user = make_user(store, 'plain', 'plain-password')
         plan = run_sql(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'backtest.run'
-            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')[0]['plan_key']
+            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')[0]['plan_key']
         run_sql(store, "INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider) VALUES (%s, %s, 'active', 'test')",
                 user['user_id'], plan)
         return sign_in(c, 'plain', 'plain-password')

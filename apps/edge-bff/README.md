@@ -36,7 +36,7 @@ Saved layouts (user 2026-11-06: "di akun edge. Tidak usah mengganti saham."), ED
 | --- | --- |
 | GET `/api/v1/terminal/layouts` | `{layouts: [Layout without state], limit}` of the owner, the most recently opened first |
 | GET `/api/v1/terminal/layouts/{layout_id}` | the Layout with `state` (setting name -> text); 404 `NOT_FOUND` |
-| PUT `/api/v1/terminal/layouts/{layout_id}` | `{name, state, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field (more than 64 settings, text with NUL or an unpaired surrogate included), 422 `LIMIT_EXCEEDED` (50 layouts, 65,536 bytes of state); a body over 131,072 bytes is 413 before the route |
+| PUT `/api/v1/terminal/layouts/{layout_id}` | `{name, state, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field (more than 64 settings, text with NUL or an unpaired surrogate included), 422 `LIMIT_EXCEEDED` (65,536 bytes of state), 403 `LIMIT_REACHED` (the plan's `terminal.layouts_max`, at most 50 layouts; `details.limit` the capability key, `allowed`, `needed`); a body over 131,072 bytes is 413 before the route |
 | PATCH `/api/v1/terminal/layouts/{layout_id}` | `{favorite?, opened?: true}`: the star, or the Recently used order; no revision |
 | DELETE `/api/v1/terminal/layouts/{layout_id}` | 204; 404 `NOT_FOUND` |
 
@@ -50,7 +50,7 @@ ticker. A preset is a template: changing the indicator on the chart does not cha
 | Route | Contract |
 | --- | --- |
 | GET `/api/v1/terminal/presets` | `{presets: [Preset with config], limit}` of the owner, favorites first, then the most recently used |
-| PUT `/api/v1/terminal/presets/{preset_id}` | `{name, def_id, config, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); `config` is `{params, style?, on?, fold?}` (objects at most 8 deep, text without NUL or an unpaired surrogate, at most 16,384 bytes); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (100 presets, `preset_bytes`) |
+| PUT `/api/v1/terminal/presets/{preset_id}` | `{name, def_id, config, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); `config` is `{params, style?, on?, fold?}` (objects at most 8 deep, text without NUL or an unpaired surrogate, at most 16,384 bytes); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (`preset_bytes`), 403 `LIMIT_REACHED` (the plan's `terminal.presets_max`, at most 100) |
 | PATCH `/api/v1/terminal/presets/{preset_id}` | `{favorite?, used?: true}`: the star, or the used order; no revision |
 | DELETE `/api/v1/terminal/presets/{preset_id}` | 204; 404 `NOT_FOUND` |
 
@@ -68,7 +68,7 @@ come back with Undo. EDGE session, writes with CSRF:
 | Route | Contract |
 | --- | --- |
 | GET `/api/v1/terminal/drawings?ticker=BBRI` | `{sets: [{ticker, set_id, drawings, revision, ...}], limits}` of the owner for that ticker |
-| PUT `/api/v1/terminal/drawings/{ticker}/{set_id}` | `{drawings, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); `drawings` is the drawing library's list (at most 10 levels, at most 100,000 bytes); 409 `REVISION_CONFLICT` (`details.revision`), 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (5,000 sets per owner, `set_bytes`) |
+| PUT `/api/v1/terminal/drawings/{ticker}/{set_id}` | `{drawings, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); `drawings` is the drawing library's list (at most 10 levels, at most 100,000 bytes); 409 `REVISION_CONFLICT` (`details.revision`), 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (`set_bytes`), 403 `LIMIT_REACHED` (the plan's `terminal.drawings_max`, at most 5,000 sets per owner) |
 | DELETE `/api/v1/terminal/drawings/{ticker}/{set_id}` | 204; 404 `NOT_FOUND` |
 
 Without the table every drawings route answers 503 `DRAWINGS_NOT_READY` with `Retry-After: 30`; the page then keeps the
@@ -215,10 +215,10 @@ and My metrics' Add all open it; the detailed Indicators window is gone. The pre
 | POST `/api/v1/screener/validate` | `ValidateRequest` -> `{valid, definition_hash, normalized}` or the worker's 422 |
 | POST `/api/v1/screener/counts` | `CountsRequest` -> `CountsResponse` (the worker's limit on definitions), as the run |
 | GET `/api/v1/screener/items?kind=screen\|metric` | `{items: SavedItem[]}` of the owner (one kind, or both without `kind`), latest changed first, each with `needs_review` |
-| PUT `/api/v1/screener/items/{item_id}` | `{kind, name, definition, revision?}` -> the stored item: no `revision` creates, the revision it was read with replaces (revision + 1); validated by the worker first (`/v1/validate`, its refusal relayed); 409 `REVISION_CONFLICT` (the id exists, or a stale revision), 409 `NAME_TAKEN` (`name` per owner and kind), 404 `NOT_FOUND`, 422 `LIMIT_EXCEEDED` |
+| PUT `/api/v1/screener/items/{item_id}` | `{kind, name, definition, revision?}` -> the stored item: no `revision` creates, the revision it was read with replaces (revision + 1); validated by the worker first (`/v1/validate`, its refusal relayed); 409 `REVISION_CONFLICT` (the id exists, or a stale revision), 409 `NAME_TAKEN` (`name` per owner and kind), 404 `NOT_FOUND`, 403 `LIMIT_REACHED` (the plan's `screener.saved_items` per kind) |
 | DELETE `/api/v1/screener/items/{item_id}` | 204; 404 `NOT_FOUND` |
 | GET `/api/v1/screener/watchlist` | `{tickers: [{ticker, added_at}]}` (one list per owner) |
-| PUT / DELETE `/api/v1/screener/watchlist/{ticker}` | 204, idempotent; 422 `INVALID_INPUT` (`ticker`, terminal-api's rule `^[A-Z0-9]{1,12}$`), 422 `LIMIT_EXCEEDED` |
+| PUT / DELETE `/api/v1/screener/watchlist/{ticker}` | 204, idempotent; 422 `INVALID_INPUT` (`ticker`, terminal-api's rule `^[A-Z0-9]{1,12}$`), 403 `LIMIT_REACHED` (the plan's `watchlist.per_list`, or `watchlist.lists` when the first list is made) |
 
 Errors are `{"error": {code, field?, message?, details?}}`; every refusal edge-bff gives itself names the field where
 there is one and the fix (AGENTS.md "Gates and evidence"). A body that is not a JSON object the contract can carry is
@@ -335,7 +335,7 @@ first list and adding a stock in Chromium), `watchlist/tests/` (`npm test`). Loo
 
 ## Front-end structure: editing the page without touching the API (EXEC-X, 2026-10-08)
 
-The browser tab names the page (EXEC-TERMINAL-IND-EDIT, user 2026-11-05): `App()` in `static/index.html` sets
+The browser tab names the page (EXEC-TERMINAL-IND-EDIT, user 2026-11-05): `App()` in `static/edge-app.js` sets
 `document.title` from `EdgeLabels.pages` in `static/edge-labels.js` (Sign In, Monitor, Terminal, Backtest, Screener); the
 static `<title>` is only "EDGE". `tests/test_page_titles.py` checks it in a browser.
 
@@ -347,7 +347,13 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 | Session, error contract, browser storage (shared by the shell and the six pages) | `shared/edge-session.ts`, built for the shell into `static/edge-session.js` | a refusal code, the CSRF retry, or a browser storage key (see "Accounts groundwork" below) |
 | View contract | `static/edge-view.js` (`EdgeView.toView`) | Orc's response shape changes; the only code that reads it |
 | Words | `static/edge-labels.js` | wording, a label, a code's words, a status name |
-| Look and layout | `static/index.html` (markup, CSS, renderers) | anything visual; renderers read the view model only |
+| Look and layout | `static/index.html` (markup, CSS) and `static/edge-app.js` (the renderers and the shell's app) | anything visual; renderers read the view model only |
+
+The shell runs no inline script (EXEC-MU-ACCOUNTS fix round, re-check R2-19): the head's viewport script is
+`static/edge-boot.js` and the app is `static/edge-app.js`, so its policy keeps `script-src 'self'` without
+`'unsafe-inline'`, with `form-action 'self'` (`app/main.py` protections; `tests/test_fix_plans.py`). A new script is a
+file in `static/` loaded with `<script src>`, never an inline `<script>` or an `on...=` attribute. The preview tool
+inlines every such file and writes each back on import.
 
 - Look (MONITOR-REVAMP, user 2026-10-29): the Monitor page and the top bar of every tab follow the user's
   `AI_revamp.html` (EDGE / Market Lab Design Spec v1): its tokens on `.app` (light, and dark under `html.dark`), its
@@ -958,7 +964,7 @@ replaced, 409 `PREFERENCE_CONFLICT` with the current value for a stale version, 
 64 KiB per value, 1 MiB in all). They work with the switch off too, for user #1.
 
 Front-end (`static/index.html`, `shared/edge-session.ts`):
-- One route table, `ROUTES` in `index.html`, read by `go()` and `currentPath`: the tab pages (`auth`), `/login`, and
+- One route table, `ROUTES` in `edge-app.js`, read by `go()` and `currentPath`: the tab pages (`auth`), `/login`, and
   the account pages `/register`, `/verify`, `/forgot`, `/reset` (`open`: shown only while `/auth/config` says
   `multiuser`, else the sign-in page) and `/mfa`. `main.py` serves each path; a new page needs a row here and a route
   there, and its words in `EdgeLabels.pages`.

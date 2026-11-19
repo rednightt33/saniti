@@ -12,13 +12,14 @@ refuse_context), when the call is made (a queued backtest reads its owner's prin
 - `digest(context)` is a short fingerprint of the three, the key of every cache whose answer depends on what the
   principal may use (the Screener's saved-item review), so one plan's answer never serves another.
 - `named(error)` adds `details.display_name` (errors.display_name) to a worker's 403 CAPABILITY_REQUIRED, which edge-bff
-  otherwise relays unchanged.
+  otherwise relays unchanged; a message that carries the internal key is worded by edge-bff instead (errors.words;
+  re-check R1-34).
 """
 import hashlib
 import json
 
 from . import releases
-from .errors import display_name
+from .errors import display_name, words
 from .rights import rights_of
 
 EVERYTHING = '*'
@@ -76,12 +77,18 @@ def digest(context):
 
 
 def named(error):
-    """A worker error with details.display_name added when it is CAPABILITY_REQUIRED naming a capability; any other
-    error as it is."""
+    """A worker error with details.display_name added when it is CAPABILITY_REQUIRED naming a capability. Its message
+    stays the worker's (it names the condition and the item) unless it carries the internal key (the capability or its
+    family) or is missing: then edge-bff words it (errors.words), so the person never reads an internal key
+    (re-check R1-34; edge-bff owns the wording for people, CONTRACT.md section 3). Any other error as it is."""
     if not isinstance(error, dict) or error.get('code') != CAPABILITY_REQUIRED:
         return error
     details = error.get('details') if isinstance(error.get('details'), dict) else {}
     capability = details.get('capability')
     if not isinstance(capability, str) or not capability:
         return error
-    return {**error, 'details': {**details, 'display_name': display_name(capability)}}
+    details = {**details, 'display_name': display_name(capability)}
+    message = error.get('message')
+    if isinstance(message, str) and message and capability not in message and capability.partition(':')[0] not in message:
+        return {**error, 'details': details}          # the worker's own words (they name the place), with no key
+    return {**error, 'message': words(CAPABILITY_REQUIRED, 403, details), 'details': details}

@@ -202,7 +202,7 @@ class AccountStore:
 
     def seed_subscription(self, user_id):
         """User #1 gets an active manual subscription with no end to the plan that holds every capability ('*'). The
-        plan is found by data: exactly one plan holds '*'; otherwise nothing is given and account_seed_plan_ambiguous is
+        plan is found by data: exactly one plan holds '*' = true; otherwise nothing is given and account_seed_plan_ambiguous is
         logged at warning. Given once (C1/C2/C3 Phase 2): only to the seed row (the one owner key not of the 'u_' form,
         users_one_seed), and only while it has no subscription row at all, whatever its status. From then on the
         subscription is the admin's: a cancelled or ended one is never given back at a restart. Idempotent (every
@@ -214,8 +214,10 @@ class AccountStore:
                 logger.warning(json.dumps({'event': 'account_seed_plan_refused', 'user_id': user_id,
                                            'reason': 'not the seed account'}))
                 return None
+            # the plan whose '*' is true: a flag may be false since the M480 fix round, so a row alone holds nothing
+            # (re-check R1-25)
             plans = [r['plan_key'] for r in c.execute('''SELECT DISTINCT plan_key FROM edge_bff.plan_capabilities
-                WHERE capability_key = %s ORDER BY plan_key''', (EVERYTHING,)).fetchall()]
+                WHERE capability_key = %s AND value = 'true'::jsonb ORDER BY plan_key''', (EVERYTHING,)).fetchall()]
             if len(plans) != 1:
                 logger.warning(json.dumps({'event': 'account_seed_plan_ambiguous', 'plans': len(plans)}))
                 return None

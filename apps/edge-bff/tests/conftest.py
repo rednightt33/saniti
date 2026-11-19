@@ -43,6 +43,8 @@ def database():
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_021_edge_bff_backtest_jobs_site.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_022_edge_bff_seed_verifier_mark.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_023_edge_bff_account_reference_indexes.sql').read_text())
+            # the plans fix round (verification/edge_multiuser/fix_round/plans.md, re-check R1-36, the user's "2a")
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_030_edge_bff_plan_data_scope.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_050_edge_bff_capability_domains.sql').read_text())
             c.execute('CREATE TABLE public.market_private(secret text)')
         yield url

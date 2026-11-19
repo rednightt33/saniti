@@ -27,7 +27,7 @@ from psycopg.types.json import Jsonb
 from .client import public_data
 from .accounts import AccountStore
 from .config import BETA
-from .errors import Refusal, message_of
+from .errors import Refusal, words
 from .principal import Principal, owner_principal
 from .allow import NOTHING, context_of, named
 from .rights import catalog_for, refuse_context, rights_of
@@ -978,7 +978,8 @@ class BacktestLoop:
                 # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b): the plan lost backtest.run while the job waited (a
                 # downgrade or an ended plan): the job ends with the principal's refusal, never reaching the worker
                 refused = principal.refusal(RUN)
-                await self.end_job(row, deadline, 'FAILED', {'code': refused.code, 'message': message_of(refused.code, 403),
+                await self.end_job(row, deadline, 'FAILED', {'code': refused.code,
+                                                              'message': words(refused.code, 403, refused.details),
                                                               'details': refused.details})
                 return False
             body = {'job_id': job_id, 'request': row['request'],
@@ -1329,6 +1330,7 @@ class Backtests:
 
     def routes(self, app, auth):
         settings = self.settings
+        auth.ceiling(QUEUED_KEY, settings.backtest_queued_per_owner)   # access.limits reports the applied cap (R1-29)
         # EXEC-MU-ACCOUNTS Phase 1: the loop reads a queued job's owner's rights from the same principal resolution
         if self.loop:
             self.loop.access = auth.owner_principal

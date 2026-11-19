@@ -6,16 +6,40 @@ kind's families (KIND_OF_FAMILY), so `*` holds every entry at any stage and a pl
 terminal.indicator holds the released indicators only. An unknown kind answers 404 NOT_FOUND, with the known kinds in
 details.known_kinds. Definitions stay in the page bundles until Phase 3 moves them behind this route.
 """
+import json
+
 from fastapi import Depends
 
 from . import releases
 from .errors import Refusal
-from .principal import Principal
+from .principal import EVERYTHING, Principal
+
+
+def holds_entry(p, kind, item_id):
+    """Whether the principal holds an item of a kind in any capability family of that kind: the one rule of every answer
+    that lists items (this route, and the tab catalogs that list them: the Screener's presets, re-check R1-32)."""
+    return any(p.can(f'{family}:{item_id}') for family in releases.FAMILIES_OF_KIND[kind])
+
+
+def holds_every(p, kind):
+    """Whether the principal holds every item of a kind whatever its id or stage ('*', or a family value {"all": true}),
+    so nothing of that kind is left out of an answer."""
+    if EVERYTHING in p.capabilities or p.grants.get(EVERYTHING) is True:
+        return True
+    return any(p.kinds.get(f) == 'items' and p.grants[f].get('all') is True for f in releases.FAMILIES_OF_KIND[kind])
+
+
+def grant_key(p, kind):
+    """A cache key part of what decides a principal's items of a kind: None when it holds every one, else its grants
+    of the kind's families (two principals with the same grants hold the same items)."""
+    if holds_every(p, kind):
+        return None
+    return json.dumps({f: p.grants.get(f) for f in releases.FAMILIES_OF_KIND[kind]}, sort_keys=True,
+                      separators=(',', ':'))
 
 
 def held(p, kind):
-    families = releases.FAMILIES_OF_KIND[kind]
-    return [e for e in releases.entries(kind) if any(p.can(f'{family}:{e["id"]}') for family in families)]
+    return [e for e in releases.entries(kind) if holds_entry(p, kind, e['id'])]
 
 
 def routes(app, auth):

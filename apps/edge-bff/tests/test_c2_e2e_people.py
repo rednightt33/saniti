@@ -18,8 +18,12 @@ import pytest
 
 playwright = pytest.importorskip('playwright.sync_api')
 
+import re  # noqa: E402
+
 from e2e_people import (CHROMIUM, REFUSAL_WORDS, ROOT, Live, browser_context, register, shell_navigate,  # noqa: E402
-                        terminal_drawn)
+                        signed_in_workspace, terminal_drawn)
+
+CODE = re.compile(r'[A-Z][A-Z0-9_]{3,}')
 
 
 @pytest.fixture
@@ -53,13 +57,17 @@ def test_the_monitor_shows_a_plan_refusal_in_words_not_its_code(live, chromium):
     Monitor shows error.message, the code (index.html Monitor: setApiError(e.message))."""
     page = browser_context(chromium).new_page()
     register(page, live, 'free_user', 'free@example.com')
+    # fix round: a new account lands on the Terminal (re-check R2-14), so the Monitor is opened from the rail; its words
+    # name what the plan lacks (re-check R2-15: errors.words), so the alert is compared with words, not one sentence
+    assert page.evaluate('() => location.pathname') == '/terminal'
+    shell_navigate(page, '/monitor')
     shown = monitor_alert(page)
     assert shown != 'CAPABILITY_REQUIRED', 'the Monitor shows the internal code of the refusal, not its words'
-    assert shown == REFUSAL_WORDS
+    assert not CODE.fullmatch(shown) and 'Monitor' in shown and 'plan' in shown, shown
     live.subscribe('free_user', 'paid')                 # the paid plan holds monitor.example only (D1)
     page.reload()
     page.get_by_placeholder('Ask a research question…').wait_for(timeout=15000)
-    assert monitor_alert(page) == REFUSAL_WORDS
+    assert monitor_alert(page) == shown
 
 
 def test_a_plan_raised_to_one_that_needs_mfa_asks_for_the_authenticator_without_a_reload(live, chromium):
@@ -72,7 +80,7 @@ def test_a_plan_raised_to_one_that_needs_mfa_asks_for_the_authenticator_without_
     register(page, live, 'paid_user', 'paid@example.com')
     live.subscribe('paid_user', 'paid')
     page.reload()
-    page.get_by_placeholder('Ask a research question…').wait_for(timeout=15000)
+    signed_in_workspace(page)                           # fix round: the landing page (re-check R2-14)
     live.subscribe('paid_user', 'admin')
     shell_navigate(page, '/terminal')                   # the frame's calls answer MFA_REQUIRED with the new version
     time.sleep(3)

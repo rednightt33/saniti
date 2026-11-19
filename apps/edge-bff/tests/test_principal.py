@@ -151,7 +151,7 @@ def make_user(store, username, password, role='user', status='active', email=Non
                   (row['user_id'], str(row['user_id']), password_verifier(password)))
         if role == 'admin' if everything is None else everything:
             c.execute('''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider)
-                SELECT %s, plan_key, 'active', 'test' FROM edge_bff.plan_capabilities WHERE capability_key = '*' ''',
+                SELECT %s, plan_key, 'active', 'test' FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb''',
                       (row['user_id'],))
     return dict(row)
 
@@ -347,7 +347,7 @@ def test_two_users_see_none_of_each_others_rows(on, store, workers):
         # Phase 3a (CONTRACT.md 8b): the tabs need their capabilities, so both hold the plan that grants backtest.run
         # (found by data) and the Monitor by override (admin only in the seed, decisions D1 and D8)
         plan = db(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'backtest.run'
-            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')[0]['plan_key']
+            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')[0]['plan_key']
         for user in (alice, bob):
             db(store, '''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider) VALUES (%s, %s, 'active', 'test')''',
                user['user_id'], plan)

@@ -14,6 +14,24 @@ LEGACY = (16384, 8, 1)
 COSTS = frozenset({COST, LEGACY})
 VERIFIER = re.compile(r'scrypt\$(?:n=([0-9]{1,7}),r=([0-9]{1,2}),p=([0-9]{1,2})\$)?([0-9a-f]{32})\$([0-9a-f]{64})')
 
+# re-check R2-22: the session and registration cookies. On a Secure (https) origin their names carry the __Host- prefix:
+# the browser then keeps them only when Secure, Path=/ and without Domain, so no other host of the domain (a sibling
+# site under the live domain, a dangling name) can set or overwrite them ("cookie tossing"). A local http origin keeps
+# the plain names (a __Host- cookie needs Secure).
+SESSION_COOKIE = 'edge_session'
+REGISTRATION_COOKIE = 'edge_registration'
+REGISTRATION_PATH = '/api/v1/auth/'             # the registration cookie's path where no prefix applies
+
+
+def cookie_name(name, secure):
+    """The cookie's name on this origin: '__Host-' + name when Secure, else name."""
+    return '__Host-' + name if secure else name
+
+
+def registration_path(secure):
+    """A __Host- cookie must have Path=/; without the prefix the registration cookie stays on the auth routes."""
+    return '/' if secure else REGISTRATION_PATH
+
 
 def normal_password(password: str) -> str:
     """EXEC-MU-ACCOUNTS Phase 1 fix round (ERRORS M478, C1 P1-L3; NIST SP 800-63B-4): a password is NFKC-normalised

@@ -113,7 +113,8 @@ test('every place an item is named: refused 403 CAPABILITY_REQUIRED at its JSON 
     const r = refusal(() => checkRequest(q, REFS, CFG, undefined, allowOf_((k, i) => k === kind && i === id)));
     const capability = `${FAMILY[kind as keyof typeof FAMILY]}:${id}`;
     assert.deepEqual(r && { status: r.status, code: r.code, field: r.field, details: r.details }, { status: 403, code: 'CAPABILITY_REQUIRED', field: first[0], details: { kind, id, capability } }, key);
-    assert.ok(r!.message!.includes(id) && r!.message!.includes('not included in your plan') && r!.message!.includes(capability), r!.message);
+    // re-check R1-34: the message names the item; the internal key stays in details.capability only
+    assert.ok(r!.message!.includes(id) && r!.message!.includes('not included in your plan') && !r!.message!.includes(capability), r!.message);
   }
   // the families (edge-bff app/allow.py FAMILIES; CONTRACT 8b "3b follow-up", user 2026-11-18 "gate-nya adalah
   // terminal"): the indicator and Flow items are the Terminal's grants, a candlestick pattern backtest.candle_pattern,
@@ -153,7 +154,7 @@ test('signals preview: the entry and detail.exit_signals items, the latter at th
   const only = (ids: string[], metrics: string[] = []) => allowOf({ indicator: ids, flow_indicator: [], candle_pattern: [], screener_metric: metrics });
   assert.deepEqual(refusal(() => checkSignalsRequest(p, REFS, CFG, undefined, only([]))), {
     status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[0].indicator', details: { kind: 'indicator', id: 'I13', capability: 'terminal.indicator:I13' },
-    message: 'entry.conditions[0].indicator: the indicator I13 is not included in your plan (terminal.indicator:I13); remove it or change the plan to run this strategy.' });
+    message: 'entry.conditions[0].indicator: the indicator I13 is not included in your plan; remove it or change the plan to run this strategy.' });
   // a switched-off exit condition naming an unknown pattern type: the plan check comes first, and names the true path
   assert.deepEqual(refusal(() => checkSignalsRequest(p, REFS, CFG, undefined, only(['I13'])))?.field, 'detail.exit_signals.conditions[1].test.pattern.type');
   assert.deepEqual(refusal(() => checkSignalsRequest(p, REFS, CFG, undefined, only(['I13'])))?.details, { kind: 'screener_metric', id: 'doji_star_not_a_candle', capability: 'screener.metric:doji_star_not_a_candle' });
@@ -228,7 +229,7 @@ test('legacy cards: a type that is a catalog id is gated by that id (derived fro
   const breakout = request([card('breakout')]);
   assert.deepEqual(refusal(() => checkRequest(breakout, REFS, CFG, undefined, with_('screener_metric', ['volspike']))), {
     status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[0].type', details: { kind: 'screener_metric', id: 'breakout', capability: 'screener.metric:breakout' },
-    message: 'entry.conditions[0].type: the Screener metric breakout is not included in your plan (screener.metric:breakout); remove it or change the plan to run this strategy.' });
+    message: 'entry.conditions[0].type: the Screener metric breakout is not included in your plan; remove it or change the plan to run this strategy.' });
   assert.equal(refusal(() => checkRequest(breakout, REFS, CFG, undefined, with_('screener_metric', ['breakout']))), null);
   // a switched-off fnet card in the exit signals: refused at its path, allowed with fnet
   const fnet = request([card('breakout')], [{ ...card('fnet'), id: 'x1', enabled: false } as Condition]);
@@ -244,7 +245,7 @@ test('legacy cards: a type that is a catalog id is gated by that id (derived fro
     const q = request([card('breakout'), { ...card(t, over), id: 'f1', enabled: false } as Condition]);
     assert.deepEqual(refusal(() => checkRequest(q, REFS, CFG, undefined, with_('flow_indicator', ['fnet']))), {
       status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[1].type', details: { kind: 'flow_indicator', id: t, capability: `terminal.flow_indicator:${t}` },
-      message: `entry.conditions[1].type: the Flow indicator ${t} is not included in your plan (terminal.flow_indicator:${t}); remove it or change the plan to run this strategy.` }, t);
+      message: `entry.conditions[1].type: the Flow indicator ${t} is not included in your plan; remove it or change the plan to run this strategy.` }, t);
     assert.equal(refusal(() => checkRequest(q, REFS, CFG, undefined, with_('flow_indicator', [t]))), null, t);
   }
 });

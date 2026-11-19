@@ -22,12 +22,13 @@ CODE = re.compile(r'[A-Z][A-Z0-9_]{3,}')                          # a refusal co
 
 
 def signed_in(page, on, login):
-    """The shell's sign-in page, as the person uses it; every sign-in lands on /monitor (index.html LoginForm)."""
+    """The shell's sign-in page, as the person uses it. A sign-in lands on the Monitor for an account that holds it and
+    on the Terminal for any other (fix round, re-check R2-14: the paid and free plans hold no monitor.view, D1)."""
     page.goto(on.origin + '/login')
     page.get_by_label('Login', exact=True).fill(login)
     page.get_by_label('Password', exact=True).fill(login + '-password')
     page.get_by_role('button', name='Sign In').click()
-    page.wait_for_function("() => location.pathname === '/monitor' && Edge.auth !== null")
+    page.wait_for_function("() => ['/monitor', '/terminal'].includes(location.pathname) && Edge.auth !== null")
 
 
 def on_app(settings, store):
@@ -48,6 +49,10 @@ def test_c2web_w1_a_paid_account_lands_on_the_monitor_and_reads_words_not_a_code
     on, store = live
     paid_user(store, 'paula')
     signed_in(page, on, 'paula')
+    # fix round (re-check R2-14, the decision to land a non-admin account on the Terminal): the paid account lands on
+    # the Terminal, and the Monitor, opened from the rail, says why it is closed in words
+    assert page.evaluate('() => location.pathname') == '/terminal'
+    page.evaluate("() => { history.pushState({}, '', '/monitor'); dispatchEvent(new PopStateEvent('popstate')) }")
     page.wait_for_timeout(2000)                                   # the Monitor's first reads (conversations, runs)
     said = [t.strip() for t in page.locator('[role=alert]').all_inner_texts() if t.strip()]
     # (3e may show an example conversation instead of a refusal; then nothing is said and the test passes)
