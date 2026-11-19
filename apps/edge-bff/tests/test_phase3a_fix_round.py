@@ -48,11 +48,11 @@ def env(monkeypatch, **extra):
 def test_the_start_refuses_admin_owners_without_the_configured_owner_while_the_switch_is_off(monkeypatch):
     env(monkeypatch)
     assert Settings.from_env().admin_owners == ('edge-private',)              # unset: the configured owner
-    monkeypatch.setenv('EDGE_ADMIN_OWNERS', 'edge-private,golden-a')
-    assert Settings.from_env().admin_owners == ('edge-private', 'golden-a')
-    monkeypatch.setenv('EDGE_ADMIN_OWNERS', 'golden-a')
+    monkeypatch.setenv('EDGE_ADMIN_OWNERS', 'edge-private,another-a')
+    assert Settings.from_env().admin_owners == ('edge-private', 'another-a')
+    monkeypatch.setenv('EDGE_ADMIN_OWNERS', 'another-a')
     with pytest.raises(ValueError, match='EDGE_ADMIN_OWNERS must list EDGE_OWNER'):
         Settings.from_env()
     # with the switch on the list no longer grants anything to accounts (plans do), so it may leave the owner out
     env(monkeypatch, EDGE_MULTIUSER='true', EDGE_CODE_SECRET='c' * 40, EDGE_MFA_KEY='m' * 40)
-    assert Settings.from_env().admin_owners == ('golden-a',)
+    assert Settings.from_env().admin_owners == ('another-a',)

@@ -15,6 +15,7 @@ test_c2_ops_recheck) are the acceptance of their findings; these lock the parts 
 """
 import base64
 import hashlib
+import re
 import secrets
 
 import pytest
@@ -207,6 +208,17 @@ def test_the_outbox_purge_keeps_an_accounts_rows_and_unsent_rows(store):
     db(store, "UPDATE edge_bff.email_outbox SET created_at = now() WHERE idempotency_key = 'e'")
     store.cleanup_sessions()
     assert sorted(r['idempotency_key'] for r in outbox(store)) == ['a', 'd', 'e']
+
+
+# ---- R2-10: the 60-second gap reads the purposes of the email codes ------------------------------------------------
+
+def test_the_code_purposes_of_the_send_gap_are_those_of_the_email_codes_table(store):
+    from app.auth_flows import CODE_PURPOSES
+    check = db(store, "SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conrelid = "
+                      "'edge_bff.email_codes'::regclass AND contype = 'c' "
+                      "AND pg_get_constraintdef(oid) LIKE '%%purpose = ANY%%'")
+    assert len(check) == 1
+    assert sorted(re.findall(r"'([a-z_]+)'::text", check[0]['d'])) == sorted(CODE_PURPOSES)
 
 
 # ---- R2-37: the password pool's admission --------------------------------------------------------------------------
