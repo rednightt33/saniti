@@ -372,8 +372,10 @@ def create_app(settings=None, store=None, orc=None):
         if principal is not None:
             response.headers['X-Edge-Entitlements'] = principal.version
             # re-check R2-22: the switch-off owner's session read under the old cookie name moves to the new one
+            # (never over a route's own cookie answer: a sign-in or a sign-out sets or deletes it itself)
             if (session_cookie != COOKIE and not settings.multiuser and principal.token
-                    and not request.cookies.get(session_cookie) and request.cookies.get(COOKIE) == principal.token):
+                    and not request.cookies.get(session_cookie) and request.cookies.get(COOKIE) == principal.token
+                    and not any(h.startswith(session_cookie + '=') for h in response.headers.getlist('set-cookie'))):
                 response.set_cookie(session_cookie, principal.token, max_age=settings.session_seconds, httponly=True,
                                     secure=True, samesite='strict', path='/')
                 response.delete_cookie(COOKIE, path='/')
