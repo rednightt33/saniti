@@ -308,7 +308,14 @@ def register(page, live, username, email):
     page.wait_for_function("() => location.pathname === '/verify'")
     page.get_by_label('Code', exact=True).fill(last_code(live.store, email))
     page.get_by_role('button', name='Verify').click()
-    page.get_by_placeholder('Ask a research question…').wait_for(timeout=15000)
+    signed_in_workspace(page)
+
+
+def signed_in_workspace(page, seconds=15):
+    """The shell signed in on its landing page: the Monitor for an account that holds it, else the Terminal (fix round,
+    re-check R2-14: a new account holds no monitor.view, decision D1)."""
+    page.wait_for_function("() => window.Edge && Edge.auth !== null && ['/monitor', '/terminal'].includes(location.pathname)",
+                           timeout=seconds * 1000)
 
 
 def sign_in(page, live, login, password):

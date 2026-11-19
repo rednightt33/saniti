@@ -205,6 +205,7 @@ window.EdgeLabels = {
       mismatch:"The two passwords are not the same.", code:"Enter the 6 digits of the code." },
     errors: { INVALID_CREDENTIALS:"The login or the password is not right.", CODE_INVALID_OR_EXPIRED:"That code is not valid or has expired. Send a new one.",
       USERNAME_TAKEN:"That username is taken. Choose another one.",
+      USER_CHANGED:"Another EDGE account signed in on this browser. Reload the page to continue as that account.",
       SIGN_IN_RATE_LIMIT:"Too many attempts. Wait a minute, then try again.", LIMIT_REACHED:"Too many attempts today. Try again tomorrow.",
       INVALID_INPUT:"Check the fields and try again.", MFA_INVALID:"That code is not right. Try the newest code.",
       fallback:"That did not work. Try again in a minute." }

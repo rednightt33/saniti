@@ -275,6 +275,9 @@ class Auth:
                 raise Refusal(401, 'UNAUTHENTICATED')
             # a pending admin session (the password was right, the second factor not yet): only the MFA steps, the
             # session read and sign-out; every other route answers 403 MFA_REQUIRED
+            # the refusals below carry the principal's X-Edge-Entitlements too (main.py protections), so a page whose
+            # account now needs the second factor reads its session again (re-check R2-31)
+            request.state.principal = found
             if not found.mfa_ok and request.url.path not in MFA_OPEN:
                 # re-check R2-31: whether an authenticator is set up, as the sign-in answer says, so the words and the
                 # shell can offer the set-up to an account raised to a plan that needs the second factor

@@ -11634,7 +11634,11 @@ function PublicThemeButton() {
 // this page's memory (authFlow), never in storage or the address.
 const authFlow = {email:"", purpose:"register", sentAt:0, notice:"", resendAfter:60, mfaEnrolled:null};
 const CODE_SECONDS = 300, RESEND_SECONDS = 60;
-const authText = error => error?.info?.message || EdgeLabels.auth.errors[error?.info?.code || error?.message] || error?.text || EdgeLabels.auth.errors.fallback;
+const authText = error => error?.info?.message || EdgeLabels.auth.errors[error?.info?.code || error?.code] || error?.text || EdgeLabels.auth.errors.fallback;
+// re-check R2-14 (decision D1: the assistant is the admin's): a sign-in lands on the Monitor only for an account whose
+// access holds it ('*' or monitor.view; the switch-off owner holds '*'); any other account lands on the Terminal
+const landing = () => { const caps = Edge.auth?.access?.capabilities;
+    return !Array.isArray(caps) || caps.includes("*") || caps.includes("monitor.view") ? "/monitor" : "/terminal"; };
 const passwordProblem = (password, repeat) => { const C = EdgeLabels.auth.check;
   return password.length < 8 ? C.short : password.length > 256 ? C.long : password !== repeat ? C.mismatch : ""; };
 // a code was sent: the server says when a new one may be asked for (resend_after_s, 60 s)
@@ -11681,7 +11685,7 @@ function LoginForm({go, L}) {
  onLifecycle(v,"config",()=>{let live=true;Edge.config().then(c=>{if(live)updateValue(v,"open",c.multiuser);});return()=>{live=false;};},[]);
  const notice=authFlow.notice;
  const submit=async e=>{e.preventDefault();if(busy)return;updateValue(v,"busy",true);updateValue(v,"error","");authFlow.notice="";
-  try{await Edge.signin(login,password);updateValue(v,"password","");go("/monitor");}
+  try{await Edge.signin(login,password);updateValue(v,"password","");go(landing());}
   catch(e){const code=e.info?.code;
    if(code==="MFA_REQUIRED"){authFlow.mfaEnrolled=typeof e.info.details?.mfa_enrolled==="boolean"?e.info.details.mfa_enrolled:null;updateValue(v,"password","");go("/mfa");return;}
    // a pending registration answers the same 401 as a wrong password (no enumeration; the server emails a new code):
@@ -11753,7 +11757,7 @@ function CodeForm({go, L}) {
   const {left, wait} = useClock(v);
   const submit = async e => { e.preventDefault(); if (busy) return; if (!/^\d{6}$/.test(code)) { updateValue(v, "error", L.check.code); return; }
     authFlow.email = email.trim(); updateValue(v, "busy", true); updateValue(v, "error", ""); updateValue(v, "bad", {});
-    try { await Edge.verifyEmail(authFlow.email, code, taken ? username.trim().toLowerCase() : undefined); authFlow.notice = ""; go("/monitor"); }
+    try { await Edge.verifyEmail(authFlow.email, code, taken ? username.trim().toLowerCase() : undefined); authFlow.notice = ""; go(landing()); }
     catch (e) { if (e.info?.code === "USERNAME_TAKEN") { updateValue(v, "taken", true); updateValue(v, "error", e.info.message || V.usernameTaken); }
       else { updateValue(v, "error", authText(e)); updateValue(v, "bad", fieldsOf(e)); } } finally { updateValue(v, "busy", false); } };
   const notice = authFlow.notice;
@@ -11825,7 +11829,7 @@ function MfaForm({go, L}) {
   const submit = async e => { e.preventDefault(); if (busy) return;
     if (!recovery && !/^\d{6}$/.test(code)) { updateValue(v, "error", L.check.code); return; }
     updateValue(v, "busy", true); updateValue(v, "error", "");
-    try { await Edge.mfaVerify(recovery ? {recovery_code:code.trim()} : {code}); updateValue(v, "enrol", null); authFlow.mfaEnrolled = null; go("/monitor"); }
+    try { await Edge.mfaVerify(recovery ? {recovery_code:code.trim()} : {code}); updateValue(v, "enrol", null); authFlow.mfaEnrolled = null; go(landing()); }
     catch (e) {
       if (e.info?.code === "MFA_LOCKED") { const d = e.info.details || {}, useRecovery = d.use === "recovery_code";
         const at = typeof d.unlock_at === "string" && !Number.isNaN(Date.parse(d.unlock_at)) ? new Date(d.unlock_at).toLocaleString([], {dateStyle:"medium", timeStyle:"short"}) : "";
@@ -13344,7 +13348,7 @@ async function downloadTable(view, download) {
     document.body.append(link); link.click(); link.remove();
     updateValue(view, "download", null);
   } catch (error) {
-    const state = error?.message === "EXPORT_IN_PROGRESS" ? "busy" : "failed";
+    const state = (error?.code ?? error?.message) === "EXPORT_IN_PROGRESS" ? "busy" : "failed";
     updateValue(view, "download", state);
     setTimeout(() => { if (view.state.download === state) updateValue(view, "download", null); }, TABLE_DOWNLOAD_NOTE_MS);
   }
@@ -13658,7 +13662,7 @@ function App() {
     const currentPath = () => { const p = routeLocation().pathname; return p.startsWith("/c/") ? "/monitor" : routeOf(p)?.path === p ? p : p === "/markets" ? "/monitor" : "/login"; };
     const authenticated=initialValue(viewRecord,"authenticated",()=>false),checked=initialValue(viewRecord,"checked",()=>false),open=initialValue(viewRecord,"open",()=>false);
     onLifecycle(viewRecord,"config",()=>{let live=true;Edge.config().then(c=>{if(live)updateValue(viewRecord,"open",c.multiuser);});return()=>{live=false;};},[]);
-    onLifecycle(viewRecord,"auth",()=>{const sync=()=>updateValue(viewRecord,"authenticated",Boolean(Edge.auth));addEventListener("edge-auth",sync);Edge.session().then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
+    onLifecycle(viewRecord,"auth",()=>{const sync=()=>{updateValue(viewRecord,"authenticated",Boolean(Edge.auth));updateValue(viewRecord,"accessVersion",Edge.auth?.access?.version ?? null);};addEventListener("edge-auth",sync);Edge.session().then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
     const path = initialValue(viewRecord, "path", currentPath), setPath = next => updateValue(viewRecord, "path", next);
     // which account page shows, or null for a workspace page: a session that waits for the authenticator (access.next
     // "mfa") always shows /mfa; signed in, the account pages lead to the workspace; an `open` page needs registration
@@ -13703,7 +13707,9 @@ function App() {
     if (!checked) return element("div",{className:"auth-page"},"Checking session…");
     const mode = authMode();
     if (!authenticated || mode !== null) return element(AuthPage,{mode:mode || "login",go,key:mode || "login"});
-    return path === "/terminal" ? element(TerminalPage,{go}) : path === "/backtest" ? element(BacktestPage,{go}) : path === "/screener" ? element(ScreenerPage,{go}) : path === "/radar" ? element(RadarPage,{go}) : path === "/overview" ? element(OverviewPage,{go}) : path === "/watchlist" ? element(WatchlistPage,{go}) : element(Monitor,{go});
+    // signed in on an account page (a reload at /login): the account's landing page (re-check R2-14)
+    const shown = routeOf(path)?.auth === false ? landing() : path;
+    return shown === "/terminal" ? element(TerminalPage,{go}) : shown === "/backtest" ? element(BacktestPage,{go}) : shown === "/screener" ? element(ScreenerPage,{go}) : shown === "/radar" ? element(RadarPage,{go}) : shown === "/overview" ? element(OverviewPage,{go}) : shown === "/watchlist" ? element(WatchlistPage,{go}) : element(Monitor,{go});
 }
 
 refresh();

@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=5c17de310ac1d991fb7efc733cdcde99777d27391c940182b341044d2101af37 by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=fdf34928792121f1e83a538b32da60a7db997662014cce3d9143a44b6bb6e3e8 by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -26,6 +26,7 @@ var EdgeSession = (() => {
     LAST_LOGIN_KEY: () => LAST_LOGIN_KEY,
     PREFERENCES_URL: () => PREFERENCES_URL,
     SESSION_URL: () => SESSION_URL,
+    SIGNED_OUT: () => SIGNED_OUT,
     STORAGE: () => STORAGE,
     SYNC_KEYS: () => SYNC_KEYS,
     SessionError: () => SessionError,
@@ -46,6 +47,8 @@ var EdgeSession = (() => {
     noteLogin: () => noteLogin,
     onCleared: () => onCleared,
     onReset: () => onReset,
+    onSignedOut: () => onSignedOut,
+    onVersion: () => onVersion,
     preferences: () => preferences,
     prefs: () => prefs,
     readError: () => readError,
@@ -413,9 +416,56 @@ var EdgeSession = (() => {
       clearedHooks.delete(fn);
     };
   }
+  var versionHooks = /* @__PURE__ */ new Set();
+  var fireVersion = (v) => versionHooks.forEach((fn) => {
+    try {
+      fn(v);
+    } catch {
+    }
+  });
+  function onVersion(fn) {
+    versionHooks.add(fn);
+    return () => {
+      versionHooks.delete(fn);
+    };
+  }
+  var signedOutHooks = /* @__PURE__ */ new Set();
+  var fireSignedOut = () => signedOutHooks.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+    }
+  });
+  function onSignedOut(fn) {
+    signedOutHooks.add(fn);
+    return () => {
+      signedOutHooks.delete(fn);
+    };
+  }
+  var SIGNED_OUT = "signed-out";
+  function saySignedOut() {
+    post({ type: SIGNED_OUT });
+    try {
+      if (typeof window !== "undefined" && window.parent && window.parent !== window) window.parent.postMessage({ type: "edge-session", event: SIGNED_OUT }, location.origin);
+    } catch {
+    }
+  }
   var role = "app";
+  var parentListening = false;
   function setRole(r) {
     role = r;
+    listen();
+    if (r === "shell" && !parentListening && typeof addEventListener === "function") {
+      parentListening = true;
+      addEventListener("message", ((e) => {
+        try {
+          if (e.origin !== location.origin || e.data?.type !== "edge-session" || e.data?.event !== SIGNED_OUT) return;
+        } catch {
+          return;
+        }
+        fireSignedOut();
+      }));
+    }
   }
   function reloadPage() {
     try {
@@ -435,6 +485,8 @@ var EdgeSession = (() => {
         if (ev?.data?.from === PAGE_ID) return;
         const t = ev?.data?.type;
         if (t === "entitlements" || t === "cleared") clients.forEach((fn) => fn());
+        if (t === "entitlements") fireVersion(typeof ev?.data?.version === "string" ? ev.data.version : null);
+        if (t === SIGNED_OUT) fireSignedOut();
         if (t === "cleared") {
           clearArea("session", !!ev?.data?.signOut);
           clearedHooks.forEach((fn) => {
@@ -466,6 +518,7 @@ var EdgeSession = (() => {
     if (!first) {
       clients.forEach((fn) => fn());
       post({ type: "entitlements", version: v });
+      fireVersion(v);
     }
   }
   var WRITE = /* @__PURE__ */ new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -499,6 +552,7 @@ ${identity}`;
       }
       if (!res.ok) {
         const e = await errorOf(res);
+        if (res.status === 401) saySignedOut();
         throw new SessionError(e, accessText(e) || `EDGE answered ${res.status}.`);
       }
       noteVersion(res);
@@ -549,7 +603,10 @@ ${identity}`;
       }
       const res = await f(url, { credentials: "same-origin", ...init, method, headers });
       noteVersion(res);
-      if (res.status === 401) invalidate();
+      if (res.status === 401) {
+        invalidate();
+        saySignedOut();
+      }
       if (res.status === 403 && write && !retried) {
         const e = await errorOf(res.clone());
         if (e.kind === "csrf") {

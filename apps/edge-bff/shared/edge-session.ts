@@ -398,9 +398,38 @@ export function onReset(fn: () => void): () => void { resets.add(fn); return () 
 const clearedHooks = new Set<() => void>();
 /** `fn` runs when another page cleared the user state (a sign-out, or another account signed in) */
 export function onCleared(fn: () => void): () => void { clearedHooks.add(fn); return () => { clearedHooks.delete(fn) } }
+/* re-check R2-16, R2-31: a new X-Edge-Entitlements version, seen by this page or broadcast by another (a frame), for a
+   client that keeps its own copy of the session (the shell's edge-client.js `auth`, the model list) */
+const versionHooks = new Set<(version: string | null) => void>();
+const fireVersion = (v: string | null) => versionHooks.forEach(fn => { try { fn(v) } catch { /* the others still run */ } });
+/** `fn` runs when the account's access may have changed (a new X-Edge-Entitlements here or in another page) */
+export function onVersion(fn: (version: string | null) => void): () => void { versionHooks.add(fn); return () => { versionHooks.delete(fn) } }
+/* re-check R2-17 (CONTRACT.md 3: a 401 UNAUTHENTICATED goes to sign-in): a page whose own session ended (idle, sign-out
+   everywhere, a reset or a disable elsewhere) says so to the shell, which holds the sign-in page; a frame has none */
+const signedOutHooks = new Set<() => void>();
+const fireSignedOut = () => signedOutHooks.forEach(fn => { try { fn() } catch { /* the others still run */ } });
+/** `fn` runs when another page of this browser met a 401 of its own session (the shell then reads its own session) */
+export function onSignedOut(fn: () => void): () => void { signedOutHooks.add(fn); return () => { signedOutHooks.delete(fn) } }
+export const SIGNED_OUT = 'signed-out';
+function saySignedOut() {
+  post({ type:SIGNED_OUT });
+  // the shell's frames also tell their parent directly (a browser without BroadcastChannel); same origin only
+  try { if (typeof window !== 'undefined' && window.parent && window.parent !== window) window.parent.postMessage({ type:'edge-session', event:SIGNED_OUT }, location.origin) } catch { /* no parent */ }
+}
 let role: 'app' | 'shell' = 'app';
-/** the shell says so at load: a page ('app', the default) reloads on 'cleared'; the shell keeps its own sign-in flow */
-export function setRole(r: 'app' | 'shell') { role = r }
+let parentListening = false;
+/** the shell says so at load: a page ('app', the default) reloads on 'cleared'; the shell keeps its own sign-in flow
+    and hears a frame's ended session (onSignedOut) */
+export function setRole(r: 'app' | 'shell') {
+  role = r; listen();
+  if (r === 'shell' && !parentListening && typeof addEventListener === 'function') {
+    parentListening = true;
+    addEventListener('message', ((e: MessageEvent) => {
+      try { if (e.origin !== location.origin || e.data?.type !== 'edge-session' || e.data?.event !== SIGNED_OUT) return } catch { return }
+      fireSignedOut();
+    }) as EventListener);
+  }
+}
 /** reloads an app page (its in-memory state and singletons must not outlive its account); nothing outside a browser */
 export function reloadPage() {
   try { if (role === 'app' && typeof location !== 'undefined' && typeof location.reload === 'function') location.reload() } catch { /* not a page */ }
@@ -416,6 +445,8 @@ function listen() {
       if (ev?.data?.from === PAGE_ID) return;
       const t = ev?.data?.type;
       if (t === 'entitlements' || t === 'cleared') clients.forEach(fn => fn());
+      if (t === 'entitlements') fireVersion(typeof ev?.data?.version === 'string' ? ev.data.version : null);
+      if (t === SIGNED_OUT) fireSignedOut();
       // another tab signed out or another account signed in: nothing of this page's account may survive in memory
       if (t === 'cleared') {
         // sessionStorage is per tab: the page that signed out (or saw another account) cleared only its own (C4)
@@ -433,7 +464,7 @@ function noteVersion(res: Response) {
   try { v = res.headers?.get?.(ENTITLEMENTS_HEADER) ?? null } catch { v = null }
   if (!v || v === entitlements) return;
   const first = entitlements === null; entitlements = v;
-  if (!first) { clients.forEach(fn => fn()); post({ type:'entitlements', version:v }) }
+  if (!first) { clients.forEach(fn => fn()); post({ type:'entitlements', version:v }); fireVersion(v) }
 }
 
 const WRITE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -460,7 +491,11 @@ export function sessionClient(fetchImpl?: typeof fetch) {
     let res: Response;
     try { res = await f(SESSION_URL, { credentials:'same-origin' }) }
     catch { throw new SessionError(null, 'EDGE could not be reached. Check the connection and try again.') }
-    if (!res.ok) { const e = await errorOf(res); throw new SessionError(e, accessText(e) || `EDGE answered ${res.status}.`) }
+    if (!res.ok) {
+      const e = await errorOf(res);
+      if (res.status === 401) saySignedOut();
+      throw new SessionError(e, accessText(e) || `EDGE answered ${res.status}.`);
+    }
     noteVersion(res);
     const d = await res.json().catch(() => ({}));
     const owner = d?.owner_key ?? d?.access?.owner_key;
@@ -510,7 +545,7 @@ export function sessionClient(fetchImpl?: typeof fetch) {
     noteVersion(res);
     // a 401 of the page's own account (its session expired) keeps pending writes: they are stamped with the page's
     // identity and join that account again; only another login, USER_CHANGED or 'cleared' drops them
-    if (res.status === 401) invalidate();
+    if (res.status === 401) { invalidate(); saySignedOut() }
     if (res.status === 403 && write && !retried) {
       const e = await errorOf(res.clone());
       // the repeat goes out only when the session read again is the page's own account (session() refuses another)
