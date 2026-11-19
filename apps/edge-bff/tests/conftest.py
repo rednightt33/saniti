@@ -8,6 +8,10 @@ from app.config import Settings
 from app.security import password_verifier
 from app.store import Store
 
+def pytest_configure(config):
+    # AGENTS.md "Generated files": .github/workflows/generated-files.yml runs the tests with this mark
+    config.addinivalue_line('markers', 'generated_file: a generated file equals what its generator writes now')
+
 @pytest.fixture(scope='session')
 def database():
     admin=os.environ.get('EDGE_TEST_POSTGRES_URL','')
@@ -45,6 +49,8 @@ def database():
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_023_edge_bff_account_reference_indexes.sql').read_text())
             # the plans fix round (verification/edge_multiuser/fix_round/plans.md, re-check R1-36, the user's "2a")
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_030_edge_bff_plan_data_scope.sql').read_text())
+            # the records fix round (verification/edge_multiuser/fix_round/records.md, re-check R1-41..R1-46)
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_040_edge_bff_audit_ids_and_catalog_trace.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_050_edge_bff_capability_domains.sql').read_text())
             c.execute('CREATE TABLE public.market_private(secret text)')
         yield url
@@ -64,26 +70,42 @@ def settings(database):
     return Settings(database_url=database,orc_url='http://orc.invalid',orc_key='local-test-key',owner='local-test-owner',login='owner',password_verifier=password_verifier('local-test-password'),session_secret='local-test-secret-'*3,origin='http://testserver',environment='local',secure_cookie=False,worker_enabled=False,poll_seconds=0.005,admin_owners=('local-test-owner',))
 
 class FakeOrc:
-    def __init__(self,status='COMPLETED'):self.status=status;self.saved={};self.calls=[]
+    # EXEC-MU-ACCOUNTS fix round (re-check R1-21): owner-aware as Orc is. A run, its conversation and a branch belong to
+    # the owner that made them; another owner's read answers as Orc does (not found: None, or NOT_RUNNING for a stop),
+    # so a route that relies on Orc alone for isolation is tested by edge-bff's suite too. A row a test puts into
+    # `saved` itself, without an owner, stays readable by every owner (the single-owner tests).
+    def __init__(self,status='COMPLETED'):self.status=status;self.saved={};self.calls=[];self.conversation_owner={}
+    def mine(self,t,owner):return t.get('owner') in (None,owner)
+    def conv_mine(self,conv,owner):return self.conversation_owner.get(conv) in (None,owner)
     def run(self,owner,id,payload):
         self.calls.append((owner,id,payload.copy()));conv=payload.get('conversation_id') or 'conv_'+uuid.uuid4().hex
         result={'request_id':id,'status':self.status,'response':{'response_type':'ANSWER','answer':'Saved answer <script>window.pwned=true</script>','assumptions':[],'limitations':[],'clarification_question':None,'research_plan':None},'execution':{'model':payload.get('model') or 'fixture-model','cost':0.001,'total_tokens':42,**({'reasoning_level':payload['reasoning_level']} if payload.get('reasoning_level') else {}),**({'lane':payload['lane']} if payload.get('lane') else {})},'conversation':{'conversation_id':conv,'persistence':'SAVED'},'options':[{'label':'Quick summary','route':'QUICK_SUMMARY'}]}
-        self.saved[id]={'request_id':id,'conversation_id':conv,'turn_status':'COMPLETED','run_status':self.status,'response':result,'user_message':payload['message']};return result
-    def stop(self,owner,id):self.stopped=getattr(self,'stopped',[])+[id];return 'NOT_RUNNING' if id in self.saved else 'STOPPING'
+        if not self.conv_mine(conv,owner):
+            from app.client import OrcError
+            raise OrcError('CONVERSATION_NOT_FOUND',404)
+        self.conversation_owner.setdefault(conv,owner)
+        self.saved[id]={'request_id':id,'conversation_id':conv,'turn_status':'COMPLETED','run_status':self.status,'response':result,'user_message':payload['message'],'owner':owner};return result
+    def stop(self,owner,id):
+        if id in self.saved and not self.mine(self.saved[id],owner):return 'NOT_RUNNING'
+        self.stopped=getattr(self,'stopped',[])+[id];return 'NOT_RUNNING' if id in self.saved else 'STOPPING'
     def request(self,owner,id):
         t=self.saved.get(id)
-        if t is None:return None
+        if t is None or not self.mine(t,owner):return None
         same=[k for k,v in self.saved.items() if v['conversation_id']==t['conversation_id']]
         return dict(t,turn_index=same.index(id))
     # EXEC-ASK-BRANCH: Orc's branch (a new conversation continuing conv up to through_turn) and its lineage
     lineages={}
     def branch(self,owner,conv,through_turn):
-        new='conv_'+uuid.uuid4().hex;self.lineages=dict(self.lineages)
+        if not self.conv_mine(conv,owner):
+            from app.client import OrcError
+            raise OrcError('CONVERSATION_NOT_FOUND',404)
+        new='conv_'+uuid.uuid4().hex;self.lineages=dict(self.lineages);self.conversation_owner[new]=owner
         self.lineages[new]=[*self.lineages.get(conv,[]),{'conversation_id':conv,'through_turn':through_turn}]
         self.branched=getattr(self,'branched',[])+[(conv,through_turn)]
         return {'conversation_id':new,'lineage':self.lineages[new]}
     def execution_ready(self,owner):return True
     def messages(self,owner,conv,after=-1,limit=20,through=None):
+        if not self.conv_mine(conv,owner):return None
         turns=[dict(t,turn_index=i,status=t['turn_status'],created_at='2026-10-08T00:00:00+00:00',completed_at='2026-10-08T00:00:01+00:00') for i,t in enumerate(t for t in self.saved.values() if t['conversation_id']==conv)];turns=[t for t in turns if t['turn_index']>after and (through is None or t['turn_index']<=through)]
         if not turns and conv not in self.lineages and not any(t['conversation_id']==conv for t in self.saved.values()):return None
         return {'conversation_id':conv,'messages':turns[:limit],'has_more':len(turns)>limit,'next_after':turns[limit-1]['turn_index'] if len(turns)>limit else None,'research_plan':None,'lineage':self.lineages.get(conv,[])}

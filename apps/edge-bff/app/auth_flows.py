@@ -43,10 +43,10 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from psycopg import errors as pg_errors
 
-from . import email_texts, mfa, passwords
+from . import email_texts, hooks, mfa, passwords
 from .accounts import EMAIL, EMAIL_MAX, RESERVED_USERNAMES, USERNAME, AccountStore, new_owner_key
 from .errors import Refusal
-from .mailer import OutboxStore, enqueue, svix_verify
+from .mailer import OutboxStore, enqueue
 from .principal import ADMIN_ACCESS, Principal
 from .security import (REGISTRATION_COOKIE as REGISTRATION, SESSION_COOKIE, cookie_name, normal_password,
                        password_verifier, registration_path, token_hash, verify_password)
@@ -617,6 +617,9 @@ class AuthFlows:
             p = await auth.resolve(token)
             if p is None:
                 raise Refusal(401, 'UNAUTHENTICATED')
+            # CONTRACT.md 8a: every answer made for a principal carries its X-Edge-Entitlements, this signed-in answer
+            # too (as the sign-in's; re-check R2-40 item 4)
+            request.state.principal = p
             response = signed_in(p, token)
             response.delete_cookie(registration_cookie, path=registration_at, secure=settings.secure_cookie)
             return response
@@ -769,12 +772,12 @@ class AuthFlows:
             return signed_in(fresh, token)
 
         @app.post('/api/v1/hooks/email/resend')
-        async def resend_hook(request: Request, _on=Depends(switched_on)):
+        async def resend_hook(request: Request, _on=Depends(switched_on),
+                              raw=Depends(hooks.signed('/api/v1/hooks/email/resend',
+                                                       lambda: settings.resend_webhook_secret))):
             """Resend's bounces and complaints (CONTRACT.md sections 5 and 6): no session; the Svix signature over the
-            raw body proves the sender; a repeated svix-id changes nothing."""
-            raw = getattr(request, '_body', None) or await request.body()
-            if not svix_verify(request.headers, raw, settings.resend_webhook_secret):
-                raise Refusal(401, 'HOOK_SIGNATURE_INVALID')
+            raw body proves the sender (hooks.signed, before this body runs: re-check R1-15); a repeated svix-id changes
+            nothing."""
             try:
                 event = json.loads(raw)
                 kind = event.get('type') if isinstance(event, dict) else None

@@ -61,8 +61,12 @@ def test_provisioning_refuses_a_privilege_held_on_columns_only(database, monkeyp
 
 
 def test_the_migration_verify_block_refuses_an_audit_column_update(database):
-    """20261116_003's own $verify$ block, run again on the migrated database with a column UPDATE on the audit."""
-    text = (ROOT / 'database/migrations/20261116_003_edge_bff_accounts_users.sql').read_text()
+    """The grant guard of the migrations, run again on the migrated database with a column UPDATE on the audit.
+
+    Fix round (records track, re-check R1-41): first written against 20261116_003's own $verify$ block, which is applied
+    on dev and so can never change (AGENTS.md History rules; the R1-41 refuter's correction). It now runs the verify block
+    of the forward migration that adds the column-privilege guard, 20261119_040."""
+    text = (ROOT / 'database/migrations/20261119_040_edge_bff_audit_ids_and_catalog_trace.sql').read_text()
     block = text[text.index('DO $verify$'):text.index('END $verify$;') + len('END $verify$;')]
     with psycopg.connect(database, autocommit=True) as conn:
         conn.execute('TRUNCATE edge_bff.users CASCADE')

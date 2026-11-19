@@ -1,0 +1,11 @@
+{
+ "mode": "DRYRUN",
+ "migrations": [],
+ "probes": [
+  [
+   "column_grants",
+   null,
+   "SELECT n.nspname, c.relname, a.attname, x.privilege_type, CASE WHEN x.grantee = 0 THEN 'PUBLIC' ELSE x.grantee::regrole::text END AS grantee FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN LATERAL aclexplode(a.attacl) x WHERE a.attacl IS NOT NULL AND NOT a.attisdropped AND a.attnum > 0 AND n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname NOT LIKE 'pg_toast%' AND (x.grantee = 0 OR x.grantee IN (SELECT oid FROM pg_roles WHERE rolname IN ('edge_bff_runtime', 'edge_bff_login'))) ORDER BY 1, 2, 3, 4"
+  ]
+ ]
+}

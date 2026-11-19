@@ -4,15 +4,27 @@ name: Backend tests
 # edge-bff (rights and owners from the session, the catalogs filtered per session, the Screener's context, the backtest
 # store and its owner joins), terminal-publisher (the P9 broker basis in the events file) and telegram-monitor (the
 # Broker_Basis_Report message). Each suite runs here on every push and pull request. edge-bff's suite needs a
-# disposable Postgres (tests/conftest.py EDGE_TEST_POSTGRES_URL: it creates and drops its own database); its browser
-# tests skip without Playwright (pytest.importorskip), as they do on a machine without it, so this job checks the server.
-# No secrets, read-only.
+# disposable Postgres (tests/conftest.py EDGE_TEST_POSTGRES_URL: it creates and drops its own database). No secrets,
+# read-only.
 # EXEC-MU-ACCOUNTS Phase 0 (2026-11-16): market-ai-orc (owner header, test key, per-owner registries) and terminal-api
 # (private-only mode, private host rule for every key) are not gated on Railway, so their suites run here too.
-# market-ai-orc runs without Postgres (ORC_TEST_POSTGRES_URL unset: its Postgres tests skip, as on a machine without
-# one; with a Postgres 3 test_request_data errors predate Phase 0). terminal-api's one server test (tests/test_api.py,
-# a dropped connection replaced) uses a disposable Postgres (TERMINAL_TEST_POSTGRES_URL). Every job of this workflow is
-# part of the check suite that gates edge-bff's deploy (checkSuites), so a red job here holds that deploy too.
+# terminal-api's one server test (tests/test_api.py, a dropped connection replaced) uses a disposable Postgres
+# (TERMINAL_TEST_POSTGRES_URL). Every job of this workflow is part of the check suite that gates edge-bff's deploy
+# (checkSuites, once K10 a turns it on; ERRORS M459), so a red job here holds that deploy too.
+# EXEC-MU-ACCOUNTS fix round (re-check R1-39, R1-40, 2026-11-19): CONTRACT section 13 says every acceptance test runs in
+# CI, and three kinds did not:
+# - edge-bff's browser tests (the account pages, the front-end contract, B on A's browser, CONTRACT 13.8) skipped
+#   without Playwright; the job now installs Playwright with Chromium and builds the pages those tests open (the
+#   Terminal, the Watchlist), so they run;
+# - the page suites (apps/edge-bff/terminal holds the tests of the shared session module: sign-out clearing, change of
+#   user, access.seed, the 403 contract) ran in no workflow; job edge-bff-pages runs them (the Screener's and the
+#   Backtest page's run in backtest-lookahead.yml);
+# - market-ai-orc's Postgres tests (conversation ownership, the C2 CLIENT-history fix, branch lineage and export
+#   ownership per owner) skipped without ORC_TEST_POSTGRES_URL; the job now has a disposable Postgres. The three
+#   test_request_data errors that kept it off were a missing dependency of those tests (the SQL Governor's package,
+#   which they run end to end, needs pyarrow); requirements-dev.txt now names the Governor's requirements.
+# apps/edge-bff/tests/test_cdb_ci_coverage.py checks that every package under apps/ with a test script is run by some
+# workflow, and that these jobs keep their Postgres and their browser.
 
 on:
   push:
@@ -28,7 +40,7 @@ concurrency:
 jobs:
   edge-bff:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     services:
       postgres:
         image: postgres:16
@@ -46,13 +58,50 @@ jobs:
         working-directory: apps/edge-bff
     env:
       EDGE_TEST_POSTGRES_URL: postgresql://postgres@127.0.0.1:5432/postgres
+      # a generated_file test that cannot find the Terminal's esbuild fails here instead of skipping
+      EDGE_TEST_REQUIRE_NODE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -r requirements.txt pytest==8.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # requirements-dev.txt: the server's requirements, pytest and Playwright (the browser tests)
+      - run: pip install -r requirements-dev.txt
+      - name: Chromium for the browser tests (tests read its path from EDGE_TEST_CHROMIUM)
+        run: |
+          python -m playwright install --with-deps chromium
+          echo "EDGE_TEST_CHROMIUM=$(python -c 'from playwright.sync_api import sync_playwright as s; p = s().start(); print(p.chromium.executable_path); p.stop()')" >> "$GITHUB_ENV"
+      - name: The pages the browser tests open (the Terminal's install also gives shared/build-shell.mjs its esbuild)
+        run: |
+          (cd terminal && npm ci && npm run build)
+          (cd watchlist && npm ci && npm run build)
       - run: python -m pytest -q -p no:cacheprovider tests
+
+  # EXEC-MU-ACCOUNTS fix round (re-check R1-39): the page suites no other workflow runs. Each step typechecks, builds
+  # and runs the page's vitest suite (the Screener's and the Backtest page's are in backtest-lookahead.yml).
+  edge-bff-pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Terminal (typecheck, build, tests incl. the shared session module, shared/edge-session.ts)
+        working-directory: apps/edge-bff/terminal
+        run: npm ci && npm run build && npx vitest run
+      - name: Overview (typecheck, build, tests)
+        working-directory: apps/edge-bff/overview
+        run: npm ci && npm run build && npx vitest run
+      - name: Radar (typecheck, build, tests)
+        working-directory: apps/edge-bff/radar
+        run: npm ci && npm run build && npx vitest run
+      - name: Watchlist (typecheck, build, tests)
+        working-directory: apps/edge-bff/watchlist
+        run: npm ci && npm run build && npx vitest run
 
   terminal-publisher:
     runs-on: ubuntu-latest
@@ -85,9 +134,25 @@ jobs:
   market-ai-orc:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: apps/market-ai-orc
+    env:
+      # the Postgres tests (each makes and drops its own database): conversation ownership and the C2 CLIENT-history
+      # fix (tests/test_conversations.py), branch lineage, export ownership and the catalogs (CONTRACT 13.3, 13.6)
+      ORC_TEST_POSTGRES_URL: postgresql://postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
