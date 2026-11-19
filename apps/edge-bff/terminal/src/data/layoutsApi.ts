@@ -11,8 +11,10 @@ export interface Layout extends LayoutMeta { state: Record<string, string> }
 
 import { accessText, edge, isAccessRefusal, readError, SessionError, type EdgeError } from '../../../shared/edge-session';
 
+/* access: a refusal of the account's plan, role or limits (the shared module's isAccessRefusal), never an outage: a
+   caller with an offline path keeps nothing for it (re-check R1-19) */
 export class LayoutApiError extends Error {
-  constructor(public status: number, public code: string, message: string, public details?: any) { super(message) }
+  constructor(public status: number, public code: string, message: string, public details?: any, public access = false) { super(message) }
 }
 
 const LATER = 'Try again in a minute; your chart is unchanged.';
@@ -23,7 +25,8 @@ const LATER = 'Try again in a minute; your chart is unchanged.';
 const token = () => edge.session().then(s => s.csrf, (e: any) => Promise.reject(e instanceof SessionError && e.error
   ? new LayoutApiError(e.error.status, e.error.kind === 'signin' ? 'SESSION' : e.error.code,
       e.error.kind === 'signin' ? 'Your EDGE sign-in has ended: sign in to EDGE again, then reload this page.'
-        : accessText(e.error) || `Saved layouts are not available right now (EDGE answered ${e.error.status}). ${LATER}`)
+        : accessText(e.error) || `Saved layouts are not available right now (EDGE answered ${e.error.status}). ${LATER}`,
+      e.error.details, isAccessRefusal(e.error))
   : new LayoutApiError(0, 'NETWORK', `Saved layouts could not be reached: check the connection. ${LATER}`)));
 
 /** the plain sentence for a refusal without its own message (or with one meant for developers); `what` names the saved
@@ -51,7 +54,8 @@ export const savedClient = (BASE: string, what: string) => {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const info = readError(res.status, data, res.headers.get('Retry-After')), e = data?.error || {};
-    throw new LayoutApiError(res.status, e.code || (info.legacy ? info.code : String(res.status)), sentence(res.status, e, what, info), e.details);
+    throw new LayoutApiError(res.status, e.code || (info.legacy ? info.code : String(res.status)), sentence(res.status, e, what, info), e.details,
+      isAccessRefusal(info));
   }
   return data as T;
   };

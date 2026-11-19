@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogResponse, Cell, RunResponse, UniverseRow, Versions } from '../../src/core/contract.ts';
 import { csvText, field, metaOf } from '../../src/csv.ts';
-import { BootCache, sameVersions } from '../../src/api/boot-cache.ts';
+import { BootCache, cacheId, sameVersions } from '../../src/api/boot-cache.ts';
 import { liveApi, retryAfter } from '../../src/api/live.ts';
 import { ApiFailure } from '../../src/api/types.ts';
 import { sha256Hex, type FileCache } from '../../../terminal/src/data/rack.ts';
@@ -83,6 +83,22 @@ describe('boot pointer (6c.3, 6c.9 item 3)', () => {
     await bc.putCatalog('daniel', b2, await sha256Hex(b2), c2);
     expect(bc.pointer()?.last).toBeNull();
     expect(sameVersions(V(), V('c'))).toBe(false);
+  });
+  it('re-check R1-17, R1-38: a pointer written under one plan is never read under another, even at the same data', async () => {
+    const cache = memCache(), st = memStore(), bc = new BootCache(cache, st);
+    const c = catalogOf(V()), b = bytes(c);
+    const paid = cacheId({ login:'daniel', access:'db-aaaaaaaaaaaa' }), narrowed = cacheId({ login:'daniel', access:'db-bbbbbbbbbbbb' });
+    expect(paid).not.toBe(narrowed);
+    await bc.putCatalog(paid, b, await sha256Hex(b), c);
+    const def = { universe:{ security_types:['stock'], traded_on_eval_date:true, exclude_price_breaks:true }, conditions:[], logic:'all' } as any;
+    const ok = { versions:{ ...V(), definition_hash:'d'.repeat(64) } } as unknown as RunResponse;
+    expect(await bc.putResult(paid, def, bytes(ok), ok)).toBe(true);
+    // the plan narrowed: the same login, the same publication (the catalog would answer 304), another access version
+    expect(await new BootCache(cache, st).read(narrowed)).toEqual({ catalog:null, universe:null, result:null });
+    expect(st.m.has('scr.boot')).toBe(false);
+    // the switch-off principal's version 'env' and a server without access keep one identity per login
+    expect(cacheId({ login:'owner', access:'env' })).toBe(cacheId({ login:'owner', access:'env' }));
+    expect(cacheId({ login:'owner', access:null })).toBe('owner');
   });
 });
 

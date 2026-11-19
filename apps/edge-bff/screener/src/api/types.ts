@@ -9,7 +9,9 @@ import type {
 } from '../core/contract.ts';
 
 /** GET /api/v1/auth/session: who is signed in (the boot pointer is per login, 6c.3) and the CSRF token of the writes. */
-export interface Session { login: string; csrf: string }
+/* access: the session answer's access.version (X-Edge-Entitlements), what the account may do; null when the server
+   sends none (the switch-off principal sends 'env') */
+export interface Session { login: string; csrf: string; access?: string | null }
 
 /** A conditional GET (report 6c.5 item 5): 200 with the body and its bytes, or 304 when `If-None-Match` named the
     current bytes. etag: the sha256 of the JSON bytes that edge-bff announces, unquoted; null when it sent none. */
