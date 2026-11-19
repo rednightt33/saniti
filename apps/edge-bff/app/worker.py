@@ -1,11 +1,14 @@
-"""One managed queue worker. HTTP waits execute in threads, not the SSE event loop."""
+"""One managed queue worker (the AI job loop) and the hourly housekeeping. HTTP waits execute in threads, not the SSE
+event loop."""
 import asyncio
+import json
 import logging
 import time
 from .client import OrcError
 from .errors import Refusal
 from .monitor import ModelCatalog, run_refusal
 from .principal import owner_principal
+from .store import PURGE_BATCH, PURGES
 
 MONITOR_CHAT = 'monitor.chat'   # main.py MONITOR_CHAT: the capability a run needs (CONTRACT.md 8b, decision D5)
 
@@ -27,6 +30,9 @@ class Worker:
         # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b): owner key -> its principal now (main.py sets the app's
         # Auth.owner_principal; on its own, as a test builds it, the switch-off mapping)
         self.access = lambda owner: owner_principal(settings, None, owner)
+        # EXEC-MU-ACCOUNTS beta/live: the claim of the next queued run (main.py sets the app's, which claims only this
+        # site's runs, store.claim(seconds, site); on its own, as a test builds it, the store's own claim)
+        self.claim = store.claim
         self.stopping = asyncio.Event()
 
     async def call(self, fn, *args, **kwargs):
@@ -39,15 +45,11 @@ class Worker:
             pass
 
     async def run(self):
-        # None: not cleaned yet, so at the start. Never 0: time.monotonic() counts from an unspecified point (on Linux the
-        # host's boot), so on a host up for less than an hour a 0 would skip the start's cleanup.
-        cleaned_at = None
+        # ERRORS R2-33: the hourly purges are no longer made here (Housekeeping, its own task): a purge that fails can
+        # never stop the claim of the queued runs
         while not self.stopping.is_set():
             try:
-                if cleaned_at is None or time.monotonic() - cleaned_at > 3600:
-                    await self.call(self.store.cleanup_sessions)
-                    cleaned_at = time.monotonic()
-                row = await self.call(self.store.claim, self.settings.lease_seconds)
+                row = await self.call(self.claim, self.settings.lease_seconds)
                 if row:
                     await self.process(row)
                 else:
@@ -176,6 +178,69 @@ class Worker:
                 # End the delivery attempt honestly; do not imply upstream cancellation.
                 await self.call(self.store.transition, row, 'INTERRUPTED', error_code='RECOVERY_TIMEOUT')
                 return
+
+    def stop(self):
+        self.stopping.set()
+
+
+class Housekeeping:
+    """The hourly housekeeping (EXEC-MU-ACCOUNTS; ERRORS R2-33), its own task beside the loops (main.py; switch
+    EDGE_HOUSEKEEPING_ENABLED): each purge of store.PURGES (expired and old revoked sessions, throttle rows older than 2
+    days, registrations never verified after 24 h) runs at the start, whatever the clock reads, then once an hour.
+
+    - Each purge is tried on its own (store.purge: its own transaction, batches of store.PURGE_BATCH rows, at most
+      MAX_BATCHES a turn), so a failing one (a timeout, a lock wait, a grant a migration left out) stops neither the
+      others nor any queue; it is tried again after a backoff that doubles from EDGE_POLL_SECONDS up to the hour, and
+      each failure is logged by its class (housekeeping_failed).
+    - A batch another instance holds (the other website, running the same purge) is skipped until the next turn.
+    """
+
+    EVERY_SECONDS = 3600
+    MAX_BATCHES = 20
+
+    def __init__(self, settings, store):
+        self.settings, self.store = settings, store
+        self.stopping = asyncio.Event()
+        # name -> (next attempt on time.monotonic(), failures in a row); None: due now (never 0, see run)
+        self.due = {}
+
+    async def sleep(self, seconds):
+        try:
+            await asyncio.wait_for(self.stopping.wait(), timeout=seconds)
+        except asyncio.TimeoutError:
+            pass
+
+    async def turn(self, name):
+        """One purge to its end (or MAX_BATCHES batches); True when it was made, False when another instance held it."""
+        for _ in range(self.MAX_BATCHES):
+            done = await asyncio.to_thread(self.store.purge, name, PURGE_BATCH)
+            if done is None:
+                return False
+            if done < PURGE_BATCH:
+                break
+        return True
+
+    async def run(self):
+        while not self.stopping.is_set():
+            for name in PURGES:
+                if self.stopping.is_set():
+                    return
+                # None: not purged yet, so at the start. Never 0: time.monotonic() counts from an unspecified point (on
+                # Linux the host's boot), so on a host up for less than an hour a 0 would skip the start's purge.
+                at, failures = self.due.get(name, (None, 0))
+                if at is not None and time.monotonic() < at:
+                    continue
+                try:
+                    await self.turn(name)
+                    self.due[name] = (time.monotonic() + self.EVERY_SECONDS, 0)
+                except Exception as e:                     # noqa: BLE001 - its class only (no secret in the log)
+                    failures += 1
+                    wait = min(self.EVERY_SECONDS, self.settings.poll_seconds * 2 ** failures)
+                    self.due[name] = (time.monotonic() + wait, failures)
+                    logger.error(json.dumps({'event': 'housekeeping_failed', 'purge': name,
+                                             'error': type(e).__name__, 'failures': failures, 'retry_s': round(wait, 3)}))
+            # the due times are looked at every EDGE_POLL_SECONDS (no database call unless one is due)
+            await self.sleep(self.settings.poll_seconds)
 
     def stop(self):
         self.stopping.set()

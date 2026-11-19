@@ -10,6 +10,7 @@ from psycopg_pool import ConnectionPool
 from psycopg.types.json import Jsonb
 
 from .accounts import purge_pending
+from .config import BETA
 from .throttle import purge as purge_throttle
 
 TERMINAL = {'FINISHED', 'FAILED', 'INTERRUPTED'}
@@ -64,7 +65,8 @@ class Store:
                 c.execute('SELECT 1 FROM edge_bff.plan_capabilities LIMIT 0')
                 c.execute('SELECT 1 FROM edge_bff.user_capability_overrides LIMIT 0')
                 c.execute('SELECT 1 FROM edge_bff.subscriptions LIMIT 0')
-            c.execute('SELECT 1 FROM edge_bff.jobs LIMIT 0')
+            # EXEC-MU-ACCOUNTS beta/live (migrations 20261119_020 and _021): every queued row names its site
+            c.execute('SELECT site FROM edge_bff.jobs LIMIT 0')
             c.execute('SELECT 1 FROM edge_bff.sessions LIMIT 0')
             c.execute('SELECT hidden_at FROM edge_bff.conversation_ui LIMIT 0')
             # EXEC-MU-ACCOUNTS Phase 0: sign-in needs the throttle table (migration 20261116_002), so an edge-bff
@@ -80,23 +82,31 @@ class Store:
             c.execute('SELECT 1 FROM edge_bff.email_hook_events LIMIT 0')
             c.execute('SELECT registration_hash FROM edge_bff.users LIMIT 0')     # 20261117_002
             c.execute('SELECT totp_failures, recovery_failures, totp_locked_until, recovery_locked_until FROM edge_bff.mfa_totp LIMIT 0')
+            # ERRORS R2-2 (migration 20261119_022): the seed copies the environment's password only over its own copy
+            c.execute('SELECT seed_verifier_sha256 FROM edge_bff.identities LIMIT 0')
 
     def session_create(self, hashed, owner, seconds):
         with self.connect() as c:
             c.execute('INSERT INTO edge_bff.sessions(token_hash,owner_key,expires_at) VALUES (%s,%s,now()+%s*interval \'1 second\')', (hashed, owner, seconds))
 
     def session(self, hashed):
+        """A switch-off session (EDGE_MULTIUSER off): only one the switch-off sign-in made (session_create), which has no
+        account (user_id NULL, migration 20261116_003's column comment). A session of an account, made with the switch
+        on under its MFA, idle and status rules, is never one here (ERRORS R2-1): the switch-off resolver checks none of
+        those, so it must not accept the rows the stricter one wrote (the switch's way back, the beta site beside the
+        live one on the same database)."""
         with self.connect() as c:
-            return c.execute('SELECT owner_key FROM edge_bff.sessions WHERE token_hash=%s AND revoked_at IS NULL AND expires_at>now()', (hashed,)).fetchone()
+            return c.execute('SELECT owner_key FROM edge_bff.sessions WHERE token_hash=%s AND user_id IS NULL AND revoked_at IS NULL AND expires_at>now()', (hashed,)).fetchone()
 
     def revoke(self, hashed):
         with self.connect() as c:
             c.execute('UPDATE edge_bff.sessions SET revoked_at=now() WHERE token_hash=%s', (hashed,))
 
-    def submit(self, owner, key, payload, after_stop=False):
+    def submit(self, owner, key, payload, after_stop=False, site=BETA):
         """A new job. EXEC-Y Fase 1 (S3): sent with after_stop while a run is active, the message waits inside that
         run (input.next) and becomes its own job, in the same conversation, the moment that run ends (_promote); the
-        run is marked to stop. One active job per owner stays a database rule; one waiting message per run."""
+        run is marked to stop. One active job per owner stays a database rule; one waiting message per run. site: the
+        website the job was queued on (config.SITES); only that site's loop claims it (claim)."""
         fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         with self.connect() as c:
             # C2: a namespaced key like every other edge-bff lock ('backtest:', 'layouts:', ...), so no other lock's key
@@ -119,9 +129,9 @@ class Store:
                 active = c.execute("""UPDATE edge_bff.jobs SET input=input||jsonb_build_object('stop_requested',true,'next',%s::jsonb)
                     WHERE request_id=%s RETURNING *""", (json.dumps(nxt), active['request_id'])).fetchone()
                 return self._waiting(active), True
-            row = c.execute('''INSERT INTO edge_bff.jobs(request_id,owner_key,submission_key,fingerprint,input,conversation_id)
-                VALUES (%s,%s,%s,%s,%s,%s) RETURNING *''',
-                (request_id, owner, key, fingerprint, Jsonb(payload), payload.get('conversation_id'))).fetchone()
+            row = c.execute('''INSERT INTO edge_bff.jobs(request_id,owner_key,submission_key,fingerprint,input,conversation_id,site)
+                VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *''',
+                (request_id, owner, key, fingerprint, Jsonb(payload), payload.get('conversation_id'), site)).fetchone()
             return row, True
 
     @staticmethod
@@ -137,7 +147,7 @@ class Store:
                 'attempt_count': 0, 'lease_token': None}
 
     def _promote(self, c, ended):
-        """The waiting message of a run that just ended becomes its own job, in the run's conversation."""
+        """The waiting message of a run that just ended becomes its own job, in the run's conversation (and site)."""
         nxt = (ended['input'] or {}).get('next')
         if not nxt:
             return
@@ -146,11 +156,11 @@ class Store:
             job_input['conversation_id'] = ended['conversation_id']
         stopped = bool(nxt.get('stopped'))
         c.execute('''INSERT INTO edge_bff.jobs(request_id,owner_key,submission_key,fingerprint,input,conversation_id,
-                state,error_code,completed_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,CASE WHEN %s THEN now() END) ON CONFLICT DO NOTHING''',
+                state,error_code,completed_at,site)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,CASE WHEN %s THEN now() END,%s) ON CONFLICT DO NOTHING''',
             (nxt['request_id'], ended['owner_key'], nxt['submission_key'], nxt['fingerprint'], Jsonb(job_input),
              job_input.get('conversation_id'), 'FAILED' if stopped else 'QUEUED',
-             'STOPPED_BY_USER' if stopped else None, stopped))
+             'STOPPED_BY_USER' if stopped else None, stopped, ended.get('site') or BETA))
 
     def job(self, owner, request_id):
         with self.connect() as c:
@@ -182,11 +192,14 @@ class Store:
                 RETURNING *""", (owner, request_id)).fetchone()
             return self._waiting(holder) if holder else None
 
-    def claim(self, seconds):
+    def claim(self, seconds, site=BETA):
+        """The oldest job of this site (its website, config.SITES) that no lease holds, under a new lease; a job another
+        site queued is never claimed here, so it is dispatched under the rules of the site that queued it (ERRORS
+        R2-7)."""
         with self.connect() as c:
             row = c.execute('''SELECT * FROM edge_bff.jobs WHERE state IN ('QUEUED','RUNNING','RECOVERING')
-                AND (lease_expires_at IS NULL OR lease_expires_at<now()) ORDER BY created_at
-                FOR UPDATE SKIP LOCKED LIMIT 1''').fetchone()
+                AND (lease_expires_at IS NULL OR lease_expires_at<now()) AND site=%s ORDER BY created_at
+                FOR UPDATE SKIP LOCKED LIMIT 1''', (site,)).fetchone()
             if not row:
                 return None
             token = secrets.token_hex(16)
@@ -351,8 +364,33 @@ class Store:
                 (row['bookmarked'] if bookmarked is None else bookmarked, title or row['title'], pins,
                  owner, conversation_id)).fetchone()
 
-    def cleanup_sessions(self):
+    # ---- the hourly housekeeping (worker.Housekeeping; ERRORS R2-33) ---------------------------------------------------
+    # Each purge is its own transaction, in batches of at most `limit` rows, so one that fails (a timeout, a lock wait, a
+    # missing grant) rolls back only itself and never stops another purge or a queue. A batch takes a try-lock on its
+    # purge: while another edge-bff (the other website) runs the same purge, this one skips the batch.
+
+    def purge(self, name, limit):
+        """One batch of the purge `name` (PURGES): the rows it deleted, or None when another instance holds the purge."""
         with self.connect() as c:
-            c.execute('DELETE FROM edge_bff.sessions WHERE expires_at<now() OR revoked_at<now()-interval \'1 day\'')
-            purge_throttle(c)   # EXEC-MU-ACCOUNTS Phase 0: throttle rows older than 2 days, at the same hourly cadence
-            purge_pending(c)    # EXEC-MU-ACCOUNTS Phase 1: registrations never verified, after 24 h
+            if not c.execute('SELECT pg_try_advisory_xact_lock(hashtextextended(%s,0)) AS held',
+                             ('housekeeping:' + name,)).fetchone()['held']:
+                return None
+            return PURGES[name](c, limit)
+
+    def cleanup_sessions(self):
+        """Every purge to the end, each batch in its own transaction (one call, as a test or an operator makes it)."""
+        for name in PURGES:
+            while (self.purge(name, PURGE_BATCH) or 0) >= PURGE_BATCH:
+                pass
+
+
+def purge_sessions(c, limit=None):
+    """Sessions past their end, and sessions revoked more than a day ago (at most limit rows; None = every one)."""
+    return c.execute('''DELETE FROM edge_bff.sessions WHERE token_hash IN (SELECT token_hash FROM edge_bff.sessions
+        WHERE expires_at<now() OR revoked_at<now()-interval '1 day' LIMIT %s)''', (limit,)).rowcount
+
+
+PURGE_BATCH = 500
+# name -> purge(connection, limit) -> rows deleted; each runs hourly in worker.Housekeeping. EXEC-MU-ACCOUNTS Phase 0:
+# throttle rows older than 2 days; Phase 1: registrations never verified, after 24 h (their identity and codes cascade)
+PURGES = {'sessions': purge_sessions, 'throttle': purge_throttle, 'pending': purge_pending}

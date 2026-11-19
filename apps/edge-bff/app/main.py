@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+import functools
 import hmac
 import json
 import logging
@@ -20,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .backtest import Backtests
 from . import catalog, terminal_access
 from .client import OrcClient, OrcError, public_data
-from .config import Settings
+from .config import LIVE, Settings
 from .errors import Refusal, http_refusal, refusal, validation_refusal
 from .hooks import is_hook_path
 from .layouts import Layouts
@@ -30,7 +31,7 @@ from .mailer import EmailSender
 from .preferences import Preferences
 from .presets import Presets
 from .accounts import PENDING_CHECKED
-from .principal import Auth, Principal
+from .principal import BETA_ONLY_TABS, Auth, Principal
 from .drawings import Drawings
 from .overview import Overview
 from .watchlist import Watchlist
@@ -39,9 +40,17 @@ from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .security import csrf_token, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
 from .throttle import SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address, normal_login
-from .worker import Worker
+from .worker import Housekeeping, Worker
 
 COOKIE = 'edge_session'
+# the start-up's lines (startup_not_ready, startup_done, email_sender_off): INFO included, written as app/backtest.py's
+# are when nothing set up a handler (uvicorn configures only its own loggers; lastResort writes WARNING and above)
+startup_log = logging.getLogger('edge_bff.startup')
+if not startup_log.hasHandlers():
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter('%(message)s'))
+    startup_log.addHandler(_handler)
+    startup_log.setLevel(logging.INFO)
 STOP_RETRIES = 3  # EXEC-Y Fase 1 (I1): a run dispatched a moment ago is registered at Orc on receipt
 STATIC = Path(__file__).resolve().parents[1] / 'static'
 SCRIPT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
@@ -230,7 +239,12 @@ def create_app(settings=None, store=None, orc=None):
     radar = Radar(settings)
     overview = Overview(settings)                       # EXEC-OVERVIEW O4
     watchlist = Watchlist(settings, store)              # EXEC-WATCHLIST L3
-    ready = {'value': False}
+    # EXEC-MU-ACCOUNTS beta/live: the AI loop claims only the runs this site queued (config.py EDGE_SITE)
+    worker.claim = functools.partial(store.claim, site=settings.site)
+    housekeeping = Housekeeping(settings, store)        # ERRORS R2-33: the hourly purges, their own task
+    # ERRORS R2-3, R2-36: the start-up steps (readiness, the seeds, the catalog names) and then the loops, retried until
+    # they ran; /ready answers 503 until then. lock: one attempt at a time; serving: the app's lifespan has started
+    started = {'done': False, 'serving': False, 'failures': 0, 'lock': None, 'stopping': None, 'tasks': []}
     # EXEC-MU-ACCOUNTS Phase 0: the sign-in throttle lives in PostgreSQL (app/throttle.py), shared by every instance
     throttle = Throttle(store, settings.session_secret)
     # EXEC-MU-ACCOUNTS Phase 1: the principal of every request (app/principal.py) and the account preferences
@@ -245,52 +259,97 @@ def create_app(settings=None, store=None, orc=None):
     # (a client per request opened a new connection every time)
     terminal_http = {'client': None}
 
+    def start_loops():
+        """The background loops (EXEC-MU-ACCOUNTS beta/live: each with its own switch, config.py; EDGE_WORKER_ENABLED=false
+        starts none): the AI job loop (the beta only, Settings.ai_worker), the backtest loop (each site claims its own
+        jobs), the hourly housekeeping and the email sender (its own task, never behind an AI run or a backtest; only
+        with the switch on, so only on the live site)."""
+        if not settings.worker_enabled:
+            return
+        if settings.ai_worker:
+            started['tasks'].append(asyncio.create_task(worker.run()))
+        if settings.backtest_loop_enabled and backtests.loop:
+            started['tasks'].append(asyncio.create_task(backtests.loop.run()))
+        if settings.housekeeping_enabled:
+            started['tasks'].append(asyncio.create_task(housekeeping.run()))
+        if settings.multiuser and settings.email_enabled:
+            started['tasks'].append(asyncio.create_task(sender.run()))
+        elif settings.multiuser:
+            # no registration or reset code leaves this instance; visible, as an intended sender-less one must be
+            startup_log.error(json.dumps({'event': 'email_sender_off', 'site': settings.site}))
+
+    async def start_up():
+        """One attempt at the start-up steps (ERRORS R2-3, R2-36); True once they ran, and then always. Readiness first
+        (the tables and columns this build reads; a database being restarted, a migration not applied yet), then user
+        #1 and its plan, the catalog's names, then the loops. A seed failure keeps the switch-off sign-in working (the
+        loops start); with the switch on nothing can sign in without accounts, so the attempt fails and is made again.
+        While no attempt succeeded /ready answers 503 and no loop runs: a build that is not ready never claims a job."""
+        async with started['lock']:
+            if started['done']:
+                return True
+            try:
+                await asyncio.to_thread(store.ready, settings.multiuser)
+                # EXEC-MU-ACCOUNTS Phase 1: user #1 (the configured owner) when the accounts table holds none;
+                # idempotent across replicas and attempts
+                try:
+                    await asyncio.to_thread(auth.seed_user)
+                except Exception as e:                 # noqa: BLE001 - logged by its class only (no secret in it)
+                    logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_failed',
+                                                                               'error': type(e).__name__}))
+                    if settings.multiuser:
+                        raise
+                # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): user #1's subscription to the plan holding every
+                # capability, found by data (account_seed_plan_ambiguous otherwise); idempotent. A failure (the catalog
+                # migration not applied yet) changes nothing with the switch off; with it on nothing resolves without
+                # the catalog
+                try:
+                    await asyncio.to_thread(auth.refresh_names)  # Phase 3a (C1 F3): refusals name what the person sees
+                except Exception as e:                 # noqa: BLE001 - the plain phrase stays until the next read
+                    logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'capability_names_failed',
+                                                                               'error': type(e).__name__}))
+                try:
+                    await asyncio.to_thread(auth.seed_plan)
+                except Exception as e:                 # noqa: BLE001 - logged by its class only (no secret in it)
+                    logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_plan_failed',
+                                                                               'error': type(e).__name__}))
+                    if settings.multiuser:
+                        raise
+            except Exception as e:                     # noqa: BLE001 - its class only (no secret in the log)
+                started['failures'] += 1
+                if started['failures'] == 1 or started['failures'] % 30 == 0:
+                    startup_log.error(json.dumps({'event': 'startup_not_ready', 'error': type(e).__name__,
+                                                  'attempts': started['failures']}))
+                return False
+            start_loops()
+            started['done'] = True
+            startup_log.info(json.dumps({'event': 'startup_done', 'site': settings.site, 'attempts': started['failures'] + 1,
+                                         'loops': len(started['tasks']), 'commit': settings.commit_sha or None,
+                                         'shared_keys': settings.shared_key_marks()}))
+            return True
+
     @asynccontextmanager
     async def lifespan(app):
-        try:
-            await asyncio.to_thread(store.ready, settings.multiuser)
-            ready['value'] = True
-        except Exception:
-            ready['value'] = False
-        if ready['value']:
-            # EXEC-MU-ACCOUNTS Phase 1: user #1 (the configured owner) when the accounts table holds none; idempotent
-            # across replicas. A failure keeps the switch-off sign-in working; with the switch on nothing can sign in
-            # without accounts, so the worker does not start
-            try:
-                await asyncio.to_thread(auth.seed_user)
-            except Exception as e:                     # noqa: BLE001 - logged by its class only (no secret in it)
-                logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_failed',
-                                                                           'error': type(e).__name__}))
-                if settings.multiuser:
-                    ready['value'] = False
-            # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): user #1's subscription to the plan holding every capability,
-            # found by data (account_seed_plan_ambiguous otherwise); idempotent. A failure (the catalog migration not
-            # applied yet) changes nothing with the switch off; with it on nothing resolves without the catalog
-            try:
-                await asyncio.to_thread(auth.refresh_names)      # Phase 3a (C1 F3): refusals name what the person sees
-            except Exception as e:                     # noqa: BLE001 - the plain phrase stays until the next read
-                logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'capability_names_failed',
-                                                                           'error': type(e).__name__}))
-            try:
-                await asyncio.to_thread(auth.seed_plan)
-            except Exception as e:                     # noqa: BLE001 - logged by its class only (no secret in it)
-                logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_plan_failed',
-                                                                           'error': type(e).__name__}))
-                if settings.multiuser:
-                    ready['value'] = False
-        task = asyncio.create_task(worker.run()) if settings.worker_enabled and ready['value'] else None
-        # EDGE backtest: its own loop, only with a worker configured; it does not wait for /ready (a missing backtest
-        # table keeps only the backtest feature off, BACKTEST_NOT_READY)
-        backtest_task = asyncio.create_task(backtests.loop.run()) if settings.worker_enabled and backtests.loop else None
-        # the email sender: its own task, never behind an AI run or a backtest (switch on, with the worker)
-        email_task = asyncio.create_task(sender.run()) if settings.multiuser and settings.worker_enabled \
-            and settings.email_enabled and ready['value'] else None
+        # made here, in the loop that serves (a lifespan begins with nothing started)
+        started.update(done=False, serving=True, failures=0, tasks=[], lock=asyncio.Lock(), stopping=asyncio.Event())
+        stopping = started['stopping']
+
+        async def keep_starting():
+            while not stopping.is_set() and not await start_up():
+                try:
+                    await asyncio.wait_for(stopping.wait(), timeout=settings.poll_seconds)
+                except asyncio.TimeoutError:
+                    pass
+        # the first attempt before the first request, as before; while it fails it is made again in the background
+        starter = None if await start_up() else asyncio.create_task(keep_starting())
         yield
+        stopping.set()
+        started['serving'] = False
         worker.stop()
         sender.stop()
+        housekeeping.stop()
         if backtests.loop:
             backtests.loop.stop()
-        for running in (task, backtest_task, email_task):
+        for running in [starter, *started['tasks']]:
             if running:
                 running.cancel()
                 await asyncio.gather(running, return_exceptions=True)
@@ -407,17 +466,26 @@ def create_app(settings=None, store=None, orc=None):
 
     @app.get('/ready')
     async def readiness():
+        # ERRORS R2-3, R2-36: ready once the start-up steps ran and the loops started (an attempt is made here while
+        # they have not: Railway's healthcheck passes only then), and while the database answers
+        if started['serving'] and not await start_up():
+            return error('NOT_READY', 503)
         try:
             await asyncio.to_thread(store.ready, settings.multiuser)
         except Exception:
             return error('NOT_READY', 503)
         return {'status': 'ready'}
 
+    @app.get('/version')
+    async def version():
+        """EXEC-MU-ACCOUNTS beta/live: which website this is and the commit it runs (Railway's RAILWAY_GIT_COMMIT_SHA;
+        null when unset, as on a developer machine), read before and after a push to live."""
+        return {'site': settings.site, 'commit': settings.commit_sha or None}
+
     # The page builds its links as <page>#/<route> (index.html staticUrl); opened at "/" that page is index.html, so
     # /index.html is served too (user 2026-10-24: a Branch tab and the side chat showed {"detail":"Not Found"})
     @app.get('/')
     @app.get('/index.html')
-    @app.get('/monitor')
     @app.get('/terminal')
     @app.get('/backtest')
     @app.get('/screener')
@@ -433,11 +501,21 @@ def create_app(settings=None, store=None, orc=None):
     async def index():
         return FileResponse(STATIC / 'index.html', media_type='text/html')
 
+    def on_this_site(tab):
+        """Whether this site serves a tab's pages: the live site has none of the beta-only tabs (principal.py)."""
+        return not (settings.site == LIVE and tab in BETA_ONLY_TABS)
+
+    @app.get('/monitor')
+    async def monitor_page():
+        if not on_this_site('monitor'):
+            return error('NOT_FOUND', 404)
+        return FileResponse(STATIC / 'index.html', media_type='text/html')
+
     # EXEC-CHAT-URL (user 2026-10-24: "B saja ya"): every conversation has its own address, /c/<conversation_id>, like
-    # ChatGPT and Claude; the page reads the id from it. Any other id is not a page.
+    # ChatGPT and Claude; the page reads the id from it. Any other id is not a page. A conversation is the Monitor's.
     @app.get('/c/{conversation_id}')
     async def conversation_page(conversation_id: str):
-        if not re.fullmatch(CONV, conversation_id):
+        if not re.fullmatch(CONV, conversation_id) or not on_this_site('monitor'):
             return error('NOT_FOUND', 404)
         return FileResponse(STATIC / 'index.html', media_type='text/html')
 
@@ -771,8 +849,8 @@ def create_app(settings=None, store=None, orc=None):
             await asyncio.to_thread(store.conversation, p.owner_key, body.conversation_id)
             if not await asyncio.to_thread(orc.messages, p.owner_key, body.conversation_id):
                 raise StoreError('CONVERSATION_EXPIRED', 410)
-        row, created = await asyncio.to_thread(store.submit, p.owner_key, body.submission_key, payload,
-                                               body.after_stop)
+        row, created = await asyncio.to_thread(functools.partial(store.submit, site=settings.site), p.owner_key,
+                                               body.submission_key, payload, body.after_stop)
         after = (row['input'] or {}).get('after_request_id')
         before = await asyncio.to_thread(store.job, p.owner_key, after) if after else None
         if before is not None and created:  # S3: the run this message follows is stopped; this one waits for it

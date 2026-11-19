@@ -43,12 +43,15 @@ NOTHING = {'rights': [], 'allow': {kind: [] for kind in KINDS}, 'limits': {}}
 def allow_of(principal, worker):
     """{kind: "*" | sorted ids} of a principal for one worker ('backtest' or 'screener')."""
     families = FAMILIES[worker]
-    everything = EVERYTHING in principal.capabilities or principal.grants.get(EVERYTHING) is True
+    # the live site's principal (principal.live_view) never holds a lab item, so "*" (every id, lab included) is never
+    # sent from there: its ids are the ones it holds
+    whole = not getattr(principal, 'live', False)
+    everything = whole and (EVERYTHING in principal.capabilities or principal.grants.get(EVERYTHING) is True)
     out = {}
     for kind in KINDS:
         family = families[kind]
         value = principal.grants.get(family) if principal.kinds.get(family) == 'items' else None
-        if everything or (isinstance(value, dict) and value.get('all') is True):
+        if everything or (whole and isinstance(value, dict) and value.get('all') is True):
             out[kind] = EVERYTHING
         else:
             out[kind] = sorted({e['id'] for e in releases.entries(kind) if principal.can(f'{family}:{e["id"]}')})

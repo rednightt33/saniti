@@ -27,8 +27,18 @@ Dependencies (`Auth`, handed to every router as `routes(app, auth)`):
 - `auth.need(capability, write=False)`: 403 CAPABILITY_REQUIRED without the capability, or 403 PLAN_EXPIRED when only
   the account's ended plan held it (access.expired_plan names that plan; the fix is to renew it);
 - `auth.admin(write=False, capability='admin.access')`: need(capability) plus mfa_ok, else 403 MFA_REQUIRED.
+
+The two websites (EXEC-MU-ACCOUNTS "Production environment", user decisions 2026-11-19; config.py EDGE_SITE):
+- the switch-off resolution accepts only a switch-off session (user_id NULL, store.session; ERRORS R2-1), so a session
+  of an account (made by the live site, with the switch on) never opens the beta, and a beta session (no account) never
+  resolves on the live site (accounts.resolve joins the account);
+- on the live site (EDGE_SITE=live) every principal is `live_view`: it never holds a beta-only capability (`beta_only`:
+  the Monitor (AI, decision D1) and admin tabs, the admin rights of rights.py, every item at the lab stage), whatever its
+  plan grants, '*' included; `auth.need` of a beta-only capability answers 404 NOT_FOUND there, as for a route the site
+  does not have. The second factor is decided by the account's own grants, so user #1 still needs it on the live site.
 """
 import asyncio
+import dataclasses
 import hashlib
 import json
 import logging
@@ -40,9 +50,11 @@ from datetime import datetime
 from fastapi import Depends, Request
 
 from .accounts import OWNER_KEY, AccountStore
+from .config import LIVE
 from .errors import Refusal, capability_required, plan_expired, set_display_names
 from . import releases
-from .releases import KIND_OF_FAMILY, stage_of
+from .releases import KIND_OF_FAMILY, LAB, stage_of
+from .rights import CAPABILITY_OF as RIGHT_CAPABILITIES
 from .security import csrf_token, same_ascii, token_hash
 
 logger = logging.getLogger('edge_bff.principal')
@@ -55,6 +67,22 @@ TOKEN = re.compile(r'[0-9a-f]{64}')
 MFA_OPEN = frozenset({'/api/v1/auth/session', '/api/v1/auth/sign-out', '/api/v1/auth/mfa/enroll',
                       '/api/v1/auth/mfa/verify'})
 ITEM_KEYS = frozenset({'ids', 'stages', 'all'})
+# EXEC-MU-ACCOUNTS "Production environment" (user 2026-11-19): the AI Monitor, the admin pages and every lab item live on
+# the beta site only. A capability key is '<tab>.<name>' (the catalog's rule; an item key '<tab>.<kind>:<id>'), so the
+# beta-only keys are those of these tabs, the admin rights rights.py grants (ADMIN_RIGHTS) and the lab-stage items.
+BETA_ONLY_TABS = frozenset({'monitor', 'admin'})
+ADMIN_RIGHT_CAPABILITIES = frozenset(RIGHT_CAPABILITIES.values())
+
+
+def beta_only(key):
+    """Whether the live site never holds this capability key (module docstring): a key of a BETA_ONLY_TABS tab, an admin
+    right, or an item '<family>:<id>' of a family with release stages (releases.KIND_OF_FAMILY) whose id is at the lab
+    stage (an id the release file does not list is lab)."""
+    family, sep, item = (key or '').partition(':')
+    if family.split('.', 1)[0] in BETA_ONLY_TABS or family in ADMIN_RIGHT_CAPABILITIES:
+        return True
+    kind = KIND_OF_FAMILY.get(family) if sep else None
+    return kind is not None and stage_of(kind, item) == LAB
 
 
 def valid_value(kind, value):
@@ -137,10 +165,14 @@ class Principal:
     expired_plan: str | None = None
     expired_grants: dict = field(default_factory=dict, hash=False, compare=False, repr=False)
     expired_kinds: dict = field(default_factory=dict, hash=False, compare=False, repr=False)
+    # the live site's view (live_view): no beta-only capability is held, whatever the grants say
+    live: bool = False
 
     def can(self, capability):
         """'*' holds everything; a flag key is held when granted; '<family>:<id>' by the family's items value (its ids,
-        its release stages, or all). Anything else is not held."""
+        its release stages, or all). Anything else is not held. On the live site a beta-only key never is."""
+        if self.live and beta_only(capability):
+            return False
         return EVERYTHING in self.capabilities or holds(self.grants, self.kinds, capability)
 
     def limit(self, capability, default=None):
@@ -196,6 +228,20 @@ def switch_off_principal(settings, owner, token='', seed=None):
                      version=SWITCH_OFF_VERSION, token=token, seed=first)
 
 
+def live_view(p, flags=()):
+    """The principal as the live site serves it (EDGE_SITE=live; module docstring): `live` set, so `can` refuses every
+    beta-only key; its capabilities without them, where '*' reads as every flag capability of the catalog (`flags`,
+    edge_bff.capabilities of kind flag) that is not beta-only (so the page shows the tabs the site has, never the
+    Monitor); its limits without them; mfa_ok and the grants as they are (the second factor is the account's own); a
+    version of its own, so an open page reads the session again when the view changes."""
+    held = flags if EVERYTHING in p.capabilities else p.capabilities
+    capabilities = frozenset(k for k in held if k != EVERYTHING and not beta_only(k))
+    raw = json.dumps([p.version, sorted(capabilities), LIVE], separators=(',', ':')).encode()
+    return dataclasses.replace(p, capabilities=capabilities, live=True,
+                               limits={k: v for k, v in p.limits.items() if not beta_only(k)},
+                               version='db-' + hashlib.sha256(raw).hexdigest()[:12])
+
+
 def role_needs_mfa(capabilities):
     """Switch on: an account whose resolved capabilities hold everything or the admin access passes the second factor
     before any other route (CONTRACT.md 8a: derived from the catalog, no longer from the role)."""
@@ -230,6 +276,7 @@ class Auth:
         self.settings, self.store = settings, store
         self.accounts = accounts or AccountStore(store)
         self._names_at = None
+        self.flags = frozenset()                         # the catalog's flag capabilities (refresh_names; live_view)
         self.seed = None                                 # {user_id, username} of user #1 once seeded (main.py lifespan)
         self._needs = {}
 
@@ -270,8 +317,9 @@ class Auth:
             return
         self._names_at = now
         with self.store.connect() as c:
-            rows = c.execute('SELECT capability_key, display_name FROM edge_bff.capabilities').fetchall()
+            rows = c.execute('SELECT capability_key, display_name, kind FROM edge_bff.capabilities').fetchall()
         set_display_names({r['capability_key']: r['display_name'] for r in rows})
+        self.flags = frozenset(r['capability_key'] for r in rows if r['kind'] == 'flag')
 
     def seed_plan(self):
         """Phase 2 (CONTRACT.md 8a "User #1"): the seed user's subscription to the plan that holds every capability
@@ -284,7 +332,7 @@ class Auth:
     def needs_mfa(self, owner_key):
         """Switch on: whether the account's resolved capabilities require the second factor (the sign-in makes a
         pending session for it). Blocking (a thread)."""
-        return role_needs_mfa(self.owner_principal(owner_key).capabilities)
+        return role_needs_mfa(owner_principal(self.settings, self.accounts, owner_key).capabilities)  # the account's own
 
     def configured_owner(self):
         """The switch-off owner a new session is made for (main.py sign-in with EDGE_MULTIUSER off): EDGE_OWNER."""
@@ -301,17 +349,28 @@ class Auth:
                 return None
             return switch_off_principal(self.settings, self.settings.owner, token, self.seed)
         row = await asyncio.to_thread(self.accounts.resolve, hashed, self.settings.session_idle_seconds)
-        return account_principal(row, token) if row else None
+        return self.site_view(account_principal(row, token)) if row else None
+
+    def site_view(self, p):
+        """The principal as this site serves it: live_view on the live site, else as it is."""
+        return live_view(p, self.flags) if self.settings.site == LIVE else p
 
     def owner_principal(self, owner_key):
         """The principal of an owner without a session, as it is now (the backtest loop reads its rights when it
         dispatches a queued job). Switch on: an owner with no active account has no capability. Blocking (a thread)."""
-        return owner_principal(self.settings, self.accounts, owner_key)
+        return self.site_view(owner_principal(self.settings, self.accounts, owner_key))
 
     def need(self, capability, write=False):
         """A dependency: the principal (with CSRF when write) holding the capability, else 403 CAPABILITY_REQUIRED (or
-        PLAN_EXPIRED when only the account's ended plan held it)."""
+        PLAN_EXPIRED when only the account's ended plan held it). On the live site a beta-only capability (the Monitor,
+        the admin routes) answers 404 NOT_FOUND before the session is read: the route is not one the site has."""
         key = ('need', capability, write)
+        if key not in self._needs and self.settings.site == LIVE and beta_only(capability):
+            base = self.writer if write else self.principal
+
+            async def absent(_: None = Depends(not_on_this_site), p: Principal = Depends(base)):
+                return p                                      # never reached: not_on_this_site refuses first
+            self._needs[key] = absent
         if key not in self._needs:
             base = self.writer if write else self.principal
 
@@ -342,6 +401,11 @@ class Auth:
                 return p
             self._needs[key] = check
         return self._needs[key]
+
+
+async def not_on_this_site():
+    """The first dependency of a beta-only route on the live site (Auth.need): 404 NOT_FOUND."""
+    raise Refusal(404, 'NOT_FOUND')
 
 
 def owner_principal(settings, accounts, owner_key):
