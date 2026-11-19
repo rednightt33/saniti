@@ -1463,11 +1463,13 @@ def test_backtest_tab_page_and_its_frame_csp(app, monkeypatch, tmp_path):
     (tmp_path / 'assets' / 'index-abc123.js').write_text('void 0')
     monkeypatch.setattr(main, 'BACKTEST_APP', tmp_path)
     page = c.get('/backtest')
-    assert page.status_code == 200 and 'EDGE' in page.text and 'function BacktestPage' in page.text and '"/backtest-app/"' in page.text
+    shell = page.text + c.get('/edge-app.js').text           # the shell's app is a file of its own (re-check R2-19)
+    assert page.status_code == 200 and 'EDGE' in page.text and '<script src="/edge-app.js"></script>' in page.text
+    assert 'function BacktestPage' in shell and '"/backtest-app/"' in shell
     # the tab's wording is in edge-labels.js (AGENTS.md), used like the Terminal tab's
     assert 'backtest: { nav:"Backtest", frameTitle:"Backtest" }' in c.get('/edge-labels.js').text
-    assert '[EdgeLabels.backtest.nav, "backtest"]' in page.text and 'title: EdgeLabels.backtest.frameTitle' in page.text
-    assert '"Backtest"' not in page.text
+    assert '[EdgeLabels.backtest.nav, "backtest"]' in shell and 'title: EdgeLabels.backtest.frameTitle' in shell
+    assert '"Backtest"' not in shell
     assert page.headers['content-security-policy'] == c.get('/terminal').headers['content-security-policy']   # EDGE's own policy
     frame = c.get('/backtest-app/')
     assert frame.status_code == 200 and 'Market Lab Backtest' in frame.text

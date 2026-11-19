@@ -1272,11 +1272,13 @@ def test_screener_tab_page_and_its_frame_csp(app, monkeypatch, tmp_path):
     (tmp_path / 'assets' / 'index-abc123.js').write_text('void 0')
     monkeypatch.setattr(main, 'SCREENER_APP', tmp_path)
     page = c.get('/screener')
-    assert page.status_code == 200 and 'function ScreenerPage' in page.text and '"/screener-app/"' in page.text
+    shell = page.text + c.get('/edge-app.js').text           # the shell's app is a file of its own (re-check R2-19)
+    assert page.status_code == 200 and '<script src="/edge-app.js"></script>' in page.text
+    assert 'function ScreenerPage' in shell and '"/screener-app/"' in shell
     # the tab's wording is in edge-labels.js (AGENTS.md), used like the other tabs'
     assert 'screener: { nav:"Screener", frameTitle:"Stock screener" }' in c.get('/edge-labels.js').text
-    assert '[EdgeLabels.screener.nav, "screener"]' in page.text and 'title: EdgeLabels.screener.frameTitle' in page.text
-    assert '"Screener"' not in page.text and '"Stock screener"' not in page.text
+    assert '[EdgeLabels.screener.nav, "screener"]' in shell and 'title: EdgeLabels.screener.frameTitle' in shell
+    assert '"Screener"' not in shell and '"Stock screener"' not in shell
     assert page.headers['content-security-policy'] == c.get('/terminal').headers['content-security-policy']   # EDGE's own policy
     frame = c.get('/screener-app/')
     assert frame.status_code == 200 and 'EDGE Screener' in frame.text and frame.headers['cache-control'] == 'no-store'
