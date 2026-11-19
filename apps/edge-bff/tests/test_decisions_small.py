@@ -12,8 +12,12 @@ decisions of 2026-11-19 and the main agent's design value, built.
   terminal_access.relayed. The walk derives the routes from the app (every route holding terminal_access.guard) and
   each kind of proxy path from main.TERMINAL_ROUTES, plants private keys and an internal address in every answer, and
   finds none on any page; its self-test finds them once the filter is taken out.
+- R1-35 (the user's "1a"): the universe attributes every Screener answer shows (the Screener catalog's entries naming
+  their /universe row field) are allowed to every principal (allow.allow_of) and listed by its catalog (catalog.held),
+  by one rule (catalog.ungated), as the worker no longer gates them by id.
 """
 import dataclasses
+import json
 import re
 import uuid
 from urllib.parse import urlsplit, urlunsplit
@@ -24,11 +28,13 @@ import pytest
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from app import main, mfa, terminal_access
+from app import catalog, main, mfa, releases, terminal_access
 from app.accounts import EMAIL_RETENTION_DAYS
+from app.allow import allow_of
 from app.auth_flows import MFA_RECENT_SECONDS
 from app.errors import words
 from app.main import create_app
+from app.principal import account_principal
 from app.store import PURGE_BATCH, PURGES, Store
 from conftest import FakeOrc
 from test_answer_view import fixture_server  # noqa: F401 - the fixture
@@ -341,3 +347,37 @@ def test_the_walk_finds_a_relay_without_the_filter(settings, store, monkeypatch)
     with TestClient(app) as c:
         found = {p for _, p, r in walk(c, app, login(c)) if leaks(r)}
     assert {'/api/terminal/v1/manifest/BBCA', '/api/terminal/v1/files', '/api/v1/radar/index'} <= found, found
+
+
+# ---- R1-35 ("1a"): the attributes every Screener answer shows are not gated by id ---------------------------------------
+
+def plan_principal(grants):
+    return account_principal({'user_id': 7, 'owner_key': 'u_' + 'a' * 32, 'username': 'alice', 'role': 'user',
+                              'status': 'active', 'plan_key': 'p', 'versions': {},
+                              'grants': {k: {'kind': kind, 'value': v} for k, (kind, v) in grants.items()}})
+
+
+def test_the_shown_attributes_are_the_screener_catalogs_row_entries():
+    """One definition: the Screener catalog's universe entries that name their /universe row field (the worker's
+    tests/shown.test.ts holds them to the rows it answers); the user's list: last price, 1-day change, average traded
+    value, history bars, index membership."""
+    assert catalog.SHOWN_ATTRIBUTES == {'last', 'chg_1d_pct', 'adv20_idr', 'bars', 'index_membership'}
+    metrics = json.loads(catalog.SCREENER_METRICS.read_text())['metrics']
+    assert catalog.SHOWN_ATTRIBUTES == {m['id'] for m in metrics if m['kind'] == 'universe' and 'row' in m}
+    assert catalog.SHOWN_ATTRIBUTES <= {e['id'] for e in releases.entries('screener_metric')}
+    with pytest.raises(RuntimeError, match='cannot be read'):
+        catalog.shown_attributes(catalog.SCREENER_METRICS.with_name('missing.json'))
+
+
+def test_a_plan_without_screener_metrics_is_allowed_the_shown_attributes_and_the_catalog_lists_them():
+    nothing = plan_principal({'terminal.indicator': ('items', {'ids': ['I01']})})
+    for worker in ('screener', 'backtest'):
+        assert allow_of(nothing, worker)['screener_metric'] == sorted(catalog.SHOWN_ATTRIBUTES), worker
+    assert [e['id'] for e in catalog.held(nothing, 'screener_metric')] == [
+        e['id'] for e in releases.entries('screener_metric') if e['id'] in catalog.SHOWN_ATTRIBUTES]
+    # a plan's own Screener metrics come beside them; every other kind is unchanged
+    some = plan_principal({'screener.metric': ('items', {'ids': ['breakout']})})
+    assert allow_of(some, 'screener')['screener_metric'] == sorted({'breakout', *catalog.SHOWN_ATTRIBUTES})
+    assert allow_of(some, 'screener')['indicator'] == [] and not catalog.ungated('indicator', 'last')
+    # a principal holding everything still sends "*"
+    assert allow_of(plan_principal({'*': ('flag', True)}), 'screener')['screener_metric'] == '*'

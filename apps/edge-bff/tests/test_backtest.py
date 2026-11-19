@@ -1598,12 +1598,14 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
     # (the backtest stage also takes screener/src: its page reads the Screener's entries and forms, ERRORS M461)
     # (EXEC-MU-ACCOUNTS Phase 0: every page stage also takes shared/, the session module the pages import)
     # (EXEC-MU-ACCOUNTS Phase 2: the final stage takes catalog/, the release stages app/releases.py reads at start)
+    # (EXEC-MU-ACCOUNTS re-check R1-35, user 2026-11-19 "1a": and the Screener catalog, whose shown universe attributes
+    # app/catalog.py reads at start)
     assert copied == ['terminal/package.json', 'terminal/package-lock.json', 'shared', 'terminal/', 'backtest/package.json',
                       'backtest/package-lock.json', 'terminal/src', 'screener/src', 'shared', 'backtest/', 'screener/package.json',
                       'screener/package-lock.json', 'terminal/src', 'backtest/src', 'shared', 'screener/', 'radar/package.json',
                       'radar/package-lock.json', 'shared', 'radar/', 'overview/package.json', 'overview/package-lock.json', 'shared',
                       'overview/', 'watchlist/package.json', 'watchlist/package-lock.json', 'shared', 'watchlist/',
-                      'requirements.txt', 'app', 'catalog', 'static']
+                      'requirements.txt', 'app', 'catalog', 'screener/src/core/screener-metrics.json', 'static']
     # the copied sources, the files at the top of each copied folder (configuration, package files, index.html, the app's
     # modules, the static files) and the three pages' sources
     top = [f'{folder}/{p.name}' for folder in ('app', 'catalog', 'static', 'terminal', 'backtest', 'screener', 'radar', 'overview', 'watchlist')
@@ -1619,6 +1621,7 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
     assert 'overview/src/app.ts' in needed and 'overview/vite.config.ts' in needed and 'app/overview.py' in needed
     assert 'watchlist/src/app.ts' in needed and 'watchlist/vite.config.ts' in needed and 'app/watchlist.py' in needed
     assert 'catalog/releases.json' in needed and 'app/releases.py' in needed
+    assert 'screener/src/core/screener-metrics.json' in needed and 'app/catalog.py' in needed
     assert [p for p in needed if docker_ignored(patterns, p.rstrip('/'))] == []
 
 

@@ -71,6 +71,11 @@ export interface MetricDefinition {
       set by edge-bff; the worker refuses it without them, CONDITION_RESTRICTED, and edge-bff leaves it out of the
       catalog); absent for every other entry */
   access?: 'admin';
+  /** EXEC-MU-ACCOUNTS (CONTRACT 8b O3b-2, re-check R1-35, user 2026-11-19 "1a"): on a universe attribute whose value
+      every /universe row carries for every listed stock, the field of contract.ts UniverseRow that holds it (absent
+      on every other entry). The Screener shows these values to anyone who opens it, whatever the plan, so a condition
+      or filter on one is never gated by id (SHOWN_ATTRIBUTES) */
+  row?: string;
 }
 /** The rights a session needs for an entry (user K8 b): the Screener's own versions of the Terminal Flow indicators
     that choose their brokers with later data (FL18, FL19, FL20, FL23, FL44, FL45: computed 'anchored' or 'inventory'),
@@ -163,6 +168,15 @@ export const METRICS_CATALOG = { ...(metricsDoc as unknown as MetricsCatalog), m
   ...SCREENER_REGISTRY.candles.map(candleMetric), ...SCREENER_REGISTRY.flows.map(flowMetric)] } as MetricsCatalog;
 export const PRESETS = presetsDoc as unknown as PresetsDoc;
 export const TRANSFORM_FNS: readonly string[] = METRICS_CATALOG.transforms.map(t => t.fn);
+/** EXEC-MU-ACCOUNTS (CONTRACT 8b O3b-2, re-check R1-35, user 2026-11-19 "1a": the attributes every result row and
+    /universe show are not gated by id): attribute id -> the UniverseRow field that shows it, read from the catalog's
+    universe entries that name their `row`. /universe sends every listed stock's row (the page counts with it) and a
+    result row repeats last, chg_1d_pct and adv20_idr, so gating one of these by id cannot hide its value: the
+    worker's allow walk skips them (screener-worker run.ts definitionItems) and edge-bff allows them to every principal
+    (app/catalog.py shown_attributes reads the same entries). The one definition is this data; the worker's tests hold
+    it to the rows it answers, both ways (tests/shown.test.ts). */
+export const SHOWN_ATTRIBUTES: ReadonlyMap<string, string> = new Map(METRICS_CATALOG.metrics
+  .filter(m => m.kind === 'universe' && typeof m.row === 'string').map(m => [m.id, m.row as string]));
 
 /* ---- lookups ------------------------------------------------------------------------------------------------------ */
 
@@ -284,6 +298,7 @@ export function catalogProblems(implemented?: { transforms: readonly string[]; p
     if (m.kind === 'transform' && !m.ref) out.push(`${w}: a transform-based metric needs its reference template (ref)`);
     if (m.kind === 'pattern' && m.tests.includes('value')) out.push(`${w}: a pattern is a signal, never a VALUE`);
     if (m.side !== undefined && (m.kind !== 'pattern' || !PATTERN_SIDES.includes(m.side))) out.push(`${w}: side is a pattern's, one of ${PATTERN_SIDES.join(', ')}`);
+    if (m.row !== undefined && (m.kind !== 'universe' || typeof m.row !== 'string' || !/^[a-z][a-z0-9_]*$/.test(m.row))) out.push(`${w}: row names the /universe row field of a universe attribute (a lower-case name)`);
   }
   // the operators block: every measure a transform of the catalog, every type's transforms too, every not_on a type,
   // the tests the seven of OPERATORS.md with their operators known to the contract

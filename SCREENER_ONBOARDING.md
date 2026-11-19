@@ -416,7 +416,7 @@ field), `transform` (`pct_distance`, `band_position`, `lag`, `change`, `rolling_
 `xsection` (`return_rank`), `universe` (a row attribute; fundamentals use this kind too, `contract.ts:466-468`). These
 lists are data, read from `screener-metrics.json` (section 1.11), never kept in code; `transforms.ts` implements each
 `fn` and pattern `type` (`IMPLEMENTED_TRANSFORMS` `:288`, `IMPLEMENTED_PATTERNS` `:615`), and `catalogProblems`
-(`apps/edge-bff/screener/src/core/catalog.ts:260`) fails when the two disagree.
+(`apps/edge-bff/screener/src/core/catalog.ts:274`) fails when the two disagree.
 
 | Test | Rule (`evaluate.ts`) |
 |---|---|
@@ -467,8 +467,8 @@ unevaluated conditions is pruned iff m + r < θ. It never hides a match or a nea
 oracle on random whole screens).
 
 **Cost and budget.** Before any compute the worker prices the worst case on the S0 survivors
-(`apps/screener-worker/src/run.ts:426-464` `estimateCost`: each condition's stage; for S3 the predicted ms of its series
-that are not pinned, from `costUnits` `:352-411` over the core's `costTracker`, `plan.ts:151`, which learns ms per unit
+(`apps/screener-worker/src/run.ts:429-467` `estimateCost`: each condition's stage; for S3 the predicted ms of its series
+that are not pinned, from `costUnits` `:355-414` over the core's `costTracker`, `plan.ts:151`, which learns ms per unit
 per replica with an exponential mean, alpha 0.2, `run.ts:285`, seeded by the registry's provisional 5.96 ns per bar per
 length unit; a flow kernel by its stock's broker rows and brokers x sessions grid and a measured prior per way it is
 computed, the broker-data series and window context once per stock, every cold series observed with its time shared
@@ -696,7 +696,7 @@ Everything that is not one of the registry indicators is described as **data** i
 the 52-week high distance, the `return_rank` cross-section, 4 universe attributes, the 20 flow metrics FL01-FL20 of
 PHASE 2, the 32 fundamentals of APPENDIX C.3 with the 2 dividend metrics among them, index membership, listing board,
 notation) and the `periods` block (1M, 3M, 6M, 1Y = 21, 63, 126, 252 sessions, P23 a).
-`apps/edge-bff/screener/src/core/catalog.ts:162` `METRICS_CATALOG` loads and checks it at import, and `catalogProblems`
+`apps/edge-bff/screener/src/core/catalog.ts:167` `METRICS_CATALOG` loads and checks it at import, and `catalogProblems`
 again at the worker's start. Each metric entry carries:
 
 | Field | Meaning |
@@ -707,7 +707,7 @@ again at the worker's start. Each metric entry carries:
 | `unit` | raw unit on the wire (IDR, percent, fraction, sessions, …) |
 | `requires {file, columns}` | the xsection file and columns it needs; null when the snapshot already has what it reads |
 | `decision` | a sentence naming an open user decision, or null |
-| `applies_to` | a predicate over universe attributes (for example `Industry = Banks`); outside it the cell is `NOT_APPLICABLE` (`apps/edge-bff/screener/src/core/catalog.ts:230` `appliesTo`) |
+| `applies_to` | a predicate over universe attributes (for example `Industry = Banks`); outside it the cell is `NOT_APPLICABLE` (`apps/edge-bff/screener/src/core/catalog.ts:244` `appliesTo`) |
 | `formula`, `interpretation`, `misuse`, `evidence` | the `Feature_Catalog` fields, so a later AI onboarding can reuse them |
 | `unavailable_reason`, `default_test`, `ref`, `fl` | the reason shown while it is unavailable; the card it opens with; a reference template; the FLOW INDICATOR PROPOSALS id |
 
@@ -744,7 +744,7 @@ catalog per worker versions and `published_at` (an advance keeps the versions). 
 metric of an existing kind over a file the worker already reads needs only catalog entries; a new file needs worker
 code (its name in the file list, a decoder, its data version, its binding)** (section 2.1).
 
-**Presets** (`presets.json`, 26 presets of APPENDIX A.2; `apps/edge-bff/screener/src/core/catalog.ts:164` `PRESETS`):
+**Presets** (`presets.json`, 26 presets of APPENDIX A.2; `apps/edge-bff/screener/src/core/catalog.ts:169` `PRESETS`):
 each `{id, category, name, why, definition}` and for eight of them the prototype's default sort (`view.sort`). A preset
 is `AVAILABLE` only when every enabled leg and metric filter is (`apps/edge-bff/screener/src/core/validate.ts:604-633` `presetAvailability`; it never
 runs with a leg removed); the available ones are computed at each swap and kept pinned in the result cache, so a preset
@@ -999,7 +999,7 @@ What changes, per class (yes = always; maybe = depends; no = never):
 Notes: "no" for terminal-api rests on `/xsection` validating names against the index (BRANCH, section 1.6); a new
 service that reads `/xsection` needs its name in `XSECTION_SERVICES` (`apps/terminal-api/app/main.py:74`). "A wire kind
 the first time" means the first macro series needs one new reference kind in `contract.ts` `MetricRef` and in
-`apps/edge-bff/screener/src/core/catalog.ts:240` `KINDS` (worked example 2.13); a fundamental or a universe attribute is `kind: 'universe'`, read from a
+`apps/edge-bff/screener/src/core/catalog.ts:254` `KINDS` (worked example 2.13); a fundamental or a universe attribute is `kind: 'universe'`, read from a
 field of the worker's universe row (`condition.ts:152-166`; `apps/edge-bff/screener/src/core/contract.ts:466-468`), so
 it needs no new kind (2.14). "File list" means the worker's list of files it reads (today `PHASE1_FILES`,
 `apps/screener-worker/src/snapshot.ts:81`): a file outside it is never downloaded, never enters the skip-unchanged rule
@@ -1104,7 +1104,7 @@ Tick every line or record why it does not apply. "Evidence" is what you cite in 
 | Check | Evidence |
 |---|---|
 | Indicators (registry release only): base registry regenerated (`npm run registry` in `apps/backtest-worker`), overlay entry (`shape`, the test forms per output with operators and labels, `synonyms`, a one-line `description` of 20-160 characters in our own words, `default_test`), screener registry regenerated (`npm run registry` in `apps/edge-bff/screener`), both `registry:check` green | the generated files; `tests/core/registry.test.ts` "has one entry per base id and vice versa" |
-| Other metrics: `screener-metrics.json` entries with the built fields (section 1.11): `id`, `group`, `kind`, `label`, `short`, `params` (ranges; flow maxima derived from the published window), `tests`, `unit`, `requires {file, columns}`, `decision`, `applies_to`, `unavailable_reason`, `formula`, `interpretation`, `misuse`, `evidence`, `default_test` | `apps/edge-bff/screener/src/core/catalog.ts:260` `catalogProblems` at import and at the worker's start |
+| Other metrics: `screener-metrics.json` entries with the built fields (section 1.11): `id`, `group`, `kind`, `label`, `short`, `params` (ranges; flow maxima derived from the published window), `tests`, `unit`, `requires {file, columns}`, `decision`, `applies_to`, `unavailable_reason`, `formula`, `interpretation`, `misuse`, `evidence`, `default_test`, and on a universe attribute every `/universe` row shows, `row` (its row field: such an attribute is never gated by id, catalog.ts `SHOWN_ATTRIBUTES`; EXEC-MU-ACCOUNTS re-check R1-35, user 2026-11-19 "1a") | `apps/edge-bff/screener/src/core/catalog.ts:274` `catalogProblems` at import and at the worker's start |
 | A new transform `fn` or pattern `type`: its function in `transforms.ts` and its id in `IMPLEMENTED_TRANSFORMS` / `IMPLEMENTED_PATTERNS` (`transforms.ts:288, 615`); an offered pattern without a `decision` must be implemented | `tests/core/catalog.test.ts` "keeps its rules and lists exactly the transforms and patterns transforms.ts computes" |
 | A new fundamental: `catalogProblems` checks its rule (`apps/edge-bff/screener/src/core/catalog.ts:227-229`): `kind: 'universe'` with the file it requires; no count is kept in code (FIXED, it held 32): that every fundamental of APPENDIX C.3 is there is derived from the prototype's catalogue, and a new one beyond it passes | `tests/core/catalog.test.ts` "holds every fundamental metric of the prototype's catalogue (APPENDIX C.3)" |
 | Availability derived, never coded: removing the file from a fixture index makes the metric `REQUIRES_DATA` with no code change | `tests/core/catalog.test.ts` "derives availability from the published index: flow needs its files, technical metrics need none, a decision wins" |
@@ -1117,7 +1117,7 @@ Tick every line or record why it does not apply. "Evidence" is what you cite in 
 | Check | Evidence |
 |---|---|
 | The file in the worker's file list (today `PHASE1_FILES`, `snapshot.ts:81`): the refresh requires it in the index (`refresh.ts:317-319`), caps it before any grant, grants it only when neither cache holds it, downloads it on the builder with sha256 and size checks and decodes it with the shared decoders (`decodeColumnar`/`inflateVerified`); its sha256 joins the skip-unchanged rule (`refresh.ts:339`) and the snapshot identity `sid` (`snapshot.ts:96`). A file that is optional needs its own rule, as the broker day files have (P4, `broker.ts`): the Phase 1 list makes a missing file fail the refresh | `tests/refresh.test.ts` |
-| The metric bound: a new kind or a new source in `condition.ts` (flow is refused at bind until Phase 2, `condition.ts:182`), costed in `apps/screener-worker/src/run.ts:352-407` `costUnits` or pinned in the snapshot | condition and estimate tests |
+| The metric bound: a new kind or a new source in `condition.ts` (flow is refused at bind until Phase 2, `condition.ts:182`), costed in `apps/screener-worker/src/run.ts:355-410` `costUnits` or pinned in the snapshot | condition and estimate tests |
 | Plan gate (EXEC-MU-ACCOUNTS Phase 3b): a new indicator, flow entry, candlestick pattern, pattern, cross-sectional metric or universe attribute is gated by its id with no worker change: the worker's `checkAllow` walks every reference of the normalized definition and refuses an id outside the body's `context.allow` (`403 CAPABILITY_REQUIRED`, capability `screener.indicator:`, `screener.flow_indicator:`, `screener.candle_pattern:` or `screener.metric:` plus the id; `apps/screener-worker/CONTRACT.md` section 4a). The id needs its entry in `apps/edge-bff/catalog/releases.json`. A new reference kind, or an id carried in another field, is added to `definitionItems` with its test | `apps/edge-bff/tests/test_releases.py`; `apps/screener-worker/tests/allow.test.ts` |
 | Cross-checks on load (counts, dates, a self-check against a stored oracle where one exists); a failure keeps the previous snapshot and logs `REFRESH_FAILED` | a fixture with a corrupted sha256 |
 | Units converted once, at the decoder, from the document's `units`; raw units on the wire | a unit test |
@@ -1538,7 +1538,7 @@ can differ; the cell's `eval_date` says which value was used). FACT behind the r
 
 **L4 contract and catalog.**
 - A new wire kind, the first time a market-wide series is used (PROPOSED, an additive change to `contract.ts`
-  `MetricRef` and `MetricKind`, and to the kinds `apps/edge-bff/screener/src/core/catalog.ts:240` `KINDS` accepts): `{kind: 'series', series:
+  `MetricRef` and `MetricKind`, and to the kinds `apps/edge-bff/screener/src/core/catalog.ts:254` `KINDS` accepts): `{kind: 'series', series:
   'USDIDR', field: 'close'}`, valid series read from the catalog; its binding in `condition.ts` and its validation in
   `validate.ts` are new code.
 - Transform `vs_series` (generalising `vs_index`): the stock's return over d sessions minus the series' return over the

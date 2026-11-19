@@ -8,6 +8,9 @@ refuse_context), when the call is made (a queued backtest reads its owner's prin
   principal holds everything (`*`; the switch-off owner listed in EDGE_ADMIN_OWNERS) or the family's value is
   `{"all": true}`. An id the release file does not list is never sent (tests/test_releases.py keeps every registry id
   in the file).
+- An item that is part of its tab (catalog.ungated: the universe attributes every Screener answer shows, the
+  catalog's `row` entries; CONTRACT.md 8b O3b-2 and re-check R1-35, user 2026-11-19 "1a") is in every principal's list,
+  as the worker never gates it by id (screener-worker run.ts definitionItems).
 - `limits` holds only keys a plan sets for the workers; none today, so `{}`.
 - `digest(context)` is a short fingerprint of the three, the key of every cache whose answer depends on what the
   principal may use (the Screener's saved-item review), so one plan's answer never serves another.
@@ -19,6 +22,7 @@ import hashlib
 import json
 
 from . import releases
+from .catalog import holds_entry, ungated
 from .errors import display_name, words
 from .rights import rights_of
 
@@ -55,7 +59,11 @@ def allow_of(principal, worker):
         if everything or (whole and isinstance(value, dict) and value.get('all') is True):
             out[kind] = EVERYTHING
         else:
-            out[kind] = sorted({e['id'] for e in releases.entries(kind) if principal.can(f'{family}:{e["id"]}')})
+            # an item that is part of its tab (catalog.ungated: a universe attribute every Screener answer shows,
+            # re-check R1-35) is allowed to every principal, by the same rule the catalogs list it with
+            out[kind] = sorted({e['id'] for e in releases.entries(kind)
+                                if principal.can(f'{family}:{e["id"]}')
+                                or (ungated(kind, e['id']) and holds_entry(principal, kind, e['id']))})
     return out
 
 
