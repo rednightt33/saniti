@@ -181,8 +181,8 @@ SECOND_PATHS = {
                        ('get', '/history/price?ticker=BBRI&from=2025-01-01&to=2025-01-31', None, 'terminal.tickers')],
     '/history/broker': [('get', '/history/broker?ticker=BBCA&from=2019-01-01&to=2019-12-31', None,
                          'terminal.dataset:broker')],
-    '/reference/{name}': [('get', '/reference/tickers', None, 'terminal.dataset:reference'),
-                          ('get', '/reference/brokers', None, 'terminal.dataset:reference')],
+    # the reference files are no longer refused but filtered to the plan (re-check R2-32, ROUTE_ACCESS 'filtered';
+    # tests/test_terminal_fix_round.py holds what the free plan's copy names)
     '/cut/{ticker}/{dataset}': [('get', f'/cut/BBCA/broker?sha256={"a" * 64}', None, 'terminal.dataset:broker'),
                                 ('get', f'/cut/BBRI/price?sha256={"a" * 64}', None, 'terminal.tickers')],
 }

@@ -202,6 +202,12 @@ class Store:
                          'WHERE email = %s AND kind = %s AND active AND expires_at > now()', (email, kind)).fetchone()
 
     @staticmethod
+    def gateway_state(c, email):
+        """Re-check R1-4: the gateway's account row as it is (active, seconds until expires_at), or None when absent."""
+        return c.execute("SELECT active, extract(epoch FROM expires_at - now())::float8 AS seconds_left "
+                         "FROM terminal.subscriber WHERE email = %s AND kind = 'person'", (email,)).fetchone()
+
+    @staticmethod
     def owner_account(c, owner_key):
         """EXEC-MU-ACCOUNTS Phase 3c: the usable row of an EDGE owner (kind 'owner'), made on first use. Race-safe: two
         first calls of one owner both INSERT ... ON CONFLICT DO NOTHING (every unique index is an arbiter:
