@@ -1,8 +1,8 @@
 From 88d75b8e27614970adb2c6d9950b130dc6285aea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:22:44 +0000
-Subject: [PATCH 1/6] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26): every
- terminal-api 429 names its quota and when to try again
+Subject: [PATCH 01/11] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26):
+ every terminal-api 429 names its quota and when to try again
 
 quota_exceeded carries quota, limit, window and retry_after_s (Store.frees_in: when the rolling window lets the
 refused request fit; the window's length at most) with the Retry-After header; the service ceiling and the sign-in
@@ -337,7 +337,7 @@ index 00000000..1b97b475
 From e5f0c18176c143415631c5fb983843cea38b3e50 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:24:56 +0000
-Subject: [PATCH 2/6] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
+Subject: [PATCH 02/11] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
  terminal-api leaves out unknown datasets, takes history_days 0, acknowledges
  the applied header
 
@@ -587,7 +587,7 @@ index 1b97b475..89f69688 100644
 From d959a594942a346d292f67be79d11630bd5b2162 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:30:47 +0000
-Subject: [PATCH 3/6] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
+Subject: [PATCH 03/11] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
  reference lists filtered to the plan; the gateway account on /ready
 
 An owner whose plan lacks the dataset reference gets its own copy of each reference file (app/refcut.py: the rows of
@@ -1162,7 +1162,7 @@ index 89f69688..bc66a9f0 100644
 From 570e607cfa06be44e7d7926946941f597627fea6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:36:59 +0000
-Subject: [PATCH 4/6] EXEC-MU-ACCOUNTS fix round (terminal,
+Subject: [PATCH 04/11] EXEC-MU-ACCOUNTS fix round (terminal,
  R1-1/R1-26/R1-22/R2-4/R2-32): one relay rule for every terminal-api answer
 
 terminal_access.relayed is the rule forward_terminal, relay_cut and PageFiles share: a terminal-api 401 or 403 about
@@ -1840,9 +1840,9 @@ index 90f357d9..6af924b7 100644
 From 0713d5053e3eb87c750b4074b1a9558898956d04 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:38:26 +0000
-Subject: [PATCH 5/6] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests of
- the relay rule, the acknowledgement, history 0, the page-file refusals before
- the caches and the reference copy relay
+Subject: [PATCH 05/11] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests
+ of the relay rule, the acknowledgement, history 0, the page-file refusals
+ before the caches and the reference copy relay
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
@@ -2114,7 +2114,7 @@ index 00000000..1240c974
 From eaa7bc28340a9d4374530acb3bdbd3cbd8a1a8e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:42:12 +0000
-Subject: [PATCH 6/6] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
+Subject: [PATCH 06/11] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
  domain per capability in the catalog, read by the value trigger
 
 Migration 20261119_050 (not applied): edge_bff.capabilities gains value_min, value_max and item_pattern;
@@ -2489,6 +2489,748 @@ index 00000000..5dcc217f
 +--     edge_bff.capability_domain_text(text, bigint, bigint, text);
 +-- ALTER TABLE edge_bff.capabilities DROP COLUMN value_min, DROP COLUMN value_max, DROP COLUMN item_pattern;
 +-- COMMIT;
+-- 
+2.43.0
+
+
+From 9b83ea196e2b17dedf5f5bc76eb8a186d32dfd0f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 07:45:45 +0000
+Subject: [PATCH 07/11] EXEC-MU-ACCOUNTS fix round (terminal, R2-32): the free
+ plan's Terminal draws BBCA
+
+The e2e fake terminal-api now answers the header edge-bff really sends with terminal-api's own code (entitlements,
+refcut, cut): the free plan's reference copies name BBCA alone, its other datasets are locked and its price is the
+730-day cut, all relayed by edge-bff. The re-check test's answer set follows the fix (its assertion stays), and a second
+test opens the Terminal with nothing remembered: it draws BBCA, the first ticker of the plan's own list. live.ts shows
+the contract's words of a relayed refusal (not its code) and names a plan whose list holds no published ticker.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/terminal/src/data/live.ts   | 10 ++-
+ apps/edge-bff/tests/e2e_people.py         | 77 +++++++++++++++++++++--
+ apps/edge-bff/tests/test_c2_e2e_people.py | 35 +++++++++--
+ 3 files changed, 111 insertions(+), 11 deletions(-)
+
+diff --git a/apps/edge-bff/terminal/src/data/live.ts b/apps/edge-bff/terminal/src/data/live.ts
+index 51a7c082..65b6857e 100644
+--- a/apps/edge-bff/terminal/src/data/live.ts
++++ b/apps/edge-bff/terminal/src/data/live.ts
+@@ -66,6 +66,9 @@ const roleLabel = (role: string) => role.toLowerCase().split('_').map((w, i) =>
+    is shown as its message, not as "answered 403"; only a 401 asks to sign in again; a 403 CSRF_INVALID is repeated once.
+    `csrf` is kept for the callers' signatures: the shared module sets the header itself. */
+ const SIGN_IN = 'Sign in to EDGE first, then open the Terminal tab again.';
++/* EXEC-MU-ACCOUNTS re-check R2-32: a plan whose ticker list holds no published ticker (terminal-api answers a plan
++   without the reference lists with its own tickers only) */
++const NO_TICKER = 'No ticker of your EDGE plan is published yet. Upgrade the plan to open others; you are still signed in.';
+ async function api(path: string, _csrf: string, body?: unknown) {
+   let res: Response;
+   try {
+@@ -77,8 +80,12 @@ async function api(path: string, _csrf: string, body?: unknown) {
+   if (!res.ok) {
+     const info = readError(res.status, data, res.headers.get('Retry-After'));
+     const msg = data && (data.message || (data.error && (data.error.code || data.error)));
++    /* re-check R1-1: edge-bff relays every terminal-api refusal in the contract's shape with EDGE's own words (a
++       terminal-api 401 or 403 about its own account is 503 TERMINAL_UNAVAILABLE): those words, never the code */
++    const words = data && typeof data.error === 'object' && data.error && !info.legacy ? info.message : '';
+     throw new TerminalError(res.status === 401 ? SIGN_IN
+       : isAccessRefusal(info) ? accessText(info) as string
++      : words ? words
+       : res.status === 429 ? `Download limit reached: ${msg || 'try again later'}.`
+       : `The terminal data service answered ${res.status}${msg ? ` (${msg})` : ''}.`, res.status, info.code);
+   }
+@@ -318,7 +325,8 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
+   const instruments: Instrument[] = [...tickers.map(t => [t.ticker, t.name || t.ticker, sectorOf(t), 0,
+       { market:`IDX · ${detail(t.instrument) || typeWord(t.type)}` }] as Instrument),
+     ...bonds.map((b: any) => [b.ticker, b.name || b.ticker, 'Fixed income', 0, { market:'Fixed income', place:b.country || undefined }] as Instrument)];
+-  const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0].ticker;
++  const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0]?.ticker ?? bonds[0]?.ticker;
++  if (!SYMBOL) throw new TerminalError(NO_TICKER);
+   const bond = bondOf.get(SYMBOL);
+   const isIndex = tickers.some(t => t.ticker === SYMBOL && t.type === 'index');     // EXEC-IHSG-FLOW
+   const ready = SYMBOL === guess && (await guessP.then(f => isBondAnswer(f) === !!bond, () => false)) ? await early
+diff --git a/apps/edge-bff/tests/e2e_people.py b/apps/edge-bff/tests/e2e_people.py
+index 290fa6b3..64401724 100644
+--- a/apps/edge-bff/tests/e2e_people.py
++++ b/apps/edge-bff/tests/e2e_people.py
+@@ -18,8 +18,10 @@ as test_auth_pages_live does). The paid plan is given as the Phase 4 admin page
+ import dataclasses
+ import gzip
+ import hashlib
++import importlib.util
+ import json
+ import os
++import sys
+ import socket
+ import ssl
+ import subprocess
+@@ -37,6 +39,7 @@ from app.main import create_app
+ from conftest import FakeOrc
+ 
+ ROOT = Path(__file__).resolve().parents[1]
++TERMINAL_API = ROOT.parents[0] / 'terminal-api' / 'app'
+ CHROMIUM = os.environ.get('EDGE_TEST_CHROMIUM', '/usr/bin/chromium')
+ BUCKET_HOST = 'e2e.t3.storageapi.dev'
+ BUCKET = 'https://' + BUCKET_HOST
+@@ -73,6 +76,19 @@ TICKERS = {'BBCA': ('Bank Central Asia', 'stock', 'Finance', 9000.0), 'BBRI': ('
+            'TLKM': ('Telkom Indonesia', 'stock', 'Infrastructure', 3000.0), 'IHSG': ('Composite Index', 'index', None, 7000.0)}
+ 
+ 
++def terminal_api(module):
++    """A module of terminal-api's own code (apps/terminal-api/app), loaded under the package name terminal_api_e2e (its
++    package is called `app` like edge-bff's), so the fake below answers the way terminal-api decides (EXEC-MU-ACCOUNTS
++    re-check R2-32): its header parser, its cut and its reference copies."""
++    if 'terminal_api_e2e' not in sys.modules:
++        spec = importlib.util.spec_from_file_location('terminal_api_e2e', TERMINAL_API / '__init__.py',
++                                                      submodule_search_locations=[str(TERMINAL_API)])
++        package = importlib.util.module_from_spec(spec)
++        sys.modules['terminal_api_e2e'] = package
++        spec.loader.exec_module(package)
++    return importlib.import_module(f'terminal_api_e2e.{module}')
++
++
+ def capability_refusal(capability, display_name):
+     """A 403 in edge-bff's shape, as p3c-int's forward_terminal answers it (terminal_access.check)."""
+     return {'error': {'code': 'CAPABILITY_REQUIRED', 'message': REFUSAL_WORDS,
+@@ -83,7 +99,13 @@ class FakeTerminalApi:
+     """terminal-api's gateway routes on 127.0.0.1 (the shapes of verification/terminal_api/terminal_look/serve.mjs and of
+     tests/test_watchlist_page.py). Switches give the answers Phase 3c gives a capped plan (CONTRACT.md 8b "3c in
+     detail"): `refuse` (a route prefix answered with a refusal), `tickers` (the tickers /bundle serves), `locked` (the
+-    datasets /bundle answers {locked, capability})."""
++    datasets /bundle answers {locked, capability}).
++
++    `apply_header` (EXEC-MU-ACCOUNTS re-check R2-32): the fake reads the x-terminal-capabilities edge-bff really sends
++    and answers as terminal-api decides with its own code (terminal_api(): entitlements.parse_capabilities, refcut.build,
++    cut.build): a plan without the dataset `reference` gets its own copy of each reference file as a relative cut URL, a
++    dataset outside the plan is locked, a capped dated dataset is a cut, and both are served by the GET routes edge-bff
++    relays byte for byte. Every answer to an owner call acknowledges the header it read (re-check R2-4)."""
+ 
+     def __init__(self):
+         self.lock = threading.Lock()
+@@ -99,8 +121,23 @@ class FakeTerminalApi:
+         sample = ROOT / 'watchlist' / 'tests' / 'fixture' / 'watchlist-stocks.sample.json'
+         self.pages = {'watchlist': {'watchlist-stocks': gzip.compress(sample.read_bytes(), mtime=0)}, 'overview': {}, 'radar': {}}
+         self.refuse, self.locked, self.tickers = {}, set(), None
++        self.apply_header, self.cuts = False, {}
+         fake = self
+ 
++        def capabilities(headers):
++            """terminal-api's Capabilities of the owner header edge-bff sent, or None (no header, or one holding *)."""
++            raw = headers.get('x-terminal-capabilities')
++            if not raw or not fake.apply_header:
++                return None
++            ent = terminal_api('entitlements')
++            caps = ent.parse_capabilities(raw, ('price', 'broker', 'events', 'yield', 'intraday', 'reference'))
++            return None if caps.admin else caps
++
++        def own_copy(kind, key, body):
++            sha_ = sha(body)
++            fake.cuts[f'{kind}/{sha_}'] = body
++            return sha_
++
+         class Handler(BaseHTTPRequestHandler):
+             protocol_version = 'HTTP/1.1'
+ 
+@@ -111,6 +148,9 @@ class FakeTerminalApi:
+                 data = raw if raw is not None else json.dumps(body).encode()
+                 self.send_response(status)
+                 self.send_header('Content-Type', ctype)
++                caps = self.headers.get('x-terminal-capabilities')
++                if caps:                                  # terminal-api acknowledges the owner header (re-check R2-4)
++                    self.send_header('x-terminal-capabilities-applied', f"1 {json.loads(caps)['version']}")
+                 self.send_header('Content-Length', str(len(data)))
+                 self.end_headers()
+                 self.wfile.write(data)
+@@ -134,10 +174,26 @@ class FakeTerminalApi:
+                 for prefix, (status, refusal) in fake.refuse.items():
+                     if route.startswith(prefix):
+                         return self.answer(status, refusal)
++                caps = capabilities(self.headers)
++                if method == 'GET' and (route.startswith('cut/') or route.endswith('/cut')):
++                    body = fake.cuts.get(f'{route.rsplit("/", 1)[0] if route.endswith("/cut") else route}/'
++                                         f'{self.path.split("sha256=")[-1]}')
++                    if body is None:
++                        return self.answer(404, {'error': 'no_cut'})
++                    return self.answer(200, raw=body, ctype='application/gzip')
+                 if method == 'GET' and route.startswith('reference/'):
+                     name = route.split('/', 1)[1]
+                     if name not in fake.refs:
+                         return self.answer(404, {'error': 'unknown_reference'})
++                    if caps is not None and not caps.dataset_ok('reference'):
++                        # terminal-api's refcut.py: the plan's own copy, announced in the shape of a cut
++                        refcut = terminal_api('refcut')
++                        copy, _ = refcut.encode(refcut.build(json.loads(gzip.decompress(fake.refs[name])), name, caps))
++                        sha_ = own_copy(f'reference/{name}', name, copy)
++                        doc = json.loads(gzip.decompress(copy))
++                        return self.answer(200, {'url': f'/api/terminal/v1/reference/{name}/cut?sha256={sha_}',
++                                                 'sha256': sha_, 'bytes': len(copy), 'rows': len(doc[doc['columns'][0]]),
++                                                 'expires_in_seconds': 0})
+                     fake.objects[f'ref/{name}'] = fake.refs[name]
+                     return self.answer(200, {'url': f'{BUCKET}/ref/{name}', 'sha256': sha(fake.refs[name]),
+                                              'bytes': len(fake.refs[name]), 'rows': 1})
+@@ -148,17 +204,30 @@ class FakeTerminalApi:
+                         return self.answer(404, {'error': 'unknown_ticker'})
+                     if fake.tickers is not None and ticker not in fake.tickers:
+                         return self.answer(403, capability_refusal('terminal.tickers', 'Terminal tickers'))
++                    if caps is not None and not caps.ticker_ok(ticker):
++                        return self.answer(403, {'error': 'capability_required', 'capability': 'terminal.tickers',
++                                                 'message': 'The ticker is not in the plan.'})
+                     for d in body.get('datasets') or []:
+-                        if d in fake.locked:
++                        if d in fake.locked or (caps is not None and not caps.dataset_ok(d)):
+                             out[d] = {'locked': True, 'capability': f'terminal.dataset:{d}'}
+                         elif d == 'price':
+                             rows = price_rows(start=TICKERS[ticker][3])
+-                            b = gz({'schema_version': 1, 'dataset': 'price-pack', 'ticker': ticker, 'columns': ['d', 'o', 'h', 'l', 'c', 'v'],
+-                                    **{c: [r[k] for r in rows] for k, c in enumerate(['d', 'o', 'h', 'l', 'c', 'v'])}})
++                            doc = {'schema_version': 1, 'dataset': 'price-pack', 'ticker': ticker, 'columns': ['d', 'o', 'h', 'l', 'c', 'v'],
++                                   **{c: [r[k] for r in rows] for k, c in enumerate(['d', 'o', 'h', 'l', 'c', 'v'])}}
++                            b = gz(doc)
+                             fake.objects[f'price/{ticker}'] = b
+                             out[d] = {'data_through': rows[-1][0], 'first_year': int(rows[0][0][:4]),
+                                       'files': [{'pack': 'price', 'url': f'{BUCKET}/price/{ticker}', 'sha256': sha(b),
+                                                  'bytes': len(b), 'rows': len(rows)}]}
++                            if caps is not None and caps.history_days is not None:
++                                # terminal-api's cut.py: exactly the plan's last N days, relayed by edge-bff
++                                cut = terminal_api('cut')
++                                cut_doc = cut.build([doc], 'price', caps.history_days, rows[-1][0])
++                                c, _ = cut.encode(cut_doc)
++                                sha_ = own_copy(f'cut/{ticker}/price', ticker, c)
++                                out[d]['files'] = [{'year': None, 'pack': 'cut', 'sha256': sha_, 'bytes': len(c),
++                                                    'rows': len(cut_doc['d']),
++                                                    'url': f'/api/terminal/v1/cut/{ticker}/price?sha256={sha_}'}]
+                         else:
+                             out[d] = {'files': [], 'data_through': None}
+                     return self.answer(200, {'ticker': ticker, 'datasets': out, 'expires_in_seconds': 120})
+diff --git a/apps/edge-bff/tests/test_c2_e2e_people.py b/apps/edge-bff/tests/test_c2_e2e_people.py
+index 5faf7ca1..ad858b55 100644
+--- a/apps/edge-bff/tests/test_c2_e2e_people.py
++++ b/apps/edge-bff/tests/test_c2_e2e_people.py
+@@ -18,8 +18,8 @@ import pytest
+ 
+ playwright = pytest.importorskip('playwright.sync_api')
+ 
+-from e2e_people import (CHROMIUM, REFUSAL_WORDS, ROOT, Live, browser_context, capability_refusal, register,  # noqa: E402
+-                        shell_navigate, terminal_drawn)
++from e2e_people import (CHROMIUM, REFUSAL_WORDS, ROOT, Live, browser_context, register, shell_navigate,  # noqa: E402
++                        terminal_drawn)
+ 
+ 
+ @pytest.fixture
+@@ -101,11 +101,34 @@ def test_the_free_plans_terminal_draws_bbca_with_the_answers_phase_3c_gives_it(l
+     shell_navigate(page, '/terminal')
+     drawn, text = terminal_drawn(page)
+     assert drawn, f'control: the Terminal did not draw BBCA with every reference file served: {text[:300]}'
+-    # the answers of Phase 3c for this principal (CONTRACT.md 8b "3c in detail"; p3c-int terminal_access.py)
+-    live.terminal.refuse = {'reference/': (403, capability_refusal('terminal.dataset:reference', 'Terminal data: reference'))}
+-    live.terminal.tickers = {'BBCA'}
+-    live.terminal.locked = {'broker', 'events', 'yield'}
++    # the answers of Phase 3c for this principal (CONTRACT.md 8b "3c in detail"), after the re-check fix (R2-32, fix
++    # round track terminal): terminal-api answers the header edge-bff really sends with its own code (e2e_people.py
++    # FakeTerminalApi.apply_header): each reference file as the plan's own copy (BBCA alone), the other datasets locked,
++    # BBCA's price as the cut of the last 730 days, both relayed by edge-bff from this origin
++    live.terminal.apply_header = True
++    calls, downloads = len(live.terminal.calls), len(live.terminal.downloads)
+     page.reload()
+     drawn, text = terminal_drawn(page)
+     assert drawn, ('with the reference files refused (D3) the free plan\'s Terminal draws nothing, BBCA included: '
+                    f'{text[:300]}')
++    asked = [c['path'] for c in live.terminal.calls[calls:]]
++    assert any(p.startswith('/api/terminal/v1/reference/tickers/cut') for p in asked), asked
++    assert any(p.startswith('/api/terminal/v1/cut/BBCA/price') for p in asked), asked
++    assert not [k for k in live.terminal.downloads[downloads:] if k.startswith('ref/')], 'a full reference list was downloaded'
++
++
++def test_the_free_plans_terminal_opens_on_bbca_with_nothing_remembered(live, chromium):
++    """Re-check R2-32 (fix round, track terminal): with no ticker remembered the page asks for its default (MAPI), which
++    the plan refuses, and draws the first ticker of the list it is given, which terminal-api's copy for the free plan
++    holds alone: BBCA. No list of another ticker reaches the page (D3 = B, "tanpa daftar ticker")."""
++    if not (ROOT / 'static' / 'terminal-app' / 'index.html').is_file():
++        pytest.skip('the Terminal page is not built (cd apps/edge-bff/terminal && npm run build)')
++    live.terminal.apply_header = True
++    page = browser_context(chromium).new_page()
++    register(page, live, 'free_user', 'free@example.com')
++    shell_navigate(page, '/terminal')
++    drawn, text = terminal_drawn(page)
++    assert drawn, f'the free plan\'s Terminal did not draw BBCA: {text[:300]}'
++    assert 'BBCA' in text and 'BBRI' not in text and 'TLKM' not in text, text[:400]
++    tickers = [c for c in live.terminal.calls if c['path'].startswith('/api/terminal/v1/reference/tickers/cut')]
++    assert tickers, [c['path'] for c in live.terminal.calls]
+-- 
+2.43.0
+
+
+From f82419c0941877b307fe2357c8ff2114c68f6958 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 07:46:37 +0000
+Subject: [PATCH 08/11] EXEC-MU-ACCOUNTS fix round (terminal):
+ SCREENER_ONBOARDING.md pointers into terminal-api and edge-bff main.py moved
+ with their lines (screener-worker onboarding_pointers test)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ SCREENER_ONBOARDING.md | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/SCREENER_ONBOARDING.md b/SCREENER_ONBOARDING.md
+index 6a313a75..1006309b 100644
+--- a/SCREENER_ONBOARDING.md
++++ b/SCREENER_ONBOARDING.md
+@@ -104,7 +104,7 @@ same publication of the same data.
+ | Market tables | `database/migrations/`, `DATABASE_SCHEMA.md` | FACT | Railway `Postgres` (sfo) | the source rows | — |
+ | terminal-publisher | `apps/terminal-publisher/publisher.py` | FACT; the xsection writer BRANCH (`publish_xsection`, `publisher.py:1557`) | Railway cron, CLI upload, sfo | read-only DB login, bucket write credentials | serves readers |
+ | Bucket `terminal-display` | written by the publisher | FACT | Railway bucket, sin | every published file | — |
+-| terminal-api | `apps/terminal-api/app/` | FACT; `xsection` on `/state` and `POST /xsection` BRANCH (`bucket.py:51` `xsection_index`, `apps/terminal-api/app/main.py:483` `xsection`) | FastAPI, CLI upload, sfo | bucket credentials, quotas, audit and service accounts (schema `terminal`) | streams a data file |
++| terminal-api | `apps/terminal-api/app/` | FACT; `xsection` on `/state` and `POST /xsection` BRANCH (`bucket.py:51` `xsection_index`, `apps/terminal-api/app/main.py:509` `xsection`) | FastAPI, CLI upload, sfo | bucket credentials, quotas, audit and service accounts (schema `terminal`) | streams a data file |
+ | Shared formulas | `apps/edge-bff/terminal/src/calc/indicators.ts`, `terminal/src/data/indRegistry.json` | FACT, unchanged by the Screener | TypeScript, imported | the 53 indicator formulas and their registry | — |
+ | Backtest shared core | `apps/edge-bff/backtest/src/core/` | FACT, unchanged by the Screener | TypeScript, imported | parameter contract (`registry.ts`), `Calc`, `compare`, patterns, file decoding (`datafile.ts`) | — |
+ | Screener core | `apps/edge-bff/screener/src/core/` (18 files) and its generator `apps/edge-bff/screener/scripts/build-screener-registry.mjs` | BRANCH | TypeScript imported by the worker; the page imports only `contract.ts` and `universe.ts` | contract, registry and metric catalog, validation, series path, transforms and patterns, evaluation, planner, universe and cross-section rules | defines an indicator formula |
+@@ -277,17 +277,17 @@ cache and quotas.
+ | Route | Status | Answer | Quota, audit |
+ |---|---|---|---|
+ | `GET /api/terminal/v1/state` | FACT on `main` (EXEC-BACKTEST-LOAD); the `xsection` and `refs` fields BRANCH (`bucket.py:11` `STATE_FIELDS`; `xsection_index` `bucket.py:51`, `refs_index` `bucket.py:78`) | `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, the `xsection` index (well-formed entries only, else null) and `refs` | none |
+-| `POST /api/terminal/v1/xsection {names}` | BRANCH (`apps/terminal-api/app/main.py:957`; caller check `xsection_caller`, `main.py:466`) | per name a presigned URL, `sha256`, `bytes`, `rows`, `as_of`; a name not in the index answers 404 `xsection_not_published` with the indexed names | only the screener-worker's service key (`XSECTION_SERVICES`, `main.py:66`; `TERMINAL_SERVICE_KEY_SCREENER_WORKER`, EXEC-MU-RUNTIME T1) or, until a later step removes it, the gateway key; anything else 403 `gateway_only`. One audit row under the `REF` pseudo-ticker (`apps/terminal-api/app/quota.py:11`), dataset `xsection`; file quota = number of names; bytes counted |
++| `POST /api/terminal/v1/xsection {names}` | BRANCH (`apps/terminal-api/app/main.py:1063`; caller check `xsection_caller`, `main.py:492`) | per name a presigned URL, `sha256`, `bytes`, `rows`, `as_of`; a name not in the index answers 404 `xsection_not_published` with the indexed names | only the screener-worker's service key (`XSECTION_SERVICES`, `main.py:74`; `TERMINAL_SERVICE_KEY_SCREENER_WORKER`, EXEC-MU-RUNTIME T1) or, until a later step removes it, the gateway key; anything else 403 `gateway_only`. One audit row under the `REF` pseudo-ticker (`apps/terminal-api/app/quota.py:11`), dataset `xsection`; file quota = number of names; bytes counted |
+ 
+ Rules a new file must meet at terminal-api (`bucket.py:13` `XSECTION_NAME` and `xsection_index`): the name matches
+ `^[a-z0-9][a-z0-9_-]{0,31}$`; the index entry has exactly `key`, `sha256` (64 hex), `bytes` (≥ 1), `rows` (≥ 0) and
+ `as_of` (a string of at most 64 characters, else null); the key is `v1/xsection/<name>.<first 16 hex of the
+ sha256>.json.gz`. An entry that breaks a rule is dropped from `/state` and never presigned. A call asks at most 16
+-names (`MAX_XSECTION_NAMES`, `main.py:89`). Tests: `apps/terminal-api/tests/test_api.py`
++names (`MAX_XSECTION_NAMES`, `main.py:97`). Tests: `apps/terminal-api/tests/test_api.py`
+ `test_xsection_index_keeps_only_well_formed_entries`, `test_xsection_presigns_only_keys_of_the_xsection_family`,
+ `test_xsection_grants_the_indexed_files_to_the_gateway_in_one_audit_row_under_ref` and the other `test_xsection_*`.
+ 
+-Neither route is in edge-bff's browser allow-list (`TERMINAL_ROUTES`, `apps/edge-bff/app/main.py:58`), so the browser
++Neither route is in edge-bff's browser allow-list (`TERMINAL_ROUTES`, `apps/edge-bff/app/main.py:62`), so the browser
+ can never pull a whole-universe file. **A new xsection name needs no terminal-api code change**: names are validated
+ against the index, not against a list in code; only the size matters for the quota (section 1.15).
+ 
+@@ -549,7 +549,7 @@ README "Logs".
+ 
+ ## 1.8 Stage 5: edge-bff (BRANCH)
+ 
+-`apps/edge-bff/app/screener.py` (`Screeners`, `:680`), mounted like the Backtest module (`apps/edge-bff/app/main.py:646`
++`apps/edge-bff/app/screener.py` (`Screeners`, `:680`), mounted like the Backtest module (`apps/edge-bff/app/main.py:662`
+ `screeners.routes`):
+ 
+ Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session and the capability named; with
+@@ -591,8 +591,8 @@ Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session
+   worker's `SCREENER_DEADLINE_MS` / 1000. The saved-item limits are constants (`SCREEN_LIMIT` 50, `WATCHLIST_LIMIT`
+   50, `screener.py:81-82`; since EXEC-WATCHLIST 2A the star fills the first watchlist, so the limit is that list's
+   `PER_LIST`, `apps/edge-bff/app/watchlist.py`).
+-- **Page and frame**: `/screener` (`main.py:423`) and `/screener-app/` with its assets (`main.py:511-523`) under
+-  `SCREENER_CSP` (`main.py:94-97`: `connect-src 'self'`).
++- **Page and frame**: `/screener` (`main.py:427`) and `/screener-app/` with its assets (`main.py:515-527`) under
++  `SCREENER_CSP` (`main.py:98-101`: `connect-src 'self'`).
+ - **A new metric needs no edge-bff change:** the catalog is relayed as the worker built it.
+ 
+ Tests: `apps/edge-bff/tests/test_screener.py` (35 tests, on a disposable PostgreSQL through `EDGE_TEST_POSTGRES_URL`;
+@@ -997,7 +997,7 @@ What changes, per class (yes = always; maybe = depends; no = never):
+ | L9 AI exposure | AI formula row | no | optional onboarding | optional onboarding | optional onboarding | optional onboarding |
+ 
+ Notes: "no" for terminal-api rests on `/xsection` validating names against the index (BRANCH, section 1.6); a new
+-service that reads `/xsection` needs its name in `XSECTION_SERVICES` (`apps/terminal-api/app/main.py:66`). "A wire kind
++service that reads `/xsection` needs its name in `XSECTION_SERVICES` (`apps/terminal-api/app/main.py:74`). "A wire kind
+ the first time" means the first macro series needs one new reference kind in `contract.ts` `MetricRef` and in
+ `apps/edge-bff/screener/src/core/catalog.ts:240` `KINDS` (worked example 2.13); a fundamental or a universe attribute is `kind: 'universe'`, read from a
+ field of the worker's universe row (`condition.ts:152-166`; `apps/edge-bff/screener/src/core/contract.ts:466-468`), so
+@@ -1096,7 +1096,7 @@ Tick every line or record why it does not apply. "Evidence" is what you cite in
+ 
+ | Check | Evidence |
+ |---|---|
+-| No code change needed: `/xsection` validates names against the index (BRANCH, `bucket.py:51` `xsection_index`). Check the entry passes its rules (name, five fields, key pattern) or it is silently dropped from `/state`; and that the total names per publication stay within `MAX_XSECTION_NAMES` (16, `apps/terminal-api/app/main.py:50`) per call. If a change is needed, follow M248 for the CLI deploy and keep `/state`'s existing tests | `apps/terminal-api/tests/test_api.py` `test_xsection_*` |
++| No code change needed: `/xsection` validates names against the index (BRANCH, `bucket.py:51` `xsection_index`). Check the entry passes its rules (name, five fields, key pattern) or it is silently dropped from `/state`; and that the total names per publication stay within `MAX_XSECTION_NAMES` (16, `apps/terminal-api/app/main.py:97`) per call. If a change is needed, follow M248 for the CLI deploy and keep `/state`'s existing tests | `apps/terminal-api/tests/test_api.py` `test_xsection_*` |
+ | Quota: grants per day × bytes fit the screener-worker service account's hourly ceilings (EXEC-MU-RUNTIME T1, `BACKTEST_END_TO_END.md` 6.1) and, while the gateway key is still used, `files_per_hour` and `megabytes_per_day` of the shared subscriber without the TEMPORARY override (6d.7) | arithmetic in the change record |
+ 
+ **L4 — Contract, registry and metric catalog**
+-- 
+2.43.0
+
+
+From 34edaafa4248403f9660a32fd94728359e48c0df Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 07:47:16 +0000
+Subject: [PATCH 09/11] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff README
+ follows the relay rule, the reference copies, the header mapping and the
+ page-file caches
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/README.md | 35 +++++++++++++++++++++++++++++------
+ 1 file changed, 29 insertions(+), 6 deletions(-)
+
+diff --git a/apps/edge-bff/README.md b/apps/edge-bff/README.md
+index 976016a8..85d0851f 100644
+--- a/apps/edge-bff/README.md
++++ b/apps/edge-bff/README.md
+@@ -988,7 +988,12 @@ unset = that owner), so nothing changes for it; an owner EDGE_ADMIN_OWNERS does
+ - **Terminal proxy** (`/api/terminal/v1/*`): `terminal.view` before any call to terminal-api.
+ - **Page files** (`app/pages.py`): `/api/v1/<family>/index` and `/file/<name>` need `overview.view`, `radar.view` or
+   `watchlist.view`, checked before the shared caches. Files are sent `private, no-cache` with their ETag; a `?sha=`
+-  request with a matching If-None-Match answers 304 only after the check.
++  request with a matching If-None-Match answers 304 only after the check. The principal's terminal headers are built
++  before the caches too, so what edge-bff refuses for that principal itself (a quota of 0) holds whether the caches are
++  warm or cold (re-check R1-31). A page file is granted, counted and audited on terminal-api for the principal whose
++  request missed the caches, once per process and sha256; a read from the caches counts against no one's Terminal
++  quota (re-check R1-5, R1-31: the caches are shared by design, CONTRACT.md section 15). terminal-api's quota refusal of
++  a grant is 429 `LIMIT_REACHED` with `Retry-After` (it was `<FAMILY>_QUOTA`).
+ - `tests/test_phase3a_monitor_pages.py` walks these routes: a new one needs its line in `ROUTE_CAPS`.
+ 
+ ## Terminal data gate: headers and refusals (EXEC-MU-ACCOUNTS Phase 3c, 2026-11-18)
+@@ -1016,6 +1021,11 @@ owner holds `*`: its header says `admin: true`, its body is forwarded byte for b
+     outside terminal-api's rule `^[A-Za-z0-9._:@-]{1,128}$` answers 503 `TERMINAL_UNAVAILABLE`, logged.
+   - The dataset and quota names are read from `apps/terminal-api` by the test, so they are written in one place here.
+   - Longer than 8 KiB (a list of about 900 tickers): 503 `TERMINAL_UNAVAILABLE`, logged; never cut short.
++  - Every value the plan catalog can hold maps onto what terminal-api takes (re-check R1-22): `history_days` above
++    36600 is sent as 36600; 0 (the value of a limit that cannot be read) is sent as 0, terminal-api's empty window; a
++    ticker outside `^[A-Z0-9]{1,12}$` is left out and logged (`terminal_tickers_dropped`, its count); a quota of 0 is
++    403 `CAPABILITY_REQUIRED` naming the limit (waiting would not help). The catalog also refuses such values when they
++    are written (migration `20261119_050`: `capabilities.value_min`, `value_max`, `item_pattern`).
+ - **Page-sent headers:** a request to a terminal-forwarding route that carries `x-terminal-proxy-key`,
+   `x-terminal-proxy-owner` or `x-terminal-capabilities` is refused 400 `HEADER_NOT_ALLOWED` (`details.header`) before
+   anything else (`terminal_access.guard`); no request header is ever copied to terminal-api.
+@@ -1025,7 +1035,11 @@ owner holds `*`: its header says `admin: true`, its body is forwarded byte for b
+     rule for every ticker path keeps the class closed; the page shows its monogram), `files`, `bundle`,
+     `history/*?ticker=` (exactly one) and `cut/<T>/<dataset>`;
+   - a dataset outside `datasets` (`terminal.dataset:<id>`): `files`' dataset, `history/price` and `history/broker`,
+-    `cut/<T>/<dataset>`, `reference/*` as `reference`;
++    `cut/<T>/<dataset>`;
++  - with `history_days` 0, every dated path (`files`, `bundle`, `cut/*`, `history/*`): `terminal.history_days`;
++  - `reference/*` is not refused (re-check R2-32): terminal-api answers a plan without the dataset `reference` with
++    its own copy of the file (the rows of its tickers; the broker list only with `broker`), announced as
++    `/api/terminal/v1/reference/<name>/cut?sha256=<hex>` and relayed byte for byte like a cut;
+   - a `bundle` whose every asked dataset is locked (its `datasets`, terminal-api's default `price, broker, events` when
+     absent, plus `intraday` with a `timeframe`); with one open dataset it is forwarded and terminal-api answers the
+     locked ones `{locked: true, capability}`;
+@@ -1034,15 +1048,24 @@ owner holds `*`: its header says `admin: true`, its body is forwarded byte for b
+   - a body or query that cannot be read (not JSON, not an object, a ticker that is not text, a repeated `ticker`):
+     422 `INVALID_INPUT`. The checked JSON is what is forwarded (re-serialised), so terminal-api reads what was checked.
+   - A forwarded GET route the check does not know is refused (fail closed); the test ties the route regex to it.
+-- **terminal-api's own refusals:** its 403 `{"error": "capability_required", "capability": ..}` (on any forwarded route,
+-  the cut included) is answered in EDGE's shape, 403 `CAPABILITY_REQUIRED` with `details.capability` and
+-  `details.display_name`; every other answer passes through as before.
++- **terminal-api's answers** (`terminal_access.relayed`, one rule for `forward_terminal`, the cut relay and the page
++  files; re-check R1-1, R1-26, R2-4; CONTRACT.md section 3):
++  - for a principal without `*`, an answer without `x-terminal-capabilities-applied: 1 <version>` (a terminal-api from
++    before Phase 3c ignores the owner headers and would serve the plan in full) is 503 `TERMINAL_UNAVAILABLE`, logged
++    (`terminal_capabilities_not_applied`); the switch-off owner holds `*` and needs none;
++  - its 403 `capability_required` is 403 `CAPABILITY_REQUIRED` with `details.capability` and `details.display_name`;
++  - its 429 is 429 `LIMIT_REACHED` with `details.limit` (`terminal.<quota>`), `details.allowed`,
++    `details.retry_after_s` and `Retry-After`, from the fields terminal-api adds (an hour when it names none);
++  - its 401, any other 403 (its own account, key or host rule) and a 400 about the owner headers edge-bff built are
++    503 `TERMINAL_UNAVAILABLE`, logged with its status and code (`terminal_refused`), never the EDGE sign-in;
++  - its 400 about the request is 400 `INVALID_INPUT` and its 404 404 `NOT_FOUND`, with its code as `details.reason`
++    (and the field names of a 400); every 5xx is 503 `TERMINAL_UNAVAILABLE`. Its messages never reach the page.
+ - **The cut** `GET /api/terminal/v1/cut/<TICKER>/<dataset>` (`price`, `broker`, `events`, `yield`; D2 = A;
+   terminal-api builds it with deterministic gzip and answers `application/gzip`). `/bundle` names a capped owner's files
+   `{"year": null, "pack": "cut", "url": "/api/terminal/v1/cut/<T>/<ds>?sha256=<hex>", ..}`; the query is forwarded. The
+   bytes are read raw from terminal-api and relayed exactly (no JSON parse, no decoding, no Content-Encoding added or
+   relayed), with only Content-Type, Content-Length (checked against the bytes read), ETag, X-Terminal-Cut-Sha256 and
+-  Cache-Control, the latter always `private`; at most 64 MiB. Another status passes through as JSON.
++  Cache-Control, the latter always `private`; at most 64 MiB. Another status is answered by `terminal_access.relayed`.
+   - The page loads a URL of this origin (one starting with `/`) with the session cookie (`credentials: 'same-origin'`,
+     `terminal/src/data/rack.ts` `credentialsFor`), and a presigned URL of the storage host still without any cookie
+     (`omit`); `terminal/tests/data/cut_credentials.test.ts`.
+-- 
+2.43.0
+
+
+From e48042eac2458582d814a4aeb5c9f3084edc60a7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 07:54:00 +0000
+Subject: [PATCH 10/11] EXEC-MU-ACCOUNTS fix round (terminal): notes per
+ finding, what the shared records must say, the decisions only the user can
+ take
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ .../edge_multiuser/fix_round/terminal.md      | 242 ++++++++++++++++++
+ 1 file changed, 242 insertions(+)
+ create mode 100644 verification/edge_multiuser/fix_round/terminal.md
+
+diff --git a/verification/edge_multiuser/fix_round/terminal.md b/verification/edge_multiuser/fix_round/terminal.md
+new file mode 100644
+index 00000000..7b1c5317
+--- /dev/null
++++ b/verification/edge_multiuser/fix_round/terminal.md
+@@ -0,0 +1,242 @@
++# Fix round of the EDGE multi-user re-check: track "terminal" (Terminal path, Phase 3c builds on it)
++
++EXEC-MU-ACCOUNTS, re-check of Phases 0-3b (user 2026-11-18: "Cek juga fase sebelumnya"), fix round. Branch
++`fix-terminal` from `97b4ecb5` (p3c-int plus the re-check's failing tests). Nothing deployed, no migration applied, no
++Railway call, no remote database. The findings and the three refuters' verdicts:
++`verification/edge_multiuser/access_tiers/recheck/r1_findings.json`, `r1_verdicts.json` and round 2's `r2_result.json`.
++
++Findings of this track: R1-1, R1-26, R1-22, R2-4, R2-5, R2-32, R1-4, R1-5, R1-31, R1-36.
++
++## Commits
++
++| Commit | What |
++|---|---|
++| `88d75b8e` | terminal-api: every 429 names its quota, limit, window and wait (`retry_after_s`, `Retry-After`) |
++| `e5f0c181` | terminal-api: unknown dataset ids left out (R2-5), `history_days` 0 taken (R1-22), the applied-header echo (R2-4) |
++| `d959a594` | terminal-api: reference files filtered to the plan (R2-32), the gateway account on `/ready` (R1-4) |
++| `570e607c` | edge-bff: one relay rule for every terminal-api answer; the header mapping; PageFiles headers before the caches |
++| `0713d505` | edge-bff: tests of the relay rule, the acknowledgement, history 0, the caches, the reference relay |
++| `eaa7bc28` | migration `20261119_050` (not applied): a value domain per capability, read by the value trigger (R1-22) |
++| `9b83ea19` | the free plan's Terminal draws BBCA (R2-32): e2e fake answers with terminal-api's own code; `live.ts` words |
++| `f82419c0` | `SCREENER_ONBOARDING.md` pointers moved with the lines of both `main.py` files |
++| `34edaafa` | `apps/edge-bff/README.md` follows the changes |
++
++## Per finding
++
++### R1-1 (blocks-3c): terminal-api's 401 and 429 reached the page as they were
++
++- **Root cause (verified):** `forward_terminal` ended with `JSONResponse(status_code=answer.status_code, content=data)`
++  (base `apps/edge-bff/app/main.py:588`) and `relay_cut` did the same for a non-200 (base `:613`). Only terminal-api's
++  `capability_required` was mapped (`terminal_access.answered_capability`). terminal-api's 401 (`session_ended` when the
++  gateway or owner row is unusable, `proxy_key_rejected` on a rotated key) is about its own account, never the EDGE
++  session, yet the page's shared module reads any 401 as a sign-out (`shared/edge-session.ts` `readError`). Its 429 had
++  no `Retry-After`, no `LIMIT_REACHED` and no structured quota name (base terminal-api `main.py:529-531`, `quota.py`
++  `Refusal.message()` text only).
++- **Fix (the general class, one helper):** `apps/edge-bff/app/terminal_access.py` `relayed(p, status, data, headers,
++  where)` (`:303`) is the one rule of `forward_terminal`, `relay_cut` and `PageFiles` (`main.py:562`, `:611`;
++  `pages.py` `index`, `page_file`). A 401, or a 403 other than `capability_required`, is 503 `TERMINAL_UNAVAILABLE`
++  logged (`terminal_refused`, status and code); a 400 about the owner headers edge-bff built (`OWN_HEADER_CODES`) and
++  every 5xx too; a 429 is 429 `LIMIT_REACHED` with `details.limit` `terminal.<quota>`, `details.allowed`,
++  `details.retry_after_s` and `Retry-After`; a 400 about the request is 400 `INVALID_INPUT` and a 404 404 `NOT_FOUND`,
++  each with terminal-api's code as `details.reason`; `capability_required` stays 403 `CAPABILITY_REQUIRED` with its
++  display name. terminal-api's prose never reaches the page. terminal-api's side: `main.py` `take()` (`:555`) raises
++  `quota_exceeded` with `quota`, `limit`, `window`, `retry_after_s` and the header (`wait_error`, `:213`); the wait is
++  `store.frees_in` (when the rolling window lets the refused request fit, read only on a refusal; at most the window).
++  The service ceiling (`seconds_left`) and the sign-in throttle (900 s) send `Retry-After` too.
++- **Page:** `terminal/src/data/live.ts` `api()` shows the contract's words of a relayed refusal instead of its code.
++- **M260 (public_data):** not applied. By construction no terminal-api refusal text reaches the page any more (every
++  refusal is rebuilt by edge-bff); `public_data` on the 2xx bodies needs the user's go (ERRORS M260 "needs the user's
++  go"; spec refuter of R1-1). Listed under decisions.
++- **Tests:** `tests/test_cp0_terminal_relay.py` (the re-check's, 2 now pass); `tests/test_terminal_fix_round.py`
++  `test_every_terminal_api_answer_maps_onto_the_contract` (16 cases), `test_a_relayed_refusal_reaches_the_page_and_the_
++  session_stays`; terminal-api `tests/test_terminal_fix_round.py` (the 429 fields, `frees_in` on PostgreSQL 16).
++- **Tests changed (they locked the pass-through CONTRACT section 3 forbids; the refuters named them):**
++  `tests/test_terminal.py` `test_gateway_needs_the_edge_session_and_csrf_for_writes` (`:84`, now `LIMIT_REACHED` with
++  `Retry-After`), `test_gateway_leaves_the_reference_names_to_terminal_api` (404 in the contract shape, the code as
++  `details.reason`); `tests/test_terminal_access.py` `test_a_cut_terminal_api_refuses_passes_through` renamed
++  `..._reaches_the_page_in_the_contract_shape`.
++
++### R1-26 (blocks-3c): two 429s without Retry-After (page files and the gateway relay)
++
++- **Root cause (verified):** `PageFiles` answered a grant's 429 `failure('QUOTA', 429)` with no header and a family
++  code outside the section 3 table (base `pages.py:175-176`); `forward_terminal` dropped every terminal-api header; and
++  terminal-api sent none.
++- **Fix:** the same helper: a page-file grant's 429 is `LIMIT_REACHED` with `Retry-After` (`pages.py page_file`); the
++  `QUOTA` message is gone. terminal-api sends the header and the fields (R1-1).
++- **Tests:** `tests/test_c_p3a_probes.py -k retry_after` (the re-check's, 2 now pass). **Changed:** `tests/test_radar.py`
++  `test_refusals_name_the_cause_and_the_way_out` (`:123-125`, now `LIMIT_REACHED` with its details and `Retry-After`),
++  named by the refuters; its `FakeHttp` answers the 429 with terminal-api's new fields.
++
++### R1-22 (blocks-3c): values the catalog accepts broke the 3c header
++
++- **Root cause (verified):** the catalog held one domain per kind (`20261117_003` `capability_value_check`,
++  `principal.valid_value`), the read side maps an unreadable limit to 0 (`principal.RESTRICTIVE`), and
++  `terminal_access.capabilities` copied `history_days` and the tickers into the header with a type check only, while
++  terminal-api takes `history_days` 1-36600 and tickers `^[A-Z0-9]{1,12}$` (base `entitlements.py`) and answered every
++  call of such an account 400 `invalid_owner_headers`.
++- **Fix, read side (needed whatever the catalog holds):** `capabilities` (`terminal_access.py:128`) maps every value
++  onto the wire: `history_days` above `MAX_HISTORY_DAYS` is the bound; 0 is sent as 0, which terminal-api now takes as
++  the empty window (`entitlements.MIN_HISTORY_DAYS`), and `check` (`:230`) refuses every dated path (`files`, `bundle`,
++  `cut`, `history`) first with 403 `CAPABILITY_REQUIRED` `terminal.history_days`, so the page files, which carry no
++  history window, keep working (the code refuter's correction); a ticker outside the rule is left out and logged
++  (`terminal_tickers_dropped`, the count only). The same class (refuters' other sites): a quota of 0 is now 403
++  `CAPABILITY_REQUIRED` naming the limit, not 429 with `Retry-After` 3600 (waiting would not help).
++- **Fix, catalog (data model):** migration `database/migrations/20261119_050_edge_bff_capability_domains.sql` (not
++  applied; in the test harness, `tests/conftest.py`): `edge_bff.capabilities` gains `value_min`, `value_max` and
++  `item_pattern`; `capability_value_check` (replaced, the shape checks and their hint unchanged) refuses a value outside
++  them with a hint that names the domain and an example; `capability_domain_holds` refuses a domain a stored value would
++  no longer fit; `$verify$` checks the six domains, every stored value, the triggers and the privileges. Domains:
++  `terminal.history_days` 1-36600, `terminal.tickers` 0-500 items of `^[A-Z0-9]{1,12}$` (500 names of 12 characters fit
++  the 8 KiB header, so the "list of about 900 tickers gives 503 for every call" site is closed at write time), the four
++  Terminal quotas 1-10^9. Every other capability keeps no domain (R1-29 may set `value_max` = HARD in its own migration).
++- **Tests:** `tests/test_c_p2_terminal_wire_domain.py` (the re-check's, 6 now pass); `tests/test_terminal_fix_round.py`
++  (history 0 on every path, dropped tickers, the domains at write time for plans and overrides, the domain change, the
++  domains equal to terminal-api's bounds and the widest value fits the header, the migration's second run and verify).
++  **Changed:** `tests/test_phase2_fix_round.py` `test_a_value_of_the_right_shape_is_written`: `('terminal.history_days',
++  '0')` is now `'1'` (the spec refuter: "Update test_phase2_fix_round.py's 'history_days 0 is right' case if (2) refuses
++  0"); `tests/test_terminal_access.py` `test_quota_bounds_and_the_owner_key_rule` (quota 0 is 403); terminal-api
++  `tests/test_phase3c.py` `BAD`: `history_days` 0 (now accepted) became -1 and 36601.
++
++### R2-4 (blocks-switch-on): no acknowledgement of the applied header
++
++- **Root cause (verified):** the deployed terminal-api ignores the owner headers; edge-bff relayed whatever came back
++  and refused first only a request whose tickers or every dataset were locked, so a terminal-api below 3c would serve a
++  capped principal in full.
++- **Fix:** terminal-api's middleware (`main.py:255`) sets `x-terminal-capabilities-applied: 1 <version>` on every
++  answer to an owner call, refusals included (`entitlements.APPLIED_HEADER`, `applied()`); `terminal_access.relayed`
++  refuses an answer for a principal without `*` that lacks it (or names another version) with 503
++  `TERMINAL_UNAVAILABLE`, logged `terminal_capabilities_not_applied`, on the JSON relay, the byte relay, the logo and the
++  page files. The switch-off owner holds `*` and needs none, so deploy steps 1-5 of 3c do not change.
++- **Tests:** terminal-api `test_every_answer_to_an_owner_call_carries_the_applied_version`; edge-bff
++  `test_a_terminal_api_that_ignores_the_header_never_serves_a_capped_principal` (a fake pre-3c terminal-api),
++  `test_the_switch_off_owner_needs_no_acknowledgement`, `test_the_acknowledgement_is_the_version_of_this_principal`.
++  The fakes that stand in for terminal-api (`tests/test_radar.py` `acknowledge`, `tests/test_terminal_access.py`
++  `FakeApi`, `tests/e2e_people.py`) now acknowledge as terminal-api does.
++
++### R2-5 (non-blocking): one unknown dataset id failed every call
++
++- **Root cause (verified):** `parse_capabilities` refused a `datasets` entry this terminal-api did not know (base
++  `entitlements.py` `ids(... known=...)`), and edge-bff expands `{all: true}` over its compiled `DATASET_IDS`.
++- **Fix:** the unknown id is left out (`Capabilities.ignored`) and logged (`owner_datasets_ignored`); it is not served
++  anyway, so this fails closed. Unknown fields, quota names and `v` are still refused.
++- **Tests:** terminal-api `test_an_unknown_dataset_id_is_left_out_and_logged`. **Changed:** `tests/test_phase3c.py`
++  `BAD` `['price', 'options']` (now left out) became `['price', 'Options']` (breaks the id rule, still refused).
++
++### R2-32 (blocks-3c per the finder; switch-on per the refuters): the free plan's Terminal drew nothing
++
++- **Root cause (verified):** `live.ts liveData` awaits the ticker list before it draws, and 3c refused every reference
++  file to a plan without `terminal.dataset:reference` (base `terminal_access.check` `head == 'reference'`).
++- **Fix (option a, the task's reading of D3 = B, "tanpa daftar ticker": no list of other tickers):** terminal-api
++  answers an owner whose plan lacks the dataset `reference` with its own copy of each reference file
++  (`apps/terminal-api/app/refcut.py`, derived from each file's columns: a `ticker` column keeps the plan's tickers; the
++  broker list keeps every row only with `broker`, `BY_DATASET`; any other file, the stock lists today, has no rows),
++  announced in the shape of a cut (`/api/terminal/v1/reference/<name>/cut?sha256=<hex>`, `expires_in_seconds` 0) and
++  served by `GET /reference/{name}/cut` (`main.py:777`), counted when served (one file, one audit row `refcut/<name>/
++  <sha256>`), built from the published file checked against its sha256, deterministic gzip, cached per (name, source,
++  plan filter). A file that cannot be filtered is 503 `reference_unavailable`, never served whole. With `reference` the
++  plan gets the published file as before (the full lists). edge-bff forwards `reference/*` (no refusal) and relays the
++  copy byte for byte (`main.py` `TERMINAL_BYTES`). `ROUTE_ACCESS` marks both reference routes `filtered`. The page draws
++  as it does today; `live.ts` only names a plan whose list holds no published ticker instead of failing on `tickers[0]`.
++- **Tests:** `tests/test_c2_e2e_people.py::test_the_free_plans_terminal_draws_bbca_with_the_answers_phase_3c_gives_it`
++  (the re-check's) now passes; its answer set changed as the test itself says ("A fix on the 3c side changes the answers
++  set below to the ones 3c then gives this principal; the assertion stays"): the e2e fake now answers the header
++  edge-bff really sends with terminal-api's own code (`e2e_people.py` `terminal_api()`: `entitlements`, `refcut`,
++  `cut`), and the test also checks that the copies and the cut came through edge-bff and no full list was downloaded.
++  New: `test_the_free_plans_terminal_opens_on_bbca_with_nothing_remembered` (the task's "add a test that the free plan
++  draws BBCA": no stored ticker, the default MAPI refused, BBCA drawn, no other ticker shown). terminal-api
++  `test_the_free_plan_gets_reference_lists_that_name_its_own_tickers_only`, `test_the_broker_list_follows_the_broker_
++  dataset_and_the_full_lists_follow_reference`, `test_a_reference_file_that_cannot_be_filtered_is_refused_not_served_
++  whole`, `test_every_reference_file_the_publisher_writes_has_its_rule_here` (walks `publisher.py REF_NAMES`); edge-bff
++  `test_the_plans_copy_of_a_reference_file_is_relayed_byte_for_byte`. **Changed (3c's own tests, the design changed):**
++  `tests/test_terminal_access.py` `FREE_REFUSED` lost `reference/tickers` and `reference/logos`, now in `FREE_FORWARDED`
++  with `reference/tickers/cut`; terminal-api `tests/test_phase3c.py` `SECOND_PATHS` lost `/reference/{name}`.
++
++### R1-4 (non-blocking): the gateway's own account expires 2027-10-25 and nothing tracks it
++
++- **Root cause (verified in the records and the code; the live row not read):** the gateway subscriber was made
++  "through 2027-10-25" (`DATABASE_CHANGELOG.md:3587`); `store.account` takes only `active AND expires_at > now()`, and
++  on 3c `lookup()` reads that row before any owner's row, so at expiry every owner fails.
++- **Fix:** `/ready` reports `gateway_account` {`state` ok, expiring (within 30 days), expired, inactive or missing,
++  `days_left`} and logs `gateway_account_<state>` unless ok, without making the service unready (`main.py:630`,
++  `store.gateway_state`); with R1-1 an expired gateway is now 503 `TERMINAL_UNAVAILABLE` logged `terminal_refused` in
++  edge-bff, never a sign-out. Owner rows already end 2100-01-01 (`store.OWNER_EXPIRES`).
++- **Not done (the user's go):** setting the live gateway row's `expires_at` to 2100-01-01 through the audited admin API
++  (decision below). Nothing reads `/ready`'s new field on a schedule; the warning shows in the logs at each healthcheck.
++- **Tests:** terminal-api `test_ready_reports_the_gateway_account_and_stays_ready`, `test_the_gateway_state_reads_the_
++  row_on_a_real_server`.
++
++### R1-5, R1-31, R1-36: shared page-file caches; Terminal limits that bind only the Terminal path
++
++- **Decided by the code and the contract (R1-5, R1-31 part 2):** the page files stay in process caches shared by every
++  user (CONTRACT section 15; QA 2026-11-14), so terminal-api grants, counts and audits a page file for the principal
++  whose request missed the caches, once per edge-bff process and sha256; a read from the caches counts against no one's
++  quota and leaves no terminal-api audit row. Lenient, never wider. Recorded in `pages.py` (docstring), the edge-bff
++  README and terminal-api's README (whose "headers are accepted for the per-owner audit and quota" overstated it).
++- **Fixed for 3c's acceptance (R1-31, the code refuter's other site):** `PageFiles` builds the principal's headers on
++  every request before the caches (`pages.py` `page_index`, `page_file`), so edge-bff's own refusal for that principal
++  (a quota of 0, an invalid owner key, a header terminal-api cannot take) holds whether the caches are warm or cold.
++  Test: `test_a_page_file_refusal_of_the_principal_holds_when_another_account_warmed_the_cache`.
++- **Recorded, not changed (R1-31 part 1, R1-36):** `terminal.tickers`, `terminal.dataset` and `terminal.history_days`
++  bind the `/api/terminal/v1` path and terminal-api only. The Backtest and Screener workers read with their own service
++  accounts (no owner header), the Overview and Watchlist page files are gated by `<tab>.view` alone. The Backtest page's
++  `/bundle` reads and the Watchlist page's logo list go through `/api/terminal/v1`, so with 3c they get the cut, the
++  plan's reference copies and count in the per-owner D6 Terminal quota (60 tickers per hour shared with the Terminal).
++  No seeded plan combines a data restriction with those tabs (free holds none of them; paid has no restriction). Which
++  rule should hold is the user's (decision below).
++
++## What the shared records must say (for the records track)
++
++- **CONTRACT.md** section 3: the relayed terminal-api refusals as listed under R1-1 (the table rows `TERMINAL_UNAVAILABLE`
++  503 for an upstream 401/403/5xx, `LIMIT_REACHED` with `details.limit` `terminal.<quota>`, `allowed`, `retry_after_s`);
++  name the tests that locked the old shape and changed (`test_terminal.py:84`, `test_radar.py:123-125`) as the spec
++  refuter of R1-26 asked. Section 8b "3c in detail":
++  - Headers: `history_days` null or 0-36600 (0 = no dated row), unknown dataset ids left out, the acknowledgement
++    `x-terminal-capabilities-applied: 1 <version>` on every owner answer and edge-bff's 503 without it (R2-4, R2-5).
++  - "edge-bff refuses first": a reference file is no longer refused; with `history_days` 0 every dated path is refused;
++    a quota of 0 is 403 `CAPABILITY_REQUIRED` naming the limit (was 429).
++  - "Every path filters", `/reference`: the plan's own copy without the dataset `reference` (R2-32, `refcut.py`), with
++    the reading of D3 = B ("no list of other tickers") and the user's words that chose it (the relayed request "A").
++  - "Tests per stage": the free principal is refused `/files`, `/bundle` packs, `/history`, the manifest of another
++    ticker, and gets the references as its own copies (no longer "refused the references").
++  - 3e Terminal: "search marks locked tickers" holds only for a plan with the dataset `reference`; for the free plan the
++    search lists its own tickers (R2-32's refuters).
++  - Deploy order: a rollback floor, "while EDGE_MULTIUSER is on, terminal-api is never rolled back below 3c" (R2-4; the
++    acknowledgement makes a mistake fail closed); the order rule "add a dataset on terminal-api first, remove it on
++    edge-bff first" (R2-5). terminal-api must be deployed before (or with) this edge-bff: edge-bff refuses capped
++    principals' answers without the acknowledgement, which only matters with the switch on.
++  - The page-file cache rule and the Terminal-path scope of the data limits (R1-5, R1-31, R1-36).
++- **ERRORS_AND_SOLUTIONS.md:** new entries (symptom, verified cause, solution, status FIXED on the branch, lesson):
++  the relay pass-through (R1-1, R1-26; lesson: one relay rule for every upstream answer, upstream account problems are
++  never the user's session); the wire domain (R1-22; lesson: a value domain per capability in the catalog, and every
++  consumer maps the whole domain); the missing acknowledgement (R2-4; lesson: an entitlement sent to a separately
++  deployed service needs proof it was applied); the strict vocabulary (R2-5); the free Terminal (R2-32); the gateway
++  account's expiry (R1-4, OPEN for the data change). M260: status unchanged (OPEN), with the note that refusals no longer
++  carry terminal-api text.
++- **DATABASE_SCHEMA.md / DATABASE_CHANGELOG.md:** migration `20261119_050_edge_bff_capability_domains.sql` (not
++  applied): the three columns, the two helper functions, the replaced `capability_value_check`, the trigger
++  `capabilities_domain_holds`, the six domains, `GRANT EXECUTE` of the two pure helpers to `edge_bff_runtime`. When it
++  is applied: its order after `20261118_002`, and a read-back of the six domains. `edge_bff` is an operational schema
++  (no Table_Catalog or Column_Catalog rows).
++- **EXEC.md:** the reading of D3 (option a, reference copies) with the user's words; the decisions below as open.
++- **RAILWAY_CHANGELOG.md:** nothing (no Railway change).
++
++## Decisions needed (only the user can take them)
++
++1. **M260, `public_data` on the Terminal relay's 2xx bodies.** Refusals no longer carry terminal-api text; the 2xx
++   bodies are relayed as they are. ERRORS M260 says the filter needs the user's go.
++2. **R1-4, the gateway row's end date.** Read the live row (`SELECT subscriber_id, active, expires_at FROM
++   terminal.subscriber WHERE email = 'edge-owner@terminal.local'`), then set `expires_at` 2100-01-01 through the audited
++   admin API (`POST /api/terminal/v1/admin/subscribers/<id>`), as the service accounts have.
++3. **R1-36 / R1-31 part 1, what the Terminal data limits bind.** Options: (a) record that they bind the Terminal path
++   only (today's code); (b) a catalog rule that a plan or override restricting tickers, datasets or history cannot hold
++   `backtest.*`, `screener.*`, `overview.view` or `watchlist.view`; (c) pass the restrictions to the workers and page
++   files (large). Also: whether the Backtest page's `/bundle` reads and the Watchlist logos count in the D6 Terminal
++   quota (they do with 3c).
++4. **R1-5, per-reader page-file counting.** Recorded as "once per process and sha256" (lenient). If Phase 4's usage
++   counters need each reader, edge-bff records page-file reads itself.
++5. **R2-32's reading of D3.** The fix follows the task's reading ("no list of other tickers": the free plan gets lists
++   naming BBCA alone). The relayed user request is "A"; EXEC.md should carry the user's words for it.
++
++## Suites (this branch, local, PostgreSQL 16 on port 55561)
++
++See the final report of this track for the results; failures that belong to other tracks' findings are listed by file.
+-- 
+2.43.0
+
+
+From ae02340396c5211c58fce4bc04028785b63c021d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 07:54:24 +0000
+Subject: [PATCH 11/11] EXEC-MU-ACCOUNTS fix round (terminal): terminal-api
+ README, the logo line follows the reference copies
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/terminal-api/README.md | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/apps/terminal-api/README.md b/apps/terminal-api/README.md
+index 8b62323d..e523a13a 100644
+--- a/apps/terminal-api/README.md
++++ b/apps/terminal-api/README.md
+@@ -134,7 +134,8 @@ CONTRACT.md section 8b "3c in detail"; code `app/entitlements.py` (the headers),
+   whole. The free plan's ticker list holds BBCA alone, so the Terminal draws it.
+ - `/xsection`: the gateway key is refused with an owner header, whatever the plan; only the screener-worker's key reads it.
+ - `/state`: no data file, no refusal; `xsection` is null for such an owner, and `refs` is null without `reference`.
+-- `/logo/{t}`: an image, not data, so no filter (the search shows every ticker's logo; 3e marks the locked ones).
++- `/logo/{t}`: an image, not data, so no filter here (edge-bff refuses another ticker's logo first, and a plan without the
++  dataset `reference` is given the logo list of its own tickers only).
+ - The page routes (`/radar`, `/overview`, `/watchlist`): the headers are accepted for the per-owner audit and quota, with
+   no new refusal (edge-bff gates those tabs itself). edge-bff keeps a page file it relayed in a process cache by sha256
+   (`apps/edge-bff/app/pages.py`), so a file is granted, counted and audited here for the first owner that reads it in an
 -- 
 2.43.0
 
