@@ -23,3 +23,5 @@
 {"type":"started","key":"v2:a72492957768731cf25029ac785865c41986367f59a90bcdcf538793acaaffc5","agentId":"a4e086eafb6ce982d","label":"refute2:Y:repro","phase":"Refute"}
 {"type":"started","key":"v2:37c3a0ecc1abd36a62392734e19999cf94663c14451eb455f6892e17d26dc1e9","agentId":"ac20366cb76bdb8cd","label":"refute2:Y:code","phase":"Refute"}
 {"type":"started","key":"v2:99fd30ad762358fe7f4c069f77db956631e70e18a23cbc56e4c305722b2e14a5","agentId":"acc1643d9afb78976","label":"refute2:Y:spec","phase":"Refute"}
+{"type":"started","key":"v2:b831f221135c1dda52a2dda17d5825725ebe6d89f36e4d47f45b07ae9cd7b8cc","agentId":"a36e2a39f2cc2060f","label":"refute2:X:spec","phase":"Refute"}
+{"type":"started","key":"v2:a72492957768731cf25029ac785865c41986367f59a90bcdcf538793acaaffc5","agentId":"a5a3f6c88f2efb65f","label":"refute2:Y:repro","phase":"Refute"}
