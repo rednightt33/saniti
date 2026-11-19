@@ -112,7 +112,7 @@ export const STORAGE: readonly StorageEntry[] = Object.freeze([
   { key:'scr.colorder', match:'exact', area:'local', kind:'browser', where:'Screener', what:'column order' },
   // the Watchlist (watchlist/src)
   { key:'edge.watchlist.view', match:'exact', area:'local', kind:'user', sync:true, cap:'watchlist.view', where:'Watchlist', what:'the open list id and Table or Cards' },
-  { key:'edge.watchlist.logos', match:'exact', area:'local', kind:'browser', where:'Watchlist', what:'issuer logo list (public, 12 hours)' },
+  { key:'edge.watchlist.logos', match:'exact', area:'local', kind:'user', cache:true, where:'Watchlist', what:'issuer logo list (12 hours; a reference file the plan reads, so it leaves with the account: re-check R1-17)' },
 ]);
 
 /** the registry entry of a key, or null when the key is not classed (a defect: tests/test_storage_registry.py) */
