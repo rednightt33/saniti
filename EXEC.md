@@ -15998,6 +15998,25 @@ dipakai accross chat sebagai referencec?"
     the user's own addresses) may sign in on live; every other account is refused until the launch. To build with the
     closed registration: a pre-launch mode on live (registration closed, sign-in only for the admin and test
     accounts), with plain refusals on the pages.
+- **Decisions from the fix round (the user, 2026-11-19), asked after three of five builders finished:**
+  1. The free plan's ticker list (replaces the fix that served a list of BBCA only, and changes the reading of D3):
+     "tidak, user tetap bisa search ticker, tapi ketika dia klik ticker selain bbca maka akan keluar pop up box to login
+     (jika belum login) dan jika sudah login maka akan keluar pop up box (to upgrade plan)". So the free plan sees and
+     searches the whole ticker list; a ticker other than its own opens a box: sign in when not signed in, upgrade when
+     signed in. Data stays limited to the plan's tickers. Asked back: whether visitors who are not signed in may open
+     the Terminal (BBCA) at all.
+  2. Email outbox rows: "a" (deleted after 30 days, with used codes and webhook events).
+  3. "Forgot password" pressed by someone else: "a" (kept as it is: each new code replaces the previous one; the
+     address's 10 emails a day stay shared).
+  4. The Backtest page's chart reads and the Watchlist logos count in the per-owner Terminal quota: "a" (one shared
+     quota).
+  5. The EDGE gateway account of terminal-api (recorded valid through 2027-10-25): "a" (extend to 2100-01-01 through
+     the audited admin API before the switch goes on; the live row is read first and the change recorded in
+     DATABASE_CHANGELOG.md).
+  6. public_data on the Terminal relay's successful answers: "a" (ERRORS M260's go).
+  - Taken by the main agent as design values (told to the user): the admin may sign in on the live site with MFA;
+    starting a new authenticator needs an MFA pass within the last 10 minutes; scrypt N=2^14, r=8, p=5; no 100-failure
+    cap on the beta (switch off), which keeps a long random admin password.
 
 ### Production environment (user decisions 2026-11-19; open details asked)
 
