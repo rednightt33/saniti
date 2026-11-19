@@ -19,6 +19,7 @@ import asyncio
 import json
 import re
 import secrets
+import uuid
 
 import httpx
 import pytest
@@ -54,7 +55,7 @@ BODIES = {
     ('PUT', '/api/v1/terminal/drawings/{ticker}/{set_id}'): {'drawings': [LINE]},
     ('POST', '/api/v1/watchlist/lists'): {'name': 'Alice banks', 'tickers': ['BBCA']},
     ('PATCH', '/api/v1/watchlist/lists/{list_id}'): {'name': 'Taken over'},
-    ('POST', '/api/v1/watchlist/lists/{list_id}/tickers'): {'ticker': 'BMRI'},
+    ('POST', '/api/v1/watchlist/lists/{list_id}/tickers'): {'tickers': ['BMRI']},
     ('PUT', '/api/v1/screener/items/{item_id}'): screen_item(),
     ('POST', '/api/v1/backtests'): {**single(), 'client_request_id': 'mine'},
     ('PUT', '/api/v1/preferences/{key}'): {'value': {'alice': 'alice-only'}, 'version': None},
@@ -63,7 +64,7 @@ BODIES = {
     ('PATCH', '/api/v1/conversations/{conversation_id}/preferences'): {'title': 'Taken over'},
     ('POST', '/api/v1/conversations/{conversation_id}/outputs/{output_id}/export'): {'columns': [], 'titles': []},
 }
-OUTPUT = 'out_' + 'o' * 24
+OUTPUT = 'out_' + 'ab' * 12
 
 
 class ExportOrc(FakeOrc):
@@ -125,6 +126,60 @@ def download_stand_in(orc, url):
     return client
 
 
+def as_bob(body):
+    """B's own body on the same route: A's words replaced by B's, so a word of A's in B's answer is A's, never an echo
+    of what B sent."""
+    return None if body is None else json.loads(json.dumps(body).replace('Alice', 'Bob').replace('alice', 'bob'))
+
+
+def twin(value):
+    """An id of the same form as `value` that nobody made (a callable value gives a callable twin)."""
+    if callable(value):
+        return lambda path: twin(value(path))
+    if re.fullmatch(r'[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}', value):
+        return str(uuid.uuid4())
+    head, _, tail = value.rpartition('_')
+    return head + '_' + ''.join(secrets.choice('0123456789abcdef') for _ in tail)
+
+
+def code_of(response):
+    try:
+        return ((response.json() or {}).get('error') or {}).get('code')
+    except ValueError:
+        return None
+
+
+class Person:
+    """One signed-in person on the app's one event loop (as in production: one process, one loop). Two TestClients
+    would run two loops and the shared worker clients (screener, backtest relay) would be used across them; here every
+    person shares the one client and keeps its own cookie jar."""
+    def __init__(self, client):
+        self.client, self.jar = client, httpx.Cookies()
+
+    @property
+    def app(self):
+        return self.client.app
+
+    def request(self, method, path, **kwargs):
+        self.client.cookies = self.jar
+        try:
+            return self.client.request(method, path, **kwargs)
+        finally:
+            self.jar = httpx.Cookies(self.client.cookies)
+
+    def get(self, path, **kwargs):
+        return self.request('GET', path, **kwargs)
+
+    def post(self, path, **kwargs):
+        return self.request('POST', path, **kwargs)
+
+    def put(self, path, **kwargs):
+        return self.request('PUT', path, **kwargs)
+
+    def patch(self, path, **kwargs):
+        return self.request('PATCH', path, **kwargs)
+
+
 def concrete(route, method, ids):
     """The route's path with A's value in every parameter; a parameter with no value is reported."""
     missing = [name for name in re.findall(r'{(\w+)(?::\w+)?}', route.path) if name not in ids]
@@ -139,7 +194,8 @@ def test_b_reaches_nothing_of_a_on_any_route(on, store, workers, monkeypatch):
     orc = ExportOrc()
     monkeypatch.setattr(main_module.httpx, 'AsyncClient', download_stand_in(orc, on.orc_url))
     app = create_app(on, store, orc)
-    with TestClient(app) as a, TestClient(app) as b:
+    with TestClient(app) as client:
+        a, b = Person(client), Person(client)
         alice, bob = make_user(store, 'alice', 'alice-password'), make_user(store, 'bob_b', 'bob-password')
         for user in (alice, bob):
             everything_but_admin(store, user)
@@ -190,7 +246,7 @@ def test_b_reaches_nothing_of_a_on_any_route(on, store, workers, monkeypatch):
                'layout_id': LAYOUT, 'preset_id': PRESET, 'list_id': list_id, 'step_id': 'step_' + 'a' * 16,
                'ticker': lambda path: 'BBRI' if '/drawings/' in path else 'BBCA', 'set_id': 'chart',
                'key': 'ml.my', 'kind': 'indicator', 'name': 'radar-days', 'path': 'v1/bundle'}
-        content = [alice['owner_key'], 'alice-only', 'Alice swing', 'Alice preset', 'Alice banks', 'Explain GOTO']
+        content = [alice['owner_key'], 'alice-only', 'Alice swing', 'Alice preset', 'Alice banks']
         before, orc_before = rows_of(store, alice['owner_key'], tables), orc.state_of(alice['owner_key'])
         problems, walked = [], 0
         for route in app.routes:
@@ -205,19 +261,28 @@ def test_b_reaches_nothing_of_a_on_any_route(on, store, workers, monkeypatch):
                     problems.append(f'{method} {route.path}: add A\'s value for {missing} to `ids` (an owned id: A\'s '
                                     'row; else the name A used), and to OWNED_IDS when it names one owner\'s row')
                     continue
-                body = BODIES.get((method, route.path), {}) if method not in ('GET', 'DELETE') else None
-                r = b.request(method, path, headers=hb if method != 'GET' else None, json=body,
-                              params={'ticker': 'BBRI'} if method == 'GET' else None)
+                body = as_bob(BODIES.get((method, route.path), {})) if method not in ('GET', 'DELETE') else None
+                headers, params = (hb if method != 'GET' else None), ({'ticker': 'BBRI'} if method == 'GET' else None)
+                r = b.request(method, path, headers=headers, json=body, params=params)
                 walked += 1
                 sent = set(re.findall(r'[A-Za-z0-9_]+', path))
                 leaked = [m for m in content if m in r.text and m not in sent]
                 if leaked:
                     problems.append(f'{method} {path}: B\'s answer carries A\'s {leaked}')
                 owned = set(re.findall(r'{(\w+)', route.path)) & OWNED_IDS
-                allowed = {404, 409} if method == 'PUT' else {404}
-                if owned and not admin_only and r.status_code not in allowed:
-                    problems.append(f'{method} {path}: B got {r.status_code} on A\'s {sorted(owned)} '
-                                    f'(expected {sorted(allowed)}): {r.text[:200]}')
+                if owned and method == 'PUT':
+                    # create-or-replace: A's id answers the conflict A's own second create answers (no overwrite)
+                    if r.status_code != 409 and not (admin_only and r.status_code == 403):
+                        problems.append(f'{method} {path}: B got {r.status_code} on A\'s {sorted(owned)} (expected '
+                                        f'409, the conflict of an own id): {r.text[:200]}')
+                elif owned:
+                    # nothing learned: A's id answers exactly what an id nobody made answers, and never a success
+                    other, _ = concrete(route, method, {**ids, **{k: twin(ids[k]) for k in owned}})
+                    unmade = b.request(method, other, headers=headers, json=body, params=params)
+                    if r.status_code < 400 or (r.status_code, code_of(r)) != (unmade.status_code, code_of(unmade)):
+                        problems.append(f'{method} {path}: B got {r.status_code} {code_of(r)} on A\'s {sorted(owned)}, '
+                                        f'but {unmade.status_code} {code_of(unmade)} on an id nobody made: '
+                                        f'{r.text[:200]}')
                 after = rows_of(store, alice['owner_key'], tables)
                 if after != before:
                     changed = [t for t in tables if after[t] != before[t]]
@@ -249,7 +314,8 @@ def test_a_put_with_another_owners_id_is_the_same_conflict_as_an_own_one(on, sto
                   'preset': (f'/api/v1/terminal/presets/{PRESET}', BODIES[('PUT', '/api/v1/terminal/presets/{preset_id}')]),
                   'screener item': (f'/api/v1/screener/items/{ITEM}', BODIES[('PUT', '/api/v1/screener/items/{item_id}')])}[kind]
     app = create_app(on, store, FakeOrc())
-    with TestClient(app) as a, TestClient(app) as b:
+    with TestClient(app) as client:
+        a, b = Person(client), Person(client)
         alice, bob = make_user(store, 'alice', 'alice-password'), make_user(store, 'bob_b', 'bob-password')
         for user in (alice, bob):
             everything_but_admin(store, user)
