@@ -8,6 +8,10 @@ from app.config import Settings
 from app.security import password_verifier
 from app.store import Store
 
+def pytest_configure(config):
+    # AGENTS.md "Generated files": .github/workflows/generated-files.yml runs the tests with this mark
+    config.addinivalue_line('markers', 'generated_file: a generated file equals what its generator writes now')
+
 @pytest.fixture(scope='session')
 def database():
     admin=os.environ.get('EDGE_TEST_POSTGRES_URL','')

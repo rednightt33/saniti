@@ -1,2 +1,6 @@
 -r requirements.txt
 pytest==8.4.2
+# tests/test_request_data.py runs the SQL Governor's own package end to end (its Postgres tests); the Governor's
+# dependencies are those tests' dependencies (pyarrow for its snapshots). EXEC-MU-ACCOUNTS fix round, re-check R1-40:
+# without them the three tests erred whenever ORC_TEST_POSTGRES_URL was set, and CI skipped every Postgres test.
+-r ../market-sql-governor/requirements.txt

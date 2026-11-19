@@ -47,6 +47,30 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest -m generated_file -q -rs
 
+  # EXEC-MU-ACCOUNTS fix round (re-check R1-44): static/edge-session.js, the shell's copy of shared/edge-session.ts
+  # (tests/test_shell_copy_build.py runs `node shared/build-shell.mjs --check` with the Terminal page's esbuild)
+  edge-bff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/edge-bff
+    env:
+      EDGE_TEST_REQUIRE_NODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: The Terminal page's esbuild (shared/build-shell.mjs builds with it)
+        working-directory: apps/edge-bff/terminal
+        run: npm ci
+      - run: pip install -r requirements.txt pytest==8.4.2
+      - run: python -m pytest -m generated_file -q -rs tests
+
   market-python-sandbox:
     runs-on: ubuntu-latest
     timeout-minutes: 15
