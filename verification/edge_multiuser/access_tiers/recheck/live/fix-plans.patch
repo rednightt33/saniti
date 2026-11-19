@@ -1,0 +1,438 @@
+From b16d57288f42b49682d60bfab255d454f20d9739 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 08:13:40 +0000
+Subject: [PATCH] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged for
+ lists and limits, no shared restrictive list, the seed plan is the one whose
+ '*' is true, access.limits reports the applied cap, MFA_REQUIRED says whether
+ an authenticator is set up
+
+Re-check R1-23, R1-24, R1-25, R1-29 and the principal part of R2-31.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/app/accounts.py                 |  6 +-
+ apps/edge-bff/app/backtest.py                 |  1 +
+ apps/edge-bff/app/drawings.py                 |  1 +
+ apps/edge-bff/app/layouts.py                  |  1 +
+ apps/edge-bff/app/main.py                     |  2 +-
+ apps/edge-bff/app/presets.py                  |  1 +
+ apps/edge-bff/app/principal.py                | 69 +++++++++++++++----
+ apps/edge-bff/app/screener.py                 |  2 +
+ apps/edge-bff/app/watchlist.py                |  2 +
+ apps/edge-bff/tests/test_backtest.py          |  2 +-
+ apps/edge-bff/tests/test_phase2_fix_round.py  |  2 +-
+ apps/edge-bff/tests/test_phase3a_gates.py     |  2 +-
+ apps/edge-bff/tests/test_plan_catalog.py      |  6 +-
+ apps/edge-bff/tests/test_principal.py         |  4 +-
+ apps/edge-bff/tests/test_screener.py          |  2 +-
+ apps/edge-bff/tests/test_terminal_access.py   |  4 +-
+ ...1_edge_bff_item_families_from_terminal.sql |  6 +-
+ .../20261118_002_edge_bff_terminal_quota.sql  |  8 ++-
+ 18 files changed, 90 insertions(+), 31 deletions(-)
+
+diff --git a/apps/edge-bff/app/accounts.py b/apps/edge-bff/app/accounts.py
+index 725e83e3..41aedea4 100644
+--- a/apps/edge-bff/app/accounts.py
++++ b/apps/edge-bff/app/accounts.py
+@@ -161,7 +161,7 @@ class AccountStore:
+ 
+     def seed_subscription(self, user_id):
+         """User #1 gets an active manual subscription with no end to the plan that holds every capability ('*'). The
+-        plan is found by data: exactly one plan holds '*'; otherwise nothing is given and account_seed_plan_ambiguous is
++        plan is found by data: exactly one plan holds '*' = true; otherwise nothing is given and account_seed_plan_ambiguous is
+         logged at warning. Given once (C1/C2/C3 Phase 2): only to the seed row (the one owner key not of the 'u_' form,
+         users_one_seed), and only while it has no subscription row at all, whatever its status. From then on the
+         subscription is the admin's: a cancelled or ended one is never given back at a restart. Idempotent (every
+@@ -173,8 +173,10 @@ class AccountStore:
+                 logger.warning(json.dumps({'event': 'account_seed_plan_refused', 'user_id': user_id,
+                                            'reason': 'not the seed account'}))
+                 return None
++            # the plan whose '*' is true: a flag may be false since the M480 fix round, so a row alone holds nothing
++            # (re-check R1-25)
+             plans = [r['plan_key'] for r in c.execute('''SELECT DISTINCT plan_key FROM edge_bff.plan_capabilities
+-                WHERE capability_key = %s ORDER BY plan_key''', (EVERYTHING,)).fetchall()]
++                WHERE capability_key = %s AND value = 'true'::jsonb ORDER BY plan_key''', (EVERYTHING,)).fetchall()]
+             if len(plans) != 1:
+                 logger.warning(json.dumps({'event': 'account_seed_plan_ambiguous', 'plans': len(plans)}))
+                 return None
+diff --git a/apps/edge-bff/app/backtest.py b/apps/edge-bff/app/backtest.py
+index f3b3192f..43b54c61 100644
+--- a/apps/edge-bff/app/backtest.py
++++ b/apps/edge-bff/app/backtest.py
+@@ -1291,6 +1291,7 @@ class Backtests:
+ 
+     def routes(self, app, auth):
+         settings = self.settings
++        auth.ceiling(QUEUED_KEY, settings.backtest_queued_per_owner)   # access.limits reports the applied cap (R1-29)
+         # EXEC-MU-ACCOUNTS Phase 1: the loop reads a queued job's owner's rights from the same principal resolution
+         if self.loop:
+             self.loop.access = auth.owner_principal
+diff --git a/apps/edge-bff/app/drawings.py b/apps/edge-bff/app/drawings.py
+index d966478d..a23d040b 100644
+--- a/apps/edge-bff/app/drawings.py
++++ b/apps/edge-bff/app/drawings.py
+@@ -164,6 +164,7 @@ class Drawings:
+         # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): every route needs terminal.drawings; the cap is the plan's
+         # terminal.drawings_max, at most SET_LIMIT
+         reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
++        auth.ceiling(LIMIT_KEY, SET_LIMIT)             # the session's access.limits reports the applied cap (R1-29)
+ 
+         @app.get('/api/v1/terminal/drawings')
+         async def drawings(ticker: str = '', p: Principal = Depends(reader)):
+diff --git a/apps/edge-bff/app/layouts.py b/apps/edge-bff/app/layouts.py
+index 3704846c..16ce728c 100644
+--- a/apps/edge-bff/app/layouts.py
++++ b/apps/edge-bff/app/layouts.py
+@@ -220,6 +220,7 @@ class Layouts:
+         # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): every route, reads included, needs terminal.layouts; the cap is
+         # the plan's terminal.layouts_max, at most LAYOUT_LIMIT
+         reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
++        auth.ceiling(LIMIT_KEY, LAYOUT_LIMIT)          # the session's access.limits reports the applied cap (R1-29)
+ 
+         @app.exception_handler(LayoutError)
+         async def layout_error(_, exc):
+diff --git a/apps/edge-bff/app/main.py b/apps/edge-bff/app/main.py
+index 33aa5a3e..3da4702b 100644
+--- a/apps/edge-bff/app/main.py
++++ b/apps/edge-bff/app/main.py
+@@ -735,7 +735,7 @@ def create_app(settings=None, store=None, orc=None):
+         return {'authenticated': True, 'login': p.username if settings.multiuser else settings.login,
+                 'owner_key': p.owner_key,
+                 'csrf_token': csrf_token(p.token, settings.session_secret), 'capabilities': capabilities(),
+-                'username': p.username, 'access': jsonable_encoder(p.access())}
++                'username': p.username, 'access': jsonable_encoder(p.access(ceilings=auth.ceilings))}
+ 
+     def capabilities():
+         return {'deep_research': False, 'model_selection': True, 'cancel': True, 'tool_progress': False,
+diff --git a/apps/edge-bff/app/presets.py b/apps/edge-bff/app/presets.py
+index fbff70e7..7f0b02ec 100644
+--- a/apps/edge-bff/app/presets.py
++++ b/apps/edge-bff/app/presets.py
+@@ -192,6 +192,7 @@ class Presets:
+         # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): every route needs terminal.presets; the cap is the plan's
+         # terminal.presets_max, at most PRESET_LIMIT
+         reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
++        auth.ceiling(LIMIT_KEY, PRESET_LIMIT)          # the session's access.limits reports the applied cap (R1-29)
+ 
+         @app.get('/api/v1/terminal/presets')
+         async def presets(p: Principal = Depends(reader)):
+diff --git a/apps/edge-bff/app/principal.py b/apps/edge-bff/app/principal.py
+index e8a0f12f..e842a6da 100644
+--- a/apps/edge-bff/app/principal.py
++++ b/apps/edge-bff/app/principal.py
+@@ -75,8 +75,16 @@ def valid_value(kind, value):
+ 
+ 
+ # C1 Phase 2 F1: a value that cannot be read never widens access. A flag or an item family of the wrong shape is not
+-# held; a limit or a list of the wrong shape is the most restrictive value (0, no entries), never "no limit"
+-RESTRICTIVE = {'limit': 0, 'list': []}
++# held; a limit or a list of the wrong shape is the most restrictive value (0, no entries), never "no limit". Immutable
++# here and copied per read (re-check R1-24): a consumer that adds to the list it was given changes its own copy only,
++# never the value of the next principal whose list cannot be read
++RESTRICTIVE = {'limit': 0, 'list': ()}
++
++
++def restrictive(kind):
++    """A new most restrictive value of a limit or list kind (never a shared object)."""
++    value = RESTRICTIVE[kind]
++    return list(value) if kind == 'list' else value
+ 
+ 
+ def read_grants(rows, user_id=None):
+@@ -91,7 +99,7 @@ def read_grants(rows, user_id=None):
+             continue
+         logger.warning(json.dumps({'event': 'capability_value_invalid', 'capability': key, 'user_id': user_id}))
+         if kind in RESTRICTIVE:
+-            grants[key], kinds[key] = RESTRICTIVE[kind], kind
++            grants[key], kinds[key] = restrictive(kind), kind
+     return grants, kinds
+ 
+ 
+@@ -154,18 +162,43 @@ class Principal:
+         value = self.limit(capability, hard)
+         return min(value, hard) if isinstance(value, int) and not isinstance(value, bool) else hard
+ 
+-    def refusal(self, capability):
+-        """The refusal for a capability this principal does not hold: PLAN_EXPIRED when only its ended plan held it
+-        (renewing that plan is the fix), else CAPABILITY_REQUIRED (upgrading is)."""
+-        if self.expired_plan and holds(self.expired_grants, self.expired_kinds, capability):
++    def refusal(self, capability, item=None, amount=None):
++        """The refusal for a request this principal may not make: PLAN_EXPIRED when the account's ended plan would have
++        allowed it (renewing that plan is the fix; ended_allows), else CAPABILITY_REQUIRED (upgrading is). `item` (a
++        list member asked, e.g. a ticker) and `amount` (a number asked, e.g. a window in days) let a list or a limit be
++        judged against the ended plan's own value (CONTRACT.md 8a; re-check R1-23)."""
++        if self.ended_allows(capability, item, amount):
+             return plan_expired(capability, self.expired_plan)
+         return capability_required(capability)
+ 
+-    def access(self, nxt=None):
+-        """The session answer's `access` object (CONTRACT.md section 4, GET /api/v1/auth/session)."""
++    def ended_allows(self, capability, item=None, amount=None):
++        """Whether the account's ended plan would have allowed this request. A flag or an item family: held as can()
++        holds it. A list or a limit (its kind read from the ended plan's row, else the current plan's): allowed when the
++        ended plan set no such restriction (no row: every member, no limit), its list holds `item`, or `amount` is
++        within its limit; without `item` or `amount` only the first case is known."""
++        if not self.expired_plan:
++            return False
++        grants, kinds = self.expired_grants, self.expired_kinds
++        kind = kinds.get(capability) or self.kinds.get(capability)
++        if kind not in ('list', 'limit'):
++            return holds(grants, kinds, capability)
++        if grants.get(EVERYTHING) is True or capability not in kinds:
++            return True
++        value = grants[capability]
++        if kind == 'list':
++            return item is not None and item in value
++        return isinstance(amount, int) and not isinstance(amount, bool) and amount <= value
++
++    def access(self, nxt=None, ceilings=None):
++        """The session answer's `access` object (CONTRACT.md section 4, GET /api/v1/auth/session). `ceilings`
++        (Auth.ceilings: a limit key -> its module's HARD): a limit is reported as the routes apply it, min(plan, HARD)
++        (Principal.capped; re-check R1-29), so the page's limit(key) is the number the server enforces."""
++        ceilings = ceilings or {}
++        limits = {k: self.capped(k, ceilings[k]) if k in ceilings and self.kinds.get(k, 'limit') == 'limit' else v
++                  for k, v in self.limits.items()}
+         return {'plan': self.plan_key, 'role': self.role, 'status': self.status,
+                 'expires_at': self.expires_at.isoformat() if self.expires_at else None, 'mfa_ok': self.mfa_ok,
+-                'capabilities': sorted(self.capabilities), 'limits': dict(self.limits), 'version': self.version,
++                'capabilities': sorted(self.capabilities), 'limits': limits, 'version': self.version,
+                 'owner_key': self.owner_key, 'mfa_enrolled': self.mfa_enrolled, 'seed': self.seed,
+                 'expired_plan': self.expired_plan,
+                 'next': nxt if nxt is not None else (None if self.mfa_ok else 'mfa')}
+@@ -232,6 +265,8 @@ class Auth:
+         self._names_at = None
+         self.seed = None                                 # {user_id, username} of user #1 once seeded (main.py lifespan)
+         self._needs = {}
++        # re-check R1-29: each module's HARD of a plan limit (ceiling), so the session answer reports what is applied
++        self.ceilings = {}
+ 
+         # named session and write as before Phase 1 (tests read the dependency names)
+         async def session(request: Request):
+@@ -241,7 +276,9 @@ class Auth:
+             # a pending admin session (the password was right, the second factor not yet): only the MFA steps, the
+             # session read and sign-out; every other route answers 403 MFA_REQUIRED
+             if not found.mfa_ok and request.url.path not in MFA_OPEN:
+-                raise Refusal(403, 'MFA_REQUIRED')
++                # re-check R2-31: whether an authenticator is set up, as the sign-in answer says, so the words and the
++                # shell can offer the set-up to an account raised to a plan that needs the second factor
++                raise Refusal(403, 'MFA_REQUIRED', {'mfa_enrolled': found.mfa_enrolled})
+             # EXEC-BACKTEST-REVAMP P5: request.state.owner stays, set from the principal (never a body's)
+             request.state.owner, request.state.principal = found.owner_key, found
+             return found
+@@ -338,11 +375,19 @@ class Auth:
+                 if not p.can(ADMIN_ACCESS):
+                     raise p.refusal(ADMIN_ACCESS)
+                 if not p.mfa_ok:
+-                    raise Refusal(403, 'MFA_REQUIRED')
++                    raise Refusal(403, 'MFA_REQUIRED', {'mfa_enrolled': p.mfa_enrolled})
+                 return p
+             self._needs[key] = check
+         return self._needs[key]
+ 
++    def ceiling(self, capability, hard):
++        """A module's HARD for the plan limit `capability` (the storage guarantee Principal.capped applies), declared
++        where the module registers its routes; the session answer's access.limits reports min(plan, HARD) for it. The
++        lowest wins when two modules apply the same key. Returns hard."""
++        was = self.ceilings.get(capability)
++        self.ceilings[capability] = hard if was is None else min(was, hard)
++        return hard
++
+ 
+ def owner_principal(settings, accounts, owner_key):
+     """The principal of an owner without a session (see Auth.owner_principal); accounts may be None with the switch
+diff --git a/apps/edge-bff/app/screener.py b/apps/edge-bff/app/screener.py
+index 5890b0d9..aca534cf 100644
+--- a/apps/edge-bff/app/screener.py
++++ b/apps/edge-bff/app/screener.py
+@@ -1053,6 +1053,8 @@ class Screeners:
+     # ---- routes -----------------------------------------------------------------------------------------------------
+ 
+     def routes(self, app, auth):
++        for name, hard in caps_of().items():          # the session's access.limits reports the applied caps (R1-29)
++            auth.ceiling(LIMIT_KEYS[name], hard)
+         # EXEC-BACKTEST-REVAMP P5 (user K8 b), EXEC-MU-ACCOUNTS Phase 1: the principal's rights (rights.py) go to every
+         # worker call in the body's context; a page body that carries one is refused before the worker. Every call
+         # carries the principal's owner tag; nothing here reads the configured owner.
+diff --git a/apps/edge-bff/app/watchlist.py b/apps/edge-bff/app/watchlist.py
+index f831c78e..a13030fa 100644
+--- a/apps/edge-bff/app/watchlist.py
++++ b/apps/edge-bff/app/watchlist.py
+@@ -304,6 +304,8 @@ class Watchlist:
+     def routes(self, app, auth):
+         self.files.routes(app, auth)
+         reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
++        for name, hard in caps_of().items():          # the session's access.limits reports the applied caps (R1-29)
++            auth.ceiling(LIMIT_KEYS[name], hard)
+ 
+         def answer(body, status=200):
+             return JSONResponse(status_code=status, content=jsonable_encoder(body))
+diff --git a/apps/edge-bff/tests/test_backtest.py b/apps/edge-bff/tests/test_backtest.py
+index 0998f86b..3c38e706 100644
+--- a/apps/edge-bff/tests/test_backtest.py
++++ b/apps/edge-bff/tests/test_backtest.py
+@@ -2309,7 +2309,7 @@ def rights_session(configured, store, admin):
+     def signed(c):
+         user = make_user(store, 'plain', 'plain-password')
+         plan = run_sql(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'backtest.run'
+-            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')[0]['plan_key']
++            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')[0]['plan_key']
+         run_sql(store, "INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider) VALUES (%s, %s, 'active', 'test')",
+                 user['user_id'], plan)
+         return sign_in(c, 'plain', 'plain-password')
+diff --git a/apps/edge-bff/tests/test_phase2_fix_round.py b/apps/edge-bff/tests/test_phase2_fix_round.py
+index 89ac085c..23922349 100644
+--- a/apps/edge-bff/tests/test_phase2_fix_round.py
++++ b/apps/edge-bff/tests/test_phase2_fix_round.py
+@@ -29,7 +29,7 @@ from test_principal import db, make_user
+ 
+ def plan_without_star(store, default):
+     return db(store, '''SELECT plan_key FROM edge_bff.plans WHERE is_default = %s AND plan_key NOT IN
+-        (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''', default)[0]['plan_key']
++        (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''', default)[0]['plan_key']
+ 
+ 
+ # ---- write-time value shapes ----------------------------------------------------------------------------------------
+diff --git a/apps/edge-bff/tests/test_phase3a_gates.py b/apps/edge-bff/tests/test_phase3a_gates.py
+index b63f679f..384b4cd1 100644
+--- a/apps/edge-bff/tests/test_phase3a_gates.py
++++ b/apps/edge-bff/tests/test_phase3a_gates.py
+@@ -129,7 +129,7 @@ def url_of(path):
+ def paid_plan(store):
+     """The plan that grants backtest.run without '*' (found by data, as the code does: no plan key in code)."""
+     rows = db(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'backtest.run'
+-        AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')
++        AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')
+     assert len(rows) == 1, rows
+     return rows[0]['plan_key']
+ 
+diff --git a/apps/edge-bff/tests/test_plan_catalog.py b/apps/edge-bff/tests/test_plan_catalog.py
+index edc906ef..7ea3108a 100644
+--- a/apps/edge-bff/tests/test_plan_catalog.py
++++ b/apps/edge-bff/tests/test_plan_catalog.py
+@@ -176,7 +176,7 @@ def test_released_versus_lab_items_and_everything(on, store, monkeypatch):
+                         lambda kind, item: 'released' if (kind, item) in {('indicator', 'I01'), ('flow_indicator', 'FL24')} else 'lab')
+     released_plan = db(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'terminal.indicator'
+         AND value = '{"stages": ["released"]}' ''')[0]['plan_key']
+-    everything_plan = db(store, "SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*'")[0]['plan_key']
++    everything_plan = db(store, "SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb")[0]['plan_key']
+     paid, admin = make_user(store, 'paul', 'paul-password'), make_user(store, 'ada', 'ada-password')
+     subscribe(store, paid['user_id'], released_plan)
+     subscribe(store, admin['user_id'], everything_plan)
+@@ -237,7 +237,7 @@ def test_the_seed_subscription_is_idempotent(on, store):
+             pass
+     rows = db(store, '''SELECT s.plan_key, s.status, s.expires_at, s.provider, u.owner_key FROM edge_bff.subscriptions s
+         JOIN edge_bff.users u USING (user_id)''')
+-    everything_plan = db(store, "SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*'")[0]['plan_key']
++    everything_plan = db(store, "SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb")[0]['plan_key']
+     assert rows == [{'plan_key': everything_plan, 'status': 'active', 'expires_at': None, 'provider': 'manual',
+                      'owner_key': on.owner}]
+     seed_id = db(store, 'SELECT user_id FROM edge_bff.users WHERE owner_key = %s', on.owner)[0]['user_id']
+@@ -251,7 +251,7 @@ def test_the_seed_subscription_is_idempotent(on, store):
+ 
+ 
+ def test_the_seed_subscription_refuses_an_ambiguous_plan(on, store, caplog):
+-    other = db(store, "SELECT plan_key FROM edge_bff.plans WHERE plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*') ORDER BY plan_key LIMIT 1")[0]['plan_key']
++    other = db(store, "SELECT plan_key FROM edge_bff.plans WHERE plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb) ORDER BY plan_key LIMIT 1")[0]['plan_key']
+     db(store, "INSERT INTO edge_bff.plan_capabilities(plan_key, capability_key, value) VALUES (%s, '*', 'true')", other)
+     try:
+         with caplog.at_level(logging.WARNING, 'edge_bff.accounts'):
+diff --git a/apps/edge-bff/tests/test_principal.py b/apps/edge-bff/tests/test_principal.py
+index 992fd4a5..cc699919 100644
+--- a/apps/edge-bff/tests/test_principal.py
++++ b/apps/edge-bff/tests/test_principal.py
+@@ -151,7 +151,7 @@ def make_user(store, username, password, role='user', status='active', email=Non
+                   (row['user_id'], str(row['user_id']), password_verifier(password)))
+         if role == 'admin' if everything is None else everything:
+             c.execute('''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider)
+-                SELECT %s, plan_key, 'active', 'test' FROM edge_bff.plan_capabilities WHERE capability_key = '*' ''',
++                SELECT %s, plan_key, 'active', 'test' FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb''',
+                       (row['user_id'],))
+     return dict(row)
+ 
+@@ -347,7 +347,7 @@ def test_two_users_see_none_of_each_others_rows(on, store, workers):
+         # Phase 3a (CONTRACT.md 8b): the tabs need their capabilities, so both hold the plan that grants backtest.run
+         # (found by data) and the Monitor by override (admin only in the seed, decisions D1 and D8)
+         plan = db(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'backtest.run'
+-            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')[0]['plan_key']
++            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')[0]['plan_key']
+         for user in (alice, bob):
+             db(store, '''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider) VALUES (%s, %s, 'active', 'test')''',
+                user['user_id'], plan)
+diff --git a/apps/edge-bff/tests/test_screener.py b/apps/edge-bff/tests/test_screener.py
+index d8f983bb..48c86772 100644
+--- a/apps/edge-bff/tests/test_screener.py
++++ b/apps/edge-bff/tests/test_screener.py
+@@ -1500,7 +1500,7 @@ def test_c2_catalog_preset_counts_are_never_served_to_a_plan_without_the_presets
+     with TestClient(application) as c:
+         user = make_user(store, 'narrow', 'narrow-password')
+         plan = run_sql(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'screener.run'
+-            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')[0]['plan_key']
++            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')[0]['plan_key']
+         run_sql(store, "INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider) VALUES (%s, %s, 'active', 'test')",
+                 user['user_id'], plan)
+         # the plan's flow indicators narrowed to FL11 for this account (an override, CONTRACT.md 8a), on the Terminal's
+diff --git a/apps/edge-bff/tests/test_terminal_access.py b/apps/edge-bff/tests/test_terminal_access.py
+index 90f357d9..6f561a85 100644
+--- a/apps/edge-bff/tests/test_terminal_access.py
++++ b/apps/edge-bff/tests/test_terminal_access.py
+@@ -138,7 +138,7 @@ def switched_off(settings, api):
+ 
+ def paid_plan(store):
+     rows = db(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'backtest.run'
+-        AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')
++        AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')
+     assert len(rows) == 1, rows
+     return rows[0]['plan_key']
+ 
+@@ -527,7 +527,7 @@ def test_the_quota_migration_holds_d6s_numbers_for_paid_and_free(store):
+         by_plan.setdefault(r['plan_key'], {})[r['capability_key'].removeprefix('terminal.')] = r['value']
+     assert by_plan == {paid_plan(store): QUOTA, db(store, 'SELECT plan_key FROM edge_bff.plans WHERE is_default')[0]['plan_key']: QUOTA}
+     assert not db(store, '''SELECT 1 FROM edge_bff.plan_capabilities WHERE capability_key LIKE 'terminal.%%_per_%%'
+-        AND plan_key IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')
++        AND plan_key IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')
+ 
+ 
+ def test_the_quota_migration_refuses_a_second_run(database):
+diff --git a/database/migrations/20261118_001_edge_bff_item_families_from_terminal.sql b/database/migrations/20261118_001_edge_bff_item_families_from_terminal.sql
+index fc45df9a..022f777a 100644
+--- a/database/migrations/20261118_001_edge_bff_item_families_from_terminal.sql
++++ b/database/migrations/20261118_001_edge_bff_item_families_from_terminal.sql
+@@ -86,8 +86,10 @@ BEGIN
+             AND value = '{"stages": ["released"]}'::jsonb) <> 3 THEN
+         RAISE EXCEPTION 'the paid plan lost a candle_pattern or screener.metric grant';
+     END IF;
+-    IF (SELECT count(DISTINCT plan_key) FROM edge_bff.plan_capabilities WHERE capability_key = '*') <> 1 THEN
+-        RAISE EXCEPTION 'exactly one plan must hold *';
++    -- the plan that holds every capability is the one whose '*' is true (a flag may be false; re-check R1-25)
++    IF (SELECT count(DISTINCT plan_key) FROM edge_bff.plan_capabilities WHERE capability_key = '*'
++            AND value = 'true'::jsonb) <> 1 THEN
++        RAISE EXCEPTION 'exactly one plan must hold * = true';
+     END IF;
+ END $verify$;
+ COMMIT;
+diff --git a/database/migrations/20261118_002_edge_bff_terminal_quota.sql b/database/migrations/20261118_002_edge_bff_terminal_quota.sql
+index 205d728e..79f4b2e7 100644
+--- a/database/migrations/20261118_002_edge_bff_terminal_quota.sql
++++ b/database/migrations/20261118_002_edge_bff_terminal_quota.sql
+@@ -86,12 +86,14 @@ BEGIN
+         END IF;
+     END LOOP;
+     IF EXISTS (SELECT 1 FROM edge_bff.plan_capabilities pc JOIN edge_bff.plan_capabilities star
+-               ON star.plan_key = pc.plan_key AND star.capability_key = '*'
++               ON star.plan_key = pc.plan_key AND star.capability_key = '*' AND star.value = 'true'::jsonb
+                WHERE pc.capability_key IN (SELECT jsonb_object_keys(quota))) THEN
+         RAISE EXCEPTION 'the plan holding * holds a Terminal quota row';
+     END IF;
+-    IF (SELECT count(DISTINCT plan_key) FROM edge_bff.plan_capabilities WHERE capability_key = '*') <> 1 THEN
+-        RAISE EXCEPTION 'exactly one plan must hold *';
++    -- the plan that holds every capability is the one whose '*' is true (a flag may be false; re-check R1-25)
++    IF (SELECT count(DISTINCT plan_key) FROM edge_bff.plan_capabilities WHERE capability_key = '*'
++            AND value = 'true'::jsonb) <> 1 THEN
++        RAISE EXCEPTION 'exactly one plan must hold * = true';
+     END IF;
+     IF EXISTS (SELECT 1 FROM edge_bff.capabilities WHERE kind = 'limit' AND unit IS NULL) THEN
+         RAISE EXCEPTION 'a limit capability has no unit';
+-- 
+2.43.0
+
