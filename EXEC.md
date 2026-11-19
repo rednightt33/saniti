@@ -15993,6 +15993,11 @@ dipakai accross chat sebagai referencec?"
     closed until the launch). To build: a setting that closes registration on live, with a plain refusal on the page;
     the test accounts are made by the main agent for the user's addresses, and the user sets their passwords through
     "forgot password" (needs Resend).
+  - Sign-in during the test (the user, 2026-11-19): "Dan hanya admin yang bisa login (saya)"; asked how the free and
+    paid plans are then tried, the user chose "A": besides the admin, only accounts marked as test accounts (made with
+    the user's own addresses) may sign in on live; every other account is refused until the launch. To build with the
+    closed registration: a pre-launch mode on live (registration closed, sign-in only for the admin and test
+    accounts), with plain refusals on the pages.
 
 ### Production environment (user decisions 2026-11-19; open details asked)
 
