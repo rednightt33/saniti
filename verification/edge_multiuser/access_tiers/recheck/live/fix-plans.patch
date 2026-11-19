@@ -1,10 +1,10 @@
 From b16d57288f42b49682d60bfab255d454f20d9739 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:13:40 +0000
-Subject: [PATCH] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged for
- lists and limits, no shared restrictive list, the seed plan is the one whose
- '*' is true, access.limits reports the applied cap, MFA_REQUIRED says whether
- an authenticator is set up
+Subject: [PATCH 1/4] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
+ for lists and limits, no shared restrictive list, the seed plan is the one
+ whose '*' is true, access.limits reports the applied cap, MFA_REQUIRED says
+ whether an authenticator is set up
 
 Re-check R1-23, R1-24, R1-25, R1-29 and the principal part of R2-31.
 
@@ -433,6 +433,984 @@ index 205d728e..79f4b2e7 100644
      END IF;
      IF EXISTS (SELECT 1 FROM edge_bff.capabilities WHERE kind = 'limit' AND unit IS NULL) THEN
          RAISE EXCEPTION 'a limit capability has no unit';
+-- 
+2.43.0
+
+
+From 68542f2fb3036e6ef993b948b48fb7e37f1983e3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 08:26:59 +0000
+Subject: [PATCH 2/4] EXEC-MU-ACCOUNTS fix round (plans): refusals worded from
+ their code and details; no internal key in a worker's capability message
+
+Re-check R2-15: errors.words names the item (display_name), the ended plan, the plan limit with the account's number and
+the wait; a LIMIT_REACHED that no plan decides (the email-code and authenticator-code throttles) names only the wait;
+MFA_REQUIRED says to set the authenticator up when none is. Re-check R1-34: the workers' CAPABILITY_REQUIRED message
+names the item without the key (details.capability keeps it), and edge-bff's named() words any relayed message that
+still carries the key.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/backtest-worker/src/access.ts        |  3 +-
+ apps/backtest-worker/tests/access.test.ts |  9 +--
+ apps/backtest-worker/tests/server.test.ts |  4 +-
+ apps/edge-bff/app/allow.py                | 17 +++--
+ apps/edge-bff/app/backtest.py             |  5 +-
+ apps/edge-bff/app/errors.py               | 80 +++++++++++++++++++++--
+ apps/edge-bff/app/principal.py            |  4 +-
+ apps/edge-bff/tests/test_allow.py         | 13 ++++
+ apps/edge-bff/tests/test_backtest.py      |  4 +-
+ apps/screener-worker/src/run.ts           |  2 +-
+ 10 files changed, 119 insertions(+), 22 deletions(-)
+
+diff --git a/apps/backtest-worker/src/access.ts b/apps/backtest-worker/src/access.ts
+index 99c1648b..d693658c 100644
+--- a/apps/backtest-worker/src/access.ts
++++ b/apps/backtest-worker/src/access.ts
+@@ -103,6 +103,7 @@ export function requireItem(allow: Allow, kind: AllowKind, id: string, field: st
+   if (a === '*' || a.includes(id)) return;
+   const capability = `${FAMILY[kind]}:${id}`;
+   throw new WorkerError(403, 'CAPABILITY_REQUIRED',
+-    `${field}: the ${WORDS[kind]} ${id} is not included in your plan (${capability}); remove it or change the plan to run this strategy.`,
++    // re-check R1-34: the person reads the item, never the internal key (it stays in details.capability)
++    `${field}: the ${WORDS[kind]} ${id} is not included in your plan; remove it or change the plan to run this strategy.`,
+     field, { kind, id, capability });
+ }
+diff --git a/apps/backtest-worker/tests/access.test.ts b/apps/backtest-worker/tests/access.test.ts
+index 71ef2c38..483d1416 100644
+--- a/apps/backtest-worker/tests/access.test.ts
++++ b/apps/backtest-worker/tests/access.test.ts
+@@ -113,7 +113,8 @@ test('every place an item is named: refused 403 CAPABILITY_REQUIRED at its JSON
+     const r = refusal(() => checkRequest(q, REFS, CFG, undefined, allowOf_((k, i) => k === kind && i === id)));
+     const capability = `${FAMILY[kind as keyof typeof FAMILY]}:${id}`;
+     assert.deepEqual(r && { status: r.status, code: r.code, field: r.field, details: r.details }, { status: 403, code: 'CAPABILITY_REQUIRED', field: first[0], details: { kind, id, capability } }, key);
+-    assert.ok(r!.message!.includes(id) && r!.message!.includes('not included in your plan') && r!.message!.includes(capability), r!.message);
++    // re-check R1-34: the message names the item; the internal key stays in details.capability only
++    assert.ok(r!.message!.includes(id) && r!.message!.includes('not included in your plan') && !r!.message!.includes(capability), r!.message);
+   }
+   // the families (edge-bff app/allow.py FAMILIES; CONTRACT 8b "3b follow-up", user 2026-11-18 "gate-nya adalah
+   // terminal"): the indicator and Flow items are the Terminal's grants, a candlestick pattern backtest.candle_pattern,
+@@ -153,7 +154,7 @@ test('signals preview: the entry and detail.exit_signals items, the latter at th
+   const only = (ids: string[], metrics: string[] = []) => allowOf({ indicator: ids, flow_indicator: [], candle_pattern: [], screener_metric: metrics });
+   assert.deepEqual(refusal(() => checkSignalsRequest(p, REFS, CFG, undefined, only([]))), {
+     status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[0].indicator', details: { kind: 'indicator', id: 'I13', capability: 'terminal.indicator:I13' },
+-    message: 'entry.conditions[0].indicator: the indicator I13 is not included in your plan (terminal.indicator:I13); remove it or change the plan to run this strategy.' });
++    message: 'entry.conditions[0].indicator: the indicator I13 is not included in your plan; remove it or change the plan to run this strategy.' });
+   // a switched-off exit condition naming an unknown pattern type: the plan check comes first, and names the true path
+   assert.deepEqual(refusal(() => checkSignalsRequest(p, REFS, CFG, undefined, only(['I13'])))?.field, 'detail.exit_signals.conditions[1].test.pattern.type');
+   assert.deepEqual(refusal(() => checkSignalsRequest(p, REFS, CFG, undefined, only(['I13'])))?.details, { kind: 'screener_metric', id: 'doji_star_not_a_candle', capability: 'screener.metric:doji_star_not_a_candle' });
+@@ -228,7 +229,7 @@ test('legacy cards: a type that is a catalog id is gated by that id (derived fro
+   const breakout = request([card('breakout')]);
+   assert.deepEqual(refusal(() => checkRequest(breakout, REFS, CFG, undefined, with_('screener_metric', ['volspike']))), {
+     status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[0].type', details: { kind: 'screener_metric', id: 'breakout', capability: 'screener.metric:breakout' },
+-    message: 'entry.conditions[0].type: the Screener metric breakout is not included in your plan (screener.metric:breakout); remove it or change the plan to run this strategy.' });
++    message: 'entry.conditions[0].type: the Screener metric breakout is not included in your plan; remove it or change the plan to run this strategy.' });
+   assert.equal(refusal(() => checkRequest(breakout, REFS, CFG, undefined, with_('screener_metric', ['breakout']))), null);
+   // a switched-off fnet card in the exit signals: refused at its path, allowed with fnet
+   const fnet = request([card('breakout')], [{ ...card('fnet'), id: 'x1', enabled: false } as Condition]);
+@@ -244,7 +245,7 @@ test('legacy cards: a type that is a catalog id is gated by that id (derived fro
+     const q = request([card('breakout'), { ...card(t, over), id: 'f1', enabled: false } as Condition]);
+     assert.deepEqual(refusal(() => checkRequest(q, REFS, CFG, undefined, with_('flow_indicator', ['fnet']))), {
+       status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[1].type', details: { kind: 'flow_indicator', id: t, capability: `terminal.flow_indicator:${t}` },
+-      message: `entry.conditions[1].type: the Flow indicator ${t} is not included in your plan (terminal.flow_indicator:${t}); remove it or change the plan to run this strategy.` }, t);
++      message: `entry.conditions[1].type: the Flow indicator ${t} is not included in your plan; remove it or change the plan to run this strategy.` }, t);
+     assert.equal(refusal(() => checkRequest(q, REFS, CFG, undefined, with_('flow_indicator', [t]))), null, t);
+   }
+ });
+diff --git a/apps/backtest-worker/tests/server.test.ts b/apps/backtest-worker/tests/server.test.ts
+index 8d8e2bb3..12f3ed48 100644
+--- a/apps/backtest-worker/tests/server.test.ts
++++ b/apps/backtest-worker/tests/server.test.ts
+@@ -854,7 +854,7 @@ test('3b: an item outside context.allow is 403 CAPABILITY_REQUIRED on validate,
+   const q = pageDefault('UNVR');
+   const refused = (a: Answer) => ({ status: a.status, ...a.json().error });
+   const lineRefusal = { status: 403, code: 'CAPABILITY_REQUIRED', field: 'exit.stop.line.indicator', details: { kind: 'indicator', id: 'I09', capability: 'terminal.indicator:I09' },
+-    message: 'exit.stop.line.indicator: the indicator I09 is not included in your plan (terminal.indicator:I09); remove it or change the plan to run this strategy.' };
++    message: 'exit.stop.line.indicator: the indicator I09 is not included in your plan; remove it or change the plan to run this strategy.' };
+   // validate: refused, allowed with "*", malformed refused (without allow: the step 3 test below)
+   assert.deepEqual(refused(await call('POST', '/v1/validate', { request: q, context: { rights: [], allow: none, limits: {} } })), lineRefusal);
+   const ok = await call('POST', '/v1/validate', { request: q, context: { allow: all, limits: {} } });
+@@ -879,7 +879,7 @@ test('3b: an item outside context.allow is 403 CAPABILITY_REQUIRED on validate,
+   const preview = { schema_version: 1, tickers: ['UNVR'], period: { from: '2024-01-02', to: THROUGH }, entry };
+   const s = await call('POST', '/v1/signals', { request: preview, context: { allow: { ...all, indicator: ['I01'] } } });
+   assert.deepEqual(refused(s), { status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[0].indicator', details: { kind: 'indicator', id: 'I13', capability: 'terminal.indicator:I13' },
+-    message: 'entry.conditions[0].indicator: the indicator I13 is not included in your plan (terminal.indicator:I13); remove it or change the plan to run this strategy.' });
++    message: 'entry.conditions[0].indicator: the indicator I13 is not included in your plan; remove it or change the plan to run this strategy.' });
+   assert.equal((await call('POST', '/v1/signals', { request: preview, context: { allow: { ...all, indicator: ['I13'] } } })).status, 200);
+   const few = await call('POST', '/v1/signals', { request: { ...preview, tickers: ['BBCA', 'UNVR'] }, context: { allow: all, limits: { max_portfolio_tickers: 1 } } });
+   assert.deepEqual([few.status, few.json().error.code], [422, 'INVALID_PORTFOLIO']);
+diff --git a/apps/edge-bff/app/allow.py b/apps/edge-bff/app/allow.py
+index 451e975b..1022857b 100644
+--- a/apps/edge-bff/app/allow.py
++++ b/apps/edge-bff/app/allow.py
+@@ -12,13 +12,14 @@ refuse_context), when the call is made (a queued backtest reads its owner's prin
+ - `digest(context)` is a short fingerprint of the three, the key of every cache whose answer depends on what the
+   principal may use (the Screener's saved-item review), so one plan's answer never serves another.
+ - `named(error)` adds `details.display_name` (errors.display_name) to a worker's 403 CAPABILITY_REQUIRED, which edge-bff
+-  otherwise relays unchanged.
++  otherwise relays unchanged; a message that carries the internal key is worded by edge-bff instead (errors.words;
++  re-check R1-34).
+ """
+ import hashlib
+ import json
+ 
+ from . import releases
+-from .errors import display_name
++from .errors import display_name, words
+ from .rights import rights_of
+ 
+ EVERYTHING = '*'
+@@ -73,12 +74,18 @@ def digest(context):
+ 
+ 
+ def named(error):
+-    """A worker error with details.display_name added when it is CAPABILITY_REQUIRED naming a capability; any other
+-    error as it is."""
++    """A worker error with details.display_name added when it is CAPABILITY_REQUIRED naming a capability. Its message
++    stays the worker's (it names the condition and the item) unless it carries the internal key (the capability or its
++    family) or is missing: then edge-bff words it (errors.words), so the person never reads an internal key
++    (re-check R1-34; edge-bff owns the wording for people, CONTRACT.md section 3). Any other error as it is."""
+     if not isinstance(error, dict) or error.get('code') != CAPABILITY_REQUIRED:
+         return error
+     details = error.get('details') if isinstance(error.get('details'), dict) else {}
+     capability = details.get('capability')
+     if not isinstance(capability, str) or not capability:
+         return error
+-    return {**error, 'details': {**details, 'display_name': display_name(capability)}}
++    details = {**details, 'display_name': display_name(capability)}
++    message = error.get('message')
++    if isinstance(message, str) and message and capability not in message and capability.partition(':')[0] not in message:
++        return {**error, 'details': details}          # the worker's own words (they name the place), with no key
++    return {**error, 'message': words(CAPABILITY_REQUIRED, 403, details), 'details': details}
+diff --git a/apps/edge-bff/app/backtest.py b/apps/edge-bff/app/backtest.py
+index 43b54c61..3ccfea62 100644
+--- a/apps/edge-bff/app/backtest.py
++++ b/apps/edge-bff/app/backtest.py
+@@ -26,7 +26,7 @@ from psycopg.types.json import Jsonb
+ 
+ from .client import public_data
+ from .accounts import AccountStore
+-from .errors import Refusal, message_of
++from .errors import Refusal, words
+ from .principal import Principal, owner_principal
+ from .allow import NOTHING, context_of, named
+ from .rights import catalog_for, refuse_context, rights_of
+@@ -940,7 +940,8 @@ class BacktestLoop:
+                 # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b): the plan lost backtest.run while the job waited (a
+                 # downgrade or an ended plan): the job ends with the principal's refusal, never reaching the worker
+                 refused = principal.refusal(RUN)
+-                await self.end_job(row, deadline, 'FAILED', {'code': refused.code, 'message': message_of(refused.code, 403),
++                await self.end_job(row, deadline, 'FAILED', {'code': refused.code,
++                                                              'message': words(refused.code, 403, refused.details),
+                                                               'details': refused.details})
+                 return False
+             body = {'job_id': job_id, 'request': row['request'],
+diff --git a/apps/edge-bff/app/errors.py b/apps/edge-bff/app/errors.py
+index 55aff304..b244788d 100644
+--- a/apps/edge-bff/app/errors.py
++++ b/apps/edge-bff/app/errors.py
+@@ -6,6 +6,8 @@ CAPABILITY_REQUIRED (403) keeps the session and shows that the feature is not op
+ Messages are plain English, like every EDGE interface label (EXEC-UI-1019B, user: "Ok 1 aja"), without internal names
+ (AGENTS.md "Gates and evidence" (d): each names what is wrong and how to go on).
+ """
++import math
++
+ from fastapi.responses import JSONResponse
+ 
+ MESSAGES = {
+@@ -70,15 +72,19 @@ STATUS_CODES = {400: 'INVALID_INPUT', 401: 'UNAUTHENTICATED', 403: 'FORBIDDEN',
+ # The capabilities a Phase 0 route may require, with the name the person sees (CONTRACT.md section 3 details)
+ CAPABILITY_NAMES = {'admin.manual': 'Manual agent (troubleshooting)'}
+ # C1 Phase 3a F3: the names the person sees come from the catalog (edge_bff.capabilities.display_name), loaded by
+-# Auth.refresh_names at start and again at most every NAMES_SECONDS when a route refuses; never the internal key
++# Auth.refresh_names at start and again at most every NAMES_SECONDS when a route refuses; never the internal key.
++# Re-check R2-15: the plans' names too (edge_bff.plans.display_name), for the ended plan of PLAN_EXPIRED
+ _names = {}
++_plan_names = {}
+ UNNAMED = 'This part of EDGE'
+ 
+ 
+-def set_display_names(names):
+-    """Replaces the catalog's names (capability key -> display name)."""
+-    global _names
++def set_display_names(names, plans=None):
++    """Replaces the catalog's names (capability key -> display name) and, when given, the plans' (plan key -> name)."""
++    global _names, _plan_names
+     _names = dict(names)
++    if plans is not None:
++        _plan_names = dict(plans)
+ 
+ 
+ def display_name(capability):
+@@ -106,9 +112,73 @@ def message_of(code, status):
+     return MESSAGES.get(code) or MESSAGES['SERVICE_UNAVAILABLE' if status >= 500 else 'REQUEST_REFUSED']
+ 
+ 
++def wait_words(seconds):
++    """A wait in words ('30 seconds', '15 minutes', '24 hours'), rounded up; '' when unknown."""
++    if not isinstance(seconds, (int, float)) or isinstance(seconds, bool) or seconds < 0:
++        return ''
++    count, unit = math.ceil(seconds), 'second'
++    if count >= 60:
++        count, unit = math.ceil(count / 60), 'minute'
++        if count >= 60:
++            count, unit = math.ceil(count / 60), 'hour'
++    return f'{count} {unit}' + ('' if count == 1 else 's')
++
++
++def named_in(details):
++    """The person's name of the capability a refusal names (details.display_name, else the catalog's), or '' when
++    only the plain phrase is known."""
++    name = details.get('display_name')
++    if not isinstance(name, str) or not name.strip():
++        capability = details.get('capability')
++        name = display_name(capability) if isinstance(capability, str) and capability else ''
++    return '' if name == UNNAMED else name.strip()
++
++
++def is_plan_limit(limit):
++    """Whether a LIMIT_REACHED's details.limit is a plan limit: a capability of the catalog (else a throttle that no
++    plan decides, such as the email-code and authenticator-code tries)."""
++    return isinstance(limit, str) and limit in _names
++
++
++def words(code, status, details=None):
++    """The sentence a refusal carries, from its code and its details (re-check R2-15): what the details name reaches
++    the person, since every client shows the server's sentence first (shared/edge-session.ts accessText, the shell's
++    authText). AGENTS.md "Gates and evidence" (d): it names what is wrong and how to go on.
++    - CAPABILITY_REQUIRED names the item (display_name); PLAN_EXPIRED also the ended plan (its name in the catalog);
++    - LIMIT_REACHED of a plan limit (is_plan_limit) names it, the account's own number (allowed) and the wait (or, with
++      no wait, to remove one); of anything else it names the wait and no plan, since no plan decides it;
++    - MFA_REQUIRED says to set the authenticator up when the account has none (details.mfa_enrolled false);
++    - every other code: its fixed sentence (message_of)."""
++    d = details if isinstance(details, dict) else {}
++    if code == 'CAPABILITY_REQUIRED':
++        name = named_in(d)
++        if name:
++            return f'{name} is not part of your EDGE plan. Upgrade the plan to use it; you are still signed in.'
++    elif code == 'PLAN_EXPIRED':
++        name = named_in(d)
++        plan = _plan_names.get(d['expired_plan'], '') if isinstance(d.get('expired_plan'), str) else ''
++        ended = f'Your {plan} plan on EDGE has ended' if plan else 'Your EDGE plan has ended'
++        if name:
++            return f'{ended}, and {name} came with it. Renew the plan to use it again; you are still signed in.'
++        return f'{ended}. Renew it to use this again; you are still signed in.'
++    elif code == 'LIMIT_REACHED':
++        limit, wait = d.get('limit'), wait_words(d.get('retry_after_s'))
++        if is_plan_limit(limit):
++            allowed = d.get('allowed')
++            count = f' ({allowed})' if isinstance(allowed, int) and not isinstance(allowed, bool) else ''
++            then = (f'Try again in {wait}, or upgrade the plan.' if wait
++                    else 'Remove one you no longer need, or upgrade the plan.')
++            return f"You have reached your plan's limit for {_names[limit]}{count}. {then}"
++        return f'Too many attempts. Wait {wait or "a while"}, then try again.'
++    elif code == 'MFA_REQUIRED' and d.get('mfa_enrolled') is False:
++        return ('This needs two-step sign-in, which is not set up for this account yet. Set up an authenticator app '
++                'when EDGE asks for it, then try again.')
++    return message_of(code, status)
++
++
+ def refusal(status, code, details=None, headers=None):
+     return JSONResponse(status_code=status, headers=headers, content={'error': {
+-        'code': code, 'message': message_of(code, status), 'details': details or {}}})
++        'code': code, 'message': words(code, status, details), 'details': details or {}}})
+ 
+ 
+ def capability_required(capability):
+diff --git a/apps/edge-bff/app/principal.py b/apps/edge-bff/app/principal.py
+index e842a6da..ed96c955 100644
+--- a/apps/edge-bff/app/principal.py
++++ b/apps/edge-bff/app/principal.py
+@@ -308,7 +308,9 @@ class Auth:
+         self._names_at = now
+         with self.store.connect() as c:
+             rows = c.execute('SELECT capability_key, display_name FROM edge_bff.capabilities').fetchall()
+-        set_display_names({r['capability_key']: r['display_name'] for r in rows})
++            plans = c.execute('SELECT plan_key, display_name FROM edge_bff.plans').fetchall()
++        set_display_names({r['capability_key']: r['display_name'] for r in rows},
++                          {r['plan_key']: r['display_name'] for r in plans})
+ 
+     def seed_plan(self):
+         """Phase 2 (CONTRACT.md 8a "User #1"): the seed user's subscription to the plan that holds every capability
+diff --git a/apps/edge-bff/tests/test_allow.py b/apps/edge-bff/tests/test_allow.py
+index 75b94459..5adc9b19 100644
+--- a/apps/edge-bff/tests/test_allow.py
++++ b/apps/edge-bff/tests/test_allow.py
+@@ -124,6 +124,19 @@ def test_a_worker_capability_refusal_gets_the_display_name(monkeypatch):
+     assert named(refused)['details']['display_name'] == errors.UNNAMED                    # never the internal key
+ 
+ 
++def test_a_relayed_message_that_carries_the_internal_key_is_worded_by_edge_bff(monkeypatch):
++    """Re-check R1-34: a service's message that names the capability key (or its family) reaches the person in
++    edge-bff's words, with the item's name; a message without the key stays the worker's (it names the condition)."""
++    monkeypatch.setattr(errors, '_names', {'terminal.indicator': 'Terminal indicators'})
++    for message in ('I07 is not in the plan (terminal.indicator:I07).', 'needs terminal.indicator', '', None):
++        refused = {'code': 'CAPABILITY_REQUIRED', 'field': 'entry.conditions[0].indicator', 'message': message,
++                   'details': {'kind': 'indicator', 'id': 'I07', 'capability': 'terminal.indicator:I07'}}
++        out = named(refused)
++        assert out['message'] == ('Terminal indicators: I07 is not part of your EDGE plan. Upgrade the plan to use it; '
++                                  'you are still signed in.'), message
++        assert out['field'] == refused['field'] and out['details']['capability'] == 'terminal.indicator:I07'
++
++
+ def test_the_principal_dataclass_has_what_allow_reads():
+     p = Principal(user_id=None, owner_key='x', username=None, role='user', plan_key=None, status='unknown',
+                   expires_at=None, mfa_ok=False, capabilities=frozenset(), version='none')
+diff --git a/apps/edge-bff/tests/test_backtest.py b/apps/edge-bff/tests/test_backtest.py
+index 3c38e706..c9fc6582 100644
+--- a/apps/edge-bff/tests/test_backtest.py
++++ b/apps/edge-bff/tests/test_backtest.py
+@@ -573,7 +573,9 @@ def test_queue_limit_one_running_and_three_queued(app, worker):
+     # EXEC-MU-ACCOUNTS Phase 3a (C1 F2, CONTRACT.md 3): the queue cap is the plan's backtest.queued_jobs, so its refusal
+     # is LIMIT_REACHED with the limit, the account's own number and when to try again (Retry-After)
+     assert full.status_code == 429 and full.headers['retry-after'] == '30' and full.json() == {'error': {
+-        'code': 'LIMIT_REACHED', 'message': MESSAGES['LIMIT_REACHED'],
++        # re-check R2-15: the words name the limit, the account's number and the wait (errors.words)
++        'code': 'LIMIT_REACHED', 'message': ("You have reached your plan's limit for Queued backtests (3). "
++                                             'Try again in 30 seconds, or upgrade the plan.'),
+         'details': {'limit': 'backtest.queued_jobs', 'allowed': 3, 'retry_after_s': 30}}}
+     assert submit(c, single(), 'k0').json()['request_id'] == ids[0]   # a known submission still answers
+     store = c.app.state.backtests.store
+diff --git a/apps/screener-worker/src/run.ts b/apps/screener-worker/src/run.ts
+index 4f57f457..6b36df04 100644
+--- a/apps/screener-worker/src/run.ts
++++ b/apps/screener-worker/src/run.ts
+@@ -187,7 +187,7 @@ export function checkAllow(definition: unknown, allow: Allow, field = 'definitio
+     const a = allow[it.kind];
+     if (a === '*' || a.has(it.id)) continue;
+     const capability = `${CAPABILITY_FAMILY[it.kind]}:${it.id}`;
+-    throw new CapabilityError(`${it.field}: the ${KIND_WORDS[it.kind]} ${itemName(it.kind, it.id)} is not included in your plan (${capability}). To run the screen, remove it (a condition, a switched-off condition, a filter or an extra column), or upgrade the plan.`,
++    throw new CapabilityError(`${it.field}: the ${KIND_WORDS[it.kind]} ${itemName(it.kind, it.id)} is not included in your plan. To run the screen, remove it (a condition, a switched-off condition, a filter or an extra column), or upgrade the plan.`,
+       it.field, { kind: it.kind, id: it.id, capability });
+   }
+ }
+-- 
+2.43.0
+
+
+From 296129a5dc45ccfadc9c657500d4c9a113dffacc Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 08:29:25 +0000
+Subject: [PATCH 3/4] EXEC-MU-ACCOUNTS fix round (plans): the Screener catalog
+ lists only the presets the plan holds, by the rule of /api/v1/catalog
+
+Re-check R1-32: catalog.holds_entry is the one rule (any family of the kind), read by the generic catalog route and the
+Screener catalog; the restricted document is kept per preset grant as well. The rights test uses released preset ids
+(an id the release file does not list is a lab item, which a paid plan does not hold).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/app/catalog.py         | 30 +++++++++++++++++++++++++---
+ apps/edge-bff/app/screener.py        | 18 ++++++++++++-----
+ apps/edge-bff/tests/test_screener.py |  6 ++++--
+ 3 files changed, 44 insertions(+), 10 deletions(-)
+
+diff --git a/apps/edge-bff/app/catalog.py b/apps/edge-bff/app/catalog.py
+index 698cd375..f02b91fc 100644
+--- a/apps/edge-bff/app/catalog.py
++++ b/apps/edge-bff/app/catalog.py
+@@ -6,16 +6,40 @@ kind's families (KIND_OF_FAMILY), so `*` holds every entry at any stage and a pl
+ terminal.indicator holds the released indicators only. An unknown kind answers 404 NOT_FOUND, with the known kinds in
+ details.known_kinds. Definitions stay in the page bundles until Phase 3 moves them behind this route.
+ """
++import json
++
+ from fastapi import Depends
+ 
+ from . import releases
+ from .errors import Refusal
+-from .principal import Principal
++from .principal import EVERYTHING, Principal
++
++
++def holds_entry(p, kind, item_id):
++    """Whether the principal holds an item of a kind in any capability family of that kind: the one rule of every answer
++    that lists items (this route, and the tab catalogs that list them: the Screener's presets, re-check R1-32)."""
++    return any(p.can(f'{family}:{item_id}') for family in releases.FAMILIES_OF_KIND[kind])
++
++
++def holds_every(p, kind):
++    """Whether the principal holds every item of a kind whatever its id or stage ('*', or a family value {"all": true}),
++    so nothing of that kind is left out of an answer."""
++    if EVERYTHING in p.capabilities or p.grants.get(EVERYTHING) is True:
++        return True
++    return any(p.kinds.get(f) == 'items' and p.grants[f].get('all') is True for f in releases.FAMILIES_OF_KIND[kind])
++
++
++def grant_key(p, kind):
++    """A cache key part of what decides a principal's items of a kind: None when it holds every one, else its grants
++    of the kind's families (two principals with the same grants hold the same items)."""
++    if holds_every(p, kind):
++        return None
++    return json.dumps({f: p.grants.get(f) for f in releases.FAMILIES_OF_KIND[kind]}, sort_keys=True,
++                      separators=(',', ':'))
+ 
+ 
+ def held(p, kind):
+-    families = releases.FAMILIES_OF_KIND[kind]
+-    return [e for e in releases.entries(kind) if any(p.can(f'{family}:{e["id"]}') for family in families)]
++    return [e for e in releases.entries(kind) if holds_entry(p, kind, e['id'])]
+ 
+ 
+ def routes(app, auth):
+diff --git a/apps/edge-bff/app/screener.py b/apps/edge-bff/app/screener.py
+index aca534cf..90c297f5 100644
+--- a/apps/edge-bff/app/screener.py
++++ b/apps/edge-bff/app/screener.py
+@@ -34,6 +34,7 @@ from psycopg.types.json import Jsonb
+ from . import wake
+ from .principal import Principal
+ from .allow import NOTHING, context_of, digest, named
++from .catalog import grant_key, holds_entry
+ from .rights import POINT_IN_TIME, refuse_context, rights_of
+ from .watchlist import LISTS, PER_LIST, WatchlistStore
+ from .backtest import (CONTROL_TIMEOUT, PREVIEW_PAGES, Backtests, BacktestError, CallerGone, PreviewReplaced, accepts_gzip,
+@@ -83,6 +84,7 @@ HEALTH_TIMEOUT = 5
+ # each"; report 11b: SCREENER_MAX_COUNTS is at least SCREEN_LIMIT, so every saved screen is counted in one counts call,
+ # initially 50). SCREEN_LIMIT holds for each kind: at most 50 saved screens and 50 My metrics per owner.
+ SCREEN_LIMIT = 50
++PRESET_KIND = 'screener_preset'                      # the release kind of the presets (releases.KINDS; re-check R1-32)
+ WATCHLIST_LIMIT = PER_LIST                           # EXEC-WATCHLIST 2A: the star fills the first list (50, app/watchlist.py)
+ # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): reads need screener.view, runs and saves screener.run; the saved items
+ # and the star are capped by the plan's limits, at most the constants above (HARD; Principal.capped)
+@@ -836,21 +838,27 @@ class Screeners:
+         return Doc(key=key, raw=raw, gz=gzip.compress(raw, 6, mtime=0), etag='"' + hashlib.sha256(raw).hexdigest() + '"',
+                    price_data=price_data_of(data), published_at=published_of(data))
+ 
+-    def catalog_for(self, doc, rights, allow=None):
++    def catalog_for(self, doc, rights, allow=None, p=None):
+         """EXEC-BACKTEST-REVAMP P5 (K8 b): the catalog as a session sees it: without POINT_IN_TIME, the entries marked
+         access 'admin' are left out, with their own bytes and ETag (kept per document, so a session without the right
+         never gets the admin catalog's ETag or a 304 for it). EXEC-MU-ACCOUNTS Phase 3b (C2 F1): with an allow that does
+         not hold every item, a preset reading an item outside it is left out (its counts were computed with every item);
+-        a preset without the worker's `items` (an older worker) keeps no counts. Kept per (document, right, allow)."""
++        a preset without the worker's `items` (an older worker) keeps no counts. Re-check R1-32: a preset the principal
++        `p` does not hold itself (its screener.preset grant, catalog.holds_entry: the rule of /api/v1/catalog) is left out
++        too. Kept per (document, right, allow, preset grant)."""
+         everything = allow is None or all(v == '*' for v in allow.values())
+-        if POINT_IN_TIME in rights and everything:
++        presets = None if p is None else grant_key(p, PRESET_KIND)
++        if POINT_IN_TIME in rights and everything and presets is None:
+             return doc
+-        key = (doc.etag, POINT_IN_TIME in rights, None if everything else dumps(allow))
++        key = (doc.etag, POINT_IN_TIME in rights, None if everything else dumps(allow), presets)
+         hit = self.restricted.get(key)
+         if hit is None:
+             data = loads(doc.raw)
+             if not everything and isinstance(data, dict) and isinstance(data.get('presets'), list):
+                 data = {**data, 'presets': presets_held(data['presets'], allow)}
++            if presets is not None and isinstance(data, dict) and isinstance(data.get('presets'), list):
++                data = {**data, 'presets': [x for x in data['presets'] if isinstance(x, dict) and isinstance(x.get('id'), str)
++                                            and holds_entry(p, PRESET_KIND, x['id'])]}
+             if POINT_IN_TIME not in rights and isinstance(data, dict) and isinstance(data.get('metrics'), list):
+                 admin = {m.get('id') for m in data['metrics'] if isinstance(m, dict) and m.get('access') == 'admin'}
+                 data = {**data, 'metrics': [m for m in data['metrics'] if not (isinstance(m, dict) and m.get('access') == 'admin')]}
+@@ -1081,7 +1089,7 @@ class Screeners:
+             refresh, its /health) is the one it was fetched at; ETag and If-None-Match -> 304."""
+             await self.guard()
+             doc = self.catalog_for(await self.doc('catalog', '/v1/catalog', p.owner_key), rights(request),
+-                                   context(request)['allow'])
++                                   context(request)['allow'], p)
+             return self.doc_answer(request, self.limits_for(doc, caps_of(p)))
+ 
+         @app.get('/api/v1/screener/universe')
+diff --git a/apps/edge-bff/tests/test_screener.py b/apps/edge-bff/tests/test_screener.py
+index 48c86772..3e149b2b 100644
+--- a/apps/edge-bff/tests/test_screener.py
++++ b/apps/edge-bff/tests/test_screener.py
+@@ -1389,7 +1389,9 @@ def test_screener_rights_from_the_session_and_the_catalog_per_session(configured
+     refused before the worker; the catalog's admin entries reach an admin only, with an ETag of their own."""
+     worker.metrics = [{'id': 'FL11', 'group': 'Flow', 'kind': 'flow'}, {'id': 'FL18', 'group': 'Flow', 'kind': 'flow', 'access': 'admin'}]
+     flow = lambda metric: {'conditions': [{'id': 'a', 'enabled': True, 'test': {'kind': 'value', 'metric': {'kind': 'flow', 'metric': metric, 'params': {}}, 'op': 'gt', 'value': 0}}]}
+-    worker.presets = [{'id': 'plain', 'definition': flow('FL11')}, {'id': 'admin', 'definition': {'conditions': [{'id': 'b', 'test': {'kind': 'window', 'test': flow('FL18')['conditions'][0]['test']}}]}}]
++    # two released presets of the release file (re-check R1-32: a preset is listed only when the plan holds it, and a
++    # plan holds released ones; an id the file does not list is a lab item)
++    worker.presets = [{'id': 'brk52', 'definition': flow('FL11')}, {'id': 'golden', 'definition': {'conditions': [{'id': 'b', 'test': {'kind': 'window', 'test': flow('FL18')['conditions'][0]['test']}}]}}]
+     seen = {}
+     from test_backtest import rights_session      # Phase 3a: a session without the right keeps the Screener open
+     for admin, rights in [(False, []), (True, ['flow_point_in_time'])]:
+@@ -1402,7 +1404,7 @@ def test_screener_rights_from_the_session_and_the_catalog_per_session(configured
+             ids = [m['id'] for m in cat.json().get('metrics', [])]
+             assert ('FL18' in ids) == bool(rights) and 'FL11' in ids
+             # Stage C F6: a preset reading an admin entry (at any depth) only with the right
+-            assert [p['id'] for p in cat.json()['presets']] == (['plain', 'admin'] if rights else ['plain'])
++            assert [p['id'] for p in cat.json()['presets']] == (['brk52', 'golden'] if rights else ['brk52'])
+             seen[bool(rights)] = cat.headers['etag']
+             before = len(worker.calls)
+             r = c.post('/api/v1/screener/run', headers=c.headers_for, json={**run_body(seq=7), 'context': {'rights': ['flow_point_in_time']}})
+-- 
+2.43.0
+
+
+From 8884b38b089e66df85c1b65c6a4870aee54a6f19 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 08:32:25 +0000
+Subject: [PATCH 4/4] EXEC-MU-ACCOUNTS fix round (plans): an account preference
+ of one tab is served and stored only while the plan holds that tab
+
+Re-check R1-18 and R1-30 (CONTRACT.md 8b D5: reads need <tab>.view): each sync entry of the storage registry names the
+view capability of its tab (cap; none for ml.symbol, which every tab reads); shared/build-shell.mjs writes them to
+catalog/storage_sync.json with the shell copy; GET /api/v1/preferences leaves such a key out and PUT refuses it (403
+CAPABILITY_REQUIRED or PLAN_EXPIRED), rows kept; the shared module stops writing a key so refused.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/app/preferences.py             | 27 +++++++++-
+ apps/edge-bff/catalog/storage_sync.json      | 25 +++++++++
+ apps/edge-bff/shared/build-shell.mjs         | 28 +++++++---
+ apps/edge-bff/shared/edge-session.ts         | 54 +++++++++++---------
+ apps/edge-bff/static/edge-session.js         | 41 +++++++--------
+ apps/edge-bff/tests/test_fix_plans.py        | 36 +++++++++++++
+ apps/edge-bff/tests/test_storage_registry.py | 20 +++++++-
+ 7 files changed, 178 insertions(+), 53 deletions(-)
+ create mode 100644 apps/edge-bff/catalog/storage_sync.json
+ create mode 100644 apps/edge-bff/tests/test_fix_plans.py
+
+diff --git a/apps/edge-bff/app/preferences.py b/apps/edge-bff/app/preferences.py
+index 15799183..05e7641e 100644
+--- a/apps/edge-bff/app/preferences.py
++++ b/apps/edge-bff/app/preferences.py
+@@ -11,11 +11,17 @@ saved items on the server, edge_bff.user_preferences (migration 20261116_003), r
+   for all values together (sizes as PostgreSQL stores the JSON text).
+ 
+ The key is a storage key of the page registry (shared/edge-session.ts STORAGE, class user and sync); the server checks
+-its shape only, so a new registry key needs no server change. Every statement names the owner.
++its shape, and (re-check R1-18, CONTRACT.md 8b D5: "Reads need <tab>.view") the capability the registry entry names
++(`cap`, the view of the tab whose data the key holds; catalog/storage_sync.json, written by shared/build-shell.mjs from
++the registry): GET leaves out a key whose capability the principal does not hold, PUT refuses it (403
++CAPABILITY_REQUIRED, or PLAN_EXPIRED when the ended plan held it). The rows are kept (D5: data kept until the plan holds
++the tab again). A key the registry does not name, or names for every tab, needs only the principal. Every statement
++names the owner.
+ """
+ import asyncio
+ import json
+ import re
++from pathlib import Path
+ 
+ from fastapi import Depends, Request
+ from fastapi.encoders import jsonable_encoder
+@@ -30,6 +36,16 @@ KEYS = 64
+ VALUE_BYTES = 65536                                        # the migration's value CHECK
+ TOTAL_BYTES = 1048576
+ LIMITS = {'keys': KEYS, 'value_bytes': VALUE_BYTES, 'total_bytes': TOTAL_BYTES}
++# the registry's sync keys and the capability each needs (None: every tab's), as shared/build-shell.mjs wrote them; the
++# image copies catalog/ beside app/ (as for releases.json)
++SYNC_FILE = Path(__file__).resolve().parent.parent / 'catalog' / 'storage_sync.json'
++CAPABILITY_OF = json.loads(SYNC_FILE.read_text(encoding='utf-8'))['keys']
++
++
++def readable(p, key):
++    """Whether the principal may read and write a preference key: its registry capability held (or none named)."""
++    capability = CAPABILITY_OF.get(key)
++    return capability is None or p.can(capability)
+ 
+ 
+ def invalid(field, why):
+@@ -119,12 +135,19 @@ class Preferences:
+         @app.get('/api/v1/preferences')
+         async def preferences(p: Principal = Depends(auth.principal)):
+             rows = await asyncio.to_thread(self.store.all, p.owner_key)
+-            return JSONResponse(jsonable_encoder({'preferences': {r['pref_key']: item_of(r) for r in rows},
++            return JSONResponse(jsonable_encoder({'preferences': {r['pref_key']: item_of(r) for r in rows
++                                                                  if readable(p, r['pref_key'])},
+                                                   'limits': LIMITS}))
+ 
+         @app.put('/api/v1/preferences/{key}')
+         async def put_preference(key: str, request: Request, p: Principal = Depends(auth.writer)):
+             value, version = checked_body(await request.body())
++            if not readable(p, checked_key(key)):
++                try:
++                    await asyncio.to_thread(auth.refresh_names, False)
++                except Exception:                         # noqa: BLE001 - the plain phrase stays
++                    pass
++                raise p.refusal(CAPABILITY_OF[key])
+             row, created = await asyncio.to_thread(self.store.put, p.owner_key, checked_key(key), value, version)
+             return JSONResponse(jsonable_encoder({'key': row['pref_key'], **item_of(row)}),
+                                 status_code=201 if created else 200)
+diff --git a/apps/edge-bff/catalog/storage_sync.json b/apps/edge-bff/catalog/storage_sync.json
+new file mode 100644
+index 00000000..1d1a341f
+--- /dev/null
++++ b/apps/edge-bff/catalog/storage_sync.json
+@@ -0,0 +1,25 @@
++{
++ "note": "generated from apps/edge-bff/shared/edge-session.ts STORAGE (sync keys and their cap) by shared/build-shell.mjs; do not edit",
++ "keys": {
++  "edge-model-choice": "monitor.view",
++  "ml.symbol": null,
++  "ml.tf": "terminal.view",
++  "ml.fi.metric": "terminal.view",
++  "ml.chart.style": "terminal.view",
++  "ml.chart.mode": "terminal.view",
++  "ml.vol.on": "terminal.view",
++  "ml.vol.removed": "terminal.view",
++  "ml.ind.v1": "terminal.view",
++  "ml.ind.filters": "terminal.view",
++  "ml.ind.favs": "terminal.view",
++  "ml.legend.hidden": "terminal.view",
++  "ml.events.v1": "terminal.view",
++  "ml.flow.filters": "terminal.view",
++  "ml.flow.cum": "terminal.view",
++  "ml.assets.v1": "terminal.view",
++  "ml.my": "backtest.view",
++  "scr.last": "screener.view",
++  "scr.extraCols": "screener.view",
++  "edge.watchlist.view": "watchlist.view"
++ }
++}
+diff --git a/apps/edge-bff/shared/build-shell.mjs b/apps/edge-bff/shared/build-shell.mjs
+index a875b29e..17c20fc7 100644
+--- a/apps/edge-bff/shared/build-shell.mjs
++++ b/apps/edge-bff/shared/build-shell.mjs
+@@ -1,15 +1,19 @@
+ /* Builds static/edge-session.js (the shell's copy of shared/edge-session.ts: one classic script that sets
+-   window.EdgeSession) with the esbuild of the Terminal page (terminal/node_modules; `npm ci` there first).
+-   Usage (from apps/edge-bff):  node shared/build-shell.mjs           writes static/edge-session.js
+-                                node shared/build-shell.mjs --check   exit 1 when the file is not this build
+-   The first line names the sha256 of the source; tests/test_storage_registry.py fails when it is not the source's. */
++   window.EdgeSession) with the esbuild of the Terminal page (terminal/node_modules; `npm ci` there first), and
++   catalog/storage_sync.json (re-check R1-18): the registry's `sync` keys with the capability each one needs (`cap`, or
++   null for a key every tab shares), which app/preferences.py reads (the image copies catalog/ beside app/).
++   Usage (from apps/edge-bff):  node shared/build-shell.mjs           writes both files
++                                node shared/build-shell.mjs --check   exit 1 when a file is not this build
++   The first line names the sha256 of the source; tests/test_storage_registry.py fails when it is not the source's, and
++   when storage_sync.json differs from the registry. */
+ import { createHash } from 'node:crypto';
+ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+ import { createRequire } from 'node:module';
+ import { fileURLToPath } from 'node:url';
++import vm from 'node:vm';
+ 
+ const here = p => fileURLToPath(new URL(p, import.meta.url));
+-const SRC = here('./edge-session.ts'), OUT = here('../static/edge-session.js');
++const SRC = here('./edge-session.ts'), OUT = here('../static/edge-session.js'), SYNC = here('../catalog/storage_sync.json');
+ const { buildSync } = createRequire(here('../terminal/package.json'))('esbuild');
+ 
+ const source = readFileSync(SRC);
+@@ -18,11 +22,21 @@ const built = buildSync({ entryPoints:[SRC], bundle:true, format:'iife', globalN
+   write:false, charset:'utf8', legalComments:'none' }).outputFiles[0].text;
+ const text = `/* generated from apps/edge-bff/shared/edge-session.ts sha256=${sha} by shared/build-shell.mjs; do not edit */\n${built}`;
+ 
++/* the registry as the built module holds it (run in an empty context: no storage, no channel, no fetch) */
++const context = vm.createContext({});
++vm.runInContext(`${built}\nthis.__registry = EdgeSession.STORAGE;`, context);
++const keys = {};
++for (const e of context.__registry) if (e.sync) keys[e.key] = typeof e.cap === 'string' ? e.cap : null;
++const sync = `${JSON.stringify({ note:'generated from apps/edge-bff/shared/edge-session.ts STORAGE (sync keys and their cap) by shared/build-shell.mjs; do not edit', keys }, null, 1)}\n`;
++
+ if (process.argv.includes('--check')) {
+   const now = existsSync(OUT) ? readFileSync(OUT, 'utf8') : '';
++  const held = existsSync(SYNC) ? readFileSync(SYNC, 'utf8') : '';
+   if (now !== text) { console.error('static/edge-session.js is not the build of shared/edge-session.ts: run node shared/build-shell.mjs'); process.exit(1) }
+-  console.log('static/edge-session.js matches shared/edge-session.ts');
++  if (held !== sync) { console.error('catalog/storage_sync.json is not the registry of shared/edge-session.ts: run node shared/build-shell.mjs'); process.exit(1) }
++  console.log('static/edge-session.js and catalog/storage_sync.json match shared/edge-session.ts');
+ } else {
+   writeFileSync(OUT, text);
+-  console.log(`wrote static/edge-session.js (${text.length} bytes, source sha256 ${sha.slice(0, 12)})`);
++  writeFileSync(SYNC, sync);
++  console.log(`wrote static/edge-session.js (${text.length} bytes, source sha256 ${sha.slice(0, 12)}) and catalog/storage_sync.json (${Object.keys(keys).length} sync keys)`);
+ }
+diff --git a/apps/edge-bff/shared/edge-session.ts b/apps/edge-bff/shared/edge-session.ts
+index 24251cd2..a6807306 100644
+--- a/apps/edge-bff/shared/edge-session.ts
++++ b/apps/edge-bff/shared/edge-session.ts
+@@ -33,11 +33,15 @@ export interface StorageEntry {
+      transient: offline copies, pointers, caches, legacy keys) */
+   sync?: true;
+   cache?: true;
++  /* a `sync` key holding one tab's data: the capability (that tab's view) the account must hold for the server to
++     serve or store it (re-check R1-18, CONTRACT.md 8b D5: reads need <tab>.view). None for a key every tab shares.
++     shared/build-shell.mjs writes these to catalog/storage_sync.json, which app/preferences.py reads. */
++  cap?: string;
+   where: string;                     // who writes it
+   what: string;                      // what it holds, in plain words
+ }
+ 
+-/* One entry per line (the test reads this table line by line): { key, match, area, kind, sync|cache, where, what }. */
++/* One entry per line (the test reads this table line by line): { key, match, area, kind, sync|cache, cap?, where, what }. */
+ export const STORAGE: readonly StorageEntry[] = Object.freeze([
+   // the shell (static/index.html, static/edge-client.js)
+   { key:'edge-auth-monitor-theme', match:'exact', area:'local', kind:'browser', where:'shell, all pages', what:'light or dark theme' },
+@@ -51,7 +55,7 @@ export const STORAGE: readonly StorageEntry[] = Object.freeze([
+   { key:'edge-sources-open:', match:'prefix', area:'local', kind:'browser', where:'shell', what:'a Sources part opened (by its title)' },
+   { key:'edge-last-login', match:'exact', area:'local', kind:'browser', where:'shared/edge-session.ts', what:'the identity signed in last (owner:<owner key>, else the login), to see a change of user; removed on sign-out' },
+   { key:'edge-side-attach:', match:'prefix', area:'session', kind:'user', cache:true, where:'shell', what:'a passage quoted into a side chat (by conversation id)' },
+-  { key:'edge-model-choice', match:'exact', area:'local', kind:'user', sync:true, where:'shell', what:'the chosen AI model and level' },
++  { key:'edge-model-choice', match:'exact', area:'local', kind:'user', sync:true, cap:'monitor.view', where:'shell', what:'the chosen AI model and level' },
+   { key:'edge-research-context', match:'exact', area:'session', kind:'user', cache:true, where:'shell (legacy)', what:'an older research context; removed on load' },
+   { key:'edge-research-context', match:'exact', area:'local', kind:'user', cache:true, where:'shell (legacy)', what:'an older research context; removed on load' },
+   { key:'edge-auth-monitor-conversations', match:'exact', area:'local', kind:'user', cache:true, where:'shell (legacy)', what:'an older conversation list; removed on load' },
+@@ -62,28 +66,28 @@ export const STORAGE: readonly StorageEntry[] = Object.freeze([
+   { key:'edge-active-run', match:'exact', area:'session', kind:'user', cache:true, where:'shell (legacy)', what:'an older running question; removed on load' },
+   // the Terminal (terminal/src): a chart's content and the account's saved things are the user's; panel sizes are the browser's
+   { key:'ml.symbol', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal, Backtest, Screener, Radar, Overview, Watchlist', what:'the ticker the Terminal opens on' },
+-  { key:'ml.tf', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'timeframe' },
++  { key:'ml.tf', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'timeframe' },
+   { key:'ml.tfs', match:'exact', area:'local', kind:'browser', where:'Terminal', what:'timeframes the data offered' },
+-  { key:'ml.fi.metric', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'bond yield or price' },
+-  { key:'ml.chart.style', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'candle or line' },
+-  { key:'ml.chart.mode', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'price or return' },
+-  { key:'ml.vol.on', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'volume shown' },
+-  { key:'ml.vol.removed', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'volume removed' },
+-  { key:'ml.ind.v1', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'the indicators on the chart' },
+-  { key:'ml.ind.filters', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'indicator filters' },
+-  { key:'ml.ind.favs', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal', what:'favourite indicators' },
++  { key:'ml.fi.metric', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'bond yield or price' },
++  { key:'ml.chart.style', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'candle or line' },
++  { key:'ml.chart.mode', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'price or return' },
++  { key:'ml.vol.on', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'volume shown' },
++  { key:'ml.vol.removed', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'volume removed' },
++  { key:'ml.ind.v1', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'the indicators on the chart' },
++  { key:'ml.ind.filters', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'indicator filters' },
++  { key:'ml.ind.favs', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal', what:'favourite indicators' },
+   { key:'ml.ind.box', match:'exact', area:'local', kind:'browser', where:'Terminal', what:'Indicators window size' },
+   { key:'ml.ind.navw', match:'exact', area:'local', kind:'browser', where:'Terminal', what:'Indicators window group list width' },
+-  { key:'ml.legend.hidden', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'indicator names hidden' },
+-  { key:'ml.events.v1', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'event markers chosen' },
+-  { key:'ml.flow.filters', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'Flow Timeline filters' },
+-  { key:'ml.flow.cum', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal (layout)', what:'Flow Timeline cumulative line' },
++  { key:'ml.legend.hidden', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'indicator names hidden' },
++  { key:'ml.events.v1', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'event markers chosen' },
++  { key:'ml.flow.filters', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'Flow Timeline filters' },
++  { key:'ml.flow.cum', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal (layout)', what:'Flow Timeline cumulative line' },
+   { key:'ml.flow.collapsed', match:'exact', area:'local', kind:'user', cache:true, where:'Terminal (layout)', what:'Flow Timeline folded' },
+   { key:'ml.flow.h', match:'exact', area:'local', kind:'user', cache:true, where:'Terminal (layout)', what:'Flow Timeline height' },
+   { key:'ml.flow.ratio', match:'exact', area:'local', kind:'user', cache:true, where:'Terminal (layout)', what:'Flow Timeline height share' },
+   { key:'ml.layout.', match:'prefix', area:'local', kind:'user', cache:true, where:'Terminal', what:'the open saved layout, its autosave and base' },
+   { key:'ml.drawings.', match:'prefix', area:'local', kind:'user', cache:true, where:'Terminal', what:'drawings kept while the account cannot be reached (stamped with the login, M468)' },
+-  { key:'ml.assets.v1', match:'exact', area:'local', kind:'user', sync:true, where:'Terminal', what:'series added to the chart' },
++  { key:'ml.assets.v1', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal', what:'series added to the chart' },
+   { key:'ml.assets.defaults', match:'exact', area:'local', kind:'browser', where:'Terminal', what:'default look of an added series' },
+   { key:'ml.assets.flow.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'an added series pane folded or its height' },
+   { key:'ml.draw.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'drawing tool choices (cursor, line, shape, measure, magnet)' },
+@@ -95,19 +99,19 @@ export const STORAGE: readonly StorageEntry[] = Object.freeze([
+   { key:'ml.winst.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'floating broker window sort and view' },
+   { key:'terminal-files', match:'exact', area:'idb', kind:'user', cache:true, where:'Terminal, Backtest, Screener', what:'downloaded data files and the Screener\'s last result' },
+   // the Backtest (backtest/src)
+-  { key:'ml.my', match:'exact', area:'local', kind:'user', sync:true, where:'Backtest', what:'my conditions' },
++  { key:'ml.my', match:'exact', area:'local', kind:'user', sync:true, cap:'backtest.view', where:'Backtest', what:'my conditions' },
+   { key:'ml.bw', match:'exact', area:'local', kind:'browser', where:'Backtest', what:'panel width' },
+   { key:'ml.panel', match:'exact', area:'local', kind:'browser', where:'Backtest', what:'panel shown' },
+   // the Screener (screener/src)
+-  { key:'scr.last', match:'exact', area:'local', kind:'user', sync:true, where:'Screener', what:'the last screen definition' },
++  { key:'scr.last', match:'exact', area:'local', kind:'user', sync:true, cap:'screener.view', where:'Screener', what:'the last screen definition' },
+   { key:'scr.boot', match:'exact', area:'local', kind:'user', cache:true, where:'Screener', what:'the cached first paint pointer (with its login)' },
+-  { key:'scr.extraCols', match:'exact', area:'local', kind:'user', sync:true, where:'Screener', what:'extra columns chosen' },
++  { key:'scr.extraCols', match:'exact', area:'local', kind:'user', sync:true, cap:'screener.view', where:'Screener', what:'extra columns chosen' },
+   { key:'scr.panel', match:'exact', area:'local', kind:'browser', where:'Screener', what:'panel layout' },
+   { key:'scr.panes', match:'exact', area:'local', kind:'browser', where:'Screener', what:'pane sizes' },
+   { key:'scr.popsize', match:'exact', area:'local', kind:'browser', where:'Screener', what:'pop-up sizes' },
+   { key:'scr.colorder', match:'exact', area:'local', kind:'browser', where:'Screener', what:'column order' },
+   // the Watchlist (watchlist/src)
+-  { key:'edge.watchlist.view', match:'exact', area:'local', kind:'user', sync:true, where:'Watchlist', what:'the open list id and Table or Cards' },
++  { key:'edge.watchlist.view', match:'exact', area:'local', kind:'user', sync:true, cap:'watchlist.view', where:'Watchlist', what:'the open list id and Table or Cards' },
+   { key:'edge.watchlist.logos', match:'exact', area:'local', kind:'browser', where:'Watchlist', what:'issuer logo list (public, 12 hours)' },
+ ]);
+ 
+@@ -600,14 +604,17 @@ const jsonBytes = (v: string) => { try { return new TextEncoder().encode(JSON.st
+       a limit -> 422 PREFERENCE_LIMIT, details.limit keys | value_bytes | total_bytes.
+     load(): the server copy into this browser's storage; with `uploadLocal` (the local state is this identity's) a local
+     value with no server copy goes up once. note(key): a change, written a moment later (`delayMs`) with the version it
+-    was read with (null for a key the server does not hold); a 409 takes the server's value; a 422 stops that key for
+-    this page (the page keeps working from its storage). Changes made in the pages' frames reach the shell as `storage`
++    was read with (null for a key the server does not hold); a 409 takes the server's value; a 422 PREFERENCE_LIMIT, or
++    a 403 for a key of a tab the plan does not hold (the GET leaves those out; re-check R1-18), stops that key for this
++    page (the page keeps working from its storage). Changes made in the pages' frames reach the shell as `storage`
+     events. stop(): nothing more is written (sign-out, another account). */
+ export function preferences(client: { send: SessionClient['send'] }, opts: { delayMs?: number } = {}) {
+   const delay = opts.delayMs ?? 1000;
+   const state = new Map<string, PrefState>();
+   const timers = new Map<string, ReturnType<typeof setTimeout>>();
+-  const refused = new Set<string>();                    // keys over a limit (422 PREFERENCE_LIMIT): not sent again
++  // keys over a limit (422 PREFERENCE_LIMIT) or of a tab the plan does not hold (403 CAPABILITY_REQUIRED or
++  // PLAN_EXPIRED, re-check R1-18): not sent again by this page
++  const refused = new Set<string>();
+   let on = false, listening = false, valueBytes = DEFAULT_VALUE_BYTES;
+   const local = () => areaOf('local');
+   const onStorage = (e: StorageEvent) => {
+@@ -651,6 +658,7 @@ export function preferences(client: { send: SessionClient['send'] }, opts: { del
+       return;
+     }
+     if (res.status === 422 && error?.code === 'PREFERENCE_LIMIT') refused.add(key);
++    else if (res.status === 403 && isAccessRefusal(readError(res.status, body))) refused.add(key);
+   }
+   function note(key: string) {
+     if (!on || !SYNC_KEYS.includes(key) || refused.has(key)) return;
+diff --git a/apps/edge-bff/static/edge-session.js b/apps/edge-bff/static/edge-session.js
+index 30eca417..91bc83b7 100644
+--- a/apps/edge-bff/static/edge-session.js
++++ b/apps/edge-bff/static/edge-session.js
+@@ -1,4 +1,4 @@
+-/* generated from apps/edge-bff/shared/edge-session.ts sha256=f43dd0fa7758572f4bc17ae8c85b47849fd659214f59e6d7720b6cdd78199a54 by shared/build-shell.mjs; do not edit */
++/* generated from apps/edge-bff/shared/edge-session.ts sha256=5c17de310ac1d991fb7efc733cdcde99777d27391c940182b341044d2101af37 by shared/build-shell.mjs; do not edit */
+ var EdgeSession = (() => {
+   var __defProp = Object.defineProperty;
+   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+@@ -67,7 +67,7 @@ var EdgeSession = (() => {
+     { key: "edge-sources-open:", match: "prefix", area: "local", kind: "browser", where: "shell", what: "a Sources part opened (by its title)" },
+     { key: "edge-last-login", match: "exact", area: "local", kind: "browser", where: "shared/edge-session.ts", what: "the identity signed in last (owner:<owner key>, else the login), to see a change of user; removed on sign-out" },
+     { key: "edge-side-attach:", match: "prefix", area: "session", kind: "user", cache: true, where: "shell", what: "a passage quoted into a side chat (by conversation id)" },
+-    { key: "edge-model-choice", match: "exact", area: "local", kind: "user", sync: true, where: "shell", what: "the chosen AI model and level" },
++    { key: "edge-model-choice", match: "exact", area: "local", kind: "user", sync: true, cap: "monitor.view", where: "shell", what: "the chosen AI model and level" },
+     { key: "edge-research-context", match: "exact", area: "session", kind: "user", cache: true, where: "shell (legacy)", what: "an older research context; removed on load" },
+     { key: "edge-research-context", match: "exact", area: "local", kind: "user", cache: true, where: "shell (legacy)", what: "an older research context; removed on load" },
+     { key: "edge-auth-monitor-conversations", match: "exact", area: "local", kind: "user", cache: true, where: "shell (legacy)", what: "an older conversation list; removed on load" },
+@@ -78,28 +78,28 @@ var EdgeSession = (() => {
+     { key: "edge-active-run", match: "exact", area: "session", kind: "user", cache: true, where: "shell (legacy)", what: "an older running question; removed on load" },
+     // the Terminal (terminal/src): a chart's content and the account's saved things are the user's; panel sizes are the browser's
+     { key: "ml.symbol", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal, Backtest, Screener, Radar, Overview, Watchlist", what: "the ticker the Terminal opens on" },
+-    { key: "ml.tf", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "timeframe" },
++    { key: "ml.tf", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "timeframe" },
+     { key: "ml.tfs", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "timeframes the data offered" },
+-    { key: "ml.fi.metric", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "bond yield or price" },
+-    { key: "ml.chart.style", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "candle or line" },
+-    { key: "ml.chart.mode", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "price or return" },
+-    { key: "ml.vol.on", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "volume shown" },
+-    { key: "ml.vol.removed", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "volume removed" },
+-    { key: "ml.ind.v1", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "the indicators on the chart" },
+-    { key: "ml.ind.filters", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "indicator filters" },
+-    { key: "ml.ind.favs", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal", what: "favourite indicators" },
++    { key: "ml.fi.metric", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "bond yield or price" },
++    { key: "ml.chart.style", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "candle or line" },
++    { key: "ml.chart.mode", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "price or return" },
++    { key: "ml.vol.on", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "volume shown" },
++    { key: "ml.vol.removed", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "volume removed" },
++    { key: "ml.ind.v1", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "the indicators on the chart" },
++    { key: "ml.ind.filters", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "indicator filters" },
++    { key: "ml.ind.favs", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal", what: "favourite indicators" },
+     { key: "ml.ind.box", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "Indicators window size" },
+     { key: "ml.ind.navw", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "Indicators window group list width" },
+-    { key: "ml.legend.hidden", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "indicator names hidden" },
+-    { key: "ml.events.v1", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "event markers chosen" },
+-    { key: "ml.flow.filters", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "Flow Timeline filters" },
+-    { key: "ml.flow.cum", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal (layout)", what: "Flow Timeline cumulative line" },
++    { key: "ml.legend.hidden", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "indicator names hidden" },
++    { key: "ml.events.v1", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "event markers chosen" },
++    { key: "ml.flow.filters", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "Flow Timeline filters" },
++    { key: "ml.flow.cum", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal (layout)", what: "Flow Timeline cumulative line" },
+     { key: "ml.flow.collapsed", match: "exact", area: "local", kind: "user", cache: true, where: "Terminal (layout)", what: "Flow Timeline folded" },
+     { key: "ml.flow.h", match: "exact", area: "local", kind: "user", cache: true, where: "Terminal (layout)", what: "Flow Timeline height" },
+     { key: "ml.flow.ratio", match: "exact", area: "local", kind: "user", cache: true, where: "Terminal (layout)", what: "Flow Timeline height share" },
+     { key: "ml.layout.", match: "prefix", area: "local", kind: "user", cache: true, where: "Terminal", what: "the open saved layout, its autosave and base" },
+     { key: "ml.drawings.", match: "prefix", area: "local", kind: "user", cache: true, where: "Terminal", what: "drawings kept while the account cannot be reached (stamped with the login, M468)" },
+-    { key: "ml.assets.v1", match: "exact", area: "local", kind: "user", sync: true, where: "Terminal", what: "series added to the chart" },
++    { key: "ml.assets.v1", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal", what: "series added to the chart" },
+     { key: "ml.assets.defaults", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "default look of an added series" },
+     { key: "ml.assets.flow.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "an added series pane folded or its height" },
+     { key: "ml.draw.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "drawing tool choices (cursor, line, shape, measure, magnet)" },
+@@ -111,19 +111,19 @@ var EdgeSession = (() => {
+     { key: "ml.winst.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "floating broker window sort and view" },
+     { key: "terminal-files", match: "exact", area: "idb", kind: "user", cache: true, where: "Terminal, Backtest, Screener", what: "downloaded data files and the Screener's last result" },
+     // the Backtest (backtest/src)
+-    { key: "ml.my", match: "exact", area: "local", kind: "user", sync: true, where: "Backtest", what: "my conditions" },
++    { key: "ml.my", match: "exact", area: "local", kind: "user", sync: true, cap: "backtest.view", where: "Backtest", what: "my conditions" },
+     { key: "ml.bw", match: "exact", area: "local", kind: "browser", where: "Backtest", what: "panel width" },
+     { key: "ml.panel", match: "exact", area: "local", kind: "browser", where: "Backtest", what: "panel shown" },
+     // the Screener (screener/src)
+-    { key: "scr.last", match: "exact", area: "local", kind: "user", sync: true, where: "Screener", what: "the last screen definition" },
++    { key: "scr.last", match: "exact", area: "local", kind: "user", sync: true, cap: "screener.view", where: "Screener", what: "the last screen definition" },
+     { key: "scr.boot", match: "exact", area: "local", kind: "user", cache: true, where: "Screener", what: "the cached first paint pointer (with its login)" },
+-    { key: "scr.extraCols", match: "exact", area: "local", kind: "user", sync: true, where: "Screener", what: "extra columns chosen" },
++    { key: "scr.extraCols", match: "exact", area: "local", kind: "user", sync: true, cap: "screener.view", where: "Screener", what: "extra columns chosen" },
+     { key: "scr.panel", match: "exact", area: "local", kind: "browser", where: "Screener", what: "panel layout" },
+     { key: "scr.panes", match: "exact", area: "local", kind: "browser", where: "Screener", what: "pane sizes" },
+     { key: "scr.popsize", match: "exact", area: "local", kind: "browser", where: "Screener", what: "pop-up sizes" },
+     { key: "scr.colorder", match: "exact", area: "local", kind: "browser", where: "Screener", what: "column order" },
+     // the Watchlist (watchlist/src)
+-    { key: "edge.watchlist.view", match: "exact", area: "local", kind: "user", sync: true, where: "Watchlist", what: "the open list id and Table or Cards" },
++    { key: "edge.watchlist.view", match: "exact", area: "local", kind: "user", sync: true, cap: "watchlist.view", where: "Watchlist", what: "the open list id and Table or Cards" },
+     { key: "edge.watchlist.logos", match: "exact", area: "local", kind: "browser", where: "Watchlist", what: "issuer logo list (public, 12 hours)" }
+   ]);
+   function classify(key, area = "local") {
+@@ -716,6 +716,7 @@ ${identity}`;
+         return;
+       }
+       if (res.status === 422 && error?.code === "PREFERENCE_LIMIT") refused.add(key);
++      else if (res.status === 403 && isAccessRefusal(readError(res.status, body))) refused.add(key);
+     }
+     function note(key) {
+       if (!on || !SYNC_KEYS.includes(key) || refused.has(key)) return;
+diff --git a/apps/edge-bff/tests/test_fix_plans.py b/apps/edge-bff/tests/test_fix_plans.py
+new file mode 100644
+index 00000000..275a776a
+--- /dev/null
++++ b/apps/edge-bff/tests/test_fix_plans.py
+@@ -0,0 +1,36 @@
++"""EXEC-MU-ACCOUNTS fix round, track "plans" (the re-check of Phases 0-3b, findings R1-* and R2-* named per test): the
++tests the fix round adds beside the re-check's own failing tests, which are the acceptance of each finding."""
++from fastapi.testclient import TestClient
++
++from app import preferences
++from app.main import create_app
++from conftest import FakeOrc
++from test_principal import db, on, sign_in, workers  # noqa: F401 (fixtures)
++from test_phase3a_gates import override, paid_user
++
++
++def test_every_preference_capability_is_a_flag_of_the_catalog(store):
++    """R1-18: the capability a sync key needs (catalog/storage_sync.json, from the registry) is a flag the plan catalog
++    defines, so no key can name a capability nobody can hold."""
++    named = {cap for cap in preferences.CAPABILITY_OF.values() if cap}
++    rows = db(store, 'SELECT capability_key, kind FROM edge_bff.capabilities WHERE capability_key = ANY(%s)', list(named))
++    assert {r['capability_key']: r['kind'] for r in rows} == {cap: 'flag' for cap in named}
++
++
++def test_a_preference_of_a_tab_the_plan_holds_is_served_and_one_of_a_shared_key_always(on, store):
++    """R1-18: a paid plan without the Watchlist keeps its Terminal and shared preferences; only the Watchlist's key is
++    left out and refused, and its row is kept (D5: back when the plan holds the tab again)."""
++    with TestClient(create_app(on, store, FakeOrc())) as c:
++        paula = paid_user(store, 'paula')
++        h = sign_in(c, 'paula', 'paula-password')
++        for key in ('ml.symbol', 'ml.tf', 'edge.watchlist.view'):
++            assert c.put(f'/api/v1/preferences/{key}', headers=h, json={'value': 'x', 'version': None}).status_code == 201
++        override(store, paula['user_id'], 'watchlist.view', 'false')
++        held = set(c.get('/api/v1/preferences').json()['preferences'])
++        assert held == {'ml.symbol', 'ml.tf'}
++        refused = c.put('/api/v1/preferences/edge.watchlist.view', headers=h, json={'value': 'y', 'version': 1})
++        assert refused.status_code == 403 and refused.json()['error']['code'] == 'CAPABILITY_REQUIRED'
++        assert refused.json()['error']['details']['capability'] == 'watchlist.view'
++        assert db(store, 'SELECT value FROM edge_bff.user_preferences WHERE pref_key = %s', 'edge.watchlist.view')[0]['value'] == 'x'
++        db(store, 'DELETE FROM edge_bff.user_capability_overrides WHERE user_id = %s', paula['user_id'])
++        assert 'edge.watchlist.view' in c.get('/api/v1/preferences').json()['preferences']
+diff --git a/apps/edge-bff/tests/test_storage_registry.py b/apps/edge-bff/tests/test_storage_registry.py
+index a5c52e65..6c5d0c00 100644
+--- a/apps/edge-bff/tests/test_storage_registry.py
++++ b/apps/edge-bff/tests/test_storage_registry.py
+@@ -145,7 +145,9 @@ def test_user_keys_named_by_the_contract_are_user():
+         assert kinds.get((key, 'local')) == 'browser', key
+ 
+ 
+-FLAGS = re.compile(r"\{ key:'((?:[^'\\]|\\.)*)', match:'(exact|prefix)', area:'(local|session|idb)', kind:'(browser|user)', ((?:sync|cache):true, )?where:")
++FLAGS = re.compile(r"\{ key:'((?:[^'\\]|\\.)*)', match:'(exact|prefix)', area:'(local|session|idb)', kind:'(browser|user)', ((?:sync|cache):true, )?(?:cap:'[a-z][a-z0-9_.]*', )?where:")
++# re-check R1-18: a sync entry's capability (cap), the view of the tab whose data it holds
++CAP = re.compile(r"\{ key:'((?:[^'\\]|\\.)*)', match:'exact', area:'local', kind:'user', sync:true, (?:cap:'([a-z][a-z0-9_.]*)', )?where:")
+ # contract 4b (EXEC-MU-ACCOUNTS Phase 1): the account preferences copied to the server (GET/PUT /api/v1/preferences)
+ SYNCED = {'edge-model-choice', 'ml.symbol', 'ml.tf', 'ml.fi.metric', 'ml.chart.style', 'ml.chart.mode', 'ml.vol.on',
+           'ml.vol.removed', 'ml.ind.v1', 'ml.ind.filters', 'ml.ind.favs', 'ml.legend.hidden', 'ml.events.v1',
+@@ -184,3 +186,19 @@ def test_shell_loads_the_session_module_before_its_client():
+     assert html.index('<script src="/edge-session.js"></script>') < html.index('<script src="/edge-client.js"></script>')
+     client = (ROOT / 'static' / 'edge-client.js').read_text()
+     assert 'clearUserState({signOut:true})' in client and 'noteLogin(' in client
++
++
++def test_the_server_reads_each_sync_key_with_the_capability_the_registry_names():
++    """Re-check R1-18 (CONTRACT.md 8b D5: reads need <tab>.view): catalog/storage_sync.json, which app/preferences.py
++    reads, is the registry's sync keys with their `cap` (shared/build-shell.mjs writes both from shared/edge-session.ts;
++    run it after editing the registry). A key of one tab names that tab's view capability; only a key every tab reads
++    (its `where` names several tabs) names none."""
++    import json
++    written = json.loads((ROOT / 'catalog' / 'storage_sync.json').read_text())['keys']
++    declared = {k: cap or None for k, cap in CAP.findall(SHARED.read_text())}
++    assert written == declared, ('catalog/storage_sync.json is not the registry of shared/edge-session.ts: run '
++                                 'node shared/build-shell.mjs')
++    assert set(declared) == SYNCED
++    shared = {k for k, cap in declared.items() if cap is None}
++    assert shared == {'ml.symbol'}, f'sync keys with no tab capability (only a key every tab shares has none): {shared}'
++    assert all(cap.endswith('.view') for cap in declared.values() if cap), declared
 -- 
 2.43.0
 
