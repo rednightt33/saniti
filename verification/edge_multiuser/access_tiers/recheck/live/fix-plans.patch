@@ -1,7 +1,7 @@
 From b16d57288f42b49682d60bfab255d454f20d9739 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:13:40 +0000
-Subject: [PATCH 1/5] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
+Subject: [PATCH 1/9] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
  for lists and limits, no shared restrictive list, the seed plan is the one
  whose '*' is true, access.limits reports the applied cap, MFA_REQUIRED says
  whether an authenticator is set up
@@ -440,7 +440,7 @@ index 205d728e..79f4b2e7 100644
 From 68542f2fb3036e6ef993b948b48fb7e37f1983e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:26:59 +0000
-Subject: [PATCH 2/5] EXEC-MU-ACCOUNTS fix round (plans): refusals worded from
+Subject: [PATCH 2/9] EXEC-MU-ACCOUNTS fix round (plans): refusals worded from
  their code and details; no internal key in a worker's capability message
 
 Re-check R2-15: errors.words names the item (display_name), the ended plan, the plan limit with the account's number and
@@ -792,7 +792,7 @@ index 4f57f457..6b36df04 100644
 From 296129a5dc45ccfadc9c657500d4c9a113dffacc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:29:25 +0000
-Subject: [PATCH 3/5] EXEC-MU-ACCOUNTS fix round (plans): the Screener catalog
+Subject: [PATCH 3/9] EXEC-MU-ACCOUNTS fix round (plans): the Screener catalog
  lists only the presets the plan holds, by the rule of /api/v1/catalog
 
 Re-check R1-32: catalog.holds_entry is the one rule (any family of the kind), read by the generic catalog route and the
@@ -947,7 +947,7 @@ index 48c86772..3e149b2b 100644
 From 8884b38b089e66df85c1b65c6a4870aee54a6f19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:32:25 +0000
-Subject: [PATCH 4/5] EXEC-MU-ACCOUNTS fix round (plans): an account preference
+Subject: [PATCH 4/9] EXEC-MU-ACCOUNTS fix round (plans): an account preference
  of one tab is served and stored only while the plan holds that tab
 
 Re-check R1-18 and R1-30 (CONTRACT.md 8b D5: reads need <tab>.view): each sync entry of the storage registry names the
@@ -1418,7 +1418,7 @@ index a5c52e65..6c5d0c00 100644
 From 54398ef3d816fd905313bb78d03dbeae312bc428 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:39:51 +0000
-Subject: [PATCH 5/5] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
+Subject: [PATCH 5/9] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
  refusals in words, lands a non-admin account on the Terminal, follows a
  change of plan and a session ended under a frame
 
@@ -1963,6 +1963,1002 @@ index 3be7fc42..97afe4f1 100644
      page.wait_for_timeout(2000)                                   # the Monitor's first reads (conversations, runs)
      said = [t.strip() for t in page.locator('[role=alert]').all_inner_texts() if t.strip()]
      # (3e may show an example conversation instead of a refusal; then nothing is said and the test passes)
+-- 
+2.43.0
+
+
+From 6bd43074c959de211bdda838e97fb3e5eca3ba9f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 08:45:57 +0000
+Subject: [PATCH 6/9] EXEC-MU-ACCOUNTS fix round (plans): the Screener's cached
+ paint follows the plan; a drawings refusal is said in its words and keeps
+ nothing in the browser
+
+Re-check R1-17, R1-38: the boot pointer's identity is the login with the session's access version (cacheId), so an
+answer computed under another plan, or the same plan narrowed, is never drawn; a catalog refused by the plan or the
+second factor drops the pointer and the cached rows and shows the refusal. R1-19: the Terminal's drawings client tells a
+plan refusal (LayoutApiError.access, the shared module's isAccessRefusal) from an outage: the refusal's words are said,
+no copy is kept or merged later, and the pagehide copy is skipped.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/screener/src/api/boot-cache.ts  |  9 +++++-
+ apps/edge-bff/screener/src/api/live.ts        |  3 +-
+ apps/edge-bff/screener/src/api/types.ts       |  4 ++-
+ apps/edge-bff/screener/src/app.ts             | 27 ++++++++++++-----
+ .../edge-bff/screener/tests/page/page.test.ts | 18 +++++++++++-
+ .../edge-bff/terminal/src/data/drawingsApi.ts | 29 +++++++++++++++----
+ apps/edge-bff/terminal/src/data/layoutsApi.ts | 10 +++++--
+ 7 files changed, 79 insertions(+), 21 deletions(-)
+
+diff --git a/apps/edge-bff/screener/src/api/boot-cache.ts b/apps/edge-bff/screener/src/api/boot-cache.ts
+index 387aa820..1612426f 100644
+--- a/apps/edge-bff/screener/src/api/boot-cache.ts
++++ b/apps/edge-bff/screener/src/api/boot-cache.ts
+@@ -4,10 +4,13 @@
+    and one pointer in localStorage scr.boot names them with their versions and the login.
+    Rules (6c.3, 6c.5; tests/page/page.test.ts "boot pointer"):
+    - nothing cached is drawn before an authenticated answer of this page load (app.ts calls read() after one);
+-   - a pointer of another login is dropped and never read (its bytes age out of the shared LRU);
++   - a pointer of another login is dropped and never read (its bytes age out of the shared LRU). The `login` app.ts
++     passes is the login with the session's access version (cacheId; re-check R1-17, R1-38): answers computed under
++     another plan, or the same plan narrowed, are never drawn (the version changes with every grant);
+    - a cached result is used only when its versions equal the cached catalog's, field by field;
+    - bytes are stored only when their sha256 equals the announced ETag (a result, which has none, under its own sha). */
+ import type { CatalogResponse, Definition, RunResponse, UniverseResponse, Versions } from '../core/contract.ts';
++import type { Session } from './types.ts';
+ import type { FileCache } from '../../../terminal/src/data/rack.ts';
+ import { sha256Hex } from '../../../terminal/src/data/rack.ts';
+ import { KEYS, store } from '../storage.ts';
+@@ -25,6 +28,10 @@ export const VERSION_FIELDS = ['price_data', 'flow_data', 'screener_engine', 're
+ export const sameVersions = (a: Partial<Versions> | null | undefined, b: Partial<Versions> | null | undefined) =>
+   !!a && !!b && VERSION_FIELDS.every(k => (a[k] ?? null) === (b[k] ?? null));
+ 
++/** the identity of the boot pointer: the login and what the account may do (access.version, X-Edge-Entitlements), so
++    a cached answer is drawn only for the plan it was computed under (re-check R1-17, R1-38) */
++export const cacheId = (s: Pick<Session, 'login' | 'access'>) => s.access ? `${s.login}\n${s.access}` : s.login;
++
+ export interface Cached { catalog: CatalogResponse | null; universe: UniverseResponse | null; result: RunResponse | null }
+ 
+ const decode = <T>(b: Uint8Array | null): T | null => { if (!b) return null; try { return JSON.parse(new TextDecoder().decode(b)) as T } catch { return null } };
+diff --git a/apps/edge-bff/screener/src/api/live.ts b/apps/edge-bff/screener/src/api/live.ts
+index 77e01ea9..9824e7be 100644
+--- a/apps/edge-bff/screener/src/api/live.ts
++++ b/apps/edge-bff/screener/src/api/live.ts
+@@ -49,7 +49,8 @@ const newId = () => typeof crypto !== 'undefined' && 'randomUUID' in crypto ? cr
+ export function liveApi(opts: { fetchImpl?: typeof fetch } = {}): ScreenerApi {
+   const f: typeof fetch = opts.fetchImpl ?? ((...a) => fetch(...a));
+   const edge = sessionClient(f);
+-  const session = (): Promise<Session> => edge.session().then(s => ({ login:s.login, csrf:s.csrf }), e => {
++  const session = (): Promise<Session> => edge.session().then(s => ({ login:s.login, csrf:s.csrf,
++    access:typeof (s.access as { version?: unknown } | null)?.version === 'string' ? (s.access as { version: string }).version : null }), e => {
+     const info = e instanceof SessionError ? e.error : null;
+     if (!info) throw new ApiFailure(T.unreachable, 'NETWORK');
+     if (!isAccessRefusal(info)) throw new ApiFailure(T.signIn, 'UNAUTHENTICATED', info.status);
+diff --git a/apps/edge-bff/screener/src/api/types.ts b/apps/edge-bff/screener/src/api/types.ts
+index 4fdf27b6..cbd94011 100644
+--- a/apps/edge-bff/screener/src/api/types.ts
++++ b/apps/edge-bff/screener/src/api/types.ts
+@@ -9,7 +9,9 @@ import type {
+ } from '../core/contract.ts';
+ 
+ /** GET /api/v1/auth/session: who is signed in (the boot pointer is per login, 6c.3) and the CSRF token of the writes. */
+-export interface Session { login: string; csrf: string }
++/* access: the session answer's access.version (X-Edge-Entitlements), what the account may do; null when the server
++   sends none (the switch-off principal sends 'env') */
++export interface Session { login: string; csrf: string; access?: string | null }
+ 
+ /** A conditional GET (report 6c.5 item 5): 200 with the body and its bytes, or 304 when `If-None-Match` named the
+     current bytes. etag: the sha256 of the JSON bytes that edge-bff announces, unquoted; null when it sent none. */
+diff --git a/apps/edge-bff/screener/src/app.ts b/apps/edge-bff/screener/src/app.ts
+index bbef2d17..6706d89e 100644
+--- a/apps/edge-bff/screener/src/app.ts
++++ b/apps/edge-bff/screener/src/app.ts
+@@ -20,13 +20,13 @@ import { fileCache } from '../../terminal/src/data/rack.ts';
+ import { mark } from '../../terminal/src/app/perf.ts';
+ import { spin } from '../../terminal/src/ui/spin.ts';
+ import { ApiFailure, type Conditional, type ScreenerApi } from './api/types.ts';
+-import { BootCache, sameVersions } from './api/boot-cache.ts';
++import { BootCache, cacheId, sameVersions } from './api/boot-cache.ts';
+ import { esc } from './format.ts';
+ import { IC, ico } from './icons.ts';
+ import { canonical, ctx, definitionOf, freshUniverse, presetOf, S, stateOfDefinition, ui } from './state.ts';
+ import { entriesOf } from './entries.ts';
+ import { applyTheme, followTheme, lastScreen, panelPrefs, saveLast, savePanel } from './storage.ts';
+-import { onReset } from '../../shared/edge-session.ts';
++import { onReset, readError } from '../../shared/edge-session.ts';
+ import { dataLine, T } from './texts.ts';
+ import { closeDialog, dialogOpen, openMenu, openSave, toast } from './dialogs.ts';
+ import { closePop, onUniverseClick, onUniverseField, openDrawer, placePop, renderUniverse, updateUniverseLight, uCountTxt } from './universe-ui.ts';
+@@ -236,6 +236,12 @@ async function withRetry<T>(fn: () => Promise<T>, onWait: (msg: string) => void)
+ }
+ const sleep = (ms: number) => new Promise(ok => setTimeout(ok, ms));
+ 
++/** a refusal of the account's plan or second factor (the shared module's kinds 'upgrade' and 'mfa'), not an outage */
++const accessRefused = (e: unknown) => {
++  if (!(e instanceof ApiFailure)) return false;
++  const kind = readError(e.status, { error:{ code:e.code } }).kind;
++  return kind === 'upgrade' || kind === 'mfa';
++};
+ function bootFailed(msg: string, retry: boolean) {
+   ctx.runError = msg; ctx.running = false;
+   $('resPane').innerHTML = `<div class="empty" role="alert"><strong>The screener could not load</strong>${esc(msg)}${retry ? `<div class="acts"><button class="btn sm" data-act="reboot">${ico(IC.reset, 's')}${T.retry}</button></div>` : ''}</div>`;
+@@ -261,7 +267,7 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
+   renderHeader(); renderUniverse(); renderConds(); renderResults();
+ 
+   // S2: everything at once
+-  const sessionP = api.session().then(s => { ctx.login = s.login; mark('session'); return s });
++  const sessionP = api.session().then(s => { ctx.login = cacheId(s); mark('session'); return s });
+   const catP = withRetry(() => api.catalog(et.catalog), m => { const dl = document.getElementById('dataLine'); if (dl) { dl.innerHTML = `<span class="sbox">${spin(esc(m))}</span>`; headDrawn.head = '' } });
+   const uniP = withRetry(() => api.universe(et.universe), () => {});
+   const itemsP = api.items('screen'), metricsP = api.items('metric'), watchP = api.watchlist();
+@@ -276,8 +282,8 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
+   try { session = await sessionP }
+   catch (e) { bootFailed(failMsg(e), !(e instanceof ApiFailure && e.status === 401)); return }
+ 
+-  // S3: cached paint, only after an authenticated answer, only for this login
+-  const cached = await boot.read(session.login).catch(() => ({ catalog:null, universe:null, result:null }));
++  // S3: cached paint, only after an authenticated answer, only for this login under the same access (cacheId)
++  const cached = await boot.read(cacheId(session)).catch(() => ({ catalog:null, universe:null, result:null }));
+   if (cached.catalog && !ctx.catalog) {
+     useCatalog(cached.catalog); if (cached.universe) useUniverse(cached.universe);
+     ctx.bootState = 'cached'; $('app').dataset.boot = 'cached';
+@@ -287,11 +293,16 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
+   // S4: confirm or replace
+   let cat: Conditional<CatalogResponse>, uni: Conditional<UniverseResponse>;
+   try { [cat, uni] = await Promise.all([catP, uniP]) }
+-  catch (e) { if (!ctx.catalog) bootFailed(failMsg(e), true); else { confirmed = true; ctx.runError = failMsg(e); refresh('results') } return }
++  catch (e) {
++    // the plan (or the second factor) no longer lets this account read the Screener: nothing of the cached paint stays
++    // (re-check R1-17), and the refusal's words say why
++    if (accessRefused(e)) { boot.drop(); ctx.R = null; confirmed = true; bootFailed(failMsg(e), false); return }
++    if (!ctx.catalog) bootFailed(failMsg(e), true); else { confirmed = true; ctx.runError = failMsg(e); refresh('results') } return
++  }
+   if (cat.status === 304 && !cached.catalog) cat = await api.catalog(null).catch(() => cat);     // 304 without the bytes: ask again in full
+   if (uni.status === 304 && !cached.universe) uni = await api.universe(null).catch(() => uni);
+-  if (cat.status === 200) { tags.catalog = cat.etag; useCatalog(cat.body); boot.putCatalog(session.login, cat.bytes, cat.etag, cat.body).catch(() => {}) }
+-  if (uni.status === 200) { tags.universe = uni.etag; useUniverse(uni.body); boot.putUniverse(session.login, uni.bytes, uni.etag, uni.body).catch(() => {}) }
++  if (cat.status === 200) { tags.catalog = cat.etag; useCatalog(cat.body); boot.putCatalog(ctx.login, cat.bytes, cat.etag, cat.body).catch(() => {}) }
++  if (uni.status === 200) { tags.universe = uni.etag; useUniverse(uni.body); boot.putUniverse(ctx.login, uni.bytes, uni.etag, uni.body).catch(() => {}) }
+   if (!ctx.catalog) { bootFailed(T.unreachable, true); return }
+   confirmed = true;
+   if (!restored) restoreLast(cached.catalog && cat.status === 304 ? cached.result : null);
+diff --git a/apps/edge-bff/screener/tests/page/page.test.ts b/apps/edge-bff/screener/tests/page/page.test.ts
+index 152d3064..efd56a49 100644
+--- a/apps/edge-bff/screener/tests/page/page.test.ts
++++ b/apps/edge-bff/screener/tests/page/page.test.ts
+@@ -4,7 +4,7 @@
+ import { describe, expect, it } from 'vitest';
+ import type { CatalogResponse, Cell, RunResponse, UniverseRow, Versions } from '../../src/core/contract.ts';
+ import { csvText, field, metaOf } from '../../src/csv.ts';
+-import { BootCache, sameVersions } from '../../src/api/boot-cache.ts';
++import { BootCache, cacheId, sameVersions } from '../../src/api/boot-cache.ts';
+ import { liveApi, retryAfter } from '../../src/api/live.ts';
+ import { ApiFailure } from '../../src/api/types.ts';
+ import { sha256Hex, type FileCache } from '../../../terminal/src/data/rack.ts';
+@@ -84,6 +84,22 @@ describe('boot pointer (6c.3, 6c.9 item 3)', () => {
+     expect(bc.pointer()?.last).toBeNull();
+     expect(sameVersions(V(), V('c'))).toBe(false);
+   });
++  it('re-check R1-17, R1-38: a pointer written under one plan is never read under another, even at the same data', async () => {
++    const cache = memCache(), st = memStore(), bc = new BootCache(cache, st);
++    const c = catalogOf(V()), b = bytes(c);
++    const paid = cacheId({ login:'daniel', access:'db-aaaaaaaaaaaa' }), narrowed = cacheId({ login:'daniel', access:'db-bbbbbbbbbbbb' });
++    expect(paid).not.toBe(narrowed);
++    await bc.putCatalog(paid, b, await sha256Hex(b), c);
++    const def = { universe:{ security_types:['stock'], traded_on_eval_date:true, exclude_price_breaks:true }, conditions:[], logic:'all' } as any;
++    const ok = { versions:{ ...V(), definition_hash:'d'.repeat(64) } } as unknown as RunResponse;
++    expect(await bc.putResult(paid, def, bytes(ok), ok)).toBe(true);
++    // the plan narrowed: the same login, the same publication (the catalog would answer 304), another access version
++    expect(await new BootCache(cache, st).read(narrowed)).toEqual({ catalog:null, universe:null, result:null });
++    expect(st.m.has('scr.boot')).toBe(false);
++    // the switch-off principal's version 'env' and a server without access keep one identity per login
++    expect(cacheId({ login:'owner', access:'env' })).toBe(cacheId({ login:'owner', access:'env' }));
++    expect(cacheId({ login:'owner', access:null })).toBe('owner');
++  });
+ });
+ 
+ /* ---- the live client (api/live.ts) ---------------------------------------------------------------------------- */
+diff --git a/apps/edge-bff/terminal/src/data/drawingsApi.ts b/apps/edge-bff/terminal/src/data/drawingsApi.ts
+index 865bf958..e97fc171 100644
+--- a/apps/edge-bff/terminal/src/data/drawingsApi.ts
++++ b/apps/edge-bff/terminal/src/data/drawingsApi.ts
+@@ -4,7 +4,9 @@
+ 
+    The page keeps working without the account: when the account cannot be read (no connection, the table not there yet),
+    a set is kept in this browser as before and moves to the account the next time it can be read. The sets kept in this
+-   browser before (ml.drawings.*) move to the account once, merged by drawing id with what the account holds. */
++   browser before (ml.drawings.*) move to the account once, merged by drawing id with what the account holds.
++   A refusal of the plan (403 CAPABILITY_REQUIRED or PLAN_EXPIRED: the plan holds no terminal.drawings) is not an outage
++   (re-check R1-19): its own words are said, and nothing is kept in this browser for it (a copy there is dropped). */
+ import { savedClient, sendOnLeave, primeToken, LayoutApiError } from './layoutsApi';
+ import { store } from '../app/context';
+ import { edge, isLastLogin, loginKey, onReset } from '../../../shared/edge-session';
+@@ -50,7 +52,9 @@ export const drawingsApi = {
+ /** keeps the stored text of every set in step with the account: load (with the one-time move of this browser's set), save
+     (a short pause after the last change, then one write), remove; `say` reports a refusal in a plain sentence */
+ export function accountDrawings(say: (text: string, error?: boolean) => void, SAVE_MS = 400) {
+-  const lists = new Map<string, Promise<Map<string, ServerSet> | null>>();   // per ticker: its sets, or null (unreachable)
++  // per ticker: its sets, null (unreachable), or the plan's refusal
++  const lists = new Map<string, Promise<Map<string, ServerSet> | LayoutApiError | null>>();
++  let locked = false;                                                        // the plan refused the drawings
+   const rev = new Map<string, number | null>();                              // `${ticker}/${set}` -> the revision held
+   const last = new Map<string, string>();                                    // the text the account holds
+   const pending = new Map<string, { json: string; timer: any }>();
+@@ -60,7 +64,8 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
+   const listOf = (t: string) => {
+     let p = lists.get(t);
+     if (!p) {
+-      p = drawingsApi.list(t).then(r => new Map(r.sets.map(x => [x.set_id, x])), () => null);
++      p = drawingsApi.list(t).then(r => new Map(r.sets.map(x => [x.set_id, x])),
++        (e: unknown) => e instanceof LayoutApiError && e.access ? e : null);
+       lists.set(t, p);
+     }
+     return p;
+@@ -69,6 +74,12 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
+     if (warned) return; warned = true;
+     say('Your drawings could not be saved to your EDGE account just now: they are kept in this browser and move to the account when it can be reached.', true);
+   };
++  /* the plan's refusal: said once in its own words; nothing of the drawings stays in this browser for it */
++  const refused = (e: LayoutApiError, local?: string) => {
++    if (local) store.remove(local);
++    if (locked) return; locked = true;
++    say(e.message, true);
++  };
+   primeToken();
+   // the account ended or changed (a 401, the 'cleared' broadcast): pending changes are dropped, never stamped or sent
+   onReset(() => { pending.forEach(p => clearTimeout(p.timer)); pending.clear() });
+@@ -82,6 +93,7 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
+     const who = await edge.session().then(() => edge.identity, () => edge.identity);
+     const mine = ownCopy(here, who);
+     if (here !== null && mine === null) store.remove(local);          // M468: another login's copy (or not a list)
++    if (sets instanceof LayoutApiError) { refused(sets, local); return '[]' }
+     if (!sets) { unreachable(); return mine ? JSON.stringify(mine) : '[]' }
+     const got = sets.get(s);
+     rev.set(k(t, s), got ? got.revision : null);
+@@ -101,8 +113,8 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
+   }
+ 
+   /** one write of the set's current text; a revision another tab moved on is read again and the write repeated once
+-      (the newest change on screen wins); true when the account holds it */
+-  async function write(t: string, s: string, text: string, again = true): Promise<boolean> {
++      (the newest change on screen wins); true when the account holds it, 'refused' when the plan refused it */
++  async function write(t: string, s: string, text: string, again = true): Promise<boolean | 'refused'> {
+     const key = k(t, s);
+     if (last.get(key) === text) return true;
+     try {
+@@ -113,6 +125,7 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
+         const fresh = await drawingsApi.list(t).then(r => r.sets.find(x => x.set_id === s) || null, () => undefined);
+         if (fresh !== undefined) { rev.set(key, fresh ? fresh.revision : null); last.delete(key); return write(t, s, text, false) }
+       }
++      if (e instanceof LayoutApiError && e.access) { refused(e); return 'refused' }
+       if (e instanceof LayoutApiError && e.status === 422) say(e.message, true);
+       else if (e instanceof LayoutApiError && (e.status === 0 || e.status >= 500)) unreachable();
+       else say(e?.message || 'Your drawings could not be saved. Try again in a minute.', true);
+@@ -128,8 +141,11 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
+     const timer = setTimeout(async () => {
+       pending.delete(key);
+       const sets = await listOf(t);
++      if (sets instanceof LayoutApiError) { refused(sets, local); return }
+       if (!sets) { keepCopy(local, text); unreachable(); return }
+-      if (!(await write(t, s, text))) keepCopy(local, text);   // not lost: moves to the account on the next load
++      const wrote = await write(t, s, text);
++      if (wrote === 'refused') store.remove(local);
++      else if (!wrote) keepCopy(local, text);                  // not lost: moves to the account on the next load
+     }, SAVE_MS);
+     pending.set(key, { json:text, timer });
+   }
+@@ -147,6 +163,7 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
+      stays in this browser and moves on the next load) */
+   window.addEventListener('pagehide', () => pending.forEach(({ json, timer }, key) => {
+     clearTimeout(timer);
++    if (locked) return;                                      // the plan refused the drawings: nothing sent or kept
+     const [t, s] = key.split('/'), r = rev.get(key);
+     if (json.length < 60000) sendOnLeave(`${BASE}/${t}/${s}`, 'PUT', { drawings:JSON.parse(json), ...(r ? { revision:r } : {}) });
+     keepCopy(s === 'chart' ? `ml.drawings.${t}` : s === 'flow' ? `ml.drawings.flow.${t}` : `ml.drawings.pane.${t}.${s.slice(5)}`, json);
+diff --git a/apps/edge-bff/terminal/src/data/layoutsApi.ts b/apps/edge-bff/terminal/src/data/layoutsApi.ts
+index 2b23a78c..be09eda6 100644
+--- a/apps/edge-bff/terminal/src/data/layoutsApi.ts
++++ b/apps/edge-bff/terminal/src/data/layoutsApi.ts
+@@ -11,8 +11,10 @@ export interface Layout extends LayoutMeta { state: Record<string, string> }
+ 
+ import { accessText, edge, isAccessRefusal, readError, SessionError, type EdgeError } from '../../../shared/edge-session';
+ 
++/* access: a refusal of the account's plan, role or limits (the shared module's isAccessRefusal), never an outage: a
++   caller with an offline path keeps nothing for it (re-check R1-19) */
+ export class LayoutApiError extends Error {
+-  constructor(public status: number, public code: string, message: string, public details?: any) { super(message) }
++  constructor(public status: number, public code: string, message: string, public details?: any, public access = false) { super(message) }
+ }
+ 
+ const LATER = 'Try again in a minute; your chart is unchanged.';
+@@ -23,7 +25,8 @@ const LATER = 'Try again in a minute; your chart is unchanged.';
+ const token = () => edge.session().then(s => s.csrf, (e: any) => Promise.reject(e instanceof SessionError && e.error
+   ? new LayoutApiError(e.error.status, e.error.kind === 'signin' ? 'SESSION' : e.error.code,
+       e.error.kind === 'signin' ? 'Your EDGE sign-in has ended: sign in to EDGE again, then reload this page.'
+-        : accessText(e.error) || `Saved layouts are not available right now (EDGE answered ${e.error.status}). ${LATER}`)
++        : accessText(e.error) || `Saved layouts are not available right now (EDGE answered ${e.error.status}). ${LATER}`,
++      e.error.details, isAccessRefusal(e.error))
+   : new LayoutApiError(0, 'NETWORK', `Saved layouts could not be reached: check the connection. ${LATER}`)));
+ 
+ /** the plain sentence for a refusal without its own message (or with one meant for developers); `what` names the saved
+@@ -51,7 +54,8 @@ export const savedClient = (BASE: string, what: string) => {
+   const data = await res.json().catch(() => ({}));
+   if (!res.ok) {
+     const info = readError(res.status, data, res.headers.get('Retry-After')), e = data?.error || {};
+-    throw new LayoutApiError(res.status, e.code || (info.legacy ? info.code : String(res.status)), sentence(res.status, e, what, info), e.details);
++    throw new LayoutApiError(res.status, e.code || (info.legacy ? info.code : String(res.status)), sentence(res.status, e, what, info), e.details,
++      isAccessRefusal(info));
+   }
+   return data as T;
+   };
+-- 
+2.43.0
+
+
+From 61155dd2dbc5bf8b8694c7d66c720fdfe4844c46 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 08:46:54 +0000
+Subject: [PATCH 7/9] EXEC-MU-ACCOUNTS fix round (plans): an added series' pane
+ keys are the account's and leave with the series
+
+Re-check R1-20: the prefix ml.assets.flow. (fold and height per added series, named by its ticker) is a user cache
+family, so sign-out and a change of user remove it; removing a series removes its keys; the registry test refuses a
+browser-class key built from a ticker or symbol.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/shared/edge-session.ts         |  2 +-
+ apps/edge-bff/static/edge-session.js         |  4 ++--
+ apps/edge-bff/terminal/src/app/assets.ts     |  2 ++
+ apps/edge-bff/tests/test_storage_registry.py | 18 ++++++++++++++++++
+ 4 files changed, 23 insertions(+), 3 deletions(-)
+
+diff --git a/apps/edge-bff/shared/edge-session.ts b/apps/edge-bff/shared/edge-session.ts
+index 1d254a1c..3f84167b 100644
+--- a/apps/edge-bff/shared/edge-session.ts
++++ b/apps/edge-bff/shared/edge-session.ts
+@@ -89,7 +89,7 @@ export const STORAGE: readonly StorageEntry[] = Object.freeze([
+   { key:'ml.drawings.', match:'prefix', area:'local', kind:'user', cache:true, where:'Terminal', what:'drawings kept while the account cannot be reached (stamped with the login, M468)' },
+   { key:'ml.assets.v1', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal', what:'series added to the chart' },
+   { key:'ml.assets.defaults', match:'exact', area:'local', kind:'browser', where:'Terminal', what:'default look of an added series' },
+-  { key:'ml.assets.flow.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'an added series pane folded or its height' },
++  { key:'ml.assets.flow.', match:'prefix', area:'local', kind:'user', cache:true, where:'Terminal', what:'an added series pane folded or its height, by its ticker (the account\'s series, re-check R1-20)' },
+   { key:'ml.draw.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'drawing tool choices (cursor, line, shape, measure, magnet)' },
+   { key:'ml.stats.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'left panel width, fold, sections and order' },
+   { key:'ml.broker.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'right panel width, fold, sections and order' },
+diff --git a/apps/edge-bff/static/edge-session.js b/apps/edge-bff/static/edge-session.js
+index 96104a12..3dca0656 100644
+--- a/apps/edge-bff/static/edge-session.js
++++ b/apps/edge-bff/static/edge-session.js
+@@ -1,4 +1,4 @@
+-/* generated from apps/edge-bff/shared/edge-session.ts sha256=fdf34928792121f1e83a538b32da60a7db997662014cce3d9143a44b6bb6e3e8 by shared/build-shell.mjs; do not edit */
++/* generated from apps/edge-bff/shared/edge-session.ts sha256=f120cbcd6548a08c50434a9007159e1bd70481e64723980b4b621d725bab5203 by shared/build-shell.mjs; do not edit */
+ var EdgeSession = (() => {
+   var __defProp = Object.defineProperty;
+   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+@@ -104,7 +104,7 @@ var EdgeSession = (() => {
+     { key: "ml.drawings.", match: "prefix", area: "local", kind: "user", cache: true, where: "Terminal", what: "drawings kept while the account cannot be reached (stamped with the login, M468)" },
+     { key: "ml.assets.v1", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal", what: "series added to the chart" },
+     { key: "ml.assets.defaults", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "default look of an added series" },
+-    { key: "ml.assets.flow.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "an added series pane folded or its height" },
++    { key: "ml.assets.flow.", match: "prefix", area: "local", kind: "user", cache: true, where: "Terminal", what: "an added series pane folded or its height, by its ticker (the account's series, re-check R1-20)" },
+     { key: "ml.draw.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "drawing tool choices (cursor, line, shape, measure, magnet)" },
+     { key: "ml.stats.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "left panel width, fold, sections and order" },
+     { key: "ml.broker.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "right panel width, fold, sections and order" },
+diff --git a/apps/edge-bff/terminal/src/app/assets.ts b/apps/edge-bff/terminal/src/app/assets.ts
+index 6c0b85ea..079e3dcc 100644
+--- a/apps/edge-bff/terminal/src/app/assets.ts
++++ b/apps/edge-bff/terminal/src/app/assets.ts
+@@ -216,6 +216,8 @@ export function initAssets(ctx: Ctx) {
+     assets.splice(k, 1);
+     if (a.series) { try { chart.removeSeries(a.series) } catch (_) {} }
+     setPane(a, false); a.row.remove(); syncPlus(); save();
++    // its pane's fold and height go with it (they name the ticker; re-check R1-20)
++    if (!assets.some(x => x.ticker === a.ticker)) { store.remove(`ml.assets.flow.collapsed.${a.ticker}`); store.remove(`ml.assets.flow.h.${a.ticker}`) }
+   }
+   function replace(a: Asset, ticker: string) {
+     const slot = assets.indexOf(a), opts = { ...a.opts };
+diff --git a/apps/edge-bff/tests/test_storage_registry.py b/apps/edge-bff/tests/test_storage_registry.py
+index 6c5d0c00..78ede8d0 100644
+--- a/apps/edge-bff/tests/test_storage_registry.py
++++ b/apps/edge-bff/tests/test_storage_registry.py
+@@ -202,3 +202,21 @@ def test_the_server_reads_each_sync_key_with_the_capability_the_registry_names()
+     shared = {k for k, cap in declared.items() if cap is None}
+     assert shared == {'ml.symbol'}, f'sync keys with no tab capability (only a key every tab shares has none): {shared}'
+     assert all(cap.endswith('.view') for cap in declared.values() if cap), declared
++
++
++def test_a_browser_key_family_never_names_a_ticker_or_symbol():
++    """Re-check R1-20: a `browser` prefix survives sign-out and a change of user, so its suffix must not carry account
++    content. A key built from a ticker or a symbol (a template or a concatenation onto the prefix) names what the
++    account looks at, and belongs to a `user` family (shared/edge-session.ts STORAGE)."""
++    browser = [k for k, match, _, kind in registry() if match == 'prefix' and kind == 'browser']
++    built = re.compile(r"""`(?P<t>[^`]*)`|['"](?P<p>[^'"]+)['"]\s*\+\s*(?P<v>[A-Za-z_][A-Za-z0-9_.()]*)""")
++    found = []
++    for name, text in sources().items():
++        for m in built.finditer(text):
++            if m.group('t') is not None:
++                key, values = m.group('t'), re.findall(r'\$\{([^}]*)\}', m.group('t'))
++            else:
++                key, values = m.group('p'), [m.group('v')]
++            if values and any(key.startswith(p) for p in browser) and any(re.search(r'ticker|symbol|\bsym\b', v, re.I) for v in values):
++                found.append(f'{name}: {key}')
++    assert not found, 'browser-class keys that name a ticker or symbol (class the family user):\n' + '\n'.join(found)
+-- 
+2.43.0
+
+
+From bcdb0705707af84337ceb5fa02e9e96f28597f1f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 08:51:03 +0000
+Subject: [PATCH 8/9] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
+ registration cookies on https, HSTS, form-action in every page policy
+
+Re-check R2-22: on a Secure origin the cookies are __Host-edge_session and __Host-edge_registration (Path=/, no
+Domain), so another host of the live domain cannot set or overwrite them; the switch-off owner's session under the old
+name is read once and moved (nobody is signed out), and with the switch on the old name is never read. R2-21: an https
+origin sends Strict-Transport-Security max-age=31536000 (host only, no preload). R2-19 (part): form-action 'self' in
+the shell's and the pages' policies.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/app/auth_flows.py       | 28 +++++++++--------
+ apps/edge-bff/app/main.py             | 31 ++++++++++++++-----
+ apps/edge-bff/app/principal.py        | 12 ++++++--
+ apps/edge-bff/app/security.py         | 18 +++++++++++
+ apps/edge-bff/tests/test_fix_plans.py | 44 +++++++++++++++++++++++++++
+ 5 files changed, 111 insertions(+), 22 deletions(-)
+
+diff --git a/apps/edge-bff/app/auth_flows.py b/apps/edge-bff/app/auth_flows.py
+index 1b8953ed..8544c0d6 100644
+--- a/apps/edge-bff/app/auth_flows.py
++++ b/apps/edge-bff/app/auth_flows.py
+@@ -36,11 +36,12 @@ from .accounts import EMAIL, RESERVED_USERNAMES, USERNAME, new_owner_key
+ from .errors import Refusal
+ from .mailer import OutboxStore, enqueue, svix_verify
+ from .principal import ADMIN_ACCESS, Principal
+-from .security import normal_password, password_verifier, token_hash, verify_password
++from .security import (REGISTRATION_COOKIE as REGISTRATION, SESSION_COOKIE, cookie_name, normal_password,
++                       password_verifier, registration_path, token_hash, verify_password)
+ from .throttle import (CODE_USER, MFA_USER, REGISTER_DAY, REGISTER_HOUR, SEND_EMAIL, SEND_IP, SIGNIN_LOGIN, Throttle,
+                        client_address)
+ 
+-COOKIE = 'edge_session'
++COOKIE = SESSION_COOKIE                     # by its name on the origin: cookie_name (re-check R2-22)
+ CODE_SECONDS = 300
+ RESEND_SECONDS = 60
+ CODE = re.compile(r'[0-9]{6}')
+@@ -48,8 +49,7 @@ PURPOSES = ('register', 'reset')
+ ACCEPTED = {'status': 'CODE_SENT', 'resend_after_s': RESEND_SECONDS}
+ # ERRORS M478 (C1 P1-H1, C2 #1): every registration is bound to the browser that started it by this HttpOnly cookie; the
+ # email code activates a registration only together with it
+-REGISTRATION_COOKIE = 'edge_registration'
+-REGISTRATION_PATH = '/api/v1/auth/'
++REGISTRATION_COOKIE = REGISTRATION         # by its name and path on the origin: cookie_name, registration_path
+ REGISTRATION_SECONDS = 86400
+ REGISTRATION_TOKEN = re.compile(r'[0-9a-f]{64}')
+ TOTP_FAILURE_CAP, RECOVERY_FAILURE_CAP = 100, 10
+@@ -378,7 +378,8 @@ class AuthFlows:
+         never differ: when the password was a pending registration's, that registration moves to a new cookie and a
+         fresh code is mailed (within the send limits); otherwise this browser's own registration cookie is set again
+         unchanged (N3: a mistyped sign-in never orphans a registration), or an unused one when it has none."""
+-        held = request.cookies.get(REGISTRATION_COOKIE, '') if request is not None else ''
++        name = cookie_name(REGISTRATION_COOKIE, self.settings.secure_cookie)
++        held = request.cookies.get(name, '') if request is not None else ''
+         fresh = secrets.token_hex(32)
+         moved = row is not None and await asyncio.to_thread(self.store.restart, row['user_id'], row['email'], ip,
+                                                             token_hash(fresh))
+@@ -396,6 +397,9 @@ class AuthFlows:
+ 
+     def routes(self, app, session_answer):
+         settings, auth, store = self.settings, self.auth, self.store
++        session_cookie = cookie_name(COOKIE, settings.secure_cookie)
++        registration_cookie = cookie_name(REGISTRATION_COOKIE, settings.secure_cookie)
++        registration_at = registration_path(settings.secure_cookie)
+ 
+         async def switched_on():
+             if not settings.multiuser:
+@@ -403,17 +407,17 @@ class AuthFlows:
+ 
+         def signed_in(p, token, status=200):
+             response = JSONResponse(session_answer(p), status_code=status)
+-            response.set_cookie(COOKIE, token, max_age=settings.session_seconds, httponly=True,
++            response.set_cookie(session_cookie, token, max_age=settings.session_seconds, httponly=True,
+                                 secure=settings.secure_cookie, samesite='strict', path='/')
+             return response
+ 
+         def registration_of(request):
+-            raw = request.cookies.get(REGISTRATION_COOKIE, '')
++            raw = request.cookies.get(registration_cookie, '')
+             return token_hash(raw) if REGISTRATION_TOKEN.fullmatch(raw) else None
+ 
+         def with_registration(response, token):
+-            response.set_cookie(REGISTRATION_COOKIE, token, max_age=REGISTRATION_SECONDS, httponly=True,
+-                                secure=settings.secure_cookie, samesite='strict', path=REGISTRATION_PATH)
++            response.set_cookie(registration_cookie, token, max_age=REGISTRATION_SECONDS, httponly=True,
++                                secure=settings.secure_cookie, samesite='strict', path=registration_at)
+             return response
+         self.with_registration = with_registration
+ 
+@@ -467,7 +471,7 @@ class AuthFlows:
+             if p is None:
+                 raise Refusal(401, 'UNAUTHENTICATED')
+             response = signed_in(p, token)
+-            response.delete_cookie(REGISTRATION_COOKIE, path=REGISTRATION_PATH)
++            response.delete_cookie(registration_cookie, path=registration_at, secure=settings.secure_cookie)
+             return response
+ 
+         @app.post('/api/v1/auth/code/resend', status_code=202)
+@@ -498,7 +502,7 @@ class AuthFlows:
+                 raise code_refusal(outcome, found)
+             self.wake()
+             response = JSONResponse({'next': 'sign_in'})
+-            response.delete_cookie(COOKIE, path='/')
++            response.delete_cookie(session_cookie, path='/', secure=settings.secure_cookie)
+             return response
+ 
+         @app.post('/api/v1/auth/password/change')
+@@ -522,7 +526,7 @@ class AuthFlows:
+         async def sign_out_all(_on=Depends(switched_on), p: Principal = Depends(auth.writer)):
+             await asyncio.to_thread(auth.accounts.revoke_all, p.user_id)
+             response = JSONResponse({'authenticated': False})
+-            response.delete_cookie(COOKIE, path='/')
++            response.delete_cookie(session_cookie, path='/', secure=settings.secure_cookie)
+             return response
+ 
+         @app.post('/api/v1/auth/mfa/enroll')
+diff --git a/apps/edge-bff/app/main.py b/apps/edge-bff/app/main.py
+index 3da4702b..d013ef5f 100644
+--- a/apps/edge-bff/app/main.py
++++ b/apps/edge-bff/app/main.py
+@@ -36,12 +36,12 @@ from .overview import Overview
+ from .watchlist import Watchlist
+ from .radar import Radar
+ from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
+-from .security import csrf_token, token_hash, verify_password
++from .security import SESSION_COOKIE, cookie_name, csrf_token, token_hash, verify_password
+ from .store import Store, StoreError, TERMINAL
+ from .throttle import SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address, normal_login
+ from .worker import Worker
+ 
+-COOKIE = 'edge_session'
++COOKIE = SESSION_COOKIE                     # its name on an https origin: cookie_name (__Host-, re-check R2-22)
+ STOP_RETRIES = 3  # EXEC-Y Fase 1 (I1): a run dispatched a moment ago is registered at Orc on receipt
+ STATIC = Path(__file__).resolve().parents[1] / 'static'
+ SCRIPT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
+@@ -69,7 +69,7 @@ TERMINAL_CUT_BYTES = 64 * 1024 * 1024
+ TERMINAL_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
+                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
+                 "img-src 'self' data: blob:; connect-src 'self' https://*.t3.storageapi.dev; object-src 'none'; "
+-                "base-uri 'self'; frame-ancestors 'self'")
++                "base-uri 'self'; form-action 'self'; frame-ancestors 'self'")
+ # EDGE backtest (CONTRACT.md section 10): the built backtest page (apps/edge-bff/backtest -> static/backtest-app), shown in
+ # the Backtest tab's frame. It loads what the terminal page loads (its own script and stylesheet, Google Fonts, inline
+ # style attributes) and, for the signal preview, the ticker files the /api/terminal/v1/bundle answer presigns on the
+@@ -94,7 +94,7 @@ WATCHLIST_APP = STATIC / 'watchlist-app'
+ SCREENER_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
+                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
+                 "img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; "
+-                "base-uri 'self'; frame-ancestors 'self'")
++                "base-uri 'self'; form-action 'self'; frame-ancestors 'self'")
+ # EXEC-WATCHLIST L5: the Watchlist page shows the Terminal's issuer logos; their list is the Terminal's reference file
+ # (GET /api/terminal/v1/reference/logos answers a presigned URL on the bucket), so the page takes the Terminal page's
+ # policy: the Screener's plus connect-src to the bucket (a host EDGE already uses; no new one). The images come from
+@@ -235,6 +235,7 @@ def create_app(settings=None, store=None, orc=None):
+     throttle = Throttle(store, settings.session_secret)
+     # EXEC-MU-ACCOUNTS Phase 1: the principal of every request (app/principal.py) and the account preferences
+     auth = Auth(settings, store)
++    session_cookie = cookie_name(COOKIE, settings.secure_cookie)      # re-check R2-22
+     # Phase 3a: the worker re-checks the owner's principal when it dispatches a queued run (monitor.chat, the model)
+     worker.access = auth.owner_principal
+     preferences = Preferences(store)
+@@ -370,6 +371,16 @@ def create_app(settings=None, store=None, orc=None):
+         principal = getattr(state, 'principal', None)
+         if principal is not None:
+             response.headers['X-Edge-Entitlements'] = principal.version
++            # re-check R2-22: the switch-off owner's session read under the old cookie name moves to the new one
++            if (session_cookie != COOKIE and not settings.multiuser and principal.token
++                    and not request.cookies.get(session_cookie) and request.cookies.get(COOKIE) == principal.token):
++                response.set_cookie(session_cookie, principal.token, max_age=settings.session_seconds, httponly=True,
++                                    secure=True, samesite='strict', path='/')
++                response.delete_cookie(COOKIE, path='/')
++        # re-check R2-21: on an https origin the browser keeps to https for this host (no includeSubDomains: the domain's
++        # other hosts are not EDGE's; no preload, which is the user's decision on the domain)
++        if settings.origin.startswith('https://'):
++            response.headers['Strict-Transport-Security'] = 'max-age=31536000'
+         response.headers.setdefault('Cache-Control', 'no-store')
+         response.headers['X-Content-Type-Options'] = 'nosniff'
+         response.headers['Referrer-Policy'] = 'same-origin'
+@@ -378,7 +389,7 @@ def create_app(settings=None, store=None, orc=None):
+             return response
+         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
+         # still cannot; frame-ancestors 'self' keeps the clickjacking guard)
+-        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
++        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+         return response
+ 
+     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 2): the principal of every request (app/principal.py); auth.principal
+@@ -701,7 +712,7 @@ def create_app(settings=None, store=None, orc=None):
+                 await flows.restart_registration(response, restart, client_address(request), request)
+             return response
+         await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
+-        old = request.cookies.get(COOKIE)
++        old = request.cookies.get(session_cookie) or (None if settings.multiuser else request.cookies.get(COOKIE))
+         if old:
+             await asyncio.to_thread(store.revoke, token_hash(old))
+         token = secrets.token_hex(32)
+@@ -725,8 +736,10 @@ def create_app(settings=None, store=None, orc=None):
+         response = JSONResponse(session_answer(p)) if p.mfa_ok else refusal(
+             403, 'MFA_REQUIRED', {'csrf_token': csrf_token(token, settings.session_secret),
+                                   'mfa_enrolled': p.mfa_enrolled})
+-        response.set_cookie(COOKIE, token, max_age=settings.session_seconds, httponly=True,
++        response.set_cookie(session_cookie, token, max_age=settings.session_seconds, httponly=True,
+                             secure=settings.secure_cookie, samesite='strict', path='/')
++        if session_cookie != COOKIE:
++            response.delete_cookie(COOKIE, path='/')
+         return response
+ 
+     def session_answer(p):
+@@ -756,7 +769,9 @@ def create_app(settings=None, store=None, orc=None):
+     async def sign_out(p: Principal = Depends(auth.writer)):
+         await asyncio.to_thread(store.revoke, token_hash(p.token))
+         response = JSONResponse({'authenticated': False})
+-        response.delete_cookie(COOKIE, path='/')
++        response.delete_cookie(session_cookie, path='/', secure=settings.secure_cookie)
++        if session_cookie != COOKIE:
++            response.delete_cookie(COOKIE, path='/')
+         return response
+ 
+     @app.post('/api/v1/runs', status_code=202)
+diff --git a/apps/edge-bff/app/principal.py b/apps/edge-bff/app/principal.py
+index b6c27ef5..cf07386b 100644
+--- a/apps/edge-bff/app/principal.py
++++ b/apps/edge-bff/app/principal.py
+@@ -43,7 +43,7 @@ from .accounts import OWNER_KEY, AccountStore
+ from .errors import Refusal, capability_required, plan_expired, set_display_names
+ from . import releases
+ from .releases import KIND_OF_FAMILY, stage_of
+-from .security import csrf_token, same_ascii, token_hash
++from .security import SESSION_COOKIE, cookie_name, csrf_token, same_ascii, token_hash
+ 
+ logger = logging.getLogger('edge_bff.principal')
+ 
+@@ -269,8 +269,16 @@ class Auth:
+         self.ceilings = {}
+ 
+         # named session and write as before Phase 1 (tests read the dependency names)
++        cookie = cookie_name(SESSION_COOKIE, settings.secure_cookie)
++
+         async def session(request: Request):
+-            found = await self.resolve(request.cookies.get('edge_session', ''))
++            token = request.cookies.get(cookie, '')
++            if not token and cookie != SESSION_COOKIE and not settings.multiuser:
++                # re-check R2-22: the configured owner's session from before the __Host- name, read once under the old
++                # name (main.py protections sets it again under the new one); with the switch on only the new name is
++                # read, so a cookie another host set under the old name is never a session
++                token = request.cookies.get(SESSION_COOKIE, '')
++            found = await self.resolve(token)
+             if found is None:
+                 raise Refusal(401, 'UNAUTHENTICATED')
+             # a pending admin session (the password was right, the second factor not yet): only the MFA steps, the
+diff --git a/apps/edge-bff/app/security.py b/apps/edge-bff/app/security.py
+index ac1b6254..1d49b869 100644
+--- a/apps/edge-bff/app/security.py
++++ b/apps/edge-bff/app/security.py
+@@ -3,6 +3,24 @@ import hmac
+ import secrets
+ import unicodedata
+ 
++# re-check R2-22: the session and registration cookies. On a Secure (https) origin their names carry the __Host- prefix:
++# the browser then keeps them only when Secure, Path=/ and without Domain, so no other host of the domain (a sibling
++# site under the live domain, a dangling name) can set or overwrite them ("cookie tossing"). A local http origin keeps
++# the plain names (a __Host- cookie needs Secure).
++SESSION_COOKIE = 'edge_session'
++REGISTRATION_COOKIE = 'edge_registration'
++REGISTRATION_PATH = '/api/v1/auth/'             # the registration cookie's path where no prefix applies
++
++
++def cookie_name(name, secure):
++    """The cookie's name on this origin: '__Host-' + name when Secure, else name."""
++    return '__Host-' + name if secure else name
++
++
++def registration_path(secure):
++    """A __Host- cookie must have Path=/; without the prefix the registration cookie stays on the auth routes."""
++    return '/' if secure else REGISTRATION_PATH
++
+ 
+ def normal_password(password: str) -> str:
+     """EXEC-MU-ACCOUNTS Phase 1 fix round (ERRORS M478, C1 P1-L3; NIST SP 800-63B-4): a password is NFKC-normalised
+diff --git a/apps/edge-bff/tests/test_fix_plans.py b/apps/edge-bff/tests/test_fix_plans.py
+index 275a776a..bae4c119 100644
+--- a/apps/edge-bff/tests/test_fix_plans.py
++++ b/apps/edge-bff/tests/test_fix_plans.py
+@@ -34,3 +34,47 @@ def test_a_preference_of_a_tab_the_plan_holds_is_served_and_one_of_a_shared_key_
+         assert db(store, 'SELECT value FROM edge_bff.user_preferences WHERE pref_key = %s', 'edge.watchlist.view')[0]['value'] == 'x'
+         db(store, 'DELETE FROM edge_bff.user_capability_overrides WHERE user_id = %s', paula['user_id'])
+         assert 'edge.watchlist.view' in c.get('/api/v1/preferences').json()['preferences']
++
++
++# ---- R2-21, R2-22, R2-19: transport and cookie protections on an https origin ---------------------------------------
++
++def https_app(settings, store, **kw):
++    import dataclasses
++    return create_app(dataclasses.replace(settings, origin='https://testserver', secure_cookie=True, **kw), store, FakeOrc())
++
++
++def test_an_https_origin_sends_hsts_and_a_host_only_session_cookie(settings, store):
++    """R2-21: every answer of an https origin carries Strict-Transport-Security (host only, no preload); an http origin
++    none. R2-22: the session cookie is __Host-edge_session (Secure, Path=/, no Domain); the policy has form-action."""
++    with TestClient(https_app(settings, store), base_url='https://testserver') as c:
++        login = c.get('/login')
++        assert login.headers['strict-transport-security'] == 'max-age=31536000'
++        assert "form-action 'self'" in login.headers['content-security-policy']
++        signed = c.post('/api/v1/auth/sign-in', headers={'origin': 'https://testserver'},
++                        json={'login': 'owner', 'password': 'local-test-password'})
++        assert signed.status_code == 200, signed.text
++        cookie = signed.headers['set-cookie']
++        assert cookie.startswith('__Host-edge_session=') and 'Secure' in cookie and 'Path=/' in cookie
++        assert 'Domain' not in cookie
++        assert c.get('/api/v1/auth/session').status_code == 200
++    with TestClient(create_app(settings, store, FakeOrc())) as c:
++        assert 'strict-transport-security' not in c.get('/login').headers
++
++
++def test_the_switch_off_owners_session_moves_to_the_new_cookie_name_once(settings, store):
++    """R2-22: the configured owner signed in before the __Host- name (cookie edge_session) is not signed out: its next
++    answer sets the session under __Host-edge_session and removes the old name. With the switch on the old name is
++    never read (a cookie another host set under it is no session)."""
++    import secrets
++    from app.security import token_hash
++    token = secrets.token_hex(32)
++    store.session_create(token_hash(token), settings.owner, settings.session_seconds)
++    with TestClient(https_app(settings, store), base_url='https://testserver') as c:
++        moved = c.get('/api/v1/auth/session', headers={'cookie': f'edge_session={token}'})
++        assert moved.status_code == 200, moved.text
++        headers = moved.headers.get_list('set-cookie')
++        assert any(h.startswith(f'__Host-edge_session={token}') and 'Secure' in h for h in headers), headers
++        assert any(h.startswith('edge_session=') and 'Max-Age=0' in h for h in headers), headers
++    with TestClient(https_app(settings, store, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40),
++                    base_url='https://testserver') as c:
++        assert c.get('/api/v1/auth/session', headers={'cookie': f'edge_session={token}'}).status_code == 401
+-- 
+2.43.0
+
+
+From 081c378f3e8b769a9dbc570121dd0618fce5403d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 08:54:18 +0000
+Subject: [PATCH 9/9] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
+ Password and sign-in page (password change, sign out everywhere)
+
+Re-check R2-20: with accounts on (GET /api/v1/auth/config), the account menu opens a dialog for the Phase 1 password
+change (the other sessions end, this one stays) and sign-out on every device (both websites share the sessions table,
+which the words say); wording in edge-labels.js (EdgeLabels.auth.account); a browser test covers both.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/static/edge-client.js   |  4 ++
+ apps/edge-bff/static/edge-labels.js   | 10 ++++
+ apps/edge-bff/static/index.html       | 69 +++++++++++++++++++++++++--
+ apps/edge-bff/tests/test_fix_plans.py | 34 +++++++++++++
+ 4 files changed, 114 insertions(+), 3 deletions(-)
+
+diff --git a/apps/edge-bff/static/edge-client.js b/apps/edge-bff/static/edge-client.js
+index a7c96e68..216ef694 100644
+--- a/apps/edge-bff/static/edge-client.js
++++ b/apps/edge-bff/static/edge-client.js
+@@ -228,6 +228,10 @@
+     resendCode: (email, purpose) => api('/auth/code/resend', {email, purpose}),
+     forgotPassword: email => api('/auth/password/forgot', {email}),
+     resetPassword: (email, code, password, password_repeat) => api('/auth/password/reset', {email, code, password, password_repeat}),
++    // re-check R2-20: the signed-in account's password change (other sessions end) and sign-out on every device
++    changePassword: (current_password, password, password_repeat) => api('/auth/password/change', {current_password, password, password_repeat}),
++    async signoutEverywhere() { try { await ES()?.prefs.flush(); } catch { /* best effort */ } stopPrefs();
++      try { await api('/auth/sign-out-all', {}); } finally { try { await ES()?.clearUserState({signOut:true}); } catch { /* storage off */ } } reset(); },
+     mfaEnroll: () => api('/auth/mfa/enroll', {}),
+     // passing MFA rotates the session token (OWASP): the answer's csrf_token replaces the pending one before any write
+     mfaVerify: async answer => { const fresh = await api('/auth/mfa/verify', answer); pending.csrf = '';
+diff --git a/apps/edge-bff/static/edge-labels.js b/apps/edge-bff/static/edge-labels.js
+index ad7ae47a..befbed71 100644
+--- a/apps/edge-bff/static/edge-labels.js
++++ b/apps/edge-bff/static/edge-labels.js
+@@ -203,6 +203,16 @@ window.EdgeLabels = {
+       lockedAll:"Ask an admin to unlock your account.", unlockAt:"It unlocks on", busySetup:"Preparing…", qrFailed:"The QR code could not be drawn here: enter the key by hand." },
+     check: { short:"The password needs at least 8 characters.", long:"The password can have at most 256 characters.",
+       mismatch:"The two passwords are not the same.", code:"Enter the 6 digits of the code." },
++    // re-check R2-20: the account menu's page for the Phase 1 password change and sign-out on every device (the
++    // sessions table is shared by the beta and the live website, so "every device" covers both)
++    account: { menu:"Password and sign-in", title:"Password and sign-in",
++      lead:"Change your password, or sign out of EDGE on every device.",
++      current:"Current password", password:"New password", passwordHint:"At least 8 characters.", repeat:"Repeat new password",
++      submit:"Change password", busy:"Changing…",
++      changed:"Your password was changed. EDGE signed out your other devices; this one stays signed in.",
++      allTitle:"Sign out everywhere",
++      allLead:"Ends every EDGE session of this account, on every device and on both EDGE websites, this one included.",
++      all:"Sign out everywhere", allBusy:"Signing out…" },
+     errors: { INVALID_CREDENTIALS:"The login or the password is not right.", CODE_INVALID_OR_EXPIRED:"That code is not valid or has expired. Send a new one.",
+       USERNAME_TAKEN:"That username is taken. Choose another one.",
+       USER_CHANGED:"Another EDGE account signed in on this browser. Reload the page to continue as that account.",
+diff --git a/apps/edge-bff/static/index.html b/apps/edge-bff/static/index.html
+index 4aa0ac77..3163a2e5 100644
+--- a/apps/edge-bff/static/index.html
++++ b/apps/edge-bff/static/index.html
+@@ -1953,6 +1953,38 @@ h1 {
+ .account-dialog {
+   width: min(760px,calc(100vw - 48px));
+ }
++/* re-check R2-20: the password and sign-in dialog (the sign-in page's fields in the shell's dialog) */
++.security-dialog {
++  width: min(440px,calc(100vw - 32px));
++  overflow-y: auto;
++}
++.security-dialog>form,.security-dialog>.settings-heading,.security-dialog>.btn {
++  margin-left: 18px;
++  margin-right: 18px;
++}
++.security-dialog>form {
++  display: flex;
++  flex-direction: column;
++  gap: 17px;
++  padding-top: 18px;
++}
++.security-dialog>form>.btn,.security-dialog>.btn {
++  align-self: flex-start;
++}
++.security-dialog>.settings-heading {
++  margin-top: 26px;
++  margin-bottom: 12px;
++  padding-top: 18px;
++  padding-bottom: 0;
++  border-top: 1px solid var(--border);
++  border-bottom: 0;
++}
++.security-dialog .auth-field>small {
++  text-align: left;
++}
++.security-dialog>.btn {
++  margin-bottom: 18px;
++}
+ .dialog-head {
+   min-height: 66px;
+   display: flex;
+@@ -11419,6 +11451,10 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false })
+     const accountOpen = initialValue(viewRecord, "accountOpen", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setAccountOpen = next => updateValue(viewRecord, "accountOpen", next);
+     const accountView = initialValue(viewRecord, "accountView", () => ((() => { const seed = null; return typeof seed === "function" ? seed() : seed; })())), setAccountView = next => updateValue(viewRecord, "accountView", next);
+     const settingsOpen = initialValue(viewRecord, "settingsOpen", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setSettingsOpen = next => updateValue(viewRecord, "settingsOpen", next);
++    // re-check R2-20: the password and sign-in page, offered while accounts are on (GET /api/v1/auth/config)
++    const securityOpen = initialValue(viewRecord, "securityOpen", () => false), setSecurityOpen = next => updateValue(viewRecord, "securityOpen", next);
++    const accountsOn = initialValue(viewRecord, "accountsOn", () => false);
++    onLifecycle(viewRecord, "accountsOn", () => { let live = true; Edge.config().then(c => { if (live) updateValue(viewRecord, "accountsOn", c.multiuser === true); }); return () => { live = false; }; }, []);
+     const toast = initialValue(viewRecord, "toast", () => ((() => { const seed = ""; return typeof seed === "function" ? seed() : seed; })())), setToast = next => updateValue(viewRecord, "toast", next);
+     const supportOpen = initialValue(viewRecord, "supportOpen", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setSupportOpen = next => updateValue(viewRecord, "supportOpen", next);
+     const globalSearchOpen = initialValue(viewRecord, "globalSearchOpen", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setGlobalSearchOpen = next => updateValue(viewRecord, "globalSearchOpen", next);
+@@ -11494,7 +11530,7 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
+                 element(IconButton, { icon: "theme", onClick: toggle, title: `Switch to ${theme === "dark" ? "light" : "dark"} theme` }),
+                 element(IconButton, { icon: "settings", selected: settingsOpen, onClick: () => setSettingsOpen(true), title: "Settings", buttonRef: settingsRef }),
+                 element("button", { ref: avatarRef, className: `avatar ${accountOpen ? "open" : ""}`, onClick: () => setAccountOpen(!accountOpen), "aria-label": "Account menu", "aria-haspopup": "menu", "aria-expanded": accountOpen }, "E"),
+-                accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } }))),
++                accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openSecurity: accountsOn ? () => setSecurityOpen(true) : null, openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } }))),
+         /* EXEC-NAV-LEFT (user 2026-11-09: "kita akan pindahkan 4 tersebut ke kiri", menu A: icons only, the name in the
+            tooltip): the four pages in a 56 px menu on the left, under the top bar */
+         element("nav", { className: "side-nav", "aria-label": "Pages", inert: mobilePanelOpen },
+@@ -11512,10 +11548,11 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
+                 element("button", { type: "button", ref: settingsRef, "data-tip": "Settings", "aria-label": "Settings", className: settingsOpen ? "active" : "", onClick: () => setSettingsOpen(true) }, element(Icon, { name: "settings", size: 20 })),
+                 element("span", { className: "side-account" },
+                     element("button", { ref: avatarRef, className: `avatar ${accountOpen ? "open" : ""}`, "data-tip": accountOpen ? undefined : "Account", onClick: () => setAccountOpen(!accountOpen), "aria-label": "Account menu", "aria-haspopup": "menu", "aria-expanded": accountOpen }, "E"),
+-                    accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } })))),
++                    accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openSecurity: accountsOn ? () => setSecurityOpen(true) : null, openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } })))),
+         children,
+         false && element(AccountDialog, { view: accountView, setView: setAccountView, close: () => setAccountView(null), returnFocusRef: avatarRef }),
+         settingsOpen && element(SettingsDialog, { close: () => setSettingsOpen(false), notify: notify, returnFocusRef: settingsRef }),
++        securityOpen && element(SecurityDialog, { close: () => setSecurityOpen(false), returnFocusRef: avatarRef, signedOut: () => { setSecurityOpen(false); go("/login"); } }),
+         edgeTableDialog && element(TableDialog, { key: "edge-table-dialog", spec: edgeTableDialog }),
+         false && element(SupportDialog, { route: route, close: () => setSupportOpen(false), returnFocusRef: supportRef }),
+         false && element(GlobalMarketSearch, { go: go, close: () => setGlobalSearchOpen(false) }),
+@@ -11548,7 +11585,7 @@ function PagesMenu({ route, go, close, trigger }) {
+        element(Icon, { name: `nav${r[0].toUpperCase()}${r.slice(1)}`, size: 18 }), element("span", null, label)); }));
+ }
+ 
+-function AccountMenu({signOut,close,trigger,openSettings}) {
++function AccountMenu({signOut,close,trigger,openSettings,openSecurity}) {
+  const view=currentView,menu=(view.refs.menu ??= {current:null});
+  onLifecycle(view,"dismiss",()=>{
+    const outside=e=>{if(!menu.current?.contains(e.target)&&!trigger.current?.contains(e.target))close(false);};
+@@ -11560,6 +11597,7 @@ function AccountMenu({signOut,close,trigger,openSettings}) {
+  return element("div",{ref:menu,className:"account-menu",role:"menu"},
+    // EXEC-UI-1015C (phone): settings left the phone header and opens here
+    openSettings&&element("button",{role:"menuitem",className:"account-settings",onClick:()=>{close();openSettings();}},edgeUi().accountSettings),
++   openSecurity&&element("button",{role:"menuitem",className:"account-security",onClick:()=>{close();openSecurity();}},EdgeLabels.auth.account.menu),
+    element("button",{role:"menuitem",className:"sign-out",onClick:signOut},"Sign out"));
+ }
+ function DialogShell({ title, description, close, children, className = "", returnFocusRef }) {
+@@ -11597,6 +11635,31 @@ function DialogShell({ title, description, close, children, className = "", retu
+ function SettingsDialog({close,returnFocusRef}) {
+  return element(DialogShell,{title:"Appearance",description:"Preferences for this browser",close,returnFocusRef},element(Button,{onClick:themeState.toggle},"Switch theme"));
+ }
++// re-check R2-20 (CONTRACT.md section 4): the password change (the other sessions end; this one stays) and sign-out on
++// every device, in the shell's dialog; the words are EdgeLabels.auth.account, a refusal shows its server message
++function SecurityDialog({close, returnFocusRef, signedOut}) {
++  const v = currentView, A = EdgeLabels.auth.account, L = EdgeLabels.auth;
++  const f = initialValue(v, "f", () => ({current:"", password:"", repeat:""})), set = (name, value) => updateValue(v, "f", old => ({...old, [name]:value}));
++  const busy = initialValue(v, "busy", () => ""), error = initialValue(v, "error", () => ""), done = initialValue(v, "done", () => ""), bad = initialValue(v, "bad", () => ({}));
++  const change = async e => { e.preventDefault(); if (busy) return;
++    const problem = passwordProblem(f.password, f.repeat); if (problem) { updateValue(v, "error", problem); return; }
++    updateValue(v, "busy", "change"); updateValue(v, "error", ""); updateValue(v, "done", ""); updateValue(v, "bad", {});
++    try { await Edge.changePassword(f.current, f.password, f.repeat); updateValue(v, "done", A.changed); }
++    catch (err) { updateValue(v, "error", authText(err)); updateValue(v, "bad", fieldsOf(err)); }
++    finally { updateValue(v, "busy", ""); updateValue(v, "f", {current:"", password:"", repeat:""}); } };
++  const everywhere = async () => { if (busy) return; updateValue(v, "busy", "all"); updateValue(v, "error", "");
++    try { await Edge.signoutEverywhere(); signedOut(); } catch (err) { updateValue(v, "error", authText(err)); updateValue(v, "busy", ""); } };
++  return element(DialogShell, {title:A.title, description:A.lead, close, returnFocusRef, className:"security-dialog"},
++    element("form", {onSubmit:change},
++      element(AuthField, {label:A.current, error:bad.current_password}, element("input", {id:"auth-current-password", type:"password", autoComplete:"current-password", maxLength:256, value:f.current, required:true, disabled:!!busy, "data-dialog-initial-focus":true, onChange:e => set("current", e.target.value)})),
++      element(AuthField, {label:A.password, support:A.passwordHint, error:bad.password}, element("input", {id:"auth-new-password", type:"password", autoComplete:"new-password", maxLength:256, value:f.password, required:true, disabled:!!busy, onChange:e => set("password", e.target.value)})),
++      element(AuthField, {label:A.repeat, error:bad.password_repeat}, element("input", {id:"auth-repeat-new-password", type:"password", autoComplete:"new-password", maxLength:256, value:f.repeat, required:true, disabled:!!busy, onChange:e => set("repeat", e.target.value)})),
++      done && element("p", {className:"auth-note", role:"status"}, done),
++      error && element("p", {className:"auth-error", role:"alert"}, error),
++      element(Button, {kind:"primary", type:"submit", disabled:!!busy}, busy === "change" ? A.busy : A.submit)),
++    element(SettingsHeading, {title:A.allTitle, description:A.allLead}),
++    element(Button, {onClick:everywhere, disabled:!!busy}, busy === "all" ? A.allBusy : A.all));
++}
+ function SettingsHeading({ title, description }) { return element("div", { className: "settings-heading" },
+     element("strong", null, title),
+     element("p", null, description)); }
+diff --git a/apps/edge-bff/tests/test_fix_plans.py b/apps/edge-bff/tests/test_fix_plans.py
+index bae4c119..7d13a9af 100644
+--- a/apps/edge-bff/tests/test_fix_plans.py
++++ b/apps/edge-bff/tests/test_fix_plans.py
+@@ -7,6 +7,8 @@ from app.main import create_app
+ from conftest import FakeOrc
+ from test_principal import db, on, sign_in, workers  # noqa: F401 (fixtures)
+ from test_phase3a_gates import override, paid_user
++from test_auth_pages import page  # noqa: F401 (fixture)
++from test_auth_pages_live import live  # noqa: F401 (fixture)
+ 
+ 
+ def test_every_preference_capability_is_a_flag_of_the_catalog(store):
+@@ -78,3 +80,35 @@ def test_the_switch_off_owners_session_moves_to_the_new_cookie_name_once(setting
+     with TestClient(https_app(settings, store, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40),
+                     base_url='https://testserver') as c:
+         assert c.get('/api/v1/auth/session', headers={'cookie': f'edge_session={token}'}).status_code == 401
++
++
++# ---- R2-20: the password change and sign-out everywhere have a page ------------------------------------------------
++
++def test_the_account_menu_changes_the_password_and_signs_out_everywhere(live, page):
++    """R2-20 (CONTRACT.md section 4): with accounts on, the account menu opens "Password and sign-in": a password
++    change keeps this session and ends the account's others; "Sign out everywhere" ends them all and shows sign-in."""
++    import secrets
++    from app.security import token_hash
++    on, store = live
++    paid_user(store, 'paula')
++    other = secrets.token_hex(32)                           # the account's session on another device
++    page.goto(on.origin + '/login')
++    page.get_by_label('Login', exact=True).fill('paula')
++    page.get_by_label('Password', exact=True).fill('paula-password')
++    page.get_by_role('button', name='Sign In').click()
++    page.wait_for_function("() => window.Edge && Edge.auth !== null && ['/monitor', '/terminal'].includes(location.pathname)")
++    uid = db(store, "SELECT user_id FROM edge_bff.users WHERE username = 'paula'")[0]['user_id']
++    db(store, "INSERT INTO edge_bff.sessions(token_hash, owner_key, user_id, expires_at) SELECT %s, owner_key, user_id, "
++              "now() + interval '1 day' FROM edge_bff.users WHERE user_id = %s", token_hash(other), uid)
++    page.get_by_role('button', name='Account menu').first.click()
++    page.get_by_role('menuitem', name='Password and sign-in').click()
++    page.get_by_label('Current password', exact=True).fill('paula-password')
++    page.get_by_label('New password', exact=True).fill('a new long password')
++    page.get_by_label('Repeat new password', exact=True).fill('a new long password')
++    page.get_by_role('button', name='Change password').click()
++    page.get_by_role('status').filter(has_text='Your password was changed').wait_for()
++    assert db(store, 'SELECT revoked_at FROM edge_bff.sessions WHERE token_hash = %s', token_hash(other))[0]['revoked_at']
++    assert page.evaluate("() => fetch('/api/v1/auth/session').then(r => r.status)") == 200
++    page.get_by_role('button', name='Sign out everywhere').click()
++    page.get_by_label('Login', exact=True).wait_for()
++    assert db(store, 'SELECT count(*) AS n FROM edge_bff.sessions WHERE user_id = %s AND revoked_at IS NULL', uid)[0]['n'] == 0
 -- 
 2.43.0
 
