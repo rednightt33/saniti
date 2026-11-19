@@ -34,6 +34,7 @@ from psycopg.types.json import Jsonb
 from . import wake
 from .principal import Principal
 from .allow import NOTHING, context_of, digest, named
+from .catalog import grant_key, holds_entry
 from .rights import POINT_IN_TIME, refuse_context, rights_of
 from .watchlist import LISTS, PER_LIST, WatchlistStore
 from .backtest import (CONTROL_TIMEOUT, PREVIEW_PAGES, Backtests, BacktestError, CallerGone, PreviewReplaced, accepts_gzip,
@@ -83,6 +84,7 @@ HEALTH_TIMEOUT = 5
 # each"; report 11b: SCREENER_MAX_COUNTS is at least SCREEN_LIMIT, so every saved screen is counted in one counts call,
 # initially 50). SCREEN_LIMIT holds for each kind: at most 50 saved screens and 50 My metrics per owner.
 SCREEN_LIMIT = 50
+PRESET_KIND = 'screener_preset'                      # the release kind of the presets (releases.KINDS; re-check R1-32)
 WATCHLIST_LIMIT = PER_LIST                           # EXEC-WATCHLIST 2A: the star fills the first list (50, app/watchlist.py)
 # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): reads need screener.view, runs and saves screener.run; the saved items
 # and the star are capped by the plan's limits, at most the constants above (HARD; Principal.capped)
@@ -836,21 +838,27 @@ class Screeners:
         return Doc(key=key, raw=raw, gz=gzip.compress(raw, 6, mtime=0), etag='"' + hashlib.sha256(raw).hexdigest() + '"',
                    price_data=price_data_of(data), published_at=published_of(data))
 
-    def catalog_for(self, doc, rights, allow=None):
+    def catalog_for(self, doc, rights, allow=None, p=None):
         """EXEC-BACKTEST-REVAMP P5 (K8 b): the catalog as a session sees it: without POINT_IN_TIME, the entries marked
         access 'admin' are left out, with their own bytes and ETag (kept per document, so a session without the right
         never gets the admin catalog's ETag or a 304 for it). EXEC-MU-ACCOUNTS Phase 3b (C2 F1): with an allow that does
         not hold every item, a preset reading an item outside it is left out (its counts were computed with every item);
-        a preset without the worker's `items` (an older worker) keeps no counts. Kept per (document, right, allow)."""
+        a preset without the worker's `items` (an older worker) keeps no counts. Re-check R1-32: a preset the principal
+        `p` does not hold itself (its screener.preset grant, catalog.holds_entry: the rule of /api/v1/catalog) is left out
+        too. Kept per (document, right, allow, preset grant)."""
         everything = allow is None or all(v == '*' for v in allow.values())
-        if POINT_IN_TIME in rights and everything:
+        presets = None if p is None else grant_key(p, PRESET_KIND)
+        if POINT_IN_TIME in rights and everything and presets is None:
             return doc
-        key = (doc.etag, POINT_IN_TIME in rights, None if everything else dumps(allow))
+        key = (doc.etag, POINT_IN_TIME in rights, None if everything else dumps(allow), presets)
         hit = self.restricted.get(key)
         if hit is None:
             data = loads(doc.raw)
             if not everything and isinstance(data, dict) and isinstance(data.get('presets'), list):
                 data = {**data, 'presets': presets_held(data['presets'], allow)}
+            if presets is not None and isinstance(data, dict) and isinstance(data.get('presets'), list):
+                data = {**data, 'presets': [x for x in data['presets'] if isinstance(x, dict) and isinstance(x.get('id'), str)
+                                            and holds_entry(p, PRESET_KIND, x['id'])]}
             if POINT_IN_TIME not in rights and isinstance(data, dict) and isinstance(data.get('metrics'), list):
                 admin = {m.get('id') for m in data['metrics'] if isinstance(m, dict) and m.get('access') == 'admin'}
                 data = {**data, 'metrics': [m for m in data['metrics'] if not (isinstance(m, dict) and m.get('access') == 'admin')]}
@@ -1081,7 +1089,7 @@ class Screeners:
             refresh, its /health) is the one it was fetched at; ETag and If-None-Match -> 304."""
             await self.guard()
             doc = self.catalog_for(await self.doc('catalog', '/v1/catalog', p.owner_key), rights(request),
-                                   context(request)['allow'])
+                                   context(request)['allow'], p)
             return self.doc_answer(request, self.limits_for(doc, caps_of(p)))
 
         @app.get('/api/v1/screener/universe')

@@ -1389,7 +1389,9 @@ def test_screener_rights_from_the_session_and_the_catalog_per_session(configured
     refused before the worker; the catalog's admin entries reach an admin only, with an ETag of their own."""
     worker.metrics = [{'id': 'FL11', 'group': 'Flow', 'kind': 'flow'}, {'id': 'FL18', 'group': 'Flow', 'kind': 'flow', 'access': 'admin'}]
     flow = lambda metric: {'conditions': [{'id': 'a', 'enabled': True, 'test': {'kind': 'value', 'metric': {'kind': 'flow', 'metric': metric, 'params': {}}, 'op': 'gt', 'value': 0}}]}
-    worker.presets = [{'id': 'plain', 'definition': flow('FL11')}, {'id': 'admin', 'definition': {'conditions': [{'id': 'b', 'test': {'kind': 'window', 'test': flow('FL18')['conditions'][0]['test']}}]}}]
+    # two released presets of the release file (re-check R1-32: a preset is listed only when the plan holds it, and a
+    # plan holds released ones; an id the file does not list is a lab item)
+    worker.presets = [{'id': 'brk52', 'definition': flow('FL11')}, {'id': 'golden', 'definition': {'conditions': [{'id': 'b', 'test': {'kind': 'window', 'test': flow('FL18')['conditions'][0]['test']}}]}}]
     seen = {}
     from test_backtest import rights_session      # Phase 3a: a session without the right keeps the Screener open
     for admin, rights in [(False, []), (True, ['flow_point_in_time'])]:
@@ -1402,7 +1404,7 @@ def test_screener_rights_from_the_session_and_the_catalog_per_session(configured
             ids = [m['id'] for m in cat.json().get('metrics', [])]
             assert ('FL18' in ids) == bool(rights) and 'FL11' in ids
             # Stage C F6: a preset reading an admin entry (at any depth) only with the right
-            assert [p['id'] for p in cat.json()['presets']] == (['plain', 'admin'] if rights else ['plain'])
+            assert [p['id'] for p in cat.json()['presets']] == (['brk52', 'golden'] if rights else ['brk52'])
             seen[bool(rights)] = cat.headers['etag']
             before = len(worker.calls)
             r = c.post('/api/v1/screener/run', headers=c.headers_for, json={**run_body(seq=7), 'context': {'rights': ['flow_point_in_time']}})
