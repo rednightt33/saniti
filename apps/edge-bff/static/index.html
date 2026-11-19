@@ -1953,6 +1953,38 @@ h1 {
 .account-dialog {
   width: min(760px,calc(100vw - 48px));
 }
+/* re-check R2-20: the password and sign-in dialog (the sign-in page's fields in the shell's dialog) */
+.security-dialog {
+  width: min(440px,calc(100vw - 32px));
+  overflow-y: auto;
+}
+.security-dialog>form,.security-dialog>.settings-heading,.security-dialog>.btn {
+  margin-left: 18px;
+  margin-right: 18px;
+}
+.security-dialog>form {
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+  padding-top: 18px;
+}
+.security-dialog>form>.btn,.security-dialog>.btn {
+  align-self: flex-start;
+}
+.security-dialog>.settings-heading {
+  margin-top: 26px;
+  margin-bottom: 12px;
+  padding-top: 18px;
+  padding-bottom: 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+}
+.security-dialog .auth-field>small {
+  text-align: left;
+}
+.security-dialog>.btn {
+  margin-bottom: 18px;
+}
 .dialog-head {
   min-height: 66px;
   display: flex;
@@ -11419,6 +11451,10 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) 
     const accountOpen = initialValue(viewRecord, "accountOpen", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setAccountOpen = next => updateValue(viewRecord, "accountOpen", next);
     const accountView = initialValue(viewRecord, "accountView", () => ((() => { const seed = null; return typeof seed === "function" ? seed() : seed; })())), setAccountView = next => updateValue(viewRecord, "accountView", next);
     const settingsOpen = initialValue(viewRecord, "settingsOpen", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setSettingsOpen = next => updateValue(viewRecord, "settingsOpen", next);
+    // re-check R2-20: the password and sign-in page, offered while accounts are on (GET /api/v1/auth/config)
+    const securityOpen = initialValue(viewRecord, "securityOpen", () => false), setSecurityOpen = next => updateValue(viewRecord, "securityOpen", next);
+    const accountsOn = initialValue(viewRecord, "accountsOn", () => false);
+    onLifecycle(viewRecord, "accountsOn", () => { let live = true; Edge.config().then(c => { if (live) updateValue(viewRecord, "accountsOn", c.multiuser === true); }); return () => { live = false; }; }, []);
     const toast = initialValue(viewRecord, "toast", () => ((() => { const seed = ""; return typeof seed === "function" ? seed() : seed; })())), setToast = next => updateValue(viewRecord, "toast", next);
     const supportOpen = initialValue(viewRecord, "supportOpen", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setSupportOpen = next => updateValue(viewRecord, "supportOpen", next);
     const globalSearchOpen = initialValue(viewRecord, "globalSearchOpen", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setGlobalSearchOpen = next => updateValue(viewRecord, "globalSearchOpen", next);
@@ -11494,7 +11530,7 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
                 element(IconButton, { icon: "theme", onClick: toggle, title: `Switch to ${theme === "dark" ? "light" : "dark"} theme` }),
                 element(IconButton, { icon: "settings", selected: settingsOpen, onClick: () => setSettingsOpen(true), title: "Settings", buttonRef: settingsRef }),
                 element("button", { ref: avatarRef, className: `avatar ${accountOpen ? "open" : ""}`, onClick: () => setAccountOpen(!accountOpen), "aria-label": "Account menu", "aria-haspopup": "menu", "aria-expanded": accountOpen }, "E"),
-                accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } }))),
+                accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openSecurity: accountsOn ? () => setSecurityOpen(true) : null, openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } }))),
         /* EXEC-NAV-LEFT (user 2026-11-09: "kita akan pindahkan 4 tersebut ke kiri", menu A: icons only, the name in the
            tooltip): the four pages in a 56 px menu on the left, under the top bar */
         element("nav", { className: "side-nav", "aria-label": "Pages", inert: mobilePanelOpen },
@@ -11512,10 +11548,11 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
                 element("button", { type: "button", ref: settingsRef, "data-tip": "Settings", "aria-label": "Settings", className: settingsOpen ? "active" : "", onClick: () => setSettingsOpen(true) }, element(Icon, { name: "settings", size: 20 })),
                 element("span", { className: "side-account" },
                     element("button", { ref: avatarRef, className: `avatar ${accountOpen ? "open" : ""}`, "data-tip": accountOpen ? undefined : "Account", onClick: () => setAccountOpen(!accountOpen), "aria-label": "Account menu", "aria-haspopup": "menu", "aria-expanded": accountOpen }, "E"),
-                    accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } })))),
+                    accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openSecurity: accountsOn ? () => setSecurityOpen(true) : null, openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } })))),
         children,
         false && element(AccountDialog, { view: accountView, setView: setAccountView, close: () => setAccountView(null), returnFocusRef: avatarRef }),
         settingsOpen && element(SettingsDialog, { close: () => setSettingsOpen(false), notify: notify, returnFocusRef: settingsRef }),
+        securityOpen && element(SecurityDialog, { close: () => setSecurityOpen(false), returnFocusRef: avatarRef, signedOut: () => { setSecurityOpen(false); go("/login"); } }),
         edgeTableDialog && element(TableDialog, { key: "edge-table-dialog", spec: edgeTableDialog }),
         false && element(SupportDialog, { route: route, close: () => setSupportOpen(false), returnFocusRef: supportRef }),
         false && element(GlobalMarketSearch, { go: go, close: () => setGlobalSearchOpen(false) }),
@@ -11548,7 +11585,7 @@ function PagesMenu({ route, go, close, trigger }) {
        element(Icon, { name: `nav${r[0].toUpperCase()}${r.slice(1)}`, size: 18 }), element("span", null, label)); }));
 }
 
-function AccountMenu({signOut,close,trigger,openSettings}) {
+function AccountMenu({signOut,close,trigger,openSettings,openSecurity}) {
  const view=currentView,menu=(view.refs.menu ??= {current:null});
  onLifecycle(view,"dismiss",()=>{
    const outside=e=>{if(!menu.current?.contains(e.target)&&!trigger.current?.contains(e.target))close(false);};
@@ -11560,6 +11597,7 @@ function AccountMenu({signOut,close,trigger,openSettings}) {
  return element("div",{ref:menu,className:"account-menu",role:"menu"},
    // EXEC-UI-1015C (phone): settings left the phone header and opens here
    openSettings&&element("button",{role:"menuitem",className:"account-settings",onClick:()=>{close();openSettings();}},edgeUi().accountSettings),
+   openSecurity&&element("button",{role:"menuitem",className:"account-security",onClick:()=>{close();openSecurity();}},EdgeLabels.auth.account.menu),
    element("button",{role:"menuitem",className:"sign-out",onClick:signOut},"Sign out"));
 }
 function DialogShell({ title, description, close, children, className = "", returnFocusRef }) {
@@ -11596,6 +11634,31 @@ function DialogShell({ title, description, close, children, className = "", retu
 }
 function SettingsDialog({close,returnFocusRef}) {
  return element(DialogShell,{title:"Appearance",description:"Preferences for this browser",close,returnFocusRef},element(Button,{onClick:themeState.toggle},"Switch theme"));
+}
+// re-check R2-20 (CONTRACT.md section 4): the password change (the other sessions end; this one stays) and sign-out on
+// every device, in the shell's dialog; the words are EdgeLabels.auth.account, a refusal shows its server message
+function SecurityDialog({close, returnFocusRef, signedOut}) {
+  const v = currentView, A = EdgeLabels.auth.account, L = EdgeLabels.auth;
+  const f = initialValue(v, "f", () => ({current:"", password:"", repeat:""})), set = (name, value) => updateValue(v, "f", old => ({...old, [name]:value}));
+  const busy = initialValue(v, "busy", () => ""), error = initialValue(v, "error", () => ""), done = initialValue(v, "done", () => ""), bad = initialValue(v, "bad", () => ({}));
+  const change = async e => { e.preventDefault(); if (busy) return;
+    const problem = passwordProblem(f.password, f.repeat); if (problem) { updateValue(v, "error", problem); return; }
+    updateValue(v, "busy", "change"); updateValue(v, "error", ""); updateValue(v, "done", ""); updateValue(v, "bad", {});
+    try { await Edge.changePassword(f.current, f.password, f.repeat); updateValue(v, "done", A.changed); }
+    catch (err) { updateValue(v, "error", authText(err)); updateValue(v, "bad", fieldsOf(err)); }
+    finally { updateValue(v, "busy", ""); updateValue(v, "f", {current:"", password:"", repeat:""}); } };
+  const everywhere = async () => { if (busy) return; updateValue(v, "busy", "all"); updateValue(v, "error", "");
+    try { await Edge.signoutEverywhere(); signedOut(); } catch (err) { updateValue(v, "error", authText(err)); updateValue(v, "busy", ""); } };
+  return element(DialogShell, {title:A.title, description:A.lead, close, returnFocusRef, className:"security-dialog"},
+    element("form", {onSubmit:change},
+      element(AuthField, {label:A.current, error:bad.current_password}, element("input", {id:"auth-current-password", type:"password", autoComplete:"current-password", maxLength:256, value:f.current, required:true, disabled:!!busy, "data-dialog-initial-focus":true, onChange:e => set("current", e.target.value)})),
+      element(AuthField, {label:A.password, support:A.passwordHint, error:bad.password}, element("input", {id:"auth-new-password", type:"password", autoComplete:"new-password", maxLength:256, value:f.password, required:true, disabled:!!busy, onChange:e => set("password", e.target.value)})),
+      element(AuthField, {label:A.repeat, error:bad.password_repeat}, element("input", {id:"auth-repeat-new-password", type:"password", autoComplete:"new-password", maxLength:256, value:f.repeat, required:true, disabled:!!busy, onChange:e => set("repeat", e.target.value)})),
+      done && element("p", {className:"auth-note", role:"status"}, done),
+      error && element("p", {className:"auth-error", role:"alert"}, error),
+      element(Button, {kind:"primary", type:"submit", disabled:!!busy}, busy === "change" ? A.busy : A.submit)),
+    element(SettingsHeading, {title:A.allTitle, description:A.allLead}),
+    element(Button, {onClick:everywhere, disabled:!!busy}, busy === "all" ? A.allBusy : A.all));
 }
 function SettingsHeading({ title, description }) { return element("div", { className: "settings-heading" },
     element("strong", null, title),

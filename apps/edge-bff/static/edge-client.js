@@ -228,6 +228,10 @@
     resendCode: (email, purpose) => api('/auth/code/resend', {email, purpose}),
     forgotPassword: email => api('/auth/password/forgot', {email}),
     resetPassword: (email, code, password, password_repeat) => api('/auth/password/reset', {email, code, password, password_repeat}),
+    // re-check R2-20: the signed-in account's password change (other sessions end) and sign-out on every device
+    changePassword: (current_password, password, password_repeat) => api('/auth/password/change', {current_password, password, password_repeat}),
+    async signoutEverywhere() { try { await ES()?.prefs.flush(); } catch { /* best effort */ } stopPrefs();
+      try { await api('/auth/sign-out-all', {}); } finally { try { await ES()?.clearUserState({signOut:true}); } catch { /* storage off */ } } reset(); },
     mfaEnroll: () => api('/auth/mfa/enroll', {}),
     // passing MFA rotates the session token (OWASP): the answer's csrf_token replaces the pending one before any write
     mfaVerify: async answer => { const fresh = await api('/auth/mfa/verify', answer); pending.csrf = '';

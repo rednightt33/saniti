@@ -7,6 +7,8 @@ from app.main import create_app
 from conftest import FakeOrc
 from test_principal import db, on, sign_in, workers  # noqa: F401 (fixtures)
 from test_phase3a_gates import override, paid_user
+from test_auth_pages import page  # noqa: F401 (fixture)
+from test_auth_pages_live import live  # noqa: F401 (fixture)
 
 
 def test_every_preference_capability_is_a_flag_of_the_catalog(store):
@@ -78,3 +80,35 @@ def test_the_switch_off_owners_session_moves_to_the_new_cookie_name_once(setting
     with TestClient(https_app(settings, store, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40),
                     base_url='https://testserver') as c:
         assert c.get('/api/v1/auth/session', headers={'cookie': f'edge_session={token}'}).status_code == 401
+
+
+# ---- R2-20: the password change and sign-out everywhere have a page ------------------------------------------------
+
+def test_the_account_menu_changes_the_password_and_signs_out_everywhere(live, page):
+    """R2-20 (CONTRACT.md section 4): with accounts on, the account menu opens "Password and sign-in": a password
+    change keeps this session and ends the account's others; "Sign out everywhere" ends them all and shows sign-in."""
+    import secrets
+    from app.security import token_hash
+    on, store = live
+    paid_user(store, 'paula')
+    other = secrets.token_hex(32)                           # the account's session on another device
+    page.goto(on.origin + '/login')
+    page.get_by_label('Login', exact=True).fill('paula')
+    page.get_by_label('Password', exact=True).fill('paula-password')
+    page.get_by_role('button', name='Sign In').click()
+    page.wait_for_function("() => window.Edge && Edge.auth !== null && ['/monitor', '/terminal'].includes(location.pathname)")
+    uid = db(store, "SELECT user_id FROM edge_bff.users WHERE username = 'paula'")[0]['user_id']
+    db(store, "INSERT INTO edge_bff.sessions(token_hash, owner_key, user_id, expires_at) SELECT %s, owner_key, user_id, "
+              "now() + interval '1 day' FROM edge_bff.users WHERE user_id = %s", token_hash(other), uid)
+    page.get_by_role('button', name='Account menu').first.click()
+    page.get_by_role('menuitem', name='Password and sign-in').click()
+    page.get_by_label('Current password', exact=True).fill('paula-password')
+    page.get_by_label('New password', exact=True).fill('a new long password')
+    page.get_by_label('Repeat new password', exact=True).fill('a new long password')
+    page.get_by_role('button', name='Change password').click()
+    page.get_by_role('status').filter(has_text='Your password was changed').wait_for()
+    assert db(store, 'SELECT revoked_at FROM edge_bff.sessions WHERE token_hash = %s', token_hash(other))[0]['revoked_at']
+    assert page.evaluate("() => fetch('/api/v1/auth/session').then(r => r.status)") == 200
+    page.get_by_role('button', name='Sign out everywhere').click()
+    page.get_by_label('Login', exact=True).wait_for()
+    assert db(store, 'SELECT count(*) AS n FROM edge_bff.sessions WHERE user_id = %s AND revoked_at IS NULL', uid)[0]['n'] == 0

@@ -203,6 +203,16 @@ window.EdgeLabels = {
       lockedAll:"Ask an admin to unlock your account.", unlockAt:"It unlocks on", busySetup:"Preparing…", qrFailed:"The QR code could not be drawn here: enter the key by hand." },
     check: { short:"The password needs at least 8 characters.", long:"The password can have at most 256 characters.",
       mismatch:"The two passwords are not the same.", code:"Enter the 6 digits of the code." },
+    // re-check R2-20: the account menu's page for the Phase 1 password change and sign-out on every device (the
+    // sessions table is shared by the beta and the live website, so "every device" covers both)
+    account: { menu:"Password and sign-in", title:"Password and sign-in",
+      lead:"Change your password, or sign out of EDGE on every device.",
+      current:"Current password", password:"New password", passwordHint:"At least 8 characters.", repeat:"Repeat new password",
+      submit:"Change password", busy:"Changing…",
+      changed:"Your password was changed. EDGE signed out your other devices; this one stays signed in.",
+      allTitle:"Sign out everywhere",
+      allLead:"Ends every EDGE session of this account, on every device and on both EDGE websites, this one included.",
+      all:"Sign out everywhere", allBusy:"Signing out…" },
     errors: { INVALID_CREDENTIALS:"The login or the password is not right.", CODE_INVALID_OR_EXPIRED:"That code is not valid or has expired. Send a new one.",
       USERNAME_TAKEN:"That username is taken. Choose another one.",
       USER_CHANGED:"Another EDGE account signed in on this browser. Reload the page to continue as that account.",
