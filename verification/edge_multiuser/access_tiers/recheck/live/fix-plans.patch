@@ -1,7 +1,7 @@
 From b16d57288f42b49682d60bfab255d454f20d9739 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:13:40 +0000
-Subject: [PATCH 01/18] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
+Subject: [PATCH 01/20] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
  for lists and limits, no shared restrictive list, the seed plan is the one
  whose '*' is true, access.limits reports the applied cap, MFA_REQUIRED says
  whether an authenticator is set up
@@ -440,7 +440,7 @@ index 205d728e..79f4b2e7 100644
 From 68542f2fb3036e6ef993b948b48fb7e37f1983e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:26:59 +0000
-Subject: [PATCH 02/18] EXEC-MU-ACCOUNTS fix round (plans): refusals worded
+Subject: [PATCH 02/20] EXEC-MU-ACCOUNTS fix round (plans): refusals worded
  from their code and details; no internal key in a worker's capability message
 
 Re-check R2-15: errors.words names the item (display_name), the ended plan, the plan limit with the account's number and
@@ -792,7 +792,7 @@ index 4f57f457..6b36df04 100644
 From 296129a5dc45ccfadc9c657500d4c9a113dffacc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:29:25 +0000
-Subject: [PATCH 03/18] EXEC-MU-ACCOUNTS fix round (plans): the Screener
+Subject: [PATCH 03/20] EXEC-MU-ACCOUNTS fix round (plans): the Screener
  catalog lists only the presets the plan holds, by the rule of /api/v1/catalog
 
 Re-check R1-32: catalog.holds_entry is the one rule (any family of the kind), read by the generic catalog route and the
@@ -947,7 +947,7 @@ index 48c86772..3e149b2b 100644
 From 8884b38b089e66df85c1b65c6a4870aee54a6f19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:32:25 +0000
-Subject: [PATCH 04/18] EXEC-MU-ACCOUNTS fix round (plans): an account
+Subject: [PATCH 04/20] EXEC-MU-ACCOUNTS fix round (plans): an account
  preference of one tab is served and stored only while the plan holds that tab
 
 Re-check R1-18 and R1-30 (CONTRACT.md 8b D5: reads need <tab>.view): each sync entry of the storage registry names the
@@ -1418,7 +1418,7 @@ index a5c52e65..6c5d0c00 100644
 From 54398ef3d816fd905313bb78d03dbeae312bc428 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:39:51 +0000
-Subject: [PATCH 05/18] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
+Subject: [PATCH 05/20] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
  refusals in words, lands a non-admin account on the Terminal, follows a
  change of plan and a session ended under a frame
 
@@ -1970,7 +1970,7 @@ index 3be7fc42..97afe4f1 100644
 From 6bd43074c959de211bdda838e97fb3e5eca3ba9f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:45:57 +0000
-Subject: [PATCH 06/18] EXEC-MU-ACCOUNTS fix round (plans): the Screener's
+Subject: [PATCH 06/20] EXEC-MU-ACCOUNTS fix round (plans): the Screener's
  cached paint follows the plan; a drawings refusal is said in its words and
  keeps nothing in the browser
 
@@ -2300,7 +2300,7 @@ index 2b23a78c..be09eda6 100644
 From 61155dd2dbc5bf8b8694c7d66c720fdfe4844c46 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:46:54 +0000
-Subject: [PATCH 07/18] EXEC-MU-ACCOUNTS fix round (plans): an added series'
+Subject: [PATCH 07/20] EXEC-MU-ACCOUNTS fix round (plans): an added series'
  pane keys are the account's and leave with the series
 
 Re-check R1-20: the prefix ml.assets.flow. (fold and height per added series, named by its ticker) is a user cache
@@ -2394,7 +2394,7 @@ index 6c5d0c00..78ede8d0 100644
 From bcdb0705707af84337ceb5fa02e9e96f28597f1f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:51:03 +0000
-Subject: [PATCH 08/18] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
+Subject: [PATCH 08/20] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
  registration cookies on https, HSTS, form-action in every page policy
 
 Re-check R2-22: on a Secure origin the cookies are __Host-edge_session and __Host-edge_registration (Path=/, no
@@ -2733,7 +2733,7 @@ index 275a776a..bae4c119 100644
 From 081c378f3e8b769a9dbc570121dd0618fce5403d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:54:18 +0000
-Subject: [PATCH 09/18] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
+Subject: [PATCH 09/20] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
  Password and sign-in page (password change, sign out everywhere)
 
 Re-check R2-20: with accounts on (GET /api/v1/auth/config), the account menu opens a dialog for the Phase 1 password
@@ -2966,7 +2966,7 @@ index bae4c119..7d13a9af 100644
 From be55357c5ff111788f3be6095b31e796f69160c9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:55:50 +0000
-Subject: [PATCH 10/18] EXEC-MU-ACCOUNTS fix round (plans): one rule for a
+Subject: [PATCH 10/20] EXEC-MU-ACCOUNTS fix round (plans): one rule for a
  person's name at registration, and one for showing it
 
 Re-check R2-18: app/text_rules.py stores a first or last name in NFC with single spaces and refuses control, hidden
@@ -3110,7 +3110,7 @@ index 7d13a9af..c0414ee6 100644
 From 78455b93bce3e343a60aa888086854fdfeed0fea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:00:42 +0000
-Subject: [PATCH 11/18] EXEC-MU-ACCOUNTS fix round (plans): every plan limit
+Subject: [PATCH 11/20] EXEC-MU-ACCOUNTS fix round (plans): every plan limit
  answers one code, LIMIT_REACHED naming its capability key
 
 Re-check R2-39 (CONTRACT.md section 3): the saved-item caps (layouts, presets, places with drawings, saved screens and
@@ -3602,7 +3602,7 @@ index 1cea2cd5..b3da03f0 100644
 From fc3cbf2933403c4d0cdafef84f76ae2deee1275e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:02:13 +0000
-Subject: [PATCH 12/18] SCREENER_ONBOARDING.md: line pointers into edge-bff
+Subject: [PATCH 12/20] SCREENER_ONBOARDING.md: line pointers into edge-bff
  screener.py and main.py moved with the fix round's lines
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -3673,7 +3673,7 @@ index 6a313a75..239ec42b 100644
 From b36e621af0417827137b36018443c9ea5d927988 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:05:30 +0000
-Subject: [PATCH 13/18] EXEC-MU-ACCOUNTS fix round (plans): the shell runs no
+Subject: [PATCH 13/20] EXEC-MU-ACCOUNTS fix round (plans): the shell runs no
  inline script; its policy drops script-src 'unsafe-inline'
 
 Re-check R2-19: the head's viewport script moved to static/edge-boot.js and the shell's app to static/edge-app.js (a
@@ -9261,7 +9261,7 @@ index cc5b4fee..32a843c0 100644
 From db1eadac57e5ce7b44bec319e25013647a558d0b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:06:13 +0000
-Subject: [PATCH 14/18] EXEC-MU-ACCOUNTS fix round (plans): the Watchlist's
+Subject: [PATCH 14/20] EXEC-MU-ACCOUNTS fix round (plans): the Watchlist's
  copy of the logo reference list leaves with the account
 
 Re-check R1-17 (other site named by the refuters): edge.watchlist.logos holds the content of a reference file the plan
@@ -9313,7 +9313,7 @@ index 3dca0656..053568f6 100644
 From 40725f4ae44a9890ee92f8d2bd2500caf4480f11 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:07:53 +0000
-Subject: [PATCH 15/18] EXEC-MU-ACCOUNTS fix round (plans): notes per finding,
+Subject: [PATCH 15/20] EXEC-MU-ACCOUNTS fix round (plans): notes per finding,
  the records to write, the decisions left, the script move for integration
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -9609,7 +9609,7 @@ index 00000000..ea7fd66e
 From edd0e434d892ef7d3db6f156a2180c0494c0b4b6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:09:11 +0000
-Subject: [PATCH 16/18] Terminal registry test: edge.watchlist.logos is cleared
+Subject: [PATCH 16/20] Terminal registry test: edge.watchlist.logos is cleared
  with the account (fix round, re-check R1-17 other site)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -9648,7 +9648,7 @@ index 96453e49..fe15d3c9 100644
 From c779d1e01309fe37aba11771c2593c7503a2b4f9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:13:24 +0000
-Subject: [PATCH 17/18] principal.py: the comment of the MFA check sits above
+Subject: [PATCH 17/20] principal.py: the comment of the MFA check sits above
  it again
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -9682,7 +9682,7 @@ index cf07386b..878e8613 100644
 From 09f4ae3e6ed81e60c14752d7f5dbbcee41df6ddd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:14:28 +0000
-Subject: [PATCH 18/18] main.py: the one-time cookie move never overrides a
+Subject: [PATCH 18/20] main.py: the one-time cookie move never overrides a
  route's own cookie answer (sign-in, sign-out)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -9707,6 +9707,732 @@ index 7b839f5b..aac63795 100644
                  response.set_cookie(session_cookie, principal.token, max_age=settings.session_seconds, httponly=True,
                                      secure=True, samesite='strict', path='/')
                  response.delete_cookie(COOKIE, path='/')
+-- 
+2.43.0
+
+
+From e96cf7c952ffd68bf03363c4c65a359f4b252bc2 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 09:47:16 +0000
+Subject: [PATCH 19/20] EXEC-MU-ACCOUNTS fix round (plans): the catalog refuses
+ a Terminal limit beside the Backtest's or the Screener's own data access
+ (re-check R1-36, the user's "2a")
+
+Migration 20261119_030 (not applied): edge_bff.capabilities.data_scope marks terminal_limit (terminal.tickers,
+terminal.dataset, terminal.history_days) and every_stock (backtest.view/run, screener.view/run); data_scope_guard
+triggers on plan_capabilities, user_capability_overrides, subscriptions, plans and capabilities refuse a write after
+which an account could hold both at some time (SQLSTATE 23514, CONSTRAINT terminal_limit_with_every_stock, the plan or
+account and the keys named, a hint with the way out). The example flags stay allowed; '*' lifts every Terminal limit.
+tests/test_plan_data_scope.py holds the rule; test_terminal_access's narrowed paid account closes its every_stock
+capabilities first (it contradicted the decision).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/tests/conftest.py               |   1 +
+ apps/edge-bff/tests/test_plan_data_scope.py   | 250 ++++++++++++++++
+ apps/edge-bff/tests/test_terminal_access.py   |   7 +-
+ .../20261119_030_edge_bff_plan_data_scope.sql | 280 ++++++++++++++++++
+ .../edge_multiuser/fix_round/plans.md         |  53 ++++
+ 5 files changed, 590 insertions(+), 1 deletion(-)
+ create mode 100644 apps/edge-bff/tests/test_plan_data_scope.py
+ create mode 100644 database/migrations/20261119_030_edge_bff_plan_data_scope.sql
+
+diff --git a/apps/edge-bff/tests/conftest.py b/apps/edge-bff/tests/conftest.py
+index c135fff5..ff911358 100644
+--- a/apps/edge-bff/tests/conftest.py
++++ b/apps/edge-bff/tests/conftest.py
+@@ -34,6 +34,7 @@ def database():
+             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261117_004_edge_bff_catalog_phase3a.sql').read_text())
+             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261118_001_edge_bff_item_families_from_terminal.sql').read_text())
+             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261118_002_edge_bff_terminal_quota.sql').read_text())
++            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_030_edge_bff_plan_data_scope.sql').read_text())
+             c.execute('CREATE TABLE public.market_private(secret text)')
+         yield url
+     finally:
+diff --git a/apps/edge-bff/tests/test_plan_data_scope.py b/apps/edge-bff/tests/test_plan_data_scope.py
+new file mode 100644
+index 00000000..7d0dd850
+--- /dev/null
++++ b/apps/edge-bff/tests/test_plan_data_scope.py
+@@ -0,0 +1,250 @@
++"""EXEC-MU-ACCOUNTS fix round, track plans (re-check R1-36; user decision 2026-11-19 "2a", EXEC.md "Decisions from the
++fix round" item 1): a plan or an override that limits the Terminal's tickers, data sets or history may not also hold the
++Backtest's or the Screener's own data access, since their workers read every stock. Enforced by the plan catalog
++(migration 20261119_030, edge_bff.data_scope_guard: SQLSTATE 23514, CONSTRAINT terminal_limit_with_every_stock); the
++free plan's example flags stay allowed."""
++import threading
++import time
++from pathlib import Path
++
++import psycopg
++import pytest
++
++from test_principal import db, make_user
++from test_phase3a_gates import override, paid_plan, subscribe
++
++MIGRATION = Path(__file__).resolve().parents[3] / 'database/migrations/20261119_030_edge_bff_plan_data_scope.sql'
++CONSTRAINT = 'terminal_limit_with_every_stock'
++TERMINAL_LIMITS = ['terminal.dataset', 'terminal.history_days', 'terminal.tickers']
++EVERY_STOCK = ['backtest.run', 'backtest.view', 'screener.run', 'screener.view']
++
++
++def default_plan(store):
++    return db(store, 'SELECT plan_key FROM edge_bff.plans WHERE is_default')[0]['plan_key']
++
++
++def refused(fn, *names):
++    """The write is refused by the rule, and its message names every given plan, account and key."""
++    with pytest.raises(psycopg.errors.CheckViolation) as e:
++        fn()
++    assert e.value.diag.constraint_name == CONSTRAINT, e.value
++    text = str(e.value)
++    for name in names:
++        assert name in text, (name, text)
++    assert 'read every stock' in (e.value.diag.message_hint or '')
++    return text
++
++
++def test_the_marks_come_from_the_catalog_and_the_seed_plans_hold_no_clash(store):
++    rows = db(store, 'SELECT capability_key, data_scope FROM edge_bff.capabilities WHERE data_scope IS NOT NULL')
++    assert {r['capability_key']: r['data_scope'] for r in rows} == {
++        **{k: 'terminal_limit' for k in TERMINAL_LIMITS}, **{k: 'every_stock' for k in EVERY_STOCK}}
++    assert db(store, 'SELECT * FROM edge_bff.data_scope_conflicts(NULL, NULL)') == []
++    # the free plan limits the Terminal and keeps the example of every other tab (its rows, read from the catalog)
++    free = {r['capability_key']: r['value'] for r in db(store, '''SELECT capability_key, value
++        FROM edge_bff.plan_capabilities WHERE plan_key = %s''', default_plan(store))}
++    assert set(TERMINAL_LIMITS) <= set(free) and free['backtest.example'] is True and free['screener.example'] is True
++    # the Terminal quotas (rate limits) are not limits of which stocks: the paid plan holds them beside the Backtest
++    assert db(store, '''SELECT count(*) AS n FROM edge_bff.plan_capabilities WHERE plan_key = %s
++        AND capability_key LIKE 'terminal.%%_per_%%' ''', paid_plan(store))[0]['n'] == 4
++
++
++@pytest.mark.parametrize('key', EVERY_STOCK)
++def test_a_plan_that_limits_the_terminal_is_refused_the_backtest_and_the_screener(store, key):
++    free = default_plan(store)
++    refused(lambda: db(store, '''INSERT INTO edge_bff.plan_capabilities(plan_key, capability_key, value)
++        VALUES (%s, %s, 'true')''', free, key), f'plan {free}', key, 'terminal.tickers')
++    assert not db(store, 'SELECT 1 FROM edge_bff.plan_capabilities WHERE plan_key = %s AND capability_key = %s', free, key)
++    # false grants nothing: refused by no rule (an override may take a flag away)
++    assert db(store, 'SELECT edge_bff.data_scope_conflict(%s, NULL) AS f', free)[0]['f'] is None
++
++
++@pytest.mark.parametrize('key,value', [('terminal.tickers', '["BBCA"]'), ('terminal.history_days', '730'),
++                                       ('terminal.dataset', '{"ids": ["price"]}'), ('terminal.dataset', '{"stages": ["released"]}')])
++def test_a_plan_that_opens_the_backtest_is_refused_a_terminal_limit(store, key, value):
++    paid = paid_plan(store)
++    refused(lambda: db(store, '''INSERT INTO edge_bff.plan_capabilities(plan_key, capability_key, value)
++        VALUES (%s, %s, %s::jsonb) ON CONFLICT (plan_key, capability_key) DO UPDATE SET value = EXCLUDED.value''',
++                       paid, key, value), f'plan {paid}', key, 'backtest.view')
++    # every data set is no limit: the paid plan's own row
++    assert db(store, '''SELECT value FROM edge_bff.plan_capabilities WHERE plan_key = %s
++        AND capability_key = 'terminal.dataset' ''', paid)[0]['value'] == {'all': True}
++
++
++def test_an_override_on_either_side_is_refused_for_the_edge_bff_role_too(store):
++    """edge-bff's own role (the Phase 4 admin actions) writes overrides: the rule refuses it the same way, and a right
++    override passes (the read functions are granted to it, the trigger needs no grant)."""
++    free_user = make_user(store, 'fran', 'fran-password')
++    paid_user = make_user(store, 'pete', 'pete-password')
++    subscribe(store, paid_user['user_id'], paid_plan(store))
++
++    def as_runtime(sql, *args):
++        with store.connect() as c:
++            c.execute('SET LOCAL ROLE edge_bff_runtime')
++            c.execute(sql, args)
++
++    insert = '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
++        VALUES (%s, %s, %s::jsonb, 'trial')'''
++    text = refused(lambda: as_runtime(insert, free_user['user_id'], 'screener.view', 'true'),
++                   f"user {free_user['user_id']} on plan {default_plan(store)}", 'screener.view')
++    assert 'terminal.tickers' in text
++    refused(lambda: as_runtime(insert, paid_user['user_id'], 'terminal.tickers', '["BBCA"]'),
++            f"user {paid_user['user_id']} on plan {paid_plan(store)}", 'terminal.tickers', 'backtest.view')
++    as_runtime(insert, free_user['user_id'], 'terminal.history_days', '365')          # narrower still: no clash
++    as_runtime(insert, paid_user['user_id'], 'screener.saved_items', '10')            # not a data scope
++    assert db(store, 'SELECT count(*) AS n FROM edge_bff.user_capability_overrides')[0]['n'] == 2
++
++
++def test_the_admin_narrows_a_paid_account_only_after_closing_its_backtest_and_screener(store):
++    user = make_user(store, 'nora', 'nora-password')
++    subscribe(store, user['user_id'], paid_plan(store))
++    narrow = lambda: override(store, user['user_id'], 'terminal.dataset', '{"ids": ["price"]}')   # noqa: E731
++    refused(narrow, 'terminal.dataset')
++    for key in EVERY_STOCK[:-1]:
++        override(store, user['user_id'], key, 'false')
++    refused(narrow, 'screener.view')                                  # one tab still open
++    override(store, user['user_id'], 'screener.view', 'false')
++    narrow()
++    # an end on a closing override brings the plan's value back after it: refused while the Terminal stays narrowed
++    refused(lambda: db(store, '''UPDATE edge_bff.user_capability_overrides SET expires_at = now() + interval '1 day'
++        WHERE user_id = %s AND capability_key = 'backtest.run' ''', user['user_id']), 'backtest.run')
++    # opening a tab again is refused the same way
++    refused(lambda: override(store, user['user_id'], 'screener.view', 'true'), 'screener.view')
++
++
++def test_a_subscription_with_the_backtest_is_refused_for_an_account_with_its_own_terminal_limit(store):
++    user = make_user(store, 'otto', 'otto-password')
++    override(store, user['user_id'], 'terminal.tickers', '["BBCA", "BBRI"]')       # on the default plan: no clash
++    refused(lambda: subscribe(store, user['user_id'], paid_plan(store)), f"user {user['user_id']} on plan {paid_plan(store)}")
++    # a subscription that is not active resolves to nothing: taken
++    db(store, '''INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider) VALUES (%s, %s, 'cancelled', 'test')''',
++       user['user_id'], paid_plan(store))
++    refused(lambda: db(store, "UPDATE edge_bff.subscriptions SET status = 'active' WHERE user_id = %s", user['user_id']))
++    # without its own limit the account takes the plan
++    db(store, 'DELETE FROM edge_bff.user_capability_overrides WHERE user_id = %s', user['user_id'])
++    db(store, "UPDATE edge_bff.subscriptions SET status = 'active' WHERE user_id = %s", user['user_id'])
++
++
++def test_an_override_with_an_end_is_judged_on_both_values_and_the_default_plan(store):
++    """An account falls back to the default plan when its subscription ends, and an override's plan value comes back
++    after its end: what may apply at some time is judged, not only what applies now."""
++    user = make_user(store, 'ines', 'ines-password')
++    subscribe(store, user['user_id'], paid_plan(store), expires="now() + interval '30 days'")
++    # redundant on the paid plan, but a clash on the default plan the account returns to
++    refused(lambda: override(store, user['user_id'], 'backtest.view', 'true'),
++            f"user {user['user_id']} on plan {default_plan(store)}", 'backtest.view')
++    # an override that ended already applies never again: not judged
++    db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason, expires_at)
++        VALUES (%s, 'terminal.tickers', '["BBCA"]', 'ended', now() - interval '1 second')''', user['user_id'])
++    refused(lambda: db(store, '''UPDATE edge_bff.user_capability_overrides SET expires_at = now() + interval '1 day'
++        WHERE user_id = %s''', user['user_id']), 'terminal.tickers')
++
++
++@pytest.fixture
++def scope_plan(store):
++    """A plan of this test only (the catalog is shared by the session's tests): removed afterwards."""
++    db(store, "INSERT INTO edge_bff.plans(plan_key, display_name) VALUES ('scope_test', 'Scope test')")
++    try:
++        yield 'scope_test'
++    finally:
++        default = default_plan(store)
++        db(store, 'DELETE FROM edge_bff.subscriptions WHERE plan_key = %s', 'scope_test')
++        if default == 'scope_test':
++            raise AssertionError('the test plan became the default plan')
++        db(store, 'DELETE FROM edge_bff.plans WHERE plan_key = %s', 'scope_test')
++
++
++def test_everything_lifts_every_terminal_limit_so_it_holds_no_clash(store, scope_plan):
++    """'*' holds everything and terminal_access sends the admin header (no Terminal limit applies under it), unless an
++    override may take it away."""
++    db(store, '''INSERT INTO edge_bff.plan_capabilities(plan_key, capability_key, value) VALUES
++        (%s, '*', 'true'), (%s, 'terminal.tickers', '["BBCA"]'), (%s, 'backtest.view', 'true')''',
++       scope_plan, scope_plan, scope_plan)
++    user = make_user(store, 'rhea', 'rhea-password')
++    subscribe(store, user['user_id'], scope_plan)
++    refused(lambda: override(store, user['user_id'], '*', 'false'), f"user {user['user_id']} on plan {scope_plan}")
++    refused(lambda: db(store, "DELETE FROM edge_bff.plan_capabilities WHERE plan_key = %s AND capability_key = '*'",
++                       scope_plan), f'plan {scope_plan}')
++
++
++def test_a_new_default_plan_and_a_new_mark_are_judged_against_every_account(store, scope_plan):
++    db(store, "INSERT INTO edge_bff.plan_capabilities(plan_key, capability_key, value) VALUES (%s, 'backtest.view', 'true')",
++       scope_plan)
++    user = make_user(store, 'vera', 'vera-password')
++    override(store, user['user_id'], 'terminal.history_days', '90')
++    free = default_plan(store)
++
++    def move_default():
++        with store.connect() as c:
++            c.execute('UPDATE edge_bff.plans SET is_default = false WHERE plan_key = %s', (free,))
++            c.execute('UPDATE edge_bff.plans SET is_default = true WHERE plan_key = %s', (scope_plan,))
++
++    refused(move_default, f"user {user['user_id']} on plan {scope_plan}", 'terminal.history_days', 'backtest.view')
++    assert default_plan(store) == free
++    # a capability the free plan holds marked as reading every stock: refused, naming the plan
++    refused(lambda: db(store, "UPDATE edge_bff.capabilities SET data_scope = 'every_stock' WHERE capability_key = 'monitor.example'"),
++            f'plan {free}', 'monitor.example')
++    assert db(store, "SELECT data_scope FROM edge_bff.capabilities WHERE capability_key = 'monitor.example'")[0]['data_scope'] is None
++
++
++def test_two_writes_racing_on_one_account_are_judged_one_after_the_other(store, database):
++    """Each check takes one advisory lock for its transaction: the second write waits for the first to commit and then
++    sees it (no write skew between an override and a subscription)."""
++    user = make_user(store, 'walt', 'walt-password')
++    first = psycopg.connect(database)
++    try:
++        first.execute('''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
++            VALUES (%s, 'terminal.tickers', '["BBCA"]', 'race')''', (user['user_id'],))
++        outcome = {}
++
++        def second():
++            try:
++                subscribe(store, user['user_id'], paid_plan(store))
++                outcome['error'] = None
++            except psycopg.Error as e:            # noqa: PERF203
++                outcome['error'] = e
++
++        t = threading.Thread(target=second)
++        t.start()
++        deadline = time.monotonic() + 10
++        while time.monotonic() < deadline and not db(store, '''SELECT 1 FROM pg_locks
++                WHERE locktype = 'advisory' AND NOT granted'''):
++            time.sleep(0.02)
++        assert t.is_alive(), outcome
++        first.commit()
++        t.join(10)
++        assert isinstance(outcome.get('error'), psycopg.errors.CheckViolation), outcome
++        assert outcome['error'].diag.constraint_name == CONSTRAINT
++    finally:
++        first.close()
++
++
++def test_the_migration_refuses_a_second_run(database):
++    with psycopg.connect(database, autocommit=True) as conn:
++        with pytest.raises(psycopg.errors.RaiseException, match='ran already'):
++            conn.execute(MIGRATION.read_text())
++
++
++def test_the_migrations_verify_block_names_a_catalog_that_clashes_already(database):
++    text = MIGRATION.read_text().replace('BEGIN;', '', 1).replace('COMMIT;', '', 1)
++    undo = '''DROP TRIGGER plan_capabilities_data_scope ON edge_bff.plan_capabilities;
++        DROP TRIGGER user_capability_overrides_data_scope ON edge_bff.user_capability_overrides;
++        DROP TRIGGER subscriptions_data_scope ON edge_bff.subscriptions;
++        DROP TRIGGER plans_data_scope ON edge_bff.plans;
++        DROP TRIGGER capabilities_data_scope ON edge_bff.capabilities;
++        DROP FUNCTION edge_bff.data_scope_guard(), edge_bff.data_scope_conflicts(text, bigint),
++            edge_bff.data_scope_conflict(text, bigint);
++        ALTER TABLE edge_bff.capabilities DROP COLUMN data_scope;'''
++    with psycopg.connect(database) as conn:
++        free = conn.execute('SELECT plan_key FROM edge_bff.plans WHERE is_default').fetchone()[0]
++        conn.execute(undo)
++        conn.execute(text)                                              # the file itself passes its own verify
++        conn.rollback()
++        conn.execute(undo)
++        conn.execute("INSERT INTO edge_bff.plan_capabilities(plan_key, capability_key, value) VALUES (%s, 'screener.run', 'true')",
++                     (free,))
++        with pytest.raises(psycopg.errors.RaiseException, match=f'already clashes.*plan {free}: .*terminal.tickers.* with screener.run'):
++            conn.execute(text)
++        conn.rollback()
++    with psycopg.connect(database) as conn:
++        assert conn.execute("SELECT count(*) FROM pg_trigger WHERE tgname LIKE '%%_data_scope'").fetchone()[0] == 5
+diff --git a/apps/edge-bff/tests/test_terminal_access.py b/apps/edge-bff/tests/test_terminal_access.py
+index 6f561a85..7e1fd99d 100644
+--- a/apps/edge-bff/tests/test_terminal_access.py
++++ b/apps/edge-bff/tests/test_terminal_access.py
+@@ -343,7 +343,12 @@ def test_a_paid_principal_gets_every_ticker_and_dataset(switched_on, store):
+             assert call['headers']['x-terminal-proxy-owner'] == user['owner_key']
+             assert sent_caps(call) == {'v': 1, 'version': r.headers['x-edge-entitlements'], 'admin': False, 'tickers': '*',
+                                        'datasets': ALL_DATASETS, 'history_days': None, 'quota': QUOTA}
+-        # a plan narrowed by an override: refused at once, on the next request
++        # a plan narrowed by an override: refused at once, on the next request. The catalog takes a Terminal limit
++        # only once the account's Backtest and Screener are closed, since their workers read every stock (re-check
++        # R1-36, user decision 2026-11-19 "2a", migration 20261119_030: the capabilities marked every_stock)
++        db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
++            SELECT %s, capability_key, 'false', 'test' FROM edge_bff.capabilities WHERE data_scope = 'every_stock' ''',
++           user['user_id'])
+         db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
+             VALUES (%s, 'terminal.dataset', '{"ids": ["price"]}', 'test')''', user['user_id'])
+         r = c.get('/api/terminal/v1/cut/BBCA/broker')
+diff --git a/database/migrations/20261119_030_edge_bff_plan_data_scope.sql b/database/migrations/20261119_030_edge_bff_plan_data_scope.sql
+new file mode 100644
+index 00000000..44c46459
+--- /dev/null
++++ b/database/migrations/20261119_030_edge_bff_plan_data_scope.sql
+@@ -0,0 +1,280 @@
++-- EDGE multi-user, re-check of Phases 0-3b, fix round (EXEC-MU-ACCOUNTS; track plans, finding R1-36; user decision
++-- 2026-11-19, EXEC.md "Decisions from the fix round" item 1, the extra rule: "2a", agreed, enforced by the catalog;
++-- verification/edge_multiuser/fix_round/plans.md): a plan or an override that limits the Terminal's tickers, data sets
++-- or history may not also hold the Backtest's or the Screener's own data access, behind the switch EDGE_MULTIUSER (off
++-- until Phase 6; with it off edge-bff reads none of these rows).
++--
++-- Why: the Terminal's data limits (terminal.tickers, terminal.dataset, terminal.history_days) bind the Terminal path
++-- only (edge-bff's x-terminal-capabilities to terminal-api). The Backtest and Screener workers read every stock with
++-- their own terminal-api service keys, outside those limits. An account holding both (the free plan's one ticker and
++-- two years, with a trial of the Screener by an override) would see every ticker's prices and run any ticker over its
++-- whole history. The catalog refuses that combination when it is written, so no account can hold it at any time.
++--
++-- New column edge_bff.capabilities.data_scope (NULL: neither):
++--   terminal_limit  a row narrows what the Terminal shows of the stocks: a list or a limit by being there (no row:
++--                   every ticker, no limit), an item family unless its value is {"all": true}
++--                   (terminal.tickers, terminal.dataset, terminal.history_days)
++--   every_stock     a granted value opens a tab whose own data path reads every stock (its worker, its service key)
++--                   (backtest.view, backtest.run, screener.view, screener.run)
++-- The Terminal quotas (terminal.tickers_per_hour and the others) are rate limits the paid plan holds beside the
++-- Backtest, not limits of which stocks: they are not marked. The example flags (backtest.example, screener.example: a
++-- fixed page, no live data) are not marked, so the free plan keeps them. A later capability of either kind is marked in
++-- its own migration.
++--
++-- The rule, for every account at every time: never a terminal_limit row that narrows together with a granted
++-- every_stock row, unless '*' holds everything (terminal_access sends the admin header: no Terminal limit applies).
++-- Checked on what may apply at some time, not only now: an override with an end leaves the plan's value to come back
++-- after it; an account may always fall back to the default plan (its subscription ends or is cancelled), so its
++-- overrides are checked against the default plan and against its live subscription's plan.
++--   edge_bff.data_scope_conflict(plan, user)   the clash on one plan for one account (user NULL: the plan alone), or NULL
++--   edge_bff.data_scope_conflicts(plan, user)  every clash in a scope (both NULL: the whole catalog)
++--   edge_bff.data_scope_guard()                the trigger: refuses a write that makes a clash, with SQLSTATE 23514
++--                                              (check_violation), CONSTRAINT terminal_limit_with_every_stock, a message
++--                                              naming the plan or account and the keys, and a hint with the way out
++-- Triggers (AFTER ROW, immediate: within one transaction, take the narrowing rows away before adding the Backtest or
++-- Screener ones, or the reverse to narrow a plan): plan_capabilities and user_capability_overrides (insert, update,
++-- delete), subscriptions (insert, update; an active one), plans (a new default plan), capabilities (data_scope changed).
++-- Every check takes one transaction-scoped advisory lock, so two writes racing on the same accounts are judged one after
++-- the other. Writes to these tables are rare (migrations, the admin, Phase 4).
++--
++-- No table grant or index changes. The two read functions are executable by edge_bff_runtime (it writes overrides and
++-- subscriptions, and a trigger runs as the role that writes); the trigger function by nobody (triggers need no grant).
++-- Refuses a second run and a catalog that already clashes (it names each clash). Forward-only; rollback block at the
++-- end (comment).
++BEGIN;
++SET LOCAL lock_timeout = '5s';
++SET LOCAL statement_timeout = '1min';
++DO $preflight$
++BEGIN
++    IF to_regclass('edge_bff.capabilities') IS NULL OR to_regclass('edge_bff.subscriptions') IS NULL
++       OR to_regclass('edge_bff.user_capability_overrides') IS NULL THEN
++        RAISE EXCEPTION 'the EDGE plan catalog is missing: apply 20261117_003 first';
++    END IF;
++    IF (SELECT count(*) FROM edge_bff.capabilities WHERE capability_key IN ('terminal.tickers', 'terminal.dataset',
++            'terminal.history_days', 'backtest.view', 'backtest.run', 'screener.view', 'screener.run')) <> 7 THEN
++        RAISE EXCEPTION 'a Terminal, Backtest or Screener capability of 20261117_003 is missing: reconcile before applying';
++    END IF;
++    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name = 'capabilities'
++               AND column_name = 'data_scope') THEN
++        RAISE EXCEPTION 'edge_bff.capabilities already has data_scope: this migration ran already; reconcile before applying';
++    END IF;
++END $preflight$;
++
++ALTER TABLE edge_bff.capabilities
++    ADD COLUMN data_scope text CONSTRAINT capabilities_data_scope CHECK (data_scope IN ('terminal_limit', 'every_stock'));
++COMMENT ON COLUMN edge_bff.capabilities.data_scope IS 'terminal_limit: a row narrows what the Terminal shows of the stocks (a list or limit by being there, an item family unless {"all": true}); every_stock: a granted value opens a tab whose own data path reads every stock (the Backtest and Screener workers). No account may hold both at any time unless * holds everything (edge_bff.data_scope_guard, CONSTRAINT terminal_limit_with_every_stock); NULL: neither. Re-check R1-36, user decision 2026-11-19 "2a".';
++
++-- ---- the clash on one plan for one account ----------------------------------------------------------------------------
++-- What may apply at some time: the plan's row of a key, unless the account has an override of it without an end; and
++-- every override of the account that has not ended. '*' counts only when it holds everything at every time (the value
++-- after every end is true, and no value that may apply is false).
++CREATE FUNCTION edge_bff.data_scope_conflict(p_plan text, p_user bigint) RETURNS text
++    LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $fn$
++    WITH o AS (
++        SELECT capability_key, value, expires_at FROM edge_bff.user_capability_overrides
++        WHERE user_id = p_user AND (expires_at IS NULL OR expires_at > now())
++    ), may AS (
++        SELECT pc.capability_key, pc.value FROM edge_bff.plan_capabilities pc
++        WHERE pc.plan_key = p_plan
++          AND NOT EXISTS (SELECT 1 FROM o WHERE o.capability_key = pc.capability_key AND o.expires_at IS NULL)
++        UNION ALL
++        SELECT capability_key, value FROM o
++    ), star AS (
++        SELECT coalesce(coalesce((SELECT value FROM o WHERE capability_key = '*' AND expires_at IS NULL),
++                                 (SELECT value FROM edge_bff.plan_capabilities WHERE plan_key = p_plan
++                                  AND capability_key = '*')) = 'true'::jsonb, false)
++               AND NOT EXISTS (SELECT 1 FROM may WHERE capability_key = '*' AND value <> 'true'::jsonb) AS always
++    ), scoped AS (
++        SELECT m.capability_key, c.data_scope FROM may m JOIN edge_bff.capabilities c USING (capability_key)
++        WHERE c.data_scope IS NOT NULL AND CASE
++            WHEN c.data_scope = 'terminal_limit' THEN CASE c.kind
++                WHEN 'items' THEN m.value -> 'all' IS DISTINCT FROM 'true'::jsonb
++                WHEN 'flag' THEN m.value = 'true'::jsonb
++                ELSE true END
++            ELSE CASE c.kind
++                WHEN 'flag' THEN m.value = 'true'::jsonb
++                WHEN 'limit' THEN m.value <> '0'::jsonb
++                WHEN 'list' THEN m.value <> '[]'::jsonb
++                ELSE m.value -> 'all' = 'true'::jsonb OR coalesce(m.value -> 'ids', '[]'::jsonb) <> '[]'::jsonb
++                     OR coalesce(m.value -> 'stages', '[]'::jsonb) <> '[]'::jsonb END END
++    )
++    SELECT string_agg(DISTINCT capability_key, ', ' ORDER BY capability_key) FILTER (WHERE data_scope = 'terminal_limit')
++           || ' with '
++           || string_agg(DISTINCT capability_key, ', ' ORDER BY capability_key) FILTER (WHERE data_scope = 'every_stock')
++    FROM scoped
++    WHERE NOT (SELECT always FROM star)
++    HAVING count(*) FILTER (WHERE data_scope = 'terminal_limit') > 0
++       AND count(*) FILTER (WHERE data_scope = 'every_stock') > 0
++$fn$;
++COMMENT ON FUNCTION edge_bff.data_scope_conflict(text, bigint) IS 'The clash of the data_scope rule on one plan for one account (NULL account: the plan alone): "<terminal_limit keys> with <every_stock keys>" of the values that may apply at some time, or NULL. Re-check R1-36.';
++
++-- ---- every clash in a scope -------------------------------------------------------------------------------------------
++-- plan given: that plan alone and every account with an override that may resolve to it; account given: that account
++-- on each plan it may resolve to (its live subscription's and the default); neither: every plan and every account.
++CREATE FUNCTION edge_bff.data_scope_conflicts(p_plan text, p_user bigint)
++    RETURNS TABLE (plan_key text, user_id bigint, found text)
++    LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $fn$
++    WITH accounts AS (
++        SELECT DISTINCT o.user_id FROM edge_bff.user_capability_overrides o
++        WHERE (o.expires_at IS NULL OR o.expires_at > now()) AND (p_user IS NULL OR o.user_id = p_user)
++    ), cases AS (
++        SELECT p.plan_key, NULL::bigint AS user_id FROM edge_bff.plans p
++        WHERE p_user IS NULL AND (p_plan IS NULL OR p.plan_key = p_plan)
++        UNION
++        SELECT x.plan_key, a.user_id FROM accounts a
++        CROSS JOIN LATERAL (
++            SELECT s.plan_key FROM edge_bff.subscriptions s
++            WHERE s.user_id = a.user_id AND s.status = 'active' AND (s.expires_at IS NULL OR s.expires_at > now())
++            UNION
++            SELECT d.plan_key FROM edge_bff.plans d WHERE d.is_default) x
++        WHERE p_plan IS NULL OR x.plan_key = p_plan
++    )
++    SELECT c.plan_key, c.user_id, f.found FROM cases c
++    CROSS JOIN LATERAL (SELECT edge_bff.data_scope_conflict(c.plan_key, c.user_id) AS found) f
++    WHERE f.found IS NOT NULL
++    ORDER BY c.plan_key, c.user_id NULLS FIRST
++$fn$;
++COMMENT ON FUNCTION edge_bff.data_scope_conflicts(text, bigint) IS 'Every clash of the data_scope rule in a scope (a plan with the accounts that may resolve to it; an account on each plan it may resolve to; both NULL: the whole catalog). Re-check R1-36.';
++
++REVOKE ALL ON FUNCTION edge_bff.data_scope_conflict(text, bigint), edge_bff.data_scope_conflicts(text, bigint) FROM PUBLIC;
++-- the trigger runs as the role that writes (edge_bff_runtime writes overrides and subscriptions): both are read-only
++GRANT EXECUTE ON FUNCTION edge_bff.data_scope_conflict(text, bigint), edge_bff.data_scope_conflicts(text, bigint)
++    TO edge_bff_runtime;
++
++-- ---- the trigger ------------------------------------------------------------------------------------------------------
++CREATE FUNCTION edge_bff.data_scope_guard() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $fn$
++DECLARE
++    plans text[] := ARRAY[NULL]::text[];
++    users bigint[] := ARRAY[NULL]::bigint[];
++    p text;
++    u bigint;
++    hit record;
++BEGIN
++    IF TG_TABLE_NAME = 'plan_capabilities' THEN
++        plans := CASE TG_OP WHEN 'INSERT' THEN ARRAY[NEW.plan_key] WHEN 'DELETE' THEN ARRAY[OLD.plan_key]
++                 ELSE ARRAY[OLD.plan_key, NEW.plan_key] END;
++    ELSIF TG_TABLE_NAME = 'user_capability_overrides' THEN
++        users := CASE TG_OP WHEN 'INSERT' THEN ARRAY[NEW.user_id] WHEN 'DELETE' THEN ARRAY[OLD.user_id]
++                 ELSE ARRAY[OLD.user_id, NEW.user_id] END;
++    ELSIF TG_TABLE_NAME = 'subscriptions' THEN
++        IF NEW.status <> 'active' THEN
++            RETURN NULL;
++        END IF;
++        users := ARRAY[NEW.user_id];
++    END IF;
++    -- plans (a new default plan) and capabilities (a changed data_scope): every plan and every account
++    PERFORM pg_advisory_xact_lock(hashtextextended('edge_bff.data_scope_guard', 0));
++    FOREACH p IN ARRAY plans LOOP
++        FOREACH u IN ARRAY users LOOP
++            SELECT * INTO hit FROM edge_bff.data_scope_conflicts(p, u) LIMIT 1;
++            IF FOUND THEN
++                RAISE EXCEPTION 'edge_bff.%: % would both limit the Terminal and open the Backtest or the Screener (%)',
++                    TG_TABLE_NAME, CASE WHEN hit.user_id IS NULL THEN 'plan ' || hit.plan_key
++                                        ELSE 'user ' || hit.user_id || ' on plan ' || hit.plan_key END, hit.found
++                    USING ERRCODE = 'check_violation', CONSTRAINT = 'terminal_limit_with_every_stock',
++                          HINT = 'A plan or an override that limits the Terminal''s tickers, data sets or history '
++                                 '(capabilities.data_scope terminal_limit) may not also hold the Backtest''s or the '
++                                 'Screener''s own data access (data_scope every_stock): their workers read every stock. '
++                                 'Give the account a plan without those Terminal limits (a subscription; ended, it falls '
++                                 'back to the default plan), or leave backtest.view, backtest.run, screener.view and '
++                                 'screener.run out. Right: a plan with terminal.tickers ["BBCA"] and backtest.example; '
++                                 'wrong: the same plan with backtest.view.';
++            END IF;
++        END LOOP;
++    END LOOP;
++    RETURN NULL;
++END $fn$;
++REVOKE ALL ON FUNCTION edge_bff.data_scope_guard() FROM PUBLIC;
++COMMENT ON FUNCTION edge_bff.data_scope_guard() IS 'Refuses a write to the plan catalog after which an account could hold a Terminal limit (data_scope terminal_limit) together with the Backtest''s or the Screener''s own data access (data_scope every_stock), with SQLSTATE 23514 and CONSTRAINT terminal_limit_with_every_stock. Re-check R1-36, user decision 2026-11-19 "2a".';
++
++-- ---- the marks (before the triggers: the verify block below checks the whole catalog once) ---------------------------
++UPDATE edge_bff.capabilities SET data_scope = 'terminal_limit'
++    WHERE capability_key IN ('terminal.tickers', 'terminal.dataset', 'terminal.history_days');
++UPDATE edge_bff.capabilities SET data_scope = 'every_stock'
++    WHERE capability_key IN ('backtest.view', 'backtest.run', 'screener.view', 'screener.run');
++
++CREATE TRIGGER plan_capabilities_data_scope AFTER INSERT OR UPDATE OR DELETE ON edge_bff.plan_capabilities
++    FOR EACH ROW EXECUTE FUNCTION edge_bff.data_scope_guard();
++CREATE TRIGGER user_capability_overrides_data_scope AFTER INSERT OR UPDATE OR DELETE ON edge_bff.user_capability_overrides
++    FOR EACH ROW EXECUTE FUNCTION edge_bff.data_scope_guard();
++CREATE TRIGGER subscriptions_data_scope AFTER INSERT OR UPDATE ON edge_bff.subscriptions
++    FOR EACH ROW EXECUTE FUNCTION edge_bff.data_scope_guard();
++CREATE TRIGGER plans_data_scope AFTER INSERT OR UPDATE OF is_default ON edge_bff.plans
++    FOR EACH ROW WHEN (NEW.is_default) EXECUTE FUNCTION edge_bff.data_scope_guard();
++CREATE TRIGGER capabilities_data_scope AFTER UPDATE OF data_scope ON edge_bff.capabilities
++    FOR EACH ROW WHEN (NEW.data_scope IS DISTINCT FROM OLD.data_scope) EXECUTE FUNCTION edge_bff.data_scope_guard();
++
++DO $verify$
++DECLARE
++    want constant jsonb := '{"terminal.tickers": "terminal_limit", "terminal.dataset": "terminal_limit",
++        "terminal.history_days": "terminal_limit", "backtest.view": "every_stock", "backtest.run": "every_stock",
++        "screener.view": "every_stock", "screener.run": "every_stock"}';
++    got jsonb;
++    bad text;
++    cname text;
++    refused boolean;
++BEGIN
++    SELECT jsonb_object_agg(capability_key, data_scope) INTO got FROM edge_bff.capabilities WHERE data_scope IS NOT NULL;
++    IF got IS DISTINCT FROM want THEN
++        RAISE EXCEPTION 'the data_scope marks are %, not %', got, want;
++    END IF;
++    -- the catalog as it stands holds no clash (on dev: three plans, no override on 2026-11-18)
++    SELECT string_agg(coalesce('user ' || x.user_id || ' on ', '') || 'plan ' || x.plan_key || ': ' || x.found, '; ')
++        INTO bad FROM edge_bff.data_scope_conflicts(NULL, NULL) x;
++    IF bad IS NOT NULL THEN
++        RAISE EXCEPTION 'the plan catalog already clashes with the data_scope rule: %', bad
++            USING HINT = 'Take the Backtest and Screener rows away from the plans and overrides named, or their '
++                         'Terminal limits, in a migration before this one.';
++    END IF;
++    IF (SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal AND tgname IN ('plan_capabilities_data_scope',
++            'user_capability_overrides_data_scope', 'subscriptions_data_scope', 'plans_data_scope',
++            'capabilities_data_scope')) <> 5 THEN
++        RAISE EXCEPTION 'the five data_scope triggers are not all in place';
++    END IF;
++    IF NOT has_function_privilege('edge_bff_runtime', 'edge_bff.data_scope_conflicts(text, bigint)', 'EXECUTE')
++       OR NOT has_function_privilege('edge_bff_runtime', 'edge_bff.data_scope_conflict(text, bigint)', 'EXECUTE')
++       OR has_function_privilege('public', 'edge_bff.data_scope_guard()', 'EXECUTE')
++       OR has_function_privilege('public', 'edge_bff.data_scope_conflicts(text, bigint)', 'EXECUTE') THEN
++        RAISE EXCEPTION 'the data_scope functions do not have the privileges of this migration';
++    END IF;
++    -- its own examples, rolled back: a plan with one Terminal ticker keeps the example flags, and is refused the
++    -- Screener's run; the same plan with every data set and '*' takes it
++    BEGIN
++        INSERT INTO edge_bff.plans(plan_key, display_name) VALUES ('data_scope_check', 'Data scope check');
++        INSERT INTO edge_bff.plan_capabilities(plan_key, capability_key, value) VALUES
++            ('data_scope_check', 'terminal.tickers', '["BBCA"]'), ('data_scope_check', 'terminal.dataset', '{"all": true}'),
++            ('data_scope_check', 'backtest.example', 'true'), ('data_scope_check', 'screener.example', 'true');
++        refused := false;
++        BEGIN
++            INSERT INTO edge_bff.plan_capabilities(plan_key, capability_key, value)
++                VALUES ('data_scope_check', 'screener.run', 'true');
++        EXCEPTION WHEN check_violation THEN
++            GET STACKED DIAGNOSTICS cname = CONSTRAINT_NAME;
++            refused := cname = 'terminal_limit_with_every_stock';
++        END;
++        IF NOT refused THEN
++            RAISE EXCEPTION 'data_scope_guard took screener.run on a plan with terminal.tickers';
++        END IF;
++        INSERT INTO edge_bff.plan_capabilities(plan_key, capability_key, value)
++            VALUES ('data_scope_check', '*', 'true'), ('data_scope_check', 'screener.run', 'true');
++        RAISE EXCEPTION USING ERRCODE = 'EDG30', MESSAGE = 'the examples hold';
++    EXCEPTION WHEN SQLSTATE 'EDG30' THEN
++        NULL;
++    END;
++    IF EXISTS (SELECT 1 FROM edge_bff.plans WHERE plan_key = 'data_scope_check') THEN
++        RAISE EXCEPTION 'the example plan of this check was not rolled back';
++    END IF;
++END $verify$;
++COMMIT;
++
++-- Rollback (a new forward migration with this body; edge-bff reads none of it):
++-- BEGIN;
++-- DROP TRIGGER plan_capabilities_data_scope ON edge_bff.plan_capabilities;
++-- DROP TRIGGER user_capability_overrides_data_scope ON edge_bff.user_capability_overrides;
++-- DROP TRIGGER subscriptions_data_scope ON edge_bff.subscriptions;
++-- DROP TRIGGER plans_data_scope ON edge_bff.plans;
++-- DROP TRIGGER capabilities_data_scope ON edge_bff.capabilities;
++-- DROP FUNCTION edge_bff.data_scope_guard(), edge_bff.data_scope_conflicts(text, bigint),
++--     edge_bff.data_scope_conflict(text, bigint);
++-- ALTER TABLE edge_bff.capabilities DROP COLUMN data_scope;
++-- COMMIT;
+diff --git a/verification/edge_multiuser/fix_round/plans.md b/verification/edge_multiuser/fix_round/plans.md
+index 699c7b0e..26220a9f 100644
+--- a/verification/edge_multiuser/fix_round/plans.md
++++ b/verification/edge_multiuser/fix_round/plans.md
+@@ -201,6 +201,59 @@ The findings and their three refuters' verdicts: `verification/edge_multiuser/ac
+ - Hand-off (terminal track): same-site GETs from a sibling host still carry the session; 3c's counted Terminal GETs
+   could check `Sec-Fetch-Site` (the refuter's note), outside this track.
+ 
++### R1-36 (the user's rule "2a"): a Terminal limit beside the Backtest's or the Screener's own data access
++- Decision (the user, 2026-11-19, EXEC.md "Decisions from the fix round" item 1, the extra rule): "2a" (agreed;
++  enforced by the catalog). A plan or an override that limits the Terminal's tickers, data sets or history may not also
++  hold the Backtest's or the Screener's own data access, since those tabs read every stock; the free plan's example
++  flags stay allowed.
++- Root cause (verified, R1-36 and its refuters): the Terminal's data limits bind only the Terminal path (edge-bff's
++  x-terminal-capabilities to terminal-api, `app/terminal_access.py`); the Backtest and Screener workers read every stock
++  with their own terminal-api service keys (`.railway/railway.ts` TERMINAL_SERVICE_KEY_BACKTEST_WORKER/_SCREENER_WORKER,
++  `apps/screener-worker/src/config.ts` TERMINAL_PROXY_KEY). Nothing in the catalog stopped an account from holding both
++  (the free plan's `terminal.tickers ["BBCA"]` and 730 days with a Screener trial by an override), so it would see every
++  ticker's prices and run any ticker over its whole history.
++- Fix (the data model that owns it; no code reads it, no plan or capability key in code): migration
++  `20261119_030_edge_bff_plan_data_scope.sql` (plans' number range):
++  - `edge_bff.capabilities.data_scope`: `terminal_limit` (terminal.tickers, terminal.dataset, terminal.history_days: a
++    list or limit narrows by being there, an item family unless `{"all": true}`) and `every_stock` (backtest.view,
++    backtest.run, screener.view, screener.run). The rule reads the marks, never a list of keys: a later capability of
++    either kind is marked in its own migration. The Terminal quotas (rate limits the paid plan holds beside the
++    Backtest) and the example flags are not marked.
++  - `data_scope_conflict(plan, user)` and `data_scope_conflicts(plan, user)`: what may apply at some time (an override
++    with an end leaves the plan's value to come back; an account may always fall back to the default plan, so its
++    overrides are judged on its live subscription's plan and on the default plan); `'*'` lifts every Terminal limit
++    (terminal_access sends the admin header) only when it holds at every time.
++  - `data_scope_guard()` AFTER ROW triggers on plan_capabilities and user_capability_overrides (insert, update,
++    delete), subscriptions (an active one), plans (a new default plan) and capabilities (a changed mark). A clash is
++    refused with SQLSTATE 23514 (check_violation), CONSTRAINT `terminal_limit_with_every_stock`, a message naming the
++    plan or account and the keys ("user 7 on plan free would both limit the Terminal and open the Backtest or the
++    Screener (terminal.dataset, terminal.history_days, terminal.tickers with screener.view)") and a hint with the way out
++    and one right and one wrong example. One transaction-scoped advisory lock per check: two writes racing on one
++    account are judged one after the other. Immediate (not deferred): within one transaction, take the Terminal limits
++    away before adding the Backtest or Screener rows (or close the tabs before narrowing).
++  - The two read functions are executable by edge_bff_runtime (it writes overrides and subscriptions; the trigger runs
++    as the writer); the trigger function by nobody. The verify block checks the marks, the whole catalog (it names
++    every clash and refuses), the five triggers, the privileges, and its own examples (rolled back).
++- Tests: new `apps/edge-bff/tests/test_plan_data_scope.py` (the marks and the seed; each side refused on a plan, on an
++  override, for the edge_bff_runtime role; the admin narrows a paid account only after closing its tabs; an override
++  with an end; a subscription; `'*'`; a new default plan and a new mark; the race; the second run; the verify block on a
++  catalog that clashes). Added to the harness in `tests/conftest.py`.
++- Test changed (it contradicted the decision): `tests/test_terminal_access.py::test_a_paid_principal_gets_every_ticker_and_dataset`
++  narrowed a paid account's data sets by an override while it kept the Backtest and the Screener; it now closes the
++  capabilities marked `every_stock` first (read from the catalog), then narrows, with the same assertions.
++- Not done here (outside the rule): the Overview, Radar and Watchlist files also carry every stock (R1-37, a decision);
++  the Backtest page's chart reads count in the Terminal quota (decision 4 "a", the terminal track); the Phase 4 admin
++  API maps the constraint's 23514 to a refusal for the admin page (its words: the message and hint above).
++- Records: CONTRACT 8a gets the rule and the column (the sentence of the decision, the marks, the constraint name);
++  CONTRACT 8b 3c records that the Terminal data limits bind the Terminal path only and that the catalog keeps the
++  Backtest and Screener off a plan with them. DATABASE_SCHEMA.md: the column, the three functions and five triggers.
++  DATABASE_CHANGELOG.md: the migration (not applied; at deploy, after 20261118_002, read back the marks and
++  `SELECT * FROM edge_bff.data_scope_conflicts(NULL, NULL)` = no row). ERRORS_AND_SOLUTIONS.md: R1-36 fixed on
++  fix-plans by the catalog rule, not deployed. EXEC.md: "2a" built.
++- Integration: `tests/conftest.py` gets this migration after 20261118_002; the terminal track's 20261119_050 adds
++  other columns to `edge_bff.capabilities` (value_min, value_max, item_pattern) and replaces capability_value_check;
++  the two migrations touch nothing of each other (merge both conftest lines, in number order).
++
+ ## Findings reported as decisions (not changed)
+ 
+ - R1-35 (O3b-2 variant): conditions on the attributes every result row and /universe show (last, chg_1d_pct,
+-- 
+2.43.0
+
+
+From 4bdf1cc69840167d82fb97a77e60b05aab3b031c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 09:47:16 +0000
+Subject: [PATCH 20/20] Backtest and Screener frame tests: the shell's tab code
+ is read from edge-app.js (the R2-19 script move)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/tests/test_backtest.py | 8 +++++---
+ apps/edge-bff/tests/test_screener.py | 8 +++++---
+ 2 files changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/apps/edge-bff/tests/test_backtest.py b/apps/edge-bff/tests/test_backtest.py
+index c9fc6582..c13929b0 100644
+--- a/apps/edge-bff/tests/test_backtest.py
++++ b/apps/edge-bff/tests/test_backtest.py
+@@ -1463,11 +1463,13 @@ def test_backtest_tab_page_and_its_frame_csp(app, monkeypatch, tmp_path):
+     (tmp_path / 'assets' / 'index-abc123.js').write_text('void 0')
+     monkeypatch.setattr(main, 'BACKTEST_APP', tmp_path)
+     page = c.get('/backtest')
+-    assert page.status_code == 200 and 'EDGE' in page.text and 'function BacktestPage' in page.text and '"/backtest-app/"' in page.text
++    shell = page.text + c.get('/edge-app.js').text           # the shell's app is a file of its own (re-check R2-19)
++    assert page.status_code == 200 and 'EDGE' in page.text and '<script src="/edge-app.js"></script>' in page.text
++    assert 'function BacktestPage' in shell and '"/backtest-app/"' in shell
+     # the tab's wording is in edge-labels.js (AGENTS.md), used like the Terminal tab's
+     assert 'backtest: { nav:"Backtest", frameTitle:"Backtest" }' in c.get('/edge-labels.js').text
+-    assert '[EdgeLabels.backtest.nav, "backtest"]' in page.text and 'title: EdgeLabels.backtest.frameTitle' in page.text
+-    assert '"Backtest"' not in page.text
++    assert '[EdgeLabels.backtest.nav, "backtest"]' in shell and 'title: EdgeLabels.backtest.frameTitle' in shell
++    assert '"Backtest"' not in shell
+     assert page.headers['content-security-policy'] == c.get('/terminal').headers['content-security-policy']   # EDGE's own policy
+     frame = c.get('/backtest-app/')
+     assert frame.status_code == 200 and 'Market Lab Backtest' in frame.text
+diff --git a/apps/edge-bff/tests/test_screener.py b/apps/edge-bff/tests/test_screener.py
+index 7b8f6d07..d976a1d5 100644
+--- a/apps/edge-bff/tests/test_screener.py
++++ b/apps/edge-bff/tests/test_screener.py
+@@ -1272,11 +1272,13 @@ def test_screener_tab_page_and_its_frame_csp(app, monkeypatch, tmp_path):
+     (tmp_path / 'assets' / 'index-abc123.js').write_text('void 0')
+     monkeypatch.setattr(main, 'SCREENER_APP', tmp_path)
+     page = c.get('/screener')
+-    assert page.status_code == 200 and 'function ScreenerPage' in page.text and '"/screener-app/"' in page.text
++    shell = page.text + c.get('/edge-app.js').text           # the shell's app is a file of its own (re-check R2-19)
++    assert page.status_code == 200 and '<script src="/edge-app.js"></script>' in page.text
++    assert 'function ScreenerPage' in shell and '"/screener-app/"' in shell
+     # the tab's wording is in edge-labels.js (AGENTS.md), used like the other tabs'
+     assert 'screener: { nav:"Screener", frameTitle:"Stock screener" }' in c.get('/edge-labels.js').text
+-    assert '[EdgeLabels.screener.nav, "screener"]' in page.text and 'title: EdgeLabels.screener.frameTitle' in page.text
+-    assert '"Screener"' not in page.text and '"Stock screener"' not in page.text
++    assert '[EdgeLabels.screener.nav, "screener"]' in shell and 'title: EdgeLabels.screener.frameTitle' in shell
++    assert '"Screener"' not in shell and '"Stock screener"' not in shell
+     assert page.headers['content-security-policy'] == c.get('/terminal').headers['content-security-policy']   # EDGE's own policy
+     frame = c.get('/screener-app/')
+     assert frame.status_code == 200 and 'EDGE Screener' in frame.text and frame.headers['cache-control'] == 'no-store'
 -- 
 2.43.0
 
