@@ -16004,3 +16004,18 @@ dipakai accross chat sebagai referencec?"
   - Open (asked 2026-11-19): who may sign in to the beta; which services get a second copy for the live site (the
     proposal: only the website, everything else shared); how a push to live is done. Nothing is created before the
     user answers and gives the go.
+- **User, 2026-11-19, the three details:** "beta hanya admin which is saya"; "cara push ke live ok, tapi ini nanti
+  setelah website ready"; "dua salinan sesuai rekomendasi which hanya website (opsi A)".
+  1. Beta: only the admin (user #1) may sign in to the beta website (`edge-bff`, the Railway address). Registration
+     and every other account sign in there are refused.
+  2. Second copy: only the website. A new service (proposed name `edge-bff-live`) on the user's domain; the database,
+     terminal-api, backtest-worker, screener-worker, Orc and every data job stay one and are shared by both websites.
+     Consequences to build in: database changes go in two steps (add first, remove later) so the older live version
+     keeps working; a shared-service change must work with both website versions, or gets a temporary copy of its own;
+     the background loops of edge-bff (backtest jobs, email sender, hourly purge, the account seed) need one owner per
+     loop or a guard, since two website versions share one database (round 2 lens C2-SKEW checks this).
+  3. Push to live: the user says "push ke live"; every suite of the beta version must be green; the live website moves
+     to that version; rollback moves it back. It starts only once the website is ready ("nanti setelah website
+     ready"), with the user's go; nothing is created on Railway before then.
+  - Approved as the plan (the user's answers above); the execution (the service, its domain, the beta sign-in rule)
+    waits for the go.
