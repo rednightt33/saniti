@@ -29,13 +29,18 @@ class Caller:
     EXEC-MU-ACCOUNTS Phase 3c (T2): a gateway call that names an EDGE owner (x-terminal-proxy-owner with
     x-terminal-capabilities, entitlements.py) carries `owner` and `caps`; its credential is ('gateway', owner), so the
     account cache, the usage and the audit rows are the owner's own row (terminal.subscriber.edge_owner_key). A gateway
-    call without the headers keeps ('gateway', TERMINAL_PROXY_SUBSCRIBER), as before."""
+    call without the headers keeps ('gateway', TERMINAL_PROXY_SUBSCRIBER), as before.
+
+    Track guest (decision 1 of 2026-11-19): a gateway call for a visitor of EDGE's guest plan also carries `client`
+    (x-terminal-client, the visitor's opaque key): the account row and the cache stay the owner's, the quota usage, its
+    lock and the audit rows are the visitor's (main.py meter)."""
     kind: str
     name: str | None = None
     email: str | None = None
     token_hash: str | None = None
     owner: str | None = None
     caps: object = None                                   # entitlements.Capabilities with `owner`
+    client: str | None = None                             # the visitor key beside `owner` (guests only)
 
     @property
     def credential(self):

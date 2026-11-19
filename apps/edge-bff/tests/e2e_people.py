@@ -188,7 +188,9 @@ class FakeTerminalApi:
                     if caps is not None and not caps.dataset_ok('reference'):
                         # terminal-api's refcut.py: the plan's own copy, announced in the shape of a cut
                         refcut = terminal_api('refcut')
-                        copy, _ = refcut.encode(refcut.build(json.loads(gzip.decompress(fake.refs[name])), name, caps))
+                        copy, _ = refcut.encode(refcut.build(json.loads(gzip.decompress(fake.refs[name])), name, caps,
+                                                             ('price', 'broker', 'events', 'yield', 'intraday',
+                                                              'reference')))
                         sha_ = own_copy(f'reference/{name}', name, copy)
                         doc = json.loads(gzip.decompress(copy))
                         return self.answer(200, {'url': f'/api/terminal/v1/reference/{name}/cut?sha256={sha_}',
