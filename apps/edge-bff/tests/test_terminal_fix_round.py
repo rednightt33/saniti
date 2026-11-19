@@ -7,7 +7,8 @@ of each fix:
   rule of forward_terminal, relay_cut and PageFiles;
 - R2-4: an answer for a capped principal is relayed only when terminal-api acknowledges the header it applied (a
   terminal-api from before Phase 3c ignores it and would serve the plan in full);
-- R1-22: history_days 0 refuses every dated path first and still lets the page files through;
+- R1-22: history_days 0 refuses every dated path first and still lets the page files through; the catalog holds a
+  value domain per capability (migration 20261119_050) that the value trigger reads, equal to terminal-api's bounds;
 - R1-31: PageFiles applies the principal's own refusals before its shared caches;
 - R2-32: the plan's own copy of a reference file is relayed byte for byte;
 - the names edge-bff maps are terminal-api's own (read from apps/terminal-api).
@@ -212,8 +213,12 @@ def test_a_page_file_refusal_of_the_principal_holds_when_another_account_warmed_
         assert first.get(f'/api/v1/radar/file/radar-days?sha={PAGE_SHA}').status_code == 200   # index and bytes kept
         quinn = make_user(store, 'quinn', 'quinn-password')
         subscribe(store, quinn, paid_plan(store))
-        db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
-            VALUES (%s, 'terminal.files_per_hour', '0', 'test')''', quinn['user_id'])
+        # a 0 the value check no longer takes (migration 20261119_050) but a read can still give (principal.RESTRICTIVE):
+        # written past the triggers, as a value stored before a check would be
+        with store.connect() as conn:
+            conn.execute("SET LOCAL session_replication_role = replica")
+            conn.execute('''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
+                VALUES (%s, 'terminal.files_per_hour', '0', 'test')''', (quinn['user_id'],))
         calls = len(FakeApi.calls)
         second = TestClient(first.app)
         sign_in(second, 'quinn', 'quinn-password')
@@ -248,3 +253,75 @@ def test_the_wire_names_and_bounds_are_terminal_apis():
     for code in terminal_access.OWN_HEADER_CODES:                     # refusals of the owner headers edge-bff builds
         assert re.search(rf"error\(400, '{code}'", main), code
     assert re.search(r"wait_error\('quota_exceeded', .*quota=refusal\.quota, limit=refusal\.limit", main)
+
+
+# ---- R1-22: the catalog's value domain per capability (migration 20261119_050) ----------------------------------
+
+DOMAIN_MIGRATION = ROOT / 'database/migrations/20261119_050_edge_bff_capability_domains.sql'
+OUTSIDE = [('terminal.history_days', '0'), ('terminal.history_days', '36601'), ('terminal.tickers', '["bbca"]'),
+           ('terminal.tickers', '[" BBCA"]'), ('terminal.tickers', '["BBCA", ""]'),
+           ('terminal.tickers', json.dumps([f'T{i:03d}' for i in range(501)])), ('terminal.files_per_hour', '0'),
+           ('terminal.megabytes_per_day', '1000000001')]
+INSIDE = [('terminal.history_days', '1'), ('terminal.history_days', '36600'), ('terminal.tickers', '[]'),
+          ('terminal.tickers', json.dumps([f'T{i:03d}' for i in range(500)])), ('terminal.files_per_hour', '1')]
+
+
+@pytest.mark.parametrize('key, value', OUTSIDE)
+def test_a_value_outside_its_capabilitys_domain_is_refused_when_written(store, key, value):
+    import psycopg
+    user = make_user(store, 'dora', 'dora-password')
+    for sql, args in (('''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
+                          VALUES (%s, %s, %s::jsonb, 'typo')''', (user['user_id'], key, value)),
+                      ('''UPDATE edge_bff.plan_capabilities SET value = %s::jsonb
+                          WHERE capability_key = %s AND plan_key = (SELECT plan_key FROM edge_bff.plans WHERE is_default)''',
+                       (value, key))):
+        with pytest.raises(psycopg.errors.RaiseException, match='is outside the domain of capability') as caught:
+            db(store, sql, *args)
+        hint = caught.value.diag.message_hint or ''
+        assert hint.startswith(f'{key} takes ') and 'Example:' in hint, hint      # the rule, and a right example
+
+
+@pytest.mark.parametrize('key, value', INSIDE)
+def test_a_value_inside_its_domain_is_written(store, key, value):
+    user = make_user(store, 'dora', 'dora-password')
+    db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
+        VALUES (%s, %s, %s::jsonb, 'ok')''', user['user_id'], key, value)
+
+
+def test_a_domain_a_stored_value_would_not_fit_is_refused(store):
+    import psycopg
+    with pytest.raises(psycopg.errors.RaiseException, match='fall outside its new domain') as caught:
+        db(store, "UPDATE edge_bff.capabilities SET value_max = 100 WHERE capability_key = 'terminal.history_days'")
+    assert 'plan ' in str(caught.value) and '730' in str(caught.value)             # names the value that holds it
+    db(store, "UPDATE edge_bff.capabilities SET value_max = 36600 WHERE capability_key = 'terminal.history_days'")
+
+
+def test_the_domains_are_the_wires_and_fit_the_header(store):
+    rows = {r['capability_key']: r for r in db(store, '''SELECT capability_key, kind, value_min, value_max, item_pattern
+        FROM edge_bff.capabilities WHERE value_min IS NOT NULL OR value_max IS NOT NULL OR item_pattern IS NOT NULL''')}
+    assert rows['terminal.history_days']['value_max'] == entitlements.MAX_HISTORY_DAYS
+    assert rows['terminal.tickers']['item_pattern'] == entitlements.TICKER_RE.pattern
+    assert {k for k, r in rows.items() if r['value_max'] == entitlements.MAX_QUOTA} == {
+        f'terminal.{name}' for name in terminal_access.QUOTA}
+    # the most the domain lets a plan hold still fits terminal-api's 8 KiB header
+    widest = principal(limits={'terminal.tickers': [f'{i:012d}' for i in range(rows['terminal.tickers']['value_max'])],
+                               'terminal.history_days': 36600,
+                               **{f'terminal.{n}': entitlements.MAX_QUOTA for n in terminal_access.QUOTA}},
+                       grants={'terminal.dataset': {'all': True}}, kinds={'terminal.dataset': 'items'})
+    header = terminal_access.capabilities_header(widest)
+    assert len(header) <= entitlements.MAX_CAPS_BYTES
+    assert entitlements.parse_capabilities(header, terminal_access.DATASET_IDS).tickers
+
+
+def test_the_domain_migration_refuses_a_second_run_and_a_wrong_domain(database):
+    import psycopg
+    with psycopg.connect(database, autocommit=True) as conn:
+        with pytest.raises(psycopg.errors.RaiseException, match='already has a value domain'):
+            conn.execute(DOMAIN_MIGRATION.read_text())
+    text = DOMAIN_MIGRATION.read_text()
+    body = text.split('DO $verify$', 1)[1].split('END $verify$;', 1)[0]
+    with psycopg.connect(database) as conn:
+        conn.execute("UPDATE edge_bff.capabilities SET value_max = 36599 WHERE capability_key = 'terminal.history_days'")
+        with pytest.raises(psycopg.errors.RaiseException, match='the domain of terminal.history_days is not'):
+            conn.execute('DO $verify$' + body + 'END $verify$;')
+        conn.rollback()
