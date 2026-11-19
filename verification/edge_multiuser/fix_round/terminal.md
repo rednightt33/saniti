@@ -237,6 +237,13 @@ Findings of this track: R1-1, R1-26, R1-22, R2-4, R2-5, R2-32, R1-4, R1-5, R1-31
 5. **R2-32's reading of D3.** The fix follows the task's reading ("no list of other tickers": the free plan gets lists
    naming BBCA alone). The relayed user request is "A"; EXEC.md should carry the user's words for it.
 
-## Suites (this branch, local, PostgreSQL 16 on port 55561)
+## Suites (this branch, local, PostgreSQL 16 on port 55561, Chromium /opt/pw-browsers/chromium, Terminal page built)
 
-See the final report of this track for the results; failures that belong to other tracks' findings are listed by file.
+| Suite | Result |
+|---|---|
+| edge-bff pytest (full) | 735 passed, 60 failed, 1 skipped. Against the base run (71 failed): every test of this track's findings now passes (`test_cp0_terminal_relay.py` 2, `test_c_p2_terminal_wire_domain.py` 6, `test_c_p3a_probes.py -k retry_after` 2, `test_c2_e2e_people.py` free-plan test). Two new failures: `test_c2_phase2_isolation.py::test_the_terminal_proxy_answer_carries_the_entitlements_version` (its fake terminal-api did not acknowledge; fixed in `bd1d5065`, passes) and the known flaky `test_composer_layout.py::test_submit_history_and_fixed_headers[mobile]` (passes alone). The other 58 are other tracks' re-check tests, failing at the base too: `test_c2_e2e_people.py` 2 (Monitor words, MFA after a plan change), `test_c2_ops_recheck.py` 8, `test_c2web_browser.py` 6, `test_c_p1s_preferences_plan.py` 1, `test_c_p2_recheck.py` 3, `test_c_p3a_probes.py` 2 (route walks, access.limits), `test_c_p3b_recheck.py` 1, `test_cdb_ci_coverage.py` 3, `test_cdb_grants_and_records.py` 5, `test_cp0_reserved_owner.py` 4, `test_cp1a_phase1_auth_check.py` 10, `test_r2_life.py` 2, `test_r2_race.py` 7, `test_r2_skew.py` 4 |
+| terminal-api pytest (with `TERMINAL_TEST_POSTGRES_URL`, terminal schema migrations applied) | 160 passed |
+| Terminal page vitest (`apps/edge-bff/terminal`) | 965 passed, 3 failed: `tests/data/c_p1s_browser_keys.test.ts` 2 and `tests/data/c_p1s_drawings_plan.test.ts` 1 (re-check C-P1S, another track; they test `shared/edge-session.ts` and `drawingsApi.ts`, untouched here) |
+| screener-worker npm test | 126 passed, 1 failed: `tests/c-p3b-recheck.test.ts` F-msg (another track); `onboarding_pointers.test.ts` passes after `f82419c0` |
+| backtest-worker npm test | 276 passed, 1 failed: `c-p3b-recheck` F-msg (another track) |
+| scripts tests | 94 passed, 1 skipped |
