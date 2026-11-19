@@ -205,8 +205,11 @@ def lab_file(tmp_path, monkeypatch):
 
 
 def app_as(settings, store, principal):
+    """The app with every request resolved to `principal`: the session dependency and, since track guest (decision 1 of
+    2026-11-19, "1a"), the visitor one, which the catalog route depends on (tests/test_route_table.py GUEST_OPEN)."""
     app = create_app(settings, store, FakeOrc())
     app.dependency_overrides[app.state.session_dependency] = lambda: principal
+    app.dependency_overrides[app.state.visitor_dependency] = lambda: principal
     return app
 
 

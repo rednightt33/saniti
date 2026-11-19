@@ -30,7 +30,7 @@ from conftest import FakeOrc
 from test_edge import ORIGIN, login
 from test_principal import db, make_user, sign_in
 from test_radar import BODY, KEY, SHA, FakeHttp
-from test_route_table import calls, configured
+from test_route_table import GUEST_OPEN, calls, configured
 
 CONV = 'conv_' + 'c' * 32
 RUN = 'edge_' + 'a' * 32
@@ -207,8 +207,12 @@ def test_every_monitor_terminal_and_page_route_needs_its_capability(on, store):
                          "Depends(auth.need('<capability>', write=...))")
             continue
         capability, write = ROUTE_CAPS[key]
-        if auth.need(capability, write) not in set(calls(route.dependant)):
-            found.append(f'{method} {route.path}: does not depend on auth.need({capability!r}, write={write})')
+        # track guest (decision 1 of 2026-11-19, "1a"): a route a visitor without an account reaches is named in
+        # test_route_table.GUEST_OPEN and needs its capability through the visitor dependency (guests=True)
+        guests = key in GUEST_OPEN
+        if auth.need(capability, write, guests=guests) not in set(calls(route.dependant)):
+            found.append(f'{method} {route.path}: does not depend on auth.need({capability!r}, write={write}'
+                         f'{", guests=True" if guests else ""})')
     found += [f'{m} {p}: in ROUTE_CAPS but no such route (remove the entry)' for m, p in set(ROUTE_CAPS) - seen]
     assert found == []
     assert len(seen) == len(ROUTE_CAPS) >= 20

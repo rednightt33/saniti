@@ -33,8 +33,11 @@ def seed_verifier(store, owner):
 
 
 def sites(on):
-    """(beta, live): the beta with the switch off (as today), the live site with it on (EDGE_SITE=live)."""
-    return dataclasses.replace(on, multiuser=False), dataclasses.replace(on, site='live')
+    """(beta, live): the beta with the switch off (as today), the live site with it on (EDGE_SITE=live). The live site
+    is the one after the launch (EDGE_PRELAUNCH=false): the pre-launch mode, on by default on live since the decision of
+    2026-11-19 ("Terbuka, tapi belum bisa mendaftar"; track guest), lets only the admin and test accounts sign in, and a
+    paid account signs in here."""
+    return dataclasses.replace(on, multiuser=False), dataclasses.replace(on, site='live', prelaunch_enabled=False)
 
 
 def test_a_job_queued_on_the_live_site_is_dispatched_by_the_live_site_only(on, store, workers):
