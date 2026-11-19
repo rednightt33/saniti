@@ -4,6 +4,10 @@ terminal.md): terminal-api's side of the relay contract.
 - R1-1, R1-26: every 429 names its quota, its limit, its window and when the refused request fits (`retry_after_s` and
   the Retry-After header), so edge-bff answers 429 LIMIT_REACHED with details.limit and retry_after_s without reading
   the message.
+- R2-5: a dataset id this terminal-api does not know is left out (and logged), never a 400 for every call.
+- R1-22: history_days 0 is the empty window (the value a plan whose limit reads as 0 sends), so page files still work.
+- R2-4: every answer to an owner call carries x-terminal-capabilities-applied, so edge-bff can refuse the answer of a
+  terminal-api that ignored the owner headers.
 """
 import datetime as dt
 import os
@@ -114,3 +118,51 @@ def test_every_quota_of_check_has_a_frees_query():
                          bytes_=1, history=1).quota for k in ('files_per_hour', 'history_per_hour', 'tickers_per_hour',
                                                               'tickers_per_day', 'megabytes_per_day')}
     assert names == set(FREES)
+
+
+# ---- R2-5: a dataset id this terminal-api does not know is left out, never a failure of every call ------------------
+
+def test_an_unknown_dataset_id_is_left_out_and_logged(caplog):
+    from test_phase3c import caps, make, owner
+    client, store, _ = make()
+    ahead = owner(capabilities=caps(datasets=['price', 'fx']))           # an edge-bff that knows one dataset more
+    with caplog.at_level('WARNING', 'terminal-api'):
+        r = client.post(f'{API}/bundle', headers=ahead, json={'ticker': 'BBCA', 'datasets': ['price', 'broker']})
+    assert r.status_code == 200, r.text
+    assert r.json()['datasets']['broker'] == {'locked': True, 'capability': 'terminal.dataset:broker'}
+    assert 'owner_datasets_ignored' in caplog.text and '"fx"' in caplog.text
+    # an id the plan holds but this terminal-api lacks is not served: left out, so only the known ones count
+    from app.entitlements import parse_capabilities
+    got = parse_capabilities(caps(datasets=['fx']), ('price', 'broker'))
+    assert got.datasets == frozenset() and got.ignored == ('fx',) and not got.dataset_ok('fx')
+
+
+# ---- R1-22: history_days 0 is the empty window ------------------------------------------------------------------------
+
+def test_history_days_zero_serves_no_dated_row_and_the_page_files_still_work():
+    from test_phase3c import caps, make, owner
+    client, store, bucket = make()
+    none = owner(capabilities=caps(history_days=0))
+    m = client.get(f'{API}/manifest/BBCA', headers=none).json()['datasets']
+    assert m['price']['years'] == {} and m['price']['cut'] == {'history_days': 0, 'after': '2026-11-17'}
+    r = client.post(f'{API}/bundle', headers=none, json={'ticker': 'BBCA', 'datasets': ['price']})
+    assert r.status_code == 200 and r.json()['datasets']['price']['files'] == []
+    r = client.post(f'{API}/files', headers=none, json={'ticker': 'BBCA', 'dataset': 'price', 'years': [2026]})
+    assert r.status_code == 403 and r.json()['capability'] == 'terminal.history_days'
+    assert client.get(f'{API}/radar', headers=none).status_code in (200, 503)      # no history window: not refused
+
+
+# ---- R2-4: every answer to an owner call acknowledges the header it applied ------------------------------------------
+
+def test_every_answer_to_an_owner_call_carries_the_applied_version():
+    from app.entitlements import APPLIED_HEADER
+    from test_phase3c import FREE, GATEWAY, make
+    client, _, _ = make()
+    for method, url, body in (('get', '/manifest/BBCA', None), ('get', '/manifest/BBRI', None),     # 200 and a refusal
+                              ('post', '/bundle', {'ticker': 'BBCA', 'datasets': ['price']}),
+                              ('get', '/state', None), ('get', '/logo/BBCA', None),
+                              ('post', '/files', {'ticker': 'BBCA', 'dataset': 'price', 'years': [1999]})):
+        r = getattr(client, method)(f'{API}{url}', headers=FREE, **({'json': body} if body else {}))
+        assert r.headers.get(APPLIED_HEADER) == '1 db-0123456789ab', (url, r.status_code, dict(r.headers))
+    # a call without the owner headers is answered as before, with no acknowledgement
+    assert APPLIED_HEADER not in client.get(f'{API}/manifest/BBCA', headers=GATEWAY).headers

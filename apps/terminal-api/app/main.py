@@ -53,8 +53,8 @@ from .accounts import AccountCache, Caller
 from .bucket import PAGE_FAMILIES, REF_NAME, SHA256, XSECTION_NAME, radar_index, refs_index, xsection_index
 from .config import PRIVATE_HOST, Settings, service_email, service_variable
 from .cut import CutCache, CutError, make_cut
-from .entitlements import (CAPS_HEADER, EXAMPLE as CAPS_EXAMPLE, EXTRA_DATASETS, OWNER_HEADER, HeaderError,
-                           parse_capabilities, parse_owner, window_after)
+from .entitlements import (APPLIED_HEADER, CAPS_HEADER, EXAMPLE as CAPS_EXAMPLE, EXTRA_DATASETS, OWNER_HEADER,
+                           HeaderError, applied, parse_capabilities, parse_owner, window_after)
 from .security import client_ip, new_token, password_verifier, same_secret, token_hash, verify_password
 
 COOKIE = 'terminal_session'
@@ -239,6 +239,11 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
     @app.middleware('http')
     async def headers(request: Request, call_next):
         response = await call_next(request)
+        caller = getattr(request.state, 'caller', None)
+        if caller is not None and caller.owner is not None:
+            # R2-4: the owner's header was parsed and is what this answer applied (refusals included), so edge-bff can
+            # tell this answer from one of a terminal-api that ignores the owner headers
+            response.headers[APPLIED_HEADER] = applied(caller.caps)
         response.headers.setdefault('Cache-Control', 'no-store')   # only a logo sets its own (EXEC-TERMINAL-LOGO)
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'no-referrer'
@@ -324,9 +329,14 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                   f'neither. Fix: send both, built from the principal. Example: {OWNER_HEADER}: '
                   f'u_0123456789abcdef01234567 and {CAPS_HEADER}: {CAPS_EXAMPLE}.', field=missing)
         try:
-            return parse_owner(owner), parse_capabilities(caps, DATASETS)
+            found = parse_owner(owner), parse_capabilities(caps, DATASETS)
         except HeaderError as e:
             error(400, 'invalid_owner_headers', str(e), field=e.field)
+        if found[1].ignored:
+            # R2-5: an edge-bff that knows more datasets than this terminal-api (a deploy in between): not served anyway
+            log.warning(json.dumps({'event': 'owner_datasets_ignored', 'datasets': list(found[1].ignored),
+                                    'known': list(DATASETS)}))
+        return found
 
     def identify_now(request: Request) -> Caller:
         """Who is calling, from the request alone (no database): the gateway key, a service key or a session cookie.

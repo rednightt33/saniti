@@ -451,8 +451,12 @@ BAD = [
     ({CAPS_HEADER: caps(tickers=['bbca'])}, 'tickers'),
     ({CAPS_HEADER: caps(tickers='all')}, 'tickers'),
     ({CAPS_HEADER: caps(tickers=['BBCA', 'BBCA'])}, 'tickers'),
-    ({CAPS_HEADER: caps(datasets=['price', 'options'])}, 'datasets'),
-    ({CAPS_HEADER: caps(history_days=0)}, 'history_days'),
+    # re-check R2-5: an id this terminal-api does not know is left out (test_terminal_fix_round.py); one that breaks
+    # the id rule is still refused
+    ({CAPS_HEADER: caps(datasets=['price', 'Options'])}, 'datasets'),
+    # re-check R1-22: 0 is the empty window (test_terminal_fix_round.py); below it is refused
+    ({CAPS_HEADER: caps(history_days=-1)}, 'history_days'),
+    ({CAPS_HEADER: caps(history_days=36601)}, 'history_days'),
     ({CAPS_HEADER: caps(history_days=True)}, 'history_days'),
     ({CAPS_HEADER: caps(history_days=730.5)}, 'history_days'),
     ({CAPS_HEADER: caps(quota={'files_per_day': 5})}, 'quota'),
