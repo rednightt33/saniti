@@ -1,7 +1,7 @@
 From 88d75b8e27614970adb2c6d9950b130dc6285aea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:22:44 +0000
-Subject: [PATCH 01/59] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26):
+Subject: [PATCH 01/61] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26):
  every terminal-api 429 names its quota and when to try again
 
 quota_exceeded carries quota, limit, window and retry_after_s (Store.frees_in: when the rolling window lets the
@@ -337,7 +337,7 @@ index 00000000..1b97b475
 From e5f0c18176c143415631c5fb983843cea38b3e50 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:24:56 +0000
-Subject: [PATCH 02/59] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
+Subject: [PATCH 02/61] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
  terminal-api leaves out unknown datasets, takes history_days 0, acknowledges
  the applied header
 
@@ -587,7 +587,7 @@ index 1b97b475..89f69688 100644
 From d959a594942a346d292f67be79d11630bd5b2162 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:30:47 +0000
-Subject: [PATCH 03/59] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
+Subject: [PATCH 03/61] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
  reference lists filtered to the plan; the gateway account on /ready
 
 An owner whose plan lacks the dataset reference gets its own copy of each reference file (app/refcut.py: the rows of
@@ -1162,7 +1162,7 @@ index 89f69688..bc66a9f0 100644
 From 570e607cfa06be44e7d7926946941f597627fea6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:36:59 +0000
-Subject: [PATCH 04/59] EXEC-MU-ACCOUNTS fix round (terminal,
+Subject: [PATCH 04/61] EXEC-MU-ACCOUNTS fix round (terminal,
  R1-1/R1-26/R1-22/R2-4/R2-32): one relay rule for every terminal-api answer
 
 terminal_access.relayed is the rule forward_terminal, relay_cut and PageFiles share: a terminal-api 401 or 403 about
@@ -1840,7 +1840,7 @@ index 90f357d9..6af924b7 100644
 From 0713d5053e3eb87c750b4074b1a9558898956d04 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:38:26 +0000
-Subject: [PATCH 05/59] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests
+Subject: [PATCH 05/61] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests
  of the relay rule, the acknowledgement, history 0, the page-file refusals
  before the caches and the reference copy relay
 
@@ -2114,7 +2114,7 @@ index 00000000..1240c974
 From c17efdf1f905c655a98325b8c9cf5e260bc1a330 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:41:40 +0000
-Subject: [PATCH 06/59] EXEC-MU-ACCOUNTS fix round (track site): migrations
+Subject: [PATCH 06/61] EXEC-MU-ACCOUNTS fix round (track site): migrations
  20261119_020-023 (the queues' site, the seed's mark, the indexes on the
  references to users) and the test harness
 
@@ -2505,7 +2505,7 @@ index 00000000..4ac242f5
 From 8aed704adeafafdcab31e9d0338073c0145b3d27 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:41:52 +0000
-Subject: [PATCH 07/59] EXEC-MU-ACCOUNTS fix round (track site): two edge-bff
+Subject: [PATCH 07/61] EXEC-MU-ACCOUNTS fix round (track site): two edge-bff
  sites on one database, the start-up, the background loops
 
 - EDGE_SITE (beta, the default, or live); config.validate refuses live without EDGE_MULTIUSER, the beta with it (outside
@@ -4346,7 +4346,7 @@ index b1912754..b05f4698 100644
 From eaa7bc28340a9d4374530acb3bdbd3cbd8a1a8e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:42:12 +0000
-Subject: [PATCH 08/59] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
+Subject: [PATCH 08/61] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
  domain per capability in the catalog, read by the value trigger
 
 Migration 20261119_050 (not applied): edge_bff.capabilities gains value_min, value_max and item_pattern;
@@ -4728,7 +4728,7 @@ index 00000000..5dcc217f
 From 9099a1f4de4d7d39736a7f2fc40eebf2ce56d7cf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:44:52 +0000
-Subject: [PATCH 09/59] EXEC-MU-ACCOUNTS fix round (track site): an explicit
+Subject: [PATCH 09/61] EXEC-MU-ACCOUNTS fix round (track site): an explicit
  switch for log mode on a deployed site, the sender-off line at every
  switch-on start, the worker's default claim read when called
 
@@ -4871,7 +4871,7 @@ index e6ed73f7..ab0afcd0 100644
 From 9b83ea196e2b17dedf5f5bc76eb8a186d32dfd0f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:45:45 +0000
-Subject: [PATCH 10/59] EXEC-MU-ACCOUNTS fix round (terminal, R2-32): the free
+Subject: [PATCH 10/61] EXEC-MU-ACCOUNTS fix round (terminal, R2-32): the free
  plan's Terminal draws BBCA
 
 The e2e fake terminal-api now answers the header edge-bff really sends with terminal-api's own code (entitlements,
@@ -5139,7 +5139,7 @@ index 5faf7ca1..ad858b55 100644
 From f82419c0941877b307fe2357c8ff2114c68f6958 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:46:37 +0000
-Subject: [PATCH 11/59] EXEC-MU-ACCOUNTS fix round (terminal):
+Subject: [PATCH 11/61] EXEC-MU-ACCOUNTS fix round (terminal):
  SCREENER_ONBOARDING.md pointers into terminal-api and edge-bff main.py moved
  with their lines (screener-worker onboarding_pointers test)
 
@@ -5228,7 +5228,7 @@ index 6a313a75..1006309b 100644
 From 34edaafa4248403f9660a32fd94728359e48c0df Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:47:16 +0000
-Subject: [PATCH 12/59] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff README
+Subject: [PATCH 12/61] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff README
  follows the relay rule, the reference copies, the header mapping and the
  page-file caches
 
@@ -5317,7 +5317,7 @@ index 976016a8..85d0851f 100644
 From e48042eac2458582d814a4aeb5c9f3084edc60a7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:54:00 +0000
-Subject: [PATCH 13/59] EXEC-MU-ACCOUNTS fix round (terminal): notes per
+Subject: [PATCH 13/61] EXEC-MU-ACCOUNTS fix round (terminal): notes per
  finding, what the shared records must say, the decisions only the user can
  take
 
@@ -5583,7 +5583,7 @@ index 00000000..7b1c5317
 From ae02340396c5211c58fce4bc04028785b63c021d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:54:24 +0000
-Subject: [PATCH 14/59] EXEC-MU-ACCOUNTS fix round (terminal): terminal-api
+Subject: [PATCH 14/61] EXEC-MU-ACCOUNTS fix round (terminal): terminal-api
  README, the logo line follows the reference copies
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5613,7 +5613,7 @@ index 8b62323d..e523a13a 100644
 From ccdfb1772f0fab41d6754b2a4d1cd9e3669e2b36 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:00:12 +0000
-Subject: [PATCH 15/59] EXEC-MU-ACCOUNTS fix round (track site): notes for the
+Subject: [PATCH 15/61] EXEC-MU-ACCOUNTS fix round (track site): notes for the
  records (findings, tests, EXPLAIN evidence, suites)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5878,7 +5878,7 @@ index 00000000..af3f0b6a
 From bd1d506525535c8d352fb08a667d827ceb936567 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:02:43 +0000
-Subject: [PATCH 16/59] EXEC-MU-ACCOUNTS fix round (terminal, R2-4): the C2
+Subject: [PATCH 16/61] EXEC-MU-ACCOUNTS fix round (terminal, R2-4): the C2
  Phase 2 isolation test's fake terminal-api acknowledges the owner header, as
  terminal-api does
 
@@ -5921,7 +5921,7 @@ index 9d082941..f1f04a18 100644
 From e6dfab52206226635e0f38ca752b16c6afd5c0ed Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:04:03 +0000
-Subject: [PATCH 17/59] EXEC-MU-ACCOUNTS fix round (terminal): the suites'
+Subject: [PATCH 17/61] EXEC-MU-ACCOUNTS fix round (terminal): the suites'
  results in the track notes
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -5957,7 +5957,7 @@ index 7b1c5317..1a4617b2 100644
 From b16d57288f42b49682d60bfab255d454f20d9739 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:13:40 +0000
-Subject: [PATCH 18/59] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
+Subject: [PATCH 18/61] EXEC-MU-ACCOUNTS fix round (plans): PLAN_EXPIRED judged
  for lists and limits, no shared restrictive list, the seed plan is the one
  whose '*' is true, access.limits reports the applied cap, MFA_REQUIRED says
  whether an authenticator is set up
@@ -6396,7 +6396,7 @@ index 205d728e..79f4b2e7 100644
 From 68542f2fb3036e6ef993b948b48fb7e37f1983e3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:26:59 +0000
-Subject: [PATCH 19/59] EXEC-MU-ACCOUNTS fix round (plans): refusals worded
+Subject: [PATCH 19/61] EXEC-MU-ACCOUNTS fix round (plans): refusals worded
  from their code and details; no internal key in a worker's capability message
 
 Re-check R2-15: errors.words names the item (display_name), the ended plan, the plan limit with the account's number and
@@ -6748,7 +6748,7 @@ index 4f57f457..6b36df04 100644
 From 296129a5dc45ccfadc9c657500d4c9a113dffacc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:29:25 +0000
-Subject: [PATCH 20/59] EXEC-MU-ACCOUNTS fix round (plans): the Screener
+Subject: [PATCH 20/61] EXEC-MU-ACCOUNTS fix round (plans): the Screener
  catalog lists only the presets the plan holds, by the rule of /api/v1/catalog
 
 Re-check R1-32: catalog.holds_entry is the one rule (any family of the kind), read by the generic catalog route and the
@@ -6903,7 +6903,7 @@ index 48c86772..3e149b2b 100644
 From 8884b38b089e66df85c1b65c6a4870aee54a6f19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:32:25 +0000
-Subject: [PATCH 21/59] EXEC-MU-ACCOUNTS fix round (plans): an account
+Subject: [PATCH 21/61] EXEC-MU-ACCOUNTS fix round (plans): an account
  preference of one tab is served and stored only while the plan holds that tab
 
 Re-check R1-18 and R1-30 (CONTRACT.md 8b D5: reads need <tab>.view): each sync entry of the storage registry names the
@@ -7374,7 +7374,7 @@ index a5c52e65..6c5d0c00 100644
 From 54398ef3d816fd905313bb78d03dbeae312bc428 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:39:51 +0000
-Subject: [PATCH 22/59] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
+Subject: [PATCH 22/61] EXEC-MU-ACCOUNTS fix round (plans): the shell shows
  refusals in words, lands a non-admin account on the Terminal, follows a
  change of plan and a session ended under a frame
 
@@ -7926,7 +7926,7 @@ index 3be7fc42..97afe4f1 100644
 From e79a1b37ec8461894de0a4cf927be2e51a38f1da Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:40:01 +0000
-Subject: [PATCH 23/59] EXEC-MU-ACCOUNTS fix round, track auth: sign-in limits,
+Subject: [PATCH 23/61] EXEC-MU-ACCOUNTS fix round, track auth: sign-in limits,
  credential races, MFA re-enrolment, password cost, outbox purge
 
 Findings of the ultracode re-check (rounds 1 and 2) fixed in edge-bff, each with its committed failing test now
@@ -10318,7 +10318,7 @@ index 4052d11f..444aef1e 100644
 From 6bd43074c959de211bdda838e97fb3e5eca3ba9f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:45:57 +0000
-Subject: [PATCH 24/59] EXEC-MU-ACCOUNTS fix round (plans): the Screener's
+Subject: [PATCH 24/61] EXEC-MU-ACCOUNTS fix round (plans): the Screener's
  cached paint follows the plan; a drawings refusal is said in its words and
  keeps nothing in the browser
 
@@ -10648,7 +10648,7 @@ index 2b23a78c..be09eda6 100644
 From 61155dd2dbc5bf8b8694c7d66c720fdfe4844c46 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:46:54 +0000
-Subject: [PATCH 25/59] EXEC-MU-ACCOUNTS fix round (plans): an added series'
+Subject: [PATCH 25/61] EXEC-MU-ACCOUNTS fix round (plans): an added series'
  pane keys are the account's and leave with the series
 
 Re-check R1-20: the prefix ml.assets.flow. (fold and height per added series, named by its ticker) is a user cache
@@ -10742,7 +10742,7 @@ index 6c5d0c00..78ede8d0 100644
 From bcdb0705707af84337ceb5fa02e9e96f28597f1f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:51:03 +0000
-Subject: [PATCH 26/59] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
+Subject: [PATCH 26/61] EXEC-MU-ACCOUNTS fix round (plans): __Host- session and
  registration cookies on https, HSTS, form-action in every page policy
 
 Re-check R2-22: on a Secure origin the cookies are __Host-edge_session and __Host-edge_registration (Path=/, no
@@ -11081,7 +11081,7 @@ index 275a776a..bae4c119 100644
 From 081c378f3e8b769a9dbc570121dd0618fce5403d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:54:18 +0000
-Subject: [PATCH 27/59] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
+Subject: [PATCH 27/61] EXEC-MU-ACCOUNTS fix round (plans): the account menu's
  Password and sign-in page (password change, sign out everywhere)
 
 Re-check R2-20: with accounts on (GET /api/v1/auth/config), the account menu opens a dialog for the Phase 1 password
@@ -11314,7 +11314,7 @@ index bae4c119..7d13a9af 100644
 From be55357c5ff111788f3be6095b31e796f69160c9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 08:55:50 +0000
-Subject: [PATCH 28/59] EXEC-MU-ACCOUNTS fix round (plans): one rule for a
+Subject: [PATCH 28/61] EXEC-MU-ACCOUNTS fix round (plans): one rule for a
  person's name at registration, and one for showing it
 
 Re-check R2-18: app/text_rules.py stores a first or last name in NFC with single spaces and refuses control, hidden
@@ -11458,7 +11458,7 @@ index 7d13a9af..c0414ee6 100644
 From 78455b93bce3e343a60aa888086854fdfeed0fea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:00:42 +0000
-Subject: [PATCH 29/59] EXEC-MU-ACCOUNTS fix round (plans): every plan limit
+Subject: [PATCH 29/61] EXEC-MU-ACCOUNTS fix round (plans): every plan limit
  answers one code, LIMIT_REACHED naming its capability key
 
 Re-check R2-39 (CONTRACT.md section 3): the saved-item caps (layouts, presets, places with drawings, saved screens and
@@ -11950,7 +11950,7 @@ index 1cea2cd5..b3da03f0 100644
 From 419ee36823575c52f229af37f8a6599bb9f8c463 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:01:46 +0000
-Subject: [PATCH 30/59] EXEC-MU-ACCOUNTS fix round, track auth: notes for the
+Subject: [PATCH 30/61] EXEC-MU-ACCOUNTS fix round, track auth: notes for the
  records, the code-purpose drift test, the last reserved placeholder
 
 - verification/edge_multiuser/fix_round/auth.md: root cause, fix and tests of each finding of the track, what
@@ -12180,7 +12180,7 @@ index 00000000..be7ca824
 From fc3cbf2933403c4d0cdafef84f76ae2deee1275e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:02:13 +0000
-Subject: [PATCH 31/59] SCREENER_ONBOARDING.md: line pointers into edge-bff
+Subject: [PATCH 31/61] SCREENER_ONBOARDING.md: line pointers into edge-bff
  screener.py and main.py moved with the fix round's lines
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -12251,7 +12251,7 @@ index 6a313a75..239ec42b 100644
 From b36e621af0417827137b36018443c9ea5d927988 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:05:30 +0000
-Subject: [PATCH 32/59] EXEC-MU-ACCOUNTS fix round (plans): the shell runs no
+Subject: [PATCH 32/61] EXEC-MU-ACCOUNTS fix round (plans): the shell runs no
  inline script; its policy drops script-src 'unsafe-inline'
 
 Re-check R2-19: the head's viewport script moved to static/edge-boot.js and the shell's app to static/edge-app.js (a
@@ -17839,7 +17839,7 @@ index cc5b4fee..32a843c0 100644
 From db1eadac57e5ce7b44bec319e25013647a558d0b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:06:13 +0000
-Subject: [PATCH 33/59] EXEC-MU-ACCOUNTS fix round (plans): the Watchlist's
+Subject: [PATCH 33/61] EXEC-MU-ACCOUNTS fix round (plans): the Watchlist's
  copy of the logo reference list leaves with the account
 
 Re-check R1-17 (other site named by the refuters): edge.watchlist.logos holds the content of a reference file the plan
@@ -17891,7 +17891,7 @@ index 3dca0656..053568f6 100644
 From 40725f4ae44a9890ee92f8d2bd2500caf4480f11 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:07:53 +0000
-Subject: [PATCH 34/59] EXEC-MU-ACCOUNTS fix round (plans): notes per finding,
+Subject: [PATCH 34/61] EXEC-MU-ACCOUNTS fix round (plans): notes per finding,
  the records to write, the decisions left, the script move for integration
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18187,7 +18187,7 @@ index 00000000..ea7fd66e
 From edd0e434d892ef7d3db6f156a2180c0494c0b4b6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:09:11 +0000
-Subject: [PATCH 35/59] Terminal registry test: edge.watchlist.logos is cleared
+Subject: [PATCH 35/61] Terminal registry test: edge.watchlist.logos is cleared
  with the account (fix round, re-check R1-17 other site)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18226,7 +18226,7 @@ index 96453e49..fe15d3c9 100644
 From c779d1e01309fe37aba11771c2593c7503a2b4f9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:13:24 +0000
-Subject: [PATCH 36/59] principal.py: the comment of the MFA check sits above
+Subject: [PATCH 36/61] principal.py: the comment of the MFA check sits above
  it again
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18260,7 +18260,7 @@ index cf07386b..878e8613 100644
 From 09f4ae3e6ed81e60c14752d7f5dbbcee41df6ddd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:14:28 +0000
-Subject: [PATCH 37/59] main.py: the one-time cookie move never overrides a
+Subject: [PATCH 37/61] main.py: the one-time cookie move never overrides a
  route's own cookie answer (sign-in, sign-out)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -18292,7 +18292,7 @@ index 7b839f5b..aac63795 100644
 From d71bc8363c232d2307077f2f8fb9cd90618228cf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:33:03 +0000
-Subject: [PATCH 38/59] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
+Subject: [PATCH 38/61] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
  key test waits in pending/ for the Railway deletion; the code side held by a
  test (no code the runner runs reads the main Orc key)
 
@@ -18379,7 +18379,7 @@ rename to verification/edge_multiuser/access_tiers/pending/test_cp0_runner_key.p
 From 22d4defe17a0d98db4ffb77a15f4f824f7cda532 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:35:21 +0000
-Subject: [PATCH 39/59] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
+Subject: [PATCH 39/61] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
  hook route verifies by a dependency built from HOOK_ROUTES; the route walk
  covers the whole table (signed hooks, a capability gate or a named
  principal-only reason on every /api route)
@@ -18586,7 +18586,7 @@ index ed71cd2a..7f845889 100644
 From 5f204d11e7db3de2fa9590e929a74c469cec84e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:39:59 +0000
-Subject: [PATCH 40/59] EXEC-MU-ACCOUNTS fix round (records, R1-41, R1-42,
+Subject: [PATCH 40/61] EXEC-MU-ACCOUNTS fix round (records, R1-41, R1-42,
  R1-43, R1-45, R1-46): migration 20261119_040 (audit and provenance ids
  without a referential action, catalog trace triggers, the kind comment and
  history_days means to the code and D2, a column-privilege guard), the
@@ -19102,7 +19102,7 @@ index 00000000..0377546a
 From 64e5fe94bf846432cdbb44359a564a2f0c9a6071 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:40:43 +0000
-Subject: [PATCH 41/59] EXEC-MU-ACCOUNTS fix round (records, R1-28): the run
+Subject: [PATCH 41/61] EXEC-MU-ACCOUNTS fix round (records, R1-28): the run
  stream's monitor.view re-check held by a live-server test (fails when
  still_signed_in stops asking for it)
 
@@ -19178,7 +19178,7 @@ index 00000000..c2a21bdf
 From e96cf7c952ffd68bf03363c4c65a359f4b252bc2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:47:16 +0000
-Subject: [PATCH 42/59] EXEC-MU-ACCOUNTS fix round (plans): the catalog refuses
+Subject: [PATCH 42/61] EXEC-MU-ACCOUNTS fix round (plans): the catalog refuses
  a Terminal limit beside the Backtest's or the Screener's own data access
  (re-check R1-36, the user's "2a")
 
@@ -19845,7 +19845,7 @@ index 699c7b0e..26220a9f 100644
 From 4bdf1cc69840167d82fb97a77e60b05aab3b031c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:47:16 +0000
-Subject: [PATCH 43/59] Backtest and Screener frame tests: the shell's tab code
+Subject: [PATCH 43/61] Backtest and Screener frame tests: the shell's tab code
  is read from edge-app.js (the R2-19 script move)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -19904,7 +19904,7 @@ index 7b8f6d07..d976a1d5 100644
 From 9d31dc07eb2cd29777e107e2b35148af30e2ebc2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:02:11 +0000
-Subject: [PATCH 44/59] EXEC-MU-ACCOUNTS fix round (records): work in progress
+Subject: [PATCH 44/61] EXEC-MU-ACCOUNTS fix round (records): work in progress
  saved when the usage limit stopped the builder (unreviewed;
  test_zz_tmp_walk.py is a scratch probe)
 
@@ -20281,7 +20281,7 @@ index 00000000..8a1f7462
 From 26c38da5b5bd1d24dcee759681a02b90f95b57fb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:12:45 +0000
-Subject: [PATCH 45/59] EXEC-MU-ACCOUNTS fix round (records, R1-21): the
+Subject: [PATCH 45/61] EXEC-MU-ACCOUNTS fix round (records, R1-21): the
  two-user walk covers every /api route and every owned kind, derived from
  app.routes and information_schema; one event loop for both people; an owned
  id answers what an id nobody made answers; the scratch probe removed
@@ -20493,7 +20493,7 @@ index 8a1f7462..00000000
 From 51451d52afbe787f993280eb373e11616f4759ec Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:26:07 +0000
-Subject: [PATCH 46/59] EXEC-MU-ACCOUNTS fix round (records, R1-39, R1-40,
+Subject: [PATCH 46/61] EXEC-MU-ACCOUNTS fix round (records, R1-39, R1-40,
  R1-44): CI runs the page suites, edge-bff's browser tests (Playwright,
  Chromium, the built pages) and Orc's Postgres tests; the shell copy is
  compared with its build by a generated_file test; generators found anywhere
@@ -20947,7 +20947,7 @@ index ec7ef606..3b04267c 100644
 From 77e57322263ebe16d440686978e35f4bce1ea75f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:26:07 +0000
-Subject: [PATCH 47/59] EXEC-MU-ACCOUNTS fix round (records, R2-40): tests of
+Subject: [PATCH 47/61] EXEC-MU-ACCOUNTS fix round (records, R2-40): tests of
  the contract requirements no test held (absolute session lifetime in both
  modes, Retry-After on every 429, entitlements on the signed-in answers, names
  from the start, a future subscription, SEND_IP, a pending session's sign-out,
@@ -21222,7 +21222,7 @@ index e67a334c..52f85235 100644
 From 279613408cb4cb0652140e55133c53958fe10467 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:32:15 +0000
-Subject: [PATCH 48/59] EXEC-MU-ACCOUNTS fix round (plans): the cap modules'
+Subject: [PATCH 48/61] EXEC-MU-ACCOUNTS fix round (plans): the cap modules'
  headers and the README say 403 LIMIT_REACHED for a plan cap (re-check R2-39);
  notes: the migration of "2a", the R1-35 anchor, the suite results
 
@@ -21424,7 +21424,7 @@ index 26220a9f..f77a707a 100644
 From 511848a0a060abcb22088ddae22d6d965e1f6074 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:36:36 +0000
-Subject: [PATCH 49/59] EXEC-MU-ACCOUNTS fix round (records): CONTRACT.md
+Subject: [PATCH 49/61] EXEC-MU-ACCOUNTS fix round (records): CONTRACT.md
  brought to the code and the user's decisions of 2026-11-19 (the beta/live
  site, pre-launch mode, the guest, the free plan's whole ticker list, outbox
  30 days, forgot kept, one Terminal quota, the restricted-plan rule, the
@@ -22479,7 +22479,7 @@ index 32cce206..c0ea7359 100644
 From 65211eabab3b1795223191776964a24f8aee0cd7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:39:06 +0000
-Subject: [PATCH 50/59] EXEC-MU-ACCOUNTS fix round (records): notes per finding
+Subject: [PATCH 50/61] EXEC-MU-ACCOUNTS fix round (records): notes per finding
  and the records to write; the pending tests' table renders again
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -22789,7 +22789,7 @@ index 00000000..19efae89
 From 905bad655565e9482f2bddd8ab85e73ede5ea3f5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:41:58 +0000
-Subject: [PATCH 51/59] EXEC-MU-ACCOUNTS fix round (records): the merge notes;
+Subject: [PATCH 51/61] EXEC-MU-ACCOUNTS fix round (records): the merge notes;
  CONTRACT 13 names the one local step (the Terminal look check)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -22851,7 +22851,7 @@ index 19efae89..07520384 100644
 From c6e87ee27bebbddc039ee0a9a0fe163cc4fa4242 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 12:44:46 +0000
-Subject: [PATCH 52/59] SCREENER_ONBOARDING.md: pointers into edge-bff main.py
+Subject: [PATCH 52/61] SCREENER_ONBOARDING.md: pointers into edge-bff main.py
  and screener.py moved with the merged fix-round lines (screener-worker
  onboarding_pointers)
 
@@ -22901,7 +22901,7 @@ index 0324c609..76c2882c 100644
 From 2fddd030fb8537045529a987cb855aa51c6c473b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 13:07:48 +0000
-Subject: [PATCH 53/59] edge-bff test_beta_live_site: the housekeeping's purges
+Subject: [PATCH 53/61] edge-bff test_beta_live_site: the housekeeping's purges
  are four after the merge (the outbox purge of the auth track, R2-24), and the
  outbox purge is held to the same batch bound
 
@@ -22941,7 +22941,7 @@ index ab0afcd0..407473a1 100644
 From 9a22ee751236fb9332239dd0251317f51ebc59b8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 13:11:13 +0000
-Subject: [PATCH 54/59] .railway/railway.ts: the planned edge-bff-live is
+Subject: [PATCH 54/61] .railway/railway.ts: the planned edge-bff-live is
  written as its settings, without a service() call in the comment
 
 The site track's comment block opened with a commented service("edge-bff-live", {...}) call. The terminal-api test
@@ -22990,7 +22990,7 @@ index c99c6ffc..86e679a8 100644
 From 7d793ad22a92a373ab2d6803acf1759b3be23f19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 13:57:54 +0000
-Subject: [PATCH 55/59] terminal-api (track guest): the whole ticker list for
+Subject: [PATCH 55/61] terminal-api (track guest): the whole ticker list for
  every plan, derived from each reference file's columns; visitors of one owner
  counted apart (x-terminal-client, migration 20261119_170, not applied)
 
@@ -23910,7 +23910,7 @@ index 00000000..56ed9b70
 From 101e92911feb297fbfc4e4a1cb265b6952e6d8a9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 14:14:13 +0000
-Subject: [PATCH 56/59] edge-bff (track guest): the guest principal from the
+Subject: [PATCH 56/61] edge-bff (track guest): the guest principal from the
  catalog's guest plan, the pre-launch mode, the audited test-account mark
  (migration 20261119_070, not applied)
 
@@ -25480,7 +25480,7 @@ index 00000000..e2140001
 From 4c7dad6d47ec1ef54c1077660be4c7a61402c92c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 14:28:55 +0000
-Subject: [PATCH 57/59] EDGE front-end (track guest): the guest Terminal, the
+Subject: [PATCH 57/61] EDGE front-end (track guest): the guest Terminal, the
  sign-in and upgrade boxes, the closed registration page
 
 Decision 1 of 2026-11-19 ("user tetap bisa search ticker, tapi ketika dia klik ticker selain bbca maka akan keluar pop
@@ -26594,7 +26594,7 @@ index 00000000..8ea44402
 From 2ad40fcb51069169d5bf45f4937b37bf43e8bdd3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 14:29:56 +0000
-Subject: [PATCH 58/59] Docs (track guest): edge-bff README guests, boxes and
+Subject: [PATCH 58/61] Docs (track guest): edge-bff README guests, boxes and
  pre-launch; terminal-api README whole ticker list and x-terminal-client;
  railway.ts edge-bff-live comment names EDGE_GUESTS, EDGE_PRELAUNCH,
  EDGE_UPGRADE_CONTACT
@@ -26743,7 +26743,7 @@ index e523a13a..0bb69464 100644
 From d47eefbe71d5d094e4ac5cc596e472ee746b82db Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 14:33:20 +0000
-Subject: [PATCH 59/59] SCREENER_ONBOARDING.md: pointers into terminal-api and
+Subject: [PATCH 59/61] SCREENER_ONBOARDING.md: pointers into terminal-api and
  edge-bff main.py moved with the track guest lines (screener-worker
  onboarding_pointers)
 
@@ -26800,6 +26800,354 @@ index 76c2882c..f3fbc74e 100644
  the first time" means the first macro series needs one new reference kind in `contract.ts` `MetricRef` and in
  `apps/edge-bff/screener/src/core/catalog.ts:240` `KINDS` (worked example 2.13); a fundamental or a universe attribute is `kind: 'universe'`, read from a
  field of the worker's universe row (`condition.ts:152-166`; `apps/edge-bff/screener/src/core/contract.ts:466-468`), so
+-- 
+2.43.0
+
+
+From b893d4669b65413dfc65a6b802d464075df5bee7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 14:59:15 +0000
+Subject: [PATCH 60/61] verification/edge_multiuser/fix_round/guest.md: the
+ track's notes (what was built, the client address on Railway, EXPLAIN
+ evidence, tests changed, records, deploy order, readings, decisions, suites)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ .../edge_multiuser/fix_round/guest.md         | 299 ++++++++++++++++++
+ 1 file changed, 299 insertions(+)
+ create mode 100644 verification/edge_multiuser/fix_round/guest.md
+
+diff --git a/verification/edge_multiuser/fix_round/guest.md b/verification/edge_multiuser/fix_round/guest.md
+new file mode 100644
+index 00000000..a1a33156
+--- /dev/null
++++ b/verification/edge_multiuser/fix_round/guest.md
+@@ -0,0 +1,299 @@
++# Track guest: the free ticker list, guests and the pre-launch mode (EXEC-MU-ACCOUNTS, decisions of 2026-11-19)
++
++Branch `dec-guest` from `fix-int` (`9a22ee75`). Nothing pushed, deployed or applied to a remote database; no Railway
++call. The two new migrations ran only on the disposable cluster `dec_guest` (port 55573). The shared records
++(ERRORS_AND_SOLUTIONS.md, EXEC.md, CONTRACT.md, DATABASE_SCHEMA.md, DATABASE_CHANGELOG.md, RAILWAY_CHANGELOG.md) are not
++edited here; what each must say is under "Records" below.
++
++The user's words (EXEC.md EXEC-MU-ACCOUNTS, "Testing on the live site" and "Decisions from the fix round" item 1, on the
++main checkout's EXEC.md; not yet on `fix-int`'s):
++- "tidak, user tetap bisa search ticker, tapi ketika dia klik ticker selain bbca maka akan keluar pop up box to login
++  (jika belum login) dan jika sudah login maka akan keluar pop up box (to upgrade plan)";
++- "1a - bukan hanya chart, nanti ada indikator dll yg juga mungkin di show ke user. jadi design harus plug and play dan
++  fluid, karna ticker dan indikatornya bisa berubah";
++- the live site before the launch: "Terbuka, tapi belum bisa mendaftar", "Dan hanya admin yang bisa login (saya)", then
++  "A" (the admin plus accounts marked as test accounts);
++- the extra rule of item 4 ("2a", a restricted plan never holds the Backtest's or the Screener's data access): it holds
++  for the guest plan as for every plan (the guest plan holds Terminal rows only; the migration's verify block runs
++  `data_scope_conflicts('guest', NULL)`).
++- D7 = A (the upgrade contact before the launch) and "segera hadir" (Coming soon).
++
++## Commits
++
++| Commit | What |
++|---|---|
++| `7d793ad2` | terminal-api: the whole ticker list for every plan (`refcut.names_only`, from each file's own columns); `x-terminal-client` counts a guest owner's quotas per visitor (migration `20261119_170`, not applied) |
++| `101e9291` | edge-bff: the guest principal from the catalog's guest plan; `auth.need(..., guests=True)`, `auth.visitor`; `GET /api/v1/auth/guest`; the pre-launch mode; `users.test_account` with its audited trigger; `scripts/edge_test_account.py` (migration `20261119_070`, not applied) |
++| `4c7dad6d` | front-end: the shared module's guest session, the Terminal's locks and box requests, the shell's guest Terminal, `LockedDialog`, the closed register page; browser tests |
++| `2ad40fcb` | docs: edge-bff README, terminal-api README, the edge-bff-live comment in `.railway/railway.ts` |
++| `d47eefbe` | `SCREENER_ONBOARDING.md` pointers moved with the lines of both `main.py` files |
++
++## 1. The whole ticker list (terminal-api `app/refcut.py`)
++
++- **Before (fix-terminal R2-32, option a):** a plan without the dataset `reference` got its own copy of every reference
++  file; a file with a `ticker` column kept the plan's tickers, so the free plan's ticker list named BBCA alone.
++- **Now:** the ticker list is whole for every owner edge-bff forwards (every route of `/api/terminal/v1` needs
++  `terminal.view`, so every such owner holds it; the guest too). The other reference lists keep the plan's filter.
++- **Derived, not listed:** `names_only(doc, columns, datasets)` reads the file itself. A file keyed by `ticker` is
++  names-only when every other column holds text or null (a number or a list is data), no column is named
++  `<dataset>_...` after a dataset terminal-api serves (`main.py DATASETS`), and no column holds only 64-hex digests (an
++  index of published objects). On the publisher's real columns (`tests/test_guest_tickers.py` reads `publisher.py`):
++  tickers (`ticker, name, type, sector, industry, instrument`) whole; logos (`sha256` digests: the image index, and
++  edge-bff refuses another ticker's logo image) and fixed_income (`yield_first` ... `price_last`: the datasets' dates)
++  keep the plan's tickers; brokers by the `broker` dataset (`BY_DATASET`, unchanged); stock_lists no rows (unchanged).
++  A new column of a figure, a list, a dataset or a digest turns a list back to filtered (fail closed).
++- **The page:** `live.ts` lists every ticker in the search; the plan's tickers open, the others carry a lock and open
++  the box (section 3). A remembered ticker the plan does not hold never locks the page: the plan's first ticker opens.
++- Tests: `apps/terminal-api/tests/test_guest_tickers.py` (the publisher's columns, the derivation, the fixtures);
++  `test_terminal_fix_round.py` changed (below).
++
++## 2. Guests
++
++- **The guest plan is a plan** (migration `20261119_070`): `edge_bff.plans.for_guests` (one plan, never the default:
++  `plans_one_guest`, `plans_guest_not_default`); seed `guest` ("Guest") with the free plan's Terminal grants:
++  `terminal.view` true, `terminal.tickers` `["BBCA"]`, `terminal.dataset` `{"ids": ["price"]}`, `terminal.history_days`
++  730, `terminal.indicator` `{"ids": []}`. No Terminal quota row (see quotas below).
++- **Read like every plan** (`accounts.py guest_plan`, `principal.py guest_principal`): one statement on every guest
++  request gives the plan's rows with their kinds and versions; `read_grants` checks each value's shape, `can()` decides
++  flags and items, `version_of` makes `X-Edge-Entitlements`. A change of the plan's rows applies on the next request
++  (tested: `test_a_change_of_the_guest_plans_rows_changes_what_a_visitor_sees_without_code` widens the tickers and adds
++  `I01`; the header, the terminal-api capabilities and the catalog answer follow). No plan key in code: the plan is
++  found by `for_guests`; `tests/test_plan_catalog.py` now reads every plan seed of every migration.
++- **Fail closed whatever the rows say:** a visitor never holds `*`, `admin.access`, an admin right of `rights.py` or a
++  beta-only key (dropped and logged `guest_capability_dropped`); `live` is set, so no lab item is held either.
++- **Where it exists:** only on routes that ask for it, `auth.need(capability, guests=True)` and `auth.visitor`:
++  `GET|POST /api/terminal/v1/{path}` (`terminal.view`), `GET /api/v1/catalog/{kind}` (the Terminal's indicator items)
++  and `GET /api/v1/auth/guest` (the guest plan's access in the session answer's shape, `visitor` true, no login, owner
++  key or CSRF token). Every other route keeps answering 401 `UNAUTHENTICATED` (tested over eleven routes), so the shell
++  shows the sign-in page there. The route walk (`tests/test_route_table.py`) lists them in `GUEST_OPEN` with their reason
++  and fails on any other route that admits visitors, or a stale entry.
++- **Who is a visitor:** a request whose session cookie resolves to no session (none, expired, revoked). A session that
++  resolves keeps its own principal on the guest routes (and its CSRF on writes); a session waiting for the second
++  factor still gets `MFA_REQUIRED`. A guest writes without CSRF: it has no session a cross-site page could ride, and the
++  Origin check of every write still holds (tested: another origin is `ORIGIN_REJECTED`).
++- **On / off:** `EDGE_GUESTS` (true/false; unset = the live site on, the beta off). With `EDGE_MULTIUSER` off (the beta)
++  there is no guest, and `EDGE_GUESTS=true` stops the start (`config.validate`). The Terminal relay of the beta answers
++  401 to a visitor as before.
++- **The guest owner:** every visitor reaches terminal-api as owner `edge-guest` (`accounts.GUEST_OWNER`; never issued to
++  an account, refused for `EDGE_OWNER` and `EDGE_ADMIN_OWNERS`), with the guest plan's capabilities header.
++
++### The client address on Railway, and quotas per visitor
++
++- **How it is read** (`principal.py client_of`): Railway's edge forwards every request from the internet and adds the
++  client's address to `X-Forwarded-For` (the service's own `uvicorn --no-proxy-headers` keeps the socket peer as the
++  edge, so the header is the only place the visitor's address is). The right-most entry is the hop the edge added; any
++  entry a client wrote itself stays to its left, so the right-most is the one a client cannot choose. It counts only
++  when it parses as an IP address.
++- **When it is missing (fail closed):** no `X-Forwarded-For`, or a right-most hop that is not an address: no guest
++  principal, 401 `UNAUTHENTICATED` (the page shows sign-in). A request without the header did not pass the edge (on
++  Railway every public request does). The socket peer is taken only with `EDGE_ENVIRONMENT=local` (a developer
++  machine, the browser tests); on Railway the environment is `dev` and it never applies.
++- **Not yet proved on Railway:** the Phase 0 probe of what Railway's edge really sends (CONTRACT section 4 "Client IP")
++  has not run. If the edge sent one address for everyone, all visitors would share one quota: stricter, never wider
++  (fail closed); the per-account sign-in limits do not depend on it. Run the probe before the guest plan is offered on
++  the live site (decision below).
++- **Per visitor at terminal-api** (migration `20261119_170`): edge-bff sends `x-terminal-client`, 32 hex of an HMAC of
++  the address under `EDGE_SESSION_SECRET` with its own label (`guest_client`), never the address. Beside both owner
++  headers of an owner that does not hold `*`, terminal-api counts that owner's quotas per visitor: `Store.usage`,
++  `frees_in` and the audit rows (`terminal.access_log.client_key`), and the quota check's advisory lock per visitor, so
++  visitors do not wait for each other. Without the header the owner's row counts as a whole (stricter). terminal-api
++  refuses the header without owner headers, with an admin owner, with a service key or a cookie, or when it is not 32
++  lower-case hex (400 naming the header, with a right example; never echoing the value).
++- **The numbers:** the guest plan sets no Terminal quota, so each visitor gets terminal-api's `terminal.quota` defaults
++  (60 files and 30 tickers an hour, 150 tickers and 300 MB a day, 20 history reads an hour). A quota row added to the
++  guest plan later overlays them, as for any plan (data).
++- **The 90-day audit:** each guest grant writes one audit row with the visitor key, as every owner's grant does.
++
++### EXPLAIN evidence (the index `access_log_client_at`)
++
++Disposable database `terminal_test` of `dec_guest` (PG 16.15, defaults), terminal migrations 20261025_100 to
++20261119_170 applied; one guest owner with 300 000 rows of the last day from 3 000 visitors, 2 000 other owners with
++200 000 rows; `ANALYZE`; the usage statement of `Store.usage` for one visitor (the scratch script
++`explain_guest.sql`, not committed; rolled back):
++
++| Statement | Without the index | With it |
++|---|---|---|
++| a visitor's usage (`subscriber_id`, `client_key`, the last day) | 151.4 ms, 300 665 buffers, `Index Scan using terminal_access_log_subscriber_at` reading every visitor's rows | 0.26 ms, 107 buffers, `Index Scan using access_log_client_at` |
++| a signed-in owner's usage (no visitor key) | 0.18 ms, 106 buffers, `terminal_access_log_subscriber_at` | unchanged (partial index: no other row is in it) |
++
++The index is partial (`WHERE client_key IS NOT NULL`): its build reads `terminal.access_log` once and writes only the
++rows of guests (none yet). That read of a large table makes the migration a large update in the sense of AGENTS.md
++("Postgres memory after large updates"): restart Postgres after it as that section says.
++
++## 3. The boxes
++
++- **What is locked** comes from what the server says the principal holds, never from a list in the page
++  (`terminal/src/data/live.ts lockRules`): a ticker outside `access.limits['terminal.tickers']` (no list: none locked),
++  an indicator or Flow indicator `GET /api/v1/catalog/indicator|flow_indicator` does not list (`*` reads no catalog;
++  a catalog that cannot be read locks its kind), a feature flag it lacks (`edge.can`). An answer without `access` (an
++  older server) locks nothing, as before.
++- **Where:** the search lists every ticker with a lock on the locked ones (`app/search.ts`, `.gp-lock`); choosing one
++  asks for the box. The indicator menu marks a locked indicator (`.im-row.locked`, `.im-lock`) and its Add asks for the
++  box (`app/indMenu.ts`). The layouts button asks for the box without `terminal.layouts` (`app/layouts.ts`). Presets are
++  not offered without `terminal.presets` (`app/presets.ts`). A visitor's drawings last as long as the page (nothing
++  written to the browser or the account: `app/drawings.ts`).
++- **The box is EDGE's** (`app/locked.ts` posts `{source: "terminal", type: "locked", kind, id, name}` to the shell, this
++  origin only; the shell's `LockedDialog` in `static/edge-app.js`), because the shell knows whether someone is signed in:
++  - a visitor: "Sign in to open {name}", "Sign in" (to `/login`) and, while registration is open, "Create account";
++  - an account: "{name} is not in your plan", "Coming soon" and "Contact us to upgrade: <EDGE_UPGRADE_CONTACT>", or,
++    while it is unset, "How to contact us about upgrading will be shown here soon".
++  - Words: `static/edge-labels.js` `EdgeLabels.locked` (and `access.comingSoon`); the lock mark's word is read from the
++    shell's labels (same-origin frame), "Locked" when the Terminal is opened alone, where the box request opens EDGE's
++    Terminal page instead.
++- **Look:** the design system's dialog (`DialogShell`: head with title and line, body, actions at the right, the main
++  action ink, focus on it, Escape and Tab inside). Checked at 1440 and 390 px, light and dark (screenshots in the
++  session's scratchpad). The Terminal's own look changes only by the 12 px lock mark (`terminal.css .gp-lock, .im-lock,
++  .im-row.locked`); `look_check11.mjs` PASS on the build (the look server sends no `access`, so nothing is locked there;
++  no new heading, switch or control row).
++- **`EDGE_UPGRADE_CONTACT`:** one line of plain text, at most 200 characters, no `<` `>` or control characters (refused at
++  start otherwise); shown as text. Unset: the "comes soon" sentence.
++- **The shell for a visitor:** `/terminal` without a session opens the Terminal where the site has guests
++  (`GET /api/v1/auth/config` `guests`); the account button is a "Sign in" button; every other page shows sign-in. The
++  sign-in page offers "Open the Terminal without an account". After a sign-in the shell lands as before (`landing()`).
++- **The shared module** (`shared/edge-session.ts`, rebuilt to `static/edge-session.js`): `allowGuest()` (the Terminal
++  calls it) makes a 401 of the session route read `GET /api/v1/auth/guest`; `access()`, `can()`, `limit()` and
++  `catalog()` read it like an account's. A visitor holds nothing of the browser's storage (no last-login mark, nothing
++  cleared); a visitor who signs in, or an account whose session ends under the page, reloads the page as the other.
++
++## 4. The pre-launch mode
++
++- **`EDGE_PRELAUNCH`** (true/false; unset = the live site on, the beta off; `EDGE_PRELAUNCH=true` with the switch off
++  stops the start). At the launch the main agent sets it to `false` on edge-bff-live.
++- **Registration closed:** `POST /api/v1/auth/register`, `/register/verify` and `/code/resend` with purpose `register`
++  answer 403 `REGISTRATION_CLOSED` ("Registration opens soon. EDGE is not taking new accounts yet; you can still open
++  the Terminal without an account."), the same for every address. `/password/forgot` and `/password/reset` stay open.
++  The register and verify pages show "Registration opens soon" with the way to the Terminal and back to sign-in.
++- **Sign-in:** only the admin (an account whose resolved grants hold `*` or `admin.access`, the catalog's rule that also
++  decides the second factor) and accounts marked `edge_bff.users.test_account` sign in. Any other account gets 403
++  `SIGN_IN_CLOSED` ("EDGE opens to accounts soon. Until then only test accounts can sign in; ...") after its password was
++  checked like any other (a wrong password is still 401 `INVALID_CREDENTIALS`), and no session is made. A pending
++  registration with the right password is not restarted (registration is closed).
++- **The test-account mark** (migration `20261119_070`): `users.test_account` boolean, false. Two deferred constraint
++  triggers (`users_test_account_audited` on an insert that marks, `users_test_account_audited_change` on a change)
++  refuse at commit any change without an `admin_audit` row of the same transaction (action `account.test_mark`, the
++  account as target, `after.test_account` the new value), SQLSTATE 23514, a hint with a right and a wrong example. The
++  migration's verify block proves both cases on a probe account, rolled back.
++- **`scripts/edge_test_account.py`** (as a job: `scripts/onboarding/edge_test_account_job.py`, params `{"email",
++  "plan", "reason", "off"}`): for one of the user's addresses and a plan key it makes an active account (username from
++  the address or given, names "Test Account" unless given, the address marked verified) with a password identity no
++  password opens (a random verifier), marks it with its audit row (actor `operator`), and subscribes it to the plan
++  (`provider` `test`) unless the plan is the default; an existing account is marked (and subscribed when it has no live
++  subscription). Refused (exit 1): an unknown plan, a plan holding `*`/`admin.access`, the guest plan, an account not
++  active, an account already on another plan. `--off` removes the mark. It prints the user id, username, plan and
++  outcome only (never the address, a verifier or the URL; a driver error only by class and SQLSTATE). The person then
++  sets the password with "Forgot password" (needs Resend).
++- **Visitors still open the Terminal** in the pre-launch mode (tested).
++- **`GET /api/v1/auth/config`** with the switch on: `{"multiuser": true, "registration", "prelaunch", "guests",
++  "upgrade_contact"}`; with it off `{"multiuser": false}` as before.
++
++## Tests
++
++New:
++- `apps/edge-bff/tests/test_guest.py` (16): BBCA and the whole list for a visitor, the guest owner and visitor key sent,
++  another ticker refused before terminal-api; 401 on eleven other routes; a change of the guest plan's rows; `*` and
++  `admin.access` never held; no client address, no guest (and `client_of`'s rules); no guests with the switch off or by
++  default on the beta, configurable on live; a signed-in account keeps its principal and its CSRF; a page-sent visitor
++  key refused; the guest owner reserved; pre-launch registration closed; pre-launch sign-in (paula refused, the admin
++  to MFA, a marked test account in, everyone with the mode off); the settings; the mark and its audit; the script; the
++  migration's second run.
++- `apps/edge-bff/tests/test_guest_browser.py` (4, Chromium, the built Terminal): a visitor sees BBCA, every ticker with
++  locks, and the sign-in box (which leads to `/login`); a free account gets the upgrade box with the contact; a locked
++  indicator opens the box; pre-launch pages.
++- `apps/terminal-api/tests/test_guest_tickers.py` (10): the derivation on the publisher's columns, its fail-closed
++  rules, the fixtures' columns; visitors counted apart and the owner's row as a whole without the key; the header's
++  refusals; the store per visitor on PostgreSQL (usage, `frees_in`, the audit column, its CHECK).
++- `apps/edge-bff/terminal/tests/data/guest_session.test.ts` (5): the shared module's guest session.
++
++Changed (each held a rule a decision of 2026-11-19 replaced; no expectation weakened):
++- `apps/terminal-api/tests/test_terminal_fix_round.py`: `test_the_free_plan_gets_reference_lists_that_name_its_own_
++  tickers_only` became `..._gets_the_whole_ticker_list_and_its_own_rows_of_every_other_reference_file` (it held the
++  BBCA-alone list of the R2-32 reading that decision 1 replaces; every other file still names no other ticker);
++  `test_the_broker_list_follows_...` expects the whole list and checks the logos still follow the tickers; the
++  `fixed_income` fixture carries the publisher's `FI_COLUMNS` (it had three of them).
++- `apps/edge-bff/tests/test_c2_e2e_people.py`: the free-plan reload test asked for the BBCA-alone copy of the ticker
++  list to be downloaded; the whole copy now equals the list the browser kept from the first load (its cache by sha256),
++  so the test checks that the list is announced and that a file with data per ticker (brokers) comes as the plan's copy.
++  The other free-plan test's docstring follows the decision (its assertions are unchanged).
++- `apps/edge-bff/tests/test_route_table.py`: the walk admits `GUEST_OPEN` routes on the visitor dependency (decision
++  "1a"), names them with their reason, and fails on any other or a stale entry; `PRINCIPAL_ONLY` names
++  `GET /api/v1/auth/guest`.
++- `apps/edge-bff/tests/test_plan_catalog.py`: the plan-key grep reads every plan seed of every migration (the guest plan
++  added) and its expected set gains `guest`.
++- `apps/edge-bff/tests/test_auth_flows.py`: `test_config_with_the_switch_on` expects the new keys.
++- `apps/edge-bff/tests/e2e_people.py`: its fake terminal-api passes the dataset ids to `refcut.build`, as terminal-api.
++
++## Records (for the main agent and the records track)
++
++- **CONTRACT.md:**
++  - Section 1 `plans`: `for_guests` (one, never the default), the `guest` seed; `users`: `test_account` and its audited
++    triggers. Section 2: the guest principal (who, where, what it never holds, `client_of`, fail closed), `auth.visitor`,
++    `need(..., guests=True)`, CSRF for guests. Section 3: `REGISTRATION_CLOSED` (403) and `SIGN_IN_CLOSED` (403) in the
++    table. Section 4: `GET /api/v1/auth/guest`, the config keys, the pre-launch rules ("to build" marks become built).
++    Section 7 / 8b 3c: `x-terminal-client`, per-visitor quotas, the `reference` rule now derived (`names_only`), the free
++    plan's whole list (replace "the ticker list ... to build"). Section 9: the guest plan as built (no quota rows: the
++    defaults per visitor). Section 12: the boxes, the closed register page, the guest Terminal in the shell. Section 16:
++    `EDGE_GUESTS`, `EDGE_PRELAUNCH`, `EDGE_UPGRADE_CONTACT`. Section 17: the pre-launch mode built; rollback floor below.
++    Section 18: no new recipient (the visitor key never leaves EDGE and terminal-api; terminal-api keeps it 90 days in
++    the audit rows as a pseudonymous key, which the Privacy text may state).
++- **ERRORS_AND_SOLUTIONS.md:** no defect of the deployed system was found by this track. If the records track keeps an
++  entry per decision built, the lesson for Part D: "what a visitor without an account may see is a plan in the catalog,
++  read through the same code as every plan; the routes that admit it are named in one table the route walk holds".
++- **DATABASE_SCHEMA.md / DATABASE_CHANGELOG.md:** `20261119_070_edge_bff_guest_plan_and_test_accounts.sql` (the column
++  `plans.for_guests`, index `plans_one_guest`, CHECK `plans_guest_not_default`, the `guest` plan and its five rows, the
++  column `users.test_account`, function `edge_bff.test_account_audited()` (no EXECUTE for PUBLIC), the two deferred
++  constraint triggers); `20261119_170_terminal_access_log_client.sql` (the column `terminal.access_log.client_key`, its
++  CHECK NOT VALID, the partial index `access_log_client_at`) with the EXPLAIN evidence above. Neither applied. At deploy,
++  read back: `SELECT plan_key, is_default, for_guests FROM edge_bff.plans`; the guest plan's five rows; `SELECT * FROM
++  edge_bff.data_scope_conflicts('guest', NULL)` empty; no account marked; the two triggers; the terminal column, CHECK
++  and index; `edge_bff` and `terminal` are operational schemas (no catalog rows).
++- **EXEC.md:** the track's status and the readings below; `railway.ts` already names the three variables.
++- **RAILWAY_CHANGELOG.md:** nothing changed on Railway.
++
++## Deploy order and rollback floors
++
++1. Both migrations (they add only; the running services read none of the new columns).
++2. terminal-api (it reads `client_key` in `/ready`; it accepts `x-terminal-client` and serves the whole ticker list).
++   Floor: while guests are on anywhere, terminal-api is never rolled back below this build (an older one refuses the
++   header 400 for every guest call: fails closed, guests see nothing).
++3. edge-bff (beta first: with the switch off nothing changes there; `/ready` reads `plans.for_guests` and
++   `users.test_account` only with the switch on). Then edge-bff-live, where `EDGE_GUESTS` and `EDGE_PRELAUNCH` default on.
++4. Before the guest plan is offered on live: the client-address probe (decision 1 below).
++
++## Readings taken here (for the main agent to confirm or change)
++
++- "Plan that holds terminal.view" is read at terminal-api as "every owner edge-bff forwards" (edge-bff's Terminal routes
++  need `terminal.view`).
++- Names-only lists: derived from the columns; today only the ticker list. The bonds' list stays filtered (its columns
++  carry the datasets' dates), so the free plan and guests do not see the bonds in the search; the logos stay filtered
++  (edge-bff refuses another ticker's logo image, which 3c decided), so the search shows monograms for the locked tickers.
++- The guest plan has no Terminal quota rows (the task listed the four grants, not the quotas); visitors get
++  terminal-api's defaults each. The free plan keeps D6's numbers.
++- The layouts button and presets follow the same lock rule (the free plan lacks both, 8a); a visitor's drawings are kept
++  nowhere (as R1-19 for a refused plan).
++- The admin of the pre-launch rule is read from the catalog (`*` or `admin.access`), as the second factor is, not from
++  the role.
++
++## Decisions needed (only the user can take them)
++
++1. **The client-address probe before guests go live.** The guest quotas count per address read from Railway's
++   `X-Forwarded-For`; the probe that proves what Railway's edge sends (CONTRACT section 4) has not run. Options: (a) run
++   the probe before the live site opens to visitors (a Railway call with the user's go); (b) open guests without it
++   (worst case every visitor shares one quota: stricter, never wider).
++2. **A ceiling for all visitors together.** Per-address quotas do not bound a visitor who changes address. Options:
++   (a) none for now; (b) a total per hour for the guest owner (a new terminal-api quota, data).
++3. **Bonds and logos for the free plan and guests.** Today they stay filtered (above). Options: (a) keep; (b) treat the
++   bonds' list as names (search shows bonds, locked) and/or open the logo images to every plan.
++
++## Suites (this branch, local, PostgreSQL 16 on port 55573, Chromium /opt/pw-browsers/chromium, every page built)
++
++| Suite | Result |
++|---|---|
++| edge-bff pytest, the whole `tests/` (Postgres, Chromium, every page built) | 900 passed, 3 failed: `test_backtest.py::test_a_queued_job_reads_its_owners_rights_when_it_is_dispatched`, `test_composer_layout.py::test_submit_history_and_fixed_headers[mobile]` (the known flaky one) and `[mobile-small]`. Run again alone, all three pass (mobile-small 3 of 3 on this branch, and on the base's `app`/`static`); the first two failed only while the page vitests and the workers' suites ran beside it. The pytest process printed its result and then did not exit (a thread still polling the test database); it was stopped and its database dropped |
++| terminal-api pytest (`TERMINAL_TEST_POSTGRES_URL`: the terminal migrations 20261025_100 to 20261119_170 on `terminal_test`) | 170 passed |
++| market-ai-orc pytest (`ORC_TEST_POSTGRES_URL`) | 2204 passed |
++| backtest-worker `npm test` | 277 passed (run alone; beside the edge-bff suite the known timing test "a job over BACKTEST_TIMEOUT_SECONDS ends FAILED TIMEOUT" failed once); `npm run registry:check` current |
++| screener-worker `npm test` | 127 passed (`onboarding_pointers` after `d47eefbe`) |
++| Page vitests | terminal 973 (38 files), backtest 91, screener 1355 passed and 1 skipped, radar 8, overview 22, watchlist 22; every page built (`npm run build`) |
++| scripts pytest (`scripts/tests`, the generated-file tests included) | 94 passed, 1 skipped |
++| `node shared/build-shell.mjs --check` (apps/edge-bff) | `static/edge-session.js` and `catalog/storage_sync.json` match |
++| `look_check11.mjs` on the built Terminal | PASS |
+-- 
+2.43.0
+
+
+From 607546683f6ecff7b8a779833d59c88420087bed Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 14:59:24 +0000
+Subject: [PATCH 61/61] terminal-api tests: no blank line at the end of
+ test_guest_tickers.py (git diff --check)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/terminal-api/tests/test_guest_tickers.py | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/apps/terminal-api/tests/test_guest_tickers.py b/apps/terminal-api/tests/test_guest_tickers.py
+index c28e7a74..3cf57850 100644
+--- a/apps/terminal-api/tests/test_guest_tickers.py
++++ b/apps/terminal-api/tests/test_guest_tickers.py
+@@ -199,4 +199,3 @@ def test_the_store_counts_each_visitor_apart_on_a_real_server():
+                               "VALUES (%s, 'file', 'BBCA', NULL, '10.0.0.1')", (sid,))
+     finally:
+         store.close()
+-
 -- 
 2.43.0
 

@@ -1,0 +1,196 @@
+From 8333fc155ba8fc673178ea05b0202a62727da286 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 17:25:31 +0000
+Subject: [PATCH] EXEC-MU-ACCOUNTS 3c check, lens accounts: failing tests of
+ six verified findings
+
+- F1: on the live site user #1 cannot enrol its second factor (mfa/enroll is gated by
+  admin.access, which the live mask answers 404), so it can never sign in there.
+- F2: a stranger closes both the sign-in (the per-account cap of 100, from one client
+  address within the per-login limit) and its way back (20 wrong reset codes for the
+  address, CODE_ADDRESS keyed by the address alone).
+- F3: the operator unlock finds only accounts with an MFA row; a locked account without
+  one stays locked.
+- F4: a sign-in at a registration's mail cap moves the registration to a new cookie and
+  mails nothing; the browser keeps its old cookie, so the mailed code no longer works.
+- F5: a wrong current password in the password change is not counted in the account's
+  consecutive-failure cap.
+- F6: the password change's limit answers with the sign-in's "from here" sentence.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/tests/test_c3c_accounts.py | 161 +++++++++++++++++++++++
+ 1 file changed, 161 insertions(+)
+ create mode 100644 apps/edge-bff/tests/test_c3c_accounts.py
+
+diff --git a/apps/edge-bff/tests/test_c3c_accounts.py b/apps/edge-bff/tests/test_c3c_accounts.py
+new file mode 100644
+index 00000000..10a48632
+--- /dev/null
++++ b/apps/edge-bff/tests/test_c3c_accounts.py
+@@ -0,0 +1,161 @@
++"""EXEC-MU-ACCOUNTS 3c check, lens accounts (checker c3c-accounts, 2026-11-19): failing tests of the verified findings
++on dec1cfef (Phase 3c, the 3b follow-up, the fix round of the re-check and the decisions of 2026-11-19).
++
++- F1: on the live site (EDGE_SITE=live, the only website with the switch on) user #1 cannot set up its second factor:
++  POST /api/v1/auth/mfa/enroll is gated by auth.need('admin.access'), and the live mask (principal.beta_only) turns
++  every admin.access gate into 404 NOT_FOUND there, while the sign-in still requires the second factor for the
++  account's own grants ('*'). The admin may sign in on the live site with MFA (CONTRACT section 4 "Admin MFA", the main
++  agent's design value told to the user 2026-11-19), but no route lets it enrol.
++- F2: a stranger closes both the sign-in and its way back. The per-account cap (100 consecutive failed passwords, a
++  24 h lock answered as a wrong password, ERRORS R1-16) is reached from one client address within the per-login limit,
++  and its way back, a reset proved by the email code, is closed by the same stranger's 20 wrong reset codes for the
++  address (CODE_ADDRESS, ERRORS R1-8), keyed by the address alone. The owner, with the right password and the right
++  code from its own mailbox, gets 401 and then 429 (ERRORS M494's lesson: a limit keyed by a public identifier is keyed
++  with the client too and has a proof-based way out).
++- F3: the operator unlock (scripts/edge_mfa_unlock.py), recorded as the way back from the password lock (R1-16) for an
++  account without a reset, finds only accounts that have an MFA enrolment row: a locked account without one is
++  'not_found' and stays locked.
++- F4: a sign-in with the right password of a pending registration that was already mailed 3 times today (its code and
++  two resends, REGISTRATION_MAIL, ERRORS R1-13) moves the registration to a new cookie (FlowStore.restart's UPDATE)
++  and then mails nothing (_issue_code refuses after the UPDATE, in the same committed transaction); the route keeps the
++  browser's old cookie because nothing was mailed, so the registration is bound to a cookie no browser holds and the
++  code already mailed no longer finishes it (the N3 class ERRORS R1-11 closed: a mistyped or repeated sign-in never
++  orphans a registration).
++- F5: the password change checks the current password against the account's verifier but never counts a wrong one in
++  the account's consecutive-failure cap (identities.sign_in_failures, R1-16) nor honours its lock: a session holder
++  guesses 10 passwords per 15 minutes (PASSWORD_CHANGE, cleared by a success) for the session's 24 h, about 960, while
++  the cap says at most 100 consecutive failed passwords per account, over both logins and every client address.
++- F6: the password change's own limit (PASSWORD_CHANGE: 10 wrong current passwords per account per 15 minutes, ERRORS
++  R1-10) answers with the sign-in's code and sentence, "Too many sign-in attempts from here": the person is signed in,
++  and the limit is the account's, not the place's, so the words name neither where the problem is nor what passes it
++  (AGENTS.md "Gates and evidence" (d)).
++"""
++import dataclasses
++import importlib.util
++from pathlib import Path
++
++from fastapi.testclient import TestClient
++
++from app.accounts import PASSWORD_FAILURE_CAP
++from app.main import create_app
++from conftest import FakeOrc
++from test_auth_flows import (PASSWORD, app, cooldown_over, db, error_code, last_code, make_account, on,  # noqa: F401
++                             outbox, register, verify)
++from test_beta_live_site import PASSWORD as OWNER_PASSWORD, live_of
++from test_edge import ORIGIN
++
++
++def sign_in(c, login_, password, address):
++    return c.post('/api/v1/auth/sign-in', headers={**ORIGIN, 'X-Forwarded-For': address},
++                  json={'login': login_, 'password': password})
++
++
++# ---- F1 ---------------------------------------------------------------------------------------------------------------
++
++def test_the_admin_can_set_up_its_second_factor_on_the_live_site(settings, store):
++    with TestClient(create_app(live_of(settings), store, FakeOrc())) as c:
++        r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'owner', 'password': OWNER_PASSWORD})
++        assert (r.status_code, error_code(r)) == (403, 'MFA_REQUIRED') and r.json()['error']['details']['mfa_enrolled'] is False
++        h = {**ORIGIN, 'X-CSRF-Token': r.json()['error']['details']['csrf_token']}
++        # the only way to a session that passed MFA on this site: enrol, then verify a code of it
++        enrolled = c.post('/api/v1/auth/mfa/enroll', headers=h)
++        assert enrolled.status_code == 200, (enrolled.status_code, enrolled.text)
++        assert enrolled.json()['otpauth_uri'].startswith('otpauth://totp/')
++
++
++# ---- F2 ---------------------------------------------------------------------------------------------------------------
++
++def test_a_stranger_cannot_close_both_the_sign_in_and_its_way_back(app, store):
++    make_account(app, store)
++    stranger, owner = TestClient(app.app), TestClient(app.app)
++    # the stranger, from one client address, always under the per-login limit (10 per login and address per 15 min):
++    # 90 wrong passwords spread over 9 earlier windows of 15 minutes (2 h 15 min), then 10 more now
++    db(store, "UPDATE edge_bff.identities SET sign_in_failures = %s WHERE user_id = (SELECT user_id FROM edge_bff.users "
++              "WHERE email = 'ana@example.com')", PASSWORD_FAILURE_CAP - 10)
++    for _ in range(10):
++        assert sign_in(stranger, 'ana_putri', 'not the password', '203.0.113.7').status_code == 401
++    # and 20 wrong reset codes for the address (no code needed, no mailbox, no account knowledge)
++    for _ in range(20):
++        r = stranger.post('/api/v1/auth/password/reset', headers={**ORIGIN, 'X-Forwarded-For': '203.0.113.7'},
++                          json={'email': 'ana@example.com', 'code': '000000', 'password': 'a stranger password',
++                                'password_repeat': 'a stranger password'})
++        assert r.status_code == 400
++    # the owner, from its own address, with its right password: answered as a wrong one (the lock)
++    assert sign_in(owner, 'ana_putri', PASSWORD, '198.51.100.20').status_code == 401
++    # the way back the lock is recorded with: "Forgot password?", then the code from the owner's own mailbox
++    cooldown_over(store)
++    assert owner.post('/api/v1/auth/password/forgot', headers={**ORIGIN, 'X-Forwarded-For': '198.51.100.20'},
++                      json={'email': 'ana@example.com'}).status_code == 202
++    body = {'email': 'ana@example.com', 'code': last_code(store, 'ana@example.com'), 'password': 'my new password',
++            'password_repeat': 'my new password'}
++    r = owner.post('/api/v1/auth/password/reset', headers={**ORIGIN, 'X-Forwarded-For': '198.51.100.20'}, json=body)
++    assert r.status_code == 200, (r.status_code, r.text)
++    assert sign_in(owner, 'ana_putri', 'my new password', '198.51.100.20').status_code == 200
++
++
++# ---- F3 ---------------------------------------------------------------------------------------------------------------
++
++def test_the_operator_unlock_lifts_a_password_lock_of_an_account_without_an_authenticator(app, store, database,
++                                                                                        monkeypatch, capsys):
++    make_account(app, store)
++    db(store, "UPDATE edge_bff.identities SET sign_in_failures = %s, sign_in_locked_until = now() + interval '1 day' "
++              "WHERE user_id = (SELECT user_id FROM edge_bff.users WHERE email = 'ana@example.com')", PASSWORD_FAILURE_CAP)
++    spec = importlib.util.spec_from_file_location('edge_mfa_unlock',
++                                                  Path(__file__).resolve().parents[3] / 'scripts/edge_mfa_unlock.py')
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    monkeypatch.setenv('DATABASE_URL', database)
++    assert module.main(['--username', 'ana_putri', '--reason', 'locked by a stranger, ticket 7']) == 0, \
++        capsys.readouterr().out
++    assert db(store, "SELECT sign_in_failures, sign_in_locked_until FROM edge_bff.identities i JOIN edge_bff.users u "
++                     "USING (user_id) WHERE u.email = 'ana@example.com'") == [
++        {'sign_in_failures': 0, 'sign_in_locked_until': None}]
++
++
++# ---- F4 ---------------------------------------------------------------------------------------------------------------
++
++def test_a_sign_in_at_the_registrations_mail_cap_keeps_the_registration_on_this_browser(app, store):
++    assert register(app).status_code == 202                                # mail 1 of the registration
++    for _ in range(2):                                                     # mails 2 and 3: the day's cap (R1-13)
++        cooldown_over(store)
++        app.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'ana@example.com', 'purpose': 'register'})
++    assert len([r for r in outbox(store, 'ana@example.com') if r['purpose'] == 'register']) == 3
++    live = last_code(store, 'ana@example.com')
++    cooldown_over(store)
++    # the person tries to sign in on the same browser (the registration is not finished): the same 401 as ever
++    r = app.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'ana@example.com', 'password': PASSWORD})
++    assert (r.status_code, error_code(r)) == (401, 'INVALID_CREDENTIALS')
++    assert len([r for r in outbox(store, 'ana@example.com') if r['purpose'] == 'register']) == 3   # nothing mailed
++    # the code in the mailbox still finishes the registration on this browser
++    r = verify(app, live)
++    assert r.status_code == 200, (r.status_code, r.text)
++
++
++# ---- F5 ---------------------------------------------------------------------------------------------------------------
++
++def test_a_wrong_current_password_counts_towards_the_accounts_cap(app, store):
++    r = make_account(app, store)
++    h = {**ORIGIN, 'X-CSRF-Token': r.json()['csrf_token']}
++    # 99 consecutive failed passwords already (sign-ins from other addresses): one more is the 100th
++    db(store, "UPDATE edge_bff.identities SET sign_in_failures = %s WHERE user_id = (SELECT user_id FROM edge_bff.users "
++              "WHERE email = 'ana@example.com')", PASSWORD_FAILURE_CAP - 1)
++    body = {'current_password': 'a guess', 'password': 'another password', 'password_repeat': 'another password'}
++    r = app.post('/api/v1/auth/password/change', headers=h, json=body)
++    assert (r.status_code, error_code(r)) == (400, 'CURRENT_PASSWORD_INVALID')
++    row = db(store, "SELECT sign_in_failures, sign_in_locked_until FROM edge_bff.identities i JOIN edge_bff.users u "
++                    "USING (user_id) WHERE u.email = 'ana@example.com'")[0]
++    assert row['sign_in_failures'] == PASSWORD_FAILURE_CAP and row['sign_in_locked_until'] is not None, row
++
++
++# ---- F6 ---------------------------------------------------------------------------------------------------------------
++
++def test_the_password_change_limit_says_what_it_limits(app, store):
++    r = make_account(app, store)
++    h = {**ORIGIN, 'X-CSRF-Token': r.json()['csrf_token']}
++    body = {'current_password': 'a guess', 'password': 'another password', 'password_repeat': 'another password'}
++    for _ in range(10):
++        assert error_code(app.post('/api/v1/auth/password/change', headers=h, json=body)) == 'CURRENT_PASSWORD_INVALID'
++    r = app.post('/api/v1/auth/password/change', headers=h, json=body)
++    assert r.status_code == 429
++    message = r.json()['error']['message']
++    assert 'sign-in' not in message.lower() and 'from here' not in message, message
+-- 
+2.43.0
+

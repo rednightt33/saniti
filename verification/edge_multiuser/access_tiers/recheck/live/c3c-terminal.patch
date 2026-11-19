@@ -1,0 +1,192 @@
+From a6df52b7e825e05aecd4060fa14c8221692465f7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 16:58:15 +0000
+Subject: [PATCH] 3c checker (terminal lens): failing tests of four verified
+ findings on dec1cfef
+
+- edge-bff tests/test_c3c_terminal_checker.py: terminal-api's refusals made before it
+  identifies the caller carry no x-terminal-capabilities-applied, and relayed logs them for
+  every capped principal as "terminal-api is older than Phase 3c" without the upstream code;
+  the live site sends user #1 as admin false with no quota (terminal-api's defaults).
+- Terminal vitest tests/data/c3c_cut_refusal_words.test.ts: a refused cut download
+  (429 LIMIT_REACHED, 403 CAPABILITY_REQUIRED) reaches the person as "A data file could not
+  be downloaded (429)."
+- terminal-api tests/test_c3c_terminal_checker.py: a capped plan gets a history lock, not
+  "no files", for a dataset the ticker does not have.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ .../tests/data/c3c_cut_refusal_words.test.ts  | 36 +++++++++
+ .../tests/test_c3c_terminal_checker.py        | 78 +++++++++++++++++++
+ .../tests/test_c3c_terminal_checker.py        | 30 +++++++
+ 3 files changed, 144 insertions(+)
+ create mode 100644 apps/edge-bff/terminal/tests/data/c3c_cut_refusal_words.test.ts
+ create mode 100644 apps/edge-bff/tests/test_c3c_terminal_checker.py
+ create mode 100644 apps/terminal-api/tests/test_c3c_terminal_checker.py
+
+diff --git a/apps/edge-bff/terminal/tests/data/c3c_cut_refusal_words.test.ts b/apps/edge-bff/terminal/tests/data/c3c_cut_refusal_words.test.ts
+new file mode 100644
+index 00000000..09e5a52d
+--- /dev/null
++++ b/apps/edge-bff/terminal/tests/data/c3c_cut_refusal_words.test.ts
+@@ -0,0 +1,36 @@
++/* Independent 3c checker, lens "terminal" (EXEC-MU-ACCOUNTS, CONTRACT.md 8b "3c in detail" and section 3): with 3c a
++   capped plan (the free plan, every guest) is counted when its cut is downloaded: terminal-api's GET /cut and
++   GET /reference/<name>/cut grant the file (apps/terminal-api/app/main.py cut_file, reference_cut: grant(), so the
++   files_per_hour and megabytes_per_day quotas refuse there), and edge-bff relays the refusal in the contract's shape
++   (main.py relay_cut -> terminal_access.relayed: 429 LIMIT_REACHED with details.limit, retry_after_s and Retry-After;
++   401 UNAUTHENTICATED when the session ended; 403 CAPABILITY_REQUIRED after a plan change). The page downloads the cut
++   with rack.ts fetchFile, which reads only the status, as it did for the storage host's presigned URLs, so the person
++   sees "A data file could not be downloaded (429)." instead of the limit and the wait (section 3: "show the limit
++   message and the wait"), and a refused session or plan is not told apart from a broken download. */
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { fetchFile } from '../../src/data/rack';
++
++afterEach(() => { vi.unstubAllGlobals() });
++
++const CUT = `/api/terminal/v1/cut/BBCA/price?sha256=${'a'.repeat(64)}`;
++
++function answer(status: number, body: unknown, headers: Record<string, string> = {}) {
++  vi.stubGlobal('fetch', async () => new Response(JSON.stringify(body), { status,
++    headers:{ 'content-type':'application/json', ...headers } }));
++}
++
++describe('a refused cut download reaches the person in the contract words', () => {
++  it('the quota of the cut (429 LIMIT_REACHED) names the limit and the wait, not a broken download', async () => {
++    answer(429, { error:{ code:'LIMIT_REACHED', message:'Data files per hour reached.',
++      details:{ limit:'terminal.files_per_hour', allowed:300, retry_after_s:120 } } }, { 'Retry-After':'120' });
++    const e: any = await fetchFile(CUT).catch(x => x);
++    expect(e).toBeInstanceOf(Error);
++    expect({ code:e.code, generic:/could not be downloaded/.test(e.message) }).toEqual({ code:'LIMIT_REACHED', generic:false });
++  });
++  it('a plan refusal of the cut (403 CAPABILITY_REQUIRED) is a plan refusal, not a broken download', async () => {
++    answer(403, { error:{ code:'CAPABILITY_REQUIRED', message:'x',
++      details:{ capability:'terminal.tickers', display_name:'Tickers' } } });
++    const e: any = await fetchFile(CUT).catch(x => x);
++    expect({ code:e.code, generic:/could not be downloaded/.test(e.message) }).toEqual({ code:'CAPABILITY_REQUIRED', generic:false });
++  });
++});
+diff --git a/apps/edge-bff/tests/test_c3c_terminal_checker.py b/apps/edge-bff/tests/test_c3c_terminal_checker.py
+new file mode 100644
+index 00000000..40412ff0
+--- /dev/null
++++ b/apps/edge-bff/tests/test_c3c_terminal_checker.py
+@@ -0,0 +1,78 @@
++"""Independent 3c checker, lens "terminal" (EXEC-MU-ACCOUNTS; CONTRACT.md 8b "3c in detail"): failing tests of the
++defects found on the session branch dec1cfef (main bf273f52 + Phase 3c, the fix round and the decisions of 2026-11-19).
++
++1. A terminal-api refusal raised while terminal-api identifies the caller carries no acknowledgement, and edge-bff reads
++   it as "terminal-api is older than Phase 3c". terminal-api's middleware adds x-terminal-capabilities-applied only
++   when request.state.caller was set (apps/terminal-api/app/main.py `headers`, :256-263); the refusals of identify_now
++   come before it is set: the owner header rules (owner_of: invalid_owner_headers), a key that is neither the gateway's
++   nor a service's (proxy_key_rejected) and a key off the private host (gateway_host_not_allowed) (main.py :319-326,
++   :341-371, :393-405). For every principal without '*', terminal_access.relayed checks the acknowledgement first and
++   logs only `terminal_capabilities_not_applied` with the fix "terminal-api is older than Phase 3c: deploy terminal-api
++   first", never `terminal_refused` with the upstream status and code. After the switch goes on, a rotated
++   TERMINAL_PROXY_KEY or a header rule edge-bff breaks is logged as a deploy-order problem and its code is lost.
++
++2. On the live site user #1 is sent to terminal-api as a capped owner with no quota. principal.live_view drops '*' from
++   the capabilities (it keeps grants['*'], so p.can() still holds every non-beta key), and terminal_access.admin(p)
++   reads '*' in p.capabilities only. The live admin's x-terminal-capabilities is therefore "admin": false with
++   "quota": {}, and terminal-api (main.py limits_of) gives it its terminal.quota defaults (60 files and 30 tickers an
++   hour, 150 tickers and 300 MB a day): less than the paid plan's D6 numbers (300, 60, 200, 500), and unlike the beta,
++   where the same owner gets the gateway's limits (CONTRACT 8b Quotas: "admin: true uses the gateway subscriber's own
++   limits").
++"""
++import dataclasses
++import json
++import logging
++
++import httpx
++import pytest
++from fastapi.testclient import TestClient
++
++from app import terminal_access
++from app.main import create_app
++from app.principal import Principal
++from conftest import FakeOrc
++from test_beta_live_site import live_of, sign_in_admin
++from test_terminal_access import KEY, QUOTA, URL, api, sent_caps, terminal_calls  # noqa: F401 - the fixtures
++
++
++def capped():
++    """The free plan's principal (BBCA, price, 730 days), as account_principal reads it."""
++    return Principal(user_id=7, owner_key='u_' + 'a' * 24, username='x', role='user', plan_key='free', status='active',
++                     expires_at=None, mfa_ok=True, capabilities=frozenset({'terminal.view'}), version='db-123456789abc',
++                     limits={'terminal.tickers': ['BBCA'], 'terminal.history_days': 730},
++                     grants={'terminal.dataset': {'ids': ['price']}}, kinds={'terminal.dataset': 'items'})
++
++
++# terminal-api's refusals made before it knows the caller: no x-terminal-capabilities-applied on any of them
++IDENTIFY_REFUSALS = [
++    (401, {'error': 'proxy_key_rejected', 'message': 'The x-terminal-proxy-key header holds no key ...'}),
++    (403, {'error': 'gateway_host_not_allowed', 'message': 'This address does not accept keyed requests.'}),
++    (400, {'error': 'invalid_owner_headers', 'field': 'quota', 'message': 'x'}),
++]
++
++
++@pytest.mark.parametrize('status, body', IDENTIFY_REFUSALS, ids=[b['error'] for _, b in IDENTIFY_REFUSALS])
++def test_a_refusal_terminal_api_makes_before_it_knows_the_caller_is_logged_with_its_code(status, body, caplog):
++    with caplog.at_level(logging.WARNING, 'edge_bff.terminal_access'):
++        refused, data = terminal_access.relayed(capped(), status, body, httpx.Headers(), 'manifest/BBCA')
++    assert (refused.status, refused.code, data) == (503, 'TERMINAL_UNAVAILABLE', None)       # the page's answer stands
++    logged = [json.loads(r.getMessage()) for r in caplog.records]
++    named = [e for e in logged if e.get('code') == body['error'] and e.get('status') == status]
++    assert named, ('the upstream refusal is logged without its status and code, as a deploy-order problem '
++                   f'("terminal-api is older than Phase 3c"): {logged}')
++
++
++def test_user_one_on_the_live_site_gets_no_less_terminal_quota_than_a_paid_account(settings, store, api):
++    live = dataclasses.replace(live_of(settings), terminal_url=URL, terminal_proxy_key=KEY)
++    with TestClient(create_app(live, store, FakeOrc())) as c:
++        sign_in_admin(c, store)
++        r = c.get('/api/terminal/v1/manifest/BBCA')
++        assert r.status_code == 200, r.text
++    caps = sent_caps(terminal_calls()[-1])
++    # what terminal-api then applies (main.py limits_of): admin -> the gateway's limits; otherwise its defaults
++    # overlaid by `quota`, so a quota key left out is terminal-api's default (30 tickers an hour, 60 files an hour)
++    weaker = {k: caps['quota'].get(k) for k, v in QUOTA.items() if caps['quota'].get(k, 0) < v}
++    assert caps['admin'] or not weaker, (
++        f'the live site sends user #1 as {caps}: "admin" false and the paid quotas missing {sorted(weaker)}, so '
++        f'terminal-api counts it with its defaults, below the paid plan')
++
+diff --git a/apps/terminal-api/tests/test_c3c_terminal_checker.py b/apps/terminal-api/tests/test_c3c_terminal_checker.py
+new file mode 100644
+index 00000000..ce700a5b
+--- /dev/null
++++ b/apps/terminal-api/tests/test_c3c_terminal_checker.py
+@@ -0,0 +1,30 @@
++"""Independent 3c checker, lens "terminal" (EXEC-MU-ACCOUNTS; CONTRACT.md 8b "3c in detail"): failing tests of the
++defects found on the session branch dec1cfef.
++
++/bundle's own rule (main.py bundle docstring): "a dataset the ticker does not have (broker for an index, events for a
++ticker without events) answers with no files". For a capped owner every asked dataset goes to the cut (`capped`), and
++cut.make_cut raises CutError when the manifest has no data_through for it (no such dataset), which /bundle answers
++{"locked": true, "capability": "terminal.history_days", "reason": ...}: a history lock, which the page reads as "upgrade
++for more history" (CONTRACT 8b, 3e), for data that does not exist at any plan. An uncapped owner gets no files for the
++same request.
++"""
++from app.main import API
++from test_phase3c import caps, make, owner
++
++
++def bundle(client, headers, ticker, datasets):
++    r = client.post(f'{API}/bundle', headers=headers, json={'ticker': ticker, 'datasets': datasets})
++    assert r.status_code == 200, r.text
++    return r.json()['datasets']
++
++
++def test_a_capped_plan_gets_no_files_not_a_history_lock_for_a_dataset_the_ticker_does_not_have():
++    client, _, _ = make()
++    # the test bucket's BBRI has price only (no broker, no events), like an index has no broker data
++    uncapped = bundle(client, owner(capabilities=caps(tickers=['BBRI'], datasets=['price', 'broker'],
++                                                       history_days=None)), 'BBRI', ['price', 'broker'])
++    assert uncapped['broker']['files'] == [] and 'locked' not in uncapped['broker']
++    capped = bundle(client, owner('u_000000000000000000000002', caps(tickers=['BBRI'], datasets=['price', 'broker'],
++                                                                    history_days=730)), 'BBRI', ['price', 'broker'])
++    assert capped['price']['files'] and capped['price']['files'][0]['pack'] == 'cut'
++    assert capped['broker'].get('files') == [] and 'locked' not in capped['broker'], capped['broker']
+-- 
+2.43.0
+
