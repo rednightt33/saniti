@@ -31,7 +31,9 @@ from app.errors import words
 from app.main import create_app
 from app.store import PURGE_BATCH, PURGES, Store
 from conftest import FakeOrc
+from test_answer_view import fixture_server  # noqa: F401 - the fixture
 from test_auth_flows import admin_sign_in, app, db, error_code, on, outbox  # noqa: F401 - the fixtures
+from test_auth_pages import answer, page  # noqa: F401 - the fixture
 from test_edge import ORIGIN, login
 from test_terminal_access import KEY, PAGE, PAGE_SHA, URL, FakeApi, dependency_calls
 
@@ -188,6 +190,40 @@ def test_the_first_enrolment_needs_no_recent_pass(app, store, on):
     h = admin_sign_in(app)
     assert app.post('/api/v1/auth/mfa/enroll', headers=h).status_code == 200
     assert app.post('/api/v1/auth/mfa/enroll', headers=h).status_code == 200      # the candidate is replaced
+
+
+def test_the_mfa_page_takes_a_fresh_code_then_starts_the_set_up_again(fixture_server, page):
+    """The page side of the ten minutes: the refusal's own sentence is shown above the code form, and the code's
+    success starts the set-up again instead of leaving the page."""
+    origin, _ = fixture_server
+    calls, enrol = [], {'n': 0}
+    refused = {'error': {'code': 'MFA_REQUIRED', 'message': words('MFA_REQUIRED', 403, {'mfa_enrolled': True, 'recent_s': 600}),
+                         'details': {'mfa_enrolled': True, 'recent_s': 600}}}
+    codes = [f'code-{i:02d}' for i in range(10)]
+
+    def enroll(route):
+        enrol['n'] += 1
+        calls.append('enroll')
+        if enrol['n'] == 1:
+            return answer(route, 403, refused)
+        return answer(route, 200, {'otpauth_uri': 'otpauth://totp/EDGE:owner?secret=JBSWY3DPEHPK3PXP&issuer=EDGE',
+                                   'recovery_codes': codes})
+    page.route('**/api/v1/auth/sign-in', lambda r: answer(r, 403, {'error': {'code': 'MFA_REQUIRED', 'message': 'Enter your authenticator code.', 'details': {'csrf_token': 'pending-token'}}}))
+    page.route('**/api/v1/auth/mfa/enroll', enroll)
+    page.route('**/api/v1/auth/mfa/verify', lambda r: (calls.append('verify'), answer(r, 200, {'ok': True})))
+    page.goto(origin + '/login')
+    page.get_by_label('Login', exact=True).fill('owner')
+    page.get_by_label('Password', exact=True).fill('local-test-password')
+    page.get_by_role('button', name='Sign In').click()
+    page.wait_for_function("() => location.pathname === '/mfa'")
+    page.get_by_role('button', name='Set up an authenticator app').click()
+    page.get_by_role('alert').wait_for()
+    assert page.get_by_role('alert').inner_text() == refused['error']['message']
+    page.get_by_label('Code', exact=True).fill('123456')
+    page.get_by_role('button', name='Continue').click()
+    page.locator('svg.auth-qr path').wait_for()
+    assert page.locator('.auth-codes li').all_inner_texts() == codes and calls == ['enroll', 'verify', 'enroll']
+    assert page.evaluate('location.pathname') == '/mfa'
 
 
 # ---- ERRORS M260: public_data on every relay of terminal-api's JSON -----------------------------------------------------
