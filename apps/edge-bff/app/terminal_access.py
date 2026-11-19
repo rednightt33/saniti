@@ -27,6 +27,9 @@ Re-check fix round (track terminal; verification/edge_multiuser/fix_round/termin
   with 403 CAPABILITY_REQUIRED terminal.history_days, so the page files (no history window) keep working; a ticker
   outside terminal-api's rule (TICKER) is left out and logged, never sent; a quota of 0 is 403 CAPABILITY_REQUIRED
   naming the limit (waiting would not help, so it is not a 429).
+- ERRORS M260 (the user's go 2026-11-19, "a"): a 2xx JSON answer reaches the page only through client.public_data, in
+  `relayed` (no private key, no *.railway.internal address), as every Orc and worker relay does; tests/
+  test_decisions_small.py walks every route that calls terminal-api with a planted answer.
 - R1-1, R1-26: `relayed` is the one rule for every terminal-api answer edge-bff relays (main.py forward_terminal and
   relay_cut, pages.py PageFiles), so each refusal reaches the page in the contract's shape (CONTRACT.md section 3): a
   401, or a 403 other than capability_required, is about terminal-api's own account, key or host rule, never the EDGE
@@ -68,6 +71,7 @@ import re
 
 from fastapi import Depends, Request
 
+from .client import public_data
 from .errors import Refusal, capability_required
 
 logger = logging.getLogger('edge_bff.terminal_access')
@@ -301,15 +305,24 @@ def _wait(data, headers):
 
 
 def relayed(p, status, data, headers, where):
-    """The one rule for a terminal-api answer edge-bff relays (module docstring, R1-1, R1-26, R2-4): None when the
-    answer may go to the page as it is (a 2xx terminal-api acknowledged), else the Refusal in the contract's shape.
-    `data`: the answer's JSON (None when it has none); `where`: the route, for the log only."""
+    """The one rule for a terminal-api answer edge-bff relays (module docstring, R1-1, R1-26, R2-4, M260): a pair
+    (refusal, data). (None, public data) when the answer may go to the page (a 2xx terminal-api acknowledged): its JSON
+    through client.public_data, the house filter of every upstream relay (ERRORS M260, the user's go 2026-11-19 "a"):
+    no private key (PRIVATE_KEYS: reasoning, token, api_key, ...) and no *.railway.internal address reaches the page,
+    whatever terminal-api answers (None stays None: a cut's bytes or a logo are relayed as they are, never parsed).
+    (Refusal, None) otherwise, in the contract's shape. `data`: the answer's JSON (None when it has none); `where`: the
+    route, for the log only."""
     if not acknowledged(p, headers):
         logger.warning(json.dumps({'event': 'terminal_capabilities_not_applied', 'status': status, 'where': where[:80],
                                    'fix': 'terminal-api is older than Phase 3c: deploy terminal-api first'}))
-        return Refusal(503, 'TERMINAL_UNAVAILABLE')
+        return Refusal(503, 'TERMINAL_UNAVAILABLE'), None
     if 200 <= status < 300:
-        return None
+        return None, public_data(data)
+    return refused_answer(status, data, headers, where), None
+
+
+def refused_answer(status, data, headers, where):
+    """A non-2xx terminal-api answer as the Refusal the page gets (relayed)."""
     data = data if isinstance(data, dict) else {}
     code = data.get('error') if isinstance(data.get('error'), str) else None
     reason = {'reason': code} if code and REASON.fullmatch(code) else {}

@@ -917,7 +917,12 @@ the same whatever the verifier's age. A reset, a change, a sign-in and an MFA ve
 only while what they rest on still holds (R2-9). A phone is normalised to E.164 (`08…` → `+628…`), not verified; a
 pending user is deleted 24 h after creation, and 24 h after they were made the sent, failed, expired or suppressed
 outbox rows of an address with no account go too (`edge_bff.purge_email_outbox(max_rows)`, migration `20261119_012`,
-the housekeeping's batches; the runtime holds no DELETE on the outbox; R2-24).
+the housekeeping's batches; the runtime holds no DELETE on the outbox; R2-24). Retention (the user's decision of
+2026-11-19, "a"): every sent, failed, expired or suppressed outbox row of every address goes 30 days after it was made
+(the same function), with the email codes no longer usable (used, or expired unused) 30 days after they ended
+(`store.PURGES` `codes`) and the handled webhook deliveries 30 days after they arrived
+(`edge_bff.purge_email_hook_events(max_rows)`, `hook_events`; the runtime holds no DELETE on them either); a row not
+yet sent, a live code and `email_suppression` are kept.
 
 Email (`app/mailer.py`, `app/email_texts.py`, plain English): a code and its email are written in one transaction
 (`edge_bff.email_outbox`). The sender is its own task beside the backtest loop, claiming one row at a time with
@@ -938,8 +943,10 @@ Besides the 10 tries per 15 minutes, 100 consecutive wrong authenticator codes (
 `details.unlock_at`; the `/mfa` page shows it in local time, switches to the recovery-code field when only the
 authenticator is locked, and keeps "Forgot password?"). A lock lasts 24 h, then the count restarts at 90 (8), so 10 (2)
 more tries come before the next lock; a correct code resets the counts; a password reset by email code clears counts
-and locks. A confirmed authenticator is replaced only by a session that passed MFA, and only when a code of the new
-one proves it: until then the new enrolment waits beside it (`mfa_totp.pending_nonce`, recovery codes marked
+and locks. A confirmed authenticator is replaced only by a session that passed MFA within the last 10 minutes
+(`auth_flows.MFA_RECENT_SECONDS`, decided with the enrolment's row lock; an older pass answers 403 `MFA_REQUIRED` with
+`details.recent_s` 600, and the `/mfa` page asks for a code of the current authenticator, then starts the set-up again),
+and only when a code of the new one proves it: until then the new enrolment waits beside it (`mfa_totp.pending_nonce`, recovery codes marked
 `pending`, migration `20261119_011`) and the old authenticator and its recovery codes keep working (R1-7). A code
 confirms only the enrolment it was checked against (R2-11); the cap is decided and counted under the enrolment's row
 lock (R2-12). Operator unlock: `scripts/edge_mfa_unlock.py --username <name> --reason "<why>"`, run as a job on the
@@ -1132,6 +1139,11 @@ owner holds `*`: its header says `admin: true`, its body is forwarded byte for b
   - for a principal without `*`, an answer without `x-terminal-capabilities-applied: 1 <version>` (a terminal-api from
     before Phase 3c ignores the owner headers and would serve the plan in full) is 503 `TERMINAL_UNAVAILABLE`, logged
     (`terminal_capabilities_not_applied`); the switch-off owner holds `*` and needs none;
+  - an acknowledged 2xx JSON answer reaches the page through `client.public_data` (ERRORS M260, the user's go
+    2026-11-19 "a"): no private key (`PRIVATE_KEYS`: `reasoning`, `token`, `api_key`, ...) and no `*.railway.internal`
+    address, as every Orc and worker relay; a cut's bytes and a logo are relayed as they are (never parsed). The walk
+    in `tests/test_decisions_small.py` calls every route holding `terminal_access.guard` with each kind of proxy path,
+    terminal-api planting both in every answer;
   - its 403 `capability_required` is 403 `CAPABILITY_REQUIRED` with `details.capability` and `details.display_name`;
   - its 429 is 429 `LIMIT_REACHED` with `details.limit` (`terminal.<quota>`), `details.allowed`,
     `details.retry_after_s` and `Retry-After`, from the fields terminal-api adds (an hour when it names none);

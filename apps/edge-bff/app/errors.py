@@ -168,7 +168,8 @@ def words(code, status, details=None):
     - CAPABILITY_REQUIRED names the item (display_name); PLAN_EXPIRED also the ended plan (its name in the catalog);
     - LIMIT_REACHED of a plan limit (is_plan_limit) names it, the account's own number (allowed) and the wait (or, with
       no wait, to remove one); of anything else it names the wait and no plan, since no plan decides it;
-    - MFA_REQUIRED says to set the authenticator up when the account has none (details.mfa_enrolled false);
+    - MFA_REQUIRED says to set the authenticator up when the account has none (details.mfa_enrolled false), and to
+      enter a fresh code first when a new authenticator needs a recent pass (details.recent_s, the seconds);
     - every other code: its fixed sentence (message_of; one holding {wait} says the refusal's own wait)."""
     d = details if isinstance(details, dict) else {}
     if code == 'CAPABILITY_REQUIRED':
@@ -195,6 +196,12 @@ def words(code, status, details=None):
     elif code == 'MFA_REQUIRED' and d.get('mfa_enrolled') is False:
         return ('This needs two-step sign-in, which is not set up for this account yet. Set up an authenticator app '
                 'when EDGE asks for it, then try again.')
+    elif code == 'MFA_REQUIRED' and isinstance(d.get('recent_s'), int) and not isinstance(d['recent_s'], bool) \
+            and d['recent_s'] >= 60:
+        minutes = d['recent_s'] // 60
+        return (f'Setting up a new authenticator needs a code from your current one entered in the last {minutes} '
+                f'minute{"s" if minutes != 1 else ""}. Enter the code from your authenticator app, then start the set-up '
+                'again.')
     return message_of(code, status, d)
 
 

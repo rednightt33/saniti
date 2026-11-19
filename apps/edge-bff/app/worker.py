@@ -186,7 +186,9 @@ class Worker:
 class Housekeeping:
     """The hourly housekeeping (EXEC-MU-ACCOUNTS; ERRORS R2-33), its own task beside the loops (main.py; switch
     EDGE_HOUSEKEEPING_ENABLED): each purge of store.PURGES (expired and old revoked sessions, throttle rows older than 2
-    days, registrations never verified after 24 h) runs at the start, whatever the clock reads, then once an hour.
+    days, registrations never verified after 24 h, the outbox rows of an address with no account after 24 h, and every
+    outbox row, used email code and webhook delivery after 30 days) runs at the start, whatever the clock reads, then
+    once an hour.
 
     - Each purge is tried on its own (store.purge: its own transaction, batches of store.PURGE_BATCH rows, at most
       MAX_BATCHES a turn), so a failing one (a timeout, a lock wait, a grant a migration left out) stops neither the

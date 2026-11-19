@@ -662,8 +662,9 @@ def create_app(settings=None, store=None, orc=None):
     # CAPABILITY_REQUIRED before terminal-api is asked (terminal_access.check). With the switch off the configured owner
     # holds '*': admin, the body forwarded unchanged.
     # Re-check R1-1, R1-26, R2-4: every answer goes through terminal_access.relayed, the one rule for what reaches the
-    # page: an acknowledged 2xx as it is; a refusal in the contract's shape (a terminal-api 401 or 403 about its own
-    # account or key is 503 TERMINAL_UNAVAILABLE, never the EDGE sign-in; a 429 LIMIT_REACHED with Retry-After).
+    # page: an acknowledged 2xx, its JSON through client.public_data (ERRORS M260); a refusal in the contract's shape (a
+    # terminal-api 401 or 403 about its own account or key is 503 TERMINAL_UNAVAILABLE, never the EDGE sign-in; a 429
+    # LIMIT_REACHED with Retry-After).
     async def forward_terminal(method: str, path: str, request: Request, p: Principal):
         if not settings.terminal_url:
             return error('TERMINAL_UNAVAILABLE', 503)
@@ -690,7 +691,8 @@ def create_app(settings=None, store=None, orc=None):
             data = None if image else answer.json()
         except ValueError:
             data = None
-        if (refused := terminal_access.relayed(p, answer.status_code, data, answer.headers, path)) is not None:
+        refused, data = terminal_access.relayed(p, answer.status_code, data, answer.headers, path)
+        if refused is not None:
             await refuse(p, refused)
         if image:
             # a ticker's logo passes through as it is, with terminal-api's caching and its no-script CSP
@@ -728,9 +730,9 @@ def create_app(settings=None, store=None, orc=None):
                         data = answer.json()
                     except ValueError:
                         data = None
-                    refused = terminal_access.relayed(p, answer.status_code, data, answer.headers, path)
+                    refused, _ = terminal_access.relayed(p, answer.status_code, data, answer.headers, path)
                     await refuse(p, refused or Refusal(503, 'TERMINAL_UNAVAILABLE'))
-                if (refused := terminal_access.relayed(p, 200, None, answer.headers, path)) is not None:
+                if (refused := terminal_access.relayed(p, 200, None, answer.headers, path)[0]) is not None:
                     await refuse(p, refused)
                 raw = bytearray()
                 async for chunk in answer.aiter_raw():

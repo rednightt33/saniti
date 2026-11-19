@@ -72,6 +72,10 @@ REGISTRATION_TOKEN = re.compile(r'[0-9a-f]{64}')
 TOTP_FAILURE_CAP, RECOVERY_FAILURE_CAP = 100, 10
 TOTP_RESTART, RECOVERY_RESTART = 90, 8          # the count after a lock ends: 10 (2) more tries before the next lock
 LOCK_SECONDS = 86400
+# EXEC-MU-ACCOUNTS "Decisions after the fix round" (the main agent's design value, told to the user 2026-11-19): starting
+# a new authenticator beside a confirmed one needs the second factor passed within this many seconds (the session's
+# mfa_passed_at); an older pass verifies again first (POST /api/v1/auth/mfa/verify makes a session passed now)
+MFA_RECENT_SECONDS = 600
 
 
 class CheckedStep(NamedTuple):
@@ -391,14 +395,15 @@ class FlowStore:
         with self.store.connect() as c:
             return c.execute(f'SELECT {self.TOTP_COLUMNS} FROM edge_bff.mfa_totp WHERE user_id=%s', (user_id,)).fetchone()
 
-    def enroll(self, user_id, nonce, hashes, mfa_ok):
+    def enroll(self, user_id, nonce, hashes, session_hash):
         """'ok' | 'mfa_required', decided and written under the enrolment's row lock (ERRORS R2-9: the permission is
         part of the write). With no confirmed enrolment the account's one candidate is replaced (the first enrolment,
         CONTRACT 4: any session of the account, the admin enrols at switch-on). With a confirmed one only a session that
-        passed MFA may start a new one, and it waits beside the confirmed one (pending_nonce and recovery codes marked
-        pending) until a code of the new authenticator confirms it (use_step): the confirmed factor, its replay guard
-        and its recovery codes keep working meanwhile (ERRORS R1-7). Failure counts are kept: only a success clears
-        them."""
+        passed MFA within MFA_RECENT_SECONDS may start a new one (session_hash: the request's session, read in this
+        transaction by the database's clock; a pass made earlier, or none, verifies again first), and it waits beside
+        the confirmed one (pending_nonce and recovery codes marked pending) until a code of the new authenticator
+        confirms it (use_step): the confirmed factor, its replay guard and its recovery codes keep working meanwhile
+        (ERRORS R1-7). Failure counts are kept: only a success clears them."""
         with self.store.connect() as c:
             c.execute('INSERT INTO edge_bff.mfa_totp(user_id, nonce) VALUES (%s,%s) ON CONFLICT (user_id) DO NOTHING',
                       (user_id, nonce))
@@ -409,7 +414,10 @@ class FlowStore:
                     pending_created_at=NULL WHERE user_id=%s''', (nonce, user_id))
                 c.execute('DELETE FROM edge_bff.mfa_recovery_codes WHERE user_id=%s', (user_id,))
                 pending = False
-            elif not mfa_ok:
+            elif not c.execute('''SELECT 1 FROM edge_bff.sessions WHERE token_hash=%s AND user_id=%s
+                    AND revoked_at IS NULL AND expires_at > now()
+                    AND mfa_passed_at > now() - make_interval(secs => %s)''',
+                               (session_hash, user_id, MFA_RECENT_SECONDS)).fetchone():
                 return 'mfa_required'
             else:
                 c.execute('UPDATE edge_bff.mfa_totp SET pending_nonce=%s, pending_created_at=now() WHERE user_id=%s',
@@ -698,14 +706,16 @@ class AuthFlows:
         @app.post('/api/v1/auth/mfa/enroll')
         async def mfa_enroll(_on=Depends(switched_on), p: Principal = Depends(auth.need(ADMIN_ACCESS, write=True))):
             """otpauth URI and 10 recovery codes, shown once. A confirmed enrolment is replaced only by a session that
-            passed MFA (else 403 MFA_REQUIRED: a password alone never resets the second factor), and only once a code
-            of the new authenticator confirms it (FlowStore.enroll, ERRORS R1-7): until then the confirmed one works."""
+            passed MFA within the last MFA_RECENT_SECONDS (else 403 MFA_REQUIRED with details.recent_s: a password alone
+            never resets the second factor, and an older pass enters a fresh code first, POST /api/v1/auth/mfa/verify),
+            and only once a code of the new authenticator confirms it (FlowStore.enroll, ERRORS R1-7): until then the
+            confirmed one works."""
             nonce = secrets.token_bytes(16)
             codes = [mfa.new_recovery_code() for _ in range(mfa.RECOVERY_CODES)]
             if await asyncio.to_thread(store.enroll, p.user_id, nonce,
                                        [mfa.recovery_hash(settings.mfa_key, p.user_id, x) for x in codes],
-                                       p.mfa_ok) != 'ok':
-                raise Refusal(403, 'MFA_REQUIRED')
+                                       token_hash(p.token)) != 'ok':
+                raise Refusal(403, 'MFA_REQUIRED', {'mfa_enrolled': True, 'recent_s': MFA_RECENT_SECONDS})
             secret = mfa.secret_of(settings.mfa_key, p.user_id, nonce)
             return {'otpauth_uri': mfa.otpauth_uri(secret, p.username or str(p.user_id)),
                     'secret': base64.b32encode(secret).decode().rstrip('='), 'recovery_codes': codes}
