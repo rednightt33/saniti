@@ -153,6 +153,9 @@ The findings and their three refuters' verdicts: `verification/edge_multiuser/ac
   plan's words (`errors.plan_cap`). A cap answers 403 (waiting frees nothing); the backtest queue (frees itself) stays
   429 with Retry-After (the re-check's W2 test locks 429 for the queue). An empty indicator choice is INVALID_INPUT.
   The Watchlist page fixture mirrors it. WATCHLIST_FORMULAS.md explanation and fingerprint rewritten (AGENTS.md).
+  The module headers of layouts, presets, drawings and screener.py, and the route table of `apps/edge-bff/README.md`,
+  say 403 LIMIT_REACHED for the plan caps; 422 LIMIT_EXCEEDED stays only for the size limits of one item (bytes of
+  state, config or drawings; a screen's request size), which are not plan limits.
 - Tests changed with the finding (it names them): test_layouts, test_presets, test_drawings, test_watchlist,
   test_phase3a_gates, test_screener, test_c2_probe_phase3a.
 - Records: CONTRACT 3 needs the sentence (proposed): "LIMIT_REACHED is every plan limit's code, details.limit the
@@ -261,6 +264,11 @@ The findings and their three refuters' verdicts: `verification/edge_multiuser/ac
   Screener's extra-columns anchor `bars gt 0` therefore needs screener.metric:bars. The user's O3b-2 reason ("values
   shown in every result row and in /universe, so gating them by id cannot hide them") fits the conditions too, but the
   decision named the chips only, and the three refuters asked for the user's word. Options in decisions_needed.
+  No seeded plan reaches it (paid holds every released metric, free has no screener.view); only a Phase 4 override
+  that narrows screener.metric does. The extra-columns anchor is left as it is until the answer: with option A it
+  needs no item; with option B it moves to a test the worker does not gate (for example `price close gt 0`, checked
+  through `tests/page/extra-columns-core.test.ts` for the edge case of a ticker without a finite last close), and
+  `apps/screener-worker/tests/allow.test.ts:160` changes with it.
 - R1-37: the Overview and Watchlist files carry every stock's foreign net (broker data), gated only by their view
   capability. Not changed (the user's rule: "the gate is the Terminal: flow menus closed"); options in decisions_needed.
 
@@ -283,7 +291,32 @@ The findings and their three refuters' verdicts: `verification/edge_multiuser/ac
     `signed-out` (R2-16, R2-17); landing (R2-14); the Password and sign-in dialog (R2-20); no inline script (R2-19).
 - EXEC.md: the fix round's track status; the D5 reading taken for the preference store (R1-18) and the landing on the
   Terminal (R2-14) as the computed task's decisions.
-- DATABASE_CHANGELOG.md / DATABASE_SCHEMA.md: no new migration; the unapplied 20261118_001 and _002 verify blocks
-  changed (`'*' = true`).
+- DATABASE_CHANGELOG.md / DATABASE_SCHEMA.md: one new migration, `20261119_030_edge_bff_plan_data_scope.sql` (not
+  applied; the column `edge_bff.capabilities.data_scope`, the functions `data_scope_conflict`, `data_scope_conflicts`,
+  `data_scope_guard` and the five triggers; see R1-36 above for what to read back at deploy); the unapplied
+  20261118_001 and _002 verify blocks changed (`'*' = true`).
 - RAILWAY_CHANGELOG.md: nothing (no deploy). At deploy: the admin's session cookie moves to `__Host-edge_session` on
   its next request (switch off), no sign-out.
+
+## Suites (last run on this branch, 2026-11-19)
+
+- edge-bff pytest (Postgres fx_plans, port 55564, Chromium): 725 passed, 56 failed, 2 skipped. Every failure belongs to
+  another track's finding: test_c2_ops_recheck (R2-33..37), test_c_p2_terminal_wire_domain (R1-22), test_c_p3a_probes
+  (3: R1-26 twice, R1-27), test_cdb_ci_coverage (R1-39/40/44), test_cdb_grants_and_records (R1-41..43),
+  test_cp0_reserved_owner (R1-3), test_cp0_terminal_relay (R1-1), test_cp1a_phase1_auth_check (R1-7..15), test_r2_life
+  (R2-24, R2-25), test_r2_race (R2-9..12), test_r2_skew (R2-1..3); and two timing failures under load that pass alone
+  (test_composer_layout mobile, the known flaky one; test_ui_1031 status dots: 3 runs alone and one with
+  test_composer_layout, all green; green on the base too). This track's tests are all green (test_fix_plans,
+  test_plan_data_scope, test_c_p2_recheck, test_c2web_browser, test_c2_e2e_people, test_c_p1s_preferences_plan,
+  test_c_p3b_recheck, test_allow, test_storage_registry, the R1-29 probe).
+- terminal-api pytest: 142 passed, 1 skipped (not changed by this track).
+- backtest-worker npm test: 277 tests, 276 passed; the one failure (server.test.ts "a job over
+  BACKTEST_TIMEOUT_SECONDS ends FAILED TIMEOUT") is timing under the edge-bff run and passes alone.
+- screener-worker npm test: 127 passed.
+- Page vitests: screener 1356 (1355 passed, 1 skipped, after `npm run build`: the bundle tests read dist/), terminal 968
+  passed, watchlist 21 passed (1 skipped), backtest 91 passed (after `npm run build`), overview 21 passed (1 skipped),
+  radar 7 passed (1 skipped). Typecheck (tsc --noEmit) clean for screener, backtest, terminal and watchlist.
+- Screener smoke: `tests/smoke/c_p1s_plan_refused_cache.mjs` exit 0; `tests/smoke/smoke.mjs` 6 failures, the same 6 on
+  the base 97b4ecb5 (Add a condition, Customize widths, Patterns columns, Flow P5c, long tasks).
+- scripts pytest: 94 passed, 1 skipped. `node shared/build-shell.mjs --check`: the shell copy and
+  catalog/storage_sync.json match.

@@ -13,9 +13,9 @@ Routes (session; writes also with the CSRF header, as /api/v1/screener):
   DELETE /api/v1/terminal/layouts/{layout_id}
 Errors: {"error": {code, field?, message, details?}}: 422 INVALID_INPUT (a field the API does not take, a name, summary or
 state out of shape, more than STATE_KEYS settings, text PostgreSQL cannot store: NUL or an unpaired surrogate) /
-LIMIT_EXCEEDED (LAYOUT_LIMIT layouts, STATE_BYTES of state), 404 NOT_FOUND, 409 REVISION_CONFLICT (details.revision: the
-stored one) / NAME_TAKEN, 503 LAYOUTS_NOT_READY (migration not applied). A body over 131,072 bytes is refused before it
-reaches these routes (main.py, 413 REQUEST_TOO_LARGE).
+LIMIT_EXCEEDED (STATE_BYTES of state), 403 LIMIT_REACHED (the plan's cap, at most LAYOUT_LIMIT; errors.plan_cap), 404
+NOT_FOUND, 409 REVISION_CONFLICT (details.revision: the stored one) / NAME_TAKEN, 503 LAYOUTS_NOT_READY (migration not
+applied). A body over 131,072 bytes is refused before it reaches these routes (main.py, 413 REQUEST_TOO_LARGE).
 """
 import asyncio
 from contextlib import contextmanager

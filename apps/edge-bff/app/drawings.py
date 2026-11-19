@@ -11,8 +11,9 @@ Routes (session; writes also with the CSRF header, as /api/v1/terminal/layouts):
   PUT    /api/v1/terminal/drawings/{ticker}/{set_id}    {drawings, revision?}: create (no revision) or replace
   DELETE /api/v1/terminal/drawings/{ticker}/{set_id}
 Errors: {"error": {code, field?, message, details?}} (the layouts' shape and handler): 422 INVALID_INPUT by field /
-LIMIT_EXCEEDED (SET_LIMIT sets, SET_BYTES per set), 404 NOT_FOUND, 409 REVISION_CONFLICT, 503 DRAWINGS_NOT_READY
-(migration not applied). A body over 131,072 bytes is refused before the route (main.py, 413).
+LIMIT_EXCEEDED (SET_BYTES per set), 403 LIMIT_REACHED (the plan's sets cap, at most SET_LIMIT; errors.plan_cap), 404
+NOT_FOUND, 409 REVISION_CONFLICT, 503 DRAWINGS_NOT_READY (migration not applied). A body over 131,072 bytes is refused
+before the route (main.py, 413).
 """
 import asyncio
 from contextlib import contextmanager

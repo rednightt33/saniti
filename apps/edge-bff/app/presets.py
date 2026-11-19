@@ -12,8 +12,9 @@ Routes (session; writes also with the CSRF header, as /api/v1/terminal/layouts):
   PATCH  /api/v1/terminal/presets/{preset_id}   {favorite?, used?}: star it, or mark it used (no revision)
   DELETE /api/v1/terminal/presets/{preset_id}
 Errors: {"error": {code, field?, message, details?}} (the layouts' shape and handler): 422 INVALID_INPUT by field /
-LIMIT_EXCEEDED (PRESET_LIMIT presets, CONFIG_BYTES of config), 404 NOT_FOUND, 409 REVISION_CONFLICT / NAME_TAKEN,
-503 PRESETS_NOT_READY (migration not applied). A body over 131,072 bytes is refused before the route (main.py, 413).
+LIMIT_EXCEEDED (CONFIG_BYTES of config), 403 LIMIT_REACHED (the plan's cap, at most PRESET_LIMIT; errors.plan_cap),
+404 NOT_FOUND, 409 REVISION_CONFLICT / NAME_TAKEN, 503 PRESETS_NOT_READY (migration not applied). A body over 131,072
+bytes is refused before the route (main.py, 413).
 """
 import asyncio
 from contextlib import contextmanager

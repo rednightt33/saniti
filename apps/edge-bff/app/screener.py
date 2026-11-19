@@ -493,8 +493,8 @@ class ScreenerStore:
         """Create (revision None) or replace (the revision the item was read with) one item of the owner, serialised per
         owner by an advisory lock. (row, created). Refusals: 409 REVISION_CONFLICT (the id exists, or a stale revision),
         404 NOT_FOUND (replace of an item the owner does not have), 422 INVALID_INPUT kind (an item keeps its kind),
-        409 NAME_TAKEN (another item of the kind has the name), 422 LIMIT_EXCEEDED saved_items (limit per kind: the
-        principal's, at most SCREEN_LIMIT)."""
+        409 NAME_TAKEN (another item of the kind has the name), 403 LIMIT_REACHED saved_items (limit per kind: the
+        principal's, at most SCREEN_LIMIT; errors.plan_cap)."""
         limit = SCREEN_LIMIT if limit is None else limit
         values = (name, Jsonb(definition), SCHEMA_VERSION, checked['registry'], checked['screener_registry'],
                   checked['definition_hash'])
@@ -556,8 +556,8 @@ class ScreenerStore:
                 ORDER BY position, added_at, ticker''', (owner, first)).fetchall()
 
     def watch(self, owner, ticker, limit=None, lists=None):
-        """Add a ticker to the first list (idempotent: a watched one stays as it was); at most WATCHLIST_LIMIT (422
-        LIMIT_EXCEEDED; limit: the principal's, at most WATCHLIST_LIMIT). The first list is created only within the
+        """Add a ticker to the first list (idempotent: a watched one stays as it was); at most WATCHLIST_LIMIT (403
+        LIMIT_REACHED; limit: the principal's, at most WATCHLIST_LIMIT). The first list is created only within the
         principal's lists cap (lists; C2 Phase 3a: the star never makes a list POST /watchlist/lists would refuse)."""
         limit = WATCHLIST_LIMIT if limit is None else limit
         lists = LISTS if lists is None else lists
