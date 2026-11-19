@@ -297,7 +297,9 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
   const tickersP = reference('tickers'), brokerRefP = reference('brokers');
   /* EXEC-TERMINAL-LOGO: ticker → logo version (sha256 prefix); a ticker without one shows its monogram */
   const logosP = reference('logos').then(rows => Object.fromEntries(rows.map((r: any) => [r.ticker, String(r.sha256).slice(0, 12)])), () => ({}));
-  brokerRefP.catch(() => {});
+  /* a promise awaited later gets its handler at once: the ticker list is awaited only after the locks (below), and a
+     refusal of it meanwhile would otherwise be an unhandled rejection besides the error liveData throws (fix-int2, M490) */
+  brokerRefP.catch(() => {}); tickersP.catch(() => {});
   const locks = await locksP;
   /* track guest: a remembered ticker the plan does not hold never locks the page: the first ticker of the plan instead */
   const planTickers = edge.limit('terminal.tickers');
