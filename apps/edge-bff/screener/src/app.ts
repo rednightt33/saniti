@@ -20,13 +20,13 @@ import { fileCache } from '../../terminal/src/data/rack.ts';
 import { mark } from '../../terminal/src/app/perf.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
 import { ApiFailure, type Conditional, type ScreenerApi } from './api/types.ts';
-import { BootCache, sameVersions } from './api/boot-cache.ts';
+import { BootCache, cacheId, sameVersions } from './api/boot-cache.ts';
 import { esc } from './format.ts';
 import { IC, ico } from './icons.ts';
 import { canonical, ctx, definitionOf, freshUniverse, presetOf, S, stateOfDefinition, ui } from './state.ts';
 import { entriesOf } from './entries.ts';
 import { applyTheme, followTheme, lastScreen, panelPrefs, saveLast, savePanel } from './storage.ts';
-import { onReset } from '../../shared/edge-session.ts';
+import { onReset, readError } from '../../shared/edge-session.ts';
 import { dataLine, T } from './texts.ts';
 import { closeDialog, dialogOpen, openMenu, openSave, toast } from './dialogs.ts';
 import { closePop, onUniverseClick, onUniverseField, openDrawer, placePop, renderUniverse, updateUniverseLight, uCountTxt } from './universe-ui.ts';
@@ -236,6 +236,12 @@ async function withRetry<T>(fn: () => Promise<T>, onWait: (msg: string) => void)
 }
 const sleep = (ms: number) => new Promise(ok => setTimeout(ok, ms));
 
+/** a refusal of the account's plan or second factor (the shared module's kinds 'upgrade' and 'mfa'), not an outage */
+const accessRefused = (e: unknown) => {
+  if (!(e instanceof ApiFailure)) return false;
+  const kind = readError(e.status, { error:{ code:e.code } }).kind;
+  return kind === 'upgrade' || kind === 'mfa';
+};
 function bootFailed(msg: string, retry: boolean) {
   ctx.runError = msg; ctx.running = false;
   $('resPane').innerHTML = `<div class="empty" role="alert"><strong>The screener could not load</strong>${esc(msg)}${retry ? `<div class="acts"><button class="btn sm" data-act="reboot">${ico(IC.reset, 's')}${T.retry}</button></div>` : ''}</div>`;
@@ -261,7 +267,7 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
   renderHeader(); renderUniverse(); renderConds(); renderResults();
 
   // S2: everything at once
-  const sessionP = api.session().then(s => { ctx.login = s.login; mark('session'); return s });
+  const sessionP = api.session().then(s => { ctx.login = cacheId(s); mark('session'); return s });
   const catP = withRetry(() => api.catalog(et.catalog), m => { const dl = document.getElementById('dataLine'); if (dl) { dl.innerHTML = `<span class="sbox">${spin(esc(m))}</span>`; headDrawn.head = '' } });
   const uniP = withRetry(() => api.universe(et.universe), () => {});
   const itemsP = api.items('screen'), metricsP = api.items('metric'), watchP = api.watchlist();
@@ -276,8 +282,8 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
   try { session = await sessionP }
   catch (e) { bootFailed(failMsg(e), !(e instanceof ApiFailure && e.status === 401)); return }
 
-  // S3: cached paint, only after an authenticated answer, only for this login
-  const cached = await boot.read(session.login).catch(() => ({ catalog:null, universe:null, result:null }));
+  // S3: cached paint, only after an authenticated answer, only for this login under the same access (cacheId)
+  const cached = await boot.read(cacheId(session)).catch(() => ({ catalog:null, universe:null, result:null }));
   if (cached.catalog && !ctx.catalog) {
     useCatalog(cached.catalog); if (cached.universe) useUniverse(cached.universe);
     ctx.bootState = 'cached'; $('app').dataset.boot = 'cached';
@@ -287,11 +293,16 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
   // S4: confirm or replace
   let cat: Conditional<CatalogResponse>, uni: Conditional<UniverseResponse>;
   try { [cat, uni] = await Promise.all([catP, uniP]) }
-  catch (e) { if (!ctx.catalog) bootFailed(failMsg(e), true); else { confirmed = true; ctx.runError = failMsg(e); refresh('results') } return }
+  catch (e) {
+    // the plan (or the second factor) no longer lets this account read the Screener: nothing of the cached paint stays
+    // (re-check R1-17), and the refusal's words say why
+    if (accessRefused(e)) { boot.drop(); ctx.R = null; confirmed = true; bootFailed(failMsg(e), false); return }
+    if (!ctx.catalog) bootFailed(failMsg(e), true); else { confirmed = true; ctx.runError = failMsg(e); refresh('results') } return
+  }
   if (cat.status === 304 && !cached.catalog) cat = await api.catalog(null).catch(() => cat);     // 304 without the bytes: ask again in full
   if (uni.status === 304 && !cached.universe) uni = await api.universe(null).catch(() => uni);
-  if (cat.status === 200) { tags.catalog = cat.etag; useCatalog(cat.body); boot.putCatalog(session.login, cat.bytes, cat.etag, cat.body).catch(() => {}) }
-  if (uni.status === 200) { tags.universe = uni.etag; useUniverse(uni.body); boot.putUniverse(session.login, uni.bytes, uni.etag, uni.body).catch(() => {}) }
+  if (cat.status === 200) { tags.catalog = cat.etag; useCatalog(cat.body); boot.putCatalog(ctx.login, cat.bytes, cat.etag, cat.body).catch(() => {}) }
+  if (uni.status === 200) { tags.universe = uni.etag; useUniverse(uni.body); boot.putUniverse(ctx.login, uni.bytes, uni.etag, uni.body).catch(() => {}) }
   if (!ctx.catalog) { bootFailed(T.unreachable, true); return }
   confirmed = true;
   if (!restored) restoreLast(cached.catalog && cat.status === 304 ? cached.result : null);

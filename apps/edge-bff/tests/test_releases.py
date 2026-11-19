@@ -205,8 +205,11 @@ def lab_file(tmp_path, monkeypatch):
 
 
 def app_as(settings, store, principal):
+    """The app with every request resolved to `principal`: the session dependency and, since track guest (decision 1 of
+    2026-11-19, "1a"), the visitor one, which the catalog route depends on (tests/test_route_table.py GUEST_OPEN)."""
     app = create_app(settings, store, FakeOrc())
     app.dependency_overrides[app.state.session_dependency] = lambda: principal
+    app.dependency_overrides[app.state.visitor_dependency] = lambda: principal
     return app
 
 
@@ -266,7 +269,7 @@ def test_signed_out_is_unauthenticated(settings, store):
 def test_switch_off_sign_in_through_the_real_principal(settings, store):
     """The real Phase 1 principal: an owner EDGE_ADMIN_OWNERS does not list has no capability (an empty catalog); listed
     there (the conftest settings, as production's default) it holds `*` and every entry of the repository file."""
-    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('someone-else',)), store, FakeOrc())) as c:
+    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('another-owner',)), store, FakeOrc())) as c:
         login(c)
         assert entries_of(c, 'indicator') == []
     admins = dataclasses.replace(settings, admin_owners=(settings.owner,))

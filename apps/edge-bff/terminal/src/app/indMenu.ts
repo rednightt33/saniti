@@ -12,6 +12,7 @@ import { $, store } from './context';
 import { draggable, fitInView, shiftOf } from './draggable';
 import { FLOW_REG, SINGLE_SECURITY } from './flowIndicators';
 import { ALL_INPUTS, fits, inputsOf, needsOf, type Input } from '../data/inputs';
+import { askLocked, lockMark } from './locked';
 
 export interface MenuItem { id: string; name: string; group: string; kind: 'Technical' | 'Flow' | 'Base'; place: string; unit: string; tip: string; short?: string }
 
@@ -213,9 +214,9 @@ export function initIndMenu(ctx: Ctx) {
   const rowHtml = (i: MenuItem, wide: boolean) => {
       /* EXEC-IND-PRESETS (user 2026-11-06: "C bisa di-replace dengan indikator definition, bagian D remove entirely"): the
          grey line is the indicator's definition; the Place · Unit column is gone */
-      const n = onChart(i), fav = favs.has(i.id), d = i.tip || '';
-      return `<div class="im-row" role="listitem" tabindex="0" data-id="${esc(i.id)}"><button type="button" class="im-star${fav ? ' on' : ''}" data-star="${esc(i.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Remove from' : 'Add to'} favorites">${STAR}</button>`
-        + `<div><div class="nm"><span class="nmt">${esc(i.name)}</span>${i.kind === 'Base' ? '' : `<small>${esc(i.id)}</small>`}${n ? `<em>${i.kind === 'Base' ? 'On chart' : `${n} on chart`}</em>` : ''}</div>`
+      const n = onChart(i), fav = favs.has(i.id), d = i.tip || '', lock = locked(i);
+      return `<div class="im-row${lock ? ' locked' : ''}" role="listitem" tabindex="0" data-id="${esc(i.id)}"><button type="button" class="im-star${fav ? ' on' : ''}" data-star="${esc(i.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Remove from' : 'Add to'} favorites">${STAR}</button>`
+        + `<div><div class="nm"><span class="nmt">${esc(i.name)}</span>${i.kind === 'Base' ? '' : `<small>${esc(i.id)}</small>`}${lock ? lockMark('im-lock') : ''}${n ? `<em>${i.kind === 'Base' ? 'On chart' : `${n} on chart`}</em>` : ''}</div>`
         + `<div class="pa" title="${esc(d)}">${esc(d || (i.kind === 'Base' ? 'Volume bars under the price chart' : ''))}</div></div>`
         + `<button type="button" class="im-add" data-add="${esc(i.id)}" aria-label="Add ${esc(i.name)}">Add</button></div>`;
   };
@@ -254,12 +255,18 @@ export function initIndMenu(ctx: Ctx) {
   });
   document.addEventListener('pointerdown', e => { if (!pmenu.hidden && !pmenu.contains(e.target as Node)) pmenu.hidden = true }, true);
   const byId = (id: string) => items.find(i => i.id === id)!;
+  /* track guest: what the catalog does not list for the principal (live.ts lockRules); the base volume is not an item */
+  function locked(i: MenuItem) {
+    return i.kind !== 'Base' && !!ctx.M.locks?.item(i.kind === 'Flow' ? 'flow_indicator' : 'indicator', i.id);
+  }
   let toastTimer: any = 0;
   const note = (text: string) => {
     toast.textContent = text; toast.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 1600);
   };
   const add = (i: MenuItem) => {
+    // track guest (decision 1 of 2026-11-19): an indicator the principal does not hold opens the box (locked.ts)
+    if (locked(i)) { askLocked({ kind:i.kind === 'Flow' ? 'flow_indicator' : 'indicator', id:i.id, name:i.name }); return }
     if (i.kind === 'Base') { if (volCtl.removed) volCtl.setRemoved(false); note(volCtl.removed ? `${i.name} could not be added` : `${i.name} is on the chart`) }
     else if (Ind.byName[i.name]) { const before = Ind.countOf(Ind.byName[i.name]); Ind.add(Ind.byName[i.name]);
       note(Ind.countOf(Ind.byName[i.name]) > before ? `${i.name} added` : `${i.name} could not be added`) }

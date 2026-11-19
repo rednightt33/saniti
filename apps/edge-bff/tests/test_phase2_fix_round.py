@@ -29,7 +29,7 @@ from test_principal import db, make_user
 
 def plan_without_star(store, default):
     return db(store, '''SELECT plan_key FROM edge_bff.plans WHERE is_default = %s AND plan_key NOT IN
-        (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''', default)[0]['plan_key']
+        (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''', default)[0]['plan_key']
 
 
 # ---- write-time value shapes ----------------------------------------------------------------------------------------
@@ -54,8 +54,10 @@ def test_a_value_of_the_wrong_shape_is_refused_when_written(store, key, value):
             VALUES (%s, %s, %s::jsonb, 'typo')''', alice['user_id'], key, value)
 
 
+# re-check R1-22 (migration 20261119_050): terminal.history_days takes 1 to 36600 now, so 0 is refused by its domain
+# (tests/test_terminal_fix_round.py); 1 is the smallest value of the right shape it takes
 @pytest.mark.parametrize('key,value', [
-    ('terminal.history_days', '0'), ('terminal.history_days', '365'), ('terminal.tickers', '[]'),
+    ('terminal.history_days', '1'), ('terminal.history_days', '365'), ('terminal.tickers', '[]'),
     ('terminal.tickers', '["BBCA", "BBRI"]'), ('terminal.view', 'true'), ('terminal.view', 'false'),
     ('terminal.indicator', '{}'), ('terminal.indicator', '{"ids": ["I01"], "stages": ["lab", "released"], "all": false}'),
 ])

@@ -2,8 +2,10 @@
 (() => {
   let auth = null;
   const followers = new Set();
+  // re-check R2-14, R2-30: the message of a refusal is its words for the person (the server's message, else the access
+  // words), which every page and the Monitor show; the code is .code (and .info.code) for the decisions
   class ApiError extends Error {
-    constructor(code, status, info) { super(code); this.status = status; this.info = info || null; }
+    constructor(code, status, info, words) { super(words || code); this.code = code; this.status = status; this.info = info || null; }
   }
   // EXEC-MU-ACCOUNTS Phase 0 (M471, M473): the error contract, the storage registry and the clean-up are the shared
   // module's (apps/edge-bff/shared/edge-session.ts, loaded before this file as /edge-session.js, window.EdgeSession).
@@ -15,6 +17,28 @@
   // in-memory views of the previous account (reset shows the sign-in page) and reads the session again, showing the
   // account signed in now. This tab's own broadcasts never reach it, so there is no loop.
   try { ES()?.onCleared(() => { stopPrefs(); reset(); window.Edge.session().then(a => { if (a) dispatchEvent(new Event('edge-auth')); }); }); } catch { /* not offered */ }
+  // re-check R2-16, R2-31 (CONTRACT.md 8a, 12): the access changed (a new X-Edge-Entitlements on this page's answers or
+  // a frame's broadcast): the session is read again into `auth`, the model list read again, and the page redraws from
+  // them (an account raised to a plan that needs the authenticator is taken to /mfa; a narrowed one loses what it lost)
+  let rereading = null;
+  const followVersion = version => {
+    if (!auth || (version && auth.access?.version === version)) return rereading;
+    return rereading ||= (async () => {
+      try {
+        const fresh = await api('/auth/session');
+        if (fresh && identity(fresh) === identity(auth)) {
+          auth = fresh; models = {data:null, failed:false, pending:null};
+          await settle(Promise.all([loadModels(), loadPrefs(null)]));
+          dispatchEvent(new Event('edge-auth'));
+        }
+      } catch { /* a 401 already reset the page; anything else keeps the session as it is */ }
+      finally { rereading = null; }
+    })();
+  };
+  try { ES()?.onVersion(followVersion); } catch { /* not offered */ }
+  // re-check R2-17 (CONTRACT.md 3): a frame's own session ended (401): the shell reads its session, and a 401 there takes
+  // it to the sign-in page (api() resets on its own 401)
+  try { ES()?.onSignedOut(() => { if (auth) api('/auth/session').catch(() => { /* reset by the 401, or kept */ }); }); } catch { /* not offered */ }
   // EXEC-MODELS: the offered models are read once per session, before the work page shows (sign-in or a restored
   // session waits up to 3 s for them), so their arrival never redraws the page while the user types
   let models = {data:null, failed:false, pending:null};
@@ -26,6 +50,8 @@
     const headers = method === 'GET' ? {} : { 'X-CSRF-Token':auth?.csrf_token || pending.csrf || '', ...(body === undefined ? {} : {'Content-Type':'application/json'}) };
     const res = await fetch('/api/v1' + path, { method, headers, credentials:'same-origin', ...(body === undefined ? {} : {body:JSON.stringify(body)}) });
     const data = await res.json().catch(() => ({}));
+    const version = res.headers.get('X-Edge-Entitlements');
+    if (version && auth?.access?.version && version !== auth.access.version && path !== '/auth/session' && !PUBLIC_AUTH.test(path)) void followVersion(version);
     if (!res.ok) {
       const info = ES()?.readError(res.status, data, res.headers.get('Retry-After')) || null;
       if (res.status === 401 && !PUBLIC_AUTH.test(path)) reset();
@@ -40,11 +66,12 @@
           try { await ES()?.clearUserState(); } catch { /* storage off */ }
           reset();
           try { location.reload(); } catch { /* not a page */ }
-          throw new ApiError('USER_CHANGED', 401, info);
+          throw new ApiError('USER_CHANGED', 401, info, window.EdgeLabels?.auth?.errors?.USER_CHANGED || null);
         }
       }
-      const error = new ApiError(data.error?.code || (info?.legacy && info.kind === 'csrf' ? info.code : res.status === 401 ? 'Authentication required' : 'Request unavailable'), res.status, info);
+      const code = data.error?.code || (info?.legacy && info.kind === 'csrf' ? info.code : res.status === 401 ? 'Authentication required' : 'Request unavailable');
       const words = info && ES()?.isAccessRefusal(info) ? (info.message || (window.EdgeLabels?.access || {})[info.code] || ES().accessText(info)) : null;
+      const error = new ApiError(code, res.status, info, words || info?.message || null);
       if (words) error.text = words;
       throw error;
     }
@@ -69,7 +96,14 @@
   let config = null;
   const readConfig = () => config || (config = fetch('/api/v1/auth/config', {credentials:'same-origin'})
     // the body is always read, also of a 404: an answer whose body is never read stays open in the browser
-    .then(r => r.json().catch(() => ({})).then(d => r.ok ? d : {})).then(d => ({multiuser: d?.multiuser === true})).catch(() => ({multiuser:false})));
+    // track guest (decision 1 and the pre-launch decisions of 2026-11-19): with accounts on, whether registration is
+    // open (an older server without the key: open), the pre-launch mode, whether a visitor opens the Terminal, and the
+    // upgrade box's contact (null: the box says it comes soon)
+    .then(r => r.json().catch(() => ({})).then(d => r.ok ? d : {})).then(d => ({multiuser: d?.multiuser === true,
+      registration: d?.multiuser === true && d?.registration !== false, prelaunch: d?.prelaunch === true,
+      guests: d?.multiuser === true && d?.guests === true,
+      upgradeContact: typeof d?.upgrade_contact === 'string' && d.upgrade_contact ? d.upgrade_contact : null}))
+    .catch(() => ({multiuser:false, registration:false, prelaunch:false, guests:false, upgradeContact:null})));
   const terminal = s => ['FINISHED','FAILED','INTERRUPTED'].includes(s.state);
   // EXEC-X (M124): the frame stays English (user decision 2026-10-08) but says what the saved response is
   const DOMAIN = {COMPLETED:'Completed',AWAITING_CONFIRMATION:'Awaiting approval',NEEDS_CLARIFICATION:'Needs your reply',LIMITED:'Limited',FAILED:'Failed'};
@@ -201,6 +235,10 @@
     resendCode: (email, purpose) => api('/auth/code/resend', {email, purpose}),
     forgotPassword: email => api('/auth/password/forgot', {email}),
     resetPassword: (email, code, password, password_repeat) => api('/auth/password/reset', {email, code, password, password_repeat}),
+    // re-check R2-20: the signed-in account's password change (other sessions end) and sign-out on every device
+    changePassword: (current_password, password, password_repeat) => api('/auth/password/change', {current_password, password, password_repeat}),
+    async signoutEverywhere() { try { await ES()?.prefs.flush(); } catch { /* best effort */ } stopPrefs();
+      try { await api('/auth/sign-out-all', {}); } finally { try { await ES()?.clearUserState({signOut:true}); } catch { /* storage off */ } } reset(); },
     mfaEnroll: () => api('/auth/mfa/enroll', {}),
     // passing MFA rotates the session token (OWASP): the answer's csrf_token replaces the pending one before any write
     mfaVerify: async answer => { const fresh = await api('/auth/mfa/verify', answer); pending.csrf = '';

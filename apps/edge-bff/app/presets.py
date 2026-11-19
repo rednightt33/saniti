@@ -12,8 +12,9 @@ Routes (session; writes also with the CSRF header, as /api/v1/terminal/layouts):
   PATCH  /api/v1/terminal/presets/{preset_id}   {favorite?, used?}: star it, or mark it used (no revision)
   DELETE /api/v1/terminal/presets/{preset_id}
 Errors: {"error": {code, field?, message, details?}} (the layouts' shape and handler): 422 INVALID_INPUT by field /
-LIMIT_EXCEEDED (PRESET_LIMIT presets, CONFIG_BYTES of config), 404 NOT_FOUND, 409 REVISION_CONFLICT / NAME_TAKEN,
-503 PRESETS_NOT_READY (migration not applied). A body over 131,072 bytes is refused before the route (main.py, 413).
+LIMIT_EXCEEDED (CONFIG_BYTES of config), 403 LIMIT_REACHED (the plan's cap, at most PRESET_LIMIT; errors.plan_cap),
+404 NOT_FOUND, 409 REVISION_CONFLICT / NAME_TAKEN, 503 PRESETS_NOT_READY (migration not applied). A body over 131,072
+bytes is refused before the route (main.py, 413).
 """
 import asyncio
 from contextlib import contextmanager
@@ -26,6 +27,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
+from .errors import plan_cap
 from .layouts import LayoutError, checked_name, invalid, storable
 from .principal import Principal
 
@@ -126,8 +128,8 @@ class PresetStore:
                     held = c.execute('SELECT count(*) AS n FROM edge_bff.indicator_presets WHERE owner_key=%s',
                                      (owner,)).fetchone()['n']
                     if held >= limit:
-                        raise failure('LIMIT_EXCEEDED', 422, message=f'At most {limit} presets: delete one before saving another.',
-                                      details={'limit': 'presets', 'allowed': limit, 'needed': held + 1})
+                        code, status, message, details = plan_cap(LIMIT_KEY, limit, held + 1)    # re-check R2-39
+                        raise failure(code, status, message=message, details=details)
                     created = c.execute('''INSERT INTO edge_bff.indicator_presets(preset_id,owner_key,name,def_id,config,summary,schema_version)
                         VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (preset_id) DO NOTHING RETURNING *''',
                         (preset_id, owner, name, def_id, Jsonb(config), summary, SCHEMA_VERSION)).fetchone()
@@ -192,6 +194,7 @@ class Presets:
         # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): every route needs terminal.presets; the cap is the plan's
         # terminal.presets_max, at most PRESET_LIMIT
         reader, writer = auth.need(CAPABILITY), auth.need(CAPABILITY, write=True)
+        auth.ceiling(LIMIT_KEY, PRESET_LIMIT)          # the session's access.limits reports the applied cap (R1-29)
 
         @app.get('/api/v1/terminal/presets')
         async def presets(p: Principal = Depends(reader)):

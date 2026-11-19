@@ -86,12 +86,14 @@ BEGIN
         END IF;
     END LOOP;
     IF EXISTS (SELECT 1 FROM edge_bff.plan_capabilities pc JOIN edge_bff.plan_capabilities star
-               ON star.plan_key = pc.plan_key AND star.capability_key = '*'
+               ON star.plan_key = pc.plan_key AND star.capability_key = '*' AND star.value = 'true'::jsonb
                WHERE pc.capability_key IN (SELECT jsonb_object_keys(quota))) THEN
         RAISE EXCEPTION 'the plan holding * holds a Terminal quota row';
     END IF;
-    IF (SELECT count(DISTINCT plan_key) FROM edge_bff.plan_capabilities WHERE capability_key = '*') <> 1 THEN
-        RAISE EXCEPTION 'exactly one plan must hold *';
+    -- the plan that holds every capability is the one whose '*' is true (a flag may be false; re-check R1-25)
+    IF (SELECT count(DISTINCT plan_key) FROM edge_bff.plan_capabilities WHERE capability_key = '*'
+            AND value = 'true'::jsonb) <> 1 THEN
+        RAISE EXCEPTION 'exactly one plan must hold * = true';
     END IF;
     IF EXISTS (SELECT 1 FROM edge_bff.capabilities WHERE kind = 'limit' AND unit IS NULL) THEN
         RAISE EXCEPTION 'a limit capability has no unit';

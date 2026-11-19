@@ -854,7 +854,7 @@ test('3b: an item outside context.allow is 403 CAPABILITY_REQUIRED on validate, 
   const q = pageDefault('UNVR');
   const refused = (a: Answer) => ({ status: a.status, ...a.json().error });
   const lineRefusal = { status: 403, code: 'CAPABILITY_REQUIRED', field: 'exit.stop.line.indicator', details: { kind: 'indicator', id: 'I09', capability: 'terminal.indicator:I09' },
-    message: 'exit.stop.line.indicator: the indicator I09 is not included in your plan (terminal.indicator:I09); remove it or change the plan to run this strategy.' };
+    message: 'exit.stop.line.indicator: the indicator I09 is not included in your plan; remove it or change the plan to run this strategy.' };
   // validate: refused, allowed with "*", malformed refused (without allow: the step 3 test below)
   assert.deepEqual(refused(await call('POST', '/v1/validate', { request: q, context: { rights: [], allow: none, limits: {} } })), lineRefusal);
   const ok = await call('POST', '/v1/validate', { request: q, context: { allow: all, limits: {} } });
@@ -879,7 +879,7 @@ test('3b: an item outside context.allow is 403 CAPABILITY_REQUIRED on validate, 
   const preview = { schema_version: 1, tickers: ['UNVR'], period: { from: '2024-01-02', to: THROUGH }, entry };
   const s = await call('POST', '/v1/signals', { request: preview, context: { allow: { ...all, indicator: ['I01'] } } });
   assert.deepEqual(refused(s), { status: 403, code: 'CAPABILITY_REQUIRED', field: 'entry.conditions[0].indicator', details: { kind: 'indicator', id: 'I13', capability: 'terminal.indicator:I13' },
-    message: 'entry.conditions[0].indicator: the indicator I13 is not included in your plan (terminal.indicator:I13); remove it or change the plan to run this strategy.' });
+    message: 'entry.conditions[0].indicator: the indicator I13 is not included in your plan; remove it or change the plan to run this strategy.' });
   assert.equal((await call('POST', '/v1/signals', { request: preview, context: { allow: { ...all, indicator: ['I13'] } } })).status, 200);
   const few = await call('POST', '/v1/signals', { request: { ...preview, tickers: ['BBCA', 'UNVR'] }, context: { allow: all, limits: { max_portfolio_tickers: 1 } } });
   assert.deepEqual([few.status, few.json().error.code], [422, 'INVALID_PORTFOLIO']);

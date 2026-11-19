@@ -46,7 +46,8 @@ const wait = <T>(v: T) => new Promise<T>(r => setTimeout(() => r(copy(v)), 40));
 const order = () => db.sort((a, b) => a.position - b.position || String(a.created_at).localeCompare(String(b.created_at)));
 const one = (id: string) => { const l = db.find(x => x.id === id); if (!l) throw new WatchlistError('NOT_FOUND', 'This list no longer exists; reload the page.', 404); return l };
 const taken = (name: string, except?: string) => db.some(l => l.id !== except && l.name.toLowerCase() === name.toLowerCase());
-const over = (msg: string) => new WatchlistError('LIMIT_EXCEEDED', msg, 422);
+// a plan cap, as edge-bff answers it (re-check R2-39: 403 LIMIT_REACHED, errors.plan_cap)
+const over = (msg: string) => new WatchlistError('LIMIT_REACHED', msg, 403);
 
 const api: WatchlistApi = {
   // ?fail=index or ?fail=file: the figures cannot be read (M466 (a): the lists must still be shown)

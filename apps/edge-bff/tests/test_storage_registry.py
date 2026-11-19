@@ -17,13 +17,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SHARED = ROOT / 'shared' / 'edge-session.ts'
 APPS = ('terminal', 'backtest', 'screener', 'radar', 'overview', 'watchlist')
-SHELL = ('static/index.html', 'static/edge-client.js', 'static/edge-view.js', 'static/edge-labels.js', 'static/edge-docx.js')
+SHELL = ('static/index.html', 'static/edge-app.js', 'static/edge-boot.js', 'static/edge-client.js', 'static/edge-view.js',
+         'static/edge-labels.js', 'static/edge-docx.js')
 
 ENTRY = re.compile(r"\{ key:'((?:[^'\\]|\\.)*)', match:'(exact|prefix)', area:'(local|session|idb)', kind:'(browser|user)',")
 
 # calls whose key is a value made elsewhere: (file, argument text) -> the keys it reaches, each also found by the scan
 DYNAMIC = {
-    ('static/index.html', 'key'): ['edge-pins-height', 'edge-pins-open', 'edge-flow-open', 'edge-side-attach:', 'edge-sources-open:'],
+    ('static/edge-app.js', 'key'): ['edge-pins-height', 'edge-pins-open', 'edge-flow-open', 'edge-side-attach:', 'edge-sources-open:'],
     ('terminal/src/ui/fullscreen.ts', 'k'): ['ml.stats.collapsed', 'ml.broker.collapsed', 'ml.flow.collapsed'],
     ('terminal/src/ui/reorder.ts', 'key'): ['ml.stats.order', 'ml.broker.order'],
     ('terminal/src/app/layouts.ts', 'k'): ['ml.ind.v1', 'ml.tf', 'ml.legend.hidden'],
@@ -104,7 +105,7 @@ def keys_found():
                 unresolved.append(f'{name}: {m.group(0)}')
         if name.endswith('.ts'):
             found += [(name, k, 'local') for k in NAMESPACE.findall(text)]
-        if name == 'static/index.html':       # the shell's stored()/keep() helpers of the Monitor page
+        if name == 'static/edge-app.js':      # the shell's stored()/keep() helpers of the Monitor page
             found += [(name, k, 'local') for k in re.findall(r'\b(?:stored|keep)\("([^"]+)"', text)]
     return found, unresolved
 
@@ -145,7 +146,9 @@ def test_user_keys_named_by_the_contract_are_user():
         assert kinds.get((key, 'local')) == 'browser', key
 
 
-FLAGS = re.compile(r"\{ key:'((?:[^'\\]|\\.)*)', match:'(exact|prefix)', area:'(local|session|idb)', kind:'(browser|user)', ((?:sync|cache):true, )?where:")
+FLAGS = re.compile(r"\{ key:'((?:[^'\\]|\\.)*)', match:'(exact|prefix)', area:'(local|session|idb)', kind:'(browser|user)', ((?:sync|cache):true, )?(?:cap:'[a-z][a-z0-9_.]*', )?where:")
+# re-check R1-18: a sync entry's capability (cap), the view of the tab whose data it holds
+CAP = re.compile(r"\{ key:'((?:[^'\\]|\\.)*)', match:'exact', area:'local', kind:'user', sync:true, (?:cap:'([a-z][a-z0-9_.]*)', )?where:")
 # contract 4b (EXEC-MU-ACCOUNTS Phase 1): the account preferences copied to the server (GET/PUT /api/v1/preferences)
 SYNCED = {'edge-model-choice', 'ml.symbol', 'ml.tf', 'ml.fi.metric', 'ml.chart.style', 'ml.chart.mode', 'ml.vol.on',
           'ml.vol.removed', 'ml.ind.v1', 'ml.ind.filters', 'ml.ind.favs', 'ml.legend.hidden', 'ml.events.v1',
@@ -184,3 +187,37 @@ def test_shell_loads_the_session_module_before_its_client():
     assert html.index('<script src="/edge-session.js"></script>') < html.index('<script src="/edge-client.js"></script>')
     client = (ROOT / 'static' / 'edge-client.js').read_text()
     assert 'clearUserState({signOut:true})' in client and 'noteLogin(' in client
+
+
+def test_the_server_reads_each_sync_key_with_the_capability_the_registry_names():
+    """Re-check R1-18 (CONTRACT.md 8b D5: reads need <tab>.view): catalog/storage_sync.json, which app/preferences.py
+    reads, is the registry's sync keys with their `cap` (shared/build-shell.mjs writes both from shared/edge-session.ts;
+    run it after editing the registry). A key of one tab names that tab's view capability; only a key every tab reads
+    (its `where` names several tabs) names none."""
+    import json
+    written = json.loads((ROOT / 'catalog' / 'storage_sync.json').read_text())['keys']
+    declared = {k: cap or None for k, cap in CAP.findall(SHARED.read_text())}
+    assert written == declared, ('catalog/storage_sync.json is not the registry of shared/edge-session.ts: run '
+                                 'node shared/build-shell.mjs')
+    assert set(declared) == SYNCED
+    shared = {k for k, cap in declared.items() if cap is None}
+    assert shared == {'ml.symbol'}, f'sync keys with no tab capability (only a key every tab shares has none): {shared}'
+    assert all(cap.endswith('.view') for cap in declared.values() if cap), declared
+
+
+def test_a_browser_key_family_never_names_a_ticker_or_symbol():
+    """Re-check R1-20: a `browser` prefix survives sign-out and a change of user, so its suffix must not carry account
+    content. A key built from a ticker or a symbol (a template or a concatenation onto the prefix) names what the
+    account looks at, and belongs to a `user` family (shared/edge-session.ts STORAGE)."""
+    browser = [k for k, match, _, kind in registry() if match == 'prefix' and kind == 'browser']
+    built = re.compile(r"""`(?P<t>[^`]*)`|['"](?P<p>[^'"]+)['"]\s*\+\s*(?P<v>[A-Za-z_][A-Za-z0-9_.()]*)""")
+    found = []
+    for name, text in sources().items():
+        for m in built.finditer(text):
+            if m.group('t') is not None:
+                key, values = m.group('t'), re.findall(r'\$\{([^}]*)\}', m.group('t'))
+            else:
+                key, values = m.group('p'), [m.group('v')]
+            if values and any(key.startswith(p) for p in browser) and any(re.search(r'ticker|symbol|\bsym\b', v, re.I) for v in values):
+                found.append(f'{name}: {key}')
+    assert not found, 'browser-class keys that name a ticker or symbol (class the family user):\n' + '\n'.join(found)

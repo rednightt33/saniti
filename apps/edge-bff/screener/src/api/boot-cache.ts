@@ -4,10 +4,13 @@
    and one pointer in localStorage scr.boot names them with their versions and the login.
    Rules (6c.3, 6c.5; tests/page/page.test.ts "boot pointer"):
    - nothing cached is drawn before an authenticated answer of this page load (app.ts calls read() after one);
-   - a pointer of another login is dropped and never read (its bytes age out of the shared LRU);
+   - a pointer of another login is dropped and never read (its bytes age out of the shared LRU). The `login` app.ts
+     passes is the login with the session's access version (cacheId; re-check R1-17, R1-38): answers computed under
+     another plan, or the same plan narrowed, are never drawn (the version changes with every grant);
    - a cached result is used only when its versions equal the cached catalog's, field by field;
    - bytes are stored only when their sha256 equals the announced ETag (a result, which has none, under its own sha). */
 import type { CatalogResponse, Definition, RunResponse, UniverseResponse, Versions } from '../core/contract.ts';
+import type { Session } from './types.ts';
 import type { FileCache } from '../../../terminal/src/data/rack.ts';
 import { sha256Hex } from '../../../terminal/src/data/rack.ts';
 import { KEYS, store } from '../storage.ts';
@@ -24,6 +27,10 @@ export interface BootPointer {
 export const VERSION_FIELDS = ['price_data', 'flow_data', 'screener_engine', 'registry', 'screener_registry'] as const;
 export const sameVersions = (a: Partial<Versions> | null | undefined, b: Partial<Versions> | null | undefined) =>
   !!a && !!b && VERSION_FIELDS.every(k => (a[k] ?? null) === (b[k] ?? null));
+
+/** the identity of the boot pointer: the login and what the account may do (access.version, X-Edge-Entitlements), so
+    a cached answer is drawn only for the plan it was computed under (re-check R1-17, R1-38) */
+export const cacheId = (s: Pick<Session, 'login' | 'access'>) => s.access ? `${s.login}\n${s.access}` : s.login;
 
 export interface Cached { catalog: CatalogResponse | null; universe: UniverseResponse | null; result: RunResponse | null }
 

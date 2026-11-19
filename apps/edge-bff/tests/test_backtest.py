@@ -28,7 +28,7 @@ from fastapi.testclient import TestClient
 import uvicorn
 
 from app.errors import MESSAGES
-from app import allow, backtest, errors, main, releases
+from app import allow, backtest, catalog, errors, main, releases
 from app.backtest import BacktestLoop, ResultTooLarge, WorkerClient, WorkerTimeout, WorkerUnavailable, loads, split_result
 from app.main import create_app
 from conftest import FakeOrc
@@ -50,6 +50,15 @@ KEY = 'w' * 40
 MIGRATION = Path(__file__).resolve().parents[3] / 'database/migrations/20261026_005_edge_bff_backtest.sql'
 ERROR_COMMENT = Path(__file__).resolve().parents[3] / 'database/migrations/20261027_005_edge_bff_backtest_error_comment.sql'
 ROLLBACK = '\n'.join(line[3:] for line in MIGRATION.read_text().split('-- Rollback', 1)[1].splitlines()[1:] if line.startswith('-- '))
+# EXEC-MU-ACCOUNTS beta/live (fix round, track site): the site column of the jobs, added by a later migration; a test that
+# takes 20261026_005 out puts both back (recreate)
+SITE = Path(__file__).resolve().parents[3] / 'database/migrations/20261119_021_edge_bff_backtest_jobs_site.sql'
+
+
+def recreate(conn):
+    """The backtest tables as the migrations leave them: 20261026_005, then the jobs' site column (20261119_021)."""
+    conn.execute(MIGRATION.read_text())
+    conn.execute(SITE.read_text())
 
 
 def sha(text):
@@ -316,7 +325,7 @@ def backtest_tables(database):
     with psycopg.connect(database, autocommit=True) as c:
         applied = c.execute("SELECT to_regclass('edge_bff.backtest_jobs')").fetchone()[0] is None
         if applied:
-            c.execute(MIGRATION.read_text())
+            recreate(c)
     yield database
     if applied:
         with psycopg.connect(database, autocommit=True) as c:
@@ -573,7 +582,9 @@ def test_queue_limit_one_running_and_three_queued(app, worker):
     # EXEC-MU-ACCOUNTS Phase 3a (C1 F2, CONTRACT.md 3): the queue cap is the plan's backtest.queued_jobs, so its refusal
     # is LIMIT_REACHED with the limit, the account's own number and when to try again (Retry-After)
     assert full.status_code == 429 and full.headers['retry-after'] == '30' and full.json() == {'error': {
-        'code': 'LIMIT_REACHED', 'message': MESSAGES['LIMIT_REACHED'],
+        # re-check R2-15: the words name the limit, the account's number and the wait (errors.words)
+        'code': 'LIMIT_REACHED', 'message': ("You have reached your plan's limit for Queued backtests (3). "
+                                             'Try again in 30 seconds, or upgrade the plan.'),
         'details': {'limit': 'backtest.queued_jobs', 'allowed': 3, 'retry_after_s': 30}}}
     assert submit(c, single(), 'k0').json()['request_id'] == ids[0]   # a known submission still answers
     store = c.app.state.backtests.store
@@ -1036,7 +1047,7 @@ def test_provisioned_login_reaches_the_backtest_tables_with_their_migration(back
     finally:
         with psycopg.connect(database, autocommit=True) as conn:
             if conn.execute("SELECT to_regclass('edge_bff.backtest_trials')").fetchone()[0] is None:
-                conn.execute(MIGRATION.read_text())
+                recreate(conn)
             else:
                 conn.execute('GRANT SELECT, INSERT, UPDATE ON edge_bff.backtest_trials TO edge_bff_runtime')
             conn.execute('DROP OWNED BY edge_bff_login')
@@ -1083,7 +1094,7 @@ def test_the_migration_refuses_a_runtime_role_with_more_than_the_code_does(backt
                 conn.execute(f'ALTER DEFAULT PRIVILEGES IN SCHEMA edge_bff REVOKE {extra} ON TABLES FROM edge_bff_runtime')
             if conn.execute("SELECT to_regclass('edge_bff.backtest_jobs')").fetchone()[0] is not None:
                 conn.execute(ROLLBACK)                      # applied with an extra privilege: taken out again
-            conn.execute(MIGRATION.read_text())
+            recreate(conn)
 
 
 def test_the_migration_refuses_public_with_any_privilege_on_the_backtest_tables(backtest_tables):
@@ -1115,7 +1126,7 @@ def test_the_migration_refuses_public_with_any_privilege_on_the_backtest_tables(
                 conn.execute(f'ALTER DEFAULT PRIVILEGES IN SCHEMA edge_bff REVOKE {privilege} ON TABLES FROM PUBLIC')
             if conn.execute("SELECT to_regclass('edge_bff.backtest_jobs')").fetchone()[0] is not None:
                 conn.execute(ROLLBACK)
-            conn.execute(MIGRATION.read_text())
+            recreate(conn)
 
 
 def handed(worker, job_id):
@@ -1439,7 +1450,7 @@ def test_ready_does_not_depend_on_the_backtest_tables(app, worker, backtest_tabl
         assert c.get('/api/v1/conversations').status_code == 200        # the rest of EDGE is unaffected
     finally:
         with psycopg.connect(backtest_tables, autocommit=True) as conn:
-            conn.execute(MIGRATION.read_text())
+            recreate(conn)
     assert submit(c, single(), 'nr').status_code == 202
     with psycopg.connect(backtest_tables, autocommit=True) as conn:
         with pytest.raises(psycopg.errors.RaiseException, match='backtest table exists'):
@@ -1461,11 +1472,13 @@ def test_backtest_tab_page_and_its_frame_csp(app, monkeypatch, tmp_path):
     (tmp_path / 'assets' / 'index-abc123.js').write_text('void 0')
     monkeypatch.setattr(main, 'BACKTEST_APP', tmp_path)
     page = c.get('/backtest')
-    assert page.status_code == 200 and 'EDGE' in page.text and 'function BacktestPage' in page.text and '"/backtest-app/"' in page.text
+    shell = page.text + c.get('/edge-app.js').text           # the shell's app is a file of its own (re-check R2-19)
+    assert page.status_code == 200 and 'EDGE' in page.text and '<script src="/edge-app.js"></script>' in page.text
+    assert 'function BacktestPage' in shell and '"/backtest-app/"' in shell
     # the tab's wording is in edge-labels.js (AGENTS.md), used like the Terminal tab's
     assert 'backtest: { nav:"Backtest", frameTitle:"Backtest" }' in c.get('/edge-labels.js').text
-    assert '[EdgeLabels.backtest.nav, "backtest"]' in page.text and 'title: EdgeLabels.backtest.frameTitle' in page.text
-    assert '"Backtest"' not in page.text
+    assert '[EdgeLabels.backtest.nav, "backtest"]' in shell and 'title: EdgeLabels.backtest.frameTitle' in shell
+    assert '"Backtest"' not in shell
     assert page.headers['content-security-policy'] == c.get('/terminal').headers['content-security-policy']   # EDGE's own policy
     frame = c.get('/backtest-app/')
     assert frame.status_code == 200 and 'Market Lab Backtest' in frame.text
@@ -1585,12 +1598,14 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
     # (the backtest stage also takes screener/src: its page reads the Screener's entries and forms, ERRORS M461)
     # (EXEC-MU-ACCOUNTS Phase 0: every page stage also takes shared/, the session module the pages import)
     # (EXEC-MU-ACCOUNTS Phase 2: the final stage takes catalog/, the release stages app/releases.py reads at start)
+    # (EXEC-MU-ACCOUNTS re-check R1-35, user 2026-11-19 "1a": and the Screener catalog, whose shown universe attributes
+    # app/catalog.py reads at start)
     assert copied == ['terminal/package.json', 'terminal/package-lock.json', 'shared', 'terminal/', 'backtest/package.json',
                       'backtest/package-lock.json', 'terminal/src', 'screener/src', 'shared', 'backtest/', 'screener/package.json',
                       'screener/package-lock.json', 'terminal/src', 'backtest/src', 'shared', 'screener/', 'radar/package.json',
                       'radar/package-lock.json', 'shared', 'radar/', 'overview/package.json', 'overview/package-lock.json', 'shared',
                       'overview/', 'watchlist/package.json', 'watchlist/package-lock.json', 'shared', 'watchlist/',
-                      'requirements.txt', 'app', 'catalog', 'static']
+                      'requirements.txt', 'app', 'catalog', 'screener/src/core/screener-metrics.json', 'static']
     # the copied sources, the files at the top of each copied folder (configuration, package files, index.html, the app's
     # modules, the static files) and the three pages' sources
     top = [f'{folder}/{p.name}' for folder in ('app', 'catalog', 'static', 'terminal', 'backtest', 'screener', 'radar', 'overview', 'watchlist')
@@ -1606,6 +1621,7 @@ def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth
     assert 'overview/src/app.ts' in needed and 'overview/vite.config.ts' in needed and 'app/overview.py' in needed
     assert 'watchlist/src/app.ts' in needed and 'watchlist/vite.config.ts' in needed and 'app/watchlist.py' in needed
     assert 'catalog/releases.json' in needed and 'app/releases.py' in needed
+    assert 'screener/src/core/screener-metrics.json' in needed and 'app/catalog.py' in needed
     assert [p for p in needed if docker_ignored(patterns, p.rstrip('/'))] == []
 
 
@@ -2309,7 +2325,7 @@ def rights_session(configured, store, admin):
     def signed(c):
         user = make_user(store, 'plain', 'plain-password')
         plan = run_sql(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'backtest.run'
-            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*')''')[0]['plan_key']
+            AND plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb)''')[0]['plan_key']
         run_sql(store, "INSERT INTO edge_bff.subscriptions(user_id, plan_key, status, provider) VALUES (%s, %s, 'active', 'test')",
                 user['user_id'], plan)
         return sign_in(c, 'plain', 'plain-password')
@@ -2367,8 +2383,11 @@ def test_a_queued_job_reads_its_owners_rights_when_it_is_dispatched(configured, 
                                                         grants={'backtest.run': True}, kinds={'backtest.run': 'flag'})
         asyncio.run(loop.process(bt.store.claim(90)))
         assert worker.posted('/v1/jobs')[-1]['body']['context']['rights'] == []
-        # Phase 3b: its allow is read at dispatch too (this principal holds no item family: nothing allowed)
-        assert worker.posted('/v1/jobs')[-1]['body']['context']['allow'] == {k: [] for k in allow.KINDS}
+        # Phase 3b: its allow is read at dispatch too (this principal holds no item family: nothing allowed but what is
+        # part of a tab itself, the universe attributes every Screener answer shows: re-check R1-35, the user's "1a"
+        # of 2026-11-19, app/catalog.py ungated; until then the list was empty)
+        assert worker.posted('/v1/jobs')[-1]['body']['context']['allow'] == {
+            **{k: [] for k in allow.KINDS}, 'screener_metric': sorted(catalog.SHOWN_ATTRIBUTES)}
         # without backtest.run (a switch-off owner EDGE_ADMIN_OWNERS does not list): refused at dispatch
         sent = len(worker.posted('/v1/jobs'))
         assert submit(c, single('BBRI'), 'refused').status_code == 202

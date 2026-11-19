@@ -14,6 +14,7 @@
 import type { Ctx } from './context';
 import { $, store, storeWatch } from './context';
 import { LayoutApiError, layoutsApi, newLayoutId, type LayoutMeta } from '../data/layoutsApi';
+import { askLocked } from './locked';
 
 export const LAYOUT_KEYS = ['ml.ind.v1', 'ml.tf', 'ml.chart.style', 'ml.chart.mode', 'ml.vol.on', 'ml.vol.removed', 'ml.events.v1',
   'ml.fi.metric', 'ml.ind.filters', 'ml.flow.filters', 'ml.flow.cum', 'ml.flow.collapsed', 'ml.flow.h', 'ml.flow.ratio',
@@ -242,7 +243,10 @@ export function initLayouts(ctx: Ctx) {
     renderMenu(); place(); keepFocus(sel);
   }
   function closeMenu(focus = false) { if (menu.hidden) return; menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); if (focus) btn.focus() }
-  btn.addEventListener('click', () => menu.hidden ? openMenu() : closeMenu());
+  /* track guest: a principal without terminal.layouts (a visitor, the free plan) gets the box (sign in, or upgrade)
+     instead of a menu whose every read and save the server refuses */
+  btn.addEventListener('click', () => { if (ctx.M.locks?.feature('terminal.layouts')) { askLocked({ kind:'feature', id:'terminal.layouts' }); return }
+    menu.hidden ? openMenu() : closeMenu() });
   document.addEventListener('pointerdown', e => { const t = e.target as Node; if (!menu.hidden && !menu.contains(t) && !btn.contains(t)) closeMenu() }, true);
   addEventListener('resize', () => { if (!menu.hidden) place() });
   // Escape closes the menu wherever the focus is (a star click redraws the menu)

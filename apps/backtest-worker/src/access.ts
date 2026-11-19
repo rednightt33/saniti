@@ -103,6 +103,7 @@ export function requireItem(allow: Allow, kind: AllowKind, id: string, field: st
   if (a === '*' || a.includes(id)) return;
   const capability = `${FAMILY[kind]}:${id}`;
   throw new WorkerError(403, 'CAPABILITY_REQUIRED',
-    `${field}: the ${WORDS[kind]} ${id} is not included in your plan (${capability}); remove it or change the plan to run this strategy.`,
+    // re-check R1-34: the person reads the item, never the internal key (it stays in details.capability)
+    `${field}: the ${WORDS[kind]} ${id} is not included in your plan; remove it or change the plan to run this strategy.`,
     field, { kind, id, capability });
 }

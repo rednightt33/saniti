@@ -31,9 +31,11 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 
+from .errors import plan_cap
 from . import wake
 from .principal import Principal
 from .allow import NOTHING, context_of, digest, named
+from .catalog import grant_key, holds_entry
 from .rights import POINT_IN_TIME, refuse_context, rights_of
 from .watchlist import LISTS, PER_LIST, WatchlistStore
 from .backtest import (CONTROL_TIMEOUT, PREVIEW_PAGES, Backtests, BacktestError, CallerGone, PreviewReplaced, accepts_gzip,
@@ -83,6 +85,7 @@ HEALTH_TIMEOUT = 5
 # each"; report 11b: SCREENER_MAX_COUNTS is at least SCREEN_LIMIT, so every saved screen is counted in one counts call,
 # initially 50). SCREEN_LIMIT holds for each kind: at most 50 saved screens and 50 My metrics per owner.
 SCREEN_LIMIT = 50
+PRESET_KIND = 'screener_preset'                      # the release kind of the presets (releases.KINDS; re-check R1-32)
 WATCHLIST_LIMIT = PER_LIST                           # EXEC-WATCHLIST 2A: the star fills the first list (50, app/watchlist.py)
 # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b, D5): reads need screener.view, runs and saves screener.run; the saved items
 # and the star are capped by the plan's limits, at most the constants above (HARD; Principal.capped)
@@ -490,8 +493,8 @@ class ScreenerStore:
         """Create (revision None) or replace (the revision the item was read with) one item of the owner, serialised per
         owner by an advisory lock. (row, created). Refusals: 409 REVISION_CONFLICT (the id exists, or a stale revision),
         404 NOT_FOUND (replace of an item the owner does not have), 422 INVALID_INPUT kind (an item keeps its kind),
-        409 NAME_TAKEN (another item of the kind has the name), 422 LIMIT_EXCEEDED saved_items (limit per kind: the
-        principal's, at most SCREEN_LIMIT)."""
+        409 NAME_TAKEN (another item of the kind has the name), 403 LIMIT_REACHED saved_items (limit per kind: the
+        principal's, at most SCREEN_LIMIT; errors.plan_cap)."""
         limit = SCREEN_LIMIT if limit is None else limit
         values = (name, Jsonb(definition), SCHEMA_VERSION, checked['registry'], checked['screener_registry'],
                   checked['definition_hash'])
@@ -506,9 +509,8 @@ class ScreenerStore:
                     held = c.execute('SELECT count(*) AS n FROM edge_bff.screener_items WHERE owner_key=%s AND kind=%s',
                                      (owner, kind)).fetchone()['n']
                     if held >= limit:
-                        noun = 'saved screens' if kind == 'screen' else 'My metrics'
-                        raise failure('LIMIT_EXCEEDED', 422, message=f'At most {limit} {noun}: delete one before saving another.',
-                                      details={'limit': 'saved_items', 'allowed': limit, 'needed': held + 1})
+                        code, status, message, details = plan_cap(LIMIT_KEYS['saved_items'], limit, held + 1)  # R2-39
+                        raise failure(code, status, message=message, details=details)
                     created = c.execute('''INSERT INTO edge_bff.screener_items(item_id,owner_key,kind,name,definition,
                             schema_version,registry_version,screener_registry_version,definition_hash)
                         VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (item_id) DO NOTHING RETURNING *''',
@@ -554,8 +556,8 @@ class ScreenerStore:
                 ORDER BY position, added_at, ticker''', (owner, first)).fetchall()
 
     def watch(self, owner, ticker, limit=None, lists=None):
-        """Add a ticker to the first list (idempotent: a watched one stays as it was); at most WATCHLIST_LIMIT (422
-        LIMIT_EXCEEDED; limit: the principal's, at most WATCHLIST_LIMIT). The first list is created only within the
+        """Add a ticker to the first list (idempotent: a watched one stays as it was); at most WATCHLIST_LIMIT (403
+        LIMIT_REACHED; limit: the principal's, at most WATCHLIST_LIMIT). The first list is created only within the
         principal's lists cap (lists; C2 Phase 3a: the star never makes a list POST /watchlist/lists would refuse)."""
         limit = WATCHLIST_LIMIT if limit is None else limit
         lists = LISTS if lists is None else lists
@@ -564,9 +566,8 @@ class ScreenerStore:
             first = WatchlistStore.first(c, owner, False)
             if not first:
                 if lists < 1:
-                    raise failure('LIMIT_EXCEEDED', 422, 'ticker',
-                                  'Your plan holds no watchlist: a list is needed before a ticker can be starred.',
-                                  {'limit': 'watchlist.lists', 'allowed': lists, 'needed': 1})
+                    code, status, message, details = plan_cap(LIMIT_KEYS['lists'], lists, 1)     # re-check R2-39
+                    raise failure(code, status, 'ticker', message, details)
                 first = WatchlistStore.first(c, owner, True)
             if c.execute('SELECT 1 FROM edge_bff.watchlist_items WHERE owner_key=%s AND list_id=%s AND ticker=%s',
                          (owner, first, ticker)).fetchone():
@@ -574,8 +575,8 @@ class ScreenerStore:
             held = c.execute('''SELECT count(*) AS n, coalesce(max(position), -1) AS top FROM edge_bff.watchlist_items
                 WHERE owner_key=%s AND list_id=%s''', (owner, first)).fetchone()
             if held['n'] >= limit:
-                raise failure('LIMIT_EXCEEDED', 422, 'ticker', f'At most {limit} tickers in the watchlist: remove one before adding another.',
-                              {'limit': 'watchlist', 'allowed': limit, 'needed': held['n'] + 1})
+                code, status, message, details = plan_cap(LIMIT_KEYS['watchlist'], limit, held['n'] + 1)  # R2-39
+                raise failure(code, status, 'ticker', message, details)
             c.execute('''INSERT INTO edge_bff.watchlist_items(owner_key, list_id, ticker, position) VALUES (%s,%s,%s,%s)
                 ON CONFLICT DO NOTHING''', (owner, first, ticker, held['top'] + 1))
 
@@ -836,21 +837,27 @@ class Screeners:
         return Doc(key=key, raw=raw, gz=gzip.compress(raw, 6, mtime=0), etag='"' + hashlib.sha256(raw).hexdigest() + '"',
                    price_data=price_data_of(data), published_at=published_of(data))
 
-    def catalog_for(self, doc, rights, allow=None):
+    def catalog_for(self, doc, rights, allow=None, p=None):
         """EXEC-BACKTEST-REVAMP P5 (K8 b): the catalog as a session sees it: without POINT_IN_TIME, the entries marked
         access 'admin' are left out, with their own bytes and ETag (kept per document, so a session without the right
         never gets the admin catalog's ETag or a 304 for it). EXEC-MU-ACCOUNTS Phase 3b (C2 F1): with an allow that does
         not hold every item, a preset reading an item outside it is left out (its counts were computed with every item);
-        a preset without the worker's `items` (an older worker) keeps no counts. Kept per (document, right, allow)."""
+        a preset without the worker's `items` (an older worker) keeps no counts. Re-check R1-32: a preset the principal
+        `p` does not hold itself (its screener.preset grant, catalog.holds_entry: the rule of /api/v1/catalog) is left out
+        too. Kept per (document, right, allow, preset grant)."""
         everything = allow is None or all(v == '*' for v in allow.values())
-        if POINT_IN_TIME in rights and everything:
+        presets = None if p is None else grant_key(p, PRESET_KIND)
+        if POINT_IN_TIME in rights and everything and presets is None:
             return doc
-        key = (doc.etag, POINT_IN_TIME in rights, None if everything else dumps(allow))
+        key = (doc.etag, POINT_IN_TIME in rights, None if everything else dumps(allow), presets)
         hit = self.restricted.get(key)
         if hit is None:
             data = loads(doc.raw)
             if not everything and isinstance(data, dict) and isinstance(data.get('presets'), list):
                 data = {**data, 'presets': presets_held(data['presets'], allow)}
+            if presets is not None and isinstance(data, dict) and isinstance(data.get('presets'), list):
+                data = {**data, 'presets': [x for x in data['presets'] if isinstance(x, dict) and isinstance(x.get('id'), str)
+                                            and holds_entry(p, PRESET_KIND, x['id'])]}
             if POINT_IN_TIME not in rights and isinstance(data, dict) and isinstance(data.get('metrics'), list):
                 admin = {m.get('id') for m in data['metrics'] if isinstance(m, dict) and m.get('access') == 'admin'}
                 data = {**data, 'metrics': [m for m in data['metrics'] if not (isinstance(m, dict) and m.get('access') == 'admin')]}
@@ -1053,6 +1060,8 @@ class Screeners:
     # ---- routes -----------------------------------------------------------------------------------------------------
 
     def routes(self, app, auth):
+        for name, hard in caps_of().items():          # the session's access.limits reports the applied caps (R1-29)
+            auth.ceiling(LIMIT_KEYS[name], hard)
         # EXEC-BACKTEST-REVAMP P5 (user K8 b), EXEC-MU-ACCOUNTS Phase 1: the principal's rights (rights.py) go to every
         # worker call in the body's context; a page body that carries one is refused before the worker. Every call
         # carries the principal's owner tag; nothing here reads the configured owner.
@@ -1079,7 +1088,7 @@ class Screeners:
             refresh, its /health) is the one it was fetched at; ETag and If-None-Match -> 304."""
             await self.guard()
             doc = self.catalog_for(await self.doc('catalog', '/v1/catalog', p.owner_key), rights(request),
-                                   context(request)['allow'])
+                                   context(request)['allow'], p)
             return self.doc_answer(request, self.limits_for(doc, caps_of(p)))
 
         @app.get('/api/v1/screener/universe')

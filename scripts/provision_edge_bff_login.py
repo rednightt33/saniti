@@ -96,7 +96,13 @@ def main():
                 held={p for p in ('USAGE','SELECT','UPDATE') if c.execute('SELECT has_sequence_privilege(%s,%s,%s) AS a',(LOGIN,'edge_bff.'+name,p)).fetchone()['a']}
                 if held!={'USAGE'}:raise RuntimeError('Unexpected EDGE sequence grants; reconcile first')
                 if c.execute("SELECT has_sequence_privilege('public',%s,'USAGE,SELECT,UPDATE') AS a",('edge_bff.'+name,)).fetchone()['a']:raise RuntimeError('PUBLIC can use an EDGE sequence; reconcile first')
-    print(f'EDGE login provisioned; only the {len(found)} operational tables reachable')
+        # fix round (re-check R1-41): has_table_privilege is false for a privilege held on columns only, so every check
+        # above misses one (a column UPDATE on the audit, a column SELECT on a market table). EDGE's grants are
+        # table-level only: any column privilege the login holds, itself, through a role it belongs to or through
+        # PUBLIC, on any relation outside the system schemas, is unexpected.
+        columns=c.execute("SELECT n.nspname,c.relname,a.attname,x.privilege_type FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace CROSS JOIN LATERAL aclexplode(a.attacl) x WHERE a.attacl IS NOT NULL AND NOT a.attisdropped AND a.attnum>0 AND n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%%' AND CASE WHEN x.grantee=0 THEN true ELSE pg_has_role(%s,x.grantee,'USAGE') END",(LOGIN,)).fetchall()
+        if columns:raise RuntimeError(f'Unexpected EDGE column grants on {len(columns)} column(s); reconcile first (read pg_attribute.attacl)')
+    print(f'EDGE login provisioned; only the {len(found)} operational tables reachable, no column-level grant')
 
 if __name__=='__main__':
     try:main()

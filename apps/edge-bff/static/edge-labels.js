@@ -17,7 +17,7 @@ window.EdgeLabels = {
     PLAN_EXPIRED:"Your EDGE plan has ended. Renew it to use this again; you are still signed in.",
     MFA_REQUIRED:"This needs your sign-in code. Enter the code from your authenticator app, then try again.",
     LIMIT_REACHED:"You have reached your plan's limit. Try again later, or upgrade the plan.",
-    SIGN_IN_RATE_LIMIT:"Too many sign-in attempts. Wait a minute, then try again.",
+    SIGN_IN_RATE_LIMIT:"Too many sign-in attempts from here. Wait a few minutes, then try again.",
     // Phase 2 (contract 8a, locked wording, EXEC-UI-1019B): a locked item, an item not released yet, the upgrade prompt,
     // a plan that has ended, and a capability refusal shown as a toast. No page shows them before Phase 3.
     paidPlan:"Available on a paid plan",
@@ -171,13 +171,36 @@ window.EdgeLabels = {
     overview:"EDGE — Overview", watchlist:"EDGE — Watchlist",
     register:"EDGE — Create Account", verify:"EDGE — Enter Code", forgot:"EDGE — Forgot Password",
     reset:"EDGE — New Password", mfa:"EDGE — Authenticator" },
+  // track guest (decision 1 of 2026-11-19, the user: "ketika dia klik ticker selain bbca maka akan keluar pop up box to
+  // login (jika belum login) dan jika sudah login maka akan keluar pop up box (to upgrade plan)"): the box the Terminal
+  // opens for a ticker, an indicator or a feature the principal does not hold ({name}: the item). Without an account:
+  // sign in or create one; with one: the upgrade box, "segera hadir" (access.comingSoon) and the contact of
+  // EDGE_UPGRADE_CONTACT, or, while it is not set, that it comes soon. `mark`: the lock beside a locked row
+  locked: {
+    mark:"Locked",
+    guestTitle:"Sign in to open {name}",
+    guestLead:"Without an account EDGE shows part of the Terminal. Sign in to see more, or create an account.",
+    guestLeadClosed:"Without an account EDGE shows part of the Terminal. Sign in to see more; registration opens soon.",
+    signIn:"Sign in", register:"Create account",
+    upgradeTitle:"{name} is not in your plan",
+    upgradeLead:"Your EDGE plan does not include this yet. Upgrading is coming soon.",
+    contact:"Contact us to upgrade:", contactSoon:"How to contact us about upgrading will be shown here soon.",
+    close:"Close",
+    features:{ "terminal.layouts":"Saved chart layouts", "terminal.presets":"Indicator presets" }
+  },
   // EXEC-MU-ACCOUNTS Phase 1 (contract section 4; user: English labels): the account pages. A refusal shows the
   // server's own message (error.message); `errors` is the fallback by code when the server sends none.
   auth: {
     login: { title:"Welcome to Edge", lead:"Sign in to your private workspace.", login:"Login", loginHint:"Username or email",
       password:"Password", submit:"Sign In", busy:"Signing in…", create:"Create account", noAccount:"No account yet?",
       forgot:"Forgot password?", resetDone:"Your password was changed. Sign in with the new password.",
-      justRegistered:"If you have just registered, check your email for a code and enter it on the", verifyLink:"Verify page" },
+      justRegistered:"If you have just registered, check your email for a code and enter it on the", verifyLink:"Verify page",
+      // track guest: where visitors open the Terminal without an account (shown when the site has guests)
+      guest:"Open the Terminal without an account", signInTop:"Sign in" },
+    // track guest (the pre-launch mode, the user 2026-11-19: "Terbuka, tapi belum bisa mendaftar"): the register page
+    // while registration is closed
+    closed: { title:"Registration opens soon", lead:"EDGE is not taking new accounts yet. You can open the Terminal without an account.",
+      terminal:"Open the Terminal", back:"Back to sign in" },
     register: { title:"Create your account", lead:"Use your email to create an EDGE account.", username:"Username",
       usernameHint:"3 to 30 lowercase letters, digits or _", firstName:"First name", lastName:"Last name", email:"Email",
       phone:"Phone", phoneHint:"For example 0812 3456 7890 or +62 812 3456 7890", password:"Password",
@@ -203,10 +226,23 @@ window.EdgeLabels = {
       lockedAll:"Ask an admin to unlock your account.", unlockAt:"It unlocks on", busySetup:"Preparing…", qrFailed:"The QR code could not be drawn here: enter the key by hand." },
     check: { short:"The password needs at least 8 characters.", long:"The password can have at most 256 characters.",
       mismatch:"The two passwords are not the same.", code:"Enter the 6 digits of the code." },
+    // re-check R2-20: the account menu's page for the Phase 1 password change and sign-out on every device (the
+    // sessions table is shared by the beta and the live website, so "every device" covers both)
+    account: { menu:"Password and sign-in", title:"Password and sign-in",
+      lead:"Change your password, or sign out of EDGE on every device.",
+      current:"Current password", password:"New password", passwordHint:"At least 8 characters.", repeat:"Repeat new password",
+      submit:"Change password", busy:"Changing…",
+      changed:"Your password was changed. EDGE signed out your other devices; this one stays signed in.",
+      allTitle:"Sign out everywhere",
+      allLead:"Ends every EDGE session of this account, on every device and on both EDGE websites, this one included.",
+      all:"Sign out everywhere", allBusy:"Signing out…" },
     errors: { INVALID_CREDENTIALS:"The login or the password is not right.", CODE_INVALID_OR_EXPIRED:"That code is not valid or has expired. Send a new one.",
       USERNAME_TAKEN:"That username is taken. Choose another one.",
-      SIGN_IN_RATE_LIMIT:"Too many attempts. Wait a minute, then try again.", LIMIT_REACHED:"Too many attempts today. Try again tomorrow.",
+      USER_CHANGED:"Another EDGE account signed in on this browser. Reload the page to continue as that account.",
+      SIGN_IN_RATE_LIMIT:"Too many attempts. Wait a few minutes, then try again.", LIMIT_REACHED:"Too many attempts today. Try again tomorrow.",
       INVALID_INPUT:"Check the fields and try again.", MFA_INVALID:"That code is not right. Try the newest code.",
+      REGISTRATION_CLOSED:"Registration opens soon. You can still open the Terminal without an account.",
+      SIGN_IN_CLOSED:"EDGE opens to accounts soon. Until then only test accounts can sign in.",
       fallback:"That did not work. Try again in a minute." }
   }
 };

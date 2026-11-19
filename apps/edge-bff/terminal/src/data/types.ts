@@ -14,7 +14,16 @@ export interface VolumePoint extends Point { color: string; none?: boolean }
 
 /** [ticker, name, sector, last price, where] — the reference's INSTRUMENTS row (the price only seeds the fixture);
     `where` (live): the market it trades in ("IDX · Equity", "Fixed income") and a bond's country, for the search */
-export interface InstrumentPlace { market: string; place?: string }
+export interface InstrumentPlace { market: string; place?: string; locked?: boolean }
+/** track guest (decision 1 of 2026-11-19): what the principal does not hold, read from its session answer's access and
+    the catalog route (live.ts lockRules), never from a list in the page. `guest`: a visitor without an account (the box
+    says sign in), else an account (the box says upgrade). A locked item opens the box (locked.ts) */
+export interface Locks {
+  guest: boolean;
+  ticker(ticker: string): boolean;
+  item(kind: 'indicator' | 'flow_indicator', id: string): boolean;
+  feature(capability: string): boolean;
+}
 export type Instrument = [string, string, string, number, InstrumentPlace?];
 
 /** one compare series of the Add Series panel */
@@ -46,6 +55,8 @@ export interface MarketData {
   mode: 'fixture' | 'live';
   symbol: string;
   instruments: Instrument[];
+  /** live (track guest): what the principal does not hold; absent in the fixture (nothing locked) */
+  locks?: Locks;
   ohlc: Bar[];
   volume: VolumePoint[];
   lineData: Point[];

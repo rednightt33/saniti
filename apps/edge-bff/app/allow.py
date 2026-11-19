@@ -8,17 +8,22 @@ refuse_context), when the call is made (a queued backtest reads its owner's prin
   principal holds everything (`*`; the switch-off owner listed in EDGE_ADMIN_OWNERS) or the family's value is
   `{"all": true}`. An id the release file does not list is never sent (tests/test_releases.py keeps every registry id
   in the file).
+- An item that is part of its tab (catalog.ungated: the universe attributes every Screener answer shows, the
+  catalog's `row` entries; CONTRACT.md 8b O3b-2 and re-check R1-35, user 2026-11-19 "1a") is in every principal's list,
+  as the worker never gates it by id (screener-worker run.ts definitionItems).
 - `limits` holds only keys a plan sets for the workers; none today, so `{}`.
 - `digest(context)` is a short fingerprint of the three, the key of every cache whose answer depends on what the
   principal may use (the Screener's saved-item review), so one plan's answer never serves another.
 - `named(error)` adds `details.display_name` (errors.display_name) to a worker's 403 CAPABILITY_REQUIRED, which edge-bff
-  otherwise relays unchanged.
+  otherwise relays unchanged; a message that carries the internal key is worded by edge-bff instead (errors.words;
+  re-check R1-34).
 """
 import hashlib
 import json
 
 from . import releases
-from .errors import display_name
+from .catalog import holds_entry, ungated
+from .errors import display_name, words
 from .rights import rights_of
 
 EVERYTHING = '*'
@@ -43,15 +48,22 @@ NOTHING = {'rights': [], 'allow': {kind: [] for kind in KINDS}, 'limits': {}}
 def allow_of(principal, worker):
     """{kind: "*" | sorted ids} of a principal for one worker ('backtest' or 'screener')."""
     families = FAMILIES[worker]
-    everything = EVERYTHING in principal.capabilities or principal.grants.get(EVERYTHING) is True
+    # the live site's principal (principal.live_view) never holds a lab item, so "*" (every id, lab included) is never
+    # sent from there: its ids are the ones it holds
+    whole = not getattr(principal, 'live', False)
+    everything = whole and (EVERYTHING in principal.capabilities or principal.grants.get(EVERYTHING) is True)
     out = {}
     for kind in KINDS:
         family = families[kind]
         value = principal.grants.get(family) if principal.kinds.get(family) == 'items' else None
-        if everything or (isinstance(value, dict) and value.get('all') is True):
+        if everything or (whole and isinstance(value, dict) and value.get('all') is True):
             out[kind] = EVERYTHING
         else:
-            out[kind] = sorted({e['id'] for e in releases.entries(kind) if principal.can(f'{family}:{e["id"]}')})
+            # an item that is part of its tab (catalog.ungated: a universe attribute every Screener answer shows,
+            # re-check R1-35) is allowed to every principal, by the same rule the catalogs list it with
+            out[kind] = sorted({e['id'] for e in releases.entries(kind)
+                                if principal.can(f'{family}:{e["id"]}')
+                                or (ungated(kind, e['id']) and holds_entry(principal, kind, e['id']))})
     return out
 
 
@@ -73,12 +85,18 @@ def digest(context):
 
 
 def named(error):
-    """A worker error with details.display_name added when it is CAPABILITY_REQUIRED naming a capability; any other
-    error as it is."""
+    """A worker error with details.display_name added when it is CAPABILITY_REQUIRED naming a capability. Its message
+    stays the worker's (it names the condition and the item) unless it carries the internal key (the capability or its
+    family) or is missing: then edge-bff words it (errors.words), so the person never reads an internal key
+    (re-check R1-34; edge-bff owns the wording for people, CONTRACT.md section 3). Any other error as it is."""
     if not isinstance(error, dict) or error.get('code') != CAPABILITY_REQUIRED:
         return error
     details = error.get('details') if isinstance(error.get('details'), dict) else {}
     capability = details.get('capability')
     if not isinstance(capability, str) or not capability:
         return error
-    return {**error, 'details': {**details, 'display_name': display_name(capability)}}
+    details = {**details, 'display_name': display_name(capability)}
+    message = error.get('message')
+    if isinstance(message, str) and message and capability not in message and capability.partition(':')[0] not in message:
+        return {**error, 'details': details}          # the worker's own words (they name the place), with no key
+    return {**error, 'message': words(CAPABILITY_REQUIRED, 403, details), 'details': details}

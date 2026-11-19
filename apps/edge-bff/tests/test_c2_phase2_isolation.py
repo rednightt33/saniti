@@ -2,6 +2,7 @@
 
 Each test names the contract line it holds the code to."""
 import dataclasses
+import json
 
 import httpx
 import pytest
@@ -90,7 +91,12 @@ def test_the_terminal_proxy_answer_carries_the_entitlements_version(on, store, m
             return {'ok': True}
 
     async def fake_request(self, method, url, **kw):
-        return Answer()
+        # terminal-api (Phase 3c, EXEC-MU-ACCOUNTS re-check R2-4) acknowledges the owner header it applied, without
+        # which edge-bff relays no answer for a capped principal
+        answer = Answer()
+        answer.headers = {**Answer.headers, 'x-terminal-capabilities-applied':
+                          f"1 {json.loads(kw['headers']['x-terminal-capabilities'])['version']}"}
+        return answer
     monkeypatch.setattr(httpx.AsyncClient, 'request', fake_request)
     with TestClient(create_app(terminal, store, FakeOrc())) as c:
         make_user(store, 'erin', 'erin-password')

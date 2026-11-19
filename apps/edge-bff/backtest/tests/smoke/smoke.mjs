@@ -40,8 +40,9 @@ let step = 'boot', page;
 async function openPage(viewport = { width:1440, height:900 }) {
   page = await browser.newPage({ viewport });
   page.setDefaultTimeout(10000);              // a missing control fails its step in 10 s, not Playwright's 30 s
-  // the web font is not needed here (and the sandbox may have no network): an empty style sheet
-  await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, route => route.fulfill({ status:200, contentType:'text/css', body:'' }));
+  // the web font is not needed here (and the sandbox may have no network): an empty style sheet, for Google Fonts (an
+  // older page) and EDGE's own /fonts/ sheet alike (R2-28: the pages link /fonts/inter-*.css)
+  await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\/|\/fonts\/[A-Za-z0-9-]+\.css$/, route => route.fulfill({ status:200, contentType:'text/css', body:'' }));
   page.on('console', m => { if (m.type() === 'error') errors.push(`[${step}] console: ${m.text()}`) });
   page.on('pageerror', e => errors.push(`[${step}] page: ${e.message}`));
 }

@@ -6,10 +6,18 @@ This module is the foundation the auth flows (registration, codes, reset, MFA, e
 - `resolve`: the session of a request joined to its account and its plan's grants, in one statement (principal.py);
 - `owner`: an account by its owner key with its grants (the backtest loop's rights at dispatch; the sign-in's MFA);
 - `seed_subscription`: user #1's subscription to the plan that holds every capability (Phase 2), idempotent;
-- `find_login`, `create_session`, `signed_in`: the switch-on sign-in (main.py), with at most MAX_SESSIONS per user.
+- `find_login`, `sign_in_try`, `create_session`, `signed_in`: the switch-on sign-in (main.py), with at most
+  MAX_SESSIONS per user and at most PASSWORD_FAILURE_CAP consecutive failed passwords per account.
+
+Credential writes and the sessions they rest on are serialised by the account's users row (SELECT ... FOR UPDATE,
+`lock_account`): `create_session` takes it and checks, in its own transaction, the proof the request rests on (the
+verifier the sign-in proved, or the pending session an MFA verify replaces); a password reset or change and
+`revoke_all` take it before they write. So a sign-in, change or verify proved before a reset is refused after it, and a
+session made before the reset is seen and revoked by it (ERRORS R2-9).
 
 Every statement names the account it reads or changes; the configured owner reaches `seed` as an argument (principal.py).
 """
+import hashlib
 import json
 import logging
 import re
@@ -24,12 +32,26 @@ RESERVED_USERNAMES = frozenset({'admin', 'root', 'support', 'edge', 'system'})
 # does not fit ^[a-z0-9_]{3,30}$ (a hyphen), so the seed takes 'admin_1'
 SEED_FALLBACK_USERNAME = 'admin_1'
 EMAIL = re.compile(r'[^@\s]{1,64}@[^@\s]{1,189}\.[^@\s]{1,63}')
+EMAIL_MAX = 254                   # the longest address an account may have: registration, sign-in and reset share it
 MAX_SESSIONS = 5                  # CONTRACT.md section 4 "Sessions": at most 5 per user, the oldest is revoked
 MAX_PENDING_SESSIONS = 3          # sessions waiting for the admin's second factor, capped apart (C1 note)
 PENDING_CHECKED = 3               # pending registrations of an address a sign-in compares its password with
 TOUCH_SECONDS = 60                # CONTRACT.md section 2: last_seen_at is written at most once per 60 s per session
 ACTIVE = 'active'
 EVERYTHING = '*'
+# NIST SP 800-63B-4 3.2.2 (ERRORS R1-16): at most 100 consecutive failed passwords per account, over both its logins
+# (username and email) and every client address. The 100th starts a lock of PASSWORD_LOCK_SECONDS during which a
+# sign-in of the account is answered as a wrong password (OWASP Authentication: the same answer whether the password is
+# wrong or the account locked). A success, a password reset proved by the email code (the way back, R1-9) or a change
+# clears it; after a lock the count restarts at PASSWORD_RESTART, as the MFA counts do (ERRORS M478 N2)
+PASSWORD_FAILURE_CAP, PASSWORD_RESTART, PASSWORD_LOCK_SECONDS = 100, 90, 86400
+# market-ai-orc's test-key owners (app/conversations.py TEST_OWNER_RE, M475): a caller holding MARKET_AI_ORC_TEST_KEY
+# may name exactly these (tests/test_cp0_reserved_owner.py compares the two patterns, so they cannot drift apart)
+ORC_TEST_OWNER = re.compile(r'golden-[A-Za-z0-9._:@-]+|test-[A-Za-z0-9._:@-]+|someone-else')
+ORC_SHARED_OWNER = 'default'      # Orc's one shared owner before M475
+# track guest (principal.py guest_principal): the one owner key of every visitor of the guest plan, never an account's
+# (never issued: reserved_owner; refused for EDGE_OWNER and EDGE_ADMIN_OWNERS: config.py validate)
+GUEST_OWNER = 'edge-guest'
 
 # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a "Resolution"): the CTEs that follow a CTE `found` (one account: user_id,
 # owner_key, username, role, status) and resolve its grants within the same statement:
@@ -77,9 +99,20 @@ def new_owner_key():
     return 'u_' + secrets.token_hex(12)
 
 
+def orc_reserved_owner(key):
+    """An owner key Orc reserves: one its test key may name, or its old shared owner. EDGE_OWNER and EDGE_ADMIN_OWNERS
+    may not be one (config.py validate; ERRORS R1-3), or user #1's data would sit within the test key's reach."""
+    return key == ORC_SHARED_OWNER or ORC_TEST_OWNER.fullmatch(key) is not None
+
+
 def reserved_owner(key):
-    """Keys never issued to a new account (Orc's test owners, the shared 'default' and the seed's own)."""
-    return key in ('default', 'someone-else', 'edge-private') or key.startswith(('golden-', 'test-'))
+    """Keys never issued to a new account (Orc's reserved owners and the seed's own)."""
+    return orc_reserved_owner(key) or key in ('edge-private', GUEST_OWNER) or key.startswith(('golden-', 'test-'))
+
+
+def seed_mark(verifier):
+    """identities.seed_verifier_sha256 of a verifier the seed writes: its sha256 (hex), never the verifier itself."""
+    return hashlib.sha256((verifier or '').encode()).hexdigest()
 
 
 def seed_identity(login):
@@ -87,7 +120,7 @@ def seed_identity(login):
     is not reserved, else SEED_FALLBACK_USERNAME; the login as the email when it is one."""
     lowered = login.strip().lower()
     username = lowered if USERNAME.fullmatch(lowered) and lowered not in RESERVED_USERNAMES else SEED_FALLBACK_USERNAME
-    email = lowered if EMAIL.fullmatch(lowered) and len(lowered) <= 254 else None
+    email = lowered if EMAIL.fullmatch(lowered) and len(lowered) <= EMAIL_MAX else None
     return username, email
 
 
@@ -100,11 +133,16 @@ class AccountStore:
     def seed(self, owner, login, verifier, multiuser):
         """User #1 = the configured owner (EDGE_OWNER), role admin, its password identity from EDGE_PASSWORD_VERIFIER.
         Made once, when the table holds no user; every replica takes the same advisory lock, so two starting together
-        make one row. While the switch is off the environment is the source of the password, so a changed
-        EDGE_PASSWORD_VERIFIER is copied to the identity (sign-in works the same the moment the switch goes on); with
-        the switch on the identity is the account's own and is never overwritten. Returns {user_id, username} of user
-        #1, or None when the table holds other users and none is the configured owner (logged)."""
+        make one row. While the switch is off a changed EDGE_PASSWORD_VERIFIER is copied to the identity (sign-in works
+        the same the moment the switch goes on), but only over the seed's own copy: identities.seed_verifier_sha256
+        holds the sha256 of the verifier the seed last wrote, so once the account set its own password (a change or a
+        reset with the switch on, on the live site) the identity differs from it and is never overwritten again (ERRORS
+        R2-2: a switch-off start, such as every beta deploy, would bring back the password the admin replaced). With
+        the switch on the identity is the account's own and is never overwritten. The switch-off sign-in itself reads
+        EDGE_PASSWORD_VERIFIER, not the identity (main.py). Returns {user_id, username} of user #1, or None when the
+        table holds other users and none is the configured owner (logged)."""
         username, email = seed_identity(login)
+        mark = seed_mark(verifier)
         with self.store.connect() as c:
             c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('accounts:seed',))
             row = c.execute('SELECT user_id, username FROM edge_bff.users WHERE owner_key=%s', (owner,)).fetchone()
@@ -115,13 +153,19 @@ class AccountStore:
                 row = c.execute('''INSERT INTO edge_bff.users(owner_key, username, email, email_verified_at, role, status)
                     VALUES (%s, %s, %s, CASE WHEN %s::text IS NULL THEN NULL ELSE now() END, 'admin', 'active')
                     RETURNING user_id, username''', (owner, username, email, email)).fetchone()
-                c.execute('''INSERT INTO edge_bff.identities(user_id, provider, subject, verifier)
-                    VALUES (%s, 'password', %s, %s)''', (row['user_id'], str(row['user_id']), verifier))
+                c.execute('''INSERT INTO edge_bff.identities(user_id, provider, subject, verifier, seed_verifier_sha256)
+                    VALUES (%s, 'password', %s, %s, %s)''', (row['user_id'], str(row['user_id']), verifier, mark))
                 logger.info(json.dumps({'event': 'account_seeded', 'user_id': row['user_id']}))
             elif not multiuser:
-                c.execute('''UPDATE edge_bff.identities SET verifier=%s, updated_at=now()
-                    WHERE user_id=%s AND provider='password' AND verifier IS DISTINCT FROM %s''',
-                          (verifier, row['user_id'], verifier))
+                held = c.execute('''SELECT verifier, seed_verifier_sha256 FROM edge_bff.identities
+                    WHERE user_id=%s AND provider='password' FOR UPDATE''', (row['user_id'],)).fetchone()
+                if held is not None and held['seed_verifier_sha256'] != seed_mark(held['verifier']):
+                    # the account's own password (set with the switch on): kept; the switch-off sign-in still takes
+                    # EDGE_PASSWORD_VERIFIER, the switch-on one this identity
+                    logger.info(json.dumps({'event': 'account_seed_password_kept', 'user_id': row['user_id']}))
+                elif held is not None and (held['verifier'] != verifier or held['seed_verifier_sha256'] != mark):
+                    c.execute('''UPDATE edge_bff.identities SET verifier=%s, seed_verifier_sha256=%s, updated_at=now()
+                        WHERE user_id=%s AND provider='password' ''', (verifier, mark, row['user_id']))
             return dict(row)
 
     # ---- the principal's rows ---------------------------------------------------------------------------------------
@@ -157,11 +201,26 @@ class AccountStore:
                 SELECT found.user_id, owner_key, username, role, status, ''' + GRANT_COLUMNS + '''
                 FROM found CROSS JOIN plan''', {'owner': owner_key, 'active': ACTIVE}).fetchone()
 
+    def guest_plan(self):
+        """Track guest (principal.py guest_principal): the one plan marked for guests (edge_bff.plans.for_guests,
+        migration 20261119_070) with its grants {key: {kind, value}} and its plan_capabilities versions, read on every
+        guest request (a catalog change applies on the next one, no restart), or None when no plan is marked."""
+        with self.store.connect() as c:
+            return c.execute('''SELECT p.plan_key,
+                    coalesce(jsonb_object_agg(pc.capability_key, jsonb_build_object('kind', c.kind, 'value', pc.value))
+                             FILTER (WHERE pc.capability_key IS NOT NULL), '{}'::jsonb) AS grants,
+                    coalesce(jsonb_object_agg(pc.capability_key, pc.version) FILTER (WHERE pc.capability_key IS NOT NULL),
+                             '{}'::jsonb) AS versions
+                FROM edge_bff.plans p
+                LEFT JOIN edge_bff.plan_capabilities pc ON pc.plan_key = p.plan_key
+                LEFT JOIN edge_bff.capabilities c ON c.capability_key = pc.capability_key
+                WHERE p.for_guests GROUP BY p.plan_key''').fetchone()
+
     # ---- the seed subscription of user #1 (CONTRACT.md 8a "User #1") ------------------------------------------------
 
     def seed_subscription(self, user_id):
         """User #1 gets an active manual subscription with no end to the plan that holds every capability ('*'). The
-        plan is found by data: exactly one plan holds '*'; otherwise nothing is given and account_seed_plan_ambiguous is
+        plan is found by data: exactly one plan holds '*' = true; otherwise nothing is given and account_seed_plan_ambiguous is
         logged at warning. Given once (C1/C2/C3 Phase 2): only to the seed row (the one owner key not of the 'u_' form,
         users_one_seed), and only while it has no subscription row at all, whatever its status. From then on the
         subscription is the admin's: a cancelled or ended one is never given back at a restart. Idempotent (every
@@ -173,8 +232,10 @@ class AccountStore:
                 logger.warning(json.dumps({'event': 'account_seed_plan_refused', 'user_id': user_id,
                                            'reason': 'not the seed account'}))
                 return None
+            # the plan whose '*' is true: a flag may be false since the M480 fix round, so a row alone holds nothing
+            # (re-check R1-25)
             plans = [r['plan_key'] for r in c.execute('''SELECT DISTINCT plan_key FROM edge_bff.plan_capabilities
-                WHERE capability_key = %s ORDER BY plan_key''', (EVERYTHING,)).fetchall()]
+                WHERE capability_key = %s AND value = 'true'::jsonb ORDER BY plan_key''', (EVERYTHING,)).fetchall()]
             if len(plans) != 1:
                 logger.warning(json.dumps({'event': 'account_seed_plan_ambiguous', 'plans': len(plans)}))
                 return None
@@ -194,10 +255,30 @@ class AccountStore:
         verifier, or None (a disabled or pending one is not found here)."""
         lowered = login.strip().lower()
         with self.store.connect() as c:
-            return c.execute('''SELECT u.user_id, u.owner_key, u.username, u.role, u.status, u.email, i.verifier
+            return c.execute('''SELECT u.user_id, u.owner_key, u.username, u.role, u.status, u.email, u.test_account,
+                    i.verifier
                 FROM edge_bff.users u JOIN edge_bff.identities i ON i.user_id = u.user_id AND i.provider = 'password'
                 WHERE (u.username = %s OR u.email = %s) AND u.status = %s
                 ORDER BY (u.username = %s) DESC LIMIT 1''', (lowered, lowered, ACTIVE, lowered)).fetchone()
+
+    def sign_in_try(self, user_id):
+        """One password try of the account, decided and counted in one statement before the password is checked (the
+        R2-12 lesson: tries sent together cannot all pass a count each read before the others added theirs). True when
+        the try may be checked (it is counted; a success clears the count), False while the account is locked. A lock
+        that has ended restarts the count at PASSWORD_RESTART; the try that reaches PASSWORD_FAILURE_CAP starts the
+        lock (that try is still checked: it is the 100th)."""
+        with self.store.connect() as c:
+            return c.execute('''UPDATE edge_bff.identities SET
+                    sign_in_failures = (CASE WHEN sign_in_locked_until IS NOT NULL THEN %(restart)s
+                                             ELSE sign_in_failures END) + 1,
+                    sign_in_locked_until = CASE WHEN (CASE WHEN sign_in_locked_until IS NOT NULL THEN %(restart)s
+                                                           ELSE sign_in_failures END) + 1 >= %(cap)s
+                                                THEN now() + make_interval(secs => %(lock)s) END
+                WHERE user_id = %(user)s AND provider = 'password'
+                  AND (sign_in_locked_until IS NULL OR sign_in_locked_until <= now())
+                RETURNING sign_in_failures''', {'user': user_id, 'restart': PASSWORD_RESTART,
+                                               'cap': PASSWORD_FAILURE_CAP,
+                                               'lock': PASSWORD_LOCK_SECONDS}).fetchone() is not None
 
     def pending_logins(self, login):
         """The newest PENDING_CHECKED pending registrations of an address with their verifiers (a sign-in with the right
@@ -209,15 +290,38 @@ class AccountStore:
                 WHERE u.email = %s AND u.status = 'pending' ORDER BY u.created_at DESC, u.user_id DESC LIMIT %s''',
                              (lowered, PENDING_CHECKED)).fetchall()
 
-    def create_session(self, hashed, user, seconds, ip_hash=None, mfa_passed=False, mfa_user=False):
+    @staticmethod
+    def lock_account(c, user_id):
+        """The account's users row, locked for the rest of the caller's transaction (the module docstring); None when
+        the account is not active."""
+        return c.execute('SELECT user_id FROM edge_bff.users WHERE user_id = %s AND status = %s FOR UPDATE',
+                         (user_id, ACTIVE)).fetchone()
+
+    def create_session(self, hashed, user, seconds, ip_hash=None, mfa_passed=False, mfa_user=False, proved=None,
+                       replaces=None, rehash=None):
         """A session of the account (owner_key kept beside user_id), then the account's oldest live sessions beyond the
         cap revoked, in one transaction under the account's lock (two sign-ins at once cannot both keep one too many).
         For an account that needs MFA (mfa_user), a session that has not passed it is pending: pending sessions have
         their own cap (MAX_PENDING_SESSIONS) and never count towards, or revoke, the MAX_SESSIONS real ones (C1 note).
-        Returns the number revoked."""
+        The proof the session rests on is checked under the lock (ERRORS R2-9): `proved`, the verifier a sign-in
+        proved, must still be the account's (its failure count is then cleared, and `rehash`, the same password at the
+        current cost, takes its place: ERRORS R2-29); `replaces`, the pending session an MFA verify upgrades, must still
+        be live, and is revoked in the same transaction. Returns the number revoked, or None when the account or the
+        proof no longer holds (nothing is made)."""
         pending = mfa_user and not mfa_passed
         with self.store.connect() as c:
-            c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('sessions:' + str(user['user_id']),))
+            if self.lock_account(c, user['user_id']) is None:
+                return None
+            if proved is not None and c.execute('''UPDATE edge_bff.identities
+                    SET sign_in_failures = 0, sign_in_locked_until = NULL, verifier = coalesce(%(new)s, verifier),
+                        updated_at = CASE WHEN %(new)s::text IS NULL THEN updated_at ELSE now() END
+                    WHERE user_id = %(user)s AND provider = 'password' AND verifier = %(proved)s
+                    RETURNING user_id''', {'new': rehash, 'user': user['user_id'], 'proved': proved}).fetchone() is None:
+                return None
+            if replaces is not None and c.execute('''UPDATE edge_bff.sessions SET revoked_at = now()
+                    WHERE token_hash = %s AND user_id = %s AND revoked_at IS NULL AND expires_at > now()
+                    RETURNING token_hash''', (replaces, user['user_id'])).fetchone() is None:
+                return None
             c.execute('''INSERT INTO edge_bff.sessions(token_hash, owner_key, user_id, expires_at, last_seen_at,
                     mfa_passed_at, created_ip_hash)
                 VALUES (%s, %s, %s, now() + %s * interval '1 second', now(), CASE WHEN %s THEN now() END, %s)''',
@@ -236,8 +340,10 @@ class AccountStore:
             c.execute('UPDATE edge_bff.users SET last_sign_in_at = now() WHERE user_id = %s', (user_id,))
 
     def revoke_all(self, user_id):
-        """Every live session of the account (password change or reset, disable, role change; CONTRACT.md section 4)."""
+        """Every live session of the account (password change or reset, disable, role change; CONTRACT.md section 4),
+        under the account's lock: a session being made from an earlier proof is either seen here or refused."""
         with self.store.connect() as c:
+            c.execute('SELECT user_id FROM edge_bff.users WHERE user_id = %s FOR UPDATE', (user_id,))
             return c.execute('UPDATE edge_bff.sessions SET revoked_at = now() WHERE user_id = %s AND revoked_at IS NULL',
                              (user_id,)).rowcount
 
@@ -245,8 +351,26 @@ class AccountStore:
 PENDING_HOURS = 24
 
 
-def purge_pending(connection):
+def purge_pending(connection, limit=None):
     """Registrations never verified, 24 h after they were made (CONTRACT.md section 4); their identity and codes go with
-    them (ON DELETE CASCADE). Called from Store.cleanup_sessions, the worker loop's hourly cleanup."""
-    connection.execute('''DELETE FROM edge_bff.users WHERE status = 'pending' AND email_verified_at IS NULL
-        AND created_at < now() - make_interval(hours => %s)''', (PENDING_HOURS,))
+    them (ON DELETE CASCADE). At most limit of them (None: every one); the accounts deleted. Called from Store.purge, the
+    hourly housekeeping (worker.Housekeeping)."""
+    return connection.execute('''DELETE FROM edge_bff.users WHERE user_id IN (SELECT user_id FROM edge_bff.users
+        WHERE status = 'pending' AND email_verified_at IS NULL AND created_at < now() - make_interval(hours => %s)
+        LIMIT %s)''', (PENDING_HOURS, limit)).rowcount
+
+
+# EXEC-MU-ACCOUNTS "Decisions from the fix round" item 2 (user 2026-11-19: "a"): email codes, outbox rows and webhook
+# deliveries are kept 30 days (the outbox and the deliveries by migration 20261119_012's functions, which hold the same
+# number; tests/test_decisions_small.py ages a row of each to either side of it)
+EMAIL_RETENTION_DAYS = 30
+
+
+def purge_codes(connection, limit=None):
+    """Email codes that can no longer be used, EMAIL_RETENTION_DAYS after they ended: used (consumed_at) or, never
+    used, expired (expires_at, 300 s after they were made). A live code is never deleted, so the one-live-code rule
+    (email_codes_one_live) and the 5 tries are unchanged. At most limit of them (None: every one); the codes deleted.
+    Called from Store.purge, the hourly housekeeping (worker.Housekeeping; store.PURGES 'codes')."""
+    return connection.execute('''DELETE FROM edge_bff.email_codes WHERE code_id IN (SELECT code_id FROM edge_bff.email_codes
+        WHERE coalesce(consumed_at, expires_at) < now() - make_interval(days => %s) ORDER BY code_id LIMIT %s)''',
+                              (EMAIL_RETENTION_DAYS, limit)).rowcount

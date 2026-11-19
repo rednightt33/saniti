@@ -256,6 +256,52 @@ export default defineRailway(() => {
     deploy: { restartPolicyType: "ALWAYS" },
     env: { BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), BACKTEST_WORKER_URL: preserve(), EDGE_CODE_SECRET: preserve(), EDGE_DATABASE_URL: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_HEARTBEAT_SECONDS: preserve(), EDGE_INITIAL_PASSWORD: preserve(), EDGE_LEASE_SECONDS: preserve(), EDGE_LOGIN: preserve(), EDGE_MFA_KEY: preserve(), EDGE_ORC_TIMEOUT_SECONDS: preserve(), EDGE_ORC_URL: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_POLL_SECONDS: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SECURE_COOKIE: preserve(), EDGE_SESSION_SECONDS: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_TERMINAL_URL: preserve(), EDGE_WORKER_ENABLED: preserve(), MARKET_AI_ORC_API_KEY: preserve(), PORT: preserve(), SCREENER_TIMEOUT_SECONDS: preserve(), SCREENER_WORKER_KEY: preserve(), SCREENER_WORKER_URL: preserve(), TERMINAL_PROXY_KEY: preserve() },
   });
+  // EXEC-MU-ACCOUNTS "Production environment" (user decisions 2026-11-19): the live website. A comment, not a
+  // declaration, until its variables are set with the go for the live site; the service exists empty on Railway
+  // (RAILWAY_CHANGELOG.md 2026-11-19). edge-bff above is the beta (EDGE_SITE unset = beta, EDGE_MULTIUSER off, the admin
+  // only); only the website is doubled, every other service and the database are shared. Rules the code holds
+  // (apps/edge-bff/app/config.py validate): EDGE_SITE=live needs EDGE_MULTIUSER=true, the beta refuses it, the live site
+  // runs no AI job loop, and the email mode is resend (log is for EDGE_ENVIRONMENT=local only). Its settings follow,
+  // written as the body of its service() call once it is created (the call itself is not written here: this file's
+  // readers, such as apps/terminal-api/tests/test_api.py, take every service call in it, a comment's too, for a
+  // declared service).
+  // edge-bff-live:
+  //   // its own branch: "push ke live" moves `live` to a version every suite passed on the beta (EXEC.md detail 3)
+  //   source: github("rednightt33/saniti", { branch: "live", checkSuites: true, rootDirectory: "/apps/edge-bff" }),
+  //   build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
+  //   start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1 --no-access-log --no-proxy-headers",
+  //   healthcheck: "/ready",              // 503 until the start-up steps ran and the loops started (ERRORS R2-3)
+  //   healthcheckTimeout: 120,
+  //   replicas: { "sfo": 1 },             // one process, as edge-bff (README: the per-process caches)
+  //   deploy: { restartPolicyType: "ALWAYS" },
+  //   env: {
+  //     EDGE_SITE: "live", EDGE_MULTIUSER: "true",
+  //     EDGE_PUBLIC_ORIGIN: "https://app.edgefinance.id",     // the one origin a write is accepted from
+  //     EDGE_EMAIL_MODE: "resend", RESEND_API_KEY: preserve(), EDGE_EMAIL_FROM: preserve(), RESEND_WEBHOOK_SECRET: preserve(),
+  //     // ERRORS R2-8, R2-26: secrets that key rows of the shared tables (throttle and CSRF, email codes, the one TOTP
+  //     // row per user) hold edge-bff's values, as Railway references, so one rotation reaches both sites
+  //     EDGE_SESSION_SECRET: "${{edge-bff.EDGE_SESSION_SECRET}}", EDGE_CODE_SECRET: "${{edge-bff.EDGE_CODE_SECRET}}",
+  //     EDGE_MFA_KEY: "${{edge-bff.EDGE_MFA_KEY}}",
+  //     // user #1 is one account for both sites: the same owner, login and environment verifier
+  //     EDGE_OWNER: "${{edge-bff.EDGE_OWNER}}", EDGE_LOGIN: "${{edge-bff.EDGE_LOGIN}}",
+  //     EDGE_PASSWORD_VERIFIER: "${{edge-bff.EDGE_PASSWORD_VERIFIER}}",
+  //     // the shared services and the database (edge_bff_login: two pools of 6 of its 20 connections)
+  //     EDGE_DATABASE_URL: "${{edge-bff.EDGE_DATABASE_URL}}", EDGE_ENVIRONMENT: "${{edge-bff.EDGE_ENVIRONMENT}}",
+  //     EDGE_ORC_URL: "${{edge-bff.EDGE_ORC_URL}}", MARKET_AI_ORC_API_KEY: "${{edge-bff.MARKET_AI_ORC_API_KEY}}",
+  //     EDGE_TERMINAL_URL: "${{edge-bff.EDGE_TERMINAL_URL}}", TERMINAL_PROXY_KEY: "${{edge-bff.TERMINAL_PROXY_KEY}}",
+  //     BACKTEST_WORKER_URL: "${{edge-bff.BACKTEST_WORKER_URL}}", BACKTEST_WORKER_KEY: "${{edge-bff.BACKTEST_WORKER_KEY}}",
+  //     BACKTEST_TIMEOUT_SECONDS: "${{edge-bff.BACKTEST_TIMEOUT_SECONDS}}",
+  //     BACKTEST_MAX_RESULT_BYTES: "${{edge-bff.BACKTEST_MAX_RESULT_BYTES}}",
+  //     SCREENER_WORKER_URL: "${{edge-bff.SCREENER_WORKER_URL}}", SCREENER_WORKER_KEY: "${{edge-bff.SCREENER_WORKER_KEY}}",
+  //     SCREENER_TIMEOUT_SECONDS: "${{edge-bff.SCREENER_TIMEOUT_SECONDS}}",
+  //     // the loops: EDGE_AI_WORKER_ENABLED unset (off on the live site), the backtest loop (its own site's jobs), the
+  //     // email sender and the hourly housekeeping on; once this site runs, edge-bff (the beta) gets
+  //     // EDGE_HOUSEKEEPING_ENABLED=false, so the live site is the housekeeping's one owner
+  //     // track guest (decisions of 2026-11-19): EDGE_GUESTS and EDGE_PRELAUNCH unset (both on for the live site:
+  //     // visitors open the Terminal, registration is closed and only the admin and test accounts sign in); at the
+  //     // launch EDGE_PRELAUNCH: "false". EDGE_UPGRADE_CONTACT: the upgrade box's contact (plain text; unset: "comes soon")
+  //     PORT: "8080",
+  //   },
   const aiDataCoverage = service("ai-data-coverage", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/ai-data-coverage" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/ai-data-coverage/**"] },

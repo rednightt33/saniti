@@ -50,7 +50,7 @@ def test_manual_steps_need_a_session_and_are_passed_to_orc(settings, store):
 def test_manual_routes_refuse_an_owner_who_is_not_an_admin(settings, store):
     """M474 (edge-bff side): an owner outside EDGE_ADMIN_OWNERS reaches neither route, and Orc is never asked."""
     orc = ManualOrc()
-    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('someone-else',)), store, orc)) as c:
+    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('another-owner',)), store, orc)) as c:
         h = login(c)
         for r in (c.get('/api/v1/dev/manual/steps'), c.post('/api/v1/dev/manual/steps/s1', headers=h, json={})):
             assert r.status_code == 403, r.text

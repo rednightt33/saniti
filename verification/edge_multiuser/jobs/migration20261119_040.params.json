@@ -1,0 +1,48 @@
+{
+ "mode": "DRYRUN",
+ "migrations": [
+  "20261119_040_edge_bff_audit_ids_and_catalog_trace.sql"
+ ],
+ "probes": [
+  [
+   "audit_foreign_keys",
+   null,
+   "SELECT c.relname, a.attname, k.conname, k.confdeltype FROM pg_constraint k JOIN pg_class c ON c.oid = k.conrelid JOIN pg_attribute a ON a.attrelid = k.conrelid AND a.attnum = ANY (k.conkey) WHERE k.contype = 'f' AND k.confrelid = 'edge_bff.users'::regclass ORDER BY c.relname, a.attname"
+  ],
+  [
+   "trace_triggers",
+   null,
+   "SELECT t.tgname, c.relname, p.proname, has_function_privilege('public', p.oid, 'EXECUTE') AS public_execute FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid JOIN pg_proc p ON p.oid = t.tgfoid WHERE NOT t.tgisinternal AND c.relnamespace = 'edge_bff'::regnamespace AND c.relname IN ('plan_capabilities', 'user_capability_overrides') ORDER BY t.tgname"
+  ],
+  [
+   "override_columns",
+   null,
+   "SELECT string_agg(column_name || ':' || data_type || ':' || is_nullable, ', ' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name = 'user_capability_overrides'"
+  ],
+  [
+   "texts",
+   null,
+   "SELECT (SELECT means FROM edge_bff.capabilities WHERE capability_key = 'terminal.history_days') AS history_means, col_description('edge_bff.capabilities'::regclass, (SELECT attnum FROM pg_attribute WHERE attrelid = 'edge_bff.capabilities'::regclass AND attname = 'kind')) AS kind_comment"
+  ],
+  [
+   "plan_versions",
+   null,
+   "SELECT plan_key, count(*) AS rows, max(version) AS max_version, max(updated_at) AS last_change FROM edge_bff.plan_capabilities GROUP BY plan_key ORDER BY plan_key"
+  ],
+  [
+   "audit_rows",
+   null,
+   "SELECT count(*) AS rows, count(target_user_id) AS with_target FROM edge_bff.admin_audit"
+  ],
+  [
+   "runtime_grants",
+   null,
+   "SELECT e.t AS table_name, e.p AS expected, string_agg(x.priv, ',' ORDER BY x.priv) FILTER (WHERE has_table_privilege('edge_bff_runtime', 'edge_bff.' || e.t, x.priv)) AS held FROM (VALUES ('admin_audit', 'INSERT,SELECT'), ('plan_capabilities', 'SELECT'), ('user_capability_overrides', 'INSERT,SELECT,UPDATE')) AS e(t, p) CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS x(priv) GROUP BY e.t, e.p ORDER BY e.t"
+  ],
+  [
+   "column_grants",
+   null,
+   "SELECT n.nspname, c.relname, a.attname, x.privilege_type, CASE WHEN x.grantee = 0 THEN 'PUBLIC' ELSE x.grantee::regrole::text END AS grantee FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN LATERAL aclexplode(a.attacl) x WHERE a.attacl IS NOT NULL AND NOT a.attisdropped AND a.attnum > 0 AND n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname NOT LIKE 'pg_toast%' AND (x.grantee = 0 OR x.grantee IN (SELECT oid FROM pg_roles WHERE rolname IN ('edge_bff_runtime', 'edge_bff_login'))) ORDER BY 1, 2, 3, 4"
+  ]
+ ]
+}

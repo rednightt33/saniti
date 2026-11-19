@@ -86,8 +86,10 @@ BEGIN
             AND value = '{"stages": ["released"]}'::jsonb) <> 3 THEN
         RAISE EXCEPTION 'the paid plan lost a candle_pattern or screener.metric grant';
     END IF;
-    IF (SELECT count(DISTINCT plan_key) FROM edge_bff.plan_capabilities WHERE capability_key = '*') <> 1 THEN
-        RAISE EXCEPTION 'exactly one plan must hold *';
+    -- the plan that holds every capability is the one whose '*' is true (a flag may be false; re-check R1-25)
+    IF (SELECT count(DISTINCT plan_key) FROM edge_bff.plan_capabilities WHERE capability_key = '*'
+            AND value = 'true'::jsonb) <> 1 THEN
+        RAISE EXCEPTION 'exactly one plan must hold * = true';
     END IF;
 END $verify$;
 COMMIT;

@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+import functools
 import hmac
 import json
 import logging
@@ -20,8 +21,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .backtest import Backtests
 from . import catalog, terminal_access
 from .client import OrcClient, OrcError, public_data
-from .config import Settings
-from .errors import Refusal, http_refusal, refusal, validation_refusal
+from .config import LIVE, Settings
+from .errors import Refusal, UnexpectedErrors, http_refusal, refusal, validation_refusal
 from .hooks import is_hook_path
 from .layouts import Layouts
 from .monitor import ModelCatalog, run_refusal, visible as visible_models
@@ -29,22 +30,37 @@ from .auth_flows import AuthFlows
 from .mailer import EmailSender
 from .preferences import Preferences
 from .presets import Presets
-from .accounts import PENDING_CHECKED
-from .principal import Auth, Principal
+from .accounts import EMAIL_MAX, PENDING_CHECKED
+from .passwords import PasswordWork
+from .principal import BETA_ONLY_TABS, Auth, Principal
 from .drawings import Drawings
 from .overview import Overview
 from .watchlist import Watchlist
 from .radar import Radar
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
-from .security import csrf_token, token_hash, verify_password
+from .security import SESSION_COOKIE, cookie_name, csrf_token, needs_rehash, password_verifier, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
 from .throttle import SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address, normal_login
-from .worker import Worker
+from .worker import Housekeeping, Worker
 
-COOKIE = 'edge_session'
+COOKIE = SESSION_COOKIE                     # its name on an https origin: cookie_name (__Host-, re-check R2-22)
+# the start-up's lines (startup_not_ready, startup_done, email_sender_off): INFO included, written as app/backtest.py's
+# are when nothing set up a handler (uvicorn configures only its own loggers; lastResort writes WARNING and above)
+startup_log = logging.getLogger('edge_bff.startup')
+if not startup_log.hasHandlers():
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter('%(message)s'))
+    startup_log.addHandler(_handler)
+    startup_log.setLevel(logging.INFO)
 STOP_RETRIES = 3  # EXEC-Y Fase 1 (I1): a run dispatched a moment ago is registered at Orc on receipt
 STATIC = Path(__file__).resolve().parents[1] / 'static'
 SCRIPT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
+# EXEC-MU-ACCOUNTS re-check R2-28 (user 2026-11-19: "5a pakai inter"): EDGE's own copy of the Inter font (static/fonts: the
+# woff2 files, the two stylesheets the pages link, OFL.txt), so no page asks Google Fonts and every policy keeps
+# font-src 'self' (no visitor's address reaches Google)
+FONTS = STATIC / 'fonts'
+FONT_NAME = re.compile(r'[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*\.(?:woff2|css|txt)')
+FONT_TYPES = {'.woff2': 'font/woff2', '.css': 'text/css; charset=utf-8', '.txt': 'text/plain; charset=utf-8'}
 # EXEC-TERMINAL-API T4/T5: the built terminal page (apps/edge-bff/terminal -> static/terminal-app) and the terminal-api
 # routes the page may reach through this gateway (sign-in, password and admin routes stay on terminal-api only)
 TERMINAL_APP = STATIC / 'terminal-app'
@@ -55,10 +71,14 @@ TERMINAL_ASSET = re.compile(r'[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.(?:js|css|wof
 # EXEC-MU-ACCOUNTS Phase 3c (CONTRACT.md 8b "3c in detail"): cut/<TICKER>/<dataset>, the last N days of a dataset that
 # terminal-api cuts for a principal with terminal.history_days (decision D2 = A), relayed byte for byte (relay_cut);
 # its datasets and /history's come from app/terminal_access.py (terminal-api's own names)
+# EXEC-MU-ACCOUNTS re-check R2-32: reference/<name>/cut, the plan's own copy of a reference file (terminal-api refcut.py),
+# relayed byte for byte like a cut (TERMINAL_BYTES)
+TERMINAL_BYTES = re.compile(rf'cut/[A-Z0-9]{{1,12}}/(?:{"|".join(terminal_access.CUT_DATASETS)})'
+                            r'|reference/[a-z0-9][a-z0-9_-]{0,31}/cut')
 TERMINAL_ROUTES = {'GET': re.compile(r'manifest/[A-Z0-9]{1,12}|reference/[a-z0-9][a-z0-9_-]{0,31}'
                                       rf'|history/(?:{"|".join(terminal_access.HISTORY_DATASETS)})'
                                       r'|logo/[A-Z0-9]{1,12}'   # logo: EXEC-TERMINAL-LOGO
-                                      rf'|cut/[A-Z0-9]{{1,12}}/(?:{"|".join(terminal_access.CUT_DATASETS)})'),
+                                      rf'|{TERMINAL_BYTES.pattern}'),
                    'POST': re.compile(r'files|bundle')}   # bundle: every file of one ticker in one call (EXEC-TERMINAL-UI-1026 U6)
 # the cut's answer: its gzip bytes exactly (no JSON parse, no decoding, no Content-Encoding, so the page's sha256 check
 # holds), with only these headers of terminal-api's, at most TERMINAL_CUT_BYTES
@@ -67,13 +87,13 @@ TERMINAL_CUT_BYTES = 64 * 1024 * 1024
 # The terminal page has no inline script; it downloads its files from the private bucket by presigned URL (virtual-host
 # addressing, https://<bucket>.t3.storageapi.dev). Inline style attributes are kept: the reference page builds them.
 TERMINAL_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
-                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
+                "style-src 'self' 'unsafe-inline'; font-src 'self'; "
                 "img-src 'self' data: blob:; connect-src 'self' https://*.t3.storageapi.dev; object-src 'none'; "
-                "base-uri 'self'; frame-ancestors 'self'")
+                "base-uri 'self'; form-action 'self'; frame-ancestors 'self'")
 # EDGE backtest (CONTRACT.md section 10): the built backtest page (apps/edge-bff/backtest -> static/backtest-app), shown in
-# the Backtest tab's frame. It loads what the terminal page loads (its own script and stylesheet, Google Fonts, inline
-# style attributes) and, for the signal preview, the ticker files the /api/terminal/v1/bundle answer presigns on the
-# bucket, so it takes the terminal page's policy.
+# the Backtest tab's frame. It loads what the terminal page loads (its own script and stylesheet, EDGE's own Inter from
+# /fonts/, inline style attributes) and, for the signal preview, the ticker files the /api/terminal/v1/bundle answer
+# presigns on the bucket, so it takes the terminal page's policy.
 BACKTEST_APP = STATIC / 'backtest-app'
 BACKTEST_CSP = TERMINAL_CSP
 # EDGE screener (EXEC-SCREENER; report FRONTEND INTEGRATION 9.1, 9.7): the built screener page (apps/edge-bff/screener ->
@@ -92,9 +112,9 @@ OVERVIEW_APP = STATIC / 'overview-app'
 # Watchlist tab's frame; its lists come from /api/v1/watchlist/lists and its figures from /api/v1/watchlist (file)
 WATCHLIST_APP = STATIC / 'watchlist-app'
 SCREENER_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
-                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
+                "style-src 'self' 'unsafe-inline'; font-src 'self'; "
                 "img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; "
-                "base-uri 'self'; frame-ancestors 'self'")
+                "base-uri 'self'; form-action 'self'; frame-ancestors 'self'")
 # EXEC-WATCHLIST L5: the Watchlist page shows the Terminal's issuer logos; their list is the Terminal's reference file
 # (GET /api/terminal/v1/reference/logos answers a presigned URL on the bucket), so the page takes the Terminal page's
 # policy: the Screener's plus connect-src to the bucket (a host EDGE already uses; no new one). The images come from
@@ -116,7 +136,8 @@ class Strict(BaseModel):
 
 
 class Login(Strict):
-    login: str = Field(min_length=1, max_length=200)
+    # ERRORS R1-14: as long as the longest email an account may have (the login is a username or an email)
+    login: str = Field(min_length=1, max_length=EMAIL_MAX)
     password: str = Field(min_length=1, max_length=1024)
 
 
@@ -230,67 +251,123 @@ def create_app(settings=None, store=None, orc=None):
     radar = Radar(settings)
     overview = Overview(settings)                       # EXEC-OVERVIEW O4
     watchlist = Watchlist(settings, store)              # EXEC-WATCHLIST L3
-    ready = {'value': False}
+    # EXEC-MU-ACCOUNTS beta/live: the AI loop claims only the runs this site queued (config.py EDGE_SITE)
+    worker.claim = functools.partial(store.claim, site=settings.site)
+    housekeeping = Housekeeping(settings, store)        # ERRORS R2-33: the hourly purges, their own task
+    # ERRORS R2-3, R2-36: the start-up steps (readiness, the seeds, the catalog names) and then the loops, retried until
+    # they ran; /ready answers 503 until then. lock: one attempt at a time; serving: the app's lifespan has started
+    started = {'done': False, 'serving': False, 'failures': 0, 'lock': None, 'stopping': None, 'tasks': []}
     # EXEC-MU-ACCOUNTS Phase 0: the sign-in throttle lives in PostgreSQL (app/throttle.py), shared by every instance
     throttle = Throttle(store, settings.session_secret)
     # EXEC-MU-ACCOUNTS Phase 1: the principal of every request (app/principal.py) and the account preferences
     auth = Auth(settings, store)
+    session_cookie = cookie_name(COOKIE, settings.secure_cookie)      # re-check R2-22
     # Phase 3a: the worker re-checks the owner's principal when it dispatches a queued run (monitor.chat, the model)
     worker.access = auth.owner_principal
     preferences = Preferences(store)
     # the email outbox's sender loop and the auth flows (registration, codes, MFA; CONTRACT.md sections 4 and 5)
     sender = EmailSender(settings, store)
-    flows = AuthFlows(settings, store, auth, throttle, sender)
+    # ERRORS R2-37: every password derivation and Pwned Passwords call runs on this pool, apart from the database's
+    password_work = PasswordWork()
+    flows = AuthFlows(settings, store, auth, throttle, sender, password_work=password_work)
     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
     # (a client per request opened a new connection every time)
     terminal_http = {'client': None}
 
+    def start_loops():
+        """The background loops (EXEC-MU-ACCOUNTS beta/live: each with its own switch, config.py; EDGE_WORKER_ENABLED=false
+        starts none): the AI job loop (the beta only, Settings.ai_worker), the backtest loop (each site claims its own
+        jobs), the hourly housekeeping and the email sender (its own task, never behind an AI run or a backtest; only
+        with the switch on, so only on the live site)."""
+        if settings.multiuser and settings.email_mode == 'log' and settings.environment != 'local':
+            # EDGE_EMAIL_LOG_ALLOWED: every code stays readable in the outbox; said at every start while it is on
+            startup_log.error(json.dumps({'event': 'email_log_mode_allowed', 'site': settings.site}))
+        if settings.multiuser and not (settings.worker_enabled and settings.email_enabled):
+            # no registration or reset code leaves this instance; visible, as an intended sender-less one must be
+            startup_log.error(json.dumps({'event': 'email_sender_off', 'site': settings.site}))
+        if not settings.worker_enabled:
+            return
+        if settings.ai_worker:
+            started['tasks'].append(asyncio.create_task(worker.run()))
+        if settings.backtest_loop_enabled and backtests.loop:
+            started['tasks'].append(asyncio.create_task(backtests.loop.run()))
+        if settings.housekeeping_enabled:
+            started['tasks'].append(asyncio.create_task(housekeeping.run()))
+        if settings.multiuser and settings.email_enabled:
+            started['tasks'].append(asyncio.create_task(sender.run()))
+
+    async def start_up():
+        """One attempt at the start-up steps (ERRORS R2-3, R2-36); True once they ran, and then always. Readiness first
+        (the tables and columns this build reads; a database being restarted, a migration not applied yet), then user
+        #1 and its plan, the catalog's names, then the loops. A seed failure keeps the switch-off sign-in working (the
+        loops start); with the switch on nothing can sign in without accounts, so the attempt fails and is made again.
+        While no attempt succeeded /ready answers 503 and no loop runs: a build that is not ready never claims a job."""
+        async with started['lock']:
+            if started['done']:
+                return True
+            try:
+                await asyncio.to_thread(store.ready, settings.multiuser)
+                # EXEC-MU-ACCOUNTS Phase 1: user #1 (the configured owner) when the accounts table holds none;
+                # idempotent across replicas and attempts
+                try:
+                    await asyncio.to_thread(auth.seed_user)
+                except Exception as e:                 # noqa: BLE001 - logged by its class only (no secret in it)
+                    logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_failed',
+                                                                               'error': type(e).__name__}))
+                    if settings.multiuser:
+                        raise
+                # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): user #1's subscription to the plan holding every
+                # capability, found by data (account_seed_plan_ambiguous otherwise); idempotent. A failure (the catalog
+                # migration not applied yet) changes nothing with the switch off; with it on nothing resolves without
+                # the catalog
+                try:
+                    await asyncio.to_thread(auth.refresh_names)  # Phase 3a (C1 F3): refusals name what the person sees
+                except Exception as e:                 # noqa: BLE001 - the plain phrase stays until the next read
+                    logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'capability_names_failed',
+                                                                               'error': type(e).__name__}))
+                try:
+                    await asyncio.to_thread(auth.seed_plan)
+                except Exception as e:                 # noqa: BLE001 - logged by its class only (no secret in it)
+                    logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_plan_failed',
+                                                                               'error': type(e).__name__}))
+                    if settings.multiuser:
+                        raise
+            except Exception as e:                     # noqa: BLE001 - its class only (no secret in the log)
+                started['failures'] += 1
+                if started['failures'] == 1 or started['failures'] % 30 == 0:
+                    startup_log.error(json.dumps({'event': 'startup_not_ready', 'error': type(e).__name__,
+                                                  'attempts': started['failures']}))
+                return False
+            start_loops()
+            started['done'] = True
+            startup_log.info(json.dumps({'event': 'startup_done', 'site': settings.site, 'attempts': started['failures'] + 1,
+                                         'loops': len(started['tasks']), 'commit': settings.commit_sha or None,
+                                         'shared_keys': settings.shared_key_marks()}))
+            return True
+
     @asynccontextmanager
     async def lifespan(app):
-        try:
-            await asyncio.to_thread(store.ready, settings.multiuser)
-            ready['value'] = True
-        except Exception:
-            ready['value'] = False
-        if ready['value']:
-            # EXEC-MU-ACCOUNTS Phase 1: user #1 (the configured owner) when the accounts table holds none; idempotent
-            # across replicas. A failure keeps the switch-off sign-in working; with the switch on nothing can sign in
-            # without accounts, so the worker does not start
-            try:
-                await asyncio.to_thread(auth.seed_user)
-            except Exception as e:                     # noqa: BLE001 - logged by its class only (no secret in it)
-                logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_failed',
-                                                                           'error': type(e).__name__}))
-                if settings.multiuser:
-                    ready['value'] = False
-            # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): user #1's subscription to the plan holding every capability,
-            # found by data (account_seed_plan_ambiguous otherwise); idempotent. A failure (the catalog migration not
-            # applied yet) changes nothing with the switch off; with it on nothing resolves without the catalog
-            try:
-                await asyncio.to_thread(auth.refresh_names)      # Phase 3a (C1 F3): refusals name what the person sees
-            except Exception as e:                     # noqa: BLE001 - the plain phrase stays until the next read
-                logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'capability_names_failed',
-                                                                           'error': type(e).__name__}))
-            try:
-                await asyncio.to_thread(auth.seed_plan)
-            except Exception as e:                     # noqa: BLE001 - logged by its class only (no secret in it)
-                logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_plan_failed',
-                                                                           'error': type(e).__name__}))
-                if settings.multiuser:
-                    ready['value'] = False
-        task = asyncio.create_task(worker.run()) if settings.worker_enabled and ready['value'] else None
-        # EDGE backtest: its own loop, only with a worker configured; it does not wait for /ready (a missing backtest
-        # table keeps only the backtest feature off, BACKTEST_NOT_READY)
-        backtest_task = asyncio.create_task(backtests.loop.run()) if settings.worker_enabled and backtests.loop else None
-        # the email sender: its own task, never behind an AI run or a backtest (switch on, with the worker)
-        email_task = asyncio.create_task(sender.run()) if settings.multiuser and settings.worker_enabled \
-            and settings.email_enabled and ready['value'] else None
+        # made here, in the loop that serves (a lifespan begins with nothing started)
+        started.update(done=False, serving=True, failures=0, tasks=[], lock=asyncio.Lock(), stopping=asyncio.Event())
+        stopping = started['stopping']
+
+        async def keep_starting():
+            while not stopping.is_set() and not await start_up():
+                try:
+                    await asyncio.wait_for(stopping.wait(), timeout=settings.poll_seconds)
+                except asyncio.TimeoutError:
+                    pass
+        # the first attempt before the first request, as before; while it fails it is made again in the background
+        starter = None if await start_up() else asyncio.create_task(keep_starting())
         yield
+        stopping.set()
+        started['serving'] = False
         worker.stop()
         sender.stop()
+        housekeeping.stop()
         if backtests.loop:
             backtests.loop.stop()
-        for running in (task, backtest_task, email_task):
+        for running in [starter, *started['tasks']]:
             if running:
                 running.cancel()
                 await asyncio.gather(running, return_exceptions=True)
@@ -305,6 +382,7 @@ def create_app(settings=None, store=None, orc=None):
         await overview.aclose()
         await watchlist.aclose()
         await sender.aclose()
+        password_work.close()
 
     app = FastAPI(title='EDGE private gateway', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.worker, app.state.store, app.state.backtests = worker, store, backtests
@@ -370,6 +448,18 @@ def create_app(settings=None, store=None, orc=None):
         principal = getattr(state, 'principal', None)
         if principal is not None:
             response.headers['X-Edge-Entitlements'] = principal.version
+            # re-check R2-22: the switch-off owner's session read under the old cookie name moves to the new one
+            # (never over a route's own cookie answer: a sign-in or a sign-out sets or deletes it itself)
+            if (session_cookie != COOKIE and not settings.multiuser and principal.token
+                    and not request.cookies.get(session_cookie) and request.cookies.get(COOKIE) == principal.token
+                    and not any(h.startswith(session_cookie + '=') for h in response.headers.getlist('set-cookie'))):
+                response.set_cookie(session_cookie, principal.token, max_age=settings.session_seconds, httponly=True,
+                                    secure=True, samesite='strict', path='/')
+                response.delete_cookie(COOKIE, path='/')
+        # re-check R2-21: on an https origin the browser keeps to https for this host (no includeSubDomains: the domain's
+        # other hosts are not EDGE's; no preload, which is the user's decision on the domain)
+        if settings.origin.startswith('https://'):
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000'
         response.headers.setdefault('Cache-Control', 'no-store')
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'same-origin'
@@ -377,14 +467,22 @@ def create_app(settings=None, store=None, orc=None):
         if request.url.path.startswith('/api/terminal/v1/logo/') and 'sandbox' in response.headers.get('Content-Security-Policy', ''):
             return response
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
-        # still cannot; frame-ancestors 'self' keeps the clickjacking guard)
-        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+        # still cannot; frame-ancestors 'self' keeps the clickjacking guard). Re-check R2-19: the shell has no inline
+        # script (static/edge-boot.js, static/edge-app.js), so script-src is 'self' alone, and form-action is 'self'
+        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
         return response
+
+    # ERRORS R2-25: added last, so it is the outermost middleware: an exception no handler expected is answered 503
+    # here and logged by its class and SQLSTATE only, and never reaches Starlette's ServerErrorMiddleware, which
+    # re-raises it to the server, whose log line would carry the exception's text (a failing row's personal data)
+    app.add_middleware(UnexpectedErrors)
 
     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 2): the principal of every request (app/principal.py); auth.principal
     # replaces the session dependency and auth.writer the write (CSRF) one. The route-table test
     # (tests/test_route_table.py, CONTRACT.md 13.1) finds these in every /api route's dependencies.
     app.state.session_dependency, app.state.write_dependency = auth.principal, auth.writer
+    # track guest: the visitor dependencies (the guest plan's principal without a session; tests/test_route_table.py GUEST_OPEN)
+    app.state.visitor_dependency, app.state.visitor_write_dependency = auth.visitor, auth.visitor_writer
 
     async def still_signed_in(p):
         """The SSE stream re-checks the principal (and, Phase 3a, its monitor.view) on each loop (CONTRACT.md 4, 8b)."""
@@ -407,17 +505,26 @@ def create_app(settings=None, store=None, orc=None):
 
     @app.get('/ready')
     async def readiness():
+        # ERRORS R2-3, R2-36: ready once the start-up steps ran and the loops started (an attempt is made here while
+        # they have not: Railway's healthcheck passes only then), and while the database answers
+        if started['serving'] and not await start_up():
+            return error('NOT_READY', 503)
         try:
             await asyncio.to_thread(store.ready, settings.multiuser)
         except Exception:
             return error('NOT_READY', 503)
         return {'status': 'ready'}
 
+    @app.get('/version')
+    async def version():
+        """EXEC-MU-ACCOUNTS beta/live: which website this is and the commit it runs (Railway's RAILWAY_GIT_COMMIT_SHA;
+        null when unset, as on a developer machine), read before and after a push to live."""
+        return {'site': settings.site, 'commit': settings.commit_sha or None}
+
     # The page builds its links as <page>#/<route> (index.html staticUrl); opened at "/" that page is index.html, so
     # /index.html is served too (user 2026-10-24: a Branch tab and the side chat showed {"detail":"Not Found"})
     @app.get('/')
     @app.get('/index.html')
-    @app.get('/monitor')
     @app.get('/terminal')
     @app.get('/backtest')
     @app.get('/screener')
@@ -433,11 +540,21 @@ def create_app(settings=None, store=None, orc=None):
     async def index():
         return FileResponse(STATIC / 'index.html', media_type='text/html')
 
+    def on_this_site(tab):
+        """Whether this site serves a tab's pages: the live site has none of the beta-only tabs (principal.py)."""
+        return not (settings.site == LIVE and tab in BETA_ONLY_TABS)
+
+    @app.get('/monitor')
+    async def monitor_page():
+        if not on_this_site('monitor'):
+            return error('NOT_FOUND', 404)
+        return FileResponse(STATIC / 'index.html', media_type='text/html')
+
     # EXEC-CHAT-URL (user 2026-10-24: "B saja ya"): every conversation has its own address, /c/<conversation_id>, like
-    # ChatGPT and Claude; the page reads the id from it. Any other id is not a page.
+    # ChatGPT and Claude; the page reads the id from it. Any other id is not a page. A conversation is the Monitor's.
     @app.get('/c/{conversation_id}')
     async def conversation_page(conversation_id: str):
-        if not re.fullmatch(CONV, conversation_id):
+        if not re.fullmatch(CONV, conversation_id) or not on_this_site('monitor'):
             return error('NOT_FOUND', 404)
         return FileResponse(STATIC / 'index.html', media_type='text/html')
 
@@ -458,6 +575,15 @@ def create_app(settings=None, store=None, orc=None):
         if not SCRIPT_NAME.fullmatch(name) or not target.is_file():
             return error('NOT_FOUND', 404)
         return FileResponse(target, media_type='image/svg+xml', headers={'Cache-Control': 'public, max-age=86400'})
+
+    # EXEC-MU-ACCOUNTS re-check R2-28 (user 2026-11-19: "5a pakai inter"): the Inter font every page uses, served from
+    # this origin (FONTS); public like the sign-in page that needs it. The name pattern keeps the request inside fonts/.
+    @app.get('/fonts/{name}')
+    async def font(name: str):
+        target = FONTS / name
+        if not FONT_NAME.fullmatch(name) or not target.is_file():
+            return error('NOT_FOUND', 404)
+        return FileResponse(target, media_type=FONT_TYPES[target.suffix], headers={'Cache-Control': 'public, max-age=86400'})
 
     # EXEC-UI-1015C (user 2026-10-15, "Please also add Favicon"): the EDGE "E" mark for the browser tab and the phone
     # home screen. Public like the page itself, so the login screen shows it too.
@@ -552,6 +678,10 @@ def create_app(settings=None, store=None, orc=None):
     # refused by the route's terminal_access.guard), and a ticker or dataset the plan lacks is refused 403
     # CAPABILITY_REQUIRED before terminal-api is asked (terminal_access.check). With the switch off the configured owner
     # holds '*': admin, the body forwarded unchanged.
+    # Re-check R1-1, R1-26, R2-4: every answer goes through terminal_access.relayed, the one rule for what reaches the
+    # page: an acknowledged 2xx, its JSON through client.public_data (ERRORS M260); a refusal in the contract's shape (a
+    # terminal-api 401 or 403 about its own account or key is 503 TERMINAL_UNAVAILABLE, never the EDGE sign-in; a 429
+    # LIMIT_REACHED with Retry-After).
     async def forward_terminal(method: str, path: str, request: Request, p: Principal):
         if not settings.terminal_url:
             return error('TERMINAL_UNAVAILABLE', 503)
@@ -561,31 +691,39 @@ def create_app(settings=None, store=None, orc=None):
         try:
             body = terminal_access.check(p, method, path, request.query_params, body)
         except Refusal as refused:
-            if refused.code != 'CAPABILITY_REQUIRED':
-                raise
-            await refuse_capability(p, refused.details['capability'])
+            await refuse(p, refused)
         headers = terminal_access.headers(settings, p)
         if terminal_http['client'] is None:
             terminal_http['client'] = httpx.AsyncClient(timeout=30)
         url = f'{settings.terminal_url}/api/terminal/v1/{path}'
-        if path.startswith('cut/'):
-            return await relay_cut(url, request, headers, p)
+        if TERMINAL_BYTES.fullmatch(path):
+            return await relay_cut(url, request, headers, p, path)
         try:
             answer = await terminal_http['client'].request(method, url, params=request.query_params, content=body,
                                                            headers=headers)
         except httpx.HTTPError:
             return error('TERMINAL_UNAVAILABLE', 503)
-        if answer.status_code == 200 and answer.headers.get('content-type', '').startswith('image/'):
+        image = 200 <= answer.status_code < 300 and answer.headers.get('content-type', '').startswith('image/')
+        try:
+            data = None if image else answer.json()
+        except ValueError:
+            data = None
+        refused, data = terminal_access.relayed(p, answer.status_code, data, answer.headers, path)
+        if refused is not None:
+            await refuse(p, refused)
+        if image:
             # a ticker's logo passes through as it is, with terminal-api's caching and its no-script CSP
             return Response(answer.content, media_type=answer.headers['content-type'], headers={
                 k: answer.headers[k] for k in ('cache-control', 'etag', 'content-security-policy') if k in answer.headers})
-        try:
-            data = answer.json()
-        except ValueError:
-            return error('TERMINAL_UNAVAILABLE', 503)
-        if (capability := terminal_access.answered_capability(answer.status_code, data)) is not None:
-            await refuse_capability(p, capability)                    # terminal-api's own check, in EDGE's shape
+        if data is None:
+            return error('TERMINAL_UNAVAILABLE', 503)                 # a 2xx that is not JSON: never relayed on a guess
         return JSONResponse(status_code=answer.status_code, content=data)
+
+    async def refuse(p, refused):
+        """Raise a refusal of the Terminal path; a CAPABILITY_REQUIRED with the catalog's name (refuse_capability)."""
+        if refused.code == 'CAPABILITY_REQUIRED':
+            await refuse_capability(p, refused.details['capability'])
+        raise refused
 
     async def refuse_capability(p, capability):
         try:
@@ -594,12 +732,13 @@ def create_app(settings=None, store=None, orc=None):
             pass
         raise p.refusal(capability)
 
-    async def relay_cut(url, request, headers, p):
+    async def relay_cut(url, request, headers, p, path):
         """Phase 3c (decision D2 = A): terminal-api's cut of the last N days (application/gzip), its bytes exactly as sent
         (read raw, never decoded or parsed, no Content-Encoding added or relayed; the page checks their sha256 against
         /bundle's), with TERMINAL_CUT_HEADERS and always Cache-Control private (the bytes are this principal's). The
-        query (the page's ?sha256=) is forwarded. Another status passes through as JSON, like every forwarded answer;
-        terminal-api's capability_required in EDGE's CAPABILITY_REQUIRED shape."""
+        query (the page's ?sha256=) is forwarded. Re-check R2-32: the plan's own copy of a reference file
+        (reference/<name>/cut) the same way. Every answer goes through terminal_access.relayed (R1-1, R2-4): a refusal
+        in the contract's shape, an unacknowledged answer 503."""
         try:
             async with terminal_http['client'].stream('GET', url, params=request.query_params, headers=headers) as answer:
                 if answer.status_code != 200:
@@ -607,10 +746,11 @@ def create_app(settings=None, store=None, orc=None):
                     try:
                         data = answer.json()
                     except ValueError:
-                        return error('TERMINAL_UNAVAILABLE', 503)
-                    if (capability := terminal_access.answered_capability(answer.status_code, data)) is not None:
-                        await refuse_capability(p, capability)
-                    return JSONResponse(status_code=answer.status_code, content=data)
+                        data = None
+                    refused, _ = terminal_access.relayed(p, answer.status_code, data, answer.headers, path)
+                    await refuse(p, refused or Refusal(503, 'TERMINAL_UNAVAILABLE'))
+                if (refused := terminal_access.relayed(p, 200, None, answer.headers, path)[0]) is not None:
+                    await refuse(p, refused)
                 raw = bytearray()
                 async for chunk in answer.aiter_raw():
                     raw += chunk
@@ -628,8 +768,10 @@ def create_app(settings=None, store=None, orc=None):
         media = sent.pop('content-type', 'application/octet-stream')
         return Response(bytes(raw), media_type=media, headers={**sent, 'content-length': str(len(raw))})
 
-    terminal_read_gate = terminal_access.guard(auth.need(TERMINAL_VIEW))
-    terminal_write_gate = terminal_access.guard(auth.need(TERMINAL_VIEW, write=True))
+    # track guest (decision 1 of 2026-11-19, "1a"; principal.py): the Terminal's data relay is the one route family a
+    # visitor without an account reaches (guests=True: the guest plan's principal, 401 where guests are off)
+    terminal_read_gate = terminal_access.guard(auth.need(TERMINAL_VIEW, guests=True))
+    terminal_write_gate = terminal_access.guard(auth.need(TERMINAL_VIEW, write=True, guests=True))
 
     @app.get('/api/terminal/v1/{path:path}')
     async def terminal_read(path: str, request: Request, p: Principal = Depends(terminal_read_gate)):
@@ -660,60 +802,88 @@ def create_app(settings=None, store=None, orc=None):
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):
-        # EXEC-MU-ACCOUNTS Phase 0 (CONTRACT.md section 4 "Throttle"): 10 failures per login in 15 minutes, counted in
-        # PostgreSQL for every login typed (known or not, so a refusal says nothing about the account). The try is
+        # EXEC-MU-ACCOUNTS Phase 0 (CONTRACT.md section 4 "Throttle"): 10 failures per login and client address in 15
+        # minutes, counted in PostgreSQL for every login typed (known or not, so a refusal says nothing about the
+        # account; ERRORS R1-9: keyed by the login alone, anyone who typed it could keep its owner out). The try is
         # decided and counted in one locked step before the password check (C1 H1: a concurrent burst cannot pass the
-        # limit); a success clears the count. The client address is counted on failure but not enforced until
+        # limit); a success clears the count. The client address alone is counted on failure but not enforced until
         # Railway's forwarded address is proved.
-        login_key = normal_login(body.login)
-        wait = await asyncio.to_thread(throttle.attempt, SIGNIN_LOGIN, login_key)
-        if wait:
-            return refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
-        account = restart = None
-        if settings.multiuser:
-            # EXEC-MU-ACCOUNTS Phase 1 (switch on): the active account named by its username or email, its password
-            # identity, and the pending registrations of that address (the newest PENDING_CHECKED). Every sign-in runs
-            # exactly 1 + PENDING_CHECKED password derivations, padded with the configured verifier, whatever the
-            # address holds (ERRORS M478 re-check: the time tells nothing; OWASP Authentication)
-            account = await asyncio.to_thread(auth.accounts.find_login, body.login)
-            pending = list(await asyncio.to_thread(auth.accounts.pending_logins, body.login))[:PENDING_CHECKED]
-            known = await asyncio.to_thread(verify_password, body.password,
-                                            account['verifier'] if account else settings.password_verifier)
-            known = known and account is not None
-            for row in pending + [None] * (PENDING_CHECKED - len(pending)):
-                matched = await asyncio.to_thread(verify_password, body.password,
-                                                  row['verifier'] if row else settings.password_verifier)
-                if matched and row is not None and account is None:
-                    restart = restart or row
-        else:
-            # the password is checked before the login is compared (against the one verifier, so an unknown login runs
-            # the same scrypt as a known one): a wrong login costs the same time as a wrong password
-            password_ok = await asyncio.to_thread(verify_password, body.password, settings.password_verifier)
-            known = hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode()) and password_ok
-        if not known:
-            await asyncio.to_thread(throttle.count, (SIGNIN_IP, client_address(request)))
-            response = error('INVALID_CREDENTIALS', 401)
+        address = client_address(request)
+        login_key = (normal_login(body.login), address)
+        # ERRORS R2-37: the password work of a sign-in runs on its own pool (passwords.PasswordWork), never on the
+        # default executor every database call uses; a request over its limit is answered 503 before any try counts
+        async with password_work.admitted_request():
+            wait = await asyncio.to_thread(throttle.attempt, SIGNIN_LOGIN, login_key)
+            if wait:
+                return refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
+            account = restart = rehash = None
             if settings.multiuser:
+                # EXEC-MU-ACCOUNTS Phase 1 (switch on): the active account named by its username or email, its
+                # password identity, and the pending registrations of that address (the newest PENDING_CHECKED). Every
+                # sign-in runs exactly 1 + PENDING_CHECKED password derivations, padded with the configured verifier,
+                # whatever the address holds (ERRORS M478 re-check: the time tells nothing; OWASP Authentication)
+                account = await asyncio.to_thread(auth.accounts.find_login, body.login)
+                pending = list(await asyncio.to_thread(auth.accounts.pending_logins, body.login))[:PENDING_CHECKED]
+                # ERRORS R1-16: the account's consecutive failures, decided and counted before the check (a locked
+                # account answers as a wrong password); the same statement runs for a login that names no account
+                checked = await asyncio.to_thread(auth.accounts.sign_in_try, account['user_id'] if account else None)
+                known = await password_work.run(verify_password, body.password,
+                                                account['verifier'] if account else settings.password_verifier)
+                known = known and account is not None and checked
+                for row in pending + [None] * (PENDING_CHECKED - len(pending)):
+                    matched = await password_work.run(verify_password, body.password,
+                                                      row['verifier'] if row else settings.password_verifier)
+                    if matched and row is not None and account is None:
+                        restart = restart or row
+                if known and needs_rehash(account['verifier']):
+                    # ERRORS R2-29: a verifier of the cost before R2-29 is replaced by one at the current cost
+                    rehash = await password_work.run(password_verifier, body.password)
+            else:
+                # the password is checked before the login is compared (against the one verifier, so an unknown login
+                # runs the same scrypt as a known one): a wrong login costs the same time as a wrong password
+                password_ok = await password_work.run(verify_password, body.password, settings.password_verifier)
+                known = hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode()) and password_ok
+        if not known:
+            await asyncio.to_thread(throttle.count, (SIGNIN_IP, address))
+            response = error('INVALID_CREDENTIALS', 401)
+            # track guest: in the pre-launch mode registration is closed, so no pending registration is restarted (every
+            # 401 there answers alike, without a registration cookie)
+            if settings.multiuser and not settings.prelaunch:
                 # ERRORS M478 (C1 P1-M1): a pending registration with the right password answers the same 401 (no
                 # enumeration); within the send limits a fresh code is mailed and this browser gets that registration's
                 # cookie, so the person finishes on /verify. Every switch-on 401 sets a registration cookie, so the
                 # answers do not differ by a header either
-                await flows.restart_registration(response, restart, client_address(request), request)
+                await flows.restart_registration(response, restart, address, request)
             return response
-        await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
-        old = request.cookies.get(COOKIE)
+        # track guest (the pre-launch mode of the live site; the user, 2026-11-19: "Dan hanya admin yang bisa login
+        # (saya)", then "A": the admin and the accounts marked as test accounts): only an account whose grants make it
+        # the admin ('*' or admin.access, the catalog's, as the second factor is decided) or one marked test_account
+        # (migration 20261119_070, set only by an audited step) signs in; every other account is refused with a plain
+        # sentence, after its password was checked like any other, and no session is made
+        needs_mfa = await asyncio.to_thread(auth.needs_mfa, account['owner_key']) if account is not None else False
+        if account is not None and settings.prelaunch and not (needs_mfa or account.get('test_account')):
+            logging.getLogger('edge_bff.accounts').info(json.dumps({'event': 'sign_in_closed',
+                                                                   'user_id': account['user_id']}))
+            return error('SIGN_IN_CLOSED', 403)
+        old = request.cookies.get(session_cookie) or (None if settings.multiuser else request.cookies.get(COOKIE))
         if old:
             await asyncio.to_thread(store.revoke, token_hash(old))
         token = secrets.token_hex(32)
         if account is not None:
-            # at most MAX_SESSIONS per account (the oldest revoked); the address only as its HMAC
-            await asyncio.to_thread(auth.accounts.create_session, token_hash(token), account, settings.session_seconds,
-                                    throttle.key_hash(SIGNIN_IP.scope, client_address(request)), False,
-                                    # Phase 2: MFA by the account's resolved capabilities ('*' or admin.access)
-                                    await asyncio.to_thread(auth.needs_mfa, account['owner_key']))
+            # at most MAX_SESSIONS per account (the oldest revoked); the address only as its HMAC. ERRORS R2-9: made
+            # only while the verifier this sign-in proved is still the account's (a reset or change landed during the
+            # check refuses it, as a wrong password)
+            made = await asyncio.to_thread(auth.accounts.create_session, token_hash(token), account,
+                                           settings.session_seconds, throttle.key_hash(SIGNIN_IP, address), False,
+                                           # Phase 2: MFA by the account's resolved capabilities ('*' or admin.access)
+                                           needs_mfa,
+                                           account['verifier'], None, rehash)
+            if made is None:
+                return error('INVALID_CREDENTIALS', 401)
             await asyncio.to_thread(auth.accounts.signed_in, account['user_id'])
         else:
             await asyncio.to_thread(store.session_create, token_hash(token), auth.configured_owner(), settings.session_seconds)
+        await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
         p = await auth.resolve(token)
         if p is None:                              # an account disabled at this very moment
             return error('INVALID_CREDENTIALS', 401)
@@ -725,8 +895,10 @@ def create_app(settings=None, store=None, orc=None):
         response = JSONResponse(session_answer(p)) if p.mfa_ok else refusal(
             403, 'MFA_REQUIRED', {'csrf_token': csrf_token(token, settings.session_secret),
                                   'mfa_enrolled': p.mfa_enrolled})
-        response.set_cookie(COOKIE, token, max_age=settings.session_seconds, httponly=True,
+        response.set_cookie(session_cookie, token, max_age=settings.session_seconds, httponly=True,
                             secure=settings.secure_cookie, samesite='strict', path='/')
+        if session_cookie != COOKIE:
+            response.delete_cookie(COOKIE, path='/')
         return response
 
     def session_answer(p):
@@ -735,7 +907,7 @@ def create_app(settings=None, store=None, orc=None):
         return {'authenticated': True, 'login': p.username if settings.multiuser else settings.login,
                 'owner_key': p.owner_key,
                 'csrf_token': csrf_token(p.token, settings.session_secret), 'capabilities': capabilities(),
-                'username': p.username, 'access': jsonable_encoder(p.access())}
+                'username': p.username, 'access': jsonable_encoder(p.access(ceilings=auth.ceilings))}
 
     def capabilities():
         return {'deep_research': False, 'model_selection': True, 'cancel': True, 'tool_progress': False,
@@ -748,6 +920,19 @@ def create_app(settings=None, store=None, orc=None):
     async def get_session(p: Principal = Depends(auth.principal)):
         return session_answer(p)
 
+    # track guest (decision 1 of 2026-11-19, "1a"; principal.py): what the Terminal holds for this request when it has no
+    # session: the guest plan's access, in the session answer's shape with `visitor` true (no login, no owner key, no
+    # CSRF token: a guest writes without one). A signed-in principal gets its own session answer with `visitor` false.
+    # Where guests are off (the beta, EDGE_GUESTS=false) or the client address cannot be read, 401 UNAUTHENTICATED: the
+    # page goes to sign-in.
+    @app.get('/api/v1/auth/guest')
+    async def get_guest(p: Principal = Depends(auth.visitor)):
+        if not p.guest:
+            return {**session_answer(p), 'visitor': False}
+        return {'authenticated': False, 'visitor': True, 'login': '', 'owner_key': None, 'csrf_token': '',
+                'capabilities': capabilities(), 'username': None,
+                'access': {**jsonable_encoder(p.access(ceilings=auth.ceilings)), 'owner_key': None}}
+
     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md sections 4-6): registration, codes, reset and change, sign-out everywhere,
     # admin MFA, the Resend webhook (app/auth_flows.py); every one answers 404 with the switch off, except auth/config
     flows.routes(app, session_answer)
@@ -756,7 +941,9 @@ def create_app(settings=None, store=None, orc=None):
     async def sign_out(p: Principal = Depends(auth.writer)):
         await asyncio.to_thread(store.revoke, token_hash(p.token))
         response = JSONResponse({'authenticated': False})
-        response.delete_cookie(COOKIE, path='/')
+        response.delete_cookie(session_cookie, path='/', secure=settings.secure_cookie)
+        if session_cookie != COOKIE:
+            response.delete_cookie(COOKIE, path='/')
         return response
 
     @app.post('/api/v1/runs', status_code=202)
@@ -771,8 +958,8 @@ def create_app(settings=None, store=None, orc=None):
             await asyncio.to_thread(store.conversation, p.owner_key, body.conversation_id)
             if not await asyncio.to_thread(orc.messages, p.owner_key, body.conversation_id):
                 raise StoreError('CONVERSATION_EXPIRED', 410)
-        row, created = await asyncio.to_thread(store.submit, p.owner_key, body.submission_key, payload,
-                                               body.after_stop)
+        row, created = await asyncio.to_thread(functools.partial(store.submit, site=settings.site), p.owner_key,
+                                               body.submission_key, payload, body.after_stop)
         after = (row['input'] or {}).get('after_request_id')
         before = await asyncio.to_thread(store.job, p.owner_key, after) if after else None
         if before is not None and created:  # S3: the run this message follows is stopped; this one waits for it

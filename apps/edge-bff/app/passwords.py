@@ -7,7 +7,15 @@
   suffix is compared here; padded rows (count 0) never match. When the API cannot answer, the password is accepted and
   PWNED_CHECK_UNAVAILABLE is logged (fail-open, the contract's recorded decision).
 - A phone is normalised to E.164; an Indonesian 08... becomes +628...; it is not verified.
+- Where password work runs (ERRORS R2-37): every password derivation and Pwned Passwords call of a request (sign-in,
+  registration, reset, change) runs on PasswordWork's own small thread pool, never on the event loop's default executor
+  that every database call uses, so a burst of sign-ins with made-up logins cannot hold the signed-in users' requests.
+  At most PasswordWork.LIMIT requests do password work at once (running or waiting for a thread); one more is answered
+  503 SERVICE_UNAVAILABLE with Retry-After at once, so under a flood only password requests wait.
 """
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 import hashlib
 import json
 import logging
@@ -15,9 +23,41 @@ import re
 
 import httpx
 
+from .errors import Refusal
 from .security import normal_password
 
 logger = logging.getLogger('edge_bff.passwords')
+
+
+class PasswordWork:
+    """The pool of password work (the module docstring). WORKERS threads (each derivation holds 16 MiB while it runs);
+    LIMIT requests admitted at once; a request over it is refused 503 with Retry-After RETRY_SECONDS."""
+    WORKERS, LIMIT, RETRY_SECONDS = 4, 16, 5
+
+    def __init__(self):
+        self.executor = ThreadPoolExecutor(max_workers=self.WORKERS, thread_name_prefix='edge-password')
+        self.admitted = 0                       # read and changed on the event loop only
+
+    @asynccontextmanager
+    async def admitted_request(self):
+        """One request's password work; 503 SERVICE_UNAVAILABLE when LIMIT requests already do password work."""
+        if self.admitted >= self.LIMIT:
+            logger.warning(json.dumps({'event': 'password_work_full', 'admitted': self.admitted}))
+            raise Refusal(503, 'SERVICE_UNAVAILABLE', {'retry_after_s': self.RETRY_SECONDS},
+                          {'Retry-After': str(self.RETRY_SECONDS)})
+        self.admitted += 1
+        try:
+            yield self
+        finally:
+            self.admitted -= 1
+
+    async def run(self, fn, *args):
+        """fn(*args) on the pool's threads (a derivation, a Pwned Passwords call)."""
+        return await asyncio.get_running_loop().run_in_executor(self.executor, fn, *args)
+
+    def close(self):
+        self.executor.shutdown(wait=False, cancel_futures=True)
+
 
 MIN_LENGTH, MAX_LENGTH = 8, 256
 RANGE_URL = 'https://api.pwnedpasswords.com/range/'

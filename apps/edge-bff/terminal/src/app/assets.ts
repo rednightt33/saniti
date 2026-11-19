@@ -216,6 +216,8 @@ export function initAssets(ctx: Ctx) {
     assets.splice(k, 1);
     if (a.series) { try { chart.removeSeries(a.series) } catch (_) {} }
     setPane(a, false); a.row.remove(); syncPlus(); save();
+    // its pane's fold and height go with it (they name the ticker; re-check R1-20)
+    if (!assets.some(x => x.ticker === a.ticker)) { store.remove(`ml.assets.flow.collapsed.${a.ticker}`); store.remove(`ml.assets.flow.h.${a.ticker}`) }
   }
   function replace(a: Asset, ticker: string) {
     const slot = assets.indexOf(a), opts = { ...a.opts };

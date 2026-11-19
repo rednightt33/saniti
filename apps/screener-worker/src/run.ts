@@ -22,7 +22,7 @@
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
 import type { CountsEntry, DataStatus, Definition, MetricRef, PatternRef, RunResponse, UniverseCounts, UniverseDef, Versions } from '../../edge-bff/screener/src/core/contract.ts';
-import { METRICS_CATALOG, POINT_IN_TIME_RIGHT, flowAdminOnly } from '../../edge-bff/screener/src/core/catalog.ts';
+import { METRICS_CATALOG, POINT_IN_TIME_RIGHT, SHOWN_ATTRIBUTES, flowAdminOnly } from '../../edge-bff/screener/src/core/catalog.ts';
 import { bindCondition, bindTest } from '../../edge-bff/screener/src/core/condition.ts';
 import type { BindContext } from '../../edge-bff/screener/src/core/condition.ts';
 import { series, seriesKey, tickerCalc } from '../../edge-bff/screener/src/core/metrics.ts';
@@ -150,7 +150,10 @@ export function effectiveLimits<T extends Record<ContextLimitName, number>>(own:
     arguments, universe.metric_filters, and the conditions an extra column or a saved My metric is sent as. A pattern
     type is a candle_pattern when it is a candle id (candles.ts CANDLE_IDS), else a screener_metric. A transform `fn`
     (the four transform metrics hi52, lo52, rs and vol_ratio reach the wire as their transform, with no id of their
-    own) and a price field are not gated by id (CONTRACT 8b). */
+    own) and a price field are not gated by id (CONTRACT 8b). Nor is a universe attribute every answer shows
+    (catalog.ts SHOWN_ATTRIBUTES: last, chg_1d_pct, adv20_idr, bars, index_membership, read from the catalog's `row`;
+    CONTRACT 8b O3b-2 and re-check R1-35, user 2026-11-19 "1a"): /universe and every result row carry its value
+    whatever the plan, so the page's extra-column anchor (bars gt 0) needs no grant either. */
 export function definitionItems(definition: unknown, field = 'definition'): { kind: AllowKind; id: string; field: string }[] {
   const out: { kind: AllowKind; id: string; field: string }[] = [];
   const walk = (x: unknown, f: string): void => {
@@ -160,7 +163,7 @@ export function definitionItems(definition: unknown, field = 'definition'): { ki
     else if (x.kind === 'flow' && typeof x.metric === 'string') out.push({ kind: 'flow_indicator', id: x.metric, field: `${f}.metric` });
     else if (x.kind === 'pattern' && typeof x.type === 'string') out.push({ kind: CANDLE_IDS.includes(x.type) ? 'candle_pattern' : 'screener_metric', id: x.type, field: `${f}.type` });
     else if (x.kind === 'xsection' && typeof x.metric === 'string') out.push({ kind: 'screener_metric', id: x.metric, field: `${f}.metric` });
-    else if (x.kind === 'universe' && typeof x.attr === 'string') out.push({ kind: 'screener_metric', id: x.attr, field: `${f}.attr` });
+    else if (x.kind === 'universe' && typeof x.attr === 'string' && !SHOWN_ATTRIBUTES.has(x.attr)) out.push({ kind: 'screener_metric', id: x.attr, field: `${f}.attr` });
     for (const [k, v] of Object.entries(x)) walk(v, `${f}.${k}`);
   };
   walk(definition, field);
@@ -187,7 +190,7 @@ export function checkAllow(definition: unknown, allow: Allow, field = 'definitio
     const a = allow[it.kind];
     if (a === '*' || a.has(it.id)) continue;
     const capability = `${CAPABILITY_FAMILY[it.kind]}:${it.id}`;
-    throw new CapabilityError(`${it.field}: the ${KIND_WORDS[it.kind]} ${itemName(it.kind, it.id)} is not included in your plan (${capability}). To run the screen, remove it (a condition, a switched-off condition, a filter or an extra column), or upgrade the plan.`,
+    throw new CapabilityError(`${it.field}: the ${KIND_WORDS[it.kind]} ${itemName(it.kind, it.id)} is not included in your plan. To run the screen, remove it (a condition, a switched-off condition, a filter or an extra column), or upgrade the plan.`,
       it.field, { kind: it.kind, id: it.id, capability });
   }
 }

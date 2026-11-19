@@ -1,15 +1,19 @@
 /* Builds static/edge-session.js (the shell's copy of shared/edge-session.ts: one classic script that sets
-   window.EdgeSession) with the esbuild of the Terminal page (terminal/node_modules; `npm ci` there first).
-   Usage (from apps/edge-bff):  node shared/build-shell.mjs           writes static/edge-session.js
-                                node shared/build-shell.mjs --check   exit 1 when the file is not this build
-   The first line names the sha256 of the source; tests/test_storage_registry.py fails when it is not the source's. */
+   window.EdgeSession) with the esbuild of the Terminal page (terminal/node_modules; `npm ci` there first), and
+   catalog/storage_sync.json (re-check R1-18): the registry's `sync` keys with the capability each one needs (`cap`, or
+   null for a key every tab shares), which app/preferences.py reads (the image copies catalog/ beside app/).
+   Usage (from apps/edge-bff):  node shared/build-shell.mjs           writes both files
+                                node shared/build-shell.mjs --check   exit 1 when a file is not this build
+   The first line names the sha256 of the source; tests/test_storage_registry.py fails when it is not the source's, and
+   when storage_sync.json differs from the registry. */
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 
 const here = p => fileURLToPath(new URL(p, import.meta.url));
-const SRC = here('./edge-session.ts'), OUT = here('../static/edge-session.js');
+const SRC = here('./edge-session.ts'), OUT = here('../static/edge-session.js'), SYNC = here('../catalog/storage_sync.json');
 const { buildSync } = createRequire(here('../terminal/package.json'))('esbuild');
 
 const source = readFileSync(SRC);
@@ -18,11 +22,21 @@ const built = buildSync({ entryPoints:[SRC], bundle:true, format:'iife', globalN
   write:false, charset:'utf8', legalComments:'none' }).outputFiles[0].text;
 const text = `/* generated from apps/edge-bff/shared/edge-session.ts sha256=${sha} by shared/build-shell.mjs; do not edit */\n${built}`;
 
+/* the registry as the built module holds it (run in an empty context: no storage, no channel, no fetch) */
+const context = vm.createContext({});
+vm.runInContext(`${built}\nthis.__registry = EdgeSession.STORAGE;`, context);
+const keys = {};
+for (const e of context.__registry) if (e.sync) keys[e.key] = typeof e.cap === 'string' ? e.cap : null;
+const sync = `${JSON.stringify({ note:'generated from apps/edge-bff/shared/edge-session.ts STORAGE (sync keys and their cap) by shared/build-shell.mjs; do not edit', keys }, null, 1)}\n`;
+
 if (process.argv.includes('--check')) {
   const now = existsSync(OUT) ? readFileSync(OUT, 'utf8') : '';
+  const held = existsSync(SYNC) ? readFileSync(SYNC, 'utf8') : '';
   if (now !== text) { console.error('static/edge-session.js is not the build of shared/edge-session.ts: run node shared/build-shell.mjs'); process.exit(1) }
-  console.log('static/edge-session.js matches shared/edge-session.ts');
+  if (held !== sync) { console.error('catalog/storage_sync.json is not the registry of shared/edge-session.ts: run node shared/build-shell.mjs'); process.exit(1) }
+  console.log('static/edge-session.js and catalog/storage_sync.json match shared/edge-session.ts');
 } else {
   writeFileSync(OUT, text);
-  console.log(`wrote static/edge-session.js (${text.length} bytes, source sha256 ${sha.slice(0, 12)})`);
+  writeFileSync(SYNC, sync);
+  console.log(`wrote static/edge-session.js (${text.length} bytes, source sha256 ${sha.slice(0, 12)}) and catalog/storage_sync.json (${Object.keys(keys).length} sync keys)`);
 }

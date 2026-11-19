@@ -1,7 +1,12 @@
 from dataclasses import dataclass, field
+import hashlib
+import hmac
 import os
 import re
 from urllib.parse import urlsplit
+
+from .accounts import GUEST_OWNER, orc_reserved_owner
+from .security import is_verifier
 
 
 def admin_owners_of(raw, owner, multiuser=False):
@@ -20,12 +25,30 @@ def admin_owners_of(raw, owner, multiuser=False):
     return tuple(parts)
 
 
-def switch_of(name):
-    """A true/false switch, unset = false; any other value stops the start (a typo must not turn accounts on)."""
-    raw = os.environ.get(name, 'false').strip().lower()
+def switch_of(name, default='false'):
+    """A true/false switch, unset = default; any other value stops the start (a typo must not turn accounts on, nor a
+    background loop off: ERRORS R2-36)."""
+    raw = os.environ.get(name, default).strip().lower()
     if raw not in ('true', 'false'):
         raise ValueError(f'{name} is true or false')
     return raw == 'true'
+
+
+def optional_switch(name):
+    """A true/false switch whose unset value is decided by the site (Settings: None = the site's default)."""
+    return switch_of(name) if os.environ.get(name) is not None else None
+
+
+# EXEC-MU-ACCOUNTS "Production environment" (user decisions 2026-11-19): one Railway environment, two websites on one
+# database. EDGE_SITE=beta is the service edge-bff (its Railway address, the admin only, EDGE_MULTIUSER off as today);
+# EDGE_SITE=live is the service edge-bff-live (the user's domain, EDGE_MULTIUSER on). Unset = beta, so the running
+# service keeps its behaviour.
+BETA, LIVE = 'beta', 'live'
+SITES = (BETA, LIVE)
+# Track guest (verification/edge_multiuser/fix_round/guest.md): the upgrade contact the upgrade box shows
+# (EDGE_UPGRADE_CONTACT, decision D7: "segera hadir" and the contact; empty: the box says the contact comes soon). One
+# line of plain text, at most 200 characters (an address, a link or a phone number), shown as text.
+CONTACT = re.compile(r'[^\x00-\x1f\x7f<>]{1,200}')
 
 
 @dataclass(frozen=True)
@@ -83,10 +106,63 @@ class Settings:
     code_secret: str = field(default='', repr=False)
     mfa_key: str = field(default='', repr=False)
     email_mode: str = 'log'
+    # ERRORS R2-26: log mode with the switch on outside EDGE_ENVIRONMENT=local only by this explicit, deliberate switch
+    # (EDGE_EMAIL_LOG_ALLOWED, default false): a test of the live site before its Resend key, never with real people
+    email_log_allowed: bool = False
     email_enabled: bool = True
     email_from: str = ''
     resend_api_key: str = field(default='', repr=False)
     resend_webhook_secret: str = field(default='', repr=False)
+    # EXEC-MU-ACCOUNTS beta/live (ERRORS R2-7, R2-13, R2-23, R2-38): which website this service is (EDGE_SITE, beta or
+    # live; see BETA above). Every queued row carries the site that made it, and each site claims only its own.
+    site: str = BETA
+    # the background loops, each with its own switch (EDGE_WORKER_ENABLED=false still turns every one off: local runs
+    # and the tests). None = the site's default (Settings.ai_worker): the AI job loop runs on the beta only (AI is
+    # admin-only, decision D1; the live site answers 404 to the Monitor); the backtest loop on both, each claiming its
+    # own site's jobs; the hourly housekeeping (sessions, throttle rows, unverified registrations) in its own task; the
+    # email sender (email_enabled) only where the switch is on, which is the live site
+    ai_worker_enabled: bool | None = None
+    backtest_loop_enabled: bool = True
+    housekeeping_enabled: bool = True
+    # the commit this build runs (Railway's RAILWAY_GIT_COMMIT_SHA), answered by GET /version
+    commit_sha: str = ''
+    # track guest (decision 1 of 2026-11-19, "1a"): whether a visitor without an account opens the Terminal with the
+    # guest plan's grants (EDGE_GUESTS; None = the site's default: on the live site, off on the beta). Never with the
+    # switch off (the beta: the admin's alone; validate refuses EDGE_GUESTS=true there)
+    guests_enabled: bool | None = None
+    # the pre-launch mode of the live site (the user, 2026-11-19: "Terbuka, tapi belum bisa mendaftar", "Dan hanya admin
+    # yang bisa login (saya)", then "A"): registration closed, sign-in only for the admin and the accounts marked as
+    # test accounts (EDGE_PRELAUNCH; None = the site's default: on the live site until the launch). Visitors still open
+    # the Terminal. Only with the switch on
+    prelaunch_enabled: bool | None = None
+    # the upgrade box's contact (EDGE_UPGRADE_CONTACT, CONTACT); empty: the box says the contact comes soon
+    upgrade_contact: str = ''
+
+    @property
+    def guests(self):
+        """Whether the guest principal exists on this site (principal.py): the switch on, and EDGE_GUESTS, else live."""
+        return self.multiuser and (self.site == LIVE if self.guests_enabled is None else self.guests_enabled)
+
+    @property
+    def prelaunch(self):
+        """Whether the pre-launch mode holds: the switch on, and EDGE_PRELAUNCH, else the live site."""
+        return self.multiuser and (self.site == LIVE if self.prelaunch_enabled is None else self.prelaunch_enabled)
+
+    @property
+    def ai_worker(self):
+        """Whether the AI job loop runs (with the worker): EDGE_AI_WORKER_ENABLED, else the beta only."""
+        return self.site == BETA if self.ai_worker_enabled is None else self.ai_worker_enabled
+
+    def shared_key_marks(self):
+        """ERRORS R2-8, R2-26: the secrets that key rows of the shared tables (EDGE_SESSION_SECRET: the throttle and CSRF
+        HMAC; EDGE_CODE_SECRET: the email codes; EDGE_MFA_KEY: the one TOTP row per user) must be the same on both
+        websites, which no process can see of the other. Each start logs, for each, a short HMAC of a fixed label
+        under it (never the secret, nothing it can be recovered from), so the two services' start lines (startup_done)
+        show at a glance whether they hold the same values; None for an unset one."""
+        def mark(value):
+            return hmac.new(value.encode(), b'edge_bff.shared_key_check', hashlib.sha256).hexdigest()[:12] if value else None
+        return {'EDGE_SESSION_SECRET': mark(self.session_secret), 'EDGE_CODE_SECRET': mark(self.code_secret),
+                'EDGE_MFA_KEY': mark(self.mfa_key)}
 
     @classmethod
     def from_env(cls):
@@ -106,7 +182,7 @@ class Settings:
                 lease_seconds=int(os.environ.get('EDGE_LEASE_SECONDS', '90')),
                 heartbeat_seconds=float(os.environ.get('EDGE_HEARTBEAT_SECONDS', '20')),
                 poll_seconds=float(os.environ.get('EDGE_POLL_SECONDS', '2')),
-                worker_enabled=os.environ.get('EDGE_WORKER_ENABLED', 'true').lower() == 'true',
+                worker_enabled=switch_of('EDGE_WORKER_ENABLED', 'true'),
                 terminal_url=os.environ.get('EDGE_TERMINAL_URL', '').strip().rstrip('/'),
                 terminal_proxy_key=os.environ.get('TERMINAL_PROXY_KEY', ''),
                 backtest_worker_url=os.environ.get('BACKTEST_WORKER_URL', '').strip().rstrip('/'),
@@ -123,25 +199,74 @@ class Settings:
                 session_idle_seconds=int(os.environ.get('EDGE_SESSION_IDLE_SECONDS', '28800')),
                 code_secret=os.environ.get('EDGE_CODE_SECRET', ''), mfa_key=os.environ.get('EDGE_MFA_KEY', ''),
                 email_mode=os.environ.get('EDGE_EMAIL_MODE', 'log').strip().lower(),
-                email_enabled=os.environ.get('EDGE_EMAIL_ENABLED', 'true').strip().lower() == 'true',
+                email_enabled=switch_of('EDGE_EMAIL_ENABLED', 'true'),
+                email_log_allowed=switch_of('EDGE_EMAIL_LOG_ALLOWED'),
                 email_from=os.environ.get('EDGE_EMAIL_FROM', '').strip(),
                 resend_api_key=os.environ.get('RESEND_API_KEY', ''),
-                resend_webhook_secret=os.environ.get('RESEND_WEBHOOK_SECRET', ''))
+                resend_webhook_secret=os.environ.get('RESEND_WEBHOOK_SECRET', ''),
+                site=os.environ.get('EDGE_SITE', BETA).strip().lower(),
+                ai_worker_enabled=optional_switch('EDGE_AI_WORKER_ENABLED'),
+                backtest_loop_enabled=switch_of('EDGE_BACKTEST_LOOP_ENABLED', 'true'),
+                housekeeping_enabled=switch_of('EDGE_HOUSEKEEPING_ENABLED', 'true'),
+                commit_sha=os.environ.get('RAILWAY_GIT_COMMIT_SHA', '').strip(),
+                guests_enabled=optional_switch('EDGE_GUESTS'),
+                prelaunch_enabled=optional_switch('EDGE_PRELAUNCH'),
+                upgrade_contact=os.environ.get('EDGE_UPGRADE_CONTACT', '').strip())
         s.validate()
         return s
 
     def validate(self):
-        # EXEC-MU-ACCOUNTS Phase 1: log mode keeps each code readable in its outbox row, so it is for dev only; with the
-        # switch off nothing is sent, so the default (log) never stops a switch-off start
-        if self.multiuser and self.email_mode == 'log' and self.environment not in ('dev', 'local'):
-            raise ValueError('EDGE_EMAIL_MODE=log is for EDGE_ENVIRONMENT dev or local only (codes stay readable in the '
-                             'outbox); set EDGE_EMAIL_MODE=resend with RESEND_API_KEY and EDGE_EMAIL_FROM')
-        if not re.fullmatch(r'scrypt\$[0-9a-f]{32}\$[0-9a-f]{64}', self.password_verifier):
-            raise ValueError('Invalid EDGE_PASSWORD_VERIFIER')
+        # EXEC-MU-ACCOUNTS Phase 1: log mode keeps each code readable in its outbox row, so it is for a developer
+        # machine only; with the switch off nothing is sent, so the default (log) never stops a switch-off start.
+        # ERRORS R2-26: no longer by the environment's name (EDGE_ENVIRONMENT=dev is the Railway environment the live
+        # site runs in too), but by an explicit switch a copied configuration does not carry by accident
+        if self.multiuser and self.email_mode == 'log' and self.environment != 'local' and not self.email_log_allowed:
+            raise ValueError('EDGE_EMAIL_MODE=log is for EDGE_ENVIRONMENT=local only (codes stay readable in the '
+                             'outbox); set EDGE_EMAIL_MODE=resend with RESEND_API_KEY and EDGE_EMAIL_FROM, or, for a '
+                             'test with no real person, EDGE_EMAIL_LOG_ALLOWED=true')
+        # the two websites (EXEC-MU-ACCOUNTS "Production environment"): the live site is where accounts sign in, the
+        # beta the admin's alone. A beta with the switch on would take registrations, and a live site with it off would
+        # be a door to user #1 without the second factor. On a developer machine (local: one process, one database,
+        # the tests) the beta may run the switch on.
+        if self.site not in SITES:
+            raise ValueError('EDGE_SITE is beta (the service edge-bff, the admin only) or live (edge-bff-live, the '
+                             'user\'s domain)')
+        if self.site == LIVE and not self.multiuser:
+            raise ValueError('EDGE_SITE=live needs EDGE_MULTIUSER=true: the live site is where accounts sign in')
+        if self.site == BETA and self.multiuser and self.environment != 'local':
+            raise ValueError('EDGE_SITE=beta runs with EDGE_MULTIUSER=false (the beta is the admin\'s only); accounts '
+                             'sign in on the live site (EDGE_SITE=live)')
+        # track guest: the guest plan and the pre-launch mode are the live site's (accounts on); on the beta (the
+        # switch off, the admin's alone) neither exists, so setting either there is a mistake
+        if self.guests_enabled and not self.multiuser:
+            raise ValueError('EDGE_GUESTS=true needs EDGE_MULTIUSER=true: visitors open the Terminal on the live site '
+                             'only; the beta (EDGE_MULTIUSER=false) is the admin\'s alone. Unset EDGE_GUESTS here')
+        if self.prelaunch_enabled and not self.multiuser:
+            raise ValueError('EDGE_PRELAUNCH=true needs EDGE_MULTIUSER=true: the pre-launch mode closes registration and '
+                             'sign-in on the live site; the beta has neither. Unset EDGE_PRELAUNCH here')
+        if self.upgrade_contact and not CONTACT.fullmatch(self.upgrade_contact):
+            raise ValueError('EDGE_UPGRADE_CONTACT is one line of plain text of at most 200 characters, without < or > '
+                             '(an address, a link or a phone number), e.g. sales@example.com; or unset it')
+        if self.site == LIVE and self.ai_worker_enabled:
+            raise ValueError('EDGE_AI_WORKER_ENABLED=true is for the beta only: the live site has no AI (decision D1); '
+                             'unset it on the live site')
+        # ERRORS R2-29: either form app/security.py reads (the current cost, or the form before it, still accepted)
+        if not is_verifier(self.password_verifier):
+            raise ValueError('Invalid EDGE_PASSWORD_VERIFIER (make one with apps/edge-bff/password_hash.py)')
         if not re.fullmatch(r'[A-Za-z0-9._:@-]{1,128}', self.owner) or len(self.session_secret) < 32:
             raise ValueError('Invalid EDGE owner/session configuration')
         if not all(isinstance(o, str) and re.fullmatch(r'[A-Za-z0-9._:@-]{1,128}', o) for o in self.admin_owners):
             raise ValueError('Invalid EDGE_ADMIN_OWNERS')
+        # ERRORS R1-3: an owner key Orc reserves for its test key (or its old shared owner) would put user #1's
+        # conversations and runs within that key's reach; refused for EDGE_OWNER and every EDGE_ADMIN_OWNERS entry
+        for name, keys in (('EDGE_OWNER', (self.owner,)), ('EDGE_ADMIN_OWNERS', self.admin_owners)):
+            if GUEST_OWNER in keys:
+                raise ValueError(f'{name} may not be {GUEST_OWNER}, the owner key of every visitor of the guest plan '
+                                 '(terminal-api\'s guest owner row). Use an owner key of your own, e.g. edge-private')
+            if any(orc_reserved_owner(k) for k in keys):
+                raise ValueError(f'{name} may not be an owner key market-ai-orc reserves (golden-*, test-*, '
+                                 'someone-else: its test key may name them; default: its old shared owner). Use an '
+                                 'owner key of your own, e.g. edge-private')
         host = urlsplit(self.orc_url).hostname
         if self.environment != 'local' and (host != 'market-ai-orc.railway.internal' or urlsplit(self.orc_url).scheme != 'http'):
             raise ValueError('EDGE_ORC_URL must use the existing Railway private Orc endpoint')

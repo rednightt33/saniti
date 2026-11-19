@@ -4,7 +4,9 @@
 
    The page keeps working without the account: when the account cannot be read (no connection, the table not there yet),
    a set is kept in this browser as before and moves to the account the next time it can be read. The sets kept in this
-   browser before (ml.drawings.*) move to the account once, merged by drawing id with what the account holds. */
+   browser before (ml.drawings.*) move to the account once, merged by drawing id with what the account holds.
+   A refusal of the plan (403 CAPABILITY_REQUIRED or PLAN_EXPIRED: the plan holds no terminal.drawings) is not an outage
+   (re-check R1-19): its own words are said, and nothing is kept in this browser for it (a copy there is dropped). */
 import { savedClient, sendOnLeave, primeToken, LayoutApiError } from './layoutsApi';
 import { store } from '../app/context';
 import { edge, isLastLogin, loginKey, onReset } from '../../../shared/edge-session';
@@ -50,7 +52,9 @@ export const drawingsApi = {
 /** keeps the stored text of every set in step with the account: load (with the one-time move of this browser's set), save
     (a short pause after the last change, then one write), remove; `say` reports a refusal in a plain sentence */
 export function accountDrawings(say: (text: string, error?: boolean) => void, SAVE_MS = 400) {
-  const lists = new Map<string, Promise<Map<string, ServerSet> | null>>();   // per ticker: its sets, or null (unreachable)
+  // per ticker: its sets, null (unreachable), or the plan's refusal
+  const lists = new Map<string, Promise<Map<string, ServerSet> | LayoutApiError | null>>();
+  let locked = false;                                                        // the plan refused the drawings
   const rev = new Map<string, number | null>();                              // `${ticker}/${set}` -> the revision held
   const last = new Map<string, string>();                                    // the text the account holds
   const pending = new Map<string, { json: string; timer: any }>();
@@ -60,7 +64,8 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
   const listOf = (t: string) => {
     let p = lists.get(t);
     if (!p) {
-      p = drawingsApi.list(t).then(r => new Map(r.sets.map(x => [x.set_id, x])), () => null);
+      p = drawingsApi.list(t).then(r => new Map(r.sets.map(x => [x.set_id, x])),
+        (e: unknown) => e instanceof LayoutApiError && e.access ? e : null);
       lists.set(t, p);
     }
     return p;
@@ -68,6 +73,12 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
   const unreachable = () => {
     if (warned) return; warned = true;
     say('Your drawings could not be saved to your EDGE account just now: they are kept in this browser and move to the account when it can be reached.', true);
+  };
+  /* the plan's refusal: said once in its own words; nothing of the drawings stays in this browser for it */
+  const refused = (e: LayoutApiError, local?: string) => {
+    if (local) store.remove(local);
+    if (locked) return; locked = true;
+    say(e.message, true);
   };
   primeToken();
   // the account ended or changed (a 401, the 'cleared' broadcast): pending changes are dropped, never stamped or sent
@@ -82,6 +93,7 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
     const who = await edge.session().then(() => edge.identity, () => edge.identity);
     const mine = ownCopy(here, who);
     if (here !== null && mine === null) store.remove(local);          // M468: another login's copy (or not a list)
+    if (sets instanceof LayoutApiError) { refused(sets, local); return '[]' }
     if (!sets) { unreachable(); return mine ? JSON.stringify(mine) : '[]' }
     const got = sets.get(s);
     rev.set(k(t, s), got ? got.revision : null);
@@ -101,8 +113,8 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
   }
 
   /** one write of the set's current text; a revision another tab moved on is read again and the write repeated once
-      (the newest change on screen wins); true when the account holds it */
-  async function write(t: string, s: string, text: string, again = true): Promise<boolean> {
+      (the newest change on screen wins); true when the account holds it, 'refused' when the plan refused it */
+  async function write(t: string, s: string, text: string, again = true): Promise<boolean | 'refused'> {
     const key = k(t, s);
     if (last.get(key) === text) return true;
     try {
@@ -113,6 +125,7 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
         const fresh = await drawingsApi.list(t).then(r => r.sets.find(x => x.set_id === s) || null, () => undefined);
         if (fresh !== undefined) { rev.set(key, fresh ? fresh.revision : null); last.delete(key); return write(t, s, text, false) }
       }
+      if (e instanceof LayoutApiError && e.access) { refused(e); return 'refused' }
       if (e instanceof LayoutApiError && e.status === 422) say(e.message, true);
       else if (e instanceof LayoutApiError && (e.status === 0 || e.status >= 500)) unreachable();
       else say(e?.message || 'Your drawings could not be saved. Try again in a minute.', true);
@@ -128,8 +141,11 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
     const timer = setTimeout(async () => {
       pending.delete(key);
       const sets = await listOf(t);
+      if (sets instanceof LayoutApiError) { refused(sets, local); return }
       if (!sets) { keepCopy(local, text); unreachable(); return }
-      if (!(await write(t, s, text))) keepCopy(local, text);   // not lost: moves to the account on the next load
+      const wrote = await write(t, s, text);
+      if (wrote === 'refused') store.remove(local);
+      else if (!wrote) keepCopy(local, text);                  // not lost: moves to the account on the next load
     }, SAVE_MS);
     pending.set(key, { json:text, timer });
   }
@@ -147,6 +163,7 @@ export function accountDrawings(say: (text: string, error?: boolean) => void, SA
      stays in this browser and moves on the next load) */
   window.addEventListener('pagehide', () => pending.forEach(({ json, timer }, key) => {
     clearTimeout(timer);
+    if (locked) return;                                      // the plan refused the drawings: nothing sent or kept
     const [t, s] = key.split('/'), r = rev.get(key);
     if (json.length < 60000) sendOnLeave(`${BASE}/${t}/${s}`, 'PUT', { drawings:JSON.parse(json), ...(r ? { revision:r } : {}) });
     keepCopy(s === 'chart' ? `ml.drawings.${t}` : s === 'flow' ? `ml.drawings.flow.${t}` : `ml.drawings.pane.${t}.${s.slice(5)}`, json);

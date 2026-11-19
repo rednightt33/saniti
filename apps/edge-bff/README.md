@@ -36,7 +36,7 @@ Saved layouts (user 2026-11-06: "di akun edge. Tidak usah mengganti saham."), ED
 | --- | --- |
 | GET `/api/v1/terminal/layouts` | `{layouts: [Layout without state], limit}` of the owner, the most recently opened first |
 | GET `/api/v1/terminal/layouts/{layout_id}` | the Layout with `state` (setting name -> text); 404 `NOT_FOUND` |
-| PUT `/api/v1/terminal/layouts/{layout_id}` | `{name, state, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field (more than 64 settings, text with NUL or an unpaired surrogate included), 422 `LIMIT_EXCEEDED` (50 layouts, 65,536 bytes of state); a body over 131,072 bytes is 413 before the route |
+| PUT `/api/v1/terminal/layouts/{layout_id}` | `{name, state, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field (more than 64 settings, text with NUL or an unpaired surrogate included), 422 `LIMIT_EXCEEDED` (65,536 bytes of state), 403 `LIMIT_REACHED` (the plan's `terminal.layouts_max`, at most 50 layouts; `details.limit` the capability key, `allowed`, `needed`); a body over 131,072 bytes is 413 before the route |
 | PATCH `/api/v1/terminal/layouts/{layout_id}` | `{favorite?, opened?: true}`: the star, or the Recently used order; no revision |
 | DELETE `/api/v1/terminal/layouts/{layout_id}` | 204; 404 `NOT_FOUND` |
 
@@ -50,7 +50,7 @@ ticker. A preset is a template: changing the indicator on the chart does not cha
 | Route | Contract |
 | --- | --- |
 | GET `/api/v1/terminal/presets` | `{presets: [Preset with config], limit}` of the owner, favorites first, then the most recently used |
-| PUT `/api/v1/terminal/presets/{preset_id}` | `{name, def_id, config, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); `config` is `{params, style?, on?, fold?}` (objects at most 8 deep, text without NUL or an unpaired surrogate, at most 16,384 bytes); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (100 presets, `preset_bytes`) |
+| PUT `/api/v1/terminal/presets/{preset_id}` | `{name, def_id, config, summary?, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); `config` is `{params, style?, on?, fold?}` (objects at most 8 deep, text without NUL or an unpaired surrogate, at most 16,384 bytes); 409 `REVISION_CONFLICT` (`details.revision`), 409 `NAME_TAKEN`, 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (`preset_bytes`), 403 `LIMIT_REACHED` (the plan's `terminal.presets_max`, at most 100) |
 | PATCH `/api/v1/terminal/presets/{preset_id}` | `{favorite?, used?: true}`: the star, or the used order; no revision |
 | DELETE `/api/v1/terminal/presets/{preset_id}` | 204; 404 `NOT_FOUND` |
 
@@ -68,7 +68,7 @@ come back with Undo. EDGE session, writes with CSRF:
 | Route | Contract |
 | --- | --- |
 | GET `/api/v1/terminal/drawings?ticker=BBRI` | `{sets: [{ticker, set_id, drawings, revision, ...}], limits}` of the owner for that ticker |
-| PUT `/api/v1/terminal/drawings/{ticker}/{set_id}` | `{drawings, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); `drawings` is the drawing library's list (at most 10 levels, at most 100,000 bytes); 409 `REVISION_CONFLICT` (`details.revision`), 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (5,000 sets per owner, `set_bytes`) |
+| PUT `/api/v1/terminal/drawings/{ticker}/{set_id}` | `{drawings, revision?}`: no `revision` creates (201), the revision it was read with replaces (revision + 1); `drawings` is the drawing library's list (at most 10 levels, at most 100,000 bytes); 409 `REVISION_CONFLICT` (`details.revision`), 422 `INVALID_INPUT` by field, 422 `LIMIT_EXCEEDED` (`set_bytes`), 403 `LIMIT_REACHED` (the plan's `terminal.drawings_max`, at most 5,000 sets per owner) |
 | DELETE `/api/v1/terminal/drawings/{ticker}/{set_id}` | 204; 404 `NOT_FOUND` |
 
 Without the table every drawings route answers 503 `DRAWINGS_NOT_READY` with `Retry-After: 30`; the page then keeps the
@@ -90,7 +90,7 @@ broker summary are dropped from the bundle (`tests/data/fixture_bundle.test.mjs`
 Rules and decisions: `backtest/CONTRACT.md`; wire types: `backtest/src/core/contract.ts`. The page `backtest/`
 (TypeScript + Vite) is built by the Dockerfile's `backtest` stage into `static/backtest-app/` (not kept in git) and
 shown under the EDGE top bar in a frame at `/backtest` (Backtest tab, next to Terminal). `/backtest-app/` has the
-terminal page's CSP (its own scripts only, inline style attributes, Google Fonts, and `connect-src` to the bucket
+terminal page's CSP (its own scripts only, inline style attributes, EDGE's own Inter, and `connect-src` to the bucket
 because the signal preview downloads the files `/api/terminal/v1/bundle` presigns). The computation runs in the private
 `backtest-worker` (Node); edge-bff queues the jobs, keeps the results and counts the trials.
 
@@ -215,10 +215,10 @@ and My metrics' Add all open it; the detailed Indicators window is gone. The pre
 | POST `/api/v1/screener/validate` | `ValidateRequest` -> `{valid, definition_hash, normalized}` or the worker's 422 |
 | POST `/api/v1/screener/counts` | `CountsRequest` -> `CountsResponse` (the worker's limit on definitions), as the run |
 | GET `/api/v1/screener/items?kind=screen\|metric` | `{items: SavedItem[]}` of the owner (one kind, or both without `kind`), latest changed first, each with `needs_review` |
-| PUT `/api/v1/screener/items/{item_id}` | `{kind, name, definition, revision?}` -> the stored item: no `revision` creates, the revision it was read with replaces (revision + 1); validated by the worker first (`/v1/validate`, its refusal relayed); 409 `REVISION_CONFLICT` (the id exists, or a stale revision), 409 `NAME_TAKEN` (`name` per owner and kind), 404 `NOT_FOUND`, 422 `LIMIT_EXCEEDED` |
+| PUT `/api/v1/screener/items/{item_id}` | `{kind, name, definition, revision?}` -> the stored item: no `revision` creates, the revision it was read with replaces (revision + 1); validated by the worker first (`/v1/validate`, its refusal relayed); 409 `REVISION_CONFLICT` (the id exists, or a stale revision), 409 `NAME_TAKEN` (`name` per owner and kind), 404 `NOT_FOUND`, 403 `LIMIT_REACHED` (the plan's `screener.saved_items` per kind) |
 | DELETE `/api/v1/screener/items/{item_id}` | 204; 404 `NOT_FOUND` |
 | GET `/api/v1/screener/watchlist` | `{tickers: [{ticker, added_at}]}` (one list per owner) |
-| PUT / DELETE `/api/v1/screener/watchlist/{ticker}` | 204, idempotent; 422 `INVALID_INPUT` (`ticker`, terminal-api's rule `^[A-Z0-9]{1,12}$`), 422 `LIMIT_EXCEEDED` |
+| PUT / DELETE `/api/v1/screener/watchlist/{ticker}` | 204, idempotent; 422 `INVALID_INPUT` (`ticker`, terminal-api's rule `^[A-Z0-9]{1,12}$`), 403 `LIMIT_REACHED` (the plan's `watchlist.per_list`, or `watchlist.lists` when the first list is made) |
 
 Errors are `{"error": {code, field?, message?, details?}}`; every refusal edge-bff gives itself names the field where
 there is one and the fix (AGENTS.md "Gates and evidence"). A body that is not a JSON object the contract can carry is
@@ -335,7 +335,7 @@ first list and adding a stock in Chromium), `watchlist/tests/` (`npm test`). Loo
 
 ## Front-end structure: editing the page without touching the API (EXEC-X, 2026-10-08)
 
-The browser tab names the page (EXEC-TERMINAL-IND-EDIT, user 2026-11-05): `App()` in `static/index.html` sets
+The browser tab names the page (EXEC-TERMINAL-IND-EDIT, user 2026-11-05): `App()` in `static/edge-app.js` sets
 `document.title` from `EdgeLabels.pages` in `static/edge-labels.js` (Sign In, Monitor, Terminal, Backtest, Screener); the
 static `<title>` is only "EDGE". `tests/test_page_titles.py` checks it in a browser.
 
@@ -347,7 +347,14 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 | Session, error contract, browser storage (shared by the shell and the six pages) | `shared/edge-session.ts`, built for the shell into `static/edge-session.js` | a refusal code, the CSRF retry, or a browser storage key (see "Accounts groundwork" below) |
 | View contract | `static/edge-view.js` (`EdgeView.toView`) | Orc's response shape changes; the only code that reads it |
 | Words | `static/edge-labels.js` | wording, a label, a code's words, a status name |
-| Look and layout | `static/index.html` (markup, CSS, renderers) | anything visual; renderers read the view model only |
+| Look and layout | `static/index.html` (markup, CSS) and `static/edge-app.js` (the renderers and the shell's app) | anything visual; renderers read the view model only |
+| Font | `static/fonts/` (Inter 4.001, the variable weight axis in Google's seven subsets, SIL Open Font License 1.1 in `OFL.txt`; `inter-400-700.css` for the shell and five pages, `inter-400-600.css` for the Terminal, the weights each asked Google Fonts for), served at `/fonts/<name>` | never from Google Fonts (re-check R2-28, user 2026-11-19 "5a pakai inter"): every policy keeps `font-src 'self'`, a page links one of the two sheets (`tests/test_decisions_small.py`) |
+
+The shell runs no inline script (EXEC-MU-ACCOUNTS fix round, re-check R2-19): the head's viewport script is
+`static/edge-boot.js` and the app is `static/edge-app.js`, so its policy keeps `script-src 'self'` without
+`'unsafe-inline'`, with `form-action 'self'` (`app/main.py` protections; `tests/test_fix_plans.py`). A new script is a
+file in `static/` loaded with `<script src>`, never an inline `<script>` or an `on...=` attribute. The preview tool
+inlines every such file and writes each back on import.
 
 - Look (MONITOR-REVAMP, user 2026-10-29): the Monitor page and the top bar of every tab follow the user's
   `AI_revamp.html` (EDGE / Market Lab Design Spec v1): its tokens on `.app` (light, and dark under `html.dark`), its
@@ -571,13 +578,17 @@ Sources are drawn only from actual evidence/annotations/data_record. Usage/cost 
 | EDGE_SESSION_SECONDS | 86400 |
 | EDGE_ORC_TIMEOUT_SECONDS | 3900, must exceed active Orc maximum + margin (minimum 3900 seconds) |
 | EDGE_LEASE_SECONDS / EDGE_HEARTBEAT_SECONDS | 90 / 20 |
-| EDGE_POLL_SECONDS / EDGE_WORKER_ENABLED | 2 / true |
+| EDGE_POLL_SECONDS / EDGE_WORKER_ENABLED | 2 / true (false: no background loop at all, local runs and the tests) |
+| EDGE_SITE | unset = `beta` (this service); `live` only on edge-bff-live (section "Beta and live websites") |
+| EDGE_AI_WORKER_ENABLED / EDGE_BACKTEST_LOOP_ENABLED / EDGE_HOUSEKEEPING_ENABLED | unset: the AI job loop on the beta only, the backtest loop and the hourly housekeeping on; true or false only (a typo stops the start) |
 
 Use one uvicorn process/one replica initially. Disable request access logs and proxy headers. Authentication attempt
 limiting lives in PostgreSQL (`edge_bff.auth_throttle`, EXEC-MU-ACCOUNTS Phase 0), so it holds across restarts and
 instances. HTTPS termination is Railway's responsibility. No plaintext password, database credential,
 Orc key, session secret or Railway token is bundled or stored in Git. Public errors are generic; private diagnostic
-keys/addresses are filtered. The original inline renderer requires CSP `unsafe-inline`; unsafe-eval is not enabled.
+keys/addresses are filtered. An exception no handler expected is answered 503 by the outermost middleware
+(`errors.UnexpectedErrors`) and logged by its class and SQLSTATE only, so its text (a failing row's personal data)
+never reaches the server log (re-check R2-25). The original inline renderer requires CSP `unsafe-inline`; unsafe-eval is not enabled.
 
 ## Local validation
 
@@ -695,11 +706,21 @@ The contract is `verification/edge_multiuser/access_tiers/CONTRACT.md` (sections
 are ERRORS M259, M468, M469, M471, M472 and M473.
 
 Sign-in throttle (`app/throttle.py`, table `edge_bff.auth_throttle`, migration `20261116_002`):
-- 10 sign-in tries per login (case-folded, trimmed) in 15 minutes, counted in PostgreSQL, so every instance and
-  every restart sees the same count. Each try is decided and counted in one locked transaction before the password
-  check (`throttle.attempt`: advisory lock on the scope and key hash, window sum, UPSERT), so a concurrent burst
-  reaches the password check at most 10 times (C1 H1, ERRORS M477). The next try answers 429 `SIGN_IN_RATE_LIMIT`
-  with `details.retry_after_s` and `Retry-After`. A success clears the login's count, so only failed tries remain.
+- 10 sign-in tries per login (case-folded, trimmed) and client address in 15 minutes, counted in PostgreSQL, so every
+  instance and every restart sees the same count; tries from another address do not keep the account out (re-check
+  R1-9). Each try is decided and counted in one locked transaction before the password check (`throttle.attempt`:
+  advisory lock on the scope and key hash, window sum, UPSERT), so a concurrent burst reaches the password check at
+  most 10 times (C1 H1, ERRORS M477). The next try answers 429 `SIGN_IN_RATE_LIMIT` with `details.retry_after_s`,
+  `Retry-After` and the wait in its message. A success clears that count, so only failed tries remain. Each counter
+  has its own label inside the key's HMAC (R1-10), so no typed value can produce another counter's key.
+- Switch on, per account (R1-16, NIST SP 800-63B-4): at most 100 consecutive failed passwords over both logins and
+  every address (`identities.sign_in_failures`, migration `20261119_010`), decided and counted before the check; the
+  100th locks the password 24 h, answered as a wrong password; then the count restarts at 90. A success, a reset by
+  email code (which also clears the resetting client's per-login count) or a change clears it; the operator unlock
+  (below) too.
+- Password work (every derivation and Pwned Passwords call: sign-in, registration, reset, change) runs on its own pool
+  of 4 threads (`passwords.PasswordWork`), never on the default executor the database calls use; over 16 requests at
+  once the next is answered 503 `SERVICE_UNAVAILABLE` with `Retry-After` (R2-37).
 - Every login typed is counted, known or not, and the password is checked before the login is compared, so neither
   the answer nor its timing tells whether an account exists.
 - The client address (right-most `X-Forwarded-For`, else the socket peer) is recorded under `signin_ip` (30 in 15
@@ -775,6 +796,84 @@ Shared front-end layer (`shared/`, M471, M473):
 - Terminal drawings kept in the browser while the account cannot be reached are stamped with the page's identity
   (never the last-login mark; nothing is kept while it is unknown) and join only that login's account (M468, M477).
 
+## Beta and live websites (EXEC-MU-ACCOUNTS "Production environment", user decisions 2026-11-19)
+
+One Railway environment, two websites on one database: the beta is this service, edge-bff, at its Railway address, for
+the admin only, with `EDGE_MULTIUSER` off as today; the live site is a second service, edge-bff-live, on the user's
+domain, with the switch on. Only the website is doubled: the database, the market-file bucket, terminal-api,
+backtest-worker, screener-worker, the AI and every data job are one and shared. `EDGE_SITE` (`beta`, the default, or
+`live`) tells the two apart (fix round of the round-2 re-check, ERRORS R2-1, R2-2, R2-3, R2-7, R2-8, R2-13, R2-23,
+R2-26, R2-33, R2-34, R2-36, R2-38; `.railway/railway.ts` holds the live service as a comment until its variables are set).
+
+- **Impossible pairings stop the start** (`config.py validate`): `EDGE_SITE=live` without `EDGE_MULTIUSER=true`; the beta
+  with the switch on (outside `EDGE_ENVIRONMENT=local`, where the tests run both); `EDGE_AI_WORKER_ENABLED=true` on the
+  live site; `EDGE_EMAIL_MODE=log` with the switch on outside `local` (it was allowed in `dev`, the Railway environment
+  both sites run in), unless `EDGE_EMAIL_LOG_ALLOWED=true` says so on purpose (a test with no real person).
+- **Each queued row carries its site** (`edge_bff.jobs.site`, `edge_bff.backtest_jobs.site`, migrations `20261119_020`
+  and `_021`, default `beta`: every earlier row is the admin's). Each site's loop claims, reaps and prunes only its own
+  site's jobs, so a job is dispatched by the code, the principal and the release file of the site that took it.
+- **The loops** (each with its switch, all off with `EDGE_WORKER_ENABLED=false`): the AI job loop on the beta only (AI is
+  admin-only, D1); a backtest loop on each site; the email sender only where the switch is on (the live site); the
+  hourly housekeeping (`app/worker.py Housekeeping`: expired sessions, throttle rows, never-verified registrations, then
+  the outbox rows of addresses left with no account) in
+  its own task, each purge in its own transaction and try, in batches of 500, retried after a doubling backoff, and
+  skipped while the other site runs the same purge (an advisory try-lock). Once edge-bff-live runs, the beta gets
+  `EDGE_HOUSEKEEPING_ENABLED=false` so the live site is its one owner.
+- **What the live site does not serve** (`principal.py beta_only`, `live_view`): the Monitor (AI) and admin tabs, the
+  admin rights of `rights.py` and every item at the lab stage. Their routes answer 404 `NOT_FOUND` there, before the
+  session is read (`/monitor` and `/c/<id>` too), and every principal is masked: it never holds them, `'*'` included
+  (it reads as every flag capability of the catalog that is not beta-only; the workers' `allow` is never `"*"` there).
+  The second factor is decided by the account's own grants, so user #1 still needs it on the live site.
+- **Sessions are bound to their site**: the beta (switch off) accepts only sessions without an account, the live site
+  only an account's sessions.
+- **Start-up** (ERRORS R2-3, R2-36): readiness, the seeds and the catalog names run before the loops; while they fail
+  (a database restarting, a migration not applied), `/ready` answers 503, no loop runs, and the attempt is made again
+  every `EDGE_POLL_SECONDS` (and on each `/ready`), logged `startup_not_ready`, then `startup_done`.
+- **`GET /version`** answers `{"site", "commit"}` (`RAILWAY_GIT_COMMIT_SHA`, null when unset), for the push to live.
+- **Shared secrets** (ERRORS R2-8, R2-26): `EDGE_SESSION_SECRET` (throttle and CSRF HMAC), `EDGE_CODE_SECRET` (email
+  codes) and `EDGE_MFA_KEY` (the one TOTP row per user) key rows of the shared tables, so edge-bff-live holds edge-bff's
+  values as Railway references (`${{edge-bff.NAME}}`), never values of its own.
+
+### Guests, the boxes and the pre-launch mode (track guest, decisions of 2026-11-19)
+
+The user's words: "user tetap bisa search ticker, tapi ketika dia klik ticker selain bbca maka akan keluar pop up box to
+login (jika belum login) dan jika sudah login maka akan keluar pop up box (to upgrade plan)"; "1a - bukan hanya chart,
+nanti ada indikator dll yg juga mungkin di show ke user. jadi design harus plug and play dan fluid"; for the live site
+before the launch "Terbuka, tapi belum bisa mendaftar", "Dan hanya admin yang bisa login (saya)", then "A". Notes:
+`verification/edge_multiuser/fix_round/guest.md`.
+
+- **The guest plan** (migration `20261119_070`): `edge_bff.plans.for_guests` marks the one plan a visitor without an
+  account gets (seed `guest`: the free plan's Terminal grants, BBCA, price, 730 days, no indicator). Its rows are read
+  on every guest request through the same `read_grants` and `can()` as every plan (`principal.py guest_principal`), so
+  a change of its rows changes what visitors see with no code; it never holds `*`, `admin.access`, an admin right or a
+  beta-only key, whatever its rows say.
+- **Where a visitor gets it** (`EDGE_GUESTS`, default on the live site, refused with the switch off): only on the routes
+  that ask for it, `auth.need(capability, guests=True)` and `auth.visitor`: the Terminal relay `/api/terminal/v1/*`, `GET
+  /api/v1/catalog/{kind}` and `GET /api/v1/auth/guest` (the guest plan's access in the session answer's shape, `visitor`
+  true, no CSRF token). Every other route answers 401 without a session, so the shell shows the sign-in page there
+  (`tests/test_route_table.py GUEST_OPEN`). A guest writes without CSRF (no session to ride; the Origin check holds).
+- **The client address** (`principal.py client_of`): the right-most `X-Forwarded-For` entry, the hop Railway's edge adds
+  to every request it forwards, when it is an IP address; without one (a request that did not pass the edge, or a hop
+  that is not an address) there is no guest principal and the answer is 401 (fail closed). The socket peer counts only on
+  a developer machine (`EDGE_ENVIRONMENT=local`). The visitor's key towards terminal-api (`x-terminal-client`) is an HMAC
+  of the address under `EDGE_SESSION_SECRET`, never the address; terminal-api counts each visitor's quotas with it.
+- **The boxes** (`terminal/src/app/locked.ts`, the shell's `LockedDialog`, words `EdgeLabels.locked`): the Terminal
+  derives what is locked from the session answer's access and the catalog route (`live.ts lockRules`), lists every
+  ticker in its search with a lock on the ones the plan lacks, and asks the shell for the box when one is chosen, or a
+  locked indicator, or the saved layouts without `terminal.layouts`: a visitor gets "Sign in" (and "Create account"
+  while registration is open), an account the upgrade box ("Coming soon" and `EDGE_UPGRADE_CONTACT`, or that the contact
+  comes soon). A visitor's drawings last as long as the page.
+- **The pre-launch mode** (`EDGE_PRELAUNCH`, default on the live site until the launch, refused with the switch off):
+  registration, its code and its resends answer 403 `REGISTRATION_CLOSED` (the register page says registration opens
+  soon); only the admin (an account whose grants hold `*` or `admin.access`) and the accounts marked
+  `edge_bff.users.test_account` sign in; every other account gets 403 `SIGN_IN_CLOSED` after its password was checked
+  like any other. The mark changes only beside its `admin_audit` row of the same transaction (a deferred trigger);
+  `scripts/edge_test_account.py` makes or marks a test account for an address and a plan (as a job:
+  `scripts/onboarding/edge_test_account_job.py`), and the person sets the password with "Forgot password". Visitors
+  still open the Terminal.
+- **`GET /api/v1/auth/config`** with the switch on: `{"multiuser", "registration", "prelaunch", "guests",
+  "upgrade_contact"}`; with it off `{"multiuser": false}` as before.
+
 ## Accounts (EXEC-MU-ACCOUNTS Phase 1, 2026-11-16/17)
 
 Phase 1 builds EDGE accounts behind the switch `EDGE_MULTIUSER` (default `false`; it goes on only at Phase 6). Contract:
@@ -789,17 +888,21 @@ The switch and what it changes:
 | Sign-in | `EDGE_LOGIN` / `EDGE_PASSWORD_VERIFIER`, exactly as before | a username or email and the account's password (`edge_bff.identities`) |
 | Principal | user #1: owner `EDGE_OWNER`, every capability (`*`), admin rights from `EDGE_ADMIN_OWNERS`, version `env` | the session's account: role `admin` every capability, role `user` none (the plan catalog of Phase 2 replaces this) |
 | Account routes (table below) | 404 `NOT_FOUND`, except `GET /api/v1/auth/config` = `{"multiuser": false}` | open |
-| Email sender loop | not started | started with the worker (`EDGE_EMAIL_ENABLED`) |
+| Email sender loop | not started | started with the worker (`EDGE_EMAIL_ENABLED`; an error `email_sender_off` is logged when it is off) |
 | Admin MFA | none | required before any admin route (403 `MFA_REQUIRED`) |
-| Sessions | as before | idle timeout `EDGE_SESSION_IDLE_SECONDS` (default 28800), at most 5 per user, `last_seen_at` written at most once a minute; sessions still waiting for the admin's second factor capped apart at 3, never counted towards or revoking the 5; a new session token when MFA is passed |
-| Seed of user #1 | at every start when `edge_bff.users` is empty; its password identity follows `EDGE_PASSWORD_VERIFIER` | the identity is the account's own and is never overwritten |
+| Sessions | as before, and only a session the switch-off sign-in made (no account: `user_id` NULL); an account's session never opens a switch-off site (ERRORS R2-1) | idle timeout `EDGE_SESSION_IDLE_SECONDS` (default 28800), at most 5 per user, `last_seen_at` written at most once a minute; sessions still waiting for the admin's second factor capped apart at 3, never counted towards or revoking the 5; a new session token when MFA is passed |
+| Seed of user #1 | at every start when `edge_bff.users` is empty; its password identity follows `EDGE_PASSWORD_VERIFIER` while it holds the seed's own copy (`identities.seed_verifier_sha256`); once the account set its own password with the switch on, it is never overwritten (ERRORS R2-2) | the identity is the account's own and is never overwritten |
 | Preferences (below) | served for user #1 | served per account |
 
 The seed: user #1 is the configured owner (`edge-private` on dev), role `admin`, status `active`. Its username is
 `EDGE_LOGIN` lower-cased when that fits the username rule and is not reserved, else `admin_1` (`edge` is reserved, so
 dev's seed is `admin_1`). Its password identity is a copy of `EDGE_PASSWORD_VERIFIER`, so the password does not
 change. Every replica takes one advisory lock, so two starting together make one row. A failed seed keeps the
-switch-off sign-in working (logged `account_seed_failed`); with the switch on it keeps the worker from starting.
+switch-off sign-in working (logged `account_seed_failed`); with the switch on the start-up is tried again and no loop
+starts until it succeeds (`/ready` answers 503 meanwhile). A switch-off start copies a changed `EDGE_PASSWORD_VERIFIER`
+only over the seed's own copy: `identities.seed_verifier_sha256` is the sha256 of the verifier the seed last wrote, and a
+password change or reset on the switch-on site (the live one) writes another verifier, which no later start overwrites
+(migration `20261119_022`). The switch-off sign-in itself still reads `EDGE_PASSWORD_VERIFIER`.
 
 Principal (`app/principal.py`): the owner of every request comes from it and only from it. Every router takes
 `routes(app, auth)`: `auth.principal` (401 `UNAUTHENTICATED`), `auth.writer` (plus CSRF), `auth.need(capability)`
@@ -839,20 +942,37 @@ has none). Every switch-on sign-in derives the password exactly 1 + `PENDING_CHE
 configured verifier, so its time says nothing about how many registrations an address has.
 
 Rules: codes are 6 digits, HMAC-SHA256 with `EDGE_CODE_SECRET`, valid 300 s, 5 tries each and at most 20 failed tries
-per user per day (429 `LIMIT_REACHED`); one email per address per 60 s and 10 a day; a new registration of an
-address (from any browser) mails it at most once per hour and three times a day, inside those 10 (a later one in the
-hour answers the same 202 and changes nothing; recorded decision N4 in M478: whoever's address was registered by
-someone else first may wait up to an hour for their own code); passwords 8 to 256 characters after NFKC normalisation
-(verifiers made before it are still accepted), any character, refused when found in Pwned Passwords (k-anonymity range API, 2 s; when it cannot answer the password is
-accepted and `PWNED_CHECK_UNAVAILABLE` logged); a phone is normalised to E.164 (`08…` → `+628…`), not verified; a
-pending user is deleted 24 h after creation.
+per user per day (429 `LIMIT_REACHED`); a reset's failed codes are also counted per address, whether or not it has an
+account, so that 429 tells nothing about the address (R1-8); a `USERNAME_TAKEN` answer uses one of the code's 5 tries
+(R1-12). One code email per address per 60 s (a notification email never holds a code back, R2-10) and 10 emails a
+day; a new registration of an address (from any browser) mails it at most once per hour and three times a day, inside
+those 10 (a later one in the hour answers the same 202 and changes nothing; recorded decision N4 in M478: whoever's
+address was registered by someone else first may wait up to an hour for their own code), and one registration is
+mailed at most 3 times a day (its code, resends and sign-in restarts; R1-13). Registering again from the same browser
+when nothing new was made keeps that browser's registration cookie (R1-11). Passwords 8 to 256 characters after NFKC
+normalisation (verifiers made before it are still accepted), any character, refused when found in Pwned Passwords
+(k-anonymity range API, 2 s; when it cannot answer the password is accepted and `PWNED_CHECK_UNAVAILABLE` logged); a
+verifier is scrypt N=2^14, r=8, p=5 (OWASP's minimum equivalent, `scrypt$n=16384,r=8,p=5$<salt>$<hash>`; R2-29), and
+one of the cost before it (`scrypt$<salt>$<hash>`, p=1) still signs in and is replaced at that sign-in; a check costs
+the same whatever the verifier's age. A reset, a change, a sign-in and an MFA verify write under the account's lock and
+only while what they rest on still holds (R2-9). A phone is normalised to E.164 (`08…` → `+628…`), not verified; a
+pending user is deleted 24 h after creation, and 24 h after they were made the sent, failed, expired or suppressed
+outbox rows of an address with no account go too (`edge_bff.purge_email_outbox(max_rows)`, migration `20261119_012`,
+the housekeeping's batches; the runtime holds no DELETE on the outbox; R2-24). Retention (the user's decision of
+2026-11-19, "a"): every sent, failed, expired or suppressed outbox row of every address goes 30 days after it was made
+(the same function), with the email codes no longer usable (used, or expired unused) 30 days after they ended
+(`store.PURGES` `codes`) and the handled webhook deliveries 30 days after they arrived
+(`edge_bff.purge_email_hook_events(max_rows)`, `hook_events`; the runtime holds no DELETE on them either); a row not
+yet sent, a live code and `email_suppression` are kept.
 
 Email (`app/mailer.py`, `app/email_texts.py`, plain English): a code and its email are written in one transaction
 (`edge_bff.email_outbox`). The sender is its own task beside the backtest loop, claiming one row at a time with
 `FOR UPDATE SKIP LOCKED` and a lease.
 - `EDGE_EMAIL_MODE=log` (default): the email is written to the log, the code masked unless `EDGE_ENVIRONMENT=local`,
-  and the row is marked sent with its payload kept, so a dev tester reads the code from the row. Allowed only with
-  `EDGE_ENVIRONMENT` dev or local when the switch is on.
+  and the row is marked sent with its payload kept, so a tester reads the code from the row. Allowed only with
+  `EDGE_ENVIRONMENT=local` when the switch is on (ERRORS R2-26: no longer `dev`, the Railway environment of the live
+  site too), or with the explicit `EDGE_EMAIL_LOG_ALLOWED=true` for a test of the live site before its Resend key, with
+  no real person (logged `email_log_mode_allowed` at every start while it is on).
 - `EDGE_EMAIL_MODE=resend`: POST `https://api.resend.com/emails` with the row's `Idempotency-Key`; retried after 5 s,
   30 s and 2 min, then `failed`; the payload is nulled once sent; a code email past its expiry becomes `expired`, never
   sent. Needs `RESEND_API_KEY` and `EDGE_EMAIL_FROM` (an address); `RESEND_WEBHOOK_SECRET` (`whsec_…`) signs the
@@ -864,9 +984,16 @@ Besides the 10 tries per 15 minutes, 100 consecutive wrong authenticator codes (
 `details.unlock_at`; the `/mfa` page shows it in local time, switches to the recovery-code field when only the
 authenticator is locked, and keeps "Forgot password?"). A lock lasts 24 h, then the count restarts at 90 (8), so 10 (2)
 more tries come before the next lock; a correct code resets the counts; a password reset by email code clears counts
-and locks. Operator unlock: `scripts/edge_mfa_unlock.py --username <name> --reason "<why>"`, run as a job on the
-private network only (EXEC.md EXEC-MU-ACCOUNTS, Phase 1 deploy steps, step 9); it clears that account's counts and
-locks, writes one `admin_audit` row with actor `operator`, and prints only the user id and the counts. The secret
+and locks. A confirmed authenticator is replaced only by a session that passed MFA within the last 10 minutes
+(`auth_flows.MFA_RECENT_SECONDS`, decided with the enrolment's row lock; an older pass answers 403 `MFA_REQUIRED` with
+`details.recent_s` 600, and the `/mfa` page asks for a code of the current authenticator, then starts the set-up again),
+and only when a code of the new one proves it: until then the new enrolment waits beside it (`mfa_totp.pending_nonce`, recovery codes marked
+`pending`, migration `20261119_011`) and the old authenticator and its recovery codes keep working (R1-7). A code
+confirms only the enrolment it was checked against (R2-11); the cap is decided and counted under the enrolment's row
+lock (R2-12). Operator unlock: `scripts/edge_mfa_unlock.py --username <name> --reason "<why>"`, run as a job on the
+private network only (EXEC.md EXEC-MU-ACCOUNTS, Phase 1 deploy steps, step 9); it clears that account's MFA and
+password counts and locks, writes one `admin_audit` row with actor `operator`, and prints only the user id and the
+counts. The secret
 is HMAC-SHA256(`EDGE_MFA_KEY`, user id ‖ a stored 16-byte nonce)[:20], never stored: changing `EDGE_MFA_KEY` after an
 admin has enrolled invalidates every authenticator, so the key is set once and kept. The `/mfa` page shows the QR code
 with the vendored `static/qrcode-generator.js` (qrcode-generator 1.4.4, MIT, licence in
@@ -875,8 +1002,8 @@ with the vendored `static/qrcode-generator.js` (qrcode-generator 1.4.4, MIT, lic
 Variables (all checked at start; with the switch off a missing one never stops it, a set one is still checked; the
 secrets never appear in `repr(Settings)`):
 `EDGE_MULTIUSER` (true/false only), `EDGE_SESSION_IDLE_SECONDS` (at least 60), `EDGE_CODE_SECRET` and `EDGE_MFA_KEY`
-(at least 32 characters; required with the switch on), `EDGE_EMAIL_MODE` (log/resend), `EDGE_EMAIL_ENABLED`,
-`EDGE_EMAIL_FROM`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`.
+(at least 32 characters; required with the switch on), `EDGE_EMAIL_MODE` (log/resend), `EDGE_EMAIL_ENABLED` (true/false
+only, like every loop switch), `EDGE_EMAIL_FROM`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `EDGE_SITE` (beta/live).
 
 Preferences (`app/preferences.py`, contract 4b, user 2026-11-16): an account's preferences and saved items that the
 pages kept only in the browser come back on any device. `GET /api/v1/preferences` gives every key of the principal's
@@ -885,7 +1012,7 @@ replaced, 409 `PREFERENCE_CONFLICT` with the current value for a stale version, 
 64 KiB per value, 1 MiB in all). They work with the switch off too, for user #1.
 
 Front-end (`static/index.html`, `shared/edge-session.ts`):
-- One route table, `ROUTES` in `index.html`, read by `go()` and `currentPath`: the tab pages (`auth`), `/login`, and
+- One route table, `ROUTES` in `edge-app.js`, read by `go()` and `currentPath`: the tab pages (`auth`), `/login`, and
   the account pages `/register`, `/verify`, `/forgot`, `/reset` (`open`: shown only while `/auth/config` says
   `multiuser`, else the sign-in page) and `/mfa`. `main.py` serves each path; a new page needs a row here and a route
   there, and its words in `EdgeLabels.pages`.
@@ -988,7 +1115,12 @@ unset = that owner), so nothing changes for it; an owner EDGE_ADMIN_OWNERS does 
 - **Terminal proxy** (`/api/terminal/v1/*`): `terminal.view` before any call to terminal-api.
 - **Page files** (`app/pages.py`): `/api/v1/<family>/index` and `/file/<name>` need `overview.view`, `radar.view` or
   `watchlist.view`, checked before the shared caches. Files are sent `private, no-cache` with their ETag; a `?sha=`
-  request with a matching If-None-Match answers 304 only after the check.
+  request with a matching If-None-Match answers 304 only after the check. The principal's terminal headers are built
+  before the caches too, so what edge-bff refuses for that principal itself (a quota of 0) holds whether the caches are
+  warm or cold (re-check R1-31). A page file is granted, counted and audited on terminal-api for the principal whose
+  request missed the caches, once per process and sha256; a read from the caches counts against no one's Terminal
+  quota (re-check R1-5, R1-31: the caches are shared by design, CONTRACT.md section 15). terminal-api's quota refusal of
+  a grant is 429 `LIMIT_REACHED` with `Retry-After` (it was `<FAMILY>_QUOTA`).
 - `tests/test_phase3a_monitor_pages.py` walks these routes: a new one needs its line in `ROUTE_CAPS`.
 
 ## Terminal data gate: headers and refusals (EXEC-MU-ACCOUNTS Phase 3c, 2026-11-18)
@@ -1016,6 +1148,11 @@ owner holds `*`: its header says `admin: true`, its body is forwarded byte for b
     outside terminal-api's rule `^[A-Za-z0-9._:@-]{1,128}$` answers 503 `TERMINAL_UNAVAILABLE`, logged.
   - The dataset and quota names are read from `apps/terminal-api` by the test, so they are written in one place here.
   - Longer than 8 KiB (a list of about 900 tickers): 503 `TERMINAL_UNAVAILABLE`, logged; never cut short.
+  - Every value the plan catalog can hold maps onto what terminal-api takes (re-check R1-22): `history_days` above
+    36600 is sent as 36600; 0 (the value of a limit that cannot be read) is sent as 0, terminal-api's empty window; a
+    ticker outside `^[A-Z0-9]{1,12}$` is left out and logged (`terminal_tickers_dropped`, its count); a quota of 0 is
+    403 `CAPABILITY_REQUIRED` naming the limit (waiting would not help). The catalog also refuses such values when they
+    are written (migration `20261119_050`: `capabilities.value_min`, `value_max`, `item_pattern`).
 - **Page-sent headers:** a request to a terminal-forwarding route that carries `x-terminal-proxy-key`,
   `x-terminal-proxy-owner` or `x-terminal-capabilities` is refused 400 `HEADER_NOT_ALLOWED` (`details.header`) before
   anything else (`terminal_access.guard`); no request header is ever copied to terminal-api.
@@ -1025,7 +1162,12 @@ owner holds `*`: its header says `admin: true`, its body is forwarded byte for b
     rule for every ticker path keeps the class closed; the page shows its monogram), `files`, `bundle`,
     `history/*?ticker=` (exactly one) and `cut/<T>/<dataset>`;
   - a dataset outside `datasets` (`terminal.dataset:<id>`): `files`' dataset, `history/price` and `history/broker`,
-    `cut/<T>/<dataset>`, `reference/*` as `reference`;
+    `cut/<T>/<dataset>`;
+  - with `history_days` 0, every dated path (`files`, `bundle`, `cut/*`, `history/*`): `terminal.history_days`;
+  - `reference/*` is not refused (re-check R2-32): terminal-api answers a plan without the dataset `reference` with
+    its own copy of the file (the whole ticker list since decision 1 of 2026-11-19, track guest; the rows of its
+    tickers in a file with data per ticker; the broker list only with `broker`), announced as
+    `/api/terminal/v1/reference/<name>/cut?sha256=<hex>` and relayed byte for byte like a cut;
   - a `bundle` whose every asked dataset is locked (its `datasets`, terminal-api's default `price, broker, events` when
     absent, plus `intraday` with a `timeframe`); with one open dataset it is forwarded and terminal-api answers the
     locked ones `{locked: true, capability}`;
@@ -1034,15 +1176,29 @@ owner holds `*`: its header says `admin: true`, its body is forwarded byte for b
   - a body or query that cannot be read (not JSON, not an object, a ticker that is not text, a repeated `ticker`):
     422 `INVALID_INPUT`. The checked JSON is what is forwarded (re-serialised), so terminal-api reads what was checked.
   - A forwarded GET route the check does not know is refused (fail closed); the test ties the route regex to it.
-- **terminal-api's own refusals:** its 403 `{"error": "capability_required", "capability": ..}` (on any forwarded route,
-  the cut included) is answered in EDGE's shape, 403 `CAPABILITY_REQUIRED` with `details.capability` and
-  `details.display_name`; every other answer passes through as before.
+- **terminal-api's answers** (`terminal_access.relayed`, one rule for `forward_terminal`, the cut relay and the page
+  files; re-check R1-1, R1-26, R2-4; CONTRACT.md section 3):
+  - for a principal without `*`, an answer without `x-terminal-capabilities-applied: 1 <version>` (a terminal-api from
+    before Phase 3c ignores the owner headers and would serve the plan in full) is 503 `TERMINAL_UNAVAILABLE`, logged
+    (`terminal_capabilities_not_applied`); the switch-off owner holds `*` and needs none;
+  - an acknowledged 2xx JSON answer reaches the page through `client.public_data` (ERRORS M260, the user's go
+    2026-11-19 "a"): no private key (`PRIVATE_KEYS`: `reasoning`, `token`, `api_key`, ...) and no `*.railway.internal`
+    address, as every Orc and worker relay; a cut's bytes and a logo are relayed as they are (never parsed). The walk
+    in `tests/test_decisions_small.py` calls every route holding `terminal_access.guard` with each kind of proxy path,
+    terminal-api planting both in every answer;
+  - its 403 `capability_required` is 403 `CAPABILITY_REQUIRED` with `details.capability` and `details.display_name`;
+  - its 429 is 429 `LIMIT_REACHED` with `details.limit` (`terminal.<quota>`), `details.allowed`,
+    `details.retry_after_s` and `Retry-After`, from the fields terminal-api adds (an hour when it names none);
+  - its 401, any other 403 (its own account, key or host rule) and a 400 about the owner headers edge-bff built are
+    503 `TERMINAL_UNAVAILABLE`, logged with its status and code (`terminal_refused`), never the EDGE sign-in;
+  - its 400 about the request is 400 `INVALID_INPUT` and its 404 404 `NOT_FOUND`, with its code as `details.reason`
+    (and the field names of a 400); every 5xx is 503 `TERMINAL_UNAVAILABLE`. Its messages never reach the page.
 - **The cut** `GET /api/terminal/v1/cut/<TICKER>/<dataset>` (`price`, `broker`, `events`, `yield`; D2 = A;
   terminal-api builds it with deterministic gzip and answers `application/gzip`). `/bundle` names a capped owner's files
   `{"year": null, "pack": "cut", "url": "/api/terminal/v1/cut/<T>/<ds>?sha256=<hex>", ..}`; the query is forwarded. The
   bytes are read raw from terminal-api and relayed exactly (no JSON parse, no decoding, no Content-Encoding added or
   relayed), with only Content-Type, Content-Length (checked against the bytes read), ETag, X-Terminal-Cut-Sha256 and
-  Cache-Control, the latter always `private`; at most 64 MiB. Another status passes through as JSON.
+  Cache-Control, the latter always `private`; at most 64 MiB. Another status is answered by `terminal_access.relayed`.
   - The page loads a URL of this origin (one starting with `/`) with the session cookie (`credentials: 'same-origin'`,
     `terminal/src/data/rack.ts` `credentialsFor`), and a presigned URL of the storage host still without any cookie
     (`omit`); `terminal/tests/data/cut_credentials.test.ts`.

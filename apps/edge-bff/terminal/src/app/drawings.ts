@@ -145,26 +145,31 @@ export function initDrawings(ctx: Ctx) {
      set is kept on the EDGE account (data/drawingsApi.ts): the price chart's (key = the ticker), each Flow Timeline's
      (`flow.TICKER`) and each indicator pane's (`pane.TICKER.<pane id>`); this browser keeps a set only while the account
      cannot be reached. The fixture keeps the browser's storage (the reference's behaviour). */
-  const acct = ctx.M.mode === 'live' ? accountDrawings(say) : null;
+  /* track guest: a visitor without an account has no account to keep drawings in, and its browser keeps nothing either
+     (as for a plan whose drawings the account refuses, re-check R1-19): its drawings last as long as the page */
+  const guest = ctx.M.mode === 'live' && !!ctx.M.locks?.guest;
+  const acct = ctx.M.mode === 'live' && !guest ? accountDrawings(say) : null;
+  const page = new Map<string, string>();
+  const keep = guest ? { get:(k: string) => page.get(k) ?? null, set:(k: string, v: string) => { page.set(k, v) }, remove:(k: string) => { page.delete(k) } } : store;
   const where = (key: string): [string, string] => key.startsWith('flow.') ? [key.slice(5), 'flow']
     : key.startsWith('pane.') ? [key.split('.')[1], 'pane_' + key.split('.')[2]] : [key, 'chart'];
   const repo = {
     key: (symbol: string) => `ml.drawings.${symbol}`,
     load: async (symbol: string) => {
-      const legacy = store.get(`${repo.key(symbol)}.intraday`);
-      if (legacy !== null) { store.set(repo.key(symbol), mergeSets(store.get(repo.key(symbol)) || '[]', legacy)); store.remove(`${repo.key(symbol)}.intraday`) }
-      const json = acct ? await acct.load(...where(symbol), repo.key(symbol)) : store.get(repo.key(symbol)) || '[]';
+      const legacy = keep.get(`${repo.key(symbol)}.intraday`);
+      if (legacy !== null) { keep.set(repo.key(symbol), mergeSets(keep.get(repo.key(symbol)) || '[]', legacy)); keep.remove(`${repo.key(symbol)}.intraday`) }
+      const json = acct ? await acct.load(...where(symbol), repo.key(symbol)) : keep.get(repo.key(symbol)) || '[]';
       const shown = intraday ? onIntradayCandles(json, dates) : onDailyCandles(json, barOf, lastSession, tf !== 'D');
       memos.set(symbol, shownTimes(json, shown));
       return shown;
     },
     save: (symbol: string, json: string) => {
       const stored = storedTimes(json, memos.get(symbol) || new Map());
-      if (acct) acct.save(...where(symbol), stored, repo.key(symbol)); else store.set(repo.key(symbol), stored);
+      if (acct) acct.save(...where(symbol), stored, repo.key(symbol)); else keep.set(repo.key(symbol), stored);
       return Promise.resolve();
     },
     /** a pane's set when the user removes the pane (2A: its drawings go with it; Undo brings them back through save) */
-    forget: (symbol: string) => { if (acct) acct.remove(...where(symbol)); store.remove(repo.key(symbol)) }
+    forget: (symbol: string) => { if (acct) acct.remove(...where(symbol)); keep.remove(repo.key(symbol)) }
   };
 
   /* EXEC-XABCD-PREVIEW (user 2026-11-11: "X A B C D yang biru adalah tradingview ... masukan exec untuk di benarkan", go

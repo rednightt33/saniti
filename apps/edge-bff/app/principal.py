@@ -27,9 +27,39 @@ Dependencies (`Auth`, handed to every router as `routes(app, auth)`):
 - `auth.need(capability, write=False)`: 403 CAPABILITY_REQUIRED without the capability, or 403 PLAN_EXPIRED when only
   the account's ended plan held it (access.expired_plan names that plan; the fix is to renew it);
 - `auth.admin(write=False, capability='admin.access')`: need(capability) plus mfa_ok, else 403 MFA_REQUIRED.
+
+The two websites (EXEC-MU-ACCOUNTS "Production environment", user decisions 2026-11-19; config.py EDGE_SITE):
+- the switch-off resolution accepts only a switch-off session (user_id NULL, store.session; ERRORS R2-1), so a session
+  of an account (made by the live site, with the switch on) never opens the beta, and a beta session (no account) never
+  resolves on the live site (accounts.resolve joins the account);
+- on the live site (EDGE_SITE=live) every principal is `live_view`: it never holds a beta-only capability (`beta_only`:
+  the Monitor (AI, decision D1) and admin tabs, the admin rights of rights.py, every item at the lab stage), whatever its
+  plan grants, '*' included; `auth.need` of a beta-only capability answers 404 NOT_FOUND there, as for a route the site
+  does not have. The second factor is decided by the account's own grants, so user #1 still needs it on the live site.
+
+Guests (track guest, decision 1 of 2026-11-19, the user: "1a - bukan hanya chart, nanti ada indikator dll yg juga
+mungkin di show ke user. jadi design harus plug and play dan fluid"; verification/edge_multiuser/fix_round/guest.md):
+- a visitor without a session (no cookie, or one that resolves to no session) on a site with guests on
+  (Settings.guests: the live site unless EDGE_GUESTS=false; never with EDGE_MULTIUSER off) is the guest principal: the
+  grants of the one plan marked for_guests (edge_bff.plans, migration 20261119_070), read on every request through
+  read_grants as every plan's are (guest_principal), so a change of its rows changes what visitors see without code;
+- it exists only for the routes that ask for it (`auth.need(capability, guests=True)`, `auth.visitor`): the Terminal's
+  data relay and the catalogs the Terminal reads. Every other route keeps answering 401 UNAUTHENTICATED, so the page
+  goes to sign-in;
+- it never holds everything, the admin access, an admin right or a beta-only capability, whatever the plan's rows say
+  (fail closed, logged guest_capability_dropped); its owner key is GUEST_OWNER for every visitor (terminal-api's one
+  guest owner row), and `client` names the visitor: an HMAC of its client address (guest_client), which terminal-api
+  counts its quotas by (x-terminal-client). The address is the right-most X-Forwarded-For entry, the hop Railway's
+  edge adds to every request it forwards (client_of); without a readable address (no header or not an IP address; the
+  socket peer only on a developer machine, EDGE_ENVIRONMENT=local) there is no guest principal: 401 (fail closed);
+- a guest writes without CSRF: it has no session a cross-site page could ride, and the Origin check of every write
+  (main.py protections) still holds.
 """
 import asyncio
+import dataclasses
 import hashlib
+import hmac
+import ipaddress
 import json
 import logging
 import re
@@ -39,11 +69,13 @@ from datetime import datetime
 
 from fastapi import Depends, Request
 
-from .accounts import OWNER_KEY, AccountStore
+from .accounts import GUEST_OWNER, OWNER_KEY, AccountStore
+from .config import LIVE
 from .errors import Refusal, capability_required, plan_expired, set_display_names
 from . import releases
-from .releases import KIND_OF_FAMILY, stage_of
-from .security import csrf_token, same_ascii, token_hash
+from .releases import KIND_OF_FAMILY, LAB, stage_of
+from .rights import CAPABILITY_OF as RIGHT_CAPABILITIES
+from .security import SESSION_COOKIE, cookie_name, csrf_token, same_ascii, token_hash
 
 logger = logging.getLogger('edge_bff.principal')
 
@@ -55,6 +87,26 @@ TOKEN = re.compile(r'[0-9a-f]{64}')
 MFA_OPEN = frozenset({'/api/v1/auth/session', '/api/v1/auth/sign-out', '/api/v1/auth/mfa/enroll',
                       '/api/v1/auth/mfa/verify'})
 ITEM_KEYS = frozenset({'ids', 'stages', 'all'})
+# EXEC-MU-ACCOUNTS "Production environment" (user 2026-11-19): the AI Monitor, the admin pages and every lab item live on
+# the beta site only. A capability key is '<tab>.<name>' (the catalog's rule; an item key '<tab>.<kind>:<id>'), so the
+# beta-only keys are those of these tabs, the admin rights rights.py grants (ADMIN_RIGHTS) and the lab-stage items.
+BETA_ONLY_TABS = frozenset({'monitor', 'admin'})
+ADMIN_RIGHT_CAPABILITIES = frozenset(RIGHT_CAPABILITIES.values())
+# Track guest (module docstring): the one owner key of every visitor (never an account's, which are u_<hex>; config.py
+# refuses it for EDGE_OWNER and EDGE_ADMIN_OWNERS), and the role and status a guest principal names (it has no account)
+VISITOR = 'visitor'
+GUEST_CLIENT_LABEL = b'edge_bff.guest_client\x00'
+
+
+def beta_only(key):
+    """Whether the live site never holds this capability key (module docstring): a key of a BETA_ONLY_TABS tab, an admin
+    right, or an item '<family>:<id>' of a family with release stages (releases.KIND_OF_FAMILY) whose id is at the lab
+    stage (an id the release file does not list is lab)."""
+    family, sep, item = (key or '').partition(':')
+    if family.split('.', 1)[0] in BETA_ONLY_TABS or family in ADMIN_RIGHT_CAPABILITIES:
+        return True
+    kind = KIND_OF_FAMILY.get(family) if sep else None
+    return kind is not None and stage_of(kind, item) == LAB
 
 
 def valid_value(kind, value):
@@ -75,8 +127,16 @@ def valid_value(kind, value):
 
 
 # C1 Phase 2 F1: a value that cannot be read never widens access. A flag or an item family of the wrong shape is not
-# held; a limit or a list of the wrong shape is the most restrictive value (0, no entries), never "no limit"
-RESTRICTIVE = {'limit': 0, 'list': []}
+# held; a limit or a list of the wrong shape is the most restrictive value (0, no entries), never "no limit". Immutable
+# here and copied per read (re-check R1-24): a consumer that adds to the list it was given changes its own copy only,
+# never the value of the next principal whose list cannot be read
+RESTRICTIVE = {'limit': 0, 'list': ()}
+
+
+def restrictive(kind):
+    """A new most restrictive value of a limit or list kind (never a shared object)."""
+    value = RESTRICTIVE[kind]
+    return list(value) if kind == 'list' else value
 
 
 def read_grants(rows, user_id=None):
@@ -91,7 +151,7 @@ def read_grants(rows, user_id=None):
             continue
         logger.warning(json.dumps({'event': 'capability_value_invalid', 'capability': key, 'user_id': user_id}))
         if kind in RESTRICTIVE:
-            grants[key], kinds[key] = RESTRICTIVE[kind], kind
+            grants[key], kinds[key] = restrictive(kind), kind
     return grants, kinds
 
 
@@ -137,10 +197,17 @@ class Principal:
     expired_plan: str | None = None
     expired_grants: dict = field(default_factory=dict, hash=False, compare=False, repr=False)
     expired_kinds: dict = field(default_factory=dict, hash=False, compare=False, repr=False)
+    # the live site's view (live_view): no beta-only capability is held, whatever the grants say
+    live: bool = False
+    # track guest: a visitor without an account (guest_principal) and its visitor key, an HMAC of its client address
+    guest: bool = False
+    client: str = field(default='', repr=False)
 
     def can(self, capability):
         """'*' holds everything; a flag key is held when granted; '<family>:<id>' by the family's items value (its ids,
-        its release stages, or all). Anything else is not held."""
+        its release stages, or all). Anything else is not held. On the live site a beta-only key never is."""
+        if self.live and beta_only(capability):
+            return False
         return EVERYTHING in self.capabilities or holds(self.grants, self.kinds, capability)
 
     def limit(self, capability, default=None):
@@ -154,18 +221,43 @@ class Principal:
         value = self.limit(capability, hard)
         return min(value, hard) if isinstance(value, int) and not isinstance(value, bool) else hard
 
-    def refusal(self, capability):
-        """The refusal for a capability this principal does not hold: PLAN_EXPIRED when only its ended plan held it
-        (renewing that plan is the fix), else CAPABILITY_REQUIRED (upgrading is)."""
-        if self.expired_plan and holds(self.expired_grants, self.expired_kinds, capability):
+    def refusal(self, capability, item=None, amount=None):
+        """The refusal for a request this principal may not make: PLAN_EXPIRED when the account's ended plan would have
+        allowed it (renewing that plan is the fix; ended_allows), else CAPABILITY_REQUIRED (upgrading is). `item` (a
+        list member asked, e.g. a ticker) and `amount` (a number asked, e.g. a window in days) let a list or a limit be
+        judged against the ended plan's own value (CONTRACT.md 8a; re-check R1-23)."""
+        if self.ended_allows(capability, item, amount):
             return plan_expired(capability, self.expired_plan)
         return capability_required(capability)
 
-    def access(self, nxt=None):
-        """The session answer's `access` object (CONTRACT.md section 4, GET /api/v1/auth/session)."""
+    def ended_allows(self, capability, item=None, amount=None):
+        """Whether the account's ended plan would have allowed this request. A flag or an item family: held as can()
+        holds it. A list or a limit (its kind read from the ended plan's row, else the current plan's): allowed when the
+        ended plan set no such restriction (no row: every member, no limit), its list holds `item`, or `amount` is
+        within its limit; without `item` or `amount` only the first case is known."""
+        if not self.expired_plan:
+            return False
+        grants, kinds = self.expired_grants, self.expired_kinds
+        kind = kinds.get(capability) or self.kinds.get(capability)
+        if kind not in ('list', 'limit'):
+            return holds(grants, kinds, capability)
+        if grants.get(EVERYTHING) is True or capability not in kinds:
+            return True
+        value = grants[capability]
+        if kind == 'list':
+            return item is not None and item in value
+        return isinstance(amount, int) and not isinstance(amount, bool) and amount <= value
+
+    def access(self, nxt=None, ceilings=None):
+        """The session answer's `access` object (CONTRACT.md section 4, GET /api/v1/auth/session). `ceilings`
+        (Auth.ceilings: a limit key -> its module's HARD): a limit is reported as the routes apply it, min(plan, HARD)
+        (Principal.capped; re-check R1-29), so the page's limit(key) is the number the server enforces."""
+        ceilings = ceilings or {}
+        limits = {k: self.capped(k, ceilings[k]) if k in ceilings and self.kinds.get(k, 'limit') == 'limit' else v
+                  for k, v in self.limits.items()}
         return {'plan': self.plan_key, 'role': self.role, 'status': self.status,
                 'expires_at': self.expires_at.isoformat() if self.expires_at else None, 'mfa_ok': self.mfa_ok,
-                'capabilities': sorted(self.capabilities), 'limits': dict(self.limits), 'version': self.version,
+                'capabilities': sorted(self.capabilities), 'limits': limits, 'version': self.version,
                 'owner_key': self.owner_key, 'mfa_enrolled': self.mfa_enrolled, 'seed': self.seed,
                 'expired_plan': self.expired_plan,
                 'next': nxt if nxt is not None else (None if self.mfa_ok else 'mfa')}
@@ -194,6 +286,65 @@ def switch_off_principal(settings, owner, token='', seed=None):
                      status='active', expires_at=None, mfa_ok=True,
                      capabilities=frozenset({EVERYTHING}) if admin else frozenset(), limits={},
                      version=SWITCH_OFF_VERSION, token=token, seed=first)
+
+
+def live_view(p, flags=()):
+    """The principal as the live site serves it (EDGE_SITE=live; module docstring): `live` set, so `can` refuses every
+    beta-only key; its capabilities without them, where '*' reads as every flag capability of the catalog (`flags`,
+    edge_bff.capabilities of kind flag) that is not beta-only (so the page shows the tabs the site has, never the
+    Monitor); its limits without them; mfa_ok and the grants as they are (the second factor is the account's own); a
+    version of its own, so an open page reads the session again when the view changes."""
+    held = flags if EVERYTHING in p.capabilities else p.capabilities
+    capabilities = frozenset(k for k in held if k != EVERYTHING and not beta_only(k))
+    raw = json.dumps([p.version, sorted(capabilities), LIVE], separators=(',', ':')).encode()
+    return dataclasses.replace(p, capabilities=capabilities, live=True,
+                               limits={k: v for k, v in p.limits.items() if not beta_only(k)},
+                               version='db-' + hashlib.sha256(raw).hexdigest()[:12])
+
+
+def client_of(request, local=False):
+    """The visitor's client address: the right-most X-Forwarded-For entry, the hop Railway's edge adds to every request
+    it forwards from the internet (a hop a client wrote itself stays to its left), when it is an IP address; on a
+    developer machine (`local`, EDGE_ENVIRONMENT=local), with no such header, the socket peer. None otherwise: a request
+    that did not pass the edge, or a header that is not an address, gets no guest principal (fail closed)."""
+    forwarded = request.headers.get('x-forwarded-for')
+    if forwarded is not None:
+        candidate = forwarded.split(',')[-1].strip()
+    elif local and request.client:
+        candidate = request.client.host
+    else:
+        return None
+    try:
+        return str(ipaddress.ip_address(candidate))
+    except ValueError:
+        return None
+
+
+def guest_client(secret, address):
+    """The visitor key of a client address: 32 hex of an HMAC with EDGE_SESSION_SECRET under its own label (never the
+    address itself, and no other HMAC of the same secret, such as the throttle's or CSRF's, can equal it)."""
+    return hmac.new(secret.encode(), GUEST_CLIENT_LABEL + address.encode(), hashlib.sha256).hexdigest()[:32]
+
+
+# what a visitor never holds, whatever the guest plan's rows say (module docstring)
+GUEST_NEVER = frozenset({EVERYTHING, ADMIN_ACCESS}) | ADMIN_RIGHT_CAPABILITIES
+
+
+def guest_principal(row, client):
+    """The guest principal from the guest plan's row ({plan_key, grants {key: {kind, value}}, versions}; accounts.py
+    guest_plan) and the visitor key: the plan's grants read as every plan's are (read_grants), without GUEST_NEVER and
+    the beta-only keys (dropped and logged), and `live` set so no beta-only item is held either."""
+    grants, kinds = read_grants(row.get('grants'))
+    for key in sorted(k for k in grants if k in GUEST_NEVER or beta_only(k)):
+        logger.warning(json.dumps({'event': 'guest_capability_dropped', 'capability': key}))
+        grants.pop(key)
+        kinds.pop(key)
+    capabilities = frozenset(k for k, kind in kinds.items() if kind == 'flag' and grants[k] is True)
+    limits = {k: grants[k] for k, kind in kinds.items() if kind in ('limit', 'list')}
+    return Principal(user_id=None, owner_key=GUEST_OWNER, username=None, role=VISITOR, plan_key=row.get('plan_key'),
+                     status=VISITOR, expires_at=None, mfa_ok=True, capabilities=capabilities, limits=limits,
+                     version=version_of(row.get('plan_key'), VISITOR, grants, row.get('versions') or {}),
+                     grants=grants, kinds=kinds, live=True, guest=True, client=client)
 
 
 def role_needs_mfa(capabilities):
@@ -230,29 +381,74 @@ class Auth:
         self.settings, self.store = settings, store
         self.accounts = accounts or AccountStore(store)
         self._names_at = None
+        self.flags = frozenset()                         # the catalog's flag capabilities (refresh_names; live_view)
         self.seed = None                                 # {user_id, username} of user #1 once seeded (main.py lifespan)
         self._needs = {}
+        # re-check R1-29: each module's HARD of a plan limit (ceiling), so the session answer reports what is applied
+        self.ceilings = {}
 
         # named session and write as before Phase 1 (tests read the dependency names)
-        async def session(request: Request):
-            found = await self.resolve(request.cookies.get('edge_session', ''))
+        cookie = cookie_name(SESSION_COOKIE, settings.secure_cookie)
+
+        async def signed_in(request: Request):
+            """The principal of the request's session, or None when it has none (the caller answers 401, or the
+            guest routes make a guest principal); a session that still waits for the second factor is refused here."""
+            token = request.cookies.get(cookie, '')
+            if not token and cookie != SESSION_COOKIE and not settings.multiuser:
+                # re-check R2-22: the configured owner's session from before the __Host- name, read once under the old
+                # name (main.py protections sets it again under the new one); with the switch on only the new name is
+                # read, so a cookie another host set under the old name is never a session
+                token = request.cookies.get(SESSION_COOKIE, '')
+            found = await self.resolve(token)
             if found is None:
-                raise Refusal(401, 'UNAUTHENTICATED')
+                return None
+            # the refusals below carry the principal's X-Edge-Entitlements too (main.py protections), so a page whose
+            # account now needs the second factor reads its session again (re-check R2-31)
+            request.state.principal = found
             # a pending admin session (the password was right, the second factor not yet): only the MFA steps, the
             # session read and sign-out; every other route answers 403 MFA_REQUIRED
             if not found.mfa_ok and request.url.path not in MFA_OPEN:
-                raise Refusal(403, 'MFA_REQUIRED')
+                # re-check R2-31: whether an authenticator is set up, as the sign-in answer says, so the words and the
+                # shell can offer the set-up to an account raised to a plan that needs the second factor
+                raise Refusal(403, 'MFA_REQUIRED', {'mfa_enrolled': found.mfa_enrolled})
             # EXEC-BACKTEST-REVAMP P5: request.state.owner stays, set from the principal (never a body's)
             request.state.owner, request.state.principal = found.owner_key, found
             return found
 
-        async def write(request: Request, p: Principal = Depends(session)):
+        async def session(request: Request):
+            found = await signed_in(request)
+            if found is None:
+                raise Refusal(401, 'UNAUTHENTICATED')
+            return found
+
+        def check_csrf(request, p):
             if not same_ascii(request.headers.get('x-csrf-token', ''), csrf_token(p.token, settings.session_secret)):
                 # the only place that answers CSRF_INVALID (the clients re-read the session and retry once on it)
                 raise Refusal(403, 'CSRF_INVALID')
+
+        async def write(request: Request, p: Principal = Depends(session)):
+            check_csrf(request, p)
+            return p
+
+        # track guest (module docstring): the session's principal, else the guest principal, else 401; a guest writes
+        # without CSRF (no session to ride; the Origin check of every write holds)
+        async def visitor(request: Request):
+            found = await signed_in(request)
+            if found is not None:
+                return found
+            guest = await self.guest(request)
+            if guest is None:
+                raise Refusal(401, 'UNAUTHENTICATED')
+            request.state.owner, request.state.principal = guest.owner_key, guest
+            return guest
+
+        async def visitor_write(request: Request, p: Principal = Depends(visitor)):
+            if not p.guest:
+                check_csrf(request, p)
             return p
 
         self.principal, self.writer = session, write
+        self.visitor, self.visitor_writer = visitor, visitor_write
 
     def seed_user(self):
         """User #1 from the configuration (accounts.py seed; blocking, a thread): owner_key EDGE_OWNER, the username
@@ -270,8 +466,11 @@ class Auth:
             return
         self._names_at = now
         with self.store.connect() as c:
-            rows = c.execute('SELECT capability_key, display_name FROM edge_bff.capabilities').fetchall()
-        set_display_names({r['capability_key']: r['display_name'] for r in rows})
+            rows = c.execute('SELECT capability_key, display_name, kind FROM edge_bff.capabilities').fetchall()
+            plans = c.execute('SELECT plan_key, display_name FROM edge_bff.plans').fetchall()
+        set_display_names({r['capability_key']: r['display_name'] for r in rows},
+                          {r['plan_key']: r['display_name'] for r in plans})
+        self.flags = frozenset(r['capability_key'] for r in rows if r['kind'] == 'flag')
 
     def seed_plan(self):
         """Phase 2 (CONTRACT.md 8a "User #1"): the seed user's subscription to the plan that holds every capability
@@ -284,7 +483,7 @@ class Auth:
     def needs_mfa(self, owner_key):
         """Switch on: whether the account's resolved capabilities require the second factor (the sign-in makes a
         pending session for it). Blocking (a thread)."""
-        return role_needs_mfa(self.owner_principal(owner_key).capabilities)
+        return role_needs_mfa(owner_principal(self.settings, self.accounts, owner_key).capabilities)  # the account's own
 
     def configured_owner(self):
         """The switch-off owner a new session is made for (main.py sign-in with EDGE_MULTIUSER off): EDGE_OWNER."""
@@ -301,20 +500,49 @@ class Auth:
                 return None
             return switch_off_principal(self.settings, self.settings.owner, token, self.seed)
         row = await asyncio.to_thread(self.accounts.resolve, hashed, self.settings.session_idle_seconds)
-        return account_principal(row, token) if row else None
+        return self.site_view(account_principal(row, token)) if row else None
+
+    async def guest(self, request):
+        """The guest principal of a request without a session (module docstring), or None: guests are off on this site
+        (Settings.guests), the client address cannot be read (client_of, fail closed), or no plan is marked for guests
+        (logged guest_plan_missing; a value that cannot be read never widens access)."""
+        if not self.settings.guests:
+            return None
+        address = client_of(request, self.settings.environment == 'local')
+        if address is None:
+            return None
+        row = await asyncio.to_thread(self.accounts.guest_plan)
+        if row is None:
+            logger.warning(json.dumps({'event': 'guest_plan_missing'}))
+            return None
+        return self.site_view(guest_principal(row, guest_client(self.settings.session_secret, address)))
+
+    def site_view(self, p):
+        """The principal as this site serves it: live_view on the live site, else as it is."""
+        return live_view(p, self.flags) if self.settings.site == LIVE else p
 
     def owner_principal(self, owner_key):
         """The principal of an owner without a session, as it is now (the backtest loop reads its rights when it
         dispatches a queued job). Switch on: an owner with no active account has no capability. Blocking (a thread)."""
-        return owner_principal(self.settings, self.accounts, owner_key)
+        return self.site_view(owner_principal(self.settings, self.accounts, owner_key))
 
-    def need(self, capability, write=False):
+    def need(self, capability, write=False, guests=False):
         """A dependency: the principal (with CSRF when write) holding the capability, else 403 CAPABILITY_REQUIRED (or
-        PLAN_EXPIRED when only the account's ended plan held it)."""
-        key = ('need', capability, write)
-        if key not in self._needs:
+        PLAN_EXPIRED when only the account's ended plan held it). On the live site a beta-only capability (the Monitor,
+        the admin routes) answers 404 NOT_FOUND before the session is read: the route is not one the site has. Track
+        guest: `guests` makes the route one a visitor reaches (auth.visitor: the guest principal without a session);
+        only the Terminal's data relay asks for it (tests/test_route_table.py GUEST_OPEN)."""
+        key = ('need', capability, write) + (('guests',) if guests else ())
+        if guests:
+            base = self.visitor_writer if write else self.visitor
+        else:
             base = self.writer if write else self.principal
+        if key not in self._needs and self.settings.site == LIVE and beta_only(capability):
 
+            async def absent(_: None = Depends(not_on_this_site), p: Principal = Depends(base)):
+                return p                                      # never reached: not_on_this_site refuses first
+            self._needs[key] = absent
+        if key not in self._needs:
             async def check(p: Principal = Depends(base)):
                 if not p.can(capability):
                     try:
@@ -338,10 +566,23 @@ class Auth:
                 if not p.can(ADMIN_ACCESS):
                     raise p.refusal(ADMIN_ACCESS)
                 if not p.mfa_ok:
-                    raise Refusal(403, 'MFA_REQUIRED')
+                    raise Refusal(403, 'MFA_REQUIRED', {'mfa_enrolled': p.mfa_enrolled})
                 return p
             self._needs[key] = check
         return self._needs[key]
+
+    def ceiling(self, capability, hard):
+        """A module's HARD for the plan limit `capability` (the storage guarantee Principal.capped applies), declared
+        where the module registers its routes; the session answer's access.limits reports min(plan, HARD) for it. The
+        lowest wins when two modules apply the same key. Returns hard."""
+        was = self.ceilings.get(capability)
+        self.ceilings[capability] = hard if was is None else min(was, hard)
+        return hard
+
+
+async def not_on_this_site():
+    """The first dependency of a beta-only route on the live site (Auth.need): 404 NOT_FOUND."""
+    raise Refusal(404, 'NOT_FOUND')
 
 
 def owner_principal(settings, accounts, owner_key):

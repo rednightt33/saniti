@@ -34,13 +34,25 @@ def tracked(*patterns):
     return [ROOT / line for line in out.splitlines() if line]
 
 
+# a script that reads a `--check` flag itself (argparse, sys.argv, process.argv), wherever it lives
+TAKES_CHECK = re.compile(r'''add_argument\(\s*['"]--check['"]|['"]--check['"]\s+in\s+sys\.argv|'''
+                         r'''argv\.includes\(\s*['"]--check['"]\s*\)''')
+TEST_FILE = re.compile(r'(^test_.*\.py|\.test\.[cm]?[jt]s)$')
+
+
 def generators():
-    """Scripts directly in a folder named `scripts` (not in node_modules), found by name or by a `--check` flag."""
+    """Scripts directly in a folder named `scripts` (not in node_modules), found by name or by a `--check` flag, and
+    any other tracked script that reads a `--check` flag itself (EXEC-MU-ACCOUNTS fix round, re-check R1-44:
+    apps/edge-bff/shared/build-shell.mjs writes static/edge-session.js and sits in no `scripts` folder)."""
     found = {}
     for path in tracked('*.py', '*.mjs', '*.js'):
-        if path.parent.name != 'scripts' or 'node_modules' in path.parts:
+        if 'node_modules' in path.parts or TEST_FILE.search(path.name):
             continue
-        if re.match(r'(build|generate|snapshot)[_-]', path.name) or '--check' in path.read_text(errors='replace'):
+        text = path.read_text(errors='replace')
+        if path.parent.name == 'scripts':
+            if re.match(r'(build|generate|snapshot)[_-]', path.name) or '--check' in text:
+                found[path.stem] = path
+        elif TAKES_CHECK.search(text):
             found[path.stem] = path
     return found
 

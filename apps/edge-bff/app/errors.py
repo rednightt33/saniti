@@ -6,7 +6,13 @@ CAPABILITY_REQUIRED (403) keeps the session and shows that the feature is not op
 Messages are plain English, like every EDGE interface label (EXEC-UI-1019B, user: "Ok 1 aja"), without internal names
 (AGENTS.md "Gates and evidence" (d): each names what is wrong and how to go on).
 """
+import json
+import logging
+import math
+
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger('edge_bff.errors')
 
 MESSAGES = {
     'UNAUTHENTICATED': 'Your session has ended or you are not signed in. Please sign in again.',
@@ -15,7 +21,8 @@ MESSAGES = {
     'PLAN_EXPIRED': 'Your EDGE plan has ended. Renew it to use this again; you are still signed in.',
     'MFA_REQUIRED': 'This needs your sign-in code. Enter the code from your authenticator app, then try again.',
     'LIMIT_REACHED': "You have reached your plan's limit. Try again later, or upgrade the plan.",
-    'SIGN_IN_RATE_LIMIT': 'Too many sign-in attempts. Wait a minute, then try again.',
+    # {wait}: the refusal's own wait in words (details.retry_after_s; ERRORS R1-9: it said "a minute" for up to 16)
+    'SIGN_IN_RATE_LIMIT': 'Too many sign-in attempts from here. Wait {wait}, then try again.',
     'INVALID_INPUT': 'Some fields are not valid. Check them and try again.',
     'NOT_FOUND': 'The page or item you asked for was not found.',
     'METHOD_NOT_ALLOWED': 'This kind of request is not supported here.',
@@ -59,6 +66,10 @@ MESSAGES = {
     'MFA_NOT_ENROLLED': 'Two-step sign-in is not set up for this account yet. Set it up first, then enter the code.',
     'HOOK_SIGNATURE_INVALID': 'The webhook signature could not be verified. Check the signing secret of the webhook.',
     'PREFERENCE_LIMIT': 'Your account keeps too many settings or too large a setting. Remove some, then save again.',
+    # track guest (the pre-launch mode of the live site, the user 2026-11-19: "Terbuka, tapi belum bisa mendaftar",
+    # "Dan hanya admin yang bisa login (saya)"): plain refusals; the Terminal stays open to visitors
+    'REGISTRATION_CLOSED': 'Registration opens soon. EDGE is not taking new accounts yet; you can still open the Terminal without an account.',
+    'SIGN_IN_CLOSED': 'EDGE opens to accounts soon. Until then only test accounts can sign in; you can still open the Terminal without an account.',
 }
 
 # FastAPI's and Starlette's own refusals by status (a route raises HTTPException with one of these codes as its detail)
@@ -70,15 +81,19 @@ STATUS_CODES = {400: 'INVALID_INPUT', 401: 'UNAUTHENTICATED', 403: 'FORBIDDEN', 
 # The capabilities a Phase 0 route may require, with the name the person sees (CONTRACT.md section 3 details)
 CAPABILITY_NAMES = {'admin.manual': 'Manual agent (troubleshooting)'}
 # C1 Phase 3a F3: the names the person sees come from the catalog (edge_bff.capabilities.display_name), loaded by
-# Auth.refresh_names at start and again at most every NAMES_SECONDS when a route refuses; never the internal key
+# Auth.refresh_names at start and again at most every NAMES_SECONDS when a route refuses; never the internal key.
+# Re-check R2-15: the plans' names too (edge_bff.plans.display_name), for the ended plan of PLAN_EXPIRED
 _names = {}
+_plan_names = {}
 UNNAMED = 'This part of EDGE'
 
 
-def set_display_names(names):
-    """Replaces the catalog's names (capability key -> display name)."""
-    global _names
+def set_display_names(names, plans=None):
+    """Replaces the catalog's names (capability key -> display name) and, when given, the plans' (plan key -> name)."""
+    global _names, _plan_names
     _names = dict(names)
+    if plans is not None:
+        _plan_names = dict(plans)
 
 
 def display_name(capability):
@@ -100,15 +115,154 @@ class Refusal(Exception):
         super().__init__(code)
 
 
-def message_of(code, status):
+def wait_text(seconds):
+    """A wait in words: 'less than a minute', '16 minutes', '3 hours'; 'a few minutes' when it is not known. The {wait}
+    of a fixed message (the sign-in throttle, ERRORS R1-9); a plan limit's exact wait is wait_words."""
+    if not isinstance(seconds, (int, float)) or isinstance(seconds, bool) or seconds <= 0:
+        return 'a few minutes'
+    if seconds < 60:
+        return 'less than a minute'
+    minutes = math.ceil(seconds / 60)
+    if minutes < 120:
+        return f'{minutes} minute{"s" if minutes != 1 else ""}'
+    return f'{math.ceil(minutes / 60)} hours'
+
+
+def message_of(code, status, details=None):
     """The code's message; a code without one (a code relayed from another service) gets the message of its status
-    class, so every refusal carries a message."""
-    return MESSAGES.get(code) or MESSAGES['SERVICE_UNAVAILABLE' if status >= 500 else 'REQUEST_REFUSED']
+    class, so every refusal carries a message. A message that holds {wait} says the refusal's own wait
+    (details.retry_after_s)."""
+    text = MESSAGES.get(code) or MESSAGES['SERVICE_UNAVAILABLE' if status >= 500 else 'REQUEST_REFUSED']
+    return text.replace('{wait}', wait_text((details or {}).get('retry_after_s'))) if '{wait}' in text else text
+
+
+def wait_words(seconds):
+    """A wait in words ('30 seconds', '15 minutes', '24 hours'), rounded up; '' when unknown."""
+    if not isinstance(seconds, (int, float)) or isinstance(seconds, bool) or seconds < 0:
+        return ''
+    count, unit = math.ceil(seconds), 'second'
+    if count >= 60:
+        count, unit = math.ceil(count / 60), 'minute'
+        if count >= 60:
+            count, unit = math.ceil(count / 60), 'hour'
+    return f'{count} {unit}' + ('' if count == 1 else 's')
+
+
+def named_in(details):
+    """The person's name of the capability a refusal names (details.display_name, else the catalog's), or '' when
+    only the plain phrase is known."""
+    name = details.get('display_name')
+    if not isinstance(name, str) or not name.strip():
+        capability = details.get('capability')
+        name = display_name(capability) if isinstance(capability, str) and capability else ''
+    return '' if name == UNNAMED else name.strip()
+
+
+def is_plan_limit(limit):
+    """Whether a LIMIT_REACHED's details.limit is a plan limit: a capability key (<tab>.<name>, the catalog's form;
+    its name when the catalog is loaded), else a throttle that no plan decides, such as the email-code and
+    authenticator-code tries ('code_tries', 'mfa_tries')."""
+    return isinstance(limit, str) and (limit in _names or '.' in limit)
+
+
+def words(code, status, details=None):
+    """The sentence a refusal carries, from its code and its details (re-check R2-15): what the details name reaches
+    the person, since every client shows the server's sentence first (shared/edge-session.ts accessText, the shell's
+    authText). AGENTS.md "Gates and evidence" (d): it names what is wrong and how to go on.
+    - CAPABILITY_REQUIRED names the item (display_name); PLAN_EXPIRED also the ended plan (its name in the catalog);
+    - LIMIT_REACHED of a plan limit (is_plan_limit) names it, the account's own number (allowed) and the wait (or, with
+      no wait, to remove one); of anything else it names the wait and no plan, since no plan decides it;
+    - MFA_REQUIRED says to set the authenticator up when the account has none (details.mfa_enrolled false), and to
+      enter a fresh code first when a new authenticator needs a recent pass (details.recent_s, the seconds);
+    - every other code: its fixed sentence (message_of; one holding {wait} says the refusal's own wait)."""
+    d = details if isinstance(details, dict) else {}
+    if code == 'CAPABILITY_REQUIRED':
+        name = named_in(d)
+        if name:
+            return f'{name} is not part of your EDGE plan. Upgrade the plan to use it; you are still signed in.'
+    elif code == 'PLAN_EXPIRED':
+        name = named_in(d)
+        plan = _plan_names.get(d['expired_plan'], '') if isinstance(d.get('expired_plan'), str) else ''
+        ended = f'Your {plan} plan on EDGE has ended' if plan else 'Your EDGE plan has ended'
+        if name:
+            return f'{ended}, and {name} came with it. Renew the plan to use it again; you are still signed in.'
+        return f'{ended}. Renew it to use this again; you are still signed in.'
+    elif code == 'LIMIT_REACHED':
+        limit, wait = d.get('limit'), wait_words(d.get('retry_after_s'))
+        if is_plan_limit(limit):
+            allowed = d.get('allowed')
+            count = f' ({allowed})' if isinstance(allowed, int) and not isinstance(allowed, bool) else ''
+            then = (f'Try again in {wait}, or upgrade the plan.' if wait
+                    else 'Remove one you no longer need, or upgrade the plan.')
+            what = f' for {_names[limit]}' if limit in _names else ''
+            return f"You have reached your plan's limit{what}{count}. {then}"
+        return f'Too many attempts. Wait {wait or "a while"}, then try again.'
+    elif code == 'MFA_REQUIRED' and d.get('mfa_enrolled') is False:
+        return ('This needs two-step sign-in, which is not set up for this account yet. Set up an authenticator app '
+                'when EDGE asks for it, then try again.')
+    elif code == 'MFA_REQUIRED' and isinstance(d.get('recent_s'), int) and not isinstance(d['recent_s'], bool) \
+            and d['recent_s'] >= 60:
+        minutes = d['recent_s'] // 60
+        return (f'Setting up a new authenticator needs a code from your current one entered in the last {minutes} '
+                f'minute{"s" if minutes != 1 else ""}. Enter the code from your authenticator app, then start the set-up '
+                'again.')
+    return message_of(code, status, d)
+
+
+def plan_cap(capability, allowed, needed):
+    """Re-check R2-39 (CONTRACT.md section 3): a saved-item cap of the plan (layouts, presets, places with drawings,
+    saved screens and metrics, watchlists and their tickers and indicators) reached. One code for every plan limit,
+    LIMIT_REACHED, with details.limit the capability key, allowed the account's own number and needed what the request
+    would make; 403, since waiting frees nothing (removing one or a larger plan does; the queue of backtests, which frees
+    itself, answers 429 with Retry-After). (code, status, message, details) for a module's failure()."""
+    details = {'limit': capability, 'allowed': allowed, 'needed': needed}
+    return 'LIMIT_REACHED', 403, words('LIMIT_REACHED', 403, details), details
 
 
 def refusal(status, code, details=None, headers=None):
     return JSONResponse(status_code=status, headers=headers, content={'error': {
-        'code': code, 'message': message_of(code, status), 'details': details or {}}})
+        'code': code, 'message': words(code, status, details), 'details': details or {}}})
+
+
+def failure_class(e):
+    """What a log line may say about an exception nobody expected: its class, and a database error's SQLSTATE, never
+    its text (a DETAIL line lists a failing row: an email, names, a phone; ERRORS R2-25)."""
+    out = {'error': f'{type(e).__module__}.{type(e).__qualname__}'}
+    sqlstate = getattr(e, 'sqlstate', None)
+    if isinstance(sqlstate, str):
+        out['sqlstate'] = sqlstate
+    return out
+
+
+class UnexpectedErrors:
+    """The outermost middleware of edge-bff (ERRORS R2-25). Starlette's ServerErrorMiddleware answers an unexpected
+    exception with the app's handler and then re-raises it, and uvicorn logs it with its full text. This catches such
+    an exception first: it logs only failure_class (method and path beside it) and answers 503 SERVICE_UNAVAILABLE in
+    the contract's shape when nothing was sent yet. Nothing re-raises, so the server writes nothing."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope['type'] != 'http':
+            await self.app(scope, receive, send)
+            return
+        started = False
+
+        async def sending(message):
+            nonlocal started
+            if message['type'] == 'http.response.start':
+                started = True
+            await send(message)
+        try:
+            await self.app(scope, receive, sending)
+        except Exception as e:                      # noqa: BLE001 - logged by its class only (failure_class)
+            logger.error(json.dumps({'event': 'request_failed', 'method': scope.get('method'), 'path': scope.get('path'),
+                                     **failure_class(e)}))
+            if not started:
+                response = refusal(503, 'SERVICE_UNAVAILABLE', headers={'Cache-Control': 'no-store',
+                                                                        'X-Content-Type-Options': 'nosniff'})
+                await response(scope, receive, send)
 
 
 def capability_required(capability):

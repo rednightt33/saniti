@@ -176,7 +176,7 @@ def test_released_versus_lab_items_and_everything(on, store, monkeypatch):
                         lambda kind, item: 'released' if (kind, item) in {('indicator', 'I01'), ('flow_indicator', 'FL24')} else 'lab')
     released_plan = db(store, '''SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = 'terminal.indicator'
         AND value = '{"stages": ["released"]}' ''')[0]['plan_key']
-    everything_plan = db(store, "SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*'")[0]['plan_key']
+    everything_plan = db(store, "SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb")[0]['plan_key']
     paid, admin = make_user(store, 'paul', 'paul-password'), make_user(store, 'ada', 'ada-password')
     subscribe(store, paid['user_id'], released_plan)
     subscribe(store, admin['user_id'], everything_plan)
@@ -237,7 +237,7 @@ def test_the_seed_subscription_is_idempotent(on, store):
             pass
     rows = db(store, '''SELECT s.plan_key, s.status, s.expires_at, s.provider, u.owner_key FROM edge_bff.subscriptions s
         JOIN edge_bff.users u USING (user_id)''')
-    everything_plan = db(store, "SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*'")[0]['plan_key']
+    everything_plan = db(store, "SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb")[0]['plan_key']
     assert rows == [{'plan_key': everything_plan, 'status': 'active', 'expires_at': None, 'provider': 'manual',
                      'owner_key': on.owner}]
     seed_id = db(store, 'SELECT user_id FROM edge_bff.users WHERE owner_key = %s', on.owner)[0]['user_id']
@@ -251,7 +251,7 @@ def test_the_seed_subscription_is_idempotent(on, store):
 
 
 def test_the_seed_subscription_refuses_an_ambiguous_plan(on, store, caplog):
-    other = db(store, "SELECT plan_key FROM edge_bff.plans WHERE plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*') ORDER BY plan_key LIMIT 1")[0]['plan_key']
+    other = db(store, "SELECT plan_key FROM edge_bff.plans WHERE plan_key NOT IN (SELECT plan_key FROM edge_bff.plan_capabilities WHERE capability_key = '*' AND value = 'true'::jsonb) ORDER BY plan_key LIMIT 1")[0]['plan_key']
     db(store, "INSERT INTO edge_bff.plan_capabilities(plan_key, capability_key, value) VALUES (%s, '*', 'true')", other)
     try:
         with caplog.at_level(logging.WARNING, 'edge_bff.accounts'):
@@ -341,10 +341,14 @@ def test_every_seed_capability_has_a_plain_meaning(store):
 # ---- no plan key in code ------------------------------------------------------------------------------------------
 
 def plan_keys():
-    """The plan keys of the seed, read from the migration (the only place they may appear)."""
-    block = re.search(r'INSERT INTO edge_bff\.plans\(plan_key, display_name, is_default\) VALUES(.*?);',
-                      MIGRATION.read_text(), re.S).group(1)
-    return set(re.findall(r"\('([a-z][a-z0-9_]*)',", block))
+    """The plan keys of the seeds, read from every migration that adds a plan (the only places they may appear): the
+    catalog's (20261117_003) and, since track guest, the guest plan's (20261119_070)."""
+    keys = set()
+    for path in sorted((ROOT / 'database/migrations').glob('*_edge_bff_*.sql')):
+        for block in re.findall(r'INSERT INTO edge_bff\.plans\(plan_key, display_name, is_default(?:, for_guests)?\) '
+                                r'VALUES(.*?);', path.read_text(), re.S):
+            keys |= set(re.findall(r"\('([a-z][a-z0-9_]*)',", block))
+    return keys
 
 
 def role_names():
@@ -405,7 +409,8 @@ def test_the_rule_catches_a_planted_plan_key():
 def test_no_plan_key_in_edge_bff_app():
     """CONTRACT.md section 0 and 8a: plan keys are data (the catalog seed migration), never code."""
     keys, roles = plan_keys(), role_names()
-    assert keys == {'admin', 'paid', 'free'} and 'admin' in roles
+    # track guest (decision 1 of 2026-11-19): the guest plan joins the seeded plans, and its key is data too
+    assert keys == {'admin', 'paid', 'free', 'guest'} and 'admin' in roles
     found = {path.name: uses for path in sorted(APP.rglob('*.py'))
              if (uses := plan_key_uses(path.read_text(), keys, roles))}
     assert found == {}

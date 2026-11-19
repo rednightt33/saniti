@@ -13,6 +13,17 @@ Both absent: the gateway acts for its one account as before this phase (deploy s
 before edge-bff sends them). One without the other, or a header that breaks a rule, is refused with 400 naming the
 field, the rule and a right example (parse). Nothing here reads the database.
 
+Re-check fix round (track terminal, verification/edge_multiuser/fix_round/terminal.md):
+- R2-5: a `datasets` id this terminal-api does not know is not served anyway, so it is left out (Capabilities.ignored,
+  logged by main.py), never a refusal of the whole call: an edge-bff that knows one dataset more (it deploys on a green
+  push, terminal-api by a hand upload) keeps working. Order rule: a dataset is added on terminal-api first and removed
+  on edge-bff first. An unknown field, quota name or `v` is still refused: those are contract errors.
+- R1-22: `history_days` takes 0 (MIN_HISTORY_DAYS): no row dated on or before data_through is served, the value edge-bff
+  sends for a plan whose history limit reads as 0 (edge-bff's principal.RESTRICTIVE), so the page files, which carry no
+  history window, keep working while every dated path is refused (edge-bff refuses them first).
+- R2-4: every answer to an owner call carries APPLIED_HEADER, "<v> <version>" of the header it applied (main.py's
+  middleware), so edge-bff can refuse an answer of a terminal-api that ignored the headers (one from before Phase 3c).
+
 The window of a capped owner (decision D2 = A, "exactly the last N calendar days"): with history_days N and a dataset's
 manifest ``data_through`` D (its date part), the rows served are those dated strictly after D - N days, with no upper
 bound (window_after). Example: N = 730, D = 2026-11-17: D - 730 days = 2024-11-17, so the first date served is
@@ -33,6 +44,16 @@ VERSION_RE = re.compile(r'^[A-Za-z0-9._:-]{1,64}$')          # edge-bff principa
 TICKER_RE = re.compile(r'^[A-Z0-9]{1,12}$')
 MAX_TICKERS = 5000
 MAX_HISTORY_DAYS = 36600                                        # 100 years: beyond any published history
+MIN_HISTORY_DAYS = 0                                            # 0: no dated row up to data_through (R1-22)
+# R2-4: the acknowledgement of an applied header, on every answer to an owner call (applied())
+APPLIED_HEADER = 'x-terminal-capabilities-applied'
+# Track guest (decision 1 of 2026-11-19, "1a"; verification/edge_multiuser/fix_round/guest.md): the visitors of EDGE's
+# guest plan reach terminal-api under one owner, and edge-bff names each visitor by an opaque key of its client
+# address (an HMAC edge-bff makes, 32 hex; never the address itself), so the quotas are counted per visitor (main.py
+# meter). Without it an owner's calls share the owner's one row: stricter, never wider (fail closed).
+CLIENT_HEADER = 'x-terminal-client'
+CLIENT_RE = re.compile(r'^[0-9a-f]{32}$')
+CLIENT_EXAMPLE = '0123456789abcdef0123456789abcdef'
 MAX_QUOTA = 1_000_000_000
 # the Terminal quota names a plan may set (terminal.quota rows of the same names); a key left out keeps its default
 QUOTA_KEYS = ('files_per_hour', 'tickers_per_hour', 'tickers_per_day', 'megabytes_per_day', 'history_per_hour')
@@ -54,13 +75,15 @@ class HeaderError(ValueError):
 @dataclass(frozen=True)
 class Capabilities:
     """What the owner's plan lets the Terminal serve. tickers/datasets: None = every one ("*"), else a frozenset.
-    history_days: None = no limit. quota: ((name, value), ...) sorted, the plan's own Terminal limits."""
+    history_days: None = no limit. quota: ((name, value), ...) sorted, the plan's own Terminal limits. ignored: the
+    dataset ids of the header this terminal-api does not know (left out, R2-5)."""
     version: str
     admin: bool
     tickers: frozenset | None
     datasets: frozenset | None
     history_days: int | None
     quota: tuple
+    ignored: tuple = ()
 
     def ticker_ok(self, ticker):
         return self.admin or self.tickers is None or ticker in self.tickers
@@ -83,6 +106,17 @@ def parse_owner(raw):
         raise HeaderError(OWNER_HEADER, f'{OWNER_HEADER} must be the EDGE owner key, 1-128 letters, digits or . _ : @ - '
                                         f'(rule {OWNER_RE.pattern}); {len(raw)} characters were sent. Fix: send the '
                                         f"principal's owner_key. Example: {OWNER_HEADER}: u_0123456789abcdef01234567.")
+    return value
+
+
+def parse_client(raw):
+    """The visitor key of CLIENT_HEADER (32 lower-case hex), or HeaderError naming the header."""
+    value = raw.strip()
+    if not CLIENT_RE.fullmatch(value):
+        raise HeaderError(CLIENT_HEADER, f'{CLIENT_HEADER} must be the visitor key edge-bff makes from the client '
+                                         f'address, 32 lower-case hexadecimal characters (rule {CLIENT_RE.pattern}); '
+                                         f'{len(raw)} characters were sent. Fix: send the key of the guest principal, '
+                                         f'never the address itself. Example: {CLIENT_HEADER}: {CLIENT_EXAMPLE}.')
     return value
 
 
@@ -118,7 +152,7 @@ def parse_capabilities(raw, datasets):
     if not isinstance(admin, bool):
         bad('admin', 'must be true or false')
 
-    def ids(field, rule, known=None, limit=MAX_TICKERS):
+    def ids(field, rule, limit=MAX_TICKERS):
         v = doc[field]
         if v == '*':
             return None
@@ -127,16 +161,19 @@ def parse_capabilities(raw, datasets):
         for x in v:
             if not isinstance(x, str) or not rule.fullmatch(x):
                 bad(field, f'{x!r} is not an id of the rule {rule.pattern}')
-            if known is not None and x not in known:
-                bad(field, f'{x!r} is not a dataset of this terminal-api (known: {", ".join(sorted(known))})')
         if len(set(v)) != len(v):
             bad(field, 'lists an id twice')
         return frozenset(v)
     tickers = ids('tickers', TICKER_RE)
-    data = ids('datasets', re.compile(r'^[a-z][a-z_]{0,31}$'), known=frozenset(datasets), limit=64)
+    data = ids('datasets', re.compile(r'^[a-z][a-z_]{0,31}$'), limit=64)
+    # R2-5: an id this terminal-api does not know is not served by it anyway: left out (fail closed), named in `ignored`
+    ignored = tuple(sorted(data - frozenset(datasets))) if data is not None else ()
+    if ignored:
+        data = data & frozenset(datasets)
     days = doc['history_days']
-    if days is not None and not (_whole(days) and 1 <= days <= MAX_HISTORY_DAYS):
-        bad('history_days', f'must be null (no limit) or a whole number of calendar days 1-{MAX_HISTORY_DAYS}')
+    if days is not None and not (_whole(days) and MIN_HISTORY_DAYS <= days <= MAX_HISTORY_DAYS):
+        bad('history_days', f'must be null (no limit) or a whole number of calendar days {MIN_HISTORY_DAYS}-'
+                            f'{MAX_HISTORY_DAYS} (0: no row dated up to the data\'s last date)')
     q = doc['quota']
     if not isinstance(q, dict):
         bad('quota', 'must be an object of the plan\'s Terminal limits ({} when the plan sets none)')
@@ -148,7 +185,12 @@ def parse_capabilities(raw, datasets):
     if admin and (tickers is not None or data is not None or days is not None or q):
         bad('admin', 'true (the principal holds *) goes with "tickers":"*", "datasets":"*", "history_days":null and '
                      '"quota":{}; a plan with limits sends "admin":false')
-    return Capabilities(version, admin, tickers, data, days, tuple(sorted(q.items())))
+    return Capabilities(version, admin, tickers, data, days, tuple(sorted(q.items())), ignored)
+
+
+def applied(caps):
+    """The value of APPLIED_HEADER for an applied header: '<v> <version>' (v is always 1 here)."""
+    return f'1 {caps.version}'
 
 
 def data_date(value):
