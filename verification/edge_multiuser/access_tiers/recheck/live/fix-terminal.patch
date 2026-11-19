@@ -1,7 +1,7 @@
 From 88d75b8e27614970adb2c6d9950b130dc6285aea Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:22:44 +0000
-Subject: [PATCH 1/3] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26): every
+Subject: [PATCH 1/6] EXEC-MU-ACCOUNTS fix round (terminal, R1-1/R1-26): every
  terminal-api 429 names its quota and when to try again
 
 quota_exceeded carries quota, limit, window and retry_after_s (Store.frees_in: when the rolling window lets the
@@ -337,7 +337,7 @@ index 00000000..1b97b475
 From e5f0c18176c143415631c5fb983843cea38b3e50 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:24:56 +0000
-Subject: [PATCH 2/3] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
+Subject: [PATCH 2/6] EXEC-MU-ACCOUNTS fix round (terminal, R2-5/R1-22/R2-4):
  terminal-api leaves out unknown datasets, takes history_days 0, acknowledges
  the applied header
 
@@ -587,7 +587,7 @@ index 1b97b475..89f69688 100644
 From d959a594942a346d292f67be79d11630bd5b2162 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 07:30:47 +0000
-Subject: [PATCH 3/3] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
+Subject: [PATCH 3/6] EXEC-MU-ACCOUNTS fix round (terminal, R2-32/R1-4):
  reference lists filtered to the plan; the gateway account on /ready
 
 An owner whose plan lacks the dataset reference gets its own copy of each reference file (app/refcut.py: the rows of
@@ -1155,6 +1155,1340 @@ index 89f69688..bc66a9f0 100644
 +            c.execute('DELETE FROM terminal.subscriber WHERE email = %s', (email,))
 +    finally:
 +        store.close()
+-- 
+2.43.0
+
+
+From 570e607cfa06be44e7d7926946941f597627fea6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 07:36:59 +0000
+Subject: [PATCH 4/6] EXEC-MU-ACCOUNTS fix round (terminal,
+ R1-1/R1-26/R1-22/R2-4/R2-32): one relay rule for every terminal-api answer
+
+terminal_access.relayed is the rule forward_terminal, relay_cut and PageFiles share: a terminal-api 401 or 403 about
+its own account or key is 503 TERMINAL_UNAVAILABLE (logged), never the EDGE sign-in; a 429 is LIMIT_REACHED with
+details.limit, allowed, retry_after_s and Retry-After; 400 and 404 keep their status in the contract shape; an answer
+for a capped principal without terminal-api's acknowledgement is 503. The header maps every catalog value onto the
+wire (history_days clamped, 0 the empty window with the dated paths refused first, tickers outside the rule left out
+and logged, a quota of 0 a 403). The reference files are forwarded (terminal-api filters them) and their copies relayed
+byte for byte. PageFiles builds the principal's headers before its shared caches. The tests that locked the old
+pass-through (test_terminal.py, test_radar.py, test_terminal_access.py) follow CONTRACT section 3.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/app/main.py                   |  56 +++++---
+ apps/edge-bff/app/pages.py                  |  59 +++++---
+ apps/edge-bff/app/terminal_access.py        | 143 +++++++++++++++++---
+ apps/edge-bff/tests/test_radar.py           |  22 ++-
+ apps/edge-bff/tests/test_terminal.py        |  16 ++-
+ apps/edge-bff/tests/test_terminal_access.py |  30 ++--
+ 6 files changed, 254 insertions(+), 72 deletions(-)
+
+diff --git a/apps/edge-bff/app/main.py b/apps/edge-bff/app/main.py
+index 33aa5a3e..4a38aa00 100644
+--- a/apps/edge-bff/app/main.py
++++ b/apps/edge-bff/app/main.py
+@@ -55,10 +55,14 @@ TERMINAL_ASSET = re.compile(r'[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.(?:js|css|wof
+ # EXEC-MU-ACCOUNTS Phase 3c (CONTRACT.md 8b "3c in detail"): cut/<TICKER>/<dataset>, the last N days of a dataset that
+ # terminal-api cuts for a principal with terminal.history_days (decision D2 = A), relayed byte for byte (relay_cut);
+ # its datasets and /history's come from app/terminal_access.py (terminal-api's own names)
++# EXEC-MU-ACCOUNTS re-check R2-32: reference/<name>/cut, the plan's own copy of a reference file (terminal-api refcut.py),
++# relayed byte for byte like a cut (TERMINAL_BYTES)
++TERMINAL_BYTES = re.compile(rf'cut/[A-Z0-9]{{1,12}}/(?:{"|".join(terminal_access.CUT_DATASETS)})'
++                            r'|reference/[a-z0-9][a-z0-9_-]{0,31}/cut')
+ TERMINAL_ROUTES = {'GET': re.compile(r'manifest/[A-Z0-9]{1,12}|reference/[a-z0-9][a-z0-9_-]{0,31}'
+                                       rf'|history/(?:{"|".join(terminal_access.HISTORY_DATASETS)})'
+                                       r'|logo/[A-Z0-9]{1,12}'   # logo: EXEC-TERMINAL-LOGO
+-                                      rf'|cut/[A-Z0-9]{{1,12}}/(?:{"|".join(terminal_access.CUT_DATASETS)})'),
++                                      rf'|{TERMINAL_BYTES.pattern}'),
+                    'POST': re.compile(r'files|bundle')}   # bundle: every file of one ticker in one call (EXEC-TERMINAL-UI-1026 U6)
+ # the cut's answer: its gzip bytes exactly (no JSON parse, no decoding, no Content-Encoding, so the page's sha256 check
+ # holds), with only these headers of terminal-api's, at most TERMINAL_CUT_BYTES
+@@ -552,6 +556,9 @@ def create_app(settings=None, store=None, orc=None):
+     # refused by the route's terminal_access.guard), and a ticker or dataset the plan lacks is refused 403
+     # CAPABILITY_REQUIRED before terminal-api is asked (terminal_access.check). With the switch off the configured owner
+     # holds '*': admin, the body forwarded unchanged.
++    # Re-check R1-1, R1-26, R2-4: every answer goes through terminal_access.relayed, the one rule for what reaches the
++    # page: an acknowledged 2xx as it is; a refusal in the contract's shape (a terminal-api 401 or 403 about its own
++    # account or key is 503 TERMINAL_UNAVAILABLE, never the EDGE sign-in; a 429 LIMIT_REACHED with Retry-After).
+     async def forward_terminal(method: str, path: str, request: Request, p: Principal):
+         if not settings.terminal_url:
+             return error('TERMINAL_UNAVAILABLE', 503)
+@@ -561,32 +568,39 @@ def create_app(settings=None, store=None, orc=None):
+         try:
+             body = terminal_access.check(p, method, path, request.query_params, body)
+         except Refusal as refused:
+-            if refused.code != 'CAPABILITY_REQUIRED':
+-                raise
+-            await refuse_capability(p, refused.details['capability'])
++            await refuse(p, refused)
+         headers = terminal_access.headers(settings, p)
+         if terminal_http['client'] is None:
+             terminal_http['client'] = httpx.AsyncClient(timeout=30)
+         url = f'{settings.terminal_url}/api/terminal/v1/{path}'
+-        if path.startswith('cut/'):
+-            return await relay_cut(url, request, headers, p)
++        if TERMINAL_BYTES.fullmatch(path):
++            return await relay_cut(url, request, headers, p, path)
+         try:
+             answer = await terminal_http['client'].request(method, url, params=request.query_params, content=body,
+                                                            headers=headers)
+         except httpx.HTTPError:
+             return error('TERMINAL_UNAVAILABLE', 503)
+-        if answer.status_code == 200 and answer.headers.get('content-type', '').startswith('image/'):
++        image = 200 <= answer.status_code < 300 and answer.headers.get('content-type', '').startswith('image/')
++        try:
++            data = None if image else answer.json()
++        except ValueError:
++            data = None
++        if (refused := terminal_access.relayed(p, answer.status_code, data, answer.headers, path)) is not None:
++            await refuse(p, refused)
++        if image:
+             # a ticker's logo passes through as it is, with terminal-api's caching and its no-script CSP
+             return Response(answer.content, media_type=answer.headers['content-type'], headers={
+                 k: answer.headers[k] for k in ('cache-control', 'etag', 'content-security-policy') if k in answer.headers})
+-        try:
+-            data = answer.json()
+-        except ValueError:
+-            return error('TERMINAL_UNAVAILABLE', 503)
+-        if (capability := terminal_access.answered_capability(answer.status_code, data)) is not None:
+-            await refuse_capability(p, capability)                    # terminal-api's own check, in EDGE's shape
++        if data is None:
++            return error('TERMINAL_UNAVAILABLE', 503)                 # a 2xx that is not JSON: never relayed on a guess
+         return JSONResponse(status_code=answer.status_code, content=data)
+ 
++    async def refuse(p, refused):
++        """Raise a refusal of the Terminal path; a CAPABILITY_REQUIRED with the catalog's name (refuse_capability)."""
++        if refused.code == 'CAPABILITY_REQUIRED':
++            await refuse_capability(p, refused.details['capability'])
++        raise refused
++
+     async def refuse_capability(p, capability):
+         try:
+             await asyncio.to_thread(auth.refresh_names, False)        # the catalog's name, as auth.need does
+@@ -594,12 +608,13 @@ def create_app(settings=None, store=None, orc=None):
+             pass
+         raise p.refusal(capability)
+ 
+-    async def relay_cut(url, request, headers, p):
++    async def relay_cut(url, request, headers, p, path):
+         """Phase 3c (decision D2 = A): terminal-api's cut of the last N days (application/gzip), its bytes exactly as sent
+         (read raw, never decoded or parsed, no Content-Encoding added or relayed; the page checks their sha256 against
+         /bundle's), with TERMINAL_CUT_HEADERS and always Cache-Control private (the bytes are this principal's). The
+-        query (the page's ?sha256=) is forwarded. Another status passes through as JSON, like every forwarded answer;
+-        terminal-api's capability_required in EDGE's CAPABILITY_REQUIRED shape."""
++        query (the page's ?sha256=) is forwarded. Re-check R2-32: the plan's own copy of a reference file
++        (reference/<name>/cut) the same way. Every answer goes through terminal_access.relayed (R1-1, R2-4): a refusal
++        in the contract's shape, an unacknowledged answer 503."""
+         try:
+             async with terminal_http['client'].stream('GET', url, params=request.query_params, headers=headers) as answer:
+                 if answer.status_code != 200:
+@@ -607,10 +622,11 @@ def create_app(settings=None, store=None, orc=None):
+                     try:
+                         data = answer.json()
+                     except ValueError:
+-                        return error('TERMINAL_UNAVAILABLE', 503)
+-                    if (capability := terminal_access.answered_capability(answer.status_code, data)) is not None:
+-                        await refuse_capability(p, capability)
+-                    return JSONResponse(status_code=answer.status_code, content=data)
++                        data = None
++                    refused = terminal_access.relayed(p, answer.status_code, data, answer.headers, path)
++                    await refuse(p, refused or Refusal(503, 'TERMINAL_UNAVAILABLE'))
++                if (refused := terminal_access.relayed(p, 200, None, answer.headers, path)) is not None:
++                    await refuse(p, refused)
+                 raw = bytearray()
+                 async for chunk in answer.aiter_raw():
+                     raw += chunk
+diff --git a/apps/edge-bff/app/pages.py b/apps/edge-bff/app/pages.py
+index 5752f863..6b9c1365 100644
+--- a/apps/edge-bff/app/pages.py
++++ b/apps/edge-bff/app/pages.py
+@@ -22,6 +22,21 @@ refused 400 HEADER_NOT_ALLOWED (terminal_access.guard) before the caches. The sh
+ the principal whose request found it stale; the page files have no ticker or dataset of their own (the family's view
+ capability gates them).
+ 
++Re-check fix round (track terminal; verification/edge_multiuser/fix_round/terminal.md):
++- R1-1, R1-26, R2-4: every terminal-api answer goes through terminal_access.relayed: a 429 of a grant is 429
++  LIMIT_REACHED with details.limit, retry_after_s and Retry-After (CONTRACT.md section 3), an answer terminal-api did
++  not acknowledge for a capped principal is <FAMILY>_UNAVAILABLE, any other refusal <FAMILY>_UNAVAILABLE as before
++  (logged with terminal-api's code).
++- R1-31: the principal's headers are built on every request, before the shared caches, so what edge-bff refuses for a
++  principal itself (a quota of 0, an owner key or a header terminal-api cannot take) is refused whether the caches are
++  warm or cold.
++- R1-5, R1-31: decided by the code and the contract (CONTRACT.md section 15: the caches are shared by every user; QA
++  2026-11-14: bytes kept by sha256 so a reload asks no grant): terminal-api grants, counts and audits a page file for the
++  principal whose request missed the caches, once per edge-bff process and sha256; a read served from the caches is
++  counted against no one's Terminal quota and leaves no terminal-api audit row. That is lenient (it never counts more)
++  and leaks nothing (the view capability is checked first). Per-reader counting, if Phase 4's usage counters need it,
++  is edge-bff's own record, not a terminal-api call per hit (which would undo the cache).
++
+ Every refusal names its cause and the way out (AGENTS.md "Gates and evidence" (d)).
+ """
+ from __future__ import annotations
+@@ -35,6 +50,7 @@ from fastapi import Depends, Request
+ from fastapi.responses import JSONResponse, Response
+ 
+ from . import terminal_access
++from .errors import refusal
+ 
+ SHA = re.compile(r'[0-9a-f]{64}')
+ INDEX_SECONDS = 30          # the index is read again at most this often (terminal-api caches state.json for 60 s)
+@@ -54,8 +70,6 @@ def messages(family, label, names):
+                         'published ones.',
+         'INVALID_SHA': 'The sha parameter must be the 64 lowercase hexadecimal characters of the file\'s sha256 as '
+                        f'GET /api/v1/{family}/index lists it; leave it out to get the current file.',
+-        'QUOTA': f'The terminal account reached its file quota (shared with the Terminal). The {label} files already '
+-                 'shown stay; try again later in the hour.',
+         'FILE_NOT_PUBLISHED': f'This {label} file is not in the current publication. Read GET /api/v1/{family}/index '
+                               'for the published files and dates.',
+         'FILE_REPLACED': f'A newer {label} publication replaced this file. Read GET /api/v1/{family}/index again and '
+@@ -108,19 +122,22 @@ class PageFiles:
+             self.http = httpx.AsyncClient(timeout=30)
+         return self.http
+ 
+-    async def terminal(self, p, method, path, body=None):
++    async def terminal(self, sent, method, path, body=None):
++        """A terminal-api call with the headers `sent` (terminal_access.headers of the request's principal)."""
+         return await self.client().request(
+-            method, f'{self.settings.terminal_url}/api/terminal/v1/{path}', content=body,
+-            headers=terminal_access.headers(self.settings, p))
++            method, f'{self.settings.terminal_url}/api/terminal/v1/{path}', content=body, headers=sent)
+ 
+-    async def index(self, p, fresh=False):
+-        """terminal-api's index of the family, kept INDEX_SECONDS; None when terminal-api cannot answer."""
++    async def index(self, p, sent, fresh=False):
++        """terminal-api's index of the family, kept INDEX_SECONDS; None when terminal-api cannot answer (or answers
++        without acknowledging the principal's header, terminal_access.relayed)."""
+         now = self.clock()
+         if not fresh and self.cached is not None and now - self.cached_at < INDEX_SECONDS:
+             return self.cached
+         try:
+-            answer = await self.terminal(p, 'GET', self.family)
++            answer = await self.terminal(sent, 'GET', self.family)
+             data = answer.json() if answer.status_code == 200 else None
++            if terminal_access.relayed(p, answer.status_code, data, answer.headers, self.family) is not None:
++                data = None
+         except (httpx.HTTPError, ValueError):
+             data = None
+         if not isinstance(data, dict) or not isinstance(data.get('files'), dict):
+@@ -136,7 +153,8 @@ class PageFiles:
+         async def page_index(p=Depends(view)):
+             if not self.settings.terminal_url:
+                 return self.failure('NOT_CONFIGURED', 503)
+-            data = await self.index(p)
++            sent = terminal_access.headers(self.settings, p)      # R1-31: the principal's own refusals, caches or not
++            data = await self.index(p, sent)
+             if data is None:
+                 return self.failure('UNAVAILABLE', 503)
+             return JSONResponse({'finished_at': data.get('finished_at'), 'files': data['files']})
+@@ -148,16 +166,17 @@ class PageFiles:
+                 return self.failure('INVALID_NAME', 400, {'name': name[:64]})
+             if sha and not SHA.fullmatch(sha):
+                 return self.failure('INVALID_SHA', 400, {'sha': sha[:80]})
++            sent = terminal_access.headers(self.settings, p)      # R1-31: the principal's own refusals, caches or not
+             if sha and request.headers.get('if-none-match') == f'"{sha[:32]}"':
+                 # the URL names the content and the capability was checked: the browser's copy stands (no index read,
+                 # no grant), as the year-long copy did before, but now only after the server's check
+                 return Response(status_code=304, headers={'ETag': f'"{sha[:32]}"', 'Cache-Control': 'private, no-cache'})
+-            data = await self.index(p)
++            data = await self.index(p, sent)
+             if data is None:
+                 return self.failure('UNAVAILABLE', 503)
+             entry = data['files'].get(name)
+             if sha and (entry is None or entry.get('sha256') != sha):
+-                data = await self.index(p, fresh=True) or data              # a publication may have come out since
++                data = await self.index(p, sent, fresh=True) or data        # a publication may have come out since
+                 entry = data['files'].get(name)
+             if entry is None:
+                 return self.failure('FILE_NOT_PUBLISHED', 404, {'name': name})
+@@ -169,14 +188,20 @@ class PageFiles:
+             body = self.bodies.get(current)
+             if body is None:
+                 try:
+-                    granted = await self.terminal(p, 'POST', family, body=f'{{"names": ["{name}"]}}'.encode())
+-                    if granted.status_code == 404:
++                    granted = await self.terminal(sent, 'POST', family, body=f'{{"names": ["{name}"]}}'.encode())
++                    if granted.status_code == 404 and terminal_access.acknowledged(p, granted.headers):
+                         return self.failure('FILE_REPLACED', 409, {'name': name})
+-                    if granted.status_code == 429:
+-                        return self.failure('QUOTA', 429)
+-                    if granted.status_code != 200:
++                    try:
++                        answer = granted.json()
++                    except ValueError:
++                        answer = None
++                    refused = terminal_access.relayed(p, granted.status_code, answer, granted.headers, family)
++                    if refused is not None and refused.code == 'LIMIT_REACHED':
++                        # R1-26: the Terminal quota the page files count against (CONTRACT.md section 3)
++                        return refusal(refused.status, refused.code, refused.details, refused.headers)
++                    if refused is not None or granted.status_code != 200:
+                         return self.failure('UNAVAILABLE', 503)
+-                    f = granted.json()['files'][0]
++                    f = answer['files'][0]
+                     # QA 2026-11-14: the grant names the file of the publication terminal-api reads now; when that is
+                     # not the one this answer is for, the page reads the index again (never new bytes under an old sha)
+                     if f.get('sha256') != current:
+diff --git a/apps/edge-bff/app/terminal_access.py b/apps/edge-bff/app/terminal_access.py
+index 5fc374fe..6ce1bed5 100644
+--- a/apps/edge-bff/app/terminal_access.py
++++ b/apps/edge-bff/app/terminal_access.py
+@@ -15,21 +15,46 @@ from `headers(settings, p)` and from nowhere else (tests/test_terminal_access.py
+   p.can('terminal.dataset:<id>') grants, in DATASET_IDS order; `history_days` the plan's `terminal.history_days` (no
+   row: null); `quota` the Terminal quota limits the plan sets (QUOTA, terminal-api's own names, each read from
+   `terminal.<name>`; a limit the plan leaves out is left out, so terminal-api keeps its default for it; terminal-api takes
+-  1 to 10^9, so a larger one is sent as 10^9 and 0 is refused here 429 LIMIT_REACHED).
++  1 to 10^9, so a larger one is sent as 10^9 and 0 is refused here 403 CAPABILITY_REQUIRED, R1-22).
+ - terminal-api's own 403 capability_required is answered in EDGE's CAPABILITY_REQUIRED shape (answered_capability).
+ - With EDGE_MULTIUSER off the configured owner holds '*': its header is admin with everything and terminal-api answers
+   exactly as before.
+ 
++Re-check fix round (track terminal; verification/edge_multiuser/fix_round/terminal.md):
++- R1-22: every value the plan catalog can hold maps onto the header terminal-api takes (capabilities): `history_days`
++  above MAX_HISTORY_DAYS is sent as that bound (narrower, never wider); 0, the value of a limit that cannot be read
++  (principal.RESTRICTIVE), is sent as 0, the empty window terminal-api takes, and `check` refuses every dated path first
++  with 403 CAPABILITY_REQUIRED terminal.history_days, so the page files (no history window) keep working; a ticker
++  outside terminal-api's rule (TICKER) is left out and logged, never sent; a quota of 0 is 403 CAPABILITY_REQUIRED
++  naming the limit (waiting would not help, so it is not a 429).
++- R1-1, R1-26: `relayed` is the one rule for every terminal-api answer edge-bff relays (main.py forward_terminal and
++  relay_cut, pages.py PageFiles), so each refusal reaches the page in the contract's shape (CONTRACT.md section 3): a
++  401, or a 403 other than capability_required, is about terminal-api's own account, key or host rule, never the EDGE
++  session, so it is 503 TERMINAL_UNAVAILABLE with the upstream code logged; a 429 is 429 LIMIT_REACHED with
++  details.limit terminal.<quota>, details.allowed, retry_after_s and Retry-After, from the fields terminal-api adds (its
++  quota name, its limit and the seconds until its window frees; QUOTA_RETRY_SECONDS when an older terminal-api names
++  none); a 400 about the request is 400 INVALID_INPUT and a 404 404 NOT_FOUND, each with terminal-api's code as
++  details.reason; a 400 about edge-bff's own headers and every 5xx are 503 TERMINAL_UNAVAILABLE, logged. terminal-api's
++  prose never reaches the page (its messages name internal routes).
++- R2-4: an answer for a principal without '*' is relayed only when terminal-api acknowledges the header it applied
++  (APPLIED_HEADER "1 <version>"); without it (a terminal-api from before Phase 3c, which ignores the owner headers and
++  would serve the plan in full) the answer is 503 TERMINAL_UNAVAILABLE, logged. The switch-off principal holds '*', so
++  nothing changes while the switch is off.
++- R2-32: the reference files are no longer refused: terminal-api answers a plan without the dataset `reference` with
++  its own copy (apps/terminal-api/app/refcut.py: the rows of its tickers), relayed byte for byte from
++  reference/<name>/cut like a cut.
++
+ A request from the page that carries one of RESERVED is refused 400 HEADER_NOT_ALLOWED naming the header (`guard`),
+ before any terminal-api call: the page never sets them, edge-bff never copies a request header to terminal-api, so a
+ header that claims an owner or capabilities is never relayed and never trusted.
+ 
+ Refuse first (`check`, CONTRACT.md 8b "edge-bff refuses first"): for a principal without '*', a ticker outside `tickers`,
+-a dataset outside `datasets` (a reference file is the dataset `reference`, an intraday timeframe `intraday`), a /bundle
+-whose every dataset is locked, and /history with `history_days` set answer 403 CAPABILITY_REQUIRED (with its
+-display_name) before terminal-api is asked. A /bundle with some allowed datasets is forwarded: terminal-api answers the
+-locked ones `{locked: true, capability}`. The checked JSON body is what is forwarded (re-serialised), so terminal-api
+-reads exactly what was checked.
++a dataset outside `datasets` (an intraday timeframe is the dataset `intraday`), a /bundle whose every dataset is locked,
++/history with `history_days` set, and every dated path (/files, /bundle, /cut) with `history_days` 0 answer 403
++CAPABILITY_REQUIRED (with its display_name) before terminal-api is asked. A reference file is forwarded: terminal-api
++answers a plan without the dataset `reference` with its own copy (R2-32). A /bundle with some allowed datasets is
++forwarded: terminal-api answers the locked ones `{locked: true, capability}`. The checked JSON body is what is
++forwarded (re-serialised), so terminal-api reads exactly what was checked.
+ 
+ The dataset ids come from one place (DATASETS = terminal-api's BUNDLE_DATASET, FILES_DATASETS its FilesRequest dataset,
+ BUNDLE_DEFAULT its BundleRequest default); tests/test_terminal_access.py reads apps/terminal-api/app/main.py and fails
+@@ -52,6 +77,14 @@ DATASETS = ('price', 'broker', 'events', 'yield')
+ FILES_DATASETS = ('price', 'broker', 'events')
+ BUNDLE_DEFAULT = ('price', 'broker', 'events')
+ INTRADAY, REFERENCE = 'intraday', 'reference'
++# terminal-api's bounds of the header (apps/terminal-api/app/entitlements.py MAX_HISTORY_DAYS, TICKER_RE; tests compare)
++MAX_HISTORY_DAYS = 36600
++TICKER = re.compile(r'[A-Z0-9]{1,12}')
++# R2-4: terminal-api's acknowledgement of the header it applied (entitlements.py APPLIED_HEADER, applied())
++APPLIED_HEADER = 'x-terminal-capabilities-applied'
++# R1-1: terminal-api refusals about the owner headers edge-bff built itself: edge-bff's fault, never the page's
++OWN_HEADER_CODES = ('invalid_owner_headers', 'owner_not_allowed')
++REASON = re.compile(r'[a-z][a-z0-9_]{0,63}')
+ DATASET_IDS = DATASETS + (INTRADAY, REFERENCE)
+ # GET /history/<name> reads the dataset of the same name
+ HISTORY_DATASETS = ('price', 'broker')
+@@ -82,33 +115,45 @@ def _limit(p, key):
+     return value if isinstance(value, int) and not isinstance(value, bool) else None
+ 
+ 
++def _tickers(p):
++    """(the plan's tickers terminal-api's rule takes, sorted; the ones it does not, left out) or (None, ()) for no row
++    (every ticker). A list of strings (principal.read_grants); any other shape reads as no ticker (fail closed)."""
++    tickers = p.limit(TICKERS)
++    if tickers is None:
++        return None, ()
++    names = set(t for t in tickers if isinstance(t, str)) if isinstance(tickers, list) else set()
++    return sorted(t for t in names if TICKER.fullmatch(t)), tuple(sorted(t for t in names if not TICKER.fullmatch(t)))
++
++
+ def capabilities(p):
+-    """The x-terminal-capabilities object of a principal (module docstring); nothing else goes into it."""
++    """The x-terminal-capabilities object of a principal (module docstring); nothing else goes into it. Every value
++    the catalog can hold maps onto what terminal-api takes, never wider than the plan (R1-22)."""
+     if admin(p):
+         return {'v': 1, 'version': p.version, 'admin': True, 'tickers': EVERYTHING, 'datasets': EVERYTHING,
+                 'history_days': None, 'quota': {}}
+-    tickers = p.limit(TICKERS)
+-    if tickers is not None:
+-        # a list of strings (principal.read_grants); any other shape reads as no ticker (fail closed)
+-        tickers = sorted(set(t for t in tickers if isinstance(t, str))) if isinstance(tickers, list) else []
++    tickers, _ = _tickers(p)
+     # above terminal-api's bound a limit is the bound (never wider than the plan); 0 is refused in capabilities_header
+     quota = {name: min(value, QUOTA_MAX) for name in QUOTA if (value := _limit(p, f'terminal.{name}')) is not None}
++    days = _limit(p, HISTORY_DAYS)
+     return {'v': 1, 'version': p.version, 'admin': False, 'tickers': EVERYTHING if tickers is None else tickers,
+-            'datasets': [d for d in DATASET_IDS if p.can(f'{DATASET}:{d}')], 'history_days': _limit(p, HISTORY_DAYS),
+-            'quota': quota}
++            'datasets': [d for d in DATASET_IDS if p.can(f'{DATASET}:{d}')],
++            'history_days': None if days is None else min(days, MAX_HISTORY_DAYS), 'quota': quota}
+ 
+ 
+ def capabilities_header(p):
+     """The header's value: compact ASCII JSON of capabilities(p), at most MAX_HEADER_BYTES. A longer one (a ticker list
+     of more than about 900 names) is refused with 503 TERMINAL_UNAVAILABLE and logged, never cut short or dropped. A
+-    quota of 0 (terminal-api takes 1 to 10^9; leaving it out would give terminal-api's default, a wider one) answers 429
+-    LIMIT_REACHED naming the limit, before terminal-api is asked."""
+-    for name, value in capabilities(p)['quota'].items():
++    quota of 0 (terminal-api takes 1 to 10^9; leaving it out would give terminal-api's default, a wider one) answers 403
++    CAPABILITY_REQUIRED naming the limit, before terminal-api is asked: the plan allows none of it, so waiting would not
++    help (R1-22). A ticker of the plan outside terminal-api's rule is left out (capabilities) and logged here."""
++    caps = capabilities(p)
++    for name, value in caps['quota'].items():
+         if value < 1:
+-            raise Refusal(429, 'LIMIT_REACHED', {'limit': f'terminal.{name}', 'allowed': 0,
+-                                                 'retry_after_s': QUOTA_RETRY_SECONDS},
+-                          headers={'Retry-After': str(QUOTA_RETRY_SECONDS)})
+-    text = json.dumps(capabilities(p), separators=(',', ':'), ensure_ascii=True, sort_keys=False)
++            raise capability_required(f'terminal.{name}')
++    if not admin(p) and (dropped := _tickers(p)[1]):
++        logger.warning(json.dumps({'event': 'terminal_tickers_dropped', 'owner_key': p.owner_key,
++                                   'count': len(dropped), 'rule': TICKER.pattern}))
++    text = json.dumps(caps, separators=(',', ':'), ensure_ascii=True, sort_keys=False)
+     if len(text) > MAX_HEADER_BYTES:
+         logger.warning(json.dumps({'event': 'terminal_capabilities_too_large', 'owner_key': p.owner_key,
+                                    'bytes': len(text)}))
+@@ -182,11 +227,14 @@ def check(p, method, path, query, body):
+         return body
+     caps = capabilities(p)
+     head, _, rest = path.partition('/')
++    if caps['history_days'] == 0 and head in ('files', 'bundle', 'cut', 'history'):
++        # R1-22: a window of 0 days holds no dated row (every /files, /bundle and /cut dataset is dated)
++        raise capability_required(HISTORY_DAYS)
+     if method == 'GET':
+         if head in ('manifest', 'logo'):
+             _ticker(caps, rest)
+         elif head == 'reference':
+-            _dataset(caps, REFERENCE)
++            pass                                    # R2-32: terminal-api answers the plan's own copy (refcut.py)
+         elif head == 'history':
+             _dataset(caps, rest)
+             tickers = query.getlist('ticker')
+@@ -231,3 +279,56 @@ def answered_capability(status, data):
+             and isinstance(data.get('capability'), str) and 0 < len(data['capability']) <= 128:
+         return data['capability']
+     return None
++
++
++def acknowledged(p, headers):
++    """R2-4: whether terminal-api applied the header edge-bff sent for p (APPLIED_HEADER "1 <version>"); always true
++    for a principal holding '*' (its header asks for nothing to be held back)."""
++    return admin(p) or (headers.get(APPLIED_HEADER) or '') == f'1 {p.version}'
++
++
++def _wait(data, headers):
++    """The seconds a 429 of terminal-api names (its retry_after_s, else its Retry-After), else QUOTA_RETRY_SECONDS;
++    1 to one day."""
++    for value in (data.get('retry_after_s'), headers.get('retry-after')):
++        try:
++            seconds = int(value)
++        except (TypeError, ValueError):
++            continue
++        if 1 <= seconds <= 86400:
++            return seconds
++    return QUOTA_RETRY_SECONDS
++
++
++def relayed(p, status, data, headers, where):
++    """The one rule for a terminal-api answer edge-bff relays (module docstring, R1-1, R1-26, R2-4): None when the
++    answer may go to the page as it is (a 2xx terminal-api acknowledged), else the Refusal in the contract's shape.
++    `data`: the answer's JSON (None when it has none); `where`: the route, for the log only."""
++    if not acknowledged(p, headers):
++        logger.warning(json.dumps({'event': 'terminal_capabilities_not_applied', 'status': status, 'where': where[:80],
++                                   'fix': 'terminal-api is older than Phase 3c: deploy terminal-api first'}))
++        return Refusal(503, 'TERMINAL_UNAVAILABLE')
++    if 200 <= status < 300:
++        return None
++    data = data if isinstance(data, dict) else {}
++    code = data.get('error') if isinstance(data.get('error'), str) else None
++    reason = {'reason': code} if code and REASON.fullmatch(code) else {}
++    if (capability := answered_capability(status, data)) is not None:
++        return capability_required(capability)
++    if status == 429:
++        wait = _wait(data, headers)
++        name = data.get('quota') if isinstance(data.get('quota'), str) and REASON.fullmatch(data['quota']) else None
++        details = {'limit': f'terminal.{name}' if name else 'terminal.quota', 'retry_after_s': wait}
++        if isinstance(data.get('limit'), int) and not isinstance(data['limit'], bool):
++            details['allowed'] = data['limit']
++        return Refusal(429, 'LIMIT_REACHED', details, headers={'Retry-After': str(wait)})
++    if status == 404:
++        return Refusal(404, 'NOT_FOUND', reason)
++    if status == 400 and code not in OWN_HEADER_CODES:
++        fields = [f['field'] for f in data.get('fields') or ()
++                  if isinstance(f, dict) and isinstance(f.get('field'), str)]
++        return Refusal(400, 'INVALID_INPUT', {**reason, **({'fields': fields[:20]} if fields else {})})
++    # a 401 or 403 (terminal-api's own account, key or host rule), a 400 about edge-bff's own headers, a 5xx: nothing
++    # the page or the person can fix, so never their sign-in or plan (CONTRACT.md section 3)
++    logger.warning(json.dumps({'event': 'terminal_refused', 'status': status, 'code': code, 'where': where[:80]}))
++    return Refusal(503, 'TERMINAL_UNAVAILABLE')
+diff --git a/apps/edge-bff/tests/test_radar.py b/apps/edge-bff/tests/test_radar.py
+index d64e3cee..7deeb9d6 100644
+--- a/apps/edge-bff/tests/test_radar.py
++++ b/apps/edge-bff/tests/test_radar.py
+@@ -24,6 +24,15 @@ def login(c):
+     return {**ORIGIN, 'X-CSRF-Token': r.json()['csrf_token']}
+ 
+ 
++def acknowledge(answer, headers):
++    """terminal-api's acknowledgement of the owner header it applied, on every answer to an owner call (EXEC-MU-ACCOUNTS
++    re-check R2-4; apps/terminal-api/app/entitlements.py APPLIED_HEADER), as a fake of it gives it."""
++    caps = (headers or {}).get('x-terminal-capabilities')
++    if caps:
++        answer.headers['x-terminal-capabilities-applied'] = f"1 {json.loads(caps)['version']}"
++    return answer
++
++
+ class FakeHttp:
+     """terminal-api's GET/POST /radar and the bucket's presigned GET, recorded."""
+     calls, files, stored, granted_sha, grant_status = [], {}, {}, None, 200
+@@ -54,12 +63,17 @@ class FakeHttp:
+ 
+     async def request(self, method, url, params=None, content=None, headers=None):
+         FakeHttp.calls.append((method, url, dict(headers or {}), content))
++        return acknowledge(self.answer(method, url, content), headers)
++
++    def answer(self, method, url, content):
+         if url.endswith('/api/terminal/v1/radar') and method == 'GET':
+             return httpx.Response(200, json={'finished_at': '2026-11-14T10:00:00Z', 'files': FakeHttp.files})
+         if url.endswith('/api/terminal/v1/radar') and method == 'POST':
+             name = json.loads(content)['names'][0]
+             if FakeHttp.grant_status != 200:
+-                return httpx.Response(FakeHttp.grant_status, json={'error': 'quota_exceeded'})
++                return httpx.Response(FakeHttp.grant_status, json={'error': 'quota_exceeded', 'quota': 'files_per_hour',
++                                                                   'limit': 300, 'retry_after_s': 1234},
++                                      headers={'Retry-After': '1234'})
+             if name not in FakeHttp.files:
+                 return httpx.Response(404, json={'error': 'radar_not_published'})
+             return httpx.Response(200, json={'files': [{'name': name, 'url': f'https://bucket.example/{name}',
+@@ -120,9 +134,13 @@ def test_refusals_name_the_cause_and_the_way_out(gw):
+     assert r.status_code == 502 and r.json()['error']['code'] == 'RADAR_FILE_DAMAGED'
+     FakeHttp.stored['radar-days'] = BODY + b'x' * 100                        # larger than published: never read whole
+     assert gw.get('/api/v1/radar/file/radar-days').json()['error']['code'] == 'RADAR_FILE_DAMAGED'
++    # EXEC-MU-ACCOUNTS re-check R1-26 (CONTRACT.md section 3): terminal-api's quota refusal of a grant is LIMIT_REACHED
++    # naming the limit, with its wait in details and in Retry-After (it was RADAR_QUOTA without a Retry-After)
+     FakeHttp.grant_status = 429
+     r = gw.get('/api/v1/radar/file/radar-days')
+-    assert r.status_code == 429 and r.json()['error']['code'] == 'RADAR_QUOTA' and 'quota' in r.json()['error']['message']
++    assert r.status_code == 429 and r.json()['error']['code'] == 'LIMIT_REACHED', r.text
++    assert r.json()['error']['details'] == {'limit': 'terminal.files_per_hour', 'allowed': 300, 'retry_after_s': 1234}
++    assert r.headers['retry-after'] == '1234' and 'limit' in r.json()['error']['message']
+ 
+ 
+ def test_a_file_replaced_between_the_index_and_the_grant_is_never_cached_under_the_old_sha(gw):
+diff --git a/apps/edge-bff/tests/test_terminal.py b/apps/edge-bff/tests/test_terminal.py
+index a4de3b9f..9f610b12 100644
+--- a/apps/edge-bff/tests/test_terminal.py
++++ b/apps/edge-bff/tests/test_terminal.py
+@@ -37,7 +37,9 @@ class FakeTerminal:
+         FakeTerminal.calls.append({'method': method, 'url': url, 'params': dict(params or {}), 'body': content,
+                                    'headers': dict(headers or {})})
+         if url.endswith('/files'):
+-            return httpx.Response(429, json={'error': 'quota_exceeded', 'message': 'files per hour'})
++            return httpx.Response(429, json={'error': 'quota_exceeded', 'message': 'files per hour', 'quota': 'files_per_hour',
++                                             'limit': 300, 'window': 'hour', 'retry_after_s': 1500},
++                                  headers={'Retry-After': '1500'})
+         if url.endswith('/reference/secrets'):
+             return httpx.Response(404, json={'error': 'unknown_reference', 'message': 'Reference files: brokers, logos, tickers.'})
+         if '/logo/' in url:
+@@ -81,7 +83,11 @@ def test_gateway_needs_the_edge_session_and_csrf_for_writes(gateway):
+     assert c.post('/api/terminal/v1/files', json={'ticker': 'BBCA'}).status_code == 403   # no Origin
+     assert FakeTerminal.calls == []
+     r = c.post('/api/terminal/v1/files', headers=h, json={'ticker': 'BBCA', 'dataset': 'price', 'years': [2026]})
+-    assert r.status_code == 429 and r.json()['error'] == 'quota_exceeded'           # terminal-api's answer passes through
++    # EXEC-MU-ACCOUNTS re-check R1-1, R1-26 (CONTRACT.md section 3): terminal-api's quota refusal reaches the page as
++    # LIMIT_REACHED naming the limit and the wait, with Retry-After (it passed through flat, without the header)
++    assert r.status_code == 429 and r.json()['error']['code'] == 'LIMIT_REACHED', r.text
++    assert r.json()['error']['details'] == {'limit': 'terminal.files_per_hour', 'allowed': 300, 'retry_after_s': 1500}
++    assert r.headers['retry-after'] == '1500'
+     sent = FakeTerminal.calls[-1]
+     assert sent['url'] == 'http://terminal-api.railway.internal:8080/api/terminal/v1/files'
+     assert sent['headers']['x-terminal-proxy-key'] == KEY and json.loads(sent['body'])['ticker'] == 'BBCA'
+@@ -106,14 +112,16 @@ def test_gateway_forwards_only_the_data_routes(gateway):
+ 
+ def test_gateway_leaves_the_reference_names_to_terminal_api(gateway):
+     """M327: a reference file the publisher adds (fixed_income) reaches terminal-api without a gateway change; terminal-api
+-    owns the list and its 404 for an unknown name passes through."""
++    owns the list and its 404 for an unknown name passes through (re-check R1-1: in the contract's shape, its code as
++    details.reason)."""
+     c = gateway
+     login(c)
+     for name in ('tickers', 'brokers', 'logos', 'fixed_income'):
+         assert c.get(f'/api/terminal/v1/reference/{name}').status_code == 200, name
+         assert FakeTerminal.calls[-1]['url'].endswith(f'/api/terminal/v1/reference/{name}')
+     r = c.get('/api/terminal/v1/reference/secrets')
+-    assert r.status_code == 404 and r.json()['error'] == 'unknown_reference'
++    assert r.status_code == 404 and r.json()['error']['code'] == 'NOT_FOUND'
++    assert r.json()['error']['details'] == {'reason': 'unknown_reference'}
+ 
+ 
+ def test_gateway_off_when_not_configured(settings, store):
+diff --git a/apps/edge-bff/tests/test_terminal_access.py b/apps/edge-bff/tests/test_terminal_access.py
+index 90f357d9..6af924b7 100644
+--- a/apps/edge-bff/tests/test_terminal_access.py
++++ b/apps/edge-bff/tests/test_terminal_access.py
+@@ -33,6 +33,7 @@ from app.principal import Principal, switch_off_principal
+ from conftest import FakeOrc
+ from test_edge import ORIGIN, login
+ from test_principal import db, make_user, on, sign_in, workers  # noqa: F401 - the fixtures
++from test_radar import acknowledge
+ 
+ ROOT = Path(__file__).resolve().parents[3]
+ APP = ROOT / 'apps/edge-bff/app'
+@@ -61,6 +62,9 @@ class FakeApi:
+     async def request(self, method, url, params=None, content=None, headers=None):
+         FakeApi.calls.append({'method': method, 'url': url, 'params': dict(params or {}), 'body': content,
+                               'headers': dict(headers or {})})
++        return acknowledge(self.answer(method, url, content), headers)
++
++    def answer(self, method, url, content):
+         if url.endswith('/api/terminal/v1/radar') and method == 'GET':
+             return httpx.Response(200, json={'finished_at': '2026-11-14T10:00:00Z', 'files': {
+                 'radar-days': {'sha256': PAGE_SHA, 'bytes': len(PAGE), 'rows': 1, 'as_of': '2026-11-09'}}})
+@@ -91,9 +95,12 @@ class FakeApi:
+                      'cache-control': 'public, max-age=60', 'x-other': 'dropped', 'set-cookie': 'a=b',
+                      **FakeApi.cut_headers}
+ 
++        acknowledged = acknowledge(httpx.Response(status), headers).headers if not url.startswith('https://bucket.') else {}
++
+         class Answer:
+             status_code = status
+-            headers = httpx.Headers(extra)
++            headers = httpx.Headers({**extra, **{k: v for k, v in acknowledged.items()
++                                                 if k == 'x-terminal-capabilities-applied'}})
+ 
+             async def __aenter__(self):
+                 return self
+@@ -263,8 +270,6 @@ def test_a_page_sent_terminal_header_is_refused_and_never_relayed(switched_off,
+ FREE_REFUSED = [
+     ('GET', 'manifest/TLKM', None, 'terminal.tickers'),
+     ('GET', 'logo/TLKM', None, 'terminal.tickers'),
+-    ('GET', 'reference/tickers', None, 'terminal.dataset:reference'),
+-    ('GET', 'reference/logos', None, 'terminal.dataset:reference'),
+     ('GET', 'history/price?ticker=BBCA&from=2019-01-01&to=2019-02-01', None, 'terminal.history_days'),
+     ('GET', 'history/price?ticker=TLKM&from=2019-01-01&to=2019-02-01', None, 'terminal.tickers'),
+     ('GET', 'history/broker?ticker=BBCA&from=2019-01-01&to=2019-02-01', None, 'terminal.dataset:broker'),
+@@ -280,6 +285,10 @@ FREE_REFUSED = [
+ ]
+ FREE_FORWARDED = [
+     ('GET', 'manifest/BBCA', None),
++    # re-check R2-32: terminal-api answers the free plan its own copy of each reference file (refcut.py)
++    ('GET', 'reference/tickers', None),
++    ('GET', 'reference/logos', None),
++    ('GET', f'reference/tickers/cut?sha256={"a" * 64}', None),
+     ('GET', 'logo/BBCA', None),
+     ('GET', 'cut/BBCA/price', None),
+     ('POST', 'files', {'ticker': 'BBCA', 'dataset': 'price', 'years': [2026]}),
+@@ -309,7 +318,7 @@ def test_a_free_principal_is_refused_on_every_second_path_before_terminal_api(sw
+             r = c.request(method, f'/api/terminal/v1/{path}', headers=h, json=body)
+             assert r.status_code == 200, (path, body, r.text)
+             call = terminal_calls()[-1]
+-            assert call['url'] == f'{URL}/api/terminal/v1/{path}'
++            assert call['url'] == f'{URL}/api/terminal/v1/{path.split("?")[0]}'
+             caps = sent_caps(call)
+             assert caps['admin'] is False and caps['tickers'] == ['BBCA'] and caps['datasets'] == ['price']
+             assert caps['history_days'] == 730 and caps['quota'] == QUOTA and caps['version'].startswith('db-')
+@@ -393,11 +402,14 @@ def test_the_cut_is_relayed_byte_for_byte(switched_on, store):
+             assert c.get(f'/api/terminal/v1/{bad}').status_code == 404, bad
+ 
+ 
+-def test_a_cut_terminal_api_refuses_passes_through(switched_off, store):
++def test_a_cut_terminal_api_refuses_reaches_the_page_in_the_contract_shape(switched_off, store):
++    """Re-check R1-1 (CONTRACT.md section 3): terminal-api's status passes, its code as details.reason, never its prose
++    (its messages name internal routes); before, its flat body passed through."""
+     with TestClient(create_app(switched_off, store, FakeOrc())) as c:
+         login(c)
+         r = c.get('/api/terminal/v1/cut/BBCA/yield')
+-        assert r.status_code == 404 and r.json() == {'error': 'cannot_cut', 'message': 'no'}
++        assert r.status_code == 404 and r.json()['error']['code'] == 'NOT_FOUND', r.text
++        assert r.json()['error']['details'] == {'reason': 'cannot_cut'} and 'no' != r.json()['error']['message']
+ 
+ 
+ def test_terminal_apis_own_capability_refusal_is_relayed_in_edges_shape(switched_off, store):
+@@ -415,11 +427,13 @@ def test_terminal_apis_own_capability_refusal_is_relayed_in_edges_shape(switched
+ def test_quota_bounds_and_the_owner_key_rule(settings):
+     huge = principal(limits={'terminal.files_per_hour': 5 * 10 ** 9})
+     assert terminal_access.capabilities(huge)['quota'] == {'files_per_hour': 10 ** 9}      # never wider than the plan
++    # re-check R1-22: a limit of 0 allows none of it, so waiting would not help: 403 naming it, not a 429
+     none = principal(limits={'terminal.files_per_hour': 0})
+     with pytest.raises(terminal_access.Refusal) as e:
+         terminal_access.capabilities_header(none)
+-    assert (e.value.status, e.value.code, e.value.details['limit']) == (429, 'LIMIT_REACHED', 'terminal.files_per_hour')
+-    assert e.value.headers == {'Retry-After': '3600'} and e.value.details['retry_after_s'] == 3600
++    assert (e.value.status, e.value.code, e.value.details['capability']) == (403, 'CAPABILITY_REQUIRED',
++                                                                             'terminal.files_per_hour')
++    assert e.value.headers is None
+     with pytest.raises(terminal_access.Refusal) as e:
+         terminal_access.headers(settings, principal(owner_key='has space'))
+     assert e.value.code == 'TERMINAL_UNAVAILABLE'
+-- 
+2.43.0
+
+
+From 0713d5053e3eb87c750b4074b1a9558898956d04 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 07:38:26 +0000
+Subject: [PATCH 5/6] EXEC-MU-ACCOUNTS fix round (terminal): edge-bff tests of
+ the relay rule, the acknowledgement, history 0, the page-file refusals before
+ the caches and the reference copy relay
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ .../edge-bff/tests/test_terminal_fix_round.py | 250 ++++++++++++++++++
+ 1 file changed, 250 insertions(+)
+ create mode 100644 apps/edge-bff/tests/test_terminal_fix_round.py
+
+diff --git a/apps/edge-bff/tests/test_terminal_fix_round.py b/apps/edge-bff/tests/test_terminal_fix_round.py
+new file mode 100644
+index 00000000..1240c974
+--- /dev/null
++++ b/apps/edge-bff/tests/test_terminal_fix_round.py
+@@ -0,0 +1,250 @@
++"""EXEC-MU-ACCOUNTS re-check of Phases 0-3b, fix round, track "terminal" (verification/edge_multiuser/fix_round/
++terminal.md): edge-bff's side of the Terminal path. The re-check's own failing tests (test_cp0_terminal_relay.py,
++test_c_p3a_probes.py, test_c_p2_terminal_wire_domain.py, test_c2_e2e_people.py) hold the findings; these hold the rest
++of each fix:
++
++- R1-1, R1-26: terminal_access.relayed maps every terminal-api answer onto the contract (CONTRACT.md section 3), the one
++  rule of forward_terminal, relay_cut and PageFiles;
++- R2-4: an answer for a capped principal is relayed only when terminal-api acknowledges the header it applied (a
++  terminal-api from before Phase 3c ignores it and would serve the plan in full);
++- R1-22: history_days 0 refuses every dated path first and still lets the page files through;
++- R1-31: PageFiles applies the principal's own refusals before its shared caches;
++- R2-32: the plan's own copy of a reference file is relayed byte for byte;
++- the names edge-bff maps are terminal-api's own (read from apps/terminal-api).
++"""
++import hashlib
++import importlib.util
++import json
++import logging
++import re
++from pathlib import Path
++
++import httpx
++import pytest
++from fastapi.testclient import TestClient
++
++from app import terminal_access
++from app.errors import Refusal
++from app.main import create_app
++from app.principal import switch_off_principal
++from conftest import FakeOrc
++from test_principal import db, make_user, on, sign_in, workers  # noqa: F401 - the fixtures
++from test_terminal_access import (CUT, PAGE_SHA, URL, FakeApi, api, paid_plan, principal, subscribe,  # noqa: F401
++                                  switched_off, switched_on, terminal_calls)
++from test_edge import login
++
++ROOT = Path(__file__).resolve().parents[3]
++TERMINAL_API = ROOT / 'apps/terminal-api/app'
++_spec = importlib.util.spec_from_file_location('terminal_api_entitlements_fix', TERMINAL_API / 'entitlements.py')
++entitlements = importlib.util.module_from_spec(_spec)
++_spec.loader.exec_module(entitlements)
++
++
++def answer(status, body=None, **headers):
++    return status, body, httpx.Headers(headers)
++
++
++# ---- R1-1, R1-26: one rule for every terminal-api answer ------------------------------------------------------------
++
++RELAYED = [
++    # terminal-api's own account, key or host rule: never the EDGE sign-in (503, logged)
++    (answer(401, {'error': 'session_ended', 'message': 'The terminal account of this gateway is not active.'}),
++     (503, 'TERMINAL_UNAVAILABLE', {})),
++    (answer(401, {'error': 'proxy_key_rejected', 'message': 'no key'}), (503, 'TERMINAL_UNAVAILABLE', {})),
++    (answer(403, {'error': 'gateway_host_not_allowed', 'message': 'This address does not accept keyed requests.'}),
++     (503, 'TERMINAL_UNAVAILABLE', {})),
++    (answer(403, {'error': 'direct_access_closed', 'message': 'closed'}), (503, 'TERMINAL_UNAVAILABLE', {})),
++    # edge-bff's own headers refused: edge-bff's fault, not the page's
++    (answer(400, {'error': 'invalid_owner_headers', 'field': 'history_days', 'message': 'x'}),
++     (503, 'TERMINAL_UNAVAILABLE', {})),
++    (answer(400, {'error': 'owner_not_allowed', 'message': 'x'}), (503, 'TERMINAL_UNAVAILABLE', {})),
++    # the request's own problem: its status, terminal-api's code as the reason, the field names only
++    (answer(400, {'error': 'invalid_request', 'message': 'Check the listed fields.',
++                  'fields': [{'field': 'years', 'problem': 'must hold 1-6 years'}]}),
++     (400, 'INVALID_INPUT', {'reason': 'invalid_request', 'fields': ['years']})),
++    (answer(404, {'error': 'unknown_ticker', 'message': 'No published data for ZZZZ.'}),
++     (404, 'NOT_FOUND', {'reason': 'unknown_ticker'})),
++    (answer(404, {'error': 'Not Found'}), (404, 'NOT_FOUND', {})),
++    # terminal-api cannot answer now
++    (answer(503, {'error': 'state_unavailable', 'message': 'try again'}), (503, 'TERMINAL_UNAVAILABLE', {})),
++    (answer(500, None), (503, 'TERMINAL_UNAVAILABLE', {})),
++    (answer(502, {'detail': 'bad gateway'}), (503, 'TERMINAL_UNAVAILABLE', {})),
++    # its quota: LIMIT_REACHED with the limit and the wait it names; an older terminal-api's header, else an hour
++    (answer(429, {'error': 'quota_exceeded', 'quota': 'tickers_per_day', 'limit': 200, 'window': '24 hours',
++                  'retry_after_s': 77}, **{'Retry-After': '77'}),
++     (429, 'LIMIT_REACHED', {'limit': 'terminal.tickers_per_day', 'allowed': 200, 'retry_after_s': 77})),
++    (answer(429, {'error': 'quota_exceeded', 'message': 'Quota files_per_hour reached'}, **{'Retry-After': '120'}),
++     (429, 'LIMIT_REACHED', {'limit': 'terminal.quota', 'retry_after_s': 120})),
++    (answer(429, {'error': 'quota_exceeded', 'quota': 'Files Per Hour!', 'retry_after_s': 10 ** 9}),
++     (429, 'LIMIT_REACHED', {'limit': 'terminal.quota', 'retry_after_s': 3600})),
++    # its own capability refusal, in EDGE's shape
++    (answer(403, {'error': 'capability_required', 'capability': 'terminal.history_days', 'message': 'x'}),
++     (403, 'CAPABILITY_REQUIRED', {'capability': 'terminal.history_days'})),
++]
++
++
++@pytest.mark.parametrize('upstream, want', RELAYED, ids=[f'{a[0]}-{(a[1] or {}).get("error")}' for a, _ in RELAYED])
++def test_every_terminal_api_answer_maps_onto_the_contract(settings, upstream, want, caplog):
++    status, body, headers = upstream
++    p = switch_off_principal(settings, settings.owner)                   # holds '*': acknowledged by definition
++    with caplog.at_level(logging.WARNING, 'edge_bff.terminal_access'):
++        refused = terminal_access.relayed(p, status, body, headers, 'manifest/BBCA')
++    assert isinstance(refused, Refusal)
++    code_status, code, details = want
++    assert (refused.status, refused.code) == (code_status, code), (refused.status, refused.code, refused.details)
++    if code == 'CAPABILITY_REQUIRED':
++        assert refused.details['capability'] == details['capability'] and refused.details['display_name']
++    else:
++        assert refused.details == details
++    if code_status == 429:
++        assert refused.headers == {'Retry-After': str(details['retry_after_s'])}       # CONTRACT 3: on every 429
++    # terminal-api's prose (it names internal routes and hosts) never reaches the page; the 503s are logged with the code
++    assert 'message' not in json.dumps(refused.details) and 'railway' not in json.dumps(refused.details)
++    if code == 'TERMINAL_UNAVAILABLE':
++        logged = [json.loads(r.getMessage()) for r in caplog.records if 'terminal_refused' in r.getMessage()]
++        assert logged and logged[-1]['status'] == status and logged[-1]['code'] == (body or {}).get('error')
++    assert terminal_access.relayed(p, 200, {'ok': True}, httpx.Headers(), 'manifest/BBCA') is None
++
++
++def test_a_relayed_refusal_reaches_the_page_and_the_session_stays(switched_off, store, monkeypatch):
++    """Through the real routes: a terminal-api 401 is a 503 with the EDGE session intact, a 429 is LIMIT_REACHED with
++    Retry-After, on the JSON relay and on the byte relay alike."""
++    with TestClient(create_app(switched_off, store, FakeOrc())) as c:
++        h = login(c)
++        monkeypatch.setattr(FakeApi, 'answer', lambda self, method, url, content: httpx.Response(
++            401, json={'error': 'session_ended', 'message': 'The terminal account of this gateway is not active.'}))
++        for r in (c.get('/api/terminal/v1/manifest/BBCA'), c.post('/api/terminal/v1/bundle', headers=h,
++                                                                    json={'ticker': 'BBCA', 'datasets': ['price']})):
++            assert r.status_code == 503 and r.json()['error']['code'] == 'TERMINAL_UNAVAILABLE', r.text
++        assert c.get('/api/v1/auth/session').status_code == 200
++        monkeypatch.setattr(FakeApi, 'answer', lambda self, method, url, content: httpx.Response(
++            429, json={'error': 'quota_exceeded', 'quota': 'files_per_hour', 'limit': 300, 'retry_after_s': 42},
++            headers={'Retry-After': '42'}))
++        r = c.post('/api/terminal/v1/files', headers=h, json={'ticker': 'BBCA', 'dataset': 'price', 'years': [2026]})
++        assert r.status_code == 429 and r.headers['retry-after'] == '42'
++        assert r.json()['error']['details'] == {'limit': 'terminal.files_per_hour', 'allowed': 300, 'retry_after_s': 42}
++        # the byte relay: terminal-api's refusal of a cut in the same shape
++        r = c.get('/api/terminal/v1/cut/BBCA/yield')
++        assert r.status_code == 404 and r.json()['error'] == {
++            'code': 'NOT_FOUND', 'message': r.json()['error']['message'], 'details': {'reason': 'cannot_cut'}}
++
++
++# ---- R2-4: no relay without terminal-api's acknowledgement ------------------------------------------------------------
++
++def pre_3c(monkeypatch):
++    """terminal-api from before Phase 3c: it ignores the owner headers and acknowledges nothing."""
++    import test_terminal_access
++    monkeypatch.setattr(test_terminal_access, 'acknowledge', lambda response, headers: response)
++
++
++def test_a_terminal_api_that_ignores_the_header_never_serves_a_capped_principal(switched_on, store, monkeypatch,
++                                                                                caplog):
++    pre_3c(monkeypatch)
++    with TestClient(create_app(switched_on, store, FakeOrc())) as c:
++        user = make_user(store, 'pat', 'pat-password')
++        subscribe(store, user, paid_plan(store))
++        h = sign_in(c, 'pat', 'pat-password')
++        with caplog.at_level(logging.WARNING, 'edge_bff.terminal_access'):
++            for r in (c.get('/api/terminal/v1/manifest/BBCA'), c.get('/api/terminal/v1/logo/BBCA'),
++                      c.post('/api/terminal/v1/bundle', headers=h, json={'ticker': 'BBCA', 'datasets': ['price']}),
++                      c.get('/api/terminal/v1/cut/BBCA/price'), c.get('/api/terminal/v1/reference/tickers/cut'),
++                      c.get('/api/v1/radar/index'), c.get(f'/api/v1/radar/file/radar-days?sha={PAGE_SHA}')):
++                assert r.status_code == 503, (r.request.url, r.status_code, r.text)
++                assert r.json()['error']['code'] in ('TERMINAL_UNAVAILABLE', 'RADAR_UNAVAILABLE'), r.text
++        assert 'terminal_capabilities_not_applied' in caplog.text
++        assert terminal_calls()                                          # it was asked; its answer was not relayed
++
++
++def test_the_switch_off_owner_needs_no_acknowledgement(switched_off, store, monkeypatch):
++    pre_3c(monkeypatch)
++    with TestClient(create_app(switched_off, store, FakeOrc())) as c:
++        login(c)
++        assert c.get('/api/terminal/v1/manifest/BBCA').status_code == 200
++        assert c.get('/api/terminal/v1/cut/BBCA/price').content == CUT
++        assert c.get('/api/v1/radar/index').status_code == 200
++
++
++def test_the_acknowledgement_is_the_version_of_this_principal(settings):
++    p = principal()
++    assert terminal_access.acknowledged(p, httpx.Headers({terminal_access.APPLIED_HEADER: '1 db-123456789abc'}))
++    for value in ('1 db-000000000000', '2 db-123456789abc', '', 'db-123456789abc'):
++        assert not terminal_access.acknowledged(p, httpx.Headers({terminal_access.APPLIED_HEADER: value})), value
++    assert not terminal_access.acknowledged(p, httpx.Headers())
++    assert terminal_access.acknowledged(switch_off_principal(settings, settings.owner), httpx.Headers())
++
++
++# ---- R1-22: history_days 0 -------------------------------------------------------------------------------------------
++
++def test_history_days_zero_refuses_every_dated_path_first_and_keeps_the_rest(settings):
++    zero = principal(limits={'terminal.history_days': 0, 'terminal.tickers': ['BBCA']},
++                     grants={'terminal.dataset': {'ids': ['price']}}, kinds={'terminal.dataset': 'items'})
++    q = httpx.QueryParams
++    for method, path, query, body in (('POST', 'files', q(), b'{"ticker": "BBCA", "dataset": "price", "years": [2026]}'),
++                                      ('POST', 'bundle', q(), b'{"ticker": "BBCA", "datasets": ["price"]}'),
++                                      ('GET', 'cut/BBCA/price', q(), None),
++                                      ('GET', 'history/price', q('ticker=BBCA&from=2019-01-01&to=2019-02-01'), None)):
++        with pytest.raises(Refusal) as e:
++            terminal_access.check(zero, method, path, query, body)
++        assert (e.value.status, e.value.code, e.value.details['capability']) == (403, 'CAPABILITY_REQUIRED',
++                                                                                 'terminal.history_days'), path
++    for path in ('manifest/BBCA', 'logo/BBCA', 'reference/tickers', 'reference/tickers/cut'):
++        terminal_access.check(zero, 'GET', path, q(), None)              # no dated row asked: not refused
++    caps = entitlements.parse_capabilities(terminal_access.capabilities_header(zero), terminal_access.DATASET_IDS)
++    assert caps.history_days == 0                                        # the page files' header still parses
++
++
++def test_a_ticker_outside_terminal_apis_rule_is_left_out_and_logged(caplog):
++    p = principal(limits={'terminal.tickers': ['BBCA', 'bbri', ' TLKM', '']})
++    with caplog.at_level(logging.WARNING, 'edge_bff.terminal_access'):
++        header = terminal_access.capabilities_header(p)
++    assert json.loads(header)['tickers'] == ['BBCA']
++    assert 'terminal_tickers_dropped' in caplog.text and '"count": 3' in caplog.text
++    assert 'bbri' not in caplog.text                                     # the log names the count, not the values
++
++
++# ---- R1-31: the principal's own refusals before the shared caches --------------------------------------------------
++
++def test_a_page_file_refusal_of_the_principal_holds_when_another_account_warmed_the_cache(switched_on, store):
++    with TestClient(create_app(switched_on, store, FakeOrc())) as first:
++        user = make_user(store, 'pat', 'pat-password')
++        subscribe(store, user, paid_plan(store))
++        sign_in(first, 'pat', 'pat-password')
++        assert first.get(f'/api/v1/radar/file/radar-days?sha={PAGE_SHA}').status_code == 200   # index and bytes kept
++        quinn = make_user(store, 'quinn', 'quinn-password')
++        subscribe(store, quinn, paid_plan(store))
++        db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
++            VALUES (%s, 'terminal.files_per_hour', '0', 'test')''', quinn['user_id'])
++        calls = len(FakeApi.calls)
++        second = TestClient(first.app)
++        sign_in(second, 'quinn', 'quinn-password')
++        for path in ('/api/v1/radar/index', f'/api/v1/radar/file/radar-days?sha={PAGE_SHA}'):
++            r = second.get(path)
++            assert r.status_code == 403 and r.json()['error']['details']['capability'] == 'terminal.files_per_hour', r.text
++        assert len(FakeApi.calls) == calls                               # refused before any terminal-api call
++
++
++# ---- R2-32: the plan's own copy of a reference file, byte for byte --------------------------------------------------
++
++def test_the_plans_copy_of_a_reference_file_is_relayed_byte_for_byte(switched_on, store):
++    with TestClient(create_app(switched_on, store, FakeOrc())) as c:
++        make_user(store, 'freda', 'freda-password')                     # the default plan: no reference lists
++        sign_in(c, 'freda', 'freda-password')
++        sha = hashlib.sha256(CUT).hexdigest()
++        r = c.get(f'/api/terminal/v1/reference/tickers/cut?sha256={sha}')
++        assert r.status_code == 200 and r.content == CUT and r.headers['cache-control'].startswith('private')
++        assert 'content-encoding' not in r.headers
++        call = terminal_calls()[-1]
++        assert call['url'] == f'{URL}/api/terminal/v1/reference/tickers/cut' and call['params'] == {'sha256': sha}
++        assert c.get('/api/terminal/v1/reference/tickers/cut/more').status_code == 404
++
++
++# ---- the names are terminal-api's own -------------------------------------------------------------------------------
++
++def test_the_wire_names_and_bounds_are_terminal_apis():
++    assert terminal_access.APPLIED_HEADER == entitlements.APPLIED_HEADER
++    assert terminal_access.MAX_HISTORY_DAYS == entitlements.MAX_HISTORY_DAYS
++    assert '^' + terminal_access.TICKER.pattern + '$' == entitlements.TICKER_RE.pattern
++    main = (TERMINAL_API / 'main.py').read_text()
++    for code in terminal_access.OWN_HEADER_CODES:                     # refusals of the owner headers edge-bff builds
++        assert re.search(rf"error\(400, '{code}'", main), code
++    assert re.search(r"wait_error\('quota_exceeded', .*quota=refusal\.quota, limit=refusal\.limit", main)
+-- 
+2.43.0
+
+
+From eaa7bc28340a9d4374530acb3bdbd3cbd8a1a8e3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 07:42:12 +0000
+Subject: [PATCH 6/6] EXEC-MU-ACCOUNTS fix round (terminal, R1-22): a value
+ domain per capability in the catalog, read by the value trigger
+
+Migration 20261119_050 (not applied): edge_bff.capabilities gains value_min, value_max and item_pattern;
+capability_value_check refuses a value outside them with a hint naming the domain; capability_domain_holds refuses a
+domain a stored value would not fit. terminal.history_days 1-36600, terminal.tickers up to 500 names of
+^[A-Z0-9]{1,12}$, the four Terminal quotas 1-10^9 (terminal-api's own bounds). Phase 2's 'history_days 0 is the
+right shape' case takes 1 (the refuters' correction). The test harness applies it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/tests/conftest.py               |   1 +
+ apps/edge-bff/tests/test_phase2_fix_round.py  |   4 +-
+ .../edge-bff/tests/test_terminal_fix_round.py |  83 ++++++-
+ ...261119_050_edge_bff_capability_domains.sql | 217 ++++++++++++++++++
+ 4 files changed, 301 insertions(+), 4 deletions(-)
+ create mode 100644 database/migrations/20261119_050_edge_bff_capability_domains.sql
+
+diff --git a/apps/edge-bff/tests/conftest.py b/apps/edge-bff/tests/conftest.py
+index c135fff5..6c938fb1 100644
+--- a/apps/edge-bff/tests/conftest.py
++++ b/apps/edge-bff/tests/conftest.py
+@@ -34,6 +34,7 @@ def database():
+             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261117_004_edge_bff_catalog_phase3a.sql').read_text())
+             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261118_001_edge_bff_item_families_from_terminal.sql').read_text())
+             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261118_002_edge_bff_terminal_quota.sql').read_text())
++            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_050_edge_bff_capability_domains.sql').read_text())
+             c.execute('CREATE TABLE public.market_private(secret text)')
+         yield url
+     finally:
+diff --git a/apps/edge-bff/tests/test_phase2_fix_round.py b/apps/edge-bff/tests/test_phase2_fix_round.py
+index 89ac085c..25ec1958 100644
+--- a/apps/edge-bff/tests/test_phase2_fix_round.py
++++ b/apps/edge-bff/tests/test_phase2_fix_round.py
+@@ -54,8 +54,10 @@ def test_a_value_of_the_wrong_shape_is_refused_when_written(store, key, value):
+             VALUES (%s, %s, %s::jsonb, 'typo')''', alice['user_id'], key, value)
+ 
+ 
++# re-check R1-22 (migration 20261119_050): terminal.history_days takes 1 to 36600 now, so 0 is refused by its domain
++# (tests/test_terminal_fix_round.py); 1 is the smallest value of the right shape it takes
+ @pytest.mark.parametrize('key,value', [
+-    ('terminal.history_days', '0'), ('terminal.history_days', '365'), ('terminal.tickers', '[]'),
++    ('terminal.history_days', '1'), ('terminal.history_days', '365'), ('terminal.tickers', '[]'),
+     ('terminal.tickers', '["BBCA", "BBRI"]'), ('terminal.view', 'true'), ('terminal.view', 'false'),
+     ('terminal.indicator', '{}'), ('terminal.indicator', '{"ids": ["I01"], "stages": ["lab", "released"], "all": false}'),
+ ])
+diff --git a/apps/edge-bff/tests/test_terminal_fix_round.py b/apps/edge-bff/tests/test_terminal_fix_round.py
+index 1240c974..9168f2e7 100644
+--- a/apps/edge-bff/tests/test_terminal_fix_round.py
++++ b/apps/edge-bff/tests/test_terminal_fix_round.py
+@@ -7,7 +7,8 @@ of each fix:
+   rule of forward_terminal, relay_cut and PageFiles;
+ - R2-4: an answer for a capped principal is relayed only when terminal-api acknowledges the header it applied (a
+   terminal-api from before Phase 3c ignores it and would serve the plan in full);
+-- R1-22: history_days 0 refuses every dated path first and still lets the page files through;
++- R1-22: history_days 0 refuses every dated path first and still lets the page files through; the catalog holds a
++  value domain per capability (migration 20261119_050) that the value trigger reads, equal to terminal-api's bounds;
+ - R1-31: PageFiles applies the principal's own refusals before its shared caches;
+ - R2-32: the plan's own copy of a reference file is relayed byte for byte;
+ - the names edge-bff maps are terminal-api's own (read from apps/terminal-api).
+@@ -212,8 +213,12 @@ def test_a_page_file_refusal_of_the_principal_holds_when_another_account_warmed_
+         assert first.get(f'/api/v1/radar/file/radar-days?sha={PAGE_SHA}').status_code == 200   # index and bytes kept
+         quinn = make_user(store, 'quinn', 'quinn-password')
+         subscribe(store, quinn, paid_plan(store))
+-        db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
+-            VALUES (%s, 'terminal.files_per_hour', '0', 'test')''', quinn['user_id'])
++        # a 0 the value check no longer takes (migration 20261119_050) but a read can still give (principal.RESTRICTIVE):
++        # written past the triggers, as a value stored before a check would be
++        with store.connect() as conn:
++            conn.execute("SET LOCAL session_replication_role = replica")
++            conn.execute('''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
++                VALUES (%s, 'terminal.files_per_hour', '0', 'test')''', (quinn['user_id'],))
+         calls = len(FakeApi.calls)
+         second = TestClient(first.app)
+         sign_in(second, 'quinn', 'quinn-password')
+@@ -248,3 +253,75 @@ def test_the_wire_names_and_bounds_are_terminal_apis():
+     for code in terminal_access.OWN_HEADER_CODES:                     # refusals of the owner headers edge-bff builds
+         assert re.search(rf"error\(400, '{code}'", main), code
+     assert re.search(r"wait_error\('quota_exceeded', .*quota=refusal\.quota, limit=refusal\.limit", main)
++
++
++# ---- R1-22: the catalog's value domain per capability (migration 20261119_050) ----------------------------------
++
++DOMAIN_MIGRATION = ROOT / 'database/migrations/20261119_050_edge_bff_capability_domains.sql'
++OUTSIDE = [('terminal.history_days', '0'), ('terminal.history_days', '36601'), ('terminal.tickers', '["bbca"]'),
++           ('terminal.tickers', '[" BBCA"]'), ('terminal.tickers', '["BBCA", ""]'),
++           ('terminal.tickers', json.dumps([f'T{i:03d}' for i in range(501)])), ('terminal.files_per_hour', '0'),
++           ('terminal.megabytes_per_day', '1000000001')]
++INSIDE = [('terminal.history_days', '1'), ('terminal.history_days', '36600'), ('terminal.tickers', '[]'),
++          ('terminal.tickers', json.dumps([f'T{i:03d}' for i in range(500)])), ('terminal.files_per_hour', '1')]
++
++
++@pytest.mark.parametrize('key, value', OUTSIDE)
++def test_a_value_outside_its_capabilitys_domain_is_refused_when_written(store, key, value):
++    import psycopg
++    user = make_user(store, 'dora', 'dora-password')
++    for sql, args in (('''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
++                          VALUES (%s, %s, %s::jsonb, 'typo')''', (user['user_id'], key, value)),
++                      ('''UPDATE edge_bff.plan_capabilities SET value = %s::jsonb
++                          WHERE capability_key = %s AND plan_key = (SELECT plan_key FROM edge_bff.plans WHERE is_default)''',
++                       (value, key))):
++        with pytest.raises(psycopg.errors.RaiseException, match='is outside the domain of capability') as caught:
++            db(store, sql, *args)
++        hint = caught.value.diag.message_hint or ''
++        assert hint.startswith(f'{key} takes ') and 'Example:' in hint, hint      # the rule, and a right example
++
++
++@pytest.mark.parametrize('key, value', INSIDE)
++def test_a_value_inside_its_domain_is_written(store, key, value):
++    user = make_user(store, 'dora', 'dora-password')
++    db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
++        VALUES (%s, %s, %s::jsonb, 'ok')''', user['user_id'], key, value)
++
++
++def test_a_domain_a_stored_value_would_not_fit_is_refused(store):
++    import psycopg
++    with pytest.raises(psycopg.errors.RaiseException, match='fall outside its new domain') as caught:
++        db(store, "UPDATE edge_bff.capabilities SET value_max = 100 WHERE capability_key = 'terminal.history_days'")
++    assert 'plan ' in str(caught.value) and '730' in str(caught.value)             # names the value that holds it
++    db(store, "UPDATE edge_bff.capabilities SET value_max = 36600 WHERE capability_key = 'terminal.history_days'")
++
++
++def test_the_domains_are_the_wires_and_fit_the_header(store):
++    rows = {r['capability_key']: r for r in db(store, '''SELECT capability_key, kind, value_min, value_max, item_pattern
++        FROM edge_bff.capabilities WHERE value_min IS NOT NULL OR value_max IS NOT NULL OR item_pattern IS NOT NULL''')}
++    assert rows['terminal.history_days']['value_max'] == entitlements.MAX_HISTORY_DAYS
++    assert rows['terminal.tickers']['item_pattern'] == entitlements.TICKER_RE.pattern
++    assert {k for k, r in rows.items() if r['value_max'] == entitlements.MAX_QUOTA} == {
++        f'terminal.{name}' for name in terminal_access.QUOTA}
++    # the most the domain lets a plan hold still fits terminal-api's 8 KiB header
++    widest = principal(limits={'terminal.tickers': [f'{i:012d}' for i in range(rows['terminal.tickers']['value_max'])],
++                               'terminal.history_days': 36600,
++                               **{f'terminal.{n}': entitlements.MAX_QUOTA for n in terminal_access.QUOTA}},
++                       grants={'terminal.dataset': {'all': True}}, kinds={'terminal.dataset': 'items'})
++    header = terminal_access.capabilities_header(widest)
++    assert len(header) <= entitlements.MAX_CAPS_BYTES
++    assert entitlements.parse_capabilities(header, terminal_access.DATASET_IDS).tickers
++
++
++def test_the_domain_migration_refuses_a_second_run_and_a_wrong_domain(database):
++    import psycopg
++    with psycopg.connect(database, autocommit=True) as conn:
++        with pytest.raises(psycopg.errors.RaiseException, match='already has a value domain'):
++            conn.execute(DOMAIN_MIGRATION.read_text())
++    text = DOMAIN_MIGRATION.read_text()
++    body = text.split('DO $verify$', 1)[1].split('END $verify$;', 1)[0]
++    with psycopg.connect(database) as conn:
++        conn.execute("UPDATE edge_bff.capabilities SET value_max = 36599 WHERE capability_key = 'terminal.history_days'")
++        with pytest.raises(psycopg.errors.RaiseException, match='the domain of terminal.history_days is not'):
++            conn.execute('DO $verify$' + body + 'END $verify$;')
++        conn.rollback()
+diff --git a/database/migrations/20261119_050_edge_bff_capability_domains.sql b/database/migrations/20261119_050_edge_bff_capability_domains.sql
+new file mode 100644
+index 00000000..5dcc217f
+--- /dev/null
++++ b/database/migrations/20261119_050_edge_bff_capability_domains.sql
+@@ -0,0 +1,217 @@
++-- EDGE multi-user, re-check of Phases 0-3b, fix round (EXEC-MU-ACCOUNTS; track terminal, finding R1-22;
++-- verification/edge_multiuser/fix_round/terminal.md): a value domain per capability, held by the catalog and checked by
++-- capability_value_check when a plan or an override value is written, behind the switch EDGE_MULTIUSER (off until
++-- Phase 6; with it off edge-bff reads none of these rows).
++--
++-- Why: Phase 2 checked a value against its kind only (a limit: any non-negative integer; a list: any array of strings),
++-- while the services that carry a value take a narrower one. terminal-api's x-terminal-capabilities takes history_days
++-- 0 to 36600 and tickers ^[A-Z0-9]{1,12}$ (apps/terminal-api/app/entitlements.py), and edge-bff's header is at most
++-- 8 KiB. A value the catalog took but the wire did not (history_days 40000, a ticker 'bbca') failed every Terminal call
++-- of the account. edge-bff now maps every value onto the wire (app/terminal_access.py capabilities: clamp, drop, refuse
++-- first), because a value read back as the most restrictive one (0, []) still reaches it; this migration lets the admin
++-- see the rule when writing, so such a value is never stored.
++--
++-- New columns of edge_bff.capabilities (NULL: no bound beyond the kind):
++--   value_min, value_max  limit: the smallest and largest value; list: the fewest and most items
++--   item_pattern          list: a POSIX regular expression every item matches
++-- capability_value_check (replaced, same shape checks and messages as 20261117_003) reads them after the shape check and
++-- refuses a value outside them with a hint that names the domain and an example (AGENTS.md "Gates and evidence").
++-- capability_domain_holds refuses a change of a domain that a stored value would no longer fit.
++--
++-- Domains set here (the wire's own bounds; tests/test_terminal_fix_round.py compares them with terminal-api's code):
++--   terminal.history_days       1 .. 36600 days (0 serves nothing dated: a plan without history holds no dated dataset)
++--   terminal.tickers            0 .. 500 items, each ^[A-Z0-9]{1,12}$ (500 names of 12 characters fit the 8 KiB header)
++--   terminal.tickers_per_hour, terminal.tickers_per_day, terminal.files_per_hour, terminal.megabytes_per_day
++--                               1 .. 1000000000 (terminal-api's MAX_QUOTA; a plan that allows none holds no terminal.view)
++-- Every other capability keeps no domain beyond its kind (a later migration may set one, for example a saved-item limit's
++-- HARD as its value_max). No table grant or index changes (edge_bff_runtime reads the catalog tables with SELECT); the
++-- two pure helper functions the value trigger calls are executable by edge_bff_runtime, which writes overrides. Refuses a
++-- second run and a stored value outside a new domain (it names them). Forward-only; rollback block at the end (comment).
++BEGIN;
++SET LOCAL lock_timeout = '5s';
++SET LOCAL statement_timeout = '1min';
++DO $preflight$
++BEGIN
++    IF to_regclass('edge_bff.capabilities') IS NULL
++       OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE NOT tgisinternal AND tgname = 'plan_capabilities_value_check') THEN
++        RAISE EXCEPTION 'the EDGE plan catalog is missing: apply 20261117_003 first';
++    END IF;
++    IF (SELECT count(*) FROM edge_bff.capabilities WHERE capability_key IN ('terminal.history_days', 'terminal.tickers',
++            'terminal.tickers_per_hour', 'terminal.tickers_per_day', 'terminal.files_per_hour',
++            'terminal.megabytes_per_day')) <> 6 THEN
++        RAISE EXCEPTION 'a Terminal capability of 20261117_003 or 20261118_002 is missing: apply 20261118_002 first';
++    END IF;
++    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name = 'capabilities'
++               AND column_name IN ('value_min', 'value_max', 'item_pattern')) THEN
++        RAISE EXCEPTION 'edge_bff.capabilities already has a value domain: reconcile before applying';
++    END IF;
++END $preflight$;
++
++ALTER TABLE edge_bff.capabilities
++    ADD COLUMN value_min bigint,
++    ADD COLUMN value_max bigint,
++    ADD COLUMN item_pattern text,
++    ADD CONSTRAINT capabilities_domain_kind CHECK ((kind IN ('limit', 'list') OR (value_min IS NULL AND value_max IS NULL))
++                                                   AND (kind = 'list' OR item_pattern IS NULL)),
++    ADD CONSTRAINT capabilities_domain_bounds CHECK ((value_min IS NULL OR value_min >= 0)
++                                                     AND (value_max IS NULL OR value_max >= coalesce(value_min, 0))),
++    ADD CONSTRAINT capabilities_item_pattern CHECK (item_pattern IS NULL OR char_length(item_pattern) BETWEEN 1 AND 200);
++COMMENT ON COLUMN edge_bff.capabilities.value_min IS 'The smallest value a plan or an override may hold (limit), or the fewest items (list); NULL: no bound beyond the kind. Checked by capability_value_check when a value is written.';
++COMMENT ON COLUMN edge_bff.capabilities.value_max IS 'The largest value a plan or an override may hold (limit), or the most items (list); NULL: no bound beyond the kind. Checked by capability_value_check when a value is written.';
++COMMENT ON COLUMN edge_bff.capabilities.item_pattern IS 'A POSIX regular expression every item of a list value matches (list only); NULL: any string. Checked by capability_value_check when a value is written.';
++
++-- the domain of one capability, as a sentence for the hint
++CREATE FUNCTION edge_bff.capability_domain_text(k text, lo bigint, hi bigint, pat text) RETURNS text
++    LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, pg_temp AS $fn$
++    SELECT CASE k
++        WHEN 'limit' THEN 'a whole number from ' || coalesce(lo, 0)::text || coalesce(' to ' || hi::text, ' up')
++        WHEN 'list' THEN 'a list of ' || coalesce(lo, 0)::text || coalesce(' to ' || hi::text, ' or more') || ' items'
++                         || coalesce(', each matching ' || pat, '')
++        ELSE 'a value of its kind' END
++$fn$;
++REVOKE ALL ON FUNCTION edge_bff.capability_domain_text(text, bigint, bigint, text) FROM PUBLIC;
++
++-- whether a value of the right shape fits a domain (NULL bounds: none)
++CREATE FUNCTION edge_bff.capability_domain_fits(v jsonb, k text, lo bigint, hi bigint, pat text) RETURNS boolean
++    LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, pg_temp AS $fn$
++    SELECT CASE k
++        WHEN 'limit' THEN (lo IS NULL OR v::text::numeric >= lo) AND (hi IS NULL OR v::text::numeric <= hi)
++        WHEN 'list' THEN (lo IS NULL OR jsonb_array_length(v) >= lo) AND (hi IS NULL OR jsonb_array_length(v) <= hi)
++                         AND (pat IS NULL OR NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(v) e WHERE e !~ pat))
++        ELSE true END
++$fn$;
++REVOKE ALL ON FUNCTION edge_bff.capability_domain_fits(jsonb, text, bigint, bigint, text) FROM PUBLIC;
++-- the value trigger runs as the role that writes (edge_bff_runtime writes overrides, Phase 4): both helpers are pure
++GRANT EXECUTE ON FUNCTION edge_bff.capability_domain_fits(jsonb, text, bigint, bigint, text),
++    edge_bff.capability_domain_text(text, bigint, bigint, text) TO edge_bff_runtime;
++
++-- the value check of 20261117_003, with the domain after the shape (the shape refusal and its hint are unchanged)
++CREATE OR REPLACE FUNCTION edge_bff.capability_value_check() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $fn$
++DECLARE
++    k text;
++    lo bigint;
++    hi bigint;
++    pat text;
++    v jsonb := NEW.value;
++    ok boolean;
++BEGIN
++    SELECT kind, value_min, value_max, item_pattern INTO k, lo, hi, pat FROM edge_bff.capabilities
++        WHERE capability_key = NEW.capability_key;
++    ok := CASE k
++        WHEN 'flag' THEN v IN ('true'::jsonb, 'false'::jsonb)
++        WHEN 'limit' THEN jsonb_typeof(v) = 'number' AND v::text ~ '^[0-9]+$'
++        WHEN 'list' THEN jsonb_typeof(v) = 'array'
++            AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v) e WHERE jsonb_typeof(e) <> 'string')
++        WHEN 'items' THEN jsonb_typeof(v) = 'object'
++            AND NOT EXISTS (SELECT 1 FROM jsonb_object_keys(v) x WHERE x NOT IN ('ids', 'stages', 'all'))
++            AND (NOT v ? 'ids' OR (jsonb_typeof(v -> 'ids') = 'array'
++                 AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v -> 'ids') e WHERE jsonb_typeof(e) <> 'string')))
++            AND (NOT v ? 'stages' OR (jsonb_typeof(v -> 'stages') = 'array'
++                 AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v -> 'stages') e
++                                 WHERE e NOT IN ('"lab"'::jsonb, '"released"'::jsonb))))
++            AND (NOT v ? 'all' OR jsonb_typeof(v -> 'all') = 'boolean')
++        ELSE false END;
++    IF NOT coalesce(ok, false) THEN
++        RAISE EXCEPTION 'edge_bff.%: the value % does not fit capability % (kind %)', TG_TABLE_NAME, v, NEW.capability_key,
++            coalesce(k, 'unknown')
++            USING HINT = 'flag: true or false; limit: a non-negative integer such as 730; list: an array of strings '
++                         'such as ["BBCA"]; items: {"ids": ["I01"], "stages": ["released"], "all": false}, each key optional';
++    END IF;
++    IF NOT edge_bff.capability_domain_fits(v, k, lo, hi, pat) THEN
++        RAISE EXCEPTION 'edge_bff.%: the value % is outside the domain of capability %', TG_TABLE_NAME, v,
++            NEW.capability_key
++            USING HINT = NEW.capability_key || ' takes ' || edge_bff.capability_domain_text(k, lo, hi, pat)
++                         || ' (edge_bff.capabilities value_min, value_max, item_pattern). Example: '
++                         || CASE k WHEN 'limit' THEN coalesce(lo, 0)::text ELSE '["BBCA"]' END || '.';
++    END IF;
++    RETURN NEW;
++END $fn$;
++COMMENT ON FUNCTION edge_bff.capability_value_check() IS 'Refuses a plan_capabilities or user_capability_overrides value that does not fit its capability kind (flag true/false, limit non-negative integer, list of strings, items {ids, stages lab/released, all}; C1 Phase 2 F1) or its domain (capabilities value_min, value_max, item_pattern; re-check R1-22).';
++
++-- a domain cannot change while a stored value would no longer fit it (the values were checked against the old one)
++CREATE FUNCTION edge_bff.capability_domain_holds() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $fn$
++DECLARE
++    found text;
++BEGIN
++    SELECT string_agg(x.who || ' ' || x.value::text, ', ') INTO found FROM (
++        SELECT 'plan ' || plan_key AS who, value FROM edge_bff.plan_capabilities WHERE capability_key = NEW.capability_key
++        UNION ALL
++        SELECT 'user ' || user_id, value FROM edge_bff.user_capability_overrides WHERE capability_key = NEW.capability_key
++    ) x WHERE NOT edge_bff.capability_domain_fits(x.value, NEW.kind, NEW.value_min, NEW.value_max, NEW.item_pattern);
++    IF found IS NOT NULL THEN
++        RAISE EXCEPTION 'edge_bff.capabilities: % values of % fall outside its new domain: %', NEW.capability_key,
++            NEW.capability_key, found
++            USING HINT = 'Change those values to fit ' || edge_bff.capability_domain_text(NEW.kind, NEW.value_min,
++                         NEW.value_max, NEW.item_pattern) || ' in the same migration, then the domain.';
++    END IF;
++    RETURN NEW;
++END $fn$;
++REVOKE ALL ON FUNCTION edge_bff.capability_domain_holds() FROM PUBLIC;
++CREATE TRIGGER capabilities_domain_holds BEFORE INSERT OR UPDATE OF value_min, value_max, item_pattern
++    ON edge_bff.capabilities FOR EACH ROW EXECUTE FUNCTION edge_bff.capability_domain_holds();
++COMMENT ON FUNCTION edge_bff.capability_domain_holds() IS 'Refuses a capabilities domain (value_min, value_max, item_pattern) that a stored plan or override value of the capability would not fit; re-check R1-22.';
++
++-- the domains of the wire's capabilities (refused here, naming them, when a stored value lies outside)
++UPDATE edge_bff.capabilities SET value_min = 1, value_max = 36600 WHERE capability_key = 'terminal.history_days';
++UPDATE edge_bff.capabilities SET value_min = 0, value_max = 500, item_pattern = '^[A-Z0-9]{1,12}$'
++    WHERE capability_key = 'terminal.tickers';
++UPDATE edge_bff.capabilities SET value_min = 1, value_max = 1000000000
++    WHERE capability_key IN ('terminal.tickers_per_hour', 'terminal.tickers_per_day', 'terminal.files_per_hour',
++                             'terminal.megabytes_per_day');
++
++DO $verify$
++DECLARE
++    want constant jsonb := '{"terminal.history_days": [1, 36600, null], "terminal.tickers": [0, 500, "^[A-Z0-9]{1,12}$"],
++        "terminal.tickers_per_hour": [1, 1000000000, null], "terminal.tickers_per_day": [1, 1000000000, null],
++        "terminal.files_per_hour": [1, 1000000000, null], "terminal.megabytes_per_day": [1, 1000000000, null]}';
++    k text;
++    bad text;
++BEGIN
++    FOR k IN SELECT jsonb_object_keys(want) LOOP
++        IF (SELECT jsonb_build_array(value_min, value_max, item_pattern) FROM edge_bff.capabilities
++            WHERE capability_key = k) IS DISTINCT FROM want -> k THEN
++            RAISE EXCEPTION 'the domain of % is not %', k, want -> k;
++        END IF;
++    END LOOP;
++    IF EXISTS (SELECT 1 FROM edge_bff.capabilities WHERE capability_key NOT IN (SELECT jsonb_object_keys(want))
++               AND (value_min IS NOT NULL OR value_max IS NOT NULL OR item_pattern IS NOT NULL)) THEN
++        RAISE EXCEPTION 'a capability other than the six of this migration has a domain';
++    END IF;
++    SELECT string_agg(x.capability_key || ' ' || x.value::text, ', ') INTO bad FROM (
++        SELECT capability_key, value FROM edge_bff.plan_capabilities
++        UNION ALL SELECT capability_key, value FROM edge_bff.user_capability_overrides) x
++        JOIN edge_bff.capabilities c USING (capability_key)
++        WHERE NOT edge_bff.capability_domain_fits(x.value, c.kind, c.value_min, c.value_max, c.item_pattern);
++    IF bad IS NOT NULL THEN
++        RAISE EXCEPTION 'stored values outside their domain: %', bad;
++    END IF;
++    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE NOT tgisinternal AND tgname = 'capabilities_domain_holds')
++       OR (SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal AND tgname IN ('plan_capabilities_value_check',
++               'user_capability_overrides_value_check')) <> 2 THEN
++        RAISE EXCEPTION 'the value and domain triggers are not all in place';
++    END IF;
++    IF NOT edge_bff.capability_domain_fits('730', 'limit', 1, 36600, NULL)
++       OR edge_bff.capability_domain_fits('0', 'limit', 1, 36600, NULL)
++       OR edge_bff.capability_domain_fits('40000', 'limit', 1, 36600, NULL)
++       OR NOT edge_bff.capability_domain_fits('["BBCA", "BBRI"]', 'list', 0, 500, '^[A-Z0-9]{1,12}$')
++       OR edge_bff.capability_domain_fits('["bbca"]', 'list', 0, 500, '^[A-Z0-9]{1,12}$')
++       OR edge_bff.capability_domain_fits('[" BBCA"]', 'list', 0, 500, '^[A-Z0-9]{1,12}$') THEN
++        RAISE EXCEPTION 'capability_domain_fits does not hold its own examples';
++    END IF;
++    IF NOT has_function_privilege('edge_bff_runtime', 'edge_bff.capability_domain_fits(jsonb, text, bigint, bigint, text)',
++                                  'EXECUTE')
++       OR has_function_privilege('public', 'edge_bff.capability_domain_holds()', 'EXECUTE') THEN
++        RAISE EXCEPTION 'the domain functions do not have the privileges of this migration';
++    END IF;
++END $verify$;
++COMMIT;
++
++-- Rollback (a new forward migration with this body; edge-bff keeps mapping every value onto the wire without it):
++-- BEGIN;
++-- DROP TRIGGER capabilities_domain_holds ON edge_bff.capabilities;
++-- DROP FUNCTION edge_bff.capability_domain_holds();
++-- (CREATE OR REPLACE edge_bff.capability_value_check with the body of 20261117_003)
++-- DROP FUNCTION edge_bff.capability_domain_fits(jsonb, text, bigint, bigint, text),
++--     edge_bff.capability_domain_text(text, bigint, bigint, text);
++-- ALTER TABLE edge_bff.capabilities DROP COLUMN value_min, DROP COLUMN value_max, DROP COLUMN item_pattern;
++-- COMMIT;
 -- 
 2.43.0
 

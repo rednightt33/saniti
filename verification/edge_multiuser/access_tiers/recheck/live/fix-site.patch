@@ -1,0 +1,2374 @@
+From c17efdf1f905c655a98325b8c9cf5e260bc1a330 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 07:41:40 +0000
+Subject: [PATCH 1/3] EXEC-MU-ACCOUNTS fix round (track site): migrations
+ 20261119_020-023 (the queues' site, the seed's mark, the indexes on the
+ references to users) and the test harness
+
+The AI and backtest queues carry the website that queued them (default beta: every row so far is the admin's), the seed
+of user #1 keeps the sha256 of the verifier it last wrote, and every foreign key to edge_bff.users gets an index on its
+column (ERRORS R2-7, R2-2, R2-34). conftest applies them; test_backtest puts the site column back whenever it recreates
+the backtest tables with 20261026_005.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/tests/conftest.py               |  5 ++
+ apps/edge-bff/tests/test_backtest.py          | 19 +++--
+ .../tests}/test_r2_trace_beta_live.py         |  0
+ .../20261119_020_edge_bff_jobs_site.sql       | 56 +++++++++++++++
+ ...261119_021_edge_bff_backtest_jobs_site.sql | 61 ++++++++++++++++
+ ...261119_022_edge_bff_seed_verifier_mark.sql | 62 ++++++++++++++++
+ ...023_edge_bff_account_reference_indexes.sql | 70 +++++++++++++++++++
+ 7 files changed, 268 insertions(+), 5 deletions(-)
+ rename {verification/edge_multiuser/access_tiers/pending => apps/edge-bff/tests}/test_r2_trace_beta_live.py (100%)
+ create mode 100644 database/migrations/20261119_020_edge_bff_jobs_site.sql
+ create mode 100644 database/migrations/20261119_021_edge_bff_backtest_jobs_site.sql
+ create mode 100644 database/migrations/20261119_022_edge_bff_seed_verifier_mark.sql
+ create mode 100644 database/migrations/20261119_023_edge_bff_account_reference_indexes.sql
+
+diff --git a/apps/edge-bff/tests/conftest.py b/apps/edge-bff/tests/conftest.py
+index c135fff5..3cd0031b 100644
+--- a/apps/edge-bff/tests/conftest.py
++++ b/apps/edge-bff/tests/conftest.py
+@@ -34,6 +34,11 @@ def database():
+             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261117_004_edge_bff_catalog_phase3a.sql').read_text())
+             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261118_001_edge_bff_item_families_from_terminal.sql').read_text())
+             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261118_002_edge_bff_terminal_quota.sql').read_text())
++            # EXEC-MU-ACCOUNTS beta/live fix round (track site): the queues' site, the seed's mark, the account indexes
++            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_020_edge_bff_jobs_site.sql').read_text())
++            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_021_edge_bff_backtest_jobs_site.sql').read_text())
++            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_022_edge_bff_seed_verifier_mark.sql').read_text())
++            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_023_edge_bff_account_reference_indexes.sql').read_text())
+             c.execute('CREATE TABLE public.market_private(secret text)')
+         yield url
+     finally:
+diff --git a/apps/edge-bff/tests/test_backtest.py b/apps/edge-bff/tests/test_backtest.py
+index 0998f86b..c34ce832 100644
+--- a/apps/edge-bff/tests/test_backtest.py
++++ b/apps/edge-bff/tests/test_backtest.py
+@@ -50,6 +50,15 @@ KEY = 'w' * 40
+ MIGRATION = Path(__file__).resolve().parents[3] / 'database/migrations/20261026_005_edge_bff_backtest.sql'
+ ERROR_COMMENT = Path(__file__).resolve().parents[3] / 'database/migrations/20261027_005_edge_bff_backtest_error_comment.sql'
+ ROLLBACK = '\n'.join(line[3:] for line in MIGRATION.read_text().split('-- Rollback', 1)[1].splitlines()[1:] if line.startswith('-- '))
++# EXEC-MU-ACCOUNTS beta/live (fix round, track site): the site column of the jobs, added by a later migration; a test that
++# takes 20261026_005 out puts both back (recreate)
++SITE = Path(__file__).resolve().parents[3] / 'database/migrations/20261119_021_edge_bff_backtest_jobs_site.sql'
++
++
++def recreate(conn):
++    """The backtest tables as the migrations leave them: 20261026_005, then the jobs' site column (20261119_021)."""
++    conn.execute(MIGRATION.read_text())
++    conn.execute(SITE.read_text())
+ 
+ 
+ def sha(text):
+@@ -316,7 +325,7 @@ def backtest_tables(database):
+     with psycopg.connect(database, autocommit=True) as c:
+         applied = c.execute("SELECT to_regclass('edge_bff.backtest_jobs')").fetchone()[0] is None
+         if applied:
+-            c.execute(MIGRATION.read_text())
++            recreate(c)
+     yield database
+     if applied:
+         with psycopg.connect(database, autocommit=True) as c:
+@@ -1036,7 +1045,7 @@ def test_provisioned_login_reaches_the_backtest_tables_with_their_migration(back
+     finally:
+         with psycopg.connect(database, autocommit=True) as conn:
+             if conn.execute("SELECT to_regclass('edge_bff.backtest_trials')").fetchone()[0] is None:
+-                conn.execute(MIGRATION.read_text())
++                recreate(conn)
+             else:
+                 conn.execute('GRANT SELECT, INSERT, UPDATE ON edge_bff.backtest_trials TO edge_bff_runtime')
+             conn.execute('DROP OWNED BY edge_bff_login')
+@@ -1083,7 +1092,7 @@ def test_the_migration_refuses_a_runtime_role_with_more_than_the_code_does(backt
+                 conn.execute(f'ALTER DEFAULT PRIVILEGES IN SCHEMA edge_bff REVOKE {extra} ON TABLES FROM edge_bff_runtime')
+             if conn.execute("SELECT to_regclass('edge_bff.backtest_jobs')").fetchone()[0] is not None:
+                 conn.execute(ROLLBACK)                      # applied with an extra privilege: taken out again
+-            conn.execute(MIGRATION.read_text())
++            recreate(conn)
+ 
+ 
+ def test_the_migration_refuses_public_with_any_privilege_on_the_backtest_tables(backtest_tables):
+@@ -1115,7 +1124,7 @@ def test_the_migration_refuses_public_with_any_privilege_on_the_backtest_tables(
+                 conn.execute(f'ALTER DEFAULT PRIVILEGES IN SCHEMA edge_bff REVOKE {privilege} ON TABLES FROM PUBLIC')
+             if conn.execute("SELECT to_regclass('edge_bff.backtest_jobs')").fetchone()[0] is not None:
+                 conn.execute(ROLLBACK)
+-            conn.execute(MIGRATION.read_text())
++            recreate(conn)
+ 
+ 
+ def handed(worker, job_id):
+@@ -1439,7 +1448,7 @@ def test_ready_does_not_depend_on_the_backtest_tables(app, worker, backtest_tabl
+         assert c.get('/api/v1/conversations').status_code == 200        # the rest of EDGE is unaffected
+     finally:
+         with psycopg.connect(backtest_tables, autocommit=True) as conn:
+-            conn.execute(MIGRATION.read_text())
++            recreate(conn)
+     assert submit(c, single(), 'nr').status_code == 202
+     with psycopg.connect(backtest_tables, autocommit=True) as conn:
+         with pytest.raises(psycopg.errors.RaiseException, match='backtest table exists'):
+diff --git a/verification/edge_multiuser/access_tiers/pending/test_r2_trace_beta_live.py b/apps/edge-bff/tests/test_r2_trace_beta_live.py
+similarity index 100%
+rename from verification/edge_multiuser/access_tiers/pending/test_r2_trace_beta_live.py
+rename to apps/edge-bff/tests/test_r2_trace_beta_live.py
+diff --git a/database/migrations/20261119_020_edge_bff_jobs_site.sql b/database/migrations/20261119_020_edge_bff_jobs_site.sql
+new file mode 100644
+index 00000000..41bddae5
+--- /dev/null
++++ b/database/migrations/20261119_020_edge_bff_jobs_site.sql
+@@ -0,0 +1,56 @@
++-- EDGE beta and live websites (EXEC-MU-ACCOUNTS "Production environment", user decisions 2026-11-19: one Railway
++-- environment, two edge-bff services on one database; ERRORS R2-7, R2-13, R2-23, R2-38). The AI job queue
++-- edge_bff.jobs gains `site`: the website a run was queued on, 'beta' (the service edge-bff, its Railway address, the
++-- admin only) or 'live' (edge-bff-live, the user's domain). Each edge-bff claims only the runs of its own site
++-- (app/store.py claim, EDGE_SITE), so a run is dispatched by the code and the rules of the site that took it, never by
++-- the other website's loop. Every row that exists is the beta's (the admin's runs on edge-bff), so the default is
++-- 'beta'; edge-bff writes the column explicitly from now on.
++--
++-- A constant default and a CHECK on the new column: Postgres adds the column without rewriting the table (PG 11+) and
++-- validates the CHECK in one scan. No index: the claim reads the existing partial index edge_bff_claim (created_at,
++-- the active states only), whose rows are a handful at any time; the site filter is applied on them (EXPLAIN in the
++-- fix-round notes, verification/edge_multiuser/fix_round/site.md). No grant changes (a new column of a table
++-- edge_bff_runtime already reads and writes). Forward-only; refuses a second run; rollback block at the end (comment).
++BEGIN;
++SET LOCAL lock_timeout = '5s';
++SET LOCAL statement_timeout = '1min';
++DO $preflight$
++BEGIN
++    IF to_regclass('edge_bff.jobs') IS NULL THEN
++        RAISE EXCEPTION 'edge_bff.jobs is missing: apply 20261008_002 first';
++    END IF;
++    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name = 'jobs'
++               AND column_name = 'site') THEN
++        RAISE EXCEPTION 'edge_bff.jobs.site exists: reconcile before applying';
++    END IF;
++END $preflight$;
++
++ALTER TABLE edge_bff.jobs ADD COLUMN site text NOT NULL DEFAULT 'beta' CONSTRAINT jobs_site CHECK (site IN ('beta', 'live'));
++COMMENT ON COLUMN edge_bff.jobs.site IS 'The website the run was queued on: beta (edge-bff, the admin only) or live (edge-bff-live). Only that site''s worker claims it (EDGE_SITE); rows before 2026-11-19 are the beta''s.';
++
++DO $verify$
++BEGIN
++    IF (SELECT column_default FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name = 'jobs'
++        AND column_name = 'site' AND is_nullable = 'NO') IS DISTINCT FROM '''beta''::text' THEN
++        RAISE EXCEPTION 'edge_bff.jobs.site is not NOT NULL DEFAULT beta';
++    END IF;
++    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'edge_bff.jobs'::regclass AND conname = 'jobs_site'
++                   AND convalidated) THEN
++        RAISE EXCEPTION 'the check jobs_site is missing or not validated';
++    END IF;
++    IF EXISTS (SELECT 1 FROM edge_bff.jobs WHERE site <> 'beta') THEN
++        RAISE EXCEPTION 'a run that existed before this migration is not the beta''s';
++    END IF;
++    IF NOT (has_table_privilege('edge_bff_runtime', 'edge_bff.jobs', 'SELECT')
++            AND has_table_privilege('edge_bff_runtime', 'edge_bff.jobs', 'INSERT')
++            AND has_table_privilege('edge_bff_runtime', 'edge_bff.jobs', 'UPDATE')) THEN
++        RAISE EXCEPTION 'edge_bff_runtime lost a grant on edge_bff.jobs';
++    END IF;
++END $verify$;
++COMMIT;
++
++-- Rollback (a new forward migration with this body, after every edge-bff runs a build that does not read the column:
++-- edge-bff's readiness reads edge_bff.jobs.site, app/store.py ready):
++-- BEGIN;
++-- ALTER TABLE edge_bff.jobs DROP COLUMN site;
++-- COMMIT;
+diff --git a/database/migrations/20261119_021_edge_bff_backtest_jobs_site.sql b/database/migrations/20261119_021_edge_bff_backtest_jobs_site.sql
+new file mode 100644
+index 00000000..63af2288
+--- /dev/null
++++ b/database/migrations/20261119_021_edge_bff_backtest_jobs_site.sql
+@@ -0,0 +1,61 @@
++-- EDGE beta and live websites (EXEC-MU-ACCOUNTS "Production environment", user decisions 2026-11-19: one Railway
++-- environment, two edge-bff services on one database; ERRORS R2-7, R2-13, R2-23, R2-38). The backtest queue
++-- edge_bff.backtest_jobs gains `site`: the website a backtest was queued on, 'beta' (the service edge-bff, the admin
++-- only) or 'live' (edge-bff-live, the user's domain). Both websites run a backtest loop; each claims, reaps and prunes
++-- only its own site's jobs (app/backtest.py BacktestStore, EDGE_SITE), so a paid account's backtest queued on the live
++-- site is dispatched under the live site's principal and release file, never by the beta's loop (the probe of R2-7:
++-- a switch-off loop ended a switch-on account's job FAILED CAPABILITY_REQUIRED). One running job per owner stays one
++-- rule over both sites (backtest_jobs_one_running_owner). Every row that exists is the beta's (the admin's backtests on
++-- edge-bff), so the default is 'beta'; edge-bff writes the column explicitly from now on.
++--
++-- A constant default and a CHECK on the new column: added without a table rewrite (PG 11+), the CHECK validated in one
++-- scan. No index: the claim reads the existing partial index backtest_jobs_claim (created_at, QUEUED and RUNNING
++-- only), whose rows are a handful; the site filter is applied on them (EXPLAIN in the fix-round notes,
++-- verification/edge_multiuser/fix_round/site.md). No grant changes. Separate from 20261119_020 so that a test which
++-- takes 20261026_005 out and puts it back can put this column back too. Forward-only; refuses a second run; rollback
++-- block at the end (comment).
++BEGIN;
++SET LOCAL lock_timeout = '5s';
++SET LOCAL statement_timeout = '1min';
++DO $preflight$
++BEGIN
++    IF to_regclass('edge_bff.backtest_jobs') IS NULL THEN
++        RAISE EXCEPTION 'edge_bff.backtest_jobs is missing: apply 20261026_005 first';
++    END IF;
++    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name = 'backtest_jobs'
++               AND column_name = 'site') THEN
++        RAISE EXCEPTION 'edge_bff.backtest_jobs.site exists: reconcile before applying';
++    END IF;
++END $preflight$;
++
++ALTER TABLE edge_bff.backtest_jobs ADD COLUMN site text NOT NULL DEFAULT 'beta'
++    CONSTRAINT backtest_jobs_site CHECK (site IN ('beta', 'live'));
++COMMENT ON COLUMN edge_bff.backtest_jobs.site IS 'The website the backtest was queued on: beta (edge-bff, the admin only) or live (edge-bff-live). Only that site''s loop claims, reaps and prunes it (EDGE_SITE); rows before 2026-11-19 are the beta''s.';
++
++DO $verify$
++BEGIN
++    IF (SELECT column_default FROM information_schema.columns WHERE table_schema = 'edge_bff'
++        AND table_name = 'backtest_jobs' AND column_name = 'site' AND is_nullable = 'NO') IS DISTINCT FROM '''beta''::text' THEN
++        RAISE EXCEPTION 'edge_bff.backtest_jobs.site is not NOT NULL DEFAULT beta';
++    END IF;
++    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'edge_bff.backtest_jobs'::regclass
++                   AND conname = 'backtest_jobs_site' AND convalidated) THEN
++        RAISE EXCEPTION 'the check backtest_jobs_site is missing or not validated';
++    END IF;
++    IF EXISTS (SELECT 1 FROM edge_bff.backtest_jobs WHERE site <> 'beta') THEN
++        RAISE EXCEPTION 'a backtest that existed before this migration is not the beta''s';
++    END IF;
++    -- what app/backtest.py does to the jobs and no more (20261026_005): jobs are never deleted
++    IF NOT (has_table_privilege('edge_bff_runtime', 'edge_bff.backtest_jobs', 'SELECT')
++            AND has_table_privilege('edge_bff_runtime', 'edge_bff.backtest_jobs', 'INSERT')
++            AND has_table_privilege('edge_bff_runtime', 'edge_bff.backtest_jobs', 'UPDATE'))
++       OR has_table_privilege('edge_bff_runtime', 'edge_bff.backtest_jobs', 'DELETE') THEN
++        RAISE EXCEPTION 'edge_bff_runtime does not hold exactly SELECT, INSERT and UPDATE on edge_bff.backtest_jobs';
++    END IF;
++END $verify$;
++COMMIT;
++
++-- Rollback (a new forward migration with this body, after every edge-bff runs a build that does not read the column):
++-- BEGIN;
++-- ALTER TABLE edge_bff.backtest_jobs DROP COLUMN site;
++-- COMMIT;
+diff --git a/database/migrations/20261119_022_edge_bff_seed_verifier_mark.sql b/database/migrations/20261119_022_edge_bff_seed_verifier_mark.sql
+new file mode 100644
+index 00000000..509adc30
+--- /dev/null
++++ b/database/migrations/20261119_022_edge_bff_seed_verifier_mark.sql
+@@ -0,0 +1,62 @@
++-- EDGE beta and live websites (EXEC-MU-ACCOUNTS "Production environment", user decisions 2026-11-19; ERRORS R2-2,
++-- R2-13, R2-38): the seed of user #1 copies EDGE_PASSWORD_VERIFIER onto user #1's password identity at every start with
++-- EDGE_MULTIUSER off (app/accounts.py AccountStore.seed), so that sign-in works the same the moment the switch goes on.
++-- With the beta (switch off) and the live site (switch on) on one database, every beta deploy undid a password the admin
++-- changed or reset on the live site, and the replaced password signed in again.
++--
++-- edge_bff.identities gains seed_verifier_sha256: the SHA-256 (hex) of the verifier the seed last wrote, never the
++-- verifier itself. The seed copies the environment's verifier only while the identity still holds that copy
++-- (sha256(verifier) = seed_verifier_sha256); a change or a reset (app/auth_flows.py) writes a new verifier, so the
++-- identity is the account's own from then on and no start overwrites it. The switch-off sign-in still reads
++-- EDGE_PASSWORD_VERIFIER itself (app/main.py), as before.
++--
++-- Filled here for the seed's own identity: the switch has never been on outside the test suites (EXEC.md, EDGE_MULTIUSER
++-- off on dev), so the verifier user #1 holds today is the one the seed copied. Every other identity keeps NULL (the seed
++-- never wrote it). No grant changes (a new column of a table edge_bff_runtime already reads and writes). Forward-only;
++-- refuses a second run; rollback block at the end (comment).
++BEGIN;
++SET LOCAL lock_timeout = '5s';
++SET LOCAL statement_timeout = '1min';
++DO $preflight$
++BEGIN
++    IF to_regclass('edge_bff.identities') IS NULL OR to_regclass('edge_bff.users') IS NULL THEN
++        RAISE EXCEPTION 'the EDGE account tables are missing: apply 20261116_003 first';
++    END IF;
++    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'edge_bff' AND table_name = 'identities'
++               AND column_name = 'seed_verifier_sha256') THEN
++        RAISE EXCEPTION 'edge_bff.identities.seed_verifier_sha256 exists: reconcile before applying';
++    END IF;
++END $preflight$;
++
++ALTER TABLE edge_bff.identities ADD COLUMN seed_verifier_sha256 text
++    CONSTRAINT identities_seed_verifier_sha256 CHECK (seed_verifier_sha256 ~ '^[0-9a-f]{64}$');
++COMMENT ON COLUMN edge_bff.identities.seed_verifier_sha256 IS 'SHA-256 (hex) of the verifier the seed of user #1 last copied from EDGE_PASSWORD_VERIFIER; the seed copies again only while sha256(verifier) equals it (a password the account set itself is never overwritten). NULL: the seed never wrote this identity.';
++
++-- the seed's identity: user #1 is the one account whose owner key is not of the 'u_' form (users_one_seed)
++UPDATE edge_bff.identities i SET seed_verifier_sha256 = encode(sha256(convert_to(i.verifier, 'UTF8')), 'hex')
++FROM edge_bff.users u
++WHERE u.user_id = i.user_id AND i.provider = 'password' AND u.owner_key !~ '^u_[0-9a-f]{24}$';
++
++DO $verify$
++BEGIN
++    IF EXISTS (SELECT 1 FROM edge_bff.identities i JOIN edge_bff.users u ON u.user_id = i.user_id
++               WHERE i.provider = 'password' AND u.owner_key !~ '^u_[0-9a-f]{24}$'
++                 AND i.seed_verifier_sha256 IS DISTINCT FROM encode(sha256(convert_to(i.verifier, 'UTF8')), 'hex')) THEN
++        RAISE EXCEPTION 'the seed''s password identity does not carry the mark of its verifier';
++    END IF;
++    IF EXISTS (SELECT 1 FROM edge_bff.identities i JOIN edge_bff.users u ON u.user_id = i.user_id
++               WHERE u.owner_key ~ '^u_[0-9a-f]{24}$' AND i.seed_verifier_sha256 IS NOT NULL) THEN
++        RAISE EXCEPTION 'an account other than the seed carries a seed mark';
++    END IF;
++    IF NOT (has_table_privilege('edge_bff_runtime', 'edge_bff.identities', 'SELECT')
++            AND has_table_privilege('edge_bff_runtime', 'edge_bff.identities', 'UPDATE')) THEN
++        RAISE EXCEPTION 'edge_bff_runtime lost a grant on edge_bff.identities';
++    END IF;
++END $verify$;
++COMMIT;
++
++-- Rollback (a new forward migration with this body, after every edge-bff runs a build that does not read the column;
++-- the seed then copies the environment's verifier at every switch-off start again):
++-- BEGIN;
++-- ALTER TABLE edge_bff.identities DROP COLUMN seed_verifier_sha256;
++-- COMMIT;
+diff --git a/database/migrations/20261119_023_edge_bff_account_reference_indexes.sql b/database/migrations/20261119_023_edge_bff_account_reference_indexes.sql
+new file mode 100644
+index 00000000..4ac242f5
+--- /dev/null
++++ b/database/migrations/20261119_023_edge_bff_account_reference_indexes.sql
+@@ -0,0 +1,70 @@
++-- EDGE accounts (EXEC-MU-ACCOUNTS; ERRORS R2-34, R2-33): an index on every column that references edge_bff.users.
++-- 20261116_003 and 20261117_003 added these foreign keys with no index on the referencing column ("indexes beyond the
++-- keys: none", CONTRACT.md section 1, on the assumption that users and sessions number in the thousands). But Postgres
++-- checks each referencing table once per deleted account (ON DELETE CASCADE / SET NULL), so without an index every
++-- deleted account scans sessions, email_codes, admin_audit (twice), subscriptions and user_capability_overrides in full:
++-- the hourly purge of registrations never verified (app/accounts.py purge_pending) took 5.0 s for 200 accounts with 100k
++-- sessions and 107k codes (the store's statement_timeout), and its cost grew with the square of the pending backlog. The
++-- same columns serve the principal's reads by account: the sign-in's session cap and revoke_all (sessions.user_id), the
++-- resolve's live and lapsed subscriptions (subscriptions.user_id; the partial subscriptions_one_active serves neither the
++-- cascade nor the lapsed read, nor does the partial email_codes_one_live serve the cascade).
++--
++-- Plain btree indexes, measured with bounded EXPLAIN (ANALYZE, BUFFERS) before and after (the fix-round notes,
++-- verification/edge_multiuser/fix_round/site.md). The tables are small today (the switch is off on dev: one account),
++-- so CREATE INDEX in the migration's transaction holds each table's write lock for milliseconds. No grant changes.
++-- Rule from here on (CONTRACT.md section 1, recorded with this fix): every foreign key to edge_bff.users has an index
++-- whose leading column is the referencing column (tests/test_c2_ops_recheck.py test_every_reference_to_an_account_has_an_index).
++-- Forward-only; refuses a second run; rollback block at the end (comment).
++BEGIN;
++SET LOCAL lock_timeout = '5s';
++SET LOCAL statement_timeout = '5min';
++DO $preflight$
++BEGIN
++    IF to_regclass('edge_bff.users') IS NULL OR to_regclass('edge_bff.subscriptions') IS NULL
++       OR to_regclass('edge_bff.user_capability_overrides') IS NULL THEN
++        RAISE EXCEPTION 'the EDGE account tables or the plan catalog are missing: apply 20261116_003 and 20261117_003 first';
++    END IF;
++    IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'edge_bff'
++               AND c.relname IN ('sessions_user_id', 'email_codes_user_id', 'admin_audit_actor_user_id',
++                                 'admin_audit_target_user_id', 'subscriptions_user_id_starts',
++                                 'user_capability_overrides_created_by')) THEN
++        RAISE EXCEPTION 'an index of this migration exists: reconcile before applying';
++    END IF;
++END $preflight$;
++
++CREATE INDEX sessions_user_id ON edge_bff.sessions(user_id);
++CREATE INDEX email_codes_user_id ON edge_bff.email_codes(user_id);
++CREATE INDEX admin_audit_actor_user_id ON edge_bff.admin_audit(actor_user_id);
++CREATE INDEX admin_audit_target_user_id ON edge_bff.admin_audit(target_user_id);
++-- the resolve's live and lapsed subscriptions: by account, the most recent start first
++CREATE INDEX subscriptions_user_id_starts ON edge_bff.subscriptions(user_id, starts_at DESC);
++CREATE INDEX user_capability_overrides_created_by ON edge_bff.user_capability_overrides(created_by_user_id);
++
++DO $verify$
++DECLARE
++    missing text;
++BEGIN
++    -- every single-column foreign key to edge_bff.users has a non-partial index led by its column
++    SELECT string_agg(c.conrelid::regclass::text || '.' || a.attname, ', ') INTO missing
++    FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
++    WHERE c.contype = 'f' AND c.confrelid = 'edge_bff.users'::regclass AND cardinality(c.conkey) = 1
++      AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = c.conrelid AND i.indkey[0] = c.conkey[1]
++                      AND i.indpred IS NULL);
++    IF missing IS NOT NULL THEN
++        RAISE EXCEPTION 'foreign keys to edge_bff.users without an index on their column: %', missing;
++    END IF;
++    IF EXISTS (SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid JOIN pg_namespace n ON n.oid = c.relnamespace
++               WHERE n.nspname = 'edge_bff' AND c.relname IN ('sessions_user_id', 'email_codes_user_id',
++                   'admin_audit_actor_user_id', 'admin_audit_target_user_id', 'subscriptions_user_id_starts',
++                   'user_capability_overrides_created_by') AND NOT i.indisvalid) THEN
++        RAISE EXCEPTION 'an index of this migration is not valid';
++    END IF;
++END $verify$;
++COMMIT;
++
++-- Rollback (a new forward migration with this body; the purge and the principal's reads by account scan again):
++-- BEGIN;
++-- DROP INDEX edge_bff.sessions_user_id, edge_bff.email_codes_user_id, edge_bff.admin_audit_actor_user_id,
++--     edge_bff.admin_audit_target_user_id, edge_bff.subscriptions_user_id_starts,
++--     edge_bff.user_capability_overrides_created_by;
++-- COMMIT;
+-- 
+2.43.0
+
+
+From 8aed704adeafafdcab31e9d0338073c0145b3d27 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 07:41:52 +0000
+Subject: [PATCH 2/3] EXEC-MU-ACCOUNTS fix round (track site): two edge-bff
+ sites on one database, the start-up, the background loops
+
+- EDGE_SITE (beta, the default, or live); config.validate refuses live without EDGE_MULTIUSER, the beta with it (outside
+  EDGE_ENVIRONMENT=local), an AI loop on live, and the log email mode with the switch on outside local (R2-26).
+- Per-loop switches (EDGE_AI_WORKER_ENABLED: beta only by default; EDGE_BACKTEST_LOOP_ENABLED;
+  EDGE_HOUSEKEEPING_ENABLED), all parsed with switch_of, as EDGE_WORKER_ENABLED and EDGE_EMAIL_ENABLED now (R2-36).
+- Each site claims only its own queued rows (store.claim, BacktestStore claim/reap/prune by site; R2-7, R2-13, R2-23,
+  R2-38); the switch-off resolver accepts only sessions without an account (R2-1); the seed copies
+  EDGE_PASSWORD_VERIFIER only over its own copy (R2-2).
+- The live site never holds a beta-only capability (the Monitor and admin tabs, the admin rights, lab items; '*'
+  included) and answers 404 to their routes; user #1 still needs the second factor there.
+- Start-up steps and loops in one retried attempt; /ready answers 503 until it ran (R2-3, R2-36). The hourly purges in
+  their own task, each in its own transaction and try, batched, backed off, try-locked; the backtest loop's prune and
+  reap apart from its claim (R2-33). GET /version; a mark of each shared secret in the start line (R2-8).
+- The pending C2-TRACE test moves into the suite, changed to the decided pairing; test_edge's cleanup test follows the
+  purges to the housekeeping task. railway.ts declares edge-bff-live as a comment.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ .railway/railway.ts                           |  41 +++
+ apps/edge-bff/README.md                       |  62 +++-
+ apps/edge-bff/app/accounts.py                 |  45 ++-
+ apps/edge-bff/app/allow.py                    |   7 +-
+ apps/edge-bff/app/backtest.py                 |  80 +++--
+ apps/edge-bff/app/config.py                   |  86 ++++-
+ apps/edge-bff/app/main.py                     | 174 +++++++---
+ apps/edge-bff/app/principal.py                |  78 ++++-
+ apps/edge-bff/app/store.py                    |  74 +++-
+ apps/edge-bff/app/throttle.py                 |  11 +-
+ apps/edge-bff/app/worker.py                   |  81 ++++-
+ apps/edge-bff/tests/test_beta_live_site.py    | 322 ++++++++++++++++++
+ apps/edge-bff/tests/test_edge.py              |  30 +-
+ .../edge-bff/tests/test_r2_trace_beta_live.py |  86 +++--
+ .../access_tiers/pending/README.md            |  10 +-
+ 15 files changed, 1000 insertions(+), 187 deletions(-)
+ create mode 100644 apps/edge-bff/tests/test_beta_live_site.py
+
+diff --git a/.railway/railway.ts b/.railway/railway.ts
+index 037395a8..c99c6ffc 100644
+--- a/.railway/railway.ts
++++ b/.railway/railway.ts
+@@ -253,6 +253,47 @@ export default defineRailway(() => {
+     deploy: { restartPolicyType: "ALWAYS" },
+     env: { BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), BACKTEST_WORKER_URL: preserve(), EDGE_CODE_SECRET: preserve(), EDGE_DATABASE_URL: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_HEARTBEAT_SECONDS: preserve(), EDGE_INITIAL_PASSWORD: preserve(), EDGE_LEASE_SECONDS: preserve(), EDGE_LOGIN: preserve(), EDGE_MFA_KEY: preserve(), EDGE_ORC_TIMEOUT_SECONDS: preserve(), EDGE_ORC_URL: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_POLL_SECONDS: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SECURE_COOKIE: preserve(), EDGE_SESSION_SECONDS: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_TERMINAL_URL: preserve(), EDGE_WORKER_ENABLED: preserve(), MARKET_AI_ORC_API_KEY: preserve(), PORT: preserve(), SCREENER_TIMEOUT_SECONDS: preserve(), SCREENER_WORKER_KEY: preserve(), SCREENER_WORKER_URL: preserve(), TERMINAL_PROXY_KEY: preserve() },
+   });
++  // EXEC-MU-ACCOUNTS "Production environment" (user decisions 2026-11-19): the live website. A comment, not a
++  // declaration, until its variables are set with the go for the live site; the service exists empty on Railway
++  // (RAILWAY_CHANGELOG.md 2026-11-19). edge-bff above is the beta (EDGE_SITE unset = beta, EDGE_MULTIUSER off, the admin
++  // only); only the website is doubled, every other service and the database are shared. Rules the code holds
++  // (apps/edge-bff/app/config.py validate): EDGE_SITE=live needs EDGE_MULTIUSER=true, the beta refuses it, the live site
++  // runs no AI job loop, and the email mode is resend (log is for EDGE_ENVIRONMENT=local only).
++  // const edgeBffLive = service("edge-bff-live", {
++  //   // its own branch: "push ke live" moves `live` to a version every suite passed on the beta (EXEC.md detail 3)
++  //   source: github("rednightt33/saniti", { branch: "live", checkSuites: true, rootDirectory: "/apps/edge-bff" }),
++  //   build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
++  //   start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1 --no-access-log --no-proxy-headers",
++  //   healthcheck: "/ready",              // 503 until the start-up steps ran and the loops started (ERRORS R2-3)
++  //   healthcheckTimeout: 120,
++  //   replicas: { "sfo": 1 },             // one process, as edge-bff (README: the per-process caches)
++  //   deploy: { restartPolicyType: "ALWAYS" },
++  //   env: {
++  //     EDGE_SITE: "live", EDGE_MULTIUSER: "true",
++  //     EDGE_PUBLIC_ORIGIN: "https://app.edgefinance.id",     // the one origin a write is accepted from
++  //     EDGE_EMAIL_MODE: "resend", RESEND_API_KEY: preserve(), EDGE_EMAIL_FROM: preserve(), RESEND_WEBHOOK_SECRET: preserve(),
++  //     // ERRORS R2-8, R2-26: secrets that key rows of the shared tables (throttle and CSRF, email codes, the one TOTP
++  //     // row per user) hold edge-bff's values, as Railway references, so one rotation reaches both sites
++  //     EDGE_SESSION_SECRET: "${{edge-bff.EDGE_SESSION_SECRET}}", EDGE_CODE_SECRET: "${{edge-bff.EDGE_CODE_SECRET}}",
++  //     EDGE_MFA_KEY: "${{edge-bff.EDGE_MFA_KEY}}",
++  //     // user #1 is one account for both sites: the same owner, login and environment verifier
++  //     EDGE_OWNER: "${{edge-bff.EDGE_OWNER}}", EDGE_LOGIN: "${{edge-bff.EDGE_LOGIN}}",
++  //     EDGE_PASSWORD_VERIFIER: "${{edge-bff.EDGE_PASSWORD_VERIFIER}}",
++  //     // the shared services and the database (edge_bff_login: two pools of 6 of its 20 connections)
++  //     EDGE_DATABASE_URL: "${{edge-bff.EDGE_DATABASE_URL}}", EDGE_ENVIRONMENT: "${{edge-bff.EDGE_ENVIRONMENT}}",
++  //     EDGE_ORC_URL: "${{edge-bff.EDGE_ORC_URL}}", MARKET_AI_ORC_API_KEY: "${{edge-bff.MARKET_AI_ORC_API_KEY}}",
++  //     EDGE_TERMINAL_URL: "${{edge-bff.EDGE_TERMINAL_URL}}", TERMINAL_PROXY_KEY: "${{edge-bff.TERMINAL_PROXY_KEY}}",
++  //     BACKTEST_WORKER_URL: "${{edge-bff.BACKTEST_WORKER_URL}}", BACKTEST_WORKER_KEY: "${{edge-bff.BACKTEST_WORKER_KEY}}",
++  //     BACKTEST_TIMEOUT_SECONDS: "${{edge-bff.BACKTEST_TIMEOUT_SECONDS}}",
++  //     BACKTEST_MAX_RESULT_BYTES: "${{edge-bff.BACKTEST_MAX_RESULT_BYTES}}",
++  //     SCREENER_WORKER_URL: "${{edge-bff.SCREENER_WORKER_URL}}", SCREENER_WORKER_KEY: "${{edge-bff.SCREENER_WORKER_KEY}}",
++  //     SCREENER_TIMEOUT_SECONDS: "${{edge-bff.SCREENER_TIMEOUT_SECONDS}}",
++  //     // the loops: EDGE_AI_WORKER_ENABLED unset (off on the live site), the backtest loop (its own site's jobs), the
++  //     // email sender and the hourly housekeeping on; once this site runs, edge-bff (the beta) gets
++  //     // EDGE_HOUSEKEEPING_ENABLED=false, so the live site is the housekeeping's one owner
++  //     PORT: "8080",
++  //   },
++  // });
+   const aiDataCoverage = service("ai-data-coverage", {
+     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/ai-data-coverage" }),
+     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/ai-data-coverage/**"] },
+diff --git a/apps/edge-bff/README.md b/apps/edge-bff/README.md
+index 976016a8..e5e2f884 100644
+--- a/apps/edge-bff/README.md
++++ b/apps/edge-bff/README.md
+@@ -571,7 +571,9 @@ Sources are drawn only from actual evidence/annotations/data_record. Usage/cost
+ | EDGE_SESSION_SECONDS | 86400 |
+ | EDGE_ORC_TIMEOUT_SECONDS | 3900, must exceed active Orc maximum + margin (minimum 3900 seconds) |
+ | EDGE_LEASE_SECONDS / EDGE_HEARTBEAT_SECONDS | 90 / 20 |
+-| EDGE_POLL_SECONDS / EDGE_WORKER_ENABLED | 2 / true |
++| EDGE_POLL_SECONDS / EDGE_WORKER_ENABLED | 2 / true (false: no background loop at all, local runs and the tests) |
++| EDGE_SITE | unset = `beta` (this service); `live` only on edge-bff-live (section "Beta and live websites") |
++| EDGE_AI_WORKER_ENABLED / EDGE_BACKTEST_LOOP_ENABLED / EDGE_HOUSEKEEPING_ENABLED | unset: the AI job loop on the beta only, the backtest loop and the hourly housekeeping on; true or false only (a typo stops the start) |
+ 
+ Use one uvicorn process/one replica initially. Disable request access logs and proxy headers. Authentication attempt
+ limiting lives in PostgreSQL (`edge_bff.auth_throttle`, EXEC-MU-ACCOUNTS Phase 0), so it holds across restarts and
+@@ -775,6 +777,43 @@ Shared front-end layer (`shared/`, M471, M473):
+ - Terminal drawings kept in the browser while the account cannot be reached are stamped with the page's identity
+   (never the last-login mark; nothing is kept while it is unknown) and join only that login's account (M468, M477).
+ 
++## Beta and live websites (EXEC-MU-ACCOUNTS "Production environment", user decisions 2026-11-19)
++
++One Railway environment, two websites on one database: the beta is this service, edge-bff, at its Railway address, for
++the admin only, with `EDGE_MULTIUSER` off as today; the live site is a second service, edge-bff-live, on the user's
++domain, with the switch on. Only the website is doubled: the database, the market-file bucket, terminal-api,
++backtest-worker, screener-worker, the AI and every data job are one and shared. `EDGE_SITE` (`beta`, the default, or
++`live`) tells the two apart (fix round of the round-2 re-check, ERRORS R2-1, R2-2, R2-3, R2-7, R2-8, R2-13, R2-23,
++R2-26, R2-33, R2-34, R2-36, R2-38; `.railway/railway.ts` holds the live service as a comment until its variables are set).
++
++- **Impossible pairings stop the start** (`config.py validate`): `EDGE_SITE=live` without `EDGE_MULTIUSER=true`; the beta
++  with the switch on (outside `EDGE_ENVIRONMENT=local`, where the tests run both); `EDGE_AI_WORKER_ENABLED=true` on the
++  live site; `EDGE_EMAIL_MODE=log` with the switch on outside `local` (it was allowed in `dev`, the Railway environment
++  both sites run in).
++- **Each queued row carries its site** (`edge_bff.jobs.site`, `edge_bff.backtest_jobs.site`, migrations `20261119_020`
++  and `_021`, default `beta`: every earlier row is the admin's). Each site's loop claims, reaps and prunes only its own
++  site's jobs, so a job is dispatched by the code, the principal and the release file of the site that took it.
++- **The loops** (each with its switch, all off with `EDGE_WORKER_ENABLED=false`): the AI job loop on the beta only (AI is
++  admin-only, D1); a backtest loop on each site; the email sender only where the switch is on (the live site); the
++  hourly housekeeping (`app/worker.py Housekeeping`: expired sessions, throttle rows, never-verified registrations) in
++  its own task, each purge in its own transaction and try, in batches of 500, retried after a doubling backoff, and
++  skipped while the other site runs the same purge (an advisory try-lock). Once edge-bff-live runs, the beta gets
++  `EDGE_HOUSEKEEPING_ENABLED=false` so the live site is its one owner.
++- **What the live site does not serve** (`principal.py beta_only`, `live_view`): the Monitor (AI) and admin tabs, the
++  admin rights of `rights.py` and every item at the lab stage. Their routes answer 404 `NOT_FOUND` there, before the
++  session is read (`/monitor` and `/c/<id>` too), and every principal is masked: it never holds them, `'*'` included
++  (it reads as every flag capability of the catalog that is not beta-only; the workers' `allow` is never `"*"` there).
++  The second factor is decided by the account's own grants, so user #1 still needs it on the live site.
++- **Sessions are bound to their site**: the beta (switch off) accepts only sessions without an account, the live site
++  only an account's sessions.
++- **Start-up** (ERRORS R2-3, R2-36): readiness, the seeds and the catalog names run before the loops; while they fail
++  (a database restarting, a migration not applied), `/ready` answers 503, no loop runs, and the attempt is made again
++  every `EDGE_POLL_SECONDS` (and on each `/ready`), logged `startup_not_ready`, then `startup_done`.
++- **`GET /version`** answers `{"site", "commit"}` (`RAILWAY_GIT_COMMIT_SHA`, null when unset), for the push to live.
++- **Shared secrets** (ERRORS R2-8, R2-26): `EDGE_SESSION_SECRET` (throttle and CSRF HMAC), `EDGE_CODE_SECRET` (email
++  codes) and `EDGE_MFA_KEY` (the one TOTP row per user) key rows of the shared tables, so edge-bff-live holds edge-bff's
++  values as Railway references (`${{edge-bff.NAME}}`), never values of its own.
++
+ ## Accounts (EXEC-MU-ACCOUNTS Phase 1, 2026-11-16/17)
+ 
+ Phase 1 builds EDGE accounts behind the switch `EDGE_MULTIUSER` (default `false`; it goes on only at Phase 6). Contract:
+@@ -789,17 +828,21 @@ The switch and what it changes:
+ | Sign-in | `EDGE_LOGIN` / `EDGE_PASSWORD_VERIFIER`, exactly as before | a username or email and the account's password (`edge_bff.identities`) |
+ | Principal | user #1: owner `EDGE_OWNER`, every capability (`*`), admin rights from `EDGE_ADMIN_OWNERS`, version `env` | the session's account: role `admin` every capability, role `user` none (the plan catalog of Phase 2 replaces this) |
+ | Account routes (table below) | 404 `NOT_FOUND`, except `GET /api/v1/auth/config` = `{"multiuser": false}` | open |
+-| Email sender loop | not started | started with the worker (`EDGE_EMAIL_ENABLED`) |
++| Email sender loop | not started | started with the worker (`EDGE_EMAIL_ENABLED`; an error `email_sender_off` is logged when it is off) |
+ | Admin MFA | none | required before any admin route (403 `MFA_REQUIRED`) |
+-| Sessions | as before | idle timeout `EDGE_SESSION_IDLE_SECONDS` (default 28800), at most 5 per user, `last_seen_at` written at most once a minute; sessions still waiting for the admin's second factor capped apart at 3, never counted towards or revoking the 5; a new session token when MFA is passed |
+-| Seed of user #1 | at every start when `edge_bff.users` is empty; its password identity follows `EDGE_PASSWORD_VERIFIER` | the identity is the account's own and is never overwritten |
++| Sessions | as before, and only a session the switch-off sign-in made (no account: `user_id` NULL); an account's session never opens a switch-off site (ERRORS R2-1) | idle timeout `EDGE_SESSION_IDLE_SECONDS` (default 28800), at most 5 per user, `last_seen_at` written at most once a minute; sessions still waiting for the admin's second factor capped apart at 3, never counted towards or revoking the 5; a new session token when MFA is passed |
++| Seed of user #1 | at every start when `edge_bff.users` is empty; its password identity follows `EDGE_PASSWORD_VERIFIER` while it holds the seed's own copy (`identities.seed_verifier_sha256`); once the account set its own password with the switch on, it is never overwritten (ERRORS R2-2) | the identity is the account's own and is never overwritten |
+ | Preferences (below) | served for user #1 | served per account |
+ 
+ The seed: user #1 is the configured owner (`edge-private` on dev), role `admin`, status `active`. Its username is
+ `EDGE_LOGIN` lower-cased when that fits the username rule and is not reserved, else `admin_1` (`edge` is reserved, so
+ dev's seed is `admin_1`). Its password identity is a copy of `EDGE_PASSWORD_VERIFIER`, so the password does not
+ change. Every replica takes one advisory lock, so two starting together make one row. A failed seed keeps the
+-switch-off sign-in working (logged `account_seed_failed`); with the switch on it keeps the worker from starting.
++switch-off sign-in working (logged `account_seed_failed`); with the switch on the start-up is tried again and no loop
++starts until it succeeds (`/ready` answers 503 meanwhile). A switch-off start copies a changed `EDGE_PASSWORD_VERIFIER`
++only over the seed's own copy: `identities.seed_verifier_sha256` is the sha256 of the verifier the seed last wrote, and a
++password change or reset on the switch-on site (the live one) writes another verifier, which no later start overwrites
++(migration `20261119_022`). The switch-off sign-in itself still reads `EDGE_PASSWORD_VERIFIER`.
+ 
+ Principal (`app/principal.py`): the owner of every request comes from it and only from it. Every router takes
+ `routes(app, auth)`: `auth.principal` (401 `UNAUTHENTICATED`), `auth.writer` (plus CSRF), `auth.need(capability)`
+@@ -851,8 +894,9 @@ Email (`app/mailer.py`, `app/email_texts.py`, plain English): a code and its ema
+ (`edge_bff.email_outbox`). The sender is its own task beside the backtest loop, claiming one row at a time with
+ `FOR UPDATE SKIP LOCKED` and a lease.
+ - `EDGE_EMAIL_MODE=log` (default): the email is written to the log, the code masked unless `EDGE_ENVIRONMENT=local`,
+-  and the row is marked sent with its payload kept, so a dev tester reads the code from the row. Allowed only with
+-  `EDGE_ENVIRONMENT` dev or local when the switch is on.
++  and the row is marked sent with its payload kept, so a tester reads the code from the row. Allowed only with
++  `EDGE_ENVIRONMENT=local` when the switch is on (ERRORS R2-26: no longer `dev`, the Railway environment of the live
++  site too).
+ - `EDGE_EMAIL_MODE=resend`: POST `https://api.resend.com/emails` with the row's `Idempotency-Key`; retried after 5 s,
+   30 s and 2 min, then `failed`; the payload is nulled once sent; a code email past its expiry becomes `expired`, never
+   sent. Needs `RESEND_API_KEY` and `EDGE_EMAIL_FROM` (an address); `RESEND_WEBHOOK_SECRET` (`whsec_…`) signs the
+@@ -875,8 +919,8 @@ with the vendored `static/qrcode-generator.js` (qrcode-generator 1.4.4, MIT, lic
+ Variables (all checked at start; with the switch off a missing one never stops it, a set one is still checked; the
+ secrets never appear in `repr(Settings)`):
+ `EDGE_MULTIUSER` (true/false only), `EDGE_SESSION_IDLE_SECONDS` (at least 60), `EDGE_CODE_SECRET` and `EDGE_MFA_KEY`
+-(at least 32 characters; required with the switch on), `EDGE_EMAIL_MODE` (log/resend), `EDGE_EMAIL_ENABLED`,
+-`EDGE_EMAIL_FROM`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`.
++(at least 32 characters; required with the switch on), `EDGE_EMAIL_MODE` (log/resend), `EDGE_EMAIL_ENABLED` (true/false
++only, like every loop switch), `EDGE_EMAIL_FROM`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `EDGE_SITE` (beta/live).
+ 
+ Preferences (`app/preferences.py`, contract 4b, user 2026-11-16): an account's preferences and saved items that the
+ pages kept only in the browser come back on any device. `GET /api/v1/preferences` gives every key of the principal's
+diff --git a/apps/edge-bff/app/accounts.py b/apps/edge-bff/app/accounts.py
+index 725e83e3..31bc385b 100644
+--- a/apps/edge-bff/app/accounts.py
++++ b/apps/edge-bff/app/accounts.py
+@@ -10,6 +10,7 @@ This module is the foundation the auth flows (registration, codes, reset, MFA, e
+ 
+ Every statement names the account it reads or changes; the configured owner reaches `seed` as an argument (principal.py).
+ """
++import hashlib
+ import json
+ import logging
+ import re
+@@ -82,6 +83,11 @@ def reserved_owner(key):
+     return key in ('default', 'someone-else', 'edge-private') or key.startswith(('golden-', 'test-'))
+ 
+ 
++def seed_mark(verifier):
++    """identities.seed_verifier_sha256 of a verifier the seed writes: its sha256 (hex), never the verifier itself."""
++    return hashlib.sha256((verifier or '').encode()).hexdigest()
++
++
+ def seed_identity(login):
+     """(username, email or None) of user #1 from EDGE_LOGIN: the login lower-cased when it fits the username rule and
+     is not reserved, else SEED_FALLBACK_USERNAME; the login as the email when it is one."""
+@@ -100,11 +106,16 @@ class AccountStore:
+     def seed(self, owner, login, verifier, multiuser):
+         """User #1 = the configured owner (EDGE_OWNER), role admin, its password identity from EDGE_PASSWORD_VERIFIER.
+         Made once, when the table holds no user; every replica takes the same advisory lock, so two starting together
+-        make one row. While the switch is off the environment is the source of the password, so a changed
+-        EDGE_PASSWORD_VERIFIER is copied to the identity (sign-in works the same the moment the switch goes on); with
+-        the switch on the identity is the account's own and is never overwritten. Returns {user_id, username} of user
+-        #1, or None when the table holds other users and none is the configured owner (logged)."""
++        make one row. While the switch is off a changed EDGE_PASSWORD_VERIFIER is copied to the identity (sign-in works
++        the same the moment the switch goes on), but only over the seed's own copy: identities.seed_verifier_sha256
++        holds the sha256 of the verifier the seed last wrote, so once the account set its own password (a change or a
++        reset with the switch on, on the live site) the identity differs from it and is never overwritten again (ERRORS
++        R2-2: a switch-off start, such as every beta deploy, would bring back the password the admin replaced). With
++        the switch on the identity is the account's own and is never overwritten. The switch-off sign-in itself reads
++        EDGE_PASSWORD_VERIFIER, not the identity (main.py). Returns {user_id, username} of user #1, or None when the
++        table holds other users and none is the configured owner (logged)."""
+         username, email = seed_identity(login)
++        mark = seed_mark(verifier)
+         with self.store.connect() as c:
+             c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('accounts:seed',))
+             row = c.execute('SELECT user_id, username FROM edge_bff.users WHERE owner_key=%s', (owner,)).fetchone()
+@@ -115,13 +126,19 @@ class AccountStore:
+                 row = c.execute('''INSERT INTO edge_bff.users(owner_key, username, email, email_verified_at, role, status)
+                     VALUES (%s, %s, %s, CASE WHEN %s::text IS NULL THEN NULL ELSE now() END, 'admin', 'active')
+                     RETURNING user_id, username''', (owner, username, email, email)).fetchone()
+-                c.execute('''INSERT INTO edge_bff.identities(user_id, provider, subject, verifier)
+-                    VALUES (%s, 'password', %s, %s)''', (row['user_id'], str(row['user_id']), verifier))
++                c.execute('''INSERT INTO edge_bff.identities(user_id, provider, subject, verifier, seed_verifier_sha256)
++                    VALUES (%s, 'password', %s, %s, %s)''', (row['user_id'], str(row['user_id']), verifier, mark))
+                 logger.info(json.dumps({'event': 'account_seeded', 'user_id': row['user_id']}))
+             elif not multiuser:
+-                c.execute('''UPDATE edge_bff.identities SET verifier=%s, updated_at=now()
+-                    WHERE user_id=%s AND provider='password' AND verifier IS DISTINCT FROM %s''',
+-                          (verifier, row['user_id'], verifier))
++                held = c.execute('''SELECT verifier, seed_verifier_sha256 FROM edge_bff.identities
++                    WHERE user_id=%s AND provider='password' FOR UPDATE''', (row['user_id'],)).fetchone()
++                if held is not None and held['seed_verifier_sha256'] != seed_mark(held['verifier']):
++                    # the account's own password (set with the switch on): kept; the switch-off sign-in still takes
++                    # EDGE_PASSWORD_VERIFIER, the switch-on one this identity
++                    logger.info(json.dumps({'event': 'account_seed_password_kept', 'user_id': row['user_id']}))
++                elif held is not None and (held['verifier'] != verifier or held['seed_verifier_sha256'] != mark):
++                    c.execute('''UPDATE edge_bff.identities SET verifier=%s, seed_verifier_sha256=%s, updated_at=now()
++                        WHERE user_id=%s AND provider='password' ''', (verifier, mark, row['user_id']))
+             return dict(row)
+ 
+     # ---- the principal's rows ---------------------------------------------------------------------------------------
+@@ -245,8 +262,10 @@ class AccountStore:
+ PENDING_HOURS = 24
+ 
+ 
+-def purge_pending(connection):
++def purge_pending(connection, limit=None):
+     """Registrations never verified, 24 h after they were made (CONTRACT.md section 4); their identity and codes go with
+-    them (ON DELETE CASCADE). Called from Store.cleanup_sessions, the worker loop's hourly cleanup."""
+-    connection.execute('''DELETE FROM edge_bff.users WHERE status = 'pending' AND email_verified_at IS NULL
+-        AND created_at < now() - make_interval(hours => %s)''', (PENDING_HOURS,))
++    them (ON DELETE CASCADE). At most limit of them (None: every one); the accounts deleted. Called from Store.purge, the
++    hourly housekeeping (worker.Housekeeping)."""
++    return connection.execute('''DELETE FROM edge_bff.users WHERE user_id IN (SELECT user_id FROM edge_bff.users
++        WHERE status = 'pending' AND email_verified_at IS NULL AND created_at < now() - make_interval(hours => %s)
++        LIMIT %s)''', (PENDING_HOURS, limit)).rowcount
+diff --git a/apps/edge-bff/app/allow.py b/apps/edge-bff/app/allow.py
+index 451e975b..92cac0a6 100644
+--- a/apps/edge-bff/app/allow.py
++++ b/apps/edge-bff/app/allow.py
+@@ -43,12 +43,15 @@ NOTHING = {'rights': [], 'allow': {kind: [] for kind in KINDS}, 'limits': {}}
+ def allow_of(principal, worker):
+     """{kind: "*" | sorted ids} of a principal for one worker ('backtest' or 'screener')."""
+     families = FAMILIES[worker]
+-    everything = EVERYTHING in principal.capabilities or principal.grants.get(EVERYTHING) is True
++    # the live site's principal (principal.live_view) never holds a lab item, so "*" (every id, lab included) is never
++    # sent from there: its ids are the ones it holds
++    whole = not getattr(principal, 'live', False)
++    everything = whole and (EVERYTHING in principal.capabilities or principal.grants.get(EVERYTHING) is True)
+     out = {}
+     for kind in KINDS:
+         family = families[kind]
+         value = principal.grants.get(family) if principal.kinds.get(family) == 'items' else None
+-        if everything or (isinstance(value, dict) and value.get('all') is True):
++        if everything or (whole and isinstance(value, dict) and value.get('all') is True):
+             out[kind] = EVERYTHING
+         else:
+             out[kind] = sorted({e['id'] for e in releases.entries(kind) if principal.can(f'{family}:{e["id"]}')})
+diff --git a/apps/edge-bff/app/backtest.py b/apps/edge-bff/app/backtest.py
+index f3b3192f..0897c508 100644
+--- a/apps/edge-bff/app/backtest.py
++++ b/apps/edge-bff/app/backtest.py
+@@ -26,6 +26,7 @@ from psycopg.types.json import Jsonb
+ 
+ from .client import public_data
+ from .accounts import AccountStore
++from .config import BETA
+ from .errors import Refusal, message_of
+ from .principal import Principal, owner_principal
+ from .allow import NOTHING, context_of, named
+@@ -54,7 +55,9 @@ HEX64 = re.compile(r'[0-9a-f]{64}')
+ ENDED = ('FINISHED', 'FAILED', 'CANCELLED')
+ TABLES = ('backtest_jobs', 'backtest_results', 'backtest_trials')
+ RESULT_DAYS = 30           # CONTRACT.md section 9: results are kept 30 days
+-PRUNE_SECONDS = 3600       # as the ORC loop's session cleanup (worker.py): once an hour
++PRUNE_SECONDS = 3600       # as the hourly housekeeping (worker.py Housekeeping): once an hour
++PRUNE_BATCH = 200          # result parts deleted per transaction (each part is up to a whole result)
++PRUNE_BATCHES = 20         # batches per prune turn
+ WORKER_RETRIES = 3         # consecutive unanswered worker calls before WORKER_LOST (the house's STOP_RETRIES, Orc's 3 attempts)
+ CONTROL_TIMEOUT = 30       # seconds for one control call to the worker (the terminal gateway's client timeout, main.py)
+ # Not derivable from the code or the data: the catalog changes when the publisher publishes (daily) or the worker is
+@@ -538,23 +541,29 @@ class WorkerClient:
+ 
+ class BacktestStore:
+     """edge_bff.backtest_jobs / backtest_results / backtest_trials through the house Store's connections. A missing
+-    table (the migration not applied yet) is BACKTEST_NOT_READY; /ready never reads these tables."""
++    table (the migration not applied yet) is BACKTEST_NOT_READY; /ready never reads these tables.
+ 
+-    def __init__(self, store):
+-        self.store = store
++    EXEC-MU-ACCOUNTS beta/live (ERRORS R2-7, R2-38; migration 20261119_021): `site` is the website this store serves
++    (config.SITES). A job carries the site it was queued on, and this site's loop claims, reaps and prunes only its own
++    jobs, so a job is dispatched by the code and the rules (the principal, the release file) of the site that took it."""
++
++    def __init__(self, store, site=BETA):
++        self.store, self.site = store, site
+ 
+     @contextmanager
+     def connect(self):
+         try:
+             with self.store.connect() as c:
+                 yield c
+-        except psycopg.errors.UndefinedTable as e:
++        except (psycopg.errors.UndefinedTable, psycopg.errors.UndefinedColumn) as e:
++            # a table or column this build reads is missing: its migration is not applied yet
+             raise StoreError('BACKTEST_NOT_READY', 503) from e
+ 
+     def ready(self):
+         with self.connect() as c:
+             for table in TABLES:
+                 c.execute(f'SELECT 1 FROM edge_bff.{table} LIMIT 0')
++            c.execute('SELECT site FROM edge_bff.backtest_jobs LIMIT 0')        # 20261119_021
+ 
+     @staticmethod
+     def _log(row, **extra):
+@@ -584,8 +593,9 @@ class BacktestStore:
+             if queued >= queued_limit:
+                 raise StoreError('QUEUE_FULL', 429)
+             row = c.execute('''INSERT INTO edge_bff.backtest_jobs(request_id,owner_key,submission_key,request,lineage_key,
+-                    variant_hash) VALUES (%s,%s,%s,%s,%s,%s) RETURNING *''',
+-                (('bt_' + secrets.token_hex(16)), owner, key, Jsonb(request), lineage_key, variant_hash)).fetchone()
++                    variant_hash,site) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *''',
++                (('bt_' + secrets.token_hex(16)), owner, key, Jsonb(request), lineage_key, variant_hash,
++                 self.site)).fetchone()
+             self._log(row)
+             return row, True
+ 
+@@ -637,27 +647,29 @@ class BacktestStore:
+     # ---- the loop's side: claim, lease, progress, end -------------------------------------------------------------
+ 
+     def reap(self):
+-        """RUNNING jobs whose lease expired (edge-bff stopped or lost the database while following them): FAILED
+-        WORKER_LOST, never handed to the worker again. Their ids, so the worker can be told to stop them."""
++        """This site's RUNNING jobs whose lease expired (edge-bff stopped or lost the database while following them):
++        FAILED WORKER_LOST, never handed to the worker again. Their ids, so the worker can be told to stop them."""
+         with self.connect() as c:
+             rows = c.execute('''UPDATE edge_bff.backtest_jobs SET state='FAILED',error=%s,lease_token=NULL,
+                 lease_expires_at=NULL,finished_at=now(),updated_at=now()
+-                WHERE state='RUNNING' AND lease_expires_at<now() RETURNING *''', (Jsonb({'code': 'WORKER_LOST'}),)).fetchall()
++                WHERE state='RUNNING' AND lease_expires_at<now() AND site=%s RETURNING *''',
++                (Jsonb({'code': 'WORKER_LOST'}), self.site)).fetchall()
+         for row in rows:
+             self._log(row, reason='lease_expired')
+         return [r['request_id'] for r in rows]
+ 
+     def claim(self, seconds):
+-        """The oldest queued job of an owner with nothing running, RUNNING under a new lease."""
++        """This site's oldest queued job of an owner with nothing running (on either site: one running job per owner),
++        RUNNING under a new lease."""
+         with self.connect() as c:
+             return c.execute('''WITH next AS (
+-                    SELECT j.request_id FROM edge_bff.backtest_jobs j WHERE j.state='QUEUED' AND NOT EXISTS (
++                    SELECT j.request_id FROM edge_bff.backtest_jobs j WHERE j.state='QUEUED' AND j.site=%s AND NOT EXISTS (
+                         SELECT 1 FROM edge_bff.backtest_jobs r WHERE r.owner_key=j.owner_key AND r.state='RUNNING')
+                     ORDER BY j.created_at, j.request_id FOR UPDATE SKIP LOCKED LIMIT 1)
+                 UPDATE edge_bff.backtest_jobs SET state='RUNNING',lease_token=%s,
+                     lease_expires_at=now()+%s*interval '1 second',started_at=now(),updated_at=now()
+                 WHERE request_id=(SELECT request_id FROM next) RETURNING *''',
+-                (secrets.token_hex(16), seconds)).fetchone()
++                (self.site, secrets.token_hex(16), seconds)).fetchone()
+ 
+     # The lease token fences every call of the job's follower: only the follower holds it, and only the job's end or
+     # reap (a lease that expired) clears it, each in an UPDATE that locks the row, so one of them wins. An expired
+@@ -746,10 +758,20 @@ class BacktestStore:
+         self._log(changed, parts=len(parts), bytes=changed['result_bytes'])
+         return changed
+ 
+-    def prune(self, days=RESULT_DAYS):
++    def prune(self, days=RESULT_DAYS, limit=PRUNE_BATCH):
++        """Result parts of this site's jobs older than `days`, at most `limit` of them (one transaction; the loop calls
++        it again while a batch is full); the parts deleted."""
+         with self.connect() as c:
+-            return c.execute("DELETE FROM edge_bff.backtest_results WHERE created_at<now()-%s*interval '1 day'",
+-                             (days,)).rowcount
++            return c.execute('''DELETE FROM edge_bff.backtest_results WHERE (request_id, part) IN (
++                    SELECT r.request_id, r.part FROM edge_bff.backtest_results r
++                    JOIN edge_bff.backtest_jobs j ON j.request_id = r.request_id
++                    WHERE r.created_at<now()-%s*interval '1 day' AND j.site=%s LIMIT %s)''',
++                             (days, self.site, limit)).rowcount
++
++
++def not_ready_error(e):
++    """The StoreError BACKTEST_NOT_READY (the backtest tables are missing), else None."""
++    return e if isinstance(e, StoreError) and e.code == 'BACKTEST_NOT_READY' else None
+ 
+ 
+ class BacktestLoop:
+@@ -783,14 +805,30 @@ class BacktestLoop:
+     async def run(self):
+         # None: not pruned yet, so at the start. Never 0: time.monotonic() counts from an unspecified point (on Linux the
+         # host's boot), so on a host up for less than PRUNE_SECONDS a 0 would skip the start's prune.
+-        pruned_at, not_ready = None, False
++        pruned_at, not_ready, prune_failures = None, False, 0
+         while not self.stopping.is_set():
++            # ERRORS R2-33: the prune and the reap are each tried on their own, so one that fails never stops the claim
++            # of the queued jobs; a failed prune is tried again after a backoff that doubles up to PRUNE_SECONDS
++            if pruned_at is None or time.monotonic() - pruned_at > PRUNE_SECONDS:
++                try:
++                    for _ in range(PRUNE_BATCHES):
++                        if (await self.call(self.store.prune) or 0) < PRUNE_BATCH:
++                            break
++                    pruned_at, prune_failures = time.monotonic(), 0
++                except Exception as e:
++                    prune_failures += 1
++                    # the next try after the backoff: pruned_at as if the last prune were that long before it
++                    wait = min(PRUNE_SECONDS, self.settings.poll_seconds * 2 ** prune_failures)
++                    pruned_at = time.monotonic() - PRUNE_SECONDS + wait
++                    if not_ready_error(e) is None:     # the missing tables are reported once, by the claim below
++                        logger.error(json.dumps({'event': 'backtest_prune_failed', **self.failure(e)}))
+             try:
+-                if pruned_at is None or time.monotonic() - pruned_at > PRUNE_SECONDS:
+-                    await self.call(self.store.prune)
+-                    pruned_at = time.monotonic()
+                 for lost in await self.call(self.store.reap):
+                     await self.cancel_quietly(lost)    # the worker may still compute it: free it for the next job
++            except Exception as e:
++                if not_ready_error(e) is None:
++                    logger.error(json.dumps({'event': 'backtest_reap_failed', **self.failure(e)}))
++            try:
+                 row = await self.call(self.store.claim, self.settings.lease_seconds)
+                 not_ready = False
+                 if row:
+@@ -1143,7 +1181,7 @@ class Backtests:
+ 
+     def __init__(self, settings, store, worker=None):
+         self.settings = settings
+-        self.store = BacktestStore(store)
++        self.store = BacktestStore(store, settings.site)
+         self.worker = worker or (WorkerClient(settings) if settings.backtest_worker_url else None)
+         self.loop = BacktestLoop(settings, self.store, self.worker) if self.worker else None
+         self.ready = False
+diff --git a/apps/edge-bff/app/config.py b/apps/edge-bff/app/config.py
+index a38772b3..29b4cd4f 100644
+--- a/apps/edge-bff/app/config.py
++++ b/apps/edge-bff/app/config.py
+@@ -1,4 +1,6 @@
+ from dataclasses import dataclass, field
++import hashlib
++import hmac
+ import os
+ import re
+ from urllib.parse import urlsplit
+@@ -20,14 +22,28 @@ def admin_owners_of(raw, owner, multiuser=False):
+     return tuple(parts)
+ 
+ 
+-def switch_of(name):
+-    """A true/false switch, unset = false; any other value stops the start (a typo must not turn accounts on)."""
+-    raw = os.environ.get(name, 'false').strip().lower()
++def switch_of(name, default='false'):
++    """A true/false switch, unset = default; any other value stops the start (a typo must not turn accounts on, nor a
++    background loop off: ERRORS R2-36)."""
++    raw = os.environ.get(name, default).strip().lower()
+     if raw not in ('true', 'false'):
+         raise ValueError(f'{name} is true or false')
+     return raw == 'true'
+ 
+ 
++def optional_switch(name):
++    """A true/false switch whose unset value is decided by the site (Settings: None = the site's default)."""
++    return switch_of(name) if os.environ.get(name) is not None else None
++
++
++# EXEC-MU-ACCOUNTS "Production environment" (user decisions 2026-11-19): one Railway environment, two websites on one
++# database. EDGE_SITE=beta is the service edge-bff (its Railway address, the admin only, EDGE_MULTIUSER off as today);
++# EDGE_SITE=live is the service edge-bff-live (the user's domain, EDGE_MULTIUSER on). Unset = beta, so the running
++# service keeps its behaviour.
++BETA, LIVE = 'beta', 'live'
++SITES = (BETA, LIVE)
++
++
+ @dataclass(frozen=True)
+ class Settings:
+     # secrets never appear in repr(settings) (a traceback, a log line; ERRORS M478 C1 P1-L2)
+@@ -87,6 +103,35 @@ class Settings:
+     email_from: str = ''
+     resend_api_key: str = field(default='', repr=False)
+     resend_webhook_secret: str = field(default='', repr=False)
++    # EXEC-MU-ACCOUNTS beta/live (ERRORS R2-7, R2-13, R2-23, R2-38): which website this service is (EDGE_SITE, beta or
++    # live; see BETA above). Every queued row carries the site that made it, and each site claims only its own.
++    site: str = BETA
++    # the background loops, each with its own switch (EDGE_WORKER_ENABLED=false still turns every one off: local runs
++    # and the tests). None = the site's default (Settings.ai_worker): the AI job loop runs on the beta only (AI is
++    # admin-only, decision D1; the live site answers 404 to the Monitor); the backtest loop on both, each claiming its
++    # own site's jobs; the hourly housekeeping (sessions, throttle rows, unverified registrations) in its own task; the
++    # email sender (email_enabled) only where the switch is on, which is the live site
++    ai_worker_enabled: bool | None = None
++    backtest_loop_enabled: bool = True
++    housekeeping_enabled: bool = True
++    # the commit this build runs (Railway's RAILWAY_GIT_COMMIT_SHA), answered by GET /version
++    commit_sha: str = ''
++
++    @property
++    def ai_worker(self):
++        """Whether the AI job loop runs (with the worker): EDGE_AI_WORKER_ENABLED, else the beta only."""
++        return self.site == BETA if self.ai_worker_enabled is None else self.ai_worker_enabled
++
++    def shared_key_marks(self):
++        """ERRORS R2-8, R2-26: the secrets that key rows of the shared tables (EDGE_SESSION_SECRET: the throttle and CSRF
++        HMAC; EDGE_CODE_SECRET: the email codes; EDGE_MFA_KEY: the one TOTP row per user) must be the same on both
++        websites, which no process can see of the other. Each start logs, for each, a short HMAC of a fixed label
++        under it (never the secret, nothing it can be recovered from), so the two services' start lines (startup_done)
++        show at a glance whether they hold the same values; None for an unset one."""
++        def mark(value):
++            return hmac.new(value.encode(), b'edge_bff.shared_key_check', hashlib.sha256).hexdigest()[:12] if value else None
++        return {'EDGE_SESSION_SECRET': mark(self.session_secret), 'EDGE_CODE_SECRET': mark(self.code_secret),
++                'EDGE_MFA_KEY': mark(self.mfa_key)}
+ 
+     @classmethod
+     def from_env(cls):
+@@ -106,7 +151,7 @@ class Settings:
+                 lease_seconds=int(os.environ.get('EDGE_LEASE_SECONDS', '90')),
+                 heartbeat_seconds=float(os.environ.get('EDGE_HEARTBEAT_SECONDS', '20')),
+                 poll_seconds=float(os.environ.get('EDGE_POLL_SECONDS', '2')),
+-                worker_enabled=os.environ.get('EDGE_WORKER_ENABLED', 'true').lower() == 'true',
++                worker_enabled=switch_of('EDGE_WORKER_ENABLED', 'true'),
+                 terminal_url=os.environ.get('EDGE_TERMINAL_URL', '').strip().rstrip('/'),
+                 terminal_proxy_key=os.environ.get('TERMINAL_PROXY_KEY', ''),
+                 backtest_worker_url=os.environ.get('BACKTEST_WORKER_URL', '').strip().rstrip('/'),
+@@ -123,19 +168,40 @@ class Settings:
+                 session_idle_seconds=int(os.environ.get('EDGE_SESSION_IDLE_SECONDS', '28800')),
+                 code_secret=os.environ.get('EDGE_CODE_SECRET', ''), mfa_key=os.environ.get('EDGE_MFA_KEY', ''),
+                 email_mode=os.environ.get('EDGE_EMAIL_MODE', 'log').strip().lower(),
+-                email_enabled=os.environ.get('EDGE_EMAIL_ENABLED', 'true').strip().lower() == 'true',
++                email_enabled=switch_of('EDGE_EMAIL_ENABLED', 'true'),
+                 email_from=os.environ.get('EDGE_EMAIL_FROM', '').strip(),
+                 resend_api_key=os.environ.get('RESEND_API_KEY', ''),
+-                resend_webhook_secret=os.environ.get('RESEND_WEBHOOK_SECRET', ''))
++                resend_webhook_secret=os.environ.get('RESEND_WEBHOOK_SECRET', ''),
++                site=os.environ.get('EDGE_SITE', BETA).strip().lower(),
++                ai_worker_enabled=optional_switch('EDGE_AI_WORKER_ENABLED'),
++                backtest_loop_enabled=switch_of('EDGE_BACKTEST_LOOP_ENABLED', 'true'),
++                housekeeping_enabled=switch_of('EDGE_HOUSEKEEPING_ENABLED', 'true'),
++                commit_sha=os.environ.get('RAILWAY_GIT_COMMIT_SHA', '').strip())
+         s.validate()
+         return s
+ 
+     def validate(self):
+-        # EXEC-MU-ACCOUNTS Phase 1: log mode keeps each code readable in its outbox row, so it is for dev only; with the
+-        # switch off nothing is sent, so the default (log) never stops a switch-off start
+-        if self.multiuser and self.email_mode == 'log' and self.environment not in ('dev', 'local'):
+-            raise ValueError('EDGE_EMAIL_MODE=log is for EDGE_ENVIRONMENT dev or local only (codes stay readable in the '
++        # EXEC-MU-ACCOUNTS Phase 1: log mode keeps each code readable in its outbox row, so it is for a developer
++        # machine only; with the switch off nothing is sent, so the default (log) never stops a switch-off start.
++        # ERRORS R2-26: no longer EDGE_ENVIRONMENT=dev too, the Railway environment the live site runs in
++        if self.multiuser and self.email_mode == 'log' and self.environment != 'local':
++            raise ValueError('EDGE_EMAIL_MODE=log is for EDGE_ENVIRONMENT=local only (codes stay readable in the '
+                              'outbox); set EDGE_EMAIL_MODE=resend with RESEND_API_KEY and EDGE_EMAIL_FROM')
++        # the two websites (EXEC-MU-ACCOUNTS "Production environment"): the live site is where accounts sign in, the
++        # beta the admin's alone. A beta with the switch on would take registrations, and a live site with it off would
++        # be a door to user #1 without the second factor. On a developer machine (local: one process, one database,
++        # the tests) the beta may run the switch on.
++        if self.site not in SITES:
++            raise ValueError('EDGE_SITE is beta (the service edge-bff, the admin only) or live (edge-bff-live, the '
++                             'user\'s domain)')
++        if self.site == LIVE and not self.multiuser:
++            raise ValueError('EDGE_SITE=live needs EDGE_MULTIUSER=true: the live site is where accounts sign in')
++        if self.site == BETA and self.multiuser and self.environment != 'local':
++            raise ValueError('EDGE_SITE=beta runs with EDGE_MULTIUSER=false (the beta is the admin\'s only); accounts '
++                             'sign in on the live site (EDGE_SITE=live)')
++        if self.site == LIVE and self.ai_worker_enabled:
++            raise ValueError('EDGE_AI_WORKER_ENABLED=true is for the beta only: the live site has no AI (decision D1); '
++                             'unset it on the live site')
+         if not re.fullmatch(r'scrypt\$[0-9a-f]{32}\$[0-9a-f]{64}', self.password_verifier):
+             raise ValueError('Invalid EDGE_PASSWORD_VERIFIER')
+         if not re.fullmatch(r'[A-Za-z0-9._:@-]{1,128}', self.owner) or len(self.session_secret) < 32:
+diff --git a/apps/edge-bff/app/main.py b/apps/edge-bff/app/main.py
+index 33aa5a3e..ee1f1feb 100644
+--- a/apps/edge-bff/app/main.py
++++ b/apps/edge-bff/app/main.py
+@@ -1,5 +1,6 @@
+ import asyncio
+ from contextlib import asynccontextmanager
++import functools
+ import hmac
+ import json
+ import logging
+@@ -20,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
+ from .backtest import Backtests
+ from . import catalog, terminal_access
+ from .client import OrcClient, OrcError, public_data
+-from .config import Settings
++from .config import LIVE, Settings
+ from .errors import Refusal, http_refusal, refusal, validation_refusal
+ from .hooks import is_hook_path
+ from .layouts import Layouts
+@@ -30,7 +31,7 @@ from .mailer import EmailSender
+ from .preferences import Preferences
+ from .presets import Presets
+ from .accounts import PENDING_CHECKED
+-from .principal import Auth, Principal
++from .principal import BETA_ONLY_TABS, Auth, Principal
+ from .drawings import Drawings
+ from .overview import Overview
+ from .watchlist import Watchlist
+@@ -39,9 +40,17 @@ from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
+ from .security import csrf_token, token_hash, verify_password
+ from .store import Store, StoreError, TERMINAL
+ from .throttle import SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address, normal_login
+-from .worker import Worker
++from .worker import Housekeeping, Worker
+ 
+ COOKIE = 'edge_session'
++# the start-up's lines (startup_not_ready, startup_done, email_sender_off): INFO included, written as app/backtest.py's
++# are when nothing set up a handler (uvicorn configures only its own loggers; lastResort writes WARNING and above)
++startup_log = logging.getLogger('edge_bff.startup')
++if not startup_log.hasHandlers():
++    _handler = logging.StreamHandler()
++    _handler.setFormatter(logging.Formatter('%(message)s'))
++    startup_log.addHandler(_handler)
++    startup_log.setLevel(logging.INFO)
+ STOP_RETRIES = 3  # EXEC-Y Fase 1 (I1): a run dispatched a moment ago is registered at Orc on receipt
+ STATIC = Path(__file__).resolve().parents[1] / 'static'
+ SCRIPT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
+@@ -230,7 +239,12 @@ def create_app(settings=None, store=None, orc=None):
+     radar = Radar(settings)
+     overview = Overview(settings)                       # EXEC-OVERVIEW O4
+     watchlist = Watchlist(settings, store)              # EXEC-WATCHLIST L3
+-    ready = {'value': False}
++    # EXEC-MU-ACCOUNTS beta/live: the AI loop claims only the runs this site queued (config.py EDGE_SITE)
++    worker.claim = functools.partial(store.claim, site=settings.site)
++    housekeeping = Housekeeping(settings, store)        # ERRORS R2-33: the hourly purges, their own task
++    # ERRORS R2-3, R2-36: the start-up steps (readiness, the seeds, the catalog names) and then the loops, retried until
++    # they ran; /ready answers 503 until then. lock: one attempt at a time; serving: the app's lifespan has started
++    started = {'done': False, 'serving': False, 'failures': 0, 'lock': None, 'stopping': None, 'tasks': []}
+     # EXEC-MU-ACCOUNTS Phase 0: the sign-in throttle lives in PostgreSQL (app/throttle.py), shared by every instance
+     throttle = Throttle(store, settings.session_secret)
+     # EXEC-MU-ACCOUNTS Phase 1: the principal of every request (app/principal.py) and the account preferences
+@@ -245,52 +259,97 @@ def create_app(settings=None, store=None, orc=None):
+     # (a client per request opened a new connection every time)
+     terminal_http = {'client': None}
+ 
++    def start_loops():
++        """The background loops (EXEC-MU-ACCOUNTS beta/live: each with its own switch, config.py; EDGE_WORKER_ENABLED=false
++        starts none): the AI job loop (the beta only, Settings.ai_worker), the backtest loop (each site claims its own
++        jobs), the hourly housekeeping and the email sender (its own task, never behind an AI run or a backtest; only
++        with the switch on, so only on the live site)."""
++        if not settings.worker_enabled:
++            return
++        if settings.ai_worker:
++            started['tasks'].append(asyncio.create_task(worker.run()))
++        if settings.backtest_loop_enabled and backtests.loop:
++            started['tasks'].append(asyncio.create_task(backtests.loop.run()))
++        if settings.housekeeping_enabled:
++            started['tasks'].append(asyncio.create_task(housekeeping.run()))
++        if settings.multiuser and settings.email_enabled:
++            started['tasks'].append(asyncio.create_task(sender.run()))
++        elif settings.multiuser:
++            # no registration or reset code leaves this instance; visible, as an intended sender-less one must be
++            startup_log.error(json.dumps({'event': 'email_sender_off', 'site': settings.site}))
++
++    async def start_up():
++        """One attempt at the start-up steps (ERRORS R2-3, R2-36); True once they ran, and then always. Readiness first
++        (the tables and columns this build reads; a database being restarted, a migration not applied yet), then user
++        #1 and its plan, the catalog's names, then the loops. A seed failure keeps the switch-off sign-in working (the
++        loops start); with the switch on nothing can sign in without accounts, so the attempt fails and is made again.
++        While no attempt succeeded /ready answers 503 and no loop runs: a build that is not ready never claims a job."""
++        async with started['lock']:
++            if started['done']:
++                return True
++            try:
++                await asyncio.to_thread(store.ready, settings.multiuser)
++                # EXEC-MU-ACCOUNTS Phase 1: user #1 (the configured owner) when the accounts table holds none;
++                # idempotent across replicas and attempts
++                try:
++                    await asyncio.to_thread(auth.seed_user)
++                except Exception as e:                 # noqa: BLE001 - logged by its class only (no secret in it)
++                    logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_failed',
++                                                                               'error': type(e).__name__}))
++                    if settings.multiuser:
++                        raise
++                # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): user #1's subscription to the plan holding every
++                # capability, found by data (account_seed_plan_ambiguous otherwise); idempotent. A failure (the catalog
++                # migration not applied yet) changes nothing with the switch off; with it on nothing resolves without
++                # the catalog
++                try:
++                    await asyncio.to_thread(auth.refresh_names)  # Phase 3a (C1 F3): refusals name what the person sees
++                except Exception as e:                 # noqa: BLE001 - the plain phrase stays until the next read
++                    logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'capability_names_failed',
++                                                                               'error': type(e).__name__}))
++                try:
++                    await asyncio.to_thread(auth.seed_plan)
++                except Exception as e:                 # noqa: BLE001 - logged by its class only (no secret in it)
++                    logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_plan_failed',
++                                                                               'error': type(e).__name__}))
++                    if settings.multiuser:
++                        raise
++            except Exception as e:                     # noqa: BLE001 - its class only (no secret in the log)
++                started['failures'] += 1
++                if started['failures'] == 1 or started['failures'] % 30 == 0:
++                    startup_log.error(json.dumps({'event': 'startup_not_ready', 'error': type(e).__name__,
++                                                  'attempts': started['failures']}))
++                return False
++            start_loops()
++            started['done'] = True
++            startup_log.info(json.dumps({'event': 'startup_done', 'site': settings.site, 'attempts': started['failures'] + 1,
++                                         'loops': len(started['tasks']), 'commit': settings.commit_sha or None,
++                                         'shared_keys': settings.shared_key_marks()}))
++            return True
++
+     @asynccontextmanager
+     async def lifespan(app):
+-        try:
+-            await asyncio.to_thread(store.ready, settings.multiuser)
+-            ready['value'] = True
+-        except Exception:
+-            ready['value'] = False
+-        if ready['value']:
+-            # EXEC-MU-ACCOUNTS Phase 1: user #1 (the configured owner) when the accounts table holds none; idempotent
+-            # across replicas. A failure keeps the switch-off sign-in working; with the switch on nothing can sign in
+-            # without accounts, so the worker does not start
+-            try:
+-                await asyncio.to_thread(auth.seed_user)
+-            except Exception as e:                     # noqa: BLE001 - logged by its class only (no secret in it)
+-                logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_failed',
+-                                                                           'error': type(e).__name__}))
+-                if settings.multiuser:
+-                    ready['value'] = False
+-            # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a): user #1's subscription to the plan holding every capability,
+-            # found by data (account_seed_plan_ambiguous otherwise); idempotent. A failure (the catalog migration not
+-            # applied yet) changes nothing with the switch off; with it on nothing resolves without the catalog
+-            try:
+-                await asyncio.to_thread(auth.refresh_names)      # Phase 3a (C1 F3): refusals name what the person sees
+-            except Exception as e:                     # noqa: BLE001 - the plain phrase stays until the next read
+-                logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'capability_names_failed',
+-                                                                           'error': type(e).__name__}))
+-            try:
+-                await asyncio.to_thread(auth.seed_plan)
+-            except Exception as e:                     # noqa: BLE001 - logged by its class only (no secret in it)
+-                logging.getLogger('edge_bff.accounts').warning(json.dumps({'event': 'account_seed_plan_failed',
+-                                                                           'error': type(e).__name__}))
+-                if settings.multiuser:
+-                    ready['value'] = False
+-        task = asyncio.create_task(worker.run()) if settings.worker_enabled and ready['value'] else None
+-        # EDGE backtest: its own loop, only with a worker configured; it does not wait for /ready (a missing backtest
+-        # table keeps only the backtest feature off, BACKTEST_NOT_READY)
+-        backtest_task = asyncio.create_task(backtests.loop.run()) if settings.worker_enabled and backtests.loop else None
+-        # the email sender: its own task, never behind an AI run or a backtest (switch on, with the worker)
+-        email_task = asyncio.create_task(sender.run()) if settings.multiuser and settings.worker_enabled \
+-            and settings.email_enabled and ready['value'] else None
++        # made here, in the loop that serves (a lifespan begins with nothing started)
++        started.update(done=False, serving=True, failures=0, tasks=[], lock=asyncio.Lock(), stopping=asyncio.Event())
++        stopping = started['stopping']
++
++        async def keep_starting():
++            while not stopping.is_set() and not await start_up():
++                try:
++                    await asyncio.wait_for(stopping.wait(), timeout=settings.poll_seconds)
++                except asyncio.TimeoutError:
++                    pass
++        # the first attempt before the first request, as before; while it fails it is made again in the background
++        starter = None if await start_up() else asyncio.create_task(keep_starting())
+         yield
++        stopping.set()
++        started['serving'] = False
+         worker.stop()
+         sender.stop()
++        housekeeping.stop()
+         if backtests.loop:
+             backtests.loop.stop()
+-        for running in (task, backtest_task, email_task):
++        for running in [starter, *started['tasks']]:
+             if running:
+                 running.cancel()
+                 await asyncio.gather(running, return_exceptions=True)
+@@ -407,17 +466,26 @@ def create_app(settings=None, store=None, orc=None):
+ 
+     @app.get('/ready')
+     async def readiness():
++        # ERRORS R2-3, R2-36: ready once the start-up steps ran and the loops started (an attempt is made here while
++        # they have not: Railway's healthcheck passes only then), and while the database answers
++        if started['serving'] and not await start_up():
++            return error('NOT_READY', 503)
+         try:
+             await asyncio.to_thread(store.ready, settings.multiuser)
+         except Exception:
+             return error('NOT_READY', 503)
+         return {'status': 'ready'}
+ 
++    @app.get('/version')
++    async def version():
++        """EXEC-MU-ACCOUNTS beta/live: which website this is and the commit it runs (Railway's RAILWAY_GIT_COMMIT_SHA;
++        null when unset, as on a developer machine), read before and after a push to live."""
++        return {'site': settings.site, 'commit': settings.commit_sha or None}
++
+     # The page builds its links as <page>#/<route> (index.html staticUrl); opened at "/" that page is index.html, so
+     # /index.html is served too (user 2026-10-24: a Branch tab and the side chat showed {"detail":"Not Found"})
+     @app.get('/')
+     @app.get('/index.html')
+-    @app.get('/monitor')
+     @app.get('/terminal')
+     @app.get('/backtest')
+     @app.get('/screener')
+@@ -433,11 +501,21 @@ def create_app(settings=None, store=None, orc=None):
+     async def index():
+         return FileResponse(STATIC / 'index.html', media_type='text/html')
+ 
++    def on_this_site(tab):
++        """Whether this site serves a tab's pages: the live site has none of the beta-only tabs (principal.py)."""
++        return not (settings.site == LIVE and tab in BETA_ONLY_TABS)
++
++    @app.get('/monitor')
++    async def monitor_page():
++        if not on_this_site('monitor'):
++            return error('NOT_FOUND', 404)
++        return FileResponse(STATIC / 'index.html', media_type='text/html')
++
+     # EXEC-CHAT-URL (user 2026-10-24: "B saja ya"): every conversation has its own address, /c/<conversation_id>, like
+-    # ChatGPT and Claude; the page reads the id from it. Any other id is not a page.
++    # ChatGPT and Claude; the page reads the id from it. Any other id is not a page. A conversation is the Monitor's.
+     @app.get('/c/{conversation_id}')
+     async def conversation_page(conversation_id: str):
+-        if not re.fullmatch(CONV, conversation_id):
++        if not re.fullmatch(CONV, conversation_id) or not on_this_site('monitor'):
+             return error('NOT_FOUND', 404)
+         return FileResponse(STATIC / 'index.html', media_type='text/html')
+ 
+@@ -771,8 +849,8 @@ def create_app(settings=None, store=None, orc=None):
+             await asyncio.to_thread(store.conversation, p.owner_key, body.conversation_id)
+             if not await asyncio.to_thread(orc.messages, p.owner_key, body.conversation_id):
+                 raise StoreError('CONVERSATION_EXPIRED', 410)
+-        row, created = await asyncio.to_thread(store.submit, p.owner_key, body.submission_key, payload,
+-                                               body.after_stop)
++        row, created = await asyncio.to_thread(functools.partial(store.submit, site=settings.site), p.owner_key,
++                                               body.submission_key, payload, body.after_stop)
+         after = (row['input'] or {}).get('after_request_id')
+         before = await asyncio.to_thread(store.job, p.owner_key, after) if after else None
+         if before is not None and created:  # S3: the run this message follows is stopped; this one waits for it
+diff --git a/apps/edge-bff/app/principal.py b/apps/edge-bff/app/principal.py
+index e8a0f12f..a790e54e 100644
+--- a/apps/edge-bff/app/principal.py
++++ b/apps/edge-bff/app/principal.py
+@@ -27,8 +27,18 @@ Dependencies (`Auth`, handed to every router as `routes(app, auth)`):
+ - `auth.need(capability, write=False)`: 403 CAPABILITY_REQUIRED without the capability, or 403 PLAN_EXPIRED when only
+   the account's ended plan held it (access.expired_plan names that plan; the fix is to renew it);
+ - `auth.admin(write=False, capability='admin.access')`: need(capability) plus mfa_ok, else 403 MFA_REQUIRED.
++
++The two websites (EXEC-MU-ACCOUNTS "Production environment", user decisions 2026-11-19; config.py EDGE_SITE):
++- the switch-off resolution accepts only a switch-off session (user_id NULL, store.session; ERRORS R2-1), so a session
++  of an account (made by the live site, with the switch on) never opens the beta, and a beta session (no account) never
++  resolves on the live site (accounts.resolve joins the account);
++- on the live site (EDGE_SITE=live) every principal is `live_view`: it never holds a beta-only capability (`beta_only`:
++  the Monitor (AI, decision D1) and admin tabs, the admin rights of rights.py, every item at the lab stage), whatever its
++  plan grants, '*' included; `auth.need` of a beta-only capability answers 404 NOT_FOUND there, as for a route the site
++  does not have. The second factor is decided by the account's own grants, so user #1 still needs it on the live site.
+ """
+ import asyncio
++import dataclasses
+ import hashlib
+ import json
+ import logging
+@@ -40,9 +50,11 @@ from datetime import datetime
+ from fastapi import Depends, Request
+ 
+ from .accounts import OWNER_KEY, AccountStore
++from .config import LIVE
+ from .errors import Refusal, capability_required, plan_expired, set_display_names
+ from . import releases
+-from .releases import KIND_OF_FAMILY, stage_of
++from .releases import KIND_OF_FAMILY, LAB, stage_of
++from .rights import CAPABILITY_OF as RIGHT_CAPABILITIES
+ from .security import csrf_token, same_ascii, token_hash
+ 
+ logger = logging.getLogger('edge_bff.principal')
+@@ -55,6 +67,22 @@ TOKEN = re.compile(r'[0-9a-f]{64}')
+ MFA_OPEN = frozenset({'/api/v1/auth/session', '/api/v1/auth/sign-out', '/api/v1/auth/mfa/enroll',
+                       '/api/v1/auth/mfa/verify'})
+ ITEM_KEYS = frozenset({'ids', 'stages', 'all'})
++# EXEC-MU-ACCOUNTS "Production environment" (user 2026-11-19): the AI Monitor, the admin pages and every lab item live on
++# the beta site only. A capability key is '<tab>.<name>' (the catalog's rule; an item key '<tab>.<kind>:<id>'), so the
++# beta-only keys are those of these tabs, the admin rights rights.py grants (ADMIN_RIGHTS) and the lab-stage items.
++BETA_ONLY_TABS = frozenset({'monitor', 'admin'})
++ADMIN_RIGHT_CAPABILITIES = frozenset(RIGHT_CAPABILITIES.values())
++
++
++def beta_only(key):
++    """Whether the live site never holds this capability key (module docstring): a key of a BETA_ONLY_TABS tab, an admin
++    right, or an item '<family>:<id>' of a family with release stages (releases.KIND_OF_FAMILY) whose id is at the lab
++    stage (an id the release file does not list is lab)."""
++    family, sep, item = (key or '').partition(':')
++    if family.split('.', 1)[0] in BETA_ONLY_TABS or family in ADMIN_RIGHT_CAPABILITIES:
++        return True
++    kind = KIND_OF_FAMILY.get(family) if sep else None
++    return kind is not None and stage_of(kind, item) == LAB
+ 
+ 
+ def valid_value(kind, value):
+@@ -137,10 +165,14 @@ class Principal:
+     expired_plan: str | None = None
+     expired_grants: dict = field(default_factory=dict, hash=False, compare=False, repr=False)
+     expired_kinds: dict = field(default_factory=dict, hash=False, compare=False, repr=False)
++    # the live site's view (live_view): no beta-only capability is held, whatever the grants say
++    live: bool = False
+ 
+     def can(self, capability):
+         """'*' holds everything; a flag key is held when granted; '<family>:<id>' by the family's items value (its ids,
+-        its release stages, or all). Anything else is not held."""
++        its release stages, or all). Anything else is not held. On the live site a beta-only key never is."""
++        if self.live and beta_only(capability):
++            return False
+         return EVERYTHING in self.capabilities or holds(self.grants, self.kinds, capability)
+ 
+     def limit(self, capability, default=None):
+@@ -196,6 +228,20 @@ def switch_off_principal(settings, owner, token='', seed=None):
+                      version=SWITCH_OFF_VERSION, token=token, seed=first)
+ 
+ 
++def live_view(p, flags=()):
++    """The principal as the live site serves it (EDGE_SITE=live; module docstring): `live` set, so `can` refuses every
++    beta-only key; its capabilities without them, where '*' reads as every flag capability of the catalog (`flags`,
++    edge_bff.capabilities of kind flag) that is not beta-only (so the page shows the tabs the site has, never the
++    Monitor); its limits without them; mfa_ok and the grants as they are (the second factor is the account's own); a
++    version of its own, so an open page reads the session again when the view changes."""
++    held = flags if EVERYTHING in p.capabilities else p.capabilities
++    capabilities = frozenset(k for k in held if k != EVERYTHING and not beta_only(k))
++    raw = json.dumps([p.version, sorted(capabilities), LIVE], separators=(',', ':')).encode()
++    return dataclasses.replace(p, capabilities=capabilities, live=True,
++                               limits={k: v for k, v in p.limits.items() if not beta_only(k)},
++                               version='db-' + hashlib.sha256(raw).hexdigest()[:12])
++
++
+ def role_needs_mfa(capabilities):
+     """Switch on: an account whose resolved capabilities hold everything or the admin access passes the second factor
+     before any other route (CONTRACT.md 8a: derived from the catalog, no longer from the role)."""
+@@ -230,6 +276,7 @@ class Auth:
+         self.settings, self.store = settings, store
+         self.accounts = accounts or AccountStore(store)
+         self._names_at = None
++        self.flags = frozenset()                         # the catalog's flag capabilities (refresh_names; live_view)
+         self.seed = None                                 # {user_id, username} of user #1 once seeded (main.py lifespan)
+         self._needs = {}
+ 
+@@ -270,8 +317,9 @@ class Auth:
+             return
+         self._names_at = now
+         with self.store.connect() as c:
+-            rows = c.execute('SELECT capability_key, display_name FROM edge_bff.capabilities').fetchall()
++            rows = c.execute('SELECT capability_key, display_name, kind FROM edge_bff.capabilities').fetchall()
+         set_display_names({r['capability_key']: r['display_name'] for r in rows})
++        self.flags = frozenset(r['capability_key'] for r in rows if r['kind'] == 'flag')
+ 
+     def seed_plan(self):
+         """Phase 2 (CONTRACT.md 8a "User #1"): the seed user's subscription to the plan that holds every capability
+@@ -284,7 +332,7 @@ class Auth:
+     def needs_mfa(self, owner_key):
+         """Switch on: whether the account's resolved capabilities require the second factor (the sign-in makes a
+         pending session for it). Blocking (a thread)."""
+-        return role_needs_mfa(self.owner_principal(owner_key).capabilities)
++        return role_needs_mfa(owner_principal(self.settings, self.accounts, owner_key).capabilities)  # the account's own
+ 
+     def configured_owner(self):
+         """The switch-off owner a new session is made for (main.py sign-in with EDGE_MULTIUSER off): EDGE_OWNER."""
+@@ -301,17 +349,28 @@ class Auth:
+                 return None
+             return switch_off_principal(self.settings, self.settings.owner, token, self.seed)
+         row = await asyncio.to_thread(self.accounts.resolve, hashed, self.settings.session_idle_seconds)
+-        return account_principal(row, token) if row else None
++        return self.site_view(account_principal(row, token)) if row else None
++
++    def site_view(self, p):
++        """The principal as this site serves it: live_view on the live site, else as it is."""
++        return live_view(p, self.flags) if self.settings.site == LIVE else p
+ 
+     def owner_principal(self, owner_key):
+         """The principal of an owner without a session, as it is now (the backtest loop reads its rights when it
+         dispatches a queued job). Switch on: an owner with no active account has no capability. Blocking (a thread)."""
+-        return owner_principal(self.settings, self.accounts, owner_key)
++        return self.site_view(owner_principal(self.settings, self.accounts, owner_key))
+ 
+     def need(self, capability, write=False):
+         """A dependency: the principal (with CSRF when write) holding the capability, else 403 CAPABILITY_REQUIRED (or
+-        PLAN_EXPIRED when only the account's ended plan held it)."""
++        PLAN_EXPIRED when only the account's ended plan held it). On the live site a beta-only capability (the Monitor,
++        the admin routes) answers 404 NOT_FOUND before the session is read: the route is not one the site has."""
+         key = ('need', capability, write)
++        if key not in self._needs and self.settings.site == LIVE and beta_only(capability):
++            base = self.writer if write else self.principal
++
++            async def absent(_: None = Depends(not_on_this_site), p: Principal = Depends(base)):
++                return p                                      # never reached: not_on_this_site refuses first
++            self._needs[key] = absent
+         if key not in self._needs:
+             base = self.writer if write else self.principal
+ 
+@@ -344,6 +403,11 @@ class Auth:
+         return self._needs[key]
+ 
+ 
++async def not_on_this_site():
++    """The first dependency of a beta-only route on the live site (Auth.need): 404 NOT_FOUND."""
++    raise Refusal(404, 'NOT_FOUND')
++
++
+ def owner_principal(settings, accounts, owner_key):
+     """The principal of an owner without a session (see Auth.owner_principal); accounts may be None with the switch
+     off."""
+diff --git a/apps/edge-bff/app/store.py b/apps/edge-bff/app/store.py
+index 3eae5369..b446d4ff 100644
+--- a/apps/edge-bff/app/store.py
++++ b/apps/edge-bff/app/store.py
+@@ -10,6 +10,7 @@ from psycopg_pool import ConnectionPool
+ from psycopg.types.json import Jsonb
+ 
+ from .accounts import purge_pending
++from .config import BETA
+ from .throttle import purge as purge_throttle
+ 
+ TERMINAL = {'FINISHED', 'FAILED', 'INTERRUPTED'}
+@@ -64,7 +65,8 @@ class Store:
+                 c.execute('SELECT 1 FROM edge_bff.plan_capabilities LIMIT 0')
+                 c.execute('SELECT 1 FROM edge_bff.user_capability_overrides LIMIT 0')
+                 c.execute('SELECT 1 FROM edge_bff.subscriptions LIMIT 0')
+-            c.execute('SELECT 1 FROM edge_bff.jobs LIMIT 0')
++            # EXEC-MU-ACCOUNTS beta/live (migrations 20261119_020 and _021): every queued row names its site
++            c.execute('SELECT site FROM edge_bff.jobs LIMIT 0')
+             c.execute('SELECT 1 FROM edge_bff.sessions LIMIT 0')
+             c.execute('SELECT hidden_at FROM edge_bff.conversation_ui LIMIT 0')
+             # EXEC-MU-ACCOUNTS Phase 0: sign-in needs the throttle table (migration 20261116_002), so an edge-bff
+@@ -80,23 +82,31 @@ class Store:
+             c.execute('SELECT 1 FROM edge_bff.email_hook_events LIMIT 0')
+             c.execute('SELECT registration_hash FROM edge_bff.users LIMIT 0')     # 20261117_002
+             c.execute('SELECT totp_failures, recovery_failures, totp_locked_until, recovery_locked_until FROM edge_bff.mfa_totp LIMIT 0')
++            # ERRORS R2-2 (migration 20261119_022): the seed copies the environment's password only over its own copy
++            c.execute('SELECT seed_verifier_sha256 FROM edge_bff.identities LIMIT 0')
+ 
+     def session_create(self, hashed, owner, seconds):
+         with self.connect() as c:
+             c.execute('INSERT INTO edge_bff.sessions(token_hash,owner_key,expires_at) VALUES (%s,%s,now()+%s*interval \'1 second\')', (hashed, owner, seconds))
+ 
+     def session(self, hashed):
++        """A switch-off session (EDGE_MULTIUSER off): only one the switch-off sign-in made (session_create), which has no
++        account (user_id NULL, migration 20261116_003's column comment). A session of an account, made with the switch
++        on under its MFA, idle and status rules, is never one here (ERRORS R2-1): the switch-off resolver checks none of
++        those, so it must not accept the rows the stricter one wrote (the switch's way back, the beta site beside the
++        live one on the same database)."""
+         with self.connect() as c:
+-            return c.execute('SELECT owner_key FROM edge_bff.sessions WHERE token_hash=%s AND revoked_at IS NULL AND expires_at>now()', (hashed,)).fetchone()
++            return c.execute('SELECT owner_key FROM edge_bff.sessions WHERE token_hash=%s AND user_id IS NULL AND revoked_at IS NULL AND expires_at>now()', (hashed,)).fetchone()
+ 
+     def revoke(self, hashed):
+         with self.connect() as c:
+             c.execute('UPDATE edge_bff.sessions SET revoked_at=now() WHERE token_hash=%s', (hashed,))
+ 
+-    def submit(self, owner, key, payload, after_stop=False):
++    def submit(self, owner, key, payload, after_stop=False, site=BETA):
+         """A new job. EXEC-Y Fase 1 (S3): sent with after_stop while a run is active, the message waits inside that
+         run (input.next) and becomes its own job, in the same conversation, the moment that run ends (_promote); the
+-        run is marked to stop. One active job per owner stays a database rule; one waiting message per run."""
++        run is marked to stop. One active job per owner stays a database rule; one waiting message per run. site: the
++        website the job was queued on (config.SITES); only that site's loop claims it (claim)."""
+         fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+         with self.connect() as c:
+             # C2: a namespaced key like every other edge-bff lock ('backtest:', 'layouts:', ...), so no other lock's key
+@@ -119,9 +129,9 @@ class Store:
+                 active = c.execute("""UPDATE edge_bff.jobs SET input=input||jsonb_build_object('stop_requested',true,'next',%s::jsonb)
+                     WHERE request_id=%s RETURNING *""", (json.dumps(nxt), active['request_id'])).fetchone()
+                 return self._waiting(active), True
+-            row = c.execute('''INSERT INTO edge_bff.jobs(request_id,owner_key,submission_key,fingerprint,input,conversation_id)
+-                VALUES (%s,%s,%s,%s,%s,%s) RETURNING *''',
+-                (request_id, owner, key, fingerprint, Jsonb(payload), payload.get('conversation_id'))).fetchone()
++            row = c.execute('''INSERT INTO edge_bff.jobs(request_id,owner_key,submission_key,fingerprint,input,conversation_id,site)
++                VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *''',
++                (request_id, owner, key, fingerprint, Jsonb(payload), payload.get('conversation_id'), site)).fetchone()
+             return row, True
+ 
+     @staticmethod
+@@ -137,7 +147,7 @@ class Store:
+                 'attempt_count': 0, 'lease_token': None}
+ 
+     def _promote(self, c, ended):
+-        """The waiting message of a run that just ended becomes its own job, in the run's conversation."""
++        """The waiting message of a run that just ended becomes its own job, in the run's conversation (and site)."""
+         nxt = (ended['input'] or {}).get('next')
+         if not nxt:
+             return
+@@ -146,11 +156,11 @@ class Store:
+             job_input['conversation_id'] = ended['conversation_id']
+         stopped = bool(nxt.get('stopped'))
+         c.execute('''INSERT INTO edge_bff.jobs(request_id,owner_key,submission_key,fingerprint,input,conversation_id,
+-                state,error_code,completed_at)
+-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,CASE WHEN %s THEN now() END) ON CONFLICT DO NOTHING''',
++                state,error_code,completed_at,site)
++            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,CASE WHEN %s THEN now() END,%s) ON CONFLICT DO NOTHING''',
+             (nxt['request_id'], ended['owner_key'], nxt['submission_key'], nxt['fingerprint'], Jsonb(job_input),
+              job_input.get('conversation_id'), 'FAILED' if stopped else 'QUEUED',
+-             'STOPPED_BY_USER' if stopped else None, stopped))
++             'STOPPED_BY_USER' if stopped else None, stopped, ended.get('site') or BETA))
+ 
+     def job(self, owner, request_id):
+         with self.connect() as c:
+@@ -182,11 +192,14 @@ class Store:
+                 RETURNING *""", (owner, request_id)).fetchone()
+             return self._waiting(holder) if holder else None
+ 
+-    def claim(self, seconds):
++    def claim(self, seconds, site=BETA):
++        """The oldest job of this site (its website, config.SITES) that no lease holds, under a new lease; a job another
++        site queued is never claimed here, so it is dispatched under the rules of the site that queued it (ERRORS
++        R2-7)."""
+         with self.connect() as c:
+             row = c.execute('''SELECT * FROM edge_bff.jobs WHERE state IN ('QUEUED','RUNNING','RECOVERING')
+-                AND (lease_expires_at IS NULL OR lease_expires_at<now()) ORDER BY created_at
+-                FOR UPDATE SKIP LOCKED LIMIT 1''').fetchone()
++                AND (lease_expires_at IS NULL OR lease_expires_at<now()) AND site=%s ORDER BY created_at
++                FOR UPDATE SKIP LOCKED LIMIT 1''', (site,)).fetchone()
+             if not row:
+                 return None
+             token = secrets.token_hex(16)
+@@ -351,8 +364,33 @@ class Store:
+                 (row['bookmarked'] if bookmarked is None else bookmarked, title or row['title'], pins,
+                  owner, conversation_id)).fetchone()
+ 
+-    def cleanup_sessions(self):
++    # ---- the hourly housekeeping (worker.Housekeeping; ERRORS R2-33) ---------------------------------------------------
++    # Each purge is its own transaction, in batches of at most `limit` rows, so one that fails (a timeout, a lock wait, a
++    # missing grant) rolls back only itself and never stops another purge or a queue. A batch takes a try-lock on its
++    # purge: while another edge-bff (the other website) runs the same purge, this one skips the batch.
++
++    def purge(self, name, limit):
++        """One batch of the purge `name` (PURGES): the rows it deleted, or None when another instance holds the purge."""
+         with self.connect() as c:
+-            c.execute('DELETE FROM edge_bff.sessions WHERE expires_at<now() OR revoked_at<now()-interval \'1 day\'')
+-            purge_throttle(c)   # EXEC-MU-ACCOUNTS Phase 0: throttle rows older than 2 days, at the same hourly cadence
+-            purge_pending(c)    # EXEC-MU-ACCOUNTS Phase 1: registrations never verified, after 24 h
++            if not c.execute('SELECT pg_try_advisory_xact_lock(hashtextextended(%s,0)) AS held',
++                             ('housekeeping:' + name,)).fetchone()['held']:
++                return None
++            return PURGES[name](c, limit)
++
++    def cleanup_sessions(self):
++        """Every purge to the end, each batch in its own transaction (one call, as a test or an operator makes it)."""
++        for name in PURGES:
++            while (self.purge(name, PURGE_BATCH) or 0) >= PURGE_BATCH:
++                pass
++
++
++def purge_sessions(c, limit=None):
++    """Sessions past their end, and sessions revoked more than a day ago (at most limit rows; None = every one)."""
++    return c.execute('''DELETE FROM edge_bff.sessions WHERE token_hash IN (SELECT token_hash FROM edge_bff.sessions
++        WHERE expires_at<now() OR revoked_at<now()-interval '1 day' LIMIT %s)''', (limit,)).rowcount
++
++
++PURGE_BATCH = 500
++# name -> purge(connection, limit) -> rows deleted; each runs hourly in worker.Housekeeping. EXEC-MU-ACCOUNTS Phase 0:
++# throttle rows older than 2 days; Phase 1: registrations never verified, after 24 h (their identity and codes cascade)
++PURGES = {'sessions': purge_sessions, 'throttle': purge_throttle, 'pending': purge_pending}
+diff --git a/apps/edge-bff/app/throttle.py b/apps/edge-bff/app/throttle.py
+index 09a4d5ef..24753a51 100644
+--- a/apps/edge-bff/app/throttle.py
++++ b/apps/edge-bff/app/throttle.py
+@@ -119,8 +119,9 @@ class Throttle:
+                       (limit.scope, self.key_hash(limit.scope, key)))
+ 
+ 
+-def purge(connection):
+-    """Rows older than 2 days (CONTRACT.md section 1); called from Store.cleanup_sessions, the worker loop's hourly
+-    cleanup, on the same connection and transaction."""
+-    connection.execute('DELETE FROM edge_bff.auth_throttle WHERE window_start < now() - make_interval(secs => %s)',
+-                       (PURGE_AFTER_SECONDS,))
++def purge(connection, limit=None):
++    """Rows older than 2 days (CONTRACT.md section 1), at most limit of them (None: every one); the rows deleted. Called
++    from Store.purge, the hourly housekeeping (worker.Housekeeping), on its connection and transaction."""
++    return connection.execute('''DELETE FROM edge_bff.auth_throttle WHERE (scope, key_hash, window_start) IN (
++            SELECT scope, key_hash, window_start FROM edge_bff.auth_throttle
++            WHERE window_start < now() - make_interval(secs => %s) LIMIT %s)''', (PURGE_AFTER_SECONDS, limit)).rowcount
+diff --git a/apps/edge-bff/app/worker.py b/apps/edge-bff/app/worker.py
+index 543bd181..705d0ac7 100644
+--- a/apps/edge-bff/app/worker.py
++++ b/apps/edge-bff/app/worker.py
+@@ -1,11 +1,14 @@
+-"""One managed queue worker. HTTP waits execute in threads, not the SSE event loop."""
++"""One managed queue worker (the AI job loop) and the hourly housekeeping. HTTP waits execute in threads, not the SSE
++event loop."""
+ import asyncio
++import json
+ import logging
+ import time
+ from .client import OrcError
+ from .errors import Refusal
+ from .monitor import ModelCatalog, run_refusal
+ from .principal import owner_principal
++from .store import PURGE_BATCH, PURGES
+ 
+ MONITOR_CHAT = 'monitor.chat'   # main.py MONITOR_CHAT: the capability a run needs (CONTRACT.md 8b, decision D5)
+ 
+@@ -27,6 +30,9 @@ class Worker:
+         # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b): owner key -> its principal now (main.py sets the app's
+         # Auth.owner_principal; on its own, as a test builds it, the switch-off mapping)
+         self.access = lambda owner: owner_principal(settings, None, owner)
++        # EXEC-MU-ACCOUNTS beta/live: the claim of the next queued run (main.py sets the app's, which claims only this
++        # site's runs, store.claim(seconds, site); on its own, as a test builds it, the store's own claim)
++        self.claim = store.claim
+         self.stopping = asyncio.Event()
+ 
+     async def call(self, fn, *args, **kwargs):
+@@ -39,15 +45,11 @@ class Worker:
+             pass
+ 
+     async def run(self):
+-        # None: not cleaned yet, so at the start. Never 0: time.monotonic() counts from an unspecified point (on Linux the
+-        # host's boot), so on a host up for less than an hour a 0 would skip the start's cleanup.
+-        cleaned_at = None
++        # ERRORS R2-33: the hourly purges are no longer made here (Housekeeping, its own task): a purge that fails can
++        # never stop the claim of the queued runs
+         while not self.stopping.is_set():
+             try:
+-                if cleaned_at is None or time.monotonic() - cleaned_at > 3600:
+-                    await self.call(self.store.cleanup_sessions)
+-                    cleaned_at = time.monotonic()
+-                row = await self.call(self.store.claim, self.settings.lease_seconds)
++                row = await self.call(self.claim, self.settings.lease_seconds)
+                 if row:
+                     await self.process(row)
+                 else:
+@@ -179,3 +181,66 @@ class Worker:
+ 
+     def stop(self):
+         self.stopping.set()
++
++
++class Housekeeping:
++    """The hourly housekeeping (EXEC-MU-ACCOUNTS; ERRORS R2-33), its own task beside the loops (main.py; switch
++    EDGE_HOUSEKEEPING_ENABLED): each purge of store.PURGES (expired and old revoked sessions, throttle rows older than 2
++    days, registrations never verified after 24 h) runs at the start, whatever the clock reads, then once an hour.
++
++    - Each purge is tried on its own (store.purge: its own transaction, batches of store.PURGE_BATCH rows, at most
++      MAX_BATCHES a turn), so a failing one (a timeout, a lock wait, a grant a migration left out) stops neither the
++      others nor any queue; it is tried again after a backoff that doubles from EDGE_POLL_SECONDS up to the hour, and
++      each failure is logged by its class (housekeeping_failed).
++    - A batch another instance holds (the other website, running the same purge) is skipped until the next turn.
++    """
++
++    EVERY_SECONDS = 3600
++    MAX_BATCHES = 20
++
++    def __init__(self, settings, store):
++        self.settings, self.store = settings, store
++        self.stopping = asyncio.Event()
++        # name -> (next attempt on time.monotonic(), failures in a row); None: due now (never 0, see run)
++        self.due = {}
++
++    async def sleep(self, seconds):
++        try:
++            await asyncio.wait_for(self.stopping.wait(), timeout=seconds)
++        except asyncio.TimeoutError:
++            pass
++
++    async def turn(self, name):
++        """One purge to its end (or MAX_BATCHES batches); True when it was made, False when another instance held it."""
++        for _ in range(self.MAX_BATCHES):
++            done = await asyncio.to_thread(self.store.purge, name, PURGE_BATCH)
++            if done is None:
++                return False
++            if done < PURGE_BATCH:
++                break
++        return True
++
++    async def run(self):
++        while not self.stopping.is_set():
++            for name in PURGES:
++                if self.stopping.is_set():
++                    return
++                # None: not purged yet, so at the start. Never 0: time.monotonic() counts from an unspecified point (on
++                # Linux the host's boot), so on a host up for less than an hour a 0 would skip the start's purge.
++                at, failures = self.due.get(name, (None, 0))
++                if at is not None and time.monotonic() < at:
++                    continue
++                try:
++                    await self.turn(name)
++                    self.due[name] = (time.monotonic() + self.EVERY_SECONDS, 0)
++                except Exception as e:                     # noqa: BLE001 - its class only (no secret in the log)
++                    failures += 1
++                    wait = min(self.EVERY_SECONDS, self.settings.poll_seconds * 2 ** failures)
++                    self.due[name] = (time.monotonic() + wait, failures)
++                    logger.error(json.dumps({'event': 'housekeeping_failed', 'purge': name,
++                                             'error': type(e).__name__, 'failures': failures, 'retry_s': round(wait, 3)}))
++            # the due times are looked at every EDGE_POLL_SECONDS (no database call unless one is due)
++            await self.sleep(self.settings.poll_seconds)
++
++    def stop(self):
++        self.stopping.set()
+diff --git a/apps/edge-bff/tests/test_beta_live_site.py b/apps/edge-bff/tests/test_beta_live_site.py
+new file mode 100644
+index 00000000..e6ed73f7
+--- /dev/null
++++ b/apps/edge-bff/tests/test_beta_live_site.py
+@@ -0,0 +1,322 @@
++"""EXEC-MU-ACCOUNTS, the beta and live websites on one database (EXEC.md "Production environment", user decisions
++2026-11-19; fix round of the round-2 re-check, track site: ERRORS R2-1, R2-7, R2-8, R2-13, R2-23, R2-26, R2-33, R2-38).
++
++- EDGE_SITE: beta (edge-bff, the admin only, EDGE_MULTIUSER off) or live (edge-bff-live, the user's domain, the switch
++  on); config.validate refuses the pairings the decision rules out, and the log mode of the email sender outside a
++  developer machine.
++- Each loop has its own switch: the AI job loop runs on the beta only; each site's backtest loop claims, reaps and
++  prunes only its own site's jobs; the email sender runs only with the switch on; the hourly housekeeping is its own
++  task, each purge on its own.
++- The live site never serves the Monitor, the admin routes, the admin rights or a lab item (principal.live_view):
++  404 for the routes, the capabilities masked for every principal, '*' included, while user #1 still needs the second
++  factor there. A session is bound to the site that made it: switch-off sessions have no account, switch-on ones do.
++- GET /version answers the site and the commit (RAILWAY_GIT_COMMIT_SHA).
++"""
++import asyncio
++import dataclasses
++import json
++import logging
++import os
++
++import psycopg
++import pytest
++from fastapi.testclient import TestClient
++
++from app import releases
++from app.allow import allow_of
++from app.backtest import BacktestLoop, BacktestStore
++from app.config import Settings
++from app.main import create_app
++from app.rights import rights_of
++from app.security import password_verifier
++from app.store import PURGES
++from app.worker import Housekeeping
++from conftest import FakeOrc
++from test_backtest import backtest_tables, configured, lineage_of, single, variant_of, worker  # noqa: F401 - fixtures
++from test_edge import ORIGIN, login
++from test_phase3a_gates import override, paid_user
++
++PASSWORD = 'local-test-password'
++CONV = 'conv_' + '0' * 32
++
++
++def live_of(settings):
++    return dataclasses.replace(settings, site='live', multiuser=True, code_secret='c' * 40, mfa_key='m' * 40)
++
++
++def db(store, sql, *args):
++    with store.connect() as c:
++        cur = c.execute(sql, args)
++        return cur.fetchall() if cur.description else cur.rowcount
++
++
++def sign_in_admin(c, store):
++    """User #1 on a switch-on site: the password, then the second factor marked passed (as the MFA step does)."""
++    r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'owner', 'password': PASSWORD})
++    assert r.status_code == 403 and r.json()['error']['code'] == 'MFA_REQUIRED', r.text
++    db(store, 'UPDATE edge_bff.sessions SET mfa_passed_at = now() WHERE revoked_at IS NULL AND user_id IS NOT NULL')
++    return {**ORIGIN, 'X-CSRF-Token': r.json()['error']['details']['csrf_token']}
++
++
++# ---- the setting ------------------------------------------------------------------------------------------------------
++
++def test_the_site_setting_refuses_the_pairings_the_decision_rules_out(settings):
++    assert settings.site == 'beta' and settings.ai_worker is True                     # unset: the running service
++    for change, words in [({'site': 'prod'}, 'EDGE_SITE is beta'),
++                          ({'site': 'live'}, 'EDGE_SITE=live needs EDGE_MULTIUSER=true'),
++                          # a beta with the switch on outside a developer machine (resend, so the log check passes)
++                          ({'multiuser': True, 'code_secret': 'c' * 40, 'mfa_key': 'm' * 40, 'environment': 'dev',
++                            'email_mode': 'resend'}, 'EDGE_SITE=beta runs with EDGE_MULTIUSER=false'),
++                          ({**dataclasses.asdict(live_of(settings)), 'ai_worker_enabled': True},
++                           'EDGE_AI_WORKER_ENABLED=true is for the beta only'),
++                          # ERRORS R2-26: the Railway environment of both sites is dev; log mode is a local one only
++                          ({**dataclasses.asdict(live_of(settings)), 'environment': 'dev'},
++                           'EDGE_EMAIL_MODE=log is for EDGE_ENVIRONMENT=local only')]:
++        with pytest.raises(ValueError, match=words):
++            dataclasses.replace(settings, **change).validate()
++    live = live_of(settings)
++    live.validate()                                         # a developer machine: log mode and the live site
++    assert live.ai_worker is False and dataclasses.replace(settings, ai_worker_enabled=False).ai_worker is False
++    dataclasses.replace(settings, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40).validate()   # the tests
++
++
++def env_of(monkeypatch, **extra):
++    for key in list(os.environ):
++        if key.startswith(('EDGE_', 'RESEND_', 'BACKTEST_', 'SCREENER_', 'TERMINAL_', 'RAILWAY_')):
++            monkeypatch.delenv(key, raising=False)
++    env = {'EDGE_DATABASE_URL': 'postgresql://edge_bff_login@db.invalid/edge', 'EDGE_ORC_URL': 'http://orc.invalid',
++           'MARKET_AI_ORC_API_KEY': 'k', 'EDGE_OWNER': 'edge-private', 'EDGE_LOGIN': 'owner',
++           'EDGE_PASSWORD_VERIFIER': password_verifier(PASSWORD), 'EDGE_SESSION_SECRET': 's' * 40,
++           'EDGE_PUBLIC_ORIGIN': 'http://testserver', 'EDGE_ENVIRONMENT': 'local', 'EDGE_SECURE_COOKIE': 'false', **extra}
++    for key, value in env.items():
++        monkeypatch.setenv(key, value)
++
++
++def test_the_site_and_each_loop_switch_are_read_from_the_environment(monkeypatch):
++    env_of(monkeypatch)
++    s = Settings.from_env()
++    assert (s.site, s.ai_worker, s.backtest_loop_enabled, s.housekeeping_enabled, s.email_enabled, s.commit_sha) == \
++        ('beta', True, True, True, True, '')
++    env_of(monkeypatch, EDGE_SITE='live', EDGE_MULTIUSER='true', EDGE_CODE_SECRET='c' * 40, EDGE_MFA_KEY='m' * 40,
++           EDGE_HOUSEKEEPING_ENABLED='false', RAILWAY_GIT_COMMIT_SHA='0123abc')
++    s = Settings.from_env()
++    assert (s.site, s.ai_worker, s.housekeeping_enabled, s.commit_sha) == ('live', False, False, '0123abc')
++
++
++@pytest.mark.parametrize('name', ['EDGE_AI_WORKER_ENABLED', 'EDGE_BACKTEST_LOOP_ENABLED', 'EDGE_HOUSEKEEPING_ENABLED'])
++def test_a_typo_in_a_loop_switch_stops_the_start(monkeypatch, name):
++    env_of(monkeypatch, **{name: 'yes'})
++    with pytest.raises(ValueError, match=name):
++        Settings.from_env()
++
++
++def test_the_start_line_shows_whether_both_sites_hold_the_same_shared_secrets(settings, store, caplog):
++    """ERRORS R2-8, R2-26: what can be checked from one process. Each start logs a mark of each secret that keys shared
++    rows; the same secrets give the same marks, another one another mark, and no mark carries the secret."""
++    beta, live = settings, live_of(settings)
++    assert beta.shared_key_marks()['EDGE_SESSION_SECRET'] == live.shared_key_marks()['EDGE_SESSION_SECRET']
++    assert beta.shared_key_marks()['EDGE_CODE_SECRET'] is None and live.shared_key_marks()['EDGE_CODE_SECRET']
++    rotated = dataclasses.replace(live, mfa_key='n' * 40).shared_key_marks()
++    assert rotated['EDGE_MFA_KEY'] != live.shared_key_marks()['EDGE_MFA_KEY']
++    assert not any(secret in json.dumps(live.shared_key_marks()) for secret in (live.session_secret, live.mfa_key))
++    with caplog.at_level(logging.INFO, logger='edge_bff.startup'):
++        with TestClient(create_app(live, store, FakeOrc())):
++            pass
++    done = [json.loads(r.getMessage()) for r in caplog.records if 'startup_done' in r.getMessage()]
++    assert done and done[0]['site'] == 'live' and done[0]['shared_keys'] == live.shared_key_marks()
++
++
++def test_version_names_the_site_and_the_commit(settings, store):
++    with TestClient(create_app(dataclasses.replace(settings, commit_sha='0123abc'), store, FakeOrc())) as c:
++        assert c.get('/version').json() == {'site': 'beta', 'commit': '0123abc'}
++    with TestClient(create_app(live_of(settings), store, FakeOrc())) as c:
++        assert c.get('/version').json() == {'site': 'live', 'commit': None}
++
++
++# ---- the live site serves no beta-only route -------------------------------------------------------------------------
++
++def test_the_live_site_answers_404_to_the_monitor_and_the_admin_routes(settings, store):
++    with TestClient(create_app(live_of(settings), store, FakeOrc())) as c:
++        for method, path in [('GET', '/api/v1/conversations'), ('GET', '/api/v1/models'), ('GET', '/api/v1/runs'),
++                             ('POST', '/api/v1/runs'), ('GET', '/api/v1/dev/manual/steps'), ('GET', '/monitor'),
++                             ('GET', f'/c/{CONV}')]:
++            r = c.request(method, path, headers=ORIGIN, json={'message': 'x', 'submission_key': 'k'}
++                          if method == 'POST' else None)
++            assert r.status_code == 404 and r.json()['error']['code'] == 'NOT_FOUND', (method, path, r.text)
++        assert c.get('/terminal').status_code == 200                      # the other pages are served
++        assert c.get('/api/v1/preferences').status_code == 401            # a route the site has: the session first
++    with TestClient(create_app(settings, store, FakeOrc())) as c:          # the beta: the Monitor is there
++        assert c.get('/api/v1/conversations').status_code == 401 and c.get('/monitor').status_code == 200
++
++
++def test_user_one_on_the_live_site_holds_no_beta_only_capability_and_still_needs_the_second_factor(settings, store):
++    app = create_app(live_of(settings), store, FakeOrc())
++    with TestClient(app) as c:
++        sign_in_admin(c, store)
++        access = c.get('/api/v1/auth/session').json()['access']
++        caps = access['capabilities']
++        assert '*' not in caps and 'terminal.view' in caps and 'backtest.run' in caps, caps
++        assert not [k for k in caps if k.split('.')[0] in ('monitor', 'admin') or k == 'backtest.flow_point_in_time']
++        assert access['mfa_ok'] is True and access['version'].startswith('db-')
++        assert c.get('/api/v1/conversations').status_code == 404
++        p = app.state.auth.owner_principal(settings.owner)
++        assert not p.can('monitor.view') and not p.can('admin.access') and rights_of(p) == []
++        assert all(v != '*' for v in allow_of(p, 'backtest').values())
++        assert allow_of(p, 'backtest')['indicator']                        # the released items are held
++
++
++def test_a_lab_item_is_never_held_on_the_live_site(settings, store, monkeypatch):
++    entries = releases.entries('indicator')
++    lab = entries[0]['id']
++    items = [{'kind': kind, 'id': e['id'], 'stage': 'lab' if (kind, e['id']) == ('indicator', lab) else e['stage']}
++             for kind in releases.KINDS for e in releases.entries(kind)]
++    monkeypatch.setattr(releases, 'CURRENT', releases.Releases({'schema_version': 1, 'items': items}))
++    live = create_app(live_of(settings), store, FakeOrc())
++    with TestClient(live) as c:
++        sign_in_admin(c, store)
++        held = [e['id'] for e in c.get('/api/v1/catalog/indicator').json()['entries']]
++        assert lab not in held and len(held) == len(entries) - 1
++        assert lab not in allow_of(live.state.auth.owner_principal(settings.owner), 'backtest')['indicator']
++        # an account whose family value is {"all": true} (every id, lab included) holds no lab item there either
++        alice = paid_user(store, 'alice')
++        override(store, alice['user_id'], 'terminal.indicator', '{"all": true}')
++        p = live.state.auth.owner_principal(alice['owner_key'])
++        assert not p.can(f'terminal.indicator:{lab}') and p.can(f'terminal.indicator:{entries[1]["id"]}')
++        assert lab not in allow_of(p, 'backtest')['indicator']
++    with TestClient(create_app(settings, store, FakeOrc())) as c:          # the beta: '*' holds the lab item
++        login(c)
++        assert lab in [e['id'] for e in c.get('/api/v1/catalog/indicator').json()['entries']]
++
++
++def test_a_session_opens_only_the_site_that_made_it(settings, store):
++    """ERRORS R2-1 for the two websites: a live session (an account's, its second factor passed) never opens the beta,
++    and a beta session (no account) never opens the live site."""
++    with TestClient(create_app(live_of(settings), store, FakeOrc())) as c:
++        sign_in_admin(c, store)
++        live_token = c.cookies.get('edge_session')
++        assert c.get('/api/v1/auth/session').status_code == 200
++    with TestClient(create_app(settings, store, FakeOrc())) as c:
++        c.cookies.set('edge_session', live_token)
++        assert c.get('/api/v1/auth/session').status_code == 401
++        c.cookies.clear()
++        login(c)
++        beta_token = c.cookies.get('edge_session')
++    with TestClient(create_app(live_of(settings), store, FakeOrc())) as c:
++        c.cookies.set('edge_session', beta_token)
++        assert c.get('/api/v1/auth/session').status_code == 401
++
++
++# ---- each site's queues ----------------------------------------------------------------------------------------------
++
++def test_each_site_claims_only_the_runs_it_queued(settings, store):
++    first, _ = store.submit(settings.owner, 'live-one', {'message': 'One'}, site='live')
++    assert first['site'] == 'live' and store.claim(90) is None                       # the beta's claim takes nothing
++    app = create_app(live_of(settings), store, FakeOrc())
++    row = app.state.worker.claim(90)                                                  # the live site's worker claim
++    assert row['request_id'] == first['request_id']
++    waiting, _ = store.submit(settings.owner, 'live-two', {'message': 'Two'}, after_stop=True, site='live')
++    store.transition(row, 'FINISHED')                                                 # the waiting message becomes a job
++    promoted = db(store, 'SELECT site, state FROM edge_bff.jobs WHERE request_id = %s', waiting['request_id'])
++    assert promoted == [{'site': 'live', 'state': 'QUEUED'}]
++    assert store.claim(90) is None and store.claim(90, site='live')['request_id'] == waiting['request_id']
++
++
++def test_the_beta_backtest_loop_neither_reaps_nor_prunes_the_live_sites_jobs(configured, store):
++    live, beta = BacktestStore(store, 'live'), BacktestStore(store, 'beta')
++    request = single()
++    job, _ = live.submit(configured.owner, 'live-job', request, lineage_of(request), variant_of(request), 3)
++    assert job['site'] == 'live' and beta.claim(90) is None
++    claimed = live.claim(90)
++    db(store, "UPDATE edge_bff.backtest_jobs SET lease_expires_at = now() - interval '1 second' WHERE request_id = %s",
++       claimed['request_id'])
++    db(store, '''INSERT INTO edge_bff.backtest_results(request_id, part, payload, bytes, sha256, created_at)
++        VALUES (%s, 'core', '\\x00', 1, %s, now() - interval '40 days')''', claimed['request_id'], '0' * 64)
++    assert beta.reap() == [] and beta.prune() == 0
++    assert live.reap() == [claimed['request_id']] and live.prune() == 1
++
++
++def test_a_failing_prune_or_reap_does_not_stop_the_backtest_claims(settings):
++    """ERRORS R2-33 (BacktestLoop.run): the prune and the reap ran before the claim in one try, so one that failed
++    stopped every backtest."""
++    calls = []
++
++    class Failing:
++        def prune(self):
++            calls.append('prune')
++            raise psycopg.errors.QueryCanceled('canceling statement due to statement timeout')
++
++        def reap(self):
++            calls.append('reap')
++            raise psycopg.errors.LockNotAvailable('lock timeout')
++
++        def claim(self, lease):
++            calls.append('claim')
++            if calls.count('claim') == 3:
++                loop.stop()
++            return None
++
++    loop = BacktestLoop(dataclasses.replace(settings, poll_seconds=0.001), Failing(), None)
++    asyncio.run(asyncio.wait_for(loop.run(), timeout=5))
++    assert calls.count('claim') == 3 and calls[:3] == ['prune', 'reap', 'claim']
++
++
++# ---- the housekeeping ------------------------------------------------------------------------------------------------
++
++def test_a_failing_purge_stops_neither_the_others_nor_its_own_next_try(settings, caplog):
++    calls, fails = [], {'throttle': 2}
++
++    class Store:
++        def purge(self, name, limit):
++            calls.append(name)
++            if fails.get(name):
++                fails[name] -= 1
++                raise psycopg.errors.QueryCanceled('canceling statement due to statement timeout')
++            return 0
++
++    loop = Housekeeping(dataclasses.replace(settings, poll_seconds=0.001), Store())
++
++    async def scenario():
++        task = asyncio.create_task(loop.run())
++        for _ in range(2000):
++            if calls.count('throttle') >= 3:
++                break
++            await asyncio.sleep(0.002)
++        loop.stop()
++        await task
++    with caplog.at_level(logging.ERROR, logger='edge_bff.worker'):
++        asyncio.run(scenario())
++    assert calls.count('sessions') == 1 and calls.count('pending') == 1               # each made once, at the start
++    assert calls.count('throttle') == 3                                               # failed twice, then made
++    failed = [json.loads(r.getMessage()) for r in caplog.records if 'housekeeping_failed' in r.getMessage()]
++    assert [(f['purge'], f['error'], f['failures']) for f in failed] == [('throttle', 'QueryCanceled', 1),
++                                                                        ('throttle', 'QueryCanceled', 2)]
++    assert failed[1]['retry_s'] > failed[0]['retry_s']                                # the backoff doubles
++
++
++def test_a_purge_another_instance_runs_is_skipped_and_every_purge_is_bounded(store):
++    db(store, "INSERT INTO edge_bff.sessions(token_hash, owner_key, created_at, expires_at) SELECT md5(g::text) || "
++              "md5(g::text), 'o', now() - interval '2 hours', now() - interval '1 hour' FROM generate_series(1, 7) g")
++    with psycopg.connect(store.url, autocommit=True) as other:
++        other.execute("SELECT pg_advisory_lock(hashtextextended('housekeeping:sessions', 0))")
++        assert store.purge('sessions', 3) is None                                    # the other website purges now
++        other.execute("SELECT pg_advisory_unlock(hashtextextended('housekeeping:sessions', 0))")
++    assert [store.purge('sessions', 3) for _ in range(4)] == [3, 3, 1, 0]
++    assert set(PURGES) == {'sessions', 'throttle', 'pending'}
++
++
++# ---- the start-up ----------------------------------------------------------------------------------------------------
++
++def test_a_seed_that_fails_with_the_switch_on_keeps_the_site_not_ready(settings, store, monkeypatch):
++    """With the switch on nothing can sign in without user #1 and its plan: /ready stays 503 and no loop starts while
++    the seed fails (it is tried again); with the switch off the sign-in needs no account, so the site starts."""
++    for site, ready in ((live_of(settings), 503), (settings, 200)):
++        app = create_app(dataclasses.replace(site, worker_enabled=True), store, FakeOrc())
++        failing = {'n': 0}
++
++        def fail():
++            failing['n'] += 1
++            raise psycopg.OperationalError('the database system is starting up')
++        monkeypatch.setattr(app.state.auth, 'seed_user', fail)
++        with TestClient(app) as c:
++            assert c.get('/ready').status_code == ready
++        assert failing['n'] >= (2 if ready == 503 else 1)
+diff --git a/apps/edge-bff/tests/test_edge.py b/apps/edge-bff/tests/test_edge.py
+index d398c80e..82a9176f 100644
+--- a/apps/edge-bff/tests/test_edge.py
++++ b/apps/edge-bff/tests/test_edge.py
+@@ -355,17 +355,29 @@ def test_an_attached_selection_reaches_orc_and_a_bad_one_is_refused(settings,sto
+         assert c.get('/api/v1/runs/'+id+'/progress').json()['status']=='RUNNING'
+         assert c.get('/api/v1/runs/edge_unknown/progress').status_code==404
+ 
+-def test_sessions_are_cleaned_when_the_loop_starts_whatever_the_clock_reads(settings,monkeypatch):
+-    # time.monotonic() counts from an unspecified point (on Linux the host's boot): on a host up for 5 s the loop still
+-    # cleans the sessions at its start, then once an hour (3600 s after that cleanup), not on every turn
++def test_sessions_are_cleaned_when_the_housekeeping_starts_whatever_the_clock_reads(settings,monkeypatch):
++    # time.monotonic() counts from an unspecified point (on Linux the host's boot): on a host up for 5 s the housekeeping
++    # still purges at its start, then once an hour (3600 s after that purge), not on every turn. EXEC-MU-ACCOUNTS fix
++    # round (ERRORS R2-33): the purges left the AI worker's loop for their own task (app/worker.py Housekeeping), so
++    # this test, which held that loop to the same rule, holds the housekeeping to it
+     import types
+     from app import worker as worker_module
++    from app.store import PURGES
++    from app.worker import Housekeeping
+     now={'t':5.0};calls=[]
+     class Store:
+-        def cleanup_sessions(self):calls.append('cleanup')
+-        def claim(self,lease):
+-            calls.append('claim');n=calls.count('claim');now['t']+={1:1.0,2:3600.0}.get(n,0.0)
+-            if n==3:loop.stop()
++        def purge(self,name,limit):calls.append(name);return 0
+     monkeypatch.setattr(worker_module,'time',types.SimpleNamespace(monotonic=lambda:now['t']))
+-    loop=Worker(settings,Store(),FakeOrc());asyncio.run(loop.run())
+-    assert calls==['cleanup','claim','claim','cleanup','claim']
++    loop=Housekeeping(settings,Store())
++    async def scenario():
++        task=asyncio.create_task(loop.run())
++        async def until(n):
++            for _ in range(400):
++                if len(calls)>=n:return
++                await asyncio.sleep(0.005)
++        await until(len(PURGES));now['t']+=1.0
++        await asyncio.sleep(0.05)                                  # turns without a purge due: nothing more
++        assert len(calls)==len(PURGES)
++        now['t']+=3600.0;await until(2*len(PURGES));loop.stop();await task
++    asyncio.run(scenario())
++    assert calls==[*PURGES,*PURGES]
+diff --git a/apps/edge-bff/tests/test_r2_trace_beta_live.py b/apps/edge-bff/tests/test_r2_trace_beta_live.py
+index 784a7ddb..a922b630 100644
+--- a/apps/edge-bff/tests/test_r2_trace_beta_live.py
++++ b/apps/edge-bff/tests/test_r2_trace_beta_live.py
+@@ -1,18 +1,22 @@
+-"""EXEC-MU-ACCOUNTS re-check round 2 (checker C2-TRACE): two edge-bff services on one database.
++"""EXEC-MU-ACCOUNTS re-check round 2 (checker C2-TRACE, ERRORS R2-38): two edge-bff services on one database.
+ 
+-The user plans a beta site (the service edge-bff, following main) and a live site (a second edge-bff service, moved to a
+-tested version on the user's go), both on the same PostgreSQL and the same workers (EXEC.md EXEC-MU-ACCOUNTS,
+-"Production environment", details open). Both services run the same start-up step and the same queue loops over the
+-shared edge_bff tables, each with its own configuration (EDGE_MULTIUSER, EDGE_PASSWORD_VERIFIER, EDGE_ADMIN_OWNERS) and
+-its own code version (releases.json, allow.FAMILIES).
++The user's plan (EXEC.md EXEC-MU-ACCOUNTS, "Production environment", 2026-11-19): a beta site (the service edge-bff, its
++Railway address, the admin only, EDGE_MULTIUSER off as today) and a live site (edge-bff-live, the user's domain,
++EDGE_MULTIUSER on), both on the same PostgreSQL and the same workers. EDGE_SITE (beta|live) tells them apart. Both run
++the same start-up step and the same queue loops over the shared edge_bff tables, each with its own configuration and
++its own code version.
+ 
+-These tests fail on ae9a1d8f: the result of a request depends on which service's start or loop touched the shared row.
+-Rule they hold: a row made under one site's rules is read and changed only under those rules. They wait in
+-verification/edge_multiuser/access_tiers/pending/ until the beta/live design is decided (pending/README.md).
++These tests failed on ae9a1d8f (in verification/edge_multiuser/access_tiers/pending/ until the design was decided): the
++result of a request depended on which service's start or loop touched the shared row. Rule they hold: a row made under
++one site's rules is read and changed only under those rules.
++
++Changed with the decided design (fix round, track site): the checker wrote them for a beta with the switch on and a live
++site with it off, the order the decision reversed (config.validate now refuses both outside a developer machine). They
++hold the same rule for the decided pairing: a live site's queued job is claimed by the live site's loop only, and a
++start of the beta (switch off) keeps the password user #1 set on the live site.
+ """
+ import dataclasses
+ 
+-import psycopg
+ from fastapi.testclient import TestClient
+ 
+ from app.main import create_app
+@@ -28,37 +32,49 @@ def seed_verifier(store, owner):
+         WHERE u.owner_key = %s AND i.provider = 'password' ''', owner)[0]['verifier']
+ 
+ 
+-def test_a_job_queued_on_the_switch_on_site_is_dispatched_when_the_switch_off_site_claims_it(on, store, workers):
+-    """Beta has EDGE_MULTIUSER on, live has it off (the order of a switch-on tried on beta first). A paid account's
+-    backtest queued on beta must run whichever service's loop claims it. Today the live loop claims it and resolves its
+-    owner with live's switch-off mapping (principal.owner_principal -> switch_off_principal: an owner EDGE_ADMIN_OWNERS
+-    does not list holds nothing), so the paid account's job ends FAILED CAPABILITY_REQUIRED backtest.run without any
+-    worker call."""
+-    live = dataclasses.replace(on, multiuser=False)
+-    with TestClient(create_app(on, store, FakeOrc())) as beta:
++def sites(on):
++    """(beta, live): the beta with the switch off (as today), the live site with it on (EDGE_SITE=live)."""
++    return dataclasses.replace(on, multiuser=False), dataclasses.replace(on, site='live')
++
++
++def test_a_job_queued_on_the_live_site_is_dispatched_by_the_live_site_only(on, store, workers):
++    """A paid account's backtest queued on the live site must run under the live site's rules. Before the fix the beta's
++    loop could claim it and resolve its owner with the beta's switch-off mapping (principal.owner_principal ->
++    switch_off_principal: an owner EDGE_ADMIN_OWNERS does not list holds nothing), so the job ended FAILED
++    CAPABILITY_REQUIRED backtest.run without any worker call. Now the beta's loop never claims it (backtest_jobs.site),
++    and the live site's loop dispatches it."""
++    beta, live = sites(on)
++    with TestClient(create_app(live, store, FakeOrc())) as site:
+         paid_user(store, 'alice')
+-        h = sign_in(beta, 'alice', 'alice-password')
+-        job = beta.post(BT, headers=h, json={**single(), 'client_request_id': 'beta-job'})
++        h = sign_in(site, 'alice', 'alice-password')
++        job = site.post(BT, headers=h, json={**single(), 'client_request_id': 'live-job'})
+         assert job.status_code == 202, job.text
++    request_id = job.json()['request_id']
+     before = len(workers[0].posted('/v1/jobs'))
++    with TestClient(create_app(beta, store, FakeOrc())) as site:
++        assert site.app.state.backtests.store.claim(90) is None      # the beta's queue loop takes nothing of the live's
++    row = db(store, 'SELECT state, error, site FROM edge_bff.backtest_jobs WHERE request_id = %s', request_id)[0]
++    assert (row['state'], row['site']) == ('QUEUED', 'live'), row
+     with TestClient(create_app(live, store, FakeOrc())) as site:
+-        run_next(site)                                     # the live service's queue loop takes the oldest queued job
+-    row = db(store, 'SELECT state, error FROM edge_bff.backtest_jobs WHERE request_id = %s', job.json()['request_id'])[0]
++        assert run_next(site) == request_id                          # the live site's loop takes it
++    row = db(store, 'SELECT state, error FROM edge_bff.backtest_jobs WHERE request_id = %s', request_id)[0]
+     assert (row['error'] or {}).get('code') != 'CAPABILITY_REQUIRED', row
+     assert len(workers[0].posted('/v1/jobs')) == before + 1, 'the paid account\'s job never reached the worker'
+ 
+ 
+-def test_a_start_of_the_switch_off_site_keeps_the_password_user_one_set_on_the_switch_on_site(on, settings, store):
+-    """User #1 (the seed, EDGE_OWNER) signs in on beta (switch on) with the password of its account identity; a password
+-    change or reset there replaces that identity's verifier (auth_flows.py FlowStore._set_password). Today every start of
+-    live (switch off) copies live's EDGE_PASSWORD_VERIFIER over it (accounts.py AccountStore.seed, the `elif not
+-    multiuser` branch), so the admin's beta password silently reverts to the environment's at each live deploy."""
+-    with TestClient(create_app(on, store, FakeOrc())):
+-        pass                                               # beta starts first: user #1 is seeded
+-    chosen = password_verifier('the-admins-new-beta-password')
++def test_a_start_of_the_beta_site_keeps_the_password_user_one_set_on_the_live_site(on, store):
++    """User #1 (the seed, EDGE_OWNER) signs in on the live site (switch on) with the password of its account identity; a
++    password change or reset there replaces that identity's verifier (auth_flows.py FlowStore._set_password). Before
++    the fix every start of the beta (switch off) copied the beta's EDGE_PASSWORD_VERIFIER over it (accounts.py
++    AccountStore.seed, the `elif not multiuser` branch), so the admin's live password silently reverted to the
++    environment's at each beta deploy. Now the seed copies only over its own copy (identities.seed_verifier_sha256)."""
++    beta, live = sites(on)
++    with TestClient(create_app(live, store, FakeOrc())):
++        pass                                               # the live site starts first: user #1 is seeded
++    chosen = password_verifier('the-admins-new-live-password')
+     db(store, '''UPDATE edge_bff.identities SET verifier = %s WHERE provider = 'password' AND user_id =
+-        (SELECT user_id FROM edge_bff.users WHERE owner_key = %s)''', chosen, on.owner)   # a change made on beta
+-    with TestClient(create_app(settings, store, FakeOrc())):
+-        pass                                               # live (switch off) is deployed
+-    assert seed_verifier(store, on.owner) == chosen
+-    assert verify_password('the-admins-new-beta-password', seed_verifier(store, on.owner))
++        (SELECT user_id FROM edge_bff.users WHERE owner_key = %s)''', chosen, live.owner)   # a change made on live
++    with TestClient(create_app(beta, store, FakeOrc())):
++        pass                                               # the beta (switch off) is deployed
++    assert seed_verifier(store, live.owner) == chosen
++    assert verify_password('the-admins-new-live-password', seed_verifier(store, live.owner))
+diff --git a/verification/edge_multiuser/access_tiers/pending/README.md b/verification/edge_multiuser/access_tiers/pending/README.md
+index b1912754..b05f4698 100644
+--- a/verification/edge_multiuser/access_tiers/pending/README.md
++++ b/verification/edge_multiuser/access_tiers/pending/README.md
+@@ -7,9 +7,15 @@ decision lands with the test, changed to match it, in the suite it came from.
+ | File | From | Decision | Goes back to |
+ |---|---|---|---|
+ 
+-| `test_r2_trace_beta_live.py` | C2-TRACE, re-check round 2 of Phases 0-3b (2026-11-19) | The two-site design (EXEC.md EXEC-MU-ACCOUNTS: two edge-bff services on one database; open). The tests hold that a shared row made under one site's rules is read and changed only under those rules: a queued job is dispatched by the rules of the site that queued it, and a start of one site does not rewrite user #1's password identity set on the other. The design decides how (a site column on the queue tables and one loop per site, or one switch state for both, or a seed that never copies while another site has the switch on); the tests change to match it | `apps/edge-bff/tests/` (its imports are relative to that folder) |
+ 
+-No other test waits here now. The last one, `c1-phase3b.test.ts` (C1, Phase 3b, `4188e3cf`, ERRORS M482), went back with
++No test waits here now. The last one, `test_r2_trace_beta_live.py` (C2-TRACE, re-check round 2 of Phases 0-3b,
++2026-11-19, ERRORS R2-38), went back with the two-site design (EXEC.md EXEC-MU-ACCOUNTS "Production environment":
++EDGE_SITE beta|live, the queues' `site` column, the seed's mark; fix round, track site) to
++`apps/edge-bff/tests/test_r2_trace_beta_live.py`, changed to the decision: the checker wrote it for a beta with the
++switch on and a live site with it off, the pairing the decision reversed (config.validate refuses both outside a
++developer machine); it holds the same rule for the decided pairing.
++
++The one before it, `c1-phase3b.test.ts` (C1, Phase 3b, `4188e3cf`, ERRORS M482), went back with
+ O3b-1 (CONTRACT.md 8b "3b follow-up", decided 2026-11-18) to `apps/backtest-worker/tests/c1-phase3b.test.ts`, changed to
+ the decision: the technical built-ins (`rank_by` adx/rsi/vol, the `macd` card, the ATR stop, target and chandelier) are
+ accepted without their indicator; `rank_by` `fnet` and the `broker` and `top5` cards are refused without their flow item.
+-- 
+2.43.0
+
+
+From 9099a1f4de4d7d39736a7f2fc40eebf2ce56d7cf Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 07:44:52 +0000
+Subject: [PATCH 3/3] EXEC-MU-ACCOUNTS fix round (track site): an explicit
+ switch for log mode on a deployed site, the sender-off line at every
+ switch-on start, the worker's default claim read when called
+
+EDGE_EMAIL_LOG_ALLOWED=true (default false) is the only way to run the log email mode with the switch on outside
+EDGE_ENVIRONMENT=local (ERRORS R2-26: a copied configuration never carries it by accident; a test of the live site
+before its Resend key can), logged email_log_mode_allowed at every start. email_sender_off is logged whenever the switch
+is on and no sender runs. Worker.claim reads the store's claim when called, so a store without one (a test double of
+the dispatch) still builds a worker.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ apps/edge-bff/README.md                    |  5 +++--
+ apps/edge-bff/app/config.py                | 12 +++++++++---
+ apps/edge-bff/app/main.py                  |  9 ++++++---
+ apps/edge-bff/app/worker.py                |  2 +-
+ apps/edge-bff/tests/test_beta_live_site.py |  4 ++++
+ 5 files changed, 23 insertions(+), 9 deletions(-)
+
+diff --git a/apps/edge-bff/README.md b/apps/edge-bff/README.md
+index e5e2f884..57a2647f 100644
+--- a/apps/edge-bff/README.md
++++ b/apps/edge-bff/README.md
+@@ -789,7 +789,7 @@ R2-26, R2-33, R2-34, R2-36, R2-38; `.railway/railway.ts` holds the live service
+ - **Impossible pairings stop the start** (`config.py validate`): `EDGE_SITE=live` without `EDGE_MULTIUSER=true`; the beta
+   with the switch on (outside `EDGE_ENVIRONMENT=local`, where the tests run both); `EDGE_AI_WORKER_ENABLED=true` on the
+   live site; `EDGE_EMAIL_MODE=log` with the switch on outside `local` (it was allowed in `dev`, the Railway environment
+-  both sites run in).
++  both sites run in), unless `EDGE_EMAIL_LOG_ALLOWED=true` says so on purpose (a test with no real person).
+ - **Each queued row carries its site** (`edge_bff.jobs.site`, `edge_bff.backtest_jobs.site`, migrations `20261119_020`
+   and `_021`, default `beta`: every earlier row is the admin's). Each site's loop claims, reaps and prunes only its own
+   site's jobs, so a job is dispatched by the code, the principal and the release file of the site that took it.
+@@ -896,7 +896,8 @@ Email (`app/mailer.py`, `app/email_texts.py`, plain English): a code and its ema
+ - `EDGE_EMAIL_MODE=log` (default): the email is written to the log, the code masked unless `EDGE_ENVIRONMENT=local`,
+   and the row is marked sent with its payload kept, so a tester reads the code from the row. Allowed only with
+   `EDGE_ENVIRONMENT=local` when the switch is on (ERRORS R2-26: no longer `dev`, the Railway environment of the live
+-  site too).
++  site too), or with the explicit `EDGE_EMAIL_LOG_ALLOWED=true` for a test of the live site before its Resend key, with
++  no real person (logged `email_log_mode_allowed` at every start while it is on).
+ - `EDGE_EMAIL_MODE=resend`: POST `https://api.resend.com/emails` with the row's `Idempotency-Key`; retried after 5 s,
+   30 s and 2 min, then `failed`; the payload is nulled once sent; a code email past its expiry becomes `expired`, never
+   sent. Needs `RESEND_API_KEY` and `EDGE_EMAIL_FROM` (an address); `RESEND_WEBHOOK_SECRET` (`whsec_…`) signs the
+diff --git a/apps/edge-bff/app/config.py b/apps/edge-bff/app/config.py
+index 29b4cd4f..cd93d1ae 100644
+--- a/apps/edge-bff/app/config.py
++++ b/apps/edge-bff/app/config.py
+@@ -99,6 +99,9 @@ class Settings:
+     code_secret: str = field(default='', repr=False)
+     mfa_key: str = field(default='', repr=False)
+     email_mode: str = 'log'
++    # ERRORS R2-26: log mode with the switch on outside EDGE_ENVIRONMENT=local only by this explicit, deliberate switch
++    # (EDGE_EMAIL_LOG_ALLOWED, default false): a test of the live site before its Resend key, never with real people
++    email_log_allowed: bool = False
+     email_enabled: bool = True
+     email_from: str = ''
+     resend_api_key: str = field(default='', repr=False)
+@@ -169,6 +172,7 @@ class Settings:
+                 code_secret=os.environ.get('EDGE_CODE_SECRET', ''), mfa_key=os.environ.get('EDGE_MFA_KEY', ''),
+                 email_mode=os.environ.get('EDGE_EMAIL_MODE', 'log').strip().lower(),
+                 email_enabled=switch_of('EDGE_EMAIL_ENABLED', 'true'),
++                email_log_allowed=switch_of('EDGE_EMAIL_LOG_ALLOWED'),
+                 email_from=os.environ.get('EDGE_EMAIL_FROM', '').strip(),
+                 resend_api_key=os.environ.get('RESEND_API_KEY', ''),
+                 resend_webhook_secret=os.environ.get('RESEND_WEBHOOK_SECRET', ''),
+@@ -183,10 +187,12 @@ class Settings:
+     def validate(self):
+         # EXEC-MU-ACCOUNTS Phase 1: log mode keeps each code readable in its outbox row, so it is for a developer
+         # machine only; with the switch off nothing is sent, so the default (log) never stops a switch-off start.
+-        # ERRORS R2-26: no longer EDGE_ENVIRONMENT=dev too, the Railway environment the live site runs in
+-        if self.multiuser and self.email_mode == 'log' and self.environment != 'local':
++        # ERRORS R2-26: no longer by the environment's name (EDGE_ENVIRONMENT=dev is the Railway environment the live
++        # site runs in too), but by an explicit switch a copied configuration does not carry by accident
++        if self.multiuser and self.email_mode == 'log' and self.environment != 'local' and not self.email_log_allowed:
+             raise ValueError('EDGE_EMAIL_MODE=log is for EDGE_ENVIRONMENT=local only (codes stay readable in the '
+-                             'outbox); set EDGE_EMAIL_MODE=resend with RESEND_API_KEY and EDGE_EMAIL_FROM')
++                             'outbox); set EDGE_EMAIL_MODE=resend with RESEND_API_KEY and EDGE_EMAIL_FROM, or, for a '
++                             'test with no real person, EDGE_EMAIL_LOG_ALLOWED=true')
+         # the two websites (EXEC-MU-ACCOUNTS "Production environment"): the live site is where accounts sign in, the
+         # beta the admin's alone. A beta with the switch on would take registrations, and a live site with it off would
+         # be a door to user #1 without the second factor. On a developer machine (local: one process, one database,
+diff --git a/apps/edge-bff/app/main.py b/apps/edge-bff/app/main.py
+index ee1f1feb..fd5b60ac 100644
+--- a/apps/edge-bff/app/main.py
++++ b/apps/edge-bff/app/main.py
+@@ -264,6 +264,12 @@ def create_app(settings=None, store=None, orc=None):
+         starts none): the AI job loop (the beta only, Settings.ai_worker), the backtest loop (each site claims its own
+         jobs), the hourly housekeeping and the email sender (its own task, never behind an AI run or a backtest; only
+         with the switch on, so only on the live site)."""
++        if settings.multiuser and settings.email_mode == 'log' and settings.environment != 'local':
++            # EDGE_EMAIL_LOG_ALLOWED: every code stays readable in the outbox; said at every start while it is on
++            startup_log.error(json.dumps({'event': 'email_log_mode_allowed', 'site': settings.site}))
++        if settings.multiuser and not (settings.worker_enabled and settings.email_enabled):
++            # no registration or reset code leaves this instance; visible, as an intended sender-less one must be
++            startup_log.error(json.dumps({'event': 'email_sender_off', 'site': settings.site}))
+         if not settings.worker_enabled:
+             return
+         if settings.ai_worker:
+@@ -274,9 +280,6 @@ def create_app(settings=None, store=None, orc=None):
+             started['tasks'].append(asyncio.create_task(housekeeping.run()))
+         if settings.multiuser and settings.email_enabled:
+             started['tasks'].append(asyncio.create_task(sender.run()))
+-        elif settings.multiuser:
+-            # no registration or reset code leaves this instance; visible, as an intended sender-less one must be
+-            startup_log.error(json.dumps({'event': 'email_sender_off', 'site': settings.site}))
+ 
+     async def start_up():
+         """One attempt at the start-up steps (ERRORS R2-3, R2-36); True once they ran, and then always. Readiness first
+diff --git a/apps/edge-bff/app/worker.py b/apps/edge-bff/app/worker.py
+index 705d0ac7..7b486d9c 100644
+--- a/apps/edge-bff/app/worker.py
++++ b/apps/edge-bff/app/worker.py
+@@ -32,7 +32,7 @@ class Worker:
+         self.access = lambda owner: owner_principal(settings, None, owner)
+         # EXEC-MU-ACCOUNTS beta/live: the claim of the next queued run (main.py sets the app's, which claims only this
+         # site's runs, store.claim(seconds, site); on its own, as a test builds it, the store's own claim)
+-        self.claim = store.claim
++        self.claim = lambda seconds: self.store.claim(seconds)
+         self.stopping = asyncio.Event()
+ 
+     async def call(self, fn, *args, **kwargs):
+diff --git a/apps/edge-bff/tests/test_beta_live_site.py b/apps/edge-bff/tests/test_beta_live_site.py
+index e6ed73f7..ab0afcd0 100644
+--- a/apps/edge-bff/tests/test_beta_live_site.py
++++ b/apps/edge-bff/tests/test_beta_live_site.py
+@@ -76,6 +76,10 @@ def test_the_site_setting_refuses_the_pairings_the_decision_rules_out(settings):
+             dataclasses.replace(settings, **change).validate()
+     live = live_of(settings)
+     live.validate()                                         # a developer machine: log mode and the live site
++    # a deliberate test of the live site before its Resend key: only by the explicit switch
++    dataclasses.replace(live, environment='dev', email_log_allowed=True, orc_url='http://market-ai-orc.railway.internal:8080',
++                        database_url='postgresql://edge_bff_login@db.invalid/edge', origin='https://edge.example',
++                        secure_cookie=True).validate()
+     assert live.ai_worker is False and dataclasses.replace(settings, ai_worker_enabled=False).ai_worker is False
+     dataclasses.replace(settings, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40).validate()   # the tests
+ 
+-- 
+2.43.0
+
