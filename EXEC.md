@@ -15987,6 +15987,12 @@ dipakai accross chat sebagai referencec?"
   - **User, 2026-11-19:** "A" (go to the fixes now rather than a round 3 on code that the fixes change; later checks run
     on the fixed code: the 3c check and one before the switch goes on). The fix round runs as five builders at xhigh,
     one track each (terminal path, beta/live site split, authentication, plans and pages, records and CI).
+  - **Testing on the live site (the user, 2026-11-19):** "Ok kita tunggu 1-3" (the website code goes on edge-bff-live
+    only after the security fixes of the fix round, 3c deployed and Resend ready). Registration during the test:
+    "Terbuka, tapi belum bisa mendaftar" (read as: the live website can be opened by anyone, but registration is
+    closed until the launch). To build: a setting that closes registration on live, with a plain refusal on the page;
+    the test accounts are made by the main agent for the user's addresses, and the user sets their passwords through
+    "forgot password" (needs Resend).
 
 ### Production environment (user decisions 2026-11-19; open details asked)
 
