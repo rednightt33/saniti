@@ -32,7 +32,7 @@ class Worker:
         self.access = lambda owner: owner_principal(settings, None, owner)
         # EXEC-MU-ACCOUNTS beta/live: the claim of the next queued run (main.py sets the app's, which claims only this
         # site's runs, store.claim(seconds, site); on its own, as a test builds it, the store's own claim)
-        self.claim = store.claim
+        self.claim = lambda seconds: self.store.claim(seconds)
         self.stopping = asyncio.Event()
 
     async def call(self, fn, *args, **kwargs):

@@ -99,6 +99,9 @@ class Settings:
     code_secret: str = field(default='', repr=False)
     mfa_key: str = field(default='', repr=False)
     email_mode: str = 'log'
+    # ERRORS R2-26: log mode with the switch on outside EDGE_ENVIRONMENT=local only by this explicit, deliberate switch
+    # (EDGE_EMAIL_LOG_ALLOWED, default false): a test of the live site before its Resend key, never with real people
+    email_log_allowed: bool = False
     email_enabled: bool = True
     email_from: str = ''
     resend_api_key: str = field(default='', repr=False)
@@ -169,6 +172,7 @@ class Settings:
                 code_secret=os.environ.get('EDGE_CODE_SECRET', ''), mfa_key=os.environ.get('EDGE_MFA_KEY', ''),
                 email_mode=os.environ.get('EDGE_EMAIL_MODE', 'log').strip().lower(),
                 email_enabled=switch_of('EDGE_EMAIL_ENABLED', 'true'),
+                email_log_allowed=switch_of('EDGE_EMAIL_LOG_ALLOWED'),
                 email_from=os.environ.get('EDGE_EMAIL_FROM', '').strip(),
                 resend_api_key=os.environ.get('RESEND_API_KEY', ''),
                 resend_webhook_secret=os.environ.get('RESEND_WEBHOOK_SECRET', ''),
@@ -183,10 +187,12 @@ class Settings:
     def validate(self):
         # EXEC-MU-ACCOUNTS Phase 1: log mode keeps each code readable in its outbox row, so it is for a developer
         # machine only; with the switch off nothing is sent, so the default (log) never stops a switch-off start.
-        # ERRORS R2-26: no longer EDGE_ENVIRONMENT=dev too, the Railway environment the live site runs in
-        if self.multiuser and self.email_mode == 'log' and self.environment != 'local':
+        # ERRORS R2-26: no longer by the environment's name (EDGE_ENVIRONMENT=dev is the Railway environment the live
+        # site runs in too), but by an explicit switch a copied configuration does not carry by accident
+        if self.multiuser and self.email_mode == 'log' and self.environment != 'local' and not self.email_log_allowed:
             raise ValueError('EDGE_EMAIL_MODE=log is for EDGE_ENVIRONMENT=local only (codes stay readable in the '
-                             'outbox); set EDGE_EMAIL_MODE=resend with RESEND_API_KEY and EDGE_EMAIL_FROM')
+                             'outbox); set EDGE_EMAIL_MODE=resend with RESEND_API_KEY and EDGE_EMAIL_FROM, or, for a '
+                             'test with no real person, EDGE_EMAIL_LOG_ALLOWED=true')
         # the two websites (EXEC-MU-ACCOUNTS "Production environment"): the live site is where accounts sign in, the
         # beta the admin's alone. A beta with the switch on would take registrations, and a live site with it off would
         # be a door to user #1 without the second factor. On a developer machine (local: one process, one database,

@@ -789,7 +789,7 @@ R2-26, R2-33, R2-34, R2-36, R2-38; `.railway/railway.ts` holds the live service 
 - **Impossible pairings stop the start** (`config.py validate`): `EDGE_SITE=live` without `EDGE_MULTIUSER=true`; the beta
   with the switch on (outside `EDGE_ENVIRONMENT=local`, where the tests run both); `EDGE_AI_WORKER_ENABLED=true` on the
   live site; `EDGE_EMAIL_MODE=log` with the switch on outside `local` (it was allowed in `dev`, the Railway environment
-  both sites run in).
+  both sites run in), unless `EDGE_EMAIL_LOG_ALLOWED=true` says so on purpose (a test with no real person).
 - **Each queued row carries its site** (`edge_bff.jobs.site`, `edge_bff.backtest_jobs.site`, migrations `20261119_020`
   and `_021`, default `beta`: every earlier row is the admin's). Each site's loop claims, reaps and prunes only its own
   site's jobs, so a job is dispatched by the code, the principal and the release file of the site that took it.
@@ -896,7 +896,8 @@ Email (`app/mailer.py`, `app/email_texts.py`, plain English): a code and its ema
 - `EDGE_EMAIL_MODE=log` (default): the email is written to the log, the code masked unless `EDGE_ENVIRONMENT=local`,
   and the row is marked sent with its payload kept, so a tester reads the code from the row. Allowed only with
   `EDGE_ENVIRONMENT=local` when the switch is on (ERRORS R2-26: no longer `dev`, the Railway environment of the live
-  site too).
+  site too), or with the explicit `EDGE_EMAIL_LOG_ALLOWED=true` for a test of the live site before its Resend key, with
+  no real person (logged `email_log_mode_allowed` at every start while it is on).
 - `EDGE_EMAIL_MODE=resend`: POST `https://api.resend.com/emails` with the row's `Idempotency-Key`; retried after 5 s,
   30 s and 2 min, then `failed`; the payload is nulled once sent; a code email past its expiry becomes `expired`, never
   sent. Needs `RESEND_API_KEY` and `EDGE_EMAIL_FROM` (an address); `RESEND_WEBHOOK_SECRET` (`whsec_…`) signs the

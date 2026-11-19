@@ -264,6 +264,12 @@ def create_app(settings=None, store=None, orc=None):
         starts none): the AI job loop (the beta only, Settings.ai_worker), the backtest loop (each site claims its own
         jobs), the hourly housekeeping and the email sender (its own task, never behind an AI run or a backtest; only
         with the switch on, so only on the live site)."""
+        if settings.multiuser and settings.email_mode == 'log' and settings.environment != 'local':
+            # EDGE_EMAIL_LOG_ALLOWED: every code stays readable in the outbox; said at every start while it is on
+            startup_log.error(json.dumps({'event': 'email_log_mode_allowed', 'site': settings.site}))
+        if settings.multiuser and not (settings.worker_enabled and settings.email_enabled):
+            # no registration or reset code leaves this instance; visible, as an intended sender-less one must be
+            startup_log.error(json.dumps({'event': 'email_sender_off', 'site': settings.site}))
         if not settings.worker_enabled:
             return
         if settings.ai_worker:
@@ -274,9 +280,6 @@ def create_app(settings=None, store=None, orc=None):
             started['tasks'].append(asyncio.create_task(housekeeping.run()))
         if settings.multiuser and settings.email_enabled:
             started['tasks'].append(asyncio.create_task(sender.run()))
-        elif settings.multiuser:
-            # no registration or reset code leaves this instance; visible, as an intended sender-less one must be
-            startup_log.error(json.dumps({'event': 'email_sender_off', 'site': settings.site}))
 
     async def start_up():
         """One attempt at the start-up steps (ERRORS R2-3, R2-36); True once they ran, and then always. Readiness first

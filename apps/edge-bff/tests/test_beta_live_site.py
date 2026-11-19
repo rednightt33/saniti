@@ -76,6 +76,10 @@ def test_the_site_setting_refuses_the_pairings_the_decision_rules_out(settings):
             dataclasses.replace(settings, **change).validate()
     live = live_of(settings)
     live.validate()                                         # a developer machine: log mode and the live site
+    # a deliberate test of the live site before its Resend key: only by the explicit switch
+    dataclasses.replace(live, environment='dev', email_log_allowed=True, orc_url='http://market-ai-orc.railway.internal:8080',
+                        database_url='postgresql://edge_bff_login@db.invalid/edge', origin='https://edge.example',
+                        secure_cookie=True).validate()
     assert live.ai_worker is False and dataclasses.replace(settings, ai_worker_enabled=False).ai_worker is False
     dataclasses.replace(settings, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40).validate()   # the tests
 
