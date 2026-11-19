@@ -1,7 +1,7 @@
 From d71bc8363c232d2307077f2f8fb9cd90618228cf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:33:03 +0000
-Subject: [PATCH 1/5] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
+Subject: [PATCH 1/6] EXEC-MU-ACCOUNTS fix round (records, R1-2): the runner
  key test waits in pending/ for the Railway deletion; the code side held by a
  test (no code the runner runs reads the main Orc key)
 
@@ -88,7 +88,7 @@ rename to verification/edge_multiuser/access_tiers/pending/test_cp0_runner_key.p
 From 22d4defe17a0d98db4ffb77a15f4f824f7cda532 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:35:21 +0000
-Subject: [PATCH 2/5] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
+Subject: [PATCH 2/6] EXEC-MU-ACCOUNTS fix round (records, R1-15, R1-27): a
  hook route verifies by a dependency built from HOOK_ROUTES; the route walk
  covers the whole table (signed hooks, a capability gate or a named
  principal-only reason on every /api route)
@@ -295,7 +295,7 @@ index ed71cd2a..7f845889 100644
 From 5f204d11e7db3de2fa9590e929a74c469cec84e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:39:59 +0000
-Subject: [PATCH 3/5] EXEC-MU-ACCOUNTS fix round (records, R1-41, R1-42, R1-43,
+Subject: [PATCH 3/6] EXEC-MU-ACCOUNTS fix round (records, R1-41, R1-42, R1-43,
  R1-45, R1-46): migration 20261119_040 (audit and provenance ids without a
  referential action, catalog trace triggers, the kind comment and history_days
  means to the code and D2, a column-privilege guard), the provisioning script
@@ -811,7 +811,7 @@ index 00000000..0377546a
 From 64e5fe94bf846432cdbb44359a564a2f0c9a6071 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 09:40:43 +0000
-Subject: [PATCH 4/5] EXEC-MU-ACCOUNTS fix round (records, R1-28): the run
+Subject: [PATCH 4/6] EXEC-MU-ACCOUNTS fix round (records, R1-28): the run
  stream's monitor.view re-check held by a live-server test (fails when
  still_signed_in stops asking for it)
 
@@ -887,7 +887,7 @@ index 00000000..c2a21bdf
 From 9d31dc07eb2cd29777e107e2b35148af30e2ebc2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 19 Nov 2026 11:02:11 +0000
-Subject: [PATCH 5/5] EXEC-MU-ACCOUNTS fix round (records): work in progress
+Subject: [PATCH 5/6] EXEC-MU-ACCOUNTS fix round (records): work in progress
  saved when the usage limit stopped the builder (unreviewed;
  test_zz_tmp_walk.py is a scratch probe)
 
@@ -1257,6 +1257,218 @@ index 00000000..8a1f7462
 +        out.append(f"{','.join(methods):12} {r.path:60} {r.endpoint.__module__:18} "
 +                   f"{'S' if sess in used else '-'}{'W' if wr in used else '-'} {held} {names}")
 +    open(OUT, 'w').write('\n'.join(out))
+-- 
+2.43.0
+
+
+From 26c38da5b5bd1d24dcee759681a02b90f95b57fb Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 11:12:45 +0000
+Subject: [PATCH 6/6] EXEC-MU-ACCOUNTS fix round (records, R1-21): the two-user
+ walk covers every /api route and every owned kind, derived from app.routes
+ and information_schema; one event loop for both people; an owned id answers
+ what an id nobody made answers; the scratch probe removed
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015yBxadqbqnpdpSwmfCDQca
+---
+ .../tests/test_two_users_every_route.py       | 90 ++++++++++++++++---
+ apps/edge-bff/tests/test_zz_tmp_walk.py       | 30 -------
+ 2 files changed, 78 insertions(+), 42 deletions(-)
+ delete mode 100644 apps/edge-bff/tests/test_zz_tmp_walk.py
+
+diff --git a/apps/edge-bff/tests/test_two_users_every_route.py b/apps/edge-bff/tests/test_two_users_every_route.py
+index 2f11c12b..e67a334c 100644
+--- a/apps/edge-bff/tests/test_two_users_every_route.py
++++ b/apps/edge-bff/tests/test_two_users_every_route.py
+@@ -19,6 +19,7 @@ import asyncio
+ import json
+ import re
+ import secrets
++import uuid
+ 
+ import httpx
+ import pytest
+@@ -54,7 +55,7 @@ BODIES = {
+     ('PUT', '/api/v1/terminal/drawings/{ticker}/{set_id}'): {'drawings': [LINE]},
+     ('POST', '/api/v1/watchlist/lists'): {'name': 'Alice banks', 'tickers': ['BBCA']},
+     ('PATCH', '/api/v1/watchlist/lists/{list_id}'): {'name': 'Taken over'},
+-    ('POST', '/api/v1/watchlist/lists/{list_id}/tickers'): {'ticker': 'BMRI'},
++    ('POST', '/api/v1/watchlist/lists/{list_id}/tickers'): {'tickers': ['BMRI']},
+     ('PUT', '/api/v1/screener/items/{item_id}'): screen_item(),
+     ('POST', '/api/v1/backtests'): {**single(), 'client_request_id': 'mine'},
+     ('PUT', '/api/v1/preferences/{key}'): {'value': {'alice': 'alice-only'}, 'version': None},
+@@ -63,7 +64,7 @@ BODIES = {
+     ('PATCH', '/api/v1/conversations/{conversation_id}/preferences'): {'title': 'Taken over'},
+     ('POST', '/api/v1/conversations/{conversation_id}/outputs/{output_id}/export'): {'columns': [], 'titles': []},
+ }
+-OUTPUT = 'out_' + 'o' * 24
++OUTPUT = 'out_' + 'ab' * 12
+ 
+ 
+ class ExportOrc(FakeOrc):
+@@ -125,6 +126,60 @@ def download_stand_in(orc, url):
+     return client
+ 
+ 
++def as_bob(body):
++    """B's own body on the same route: A's words replaced by B's, so a word of A's in B's answer is A's, never an echo
++    of what B sent."""
++    return None if body is None else json.loads(json.dumps(body).replace('Alice', 'Bob').replace('alice', 'bob'))
++
++
++def twin(value):
++    """An id of the same form as `value` that nobody made (a callable value gives a callable twin)."""
++    if callable(value):
++        return lambda path: twin(value(path))
++    if re.fullmatch(r'[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}', value):
++        return str(uuid.uuid4())
++    head, _, tail = value.rpartition('_')
++    return head + '_' + ''.join(secrets.choice('0123456789abcdef') for _ in tail)
++
++
++def code_of(response):
++    try:
++        return ((response.json() or {}).get('error') or {}).get('code')
++    except ValueError:
++        return None
++
++
++class Person:
++    """One signed-in person on the app's one event loop (as in production: one process, one loop). Two TestClients
++    would run two loops and the shared worker clients (screener, backtest relay) would be used across them; here every
++    person shares the one client and keeps its own cookie jar."""
++    def __init__(self, client):
++        self.client, self.jar = client, httpx.Cookies()
++
++    @property
++    def app(self):
++        return self.client.app
++
++    def request(self, method, path, **kwargs):
++        self.client.cookies = self.jar
++        try:
++            return self.client.request(method, path, **kwargs)
++        finally:
++            self.jar = httpx.Cookies(self.client.cookies)
++
++    def get(self, path, **kwargs):
++        return self.request('GET', path, **kwargs)
++
++    def post(self, path, **kwargs):
++        return self.request('POST', path, **kwargs)
++
++    def put(self, path, **kwargs):
++        return self.request('PUT', path, **kwargs)
++
++    def patch(self, path, **kwargs):
++        return self.request('PATCH', path, **kwargs)
++
++
+ def concrete(route, method, ids):
+     """The route's path with A's value in every parameter; a parameter with no value is reported."""
+     missing = [name for name in re.findall(r'{(\w+)(?::\w+)?}', route.path) if name not in ids]
+@@ -139,7 +194,8 @@ def test_b_reaches_nothing_of_a_on_any_route(on, store, workers, monkeypatch):
+     orc = ExportOrc()
+     monkeypatch.setattr(main_module.httpx, 'AsyncClient', download_stand_in(orc, on.orc_url))
+     app = create_app(on, store, orc)
+-    with TestClient(app) as a, TestClient(app) as b:
++    with TestClient(app) as client:
++        a, b = Person(client), Person(client)
+         alice, bob = make_user(store, 'alice', 'alice-password'), make_user(store, 'bob_b', 'bob-password')
+         for user in (alice, bob):
+             everything_but_admin(store, user)
+@@ -190,7 +246,7 @@ def test_b_reaches_nothing_of_a_on_any_route(on, store, workers, monkeypatch):
+                'layout_id': LAYOUT, 'preset_id': PRESET, 'list_id': list_id, 'step_id': 'step_' + 'a' * 16,
+                'ticker': lambda path: 'BBRI' if '/drawings/' in path else 'BBCA', 'set_id': 'chart',
+                'key': 'ml.my', 'kind': 'indicator', 'name': 'radar-days', 'path': 'v1/bundle'}
+-        content = [alice['owner_key'], 'alice-only', 'Alice swing', 'Alice preset', 'Alice banks', 'Explain GOTO']
++        content = [alice['owner_key'], 'alice-only', 'Alice swing', 'Alice preset', 'Alice banks']
+         before, orc_before = rows_of(store, alice['owner_key'], tables), orc.state_of(alice['owner_key'])
+         problems, walked = [], 0
+         for route in app.routes:
+@@ -205,19 +261,28 @@ def test_b_reaches_nothing_of_a_on_any_route(on, store, workers, monkeypatch):
+                     problems.append(f'{method} {route.path}: add A\'s value for {missing} to `ids` (an owned id: A\'s '
+                                     'row; else the name A used), and to OWNED_IDS when it names one owner\'s row')
+                     continue
+-                body = BODIES.get((method, route.path), {}) if method not in ('GET', 'DELETE') else None
+-                r = b.request(method, path, headers=hb if method != 'GET' else None, json=body,
+-                              params={'ticker': 'BBRI'} if method == 'GET' else None)
++                body = as_bob(BODIES.get((method, route.path), {})) if method not in ('GET', 'DELETE') else None
++                headers, params = (hb if method != 'GET' else None), ({'ticker': 'BBRI'} if method == 'GET' else None)
++                r = b.request(method, path, headers=headers, json=body, params=params)
+                 walked += 1
+                 sent = set(re.findall(r'[A-Za-z0-9_]+', path))
+                 leaked = [m for m in content if m in r.text and m not in sent]
+                 if leaked:
+                     problems.append(f'{method} {path}: B\'s answer carries A\'s {leaked}')
+                 owned = set(re.findall(r'{(\w+)', route.path)) & OWNED_IDS
+-                allowed = {404, 409} if method == 'PUT' else {404}
+-                if owned and not admin_only and r.status_code not in allowed:
+-                    problems.append(f'{method} {path}: B got {r.status_code} on A\'s {sorted(owned)} '
+-                                    f'(expected {sorted(allowed)}): {r.text[:200]}')
++                if owned and method == 'PUT':
++                    # create-or-replace: A's id answers the conflict A's own second create answers (no overwrite)
++                    if r.status_code != 409 and not (admin_only and r.status_code == 403):
++                        problems.append(f'{method} {path}: B got {r.status_code} on A\'s {sorted(owned)} (expected '
++                                        f'409, the conflict of an own id): {r.text[:200]}')
++                elif owned:
++                    # nothing learned: A's id answers exactly what an id nobody made answers, and never a success
++                    other, _ = concrete(route, method, {**ids, **{k: twin(ids[k]) for k in owned}})
++                    unmade = b.request(method, other, headers=headers, json=body, params=params)
++                    if r.status_code < 400 or (r.status_code, code_of(r)) != (unmade.status_code, code_of(unmade)):
++                        problems.append(f'{method} {path}: B got {r.status_code} {code_of(r)} on A\'s {sorted(owned)}, '
++                                        f'but {unmade.status_code} {code_of(unmade)} on an id nobody made: '
++                                        f'{r.text[:200]}')
+                 after = rows_of(store, alice['owner_key'], tables)
+                 if after != before:
+                     changed = [t for t in tables if after[t] != before[t]]
+@@ -249,7 +314,8 @@ def test_a_put_with_another_owners_id_is_the_same_conflict_as_an_own_one(on, sto
+                   'preset': (f'/api/v1/terminal/presets/{PRESET}', BODIES[('PUT', '/api/v1/terminal/presets/{preset_id}')]),
+                   'screener item': (f'/api/v1/screener/items/{ITEM}', BODIES[('PUT', '/api/v1/screener/items/{item_id}')])}[kind]
+     app = create_app(on, store, FakeOrc())
+-    with TestClient(app) as a, TestClient(app) as b:
++    with TestClient(app) as client:
++        a, b = Person(client), Person(client)
+         alice, bob = make_user(store, 'alice', 'alice-password'), make_user(store, 'bob_b', 'bob-password')
+         for user in (alice, bob):
+             everything_but_admin(store, user)
+diff --git a/apps/edge-bff/tests/test_zz_tmp_walk.py b/apps/edge-bff/tests/test_zz_tmp_walk.py
+deleted file mode 100644
+index 8a1f7462..00000000
+--- a/apps/edge-bff/tests/test_zz_tmp_walk.py
++++ /dev/null
+@@ -1,30 +0,0 @@
+-from fastapi.routing import APIRoute
+-from app.main import create_app
+-from conftest import FakeOrc
+-from test_route_table import configured
+-
+-OUT = '/tmp/claude-0/-home-user-saniti/f3bec3b8-f6e3-5a54-b257-4a56b384bdc8/scratchpad/fx_records/probe/walk.txt'
+-
+-
+-def calls(d):
+-    for x in d.dependencies:
+-        yield x.call
+-        yield from calls(x)
+-
+-
+-def test_walk(settings, store):
+-    app = create_app(configured(settings), store, FakeOrc())
+-    needs = {check: key for key, check in app.state.auth._needs.items()}
+-    sess, wr = app.state.session_dependency, app.state.write_dependency
+-    out = []
+-    for r in app.routes:
+-        methods = sorted(getattr(r, 'methods', None) or [])
+-        if not isinstance(r, APIRoute):
+-            out.append(f'NONAPI {r.path} {methods}')
+-            continue
+-        used = list(calls(r.dependant))
+-        held = sorted({str(needs[c]) for c in used if c in needs})
+-        names = [getattr(c, '__name__', str(c)) for c in used]
+-        out.append(f"{','.join(methods):12} {r.path:60} {r.endpoint.__module__:18} "
+-                   f"{'S' if sess in used else '-'}{'W' if wr in used else '-'} {held} {names}")
+-    open(OUT, 'w').write('\n'.join(out))
 -- 
 2.43.0
 
