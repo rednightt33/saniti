@@ -5,6 +5,9 @@ import os
 import re
 from urllib.parse import urlsplit
 
+from .accounts import orc_reserved_owner
+from .security import is_verifier
+
 
 def admin_owners_of(raw, owner, multiuser=False):
     """EDGE_ADMIN_OWNERS: owners separated by commas, each as EDGE_OWNER is written; unset means the one owner. An empty
@@ -208,12 +211,20 @@ class Settings:
         if self.site == LIVE and self.ai_worker_enabled:
             raise ValueError('EDGE_AI_WORKER_ENABLED=true is for the beta only: the live site has no AI (decision D1); '
                              'unset it on the live site')
-        if not re.fullmatch(r'scrypt\$[0-9a-f]{32}\$[0-9a-f]{64}', self.password_verifier):
-            raise ValueError('Invalid EDGE_PASSWORD_VERIFIER')
+        # ERRORS R2-29: either form app/security.py reads (the current cost, or the form before it, still accepted)
+        if not is_verifier(self.password_verifier):
+            raise ValueError('Invalid EDGE_PASSWORD_VERIFIER (make one with apps/edge-bff/password_hash.py)')
         if not re.fullmatch(r'[A-Za-z0-9._:@-]{1,128}', self.owner) or len(self.session_secret) < 32:
             raise ValueError('Invalid EDGE owner/session configuration')
         if not all(isinstance(o, str) and re.fullmatch(r'[A-Za-z0-9._:@-]{1,128}', o) for o in self.admin_owners):
             raise ValueError('Invalid EDGE_ADMIN_OWNERS')
+        # ERRORS R1-3: an owner key Orc reserves for its test key (or its old shared owner) would put user #1's
+        # conversations and runs within that key's reach; refused for EDGE_OWNER and every EDGE_ADMIN_OWNERS entry
+        for name, keys in (('EDGE_OWNER', (self.owner,)), ('EDGE_ADMIN_OWNERS', self.admin_owners)):
+            if any(orc_reserved_owner(k) for k in keys):
+                raise ValueError(f'{name} may not be an owner key market-ai-orc reserves (golden-*, test-*, '
+                                 'someone-else: its test key may name them; default: its old shared owner). Use an '
+                                 'owner key of your own, e.g. edge-private')
         host = urlsplit(self.orc_url).hostname
         if self.environment != 'local' and (host != 'market-ai-orc.railway.internal' or urlsplit(self.orc_url).scheme != 'http'):
             raise ValueError('EDGE_ORC_URL must use the existing Railway private Orc endpoint')

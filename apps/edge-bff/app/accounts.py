@@ -6,7 +6,14 @@ This module is the foundation the auth flows (registration, codes, reset, MFA, e
 - `resolve`: the session of a request joined to its account and its plan's grants, in one statement (principal.py);
 - `owner`: an account by its owner key with its grants (the backtest loop's rights at dispatch; the sign-in's MFA);
 - `seed_subscription`: user #1's subscription to the plan that holds every capability (Phase 2), idempotent;
-- `find_login`, `create_session`, `signed_in`: the switch-on sign-in (main.py), with at most MAX_SESSIONS per user.
+- `find_login`, `sign_in_try`, `create_session`, `signed_in`: the switch-on sign-in (main.py), with at most
+  MAX_SESSIONS per user and at most PASSWORD_FAILURE_CAP consecutive failed passwords per account.
+
+Credential writes and the sessions they rest on are serialised by the account's users row (SELECT ... FOR UPDATE,
+`lock_account`): `create_session` takes it and checks, in its own transaction, the proof the request rests on (the
+verifier the sign-in proved, or the pending session an MFA verify replaces); a password reset or change and
+`revoke_all` take it before they write. So a sign-in, change or verify proved before a reset is refused after it, and a
+session made before the reset is seen and revoked by it (ERRORS R2-9).
 
 Every statement names the account it reads or changes; the configured owner reaches `seed` as an argument (principal.py).
 """
@@ -25,12 +32,23 @@ RESERVED_USERNAMES = frozenset({'admin', 'root', 'support', 'edge', 'system'})
 # does not fit ^[a-z0-9_]{3,30}$ (a hyphen), so the seed takes 'admin_1'
 SEED_FALLBACK_USERNAME = 'admin_1'
 EMAIL = re.compile(r'[^@\s]{1,64}@[^@\s]{1,189}\.[^@\s]{1,63}')
+EMAIL_MAX = 254                   # the longest address an account may have: registration, sign-in and reset share it
 MAX_SESSIONS = 5                  # CONTRACT.md section 4 "Sessions": at most 5 per user, the oldest is revoked
 MAX_PENDING_SESSIONS = 3          # sessions waiting for the admin's second factor, capped apart (C1 note)
 PENDING_CHECKED = 3               # pending registrations of an address a sign-in compares its password with
 TOUCH_SECONDS = 60                # CONTRACT.md section 2: last_seen_at is written at most once per 60 s per session
 ACTIVE = 'active'
 EVERYTHING = '*'
+# NIST SP 800-63B-4 3.2.2 (ERRORS R1-16): at most 100 consecutive failed passwords per account, over both its logins
+# (username and email) and every client address. The 100th starts a lock of PASSWORD_LOCK_SECONDS during which a
+# sign-in of the account is answered as a wrong password (OWASP Authentication: the same answer whether the password is
+# wrong or the account locked). A success, a password reset proved by the email code (the way back, R1-9) or a change
+# clears it; after a lock the count restarts at PASSWORD_RESTART, as the MFA counts do (ERRORS M478 N2)
+PASSWORD_FAILURE_CAP, PASSWORD_RESTART, PASSWORD_LOCK_SECONDS = 100, 90, 86400
+# market-ai-orc's test-key owners (app/conversations.py TEST_OWNER_RE, M475): a caller holding MARKET_AI_ORC_TEST_KEY
+# may name exactly these (tests/test_cp0_reserved_owner.py compares the two patterns, so they cannot drift apart)
+ORC_TEST_OWNER = re.compile(r'golden-[A-Za-z0-9._:@-]+|test-[A-Za-z0-9._:@-]+|someone-else')
+ORC_SHARED_OWNER = 'default'      # Orc's one shared owner before M475
 
 # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a "Resolution"): the CTEs that follow a CTE `found` (one account: user_id,
 # owner_key, username, role, status) and resolve its grants within the same statement:
@@ -78,9 +96,15 @@ def new_owner_key():
     return 'u_' + secrets.token_hex(12)
 
 
+def orc_reserved_owner(key):
+    """An owner key Orc reserves: one its test key may name, or its old shared owner. EDGE_OWNER and EDGE_ADMIN_OWNERS
+    may not be one (config.py validate; ERRORS R1-3), or user #1's data would sit within the test key's reach."""
+    return key == ORC_SHARED_OWNER or ORC_TEST_OWNER.fullmatch(key) is not None
+
+
 def reserved_owner(key):
-    """Keys never issued to a new account (Orc's test owners, the shared 'default' and the seed's own)."""
-    return key in ('default', 'someone-else', 'edge-private') or key.startswith(('golden-', 'test-'))
+    """Keys never issued to a new account (Orc's reserved owners and the seed's own)."""
+    return orc_reserved_owner(key) or key == 'edge-private' or key.startswith(('golden-', 'test-'))
 
 
 def seed_mark(verifier):
@@ -93,7 +117,7 @@ def seed_identity(login):
     is not reserved, else SEED_FALLBACK_USERNAME; the login as the email when it is one."""
     lowered = login.strip().lower()
     username = lowered if USERNAME.fullmatch(lowered) and lowered not in RESERVED_USERNAMES else SEED_FALLBACK_USERNAME
-    email = lowered if EMAIL.fullmatch(lowered) and len(lowered) <= 254 else None
+    email = lowered if EMAIL.fullmatch(lowered) and len(lowered) <= EMAIL_MAX else None
     return username, email
 
 
@@ -216,6 +240,25 @@ class AccountStore:
                 WHERE (u.username = %s OR u.email = %s) AND u.status = %s
                 ORDER BY (u.username = %s) DESC LIMIT 1''', (lowered, lowered, ACTIVE, lowered)).fetchone()
 
+    def sign_in_try(self, user_id):
+        """One password try of the account, decided and counted in one statement before the password is checked (the
+        R2-12 lesson: tries sent together cannot all pass a count each read before the others added theirs). True when
+        the try may be checked (it is counted; a success clears the count), False while the account is locked. A lock
+        that has ended restarts the count at PASSWORD_RESTART; the try that reaches PASSWORD_FAILURE_CAP starts the
+        lock (that try is still checked: it is the 100th)."""
+        with self.store.connect() as c:
+            return c.execute('''UPDATE edge_bff.identities SET
+                    sign_in_failures = (CASE WHEN sign_in_locked_until IS NOT NULL THEN %(restart)s
+                                             ELSE sign_in_failures END) + 1,
+                    sign_in_locked_until = CASE WHEN (CASE WHEN sign_in_locked_until IS NOT NULL THEN %(restart)s
+                                                           ELSE sign_in_failures END) + 1 >= %(cap)s
+                                                THEN now() + make_interval(secs => %(lock)s) END
+                WHERE user_id = %(user)s AND provider = 'password'
+                  AND (sign_in_locked_until IS NULL OR sign_in_locked_until <= now())
+                RETURNING sign_in_failures''', {'user': user_id, 'restart': PASSWORD_RESTART,
+                                               'cap': PASSWORD_FAILURE_CAP,
+                                               'lock': PASSWORD_LOCK_SECONDS}).fetchone() is not None
+
     def pending_logins(self, login):
         """The newest PENDING_CHECKED pending registrations of an address with their verifiers (a sign-in with the right
         password of one restarts its verification; ERRORS M478 C1 P1-M1)."""
@@ -226,15 +269,38 @@ class AccountStore:
                 WHERE u.email = %s AND u.status = 'pending' ORDER BY u.created_at DESC, u.user_id DESC LIMIT %s''',
                              (lowered, PENDING_CHECKED)).fetchall()
 
-    def create_session(self, hashed, user, seconds, ip_hash=None, mfa_passed=False, mfa_user=False):
+    @staticmethod
+    def lock_account(c, user_id):
+        """The account's users row, locked for the rest of the caller's transaction (the module docstring); None when
+        the account is not active."""
+        return c.execute('SELECT user_id FROM edge_bff.users WHERE user_id = %s AND status = %s FOR UPDATE',
+                         (user_id, ACTIVE)).fetchone()
+
+    def create_session(self, hashed, user, seconds, ip_hash=None, mfa_passed=False, mfa_user=False, proved=None,
+                       replaces=None, rehash=None):
         """A session of the account (owner_key kept beside user_id), then the account's oldest live sessions beyond the
         cap revoked, in one transaction under the account's lock (two sign-ins at once cannot both keep one too many).
         For an account that needs MFA (mfa_user), a session that has not passed it is pending: pending sessions have
         their own cap (MAX_PENDING_SESSIONS) and never count towards, or revoke, the MAX_SESSIONS real ones (C1 note).
-        Returns the number revoked."""
+        The proof the session rests on is checked under the lock (ERRORS R2-9): `proved`, the verifier a sign-in
+        proved, must still be the account's (its failure count is then cleared, and `rehash`, the same password at the
+        current cost, takes its place: ERRORS R2-29); `replaces`, the pending session an MFA verify upgrades, must still
+        be live, and is revoked in the same transaction. Returns the number revoked, or None when the account or the
+        proof no longer holds (nothing is made)."""
         pending = mfa_user and not mfa_passed
         with self.store.connect() as c:
-            c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('sessions:' + str(user['user_id']),))
+            if self.lock_account(c, user['user_id']) is None:
+                return None
+            if proved is not None and c.execute('''UPDATE edge_bff.identities
+                    SET sign_in_failures = 0, sign_in_locked_until = NULL, verifier = coalesce(%(new)s, verifier),
+                        updated_at = CASE WHEN %(new)s::text IS NULL THEN updated_at ELSE now() END
+                    WHERE user_id = %(user)s AND provider = 'password' AND verifier = %(proved)s
+                    RETURNING user_id''', {'new': rehash, 'user': user['user_id'], 'proved': proved}).fetchone() is None:
+                return None
+            if replaces is not None and c.execute('''UPDATE edge_bff.sessions SET revoked_at = now()
+                    WHERE token_hash = %s AND user_id = %s AND revoked_at IS NULL AND expires_at > now()
+                    RETURNING token_hash''', (replaces, user['user_id'])).fetchone() is None:
+                return None
             c.execute('''INSERT INTO edge_bff.sessions(token_hash, owner_key, user_id, expires_at, last_seen_at,
                     mfa_passed_at, created_ip_hash)
                 VALUES (%s, %s, %s, now() + %s * interval '1 second', now(), CASE WHEN %s THEN now() END, %s)''',
@@ -253,8 +319,10 @@ class AccountStore:
             c.execute('UPDATE edge_bff.users SET last_sign_in_at = now() WHERE user_id = %s', (user_id,))
 
     def revoke_all(self, user_id):
-        """Every live session of the account (password change or reset, disable, role change; CONTRACT.md section 4)."""
+        """Every live session of the account (password change or reset, disable, role change; CONTRACT.md section 4),
+        under the account's lock: a session being made from an earlier proof is either seen here or refused."""
         with self.store.connect() as c:
+            c.execute('SELECT user_id FROM edge_bff.users WHERE user_id = %s FOR UPDATE', (user_id,))
             return c.execute('UPDATE edge_bff.sessions SET revoked_at = now() WHERE user_id = %s AND revoked_at IS NULL',
                              (user_id,)).rowcount
 

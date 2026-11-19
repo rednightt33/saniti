@@ -11,6 +11,7 @@ from psycopg.types.json import Jsonb
 
 from .accounts import purge_pending
 from .config import BETA
+from .mailer import purge_outbox
 from .throttle import purge as purge_throttle
 
 TERMINAL = {'FINISHED', 'FAILED', 'INTERRUPTED'}
@@ -82,6 +83,13 @@ class Store:
             c.execute('SELECT 1 FROM edge_bff.email_hook_events LIMIT 0')
             c.execute('SELECT registration_hash FROM edge_bff.users LIMIT 0')     # 20261117_002
             c.execute('SELECT totp_failures, recovery_failures, totp_locked_until, recovery_locked_until FROM edge_bff.mfa_totp LIMIT 0')
+            # the auth fix round (ERRORS R1-7, R1-16, R2-24, R2-29): the password identity's failure count and both
+            # verifier forms (20261119_010), the waiting MFA enrolment (20261119_011), the outbox purge the hourly
+            # housekeeping runs in both modes (20261119_012)
+            c.execute('SELECT sign_in_failures, sign_in_locked_until FROM edge_bff.identities LIMIT 0')
+            c.execute('SELECT pending_nonce, pending_created_at FROM edge_bff.mfa_totp LIMIT 0')
+            c.execute('SELECT pending FROM edge_bff.mfa_recovery_codes LIMIT 0')
+            c.execute("SELECT 'edge_bff.purge_email_outbox(integer)'::regprocedure")
             # ERRORS R2-2 (migration 20261119_022): the seed copies the environment's password only over its own copy
             c.execute('SELECT seed_verifier_sha256 FROM edge_bff.identities LIMIT 0')
 
@@ -391,6 +399,8 @@ def purge_sessions(c, limit=None):
 
 
 PURGE_BATCH = 500
-# name -> purge(connection, limit) -> rows deleted; each runs hourly in worker.Housekeeping. EXEC-MU-ACCOUNTS Phase 0:
-# throttle rows older than 2 days; Phase 1: registrations never verified, after 24 h (their identity and codes cascade)
-PURGES = {'sessions': purge_sessions, 'throttle': purge_throttle, 'pending': purge_pending}
+# name -> purge(connection, limit) -> rows deleted; each runs hourly in worker.Housekeeping, in this order. EXEC-MU-ACCOUNTS
+# Phase 0: throttle rows older than 2 days; Phase 1: registrations never verified, after 24 h (their identity and codes
+# cascade); ERRORS R2-24: then, each batch in a transaction of its own (seeing the registrations purged before it), the
+# outbox rows of addresses left with no account (migration 20261119_012; the only delete of the outbox edge-bff can make)
+PURGES = {'sessions': purge_sessions, 'throttle': purge_throttle, 'pending': purge_pending, 'outbox': purge_outbox}
