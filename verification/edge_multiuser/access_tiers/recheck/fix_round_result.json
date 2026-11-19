@@ -1,0 +1,846 @@
+{
+ "results": [
+  {
+   "track": "terminal",
+   "branch": "fix-terminal",
+   "head": "e6dfab52206226635e0f38ca752b16c6afd5c0ed",
+   "fixed": [
+    {
+     "id": "R1-1",
+     "how": "edge-bff now uses one rule, terminal_access.relayed (apps/edge-bff/app/terminal_access.py:303), for every terminal-api answer it relays: forward_terminal, relay_cut and PageFiles all go through it. A terminal-api 401, any 403 other than capability_required, a 400 about edge-bff's own owner headers, and every 5xx become 503 TERMINAL_UNAVAILABLE in the contract shape, logged as terminal_refused with the upstream status and code. A 429 becomes 429 LIMIT_REACHED with details.limit terminal.<quota>, allowed, retry_after_s and the Retry-After header. A 400 about the request is answered 400 INVALID_INPUT, and a 404 is answered 404 NOT_FOUND; both carry terminal-api's code as details.reason. capability_required becomes CAPABILITY_REQUIRED with its display name. terminal-api's message text never reaches the page. On terminal-api, take() now raises quota_exceeded with quota, limit, window and retry_after_s, and sets the Retry-After header (wait_error). The wait comes from Store.frees_in: the seconds until the rolling window lets the refused request fit, read only on a refusal and never longer than the window. The service ceiling and the sign-in throttle send Retry-After too. In the Terminal page, live.ts now shows the contract's words instead of the code. M260 (public_data) was not applied; it needs the user's go.",
+     "tests": "tests/test_cp0_terminal_relay.py: 2 now pass. New edge-bff tests/test_terminal_fix_round.py: a 16-case mapping table plus a route-level test (session kept, Retry-After, byte relay). New terminal-api tests/test_terminal_fix_round.py: the 429 fields, and frees_in on PostgreSQL 16. Changed because they locked the pass-through that CONTRACT section 3 forbids: test_terminal.py:84 and test_gateway_leaves_the_reference_names_to_terminal_api (now the contract shape with details.reason), and test_terminal_access.py test_a_cut_terminal_api_refuses_passes_through, renamed to ..._reaches_the_page_in_the_contract_shape."
+    },
+    {
+     "id": "R1-26",
+     "how": "PageFiles now answers a grant's 429 through the same rule: 429 LIMIT_REACHED with details and Retry-After, replacing <FAMILY>_QUOTA, and the QUOTA message is removed (apps/edge-bff/app/pages.py page_file). terminal-api sends the header and the structured fields (see R1-1).",
+     "tests": "tests/test_c_p3a_probes.py -k retry_after: 2 now pass. Changed as the refuters said: test_radar.py:123-125 now expects LIMIT_REACHED with details and Retry-After, and its FakeHttp sends terminal-api's new fields."
+    },
+    {
+     "id": "R1-22",
+     "how": "Read side: terminal_access.capabilities now maps every value onto the wire. history_days above 36600 is sent as 36600. A value of 0 is sent as 0, which terminal-api now accepts as the empty window (entitlements MIN_HISTORY_DAYS); check() then refuses files, bundle, cut and history first with 403 CAPABILITY_REQUIRED terminal.history_days, so the page files keep working (the code refuter's correction). A ticker outside ^[A-Z0-9]{1,12}$ is dropped and logged (count only). A quota of 0 is now 403 CAPABILITY_REQUIRED naming the limit instead of a 429, which was the refuters' 'other site'. Catalog side: new migration database/migrations/20261119_050_edge_bff_capability_domains.sql, not applied, added to tests/conftest.py, with a $verify$ block. It adds value_min, value_max and item_pattern to edge_bff.capabilities, and capability_value_check is replaced so it reads them after the shape check, with a hint that names the domain and gives an example. A new trigger, capabilities_domain_holds, refuses a domain change that a stored value would no longer fit. Domains set: terminal.history_days 1-36600; terminal.tickers 0-500 items matching ^[A-Z0-9]{1,12}$, which also closes the case where a list of about 900 tickers gave 503 on every call; the four Terminal quotas 1-10^9. Two pure helper functions get GRANT EXECUTE to edge_bff_runtime.",
+     "tests": "test_c_p2_terminal_wire_domain.py: 6 now pass. New tests in edge-bff test_terminal_fix_round.py: history 0 on every path, dropped tickers, refusal at write time for plans and overrides, the domain-change refusal, the domains equal to terminal-api's bounds with the widest value fitting the 8 KiB header, and the migration's second run and verify block. Changed: test_phase2_fix_round.py right-shape case history_days '0' -> '1', which the spec refuter asked for. test_terminal_access.py: quota 0 now expects 403. terminal-api test_phase3c.py BAD: history_days 0 (now accepted) replaced by -1 and 36601."
+    },
+    {
+     "id": "R2-4",
+     "how": "terminal-api's middleware now sets x-terminal-capabilities-applied: 1 <version> on every answer to an owner call, refusals included (entitlements APPLIED_HEADER and applied()). For a principal without '*', terminal_access.relayed refuses with 503 TERMINAL_UNAVAILABLE (logged terminal_capabilities_not_applied) any answer where that echo is missing or names another version. This covers the JSON relay, the byte relay, logos and page files. The switch-off owner holds '*' and needs no echo, so nothing changes with the switch off. The rollback floor is written in the notes for the records track.",
+     "tests": "New terminal-api test: test_every_answer_to_an_owner_call_carries_the_applied_version. New edge-bff tests: test_a_terminal_api_that_ignores_the_header_never_serves_a_capped_principal (a fake pre-3c terminal-api), test_the_switch_off_owner_needs_no_acknowledgement, test_the_acknowledgement_is_the_version_of_this_principal. The fakes that stand in for terminal-api now echo the header as terminal-api does: test_radar.acknowledge, test_terminal_access FakeApi, e2e_people, and test_c2_phase2_isolation's fake."
+    },
+    {
+     "id": "R2-5",
+     "how": "parse_capabilities now drops a dataset id this terminal-api does not know (Capabilities.ignored) and logs it as owner_datasets_ignored, instead of answering 400 for every call. This fails closed. Unknown fields, unknown quota names and a wrong v are still refused. The order rule (add a dataset on terminal-api first, remove it on edge-bff first) is in the terminal-api README and the notes.",
+     "tests": "New terminal-api test: test_an_unknown_dataset_id_is_left_out_and_logged. test_phase3c.py BAD: ['price','options'] replaced by ['price','Options'], which breaks the id rule and is still refused."
+    },
+    {
+     "id": "R2-32",
+     "how": "Option (a), using the task's reading of D3 = B ('no list of other tickers'). terminal-api now answers an owner whose plan lacks the dataset 'reference' with its own copy of each reference file (new apps/terminal-api/app/refcut.py). Which rows are kept is read from each file's own columns: a 'ticker' column keeps the plan's tickers; the broker list keeps its rows only when the plan holds 'broker'; any other file, today the stock lists, has no rows (fail closed). The copy is announced in the shape of a cut, '/api/terminal/v1/reference/<name>/cut?sha256=\u2026'. It is served by GET /reference/{name}/cut and counted when served, with one audit row 'refcut/<name>/<sha>'. It is built from the published file after checking its sha256, uses deterministic gzip, and is cached. A file that cannot be filtered answers 503 reference_unavailable and is never served whole. A plan holding 'reference' gets the published file as before. ROUTE_ACCESS marks both reference routes 'filtered'. edge-bff now forwards reference/* without refusing it and relays the copy byte for byte (main.py TERMINAL_BYTES). The page draws as it does today. live.ts now tells a plan whose list holds no published ticker so (NO_TICKER) instead of crashing on tickers[0].",
+     "tests": "test_c2_e2e_people.py::test_the_free_plans_terminal_draws_bbca_with_the_answers_phase_3c_gives_it now passes in Chromium with the Terminal page built. Its answer set changed, as the test itself foresaw ('changes the answers set below\u2026; the assertion stays'): the e2e fake now applies the header edge-bff really sends, using terminal-api's own entitlements, refcut and cut code. New test_the_free_plans_terminal_opens_on_bbca_with_nothing_remembered: the task's 'free plan draws BBCA' test; nothing is stored, MAPI is refused, BBCA is drawn and no other ticker is shown. New terminal-api tests: free-plan copies name only BBCA, broker list and full lists, unfilterable file refused, and a walk of the publisher's REF_NAMES. New edge-bff test: byte relay of the copy. Changed, because 3c's design changed: test_terminal_access.py FREE_REFUSED moved reference/* into FREE_FORWARDED, and terminal-api test_phase3c.py SECOND_PATHS dropped /reference/{name}."
+    },
+    {
+     "id": "R1-4",
+     "how": "terminal-api /ready now reports gateway_account as {state: ok|expiring (within 30 days)|expired|inactive|missing, days_left} and logs gateway_account_<state> unless the state is ok. It never makes the service unready (store.gateway_state). Because of R1-1, an expired gateway now shows in edge-bff as a logged 503, not as a sign-out. Owner rows already end 2100-01-01. Changing the live gateway row is left as a decision (needs the user's go).",
+     "tests": "New terminal-api tests: test_ready_reports_the_gateway_account_and_stays_ready and test_the_gateway_state_reads_the_row_on_a_real_server."
+    },
+    {
+     "id": "R1-31",
+     "how": "Fixed what 3c's acceptance needs: PageFiles now builds the principal's terminal headers on every request before the shared caches. So edge-bff's own refusals for that principal (quota 0, an invalid owner key, a header terminal-api cannot take) apply whether the cache is warm or cold. Part 2 (cache attribution) was decided and recorded, as for R1-5. Part 1 (data limits bind only the Terminal path) was recorded, and its rule is listed under decisions.",
+     "tests": "New test: test_a_page_file_refusal_of_the_principal_holds_when_another_account_warmed_the_cache."
+    },
+    {
+     "id": "R1-5",
+     "how": "Decided from the code and CONTRACT section 15, and recorded in the pages.py docstring and both READMEs: page files are granted, counted and audited on terminal-api once per edge-bff process and sha256, for the principal whose request missed the caches. This is lenient and leaks nothing. terminal-api's README claim of per-owner audit for page routes was corrected. Per-reader counting is listed as an optional decision for Phase 4.",
+     "tests": "No new test is needed for the recorded behaviour; the existing test_radar 'no new grant on a second read' test still holds."
+    }
+   ],
+   "not_fixed": [
+    {
+     "id": "R1-36",
+     "reason": "Recorded only. The Terminal data limits (tickers, datasets, history_days) bind only /api/terminal/v1 and terminal-api. The workers use their own service keys. The Overview and Watchlist page files are gated by <tab>.view alone. The Backtest page's /bundle reads and the Watchlist logo list do go through the Terminal route, so with 3c they get the cut and the plan's copies, and count in the D6 quota. No seeded plan combines a data restriction with those tabs. Which rule should hold needs the user (refuters: approval_needed)."
+    },
+    {
+     "id": "M260 (part of R1-1)",
+     "reason": "public_data on the relay's 2xx bodies was not applied, because ERRORS M260 says it needs the user's go. Refusals no longer carry terminal-api text in any case."
+    }
+   ],
+   "decisions_needed": [
+    {
+     "id": "M260-public-data",
+     "context": "The Terminal relay rebuilds every refusal in EDGE's own words, but its successful JSON bodies still pass through without the house filter public_data (which drops private keys and internal railway addresses). No private field is known to pass today. The ERRORS M260 record says adding the filter needs the user's go.",
+     "options": "(a) Apply public_data to the relay's 2xx JSON bodies in terminal_access.relayed, plus a route-walk test. (b) Keep it as it is, with M260 left OPEN.",
+     "recommendation": "(a): it is cheap and the helper is now the one place to add it."
+    },
+    {
+     "id": "R1-4-gateway-expiry",
+     "context": "The EDGE gateway's own terminal-api account (subscriber for edge-owner@terminal.local) was recorded as valid 'through 2027-10-25' (DATABASE_CHANGELOG.md:3587). From Phase 3c every owner's Terminal call reads this row first, so on that date every Terminal, Backtest-preview and Watchlist-logo call fails. /ready now reports the row's state and days left, but the live row was not read and not changed.",
+     "options": "(a) Read the live row (SELECT subscriber_id, active, expires_at FROM terminal.subscriber WHERE email='edge-owner@terminal.local'), then set expires_at to 2100-01-01 through the audited admin API, as the service accounts have, and record it in DATABASE_CHANGELOG. (b) Keep the date and rely on /ready plus the warning in the logs.",
+     "recommendation": "(a), done before the switch goes on."
+    },
+    {
+     "id": "R1-36-terminal-limit-scope",
+     "context": "Plan limits on the Terminal's data (the allowed tickers, the datasets, the last-N-days history window) apply only to the Terminal route. The Backtest and Screener read all data through their own service accounts. The Overview and Watchlist files need only their tab's view right. The Backtest page's chart reads and the Watchlist logos do pass through the Terminal route, so with 3c they count toward the per-owner Terminal quota (60 tickers per hour, shared with the Terminal) and receive the 730-day cut. No plan today combines these (the free plan has none of those tabs; the paid plan has no data restriction), but a Phase 4 override could.",
+     "options": "(a) Record that the limits bind the Terminal path only, as the code does today. (b) A catalog rule: a plan or override that restricts tickers, datasets or history cannot also hold backtest.*, screener.*, overview.view or watchlist.view. (c) Pass the restrictions to the workers and the page files (a large change). Separately: should the Backtest page's /bundle reads and the Watchlist logos count in the D6 Terminal quota?",
+     "recommendation": "(b) for the data rule: it is a cheap guard in the data model. Count the Backtest reads in the Terminal quota only if the user wants one shared bucket."
+    },
+    {
+     "id": "R1-5-page-file-counting",
+     "context": "Page files (Radar, Overview, Watchlist) are kept in caches shared by every user in edge-bff. terminal-api therefore counts and audits a file only for the first user who reads it in each process; later reads count against nobody.",
+     "options": "(a) Keep this and record it, as done now. (b) edge-bff records each user's page-file reads itself, if Phase 4 usage counters need it.",
+     "recommendation": "(a) until Phase 4 defines its usage counters."
+    },
+    {
+     "id": "R2-32-D3-reading",
+     "context": "D3 = B says the free plan gets 'tanpa daftar ticker' (no ticker list). This fix reads it as 'no list of other tickers': the free plan receives a ticker list and a logo list naming BBCA only, with no broker, bond or stock-list rows, and its Terminal draws BBCA. The refuters said this reading needs the user's confirmation. The relayed request is 'A'.",
+     "options": "(a) Confirm that the free plan gets lists naming its own tickers only (as built). (b) The free plan gets no reference file at all, and the page must draw from limit('terminal.tickers') instead (a 3e change).",
+     "recommendation": "(a), with the user's words recorded in EXEC.md by the records track."
+    }
+   ],
+   "suites": [
+    {
+     "name": "edge-bff pytest (full, Postgres 55561, Chromium, Terminal built)",
+     "result": "735 passed, 60 failed, 1 skipped. Every test of this track's findings now passes. Two failures not in the base run: test_c2_phase2_isolation (its fake did not echo the header; fixed in bd1d5065, now passes) and the known flaky test_composer_layout[mobile] (passes alone). The other 58 are other tracks' re-check tests and also fail on the base: test_c2_e2e_people 2 (Monitor, MFA), test_c2_ops_recheck 8, test_c2web_browser 6, test_c_p1s_preferences_plan 1, test_c_p2_recheck 3, test_c_p3a_probes 2 (route walks, access.limits), test_c_p3b_recheck 1, test_cdb_ci_coverage 3, test_cdb_grants_and_records 5, test_cp0_reserved_owner 4, test_cp1a_phase1_auth_check 10, test_r2_life 2, test_r2_race 7, test_r2_skew 4."
+    },
+    {
+     "name": "terminal-api pytest (TERMINAL_TEST_POSTGRES_URL, terminal schema applied)",
+     "result": "160 passed"
+    },
+    {
+     "name": "Terminal page vitest (apps/edge-bff/terminal)",
+     "result": "965 passed, 3 failed: c_p1s_browser_keys.test.ts 2 and c_p1s_drawings_plan.test.ts 1 (C-P1S re-check, another track; files not touched here)"
+    },
+    {
+     "name": "screener-worker npm test",
+     "result": "126 passed, 1 failed: c-p3b-recheck F-msg (another track). onboarding_pointers passes after the SCREENER_ONBOARDING.md pointers were moved."
+    },
+    {
+     "name": "backtest-worker npm test",
+     "result": "276 passed, 1 failed: c-p3b-recheck F-msg (another track)"
+    },
+    {
+     "name": "scripts tests",
+     "result": "94 passed, 1 skipped"
+    }
+   ],
+   "migrations": [
+    "database/migrations/20261119_050_edge_bff_capability_domains.sql (new, not applied): adds edge_bff.capabilities value_min, value_max and item_pattern; capability_value_check replaced; capability_domain_holds trigger; helpers capability_domain_fits and capability_domain_text (EXECUTE granted to edge_bff_runtime); domains for terminal.history_days, terminal.tickers and the four Terminal quotas; $verify$ block; added to apps/edge-bff/tests/conftest.py"
+   ],
+   "contract_changes": [
+    "x-terminal-capabilities: history_days now accepts 0 (the empty window), so the range is 0-36600; an unknown dataset id is dropped and logged, not refused",
+    "New response header x-terminal-capabilities-applied: '1 <version>' on every terminal-api answer to an owner call; edge-bff answers 503 when it is missing for a principal without '*'",
+    "terminal-api 429 quota_exceeded now carries quota, limit, window, retry_after_s and the Retry-After header; service_ceiling_reached and too_many_attempts also send Retry-After",
+    "edge-bff relays every terminal-api refusal in the CONTRACT section 3 shape: 401 and other 403s, a 400 about the owner headers, and 5xx become 503 TERMINAL_UNAVAILABLE; 429 becomes LIMIT_REACHED (details.limit terminal.<quota>, allowed, retry_after_s, Retry-After); 400 becomes INVALID_INPUT and 404 NOT_FOUND, both with details.reason",
+    "Page-file grant 429 is now LIMIT_REACHED (was <FAMILY>_QUOTA)",
+    "A quota of 0 is now 403 CAPABILITY_REQUIRED naming the limit (was 429 LIMIT_REACHED with Retry-After 3600)",
+    "With history_days 0, edge-bff refuses files, bundle, cut and history first with 403 terminal.history_days",
+    "Reference files are no longer refused. A plan without the dataset 'reference' gets its own copy through GET /api/terminal/v1/reference/{name}/cut (new terminal-api route, relayed byte for byte by edge-bff, counted when served)",
+    "terminal-api /ready adds gateway_account {state, days_left} when a gateway is configured"
+   ],
+   "notes": "My notes for the records track are in verification/edge_multiuser/fix_round/terminal.md (committed). That file has, for each finding, the root cause with file:line evidence, the fix, the tests and the tests changed with reasons. It also lists exactly what CONTRACT.md (sections 3 and 8b, including the tests-per-stage line, the 3e 'search marks locked tickers' wording, the rollback floor and the dataset order rule), ERRORS_AND_SOLUTIONS.md, DATABASE_SCHEMA.md, DATABASE_CHANGELOG.md and EXEC.md must say; RAILWAY_CHANGELOG.md needs nothing. I did not edit any shared record.\n\nTests changed, and why:\n- test_terminal.py:84 and test_radar.py:123-125 locked the old flat shape and the refuters named them.\n- test_terminal_access.py (FREE_REFUSED for references, the cut 404 shape, quota 0) and terminal-api test_phase3c.py (SECOND_PATHS for /reference, two BAD rows) are 3c's own tests, and the design they test changed.\n- In test_phase2_fix_round.py, history_days '0' became '1', as the refuter asked.\n- In test_c2_e2e_people.py, the answer-set lines changed as the test itself foresaw; its assertion is unchanged.\n- The fakes that stand in for terminal-api now echo the applied header, as the new terminal-api does.\n\nOther changes:\n- SCREENER_ONBOARDING.md line pointers were moved with the lines of both main.py files, which the screener-worker pointer test checks.\n- The edge-bff and terminal-api READMEs were updated to match the changes.\n\nDeploy order: terminal-api must be deployed before or together with this edge-bff. That only matters once the switch is on, because with it off every principal holds '*'.\n\nI did not push, deploy, call Railway or touch any remote database. My local cluster fx_terminal (port 55561) has been stopped."
+  },
+  {
+   "track": "site",
+   "branch": "fix-site",
+   "head": "ccdfb1772f0fab41d6754b2a4d1cd9e3669e2b36",
+   "fixed": [
+    {
+     "id": "R2-1",
+     "how": "The switch-off session read (store.session) now accepts only sessions with no account (user_id IS NULL), which is what the switch-off sign-in writes. So a switch-on session that has not passed MFA, is idle, or belongs to a disabled user no longer becomes a '*' session on a switch-off site. With the decided pairing (beta off, live on) this also ties every session to the site that made it, with no sessions.site column.",
+     "tests": "test_r2_skew.py::test_a_switch_on_session_that_has_not_passed_mfa_opens_nothing_with_the_switch_off (passes, control intact); test_beta_live_site.py::test_a_session_opens_only_the_site_that_made_it"
+    },
+    {
+     "id": "R2-2",
+     "how": "Migration 20261119_022 adds identities.seed_verifier_sha256 (the sha256 of the verifier the seed last wrote, never the verifier itself) and fills it for the seed's own identity. AccountStore.seed copies EDGE_PASSWORD_VERIFIER only while sha256(verifier) still equals that mark. After a password change or reset on the switch-on site the identity belongs to the account and is never overwritten (logged account_seed_password_kept). The switch-off sign-in still reads the environment value directly. The recorded rule changed, so the README switch table and the seed docstring were updated.",
+     "tests": "test_r2_skew.py::test_a_switch_off_start_keeps_the_password_user_one_changed_with_the_switch_on; test_r2_trace_beta_live.py::test_a_start_of_the_beta_site_keeps_the_password_user_one_set_on_the_live_site; test_principal seed test (a rotated env verifier is still copied over the seed's own copy) stays green"
+    },
+    {
+     "id": "R2-7",
+     "how": "Migrations 20261119_020 and _021 add site (NOT NULL DEFAULT 'beta', CHECK beta|live) to edge_bff.jobs and edge_bff.backtest_jobs. Store.submit, Store.claim and _promote carry and filter the site. BacktestStore(store, site) claims, reaps and prunes only its own site's jobs. The AI worker's claim is bound to the app's site (worker.claim, the same pattern as worker.access). Per-loop switches replace the single all-or-nothing switch: EDGE_AI_WORKER_ENABLED (unset means beta only; true on live is refused), EDGE_BACKTEST_LOOP_ENABLED, EDGE_HOUSEKEEPING_ENABLED, and EDGE_EMAIL_ENABLED (the sender runs only with the switch on, so only on live). EDGE_WORKER_ENABLED=false still turns every loop off.",
+     "tests": "test_r2_trace_beta_live.py::test_a_job_queued_on_the_live_site_is_dispatched_by_the_live_site_only; test_beta_live_site.py::test_each_site_claims_only_the_runs_it_queued, ::test_the_beta_backtest_loop_neither_reaps_nor_prunes_the_live_sites_jobs"
+    },
+    {
+     "id": "R2-13",
+     "how": "Duplicate of R2-7 plus R2-2, closed by the same fixes. config.validate also refuses the mixed pairings: EDGE_SITE=live without EDGE_MULTIUSER, and the beta with EDGE_MULTIUSER on outside EDGE_ENVIRONMENT=local.",
+     "tests": "as R2-7 and R2-2; test_beta_live_site.py::test_the_site_setting_refuses_the_pairings_the_decision_rules_out"
+    },
+    {
+     "id": "R2-23",
+     "how": "Duplicate of R2-7. The email outbox needs no site column: only the switch-on site (live) writes it and runs the sender. The hourly housekeeping runs in its own task, and an advisory try-lock on each purge stops two sites running the same purge at once.",
+     "tests": "as R2-7; test_beta_live_site.py::test_a_purge_another_instance_runs_is_skipped_and_every_purge_is_bounded"
+    },
+    {
+     "id": "R2-38",
+     "how": "Parts 1 and 2 are fixed as R2-7 and R2-2. EDGE_SITE (beta|live, default beta) is in place, and the live site masks every principal: principal.beta_only, live_view and Auth.site_view. On live nothing in the Monitor or admin tabs, no admin right from rights.py and no lab item is ever held, '*' included ('*' reads as every catalog flag that is not beta-only). allow_of never sends '*' from live. Auth.need answers 404 NOT_FOUND for those capabilities before the session is read, and /monitor and /c/<id> answer 404 too. MFA is still decided by the account's own grants, so user #1 needs MFA on live. Part 3 (the expand-then-contract order for 20261118_001 and 3c step 4) needs no code and is written into the notes for the records track. The pending test moved into apps/edge-bff/tests/ and was changed to the decided pairing (see notes).",
+     "tests": "test_r2_trace_beta_live.py (2); test_beta_live_site.py::test_the_live_site_answers_404_to_the_monitor_and_the_admin_routes, ::test_user_one_on_the_live_site_holds_no_beta_only_capability_and_still_needs_the_second_factor, ::test_a_lab_item_is_never_held_on_the_live_site, ::test_version_names_the_site_and_the_commit"
+    },
+    {
+     "id": "R2-8",
+     "how": "What can be checked from one process: config.shared_key_marks() writes a 12-hex HMAC mark of EDGE_SESSION_SECRET, EDGE_CODE_SECRET and EDGE_MFA_KEY into every startup_done log line. The two services' lines then show whether they hold the same values, without logging any secret. The rule itself (edge-bff-live takes all three as ${{edge-bff.NAME}} references) is in the railway.ts comment block and in the notes for CONTRACT 16.",
+     "tests": "test_beta_live_site.py::test_the_start_line_shows_whether_both_sites_hold_the_same_shared_secrets"
+    },
+    {
+     "id": "R2-26",
+     "how": "The secrets part is handled as in R2-8. The log-mode guard no longer accepts EDGE_ENVIRONMENT=dev, which is also the live site's Railway environment. Log mode with the switch on now needs EDGE_ENVIRONMENT=local or an explicit EDGE_EMAIL_LOG_ALLOWED=true. That flag exists for a deliberate test on the live site before the Resend key, with no real person (the user asked on 2026-11-19 to test directly on weblive). While it is on, email_log_mode_allowed is logged at every start.",
+     "tests": "test_beta_live_site.py::test_the_site_setting_refuses_the_pairings_the_decision_rules_out; test_auth_flows.py::test_the_settings_need_their_secrets_only_with_the_switch_on (prod still refused)"
+    },
+    {
+     "id": "R2-3",
+     "how": "The start-up now runs as one attempt under a lock: readiness, seed, catalog names, seed plan, then the loops. The attempt runs in the lifespan, is retried every EDGE_POLL_SECONDS and on each /ready, and /ready answers 503 until it succeeds. No loop starts before that, the backtest loop included (store.ready reads no backtest table, so the reason for the old comment still holds). With the switch on, a failing seed fails the attempt. New log lines: startup_not_ready and startup_done.",
+     "tests": "test_r2_skew.py::test_a_start_during_a_database_outage_runs_the_ai_worker_once_it_is_ready, ::test_a_build_that_is_not_ready_claims_no_backtest_job; test_beta_live_site.py::test_a_seed_that_fails_with_the_switch_on_keeps_the_site_not_ready"
+    },
+    {
+     "id": "R2-36",
+     "how": "The same start-up fix as R2-3. EDGE_WORKER_ENABLED, EDGE_EMAIL_ENABLED and the new loop switches are parsed with switch_of, so a typo stops the start. email_sender_off is logged at error level whenever the switch is on and no sender runs.",
+     "tests": "test_c2_ops_recheck.py::test_the_email_sender_runs_once_ready_answers_after_a_database_error_at_start, ::test_the_ai_worker_runs_once_ready_answers_after_a_database_error_at_start, ::test_a_typo_in_a_loop_switch_stops_the_start[EDGE_EMAIL_ENABLED|EDGE_WORKER_ENABLED]; test_beta_live_site.py::test_a_typo_in_a_loop_switch_stops_the_start[3 new switches]"
+    },
+    {
+     "id": "R2-33",
+     "how": "The purges left the AI loop for worker.Housekeeping, a task of their own that also runs on live, where there is no AI loop. Each purge in store.PURGES (sessions, throttle, pending) now has its own transaction and its own try. It deletes at most 500 rows per batch (by key) and at most 20 batches per turn. A failed purge is retried after a backoff that doubles up to an hour, is logged as housekeeping_failed by error class, and is skipped while another instance holds its try-lock. purge_pending and throttle.purge take an optional limit and return the row count. BacktestLoop.run now runs prune (by site, batched), reap and claim each in its own try, and a failed prune backs off.",
+     "tests": "test_c2_ops_recheck.py::test_a_failing_hourly_cleanup_does_not_stop_the_run_queue; test_beta_live_site.py::test_a_failing_purge_stops_neither_the_others_nor_its_own_next_try, ::test_a_failing_prune_or_reap_does_not_stop_the_backtest_claims, ::test_a_purge_another_instance_runs_is_skipped_and_every_purge_is_bounded; test_edge.py housekeeping start/hourly test (moved, see notes)"
+    },
+    {
+     "id": "R2-34",
+     "how": "Migration 20261119_023 adds plain btree indexes on sessions(user_id), email_codes(user_id), admin_audit(actor_user_id), admin_audit(target_user_id), subscriptions(user_id, starts_at DESC) and user_capability_overrides(created_by_user_id). Its $verify$ block refuses any foreign key to users that lacks a leading non-partial index. Bounded EXPLAIN (ANALYZE, BUFFERS) at the finder's sizes: purging 200 pending accounts went from 5830.7 ms to 27.4 ms; the resolve for an ended plan from 4.68 ms to 0.66 ms; the session cap from 8.96 ms to 0.13 ms; revoke_all from 9.27 ms to 0.24 ms. The site claims use the existing partial indexes (0.05 ms and 0.15 ms), so no index was added for site.",
+     "tests": "test_c2_ops_recheck.py::test_every_reference_to_an_account_has_an_index"
+    }
+   ],
+   "not_fixed": [
+    {
+     "id": "R2-36 (sub-point: scripts/restart_postgres.py)",
+     "reason": "edge_domain() and edge_ready() check only the service named edge-bff after a Postgres restart, so edge-bff-live's /ready is never checked. Fixing it needs edge-bff-live's domain, which does not exist yet, and the cron is uploaded with apps/postgres-memory-cron/deploy.sh, which is a Railway step. It belongs to creating the live service. Recorded in the notes."
+    },
+    {
+     "id": "R2-38 part 3 (expand-then-contract for 20261118_001 and 3c deploy step 4)",
+     "reason": "No code change is needed; the refuters agree. The ordering rule is written into the notes for the records track (EXEC 'Production environment'): never pair a live edge-bff older than the 3b follow-up with 20261118_001, and hold 3c step 4 until every edge-bff sends the owner headers."
+    }
+   ],
+   "decisions_needed": [
+    {
+     "id": "SITE-1 (user #1 on the live site)",
+     "context": "The live website (edge-bff-live, app.edgefinance.id) is for users; the beta (edge-bff) is for the admin only, as the user decided ('beta hanya admin'). The decision does not say whether the admin's own account (user #1, edge-private, which holds every capability) may also sign in on the live site. As built, it can: it needs the authenticator code there too, and it sees the live site masked, with no Monitor, no admin pages, no point-in-time Flow and no lab items, much as a paying user would.",
+     "options": "A) Keep this: the admin can check the live site as a user sees it, with MFA. B) Refuse user #1's sign-in on the live site, so the admin works only on the beta.",
+     "recommendation": "A: it lets the admin check the live site after each push to live, and the mask plus MFA keeps the beta-only tools off the public site."
+    }
+   ],
+   "suites": [
+    {
+     "name": "edge-bff pytest (full tests/, cluster fx_site:55562, Chromium /opt/pw-browsers/chromium)",
+     "result": "fix-site: 59 failed, 712 passed, 2 skipped (base 97b4ecb5: 70 failed, 682 passed, 2 skipped). No new failure. Fixed this run: this track's 10 re-check tests (test_r2_skew 4, test_c2_ops_recheck 6) plus the known flaky test_composer_layout mobile test, which passed. New tests passing: test_beta_live_site.py (17) and test_r2_trace_beta_live.py (2). The 59 still failing belong to other tracks and failed on the base too: test_c2_e2e_people (2), test_c2_ops_recheck (2: outbox index, sign-in burst), test_c2web_browser (7), test_c_p1s_preferences_plan (1), test_c_p2_recheck (3), test_c_p2_terminal_wire_domain (6), test_c_p3a_probes (4), test_c_p3b_recheck (1), test_cdb_ci_coverage (3), test_cdb_grants_and_records (5), test_cp0_reserved_owner (4), test_cp0_terminal_relay (2), test_cp1a_phase1_auth_check (10), test_r2_life (2), test_r2_race (7)."
+    },
+    {
+     "name": "scripts tests (python3 -m pytest scripts/tests)",
+     "result": "94 passed, 1 skipped"
+    },
+    {
+     "name": "terminal-api pytest, backtest-worker and screener-worker npm test, page vitests",
+     "result": "not run: this track changes no code in them"
+    }
+   ],
+   "contract_changes": [
+    "CONTRACT section 1: replace 'The tables are small: users and sessions number in the thousands at most.' with the rule that every foreign key to edge_bff.users has an index whose leading column is the referencing column (20261119_023).",
+    "CONTRACT section 2: the switch-off resolver accepts only sessions with no account (user_id NULL). On the live site every principal is live_view: no Monitor or admin tab capability, no admin right, no lab item, '*' included. Those routes answer 404 there, and MFA is decided by the account's own grants.",
+    "CONTRACT section 5: the email sender runs only with the switch on, which means only the live site. Log mode with the switch on needs EDGE_ENVIRONMENT=local or EDGE_EMAIL_LOG_ALLOWED=true.",
+    "CONTRACT section 16: add the new variables EDGE_SITE, EDGE_AI_WORKER_ENABLED, EDGE_BACKTEST_LOOP_ENABLED, EDGE_HOUSEKEEPING_ENABLED and EDGE_EMAIL_LOG_ALLOWED. edge-bff-live takes EDGE_SESSION_SECRET, EDGE_CODE_SECRET and EDGE_MFA_KEY as ${{edge-bff.NAME}} references, and the startup_done line shows their marks.",
+    "New endpoint GET /version returns {site, commit}, where commit is RAILWAY_GIT_COMMIT_SHA or null.",
+    "A build of this branch answers /ready 503 until migrations 20261119_020 to _022 are applied, because store.ready reads jobs.site and identities.seed_verifier_sha256."
+   ],
+   "migrations": [
+    "database/migrations/20261119_020_edge_bff_jobs_site.sql (edge_bff.jobs.site, NOT NULL DEFAULT 'beta', CHECK beta|live)",
+    "database/migrations/20261119_021_edge_bff_backtest_jobs_site.sql (edge_bff.backtest_jobs.site, the same; kept separate so tests that recreate 20261026_005 can put the column back)",
+    "database/migrations/20261119_022_edge_bff_seed_verifier_mark.sql (edge_bff.identities.seed_verifier_sha256, filled for the seed's identity)",
+    "database/migrations/20261119_023_edge_bff_account_reference_indexes.sql (six indexes on the foreign keys to edge_bff.users)"
+   ],
+   "notes": "My worktree is /home/user/saniti/.claude/worktrees/wf_aae5e996-bb8-2, branch fix-site, 4 commits on top of 97b4ecb5. Nothing was pushed or deployed, and no remote database was touched. The cluster fx_site is stopped.\n\nWhat the records track needs to write (ERRORS, EXEC, RAILWAY_CHANGELOG, DATABASE_CHANGELOG/SCHEMA, CONTRACT) is in verification/edge_multiuser/fix_round/site.md, together with the EXPLAIN table and the suite results.\n\nTests changed, none weakened:\n- tests/test_r2_trace_beta_live.py (moved from pending/): rewritten for the decided pairing (beta off, live on). The checker wrote it for beta on and live off, which config.validate now refuses. The rule it checks and its outcome assertions are unchanged. The pending/README entry was updated.\n- tests/test_edge.py: the 'clean at the start whatever the clock reads, then hourly' test now checks worker.Housekeeping, because the purges left the AI loop (R2-33).\n- tests/test_backtest.py: the tests that drop and recreate the backtest tables with 20261026_005 now also re-apply 20261119_021 (helper recreate()).\n- tests/conftest.py applies the four new migrations.\n\nReadings of the decision I made, for the main agent to confirm:\n- The live mask covers the whole monitor tab, including monitor.example (the proposal's 'monitor.*').\n- backtest.flow_point_in_time is masked on live as an admin right.\n- EDGE_HOUSEKEEPING_ENABLED defaults to true on both sites, so the running beta keeps purging. Once edge-bff-live runs, set it to false on edge-bff so live is the only owner; until then the try-lock stops overlaps.\n\nMerging with other tracks:\n- accounts.py: purge_pending gained an optional limit and now returns the row count. That is outside 'seed only', but the batching that R2-33 requires needs it.\n- Any new purge (for example R2-35) is one entry in store.PURGES taking (connection, limit) and returning rows deleted.\n- Any code that builds a principal must keep Auth.site_view around it.\n- If R1-42's fix removes the admin_audit foreign keys, the two admin_audit indexes can go with them.\n\n.railway/railway.ts declares edge-bff-live only as a comment block, with its variables and the ${{edge-bff.*}} references. The README has a new 'Beta and live websites' section."
+  },
+  {
+   "track": "auth",
+   "branch": "fix-auth",
+   "head": "419ee36823575c52f229af37f8a6599bb9f8c463",
+   "fixed": [
+    {
+     "id": "R1-3",
+     "how": "accounts.ORC_TEST_OWNER (Orc's TEST_OWNER_RE copied once, with a test that the two pattern texts are equal) and orc_reserved_owner (that rule plus 'default'). config.validate refuses it for EDGE_OWNER and for every EDGE_ADMIN_OWNERS entry, and the message names the forms with edge-private as the example. Per the refuters it does not use reserved_owner, so edge-private (the live owner) still validates.",
+     "tests": "test_cp0_reserved_owner.py: the 4 re-check cases pass. Added: edge-private and 4 other keys validate, a reserved admin owner is refused, the pattern matches Orc's. Five existing tests used Orc-reserved admin-owner placeholders ('someone-else', 'golden-a'), which are now refused at start. They were renamed to 'another-owner' and 'another-a' in test_principal, test_manual_routes, test_releases and test_phase3a_fix_round."
+    },
+    {
+     "id": "R1-7",
+     "how": "Migration 20261119_011 adds mfa_totp.pending_nonce and pending_created_at (with CHECK mfa_totp_pending) and mfa_recovery_codes.pending. FlowStore.enroll decides under the row lock. With no confirmed enrolment it replaces the one candidate. With a confirmed one, only an MFA-passed session may start a new enrolment; that enrolment waits beside the confirmed one, whose authenticator and recovery codes keep working. use_step swaps it in on the first code of the new secret and deletes the old recovery codes then. Recovery codes of a waiting enrolment are never accepted.",
+     "tests": "test_cp1a_phase1_auth_check f3 passes; test_fix_auth::test_the_confirmed_authenticator_works_until_the_new_one_is_proved"
+    },
+    {
+     "id": "R1-8",
+     "how": "New counter CODE_ADDRESS (keyed by the address, 20 a day). It is read and raised on every reset try, whether or not the address has an account. CODE_USER is kept for accounts.",
+     "tests": "test_cp1a f2 passes"
+    },
+    {
+     "id": "R1-9",
+     "how": "SIGNIN_LOGIN is now keyed by (normalised login, client address). A reset proved by the email code clears the keys of the account's username and email for the resetting client, and (through R1-16) lifts the account cap. The SIGN_IN_RATE_LIMIT message carries {wait}, filled from details.retry_after_s (errors.message_of). The page fallbacks in edge-labels.js now say 'a few minutes'.",
+     "tests": "test_cp1a f8 passes; test_fix_auth::test_tries_from_another_address_do_not_keep_the_owner_out, ::test_a_sign_in_limit_says_its_own_wait; test_auth_throttle.py keys moved to the new hash"
+    },
+    {
+     "id": "R1-10",
+     "how": "Each throttle Limit has its own counter label inside the HMAC (scope, counter, key; a tuple key is written as a JSON list). REGISTER_HOUR and REGISTER_DAY share the 'register' label, so they stay one counter as the refuters required. The password change has its own PASSWORD_CHANGE counter. MFA_USER is keyed by the user id under its own label. No migration: the scope CHECK is unchanged, and existing counts restart once at deploy.",
+     "tests": "test_cp1a f1 (both) pass"
+    },
+    {
+     "id": "R1-11",
+     "how": "FlowStore.register returns keep_held when nothing was made and the browser's own cookie names a pending registration of the same address. The route then sets that cookie again. The refuters' qualifier is kept, so no other address is revealed.",
+     "tests": "test_cp1a f4 passes"
+    },
+    {
+     "id": "R1-12",
+     "how": "Both 'taken' returns (the pre-check and the UniqueViolation branch) now raise the code's attempts; the code is consumed at 5.",
+     "tests": "test_cp1a f5 passes"
+    },
+    {
+     "id": "R1-13",
+     "how": "New counter REGISTRATION_MAIL: one pending registration is mailed at most 3 times a day (its code, resends and sign-in restarts), keyed by its user id, checked in _issue_code. The registrations of others now use at most 6 of the address's 10 daily emails once its owner has registered. N4's record must be corrected to say this.",
+     "tests": "test_cp1a f6 passes. test_auth_flows::test_resend_waits_60_seconds_and_sends_at_most_10_a_day was changed: one registration now stops at 3 emails, and the address's 10 a day is shown through an account's reset codes."
+    },
+    {
+     "id": "R1-14",
+     "how": "New constant accounts.EMAIL_MAX = 254, shared by checked_email, seed_identity and Login.login.",
+     "tests": "test_cp1a f7 passes"
+    },
+    {
+     "id": "R1-16",
+     "how": "Migration 20261119_010 adds identities.sign_in_failures and sign_in_locked_until. AccountStore.sign_in_try decides and counts in one UPDATE before the password check, and the same statement runs for a login that names no account. The 100th consecutive failure (both logins, every address) starts a 24 h lock, answered as a wrong password (OWASP: the same answer). After the lock the count restarts at 90, as the MFA counts do. A success (in create_session), a reset or a change clears it, and scripts/edge_mfa_unlock.py now also clears the password count of the account it unlocks. This applies with the switch on only (decision 2).",
+     "tests": "test_fix_auth::test_the_100th_consecutive_failure_locks_the_password_and_a_reset_lifts_it, ::test_after_the_lock_ends_ten_more_tries_and_a_success_clears_the_count"
+    },
+    {
+     "id": "R2-9",
+     "how": "The account's users row is now the lock for credential writes (AccountStore.lock_account). create_session takes it and checks the request's proof: `proved` compare-and-sets the verifier the sign-in proved (and stores the rehash), `replaces` requires the MFA verify's pending session to be live and revokes it in the same transaction. FlowStore.change takes the lock and checks that the changing session is live (else 401 UNAUTHENTICATED) and that the proved verifier is still the account's (else 400 CURRENT_PASSWORD_INVALID). revoke_all takes the lock; reset already did.",
+     "tests": "test_r2_race: change-in-flight and sign-in-in-flight pass"
+    },
+    {
+     "id": "R2-10",
+     "how": "_may_send's 60-second gap reads only code purposes (CODE_PURPOSES, the purposes of email_codes), so a notification email no longer holds a code back.",
+     "tests": "test_r2_race hold_back (both) pass; test_fix_auth checks CODE_PURPOSES against the email_codes CHECK"
+    },
+    {
+     "id": "R2-11",
+     "how": "use_step(user_id, CheckedStep(nonce, step)) confirms only the enrolment whose nonce was checked (confirmed, candidate or waiting). Otherwise the try counts as a failure. The 2-argument shape the committed test patches is kept.",
+     "tests": "test_r2_race::test_an_mfa_code_confirms_only_the_enrolment_it_was_checked_against passes"
+    },
+    {
+     "id": "R2-12",
+     "how": "FlowStore.mfa_try decides (including the restart after a lock), checks and counts in one transaction under SELECT ... FOR UPDATE of the enrolment. The recovery-code use happens inside that transaction.",
+     "tests": "test_r2_race burst (both cases) pass"
+    },
+    {
+     "id": "R2-24",
+     "how": "Migration 20261119_012 adds edge_bff.purge_email_outbox(). It is SECURITY DEFINER with a fixed search_path, and only edge_bff_runtime may execute it. It deletes sent, failed, expired or suppressed rows older than 24 h of addresses with no users row, at most 10 000 per call. Store.cleanup_sessions runs it in a transaction of its own after the pending purge. The runtime still holds no DELETE on the outbox, so 20261116_003's verify block, test_principal:210 and EXACT_GRANTS stay true. Rows of addresses that have an account are kept (decision 1).",
+     "tests": "test_r2_life::test_l1 passes; test_fix_auth::test_the_outbox_purge_keeps_an_accounts_rows_and_unsent_rows"
+    },
+    {
+     "id": "R2-25",
+     "how": "errors.UnexpectedErrors, added last so it is the outermost middleware. It answers 503 SERVICE_UNAVAILABLE in the contract's shape, logs request_failed with method, path, class and SQLSTATE only, and never re-raises.",
+     "tests": "test_r2_life::test_l2 passes"
+    },
+    {
+     "id": "R2-29",
+     "how": "security.COST is now (16384, 8, 5) and the verifier names its cost: scrypt$n=16384,r=8,p=5$salt$hash. Only the costs in COSTS are read. An old (p=1) verifier is checked and then padded with a p=4 derivation, so every check costs the same (M478 N1 holds). A switch-on sign-in with an old verifier stores the new one inside its create_session transaction. EDGE_PASSWORD_VERIFIER may be in either form. Migration 20261119_010 widens the identities_password CHECK to both forms. Measured here: 52 ms per derivation at p=1, 235 ms at p=5.",
+     "tests": "test_fix_auth: new verifiers, equal cost, rehash at sign-in, configured verifier of either form"
+    },
+    {
+     "id": "R2-35",
+     "how": "Migration 20261119_012 adds two indexes: email_outbox_to_email_created (to_email, created_at) and email_outbox_unsent (next_at) WHERE status IN ('pending','sending'). With them, no Seq Scan of the outbox remains on the four hot statements at 20k rows. The purge is under R2-24.",
+     "tests": "test_c2_ops_recheck::test_the_outbox_reads_of_every_send_and_every_sender_turn_use_an_index passes"
+    },
+    {
+     "id": "R2-37",
+     "how": "New passwords.PasswordWork: 4 threads of its own, and at most 16 requests in password work at once (sign-in, register, reset, change). The next request is answered 503 SERVICE_UNAVAILABLE with Retry-After 5 before any try is counted. The Pwned Passwords call also runs there. The default executor stays free for database calls.",
+     "tests": "test_c2_ops_recheck::test_a_burst_of_sign_ins_with_made_up_logins_does_not_hold_the_signed_in_users_requests passes; test_fix_auth::test_a_request_over_the_password_pools_limit_is_answered_503_at_once"
+    }
+   ],
+   "not_fixed": [
+    {
+     "id": "R2-37 (per-client bound)",
+     "reason": "Enforcing SIGNIN_IP (30 failed sign-ins per client address per 15 min) needs the Railway client-address probe first (CONTRACT 4 'Client IP', a Phase 0 runbook step that requires a Railway call). If Railway's edge does not add the right-most X-Forwarded-For hop, every client shares one address, and an enforced per-address limit locks everyone out. The refuters rejected a global cap in the meantime. The bounded password pool already stops a flood from stalling signed-in users."
+    },
+    {
+     "id": "R2-37 (auth_throttle growth and purge)",
+     "reason": "One row per made-up login, purged hourly by a full scan. A batched purge in its own transaction belongs with R2-33 (the cleanup that stops the run queue, another track). A window_start index waits for that design and its measurement (AGENTS.md: no speculative index)."
+    },
+    {
+     "id": "R2-25 (terminal-api)",
+     "reason": "terminal-api has no Exception handler either. It needs the same outermost middleware before 3c's per-owner writes, but apps/terminal-api is the terminal track's code. Noted in fix_round/auth.md."
+    },
+    {
+     "id": "R1-9 item 3",
+     "reason": "A 'Forgot password?' within a live code's life still replaces the code, and the address's 10 emails a day are still shared with strangers. Changing this changes CONTRACT 1 ('a new code consumes the old one'); see decision D3."
+    },
+    {
+     "id": "R1-7 step-up",
+     "reason": "Starting a re-enrolment does not require a fresh code. The re-check's own f3 test starts a re-enrolment with no body from an MFA-passed session and expects 200. The waiting enrolment (built) closes the takeover path; the stolen-verified-cookie case is decision D4."
+    }
+   ],
+   "decisions_needed": [
+    {
+     "id": "D1-outbox-retention",
+     "context": "Every email EDGE sends leaves a row in the database's email outbox: the recipient's address, the kind of email (a code, 'password changed', 'account exists'), when it was sent and Resend's id. The email's text is removed once it is sent. Until now nothing ever deleted these rows. This branch deletes them 24 h after they were made, but only for addresses that have no EDGE account (registrations that were never verified, which CONTRACT 4 already deletes after 24 h, or addresses never registered). Rows of addresses that do have an account are kept for ever. With accounts switched on, each account adds a row for every code, reset and password change (up to 10 a day). EDGE reads only the last 24 h (the 60-second and daily limits), and Resend's idempotency key lasts 24 h, so nothing needs an older row. Used email codes and Resend webhook events also pile up. The Phase 6 Privacy text must state a retention period.",
+     "options": "A: delete sent, failed, expired and suppressed rows of every address after 30 days, and the same for used codes and webhook events. B: delete after 24 h. C: keep them while the account exists and delete them with it. D: another period you name.",
+     "recommendation": "A. It is one migration that replaces edge_bff.purge_email_outbox()."
+    },
+    {
+     "id": "D2-beta-password-cap",
+     "context": "Sign-in to the beta website (accounts switched off, admin only, login EDGE_LOGIN) is now limited per login and per client address: 10 wrong passwords per 15 minutes from one address. A stranger can no longer keep the admin out just by typing the login. The new per-account cap (at most 100 wrong passwords in a row, the NIST SP 800-63B-4 rule) is built only with accounts switched on, where 'Forgot password?' is the way back. The beta has no reset. If the cap applied there, anyone who sent 100 wrong passwords would lock the admin out for 24 h, again and again, and only the operator script could unlock it. Without the cap, someone with many client addresses can guess the beta admin's password at up to about 960 tries a day per address, and the beta has no second sign-in step with accounts off.",
+     "options": "A: no cap on the beta (as built), with a long random admin password. B: the same 100-cap with its 24 h lock on the beta; the way back is scripts/edge_mfa_unlock.py or waiting. C: open the beta website only to known client addresses (a Railway change).",
+     "recommendation": "A now. Add C if the beta's address becomes widely known."
+    },
+    {
+     "id": "D3-forgot-and-email-budget",
+     "context": "'Forgot password?' emails a new 6-digit code, and each new code cancels the one before (CONTRACT 1). An address gets at most 10 EDGE emails a day. Anyone who knows an account's email address can press 'Forgot password?' for it. Every minute that cancels the owner's code (the owner gets the new code too, so this alone is a nuisance). After 10 presses in a day, the owner's own 'Forgot password?' sends nothing until the next day. This branch stopped notification emails from holding codes back (R2-10) and limited registrations by others (R1-13), but this budget is still shared by design.",
+     "options": "A: keep as is. The owner may wait up to a day after such an attack, but the sign-in limit and the account cap no longer lock them out. B: a 'Forgot password?' within a live code's 5 minutes sends nothing and keeps that code (fewer emails; someone who lost the email waits 5 minutes). C: count resets per address and client address, so a stranger's presses do not use the owner's budget (but then many client addresses could flood one mailbox).",
+     "recommendation": "B. This changes CONTRACT 1 and 4."
+    },
+    {
+     "id": "D4-mfa-step-up",
+     "context": "An admin who changes phone sets up a new authenticator from a session that has already passed the second sign-in step. This branch keeps the old authenticator working until the new one is proved by its first code, so a password alone can no longer take over the second step (R1-7). But someone who steals an admin's already-verified session cookie can still start and confirm an authenticator of their own, because starting one asks for no fresh code. OWASP's MFA cheat sheet asks for the current factor before it is changed.",
+     "options": "A: the request that starts a new authenticator must carry a code from the current one (or a recovery code); the set-up screen gets a code field. B: the session must have passed the second step in the last 10 minutes, otherwise it verifies again first. C: keep as built.",
+     "recommendation": "B. No page change, and it fits the re-check's own test, which starts a re-enrolment right after MFA."
+    },
+    {
+     "id": "D5-scrypt-cost",
+     "context": "Passwords are stored as scrypt verifiers. Following the fix round's brief (R2-29), this branch raises the cost from N=2^14, r=8, p=1 to OWASP's minimum equivalent at 16 MiB, N=2^14, r=8, p=5. Measured on this machine: 52 ms per derivation at p=1, 235 ms at p=5. A sign-in with accounts switched on (the live website) derives 4 times (one for the account and 3 padding, so the time reveals nothing), which is about 0.9 s of CPU per sign-in. At most 4 derivations run at once on the new password pool, so a burst of sign-ins waits its turn. Old verifiers keep working and are replaced at each account's next sign-in. The edge-bff test suite took about 19 min instead of 12.5 min on this shared machine.",
+     "options": "A: keep p=5 (as built). B: N=2^15, r=8, p=3 (32 MiB, about the same CPU). C: go back to p=1 and record it as accepted in CONTRACT 4 (5 times weaker against a database leak).",
+     "recommendation": "A."
+    }
+   ],
+   "suites": [
+    {
+     "name": "edge-bff pytest (full, Chromium; cluster fx_auth port 55563)",
+     "result": "45 failed, 725 passed, 2 skipped in 19 min. Baseline on 97b4ecb5: 68 failed, 684 passed. 24 baseline failures now pass, all in this track: test_cp0_reserved_owner 4, test_cp1a_phase1_auth_check 9, test_r2_race 7, test_r2_life 2, test_c2_ops_recheck 2. The one new failure, test_phase3a_fix_round (a 'golden-a' placeholder), was renamed and passes in a rerun. The remaining 44 belong to other tracks and also fail on the base: test_c2_e2e_people 2, test_c2_ops_recheck 6 (cleanup/queue, FK indexes, ready-blip, typo switches), test_c2web_browser 6, test_c_p1s_preferences_plan 1, test_c_p2_recheck 3, test_c_p2_terminal_wire_domain 6, test_c_p3a_probes 4, test_c_p3b_recheck 1, test_cdb_ci_coverage 3, test_cdb_grants_and_records 5, test_cp0_terminal_relay 2, test_cp1a_phase1_auth_check 1 (f9, R1-15), test_r2_skew 4."
+    },
+    {
+     "name": "edge-bff pytest, track files after the last commit (test_fix_auth, test_phase3a_fix_round)",
+     "result": "15 passed"
+    },
+    {
+     "name": "scripts tests (scripts/tests)",
+     "result": "94 passed, 1 skipped"
+    },
+    {
+     "name": "terminal page vitest (apps/edge-bff/terminal; reads static/edge-labels.js)",
+     "result": "965 passed, 3 failed. The same 3 fail on the base copy: c_p1s_browser_keys 2 and c_p1s_drawings_plan 1, both another track's."
+    },
+    {
+     "name": "terminal-api, backtest-worker, screener-worker",
+     "result": "Not run: this track changed none of their code."
+    }
+   ],
+   "contract_changes": [
+    "Section 1, identities: the verifier is scrypt$<salt>$<hash> (old, p=1) or scrypt$n=..,r=..,p=..$<salt>$<hash>; new columns sign_in_failures and sign_in_locked_until.",
+    "Section 1, auth_throttle: key_hash is the HMAC of scope, counter label and key (one label per counter).",
+    "Section 1, mfa_totp: pending_nonce and pending_created_at. mfa_recovery_codes: pending.",
+    "Section 1, email_outbox: indexes email_outbox_to_email_created and email_outbox_unsent; rows of an address with no account are deleted 24 h after they were made by edge_bff.purge_email_outbox(); the runtime holds no DELETE.",
+    "Section 3: SIGN_IN_RATE_LIMIT's message states the wait. A request over the password pool's limit is 503 SERVICE_UNAVAILABLE with Retry-After and details.retry_after_s.",
+    "Section 4 Throttle: sign-in is limited to 10 failures per login and client address per 15 min (was per login). Per account, at most 100 consecutive failed passwords, then a 24 h lock answered as a wrong password, restarting at 90. A success, a reset by email code (which also clears the resetting client's per-login counts) or a change clears it. Per-IP limits stay recorded only until the probe.",
+    "Section 4 Codes: the 20-a-day cap of failed codes also applies per address for resets; USERNAME_TAKEN uses one of the code's 5 tries; one registration is mailed at most 3 times a day; the 60 s gap applies between code emails only. Correct the ERRORS M478 N4 bound: others' registrations use at most 6 of 10 daily emails once the owner has registered.",
+    "Section 4 Registration rules: verifiers use scrypt N=2^14, r=8, p=5 and name their cost; an old verifier is replaced at the next sign-in (decision D5 confirms the cost).",
+    "Section 4 Sessions: reset, change, sign-out everywhere, sign-in and MFA verify serialise on the account's users row; a sign-in, change or verify whose proof no longer holds is refused.",
+    "Section 4 Admin MFA: a confirmed enrolment is replaced only by an MFA-passed session, and only once a code of the new authenticator proves it; until then the new one waits beside it.",
+    "Section 5: outbox retention as in section 1; the period for addresses with an account is decision D1."
+   ],
+   "migrations": [
+    "database/migrations/20261119_010_edge_bff_password_identity.sql: the identities_password CHECK accepts both verifier forms; adds identities.sign_in_failures and sign_in_locked_until. Unapplied.",
+    "database/migrations/20261119_011_edge_bff_mfa_pending_enrolment.sql: adds mfa_totp.pending_nonce and pending_created_at with CHECK mfa_totp_pending, and mfa_recovery_codes.pending. Unapplied.",
+    "database/migrations/20261119_012_edge_bff_email_outbox_purge.sql: adds the indexes email_outbox_to_email_created and email_outbox_unsent, and the SECURITY DEFINER function edge_bff.purge_email_outbox() with EXECUTE for edge_bff_runtime only. Unapplied."
+   ],
+   "notes": "Records for the records track are in verification/edge_multiuser/fix_round/auth.md: root cause, fix and tests per finding; what ERRORS_AND_SOLUTIONS.md, CONTRACT.md, DATABASE_SCHEMA.md, DATABASE_CHANGELOG.md and EXEC.md must say; plan evidence; what is not fixed and why. This track edited none of the shared records.\n\nDeploy order and rollback:\n- Apply migrations 010-012 before deploying this edge-bff. store.ready() now reads their columns and the function, so this version answers 503 NOT_READY until they are applied (the house rule).\n- Once a switch-on sign-in has rehashed a verifier, an older edge-bff cannot read it. Ship this version to every website that has the switch on before any rehash happens, and do not roll back below it without replacing those verifiers (stated in 010's rollback comment).\n- No Railway or grant change is needed: EXACT_GRANTS is unchanged and no DELETE was granted.\n\nTest changes (none weaken a check):\n- Re-check tests were left as committed and pass as written.\n- Existing tests changed:\n  - test_auth_flows resend test: one registration's emails now stop at 3 (the R1-13 fix); the address's 10-a-day budget is now asserted through reset codes.\n  - test_auth_throttle: moved to the new key_hash(limit, key) and the (login, address) key.\n  - Orc-reserved owner placeholders renamed in test_principal, test_manual_routes, test_releases and test_phase3a_fix_round (the R1-3 fix refuses them at start).\n- New tests: test_fix_auth.py, plus control tests in test_cp0_reserved_owner.py. The re-check's own R1-3 test had no control that edge-private still validates; one is added, as the refuters asked.\n\nOverlap with other tracks:\n- test_cdb_grants_and_records::test_the_migration_verify_block_refuses_an_audit_column_update is unaffected, because no DELETE grant was added.\n- Other tracks also edit main.py (the sign-in route, a new middleware line) and store.py cleanup_sessions (the R2-33 owner), so expect textual merge conflicts there."
+  },
+  {
+   "track": "plans",
+   "branch": "fix-plans",
+   "head": "279613408cb4cb0652140e55133c53958fe10467",
+   "fixed": [
+    {
+     "id": "R1-23",
+     "how": "principal.py refusal(capability, item=None, amount=None) and ended_allows(): for a list or limit, the ended plan allowed the request when it had no such row, its list holds the item, or the amount is within its limit, so PLAN_EXPIRED is answered instead of CAPABILITY_REQUIRED. Hand-off to the terminal track: the 3c call sites should pass item/amount.",
+     "tests": "tests/test_c_p2_recheck.py::test_an_ended_plan_without_a_ticker_list_or_history_limit_gives_plan_expired (green)"
+    },
+    {
+     "id": "R1-24",
+     "how": "RESTRICTIVE holds immutable values; restrictive(kind) returns a new list per read in read_grants.",
+     "tests": "tests/test_c_p2_recheck.py::test_a_malformed_list_reads_as_a_new_empty_list_for_each_principal (green)"
+    },
+    {
+     "id": "R1-25",
+     "how": "accounts.py seed_subscription reads value = 'true'::jsonb; the unapplied 3c migrations 20261118_001 and _002 verify blocks do too; the applied 003/004 are not edited; test helpers that find the admin plan use the same rule.",
+     "tests": "tests/test_c_p2_recheck.py::test_the_seed_plan_is_the_plan_whose_star_is_true (green)"
+    },
+    {
+     "id": "R1-29",
+     "how": "Each module declares its HARD with auth.ceiling(key, hard) where it registers its routes; Principal.access(ceilings=...) reports capped() for those keys; the session answer passes auth.ceilings.",
+     "tests": "tests/test_c_p3a_probes.py::test_the_session_access_limits_are_the_numbers_the_routes_apply (green)"
+    },
+    {
+     "id": "R2-15",
+     "how": "errors.words(code, status, details) is the one wording, used by errors.refusal and the backtest job end: CAPABILITY_REQUIRED names the item, PLAN_EXPIRED the item and the ended plan, LIMIT_REACHED of a plan limit names it, the account's number and the wait (or 'remove one or upgrade'); code_tries/mfa_tries name only the wait; MFA_REQUIRED with details.mfa_enrolled false says to set the authenticator up.",
+     "tests": "tests/test_c2web_browser.py::test_c2web_w2_* (4, green); test_backtest.py queue test asserts the worded sentence"
+    },
+    {
+     "id": "R1-34",
+     "how": "backtest-worker access.ts and screener-worker run.ts name the item without the internal key (key stays in details.capability); edge-bff allow.named keeps a worker sentence unless it carries the key or family, then words it by errors.words.",
+     "tests": "apps/backtest-worker/tests/c-p3b-recheck.test.ts, apps/screener-worker/tests/c-p3b-recheck.test.ts (green); tests/test_allow.py new case; exact messages in access.test.ts/server.test.ts no longer contain the key (they locked the defect)"
+    },
+    {
+     "id": "R1-32",
+     "how": "catalog.holds_entry(p, kind, id) is the one rule; catalog.held (/api/v1/catalog) and Screeners.catalog_for both use it; the restricted catalog cache is keyed by the preset grant too.",
+     "tests": "tests/test_c_p3b_recheck.py::test_f1_a_preset_the_plan_does_not_hold_is_not_listed_in_the_screener_catalog (green); test_screener.py rights test now uses released preset ids (brk52, golden) instead of made-up ids"
+    },
+    {
+     "id": "R1-18",
+     "how": "Each sync entry of the storage registry (shared/edge-session.ts) names its tab's view capability; build-shell.mjs writes catalog/storage_sync.json (with --check); app/preferences.py leaves such a key out of GET and refuses its PUT (403 CAPABILITY_REQUIRED or PLAN_EXPIRED); rows kept; the shared module stops writing a refused key.",
+     "tests": "tests/test_c_p1s_preferences_plan.py (green); tests/test_fix_plans.py preference cases; tests/test_storage_registry.py::test_the_server_reads_each_sync_key_with_the_capability_the_registry_names"
+    },
+    {
+     "id": "R1-30",
+     "how": "Same mechanism as R1-18 (ml.my, scr.last, scr.extraCols carry their tab's capability).",
+     "tests": "as R1-18"
+    },
+    {
+     "id": "R2-14",
+     "how": "edge-client.js ApiError's message is the person's words, the code on .code/.info.code; the Monitor shows words.",
+     "tests": "test_c2web_browser.py::test_c2web_w1_*, test_c2_e2e_people.py::test_the_monitor_shows_a_plan_refusal_in_words_not_its_code (green)"
+    },
+    {
+     "id": "R2-30",
+     "how": "A sign-in lands on the Monitor only for an account whose access holds * or monitor.view, else on the Terminal (landing()); LoginForm, CodeForm, MfaForm use it.",
+     "tests": "W1 and e2e tests adjusted to the Terminal landing (the computed task's decision), green"
+    },
+    {
+     "id": "R2-16",
+     "how": "The shared module's onVersion(fn); edge-client.js reads X-Edge-Entitlements on its own answers and follows either source: rereads the session, model list and preferences and dispatches edge-auth; the App redraws on a new access.version. principal.py sets request.state.principal before the MFA check so MFA_REQUIRED carries the header; MFA_REQUIRED carries details.mfa_enrolled.",
+     "tests": "test_c2web_browser.py::test_c2web_w3_*, test_c2_e2e_people.py::test_a_plan_raised_to_one_that_needs_mfa_asks_for_the_authenticator_without_a_reload (green)"
+    },
+    {
+     "id": "R2-31",
+     "how": "Same as R2-16 (the shell's own session follows a plan change).",
+     "tests": "as R2-16"
+    },
+    {
+     "id": "R2-17",
+     "how": "On a 401 of its own session the shared module posts signed-out on the channel and to its parent (same origin); the shell rereads its session and a 401 resets it to sign-in.",
+     "tests": "test_c2web_browser.py::test_c2web_w4_* (green)"
+    },
+    {
+     "id": "R1-17",
+     "how": "The Screener boot pointer's identity is login plus access.version (cacheId; live.ts session carries it); a catalog refused by plan or second factor drops the pointer and the rows and shows the refusal. Other site: edge.watchlist.logos is a user cache.",
+     "tests": "screener/tests/smoke/c_p1s_plan_refused_cache.mjs (exit 0); screener/tests/page/page.test.ts new case"
+    },
+    {
+     "id": "R1-38",
+     "how": "Same as R1-17 (pointer keyed by the entitlements version, so a narrowed plan never draws an earlier plan's answer).",
+     "tests": "as R1-17"
+    },
+    {
+     "id": "R1-19",
+     "how": "layoutsApi.ts LayoutApiError carries access kinds; drawingsApi.ts keeps the refusal, says its words once, keeps no local copy, skips the pagehide copy; a cap does not lock the drawings.",
+     "tests": "terminal/tests/data/c_p1s_drawings_plan.test.ts (green)"
+    },
+    {
+     "id": "R1-20",
+     "how": "ml.assets.flow. is a user cache family; removing a series removes its two keys (terminal/src/app/assets.ts); the registry test refuses a browser-class key built from a ticker or symbol.",
+     "tests": "terminal/tests/data/c_p1s_browser_keys.test.ts (green); tests/test_storage_registry.py::test_a_browser_key_family_never_names_a_ticker_or_symbol"
+    },
+    {
+     "id": "R2-39",
+     "how": "One code for every plan limit: errors.plan_cap gives 403 LIMIT_REACHED with details.limit the capability key, allowed, needed, in the plan's words (layouts, presets, drawings, screener items, watchlist); the backtest queue stays 429 with Retry-After; empty indicator choice is INVALID_INPUT; Watchlist fixture mirrors it; WATCHLIST_FORMULAS.md rewritten; module headers and the edge-bff README route table now say 403 LIMIT_REACHED (422 LIMIT_EXCEEDED stays for size limits).",
+     "tests": "test_layouts, test_presets, test_drawings, test_watchlist, test_phase3a_gates, test_screener, test_c2_probe_phase3a updated with the finding (green)"
+    },
+    {
+     "id": "R2-18",
+     "how": "app/text_rules.py: NFC, single spaces, 1-100 characters; refuses Cc, Cf except ZWJ/ZWNJ, Cs, Co, Cn, Zl/Zp, < and > with a sentence; export_cell prefixes a leading = + - @ tab CR with an apostrophe; auth_flows.checked_name uses it; display through text nodes.",
+     "tests": "tests/test_fix_plans.py (rule and registration route, green)"
+    },
+    {
+     "id": "R2-19",
+     "how": "The shell's inline scripts moved to static/edge-boot.js and static/edge-app.js (mechanical move); the shell policy is script-src 'self'; form-action 'self' in every page policy; the preview tool inlines the new files. plans_move_scripts.py redoes the move on a merged index.html.",
+     "tests": "tests/test_fix_plans.py::test_the_shell_has_no_inline_script_and_its_policy_no_unsafe_inline_script; test_storage_registry, test_radar, test_watchlist_page, test_backtest, test_screener read edge-app.js (green)"
+    },
+    {
+     "id": "R2-20",
+     "how": "Account menu 'Password and sign-in' dialog (accounts on): change password (other sessions end) and sign out everywhere; words in edge-labels.js, calls in edge-client.js; checked at 1280 and 390 px.",
+     "tests": "tests/test_fix_plans.py::test_the_account_menu_changes_the_password_and_signs_out_everywhere (browser, green)"
+    },
+    {
+     "id": "R2-21",
+     "how": "An https origin sends Strict-Transport-Security: max-age=31536000 on every answer (host only, no preload).",
+     "tests": "tests/test_fix_plans.py::test_an_https_origin_sends_hsts_and_a_host_only_session_cookie (green)"
+    },
+    {
+     "id": "R2-22",
+     "how": "On a Secure origin the cookies are __Host-edge_session and __Host-edge_registration; plain names on local http. One-time move with the switch off (old name read once, reset under the new name, old deleted; never overrides a route's own cookie answer); with the switch on the old name is never read.",
+     "tests": "tests/test_fix_plans.py cookie cases (green)"
+    },
+    {
+     "id": "R1-36 / user rule 2a",
+     "how": "Migration 20261119_030_edge_bff_plan_data_scope.sql (not applied): edge_bff.capabilities.data_scope marks terminal_limit (terminal.tickers, terminal.dataset, terminal.history_days) and every_stock (backtest.view/run, screener.view/run); data_scope_conflict/data_scope_conflicts judge every time an account may be on (overrides with an end, fall back to the default plan; '*' lifts the Terminal limits); data_scope_guard AFTER ROW triggers on plan_capabilities, user_capability_overrides, subscriptions, plans, capabilities refuse with SQLSTATE 23514, CONSTRAINT terminal_limit_with_every_stock, a message naming the plan or account and the keys and a hint with the way out and a right/wrong example; advisory lock per check; $verify$ block; added to conftest. Example flags stay allowed.",
+     "tests": "apps/edge-bff/tests/test_plan_data_scope.py (green); test_terminal_access.py::test_a_paid_principal_gets_every_ticker_and_dataset now closes the every_stock capabilities before narrowing (it contradicted the decision)"
+    }
+   ],
+   "not_fixed": [
+    {
+     "id": "R1-35",
+     "reason": "A user decision (the three refuters asked for the user's word): O3b-2 names the universe chips only; conditions on attributes every row and /universe show stay gated by id. No seeded plan reaches it. The extra-columns anchor is left until the answer. See decisions_needed."
+    },
+    {
+     "id": "R1-37",
+     "reason": "A user decision, reported as instructed (the user's rule 'the gate is the Terminal: flow menus closed'); the Overview and Watchlist files are not changed. See decisions_needed."
+    }
+   ],
+   "decisions_needed": [
+    {
+     "id": "R1-35",
+     "context": "The Screener lets a plan hold only some 'Screener metrics' (screener.metric items). Every result row and the /universe answer always show last price, 1-day change (chg_1d_pct), average traded value (adv20_idr) and, in /universe, bars, whatever the plan. The user's decision O3b-2 left the universe chips (price minimum, value minimum, minimum history, index) ungated because those values are shown in every row anyway, but a condition written on the same attributes (for example '1-day change > 2%') is still refused with CAPABILITY_REQUIRED screener.metric:chg_1d_pct. The page's own extra-columns request always adds the anchor 'bars > 0', so a plan without screener.metric:bars cannot load any extra column. Today no plan reaches this (paid holds every released metric, free has no Screener); only a Phase 4 override that narrows screener.metric would.",
+     "options": "A: extend O3b-2: conditions on the attributes every row and /universe show (last, chg_1d_pct, adv20_idr, bars, index_membership) are not gated by id (screener-worker run.ts definitionItems skips them; allow.test.ts:160 changes). B: keep them gated and remove those columns from rows and /universe for a plan without them; then the extra-columns anchor moves to a test the worker does not gate (for example price close > 0) and allow.test.ts:160 changes.",
+     "recommendation": "A: the values are already visible in every row, so gating the conditions hides nothing and only refuses screens; it also frees the anchor without a page change."
+    },
+    {
+     "id": "R1-37",
+     "context": "The Overview and Watchlist pages read publisher files that carry every stock's foreign net buy/sell (broker data, Feature 06: Watchlist columns foreign net 1D, 5D, 20D and its rank; Overview day files). These files are gated only by overview.view and watchlist.view. The user's flow decision O3b-1 closes flow items in the Terminal, add-screener and add-backtest menus, and said flow menus would 'potentially' be closed for some plans. No plan closes flow today (free holds only the example items; paid holds everything).",
+     "options": "A: 'flow closed' does not cover the Overview and Watchlist foreign-net columns (record it in CONTRACT 8b; nothing changes). B: it does: split the foreign-net columns out of those files and serve them with the flow grant, as 3d does for the Radar (a publisher and edge-bff change).",
+     "recommendation": "Ask the user; A needs no work until a plan actually closes flow."
+    },
+    {
+     "id": "R1-18-D5-reading",
+     "context": "The account preference store (/api/v1/preferences) holds the Backtest's 'My conditions' (ml.my, up to 50 cards, stored nowhere else), the Screener's last unsaved screen (scr.last) and its extra columns. The fix round built the reading that D5 ('a lowered plan loses read access to old content until it is raised again') covers them: such a key is left out of GET and its PUT refused while the plan lacks the tab; the rows are kept and come back on upgrade. The refuters asked for the user's confirmation, since D5's list did not name these keys.",
+     "options": "A: confirm (as built). B: the store stays readable after a downgrade: remove the cap of those keys in shared/edge-session.ts (one line per key), rebuild the shell, and move tests/test_c_p1s_preferences_plan.py to pending/.",
+     "recommendation": "A"
+    }
+   ],
+   "suites": [
+    {
+     "name": "edge-bff pytest (full, Postgres fx_plans 55564, Chromium)",
+     "result": "725 passed, 56 failed, 2 skipped. All failures belong to other tracks' findings: test_c2_ops_recheck (R2-33..37), test_c_p2_terminal_wire_domain (R1-22), test_c_p3a_probes 3 (R1-26 x2, R1-27), test_cdb_ci_coverage (R1-39/40/44), test_cdb_grants_and_records (R1-41..43), test_cp0_reserved_owner (R1-3), test_cp0_terminal_relay (R1-1), test_cp1a_phase1_auth_check (R1-7..15), test_r2_life (R2-24/25), test_r2_race (R2-9..12), test_r2_skew (R2-1..3); plus two load timing failures that pass alone: test_composer_layout[mobile] (known flaky) and test_ui_1031 status dots (green 3 times alone and once paired). Every plans-track test green."
+    },
+    {
+     "name": "terminal-api pytest",
+     "result": "142 passed, 1 skipped"
+    },
+    {
+     "name": "backtest-worker npm test",
+     "result": "276/277 passed; the BACKTEST_TIMEOUT_SECONDS timing test failed under load and passes alone"
+    },
+    {
+     "name": "screener-worker npm test",
+     "result": "127 passed"
+    },
+    {
+     "name": "page vitests",
+     "result": "screener 1355 passed 1 skipped (bundle tests after npm run build), terminal 968 passed, watchlist 21 passed 1 skipped, backtest 91 passed (after build), overview 21 passed 1 skipped, radar 7 passed 1 skipped; tsc --noEmit clean for screener, backtest, terminal, watchlist"
+    },
+    {
+     "name": "screener smoke",
+     "result": "c_p1s_plan_refused_cache.mjs exit 0; smoke.mjs 6 failures, identical on base 97b4ecb5 (pre-existing)"
+    },
+    {
+     "name": "scripts pytest",
+     "result": "94 passed, 1 skipped"
+    },
+    {
+     "name": "node shared/build-shell.mjs --check",
+     "result": "static/edge-session.js and catalog/storage_sync.json match"
+    }
+   ],
+   "contract_changes": [
+    "CONTRACT 3: LIMIT_REACHED is every plan limit's code, details.limit the capability key, allowed and needed; 429 with Retry-After when waiting frees it (backtest queue, Terminal quotas), 403 when it does not (a saved-item cap); messages built from code and details (errors.words); a worker message without the internal key is kept, one with it is reworded; auth throttles name the wait, not a plan",
+    "CONTRACT 4: MFA_REQUIRED carries details.mfa_enrolled on every route; __Host- cookie names on https; HSTS on https",
+    "CONTRACT 4b: each sync key's cap; GET leaves out and PUT refuses a key of a tab the plan lacks; rows kept",
+    "CONTRACT 8a: PLAN_EXPIRED for a list or limit (refusal(key, item, amount)); access.limits reports min(plan, HARD); the seed plan is the one whose '*' is true; the data_scope rule ('2a'): column, marks, constraint terminal_limit_with_every_stock",
+    "CONTRACT 8b: Screener catalog lists only held presets; 3e lock prompts add drawings and layouts; 3c call sites pass item/amount; the Terminal data limits bind the Terminal path only and the catalog keeps the Backtest and Screener off a plan with them",
+    "CONTRACT 1 or 10: the name rule and the export-cell rule",
+    "CONTRACT 12: the shell follows X-Edge-Entitlements and a frame's signed-out; landing on the Terminal for non-admins; the Password and sign-in dialog; no inline script"
+   ],
+   "migrations": [
+    "database/migrations/20261119_030_edge_bff_plan_data_scope.sql (new, not applied; added to apps/edge-bff/tests/conftest.py after 20261118_002; at deploy read back the marks and SELECT * FROM edge_bff.data_scope_conflicts(NULL, NULL) = no row)",
+    "database/migrations/20261118_001_edge_bff_item_families_from_terminal.sql and 20261118_002_edge_bff_terminal_quota.sql (unapplied 3c migrations): verify blocks read '*' = true"
+   ],
+   "notes": "Notes file: verification/edge_multiuser/fix_round/plans.md (per finding: root cause, fix, tests, record changes, hand-offs, suite results). This run continued the 20 earlier commits. I checked that every finding's tests pass. I added one commit, 27961340. It corrects the cap modules' docstrings (layouts, presets, drawings, screener.py) and the route table in apps/edge-bff/README.md to say 403 LIMIT_REACHED. It also adds three things to the notes: the R1-36/2a migration in the Records section, the R1-35 anchor note and the suite results. Tests changed because they contradicted a decision or a finding: test_terminal_access paid narrowing (the 2a rule), landing tests (the Terminal landing), cap code tests (R2-39) and worker exact messages (R1-34). Integration: index.html's inline app script moved to static/edge-app.js (R2-19). Another track's edit to the old inline script must be re-applied there, and verification/edge_multiuser/fix_round/plans_move_scripts.py redoes the move. The terminal track's 20261119_050 also touches edge_bff.capabilities but no column of 030; merge both conftest lines in number order. Hand-offs to the terminal track: pass item/amount at the 3c refusal sites; the 3c quota header clamps to 1e9 while access.limits shows the raw value; a Sec-Fetch-Site check could be added for counted Terminal GETs. My Postgres cluster fx_plans is stopped. Nothing pushed or deployed."
+  },
+  {
+   "track": "records",
+   "branch": "fix-records",
+   "head": "905bad655565e9482f2bddd8ab85e73ede5ea3f5",
+   "fixed": [
+    {
+     "id": "R1-2",
+     "how": "Code side only. apps/market-ai-orc/tests/test_main_key_readers.py checks that no code the runner runs (apps/orc-test-runner, scripts/, verification/) reads MARKET_AI_ORC_API_KEY. The re-check's test_cp0_runner_key.py waits in verification/edge_multiuser/access_tiers/pending/ until the main agent deletes the Railway variable with the user's go. The spec refuter said to keep it out of CI: no code change can make it pass. CONTRACT 7 lists the deletion as open before switch-on.",
+     "tests": "apps/market-ai-orc/tests/test_main_key_readers.py (2, green); pending/test_cp0_runner_key.py is red until the variable is deleted"
+    },
+    {
+     "id": "R1-6",
+     "how": "CONTRACT 7 now marks X-Saniti-Capabilities (models, levels including max, modes, fast lane) as deferred under D1, together with the usage ledger and the daily cap. It records what 3a built and that the export is already gated by monitor.chat. The clause stays as the work of the later phase.",
+     "tests": "records only"
+    },
+    {
+     "id": "R1-15",
+     "how": "app/hooks.py signed(path, secret) is a dependency built from each HOOK_ROUTES entry. It verifies the raw body before the handler runs and answers 401 HOOK_SIGNATURE_INVALID otherwise. tests/test_route_table.py refuses a hook route without signed for its own path and verifier, and a registered hook that has no route.",
+     "tests": "test_cp1a_phase1_auth_check.py R1-15 case, test_route_table.py (green)"
+    },
+    {
+     "id": "R1-21",
+     "how": "New tests/test_two_users_every_route.py builds the walk from the code, not by hand. The owned kinds are every edge_bff table with owner_key (from information_schema). The routes are every /api route and method of app.routes. B calls each route with A's values. After every call: A's rows and Orc's state are unchanged, none of A's content leaks, and an owned id answers exactly what a never-made id answers (a PUT gets the 409 of an own second create), never a success. B's backtest gets B's trials only. Both people share one TestClient with separate cookie jars, i.e. one event loop. conftest FakeOrc is now owner-aware, and the export download runs against an owner-aware stand-in. The scratch probe was removed.",
+     "tests": "test_two_users_every_route.py (4 green). Mutations caught: layout read without owner filter, prior_trials without owner filter"
+    },
+    {
+     "id": "R1-27",
+     "how": "tests/test_route_table.py walks every /api route: each has a capability need, or is public, a hook, or listed in PRINCIPAL_ONLY with its reason.",
+     "tests": "test_route_table.py and the test_c_p3a_probes.py route-walk case (green)"
+    },
+    {
+     "id": "R1-28",
+     "how": "New live-server test: the run stream ends once the plan loses monitor.view. TestClient cannot do this because it buffers the whole stream.",
+     "tests": "tests/test_run_stream_live.py (green)"
+    },
+    {
+     "id": "R1-39",
+     "how": "backend-tests.yml: new job edge-bff-pages runs build and vitest for Terminal, Overview, Radar and Watchlist. Job edge-bff now installs requirements-dev (Playwright), Chromium (setting EDGE_TEST_CHROMIUM) and builds the Terminal and Watchlist pages, so browser tests run instead of skipping. A new general test fails when any package under apps/ that has a test script is run by no workflow step.",
+     "tests": "test_cdb_ci_coverage.py (5 green). Mutation caught: Radar step folder renamed. Locally: overview 22, radar 8, watchlist 22 passed after build; Terminal build/typecheck passes"
+    },
+    {
+     "id": "R1-40",
+     "how": "The market-ai-orc job gets a postgres:16 service and ORC_TEST_POSTGRES_URL. Root cause of the 3 test_request_data errors: those tests run the SQL Governor package, which needs pyarrow. apps/market-ai-orc/requirements-dev.txt now includes ../market-sql-governor/requirements.txt.",
+     "tests": "Orc suite with Postgres: 2193 passed, 0 skipped; test_ci_runs_orc_conversation_ownership_against_postgres (green)"
+    },
+    {
+     "id": "R1-41",
+     "how": "Migration 20261119_040 adds a $verify$ block that refuses column-level privileges for edge_bff_runtime, edge_bff_login or PUBLIC. scripts/provision_edge_bff_login.py refuses them too.",
+     "tests": "test_cdb_grants_and_records.py (green). Test changed per the refuter: it now runs 040's verify block, because 20261116_003 is applied and cannot be edited"
+    },
+    {
+     "id": "R1-42",
+     "how": "Migration 040 drops the ON DELETE SET NULL foreign keys of admin_audit actor/target and overrides.created_by_user_id. The ids stay as plain numbers (pseudonymous, never rewritten). CONTRACT 1 records the rule.",
+     "tests": "test_db_backstops.py (2), test_cdb_grants_and_records.py::test_purging_a_pending_registration_never_changes_an_audit_row (green)"
+    },
+    {
+     "id": "R1-43",
+     "how": "Migration 040: trigger plan_capabilities_trace raises version and sets updated_at when a value changes. New column user_capability_overrides.updated_at is set by its own trace trigger. Who made the change is the Phase 4 admin_audit row.",
+     "tests": "test_db_backstops.py, test_cdb_grants_and_records.py::test_a_changed_plan_value_leaves_a_trace (green)"
+    },
+    {
+     "id": "R1-44",
+     "how": "New tests/test_shell_copy_build.py (marked generated_file) runs node shared/build-shell.mjs --check and shows that a hand edit of the copy is caught. generated-files.yml gets an edge-bff job: npm ci in terminal, then EDGE_TEST_REQUIRE_NODE=1 so a missing toolchain fails instead of skipping. scripts/tests/test_generated_files.py generators() now also finds any script that reads --check itself; it finds only build-shell.mjs. conftest registers the mark.",
+     "tests": "test_shell_copy_build.py (2), scripts tests 94 passed. Test changed per the refuters: test_ci_compares_the_shell_copy_with_its_build now accepts the generated_file form AGENTS.md prescribes"
+    },
+    {
+     "id": "R1-45",
+     "how": "Migration 040 resets the live comment of capabilities.kind (a malformed value reads as the most restrictive, M480) and the means text of terminal.history_days (D2: counted back from the newest published date). The ERRORS heading and status corrections are in the notes for the main agent.",
+     "tests": "040 verify block; records"
+    },
+    {
+     "id": "R1-46",
+     "how": "Direct tests of three constraints: users_registration_pending, the email_codes attempts cap, and users_one_seed (with the trigger bypassed via session_replication_role=replica).",
+     "tests": "tests/test_db_backstops.py (3 green)"
+    },
+    {
+     "id": "R2-6",
+     "how": "CONTRACT 17 has a rollback-floors table: for each deploy step (3b, 3b follow-up step 3, 20261118_001, 3c steps 3 and 4, fix-auth verifier form, fix-site queues, pre-Phase-1 builds, 3d), the floor it sets and the rollback order. The beta/live rule: the live site stays at or above every floor. 8b 3c points to the table.",
+     "tests": "records only"
+    },
+    {
+     "id": "R2-27",
+     "how": "CONTRACT 10 'Account deletion' lists every store that names an account (edge_bff by owner_key, user_id or address; Orc's AI_conversation; terminal.subscriber; Phase 5 payments) and the step for each. It is to be built as a Phase 4 admin action.",
+     "tests": "tests/test_contract_records.py::test_the_deletion_procedure_names_every_store_that_names_an_account: reads every migration for owner-keyed tables (green)"
+    },
+    {
+     "id": "R2-28",
+     "how": "New CONTRACT 18 lists who receives personal data: Google Fonts, Resend, the bucket host, Pwned Passwords (a 5-character hash prefix, not personal), Railway, OpenRouter (admin only), and the payment provider in Phase 5. Self-hosting the font is listed as open.",
+     "tests": "tests/test_contract_records.py::test_every_third_party_host_is_a_recorded_recipient_of_personal_data: collects hosts from server code and page-loaded resources (green)"
+    },
+    {
+     "id": "R2-40",
+     "how": "New tests/test_contract_requirements.py has one test per requirement that no test held, each failing on the finder's mutation: expired session in both modes, MFA 429 Retry-After plus an AST walk that every 429 answer builder passes Retry-After, X-Edge-Entitlements on the sign-in and register/verify answers, catalog names loaded at start, a subscription that has not started, the SEND_IP count, a pending session can sign out, plain words in every message table (found by AST). no-store is checked in the two-user walk. Two code fixes the tests found: register_verify now sets request.state.principal, and the pages.py NOT_CONFIGURED message no longer names the settings.",
+     "tests": "9 of 10 green. test_every_429_an_answer_is_built_with_says_when_to_try_again is red only at pages.py:178, which is R1-26, fixed on fix-terminal (checked against that branch's app/). Mutations caught: store.session expiry, the register_verify header"
+    },
+    {
+     "id": "R2-41",
+     "how": "CONTRACT.md was updated section by section for all 13 items: 401 and a registration restart instead of EMAIL_NOT_VERIFIED; backtest.result dropped; per-file page capabilities not built; Watchlist flow keys open; access:'admin' to build in 3f; the rule that a shape limit enters resultKey; examples per D4; email unique among non-pending accounts; register/verify bound to the browser and the open question for the admin's 'resend a code'; starts_at; top-level owner_key; the Screener star's watchlist.view; 'segera hadir' kept as the user's words with 'Coming soon' beside it.",
+     "tests": "records only"
+    }
+   ],
+   "not_fixed": [],
+   "decisions_needed": [
+    {
+     "id": "R1-2",
+     "context": "orc-test-runner is the project's one-off job service. It still holds MARKET_AI_ORC_API_KEY, the Orc key that may name any user. Since M477, no code the runner runs reads it; it only reads the narrower test key, and a test now checks that. So deleting the variable cannot break the runner. With the switch on, any job uploaded there could read every user's conversations.",
+     "options": "(a) Delete MARKET_AI_ORC_API_KEY on orc-test-runner now (a Railway change), then railway config pull and plan, and move test_cp0_runner_key.py back into apps/market-ai-orc/tests. (b) Keep it until switch-on and leave it listed as open.",
+     "recommendation": "(a): no runner suite is needed first (the code refuter)."
+    },
+    {
+     "id": "R2-28",
+     "context": "Every EDGE page, including the public sign-in and registration pages, loads the Inter font from Google Fonts. That sends each visitor's IP address and user agent to Google before they sign in. CONTRACT 18 now lists Google, Resend, the bucket host and others for the Privacy text, which is the user's to write.",
+     "options": "(a) Self-host Inter: no visible change, font-src 'self', one front-end change across the pages, and Google leaves the list. (b) Keep Google Fonts and state it in the Privacy text.",
+     "recommendation": "(a) before the live launch."
+    },
+    {
+     "id": "R2-27",
+     "context": "The account-deletion procedure (CONTRACT 10) deletes every store that names an account. Two stores need the user's rule. email_suppression holds a bounced or complained address, which protects the sender's reputation. Phase 5 payment_orders and payment_events may be financial records that must be kept by law.",
+     "options": "email_suppression: delete with the account, or keep the address only. Payment records: keep pseudonymised for N years, or delete.",
+     "recommendation": "Keep suppression rows (address and reason only); keep payment records pseudonymised for the legal period."
+    },
+    {
+     "id": "R2-41-item4",
+     "context": "The Watchlist page's indicator keys are checked only for shape and count, not against the plan catalog. The keys include the Foreign-flow items fn1, fn5, fn20 and fp5. The user's flow rule (O3b-1: 'menu yang akan ditutup di terminal adalah menu yang sifatnya flow') would close these. This is tied to R1-37: the Overview and Watchlist files carry every stock's foreign net.",
+     "options": "(a) Gate the Watchlist flow keys by the plan's Terminal flow grants. (b) Record them as part of the Watchlist itself, not gated.",
+     "recommendation": "Decide together with R1-37 (already raised by the plans track)."
+    },
+    {
+     "id": "R2-41-item9",
+     "context": "A registration code is accepted only from the browser that holds that registration's cookie (M478). So the Phase 4 admin action 'resend a code' cannot finish a registration for a person on another browser.",
+     "options": "(a) The person registers again (a new pending row). (b) The admin verifies the address and activates the account directly, audited.",
+     "recommendation": "(a); (b) only with an audited reason."
+    }
+   ],
+   "suites": [
+    {
+     "name": "edge-bff pytest (full, Postgres fx_records:55565, Chromium)",
+     "result": "60 failed, 719 passed, 2 skipped. 59 failures belong to other tracks' findings and failed on the base too: test_cp1a_phase1_auth_check 9, test_c2_ops_recheck 8, test_r2_race 7, test_c2web_browser 7, test_c_p2_terminal_wire_domain 6, test_r2_skew 4, test_cp0_reserved_owner 4, test_c_p3a_probes 3 (two retry_after cases, access.limits), test_c_p2_recheck 3, test_r2_life 2, test_cp0_terminal_relay 2, test_c2_e2e_people 2, test_c_p3b_recheck 1, test_c_p1s_preferences_plan 1. One is this track's, expected: test_contract_requirements::test_every_429_an_answer_is_built_with_says_when_to_try_again, red at pages.py:178 (R1-26), green once fix-terminal is merged. With the Terminal page built, test_c2_e2e_people also runs its free-plan test, which fails (R2-32, fix-terminal)."
+    },
+    {
+     "name": "market-ai-orc pytest with ORC_TEST_POSTGRES_URL",
+     "result": "2193 passed, 0 skipped"
+    },
+    {
+     "name": "scripts tests",
+     "result": "94 passed, 1 skipped"
+    },
+    {
+     "name": "Terminal vitest (apps/edge-bff/terminal)",
+     "result": "965 passed, 3 failed: c_p1s_browser_keys.test.ts 2 and c_p1s_drawings_plan.test.ts 1 (fix-plans findings). npm run build (typecheck) passes"
+    },
+    {
+     "name": "Overview / Radar / Watchlist vitest (after npm run build)",
+     "result": "22 / 8 / 22 passed"
+    },
+    {
+     "name": "terminal-api, backtest-worker, screener-worker",
+     "result": "not touched by this track; not run"
+    }
+   ],
+   "contract_changes": [
+    "Header: the 2026-11-19 records pass and the status marks Built, To build and Open",
+    "0: EDGE_SITE and the decided pairing (beta with the switch off, live with it on)",
+    "1: tables brought to the code: verifier forms, sign-in caps, MFA pending enrolment, outbox indexes and retention (24 h built; 30 days to build), admin_audit ids with no referential action, plan_capabilities version/updated_at triggers, capability value domains and data_scope marks, jobs/backtest_jobs.site, email unique among non-pending accounts, the name rule, indexes on every foreign key to users, the guest plan to build",
+    "2: the switch-off resolver accepts only sessions without an account; starts_at; the live mask; the guest principal to build",
+    "3: LIMIT_REACHED rule (403 versus 429), TERMINAL_UNAVAILABLE, SERVICE_UNAVAILABLE, the relay rule, words built from code and details, plain words in every message table",
+    "4/4b: 401 and a registration restart instead of EMAIL_NOT_VERIFIED; register/verify bound to the browser; pre-launch closed registration to build; scrypt cost; throttle changes; per-account cap; account-row locks; __Host- cookies, HSTS, no inline script; MFA re-enrolment and a 10-minute step-up to build; preferences per tab",
+    "5: log mode only with EDGE_EMAIL_LOG_ALLOWED; sender only on live; retention",
+    "6: hooks verified by signed() built from HOOK_ROUTES",
+    "7: Orc capabilities header deferred (R1-6); R1-2 open; 3c terminal wire as built; gateway expiry to 2100 (decision 5); the Screener resultKey rule",
+    "8/8a: backtest.result dropped; PLAN_EXPIRED for lists and limits; seed plan with '*'=true; value domains; restricted-plan rule (2a); catalog changes leave a trace",
+    "8b: the 6 decisions of 2026-11-19 verbatim with built or to-build status (free plan's whole ticker list, guest, outbox 30 days, forgot kept, one quota, gateway, M260); 3a route walk and Screener star; 3b worker message and presets; 3c acknowledgement, history 0, unknown datasets, reference copies (replaced by decision 1 for the ticker list), what the Terminal limits bind, page-file caches, deploy-order floors; 3e boxes, guest, lock prompts, Monitor on live; 3f access:'admin' and live lab",
+    "9: free plan and guest",
+    "10: admin 'resend a code' limit; account-deletion procedure (R2-27)",
+    "12: shell follows X-Edge-Entitlements and signed-out; landing; password dialog; boxes and pre-launch words to build",
+    "13: CI coverage; derived route walk and two-user walk; contract-requirement, backstop and records tests",
+    "15: per-file capabilities not built; Watchlist flow keys open; checkSuites off (M459); examples per D4",
+    "16: EDGE_SITE and loop switches, edge-bff-live references, orc-test-runner key deletion, gateway key on the two sites only",
+    "17 (new): the beta/live architecture, live refusals, pre-launch mode to build, two sites on one database, push to live, expand-then-contract, rollback floors (R2-6)",
+    "18 (new): who receives personal data (R2-28)"
+   ],
+   "migrations": [
+    "database/migrations/20261119_040_edge_bff_audit_ids_and_catalog_trace.sql (not applied). Drops the audit/provenance foreign keys to users; adds overrides.updated_at and the plan_capabilities/overrides trace triggers; resets the capabilities.kind comment and the terminal.history_days means; its $verify$ block refuses column-level privileges. It is in tests/conftest.py after 20261118_002. Dry-run, apply and read-back jobs: verification/edge_multiuser/jobs/migration20261119_040*.params.json and column_grants_readback.params.json"
+   ],
+   "notes": "My notes file is /home/user/saniti/.claude/worktrees/wf_aae5e996-bb8-5/verification/edge_multiuser/fix_round/records.md. It has, per finding, the root cause, fix, tests, test changes with reasons, merge notes, and what ERRORS, EXEC, DATABASE_CHANGELOG/SCHEMA and RAILWAY_CHANGELOG must say. One caution for the merge: decision 1 of 2026-11-19 (the free plan and the guest see the whole ticker list) reverses fix-terminal's R2-32 reading, which served the free plan reference lists naming BBCA only. CONTRACT 8b marks the ticker list the search reads as 'to build in 3c'. Merge points: the pages.py NOT_CONFIGURED two-line change must be re-applied on fix-terminal's pages.py. The auth_flows.py register_verify line is not touched by fix-auth. conftest gets three additions (owner-aware FakeOrc, the generated_file mark, migration 040). Drop the test_r2_trace_beta_live.py row from pending/README.md, since fix-site moved that test. Tests changed, with reasons: test_cdb_ci_coverage.py (the refuters of R1-39/R1-44: hold the property, not one form; general checks added) and test_cdb_grants_and_records.py (R1-41 refuter: the applied 003 block cannot change, so it runs 040's). No test was skipped, deleted or weakened. Nothing pushed, deployed or applied remotely; no Railway call. The Postgres cluster fx_records is stopped."
+  }
+ ]
+}
