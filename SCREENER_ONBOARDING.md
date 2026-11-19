@@ -287,7 +287,7 @@ names (`MAX_XSECTION_NAMES`, `main.py:97`). Tests: `apps/terminal-api/tests/test
 `test_xsection_index_keeps_only_well_formed_entries`, `test_xsection_presigns_only_keys_of_the_xsection_family`,
 `test_xsection_grants_the_indexed_files_to_the_gateway_in_one_audit_row_under_ref` and the other `test_xsection_*`.
 
-Neither route is in edge-bff's browser allow-list (`TERMINAL_ROUTES`, `apps/edge-bff/app/main.py:62`), so the browser
+Neither route is in edge-bff's browser allow-list (`TERMINAL_ROUTES`, `apps/edge-bff/app/main.py:72`), so the browser
 can never pull a whole-universe file. **A new xsection name needs no terminal-api code change**: names are validated
 against the index, not against a list in code; only the size matters for the quota (section 1.15).
 
@@ -549,7 +549,7 @@ README "Logs".
 
 ## 1.8 Stage 5: edge-bff (BRANCH)
 
-`apps/edge-bff/app/screener.py` (`Screeners`, `:680`), mounted like the Backtest module (`apps/edge-bff/app/main.py:662`
+`apps/edge-bff/app/screener.py` (`Screeners`, `:681`), mounted like the Backtest module (`apps/edge-bff/app/main.py:767`
 `screeners.routes`):
 
 Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session and the capability named; with
@@ -591,8 +591,8 @@ Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session 
   worker's `SCREENER_DEADLINE_MS` / 1000. The saved-item limits are constants (`SCREEN_LIMIT` 50, `WATCHLIST_LIMIT`
   50, `screener.py:81-82`; since EXEC-WATCHLIST 2A the star fills the first watchlist, so the limit is that list's
   `PER_LIST`, `apps/edge-bff/app/watchlist.py`).
-- **Page and frame**: `/screener` (`main.py:427`) and `/screener-app/` with its assets (`main.py:515-527`) under
-  `SCREENER_CSP` (`main.py:98-101`: `connect-src 'self'`).
+- **Page and frame**: `/screener` (`main.py:522`) and `/screener-app/` with its assets (`main.py:620-632`) under
+  `SCREENER_CSP` (`main.py:108-111`: `connect-src 'self'`).
 - **A new metric needs no edge-bff change:** the catalog is relayed as the worker built it.
 
 Tests: `apps/edge-bff/tests/test_screener.py` (35 tests, on a disposable PostgreSQL through `EDGE_TEST_POSTGRES_URL`;
