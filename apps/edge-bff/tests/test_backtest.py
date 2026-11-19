@@ -573,7 +573,9 @@ def test_queue_limit_one_running_and_three_queued(app, worker):
     # EXEC-MU-ACCOUNTS Phase 3a (C1 F2, CONTRACT.md 3): the queue cap is the plan's backtest.queued_jobs, so its refusal
     # is LIMIT_REACHED with the limit, the account's own number and when to try again (Retry-After)
     assert full.status_code == 429 and full.headers['retry-after'] == '30' and full.json() == {'error': {
-        'code': 'LIMIT_REACHED', 'message': MESSAGES['LIMIT_REACHED'],
+        # re-check R2-15: the words name the limit, the account's number and the wait (errors.words)
+        'code': 'LIMIT_REACHED', 'message': ("You have reached your plan's limit for Queued backtests (3). "
+                                             'Try again in 30 seconds, or upgrade the plan.'),
         'details': {'limit': 'backtest.queued_jobs', 'allowed': 3, 'retry_after_s': 30}}}
     assert submit(c, single(), 'k0').json()['request_id'] == ids[0]   # a known submission still answers
     store = c.app.state.backtests.store

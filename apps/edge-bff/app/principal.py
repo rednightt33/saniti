@@ -308,7 +308,9 @@ class Auth:
         self._names_at = now
         with self.store.connect() as c:
             rows = c.execute('SELECT capability_key, display_name FROM edge_bff.capabilities').fetchall()
-        set_display_names({r['capability_key']: r['display_name'] for r in rows})
+            plans = c.execute('SELECT plan_key, display_name FROM edge_bff.plans').fetchall()
+        set_display_names({r['capability_key']: r['display_name'] for r in rows},
+                          {r['plan_key']: r['display_name'] for r in plans})
 
     def seed_plan(self):
         """Phase 2 (CONTRACT.md 8a "User #1"): the seed user's subscription to the plan that holds every capability

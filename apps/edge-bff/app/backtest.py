@@ -26,7 +26,7 @@ from psycopg.types.json import Jsonb
 
 from .client import public_data
 from .accounts import AccountStore
-from .errors import Refusal, message_of
+from .errors import Refusal, words
 from .principal import Principal, owner_principal
 from .allow import NOTHING, context_of, named
 from .rights import catalog_for, refuse_context, rights_of
@@ -940,7 +940,8 @@ class BacktestLoop:
                 # EXEC-MU-ACCOUNTS Phase 3a (CONTRACT.md 8b): the plan lost backtest.run while the job waited (a
                 # downgrade or an ended plan): the job ends with the principal's refusal, never reaching the worker
                 refused = principal.refusal(RUN)
-                await self.end_job(row, deadline, 'FAILED', {'code': refused.code, 'message': message_of(refused.code, 403),
+                await self.end_job(row, deadline, 'FAILED', {'code': refused.code,
+                                                              'message': words(refused.code, 403, refused.details),
                                                               'details': refused.details})
                 return False
             body = {'job_id': job_id, 'request': row['request'],

@@ -187,7 +187,7 @@ export function checkAllow(definition: unknown, allow: Allow, field = 'definitio
     const a = allow[it.kind];
     if (a === '*' || a.has(it.id)) continue;
     const capability = `${CAPABILITY_FAMILY[it.kind]}:${it.id}`;
-    throw new CapabilityError(`${it.field}: the ${KIND_WORDS[it.kind]} ${itemName(it.kind, it.id)} is not included in your plan (${capability}). To run the screen, remove it (a condition, a switched-off condition, a filter or an extra column), or upgrade the plan.`,
+    throw new CapabilityError(`${it.field}: the ${KIND_WORDS[it.kind]} ${itemName(it.kind, it.id)} is not included in your plan. To run the screen, remove it (a condition, a switched-off condition, a filter or an extra column), or upgrade the plan.`,
       it.field, { kind: it.kind, id: it.id, capability });
   }
 }
