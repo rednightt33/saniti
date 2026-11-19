@@ -15965,3 +15965,32 @@ dipakai accross chat sebagai referencec?"
     - then refuters on every finding, further rounds until one finds nothing new, and a completeness critic.
   - 3c is not merged or deployed until the re-check's findings that affect it are fixed. The 3c builders keep working
     in their worktrees and rebase onto the fixes.
+  - Round 1 (2026-11-18/19): 46 findings (4 blocks-3c, 12 blocks-switch-on, 22 non-blocking, 8 records), 43 of them
+    shown with code or a failing test. The failing tests are gathered on the local branch `recheck-tests` (main
+    bf273f52 plus the finders' nine test commits). Three refuters per finding (reproduce, code path, specification and
+    decisions) are judging them; the first run stopped on the 5-hour usage limit and was resumed 2026-11-19.
+
+### Production environment (user decision 2026-11-19; open details asked)
+
+- **Question asked (2026-11-19):** the website runs in the Railway environment `dev`, which is also where changes are
+  tried. Should the new domain point at `dev` (A, no extra work, but a change being tried reaches users at once) or at
+  a separate production environment (B, about 1-2 days more)?
+- **User, 2026-11-19:** "B". Before it, on the estimate: "Estimasi saya sudah bisa kasih domain beserta dengan resign ke
+  kamu, dan kemudian website bisa segera ready dan up." ("resign" read as Resend, the email sender of CONTRACT section
+  5; the API key goes into the Railway dashboard, never into the chat.)
+- **Facts behind the open details (2026-11-19):**
+  - Railway: duplicating an environment copies its services, variables and configuration; each environment has its
+    own private network; each environment gets its own bucket with its own credentials, and buckets are reachable only
+    over the public network (docs.railway.com: reference/environments, reference/private-networking,
+    guides/storage-buckets).
+  - The project holds 26 services, 12 of them crons, and the main Postgres (about 23 GB, DATABASE_CHANGELOG.md, 2026-09
+    readback; 2 GB memory limit).
+  - The services users touch read market data only through terminal-api, from the files terminal-publisher puts in the
+    bucket: edge-bff (its own `edge_bff` login), terminal-api (bucket plus its `terminal` schema), backtest-worker and
+    screener-worker (terminal-api only) (`.railway/railway.ts`, the env names of those services).
+- **Open (asked 2026-11-19):** what production holds:
+  1. a full copy (every service, its own copy of the database and its own data jobs);
+  2. a light production (edge-bff, terminal-api, the two workers and a small Postgres for accounts, sessions and jobs;
+     market data still made once in `dev` and brought over as published files);
+  3. roles swapped (`dev` becomes production with the domain, and a new light environment is made for trying changes).
+- Nothing is created on Railway before the user answers and gives the go for the execution.
