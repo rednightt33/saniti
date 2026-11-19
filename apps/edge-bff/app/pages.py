@@ -48,8 +48,10 @@ def messages(family, label, names):
     return {
         'UNAVAILABLE': f'The {label} data could not be read from the terminal service. Try again in a minute; nothing '
                        'on this page changed.',
-        'NOT_CONFIGURED': f'The {label} needs the terminal service, which this server is not connected to '
-                          '(EDGE_TERMINAL_URL and TERMINAL_PROXY_KEY on edge-bff).',
+        # plain words only (CONTRACT.md 3; re-check R2-40 item 10): the code <FAMILY>_NOT_CONFIGURED tells the operator
+        # that the terminal service's two settings are unset (app/config.py, settings.terminal_url)
+        'NOT_CONFIGURED': f'The {label} is not available on this server right now. Nothing on this page changed; try '
+                          'again later.',
         'INVALID_NAME': f'That is not a {label} file name. Names: {names}; GET /api/v1/{family}/index lists the '
                         'published ones.',
         'INVALID_SHA': 'The sha parameter must be the 64 lowercase hexadecimal characters of the file\'s sha256 as '

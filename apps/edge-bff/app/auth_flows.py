@@ -466,6 +466,9 @@ class AuthFlows:
             p = await auth.resolve(token)
             if p is None:
                 raise Refusal(401, 'UNAUTHENTICATED')
+            # CONTRACT.md 8a: every answer made for a principal carries its X-Edge-Entitlements, this signed-in answer
+            # too (as the sign-in's; re-check R2-40 item 4)
+            request.state.principal = p
             response = signed_in(p, token)
             response.delete_cookie(REGISTRATION_COOKIE, path=REGISTRATION_PATH)
             return response

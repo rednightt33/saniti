@@ -265,6 +265,12 @@ def test_b_reaches_nothing_of_a_on_any_route(on, store, workers, monkeypatch):
                 headers, params = (hb if method != 'GET' else None), ({'ticker': 'BBRI'} if method == 'GET' else None)
                 r = b.request(method, path, headers=headers, json=body, params=params)
                 walked += 1
+                # CONTRACT 13.8 (re-check R2-40 item 6): a per-user answer never enters a shared browser's HTTP cache;
+                # an answer without its own Cache-Control is no-store, one with its own keeps it private
+                cache = r.headers.get('cache-control', '')
+                if 'no-store' not in cache and not ('private' in cache and 'application/json' not in
+                                                    r.headers.get('content-type', '')):
+                    problems.append(f'{method} {path}: Cache-Control {cache!r} on a {r.status_code} answer')
                 sent = set(re.findall(r'[A-Za-z0-9_]+', path))
                 leaked = [m for m in content if m in r.text and m not in sent]
                 if leaked:
