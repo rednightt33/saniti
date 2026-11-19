@@ -1074,7 +1074,8 @@ want of a browser), the page suites (`edge-bff-pages`: Terminal, Overview, Radar
 Backtest page in `backtest-lookahead.yml`), market-ai-orc's suite with a disposable Postgres (the conversation-ownership
 and C2 tests), terminal-api's, the publisher's and telegram-monitor's. `generated-files.yml` compares
 `static/edge-session.js` with its build (`tests/test_shell_copy_build.py`). `tests/test_cdb_ci_coverage.py` fails when
-a package under `apps/` with a test script is run by no workflow step. No acceptance test is local-only. Until K10 a
+a package under `apps/` with a test script is run by no workflow step. No acceptance test of this contract is
+local-only; the Terminal look check (`look_check11.mjs`, section 12) stays the local step AGENTS.md names. Until K10 a
 turns `checkSuites` on (ERRORS M459), a red check does not hold a deploy by itself: a deploy waits for the green run by
 hand.
 

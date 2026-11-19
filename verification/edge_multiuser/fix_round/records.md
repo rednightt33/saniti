@@ -231,6 +231,26 @@ Brought in as built (with the branch) or to build:
 - the main agent's design values told to the user (admin on live with MFA, a recent MFA pass to start a new
   authenticator: to build, scrypt cost, no 100-failure cap on the beta).
 
+## Merging with the other tracks
+
+- `apps/edge-bff/tests/conftest.py`: `FakeOrc` is owner-aware (R1-21), `pytest_configure` registers the
+  `generated_file` mark (R1-44), and migration `20261119_040` is applied after `20261118_002`; other tracks add their
+  20261119_0xx lines: keep them in number order, 040 after 030 (it touches none of their objects).
+- `apps/edge-bff/app/pages.py`: the two lines of `NOT_CONFIGURED` (R2-40 item 10). `fix-terminal` rewrote the file but
+  kept the old sentence; re-apply this one change on its version (checked: every other track's message tables pass
+  `test_every_message_table_speaks_plain_words` once it is in). `fix-terminal`'s `pages.py` also removes the 429
+  without Retry-After, which makes `test_every_429_an_answer_is_built_with_says_when_to_try_again` green (checked on
+  its `app/`).
+- `apps/edge-bff/app/auth_flows.py register_verify`: one line, `request.state.principal = p` after `auth.resolve`
+  (R2-40 item 4); `fix-auth` does not touch these lines.
+- `.github/workflows/backend-tests.yml`, `generated-files.yml`: this track only. `apps/market-ai-orc/requirements-dev.txt`:
+  this track only.
+- `scripts/tests/test_generated_files.py`: `generators()` widened; `fix-plans` changed `shared/build-shell.mjs` to write
+  `catalog/storage_sync.json` too, which `test_shell_copy_build.py` copies (the `catalog` folder) for its hand-edit case.
+- `verification/edge_multiuser/access_tiers/pending/`: `fix-site` moved `test_r2_trace_beta_live.py` to
+  `apps/edge-bff/tests/`; drop its row from `pending/README.md` at the merge (this branch fixed only the table's blank
+  line).
+
 ## Records to write (for the main agent at integration)
 
 - **ERRORS_AND_SOLUTIONS.md:** one entry (or sub-items) per finding above: symptom (the finding's failure scenario), the
