@@ -1,0 +1,204 @@
+"""Round 2 re-check of EXEC-MU-ACCOUNTS Phases 0-3b, checker C2-WEB (the browser as an attacker and as a user).
+
+Failing tests of verified findings; the fix round makes them pass. Each names the finding, its evidence and why it
+matters for the person in front of the page (AGENTS.md "Gates and evidence" (d): every refusal names the problem and
+the way out)."""
+import dataclasses
+import re
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from app.main import create_app
+from conftest import FakeOrc
+from test_auth_pages import page  # noqa: F401 (fixture)
+from test_auth_pages_live import live  # noqa: F401 (fixture)
+from test_backtest import single
+from test_phase3a_gates import BT, override, paid_user
+from test_principal import db, make_user, on, sign_in, workers  # noqa: F401 (fixtures)
+
+ORIGIN = 'http://testserver'
+CODE = re.compile(r'[A-Z][A-Z0-9_]{3,}')                          # a refusal code as edge-bff sends it
+
+
+def signed_in(page, on, login):
+    """The shell's sign-in page, as the person uses it; every sign-in lands on /monitor (index.html LoginForm)."""
+    page.goto(on.origin + '/login')
+    page.get_by_label('Login', exact=True).fill(login)
+    page.get_by_label('Password', exact=True).fill(login + '-password')
+    page.get_by_role('button', name='Sign In').click()
+    page.wait_for_function("() => location.pathname === '/monitor' && Edge.auth !== null")
+
+
+def on_app(settings, store):
+    on = dataclasses.replace(settings, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40)
+    application = create_app(on, store, FakeOrc())
+    application.state.auth_flows.pwned_fetch = lambda prefix: ''
+    return on, application
+
+
+# ---- W1: the Monitor shows a refusal's code, never its words ------------------------------------------------------
+
+def test_c2web_w1_a_paid_account_lands_on_the_monitor_and_reads_words_not_a_code(live, page):
+    """Every sign-in goes to /monitor (static/index.html LoginForm, CodeForm, MfaForm: go("/monitor")). With the switch
+    on the paid and free plans hold no monitor.view (decision D1), so the Monitor's first read, GET
+    /api/v1/conversations, answers 403 CAPABILITY_REQUIRED. The Monitor's catch shows e.message, the ApiError's code
+    (static/edge-client.js: super(code)), not error.text (the plan words set by the M471 fix) nor the server's message:
+    the person sees the bare code CAPABILITY_REQUIRED in a red alert, with no words and no way out."""
+    on, store = live
+    paid_user(store, 'paula')
+    signed_in(page, on, 'paula')
+    page.wait_for_timeout(2000)                                   # the Monitor's first reads (conversations, runs)
+    said = [t.strip() for t in page.locator('[role=alert]').all_inner_texts() if t.strip()]
+    # (3e may show an example conversation instead of a refusal; then nothing is said and the test passes)
+    codes = [t for t in said if CODE.fullmatch(t) or 'CAPABILITY_REQUIRED' in t]
+    assert not codes, f'the Monitor shows the refusal code itself to the person: {codes!r}'
+    assert all(' ' in t for t in said), f'a refusal on the Monitor is not worded for the person: {said!r}'
+
+
+# ---- W2: an abuse throttle answered with the plan-limit message ---------------------------------------------------
+
+def test_c2web_w2_too_many_wrong_email_codes_is_not_worded_as_a_plan_limit(settings, store):
+    """auth_flows.code_refusal answers 20 wrong email codes a day with 429 LIMIT_REACHED (limit code_tries), and
+    errors.refusal gives every LIMIT_REACHED the plan message "You have reached your plan's limit. Try again later, or
+    upgrade the plan." The /verify and /reset pages show the server's message first (index.html authText), so a person
+    who is not even signed in (no plan) is told to upgrade a plan; the shell's own right label (EdgeLabels.auth.errors
+    LIMIT_REACHED "Too many attempts today. Try again tomorrow.") is never shown."""
+    on, application = on_app(settings, store)
+    make_user(store, 'rita', 'rita-password', email='rita@example.com')
+    with TestClient(application) as c:
+        h = {'origin': ORIGIN}
+        assert c.post('/api/v1/auth/password/forgot', headers=h, json={'email': 'rita@example.com'}).status_code == 202
+        body = {'email': 'rita@example.com', 'code': '000000', 'password': 'a long enough password',
+                'password_repeat': 'a long enough password'}
+        answer = None
+        for _ in range(25):
+            answer = c.post('/api/v1/auth/password/reset', headers=h, json=body)
+            if answer.status_code == 429:
+                break
+        assert answer.status_code == 429, answer.text
+        error = answer.json()['error']
+        assert error['code'] == 'LIMIT_REACHED' and error['details']['limit'] == 'code_tries'
+        assert 'plan' not in error['message'].lower(), \
+            f'a person with no session is told to upgrade a plan after wrong email codes: {error["message"]!r}'
+
+
+def test_c2web_w2_too_many_wrong_mfa_codes_is_not_worded_as_a_plan_limit(settings, store):
+    """The same for the admin's authenticator page: 10 wrong codes in 15 minutes answer 429 LIMIT_REACHED (limit
+    mfa_tries) with the plan message, and the /mfa page shows it (authText): the admin is told to upgrade a plan, and the
+    wait (Retry-After, up to 15 minutes) is never named."""
+    on, application = on_app(settings, store)
+    with TestClient(application) as c:
+        h = {'origin': ORIGIN}
+        signed = c.post('/api/v1/auth/sign-in', headers=h, json={'login': 'owner', 'password': 'local-test-password'})
+        assert signed.status_code == 403 and signed.json()['error']['code'] == 'MFA_REQUIRED', signed.text
+        h['x-csrf-token'] = signed.json()['error']['details']['csrf_token']
+        assert c.post('/api/v1/auth/mfa/enroll', headers=h, json={}).status_code == 200
+        answer = None
+        for _ in range(15):
+            answer = c.post('/api/v1/auth/mfa/verify', headers=h, json={'code': '000000'})
+            if answer.status_code == 429:
+                break
+        assert answer.status_code == 429, answer.text
+        error = answer.json()['error']
+        assert error['code'] == 'LIMIT_REACHED' and error['details']['limit'] == 'mfa_tries'
+        assert 'plan' not in error['message'].lower(), \
+            f'the admin is told to upgrade a plan after wrong authenticator codes: {error["message"]!r}'
+
+
+def shown(page, status, body, retry_after=None):
+    """What a page built on the shared session module shows for this answer (accessText(readError(...)), the sentence
+    the Radar, Overview, Watchlist, Backtest, Screener and Terminal clients put on screen); static/edge-session.js is the
+    shell's build of shared/edge-session.ts (tests/test_storage_registry.py holds them equal)."""
+    page.set_content('<!doctype html><title>refusal</title>')
+    page.add_script_tag(path=str(Path(__file__).resolve().parents[1] / 'static' / 'edge-session.js'))
+    return page.evaluate('([s, b, r]) => EdgeSession.accessText(EdgeSession.readError(s, b, r))', [status, body, retry_after])
+
+
+def test_c2web_w2_a_capability_refusal_reaches_the_page_with_the_name_edge_bff_sends(on, store, page):
+    """M481 C1 F3 gave every CAPABILITY_REQUIRED a person-facing details.display_name (the catalog's), and 3c refuses a
+    ticker or data set the same way (CONTRACT 8b "3c in detail": "naming terminal.tickers or terminal.dataset:<id>, with
+    its display_name"). But errors.refusal sends the one fixed sentence of the code ("This feature is not part of your
+    EDGE plan..."), and accessText shows the server's sentence first: the name is never shown to the person."""
+    with TestClient(create_app(on, store, FakeOrc())) as c:
+        paula = paid_user(store, 'paula')
+        override(store, paula['user_id'], 'radar.view', 'false')          # a plan without the Radar
+        h = sign_in(c, 'paula', 'paula-password')
+        r = c.get('/api/v1/radar/index', headers=h)
+        assert r.status_code == 403 and r.json()['error']['code'] == 'CAPABILITY_REQUIRED', r.text
+        name = r.json()['error']['details']['display_name']
+        assert name == 'Radar', r.text                                       # the catalog's name, as edge-bff sends it
+        said = shown(page, 403, r.json())
+    assert name in said, f'the page never names what the plan lacks ({name!r} is in details only): {said!r}'
+
+
+def test_c2web_w2_the_queued_backtest_limit_reaches_the_page_with_its_number_and_wait(on, store, page):
+    """M481 C3 F1/C1 F2 made the queue cap a 429 LIMIT_REACHED with details.limit, allowed and retry_after_s (Gates (a),
+    (d)). The message is the generic plan sentence, and accessText shows it first, so the Backtest page (api/live.ts
+    failure: accessText(info)) says neither that it is the queued backtests, nor the account's number, nor the wait."""
+    with TestClient(create_app(on, store, FakeOrc())) as c:
+        alice = paid_user(store, 'alice')
+        override(store, alice['user_id'], 'backtest.queued_jobs', '1')
+        h = sign_in(c, 'alice', 'alice-password')
+        assert c.post(BT, headers=h, json={**single(), 'client_request_id': 'one'}).status_code == 202
+        r = c.post(BT, headers=h, json={**single('BBRI'), 'client_request_id': 'two'})
+        assert r.status_code == 429 and r.json()['error']['details']['allowed'] == 1, r.text
+        said = shown(page, 429, r.json(), r.headers.get('retry-after'))
+    assert 'backtest' in said.lower() or 'queue' in said.lower(), \
+        f'the page does not say which limit was reached (details.limit {r.json()["error"]["details"]["limit"]!r}): {said!r}'
+
+
+# ---- W3: the shell's own session never follows a change of plan ---------------------------------------------------
+
+def test_c2web_w3_the_shell_reads_its_session_again_when_the_plan_changes(live, page):
+    """CONTRACT 12: "The version header X-Edge-Entitlements makes it re-read the session; a change is broadcast". The
+    shell talks to edge-bff through its own client (static/edge-client.js api()), which never reads the header, and the
+    'entitlements' broadcast of a frame reaches only the shared module's own client (edge-session.ts listen ->
+    clients.forEach(invalidate)), never edge-client.js `auth`. So Edge.auth (its access: capabilities, limits, plan,
+    next, mfa_enrolled) keeps what the account held at sign-in until the tab is reloaded: what 3e's Monitor example mode
+    and the frames' example mode would decide from."""
+    on, store = live
+    paula = paid_user(store, 'paula')
+    signed_in(page, on, 'paula')
+    before = page.evaluate('() => Edge.auth.access.version')
+    assert 'backtest.view' in page.evaluate('() => Edge.auth.access.capabilities')
+    override(store, paula['user_id'], 'backtest.view', 'false')           # the admin narrows the plan (Phase 4)
+    now = page.evaluate("() => fetch('/api/v1/auth/session').then(r => r.headers.get('X-Edge-Entitlements'))")
+    assert now != before                                                   # the server says the access changed
+    page.evaluate("() => Edge.api('/preferences')")                       # the shell's next call carries it too
+    # and a frame of this origin that saw the new version broadcasts it (edge-session.ts noteVersion -> post)
+    page.evaluate("() => new BroadcastChannel('edge-session').postMessage({type:'entitlements', version:'x', from:'frame'})")
+    page.wait_for_timeout(1500)
+    held = page.evaluate('() => [Edge.auth.access.version, Edge.auth.access.capabilities]')
+    assert held[0] == now and 'backtest.view' not in held[1], \
+        f'the shell still holds the access of sign-in ({before}) after the plan changed to {now}: {held}'
+
+
+# ---- W4: a session that ended under a tab's frame leaves the shell signed in -------------------------------------
+
+# a stand-in for any tab's built page (Terminal, Backtest, Screener, Radar, Overview, Watchlist): its data call goes
+# through the shared session module, as theirs do (shared/edge-session.ts send)
+FRAME = '''<!doctype html><title>frame</title><script src="/edge-session.js"></script>
+<script>EdgeSession.edge.send('/api/v1/preferences').then(r => { document.title = 'answered ' + r.status })</script>'''
+
+
+def test_c2web_w4_a_session_that_ended_under_a_frame_takes_the_shell_to_sign_in(live, page):
+    """CONTRACT 3: 401 UNAUTHENTICATED -> "go to sign-in". With the switch on a session ends after 8 h idle
+    (EDGE_SESSION_IDLE_SECONDS) or by sign-out-all, password reset, disable or role change (CONTRACT 4). A tab's page in
+    the shell's frame then gets 401 and only shows its own sentence ("Your EDGE session ended. Sign in again, then open
+    the Radar.", radar/src/api.ts:17; the same in overview, watchlist, terminal, backtest, screener): send() only
+    invalidates its own client on a 401 (edge-session.ts send: `if (res.status === 401) invalidate()`), nothing tells the
+    shell, and the shell has no sign-in on screen. The rail, the account menu and the other tabs stay up around a dead
+    session, and the sentence's fix (sign in again) has no control."""
+    on, store = live
+    paid_user(store, 'paula')
+    page.route('**/terminal-app/**', lambda route: route.fulfill(status=200, content_type='text/html', body=FRAME))
+    signed_in(page, on, 'paula')
+    db(store, 'UPDATE edge_bff.sessions SET revoked_at = now() WHERE revoked_at IS NULL')   # the session ends (idle, reset)
+    page.evaluate("() => { history.pushState({}, '', '/terminal'); dispatchEvent(new PopStateEvent('popstate')) }")
+    # the frame's call was answered 401 (or the shell already shows the sign-in page)
+    page.wait_for_function("() => document.querySelector('iframe.terminal-frame')?.contentDocument?.title === 'answered 401'"
+                           " || !!document.querySelector('#auth-login')")
+    page.wait_for_timeout(2000)
+    assert page.get_by_label('Login', exact=True).count() == 1, \
+        'the frame was answered 401 and the shell still shows the signed-in workspace, with no way to sign in again'
