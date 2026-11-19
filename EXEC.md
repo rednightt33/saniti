@@ -16003,8 +16003,17 @@ dipakai accross chat sebagai referencec?"
      "tidak, user tetap bisa search ticker, tapi ketika dia klik ticker selain bbca maka akan keluar pop up box to login
      (jika belum login) dan jika sudah login maka akan keluar pop up box (to upgrade plan)". So the free plan sees and
      searches the whole ticker list; a ticker other than its own opens a box: sign in when not signed in, upgrade when
-     signed in. Data stays limited to the plan's tickers. Asked back: whether visitors who are not signed in may open
-     the Terminal (BBCA) at all.
+     signed in. Data stays limited to the plan's tickers.
+     - Asked back whether visitors who are not signed in may open the Terminal; the user: "1a - bukan hanya chart,
+       nanti ada indikator dll yg juga mungkin di show ke user. jadi design harus plug and play dan fluid, karna ticker
+       dan indikatornya bisa berubah." So a visitor without an account opens the Terminal and sees what a guest is
+       given (today BBCA's chart; later indicators and more), and every other ticker or item opens the sign-in box.
+       What a guest and the free plan may see is data in the plan catalog (a guest plan beside free and paid: its
+       tickers, datasets, indicators, history days), changed without code; a new ticker or indicator needs no code
+       change. Built with 3c (the guest principal, the reference lists, per-address limits for guests) and 3e (the
+       sign-in and upgrade boxes).
+     - The extra rule of item 4 (a plan that restricts tickers, datasets or history may not also hold the Backtest's
+       or the Screener's own data access, since those read every stock): "2a" (agreed; enforced by the catalog).
   2. Email outbox rows: "a" (deleted after 30 days, with used codes and webhook events).
   3. "Forgot password" pressed by someone else: "a" (kept as it is: each new code replaces the previous one; the
      address's 10 emails a day stay shared).
