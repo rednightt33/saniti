@@ -15980,6 +15980,13 @@ dipakai accross chat sebagai referencec?"
     - Workflow scripts stop starting new agents after the first agent that fails, so a limit stop leaves the finished
       agents' work in the cache; the run is resumed after the limit resets, not started again.
     - At most one heavy workflow runs at a time where the work allows it.
+  - Round 2 ended 2026-11-19: 41 findings, all confirmed by three refuters (13 blocks-switch-on, 19 non-blocking, 9
+    records; `recheck/r2_result.json`). Among them R2-32: with 3c the free plan's Terminal draws nothing, not even BBCA
+    (the page needs the ticker list that 3c refuses); the fix serves the reference lists filtered to the plan, so the
+    free plan's list holds BBCA only (D3: no list of other tickers).
+  - **User, 2026-11-19:** "A" (go to the fixes now rather than a round 3 on code that the fixes change; later checks run
+    on the fixed code: the 3c check and one before the switch goes on). The fix round runs as five builders at xhigh,
+    one track each (terminal path, beta/live site split, authentication, plans and pages, records and CI).
 
 ### Production environment (user decisions 2026-11-19; open details asked)
 
