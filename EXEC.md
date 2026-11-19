@@ -16014,6 +16014,20 @@ dipakai accross chat sebagai referencec?"
        sign-in and upgrade boxes).
      - The extra rule of item 4 (a plan that restricts tickers, datasets or history may not also hold the Backtest's
        or the Screener's own data access, since those read every stock): "2a" (agreed; enforced by the catalog).
+- **Decisions after the fix round (the user, 2026-11-19; 84 of 87 findings fixed on the fix branches):**
+  1. R1-35, Screener conditions on the attributes every result row shows (last price, 1-day change, average traded
+     value, history bars, index membership): "1a" (not gated by id, as O3b-2 for the universe chips).
+  2. R1-37 and R2-41 item 4, foreign net in the Overview and Watchlist files: "2a" (the flow rule does not cover these
+     columns; nothing changes until a plan closes flow).
+  3. R1-18, a tab's saved items in the preference store after a lowered plan: "3a" (hidden until the plan is raised
+     again, kept; D5).
+  4. R1-2, MARKET_AI_ORC_API_KEY on orc-test-runner: "leave as is, ini setau saya untuk ai bisa lihat log untuk proses
+     enhancement di belakang" (kept: agents' jobs on the runner may read conversations for improvement work; with the
+     switch on this reaches every user's conversations, which the privacy text has to state).
+  5. R2-28, the font: "5a pakai inter" (Inter served from EDGE itself, no Google Fonts).
+  6. R2-27, account deletion: "ok rekomendasi" (email_suppression keeps the address and reason only; Phase 5 payment
+     records kept pseudonymised for the legal period).
+  7. R2-41 item 9, an admin "resend code" for a registration on another browser: "ok" (the person registers again).
   2. Email outbox rows: "a" (deleted after 30 days, with used codes and webhook events).
   3. "Forgot password" pressed by someone else: "a" (kept as it is: each new code replaces the previous one; the
      address's 10 emails a day stay shared).
