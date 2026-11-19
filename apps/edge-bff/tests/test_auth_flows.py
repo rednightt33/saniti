@@ -112,7 +112,11 @@ def test_switch_off_every_new_route_answers_404_and_config_says_so(settings, sto
 
 
 def test_config_with_the_switch_on(app):
-    assert app.get('/api/v1/auth/config').json() == {'multiuser': True}
+    # track guest (decision 1 and the pre-launch decision of 2026-11-19; this test held {"multiuser": true} alone): with
+    # the switch on the page also learns whether registration is open, the pre-launch mode, the guests and the upgrade
+    # contact; the switch-off answer stays {"multiuser": false} (test above)
+    assert app.get('/api/v1/auth/config').json() == {'multiuser': True, 'registration': True, 'prelaunch': False,
+                                                     'guests': False, 'upgrade_contact': None}
 
 
 def test_the_settings_need_their_secrets_only_with_the_switch_on(settings):

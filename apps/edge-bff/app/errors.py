@@ -66,6 +66,10 @@ MESSAGES = {
     'MFA_NOT_ENROLLED': 'Two-step sign-in is not set up for this account yet. Set it up first, then enter the code.',
     'HOOK_SIGNATURE_INVALID': 'The webhook signature could not be verified. Check the signing secret of the webhook.',
     'PREFERENCE_LIMIT': 'Your account keeps too many settings or too large a setting. Remove some, then save again.',
+    # track guest (the pre-launch mode of the live site, the user 2026-11-19: "Terbuka, tapi belum bisa mendaftar",
+    # "Dan hanya admin yang bisa login (saya)"): plain refusals; the Terminal stays open to visitors
+    'REGISTRATION_CLOSED': 'Registration opens soon. EDGE is not taking new accounts yet; you can still open the Terminal without an account.',
+    'SIGN_IN_CLOSED': 'EDGE opens to accounts soon. Until then only test accounts can sign in; you can still open the Terminal without an account.',
 }
 
 # FastAPI's and Starlette's own refusals by status (a route raises HTTPException with one of these codes as its detail)

@@ -43,8 +43,10 @@ def held(p, kind):
 
 
 def routes(app, auth):
+    # track guest: the Terminal reads which indicators the principal holds here, so a visitor (the guest plan's
+    # principal, auth.visitor) reaches it too
     @app.get('/api/v1/catalog/{kind}')
-    async def catalog(kind: str, p: Principal = Depends(auth.principal)):
+    async def catalog(kind: str, p: Principal = Depends(auth.visitor)):
         if kind not in releases.KINDS:
             raise Refusal(404, 'NOT_FOUND', {'kind': kind, 'known_kinds': list(releases.KINDS)})
         return {'kind': kind, 'entries': held(p, kind)}

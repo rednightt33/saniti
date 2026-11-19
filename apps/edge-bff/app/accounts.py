@@ -49,6 +49,9 @@ PASSWORD_FAILURE_CAP, PASSWORD_RESTART, PASSWORD_LOCK_SECONDS = 100, 90, 86400
 # may name exactly these (tests/test_cp0_reserved_owner.py compares the two patterns, so they cannot drift apart)
 ORC_TEST_OWNER = re.compile(r'golden-[A-Za-z0-9._:@-]+|test-[A-Za-z0-9._:@-]+|someone-else')
 ORC_SHARED_OWNER = 'default'      # Orc's one shared owner before M475
+# track guest (principal.py guest_principal): the one owner key of every visitor of the guest plan, never an account's
+# (never issued: reserved_owner; refused for EDGE_OWNER and EDGE_ADMIN_OWNERS: config.py validate)
+GUEST_OWNER = 'edge-guest'
 
 # EXEC-MU-ACCOUNTS Phase 2 (CONTRACT.md 8a "Resolution"): the CTEs that follow a CTE `found` (one account: user_id,
 # owner_key, username, role, status) and resolve its grants within the same statement:
@@ -104,7 +107,7 @@ def orc_reserved_owner(key):
 
 def reserved_owner(key):
     """Keys never issued to a new account (Orc's reserved owners and the seed's own)."""
-    return orc_reserved_owner(key) or key == 'edge-private' or key.startswith(('golden-', 'test-'))
+    return orc_reserved_owner(key) or key in ('edge-private', GUEST_OWNER) or key.startswith(('golden-', 'test-'))
 
 
 def seed_mark(verifier):
@@ -198,6 +201,21 @@ class AccountStore:
                 SELECT found.user_id, owner_key, username, role, status, ''' + GRANT_COLUMNS + '''
                 FROM found CROSS JOIN plan''', {'owner': owner_key, 'active': ACTIVE}).fetchone()
 
+    def guest_plan(self):
+        """Track guest (principal.py guest_principal): the one plan marked for guests (edge_bff.plans.for_guests,
+        migration 20261119_070) with its grants {key: {kind, value}} and its plan_capabilities versions, read on every
+        guest request (a catalog change applies on the next one, no restart), or None when no plan is marked."""
+        with self.store.connect() as c:
+            return c.execute('''SELECT p.plan_key,
+                    coalesce(jsonb_object_agg(pc.capability_key, jsonb_build_object('kind', c.kind, 'value', pc.value))
+                             FILTER (WHERE pc.capability_key IS NOT NULL), '{}'::jsonb) AS grants,
+                    coalesce(jsonb_object_agg(pc.capability_key, pc.version) FILTER (WHERE pc.capability_key IS NOT NULL),
+                             '{}'::jsonb) AS versions
+                FROM edge_bff.plans p
+                LEFT JOIN edge_bff.plan_capabilities pc ON pc.plan_key = p.plan_key
+                LEFT JOIN edge_bff.capabilities c ON c.capability_key = pc.capability_key
+                WHERE p.for_guests GROUP BY p.plan_key''').fetchone()
+
     # ---- the seed subscription of user #1 (CONTRACT.md 8a "User #1") ------------------------------------------------
 
     def seed_subscription(self, user_id):
@@ -237,7 +255,8 @@ class AccountStore:
         verifier, or None (a disabled or pending one is not found here)."""
         lowered = login.strip().lower()
         with self.store.connect() as c:
-            return c.execute('''SELECT u.user_id, u.owner_key, u.username, u.role, u.status, u.email, i.verifier
+            return c.execute('''SELECT u.user_id, u.owner_key, u.username, u.role, u.status, u.email, u.test_account,
+                    i.verifier
                 FROM edge_bff.users u JOIN edge_bff.identities i ON i.user_id = u.user_id AND i.provider = 'password'
                 WHERE (u.username = %s OR u.email = %s) AND u.status = %s
                 ORDER BY (u.username = %s) DESC LIMIT 1''', (lowered, lowered, ACTIVE, lowered)).fetchone()

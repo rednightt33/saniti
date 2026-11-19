@@ -103,6 +103,12 @@ EVERYTHING = '*'
 TICKERS, HISTORY_DAYS, DATASET = 'terminal.tickers', 'terminal.history_days', 'terminal.dataset'
 OWNER_HEADER, CAPABILITIES_HEADER, KEY_HEADER = 'x-terminal-proxy-owner', 'x-terminal-capabilities', 'x-terminal-proxy-key'
 RESERVED = (KEY_HEADER, OWNER_HEADER, CAPABILITIES_HEADER)
+# track guest (terminal-api entitlements.py CLIENT_HEADER, CLIENT_RE): the visitor key of a guest principal, by which
+# terminal-api counts each visitor's quotas under the one guest owner; sent only for a guest, and like RESERVED never
+# taken from the page (PAGE_REFUSED)
+CLIENT_HEADER = 'x-terminal-client'
+CLIENT = re.compile(r'[0-9a-f]{32}')
+PAGE_REFUSED = RESERVED + (CLIENT_HEADER,)
 MAX_HEADER_BYTES = 8192
 
 
@@ -163,12 +169,21 @@ def capabilities_header(p):
 
 def headers(settings, p):
     """The headers of every terminal-api call made for the principal p (the only place they are built): both terminal
-    headers always beside the gateway key (terminal-api refuses one without the other)."""
+    headers always beside the gateway key (terminal-api refuses one without the other). Track guest: a guest principal
+    (principal.py guest_principal) also names its visitor (CLIENT_HEADER, its HMAC key, never the address), so
+    terminal-api counts that visitor's quotas on their own; a guest without a well-formed key is refused 503 (never
+    counted on the guest owner's whole row by mistake: that row's quota would then be every visitor's at once)."""
     if not OWNER_KEY.fullmatch(p.owner_key or ''):
         logger.warning(json.dumps({'event': 'terminal_owner_key_invalid'}))
         raise Refusal(503, 'TERMINAL_UNAVAILABLE')
-    return {'content-type': 'application/json', KEY_HEADER: settings.terminal_proxy_key,
-            OWNER_HEADER: p.owner_key, CAPABILITIES_HEADER: capabilities_header(p)}
+    out = {'content-type': 'application/json', KEY_HEADER: settings.terminal_proxy_key,
+           OWNER_HEADER: p.owner_key, CAPABILITIES_HEADER: capabilities_header(p)}
+    if p.guest:
+        if admin(p) or not CLIENT.fullmatch(getattr(p, 'client', '') or ''):
+            logger.warning(json.dumps({'event': 'terminal_guest_client_invalid'}))
+            raise Refusal(503, 'TERMINAL_UNAVAILABLE')
+        out[CLIENT_HEADER] = p.client
+    return out
 
 
 _guards = {}
@@ -188,7 +203,7 @@ def guard(base):
 
 
 def refuse_reserved(request):
-    for name in RESERVED:
+    for name in PAGE_REFUSED:
         if name in request.headers:
             raise Refusal(400, 'HEADER_NOT_ALLOWED', {'header': name})
 

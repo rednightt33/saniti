@@ -52,6 +52,8 @@ def database():
             # the records fix round (verification/edge_multiuser/fix_round/records.md, re-check R1-41..R1-46)
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_040_edge_bff_audit_ids_and_catalog_trace.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_050_edge_bff_capability_domains.sql').read_text())
+            # the guest fix round (verification/edge_multiuser/fix_round/guest.md): the guest plan and the test-account mark
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_070_edge_bff_guest_plan_and_test_accounts.sql').read_text())
             c.execute('CREATE TABLE public.market_private(secret text)')
         yield url
     finally:

@@ -10,7 +10,12 @@ Derived from app.routes, not from a list of the routes written today:
   in PRINCIPAL_ONLY with the reason it needs none (fix round, re-check R1-27, ERRORS M481 "C3 gaps": the walks of
   tests/test_phase3a_gates.py and tests/test_phase3a_monitor_pages.py are scoped by module and path, so a new module, a
   new path family or a new tab, such as 3e's examples or a relay outside /api/terminal/v1/, escaped every walk);
-- no route outside /api takes a write method (it would escape the walk).
+- no route outside /api takes a write method (it would escape the walk);
+- track guest (decision 1 of 2026-11-19, "1a"): a route a visitor without an account reaches depends on the visitor
+  dependency (auth.visitor, the guest plan's principal) instead of the session one, and is named in GUEST_OPEN with the
+  reason; a guest write depends on the visitor-write dependency (the session's CSRF, or a guest's none). This changes
+  the rule "every /api route depends on the session" for exactly those routes (the decision: the Terminal opens without
+  an account); every other route keeps it.
 """
 import dataclasses
 
@@ -40,6 +45,15 @@ PRINCIPAL_ONLY = {
     ('GET', '/api/v1/preferences'): "the account's own preferences; a key's tab capability is checked per key (R1-18)",
     ('PUT', '/api/v1/preferences/{key}'): "the account's own preferences; a key's tab capability is checked per key "
                                           '(R1-18)',
+    ('GET', '/api/v1/auth/guest'): 'what this request holds without a session (the guest plan) or with one (its session)',
+}
+# (method, path) -> why a visitor without an account reaches it (track guest; principal.py guest_principal): the
+# Terminal's data relay and the catalog the Terminal reads its items from, and the guest answer itself
+GUEST_OPEN = {
+    ('GET', '/api/terminal/v1/{path:path}'): "the Terminal's data, for what the guest plan grants (terminal.view)",
+    ('POST', '/api/terminal/v1/{path:path}'): "the Terminal's data, for what the guest plan grants (terminal.view)",
+    ('GET', '/api/v1/catalog/{kind}'): 'the items the Terminal shows the principal (catalog.py, CONTRACT 8a)',
+    ('GET', '/api/v1/auth/guest'): "what a visitor holds (the guest plan's access)",
 }
 
 
@@ -66,6 +80,7 @@ def gates(app):
 def problems(app, registry=None):
     registry = hooks.HOOK_ROUTES if registry is None else registry
     session, write = app.state.session_dependency, app.state.write_dependency
+    visitor, visitor_write = app.state.visitor_dependency, app.state.visitor_write_dependency
     gated = gates(app)
     found = []
     for route in app.routes:
@@ -92,9 +107,15 @@ def problems(app, registry=None):
             continue
         if route.path in PUBLIC:
             continue
-        if session not in used:
+        guest = visitor in used
+        for method in sorted(methods):
+            if guest and (method, route.path) not in GUEST_OPEN:
+                found.append(f'{method} {route.path}: a visitor without an account reaches it (auth.visitor) but '
+                             f"GUEST_OPEN does not name it; add GUEST_OPEN[('{method}', '{route.path}')] = '<why>' or "
+                             'depend on auth.principal')
+        if session not in used and not guest:
             found.append(f'{route.path} {sorted(methods)}: no session dependency')
-        if methods - READS and write not in used:
+        if methods - READS and write not in used and not (guest and visitor_write in used):
             found.append(f'{route.path} {sorted(methods)}: a write without the write (CSRF) dependency')
         if not used & gated:
             for method in sorted(methods):
@@ -112,6 +133,11 @@ def test_every_api_route_carries_the_session_and_every_write_carries_csrf(settin
     assert problems(app) == []
     paths = {route.path for route in app.routes}
     assert PUBLIC <= paths, PUBLIC - paths                       # the public list names no route that has gone
+    # every GUEST_OPEN entry is a route that really admits visitors (no stale entry widens the list)
+    visitor = app.state.visitor_dependency
+    admitted = {(m, r.path) for r in app.routes if isinstance(r, APIRoute) and visitor in set(calls(r.dependant))
+                for m in r.methods}
+    assert admitted == set(GUEST_OPEN), admitted ^ set(GUEST_OPEN)
     api = [r for r in app.routes if isinstance(r, APIRoute) and r.path.startswith('/api/')]
     assert len(api) > 40 and any(set(r.methods) - READS for r in api)   # the walk really covers the table
 
