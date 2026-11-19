@@ -335,7 +335,7 @@ first list and adding a stock in Chromium), `watchlist/tests/` (`npm test`). Loo
 
 ## Front-end structure: editing the page without touching the API (EXEC-X, 2026-10-08)
 
-The browser tab names the page (EXEC-TERMINAL-IND-EDIT, user 2026-11-05): `App()` in `static/index.html` sets
+The browser tab names the page (EXEC-TERMINAL-IND-EDIT, user 2026-11-05): `App()` in `static/edge-app.js` sets
 `document.title` from `EdgeLabels.pages` in `static/edge-labels.js` (Sign In, Monitor, Terminal, Backtest, Screener); the
 static `<title>` is only "EDGE". `tests/test_page_titles.py` checks it in a browser.
 
@@ -347,7 +347,13 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 | Session, error contract, browser storage (shared by the shell and the six pages) | `shared/edge-session.ts`, built for the shell into `static/edge-session.js` | a refusal code, the CSRF retry, or a browser storage key (see "Accounts groundwork" below) |
 | View contract | `static/edge-view.js` (`EdgeView.toView`) | Orc's response shape changes; the only code that reads it |
 | Words | `static/edge-labels.js` | wording, a label, a code's words, a status name |
-| Look and layout | `static/index.html` (markup, CSS, renderers) | anything visual; renderers read the view model only |
+| Look and layout | `static/index.html` (markup, CSS) and `static/edge-app.js` (the renderers and the shell's app) | anything visual; renderers read the view model only |
+
+The shell runs no inline script (EXEC-MU-ACCOUNTS fix round, re-check R2-19): the head's viewport script is
+`static/edge-boot.js` and the app is `static/edge-app.js`, so its policy keeps `script-src 'self'` without
+`'unsafe-inline'`, with `form-action 'self'` (`app/main.py` protections; `tests/test_fix_plans.py`). A new script is a
+file in `static/` loaded with `<script src>`, never an inline `<script>` or an `on...=` attribute. The preview tool
+inlines every such file and writes each back on import.
 
 - Look (MONITOR-REVAMP, user 2026-10-29): the Monitor page and the top bar of every tab follow the user's
   `AI_revamp.html` (EDGE / Market Lab Design Spec v1): its tokens on `.app` (light, and dark under `html.dark`), its
@@ -885,7 +891,7 @@ replaced, 409 `PREFERENCE_CONFLICT` with the current value for a stale version, 
 64 KiB per value, 1 MiB in all). They work with the switch off too, for user #1.
 
 Front-end (`static/index.html`, `shared/edge-session.ts`):
-- One route table, `ROUTES` in `index.html`, read by `go()` and `currentPath`: the tab pages (`auth`), `/login`, and
+- One route table, `ROUTES` in `edge-app.js`, read by `go()` and `currentPath`: the tab pages (`auth`), `/login`, and
   the account pages `/register`, `/verify`, `/forgot`, `/reset` (`open`: shown only while `/auth/config` says
   `multiuser`, else the sign-in page) and `/mfa`. `main.py` serves each path; a new page needs a row here and a route
   there, and its words in `EdgeLabels.pages`.

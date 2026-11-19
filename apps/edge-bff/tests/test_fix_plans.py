@@ -144,3 +144,22 @@ def test_registration_refuses_a_name_with_a_bidi_override(settings, store):
         assert r.status_code in (400, 422), r.text
         error = r.json()['error']
         assert error['code'] == 'INVALID_INPUT' and 'first_name' in error['details']['fields'], r.text
+
+
+# ---- R2-19: the shell runs no inline script ------------------------------------------------------------------------
+
+def test_the_shell_has_no_inline_script_and_its_policy_no_unsafe_inline_script(settings, store):
+    """R2-19: the shell's scripts are files (static/edge-boot.js, static/edge-app.js and the others), so its policy is
+    script-src 'self' with no 'unsafe-inline'; an injected inline script or handler cannot run."""
+    import re
+    from pathlib import Path
+    html = (Path(__file__).resolve().parents[1] / 'static' / 'index.html').read_text()
+    assert not re.search(r'<script(?![^>]*\bsrc=)[^>]*>', html), 'an inline <script> in static/index.html'
+    assert not re.search(r'\son[a-z]+\s*=\s*["\']', html), 'an inline event handler attribute in static/index.html'
+    with TestClient(create_app(settings, store, FakeOrc())) as c:
+        for path in ('/', '/login', '/monitor'):
+            policy = c.get(path).headers['content-security-policy']
+            script = next(d for d in policy.split(';') if d.strip().startswith('script-src'))
+            assert script.strip() == "script-src 'self'" and "form-action 'self'" in policy, policy
+        for name in ('edge-boot.js', 'edge-app.js'):
+            assert c.get('/' + name).status_code == 200, name

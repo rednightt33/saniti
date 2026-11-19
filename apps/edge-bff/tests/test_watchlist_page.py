@@ -115,7 +115,7 @@ def test_the_watchlist_page_its_policy_and_the_capability(settings, store, frame
 
 
 def test_the_shell_wording_and_routes_name_the_watchlist():
-    page = (main.STATIC / 'index.html').read_text()
+    page = (main.STATIC / 'index.html').read_text() + (main.STATIC / 'edge-app.js').read_text()   # the shell's app (R2-19)
     labels = (main.STATIC / 'edge-labels.js').read_text()
     assert 'watchlist: { nav:"Watchlist", frameTitle:"Watchlist" }' in labels and 'watchlist:"EDGE — Watchlist"' in labels
     assert '[[EdgeLabels.overview.nav, "overview"], [EdgeLabels.watchlist.nav, "watchlist"], ["Monitor", "monitor"]' in page

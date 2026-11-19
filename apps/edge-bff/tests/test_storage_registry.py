@@ -17,13 +17,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SHARED = ROOT / 'shared' / 'edge-session.ts'
 APPS = ('terminal', 'backtest', 'screener', 'radar', 'overview', 'watchlist')
-SHELL = ('static/index.html', 'static/edge-client.js', 'static/edge-view.js', 'static/edge-labels.js', 'static/edge-docx.js')
+SHELL = ('static/index.html', 'static/edge-app.js', 'static/edge-boot.js', 'static/edge-client.js', 'static/edge-view.js',
+         'static/edge-labels.js', 'static/edge-docx.js')
 
 ENTRY = re.compile(r"\{ key:'((?:[^'\\]|\\.)*)', match:'(exact|prefix)', area:'(local|session|idb)', kind:'(browser|user)',")
 
 # calls whose key is a value made elsewhere: (file, argument text) -> the keys it reaches, each also found by the scan
 DYNAMIC = {
-    ('static/index.html', 'key'): ['edge-pins-height', 'edge-pins-open', 'edge-flow-open', 'edge-side-attach:', 'edge-sources-open:'],
+    ('static/edge-app.js', 'key'): ['edge-pins-height', 'edge-pins-open', 'edge-flow-open', 'edge-side-attach:', 'edge-sources-open:'],
     ('terminal/src/ui/fullscreen.ts', 'k'): ['ml.stats.collapsed', 'ml.broker.collapsed', 'ml.flow.collapsed'],
     ('terminal/src/ui/reorder.ts', 'key'): ['ml.stats.order', 'ml.broker.order'],
     ('terminal/src/app/layouts.ts', 'k'): ['ml.ind.v1', 'ml.tf', 'ml.legend.hidden'],
@@ -104,7 +105,7 @@ def keys_found():
                 unresolved.append(f'{name}: {m.group(0)}')
         if name.endswith('.ts'):
             found += [(name, k, 'local') for k in NAMESPACE.findall(text)]
-        if name == 'static/index.html':       # the shell's stored()/keep() helpers of the Monitor page
+        if name == 'static/edge-app.js':      # the shell's stored()/keep() helpers of the Monitor page
             found += [(name, k, 'local') for k in re.findall(r'\b(?:stored|keep)\("([^"]+)"', text)]
     return found, unresolved
 
