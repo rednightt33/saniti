@@ -36,12 +36,12 @@ from .overview import Overview
 from .watchlist import Watchlist
 from .radar import Radar
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
-from .security import csrf_token, token_hash, verify_password
+from .security import SESSION_COOKIE, cookie_name, csrf_token, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
 from .throttle import SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address, normal_login
 from .worker import Worker
 
-COOKIE = 'edge_session'
+COOKIE = SESSION_COOKIE                     # its name on an https origin: cookie_name (__Host-, re-check R2-22)
 STOP_RETRIES = 3  # EXEC-Y Fase 1 (I1): a run dispatched a moment ago is registered at Orc on receipt
 STATIC = Path(__file__).resolve().parents[1] / 'static'
 SCRIPT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
@@ -69,7 +69,7 @@ TERMINAL_CUT_BYTES = 64 * 1024 * 1024
 TERMINAL_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
                 "img-src 'self' data: blob:; connect-src 'self' https://*.t3.storageapi.dev; object-src 'none'; "
-                "base-uri 'self'; frame-ancestors 'self'")
+                "base-uri 'self'; form-action 'self'; frame-ancestors 'self'")
 # EDGE backtest (CONTRACT.md section 10): the built backtest page (apps/edge-bff/backtest -> static/backtest-app), shown in
 # the Backtest tab's frame. It loads what the terminal page loads (its own script and stylesheet, Google Fonts, inline
 # style attributes) and, for the signal preview, the ticker files the /api/terminal/v1/bundle answer presigns on the
@@ -94,7 +94,7 @@ WATCHLIST_APP = STATIC / 'watchlist-app'
 SCREENER_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
                 "img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; "
-                "base-uri 'self'; frame-ancestors 'self'")
+                "base-uri 'self'; form-action 'self'; frame-ancestors 'self'")
 # EXEC-WATCHLIST L5: the Watchlist page shows the Terminal's issuer logos; their list is the Terminal's reference file
 # (GET /api/terminal/v1/reference/logos answers a presigned URL on the bucket), so the page takes the Terminal page's
 # policy: the Screener's plus connect-src to the bucket (a host EDGE already uses; no new one). The images come from
@@ -235,6 +235,7 @@ def create_app(settings=None, store=None, orc=None):
     throttle = Throttle(store, settings.session_secret)
     # EXEC-MU-ACCOUNTS Phase 1: the principal of every request (app/principal.py) and the account preferences
     auth = Auth(settings, store)
+    session_cookie = cookie_name(COOKIE, settings.secure_cookie)      # re-check R2-22
     # Phase 3a: the worker re-checks the owner's principal when it dispatches a queued run (monitor.chat, the model)
     worker.access = auth.owner_principal
     preferences = Preferences(store)
@@ -370,6 +371,16 @@ def create_app(settings=None, store=None, orc=None):
         principal = getattr(state, 'principal', None)
         if principal is not None:
             response.headers['X-Edge-Entitlements'] = principal.version
+            # re-check R2-22: the switch-off owner's session read under the old cookie name moves to the new one
+            if (session_cookie != COOKIE and not settings.multiuser and principal.token
+                    and not request.cookies.get(session_cookie) and request.cookies.get(COOKIE) == principal.token):
+                response.set_cookie(session_cookie, principal.token, max_age=settings.session_seconds, httponly=True,
+                                    secure=True, samesite='strict', path='/')
+                response.delete_cookie(COOKIE, path='/')
+        # re-check R2-21: on an https origin the browser keeps to https for this host (no includeSubDomains: the domain's
+        # other hosts are not EDGE's; no preload, which is the user's decision on the domain)
+        if settings.origin.startswith('https://'):
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000'
         response.headers.setdefault('Cache-Control', 'no-store')
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'same-origin'
@@ -378,7 +389,7 @@ def create_app(settings=None, store=None, orc=None):
             return response
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard)
-        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
         return response
 
     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 2): the principal of every request (app/principal.py); auth.principal
@@ -701,7 +712,7 @@ def create_app(settings=None, store=None, orc=None):
                 await flows.restart_registration(response, restart, client_address(request), request)
             return response
         await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
-        old = request.cookies.get(COOKIE)
+        old = request.cookies.get(session_cookie) or (None if settings.multiuser else request.cookies.get(COOKIE))
         if old:
             await asyncio.to_thread(store.revoke, token_hash(old))
         token = secrets.token_hex(32)
@@ -725,8 +736,10 @@ def create_app(settings=None, store=None, orc=None):
         response = JSONResponse(session_answer(p)) if p.mfa_ok else refusal(
             403, 'MFA_REQUIRED', {'csrf_token': csrf_token(token, settings.session_secret),
                                   'mfa_enrolled': p.mfa_enrolled})
-        response.set_cookie(COOKIE, token, max_age=settings.session_seconds, httponly=True,
+        response.set_cookie(session_cookie, token, max_age=settings.session_seconds, httponly=True,
                             secure=settings.secure_cookie, samesite='strict', path='/')
+        if session_cookie != COOKIE:
+            response.delete_cookie(COOKIE, path='/')
         return response
 
     def session_answer(p):
@@ -756,7 +769,9 @@ def create_app(settings=None, store=None, orc=None):
     async def sign_out(p: Principal = Depends(auth.writer)):
         await asyncio.to_thread(store.revoke, token_hash(p.token))
         response = JSONResponse({'authenticated': False})
-        response.delete_cookie(COOKIE, path='/')
+        response.delete_cookie(session_cookie, path='/', secure=settings.secure_cookie)
+        if session_cookie != COOKIE:
+            response.delete_cookie(COOKIE, path='/')
         return response
 
     @app.post('/api/v1/runs', status_code=202)

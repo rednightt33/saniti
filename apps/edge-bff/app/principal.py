@@ -43,7 +43,7 @@ from .accounts import OWNER_KEY, AccountStore
 from .errors import Refusal, capability_required, plan_expired, set_display_names
 from . import releases
 from .releases import KIND_OF_FAMILY, stage_of
-from .security import csrf_token, same_ascii, token_hash
+from .security import SESSION_COOKIE, cookie_name, csrf_token, same_ascii, token_hash
 
 logger = logging.getLogger('edge_bff.principal')
 
@@ -269,8 +269,16 @@ class Auth:
         self.ceilings = {}
 
         # named session and write as before Phase 1 (tests read the dependency names)
+        cookie = cookie_name(SESSION_COOKIE, settings.secure_cookie)
+
         async def session(request: Request):
-            found = await self.resolve(request.cookies.get('edge_session', ''))
+            token = request.cookies.get(cookie, '')
+            if not token and cookie != SESSION_COOKIE and not settings.multiuser:
+                # re-check R2-22: the configured owner's session from before the __Host- name, read once under the old
+                # name (main.py protections sets it again under the new one); with the switch on only the new name is
+                # read, so a cookie another host set under the old name is never a session
+                token = request.cookies.get(SESSION_COOKIE, '')
+            found = await self.resolve(token)
             if found is None:
                 raise Refusal(401, 'UNAUTHENTICATED')
             # a pending admin session (the password was right, the second factor not yet): only the MFA steps, the

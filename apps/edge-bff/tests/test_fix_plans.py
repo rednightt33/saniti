@@ -34,3 +34,47 @@ def test_a_preference_of_a_tab_the_plan_holds_is_served_and_one_of_a_shared_key_
         assert db(store, 'SELECT value FROM edge_bff.user_preferences WHERE pref_key = %s', 'edge.watchlist.view')[0]['value'] == 'x'
         db(store, 'DELETE FROM edge_bff.user_capability_overrides WHERE user_id = %s', paula['user_id'])
         assert 'edge.watchlist.view' in c.get('/api/v1/preferences').json()['preferences']
+
+
+# ---- R2-21, R2-22, R2-19: transport and cookie protections on an https origin ---------------------------------------
+
+def https_app(settings, store, **kw):
+    import dataclasses
+    return create_app(dataclasses.replace(settings, origin='https://testserver', secure_cookie=True, **kw), store, FakeOrc())
+
+
+def test_an_https_origin_sends_hsts_and_a_host_only_session_cookie(settings, store):
+    """R2-21: every answer of an https origin carries Strict-Transport-Security (host only, no preload); an http origin
+    none. R2-22: the session cookie is __Host-edge_session (Secure, Path=/, no Domain); the policy has form-action."""
+    with TestClient(https_app(settings, store), base_url='https://testserver') as c:
+        login = c.get('/login')
+        assert login.headers['strict-transport-security'] == 'max-age=31536000'
+        assert "form-action 'self'" in login.headers['content-security-policy']
+        signed = c.post('/api/v1/auth/sign-in', headers={'origin': 'https://testserver'},
+                        json={'login': 'owner', 'password': 'local-test-password'})
+        assert signed.status_code == 200, signed.text
+        cookie = signed.headers['set-cookie']
+        assert cookie.startswith('__Host-edge_session=') and 'Secure' in cookie and 'Path=/' in cookie
+        assert 'Domain' not in cookie
+        assert c.get('/api/v1/auth/session').status_code == 200
+    with TestClient(create_app(settings, store, FakeOrc())) as c:
+        assert 'strict-transport-security' not in c.get('/login').headers
+
+
+def test_the_switch_off_owners_session_moves_to_the_new_cookie_name_once(settings, store):
+    """R2-22: the configured owner signed in before the __Host- name (cookie edge_session) is not signed out: its next
+    answer sets the session under __Host-edge_session and removes the old name. With the switch on the old name is
+    never read (a cookie another host set under it is no session)."""
+    import secrets
+    from app.security import token_hash
+    token = secrets.token_hex(32)
+    store.session_create(token_hash(token), settings.owner, settings.session_seconds)
+    with TestClient(https_app(settings, store), base_url='https://testserver') as c:
+        moved = c.get('/api/v1/auth/session', headers={'cookie': f'edge_session={token}'})
+        assert moved.status_code == 200, moved.text
+        headers = moved.headers.get_list('set-cookie')
+        assert any(h.startswith(f'__Host-edge_session={token}') and 'Secure' in h for h in headers), headers
+        assert any(h.startswith('edge_session=') and 'Max-Age=0' in h for h in headers), headers
+    with TestClient(https_app(settings, store, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40),
+                    base_url='https://testserver') as c:
+        assert c.get('/api/v1/auth/session', headers={'cookie': f'edge_session={token}'}).status_code == 401

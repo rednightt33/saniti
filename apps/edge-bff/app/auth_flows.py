@@ -36,11 +36,12 @@ from .accounts import EMAIL, RESERVED_USERNAMES, USERNAME, new_owner_key
 from .errors import Refusal
 from .mailer import OutboxStore, enqueue, svix_verify
 from .principal import ADMIN_ACCESS, Principal
-from .security import normal_password, password_verifier, token_hash, verify_password
+from .security import (REGISTRATION_COOKIE as REGISTRATION, SESSION_COOKIE, cookie_name, normal_password,
+                       password_verifier, registration_path, token_hash, verify_password)
 from .throttle import (CODE_USER, MFA_USER, REGISTER_DAY, REGISTER_HOUR, SEND_EMAIL, SEND_IP, SIGNIN_LOGIN, Throttle,
                        client_address)
 
-COOKIE = 'edge_session'
+COOKIE = SESSION_COOKIE                     # by its name on the origin: cookie_name (re-check R2-22)
 CODE_SECONDS = 300
 RESEND_SECONDS = 60
 CODE = re.compile(r'[0-9]{6}')
@@ -48,8 +49,7 @@ PURPOSES = ('register', 'reset')
 ACCEPTED = {'status': 'CODE_SENT', 'resend_after_s': RESEND_SECONDS}
 # ERRORS M478 (C1 P1-H1, C2 #1): every registration is bound to the browser that started it by this HttpOnly cookie; the
 # email code activates a registration only together with it
-REGISTRATION_COOKIE = 'edge_registration'
-REGISTRATION_PATH = '/api/v1/auth/'
+REGISTRATION_COOKIE = REGISTRATION         # by its name and path on the origin: cookie_name, registration_path
 REGISTRATION_SECONDS = 86400
 REGISTRATION_TOKEN = re.compile(r'[0-9a-f]{64}')
 TOTP_FAILURE_CAP, RECOVERY_FAILURE_CAP = 100, 10
@@ -378,7 +378,8 @@ class AuthFlows:
         never differ: when the password was a pending registration's, that registration moves to a new cookie and a
         fresh code is mailed (within the send limits); otherwise this browser's own registration cookie is set again
         unchanged (N3: a mistyped sign-in never orphans a registration), or an unused one when it has none."""
-        held = request.cookies.get(REGISTRATION_COOKIE, '') if request is not None else ''
+        name = cookie_name(REGISTRATION_COOKIE, self.settings.secure_cookie)
+        held = request.cookies.get(name, '') if request is not None else ''
         fresh = secrets.token_hex(32)
         moved = row is not None and await asyncio.to_thread(self.store.restart, row['user_id'], row['email'], ip,
                                                             token_hash(fresh))
@@ -396,6 +397,9 @@ class AuthFlows:
 
     def routes(self, app, session_answer):
         settings, auth, store = self.settings, self.auth, self.store
+        session_cookie = cookie_name(COOKIE, settings.secure_cookie)
+        registration_cookie = cookie_name(REGISTRATION_COOKIE, settings.secure_cookie)
+        registration_at = registration_path(settings.secure_cookie)
 
         async def switched_on():
             if not settings.multiuser:
@@ -403,17 +407,17 @@ class AuthFlows:
 
         def signed_in(p, token, status=200):
             response = JSONResponse(session_answer(p), status_code=status)
-            response.set_cookie(COOKIE, token, max_age=settings.session_seconds, httponly=True,
+            response.set_cookie(session_cookie, token, max_age=settings.session_seconds, httponly=True,
                                 secure=settings.secure_cookie, samesite='strict', path='/')
             return response
 
         def registration_of(request):
-            raw = request.cookies.get(REGISTRATION_COOKIE, '')
+            raw = request.cookies.get(registration_cookie, '')
             return token_hash(raw) if REGISTRATION_TOKEN.fullmatch(raw) else None
 
         def with_registration(response, token):
-            response.set_cookie(REGISTRATION_COOKIE, token, max_age=REGISTRATION_SECONDS, httponly=True,
-                                secure=settings.secure_cookie, samesite='strict', path=REGISTRATION_PATH)
+            response.set_cookie(registration_cookie, token, max_age=REGISTRATION_SECONDS, httponly=True,
+                                secure=settings.secure_cookie, samesite='strict', path=registration_at)
             return response
         self.with_registration = with_registration
 
@@ -467,7 +471,7 @@ class AuthFlows:
             if p is None:
                 raise Refusal(401, 'UNAUTHENTICATED')
             response = signed_in(p, token)
-            response.delete_cookie(REGISTRATION_COOKIE, path=REGISTRATION_PATH)
+            response.delete_cookie(registration_cookie, path=registration_at, secure=settings.secure_cookie)
             return response
 
         @app.post('/api/v1/auth/code/resend', status_code=202)
@@ -498,7 +502,7 @@ class AuthFlows:
                 raise code_refusal(outcome, found)
             self.wake()
             response = JSONResponse({'next': 'sign_in'})
-            response.delete_cookie(COOKIE, path='/')
+            response.delete_cookie(session_cookie, path='/', secure=settings.secure_cookie)
             return response
 
         @app.post('/api/v1/auth/password/change')
@@ -522,7 +526,7 @@ class AuthFlows:
         async def sign_out_all(_on=Depends(switched_on), p: Principal = Depends(auth.writer)):
             await asyncio.to_thread(auth.accounts.revoke_all, p.user_id)
             response = JSONResponse({'authenticated': False})
-            response.delete_cookie(COOKIE, path='/')
+            response.delete_cookie(session_cookie, path='/', secure=settings.secure_cookie)
             return response
 
         @app.post('/api/v1/auth/mfa/enroll')
