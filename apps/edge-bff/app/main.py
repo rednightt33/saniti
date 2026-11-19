@@ -55,6 +55,12 @@ if not startup_log.hasHandlers():
 STOP_RETRIES = 3  # EXEC-Y Fase 1 (I1): a run dispatched a moment ago is registered at Orc on receipt
 STATIC = Path(__file__).resolve().parents[1] / 'static'
 SCRIPT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
+# EXEC-MU-ACCOUNTS re-check R2-28 (user 2026-11-19: "5a pakai inter"): EDGE's own copy of the Inter font (static/fonts: the
+# woff2 files, the two stylesheets the pages link, OFL.txt), so no page asks Google Fonts and every policy keeps
+# font-src 'self' (no visitor's address reaches Google)
+FONTS = STATIC / 'fonts'
+FONT_NAME = re.compile(r'[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*\.(?:woff2|css|txt)')
+FONT_TYPES = {'.woff2': 'font/woff2', '.css': 'text/css; charset=utf-8', '.txt': 'text/plain; charset=utf-8'}
 # EXEC-TERMINAL-API T4/T5: the built terminal page (apps/edge-bff/terminal -> static/terminal-app) and the terminal-api
 # routes the page may reach through this gateway (sign-in, password and admin routes stay on terminal-api only)
 TERMINAL_APP = STATIC / 'terminal-app'
@@ -81,13 +87,13 @@ TERMINAL_CUT_BYTES = 64 * 1024 * 1024
 # The terminal page has no inline script; it downloads its files from the private bucket by presigned URL (virtual-host
 # addressing, https://<bucket>.t3.storageapi.dev). Inline style attributes are kept: the reference page builds them.
 TERMINAL_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
-                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
+                "style-src 'self' 'unsafe-inline'; font-src 'self'; "
                 "img-src 'self' data: blob:; connect-src 'self' https://*.t3.storageapi.dev; object-src 'none'; "
                 "base-uri 'self'; form-action 'self'; frame-ancestors 'self'")
 # EDGE backtest (CONTRACT.md section 10): the built backtest page (apps/edge-bff/backtest -> static/backtest-app), shown in
-# the Backtest tab's frame. It loads what the terminal page loads (its own script and stylesheet, Google Fonts, inline
-# style attributes) and, for the signal preview, the ticker files the /api/terminal/v1/bundle answer presigns on the
-# bucket, so it takes the terminal page's policy.
+# the Backtest tab's frame. It loads what the terminal page loads (its own script and stylesheet, EDGE's own Inter from
+# /fonts/, inline style attributes) and, for the signal preview, the ticker files the /api/terminal/v1/bundle answer
+# presigns on the bucket, so it takes the terminal page's policy.
 BACKTEST_APP = STATIC / 'backtest-app'
 BACKTEST_CSP = TERMINAL_CSP
 # EDGE screener (EXEC-SCREENER; report FRONTEND INTEGRATION 9.1, 9.7): the built screener page (apps/edge-bff/screener ->
@@ -106,7 +112,7 @@ OVERVIEW_APP = STATIC / 'overview-app'
 # Watchlist tab's frame; its lists come from /api/v1/watchlist/lists and its figures from /api/v1/watchlist (file)
 WATCHLIST_APP = STATIC / 'watchlist-app'
 SCREENER_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
-                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
+                "style-src 'self' 'unsafe-inline'; font-src 'self'; "
                 "img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; "
                 "base-uri 'self'; form-action 'self'; frame-ancestors 'self'")
 # EXEC-WATCHLIST L5: the Watchlist page shows the Terminal's issuer logos; their list is the Terminal's reference file
@@ -463,7 +469,7 @@ def create_app(settings=None, store=None, orc=None):
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard). Re-check R2-19: the shell has no inline
         # script (static/edge-boot.js, static/edge-app.js), so script-src is 'self' alone, and form-action is 'self'
-        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
         return response
 
     # ERRORS R2-25: added last, so it is the outermost middleware: an exception no handler expected is answered 503
@@ -567,6 +573,15 @@ def create_app(settings=None, store=None, orc=None):
         if not SCRIPT_NAME.fullmatch(name) or not target.is_file():
             return error('NOT_FOUND', 404)
         return FileResponse(target, media_type='image/svg+xml', headers={'Cache-Control': 'public, max-age=86400'})
+
+    # EXEC-MU-ACCOUNTS re-check R2-28 (user 2026-11-19: "5a pakai inter"): the Inter font every page uses, served from
+    # this origin (FONTS); public like the sign-in page that needs it. The name pattern keeps the request inside fonts/.
+    @app.get('/fonts/{name}')
+    async def font(name: str):
+        target = FONTS / name
+        if not FONT_NAME.fullmatch(name) or not target.is_file():
+            return error('NOT_FOUND', 404)
+        return FileResponse(target, media_type=FONT_TYPES[target.suffix], headers={'Cache-Control': 'public, max-age=86400'})
 
     # EXEC-UI-1015C (user 2026-10-15, "Please also add Favicon"): the EDGE "E" mark for the browser tab and the phone
     # home screen. Public like the page itself, so the login screen shows it too.

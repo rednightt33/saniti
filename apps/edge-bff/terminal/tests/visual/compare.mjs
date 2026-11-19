@@ -45,7 +45,14 @@ const errors = [];
    page and move the opening view by a bar (the chart meets the font earlier or later). The fonts are fetched once and
    then served from memory to every page, so both pages meet the same conditions. */
 const fontCache = new Map();
+const OWN_FONTS = new URL('../../../static/fonts/', import.meta.url);
 async function fonts(context) {
+  // R2-28 ("5a pakai inter"): the built page links EDGE's own /fonts/ sheet (edge-bff serves static/fonts); the files
+  // are read from there, as edge-bff serves them; the reference page still asks Google Fonts
+  await context.route(/\/fonts\/[A-Za-z0-9-]+\.(?:css|woff2)$/, async route => {
+    const name = new URL(route.request().url()).pathname.split('/').pop();
+    await route.fulfill({ status:200, contentType:name.endsWith('.css') ? 'text/css' : 'font/woff2', body:await readFile(new URL(name, OWN_FONTS)) });
+  });
   await context.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, async route => {
     const url = route.request().url();
     if (!fontCache.has(url)) {

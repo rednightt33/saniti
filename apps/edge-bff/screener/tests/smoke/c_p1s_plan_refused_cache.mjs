@@ -24,7 +24,7 @@ try {
   const ctx = await browser.newContext({ viewport:{ width:1440, height:950 } });
   const page = await ctx.newPage();
   page.setDefaultTimeout(15000);
-  await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, r => r.fulfill({ status:200, contentType:'text/css', body:'' }));
+  await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\/|\/fonts\/[A-Za-z0-9-]+\.css$/, r => r.fulfill({ status:200, contentType:'text/css', body:'' }));
   const go = q => page.goto(`${srv.origin}/screener-app/${q || ''}`);
   const ready = () => page.waitForSelector('#app[data-boot="results"]', { timeout:15000 });
   const idle = () => page.waitForFunction(() => !document.querySelector('#resMeta .ml-loading') && !document.querySelector('#pageActs .top-screen[aria-busy]'), null, { timeout:10000 });

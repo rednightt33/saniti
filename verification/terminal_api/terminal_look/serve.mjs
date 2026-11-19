@@ -133,6 +133,12 @@ export async function serve(DATA, TICKER) {
       const f = path.endsWith('.js') ? path.slice(1) : 'index.html';
       res.writeHead(200, { 'Content-Type':f.endsWith('.js') ? 'text/javascript' : 'text/html' }); return res.end(await readFile(join(BUILD, '..', f)));
     }
+    /* EXEC-MU-ACCOUNTS re-check R2-28 ("5a pakai inter"): EDGE serves its own Inter from /fonts/ (apps/edge-bff/static/fonts,
+       app/main.py font), so the page is measured with the font it has on dev */
+    if (/^\/fonts\/[A-Za-z0-9-]+\.(?:css|woff2|txt)$/.test(path)) {
+      try { const b = await readFile(join(BUILD, '..', 'fonts', path.slice('/fonts/'.length)));
+        res.writeHead(200, { 'Content-Type':path.endsWith('.css') ? 'text/css' : path.endsWith('.woff2') ? 'font/woff2' : 'text/plain' }); return res.end(b) } catch {}
+    }
     if (path.startsWith('/terminal-app/')) {
       const rel = normalize(path.slice('/terminal-app/'.length) || 'index.html');
       if (!rel.startsWith('..')) try { const b = await readFile(join(BUILD, rel)); res.writeHead(200, { 'Content-Type':TYPES[extname(rel)] || 'application/octet-stream' }); return res.end(b) } catch {}

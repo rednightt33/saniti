@@ -90,7 +90,7 @@ broker summary are dropped from the bundle (`tests/data/fixture_bundle.test.mjs`
 Rules and decisions: `backtest/CONTRACT.md`; wire types: `backtest/src/core/contract.ts`. The page `backtest/`
 (TypeScript + Vite) is built by the Dockerfile's `backtest` stage into `static/backtest-app/` (not kept in git) and
 shown under the EDGE top bar in a frame at `/backtest` (Backtest tab, next to Terminal). `/backtest-app/` has the
-terminal page's CSP (its own scripts only, inline style attributes, Google Fonts, and `connect-src` to the bucket
+terminal page's CSP (its own scripts only, inline style attributes, EDGE's own Inter, and `connect-src` to the bucket
 because the signal preview downloads the files `/api/terminal/v1/bundle` presigns). The computation runs in the private
 `backtest-worker` (Node); edge-bff queues the jobs, keeps the results and counts the trials.
 
@@ -348,6 +348,7 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 | View contract | `static/edge-view.js` (`EdgeView.toView`) | Orc's response shape changes; the only code that reads it |
 | Words | `static/edge-labels.js` | wording, a label, a code's words, a status name |
 | Look and layout | `static/index.html` (markup, CSS) and `static/edge-app.js` (the renderers and the shell's app) | anything visual; renderers read the view model only |
+| Font | `static/fonts/` (Inter 4.001, the variable weight axis in Google's seven subsets, SIL Open Font License 1.1 in `OFL.txt`; `inter-400-700.css` for the shell and five pages, `inter-400-600.css` for the Terminal, the weights each asked Google Fonts for), served at `/fonts/<name>` | never from Google Fonts (re-check R2-28, user 2026-11-19 "5a pakai inter"): every policy keeps `font-src 'self'`, a page links one of the two sheets (`tests/test_decisions_small.py`) |
 
 The shell runs no inline script (EXEC-MU-ACCOUNTS fix round, re-check R2-19): the head's viewport script is
 `static/edge-boot.js` and the app is `static/edge-app.js`, so its policy keeps `script-src 'self'` without

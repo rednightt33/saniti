@@ -63,7 +63,9 @@ def third_party_hosts():
 
 def test_every_third_party_host_is_a_recorded_recipient_of_personal_data():
     hosts = third_party_hosts()
-    assert {'fonts.googleapis.com', 'api.resend.com'} <= hosts, sorted(hosts)
+    # the walk sees the hosts it must (a regex that stops matching would pass anything); Google Fonts is no longer one:
+    # the user's decision R2-28 ("5a pakai inter", 2026-11-19) serves Inter from EDGE itself (tests/test_decisions_small.py)
+    assert 'api.resend.com' in hosts and 'fonts.googleapis.com' not in hosts, sorted(hosts)
     recipients = section(18)
     missing = sorted(h for h in hosts if f'`{h}`' not in recipients)
     assert missing == [], (f'CONTRACT section 18 does not name {missing}: a page or a server call sends the visitor\'s '

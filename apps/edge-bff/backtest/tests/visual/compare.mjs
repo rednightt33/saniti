@@ -58,7 +58,7 @@ try {
     for (const [side, url] of [['ref', `${origin}/ref/`], ['ts', tsUrl]]) {
       const dir = `${out}/${at}/${side}`; await mkdir(dir, { recursive:true });
       const context = await browser.newContext({ viewport:{ width:w, height:h }, deviceScaleFactor:1 });
-      await context.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, route => route.fulfill({ status:200, contentType:'text/css', body:'' }));
+      await context.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\/|\/fonts\/[A-Za-z0-9-]+\.css$/, route => route.fulfill({ status:200, contentType:'text/css', body:'' }));
       await context.addInitScript(t => {
         performance.now = () => 0;
         let s = 20261026; Math.random = () => (s = s * 16807 % 2147483647) / 2147483647;

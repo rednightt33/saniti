@@ -29,7 +29,7 @@ async function open(viewport = { width:1440, height:950 }, keep = false) {
   if (!keep) { await ctx?.close(); ctx = await browser.newContext({ viewport, acceptDownloads:true }) }
   page = await ctx.newPage();
   page.setDefaultTimeout(10000);
-  await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, r => r.fulfill({ status:200, contentType:'text/css', body:'' }));
+  await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\/|\/fonts\/[A-Za-z0-9-]+\.css$/, r => r.fulfill({ status:200, contentType:'text/css', body:'' }));
   page.on('console', m => { if (m.type() === 'error') errors.push(`[${step}] console: ${m.text()}`) });
   page.on('pageerror', e => errors.push(`[${step}] page: ${e.message}`));
   await page.addInitScript(() => {

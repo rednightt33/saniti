@@ -1294,7 +1294,7 @@ host of the server's code or of a resource a page loads that this table does not
 
 | Recipient | Host | What it receives | When |
 |---|---|---|---|
-| Google Fonts | `fonts.googleapis.com`, `fonts.gstatic.com` | each visitor's IP address and user agent (the Inter font) | every EDGE page, the sign-in and registration pages included, before any sign-in. **Open:** self-host Inter (`font-src 'self'`, no visible change) or keep it and state it |
+| ~~Google Fonts~~ (none since the decision R2-28 "5a pakai inter", 2026-11-19) | no longer asked | nothing: EDGE serves its own copy of Inter from `/fonts/` (`apps/edge-bff/static/fonts`, SIL Open Font License 1.1, `OFL.txt`), every policy keeps `font-src 'self'` and no page names a Google host (built, track decisions; `tests/test_decisions_small.py`) | never |
 | Resend | `api.resend.com` | every email address EDGE writes to and each email's body (codes, notices) | each registration, code, reset and notice (the live site, switch on) |
 | The market-file bucket (Railway storage) | `*.t3.storageapi.dev` | the visitor's IP address and the object keys of presigned downloads | the Terminal, Backtest and Watchlist pages' file downloads; with 3c a capped principal gets cuts and reference copies through edge-bff instead |
 | Have I Been Pwned (Pwned Passwords) | `api.pwnedpasswords.com` | the first 5 hexadecimal characters of the password's SHA-1 (k-anonymity; not personal data) | each new password (registration, reset, change) |

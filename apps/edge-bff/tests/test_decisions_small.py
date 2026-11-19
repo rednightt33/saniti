@@ -15,11 +15,14 @@ decisions of 2026-11-19 and the main agent's design value, built.
 - R1-35 (the user's "1a"): the universe attributes every Screener answer shows (the Screener catalog's entries naming
   their /universe row field) are allowed to every principal (allow.allow_of) and listed by its catalog (catalog.held),
   by one rule (catalog.ungated), as the worker no longer gates them by id.
+- R2-28 (the user's "5a pakai inter"): every page links EDGE's own Inter (/fonts/, OFL), none asks Google Fonts, and
+  every policy keeps font-src and style-src on this origin.
 """
 import dataclasses
 import json
 import re
 import uuid
+from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -381,3 +384,71 @@ def test_a_plan_without_screener_metrics_is_allowed_the_shown_attributes_and_the
     assert allow_of(some, 'screener')['indicator'] == [] and not catalog.ungated('indicator', 'last')
     # a principal holding everything still sends "*"
     assert allow_of(plan_principal({'*': ('flag', True)}), 'screener')['screener_metric'] == '*'
+
+
+# ---- R2-28 ("5a pakai inter"): Inter served by EDGE itself on every page --------------------------------------------------
+
+EDGE = Path(__file__).resolve().parents[1]
+GOOGLE = re.compile(r'fonts\.(?:googleapis|gstatic)\.com')
+PAGES = {'/': 'static/index.html', '/terminal-app/': 'terminal/index.html', '/backtest-app/': 'backtest/index.html',
+         '/screener-app/': 'screener/index.html', '/radar-app/': 'radar/index.html', '/overview-app/': 'overview/index.html',
+         '/watchlist-app/': 'watchlist/index.html'}
+
+
+def page_sources():
+    """Every page's source and every stylesheet, script and page module EDGE serves or builds (no build output)."""
+    for folder in ('static', 'terminal/src', 'backtest/src', 'screener/src', 'radar/src', 'overview/src', 'watchlist/src',
+                   'shared', 'app'):
+        for p in sorted((EDGE / folder).rglob('*')):
+            if p.is_file() and p.suffix in ('.html', '.css', '.js', '.ts', '.py', '.mjs') and not (
+                    set(p.relative_to(EDGE).parts) & {'node_modules', 'dist', 'dist-fixture', 'terminal-app', 'backtest-app',
+                                                      'screener-app', 'radar-app', 'overview-app', 'watchlist-app'}):
+                yield p
+    for page in PAGES.values():
+        yield EDGE / page
+
+
+def test_no_page_asks_google_fonts_and_each_links_edges_own_inter():
+    assert [str(p.relative_to(EDGE)) for p in page_sources() if GOOGLE.search(p.read_text())] == []
+    sheets = {page: re.findall(r'''(?:href=["']|@import url\(['"])(/fonts/[a-z0-9-]+\.css)''', (EDGE / page).read_text())
+              for page in PAGES.values()}
+    # the weights each page asked Google Fonts for: the Terminal 400-600 (its 700 text drew at 600), the others 400-700
+    assert sheets == {page: ['/fonts/inter-400-600.css' if page.startswith('terminal/') else '/fonts/inter-400-700.css']
+                      for page in PAGES.values()}
+
+
+def test_every_policy_keeps_fonts_and_styles_on_this_origin(settings, store):
+    with TestClient(create_app(settings, store, FakeOrc())) as c:
+        for path in [*PAGES, '/login', '/fonts/inter-400-700.css']:
+            policy = c.get(path).headers['content-security-policy']
+            assert not GOOGLE.search(policy), (path, policy)
+            directives = dict(d.strip().split(' ', 1) for d in policy.split(';') if d.strip())
+            assert directives['font-src'] == "'self'" and directives['style-src'] == "'self' 'unsafe-inline'", (path, policy)
+
+
+def test_the_font_files_their_sheets_and_the_licence_are_served_from_fonts(settings, store):
+    files = sorted(p.name for p in (EDGE / 'static/fonts').iterdir())
+    woff2 = [f for f in files if f.endswith('.woff2')]
+    assert files == sorted([*woff2, 'OFL.txt', 'inter-400-600.css', 'inter-400-700.css']) and len(woff2) == 7
+    with TestClient(create_app(settings, store, FakeOrc())) as c:
+        for sheet, weights in (('inter-400-700.css', '400 700'), ('inter-400-600.css', '400 600')):
+            r = c.get(f'/fonts/{sheet}')
+            assert (r.status_code, r.headers['content-type']) == (200, 'text/css; charset=utf-8')
+            faces = re.findall(r'@font-face \{(.*?)\}', r.text, re.S)
+            assert len(faces) == len(woff2)
+            urls = []
+            for face in faces:
+                assert "font-family: 'Inter';" in face and 'font-display: swap;' in face and f'font-weight: {weights};' in face
+                urls += re.findall(r'url\((/fonts/[a-z0-9-]+\.woff2)\)', face)
+            assert sorted(u.rsplit('/', 1)[1] for u in urls) == woff2          # every file once, nothing outside /fonts/
+            for url in urls:
+                font = c.get(url)
+                assert (font.status_code, font.headers['content-type']) == (200, 'font/woff2') and font.content[:4] == b'wOF2'
+                assert font.content == (EDGE / 'static/fonts' / url.rsplit('/', 1)[1]).read_bytes()
+                assert 'public' in font.headers['cache-control']
+        licence = c.get('/fonts/OFL.txt')
+        assert licence.status_code == 200 and licence.headers['content-type'].startswith('text/plain')
+        assert licence.text.startswith('Copyright 2016 The Inter Project Authors') and 'SIL OPEN FONT LICENSE Version 1.1' in licence.text
+        # a name outside the pattern or not in fonts/ (a ../ in clear is resolved by the client before it is sent)
+        for bad in ('inter.woff', 'missing.css', '.css', 'OFL.TXT.bak', '%2e%2e%2fedge-app.js', '..%2Findex.html'):
+            assert c.get(f'/fonts/{bad}').status_code == 404, bad

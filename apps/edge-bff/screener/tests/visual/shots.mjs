@@ -52,7 +52,7 @@ for (const theme of ['light', 'dark']) for (const vp of VIEWPORTS) {
   const page = await ctx.newPage();
   page.setDefaultTimeout(10000);
   const tag = `${theme} ${vp.width}`, wide = vp.width > 900;
-  await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, r => r.fulfill({ status:200, contentType:'text/css', body:'' }));
+  await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\/|\/fonts\/[A-Za-z0-9-]+\.css$/, r => r.fulfill({ status:200, contentType:'text/css', body:'' }));
   await page.addInitScript(t => { try { localStorage.setItem('edge-auth-monitor-theme', t) } catch {} }, theme);
   page.on('pageerror', e => fails.push(`${tag}: ${e.message}`));
   page.on('console', m => { if (m.type() === 'error') fails.push(`${tag} console: ${m.text()}`) });
@@ -136,7 +136,7 @@ for (const theme of ['light', 'dark']) for (const vp of VIEWPORTS) {
 {
   const ctx = await browser.newContext({ viewport:{ width:1440, height:950 }, reducedMotion:'reduce' });
   const page = await ctx.newPage();
-  await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, r => r.fulfill({ status:200, contentType:'text/css', body:'' }));
+  await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\/|\/fonts\/[A-Za-z0-9-]+\.css$/, r => r.fulfill({ status:200, contentType:'text/css', body:'' }));
   await page.goto(`${srv.origin}/screener-app/`); await page.waitForSelector('#app[data-boot="results"]');
   await page.click('[data-open="p:minervini"]'); await page.click('#pageActs .top-screen'); await idle(page);
   await page.click('[data-act="drawer"]'); await page.waitForTimeout(200);
