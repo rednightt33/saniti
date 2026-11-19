@@ -202,3 +202,21 @@ def test_the_server_reads_each_sync_key_with_the_capability_the_registry_names()
     shared = {k for k, cap in declared.items() if cap is None}
     assert shared == {'ml.symbol'}, f'sync keys with no tab capability (only a key every tab shares has none): {shared}'
     assert all(cap.endswith('.view') for cap in declared.values() if cap), declared
+
+
+def test_a_browser_key_family_never_names_a_ticker_or_symbol():
+    """Re-check R1-20: a `browser` prefix survives sign-out and a change of user, so its suffix must not carry account
+    content. A key built from a ticker or a symbol (a template or a concatenation onto the prefix) names what the
+    account looks at, and belongs to a `user` family (shared/edge-session.ts STORAGE)."""
+    browser = [k for k, match, _, kind in registry() if match == 'prefix' and kind == 'browser']
+    built = re.compile(r"""`(?P<t>[^`]*)`|['"](?P<p>[^'"]+)['"]\s*\+\s*(?P<v>[A-Za-z_][A-Za-z0-9_.()]*)""")
+    found = []
+    for name, text in sources().items():
+        for m in built.finditer(text):
+            if m.group('t') is not None:
+                key, values = m.group('t'), re.findall(r'\$\{([^}]*)\}', m.group('t'))
+            else:
+                key, values = m.group('p'), [m.group('v')]
+            if values and any(key.startswith(p) for p in browser) and any(re.search(r'ticker|symbol|\bsym\b', v, re.I) for v in values):
+                found.append(f'{name}: {key}')
+    assert not found, 'browser-class keys that name a ticker or symbol (class the family user):\n' + '\n'.join(found)

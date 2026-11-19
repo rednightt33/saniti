@@ -89,7 +89,7 @@ export const STORAGE: readonly StorageEntry[] = Object.freeze([
   { key:'ml.drawings.', match:'prefix', area:'local', kind:'user', cache:true, where:'Terminal', what:'drawings kept while the account cannot be reached (stamped with the login, M468)' },
   { key:'ml.assets.v1', match:'exact', area:'local', kind:'user', sync:true, cap:'terminal.view', where:'Terminal', what:'series added to the chart' },
   { key:'ml.assets.defaults', match:'exact', area:'local', kind:'browser', where:'Terminal', what:'default look of an added series' },
-  { key:'ml.assets.flow.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'an added series pane folded or its height' },
+  { key:'ml.assets.flow.', match:'prefix', area:'local', kind:'user', cache:true, where:'Terminal', what:'an added series pane folded or its height, by its ticker (the account\'s series, re-check R1-20)' },
   { key:'ml.draw.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'drawing tool choices (cursor, line, shape, measure, magnet)' },
   { key:'ml.stats.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'left panel width, fold, sections and order' },
   { key:'ml.broker.', match:'prefix', area:'local', kind:'browser', where:'Terminal', what:'right panel width, fold, sections and order' },

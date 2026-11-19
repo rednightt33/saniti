@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=fdf34928792121f1e83a538b32da60a7db997662014cce3d9143a44b6bb6e3e8 by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=f120cbcd6548a08c50434a9007159e1bd70481e64723980b4b621d725bab5203 by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -104,7 +104,7 @@ var EdgeSession = (() => {
     { key: "ml.drawings.", match: "prefix", area: "local", kind: "user", cache: true, where: "Terminal", what: "drawings kept while the account cannot be reached (stamped with the login, M468)" },
     { key: "ml.assets.v1", match: "exact", area: "local", kind: "user", sync: true, cap: "terminal.view", where: "Terminal", what: "series added to the chart" },
     { key: "ml.assets.defaults", match: "exact", area: "local", kind: "browser", where: "Terminal", what: "default look of an added series" },
-    { key: "ml.assets.flow.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "an added series pane folded or its height" },
+    { key: "ml.assets.flow.", match: "prefix", area: "local", kind: "user", cache: true, where: "Terminal", what: "an added series pane folded or its height, by its ticker (the account's series, re-check R1-20)" },
     { key: "ml.draw.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "drawing tool choices (cursor, line, shape, measure, magnet)" },
     { key: "ml.stats.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "left panel width, fold, sections and order" },
     { key: "ml.broker.", match: "prefix", area: "local", kind: "browser", where: "Terminal", what: "right panel width, fold, sections and order" },
