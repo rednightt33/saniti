@@ -15970,7 +15970,7 @@ dipakai accross chat sebagai referencec?"
     bf273f52 plus the finders' nine test commits). Three refuters per finding (reproduce, code path, specification and
     decisions) are judging them; the first run stopped on the 5-hour usage limit and was resumed 2026-11-19.
 
-### Production environment (user decision 2026-11-19; open details asked)
+### Production environment (user decisions 2026-11-19; open details asked)
 
 - **Question asked (2026-11-19):** the website runs in the Railway environment `dev`, which is also where changes are
   tried. Should the new domain point at `dev` (A, no extra work, but a change being tried reaches users at once) or at
@@ -15994,3 +15994,13 @@ dipakai accross chat sebagai referencec?"
      market data still made once in `dev` and brought over as published files);
   3. roles swapped (`dev` becomes production with the domain, and a new light environment is made for trying changes).
 - Nothing is created on Railway before the user answers and gives the go for the execution.
+- **User, 2026-11-19, after the three options (this replaces them):** "No, saya berpikir kita tetap menggunakan
+  lingkungan yang sama, tapi ada dua cabang. Yang pertama adalah railway app seperti sekarang. Yang kedua adalah domain
+  yang nanti saya kasih. Railway app, which is edge bff, bisa dibilang seperti beta environment di mana semua fitur bisa
+  dites di website ini. Baru ketika live akan dipush ke domain yang akan saya kasih nanti."
+  - Read as: one Railway environment (`dev`) with two websites. The current address (`edge-bff-dev.up.railway.app`,
+    service `edge-bff`) is the beta, where every feature is tried. The user's domain is the live site, which gets a
+    version only when it is pushed to live.
+  - Open (asked 2026-11-19): who may sign in to the beta; which services get a second copy for the live site (the
+    proposal: only the website, everything else shared); how a push to live is done. Nothing is created before the
+    user answers and gives the go.
