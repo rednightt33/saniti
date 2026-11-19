@@ -22,6 +22,21 @@ refused 400 HEADER_NOT_ALLOWED (terminal_access.guard) before the caches. The sh
 the principal whose request found it stale; the page files have no ticker or dataset of their own (the family's view
 capability gates them).
 
+Re-check fix round (track terminal; verification/edge_multiuser/fix_round/terminal.md):
+- R1-1, R1-26, R2-4: every terminal-api answer goes through terminal_access.relayed: a 429 of a grant is 429
+  LIMIT_REACHED with details.limit, retry_after_s and Retry-After (CONTRACT.md section 3), an answer terminal-api did
+  not acknowledge for a capped principal is <FAMILY>_UNAVAILABLE, any other refusal <FAMILY>_UNAVAILABLE as before
+  (logged with terminal-api's code).
+- R1-31: the principal's headers are built on every request, before the shared caches, so what edge-bff refuses for a
+  principal itself (a quota of 0, an owner key or a header terminal-api cannot take) is refused whether the caches are
+  warm or cold.
+- R1-5, R1-31: decided by the code and the contract (CONTRACT.md section 15: the caches are shared by every user; QA
+  2026-11-14: bytes kept by sha256 so a reload asks no grant): terminal-api grants, counts and audits a page file for the
+  principal whose request missed the caches, once per edge-bff process and sha256; a read served from the caches is
+  counted against no one's Terminal quota and leaves no terminal-api audit row. That is lenient (it never counts more)
+  and leaks nothing (the view capability is checked first). Per-reader counting, if Phase 4's usage counters need it,
+  is edge-bff's own record, not a terminal-api call per hit (which would undo the cache).
+
 Every refusal names its cause and the way out (AGENTS.md "Gates and evidence" (d)).
 """
 from __future__ import annotations
@@ -35,6 +50,7 @@ from fastapi import Depends, Request
 from fastapi.responses import JSONResponse, Response
 
 from . import terminal_access
+from .errors import refusal
 
 SHA = re.compile(r'[0-9a-f]{64}')
 INDEX_SECONDS = 30          # the index is read again at most this often (terminal-api caches state.json for 60 s)
@@ -54,8 +70,6 @@ def messages(family, label, names):
                         'published ones.',
         'INVALID_SHA': 'The sha parameter must be the 64 lowercase hexadecimal characters of the file\'s sha256 as '
                        f'GET /api/v1/{family}/index lists it; leave it out to get the current file.',
-        'QUOTA': f'The terminal account reached its file quota (shared with the Terminal). The {label} files already '
-                 'shown stay; try again later in the hour.',
         'FILE_NOT_PUBLISHED': f'This {label} file is not in the current publication. Read GET /api/v1/{family}/index '
                               'for the published files and dates.',
         'FILE_REPLACED': f'A newer {label} publication replaced this file. Read GET /api/v1/{family}/index again and '
@@ -108,19 +122,22 @@ class PageFiles:
             self.http = httpx.AsyncClient(timeout=30)
         return self.http
 
-    async def terminal(self, p, method, path, body=None):
+    async def terminal(self, sent, method, path, body=None):
+        """A terminal-api call with the headers `sent` (terminal_access.headers of the request's principal)."""
         return await self.client().request(
-            method, f'{self.settings.terminal_url}/api/terminal/v1/{path}', content=body,
-            headers=terminal_access.headers(self.settings, p))
+            method, f'{self.settings.terminal_url}/api/terminal/v1/{path}', content=body, headers=sent)
 
-    async def index(self, p, fresh=False):
-        """terminal-api's index of the family, kept INDEX_SECONDS; None when terminal-api cannot answer."""
+    async def index(self, p, sent, fresh=False):
+        """terminal-api's index of the family, kept INDEX_SECONDS; None when terminal-api cannot answer (or answers
+        without acknowledging the principal's header, terminal_access.relayed)."""
         now = self.clock()
         if not fresh and self.cached is not None and now - self.cached_at < INDEX_SECONDS:
             return self.cached
         try:
-            answer = await self.terminal(p, 'GET', self.family)
+            answer = await self.terminal(sent, 'GET', self.family)
             data = answer.json() if answer.status_code == 200 else None
+            if terminal_access.relayed(p, answer.status_code, data, answer.headers, self.family) is not None:
+                data = None
         except (httpx.HTTPError, ValueError):
             data = None
         if not isinstance(data, dict) or not isinstance(data.get('files'), dict):
@@ -136,7 +153,8 @@ class PageFiles:
         async def page_index(p=Depends(view)):
             if not self.settings.terminal_url:
                 return self.failure('NOT_CONFIGURED', 503)
-            data = await self.index(p)
+            sent = terminal_access.headers(self.settings, p)      # R1-31: the principal's own refusals, caches or not
+            data = await self.index(p, sent)
             if data is None:
                 return self.failure('UNAVAILABLE', 503)
             return JSONResponse({'finished_at': data.get('finished_at'), 'files': data['files']})
@@ -148,16 +166,17 @@ class PageFiles:
                 return self.failure('INVALID_NAME', 400, {'name': name[:64]})
             if sha and not SHA.fullmatch(sha):
                 return self.failure('INVALID_SHA', 400, {'sha': sha[:80]})
+            sent = terminal_access.headers(self.settings, p)      # R1-31: the principal's own refusals, caches or not
             if sha and request.headers.get('if-none-match') == f'"{sha[:32]}"':
                 # the URL names the content and the capability was checked: the browser's copy stands (no index read,
                 # no grant), as the year-long copy did before, but now only after the server's check
                 return Response(status_code=304, headers={'ETag': f'"{sha[:32]}"', 'Cache-Control': 'private, no-cache'})
-            data = await self.index(p)
+            data = await self.index(p, sent)
             if data is None:
                 return self.failure('UNAVAILABLE', 503)
             entry = data['files'].get(name)
             if sha and (entry is None or entry.get('sha256') != sha):
-                data = await self.index(p, fresh=True) or data              # a publication may have come out since
+                data = await self.index(p, sent, fresh=True) or data        # a publication may have come out since
                 entry = data['files'].get(name)
             if entry is None:
                 return self.failure('FILE_NOT_PUBLISHED', 404, {'name': name})
@@ -169,14 +188,20 @@ class PageFiles:
             body = self.bodies.get(current)
             if body is None:
                 try:
-                    granted = await self.terminal(p, 'POST', family, body=f'{{"names": ["{name}"]}}'.encode())
-                    if granted.status_code == 404:
+                    granted = await self.terminal(sent, 'POST', family, body=f'{{"names": ["{name}"]}}'.encode())
+                    if granted.status_code == 404 and terminal_access.acknowledged(p, granted.headers):
                         return self.failure('FILE_REPLACED', 409, {'name': name})
-                    if granted.status_code == 429:
-                        return self.failure('QUOTA', 429)
-                    if granted.status_code != 200:
+                    try:
+                        answer = granted.json()
+                    except ValueError:
+                        answer = None
+                    refused = terminal_access.relayed(p, granted.status_code, answer, granted.headers, family)
+                    if refused is not None and refused.code == 'LIMIT_REACHED':
+                        # R1-26: the Terminal quota the page files count against (CONTRACT.md section 3)
+                        return refusal(refused.status, refused.code, refused.details, refused.headers)
+                    if refused is not None or granted.status_code != 200:
                         return self.failure('UNAVAILABLE', 503)
-                    f = granted.json()['files'][0]
+                    f = answer['files'][0]
                     # QA 2026-11-14: the grant names the file of the publication terminal-api reads now; when that is
                     # not the one this answer is for, the page reads the index again (never new bytes under an old sha)
                     if f.get('sha256') != current:

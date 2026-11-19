@@ -55,10 +55,14 @@ TERMINAL_ASSET = re.compile(r'[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.(?:js|css|wof
 # EXEC-MU-ACCOUNTS Phase 3c (CONTRACT.md 8b "3c in detail"): cut/<TICKER>/<dataset>, the last N days of a dataset that
 # terminal-api cuts for a principal with terminal.history_days (decision D2 = A), relayed byte for byte (relay_cut);
 # its datasets and /history's come from app/terminal_access.py (terminal-api's own names)
+# EXEC-MU-ACCOUNTS re-check R2-32: reference/<name>/cut, the plan's own copy of a reference file (terminal-api refcut.py),
+# relayed byte for byte like a cut (TERMINAL_BYTES)
+TERMINAL_BYTES = re.compile(rf'cut/[A-Z0-9]{{1,12}}/(?:{"|".join(terminal_access.CUT_DATASETS)})'
+                            r'|reference/[a-z0-9][a-z0-9_-]{0,31}/cut')
 TERMINAL_ROUTES = {'GET': re.compile(r'manifest/[A-Z0-9]{1,12}|reference/[a-z0-9][a-z0-9_-]{0,31}'
                                       rf'|history/(?:{"|".join(terminal_access.HISTORY_DATASETS)})'
                                       r'|logo/[A-Z0-9]{1,12}'   # logo: EXEC-TERMINAL-LOGO
-                                      rf'|cut/[A-Z0-9]{{1,12}}/(?:{"|".join(terminal_access.CUT_DATASETS)})'),
+                                      rf'|{TERMINAL_BYTES.pattern}'),
                    'POST': re.compile(r'files|bundle')}   # bundle: every file of one ticker in one call (EXEC-TERMINAL-UI-1026 U6)
 # the cut's answer: its gzip bytes exactly (no JSON parse, no decoding, no Content-Encoding, so the page's sha256 check
 # holds), with only these headers of terminal-api's, at most TERMINAL_CUT_BYTES
@@ -552,6 +556,9 @@ def create_app(settings=None, store=None, orc=None):
     # refused by the route's terminal_access.guard), and a ticker or dataset the plan lacks is refused 403
     # CAPABILITY_REQUIRED before terminal-api is asked (terminal_access.check). With the switch off the configured owner
     # holds '*': admin, the body forwarded unchanged.
+    # Re-check R1-1, R1-26, R2-4: every answer goes through terminal_access.relayed, the one rule for what reaches the
+    # page: an acknowledged 2xx as it is; a refusal in the contract's shape (a terminal-api 401 or 403 about its own
+    # account or key is 503 TERMINAL_UNAVAILABLE, never the EDGE sign-in; a 429 LIMIT_REACHED with Retry-After).
     async def forward_terminal(method: str, path: str, request: Request, p: Principal):
         if not settings.terminal_url:
             return error('TERMINAL_UNAVAILABLE', 503)
@@ -561,31 +568,38 @@ def create_app(settings=None, store=None, orc=None):
         try:
             body = terminal_access.check(p, method, path, request.query_params, body)
         except Refusal as refused:
-            if refused.code != 'CAPABILITY_REQUIRED':
-                raise
-            await refuse_capability(p, refused.details['capability'])
+            await refuse(p, refused)
         headers = terminal_access.headers(settings, p)
         if terminal_http['client'] is None:
             terminal_http['client'] = httpx.AsyncClient(timeout=30)
         url = f'{settings.terminal_url}/api/terminal/v1/{path}'
-        if path.startswith('cut/'):
-            return await relay_cut(url, request, headers, p)
+        if TERMINAL_BYTES.fullmatch(path):
+            return await relay_cut(url, request, headers, p, path)
         try:
             answer = await terminal_http['client'].request(method, url, params=request.query_params, content=body,
                                                            headers=headers)
         except httpx.HTTPError:
             return error('TERMINAL_UNAVAILABLE', 503)
-        if answer.status_code == 200 and answer.headers.get('content-type', '').startswith('image/'):
+        image = 200 <= answer.status_code < 300 and answer.headers.get('content-type', '').startswith('image/')
+        try:
+            data = None if image else answer.json()
+        except ValueError:
+            data = None
+        if (refused := terminal_access.relayed(p, answer.status_code, data, answer.headers, path)) is not None:
+            await refuse(p, refused)
+        if image:
             # a ticker's logo passes through as it is, with terminal-api's caching and its no-script CSP
             return Response(answer.content, media_type=answer.headers['content-type'], headers={
                 k: answer.headers[k] for k in ('cache-control', 'etag', 'content-security-policy') if k in answer.headers})
-        try:
-            data = answer.json()
-        except ValueError:
-            return error('TERMINAL_UNAVAILABLE', 503)
-        if (capability := terminal_access.answered_capability(answer.status_code, data)) is not None:
-            await refuse_capability(p, capability)                    # terminal-api's own check, in EDGE's shape
+        if data is None:
+            return error('TERMINAL_UNAVAILABLE', 503)                 # a 2xx that is not JSON: never relayed on a guess
         return JSONResponse(status_code=answer.status_code, content=data)
+
+    async def refuse(p, refused):
+        """Raise a refusal of the Terminal path; a CAPABILITY_REQUIRED with the catalog's name (refuse_capability)."""
+        if refused.code == 'CAPABILITY_REQUIRED':
+            await refuse_capability(p, refused.details['capability'])
+        raise refused
 
     async def refuse_capability(p, capability):
         try:
@@ -594,12 +608,13 @@ def create_app(settings=None, store=None, orc=None):
             pass
         raise p.refusal(capability)
 
-    async def relay_cut(url, request, headers, p):
+    async def relay_cut(url, request, headers, p, path):
         """Phase 3c (decision D2 = A): terminal-api's cut of the last N days (application/gzip), its bytes exactly as sent
         (read raw, never decoded or parsed, no Content-Encoding added or relayed; the page checks their sha256 against
         /bundle's), with TERMINAL_CUT_HEADERS and always Cache-Control private (the bytes are this principal's). The
-        query (the page's ?sha256=) is forwarded. Another status passes through as JSON, like every forwarded answer;
-        terminal-api's capability_required in EDGE's CAPABILITY_REQUIRED shape."""
+        query (the page's ?sha256=) is forwarded. Re-check R2-32: the plan's own copy of a reference file
+        (reference/<name>/cut) the same way. Every answer goes through terminal_access.relayed (R1-1, R2-4): a refusal
+        in the contract's shape, an unacknowledged answer 503."""
         try:
             async with terminal_http['client'].stream('GET', url, params=request.query_params, headers=headers) as answer:
                 if answer.status_code != 200:
@@ -607,10 +622,11 @@ def create_app(settings=None, store=None, orc=None):
                     try:
                         data = answer.json()
                     except ValueError:
-                        return error('TERMINAL_UNAVAILABLE', 503)
-                    if (capability := terminal_access.answered_capability(answer.status_code, data)) is not None:
-                        await refuse_capability(p, capability)
-                    return JSONResponse(status_code=answer.status_code, content=data)
+                        data = None
+                    refused = terminal_access.relayed(p, answer.status_code, data, answer.headers, path)
+                    await refuse(p, refused or Refusal(503, 'TERMINAL_UNAVAILABLE'))
+                if (refused := terminal_access.relayed(p, 200, None, answer.headers, path)) is not None:
+                    await refuse(p, refused)
                 raw = bytearray()
                 async for chunk in answer.aiter_raw():
                     raw += chunk
