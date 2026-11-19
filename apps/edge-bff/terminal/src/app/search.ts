@@ -3,6 +3,7 @@
    published ticker reference with its sector). */
 import type { Ctx } from './context';
 import { $, hasLogos, logoHtml, onLogos, store } from './context';
+import { askLocked, lockMark } from './locked';
 
 export function initSearch(ctx: Ctx) {
   const { SYMBOL, INSTRUMENTS } = ctx;
@@ -43,7 +44,7 @@ export function initSearch(ctx: Ctx) {
       const row = r => { const i = shown.indexOf(r);
         return `<button type="button" class="gp-row${i === active ? ' is-active' : ''}" role="option" aria-selected="${i === active}" data-i="${i}">
             ${hasLogos() ? `<span class="gp-avatar has-logo">${logoHtml(r[0])}</span>` : `<span class="gp-avatar">${r[0].slice(0, 2)}</span>`}
-            <span class="gp-meta"><span class="gp-ticker">${r[0]}${tagOf(r[0]) ? `<span class="gp-cur">${tagOf(r[0])}</span>` : ''}</span><span class="gp-company">${esc(r[1])}</span></span>
+            <span class="gp-meta"><span class="gp-ticker">${r[0]}${tagOf(r[0]) ? `<span class="gp-cur">${tagOf(r[0])}</span>` : ''}${r[4]?.locked ? lockMark('gp-lock') : ''}</span><span class="gp-company">${esc(r[1])}</span></span>
             <span class="gp-rightmeta">${grouped && !r[4]?.place ? '' : `<span class="gp-sector">${esc(r[4]?.place || r[2])}</span>`}<span class="gp-market">${esc(r[4]?.market || 'IDX · Equity')}</span></span></button>` };
       results.innerHTML = !shown.length ? '<p class="gp-empty">No instruments found</p>'
         : grouped ? groups.map(([sec, rows]) => `<div class="gp-group">${esc(sec)}</div>` + rows.map(row).join('')).join('') : found.map(row).join('');
@@ -51,7 +52,10 @@ export function initSearch(ctx: Ctx) {
       toggle.classList.toggle('active', grouped); toggle.setAttribute('aria-pressed', String(grouped));
       const cur = results.querySelector('.is-active'); if(cur) cur.scrollIntoView({ block:'nearest' });
     }
-    const choose = r => { close(); if(use.pick){ if(r) use.pick(r); return } if(r && r[0] !== SYMBOL){ store.set('ml.symbol', r[0]); location.reload() } };
+    /* track guest (decision 1 of 2026-11-19): a ticker the plan does not hold is listed and searched like any other; choosing
+       it opens the box (sign in, or upgrade) instead of the chart (locked.ts) */
+    const choose = r => { close(); if(r && r[4]?.locked){ askLocked({ kind:'ticker', id:r[0], name:r[1] }); return }
+      if(use.pick){ if(r) use.pick(r); return } if(r && r[0] !== SYMBOL){ store.set('ml.symbol', r[0]); location.reload() } };
     function close() { if(!layer) return; layer.remove(); layer = null; document.removeEventListener('keydown', onKey, true); if(opener && opener.focus) opener.focus() }
     const onKey = (e: any) => { if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); close() } else if(e.key === 'Tab'){ e.preventDefault(); input.focus() } };
     document.addEventListener('keydown', onKey, true);

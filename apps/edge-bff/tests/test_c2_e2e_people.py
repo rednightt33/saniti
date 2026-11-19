@@ -120,15 +120,20 @@ def test_the_free_plans_terminal_draws_bbca_with_the_answers_phase_3c_gives_it(l
     assert drawn, ('with the reference files refused (D3) the free plan\'s Terminal draws nothing, BBCA included: '
                    f'{text[:300]}')
     asked = [c['path'] for c in live.terminal.calls[calls:]]
-    assert any(p.startswith('/api/terminal/v1/reference/tickers/cut') for p in asked), asked
+    # track guest (decision 1 of 2026-11-19; this test asked for the BBCA-alone copy of the ticker list): the ticker
+    # list is the plan's whole copy now, byte for byte the list this browser keeps from the first load (its cache by
+    # sha256), so it is announced and not downloaded again; a file with data per ticker still comes as the plan's copy
+    assert '/api/terminal/v1/reference/tickers' in asked, asked
+    assert any(p.startswith('/api/terminal/v1/reference/brokers/cut') for p in asked), asked
     assert any(p.startswith('/api/terminal/v1/cut/BBCA/price') for p in asked), asked
     assert not [k for k in live.terminal.downloads[downloads:] if k.startswith('ref/')], 'a full reference list was downloaded'
 
 
 def test_the_free_plans_terminal_opens_on_bbca_with_nothing_remembered(live, chromium):
-    """Re-check R2-32 (fix round, track terminal): with no ticker remembered the page asks for its default (MAPI), which
-    the plan refuses, and draws the first ticker of the list it is given, which terminal-api's copy for the free plan
-    holds alone: BBCA. No list of another ticker reaches the page (D3 = B, "tanpa daftar ticker")."""
+    """Re-check R2-32 (fix round, track terminal): with no ticker remembered the page draws the plan's own ticker, BBCA,
+    and no other ticker's data. Track guest (decision 1 of 2026-11-19, which replaces D3 = B's "tanpa daftar ticker"):
+    the ticker list it is given is the whole list (searchable, the others locked), and the page skips its default
+    (MAPI), which the plan does not hold, for the plan's first ticker."""
     if not (ROOT / 'static' / 'terminal-app' / 'index.html').is_file():
         pytest.skip('the Terminal page is not built (cd apps/edge-bff/terminal && npm run build)')
     live.terminal.apply_header = True
