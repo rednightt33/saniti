@@ -16040,6 +16040,17 @@ dipakai accross chat sebagai referencec?"
   - Open for the user (asked 2026-11-19): the Railway client-address probe before guests open; an overall hourly
     ceiling for all guests; bonds and logos in the free and guest search; the readings of the live mask (the whole
     Monitor tab and the point-in-time Flow hidden on live, housekeeping only on live).
+  - **User, 2026-11-19, on those points:**
+    1. The client-address probe: "1A tidak usah" (no probe). Guests' per-address quotas read the right-most
+       X-Forwarded-For entry as built; if Railway's edge gave every visitor one address, all guests would share one
+       quota (stricter, never looser). The per-address sign-in bound SIGNIN_IP, which waited for the probe, stays off:
+       without the probe a wrong address would refuse everyone's sign-in.
+    2. An overall ceiling for all guests: "2A tapi harus bisa di set dibackend variable ya batasannya" (no ceiling
+       now, but the limit must be settable as a backend variable: to build with the 3c fixes, unset by default).
+    3. Bonds and logos in the free and guest search: "3A" (kept as built: bonds filtered out, monograms for locked
+       tickers).
+    4. The live mask readings: "4 ok" (the whole Monitor tab and the point-in-time Flow hidden on live; housekeeping
+       only on live).
   2. Email outbox rows: "a" (deleted after 30 days, with used codes and webhook events).
   3. "Forgot password" pressed by someone else: "a" (kept as it is: each new code replaces the previous one; the
      address's 10 emails a day stay shared).
