@@ -343,7 +343,12 @@ def test_a_paid_principal_gets_every_ticker_and_dataset(switched_on, store):
             assert call['headers']['x-terminal-proxy-owner'] == user['owner_key']
             assert sent_caps(call) == {'v': 1, 'version': r.headers['x-edge-entitlements'], 'admin': False, 'tickers': '*',
                                        'datasets': ALL_DATASETS, 'history_days': None, 'quota': QUOTA}
-        # a plan narrowed by an override: refused at once, on the next request
+        # a plan narrowed by an override: refused at once, on the next request. The catalog takes a Terminal limit
+        # only once the account's Backtest and Screener are closed, since their workers read every stock (re-check
+        # R1-36, user decision 2026-11-19 "2a", migration 20261119_030: the capabilities marked every_stock)
+        db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
+            SELECT %s, capability_key, 'false', 'test' FROM edge_bff.capabilities WHERE data_scope = 'every_stock' ''',
+           user['user_id'])
         db(store, '''INSERT INTO edge_bff.user_capability_overrides(user_id, capability_key, value, reason)
             VALUES (%s, 'terminal.dataset', '{"ids": ["price"]}', 'test')''', user['user_id'])
         r = c.get('/api/terminal/v1/cut/BBCA/broker')

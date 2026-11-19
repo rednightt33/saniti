@@ -201,6 +201,59 @@ The findings and their three refuters' verdicts: `verification/edge_multiuser/ac
 - Hand-off (terminal track): same-site GETs from a sibling host still carry the session; 3c's counted Terminal GETs
   could check `Sec-Fetch-Site` (the refuter's note), outside this track.
 
+### R1-36 (the user's rule "2a"): a Terminal limit beside the Backtest's or the Screener's own data access
+- Decision (the user, 2026-11-19, EXEC.md "Decisions from the fix round" item 1, the extra rule): "2a" (agreed;
+  enforced by the catalog). A plan or an override that limits the Terminal's tickers, data sets or history may not also
+  hold the Backtest's or the Screener's own data access, since those tabs read every stock; the free plan's example
+  flags stay allowed.
+- Root cause (verified, R1-36 and its refuters): the Terminal's data limits bind only the Terminal path (edge-bff's
+  x-terminal-capabilities to terminal-api, `app/terminal_access.py`); the Backtest and Screener workers read every stock
+  with their own terminal-api service keys (`.railway/railway.ts` TERMINAL_SERVICE_KEY_BACKTEST_WORKER/_SCREENER_WORKER,
+  `apps/screener-worker/src/config.ts` TERMINAL_PROXY_KEY). Nothing in the catalog stopped an account from holding both
+  (the free plan's `terminal.tickers ["BBCA"]` and 730 days with a Screener trial by an override), so it would see every
+  ticker's prices and run any ticker over its whole history.
+- Fix (the data model that owns it; no code reads it, no plan or capability key in code): migration
+  `20261119_030_edge_bff_plan_data_scope.sql` (plans' number range):
+  - `edge_bff.capabilities.data_scope`: `terminal_limit` (terminal.tickers, terminal.dataset, terminal.history_days: a
+    list or limit narrows by being there, an item family unless `{"all": true}`) and `every_stock` (backtest.view,
+    backtest.run, screener.view, screener.run). The rule reads the marks, never a list of keys: a later capability of
+    either kind is marked in its own migration. The Terminal quotas (rate limits the paid plan holds beside the
+    Backtest) and the example flags are not marked.
+  - `data_scope_conflict(plan, user)` and `data_scope_conflicts(plan, user)`: what may apply at some time (an override
+    with an end leaves the plan's value to come back; an account may always fall back to the default plan, so its
+    overrides are judged on its live subscription's plan and on the default plan); `'*'` lifts every Terminal limit
+    (terminal_access sends the admin header) only when it holds at every time.
+  - `data_scope_guard()` AFTER ROW triggers on plan_capabilities and user_capability_overrides (insert, update,
+    delete), subscriptions (an active one), plans (a new default plan) and capabilities (a changed mark). A clash is
+    refused with SQLSTATE 23514 (check_violation), CONSTRAINT `terminal_limit_with_every_stock`, a message naming the
+    plan or account and the keys ("user 7 on plan free would both limit the Terminal and open the Backtest or the
+    Screener (terminal.dataset, terminal.history_days, terminal.tickers with screener.view)") and a hint with the way out
+    and one right and one wrong example. One transaction-scoped advisory lock per check: two writes racing on one
+    account are judged one after the other. Immediate (not deferred): within one transaction, take the Terminal limits
+    away before adding the Backtest or Screener rows (or close the tabs before narrowing).
+  - The two read functions are executable by edge_bff_runtime (it writes overrides and subscriptions; the trigger runs
+    as the writer); the trigger function by nobody. The verify block checks the marks, the whole catalog (it names
+    every clash and refuses), the five triggers, the privileges, and its own examples (rolled back).
+- Tests: new `apps/edge-bff/tests/test_plan_data_scope.py` (the marks and the seed; each side refused on a plan, on an
+  override, for the edge_bff_runtime role; the admin narrows a paid account only after closing its tabs; an override
+  with an end; a subscription; `'*'`; a new default plan and a new mark; the race; the second run; the verify block on a
+  catalog that clashes). Added to the harness in `tests/conftest.py`.
+- Test changed (it contradicted the decision): `tests/test_terminal_access.py::test_a_paid_principal_gets_every_ticker_and_dataset`
+  narrowed a paid account's data sets by an override while it kept the Backtest and the Screener; it now closes the
+  capabilities marked `every_stock` first (read from the catalog), then narrows, with the same assertions.
+- Not done here (outside the rule): the Overview, Radar and Watchlist files also carry every stock (R1-37, a decision);
+  the Backtest page's chart reads count in the Terminal quota (decision 4 "a", the terminal track); the Phase 4 admin
+  API maps the constraint's 23514 to a refusal for the admin page (its words: the message and hint above).
+- Records: CONTRACT 8a gets the rule and the column (the sentence of the decision, the marks, the constraint name);
+  CONTRACT 8b 3c records that the Terminal data limits bind the Terminal path only and that the catalog keeps the
+  Backtest and Screener off a plan with them. DATABASE_SCHEMA.md: the column, the three functions and five triggers.
+  DATABASE_CHANGELOG.md: the migration (not applied; at deploy, after 20261118_002, read back the marks and
+  `SELECT * FROM edge_bff.data_scope_conflicts(NULL, NULL)` = no row). ERRORS_AND_SOLUTIONS.md: R1-36 fixed on
+  fix-plans by the catalog rule, not deployed. EXEC.md: "2a" built.
+- Integration: `tests/conftest.py` gets this migration after 20261118_002; the terminal track's 20261119_050 adds
+  other columns to `edge_bff.capabilities` (value_min, value_max, item_pattern) and replaces capability_value_check;
+  the two migrations touch nothing of each other (merge both conftest lines, in number order).
+
 ## Findings reported as decisions (not changed)
 
 - R1-35 (O3b-2 variant): conditions on the attributes every result row and /universe show (last, chg_1d_pct,
