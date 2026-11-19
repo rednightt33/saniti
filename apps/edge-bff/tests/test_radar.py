@@ -24,6 +24,15 @@ def login(c):
     return {**ORIGIN, 'X-CSRF-Token': r.json()['csrf_token']}
 
 
+def acknowledge(answer, headers):
+    """terminal-api's acknowledgement of the owner header it applied, on every answer to an owner call (EXEC-MU-ACCOUNTS
+    re-check R2-4; apps/terminal-api/app/entitlements.py APPLIED_HEADER), as a fake of it gives it."""
+    caps = (headers or {}).get('x-terminal-capabilities')
+    if caps:
+        answer.headers['x-terminal-capabilities-applied'] = f"1 {json.loads(caps)['version']}"
+    return answer
+
+
 class FakeHttp:
     """terminal-api's GET/POST /radar and the bucket's presigned GET, recorded."""
     calls, files, stored, granted_sha, grant_status = [], {}, {}, None, 200
@@ -54,12 +63,17 @@ class FakeHttp:
 
     async def request(self, method, url, params=None, content=None, headers=None):
         FakeHttp.calls.append((method, url, dict(headers or {}), content))
+        return acknowledge(self.answer(method, url, content), headers)
+
+    def answer(self, method, url, content):
         if url.endswith('/api/terminal/v1/radar') and method == 'GET':
             return httpx.Response(200, json={'finished_at': '2026-11-14T10:00:00Z', 'files': FakeHttp.files})
         if url.endswith('/api/terminal/v1/radar') and method == 'POST':
             name = json.loads(content)['names'][0]
             if FakeHttp.grant_status != 200:
-                return httpx.Response(FakeHttp.grant_status, json={'error': 'quota_exceeded'})
+                return httpx.Response(FakeHttp.grant_status, json={'error': 'quota_exceeded', 'quota': 'files_per_hour',
+                                                                   'limit': 300, 'retry_after_s': 1234},
+                                      headers={'Retry-After': '1234'})
             if name not in FakeHttp.files:
                 return httpx.Response(404, json={'error': 'radar_not_published'})
             return httpx.Response(200, json={'files': [{'name': name, 'url': f'https://bucket.example/{name}',
@@ -120,9 +134,13 @@ def test_refusals_name_the_cause_and_the_way_out(gw):
     assert r.status_code == 502 and r.json()['error']['code'] == 'RADAR_FILE_DAMAGED'
     FakeHttp.stored['radar-days'] = BODY + b'x' * 100                        # larger than published: never read whole
     assert gw.get('/api/v1/radar/file/radar-days').json()['error']['code'] == 'RADAR_FILE_DAMAGED'
+    # EXEC-MU-ACCOUNTS re-check R1-26 (CONTRACT.md section 3): terminal-api's quota refusal of a grant is LIMIT_REACHED
+    # naming the limit, with its wait in details and in Retry-After (it was RADAR_QUOTA without a Retry-After)
     FakeHttp.grant_status = 429
     r = gw.get('/api/v1/radar/file/radar-days')
-    assert r.status_code == 429 and r.json()['error']['code'] == 'RADAR_QUOTA' and 'quota' in r.json()['error']['message']
+    assert r.status_code == 429 and r.json()['error']['code'] == 'LIMIT_REACHED', r.text
+    assert r.json()['error']['details'] == {'limit': 'terminal.files_per_hour', 'allowed': 300, 'retry_after_s': 1234}
+    assert r.headers['retry-after'] == '1234' and 'limit' in r.json()['error']['message']
 
 
 def test_a_file_replaced_between_the_index_and_the_grant_is_never_cached_under_the_old_sha(gw):

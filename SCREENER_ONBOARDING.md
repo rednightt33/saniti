@@ -104,7 +104,7 @@ same publication of the same data.
 | Market tables | `database/migrations/`, `DATABASE_SCHEMA.md` | FACT | Railway `Postgres` (sfo) | the source rows | — |
 | terminal-publisher | `apps/terminal-publisher/publisher.py` | FACT; the xsection writer BRANCH (`publish_xsection`, `publisher.py:1557`) | Railway cron, CLI upload, sfo | read-only DB login, bucket write credentials | serves readers |
 | Bucket `terminal-display` | written by the publisher | FACT | Railway bucket, sin | every published file | — |
-| terminal-api | `apps/terminal-api/app/` | FACT; `xsection` on `/state` and `POST /xsection` BRANCH (`bucket.py:51` `xsection_index`, `apps/terminal-api/app/main.py:483` `xsection`) | FastAPI, CLI upload, sfo | bucket credentials, quotas, audit and service accounts (schema `terminal`) | streams a data file |
+| terminal-api | `apps/terminal-api/app/` | FACT; `xsection` on `/state` and `POST /xsection` BRANCH (`bucket.py:51` `xsection_index`, `apps/terminal-api/app/main.py:509` `xsection`) | FastAPI, CLI upload, sfo | bucket credentials, quotas, audit and service accounts (schema `terminal`) | streams a data file |
 | Shared formulas | `apps/edge-bff/terminal/src/calc/indicators.ts`, `terminal/src/data/indRegistry.json` | FACT, unchanged by the Screener | TypeScript, imported | the 53 indicator formulas and their registry | — |
 | Backtest shared core | `apps/edge-bff/backtest/src/core/` | FACT, unchanged by the Screener | TypeScript, imported | parameter contract (`registry.ts`), `Calc`, `compare`, patterns, file decoding (`datafile.ts`) | — |
 | Screener core | `apps/edge-bff/screener/src/core/` (18 files) and its generator `apps/edge-bff/screener/scripts/build-screener-registry.mjs` | BRANCH | TypeScript imported by the worker; the page imports only `contract.ts` and `universe.ts` | contract, registry and metric catalog, validation, series path, transforms and patterns, evaluation, planner, universe and cross-section rules | defines an indicator formula |
@@ -277,17 +277,17 @@ cache and quotas.
 | Route | Status | Answer | Quota, audit |
 |---|---|---|---|
 | `GET /api/terminal/v1/state` | FACT on `main` (EXEC-BACKTEST-LOAD); the `xsection` and `refs` fields BRANCH (`bucket.py:11` `STATE_FIELDS`; `xsection_index` `bucket.py:51`, `refs_index` `bucket.py:78`) | `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, the `xsection` index (well-formed entries only, else null) and `refs` | none |
-| `POST /api/terminal/v1/xsection {names}` | BRANCH (`apps/terminal-api/app/main.py:957`; caller check `xsection_caller`, `main.py:466`) | per name a presigned URL, `sha256`, `bytes`, `rows`, `as_of`; a name not in the index answers 404 `xsection_not_published` with the indexed names | only the screener-worker's service key (`XSECTION_SERVICES`, `main.py:66`; `TERMINAL_SERVICE_KEY_SCREENER_WORKER`, EXEC-MU-RUNTIME T1) or, until a later step removes it, the gateway key; anything else 403 `gateway_only`. One audit row under the `REF` pseudo-ticker (`apps/terminal-api/app/quota.py:11`), dataset `xsection`; file quota = number of names; bytes counted |
+| `POST /api/terminal/v1/xsection {names}` | BRANCH (`apps/terminal-api/app/main.py:1063`; caller check `xsection_caller`, `main.py:492`) | per name a presigned URL, `sha256`, `bytes`, `rows`, `as_of`; a name not in the index answers 404 `xsection_not_published` with the indexed names | only the screener-worker's service key (`XSECTION_SERVICES`, `main.py:74`; `TERMINAL_SERVICE_KEY_SCREENER_WORKER`, EXEC-MU-RUNTIME T1) or, until a later step removes it, the gateway key; anything else 403 `gateway_only`. One audit row under the `REF` pseudo-ticker (`apps/terminal-api/app/quota.py:11`), dataset `xsection`; file quota = number of names; bytes counted |
 
 Rules a new file must meet at terminal-api (`bucket.py:13` `XSECTION_NAME` and `xsection_index`): the name matches
 `^[a-z0-9][a-z0-9_-]{0,31}$`; the index entry has exactly `key`, `sha256` (64 hex), `bytes` (≥ 1), `rows` (≥ 0) and
 `as_of` (a string of at most 64 characters, else null); the key is `v1/xsection/<name>.<first 16 hex of the
 sha256>.json.gz`. An entry that breaks a rule is dropped from `/state` and never presigned. A call asks at most 16
-names (`MAX_XSECTION_NAMES`, `main.py:89`). Tests: `apps/terminal-api/tests/test_api.py`
+names (`MAX_XSECTION_NAMES`, `main.py:97`). Tests: `apps/terminal-api/tests/test_api.py`
 `test_xsection_index_keeps_only_well_formed_entries`, `test_xsection_presigns_only_keys_of_the_xsection_family`,
 `test_xsection_grants_the_indexed_files_to_the_gateway_in_one_audit_row_under_ref` and the other `test_xsection_*`.
 
-Neither route is in edge-bff's browser allow-list (`TERMINAL_ROUTES`, `apps/edge-bff/app/main.py:58`), so the browser
+Neither route is in edge-bff's browser allow-list (`TERMINAL_ROUTES`, `apps/edge-bff/app/main.py:62`), so the browser
 can never pull a whole-universe file. **A new xsection name needs no terminal-api code change**: names are validated
 against the index, not against a list in code; only the size matters for the quota (section 1.15).
 
@@ -549,7 +549,7 @@ README "Logs".
 
 ## 1.8 Stage 5: edge-bff (BRANCH)
 
-`apps/edge-bff/app/screener.py` (`Screeners`, `:680`), mounted like the Backtest module (`apps/edge-bff/app/main.py:646`
+`apps/edge-bff/app/screener.py` (`Screeners`, `:680`), mounted like the Backtest module (`apps/edge-bff/app/main.py:662`
 `screeners.routes`):
 
 Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session and the capability named; with
@@ -591,8 +591,8 @@ Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session 
   worker's `SCREENER_DEADLINE_MS` / 1000. The saved-item limits are constants (`SCREEN_LIMIT` 50, `WATCHLIST_LIMIT`
   50, `screener.py:81-82`; since EXEC-WATCHLIST 2A the star fills the first watchlist, so the limit is that list's
   `PER_LIST`, `apps/edge-bff/app/watchlist.py`).
-- **Page and frame**: `/screener` (`main.py:423`) and `/screener-app/` with its assets (`main.py:511-523`) under
-  `SCREENER_CSP` (`main.py:94-97`: `connect-src 'self'`).
+- **Page and frame**: `/screener` (`main.py:427`) and `/screener-app/` with its assets (`main.py:515-527`) under
+  `SCREENER_CSP` (`main.py:98-101`: `connect-src 'self'`).
 - **A new metric needs no edge-bff change:** the catalog is relayed as the worker built it.
 
 Tests: `apps/edge-bff/tests/test_screener.py` (35 tests, on a disposable PostgreSQL through `EDGE_TEST_POSTGRES_URL`;
@@ -997,7 +997,7 @@ What changes, per class (yes = always; maybe = depends; no = never):
 | L9 AI exposure | AI formula row | no | optional onboarding | optional onboarding | optional onboarding | optional onboarding |
 
 Notes: "no" for terminal-api rests on `/xsection` validating names against the index (BRANCH, section 1.6); a new
-service that reads `/xsection` needs its name in `XSECTION_SERVICES` (`apps/terminal-api/app/main.py:66`). "A wire kind
+service that reads `/xsection` needs its name in `XSECTION_SERVICES` (`apps/terminal-api/app/main.py:74`). "A wire kind
 the first time" means the first macro series needs one new reference kind in `contract.ts` `MetricRef` and in
 `apps/edge-bff/screener/src/core/catalog.ts:240` `KINDS` (worked example 2.13); a fundamental or a universe attribute is `kind: 'universe'`, read from a
 field of the worker's universe row (`condition.ts:152-166`; `apps/edge-bff/screener/src/core/contract.ts:466-468`), so
@@ -1096,7 +1096,7 @@ Tick every line or record why it does not apply. "Evidence" is what you cite in 
 
 | Check | Evidence |
 |---|---|
-| No code change needed: `/xsection` validates names against the index (BRANCH, `bucket.py:51` `xsection_index`). Check the entry passes its rules (name, five fields, key pattern) or it is silently dropped from `/state`; and that the total names per publication stay within `MAX_XSECTION_NAMES` (16, `apps/terminal-api/app/main.py:50`) per call. If a change is needed, follow M248 for the CLI deploy and keep `/state`'s existing tests | `apps/terminal-api/tests/test_api.py` `test_xsection_*` |
+| No code change needed: `/xsection` validates names against the index (BRANCH, `bucket.py:51` `xsection_index`). Check the entry passes its rules (name, five fields, key pattern) or it is silently dropped from `/state`; and that the total names per publication stay within `MAX_XSECTION_NAMES` (16, `apps/terminal-api/app/main.py:97`) per call. If a change is needed, follow M248 for the CLI deploy and keep `/state`'s existing tests | `apps/terminal-api/tests/test_api.py` `test_xsection_*` |
 | Quota: grants per day × bytes fit the screener-worker service account's hourly ceilings (EXEC-MU-RUNTIME T1, `BACKTEST_END_TO_END.md` 6.1) and, while the gateway key is still used, `files_per_hour` and `megabytes_per_day` of the shared subscriber without the TEMPORARY override (6d.7) | arithmetic in the change record |
 
 **L4 — Contract, registry and metric catalog**

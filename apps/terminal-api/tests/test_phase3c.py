@@ -181,8 +181,8 @@ SECOND_PATHS = {
                        ('get', '/history/price?ticker=BBRI&from=2025-01-01&to=2025-01-31', None, 'terminal.tickers')],
     '/history/broker': [('get', '/history/broker?ticker=BBCA&from=2019-01-01&to=2019-12-31', None,
                          'terminal.dataset:broker')],
-    '/reference/{name}': [('get', '/reference/tickers', None, 'terminal.dataset:reference'),
-                          ('get', '/reference/brokers', None, 'terminal.dataset:reference')],
+    # the reference files are no longer refused but filtered to the plan (re-check R2-32, ROUTE_ACCESS 'filtered';
+    # tests/test_terminal_fix_round.py holds what the free plan's copy names)
     '/cut/{ticker}/{dataset}': [('get', f'/cut/BBCA/broker?sha256={"a" * 64}', None, 'terminal.dataset:broker'),
                                 ('get', f'/cut/BBRI/price?sha256={"a" * 64}', None, 'terminal.tickers')],
 }
@@ -451,8 +451,12 @@ BAD = [
     ({CAPS_HEADER: caps(tickers=['bbca'])}, 'tickers'),
     ({CAPS_HEADER: caps(tickers='all')}, 'tickers'),
     ({CAPS_HEADER: caps(tickers=['BBCA', 'BBCA'])}, 'tickers'),
-    ({CAPS_HEADER: caps(datasets=['price', 'options'])}, 'datasets'),
-    ({CAPS_HEADER: caps(history_days=0)}, 'history_days'),
+    # re-check R2-5: an id this terminal-api does not know is left out (test_terminal_fix_round.py); one that breaks
+    # the id rule is still refused
+    ({CAPS_HEADER: caps(datasets=['price', 'Options'])}, 'datasets'),
+    # re-check R1-22: 0 is the empty window (test_terminal_fix_round.py); below it is refused
+    ({CAPS_HEADER: caps(history_days=-1)}, 'history_days'),
+    ({CAPS_HEADER: caps(history_days=36601)}, 'history_days'),
     ({CAPS_HEADER: caps(history_days=True)}, 'history_days'),
     ({CAPS_HEADER: caps(history_days=730.5)}, 'history_days'),
     ({CAPS_HEADER: caps(quota={'files_per_day': 5})}, 'quota'),

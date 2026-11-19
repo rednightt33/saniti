@@ -33,9 +33,16 @@ changes. With them:
   window (terminal.history_days). A refusal is 403 capability_required with the `capability` it lacks;
 - a capped owner (history_days N) gets each dated dataset of /bundle as one cut file (cut.py: exactly the rows dated
   after data_through - N days, deterministic gzip), served by GET /cut/{ticker}/{dataset} and counted there.
+
+Re-check fix round (track terminal; verification/edge_multiuser/fix_round/terminal.md): every 429 names its quota and
+when to try again (retry_after_s, Retry-After; R1-1, R1-26); an owner's answers carry x-terminal-capabilities-applied
+(R2-4); an unknown dataset id of the header is left out (R2-5); history_days 0 is the empty window (R1-22); an owner
+without the dataset `reference` gets its own copy of each reference file (refcut.py, GET /reference/{name}/cut; R2-32);
+/ready reports the state of the gateway's own account (R1-4).
 """
 import datetime as dt
 import json
+import math
 import re
 import time
 from contextlib import asynccontextmanager
@@ -53,8 +60,9 @@ from .accounts import AccountCache, Caller
 from .bucket import PAGE_FAMILIES, REF_NAME, SHA256, XSECTION_NAME, radar_index, refs_index, xsection_index
 from .config import PRIVATE_HOST, Settings, service_email, service_variable
 from .cut import CutCache, CutError, make_cut
-from .entitlements import (CAPS_HEADER, EXAMPLE as CAPS_EXAMPLE, EXTRA_DATASETS, OWNER_HEADER, HeaderError,
-                           parse_capabilities, parse_owner, window_after)
+from .refcut import RefError, make_copy
+from .entitlements import (APPLIED_HEADER, CAPS_HEADER, EXAMPLE as CAPS_EXAMPLE, EXTRA_DATASETS, OWNER_HEADER,
+                           HeaderError, applied, parse_capabilities, parse_owner, window_after)
 from .security import client_ip, new_token, password_verifier, same_secret, token_hash, verify_password
 
 COOKIE = 'terminal_session'
@@ -87,6 +95,8 @@ LOGO_CACHE_SECONDS = 7 * 24 * 3600
 ACCESS_LOG_DAYS = 90            # EXEC-TERMINAL-SPEED (user 2026-10-26): audit rows are kept 90 days
 PRUNE_EVERY_SECONDS = 6 * 3600
 MAX_XSECTION_NAMES = 16         # EXEC-SCREENER: names per /xsection call (Phase 1 indexes 2, Phase 2 about 5)
+SIGN_IN_WAIT = 15 * 60          # the failed sign-ins are counted over 15 minutes (store.failed_sign_ins)
+GATEWAY_WARN_DAYS = 30          # R1-4: /ready says 'expiring' this long before the gateway's account ends
 
 
 class Strict(BaseModel):
@@ -129,7 +139,7 @@ HISTORY_DATASET = {'history_price': 'price', 'history_broker': 'broker'}
 # what the plan may see (no refusal); 'no-owner': refuses an owner header; 'no-data': carries no data file (decided,
 # README); 'page': EDGE pages edge-bff gates itself, the owner only audited; 'account': sign-in and password routes
 # (no gateway); 'admin': the administrator key
-ROUTE_ACCESS = {'/reference/{name}': 'owner', '/files': 'owner', '/bundle': 'owner', '/manifest/{ticker}': 'owner',
+ROUTE_ACCESS = {'/reference/{name}': 'filtered', '/reference/{name}/cut': 'filtered', '/files': 'owner', '/bundle': 'owner', '/manifest/{ticker}': 'owner',
                 '/history/price': 'owner', '/history/broker': 'owner', '/cut/{ticker}/{dataset}': 'owner',
                 '/state': 'filtered', '/xsection': 'no-owner', '/logo/{ticker}': 'no-data',
                 **{f'/{family}': 'page' for family in PAGE_FAMILIES},
@@ -196,8 +206,14 @@ class SubscriberChange(Strict):
     password: str | None = Field(default=None, min_length=12, max_length=1024)
 
 
-def error(status, code, message, **extra):
-    raise HTTPException(status, detail={'error': code, 'message': message, **extra})
+def error(status, code, message, headers=None, **extra):
+    raise HTTPException(status, detail={'error': code, 'message': message, **extra}, headers=headers)
+
+
+def wait_error(code, message, wait, **extra):
+    """EXEC-MU-ACCOUNTS re-check R1-1/R1-26: every 429 says when to try again, as a body field `retry_after_s` (whole
+    seconds, at least 1) and as the Retry-After header; edge-bff relays it as 429 LIMIT_REACHED."""
+    error(429, code, message, headers={'Retry-After': str(wait)}, retry_after_s=wait, **extra)
 
 
 def lacks(capability, what, fix):
@@ -232,6 +248,11 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
     @app.middleware('http')
     async def headers(request: Request, call_next):
         response = await call_next(request)
+        caller = getattr(request.state, 'caller', None)
+        if caller is not None and caller.owner is not None:
+            # R2-4: the owner's header was parsed and is what this answer applied (refusals included), so edge-bff can
+            # tell this answer from one of a terminal-api that ignores the owner headers
+            response.headers[APPLIED_HEADER] = applied(caller.caps)
         response.headers.setdefault('Cache-Control', 'no-store')   # only a logo sets its own (EXEC-TERMINAL-LOGO)
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'no-referrer'
@@ -317,9 +338,14 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                   f'neither. Fix: send both, built from the principal. Example: {OWNER_HEADER}: '
                   f'u_0123456789abcdef01234567 and {CAPS_HEADER}: {CAPS_EXAMPLE}.', field=missing)
         try:
-            return parse_owner(owner), parse_capabilities(caps, DATASETS)
+            found = parse_owner(owner), parse_capabilities(caps, DATASETS)
         except HeaderError as e:
             error(400, 'invalid_owner_headers', str(e), field=e.field)
+        if found[1].ignored:
+            # R2-5: an edge-bff that knows more datasets than this terminal-api (a deploy in between): not served anyway
+            log.warning(json.dumps({'event': 'owner_datasets_ignored', 'datasets': list(found[1].ignored),
+                                    'known': list(DATASETS)}))
+        return found
 
     def identify_now(request: Request) -> Caller:
         """Who is calling, from the request alone (no database): the gateway key, a service key or a session cookie.
@@ -527,8 +553,14 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         return m
 
     def take(c, sid, refusal):
+        """A quota refusal (quota.check) as 429 quota_exceeded with the quota's name, its limit, its window and when the
+        refused request fits (Store.frees_in; the window's length when the store cannot tell), so a relay can name the
+        limit and the wait without reading the message (re-check R1-1/R1-26)."""
         if refusal:
-            error(429, 'quota_exceeded', refusal.message())
+            found = store.frees_in(c, sid, refusal) if hasattr(store, 'frees_in') else None
+            wait = min(found or refusal.longest_wait, refusal.longest_wait)
+            wait_error('quota_exceeded', refusal.message(wait), wait, quota=refusal.quota, limit=refusal.limit,
+                       window=refusal.window)
 
     # ---- EXEC-MU-ACCOUNTS Phase 3c: the owner's plan (every data route; ROUTE_ACCESS) -------------------------------
     def plan(caller: Caller):
@@ -595,13 +627,39 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
     def health():
         return {'status': 'ok'}
 
+    def gateway_account():
+        """Re-check R1-4: the state of the EDGE gateway's own account (TERMINAL_PROXY_SUBSCRIBER, kind person), on which
+        every EDGE call depends (every owner's lookup reads it first): ok, expiring (within GATEWAY_WARN_DAYS), expired,
+        inactive or missing, with the whole days left; None without a gateway. Reported by /ready and logged as a warning
+        unless ok; it never makes the service unready (the workers' service accounts keep working without it)."""
+        if not settings.proxy_key or not hasattr(store, 'gateway_state'):
+            return None
+        try:
+            with store.tx() as c:
+                row = store.gateway_state(c, settings.proxy_subscriber)
+        except Exception:  # noqa: BLE001 - readiness only reports, never leaks the driver error
+            return {'state': 'unknown'}
+        if row is None:
+            out = {'state': 'missing'}
+        else:
+            days = math.floor(row['seconds_left'] / 86400)
+            state = ('inactive' if not row['active'] else 'expired' if row['seconds_left'] <= 0 else
+                     'expiring' if days < GATEWAY_WARN_DAYS else 'ok')
+            out = {'state': state, 'days_left': max(days, 0)}
+        if out['state'] != 'ok':
+            log.warning(json.dumps({'event': 'gateway_account_' + out['state'], **out,
+                                    'fix': 'the administrator sets the gateway subscriber active with a later '
+                                           'expires_at (POST /api/terminal/v1/admin/subscribers/<id>)'}))
+        return out
+
     @app.get('/ready')
     def ready():
         try:
             store.ready()
         except Exception:  # noqa: BLE001 - readiness only reports, never leaks the driver error
             return JSONResponse({'status': 'not_ready'}, status_code=503)
-        return {'status': 'ready'}
+        account = gateway_account()
+        return {'status': 'ready', **({'gateway_account': account} if account is not None else {})}
 
     # ---- auth ------------------------------------------------------------------------------------------------
     @app.post(f'{API}/auth/sign-in')
@@ -630,7 +688,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                     outcome = 'inactive'
                 store.record_sign_in(c, email, ip, outcome == 'ok')
         if outcome == 'throttled':
-            error(429, 'too_many_attempts', 'Too many failed sign-ins. Wait 15 minutes and try again.')
+            wait_error('too_many_attempts', 'Too many failed sign-ins. Wait 15 minutes and try again.', SIGN_IN_WAIT)
         if outcome == 'inactive':
             error(403, 'subscription_inactive', 'Your subscription is not active. Contact the administrator.')
         allowed = outcome == 'ok'
@@ -669,23 +727,70 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         return {'status': 'password_changed', 'other_sessions': 'signed out'}
 
     # ---- data ------------------------------------------------------------------------------------------------
-    @app.get(f'{API}/reference/{{name}}')
-    def reference(name: str, request: Request, caller=Depends(granted)):
-        """One reference file, counted against the quota under the REF pseudo-ticker (never an opened ticker), one audit
-        row. EXEC-MU-RUNTIME T5: the publication's content key when state.json's `refs` index names the file (the
-        answer then carries its sha256, bytes and rows, and its bytes count); otherwise, for a publication before the
-        index, the fixed key REF_FILES, with sha256, bytes and rows null. A client never names a key. Phase 3c: an
-        owner's plan needs the dataset `reference` (a reference file is no history: never cut)."""
-        need_dataset(caller, 'reference')
+    def reference_source(name):
+        """(index entry or None, the entry to read) of a reference file of the current publication; 404 when the
+        publication has no such file."""
         state = bucket.state()
         index = refs_index((state or {}).get('refs')) or {}
         entry = index.get(name) if REF_NAME.fullmatch(name) else None
         if entry is None and name not in REF_FILES:
             error(404, 'unknown_reference', f'Reference files: {", ".join(sorted(set(REF_FILES) | set(index)))}.')
-        f = entry or {'key': REF_FILES[name], 'bytes': 0}
+        return entry, entry or {'key': REF_FILES[name], 'bytes': 0}
+
+    refcopies = CutCache()
+
+    def own_copy(caller, name):
+        """Re-check R2-32: the Cut of the plan's own copy of a reference file (refcut.py) for an owner whose plan does
+        not hold the dataset `reference`; None for every other caller (the published file)."""
+        caps = plan(caller)
+        if not caps or caps.dataset_ok('reference'):
+            return None
+        _, source = reference_source(name)
+        try:
+            return make_copy(bucket.read, name, source, caps, refcopies)
+        except RefError as e:
+            error(503, 'reference_unavailable', f'The reference file {name} cannot be filtered to the plan: {e.reason}. '
+                                                'It is not served whole; try again after the next publication.')
+
+    @app.get(f'{API}/reference/{{name}}')
+    def reference(name: str, request: Request, caller=Depends(granted)):
+        """One reference file, counted against the quota under the REF pseudo-ticker (never an opened ticker), one audit
+        row. EXEC-MU-RUNTIME T5: the publication's content key when state.json's `refs` index names the file (the
+        answer then carries its sha256, bytes and rows, and its bytes count); otherwise, for a publication before the
+        index, the fixed key REF_FILES, with sha256, bytes and rows null. A client never names a key.
+
+        Phase 3c, re-check R2-32: an owner whose plan holds the dataset `reference` gets the published file (the
+        reference lists in full); any other owner the plan's own copy (refcut.py: its tickers' rows, the broker list
+        only with `broker`), answered in the shape of a cut: {"url": "/api/terminal/v1/reference/NAME/cut?sha256=HEX"
+        (relative: edge-bff relays it), "expires_in_seconds": 0, "sha256", "bytes", "rows"}, counted when GET
+        /reference/NAME/cut serves it (nothing is granted here)."""
+        copy = own_copy(caller, name)
+        if copy is not None:
+            return {'url': f'{API}/reference/{name}/cut?sha256={copy.sha256}', 'expires_in_seconds': 0,
+                    'encoding': 'gzip json', 'sha256': copy.sha256, 'bytes': copy.bytes, 'rows': copy.rows}
+        entry, f = reference_source(name)
         ttl = grant(request, caller, quota.REF, [('reference', None, f)])
         return {'url': bucket.presign(f['key'], ttl), 'expires_in_seconds': ttl, 'encoding': 'gzip json',
                 **{k: entry[k] if entry else None for k in ('sha256', 'bytes', 'rows')}}
+
+    @app.get(f'{API}/reference/{{name}}/cut')
+    def reference_cut(name: str, request: Request, sha256: str = Query(pattern=SHA256.pattern),
+                      caller=Depends(granted)):
+        """Re-check R2-32: the plan's own copy of a reference file (GET /reference/NAME announced its sha256), its gzip
+        bytes as they are (application/gzip, no Content-Encoding: the page checks the sha256 of these bytes), counted as
+        one file of its bytes under REF with one audit row (object_key refcut/NAME/SHA256). When the publication
+        changed since the announcement the current copy is served: the page's check fails and it asks again."""
+        copy = own_copy(caller, name)
+        if copy is None:
+            error(404, 'no_cut', f'GET {API}/reference/{name}/cut serves the plan\'s own copy of a reference file to an '
+                                 f'EDGE owner whose plan does not hold the reference lists; this caller reads the file '
+                                 f'itself. Fix: ask GET {API}/reference/{name}, whose answer names the file to read. '
+                                 f'Example: GET {API}/reference/tickers.')
+        grant(request, caller, quota.REF, [('reference', None, {'key': f'refcut/{name}/{copy.sha256}',
+                                                                'bytes': copy.bytes})])
+        return Response(copy.body, media_type='application/gzip',
+                        headers={'ETag': f'"{copy.sha256}"', 'X-Terminal-Cut-Sha256': copy.sha256,
+                                 'X-Terminal-Cut-Rows': str(copy.rows)})
 
     @app.get(f'{API}/logo/{{ticker}}')
     def logo(ticker: str, request: Request, who=Depends(reader)):
@@ -762,7 +867,8 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             if caller.kind == 'service':
                 refusal = quota.check_service(caller.name, limits, store.meter(c, sid, len(chosen), size))
                 if refusal:
-                    error(429, 'service_ceiling_reached', refusal.message())
+                    wait_error('service_ceiling_reached', refusal.message(), refusal.seconds_left(),
+                               quota=refusal.quota, limit=refusal.limit)
             else:
                 take(c, sid, quota.check(limits, store.usage(c, sid), files=len(chosen), ticker=ticker, bytes_=size))
             ttl = limits['url_ttl_seconds']

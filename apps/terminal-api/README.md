@@ -77,14 +77,21 @@ CONTRACT.md section 8b "3c in detail"; code `app/entitlements.py` (the headers),
 - `x-terminal-capabilities`: compact ASCII JSON, at most 8 KiB, exactly these keys:
   `{"v":1,"version":"db-0123456789ab","admin":false,"tickers":["BBCA"],"datasets":["price"],"history_days":730,"quota":{"files_per_hour":300}}`.
   - `tickers` and `datasets` are `"*"` or lists without repeats. A dataset id is `price`, `broker`, `events` or `yield`
-    (the `/bundle` datasets, `BUNDLE_DATASET`), `intraday` or `reference`.
-  - `history_days` is `null` or 1-36600.
+    (the `/bundle` datasets, `BUNDLE_DATASET`), `intraday` or `reference`. An id of the right form that this build does
+    not know is left out and logged (`owner_datasets_ignored`), never a refusal of the call (re-check R2-5): an
+    edge-bff one dataset ahead keeps working. Order rule: add a dataset on terminal-api first, remove it on edge-bff
+    first.
+  - `history_days` is `null` or 0-36600; 0 serves no row dated up to the data's last date (the value edge-bff sends for
+    a plan whose limit reads as 0; re-check R1-22).
   - `quota` holds only `files_per_hour`, `tickers_per_hour`, `tickers_per_day`, `megabytes_per_day` and
     `history_per_hour`, each 1-10^9.
   - `"admin": true` (the principal holds `*`) goes only with `"tickers":"*","datasets":"*","history_days":null,"quota":{}`.
 - Neither header: the gateway's one account, exactly as before (deploy step 2).
 - One header without the other, a header that breaks a rule, or either header with a service key or a session: 400
   (`invalid_owner_headers` with `field`, or `owner_not_allowed`). The message names the rule, the fix and a right example.
+- Every answer to an owner call, refusals included, carries `x-terminal-capabilities-applied: 1 <version>` (the header
+  it applied; re-check R2-4). edge-bff refuses an answer for a capped principal without it, so a terminal-api from before
+  this phase, which ignores the headers, never serves a capped plan in full.
 
 **Owner rows.**
 - Each owner has its own `terminal.subscriber` row (kind `owner`, `edge_owner_key`), made on first use
@@ -93,12 +100,21 @@ CONTRACT.md section 8b "3c in detail"; code `app/entitlements.py` (the headers),
 - The caller's credential is `('gateway', owner)`: the account cache, the usage, the lock and the audit rows are the
   owner's. Each audit row carries the header's `version` (`terminal.access_log.version`).
 - Both the gateway's account and the owner's row must be active; the administrator can turn one owner off on its row.
+- So the gateway's own account (`TERMINAL_PROXY_SUBSCRIBER`; the record says "through 2027-10-25") is one point every
+  EDGE call depends on. `/ready` reports it as `gateway_account` {`state`: ok, expiring (within 30 days), expired,
+  inactive or missing, `days_left`} and logs `gateway_account_<state>` unless ok; it never makes the service unready
+  (re-check R1-4). Owner rows are made with an end of 2100-01-01 (`store.OWNER_EXPIRES`) and never end on their own.
 
 **Quotas (decision D6).**
 - `admin: true`: the gateway subscriber's own limits. Its `terminal.quota_override` rows (today's 1e9) are read from
   the gateway's row, never copied; the usage is counted on the owner's own row.
 - Any other owner: the `terminal.quota` defaults (no override of any row), overlaid by the header's `quota`. A key left
   out keeps its default, never "unlimited".
+- A refusal is 429 `quota_exceeded` with `quota` (the name), `limit`, `window` and `retry_after_s`, and the same wait in
+  `Retry-After` (re-check R1-1, R1-26): the seconds until the rolling window lets enough of the account's use go for the
+  refused request to fit (`store.frees_in`, read only on a refusal), at most the window's length. edge-bff relays it as
+  429 `LIMIT_REACHED` with `details.limit` `terminal.<quota>`. The service ceilings and the sign-in throttle send
+  `Retry-After` too.
 
 **Every data route** (main.py `ROUTE_ACCESS`; a test fails on a route without an entry). For an owner whose plan is not
 `*` a refusal is 403 `capability_required` with `capability` (`terminal.tickers`, `terminal.dataset:<id>` or
@@ -107,13 +123,23 @@ CONTRACT.md section 8b "3c in detail"; code `app/entitlements.py` (the headers),
 - `/bundle`: a ticker outside `tickers` is refused. A dataset outside `datasets` answers
   `{"locked": true, "capability": "terminal.dataset:<id>"}` (no url, sha or rows); the asked intraday timeframe likewise
   (`intraday`).
-- `/files`, `/history/price|broker`, `/manifest/{t}`: the ticker and the dataset. `/reference/{name}`: the dataset
-  `reference` (reference files are never cut).
+- `/files`, `/history/price|broker`, `/manifest/{t}`: the ticker and the dataset.
+- `/reference/{name}` (re-check R2-32, `app/refcut.py`; decision D3 = B read as "no list of other tickers"): with the
+  dataset `reference` the published file, as before. Without it the plan's own copy, built from the published file
+  server-side: a file with a `ticker` column keeps the rows of the plan's tickers; the broker list keeps every row with
+  the dataset `broker` and none without it; any other file (the stock lists) has no rows. It is answered in the shape of
+  a cut, `{"url": "/api/terminal/v1/reference/<name>/cut?sha256=<hex>", "expires_in_seconds": 0, "sha256", "bytes",
+  "rows"}`, and `GET /reference/{name}/cut` serves the bytes, counted as one file with one audit row
+  (`object_key` `refcut/<name>/<sha256>`). A file that cannot be filtered is 503 `reference_unavailable`, never served
+  whole. The free plan's ticker list holds BBCA alone, so the Terminal draws it.
 - `/xsection`: the gateway key is refused with an owner header, whatever the plan; only the screener-worker's key reads it.
 - `/state`: no data file, no refusal; `xsection` is null for such an owner, and `refs` is null without `reference`.
-- `/logo/{t}`: an image, not data, so no filter (the search shows every ticker's logo; 3e marks the locked ones).
+- `/logo/{t}`: an image, not data, so no filter here (edge-bff refuses another ticker's logo first, and a plan without the
+  dataset `reference` is given the logo list of its own tickers only).
 - The page routes (`/radar`, `/overview`, `/watchlist`): the headers are accepted for the per-owner audit and quota, with
-  no new refusal (edge-bff gates those tabs itself).
+  no new refusal (edge-bff gates those tabs itself). edge-bff keeps a page file it relayed in a process cache by sha256
+  (`apps/edge-bff/app/pages.py`), so a file is granted, counted and audited here for the first owner that reads it in an
+  edge-bff process, not for every reader (re-check R1-5, R1-31).
 
 **History cap and the cut (decision D2 = A).** With `history_days` N and a dataset's manifest `data_through` D (its date
 part), the window is the rows dated strictly after D − N days, with no upper bound. Example: N = 730, D = 2026-11-17:

@@ -33,6 +33,7 @@ from app.principal import Principal, switch_off_principal
 from conftest import FakeOrc
 from test_edge import ORIGIN, login
 from test_principal import db, make_user, on, sign_in, workers  # noqa: F401 - the fixtures
+from test_radar import acknowledge
 
 ROOT = Path(__file__).resolve().parents[3]
 APP = ROOT / 'apps/edge-bff/app'
@@ -61,6 +62,9 @@ class FakeApi:
     async def request(self, method, url, params=None, content=None, headers=None):
         FakeApi.calls.append({'method': method, 'url': url, 'params': dict(params or {}), 'body': content,
                               'headers': dict(headers or {})})
+        return acknowledge(self.answer(method, url, content), headers)
+
+    def answer(self, method, url, content):
         if url.endswith('/api/terminal/v1/radar') and method == 'GET':
             return httpx.Response(200, json={'finished_at': '2026-11-14T10:00:00Z', 'files': {
                 'radar-days': {'sha256': PAGE_SHA, 'bytes': len(PAGE), 'rows': 1, 'as_of': '2026-11-09'}}})
@@ -91,9 +95,12 @@ class FakeApi:
                      'cache-control': 'public, max-age=60', 'x-other': 'dropped', 'set-cookie': 'a=b',
                      **FakeApi.cut_headers}
 
+        acknowledged = acknowledge(httpx.Response(status), headers).headers if not url.startswith('https://bucket.') else {}
+
         class Answer:
             status_code = status
-            headers = httpx.Headers(extra)
+            headers = httpx.Headers({**extra, **{k: v for k, v in acknowledged.items()
+                                                 if k == 'x-terminal-capabilities-applied'}})
 
             async def __aenter__(self):
                 return self
@@ -263,8 +270,6 @@ def test_a_page_sent_terminal_header_is_refused_and_never_relayed(switched_off, 
 FREE_REFUSED = [
     ('GET', 'manifest/TLKM', None, 'terminal.tickers'),
     ('GET', 'logo/TLKM', None, 'terminal.tickers'),
-    ('GET', 'reference/tickers', None, 'terminal.dataset:reference'),
-    ('GET', 'reference/logos', None, 'terminal.dataset:reference'),
     ('GET', 'history/price?ticker=BBCA&from=2019-01-01&to=2019-02-01', None, 'terminal.history_days'),
     ('GET', 'history/price?ticker=TLKM&from=2019-01-01&to=2019-02-01', None, 'terminal.tickers'),
     ('GET', 'history/broker?ticker=BBCA&from=2019-01-01&to=2019-02-01', None, 'terminal.dataset:broker'),
@@ -280,6 +285,10 @@ FREE_REFUSED = [
 ]
 FREE_FORWARDED = [
     ('GET', 'manifest/BBCA', None),
+    # re-check R2-32: terminal-api answers the free plan its own copy of each reference file (refcut.py)
+    ('GET', 'reference/tickers', None),
+    ('GET', 'reference/logos', None),
+    ('GET', f'reference/tickers/cut?sha256={"a" * 64}', None),
     ('GET', 'logo/BBCA', None),
     ('GET', 'cut/BBCA/price', None),
     ('POST', 'files', {'ticker': 'BBCA', 'dataset': 'price', 'years': [2026]}),
@@ -309,7 +318,7 @@ def test_a_free_principal_is_refused_on_every_second_path_before_terminal_api(sw
             r = c.request(method, f'/api/terminal/v1/{path}', headers=h, json=body)
             assert r.status_code == 200, (path, body, r.text)
             call = terminal_calls()[-1]
-            assert call['url'] == f'{URL}/api/terminal/v1/{path}'
+            assert call['url'] == f'{URL}/api/terminal/v1/{path.split("?")[0]}'
             caps = sent_caps(call)
             assert caps['admin'] is False and caps['tickers'] == ['BBCA'] and caps['datasets'] == ['price']
             assert caps['history_days'] == 730 and caps['quota'] == QUOTA and caps['version'].startswith('db-')
@@ -393,11 +402,14 @@ def test_the_cut_is_relayed_byte_for_byte(switched_on, store):
             assert c.get(f'/api/terminal/v1/{bad}').status_code == 404, bad
 
 
-def test_a_cut_terminal_api_refuses_passes_through(switched_off, store):
+def test_a_cut_terminal_api_refuses_reaches_the_page_in_the_contract_shape(switched_off, store):
+    """Re-check R1-1 (CONTRACT.md section 3): terminal-api's status passes, its code as details.reason, never its prose
+    (its messages name internal routes); before, its flat body passed through."""
     with TestClient(create_app(switched_off, store, FakeOrc())) as c:
         login(c)
         r = c.get('/api/terminal/v1/cut/BBCA/yield')
-        assert r.status_code == 404 and r.json() == {'error': 'cannot_cut', 'message': 'no'}
+        assert r.status_code == 404 and r.json()['error']['code'] == 'NOT_FOUND', r.text
+        assert r.json()['error']['details'] == {'reason': 'cannot_cut'} and 'no' != r.json()['error']['message']
 
 
 def test_terminal_apis_own_capability_refusal_is_relayed_in_edges_shape(switched_off, store):
@@ -415,11 +427,13 @@ def test_terminal_apis_own_capability_refusal_is_relayed_in_edges_shape(switched
 def test_quota_bounds_and_the_owner_key_rule(settings):
     huge = principal(limits={'terminal.files_per_hour': 5 * 10 ** 9})
     assert terminal_access.capabilities(huge)['quota'] == {'files_per_hour': 10 ** 9}      # never wider than the plan
+    # re-check R1-22: a limit of 0 allows none of it, so waiting would not help: 403 naming it, not a 429
     none = principal(limits={'terminal.files_per_hour': 0})
     with pytest.raises(terminal_access.Refusal) as e:
         terminal_access.capabilities_header(none)
-    assert (e.value.status, e.value.code, e.value.details['limit']) == (429, 'LIMIT_REACHED', 'terminal.files_per_hour')
-    assert e.value.headers == {'Retry-After': '3600'} and e.value.details['retry_after_s'] == 3600
+    assert (e.value.status, e.value.code, e.value.details['capability']) == (403, 'CAPABILITY_REQUIRED',
+                                                                             'terminal.files_per_hour')
+    assert e.value.headers is None
     with pytest.raises(terminal_access.Refusal) as e:
         terminal_access.headers(settings, principal(owner_key='has space'))
     assert e.value.code == 'TERMINAL_UNAVAILABLE'

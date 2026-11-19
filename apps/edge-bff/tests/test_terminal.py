@@ -37,7 +37,9 @@ class FakeTerminal:
         FakeTerminal.calls.append({'method': method, 'url': url, 'params': dict(params or {}), 'body': content,
                                    'headers': dict(headers or {})})
         if url.endswith('/files'):
-            return httpx.Response(429, json={'error': 'quota_exceeded', 'message': 'files per hour'})
+            return httpx.Response(429, json={'error': 'quota_exceeded', 'message': 'files per hour', 'quota': 'files_per_hour',
+                                             'limit': 300, 'window': 'hour', 'retry_after_s': 1500},
+                                  headers={'Retry-After': '1500'})
         if url.endswith('/reference/secrets'):
             return httpx.Response(404, json={'error': 'unknown_reference', 'message': 'Reference files: brokers, logos, tickers.'})
         if '/logo/' in url:
@@ -81,7 +83,11 @@ def test_gateway_needs_the_edge_session_and_csrf_for_writes(gateway):
     assert c.post('/api/terminal/v1/files', json={'ticker': 'BBCA'}).status_code == 403   # no Origin
     assert FakeTerminal.calls == []
     r = c.post('/api/terminal/v1/files', headers=h, json={'ticker': 'BBCA', 'dataset': 'price', 'years': [2026]})
-    assert r.status_code == 429 and r.json()['error'] == 'quota_exceeded'           # terminal-api's answer passes through
+    # EXEC-MU-ACCOUNTS re-check R1-1, R1-26 (CONTRACT.md section 3): terminal-api's quota refusal reaches the page as
+    # LIMIT_REACHED naming the limit and the wait, with Retry-After (it passed through flat, without the header)
+    assert r.status_code == 429 and r.json()['error']['code'] == 'LIMIT_REACHED', r.text
+    assert r.json()['error']['details'] == {'limit': 'terminal.files_per_hour', 'allowed': 300, 'retry_after_s': 1500}
+    assert r.headers['retry-after'] == '1500'
     sent = FakeTerminal.calls[-1]
     assert sent['url'] == 'http://terminal-api.railway.internal:8080/api/terminal/v1/files'
     assert sent['headers']['x-terminal-proxy-key'] == KEY and json.loads(sent['body'])['ticker'] == 'BBCA'
@@ -106,14 +112,16 @@ def test_gateway_forwards_only_the_data_routes(gateway):
 
 def test_gateway_leaves_the_reference_names_to_terminal_api(gateway):
     """M327: a reference file the publisher adds (fixed_income) reaches terminal-api without a gateway change; terminal-api
-    owns the list and its 404 for an unknown name passes through."""
+    owns the list and its 404 for an unknown name passes through (re-check R1-1: in the contract's shape, its code as
+    details.reason)."""
     c = gateway
     login(c)
     for name in ('tickers', 'brokers', 'logos', 'fixed_income'):
         assert c.get(f'/api/terminal/v1/reference/{name}').status_code == 200, name
         assert FakeTerminal.calls[-1]['url'].endswith(f'/api/terminal/v1/reference/{name}')
     r = c.get('/api/terminal/v1/reference/secrets')
-    assert r.status_code == 404 and r.json()['error'] == 'unknown_reference'
+    assert r.status_code == 404 and r.json()['error']['code'] == 'NOT_FOUND'
+    assert r.json()['error']['details'] == {'reason': 'unknown_reference'}
 
 
 def test_gateway_off_when_not_configured(settings, store):

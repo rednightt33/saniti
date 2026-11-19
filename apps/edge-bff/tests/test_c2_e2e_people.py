@@ -18,8 +18,8 @@ import pytest
 
 playwright = pytest.importorskip('playwright.sync_api')
 
-from e2e_people import (CHROMIUM, REFUSAL_WORDS, ROOT, Live, browser_context, capability_refusal, register,  # noqa: E402
-                        shell_navigate, terminal_drawn)
+from e2e_people import (CHROMIUM, REFUSAL_WORDS, ROOT, Live, browser_context, register, shell_navigate,  # noqa: E402
+                        terminal_drawn)
 
 
 @pytest.fixture
@@ -101,11 +101,34 @@ def test_the_free_plans_terminal_draws_bbca_with_the_answers_phase_3c_gives_it(l
     shell_navigate(page, '/terminal')
     drawn, text = terminal_drawn(page)
     assert drawn, f'control: the Terminal did not draw BBCA with every reference file served: {text[:300]}'
-    # the answers of Phase 3c for this principal (CONTRACT.md 8b "3c in detail"; p3c-int terminal_access.py)
-    live.terminal.refuse = {'reference/': (403, capability_refusal('terminal.dataset:reference', 'Terminal data: reference'))}
-    live.terminal.tickers = {'BBCA'}
-    live.terminal.locked = {'broker', 'events', 'yield'}
+    # the answers of Phase 3c for this principal (CONTRACT.md 8b "3c in detail"), after the re-check fix (R2-32, fix
+    # round track terminal): terminal-api answers the header edge-bff really sends with its own code (e2e_people.py
+    # FakeTerminalApi.apply_header): each reference file as the plan's own copy (BBCA alone), the other datasets locked,
+    # BBCA's price as the cut of the last 730 days, both relayed by edge-bff from this origin
+    live.terminal.apply_header = True
+    calls, downloads = len(live.terminal.calls), len(live.terminal.downloads)
     page.reload()
     drawn, text = terminal_drawn(page)
     assert drawn, ('with the reference files refused (D3) the free plan\'s Terminal draws nothing, BBCA included: '
                    f'{text[:300]}')
+    asked = [c['path'] for c in live.terminal.calls[calls:]]
+    assert any(p.startswith('/api/terminal/v1/reference/tickers/cut') for p in asked), asked
+    assert any(p.startswith('/api/terminal/v1/cut/BBCA/price') for p in asked), asked
+    assert not [k for k in live.terminal.downloads[downloads:] if k.startswith('ref/')], 'a full reference list was downloaded'
+
+
+def test_the_free_plans_terminal_opens_on_bbca_with_nothing_remembered(live, chromium):
+    """Re-check R2-32 (fix round, track terminal): with no ticker remembered the page asks for its default (MAPI), which
+    the plan refuses, and draws the first ticker of the list it is given, which terminal-api's copy for the free plan
+    holds alone: BBCA. No list of another ticker reaches the page (D3 = B, "tanpa daftar ticker")."""
+    if not (ROOT / 'static' / 'terminal-app' / 'index.html').is_file():
+        pytest.skip('the Terminal page is not built (cd apps/edge-bff/terminal && npm run build)')
+    live.terminal.apply_header = True
+    page = browser_context(chromium).new_page()
+    register(page, live, 'free_user', 'free@example.com')
+    shell_navigate(page, '/terminal')
+    drawn, text = terminal_drawn(page)
+    assert drawn, f'the free plan\'s Terminal did not draw BBCA: {text[:300]}'
+    assert 'BBCA' in text and 'BBRI' not in text and 'TLKM' not in text, text[:400]
+    tickers = [c for c in live.terminal.calls if c['path'].startswith('/api/terminal/v1/reference/tickers/cut')]
+    assert tickers, [c['path'] for c in live.terminal.calls]
