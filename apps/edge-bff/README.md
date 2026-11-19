@@ -988,7 +988,12 @@ unset = that owner), so nothing changes for it; an owner EDGE_ADMIN_OWNERS does 
 - **Terminal proxy** (`/api/terminal/v1/*`): `terminal.view` before any call to terminal-api.
 - **Page files** (`app/pages.py`): `/api/v1/<family>/index` and `/file/<name>` need `overview.view`, `radar.view` or
   `watchlist.view`, checked before the shared caches. Files are sent `private, no-cache` with their ETag; a `?sha=`
-  request with a matching If-None-Match answers 304 only after the check.
+  request with a matching If-None-Match answers 304 only after the check. The principal's terminal headers are built
+  before the caches too, so what edge-bff refuses for that principal itself (a quota of 0) holds whether the caches are
+  warm or cold (re-check R1-31). A page file is granted, counted and audited on terminal-api for the principal whose
+  request missed the caches, once per process and sha256; a read from the caches counts against no one's Terminal
+  quota (re-check R1-5, R1-31: the caches are shared by design, CONTRACT.md section 15). terminal-api's quota refusal of
+  a grant is 429 `LIMIT_REACHED` with `Retry-After` (it was `<FAMILY>_QUOTA`).
 - `tests/test_phase3a_monitor_pages.py` walks these routes: a new one needs its line in `ROUTE_CAPS`.
 
 ## Terminal data gate: headers and refusals (EXEC-MU-ACCOUNTS Phase 3c, 2026-11-18)
@@ -1016,6 +1021,11 @@ owner holds `*`: its header says `admin: true`, its body is forwarded byte for b
     outside terminal-api's rule `^[A-Za-z0-9._:@-]{1,128}$` answers 503 `TERMINAL_UNAVAILABLE`, logged.
   - The dataset and quota names are read from `apps/terminal-api` by the test, so they are written in one place here.
   - Longer than 8 KiB (a list of about 900 tickers): 503 `TERMINAL_UNAVAILABLE`, logged; never cut short.
+  - Every value the plan catalog can hold maps onto what terminal-api takes (re-check R1-22): `history_days` above
+    36600 is sent as 36600; 0 (the value of a limit that cannot be read) is sent as 0, terminal-api's empty window; a
+    ticker outside `^[A-Z0-9]{1,12}$` is left out and logged (`terminal_tickers_dropped`, its count); a quota of 0 is
+    403 `CAPABILITY_REQUIRED` naming the limit (waiting would not help). The catalog also refuses such values when they
+    are written (migration `20261119_050`: `capabilities.value_min`, `value_max`, `item_pattern`).
 - **Page-sent headers:** a request to a terminal-forwarding route that carries `x-terminal-proxy-key`,
   `x-terminal-proxy-owner` or `x-terminal-capabilities` is refused 400 `HEADER_NOT_ALLOWED` (`details.header`) before
   anything else (`terminal_access.guard`); no request header is ever copied to terminal-api.
@@ -1025,7 +1035,11 @@ owner holds `*`: its header says `admin: true`, its body is forwarded byte for b
     rule for every ticker path keeps the class closed; the page shows its monogram), `files`, `bundle`,
     `history/*?ticker=` (exactly one) and `cut/<T>/<dataset>`;
   - a dataset outside `datasets` (`terminal.dataset:<id>`): `files`' dataset, `history/price` and `history/broker`,
-    `cut/<T>/<dataset>`, `reference/*` as `reference`;
+    `cut/<T>/<dataset>`;
+  - with `history_days` 0, every dated path (`files`, `bundle`, `cut/*`, `history/*`): `terminal.history_days`;
+  - `reference/*` is not refused (re-check R2-32): terminal-api answers a plan without the dataset `reference` with
+    its own copy of the file (the rows of its tickers; the broker list only with `broker`), announced as
+    `/api/terminal/v1/reference/<name>/cut?sha256=<hex>` and relayed byte for byte like a cut;
   - a `bundle` whose every asked dataset is locked (its `datasets`, terminal-api's default `price, broker, events` when
     absent, plus `intraday` with a `timeframe`); with one open dataset it is forwarded and terminal-api answers the
     locked ones `{locked: true, capability}`;
@@ -1034,15 +1048,24 @@ owner holds `*`: its header says `admin: true`, its body is forwarded byte for b
   - a body or query that cannot be read (not JSON, not an object, a ticker that is not text, a repeated `ticker`):
     422 `INVALID_INPUT`. The checked JSON is what is forwarded (re-serialised), so terminal-api reads what was checked.
   - A forwarded GET route the check does not know is refused (fail closed); the test ties the route regex to it.
-- **terminal-api's own refusals:** its 403 `{"error": "capability_required", "capability": ..}` (on any forwarded route,
-  the cut included) is answered in EDGE's shape, 403 `CAPABILITY_REQUIRED` with `details.capability` and
-  `details.display_name`; every other answer passes through as before.
+- **terminal-api's answers** (`terminal_access.relayed`, one rule for `forward_terminal`, the cut relay and the page
+  files; re-check R1-1, R1-26, R2-4; CONTRACT.md section 3):
+  - for a principal without `*`, an answer without `x-terminal-capabilities-applied: 1 <version>` (a terminal-api from
+    before Phase 3c ignores the owner headers and would serve the plan in full) is 503 `TERMINAL_UNAVAILABLE`, logged
+    (`terminal_capabilities_not_applied`); the switch-off owner holds `*` and needs none;
+  - its 403 `capability_required` is 403 `CAPABILITY_REQUIRED` with `details.capability` and `details.display_name`;
+  - its 429 is 429 `LIMIT_REACHED` with `details.limit` (`terminal.<quota>`), `details.allowed`,
+    `details.retry_after_s` and `Retry-After`, from the fields terminal-api adds (an hour when it names none);
+  - its 401, any other 403 (its own account, key or host rule) and a 400 about the owner headers edge-bff built are
+    503 `TERMINAL_UNAVAILABLE`, logged with its status and code (`terminal_refused`), never the EDGE sign-in;
+  - its 400 about the request is 400 `INVALID_INPUT` and its 404 404 `NOT_FOUND`, with its code as `details.reason`
+    (and the field names of a 400); every 5xx is 503 `TERMINAL_UNAVAILABLE`. Its messages never reach the page.
 - **The cut** `GET /api/terminal/v1/cut/<TICKER>/<dataset>` (`price`, `broker`, `events`, `yield`; D2 = A;
   terminal-api builds it with deterministic gzip and answers `application/gzip`). `/bundle` names a capped owner's files
   `{"year": null, "pack": "cut", "url": "/api/terminal/v1/cut/<T>/<ds>?sha256=<hex>", ..}`; the query is forwarded. The
   bytes are read raw from terminal-api and relayed exactly (no JSON parse, no decoding, no Content-Encoding added or
   relayed), with only Content-Type, Content-Length (checked against the bytes read), ETag, X-Terminal-Cut-Sha256 and
-  Cache-Control, the latter always `private`; at most 64 MiB. Another status passes through as JSON.
+  Cache-Control, the latter always `private`; at most 64 MiB. Another status is answered by `terminal_access.relayed`.
   - The page loads a URL of this origin (one starting with `/`) with the session cookie (`credentials: 'same-origin'`,
     `terminal/src/data/rack.ts` `credentialsFor`), and a presigned URL of the storage host still without any cookie
     (`omit`); `terminal/tests/data/cut_credentials.test.ts`.
