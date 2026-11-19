@@ -15994,8 +15994,9 @@ dipakai accross chat sebagai referencec?"
     own private network; each environment gets its own bucket with its own credentials, and buckets are reachable only
     over the public network (docs.railway.com: reference/environments, reference/private-networking,
     guides/storage-buckets).
-  - The project holds 26 services, 12 of them crons, and the main Postgres (about 23 GB, DATABASE_CHANGELOG.md, 2026-09
-    readback; 2 GB memory limit).
+  - The project holds 26 services, 12 of them crons, and the main Postgres (2 GB memory limit). Its size was given here
+    as about 23 GB (a 2026-09 readback); it is about 53 GB (RAILWAY_CHANGELOG.md, DATABASE_CHANGELOG.md:826; corrected
+    2026-11-19 by the research below).
   - The services users touch read market data only through terminal-api, from the files terminal-publisher puts in the
     bucket: edge-bff (its own `edge_bff` login), terminal-api (bucket plus its `terminal` schema), backtest-worker and
     screener-worker (terminal-api only) (`.railway/railway.ts`, the env names of those services).
@@ -16030,3 +16031,15 @@ dipakai accross chat sebagai referencec?"
      ready"), with the user's go; nothing is created on Railway before then.
   - Approved as the plan (the user's answers above); the execution (the service, its domain, the beta sign-in rule)
     waits for the go.
+- **Research (the user, 2026-11-19):** "Terkait dengan environment yang tadi sudah sempat kita discuss, apakah ini best
+  practice, bisa research dulu dan propose ke saya kira-kira kita harus seperti apa untuk memisahkan admin environment
+  dan live production nantinya given the current architecture." The proposal is in
+  `verification/edge_multiuser/beta_live/PROPOSAL.md`.
+  - Its answer: a recognised pattern (a release channel, "ring 0"), acceptable as a first stage with guardrails, not
+    full best practice. Account data should later leave the market Postgres (Stage 2, with a trigger).
+  - Defects of the plan as decided, to fix before the switch goes on: the beta's email sender would take live users'
+    codes; beta code would run live users' backtests; recent kinds of migration (DROP, SET NOT NULL, new keys) would
+    break an older live site.
+  - Effort of the guardrails: about 7.5-8.5 agent-days. Added cost: about USD 1.5-2 a month (about 3-10 with backups
+    and other options).
+  - Open: the user's choice among the proposal's decisions (section 5).
