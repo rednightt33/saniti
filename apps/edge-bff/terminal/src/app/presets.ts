@@ -21,7 +21,8 @@ export interface PresetsSurface {
 }
 
 export function initPresets(ctx: Ctx): PresetsSurface | null {
-  if (ctx.M.mode !== 'live') return null;
+  // track guest: a principal without terminal.presets (a visitor, the free plan) is offered no presets (nothing to read)
+  if (ctx.M.mode !== 'live' || ctx.M.locks?.feature('terminal.presets')) return null;
   const { Ind } = ctx;
   let list: Preset[] = [], error = '', loading = false;
   const changed = () => S.onChange?.();

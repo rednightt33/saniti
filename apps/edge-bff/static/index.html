@@ -1981,6 +1981,36 @@ h1 {
 .security-dialog>.btn {
   margin-bottom: 18px;
 }
+/* track guest (decision 1 of 2026-11-19): the box of a ticker, indicator or feature the principal does not hold (the
+   design system's dialog: head, body, actions at the right; the main action ink) */
+.locked-dialog {
+  width: min(440px,calc(100vw - 32px));
+  overflow-y: auto;
+}
+.locked-dialog .locked-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px 18px 0;
+}
+.locked-dialog .locked-contact {
+  margin: 0;
+  font-size: .875rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.locked-dialog .locked-soon {
+  font-size: 11px;
+  font-weight: 600;
+}
+.locked-dialog .locked-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 18px 18px;
+}
 .dialog-head {
   min-height: 66px;
   display: flex;

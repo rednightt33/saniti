@@ -341,10 +341,14 @@ def test_every_seed_capability_has_a_plain_meaning(store):
 # ---- no plan key in code ------------------------------------------------------------------------------------------
 
 def plan_keys():
-    """The plan keys of the seed, read from the migration (the only place they may appear)."""
-    block = re.search(r'INSERT INTO edge_bff\.plans\(plan_key, display_name, is_default\) VALUES(.*?);',
-                      MIGRATION.read_text(), re.S).group(1)
-    return set(re.findall(r"\('([a-z][a-z0-9_]*)',", block))
+    """The plan keys of the seeds, read from every migration that adds a plan (the only places they may appear): the
+    catalog's (20261117_003) and, since track guest, the guest plan's (20261119_070)."""
+    keys = set()
+    for path in sorted((ROOT / 'database/migrations').glob('*_edge_bff_*.sql')):
+        for block in re.findall(r'INSERT INTO edge_bff\.plans\(plan_key, display_name, is_default(?:, for_guests)?\) '
+                                r'VALUES(.*?);', path.read_text(), re.S):
+            keys |= set(re.findall(r"\('([a-z][a-z0-9_]*)',", block))
+    return keys
 
 
 def role_names():
@@ -405,7 +409,8 @@ def test_the_rule_catches_a_planted_plan_key():
 def test_no_plan_key_in_edge_bff_app():
     """CONTRACT.md section 0 and 8a: plan keys are data (the catalog seed migration), never code."""
     keys, roles = plan_keys(), role_names()
-    assert keys == {'admin', 'paid', 'free'} and 'admin' in roles
+    # track guest (decision 1 of 2026-11-19): the guest plan joins the seeded plans, and its key is data too
+    assert keys == {'admin', 'paid', 'free', 'guest'} and 'admin' in roles
     found = {path.name: uses for path in sorted(APP.rglob('*.py'))
              if (uses := plan_key_uses(path.read_text(), keys, roles))}
     assert found == {}

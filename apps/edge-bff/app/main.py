@@ -481,6 +481,8 @@ def create_app(settings=None, store=None, orc=None):
     # replaces the session dependency and auth.writer the write (CSRF) one. The route-table test
     # (tests/test_route_table.py, CONTRACT.md 13.1) finds these in every /api route's dependencies.
     app.state.session_dependency, app.state.write_dependency = auth.principal, auth.writer
+    # track guest: the visitor dependencies (the guest plan's principal without a session; tests/test_route_table.py GUEST_OPEN)
+    app.state.visitor_dependency, app.state.visitor_write_dependency = auth.visitor, auth.visitor_writer
 
     async def still_signed_in(p):
         """The SSE stream re-checks the principal (and, Phase 3a, its monitor.view) on each loop (CONTRACT.md 4, 8b)."""
@@ -766,8 +768,10 @@ def create_app(settings=None, store=None, orc=None):
         media = sent.pop('content-type', 'application/octet-stream')
         return Response(bytes(raw), media_type=media, headers={**sent, 'content-length': str(len(raw))})
 
-    terminal_read_gate = terminal_access.guard(auth.need(TERMINAL_VIEW))
-    terminal_write_gate = terminal_access.guard(auth.need(TERMINAL_VIEW, write=True))
+    # track guest (decision 1 of 2026-11-19, "1a"; principal.py): the Terminal's data relay is the one route family a
+    # visitor without an account reaches (guests=True: the guest plan's principal, 401 where guests are off)
+    terminal_read_gate = terminal_access.guard(auth.need(TERMINAL_VIEW, guests=True))
+    terminal_write_gate = terminal_access.guard(auth.need(TERMINAL_VIEW, write=True, guests=True))
 
     @app.get('/api/terminal/v1/{path:path}')
     async def terminal_read(path: str, request: Request, p: Principal = Depends(terminal_read_gate)):
@@ -842,13 +846,25 @@ def create_app(settings=None, store=None, orc=None):
         if not known:
             await asyncio.to_thread(throttle.count, (SIGNIN_IP, address))
             response = error('INVALID_CREDENTIALS', 401)
-            if settings.multiuser:
+            # track guest: in the pre-launch mode registration is closed, so no pending registration is restarted (every
+            # 401 there answers alike, without a registration cookie)
+            if settings.multiuser and not settings.prelaunch:
                 # ERRORS M478 (C1 P1-M1): a pending registration with the right password answers the same 401 (no
                 # enumeration); within the send limits a fresh code is mailed and this browser gets that registration's
                 # cookie, so the person finishes on /verify. Every switch-on 401 sets a registration cookie, so the
                 # answers do not differ by a header either
                 await flows.restart_registration(response, restart, address, request)
             return response
+        # track guest (the pre-launch mode of the live site; the user, 2026-11-19: "Dan hanya admin yang bisa login
+        # (saya)", then "A": the admin and the accounts marked as test accounts): only an account whose grants make it
+        # the admin ('*' or admin.access, the catalog's, as the second factor is decided) or one marked test_account
+        # (migration 20261119_070, set only by an audited step) signs in; every other account is refused with a plain
+        # sentence, after its password was checked like any other, and no session is made
+        needs_mfa = await asyncio.to_thread(auth.needs_mfa, account['owner_key']) if account is not None else False
+        if account is not None and settings.prelaunch and not (needs_mfa or account.get('test_account')):
+            logging.getLogger('edge_bff.accounts').info(json.dumps({'event': 'sign_in_closed',
+                                                                   'user_id': account['user_id']}))
+            return error('SIGN_IN_CLOSED', 403)
         old = request.cookies.get(session_cookie) or (None if settings.multiuser else request.cookies.get(COOKIE))
         if old:
             await asyncio.to_thread(store.revoke, token_hash(old))
@@ -860,7 +876,7 @@ def create_app(settings=None, store=None, orc=None):
             made = await asyncio.to_thread(auth.accounts.create_session, token_hash(token), account,
                                            settings.session_seconds, throttle.key_hash(SIGNIN_IP, address), False,
                                            # Phase 2: MFA by the account's resolved capabilities ('*' or admin.access)
-                                           await asyncio.to_thread(auth.needs_mfa, account['owner_key']),
+                                           needs_mfa,
                                            account['verifier'], None, rehash)
             if made is None:
                 return error('INVALID_CREDENTIALS', 401)
@@ -903,6 +919,19 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/api/v1/auth/session')
     async def get_session(p: Principal = Depends(auth.principal)):
         return session_answer(p)
+
+    # track guest (decision 1 of 2026-11-19, "1a"; principal.py): what the Terminal holds for this request when it has no
+    # session: the guest plan's access, in the session answer's shape with `visitor` true (no login, no owner key, no
+    # CSRF token: a guest writes without one). A signed-in principal gets its own session answer with `visitor` false.
+    # Where guests are off (the beta, EDGE_GUESTS=false) or the client address cannot be read, 401 UNAUTHENTICATED: the
+    # page goes to sign-in.
+    @app.get('/api/v1/auth/guest')
+    async def get_guest(p: Principal = Depends(auth.visitor)):
+        if not p.guest:
+            return {**session_answer(p), 'visitor': False}
+        return {'authenticated': False, 'visitor': True, 'login': '', 'owner_key': None, 'csrf_token': '',
+                'capabilities': capabilities(), 'username': None,
+                'access': {**jsonable_encoder(p.access(ceilings=auth.ceilings)), 'owner_key': None}}
 
     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md sections 4-6): registration, codes, reset and change, sign-out everywhere,
     # admin MFA, the Resend webhook (app/auth_flows.py); every one answers 404 with the switch off, except auth/config

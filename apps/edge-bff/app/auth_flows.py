@@ -555,6 +555,14 @@ class AuthFlows:
             if not settings.multiuser:
                 raise Refusal(404, 'NOT_FOUND')
 
+        async def registration_open():
+            """Track guest: the pre-launch mode of the live site (Settings.prelaunch; the user, 2026-11-19: "Terbuka, tapi
+            belum bisa mendaftar") closes registration with a plain sentence (403 REGISTRATION_CLOSED, the same for
+            every address, so it tells nothing about one); the reset of an account's password stays open (the test
+            accounts set theirs with it)."""
+            if settings.prelaunch:
+                raise Refusal(403, 'REGISTRATION_CLOSED')
+
         def signed_in(p, token, status=200):
             response = JSONResponse(session_answer(p), status_code=status)
             response.set_cookie(session_cookie, token, max_age=settings.session_seconds, httponly=True,
@@ -579,11 +587,17 @@ class AuthFlows:
 
         @app.get('/api/v1/auth/config')
         async def config():
-            """Public: whether registration and "Forgot password?" are open (the sign-in page reads it)."""
-            return {'multiuser': settings.multiuser}
+            """Public: whether registration and "Forgot password?" are open (the sign-in page reads it). Track guest,
+            with the switch on: `registration` (false in the pre-launch mode: the register page says it opens soon),
+            `prelaunch`, `guests` (a visitor opens the Terminal) and `upgrade_contact` (the upgrade box's contact, null
+            when not set: the box says the contact comes soon). With the switch off the answer is as before."""
+            if not settings.multiuser:
+                return {'multiuser': False}
+            return {'multiuser': True, 'registration': not settings.prelaunch, 'prelaunch': settings.prelaunch,
+                    'guests': settings.guests, 'upgrade_contact': settings.upgrade_contact or None}
 
         @app.post('/api/v1/auth/register', status_code=202)
-        async def register(request: Request, _on=Depends(switched_on)):
+        async def register(request: Request, _on=Depends(switched_on), _open=Depends(registration_open)):
             b = fields_of(await request.body(), ('username', 'first_name', 'last_name', 'email', 'phone', 'password',
                                                  'password_repeat'),
                           ('username', 'first_name', 'last_name', 'email', 'phone', 'password', 'password_repeat'))
@@ -608,7 +622,7 @@ class AuthFlows:
             return with_registration(JSONResponse(ACCEPTED, status_code=202), held if keep_held else registration)
 
         @app.post('/api/v1/auth/register/verify')
-        async def register_verify(request: Request, _on=Depends(switched_on)):
+        async def register_verify(request: Request, _on=Depends(switched_on), _open=Depends(registration_open)):
             b = fields_of(await request.body(), ('email', 'code', 'username'), ('email', 'code'))
             email = checked_email(b['email'])
             username = checked_username(b['username']) if (b.get('username') or '').strip() else None
@@ -637,6 +651,8 @@ class AuthFlows:
             b = fields_of(await request.body(), ('email', 'purpose'), ('email', 'purpose'))
             if b['purpose'] not in PURPOSES:
                 raise invalid({'purpose': 'purpose is register or reset.'})
+            if b['purpose'] == 'register':
+                await registration_open()
             if await asyncio.to_thread(store.resend, checked_email(b['email']), b['purpose'], client_address(request),
                                        registration_of(request)):
                 self.wake()

@@ -66,6 +66,10 @@ class Store:
                 c.execute('SELECT 1 FROM edge_bff.plan_capabilities LIMIT 0')
                 c.execute('SELECT 1 FROM edge_bff.user_capability_overrides LIMIT 0')
                 c.execute('SELECT 1 FROM edge_bff.subscriptions LIMIT 0')
+                # track guest (migration 20261119_070): the guest plan's mark and the test-account mark, read by every
+                # guest request and every pre-launch sign-in; with the switch off nothing reads them
+                c.execute('SELECT for_guests FROM edge_bff.plans LIMIT 0')
+                c.execute('SELECT test_account FROM edge_bff.users LIMIT 0')
             # EXEC-MU-ACCOUNTS beta/live (migrations 20261119_020 and _021): every queued row names its site
             c.execute('SELECT site FROM edge_bff.jobs LIMIT 0')
             c.execute('SELECT 1 FROM edge_bff.sessions LIMIT 0')

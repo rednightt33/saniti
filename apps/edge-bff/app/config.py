@@ -5,7 +5,7 @@ import os
 import re
 from urllib.parse import urlsplit
 
-from .accounts import orc_reserved_owner
+from .accounts import GUEST_OWNER, orc_reserved_owner
 from .security import is_verifier
 
 
@@ -45,6 +45,10 @@ def optional_switch(name):
 # service keeps its behaviour.
 BETA, LIVE = 'beta', 'live'
 SITES = (BETA, LIVE)
+# Track guest (verification/edge_multiuser/fix_round/guest.md): the upgrade contact the upgrade box shows
+# (EDGE_UPGRADE_CONTACT, decision D7: "segera hadir" and the contact; empty: the box says the contact comes soon). One
+# line of plain text, at most 200 characters (an address, a link or a phone number), shown as text.
+CONTACT = re.compile(r'[^\x00-\x1f\x7f<>]{1,200}')
 
 
 @dataclass(frozen=True)
@@ -122,6 +126,27 @@ class Settings:
     housekeeping_enabled: bool = True
     # the commit this build runs (Railway's RAILWAY_GIT_COMMIT_SHA), answered by GET /version
     commit_sha: str = ''
+    # track guest (decision 1 of 2026-11-19, "1a"): whether a visitor without an account opens the Terminal with the
+    # guest plan's grants (EDGE_GUESTS; None = the site's default: on the live site, off on the beta). Never with the
+    # switch off (the beta: the admin's alone; validate refuses EDGE_GUESTS=true there)
+    guests_enabled: bool | None = None
+    # the pre-launch mode of the live site (the user, 2026-11-19: "Terbuka, tapi belum bisa mendaftar", "Dan hanya admin
+    # yang bisa login (saya)", then "A"): registration closed, sign-in only for the admin and the accounts marked as
+    # test accounts (EDGE_PRELAUNCH; None = the site's default: on the live site until the launch). Visitors still open
+    # the Terminal. Only with the switch on
+    prelaunch_enabled: bool | None = None
+    # the upgrade box's contact (EDGE_UPGRADE_CONTACT, CONTACT); empty: the box says the contact comes soon
+    upgrade_contact: str = ''
+
+    @property
+    def guests(self):
+        """Whether the guest principal exists on this site (principal.py): the switch on, and EDGE_GUESTS, else live."""
+        return self.multiuser and (self.site == LIVE if self.guests_enabled is None else self.guests_enabled)
+
+    @property
+    def prelaunch(self):
+        """Whether the pre-launch mode holds: the switch on, and EDGE_PRELAUNCH, else the live site."""
+        return self.multiuser and (self.site == LIVE if self.prelaunch_enabled is None else self.prelaunch_enabled)
 
     @property
     def ai_worker(self):
@@ -183,7 +208,10 @@ class Settings:
                 ai_worker_enabled=optional_switch('EDGE_AI_WORKER_ENABLED'),
                 backtest_loop_enabled=switch_of('EDGE_BACKTEST_LOOP_ENABLED', 'true'),
                 housekeeping_enabled=switch_of('EDGE_HOUSEKEEPING_ENABLED', 'true'),
-                commit_sha=os.environ.get('RAILWAY_GIT_COMMIT_SHA', '').strip())
+                commit_sha=os.environ.get('RAILWAY_GIT_COMMIT_SHA', '').strip(),
+                guests_enabled=optional_switch('EDGE_GUESTS'),
+                prelaunch_enabled=optional_switch('EDGE_PRELAUNCH'),
+                upgrade_contact=os.environ.get('EDGE_UPGRADE_CONTACT', '').strip())
         s.validate()
         return s
 
@@ -208,6 +236,17 @@ class Settings:
         if self.site == BETA and self.multiuser and self.environment != 'local':
             raise ValueError('EDGE_SITE=beta runs with EDGE_MULTIUSER=false (the beta is the admin\'s only); accounts '
                              'sign in on the live site (EDGE_SITE=live)')
+        # track guest: the guest plan and the pre-launch mode are the live site's (accounts on); on the beta (the
+        # switch off, the admin's alone) neither exists, so setting either there is a mistake
+        if self.guests_enabled and not self.multiuser:
+            raise ValueError('EDGE_GUESTS=true needs EDGE_MULTIUSER=true: visitors open the Terminal on the live site '
+                             'only; the beta (EDGE_MULTIUSER=false) is the admin\'s alone. Unset EDGE_GUESTS here')
+        if self.prelaunch_enabled and not self.multiuser:
+            raise ValueError('EDGE_PRELAUNCH=true needs EDGE_MULTIUSER=true: the pre-launch mode closes registration and '
+                             'sign-in on the live site; the beta has neither. Unset EDGE_PRELAUNCH here')
+        if self.upgrade_contact and not CONTACT.fullmatch(self.upgrade_contact):
+            raise ValueError('EDGE_UPGRADE_CONTACT is one line of plain text of at most 200 characters, without < or > '
+                             '(an address, a link or a phone number), e.g. sales@example.com; or unset it')
         if self.site == LIVE and self.ai_worker_enabled:
             raise ValueError('EDGE_AI_WORKER_ENABLED=true is for the beta only: the live site has no AI (decision D1); '
                              'unset it on the live site')
@@ -221,6 +260,9 @@ class Settings:
         # ERRORS R1-3: an owner key Orc reserves for its test key (or its old shared owner) would put user #1's
         # conversations and runs within that key's reach; refused for EDGE_OWNER and every EDGE_ADMIN_OWNERS entry
         for name, keys in (('EDGE_OWNER', (self.owner,)), ('EDGE_ADMIN_OWNERS', self.admin_owners)):
+            if GUEST_OWNER in keys:
+                raise ValueError(f'{name} may not be {GUEST_OWNER}, the owner key of every visitor of the guest plan '
+                                 '(terminal-api\'s guest owner row). Use an owner key of your own, e.g. edge-private')
             if any(orc_reserved_owner(k) for k in keys):
                 raise ValueError(f'{name} may not be an owner key market-ai-orc reserves (golden-*, test-*, '
                                  'someone-else: its test key may name them; default: its old shared owner). Use an '

@@ -1,7 +1,7 @@
 /* Live data: the pre-published files of the rack (bucket terminal-display) reached through EDGE's /api/terminal
    gateway (FRONTEND_HANDOFF.md). The page asks for presigned URLs and downloads the gzip JSON files itself.
    Everything is mapped into the reference page's own shapes (types.ts). */
-import type { AssetBar, Bar, Combo, CompareSpec, InsiderTx, Instrument, MarketData, MarketEvent, Point, VolumePoint } from './types';
+import type { AssetBar, Bar, Combo, CompareSpec, InsiderTx, Instrument, Locks, MarketData, MarketEvent, Point, VolumePoint } from './types';
 import { barRows, brokerData, download, priceRows, rowsOf, type PriceRow, type WorkerAnswer } from './worker';
 import { INTEGRITY_MESSAGE, isIntegrity, type FileRef } from './rack';
 import { aggregateRows, alignCandles, alignCandlesCarry, buckets, candleOf, dayOfCandles, dayOfKey, isIntraday, type Timeframe } from './timeframe';
@@ -9,6 +9,9 @@ import { fileStats, mark } from '../app/perf';
 import { accessText, edge, isAccessRefusal, readError, SessionError } from '../../../shared/edge-session';
 
 const API = '/api/terminal/v1';
+/* track guest (decision 1 of 2026-11-19, "1a"): the Terminal is the page a visitor without an account opens; its session
+   read then answers with the guest plan's access (shared/edge-session.ts allowGuest) */
+edge.allowGuest();
 
 /** `code` DATA_INTEGRITY: a file was not the one terminal-api announced (rack.ts IntegrityError; `detail` what differed,
     never a URL) */
@@ -66,8 +69,8 @@ const roleLabel = (role: string) => role.toLowerCase().split('_').map((w, i) => 
    is shown as its message, not as "answered 403"; only a 401 asks to sign in again; a 403 CSRF_INVALID is repeated once.
    `csrf` is kept for the callers' signatures: the shared module sets the header itself. */
 const SIGN_IN = 'Sign in to EDGE first, then open the Terminal tab again.';
-/* EXEC-MU-ACCOUNTS re-check R2-32: a plan whose ticker list holds no published ticker (terminal-api answers a plan
-   without the reference lists with its own tickers only) */
+/* EXEC-MU-ACCOUNTS re-check R2-32: a plan none of whose tickers is published (the ticker list is whole since decision 1
+   of 2026-11-19, track guest; the page opens only a ticker the plan holds) */
 const NO_TICKER = 'No ticker of your EDGE plan is published yet. Upgrade the plan to open others; you are still signed in.';
 async function api(path: string, _csrf: string, body?: unknown) {
   let res: Response;
@@ -97,6 +100,22 @@ async function session(): Promise<string> {
   catch (e) {
     throw sessionFailure(e);
   }
+}
+
+/* track guest (decision 1 of 2026-11-19: "user tetap bisa search ticker, tapi ketika dia klik ticker selain bbca maka akan
+   keluar pop up box"): what the principal does not hold, derived from what the server says it holds, never from a list
+   here: a ticker outside its terminal.tickers (no list: every ticker), an indicator or Flow indicator the catalog route
+   does not list for it (`*` holds every one, so no catalog is read), a feature flag it lacks. An answer without
+   `access` (a server before the catalog) locks nothing, as before; a catalog that cannot be read locks its kind. */
+export async function lockRules(): Promise<Locks> {
+  const a = edge.access(), guest = edge.guest;
+  if (!a) return { guest, ticker:() => false, item:() => false, feature:() => false };
+  const all = a.capabilities.includes('*'), tickers = edge.limit('terminal.tickers');
+  const held: Record<'indicator' | 'flow_indicator', Set<string>> = { indicator:new Set(), flow_indicator:new Set() };
+  if (!all) await Promise.all((['indicator', 'flow_indicator'] as const).map(kind => edge.catalog(kind)
+    .then(c => { held[kind] = new Set(c.entries.map(e => e.id)) }, () => {})));
+  return { guest, ticker:t => Array.isArray(tickers) && !tickers.includes(t), item:(kind, id) => !all && !held[kind].has(id),
+    feature:cap => !edge.can(cap) };
 }
 /* a session that could not be read: a plan refusal's message, EDGE out of reach, or the sign-in sentence */
 function sessionFailure(e: unknown): unknown {
@@ -267,6 +286,7 @@ function alignBars(keys: string[], rows: PriceRow[]): Bar[] {
 export async function liveData(stored: string | null, tf: Timeframe = 'D', bondMetric: 'yield' | 'price' = 'yield'): Promise<MarketData> {
   const csrf = await session();
   mark('session');
+  const locksP = lockRules();
   /* EXEC-MU-RUNTIME T5/T7: a reference file the publication's refs index names comes with its sha256 and size, and is
      checked and cached as a data file; without them (an older terminal-api or publication) it is the fixed-key copy no
      index describes, read as it comes */
@@ -278,7 +298,11 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
   /* EXEC-TERMINAL-LOGO: ticker → logo version (sha256 prefix); a ticker without one shows its monogram */
   const logosP = reference('logos').then(rows => Object.fromEntries(rows.map((r: any) => [r.ticker, String(r.sha256).slice(0, 12)])), () => ({}));
   brokerRefP.catch(() => {});
-  const guess = stored || 'MAPI';
+  const locks = await locksP;
+  /* track guest: a remembered ticker the plan does not hold never locks the page: the first ticker of the plan instead */
+  const planTickers = edge.limit('terminal.tickers');
+  const firstHeld = Array.isArray(planTickers) ? planTickers[0] : undefined;
+  const guess = [stored, 'MAPI', firstHeld].find(t => t && !locks.ticker(t)) || stored || 'MAPI';
   const want = isIntraday(tf) ? tf : undefined;                // EXEC-INTRADAY-FEATURES C3
   /* EXEC-FI-TERMINAL: the government bonds (ref/fixed_income), a group of their own in the search; the remembered
      ticker's first answer also asks for a bond's yield files, so a bond needs no second /bundle (a stock has none) */
@@ -322,10 +346,13 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
   const detail = (i?: string | null) => i && i !== 'common' && i !== 'Undefined' ? i.toUpperCase() : '';
   const sectorOf = (t: typeof tickers[number]) => t.sector && t.sector !== 'Undefined' ? t.sector
     : detail(t.instrument) || t.sector || (t.type === 'index' ? 'Index' : 'Other');
+  /* track guest: every ticker of the list is searchable; one the plan does not hold is marked (search.ts opens the box) */
+  const lockedOf = (t: string) => locks.ticker(t) ? { locked:true } : {};
   const instruments: Instrument[] = [...tickers.map(t => [t.ticker, t.name || t.ticker, sectorOf(t), 0,
-      { market:`IDX · ${detail(t.instrument) || typeWord(t.type)}` }] as Instrument),
-    ...bonds.map((b: any) => [b.ticker, b.name || b.ticker, 'Fixed income', 0, { market:'Fixed income', place:b.country || undefined }] as Instrument)];
-  const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0]?.ticker ?? bonds[0]?.ticker;
+      { market:`IDX · ${detail(t.instrument) || typeWord(t.type)}`, ...lockedOf(t.ticker) }] as Instrument),
+    ...bonds.map((b: any) => [b.ticker, b.name || b.ticker, 'Fixed income', 0, { market:'Fixed income', place:b.country || undefined, ...lockedOf(b.ticker) }] as Instrument)];
+  const open = (t: string | null | undefined) => !!t && known.has(t) && !locks.ticker(t);
+  const SYMBOL = [stored, 'MAPI'].find(open) ?? tickers.find(t => open(t.ticker))?.ticker ?? bonds.find((b: any) => open(b.ticker))?.ticker;
   if (!SYMBOL) throw new TerminalError(NO_TICKER);
   const bond = bondOf.get(SYMBOL);
   const isIndex = tickers.some(t => t.ticker === SYMBOL && t.type === 'index');     // EXEC-IHSG-FLOW
@@ -446,7 +473,7 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
 
   return {
     /* ERRORS M333: the logo list arrives after the chart (main.ts setLogos); a bond shows its country's flag */
-    mode:'live', symbol:SYMBOL, instruments, ohlc, volume, lineData, catalog, loadCompare, ihsg:[], loadIhsg, logosLater:logosP,
+    mode:'live', symbol:SYMBOL, instruments, locks, ohlc, volume, lineData, catalog, loadCompare, ihsg:[], loadIhsg, logosLater:logosP,
     countries:Object.fromEntries(bonds.filter((b: any) => b.country).map((b: any) => [b.ticker, b.country])),
     loadInsider, brokerClass,
     loadAsset, loadAssetFlow, isBond:(t: string) => bondOf.has(t),

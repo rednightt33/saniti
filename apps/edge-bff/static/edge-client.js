@@ -96,7 +96,14 @@
   let config = null;
   const readConfig = () => config || (config = fetch('/api/v1/auth/config', {credentials:'same-origin'})
     // the body is always read, also of a 404: an answer whose body is never read stays open in the browser
-    .then(r => r.json().catch(() => ({})).then(d => r.ok ? d : {})).then(d => ({multiuser: d?.multiuser === true})).catch(() => ({multiuser:false})));
+    // track guest (decision 1 and the pre-launch decisions of 2026-11-19): with accounts on, whether registration is
+    // open (an older server without the key: open), the pre-launch mode, whether a visitor opens the Terminal, and the
+    // upgrade box's contact (null: the box says it comes soon)
+    .then(r => r.json().catch(() => ({})).then(d => r.ok ? d : {})).then(d => ({multiuser: d?.multiuser === true,
+      registration: d?.multiuser === true && d?.registration !== false, prelaunch: d?.prelaunch === true,
+      guests: d?.multiuser === true && d?.guests === true,
+      upgradeContact: typeof d?.upgrade_contact === 'string' && d.upgrade_contact ? d.upgrade_contact : null}))
+    .catch(() => ({multiuser:false, registration:false, prelaunch:false, guests:false, upgradeContact:null})));
   const terminal = s => ['FINISHED','FAILED','INTERRUPTED'].includes(s.state);
   // EXEC-X (M124): the frame stays English (user decision 2026-10-08) but says what the saved response is
   const DOMAIN = {COMPLETED:'Completed',AWAITING_CONFIRMATION:'Awaiting approval',NEEDS_CLARIFICATION:'Needs your reply',LIMITED:'Limited',FAILED:'Failed'};

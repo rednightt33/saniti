@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=618dc7adf2577f5f9f00c47e8074304795071331cd4c0d41c60502266127063b by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=9ece5cce8232864f82e961a49887fdc4b656f2dc10cf743d488185bc51b71240 by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -23,6 +23,8 @@ var EdgeSession = (() => {
   __export(edge_session_exports, {
     CATALOG_URL: () => CATALOG_URL,
     ENTITLEMENTS_HEADER: () => ENTITLEMENTS_HEADER,
+    GUEST_IDENTITY: () => GUEST_IDENTITY,
+    GUEST_URL: () => GUEST_URL,
     LAST_LOGIN_KEY: () => LAST_LOGIN_KEY,
     PREFERENCES_URL: () => PREFERENCES_URL,
     SESSION_URL: () => SESSION_URL,
@@ -387,6 +389,8 @@ var EdgeSession = (() => {
   }
   var SESSION_URL = "/api/v1/auth/session";
   var ENTITLEMENTS_HEADER = "X-Edge-Entitlements";
+  var GUEST_URL = "/api/v1/auth/guest";
+  var GUEST_IDENTITY = "guest:";
   var CATALOG_URL = "/api/v1/catalog/";
   var isItemKey = (key) => key.includes(":");
   var SessionError = class extends Error {
@@ -543,6 +547,19 @@ ${identity}`;
     listen();
     resets.add(dropCatalogs);
     memoryClears.add(dropCatalogs);
+    let guests = false;
+    async function guestRead() {
+      let res;
+      try {
+        res = await f(GUEST_URL, { credentials: "same-origin" });
+      } catch {
+        return null;
+      }
+      const d = await res.json().catch(() => null);
+      if (!res.ok || d?.visitor !== true) return null;
+      noteVersion(res);
+      return { login: "", ownerKey: null, csrf: "", access: d?.access ?? null, raw: d, guest: true };
+    }
     const session = () => p || (p = (async () => {
       let res;
       try {
@@ -552,6 +569,16 @@ ${identity}`;
       }
       if (!res.ok) {
         const e = await errorOf(res);
+        const visitor = res.status === 401 && guests ? await guestRead() : null;
+        if (visitor) {
+          if (identity && identity !== GUEST_IDENTITY) {
+            fireResets();
+            reloadPage();
+          }
+          if (!identity) identity = GUEST_IDENTITY;
+          now = visitor;
+          return visitor;
+        }
         if (res.status === 401) saySignedOut();
         throw new SessionError(e, accessText(e) || `EDGE answered ${res.status}.`);
       }
@@ -569,6 +596,12 @@ ${identity}`;
       if (identity && id !== identity && s.ownerKey && identity === norm(s.login)) {
         migrateIdentity(identity, id);
         identity = id;
+      }
+      if (identity === GUEST_IDENTITY) {
+        fireResets();
+        reloadPage();
+        const e = readError(401, { error: { code: "USER_CHANGED", message: "You signed in to EDGE. Reload the page to continue with your account." } });
+        throw new SessionError(e, e.message);
       }
       if (identity && id !== identity) {
         fireResets();
@@ -676,6 +709,14 @@ ${identity}`;
       catalog,
       get current() {
         return now;
+      },
+      /** track guest: this page may run as a visitor without an account (the Terminal); call before the first read */
+      allowGuest() {
+        guests = true;
+      },
+      /** track guest: the session read is a visitor's (the guest plan's access), not an account's */
+      get guest() {
+        return !!now?.guest;
       },
       /** the identity this page opened with ('' before its first session read): owner:<owner key>, else the login */
       get identity() {

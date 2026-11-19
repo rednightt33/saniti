@@ -8,8 +8,9 @@ terminal.md): terminal-api's side of the relay contract.
 - R1-22: history_days 0 is the empty window (the value a plan whose limit reads as 0 sends), so page files still work.
 - R2-4: every answer to an owner call carries x-terminal-capabilities-applied, so edge-bff can refuse the answer of a
   terminal-api that ignored the owner headers.
-- R2-32: an owner whose plan lacks the dataset `reference` gets its own copy of each reference file (refcut.py): the
-  free plan's ticker list names BBCA alone, and no copy names another ticker.
+- R2-32: an owner whose plan lacks the dataset `reference` gets its own copy of each reference file (refcut.py); since
+  decision 1 of 2026-11-19 (track guest) the ticker list is whole for every plan, and no copy of a file that carries
+  data per ticker names another ticker.
 - R1-4: /ready reports the gateway's own account (ok, expiring, expired, inactive, missing) and stays ready.
 """
 import datetime as dt
@@ -184,8 +185,12 @@ REFERENCE_FILES = {
     'logos': {'schema_version': 1, 'columns': ['ticker', 'file', 'sha256', 'source', 'fetched_at'],
               'ticker': ['BBCA', 'TLKM'], 'file': ['BBCA.png', 'TLKM.svg'], 'sha256': ['a' * 64, 'b' * 64],
               'source': ['tv', 'tv'], 'fetched_at': ['2026-11-01', '2026-11-01'], 'generated_at': '2026-11-01'},
-    'fixed_income': {'schema_version': 1, 'columns': ['ticker', 'name', 'country'], 'ticker': ['FR0100'],
-                     'name': ['FR0100'], 'country': ['ID'], 'means': 'government bonds'},
+    # the publisher's FI_COLUMNS (tests/test_guest_tickers.py compares): the bonds' names and the dates of their data
+    'fixed_income': {'schema_version': 1, 'columns': ['ticker', 'name', 'country', 'yield_unit', 'price_unit',
+                                                      'yield_first', 'yield_last', 'price_first', 'price_last'],
+                     'ticker': ['FR0100'], 'name': ['FR0100'], 'country': ['ID'], 'yield_unit': ['PCT'],
+                     'price_unit': ['PCTPAR'], 'yield_first': ['2010-01-04'], 'yield_last': ['2026-11-17'],
+                     'price_first': ['2010-01-04'], 'price_last': ['2026-11-17'], 'means': 'government bonds'},
     'stock_lists': {'schema_version': 1, 'columns': ['list_key', 'kind', 'code', 'name', 'members'],
                     'list_key': ['INDEX:LQ45'], 'kind': ['INDEX'], 'code': ['LQ45'], 'name': ['LQ45'],
                     'members': [['BBCA', 'BBRI', 'TLKM']]},
@@ -225,16 +230,20 @@ def own_copy(client, headers, name):
     return doc, r.content
 
 
-def test_the_free_plan_gets_reference_lists_that_name_its_own_tickers_only():
+def test_the_free_plan_gets_the_whole_ticker_list_and_its_own_rows_of_every_other_reference_file():
+    """Decision 1 of 2026-11-19 (it replaces the R2-32 reading of D3 this test held, a ticker list of BBCA alone): the
+    plan searches every ticker; the files that carry data per ticker (the logos' image index, the bonds' data dates, the
+    broker list, the stock lists) keep the plan's filter, so none of them names another ticker."""
     from test_phase3c import FREE
     client, store, bucket = reference_app()
     copies = {name: own_copy(client, FREE, name) for name in REFERENCE_FILES}
-    assert copies['tickers'][0]['ticker'] == ['BBCA'] and copies['tickers'][0]['name'] == ['Bank Central Asia']
+    assert copies['tickers'][0]['ticker'] == REFERENCE_FILES['tickers']['ticker']
+    assert copies['tickers'][0]['name'] == REFERENCE_FILES['tickers']['name']
     assert copies['logos'][0]['ticker'] == ['BBCA'] and copies['logos'][0]['generated_at'] == '2026-11-01'
     assert copies['brokers'][0]['code'] == [] and copies['brokers'][0]['type_means'] == 'broker domicile'
     assert copies['fixed_income'][0]['ticker'] == [] and copies['stock_lists'][0]['members'] == []
     for name, (doc, raw) in copies.items():
-        for other in OTHERS:
+        for other in OTHERS if name != 'tickers' else ():
             assert other not in str(doc), (name, other)
     # counted when served: one audit row per copy read, under REF, none for the announcements
     rows = [a for a in store.access if a['dataset'] == 'reference']
@@ -250,7 +259,9 @@ def test_the_broker_list_follows_the_broker_dataset_and_the_full_lists_follow_re
     client, store, _ = reference_app()
     brokers = owner(capabilities=caps(tickers=['BBCA', 'TLKM'], datasets=['price', 'broker']))
     assert own_copy(client, brokers, 'brokers')[0]['code'] == ['YP', 'CC']
-    assert own_copy(client, brokers, 'tickers')[0]['ticker'] == ['BBCA', 'TLKM']
+    # decision 1 of 2026-11-19: the ticker list is whole for every plan; the logos follow the plan's tickers
+    assert own_copy(client, brokers, 'tickers')[0]['ticker'] == ['BBCA', 'BBRI', 'TLKM', 'IHSG']
+    assert own_copy(client, brokers, 'logos')[0]['ticker'] == ['BBCA', 'TLKM']
     # every ticker and no reference lists: every ticker row, still a copy (the dataset decides, not the tickers)
     every = owner(capabilities=caps(tickers='*', datasets=['price']))
     assert own_copy(client, every, 'tickers')[0]['ticker'] == ['BBCA', 'BBRI', 'TLKM', 'IHSG']

@@ -47,6 +47,13 @@ MAX_HISTORY_DAYS = 36600                                        # 100 years: bey
 MIN_HISTORY_DAYS = 0                                            # 0: no dated row up to data_through (R1-22)
 # R2-4: the acknowledgement of an applied header, on every answer to an owner call (applied())
 APPLIED_HEADER = 'x-terminal-capabilities-applied'
+# Track guest (decision 1 of 2026-11-19, "1a"; verification/edge_multiuser/fix_round/guest.md): the visitors of EDGE's
+# guest plan reach terminal-api under one owner, and edge-bff names each visitor by an opaque key of its client
+# address (an HMAC edge-bff makes, 32 hex; never the address itself), so the quotas are counted per visitor (main.py
+# meter). Without it an owner's calls share the owner's one row: stricter, never wider (fail closed).
+CLIENT_HEADER = 'x-terminal-client'
+CLIENT_RE = re.compile(r'^[0-9a-f]{32}$')
+CLIENT_EXAMPLE = '0123456789abcdef0123456789abcdef'
 MAX_QUOTA = 1_000_000_000
 # the Terminal quota names a plan may set (terminal.quota rows of the same names); a key left out keeps its default
 QUOTA_KEYS = ('files_per_hour', 'tickers_per_hour', 'tickers_per_day', 'megabytes_per_day', 'history_per_hour')
@@ -99,6 +106,17 @@ def parse_owner(raw):
         raise HeaderError(OWNER_HEADER, f'{OWNER_HEADER} must be the EDGE owner key, 1-128 letters, digits or . _ : @ - '
                                         f'(rule {OWNER_RE.pattern}); {len(raw)} characters were sent. Fix: send the '
                                         f"principal's owner_key. Example: {OWNER_HEADER}: u_0123456789abcdef01234567.")
+    return value
+
+
+def parse_client(raw):
+    """The visitor key of CLIENT_HEADER (32 lower-case hex), or HeaderError naming the header."""
+    value = raw.strip()
+    if not CLIENT_RE.fullmatch(value):
+        raise HeaderError(CLIENT_HEADER, f'{CLIENT_HEADER} must be the visitor key edge-bff makes from the client '
+                                         f'address, 32 lower-case hexadecimal characters (rule {CLIENT_RE.pattern}); '
+                                         f'{len(raw)} characters were sent. Fix: send the key of the guest principal, '
+                                         f'never the address itself. Example: {CLIENT_HEADER}: {CLIENT_EXAMPLE}.')
     return value
 
 

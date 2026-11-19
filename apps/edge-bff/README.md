@@ -834,6 +834,46 @@ R2-26, R2-33, R2-34, R2-36, R2-38; `.railway/railway.ts` holds the live service 
   codes) and `EDGE_MFA_KEY` (the one TOTP row per user) key rows of the shared tables, so edge-bff-live holds edge-bff's
   values as Railway references (`${{edge-bff.NAME}}`), never values of its own.
 
+### Guests, the boxes and the pre-launch mode (track guest, decisions of 2026-11-19)
+
+The user's words: "user tetap bisa search ticker, tapi ketika dia klik ticker selain bbca maka akan keluar pop up box to
+login (jika belum login) dan jika sudah login maka akan keluar pop up box (to upgrade plan)"; "1a - bukan hanya chart,
+nanti ada indikator dll yg juga mungkin di show ke user. jadi design harus plug and play dan fluid"; for the live site
+before the launch "Terbuka, tapi belum bisa mendaftar", "Dan hanya admin yang bisa login (saya)", then "A". Notes:
+`verification/edge_multiuser/fix_round/guest.md`.
+
+- **The guest plan** (migration `20261119_070`): `edge_bff.plans.for_guests` marks the one plan a visitor without an
+  account gets (seed `guest`: the free plan's Terminal grants, BBCA, price, 730 days, no indicator). Its rows are read
+  on every guest request through the same `read_grants` and `can()` as every plan (`principal.py guest_principal`), so
+  a change of its rows changes what visitors see with no code; it never holds `*`, `admin.access`, an admin right or a
+  beta-only key, whatever its rows say.
+- **Where a visitor gets it** (`EDGE_GUESTS`, default on the live site, refused with the switch off): only on the routes
+  that ask for it, `auth.need(capability, guests=True)` and `auth.visitor`: the Terminal relay `/api/terminal/v1/*`, `GET
+  /api/v1/catalog/{kind}` and `GET /api/v1/auth/guest` (the guest plan's access in the session answer's shape, `visitor`
+  true, no CSRF token). Every other route answers 401 without a session, so the shell shows the sign-in page there
+  (`tests/test_route_table.py GUEST_OPEN`). A guest writes without CSRF (no session to ride; the Origin check holds).
+- **The client address** (`principal.py client_of`): the right-most `X-Forwarded-For` entry, the hop Railway's edge adds
+  to every request it forwards, when it is an IP address; without one (a request that did not pass the edge, or a hop
+  that is not an address) there is no guest principal and the answer is 401 (fail closed). The socket peer counts only on
+  a developer machine (`EDGE_ENVIRONMENT=local`). The visitor's key towards terminal-api (`x-terminal-client`) is an HMAC
+  of the address under `EDGE_SESSION_SECRET`, never the address; terminal-api counts each visitor's quotas with it.
+- **The boxes** (`terminal/src/app/locked.ts`, the shell's `LockedDialog`, words `EdgeLabels.locked`): the Terminal
+  derives what is locked from the session answer's access and the catalog route (`live.ts lockRules`), lists every
+  ticker in its search with a lock on the ones the plan lacks, and asks the shell for the box when one is chosen, or a
+  locked indicator, or the saved layouts without `terminal.layouts`: a visitor gets "Sign in" (and "Create account"
+  while registration is open), an account the upgrade box ("Coming soon" and `EDGE_UPGRADE_CONTACT`, or that the contact
+  comes soon). A visitor's drawings last as long as the page.
+- **The pre-launch mode** (`EDGE_PRELAUNCH`, default on the live site until the launch, refused with the switch off):
+  registration, its code and its resends answer 403 `REGISTRATION_CLOSED` (the register page says registration opens
+  soon); only the admin (an account whose grants hold `*` or `admin.access`) and the accounts marked
+  `edge_bff.users.test_account` sign in; every other account gets 403 `SIGN_IN_CLOSED` after its password was checked
+  like any other. The mark changes only beside its `admin_audit` row of the same transaction (a deferred trigger);
+  `scripts/edge_test_account.py` makes or marks a test account for an address and a plan (as a job:
+  `scripts/onboarding/edge_test_account_job.py`), and the person sets the password with "Forgot password". Visitors
+  still open the Terminal.
+- **`GET /api/v1/auth/config`** with the switch on: `{"multiuser", "registration", "prelaunch", "guests",
+  "upgrade_contact"}`; with it off `{"multiuser": false}` as before.
+
 ## Accounts (EXEC-MU-ACCOUNTS Phase 1, 2026-11-16/17)
 
 Phase 1 builds EDGE accounts behind the switch `EDGE_MULTIUSER` (default `false`; it goes on only at Phase 6). Contract:
@@ -1125,7 +1165,8 @@ owner holds `*`: its header says `admin: true`, its body is forwarded byte for b
     `cut/<T>/<dataset>`;
   - with `history_days` 0, every dated path (`files`, `bundle`, `cut/*`, `history/*`): `terminal.history_days`;
   - `reference/*` is not refused (re-check R2-32): terminal-api answers a plan without the dataset `reference` with
-    its own copy of the file (the rows of its tickers; the broker list only with `broker`), announced as
+    its own copy of the file (the whole ticker list since decision 1 of 2026-11-19, track guest; the rows of its
+    tickers in a file with data per ticker; the broker list only with `broker`), announced as
     `/api/terminal/v1/reference/<name>/cut?sha256=<hex>` and relayed byte for byte like a cut;
   - a `bundle` whose every asked dataset is locked (its `datasets`, terminal-api's default `price, broker, events` when
     absent, plus `intraday` with a `timeframe`); with one open dataset it is forwarded and terminal-api answers the

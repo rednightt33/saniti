@@ -39,6 +39,13 @@ when to try again (retry_after_s, Retry-After; R1-1, R1-26); an owner's answers 
 (R2-4); an unknown dataset id of the header is left out (R2-5); history_days 0 is the empty window (R1-22); an owner
 without the dataset `reference` gets its own copy of each reference file (refcut.py, GET /reference/{name}/cut; R2-32);
 /ready reports the state of the gateway's own account (R1-4).
+
+Track guest (decision 1 of 2026-11-19, "1a"; verification/edge_multiuser/fix_round/guest.md): the visitors of EDGE's
+guest plan reach terminal-api under one owner row; edge-bff adds x-terminal-client (the visitor's opaque key) and the
+quotas of that owner are then counted per visitor: the usage, its lock and the audit rows carry the key
+(terminal.access_log.client_key, migration 20261119_170; meter()). A call without it is counted on the owner's row as
+a whole (stricter, never wider). Every plan that holds terminal.view, and the guest, reads the whole ticker list
+(refcut.py names_only).
 """
 import datetime as dt
 import json
@@ -61,8 +68,9 @@ from .bucket import PAGE_FAMILIES, REF_NAME, SHA256, XSECTION_NAME, radar_index,
 from .config import PRIVATE_HOST, Settings, service_email, service_variable
 from .cut import CutCache, CutError, make_cut
 from .refcut import RefError, make_copy
-from .entitlements import (APPLIED_HEADER, CAPS_HEADER, EXAMPLE as CAPS_EXAMPLE, EXTRA_DATASETS, OWNER_HEADER,
-                           HeaderError, applied, parse_capabilities, parse_owner, window_after)
+from .entitlements import (APPLIED_HEADER, CAPS_HEADER, CLIENT_EXAMPLE, CLIENT_HEADER, EXAMPLE as CAPS_EXAMPLE,
+                           EXTRA_DATASETS, OWNER_HEADER, HeaderError, applied, parse_capabilities, parse_client,
+                           parse_owner, window_after)
 from .security import client_ip, new_token, password_verifier, same_secret, token_hash, verify_password
 
 COOKIE = 'terminal_session'
@@ -325,12 +333,21 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         return caller
 
     def owner_of(request: Request):
-        """EXEC-MU-ACCOUNTS Phase 3c: (owner, Capabilities) of a gateway call that names an EDGE owner, (None, None)
-        when it sends neither header (the gateway's one account, as before). One header without the other, or a
-        header that breaks its rule, is 400 naming the header or field, the rule and a right example."""
+        """EXEC-MU-ACCOUNTS Phase 3c: (owner, Capabilities, client) of a gateway call that names an EDGE owner,
+        (None, None, None) when it sends neither header (the gateway's one account, as before). One header without the
+        other, or a header that breaks its rule, is 400 naming the header or field, the rule and a right example.
+        Track guest: `client` is the visitor key of x-terminal-client, allowed only beside both owner headers of an
+        owner that does not hold * (a visitor of the guest plan), else None."""
         owner, caps = request.headers.get(OWNER_HEADER), request.headers.get(CAPS_HEADER)
+        client = request.headers.get(CLIENT_HEADER)
         if owner is None and caps is None:
-            return None, None
+            if client is not None:
+                error(400, 'invalid_owner_headers',
+                      f'{CLIENT_HEADER} was sent without {OWNER_HEADER} and {CAPS_HEADER}: a visitor key counts only '
+                      f'for an EDGE owner. Fix: send it beside both owner headers of the guest plan, or not at all. '
+                      f'Example: {OWNER_HEADER}: edge-guest, {CAPS_HEADER}: {CAPS_EXAMPLE}, {CLIENT_HEADER}: '
+                      f'{CLIENT_EXAMPLE}.', field=CLIENT_HEADER)
+            return None, None, None
         if owner is None or caps is None:
             missing, sent = (OWNER_HEADER, CAPS_HEADER) if owner is None else (CAPS_HEADER, OWNER_HEADER)
             error(400, 'invalid_owner_headers',
@@ -338,9 +355,15 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                   f'neither. Fix: send both, built from the principal. Example: {OWNER_HEADER}: '
                   f'u_0123456789abcdef01234567 and {CAPS_HEADER}: {CAPS_EXAMPLE}.', field=missing)
         try:
-            found = parse_owner(owner), parse_capabilities(caps, DATASETS)
+            found = parse_owner(owner), parse_capabilities(caps, DATASETS), (
+                parse_client(client) if client is not None else None)
         except HeaderError as e:
             error(400, 'invalid_owner_headers', str(e), field=e.field)
+        if found[2] is not None and found[1].admin:
+            error(400, 'invalid_owner_headers',
+                  f'{CLIENT_HEADER} was sent for an owner holding * ("admin": true): a visitor key belongs to the '
+                  f'guest plan only. Fix: send no {CLIENT_HEADER} for a signed-in principal. Example: '
+                  f'{CAPS_HEADER}: {CAPS_EXAMPLE} with {CLIENT_HEADER}: {CLIENT_EXAMPLE}.', field=CLIENT_HEADER)
         if found[1].ignored:
             # R2-5: an edge-bff that knows more datasets than this terminal-api (a deploy in between): not served anyway
             log.warning(json.dumps({'event': 'owner_datasets_ignored', 'datasets': list(found[1].ignored),
@@ -354,7 +377,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         Phase 3c: the owner headers count only beside the gateway key (owner_of)."""
         key = request.headers.get(PROXY_HEADER)
         if key is None:
-            if OWNER_HEADER in request.headers or CAPS_HEADER in request.headers:
+            if OWNER_HEADER in request.headers or CAPS_HEADER in request.headers or CLIENT_HEADER in request.headers:
                 if settings.private_only:
                     direct_closed('A request without a key')
                 error(400, 'owner_not_allowed',
@@ -371,8 +394,8 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         gateway_ok = bool(settings.proxy_key) and same_secret(key, settings.proxy_key)
         matched = [(name, email) for name, k, email in services if same_secret(key, k)]   # every key compared
         if gateway_ok:
-            owner, caps = owner_of(request)
-            return Caller('gateway', email=settings.proxy_subscriber, owner=owner, caps=caps)
+            owner, caps, client = owner_of(request)
+            return Caller('gateway', email=settings.proxy_subscriber, owner=owner, caps=caps, client=client)
         if not matched:
             error(401, 'proxy_key_rejected',
                   f'The {PROXY_HEADER} header holds no key this terminal-api knows: neither the EDGE gateway key '
@@ -381,7 +404,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                   'Example: TERMINAL_PROXY_KEY=${{terminal-api.TERMINAL_SERVICE_KEY_BACKTEST_WORKER}} on '
                   'backtest-worker.')
         name, email = matched[0]
-        if OWNER_HEADER in request.headers or CAPS_HEADER in request.headers:
+        if OWNER_HEADER in request.headers or CAPS_HEADER in request.headers or CLIENT_HEADER in request.headers:
             error(400, 'owner_not_allowed',
                   f'{OWNER_HEADER} or {CAPS_HEADER} was sent with the service key of {name}. A service key acts as its own account '
                   f'({email}) and can never name an owner; only the EDGE gateway names one. Fix: send '
@@ -477,11 +500,11 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             if not row:
                 refuse(caller)
             sid = row['subscriber_id']
-        store.lock_subscriber(c, sid)
+        store.lock_subscriber(c, sid, **meter(caller))
         row = lookup(c, caller)                              # after the lock
         if row and row['subscriber_id'] != sid:
             sid = row['subscriber_id']
-            store.lock_subscriber(c, sid)
+            store.lock_subscriber(c, sid, **meter(caller))
             row = lookup(c, caller)
         if not row or row['subscriber_id'] != sid:
             accounts.drop(caller)
@@ -552,12 +575,19 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             error(404, 'unknown_ticker', f'No published data for {ticker}.')
         return m
 
-    def take(c, sid, refusal):
+    def meter(caller: Caller):
+        """Track guest: the keyword that makes the store count a visitor of the guest plan on its own (its usage, the
+        lock its quota check takes, its audit rows): {'client': key} beside the owner headers, else {} (every row of
+        the account, exactly as before; a store without visitor keys is never asked for one)."""
+        return {'client': caller.client} if caller.client is not None else {}
+
+    def take(c, sid, refusal, caller: Caller | None = None):
         """A quota refusal (quota.check) as 429 quota_exceeded with the quota's name, its limit, its window and when the
         refused request fits (Store.frees_in; the window's length when the store cannot tell), so a relay can name the
         limit and the wait without reading the message (re-check R1-1/R1-26)."""
         if refusal:
-            found = store.frees_in(c, sid, refusal) if hasattr(store, 'frees_in') else None
+            found = (store.frees_in(c, sid, refusal, **(meter(caller) if caller else {}))
+                     if hasattr(store, 'frees_in') else None)
             wait = min(found or refusal.longest_wait, refusal.longest_wait)
             wait_error('quota_exceeded', refusal.message(wait), wait, quota=refusal.quota, limit=refusal.limit,
                        window=refusal.window)
@@ -620,7 +650,8 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         """store.log_access with the entitlements version of an owner's call (a keyword only then, so the audit row of
         a call without the headers is written exactly as before)."""
         version = version_of(caller)
-        store.log_access(c, sid, *args, **kwargs, **({'version': version} if version is not None else {}))
+        store.log_access(c, sid, *args, **kwargs, **({'version': version} if version is not None else {}),
+                         **meter(caller))
 
     # ---- health ----------------------------------------------------------------------------------------------
     @app.get('/health')
@@ -747,7 +778,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             return None
         _, source = reference_source(name)
         try:
-            return make_copy(bucket.read, name, source, caps, refcopies)
+            return make_copy(bucket.read, name, source, caps, refcopies, DATASETS)
         except RefError as e:
             error(503, 'reference_unavailable', f'The reference file {name} cannot be filtered to the plan: {e.reason}. '
                                                 'It is not served whole; try again after the next publication.')
@@ -870,7 +901,8 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                     wait_error('service_ceiling_reached', refusal.message(), refusal.seconds_left(),
                                quota=refusal.quota, limit=refusal.limit)
             else:
-                take(c, sid, quota.check(limits, store.usage(c, sid), files=len(chosen), ticker=ticker, bytes_=size))
+                take(c, sid, quota.check(limits, store.usage(c, sid, **meter(caller)), files=len(chosen),
+                                         ticker=ticker, bytes_=size), caller)
             ttl = limits['url_ttl_seconds']
             if one_row:
                 audit(c, sid, caller, 'file', ticker, ip, dataset=row_dataset, bytes_=size, keys=[f['key'] for _, _, f in chosen])
@@ -888,8 +920,9 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         but it is still held to the ticker quotas before any cut is built (no audit row: nothing is granted yet)."""
         with store.tx() as c:
             row = admit(c, caller)
-            take(c, row['subscriber_id'], quota.check(limits_of(c, caller, row), store.usage(c, row['subscriber_id']),
-                                                      ticker=ticker))
+            take(c, row['subscriber_id'], quota.check(limits_of(c, caller, row),
+                                                      store.usage(c, row['subscriber_id'], **meter(caller)),
+                                                      ticker=ticker), caller)
 
     def file_answer(y, f, ttl):
         return {'year': y, 'url': bucket.presign(f['key'], ttl), 'sha256': f['sha256'], 'bytes': f['bytes'],
@@ -1148,13 +1181,13 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             row = admit(c, caller)
             sid = row['subscriber_id']
             limits = limits_of(c, caller, row)
-            take(c, sid, quota.check(limits, store.usage(c, sid), history=1, ticker=ticker))
+            take(c, sid, quota.check(limits, store.usage(c, sid, **meter(caller)), history=1, ticker=ticker), caller)
             rows = fetch(c)
             data = ({n: [r[k] for r in rows] for n, k in zip(cols, rows[0].keys())} if rows
                     else {n: [] for n in cols})
             body = {'ticker': ticker, 'from': lo.isoformat(), 'to': hi.isoformat(), 'columns': cols, **data}
             size = len(json.dumps(body, separators=(',', ':')))
-            take(c, sid, quota.check(limits, store.usage(c, sid), bytes_=size))
+            take(c, sid, quota.check(limits, store.usage(c, sid, **meter(caller)), bytes_=size), caller)
             audit(c, sid, caller, kind, ticker, ip_of(request), bytes_=size)
         return body
 

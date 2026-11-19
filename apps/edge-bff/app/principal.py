@@ -36,10 +36,30 @@ The two websites (EXEC-MU-ACCOUNTS "Production environment", user decisions 2026
   the Monitor (AI, decision D1) and admin tabs, the admin rights of rights.py, every item at the lab stage), whatever its
   plan grants, '*' included; `auth.need` of a beta-only capability answers 404 NOT_FOUND there, as for a route the site
   does not have. The second factor is decided by the account's own grants, so user #1 still needs it on the live site.
+
+Guests (track guest, decision 1 of 2026-11-19, the user: "1a - bukan hanya chart, nanti ada indikator dll yg juga
+mungkin di show ke user. jadi design harus plug and play dan fluid"; verification/edge_multiuser/fix_round/guest.md):
+- a visitor without a session (no cookie, or one that resolves to no session) on a site with guests on
+  (Settings.guests: the live site unless EDGE_GUESTS=false; never with EDGE_MULTIUSER off) is the guest principal: the
+  grants of the one plan marked for_guests (edge_bff.plans, migration 20261119_070), read on every request through
+  read_grants as every plan's are (guest_principal), so a change of its rows changes what visitors see without code;
+- it exists only for the routes that ask for it (`auth.need(capability, guests=True)`, `auth.visitor`): the Terminal's
+  data relay and the catalogs the Terminal reads. Every other route keeps answering 401 UNAUTHENTICATED, so the page
+  goes to sign-in;
+- it never holds everything, the admin access, an admin right or a beta-only capability, whatever the plan's rows say
+  (fail closed, logged guest_capability_dropped); its owner key is GUEST_OWNER for every visitor (terminal-api's one
+  guest owner row), and `client` names the visitor: an HMAC of its client address (guest_client), which terminal-api
+  counts its quotas by (x-terminal-client). The address is the right-most X-Forwarded-For entry, the hop Railway's
+  edge adds to every request it forwards (client_of); without a readable address (no header or not an IP address; the
+  socket peer only on a developer machine, EDGE_ENVIRONMENT=local) there is no guest principal: 401 (fail closed);
+- a guest writes without CSRF: it has no session a cross-site page could ride, and the Origin check of every write
+  (main.py protections) still holds.
 """
 import asyncio
 import dataclasses
 import hashlib
+import hmac
+import ipaddress
 import json
 import logging
 import re
@@ -49,7 +69,7 @@ from datetime import datetime
 
 from fastapi import Depends, Request
 
-from .accounts import OWNER_KEY, AccountStore
+from .accounts import GUEST_OWNER, OWNER_KEY, AccountStore
 from .config import LIVE
 from .errors import Refusal, capability_required, plan_expired, set_display_names
 from . import releases
@@ -72,6 +92,10 @@ ITEM_KEYS = frozenset({'ids', 'stages', 'all'})
 # beta-only keys are those of these tabs, the admin rights rights.py grants (ADMIN_RIGHTS) and the lab-stage items.
 BETA_ONLY_TABS = frozenset({'monitor', 'admin'})
 ADMIN_RIGHT_CAPABILITIES = frozenset(RIGHT_CAPABILITIES.values())
+# Track guest (module docstring): the one owner key of every visitor (never an account's, which are u_<hex>; config.py
+# refuses it for EDGE_OWNER and EDGE_ADMIN_OWNERS), and the role and status a guest principal names (it has no account)
+VISITOR = 'visitor'
+GUEST_CLIENT_LABEL = b'edge_bff.guest_client\x00'
 
 
 def beta_only(key):
@@ -175,6 +199,9 @@ class Principal:
     expired_kinds: dict = field(default_factory=dict, hash=False, compare=False, repr=False)
     # the live site's view (live_view): no beta-only capability is held, whatever the grants say
     live: bool = False
+    # track guest: a visitor without an account (guest_principal) and its visitor key, an HMAC of its client address
+    guest: bool = False
+    client: str = field(default='', repr=False)
 
     def can(self, capability):
         """'*' holds everything; a flag key is held when granted; '<family>:<id>' by the family's items value (its ids,
@@ -275,6 +302,51 @@ def live_view(p, flags=()):
                                version='db-' + hashlib.sha256(raw).hexdigest()[:12])
 
 
+def client_of(request, local=False):
+    """The visitor's client address: the right-most X-Forwarded-For entry, the hop Railway's edge adds to every request
+    it forwards from the internet (a hop a client wrote itself stays to its left), when it is an IP address; on a
+    developer machine (`local`, EDGE_ENVIRONMENT=local), with no such header, the socket peer. None otherwise: a request
+    that did not pass the edge, or a header that is not an address, gets no guest principal (fail closed)."""
+    forwarded = request.headers.get('x-forwarded-for')
+    if forwarded is not None:
+        candidate = forwarded.split(',')[-1].strip()
+    elif local and request.client:
+        candidate = request.client.host
+    else:
+        return None
+    try:
+        return str(ipaddress.ip_address(candidate))
+    except ValueError:
+        return None
+
+
+def guest_client(secret, address):
+    """The visitor key of a client address: 32 hex of an HMAC with EDGE_SESSION_SECRET under its own label (never the
+    address itself, and no other HMAC of the same secret, such as the throttle's or CSRF's, can equal it)."""
+    return hmac.new(secret.encode(), GUEST_CLIENT_LABEL + address.encode(), hashlib.sha256).hexdigest()[:32]
+
+
+# what a visitor never holds, whatever the guest plan's rows say (module docstring)
+GUEST_NEVER = frozenset({EVERYTHING, ADMIN_ACCESS}) | ADMIN_RIGHT_CAPABILITIES
+
+
+def guest_principal(row, client):
+    """The guest principal from the guest plan's row ({plan_key, grants {key: {kind, value}}, versions}; accounts.py
+    guest_plan) and the visitor key: the plan's grants read as every plan's are (read_grants), without GUEST_NEVER and
+    the beta-only keys (dropped and logged), and `live` set so no beta-only item is held either."""
+    grants, kinds = read_grants(row.get('grants'))
+    for key in sorted(k for k in grants if k in GUEST_NEVER or beta_only(k)):
+        logger.warning(json.dumps({'event': 'guest_capability_dropped', 'capability': key}))
+        grants.pop(key)
+        kinds.pop(key)
+    capabilities = frozenset(k for k, kind in kinds.items() if kind == 'flag' and grants[k] is True)
+    limits = {k: grants[k] for k, kind in kinds.items() if kind in ('limit', 'list')}
+    return Principal(user_id=None, owner_key=GUEST_OWNER, username=None, role=VISITOR, plan_key=row.get('plan_key'),
+                     status=VISITOR, expires_at=None, mfa_ok=True, capabilities=capabilities, limits=limits,
+                     version=version_of(row.get('plan_key'), VISITOR, grants, row.get('versions') or {}),
+                     grants=grants, kinds=kinds, live=True, guest=True, client=client)
+
+
 def role_needs_mfa(capabilities):
     """Switch on: an account whose resolved capabilities hold everything or the admin access passes the second factor
     before any other route (CONTRACT.md 8a: derived from the catalog, no longer from the role)."""
@@ -318,7 +390,9 @@ class Auth:
         # named session and write as before Phase 1 (tests read the dependency names)
         cookie = cookie_name(SESSION_COOKIE, settings.secure_cookie)
 
-        async def session(request: Request):
+        async def signed_in(request: Request):
+            """The principal of the request's session, or None when it has none (the caller answers 401, or the
+            guest routes make a guest principal); a session that still waits for the second factor is refused here."""
             token = request.cookies.get(cookie, '')
             if not token and cookie != SESSION_COOKIE and not settings.multiuser:
                 # re-check R2-22: the configured owner's session from before the __Host- name, read once under the old
@@ -327,7 +401,7 @@ class Auth:
                 token = request.cookies.get(SESSION_COOKIE, '')
             found = await self.resolve(token)
             if found is None:
-                raise Refusal(401, 'UNAUTHENTICATED')
+                return None
             # the refusals below carry the principal's X-Edge-Entitlements too (main.py protections), so a page whose
             # account now needs the second factor reads its session again (re-check R2-31)
             request.state.principal = found
@@ -341,13 +415,40 @@ class Auth:
             request.state.owner, request.state.principal = found.owner_key, found
             return found
 
-        async def write(request: Request, p: Principal = Depends(session)):
+        async def session(request: Request):
+            found = await signed_in(request)
+            if found is None:
+                raise Refusal(401, 'UNAUTHENTICATED')
+            return found
+
+        def check_csrf(request, p):
             if not same_ascii(request.headers.get('x-csrf-token', ''), csrf_token(p.token, settings.session_secret)):
                 # the only place that answers CSRF_INVALID (the clients re-read the session and retry once on it)
                 raise Refusal(403, 'CSRF_INVALID')
+
+        async def write(request: Request, p: Principal = Depends(session)):
+            check_csrf(request, p)
+            return p
+
+        # track guest (module docstring): the session's principal, else the guest principal, else 401; a guest writes
+        # without CSRF (no session to ride; the Origin check of every write holds)
+        async def visitor(request: Request):
+            found = await signed_in(request)
+            if found is not None:
+                return found
+            guest = await self.guest(request)
+            if guest is None:
+                raise Refusal(401, 'UNAUTHENTICATED')
+            request.state.owner, request.state.principal = guest.owner_key, guest
+            return guest
+
+        async def visitor_write(request: Request, p: Principal = Depends(visitor)):
+            if not p.guest:
+                check_csrf(request, p)
             return p
 
         self.principal, self.writer = session, write
+        self.visitor, self.visitor_writer = visitor, visitor_write
 
     def seed_user(self):
         """User #1 from the configuration (accounts.py seed; blocking, a thread): owner_key EDGE_OWNER, the username
@@ -401,6 +502,21 @@ class Auth:
         row = await asyncio.to_thread(self.accounts.resolve, hashed, self.settings.session_idle_seconds)
         return self.site_view(account_principal(row, token)) if row else None
 
+    async def guest(self, request):
+        """The guest principal of a request without a session (module docstring), or None: guests are off on this site
+        (Settings.guests), the client address cannot be read (client_of, fail closed), or no plan is marked for guests
+        (logged guest_plan_missing; a value that cannot be read never widens access)."""
+        if not self.settings.guests:
+            return None
+        address = client_of(request, self.settings.environment == 'local')
+        if address is None:
+            return None
+        row = await asyncio.to_thread(self.accounts.guest_plan)
+        if row is None:
+            logger.warning(json.dumps({'event': 'guest_plan_missing'}))
+            return None
+        return self.site_view(guest_principal(row, guest_client(self.settings.session_secret, address)))
+
     def site_view(self, p):
         """The principal as this site serves it: live_view on the live site, else as it is."""
         return live_view(p, self.flags) if self.settings.site == LIVE else p
@@ -410,20 +526,23 @@ class Auth:
         dispatches a queued job). Switch on: an owner with no active account has no capability. Blocking (a thread)."""
         return self.site_view(owner_principal(self.settings, self.accounts, owner_key))
 
-    def need(self, capability, write=False):
+    def need(self, capability, write=False, guests=False):
         """A dependency: the principal (with CSRF when write) holding the capability, else 403 CAPABILITY_REQUIRED (or
         PLAN_EXPIRED when only the account's ended plan held it). On the live site a beta-only capability (the Monitor,
-        the admin routes) answers 404 NOT_FOUND before the session is read: the route is not one the site has."""
-        key = ('need', capability, write)
-        if key not in self._needs and self.settings.site == LIVE and beta_only(capability):
+        the admin routes) answers 404 NOT_FOUND before the session is read: the route is not one the site has. Track
+        guest: `guests` makes the route one a visitor reaches (auth.visitor: the guest principal without a session);
+        only the Terminal's data relay asks for it (tests/test_route_table.py GUEST_OPEN)."""
+        key = ('need', capability, write) + (('guests',) if guests else ())
+        if guests:
+            base = self.visitor_writer if write else self.visitor
+        else:
             base = self.writer if write else self.principal
+        if key not in self._needs and self.settings.site == LIVE and beta_only(capability):
 
             async def absent(_: None = Depends(not_on_this_site), p: Principal = Depends(base)):
                 return p                                      # never reached: not_on_this_site refuses first
             self._needs[key] = absent
         if key not in self._needs:
-            base = self.writer if write else self.principal
-
             async def check(p: Principal = Depends(base)):
                 if not p.can(capability):
                     try:

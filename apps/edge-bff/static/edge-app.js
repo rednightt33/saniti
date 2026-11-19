@@ -356,8 +356,20 @@ addEventListener("message", e => {
     if (!frames.includes(e.source) || !["terminal", "backtest", "screener", "radar", "overview", "watchlist"].includes(e.data.route)) return;
     shellGo(e.data.route);
 });
-function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) {
+function Shell({ route, go, children, chart = false, mobilePanelOpen = false, guest = false }) {
     const viewRecord = currentView;
+    // track guest (decision 1 of 2026-11-19): the box the Terminal asks for when the principal does not hold a ticker, an
+    // indicator or a feature it chose ({type:"locked", kind, id, name} from its frame, this origin only): sign in for a
+    // visitor without an account (guest), upgrade for an account (LockedDialog)
+    const locked = initialValue(viewRecord, "locked", () => null), setLocked = next => updateValue(viewRecord, "locked", next);
+    onLifecycle(viewRecord, "locked-box", () => {
+        const onMsg = e => { const frame = document.querySelector(".terminal-page iframe.terminal-frame");
+            if (e.origin !== location.origin || !frame || e.source !== frame.contentWindow || e.data?.source !== "terminal" || e.data.type !== "locked") return;
+            const name = typeof e.data.name === "string" ? e.data.name.slice(0, 120) : "", id = typeof e.data.id === "string" ? e.data.id.slice(0, 64) : "";
+            setLocked({kind: String(e.data.kind || ""), id, name: name || id}); };
+        addEventListener("message", onMsg);
+        return () => removeEventListener("message", onMsg);
+    }, []);
     const { theme, toggle } = themeState;
     const accountOpen = initialValue(viewRecord, "accountOpen", () => ((() => { const seed = false; return typeof seed === "function" ? seed() : seed; })())), setAccountOpen = next => updateValue(viewRecord, "accountOpen", next);
     const accountView = initialValue(viewRecord, "accountView", () => ((() => { const seed = null; return typeof seed === "function" ? seed() : seed; })())), setAccountView = next => updateValue(viewRecord, "accountView", next);
@@ -440,6 +452,7 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
                 element(IconButton, { icon: "help", title: "Support unavailable", disabled: true, buttonRef: supportRef }),
                 element(IconButton, { icon: "theme", onClick: toggle, title: `Switch to ${theme === "dark" ? "light" : "dark"} theme` }),
                 element(IconButton, { icon: "settings", selected: settingsOpen, onClick: () => setSettingsOpen(true), title: "Settings", buttonRef: settingsRef }),
+                guest ? element(Button, { kind: "primary", onClick: () => go("/login") }, EdgeLabels.auth.login.signInTop) :
                 element("button", { ref: avatarRef, className: `avatar ${accountOpen ? "open" : ""}`, onClick: () => setAccountOpen(!accountOpen), "aria-label": "Account menu", "aria-haspopup": "menu", "aria-expanded": accountOpen }, "E"),
                 accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openSecurity: accountsOn ? () => setSecurityOpen(true) : null, openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } }))),
         /* EXEC-NAV-LEFT (user 2026-11-09: "kita akan pindahkan 4 tersebut ke kiri", menu A: icons only, the name in the
@@ -458,12 +471,14 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
                 element("button", { type: "button", "data-tip": theme === "dark" ? "Light theme" : "Dark theme", "aria-label": `Switch to ${theme === "dark" ? "light" : "dark"} theme`, onClick: toggle }, element(Icon, { name: "theme", size: 20 })),
                 element("button", { type: "button", ref: settingsRef, "data-tip": "Settings", "aria-label": "Settings", className: settingsOpen ? "active" : "", onClick: () => setSettingsOpen(true) }, element(Icon, { name: "settings", size: 20 })),
                 element("span", { className: "side-account" },
+                    guest ? element("button", { type: "button", className: "avatar side-signin", "data-tip": EdgeLabels.auth.login.signInTop, "aria-label": EdgeLabels.auth.login.signInTop, onClick: () => go("/login") }, element(Icon, { name: "user" })) :
                     element("button", { ref: avatarRef, className: `avatar ${accountOpen ? "open" : ""}`, "data-tip": accountOpen ? undefined : "Account", onClick: () => setAccountOpen(!accountOpen), "aria-label": "Account menu", "aria-haspopup": "menu", "aria-expanded": accountOpen }, "E"),
                     accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openSecurity: accountsOn ? () => setSecurityOpen(true) : null, openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } })))),
         children,
         false && element(AccountDialog, { view: accountView, setView: setAccountView, close: () => setAccountView(null), returnFocusRef: avatarRef }),
         settingsOpen && element(SettingsDialog, { close: () => setSettingsOpen(false), notify: notify, returnFocusRef: settingsRef }),
         securityOpen && element(SecurityDialog, { close: () => setSecurityOpen(false), returnFocusRef: avatarRef, signedOut: () => { setSecurityOpen(false); go("/login"); } }),
+        locked && element(LockedDialog, { item: locked, guest, go, close: () => setLocked(null) }),
         edgeTableDialog && element(TableDialog, { key: "edge-table-dialog", spec: edgeTableDialog }),
         false && element(SupportDialog, { route: route, close: () => setSupportOpen(false), returnFocusRef: supportRef }),
         false && element(GlobalMarketSearch, { go: go, close: () => setGlobalSearchOpen(false) }),
@@ -542,6 +557,33 @@ function DialogShell({ title, description, close, children, className = "", retu
                     element("small", { id: "dialog-description" }, description)),
                 element(IconButton, { icon: "close", title: "Close", onClick: close })),
             children));
+}
+// track guest (decision 1 of 2026-11-19; words EdgeLabels.locked; the look the design system's dialog, the shell's
+// DialogShell): a visitor without an account is asked to sign in (or to create an account while registration is open,
+// GET /api/v1/auth/config), an account is told the item is not in its plan, upgrading is coming soon (D7 "segera hadir")
+// and the contact of EDGE_UPGRADE_CONTACT, shown as text, or that it comes soon
+function LockedDialog({ item, guest, go, close }) {
+    const v = currentView, L = EdgeLabels.locked, A = EdgeLabels.access;
+    const config = initialValue(v, "config", () => null);
+    onLifecycle(v, "config", () => { let live = true; Edge.config().then(c => { if (live) updateValue(v, "config", c); }); return () => { live = false; }; }, []);
+    const name = (item.kind === "feature" && L.features[item.id]) || item.name || item.id;
+    const title = (guest ? L.guestTitle : L.upgradeTitle).replace("{name}", name);
+    const open = config?.registration === true;
+    // the dialog's first focus is its main button (DialogShell focuses [data-dialog-initial-focus])
+    const primary = (text, onClick) => element("button", { type: "button", className: "btn primary", "data-dialog-initial-focus": true, onClick },
+        " ", element("span", { className: "btn-label" }, text));
+    if (guest) return element(DialogShell, { title, description: open ? L.guestLead : L.guestLeadClosed, close, className: "locked-dialog" },
+        element("div", { className: "locked-actions" },
+            open && element(Button, { onClick: () => { close(); go("/register"); } }, L.register),
+            primary(L.signIn, () => { close(); go("/login"); })));
+    const contact = config?.upgradeContact || null;
+    return element(DialogShell, { title, description: L.upgradeLead, close, className: "locked-dialog" },
+        element("div", { className: "locked-body" },
+            element("span", { className: "pill locked-soon" }, A.comingSoon),
+            contact ? element("p", { className: "locked-contact" }, L.contact, " ", element("strong", null, contact))
+                : element("p", { className: "locked-contact" }, L.contactSoon)),
+        element("div", { className: "locked-actions" },
+            primary(L.close, close)));
 }
 function SettingsDialog({close,returnFocusRef}) {
  return element(DialogShell,{title:"Appearance",description:"Preferences for this browser",close,returnFocusRef},element(Button,{onClick:themeState.toggle},"Switch theme"));
@@ -647,6 +689,8 @@ function AuthShell({title, lead, children, go}) {
 const authLink = (go, to, text) => element("a", {href:to, className:"auth-link", onClick:e => { e.preventDefault(); go(to); }}, text);
 function AuthPage({go, mode = "login"}) {
   const L = EdgeLabels.auth;
+  if (mode === "closed") return element(AuthShell, {go, title:L.closed.title, lead:L.closed.lead},
+    element("p", {className:"auth-switch"}, authLink(go, "/terminal", L.closed.terminal), " · ", authLink(go, "/login", L.closed.back)));
   if (mode === "register") return element(RegisterForm, {go, L});
   if (mode === "verify") return element(CodeForm, {go, L});
   if (mode === "forgot") return element(ForgotForm, {go, L});
@@ -656,7 +700,10 @@ function AuthPage({go, mode = "login"}) {
 }
 function LoginForm({go, L}) {
  const v=currentView,login=initialValue(v,"login",()=>""),password=initialValue(v,"password",()=>""),busy=initialValue(v,"busy",()=>false),error=initialValue(v,"error",()=>""),open=initialValue(v,"open",()=>false),hint=initialValue(v,"hint",()=>false);
- onLifecycle(v,"config",()=>{let live=true;Edge.config().then(c=>{if(live)updateValue(v,"open",c.multiuser);});return()=>{live=false;};},[]);
+ // track guest: "Create account" only while registration is open (not in the pre-launch mode), "Forgot password?" with
+ // accounts on, and the Terminal without an account where the site has guests
+ const registration=initialValue(v,"registration",()=>false),guests=initialValue(v,"guests",()=>false);
+ onLifecycle(v,"config",()=>{let live=true;Edge.config().then(c=>{if(live){updateValue(v,"open",c.multiuser);updateValue(v,"registration",c.registration===true);updateValue(v,"guests",c.guests===true);}});return()=>{live=false;};},[]);
  const notice=authFlow.notice;
  const submit=async e=>{e.preventDefault();if(busy)return;updateValue(v,"busy",true);updateValue(v,"error","");authFlow.notice="";
   try{await Edge.signin(login,password);updateValue(v,"password","");go(landing());}
@@ -677,7 +724,8 @@ function LoginForm({go, L}) {
    error&&element("p",{className:"auth-error",role:"alert"},error),
    error&&hint&&open&&element("p",{className:"auth-note"},L.login.justRegistered," ",authLink(go,"/verify",L.login.verifyLink),"."),
    element(Button,{kind:"primary",type:"submit",disabled:busy},busy?L.login.busy:L.login.submit)),
-  open&&element("p",{className:"auth-switch"},L.login.noAccount," ",authLink(go,"/register",L.login.create)));
+  registration&&element("p",{className:"auth-switch"},L.login.noAccount," ",authLink(go,"/register",L.login.create)),
+  guests&&element("p",{className:"auth-switch"},authLink(go,"/terminal",L.login.guest)));
 }
 function RegisterForm({go, L}) {
   const v = currentView, R = L.register, f = initialValue(v, "f", () => ({username:"", first_name:"", last_name:"", email:"", phone:"", password:"", password_repeat:""}));
@@ -874,8 +922,8 @@ const conversationGroup = (iso) => { const days = Math.floor((Date.now() - new D
 // EXEC-TERMINAL-API T3/T5: the terminal is its own page (/terminal-app/, built from apps/edge-bff/terminal) shown in a
 // same-origin frame under the EDGE top bar, so its stylesheet and EDGE's never mix; its data comes through
 // /api/terminal/... with this EDGE session.
-function TerminalPage({ go }) {
-    return element(Shell, { route: "terminal", go: go, chart: true },
+function TerminalPage({ go, guest = false }) {
+    return element(Shell, { route: "terminal", go: go, chart: true, guest },
         element("main", { className: "terminal-page" },
             element("iframe", { className: "terminal-frame", src: "/terminal-app/?in=edge", title: EdgeLabels.terminal.frameTitle })));
 }
@@ -2641,7 +2689,10 @@ function App() {
     const viewRecord = currentView;
     const currentPath = () => { const p = routeLocation().pathname; return p.startsWith("/c/") ? "/monitor" : routeOf(p)?.path === p ? p : p === "/markets" ? "/monitor" : "/login"; };
     const authenticated=initialValue(viewRecord,"authenticated",()=>false),checked=initialValue(viewRecord,"checked",()=>false),open=initialValue(viewRecord,"open",()=>false);
-    onLifecycle(viewRecord,"config",()=>{let live=true;Edge.config().then(c=>{if(live)updateValue(viewRecord,"open",c.multiuser);});return()=>{live=false;};},[]);
+    // track guest: the pre-launch mode closes the register and verify pages (they say registration opens soon), and a
+    // visitor without an account opens the Terminal where the site has guests (GET /api/v1/auth/config)
+    const prelaunch=initialValue(viewRecord,"prelaunch",()=>false),guests=initialValue(viewRecord,"guests",()=>false);
+    onLifecycle(viewRecord,"config",()=>{let live=true;Edge.config().then(c=>{if(live){updateValue(viewRecord,"open",c.multiuser);updateValue(viewRecord,"prelaunch",c.prelaunch===true);updateValue(viewRecord,"guests",c.guests===true);}});return()=>{live=false;};},[]);
     onLifecycle(viewRecord,"auth",()=>{const sync=()=>{updateValue(viewRecord,"authenticated",Boolean(Edge.auth));updateValue(viewRecord,"accessVersion",Edge.auth?.access?.version ?? null);};addEventListener("edge-auth",sync);Edge.session().then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
     const path = initialValue(viewRecord, "path", currentPath), setPath = next => updateValue(viewRecord, "path", next);
     // which account page shows, or null for a workspace page: a session that waits for the authenticator (access.next
@@ -2652,6 +2703,7 @@ function App() {
         if (authenticated) return null;
         if (!r || r.auth !== false) return "login";
         if (r.open && !open) return "login";
+        if (prelaunch && (r.mode === "register" || r.mode === "verify")) return "closed";
         return r.mode; };
     const theme = initialValue(viewRecord, "theme", () => localStorage.getItem("edge-auth-monitor-theme") || "light"), setTheme = next => updateValue(viewRecord, "theme", next);
     onLifecycle(viewRecord, "navigation", () => {
@@ -2666,8 +2718,9 @@ function App() {
     // EXEC-TERMINAL-IND-EDIT (user 2026-11-05): the browser tab names the page; the words are in edge-labels.js (pages)
     onLifecycle(viewRecord, "title", () => {
         const P = EdgeLabels.pages, r = routeOf(path), m = authMode();
-        document.title = !checked ? P.loading : !authenticated || r?.auth === false ? P[m === "login" ? "signIn" : m] || P.signIn : P[r?.title] || P.monitor;
-    }, [checked, authenticated, path, open]);
+        document.title = !checked ? P.loading : !authenticated && guests && path === "/terminal" ? P.terminal
+            : !authenticated || r?.auth === false ? P[m === "login" ? "signIn" : m] || P.signIn : P[r?.title] || P.monitor;
+    }, [checked, authenticated, path, open, guests, prelaunch]);
     const go = route => {
         const target = routeOf(route);
         if (!target) return;
@@ -2685,6 +2738,9 @@ function App() {
     themeState = { theme, toggle };
     shellGo = go;                                     // the edge-nav listener (below nav) switches pages with it
     if (!checked) return element("div",{className:"auth-page"},"Checking session…");
+    // track guest: a visitor without an account on the Terminal page, where the site has guests; every other page asks
+    // to sign in (its routes answer 401 without a session)
+    if (!authenticated && guests && path === "/terminal") return element(TerminalPage,{go,guest:true});
     const mode = authMode();
     if (!authenticated || mode !== null) return element(AuthPage,{mode:mode || "login",go,key:mode || "login"});
     // signed in on an account page (a reload at /login): the account's landing page (re-check R2-14)

@@ -14,7 +14,12 @@
      clearUserState() removes the `user` ones on sign-out and when another login signs in on this browser (M473).
      tests/test_storage_registry.py fails on a key found in the code that is not classed here;
    - what the account holds (Phase 2, contract 8a): access(), can(key) and limit(key) mirror the server from the session
-     answer's `access`; catalog(kind) reads GET /api/v1/catalog/{kind}, kept in memory only (no storage key).
+     answer's `access`; catalog(kind) reads GET /api/v1/catalog/{kind}, kept in memory only (no storage key);
+   - the guest (track guest, decision 1 of 2026-11-19 "1a"): a page that a visitor without an account may open (the
+     Terminal) calls allowGuest(); its session read then answers a 401 with GET /api/v1/auth/guest, the guest plan's
+     access (`guest` true, no login, no CSRF token), and access(), can(), limit() and catalog() read it like an account's.
+     A visitor is never a user of this browser's storage: no last-login mark, no clean-up; a visitor who signs in, or an
+     account whose session ended, reloads the page as the other.
 
    No figure, no market data and no wording of the pages lives here; the messages below are only the fallbacks for the
    session refusals when the server sends none (the server's own `message` is shown first). */
@@ -362,7 +367,11 @@ export function accessText(e: EdgeError): string | null {
 export const SESSION_URL = '/api/v1/auth/session';
 export const ENTITLEMENTS_HEADER = 'X-Edge-Entitlements';
 
-export interface EdgeSessionInfo { login: string; ownerKey: string | null; csrf: string; access: unknown; raw: any }
+export interface EdgeSessionInfo { login: string; ownerKey: string | null; csrf: string; access: unknown; raw: any; guest?: boolean }
+/* track guest: what a visitor without an account holds (app/main.py GET /api/v1/auth/guest), and the identity of such a
+   page (never a login or an owner key: identityOf makes neither) */
+export const GUEST_URL = '/api/v1/auth/guest';
+export const GUEST_IDENTITY = 'guest:';
 
 /* EXEC-MU-ACCOUNTS Phase 2 (contract sections 4 and 8a): the session answer's `access` object. `capabilities` holds the
    flag keys the account holds (`*`: every capability, the admin plan and the switch-off principal, version 'env');
@@ -487,12 +496,31 @@ export function sessionClient(fetchImpl?: typeof fetch) {
   const invalidate = () => { p = null; now = null; dropCatalogs() };
   clients.add(invalidate); listen();
   resets.add(dropCatalogs); memoryClears.add(dropCatalogs);
+  /* track guest: whether this page may run as a visitor without an account (allowGuest), and the guest plan's answer of
+     GET /api/v1/auth/guest, or null (guests off on this site, no readable client address, or a session after all) */
+  let guests = false;
+  async function guestRead(): Promise<EdgeSessionInfo | null> {
+    let res: Response;
+    try { res = await f(GUEST_URL, { credentials:'same-origin' }) } catch { return null }
+    const d: any = await res.json().catch(() => null);
+    if (!res.ok || d?.visitor !== true) return null;
+    noteVersion(res);
+    return { login:'', ownerKey:null, csrf:'', access:d?.access ?? null, raw:d, guest:true };
+  }
   const session = (): Promise<EdgeSessionInfo> => p ||= (async () => {
     let res: Response;
     try { res = await f(SESSION_URL, { credentials:'same-origin' }) }
     catch { throw new SessionError(null, 'EDGE could not be reached. Check the connection and try again.') }
     if (!res.ok) {
       const e = await errorOf(res);
+      const visitor = res.status === 401 && guests ? await guestRead() : null;
+      if (visitor) {
+        // an account whose session ended on this page: the page's memory is that account's, so it reloads as a visitor
+        if (identity && identity !== GUEST_IDENTITY) { fireResets(); reloadPage() }
+        if (!identity) identity = GUEST_IDENTITY;
+        now = visitor;
+        return visitor;
+      }
       if (res.status === 401) saySignedOut();
       throw new SessionError(e, accessText(e) || `EDGE answered ${res.status}.`);
     }
@@ -504,6 +532,14 @@ export function sessionClient(fetchImpl?: typeof fetch) {
     const id = identityOf(s.login, s.ownerKey);
     // the same account, now named by its owner key (a deploy between two reads): the identity moves with it
     if (identity && id !== identity && s.ownerKey && identity === norm(s.login)) { migrateIdentity(identity, id); identity = id }
+    if (identity === GUEST_IDENTITY) {
+      // a visitor of this page signed in (another tab, the sign-in box): a visitor holds nothing of an account, so
+      // nothing is cleared; the page reloads as the account (its own state, preferences and limits)
+      fireResets();
+      reloadPage();
+      const e = readError(401, { error:{ code:'USER_CHANGED', message:'You signed in to EDGE. Reload the page to continue with your account.' } });
+      throw new SessionError(e, e.message);
+    }
     if (identity && id !== identity) {
       // another account signed in on this browser since the page opened: never act for it with this page's state
       fireResets();
@@ -607,6 +643,10 @@ export function sessionClient(fetchImpl?: typeof fetch) {
   }
 
   return { session, send, invalidate, access, can, limit, catalog, get current() { return now },
+    /** track guest: this page may run as a visitor without an account (the Terminal); call before the first read */
+    allowGuest() { guests = true },
+    /** track guest: the session read is a visitor's (the guest plan's access), not an account's */
+    get guest() { return !!now?.guest },
     /** the identity this page opened with ('' before its first session read): owner:<owner key>, else the login */
     get identity() { return identity },
     /** the shell only, on its own sign-out or sign-in: the next session read is a new identity, not a change of user */
