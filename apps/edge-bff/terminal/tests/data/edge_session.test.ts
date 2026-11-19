@@ -128,14 +128,15 @@ describe('the session and CSRF (M471)', () => {
 
 describe('the storage registry and the clean-up (M473)', () => {
   it('classes the keys and clears only the user ones, keeping the theme and widths', async () => {
-    for (const k of ['edge-auth-monitor-theme', 'edge-monitor-width', 'ml.stats.w', 'scr.panes', 'edge.watchlist.logos']) local.setItem(k, '1');
-    for (const k of ['edge-model-choice', 'ml.symbol', 'ml.layout.active', 'ml.drawings.BBRI', 'ml.ind.v1', 'scr.last', 'scr.boot', 'edge.watchlist.view', 'ml.unknown.new']) local.setItem(k, '1');
+    for (const k of ['edge-auth-monitor-theme', 'edge-monitor-width', 'ml.stats.w', 'scr.panes']) local.setItem(k, '1');
+    // edge.watchlist.logos: a reference file's content, the account's since the fix round (re-check R1-17)
+    for (const k of ['edge-model-choice', 'ml.symbol', 'ml.layout.active', 'ml.drawings.BBRI', 'ml.ind.v1', 'scr.last', 'scr.boot', 'edge.watchlist.view', 'edge.watchlist.logos', 'ml.unknown.new']) local.setItem(k, '1');
     session.setItem('edge-side-attach:conv_1', '[]'); session.setItem('edge-details-open', 'true');
     local.setItem(LAST_LOGIN_KEY, 'owner');
     expect(classify('ml.drawings.flow.BBRI')?.kind).toBe('user');
     expect(classify('edge-side-attach:x', 'session')?.kind).toBe('user');
     await clearUserState();
-    expect([...local.m.keys()].sort()).toEqual(['edge-auth-monitor-theme', 'edge-last-login', 'edge-monitor-width', 'edge.watchlist.logos', 'ml.stats.w', 'scr.panes']);
+    expect([...local.m.keys()].sort()).toEqual(['edge-auth-monitor-theme', 'edge-last-login', 'edge-monitor-width', 'ml.stats.w', 'scr.panes']);
     expect([...session.m.keys()]).toEqual(['edge-details-open']);
     expect(deleted).toEqual(['terminal-files']);
     await clearUserState({ signOut:true });
