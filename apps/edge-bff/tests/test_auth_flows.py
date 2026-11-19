@@ -241,10 +241,18 @@ def test_resend_waits_60_seconds_and_sends_at_most_10_a_day(app, store):
     app.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'ana@example.com', 'purpose': 'register'})
     assert len(outbox(store, 'ana@example.com')) == 2
     assert error_code(verify(app, first)) == 'CODE_INVALID_OR_EXPIRED'                    # the new code replaced it
+    # ERRORS R1-13 (fix round): one pending registration is mailed at most 3 times a day (its code and two resends),
+    # so the registrations of others cannot use up the address's emails
     for _ in range(12):
         cooldown_over(store)
         app.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'ana@example.com', 'purpose': 'register'})
-    assert len(outbox(store, 'ana@example.com')) == 10
+    assert len(outbox(store, 'ana@example.com')) == 3
+    # the address's own budget (SEND_EMAIL): 10 a day, here through the reset codes of an account
+    make_account(TestClient(app.app), store, 'bea@example.com', 'bea_sari')
+    for _ in range(12):
+        cooldown_over(store)
+        app.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'bea@example.com', 'purpose': 'reset'})
+    assert len(outbox(store, 'bea@example.com')) == 10
     for body in ({'email': 'nobody@example.com', 'purpose': 'register'}, {'email': 'nobody@example.com', 'purpose': 'reset'}):
         r = app.post('/api/v1/auth/code/resend', headers=ORIGIN, json=body)
         assert (r.status_code, r.json()) == (202, flows_module.ACCEPTED)

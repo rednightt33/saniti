@@ -88,7 +88,7 @@ def test_the_client_address_is_recorded_but_not_enforced(settings, store):
         assert sign_in(c).status_code == 200
     ip = [r for r in rows(store) if r['scope'] == 'signin_ip']
     assert len(ip) >= 1 and sum(r['count'] for r in ip) == 32 > SIGNIN_IP.allowed
-    assert ip[0]['key_hash'] == Throttle(store, settings.session_secret).key_hash('signin_ip', '203.0.113.7')
+    assert ip[0]['key_hash'] == Throttle(store, settings.session_secret).key_hash(SIGNIN_IP, '203.0.113.7')
 
 
 def test_keys_are_stored_only_as_keyed_hashes(settings, store):
@@ -98,9 +98,9 @@ def test_keys_are_stored_only_as_keyed_hashes(settings, store):
     assert {r['scope'] for r in found} == {'signin_email', 'signin_ip'}
     login = [r['key_hash'] for r in found if r['scope'] == 'signin_email'][0]
     throttle = Throttle(store, settings.session_secret)
-    assert login == throttle.key_hash('signin_email', 'someone@example.com')
+    assert login == throttle.key_hash(SIGNIN_LOGIN, ('someone@example.com', 'testclient'))
     assert login != hashlib.sha256(b'someone@example.com').hexdigest()
-    assert login != Throttle(store, 'another-secret-' * 3).key_hash('signin_email', 'someone@example.com')
+    assert login != Throttle(store, 'another-secret-' * 3).key_hash(SIGNIN_LOGIN, ('someone@example.com', 'testclient'))
     with store.connect() as db:
         dump = str(db.execute('SELECT * FROM edge_bff.auth_throttle').fetchall()).lower()
     assert 'someone' not in dump and 'example' not in dump and 'testclient' not in dump
@@ -131,9 +131,9 @@ def test_rows_older_than_two_days_are_purged_with_the_sessions(settings, store):
     throttle.count((SIGNIN_LOGIN, 'fresh'), (SIGNIN_LOGIN, 'old'))
     with store.connect() as db:
         db.execute("UPDATE edge_bff.auth_throttle SET window_start = now() - interval '2 days 1 minute' WHERE key_hash = %s",
-                   (throttle.key_hash('signin_email', 'old'),))
+                   (throttle.key_hash(SIGNIN_LOGIN, 'old'),))
     store.cleanup_sessions()
-    assert [r['key_hash'] for r in rows(store)] == [throttle.key_hash('signin_email', 'fresh')]
+    assert [r['key_hash'] for r in rows(store)] == [throttle.key_hash(SIGNIN_LOGIN, 'fresh')]
 
 
 def test_the_migration_refuses_a_second_run_and_grants_no_truncate(database, store):

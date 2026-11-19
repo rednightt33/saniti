@@ -22,3 +22,28 @@ def test_edge_owner_is_never_a_reserved_owner_key(settings, owner):
     assert reserved_owner(owner) or owner == 'default'
     with pytest.raises(ValueError):
         dataclasses.replace(settings, owner=owner, admin_owners=(owner,)).validate()
+
+
+# ---- fix round (verification/edge_multiuser/fix_round/auth.md, R1-3) ---------------------------------------------------
+# The refuters' correction: the check must not refuse edge-private (the live EDGE_OWNER and the seed's own key, which
+# accounts.reserved_owner also reserves), so it is keyed on Orc's test-owner rule and 'default' only.
+
+@pytest.mark.parametrize('owner', ['edge-private', 'local-test-owner', 'owner-1', 'golden', 'testing-x'])
+def test_an_owner_key_orc_does_not_reserve_still_validates(settings, owner):
+    dataclasses.replace(settings, owner=owner, admin_owners=(owner,)).validate()
+
+
+def test_an_admin_owner_orc_reserves_is_refused_too(settings):
+    with pytest.raises(ValueError, match='EDGE_ADMIN_OWNERS'):
+        dataclasses.replace(settings, admin_owners=(settings.owner, 'golden-suite')).validate()
+
+
+def test_edge_bff_reads_the_same_test_owner_rule_as_market_ai_orc():
+    """One rule in two services (market-ai-orc app/conversations.py TEST_OWNER_RE, edge-bff accounts.ORC_TEST_OWNER):
+    the pattern texts stay the same, so the boundary cannot move in one service only."""
+    import re
+    from pathlib import Path
+    from app.accounts import ORC_TEST_OWNER
+    source = (Path(__file__).resolve().parents[2] / 'market-ai-orc/app/conversations.py').read_text()
+    orc = re.search(r'TEST_OWNER_RE = re\.compile\(r"\^\((.+)\)\$"\)', source).group(1)
+    assert orc == ORC_TEST_OWNER.pattern

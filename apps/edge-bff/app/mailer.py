@@ -55,6 +55,14 @@ def enqueue(c, purpose, to_email, mail, expires_at=None, key=None):
     return row['outbox_id'] if row else None
 
 
+def purge_outbox(c):
+    """ERRORS R2-24 (migration 20261119_012): the sent, failed, expired or suppressed rows older than 24 h of addresses
+    with no row in edge_bff.users (a registration never verified, purged after 24 h as CONTRACT 4 says, or an address
+    never registered), at most 10 000 per call, through edge_bff.purge_email_outbox() (edge_bff_runtime holds no DELETE
+    on the outbox). Returns how many were deleted."""
+    return c.execute('SELECT edge_bff.purge_email_outbox() AS n').fetchone()['n']
+
+
 def masked_address(email):
     local, _, domain = email.partition('@')
     return (local[:1] + '***@' + domain) if domain else '***'

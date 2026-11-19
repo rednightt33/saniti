@@ -6,7 +6,13 @@ CAPABILITY_REQUIRED (403) keeps the session and shows that the feature is not op
 Messages are plain English, like every EDGE interface label (EXEC-UI-1019B, user: "Ok 1 aja"), without internal names
 (AGENTS.md "Gates and evidence" (d): each names what is wrong and how to go on).
 """
+import json
+import logging
+import math
+
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger('edge_bff.errors')
 
 MESSAGES = {
     'UNAUTHENTICATED': 'Your session has ended or you are not signed in. Please sign in again.',
@@ -15,7 +21,8 @@ MESSAGES = {
     'PLAN_EXPIRED': 'Your EDGE plan has ended. Renew it to use this again; you are still signed in.',
     'MFA_REQUIRED': 'This needs your sign-in code. Enter the code from your authenticator app, then try again.',
     'LIMIT_REACHED': "You have reached your plan's limit. Try again later, or upgrade the plan.",
-    'SIGN_IN_RATE_LIMIT': 'Too many sign-in attempts. Wait a minute, then try again.',
+    # {wait}: the refusal's own wait in words (details.retry_after_s; ERRORS R1-9: it said "a minute" for up to 16)
+    'SIGN_IN_RATE_LIMIT': 'Too many sign-in attempts from here. Wait {wait}, then try again.',
     'INVALID_INPUT': 'Some fields are not valid. Check them and try again.',
     'NOT_FOUND': 'The page or item you asked for was not found.',
     'METHOD_NOT_ALLOWED': 'This kind of request is not supported here.',
@@ -100,15 +107,70 @@ class Refusal(Exception):
         super().__init__(code)
 
 
-def message_of(code, status):
+def wait_text(seconds):
+    """A wait in words: 'less than a minute', '16 minutes', '3 hours'; 'a few minutes' when it is not known."""
+    if not isinstance(seconds, (int, float)) or isinstance(seconds, bool) or seconds <= 0:
+        return 'a few minutes'
+    if seconds < 60:
+        return 'less than a minute'
+    minutes = math.ceil(seconds / 60)
+    if minutes < 120:
+        return f'{minutes} minute{"s" if minutes != 1 else ""}'
+    return f'{math.ceil(minutes / 60)} hours'
+
+
+def message_of(code, status, details=None):
     """The code's message; a code without one (a code relayed from another service) gets the message of its status
-    class, so every refusal carries a message."""
-    return MESSAGES.get(code) or MESSAGES['SERVICE_UNAVAILABLE' if status >= 500 else 'REQUEST_REFUSED']
+    class, so every refusal carries a message. A message that holds {wait} says the refusal's own wait
+    (details.retry_after_s)."""
+    text = MESSAGES.get(code) or MESSAGES['SERVICE_UNAVAILABLE' if status >= 500 else 'REQUEST_REFUSED']
+    return text.replace('{wait}', wait_text((details or {}).get('retry_after_s'))) if '{wait}' in text else text
 
 
 def refusal(status, code, details=None, headers=None):
     return JSONResponse(status_code=status, headers=headers, content={'error': {
-        'code': code, 'message': message_of(code, status), 'details': details or {}}})
+        'code': code, 'message': message_of(code, status, details), 'details': details or {}}})
+
+
+def failure_class(e):
+    """What a log line may say about an exception nobody expected: its class, and a database error's SQLSTATE, never
+    its text (a DETAIL line lists a failing row: an email, names, a phone; ERRORS R2-25)."""
+    out = {'error': f'{type(e).__module__}.{type(e).__qualname__}'}
+    sqlstate = getattr(e, 'sqlstate', None)
+    if isinstance(sqlstate, str):
+        out['sqlstate'] = sqlstate
+    return out
+
+
+class UnexpectedErrors:
+    """The outermost middleware of edge-bff (ERRORS R2-25). Starlette's ServerErrorMiddleware answers an unexpected
+    exception with the app's handler and then re-raises it, and uvicorn logs it with its full text. This catches such
+    an exception first: it logs only failure_class (method and path beside it) and answers 503 SERVICE_UNAVAILABLE in
+    the contract's shape when nothing was sent yet. Nothing re-raises, so the server writes nothing."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope['type'] != 'http':
+            await self.app(scope, receive, send)
+            return
+        started = False
+
+        async def sending(message):
+            nonlocal started
+            if message['type'] == 'http.response.start':
+                started = True
+            await send(message)
+        try:
+            await self.app(scope, receive, sending)
+        except Exception as e:                      # noqa: BLE001 - logged by its class only (failure_class)
+            logger.error(json.dumps({'event': 'request_failed', 'method': scope.get('method'), 'path': scope.get('path'),
+                                     **failure_class(e)}))
+            if not started:
+                response = refusal(503, 'SERVICE_UNAVAILABLE', headers={'Cache-Control': 'no-store',
+                                                                        'X-Content-Type-Options': 'nosniff'})
+                await response(scope, receive, send)
 
 
 def capability_required(capability):

@@ -34,6 +34,10 @@ def database():
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261117_004_edge_bff_catalog_phase3a.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261118_001_edge_bff_item_families_from_terminal.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261118_002_edge_bff_terminal_quota.sql').read_text())
+            # the auth fix round of the re-check (verification/edge_multiuser/fix_round/auth.md)
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_010_edge_bff_password_identity.sql').read_text())
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_011_edge_bff_mfa_pending_enrolment.sql').read_text())
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_012_edge_bff_email_outbox_purge.sql').read_text())
             c.execute('CREATE TABLE public.market_private(secret text)')
         yield url
     finally:

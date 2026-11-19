@@ -10,6 +10,7 @@ from psycopg_pool import ConnectionPool
 from psycopg.types.json import Jsonb
 
 from .accounts import purge_pending
+from .mailer import purge_outbox
 from .throttle import purge as purge_throttle
 
 TERMINAL = {'FINISHED', 'FAILED', 'INTERRUPTED'}
@@ -80,6 +81,13 @@ class Store:
             c.execute('SELECT 1 FROM edge_bff.email_hook_events LIMIT 0')
             c.execute('SELECT registration_hash FROM edge_bff.users LIMIT 0')     # 20261117_002
             c.execute('SELECT totp_failures, recovery_failures, totp_locked_until, recovery_locked_until FROM edge_bff.mfa_totp LIMIT 0')
+            # the auth fix round (ERRORS R1-7, R1-16, R2-24, R2-29): the password identity's failure count and both
+            # verifier forms (20261119_010), the waiting MFA enrolment (20261119_011), the outbox purge the hourly
+            # cleanup runs in both modes (20261119_012)
+            c.execute('SELECT sign_in_failures, sign_in_locked_until FROM edge_bff.identities LIMIT 0')
+            c.execute('SELECT pending_nonce, pending_created_at FROM edge_bff.mfa_totp LIMIT 0')
+            c.execute('SELECT pending FROM edge_bff.mfa_recovery_codes LIMIT 0')
+            c.execute("SELECT 'edge_bff.purge_email_outbox()'::regprocedure")
 
     def session_create(self, hashed, owner, seconds):
         with self.connect() as c:
@@ -356,3 +364,7 @@ class Store:
             c.execute('DELETE FROM edge_bff.sessions WHERE expires_at<now() OR revoked_at<now()-interval \'1 day\'')
             purge_throttle(c)   # EXEC-MU-ACCOUNTS Phase 0: throttle rows older than 2 days, at the same hourly cadence
             purge_pending(c)    # EXEC-MU-ACCOUNTS Phase 1: registrations never verified, after 24 h
+        # ERRORS R2-24: then, in a transaction of its own (seeing the registrations purged above), the outbox rows of
+        # addresses left with no account (migration 20261119_012; the only delete of the outbox edge-bff can make)
+        with self.connect() as c:
+            purge_outbox(c)

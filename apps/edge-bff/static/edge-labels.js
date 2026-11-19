@@ -17,7 +17,7 @@ window.EdgeLabels = {
     PLAN_EXPIRED:"Your EDGE plan has ended. Renew it to use this again; you are still signed in.",
     MFA_REQUIRED:"This needs your sign-in code. Enter the code from your authenticator app, then try again.",
     LIMIT_REACHED:"You have reached your plan's limit. Try again later, or upgrade the plan.",
-    SIGN_IN_RATE_LIMIT:"Too many sign-in attempts. Wait a minute, then try again.",
+    SIGN_IN_RATE_LIMIT:"Too many sign-in attempts from here. Wait a few minutes, then try again.",
     // Phase 2 (contract 8a, locked wording, EXEC-UI-1019B): a locked item, an item not released yet, the upgrade prompt,
     // a plan that has ended, and a capability refusal shown as a toast. No page shows them before Phase 3.
     paidPlan:"Available on a paid plan",
@@ -205,7 +205,7 @@ window.EdgeLabels = {
       mismatch:"The two passwords are not the same.", code:"Enter the 6 digits of the code." },
     errors: { INVALID_CREDENTIALS:"The login or the password is not right.", CODE_INVALID_OR_EXPIRED:"That code is not valid or has expired. Send a new one.",
       USERNAME_TAKEN:"That username is taken. Choose another one.",
-      SIGN_IN_RATE_LIMIT:"Too many attempts. Wait a minute, then try again.", LIMIT_REACHED:"Too many attempts today. Try again tomorrow.",
+      SIGN_IN_RATE_LIMIT:"Too many attempts. Wait a few minutes, then try again.", LIMIT_REACHED:"Too many attempts today. Try again tomorrow.",
       INVALID_INPUT:"Check the fields and try again.", MFA_INVALID:"That code is not right. Try the newest code.",
       fallback:"That did not work. Try again in a minute." }
   }

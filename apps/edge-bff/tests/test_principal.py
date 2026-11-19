@@ -74,7 +74,7 @@ def test_settings_owner_is_read_only_by_the_seed_and_the_switch_off_mapping():
 def test_switch_off_the_principal_is_user_one_and_the_session_keeps_todays_keys(settings, store):
     # an EDGE_ADMIN_OWNERS that does not list the configured owner (the conftest settings list it, as production's
     # default): no capability, as rights.py gave before Phase 1
-    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('someone-else',)), store, FakeOrc())) as c:
+    with TestClient(create_app(dataclasses.replace(settings, admin_owners=('another-owner',)), store, FakeOrc())) as c:
         login(c)
         answer = c.get('/api/v1/auth/session').json()
         assert {'authenticated', 'login', 'csrf_token', 'capabilities'} <= set(answer)
@@ -98,11 +98,11 @@ def test_switch_off_the_principal_is_user_one_and_the_session_keeps_todays_keys(
 
 
 def test_switch_off_rights_equal_todays_rights(settings):
-    for admins, rights in [((), []), ((settings.owner,), ['flow_point_in_time']), (('someone-else',), [])]:
+    for admins, rights in [((), []), ((settings.owner,), ['flow_point_in_time']), (('another-owner',), [])]:
         s = dataclasses.replace(settings, admin_owners=admins)
         assert rights_of(switch_off_principal(s, s.owner)) == rights
-    s = dataclasses.replace(settings, admin_owners=('someone-else',))
-    assert rights_of(switch_off_principal(s, 'someone-else')) == ['flow_point_in_time']   # a queued job's admin owner
+    s = dataclasses.replace(settings, admin_owners=('another-owner',))
+    assert rights_of(switch_off_principal(s, 'another-owner')) == ['flow_point_in_time']   # a queued job's admin owner
 
 
 def test_the_seed_is_made_once_across_replicas_and_follows_the_configured_password(settings, store):

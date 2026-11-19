@@ -21,7 +21,7 @@ from .backtest import Backtests
 from . import catalog, terminal_access
 from .client import OrcClient, OrcError, public_data
 from .config import Settings
-from .errors import Refusal, http_refusal, refusal, validation_refusal
+from .errors import Refusal, UnexpectedErrors, http_refusal, refusal, validation_refusal
 from .hooks import is_hook_path
 from .layouts import Layouts
 from .monitor import ModelCatalog, run_refusal, visible as visible_models
@@ -29,14 +29,15 @@ from .auth_flows import AuthFlows
 from .mailer import EmailSender
 from .preferences import Preferences
 from .presets import Presets
-from .accounts import PENDING_CHECKED
+from .accounts import EMAIL_MAX, PENDING_CHECKED
+from .passwords import PasswordWork
 from .principal import Auth, Principal
 from .drawings import Drawings
 from .overview import Overview
 from .watchlist import Watchlist
 from .radar import Radar
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
-from .security import csrf_token, token_hash, verify_password
+from .security import csrf_token, needs_rehash, password_verifier, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
 from .throttle import SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address, normal_login
 from .worker import Worker
@@ -116,7 +117,8 @@ class Strict(BaseModel):
 
 
 class Login(Strict):
-    login: str = Field(min_length=1, max_length=200)
+    # ERRORS R1-14: as long as the longest email an account may have (the login is a username or an email)
+    login: str = Field(min_length=1, max_length=EMAIL_MAX)
     password: str = Field(min_length=1, max_length=1024)
 
 
@@ -240,7 +242,9 @@ def create_app(settings=None, store=None, orc=None):
     preferences = Preferences(store)
     # the email outbox's sender loop and the auth flows (registration, codes, MFA; CONTRACT.md sections 4 and 5)
     sender = EmailSender(settings, store)
-    flows = AuthFlows(settings, store, auth, throttle, sender)
+    # ERRORS R2-37: every password derivation and Pwned Passwords call runs on this pool, apart from the database's
+    password_work = PasswordWork()
+    flows = AuthFlows(settings, store, auth, throttle, sender, password_work=password_work)
     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
     # (a client per request opened a new connection every time)
     terminal_http = {'client': None}
@@ -305,6 +309,7 @@ def create_app(settings=None, store=None, orc=None):
         await overview.aclose()
         await watchlist.aclose()
         await sender.aclose()
+        password_work.close()
 
     app = FastAPI(title='EDGE private gateway', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.worker, app.state.store, app.state.backtests = worker, store, backtests
@@ -380,6 +385,11 @@ def create_app(settings=None, store=None, orc=None):
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard)
         response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else WATCHLIST_CSP if request.url.path.startswith('/watchlist-app/') else SCREENER_CSP if request.url.path.startswith(('/screener-app/', '/radar-app/', '/overview-app/')) else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
         return response
+
+    # ERRORS R2-25: added last, so it is the outermost middleware: an exception no handler expected is answered 503
+    # here and logged by its class and SQLSTATE only, and never reaches Starlette's ServerErrorMiddleware, which
+    # re-raises it to the server, whose log line would carry the exception's text (a failing row's personal data)
+    app.add_middleware(UnexpectedErrors)
 
     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 2): the principal of every request (app/principal.py); auth.principal
     # replaces the session dependency and auth.writer the write (CSRF) one. The route-table test
@@ -660,60 +670,76 @@ def create_app(settings=None, store=None, orc=None):
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):
-        # EXEC-MU-ACCOUNTS Phase 0 (CONTRACT.md section 4 "Throttle"): 10 failures per login in 15 minutes, counted in
-        # PostgreSQL for every login typed (known or not, so a refusal says nothing about the account). The try is
+        # EXEC-MU-ACCOUNTS Phase 0 (CONTRACT.md section 4 "Throttle"): 10 failures per login and client address in 15
+        # minutes, counted in PostgreSQL for every login typed (known or not, so a refusal says nothing about the
+        # account; ERRORS R1-9: keyed by the login alone, anyone who typed it could keep its owner out). The try is
         # decided and counted in one locked step before the password check (C1 H1: a concurrent burst cannot pass the
-        # limit); a success clears the count. The client address is counted on failure but not enforced until
+        # limit); a success clears the count. The client address alone is counted on failure but not enforced until
         # Railway's forwarded address is proved.
-        login_key = normal_login(body.login)
-        wait = await asyncio.to_thread(throttle.attempt, SIGNIN_LOGIN, login_key)
-        if wait:
-            return refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
-        account = restart = None
-        if settings.multiuser:
-            # EXEC-MU-ACCOUNTS Phase 1 (switch on): the active account named by its username or email, its password
-            # identity, and the pending registrations of that address (the newest PENDING_CHECKED). Every sign-in runs
-            # exactly 1 + PENDING_CHECKED password derivations, padded with the configured verifier, whatever the
-            # address holds (ERRORS M478 re-check: the time tells nothing; OWASP Authentication)
-            account = await asyncio.to_thread(auth.accounts.find_login, body.login)
-            pending = list(await asyncio.to_thread(auth.accounts.pending_logins, body.login))[:PENDING_CHECKED]
-            known = await asyncio.to_thread(verify_password, body.password,
-                                            account['verifier'] if account else settings.password_verifier)
-            known = known and account is not None
-            for row in pending + [None] * (PENDING_CHECKED - len(pending)):
-                matched = await asyncio.to_thread(verify_password, body.password,
-                                                  row['verifier'] if row else settings.password_verifier)
-                if matched and row is not None and account is None:
-                    restart = restart or row
-        else:
-            # the password is checked before the login is compared (against the one verifier, so an unknown login runs
-            # the same scrypt as a known one): a wrong login costs the same time as a wrong password
-            password_ok = await asyncio.to_thread(verify_password, body.password, settings.password_verifier)
-            known = hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode()) and password_ok
+        address = client_address(request)
+        login_key = (normal_login(body.login), address)
+        # ERRORS R2-37: the password work of a sign-in runs on its own pool (passwords.PasswordWork), never on the
+        # default executor every database call uses; a request over its limit is answered 503 before any try counts
+        async with password_work.admitted_request():
+            wait = await asyncio.to_thread(throttle.attempt, SIGNIN_LOGIN, login_key)
+            if wait:
+                return refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
+            account = restart = rehash = None
+            if settings.multiuser:
+                # EXEC-MU-ACCOUNTS Phase 1 (switch on): the active account named by its username or email, its
+                # password identity, and the pending registrations of that address (the newest PENDING_CHECKED). Every
+                # sign-in runs exactly 1 + PENDING_CHECKED password derivations, padded with the configured verifier,
+                # whatever the address holds (ERRORS M478 re-check: the time tells nothing; OWASP Authentication)
+                account = await asyncio.to_thread(auth.accounts.find_login, body.login)
+                pending = list(await asyncio.to_thread(auth.accounts.pending_logins, body.login))[:PENDING_CHECKED]
+                # ERRORS R1-16: the account's consecutive failures, decided and counted before the check (a locked
+                # account answers as a wrong password); the same statement runs for a login that names no account
+                checked = await asyncio.to_thread(auth.accounts.sign_in_try, account['user_id'] if account else None)
+                known = await password_work.run(verify_password, body.password,
+                                                account['verifier'] if account else settings.password_verifier)
+                known = known and account is not None and checked
+                for row in pending + [None] * (PENDING_CHECKED - len(pending)):
+                    matched = await password_work.run(verify_password, body.password,
+                                                      row['verifier'] if row else settings.password_verifier)
+                    if matched and row is not None and account is None:
+                        restart = restart or row
+                if known and needs_rehash(account['verifier']):
+                    # ERRORS R2-29: a verifier of the cost before R2-29 is replaced by one at the current cost
+                    rehash = await password_work.run(password_verifier, body.password)
+            else:
+                # the password is checked before the login is compared (against the one verifier, so an unknown login
+                # runs the same scrypt as a known one): a wrong login costs the same time as a wrong password
+                password_ok = await password_work.run(verify_password, body.password, settings.password_verifier)
+                known = hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode()) and password_ok
         if not known:
-            await asyncio.to_thread(throttle.count, (SIGNIN_IP, client_address(request)))
+            await asyncio.to_thread(throttle.count, (SIGNIN_IP, address))
             response = error('INVALID_CREDENTIALS', 401)
             if settings.multiuser:
                 # ERRORS M478 (C1 P1-M1): a pending registration with the right password answers the same 401 (no
                 # enumeration); within the send limits a fresh code is mailed and this browser gets that registration's
                 # cookie, so the person finishes on /verify. Every switch-on 401 sets a registration cookie, so the
                 # answers do not differ by a header either
-                await flows.restart_registration(response, restart, client_address(request), request)
+                await flows.restart_registration(response, restart, address, request)
             return response
-        await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
         old = request.cookies.get(COOKIE)
         if old:
             await asyncio.to_thread(store.revoke, token_hash(old))
         token = secrets.token_hex(32)
         if account is not None:
-            # at most MAX_SESSIONS per account (the oldest revoked); the address only as its HMAC
-            await asyncio.to_thread(auth.accounts.create_session, token_hash(token), account, settings.session_seconds,
-                                    throttle.key_hash(SIGNIN_IP.scope, client_address(request)), False,
-                                    # Phase 2: MFA by the account's resolved capabilities ('*' or admin.access)
-                                    await asyncio.to_thread(auth.needs_mfa, account['owner_key']))
+            # at most MAX_SESSIONS per account (the oldest revoked); the address only as its HMAC. ERRORS R2-9: made
+            # only while the verifier this sign-in proved is still the account's (a reset or change landed during the
+            # check refuses it, as a wrong password)
+            made = await asyncio.to_thread(auth.accounts.create_session, token_hash(token), account,
+                                           settings.session_seconds, throttle.key_hash(SIGNIN_IP, address), False,
+                                           # Phase 2: MFA by the account's resolved capabilities ('*' or admin.access)
+                                           await asyncio.to_thread(auth.needs_mfa, account['owner_key']),
+                                           account['verifier'], None, rehash)
+            if made is None:
+                return error('INVALID_CREDENTIALS', 401)
             await asyncio.to_thread(auth.accounts.signed_in, account['user_id'])
         else:
             await asyncio.to_thread(store.session_create, token_hash(token), auth.configured_owner(), settings.session_seconds)
+        await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
         p = await auth.resolve(token)
         if p is None:                              # an account disabled at this very moment
             return error('INVALID_CREDENTIALS', 401)

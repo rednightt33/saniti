@@ -577,7 +577,9 @@ Use one uvicorn process/one replica initially. Disable request access logs and p
 limiting lives in PostgreSQL (`edge_bff.auth_throttle`, EXEC-MU-ACCOUNTS Phase 0), so it holds across restarts and
 instances. HTTPS termination is Railway's responsibility. No plaintext password, database credential,
 Orc key, session secret or Railway token is bundled or stored in Git. Public errors are generic; private diagnostic
-keys/addresses are filtered. The original inline renderer requires CSP `unsafe-inline`; unsafe-eval is not enabled.
+keys/addresses are filtered. An exception no handler expected is answered 503 by the outermost middleware
+(`errors.UnexpectedErrors`) and logged by its class and SQLSTATE only, so its text (a failing row's personal data)
+never reaches the server log (re-check R2-25). The original inline renderer requires CSP `unsafe-inline`; unsafe-eval is not enabled.
 
 ## Local validation
 
@@ -695,11 +697,21 @@ The contract is `verification/edge_multiuser/access_tiers/CONTRACT.md` (sections
 are ERRORS M259, M468, M469, M471, M472 and M473.
 
 Sign-in throttle (`app/throttle.py`, table `edge_bff.auth_throttle`, migration `20261116_002`):
-- 10 sign-in tries per login (case-folded, trimmed) in 15 minutes, counted in PostgreSQL, so every instance and
-  every restart sees the same count. Each try is decided and counted in one locked transaction before the password
-  check (`throttle.attempt`: advisory lock on the scope and key hash, window sum, UPSERT), so a concurrent burst
-  reaches the password check at most 10 times (C1 H1, ERRORS M477). The next try answers 429 `SIGN_IN_RATE_LIMIT`
-  with `details.retry_after_s` and `Retry-After`. A success clears the login's count, so only failed tries remain.
+- 10 sign-in tries per login (case-folded, trimmed) and client address in 15 minutes, counted in PostgreSQL, so every
+  instance and every restart sees the same count; tries from another address do not keep the account out (re-check
+  R1-9). Each try is decided and counted in one locked transaction before the password check (`throttle.attempt`:
+  advisory lock on the scope and key hash, window sum, UPSERT), so a concurrent burst reaches the password check at
+  most 10 times (C1 H1, ERRORS M477). The next try answers 429 `SIGN_IN_RATE_LIMIT` with `details.retry_after_s`,
+  `Retry-After` and the wait in its message. A success clears that count, so only failed tries remain. Each counter
+  has its own label inside the key's HMAC (R1-10), so no typed value can produce another counter's key.
+- Switch on, per account (R1-16, NIST SP 800-63B-4): at most 100 consecutive failed passwords over both logins and
+  every address (`identities.sign_in_failures`, migration `20261119_010`), decided and counted before the check; the
+  100th locks the password 24 h, answered as a wrong password; then the count restarts at 90. A success, a reset by
+  email code (which also clears the resetting client's per-login count) or a change clears it; the operator unlock
+  (below) too.
+- Password work (every derivation and Pwned Passwords call: sign-in, registration, reset, change) runs on its own pool
+  of 4 threads (`passwords.PasswordWork`), never on the default executor the database calls use; over 16 requests at
+  once the next is answered 503 `SERVICE_UNAVAILABLE` with `Retry-After` (R2-37).
 - Every login typed is counted, known or not, and the password is checked before the login is compared, so neither
   the answer nor its timing tells whether an account exists.
 - The client address (right-most `X-Forwarded-For`, else the socket peer) is recorded under `signin_ip` (30 in 15
@@ -839,13 +851,23 @@ has none). Every switch-on sign-in derives the password exactly 1 + `PENDING_CHE
 configured verifier, so its time says nothing about how many registrations an address has.
 
 Rules: codes are 6 digits, HMAC-SHA256 with `EDGE_CODE_SECRET`, valid 300 s, 5 tries each and at most 20 failed tries
-per user per day (429 `LIMIT_REACHED`); one email per address per 60 s and 10 a day; a new registration of an
-address (from any browser) mails it at most once per hour and three times a day, inside those 10 (a later one in the
-hour answers the same 202 and changes nothing; recorded decision N4 in M478: whoever's address was registered by
-someone else first may wait up to an hour for their own code); passwords 8 to 256 characters after NFKC normalisation
-(verifiers made before it are still accepted), any character, refused when found in Pwned Passwords (k-anonymity range API, 2 s; when it cannot answer the password is
-accepted and `PWNED_CHECK_UNAVAILABLE` logged); a phone is normalised to E.164 (`08…` → `+628…`), not verified; a
-pending user is deleted 24 h after creation.
+per user per day (429 `LIMIT_REACHED`); a reset's failed codes are also counted per address, whether or not it has an
+account, so that 429 tells nothing about the address (R1-8); a `USERNAME_TAKEN` answer uses one of the code's 5 tries
+(R1-12). One code email per address per 60 s (a notification email never holds a code back, R2-10) and 10 emails a
+day; a new registration of an address (from any browser) mails it at most once per hour and three times a day, inside
+those 10 (a later one in the hour answers the same 202 and changes nothing; recorded decision N4 in M478: whoever's
+address was registered by someone else first may wait up to an hour for their own code), and one registration is
+mailed at most 3 times a day (its code, resends and sign-in restarts; R1-13). Registering again from the same browser
+when nothing new was made keeps that browser's registration cookie (R1-11). Passwords 8 to 256 characters after NFKC
+normalisation (verifiers made before it are still accepted), any character, refused when found in Pwned Passwords
+(k-anonymity range API, 2 s; when it cannot answer the password is accepted and `PWNED_CHECK_UNAVAILABLE` logged); a
+verifier is scrypt N=2^14, r=8, p=5 (OWASP's minimum equivalent, `scrypt$n=16384,r=8,p=5$<salt>$<hash>`; R2-29), and
+one of the cost before it (`scrypt$<salt>$<hash>`, p=1) still signs in and is replaced at that sign-in; a check costs
+the same whatever the verifier's age. A reset, a change, a sign-in and an MFA verify write under the account's lock and
+only while what they rest on still holds (R2-9). A phone is normalised to E.164 (`08…` → `+628…`), not verified; a
+pending user is deleted 24 h after creation, and 24 h after they were made the sent, failed, expired or suppressed
+outbox rows of an address with no account go too (`edge_bff.purge_email_outbox()`, migration `20261119_012`; the
+runtime holds no DELETE on the outbox; R2-24).
 
 Email (`app/mailer.py`, `app/email_texts.py`, plain English): a code and its email are written in one transaction
 (`edge_bff.email_outbox`). The sender is its own task beside the backtest loop, claiming one row at a time with
@@ -864,9 +886,14 @@ Besides the 10 tries per 15 minutes, 100 consecutive wrong authenticator codes (
 `details.unlock_at`; the `/mfa` page shows it in local time, switches to the recovery-code field when only the
 authenticator is locked, and keeps "Forgot password?"). A lock lasts 24 h, then the count restarts at 90 (8), so 10 (2)
 more tries come before the next lock; a correct code resets the counts; a password reset by email code clears counts
-and locks. Operator unlock: `scripts/edge_mfa_unlock.py --username <name> --reason "<why>"`, run as a job on the
-private network only (EXEC.md EXEC-MU-ACCOUNTS, Phase 1 deploy steps, step 9); it clears that account's counts and
-locks, writes one `admin_audit` row with actor `operator`, and prints only the user id and the counts. The secret
+and locks. A confirmed authenticator is replaced only by a session that passed MFA, and only when a code of the new
+one proves it: until then the new enrolment waits beside it (`mfa_totp.pending_nonce`, recovery codes marked
+`pending`, migration `20261119_011`) and the old authenticator and its recovery codes keep working (R1-7). A code
+confirms only the enrolment it was checked against (R2-11); the cap is decided and counted under the enrolment's row
+lock (R2-12). Operator unlock: `scripts/edge_mfa_unlock.py --username <name> --reason "<why>"`, run as a job on the
+private network only (EXEC.md EXEC-MU-ACCOUNTS, Phase 1 deploy steps, step 9); it clears that account's MFA and
+password counts and locks, writes one `admin_audit` row with actor `operator`, and prints only the user id and the
+counts. The secret
 is HMAC-SHA256(`EDGE_MFA_KEY`, user id ‖ a stored 16-byte nonce)[:20], never stored: changing `EDGE_MFA_KEY` after an
 admin has enrolled invalidates every authenticator, so the key is set once and kept. The `/mfa` page shows the QR code
 with the vendored `static/qrcode-generator.js` (qrcode-generator 1.4.4, MIT, licence in
