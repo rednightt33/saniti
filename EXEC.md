@@ -16042,4 +16042,12 @@ dipakai accross chat sebagai referencec?"
     break an older live site.
   - Effort of the guardrails: about 7.5-8.5 agent-days. Added cost: about USD 1.5-2 a month (about 3-10 with backups
     and other options).
-  - Open: the user's choice among the proposal's decisions (section 5).
+  - **User, 2026-11-19, after a recap of the phases against this architecture:** workers: "go with option A" (only
+    the website is doubled; backtest-worker and screener-worker stay shared); the four extra decisions of the proposal
+    (guardrails as a stage, Postgres restart times, the Railway usage limit, backups): "4 keputusan tambahan kamu jangan
+    dimasukin"; scope: "Kita tidak perlu cut, jalankan sekarang sudah sesuai dengan fase-fasenya berdasarkan arsitektur
+    yang sudah kita setujui"; the check: "jalankan pemeriksaan yang tadi sempat terhenti, jalankan pakai workflow agar
+    pengecekannya jelas". The release procedure to the live site is not discussed again until the website and its
+    phases are done (the user's words).
+  - So the plan stays Phases 3c-3f, Phase 4 and the payment adapter skeleton, plus the beta/live split, with no extra
+    guardrail work; round 2 of the re-check is resumed (the remaining finders, then three refuters per finding).
