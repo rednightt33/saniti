@@ -110,7 +110,7 @@ export function initAssets(ctx: Ctx) {
   const tag = (t: string) => t === SYMBOL ? 'Current' : assets.some(a => a.ticker === t) ? 'Added' : '';
   // 3e (the 3e checker TL-1): a plan without added assets (terminal.assets) gets the lock box from the + button
   const assetsLocked = !!ctx.M.locks?.feature('terminal.assets');
-  if (assetsLocked) plus.insertAdjacentHTML('beforeend', lockMark('ev-lock'));
+  if (assetsLocked) { plus.classList.add('as-locked'); plus.insertAdjacentHTML('beforeend', lockMark('ev-lock')) }
   plus.addEventListener('click', e => {
     e.stopImmediatePropagation();                            // the reference's Add Series panel stays closed
     if (assetsLocked) { askLocked({ kind:'feature', id:'terminal.assets', name:'Added assets' }); return }

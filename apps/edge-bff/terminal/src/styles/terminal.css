@@ -984,6 +984,9 @@ body.fw-dragging,body.fw-dragging *{cursor:grabbing!important;user-select:none}
    has a legend row under the chart's tooltip row and, below the chart's own Flow Timeline, a Flow Timeline of its own whose
    badge names it in its colour; the chart's own Flow Timeline then names its ticker too. */
 .add-series-btn.as-full{opacity:.4;cursor:not-allowed}
+/* 3e: a plan without added assets: the + and its lock mark side by side on the button's one line (look_check11) */
+.add-series-btn.as-locked{grid-auto-flow:column;gap:1px}
+.add-series-btn.as-locked .ev-lock{margin-left:0}
 .as-rows{display:grid;gap:3px;justify-items:start}
 .as-rows:empty{display:none}
 .as-row .as-name{color:var(--text);font-weight:500}

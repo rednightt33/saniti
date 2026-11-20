@@ -223,12 +223,18 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['d
     const evShown = !!ev && ev.offsetParent !== null;
     return { lock:!!lock && lock.offsetParent !== null, row:lock && title ? Math.round((mid(lock) - mid(title)) * 10) / 10 : null,
       body:getComputedStyle(document.getElementById('flowBody')).display, evShown, ev:evl && evShown ? Math.round((mid(evl) - mid(ev)) * 10) / 10 : null, evW:evl && evShown ? Math.round(evl.getBoundingClientRect().width) : null,
+      // the + button (no terminal.assets) and the narrow toolbar's Broker activity button carry the same mark (3e checker fixes)
+      marks:['toggleAddPanel', 'rpDrawerBtn'].map(id => { const b = document.getElementById(id), m = b && b.querySelector('.ev-lock');
+        const shown = !!b && b.offsetParent !== null; return { id, shown, has:!!m, w:m && shown ? Math.round(m.getBoundingClientRect().width) : null,
+          dy:m && shown ? Math.round((mid(m) - mid(b)) * 10) / 10 : null } }),
       rail:!!document.querySelector('.chart-wrap.ev-rail'),
       ihsg:ihsg ? Math.round((Math.max(...[...ihsg.children].map(mid)) - Math.min(...[...ihsg.children].map(mid))) * 10) / 10 : null } });
   (R.locked ||= {})[nm] = L;
   check(`locked broker (${nm}): the Flow Timeline head holds its title and the lock on one line, its body out`, L.lock && L.row !== null && Math.abs(L.row) <= 1 && L.body === 'none', L);
   check(`locked events (${nm}): no empty events rail; the lock mark seen (at least 8 px wide, the 3e checker TL-4) in the middle of the Events button where it shows`, !L.rail && (!L.evShown || (L.ev !== null && Math.abs(L.ev) <= 1 && L.evW >= 8)), L);
   if (nm !== 'phone') check(`IHSG not held (${nm}): its Statistics row is one line (its parts within 1 px of one middle)`, L.ihsg !== null && L.ihsg <= 1, L);
+  for (const m of L.marks) check(`locked ${m.id} (${nm}): the lock mark present, seen (at least 8 px) and in the middle of its button where it shows`,
+    m.has && (!m.shown || (m.w >= 8 && Math.abs(m.dy) <= 1)), m);
   L.head = await ink(p, '#flowHead');
   check(`locked broker (${nm}): the head ink centred`, !!L.head && Math.abs(L.head.above - L.head.below) <= 1, L.head);
   await p.screenshot({ path:`${SP}/look11_locked_${nm}.png` });

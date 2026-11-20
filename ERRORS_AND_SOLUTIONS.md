@@ -8920,11 +8920,17 @@ in its staleness check.
   - SHELL-4: a visitor's browser tab now names the locked tab, not "Sign In".
   - 3E-CW-3: the card's region name now points at its title.
   - 3E-CW-2: CONTRACT 8b lists exactly what is built and what is not; M515 F1 and M516 are updated.
+- **Found after the fixes (the advisor's review, 2026-11-20):** the lock mark of the + (Add series) button sat on a
+  second line, 14 px below the button's middle.
+  - Cause: the button is a fixed 30 px grid that centres one item, so the mark the fix added became a second grid row.
+  - Fix: while locked, the button (`.as-locked`) lays the + and its mark side by side.
+  - `look_check11` now measures the marks of the + and Broker activity buttons wherever they show: at least 8 px wide
+    and at most 1 px off the button's middle line.
 - **Tests:**
   - `tests/test_3e_locked_tabs_browser.py` (7): the re-press, the ended plan, the preferences after a raise, the
     region name and the title.
   - `tests/test_live_terminal_locked.py` (3): a saved asset, a remembered window, the head and the narrow drawer.
-  - `look_check11` PASS.
+  - `look_check11` PASS, the two button marks included.
 - **Lesson:** a page that decides from state the shell holds must read it again with the shell's whole follow-up,
   not a part of it. A lock on a part must cover every way into that part: buttons, shortcuts, remembered windows and
   restored items.

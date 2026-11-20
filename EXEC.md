@@ -16187,6 +16187,11 @@ Order of the services (CONTRACT 17, rollback floors):
       the date). Ultracode checker (xhigh, workflow `wf_0f14e7f0-edd`): 5 findings confirmed, none refuted, 6 not
       verified; all fixed (ERRORS M518: locked saved assets, a raised plan's preferences, the re-press, the broker
       button and window, the head drag, the ended plan's words, the clipped lock mark, the title, the region name).
+      `look_check11` also measures the lock marks of the + (Add series) and Broker activity buttons: seen (8 px or
+      more) and on the button's middle line wherever the button shows (the + had put its mark on a second line).
+      - Still open in 3e: the example mode (D4). Before any build of option A or B, the chosen date is checked against
+        the data (prices, broker data, which looked stuck at 9 Nov, and the Feature tables). Once built, the example
+        mode gets its own ultracode checker at xhigh before 3e counts as checked.
     - Items 1 shipped (2026-11-20): `main` and `live` at `4785d1ef` (CI green on both branches). The beta `e114339a`
       SUCCESS and the live site `e21a05f4` SUCCESS. The live smoke:
       - `/ready` 200, 62 of 62 routes as expected;
