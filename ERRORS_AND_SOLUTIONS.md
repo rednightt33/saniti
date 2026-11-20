@@ -9356,6 +9356,9 @@ in its staleness check.
 - **Seen locally too (2026-11-20, the A2 build):** `tests/test_answer_view.py::test_sources_list_the_answers_tables_with_an_export_request`
   failed 2 of 8 runs on `f8c872e0` and 1 of 8 on `4785d1ef`. The two commits differ only in the account flows; the
   failure is `.edge-source-ref` read as '' right after its fold opens. It is the same class and not caused by A2.
+  Again on `0293f97c` (2026-11-20, the full suite after the M519 fix): failed once in one full run
+  (`assert '' == 'out.1'`, `tests/test_answer_view.py:384`), then passed 6 of 6 alone. The M519 fix and 3e do not
+  touch the answer view.
 
 - **Found by:** the first CI runs of edge-bff's browser tests after M509: run 44663513713 (commit `b969529b`, Playwright
   1.65.2, Chrome 159): 947 passed, 2 failed; run 44667192992 (commit `58b75888`, Playwright 1.63.0, Chrome for Testing
