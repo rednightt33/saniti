@@ -2,7 +2,7 @@
    publisher's watchlist-stocks holds every value as stored; WATCHLIST_FORMULAS.md). Pure functions, tested in
    tests/model.test.ts: labels and number formats, the indicators the file's catalog offers, a list's indicators, the
    filters, the badges, the search and the bodies that undo a deletion. */
-import type { CatalogItem, CreateBody, EventRow, Limit, StocksFile, WList } from './types.ts';
+import type { CatalogItem, CreateBody, EventRow, Limit, RadarFile, StocksFile, WList } from './types.ts';
 
 export const NB = ' ', MINUS = '−', DOT = ' · ';
 /** the card shows the first CARD_IND indicators of a list; the table shows all (the design's) */
@@ -101,6 +101,18 @@ export const emptyFile = (): StocksFile => ({
   radar_board: { level: '', gate: '' }, dates: [], catalog: [], default: [], radar_filters: [], ticker: [], name: [],
   sector: [], last: [], r1d: [], r1m: [], trend: [], values: {}, events: {}, radar: {},
 });
+/** Phase 3d (ERRORS M476): the figures with the Radar's fields. r is watchlist-radar when this account may read it
+   (radar.view), else null; then a base file of a publication before 3d may still carry them. radar says whether the
+   page shows any Radar badge or filter: an account without the Radar sees neither. */
+export function withRadar(base: StocksFile, r: RadarFile | null): { file: StocksFile; radar: boolean } {
+  const src: Partial<RadarFile> = r ?? base;
+  const radar = !!r || (base.radar !== undefined && base.radar_date !== undefined);
+  return {
+    file: { ...base, radar_date: src.radar_date ?? null, radar_board: src.radar_board ?? { level: '', gate: '' },
+            radar_filters: src.radar_filters || [], radar: (radar && src.radar) || {} },
+    radar,
+  };
+}
 export function value(f: StocksFile, key: string, s: Stock): number | null {
   return s.i < 0 ? null : f.values[key]?.[s.i] ?? null;
 }

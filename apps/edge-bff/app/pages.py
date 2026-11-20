@@ -37,6 +37,12 @@ Re-check fix round (track terminal; verification/edge_multiuser/fix_round/termin
   and leaks nothing (the view capability is checked first). Per-reader counting, if Phase 4's usage counters need it,
   is edge-bff's own record, not a terminal-api call per hit (which would undo the cache).
 
+EXEC-MU-ACCOUNTS Phase 3d (ERRORS M476; CONTRACT.md 8b "3d"): a file named <family>-<page>, where <page> is another
+page family of this process (watchlist-radar: the Radar's screens in the Watchlist's publication), carries that page's
+content, so it needs <page>.view on top of <family>.view: the index lists it only for a principal holding it, and its
+bytes answer 403 CAPABILITY_REQUIRED (details.capability) without it, before the shared caches. The page is read from the
+name against the families registered here (FAMILIES), so a new file of that shape is covered without a change here.
+
 Every refusal names its cause and the way out (AGENTS.md "Gates and evidence" (d)).
 """
 from __future__ import annotations
@@ -57,6 +63,9 @@ INDEX_SECONDS = 30          # the index is read again at most this often (termin
 # QA 2026-11-14: bytes already relayed are kept by sha256 (a file never changes under its sha), so a reload of the page
 # asks terminal-api for no grant (each grant counts against the owner's terminal quota); CACHE_BYTES per page at most
 CACHE_BYTES = 32 * 1024 * 1024
+# Phase 3d: the page families of this process, as PageFiles registers them; a file <family>-<one of these> carries
+# that page's content (module docstring)
+FAMILIES: set[str] = set()
 
 
 def messages(family, label, names):
@@ -91,6 +100,17 @@ class PageFiles:
         self.http = None
         self.cached, self.cached_at = None, None
         self.bodies: dict[str, bytes] = {}                # sha256 -> gzip bytes relayed (oldest first)
+        FAMILIES.add(family)
+
+    def carried(self, name):
+        """Phase 3d: the other page whose content the file carries (watchlist-radar: radar), or None."""
+        head = self.family + '-'
+        page = name[len(head):] if name.startswith(head) else ''
+        return page if page in FAMILIES and page != self.family else None
+
+    def readable(self, p, name):
+        page = self.carried(name)
+        return page is None or p.can(f'{page}.view')
 
     def failure(self, suffix, status, details=None):
         return JSONResponse(status_code=status, content={'error': {
@@ -161,7 +181,8 @@ class PageFiles:
             data = await self.index(p, sent)
             if data is None:
                 return self.failure('UNAVAILABLE', 503)
-            return JSONResponse({'finished_at': data.get('finished_at'), 'files': data['files']})
+            files = {n: e for n, e in data['files'].items() if self.readable(p, n)}     # Phase 3d
+            return JSONResponse({'finished_at': data.get('finished_at'), 'files': files})
 
         async def page_file(name: str, request: Request, sha: str = "", p=Depends(view)):
             if not self.settings.terminal_url:
@@ -170,6 +191,9 @@ class PageFiles:
                 return self.failure('INVALID_NAME', 400, {'name': name[:64]})
             if sha and not SHA.fullmatch(sha):
                 return self.failure('INVALID_SHA', 400, {'sha': sha[:80]})
+            if not self.readable(p, name):                        # Phase 3d: another page's content, before the caches
+                refused = p.refusal(f'{self.carried(name)}.view')
+                return refusal(refused.status, refused.code, refused.details, refused.headers)
             sent = terminal_access.headers(self.settings, p)      # R1-31: the principal's own refusals, caches or not
             if sha and request.headers.get('if-none-match') == f'"{sha[:32]}"':
                 # the URL names the content and the capability was checked: the browser's copy stands (no index read,

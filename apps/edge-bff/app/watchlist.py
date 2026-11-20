@@ -1,7 +1,8 @@
 """EXEC-WATCHLIST L3 (user go 2026-11-16: "Go"): the Watchlist page's lists and data.
 
-  /api/v1/watchlist/index, /api/v1/watchlist/file/<name>   the publisher's watchlist-stocks file (app/pages.py PageFiles,
-                                                           as the Overview's)
+  /api/v1/watchlist/index, /api/v1/watchlist/file/<name>   the publisher's watchlist-stocks file and, with radar.view,
+                                                           watchlist-radar (app/pages.py PageFiles, as the Overview's;
+                                                           Phase 3d)
   /api/v1/watchlist/lists ...                              the account's named lists (edge_bff.watchlist_lists/_items,
                                                            migration 20261116_001)
 
@@ -27,7 +28,7 @@ from .errors import plan_cap
 from .pages import PageFiles
 from .principal import Principal
 
-NAME = re.compile(r'watchlist-stocks')                       # publisher watchlist.NAME
+NAME = re.compile(r'watchlist-(stocks|radar)')              # publisher watchlist.NAME (Phase 3d: the Radar's own file)
 LISTS = 20                                                  # lists per account
 PER_LIST = 50                                               # stocks per list (the design's)
 INDICATORS = 8                                              # indicators per list (the design's)
@@ -296,7 +297,7 @@ class WatchlistStore:
 
 def page_files(settings, clock=None):
     kw = {'clock': clock} if clock else {}
-    return PageFiles(settings, 'watchlist', NAME, 'Watchlist', 'watchlist-stocks', **kw)
+    return PageFiles(settings, 'watchlist', NAME, 'Watchlist', 'watchlist-stocks, watchlist-radar', **kw)
 
 
 class Watchlist:

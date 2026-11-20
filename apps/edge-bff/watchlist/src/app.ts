@@ -5,9 +5,11 @@
    the fix. The open list and the Table/Cards choice are this browser's convenience (localStorage). */
 import { WatchlistError, cached } from './api.ts';
 import * as M from './model.ts';
-import type { StocksFile, WList, WatchlistApi, WatchlistIndex } from './types.ts';
+import type { RadarFile, StocksFile, WList, WatchlistApi, WatchlistIndex } from './types.ts';
 
 const FILE = 'watchlist-stocks';
+// Phase 3d (ERRORS M476): the Radar's screens, listed and served only with radar.view (app/pages.py carried)
+const RADAR_FILE = 'watchlist-radar';
 const FIRST_LIST = 'Watchlist';                    // the list a first visit creates (app/watchlist.py FIRST_LIST)
 const VIEW_KEY = 'edge.watchlist.view';
 const { DOT, CARD_IND } = M;
@@ -25,6 +27,7 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
   let index: WatchlistIndex, F: StocksFile, CAT: M.Catalog, BY = new Map<string, M.Stock>(), UL: M.Stock[] = [];
   let RN: Record<string, string> = {}, LISTS: WList[] = [], LIM: M.Limits = M.limitsOf([]), LOGOS: Record<string, string> = {};
   let PD = '', BD = '', RD = '';
+  let HAS_RADAR = false;                  // Phase 3d: this account reads the Radar's screens (else no badge, no filter)
   let FILE_ERR: string | null = null;     // M466 (a): the figures could not be read; the lists are shown without them
   const st: { active: string; view: View } = { active: '', view: 'cards' };
   try { const s = JSON.parse(localStorage.getItem(VIEW_KEY) || 'null'); if (s) { st.active = String(s.active || ''); st.view = s.view === 'table' ? 'table' : 'cards' } } catch { /* storage off */ }
@@ -103,7 +106,7 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
     return `<div class="bar1"><div class="tabs" role="tablist" aria-label="Watchlists">${LISTS.map(x => `<button role="tab" aria-selected="${x.id === l.id}" class="${x.id === l.id ? 'on' : ''}" data-act="list" data-id="${esc(x.id)}">${esc(x.name)}<span class="cnt">${x.tickers.length}</span></button>`).join('')}</div>` +
       `<button class="iconbtn sm lmenu" data-act="list-menu" aria-label="Actions for list ${esc(l.name)}" aria-haspopup="menu" title="List actions">${ic('more')}</button>` +
       `<button class="btn sm" data-act="open-new" ${LISTS.length >= LIM.lists ? 'disabled' : ''}>${ic('plus')}New list</button><span class="sp"></span>` +
-      `<span class="filt" role="group" aria-label="Filter this list"><button class="tog ${FILT.radar ? 'on' : ''}" data-act="f-radar" aria-pressed="${FILT.radar}">${ic('radar')}Radar</button><button class="tog ${FILT.ev ? 'on' : ''}" data-act="f-ev" aria-pressed="${FILT.ev}">${ic('cal')}Corporate action</button>${FILT.radar || FILT.ev ? `<span class="meta">${filtered(l).length} of ${n}</span>` : ''}</span>` +
+      `<span class="filt" role="group" aria-label="Filter this list">${HAS_RADAR ? `<button class="tog ${FILT.radar ? 'on' : ''}" data-act="f-radar" aria-pressed="${FILT.radar}">${ic('radar')}Radar</button>` : ''}<button class="tog ${FILT.ev ? 'on' : ''}" data-act="f-ev" aria-pressed="${FILT.ev}">${ic('cal')}Corporate action</button>${FILT.radar || FILT.ev ? `<span class="meta">${filtered(l).length} of ${n}</span>` : ''}</span>` +
       (st.view === 'table' ? `<span class="meta">${TSORT ? 'Sorted by <b>' + esc(TSORT.label) + '</b>' : 'In <b>list order</b>'}</span>` : '') +
       `<div class="seg" role="group" aria-label="View"><button data-act="view" data-v="table" class="${st.view === 'table' ? 'on' : ''}" aria-pressed="${st.view === 'table'}">${ic('table')}Table</button><button data-act="view" data-v="cards" class="${st.view === 'cards' ? 'on' : ''}" aria-pressed="${st.view === 'cards'}">${ic('grid')}Cards</button></div></div>`;
   }
@@ -630,10 +633,20 @@ export function start(api0: WatchlistApi, PAGE: HTMLElement) {
       throw err;
     }
   }
+  /** Phase 3d: the Radar's file when the index lists it (only with radar.view); any refusal or failure leaves the page
+      without Radar badges, never without its figures */
+  async function readRadar(): Promise<RadarFile | null> {
+    const e = index.files[RADAR_FILE];
+    if (!e) return null;
+    try { return await api.file<RadarFile>(RADAR_FILE, e.sha256) } catch { return null }
+  }
   /** the figures; when they cannot be read the lists are still shown, with "—" and the reason (M466 (a)) */
   async function loadFile() {
-    try { index = await api.index(); F = await readFile(); FILE_ERR = null }
-    catch (e) { F = M.emptyFile(); FILE_ERR = msg(e, 'The figures could not be read. Try again in a minute.') }
+    try {
+      index = await api.index(); const base = await readFile();
+      const merged = M.withRadar(base, await readRadar()); F = merged.file; HAS_RADAR = merged.radar; FILE_ERR = null;
+    }
+    catch (e) { F = M.emptyFile(); HAS_RADAR = false; FILE_ERR = msg(e, 'The figures could not be read. Try again in a minute.') }
     CAT = M.catalog(F); BY = M.stocks(F); UL = [...BY.values()]; RN = M.radarNames(F);
     PD = M.dateLabel(F.prices_through); BD = M.dateLabel(F.broker_through); RD = M.dateLabel(F.radar_date);
   }

@@ -10,6 +10,14 @@ export interface CatalogItem {
 }
 /** one upcoming corporate action: [action type, date, date role] */
 export type EventRow = [string, string, string];
+/** EXEC-MU-ACCOUNTS Phase 3d (ERRORS M476): the Radar's screens are the publisher's watchlist-radar, which edge-bff
+   serves only with radar.view; the page merges it into the figures (model.ts withRadar). A base file of a publication
+   before 3d still holds these fields itself. */
+export interface RadarFile {
+  schema: number; radar_date: string | null; radar_board: { level: string; gate: string };
+  radar_filters: { label: string; name: string }[]; radar: Record<string, string[]>;
+}
+/** the figures as the page uses them: watchlist-stocks with the Radar's fields merged in (withRadar) */
 export interface StocksFile {
   schema: number; prices_through: string; broker_through: string | null; radar_date: string | null;
   events_loaded: string | null; event_days: number; radar_board: { level: string; gate: string };

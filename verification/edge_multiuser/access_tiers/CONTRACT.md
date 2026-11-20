@@ -984,10 +984,18 @@ today.
     bt_cold.mts`, `verification/screener/live_candles_local.mjs` (its stand-in edge). The screener-worker tests' `call`
     adds edge-bff's context to an object body without one (`tests/helpers.ts`).
 
-**3d. M476 (Radar data in the Watchlist file).**
+**3d. M476 (Radar data in the Watchlist file).** Built 2026-11-20 (basic mode; not deployed).
 - The publisher splits `watchlist-stocks` into a base file and `watchlist-radar`; edge-bff serves the latter only with
   `radar.view`.
-- Order: edge-bff (the page tolerates a missing `radar`), then the publisher, then a manual `watchlist` run.
+- The rule is read from the name (`app/pages.py` `carried`): a file `<family>-<page>`, `<page>` another page family of
+  the process, carries that page's content and needs `<page>.view` on top of `<family>.view`; the index lists it only
+  for a principal holding it and its bytes answer 403 `CAPABILITY_REQUIRED` without it, before the shared caches and
+  before terminal-api (`tests/test_c3d_watchlist_radar.py`).
+- The page reads `watchlist-radar` when the index lists it and shows no Radar badge or filter without it; a base file of
+  an older publication still carrying the Radar fields is read as before (`watchlist/src/model.ts` `withRadar`).
+- Order: edge-bff (the page tolerates a missing `radar`), then the publisher, then a manual `watchlist` run (or the next
+  daily publication). Until the publisher's split is published, the older base file still holds the Radar fields: the
+  live site opens only after it (with the switch off only the admin reads them).
 - `WATCHLIST_FORMULAS.md` is rebuilt in the same commit.
 
 **3e. Front-end.**

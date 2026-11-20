@@ -214,3 +214,26 @@ describe('Alt+A (Add stocks), shaped as the Screener Alt+S', () => {
     expect(M.typingTarget(null)).toBe(false);
   });
 });
+
+describe('the Radar file of its own (EXEC-MU-ACCOUNTS Phase 3d, ERRORS M476)', () => {
+  const { radar_date, radar_board, radar_filters, radar, ...base } = file;
+  const radarFile = { schema: 1, radar_date, radar_board, radar_filters, radar };
+  it('merges watchlist-radar into the figures when the account may read it', () => {
+    const m = M.withRadar(base as StocksFile, radarFile);
+    expect(m.radar).toBe(true);
+    expect(M.stocks(m.file).get('AAAA')!.rd).toEqual(['S2', 'S7']);
+    expect(M.radarNames(m.file).S2).toBe('Strengthening foreign flow');
+  });
+  it('shows no Radar badge or filter without it (no radar.view): the figures stay', () => {
+    const m = M.withRadar(base as StocksFile, null);
+    expect(m.radar).toBe(false);
+    expect(m.file.radar).toEqual({});
+    expect(M.stocks(m.file).get('AAAA')!.rd).toEqual([]);
+    expect(M.stocks(m.file).get('AAAA')!.last).toBe(10700);
+  });
+  it('reads the Radar fields of a base file published before 3d', () => {
+    const m = M.withRadar(file, null);
+    expect(m.radar).toBe(true);
+    expect(M.stocks(m.file).get('AAAA')!.rd).toEqual(['S2', 'S7']);
+  });
+});

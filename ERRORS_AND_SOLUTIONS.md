@@ -10093,6 +10093,15 @@ view; a client-supplied id is checked against the caller's ownership on every pa
 - **Solution (planned, EXEC-MU-ACCOUNTS Phase 3):** split the file (base vs Radar badges), or publish one per capability;
   check the capability before the shared cache.
 - **Status:** OPEN. Harmless with one user.
+- **Built (Phase 3d, 2026-11-20, basic mode; not deployed):** the publisher writes `watchlist-stocks` without any Radar
+  field and `watchlist-radar` with the Radar's date, board, screen names and badges; edge-bff lists and serves a file
+  `<family>-<page>` only with `<page>.view` (read from the name against the page families, so `watchlist-radar` needs
+  `radar.view`), refused before the shared caches; the page merges the Radar file when it may read it and shows no
+  badge or filter otherwise. Tests: `apps/terminal-publisher/tests/test_watchlist.py`
+  (`test_the_radar_output_is_a_file_of_its_own`), `apps/edge-bff/tests/test_c3d_watchlist_radar.py` (fails without the
+  gate), `apps/edge-bff/watchlist/tests/model.test.ts` (the Radar file of its own). Same class elsewhere: any later file
+  of one page carrying another page's content takes the same rule by its name; not covered: a field of another page's
+  content inside a page's own file (the publisher keeps each page's output in its own file).
 
 ### M475 — Orc: a missing owner header becomes the shared owner `default`; progress of an owner-less run is readable by every caller (2026-11-16; FIXED, deployed 2026-11-16 on dev (`main` `637b0b96`: edge-bff `150686f9`, market-ai-orc `33aaffad` SUCCESS; terminal-api `5d339996` then private-only `80bec768` SUCCESS, public domain removed); `MARKET_AI_ORC_API_KEY` kept on orc-test-runner: ACCEPTED by the user 2026-11-19, M498)
 

@@ -6,12 +6,15 @@ baru** ("selight as possible yang mana tidak perlu ada calculation lagi"). Karen
 yang **sudah tersimpan** di database, dibaca apa adanya. Satu-satunya hitungan adalah jarak harga ke EMA (satu pembagian
 di baris yang sama).
 
-<!-- explained-for: watchlist.py=6c3c265a21043c67e62c9874538e17b3, app/watchlist.py=c7759c02b0c8f7efcc22cd478f01dcd1 -->
+<!-- explained-for: watchlist.py=a25656cbeeca71ccf324cb42a02f6474, app/watchlist.py=943ecc862a6c5a628be9b099f75a90de -->
 
 ## 1. Dari mana angkanya datang
 
-Setiap hari publisher menulis satu file, `watchlist-stocks`, berisi angka untuk **semua saham biasa** (862 saham di
-daftar universe, `IDX_Stock_Universe` dengan `Security Type` = stock). File ini sama untuk semua pengguna. Isi list
+Setiap hari publisher menulis dua file. `watchlist-stocks` berisi angka untuk **semua saham biasa** (862 saham di
+daftar universe, `IDX_Stock_Universe` dengan `Security Type` = stock). `watchlist-radar` berisi hanya badge Radar (bagian
+5), karena Radar adalah halaman dengan hak akses sendiri: server EDGE mengirim file ini hanya ke akun yang boleh membuka
+Radar (`radar.view`; EXEC-MU-ACCOUNTS fase 3d). Akun tanpa Radar tetap melihat semua angka, hanya tanpa badge dan filter
+Radar. Kedua file sama untuk semua pengguna yang boleh membacanya. Isi list
 masing-masing pengguna disimpan terpisah di server (`edge_bff.watchlist_lists` dan `watchlist_items`). Halaman lalu
 mencocokkan saham di list dengan baris di file.
 
@@ -71,7 +74,11 @@ yang dipilih (maksimal 8).
   Radar (level Standard, gerbang Broad), versi aturan yang sama dengan halaman Radar (`feature_07_rule_version()`), dan
   untuk S6Δ pada varian bawaannya (Ratio). Selama pengisian pertama Radar berjalan, file tidak diterbitkan ulang. Jadi badge menunjukkan apa yang
   terlihat saat halaman Radar dibuka. Contoh 9 Nov: BBCA lolos S6; DKFT lolos S6. Di dev ada 102 saham yang lolos minimal
-  satu saringan. Filter "Radar" menampilkan hanya saham di list yang punya badge ini.
+  satu saringan. Filter "Radar" menampilkan hanya saham di list yang punya badge ini. Badge, nama saringan dan tanggal
+  Radar datang dari file `watchlist-radar`; akun yang tidak boleh membuka Radar tidak menerima file itu, jadi tidak
+  melihat badge maupun tombol filter Radar (contoh: paket tanpa `radar.view` membuka list berisi BBCA: angka BBCA tampil
+  lengkap, badge "Radar S6" tidak). Publikasi lama (sebelum fase 3d) masih memuat badge di `watchlist-stocks`; halaman
+  membacanya dari sana sampai publikasi berikutnya.
 - **Aksi korporasi**: RUPS, public expose, dividen (tanggal ex), right issue, waran dan lainnya dengan tanggal **sesudah
   tanggal harga sampai 30 hari kemudian**, dibaca dari `idx_event_annotation` (keluarga `CORPORATE_ACTION`), sumber
   yang sama dengan penanda event di grafik Terminal, jadi kedua halaman selalu menunjukkan acara yang sama. Contoh: AMMN
@@ -136,7 +143,7 @@ Ditulis oleh `scripts/watchlist_formulas_doc.py --write` dari kode di repo; jang
 
 | Kode | Sidik jari (md5) |
 |---|---|
-| `watchlist.py` | `6c3c265a21043c67e62c9874538e17b3` |
-| `app/watchlist.py` | `c7759c02b0c8f7efcc22cd478f01dcd1` |
+| `watchlist.py` | `a25656cbeeca71ccf324cb42a02f6474` |
+| `app/watchlist.py` | `943ecc862a6c5a628be9b099f75a90de` |
 
 <!-- watchlist-live:end -->

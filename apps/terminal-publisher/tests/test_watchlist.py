@@ -37,11 +37,21 @@ class Fake:
         return a[sql]
 
 
+def stocks(run):
+    return W.build(run)['watchlist-stocks']
+
+
+def radar_file(run):
+    return W.build(run)['watchlist-radar']
+
+
 def test_every_value_is_the_stored_column_at_its_own_date():
     f = Fake()
-    doc = W.build(f.run)
+    docs = W.build(f.run)
+    doc = docs['watchlist-stocks']
     i, j, k = doc['ticker'].index('AAAA'), doc['ticker'].index('BBBB'), doc['ticker'].index('CCCC')
-    assert (doc['prices_through'], doc['broker_through'], doc['radar_date']) == ('2026-11-13', '2026-11-09', '2026-11-09')
+    assert (doc['prices_through'], doc['broker_through'], docs['watchlist-radar']['radar_date']) == (
+        '2026-11-13', '2026-11-09', '2026-11-09')
     assert (doc['last'][i], doc['r1d'][i], doc['r1m'][i]) == (1000.0, 1.2346, 6.3)
     v = doc['values']
     assert (v['rsi'][i], v['macdh'][i], v['adx'][i], v['ema50'][i], v['ema200'][i]) == (53.55, 95.3, 20.1, -2.1, -14.1)
@@ -55,7 +65,7 @@ def test_every_value_is_the_stored_column_at_its_own_date():
 
 
 def test_trend_holds_the_newest_closes_oldest_first_with_gaps_kept():
-    doc = W.build(Fake().run)
+    doc = stocks(Fake().run)
     assert doc['dates'] == DATES
     i, j = doc['ticker'].index('AAAA'), doc['ticker'].index('BBBB')
     assert doc['trend'][i] == [900.0 + n for n in range(len(DATES))]
@@ -64,7 +74,7 @@ def test_trend_holds_the_newest_closes_oldest_first_with_gaps_kept():
 
 def test_radar_badges_follow_the_radar_page_default_board_and_variant():
     f = Fake()
-    doc = W.build(f.run)
+    doc = radar_file(f.run)
     # board order (filter position), the board's labels, only default variants (S6D_BOTH is not S6Δ's default)
     assert doc['radar'] == {'AAAA': ['S1', 'S6Δ', 'S7'], 'BBBB': ['S7']}
     assert dict(f.seen)[W.RADAR_SQL] == {'r': '2026-11-09', 'level': 'standard', 'gate': 'broad'}
@@ -72,7 +82,7 @@ def test_radar_badges_follow_the_radar_page_default_board_and_variant():
 
 
 def test_events_and_catalog():
-    doc = W.build(Fake().run)
+    doc = stocks(Fake().run)
     assert doc['events'] == {'AAAA': [['RUPS', '2026-11-17', 'MEETING_DATE'], ['DIVIDEND', '2026-11-20', 'CUM_DATE']]}
     assert [c['key'] for c in doc['catalog']] == list(W.KEYS) and len(W.KEYS) == 14
     assert set(doc['default']) <= set(W.KEYS) and len(doc['default']) <= 8
@@ -83,14 +93,15 @@ def test_no_complete_price_date_gives_no_file_and_no_broker_date_leaves_flow_emp
     assert W.build(Fake(price=None).run) is None
     out, kept, carry = W.files(None, [], [], stream=Fake(price=None).run)
     assert out == [] and kept == [] and carry == {'code': W.CODE}
-    doc = W.build(Fake(broker=None).run)
+    doc = stocks(Fake(broker=None).run)
     assert all(x is None for x in doc['values']['fn5'])
 
 
 def test_files_and_stamp_are_exact_and_equal_runs_give_equal_bytes():
     out, kept, _ = W.files(None, [], [], stream=Fake().run)
-    (name, doc, rows, as_of), = out
+    (name, doc, rows, as_of), (rname, rdoc, rrows, ras_of) = out
     assert W.NAME.fullmatch(name) and rows == 3 and as_of == '2026-11-13' and kept == []
+    assert (rname, rrows, ras_of) == ('watchlist-radar', 2, '2026-11-09') and W.NAME.fullmatch(rname)
 
     class Conn:
         def __init__(self, f):
@@ -100,16 +111,17 @@ def test_files_and_stamp_are_exact_and_equal_runs_give_equal_bytes():
             rows = self.f.run(sql, params)
             return type('C', (), {'fetchall': lambda s: rows, 'fetchone': lambda s: rows[0]})()
     a, b = W.stamp(Conn(Fake())), W.stamp(Conn(Fake()))
-    assert a == b == [W.digest(doc), W.CODE]
+    assert a == b == [W.digest({name: doc, rname: rdoc}), W.CODE]
     assert W.stamp(Conn(Fake(broker='2026-11-10')))[0] != a[0]      # any content change changes the stamp
-    assert json.dumps(W.build(Fake().run), sort_keys=True) == json.dumps(doc, sort_keys=True)
+    assert W.stamp(Conn(Fake(radar='2026-11-10')))[0] != a[0]       # the Radar file's too
+    assert json.dumps(W.build(Fake().run), sort_keys=True) == json.dumps({name: doc, rname: rdoc}, sort_keys=True)
 
 
 def test_the_price_date_is_the_newest_complete_one():
     """A run while a feature worker is still writing the newest date shows the previous complete date (review
     2026-11-16); no complete date among the recent ones gives no file (the previous publication stays)."""
     f = Fake(counts={'2026-11-13': (836, 836, 400), '2026-11-12': (834, 800, 800)})
-    doc = W.build(f.run)
+    doc = stocks(f.run)
     assert doc['prices_through'] == '2026-11-11'
     assert dict((s, p) for s, p in f.seen if s == W.F01_SQL)[W.F01_SQL] == {'p': '2026-11-11'}
     assert W.build(Fake(counts={d: (5, 4, 4) for d in DATES}).run) is None
@@ -122,7 +134,7 @@ def test_a_non_finite_stored_value_is_shown_as_no_value():
             if sql == W.F01_SQL:
                 rows = [(rows[0][0], float('nan'), *rows[0][2:-1], float('inf'))] + rows[1:]
             return rows
-    doc = W.build(NaNs().run)
+    doc = stocks(NaNs().run)
     i = doc['ticker'].index('AAAA')
     assert doc['last'][i] is None and doc['values']['dd60'][i] is None and doc['r1m'][i] == 6.3
     json.dumps(doc, allow_nan=False)                                   # still valid JSON
@@ -132,3 +144,15 @@ def test_radar_reads_the_radar_pages_rule_version_and_waits_for_its_first_fill(m
     assert 'public.feature_07_rule_version()' in W.RADAR_SQL and 'public.feature_07_rule_version()' in W.RADAR_FILTERS_SQL
     monkeypatch.setattr(W.radar, 'busy', lambda conn: 'the Radar backfill is running')
     assert W.busy(object()) == 'the Radar backfill is running'
+
+
+def test_the_radar_output_is_a_file_of_its_own():
+    """EXEC-MU-ACCOUNTS Phase 3d (ERRORS M476): the Radar is a page of its own access level, so what it shows is in
+    watchlist-radar alone (edge-bff serves it only with radar.view) and the base file holds no Radar field."""
+    docs = W.build(Fake().run)
+    assert set(docs) == {'watchlist-stocks', 'watchlist-radar'}
+    assert not [k for k in docs['watchlist-stocks'] if k.startswith('radar')]
+    assert set(docs['watchlist-radar']) == {'schema', 'radar_date', 'radar_board', 'radar_filters', 'radar'}
+    # a day without a Radar date still publishes both files: the badges are empty, never stale
+    none = W.build(Fake(radar=None).run)['watchlist-radar']
+    assert none['radar'] == {} and none['radar_date'] is None

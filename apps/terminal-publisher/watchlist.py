@@ -7,8 +7,11 @@ terminal-api presigns it only for the EDGE gateway key. WATCHLIST_FORMULAS.md ex
 
   watchlist-stocks   the dates of the data; the indicator catalog (the page offers only what this file holds); and for
                      every common stock: name, sector, last close, 1D and 1M return, the closes of the TREND_SESSIONS
-                     newest sessions, the stored indicator values, its corporate actions of the next EVENT_DAYS days and
-                     the Radar screens it meets on the Radar's newest date
+                     newest sessions, the stored indicator values and its corporate actions of the next EVENT_DAYS days
+  watchlist-radar    the Radar screens each stock meets on the Radar's newest date, with the board and the screens'
+                     names (EXEC-MU-ACCOUNTS Phase 3d, ERRORS M476: the Radar is a page of its own access level, so its
+                     output is a file of its own, which edge-bff serves only with radar.view; a name
+                     <family>-<page> marks a file that carries that page's content, apps/edge-bff/app/pages.py)
 
 Light by decision (user 2026-11-16: "selight as possible yang mana tidak perlu ada calculation lagi"): every value is a
 stored column read as it is; the only arithmetic is the distance to an EMA (close / EMA - 1 of the same Feature 04 row).
@@ -27,7 +30,7 @@ from pathlib import Path
 import radar
 
 SCHEMA = 1
-NAME = re.compile(r'watchlist-stocks')
+NAME = re.compile(r'watchlist-(stocks|radar)')
 TREND_SESSIONS = 30          # the card's and table's trend line: the newest 30 closes
 EVENT_DAYS = 30              # corporate actions after the price date, calendar days
 RADAR_LEVEL = 'standard'     # the Radar page's default board (apps/edge-bff/radar/src/app.ts: lv 1, gate 'broad'): a
@@ -153,7 +156,8 @@ def price_date(run, m):
 
 
 def build(run):
-    """The file's document from run(sql, params) -> rows, or None when there is no market or no complete price date."""
+    """The two files' documents {name: document} from run(sql, params) -> rows, or None when there is no market or no
+    complete price date. watchlist-radar holds what the Radar shows; watchlist-stocks everything else (Phase 3d)."""
     m = (run(MARKET_SQL, {}) or [[None]])[0][0]
     if not m:
         return None
@@ -199,18 +203,21 @@ def build(run):
                 radar.setdefault(t, []).append(f)
         order = {f: pos for f, _, _, pos in filters}
         radar = {t: [label[f] for f in sorted(fs, key=order.get)] for t, fs in sorted(radar.items())}
-    return {
-        'schema': SCHEMA, 'prices_through': p, 'broker_through': b, 'radar_date': r, 'events_loaded': loaded,
-        'event_days': EVENT_DAYS, 'radar_board': {'level': RADAR_LEVEL, 'gate': RADAR_GATE},
-        'dates': dates,
+    stocks_doc = {
+        'schema': SCHEMA, 'prices_through': p, 'broker_through': b, 'events_loaded': loaded,
+        'event_days': EVENT_DAYS, 'dates': dates,
         'catalog': [{'key': k, 'name': nm, 'short': sh, 'note': note, 'family': fam, 'unit': unit, 'date': dk, 'signed': sg}
                     for k, nm, sh, note, fam, unit, dk, sg, _ in CATALOG],
         'default': list(DEFAULT_INDICATORS),
-        'radar_filters': [{'label': lab, 'name': nm} for _, lab, nm, _ in filters],
         'ticker': tickers, 'name': [nm for _, nm, _ in stocks], 'sector': [sec for _, _, sec in stocks],
         'last': last, 'r1d': r1d, 'r1m': r1m, 'trend': trend, 'values': vals,
-        'events': dict(sorted(events.items())), 'radar': radar,
+        'events': dict(sorted(events.items())),
     }
+    radar_doc = {
+        'schema': SCHEMA, 'radar_date': r, 'radar_board': {'level': RADAR_LEVEL, 'gate': RADAR_GATE},
+        'radar_filters': [{'label': lab, 'name': nm} for _, lab, nm, _ in filters], 'radar': radar,
+    }
+    return {'watchlist-stocks': stocks_doc, 'watchlist-radar': radar_doc}
 
 
 def digest(doc):
@@ -218,7 +225,7 @@ def digest(doc):
 
 
 def stamp(conn):
-    """The stamp of the publication: the file's own content (a run is cheap, so the stamp is exact rather than a proxy of
+    """The stamp of the publication: the files' own content (a run is cheap, so the stamp is exact rather than a proxy of
     its inputs, ERRORS M442's lesson) and this module's code. A run whose stamp equals state.json `watchlist_stamp`
     carries the index forward."""
     doc = build(lambda sql, params: conn.execute(sql, params).fetchall())
@@ -229,7 +236,10 @@ def files(conn, names, lists, stream=None, carry=None, previous=None, present=No
     """(files [(name, document, rows, as_of)], kept names, carry). names, lists, carry, previous, present and read are the
     family interface's; this file needs none of them (one date, nothing carried)."""
     run = stream or (lambda sql, params: conn.execute(sql, params).fetchall())
-    doc = build(run)
-    if doc is None:
+    docs = build(run)
+    if docs is None:
         return [], [], {'code': CODE}
-    return [('watchlist-stocks', doc, len(doc['ticker']), doc['prices_through'])], [], {'code': CODE}
+    stocks_doc, radar_doc = docs['watchlist-stocks'], docs['watchlist-radar']
+    return [('watchlist-stocks', stocks_doc, len(stocks_doc['ticker']), stocks_doc['prices_through']),
+            ('watchlist-radar', radar_doc, len(radar_doc['radar']), radar_doc['radar_date'] or stocks_doc['prices_through'])
+            ], [], {'code': CODE}
