@@ -989,7 +989,10 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         names = list(dict.fromkeys(body.datasets))
         locked = {n: {'locked': True, 'capability': f'terminal.dataset:{n}'}
                   for n in names if caps and not caps.dataset_ok(n)}
-        capped = [n for n in names if n not in locked and caps and caps.history_days is not None]
+        # a dataset the ticker does not have (no datasets.<name> in its manifest) is answered with no files, as for an
+        # uncapped owner, never as a history lock (3c check C3-4): only a dataset that exists is cut
+        capped = [n for n in names if n not in locked and caps and caps.history_days is not None
+                  and n in (m.get('datasets') or {})]
         packs = m.get('packs', {}) if body.packs else {}
         chosen = []
         for name in names:
@@ -1079,6 +1082,10 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         need_ticker(caller, ticker)
         need_dataset(caller, dataset)
         m = ticker_manifest(ticker)
+        if dataset not in (m.get('datasets') or {}):
+            # the ticker has no such dataset: nothing to cut (3c check C3-4), as /bundle answers it with no file
+            error(404, 'no_rows_in_window', f'{ticker} has no {dataset} data set; POST {API}/bundle answers it with no '
+                                            'file.')
         try:
             cut = cut_of(m, ticker, dataset, caps.history_days)
         except CutError as e:
