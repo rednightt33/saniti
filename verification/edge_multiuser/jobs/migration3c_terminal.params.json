@@ -1,0 +1,39 @@
+{
+ "mode": "DRYRUN",
+ "migrations": [
+  "20261118_100_terminal_owner_subscriber.sql",
+  "20261119_170_terminal_access_log_client.sql"
+ ],
+ "probes": [
+  [
+   "access_log_size",
+   null,
+   "SELECT count(*) AS rows, pg_size_pretty(pg_total_relation_size('terminal.access_log')) AS size FROM terminal.access_log"
+  ],
+  [
+   "subscriber_kinds",
+   null,
+   "SELECT kind, active, count(*) FROM terminal.subscriber GROUP BY 1,2 ORDER BY 1,2"
+  ],
+  [
+   "gateway_row",
+   null,
+   "SELECT subscriber_id, kind, active, expires_at, edge_owner_key IS NULL AS no_owner_key FROM terminal.subscriber WHERE email = 'edge-owner@terminal.local'"
+  ],
+  [
+   "new_columns",
+   null,
+   "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema='terminal' AND (table_name, column_name) IN (('subscriber','edge_owner_key'),('access_log','version'),('access_log','client_key')) ORDER BY 1,2"
+  ],
+  [
+   "client_index",
+   null,
+   "SELECT indexrelid::regclass::text AS idx, pg_size_pretty(pg_relation_size(indexrelid)) AS size FROM pg_index WHERE indexrelid = to_regclass('terminal.access_log_client_at')"
+  ],
+  [
+   "runtime_reads",
+   "terminal_runtime",
+   "SELECT count(*) AS subscribers FROM terminal.subscriber"
+  ]
+ ]
+}

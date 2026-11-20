@@ -8879,6 +8879,26 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M509 — CI: edge-bff's suite never ran in GitHub after the fix round, because the runner's OS moved past the pinned Playwright (2026-11-19/20; FIXED in CI, verified by the next run)
+
+- **Found by:** reading the red "Backend tests" runs before the Phase 3c deploy (run 44662326604, job edge-bff, step
+  "Chromium for the browser tests").
+- **Symptom:** every run since `51451d52` (2026-11-19 11:26 UTC, the step that installs Chromium) failed in about one
+  second at that step, so the edge-bff tests themselves were skipped in CI; the other jobs stayed green and the local
+  runs passed, which hid it.
+- **Root cause (verified, job log):** `ubuntu-latest` now gives Ubuntu 26.04 ("installing dependencies for
+  ubuntu26.04-x64 as a fallback"), and the Python Playwright pinned in `apps/edge-bff/requirements-dev.txt` (1.56.0)
+  refuses it: "ERROR: Playwright does not support chromium on ubuntu26.04-x64". The local suites run Playwright 1.65.2
+  (`pip show playwright`), so the pin also no longer named the version the tests are run with. The page smoke
+  (`backtest-page-smoke.yml`, Playwright 1.63.0 on the same runner) installs fine.
+- **General class:** a CI job that installs a browser through a pinned tool on a floating runner label breaks when the
+  label moves to an OS the tool does not know. The same mechanism holds for the page smoke's 1.63.0 at the next OS move.
+- **Solution:** `requirements-dev.txt` pins 1.65.2, the version the local suites run with, so CI and local test the same
+  tool; a comment at the step in `backend-tests.yml` names this entry.
+- **Status:** fixed; the next "Backend tests" run is the evidence (recorded in the 3c deploy log in EXEC.md).
+- **Lesson:** a red job is read at its first failing step before a deploy, not by its name; a skipped suite is a gap
+  even when the local run is green. When `ubuntu-latest` moves, the browser pins move with it.
+
 ### M508 — 3c check, records, CI and migrations: a contract row left "to build", rollback floors missing, a lock test in no workflow, rollback blocks that did not run as written (2026-11-19/20, 3c check C3-10, C3-22, C3-23, C3-24, C3-25, C3-27; fixed on branch p3c-int, not deployed; C3-27 OPEN until the deploy record)
 
 - **Found by:** the ultracode check of Phase 3c with the fix round and the decisions of 2026-11-19 (workflow

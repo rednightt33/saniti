@@ -1,0 +1,86 @@
+{
+ "mode": "DRYRUN",
+ "migrations": [
+  "20261118_001_edge_bff_item_families_from_terminal.sql",
+  "20261118_002_edge_bff_terminal_quota.sql",
+  "20261119_010_edge_bff_password_identity.sql",
+  "20261119_011_edge_bff_mfa_pending_enrolment.sql",
+  "20261119_012_edge_bff_email_outbox_purge.sql",
+  "20261119_020_edge_bff_jobs_site.sql",
+  "20261119_021_edge_bff_backtest_jobs_site.sql",
+  "20261119_022_edge_bff_seed_verifier_mark.sql",
+  "20261119_023_edge_bff_account_reference_indexes.sql",
+  "20261119_030_edge_bff_plan_data_scope.sql",
+  "20261119_040_edge_bff_audit_ids_and_catalog_trace.sql",
+  "20261119_050_edge_bff_capability_domains.sql",
+  "20261119_070_edge_bff_guest_plan_and_test_accounts.sql",
+  "20261119_071_edge_bff_guest_total_scope.sql"
+ ],
+ "probes": [
+  [
+   "capabilities",
+   null,
+   "SELECT count(*) AS capabilities, count(*) FILTER (WHERE kind='limit') AS limits, count(*) FILTER (WHERE value_min IS NOT NULL OR item_pattern IS NOT NULL) AS with_domain FROM edge_bff.capabilities"
+  ],
+  [
+   "quota_capabilities",
+   null,
+   "SELECT capability_key, kind, value_min, value_max FROM edge_bff.capabilities WHERE capability_key LIKE 'terminal.%per%' ORDER BY 1"
+  ],
+  [
+   "plans",
+   null,
+   "SELECT plan_key, is_default, for_guests, (SELECT count(*) FROM edge_bff.plan_capabilities pc WHERE pc.plan_key = p.plan_key) AS grants FROM edge_bff.plans p ORDER BY plan_key"
+  ],
+  [
+   "guest_plan_grants",
+   null,
+   "SELECT capability_key, value FROM edge_bff.plan_capabilities WHERE plan_key = (SELECT plan_key FROM edge_bff.plans WHERE for_guests) ORDER BY 1"
+  ],
+  [
+   "data_scope_conflicts",
+   null,
+   "SELECT count(*) AS conflicts FROM edge_bff.data_scope_conflicts(NULL, NULL)"
+  ],
+  [
+   "new_columns",
+   null,
+   "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema='edge_bff' AND (table_name, column_name) IN (('jobs','site'),('backtest_jobs','site'),('identities','sign_in_failures'),('identities','seed_verifier_sha256'),('users','test_account'),('mfa_totp','pending_nonce'),('user_capability_overrides','updated_at'),('capabilities','value_min')) ORDER BY 1,2"
+  ],
+  [
+   "site_values",
+   null,
+   "SELECT 'jobs' AS t, site, count(*) FROM edge_bff.jobs GROUP BY site UNION ALL SELECT 'backtest_jobs', site, count(*) FROM edge_bff.backtest_jobs GROUP BY site"
+  ],
+  [
+   "throttle_scopes",
+   null,
+   "SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conrelid='edge_bff.auth_throttle'::regclass AND conname='auth_throttle_scope_check'"
+  ],
+  [
+   "purge_function",
+   null,
+   "SELECT p.oid::regprocedure::text AS fn, p.prosecdef AS definer FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='edge_bff' AND p.proname IN ('purge_email_outbox','capability_domain_fits','capability_domain_text','data_scope_conflicts') ORDER BY 1"
+  ],
+  [
+   "overrides",
+   null,
+   "SELECT count(*) AS overrides FROM edge_bff.user_capability_overrides"
+  ],
+  [
+   "seed_identity",
+   null,
+   "SELECT u.user_id, u.owner_key, i.seed_verifier_sha256 IS NOT NULL AS marked FROM edge_bff.users u JOIN edge_bff.identities i USING (user_id) WHERE i.provider='password' ORDER BY u.user_id LIMIT 3"
+  ],
+  [
+   "runtime_reads",
+   "edge_bff_runtime",
+   "SELECT (SELECT count(*) FROM edge_bff.capabilities) AS capabilities, (SELECT count(*) FROM edge_bff.plans) AS plans, (SELECT count(*) FROM edge_bff.auth_throttle) AS throttle_rows"
+  ],
+  [
+   "runtime_purge",
+   "edge_bff_runtime",
+   "SELECT has_function_privilege('edge_bff_runtime','edge_bff.purge_email_outbox(integer)','EXECUTE') AS can_purge"
+  ]
+ ]
+}
