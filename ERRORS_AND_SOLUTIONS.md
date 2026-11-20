@@ -8879,6 +8879,29 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M511 — An expand migration fails the running service's cached query plans once per connection (0A000) (2026-11-20; OPEN, a proposal)
+
+- **Found by:** the beta's log during the 3c deploy (deployment `dc11722a`, the 3b edge-bff still running):
+  `backtest_queue_operation_failed`, `psycopg.errors.FeatureNotSupported`, SQLSTATE 0A000, at 03:57:10 UTC, seconds
+  after migration `20261119_021` added `site` to `edge_bff.backtest_jobs` (APPLY job `6997edd8`).
+- **Root cause (verified in code; the message itself is not logged):** edge-bff reads `edge_bff.backtest_jobs` and
+  `edge_bff.jobs` with `SELECT *` and `RETURNING *` (`app/backtest.py`, `app/store.py`), and psycopg prepares a query
+  on the server after five runs. A column added to the table changes the result type of such a cached plan, which
+  PostgreSQL refuses (0A000, "cached plan must not change result type"). psycopg drops its prepared statements on the
+  ROLLBACK that follows (`_preparing.py` `_should_discard`), so each pooled connection fails once and then heals.
+- **Impact here:** one failed loop round of the Backtest queue; no job was running (M340) and none was lost; gone with
+  the new edge-bff deploy (new connections).
+- **General class:** a schema change under a running reader with cached plans: every expand migration that adds or
+  drops a column of a table read with `*` (`jobs`, `backtest_jobs`, the account tables, `watchlist_*`, and the
+  `terminal` tables read by terminal-api) can fail one request per connection for a user who is active at that moment.
+  Not the class: a new table, a new index or a new row.
+- **Proposed fix (not applied; for the user's choice with Phase 4):** at the connection layer, either no server-side
+  prepared statements in edge-bff's and terminal-api's pools (`prepare_threshold=None`; measured cost first), or the
+  deploy order "reader restarted right after a column-adding migration" in CONTRACT 17. Naming columns in every query
+  would also cover it but is per query, so it is not the general fix.
+- **Status:** OPEN.
+- **Lesson:** an expand-only migration is safe for data, not always for the plans a running process holds.
+
 ### M510 — edge-bff's browser tests fail on GitHub's runner, a different few each run, while every local run passes them (2026-11-20; TEMPORARY rerun in CI, root cause OPEN)
 
 - **Found by:** the first CI runs of edge-bff's browser tests after M509: run 44663513713 (commit `b969529b`, Playwright
@@ -8910,7 +8933,19 @@ in its staleness check.
   page, and the stopgap is removed with that fix. Local runs never rerun.
 - **CI pin (permanent):** `requirements-dev.txt` pins Playwright 1.63.0, the browser build of the local runs and the page
   smoke (M509).
-- **Status:** TEMPORARY rerun in CI; root cause OPEN (investigation runs beside the 3c deploy).
+- **Root cause found for the composer test (verified, 2026-11-20):** with the rerun, run 44671082697 (commit
+  `0985f0dc`) passed 948 and reran 4 tests that then passed, but `test_submit_history_and_fixed_headers[mobile-small]`
+  failed all three times. At load the Monitor page opens the conversation of its address (`/c/<id>`) with
+  `selectConversation`, the same function as the user's choice, and it closed the phone history panel for every
+  caller (`static/edge-app.js`, `backend-init`). After a reload the test opened the history; on the slow runner the
+  page's own load ended later and closed it. A user on a slow phone who opens the history while the page still loads
+  sees the same. Fix in the page: the page's own opening (`{byPage:true}`) leaves the panels as the user has them; a
+  choice from the history, Back/Forward and a branch link still close it. Test
+  `tests/test_m510_history_restore.py` holds the load's `/runs` request until the user has opened the history, so the
+  race happens on every machine: it fails without the fix ("the page closed the history the user had opened") and
+  passes with it; the Monitor browser suites pass locally (46 of 46).
+- **Status:** the composer test's cause FIXED (not deployed yet); the other tests' causes OPEN; the TEMPORARY rerun
+  stays until they are found.
 - **Lesson:** a browser test needs a run on the slowest machine it is held to before it gates a deploy.
 
 ### M509 — CI: edge-bff's suite never ran in GitHub after the fix round, because the runner's OS moved past the pinned Playwright (2026-11-19/20; FIXED in CI, verified by the next run)

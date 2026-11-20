@@ -11,7 +11,7 @@ dec1cfef`): failing tests of verified findings of the lens "migrations, deploy o
 2. ERRORS M503 says CONTRACT section 17 "holds the rollback floors (..., 3d, the guest build)", but the table has no
    row for the guest build (the floor is written only in verification/edge_multiuser/fix_round/guest.md "Deploy order
    and rollback floors": while guests are on anywhere, terminal-api is never rolled back below the guest build).
-3. Each unapplied migration ends with "Rollback (a new forward migration with this body ...)". The block of
+3. Each migration of the phase ends with "Rollback (a new forward migration with this body ...)". The block of
    20261119_050 holds a sentence in place of SQL ("(CREATE OR REPLACE edge_bff.capability_value_check with the body of
    20261117_003)"), so the block cannot be run as written, and its SQL lines alone leave the replaced
    capability_value_check reading the dropped columns: probe on a database with every migration applied, then the
@@ -117,11 +117,11 @@ def test_the_rollback_floors_hold_the_backtest_workers_floor_of_the_broker_data_
 MIGRATIONS = ROOT / 'database/migrations'
 
 
-def unapplied():
-    """The migrations of EXEC-MU-ACCOUNTS Phase 3c and the fix round not yet in APPLIED.sha256 (20261118_*, 20261119_*)."""
-    applied = {line.split()[1] for line in (MIGRATIONS / 'APPLIED.sha256').read_text().splitlines()
-               if line.strip() and not line.startswith('#')}
-    return [p for p in sorted(MIGRATIONS.glob('2026111[89]_*.sql')) if p.name not in applied]
+def phase_migrations():
+    """The migrations of EXEC-MU-ACCOUNTS Phase 3c and the fix round (20261118_*, 20261119_*), applied or not. Stated
+    reason (the 3c deploy, 2026-11-20): this read "not yet in APPLIED.sha256", so the deploy that applies them would
+    have left the check with no block at all; an applied migration's rollback block is the way back that now counts."""
+    return sorted(MIGRATIONS.glob('2026111[89]_*.sql'))
 
 
 def rollback_block(path):
@@ -133,13 +133,13 @@ def rollback_block(path):
     return [line[3:] if line.startswith('-- ') else line[2:] for line in tail[start:end + 1]]
 
 
-def test_every_unapplied_edge_bff_migrations_rollback_block_runs_as_written(database):
+def test_every_phase_3c_edge_bff_migrations_rollback_block_runs_as_written(database):
     """On the suite's database (conftest: every edge_bff migration applied), each edge_bff block, newest first, in one
     transaction that is rolled back (DDL is transactional; nothing is kept). Then a plan value is written, as an
     operator or the Phase 4 admin would after the rollback. The terminal blocks (20261118_100, 20261119_170) need the
     terminal schema, which this database does not hold (they ran as written on the checker's cluster)."""
     import psycopg
-    blocks = [p for p in reversed(unapplied()) if 'edge_bff' in p.name]
+    blocks = [p for p in reversed(phase_migrations()) if 'edge_bff' in p.name]
     assert len(blocks) >= 13, [p.name for p in blocks]
     failed = []
     with psycopg.connect(database) as c:

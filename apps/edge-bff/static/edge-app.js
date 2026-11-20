@@ -1097,7 +1097,10 @@ function Monitor({ go }) {
       window.addEventListener("edge-attach",event=>viewRecord.refs.attachHandler?.(event.detail));}
     const inputHint=initialValue(viewRecord,"inputHint",()=>null),setInputHint=next=>updateValue(viewRecord,"inputHint",next);
     // EXEC-ASK-BRANCH: a conversation not in the list (opened by link, a side chat) joins it when selected
-    const selectConversation = async id => {setHistoryOpen(false);setLoadingConversation(true);setApiError("");setSelectedId(id);setSelectedRunId(null);setPendingReply(null);try{const loaded=await Edge.messages(id);setItems(current=>current.some(x=>x.id===id)?current.map(x=>x.id===id?loaded:x):[loaded,...current]);}catch(e){setApiError(e.message);}finally{setLoadingConversation(false);}};
+    // ERRORS M510: the page itself opening the conversation of its address (/c/<id>, at load) is not the user choosing
+    // it, so it leaves the panels as the user has them; on a slow phone the user may open the history before the load
+    // ends, and the load closed it again. A choice from the history, Back/Forward or a branch link still closes it.
+    const selectConversation = async (id,{byPage=false}={}) => {if(!byPage)setHistoryOpen(false);setLoadingConversation(true);setApiError("");setSelectedId(id);setSelectedRunId(null);setPendingReply(null);try{const loaded=await Edge.messages(id);setItems(current=>current.some(x=>x.id===id)?current.map(x=>x.id===id?loaded:x):[loaded,...current]);}catch(e){setApiError(e.message);}finally{setLoadingConversation(false);}};
     // EXEC-ASK-BRANCH (user 2026-10-24: Branch "satu tab baru terpisah sama seperti feature chat GPT"; a side chat "untuk
     // nanya jawaban yang dikasih oleh AI"). The tab is opened before the request so no pop-up blocker stops it.
     const link=cachedValue(viewRecord,"edgeLink",()=>edgeLink(),[]);
@@ -1170,7 +1173,7 @@ function Monitor({ go }) {
       let disposed=false;
       (async()=>{try{const loaded=await Edge.conversations();if(disposed)return;setItems(loaded);const {active:running}=await Edge.api("/runs");if(disposed)return;
         // EXEC-ASK-BRANCH: a linked conversation opens first; a run elsewhere is followed only in its own conversation
-        if(link.conversationId){await selectConversation(link.conversationId);if(!running || running.conversation_id!==link.conversationId)return;}
+        if(link.conversationId){await selectConversation(link.conversationId,{byPage:true});if(!running || running.conversation_id!==link.conversationId)return;}
         if(!running)return;
         let id=running.conversation_id || "draft:"+running.request_id;
         let conversation=running.conversation_id ? await Edge.messages(id) : {id,title:"Request in progress",bookmarked:false,createdAt:running.created_at,updatedAt:running.updated_at,messages:[],runs:[]};

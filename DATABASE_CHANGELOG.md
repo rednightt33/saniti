@@ -1,5 +1,39 @@
 # Database changelog
 
+## 2026-11-20 — EXEC-MU-ACCOUNTS Phase 3c migrations applied on dev (16 files, schemas `edge_bff` and `terminal`) and the gateway's terminal-api account until 2100
+
+- **Why:** Phase 3c and the 3b follow-up, the re-check's fix round and the 3c check's fixes (EXEC.md "Phase 3c deploy
+  steps", the user's "Go" of 2026-11-20). Expand only: the running 3b edge-bff kept working (one stale plan, below).
+  Operational schemas, so no `Table_Catalog` rows; `DATABASE_SCHEMA.md` covers schema `public` only, as in Phases 1-3b.
+- **Files, in order** (each its own transaction; sha256 read back and appended to `database/migrations/APPLIED.sha256`):
+  `20261118_001` item families from terminal-api, `20261118_002` the four Terminal quota limits, `20261119_010`
+  verifier forms and sign-in failure counts, `_011` pending MFA enrolment, `_012` outbox purge, `_020`/`_021` the `site`
+  column of `jobs` and `backtest_jobs` (default `beta`), `_022` the seed's verifier mark, `_023` six account-reference
+  indexes, `_030` the restricted-plan rule (the user's "2a"), `_040` audit ids and catalog trace, `_050` capability
+  value domains, `_070` the guest plan and the audited test-account mark, `_071` the guest-ceiling throttle scope;
+  `20261118_100` per-owner subscriber rows and `20261119_170` the visitor key on `terminal.access_log`.
+- **Jobs:** M340 `add24553` (0 active EDGE jobs, 0 running Orc turns, 0 open Backtest jobs, 03:56 UTC); DRYRUN
+  `de274dd7` (edge_bff) and `4380ca18` (terminal), every probe as expected; APPLY `6997edd8` (edge_bff, 03:57 UTC) and
+  `37f1e35b` (terminal, 03:58 UTC).
+- **Read back live:**
+  - 48 capabilities (13 limits, 6 with a value domain); the four `terminal.*` quota limits with domain 1 to 10^9;
+  - plans: admin 1 grant, free (default) 15, guest (`for_guests`) 5, paid 33; guest grants: dataset `price`, history 730
+    days, no indicator, tickers `BBCA`, `terminal.view`;
+  - `data_scope_conflicts` 0; the eight new columns present; `site` = `beta` on 414 `jobs` and 87 `backtest_jobs` rows;
+  - the throttle scope check holds `guest_total`; the four functions present, `purge_email_outbox` SECURITY DEFINER and
+    executable by `edge_bff_runtime`; 0 overrides; the seed identity marked; `edge_bff_runtime` reads 48/4/0;
+  - terminal: `access_log` 13,575 rows (4.9 MB), the new columns `client_key`, `version`, `subscriber.edge_owner_key`,
+    index `access_log_client_at`; subscribers person 1 active + 1 inactive, service 2; `terminal_runtime` reads 4.
+- **Gateway account** (the user's "5a", 2026-11-19): `edge-owner@terminal.local` (subscriber 2) `expires_at`
+  2027-10-25 16:59:59+00 → **2100-01-01 00:00:00+00** through terminal-api's audited admin route from the runner's
+  private address (job `2e94f502`; `terminal.admin_log` row 7, 04:02:07 UTC, action `change`), read back by the
+  read-only job `76e9dca3`. The first job's own output never reached Railway's log, so it was stopped (`railway down`)
+  and the row read instead; its reference variables were removed (`VAR_REMOVED`).
+- **Memory:** `POSTGRES_MEMORY_CHECK` 0.12 and 0.13 GB, below 0.8 GB: not a large update, no restart.
+- **Seen on the running 3b edge-bff:** one `backtest_queue_operation_failed` with `FeatureNotSupported` (0A000) at
+  03:57:10, right after `_021` added a column to `backtest_jobs`: a plan the old process had cached for a `SELECT *`
+  (ERRORS M511). It cleared itself; no job was running (M340).
+
 ## 2026-11-17 — EDGE plan catalog Phase 3a rows (schema `edge_bff`, EXEC-MU-ACCOUNTS Phase 3a) — applied 2026-11-17 (job `3562a182`)
 
 - **Why:** the edge-bff route gates and saved-item caps of Phase 3a (CONTRACT.md 8b "3a in detail", decisions D1, D6
