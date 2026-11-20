@@ -57,6 +57,12 @@ export interface MarketData {
   instruments: Instrument[];
   /** live (track guest): what the principal does not hold; absent in the fixture (nothing locked) */
   locks?: Locks;
+  /** live (live checker after the switch-on, F1; TEMPORARY until 3e builds the lock prompts): the datasets the server
+      answered as locked for this principal (/bundle `locked`: broker, events, yield, intraday or any later one); their
+      panels are left out, never shown as empty or zero */
+  lockedData?: string[];
+  /** live: the history window the server cut the price to (/bundle price `cut`), shown as a note on the chart */
+  history?: { days: number; after: string };
   ohlc: Bar[];
   volume: VolumePoint[];
   lineData: Point[];

@@ -142,7 +142,14 @@ async function bundle(ticker: string, datasets: Dataset[], csrf: string, timefra
   const day = answer.datasets?.intraday;
   const intraday: FileRef[] | undefined = day ? (day.files || []).map((f: any) => ({ url:f.url, sha:f.sha256, bytes:f.bytes, name:`intraday/${f.part}` })) : undefined;
   const meta = day ? { barsPerYear:day.bars_per_year ?? undefined, first:day.first ?? undefined, last:day.last ?? undefined } : undefined;
+  /* live checker after the switch-on (F1): every dataset the server answered as locked for this principal, read from the
+     answer (no list here), and the history window of a capped price */
+  const locked = Object.entries(answer.datasets || {}).filter(([, d]: [string, any]) => d && d.locked === true).map(([n]) => n);
+  const cut = answer.datasets?.price?.cut;
+  const history = cut && Number.isFinite(cut.history_days) && typeof cut.after === 'string'
+    ? { days:cut.history_days as number, after:cut.after as string } : undefined;
   return { price:refs('price'), broker:refs('broker'), events:refs('events'), through, intraday, offset:day?.utc_offset_seconds ?? 0, meta,
+           locked, history,
            timeframes:(answer.timeframes || {}) as Record<string, { first?: string; last?: string; rows?: number; bars_per_year?: number }>,
            // EXEC-FI-TERMINAL: a government bond: its yield files beside its price files, and what it is
            yieldFiles:refs('yield'), kind:(answer.kind || 'equity') as string, instrument:answer.instrument as any };
@@ -153,6 +160,7 @@ async function bundle(ticker: string, datasets: Dataset[], csrf: string, timefra
 async function bondBundle(ticker: string, metric: 'yield' | 'price', csrf: string) {
   const f = await bundle(ticker, ['yield', 'price'], csrf);
   return { ...f, price:metric === 'yield' ? f.yieldFiles : f.price, broker:[], events:[], intraday:undefined,
+           locked:f.locked.filter(n => n !== 'broker' && n !== 'events'),
            through:{ price:undefined, broker:undefined } };
 }
 
@@ -489,7 +497,11 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
     // EXEC-INTRADAY-FEATURES C3-C4: the timeframes the ticker has, and on an intraday chart the daily sessions behind
     // the daily figures, the session each candle shows (dayOf) and the timeframe's bars per year
     timeframes:Object.keys(files.timeframes || {}),
-    ...(want && !intraday ? { note:`No ${want.toUpperCase()} data is published for ${SYMBOL}; showing the daily chart.` } : {}),
+    // a locked timeframe is not "not published": the page opens the lock box instead (main.ts lockedPage)
+    ...(want && !intraday && !(files.locked || []).includes('intraday') ? { note:`No ${want.toUpperCase()} data is published for ${SYMBOL}; showing the daily chart.` } : {}),
+    lockedData:files.locked || [], ...(files.history ? { history:files.history } : {}),
+    // a principal without the broker data has no Flow input at all (as a bond): no Flow Timeline, readout or broker panel
+    ...((files.locked || []).includes('broker') ? { later:undefined } : {}),
     ...(intraday && dayOf ? { intraday:{ dayOf, days:sessions, daily:rows, barsPerYear:files.meta?.barsPerYear, first:files.meta?.first, last:files.meta?.last } } : {}),
     loadEvents,
     ...(isIndex ? { index:true as const } : {}),

@@ -34,6 +34,7 @@ import { initPopout } from './app/popout';
 import { initLayouts } from './app/layouts';
 import { initPresets } from './app/presets';
 import { initAssets } from './app/assets';
+import { askLocked } from './app/locked';
 import { asTimeframe, isIntraday, periodsPerYear, tfLabel, tfTitle, type Timeframe } from './data/timeframe';
 import { keyedCharts, safeCharts } from './data/chartTime';
 
@@ -89,6 +90,28 @@ function bondPage(M: MarketData) {
   $('symText').insertAdjacentHTML('afterend', `<span class="fi-unit" title="${title(fi.metric)} · ${fi.name}${fi.country ? ', ' + fi.country : ''}">${unit}</span>`);
 }
 
+/* The live checker after the switch-on (2026-11-20, F1; TEMPORARY until 3e builds a lock prompt on each panel): a
+   dataset the server answered as locked for this principal (MarketData.lockedData, from /bundle) is left out the way a
+   bond leaves out what it has not, so a visitor never reads "Rp 0", "No broker data" or an event count for data that
+   exists but is closed to it. A locked intraday timeframe opens the lock box, and the next load is daily. */
+function lockedPage(M: MarketData) {
+  const locked = new Set(M.lockedData || []);
+  if (locked.has('broker')) { document.body.classList.add('locked-broker'); $('workspace').classList.remove('has-right') }
+  if (locked.has('events')) document.body.classList.add('locked-events');
+  if (locked.has('intraday')) { store.set('ml.tf', 'D'); askLocked({ kind:'feature', id:'terminal.dataset:intraday', name:'Intraday charts' }) }
+}
+/* the history window the server cut the price to (MarketData.history): said on the chart, so the first candle is not
+   read as the ticker's first day */
+function historyNote(M: MarketData) {
+  const c = $('chart'); if (!c || !M.history) return;
+  const after = new Date(M.history.after + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone:'UTC' }).replace('Sept', 'Sep');
+  const n = document.createElement('div');
+  n.className = 'tf-note history-note';
+  n.textContent = `Last ${M.history.days} days of history (after ${after})`;
+  n.title = 'The history this access shows';
+  c.parentElement?.appendChild(n);
+}
+
 function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   const container = $('chart');
   if (!container) return null;
@@ -111,7 +134,9 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   setCountries(M.countries);                               // a bond's flag (user 2026-11-01)
   M.logosLater?.then(setLogos, () => {});                  // ERRORS M333: after the chart, not before it
   if (M.fixedIncome) bondPage(M);
+  lockedPage(M);
   initChart(ctx);
+  historyNote(M);
   initStats(ctx);
   initVolume(ctx);
   initAxis(ctx);

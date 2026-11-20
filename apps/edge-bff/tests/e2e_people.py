@@ -230,8 +230,19 @@ class FakeTerminalApi:
                                 out[d]['files'] = [{'year': None, 'pack': 'cut', 'sha256': sha_, 'bytes': len(c),
                                                     'rows': len(cut_doc['d']),
                                                     'url': f'/api/terminal/v1/cut/{ticker}/price?sha256={sha_}'}]
+                                # and the window, as terminal-api answers it (main.py bundle: out[name]['cut'])
+                                window = terminal_api('entitlements').window_after(rows[-1][0], caps.history_days)
+                                out[d]['cut'] = {'history_days': caps.history_days, 'after': window.isoformat()}
                         else:
                             out[d] = {'files': [], 'data_through': None}
+                    tf = body.get('timeframe')
+                    if tf:
+                        # terminal-api: an asked intraday timeframe outside the plan, or under a history cap, is locked;
+                        # else this fake publishes none of it
+                        if caps is not None and (not caps.dataset_ok('intraday') or caps.history_days is not None):
+                            out['intraday'] = {'timeframe': tf, 'locked': True, 'capability': 'terminal.dataset:intraday'}
+                        else:
+                            out['intraday'] = {'timeframe': tf, 'files': []}
                     return self.answer(200, {'ticker': ticker, 'datasets': out, 'expires_in_seconds': 120})
                 if method == 'GET' and route.startswith('logo/'):
                     return self.answer(404, {'error': 'no_logo'})

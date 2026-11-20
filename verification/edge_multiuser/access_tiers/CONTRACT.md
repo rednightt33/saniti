@@ -936,6 +936,13 @@ today.
   - Packs, yearly files and `/history` beyond the window are refused (403 `CAPABILITY_REQUIRED`
     `terminal.history_days`).
   - A dataset that cannot be cut is refused with a reason, never served whole.
+- **The page and a locked dataset (live checker after the switch-on, 2026-11-20, ERRORS M515 F1; TEMPORARY until 3e
+  builds a lock prompt on each panel):** the Terminal reads each dataset `/bundle` answers as `{locked}` (broker, events,
+  yield, intraday or any later one, from the answer, never a list in the page; `terminal/src/data/live.ts` bundle) and
+  leaves its panels out the way a bond does (`main.ts` lockedPage: the Flow Timeline and its readout, the broker panel,
+  the Events menu); a locked intraday timeframe opens the lock box and the next load is daily; a cut price says its
+  window on the chart ("Last N days of history", historyNote). No panel shows a figure or a "not published" sentence for
+  data that exists but is closed. Test: `apps/edge-bff/tests/test_live_terminal_locked.py`.
 - **Not in 3c** (3e):
   - the page's lock prompts and its handling of `locked` and the cut beyond what it already reads;
   - the free plan's two indicators.

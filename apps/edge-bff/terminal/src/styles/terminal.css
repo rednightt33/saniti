@@ -1103,6 +1103,11 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 /* EXEC-FI-TERMINAL (user go 2026-11-01): a government bond's page: no Flow Timeline, broker panel or events */
 .fi-mode .main-col{grid-template-rows:46px minmax(240px,1fr) 0px !important}
 .fi-mode .main-col > .bottom,.fi-mode .side.right,.fi-mode #evBtn{display:none !important}
+/* the live checker after the switch-on (F1; TEMPORARY until 3e): a dataset the server answered as locked for this
+   principal is left out as for a bond (main.ts lockedPage), never shown as empty or zero */
+.locked-broker .main-col{grid-template-rows:46px minmax(240px,1fr) 0px !important}
+.locked-broker .main-col > .bottom,.locked-broker .side.right{display:none !important}
+.locked-events #evBtn{display:none !important}
 .fi-unit{margin-left:6px;padding:1px 7px;border-radius:999px;background:#eef2f7;color:#475569;font-size:11px;font-weight:600;white-space:nowrap}
 
 
