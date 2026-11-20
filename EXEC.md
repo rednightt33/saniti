@@ -15985,6 +15985,10 @@ Order of the services (CONTRACT 17, rollback floors):
 - **The checkers (answered the same day):** two ultracode checkers. (1) The live checker, inside A: after the live
   website is set up and before its switch is turned on. (2) The deep checker over every phase, after 3e, 3f, Phase 4
   and the payment skeleton, before registration opens.
+- **Order of the checker (the user, 2026-11-20, after the live checker's results, ERRORS M513):** "Checker ultracode
+  dilakukan terakhir opsi A setelah saklar nyala dengan go dari saya." The ultracode checker of option A runs last:
+  after the switch is on, which waits for the user's go; it checks the running live site. The check before the switch
+  (`wf_b98c2b6c-166`, M513) stands as the review of the code and settings that go live.
 - **A, before the live site opens:** the 3d publisher deploy (the split appears with the next scheduled publication);
   M500's open part (terminal-api's handler for unexpected errors, so no personal data reaches its log); the live
   service's settings (EXEC-MU-ACCOUNTS "Production environment", CONTRACT 16-17) set without a deployment; the Railway
