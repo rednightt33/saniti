@@ -146,8 +146,11 @@ def test_a_backtest_of_one_site_is_not_lost_when_the_other_sites_loop_uses_the_s
         live_loop.access = lambda owner: switch_off_principal(configured, configured.owner)
 
         def on_poll(job_id):
-            # the beta's job finishes on the worker right after a status read of its follower, once the live job waits
-            if job_id == a['request_id'] and worker.busy:
+            # the beta's job finishes on the worker right after a status read of its follower, while the live job waits.
+            # Changed with the fix (3c check C3-11, a stated reason): the live loop now waits for the shared worker's
+            # slot in the database, never at the worker, so no BUSY answer can mark "the live job waits"; the beta's
+            # job finishes after its follower's third read instead, which falls inside the live loop's wait
+            if job_id == a['request_id'] and worker.polls[job_id] >= 3:
                 worker.finished.add(job_id)
             if job_id == b['request_id'] and worker.polls[job_id] >= 2:
                 worker.finished.add(job_id)
@@ -166,6 +169,8 @@ def test_a_backtest_of_one_site_is_not_lost_when_the_other_sites_loop_uses_the_s
             ended = {r['request_id']: (r['state'], r['error']) for r in
                      c.execute('SELECT request_id, state, error FROM edge_bff.backtest_jobs').fetchall()}
         assert ended[b['request_id']][0] == 'FINISHED', ended
+        # the live loop waited for the slot: it never handed its job to a worker still holding the beta's
+        assert worker.busy == [], worker.busy
         # the beta's backtest finished on the worker; the live site's hand-over replaced it before its follower
         # fetched the result, so it ends FAILED WORKER_LOST
         assert ended[a['request_id']] == ('FINISHED', None), ended

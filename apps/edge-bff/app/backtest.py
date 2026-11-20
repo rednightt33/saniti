@@ -565,6 +565,44 @@ class BacktestStore:
                 c.execute(f'SELECT 1 FROM edge_bff.{table} LIMIT 0')
             c.execute('SELECT site FROM edge_bff.backtest_jobs LIMIT 0')        # 20261119_021
 
+    # 3c check C3-11: the one backtest-worker computes one job, and both websites' loops hand jobs to it (option A of
+    # 2026-11-19: the worker is shared). A loop holds this database-wide slot from the hand-over until its job ends, so
+    # one site's hand-over never replaces the other site's finished job before its result is fetched. A session
+    # advisory lock on a connection taken from the pool: a process that dies releases it with its connection.
+    WORKER_SLOT = 'edge_bff.backtest_worker_slot'
+
+    def take_worker_slot(self):
+        """The slot (a held pool connection), or None while another loop holds it. A store without a pool (a test
+        double) has no other loop to share the worker with: it always gets the slot (True)."""
+        pool = getattr(self.store, 'pool', None)
+        if pool is None:
+            return True
+        conn = pool().getconn()
+        try:
+            got = conn.execute('SELECT pg_try_advisory_lock(hashtextextended(%s, 0)) AS got',
+                               (self.WORKER_SLOT,)).fetchone()['got']
+            conn.commit()                    # the session lock outlives the transaction
+        except Exception:
+            pool().putconn(conn)
+            raise
+        if not got:
+            pool().putconn(conn)
+            return None
+        return conn
+
+    def give_worker_slot(self, slot):
+        """Releases the slot. An unlock that fails closes the connection, which releases the lock with it (a pooled
+        connection never keeps the slot)."""
+        if slot is True or slot is None:
+            return
+        try:
+            slot.execute('SELECT pg_advisory_unlock(hashtextextended(%s, 0))', (self.WORKER_SLOT,))
+            slot.commit()
+        except Exception:
+            slot.close()
+        finally:
+            self.store.pool().putconn(slot)
+
     @staticmethod
     def _log(row, **extra):
         if row:
@@ -932,14 +970,34 @@ class BacktestLoop:
         code, _ = await self.call(self.worker.call, 'GET', f'/v1/jobs/{job_id}')
         return code == 200
 
+    async def worker_slot(self):
+        """Waits for the shared worker's slot (BacktestStore.take_worker_slot, 3c check C3-11), trying again after each
+        poll; None when the loop stops first. The job's lease is renewed meanwhile (process: its heartbeat runs)."""
+        while not self.stopping.is_set():
+            try:
+                slot = await self.call(self.store.take_worker_slot)
+            except Exception as e:
+                logger.error(json.dumps({'event': 'backtest_worker_slot_failed', **self.failure(e)}))
+                slot = None
+            if slot is not None:
+                return slot
+            await self.sleep(self.settings.poll_seconds)
+        return None
+
     async def execute(self, row):
-        deadline = time.monotonic() + self.settings.backtest_timeout_seconds
         timing = self.timings[row['request_id']] = JobTiming(row)
+        slot = await self.worker_slot()
         try:
+            if slot is None:
+                return                       # stopping: the lease expires and reap ends the job, as for any stop
+            # the job's own time starts once the worker is its (a wait for the other site's job uses none of it)
+            deadline = time.monotonic() + self.settings.backtest_timeout_seconds
             if await self.dispatch(row, deadline):
                 timing.at('accepted_ms')
                 await self.follow(row, deadline)
         finally:
+            if slot is not None:
+                await self.call(self.store.give_worker_slot, slot)
             del self.timings[row['request_id']]
             measured('backtest_job_timing', **timing.line())
 
