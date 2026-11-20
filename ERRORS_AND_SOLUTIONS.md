@@ -8916,6 +8916,15 @@ in its staleness check.
     (`scripts/onboarding/end_site_backtests_job.py`, run once: none open).
   - ops F9: the records were behind (M500, M512, M513 A1, PROJECT_CONTEXT).
   - ops F6, the repository's part: an AGENTS.md rule — no CLI upload to the live site; `live` only after the beta.
+- **The user's decisions and their fixes (2026-11-20, the "go" of the next execution, EXEC option A):**
+  - visitor F4: FIXED. The footer draws Privacy and Terms only for an address that is set
+    (`EDGE_PRIVACY_URL`, `EDGE_TERMS_URL`, an https address or a path of this site, both unset until the texts exist;
+    `auth/config` `legal`; `tests/test_legal_links.py`).
+  - visitor F5: FIXED. The Terminal footer keeps only "Charts by TradingView" (`look_check11` PASS).
+  - ACC-6/F10: FIXED. The admin's variables were copied to `orc-test-runner` (hash-compared) and deleted from
+    `edge-bff-live`; the login job reads them there (`params.set`; verified by job `e790550f`, nothing changed). The
+    running live process drops them at its next deployment.
+  - visitor F6: left as it is until before the site is announced (the user: "leave as is").
 - **Low, put to the user on 2026-11-20 (context and options in the conversation):**
   - F11: the Postgres restart at 09:45 WIB falls in market hours; proposed 12:15 WIB, checked free.
   - visitor F6: the guest quota per public address behind a carrier NAT.

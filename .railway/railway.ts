@@ -33,7 +33,9 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     // ERRORS M322 / FUTURE_PLAN RUNNER-RETRY (user 2026-11-01: "OK"): a failed one-shot job is not started again
     deploy: { restartPolicyType: "NEVER" },
-    env: { MARKET_AI_ORC_API_KEY: preserve(), MARKET_AI_ORC_TEST_KEY: preserve() },
+    // the live admin's login, address and first password (EXEC option A, 2026-11-20: moved here from edge-bff-live so the
+    // public process never holds them); read by scripts/onboarding/edge_account_login_job.py, which runs here
+    env: { EDGE_ADMIN_EMAIL: preserve(), EDGE_ADMIN_INITIAL_PASSWORD: preserve(), EDGE_ADMIN_USERNAME: preserve(), MARKET_AI_ORC_API_KEY: preserve(), MARKET_AI_ORC_TEST_KEY: preserve() },
   });
   const marketSqlGovernor = service("market-sql-governor", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-sql-governor" }),
@@ -304,9 +306,7 @@ export default defineRailway(() => {
   //   },
   // ERRORS M513 D3/S8 (2026-11-20): edge-bff-live, the live website (app.edgefinance.id), switched on 2026-11-20 with the
   // user's go (EXEC.md option A); the beta's build and deploy settings; its variables as set (preserve(); the values:
-  // RAILWAY_CHANGELOG.md 2026-11-20). EDGE_ADMIN_USERNAME, EDGE_ADMIN_EMAIL and EDGE_ADMIN_INITIAL_PASSWORD
-  // are the live admin's login, address and first password for the user to read (scripts/edge_account_login.py writes
-  // them into user #1; the site never reads them).
+  // RAILWAY_CHANGELOG.md 2026-11-20). The live admin's login variables live on orc-test-runner (EXEC option A).
   const edgeBffLive = service("edge-bff-live", {
     // its own branch: `live` moves to a version the beta ran first (EXEC.md option A); deploys wait for CI (K10 a).
     // Connected by the user in the dashboard (ERRORS M514: an agent session's project token may not connect a repository).
@@ -317,7 +317,7 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
-    env: { BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), BACKTEST_WORKER_URL: preserve(), EDGE_ADMIN_EMAIL: preserve(), EDGE_ADMIN_INITIAL_PASSWORD: preserve(), EDGE_ADMIN_USERNAME: preserve(), EDGE_CODE_SECRET: preserve(), EDGE_DATABASE_URL: preserve(), EDGE_EMAIL_FROM: preserve(), EDGE_EMAIL_MODE: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_LOGIN: preserve(), EDGE_MFA_KEY: preserve(), EDGE_MULTIUSER: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_SITE: preserve(), EDGE_TERMINAL_URL: preserve(), PORT: preserve(), RESEND_API_KEY: preserve(), SCREENER_TIMEOUT_SECONDS: preserve(), SCREENER_WORKER_KEY: preserve(), SCREENER_WORKER_URL: preserve(), TERMINAL_PROXY_KEY: preserve() },
+    env: { BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), BACKTEST_WORKER_URL: preserve(), EDGE_CODE_SECRET: preserve(), EDGE_DATABASE_URL: preserve(), EDGE_EMAIL_FROM: preserve(), EDGE_EMAIL_MODE: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_LOGIN: preserve(), EDGE_MFA_KEY: preserve(), EDGE_MULTIUSER: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_SITE: preserve(), EDGE_TERMINAL_URL: preserve(), PORT: preserve(), RESEND_API_KEY: preserve(), SCREENER_TIMEOUT_SECONDS: preserve(), SCREENER_WORKER_KEY: preserve(), SCREENER_WORKER_URL: preserve(), TERMINAL_PROXY_KEY: preserve() },
   });
   const aiDataCoverage = service("ai-data-coverage", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/ai-data-coverage" }),

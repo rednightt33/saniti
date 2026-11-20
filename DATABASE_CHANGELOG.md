@@ -1,5 +1,12 @@
 # Database changelog
 
+## 2026-11-20 — A verification run of the live admin's login job (edge_bff, no change)
+
+- **Why:** the admin's variables moved to `orc-test-runner` (EXEC option A, the user's "go"); the login job reads them
+  there now. Job `e790550f` ran `scripts/edge_account_login.py` with `set` username and address, the values user #1
+  already holds: `outcome` set, the username and address unchanged, `email_reads_back` true. It wrote one
+  `edge_bff.admin_audit` row (`account.login_set`, the reason names the verification); no password was written.
+
 ## 2026-11-20 — EXEC-MU-ACCOUNTS option A: the live admin's login written into user #1 (edge_bff, by the operator)
 
 - **Why:** the user, 2026-11-20: "1. yes, feel free to suggest login ID dan passwordnya. kalau bisa jadikan ini

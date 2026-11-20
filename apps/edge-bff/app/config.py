@@ -59,6 +59,8 @@ SITES = (BETA, LIVE)
 # (EDGE_UPGRADE_CONTACT, decision D7: "segera hadir" and the contact; empty: the box says the contact comes soon). One
 # line of plain text, at most 200 characters (an address, a link or a phone number), shown as text.
 CONTACT = re.compile(r'[^\x00-\x1f\x7f<>]{1,200}')
+# a Privacy or Terms text's address (EXEC option A, 2026-11-20): https, or a path of this site
+LEGAL_URL = re.compile(r'(?=.{1,500}$)(https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[^\s"<>\\]*)?|/(?!/)[^\s"<>\\]*)')
 
 
 @dataclass(frozen=True)
@@ -147,6 +149,10 @@ class Settings:
     prelaunch_enabled: bool | None = None
     # the upgrade box's contact (EDGE_UPGRADE_CONTACT, CONTACT); empty: the box says the contact comes soon
     upgrade_contact: str = ''
+    # the user, 2026-11-20 (EXEC option A): the Privacy and Terms links show only once their texts exist; the footer
+    # links to these addresses (EDGE_PRIVACY_URL, EDGE_TERMS_URL: an https address or a path of this site), none until set
+    privacy_url: str = ''
+    terms_url: str = ''
     # one ceiling for every visitor of the guest plan together (the user, 2026-11-19: "2A tapi harus bisa di set dibackend
     # variable ya batasannya"): at most this many Terminal calls an hour from all visitors at once
     # (EDGE_GUEST_CALLS_PER_HOUR; 0 or unset: no ceiling, nothing is counted); each visitor keeps its own quotas at
@@ -231,6 +237,8 @@ class Settings:
                 guests_enabled=optional_switch('EDGE_GUESTS'),
                 prelaunch_enabled=optional_switch('EDGE_PRELAUNCH'),
                 upgrade_contact=os.environ.get('EDGE_UPGRADE_CONTACT', '').strip(),
+                privacy_url=os.environ.get('EDGE_PRIVACY_URL', '').strip(),
+                terms_url=os.environ.get('EDGE_TERMS_URL', '').strip(),
                 guest_calls_per_hour=count_of('EDGE_GUEST_CALLS_PER_HOUR'))
         s.validate()
         return s
@@ -267,6 +275,9 @@ class Settings:
         if not 0 <= self.guest_calls_per_hour <= 10 ** 9:
             raise ValueError('EDGE_GUEST_CALLS_PER_HOUR is a whole number from 0 (no ceiling) to 1000000000, the Terminal '
                              'calls of every visitor together in an hour, e.g. 5000; or unset it')
+        for name, value in (('EDGE_PRIVACY_URL', self.privacy_url), ('EDGE_TERMS_URL', self.terms_url)):
+            if value and not LEGAL_URL.fullmatch(value):
+                raise ValueError(f'{name} is an https address or a path of this site (/...), at most 500 characters')
         if self.upgrade_contact and not CONTACT.fullmatch(self.upgrade_contact):
             raise ValueError('EDGE_UPGRADE_CONTACT is one line of plain text of at most 200 characters, without < or > '
                              '(an address, a link or a phone number), e.g. sales@example.com; or unset it')

@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-11-20 — The next execution, step 1 (the user's "go"): the admin variables moved, edgefinance.id redirected
+
+- **The live admin's variables:** `EDGE_ADMIN_USERNAME`, `EDGE_ADMIN_EMAIL` and `EDGE_ADMIN_INITIAL_PASSWORD` copied
+  from `edge-bff-live` to `orc-test-runner` through stdin (never printed; the copies compared by sha256: equal), then
+  deleted from `edge-bff-live` (no redeploy was started: the running live process drops them at its next deployment).
+  M340 job `0ce6152f` before. `.railway/railway.ts` declares them on `orc-test-runner`; `railway config plan` up to date.
+  The login job now reads them from the runner (`params.set`): job `e790550f` with the same username and address,
+  `outcome` set, nothing changed.
+- **edgefinance.id (Hostinger, through the user's connector):** forwarding created, 301 to `https://app.edgefinance.id`
+  (15:09 UTC). The zone kept every record (`app` CNAME to Railway with its verify TXT, the Resend records, MX, SPF,
+  DMARC, Hostinger mail); the root keeps 2.57.91.91 and gained an AAAA. From outside: `edgefinance.id` and
+  `www.edgefinance.id`, HTTP and HTTPS, answer 301 to `https://app.edgefinance.id/` (a path is not carried: Hostinger
+  forwards to the root); `app.edgefinance.id/ready` 200.
+
 ## 2026-11-20 — The fixes of the live checker after the switch-on deployed: the beta, then the live site (ERRORS M515)
 
 - **Commit `349947ec`** (every workflow green on the session branch; `d810d88b` had failed the look-ahead gate's

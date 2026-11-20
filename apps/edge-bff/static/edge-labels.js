@@ -230,6 +230,8 @@ window.EdgeLabels = {
       mismatch:"The two passwords are not the same.", code:"Enter the 6 digits of the code." },
     // re-check R2-20: the account menu's page for the Phase 1 password change and sign-out on every device (the
     // sessions table is shared by the beta and the live website, so "every device" covers both)
+    // the footer's links, shown only once their texts exist (EXEC option A, 2026-11-20)
+    legal: { privacy:"Privacy", terms:"Terms" },
     account: { menu:"Password and sign-in", title:"Password and sign-in",
       lead:"Change your password, or sign out of EDGE on every device.",
       current:"Current password", password:"New password", passwordHint:"At least 8 characters.", repeat:"Repeat new password",

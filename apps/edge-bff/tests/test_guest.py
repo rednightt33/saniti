@@ -225,7 +225,7 @@ def test_prelaunch_closes_registration_with_a_plain_sentence(prelaunch, store):
                           'upgrade_contact': 'sales@example.com',
                           # live checker S1 (stated reason): the tabs this site does not offer; none here (the beta's
                           # tabs: this harness is not the live site), ['admin', 'monitor'] on it (tests/test_live_rail.py)
-                          'hidden_tabs': []}
+                          'hidden_tabs': [], 'legal': {'privacy': None, 'terms': None}}
         for path, body in (('/api/v1/auth/register', {'username': 'newbie', 'first_name': 'New', 'last_name': 'Bie',
                                                       'email': 'newbie@example.com', 'phone': '+6281234567890',
                                                       'password': 'long enough pw', 'password_repeat': 'long enough pw'}),

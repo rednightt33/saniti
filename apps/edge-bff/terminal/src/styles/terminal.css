@@ -86,7 +86,7 @@ button{border:0;background:transparent;cursor:pointer;color:inherit}
 .heat-legend{display:flex;align-items:center;gap:6px;font-size:9px;color:#8a98ac;margin-top:8px}
 .heat-legend .grad{flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,#df454a,#eef1f6,#07835f)}
 @media(max-width:1400px){.mid-row{grid-template-columns:1fr}.side{display:none}}
-.foot{height:28px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 14px;color:#7b8798;font-size:11px}
+.foot{height:28px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:flex-end;padding:0 14px;color:#7b8798;font-size:11px}
 .foot a{color:#64748b;text-decoration:none}
 @media(max-width:900px){
   body{padding:0;background:#fff}

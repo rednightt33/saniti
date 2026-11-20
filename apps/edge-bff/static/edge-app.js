@@ -906,9 +906,10 @@ function AuthField({ label, error, support, children }) {
 function AuthFooter() {
     return element("footer", { className: "auth-footer" },
         element("span", null, "Understand the market, understand your edge."),
+        // the user, 2026-11-20 (EXEC option A): a link only once its text exists (EDGE_PRIVACY_URL, EDGE_TERMS_URL)
         element("div", null,
-            element("a", { href: "#privacy" }, "Privacy"),
-            element("a", { href: "#terms" }, "Terms")));
+            Edge.legal?.().privacy && element("a", { href: Edge.legal().privacy }, EdgeLabels.auth.legal.privacy),
+            Edge.legal?.().terms && element("a", { href: Edge.legal().terms }, EdgeLabels.auth.legal.terms)));
 }
 function loadConversations(){return [];}
 // EXEC-ASK-BRANCH (user 2026-10-24): #/monitor?c=<conversation> opens that conversation (a Branch opens in a new tab);

@@ -609,7 +609,9 @@ class AuthFlows:
             # the Monitor and the admin pages), so the shell shows neither their rail entries nor their buttons
             hidden = sorted(BETA_ONLY_TABS) if settings.site == LIVE else []
             return {'multiuser': True, 'registration': not settings.prelaunch, 'prelaunch': settings.prelaunch,
-                    'guests': settings.guests, 'upgrade_contact': settings.upgrade_contact or None, 'hidden_tabs': hidden}
+                    'guests': settings.guests, 'upgrade_contact': settings.upgrade_contact or None, 'hidden_tabs': hidden,
+                    # the footer's Privacy and Terms links, null until their texts exist (EXEC option A, 2026-11-20)
+                    'legal': {'privacy': settings.privacy_url or None, 'terms': settings.terms_url or None}}
 
         @app.post('/api/v1/auth/register', status_code=202)
         async def register(request: Request, _on=Depends(switched_on), _open=Depends(registration_open)):
