@@ -139,7 +139,7 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 | 404 | `NOT_FOUND` | another user's item, so nothing reveals that it exists; on the live site also every beta-only route (section 17) |
 | 429 | `LIMIT_REACHED` (`details.limit`, `retry_after_s`) | show the limit message and the wait |
 | 429 | `SIGN_IN_RATE_LIMIT` (`details.retry_after_s`) | show the wait message (its words name the wait) |
-| 503 | `TERMINAL_UNAVAILABLE` | terminal-api's own account or key failed (its 401, a 403 other than `capability_required`, its 5xx, an answer without the applied-header acknowledgement); never read as a sign-out |
+| 503 | `TERMINAL_UNAVAILABLE` | terminal-api's own account or key failed (its 401, a 403 other than `capability_required`, its 5xx, a 2xx answer without the applied-header acknowledgement); never read as a sign-out |
 | 503 | `SERVICE_UNAVAILABLE` (`Retry-After`) | too many requests in password work at once (sign-in, register, reset, change: at most 16; built, `fix-auth`, R2-37), or an unexpected server error (answered in this shape; the log gets method, path, class and SQLSTATE only, never the person's data; built, `fix-auth`, R2-25) |
 
 - `Retry-After` is set on every 429 (and on the password pool's 503), with `details.retry_after_s` the same number. Test:
@@ -855,11 +855,14 @@ today.
     terminal-api's `terminal.quota` defaults.
   - terminal-api leaves out (and logs) a dataset id it does not know, instead of refusing every call (R2-5); unknown
     fields, quota names and `v` are still refused.
-  - **Acknowledgement** (built, `fix-terminal`, R2-4): terminal-api answers every owner call, refusals included, with
-    `x-terminal-capabilities-applied: 1 <version>`; edge-bff refuses an answer for a principal without `*` that lacks it
-    or names another version with 503 `TERMINAL_UNAVAILABLE` (logged `terminal_capabilities_not_applied`), on the JSON
-    relay, the byte relay, the logo and the page files. A terminal-api below 3c can therefore never serve a capped
-    principal in full. The switch-off owner holds `*` and needs none.
+  - **Acknowledgement** (built, `fix-terminal`, R2-4; corrected by the 3c check, C3-1): terminal-api answers every
+    owner call it has identified with `x-terminal-capabilities-applied: 1 <version>`; the refusals it makes before it
+    knows the caller (`proxy_key_rejected`, `gateway_host_not_allowed`, `invalid_owner_headers`) cannot carry it.
+    edge-bff requires it of every 2xx answer for a principal without `*`: a 2xx that lacks it or names another version
+    is refused 503 `TERMINAL_UNAVAILABLE` (logged `terminal_capabilities_not_applied`), on the JSON relay, the byte
+    relay, the logo and the page files. A refusal carries no data, so it goes to the page in the contract shape whether
+    acknowledged or not, and the log keeps its status and code (`terminal_refused`). A terminal-api below 3c can
+    therefore never serve a capped principal in full. The switch-off owner holds `*` and needs none.
 - **edge-bff refuses first:** a ticker outside `tickers`, or a dataset outside `datasets`, gets 403
   `CAPABILITY_REQUIRED` naming `terminal.tickers` or `terminal.dataset:<id>`, with its `display_name`, before any
   terminal-api call. With `history_days` 0 every dated path (`files`, `bundle`, `cut`, `history`) is refused first with

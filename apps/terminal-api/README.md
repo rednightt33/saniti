@@ -89,9 +89,12 @@ CONTRACT.md section 8b "3c in detail"; code `app/entitlements.py` (the headers),
 - Neither header: the gateway's one account, exactly as before (deploy step 2).
 - One header without the other, a header that breaks a rule, or either header with a service key or a session: 400
   (`invalid_owner_headers` with `field`, or `owner_not_allowed`). The message names the rule, the fix and a right example.
-- Every answer to an owner call, refusals included, carries `x-terminal-capabilities-applied: 1 <version>` (the header
-  it applied; re-check R2-4). edge-bff refuses an answer for a capped principal without it, so a terminal-api from before
-  this phase, which ignores the headers, never serves a capped plan in full.
+- Every answer to an owner call that terminal-api has identified carries `x-terminal-capabilities-applied: 1 <version>`
+  (the header it applied; re-check R2-4). The refusals made before the caller is known (a key or host rule, the owner
+  header rules: `proxy_key_rejected`, `gateway_host_not_allowed`, `invalid_owner_headers`) cannot carry it. edge-bff
+  requires it only of an answer that carries data (a 2xx) for a capped principal, so a terminal-api from before this
+  phase, which ignores the headers, never serves a capped plan in full, and a refusal keeps its own code in edge-bff's
+  log (3c check C3-1).
 
 **Owner rows.**
 - Each owner has its own `terminal.subscriber` row (kind `owner`, `edge_owner_key`), made on first use

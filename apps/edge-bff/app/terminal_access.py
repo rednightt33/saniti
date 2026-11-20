@@ -327,11 +327,15 @@ def relayed(p, status, data, headers, where):
     whatever terminal-api answers (None stays None: a cut's bytes or a logo are relayed as they are, never parsed).
     (Refusal, None) otherwise, in the contract's shape. `data`: the answer's JSON (None when it has none); `where`: the
     route, for the log only."""
-    if not acknowledged(p, headers):
-        logger.warning(json.dumps({'event': 'terminal_capabilities_not_applied', 'status': status, 'where': where[:80],
-                                   'fix': 'terminal-api is older than Phase 3c: deploy terminal-api first'}))
-        return Refusal(503, 'TERMINAL_UNAVAILABLE'), None
     if 200 <= status < 300:
+        # only an answer that carries data needs the acknowledgement (C3-1): a refusal carries none, and terminal-api
+        # refuses some calls before it knows the caller (a key or host rule, its owner header rules), where it cannot
+        # acknowledge anything; those keep their own status and code in the log (refused_answer)
+        if not acknowledged(p, headers):
+            logger.warning(json.dumps({'event': 'terminal_capabilities_not_applied', 'status': status,
+                                       'where': where[:80],
+                                       'fix': 'terminal-api is older than Phase 3c: deploy terminal-api first'}))
+            return Refusal(503, 'TERMINAL_UNAVAILABLE'), None
         return None, public_data(data)
     return refused_answer(status, data, headers, where), None
 
