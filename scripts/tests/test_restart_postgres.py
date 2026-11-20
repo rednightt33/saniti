@@ -224,3 +224,49 @@ def test_no_working_credential_is_one_not_run_line(railway, monkeypatch, capsys)
     lines = capsys.readouterr().out.strip().splitlines()
     assert len(lines) == 1 and lines[0].startswith('POSTGRES_RESTART NOT_RUN: ')
     assert 'RAILWAY_TOKEN' in lines[0] and 'stale-project-token' not in lines[0]   # names only, never a value
+
+
+def project_of(*services):
+    """A Railway project answer: (name, environment, healthcheck, Railway domains, custom domains) per service."""
+    return {'project': {'services': {'edges': [
+        {'node': {'name': name, 'serviceInstances': {'edges': [{'node': {
+            'environmentId': env, 'healthcheckPath': health,
+            'domains': {'serviceDomains': [{'domain': d} for d in railway],
+                        'customDomains': [{'domain': d} for d in custom]}}}]}}}
+        for name, env, health, railway, custom in services]}}}
+
+
+def test_every_public_website_is_waited_for_after_a_restart(monkeypatch):
+    """ERRORS M513 S7: the restart waits for each website's /ready, the live site's too, derived from the project
+    (a /ready healthcheck and a public domain); private services and other environments are left out."""
+    monkeypatch.delenv('EDGE_BFF_URL', raising=False)
+    answer = project_of(('edge-bff', rp.ENV, '/ready', ['edge-bff-dev.up.railway.app'], []),
+                        ('edge-bff-live', rp.ENV, '/ready', [], ['app.edgefinance.id']),
+                        ('terminal-api', rp.ENV, '/ready', [], []),                      # private
+                        ('pgweb', rp.ENV, None, ['pgweb-dev.up.railway.app'], []),        # no /ready
+                        ('edge-bff', 'another-environment', '/ready', ['elsewhere.example'], []))
+    monkeypatch.setattr(rp, 'gql', lambda query, variables: answer)
+    assert rp.site_ready_urls() == {'edge-bff': 'https://edge-bff-dev.up.railway.app/ready',
+                                    'edge-bff-live': 'https://app.edgefinance.id/ready'}
+    monkeypatch.setenv('EDGE_BFF_URL', 'https://one.example/ready')
+    assert rp.site_ready_urls() == {'edge-bff': 'https://one.example/ready'}
+
+
+def test_the_restart_succeeds_only_when_every_website_answers():
+    assert rp.worst_ready({'edge-bff': 200, 'edge-bff-live': 200}) == 200
+    assert rp.worst_ready({'edge-bff': 200, 'edge-bff-live': 503}) == 503
+    assert rp.worst_ready({'edge-bff': 200, 'edge-bff-live': None}) is None
+    assert rp.worst_ready({}) is None                       # no website found is not a success
+
+
+def test_a_restart_with_one_website_down_reports_a_failure(cron, monkeypatch):
+    def down(services):
+        cron['restarted'] = True
+        ready = {'edge-bff': 200, 'edge-bff-live': 503}
+        return {'deployment': 'd', 'start_before': 'a', 'start_after': 'b', 'seconds': 14, 'sites_ready': ready,
+                'edge_bff_ready': rp.worst_ready(ready)}
+    monkeypatch.setattr(rp, 'restart', down)
+    cron['checks'] = [guards()]
+    assert rp.cron_main() == 1
+    assert cron['restarted'] and events(cron) == ['started', 'failed']
+    assert cron['sent'][-1][1]['edge_ready'] == 503 and cron['sent'][-1][1]['reasons'] == ['edge_not_ready']

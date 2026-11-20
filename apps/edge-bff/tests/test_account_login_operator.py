@@ -1,9 +1,10 @@
 """EXEC-MU-ACCOUNTS option A (ERRORS M513 A1, site S3, switch-on S5): scripts/edge_account_login.py sets an account's
-login name and first password from the operator's values, audited. On the live site (switch on) the new login with the
+login name, email address and first password from the operator's values, audited. On the live site (switch on) the new login with the
 new password is a right password (MFA_REQUIRED: the admin's second step) and the old name or the old password is not;
 the beta (switch off) keeps its own login, which reads EDGE_PASSWORD_VERIFIER, and its seed keeps the account's new
-password at its next start. A taken, reserved or malformed name, a short password or an unknown account change nothing
-(exit 1). The script's username rule is the site's own (app/accounts.py)."""
+password at its next start. An address given is lower-cased, marked verified and signs in as the name does, and it is
+never printed or audited. A taken, reserved or malformed name, a taken or malformed address, a short password or an
+unknown account change nothing (exit 1). The script's username and email rules are the site's own (app/accounts.py)."""
 import importlib.util
 import json
 from pathlib import Path
@@ -30,8 +31,9 @@ def operator(database, monkeypatch):
     spec.loader.exec_module(module)
     monkeypatch.setenv('DATABASE_URL', database)
 
-    def run(username, new_name=None, new_password=None):
-        for name, value in (('ACCOUNT_NEW_USERNAME', new_name), ('ACCOUNT_NEW_PASSWORD', new_password)):
+    def run(username, new_name=None, new_password=None, new_email=None):
+        for name, value in (('ACCOUNT_NEW_USERNAME', new_name), ('ACCOUNT_NEW_PASSWORD', new_password),
+                            ('ACCOUNT_NEW_EMAIL', new_email)):
             if value is None:
                 monkeypatch.delenv(name, raising=False)
             else:
@@ -58,7 +60,7 @@ def test_the_new_login_signs_in_on_the_live_site_and_the_beta_keeps_its_own(sett
         first = db(store, "SELECT user_id FROM edge_bff.users WHERE role = 'admin'")[0]['user_id']
         assert json.loads(printed.strip().splitlines()[-1]) == {
             'outcome': 'set', 'user_id': first, 'username_before': 'owner', 'username_after': NEW_NAME,
-            'password_set': True, 'password_opens': True, 'beta_seed_keeps_it': True}
+            'password_set': True, 'email_set': False, 'password_opens': True, 'beta_seed_keeps_it': True}
         r = sign_in(c, NEW_NAME, NEW_PASSWORD)
         assert (r.status_code, error_code(r)) == (403, 'MFA_REQUIRED')          # the right password; then the code
         assert sign_in(c, 'owner', NEW_PASSWORD).status_code == 401              # the old name is gone
@@ -70,8 +72,8 @@ def test_the_new_login_signs_in_on_the_live_site_and_the_beta_keeps_its_own(sett
         assert (r.status_code, error_code(r)) == (403, 'MFA_REQUIRED')          # the seed kept the new password
     audit = db(store, "SELECT action, target_user_id, before, after, reason FROM edge_bff.admin_audit")
     assert audit == [{'action': 'account.login_set', 'target_user_id': first,
-                      'before': {'actor': 'operator', 'username': 'owner'},
-                      'after': {'actor': 'operator', 'username': NEW_NAME, 'password_set': True},
+                      'before': {'actor': 'operator', 'username': 'owner', 'had_email': False},
+                      'after': {'actor': 'operator', 'username': NEW_NAME, 'password_set': True, 'email_set': False},
                       'reason': 'operator: the user asked, 2026-11-20'}]
 
 
@@ -86,7 +88,9 @@ def test_a_refused_request_changes_nothing(settings, store, operator, capsys):
              (('owner', 'Has Space', None), 'refused_username_rule'),
              (('owner', None, 'short pw 1'), 'refused_password_short'),
              (('nobody_here', NEW_NAME, NEW_PASSWORD), 'refused_no_active_account'),
-             (('owner', None, None), 'refused_nothing_to_set')]
+             (('owner', None, None), 'refused_nothing_to_set'),
+             (('owner', None, None, 'taken@example.com'), 'refused_email_taken'),
+             (('owner', None, None, 'not-an-address'), 'refused_email_rule')]
     for args, outcome in cases:
         capsys.readouterr()
         assert operator(*args) == 1, args
@@ -98,3 +102,29 @@ def test_a_refused_request_changes_nothing(settings, store, operator, capsys):
 def test_the_scripts_username_rule_is_the_sites(operator):
     assert operator.module.USERNAME.pattern == accounts.USERNAME.pattern
     assert operator.module.RESERVED_USERNAMES == accounts.RESERVED_USERNAMES
+
+
+def test_an_address_signs_in_as_the_name_does_and_is_never_printed_or_audited(settings, store, operator, capsys):
+    with TestClient(create_app(live_of(settings), store, FakeOrc())) as c:
+        assert operator('owner', NEW_NAME, NEW_PASSWORD) == 0
+        capsys.readouterr()
+        assert operator(NEW_NAME, new_email='  Owner.Name@Example.COM ') == 0
+        printed = capsys.readouterr().out
+        assert 'example.com' not in printed.lower()
+        result = json.loads(printed.strip().splitlines()[-1])
+        assert (result['email_set'], result['email_reads_back'], result['password_set']) == (True, True, False)
+        assert db(store, "SELECT email, email_verified_at IS NOT NULL AS verified FROM edge_bff.users "
+                         "WHERE role = 'admin'") == [{'email': 'owner.name@example.com', 'verified': True}]
+        r = sign_in(c, 'owner.name@example.com', NEW_PASSWORD)
+        assert (r.status_code, error_code(r)) == (403, 'MFA_REQUIRED')          # the address takes the name's place
+        r = sign_in(c, NEW_NAME, NEW_PASSWORD)
+        assert (r.status_code, error_code(r)) == (403, 'MFA_REQUIRED')          # and the name still signs in
+    rows = db(store, "SELECT before, after FROM edge_bff.admin_audit ORDER BY audit_id")
+    assert rows[-1] == {'before': {'actor': 'operator', 'username': NEW_NAME, 'had_email': False},
+                        'after': {'actor': 'operator', 'username': NEW_NAME, 'password_set': False, 'email_set': True}}
+    assert 'example.com' not in json.dumps(rows).lower()
+
+
+def test_the_scripts_email_rule_is_the_sites(operator):
+    assert operator.module.EMAIL.pattern == accounts.EMAIL.pattern
+    assert operator.module.EMAIL_MAX == accounts.EMAIL_MAX

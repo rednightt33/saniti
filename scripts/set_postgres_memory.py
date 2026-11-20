@@ -13,7 +13,8 @@ Steps:
      4000000000);
   3. `railway config plan` must show exactly that one change, else nothing is applied;
   4. with --apply: `railway config apply --yes`, then wait for the new Postgres deployment to reach SUCCESS, read the
-     limit back (serviceInstanceLimits), Postgres's new start time and edge-bff /ready.
+     limit back (serviceInstanceLimits), Postgres's new start time and every website's /ready (the beta's and the
+     live site's, restart_postgres.site_ready_urls).
 Record the change in RAILWAY_CHANGELOG.md and the user's words in EXEC.md. Needs a Railway credential (restart_postgres.py CREDENTIALS, ERRORS M433); prints no secret.
 """
 import argparse
@@ -23,7 +24,6 @@ import re
 import subprocess
 import sys
 import time
-import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -98,13 +98,10 @@ def main() -> int:
     limits = rp.gql('query($s:String!,$e:String!){serviceInstanceLimits(serviceId:$s,environmentId:$e)}',
                     {'s': services['Postgres'], 'e': rp.ENV})['serviceInstanceLimits']
     after = pgq.q('SELECT pg_postmaster_start_time()::text')['rows'][0][0]
-    domain = rp.edge_domain()
-    try:
-        ready = urllib.request.urlopen(f'https://{domain}/ready', timeout=30).status
-    except urllib.error.HTTPError as e:
-        ready = e.code
+    ready = rp.sites_ready()                         # every website's /ready, the live site's too (ERRORS M513 S7)
     print(json.dumps({'deployment': node['id'], 'status': status, 'memory_bytes_live': limits['containers']['memoryBytes'],
-                      'start_before': before, 'start_after': after, 'edge_bff_ready': ready}))
+                      'start_before': before, 'start_after': after, 'sites_ready': ready,
+                      'edge_bff_ready': rp.worst_ready(ready)}))
     return 0 if status == 'SUCCESS' and limits['containers']['memoryBytes'] == target else 1
 
 

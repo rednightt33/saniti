@@ -304,11 +304,11 @@ export default defineRailway(() => {
   //   },
   // ERRORS M513 D3/S8 (2026-11-20): edge-bff-live as it is before the switch-on, declared so that a `railway config
   // apply` keeps it (undeclared, the plan deletes it): no source and no deployment, its variables as set (preserve();
-  // the values: RAILWAY_CHANGELOG.md 2026-11-20). EDGE_ADMIN_USERNAME and EDGE_ADMIN_INITIAL_PASSWORD are the live
-  // admin's login and first password for the user to read (scripts/edge_account_login.py writes them into user #1; the
-  // site never reads them). At the switch-on its settings become the body written in the comment above (EXEC.md option A).
+  // the values: RAILWAY_CHANGELOG.md 2026-11-20). EDGE_ADMIN_USERNAME, EDGE_ADMIN_EMAIL and EDGE_ADMIN_INITIAL_PASSWORD
+  // are the live admin's login, address and first password for the user to read (scripts/edge_account_login.py writes
+  // them into user #1; the site never reads them). At the switch-on its settings become the body written in the comment above (EXEC.md option A).
   const edgeBffLive = service("edge-bff-live", {
-    env: { BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), BACKTEST_WORKER_URL: preserve(), EDGE_ADMIN_INITIAL_PASSWORD: preserve(), EDGE_ADMIN_USERNAME: preserve(), EDGE_CODE_SECRET: preserve(), EDGE_DATABASE_URL: preserve(), EDGE_EMAIL_FROM: preserve(), EDGE_EMAIL_MODE: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_LOGIN: preserve(), EDGE_MFA_KEY: preserve(), EDGE_MULTIUSER: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_SITE: preserve(), EDGE_TERMINAL_URL: preserve(), PORT: preserve(), RESEND_API_KEY: preserve(), SCREENER_TIMEOUT_SECONDS: preserve(), SCREENER_WORKER_KEY: preserve(), SCREENER_WORKER_URL: preserve(), TERMINAL_PROXY_KEY: preserve() },
+    env: { BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), BACKTEST_WORKER_URL: preserve(), EDGE_ADMIN_EMAIL: preserve(), EDGE_ADMIN_INITIAL_PASSWORD: preserve(), EDGE_ADMIN_USERNAME: preserve(), EDGE_CODE_SECRET: preserve(), EDGE_DATABASE_URL: preserve(), EDGE_EMAIL_FROM: preserve(), EDGE_EMAIL_MODE: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_LOGIN: preserve(), EDGE_MFA_KEY: preserve(), EDGE_MULTIUSER: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_SITE: preserve(), EDGE_TERMINAL_URL: preserve(), PORT: preserve(), RESEND_API_KEY: preserve(), SCREENER_TIMEOUT_SECONDS: preserve(), SCREENER_WORKER_KEY: preserve(), SCREENER_WORKER_URL: preserve(), TERMINAL_PROXY_KEY: preserve() },
   });
   const aiDataCoverage = service("ai-data-coverage", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/ai-data-coverage" }),

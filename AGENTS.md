@@ -264,7 +264,8 @@ After a large update and its reader checks:
    "🔄 Restart Postgres" in Telegram).
    - The script restarts only when all of these hold: Postgres memory is at least 0.8 GB, no cron is due within 45
      minutes, the time is outside the B6 windows, no client statement is running, and no user run is active (M340).
-   - It waits for Postgres and edge-bff `/ready`; Postgres is unavailable for about 12 seconds.
+   - It waits for Postgres and every website's `/ready` (the beta's and the live site's, read from Railway:
+     `site_ready_urls`, ERRORS M513 S7); Postgres is unavailable for about 12 seconds.
    - A refusal names its reason. Wait and run it again later; do not skip it.
 2. A job started with `scripts/onboarding/run_job.sh` does step 1 itself when its `params.json` has
    `"large_write": true`. Every other job prints a `POSTGRES_MEMORY_CHECK` line at its end: when that line says

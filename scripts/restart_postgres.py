@@ -310,21 +310,31 @@ def checks(args):
     return out, services
 
 
-def edge_domain():
-    """edge-bff's public domain in dev, read through the same Railway credential as every other call (M433: the CLI
-    may not hold one)."""
-    s = gql('query($id:String!){project(id:$id){services{edges{node{id name}}}}}', {'id': PID})
-    sid = next(e['node']['id'] for e in s['project']['services']['edges'] if e['node']['name'] == 'edge-bff')
-    d = gql('query($s:String!,$e:String!){domains(projectId:"' + PID + '",serviceId:$s,environmentId:$e)'
-            '{serviceDomains{domain}}}', {'s': sid, 'e': ENV})
-    return d['domains']['serviceDomains'][0]['domain']
-
-
-def edge_ready():
+def site_ready_urls():
+    """{service name: its /ready URL} of every website of the project, so a restart is done only when each answers again
+    (ERRORS M513 S7: the beta and, since the switch-on, the live site): a service of this environment whose healthcheck
+    is /ready and that has a public domain (its Railway domain, else its first custom domain). Private services (orc,
+    terminal-api, the workers) have no public domain and are left out. Read in one call through the same Railway
+    credential as every other call (M433: the CLI may not hold one). EDGE_BFF_URL, when set, is the one URL (a manual
+    check)."""
     url = os.environ.get('EDGE_BFF_URL')
-    if not url:
-        domain = os.environ.get('RAILWAY_SERVICE_EDGE_BFF_URL') or edge_domain()
-        url = f'https://{domain}/ready'
+    if url:
+        return {'edge-bff': url}
+    s = gql('query($id:String!){project(id:$id){services{edges{node{name serviceInstances{edges{node{environmentId '
+            'healthcheckPath domains{serviceDomains{domain} customDomains{domain}}}}}}}}}}', {'id': PID})
+    urls = {}
+    for edge in s['project']['services']['edges']:
+        for inst in edge['node']['serviceInstances']['edges']:
+            node = inst['node']
+            if node['environmentId'] != ENV or node['healthcheckPath'] != '/ready':
+                continue
+            domains = [d['domain'] for d in node['domains']['serviceDomains'] + node['domains']['customDomains']]
+            if domains:
+                urls[edge['node']['name']] = f'https://{domains[0]}/ready'
+    return urls
+
+
+def ready_status(url):
     for _ in range(6):
         try:
             return urllib.request.urlopen(url, timeout=30).status
@@ -334,6 +344,19 @@ def edge_ready():
             code = None
         time.sleep(10)
     return code
+
+
+def sites_ready():
+    """{service: its /ready status} of every website (site_ready_urls)."""
+    return {name: ready_status(url) for name, url in site_ready_urls().items()}
+
+
+def worst_ready(statuses):
+    """200 when every website answered 200, else the first other answer (None: no answer, or no website found): the
+    one number telegram-monitor's message shows (edge_ready)."""
+    if not statuses:
+        return None
+    return next((code for code in statuses.values() if code != 200), 200)
 
 
 def postgres_start():
@@ -356,8 +379,9 @@ def restart(services):
             break
     else:
         raise SystemExit('Postgres did not come back within 10 minutes; check the Railway dashboard')
+    ready = sites_ready()
     return {'deployment': dep, 'start_before': before, 'start_after': after,
-            'seconds': round(time.monotonic() - started), 'edge_bff_ready': edge_ready()}
+            'seconds': round(time.monotonic() - started), 'sites_ready': ready, 'edge_bff_ready': worst_ready(ready)}
 
 
 def notify(kind, run_id, event, details):

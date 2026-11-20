@@ -2,8 +2,10 @@
 
 run_job.sh starts `python -u job.py` without arguments, so this wrapper reads them from params.json:
     {"username": "<the account's current username>", "reason": "<why, who asked>"}
-The new values come as Railway references, set on the runner for the run only and removed afterwards (never values):
+The new values come as Railway references, set on the runner for the run only and removed afterwards (never values;
+name only the ones to set):
     RUN_JOB_EXTRA_VARS='ACCOUNT_NEW_USERNAME=${{edge-bff-live.EDGE_ADMIN_USERNAME}}
+        ACCOUNT_NEW_EMAIL=${{edge-bff-live.EDGE_ADMIN_EMAIL}}
         ACCOUNT_NEW_PASSWORD=${{edge-bff-live.EDGE_ADMIN_INITIAL_PASSWORD}}' \
     scripts/onboarding/run_job.sh scripts/onboarding/edge_account_login_job.py params.json log.txt \
         scripts/edge_account_login.py apps/edge-bff/app/security.py
