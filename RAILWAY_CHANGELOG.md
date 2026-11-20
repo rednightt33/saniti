@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-11-20 — The next execution, item 2 (the A2 fix) on the beta
+
+- **Commit `f8c872e0`:** the A2 fix after its ultracode checker, plus its migration records (ERRORS M517). CI was
+  green on the session branch and again on `main`: Backend tests, look-ahead gate, generated files, image builds.
+  The look-ahead gate had failed once on `33a95315` (three SCREENER_ONBOARDING line pointers), fixed in `f8c872e0`.
+- **Before:** migrations `20261120_001` and `_002` applied on dev (DATABASE_CHANGELOG.md). M340 by
+  `scripts/restart_postgres.py` (check only): 0 EDGE jobs, 0 orc turns, 0 statements.
+- **Beta:** `main` moved `4785d1ef` → `f8c872e0`. `edge-bff` `584dddce` (made 17:39 UTC) waited for its CI and
+  reached SUCCESS.
+  - `/ready` 200, `/version` `f8c872e0`.
+  - The owner's sign-in 200; the Watchlist index and files 200.
+  - The beta's switch is off, so its account flows (where A2 acts) answer 404 there. The fix acts where the switch is
+    on.
+- **Live:** unchanged at `4785d1ef`. A2 goes live only on the user's request. Until 3e reaches `main`, `f8c872e0` is
+  the commit that carries A2 alone (LIVE_PROMOTION.md feature notes).
+
 ## 2026-11-20 — The next execution, steps 1 and 2 shipped: the beta, then the live site
 
 - **Commit `4785d1ef`:** step 1 (the footer links and the Terminal footer) and step 2 (the promotion runbook, the tab

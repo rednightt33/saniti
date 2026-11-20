@@ -243,6 +243,10 @@
     // 3e (CONTRACT 8b): whether the signed-in principal holds a flag capability (the server's p.can for flags: '*' holds
     // every key), from the session answer's access; false without a session. The server decides; the shell only shows
     can: key => { const caps = auth?.access?.capabilities; return Array.isArray(caps) && (caps.includes('*') || caps.includes(key)); },
+    // 3e: the session answer read again (a page decided from the access it holds and asking the server nothing:
+    // LockedTabPage). A new answer replaces the one held and the shell decides again (edge-auth); a 401 has already
+    // reset the shell (api); any other failure keeps what it holds, so a passing network error signs nobody out
+    async refresh() { try { const answer = await api('/auth/session'); if (answer) { auth = answer; dispatchEvent(new Event('edge-auth')); } } catch { /* above */ } return auth; },
     legal: () => legal,
     // EXEC-MU-ACCOUNTS Phase 1 (contract section 4): the account routes; every refusal carries the server's message
     register: body => api('/auth/register', body),

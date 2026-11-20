@@ -71,16 +71,19 @@ export function initEvents(ctx: Ctx) {
      chart gives up RAIL px), so the date under the crosshair stays readable; the fixture keeps the reference's markers
      on the time axis (1:1 check) */
   const RAIL = 24, railed = ctx.M.mode === 'live';
+  // 3e: events the principal does not hold (MarketData.lockedData) draw no rail and no marker: the Events button says
+  // Locked (main.ts lockedPage), and an empty 24 px rail under the dates would read as "no events"
+  const eventsLocked = (ctx.M.lockedData || []).includes('events');
   let sig = '';
   function layout() {
     raf = 0;
-    if(railed) wrapEl.classList.toggle('ev-rail', pref.on);
+    if(railed) wrapEl.classList.toggle('ev-rail', pref.on && !eventsLocked);
     const ts = chart.timeScale(), pane = chart.panes()[0];
     const left = chart.priceScale('left').width(), H = pane ? pane.getHeight() : 0, W = ts.width();
     const rng = ts.getVisibleLogicalRange();
     sig = [left, H, W, $('chart').clientHeight, rng && rng.from.toFixed(2), rng && rng.to.toFixed(2), pref.on, TYPES.map(t => +pref.types[t.id]).join(''), EVENTS.length].join('|');
     layer.replaceChildren(); tip.hidden = true; marks = [];
-    if(!pref.on || !H) return;
+    if(!pref.on || !H || eventsLocked) return;
     const pts = EVENTS.filter(e => pref.types[e.type]).map(e => ({ e, x:ts.timeToCoordinate((e.at || e.date) as any) })).filter(p => p.x != null && p.x >= 0 && p.x <= W).sort((a, b) => (a.x as number) - (b.x as number));
     const groups: { x: number; items: MarketEvent[] }[] = [];
     pts.forEach(p => { const g = groups[groups.length - 1]; if(g && (p.x as number) - g.x < 22) g.items.push(p.e); else groups.push({ x:p.x as number, items:[p.e] }) });

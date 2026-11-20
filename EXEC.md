@@ -16178,7 +16178,8 @@ Order of the services (CONTRACT 17, rollback floors):
         - the gap query uses the primary key;
         - the records and the reset page's words were corrected.
       - Tests: `tests/test_a2_stranger.py` (19).
-      - Next: the migrations on dev (DRYRUN, APPLY, M340), then the beta. The live site only on the user's request.
+      - Migrations applied on dev (DRYRUN `d8b0089d`, APPLY `59f9382d`). On the beta since `584dddce` (`f8c872e0`). The
+        live site only on the user's request; `f8c872e0` carries A2 without 3e.
     - Item 3, 3e (built on the branch, not shipped): every tab in the rail; `LockedTabPage` for a tab the principal
       cannot open (sign in for a visitor, the upgrade words and contact for an account); the Terminal's lock prompts in
       place (IHSG of Statistics, Flow Timeline head, Events) replacing the F1 stopgap; `look_check11` measures them

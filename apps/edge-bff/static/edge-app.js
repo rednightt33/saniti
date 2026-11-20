@@ -603,6 +603,10 @@ function LockedTabPage({ go, route, guest = false }) {
     const v = currentView, L = EdgeLabels.locked, A = EdgeLabels.access, name = tabName(route);
     const config = initialValue(v, "config", () => null);
     onLifecycle(v, "config", () => { let live = true; Edge.config().then(c => { if (live) updateValue(v, "config", c); }); return () => { live = false; }; }, []);
+    // the decision came from the access the shell holds, and this page asks the server nothing: an account's access read
+    // again on every show (a plan raised or lowered meanwhile, a second factor now needed: access.next), and the shell
+    // decides again with it (the edge-auth event), so a raised plan opens the tab without a reload
+    onLifecycle(v, "fresh", () => { if (!guest) Edge.refresh(); }, [route]);
     const open = config?.registration === true, contact = config?.upgradeContact || null;
     const terminal = route !== "terminal" && element(Button, { onClick: () => go("/terminal") }, L.openTerminal);
     const body = guest

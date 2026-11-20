@@ -8879,7 +8879,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M517 — A stranger who knows an account's login or address could spend the owner's allowances: the lock, the code emails, the reset code (2026-11-20; BUILT, checked by ultracode at xhigh, its findings fixed, migrations applied on dev; the beta next)
+### M517 — A stranger who knows an account's login or address could spend the owner's allowances: the lock, the code emails, the reset code (2026-11-20; BUILT, checked by ultracode at xhigh, its findings fixed, migrations applied on dev, on the beta `f8c872e0`; live on the user's request)
 
 - **Found by:** the live checker before the switch-on, finding A2 (M513). It was accepted for the pre-launch mode and
   is fixed before registration opens. The user's go of 2026-11-20 ("perbaikan A2", then "Go") made it item 2 of the
@@ -8992,8 +8992,8 @@ in its staleness check.
 - **Permanent.** It is applied on dev only after the ultracode checker (xhigh) and its fixes. The migration goes
   before the code that writes the column.
 - **Status:** BUILT and checked; the checker's findings fixed (above). Migrations `20261120_001` and `_002` applied
-  on dev (DRYRUN `d8b0089d`, APPLY `59f9382d`, DATABASE_CHANGELOG.md). Next: the beta. The live site only on the
-  user's request.
+  on dev (DRYRUN `d8b0089d`, APPLY `59f9382d`, DATABASE_CHANGELOG.md). On the beta since `584dddce` (`f8c872e0`,
+  RAILWAY_CHANGELOG.md). The live site only on the user's request: `f8c872e0` carries A2 without 3e.
 - **Lesson for new data and flows:** every limit that can refuse a person carries, in its key, something a stranger
   cannot hold: the browser, or the account's own proof. The client address is not enough, since a stranger can share
   it. A flow that mails a code binds the code to the
@@ -9247,6 +9247,10 @@ in its staleness check.
 - **Lesson:** an expand-only migration is safe for data, not always for the plans a running process holds.
 
 ### M510 — edge-bff's browser tests fail on GitHub's runner, a different few each run, while every local run passes them (2026-11-20; TEMPORARY rerun in CI, root cause OPEN)
+
+- **Seen locally too (2026-11-20, the A2 build):** `tests/test_answer_view.py::test_sources_list_the_answers_tables_with_an_export_request`
+  failed 2 of 8 runs on `f8c872e0` and 1 of 8 on `4785d1ef`. The two commits differ only in the account flows; the
+  failure is `.edge-source-ref` read as '' right after its fold opens. It is the same class and not caused by A2.
 
 - **Found by:** the first CI runs of edge-bff's browser tests after M509: run 44663513713 (commit `b969529b`, Playwright
   1.65.2, Chrome 159): 947 passed, 2 failed; run 44667192992 (commit `58b75888`, Playwright 1.63.0, Chrome for Testing

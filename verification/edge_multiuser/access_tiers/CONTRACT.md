@@ -1090,8 +1090,11 @@ today.
       out);
     - locked events keep the Events button with the lock mark;
     - each lock opens the shell's box. This replaces the F1 stopgap.
-  - `look_check11.mjs` measures the new rows: its stub's `LOCK` serves a principal holding one ticker, with broker and
-    events locked.
+  - `look_check11.mjs` measures the new rows on a wide screen and on the phone: its stub's `LOCK` serves a principal
+    holding one ticker, with broker and events locked. Locked events also draw no events rail under the dates.
+  - `LockedTabPage` reads the session again whenever it shows (`Edge.refresh`): it decides from the access the shell
+    holds and asks the server nothing. A plan raised meanwhile opens the tab without a reload, and a second factor now
+    needed shows `/mfa`. A 401 resets the shell, and other failures keep what it holds.
   - Tests: `tests/test_3e_locked_tabs_browser.py`, `tests/test_live_terminal_locked.py` (rewritten).
 - **The rail and the frames:**
   - every tab is always shown;

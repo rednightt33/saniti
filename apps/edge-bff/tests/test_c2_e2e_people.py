@@ -18,12 +18,8 @@ import pytest
 
 playwright = pytest.importorskip('playwright.sync_api')
 
-import re  # noqa: E402
-
-from e2e_people import (CHROMIUM, REFUSAL_WORDS, ROOT, Live, browser_context, register, shell_navigate,  # noqa: E402
+from e2e_people import (CHROMIUM, ROOT, Live, browser_context, register, shell_navigate,  # noqa: E402
                         signed_in_workspace, terminal_drawn)
-
-CODE = re.compile(r'[A-Z][A-Z0-9_]{3,}')
 
 
 @pytest.fixture
@@ -45,29 +41,25 @@ def chromium(live):
             browser.close()
 
 
-def monitor_alert(page, seconds=10):
-    alert = page.locator('.auth-error[role=alert]')
-    alert.first.wait_for(timeout=seconds * 1000)
-    return alert.first.inner_text()
-
-
 def test_the_monitor_shows_a_plan_refusal_in_words_not_its_code(live, chromium):
-    """A free account (and a paid one, D1) lands on the Monitor after registering. Its conversation list answers 403
-    CAPABILITY_REQUIRED with the message REFUSAL_WORDS; edge-client.js puts those words on the error (error.text), but the
-    Monitor shows error.message, the code (index.html Monitor: setApiError(e.message))."""
+    """A free account (and a paid one, D1) does not hold monitor.view. Before 3e the Monitor opened and its conversation
+    list answered 403 CAPABILITY_REQUIRED, shown once as the code (index.html Monitor: setApiError(e.message)); since 3e
+    (CONTRACT 8b) the shell shows LockedTabPage in its place, in words that name the tab and the plan, never a code,
+    until the Monitor's example (decision D4) is built."""
     page = browser_context(chromium).new_page()
     register(page, live, 'free_user', 'free@example.com')
-    # fix round: a new account lands on the Terminal (re-check R2-14), so the Monitor is opened from the rail; its words
-    # name what the plan lacks (re-check R2-15: errors.words), so the alert is compared with words, not one sentence
+    # fix round: a new account lands on the Terminal (re-check R2-14), so the Monitor is opened from the rail
     assert page.evaluate('() => location.pathname') == '/terminal'
     shell_navigate(page, '/monitor')
-    shown = monitor_alert(page)
-    assert shown != 'CAPABILITY_REQUIRED', 'the Monitor shows the internal code of the refusal, not its words'
-    assert not CODE.fullmatch(shown) and 'Monitor' in shown and 'plan' in shown, shown
+    card = page.locator('main.locked-tab[data-locked-tab="monitor"] .locked-tab-card')
+    card.wait_for(timeout=15000)
+    shown = card.inner_text()
+    assert 'CAPABILITY_REQUIRED' not in shown and 'Monitor is not in your plan' in shown, shown
+    assert page.get_by_placeholder('Ask a research question…').count() == 0
     live.subscribe('free_user', 'paid')                 # the paid plan holds monitor.example only (D1)
     page.reload()
-    page.get_by_placeholder('Ask a research question…').wait_for(timeout=15000)
-    assert monitor_alert(page) == shown
+    card.wait_for(timeout=15000)
+    assert 'Monitor is not in your plan' in card.inner_text()
 
 
 def test_a_plan_raised_to_one_that_needs_mfa_asks_for_the_authenticator_without_a_reload(live, chromium):
