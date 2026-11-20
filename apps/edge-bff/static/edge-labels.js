@@ -194,6 +194,9 @@ window.EdgeLabels = {
     tabGuestLead:"{name} needs an EDGE account. Sign in to open it, or create an account.",
     tabGuestLeadClosed:"{name} needs an EDGE account. Sign in to open it; registration opens soon.",
     tabUpgradeLead:"Your EDGE plan does not include {name} yet. Upgrading is coming soon.",
+    // an account whose plan ended (access.expired_plan): renewing opens the tab again
+    tabEndedTitle:"Your plan has ended", tabEndedLead:"Your {plan} plan has ended, so {name} is closed for now. Renew the plan to open it again; your data is kept.",
+    contactRenew:"Contact us to renew:",
     openTerminal:"Open the Terminal"
   },
   // EXEC-MU-ACCOUNTS Phase 1 (contract section 4; user: English labels): the account pages. A refusal shows the

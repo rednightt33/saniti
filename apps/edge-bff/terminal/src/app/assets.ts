@@ -19,6 +19,7 @@ import type { AssetBar, Bar, Combo, Instrument } from '../data/types';
 import { barDecimals, priceText } from '../data/priceFormat';
 import { UNIT } from '../data/timeframe';
 import { anchorTimeScale } from '../data/chartTime';
+import { askLocked, LockedData, lockMark, lockWord, type LockedItem } from './locked';
 
 export const MAX_ASSETS = 2;
 export const ASSET_COLORS = ['#2962ff', '#f57c00'];
@@ -83,7 +84,8 @@ interface FlowPane {
   through?: string; noData: HTMLElement; placeNoData: () => void;
 }
 interface Asset { ticker: string; name: string; opts: AssetOpts; bars: AssetBar[]; at: Map<string, number>; series: any; row: HTMLElement;
-  state: 'loading' | 'ready' | 'failed'; pane: FlowPane | null;
+  state: 'loading' | 'ready' | 'failed' | 'locked'; pane: FlowPane | null;
+  lock?: LockedItem;                                     // 3e: an asset the principal does not hold says Locked (the box)
   bond: boolean }                                        // EXEC-FI-TERMINAL: a government bond: its yield, no Flow Timeline
 
 export function initAssets(ctx: Ctx) {
@@ -106,8 +108,12 @@ export function initAssets(ctx: Ctx) {
     plus.setAttribute('aria-label', plus.title);
   };
   const tag = (t: string) => t === SYMBOL ? 'Current' : assets.some(a => a.ticker === t) ? 'Added' : '';
+  // 3e (the 3e checker TL-1): a plan without added assets (terminal.assets) gets the lock box from the + button
+  const assetsLocked = !!ctx.M.locks?.feature('terminal.assets');
+  if (assetsLocked) plus.insertAdjacentHTML('beforeend', lockMark('ev-lock'));
   plus.addEventListener('click', e => {
     e.stopImmediatePropagation();                            // the reference's Add Series panel stays closed
+    if (assetsLocked) { askLocked({ kind:'feature', id:'terminal.assets', name:'Added assets' }); return }
     if (assets.length >= MAX_ASSETS) return;
     ctx.openTickerSearch?.(plus, { label:'Add asset', tag, pick:(r: Instrument) => { if (!tag(r[0])) add(r[0]) } });
   }, true);
@@ -125,6 +131,7 @@ export function initAssets(ctx: Ctx) {
       + `<button class="ind-eye ind-cfg" type="button" data-act="cfg" data-label="Settings" aria-label="Settings">${GEAR}</button>`
       + `<button class="ind-eye ind-x" type="button" data-act="del" data-label="Remove" aria-label="Remove">${XICON}</button>`;
     r.addEventListener('click', (e: any) => {
+      if (e.target.closest('.as-lock') && a.lock) { askLocked(a.lock); return }
       const b = e.target.closest('[data-act]'); if (!b) return;
       if (b.dataset.act === 'eye') { a.opts.visible = !a.opts.visible; apply(a); save() }
       else if (b.dataset.act === 'cfg') openSettings(a);
@@ -140,6 +147,7 @@ export function initAssets(ctx: Ctx) {
     const b = r.querySelector('.as-chg') as HTMLElement;
     const at = barAt(a, Math.min(i, N - 1)), bar = a.bars[at];
     if (a.state === 'loading') b.innerHTML = spin('Loading');
+    else if (a.state === 'locked') b.innerHTML = `<button class="as-lock" type="button">${lockMark('st-lock')}<span>${lockWord()}</span></button>`;
     else if (a.state === 'failed') b.textContent = a.bond && ctx.M.intraday ? 'Daily, weekly or monthly chart only' : 'Could not be loaded';
     else if (a.bond) b.textContent = bar && !bar.gap ? `${sourceOf(bar, a.opts.source).toFixed(3)}% ${fmtBp(legendBp(a.bars, at, a.opts.source, ret()))}`
       + (bar.carriedFrom ? ` · carried from ${shortDay(bar.carriedFrom)}` : '') : bar?.gap ? 'No value (market closed)' : '';
@@ -205,11 +213,15 @@ export function initAssets(ctx: Ctx) {
     assets.splice(Math.min(slot, assets.length), 0, a);
     rows.replaceChildren(...assets.map(x => x.row));
     paintRow(a); syncPlus(); save();
+    // 3e (the 3e checker TL-1): a ticker the plan does not hold (a saved asset after a lower plan) is never asked for: its
+    // row says Locked and opens the box; the saved entry stays, so a raised plan brings it back. No Flow Timeline pane
+    // while broker data is closed
+    if (ctx.M.locks?.ticker(ticker)) { a.state = 'locked'; a.lock = { kind:'ticker', id:ticker, name:a.name }; paintRow(a); return }
     setPane(a, a.opts.flow);
     ctx.M.loadAsset!(ticker).then(bars => {
       if (!assets.includes(a)) return;
       a.bars = bars; a.at = new Map(bars.map((b, k) => [b.time, k])); a.state = bars.length ? 'ready' : 'failed'; apply(a);
-    }, () => { if (assets.includes(a)) { a.state = 'failed'; paintRow(a) } });
+    }, e => { if (assets.includes(a)) { if (e instanceof LockedData) { a.state = 'locked'; a.lock = e.item } else a.state = 'failed'; paintRow(a) } });
   }
   function remove(a: Asset) {
     const k = assets.indexOf(a); if (k < 0) return;
@@ -365,6 +377,8 @@ export function initAssets(ctx: Ctx) {
   const cumOn = () => ($('tglCum') as HTMLInputElement).checked;
 
   function setPane(a: Asset, on: boolean) {
+    // 3e (the 3e checker TL-1): no Flow Timeline pane for a locked asset or while broker data is closed (nothing asked)
+    if (on && (a.state === 'locked' || (ctx.M.lockedData || []).includes('broker'))) on = false;
     if (on && !a.pane) a.pane = buildPane(a);
     else if (!on && a.pane) { destroyPane(a.pane); a.pane = null }
     else if (a.pane) paintPaneHead(a);

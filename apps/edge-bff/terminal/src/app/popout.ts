@@ -39,6 +39,9 @@ interface Period { n: string; from?: string; to?: string }
 export function initPopout(ctx: Ctx) {
   const S = ctx.brokerShared;
   if (ctx.M.mode !== 'live' || !S) return;
+  // 3e (the 3e checker TL-2): broker data closed to the principal opens no window, and a window remembered from an
+  // earlier visit (ml.win.open, kept in this browser) is neither drawn nor forgotten: it comes back on a raised plan
+  if ((ctx.M.lockedData || []).includes('broker')) return;
   const B = () => ctx.M.broker;
   /* EXEC-QA5-FIX (QA 2026-11-07, S-03): an index ticker (IHSG) has no lots that add up and no price per share (user
      2026-11-03, the panels' rule): its windows show Rupiah only, without lots or average prices */

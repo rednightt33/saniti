@@ -439,7 +439,13 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
      kalau kita search ticker ... maksimal 2"; "Menambah aset hanya menambah flow timeline di bawah"): any published ticker
      as candles on the chart's candles, and its broker files as Flow Timeline combos on the chart's sessions (the worker
      puts them there, `dates`); the right panel stays the chart's own ticker */
+  /* 3e (the 3e checker TL-1): an added asset the principal does not hold (its ticker, or broker data for its Flow
+     Timeline) is never asked for; the loaders reject with LockedData, as the IHSG of Statistics does, so every caller
+     (the restore of the last visit, the + search, the settings' Symbol) says Locked and opens the box */
+  const tickerLock = (t: string) => new LockedData({ kind:'ticker', id:t, name:instruments.find(i => i[0] === t)?.[1] || t });
+  const brokerLocked = (files.locked || []).includes('broker');            // the chart's answer: broker data is closed
   const loadAsset = async (ticker: string): Promise<AssetBar[]> => {
+    if (locks.ticker(ticker)) throw tickerLock(ticker);
     if (!known.has(ticker)) return [];
     /* EXEC-FI-TERMINAL (user 2026-11-01: a bond as a comparison on a stock chart): its yield file alone (one pack), on the
        chart's candles with the 3-session carry; a bond has no intraday bars */
@@ -454,6 +460,8 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
     return alignCandles(sessions, groups, daily);
   };
   const loadAssetFlow = async (ticker: string) => {
+    if (locks.ticker(ticker)) throw tickerLock(ticker);
+    if (brokerLocked) throw new LockedData({ kind:'feature', id:'terminal.dataset:broker', name:'Broker data' });
     const files = await bundle(ticker, ['broker'], csrf);
     const asset = await load(ticker, ['broker'], csrf, intraday ? 'D' : tf, sessions, files);   // a broker-only answer: no price or events files
     const part = async (stage: Promise<BrokerAnswer>) => {

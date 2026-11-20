@@ -108,6 +108,10 @@ function lockedPage(M: MarketData) {
     const title = $('flowHead')?.querySelector('.flow-title');
     title?.insertAdjacentHTML('afterend', `<button class="flow-lock" id="flowLock" type="button">${lockMark('st-lock')}<span>Broker data</span><span class="flow-lock-word">${lockWord()}</span></button>`);
     $('flowLock')?.addEventListener('click', e => { e.stopPropagation(); askLocked(LOCKED_DATA.broker) });
+    // the toolbar's Broker activity button (narrow screens) keeps its place with the lock and opens the box (TL-2)
+    const drawer = $('rpDrawerBtn');
+    drawer?.insertAdjacentHTML('beforeend', lockMark('ev-lock'));
+    drawer?.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); askLocked(LOCKED_DATA.broker) }, true);
   }
   if (locked.has('events')) {
     document.body.classList.add('locked-events');

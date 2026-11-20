@@ -100,3 +100,46 @@ def test_a_locked_intraday_timeframe_opens_the_lock_box_not_a_not_published_note
             assert frame.evaluate("() => localStorage.getItem('ml.tf')") == 'D'   # the next load is daily
         finally:
             browser.close()
+
+
+def test_a_visitors_saved_asset_remembered_window_and_head_stay_locked(live_site):
+    """The 3e checker (TL-1, TL-2, TL-3): an asset saved by an earlier visit for a ticker the visitor does not hold is
+    never asked for and says Locked (its lock opens the box); a Broker summary window remembered from an earlier visit is
+    not drawn (and stays remembered); a click on the locked Flow Timeline's head stores no height; on a narrow window the
+    toolbar's Broker activity button keeps its place with the lock and opens the box."""
+    with playwright.sync_playwright() as pw:
+        browser = pw.chromium.launch(executable_path=CHROMIUM, headless=True, args=live_site.terminal.browser_args())
+        try:
+            page = browser_context(browser).new_page()
+            page.goto(live_site.origin + '/terminal')
+            frame = terminal_frame(page)
+            frame.evaluate("""() => { localStorage.setItem('ml.assets.v1', JSON.stringify([{ ticker:'BBRI', opts:{} }]));
+                                      localStorage.setItem('ml.win.open', JSON.stringify(['bs'])); localStorage.removeItem('ml.flow.ratio') }""")
+            page.reload()
+            frame = terminal_frame(page)
+            frame.wait_for_timeout(2000)
+            assert not [c for c in live_site.terminal.calls if 'BBRI' in c['body'] or '/BBRI' in c['path']]
+            row = frame.locator('.as-row').first
+            assert 'Bank Rakyat Indonesia' in row.inner_text() and 'Locked' in row.inner_text(), row.inner_text()
+            assert frame.locator('.fw').count() == 0 or not frame.locator('.fw').first.is_visible()
+            assert frame.evaluate("() => localStorage.getItem('ml.win.open')") == '["bs"]'
+            frame.locator('#flowHead .flow-title').click()
+            assert frame.evaluate("() => localStorage.getItem('ml.flow.ratio')") is None
+            row.locator('.as-lock').click()
+            dialog = page.get_by_role('dialog')
+            dialog.wait_for(timeout=10000)
+            assert 'Sign in to open Bank Rakyat Indonesia' in dialog.inner_text(), dialog.inner_text()
+            page.keyboard.press('Escape')
+            page.get_by_role('dialog').wait_for(state='detached', timeout=10000)
+            page.set_viewport_size({'width': 1000, 'height': 800})
+            page.reload()
+            frame = terminal_frame(page)
+            drawer = frame.locator('#rpDrawerBtn')
+            drawer.wait_for(timeout=10000)
+            assert drawer.is_visible() and drawer.locator('.ev-lock').count() == 1
+            drawer.click()
+            dialog = page.get_by_role('dialog')
+            dialog.wait_for(timeout=10000)
+            assert 'Sign in to open Broker data' in dialog.inner_text(), dialog.inner_text()
+        finally:
+            browser.close()

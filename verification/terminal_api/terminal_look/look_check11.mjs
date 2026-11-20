@@ -213,22 +213,22 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
    the middle of the button, the IHSG row of Statistics is one line (wide screen: Statistics is open there), and no
    empty events rail stays under the dates */
 LOCK.on = true;
-for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['phone', devices['iPhone 13']]]) {
+for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['d1280', { viewport:{ width:1280, height:800 } }], ['phone', devices['iPhone 13']]]) {
   const ctx = await b.newContext(opt), p = await ctx.newPage(); p.on('pageerror', e => errs.push('locked ' + nm + ' ' + e.message));
   await p.goto(origin + '/terminal-app/'); await p.waitForFunction(() => !document.querySelector('.ml-boot'), null, { timeout:30000 });
-  if (nm === 'd1440') await p.waitForSelector('#relStats .st-lock-row', { timeout:15000 }).catch(() => {}); else await p.waitForTimeout(2500);
+  if (nm !== 'phone') await p.waitForSelector('#relStats .st-lock-row', { timeout:15000 }).catch(() => {}); else await p.waitForTimeout(2500);
   const L = await p.evaluate(() => { const mid = e => { const r = e.getBoundingClientRect(); return r.top + r.height / 2 };
     const head = document.getElementById('flowHead'), lock = document.getElementById('flowLock'), title = head && head.querySelector('.flow-title');
     const ev = document.getElementById('evBtn'), evl = ev && ev.querySelector('.ev-lock'), ihsg = document.querySelector('#relStats .st-lock-row');
     const evShown = !!ev && ev.offsetParent !== null;
     return { lock:!!lock && lock.offsetParent !== null, row:lock && title ? Math.round((mid(lock) - mid(title)) * 10) / 10 : null,
-      body:getComputedStyle(document.getElementById('flowBody')).display, evShown, ev:evl && evShown ? Math.round((mid(evl) - mid(ev)) * 10) / 10 : null,
+      body:getComputedStyle(document.getElementById('flowBody')).display, evShown, ev:evl && evShown ? Math.round((mid(evl) - mid(ev)) * 10) / 10 : null, evW:evl && evShown ? Math.round(evl.getBoundingClientRect().width) : null,
       rail:!!document.querySelector('.chart-wrap.ev-rail'),
       ihsg:ihsg ? Math.round((Math.max(...[...ihsg.children].map(mid)) - Math.min(...[...ihsg.children].map(mid))) * 10) / 10 : null } });
   (R.locked ||= {})[nm] = L;
   check(`locked broker (${nm}): the Flow Timeline head holds its title and the lock on one line, its body out`, L.lock && L.row !== null && Math.abs(L.row) <= 1 && L.body === 'none', L);
-  check(`locked events (${nm}): no empty events rail; the lock mark in the middle of the Events button where it shows`, !L.rail && (!L.evShown || (L.ev !== null && Math.abs(L.ev) <= 1)), L);
-  if (nm === 'd1440') check('IHSG not held: its Statistics row is one line (its parts within 1 px of one middle)', L.ihsg !== null && L.ihsg <= 1, L);
+  check(`locked events (${nm}): no empty events rail; the lock mark seen (at least 8 px wide, the 3e checker TL-4) in the middle of the Events button where it shows`, !L.rail && (!L.evShown || (L.ev !== null && Math.abs(L.ev) <= 1 && L.evW >= 8)), L);
+  if (nm !== 'phone') check(`IHSG not held (${nm}): its Statistics row is one line (its parts within 1 px of one middle)`, L.ihsg !== null && L.ihsg <= 1, L);
   L.head = await ink(p, '#flowHead');
   check(`locked broker (${nm}): the head ink centred`, !!L.head && Math.abs(L.head.above - L.head.below) <= 1, L.head);
   await p.screenshot({ path:`${SP}/look11_locked_${nm}.png` });

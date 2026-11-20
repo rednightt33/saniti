@@ -534,6 +534,8 @@ export function initFlow(ctx: Ctx) {
   const startDrag = (e: any) => {
     if(e.button !== undefined && e.button !== 0) return;
     if(mainCol.classList.contains('flow-collapsed')) return;
+    // 3e (the 3e checker TL-3): a locked Flow Timeline is a head only: it never drags nor stores a height
+    if(document.body.classList.contains('locked-broker')) return;
     if(e.target.closest('.flow-filters, button, input, select, a, label')) return;     // never hijack the filters / toggles
     drag = { y:e.clientY, h:flowPanel.getBoundingClientRect().height, el:e.currentTarget };
     drag.el.setPointerCapture(e.pointerId); mainCol.classList.add('dragging'); e.preventDefault();
@@ -547,7 +549,7 @@ export function initFlow(ctx: Ctx) {
   };
   [grip, $('flowHead')].forEach((el: HTMLElement) => { el.addEventListener('pointerdown', startDrag); el.addEventListener('pointermove', moveDrag);
     el.addEventListener('pointerup', endDrag); el.addEventListener('pointercancel', endDrag);
-    el.addEventListener('dblclick', (e: any) => { if(!e.target.closest('.flow-filters, button, input, select, a, label')) setFlowH(FIT ? Math.min(FLOW_MAX, avail() * FLOW_RATIO) : FLOW_MAX) }) });
+    el.addEventListener('dblclick', (e: any) => { if(!e.target.closest('.flow-filters, button, input, select, a, label') && !document.body.classList.contains('locked-broker')) setFlowH(FIT ? Math.min(FLOW_MAX, avail() * FLOW_RATIO) : FLOW_MAX) }) });
   grip.addEventListener('keydown', (e: KeyboardEvent) => {
     const cur = flowPanel.getBoundingClientRect().height;
     if(e.key === 'ArrowUp'){ setFlowH(cur + 16); e.preventDefault() }

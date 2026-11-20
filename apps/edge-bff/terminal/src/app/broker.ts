@@ -1,6 +1,7 @@
 /* RIGHT PANEL — Broker activity (reference lines 3685-3985). The fixture is the reference's dummy history built around
    a real BBCA day; live data is the published broker summary of the ticker (the last sessions in its files). */
 import type { Ctx } from './context';
+import { askLocked } from './locked';
 import { $, keyOf, minus, nfCompact, pct, row, spin, store, tickCompact, visibleBars } from './context';
 import { closeRangeCalendar, longDay, openRangeCalendar } from '../ui/calendar';
 import { aggregate, avgPrice, fdQuadrant, fdShown, fdSplit, FD_QUADRANTS, SPLIT_LEGEND, splitFill } from '../data/brokerAgg';
@@ -151,6 +152,8 @@ export function initBroker(ctx: Ctx) {
   };
   if(live) document.addEventListener('keydown', (e: any) => {
     if(!e.altKey || e.ctrlKey || e.metaKey || e.code !== 'KeyB' || e.repeat || !ready) return;
+    // 3e (the 3e checker TL-2): Alt+B asks the lock box while broker data is closed (main.ts lockedPage)
+    if((ctx.M.lockedData || []).includes('broker')) { e.preventDefault(); askLocked({ kind:'feature', id:'terminal.dataset:broker', name:'Broker data' }); return }
     if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) || e.target.isContentEditable) return;
     e.preventDefault(); closeRangeCalendar();
     ctx.selectRangeOnChart((f, t) => { showBS(); applyChartRange(f, t) });   // a collapsed panel draws itself on opening

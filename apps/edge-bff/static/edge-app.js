@@ -606,16 +606,30 @@ function LockedTabPage({ go, route, guest = false }) {
     // the decision came from the access the shell holds, and this page asks the server nothing: an account's access read
     // again on every show (a plan raised or lowered meanwhile, a second factor now needed: access.next), and the shell
     // decides again with it (the edge-auth event), so a raised plan opens the tab without a reload
-    onLifecycle(v, "fresh", () => { if (!guest) Edge.refresh(); }, [route]);
+    onLifecycle(v, "fresh", () => {
+        if (guest) return;
+        Edge.refresh();
+        // the 3e checker SHELL-2: the person comes back to this browser tab (a plan raised meanwhile, after a call to
+        // sales): read again once per return, never on a timer
+        const back = () => { if (document.visibilityState === "visible") Edge.refresh(); };
+        document.addEventListener("visibilitychange", back);
+        return () => document.removeEventListener("visibilitychange", back); }, [route]);
     const open = config?.registration === true, contact = config?.upgradeContact || null;
+    // the 3e checker 3E-CW-1: an account whose plan ended (access.expired_plan) is told so and to renew, not to upgrade
+    const ended = !guest && typeof Edge.auth?.access?.expired_plan === "string" && Edge.auth.access.expired_plan ? Edge.auth.access.expired_plan : null;
     const terminal = route !== "terminal" && element(Button, { onClick: () => go("/terminal") }, L.openTerminal);
     const body = guest
-        ? [element("h1", { className: "locked-tab-title" }, L.guestTitle.replace("{name}", name)),
+        ? [element("h1", { className: "locked-tab-title", id: "locked-tab-title" }, L.guestTitle.replace("{name}", name)),
            element("p", { className: "locked-tab-lead" }, (open ? L.tabGuestLead : L.tabGuestLeadClosed).replace("{name}", name)),
            element("div", { className: "locked-actions" }, terminal,
                open && element(Button, { onClick: () => go("/register") }, L.register),
                element(Button, { kind: "primary", onClick: () => go("/login") }, L.signIn))]
-        : [element("h1", { className: "locked-tab-title" }, L.upgradeTitle.replace("{name}", name)),
+        : ended
+        ? [element("h1", { className: "locked-tab-title", id: "locked-tab-title" }, L.tabEndedTitle.replace("{name}", name)),
+           element("p", { className: "locked-tab-lead" }, L.tabEndedLead.replace("{name}", name).replace("{plan}", ended)),
+           element("p", { className: "locked-contact" }, contact ? [L.contactRenew, " ", element("strong", null, contact)] : L.contactSoon),
+           element("div", { className: "locked-actions" }, terminal)]
+        : [element("h1", { className: "locked-tab-title", id: "locked-tab-title" }, L.upgradeTitle.replace("{name}", name)),
            element("p", { className: "locked-tab-lead" }, L.tabUpgradeLead.replace("{name}", name)),
            element("span", { className: "pill locked-soon" }, A.comingSoon),
            element("p", { className: "locked-contact" }, contact ? [L.contact, " ", element("strong", null, contact)] : L.contactSoon),
@@ -2772,13 +2786,20 @@ function App() {
     // EXEC-TERMINAL-IND-EDIT (user 2026-11-05): the browser tab names the page; the words are in edge-labels.js (pages)
     onLifecycle(viewRecord, "title", () => {
         const P = EdgeLabels.pages, r = routeOf(path), m = authMode();
-        document.title = !checked ? P.loading : !authenticated && guests && path === "/terminal" ? P.terminal
+        document.title = !checked ? P.loading : !authenticated && guests && TAB_PATHS[path] ? P[r?.title] || P.terminal
             : !authenticated || r?.auth === false ? P[m === "login" ? "signIn" : m] || P.signIn : P[r?.title] || P.monitor;
     }, [checked, authenticated, path, open, guests, prelaunch]);
     const go = route => {
         const target = routeOf(route);
         if (!target) return;
         const nextPath = target.path;
+        // the 3e checker SHELL-2: a press on the tab already shown adds no history entry; on a locked tab it reads the
+        // session again (a plan raised meanwhile opens it now)
+        if (nextPath === path && routeLocation().pathname === nextPath) {
+            const tab = TAB_PATHS[nextPath];
+            if (tab && Edge.auth && !Edge.can(`${tab}.view`)) Edge.refresh();
+            return;
+        }
         // EXEC-CHAT-URL: signing in at /c/<id> stays on that conversation
         if (!(nextPath === "/monitor" && routeLocation().pathname.startsWith("/c/"))) routeHistory.pushState({}, "", nextPath);
         setPath(nextPath);

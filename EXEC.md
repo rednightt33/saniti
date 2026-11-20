@@ -16184,7 +16184,9 @@ Order of the services (CONTRACT 17, rollback floors):
       cannot open (sign in for a visitor, the upgrade words and contact for an account); the Terminal's lock prompts in
       place (IHSG of Statistics, Flow Timeline head, Events) replacing the F1 stopgap; `look_check11` measures them
       (PASS). The example mode waits for the user's choice (asked 2026-11-20: A all tabs, B data pages only, C later;
-      the date).
+      the date). Ultracode checker (xhigh, workflow `wf_0f14e7f0-edd`): 5 findings confirmed, none refuted, 6 not
+      verified; all fixed (ERRORS M518: locked saved assets, a raised plan's preferences, the re-press, the broker
+      button and window, the head drag, the ended plan's words, the clipped lock mark, the title, the region name).
     - Items 1 shipped (2026-11-20): `main` and `live` at `4785d1ef` (CI green on both branches). The beta `e114339a`
       SUCCESS and the live site `e21a05f4` SUCCESS. The live smoke:
       - `/ready` 200, 62 of 62 routes as expected;

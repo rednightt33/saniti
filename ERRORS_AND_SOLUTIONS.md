@@ -8879,6 +8879,56 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M518 — 3e's ultracode checker: a locked asset still asked for, a raised plan's preferences lost, a dead broker button and five smaller gaps (2026-11-20; FIXED on the branch)
+
+- **Found by:** the ultracode checker of 3e without the example mode (workflow `wf_0f14e7f0-edd`, three lenses and a
+  skeptic per serious finding, every agent at xhigh). 5 findings confirmed (1 high, 3 medium, 1 low), none refuted,
+  6 not verified (1 medium, 5 low). All were checked here and fixed.
+- **TL-1 (high).**
+  - Cause: an asset saved by an earlier visit (`ml.assets.v1`, an account key copied to the account) for a ticker the
+    plan does not hold was still restored. Its price and broker data were asked for (403) and the row said "Could
+    not be loaded".
+  - Fix: the data layer (`live.ts` `loadAsset`, `loadAssetFlow`) rejects with `LockedData` for a ticker not held or
+    broker data closed. The row says Locked and opens the box, and the saved entry stays for a raised plan.
+  - `setPane` opens no Flow Timeline pane while broker data is closed.
+  - The + button of a plan without `terminal.assets` carries the lock and opens the box.
+- **SHELL-1 (medium).**
+  - Cause: the locked page's session re-read (`Edge.refresh`) adopted a raised plan without the shell's follow-up,
+    the model list and the preferences read again. A preference the lower plan hid never came back, and the first
+    new choice was put back to the old server value.
+  - Fix: `refresh` adopts through the same routine as `followVersion` (`adopt`: the same account only, models and
+    preferences read again, then `edge-auth`). It also waits for a read already running and reads once more, because
+    that read may predate the change; a test caught this race.
+- **SHELL-2 (medium).**
+  - Cause: pressing the locked tab again after a raise did nothing, because `go()` to the same path changed no state.
+  - Fix: a press on the tab already shown adds no history entry and, on a locked tab, reads the session again. The
+    locked page also reads again when the browser tab comes back into view.
+- **TL-2 (medium).**
+  - Cause: with broker data locked, the toolbar's Broker activity button (narrow screens) was a dead control, and a
+    Broker summary window remembered from an earlier visit reopened saying "No broker data for this ticker".
+  - Fix: the button carries the lock and opens the box. `initPopout` does nothing while broker data is closed (the
+    remembered windows stay for a raised plan). Alt+B opens the box.
+- **TL-3 (medium, not verified, reproduced here).**
+  - Cause: a click on the locked Flow Timeline's head ran the split drag and stored 36 px as its height ratio.
+  - Fix: `startDrag` and the head's double-click do nothing while broker data is locked.
+- **3E-CW-1 / SHELL-3 (low).**
+  - Cause: an account whose plan ended was told "not in your plan … upgrading is coming soon".
+  - Fix: the locked page says the plan ended and to renew it, with the contact (`access.expired_plan`).
+- **The other lows:**
+  - TL-4: the Events lock mark was clipped to 1×1 px under 900 px. It is kept out of the narrow label rule, and
+    `look_check11` now requires it to be at least 8 px wide, at 1440, 1280 and on the phone.
+  - SHELL-4: a visitor's browser tab now names the locked tab, not "Sign In".
+  - 3E-CW-3: the card's region name now points at its title.
+  - 3E-CW-2: CONTRACT 8b lists exactly what is built and what is not; M515 F1 and M516 are updated.
+- **Tests:**
+  - `tests/test_3e_locked_tabs_browser.py` (7): the re-press, the ended plan, the preferences after a raise, the
+    region name and the title.
+  - `tests/test_live_terminal_locked.py` (3): a saved asset, a remembered window, the head and the narrow drawer.
+  - `look_check11` PASS.
+- **Lesson:** a page that decides from state the shell holds must read it again with the shell's whole follow-up,
+  not a part of it. A lock on a part must cover every way into that part: buttons, shortcuts, remembered windows and
+  restored items.
+
 ### M517 — A stranger who knows an account's login or address could spend the owner's allowances: the lock, the code emails, the reset code (2026-11-20; BUILT, checked by ultracode at xhigh, its findings fixed, migrations applied on dev, on the beta `f8c872e0`; live on the user's request)
 
 - **Found by:** the live checker before the switch-on, finding A2 (M513). It was accepted for the pre-launch mode and
@@ -8999,7 +9049,7 @@ in its staleness check.
   it. A flow that mails a code binds the code to the
   browser that asked.
 
-### M516 — The live smoke signed in with the admin's first password after the owner had replaced it (2026-11-20; FIXED in the smoke, one observation OPEN for step 4)
+### M516 — The live smoke signed in with the admin's first password after the owner had replaced it (2026-11-20; FIXED in the smoke; the IHSG observation fixed on the branch with 3e)
 
 - **Symptom:** step 2 of the go moved the live smoke into the repository
   (`verification/edge_multiuser/live_smoke/http_smoke.py`). Run with orc-test-runner's variables, it got 401
@@ -9061,7 +9111,8 @@ in its staleness check.
     empty file list. Fix `741c0b6f`, TEMPORARY until 3e builds a lock prompt on each panel: the page reads `locked` from
     the /bundle answer and leaves those panels out as for a bond; a locked intraday timeframe opens the lock box; the
     history window shows as a chart note. Test `tests/test_live_terminal_locked.py` (fails on the old page).
-    `look_check11` PASS. CONTRACT 8b records it.
+    `look_check11` PASS. CONTRACT 8b records it. **Replaced by 3e on the branch (2026-11-20, M518):** the locked parts
+    say Locked in place. The live site keeps this stopgap until `live` moves past 3e.
 - **Refuted:** F2 (the live site deploying from `main` without CI): the user had fixed it before the skeptic ran (M514).
 - **Low, FIXED:**
   - ACC-2: locked recovery codes hid the authenticator. The page now keeps the authenticator path open, and the

@@ -21,17 +21,21 @@
   // a frame's broadcast): the session is read again into `auth`, the model list read again, and the page redraws from
   // them (an account raised to a plan that needs the authenticator is taken to /mfa; a narrowed one loses what it lost)
   let rereading = null;
+  // a newer session answer of the same account adopted with everything that follows it: the model list and the
+  // preferences read again (a raised plan's capped keys come back), then the page redraws (3e checker SHELL-1: the
+  // locked page's re-read went around these and lost a raised plan's preferences)
+  const adopt = async fresh => {
+    if (fresh && identity(fresh) === identity(auth)) {
+      auth = fresh; models = {data:null, failed:false, pending:null};
+      await settle(Promise.all([loadModels(), loadPrefs(null)]));
+      dispatchEvent(new Event('edge-auth'));
+    }
+  };
   const followVersion = version => {
     if (!auth || (version && auth.access?.version === version)) return rereading;
     return rereading ||= (async () => {
-      try {
-        const fresh = await api('/auth/session');
-        if (fresh && identity(fresh) === identity(auth)) {
-          auth = fresh; models = {data:null, failed:false, pending:null};
-          await settle(Promise.all([loadModels(), loadPrefs(null)]));
-          dispatchEvent(new Event('edge-auth'));
-        }
-      } catch { /* a 401 already reset the page; anything else keeps the session as it is */ }
+      try { await adopt(await api('/auth/session')); }
+      catch { /* a 401 already reset the page; anything else keeps the session as it is */ }
       finally { rereading = null; }
     })();
   };
@@ -244,9 +248,21 @@
     // every key), from the session answer's access; false without a session. The server decides; the shell only shows
     can: key => { const caps = auth?.access?.capabilities; return Array.isArray(caps) && (caps.includes('*') || caps.includes(key)); },
     // 3e: the session answer read again (a page decided from the access it holds and asking the server nothing:
-    // LockedTabPage). A new answer replaces the one held and the shell decides again (edge-auth); a 401 has already
-    // reset the shell (api); any other failure keeps what it holds, so a passing network error signs nobody out
-    async refresh() { try { const answer = await api('/auth/session'); if (answer) { auth = answer; dispatchEvent(new Event('edge-auth')); } } catch { /* above */ } return auth; },
+    // LockedTabPage). An answer of another access version is adopted as followVersion adopts one (the same account
+    // only; the models and preferences read again; the shell decides again); a 401 has already reset the shell (api);
+    // any other failure keeps what it holds, so a passing network error signs nobody out
+    // A read already running may have started before the change, so it is awaited and the session read once more
+    async refresh() {
+      if (rereading) await rereading.catch(() => {});
+      if (!auth) return auth;
+      const mine = (async () => {
+        try { const fresh = await api('/auth/session'); if (fresh && fresh.access?.version !== auth?.access?.version) await adopt(fresh); }
+        catch { /* above */ }
+        return auth;
+      })();
+      rereading = mine;
+      try { return await mine; } finally { if (rereading === mine) rereading = null; }
+    },
     legal: () => legal,
     // EXEC-MU-ACCOUNTS Phase 1 (contract section 4): the account routes; every refusal carries the server's message
     register: body => api('/auth/register', body),

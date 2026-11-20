@@ -1074,8 +1074,15 @@ today.
 - `WATCHLIST_FORMULAS.md` is rebuilt in the same commit.
 
 **3e. Front-end.**
-- **Built 2026-11-20 on the branch (EXEC option A, item 3; the user's go of 2026-11-20). The example mode waits for the
-  user's choice of its date and content (D4); everything else is built:**
+- **Built 2026-11-20 on the branch (EXEC option A, item 3; the user's go of 2026-11-20), then checked by ultracode and
+  fixed (ERRORS M518).**
+  - **Not built:** the example mode (D4: the user chooses its date and content), and with it the Monitor's example
+    conversation.
+  - **The Broker panel:** removed rather than prompted in place. The Flow Timeline's head and the drawer button carry
+    its lock.
+  - **Compare:** on the live Terminal compare is the added assets. They rest on the ticker lock and on
+    `terminal.assets`; there is no separate `terminal.compare` check.
+  - **What is built:**
   - Every tab the site offers is in the rail, a visitor's too (`navShown`: an owner page leaves only where the session
     says false).
   - A tab the principal cannot open (`<tab>.view`; `*` opens all) shows `LockedTabPage` in place of its app, the rail
