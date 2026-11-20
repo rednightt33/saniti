@@ -479,7 +479,7 @@ Edge.offers("monitor") && element(Button, { kind: "ghost", icon: "spark", onClic
         children,
         false && element(AccountDialog, { view: accountView, setView: setAccountView, close: () => setAccountView(null), returnFocusRef: avatarRef }),
         settingsOpen && element(SettingsDialog, { close: () => setSettingsOpen(false), notify: notify, returnFocusRef: settingsRef }),
-        securityOpen && element(SecurityDialog, { close: () => setSecurityOpen(false), returnFocusRef: avatarRef, signedOut: () => { setSecurityOpen(false); go("/login"); } }),
+        securityOpen && element(SecurityDialog, { close: () => setSecurityOpen(false), returnFocusRef: avatarRef, go, signedOut: () => { setSecurityOpen(false); go("/login"); } }),
         locked && element(LockedDialog, { item: locked, guest, go, close: () => setLocked(null) }),
         edgeTableDialog && element(TableDialog, { key: "edge-table-dialog", spec: edgeTableDialog }),
         false && element(SupportDialog, { route: route, close: () => setSupportOpen(false), returnFocusRef: supportRef }),
@@ -592,7 +592,7 @@ function SettingsDialog({close,returnFocusRef}) {
 }
 // re-check R2-20 (CONTRACT.md section 4): the password change (the other sessions end; this one stays) and sign-out on
 // every device, in the shell's dialog; the words are EdgeLabels.auth.account, a refusal shows its server message
-function SecurityDialog({close, returnFocusRef, signedOut}) {
+function SecurityDialog({close, returnFocusRef, signedOut, go}) {
   const v = currentView, A = EdgeLabels.auth.account, L = EdgeLabels.auth;
   const f = initialValue(v, "f", () => ({current:"", password:"", repeat:""})), set = (name, value) => updateValue(v, "f", old => ({...old, [name]:value}));
   const busy = initialValue(v, "busy", () => ""), error = initialValue(v, "error", () => ""), done = initialValue(v, "done", () => ""), bad = initialValue(v, "bad", () => ({}));
@@ -612,6 +612,8 @@ function SecurityDialog({close, returnFocusRef, signedOut}) {
       done && element("p", {className:"auth-note", role:"status"}, done),
       error && element("p", {className:"auth-error", role:"alert"}, error),
       element(Button, {kind:"primary", type:"submit", disabled:!!busy}, busy === "change" ? A.busy : A.submit)),
+    Edge.auth?.access?.mfa_enrolled === true && element(SettingsHeading, {title:A.mfaTitle, description:A.mfaLead}),
+    Edge.auth?.access?.mfa_enrolled === true && element(Button, {disabled:!!busy, onClick:() => { authFlow.enrolling = true; close(); go("/mfa"); }}, A.mfaNew),
     element(SettingsHeading, {title:A.allTitle, description:A.allLead}),
     element(Button, {onClick:everywhere, disabled:!!busy}, busy === "all" ? A.allBusy : A.all));
 }
@@ -650,7 +652,7 @@ function PublicThemeButton() {
 // authenticator: enrol with a QR code drawn here, or verify). The words are EdgeLabels.auth; a refusal shows the
 // server's message (error.message) and the code's words only when it sends none. The email being verified lives in
 // this page's memory (authFlow), never in storage or the address.
-const authFlow = {email:"", purpose:"register", sentAt:0, notice:"", resendAfter:60, mfaEnrolled:null};
+const authFlow = {email:"", purpose:"register", sentAt:0, notice:"", resendAfter:60, mfaEnrolled:null, enrolling:false};
 const CODE_SECONDS = 300, RESEND_SECONDS = 60;
 const authText = error => error?.info?.message || EdgeLabels.auth.errors[error?.info?.code || error?.code] || error?.text || EdgeLabels.auth.errors.fallback;
 // re-check R2-14 (decision D1: the assistant is the admin's): a sign-in lands on the Monitor only for an account whose
@@ -846,26 +848,30 @@ function MfaForm({go, L}) {
   // reset by email, which clears the lock: the Forgot password? link stays on this page)
   const locked = initialValue(v, "locked", () => ""), unlockAt = initialValue(v, "unlockAt", () => "");
   // an account without an authenticator yet (access.mfa_enrolled false) starts on the set-up
-  onLifecycle(v, "start", () => { if (Edge.auth?.access?.mfa_enrolled === false || authFlow.mfaEnrolled === false) startEnrol(); }, []);
+  onLifecycle(v, "start", () => { if (Edge.auth?.access?.mfa_enrolled === false || authFlow.mfaEnrolled === false || authFlow.enrolling) startEnrol();
+    return () => { authFlow.enrolling = false; }; }, []);
   // a new authenticator beside a confirmed one needs a code entered in the last minutes (MFA_REQUIRED with
   // details.recent_s): the code form below takes it, and its success starts the set-up again here (resumeEnrol)
   const resumeEnrol = initialValue(v, "resumeEnrol", () => false);
   async function startEnrol() { if (busy) return; updateValue(v, "busy", true); updateValue(v, "error", "");
-    try { const a = await Edge.mfaEnroll(); updateValue(v, "resumeEnrol", false); updateValue(v, "enrol", {uri:a.otpauth_uri || "", secret:a.secret || "", codes:Array.isArray(a.recovery_codes) ? a.recovery_codes : []}); updateValue(v, "recovery", false); }
-    catch (e) { if (e.info?.code === "MFA_REQUIRED" && typeof e.info.details?.recent_s === "number") updateValue(v, "resumeEnrol", true);
+    try { const a = await Edge.mfaEnroll(); authFlow.enrolling = true; updateValue(v, "resumeEnrol", false); updateValue(v, "enrol", {uri:a.otpauth_uri || "", secret:a.secret || "", codes:Array.isArray(a.recovery_codes) ? a.recovery_codes : []}); updateValue(v, "recovery", false); }
+    catch (e) { if (e.info?.code === "MFA_REQUIRED" && typeof e.info.details?.recent_s === "number") { updateValue(v, "resumeEnrol", true); authFlow.enrolling = true; }
       updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } }
   const submit = async e => { e.preventDefault(); if (busy) return;
     if (!recovery && !/^\d{6}$/.test(code)) { updateValue(v, "error", L.check.code); return; }
     updateValue(v, "busy", true); updateValue(v, "error", "");
     try { await Edge.mfaVerify(recovery ? {recovery_code:code.trim()} : {code}); updateValue(v, "enrol", null); authFlow.mfaEnrolled = null;
       if (resumeEnrol && !enrol) { updateValue(v, "code", ""); updateValue(v, "busy", false); await startEnrol(); return; }
-      go(landing()); }
+      authFlow.enrolling = false; go(landing()); }
     catch (e) {
-      if (e.info?.code === "MFA_LOCKED") { const d = e.info.details || {}, useRecovery = d.use === "recovery_code";
+      // MFA_LOCKED: details.locked names the locked way ("code" or "recovery_code"); details.use "recovery_code" when the
+      // codes are locked and the recovery codes still open. Locked recovery codes leave the authenticator open (ACC-2)
+      if (e.info?.code === "MFA_LOCKED") { const d = e.info.details || {}, useRecovery = d.use === "recovery_code", recoveryLocked = d.locked === "recovery_code";
         const at = typeof d.unlock_at === "string" && !Number.isNaN(Date.parse(d.unlock_at)) ? new Date(d.unlock_at).toLocaleString([], {dateStyle:"medium", timeStyle:"short"}) : "";
-        updateValue(v, "locked", useRecovery ? "code" : "all"); updateValue(v, "unlockAt", at); updateValue(v, "code", "");
+        updateValue(v, "locked", useRecovery ? "code" : recoveryLocked ? "recovery" : "all"); updateValue(v, "unlockAt", at); updateValue(v, "code", "");
         if (useRecovery) updateValue(v, "recovery", true);
-        updateValue(v, "error", e.info.message || (useRecovery ? M.lockedCode : M.lockedAll)); }
+        if (recoveryLocked) updateValue(v, "recovery", false);
+        updateValue(v, "error", e.info.message || (useRecovery ? M.lockedCode : recoveryLocked ? M.lockedRecovery : M.lockedAll)); }
       else updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } };
   const secret = enrol?.secret || (enrol?.uri ? (new URLSearchParams(enrol.uri.split("?")[1] || "").get("secret") || "") : "");
   const needsSave = Boolean(enrol && enrol.codes.length && !saved);
@@ -2704,7 +2710,10 @@ function App() {
     // "mfa") always shows /mfa; signed in, the account pages lead to the workspace; an `open` page needs registration
     // open; /mfa also shows without a session (a sign-in answered MFA_REQUIRED and holds a pending session)
     const authMode = () => { const r = routeOf(path), next = Edge.auth?.access?.next;
-        if (authenticated && next === "mfa") return "mfa";
+        // a new authenticator being set up (authFlow.enrolling) keeps /mfa: the verify of the current code (or a recovery
+        // code) answers a fresh session, and without this the workspace would replace the page before the new QR code
+        // shows (live checker after the switch-on, ACC-1)
+        if (authenticated && (next === "mfa" || (authFlow.enrolling && r?.mode === "mfa"))) return "mfa";
         if (authenticated) return null;
         if (!r || r.auth !== false) return "login";
         if (r.open && !open) return "login";

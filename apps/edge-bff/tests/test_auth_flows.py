@@ -391,8 +391,9 @@ def test_mfa_lock_after_consecutive_failures_and_its_clearing(app, store, on):
     assert error_code(app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': '000000'})) == 'MFA_CODE_INVALID'
     r = app.post('/api/v1/auth/mfa/verify', headers=h, json={'code': '000000'})
     assert (r.status_code, error_code(r)) == (403, 'MFA_LOCKED')
-    assert r.json()['error']['message'] == ('Too many wrong codes, so this way of signing in is locked. Wait 24 hours or '
-                                            'reset your password by email; an operator can also unlock it.')
+    # the words name the way still open (live checker ACC-2): the recovery codes, here
+    assert r.json()['error']['message'] == ('Too many wrong authenticator codes, so codes are locked for now. Enter one '
+                                            'of your recovery codes instead.')
     assert r.json()['error']['details']['use'] == 'recovery_code' and r.json()['error']['details']['unlock_at'].startswith('2027-')
     db(store, "DELETE FROM edge_bff.auth_throttle")
     user_id, nonce = (lambda r: (r['user_id'], bytes(r['nonce'])))(db(store, 'SELECT user_id, nonce FROM edge_bff.mfa_totp')[0])

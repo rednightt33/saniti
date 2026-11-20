@@ -266,6 +266,16 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
   session passed now, and the `/mfa` page then starts the set-up again by itself. The first enrolment (no confirmed
   authenticator) needs no recent pass (built, track decisions; `tests/test_decisions_small.py`, and the re-check's own
   test that re-enrols right after a verify keeps passing).
+- Replacing the authenticator (live checker after the switch-on, ERRORS M515 ACC-1, ACC-2, ACC-3; built):
+  - the `/mfa` page keeps showing while a new authenticator is being set up (`authFlow.enrolling` in
+    `static/edge-app.js`): the verify's fresh session no longer swaps the page for the workspace before the new QR code
+    and recovery codes show; the workspace opens once the new authenticator is confirmed, and the old one stops;
+  - a signed-in admin starts it from "Password and sign-in" ("Set up a new authenticator");
+  - locked recovery codes leave the authenticator's code open (the page and `errors.words` name the way still open);
+  - the phone and every recovery code lost: the operator removes the enrolment
+    (`scripts/edge_mfa_unlock.py --remove-enrolment`, audited `mfa.remove`, the account's sessions on both sites ended);
+    the next sign-in starts the first set-up again.
+  - Tests on the real routes in Chromium with the live settings: `apps/edge-bff/tests/test_mfa_replace_live.py`.
 
 ## 4b. Account preferences on the server (Phase 1; user decision 2026-11-16)
 

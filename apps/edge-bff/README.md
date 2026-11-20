@@ -1002,6 +1002,7 @@ is HMAC-SHA256(`EDGE_MFA_KEY`, user id ‖ a stored 16-byte nonce)[:20], never s
 admin has enrolled invalidates every authenticator, so the key is set once and kept. The `/mfa` page shows the QR code
 with the vendored `static/qrcode-generator.js` (qrcode-generator 1.4.4, MIT, licence in
 `static/qrcode-generator.LICENSE`), served from this origin.
+The phone and every recovery code lost (live checker ACC-3): the same script with `--remove-enrolment` removes the authenticator and its recovery codes and ends the account's sessions (audited `mfa.remove`); the next sign-in starts the first set-up. A signed-in admin replaces the authenticator from "Password and sign-in".
 
 Variables (all checked at start; with the switch off a missing one never stops it, a set one is still checked; the
 secrets never appear in `repr(Settings)`):
