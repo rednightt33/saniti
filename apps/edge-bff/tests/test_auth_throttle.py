@@ -84,7 +84,7 @@ def test_the_client_address_is_recorded_but_not_enforced(settings, store):
     with TestClient(create_app(settings, store, FakeOrc())) as c:
         for n in range(32):                                            # 32 failures from one address, 8 per login
             assert sign_in(c, login=f'user{n % 4}', password='wrong',
-                           **{'X-Forwarded-For': '10.0.0.1, 203.0.113.7'}).status_code == 401
+                           **{'X-Forwarded-For': '10.0.0.1, 203.0.113.7, 152.233.40.1'}).status_code == 401
         assert sign_in(c).status_code == 200
     ip = [r for r in rows(store) if r['scope'] == 'signin_ip']
     assert len(ip) >= 1 and sum(r['count'] for r in ip) == 32 > SIGNIN_IP.allowed

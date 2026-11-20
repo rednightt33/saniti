@@ -81,13 +81,23 @@ def normal_login(login):
     return login.strip().casefold()
 
 
+# CONTRACT.md section 4, the probe of 2026-11-20 (the user's "1a"; ERRORS M512): Railway's edge drops every
+# X-Forwarded-For and X-Real-IP line the client writes and sends one line of its own, "<client>, <edge node>" (the
+# client's public address, then the edge node's own: 152.233.40.1 and .2 seen on app.edgefinance.id). The client is
+# therefore the entry EDGE_HOPS places left of the right-most: the right-most is the edge node, the same for everyone.
+# Counting from the right keeps a line a client writes from deciding even if the edge ever kept such lines (they would
+# stand left of the client's hop). Run the probe again whenever something else is put in front of the site.
+EDGE_HOPS = 1
+
+
 def forwarded_hop(request):
-    """The right-most entry of the request's X-Forwarded-For, read over every line of the header (a client can send a
-    line of its own before the one a proxy adds, and a second line is read as appended to the first, RFC 9110 5.3), so
-    the hop Railway's edge adds decides and a line the client wrote never does (3c check C3-5). None without the header.
-    The probe of CONTRACT.md section 4 confirms what the edge sends (the user's "1a" 2026-11-20)."""
+    """The client's entry of the request's X-Forwarded-For, read over every line of the header (a second line is read as
+    appended to the first, RFC 9110 5.3): the entry EDGE_HOPS places left of the right-most, the hop Railway's edge
+    writes for the client (ERRORS M512); a line the client wrote never decides (3c check C3-5). A header with fewer
+    entries (a private caller, a local test) gives its left-most. None without the header."""
     lines = request.headers.getlist('x-forwarded-for')
-    return ','.join(lines).split(',')[-1].strip() if lines else None
+    hops = [h.strip() for h in ','.join(lines).split(',') if h.strip()] if lines else []
+    return hops[max(0, len(hops) - 1 - EDGE_HOPS)] if hops else None
 
 
 def address_key(text):
@@ -106,9 +116,10 @@ def address_key(text):
 
 
 def client_address(request):
-    """The client's key for the sign-in and reset counters: the right-most X-Forwarded-For hop over every line
-    (forwarded_hop), else the socket peer, as an address_key; 'unknown' when neither is an address. Unverified until the
-    probe (CONTRACT.md section 4), which is why SIGNIN_IP is recorded and not enforced."""
+    """The client's key for the sign-in and reset counters: the client's X-Forwarded-For hop over every line
+    (forwarded_hop: the entry before the edge node's, as the probe of CONTRACT.md section 4 measured), else the socket
+    peer, as an address_key; 'unknown' when neither is an address. SIGNIN_IP stays recorded and not enforced until
+    the user decides it (ERRORS M512)."""
     hop = forwarded_hop(request)
     raw = hop if hop is not None else (request.client.host if request.client else '')
     # an address is keyed by address_key (IPv6 by its /64); anything else (a test client's peer name) as it is

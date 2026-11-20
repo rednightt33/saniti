@@ -30,8 +30,9 @@ from test_terminal_access import FakeApi, URL, KEY, api, sent_caps, subscribe, t
 
 ROOT = Path(__file__).resolve().parents[3]
 MIGRATION = ROOT / 'database/migrations/20261119_070_edge_bff_guest_plan_and_test_accounts.sql'
-VISITOR = {'x-forwarded-for': '203.0.113.7'}           # the hop Railway's edge adds (TEST-NET-3)
-OTHER_VISITOR = {'x-forwarded-for': '198.51.100.9, 203.0.113.8'}
+# Railway's edge sends "<client>, <edge node>" (ERRORS M512, the probe of 2026-11-20); the client is TEST-NET-3
+VISITOR = {'x-forwarded-for': '203.0.113.7, 152.233.40.1'}
+OTHER_VISITOR = {'x-forwarded-for': '198.51.100.9, 203.0.113.8, 152.233.40.2'}   # a hop the client wrote, the client, the edge
 
 
 @pytest.fixture
@@ -136,18 +137,19 @@ def test_a_visitor_never_holds_everything_whatever_the_guest_plans_rows_say(gues
 
 
 def test_no_readable_client_address_means_no_guest(guests, store):
-    """Fail closed: a request that did not pass Railway's edge (no X-Forwarded-For) or whose right-most hop is not an
-    address gets no guest principal; the socket peer counts only on a developer machine."""
+    """Fail closed: a request that did not pass Railway's edge (no X-Forwarded-For) or whose client hop (the one left of
+    the edge node's, ERRORS M512) is not an address gets no guest principal; the socket peer counts only on a developer
+    machine."""
     # the test client's socket peer is 'testclient', not an address: even locally it gives no guest
     with TestClient(create_app(guests, store, FakeOrc())) as c:
-        for headers in ({}, {'x-forwarded-for': 'not-an-address'}, {'x-forwarded-for': '203.0.113.7, unknown'}):
+        for headers in ({}, {'x-forwarded-for': 'not-an-address'}, {'x-forwarded-for': 'unknown, 152.233.40.1'}):
             r = c.get('/api/terminal/v1/manifest/BBCA', headers=headers)
             assert r.status_code == 401 and r.json()['error']['code'] == 'UNAUTHENTICATED', (headers, r.text)
         assert terminal_calls() == []
     from starlette.requests import Request
     request = lambda h, peer='127.0.0.1': Request({'type': 'http', 'headers': [(k.encode(), v.encode()) for k, v in h.items()],
                                                   'client': (peer, 5000)})
-    assert principal_module.client_of(request({'x-forwarded-for': '198.51.100.9, 203.0.113.7'})) == '203.0.113.7'
+    assert principal_module.client_of(request({'x-forwarded-for': '198.51.100.9, 203.0.113.7, 152.233.40.1'})) == '203.0.113.7'
     assert principal_module.client_of(request({})) is None
     assert principal_module.client_of(request({}), local=True) == '127.0.0.1'
     assert principal_module.client_of(request({'x-forwarded-for': 'junk'}), local=True) is None

@@ -49,7 +49,7 @@ mungkin di show ke user. jadi design harus plug and play dan fluid"; verificatio
 - it never holds everything, the admin access, an admin right or a beta-only capability, whatever the plan's rows say
   (fail closed, logged guest_capability_dropped); its owner key is GUEST_OWNER for every visitor (terminal-api's one
   guest owner row), and `client` names the visitor: an HMAC of its client address (guest_client), which terminal-api
-  counts its quotas by (x-terminal-client). The address is the right-most X-Forwarded-For entry, the hop Railway's
+  counts its quotas by (x-terminal-client). The address is the client's X-Forwarded-For entry, the hop Railway's
   edge adds to every request it forwards (client_of); without a readable address (no header or not an IP address; the
   socket peer only on a developer machine, EDGE_ENVIRONMENT=local) there is no guest principal: 401 (fail closed);
 - a guest writes without CSRF: it has no session a cross-site page could ride, and the Origin check of every write
@@ -306,9 +306,10 @@ def live_view(p, flags=()):
 
 
 def client_of(request, local=False):
-    """The visitor's client key: the right-most X-Forwarded-For entry over every line of the header, the hop Railway's
-    edge adds to every request it forwards from the internet (a hop or a whole line a client wrote itself stays to its
-    left; throttle.forwarded_hop, 3c check C3-5), as an address key (IPv6 by its /64, throttle.address_key); on a
+    """The visitor's client key: the client's X-Forwarded-For entry over every line of the header, the one Railway's
+    edge writes for the client before its own node's (throttle.forwarded_hop: measured by the probe of CONTRACT.md
+    section 4, ERRORS M512; a line a client wrote never decides, 3c check C3-5), as an address key (IPv6 by its /64,
+    throttle.address_key); on a
     developer machine (`local`, EDGE_ENVIRONMENT=local), with no such header, the socket peer. None otherwise: a request
     that did not pass the edge, or a header that is not an address, gets no guest principal (fail closed)."""
     hop = forwarded_hop(request)

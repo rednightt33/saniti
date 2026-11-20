@@ -8879,6 +8879,35 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M512 — The client address was Railway's edge node: every visitor would have been one client (2026-11-20, the probe of CONTRACT 4; FIXED in code, deploy pending)
+
+- **Found by:** the client-address probe the user asked for before the live site opens to visitors ("1a",
+  2026-11-20): a temporary echo of the address headers on `edge-bff-live` (deployment `ced98a44`, removed after the
+  probe), asked through `app.edgefinance.id` with no header, a client-written `X-Forwarded-For` of one line and of two,
+  and client-written `X-Real-IP` and `Forwarded`.
+- **Seen (verified):** every request arrived with one `X-Forwarded-For` line `<client>, <edge node>`, for example
+  `160.79.106.149, 152.233.40.1` (the first is this machine's public address, read back from three public address
+  services; the second varied between 152.233.40.1 and .2), and `X-Real-IP: <client>`; none of the client-written
+  `X-Forwarded-For` or `X-Real-IP` values arrived; a client-written `Forwarded` arrived unchanged.
+- **Root cause (verified):** `throttle.forwarded_hop` took the right-most entry, on the assumption that the edge appends
+  the client last; Railway appends its own node after the client. Every visitor of the live site would have had the
+  edge node's address: one guest key for everyone at terminal-api (one visitor's use would have spent every visitor's
+  quota), and the per-address sign-in, reset and mail counters shared by everyone (a few strangers' tries would have
+  blocked the mail of all).
+- **General class:** a client address read from a proxy header without a measured count of the proxies after the
+  client; it holds for every per-address counter of edge-bff (the visitor key, `SIGNIN_IP`, `CODE_ADDRESS`, the mail
+  counters, registration) and for any service put behind a further proxy later. Not this class: terminal-api, which is
+  private-only (its callers are edge-bff and the workers on the private network, with no edge).
+- **Solution:** `forwarded_hop` reads the entry `EDGE_HOPS` (1) places left of the right-most, over every header line, so
+  a line a client writes never decides even if an edge kept it; a header with one entry (a private caller, a local
+  test) gives that entry; `Forwarded` is never read. CONTRACT 4 records the probe. Tests:
+  `apps/edge-bff/tests/test_m512_client_address.py` (fails on the right-most rule), the guest and throttle tests on
+  Railway's real header shape.
+- **Status:** FIXED in code; deployed with the next edge-bff (beta) and the live site. Re-run the probe whenever
+  something is put in front of the site.
+- **Lesson:** measure the proxy chain before a counter trusts it; a probe that shows what the edge sends is cheaper
+  than a design value.
+
 ### M511 — An expand migration fails the running service's cached query plans once per connection (0A000) (2026-11-20; OPEN, a proposal)
 
 - **Found by:** the beta's log during the 3c deploy (deployment `dc11722a`, the 3b edge-bff still running):

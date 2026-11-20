@@ -103,9 +103,9 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
     - Who is a visitor: a request whose session cookie resolves to no session; a guest writes without CSRF (no session a
       cross-site page could ride; the Origin check of every write holds). Its owner key at terminal-api is `edge-guest`
       (`accounts.GUEST_OWNER`, never issued, refused for `EDGE_OWNER` and `EDGE_ADMIN_OWNERS`).
-    - Its client address is the right-most `X-Forwarded-For` hop that parses as an address (`principal.client_of`);
-      without one there is no guest (401). The socket peer counts only with `EDGE_ENVIRONMENT=local`. Open: the
-      client-address probe of section 4 before guests are offered on live.
+    - Its client address is the client's `X-Forwarded-For` hop, the entry left of Railway's edge node (section 4, the
+      probe of 2026-11-20, ERRORS M512), when it parses as an address (`principal.client_of`); without one there is
+      no guest (401). The socket peer counts only with `EDGE_ENVIRONMENT=local`.
 - **`last_seen_at`** is updated at most once per 60 s per session.
 - **Dependencies** (in a new `app/principal.py`, used by every router):
   - `principal` replaces `session`;
@@ -226,13 +226,15 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
   value, told to the user 2026-11-19).
 - Email sending: 10 per IP hash per hour.
 - A dummy scrypt verify runs for unknown logins, so timing matches.
-- **Client IP:** from `X-Forwarded-For` as set by Railway's edge (right-most untrusted hop), read over every line of the
-  header (a line the client writes before the edge's never decides) and keyed by the whole IPv4 address or the IPv6 /64
-  (`throttle.forwarded_hop`, `address_key`; the visitor key and the sign-in and reset counters read it the same way; 3c
-  check C3-5). Until a probe proves what Railway sends (Phase 0 task, M470 notes; the user's "1a" 2026-11-20: run it
-  before the live site opens to visitors, with a client-written header sent once as one line and once as two), the
-  per-IP sign-in limit is recorded in the table but not enforced; the per-account limits are enforced. The probe result
-  is recorded in `ERRORS_AND_SOLUTIONS.md`.
+- **Client IP:** from `X-Forwarded-For` as set by Railway's edge, read over every line of the header and keyed by the
+  whole IPv4 address or the IPv6 /64 (`throttle.forwarded_hop`, `address_key`; the visitor key and the sign-in and
+  reset counters read it the same way; 3c check C3-5). The probe (the user's "1a", run 2026-11-20 on
+  `app.edgefinance.id` before the live site opened, a client-written header sent as one line and as two; ERRORS M512):
+  the edge drops every `X-Forwarded-For` and `X-Real-IP` line the client writes and sends one line of its own,
+  `<client>, <edge node>`; a client's `Forwarded` passes unchanged, so it is never read. The client is therefore the
+  entry left of the edge node's (`EDGE_HOPS` = 1); the right-most is the edge node, the same for every visitor. The
+  per-IP sign-in limit stays recorded and not enforced until the user decides it; the per-account limits are enforced.
+  The probe is run again whenever something else is put in front of the site.
 
 **Sessions:**
 - Absolute lifetime 24 h (today), in both modes; idle timeout 8 h; at most 5 sessions per user (the oldest is revoked).

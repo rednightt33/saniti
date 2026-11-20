@@ -41,7 +41,7 @@ def test_a_client_written_forwarded_for_line_never_chooses_the_visitor_key(guest
         keys = set()
         for forged in ('198.51.100.1', '198.51.100.2', '198.51.100.3'):
             r = c.get('/api/terminal/v1/manifest/BBCA',
-                      headers=[('x-forwarded-for', forged), ('x-forwarded-for', '203.0.113.7')])
+                      headers=[('x-forwarded-for', forged), ('x-forwarded-for', '203.0.113.7, 152.233.40.1')])
             assert r.status_code == 200, r.text
             keys.add(terminal_calls()[-1]['headers'][terminal_access.CLIENT_HEADER])
         assert len(keys) == 1, f'one client got {len(keys)} visitor keys, one per line it wrote itself'
