@@ -15904,6 +15904,50 @@ Then step 3 of the wire (CONTRACT 8b) is a follow-up change. The workers require
 including on the unwrapped `/v1/signals` body. Its order: edge-bff is already sending `allow`, so the workers can be
 deployed alone.
 
+### Phase 3c deploy steps (planned 2026-11-20; waits for the user's go and green checks)
+
+What goes to dev: Phase 3c and the 3b follow-up, the re-check's fix round (84 findings), the user's decisions of
+2026-11-19, and the 3c check's 27 fixes (ERRORS M504-M508). The switch stays off on `edge-bff` (the beta): with
+`EDGE_ADMIN_OWNERS` unset the configured owner holds `*`, so every tab works as today. `edge-bff-live` stays empty (the
+live website is set up after 3d-3f, Phase 4 and the payment skeleton). This record is the 3c check's C3-27.
+
+Migrations (forward-only, DRYRUN then APPLY through `scripts/onboarding/run_job.sh scripts/onboarding/migration_job.py`,
+each file's sha256 read back into `database/migrations/APPLIED.sha256` and `DATABASE_CHANGELOG.md`):
+
+| Order | File | Schema | What it does to the running (3b) edge-bff with the switch off |
+|---|---|---|---|
+| 1 | `20261118_001_edge_bff_item_families_from_terminal.sql` | edge_bff | removes the four 3b item families (refuses when an override names one); `*` unchanged |
+| 2 | `20261118_002_edge_bff_terminal_quota.sql` | edge_bff | the four Terminal quota capabilities and the paid and free rows; read by nobody before 3c |
+| 3 | `20261119_010_edge_bff_password_identity.sql` | edge_bff | the verifier check takes both forms; failure-count columns |
+| 4 | `20261119_011_edge_bff_mfa_pending_enrolment.sql` | edge_bff | pending-enrolment columns |
+| 5 | `20261119_012_edge_bff_email_outbox_purge.sql` | edge_bff | outbox indexes and the purge function |
+| 6-9 | `20261119_020` to `_023` | edge_bff | the `site` columns (default `beta`), the seed's verifier mark, six indexes on the account foreign keys |
+| 10 | `20261119_030_edge_bff_plan_data_scope.sql` | edge_bff | the restricted-plan rule (the user's "2a"); its verify reads no conflict |
+| 11 | `20261119_040_edge_bff_audit_ids_and_catalog_trace.sql` | edge_bff | audit rows keep their target; catalog trace |
+| 12 | `20261119_050_edge_bff_capability_domains.sql` | edge_bff | a value domain per capability |
+| 13 | `20261119_070_edge_bff_guest_plan_and_test_accounts.sql` | edge_bff | the guest plan; the audited test-account mark |
+| 14 | `20261119_071_edge_bff_guest_total_scope.sql` | edge_bff | the throttle scope of the guest ceiling |
+| 15 | `20261118_100_terminal_owner_subscriber.sql` | terminal | the per-owner subscriber rows; before the terminal-api deploy (its `/ready` reads them) |
+| 16 | `20261119_170_terminal_access_log_client.sql` | terminal | the visitor key on the access log; its index reads `terminal.access_log` once (a large update when that table is large: the job's `POSTGRES_MEMORY_CHECK` line decides the restart, AGENTS.md) |
+
+Order of the services (CONTRACT 17, rollback floors):
+1. **M340:** no active EDGE job, no running Orc turn and no open Backtest job, right before steps 2, 4 and 6.
+2. **Migrations 1-14** (edge_bff), DRYRUN then APPLY, then **15-16** (terminal), DRYRUN then APPLY; read back.
+3. **Green CI on exactly the commit to deploy:** Backend tests, Backtest look-ahead gate, Generated files, Backtest page
+   smoke; and the local suites.
+4. **terminal-api:** CLI upload of `git archive <commit> apps/terminal-api`; check `SUCCESS` and `/ready`; rollback the
+   deployment read before. It is deployed before any edge-bff that sends the owner headers (floor of 3c step 3).
+5. **backtest-worker, screener-worker:** CLI uploads from the same commit; check `SUCCESS`, the start log's
+   `engine_version` equal to the repository's, `/ready`.
+6. **`main`:** fast-forward to the commit; edge-bff deploys after the checks (`checkSuites`); check that exact
+   deployment at `SUCCESS`, `/ready` 200 and a clean start log (`startup_done`); screener-worker rebuilds from GitHub.
+7. **The gateway's terminal-api account** (the user's "5a", 2026-11-19): read the row, then `expires_at` 2100-01-01
+   through the audited admin API; record it in `DATABASE_CHANGELOG.md`.
+8. **Smoke from outside (switch off):** the earlier phases' checks unchanged; gated routes 401 without a session.
+9. **The user, after a reload:** the Terminal, Backtest, Screener, Overview, Radar and Watchlist as before.
+10. **Records:** `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md`, `DATABASE_SCHEMA.md` (the edge_bff and terminal
+    sections), ERRORS M504-M508 statuses, this run log.
+
 ## EXEC-DESIGN-SYSTEM — design system EDGE yang dipakai lintas chat (go 2026-11-18)
 
 **Asal:** EDGE Reference Pack 2026-11-17 (salinan apa adanya 8 halaman, di luar Git karena berisi data pasar). User
