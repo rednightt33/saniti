@@ -163,16 +163,17 @@ BEGIN
 END $verify$;
 COMMIT;
 
--- Rollback (a new forward migration with this body; nothing reads the triggers or the new column, and the foreign keys
--- come back only if every id still names an account, else the ADD fails and names the row):
+-- Rollback (a new forward migration with this body; nothing reads the triggers or the new column). The foreign keys come
+-- back NOT VALID (3c check C3-24: the block runs as written on the data this migration leaves): they bind every new
+-- write, and the audit rows that kept the id of a deleted account keep it (the history this migration is for):
 -- BEGIN;
 -- DROP TRIGGER plan_capabilities_trace ON edge_bff.plan_capabilities;
 -- DROP TRIGGER user_capability_overrides_trace ON edge_bff.user_capability_overrides;
 -- DROP FUNCTION edge_bff.plan_capability_trace(), edge_bff.capability_override_trace();
 -- ALTER TABLE edge_bff.user_capability_overrides DROP COLUMN updated_at;
 -- ALTER TABLE edge_bff.admin_audit
---     ADD FOREIGN KEY (actor_user_id) REFERENCES edge_bff.users(user_id) ON DELETE SET NULL,
---     ADD FOREIGN KEY (target_user_id) REFERENCES edge_bff.users(user_id) ON DELETE SET NULL;
+--     ADD FOREIGN KEY (actor_user_id) REFERENCES edge_bff.users(user_id) ON DELETE SET NULL NOT VALID,
+--     ADD FOREIGN KEY (target_user_id) REFERENCES edge_bff.users(user_id) ON DELETE SET NULL NOT VALID;
 -- ALTER TABLE edge_bff.user_capability_overrides
---     ADD FOREIGN KEY (created_by_user_id) REFERENCES edge_bff.users(user_id) ON DELETE SET NULL;
+--     ADD FOREIGN KEY (created_by_user_id) REFERENCES edge_bff.users(user_id) ON DELETE SET NULL NOT VALID;
 -- COMMIT;

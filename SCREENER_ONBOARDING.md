@@ -549,7 +549,7 @@ README "Logs".
 
 ## 1.8 Stage 5: edge-bff (BRANCH)
 
-`apps/edge-bff/app/screener.py` (`Screeners`, `:681`), mounted like the Backtest module (`apps/edge-bff/app/main.py:788`
+`apps/edge-bff/app/screener.py` (`Screeners`, `:681`), mounted like the Backtest module (`apps/edge-bff/app/main.py:797`
 `screeners.routes`):
 
 Auth (EXEC-MU-ACCOUNTS Phase 3a, CONTRACT.md 8b): every route needs the session and the capability named; with

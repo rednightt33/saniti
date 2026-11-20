@@ -66,7 +66,7 @@ def database():
 def store(database):
     # EXEC-SCREENER (migration 20261028_001): with the saved screener items and the watchlist; EXEC-MU-ACCOUNTS: and the
     # sign-in throttle, so one test's wrong passwords never limit another's sign-in
-    with psycopg.connect(database) as c:c.execute('TRUNCATE edge_bff.sessions,edge_bff.jobs,edge_bff.conversation_ui,edge_bff.screener_items,edge_bff.watchlist_items,edge_bff.watchlist_lists,edge_bff.terminal_layouts,edge_bff.indicator_presets,edge_bff.terminal_drawings,edge_bff.auth_throttle,edge_bff.users,edge_bff.user_preferences,edge_bff.email_outbox,edge_bff.email_suppression,edge_bff.email_hook_events CASCADE')
+    with psycopg.connect(database) as c:c.execute('TRUNCATE edge_bff.sessions,edge_bff.jobs,edge_bff.conversation_ui,edge_bff.screener_items,edge_bff.watchlist_items,edge_bff.watchlist_lists,edge_bff.terminal_layouts,edge_bff.indicator_presets,edge_bff.terminal_drawings,edge_bff.auth_throttle,edge_bff.users,edge_bff.user_preferences,edge_bff.email_outbox,edge_bff.email_suppression,edge_bff.email_hook_events,edge_bff.admin_audit CASCADE')  # admin_audit by name: 20261119_040 dropped its foreign keys to users, so the cascade no longer reaches it
     return Store(database)
 
 @pytest.fixture

@@ -356,7 +356,7 @@ def relayed(p, status, data, headers, where):
             return Refusal(503, 'TERMINAL_UNAVAILABLE'), None
         return None, public_data(data)
     refused = refused_answer(status, data, headers, where)
-    if getattr(p, 'guest', False) and refused.code in ('CAPABILITY_REQUIRED', 'LIMIT_REACHED'):
+    if p.guest and refused.code in ('CAPABILITY_REQUIRED', 'LIMIT_REACHED'):
         refused.details['visitor'] = True                        # errors.words: a visitor's sentence (C3-9)
     return refused, None
 

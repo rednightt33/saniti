@@ -1,7 +1,7 @@
 /* Track guest (EXEC-MU-ACCOUNTS, decision 1 of 2026-11-19; verification/edge_multiuser/fix_round/guest.md): a page that
    a visitor without an account may open (the Terminal, allowGuest) reads the guest plan's access when the session route
    answers 401; access(), can(), limit() and catalog() read it like an account's; a page that did not ask for it stays
-   signed out; a visitor holds nothing of this browser's storage. live.ts lockRules derives what is locked from that
+   signed out; a visitor is an identity of its own (3c check C3-6). live.ts lockRules derives what is locked from that
    access and the catalog route, never from a list in the page. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ENTITLEMENTS_HEADER, GUEST_URL, LAST_LOGIN_KEY, SessionError, sessionClient } from '../../../shared/edge-session';
@@ -54,10 +54,20 @@ describe('a visitor without an account (allowGuest)', () => {
     expect(c.limit('terminal.tickers')).toEqual(['BBCA']);
     expect(c.identity).toBe('guest:');
     expect(s.calls).toEqual(['/api/v1/auth/session', GUEST_URL]);
-    // a visitor is never a user of this browser: no last-login mark, nothing cleared
+    // a visitor is an identity of this browser of its own (3c check C3-6; changed with the fix, a stated reason): its
+    // mark is written; with no account signed in here before it, nothing is cleared
     local.setItem('ml.symbol', 'BBCA');
-    expect(local.getItem(LAST_LOGIN_KEY)).toBeNull();
+    expect(local.getItem(LAST_LOGIN_KEY)).toBe('guest:');
     expect(local.getItem('ml.symbol')).toBe('BBCA');
+  });
+  it('drops the state of the account last signed in on this browser before the visitor reads any of it', async () => {
+    local.setItem(LAST_LOGIN_KEY, 'owner:u_0123456789abcdef01234567');
+    local.setItem('ml.symbol', 'TLKM');                    // the account's remembered ticker (a `user` key)
+    const s = server(), c = sessionClient(s.f as any);
+    c.allowGuest();
+    await c.session();
+    expect(local.getItem('ml.symbol')).toBeNull();
+    expect(local.getItem(LAST_LOGIN_KEY)).toBe('guest:');
   });
   it('reads the catalogs it holds like an account', async () => {
     const s = server({ entries:['I01'] }), c = sessionClient(s.f as any);
