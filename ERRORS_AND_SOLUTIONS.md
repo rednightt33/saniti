@@ -8879,6 +8879,47 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M516 — The live smoke signed in with the admin's first password after the owner had replaced it (2026-11-20; FIXED in the smoke, one observation OPEN for step 4)
+
+- **Symptom:** step 2 of the go moved the live smoke into the repository
+  (`verification/edge_multiuser/live_smoke/http_smoke.py`). Run with orc-test-runner's variables, it got 401
+  `INVALID_CREDENTIALS` for the admin, both by username and by address. The switch-on smoke had reached
+  `MFA_REQUIRED`.
+- **Verified root cause:** read-only job `a060ea3a` on the private network (it printed only booleans and times)
+  found:
+  - the username and address match user #1, and the account is active and not locked;
+  - `EDGE_ADMIN_INITIAL_PASSWORD` no longer opens the account's verifier;
+  - since 14:10:22 UTC the password is the account's own, not the seed's copy. That matches a `reset` mail at
+    14:09:58 and the `password_changed` notice to the admin's address;
+  - a switch-on session began at 14:10:43.
+
+  So the owner reset the password during their test; a reset reaches only the owner's mailbox. The first password in
+  the variables is stale by design, and nothing in the site is wrong. The smoke's two tries counted 2 failures on the
+  account (`sign_in_failures` 2; a success clears them).
+- **General class:** any automated check that signs in with a stored password the owner can replace.
+  - It fails once the owner changes the password.
+  - Every run counts failures toward the account's lock: 100 in a row lock it for 24 hours (`app/accounts.py`
+    `PASSWORD_FAILURE_CAP`). So a repeated smoke could lock the admin out.
+  - The same holds for test accounts, if a check ever signs in with theirs.
+- **Solution:**
+  - By default the smoke tries no sign-in.
+  - `--admin` tries the first password once, by username only, and reports a 401 as "the first password no longer
+    opens".
+  - The owner checks their own sign-in after a promotion (`LIVE_PROMOTION.md` step 8).
+  - The variables stay on orc-test-runner. They are the operator's way to set a fresh first password
+    (`scripts/onboarding/edge_account_login_job.py` with `set: ["password"]`), with the user's go.
+- **Also seen in the same smoke:**
+  - (a) The route table's Terminal relay path `{path:path}` answers 404. A visitor may use the relay, so the path
+    reaches terminal-api, which answers 404. The smoke now counts it as expected (`relay_made_up_path_404`); the
+    switch-on record already named it.
+  - (b) A visitor's Statistics panel asks `/api/terminal/v1/bundle` for IHSG prices (the IHSG comparison,
+    `terminal/src/data/live.ts:408`) and gets 403 `CAPABILITY_REQUIRED`. The page stays usable: BBCA and its
+    statistics show. This goes to step 4 (3e, the visitor's example mode). The Terminal should derive what it asks
+    for from the visitor's grants, or the example grant should include the index; it should not ask and be refused.
+- **Status:** FIXED for the smoke. (b) is OPEN for step 4.
+- **Lesson:** a check that uses a real account's password must not count failures against that account on every run.
+  Make the sign-in opt-in and try it once, or use an account made for the check.
+
 ### M515 — The live checker after the switch-on: 2 medium findings confirmed and fixed, the lows fixed or put to the user (2026-11-20)
 
 - **Found by:** the ultracode checker of option A on the running live site (the user: "Checker ultracode dilakukan

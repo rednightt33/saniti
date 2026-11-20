@@ -210,6 +210,14 @@ admin only, every feature first) and the live site (`edge-bff-live`, app.edgefin
   `live` and CI, and the next push to `live` silently replaces it (live checker after the switch-on, F6).
 - `live` moves only to a commit the beta already runs (its latest SUCCESS deployment), whose CI is green, with the
   user's go; record it in RAILWAY_CHANGELOG.md. Rollback: EXEC.md option A.
+- Beta work reaches the live site only on the user's request, never on a schedule (user, 2026-11-20: "Tidak bisa
+  pengembangan di beta dibawa live on schedule basis. Semuanya harus on request basis."). Before moving `live`, read
+  `LIVE_PROMOTION.md` and run `python3 scripts/live_diff.py --sites`, then tell the user everything that moves with
+  the commit (whole commits move, not one feature).
+- A new tab, page or catalog item enters at the lab stage in `apps/edge-bff/catalog/releases.json` (`tabs`, `items`;
+  unlisted is lab). Lab stays off on the live site for everyone, the admin's `*` included, and stays on the beta.
+  `tests/test_live_switch.py` fails when a capability tab or a page of the shell has no entry. Migrations stay
+  expand-only while the live site runs older code on the shared database.
 - Connecting a repository or changing a deploy trigger is an account action the session's project token may not do
   (ERRORS M514): ask the user, naming every field (repository, branch, root directory, Wait for CI), and read it back.
 

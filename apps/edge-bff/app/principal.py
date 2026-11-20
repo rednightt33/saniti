@@ -100,10 +100,15 @@ GUEST_CLIENT_LABEL = b'edge_bff.guest_client\x00'
 
 def beta_only(key):
     """Whether the live site never holds this capability key (module docstring): a key of a BETA_ONLY_TABS tab, an admin
-    right, or an item '<family>:<id>' of a family with release stages (releases.KIND_OF_FAMILY) whose id is at the lab
-    stage (an id the release file does not list is lab)."""
+    right, a key of a tab at the lab stage (releases.tab_stage; a tab the release file does not list is lab: the user,
+    2026-11-20, development reaches the live site only on request, LIVE_PROMOTION.md), or an item '<family>:<id>' of a
+    family with release stages (releases.KIND_OF_FAMILY) whose id is at the lab stage (an id the release file does not
+    list is lab)."""
     family, sep, item = (key or '').partition(':')
-    if family.split('.', 1)[0] in BETA_ONLY_TABS or family in ADMIN_RIGHT_CAPABILITIES:
+    tab = family.split('.', 1)[0]
+    if tab in BETA_ONLY_TABS or family in ADMIN_RIGHT_CAPABILITIES:
+        return True
+    if releases.TAB.fullmatch(tab) and releases.tab_stage(tab) == LAB:
         return True
     kind = KIND_OF_FAMILY.get(family) if sep else None
     return kind is not None and stage_of(kind, item) == LAB

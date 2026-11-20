@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "note": "Hand-kept release stage of every catalog item (EXEC-MU-ACCOUNTS Phase 2; verification/edge_multiuser/access_tiers/CONTRACT.md section 8a). No script writes this file. stage is 'released' or 'lab'; an id missing here is 'lab' at run time (app/releases.py). Every item that existed on 2026-11-17 is 'released' (user decision 2026-11-17). Kinds and the registries their ids come from: indicator (terminal/src/data/indRegistry.json, the same ids as backtest-registry.json and screener-registry.json indicators); flow_indicator (terminal/src/data/flowRegistry.json indicators, plus the Screener's own entries fnet and ksei_net of screener-registry.json flows, plus the Backtest's legacy flow cards of backtest/src/core/catalog.ts LEGACY group flow: fnet, broker and top5, released 2026-11-18 with the 3b follow-up, CONTRACT.md 8b); candle_pattern (backtest/src/core/candle-registry.json patterns); screener_metric (screener/src/core/screener-metrics.json metrics); screener_preset (screener/src/core/presets.json presets). tests/test_releases.py fails when a registry id has no entry here or an entry names no registry id.",
+  "note": "Hand-kept release stage of every catalog item (EXEC-MU-ACCOUNTS Phase 2; verification/edge_multiuser/access_tiers/CONTRACT.md section 8a). No script writes this file. stage is 'released' or 'lab'; an id missing here is 'lab' at run time (app/releases.py). Every item that existed on 2026-11-17 is 'released' (user decision 2026-11-17). Kinds and the registries their ids come from: indicator (terminal/src/data/indRegistry.json, the same ids as backtest-registry.json and screener-registry.json indicators); flow_indicator (terminal/src/data/flowRegistry.json indicators, plus the Screener's own entries fnet and ksei_net of screener-registry.json flows, plus the Backtest's legacy flow cards of backtest/src/core/catalog.ts LEGACY group flow: fnet, broker and top5, released 2026-11-18 with the 3b follow-up, CONTRACT.md 8b); candle_pattern (backtest/src/core/candle-registry.json patterns); screener_metric (screener/src/core/screener-metrics.json metrics); screener_preset (screener/src/core/presets.json presets). tests/test_releases.py fails when a registry id has no entry here or an entry names no registry id. tabs (the user, 2026-11-20, EXEC option A): the live switch of each tab, the first part of a capability key; a tab missing here is 'lab', so a new tab shows on the beta only until it is marked 'released' (the monitor and admin tabs are never on the live site: principal.BETA_ONLY_TABS); tests/test_live_switch.py fails when a capability tab or a page of the shell has no entry. LIVE_PROMOTION.md says how a tab or an item is released.",
   "items": [
     {"kind": "indicator", "id": "I01", "stage": "released"},
     {"kind": "indicator", "id": "I02", "stage": "released"},
@@ -212,5 +212,13 @@
     {"kind": "screener_preset", "id": "canslim", "stage": "released"},
     {"kind": "screener_preset", "id": "qflow", "stage": "released"},
     {"kind": "screener_preset", "id": "vacc", "stage": "released"}
+  ],
+  "tabs": [
+    {"id": "terminal", "stage": "released"},
+    {"id": "backtest", "stage": "released"},
+    {"id": "screener", "stage": "released"},
+    {"id": "watchlist", "stage": "released"},
+    {"id": "radar", "stage": "released"},
+    {"id": "overview", "stage": "released"}
   ]
 }

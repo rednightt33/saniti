@@ -17,7 +17,8 @@ TEST_RELEASES = {'schema_version': 1, 'items': [
     {'kind': 'flow_indicator', 'id': 'FL11', 'stage': 'released'}, {'kind': 'flow_indicator', 'id': 'FL90', 'stage': 'lab'},
     {'kind': 'candle_pattern', 'id': 'CP01', 'stage': 'released'},
     {'kind': 'screener_metric', 'id': 'rsi', 'stage': 'released'}, {'kind': 'screener_metric', 'id': 'lab_m', 'stage': 'lab'},
-    {'kind': 'screener_preset', 'id': 'p1', 'stage': 'released'}]}
+    {'kind': 'screener_preset', 'id': 'p1', 'stage': 'released'}],
+    'tabs': [{'id': t, 'stage': st} for t, st in releases.load().tabs().items()]}     # the repository's tabs
 SETTINGS = types.SimpleNamespace(owner='owner-1', admin_owners=('owner-1',), multiuser=False)
 
 

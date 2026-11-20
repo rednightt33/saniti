@@ -1,0 +1,87 @@
+"""The user, 2026-11-20 (EXEC option A): development happens on the beta and reaches the live site only on request, and
+moving `live` takes whole commits of the beta, so what is not ready must be switched off on the live site by itself.
+Every tab (the first part of a capability key, a page of the shell) has a live switch in catalog/releases.json `tabs`,
+and a catalog item its stage in `items` (tests/test_releases.py); an unlisted tab or item is 'lab', on the beta only.
+
+This test fails when a capability tab or a page of the shell has no entry (it must be listed, lab or released, or be
+one of principal.BETA_ONLY_TABS), and shows that a lab tab is held by no one on the live site, the admin's '*'
+included, is hidden from the live rail (auth/config hidden_tabs), and stays on the beta. LIVE_PROMOTION.md says how a
+tab or an item is released."""
+import dataclasses
+import re
+from pathlib import Path
+
+import psycopg
+from fastapi.testclient import TestClient
+
+from app import releases
+from app.main import create_app
+from app.principal import BETA_ONLY_TABS, Principal, beta_only
+from conftest import FakeOrc
+from test_beta_live_site import live_of
+
+SHELL = Path(__file__).resolve().parents[1] / 'static' / 'edge-app.js'
+
+
+def shell_pages():
+    """The pages of the shell a signed-in principal opens (the route table's auth:true entries)."""
+    return {m.group(1) for m in re.finditer(r'\{path:"/([a-z0-9_-]+)", names:\[[^\]]*\], auth:true', SHELL.read_text())}
+
+
+def test_every_capability_tab_and_page_of_the_shell_has_a_live_switch(database):
+    with psycopg.connect(database) as c:
+        tabs = {r[0] for r in c.execute("SELECT DISTINCT split_part(capability_key, '.', 1) FROM edge_bff.capabilities "
+                                        "WHERE capability_key <> '*'")}
+    pages = shell_pages()
+    assert tabs and pages >= {'terminal', 'backtest', 'screener'}, (tabs, pages)
+    switched = set(releases.CURRENT.tabs()) | BETA_ONLY_TABS
+    missing = sorted((tabs | pages) - switched)
+    assert not missing, (f'no live switch for {missing}: list each in catalog/releases.json "tabs" as "lab" (the beta '
+                         'only) or "released" (LIVE_PROMOTION.md)')
+
+
+def test_today_every_listed_tab_is_released_so_the_live_site_keeps_its_pages():
+    # until 3f moves lab code out of the public bundles (CONTRACT.md 3f), a lab tab's page code would still ship in the
+    # live site's bundles, as a lab item's would (test_releases.py): the first lab tab waits for 3f
+    assert releases.lab_tabs() == frozenset(), ('a lab tab before 3f: its page code would still ship in the public '
+                                                'bundles (CONTRACT.md 3f)')
+    assert {t for t, st in releases.CURRENT.tabs().items() if st == 'released'} == {
+        'terminal', 'backtest', 'screener', 'watchlist', 'radar', 'overview'}
+
+
+def lab(monkeypatch, tab='newpage'):
+    data = {'schema_version': 1, 'items': [], 'tabs': [{'id': 'terminal', 'stage': 'released'},
+                                                        {'id': tab, 'stage': 'lab'}]}
+    monkeypatch.setattr(releases, 'CURRENT', releases.Releases(data, 'test'))
+
+
+def test_a_lab_tab_is_held_by_no_one_on_the_live_site_and_by_the_admin_on_the_beta(monkeypatch):
+    lab(monkeypatch)
+    assert beta_only('newpage.view') and beta_only('newpage.indicator:I01')
+    assert not beta_only('terminal.view')
+    assert beta_only('unlisted.view')                       # a tab the file does not list is lab too
+    assert not beta_only('*')                               # '*' is not a tab
+    admin = Principal(user_id=1, owner_key='o', username='a', role='admin', plan_key='admin', status='active',
+                      expires_at=None, mfa_ok=True, capabilities=frozenset({'*'}))
+    assert admin.can('newpage.view')                        # the beta (the switch off): the admin sees it
+    assert not dataclasses.replace(admin, live=True).can('newpage.view')    # the live site: no one, '*' included
+    assert dataclasses.replace(admin, live=True).can('terminal.view')
+
+
+def test_the_live_rail_hides_a_lab_tab_and_the_beta_does_not(settings, store, monkeypatch):
+    lab(monkeypatch)
+    live = dataclasses.replace(live_of(settings), environment='local')
+    with TestClient(create_app(live, store, FakeOrc())) as c:
+        assert c.get('/api/v1/auth/config').json()['hidden_tabs'] == ['admin', 'monitor', 'newpage']
+    with TestClient(create_app(dataclasses.replace(settings, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40),
+                               store, FakeOrc())) as c:
+        assert c.get('/api/v1/auth/config').json()['hidden_tabs'] == []
+
+
+def test_the_release_file_refuses_a_malformed_tab():
+    import pytest
+    for tabs, why in (([{'id': 'Bad Tab', 'stage': 'lab'}], 'tab name'), ([{'id': 'x', 'stage': 'beta'}], 'unknown stage'),
+                      ([{'id': 'x', 'stage': 'lab'}, {'id': 'x', 'stage': 'released'}], 'repeats'),
+                      ('terminal', 'must be a list')):
+        with pytest.raises(releases.ReleaseFileError, match=why):
+            releases.Releases({'schema_version': 1, 'items': [], 'tabs': tabs}, 'test')

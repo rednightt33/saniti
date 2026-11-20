@@ -145,6 +145,7 @@ def item(kind='indicator', id='I01', stage='released'):
     ({'schema_version': 2, 'items': []}, 'schema_version must be 1'),
     ({'schema_version': 1, 'items': {}}, 'items must be a list'),
     ({'schema_version': 1, 'items': [], 'stages': {}}, 'unknown top-level keys'),
+    ({'schema_version': 1, 'items': []}, 'tabs must be a list'),       # LIVE_PROMOTION.md: without tabs, every tab is lab
     ([], 'must be a JSON object'),
 ])
 def test_a_malformed_file_fails_at_load_with_a_clear_message(tmp_path, data, words):
@@ -166,7 +167,8 @@ def test_a_file_that_is_not_json_or_missing_fails_at_load(tmp_path):
 
 def test_a_lab_item_is_lab_and_entries_keep_file_order():
     r = Releases({'schema_version': 1, 'items': [item(id='I02'), item(id='I01', stage='lab'), item('screener_preset',
-                                                                                                    'brk52')]})
+                                                                                                    'brk52')],
+                  'tabs': []})
     assert r.stage_of('indicator', 'I01') == 'lab' and r.stage_of('indicator', 'I02') == 'released'
     assert r.stage_of('indicator', 'I03') == 'lab'
     assert r.entries('indicator') == [{'id': 'I02', 'stage': 'released'}, {'id': 'I01', 'stage': 'lab'}]
@@ -200,7 +202,8 @@ def lab_file(tmp_path, monkeypatch):
     path.write_text(json.dumps({'schema_version': 1, 'note': 'test', 'items': [
         item(id='I01'), item(id='I02', stage='lab'), item(id='I03'), item('flow_indicator', 'FL24'),
         item('candle_pattern', 'CP01'), item('candle_pattern', 'CP02', 'lab'),
-        item('screener_metric', 'rs'), item('screener_preset', 'brk52', 'lab')]}))
+        item('screener_metric', 'rs'), item('screener_preset', 'brk52', 'lab')],
+        'tabs': [{'id': t, 'stage': st} for t, st in releases.load().tabs().items()]}))
     monkeypatch.setattr(releases, 'CURRENT', releases.load(path))
 
 

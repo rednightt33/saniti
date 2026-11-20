@@ -1065,6 +1065,12 @@ visible changes. With the switch on, access comes from data, never from code (CO
   candlestick pattern, Screener metric and Screener preset the stage `lab` (admin only) or `released`. An id missing
   from the file is `lab`. `tests/test_releases.py` fails until a new registry id has its line, and its message prints
   the line to add.
+- **Tab stages:** the file's `tabs` list gives each tab its stage; an unlisted tab is `lab`. A tab is the first part
+  of a capability key or a page of the shell.
+  - On the live site a lab tab's keys are refused to everyone, the admin's `*` included, and its rail entry is
+    hidden (`hidden_tabs`). The beta keeps it.
+  - `tests/test_live_switch.py` fails when a tab has no entry.
+  - How work moves from the beta to the live site: `LIVE_PROMOTION.md` and `scripts/live_diff.py`.
 - **Catalog route:** `GET /api/v1/catalog/{kind}` lists the entries the principal holds. The page module reads it with
   `catalog(kind)`, cached in memory per entitlement version.
 - **To change what a plan holds:** UPDATE `edge_bff.plan_capabilities` (raise its `version`) through a reviewed migration

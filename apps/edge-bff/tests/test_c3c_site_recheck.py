@@ -195,7 +195,8 @@ def test_a_lab_preset_is_not_listed_on_the_live_site(settings, store, monkeypatc
     lab, released = presets[0]['id'], presets[1]['id']
     items = [{'kind': kind, 'id': e['id'], 'stage': 'lab' if (kind, e['id']) == ('screener_preset', lab) else e['stage']}
              for kind in releases.KINDS for e in releases.entries(kind)]
-    monkeypatch.setattr(releases, 'CURRENT', releases.Releases({'schema_version': 1, 'items': items}))
+    monkeypatch.setattr(releases, 'CURRENT', releases.Releases({'schema_version': 1, 'items': items,
+                                                                'tabs': [{'id': t, 'stage': st} for t, st in releases.CURRENT.tabs().items()]}))
     raw = json.dumps({'presets': [{'id': lab, 'items': []}, {'id': released, 'items': []}], 'metrics': []}).encode()
     doc = Doc(key='k', raw=raw, gz=gzip.compress(raw), etag='"e"', price_data=None)
     app = create_app(live_of(settings), store, FakeOrc())

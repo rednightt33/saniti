@@ -188,7 +188,8 @@ def test_a_lab_item_is_never_held_on_the_live_site(settings, store, monkeypatch)
     lab = entries[0]['id']
     items = [{'kind': kind, 'id': e['id'], 'stage': 'lab' if (kind, e['id']) == ('indicator', lab) else e['stage']}
              for kind in releases.KINDS for e in releases.entries(kind)]
-    monkeypatch.setattr(releases, 'CURRENT', releases.Releases({'schema_version': 1, 'items': items}))
+    monkeypatch.setattr(releases, 'CURRENT', releases.Releases({'schema_version': 1, 'items': items,
+                                                                'tabs': [{'id': t, 'stage': st} for t, st in releases.CURRENT.tabs().items()]}))
     live = create_app(live_of(settings), store, FakeOrc())
     with TestClient(live) as c:
         sign_in_admin(c, store)

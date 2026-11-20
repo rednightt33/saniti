@@ -16145,6 +16145,20 @@ Order of the services (CONTRACT 17, rollback floors):
     - after all phases, one deep checker over everything, ultracode at xhigh, then its fixes; then the registration test
       window.
     The execution starts on the user's "go" (approval of the plan is not the go, AGENTS "Plans").
+  - **Go (the user, 2026-11-20): "Go".** Run log:
+    - Item 1, the four decided items:
+      - Hostinger forwards edgefinance.id and www with a 301 to https://app.edgefinance.id, read back on http and
+        https.
+      - The admin variables moved to orc-test-runner (RAILWAY_CHANGELOG.md, job `e790550f`).
+      - The footer links and the Terminal footer are in commit `6db6cf2e`.
+    - Item 1, the promotion runbook:
+      - `LIVE_PROMOTION.md` and `scripts/live_diff.py`.
+      - The AGENTS rule ("The live site").
+      - The tab switch: `tabs` in `catalog/releases.json`, now required; `tests/test_live_switch.py`.
+      - The live smoke moved into `verification/edge_multiuser/live_smoke/`.
+    - The smoke found that the owner had reset the admin password during their test. It now tries no admin sign-in by
+      default (ERRORS M516). A visitor's IHSG request is answered 403; that goes to item 3 (3e).
+    - Shipping (the beta first, then the live site, each after green CI) is recorded below when done.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

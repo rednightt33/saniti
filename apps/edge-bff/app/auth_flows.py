@@ -43,7 +43,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from psycopg import errors as pg_errors
 
-from . import email_texts, hooks, mfa, passwords
+from . import email_texts, hooks, mfa, passwords, releases
 from .accounts import ACCOUNT_SESSIONS, EMAIL, EMAIL_MAX, RESERVED_USERNAMES, USERNAME, AccountStore, new_owner_key
 from .errors import Refusal
 from .mailer import OutboxStore, enqueue
@@ -607,7 +607,8 @@ class AuthFlows:
                 return {'multiuser': False}
             # live checker S1 (2026-11-20): the tabs this site never offers (principal.BETA_ONLY_TABS on the live site:
             # the Monitor and the admin pages), so the shell shows neither their rail entries nor their buttons
-            hidden = sorted(BETA_ONLY_TABS) if settings.site == LIVE else []
+            # and the tabs at the lab stage (releases.json tabs; LIVE_PROMOTION.md): on the beta until released
+            hidden = sorted(BETA_ONLY_TABS | releases.lab_tabs()) if settings.site == LIVE else []
             return {'multiuser': True, 'registration': not settings.prelaunch, 'prelaunch': settings.prelaunch,
                     'guests': settings.guests, 'upgrade_contact': settings.upgrade_contact or None, 'hidden_tabs': hidden,
                     # the footer's Privacy and Terms links, null until their texts exist (EXEC option A, 2026-11-20)

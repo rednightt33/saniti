@@ -543,6 +543,16 @@ catalog-only change reaches the browser through `X-Edge-Entitlements`.
 **Release catalog.**
 - `apps/edge-bff/catalog/releases.json`: `{"schema_version": 1, "items": [{"kind", "id", "stage"}]}`. It is hand-kept
   data (no generator), and the image copies it.
+- Tabs (the user, 2026-11-20, EXEC option A: beta work reaches the live site only on request, and `live` takes whole
+  commits; LIVE_PROMOTION.md): an optional `"tabs": [{"id", "stage"}]` gives each tab its stage.
+  - A tab is the first part of a capability key or a page of the shell.
+  - An unlisted tab is `lab`.
+  - On the live site, every key of a lab tab is refused, `*` included (`principal.beta_only`), and `auth/config`
+    `hidden_tabs` hides the tab from the rail. The beta keeps it.
+  - `tests/test_live_switch.py` fails when a capability tab or a shell page has no entry and is not in
+    `BETA_ONLY_TABS`.
+  - Every tab is `released` today. Until 3f moves lab code out of the public bundles, the same test fails on a `lab`
+    tab, as `test_releases.py` does on a `lab` item.
 - Kinds and their registries (the id space is shared across tabs):
   - `indicator`: `terminal/src/data/indRegistry.json`;
   - `flow_indicator`: `flowRegistry.json` `indicators`;
