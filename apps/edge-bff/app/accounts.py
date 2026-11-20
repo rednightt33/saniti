@@ -349,12 +349,20 @@ class AccountStore:
 
     def revoke_all(self, user_id):
         """Every live session of the account (password change or reset, disable, role change; CONTRACT.md section 4),
-        under the account's lock: a session being made from an earlier proof is either seen here or refused."""
+        under the account's lock: a session being made from an earlier proof is either seen here or refused. The
+        account's sessions include the beta's switch-off sessions of its owner key (ACCOUNT_SESSIONS)."""
         with self.store.connect() as c:
             c.execute('SELECT user_id FROM edge_bff.users WHERE user_id = %s FOR UPDATE', (user_id,))
-            return c.execute('UPDATE edge_bff.sessions SET revoked_at = now() WHERE user_id = %s AND revoked_at IS NULL',
-                             (user_id,)).rowcount
+            return c.execute(f'UPDATE edge_bff.sessions SET revoked_at = now() WHERE {ACCOUNT_SESSIONS} '
+                             'AND revoked_at IS NULL', (user_id, user_id)).rowcount
 
+
+# live checker S2 (2026-11-20): an account's sessions are its own (user_id) and the beta's switch-off sessions of the same
+# owner key (user_id NULL: the beta signs the configured owner, user #1, in without an account row; app/store.py
+# session_create), so a password change or reset and "Sign out everywhere" on the live site end user #1's beta sessions
+# too. Only user #1 has such sessions: the switch-off sign-in makes them for the configured owner alone.
+ACCOUNT_SESSIONS = ('(user_id = %s OR (user_id IS NULL AND owner_key = '
+                    '(SELECT owner_key FROM edge_bff.users WHERE user_id = %s)))')
 
 PENDING_HOURS = 24
 

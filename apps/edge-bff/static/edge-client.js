@@ -102,8 +102,12 @@
     .then(r => r.json().catch(() => ({})).then(d => r.ok ? d : {})).then(d => ({multiuser: d?.multiuser === true,
       registration: d?.multiuser === true && d?.registration !== false, prelaunch: d?.prelaunch === true,
       guests: d?.multiuser === true && d?.guests === true,
-      upgradeContact: typeof d?.upgrade_contact === 'string' && d.upgrade_contact ? d.upgrade_contact : null}))
-    .catch(() => ({multiuser:false, registration:false, prelaunch:false, guests:false, upgradeContact:null})));
+      upgradeContact: typeof d?.upgrade_contact === 'string' && d.upgrade_contact ? d.upgrade_contact : null,
+      // live checker S1: the tabs this site never offers (the live site: the Monitor and the admin pages)
+      hiddenTabs: Array.isArray(d?.hidden_tabs) ? d.hidden_tabs.filter(t => typeof t === 'string') : []}))
+    .catch(() => ({multiuser:false, registration:false, prelaunch:false, guests:false, upgradeContact:null, hiddenTabs:[]}))
+    .then(c => { hiddenTabs = c.hiddenTabs; return c; }));
+  let hiddenTabs = [];
   const terminal = s => ['FINISHED','FAILED','INTERRUPTED'].includes(s.state);
   // EXEC-X (M124): the frame stays English (user decision 2026-10-08) but says what the saved response is
   const DOMAIN = {COMPLETED:'Completed',AWAITING_CONFIRMATION:'Awaiting approval',NEEDS_CLARIFICATION:'Needs your reply',LIMITED:'Limited',FAILED:'Failed'};
@@ -210,7 +214,8 @@
     sources:snapshot.response ? [...(snapshot.response.evidence || []),...(snapshot.response.annotations || []),...(snapshot.response.data_record ? [{name:'Data record',record:snapshot.response.data_record}] : [])] : previous.sources,
     steps:[{id:'state',label:{QUEUED:'Queued',RUNNING:'AI request running',RECOVERING:snapshot.error_code === 'SERVICES_INITIALIZING' ? EdgeLabels.servicesWaiting : 'Recovering delivery',FINISHED:'Saved response: '+statusLabel('completed',snapshot.run_status,snapshot.response?.execution?.pause),FAILED:'Request failed',INTERRUPTED:'Delivery interrupted'}[snapshot.state],status:terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : 'running',detail:snapshot.updated_at}]
   });
-  const loadModels = () => models.pending || (models.pending = api('/models')
+  // live checker S1: a site without the Monitor has no model list (GET /api/v1/models answers 404 there)
+  const loadModels = () => models.pending || (models.pending = readConfig().then(c => c.hiddenTabs.includes('monitor') ? null : api('/models'))
     .then(data => { const ok = Array.isArray(data?.models) && data.models.length > 0; models.data = ok ? data : null; models.failed = !ok; })
     .catch(() => { models.failed = true; }));
   const settle = promise => Promise.race([promise, new Promise(resolve => setTimeout(resolve, 3000))]);
@@ -228,6 +233,9 @@
       if (auth) { const noted = noteLogin(auth); await settle(Promise.all([loadModels(), loadPrefs(noted)])); }
       dispatchEvent(new Event('edge-auth')); return auth; },
     config: () => readConfig(),
+    // live checker S1: whether this site offers a tab (false only for a tab the config lists as hidden; known once
+    // config() has answered, which the shell waits for before its first page)
+    offers: tab => !hiddenTabs.includes(tab),
     // EXEC-MU-ACCOUNTS Phase 1 (contract section 4): the account routes; every refusal carries the server's message
     register: body => api('/auth/register', body),
     // `username`: another username after USERNAME_TAKEN (the code owner chooses it; contract section 4)

@@ -22,7 +22,7 @@ from .backtest import Backtests
 from . import catalog, terminal_access
 from .client import OrcClient, OrcError, public_data
 from .config import LIVE, Settings
-from .errors import Refusal, UnexpectedErrors, http_refusal, refusal, validation_refusal
+from .errors import Refusal, UnexpectedErrors, http_refusal, refusal, set_registration_open, validation_refusal
 from .hooks import is_hook_path
 from .layouts import Layouts
 from .monitor import ModelCatalog, run_refusal, visible as visible_models
@@ -238,6 +238,8 @@ class BranchInput(Strict):
 def create_app(settings=None, store=None, orc=None):
     settings = settings or Settings.from_env()
     settings.validate()
+    # live checker G3: a visitor's refusal offers "create one" only while registration is open (errors.words)
+    set_registration_open(not settings.prelaunch)
     store = store or Store(settings.database_url)
     orc = orc or OrcClient(settings)
     # EXEC-MODELS: Orc's model list, shared by the models route, the submit's model rule and the worker's dispatch check

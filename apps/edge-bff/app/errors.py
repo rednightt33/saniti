@@ -80,6 +80,14 @@ STATUS_CODES = {400: 'INVALID_INPUT', 401: 'UNAUTHENTICATED', 403: 'FORBIDDEN', 
 
 # The capabilities a Phase 0 route may require, with the name the person sees (CONTRACT.md section 3 details)
 CAPABILITY_NAMES = {'admin.manual': 'Manual agent (troubleshooting)'}
+# live checker G3 (2026-11-20): whether registration is open on this site (app/main.py create_app sets it from the
+# pre-launch mode), so a visitor's sentence never offers an account no one can create (AGENTS.md "Gates and
+# evidence" (d))
+REGISTRATION = {'open': True}
+
+
+def set_registration_open(is_open):
+    REGISTRATION['open'] = bool(is_open)
 # C1 Phase 3a F3: the names the person sees come from the catalog (edge_bff.capabilities.display_name), loaded by
 # Auth.refresh_names at start and again at most every NAMES_SECONDS when a route refuses; never the internal key.
 # Re-check R2-15: the plans' names too (edge_bff.plans.display_name), for the ended plan of PLAN_EXPIRED
@@ -184,8 +192,9 @@ def words(code, status, details=None):
         # in or create an account, or to wait (3c check C3-9)
         if code == 'CAPABILITY_REQUIRED':
             name = named_in(d)
-            return (f'{name} needs an EDGE account. Sign in or create one to use it.' if name
-                    else 'This needs an EDGE account. Sign in or create one to use it.')
+            way = ('Sign in or create one to use it.' if REGISTRATION['open']
+                   else 'Sign in to use it; registration opens soon.')
+            return f'{name} needs an EDGE account. {way}' if name else f'This needs an EDGE account. {way}'
         wait = wait_words(d.get('retry_after_s'))
         return (f'You have reached the limit for visitors without an account. Try again in {wait}, or sign in to EDGE.'
                 if wait else 'You have reached the limit for visitors without an account. Sign in to EDGE to go on.')

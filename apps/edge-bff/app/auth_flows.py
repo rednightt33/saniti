@@ -44,10 +44,11 @@ from fastapi.responses import JSONResponse
 from psycopg import errors as pg_errors
 
 from . import email_texts, hooks, mfa, passwords
-from .accounts import EMAIL, EMAIL_MAX, RESERVED_USERNAMES, USERNAME, AccountStore, new_owner_key
+from .accounts import ACCOUNT_SESSIONS, EMAIL, EMAIL_MAX, RESERVED_USERNAMES, USERNAME, AccountStore, new_owner_key
 from .errors import Refusal
 from .mailer import OutboxStore, enqueue
-from .principal import Principal
+from .config import LIVE
+from .principal import BETA_ONLY_TABS, Principal
 from .security import (REGISTRATION_COOKIE as REGISTRATION, SESSION_COOKIE, cookie_name, normal_password,
                        password_verifier, registration_path, token_hash, verify_password)
 from .text_rules import person_name
@@ -356,8 +357,8 @@ class FlowStore:
                 return outcome, found
             c.execute('UPDATE edge_bff.email_codes SET consumed_at=now() WHERE code_id=%s', (found['code_id'],))
             self._set_password(c, user['user_id'], verifier)
-            c.execute('UPDATE edge_bff.sessions SET revoked_at=now() WHERE user_id=%s AND revoked_at IS NULL',
-                      (user['user_id'],))
+            c.execute(f'UPDATE edge_bff.sessions SET revoked_at=now() WHERE {ACCOUNT_SESSIONS} AND revoked_at IS NULL',
+                      (user['user_id'], user['user_id']))
             # a reset proved by the email code is a recovery: it clears the MFA failure counts and locks (N2)
             c.execute('''UPDATE edge_bff.mfa_totp SET totp_failures=0, recovery_failures=0, totp_locked_until=NULL,
                 recovery_locked_until=NULL WHERE user_id=%s''', (user['user_id'],))
@@ -390,8 +391,8 @@ class FlowStore:
                     AND verifier=%s''', (user_id, proved)).fetchone():
                 return 'password_changed'
             self._set_password(c, user_id, verifier)
-            c.execute('''UPDATE edge_bff.sessions SET revoked_at=now() WHERE user_id=%s AND revoked_at IS NULL
-                AND token_hash<>%s''', (user_id, keep_token_hash))
+            c.execute(f'''UPDATE edge_bff.sessions SET revoked_at=now() WHERE {ACCOUNT_SESSIONS} AND revoked_at IS NULL
+                AND token_hash<>%s''', (user_id, user_id, keep_token_hash))
             if email:
                 enqueue(c, 'password_changed', email, email_texts.password_changed_email())
             return 'ok'
@@ -604,8 +605,11 @@ class AuthFlows:
             when not set: the box says the contact comes soon). With the switch off the answer is as before."""
             if not settings.multiuser:
                 return {'multiuser': False}
+            # live checker S1 (2026-11-20): the tabs this site never offers (principal.BETA_ONLY_TABS on the live site:
+            # the Monitor and the admin pages), so the shell shows neither their rail entries nor their buttons
+            hidden = sorted(BETA_ONLY_TABS) if settings.site == LIVE else []
             return {'multiuser': True, 'registration': not settings.prelaunch, 'prelaunch': settings.prelaunch,
-                    'guests': settings.guests, 'upgrade_contact': settings.upgrade_contact or None}
+                    'guests': settings.guests, 'upgrade_contact': settings.upgrade_contact or None, 'hidden_tabs': hidden}
 
         @app.post('/api/v1/auth/register', status_code=202)
         async def register(request: Request, _on=Depends(switched_on), _open=Depends(registration_open)):

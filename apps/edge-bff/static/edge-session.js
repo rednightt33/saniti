@@ -1,4 +1,4 @@
-/* generated from apps/edge-bff/shared/edge-session.ts sha256=2d23b551c388960aeaa00744244ae95cfc287875f96a8a87bc5e07e546f913bd by shared/build-shell.mjs; do not edit */
+/* generated from apps/edge-bff/shared/edge-session.ts sha256=1de404cae8ea75a99325ac51588b014c848b0c7a1ca876f7727034e7d28309d3 by shared/build-shell.mjs; do not edit */
 var EdgeSession = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -371,7 +371,7 @@ var EdgeSession = (() => {
   function accessText(e) {
     const name = typeof e.details.display_name === "string" && e.details.display_name ? e.details.display_name : "";
     if (e.details.visitor === true && (e.kind === "upgrade" || e.kind === "limit"))
-      return e.message || (e.kind === "upgrade" ? `${name || "This"} needs an EDGE account. Sign in or create one to use it.` : `You have reached the limit for visitors without an account. Try again in ${secs(e.retryAfter)}, or sign in to EDGE.`);
+      return e.message || (e.kind === "upgrade" ? `${name || "This"} needs an EDGE account. Sign in to use it.` : `You have reached the limit for visitors without an account. Try again in ${secs(e.retryAfter)}, or sign in to EDGE.`);
     switch (e.kind) {
       case "signin":
         return e.message && !e.legacy ? e.message : "Your EDGE sign-in has ended. Sign in to EDGE again, then open this page again.";

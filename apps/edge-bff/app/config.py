@@ -308,6 +308,13 @@ class Settings:
             raise ValueError('Public EDGE requires HTTPS and Secure cookies')
         if bool(self.terminal_url) != bool(self.terminal_proxy_key):
             raise ValueError('EDGE_TERMINAL_URL and TERMINAL_PROXY_KEY are set together or not at all')
+        # live checker S6 (2026-11-20): the live site exists to serve the Terminal (its pre-launch offer to every
+        # visitor), so a live start without the terminal-api settings (a reference that resolved empty) is refused
+        # instead of answering /ready 200 with no Terminal
+        if self.site == LIVE and self.environment != 'local' and not self.terminal_url:
+            raise ValueError('The live site (EDGE_SITE=live) serves the Terminal: set EDGE_TERMINAL_URL and '
+                             'TERMINAL_PROXY_KEY (references to terminal-api), e.g. EDGE_TERMINAL_URL='
+                             'http://terminal-api.railway.internal:8080')
         if self.terminal_proxy_key and len(self.terminal_proxy_key) < 32:
             raise ValueError('TERMINAL_PROXY_KEY must be at least 32 characters')
         if self.terminal_url and self.environment != 'local' and (

@@ -115,8 +115,10 @@ def test_config_with_the_switch_on(app):
     # track guest (decision 1 and the pre-launch decision of 2026-11-19; this test held {"multiuser": true} alone): with
     # the switch on the page also learns whether registration is open, the pre-launch mode, the guests and the upgrade
     # contact; the switch-off answer stays {"multiuser": false} (test above)
+    # live checker S1 (2026-11-20, stated reason): the answer also names the tabs this site does not offer (none on a
+    # site with the beta's tabs; ['admin', 'monitor'] on the live site, tests/test_live_rail.py)
     assert app.get('/api/v1/auth/config').json() == {'multiuser': True, 'registration': True, 'prelaunch': False,
-                                                     'guests': False, 'upgrade_contact': None}
+                                                     'guests': False, 'upgrade_contact': None, 'hidden_tabs': []}
 
 
 def test_the_settings_need_their_secrets_only_with_the_switch_on(settings):

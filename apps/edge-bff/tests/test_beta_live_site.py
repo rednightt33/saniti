@@ -79,9 +79,11 @@ def test_the_site_setting_refuses_the_pairings_the_decision_rules_out(settings):
     live = live_of(settings)
     live.validate()                                         # a developer machine: log mode and the live site
     # a deliberate test of the live site before its Resend key: only by the explicit switch
+    # live checker S6 (2026-11-20, stated reason): a live start outside a developer machine also needs the Terminal
     dataclasses.replace(live, environment='dev', email_log_allowed=True,
                         database_url='postgresql://edge_bff_login@db.invalid/edge', origin='https://edge.example',
-                        secure_cookie=True).validate()
+                        secure_cookie=True, terminal_url='http://terminal-api.railway.internal:8080',
+                        terminal_proxy_key='k' * 40).validate()
     # 3c check C3-15: Orc's key (it may read every owner's conversations) and URL are refused on the live site
     for orc in ({'orc_key': 'k' * 40}, {'orc_url': 'http://market-ai-orc.railway.internal:8080'}):
         with pytest.raises(ValueError, match='must not hold MARKET_AI_ORC_API_KEY or EDGE_ORC_URL'):

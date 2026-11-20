@@ -345,7 +345,9 @@ const nav = [[EdgeLabels.overview.nav, "overview"], [EdgeLabels.watchlist.nav, "
 // EXEC-RADAR R7, EXEC-OVERVIEW O4: an owner page shows only when the session says its data can be read
 // (/api/v1/auth/session capabilities)
 const OWNER_PAGES = ["overview", "watchlist", "radar"];
-const navShown = ([, r]) => !OWNER_PAGES.includes(r) || Edge.auth?.capabilities?.[r] === true;
+// live checker S1: a tab this site does not offer (the live site: the Monitor) is never in the rail (Edge.offers)
+const navShown = ([, r]) => Edge.offers(r) && (!OWNER_PAGES.includes(r) || Edge.auth?.capabilities?.[r] === true);
+const homeRoute = () => Edge.offers("monitor") ? "monitor" : "terminal";
 // ERRORS M425 (EXEC-RADAR R7): a sub-app page in one of this shell's frames (Screener, Radar) asks for another page with
 // {type:"edge-nav", route}; only this origin, only from a frame of this document, only to a page of the rail. One
 // listener for the page's life; shellGo is the current page switch (set by the app on every render).
@@ -438,7 +440,7 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false, gu
                 "aria-label": pagesOpen ? EdgeLabels.shell.closePages : EdgeLabels.shell.openPages, "aria-haspopup": "menu", "aria-expanded": pagesOpen },
                 element(Icon, { name: "menu", size: 20 })),
             pagesOpen && element(PagesMenu, { route: route, go: go, trigger: pagesRef, close: closePages }),
-            element("button", { className: "brand", onClick: () => go("monitor") },
+            element("button", { className: "brand", onClick: () => go(homeRoute()) },
                 element("span", { className: "brand-mark" }, "E"),
                 element("strong", null, "EDGE")),
             element("div", { className: "top-actions" },
@@ -448,7 +450,7 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false, gu
                     marketSoon&&element("span",{id:"market-search-coming-soon",className:"market-search-ribbon",role:"status","aria-live":"polite"},
                         element("span",null,"Coming soon"),element("button",{type:"button",className:"market-search-ribbon-close","aria-label":"Close Coming soon notification",onClick:closeMarketSoon},element(Icon,{name:"close"})))),
                 element(IconButton,{icon:"bell",disabled:true,title:"Notifications unavailable"}),
-element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.removeItem("edge-research-context"); go("monitor"); } }, "Research"),
+Edge.offers("monitor") && element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.removeItem("edge-research-context"); go("monitor"); } }, "Research"),
                 element(IconButton, { icon: "help", title: "Support unavailable", disabled: true, buttonRef: supportRef }),
                 element(IconButton, { icon: "theme", onClick: toggle, title: `Switch to ${theme === "dark" ? "light" : "dark"} theme` }),
                 element(IconButton, { icon: "settings", selected: settingsOpen, onClick: () => setSettingsOpen(true), title: "Settings", buttonRef: settingsRef }),
@@ -458,7 +460,7 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
         /* EXEC-NAV-LEFT (user 2026-11-09: "kita akan pindahkan 4 tersebut ke kiri", menu A: icons only, the name in the
            tooltip): the four pages in a 56 px menu on the left, under the top bar */
         element("nav", { className: "side-nav", "aria-label": "Pages", inert: mobilePanelOpen },
-            slim && element("button", { type: "button", className: "side-brand", "data-tip": "EDGE · Monitor", "aria-label": "EDGE: Monitor", onClick: () => go("monitor") }, element("span", { className: "brand-mark" }, "E")),
+            slim && element("button", { type: "button", className: "side-brand", "data-tip": Edge.offers("monitor") ? "EDGE · Monitor" : "EDGE · Terminal", "aria-label": Edge.offers("monitor") ? "EDGE: Monitor" : "EDGE: Terminal", onClick: () => go(homeRoute()) }, element("span", { className: "brand-mark" }, "E")),
             slim && route === "terminal" && element("button", { type: "button", className: `side-stats ${statsOpen ? "active" : ""}`, "data-tip": !statsReady ? "Statistics: loading…" : statsOpen ? "Close Statistics" : "Open Statistics", "aria-label": "Statistics", "aria-expanded": statsOpen, "aria-disabled": !statsReady,
                 onClick: () => statsReady && termFrame()?.contentWindow?.postMessage({ source: "edge", type: "stats", open: !statsOpen }, location.origin) },
                 element("span", { className: "side-stats-chev" }, statsOpen ? "«" : "»"), element("span", { className: "side-stats-label" }, "Statistics")),
@@ -467,7 +469,7 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
             return element("button", { key: label, type: "button", "aria-current": active ? "page" : undefined, "aria-label": label, "data-tip": label, className: `nav-${label.toLowerCase()} ${active ? "active" : ""}`, onClick: () => go(r) },
                 element(Icon, { name: `nav${r[0].toUpperCase()}${r.slice(1)}`, size: 22 })); }),
             slim && element("div", { className: "side-actions" },
-                element("button", { type: "button", "data-tip": "Research", "aria-label": "Research", onClick: () => { sessionStorage.removeItem("edge-research-context"); go("monitor"); } }, element(Icon, { name: "spark", size: 20 })),
+                Edge.offers("monitor") && element("button", { type: "button", "data-tip": "Research", "aria-label": "Research", onClick: () => { sessionStorage.removeItem("edge-research-context"); go("monitor"); } }, element(Icon, { name: "spark", size: 20 })),
                 element("button", { type: "button", "data-tip": theme === "dark" ? "Light theme" : "Dark theme", "aria-label": `Switch to ${theme === "dark" ? "light" : "dark"} theme`, onClick: toggle }, element(Icon, { name: "theme", size: 20 })),
                 element("button", { type: "button", ref: settingsRef, "data-tip": "Settings", "aria-label": "Settings", className: settingsOpen ? "active" : "", onClick: () => setSettingsOpen(true) }, element(Icon, { name: "settings", size: 20 })),
                 element("span", { className: "side-account" },
@@ -2696,7 +2698,7 @@ function App() {
     // visitor without an account opens the Terminal where the site has guests (GET /api/v1/auth/config)
     const prelaunch=initialValue(viewRecord,"prelaunch",()=>false),guests=initialValue(viewRecord,"guests",()=>false);
     onLifecycle(viewRecord,"config",()=>{let live=true;Edge.config().then(c=>{if(live){updateValue(viewRecord,"open",c.multiuser);updateValue(viewRecord,"prelaunch",c.prelaunch===true);updateValue(viewRecord,"guests",c.guests===true);}});return()=>{live=false;};},[]);
-    onLifecycle(viewRecord,"auth",()=>{const sync=()=>{updateValue(viewRecord,"authenticated",Boolean(Edge.auth));updateValue(viewRecord,"accessVersion",Edge.auth?.access?.version ?? null);};addEventListener("edge-auth",sync);Edge.session().then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
+    onLifecycle(viewRecord,"auth",()=>{const sync=()=>{updateValue(viewRecord,"authenticated",Boolean(Edge.auth));updateValue(viewRecord,"accessVersion",Edge.auth?.access?.version ?? null);};addEventListener("edge-auth",sync);Promise.all([Edge.session(),Edge.config()]).then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
     const path = initialValue(viewRecord, "path", currentPath), setPath = next => updateValue(viewRecord, "path", next);
     // which account page shows, or null for a workspace page: a session that waits for the authenticator (access.next
     // "mfa") always shows /mfa; signed in, the account pages lead to the workspace; an `open` page needs registration
@@ -2748,7 +2750,7 @@ function App() {
     if (!authenticated || mode !== null) return element(AuthPage,{mode:mode || "login",go,key:mode || "login"});
     // signed in on an account page (a reload at /login): the account's landing page (re-check R2-14)
     const shown = routeOf(path)?.auth === false ? landing() : path;
-    return shown === "/terminal" ? element(TerminalPage,{go}) : shown === "/backtest" ? element(BacktestPage,{go}) : shown === "/screener" ? element(ScreenerPage,{go}) : shown === "/radar" ? element(RadarPage,{go}) : shown === "/overview" ? element(OverviewPage,{go}) : shown === "/watchlist" ? element(WatchlistPage,{go}) : element(Monitor,{go});
+    return shown === "/terminal" ? element(TerminalPage,{go}) : shown === "/backtest" ? element(BacktestPage,{go}) : shown === "/screener" ? element(ScreenerPage,{go}) : shown === "/radar" ? element(RadarPage,{go}) : shown === "/overview" ? element(OverviewPage,{go}) : shown === "/watchlist" ? element(WatchlistPage,{go}) : Edge.offers("monitor") ? element(Monitor,{go}) : element(TerminalPage,{go});
 }
 
 refresh();

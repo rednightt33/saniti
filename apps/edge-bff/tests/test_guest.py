@@ -222,7 +222,10 @@ def test_prelaunch_closes_registration_with_a_plain_sentence(prelaunch, store):
     with TestClient(create_app(prelaunch, store, FakeOrc())) as c:
         config = c.get('/api/v1/auth/config').json()
         assert config == {'multiuser': True, 'registration': False, 'prelaunch': True, 'guests': True,
-                          'upgrade_contact': 'sales@example.com'}
+                          'upgrade_contact': 'sales@example.com',
+                          # live checker S1 (stated reason): the tabs this site does not offer; none here (the beta's
+                          # tabs: this harness is not the live site), ['admin', 'monitor'] on it (tests/test_live_rail.py)
+                          'hidden_tabs': []}
         for path, body in (('/api/v1/auth/register', {'username': 'newbie', 'first_name': 'New', 'last_name': 'Bie',
                                                       'email': 'newbie@example.com', 'phone': '+6281234567890',
                                                       'password': 'long enough pw', 'password_repeat': 'long enough pw'}),

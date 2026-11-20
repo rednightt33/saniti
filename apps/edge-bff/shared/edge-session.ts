@@ -352,7 +352,9 @@ export function accessText(e: EdgeError): string | null {
   const name = typeof e.details.display_name === 'string' && e.details.display_name ? e.details.display_name : '';
   // a visitor without an account (details.visitor, track guest; 3c check C3-9): no plan to upgrade, not signed in
   if (e.details.visitor === true && (e.kind === 'upgrade' || e.kind === 'limit'))
-    return e.message || (e.kind === 'upgrade' ? `${name || 'This'} needs an EDGE account. Sign in or create one to use it.`
+    // live checker G3: the fallback (no server sentence) offers only what is always open: signing in; the server's own
+    // sentence says "or create one" only while registration is open (app/errors.py words)
+    return e.message || (e.kind === 'upgrade' ? `${name || 'This'} needs an EDGE account. Sign in to use it.`
       : `You have reached the limit for visitors without an account. Try again in ${secs(e.retryAfter)}, or sign in to EDGE.`);
   switch (e.kind) {
     case 'signin': return e.message && !e.legacy ? e.message : 'Your EDGE sign-in has ended. Sign in to EDGE again, then open this page again.';
