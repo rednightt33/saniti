@@ -49,12 +49,13 @@ from .errors import Refusal
 from .mailer import OutboxStore, enqueue
 from .config import LIVE
 from .principal import BETA_ONLY_TABS, Principal
-from .security import (REGISTRATION_COOKIE as REGISTRATION, SESSION_COOKIE, cookie_name, normal_password,
-                       password_verifier, registration_path, token_hash, verify_password)
+from .security import (DEVICE_COOKIE, DEVICE_SECONDS, REGISTRATION_COOKIE as REGISTRATION, RESET_COOKIE,
+                       SESSION_COOKIE, cookie_name, device_of, device_token, normal_password, password_verifier,
+                       registration_path, token_hash, verify_password)
 from .text_rules import person_name
-from .throttle import (CODE_ADDRESS, CODE_USER, MFA_USER, PASSWORD_CHANGE, REGISTER_DAY, REGISTER_HOUR,
-                       REGISTRATION_MAIL, SEND_EMAIL, SEND_IP, SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address,
-                       normal_login)
+from .throttle import (CODE_ADDRESS, CODE_USER, DEVICE_MAIL, DEVICE_SIGNIN, MFA_USER, PASSWORD_CHANGE, REGISTER_DAY,
+                       REGISTER_HOUR, REGISTRATION_MAIL, SEND_EMAIL, SEND_EMAIL_CLIENT, SEND_IP, SIGNIN_IP, SIGNIN_LOGIN,
+                       Throttle, client_address, normal_login)
 
 COOKIE = SESSION_COOKIE                     # by its name on the origin: cookie_name (re-check R2-22)
 CODE_SECONDS = 300
@@ -70,6 +71,11 @@ ACCEPTED = {'status': 'CODE_SENT', 'resend_after_s': RESEND_SECONDS}
 REGISTRATION_COOKIE = REGISTRATION         # by its name and path on the origin: cookie_name, registration_path
 REGISTRATION_SECONDS = 86400
 REGISTRATION_TOKEN = re.compile(r'[0-9a-f]{64}')
+# The A2 fix (ERRORS M513 A2, M517): a password reset's codes are bound to the browser that asked for them by this
+# HttpOnly cookie (every "Forgot password?" and reset resend answer sets it, kept when the browser holds a valid one),
+# as a registration's are by REGISTRATION_COOKIE: another browser's wrong codes, or its own request for a code, never
+# use up or replace them
+RESET_SECONDS = 3600
 TOTP_FAILURE_CAP, RECOVERY_FAILURE_CAP = 100, 10
 TOTP_RESTART, RECOVERY_RESTART = 90, 8          # the count after a lock ends: 10 (2) more tries before the next lock
 LOCK_SECONDS = 86400
@@ -165,49 +171,98 @@ class FlowStore:
     def _lock(c, email):
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('register:' + email,))
 
-    def _may_send(self, c, email, ip):
-        """Count the send try of the client address (recorded only); True when the address may get a code email now:
-        under its daily budget, and no code email to it in the last RESEND_SECONDS. A notification (password_changed,
-        account_exists) is not a code and never holds the next code back (ERRORS R2-10: it held back the very reset
-        it tells the owner to ask for)."""
+    def _may_send(self, c, email, ip, binding=None, device=None):
+        """Count the send try of the client address (recorded only); True when the address may get a code email now.
+        The budget (the A2 fix, ERRORS M517): a browser where the account's password was proved (`device`, its nonce:
+        security.device_of) asks under its own DEVICE_MAIL; any other request under the address's SEND_EMAIL and the
+        address's SEND_EMAIL_CLIENT from this client, so one stranger cannot spend the address's day and no number of
+        them can spend the owner's own browser's. The gap: no code email in the last RESEND_SECONDS to the address, or,
+        for a reset bound to a browser (`binding`), to that browser (its code emails, found through their outbox key
+        code:<code_id>), so a stranger's request never holds the owner's back. A notification
+        (password_changed, account_exists) is not a code and never holds the next code back (ERRORS R2-10: it held back
+        the very reset it tells the owner to ask for)."""
         Throttle._add(c, SEND_IP, self._h(SEND_IP, ip))
-        if Throttle._wait(c, SEND_EMAIL, self._h(SEND_EMAIL, email)):
+        if device is not None:
+            if Throttle._wait(c, DEVICE_MAIL, self._h(DEVICE_MAIL, (email, device))):
+                return False
+        elif Throttle._wait(c, SEND_EMAIL, self._h(SEND_EMAIL, email)) or \
+                Throttle._wait(c, SEND_EMAIL_CLIENT, self._h(SEND_EMAIL_CLIENT, (email, ip))):
             return False
+        if binding is not None:
+            return c.execute('''SELECT 1 FROM edge_bff.email_outbox o JOIN edge_bff.email_codes k
+                    ON o.idempotency_key = 'code:' || k.code_id::text
+                WHERE o.to_email = %s AND o.purpose = 'reset' AND k.binding_hash = %s
+                  AND o.created_at > now() - make_interval(secs => %s) LIMIT 1''',
+                             (email, binding, RESEND_SECONDS)).fetchone() is None
         return c.execute('''SELECT 1 FROM edge_bff.email_outbox WHERE to_email=%s AND purpose = ANY(%s)
             AND created_at > now() - make_interval(secs => %s) LIMIT 1''',
                          (email, list(CODE_PURPOSES), RESEND_SECONDS)).fetchone() is None
 
-    def _send(self, c, purpose, email, mail, expires_at=None, key=None):
-        Throttle._add(c, SEND_EMAIL, self._h(SEND_EMAIL, email))
+    def _send(self, c, purpose, email, mail, expires_at=None, key=None, ip=None, device=None):
+        """Queue one email and count it in the budget _may_send read: the device's own, or the address's and the
+        address's from this client."""
+        if device is not None:
+            Throttle._add(c, DEVICE_MAIL, self._h(DEVICE_MAIL, (email, device)))
+        else:
+            Throttle._add(c, SEND_EMAIL, self._h(SEND_EMAIL, email))
+            Throttle._add(c, SEND_EMAIL_CLIENT, self._h(SEND_EMAIL_CLIENT, (email, ip or 'unknown')))
         return enqueue(c, purpose, email, mail, expires_at, key)
 
-    def _issue_code(self, c, user_id, purpose, email):
-        """A new code (the live one consumed first) and its email, in the caller's transaction; False (nothing changes)
-        when the code is a pending registration's and that registration was mailed REGISTRATION_MAIL times today."""
+    def device_for(self, user_id, token):
+        """device() in a transaction of its own (the sign-in and the password change)."""
+        if user_id is None or not token:
+            return None
+        with self.store.connect() as c:
+            return self.device(c, user_id, token)
+
+    def device(self, c, user_id, token):
+        """The nonce of this browser's device token when it is one of the account `user_id`, signed over the account's
+        current verifier (security.device_of), and the browser is under its own failure limit (DEVICE_SIGNIN); else
+        None. The caller's transaction reads the verifier."""
+        if user_id is None or not token:
+            return None
+        row = c.execute('''SELECT verifier FROM edge_bff.identities WHERE user_id=%s AND provider='password' ''',
+                        (user_id,)).fetchone()
+        nonce = device_of(self.settings.session_secret, token, user_id, row['verifier'] if row else None)
+        if nonce is None or Throttle._wait(c, DEVICE_SIGNIN, self._h(DEVICE_SIGNIN, (str(user_id), nonce))):
+            return None
+        return nonce
+
+    def _issue_code(self, c, user_id, purpose, email, ip=None, device=None, binding=None):
+        """A new code (the live one of the same browser binding consumed first) and its email, in the caller's
+        transaction; False (nothing changes) when the code is a pending registration's and that registration was mailed
+        REGISTRATION_MAIL times today. `binding` (a reset's: the SHA-256 of the browser's reset cookie) binds the code to
+        that browser: another browser's live code stays live (the A2 fix), one per account, purpose and binding
+        (email_codes_one_live_per_browser)."""
         if purpose == 'register':
             mailed = self._h(REGISTRATION_MAIL, str(user_id))
             if Throttle._wait(c, REGISTRATION_MAIL, mailed):
                 return False
             Throttle._add(c, REGISTRATION_MAIL, mailed)
         c.execute('''UPDATE edge_bff.email_codes SET consumed_at=now()
-            WHERE user_id=%s AND purpose=%s AND consumed_at IS NULL''', (user_id, purpose))
+            WHERE user_id=%s AND purpose=%s AND consumed_at IS NULL AND binding_hash IS NOT DISTINCT FROM %s''',
+                  (user_id, purpose, binding))
         code = f'{secrets.randbelow(10 ** 6):06d}'
-        row = c.execute('''INSERT INTO edge_bff.email_codes(purpose, user_id, code_hash, expires_at)
-            VALUES (%s,%s,%s, now() + make_interval(secs => %s)) RETURNING code_id, expires_at''',
-                        (purpose, user_id, self.code_hash(user_id, purpose, code), CODE_SECONDS)).fetchone()
-        self._send(c, purpose, email, email_texts.code_email(purpose, code), row['expires_at'], f'code:{row["code_id"]}')
+        row = c.execute('''INSERT INTO edge_bff.email_codes(purpose, user_id, code_hash, expires_at, binding_hash)
+            VALUES (%s,%s,%s, now() + make_interval(secs => %s), %s) RETURNING code_id, expires_at''',
+                        (purpose, user_id, self.code_hash(user_id, purpose, code), CODE_SECONDS, binding)).fetchone()
+        self._send(c, purpose, email, email_texts.code_email(purpose, code), row['expires_at'], f'code:{row["code_id"]}',
+                   ip, device)
         return True
 
-    def _check_code(self, c, user, purpose, code, email=None, client=None):
+    def _check_code(self, c, user, purpose, code, email=None, client=None, binding=None):
         """('ok', code row) | ('invalid', None) | ('limited', seconds). A wrong try raises the code's attempts (the code
         is dead at 5) and the user's daily count; the daily cap is read first, so a new code never resets it. With
         `email` (a reset, typed by anyone) the address's own daily count is read and raised too, whether or not the
         address has an account, so the cap answers alike for every address (ERRORS R1-8). A reset's two daily counts are
         keyed by the client address too (`client`, throttle.client_address; the user's "2a" 2026-11-20, 3c check C3-17):
         a stranger's wrong codes from one address never block the owner's code from another, so the 100-failure sign-in
-        lock keeps its way back. Guessing stays bounded by the 5 tries of each code and the address's 10 emails a day
-        (at most 50 guesses a day against 10^6). The caller holds the address's lock (_lock), so the read and the count
-        of one address are serial."""
+        lock keeps its way back. A reset's code is the one of this browser (`binding`, the SHA-256 of its reset cookie;
+        the A2 fix): a browser without one of its own reaches only a code made before the binding (binding_hash NULL),
+        so a stranger's wrong codes never use up the owner's tries. Guessing stays bounded by the 5 tries of each code
+        and the address's 10 emails a day (at most 50 guesses a day against 10^6; an owner's own browser asks under its
+        own budget, DEVICE_MAIL, and holds the account's password). The caller holds the address's lock (_lock), so the
+        read and the count of one address are serial."""
         by_address = self._h(CODE_ADDRESS, (email, client or 'unknown')) if email else None
         by_user = None if user is None else self._h(
             CODE_USER, (str(user['user_id']), client or 'unknown') if email else str(user['user_id']))
@@ -220,8 +275,10 @@ class FlowStore:
             hmac.compare_digest(self.code_hash(0, purpose, code), self.code_hash(0, purpose, '000000'))
         else:
             row = c.execute('''SELECT code_id, code_hash, attempts FROM edge_bff.email_codes WHERE user_id=%s
-                AND purpose=%s AND consumed_at IS NULL AND expires_at > now() AND attempts < 5 FOR UPDATE''',
-                            (user['user_id'], purpose)).fetchone()
+                AND purpose=%s AND consumed_at IS NULL AND expires_at > now() AND attempts < 5
+                AND (binding_hash = %s OR binding_hash IS NULL)
+                ORDER BY binding_hash IS NULL, code_id DESC LIMIT 1 FOR UPDATE''',
+                            (user['user_id'], purpose, binding)).fetchone()
             given = self.code_hash(user['user_id'], purpose, code if CODE.fullmatch(code or '') else 'x')
             if row and hmac.compare_digest(row['code_hash'], given):
                 return 'ok', row
@@ -257,12 +314,12 @@ class FlowStore:
         # three times per day; a later one in the hour answers the same 202 and changes nothing (the earlier code is
         # not re-sent). With REGISTRATION_MAIL (3 emails per registration) the registrations of others use at most 6
         # of the address's 10 daily emails once its owner has registered (R1-13)
-        key = self._h(REGISTER_HOUR, f['email'])
+        key = self._h(REGISTER_HOUR, (f['email'], ip or 'unknown'))
         if Throttle._wait(c, REGISTER_HOUR, key) or Throttle._wait(c, REGISTER_DAY, key):
             return None
         Throttle._add(c, REGISTER_HOUR, key)
         if c.execute("SELECT 1 FROM edge_bff.users WHERE email=%s AND status<>'pending'", (f['email'],)).fetchone():
-            return bool(self._send(c, 'account_exists', f['email'], email_texts.account_exists_email()))
+            return bool(self._send(c, 'account_exists', f['email'], email_texts.account_exists_email(), ip=ip))
         user_id = c.execute('''INSERT INTO edge_bff.users(owner_key, username, requested_username, email,
                 first_name, last_name, phone_e164, role, status, registration_hash)
             VALUES (%s, NULL, %s, %s, %s, %s, %s, 'user', 'pending', %s) RETURNING user_id''',
@@ -270,7 +327,7 @@ class FlowStore:
                              f['phone'], registration)).fetchone()['user_id']
         c.execute("""INSERT INTO edge_bff.identities(user_id, provider, subject, verifier)
             VALUES (%s, 'password', %s, %s)""", (user_id, str(user_id), verifier))
-        return self._issue_code(c, user_id, 'register', f['email'])
+        return self._issue_code(c, user_id, 'register', f['email'], ip)
 
     @staticmethod
     def _registration(c, email, registration):
@@ -309,23 +366,28 @@ class FlowStore:
             c.execute('UPDATE edge_bff.email_codes SET consumed_at=now() WHERE code_id=%s', (found['code_id'],))
             c.execute("DELETE FROM edge_bff.users WHERE email=%s AND status='pending' AND user_id<>%s",
                       (email, user['user_id']))
-            return 'ok', active
+            # the verifier this browser set (the A2 fix: the browser that finished the registration gets its device token)
+            verifier = c.execute('''SELECT verifier FROM edge_bff.identities WHERE user_id=%s AND provider='password' ''',
+                                 (user['user_id'],)).fetchone()
+            return 'ok', {**active, 'verifier': verifier['verifier'] if verifier else None}
 
-    def resend(self, email, purpose, ip, registration=None):
+    def resend(self, email, purpose, ip, registration=None, binding=None, device_token=None):
         """A new code for this browser's pending registration (register) or for an active account (reset), within the
-        send limits; True when one was queued."""
+        send limits; True when one was queued. A reset's code is bound to this browser (`binding`), and a browser where
+        the account's password was proved (`device_token`, its device cookie) asks under its own budget (_may_send)."""
         with self.store.connect() as c:
             self._lock(c, email)
-            if not self._may_send(c, email, ip):
-                return False
             if purpose == 'register':
+                if not self._may_send(c, email, ip):
+                    return False
                 user = self._registration(c, email, registration)
-            else:
-                user = c.execute("SELECT user_id FROM edge_bff.users WHERE email=%s AND status='active' FOR UPDATE",
-                                 (email,)).fetchone()
-            if not user:
+                return bool(user) and self._issue_code(c, user['user_id'], purpose, email, ip)
+            user = c.execute("SELECT user_id FROM edge_bff.users WHERE email=%s AND status='active' FOR UPDATE",
+                             (email,)).fetchone()
+            device = self.device(c, user['user_id'], device_token) if user else None
+            if not self._may_send(c, email, ip, binding, device) or not user:
                 return False
-            return self._issue_code(c, user['user_id'], purpose, email)
+            return self._issue_code(c, user['user_id'], purpose, email, ip, device, binding)
 
     def restart(self, user_id, email, ip, registration):
         """A sign-in with the right password of a pending registration (ERRORS M478, C1 P1-M1): within the send limits,
@@ -341,18 +403,19 @@ class FlowStore:
             if not c.execute('''UPDATE edge_bff.users SET registration_hash=%s WHERE user_id=%s AND status='pending'
                     RETURNING user_id''', (registration, user_id)).fetchone():
                 return False
-            return self._issue_code(c, user_id, 'register', email)
+            return self._issue_code(c, user_id, 'register', email, ip)
 
-    def reset(self, email, code, verifier, client=None):
+    def reset(self, email, code, verifier, client=None, binding=None):
         """('ok', user {user_id, email, username}) with the password replaced, every session revoked and the
         notification queued | ('invalid', None) | ('limited', seconds). The account's users row is locked first
         (accounts.py: a sign-in or change proved before the reset is then refused, a session made before it revoked).
-        `client`: the client address the reset's code counts are keyed by (_check_code)."""
+        `client`: the client address the reset's code counts are keyed by; `binding`: the SHA-256 of this browser's
+        reset cookie, whose code it is (_check_code)."""
         with self.store.connect() as c:
             self._lock(c, email)
             user = c.execute('''SELECT user_id, email, username FROM edge_bff.users WHERE email=%s AND status='active'
                 FOR UPDATE''', (email,)).fetchone()
-            outcome, found = self._check_code(c, user, 'reset', code, email, client)
+            outcome, found = self._check_code(c, user, 'reset', code, email, client, binding)
             if outcome != 'ok':
                 return outcome, found
             c.execute('UPDATE edge_bff.email_codes SET consumed_at=now() WHERE code_id=%s', (found['code_id'],))
@@ -523,12 +586,23 @@ class AuthFlows:
         self.pwned_fetch = pwned_fetch          # tests replace the range API
         self.clock = time.time                  # tests freeze the TOTP clock
         self.with_registration = None           # set by routes()
+        # the A2 fix (ERRORS M517): the cookie of a browser where an account's password was proved (security.device_of)
+        self.device_cookie = cookie_name(DEVICE_COOKIE, settings.secure_cookie)
         # ERRORS R2-37: the derivations and the Pwned Passwords calls run here, never on the default executor
         self.password_work = password_work or passwords.PasswordWork()
 
     def wake(self):
         if self.sender is not None:
             self.sender.wake()
+
+    def set_device(self, response, user_id, verifier):
+        """This browser's device cookie (the A2 fix, ERRORS M517): a new token of the account over its current verifier
+        (security.device_token), set where the browser just proved the account's password (a sign-in, a password
+        change). HttpOnly, SameSite=Strict, on the registration cookie's path (__Host- on https)."""
+        response.set_cookie(self.device_cookie, device_token(self.settings.session_secret, user_id, verifier),
+                            max_age=DEVICE_SECONDS, httponly=True, secure=self.settings.secure_cookie,
+                            samesite='strict', path=registration_path(self.settings.secure_cookie))
+        return response
 
     async def breached(self, password):
         return await self.password_work.run(passwords.pwned, password, self.pwned_fetch)
@@ -562,6 +636,8 @@ class AuthFlows:
         session_cookie = cookie_name(COOKIE, settings.secure_cookie)
         registration_cookie = cookie_name(REGISTRATION_COOKIE, settings.secure_cookie)
         registration_at = registration_path(settings.secure_cookie)
+        reset_cookie = cookie_name(RESET_COOKIE, settings.secure_cookie)
+        device_cookie = self.device_cookie
 
         async def switched_on():
             if not settings.multiuser:
@@ -590,6 +666,20 @@ class AuthFlows:
                                 secure=settings.secure_cookie, samesite='strict', path=registration_at)
             return response
         self.with_registration = with_registration
+
+        def with_reset(request, response):
+            """This browser's reset binding (the A2 fix): the valid token its reset cookie holds, else a new one, set on
+            the answer either way (every "Forgot password?" answer carries it, whatever the address, so the headers say
+            nothing about one); the SHA-256 the codes keep (binding_hash)."""
+            raw = request.cookies.get(reset_cookie, '')
+            token = raw if REGISTRATION_TOKEN.fullmatch(raw) else secrets.token_hex(32)
+            response.set_cookie(reset_cookie, token, max_age=RESET_SECONDS, httponly=True,
+                                secure=settings.secure_cookie, samesite='strict', path=registration_at)
+            return token_hash(token)
+
+        def reset_binding(request):
+            raw = request.cookies.get(reset_cookie, '')
+            return token_hash(raw) if REGISTRATION_TOKEN.fullmatch(raw) else None
 
         def code_refusal(outcome, found):
             if outcome == 'limited':
@@ -662,6 +752,9 @@ class AuthFlows:
             request.state.principal = p
             response = signed_in(p, token)
             response.delete_cookie(registration_cookie, path=registration_at, secure=settings.secure_cookie)
+            if found.get('verifier'):
+                # the A2 fix (ERRORS M517): this browser set the account's password and proved its mailbox
+                self.set_device(response, found['user_id'], found['verifier'])
             return response
 
         @app.post('/api/v1/auth/code/resend', status_code=202)
@@ -671,17 +764,22 @@ class AuthFlows:
                 raise invalid({'purpose': 'purpose is register or reset.'})
             if b['purpose'] == 'register':
                 await registration_open()
+            response = JSONResponse(ACCEPTED, status_code=202)
+            binding = with_reset(request, response) if b['purpose'] == 'reset' else None
             if await asyncio.to_thread(store.resend, checked_email(b['email']), b['purpose'], client_address(request),
-                                       registration_of(request)):
+                                       registration_of(request), binding, request.cookies.get(device_cookie)):
                 self.wake()
-            return JSONResponse(ACCEPTED, status_code=202)
+            return response
 
         @app.post('/api/v1/auth/password/forgot', status_code=202)
         async def password_forgot(request: Request, _on=Depends(switched_on)):
             b = fields_of(await request.body(), ('email',), ('email',))
-            if await asyncio.to_thread(store.resend, checked_email(b['email']), 'reset', client_address(request)):
+            response = JSONResponse(ACCEPTED, status_code=202)
+            binding = with_reset(request, response)
+            if await asyncio.to_thread(store.resend, checked_email(b['email']), 'reset', client_address(request), None,
+                                       binding, request.cookies.get(device_cookie)):
                 self.wake()
-            return JSONResponse(ACCEPTED, status_code=202)
+            return response
 
         @app.post('/api/v1/auth/password/reset')
         async def password_reset(request: Request, _on=Depends(switched_on)):
@@ -691,7 +789,8 @@ class AuthFlows:
             async with self.password_work.admitted_request():
                 verifier = await self.new_verifier(checked_passwords(b))
             address = client_address(request)
-            outcome, found = await asyncio.to_thread(store.reset, email, b['code'].strip(), verifier, address)
+            outcome, found = await asyncio.to_thread(store.reset, email, b['code'].strip(), verifier, address,
+                                                     reset_binding(request))
             if outcome != 'ok':
                 raise code_refusal(outcome, found)
             # ERRORS R1-9: the reset proved the mailbox, and its answer says to sign in next: this client's sign-in
@@ -702,6 +801,7 @@ class AuthFlows:
             self.wake()
             response = JSONResponse({'next': 'sign_in'})
             response.delete_cookie(session_cookie, path='/', secure=settings.secure_cookie)
+            response.delete_cookie(reset_cookie, path=registration_at, secure=settings.secure_cookie)
             return response
 
         @app.post('/api/v1/auth/password/change')
@@ -719,13 +819,21 @@ class AuthFlows:
                 account = await asyncio.to_thread(store.account, p.user_id)
                 # a current password is a password try of the account like a sign-in's: counted in the same statement
                 # before the check, and refused while the account is locked (CONTRACT.md section 4, at most 100
-                # consecutive failures; 3c check C3-20); a right one ends the run of failures
-                tried = await asyncio.to_thread(auth.accounts.sign_in_try, p.user_id)
+                # consecutive failures; 3c check C3-20); a right one ends the run of failures. The A2 fix (ERRORS M517):
+                # from a browser where the password was proved before (its device cookie, under its own failure limit)
+                # the try neither counts towards nor waits for that lock, as at the sign-in
+                device = await asyncio.to_thread(store.device_for, p.user_id, request.cookies.get(device_cookie))
+                tried = True if device else await asyncio.to_thread(auth.accounts.sign_in_try, p.user_id)
                 proved = bool(account) and await self.password_work.run(verify_password, b['current_password'],
                                                                          account['verifier'])
                 if not (proved and tried):
+                    if device:
+                        await asyncio.to_thread(self.throttle.count, (DEVICE_SIGNIN, (str(p.user_id), device)))
                     raise Refusal(400, 'CURRENT_PASSWORD_INVALID', {'fields': ['current_password']})
-                await asyncio.to_thread(auth.accounts.sign_in_proved, p.user_id)
+                if device:
+                    await asyncio.to_thread(self.throttle.clear, DEVICE_SIGNIN, (str(p.user_id), device))
+                else:
+                    await asyncio.to_thread(auth.accounts.sign_in_proved, p.user_id)
                 verifier = await self.new_verifier(checked_passwords(b))
             # ERRORS R2-9: written only while this session is live and the proved verifier is still the account's
             outcome = await asyncio.to_thread(store.change, p.user_id, verifier, token_hash(p.token), account['email'],
@@ -736,7 +844,11 @@ class AuthFlows:
                 raise Refusal(400, 'CURRENT_PASSWORD_INVALID', {'fields': ['current_password']})
             await asyncio.to_thread(self.throttle.clear, PASSWORD_CHANGE, key)
             self.wake()
-            return {'status': 'PASSWORD_CHANGED'}
+            # this browser proved the old password and set the new one: its device token follows the new verifier (the
+            # tokens of every other browser end with the old one)
+            response = JSONResponse({'status': 'PASSWORD_CHANGED'})
+            self.set_device(response, p.user_id, verifier)
+            return response
 
         @app.post('/api/v1/auth/sign-out-all')
         async def sign_out_all(_on=Depends(switched_on), p: Principal = Depends(auth.writer)):

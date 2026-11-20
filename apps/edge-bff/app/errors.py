@@ -57,7 +57,8 @@ MESSAGES = {
     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4b): the account preferences
     'PREFERENCE_CONFLICT': 'This setting was changed on another device. The current value is attached; merge it and save again.',
     # EXEC-MU-ACCOUNTS Phase 1 (CONTRACT.md section 4): registration, codes, passwords and MFA
-    'CODE_INVALID_OR_EXPIRED': 'This code is wrong, has expired or was already used. Check the latest EDGE email, or ask for a new code.',
+    # the A2 fix (ERRORS M517): a code works only in the browser that asked for it, so the words say so and where to ask
+    'CODE_INVALID_OR_EXPIRED': 'This code is wrong, has expired, was already used or was asked for in another browser. Check the latest EDGE email, or ask for a new code on this page.',
     'USERNAME_TAKEN': 'This username is already taken. Choose another one and send it with the same code.',
     'MFA_LOCKED': 'Too many wrong codes, so this way of signing in is locked. Wait 24 hours or reset your password by email; an operator can also unlock it.',
     'PASSWORD_BREACHED': 'This password appears in known data breaches. Choose a different password.',

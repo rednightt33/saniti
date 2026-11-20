@@ -23,8 +23,9 @@ def code_email(purpose, code):
     why = {'register': 'to finish creating your EDGE account',
            'reset': 'to choose a new EDGE password',
            'email_change': 'to confirm your new email address for EDGE'}[purpose]
+    # the A2 fix (ERRORS M517): a code works only in the browser where it was asked for
     lines = [f'Your EDGE code is {code}.',
-             f'Enter it {why}. It works for {CODE_MINUTES} minutes and only once.',
+             f'Enter it {why}, in the browser where you asked for it. It works for {CODE_MINUTES} minutes and only once.',
              'If you did not ask for this code, you can ignore this email; nothing changes without it.']
     html = [f'Your EDGE code is <strong style="font-size:22px;letter-spacing:3px">{escape(code)}</strong>.',
             escape(lines[1]), escape(lines[2])]

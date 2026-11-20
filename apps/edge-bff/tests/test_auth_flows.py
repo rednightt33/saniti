@@ -255,11 +255,18 @@ def test_resend_waits_60_seconds_and_sends_at_most_10_a_day(app, store):
         cooldown_over(store)
         app.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'ana@example.com', 'purpose': 'register'})
     assert len(outbox(store, 'ana@example.com')) == 3
-    # the address's own budget (SEND_EMAIL): 10 a day, here through the reset codes of an account
+    # the address's own budget (SEND_EMAIL): 10 a day, here through the reset codes of an account. Since the A2 fix
+    # (ERRORS M517) one client address causes at most 4 of them (SEND_EMAIL_CLIENT), so the 10 take three clients
     make_account(TestClient(app.app), store, 'bea@example.com', 'bea_sari')
     for _ in range(12):
         cooldown_over(store)
         app.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'bea@example.com', 'purpose': 'reset'})
+    assert len(outbox(store, 'bea@example.com')) == 4
+    for client in ('198.51.100.1', '198.51.100.2'):
+        for _ in range(6):
+            cooldown_over(store)
+            app.post('/api/v1/auth/code/resend', headers={**ORIGIN, 'X-Forwarded-For': client},
+                     json={'email': 'bea@example.com', 'purpose': 'reset'})
     assert len(outbox(store, 'bea@example.com')) == 10
     for body in ({'email': 'nobody@example.com', 'purpose': 'register'}, {'email': 'nobody@example.com', 'purpose': 'reset'}):
         r = app.post('/api/v1/auth/code/resend', headers=ORIGIN, json=body)

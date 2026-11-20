@@ -54,8 +54,23 @@ SEND_EMAIL = Limit('send_email', 'send_email', 10, 86400)
 SEND_IP = Limit('send_ip', 'send_address', 10, 3600, enforced=False)
 MFA_USER = Limit('code_user', 'mfa_user', 10, 900)
 PASSWORD_CHANGE = Limit('signin_email', 'password_change', 10, 900)
-# ERRORS M478 re-check (N4): new registrations of one address, from any browser, mail it at most once per hour and three
-# times per day (one counter, key the address, read over both windows); they also count towards SEND_EMAIL
+# The A2 fix (ERRORS M513 A2, M517; CONTRACT.md section 4 "Throttle"): no limit a stranger can fill by naming a login or
+# an address may close the owner's way in or back.
+# - SEND_EMAIL_CLIENT: the code emails one client address causes to one address in a day (key: the address and the
+#   client), beside the address's SEND_EMAIL; one client alone cannot spend an address's day (a stranger needs three).
+# - DEVICE_MAIL: the code emails a browser where the account's password was proved (security.device_of) may ask for in
+#   a day (key: the address and the device); such a request is held by this limit instead of SEND_EMAIL and
+#   SEND_EMAIL_CLIENT, so the owner's own browser still gets its reset code when strangers spent the address's day.
+# - DEVICE_SIGNIN: the failed passwords of such a browser in a day (key: the account and the device); under it the
+#   browser's tries neither count towards nor wait for the account's lock of consecutive failures (accounts.py); past it
+#   the browser is treated as any other.
+SEND_EMAIL_CLIENT = Limit('send_email', 'send_email_client', 4, 86400)
+DEVICE_MAIL = Limit('send_email', 'device_mail', 5, 86400)
+DEVICE_SIGNIN = Limit('signin_email', 'signin_device', 10, 86400)
+# ERRORS M478 re-check (N4): new registrations of one address mail it at most once per hour and three times per day
+# (one counter read over both windows); they also count towards SEND_EMAIL. Since the A2 fix the key is the address and
+# the client address (it was the address alone, so one stranger's registrations of an address held back its owner's
+# for a day): the address's own ceiling is SEND_EMAIL with SEND_EMAIL_CLIENT
 REGISTER_HOUR = Limit('send_email', 'register', 1, 3600)
 REGISTER_DAY = Limit('send_email', 'register', 3, 86400)
 # ERRORS R1-13: every email of one pending registration (its code, a resend, a sign-in restart) counts here, key the

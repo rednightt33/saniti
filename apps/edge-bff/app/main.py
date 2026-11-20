@@ -40,7 +40,8 @@ from .radar import Radar
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .security import SESSION_COOKIE, cookie_name, csrf_token, needs_rehash, password_verifier, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
-from .throttle import GUEST_TOTAL_KEY, SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address, guest_total, normal_login
+from .throttle import (DEVICE_SIGNIN, GUEST_TOTAL_KEY, SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address, guest_total,
+                       normal_login)
 from .worker import Housekeeping, Worker
 
 COOKIE = SESSION_COOKIE                     # its name on an https origin: cookie_name (__Host-, re-check R2-22)
@@ -826,7 +827,7 @@ def create_app(settings=None, store=None, orc=None):
             wait = await asyncio.to_thread(throttle.attempt, SIGNIN_LOGIN, login_key)
             if wait:
                 return refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
-            account = restart = rehash = None
+            account = restart = rehash = device = None
             if settings.multiuser:
                 # EXEC-MU-ACCOUNTS Phase 1 (switch on): the active account named by its username or email, its
                 # password identity, and the pending registrations of that address (the newest PENDING_CHECKED). Every
@@ -834,9 +835,16 @@ def create_app(settings=None, store=None, orc=None):
                 # whatever the address holds (ERRORS M478 re-check: the time tells nothing; OWASP Authentication)
                 account = await asyncio.to_thread(auth.accounts.find_login, body.login)
                 pending = list(await asyncio.to_thread(auth.accounts.pending_logins, body.login))[:PENDING_CHECKED]
+                # the A2 fix (ERRORS M517, NIST SP 800-63B 5.2.2): a browser where this account's password was proved
+                # before (its device cookie, security.device_of), under its own failure limit (DEVICE_SIGNIN), neither
+                # counts towards nor waits for the account's lock, so a stranger who fills the lock does not lock the
+                # owner out of its own browser
+                device = await asyncio.to_thread(flows.store.device_for, account['user_id'],
+                                                 request.cookies.get(flows.device_cookie)) if account else None
                 # ERRORS R1-16: the account's consecutive failures, decided and counted before the check (a locked
                 # account answers as a wrong password); the same statement runs for a login that names no account
-                checked = await asyncio.to_thread(auth.accounts.sign_in_try, account['user_id'] if account else None)
+                checked = True if device else await asyncio.to_thread(auth.accounts.sign_in_try,
+                                                                      account['user_id'] if account else None)
                 known = await password_work.run(verify_password, body.password,
                                                 account['verifier'] if account else settings.password_verifier)
                 known = known and account is not None and checked
@@ -854,7 +862,8 @@ def create_app(settings=None, store=None, orc=None):
                 password_ok = await password_work.run(verify_password, body.password, settings.password_verifier)
                 known = hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode()) and password_ok
         if not known:
-            await asyncio.to_thread(throttle.count, (SIGNIN_IP, address))
+            await asyncio.to_thread(throttle.count, (SIGNIN_IP, address),
+                                    *(((DEVICE_SIGNIN, (str(account['user_id']), device)),) if device else ()))
             response = error('INVALID_CREDENTIALS', 401)
             # track guest: in the pre-launch mode registration is closed, so no pending registration is restarted (every
             # 401 there answers alike, without a registration cookie)
@@ -877,7 +886,8 @@ def create_app(settings=None, store=None, orc=None):
             # the live checker after the switch-on (ACC-5): the password was right, so the try is not a failure: the
             # account's consecutive failures and this login's tries are cleared as a success clears them (the password
             # work stays bounded by its pool, R2-37)
-            await asyncio.to_thread(auth.accounts.sign_in_proved, account['user_id'])
+            if not device:                    # a known browser's try left the account's count as it was (A2)
+                await asyncio.to_thread(auth.accounts.sign_in_proved, account['user_id'])
             await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
             return error('SIGN_IN_CLOSED', 403)
         old = request.cookies.get(session_cookie) or (None if settings.multiuser else request.cookies.get(COOKIE))
@@ -892,10 +902,12 @@ def create_app(settings=None, store=None, orc=None):
                                            settings.session_seconds, throttle.key_hash(SIGNIN_IP, address), False,
                                            # Phase 2: MFA by the account's resolved capabilities ('*' or admin.access)
                                            needs_mfa,
-                                           account['verifier'], None, rehash)
+                                           account['verifier'], None, rehash, keep_failures=bool(device))
             if made is None:
                 return error('INVALID_CREDENTIALS', 401)
             await asyncio.to_thread(auth.accounts.signed_in, account['user_id'])
+            if device:
+                await asyncio.to_thread(throttle.clear, DEVICE_SIGNIN, (str(account['user_id']), device))
         else:
             await asyncio.to_thread(store.session_create, token_hash(token), auth.configured_owner(), settings.session_seconds)
         await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
@@ -914,6 +926,9 @@ def create_app(settings=None, store=None, orc=None):
                             secure=settings.secure_cookie, samesite='strict', path='/')
         if session_cookie != COOKIE:
             response.delete_cookie(COOKIE, path='/')
+        if account is not None:
+            # the A2 fix: this browser proved the account's password; its device token follows the verifier it now has
+            flows.set_device(response, account['user_id'], rehash or account['verifier'])
         return response
 
     def session_answer(p):

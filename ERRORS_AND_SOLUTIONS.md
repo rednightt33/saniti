@@ -8879,6 +8879,83 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M517 — A stranger who knows an account's login or address could spend the owner's allowances: the lock, the code emails, the reset code (2026-11-20; BUILT on the branch, the ultracode checker next)
+
+- **Found by:** the live checker before the switch-on, finding A2 (M513). It was accepted for the pre-launch mode and
+  is fixed before registration opens. The user's go of 2026-11-20 ("perbaikan A2", then "Go") made it item 2 of the
+  next execution (EXEC.md option A).
+- **Verified root cause (code at `4785d1ef`):** the four limits that decide the owner's way in and back were keyed by
+  what a stranger can name.
+  - The account's lock: 100 consecutive failed passwords from anyone lock the password sign-in for 24 h.
+    `identities.sign_in_failures`, `app/accounts.py` `sign_in_try`.
+  - The address's code emails: 10 a day, from anyone (`SEND_EMAIL`, `app/auth_flows.py` `_may_send`). The 60 s gap is
+    the address's too.
+  - A reset code's 5 tries: any browser's wrong code used them up (`_check_code`).
+  - The live code itself: any browser's "Forgot password?" consumed the owner's live code before making its own
+    (`_issue_code`; one live code per account and purpose, index `email_codes_one_live`).
+
+  M507 had keyed only the daily wrong-code caps (`CODE_ADDRESS`, `CODE_USER`) by the client too. The finding's
+  reproduction locked the account, spent the mails and burned the code in about 15 requests.
+- **General class:** a limit that can refuse the owner, keyed only by a public identifier (login, address, code,
+  account), lets anyone who knows the identifier spend the owner's allowance. The same class covers:
+  - the password change's try under the lock;
+  - a registration's hourly and daily counts (one stranger's registration of an address held its owner's back for the
+    hour or the day);
+  - every new flow that mails a code (the email change, not built yet).
+
+  It does not cover limits a stranger cannot reach without the password: MFA's failure caps, the password change's own
+  `PASSWORD_CHANGE` limit (which needs a session), and the per-client sign-in limit `SIGNIN_LOGIN`.
+- **Solution (layer: the auth flows and their tables; NIST SP 800-63B 5.2.2, OWASP device cookies):** each allowance is
+  keyed apart from strangers by what a stranger cannot hold.
+  - **The account's own browser.** `edge_device` is an HMAC token over the account id, the time and the account's
+    current verifier (`security.device_token`/`device_of`). It is set where the password is proved (sign-in, finishing
+    a registration, password change).
+    - It ends with a password change, a reset or a rehash, and after 180 days.
+    - That browser's sign-in and password-change tries skip the account's lock, under its own 10 failures a day
+      (`DEVICE_SIGNIN`).
+    - Its success leaves the strangers' count and the lock unchanged (`create_session(keep_failures=…)`), so guesses
+      stay bounded.
+    - Its reset requests use their own 5 code emails a day (`DEVICE_MAIL`).
+    - It never signs anyone in.
+  - **A reset's browser.** `edge_reset` is set on every "Forgot password?" answer, whatever the address.
+    - Codes keep its SHA-256 (`email_codes.binding_hash`, migration `20261120_001`). There is one live code per
+      account, purpose and browser (`email_codes_one_live_per_browser`).
+    - A reset checks only this browser's code, or a code made before the binding.
+    - The gap is the browser's own.
+    - The refusal and the code email say the code works only in the browser that asked.
+  - **The client.** One client address causes at most 4 of an address's 10 code emails a day (`SEND_EMAIL_CLIENT`). A
+    registration's 1-an-hour and 3-a-day counts are keyed by the address and the client.
+- **What it does not cover (the residual, stated in CONTRACT section 4):**
+  - Strangers on three or more client addresses can still spend an address's 10 code emails in a day. A browser the
+    account never signed in on then waits for the day, or uses the operator unlock. The owner's own browser is not
+    affected.
+  - Before an account exists (a registration) no browser can be trusted, so a registration can be held back the same
+    way. Raising the cost further needs a challenge (a captcha) or the user's choice of a second channel.
+- **Risks and cost:**
+  - A new cookie (`edge_device`, 180 days, first-party, HttpOnly).
+  - A code typed in another browser is refused; the words say why and where to ask.
+  - One migration: a nullable column and an index swap, expand-only, no `*` reader (M511).
+  - No new variable.
+- **Verification:** `apps/edge-bff/tests/test_a2_stranger.py`, 14 tests:
+  - the finding's scenario, plus the lock, the password change under the lock, a device's own limit, a token ending
+    with the password, tampered and foreign tokens;
+  - the owner's code untouched by a stranger's requests and wrong codes, a code typed in another browser, uniform
+    "Forgot password?" answers, a code made before the binding;
+  - one client's part of an address's day, the owner's known browser after three strangers;
+  - one stranger's registration of an address;
+  - the residual: a new browser waits.
+
+  Changed tests:
+  - `test_resend_waits_60_seconds_and_sends_at_most_10_a_day`: the 10 now take three clients.
+  - `test_cp1a_f6_…`: the attacker gets its own client address.
+  - `test_a_wrong_current_password_counts_towards_the_accounts_cap`: a session without the device cookie.
+- **Permanent.** It is applied on dev only after the ultracode checker (xhigh) and its fixes. The migration goes
+  before the code that writes the column.
+- **Status:** BUILT on the branch (not pushed while the steps 1 and 2 deploy runs). Checker, migration and deploy next.
+- **Lesson for new data and flows:** every limit that can refuse a person carries, in its key, something a stranger
+  cannot hold (the client, the browser, the account's own proof). A flow that mails a code binds the code to the
+  browser that asked.
+
 ### M516 — The live smoke signed in with the admin's first password after the owner had replaced it (2026-11-20; FIXED in the smoke, one observation OPEN for step 4)
 
 - **Symptom:** step 2 of the go moved the live smoke into the repository
@@ -9056,7 +9133,8 @@ in its staleness check.
   - switch-on S4: FIXED. `EDGE_EMAIL_MODE=resend`, `EDGE_EMAIL_FROM` `EDGE <no-reply@mail.edgefinance.id>`, the log
     allowance deleted.
   - A2: ACCEPTED for the pre-launch mode ("3. ok": only the admin and test accounts sign in); fixed before
-    registration opens (EXEC.md option A).
+    registration opens (EXEC.md option A). Built 2026-11-20 as M517 (the account's own browser, the reset's browser,
+    the client's part of an address's day).
   - D2: DONE. The first split publication at 09:00 UTC (manual run `885892ec`): `watchlist-stocks` and
     `watchlist-radar`.
   - D3 and S8: DONE. `.railway/railway.ts` declares `edge-bff-live` as it is (no source, `preserve()`); the plan is up

@@ -938,6 +938,21 @@ registration whose cookie comes with it, so the code must be entered in the same
 registered (the code page says so). Every registration is its own pending row; an address has at most one account
 that is not pending (`users_email_one_account`).
 
+The A2 fix (ERRORS M517, CONTRACT.md section 4 "Codes" and "Throttle") added two more cookies:
+
+- **Reset cookie** `edge_reset`: a random token, HttpOnly, SameSite=Strict, 1 h, set by every "Forgot password?" and
+  reset resend answer.
+  - A reset code works only in the browser that asked for it (`email_codes.binding_hash`, migration `20261120_001`).
+  - So a stranger's wrong codes or requests never use up or replace the owner's code.
+- **Device cookie** `edge_device`: HMAC-signed with `EDGE_SESSION_SECRET` over the account id, the time and the
+  account's current verifier. It is set where the password is proved (sign-in, registration finished, password change)
+  and ends with the password or after 180 days. Nothing is stored.
+  - That browser's tries skip the account's lock of 100 consecutive failures (it has 10 failures a day of its own).
+  - Its reset requests use 5 code emails a day of their own instead of the address's 10.
+  - It never signs anyone in.
+- **Per-client cap:** one client address causes at most 4 of an address's 10 daily code emails.
+- **Registration count:** a registration's hourly and daily count is the address's from that client.
+
 Sign-in of a pending account (C1 P1-M1): the right password of a registration not yet verified answers the same 401
 `INVALID_CREDENTIALS` as a wrong one; within the send limits a fresh code is mailed and this browser gets the
 registration cookie. `EMAIL_NOT_VERIFIED` (contract section 4) is not used any more. With registration open, the

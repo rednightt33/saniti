@@ -16159,6 +16159,17 @@ Order of the services (CONTRACT 17, rollback floors):
     - The smoke found that the owner had reset the admin password during their test. It now tries no admin sign-in by
       default (ERRORS M516). A visitor's IHSG request is answered 403; that goes to item 3 (3e).
     - Shipping (the beta first, then the live site, each after green CI) is recorded below when done.
+    - Item 2, the A2 fix: built on the branch (ERRORS M517).
+      - The account's own browser: `edge_device`, an HMAC token over the account's current verifier. That browser
+        skips the account's lock under its own 10 failures a day, and asks for its reset mails under its own 5 a day.
+      - The reset's browser: `edge_reset`, and codes bound to it (migration `20261120_001`).
+      - The client's part: at most 4 of an address's 10 daily code emails per client address, and registration counts
+        keyed by the address and the client.
+      - Tests: `tests/test_a2_stranger.py` (14).
+      - Residual, stated in CONTRACT section 4: three or more strangers can still spend an address's day against a
+        browser the account never used, and before an account exists.
+      - Next: the ultracode checker at xhigh, its fixes, the migration on dev (DRYRUN, APPLY, M340), then the beta.
+        The live site only on the user's request.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

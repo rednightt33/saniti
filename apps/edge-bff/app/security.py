@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import re
 import secrets
+import time
 import unicodedata
 
 # ERRORS R2-29 (OWASP Password Storage Cheat Sheet: scrypt N=2^17, r=8, p=1, or an equivalent; at 16 MiB the equivalent
@@ -21,6 +22,10 @@ VERIFIER = re.compile(r'scrypt\$(?:n=([0-9]{1,7}),r=([0-9]{1,2}),p=([0-9]{1,2})\
 SESSION_COOKIE = 'edge_session'
 REGISTRATION_COOKIE = 'edge_registration'
 REGISTRATION_PATH = '/api/v1/auth/'             # the registration cookie's path where no prefix applies
+# The A2 fix (ERRORS M513 A2, M517; CONTRACT.md section 4 "Throttle"): the account's own browser and a password reset's
+# browser, on the same path as the registration cookie (registration_path)
+DEVICE_COOKIE = 'edge_device'
+RESET_COOKIE = 'edge_reset'
 
 
 def cookie_name(name, secure):
@@ -110,6 +115,53 @@ def verify_password(password: str, verifier: str) -> bool:
 
 def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+# ---- the account's own browsers (the A2 fix, ERRORS M513 A2 and M517) ------------------------------------------------
+# NIST SP 800-63B 5.2.2 and OWASP's "device cookies": a limit a stranger can reach by naming a login or an address must
+# not lock out the account's owner. A browser where the account's password was proved gets a device token, signed with
+# EDGE_SESSION_SECRET over the account's id, the time and the account's current verifier, so it stops being valid when
+# the password changes (a change, a reset, a rehash) and after DEVICE_SECONDS. It proves only that this browser once
+# signed the account in with its current password: it lets that browser past the limits strangers can fill (the
+# account's lock of consecutive failed passwords, the address's daily code emails), under limits of its own
+# (throttle.DEVICE_SIGNIN, DEVICE_MAIL); it never signs anyone in. Nothing is stored: the token is checked against the
+# account's row at the moment it is used.
+DEVICE_SECONDS = 180 * 86400
+DEVICE_TOKEN = re.compile(r'([1-9][0-9]{0,18})\.([0-9]{10})\.([0-9a-f]{32})\.([0-9a-f]{64})')
+DEVICE_LABEL = b'edge_bff.device_token\x00'
+
+
+def _device_mac(secret: str, user_id: int, issued: int, nonce: str, verifier: str) -> str:
+    return hmac.new(secret.encode(), DEVICE_LABEL + f'{user_id}.{issued}.{nonce}'.encode() + b'\x00'
+                    + hashlib.sha256((verifier or '').encode()).digest(), hashlib.sha256).hexdigest()
+
+
+def device_token(secret: str, user_id: int, verifier: str, now=None) -> str:
+    """A new device token of the account (a fresh nonce each time), bound to its current verifier."""
+    issued = int(time.time() if now is None else now)
+    nonce = secrets.token_hex(16)
+    return f'{user_id}.{issued}.{nonce}.{_device_mac(secret, user_id, issued, nonce, verifier)}'
+
+
+def device_user(token) -> int | None:
+    """The account id a device token names, unchecked (device_of checks it against that account's row); None when the
+    text is not a device token."""
+    m = DEVICE_TOKEN.fullmatch(token or '') if isinstance(token, str) else None
+    return int(m.group(1)) if m else None
+
+
+def device_of(secret: str, token, user_id: int, verifier: str, now=None) -> str | None:
+    """The device's nonce when `token` is a device token of this account, signed over its current verifier and not older
+    than DEVICE_SECONDS (nor more than 5 minutes ahead of this clock); else None."""
+    m = DEVICE_TOKEN.fullmatch(token or '') if isinstance(token, str) else None
+    if m is None or user_id is None or int(m.group(1)) != int(user_id) or not verifier:
+        return None
+    issued, at = int(m.group(2)), time.time() if now is None else now
+    if not at - DEVICE_SECONDS <= issued <= at + 300:
+        return None
+    if not hmac.compare_digest(m.group(4), _device_mac(secret, int(user_id), issued, m.group(3), verifier)):
+        return None
+    return m.group(3)
 
 
 def csrf_token(token: str, secret: str) -> str:

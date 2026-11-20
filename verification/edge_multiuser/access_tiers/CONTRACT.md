@@ -215,6 +215,17 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 - The 20-a-day cap of failed tries also holds per address for resets, account or not (R1-8); `USERNAME_TAKEN` uses one
   of the code's 5 tries (R1-12).
 - Codes are compared in constant time.
+- **The A2 fix (built 2026-11-20; ERRORS M513 A2 and M517):** a reset's code is bound to the browser that asked for it,
+  as a registration's is by its own cookie.
+  - Every "Forgot password?" and reset resend answer sets the `edge_reset` cookie (HttpOnly, SameSite=Strict, 1 h),
+    whatever the address. The browser keeps a valid one.
+  - The code keeps the SHA-256 of that cookie (`email_codes.binding_hash`, migration `20261120_001`). There is one live
+    code per account, purpose and browser (`email_codes_one_live_per_browser`).
+  - A reset checks only this browser's code, or one made before the binding. So another browser's wrong codes never use
+    up the owner's 5 tries, and its request never replaces the owner's code.
+  - The 60 s gap of a reset is the browser's own.
+  - A code typed in another browser is refused, and the words say so ("asked for in another browser ... ask for a new
+    code on this page"). The code email says "in the browser where you asked for it".
 
 **Throttle** (Postgres, works with several replicas):
 - Sign-in: 10 failures per login and client address per 15 min (enforced; built, `fix-auth`, R1-9: a login alone let
@@ -224,7 +235,30 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
   after it the count restarts at 90; cleared by a success, a reset by email code or a change (built, `fix-auth`,
   R1-16). The beta (switch off) has no such cap, which keeps the admin's long random password (the main agent's design
   value, told to the user 2026-11-19).
-- Email sending: 10 per IP hash per hour.
+- **The account's own browser (the A2 fix, 2026-11-20; NIST SP 800-63B 5.2.2, OWASP "device cookies"):** where the
+  account's password is proved (a sign-in, finishing a registration, a password change), the browser gets `edge_device`.
+  - The token is HMAC-signed with `EDGE_SESSION_SECRET` over the account id, the time and the account's current
+    verifier (`security.device_token`). It ends with a password change, a reset or a rehash, and after 180 days.
+    Nothing is stored.
+  - It never signs anyone in. It only lets that browser past the limits a stranger can fill:
+    - its sign-in and password-change tries neither count towards nor wait for the account's lock;
+    - its reset requests use their own 5 code emails a day (`DEVICE_MAIL`) instead of the address's 10.
+  - A known browser's successful sign-in leaves the strangers' count and the lock as they are, so guesses stay bounded
+    however often the owner signs in.
+  - The browser's own failed passwords are limited to 10 a day (`DEVICE_SIGNIN`). Past that it is treated as any
+    browser.
+  - A stolen token alone does not sign in, and gives at most those 10 guesses a day before it counts as anyone's.
+- Email sending: 10 per IP hash per hour (recorded). Code emails: 10 per address per day; since the A2 fix, at most 4
+  of them caused by one client address (`SEND_EMAIL_CLIENT`), so one stranger cannot spend an address's day. A
+  registration's 1-an-hour and 3-a-day counts are keyed by the address and the client, so one stranger's registration
+  does not hold the owner's back.
+- **Residual (ERRORS M517):** strangers on three or more client addresses can still spend an address's 10 code emails
+  in a day.
+  - A browser the account never signed in on then waits for the day: the operator unlock or the next day is its way
+    back.
+  - The owner's own browser is not affected.
+  - Before an account exists (a registration) there is no browser to trust, so a registration can be held back the
+    same way.
 - A dummy scrypt verify runs for unknown logins, so timing matches.
 - **Client IP:** from `X-Forwarded-For` as set by Railway's edge, read over every line of the header and keyed by the
   whole IPv4 address or the IPv6 /64 (`throttle.forwarded_hop`, `address_key`; the visitor key and the sign-in and
@@ -244,8 +278,10 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
   check their proof inside the same transaction; one whose proof no longer holds is refused (built, `fix-auth`, R2-9).
 - The SSE stream re-checks the principal on each loop (it already re-reads the session, `main.py`), with the
   capability the route needs (`monitor.view`): held by `tests/test_run_stream_live.py` (built, `fix-records`, R1-28).
-- **Cookies:** on an https origin `__Host-edge_session` and `__Host-edge_registration` (Path=/, no Domain, Secure);
-  local http keeps the plain names. With the switch off a session under the old name is moved once (the admin is not
+- **Cookies:** on an https origin `__Host-edge_session`, `__Host-edge_registration`, and, since the A2 fix,
+  `__Host-edge_reset` (a reset's browser, 1 h) and `__Host-edge_device` (the account's own browser, 180 days; section 4
+  "Throttle"). All are Path=/, no Domain, Secure, HttpOnly, SameSite=Strict. Local http keeps the plain names on
+  `/api/v1/auth/` (the session cookie on `/`). With the switch off a session under the old name is moved once (the admin is not
   signed out); with it on the old name is never read (built, `fix-plans`, R2-22).
 - An https origin sends `Strict-Transport-Security: max-age=31536000` (host only, no preload; built, `fix-plans`,
   R2-21). Every page policy has `form-action 'self'`; the shell runs no inline script (`script-src 'self'`; R2-19).

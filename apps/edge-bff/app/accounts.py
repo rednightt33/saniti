@@ -306,7 +306,7 @@ class AccountStore:
                          (user_id, ACTIVE)).fetchone()
 
     def create_session(self, hashed, user, seconds, ip_hash=None, mfa_passed=False, mfa_user=False, proved=None,
-                       replaces=None, rehash=None):
+                       replaces=None, rehash=None, keep_failures=False):
         """A session of the account (owner_key kept beside user_id), then the account's oldest live sessions beyond the
         cap revoked, in one transaction under the account's lock (two sign-ins at once cannot both keep one too many).
         For an account that needs MFA (mfa_user), a session that has not passed it is pending: pending sessions have
@@ -314,17 +314,23 @@ class AccountStore:
         The proof the session rests on is checked under the lock (ERRORS R2-9): `proved`, the verifier a sign-in
         proved, must still be the account's (its failure count is then cleared, and `rehash`, the same password at the
         current cost, takes its place: ERRORS R2-29); `replaces`, the pending session an MFA verify upgrades, must still
-        be live, and is revoked in the same transaction. Returns the number revoked, or None when the account or the
-        proof no longer holds (nothing is made)."""
+        be live, and is revoked in the same transaction. `keep_failures` (the A2 fix, ERRORS M517): a sign-in from a
+        browser where the account's password was proved before (its device cookie) leaves the account's count of
+        consecutive failures and its lock as they are, so a stranger's guesses stay bounded however often the owner
+        signs in from a known browser. Returns the number revoked, or None when the account or the proof no longer
+        holds (nothing is made)."""
         pending = mfa_user and not mfa_passed
         with self.store.connect() as c:
             if self.lock_account(c, user['user_id']) is None:
                 return None
             if proved is not None and c.execute('''UPDATE edge_bff.identities
-                    SET sign_in_failures = 0, sign_in_locked_until = NULL, verifier = coalesce(%(new)s, verifier),
+                    SET sign_in_failures = CASE WHEN %(keep)s THEN sign_in_failures ELSE 0 END,
+                        sign_in_locked_until = CASE WHEN %(keep)s THEN sign_in_locked_until END,
+                        verifier = coalesce(%(new)s, verifier),
                         updated_at = CASE WHEN %(new)s::text IS NULL THEN updated_at ELSE now() END
                     WHERE user_id = %(user)s AND provider = 'password' AND verifier = %(proved)s
-                    RETURNING user_id''', {'new': rehash, 'user': user['user_id'], 'proved': proved}).fetchone() is None:
+                    RETURNING user_id''', {'new': rehash, 'user': user['user_id'], 'proved': proved,
+                                             'keep': bool(keep_failures)}).fetchone() is None:
                 return None
             if replaces is not None and c.execute('''UPDATE edge_bff.sessions SET revoked_at = now()
                     WHERE token_hash = %s AND user_id = %s AND revoked_at IS NULL AND expires_at > now()
@@ -385,7 +391,7 @@ EMAIL_RETENTION_DAYS = 30
 def purge_codes(connection, limit=None):
     """Email codes that can no longer be used, EMAIL_RETENTION_DAYS after they ended: used (consumed_at) or, never
     used, expired (expires_at, 300 s after they were made). A live code is never deleted, so the one-live-code rule
-    (email_codes_one_live) and the 5 tries are unchanged. At most limit of them (None: every one); the codes deleted.
+    (email_codes_one_live_per_browser) and the 5 tries are unchanged. At most limit of them (None: every one); the codes deleted.
     Called from Store.purge, the hourly housekeeping (worker.Housekeeping; store.PURGES 'codes')."""
     return connection.execute('''DELETE FROM edge_bff.email_codes WHERE code_id IN (SELECT code_id FROM edge_bff.email_codes
         WHERE coalesce(consumed_at, expires_at) < now() - make_interval(days => %s) ORDER BY code_id LIMIT %s)''',

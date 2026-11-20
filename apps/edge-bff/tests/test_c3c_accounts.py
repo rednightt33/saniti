@@ -136,6 +136,9 @@ def test_a_sign_in_at_the_registrations_mail_cap_keeps_the_registration_on_this_
 def test_a_wrong_current_password_counts_towards_the_accounts_cap(app, store):
     r = make_account(app, store)
     h = {**ORIGIN, 'X-CSRF-Token': r.json()['csrf_token']}
+    # a session without the browser's device cookie (a session taken elsewhere; the A2 fix: the browser that registered
+    # holds one, tests/test_a2_stranger.py covers its own limit)
+    app.cookies.delete('edge_device')
     # 99 consecutive failed passwords already (sign-ins from other addresses): one more is the 100th
     db(store, "UPDATE edge_bff.identities SET sign_in_failures = %s WHERE user_id = (SELECT user_id FROM edge_bff.users "
               "WHERE email = 'ana@example.com')", PASSWORD_FAILURE_CAP - 1)

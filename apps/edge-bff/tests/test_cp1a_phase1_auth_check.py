@@ -136,11 +136,15 @@ def test_cp1a_f6_registrations_by_others_use_at_most_three_of_the_addresss_daily
     victim = TestClient(app.app)
     assert register(victim, 'vic@example.com', 'vic_real').status_code == 202
     hour_over(store)
-    attacker = TestClient(app.app)
-    assert register(attacker, 'vic@example.com', 'eve_two', password='the attackers password').status_code == 202
+    # the attacker is elsewhere (its own client address): since the A2 fix (ERRORS M517) the code emails one client
+    # causes to an address are counted apart (SEND_EMAIL_CLIENT), as a stranger's are in practice
+    attacker, there = TestClient(app.app), {**ORIGIN, 'X-Forwarded-For': '203.0.113.9'}
+    body = {'username': 'eve_two', 'first_name': 'Ana', 'last_name': 'Putri', 'email': 'vic@example.com',
+            'phone': '0812 3456 7890', 'password': 'the attackers password', 'password_repeat': 'the attackers password'}
+    assert attacker.post('/api/v1/auth/register', headers=there, json=body).status_code == 202
     for _ in range(9):
         cooldown_over(store)
-        attacker.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'vic@example.com', 'purpose': 'register'})
+        attacker.post('/api/v1/auth/code/resend', headers=there, json={'email': 'vic@example.com', 'purpose': 'register'})
     cooldown_over(store)
     before = len(outbox(store, 'vic@example.com'))
     victim.post('/api/v1/auth/code/resend', headers=ORIGIN, json={'email': 'vic@example.com', 'purpose': 'register'})

@@ -103,6 +103,8 @@ def database():
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_070_edge_bff_guest_plan_and_test_accounts.sql').read_text())
             # the 3c check's fixes: the scope of the ceiling of every visitor together (EDGE_GUEST_CALLS_PER_HOUR)
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261119_071_edge_bff_guest_total_scope.sql').read_text())
+            # the A2 fix (ERRORS M517): a reset code bound to the browser that asked for it
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261120_001_edge_bff_reset_code_browser.sql').read_text())
             c.execute('CREATE TABLE public.market_private(secret text)')
         yield url
     finally:
