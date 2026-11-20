@@ -16049,6 +16049,24 @@ Order of the services (CONTRACT 17, rollback floors):
   The user connected the repository the same day (M514; branch `live`, Wait for CI, read back; the live site now
   deploys from `live` only). The final ultracode checker of option A runs now, on the running site (the user: "lets
   wait sampai ultracode beres, then fixed it. once that done I'll test everything live").
+- **The user's test and decisions after the checker's fixes (2026-11-20):** "Yang perlu saya test sudah alright." Then,
+  on the open items: guest quota behind a carrier NAT "leave as is"; Privacy and Terms links hidden until their text
+  exists "OK"; the Terminal footer's developer notes removed, "Charts by TradingView" kept "OK" (the go for this Terminal
+  look change); the admin's variables moved to a private service "OK"; "Masuk exec jangan jalankan dulu." Approved,
+  **not executed** (an execution starts only after the user's go):
+  1. Privacy and Terms: the two footer links (`static/edge-app.js` AuthFooter, `#privacy`, `#terms`) are left out until
+     the user gives the texts (CONTRACT 18 lists what the Privacy text states). Open detail: the live site only, or
+     both sites.
+  2. The Terminal footer: "Market Lab · TradingView-like layout" and "Standalone Lightweight Charts · Wheel zoom · Drag
+     pan · Y-axis drag scale" removed; "Charts by TradingView" (the chart library's attribution) kept; `look_check11`
+     before the commit (AGENTS, EDGE Terminal look).
+  3. `EDGE_ADMIN_USERNAME`, `EDGE_ADMIN_EMAIL` and `EDGE_ADMIN_INITIAL_PASSWORD` move from `edge-bff-live` to
+     `orc-test-runner` (private, the runner `scripts/edge_account_login.py`'s job already uses); the job reads them from
+     its own environment; `.railway/railway.ts` and the records follow; the live site redeploys once without them.
+  4. The guest quota stays as it is (60 files per hour per public address) until before the site is announced.
+  Still open with the user: the Postgres restart times (12:15 instead of 09:45 WIB proposed), the Resend webhook secret,
+  a GitHub ruleset on `live`, the test accounts' addresses and plans, the upgrade contact, the RAILWAY_TOKEN repository
+  secret, and whether to look into the broker data stopping at 9 November.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
