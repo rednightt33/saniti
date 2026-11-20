@@ -16106,6 +16106,19 @@ Order of the services (CONTRACT 17, rollback floors):
   for it, for what the user names. The user also asked how a later session, without this conversation, can bring a
   beta feature to the live site; a promotion runbook and a derived list of what the beta holds that the live site does
   not are proposed to the user (not yet written).
+  The user then: "Oke, masukan exec." Approved, **not executed**:
+  1. `LIVE_PROMOTION.md`, the runbook of a promotion on request: live takes whole commits of the beta, and what is not
+     ready stays switched off on the live site (its own tab capability not granted, or its items at stage `lab`); the
+     steps (the user names what goes; the beta–live difference; the shared database stays readable by the live
+     site's older code; green CI, then `live` moves; the switches turned on for the plans the user names; the live
+     smoke; the records); rollback; what is never done (a CLI upload to the live site, a migration that breaks the
+     version the live site runs); and a short decision note per feature (for which plans, when the user asked).
+  2. `scripts/live_diff.py`: what `main` holds that `live` does not, derived at run time (commits, changed pages,
+     tabs and catalog items, release stages, new migrations), so a later session needs no memory of this one.
+  3. AGENTS.md "The live site": read `LIVE_PROMOTION.md` and run `scripts/live_diff.py` before any promotion; a
+     promotion only on the user's request.
+  4. A test that fails when a new tab or catalog item reaches `main` without a live switch (a capability no plan
+     holds, or stage `lab`), so moving `live` never opens one by accident.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
