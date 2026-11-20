@@ -11,6 +11,53 @@ from app.store import Store
 def pytest_configure(config):
     # AGENTS.md "Generated files": .github/workflows/generated-files.yml runs the tests with this mark
     config.addinivalue_line('markers', 'generated_file: a generated file equals what its generator writes now')
+    if browser_reruns() and not config.pluginmanager.hasplugin('rerunfailures'):
+        raise pytest.UsageError('EDGE_TEST_BROWSER_RERUNS needs pytest-rerunfailures (requirements-dev.txt)')
+
+# TEMPORARY (ERRORS M510; the user 2026-11-20, "1 A"): on GitHub's runner a few browser tests of the Monitor page fail,
+# a different set each run, while every local run passes them (also with the page's CPU slowed six times). With
+# EDGE_TEST_BROWSER_RERUNS=N, set only in .github/workflows/backend-tests.yml, a test that opens a browser (its own body
+# or a fixture it uses starts Playwright) runs again up to N times after a failure, and pytest-rerunfailures prints
+# every rerun ("R", "rerun" in the summary). Unset, as in every local run, nothing is rerun. It does not cover a test
+# that fails every time (that stays red) and it can hide a fault that shows only sometimes, which is why the root cause
+# is being found (M510) and this goes with its fix.
+def browser_reruns():
+    value=os.environ.get('EDGE_TEST_BROWSER_RERUNS','').strip()
+    if not value:
+        return 0
+    if not value.isdigit() or not 1 <= int(value) <= 3:
+        raise pytest.UsageError('EDGE_TEST_BROWSER_RERUNS is a whole number from 1 to 3')
+    return int(value)
+
+_SOURCES={}
+def _starts_browser(func):
+    if func not in _SOURCES:
+        try:
+            import inspect
+            _SOURCES[func]='sync_playwright' in inspect.getsource(func)
+        except (OSError,TypeError):
+            _SOURCES[func]=False
+    return _SOURCES[func]
+
+def opens_browser(item):
+    if _starts_browser(getattr(item,'function',None)):
+        return True
+    defs=getattr(getattr(item,'_fixtureinfo',None),'name2fixturedefs',{})
+    return any(_starts_browser(d.func) for name in item.fixturenames for d in defs.get(name,()))
+
+def pytest_collection_modifyitems(config, items):
+    reruns=browser_reruns()
+    if not reruns:
+        return
+    marked=[item for item in items if opens_browser(item)]
+    for item in marked:
+        item.add_marker(pytest.mark.flaky(reruns=reruns))
+    config._edge_browser_reruns=(len(marked),reruns)
+
+def pytest_report_collectionfinish(config, start_path, items):
+    if getattr(config,'_edge_browser_reruns',None):
+        n,reruns=config._edge_browser_reruns
+        return f'TEMPORARY (ERRORS M510): {n} browser tests may run again up to {reruns} times after a failure'
 
 @pytest.fixture(scope='session')
 def database():

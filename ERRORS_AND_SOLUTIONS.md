@@ -8879,29 +8879,39 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M510 — CI ran edge-bff's browser tests on a newer Chrome than every local run, and two of them failed there (2026-11-20; CI pin FIXED; the Chrome 159 behaviour OPEN)
+### M510 — edge-bff's browser tests fail on GitHub's runner, a different few each run, while every local run passes them (2026-11-20; TEMPORARY rerun in CI, root cause OPEN)
 
-- **Found by:** the first CI run of edge-bff's browser tests after M509 (run 44663513713, commit `b969529b`): 947 passed,
-  2 failed.
-- **Symptom:** `test_ui_1020c.py::test_the_pinned_title_never_covers_its_first_row_and_cards_show_in_both_themes`
-  ("getComputedStyle ... parameter 1 is not of type 'Element'": no open response card, `.edge-flow-accordion[open]`, in
-  the Details panel) and `test_composer_layout.py::test_submit_history_and_fixed_headers[mobile]` (the first
-  conversation of the opened history "not stable", then "not visible", for 6 s). Both pass locally, alone and in the
-  full suite, also with every core busy (5 of 5 under load, 2026-11-20).
-- **Verified difference:** Playwright 1.65.2 installs its own Chromium build 1255 (Chrome 159.0.8154.6); the local
-  suites run `/opt/pw-browsers/chromium` (Chrome for Testing 153.0.8010.12, the build of the pre-installed Playwright
-  1.63.0), and the page smoke installs Playwright 1.63.0 in CI. So CI tested a browser no local run had used.
-- **Suspected cause (not verified):** a behaviour of Chrome 159 (the open state of a `<details>` card set at its first
-  render; the history drawer on a phone closing during the restore after a reload) or the slower runner's timing; the
-  composer test is the M212 class. Check that settles it: run both tests with Chrome 159 once that build can be
-  installed here, and twenty times on the 1.63.0 build in CI.
-- **General class:** a test environment whose browser build drifts from the one the checks were proven on; the same
-  holds for the Terminal look check and the page smoke whenever their Playwright pins move.
-- **Solution (CI, permanent):** one browser build for local and CI: `requirements-dev.txt` pins 1.63.0 (M509). Chrome
-  159 is not yet the browser of EDGE's users; when it is, the two tests are run on it and any real fault is fixed in the
-  page (the tests are not changed to pass).
-- **Status:** the pin FIXED; the Chrome 159 behaviour OPEN.
-- **Lesson:** a pin names the browser build, not only the package: the package version decides which Chromium CI gets.
+- **Found by:** the first CI runs of edge-bff's browser tests after M509: run 44663513713 (commit `b969529b`, Playwright
+  1.65.2, Chrome 159): 947 passed, 2 failed; run 44667192992 (commit `58b75888`, Playwright 1.63.0, Chrome for Testing
+  153, the build of every local run): 945 passed, 4 failed.
+- **Symptom:** the failures change from run to run and all are Monitor-page tests: the phone history drawer that does
+  not stay open (`test_composer_layout.py::test_submit_history_and_fixed_headers[mobile]` and `[mobile-small]`: the
+  first conversation "not stable", then "not visible"; `test_visual.py::test_responsive_history_details_preferences_and_keyboard[390-844]`
+  and `[360-800]`: the "Conversation history" dialog never appears), no open response card in the Details panel
+  (`test_ui_1020c.py::test_the_pinned_title_never_covers_its_first_row_and_cards_show_in_both_themes`) and one attached
+  passage of two (`test_ui_1024.py::test_attached_passages_are_marked_and_each_carries_its_own_comment`). Every 3c test
+  (visitors, accounts, the Terminal) passed in both runs. Locally they pass alone, in the full suite and with the page's
+  CPU slowed six times (CDP throttling, 10 of 10, 2026-11-20).
+- **Verified:** the browser build is not the cause (run 2 used the local build and failed other tests). These browser
+  tests never ran in CI before 2026-11-19 (they were skipped without Playwright), so no CI run of the deployed code
+  exists to compare with.
+- **Suspected cause (not verified):** the timing of GitHub's smaller runner, or a change of this release to how the
+  Monitor page loads (its script moved out of the page for the script policy, `b36e621a`; Inter served by EDGE,
+  `09d7fc42`) that shows only on a slow machine; the composer test is the M212 class. Check that settles it: run the
+  deployed Monitor code and this one on GitHub's runner, several times each, with a Playwright trace kept for every
+  failure.
+- **General class:** a browser test that acts before the page has settled passes on a fast machine and fails on a slow
+  one; the same holds for every browser test of the Terminal, Screener, Backtest, Watchlist and account pages.
+- **Stopgap (TEMPORARY, the user 2026-11-20: "1 A", after the choice "ulang otomatis sementara + selidiki paralel"):**
+  in CI only (`EDGE_TEST_BROWSER_RERUNS=2` in `backend-tests.yml`), a failed test that opens a browser (its body or a
+  fixture it uses starts Playwright, derived at collection, `tests/conftest.py`) runs again up to twice;
+  pytest-rerunfailures prints every rerun and the header names how many tests it covers. Not covered: a test that fails
+  every time stays red; a fault that shows only sometimes can pass unseen, so the root cause is found and fixed in the
+  page, and the stopgap is removed with that fix. Local runs never rerun.
+- **CI pin (permanent):** `requirements-dev.txt` pins Playwright 1.63.0, the browser build of the local runs and the page
+  smoke (M509).
+- **Status:** TEMPORARY rerun in CI; root cause OPEN (investigation runs beside the 3c deploy).
+- **Lesson:** a browser test needs a run on the slowest machine it is held to before it gates a deploy.
 
 ### M509 — CI: edge-bff's suite never ran in GitHub after the fix round, because the runner's OS moved past the pinned Playwright (2026-11-19/20; FIXED in CI, verified by the next run)
 

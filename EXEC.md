@@ -15910,6 +15910,13 @@ deployed alone.
   was put to the user in plain words: 16 database changes in order, the three services, the gateway account, the
   smoke, the switch staying off, a short restart of Postgres if the access-log index needs it).
 
+- **During the deploy (the user, 2026-11-20):** "1 A" and "2 OK", to the question on the CI browser tests (ERRORS
+  M510: a few Monitor-page browser tests fail on GitHub's runner, a different set each run, while every local run
+  passes them; edge-bff deploys only on green checks, K10 a). 1 A: a failed browser test runs again up to twice in CI
+  only (TEMPORARY, every rerun printed), the 3c deploy goes on, and the root cause is investigated beside it and fixed;
+  the rerun is removed with that fix. 2 OK: the migrations and the terminal-api and worker deploys go ahead while the
+  CI change runs.
+
 What goes to dev: Phase 3c and the 3b follow-up, the re-check's fix round (84 findings), the user's decisions of
 2026-11-19, and the 3c check's 27 fixes (ERRORS M504-M508). The switch stays off on `edge-bff` (the beta): with
 `EDGE_ADMIN_OWNERS` unset the configured owner holds `*`, so every tab works as today. `edge-bff-live` stays empty (the

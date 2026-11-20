@@ -60,6 +60,9 @@ jobs:
       EDGE_TEST_POSTGRES_URL: postgresql://postgres@127.0.0.1:5432/postgres
       # a generated_file test that cannot find the Terminal's esbuild fails here instead of skipping
       EDGE_TEST_REQUIRE_NODE: "1"
+      # TEMPORARY (ERRORS M510; the user 2026-11-20, "1 A"): a failed test that opens a browser runs again up to twice
+      # (tests/conftest.py browser_reruns; every rerun is printed). Removed with the root-cause fix of M510.
+      EDGE_TEST_BROWSER_RERUNS: "2"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
