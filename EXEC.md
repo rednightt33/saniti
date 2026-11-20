@@ -16091,6 +16091,15 @@ Order of the services (CONTRACT 17, rollback floors):
   Domains → edgefinance.id → Redirects), the user's account; the agent then reads it back from outside (status 301,
   Location, HTTPS on both names) and records it. Nothing changes on Railway. If a public landing page is wanted on the
   root later, the redirect is removed then.
+  Checked through the user's Hostinger connector (2026-11-20, read only; the user: "Saya sudah hubungkan hostinger ke
+  Claude dan login. Coba dicek apakah bisa kamu rubah di sana"): nameservers `lunar.dns-parking.com` and
+  `solar.dns-parking.com` (Hostinger's own, so a forwarding does not move them); the zone holds `@` A 2.57.91.91 (the
+  parked page), `www` CNAME to the root, `app` CNAME to Railway with its `_railway-verify.app` TXT, the Resend records
+  (`resend._domainkey.mail`, `send.mail`, `rsend.mail`), Hostinger mail (MX, SPF, DKIM, autoconfig) and `_dmarc`; no
+  forwarding yet. `domains_forwarding_create` (301 to `https://app.edgefinance.id`) replaces only the root's A/AAAA
+  records, so `app`, the Resend mail and the MX records stay. Waits for the user's go; after it: read back the forwarding
+  and the DNS zone, and from outside `edgefinance.id` and `www` (HTTP and HTTPS) answer 301 to the live site, and
+  `app.edgefinance.id` and the mail records are unchanged.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
