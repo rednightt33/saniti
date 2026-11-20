@@ -271,6 +271,19 @@ def test_prelaunch_lets_only_the_admin_and_test_accounts_sign_in(prelaunch, stor
                       json={'login': 'paula', 'password': 'paula-password'}).status_code == 200
 
 
+def test_a_closed_accounts_right_password_never_counts_as_a_failure(prelaunch, store):
+    """The live checker after the switch-on (ACC-5): in the pre-launch mode a closed account's right password is answered
+    SIGN_IN_CLOSED every time (more than the 10 tries per login and address, never the rate limit), and it adds nothing
+    to the account's consecutive failures, which would outlive the launch toward the lock."""
+    with TestClient(create_app(prelaunch, store, FakeOrc())) as c:
+        paula = make_user(store, 'paula', 'paula-password')
+        for _ in range(12):
+            r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'paula', 'password': 'paula-password'})
+            assert r.status_code == 403 and r.json()['error']['code'] == 'SIGN_IN_CLOSED', r.text
+        assert db(store, 'SELECT sign_in_failures FROM edge_bff.identities WHERE user_id = %s',
+                  paula['user_id']) == [{'sign_in_failures': 0}]
+
+
 def test_prelaunch_needs_the_switch_and_the_contact_is_one_plain_line(settings, on):
     with pytest.raises(ValueError, match='EDGE_PRELAUNCH=true needs EDGE_MULTIUSER=true'):
         dataclasses.replace(settings, prelaunch_enabled=True).validate()

@@ -29,12 +29,12 @@ import time
 import httpx
 from psycopg.types.json import Jsonb
 
+from . import logs
 from .security import same_ascii
 
 logger = logging.getLogger('edge_bff.email')
 if not logger.hasHandlers():
-    _handler = logging.StreamHandler()
-    _handler.setFormatter(logging.Formatter('%(message)s'))
+    _handler = logs.handler()                # Railway's level on each JSON line (app/logs.py, live checker F3)
     logger.addHandler(_handler)
     logger.setLevel(logging.INFO)
 

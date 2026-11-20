@@ -1,0 +1,207 @@
+{
+ "workflow": "wf_0799ce99-16e",
+ "date": "2026-11-20",
+ "site": "https://app.edgefinance.id (b1b3684d)",
+ "lenses": [
+  {
+   "lens": "Account side of the running live site in pre-launch mode: who may sign in, the admin's first sign-in and second factor, ",
+   "findings": [
+    {
+     "id": "ACC-1",
+     "severity": "medium",
+     "verified": true,
+     "title": "A new or lost phone: after the fresh code the /mfa page leaves for the workspace and never shows the new authenticator's set-up, so CONTRACT 4's way to replace an authenticator does not work"
+    },
+    {
+     "id": "ACC-3",
+     "severity": "low",
+     "verified": true,
+     "title": "Phone and recovery codes both lost: no way back for the live admin; the operator unlock keeps the enrolment, and nothing removes one"
+    },
+    {
+     "id": "ACC-2",
+     "severity": "low",
+     "verified": true,
+     "title": "With the recovery codes locked, the MFA page hides the authenticator-code path and disables Continue, although the authenticator still works"
+    },
+    {
+     "id": "ACC-4",
+     "severity": "low",
+     "verified": true,
+     "title": "Resend's bounce and complaint webhook is not wired: no RESEND_WEBHOOK_SECRET on edge-bff-live, so every delivery answers 401 and email_suppression is never filled"
+    },
+    {
+     "id": "ACC-5",
+     "severity": "low",
+     "verified": true,
+     "title": "Pre-launch: a non-test account's right password counts as a failed sign-in; the 11th try shows the rate limit instead of SIGN_IN_CLOSED, and the count outlives the launch"
+    },
+    {
+     "id": "ACC-6",
+     "severity": "low",
+     "verified": true,
+     "title": "The live web process holds the admin's plaintext first password and address (EDGE_ADMIN_INITIAL_PASSWORD, EDGE_ADMIN_EMAIL) although it never reads them"
+    }
+   ]
+  },
+  {
+   "lens": "A visitor without an account on https://app.edgefinance.id: the pages in a real browser (1440 px and 390 px), every page",
+   "findings": [
+    {
+     "id": "F1",
+     "severity": "medium",
+     "verified": true,
+     "title": "A visitor's Terminal shows the locked datasets as if there were no data: Flow 'Rp 0', 'No broker data for this ticker', 0 events, 'No 1H data is published for BBCA', and no note that the history is cut to 730 days"
+    },
+    {
+     "id": "F2",
+     "severity": "medium",
+     "verified": true,
+     "title": "The live site now deploys from branch `main` with Wait-for-CI off, not from `live` with checks on: the next push to main goes to app.edgefinance.id ungated"
+    },
+    {
+     "id": "F3",
+     "severity": "low",
+     "verified": true,
+     "title": "The live site, the only site that sends email, has no RESEND_WEBHOOK_SECRET: every bounce and complaint webhook is refused and the suppression list never fills"
+    },
+    {
+     "id": "F4",
+     "severity": "low",
+     "verified": true,
+     "title": "The Privacy and Terms links on every public page lead nowhere"
+    },
+    {
+     "id": "F5",
+     "severity": "low",
+     "verified": true,
+     "title": "The Terminal shows developer notes to every visitor: 'Market Lab \u00b7 TradingView-like layout' and 'Standalone Lightweight Charts \u00b7 Wheel zoom \u00b7 Drag pan \u00b7 Y-axis drag scale'"
+    },
+    {
+     "id": "F6",
+     "severity": "low",
+     "verified": false,
+     "title": "Every visitor behind one public address (a carrier NAT) shares one guest quota of 60 files per hour; a fresh Terminal open spends 5 of them"
+    }
+   ]
+  },
+  {
+   "lens": "State the beta and the live site share, and whether either site can disturb the other: edge_bff.jobs and backtest_jobs b",
+   "findings": [
+    {
+     "id": "SH1",
+     "severity": "low",
+     "verified": true,
+     "title": "Whichever site holds the shared backtest-worker slot takes it again before the other site can: a queue of jobs on one site holds back the other site's jobs, shown as RUNNING the whole time"
+    },
+    {
+     "id": "SH2",
+     "severity": "low",
+     "verified": true,
+     "title": "Two live variables still read backtest-worker through edge-bff, and the consumer script misses that second step, so a worker change redeployed by the AGENTS.md procedure reaches the beta only"
+    },
+    {
+     "id": "SH3",
+     "severity": "low",
+     "verified": true,
+     "title": "The live site sets no total limit on visitors' Terminal calls, and terminal-api is shared with the beta and the workers"
+    }
+   ]
+  },
+  {
+   "lens": "How the live site is run and rolled back: Railway settings against .railway/railway.ts, the deploy path before and after",
+   "findings": [
+    {
+     "id": "F1",
+     "severity": "medium",
+     "verified": true,
+     "title": "GitHub main and live do not hold the switch-on: main's railway.ts would delete edge-bff-live, and the running restart cron's code exists only on the session branch"
+    },
+    {
+     "id": "F2",
+     "severity": "low",
+     "verified": true,
+     "title": "Nobody is told when the live site is down, a live deploy is skipped or fails, or its email or housekeeping fails"
+    },
+    {
+     "id": "F3",
+     "severity": "low",
+     "verified": true,
+     "title": "Railway labels every edge-bff log line 'error', so a real failure cannot be told from a start-up line"
+    },
+    {
+     "id": "F4",
+     "severity": "low",
+     "verified": true,
+     "title": "The S7 fix makes the restart's final report depend on a Railway API call after Postgres is back; if it fails, Telegram says Postgres did not come back, or stops at 'started'"
+    },
+    {
+     "id": "F5",
+     "severity": "low",
+     "verified": true,
+     "title": "EXEC option A's rollback, as written today: no service named, not durable against a push to live, a domain removal the agent cannot undo, step 3's job not prepared, and no way back written"
+    },
+    {
+     "id": "F6",
+     "severity": "low",
+     "verified": true,
+     "title": "Only procedure guards what reaches the public site: branch `live` is unprotected, and a CLI upload to edge-bff-live skips both `live` and CI"
+    },
+    {
+     "id": "F7",
+     "severity": "low",
+     "verified": true,
+     "title": "Two live references are still chains, so a change at backtest-worker reaches the beta but not the live site"
+    },
+    {
+     "id": "F8",
+     "severity": "low",
+     "verified": true,
+     "title": "The live site sends through Resend without its bounce and complaint webhook, so suppression never fills"
+    },
+    {
+     "id": "F9",
+     "severity": "low",
+     "verified": true,
+     "title": "Some records lag the running site"
+    },
+    {
+     "id": "F10",
+     "severity": "low",
+     "verified": true,
+     "title": "The admin's first password sits in the live site's process environment, on the internet-facing service"
+    },
+    {
+     "id": "F11",
+     "severity": "low",
+     "verified": true,
+     "title": "The twice-daily Postgres restart and the live site's cost guards were set for an admin-only beta, not a public site"
+    }
+   ]
+  }
+ ],
+ "verdicts": {
+  "ACC-1": [
+   {
+    "refuted": false,
+    "severity_after": "medium"
+   }
+  ],
+  "F1": [
+   {
+    "refuted": false,
+    "severity_after": "medium"
+   },
+   {
+    "refuted": false,
+    "severity_after": "low"
+   }
+  ],
+  "F2": [
+   {
+    "refuted": true,
+    "severity_after": "none"
+   }
+  ]
+ }
+}

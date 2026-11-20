@@ -34,7 +34,7 @@ from .rights import catalog_for, refuse_context, rights_of
 
 OWNER_TRIAL_DAYS = 90        # contract.ts OWNER_TRIAL_DAYS (K6 a)
 from .store import StoreError
-from . import wake
+from . import logs, wake
 
 logger = logging.getLogger('edge_bff.backtest')
 # The service's uvicorn configures only its own loggers (uvicorn, uvicorn.error, uvicorn.access) and nothing here sets
@@ -43,8 +43,7 @@ logger = logging.getLogger('edge_bff.backtest')
 # log). When no handler is set up at import, this module's lines go to stderr as lastResort wrote them (the message
 # alone), INFO included; a logging set-up made before (a test's capture, a service-wide configuration) is left alone.
 if not logger.hasHandlers():
-    _handler = logging.StreamHandler()
-    _handler.setFormatter(logging.Formatter('%(message)s'))
+    _handler = logs.handler()                # Railway's level on each JSON line (app/logs.py, live checker F3)
     logger.addHandler(_handler)
     logger.setLevel(logging.INFO)
 

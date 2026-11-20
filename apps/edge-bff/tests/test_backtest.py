@@ -2260,7 +2260,9 @@ def test_the_modules_info_lines_reach_the_service_log():
                                        cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=60)
     served = run('import logging.config, uvicorn.config\nlogging.config.dictConfig(uvicorn.config.LOGGING_CONFIG)')
     assert served.returncode == 0, served.stderr
-    assert served.stderr.splitlines() == ['{"event": "probe_line", "n": 1}', 'warn_line'] and served.stdout == ''
+    # each JSON line carries Railway's level (app/logs.py, the live checker after the switch-on F3)
+    assert served.stderr.splitlines() == ['{"level": "info", "event": "probe_line", "n": 1}', 'warn_line'] \
+        and served.stdout == ''
     configured = run("import logging, sys\nlogging.basicConfig(stream=sys.stdout, level=logging.INFO, format='root %(message)s')")
     assert configured.returncode == 0, configured.stderr
     assert configured.stdout.splitlines() == ['root {"event": "probe_line", "n": 1}', 'root warn_line'] and configured.stderr == ''

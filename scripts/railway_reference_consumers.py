@@ -5,7 +5,9 @@ Railway resolves `${{service.NAME}}` when a service is deployed. A secret replac
 in every service that references it until that service is deployed again (2026-10-30: market-web-governor kept the
 OpenRouter key of its 2026-10-18 deploy and every web search was refused). The consumers are read from the live
 project (each service's unrendered variables), never from a list kept in this repository, so a new consumer is found
-without a code change.
+without a code change. A consumer whose variable is itself referenced is followed until none is left (the live checker
+after the switch-on, F7: edge-bff-live read backtest-worker through edge-bff, and only edge-bff was listed and
+redeployed); each line shows the chain.
 
 Usage (repository root; RAILWAY_API_TOKEN in the environment; prints names and references only, never a value):
     python3 scripts/railway_reference_consumers.py market-ai-orc.OPENROUTER_API_KEY
@@ -60,6 +62,28 @@ def references(project: str, environment: str, service_id: str) -> dict[str, tup
     return out
 
 
+def transitive_consumers(graph: dict[str, dict[str, tuple[str, str]]], wanted: tuple[str, str]):
+    """[(service, variable, chain)] of every variable that reads `wanted` directly or through other references, nearest
+    first; chain: the sources from `wanted` to the variable's own source. graph: {service: references(...)}."""
+    out, seen, frontier = [], {wanted}, [(wanted, (wanted,))]
+    while frontier:
+        following = []
+        for target, chain in frontier:
+            for service in sorted(graph):
+                for name, source in sorted(graph[service].items()):
+                    if source == target and (service, name) not in seen:
+                        seen.add((service, name))
+                        out.append((service, name, chain))
+                        following.append(((service, name), chain + ((service, name),)))
+        frontier = following
+    return out
+
+
+def chain_text(chain) -> str:
+    """'${{edge-bff.X}} <- ${{backtest-worker.X}}': the variable's own source first, then each source further back."""
+    return " <- ".join(f"${{{{{s}.{v}}}}}" for s, v in reversed(chain))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("source", nargs="?", help="service.VARIABLE whose consumers are wanted")
@@ -73,13 +97,15 @@ def main() -> int:
     wanted = tuple(args.source.split(".", 1)) if args.source else None
     if wanted and len(wanted) != 2:
         parser.error("SOURCE is service.VARIABLE")
-    consumers = []
-    for service in services(args.project):
-        for name, source in sorted(references(args.project, args.environment, service["id"]).items()):
-            if wanted is None or source == wanted:
-                consumers.append((service["name"], name, f"{source[0]}.{source[1]}"))
-    for service, name, source in consumers:
-        print(f"{service}\t{name}\t<- ${{{{{source}}}}}")
+    graph = {service["name"]: references(args.project, args.environment, service["id"])
+             for service in services(args.project)}
+    if wanted is None:
+        consumers = [(service, name, (source,)) for service in sorted(graph)
+                     for name, source in sorted(graph[service].items())]
+    else:
+        consumers = transitive_consumers(graph, wanted)
+    for service, name, chain in consumers:
+        print(f"{service}\t{name}\t<- {chain_text(chain)}")
     if not consumers:
         print("no service references it")
     if args.redeploy and wanted:

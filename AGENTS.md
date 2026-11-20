@@ -202,6 +202,17 @@ Never commit secret values, database URLs, passwords, private keys, Railway toke
 
 Railway resolves a reference variable (`${{service.NAME}}`) when the referencing service is deployed. After a secret or any referenced variable changes at its source, list its consumers with `python3 scripts/railway_reference_consumers.py <service>.<NAME>` and redeploy each of them (`--redeploy`, with the user's approval for the change); a consumer left undeployed keeps the old value (ERRORS M308: web search refused for 13 days on the OpenRouter key of an older deploy). The script reads the consumers from the live project and prints names and references only.
 
+## The live site
+
+User decisions 2026-11-19 and 2026-11-20 (EXEC.md option A): the beta (`edge-bff`, edge-bff-dev.up.railway.app, the
+admin only, every feature first) and the live site (`edge-bff-live`, app.edgefinance.id).
+- `edge-bff-live` deploys only from branch `live`, with Wait for CI. Never `railway up` to it: a CLI upload skips both
+  `live` and CI, and the next push to `live` silently replaces it (live checker after the switch-on, F6).
+- `live` moves only to a commit the beta already runs (its latest SUCCESS deployment), whose CI is green, with the
+  user's go; record it in RAILWAY_CHANGELOG.md. Rollback: EXEC.md option A.
+- Connecting a repository or changing a deploy trigger is an account action the session's project token may not do
+  (ERRORS M514): ask the user, naming every field (repository, branch, root directory, Wait for CI), and read it back.
+
 ## Postgres memory after large updates
 
 User decisions: 2026-11-01 (ERRORS M319): "Restart terencana Postgres sesudah setiap backfill besar. Memori langsung

@@ -68,13 +68,16 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
   terminal-api `ba235c68-d3f5-400c-9bb3-a774b9c47a32`; terminal-publisher `523a3135-16dc-458d-b8c7-f4f666736880`;
   backtest-worker `9156a5c3-c8a4-49b8-9172-ea6eb95157d2`; screener-worker `bad6feef-aba6-4520-b0ad-8be4ed093f1c` (private
   `screener-worker.railway.internal:8080`, GitHub `main` with the repository root as build context); orc-test-runner
-  `09358b92-09d4-4da2-b547-bf8f621e226c`.
+  `09358b92-09d4-4da2-b547-bf8f621e226c`; edge-bff-live `3baa0d66-41ce-4986-9b56-93b4d13a4e10` (the live website, custom
+  domain `app.edgefinance.id`, GitHub branch `live` with Wait for CI, root `/apps/edge-bff`; EXEC.md option A; the beta
+  is edge-bff on edge-bff-dev.up.railway.app).
 
 Always scope Railway CLI calls with these explicit IDs. Do not rely on an unrelated locally linked project.
 
 ### Service sources and deployment isolation
 
-All active application services deploy from `rednightt33/saniti` on branch `main`. Each service has a monorepo root directory and a matching watch path so unrelated application or documentation changes do not trigger its deployment:
+All active application services deploy from `rednightt33/saniti` on branch `main`, except `edge-bff-live`, which deploys
+from branch `live` (a commit the beta ran first, moved only with the user's go). Each service has a monorepo root directory and a matching watch path so unrelated application or documentation changes do not trigger its deployment:
 
 | Railway service | Root directory | Watch path |
 | --- | --- | --- |

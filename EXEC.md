@@ -16029,9 +16029,17 @@ Order of the services (CONTRACT 17, rollback floors):
      suite (it reads every declared service) runs before that push. Since 2026-11-20 it declares the service as it is
      before the switch (no source, every variable `preserve()`, live checker D3/S8); at the switch-on its body becomes
      the settings written in the comment above it (source branch `live`, build, start, `/ready`, `PORT`).
-  - **Rollback:** (1) `railway down` of the live deployment (or remove its domain); (2) `EDGE_HOUSEKEEPING_ENABLED` back to
-    `true` on `edge-bff`; (3) a reviewed job ends the live site's open jobs (`site='live'`: QUEUED rows CANCELLED,
-    RUNNING rows FAILED `WORKER_LOST`), so the shared Backtest worker slot and user #1's beta Backtest are not held.
+  - **Rollback** (rewritten after the live checker after the switch-on, F5; IDs from PROJECT_CONTEXT.md):
+    1. Take the site down: `railway down -s 3baa0d66-41ce-4986-9b56-93b4d13a4e10 -e 4d3e5af2-302b-4a2e-84e2-7d7476d6ff49 -y`
+       (the domain answers 404). It stays down only while `live` is not pushed: the trigger deploys every push to `live`
+       that passes CI, and the session cannot change the trigger (M514), so no push to `live` until the user re-opens.
+       The custom domain is never removed by the agent (its DNS is the user's).
+    2. `EDGE_HOUSEKEEPING_ENABLED=true` on `edge-bff` (the beta redeploys; M340 first), so housekeeping has an owner.
+    3. End the live site's open Backtest jobs: `scripts/onboarding/end_site_backtests_job.py` with params
+       `{"site": "live", "apply": false}` (DRYRUN, counts only; run once on 2026-11-20: none open), then `"apply": true`.
+    - One version back instead of down: move `live` to the previous commit the beta ran (the commit in RAILWAY_CHANGELOG.md;
+      with the user's go), CI then deploys it; or redeploy the previous deployment from the dashboard.
+    - Re-open: push `live` (or `railway redeploy -s <live id>` of its last deployment), then the live smoke again.
 - **Switch-on (2026-11-20, the user's "akun admin: <address>" and "Go."):** done the same day (RAILWAY_CHANGELOG.md):
   M340; `main` and `live` at `b1b3684d`; the beta first (`28b44442`); `edge-bff-live` with the beta's settings and, since
   the session's project token may not connect a repository (ERRORS M514), a TEMPORARY CLI upload of that commit

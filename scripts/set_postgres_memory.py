@@ -80,6 +80,7 @@ def main() -> int:
         raise SystemExit('refused: ' + '; '.join(hard))
 
     before = pgq.q('SELECT pg_postmaster_start_time()::text')['rows'][0][0]
+    urls = rp.readable_site_urls()                   # the websites to wait for, read before the restart (F4)
     applied = subprocess.run(['railway', 'config', 'apply', '--yes'], cwd=ROOT, capture_output=True, text=True,
                              env=rp.cli_env())
     print(applied.stdout[-400:])
@@ -98,7 +99,7 @@ def main() -> int:
     limits = rp.gql('query($s:String!,$e:String!){serviceInstanceLimits(serviceId:$s,environmentId:$e)}',
                     {'s': services['Postgres'], 'e': rp.ENV})['serviceInstanceLimits']
     after = pgq.q('SELECT pg_postmaster_start_time()::text')['rows'][0][0]
-    ready = rp.sites_ready()                         # every website's /ready, the live site's too (ERRORS M513 S7)
+    ready = rp.sites_ready(urls)                     # every website's /ready, the live site's too (ERRORS M513 S7)
     print(json.dumps({'deployment': node['id'], 'status': status, 'memory_bytes_live': limits['containers']['memoryBytes'],
                       'start_before': before, 'start_after': after, 'sites_ready': ready,
                       'edge_bff_ready': rp.worst_ready(ready)}))

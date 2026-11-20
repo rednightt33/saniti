@@ -8879,6 +8879,63 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M515 — The live checker after the switch-on: 2 medium findings confirmed and fixed, the lows fixed or put to the user (2026-11-20)
+
+- **Found by:** the ultracode checker of option A on the running live site (the user: "Checker ultracode dilakukan
+  terakhir opsi A setelah saklar nyala"; workflow `wf_0799ce99-16e`: four lenses (the visitor, accounts, what the two
+  sites share, operations), one skeptic per lens with a finding of medium or more; 7 agents, read-only; journal and
+  summary in `verification/edge_multiuser/live_checker_after/`).
+- **Confirmed, medium (both kept by their skeptics), FIXED:**
+  - ACC-1: replacing the admin's authenticator did not work. The verify that the set-up asks for answers a fresh
+    session, the shell re-routed to the workspace, and the new QR code never showed: a lost phone could only spend
+    recovery codes. Cause (verified): `App.authMode` returned the workspace for a signed-in session, and the page test
+    stubbed the verify with an answer the real route never sends. Fix `dcb87955`: the /mfa page stays while a new
+    authenticator is set up (`authFlow.enrolling`), and "Password and sign-in" offers "Set up a new authenticator".
+    Test `apps/edge-bff/tests/test_mfa_replace_live.py`, on the real routes in Chromium: 4 of its 5 tests fail on the old
+    page.
+  - F1 (visitor): a visitor's Terminal drew the datasets closed to it as empty: "Rp 0", "No broker data", 0 events, "No
+    1H data is published", and nothing said the history was cut. Cause (verified): `live.ts` read a locked dataset as an
+    empty file list. Fix `741c0b6f`, TEMPORARY until 3e builds a lock prompt on each panel: the page reads `locked` from
+    the /bundle answer and leaves those panels out as for a bond; a locked intraday timeframe opens the lock box; the
+    history window shows as a chart note. Test `tests/test_live_terminal_locked.py` (fails on the old page).
+    `look_check11` PASS. CONTRACT 8b records it.
+- **Refuted:** F2 (the live site deploying from `main` without CI): the user had fixed it before the skeptic ran (M514).
+- **Low, FIXED:**
+  - ACC-2: locked recovery codes hid the authenticator. The page now keeps the authenticator path open, and the
+    MFA_LOCKED words name the way still open.
+  - ACC-3: no way back with the phone and every recovery code lost. Added `scripts/edge_mfa_unlock.py
+    --remove-enrolment`, audited `mfa.remove`; it also ends the account's sessions.
+  - ACC-5: a closed account's right password counted as a failure in pre-launch. SIGN_IN_CLOSED now clears the count, as
+    a success does.
+  - ops F4: a regression of M513 S7. After a restart, a failing Railway read would have reported "Postgres did not come
+    back". The websites are now read before the restart; an unreadable list reports EDGE not ready.
+  - SH2/F7: two live variables reached backtest-worker through edge-bff. They now reference backtest-worker directly,
+    and `railway_reference_consumers.py` follows chains to their end.
+  - ops F3: every edge-bff log line was labelled "error". Each JSON line now carries Railway's `level` (`app/logs.py`).
+  - ops F5: the rollback is written as commands with IDs, and step 3 is a job with a DRYRUN
+    (`scripts/onboarding/end_site_backtests_job.py`, run once: none open).
+  - ops F9: the records were behind (M500, M512, M513 A1, PROJECT_CONTEXT).
+  - ops F6, the repository's part: an AGENTS.md rule — no CLI upload to the live site; `live` only after the beta.
+- **Low, put to the user on 2026-11-20 (context and options in the conversation):**
+  - F11: the Postgres restart at 09:45 WIB falls in market hours; proposed 12:15 WIB, checked free.
+  - visitor F6: the guest quota per public address behind a carrier NAT.
+  - visitor F4: the Privacy and Terms links lead nowhere.
+  - visitor F5: developer notes in the Terminal footer (a Terminal look change, so the user's go).
+  - ACC-6/F10: the admin's first password on the live process.
+  - ACC-4/F3/F8: the Resend webhook secret, the user's.
+  - ops F6: a GitHub ruleset on `live`, the user's.
+- **Low, kept for 3e and Phase 4:**
+  - SH1: the shared Backtest worker slot taken by whichever site holds it.
+  - SH3: no all-visitor ceiling (`EDGE_GUEST_CALLS_PER_HOUR` unset, the decided default).
+- **Seen on the way:** `scripts/set_postgres_restart_times.py` without `--apply` writes the new cronSchedule into
+  `.railway/railway.ts` and leaves it there (by design, so the plan shows the one change). A check run leaves the
+  working tree changed; here it was reverted before any commit.
+- **Lesson:**
+  - A page test whose stub answers in a shape the real route never sends hides the page's real state change: test
+    flows that cross a session change on the real routes.
+  - A dataset closed to a principal is never drawn as an empty one.
+  - A check that writes a file says so in its output.
+
 ### M514 — The live site's GitHub source cannot be connected from an agent session: its Railway credential is a project token (2026-11-20; FIXED by the user in the dashboard the same day)
 
 - **Found by:** the switch-on, step 1 (EXEC.md option A), after the user's "Go.".
@@ -8943,9 +9000,9 @@ in its staleness check.
   - A1, site S3, switch-on S5: FIXED. User #1's live login is the username in `EDGE_ADMIN_USERNAME` with the first
     password in `EDGE_ADMIN_INITIAL_PASSWORD` (variables of `edge-bff-live` the site never reads), written by
     `scripts/edge_account_login.py` (job `f781b6c1`, audited `account.login_set`;
-    `apps/edge-bff/tests/test_account_login_operator.py`). The beta's login is unchanged. Still no email address: the
-    way back is that job (change the variables, run it again) and `scripts/edge_mfa_unlock.py`; "Forgot password" needs
-    an address the user gives.
+    `apps/edge-bff/tests/test_account_login_operator.py`). The beta's login is unchanged. The user's address was then set
+    ("akun admin: <address>", job `db2aa27d`), so "Forgot password" reaches the account; the operator job and
+    `scripts/edge_mfa_unlock.py` remain the way back without the mailbox.
   - switch-on S4: FIXED. `EDGE_EMAIL_MODE=resend`, `EDGE_EMAIL_FROM` `EDGE <no-reply@mail.edgefinance.id>`, the log
     allowance deleted.
   - A2: ACCEPTED for the pre-launch mode ("3. ok": only the admin and test accounts sign in); fixed before
@@ -8964,7 +9021,7 @@ in its staleness check.
 - **Lesson:** a checker over the switch-on itself (order, references, rollback, the page as served) finds what code
   review of each phase does not; run it before every switch.
 
-### M512 — The client address was Railway's edge node: every visitor would have been one client (2026-11-20, the probe of CONTRACT 4; FIXED in code, deploy pending)
+### M512 — The client address was Railway's edge node: every visitor would have been one client (2026-11-20, the probe of CONTRACT 4; FIXED and deployed)
 
 - **Found by:** the client-address probe the user asked for before the live site opens to visitors ("1a",
   2026-11-20): a temporary echo of the address headers on `edge-bff-live` (deployment `ced98a44`, removed after the
@@ -8988,8 +9045,8 @@ in its staleness check.
   test) gives that entry; `Forwarded` is never read. CONTRACT 4 records the probe. Tests:
   `apps/edge-bff/tests/test_m512_client_address.py` (fails on the right-most rule), the guest and throttle tests on
   Railway's real header shape.
-- **Status:** FIXED in code; deployed with the next edge-bff (beta) and the live site. Re-run the probe whenever
-  something is put in front of the site.
+- **Status:** FIXED and deployed: both sites run `b1b3684d` (the beta `28b44442`, the live site `bd585b84`; `GET /version`),
+  which holds the fix `13f40871`. Re-run the probe whenever something is put in front of the site.
 - **Lesson:** measure the proxy chain before a counter trusts it; a probe that shows what the edge sends is cheaper
   than a design value.
 
@@ -9312,7 +9369,7 @@ in its staleness check.
 - **Lesson:** grant guards read column privileges too; an audit or provenance id never carries a referential action;
   a value that feeds a version is kept by a trigger, not a default.
 
-### M500 — Personal data reaching places no record named: exception text with names in the log, every visitor's address sent to Google Fonts, no account-deletion procedure (2026-11-19, re-check R2-25, R2-27, R2-28; fixed on branch fix-int2, not deployed; terminal-api's part OPEN)
+### M500 — Personal data reaching places no record named: exception text with names in the log, every visitor's address sent to Google Fonts, no account-deletion procedure (2026-11-19, re-check R2-25, R2-27, R2-28; FIXED and deployed, terminal-api's part too)
 
 - **Symptom:** an unexpected exception was answered 503, but Starlette re-raised it and uvicorn logged its full text,
   so PostgreSQL's DETAIL row (email, names, phone) reached the edge-bff log (R2-25); every EDGE page, the sign-in page

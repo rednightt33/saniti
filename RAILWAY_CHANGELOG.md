@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-11-20 — The live checker after the switch-on: Railway changes of its fixes (ERRORS M515)
+
+- **edge-bff-live:** `BACKTEST_TIMEOUT_SECONDS` and `BACKTEST_MAX_RESULT_BYTES` now reference `backtest-worker` directly
+  (`${{backtest-worker.…}}`, as the beta does; before, `${{edge-bff.…}}`; F7). Set with `--skip-deploys`, so they take
+  effect with the live site's next deployment; the values are the same. `railway config plan` is up to date.
+- **Rollback step 3 prepared (F5):** `scripts/onboarding/end_site_backtests_job.py`, DRYRUN job `cc5843c2`
+  (`{"site": "live"}`: no open Backtest job).
+- **Not applied:** the check of `scripts/set_postgres_restart_times.py --wib 12:15,20:45` (no clash; the user's
+  decision is pending) wrote the cronSchedule into `.railway/railway.ts`; the file was restored, and nothing changed on
+  Railway.
+
 ## 2026-11-20 — EXEC-MU-ACCOUNTS option A: the live site switched on (pre-launch mode)
 
 - **User:** "akun admin: <address>" and "Go." (2026-11-20; the address went into user #1, DATABASE_CHANGELOG.md).

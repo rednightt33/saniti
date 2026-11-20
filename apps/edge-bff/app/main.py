@@ -19,7 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .backtest import Backtests
-from . import catalog, terminal_access
+from . import catalog, logs, terminal_access
 from .client import OrcClient, OrcError, public_data
 from .config import LIVE, Settings
 from .errors import Refusal, UnexpectedErrors, http_refusal, refusal, set_registration_open, validation_refusal
@@ -48,8 +48,7 @@ COOKIE = SESSION_COOKIE                     # its name on an https origin: cooki
 # are when nothing set up a handler (uvicorn configures only its own loggers; lastResort writes WARNING and above)
 startup_log = logging.getLogger('edge_bff.startup')
 if not startup_log.hasHandlers():
-    _handler = logging.StreamHandler()
-    _handler.setFormatter(logging.Formatter('%(message)s'))
+    _handler = logs.handler()                # Railway's level on each JSON line (app/logs.py, live checker F3)
     startup_log.addHandler(_handler)
     startup_log.setLevel(logging.INFO)
 STOP_RETRIES = 3  # EXEC-Y Fase 1 (I1): a run dispatched a moment ago is registered at Orc on receipt
@@ -875,6 +874,11 @@ def create_app(settings=None, store=None, orc=None):
         if account is not None and settings.prelaunch and not (needs_mfa or account.get('test_account')):
             logging.getLogger('edge_bff.accounts').info(json.dumps({'event': 'sign_in_closed',
                                                                    'user_id': account['user_id']}))
+            # the live checker after the switch-on (ACC-5): the password was right, so the try is not a failure: the
+            # account's consecutive failures and this login's tries are cleared as a success clears them (the password
+            # work stays bounded by its pool, R2-37)
+            await asyncio.to_thread(auth.accounts.sign_in_proved, account['user_id'])
+            await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
             return error('SIGN_IN_CLOSED', 403)
         old = request.cookies.get(session_cookie) or (None if settings.multiuser else request.cookies.get(COOKIE))
         if old:

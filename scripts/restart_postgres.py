@@ -346,9 +346,19 @@ def ready_status(url):
     return code
 
 
-def sites_ready():
-    """{service: its /ready status} of every website (site_ready_urls)."""
-    return {name: ready_status(url) for name, url in site_ready_urls().items()}
+def readable_site_urls():
+    """site_ready_urls, or {} when Railway cannot be read (the report then says EDGE not ready, never that Postgres did
+    not come back: live checker after the switch-on, F4)."""
+    try:
+        return site_ready_urls()
+    except Exception:                                # noqa: BLE001
+        return {}
+
+
+def sites_ready(urls=None):
+    """{service: its /ready status} of every website; `urls` read before the restart (readable_site_urls), so no
+    Railway read after it decides the report."""
+    return {name: ready_status(url) for name, url in (readable_site_urls() if urls is None else urls).items()}
 
 
 def worst_ready(statuses):
@@ -368,6 +378,7 @@ def restart(services):
     deps = gql('query($s:String!,$e:String!){deployments(first:5,input:{serviceId:$s,environmentId:$e}){edges{node{id status}}}}',
                {'s': services['Postgres'], 'e': ENV})
     dep = next(e['node']['id'] for e in deps['deployments']['edges'] if e['node']['status'] == 'SUCCESS')
+    urls = readable_site_urls()                      # before the restart (F4)
     before = postgres_start()
     gql('mutation($id:String!){deploymentRestart(id:$id)}', {'id': dep})
     started = time.monotonic()
@@ -379,7 +390,7 @@ def restart(services):
             break
     else:
         raise SystemExit('Postgres did not come back within 10 minutes; check the Railway dashboard')
-    ready = sites_ready()
+    ready = sites_ready(urls)
     return {'deployment': dep, 'start_before': before, 'start_after': after,
             'seconds': round(time.monotonic() - started), 'sites_ready': ready, 'edge_bff_ready': worst_ready(ready)}
 

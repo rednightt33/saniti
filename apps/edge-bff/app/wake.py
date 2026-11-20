@@ -17,13 +17,14 @@ import time
 
 import httpx
 
+from . import logs
+
 logger = logging.getLogger(__name__)
 # uvicorn sets up only its own loggers, so an INFO line here found no handler and was dropped (logging.lastResort writes
 # WARNING and up): the downstream_wake lines never reached the log (EXEC-U4-WORKERS live check 2026-11-02). The rule of
 # app/backtest.py: a handler to stderr when none is set up at import; a logging set-up made before is left alone.
 if not logger.hasHandlers():
-    _handler = logging.StreamHandler()
-    _handler.setFormatter(logging.Formatter('%(message)s'))
+    _handler = logs.handler()                # Railway's level on each JSON line (app/logs.py, live checker F3)
     logger.addHandler(_handler)
     logger.setLevel(logging.INFO)
 

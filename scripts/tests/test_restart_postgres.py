@@ -270,3 +270,47 @@ def test_a_restart_with_one_website_down_reports_a_failure(cron, monkeypatch):
     assert rp.cron_main() == 1
     assert cron['restarted'] and events(cron) == ['started', 'failed']
     assert cron['sent'][-1][1]['edge_ready'] == 503 and cron['sent'][-1][1]['reasons'] == ['edge_not_ready']
+
+
+def test_a_railway_read_failing_after_the_restart_never_says_postgres_did_not_come_back(monkeypatch):
+    """The live checker after the switch-on (F4): the websites are listed before the restart; when Railway cannot be
+    read, the restart still reports that Postgres came back, and the websites as unconfirmed (EDGE not ready), never
+    postgres_not_back or an exception."""
+    starts = iter(['a', 'b'])
+    monkeypatch.setattr(rp, 'postgres_start', lambda: next(starts))
+    monkeypatch.setattr(rp.time, 'sleep', lambda s: None)
+    calls = []
+
+    def gql(query, variables):
+        calls.append('restart' if 'deploymentRestart' in query else 'sites' if 'serviceInstances' in query else 'other')
+        if 'deployments(' in query:
+            return {'deployments': {'edges': [{'node': {'id': 'dep1', 'status': 'SUCCESS'}}]}}
+        if 'deploymentRestart' in query:
+            return {'deploymentRestart': True}
+        raise OSError('Railway cannot be read')        # the website list
+    monkeypatch.setattr(rp, 'gql', gql)
+    monkeypatch.delenv('EDGE_BFF_URL', raising=False)
+    result = rp.restart({'Postgres': 'pg'})
+    assert result['start_after'] == 'b' and result['sites_ready'] == {} and result['edge_bff_ready'] is None
+    # the list was asked for before the restart
+    assert calls.index('sites') < calls.index('restart')
+
+
+def test_the_websites_are_read_once_before_the_restart(monkeypatch):
+    starts = iter(['a', 'b'])
+    order = []
+    monkeypatch.setattr(rp, 'postgres_start', lambda: next(starts))
+    monkeypatch.setattr(rp.time, 'sleep', lambda s: None)
+    monkeypatch.setattr(rp, 'site_ready_urls', lambda: order.append('list') or {'edge-bff': 'https://beta/ready',
+                                                                                 'edge-bff-live': 'https://live/ready'})
+    monkeypatch.setattr(rp, 'ready_status', lambda url: order.append(url) or 200)
+
+    def gql(query, variables):
+        if 'deploymentRestart' in query:
+            order.append('restart')
+            return {'deploymentRestart': True}
+        return {'deployments': {'edges': [{'node': {'id': 'dep1', 'status': 'SUCCESS'}}]}}
+    monkeypatch.setattr(rp, 'gql', gql)
+    result = rp.restart({'Postgres': 'pg'})
+    assert order == ['list', 'restart', 'https://beta/ready', 'https://live/ready']
+    assert result['edge_bff_ready'] == 200 and result['sites_ready'] == {'edge-bff': 200, 'edge-bff-live': 200}
