@@ -41,7 +41,9 @@ CONV = 'conv_' + '0' * 32
 
 
 def live_of(settings):
-    return dataclasses.replace(settings, site='live', multiuser=True, code_secret='c' * 40, mfa_key='m' * 40)
+    # 3c check C3-15: the live site holds no Orc URL or key (it has no AI); a live configuration leaves both empty
+    return dataclasses.replace(settings, site='live', multiuser=True, code_secret='c' * 40, mfa_key='m' * 40,
+                               orc_url='', orc_key='')
 
 
 def db(store, sql, *args):
@@ -77,9 +79,13 @@ def test_the_site_setting_refuses_the_pairings_the_decision_rules_out(settings):
     live = live_of(settings)
     live.validate()                                         # a developer machine: log mode and the live site
     # a deliberate test of the live site before its Resend key: only by the explicit switch
-    dataclasses.replace(live, environment='dev', email_log_allowed=True, orc_url='http://market-ai-orc.railway.internal:8080',
+    dataclasses.replace(live, environment='dev', email_log_allowed=True,
                         database_url='postgresql://edge_bff_login@db.invalid/edge', origin='https://edge.example',
                         secure_cookie=True).validate()
+    # 3c check C3-15: Orc's key (it may read every owner's conversations) and URL are refused on the live site
+    for orc in ({'orc_key': 'k' * 40}, {'orc_url': 'http://market-ai-orc.railway.internal:8080'}):
+        with pytest.raises(ValueError, match='must not hold MARKET_AI_ORC_API_KEY or EDGE_ORC_URL'):
+            dataclasses.replace(live, **orc).validate()
     assert live.ai_worker is False and dataclasses.replace(settings, ai_worker_enabled=False).ai_worker is False
     dataclasses.replace(settings, multiuser=True, code_secret='c' * 40, mfa_key='m' * 40).validate()   # the tests
 
@@ -101,10 +107,16 @@ def test_the_site_and_each_loop_switch_are_read_from_the_environment(monkeypatch
     s = Settings.from_env()
     assert (s.site, s.ai_worker, s.backtest_loop_enabled, s.housekeeping_enabled, s.email_enabled, s.commit_sha) == \
         ('beta', True, True, True, True, '')
-    env_of(monkeypatch, EDGE_SITE='live', EDGE_MULTIUSER='true', EDGE_CODE_SECRET='c' * 40, EDGE_MFA_KEY='m' * 40,
-           EDGE_HOUSEKEEPING_ENABLED='false', RAILWAY_GIT_COMMIT_SHA='0123abc')
+    live = dict(EDGE_SITE='live', EDGE_MULTIUSER='true', EDGE_CODE_SECRET='c' * 40, EDGE_MFA_KEY='m' * 40,
+                EDGE_HOUSEKEEPING_ENABLED='false', RAILWAY_GIT_COMMIT_SHA='0123abc')
+    # 3c check C3-15: the live site's environment holds no Orc URL or key (changed with the fix: a stated reason)
+    env_of(monkeypatch, **live, EDGE_ORC_URL='', MARKET_AI_ORC_API_KEY='')
     s = Settings.from_env()
     assert (s.site, s.ai_worker, s.housekeeping_enabled, s.commit_sha) == ('live', False, False, '0123abc')
+    assert (s.orc_url, s.orc_key) == ('', '')
+    env_of(monkeypatch, **live)                            # the beta's Orc variables copied onto the live site
+    with pytest.raises(ValueError, match='must not hold MARKET_AI_ORC_API_KEY or EDGE_ORC_URL'):
+        Settings.from_env()
 
 
 @pytest.mark.parametrize('name', ['EDGE_AI_WORKER_ENABLED', 'EDGE_BACKTEST_LOOP_ENABLED', 'EDGE_HOUSEKEEPING_ENABLED'])

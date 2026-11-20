@@ -171,8 +171,12 @@ class Settings:
             if not value:
                 raise ValueError(f'{name} is required')
             return value
-        s = cls(database_url=required('EDGE_DATABASE_URL'), orc_url=required('EDGE_ORC_URL').rstrip('/'),
-                orc_key=required('MARKET_AI_ORC_API_KEY'), owner=required('EDGE_OWNER'),
+        # 3c check C3-15: the live site has no AI (decision D1: the admin's only, on the beta), so it needs no Orc URL
+        # and must not hold Orc's key (validate refuses them there); every other site requires both
+        live = os.environ.get('EDGE_SITE', BETA).strip().lower() == LIVE
+        orc = (lambda name: os.environ.get(name, '').strip()) if live else required
+        s = cls(database_url=required('EDGE_DATABASE_URL'), orc_url=orc('EDGE_ORC_URL').rstrip('/'),
+                orc_key=orc('MARKET_AI_ORC_API_KEY'), owner=required('EDGE_OWNER'),
                 login=required('EDGE_LOGIN'), password_verifier=required('EDGE_PASSWORD_VERIFIER'),
                 session_secret=required('EDGE_SESSION_SECRET'), origin=required('EDGE_PUBLIC_ORIGIN').rstrip('/'),
                 environment=os.environ.get('EDGE_ENVIRONMENT', 'dev'),
@@ -267,9 +271,16 @@ class Settings:
                 raise ValueError(f'{name} may not be an owner key market-ai-orc reserves (golden-*, test-*, '
                                  'someone-else: its test key may name them; default: its old shared owner). Use an '
                                  'owner key of your own, e.g. edge-private')
-        host = urlsplit(self.orc_url).hostname
-        if self.environment != 'local' and (host != 'market-ai-orc.railway.internal' or urlsplit(self.orc_url).scheme != 'http'):
-            raise ValueError('EDGE_ORC_URL must use the existing Railway private Orc endpoint')
+        if self.site == LIVE:
+            if self.orc_key or self.orc_url:
+                raise ValueError('The live site (EDGE_SITE=live) has no AI, so it must not hold MARKET_AI_ORC_API_KEY or '
+                                 'EDGE_ORC_URL: that key may read every owner\'s conversations (CONTRACT 16, 3c check '
+                                 'C3-15). Remove both variables from this service; the beta keeps them')
+        else:
+            host = urlsplit(self.orc_url).hostname
+            if self.environment != 'local' and (host != 'market-ai-orc.railway.internal'
+                                                or urlsplit(self.orc_url).scheme != 'http'):
+                raise ValueError('EDGE_ORC_URL must use the existing Railway private Orc endpoint')
         if self.environment != 'local' and urlsplit(self.database_url).username != 'edge_bff_login':
             raise ValueError('EDGE_DATABASE_URL requires the dedicated edge_bff_login')
         if urlsplit(self.origin).path not in ('', '/') or not urlsplit(self.origin).hostname:

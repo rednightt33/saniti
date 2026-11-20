@@ -13,6 +13,7 @@ on:
       - "apps/edge-bff/backtest/**"
       - "apps/edge-bff/screener/src/**"
       - "apps/edge-bff/screener/tests/fixture/**"
+      - "apps/edge-bff/screener/tests/smoke/**"
       - "apps/edge-bff/terminal/src/**"
       - "apps/edge-bff/static/favicon*"
       - "apps/edge-bff/shared/**"
@@ -22,6 +23,7 @@ on:
       - "apps/edge-bff/backtest/**"
       - "apps/edge-bff/screener/src/**"
       - "apps/edge-bff/screener/tests/fixture/**"
+      - "apps/edge-bff/screener/tests/smoke/**"
       - "apps/edge-bff/terminal/src/**"
       - "apps/edge-bff/static/favicon*"
       - "apps/edge-bff/shared/**"
@@ -58,3 +60,8 @@ jobs:
       - name: Smoke (build the stub page, run every step)
         working-directory: apps/edge-bff/backtest
         run: npm run smoke
+      # 3c check C3-23 (ERRORS M490, re-check R1-17): the Screener's cached paint after the plan lost the Screener; the
+      # only test of "a refused catalog drops the pointer and the rows" ran in no workflow
+      - name: Screener smoke (a refused plan drops the cached result)
+        working-directory: apps/edge-bff/screener
+        run: npx vite build --mode smoke && node tests/smoke/c_p1s_plan_refused_cache.mjs

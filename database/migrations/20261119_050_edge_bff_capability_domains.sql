@@ -210,7 +210,36 @@ COMMIT;
 -- BEGIN;
 -- DROP TRIGGER capabilities_domain_holds ON edge_bff.capabilities;
 -- DROP FUNCTION edge_bff.capability_domain_holds();
--- (CREATE OR REPLACE edge_bff.capability_value_check with the body of 20261117_003)
+-- -- capability_value_check as 20261117_003 wrote it (3c check C3-24: the block runs as written)
+-- CREATE OR REPLACE FUNCTION edge_bff.capability_value_check() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $fn$
+-- DECLARE
+--     k text;
+--     v jsonb := NEW.value;
+--     ok boolean;
+-- BEGIN
+--     SELECT kind INTO k FROM edge_bff.capabilities WHERE capability_key = NEW.capability_key;
+--     ok := CASE k
+--         WHEN 'flag' THEN v IN ('true'::jsonb, 'false'::jsonb)
+--         WHEN 'limit' THEN jsonb_typeof(v) = 'number' AND v::text ~ '^[0-9]+$'
+--         WHEN 'list' THEN jsonb_typeof(v) = 'array'
+--             AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v) e WHERE jsonb_typeof(e) <> 'string')
+--         WHEN 'items' THEN jsonb_typeof(v) = 'object'
+--             AND NOT EXISTS (SELECT 1 FROM jsonb_object_keys(v) x WHERE x NOT IN ('ids', 'stages', 'all'))
+--             AND (NOT v ? 'ids' OR (jsonb_typeof(v -> 'ids') = 'array'
+--                  AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v -> 'ids') e WHERE jsonb_typeof(e) <> 'string')))
+--             AND (NOT v ? 'stages' OR (jsonb_typeof(v -> 'stages') = 'array'
+--                  AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v -> 'stages') e
+--                                  WHERE e NOT IN ('"lab"'::jsonb, '"released"'::jsonb))))
+--             AND (NOT v ? 'all' OR jsonb_typeof(v -> 'all') = 'boolean')
+--         ELSE false END;
+--     IF NOT coalesce(ok, false) THEN
+--         RAISE EXCEPTION 'edge_bff.%: the value % does not fit capability % (kind %)', TG_TABLE_NAME, v, NEW.capability_key,
+--             coalesce(k, 'unknown')
+--             USING HINT = 'flag: true or false; limit: a non-negative integer such as 730; list: an array of strings '
+--                          'such as ["BBCA"]; items: {"ids": ["I01"], "stages": ["released"], "all": false}, each key optional';
+--     END IF;
+--     RETURN NEW;
+-- END $fn$;
 -- DROP FUNCTION edge_bff.capability_domain_fits(jsonb, text, bigint, bigint, text),
 --     edge_bff.capability_domain_text(text, bigint, bigint, text);
 -- ALTER TABLE edge_bff.capabilities DROP COLUMN value_min, DROP COLUMN value_max, DROP COLUMN item_pattern;

@@ -287,7 +287,7 @@ export default defineRailway(() => {
   //     EDGE_PASSWORD_VERIFIER: "${{edge-bff.EDGE_PASSWORD_VERIFIER}}",
   //     // the shared services and the database (edge_bff_login: two pools of 6 of its 20 connections)
   //     EDGE_DATABASE_URL: "${{edge-bff.EDGE_DATABASE_URL}}", EDGE_ENVIRONMENT: "${{edge-bff.EDGE_ENVIRONMENT}}",
-  //     EDGE_ORC_URL: "${{edge-bff.EDGE_ORC_URL}}", MARKET_AI_ORC_API_KEY: "${{edge-bff.MARKET_AI_ORC_API_KEY}}",
+  //     // no EDGE_ORC_URL and no MARKET_AI_ORC_API_KEY: the live site has no AI and refuses both (3c check C3-15)
   //     EDGE_TERMINAL_URL: "${{edge-bff.EDGE_TERMINAL_URL}}", TERMINAL_PROXY_KEY: "${{edge-bff.TERMINAL_PROXY_KEY}}",
   //     BACKTEST_WORKER_URL: "${{edge-bff.BACKTEST_WORKER_URL}}", BACKTEST_WORKER_KEY: "${{edge-bff.BACKTEST_WORKER_KEY}}",
   //     BACKTEST_TIMEOUT_SECONDS: "${{edge-bff.BACKTEST_TIMEOUT_SECONDS}}",

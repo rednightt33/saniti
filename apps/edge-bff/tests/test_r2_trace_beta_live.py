@@ -37,7 +37,9 @@ def sites(on):
     is the one after the launch (EDGE_PRELAUNCH=false): the pre-launch mode, on by default on live since the decision of
     2026-11-19 ("Terbuka, tapi belum bisa mendaftar"; track guest), lets only the admin and test accounts sign in, and a
     paid account signs in here."""
-    return dataclasses.replace(on, multiuser=False), dataclasses.replace(on, site='live', prelaunch_enabled=False)
+    # 3c check C3-15: the live site holds no Orc URL or key
+    return dataclasses.replace(on, multiuser=False), dataclasses.replace(on, site='live', prelaunch_enabled=False,
+                                                                         orc_url='', orc_key='')
 
 
 def test_a_job_queued_on_the_live_site_is_dispatched_by_the_live_site_only(on, store, workers):

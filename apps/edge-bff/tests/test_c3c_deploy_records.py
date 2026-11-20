@@ -83,7 +83,10 @@ def test_the_rollback_floors_of_section_17_hold_the_guest_build_m503_says_they_h
     assert claim and 'the guest build' in claim.group(1), 'M503 no longer says section 17 holds the guest floor'
     start = CONTRACT.index('- **Rollback floors** (R2-6)')
     table = CONTRACT[start:CONTRACT.index('\n## 18.', start)]
-    rows = [line for line in table.splitlines() if line.startswith('| ') and not line.startswith('| After this step')
+    # the table sits inside a list item, so its rows are indented (changed with the fix, a stated reason: the filter
+    # read only unindented rows and could never find one)
+    lines = [line.strip() for line in table.splitlines()]
+    rows = [line for line in lines if line.startswith('| ') and not line.startswith('| After this step')
             and not line.startswith('|---')]
     assert any(re.search(r'guest|x-terminal-client|20261119_170', row, re.I) for row in rows), (
         'ERRORS M503 says CONTRACT section 17 holds the rollback floor of the guest build, but its table has no such '
