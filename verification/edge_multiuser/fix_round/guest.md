@@ -89,9 +89,12 @@ main checkout's EXEC.md; not yet on `fix-int`'s):
   Railway every public request does). The socket peer is taken only with `EDGE_ENVIRONMENT=local` (a developer
   machine, the browser tests); on Railway the environment is `dev` and it never applies.
 - **Not yet proved on Railway:** the Phase 0 probe of what Railway's edge really sends (CONTRACT section 4 "Client IP")
-  has not run. If the edge sent one address for everyone, all visitors would share one quota: stricter, never wider
-  (fail closed); the per-account sign-in limits do not depend on it. Run the probe before the guest plan is offered on
-  the live site (decision below).
+  has not run. If the edge sent one address for everyone, all visitors would share one quota (stricter). Corrected by
+  the 3c check (C3-5): if the edge passed a line or an entry the client wrote as the right-most hop, a script could
+  choose a new visitor key per request and get fresh quotas each time (wider), so the earlier "never wider" was wrong.
+  edge-bff now reads the right-most hop over every header line and keys IPv6 by its /64 (throttle.forwarded_hop,
+  address_key). The user chose "1a" (2026-11-20): the probe runs on Railway before the live site opens to visitors,
+  and sends a client-written X-Forwarded-For once as one line and once as two.
 - **Per visitor at terminal-api** (migration `20261119_170`): edge-bff sends `x-terminal-client`, 32 hex of an HMAC of
   the address under `EDGE_SESSION_SECRET` with its own label (`guest_client`), never the address. Beside both owner
   headers of an owner that does not hold `*`, terminal-api counts that owner's quotas per visitor: `Store.usage`,
@@ -278,7 +281,9 @@ Changed (each held a rule a decision of 2026-11-19 replaced; no expectation weak
 1. **The client-address probe before guests go live.** The guest quotas count per address read from Railway's
    `X-Forwarded-For`; the probe that proves what Railway's edge sends (CONTRACT section 4) has not run. Options: (a) run
    the probe before the live site opens to visitors (a Railway call with the user's go); (b) open guests without it
-   (worst case every visitor shares one quota: stricter, never wider).
+   (worst case, corrected by the 3c check C3-5: if the edge kept a client-written hop right-most, quotas per visitor
+   could be widened at will). The user chose (b) on 2026-11-19 on the earlier, wrong worst case, then "1a" on
+   2026-11-20 once it was corrected.
 2. **A ceiling for all visitors together.** Per-address quotas do not bound a visitor who changes address. Options:
    (a) none for now; (b) a total per hour for the guest owner (a new terminal-api quota, data).
 3. **Bonds and logos for the free plan and guests.** Today they stay filtered (above). Options: (a) keep; (b) treat the

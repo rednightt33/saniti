@@ -215,7 +215,11 @@ export function initIndicators(ctx: Ctx) {
   /* ERRORS M332 (user 2026-11-01, US10Y): an indicator is drawn only on a ticker with every input it reads (data/inputs.ts);
      the saved entries this ticker cannot feed stay in the saved list at their places (`parked`) for the next ticker */
   const HAVE = inputsOf(ctx.M);
-  const usable = (id: string) => { const d = defOf(id); return !!d && fits(needsOf(d), HAVE) };
+  /* 3c check C3-8: an indicator the principal does not hold (live.ts lockRules, what the menu locks: its catalog item is
+     the registry entry's id, kind indicator or flow_indicator) is parked like one the ticker cannot feed: kept in the
+     saved list, not drawn, and drawn again once the plan holds it. A definition with no registry entry is no item. */
+  const lockedDef = (d: any) => !!d?.reg?.id && !!ctx.M.locks?.item(d.flow ? 'flow_indicator' : 'indicator', d.reg.id);
+  const usable = (id: string) => { const d = defOf(id); return !!d && fits(needsOf(d), HAVE) && !lockedDef(d) };
   let parked: { at: number; o: any }[] = [];
   const legend = $('indRow').parentElement;
   const EYE = $('volEye').innerHTML, XICON = $('volX').innerHTML;

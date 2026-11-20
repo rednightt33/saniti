@@ -21,6 +21,7 @@ PostgreSQL (edge_bff.auth_throttle, migration 20261116_002), shared by every edg
 """
 import hashlib
 import hmac
+import ipaddress
 import json
 import math
 
@@ -70,12 +71,38 @@ def normal_login(login):
     return login.strip().casefold()
 
 
+def forwarded_hop(request):
+    """The right-most entry of the request's X-Forwarded-For, read over every line of the header (a client can send a
+    line of its own before the one a proxy adds, and a second line is read as appended to the first, RFC 9110 5.3), so
+    the hop Railway's edge adds decides and a line the client wrote never does (3c check C3-5). None without the header.
+    The probe of CONTRACT.md section 4 confirms what the edge sends (the user's "1a" 2026-11-20)."""
+    lines = request.headers.getlist('x-forwarded-for')
+    return ','.join(lines).split(',')[-1].strip() if lines else None
+
+
+def address_key(text):
+    """An IP address as the key of one client: IPv4 as it is; IPv6 as its /64 prefix (one subscriber line usually
+    holds a whole /64, so a client cannot take a new key per address in it; C3-5); an IPv4-mapped IPv6 address as its
+    IPv4. None for anything that is not an address (fail closed)."""
+    try:
+        address = ipaddress.ip_address((text or '').strip())
+    except ValueError:
+        return None
+    if address.version == 6:
+        if address.ipv4_mapped:
+            return str(address.ipv4_mapped)
+        return str(ipaddress.ip_network(f'{address}/64', strict=False))
+    return str(address)
+
+
 def client_address(request):
-    """The right-most X-Forwarded-For entry (the hop Railway's edge adds), else the socket peer. Unverified until the
+    """The client's key for the sign-in and reset counters: the right-most X-Forwarded-For hop over every line
+    (forwarded_hop), else the socket peer, as an address_key; 'unknown' when neither is an address. Unverified until the
     probe (CONTRACT.md section 4), which is why SIGNIN_IP is recorded and not enforced."""
-    forwarded = request.headers.get('x-forwarded-for', '')
-    last = forwarded.split(',')[-1].strip() if forwarded else ''
-    return (last or (request.client.host if request.client else '') or 'unknown')[:100].lower()
+    hop = forwarded_hop(request)
+    raw = hop if hop is not None else (request.client.host if request.client else '')
+    # an address is keyed by address_key (IPv6 by its /64); anything else (a test client's peer name) as it is
+    return address_key(raw) or (raw or '').strip().lower()[:100] or 'unknown'
 
 
 class Throttle:

@@ -56,7 +56,11 @@ def holds_entry(p, kind, item_id):
 
 def holds_every(p, kind):
     """Whether the principal holds every item of a kind whatever its id or stage ('*', or a family value {"all": true}),
-    so nothing of that kind is left out of an answer."""
+    so nothing of that kind is left out of an answer. Never on the live site: its principal holds no lab item, '*'
+    included (principal.live_view; CONTRACT.md 17), so each item is decided on its own there (3c check C3-13), as
+    allow.allow_of does."""
+    if getattr(p, 'live', False):
+        return False
     if EVERYTHING in p.capabilities or p.grants.get(EVERYTHING) is True:
         return True
     return any(p.kinds.get(f) == 'items' and p.grants[f].get('all') is True for f in releases.FAMILIES_OF_KIND[kind])

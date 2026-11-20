@@ -225,7 +225,8 @@ export function migrateIdentity(from: string, to: string) {
 
 /* a mark or a drawing stamp of the bare-login form was written by Phase 0, when EDGE had one account (user #1): every
    identity written since Phase 1 is `owner:<key>` (the session answer carries the owner key) */
-const bareForm = (id: string) => !!id && !id.startsWith('owner:');
+// a visitor's mark (GUEST_IDENTITY) is no account's bare login: an account never adopts a visitor's keys (3c check C3-6)
+const bareForm = (id: string) => !!id && !id.startsWith('owner:') && id !== GUEST_IDENTITY;
 /** user #1's Phase 0 drawing stamps (the bare-login form) are stamped with its owner identity `to` */
 function migrateBare(to: string) {
   const s = areaOf('local'); if (!s || bareForm(to)) return;
@@ -349,6 +350,10 @@ const secs = (n: number | null) => n == null ? 'a minute' : n === 1 ? '1 second'
     refusals the page words itself (validation, not found, server errors) */
 export function accessText(e: EdgeError): string | null {
   const name = typeof e.details.display_name === 'string' && e.details.display_name ? e.details.display_name : '';
+  // a visitor without an account (details.visitor, track guest; 3c check C3-9): no plan to upgrade, not signed in
+  if (e.details.visitor === true && (e.kind === 'upgrade' || e.kind === 'limit'))
+    return e.message || (e.kind === 'upgrade' ? `${name || 'This'} needs an EDGE account. Sign in or create one to use it.`
+      : `You have reached the limit for visitors without an account. Try again in ${secs(e.retryAfter)}, or sign in to EDGE.`);
   switch (e.kind) {
     case 'signin': return e.message && !e.legacy ? e.message : 'Your EDGE sign-in has ended. Sign in to EDGE again, then open this page again.';
     case 'csrf': return 'This page\'s sign-in check failed. Reload the page and try again.';
@@ -517,6 +522,12 @@ export function sessionClient(fetchImpl?: typeof fetch) {
       if (visitor) {
         // an account whose session ended on this page: the page's memory is that account's, so it reloads as a visitor
         if (identity && identity !== GUEST_IDENTITY) { fireResets(); reloadPage() }
+        // the visitor is an identity of this browser of its own (3c check C3-6): the state of the account last signed in
+        // here (its mark) goes before the visitor reads or writes any of it, and the visitor's mark is written, so the
+        // next account's sign-in sees a change of identity and clears the visitor's keys (noteIdentity), never adopts them
+        const was = lastLogin();
+        if (was && was !== GUEST_IDENTITY) void clearUserState();
+        try { areaOf('local')?.setItem(LAST_LOGIN_KEY, GUEST_IDENTITY) } catch { /* storage off: nothing is kept either */ }
         if (!identity) identity = GUEST_IDENTITY;
         now = visitor;
         return visitor;

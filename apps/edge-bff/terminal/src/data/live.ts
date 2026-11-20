@@ -72,6 +72,8 @@ const SIGN_IN = 'Sign in to EDGE first, then open the Terminal tab again.';
 /* EXEC-MU-ACCOUNTS re-check R2-32: a plan none of whose tickers is published (the ticker list is whole since decision 1
    of 2026-11-19, track guest; the page opens only a ticker the plan holds) */
 const NO_TICKER = 'No ticker of your EDGE plan is published yet. Upgrade the plan to open others; you are still signed in.';
+/* 3c check C3-9: the same for a visitor without an account, who has no plan and is not signed in */
+const NO_TICKER_VISITOR = 'No ticker open to visitors is published yet. Sign in or create an EDGE account to open others.';
 async function api(path: string, _csrf: string, body?: unknown) {
   let res: Response;
   try {
@@ -355,7 +357,7 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
     ...bonds.map((b: any) => [b.ticker, b.name || b.ticker, 'Fixed income', 0, { market:'Fixed income', place:b.country || undefined, ...lockedOf(b.ticker) }] as Instrument)];
   const open = (t: string | null | undefined) => !!t && known.has(t) && !locks.ticker(t);
   const SYMBOL = [stored, 'MAPI'].find(open) ?? tickers.find(t => open(t.ticker))?.ticker ?? bonds.find((b: any) => open(b.ticker))?.ticker;
-  if (!SYMBOL) throw new TerminalError(NO_TICKER);
+  if (!SYMBOL) throw new TerminalError(edge.guest ? NO_TICKER_VISITOR : NO_TICKER);
   const bond = bondOf.get(SYMBOL);
   const isIndex = tickers.some(t => t.ticker === SYMBOL && t.type === 'index');     // EXEC-IHSG-FLOW
   const ready = SYMBOL === guess && (await guessP.then(f => isBondAnswer(f) === !!bond, () => false)) ? await early

@@ -73,11 +73,33 @@ export function fileCache(factory: IDBFactory | undefined = globalThis.indexedDB
   };
 }
 
-/** A download the storage host refused or that never arrived whole: `status` 0 when there was no answer. */
+/** A download the storage host refused or that never arrived whole: `status` 0 when there was no answer. A file of this
+    origin (a cut edge-bff relays; 3c check C3-2) refused in the contract's shape carries its `code`, its words (the
+    message, which names the limit and the wait, CONTRACT.md section 3) and `retryAfter` (seconds, or null). */
 export class DownloadError extends Error {
   readonly status: number;
-  // a declared field, not a parameter property: Node's type stripping (backtest-worker tests) refuses parameter properties (ERRORS M262)
-  constructor(status: number) { super(status ? `A data file could not be downloaded (${status}).` : 'A data file could not be downloaded.'); this.status = status }
+  readonly code: string | undefined;
+  readonly retryAfter: number | null;
+  // declared fields, not parameter properties: Node's type stripping (backtest-worker tests) refuses parameter properties (ERRORS M262)
+  constructor(status: number, code?: string, words?: string, retryAfter: number | null = null) {
+    super(words || (status ? `A data file could not be downloaded (${status}).` : 'A data file could not be downloaded.'));
+    this.status = status; this.code = code; this.retryAfter = retryAfter;
+  }
+}
+
+/** The contract-shaped refusal of a file of this origin ({error:{code, message, details}}), or null: a storage host's
+    answer, or a body that is not that JSON, keeps the plain download error. A 401 is the session's end. */
+async function refusalOf(res: Response, url: string): Promise<DownloadError | null> {
+  if (credentialsFor(url) !== 'same-origin') return null;
+  let body: any = null;
+  try { body = await res.json() } catch { return null }
+  const err = body && typeof body.error === 'object' && body.error ? body.error : null;
+  if (!err || typeof err.code !== 'string') return null;
+  const header = Number(res.headers.get('Retry-After'));
+  const fromDetails = err.details && typeof err.details.retry_after_s === 'number' ? err.details.retry_after_s : null;
+  const wait = Number.isFinite(header) && header > 0 ? header : fromDetails;
+  return new DownloadError(res.status, res.status === 401 ? 'UNAUTHENTICATED' : err.code,
+    typeof err.message === 'string' ? err.message : '', wait);
 }
 
 /** EXEC-MU-ACCOUNTS Phase 3c: a file of this origin (a path such as /api/terminal/v1/cut/<T>/<ds>?sha256=, the cut
@@ -91,12 +113,18 @@ export function credentialsFor(url: string): 'same-origin' | 'omit' {
 export async function fetchFile(url: string): Promise<Uint8Array<ArrayBuffer>> {
   let status = 0;
   for (let k = 0; ; k++) {
-    try {
-      const res = await fetch(url, { credentials:credentialsFor(url) });
+    let res: Response | null = null;
+    try { res = await fetch(url, { credentials:credentialsFor(url) }) } catch { status = 0 }
+    if (res) {
       status = res.status;
-      if (res.ok) return new Uint8Array(await res.arrayBuffer());   // a body cut off on the way rejects here
-      if (status < 500) break;
-    } catch { status = 0 }
+      if (res.ok) {
+        try { return new Uint8Array(await res.arrayBuffer()) } catch { status = 0 }   // a body cut off on the way
+      } else if (status < 500) {
+        const refused = await refusalOf(res, url);   // a refusal of this origin: its own code and words, never retried
+        if (refused) throw refused;
+        break;
+      }
+    }
     if (k >= FILE_RETRIES) break;
     await new Promise(ok => setTimeout(ok, FILE_RETRY_MS * (k + 1)));
   }

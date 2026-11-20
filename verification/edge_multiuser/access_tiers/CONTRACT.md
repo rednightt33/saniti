@@ -226,9 +226,13 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
   value, told to the user 2026-11-19).
 - Email sending: 10 per IP hash per hour.
 - A dummy scrypt verify runs for unknown logins, so timing matches.
-- **Client IP:** from `X-Forwarded-For` as set by Railway's edge (right-most untrusted hop). Until a probe proves what
-  Railway sends (Phase 0 task, M470 notes), the per-IP limits are recorded in the table but not enforced; the per-account
-  limits are enforced. The probe result is recorded in `ERRORS_AND_SOLUTIONS.md`.
+- **Client IP:** from `X-Forwarded-For` as set by Railway's edge (right-most untrusted hop), read over every line of the
+  header (a line the client writes before the edge's never decides) and keyed by the whole IPv4 address or the IPv6 /64
+  (`throttle.forwarded_hop`, `address_key`; the visitor key and the sign-in and reset counters read it the same way; 3c
+  check C3-5). Until a probe proves what Railway sends (Phase 0 task, M470 notes; the user's "1a" 2026-11-20: run it
+  before the live site opens to visitors, with a client-written header sent once as one line and once as two), the
+  per-IP sign-in limit is recorded in the table but not enforced; the per-account limits are enforced. The probe result
+  is recorded in `ERRORS_AND_SOLUTIONS.md`.
 
 **Sessions:**
 - Absolute lifetime 24 h (today), in both modes; idle timeout 8 h; at most 5 sessions per user (the oldest is revoked).

@@ -47,7 +47,7 @@ from . import email_texts, hooks, mfa, passwords
 from .accounts import EMAIL, EMAIL_MAX, RESERVED_USERNAMES, USERNAME, AccountStore, new_owner_key
 from .errors import Refusal
 from .mailer import OutboxStore, enqueue
-from .principal import ADMIN_ACCESS, Principal
+from .principal import Principal
 from .security import (REGISTRATION_COOKIE as REGISTRATION, SESSION_COOKIE, cookie_name, normal_password,
                        password_verifier, registration_path, token_hash, verify_password)
 from .text_rules import person_name
@@ -197,15 +197,21 @@ class FlowStore:
         self._send(c, purpose, email, email_texts.code_email(purpose, code), row['expires_at'], f'code:{row["code_id"]}')
         return True
 
-    def _check_code(self, c, user, purpose, code, email=None):
+    def _check_code(self, c, user, purpose, code, email=None, client=None):
         """('ok', code row) | ('invalid', None) | ('limited', seconds). A wrong try raises the code's attempts (the code
         is dead at 5) and the user's daily count; the daily cap is read first, so a new code never resets it. With
         `email` (a reset, typed by anyone) the address's own daily count is read and raised too, whether or not the
-        address has an account, so the cap answers alike for every address (ERRORS R1-8). The caller holds the address's
-        lock (_lock), so the read and the count of one address are serial."""
-        by_address = self._h(CODE_ADDRESS, email) if email else None
+        address has an account, so the cap answers alike for every address (ERRORS R1-8). A reset's two daily counts are
+        keyed by the client address too (`client`, throttle.client_address; the user's "2a" 2026-11-20, 3c check C3-17):
+        a stranger's wrong codes from one address never block the owner's code from another, so the 100-failure sign-in
+        lock keeps its way back. Guessing stays bounded by the 5 tries of each code and the address's 10 emails a day
+        (at most 50 guesses a day against 10^6). The caller holds the address's lock (_lock), so the read and the count
+        of one address are serial."""
+        by_address = self._h(CODE_ADDRESS, (email, client or 'unknown')) if email else None
+        by_user = None if user is None else self._h(
+            CODE_USER, (str(user['user_id']), client or 'unknown') if email else str(user['user_id']))
         wait = (Throttle._wait(c, CODE_ADDRESS, by_address) if by_address else 0) or (
-            Throttle._wait(c, CODE_USER, self._h(CODE_USER, str(user['user_id']))) if user is not None else 0)
+            Throttle._wait(c, CODE_USER, by_user) if by_user else 0)
         if wait:
             return 'limited', wait
         row = None
@@ -221,7 +227,7 @@ class FlowStore:
             if row:
                 c.execute('''UPDATE edge_bff.email_codes SET attempts=attempts+1,
                     consumed_at=CASE WHEN attempts+1 >= 5 THEN now() END WHERE code_id=%s''', (row['code_id'],))
-            Throttle._add(c, CODE_USER, self._h(CODE_USER, str(user['user_id'])))
+            Throttle._add(c, CODE_USER, by_user)
         if by_address:
             Throttle._add(c, CODE_ADDRESS, by_address)
         return 'invalid', None
@@ -327,20 +333,25 @@ class FlowStore:
             self._lock(c, email)
             if not self._may_send(c, email, ip):
                 return False
+            # a registration at its day's mails (REGISTRATION_MAIL) gets no code, so it must not move either: moved to a
+            # cookie that was never sent, the code already mailed would finish it on no browser (3c check C3-19)
+            if Throttle._wait(c, REGISTRATION_MAIL, self._h(REGISTRATION_MAIL, str(user_id))):
+                return False
             if not c.execute('''UPDATE edge_bff.users SET registration_hash=%s WHERE user_id=%s AND status='pending'
                     RETURNING user_id''', (registration, user_id)).fetchone():
                 return False
             return self._issue_code(c, user_id, 'register', email)
 
-    def reset(self, email, code, verifier):
+    def reset(self, email, code, verifier, client=None):
         """('ok', user {user_id, email, username}) with the password replaced, every session revoked and the
         notification queued | ('invalid', None) | ('limited', seconds). The account's users row is locked first
-        (accounts.py: a sign-in or change proved before the reset is then refused, a session made before it revoked)."""
+        (accounts.py: a sign-in or change proved before the reset is then refused, a session made before it revoked).
+        `client`: the client address the reset's code counts are keyed by (_check_code)."""
         with self.store.connect() as c:
             self._lock(c, email)
             user = c.execute('''SELECT user_id, email, username FROM edge_bff.users WHERE email=%s AND status='active'
                 FOR UPDATE''', (email,)).fetchone()
-            outcome, found = self._check_code(c, user, 'reset', code, email)
+            outcome, found = self._check_code(c, user, 'reset', code, email, client)
             if outcome != 'ok':
                 return outcome, found
             c.execute('UPDATE edge_bff.email_codes SET consumed_at=now() WHERE code_id=%s', (found['code_id'],))
@@ -672,12 +683,12 @@ class AuthFlows:
             email = checked_email(b['email'])
             async with self.password_work.admitted_request():
                 verifier = await self.new_verifier(checked_passwords(b))
-            outcome, found = await asyncio.to_thread(store.reset, email, b['code'].strip(), verifier)
+            address = client_address(request)
+            outcome, found = await asyncio.to_thread(store.reset, email, b['code'].strip(), verifier, address)
             if outcome != 'ok':
                 raise code_refusal(outcome, found)
             # ERRORS R1-9: the reset proved the mailbox, and its answer says to sign in next: this client's sign-in
             # count of the account's logins goes (the account's failure cap went with the new password, _set_password)
-            address = client_address(request)
             await asyncio.to_thread(self.throttle.clear, SIGNIN_LOGIN, *((normal_login(login), address)
                                                                          for login in (found['username'], found['email'])
                                                                          if login))
@@ -695,11 +706,19 @@ class AuthFlows:
             async with self.password_work.admitted_request():
                 wait = await asyncio.to_thread(self.throttle.attempt, PASSWORD_CHANGE, key)
                 if wait:
-                    raise Refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
+                    # the account's own password-change tries, not a place's sign-ins (3c check C3-21)
+                    raise Refusal(429, 'LIMIT_REACHED', {'limit': 'password_change', 'retry_after_s': wait},
+                                  {'Retry-After': str(wait)})
                 account = await asyncio.to_thread(store.account, p.user_id)
-                if not account or not await self.password_work.run(verify_password, b['current_password'],
-                                                                   account['verifier']):
+                # a current password is a password try of the account like a sign-in's: counted in the same statement
+                # before the check, and refused while the account is locked (CONTRACT.md section 4, at most 100
+                # consecutive failures; 3c check C3-20); a right one ends the run of failures
+                tried = await asyncio.to_thread(auth.accounts.sign_in_try, p.user_id)
+                proved = bool(account) and await self.password_work.run(verify_password, b['current_password'],
+                                                                         account['verifier'])
+                if not (proved and tried):
                     raise Refusal(400, 'CURRENT_PASSWORD_INVALID', {'fields': ['current_password']})
+                await asyncio.to_thread(auth.accounts.sign_in_proved, p.user_id)
                 verifier = await self.new_verifier(checked_passwords(b))
             # ERRORS R2-9: written only while this session is live and the proved verifier is still the account's
             outcome = await asyncio.to_thread(store.change, p.user_id, verifier, token_hash(p.token), account['email'],
@@ -720,7 +739,7 @@ class AuthFlows:
             return response
 
         @app.post('/api/v1/auth/mfa/enroll')
-        async def mfa_enroll(_on=Depends(switched_on), p: Principal = Depends(auth.need(ADMIN_ACCESS, write=True))):
+        async def mfa_enroll(_on=Depends(switched_on), p: Principal = Depends(auth.second_factor_holder())):
             """otpauth URI and 10 recovery codes, shown once. A confirmed enrolment is replaced only by a session that
             passed MFA within the last MFA_RECENT_SECONDS (else 403 MFA_REQUIRED with details.recent_s: a password alone
             never resets the second factor, and an older pass enters a fresh code first, POST /api/v1/auth/mfa/verify),

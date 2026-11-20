@@ -9440,8 +9440,9 @@ in its staleness check.
   `auth.need(..., guests=True)` on the `GUEST_OPEN` routes, and `test_r2_trace_beta_live.py`'s live site is the one
   after the launch (`prelaunch_enabled` false: the pre-launch default refused its paid account with `SIGN_IN_CLOSED`).
 - **Status:** fixed on branch fix-int2, not deployed; migrations `20261119_070` and `20261119_170` not applied. Open
-  before guests go live: the client-address probe of CONTRACT 4 (worst case without it: every visitor shares one quota,
-  stricter, never wider).
+  before guests go live: the client-address probe of CONTRACT 4 (the user's "1a", 2026-11-20). Worst case without it,
+  corrected by the 3c check (C3-5): if Railway's edge kept a client-written hop right-most, a script could take a new
+  visitor key per request (wider); edge-bff reads the right-most hop over every header line and keys IPv6 by its /64.
 - **Lesson:** before a path refuses a file to a plan, check what the page needs to draw at all; what a visitor or a
   plan sees is catalog data read by the one entitlement path, and the routes that admit visitors are named in one
   table the route walk holds.

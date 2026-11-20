@@ -59,7 +59,6 @@ import asyncio
 import dataclasses
 import hashlib
 import hmac
-import ipaddress
 import json
 import logging
 import re
@@ -71,6 +70,7 @@ from fastapi import Depends, Request
 
 from .accounts import GUEST_OWNER, OWNER_KEY, AccountStore
 from .config import LIVE
+from .throttle import address_key, forwarded_hop
 from .errors import Refusal, capability_required, plan_expired, set_display_names
 from . import releases
 from .releases import KIND_OF_FAMILY, LAB, stage_of
@@ -228,7 +228,10 @@ class Principal:
         judged against the ended plan's own value (CONTRACT.md 8a; re-check R1-23)."""
         if self.ended_allows(capability, item, amount):
             return plan_expired(capability, self.expired_plan)
-        return capability_required(capability)
+        refused = capability_required(capability)
+        if self.guest:
+            refused.details['visitor'] = True                    # errors.words: a visitor's sentence (C3-9)
+        return refused
 
     def ended_allows(self, capability, item=None, amount=None):
         """Whether the account's ended plan would have allowed this request. A flag or an item family: held as can()
@@ -303,21 +306,17 @@ def live_view(p, flags=()):
 
 
 def client_of(request, local=False):
-    """The visitor's client address: the right-most X-Forwarded-For entry, the hop Railway's edge adds to every request
-    it forwards from the internet (a hop a client wrote itself stays to its left), when it is an IP address; on a
+    """The visitor's client key: the right-most X-Forwarded-For entry over every line of the header, the hop Railway's
+    edge adds to every request it forwards from the internet (a hop or a whole line a client wrote itself stays to its
+    left; throttle.forwarded_hop, 3c check C3-5), as an address key (IPv6 by its /64, throttle.address_key); on a
     developer machine (`local`, EDGE_ENVIRONMENT=local), with no such header, the socket peer. None otherwise: a request
     that did not pass the edge, or a header that is not an address, gets no guest principal (fail closed)."""
-    forwarded = request.headers.get('x-forwarded-for')
-    if forwarded is not None:
-        candidate = forwarded.split(',')[-1].strip()
-    elif local and request.client:
-        candidate = request.client.host
-    else:
-        return None
-    try:
-        return str(ipaddress.ip_address(candidate))
-    except ValueError:
-        return None
+    hop = forwarded_hop(request)
+    if hop is not None:
+        return address_key(hop)
+    if local and request.client:
+        return address_key(request.client.host)
+    return None
 
 
 def guest_client(secret, address):
@@ -461,16 +460,32 @@ class Auth:
     def refresh_names(self, force=True):
         """The catalog's display names into the refusals (errors.display_name); blocking, a thread. Without the catalog
         (before its migration) the refusals keep the plain phrase."""
-        now = time.monotonic()
-        if not force and self._names_at is not None and now - self._names_at < self.NAMES_SECONDS:
+        if not force and not self.names_due():
             return
-        self._names_at = now
         with self.store.connect() as c:
             rows = c.execute('SELECT capability_key, display_name, kind FROM edge_bff.capabilities').fetchall()
             plans = c.execute('SELECT plan_key, display_name FROM edge_bff.plans').fetchall()
         set_display_names({r['capability_key']: r['display_name'] for r in rows},
                           {r['plan_key']: r['display_name'] for r in plans})
         self.flags = frozenset(r['capability_key'] for r in rows if r['kind'] == 'flag')
+        # marked read only after a read that worked: a failed read at the start (or later) is tried again at the next
+        # request, not NAMES_SECONDS later with no flags meanwhile (3c check C3-14)
+        self._names_at = time.monotonic()
+
+    def names_due(self):
+        """Whether the catalog's names and flags are to be read again: never read, or read NAMES_SECONDS ago."""
+        return self._names_at is None or time.monotonic() - self._names_at >= self.NAMES_SECONDS
+
+    async def fresh_names(self):
+        """Reads the catalog's names and flags again when they are due (names_due), so a flag the catalog adds reaches
+        the live site's '*' holders within NAMES_SECONDS, and a start whose read failed recovers at the next request
+        (3c check C3-14). A failed read is logged and the last names stay."""
+        if not self.names_due():
+            return
+        try:
+            await asyncio.to_thread(self.refresh_names, False)
+        except Exception as e:                                  # noqa: BLE001 - logged by its class only
+            logger.warning(json.dumps({'event': 'capability_names_failed', 'error': type(e).__name__}))
 
     def seed_plan(self):
         """Phase 2 (CONTRACT.md 8a "User #1"): the seed user's subscription to the plan that holds every capability
@@ -500,7 +515,16 @@ class Auth:
                 return None
             return switch_off_principal(self.settings, self.settings.owner, token, self.seed)
         row = await asyncio.to_thread(self.accounts.resolve, hashed, self.settings.session_idle_seconds)
-        return self.site_view(account_principal(row, token)) if row else None
+        if not row:
+            return None
+        await self.fresh_names()
+        p = account_principal(row, token)
+        # the pre-launch mode's rule (main.py sign-in) holds for every request, not only at the sign-in: a session of an
+        # account that is no longer the admin or a test account (its mark removed, its plan lowered) ends with it (3c
+        # check C3-7)
+        if self.settings.prelaunch and not (role_needs_mfa(p.capabilities) or row.get('test_account')):
+            return None
+        return self.site_view(p)
 
     async def guest(self, request):
         """The guest principal of a request without a session (module docstring), or None: guests are off on this site
@@ -550,6 +574,21 @@ class Auth:
                     except Exception:                         # noqa: BLE001 - the plain phrase stays
                         pass
                     raise p.refusal(capability)
+                return p
+            self._needs[key] = check
+        return self._needs[key]
+
+    def second_factor_holder(self):
+        """A dependency for the second factor's own set-up (POST /api/v1/auth/mfa/enroll): the session principal, with
+        CSRF, of an account whose own grants require the second factor (role_needs_mfa of the account as it is, never
+        the live site's view, which leaves the admin keys out: 3c check C3-16). The set-up is part of signing in, so it
+        exists on every site an account signs in on; the admin routes it protects stay beta-only. Else 403
+        CAPABILITY_REQUIRED admin.access, as before."""
+        key = ('second_factor_holder',)
+        if key not in self._needs:
+            async def check(p: Principal = Depends(self.writer)):
+                if p.user_id is None or not await asyncio.to_thread(self.needs_mfa, p.owner_key):
+                    raise capability_required(ADMIN_ACCESS)
                 return p
             self._needs[key] = check
         return self._needs[key]

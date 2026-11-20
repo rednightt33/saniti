@@ -172,10 +172,23 @@ def words(code, status, details=None):
     - CAPABILITY_REQUIRED names the item (display_name); PLAN_EXPIRED also the ended plan (its name in the catalog);
     - LIMIT_REACHED of a plan limit (is_plan_limit) names it, the account's own number (allowed) and the wait (or, with
       no wait, to remove one); of anything else it names the wait and no plan, since no plan decides it;
+    - a visitor without an account (details.visitor, track guest; 3c check C3-9) is never told to upgrade a plan or
+      that it is still signed in: CAPABILITY_REQUIRED and LIMIT_REACHED tell it to sign in or create an account, or to
+      wait;
     - MFA_REQUIRED says to set the authenticator up when the account has none (details.mfa_enrolled false), and to
       enter a fresh code first when a new authenticator needs a recent pass (details.recent_s, the seconds);
     - every other code: its fixed sentence (message_of; one holding {wait} says the refusal's own wait)."""
     d = details if isinstance(details, dict) else {}
+    if d.get('visitor') is True and code in ('CAPABILITY_REQUIRED', 'LIMIT_REACHED'):
+        # a visitor without an account (track guest) has no plan to upgrade and is not signed in: the way on is to sign
+        # in or create an account, or to wait (3c check C3-9)
+        if code == 'CAPABILITY_REQUIRED':
+            name = named_in(d)
+            return (f'{name} needs an EDGE account. Sign in or create one to use it.' if name
+                    else 'This needs an EDGE account. Sign in or create one to use it.')
+        wait = wait_words(d.get('retry_after_s'))
+        return (f'You have reached the limit for visitors without an account. Try again in {wait}, or sign in to EDGE.'
+                if wait else 'You have reached the limit for visitors without an account. Sign in to EDGE to go on.')
     if code == 'CAPABILITY_REQUIRED':
         name = named_in(d)
         if name:

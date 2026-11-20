@@ -179,6 +179,7 @@ class AccountStore:
         with self.store.connect() as c:
             return c.execute('''WITH found AS (
                     SELECT s.token_hash, s.mfa_passed_at, u.user_id, u.owner_key, u.username, u.role, u.status,
+                           u.test_account,
                            (s.last_seen_at IS NULL OR s.last_seen_at < now() - make_interval(secs => %(touch)s)) AS stale
                     FROM edge_bff.sessions s JOIN edge_bff.users u ON u.user_id = s.user_id
                     WHERE s.token_hash = %(hashed)s AND s.revoked_at IS NULL AND s.expires_at > now()
@@ -186,7 +187,7 @@ class AccountStore:
                       AND coalesce(s.last_seen_at, s.created_at) > now() - make_interval(secs => %(idle)s)),
                 touched AS (UPDATE edge_bff.sessions t SET last_seen_at = now() FROM found
                     WHERE t.token_hash = found.token_hash AND found.stale RETURNING 1),''' + GRANTS + '''
-                SELECT found.user_id, owner_key, username, role, status, mfa_passed_at,
+                SELECT found.user_id, owner_key, username, role, status, mfa_passed_at, test_account,
                        EXISTS (SELECT 1 FROM edge_bff.mfa_totp m WHERE m.user_id = found.user_id
                                AND m.confirmed_at IS NOT NULL) AS mfa_enrolled, ''' + GRANT_COLUMNS + '''
                 FROM found CROSS JOIN plan''',
@@ -279,6 +280,13 @@ class AccountStore:
                 RETURNING sign_in_failures''', {'user': user_id, 'restart': PASSWORD_RESTART,
                                                'cap': PASSWORD_FAILURE_CAP,
                                                'lock': PASSWORD_LOCK_SECONDS}).fetchone() is not None
+
+    def sign_in_proved(self, user_id):
+        """A right password of the account (a password change's current password, auth_flows.py): its run of consecutive
+        failures ends, as a sign-in's success ends it (signed_in)."""
+        with self.store.connect() as c:
+            c.execute('''UPDATE edge_bff.identities SET sign_in_failures = 0, sign_in_locked_until = NULL
+                WHERE user_id = %s AND provider = 'password' AND sign_in_failures > 0''', (user_id,))
 
     def pending_logins(self, login):
         """The newest PENDING_CHECKED pending registrations of an address with their verifiers (a sign-in with the right

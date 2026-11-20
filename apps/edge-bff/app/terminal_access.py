@@ -5,12 +5,16 @@ Every terminal-api call edge-bff makes for a principal (main.py forward_terminal
 from `headers(settings, p)` and from nowhere else (tests/test_terminal_access.py greps app/ for the proxy key):
 
   x-terminal-proxy-key     the gateway key (TERMINAL_PROXY_KEY), as before
-  x-terminal-proxy-owner   the principal's owner_key
+  x-terminal-proxy-owner   the principal's owner_key on the beta; on the live site the owner_key with the site after
+                           '@' (`terminal_owner`), so every owner row of terminal-api, its usage and its audit belong
+                           to one site (3c check C3-3, C3-12, C3-26; the user's "3a" 2026-11-20)
   x-terminal-capabilities  compact ASCII JSON, at most 8 KiB, built from the principal only (`capabilities(p)`):
                            {"v":1,"version":..,"admin":bool,"tickers":"*"|[..],"datasets":"*"|[..],
                             "history_days":null|N,"quota":{..}}
 
-- `admin` is '*' in the principal's capabilities; an admin's tickers and datasets are "*" and its history_days null.
+- `admin` is the account holding '*' (in its capabilities, or in its grants where the live site's view keeps it,
+  principal.live_view; the same reading as allow.py and catalog.py, C3-3); an admin's tickers and datasets are "*" and
+  its history_days null, and terminal-api counts it with the gateway's own limits, on the beta and the live site alike.
 - `tickers` is the list `terminal.tickers` (no row: "*"); `datasets` the ids of DATASET_IDS that
   p.can('terminal.dataset:<id>') grants, in DATASET_IDS order; `history_days` the plan's `terminal.history_days` (no
   row: null); `quota` the Terminal quota limits the plan sets (QUOTA, terminal-api's own names, each read from
@@ -72,6 +76,7 @@ import re
 from fastapi import Depends, Request
 
 from .client import public_data
+from .config import BETA as BETA_SITE
 from .errors import Refusal, capability_required
 
 logger = logging.getLogger('edge_bff.terminal_access')
@@ -117,7 +122,19 @@ MAX_HEADER_BYTES = 8192
 
 
 def admin(p):
-    return EVERYTHING in p.capabilities
+    """Whether the principal's account holds '*': in its capabilities, or in its grants where principal.live_view keeps
+    it while the live site's view leaves the beta-only keys out (C3-3; allow.allow_of and catalog.holds_every read it
+    the same way). The live mask is about tabs and lab items, never about the Terminal's data."""
+    return EVERYTHING in p.capabilities or p.grants.get(EVERYTHING) is True
+
+
+def terminal_owner(settings, p):
+    """The owner key terminal-api counts a principal under: its owner_key on the beta, `<owner_key>@<site>` on another
+    site (C3-3, C3-12, C3-26; the user's "3a" 2026-11-20: the admin's tries on the live site have a quota of their own,
+    apart from the beta's usage). Every owner row of terminal-api then belongs to one site, whatever account is used on
+    both; the beta's rows keep the keys they had."""
+    site = getattr(settings, 'site', BETA_SITE)
+    return p.owner_key if site == BETA_SITE else f'{p.owner_key}@{site}'
 
 
 def _limit(p, key):
@@ -159,7 +176,7 @@ def capabilities_header(p):
     caps = capabilities(p)
     for name, value in caps['quota'].items():
         if value < 1:
-            raise capability_required(f'terminal.{name}')
+            raise p.refusal(f'terminal.{name}')
     if not admin(p) and (dropped := _tickers(p)[1]):
         logger.warning(json.dumps({'event': 'terminal_tickers_dropped', 'owner_key': p.owner_key,
                                    'count': len(dropped), 'rule': TICKER.pattern}))
@@ -177,11 +194,12 @@ def headers(settings, p):
     (principal.py guest_principal) also names its visitor (CLIENT_HEADER, its HMAC key, never the address), so
     terminal-api counts that visitor's quotas on their own; a guest without a well-formed key is refused 503 (never
     counted on the guest owner's whole row by mistake: that row's quota would then be every visitor's at once)."""
-    if not OWNER_KEY.fullmatch(p.owner_key or ''):
+    owner = terminal_owner(settings, p) if p.owner_key else ''
+    if not OWNER_KEY.fullmatch(owner):
         logger.warning(json.dumps({'event': 'terminal_owner_key_invalid'}))
         raise Refusal(503, 'TERMINAL_UNAVAILABLE')
     out = {'content-type': 'application/json', KEY_HEADER: settings.terminal_proxy_key,
-           OWNER_HEADER: p.owner_key, CAPABILITIES_HEADER: capabilities_header(p)}
+           OWNER_HEADER: owner, CAPABILITIES_HEADER: capabilities_header(p)}
     if p.guest:
         if admin(p) or not CLIENT.fullmatch(getattr(p, 'client', '') or ''):
             logger.warning(json.dumps({'event': 'terminal_guest_client_invalid'}))
@@ -216,14 +234,14 @@ def invalid(*fields):
     return Refusal(422, 'INVALID_INPUT', {'fields': list(fields)})
 
 
-def _ticker(caps, ticker):
+def _ticker(p, caps, ticker):
     if caps['tickers'] != EVERYTHING and ticker not in caps['tickers']:
-        raise capability_required(TICKERS)
+        raise p.refusal(TICKERS, item=ticker)
 
 
-def _dataset(caps, dataset):
+def _dataset(p, caps, dataset):
     if dataset not in caps['datasets']:
-        raise capability_required(f'{DATASET}:{dataset}')
+        raise p.refusal(f'{DATASET}:{dataset}')
 
 
 def _body(body):
@@ -248,36 +266,36 @@ def check(p, method, path, query, body):
     head, _, rest = path.partition('/')
     if caps['history_days'] == 0 and head in ('files', 'bundle', 'cut', 'history'):
         # R1-22: a window of 0 days holds no dated row (every /files, /bundle and /cut dataset is dated)
-        raise capability_required(HISTORY_DAYS)
+        raise p.refusal(HISTORY_DAYS)
     if method == 'GET':
         if head in ('manifest', 'logo'):
-            _ticker(caps, rest)
+            _ticker(p, caps, rest)
         elif head == 'reference':
             pass                                    # R2-32: terminal-api answers the plan's own copy (refcut.py)
         elif head == 'history':
-            _dataset(caps, rest)
+            _dataset(p, caps, rest)
             tickers = query.getlist('ticker')
             if len(tickers) != 1:
                 raise invalid('ticker')
-            _ticker(caps, tickers[0])
+            _ticker(p, caps, tickers[0])
             # history serves only the dates before the published files (terminal-api history_range): with the last N
             # days set they are outside the window (decision D2 = A)
             if caps['history_days'] is not None:
-                raise capability_required(HISTORY_DAYS)
+                raise p.refusal(HISTORY_DAYS)
         elif head == 'cut':
             ticker, _, dataset = rest.partition('/')
-            _ticker(caps, ticker)
-            _dataset(caps, dataset)
+            _ticker(p, caps, ticker)
+            _dataset(p, caps, dataset)
         else:                                       # a forwarded GET route this function does not know
-            raise capability_required(DATASET)
+            raise p.refusal(DATASET)
         return body
     data = _body(body)
-    _ticker(caps, data['ticker'])
+    _ticker(p, caps, data['ticker'])
     if head == 'files':
         dataset = data.get('dataset')
         if not isinstance(dataset, str):
             raise invalid('dataset')
-        _dataset(caps, dataset)
+        _dataset(p, caps, dataset)
     elif head == 'bundle':
         asked = data.get('datasets', list(BUNDLE_DEFAULT))
         if not isinstance(asked, list) or not asked or not all(isinstance(d, str) for d in asked):
@@ -285,9 +303,9 @@ def check(p, method, path, query, body):
         asked = list(dict.fromkeys(asked)) + ([INTRADAY] if data.get('timeframe') else [])
         locked = [d for d in asked if d not in caps['datasets']]
         if len(locked) == len(asked):
-            raise capability_required(f'{DATASET}:{locked[0]}')
+            raise p.refusal(f'{DATASET}:{locked[0]}')
     else:
-        raise capability_required(DATASET)
+        raise p.refusal(DATASET)
     return json.dumps(data, separators=(',', ':'), ensure_ascii=True).encode()
 
 
@@ -337,7 +355,10 @@ def relayed(p, status, data, headers, where):
                                        'fix': 'terminal-api is older than Phase 3c: deploy terminal-api first'}))
             return Refusal(503, 'TERMINAL_UNAVAILABLE'), None
         return None, public_data(data)
-    return refused_answer(status, data, headers, where), None
+    refused = refused_answer(status, data, headers, where)
+    if getattr(p, 'guest', False) and refused.code in ('CAPABILITY_REQUIRED', 'LIMIT_REACHED'):
+        refused.details['visitor'] = True                        # errors.words: a visitor's sentence (C3-9)
+    return refused, None
 
 
 def refused_answer(status, data, headers, where):
