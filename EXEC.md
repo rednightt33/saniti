@@ -16067,6 +16067,10 @@ Order of the services (CONTRACT 17, rollback floors):
   Still open with the user: the Postgres restart times (12:15 instead of 09:45 WIB proposed), the Resend webhook secret,
   a GitHub ruleset on `live`, the test accounts' addresses and plans, the upgrade contact, the RAILWAY_TOKEN repository
   secret, and whether to look into the broker data stopping at 9 November.
+- **The payment skeleton (the user, 2026-11-20):** "Kerangka pembayaran nanti saya. Siapkan dulu shellnya." Only the
+  shell is prepared (CONTRACT 11: `app/payments/` Adapter with `create_checkout`, `verify_webhook`, `fetch_status`; the
+  `manual` and `test` providers; `POST /api/v1/hooks/payments/{provider}`; the order state machine): no real gateway,
+  price or provider account. Those details are the user's, later. Built after the user's go, like every phase.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
