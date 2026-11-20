@@ -8879,6 +8879,123 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M508 — 3c check, records, CI and migrations: a contract row left "to build", rollback floors missing, a lock test in no workflow, rollback blocks that did not run as written (2026-11-19/20, 3c check C3-10, C3-22, C3-23, C3-24, C3-25, C3-27; fixed on branch p3c-int, not deployed; C3-27 OPEN until the deploy record)
+
+- **Found by:** the ultracode check of Phase 3c with the fix round and the decisions of 2026-11-19 (workflow
+  `wf_02484734-f40`: five lens finders, three refuters each; `verification/edge_multiuser/access_tiers/recheck/
+  c3c_check_result.json`), like M504-M507. Fixed in the basic mode the user chose (2026-11-20: "mulai dari basic setiap
+  fase").
+- **Symptom:** CONTRACT 4 still marked the pre-launch sign-in rule "to build" (C3-10); section 17 had no floor for the
+  3b follow-up's backtest-worker (C3-22) or for the guest build that M503 said it held (C3-25); the only test of R1-17's
+  "a refused catalog drops the cached result" ran in no workflow (C3-23); the rollback block of `20261119_050` held a
+  sentence where its SQL belonged and, run without it, left every plan write failing; the block of `20261119_010` failed
+  on a database holding verifiers of the new form (C3-24, the second found while fixing); no Phase 3c deploy-steps
+  record existed (C3-27).
+- **Root cause (verified):** records updated per track without a pass over the rows another track touched; a rollback
+  written as prose; a lock test added to a page with no workflow step for it.
+- **Solution:** CONTRACT 4's sign-in row names 403 `SIGN_IN_CLOSED` and marks it built; section 17 gains the rows of the
+  3b follow-up worker, the guest build and this round's site-scoped owner rows and worker slot; section 16 names
+  `EDGE_GUEST_CALLS_PER_HOUR` and the live site's missing Orc settings. `backtest-page-smoke.yml` builds the Screener's
+  smoke bundle and runs `c_p1s_plan_refused_cache.mjs`. The `050` block holds `20261117_003`'s function body; the `010`
+  block re-adds the old check `NOT VALID`. The checker's floors test read only unindented table rows; it strips them
+  now (stated reason in the test).
+- **Tests:** `apps/edge-bff/tests/test_c3c_deploy_records.py` (every cited Node test runs in a workflow, the floors, each
+  unapplied edge_bff rollback block run newest first and rolled back).
+- **Status:** fixed on branch p3c-int, not deployed; C3-27 OPEN: the deploy-steps record is written with the 3c deploy.
+- **Lesson:** a rollback is SQL that runs on the data the forward step leaves; a floor is recorded by the change that
+  creates it; a test that locks a fix runs in a workflow or it is no test (M502).
+
+### M507 — 3c check, account flows: a stranger could close both the sign-in and its way back, the unlock missed an account without an authenticator, a registration orphaned at its mail cap, a current password outside the account's cap (2026-11-19/20, 3c check C3-17 to C3-21; fixed on branch p3c-int, not deployed)
+
+- **Symptom:** from one address a stranger could lock an account (100 wrong passwords) and then block its "Forgot
+  password?" code (20 wrong reset codes for the address), so nobody, not even the owner, got back in (C3-17); the
+  operator unlock exited "not found" for an account without an enrolment, so its password lock stayed (C3-18); a sign-in
+  at a registration's three mails a day moved it to a cookie never sent, so the code in the mailbox finished it nowhere
+  (C3-19); a wrong current password in the password change counted only in its own 10-per-15-minutes bound, not in the
+  account's 100-failure cap (C3-20), and its limit answered "Too many sign-in attempts from here" (C3-21).
+- **Root cause (verified):** the reset's daily caps keyed by the typed address alone (`auth_flows._check_code`); the
+  unlock's query joined `mfa_totp`; `FlowStore.restart` moved the registration before `_issue_code` refused to mail it;
+  the change route never called `sign_in_try`; it reused the sign-in's refusal code.
+- **Solution:** the user's "2a" (2026-11-20): a reset's code counts are keyed by the address and the client address, so
+  a stranger's wrong codes never block the owner's (guessing stays bounded by 5 tries a code and 10 emails a day); the
+  unlock finds the account by its username and lifts the password lock with or without an enrolment; `restart` checks
+  the registration's mail cap before it moves anything; the change counts its current password with `sign_in_try` and
+  ends the run of failures on a right one (`AccountStore.sign_in_proved`); its limit answers 429 `LIMIT_REACHED`
+  (`details.limit` `password_change`).
+- **Tests:** `apps/edge-bff/tests/test_c3c_accounts.py` F2-F6 (and the suites of auth_flows, fix_auth, auth_throttle).
+- **Status:** fixed on branch p3c-int, not deployed.
+- **Lesson:** a lock needs a way back that the attacker cannot close from the same place; a step that may refuse is
+  checked before the step it would undo.
+
+### M506 — 3c check, visitors without an account: a client-written forwarded line chose the visitor key, a visitor read the last account's browser state, the pre-launch rule held only at sign-in, a locked indicator stayed drawn, a visitor was told to upgrade (2026-11-19/20, 3c check C3-5 to C3-9; fixed on branch p3c-int, not deployed)
+
+- **Symptom:** the visitor key and the sign-in counters read only the first `X-Forwarded-For` line, so a client sending
+  its own line got a fresh key (fresh quotas) per request, and the recorded worst case "stricter, never wider" was wrong
+  (C3-5); a visitor on a shared browser read and wrote the Terminal state of the account whose session had ended there,
+  and that account adopted it at its next sign-in (C3-6); an account whose test mark was removed kept using the live
+  site in pre-launch mode (C3-7); a saved indicator the plan no longer held was still drawn (C3-8); a visitor at its
+  quota was told to "upgrade the plan" and "you are still signed in" (C3-9).
+- **Root cause (verified):** `request.headers.get` returns the first line only; the visitor was no identity of the
+  browser's storage (`shared/edge-session.ts`); the pre-launch rule lived in the sign-in route only; the lock was read by
+  the menu's Add only (`indicators.ts` restored with `usable` alone); `errors.words` knew no visitor.
+- **Solution:** `throttle.forwarded_hop` reads the right-most hop over every line and `address_key` keys IPv6 by its
+  /64; both the visitor key and the counters use them (the user's "1a", 2026-11-20: the Railway probe runs before the
+  live site opens to visitors). The visitor is an identity of its own: the last account's state goes before the visitor
+  reads any, the visitor's mark is written, and an account never adopts a visitor's keys. `Auth.resolve` holds the
+  pre-launch rule on every request. A restored indicator the plan does not hold is parked. Refusals of a guest carry
+  `details.visitor` and say to sign in or create an account, or to wait. With the user's "2A ... di set dibackend
+  variable" (2026-11-19): `EDGE_GUEST_CALLS_PER_HOUR` bounds every visitor's Terminal calls together (unset: nothing is
+  counted; migration `20261119_071`).
+- **Tests:** `apps/edge-bff/tests/test_c3c_guest_recheck.py`, `test_c3c_guest_recheck_browser.py`,
+  `test_c3c_guest_ceiling.py`.
+- **Status:** fixed on branch p3c-int, not deployed; the Railway client-address probe OPEN (before the live site opens
+  to visitors).
+- **Lesson:** a header that may repeat is read as all its lines; a person who is not signed in is still an identity of
+  the browser; a rule decided at sign-in is a rule of every request.
+
+### M505 — 3c check, two sites on one database: the live admin capped and sharing the beta's owner row, a shared worker slot without a holder, the live mask missing presets, no flags after a failed start, Orc's key on the live site, no MFA set-up there (2026-11-19/20, 3c check C3-3, C3-11 to C3-16, C3-26; fixed on branch p3c-int, not deployed)
+
+- **Symptom:** on the live site user #1 went to terminal-api as a capped owner with terminal-api's default quotas,
+  counted on the same owner row as its beta use (C3-3, C3-12, C3-26); one site's backtest hand-over could replace the
+  other site's finished job before its result was fetched (FAILED WORKER_LOST), and a job waiting on BUSY used its own
+  time (C3-11); a lab-stage Screener preset was listed on the live site (C3-13); a catalog-names read that failed at the
+  start left the live admin with no tab until a refusal or a restart (C3-14); edge-bff-live was to hold Orc's main key,
+  which it never uses (C3-15); the live admin could not set up its second factor (404), so it could never sign in there
+  (C3-16).
+- **Root cause (verified):** `terminal_access.admin` read `*` in the masked capabilities only, and both sites sent the
+  same owner key; the worker holds one job and the two loops had no shared holder; `catalog.holds_every` ignored
+  `p.live`; `refresh_names` marked itself read before its query; `Settings.from_env` required the Orc settings on every
+  site; `mfa/enroll` was gated by `admin.access`, a beta-only key on the live site.
+- **Solution:** `admin` reads the account's grants as `allow` and `catalog` do, and `terminal_owner` gives every site its
+  own owner rows (`<owner_key>@live`; the user's "3a", 2026-11-20); a database-wide worker slot (a session advisory lock
+  held from hand-over to the job's end) and the job's time starting once the worker is its; `holds_every` is false on
+  live; names and flags are retried until a read works and refreshed every `NAMES_SECONDS`; the live site needs and
+  refuses the Orc settings (`config.validate`), and the edge-bff-live block in `.railway/railway.ts` names neither; the
+  MFA set-up is gated by the account's own need of a second factor (`Auth.second_factor_holder`).
+- **Tests:** `apps/edge-bff/tests/test_c3c_terminal_checker.py`, `test_c3c_site_recheck.py` (its shared-worker test now
+  waits by polls, not a BUSY answer: stated reason), `test_c3c_accounts.py` F1, `test_beta_live_site.py`.
+- **Status:** fixed on branch p3c-int, not deployed.
+- **Lesson:** what makes an account the admin is read from one place; a resource two processes share has one holder in
+  the shared store; a site that does not use a credential does not hold it.
+
+### M504 — 3c check, the Terminal relay: refusals before identification judged as a version mix, cut refusals shown as broken downloads, a dataset the ticker lacks answered as a history lock (2026-11-19/20, 3c check C3-1, C3-2, C3-4; fixed on branch p3c-int, not deployed)
+
+- **Symptom:** terminal-api's refusals made before it knows the caller (a rotated key, a header rule) were logged as
+  "terminal-api is older than Phase 3c" without their code (C3-1); a refused cut download (429, 403, 401) reached the
+  person as "A data file could not be downloaded (429)." (C3-2); a capped plan got a history lock for a dataset the
+  ticker does not have (C3-4).
+- **Root cause (verified):** `terminal_access.relayed` required the acknowledgement of every answer before reading its
+  status; `rack.fetchFile` read only the status of a same-origin file; `/bundle` sent every unlocked dataset to the cut,
+  which refuses a dataset with no `data_through`.
+- **Solution:** the acknowledgement is required of 2xx answers only (refusals carry no data and keep their code in the
+  log; README and CONTRACT corrected); `fetchFile` reads a same-origin refusal's contract shape and throws its code,
+  words and wait, never retried; `/bundle` and `/cut` answer a dataset absent from the manifest with no files.
+- **Tests:** `apps/edge-bff/tests/test_c3c_terminal_checker.py`, `apps/edge-bff/terminal/tests/data/
+  c3c_cut_refusal_words.test.ts`, `apps/terminal-api/tests/test_c3c_terminal_checker.py`.
+- **Status:** fixed on branch p3c-int, not deployed.
+- **Lesson:** a rule meant for data is applied to the answers that carry data; every byte path that relays a refusal
+  reads its shape.
+
 ### M503 — Records that contradicted the code, the decisions or themselves (2026-11-18/19, re-check R1-6, R1-45, R2-6, R2-41; fixed on branch fix-int2, not deployed)
 
 - **Found by:** the ultracode re-check of Phases 0-3b, like M483-M502 (the sources are named in M483).
