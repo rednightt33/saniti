@@ -1,5 +1,30 @@
 # Railway changelog
 
+## 2026-11-20 — The next execution, steps 1 and 2 shipped: the beta, then the live site
+
+- **Commit `4785d1ef`:** step 1 (the footer links and the Terminal footer) and step 2 (the promotion runbook, the tab
+  switch, the live smoke in the repository).
+  - Every workflow was green on the session branch and again on `main` and on `live`: Backend tests, look-ahead gate,
+    generated files, image builds, page smoke.
+  - Before each move, M340 by `scripts/restart_postgres.py` (check only): 0 EDGE jobs, 0 orc turns, 0 statements.
+  - Only edge-bff's folder changed among the services.
+- **Beta:**
+  - `main` moved `349947ec` → `4785d1ef`. `edge-bff` `e114339a` (made 16:03 UTC) reached SUCCESS after its CI; `/version` read `4785d1ef` at 16:22 UTC.
+  - Checks: `/ready` 200, `/version` `4785d1ef`. The owner's sign-in returned 200 and the Watchlist index and files 200.
+  - The Terminal page holds no developer notes and keeps "Charts by TradingView".
+- **Live:**
+  - `live` moved `349947ec` → `4785d1ef`, the commit the beta runs, with the user's approval for steps 1 and 2 ("masuk
+    beta dulu dan dicek, baru ke live"). `edge-bff-live` `e21a05f4` waited for its CI and reached SUCCESS.
+  - The smoke from outside (`verification/edge_multiuser/live_smoke/http_smoke.py`, no credentials):
+    - `/ready` 200, CSP and HSTS present, `legal` null for both links, `hidden_tabs` admin and monitor;
+    - the visitor's BBCA 200 and TLKM 403 `CAPABILITY_REQUIRED` with the sign-in words;
+    - 15 beta-only routes 404, 45 gated routes 401, the relay's made-up path 404, `unexpected` empty;
+    - register 403 `REGISTRATION_CLOSED`, a foreign origin 403, an unknown login 401.
+  - In a browser: `/terminal` with the rail Terminal, Backtest and Screener, no Monitor, no model list, the footer
+    without developer notes.
+  - `EDGE_ADMIN_*` is absent from `edge-bff-live` (names read only). The admin's own sign-in is the owner's to check
+    (ERRORS M516).
+
 ## 2026-11-20 — The next execution, step 1 (the user's "go"): the admin variables moved, edgefinance.id redirected
 
 - **The live admin's variables:** `EDGE_ADMIN_USERNAME`, `EDGE_ADMIN_EMAIL` and `EDGE_ADMIN_INITIAL_PASSWORD` copied

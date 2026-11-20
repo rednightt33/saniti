@@ -824,23 +824,26 @@ def create_app(settings=None, store=None, orc=None):
         # ERRORS R2-37: the password work of a sign-in runs on its own pool (passwords.PasswordWork), never on the
         # default executor every database call uses; a request over its limit is answered 503 before any try counts
         async with password_work.admitted_request():
-            wait = await asyncio.to_thread(throttle.attempt, SIGNIN_LOGIN, login_key)
-            if wait:
-                return refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
             account = restart = rehash = device = None
             if settings.multiuser:
-                # EXEC-MU-ACCOUNTS Phase 1 (switch on): the active account named by its username or email, its
-                # password identity, and the pending registrations of that address (the newest PENDING_CHECKED). Every
-                # sign-in runs exactly 1 + PENDING_CHECKED password derivations, padded with the configured verifier,
-                # whatever the address holds (ERRORS M478 re-check: the time tells nothing; OWASP Authentication)
+                # EXEC-MU-ACCOUNTS Phase 1 (switch on): the active account named by its username or email
                 account = await asyncio.to_thread(auth.accounts.find_login, body.login)
-                pending = list(await asyncio.to_thread(auth.accounts.pending_logins, body.login))[:PENDING_CHECKED]
                 # the A2 fix (ERRORS M517, NIST SP 800-63B 5.2.2): a browser where this account's password was proved
-                # before (its device cookie, security.device_of), under its own failure limit (DEVICE_SIGNIN), neither
-                # counts towards nor waits for the account's lock, so a stranger who fills the lock does not lock the
-                # owner out of its own browser
-                device = await asyncio.to_thread(flows.store.device_for, account['user_id'],
+                # before (its device cookie, security.device_of) tries under its own failure limit (DEVICE_SIGNIN,
+                # decided and counted in one step before the check), and neither the per-login limit of its client
+                # address nor the account's lock holds it: a stranger who fills either, even from the owner's own
+                # network (A2 checker ATK-1), does not lock the owner out of its own browser
+                device = await asyncio.to_thread(flows.store.device_try, account['user_id'],
                                                  request.cookies.get(flows.device_cookie)) if account else None
+            if not device:
+                wait = await asyncio.to_thread(throttle.attempt, SIGNIN_LOGIN, login_key)
+                if wait:
+                    return refusal(429, 'SIGN_IN_RATE_LIMIT', {'retry_after_s': wait}, {'Retry-After': str(wait)})
+            if settings.multiuser:
+                # the password identity, and the pending registrations of that address (the newest PENDING_CHECKED).
+                # Every sign-in runs exactly 1 + PENDING_CHECKED password derivations, padded with the configured
+                # verifier, whatever the address holds (ERRORS M478 re-check: the time tells nothing; OWASP)
+                pending = list(await asyncio.to_thread(auth.accounts.pending_logins, body.login))[:PENDING_CHECKED]
                 # ERRORS R1-16: the account's consecutive failures, decided and counted before the check (a locked
                 # account answers as a wrong password); the same statement runs for a login that names no account
                 checked = True if device else await asyncio.to_thread(auth.accounts.sign_in_try,
@@ -862,8 +865,7 @@ def create_app(settings=None, store=None, orc=None):
                 password_ok = await password_work.run(verify_password, body.password, settings.password_verifier)
                 known = hmac.compare_digest(body.login.casefold().encode(), settings.login.casefold().encode()) and password_ok
         if not known:
-            await asyncio.to_thread(throttle.count, (SIGNIN_IP, address),
-                                    *(((DEVICE_SIGNIN, (str(account['user_id']), device)),) if device else ()))
+            await asyncio.to_thread(throttle.count, (SIGNIN_IP, address))     # a known browser's try is counted already
             response = error('INVALID_CREDENTIALS', 401)
             # track guest: in the pre-launch mode registration is closed, so no pending registration is restarted (every
             # 401 there answers alike, without a registration cookie)
@@ -886,7 +888,9 @@ def create_app(settings=None, store=None, orc=None):
             # the live checker after the switch-on (ACC-5): the password was right, so the try is not a failure: the
             # account's consecutive failures and this login's tries are cleared as a success clears them (the password
             # work stays bounded by its pool, R2-37)
-            if not device:                    # a known browser's try left the account's count as it was (A2)
+            if device:                        # a known browser's try left the account's count as it was (A2)
+                await asyncio.to_thread(throttle.clear, DEVICE_SIGNIN, (str(account['user_id']), device))
+            else:
                 await asyncio.to_thread(auth.accounts.sign_in_proved, account['user_id'])
             await asyncio.to_thread(throttle.clear, SIGNIN_LOGIN, login_key)
             return error('SIGN_IN_CLOSED', 403)

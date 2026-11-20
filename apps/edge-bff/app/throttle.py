@@ -74,8 +74,10 @@ DEVICE_SIGNIN = Limit('signin_email', 'signin_device', 10, 86400)
 REGISTER_HOUR = Limit('send_email', 'register', 1, 3600)
 REGISTER_DAY = Limit('send_email', 'register', 3, 86400)
 # ERRORS R1-13: every email of one pending registration (its code, a resend, a sign-in restart) counts here, key the
-# registration's user id: a registration is mailed at most 3 times a day, so the 3 registrations a day N4 allows use at
-# most 9 of the address's 10 emails, and the 2 of them made by others (the owner's own being the third) at most 6
+# registration's user id: a registration is mailed at most 3 times a day. Since the A2 fix (ERRORS M517) the 3
+# registrations a day N4 allows are per client address and one client keeps one pending registration of an address
+# (auth_flows._register), so one stranger's use 3 of the address's 10 emails at most (SEND_EMAIL_CLIENT: 4); strangers on
+# three or more clients can still spend its day (the residual M517 states)
 REGISTRATION_MAIL = Limit('send_email', 'registration_mail', 3, 86400)
 
 # every visitor of the guest plan together (migration 20261119_071): one counter, key GUEST_TOTAL_KEY, built per app with

@@ -213,9 +213,12 @@ window.EdgeLabels = {
       usernameTaken:"That username was taken while you were away. Choose another one and verify again." },
     forgot: { title:"Forgot your password?", lead:"Enter the email of your account. We will send you a code.",
       email:"Email", submit:"Send code", busy:"Sending…", back:"Back to sign in" },
+    // the A2 fix (ERRORS M517): a reset code works only in the browser that asked for it, and each place gets a few codes
+    // a day for an address (one sentence for every address, so it tells nothing about one)
     reset: { title:"Set a new password", sentTo:"We sent a code to", code:"Code", password:"New password",
       passwordHint:"At least 8 characters", repeat:"Repeat new password", submit:"Change password", busy:"Changing…",
-      back:"Back to sign in" },
+      back:"Back to sign in", sameBrowser:"Enter the code in this browser, where you asked for it.",
+      noMail:"No email after a few minutes? Today's codes from this place may be used up: try again tomorrow, or ask in a browser where you have signed in to EDGE before." },
     mfa: { title:"Authenticator code", lead:"Enter the 6-digit code from your authenticator app.", code:"Code",
       codeHint:"6 digits", useRecovery:"Use a recovery code instead", useCode:"Use the authenticator code",
       recovery:"Recovery code", submit:"Continue", busy:"Checking…", setup:"Set up an authenticator app",

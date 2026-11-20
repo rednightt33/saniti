@@ -16168,8 +16168,23 @@ Order of the services (CONTRACT 17, rollback floors):
       - Tests: `tests/test_a2_stranger.py` (14).
       - Residual, stated in CONTRACT section 4: three or more strangers can still spend an address's day against a
         browser the account never used, and before an account exists.
-      - Next: the ultracode checker at xhigh, its fixes, the migration on dev (DRYRUN, APPLY, M340), then the beta.
-        The live site only on the user's request.
+      - The ultracode checker at xhigh (workflow `wf_90d1d0d6-db9`): 6 medium findings confirmed, none refuted, 6
+        lows. All are fixed (ERRORS M517):
+        - the owner's own wrong passwords no longer take its reset mail away;
+        - the device's try is atomic;
+        - a known browser and a reset's own browser are not held by a stranger on the same network;
+        - a sign-in compares the newest registration of each client (migration `20261120_002`);
+        - readiness reads the new columns;
+        - the gap query uses the primary key;
+        - the records and the reset page's words were corrected.
+      - Tests: `tests/test_a2_stranger.py` (19).
+      - Next: the migrations on dev (DRYRUN, APPLY, M340), then the beta. The live site only on the user's request.
+    - Items 1 shipped (2026-11-20): `main` and `live` at `4785d1ef` (CI green on both branches). The beta `e114339a`
+      SUCCESS and the live site `e21a05f4` SUCCESS. The live smoke:
+      - `/ready` 200, 62 of 62 routes as expected;
+      - registration closed, the origin check, the visitor's BBCA and TLKM;
+      - the legal links null, the Terminal footer with only the TradingView credit;
+      - no `EDGE_ADMIN_*` on edge-bff-live (RAILWAY_CHANGELOG.md).
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
@@ -16342,7 +16357,9 @@ dipakai accross chat sebagai referencec?"
     ultracode checker before the switch goes on.
   2. Email outbox rows: "a" (deleted after 30 days, with used codes and webhook events).
   3. "Forgot password" pressed by someone else: "a" (kept as it is: each new code replaces the previous one; the
-     address's 10 emails a day stay shared).
+     address's 10 emails a day stay shared). **Replaced on 2026-11-20** by the A2 fix (option A, the next execution,
+     item 2; the user: "perbaikan A2", then "Go"; ERRORS M517): a code is bound to the browser that asked, one client
+     address causes at most 4 of an address's 10 emails, and the account's own browser has its own 5.
   4. The Backtest page's chart reads and the Watchlist logos count in the per-owner Terminal quota: "a" (one shared
      quota).
   5. The EDGE gateway account of terminal-api (recorded valid through 2027-10-25): "a" (extend to 2100-01-01 through

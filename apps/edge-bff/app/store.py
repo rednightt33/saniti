@@ -70,6 +70,10 @@ class Store:
                 # guest request and every pre-launch sign-in; with the switch off nothing reads them
                 c.execute('SELECT for_guests FROM edge_bff.plans LIMIT 0')
                 c.execute('SELECT test_account FROM edge_bff.users LIMIT 0')
+                # the A2 fix (migrations 20261120_001 and _002): every reset code and every registration writes these,
+                # so an edge-bff with the switch on started before them is not ready rather than refusing each one
+                c.execute('SELECT binding_hash FROM edge_bff.email_codes LIMIT 0')
+                c.execute('SELECT registration_client_hash FROM edge_bff.users LIMIT 0')
             # EXEC-MU-ACCOUNTS beta/live (migrations 20261119_020 and _021): every queued row names its site
             c.execute('SELECT site FROM edge_bff.jobs LIMIT 0')
             c.execute('SELECT 1 FROM edge_bff.sessions LIMIT 0')

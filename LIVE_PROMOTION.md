@@ -192,5 +192,6 @@ Update this table at every promotion: what is on each site, and since when.
 | Backtest, Screener, Watchlist, Radar, Overview | released | 2026-11-20 (`349947ec`) | Signed-in only. Pre-launch: the admin and test accounts |
 | Catalog items: 53 indicators, 56 Flow indicators, 20 candle patterns, 55 Screener metrics, 26 presets | released | 2026-11-20 | Every item that existed on 2026-11-17 is released (user decision 2026-11-17) |
 | Monitor, Admin | beta only | — | `BETA_ONLY_TABS` |
-| Privacy and Terms links hidden until their texts exist (both sites); Terminal footer "Charts by TradingView" only | released | 2026-11-20, steps 1 and 2 of the go (commit in RAILWAY_CHANGELOG.md) | The user's "OK" to both; the links return when `EDGE_PRIVACY_URL` / `EDGE_TERMS_URL` are set |
-| Tab switch (`tabs` in the release file), this runbook, `scripts/live_diff.py` | released | the same promotion | No visible change: every tab stays released |
+| Privacy and Terms links hidden until their texts exist (both sites); Terminal footer "Charts by TradingView" only | released | 2026-11-20 (`4785d1ef`) | The user's "OK" to both; the links return when `EDGE_PRIVACY_URL` / `EDGE_TERMS_URL` are set |
+| Tab switch (`tabs` in the release file), this runbook, `scripts/live_diff.py` | released | 2026-11-20 (`4785d1ef`) | No visible change: every tab stays released |
+| The A2 fix (the account's own browser, a reset bound to its browser, the client's part of an address's day; ERRORS M517) | beta first | not yet | Needs migrations `20261120_001` and `_002` on the database first (applied on dev before the beta); goes live on the user's request |

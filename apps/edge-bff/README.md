@@ -952,6 +952,12 @@ The A2 fix (ERRORS M517, CONTRACT.md section 4 "Codes" and "Throttle") added two
   - It never signs anyone in.
 - **Per-client cap:** one client address causes at most 4 of an address's 10 daily code emails.
 - **Registration count:** a registration's hourly and daily count is the address's from that client.
+- **Pending registrations at sign-in:** a sign-in compares the newest pending registration of each client address
+  (`users.registration_client_hash`, migration `20261120_002`), so one stranger's registrations fill one of the three
+  places.
+- **Known browser and the per-login limit:** a known browser's sign-in skips the per-login limit of its client address
+  (a stranger on the same network shares it). Its tries count under its own limit, in one step before the check.
+- **Wrong-code counts:** a reset's wrong-code counts are keyed by the browser that asked for the code.
 
 Sign-in of a pending account (C1 P1-M1): the right password of a registration not yet verified answers the same 401
 `INVALID_CREDENTIALS` as a wrong one; within the send limits a fresh code is mailed and this browser gets the

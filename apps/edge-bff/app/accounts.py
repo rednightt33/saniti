@@ -289,14 +289,23 @@ class AccountStore:
                 WHERE user_id = %s AND provider = 'password' AND sign_in_failures > 0''', (user_id,))
 
     def pending_logins(self, login):
-        """The newest PENDING_CHECKED pending registrations of an address with their verifiers (a sign-in with the right
-        password of one restarts its verification; ERRORS M478 C1 P1-M1)."""
+        """The pending registrations of an address a sign-in compares its password with (the right password of one
+        restarts its verification; ERRORS M478 C1 P1-M1), with their verifiers: the newest of each client address it
+        came from (users.registration_client_hash, migration 20261120_002; a row without one counts as its own), the
+        newest PENDING_CHECKED of those. The A2 checker CW-2: since a registration's counts are the address's from one
+        client, one stranger on one client could make three and push the owner's out of the newest three; now one client
+        fills one place, so the owner's stays among them unless three or more other clients registered the address
+        since (the residual of ERRORS M517). Every sign-in still compares exactly PENDING_CHECKED (padded, main.py)."""
         lowered = login.strip().lower()
         with self.store.connect() as c:
-            return c.execute('''SELECT u.user_id, u.owner_key, u.email, u.role, u.status, i.verifier
-                FROM edge_bff.users u JOIN edge_bff.identities i ON i.user_id = u.user_id AND i.provider = 'password'
-                WHERE u.email = %s AND u.status = 'pending' ORDER BY u.created_at DESC, u.user_id DESC LIMIT %s''',
-                             (lowered, PENDING_CHECKED)).fetchall()
+            return c.execute('''SELECT user_id, owner_key, email, role, status, verifier FROM (
+                    SELECT DISTINCT ON (coalesce(u.registration_client_hash, 'user:' || u.user_id::text))
+                           u.user_id, u.owner_key, u.email, u.role, u.status, i.verifier, u.created_at
+                    FROM edge_bff.users u JOIN edge_bff.identities i ON i.user_id = u.user_id AND i.provider = 'password'
+                    WHERE u.email = %s AND u.status = 'pending'
+                    ORDER BY coalesce(u.registration_client_hash, 'user:' || u.user_id::text), u.created_at DESC,
+                             u.user_id DESC) per_client
+                ORDER BY created_at DESC, user_id DESC LIMIT %s''', (lowered, PENDING_CHECKED)).fetchall()
 
     @staticmethod
     def lock_account(c, user_id):

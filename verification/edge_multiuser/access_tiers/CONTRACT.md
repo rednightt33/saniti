@@ -174,7 +174,7 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
 | `POST /api/v1/auth/register/verify` | `email`, `code` (and `username` after `USERNAME_TAKEN`) | 200 plus session cookie (user signed in directly, user decision) and `X-Edge-Entitlements`; wrong, expired or used code → 400 `CODE_INVALID_OR_EXPIRED`, the same for every reason. The code is accepted only from the browser that holds the registration cookie of that pending registration (`registration_hash`, ERRORS M478 C1 P1-H1), so a code is never enough on another browser |
 | `POST /api/v1/auth/code/resend` | `email`, `purpose` | always 202 |
 | `POST /api/v1/auth/sign-in` | `login` (username or email), `password` | 200 (with `X-Edge-Entitlements`), or `MFA_REQUIRED` (`details.mfa_enrolled`) with a pending session for an account whose grants need the second factor, or 401 `INVALID_CREDENTIALS`. Unverified account (changed by ERRORS M478 C1 P1-M1): the same 401 `INVALID_CREDENTIALS` whatever the password; with the right one, within the send limits, a fresh code is mailed and this browser gets the registration cookie. `EMAIL_NOT_VERIFIED` is not used (it told an attacker the password was right). On the live site in pre-launch mode only the admin (the catalog's `*` or `admin.access`) and the test accounts sign in: every other account gets 403 `SIGN_IN_CLOSED` after its password was checked like any other, and no session is made; the rule holds for every request of a session too, so an account whose test mark is removed is signed out (built, track guest, 3c check C3-7 and C3-10; not deployed) |
-| `POST /api/v1/auth/password/forgot` | `email` | always 202. Kept as it is when someone else presses it (decision 3 of 2026-11-19, "a"): each new code replaces the previous one, and the address's 10 emails a day stay shared |
+| `POST /api/v1/auth/password/forgot` | `email` | always 202, with the `edge_reset` cookie whatever the address. Since the A2 fix (the user's go of 2026-11-20, which replaced decision 3 of 2026-11-19, "a"): the code is bound to the browser that asked (a new code replaces only that browser's own), one client address causes at most 4 of the address's 10 code emails a day, and a browser where the account signed in before asks under its own 5 a day (section 4 "Codes", "Throttle"; ERRORS M517) |
 | `POST /api/v1/auth/password/reset` | `email`, `code`, `password`, `password_repeat` | 200 `{"next":"sign_in"}`, with every session revoked and a notification email; no automatic sign-in (OWASP) |
 | `POST /api/v1/auth/password/change` | `current_password`, `password`, `password_repeat` | writer; other sessions revoked; notification email |
 | `POST /api/v1/auth/sign-out` | — | as today |
@@ -241,24 +241,34 @@ Principal(user_id, owner_key, username, role, plan_key, status, expires_at, mfa_
     verifier (`security.device_token`). It ends with a password change, a reset or a rehash, and after 180 days.
     Nothing is stored.
   - It never signs anyone in. It only lets that browser past the limits a stranger can fill:
-    - its sign-in and password-change tries neither count towards nor wait for the account's lock;
-    - its reset requests use their own 5 code emails a day (`DEVICE_MAIL`) instead of the address's 10.
+    - its sign-in and password-change tries neither count towards nor wait for the account's lock, nor the per-login
+      limit of its client address, which a stranger on the same network shares (the A2 checker ATK-1);
+    - its reset requests use their own 5 code emails a day (`DEVICE_MAIL`) instead of the address's 10. Its own wrong
+      passwords never take that budget away (ATK-2).
   - A known browser's successful sign-in leaves the strangers' count and the lock as they are, so guesses stay bounded
     however often the owner signs in.
-  - The browser's own failed passwords are limited to 10 a day (`DEVICE_SIGNIN`). Past that it is treated as any
-    browser.
+  - The browser's own failed passwords are limited to 10 a day (`DEVICE_SIGNIN`), each try decided and counted in
+    one step before the check (ATK-3). Past that it is treated as any browser.
   - A stolen token alone does not sign in, and gives at most those 10 guesses a day before it counts as anyone's.
 - Email sending: 10 per IP hash per hour (recorded). Code emails: 10 per address per day; since the A2 fix, at most 4
   of them caused by one client address (`SEND_EMAIL_CLIENT`), so one stranger cannot spend an address's day. A
   registration's 1-an-hour and 3-a-day counts are keyed by the address and the client, so one stranger's registration
   does not hold the owner's back.
+- A reset's wrong-code counts (20 a day per address and per account) are keyed by the browser that asked for the
+  code, and by the client address only for a browser without a reset cookie (ATK-1). Every wrong try is counted, so a
+  429 tells nothing about an address.
+- A sign-in compares its password with the newest pending registration of each client address
+  (`users.registration_client_hash`, migration `20261120_002`; the A2 checker CW-2). So one stranger's registrations
+  of an address fill one of the three places, and the owner's stays among them for its restart (ERRORS M478).
 - **Residual (ERRORS M517):** strangers on three or more client addresses can still spend an address's 10 code emails
   in a day.
   - A browser the account never signed in on then waits for the day: the operator unlock or the next day is its way
     back.
   - The owner's own browser is not affected.
   - Before an account exists (a registration) there is no browser to trust, so a registration can be held back the
-    same way.
+    same way, and three or more other clients can push it out of the three a sign-in compares.
+  - A stranger on the owner's own network fills, for a browser the account never signed in on there, the per-login
+    limit (15 minutes) and that network's 4 emails of the address a day.
 - A dummy scrypt verify runs for unknown logins, so timing matches.
 - **Client IP:** from `X-Forwarded-For` as set by Railway's edge, read over every line of the header and keyed by the
   whole IPv4 address or the IPv6 /64 (`throttle.forwarded_hop`, `address_key`; the visitor key and the sign-in and

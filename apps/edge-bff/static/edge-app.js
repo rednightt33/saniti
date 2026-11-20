@@ -828,6 +828,7 @@ function ResetForm({go, L}) {
     catch (e) { updateValue(v, "error", authText(e)); updateValue(v, "bad", fieldsOf(e)); } finally { updateValue(v, "busy", false); set("password", ""); set("password_repeat", ""); } };
   return element(AuthShell, {go, title:P.title, lead:authFlow.email ? `${P.sentTo} ${authFlow.email}.` : L.verify.sent},
     element("form", {onSubmit:submit},
+      element("p", {className:"auth-note"}, P.sameBrowser),
       !authFlow.email && element(AuthField, {label:L.forgot.email}, element("input", {id:"auth-email", type:"email", autoComplete:"email", value:f.email, required:true, disabled:busy,
         onChange:e => { set("email", e.target.value); authFlow.email = e.target.value.trim(); }})),
       element(AuthField, {label:P.code, support:L.verify.codeHint, error:bad.code}, element(CodeInput, {value:f.code, disabled:busy, onChange:next => set("code", next)})),
@@ -838,6 +839,7 @@ function ResetForm({go, L}) {
       error && element("p", {className:"auth-error", role:"alert"}, error),
       element(Button, {kind:"primary", type:"submit", disabled:busy}, busy ? P.busy : P.submit)),
     element(Resend, {v, L, wait, purpose:"reset"}),
+    element("p", {className:"auth-note"}, P.noMail),
     element("p", {className:"auth-switch"}, authLink(go, "/login", P.back)));
 }
 function MfaForm({go, L}) {

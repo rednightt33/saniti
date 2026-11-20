@@ -8879,7 +8879,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M517 — A stranger who knows an account's login or address could spend the owner's allowances: the lock, the code emails, the reset code (2026-11-20; BUILT on the branch, the ultracode checker next)
+### M517 — A stranger who knows an account's login or address could spend the owner's allowances: the lock, the code emails, the reset code (2026-11-20; BUILT, checked by ultracode at xhigh, its findings fixed; migration and beta next)
 
 - **Found by:** the live checker before the switch-on, finding A2 (M513). It was accepted for the pre-launch mode and
   is fixed before registration opens. The user's go of 2026-11-20 ("perbaikan A2", then "Go") made it item 2 of the
@@ -8903,8 +8903,10 @@ in its staleness check.
     hour or the day);
   - every new flow that mails a code (the email change, not built yet).
 
-  It does not cover limits a stranger cannot reach without the password: MFA's failure caps, the password change's own
-  `PASSWORD_CHANGE` limit (which needs a session), and the per-client sign-in limit `SIGNIN_LOGIN`.
+  It also covers the limits keyed by the client address, which a stranger on the same network (an office, a
+  carrier's NAT) shares: the per-login sign-in limit `SIGNIN_LOGIN` and a reset's daily wrong-code counts (the checker's
+  ATK-1). It does not cover limits a stranger cannot reach without the password or a session: MFA's failure caps and
+  the password change's own `PASSWORD_CHANGE` limit.
 - **Solution (layer: the auth flows and their tables; NIST SP 800-63B 5.2.2, OWASP device cookies):** each allowance is
   keyed apart from strangers by what a stranger cannot hold.
   - **The account's own browser.** `edge_device` is an HMAC token over the account id, the time and the account's
@@ -8925,10 +8927,48 @@ in its staleness check.
     - The refusal and the code email say the code works only in the browser that asked.
   - **The client.** One client address causes at most 4 of an address's 10 code emails a day (`SEND_EMAIL_CLIENT`). A
     registration's 1-an-hour and 3-a-day counts are keyed by the address and the client.
+- **The ultracode checker (2026-11-20, workflow `wf_90d1d0d6-db9`, three lenses and a skeptic per serious finding,
+  every agent at xhigh): 6 medium findings confirmed, none refuted, 6 lows.** All are fixed on the branch:
+  - **ATK-2, A2C-1, CW-1 (one finding seen by three lenses).** After its own 10 wrong passwords, the owner's browser
+    also lost its own mail budget. A person who forgot the password mistypes it first, so the stated guarantee failed.
+    Fix: `device_valid` (the token alone) chooses the mail budget; only the password tries use `DEVICE_SIGNIN`.
+  - **ATK-3 (with A2C-2).** `DEVICE_SIGNIN` was read before the check and counted after it, so a burst with a stolen
+    token got more than 10 tries. Fix: `device_try` decides and counts in one step (`Throttle.attempt`), cleared on
+    success.
+  - **ATK-1.** A stranger on the owner's own network filled `SIGNIN_LOGIN` (login, client) and a reset's wrong-code
+    counts (address or account, client). Fix:
+    - a known browser's sign-in skips the per-client limit (it has its own `DEVICE_SIGNIN`);
+    - a reset's wrong-code counts are keyed by the browser that asked (its reset cookie), and only a browser without
+      one is keyed by its client address. Every wrong try is still counted, so a 429 tells nothing about an address.
+  - **CW-2.** Registrations counted per address and client let one stranger push the owner's pending registration out
+    of the three a sign-in compares (the M478 restart). Fix: `users.registration_client_hash` (migration
+    `20261120_002`); the sign-in compares the newest registration of each client (`pending_logins`), so one client
+    fills one place. No registration is changed or removed. A first fix that replaced a client's earlier registration
+    broke the M478 guarantees four tests hold and was dropped.
+  - **Lows:**
+    - ATK-4: the gap query joined on the text of the outbox key. It now joins by the code's primary key. Bounded
+      EXPLAIN on 60 000 rows: index scans on `email_outbox_to_email_created` and `email_codes_pkey`, 0.036 ms.
+    - A2C-3: the switch-on `/ready` reads both new columns.
+    - A2C-4, CW-3: the CONTRACT forgot row, decision 3 "a" of 2026-11-19 (marked replaced in EXEC) and the R1-13 code
+      comments were rewritten.
+    - CW-4: the reset page now says to enter the code in the browser that asked, and what to do when no email comes
+      (`edge-labels.js` `auth.reset.sameBrowser`, `noMail`).
+  - Tests: five more in `tests/test_a2_stranger.py` (19 in all):
+    - the owner's own network;
+    - its own wrong passwords and then the reset mail;
+    - a burst of 16 with one token passing exactly 10;
+    - one stranger's three registrations;
+    - the not-ready site without the columns.
 - **What it does not cover (the residual, stated in CONTRACT section 4):**
   - Strangers on three or more client addresses can still spend an address's 10 code emails in a day. A browser the
     account never signed in on then waits for the day, or uses the operator unlock. The owner's own browser is not
     affected.
+  - A stranger on the owner's own network (shared client address) still fills, for a browser the account never signed
+    in on there:
+    - the per-login limit (15 minutes);
+    - that network's 4 emails of the address a day.
+
+    The owner's known browser, and a reset from a browser that asked for its own code, are not affected.
   - Before an account exists (a registration) no browser can be trusted, so a registration can be held back the same
     way. Raising the cost further needs a challenge (a captcha) or the user's choice of a second channel.
 - **Risks and cost:**
@@ -8951,9 +8991,11 @@ in its staleness check.
   - `test_a_wrong_current_password_counts_towards_the_accounts_cap`: a session without the device cookie.
 - **Permanent.** It is applied on dev only after the ultracode checker (xhigh) and its fixes. The migration goes
   before the code that writes the column.
-- **Status:** BUILT on the branch (not pushed while the steps 1 and 2 deploy runs). Checker, migration and deploy next.
+- **Status:** BUILT and checked; the checker's findings fixed (above). Next: migrations `20261120_001` and `_002` on
+  dev (DRYRUN, APPLY, M340), then the beta. The live site only on the user's request.
 - **Lesson for new data and flows:** every limit that can refuse a person carries, in its key, something a stranger
-  cannot hold (the client, the browser, the account's own proof). A flow that mails a code binds the code to the
+  cannot hold: the browser, or the account's own proof. The client address is not enough, since a stranger can share
+  it. A flow that mails a code binds the code to the
   browser that asked.
 
 ### M516 — The live smoke signed in with the admin's first password after the owner had replaced it (2026-11-20; FIXED in the smoke, one observation OPEN for step 4)

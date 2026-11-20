@@ -189,8 +189,12 @@ class FlowStore:
                 Throttle._wait(c, SEND_EMAIL_CLIENT, self._h(SEND_EMAIL_CLIENT, (email, ip))):
             return False
         if binding is not None:
+            # the outbox rows of the address in the gap (its to_email index), each joined to its code by the code's
+            # own key (code:<code_id>, the primary key of email_codes; A2 checker ATK-4: a join on the text of the key
+            # scanned every code kept)
             return c.execute('''SELECT 1 FROM edge_bff.email_outbox o JOIN edge_bff.email_codes k
-                    ON o.idempotency_key = 'code:' || k.code_id::text
+                    ON k.code_id = CASE WHEN o.idempotency_key ~ '^code:[0-9]{1,18}$'
+                                        THEN substr(o.idempotency_key, 6)::bigint END
                 WHERE o.to_email = %s AND o.purpose = 'reset' AND k.binding_hash = %s
                   AND o.created_at > now() - make_interval(secs => %s) LIMIT 1''',
                              (email, binding, RESEND_SECONDS)).fetchone() is None
@@ -208,23 +212,28 @@ class FlowStore:
             Throttle._add(c, SEND_EMAIL_CLIENT, self._h(SEND_EMAIL_CLIENT, (email, ip or 'unknown')))
         return enqueue(c, purpose, email, mail, expires_at, key)
 
-    def device_for(self, user_id, token):
-        """device() in a transaction of its own (the sign-in and the password change)."""
-        if user_id is None or not token:
-            return None
-        with self.store.connect() as c:
-            return self.device(c, user_id, token)
-
-    def device(self, c, user_id, token):
+    def device_valid(self, c, user_id, token):
         """The nonce of this browser's device token when it is one of the account `user_id`, signed over the account's
-        current verifier (security.device_of), and the browser is under its own failure limit (DEVICE_SIGNIN); else
-        None. The caller's transaction reads the verifier."""
+        current verifier (security.device_of); else None. Nothing is counted: a reset request asks under DEVICE_MAIL with
+        it, which bounds that browser's mails on its own, so the owner's own wrong passwords (DEVICE_SIGNIN) never take
+        its reset mail away (A2 checker ATK-2: a person who forgot the password mistypes it first)."""
         if user_id is None or not token:
             return None
         row = c.execute('''SELECT verifier FROM edge_bff.identities WHERE user_id=%s AND provider='password' ''',
                         (user_id,)).fetchone()
-        nonce = device_of(self.settings.session_secret, token, user_id, row['verifier'] if row else None)
-        if nonce is None or Throttle._wait(c, DEVICE_SIGNIN, self._h(DEVICE_SIGNIN, (str(user_id), nonce))):
+        return device_of(self.settings.session_secret, token, user_id, row['verifier'] if row else None)
+
+    def device_try(self, user_id, token):
+        """A password try of this browser under its own failure limit, decided and counted in one step before the
+        password is checked (Throttle.attempt on DEVICE_SIGNIN; A2 checker ATK-3: a burst read the count before any
+        try added to it, the R2-12 lesson): the device's nonce when its token is valid (device_valid) and the try is
+        within DEVICE_SIGNIN (then the try is counted; a success clears it); None otherwise, and the try goes the way
+        of any browser's (the per-login limit and the account's lock). The sign-in and the password change."""
+        if user_id is None or not token:
+            return None
+        with self.store.connect() as c:
+            nonce = self.device_valid(c, user_id, token)
+        if nonce is None or self.throttle.attempt(DEVICE_SIGNIN, (str(user_id), nonce)):
             return None
         return nonce
 
@@ -257,15 +266,21 @@ class FlowStore:
         address has an account, so the cap answers alike for every address (ERRORS R1-8). A reset's two daily counts are
         keyed by the client address too (`client`, throttle.client_address; the user's "2a" 2026-11-20, 3c check C3-17):
         a stranger's wrong codes from one address never block the owner's code from another, so the 100-failure sign-in
-        lock keeps its way back. A reset's code is the one of this browser (`binding`, the SHA-256 of its reset cookie;
+        lock keeps its way back. Since the A2 fix a browser that asked for its code is the key instead of its client
+        address (`binding`), so a stranger on the owner's own network does not block it either (A2 checker ATK-1); a
+        browser without a reset cookie stays keyed by its client address. Either way every wrong try is counted, an
+        account's or not, so the 429 still tells nothing about the address. A reset's code is the one of this browser (`binding`, the SHA-256 of its reset cookie;
         the A2 fix): a browser without one of its own reaches only a code made before the binding (binding_hash NULL),
         so a stranger's wrong codes never use up the owner's tries. Guessing stays bounded by the 5 tries of each code
         and the address's 10 emails a day (at most 50 guesses a day against 10^6; an owner's own browser asks under its
         own budget, DEVICE_MAIL, and holds the account's password). The caller holds the address's lock (_lock), so the
         read and the count of one address are serial."""
-        by_address = self._h(CODE_ADDRESS, (email, client or 'unknown')) if email else None
+        # the A2 checker ATK-1: a reset from a browser that asked for its code (`binding`) counts under that browser,
+        # not its client address, so a stranger on the owner's network fills only its own browser's counts
+        who = f'browser:{binding}' if binding else (client or 'unknown')
+        by_address = self._h(CODE_ADDRESS, (email, who)) if email else None
         by_user = None if user is None else self._h(
-            CODE_USER, (str(user['user_id']), client or 'unknown') if email else str(user['user_id']))
+            CODE_USER, (str(user['user_id']), who) if email else str(user['user_id']))
         wait = (Throttle._wait(c, CODE_ADDRESS, by_address) if by_address else 0) or (
             Throttle._wait(c, CODE_USER, by_user) if by_user else 0)
         if wait:
@@ -310,21 +325,26 @@ class FlowStore:
         """True or False (queued) when a row or an email was made, None when nothing changed (the limits)."""
         if not self._may_send(c, f['email'], ip):
             return None
-        # ERRORS M478 re-check (N4): a new registration (from any browser) mails an address at most once per hour and
-        # three times per day; a later one in the hour answers the same 202 and changes nothing (the earlier code is
-        # not re-sent). With REGISTRATION_MAIL (3 emails per registration) the registrations of others use at most 6
-        # of the address's 10 daily emails once its owner has registered (R1-13)
+        # ERRORS M478 re-check (N4): a new registration mails an address at most once per hour and three times per day
+        # from one client address (the A2 fix: the key was the address alone, so one stranger held its owner back); a
+        # later one in the hour answers the same 202 and changes nothing (the earlier code is not re-sent). The
+        # address's own ceiling is SEND_EMAIL with SEND_EMAIL_CLIENT: strangers on three or more clients can still
+        # spend its day (the residual of ERRORS M517)
         key = self._h(REGISTER_HOUR, (f['email'], ip or 'unknown'))
         if Throttle._wait(c, REGISTER_HOUR, key) or Throttle._wait(c, REGISTER_DAY, key):
             return None
         Throttle._add(c, REGISTER_HOUR, key)
         if c.execute("SELECT 1 FROM edge_bff.users WHERE email=%s AND status<>'pending'", (f['email'],)).fetchone():
             return bool(self._send(c, 'account_exists', f['email'], email_texts.account_exists_email(), ip=ip))
+        # the A2 checker CW-2: the client address a registration came from (its keyed hash), so a sign-in compares the
+        # newest registration of each client (accounts.pending_logins) and one stranger's registrations cannot push the
+        # owner's out of the ones it compares; no earlier registration is changed or removed (ERRORS M478, R1-11)
+        client = self._h(SIGNIN_IP, ip or 'unknown')
         user_id = c.execute('''INSERT INTO edge_bff.users(owner_key, username, requested_username, email,
-                first_name, last_name, phone_e164, role, status, registration_hash)
-            VALUES (%s, NULL, %s, %s, %s, %s, %s, 'user', 'pending', %s) RETURNING user_id''',
+                first_name, last_name, phone_e164, role, status, registration_hash, registration_client_hash)
+            VALUES (%s, NULL, %s, %s, %s, %s, %s, 'user', 'pending', %s, %s) RETURNING user_id''',
                             (new_owner_key(), f['username'], f['email'], f['first_name'], f['last_name'],
-                             f['phone'], registration)).fetchone()['user_id']
+                             f['phone'], registration, client)).fetchone()['user_id']
         c.execute("""INSERT INTO edge_bff.identities(user_id, provider, subject, verifier)
             VALUES (%s, 'password', %s, %s)""", (user_id, str(user_id), verifier))
         return self._issue_code(c, user_id, 'register', f['email'], ip)
@@ -384,7 +404,7 @@ class FlowStore:
                 return bool(user) and self._issue_code(c, user['user_id'], purpose, email, ip)
             user = c.execute("SELECT user_id FROM edge_bff.users WHERE email=%s AND status='active' FOR UPDATE",
                              (email,)).fetchone()
-            device = self.device(c, user['user_id'], device_token) if user else None
+            device = self.device_valid(c, user['user_id'], device_token) if user else None
             if not self._may_send(c, email, ip, binding, device) or not user:
                 return False
             return self._issue_code(c, user['user_id'], purpose, email, ip, device, binding)
@@ -822,13 +842,11 @@ class AuthFlows:
                 # consecutive failures; 3c check C3-20); a right one ends the run of failures. The A2 fix (ERRORS M517):
                 # from a browser where the password was proved before (its device cookie, under its own failure limit)
                 # the try neither counts towards nor waits for that lock, as at the sign-in
-                device = await asyncio.to_thread(store.device_for, p.user_id, request.cookies.get(device_cookie))
+                device = await asyncio.to_thread(store.device_try, p.user_id, request.cookies.get(device_cookie))
                 tried = True if device else await asyncio.to_thread(auth.accounts.sign_in_try, p.user_id)
                 proved = bool(account) and await self.password_work.run(verify_password, b['current_password'],
                                                                          account['verifier'])
                 if not (proved and tried):
-                    if device:
-                        await asyncio.to_thread(self.throttle.count, (DEVICE_SIGNIN, (str(p.user_id), device)))
                     raise Refusal(400, 'CURRENT_PASSWORD_INVALID', {'fields': ['current_password']})
                 if device:
                     await asyncio.to_thread(self.throttle.clear, DEVICE_SIGNIN, (str(p.user_id), device))

@@ -20,8 +20,8 @@ from fastapi.testclient import TestClient
 
 from app import security, throttle
 from app.accounts import PASSWORD_FAILURE_CAP
-from test_auth_flows import (PASSWORD, app, cooldown_over, db, error_code, last_code, make_account, on,  # noqa: F401
-                             outbox, register)
+from test_auth_flows import (PASSWORD, app, cooldown_over, db, error_code, hour_over, last_code, make_account,  # noqa: F401
+                             on, outbox, register, verify)
 from test_edge import ORIGIN
 
 OWNER, STRANGER, ELSEWHERE = '198.51.100.20', '203.0.113.7', '192.0.2.44'
@@ -228,6 +228,89 @@ def test_one_strangers_registration_of_an_address_does_not_hold_the_owners_back(
     r = app.post('/api/v1/auth/register/verify', headers=ORIGIN,
                  json={'email': 'ana@example.com', 'code': last_code(store, 'ana@example.com')})
     assert r.status_code == 200 and r.json()['username'] == 'ana_putri', r.text
+
+
+# ---- the checker's findings (verification of 2026-11-20, ERRORS M517) ---------------------------------------------------
+
+def test_a_stranger_on_the_owners_own_network_does_not_hold_its_known_browser(app, store):
+    """ATK-1: the per-login limit and the reset's code counts were keyed by the client address, which a stranger on the
+    same network (an office, a carrier's NAT) shares: they now leave a known browser and a reset's own browser alone."""
+    owner = owner_browser(app, store)
+    stranger = TestClient(app.app)
+    for _ in range(throttle.SIGNIN_LOGIN.allowed):
+        assert sign_in(stranger, 'a stranger guess', OWNER).status_code == 401
+    assert sign_in(stranger, 'a stranger guess', OWNER).status_code == 429      # the stranger's own limit holds
+    assert sign_in(owner).status_code == 200                                     # the owner's browser, same address
+    for _ in range(throttle.CODE_ADDRESS.allowed):
+        assert error_code(reset(stranger, '123456', OWNER)) == 'CODE_INVALID_OR_EXPIRED'
+    cooldown_over(store)
+    assert forgot(owner, OWNER).status_code == 202
+    r = reset(owner, last_code(store, 'ana@example.com'), OWNER)
+    assert r.status_code == 200, r.text
+
+
+def test_the_owners_own_wrong_passwords_never_take_its_reset_mail_away(app, store):
+    """ATK-2: a person who forgot the password mistypes it first; its browser's own failure limit must not take away
+    the mail budget it asks for its reset under, when strangers spent the address's day."""
+    owner = owner_browser(app, store)
+    for _ in range(throttle.DEVICE_SIGNIN.allowed):
+        assert sign_in(owner, 'a half remembered password').status_code == 401
+    for client in ('203.0.113.7', '203.0.113.8', '203.0.113.9'):
+        stranger = TestClient(app.app)
+        for _ in range(5):
+            cooldown_over(store)
+            forgot(stranger, client)
+    assert code_mails(store) == throttle.SEND_EMAIL.allowed
+    cooldown_over(store)
+    forgot(owner, OWNER)
+    assert code_mails(store) == throttle.SEND_EMAIL.allowed + 1
+    assert reset(owner, last_code(store, 'ana@example.com'), OWNER).status_code == 200
+
+
+def test_a_burst_with_one_device_token_gets_at_most_its_tries(app, store):
+    """ATK-3: the device's try is decided and counted in one step, so tries sent together cannot all pass its limit."""
+    from concurrent.futures import ThreadPoolExecutor
+    owner = owner_browser(app, store)
+    user_id = db(store, "SELECT user_id FROM edge_bff.users WHERE email = 'ana@example.com'")[0]['user_id']
+    token, flows = owner.cookies.get('edge_device'), app.app.state.auth_flows
+    with ThreadPoolExecutor(16) as pool:
+        tried = list(pool.map(lambda _: flows.store.device_try(user_id, token), range(16)))
+    assert sum(1 for t in tried if t) == throttle.DEVICE_SIGNIN.allowed
+
+
+def test_one_strangers_registrations_fill_one_place_and_the_owners_sign_in_still_finds_its_own(app, store):
+    """CW-2: a sign-in compares three pending registrations of an address; one stranger's three registrations from one
+    client fill one of the three places (the newest of each client), so the owner's own stays among them, and no
+    registration is removed (ERRORS M478)."""
+    assert register(app).status_code == 202                         # the owner's pending registration (its own client)
+    stranger = TestClient(app.app)
+    body = {'username': 'eve_one', 'first_name': 'Eve', 'last_name': 'One', 'email': 'ana@example.com',
+            'phone': '0812 3456 7890', 'password': 'the strangers password', 'password_repeat': 'the strangers password'}
+    for n in range(3):
+        hour_over(store)
+        r = stranger.post('/api/v1/auth/register', headers=at(STRANGER), json={**body, 'username': f'eve_{n}'})
+        assert r.status_code == 202
+    assert db(store, "SELECT count(*) AS n FROM edge_bff.users WHERE email = 'ana@example.com' AND status = 'pending'"
+              )[0]['n'] == 4                                         # every registration stays, the owner's and three
+    cooldown_over(store)
+    other = TestClient(app.app)                                      # the owner, on another browser at its own place
+    mails = len(outbox(store, 'ana@example.com'))
+    assert sign_in(other, PASSWORD, ELSEWHERE, 'ana@example.com').status_code == 401     # the same 401 as ever
+    assert len(outbox(store, 'ana@example.com')) == mails + 1                             # a fresh code for this browser
+    r = verify(other, last_code(store, 'ana@example.com'))
+    assert r.status_code == 200 and r.json()['username'] == 'ana_putri', r.text
+
+
+def test_the_switch_on_site_is_not_ready_without_the_new_columns(store):
+    """A2C-3: an edge-bff started before 20261120_001/_002 is not ready (rather than answering every reset 503)."""
+    for table, column in (('email_codes', 'binding_hash'), ('users', 'registration_client_hash')):
+        db(store, f'ALTER TABLE edge_bff.{table} RENAME COLUMN {column} TO {column}_gone')
+        try:
+            with pytest.raises(Exception, match=column):
+                store.ready(True)
+            store.ready(False)                                       # the beta (switch off) never reads them
+        finally:
+            db(store, f'ALTER TABLE edge_bff.{table} RENAME COLUMN {column}_gone TO {column}')
 
 
 @pytest.mark.parametrize('limit', [throttle.SEND_EMAIL_CLIENT, throttle.DEVICE_MAIL, throttle.DEVICE_SIGNIN])
