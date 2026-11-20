@@ -309,9 +309,7 @@ export default defineRailway(() => {
   // them into user #1; the site never reads them).
   const edgeBffLive = service("edge-bff-live", {
     // its own branch: `live` moves to a version the beta ran first (EXEC.md option A); deploys wait for CI (K10 a).
-    // TEMPORARY (ERRORS M514): the repository is not connected yet (this session's project token may not connect one:
-    // `railway config plan` shows that one pending change); the running deployment is a CLI upload of the commit the
-    // beta runs. The user connects it in the dashboard (repository, branch live, Wait for CI); the plan is then clean.
+    // Connected by the user in the dashboard (ERRORS M514: an agent session's project token may not connect a repository).
     source: github("rednightt33/saniti", { branch: "live", checkSuites: true, rootDirectory: "/apps/edge-bff" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
     start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1 --no-access-log --no-proxy-headers",

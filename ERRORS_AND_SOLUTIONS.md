@@ -8879,7 +8879,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M514 — The live site's GitHub source cannot be connected from an agent session: its Railway credential is a project token (2026-11-20; OPEN, a TEMPORARY CLI upload runs the live site)
+### M514 — The live site's GitHub source cannot be connected from an agent session: its Railway credential is a project token (2026-11-20; FIXED by the user in the dashboard the same day)
 
 - **Found by:** the switch-on, step 1 (EXEC.md option A), after the user's "Go.".
 - **Symptom (verified):** `railway service source connect --repo rednightt33/saniti --branch live --service
@@ -8898,9 +8898,15 @@ in its staleness check.
   for a Git deploy). The general fix is the user's: the dashboard, `edge-bff-live` → Settings → Source: repository
   `rednightt33/saniti`, branch `live`, root directory `/apps/edge-bff` (already set), "Wait for CI" on. `.railway/railway.ts`
   declares that source; `railway config plan` shows it as the one pending change until then.
-- **Status:** OPEN until the user connects the repository.
+- **Status:** FIXED 2026-11-20. The user connected the repository; the first connection took the default branch `main`
+  with "Wait for CI" off (deployment `4208a1cb`, `main` at `b1b3684d`), which would have deployed every push to `main`
+  to the live site as well, without the beta first and without CI; the session could not change the trigger
+  (`deploymentTriggerUpdate`: "Bad Access"), so pushes to `main` were held until the user set branch `live` and "Wait
+  for CI" (trigger read back: branch `live`, `checkSuites` true; deployment `bd585b84` SUCCESS 10:18 UTC; `GET /version`
+  `{"site":"live","commit":"b1b3684d…"}`; `railway config plan` up to date).
 - **Lesson:** before a plan relies on a Railway API action, check that the session's credential holds it; put
-  account-only steps on the user's list when the plan is written.
+  account-only steps on the user's list when the plan is written, with every field the step sets (here: the branch and
+  "Wait for CI", not only the repository), and read the result back before the next push.
 
 ### M513 — The live checker before the switch-on: 11 findings confirmed, none refuted (2026-11-20; FIXED or done, A2 accepted for pre-launch)
 

@@ -34,6 +34,11 @@
   clear it), so a connection made in the dashboard builds at once.
 - **Rollback (EXEC.md option A):** `railway down` of the live deployment (or remove its domain);
   `EDGE_HOUSEKEEPING_ENABLED=true` on `edge-bff`; a reviewed job ends the live site's open jobs.
+- **The repository connection (the user, in the dashboard; ERRORS M514):** first on branch `main` with "Wait for CI"
+  off (`4208a1cb` SUCCESS 10:12 UTC, `b1b3684d`; pushes to `main` held, the session's `deploymentTriggerUpdate` answered
+  "Bad Access"), then branch `live` with "Wait for CI" (the user's "Done ya"): trigger `4ae91cc1` read back (branch
+  `live`, `checkSuites` true), `bd585b84` SUCCESS 10:18 UTC, `/ready` 200, `GET /version` names `b1b3684d`, `railway
+  config plan` up to date. A push to `main` deploys the beta only; the live site follows `live`.
 
 ## 2026-11-20 — EXEC-MU-ACCOUNTS option A: the live site's email and admin login, the first split Watchlist publication
 

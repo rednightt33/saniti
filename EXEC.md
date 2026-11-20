@@ -16038,9 +16038,9 @@ Order of the services (CONTRACT 17, rollback floors):
   (`c658d282`); the live smoke passed (visitor, routes, registration closed, origin, the admin up to `MFA_REQUIRED`, the
   page in a browser); the beta's housekeeping off (`72c3e49f`); the restart cron waits for every website (`88cdf1bd`);
   `.railway/railway.ts` declares the live service. The admin's address is on user #1, so "Forgot password" reaches it.
-  Open: the user connects the repository in the dashboard (M514: `edge-bff-live` → Settings → Source, repository
-  `rednightt33/saniti`, branch `live`, Wait for CI); the final ultracode checker of option A runs now, on the running
-  site.
+  The user connected the repository the same day (M514; branch `live`, Wait for CI, read back; the live site now
+  deploys from `live` only). The final ultracode checker of option A runs now, on the running site (the user: "lets
+  wait sampai ultracode beres, then fixed it. once that done I'll test everything live").
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
