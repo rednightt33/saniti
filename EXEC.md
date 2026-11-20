@@ -16051,6 +16051,23 @@ dipakai accross chat sebagai referencec?"
        tickers).
     4. The live mask readings: "4 ok" (the whole Monitor tab and the point-in-time Flow hidden on live; housekeeping
        only on live).
+- **3c check (2026-11-19/20):** five finders and three refuters at xhigh on the integrated branch (`dec1cfef`): 27
+  findings, all confirmed (7 blocks-switch-on, 15 non-blocking, 5 records; none blocks the deploy with the switch off;
+  `recheck/c3c_check_result.json`).
+  - **User, 2026-11-20, on the three points it raised:**
+    1. The client-address probe, asked again because the worst case named before ("stricter, never looser") was wrong
+       when Railway's edge keeps a client-written X-Forwarded-For line: "1a" (one probe on Railway before the live site
+       opens to visitors; the code reads every header line either way).
+    2. A stranger locking an account out (100 wrong passwords, then 20 wrong reset codes for its address): "2a" (wrong
+       reset codes are counted per address and client address, so a stranger's tries do not block the owner's code).
+    3. The admin's Terminal quota on the live site: "3a" (its own quota, at least the paid plan's, apart from the
+       beta's usage).
+  - **Working mode (the user, 2026-11-20):** "mulai dari basic setiap fase, bisa stop ketika kamu butuh konfirmasi
+    saya, atau sudah waktunya tahap checker untuk kita switch to ultracode." Each phase is built in the basic way (the
+    main agent, one line of work, with tests); work stops for the user's confirmation when one is needed, or when the
+    checker stage comes, which runs as an ultracode workflow. Before that, the user agreed the order: fix the 27, deploy
+    3c on dev (switch off), 3d, 3e, 3f, Phase 4, the payment adapter skeleton, the live website, then the final
+    ultracode checker before the switch goes on.
   2. Email outbox rows: "a" (deleted after 30 days, with used codes and webhook events).
   3. "Forgot password" pressed by someone else: "a" (kept as it is: each new code replaces the previous one; the
      address's 10 emails a day stay shared).
