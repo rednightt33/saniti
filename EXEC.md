@@ -16071,6 +16071,26 @@ Order of the services (CONTRACT 17, rollback floors):
   shell is prepared (CONTRACT 11: `app/payments/` Adapter with `create_checkout`, `verify_webhook`, `fetch_status`; the
   `manual` and `test` providers; `POST /api/v1/hooks/payments/{provider}`; the order state machine): no real gateway,
   price or provider account. Those details are the user's, later. Built after the user's go, like every phase.
+- **A registration test window (the user, 2026-11-20; not executed):** "Untuk tombol registrasi, tidak apa dibuka di
+  homepage. Nanti ketika fase testing, saya sendiri akan melakukan testing dengan email dummy. Goalnya adalah untuk
+  mengecek apakah registrasi bisa fully succeed apa enggak. Ketika sudah fully succeed, maka baru kita log lagi. Sampai
+  fase selanjutnya. Atau sampai go dari saya. Masukkan exec." Plan: at the test phase the live site's registration opens
+  (`EDGE_PRELAUNCH=false` on `edge-bff-live`, the "Create account" link on the sign-in page), the user registers with
+  test addresses up to a signed-in account, and once registration fully succeeds it closes again
+  (`EDGE_PRELAUNCH` back to the pre-launch mode) until the next phase or the user's go. Open details: the mail goes
+  through Resend to a real mailbox, so a test address must be one the user can read (a "+alias" of the user's own
+  mailbox works; an invented address never receives the code); while it is open anyone can register, and the switch
+  also opens sign-in to every account (the pre-launch mode is one setting), so the window stays short and the
+  accounts made in it are listed and removed or kept by the user afterwards; A2 (a known address can be locked by a
+  stranger) is fixed before it.
+- **edgefinance.id leads to the live site (the user, 2026-11-20; not executed):** "Boleh kamu buat redirect. It's either
+  user click edgefinance.id maka akan diredirect ke app.edgefinance.id? Masukkan exec." Found the same day:
+  `edgefinance.id` and `www.edgefinance.id` (2.57.91.91, Hostinger's CDN) answer 200 with Hostinger's "Parked Domain
+  name" page: no website is there yet; `app.edgefinance.id` points to Railway. Plan: a permanent (301) redirect of
+  `edgefinance.id` and `www.edgefinance.id` (every path) to `https://app.edgefinance.id`, set in Hostinger (hPanel →
+  Domains → edgefinance.id → Redirects), the user's account; the agent then reads it back from outside (status 301,
+  Location, HTTPS on both names) and records it. Nothing changes on Railway. If a public landing page is wanted on the
+  root later, the redirect is removed then.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
