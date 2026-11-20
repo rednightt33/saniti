@@ -16119,6 +16119,21 @@ Order of the services (CONTRACT 17, rollback floors):
      promotion only on the user's request.
   4. A test that fails when a new tab or catalog item reaches `main` without a live switch (a capability no plan
      holds, or stage `lab`), so moving `live` never opens one by accident.
+- **The next execution, one list (the user, 2026-11-20: "perbaikan A2; fase 3e dan 3f; Fase 4 (halaman admin);
+  kerangka pembayaran; jendela tes pendaftaran — ini juga masuk exec"); approved, not executed, it starts on the
+  user's "go":**
+  1. the four decided items above (footer links, the Terminal footer, the admin variables, the edgefinance.id
+     redirect) and the promotion runbook (LIVE_PROMOTION.md, live_diff.py, the AGENTS rule, the switch test);
+  2. the A2 fix (the per-address counters that let a stranger lock a known address and spend its mails);
+  3. 3e, the front-end (CONTRACT 8b "3e": every tab shown, the upgrade or sign-in prompt instead of an error, the
+     Terminal's lock prompts replacing the TEMPORARY F1 stopgap, the example mode, the menus by plan);
+  4. 3f, lab code out of the public bundles (CONTRACT 8b "3f");
+  5. Phase 4, the admin page (CONTRACT 10: users, plan changes and extensions, disable, sessions, account deletion,
+     every action audited);
+  6. the payment shell (CONTRACT 11, no real gateway);
+  7. the registration test window (above), last, after A2.
+  Each phase as before: built in basic mode, the beta first, its checker in ultracode, the live site only on the user's
+  request. Not in this list: the Postgres restart times (the user has not answered), the real payment method.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
