@@ -15976,6 +15976,25 @@ Order of the services (CONTRACT 17, rollback floors):
 9. The user's check after a reload: pending.
 10. Records: RAILWAY_CHANGELOG, DATABASE_CHANGELOG, APPLIED.sha256, ERRORS M504-M511.
 
+### Option A: the live site opens in pre-launch mode first (the user, 2026-11-20)
+
+- **Decision (the user, 2026-11-20):** "Ok go with opsi A", after the plain-words choice: A = the live website opens
+  today in pre-launch mode (visitors: the Terminal on BBCA and the sign-in box; registration closed; only the admin and
+  test accounts sign in), and 3e, 3f, Phase 4 and the payment skeleton follow before registration opens; B = every phase
+  first, then the live website. No phase is cut; only the order changes.
+- **The checkers (answered the same day):** two ultracode checkers. (1) The live checker, inside A: after the live
+  website is set up and before its switch is turned on. (2) The deep checker over every phase, after 3e, 3f, Phase 4
+  and the payment skeleton, before registration opens.
+- **A, before the live site opens:** the 3d publisher deploy (the split appears with the next scheduled publication);
+  M500's open part (terminal-api's handler for unexpected errors, so no personal data reaches its log); the live
+  service's settings (EXEC-MU-ACCOUNTS "Production environment", CONTRACT 16-17) set without a deployment; the Railway
+  client-address probe (1a); the bucket CORS for `app.edgefinance.id`; the live checker; then the switch on only with
+  the user's go. Needed from the user: the go for the switch, the Resend key in the Railway dashboard, the test
+  accounts' addresses, an authenticator for the admin's MFA on live, and the upgrade contact (it may follow).
+- **After the live site opens, before registration:** 3e, 3f, Phase 4, the payment skeleton (beta first, then live);
+  M510's open causes and the removal of the TEMPORARY rerun; M511's choice; the deep checker; registration opened
+  only with the user's go.
+
 ## EXEC-DESIGN-SYSTEM — design system EDGE yang dipakai lintas chat (go 2026-11-18)
 
 **Asal:** EDGE Reference Pack 2026-11-17 (salinan apa adanya 8 halaman, di luar Git karena berisi data pasar). User

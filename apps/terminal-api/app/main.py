@@ -1256,4 +1256,50 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         accounts.clear()                                     # this process reads the changed account at once
         return {'subscriber_id': sid, 'changed': sorted(k if k != 'password_hash' else 'password' for k in fields)}
 
+    # ERRORS M500 (the open part; EXEC-MU-ACCOUNTS option A, before the live site opens): added last, so it is the
+    # outermost middleware. An exception no handler expected (a database error whose DETAIL names a subscriber's email,
+    # an owner key) is answered 503 here and logged by its class and SQLSTATE only; it never reaches Starlette's
+    # ServerErrorMiddleware, which re-raises it to uvicorn, whose log line would carry the exception's text.
+    app.add_middleware(UnexpectedErrors)
     return app
+
+
+def failure_class(e):
+    """What a log line may say about an exception nobody expected: its class, and a database error's SQLSTATE, never
+    its text (as edge-bff's app/errors.py failure_class)."""
+    out = {'error': f'{type(e).__module__}.{type(e).__qualname__}'}
+    sqlstate = getattr(e, 'sqlstate', None)
+    if isinstance(sqlstate, str):
+        out['sqlstate'] = sqlstate
+    return out
+
+
+class UnexpectedErrors:
+    """ERRORS M500: catches an exception before Starlette's ServerErrorMiddleware re-raises it to the server; logs
+    request_failed with the method, the path and failure_class, and answers 503 service_unavailable in this service's
+    error shape when nothing was sent yet. Nothing re-raises, so the server writes nothing about it."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope['type'] != 'http':
+            await self.app(scope, receive, send)
+            return
+        started = False
+
+        async def sending(message):
+            nonlocal started
+            if message['type'] == 'http.response.start':
+                started = True
+            await send(message)
+        try:
+            await self.app(scope, receive, sending)
+        except Exception as e:                      # noqa: BLE001 - logged by its class only (failure_class)
+            log.error(json.dumps({'event': 'request_failed', 'method': scope.get('method'), 'path': scope.get('path'),
+                                  **failure_class(e)}))
+            if not started:
+                response = JSONResponse({'error': 'service_unavailable', 'message': 'terminal-api could not answer this '
+                                         'request. Try again in a minute; nothing was changed.'}, status_code=503,
+                                        headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
+                await response(scope, receive, send)

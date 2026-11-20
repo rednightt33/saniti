@@ -9222,10 +9222,12 @@ in its staleness check.
   `::test_the_deletion_procedure_names_every_store_that_names_an_account`. The Terminal look check
   (`verification/terminal_api/terminal_look/look_check11.mjs`, its stand-in serving `/fonts/`): PASS on the rebuilt
   Terminal (track decisions).
-- **Status:** fixed on branch fix-int2, not deployed. OPEN: terminal-api has no handler for unexpected exceptions
-  (`apps/terminal-api/app/main.py` maps only `HTTPException` and validation errors), which 3c's owner-row writes need;
-  `.claude/skills/edge-design-system/assets/spec-v1.2.css` still `@import`s Google Fonts (changing the design system
-  rebuilds its claude.ai copy, a publish outside this branch).
+- **Status:** fixed; deployed on dev 2026-11-20 with Phase 3c (edge-bff `b11278c3`). terminal-api's part FIXED
+  2026-11-20 (option A, before the live site opens): an outermost middleware (`apps/terminal-api/app/main.py`
+  `UnexpectedErrors`) answers an exception no handler expected with 503 `service_unavailable` and logs its class and
+  SQLSTATE only, so nothing re-raises it to uvicorn's log; test `apps/terminal-api/tests/test_unexpected_errors.py`
+  (fails without it). OPEN: `.claude/skills/edge-design-system/assets/spec-v1.2.css` still `@import`s Google Fonts
+  (the design system's own showcase, not an EDGE page; changing it rebuilds its claude.ai copy).
 - **Lesson:** every service catches what it did not expect before the framework logs it; a page loads nothing from a
   third party that the records do not name as a recipient; every owned store has its line in one deletion procedure
   when it is created.
