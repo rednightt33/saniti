@@ -15904,7 +15904,11 @@ Then step 3 of the wire (CONTRACT 8b) is a follow-up change. The workers require
 including on the unwrapped `/v1/signals` body. Its order: edge-bff is already sending `allow`, so the workers can be
 deployed alone.
 
-### Phase 3c deploy steps (planned 2026-11-20; waits for the user's go and green checks)
+### Phase 3c deploy steps (planned 2026-11-20; go from the user the same day)
+
+- **Go (the user, 2026-11-20):** "Go", to "Boleh saya deploy 3c ke dev begitu semua tes hijau?" (after the plan below
+  was put to the user in plain words: 16 database changes in order, the three services, the gateway account, the
+  smoke, the switch staying off, a short restart of Postgres if the access-log index needs it).
 
 What goes to dev: Phase 3c and the 3b follow-up, the re-check's fix round (84 findings), the user's decisions of
 2026-11-19, and the 3c check's 27 fixes (ERRORS M504-M508). The switch stays off on `edge-bff` (the beta): with
