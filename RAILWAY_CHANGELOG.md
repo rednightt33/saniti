@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-11-20 — The fixes of the live checker after the switch-on deployed: the beta, then the live site (ERRORS M515)
+
+- **Commit `349947ec`** (every workflow green on the session branch; `d810d88b` had failed the look-ahead gate's
+  screener-worker pointer test, three line pointers of SCREENER_ONBOARDING.md, fixed). M340 job `d17352a4`: nothing
+  open. Only edge-bff's folder changed (no other service's watch path).
+- **Beta:** `main` `b1b3684d` → `349947ec`; `edge-bff` `4eb95d33` SUCCESS 12:49 UTC: `/ready` 200, `/version` `349947ec`,
+  the beta's sign-in 200, the Watchlist index and files 200; `startup_done` now carries `level` info in Railway (F3
+  verified).
+- **Live:** `live` → `349947ec` (the commit the beta runs); `edge-bff-live` `70d45a00` SUCCESS 13:09 UTC after its CI
+  (the two Backtest variables now read backtest-worker directly). Smoke: `/ready` 200, `/version` `349947ec`; config, the
+  visitor's BBCA 200 and TLKM CAPABILITY_REQUIRED, 15 beta-only routes 404 and 45 gated 401, REGISTRATION_CLOSED,
+  ORIGIN_REJECTED, the admin by name and by address MFA_REQUIRED. In a browser `/terminal` shows BBCA with "Last 730
+  days of history (after 20 Nov 2024)", no Flow Timeline, broker panel or Events (F1), the rail without Monitor.
+
 ## 2026-11-20 — The live checker after the switch-on: Railway changes of its fixes (ERRORS M515)
 
 - **edge-bff-live:** `BACKTEST_TIMEOUT_SECONDS` and `BACKTEST_MAX_RESULT_BYTES` now reference `backtest-worker` directly
