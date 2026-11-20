@@ -8879,6 +8879,44 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M513 — The live checker before the switch-on: 11 findings confirmed, none refuted (2026-11-20; most FIXED, three wait for the user)
+
+- **Found by:** the ultracode live checker of option A (workflow `wf_b98c2b6c-166`: five lenses over commit `13f40871`,
+  one skeptic per finding of medium severity or more; 16 agents, none refuted; journal and summary in
+  `verification/edge_multiuser/live_checker/`).
+- **Fixed (commit `61d9333b`, CI run `44697919961` green; Railway settings where named):**
+  - site S1 (medium): the live site's page still offered the AI Monitor (rail entry, brand button, Research, the model
+    list). `GET /api/v1/auth/config` names the tabs the site does not offer (`hidden_tabs`, from `BETA_ONLY_TABS` on the
+    live site) and the shell hides them; `tests/test_live_rail.py` (fails without the fix).
+  - site S2 (medium): "Sign out everywhere", a password change or a reset on live did not end user #1's beta sessions
+    (switch-off rows with no user id). An account's sessions now include its owner key's switch-off sessions
+    (`app/accounts.py` `ACCOUNT_SESSIONS`); `tests/test_live_beta_sessions.py`.
+  - guest G3 (low): in pre-launch a visitor was told "Sign in or create one"; now "Sign in to use it; registration opens
+    soon" (`errors.set_registration_open` from the mode; the page's fallback says only "Sign in").
+  - switch-on S6 (low): a live start without the Terminal settings is refused (`config.validate`).
+  - switch-on S3 (medium): `edge-bff-live`'s `TERMINAL_PROXY_KEY`, `BACKTEST_WORKER_KEY` and `SCREENER_WORKER_KEY` now
+    reference terminal-api, backtest-worker and screener-worker directly, as the beta does, so a rotation reaches the
+    live site (values compared with the beta's by hash, never printed).
+  - data D1 and switch-on S1 (medium): `live` is created at a commit whose own CI run is green (`61d9333b` or later), never
+    at the red `13f40871`.
+  - switch-on S2 (medium): the switch-on order and the rollback are written in EXEC.md option A.
+- **Waiting for the user:** A1, site S3 and switch-on S5 (low): user #1's live login is `admin_1` (the beta's `edge` is
+  reserved) and it has no email, so no reset reaches it (the operator unlock is its way back); A2 (medium): a stranger
+  who knows a test account's address can lock it and spend its reset mails and codes (counters keyed by the address or
+  the code alone), the operator unlock being the way back; switch-on S4 (medium): the live site would open with email in
+  log mode, while the user said testing on live waits for Resend ("Ok kita tunggu 1-3"): the key is set
+  (`RESEND_API_KEY`), the sender address is to be confirmed.
+- **At the switch-on:** D2 (low: open the live site after the publisher's first split Watchlist publication), D3 and
+  S8 (low: declare the service in `.railway/railway.ts` with `preserve()`, its email values as set), S7 (low:
+  `restart_postgres.py` also reads the live `/ready`).
+- **Low, kept for 3e and Phase 4 (unverified, one finder each):** G1 (a third-party page can spend a visitor's
+  terminal-api file quota with cross-site GETs), G2 (once `EDGE_GUEST_CALLS_PER_HOUR` is set, calls terminal-api never
+  counts can spend the ceiling), site S4 (user #1's beta backtests with a point-in-time Flow are listed on live), S5 (a
+  Screener catalog cache key shared by '*' and a full plan), S6 (the shared backtest-worker slot dies with its
+  connection; the restart guard ignores running backtests).
+- **Lesson:** a checker over the switch-on itself (order, references, rollback, the page as served) finds what code
+  review of each phase does not; run it before every switch.
+
 ### M512 — The client address was Railway's edge node: every visitor would have been one client (2026-11-20, the probe of CONTRACT 4; FIXED in code, deploy pending)
 
 - **Found by:** the client-address probe the user asked for before the live site opens to visitors ("1a",

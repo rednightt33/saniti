@@ -15991,6 +15991,22 @@ Order of the services (CONTRACT 17, rollback floors):
   client-address probe (1a); the bucket CORS for `app.edgefinance.id`; the live checker; then the switch on only with
   the user's go. Needed from the user: the go for the switch, the Resend key in the Railway dashboard, the test
   accounts' addresses, an authenticator for the admin's MFA on live, and the upgrade contact (it may follow).
+- **Switch-on order and rollback (live checker S2/S7/S8 of the switch-on lens, 2026-11-20):**
+  1. M340; the branch `live` at a commit whose own CI run is green (never a red one: the K10 a gate), recorded as the
+     commit that goes live; `edge-bff-live` gets the beta's build settings (root `/apps/edge-bff`, start command,
+     `/ready` with 120 s, restart ALWAYS, one replica, watch `/apps/edge-bff/**`), then its GitHub source (branch
+     `live`), and its trigger waits for CI (`checkSuites`).
+  2. The live smoke (from outside): `/ready` 200, a visitor's Terminal on BBCA, another ticker answers the sign-in box,
+     registration closed, a non-test account `SIGN_IN_CLOSED`, `/monitor` and the admin routes 404, no Monitor in the
+     rail, the CSP and the new origin.
+  3. Only after the smoke: M340, then `EDGE_HOUSEKEEPING_ENABLED=false` on `edge-bff` (its redeploy), so the live site is
+     the housekeeping's one owner; `scripts/restart_postgres.py` is taught the live `/ready` too, and
+     `postgres-memory-cron` uploaded with its `deploy.sh`.
+  4. `.railway/railway.ts` declares the service with `preserve()` for every value set in Railway, and the terminal-api
+     suite (it reads every declared service) runs before that push.
+  - **Rollback:** (1) `railway down` of the live deployment (or remove its domain); (2) `EDGE_HOUSEKEEPING_ENABLED` back to
+    `true` on `edge-bff`; (3) a reviewed job ends the live site's open jobs (`site='live'`: QUEUED rows CANCELLED,
+    RUNNING rows FAILED `WORKER_LOST`), so the shared Backtest worker slot and user #1's beta Backtest are not held.
 - **After the live site opens, before registration:** 3e, 3f, Phase 4, the payment skeleton (beta first, then live);
   M510's open causes and the removal of the TEMPORARY rerun; M511's choice; the deep checker; registration opened
   only with the user's go.
