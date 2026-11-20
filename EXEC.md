@@ -16100,6 +16100,12 @@ Order of the services (CONTRACT 17, rollback floors):
   records, so `app`, the Resend mail and the MX records stay. Waits for the user's go; after it: read back the forwarding
   and the DNS zone, and from outside `edgefinance.id` and `www` (HTTP and HTTPS) answer 301 to the live site, and
   `app.edgefinance.id` and the mail records are unchanged.
+- **Promotion to the live site is on request only (the user, 2026-11-20):** "untuk nomor satu masukkan exec" (the
+  edgefinance.id redirect stays here, not executed, until the user's go) and "Tidak bisa pengembangan di beta dibawa
+  live on schedule basis. Semuanya harus on request basis." No scheduled promotion: `live` moves only when the user asks
+  for it, for what the user names. The user also asked how a later session, without this conversation, can bring a
+  beta feature to the live site; a promotion runbook and a derived list of what the beta holds that the live site does
+  not are proposed to the user (not yet written).
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
