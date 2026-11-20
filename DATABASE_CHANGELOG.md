@@ -16,6 +16,12 @@
   seed's mark, so the beta's switch-off seed keeps it). Then the beta's own sign-in (`EDGE_LOGIN`, its handoff
   password) answered 200. `POSTGRES_MEMORY_CHECK` READY at 0.81 GB, from earlier work, not from this job (a few rows):
   left to the scheduled restart at 20:45 WIB.
+- **The admin's address (the user, 2026-11-20: "akun admin: <address>"):** kept as `EDGE_ADMIN_EMAIL` on
+  `edge-bff-live`, written by the same script with `ACCOUNT_NEW_EMAIL` (job `db2aa27d`, 09:25 UTC): user #1's `email`
+  set lower-cased and marked verified (`email_verified_at`), one audit row `account.login_set` whose before/after say
+  only whether an address was held and set (never the address). Read back by the job: `email_set` true,
+  `email_reads_back` true; the username and password unchanged. The live sign-in now takes the address as well, and
+  "Forgot password" reaches the user's mailbox.
 
 ## 2026-11-20 — EXEC-MU-ACCOUNTS Phase 3c migrations applied on dev (16 files, schemas `edge_bff` and `terminal`) and the gateway's terminal-api account until 2100
 

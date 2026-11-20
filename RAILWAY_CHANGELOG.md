@@ -1,5 +1,40 @@
 # Railway changelog
 
+## 2026-11-20 — EXEC-MU-ACCOUNTS option A: the live site switched on (pre-launch mode)
+
+- **User:** "akun admin: <address>" and "Go." (2026-11-20; the address went into user #1, DATABASE_CHANGELOG.md).
+- **M340:** jobs `379b01dd` (before `main` moved) and `e6b885fa` (before the beta's redeploy, 09:55 UTC): no active
+  EDGE job, no running orc turn, no open Backtest job.
+- **Beta first:** `main` `aee67c30` → `b1b3684d` (the live checker fixes `61d9333b` and records; every workflow green on
+  the session branch, then on `main`). `edge-bff` `28b44442` SUCCESS 09:48 UTC: `/ready` 200, the beta's sign-in 200,
+  the Watchlist index and both files 200, `auth/config` `{"multiuser": false}`, no error in its log.
+- **Branch `live`** at `b1b3684d` (its own runs green: backend tests, look-ahead gate, generated files).
+- **edge-bff-live:** the beta's build and deploy settings (root `/apps/edge-bff`, Dockerfile, start command, `/ready`
+  120 s, restart ALWAYS, one replica, watch `/apps/edge-bff/**`; read back). The GitHub source was refused (ERRORS M514:
+  the session holds a project token). TEMPORARY: CLI upload `c658d282` of `git archive b1b3684d apps/edge-bff` (the
+  commit the beta runs), SUCCESS 09:52 UTC; `startup_done` site live, 3 loops (Backtest, email, housekeeping), commit
+  null (an upload carries no Git commit), the shared key fingerprints equal to the beta's.
+- **Live smoke, from outside (09:53-09:55 UTC):** `/ready` 200; the page 200 with its CSP (`frame-ancestors 'self'`),
+  HSTS, `nosniff`, `Referrer-Policy: same-origin`; `auth/config`: multiuser, `hidden_tabs` admin and monitor,
+  registration closed, pre-launch; `/terminal` 200, `/monitor`, `/c/<id>` and `/admin` 404; a visitor's BBCA manifest
+  200 and TLKM 403 `CAPABILITY_REQUIRED` with the sign-in words; 15 beta-only routes 404 and 45 gated routes 401 for a
+  visitor (the Terminal relay's made-up path 404); register 403 `REGISTRATION_CLOSED`; a foreign origin 403
+  `ORIGIN_REJECTED`; an unknown login 401; the admin by its username and by its address 403 `MFA_REQUIRED`
+  (`mfa_enrolled` false; no enrolment made). In a browser (Playwright): the root is the sign-in box with "Open the
+  Terminal without an account" and no registration; `/terminal` shows BBCA (prices to 19 November), the rail without
+  Monitor or Research, no model list asked; the console holds only the visitor's expected 401 of
+  `/api/v1/auth/session`.
+- **After the smoke:** `EDGE_HOUSEKEEPING_ENABLED=false` on `edge-bff` → `72c3e49f` SUCCESS 09:57 UTC (`/ready` 200, 2
+  loops): the live site is the hourly housekeeping's one owner. `postgres-memory-cron` `88cdf1bd` (`deploy.sh`,
+  `restart_postgres.py` of `2b497f91`: every public website's `/ready`, ERRORS M513 S7) SUCCESS, no run, cron
+  `45 2,13 * * *` (next 13:45 UTC).
+- **`.railway/railway.ts`:** `edge-bff-live` with its settings and the intended source (branch `live`, `checkSuites`),
+  `edge-bff`'s `EDGE_HOUSEKEEPING_ENABLED` (`preserve()`). `railway config plan`: one pending change, the repository
+  connection (M514). The live root directory was set to `""` and back to `/apps/edge-bff` on the way (the API does not
+  clear it), so a connection made in the dashboard builds at once.
+- **Rollback (EXEC.md option A):** `railway down` of the live deployment (or remove its domain);
+  `EDGE_HOUSEKEEPING_ENABLED=true` on `edge-bff`; a reviewed job ends the live site's open jobs.
+
 ## 2026-11-20 — EXEC-MU-ACCOUNTS option A: the live site's email and admin login, the first split Watchlist publication
 
 - **User (2026-11-20):** the two sites confirmed (the beta, `edge-bff` on edge-bff-dev.up.railway.app, the admin only,

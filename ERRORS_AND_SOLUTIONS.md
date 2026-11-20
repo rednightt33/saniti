@@ -8879,7 +8879,30 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M513 — The live checker before the switch-on: 11 findings confirmed, none refuted (2026-11-20; FIXED or done, A2 accepted for pre-launch, S7 at the switch-on)
+### M514 — The live site's GitHub source cannot be connected from an agent session: its Railway credential is a project token (2026-11-20; OPEN, a TEMPORARY CLI upload runs the live site)
+
+- **Found by:** the switch-on, step 1 (EXEC.md option A), after the user's "Go.".
+- **Symptom (verified):** `railway service source connect --repo rednightt33/saniti --branch live --service
+  edge-bff-live` answered "Unauthorized. Please check that your RAILWAY_TOKEN is valid and has access to the resource";
+  the GraphQL `serviceConnect` and `railway service source disconnect` answered "Not Authorized"; `query { me }` too.
+- **Root cause (verified):** the session's Railway credential (injected by the network proxy) is a project token. It
+  changes services, settings, variables and deployments of the project, but connecting a GitHub repository to a service
+  is an account action (the GitHub app's installation belongs to the account); the beta's source was connected from the
+  dashboard. The plan (EXEC.md option A step 1) assumed the session could do it.
+- **General class:** any setup or switch step that needs an account-level Railway action (a repository connection, a
+  team or billing setting, a new token) cannot run from an agent session holding a project token; it holds for every
+  future GitHub-connected service. Not this class: variables, settings, uploads, restarts and reads (project-scoped).
+- **Solution:** TEMPORARY, so the switch-on was not delayed: the live site runs a CLI upload of the commit the beta runs
+  (`c658d282`, `b1b3684d`). It does not cover: a push to `live` deploys nothing (a later deploy is an upload of the
+  checked commit until the connection), and `GET /version` shows no commit (Railway sets `RAILWAY_GIT_COMMIT_SHA` only
+  for a Git deploy). The general fix is the user's: the dashboard, `edge-bff-live` → Settings → Source: repository
+  `rednightt33/saniti`, branch `live`, root directory `/apps/edge-bff` (already set), "Wait for CI" on. `.railway/railway.ts`
+  declares that source; `railway config plan` shows it as the one pending change until then.
+- **Status:** OPEN until the user connects the repository.
+- **Lesson:** before a plan relies on a Railway API action, check that the session's credential holds it; put
+  account-only steps on the user's list when the plan is written.
+
+### M513 — The live checker before the switch-on: 11 findings confirmed, none refuted (2026-11-20; FIXED or done, A2 accepted for pre-launch)
 
 - **Found by:** the ultracode live checker of option A (workflow `wf_b98c2b6c-166`: five lenses over commit `13f40871`,
   one skeptic per finding of medium severity or more; 16 agents, none refuted; journal and summary in
@@ -8925,7 +8948,8 @@ in its staleness check.
     `watchlist-radar`.
   - D3 and S8: DONE. `.railway/railway.ts` declares `edge-bff-live` as it is (no source, `preserve()`); the plan is up
     to date. Its switch-on body is written in the comment above it.
-  - S7: at the switch-on (`restart_postgres.py` reads the live `/ready` once the live site runs).
+  - S7: FIXED at the switch-on. `scripts/restart_postgres.py` (and `set_postgres_memory.py`) wait for the `/ready` of
+    every public website, derived from Railway (`site_ready_urls`, `2b497f91`); `postgres-memory-cron` `88cdf1bd`.
 - **Low, kept for 3e and Phase 4 (unverified, one finder each):** G1 (a third-party page can spend a visitor's
   terminal-api file quota with cross-site GETs), G2 (once `EDGE_GUEST_CALLS_PER_HOUR` is set, calls terminal-api never
   counts can spend the ceiling), site S4 (user #1's beta backtests with a point-in-time Flow are listed on live), S5 (a

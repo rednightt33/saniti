@@ -254,7 +254,7 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "ALWAYS" },
-    env: { BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), BACKTEST_WORKER_URL: preserve(), EDGE_CODE_SECRET: preserve(), EDGE_DATABASE_URL: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_HEARTBEAT_SECONDS: preserve(), EDGE_INITIAL_PASSWORD: preserve(), EDGE_LEASE_SECONDS: preserve(), EDGE_LOGIN: preserve(), EDGE_MFA_KEY: preserve(), EDGE_ORC_TIMEOUT_SECONDS: preserve(), EDGE_ORC_URL: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_POLL_SECONDS: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SECURE_COOKIE: preserve(), EDGE_SESSION_SECONDS: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_TERMINAL_URL: preserve(), EDGE_WORKER_ENABLED: preserve(), MARKET_AI_ORC_API_KEY: preserve(), PORT: preserve(), SCREENER_TIMEOUT_SECONDS: preserve(), SCREENER_WORKER_KEY: preserve(), SCREENER_WORKER_URL: preserve(), TERMINAL_PROXY_KEY: preserve() },
+    env: { BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), BACKTEST_WORKER_URL: preserve(), EDGE_CODE_SECRET: preserve(), EDGE_DATABASE_URL: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_HEARTBEAT_SECONDS: preserve(), EDGE_HOUSEKEEPING_ENABLED: preserve(), EDGE_INITIAL_PASSWORD: preserve(), EDGE_LEASE_SECONDS: preserve(), EDGE_LOGIN: preserve(), EDGE_MFA_KEY: preserve(), EDGE_ORC_TIMEOUT_SECONDS: preserve(), EDGE_ORC_URL: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_POLL_SECONDS: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SECURE_COOKIE: preserve(), EDGE_SESSION_SECONDS: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_TERMINAL_URL: preserve(), EDGE_WORKER_ENABLED: preserve(), MARKET_AI_ORC_API_KEY: preserve(), PORT: preserve(), SCREENER_TIMEOUT_SECONDS: preserve(), SCREENER_WORKER_KEY: preserve(), SCREENER_WORKER_URL: preserve(), TERMINAL_PROXY_KEY: preserve() },
   });
   // EXEC-MU-ACCOUNTS "Production environment" (user decisions 2026-11-19): the live website. A comment, not a
   // declaration, until its source is connected with the go for the live site; the service exists on Railway with its
@@ -302,12 +302,23 @@ export default defineRailway(() => {
   //     // launch EDGE_PRELAUNCH: "false". EDGE_UPGRADE_CONTACT: the upgrade box's contact (plain text; unset: "comes soon")
   //     PORT: "8080",
   //   },
-  // ERRORS M513 D3/S8 (2026-11-20): edge-bff-live as it is before the switch-on, declared so that a `railway config
-  // apply` keeps it (undeclared, the plan deletes it): no source and no deployment, its variables as set (preserve();
-  // the values: RAILWAY_CHANGELOG.md 2026-11-20). EDGE_ADMIN_USERNAME, EDGE_ADMIN_EMAIL and EDGE_ADMIN_INITIAL_PASSWORD
+  // ERRORS M513 D3/S8 (2026-11-20): edge-bff-live, the live website (app.edgefinance.id), switched on 2026-11-20 with the
+  // user's go (EXEC.md option A); the beta's build and deploy settings; its variables as set (preserve(); the values:
+  // RAILWAY_CHANGELOG.md 2026-11-20). EDGE_ADMIN_USERNAME, EDGE_ADMIN_EMAIL and EDGE_ADMIN_INITIAL_PASSWORD
   // are the live admin's login, address and first password for the user to read (scripts/edge_account_login.py writes
-  // them into user #1; the site never reads them). At the switch-on its settings become the body written in the comment above (EXEC.md option A).
+  // them into user #1; the site never reads them).
   const edgeBffLive = service("edge-bff-live", {
+    // its own branch: `live` moves to a version the beta ran first (EXEC.md option A); deploys wait for CI (K10 a).
+    // TEMPORARY (ERRORS M514): the repository is not connected yet (this session's project token may not connect one:
+    // `railway config plan` shows that one pending change); the running deployment is a CLI upload of the commit the
+    // beta runs. The user connects it in the dashboard (repository, branch live, Wait for CI); the plan is then clean.
+    source: github("rednightt33/saniti", { branch: "live", checkSuites: true, rootDirectory: "/apps/edge-bff" }),
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/edge-bff/**"] },
+    start: "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1 --no-access-log --no-proxy-headers",
+    healthcheck: "/ready",
+    healthcheckTimeout: 120,
+    replicas: { "sfo": 1 },
+    deploy: { restartPolicyType: "ALWAYS" },
     env: { BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), BACKTEST_WORKER_URL: preserve(), EDGE_ADMIN_EMAIL: preserve(), EDGE_ADMIN_INITIAL_PASSWORD: preserve(), EDGE_ADMIN_USERNAME: preserve(), EDGE_CODE_SECRET: preserve(), EDGE_DATABASE_URL: preserve(), EDGE_EMAIL_FROM: preserve(), EDGE_EMAIL_MODE: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_LOGIN: preserve(), EDGE_MFA_KEY: preserve(), EDGE_MULTIUSER: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_SITE: preserve(), EDGE_TERMINAL_URL: preserve(), PORT: preserve(), RESEND_API_KEY: preserve(), SCREENER_TIMEOUT_SECONDS: preserve(), SCREENER_WORKER_KEY: preserve(), SCREENER_WORKER_URL: preserve(), TERMINAL_PROXY_KEY: preserve() },
   });
   const aiDataCoverage = service("ai-data-coverage", {

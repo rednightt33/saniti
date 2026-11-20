@@ -16032,6 +16032,15 @@ Order of the services (CONTRACT 17, rollback floors):
   - **Rollback:** (1) `railway down` of the live deployment (or remove its domain); (2) `EDGE_HOUSEKEEPING_ENABLED` back to
     `true` on `edge-bff`; (3) a reviewed job ends the live site's open jobs (`site='live'`: QUEUED rows CANCELLED,
     RUNNING rows FAILED `WORKER_LOST`), so the shared Backtest worker slot and user #1's beta Backtest are not held.
+- **Switch-on (2026-11-20, the user's "akun admin: <address>" and "Go."):** done the same day (RAILWAY_CHANGELOG.md):
+  M340; `main` and `live` at `b1b3684d`; the beta first (`28b44442`); `edge-bff-live` with the beta's settings and, since
+  the session's project token may not connect a repository (ERRORS M514), a TEMPORARY CLI upload of that commit
+  (`c658d282`); the live smoke passed (visitor, routes, registration closed, origin, the admin up to `MFA_REQUIRED`, the
+  page in a browser); the beta's housekeeping off (`72c3e49f`); the restart cron waits for every website (`88cdf1bd`);
+  `.railway/railway.ts` declares the live service. The admin's address is on user #1, so "Forgot password" reaches it.
+  Open: the user connects the repository in the dashboard (M514: `edge-bff-live` → Settings → Source, repository
+  `rednightt33/saniti`, branch `live`, Wait for CI); the final ultracode checker of option A runs now, on the running
+  site.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
