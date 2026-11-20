@@ -1,8 +1,10 @@
-"""The live checker after the switch-on (2026-11-20, ERRORS M515 F1; TEMPORARY until 3e builds a lock prompt on each
-panel): a visitor's Terminal on the live site never shows data that is closed to it as if it were empty. /bundle answers
-broker, events and intraday as {locked, capability} for the guest plan and cuts the price to its history window; the
-page (terminal/src/main.ts lockedPage, historyNote; data/live.ts bundle) then leaves out the Flow Timeline, the broker
-panel and the Events menu (as for a bond), says the history window on the chart, and a locked intraday timeframe opens
+"""A visitor's Terminal on the live site never shows data that is closed to it as if it were empty (the live checker
+after the switch-on, ERRORS M515 F1), and since 3e (CONTRACT 8b, the Terminal's lock prompts, which replaced the F1
+stopgap) each closed part says Locked in place and opens the lock box. /bundle answers broker, events and intraday as
+{locked, capability} for the guest plan and cuts the price to its history window; the page (terminal/src/main.ts
+lockedPage, historyNote; data/live.ts bundle) then keeps the Flow Timeline's head with the lock "Broker data" (its body
+and filters out, Broker activity out), keeps the Events button with the lock mark, says Locked for the IHSG comparison
+of Statistics (which it never asks for), says the history window on the chart, and a locked intraday timeframe opens
 the lock box instead of "No 1H data is published". The test fails on "Rp 0", "No broker data", "No flow matches", an
 event count or "is published". Needs EDGE_TEST_POSTGRES_URL, Playwright with EDGE_TEST_CHROMIUM and the built Terminal
 page (cd apps/edge-bff/terminal && npm run build)."""
@@ -50,14 +52,33 @@ def test_a_visitor_sees_no_closed_data_as_empty_and_reads_the_history_window(liv
             frame.wait_for_timeout(1500)
             text = visible_text(frame)
             assert not [w for w in MISLEADING if w in text], text[:2000]
-            # the broker panels and the Events menu are left out, as for a bond
             assert frame.evaluate("() => document.body.classList.contains('locked-broker') "
                                   "&& document.body.classList.contains('locked-events')")
-            for sel in ('.main-col > .bottom', '.side.right', '#evBtn'):
+            # 3e: the Flow Timeline keeps its head with the lock; its body, filters and Broker activity are out
+            assert frame.locator('.main-col > .bottom').first.is_visible()
+            lock = frame.locator('#flowLock')
+            assert lock.is_visible() and 'Broker data' in lock.inner_text() and 'Locked' in lock.inner_text()
+            for sel in ('#flowBody', '#flowFilters', '.side.right'):
                 assert not frame.locator(sel).first.is_visible(), sel
             # the history window the server cut the price to is said on the chart
             note = frame.locator('.history-note')
             assert note.is_visible() and 'Last 730 days of history' in note.inner_text()
+            # the IHSG comparison of Statistics says Locked; IHSG was never asked for
+            assert not [c for c in live_site.terminal.calls if 'IHSG' in c['body'] or '/IHSG' in c['path']]
+            # each lock opens the shell's box (sign in, for a visitor), the broker's and the Events button's
+            lock.click()
+            dialog = page.get_by_role('dialog')
+            dialog.wait_for(timeout=10000)
+            assert 'Sign in to open Broker data' in dialog.inner_text(), dialog.inner_text()
+            page.keyboard.press('Escape')                                   # the dialog closes on Escape
+            page.get_by_role('dialog').wait_for(state='detached', timeout=10000)
+            ev = frame.locator('#evBtn')
+            assert ev.is_visible() and ev.locator('.ev-lock').count() == 1
+            ev.click()
+            dialog = page.get_by_role('dialog')
+            dialog.wait_for(timeout=10000)
+            assert 'Sign in to open Corporate actions' in dialog.inner_text(), dialog.inner_text()
+            assert frame.locator('#evPop').count() == 0 or not frame.locator('#evPop').first.is_visible()
         finally:
             browser.close()
 

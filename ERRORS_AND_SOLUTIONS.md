@@ -9036,7 +9036,9 @@ in its staleness check.
     `terminal/src/data/live.ts:408`) and gets 403 `CAPABILITY_REQUIRED`. The page stays usable: BBCA and its
     statistics show. This goes to step 4 (3e, the visitor's example mode). The Terminal should derive what it asks
     for from the visitor's grants, or the example grant should include the index; it should not ask and be refused.
-- **Status:** FIXED for the smoke. (b) is OPEN for step 4.
+- **Status:** FIXED for the smoke. (b) FIXED on the branch with 3e: the Terminal never asks IHSG for a principal that
+  does not hold it, and the Statistics row says Locked and opens the box (`terminal/src/data/live.ts` `loadIhsg`,
+  `stats.ts`; `tests/test_live_terminal_locked.py` checks that no IHSG call is made).
 - **Lesson:** a check that uses a real account's password must not count failures against that account on every run.
   Make the sign-in opt-in and try it once, or use an account made for the check.
 

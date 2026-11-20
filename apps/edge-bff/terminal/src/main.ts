@@ -34,7 +34,7 @@ import { initPopout } from './app/popout';
 import { initLayouts } from './app/layouts';
 import { initPresets } from './app/presets';
 import { initAssets } from './app/assets';
-import { askLocked } from './app/locked';
+import { askLocked, lockMark, lockWord, type LockedItem } from './app/locked';
 import { asTimeframe, isIntraday, periodsPerYear, tfLabel, tfTitle, type Timeframe } from './data/timeframe';
 import { keyedCharts, safeCharts } from './data/chartTime';
 
@@ -90,15 +90,33 @@ function bondPage(M: MarketData) {
   $('symText').insertAdjacentHTML('afterend', `<span class="fi-unit" title="${title(fi.metric)} · ${fi.name}${fi.country ? ', ' + fi.country : ''}">${unit}</span>`);
 }
 
-/* The live checker after the switch-on (2026-11-20, F1; TEMPORARY until 3e builds a lock prompt on each panel): a
-   dataset the server answered as locked for this principal (MarketData.lockedData, from /bundle) is left out the way a
-   bond leaves out what it has not, so a visitor never reads "Rp 0", "No broker data" or an event count for data that
-   exists but is closed to it. A locked intraday timeframe opens the lock box, and the next load is daily. */
+/* 3e (CONTRACT 8b, the Terminal's lock prompts; it replaces the F1 stopgap of the live checker after the switch-on): a
+   dataset the server answered as locked for this principal (MarketData.lockedData, from /bundle) is never drawn as
+   "Rp 0", "No broker data" or an event count; the part that shows it says Locked instead, and its lock opens the box
+   (askLocked: sign in for a visitor, upgrade for an account). Broker data: the Flow Timeline keeps its head with the
+   lock (its body and filters go) and Broker activity, the right column, stays out. Events: the Events button keeps its
+   place with the lock mark. Intraday: a locked timeframe opens the box, and the next load is daily. */
+export const LOCKED_DATA: Record<string, LockedItem> = {
+  broker:{ kind:'feature', id:'terminal.dataset:broker', name:'Broker data' },
+  events:{ kind:'feature', id:'terminal.dataset:events', name:'Corporate actions' },
+  intraday:{ kind:'feature', id:'terminal.dataset:intraday', name:'Intraday charts' }
+};
 function lockedPage(M: MarketData) {
   const locked = new Set(M.lockedData || []);
-  if (locked.has('broker')) { document.body.classList.add('locked-broker'); $('workspace').classList.remove('has-right') }
-  if (locked.has('events')) document.body.classList.add('locked-events');
-  if (locked.has('intraday')) { store.set('ml.tf', 'D'); askLocked({ kind:'feature', id:'terminal.dataset:intraday', name:'Intraday charts' }) }
+  if (locked.has('broker')) {
+    document.body.classList.add('locked-broker'); $('workspace').classList.remove('has-right');
+    const title = $('flowHead')?.querySelector('.flow-title');
+    title?.insertAdjacentHTML('afterend', `<button class="flow-lock" id="flowLock" type="button">${lockMark('st-lock')}<span>Broker data</span><span class="flow-lock-word">${lockWord()}</span></button>`);
+    $('flowLock')?.addEventListener('click', e => { e.stopPropagation(); askLocked(LOCKED_DATA.broker) });
+  }
+  if (locked.has('events')) {
+    document.body.classList.add('locked-events');
+    const ev = $('evBtn');
+    ev?.insertAdjacentHTML('beforeend', lockMark('ev-lock'));
+    // the capture phase: the Events popover's own handler never opens it
+    ev?.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); askLocked(LOCKED_DATA.events) }, true);
+  }
+  if (locked.has('intraday')) { store.set('ml.tf', 'D'); askLocked(LOCKED_DATA.intraday) }
 }
 /* the history window the server cut the price to (MarketData.history): said on the chart, so the first candle is not
    read as the ticker's first day */

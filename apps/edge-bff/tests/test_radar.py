@@ -231,7 +231,8 @@ def test_the_radar_tab_is_hidden_when_its_data_cannot_be_read(settings, store):
         r = c.post('/api/v1/auth/sign-in', headers=ORIGIN, json={'login': 'owner', 'password': 'local-test-password'})
         assert r.json()['capabilities']['radar'] is False
     page = (main.STATIC / 'index.html').read_text() + (main.STATIC / 'edge-app.js').read_text()   # the shell's app (R2-19)
-    assert 'const OWNER_PAGES = ["overview", "watchlist", "radar"];' in page and 'Edge.auth?.capabilities?.[r] === true' in page
+    # 3e: the tab is left out only where the session says false (a visitor, who has no session, sees every tab)
+    assert 'const OWNER_PAGES = ["overview", "watchlist", "radar"];' in page and 'Edge.auth?.capabilities?.[r] !== false' in page
     assert 'nav.filter(navShown)' in page
 
 

@@ -938,6 +938,16 @@ registration whose cookie comes with it, so the code must be entered in the same
 registered (the code page says so). Every registration is its own pending row; an address has at most one account
 that is not pending (`users_email_one_account`).
 
+Tabs a principal cannot open (3e, CONTRACT.md 8b):
+
+- Every tab the site offers stays in the rail.
+- A tab without `<tab>.view` (`*` opens every tab) shows `LockedTabPage` (`static/edge-app.js`) instead of its app.
+  - A visitor is asked to sign in.
+  - An account gets the plan words: Coming soon and the contact of `EDGE_UPGRADE_CONTACT`.
+  - The words are `EdgeLabels.locked`.
+- The Terminal shows its locked parts in place: the IHSG of Statistics, the Flow Timeline's head and the Events
+  button each say Locked and open the same box (`terminal/src/main.ts` `lockedPage`).
+
 The A2 fix (ERRORS M517, CONTRACT.md section 4 "Codes" and "Throttle") added two more cookies:
 
 - **Reset cookie** `edge_reset`: a random token, HttpOnly, SameSite=Strict, 1 h, set by every "Forgot password?" and

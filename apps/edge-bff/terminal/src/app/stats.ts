@@ -2,6 +2,7 @@
 import { periodsPerYear, UNIT } from '../data/timeframe';
 import type { Ctx } from './context';
 import { $, avgOf, cls, empty, median, minus, pct, row, spin, store } from './context';
+import { askLocked, LockedData, lockMark, lockWord, type LockedItem } from './locked';
 
 export function initStats(ctx: Ctx) {
   const { chart, dates, closes, volume, N, SYMBOL } = ctx;
@@ -131,6 +132,9 @@ export function initStats(ctx: Ctx) {
   for(let i=19;i<N;i++){ let s=0; for(let k=i-19;k<=i;k++) s+=volume[k].value; volRatio[i] = volume[i].value/(s/20); }
   /* live: IHSG is read the first time the open panel draws Relative performance (EXEC-TERMINAL-UI-1026 U5) */
   let ihsgSeries = ctx.M.ihsg, ihsgAsked = false, ihsgFailed = false;
+  // 3e: IHSG the principal does not hold (LockedData): its row says Locked and opens the lock box
+  let ihsgLocked: LockedItem | null = null;
+  $('relStats').addEventListener('click', e => { if (ihsgLocked && (e.target as Element).closest('.st-lock-btn')) askLocked(ihsgLocked) });
   const monthKey = (i: number) => dates[i].slice(0,7);
 
   /* ---- inline-SVG chart helpers (viewBox is fixed, so they scale with the panel) ---- */
@@ -296,9 +300,12 @@ export function initStats(ctx: Ctx) {
     if(FI){ /* hidden */ } else if(!ihsgSeries.length){
       if(ctx.M.loadIhsg && !ihsgAsked){
         ihsgAsked = true;
-        ctx.M.loadIhsg().then(sr => { ihsgSeries = sr; scheduleStats() }, () => { ihsgFailed = true; scheduleStats() });
+        ctx.M.loadIhsg().then(sr => { ihsgSeries = sr; scheduleStats() },
+          e => { if (e instanceof LockedData) ihsgLocked = e.item; else ihsgFailed = true; scheduleStats() });
       }
-      $('relChart').innerHTML = ''; $('relStats').innerHTML = ihsgFailed ? empty('IHSG could not be loaded') : `<div class="st-row">${spin('Loading IHSG')}</div>`;
+      $('relChart').innerHTML = '';
+      $('relStats').innerHTML = ihsgLocked ? `<div class="st-row st-lock-row"><span>IHSG comparison</span><button class="st-lock-btn" type="button">${lockMark('st-lock')}<span>${lockWord()}</span></button></div>`
+        : ihsgFailed ? empty('IHSG could not be loaded') : `<div class="st-row">${spin('Loading IHSG')}</div>`;
     } else {
       const m0 = closes[a], i0 = ihsgSeries[a].value, mp: number[] = [], ip: number[] = [];
       for(let i=a;i<=b;i++){ mp.push((closes[i]/m0-1)*100); ip.push((ihsgSeries[i].value/i0-1)*100) }

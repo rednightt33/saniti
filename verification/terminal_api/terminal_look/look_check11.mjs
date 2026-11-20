@@ -26,7 +26,7 @@ const SP = process.argv[2] || process.env.LOOK_OUT || mkdtempSync(join(tmpdir(),
 mkdirSync(SP, { recursive:true });
 const DATA = process.argv[3] || process.env.LOOK_DATA || join(SP, 'look');
 console.log(`look_check11: screenshots in ${SP}, data from ${DATA}`);
-const { origin, close } = await serve(DATA, 'BBRI');
+const { origin, close, lock:LOCK } = await serve(DATA, 'BBRI');
 const b = await chromium.launch(); const errs = [], R = {}, bad = [];
 const check = (name, ok, got) => { if (!ok) bad.push(`${name}: ${JSON.stringify(got)}`) };
 
@@ -207,5 +207,25 @@ for (const [nm, opt] of [['d1440', { viewport:{ width:1440, height:900 } }], ['p
     return { border:cs.borderTopColor, shadow:cs.boxShadow !== 'none', outline:cs.outlineStyle } });
   check('settings open control: no border line, soft shadow', !!R.focus && /rgba\(0, 0, 0, 0\)|transparent/.test(R.focus.border) && R.focus.shadow && R.focus.outline === 'none', R.focus);
   await ctx.close() }
+/* 3e (CONTRACT 8b, the Terminal's lock prompts; main.ts lockedPage, stats.ts): with broker and events locked and IHSG not
+   held (the stub's LOCK), the Flow Timeline's head holds its title and the lock on one line with its ink in the middle
+   of the band, its body is out, the Events button's lock mark sits in the middle of the button, and the IHSG row of
+   Statistics is one line */
+{ LOCK.on = true;
+  const ctx = await b.newContext({ viewport:{ width:1440, height:900 } }), p = await ctx.newPage(); p.on('pageerror', e => errs.push('locked ' + e.message));
+  await p.goto(origin + '/terminal-app/'); await p.waitForFunction(() => !document.querySelector('.ml-boot'), null, { timeout:30000 });
+  await p.waitForSelector('#relStats .st-lock-row', { timeout:15000 }).catch(() => {});
+  R.locked = await p.evaluate(() => { const mid = e => { const r = e.getBoundingClientRect(); return r.top + r.height / 2 };
+    const head = document.getElementById('flowHead'), lock = document.getElementById('flowLock'), title = head && head.querySelector('.flow-title');
+    const ev = document.getElementById('evBtn'), evl = ev && ev.querySelector('.ev-lock'), ihsg = document.querySelector('#relStats .st-lock-row');
+    return { lock:!!lock, row:lock && title ? Math.round((mid(lock) - mid(title)) * 10) / 10 : null, body:getComputedStyle(document.getElementById('flowBody')).display,
+      ev:evl ? Math.round((mid(evl) - mid(ev)) * 10) / 10 : null, ihsg:ihsg ? Math.round((Math.max(...[...ihsg.children].map(mid)) - Math.min(...[...ihsg.children].map(mid))) * 10) / 10 : null } });
+  check('locked broker: the Flow Timeline head holds its title and the lock on one line, its body out', R.locked.lock && R.locked.row !== null && Math.abs(R.locked.row) <= 1 && R.locked.body === 'none', R.locked);
+  check('locked events: the lock mark in the middle of the Events button', R.locked.ev !== null && Math.abs(R.locked.ev) <= 1, R.locked);
+  check('IHSG not held: its Statistics row is one line (its parts within 1 px of one middle)', R.locked.ihsg !== null && R.locked.ihsg <= 1, R.locked);
+  R.locked.head = await ink(p, '#flowHead');
+  check('locked broker: the head ink centred', !!R.locked.head && Math.abs(R.locked.head.above - R.locked.head.below) <= 1, R.locked.head);
+  await p.screenshot({ path:`${SP}/look11_locked.png` });
+  await ctx.close(); LOCK.on = false }
 console.log(JSON.stringify(R)); console.log('errs', errs); console.log(bad.length ? 'FAIL\n' + bad.join('\n') : 'PASS');
 await b.close(); close(); process.exit(bad.length || errs.length ? 1 : 0);

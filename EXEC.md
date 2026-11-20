@@ -16179,6 +16179,11 @@ Order of the services (CONTRACT 17, rollback floors):
         - the records and the reset page's words were corrected.
       - Tests: `tests/test_a2_stranger.py` (19).
       - Next: the migrations on dev (DRYRUN, APPLY, M340), then the beta. The live site only on the user's request.
+    - Item 3, 3e (built on the branch, not shipped): every tab in the rail; `LockedTabPage` for a tab the principal
+      cannot open (sign in for a visitor, the upgrade words and contact for an account); the Terminal's lock prompts in
+      place (IHSG of Statistics, Flow Timeline head, Events) replacing the F1 stopgap; `look_check11` measures them
+      (PASS). The example mode waits for the user's choice (asked 2026-11-20: A all tabs, B data pages only, C later;
+      the date).
     - Items 1 shipped (2026-11-20): `main` and `live` at `4785d1ef` (CI green on both branches). The beta `e114339a`
       SUCCESS and the live site `e21a05f4` SUCCESS. The live smoke:
       - `/ready` 200, 62 of 62 routes as expected;

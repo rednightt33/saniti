@@ -186,7 +186,15 @@ window.EdgeLabels = {
     upgradeLead:"Your EDGE plan does not include this yet. Upgrading is coming soon.",
     contact:"Contact us to upgrade:", contactSoon:"How to contact us about upgrading will be shown here soon.",
     close:"Close",
-    features:{ "terminal.layouts":"Saved chart layouts", "terminal.presets":"Indicator presets" }
+    features:{ "terminal.layouts":"Saved chart layouts", "terminal.presets":"Indicator presets",
+      // 3e: the Terminal's locked data (its lockedPage)
+      "terminal.dataset:broker":"Broker data", "terminal.dataset:events":"Corporate actions",
+      "terminal.dataset:intraday":"Intraday charts" },
+    // 3e: a tab the principal cannot open (LockedTabPage)
+    tabGuestLead:"{name} needs an EDGE account. Sign in to open it, or create an account.",
+    tabGuestLeadClosed:"{name} needs an EDGE account. Sign in to open it; registration opens soon.",
+    tabUpgradeLead:"Your EDGE plan does not include {name} yet. Upgrading is coming soon.",
+    openTerminal:"Open the Terminal"
   },
   // EXEC-MU-ACCOUNTS Phase 1 (contract section 4; user: English labels): the account pages. A refusal shows the
   // server's own message (error.message); `errors` is the fallback by code when the server sends none.

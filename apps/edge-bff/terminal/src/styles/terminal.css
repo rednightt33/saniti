@@ -610,6 +610,11 @@ body{font-variant-numeric:tabular-nums}
 /* track guest (decision 1 of 2026-11-19): a ticker the plan does not hold is listed with a lock; choosing it opens EDGE's
    box (locked.ts) */
 .gp-lock,.im-lock{display:inline-flex;align-items:center;color:var(--text-3);flex:none}
+/* 3e: a Statistics row whose data the principal does not hold (IHSG): the word Locked as a quiet button (the lock box) */
+.st-lock-btn{display:inline-flex;align-items:center;gap:4px;padding:0;border:0;background:none;color:var(--text-3);font:inherit;font-size:11.5px;cursor:pointer}
+.st-lock-btn:hover{color:var(--text)}
+.st-lock{display:inline-flex;align-items:center}.st-lock svg{display:block}
+.st-lock-row{align-items:center}
 .gp-lock svg,.im-lock svg{display:block}
 .gp-company{overflow:hidden;color:var(--text-3);font-size:12px;text-overflow:ellipsis;white-space:nowrap}
 .gp-rightmeta{min-width:88px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:2px}
@@ -1105,9 +1110,16 @@ html.fit .main-col{grid-template-columns:minmax(0,1fr)}
 .fi-mode .main-col > .bottom,.fi-mode .side.right,.fi-mode #evBtn{display:none !important}
 /* the live checker after the switch-on (F1; TEMPORARY until 3e): a dataset the server answered as locked for this
    principal is left out as for a bond (main.ts lockedPage), never shown as empty or zero */
-.locked-broker .main-col{grid-template-rows:46px minmax(240px,1fr) 0px !important}
-.locked-broker .main-col > .bottom,.locked-broker .side.right{display:none !important}
-.locked-events #evBtn{display:none !important}
+/* 3e: broker data the principal does not hold: the Flow Timeline keeps its head, which says so (main.ts lockedPage: its
+   lock opens the box); its grip, body, filters, summary and collapse go, and Broker activity (the right column) stays out */
+.locked-broker .main-col{grid-template-rows:46px minmax(240px,1fr) auto !important}
+.locked-broker #flowGrip,.locked-broker #flowBody,.locked-broker #flowFilters,.locked-broker #flowSummary,.locked-broker #flowNote,.locked-broker #flowCollapse,.locked-broker .side.right{display:none !important}
+.locked-broker .flow-head{cursor:default}
+.flow-lock{display:inline-flex;align-items:center;gap:6px;padding:0;border:0;background:none;color:var(--text-2);font:inherit;font-size:12px;cursor:pointer}
+.flow-lock:hover{color:var(--text)}
+.flow-lock-word{color:var(--text-3)}
+/* events the principal does not hold: the Events button keeps its place with the lock mark (its click opens the box) */
+.ev-lock{display:inline-flex;align-items:center;margin-left:4px;color:var(--text-3)}.ev-lock svg{display:block}
 .fi-unit{margin-left:6px;padding:1px 7px;border-radius:999px;background:#eef2f7;color:#475569;font-size:11px;font-weight:600;white-space:nowrap}
 
 

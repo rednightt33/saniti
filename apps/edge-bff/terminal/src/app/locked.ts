@@ -25,3 +25,9 @@ export const lockMark = (cls = 'tk-lock') => {
   const w = lockWord().replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' } as Record<string, string>)[c]);
   return `<span class="${cls}" role="img" aria-label="${w}" title="${w}"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg></span>`;
 };
+
+/** 3e (CONTRACT 8b): data the principal does not hold, asked for by a part of the page (the IHSG of Statistics): the
+    loader rejects with it instead of asking the server for a refusal, and the part shows its lock (askLocked on a click) */
+export class LockedData extends Error {
+  constructor(public item: LockedItem) { super('locked') }
+}

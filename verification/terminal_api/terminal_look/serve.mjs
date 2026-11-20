@@ -38,10 +38,14 @@ export async function serve(DATA, TICKER) {
 
   const files = new Map(); let origin = '';
   const LAYOUTS = { rows:new Map(), calls:[], tick:0 }, PRESETS = { rows:new Map(), calls:[], tick:0 }, DRAWINGS = { rows:new Map(), calls:[], down:false };
+  /* 3e (the Terminal's lock prompts): LOCK.on answers the session with a principal that holds only the served ticker
+     (terminal.tickers), and /bundle with broker and events locked, as the guest plan's are on the live site */
+  const LOCK = { on:false };
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x'), path = decodeURIComponent(url.pathname);
     const json = (o, status = 200) => { res.writeHead(status, { 'Content-Type':'application/json' }); res.end(JSON.stringify(o)) };
-    if (path === '/api/v1/auth/session') return json({ csrf_token:'t', login:'look' });
+    if (path === '/api/v1/auth/session') return json(LOCK.on ? { csrf_token:'t', login:'look', access:{ capabilities:['terminal.view', 'terminal.tickers', 'terminal.dataset'],
+      limits:{ 'terminal.tickers':[TICKER] }, version:'look-locked' } } : { csrf_token:'t', login:'look' });
     /* EXEC-TERMINAL-LAYOUTS: an in-memory stand-in of edge-bff's /api/v1/terminal/layouts (apps/edge-bff/app/layouts.py):
        revision, conflicts, names unique, opened order; writes need the CSRF header */
     /* EXEC-DRAW-PANES: an in-memory stand-in of /api/v1/terminal/drawings (apps/edge-bff/app/drawings.py): sets per
@@ -113,6 +117,7 @@ export async function serve(DATA, TICKER) {
       let body = ''; for await (const c of req) body += c;
       const { ticker, datasets } = JSON.parse(body), out = {};
       for (const d of datasets) {
+        if (LOCK.on && (d === 'broker' || d === 'events')) { out[d] = { locked:true, capability:`terminal.dataset:${d}` }; continue }
         if (d === 'price') { const p = pricePack(ticker); if (!p) { out[d] = { files:[], data_through:null }; continue }
           const key = `/bucket/price/${ticker}`; files.set(key, p.body);
           out[d] = { data_through:p.through, first_year:2025, files:[{ pack:'price', url:origin + key, sha256:sha(p.body), bytes:p.body.length, rows:p.rows }] }; continue }
@@ -148,5 +153,5 @@ export async function serve(DATA, TICKER) {
   await new Promise(ok => server.listen(0, '127.0.0.1', ok));
   origin = `http://127.0.0.1:${server.address().port}`;
 
-  return { origin, close:() => server.close(), layouts:LAYOUTS, presets:PRESETS, drawings:DRAWINGS };
+  return { origin, close:() => server.close(), layouts:LAYOUTS, presets:PRESETS, drawings:DRAWINGS, lock:LOCK };
 }

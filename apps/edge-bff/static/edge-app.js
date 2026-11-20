@@ -345,8 +345,15 @@ const nav = [[EdgeLabels.overview.nav, "overview"], [EdgeLabels.watchlist.nav, "
 // EXEC-RADAR R7, EXEC-OVERVIEW O4: an owner page shows only when the session says its data can be read
 // (/api/v1/auth/session capabilities)
 const OWNER_PAGES = ["overview", "watchlist", "radar"];
-// live checker S1: a tab this site does not offer (the live site: the Monitor) is never in the rail (Edge.offers)
-const navShown = ([, r]) => Edge.offers(r) && (!OWNER_PAGES.includes(r) || Edge.auth?.capabilities?.[r] === true);
+// live checker S1: a tab this site does not offer (the live site: the Monitor) is never in the rail (Edge.offers).
+// 3e (CONTRACT 8b, "every tab is always shown"): an owner page is left out only where the session says its data cannot be
+// read at all (capabilities[r] false: no terminal-api); a visitor sees it too, and a tab the principal cannot open shows
+// LockedTabPage
+const navShown = ([, r]) => Edge.offers(r) && (!OWNER_PAGES.includes(r) || Edge.auth?.capabilities?.[r] !== false);
+// the tab of a workspace path, its name in the rail, and whether the principal may open it (<tab>.view)
+const TAB_PATHS = {"/terminal":"terminal", "/backtest":"backtest", "/screener":"screener", "/radar":"radar",
+    "/overview":"overview", "/watchlist":"watchlist", "/monitor":"monitor"};
+const tabName = tab => (nav.find(([, r]) => r === tab) || [tab])[0];
 const homeRoute = () => Edge.offers("monitor") ? "monitor" : "terminal";
 // ERRORS M425 (EXEC-RADAR R7): a sub-app page in one of this shell's frames (Screener, Radar) asks for another page with
 // {type:"edge-nav", route}; only this origin, only from a frame of this document, only to a page of the rail. One
@@ -586,6 +593,32 @@ function LockedDialog({ item, guest, go, close }) {
                 : element("p", { className: "locked-contact" }, L.contactSoon)),
         element("div", { className: "locked-actions" },
             primary(L.close, close)));
+}
+// 3e (CONTRACT 8b, "the rail and the frames"; decision 1 of 2026-11-19): a tab the principal cannot open keeps its place
+// in the rail and opens this page instead of its app (whose data routes would refuse): a visitor is asked to sign in (or
+// to create an account while registration is open), an account is told the tab is not in its plan, upgrading is coming
+// soon (D7) and the contact (EDGE_UPGRADE_CONTACT) or that it comes soon. The words are EdgeLabels.locked; the look is the
+// design system's empty state. The example mode (decision D4) is to take its place for a tab whose example the plan holds
+function LockedTabPage({ go, route, guest = false }) {
+    const v = currentView, L = EdgeLabels.locked, A = EdgeLabels.access, name = tabName(route);
+    const config = initialValue(v, "config", () => null);
+    onLifecycle(v, "config", () => { let live = true; Edge.config().then(c => { if (live) updateValue(v, "config", c); }); return () => { live = false; }; }, []);
+    const open = config?.registration === true, contact = config?.upgradeContact || null;
+    const terminal = route !== "terminal" && element(Button, { onClick: () => go("/terminal") }, L.openTerminal);
+    const body = guest
+        ? [element("h1", { className: "locked-tab-title" }, L.guestTitle.replace("{name}", name)),
+           element("p", { className: "locked-tab-lead" }, (open ? L.tabGuestLead : L.tabGuestLeadClosed).replace("{name}", name)),
+           element("div", { className: "locked-actions" }, terminal,
+               open && element(Button, { onClick: () => go("/register") }, L.register),
+               element(Button, { kind: "primary", onClick: () => go("/login") }, L.signIn))]
+        : [element("h1", { className: "locked-tab-title" }, L.upgradeTitle.replace("{name}", name)),
+           element("p", { className: "locked-tab-lead" }, L.tabUpgradeLead.replace("{name}", name)),
+           element("span", { className: "pill locked-soon" }, A.comingSoon),
+           element("p", { className: "locked-contact" }, contact ? [L.contact, " ", element("strong", null, contact)] : L.contactSoon),
+           element("div", { className: "locked-actions" }, terminal)];
+    return element(Shell, { route, go, guest },
+        element("main", { className: "locked-tab", "data-locked-tab": route },
+            element("section", { className: "locked-tab-card", "aria-labelledby": "locked-tab-title" }, ...body)));
 }
 function SettingsDialog({close,returnFocusRef}) {
  return element(DialogShell,{title:"Appearance",description:"Preferences for this browser",close,returnFocusRef},element(Button,{onClick:themeState.toggle},"Switch theme"));
@@ -2755,13 +2788,18 @@ function App() {
     themeState = { theme, toggle };
     shellGo = go;                                     // the edge-nav listener (below nav) switches pages with it
     if (!checked) return element("div",{className:"auth-page"},"Checking session…");
-    // track guest: a visitor without an account on the Terminal page, where the site has guests; every other page asks
-    // to sign in (its routes answer 401 without a session)
-    if (!authenticated && guests && path === "/terminal") return element(TerminalPage,{go,guest:true});
+    // track guest: a visitor without an account on the Terminal page, where the site has guests; 3e: every other tab of
+    // the rail shows the sign-in page in its place (LockedTabPage), the rail kept; an account page asks to sign in
+    if (!authenticated && guests && TAB_PATHS[path] && Edge.offers(TAB_PATHS[path]))
+        return path === "/terminal" ? element(TerminalPage,{go,guest:true}) : element(LockedTabPage,{go,route:TAB_PATHS[path],guest:true});
     const mode = authMode();
     if (!authenticated || mode !== null) return element(AuthPage,{mode:mode || "login",go,key:mode || "login"});
     // signed in on an account page (a reload at /login): the account's landing page (re-check R2-14)
     const shown = routeOf(path)?.auth === false ? landing() : path;
+    // 3e: a tab the account cannot open (<tab>.view; '*' opens every tab) shows LockedTabPage in its place
+    const tab = TAB_PATHS[shown];
+    if (tab && Edge.offers(tab) && Array.isArray(Edge.auth?.access?.capabilities) && !Edge.can(`${tab}.view`))
+        return element(LockedTabPage,{go,route:tab});
     return shown === "/terminal" ? element(TerminalPage,{go}) : shown === "/backtest" ? element(BacktestPage,{go}) : shown === "/screener" ? element(ScreenerPage,{go}) : shown === "/radar" ? element(RadarPage,{go}) : shown === "/overview" ? element(OverviewPage,{go}) : shown === "/watchlist" ? element(WatchlistPage,{go}) : Edge.offers("monitor") ? element(Monitor,{go}) : element(TerminalPage,{go});
 }
 

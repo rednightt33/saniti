@@ -240,6 +240,9 @@
     // live checker S1: whether this site offers a tab (false only for a tab the config lists as hidden; known once
     // config() has answered, which the shell waits for before its first page)
     offers: tab => !hiddenTabs.includes(tab),
+    // 3e (CONTRACT 8b): whether the signed-in principal holds a flag capability (the server's p.can for flags: '*' holds
+    // every key), from the session answer's access; false without a session. The server decides; the shell only shows
+    can: key => { const caps = auth?.access?.capabilities; return Array.isArray(caps) && (caps.includes('*') || caps.includes(key)); },
     legal: () => legal,
     // EXEC-MU-ACCOUNTS Phase 1 (contract section 4): the account routes; every refusal carries the server's message
     register: body => api('/auth/register', body),

@@ -1074,6 +1074,25 @@ today.
 - `WATCHLIST_FORMULAS.md` is rebuilt in the same commit.
 
 **3e. Front-end.**
+- **Built 2026-11-20 on the branch (EXEC option A, item 3; the user's go of 2026-11-20). The example mode waits for the
+  user's choice of its date and content (D4); everything else is built:**
+  - Every tab the site offers is in the rail, a visitor's too (`navShown`: an owner page leaves only where the session
+    says false).
+  - A tab the principal cannot open (`<tab>.view`; `*` opens all) shows `LockedTabPage` in place of its app, the rail
+    kept, and no frame of the app loads:
+    - a visitor gets sign in, plus create account while registration is open;
+    - an account gets "not in your plan", the Coming soon pill and the contact (D7);
+    - both get Open the Terminal.
+  - Terminal:
+    - the IHSG of Statistics is never asked for by a principal that does not hold it: its row says Locked and opens the
+      box;
+    - locked broker data keeps the Flow Timeline's head with "Broker data · Locked" (body, filters and Broker activity
+      out);
+    - locked events keep the Events button with the lock mark;
+    - each lock opens the shell's box. This replaces the F1 stopgap.
+  - `look_check11.mjs` measures the new rows: its stub's `LOCK` serves a principal holding one ticker, with broker and
+    events locked.
+  - Tests: `tests/test_3e_locked_tabs_browser.py`, `tests/test_live_terminal_locked.py` (rewritten).
 - **The rail and the frames:**
   - every tab is always shown;
   - a tab without `<tab>.view` loads its app in example mode: an injected `exampleApi` reading the example files from

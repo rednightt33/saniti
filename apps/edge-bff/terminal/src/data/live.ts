@@ -6,6 +6,7 @@ import { barRows, brokerData, download, priceRows, rowsOf, type PriceRow, type W
 import { INTEGRITY_MESSAGE, isIntegrity, type FileRef } from './rack';
 import { aggregateRows, alignCandles, alignCandlesCarry, buckets, candleOf, dayOfCandles, dayOfKey, isIntraday, type Timeframe } from './timeframe';
 import { fileStats, mark } from '../app/perf';
+import { LockedData } from '../app/locked';
 import { accessText, edge, isAccessRefusal, readError, SessionError } from '../../../shared/edge-session';
 
 const API = '/api/terminal/v1';
@@ -407,6 +408,8 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D', bondM
   let ihsgP: Promise<{ d: string; c: number }[]> | null = null;
   const ihsgRows = () => ihsgP ||= intraday ? barsOf('IHSG') : SYMBOL === 'IHSG' ? Promise.resolve(rows) : prices('IHSG', csrf);
   const loadIhsg = async (): Promise<Point[]> => {
+    // 3e: a principal that does not hold IHSG (a visitor, the free plan: decision D3) is never sent to ask for it
+    if (SYMBOL !== 'IHSG' && locks.ticker('IHSG')) throw new LockedData({ kind:'ticker', id:'IHSG', name:'Composite Index' });
     const aligned = alignTo(dates, await ihsgRows(), intraday ? dates : ends);
     const first = aligned.length ? aligned[0].value : NaN;
     return dates.map((t, i) => aligned[i - (N - aligned.length)] ?? { time:t, value:first });
