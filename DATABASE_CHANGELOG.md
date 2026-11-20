@@ -1,5 +1,33 @@
 # Database changelog
 
+## 2026-11-20 — The A2 fix: a reset code bound to its browser, a registration's client (edge_bff, migrations 20261120_001 and _002)
+
+- **Why:** the user's go of 2026-11-20 ("perbaikan A2", then "Go"), item 2 of the next execution (EXEC.md option
+  A; ERRORS M513 A2 and M517, after its ultracode checker's findings).
+- **Migrations:**
+  - `20261120_001_edge_bff_reset_code_browser.sql`, sha256 `30d09fe8…3a835402ef`:
+    - adds `edge_bff.email_codes.binding_hash`, nullable with a hex CHECK;
+    - replaces the unique index `email_codes_one_live` (user_id, purpose) with `email_codes_one_live_per_browser`
+      (user_id, purpose, coalesce(binding_hash, '')), partial on live codes.
+  - `20261120_002_edge_bff_registration_client.sql`, sha256 `fb03db6b…27da270389`: adds
+    `edge_bff.users.registration_client_hash`, nullable with a hex CHECK.
+  - Both are expand-only: no row rewritten, no grant changed, no `*` reader (ERRORS M511).
+- **Jobs (orc-test-runner, `scripts/onboarding/run_job.sh scripts/onboarding/migration_job.py`, `DATABASE_URL` set
+  and removed for the run, `VAR_REMOVED`):**
+  - M340 by `scripts/restart_postgres.py` before each job: 0 EDGE jobs, 0 orc turns, 0 statements.
+  - DRYRUN `d8b0089d`: both bodies OK inside one rolled-back transaction.
+  - APPLY `59f9382d`: both committed. Their preflights refuse a second run, and their verify blocks passed.
+- **Read back after APPLY:**
+  - both columns present, nullable, without a default;
+  - the indexes of `email_codes` are `email_codes_one_live_per_browser`, `email_codes_pkey`, `email_codes_user_id`;
+  - the codes: 1 reset code, none live; the users: 1, none pending;
+  - `edge_bff_runtime` reads both columns (0 bound codes, 0 rows with a client).
+- **After:** both sites' `/ready` returned 200. The live site's older code (`4785d1ef`) answered a "Forgot password?"
+  for an unknown address with 202 on the new schema. The bounded EXPLAIN of the new gap query (local, 60 000 codes and
+  outbox rows) used index scans on `email_outbox_to_email_created` and `email_codes_pkey`, 0.036 ms (ERRORS M517).
+- **Not a large update:** two catalog changes and one index on a table of one row; no Postgres restart (its memory
+  0.10 GB).
+
 ## 2026-11-20 — A verification run of the live admin's login job (edge_bff, no change)
 
 - **Why:** the admin's variables moved to `orc-test-runner` (EXEC option A, the user's "go"); the login job reads them

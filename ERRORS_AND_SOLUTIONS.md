@@ -8879,7 +8879,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M517 — A stranger who knows an account's login or address could spend the owner's allowances: the lock, the code emails, the reset code (2026-11-20; BUILT, checked by ultracode at xhigh, its findings fixed; migration and beta next)
+### M517 — A stranger who knows an account's login or address could spend the owner's allowances: the lock, the code emails, the reset code (2026-11-20; BUILT, checked by ultracode at xhigh, its findings fixed, migrations applied on dev; the beta next)
 
 - **Found by:** the live checker before the switch-on, finding A2 (M513). It was accepted for the pre-launch mode and
   is fixed before registration opens. The user's go of 2026-11-20 ("perbaikan A2", then "Go") made it item 2 of the
@@ -8991,8 +8991,9 @@ in its staleness check.
   - `test_a_wrong_current_password_counts_towards_the_accounts_cap`: a session without the device cookie.
 - **Permanent.** It is applied on dev only after the ultracode checker (xhigh) and its fixes. The migration goes
   before the code that writes the column.
-- **Status:** BUILT and checked; the checker's findings fixed (above). Next: migrations `20261120_001` and `_002` on
-  dev (DRYRUN, APPLY, M340), then the beta. The live site only on the user's request.
+- **Status:** BUILT and checked; the checker's findings fixed (above). Migrations `20261120_001` and `_002` applied
+  on dev (DRYRUN `d8b0089d`, APPLY `59f9382d`, DATABASE_CHANGELOG.md). Next: the beta. The live site only on the
+  user's request.
 - **Lesson for new data and flows:** every limit that can refuse a person carries, in its key, something a stranger
   cannot hold: the browser, or the account's own proof. The client address is not enough, since a stranger can share
   it. A flow that mails a code binds the code to the
