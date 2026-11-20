@@ -8919,6 +8919,7 @@ in its staleness check.
     "Checking…"). Both ways locked: Continue disabled. Recovery codes locked with `use` "code": the Code field and
     Continue usable, and the next try sends a code.
   - `tests/test_mfa_replace_live.py` (the real server and page, ACC-2) passes unchanged.
+  - The whole edge-bff suite on `0293f97c`: 1020 passed, 1 failed, the M510 answer-view test (passed 6 of 6 alone).
 - **Does not cover:** `details.unlock_at` stays the locked way's own end. With both locked, the other way may open
   earlier or later; the page shows one time.
 - **Same class checked elsewhere:** the browser tests' other checks of a busy button are held by the test itself:

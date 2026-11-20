@@ -145,16 +145,19 @@ def test_mfa_locked_shows_the_message_the_unlock_time_and_the_ways_out(fixture_s
     assert page.get_by_role('status').inner_text() == f'It unlocks on {local_time}.'
     page.get_by_label('Recovery code', exact=True).fill('code-01')
     page.get_by_role('button', name='Continue').click()
-    page.wait_for_function(SETTLED, arg='Continue')                          # the second answer is in
-    assert page.locator('.auth-form-wrap form .btn.primary').is_disabled()   # both ways locked: wait for the unlock
+    # the second answer is in (Continue's own label back) and both ways are locked: Continue waits for the unlock. One
+    # wait holds both, since the label alone also reads "Continue" before the click has taken effect
+    page.wait_for_function(SETTLED, arg=['Continue', True])
     assert page.get_by_role('alert').inner_text() == message
     assert sent == [{'code': '123456'}, {'recovery_code': 'code-01'}]
     page.get_by_role('link', name='Forgot password?').click()
     page.wait_for_function("() => location.pathname === '/forgot'")
 
 
-# the MFA form once an answer is in: its submit button carries its own label again (busy, it reads "Checking…")
-SETTLED = "label => document.querySelector('.auth-form-wrap form .btn.primary')?.innerText === label"
+# the MFA form once an answer is in: its submit button carries its own label again (busy, it reads "Checking…") and is
+# disabled as the answer left it
+SETTLED = ("([label, disabled]) => { const b = document.querySelector('.auth-form-wrap form .btn.primary');"
+           " return !!b && b.innerText === label && b.disabled === disabled }")
 
 
 def test_mfa_locked_recovery_codes_with_the_authenticator_open_go_back_to_the_code(fixture_server, page):
@@ -180,8 +183,7 @@ def test_mfa_locked_recovery_codes_with_the_authenticator_open_go_back_to_the_co
     page.get_by_label('Recovery code', exact=True).fill('code-01')
     page.get_by_role('button', name='Continue').click()
     page.get_by_label('Code', exact=True).wait_for()                     # back on the authenticator code
-    page.wait_for_function(SETTLED, arg='Continue')
-    assert page.locator('.auth-form-wrap form .btn.primary').is_enabled()
+    page.wait_for_function(SETTLED, arg=['Continue', False])            # the answer is in: Continue usable
     assert page.get_by_role('alert').inner_text() == message
     page.get_by_label('Code', exact=True).fill('123456')
     page.get_by_role('button', name='Continue').click()
