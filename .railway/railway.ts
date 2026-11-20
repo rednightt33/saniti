@@ -257,8 +257,8 @@ export default defineRailway(() => {
     env: { BACKTEST_MAX_RESULT_BYTES: preserve(), BACKTEST_TIMEOUT_SECONDS: preserve(), BACKTEST_WORKER_KEY: preserve(), BACKTEST_WORKER_URL: preserve(), EDGE_CODE_SECRET: preserve(), EDGE_DATABASE_URL: preserve(), EDGE_ENVIRONMENT: preserve(), EDGE_HEARTBEAT_SECONDS: preserve(), EDGE_INITIAL_PASSWORD: preserve(), EDGE_LEASE_SECONDS: preserve(), EDGE_LOGIN: preserve(), EDGE_MFA_KEY: preserve(), EDGE_ORC_TIMEOUT_SECONDS: preserve(), EDGE_ORC_URL: preserve(), EDGE_OWNER: preserve(), EDGE_PASSWORD_VERIFIER: preserve(), EDGE_POLL_SECONDS: preserve(), EDGE_PUBLIC_ORIGIN: preserve(), EDGE_SECURE_COOKIE: preserve(), EDGE_SESSION_SECONDS: preserve(), EDGE_SESSION_SECRET: preserve(), EDGE_TERMINAL_URL: preserve(), EDGE_WORKER_ENABLED: preserve(), MARKET_AI_ORC_API_KEY: preserve(), PORT: preserve(), SCREENER_TIMEOUT_SECONDS: preserve(), SCREENER_WORKER_KEY: preserve(), SCREENER_WORKER_URL: preserve(), TERMINAL_PROXY_KEY: preserve() },
   });
   // EXEC-MU-ACCOUNTS "Production environment" (user decisions 2026-11-19): the live website. A comment, not a
-  // declaration, until its variables are set with the go for the live site; the service exists empty on Railway
-  // (RAILWAY_CHANGELOG.md 2026-11-19). edge-bff above is the beta (EDGE_SITE unset = beta, EDGE_MULTIUSER off, the admin
+  // declaration, until its source is connected with the go for the live site; the service exists on Railway with its
+  // variables set and no source or deployment (RAILWAY_CHANGELOG.md 2026-11-19 and 2026-11-20, option A). edge-bff above is the beta (EDGE_SITE unset = beta, EDGE_MULTIUSER off, the admin
   // only); only the website is doubled, every other service and the database are shared. Rules the code holds
   // (apps/edge-bff/app/config.py validate): EDGE_SITE=live needs EDGE_MULTIUSER=true, the beta refuses it, the live site
   // runs no AI job loop, and the email mode is resend (log is for EDGE_ENVIRONMENT=local only). Its settings follow,

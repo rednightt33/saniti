@@ -1,5 +1,33 @@
 # Railway changelog
 
+## 2026-11-20 — EXEC-MU-ACCOUNTS option A: the live site prepared (not switched on)
+
+- **User:** "Ok go with opsi A" (2026-11-20; EXEC.md "Option A"). The live site's switch stays off until the live
+  checker and the user's go.
+- **terminal-publisher `1071308b`** SUCCESS 06:05 UTC: CLI upload of `git archive acddc51f apps/terminal-publisher`
+  (Phase 3d: `watchlist-stocks` without Radar fields plus `watchlist-radar`); the first split publication comes with the
+  next scheduled run (cron `0,30 0,1,12 * * *` UTC). Rollback: `b1509ad8`.
+- **terminal-api `7a022a5d`** SUCCESS 06:09 UTC: CLI upload of `852d1497` (ERRORS M500: an unexpected error answered 503
+  and logged by its class only). Rollback: `653a3c38`.
+- **Bucket CORS** (`scripts/terminal_bucket_cors.py` through `railway run -s terminal-api`): GET/HEAD from
+  `https://terminal-api-dev.up.railway.app`, `https://edge-bff-dev.up.railway.app` and now
+  `https://app.edgefinance.id` (read back).
+- **The client-address probe** (CONTRACT 4, the user's "1a"): a TEMPORARY echo of the address headers on
+  `edge-bff-live` (`ced98a44`, 06:11 UTC, CLI upload, no variables), asked through `app.edgefinance.id`, then removed
+  with `railway down` (the domain answers 404 again). Result and fix: ERRORS M512.
+- **edge-bff-live settings** (names only; set with `--skip-deploys`; no source connected, no deployment): `EDGE_SITE`,
+  `EDGE_MULTIUSER`, `EDGE_PUBLIC_ORIGIN` (`https://app.edgefinance.id`), `EDGE_EMAIL_MODE` (`log`) with
+  `EDGE_EMAIL_LOG_ALLOWED` (`true`, until the Resend key: CONTRACT 16, no one registers in pre-launch), `PORT`, and as
+  references to edge-bff's: `EDGE_SESSION_SECRET`, `EDGE_CODE_SECRET`, `EDGE_MFA_KEY`, `EDGE_OWNER`, `EDGE_LOGIN`,
+  `EDGE_PASSWORD_VERIFIER`, `EDGE_DATABASE_URL`, `EDGE_ENVIRONMENT`, `EDGE_TERMINAL_URL`, `TERMINAL_PROXY_KEY`,
+  `BACKTEST_WORKER_URL`, `BACKTEST_WORKER_KEY`, `BACKTEST_TIMEOUT_SECONDS`, `BACKTEST_MAX_RESULT_BYTES`,
+  `SCREENER_WORKER_URL`, `SCREENER_WORKER_KEY`, `SCREENER_TIMEOUT_SECONDS`. No `EDGE_ORC_URL` or
+  `MARKET_AI_ORC_API_KEY`. `EDGE_GUESTS` and `EDGE_PRELAUNCH` unset (on for the live site). Checked with
+  `railway run -s edge-bff-live` and `Settings.from_env().validate()` locally (values never printed): site live, the
+  switch on, guests and pre-launch on, no AI worker, no Orc settings.
+- **Still to do at the switch-on (with the user's go):** the branch `live` and the service's GitHub source,
+  `EDGE_HOUSEKEEPING_ENABLED=false` on `edge-bff`, then `.railway/railway.ts` declares the service.
+
 ## 2026-11-20 — EXEC-MU-ACCOUNTS Phase 3c deploy on dev (switch off): Terminal per plan, the fix rounds, Phase 3d's edge-bff part
 
 - **User:** "Go" (2026-11-20), to "Boleh saya deploy 3c ke dev begitu semua tes hijau?"; during the deploy "1 A" and
