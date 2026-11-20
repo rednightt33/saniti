@@ -63,6 +63,16 @@ REGISTER_DAY = Limit('send_email', 'register', 3, 86400)
 # most 9 of the address's 10 emails, and the 2 of them made by others (the owner's own being the third) at most 6
 REGISTRATION_MAIL = Limit('send_email', 'registration_mail', 3, 86400)
 
+# every visitor of the guest plan together (migration 20261119_071): one counter, key GUEST_TOTAL_KEY, built per app with
+# the ceiling the setting gives (main.py; Settings.guest_calls_per_hour, 0: none and nothing counted)
+GUEST_TOTAL_KEY = 'every visitor'
+
+
+def guest_total(allowed):
+    """The Limit of every visitor's Terminal calls together in an hour."""
+    return Limit('guest_total', 'guest_terminal_calls', allowed, 3600)
+
+
 BUCKET = 'to_timestamp(floor(extract(epoch FROM now()) / %(bucket)s) * %(bucket)s)'
 
 

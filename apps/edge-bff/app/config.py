@@ -39,6 +39,16 @@ def optional_switch(name):
     return switch_of(name) if os.environ.get(name) is not None else None
 
 
+def count_of(name):
+    """A whole number of 0 or more, unset or empty = 0; anything else stops the start (as switch_of does)."""
+    raw = os.environ.get(name, '').strip()
+    if not raw:
+        return 0
+    if not raw.isdigit():
+        raise ValueError(f'{name} is a whole number of 0 or more (0 or unset: none)')
+    return int(raw)
+
+
 # EXEC-MU-ACCOUNTS "Production environment" (user decisions 2026-11-19): one Railway environment, two websites on one
 # database. EDGE_SITE=beta is the service edge-bff (its Railway address, the admin only, EDGE_MULTIUSER off as today);
 # EDGE_SITE=live is the service edge-bff-live (the user's domain, EDGE_MULTIUSER on). Unset = beta, so the running
@@ -137,6 +147,11 @@ class Settings:
     prelaunch_enabled: bool | None = None
     # the upgrade box's contact (EDGE_UPGRADE_CONTACT, CONTACT); empty: the box says the contact comes soon
     upgrade_contact: str = ''
+    # one ceiling for every visitor of the guest plan together (the user, 2026-11-19: "2A tapi harus bisa di set dibackend
+    # variable ya batasannya"): at most this many Terminal calls an hour from all visitors at once
+    # (EDGE_GUEST_CALLS_PER_HOUR; 0 or unset: no ceiling, nothing is counted); each visitor keeps its own quotas at
+    # terminal-api besides
+    guest_calls_per_hour: int = 0
 
     @property
     def guests(self):
@@ -215,7 +230,8 @@ class Settings:
                 commit_sha=os.environ.get('RAILWAY_GIT_COMMIT_SHA', '').strip(),
                 guests_enabled=optional_switch('EDGE_GUESTS'),
                 prelaunch_enabled=optional_switch('EDGE_PRELAUNCH'),
-                upgrade_contact=os.environ.get('EDGE_UPGRADE_CONTACT', '').strip())
+                upgrade_contact=os.environ.get('EDGE_UPGRADE_CONTACT', '').strip(),
+                guest_calls_per_hour=count_of('EDGE_GUEST_CALLS_PER_HOUR'))
         s.validate()
         return s
 
@@ -248,6 +264,9 @@ class Settings:
         if self.prelaunch_enabled and not self.multiuser:
             raise ValueError('EDGE_PRELAUNCH=true needs EDGE_MULTIUSER=true: the pre-launch mode closes registration and '
                              'sign-in on the live site; the beta has neither. Unset EDGE_PRELAUNCH here')
+        if not 0 <= self.guest_calls_per_hour <= 10 ** 9:
+            raise ValueError('EDGE_GUEST_CALLS_PER_HOUR is a whole number from 0 (no ceiling) to 1000000000, the Terminal '
+                             'calls of every visitor together in an hour, e.g. 5000; or unset it')
         if self.upgrade_contact and not CONTACT.fullmatch(self.upgrade_contact):
             raise ValueError('EDGE_UPGRADE_CONTACT is one line of plain text of at most 200 characters, without < or > '
                              '(an address, a link or a phone number), e.g. sales@example.com; or unset it')

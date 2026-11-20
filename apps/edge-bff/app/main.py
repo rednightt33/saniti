@@ -40,7 +40,7 @@ from .radar import Radar
 from .screener import MESSAGES as SCREENER_MESSAGES, Screeners
 from .security import SESSION_COOKIE, cookie_name, csrf_token, needs_rehash, password_verifier, token_hash, verify_password
 from .store import Store, StoreError, TERMINAL
-from .throttle import SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address, normal_login
+from .throttle import GUEST_TOTAL_KEY, SIGNIN_IP, SIGNIN_LOGIN, Throttle, client_address, guest_total, normal_login
 from .worker import Housekeeping, Worker
 
 COOKIE = SESSION_COOKIE                     # its name on an https origin: cookie_name (__Host-, re-check R2-22)
@@ -682,11 +682,20 @@ def create_app(settings=None, store=None, orc=None):
     # page: an acknowledged 2xx, its JSON through client.public_data (ERRORS M260); a refusal in the contract's shape (a
     # terminal-api 401 or 403 about its own account or key is 503 TERMINAL_UNAVAILABLE, never the EDGE sign-in; a 429
     # LIMIT_REACHED with Retry-After).
+    guest_ceiling = guest_total(settings.guest_calls_per_hour) if settings.guest_calls_per_hour else None
+
     async def forward_terminal(method: str, path: str, request: Request, p: Principal):
         if not settings.terminal_url:
             return error('TERMINAL_UNAVAILABLE', 503)
         if not TERMINAL_ROUTES[method].fullmatch(path):
             return error('NOT_FOUND', 404)
+        if p.guest and guest_ceiling is not None:
+            # one ceiling for every visitor together (EDGE_GUEST_CALLS_PER_HOUR; the user's "2A ... di set dibackend
+            # variable", 2026-11-19), before terminal-api is asked; unset, nothing is counted
+            wait = await asyncio.to_thread(throttle.attempt, guest_ceiling, GUEST_TOTAL_KEY)
+            if wait:
+                await refuse(p, Refusal(429, 'LIMIT_REACHED', {'limit': 'guest_total', 'retry_after_s': wait,
+                                                               'visitor': True}, {'Retry-After': str(wait)}))
         body = await request.body() if method == 'POST' else None
         try:
             body = terminal_access.check(p, method, path, request.query_params, body)

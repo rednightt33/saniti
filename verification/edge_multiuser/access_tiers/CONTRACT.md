@@ -1305,6 +1305,11 @@ hand.
   `EDGE_AI_WORKER_ENABLED` (unset: on for the beta, off for the live site; `true` on live is refused),
   `EDGE_BACKTEST_LOOP_ENABLED`, `EDGE_HOUSEKEEPING_ENABLED` (default `true`; set `false` on edge-bff once edge-bff-live
   runs, so the live site is the housekeeping's one owner). Every switch is parsed strictly: a typo stops the start.
+- edge-bff-live: `EDGE_GUEST_CALLS_PER_HOUR` (the user, 2026-11-19: "2A tapi harus bisa di set dibackend variable ya
+  batasannya"): one ceiling for every visitor of the guest plan together, the Terminal calls of all visitors in an
+  hour; unset or 0 (the default): no ceiling and nothing counted; above it a visitor's call answers 429 `LIMIT_REACHED`
+  (`details.limit` `guest_total`, the visitor's words, `Retry-After`) before terminal-api is asked (built, 3c check
+  fixes, migration `20261119_071`; not deployed). Each visitor keeps its own quotas at terminal-api besides.
 - edge-bff-live holds no `EDGE_ORC_URL` and no `MARKET_AI_ORC_API_KEY`: the live site has no AI (D1), and Orc's key may
   read every owner's conversations, so `config.validate` refuses both there (3c check C3-15; built, not deployed). The
   beta keeps both.

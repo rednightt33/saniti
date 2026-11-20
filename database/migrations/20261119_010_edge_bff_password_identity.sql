@@ -60,11 +60,13 @@ BEGIN
 END $verify$;
 COMMIT;
 
--- Rollback (a new forward migration with this body; deploy an edge-bff that writes only the old form first, and replace
--- every verifier of the new form first, or those accounts cannot sign in: the old form cannot hold their cost):
+-- Rollback (a new forward migration with this body; deploy an edge-bff that writes only the old form first). The old
+-- check is added NOT VALID (3c check C3-24: the block runs as written on a database that holds verifiers of the new
+-- form): it binds every new write, and the rows of the new form stay; those accounts cannot sign in on the old code
+-- (the old form cannot hold their cost) until a reset writes them a verifier of the old form:
 -- BEGIN;
 -- ALTER TABLE edge_bff.identities DROP COLUMN sign_in_failures, DROP COLUMN sign_in_locked_until,
 --     DROP CONSTRAINT identities_password,
 --     ADD CONSTRAINT identities_password CHECK (provider <> 'password' OR (subject = user_id::text
---         AND verifier ~ '^scrypt\$[0-9a-f]{32}\$[0-9a-f]{64}$'));
+--         AND verifier ~ '^scrypt\$[0-9a-f]{32}\$[0-9a-f]{64}$')) NOT VALID;
 -- COMMIT;
