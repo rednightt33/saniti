@@ -16134,6 +16134,17 @@ Order of the services (CONTRACT 17, rollback floors):
   7. the registration test window (above), last, after A2.
   Each phase as before: built in basic mode, the beta first, its checker in ultracode, the live site only on the user's
   request. Not in this list: the Postgres restart times (the user has not answered), the real payment method.
+  - **How it runs (the user, 2026-11-20):** "Oke, saya setuju. Tapi Ultracode tidak usah pakai Max karena in terms of
+    kuota akan sangat heavy. Membangun, kita bisa pakai Max, saya sudah set. Dan untuk pengecekan Ultracode bisa di-set
+    sebagai X-High." Each phase is built, checked, fixed, then the next starts:
+    - building: basic mode at the session's reasoning effort, max (the user set it);
+    - checking: an ultracode workflow at reasoning effort **xhigh**, never max: every agent of a checker workflow gets
+      `effort: 'xhigh'` explicitly, since agents would otherwise inherit the session's max;
+    - ultracode checkers after A2, 3e, 3f and Phase 4; the four decided items and the runbook are checked by their tests
+      and the live smoke; the payment shell goes into the deep checker;
+    - after all phases, one deep checker over everything, ultracode at xhigh, then its fixes; then the registration test
+      window.
+    The execution starts on the user's "go" (approval of the plan is not the go, AGENTS "Plans").
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
