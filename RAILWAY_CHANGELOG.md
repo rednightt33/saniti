@@ -1,5 +1,30 @@
 # Railway changelog
 
+## 2026-11-20 — EXEC-MU-ACCOUNTS option A: the live site's email and admin login, the first split Watchlist publication
+
+- **User (2026-11-20):** the two sites confirmed (the beta, `edge-bff` on edge-bff-dev.up.railway.app, the admin only,
+  every feature first, its login and password kept as they are; the live site, app.edgefinance.id: admin, paid, free,
+  guest), then "1. yes, feel free to suggest login ID dan passwordnya. kalau bisa jadikan ini variable di railway.
+  2. betul 3. ok 4. ok".
+- **edge-bff-live email (2):** `EDGE_EMAIL_FROM` (`EDGE <no-reply@mail.edgefinance.id>`, the domain verified in Resend
+  by the user) and `EDGE_EMAIL_MODE=resend` set, `EDGE_EMAIL_LOG_ALLOWED` deleted (all `--skip-deploys`; no source and
+  no deployment, none created). `Settings.from_env().validate()` with the service's variables (`railway run`): valid,
+  site live, multiuser, pre-launch, email resend, the log allowance off.
+- **edge-bff-live admin login (1):** `EDGE_ADMIN_USERNAME` (non-secret) and `EDGE_ADMIN_INITIAL_PASSWORD` (generated
+  locally, set through `--stdin`, never printed; a handoff the site never reads), then written into user #1 by job
+  `f781b6c1` (DATABASE_CHANGELOG.md, same date).
+- **Watchlist, by hand (4; ERRORS M229 procedure):** `terminal-publisher` cron cleared (read back null),
+  `TERMINAL_PUBLISH_MODE=watchlist` (`--skip-deploys`), CLI upload `885892ec` of `git archive acddc51f
+  apps/terminal-publisher` (the code of `1071308b`; nothing changed in that folder since). The run at 09:00 UTC:
+  `watchlist` built, 2 files written (6.8 s), `done` at 09:00:28, the replaced `watchlist-stocks` deleted at 09:10:32.
+  State: `watchlist-stocks` 862 rows as of 2026-11-19 (98,047 bytes), `watchlist-radar` 102 rows as of 2026-11-09 (767
+  bytes; the Radar follows the broker data, `broker_behind_sessions` 8). Through the beta: the index lists both and
+  both files answer 200. Restored: `TERMINAL_PUBLISH_MODE=daily`, cron `0,30 0,1,12 * * *` (read back, next run 12:00
+  UTC), SCHED upload `42bbcedf` SUCCESS 09:11 UTC, no run (no log). Not a large read (publisher docstring).
+- **`.railway/railway.ts` (live checker D3/S8):** `railway config plan` planned to delete `edge-bff-live` (undeclared).
+  It is now declared as it is (no source, every variable `preserve()`); the plan reads "already up to date". The tests
+  that read the file (terminal-api `test_api.py` railway/PORT, orc `test_main_key_readers.py`) pass.
+
 ## 2026-11-20 — EXEC-MU-ACCOUNTS option A: the live site prepared (not switched on)
 
 - **User:** "Ok go with opsi A" (2026-11-20; EXEC.md "Option A"). The live site's switch stays off until the live

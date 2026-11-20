@@ -571,6 +571,8 @@ Sources are drawn only from actual evidence/annotations/data_record. Usage/cost 
 | EDGE_LOGIN | `edge`, selected under the user's 2026-10-08 delegation; set before deployment |
 | EDGE_PASSWORD_VERIFIER | Scrypt verifier of the securely generated private password |
 | EDGE_INITIAL_PASSWORD | Temporary credential handoff in Railway Variables; unused by the application. Owner retrieves securely, then removes this variable after copying the password |
+| EDGE_ADMIN_USERNAME (edge-bff-live) | The live site's admin login (user #1's username), chosen by the agent with the user's leave of 2026-11-20 ("feel free to suggest login ID dan passwordnya. kalau bisa jadikan ini variable di railway"); unused by the application: `scripts/edge_account_login.py` writes it into the account |
+| EDGE_ADMIN_INITIAL_PASSWORD (edge-bff-live) | The live admin's generated first password, a handoff for the user to read in Railway Variables; unused by the application (the switch-on sign-in checks the account's own identity, written by `scripts/edge_account_login.py`). A password changed on the site no longer matches it: remove the variable once copied, or have it updated |
 | EDGE_SESSION_SECRET | Random 32+ character secret, entered securely |
 | EDGE_PUBLIC_ORIGIN | Exact HTTPS origin of the new service; set after domain allocation |
 | EDGE_ENVIRONMENT | `dev` (use `local` only for loopback tests) |
@@ -897,7 +899,9 @@ The switch and what it changes:
 The seed: user #1 is the configured owner (`edge-private` on dev), role `admin`, status `active`. Its username is
 `EDGE_LOGIN` lower-cased when that fits the username rule and is not reserved, else `admin_1` (`edge` is reserved, so
 dev's seed is `admin_1`). Its password identity is a copy of `EDGE_PASSWORD_VERIFIER`, so the password does not
-change. Every replica takes one advisory lock, so two starting together make one row. A failed seed keeps the
+change. On dev, user #1's live login was then set by the operator (2026-11-20, ERRORS M513 A1): the username in
+`EDGE_ADMIN_USERNAME` and the first password in `EDGE_ADMIN_INITIAL_PASSWORD` (both variables of `edge-bff-live`),
+written by `scripts/edge_account_login.py`; the beta's login (`EDGE_LOGIN`, `EDGE_PASSWORD_VERIFIER`) is unchanged. Every replica takes one advisory lock, so two starting together make one row. A failed seed keeps the
 switch-off sign-in working (logged `account_seed_failed`); with the switch on the start-up is tried again and no loop
 starts until it succeeds (`/ready` answers 503 meanwhile). A switch-off start copies a changed `EDGE_PASSWORD_VERIFIER`
 only over the seed's own copy: `identities.seed_verifier_sha256` is the sha256 of the verifier the seed last wrote, and a

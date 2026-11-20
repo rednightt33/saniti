@@ -1,5 +1,22 @@
 # Database changelog
 
+## 2026-11-20 — EXEC-MU-ACCOUNTS option A: the live admin's login written into user #1 (edge_bff, by the operator)
+
+- **Why:** the user, 2026-11-20: "1. yes, feel free to suggest login ID dan passwordnya. kalau bisa jadikan ini
+  variable di railway" (ERRORS M513 A1, site S3, switch-on S5: user #1's live login was `admin_1`, without an email).
+- **Source:** the Railway variables `EDGE_ADMIN_USERNAME` (a username chosen by the agent: `edge_` and six random
+  characters) and `EDGE_ADMIN_INITIAL_PASSWORD` (generated, 23 characters, never printed) of `edge-bff-live`.
+- **Change:** `scripts/edge_account_login.py` as job `f781b6c1` (orc-test-runner, `scripts/onboarding/run_job.sh`, the
+  two values as Railway references for the run only, `VAR_REMOVED` after it): user #1's `username` from `admin_1` to the
+  value of `EDGE_ADMIN_USERNAME`, its password identity's verifier from the password (edge-bff's `password_verifier`),
+  its failure count and lock cleared, `seed_verifier_sha256` left as it was; one `edge_bff.admin_audit` row (action
+  `account.login_set`, actor operator, the user's words as the reason). Email, MFA and sessions unchanged.
+- **Read back (the job, after the commit):** `outcome` set, `username_after` the variable's value, `password_opens`
+  true (the stored verifier opens with the variable's password), `beta_seed_keeps_it` true (its sha256 is not the
+  seed's mark, so the beta's switch-off seed keeps it). Then the beta's own sign-in (`EDGE_LOGIN`, its handoff
+  password) answered 200. `POSTGRES_MEMORY_CHECK` READY at 0.81 GB, from earlier work, not from this job (a few rows):
+  left to the scheduled restart at 20:45 WIB.
+
 ## 2026-11-20 — EXEC-MU-ACCOUNTS Phase 3c migrations applied on dev (16 files, schemas `edge_bff` and `terminal`) and the gateway's terminal-api account until 2100
 
 - **Why:** Phase 3c and the 3b follow-up, the re-check's fix round and the 3c check's fixes (EXEC.md "Phase 3c deploy

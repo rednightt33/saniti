@@ -8879,7 +8879,7 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
-### M513 — The live checker before the switch-on: 11 findings confirmed, none refuted (2026-11-20; most FIXED, three wait for the user)
+### M513 — The live checker before the switch-on: 11 findings confirmed, none refuted (2026-11-20; FIXED or done, A2 accepted for pre-launch, S7 at the switch-on)
 
 - **Found by:** the ultracode live checker of option A (workflow `wf_b98c2b6c-166`: five lenses over commit `13f40871`,
   one skeptic per finding of medium severity or more; 16 agents, none refuted; journal and summary in
@@ -8909,6 +8909,23 @@ in its staleness check.
 - **At the switch-on:** D2 (low: open the live site after the publisher's first split Watchlist publication), D3 and
   S8 (low: declare the service in `.railway/railway.ts` with `preserve()`, its email values as set), S7 (low:
   `restart_postgres.py` also reads the live `/ready`).
+- **The user's answers (2026-11-20), and what they did:** "1. yes, feel free to suggest login ID dan passwordnya. kalau
+  bisa jadikan ini variable di railway. 2. betul 3. ok 4. ok".
+  - A1, site S3, switch-on S5: FIXED. User #1's live login is the username in `EDGE_ADMIN_USERNAME` with the first
+    password in `EDGE_ADMIN_INITIAL_PASSWORD` (variables of `edge-bff-live` the site never reads), written by
+    `scripts/edge_account_login.py` (job `f781b6c1`, audited `account.login_set`;
+    `apps/edge-bff/tests/test_account_login_operator.py`). The beta's login is unchanged. Still no email address: the
+    way back is that job (change the variables, run it again) and `scripts/edge_mfa_unlock.py`; "Forgot password" needs
+    an address the user gives.
+  - switch-on S4: FIXED. `EDGE_EMAIL_MODE=resend`, `EDGE_EMAIL_FROM` `EDGE <no-reply@mail.edgefinance.id>`, the log
+    allowance deleted.
+  - A2: ACCEPTED for the pre-launch mode ("3. ok": only the admin and test accounts sign in); fixed before
+    registration opens (EXEC.md option A).
+  - D2: DONE. The first split publication at 09:00 UTC (manual run `885892ec`): `watchlist-stocks` and
+    `watchlist-radar`.
+  - D3 and S8: DONE. `.railway/railway.ts` declares `edge-bff-live` as it is (no source, `preserve()`); the plan is up
+    to date. Its switch-on body is written in the comment above it.
+  - S7: at the switch-on (`restart_postgres.py` reads the live `/ready` once the live site runs).
 - **Low, kept for 3e and Phase 4 (unverified, one finder each):** G1 (a third-party page can spend a visitor's
   terminal-api file quota with cross-site GETs), G2 (once `EDGE_GUEST_CALLS_PER_HOUR` is set, calls terminal-api never
   counts can spend the ceiling), site S4 (user #1's beta backtests with a point-in-time Flow are listed on live), S5 (a

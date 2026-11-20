@@ -15995,6 +15995,25 @@ Order of the services (CONTRACT 17, rollback floors):
   client-address probe (1a); the bucket CORS for `app.edgefinance.id`; the live checker; then the switch on only with
   the user's go. Needed from the user: the go for the switch, the Resend key in the Railway dashboard, the test
   accounts' addresses, an authenticator for the admin's MFA on live, and the upgrade contact (it may follow).
+- **The user's answers before the switch (2026-11-20):** "boleh saya konfirmasi sebelum lanjut, bahwa sesuai diskusi
+  sebelumya site akan dibagi menjadi 2... site pertama adalah edge-bff railway app existing - site ini akan menjadi BETA
+  rencananya, dimana semua fungsi ada disisini sebelum di deploy ke edgefinance.id > admin > user > gratis. Boleh
+  konfirmasi if this is the case? Jika ya, maka kita keep user ID dan pass loginnya as is untuk edge-bff railway app.
+  untuk pertanyaan kamu, apabila ini menyangkut edgefinance.id, maka: 1. yes, feel free to suggest login ID dan
+  passwordnya. kalau bisa jadikan ini variable di railway. 2. betul 3. ok 4. ok". Confirmed as the agreed design: the
+  beta is `edge-bff` (edge-bff-dev.up.railway.app), the admin only, every feature there first, its login and password
+  unchanged; the live site is app.edgefinance.id (admin, paid, free, guest). Done the same day (ERRORS M513):
+  1. the live admin's login: a username chosen by the agent and a generated first password, kept as the Railway
+     variables `EDGE_ADMIN_USERNAME` and `EDGE_ADMIN_INITIAL_PASSWORD` of `edge-bff-live` (the user reads them there;
+     the site never reads them) and written into user #1 by `scripts/edge_account_login.py` (job `f781b6c1`); the beta's
+     sign-in still answers 200 with its own login;
+  2. the sender `EDGE <no-reply@mail.edgefinance.id>` through Resend (`EDGE_EMAIL_MODE=resend`), the log allowance
+     removed;
+  3. A2 accepted for the pre-launch mode, fixed before registration opens (below);
+  4. the Watchlist published by hand at 09:00 UTC: `watchlist-stocks` and `watchlist-radar` (D2).
+  Still needed from the user: the go for the switch, the test accounts' addresses and plans, an authenticator app on
+  the phone for the first live sign-in (the site shows the QR code), an email address for user #1 if "Forgot password"
+  should reach it (optional), and the upgrade contact (it may follow).
 - **Switch-on order and rollback (live checker S2/S7/S8 of the switch-on lens, 2026-11-20):**
   1. M340; the branch `live` at a commit whose own CI run is green (never a red one: the K10 a gate), recorded as the
      commit that goes live; `edge-bff-live` gets the beta's build settings (root `/apps/edge-bff`, start command,
@@ -16007,11 +16026,15 @@ Order of the services (CONTRACT 17, rollback floors):
      the housekeeping's one owner; `scripts/restart_postgres.py` is taught the live `/ready` too, and
      `postgres-memory-cron` uploaded with its `deploy.sh`.
   4. `.railway/railway.ts` declares the service with `preserve()` for every value set in Railway, and the terminal-api
-     suite (it reads every declared service) runs before that push.
+     suite (it reads every declared service) runs before that push. Since 2026-11-20 it declares the service as it is
+     before the switch (no source, every variable `preserve()`, live checker D3/S8); at the switch-on its body becomes
+     the settings written in the comment above it (source branch `live`, build, start, `/ready`, `PORT`).
   - **Rollback:** (1) `railway down` of the live deployment (or remove its domain); (2) `EDGE_HOUSEKEEPING_ENABLED` back to
     `true` on `edge-bff`; (3) a reviewed job ends the live site's open jobs (`site='live'`: QUEUED rows CANCELLED,
     RUNNING rows FAILED `WORKER_LOST`), so the shared Backtest worker slot and user #1's beta Backtest are not held.
-- **After the live site opens, before registration:** 3e, 3f, Phase 4, the payment skeleton (beta first, then live);
+- **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
+  code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
+  payment skeleton (beta first, then live);
   M510's open causes and the removal of the TEMPORARY rerun; M511's choice; the deep checker; registration opened
   only with the user's go.
 
