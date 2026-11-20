@@ -8879,6 +8879,30 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M510 — CI ran edge-bff's browser tests on a newer Chrome than every local run, and two of them failed there (2026-11-20; CI pin FIXED; the Chrome 159 behaviour OPEN)
+
+- **Found by:** the first CI run of edge-bff's browser tests after M509 (run 44663513713, commit `b969529b`): 947 passed,
+  2 failed.
+- **Symptom:** `test_ui_1020c.py::test_the_pinned_title_never_covers_its_first_row_and_cards_show_in_both_themes`
+  ("getComputedStyle ... parameter 1 is not of type 'Element'": no open response card, `.edge-flow-accordion[open]`, in
+  the Details panel) and `test_composer_layout.py::test_submit_history_and_fixed_headers[mobile]` (the first
+  conversation of the opened history "not stable", then "not visible", for 6 s). Both pass locally, alone and in the
+  full suite, also with every core busy (5 of 5 under load, 2026-11-20).
+- **Verified difference:** Playwright 1.65.2 installs its own Chromium build 1255 (Chrome 159.0.8154.6); the local
+  suites run `/opt/pw-browsers/chromium` (Chrome for Testing 153.0.8010.12, the build of the pre-installed Playwright
+  1.63.0), and the page smoke installs Playwright 1.63.0 in CI. So CI tested a browser no local run had used.
+- **Suspected cause (not verified):** a behaviour of Chrome 159 (the open state of a `<details>` card set at its first
+  render; the history drawer on a phone closing during the restore after a reload) or the slower runner's timing; the
+  composer test is the M212 class. Check that settles it: run both tests with Chrome 159 once that build can be
+  installed here, and twenty times on the 1.63.0 build in CI.
+- **General class:** a test environment whose browser build drifts from the one the checks were proven on; the same
+  holds for the Terminal look check and the page smoke whenever their Playwright pins move.
+- **Solution (CI, permanent):** one browser build for local and CI: `requirements-dev.txt` pins 1.63.0 (M509). Chrome
+  159 is not yet the browser of EDGE's users; when it is, the two tests are run on it and any real fault is fixed in the
+  page (the tests are not changed to pass).
+- **Status:** the pin FIXED; the Chrome 159 behaviour OPEN.
+- **Lesson:** a pin names the browser build, not only the package: the package version decides which Chromium CI gets.
+
 ### M509 — CI: edge-bff's suite never ran in GitHub after the fix round, because the runner's OS moved past the pinned Playwright (2026-11-19/20; FIXED in CI, verified by the next run)
 
 - **Found by:** reading the red "Backend tests" runs before the Phase 3c deploy (run 44662326604, job edge-bff, step
@@ -8893,8 +8917,10 @@ in its staleness check.
   (`backtest-page-smoke.yml`, Playwright 1.63.0 on the same runner) installs fine.
 - **General class:** a CI job that installs a browser through a pinned tool on a floating runner label breaks when the
   label moves to an OS the tool does not know. The same mechanism holds for the page smoke's 1.63.0 at the next OS move.
-- **Solution:** `requirements-dev.txt` pins 1.65.2, the version the local suites run with, so CI and local test the same
-  tool; a comment at the step in `backend-tests.yml` names this entry.
+- **Solution:** `requirements-dev.txt` pins a version that installs on 26.04 and gives CI the browser build of the local
+  runs: first 1.65.2 (the local Python package), then 1.63.0 (M510: 1.65.2 brings Chrome 159, while the local suites
+  and the page smoke run Chrome for Testing 153, the build of the pre-installed Playwright 1.63.0). A comment at the
+  step in `backend-tests.yml` names this entry.
 - **Status:** fixed; the next "Backend tests" run is the evidence (recorded in the 3c deploy log in EXEC.md).
 - **Lesson:** a red job is read at its first failing step before a deploy, not by its name; a skipped suite is a gap
   even when the local run is green. When `ubuntu-latest` moves, the browser pins move with it.

@@ -70,8 +70,9 @@ jobs:
           node-version: "22"
       # requirements-dev.txt: the server's requirements, pytest and Playwright (the browser tests)
       - run: pip install -r requirements-dev.txt
-      # ERRORS M509: Playwright installs Chromium only on the OS versions it knows; ubuntu-latest moved to 26.04 and
-      # 1.56.0 refused it. requirements-dev.txt pins the version the local suites run with (1.65.2).
+      # ERRORS M509/M510: Playwright installs Chromium only on the OS versions it knows (ubuntu-latest moved to 26.04 and
+      # 1.56.0 refused it); requirements-dev.txt pins 1.63.0, whose Chromium build is the one the local suites and the
+      # page smoke run (Chrome for Testing 153), so CI tests the browser the local runs passed.
       - name: Chromium for the browser tests (tests read its path from EDGE_TEST_CHROMIUM)
         run: |
           python -m playwright install --with-deps chromium
