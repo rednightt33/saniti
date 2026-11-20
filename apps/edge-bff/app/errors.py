@@ -184,8 +184,9 @@ def words(code, status, details=None):
     - a visitor without an account (details.visitor, track guest; 3c check C3-9) is never told to upgrade a plan or
       that it is still signed in: CAPABILITY_REQUIRED and LIMIT_REACHED tell it to sign in or create an account, or to
       wait;
-    - MFA_LOCKED names the way still open: the authenticator when only the recovery codes are locked (details.locked
-      "recovery_code"), the recovery codes when only the codes are (details.use "recovery_code"); else its fixed sentence;
+    - MFA_LOCKED names the way still open, as the server found it (details.use; ERRORS M519): the authenticator
+      ("code") when only the recovery codes are locked, the recovery codes ("recovery_code") when only the codes are;
+      with both locked (no details.use) its fixed sentence;
     - MFA_REQUIRED says to set the authenticator up when the account has none (details.mfa_enrolled false), and to
       enter a fresh code first when a new authenticator needs a recent pass (details.recent_s, the seconds);
     - every other code: its fixed sentence (message_of; one holding {wait} says the refusal's own wait)."""
@@ -222,8 +223,9 @@ def words(code, status, details=None):
             what = f' for {_names[limit]}' if limit in _names else ''
             return f"You have reached your plan's limit{what}{count}. {then}"
         return f'Too many attempts. Wait {wait or "a while"}, then try again.'
-    elif code == 'MFA_LOCKED' and d.get('locked') == 'recovery_code':
-        # the recovery codes are locked, the authenticator is not (live checker ACC-2): say the way that is still open
+    elif code == 'MFA_LOCKED' and d.get('locked') == 'recovery_code' and d.get('use') == 'code':
+        # the recovery codes are locked, the authenticator is not (live checker ACC-2; the server says so, M519): say
+        # the way that is still open
         return ('Too many wrong recovery codes, so recovery codes are locked for now. Sign in with the code from your '
                 'authenticator app; recovery codes open again later.')
     elif code == 'MFA_LOCKED' and d.get('use') == 'recovery_code':

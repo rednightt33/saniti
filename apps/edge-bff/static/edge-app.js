@@ -896,9 +896,9 @@ function ResetForm({go, L}) {
 function MfaForm({go, L}) {
   const v = currentView, M = L.mfa, code = initialValue(v, "code", () => ""), recovery = initialValue(v, "recovery", () => false);
   const busy = initialValue(v, "busy", () => false), error = initialValue(v, "error", () => ""), enrol = initialValue(v, "enrol", () => null), saved = initialValue(v, "saved", () => false);
-  // MFA_LOCKED: the server's message and its unlock time (details.unlock_at, shown in this viewer's local time); with
-  // details.use "recovery_code" the recovery codes are still open, else this way waits for the unlock (or a password
-  // reset by email, which clears the lock: the Forgot password? link stays on this page)
+  // MFA_LOCKED: the server's message and its unlock time (details.unlock_at, shown in this viewer's local time);
+  // details.use names the way still open ("recovery_code" or "code"), and with none Continue waits for the unlock (or a
+  // password reset by email, which clears the lock: the Forgot password? link stays on this page)
   const locked = initialValue(v, "locked", () => ""), unlockAt = initialValue(v, "unlockAt", () => "");
   // an account without an authenticator yet (access.mfa_enrolled false) starts on the set-up
   onLifecycle(v, "start", () => { if (Edge.auth?.access?.mfa_enrolled === false || authFlow.mfaEnrolled === false || authFlow.enrolling) startEnrol();
@@ -917,14 +917,15 @@ function MfaForm({go, L}) {
       if (resumeEnrol && !enrol) { updateValue(v, "code", ""); updateValue(v, "busy", false); await startEnrol(); return; }
       authFlow.enrolling = false; go(landing()); }
     catch (e) {
-      // MFA_LOCKED: details.locked names the locked way ("code" or "recovery_code"); details.use "recovery_code" when the
-      // codes are locked and the recovery codes still open. Locked recovery codes leave the authenticator open (ACC-2)
-      if (e.info?.code === "MFA_LOCKED") { const d = e.info.details || {}, useRecovery = d.use === "recovery_code", recoveryLocked = d.locked === "recovery_code";
+      // MFA_LOCKED: details.locked names the locked way ("code" or "recovery_code"); details.use the way still open as the
+      // server found it: "recovery_code" (the codes locked) or "code" (the recovery codes locked, the authenticator open,
+      // ACC-2), none when both are locked (ERRORS M519: the page no longer guesses the other way from the locked one)
+      if (e.info?.code === "MFA_LOCKED") { const d = e.info.details || {}, useRecovery = d.use === "recovery_code", useCode = d.use === "code";
         const at = typeof d.unlock_at === "string" && !Number.isNaN(Date.parse(d.unlock_at)) ? new Date(d.unlock_at).toLocaleString([], {dateStyle:"medium", timeStyle:"short"}) : "";
-        updateValue(v, "locked", useRecovery ? "code" : recoveryLocked ? "recovery" : "all"); updateValue(v, "unlockAt", at); updateValue(v, "code", "");
+        updateValue(v, "locked", useRecovery ? "code" : useCode ? "recovery" : "all"); updateValue(v, "unlockAt", at); updateValue(v, "code", "");
         if (useRecovery) updateValue(v, "recovery", true);
-        if (recoveryLocked) updateValue(v, "recovery", false);
-        updateValue(v, "error", e.info.message || (useRecovery ? M.lockedCode : recoveryLocked ? M.lockedRecovery : M.lockedAll)); }
+        if (useCode) updateValue(v, "recovery", false);
+        updateValue(v, "error", e.info.message || (useRecovery ? M.lockedCode : useCode ? M.lockedRecovery : M.lockedAll)); }
       else updateValue(v, "error", authText(e)); } finally { updateValue(v, "busy", false); } };
   const secret = enrol?.secret || (enrol?.uri ? (new URLSearchParams(enrol.uri.split("?")[1] || "").get("secret") || "") : "");
   const needsSave = Boolean(enrol && enrol.codes.length && !saved);

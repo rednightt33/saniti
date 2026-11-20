@@ -1017,8 +1017,9 @@ Email (`app/mailer.py`, `app/email_texts.py`, plain English): a code and its ema
 Admin MFA (`app/mfa.py`): TOTP (RFC 6238, SHA-1, 30 s, 6 digits, ±1 step, a used step never accepted again).
 Besides the 10 tries per 15 minutes, 100 consecutive wrong authenticator codes (10 recovery codes) lock that way in
 (403 `MFA_LOCKED`, "Wait 24 hours or reset your password by email; an operator can also unlock it.", with
-`details.unlock_at`; the `/mfa` page shows it in local time, switches to the recovery-code field when only the
-authenticator is locked, and keeps "Forgot password?"). A lock lasts 24 h, then the count restarts at 90 (8), so 10 (2)
+`details.unlock_at` and `details.use`, the other way while it is open: `recovery_code` or `code`, none when both are
+locked, by the lock test `mfa_try` decides with, ERRORS M519). The `/mfa` page shows the unlock time in local time,
+goes to the way `use` names, waits for the unlock when it names none, and keeps "Forgot password?"). A lock lasts 24 h, then the count restarts at 90 (8), so 10 (2)
 more tries come before the next lock; a correct code resets the counts; a password reset by email code clears counts
 and locks. A confirmed authenticator is replaced only by a session that passed MFA within the last 10 minutes
 (`auth_flows.MFA_RECENT_SECONDS`, decided with the enrolment's row lock; an older pass answers 403 `MFA_REQUIRED` with

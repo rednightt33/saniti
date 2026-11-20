@@ -117,8 +117,10 @@ def test_a_refused_sign_in_points_a_new_account_to_its_code(fixture_server, page
 
 def test_mfa_locked_shows_the_message_the_unlock_time_and_the_ways_out(fixture_server, page):
     """403 MFA_LOCKED (app/auth_flows.py): the server's message and details.unlock_at in this viewer's local time; with
-    details.use "recovery_code" the page switches to the recovery-code field; without it Continue waits for the unlock.
-    The Forgot password? link stays on the page (a password reset by email clears the lock)."""
+    details.use "recovery_code" the page switches to the recovery-code field; without details.use (both ways locked)
+    Continue waits for the unlock. The Forgot password? link stays on the page (a password reset by email clears the
+    lock). ERRORS M519: the page is checked once the answer is in (Continue's own label back, not "Checking…"): a check
+    made while the request runs saw the button disabled by the request itself."""
     origin, _ = fixture_server
     message = 'Too many wrong codes, so this way of signing in is locked. Wait 24 hours or reset your password by email; an operator can also unlock it.'
     unlock = '2026-11-18T09:30:00+00:00'
@@ -143,11 +145,48 @@ def test_mfa_locked_shows_the_message_the_unlock_time_and_the_ways_out(fixture_s
     assert page.get_by_role('status').inner_text() == f'It unlocks on {local_time}.'
     page.get_by_label('Recovery code', exact=True).fill('code-01')
     page.get_by_role('button', name='Continue').click()
-    page.wait_for_function("() => document.querySelector('.auth-form-wrap form .btn.primary').disabled")
+    page.wait_for_function(SETTLED, arg='Continue')                          # the second answer is in
+    assert page.locator('.auth-form-wrap form .btn.primary').is_disabled()   # both ways locked: wait for the unlock
     assert page.get_by_role('alert').inner_text() == message
     assert sent == [{'code': '123456'}, {'recovery_code': 'code-01'}]
     page.get_by_role('link', name='Forgot password?').click()
     page.wait_for_function("() => location.pathname === '/forgot'")
+
+
+# the MFA form once an answer is in: its submit button carries its own label again (busy, it reads "Checking…")
+SETTLED = "label => document.querySelector('.auth-form-wrap form .btn.primary')?.innerText === label"
+
+
+def test_mfa_locked_recovery_codes_with_the_authenticator_open_go_back_to_the_code(fixture_server, page):
+    """ERRORS M519 (live checker ACC-2): locked recovery codes with the authenticator open (details.use "code") put the
+    page back on the authenticator code, Continue usable, the server's words shown; the next try sends a code."""
+    origin, _ = fixture_server
+    message = ('Too many wrong recovery codes, so recovery codes are locked for now. Sign in with the code from your '
+               'authenticator app; recovery codes open again later.')
+    answers = [(403, {'error': {'code': 'MFA_LOCKED', 'message': message,
+                                'details': {'locked': 'recovery_code', 'unlock_at': '2026-11-18T09:30:00+00:00', 'use': 'code'}}}),
+               (400, {'error': {'code': 'MFA_CODE_INVALID', 'message': 'This sign-in code is not correct.', 'details': {'fields': ['code']}}})]
+    sent = []
+    page.route('**/api/v1/auth/config', lambda r: answer(r, 200, {'multiuser': True}))
+    page.route('**/api/v1/auth/sign-in', lambda r: answer(r, 403, {'error': {'code': 'MFA_REQUIRED', 'message': 'Enter your code.',
+               'details': {'csrf_token': 'pending-token', 'mfa_enrolled': True}}}))
+    page.route('**/api/v1/auth/mfa/verify', lambda r: (sent.append(r.request.post_data_json), answer(r, *answers.pop(0))))
+    page.goto(origin + '/login')
+    page.get_by_label('Login', exact=True).fill('owner')
+    page.get_by_label('Password', exact=True).fill('local-test-password')
+    page.get_by_role('button', name='Sign In').click()
+    page.wait_for_function("() => location.pathname === '/mfa'")
+    page.get_by_role('button', name='Use a recovery code instead').click()
+    page.get_by_label('Recovery code', exact=True).fill('code-01')
+    page.get_by_role('button', name='Continue').click()
+    page.get_by_label('Code', exact=True).wait_for()                     # back on the authenticator code
+    page.wait_for_function(SETTLED, arg='Continue')
+    assert page.locator('.auth-form-wrap form .btn.primary').is_enabled()
+    assert page.get_by_role('alert').inner_text() == message
+    page.get_by_label('Code', exact=True).fill('123456')
+    page.get_by_role('button', name='Continue').click()
+    page.get_by_role('alert').filter(has_text='This sign-in code is not correct.').wait_for()
+    assert sent == [{'recovery_code': 'code-01'}, {'code': '123456'}]
 
 
 def test_forgot_password_code_new_password_back_to_sign_in(fixture_server, page):

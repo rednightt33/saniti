@@ -8879,6 +8879,53 @@ in its staleness check.
 - **Lesson:** before pushing `main`, run every suite of `.github/workflows/backtest-lookahead.yml` and
   `backend-tests.yml`, not only those of the apps changed: a document's pointer test lives in another app's suite.
 
+### M519 — With both ways of the second factor locked, the MFA page offered the authenticator code again (2026-11-20; FIXED on the branch)
+
+- **Found by:** the full edge-bff suite on the 3e branch (1 failed, 1018 passed, 2026-11-20).
+  `tests/test_auth_pages.py::test_mfa_locked_shows_the_message_the_unlock_time_and_the_ways_out` waited 5 s for the
+  Continue button to be disabled, and timed out. Run alone, the file passed (6 of 6).
+- **What it was not:** the Terminal was rebuilt during that run, but this test never opens the Terminal. Neither 3e
+  nor the rebuild is the cause.
+- **Verified root cause:**
+  - The server's 403 `MFA_LOCKED` named the way still open only for an authenticator code that hit a lock
+    (`details.use` "recovery_code", decided by `recovery_failures < cap`, `app/auth_flows.py`).
+  - For a recovery code that hit a lock it never said whether the authenticator was open.
+  - Since the ACC-2 fix (`dcb87955`, M515), the page and the server's words read "recovery codes locked" as
+    "the authenticator is open" (`static/edge-app.js` MfaForm, `app/errors.py` message_for).
+  - So after a code lock and then a recovery-code lock, the page went back to the Code field with Continue usable,
+    under "Sign in with the code from your authenticator app", while that way was locked too.
+  - A probe of the test's own steps settled that way 5 times of 5: Continue enabled, the Code field shown.
+  - The test passed only when its check ran while the request was still out: the button is disabled while busy, and
+    the test caught that state.
+  - The same guess also missed an ended lock: a code lock with 10 old recovery failures whose lock had ended offered
+    no recovery code, though `mfa_try` would take one.
+- **General class:** an answer that names one locked way and leaves the client to infer the other way's state. The
+  server holds both counts and both lock ends on one row. The page and the words each guessed.
+- **Fix (at the server, which owns the lock state):**
+  - `mfa_way_locked(row, kind, now)` is the lock test `FlowStore.mfa_try` decides with: count at the cap and the lock
+    not yet ended.
+  - `MFA_LOCKED` sets `details.use` to the other way ("recovery_code" or "code") only when that test says it is open.
+    With both locked it sends no `use`.
+  - `message_for` names the authenticator only with `use` "code"; with both locked it gives the fixed sentence (wait
+    24 hours or reset the password by email).
+  - The page reads `use` alone: "code" puts it back on the authenticator code, "recovery_code" on the recovery-code
+    field, none disables Continue until the unlock. "Forgot password?" stays.
+  - The change is additive: an older page ignores `use` "code" and behaves as before.
+- **Tests:**
+  - `tests/test_auth_flows.py::test_mfa_locked_names_the_way_still_open_from_the_enrolment_row`: real
+    `mfa_totp` rows for a code and a recovery code, the other way locked, open or with an ended lock. It checks
+    `details.use`, `details.locked` and the words, and that a locked way counts no try.
+  - `tests/test_auth_pages.py`: both tests wait for the settled state (Continue's own label back, not
+    "Checking…"). Both ways locked: Continue disabled. Recovery codes locked with `use` "code": the Code field and
+    Continue usable, and the next try sends a code.
+  - `tests/test_mfa_replace_live.py` (the real server and page, ACC-2) passes unchanged.
+- **Does not cover:** `details.unlock_at` stays the locked way's own end. With both locked, the other way may open
+  earlier or later; the page shows one time.
+- **Same class checked elsewhere:** the browser tests' other checks of a busy button are held by the test itself:
+  `test_ui_1019b.py` holds the export with an event, and `test_visual.py` waits for the "Stopping…" label it checks.
+- **Lesson:** a refusal about one of several ways states every way the client may offer next, derived where the
+  state lives. A browser test checks the state after the answer is in, not while the request runs.
+
 ### M518 — 3e's ultracode checker: a locked asset still asked for, a raised plan's preferences lost, a dead broker button and five smaller gaps (2026-11-20; FIXED on the branch)
 
 - **Found by:** the ultracode checker of 3e without the example mode (workflow `wf_0f14e7f0-edd`, three lenses and a
@@ -9122,7 +9169,8 @@ in its staleness check.
 - **Refuted:** F2 (the live site deploying from `main` without CI): the user had fixed it before the skeptic ran (M514).
 - **Low, FIXED:**
   - ACC-2: locked recovery codes hid the authenticator. The page now keeps the authenticator path open, and the
-    MFA_LOCKED words name the way still open.
+    MFA_LOCKED words name the way still open. (M519, 2026-11-20: it did so also when the authenticator was locked too;
+    the server now names the open way, `details.use`.)
   - ACC-3: no way back with the phone and every recovery code lost. Added `scripts/edge_mfa_unlock.py
     --remove-enrolment`, audited `mfa.remove`; it also ends the account's sessions.
   - ACC-5: a closed account's right password counted as a failure in pre-launch. SIGN_IN_CLOSED now clears the count, as

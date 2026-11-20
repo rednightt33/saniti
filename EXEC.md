@@ -16189,6 +16189,10 @@ Order of the services (CONTRACT 17, rollback floors):
       button and window, the head drag, the ended plan's words, the clipped lock mark, the title, the region name).
       `look_check11` also measures the lock marks of the + (Add series) and Broker activity buttons: seen (8 px or
       more) and on the button's middle line wherever the button shows (the + had put its mark on a second line).
+      - The full suite after these fixes (1 failed, 1018 passed) found a defect older than 3e (ERRORS M519, since the
+        ACC-2 fix `dcb87955`): with the authenticator and the recovery codes both locked, the MFA page offered the
+        authenticator code again. Fixed at the server: `MFA_LOCKED` names the way still open (`details.use`, by the
+        lock test `mfa_try` decides with), and the page and the words follow it.
       - Still open in 3e: the example mode (D4). Before any build of option A or B, the chosen date is checked against
         the data (prices, broker data, which looked stuck at 9 Nov, and the Feature tables). Once built, the example
         mode gets its own ultracode checker at xhigh before 3e counts as checked.

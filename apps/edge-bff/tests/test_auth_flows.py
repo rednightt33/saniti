@@ -390,6 +390,44 @@ def test_pending_sessions_have_their_own_cap(on, store):
     assert sum(r['real'] for r in live) == MAX_SESSIONS and sum(not r['real'] for r in live) == MAX_PENDING_SESSIONS
 
 
+def test_mfa_locked_names_the_way_still_open_from_the_enrolment_row(app, store, on):
+    """ERRORS M519: MFA_LOCKED's details.use is the other way while it is open, decided by FlowStore.mfa_try's own lock
+    test on the same row (a lock that has ended is open), and none when both are locked; the words follow it
+    (errors.message_for). Real edge_bff.mfa_totp rows, for a code and for a recovery code."""
+    from app.errors import MESSAGES
+    flows = app.app.state.auth_flows
+    flows.clock = lambda: 1_800_000_000.0
+    h = admin_sign_in(app)
+    app.post('/api/v1/auth/mfa/enroll', headers=h)
+    later, ended = 1_800_000_000 + 3600, 1_800_000_000 - 1
+
+    def refused(totp, recovery, attempt):
+        db(store, 'DELETE FROM edge_bff.auth_throttle')                     # the 10 tries per 15 minutes apart
+        db(store, """UPDATE edge_bff.mfa_totp SET confirmed_at = now(), totp_failures = %s, totp_locked_until = %s,
+            recovery_failures = %s, recovery_locked_until = %s""", *totp, *recovery)
+        r = app.post('/api/v1/auth/mfa/verify', headers=h, json=attempt)
+        assert (r.status_code, error_code(r)) == (403, 'MFA_LOCKED'), r.text
+        e = r.json()['error']
+        return e['details'].get('use'), e['details']['locked'], e['message']
+
+    codes_locked, codes_ended, codes_open = (100, later), (100, ended), (0, None)
+    recovery_locked, recovery_ended, recovery_open = (10, later), (10, ended), (0, None)
+    code, recovery = {'code': '000000'}, {'recovery_code': 'wrong-codes'}
+    use_recovery = 'Too many wrong authenticator codes, so codes are locked for now. Enter one of your recovery codes instead.'
+    use_code = ('Too many wrong recovery codes, so recovery codes are locked for now. Sign in with the code from your '
+                'authenticator app; recovery codes open again later.')
+    assert refused(codes_locked, recovery_open, code) == ('recovery_code', 'code', use_recovery)
+    assert refused(codes_locked, recovery_ended, code) == ('recovery_code', 'code', use_recovery)   # an ended lock is open
+    assert refused(codes_locked, recovery_locked, code) == (None, 'code', MESSAGES['MFA_LOCKED'])
+    assert refused(codes_open, recovery_locked, recovery) == ('code', 'recovery_code', use_code)
+    assert refused(codes_ended, recovery_locked, recovery) == ('code', 'recovery_code', use_code)
+    # before M519 this said "Sign in with the code from your authenticator app" while the authenticator was locked too
+    assert refused(codes_locked, recovery_locked, recovery) == (None, 'recovery_code', MESSAGES['MFA_LOCKED'])
+    # nothing was counted: a locked way checks no code (the counts stay as set)
+    assert db(store, 'SELECT totp_failures, recovery_failures FROM edge_bff.mfa_totp') == [
+        {'totp_failures': 100, 'recovery_failures': 10}]
+
+
 def test_mfa_lock_after_consecutive_failures_and_its_clearing(app, store, on):
     flows = app.app.state.auth_flows
     now = {'t': 1_800_000_000.0}

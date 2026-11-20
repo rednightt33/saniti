@@ -79,6 +79,17 @@ RESET_SECONDS = 3600
 TOTP_FAILURE_CAP, RECOVERY_FAILURE_CAP = 100, 10
 TOTP_RESTART, RECOVERY_RESTART = 90, 8          # the count after a lock ends: 10 (2) more tries before the next lock
 LOCK_SECONDS = 86400
+# the two ways past MFA in edge_bff.mfa_totp: each one's failure count, lock end, cap and restart count (FlowStore.mfa_try)
+MFA_WAYS = {'totp': ('totp_failures', 'totp_locked_until', TOTP_FAILURE_CAP, TOTP_RESTART),
+            'recovery': ('recovery_failures', 'recovery_locked_until', RECOVERY_FAILURE_CAP, RECOVERY_RESTART)}
+
+
+def mfa_way_locked(row, kind, now):
+    """True while the way `kind` ('totp' or 'recovery') of an enrolment row is locked: its count at the cap and its
+    lock not yet ended (a lock that has ended restarts the count at the next try). FlowStore.mfa_try decides a lock with
+    it, and MFA_LOCKED names the other way as open (details.use) only when it says False for that way (ERRORS M519)."""
+    count, until, cap, _restart = MFA_WAYS[kind]
+    return row[count] >= cap and row[until] is not None and now < row[until]
 # EXEC-MU-ACCOUNTS "Decisions after the fix round" (the main agent's design value, told to the user 2026-11-19): starting
 # a new authenticator beside a confirmed one needs the second factor passed within this many seconds (the session's
 # mfa_passed_at); an older pass verifies again first (POST /api/v1/auth/mfa/verify makes a session passed now)
@@ -531,16 +542,14 @@ class FlowStore:
         check(row, c) answers, on the same connection: a CheckedStep (a TOTP code matched; use_step confirms it after
         this transaction), True (a recovery code was used), or None (wrong). Returns ('not_enrolled', None),
         ('locked', row), ('invalid', None), ('matched', CheckedStep) or ('ok', None)."""
-        count, until, cap, restart = {
-            'totp': ('totp_failures', 'totp_locked_until', TOTP_FAILURE_CAP, TOTP_RESTART),
-            'recovery': ('recovery_failures', 'recovery_locked_until', RECOVERY_FAILURE_CAP, RECOVERY_RESTART)}[kind]
+        count, until, cap, restart = MFA_WAYS[kind]
         with self.store.connect() as c:
             row = c.execute(f'SELECT {self.TOTP_COLUMNS} FROM edge_bff.mfa_totp WHERE user_id=%s FOR UPDATE',
                             (user_id,)).fetchone()
             if row is None:
                 return 'not_enrolled', None
             if row[count] >= cap:
-                if row[until] is not None and now < row[until]:
+                if mfa_way_locked(row, kind, now):
                     return 'locked', row
                 row = c.execute(f'''UPDATE edge_bff.mfa_totp SET {count}=%s, {until}=NULL WHERE user_id=%s
                     RETURNING {self.TOTP_COLUMNS}''', (restart, user_id)).fetchone()
@@ -927,10 +936,13 @@ class AuthFlows:
             if outcome == 'not_enrolled':
                 raise Refusal(400, 'MFA_NOT_ENROLLED')
             if outcome == 'locked':
+                # details.use names the other way while it is open, by mfa_try's own lock test on the same row (none:
+                # both are locked, so the page waits for the unlock or a password reset; ERRORS M519)
+                other, open_way = ('recovery', 'recovery_code') if code else ('totp', 'code')
                 raise Refusal(403, 'MFA_LOCKED', {
                     'locked': 'code' if code else 'recovery_code',
                     'unlock_at': datetime.fromtimestamp(found[f'{kind}_locked_until'], timezone.utc).isoformat(),
-                    **({'use': 'recovery_code'} if code and found['recovery_failures'] < RECOVERY_FAILURE_CAP else {})})
+                    **({} if mfa_way_locked(found, other, now) else {'use': open_way})})
             # a matched code confirms the enrolment it was checked against, if that is still the account's (R2-11);
             # a replayed step or an enrolment replaced since the check counts as a failure
             ok = outcome == 'ok' or (outcome == 'matched' and await asyncio.to_thread(store.use_step, p.user_id, found))
