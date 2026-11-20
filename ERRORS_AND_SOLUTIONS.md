@@ -8973,9 +8973,14 @@ in its staleness check.
   `tests/test_m510_history_restore.py` holds the load's `/runs` request until the user has opened the history, so the
   race happens on every machine: it fails without the fix ("the page closed the history the user had opened") and
   passes with it; the Monitor browser suites pass locally (46 of 46).
-- **Status:** the composer test's cause FIXED and deployed on dev 2026-11-20 (edge-bff `b11278c3`); the next run
-  (`44677001491`) passed every browser test at the first try; the other tests' causes OPEN; the TEMPORARY rerun stays
-  until they are found.
+- **Second cause found (verified in code, 2026-11-20):** `test_ui_1024.py::test_attached_passages_are_marked_and_each_carries_its_own_comment`
+  failed three times in a row in run `44686714030` (commit `13f40871`): one mark of two. The page draws the marks one
+  animation frame after an attachment (`static/edge-app.js`, the `highlightAttached` lifecycle's
+  `requestAnimationFrame`), and the test read them as soon as the second chip appeared. Not a fault a user sees (the
+  mark comes a frame later); the test now waits for the two marks it asserts, so a mark that never comes still
+  fails it.
+- **Status:** the composer test's cause FIXED and deployed on dev 2026-11-20 (edge-bff `b11278c3`); the marks test's
+  race FIXED in the test; the other tests' causes OPEN; the TEMPORARY rerun stays until they are found.
 - **Lesson:** a browser test needs a run on the slowest machine it is held to before it gates a deploy.
 
 ### M509 — CI: edge-bff's suite never ran in GitHub after the fix round, because the runner's OS moved past the pinned Playwright (2026-11-19/20; FIXED in CI, verified by the next run)

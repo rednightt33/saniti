@@ -63,6 +63,12 @@ def test_attached_passages_are_marked_and_each_carries_its_own_comment(fixture_s
     attach_by_right_click(page, '.edge-md-table tbody tr:nth-child(2)')
     chips = page.locator('.edge-attached-chip')
     assert chips.count() == 2
+    # ERRORS M510: the page draws the marks one animation frame after an attachment (static/edge-app.js, the
+    # highlightAttached lifecycle's requestAnimationFrame); on GitHub's slower runner the frame had not run when this
+    # read them (three failures in a row, run 44686714030). Wait for the state asserted; a mark that never comes still
+    # fails here, after the timeout.
+    page.wait_for_function("""() => { const h = CSS.highlights && CSS.highlights.get('edge-attached');
+        return !!h && h.size === 2; }""", timeout=10000)
     marked = page.evaluate("""() => { const h = CSS.highlights && CSS.highlights.get('edge-attached');
         return h ? [...h].map(r => r.toString().replace(/\\s+/g, ' ').trim()) : null; }""")
     assert marked is not None and len(marked) == 2 and 'Periode studi' in marked[0], marked
