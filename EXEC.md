@@ -15959,6 +15959,23 @@ Order of the services (CONTRACT 17, rollback floors):
 10. **Records:** `RAILWAY_CHANGELOG.md`, `DATABASE_CHANGELOG.md`, `DATABASE_SCHEMA.md` (the edge_bff and terminal
     sections), ERRORS M504-M508 statuses, this run log.
 
+**Run log (2026-11-20; deployed on dev, switch off):**
+1. M340 clean before each step (jobs `add24553`, `f04cb39e`, `f7865b7b`).
+2. Migrations 1-16: DRYRUN `de274dd7`/`4380ca18`, APPLY `6997edd8` (edge_bff, 03:57 UTC) and `37f1e35b` (terminal,
+   03:58 UTC); read back (DATABASE_CHANGELOG 2026-11-20); no restart (0.13 GB).
+3. CI: M509 (the runner's Ubuntu 26.04 refused Playwright 1.56.0, so edge-bff's suite had not run in CI) and M510 (the
+   Monitor's phone history closed by the page's own load; the user's TEMPORARY rerun "1 A") fixed; branch run
+   `44677001491` on `99b5ea20` green (953 passed, no rerun), `main`'s checks green.
+4. terminal-api `653a3c38` SUCCESS 04:01 UTC (CLI, `0985f0dc`).
+5. backtest-worker `ac092f2e` (engine `f984058aaaf38748`) and screener-worker `edbd3e8e` SUCCESS 04:17-04:18 UTC (CLI).
+6. `main` `bf273f52` → `99b5ea20`: edge-bff `b11278c3` SUCCESS 05:32 UTC, screener-worker `401c913f` 05:34 UTC,
+   market-ai-orc `7cc8b821` 05:10 UTC (test files only). `99b5ea20` also holds Phase 3d's code; its publisher part is
+   not deployed.
+7. The gateway's terminal-api account until 2100-01-01 (admin_log row 7, 04:02 UTC).
+8. Smoke from outside: `/ready` 200, 62 of 62 gated routes 401 without a session.
+9. The user's check after a reload: pending.
+10. Records: RAILWAY_CHANGELOG, DATABASE_CHANGELOG, APPLIED.sha256, ERRORS M504-M511.
+
 ## EXEC-DESIGN-SYSTEM — design system EDGE yang dipakai lintas chat (go 2026-11-18)
 
 **Asal:** EDGE Reference Pack 2026-11-17 (salinan apa adanya 8 halaman, di luar Git karena berisi data pasar). User

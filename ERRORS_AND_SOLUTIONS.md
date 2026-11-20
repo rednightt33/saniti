@@ -8944,8 +8944,9 @@ in its staleness check.
   `tests/test_m510_history_restore.py` holds the load's `/runs` request until the user has opened the history, so the
   race happens on every machine: it fails without the fix ("the page closed the history the user had opened") and
   passes with it; the Monitor browser suites pass locally (46 of 46).
-- **Status:** the composer test's cause FIXED (not deployed yet); the other tests' causes OPEN; the TEMPORARY rerun
-  stays until they are found.
+- **Status:** the composer test's cause FIXED and deployed on dev 2026-11-20 (edge-bff `b11278c3`); the next run
+  (`44677001491`) passed every browser test at the first try; the other tests' causes OPEN; the TEMPORARY rerun stays
+  until they are found.
 - **Lesson:** a browser test needs a run on the slowest machine it is held to before it gates a deploy.
 
 ### M509 — CI: edge-bff's suite never ran in GitHub after the fix round, because the runner's OS moved past the pinned Playwright (2026-11-19/20; FIXED in CI, verified by the next run)
@@ -8966,11 +8967,11 @@ in its staleness check.
   runs: first 1.65.2 (the local Python package), then 1.63.0 (M510: 1.65.2 brings Chrome 159, while the local suites
   and the page smoke run Chrome for Testing 153, the build of the pre-installed Playwright 1.63.0). A comment at the
   step in `backend-tests.yml` names this entry.
-- **Status:** fixed; the next "Backend tests" run is the evidence (recorded in the 3c deploy log in EXEC.md).
+- **Status:** FIXED: the edge-bff job installs Chromium and runs its tests (run `44677001491`, 953 passed).
 - **Lesson:** a red job is read at its first failing step before a deploy, not by its name; a skipped suite is a gap
   even when the local run is green. When `ubuntu-latest` moves, the browser pins move with it.
 
-### M508 — 3c check, records, CI and migrations: a contract row left "to build", rollback floors missing, a lock test in no workflow, rollback blocks that did not run as written (2026-11-19/20, 3c check C3-10, C3-22, C3-23, C3-24, C3-25, C3-27; fixed on branch p3c-int, not deployed; C3-27 OPEN until the deploy record)
+### M508 — 3c check, records, CI and migrations: a contract row left "to build", rollback floors missing, a lock test in no workflow, rollback blocks that did not run as written (2026-11-19/20, 3c check C3-10, C3-22, C3-23, C3-24, C3-25, C3-27; fixed; deployed on dev 2026-11-20; C3-27 done: EXEC "Phase 3c deploy steps" run log)
 
 - **Found by:** the ultracode check of Phase 3c with the fix round and the decisions of 2026-11-19 (workflow
   `wf_02484734-f40`: five lens finders, three refuters each; `verification/edge_multiuser/access_tiers/recheck/
@@ -8992,11 +8993,11 @@ in its staleness check.
   now (stated reason in the test).
 - **Tests:** `apps/edge-bff/tests/test_c3c_deploy_records.py` (every cited Node test runs in a workflow, the floors, each
   unapplied edge_bff rollback block run newest first and rolled back).
-- **Status:** fixed on branch p3c-int, not deployed; C3-27 OPEN: the deploy-steps record is written with the 3c deploy.
+- **Status:** fixed; deployed on dev 2026-11-20 (edge-bff `b11278c3`); C3-27 done (EXEC "Phase 3c deploy steps" run log).
 - **Lesson:** a rollback is SQL that runs on the data the forward step leaves; a floor is recorded by the change that
   creates it; a test that locks a fix runs in a workflow or it is no test (M502).
 
-### M507 — 3c check, account flows: a stranger could close both the sign-in and its way back, the unlock missed an account without an authenticator, a registration orphaned at its mail cap, a current password outside the account's cap (2026-11-19/20, 3c check C3-17 to C3-21; fixed on branch p3c-int, not deployed)
+### M507 — 3c check, account flows: a stranger could close both the sign-in and its way back, the unlock missed an account without an authenticator, a registration orphaned at its mail cap, a current password outside the account's cap (2026-11-19/20, 3c check C3-17 to C3-21; fixed; deployed on dev 2026-11-20, edge-bff `b11278c3`, terminal-api `653a3c38`)
 
 - **Symptom:** from one address a stranger could lock an account (100 wrong passwords) and then block its "Forgot
   password?" code (20 wrong reset codes for the address), so nobody, not even the owner, got back in (C3-17); the
@@ -9014,11 +9015,11 @@ in its staleness check.
   ends the run of failures on a right one (`AccountStore.sign_in_proved`); its limit answers 429 `LIMIT_REACHED`
   (`details.limit` `password_change`).
 - **Tests:** `apps/edge-bff/tests/test_c3c_accounts.py` F2-F6 (and the suites of auth_flows, fix_auth, auth_throttle).
-- **Status:** fixed on branch p3c-int, not deployed.
+- **Status:** fixed; deployed on dev 2026-11-20 (edge-bff `b11278c3`).
 - **Lesson:** a lock needs a way back that the attacker cannot close from the same place; a step that may refuse is
   checked before the step it would undo.
 
-### M506 — 3c check, visitors without an account: a client-written forwarded line chose the visitor key, a visitor read the last account's browser state, the pre-launch rule held only at sign-in, a locked indicator stayed drawn, a visitor was told to upgrade (2026-11-19/20, 3c check C3-5 to C3-9; fixed on branch p3c-int, not deployed)
+### M506 — 3c check, visitors without an account: a client-written forwarded line chose the visitor key, a visitor read the last account's browser state, the pre-launch rule held only at sign-in, a locked indicator stayed drawn, a visitor was told to upgrade (2026-11-19/20, 3c check C3-5 to C3-9; fixed; deployed on dev 2026-11-20, edge-bff `b11278c3`, terminal-api `653a3c38`)
 
 - **Symptom:** the visitor key and the sign-in counters read only the first `X-Forwarded-For` line, so a client sending
   its own line got a fresh key (fresh quotas) per request, and the recorded worst case "stricter, never wider" was wrong
@@ -9039,12 +9040,12 @@ in its staleness check.
   counted; migration `20261119_071`).
 - **Tests:** `apps/edge-bff/tests/test_c3c_guest_recheck.py`, `test_c3c_guest_recheck_browser.py`,
   `test_c3c_guest_ceiling.py`.
-- **Status:** fixed on branch p3c-int, not deployed; the Railway client-address probe OPEN (before the live site opens
+- **Status:** fixed; deployed on dev 2026-11-20 (edge-bff `b11278c3`); the Railway client-address probe OPEN (before the live site opens
   to visitors).
 - **Lesson:** a header that may repeat is read as all its lines; a person who is not signed in is still an identity of
   the browser; a rule decided at sign-in is a rule of every request.
 
-### M505 — 3c check, two sites on one database: the live admin capped and sharing the beta's owner row, a shared worker slot without a holder, the live mask missing presets, no flags after a failed start, Orc's key on the live site, no MFA set-up there (2026-11-19/20, 3c check C3-3, C3-11 to C3-16, C3-26; fixed on branch p3c-int, not deployed)
+### M505 — 3c check, two sites on one database: the live admin capped and sharing the beta's owner row, a shared worker slot without a holder, the live mask missing presets, no flags after a failed start, Orc's key on the live site, no MFA set-up there (2026-11-19/20, 3c check C3-3, C3-11 to C3-16, C3-26; fixed; deployed on dev 2026-11-20, edge-bff `b11278c3`, terminal-api `653a3c38`)
 
 - **Symptom:** on the live site user #1 went to terminal-api as a capped owner with terminal-api's default quotas,
   counted on the same owner row as its beta use (C3-3, C3-12, C3-26); one site's backtest hand-over could replace the
@@ -9065,11 +9066,11 @@ in its staleness check.
   MFA set-up is gated by the account's own need of a second factor (`Auth.second_factor_holder`).
 - **Tests:** `apps/edge-bff/tests/test_c3c_terminal_checker.py`, `test_c3c_site_recheck.py` (its shared-worker test now
   waits by polls, not a BUSY answer: stated reason), `test_c3c_accounts.py` F1, `test_beta_live_site.py`.
-- **Status:** fixed on branch p3c-int, not deployed.
+- **Status:** fixed; deployed on dev 2026-11-20 (edge-bff `b11278c3`).
 - **Lesson:** what makes an account the admin is read from one place; a resource two processes share has one holder in
   the shared store; a site that does not use a credential does not hold it.
 
-### M504 — 3c check, the Terminal relay: refusals before identification judged as a version mix, cut refusals shown as broken downloads, a dataset the ticker lacks answered as a history lock (2026-11-19/20, 3c check C3-1, C3-2, C3-4; fixed on branch p3c-int, not deployed)
+### M504 — 3c check, the Terminal relay: refusals before identification judged as a version mix, cut refusals shown as broken downloads, a dataset the ticker lacks answered as a history lock (2026-11-19/20, 3c check C3-1, C3-2, C3-4; fixed; deployed on dev 2026-11-20, edge-bff `b11278c3`, terminal-api `653a3c38`)
 
 - **Symptom:** terminal-api's refusals made before it knows the caller (a rotated key, a header rule) were logged as
   "terminal-api is older than Phase 3c" without their code (C3-1); a refused cut download (429, 403, 401) reached the
@@ -9083,7 +9084,7 @@ in its staleness check.
   words and wait, never retried; `/bundle` and `/cut` answer a dataset absent from the manifest with no files.
 - **Tests:** `apps/edge-bff/tests/test_c3c_terminal_checker.py`, `apps/edge-bff/terminal/tests/data/
   c3c_cut_refusal_words.test.ts`, `apps/terminal-api/tests/test_c3c_terminal_checker.py`.
-- **Status:** fixed on branch p3c-int, not deployed.
+- **Status:** fixed; deployed on dev 2026-11-20 (edge-bff `b11278c3`, terminal-api `653a3c38`).
 - **Lesson:** a rule meant for data is applied to the answers that carry data; every byte path that relays a refusal
   reads its shape.
 

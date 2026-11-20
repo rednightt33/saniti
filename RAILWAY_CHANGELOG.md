@@ -1,5 +1,42 @@
 # Railway changelog
 
+## 2026-11-20 — EXEC-MU-ACCOUNTS Phase 3c deploy on dev (switch off): Terminal per plan, the fix rounds, Phase 3d's edge-bff part
+
+- **User:** "Go" (2026-11-20), to "Boleh saya deploy 3c ke dev begitu semua tes hijau?"; during the deploy "1 A" and
+  "2 OK" (EXEC.md "Phase 3c deploy steps"; ERRORS M510). `EDGE_MULTIUSER` stays off on `edge-bff`; `edge-bff-live`
+  stays empty. No variable changed.
+- **Before:**
+  - local suites green on the code deployed (edge-bff 948 + the known M212 flake, which passes alone; terminal-api 171;
+    backtest-worker 277; screener-worker 131; the pages 2,475; scripts 94);
+  - GitHub: M509 (the runner's Ubuntu 26.04 refused Playwright 1.56.0: edge-bff's suite had not run in CI since
+    2026-11-19) and M510 (Monitor browser tests failing on the slower runner) fixed or held by the user's TEMPORARY rerun;
+  - M340 (jobs `add24553`, `f04cb39e`): no active EDGE job, no running Orc turn, no open Backtest job;
+  - rollback points: terminal-api `2510244a`, backtest-worker `f9b4e076`, screener-worker `a69040bc`, edge-bff
+    `dc11722a`.
+- **Database:** the 16 migrations (DATABASE_CHANGELOG 2026-11-20), APPLY jobs `6997edd8` and `37f1e35b`; no restart
+  (0.13 GB).
+- **Order:**
+  1. **terminal-api `653a3c38`** SUCCESS 04:01 UTC: CLI upload of `git archive 0985f0dc apps/terminal-api`
+     (`--path-as-root`); clean start; its admin route answered on the private address (the gateway change below).
+  2. **The gateway's account** until 2100-01-01 (terminal-api admin route, `terminal.admin_log` row 7; job `2e94f502`,
+     read back by `76e9dca3`).
+  3. **backtest-worker `ac092f2e`** SUCCESS 04:17 UTC and **screener-worker `edbd3e8e`** SUCCESS 04:18 UTC: CLI uploads
+     from `0985f0dc` (worker code equal to the deploy commit's); start log `engine_version` `f984058aaaf38748`,
+     `registry_version` `514dc3df60a25aff`, equal to the repository's.
+  4. **`main` `bf273f52` → `99b5ea20`** (fast-forward): the deploy commit holds 3c, the M510 page fix and Phase 3d's code
+     (3d's edge-bff part reads both the old and the split Watchlist file; the publisher's part is deployed later). Its
+     branch CI run `44677001491` was green (953 passed, no rerun needed; the run of `0ef19964` had been cancelled by
+     the push of `99b5ea20`, the branch's cancel-in-progress rule). `main`'s checks passed and the two services that
+     wait for them deployed:
+     - **edge-bff `b11278c3`** SUCCESS 05:32 UTC, `startup_done` site `beta`, commit `99b5ea20`, the three shared-secret
+       marks;
+     - **screener-worker `401c913f`** SUCCESS 05:34 UTC (the same code as the CLI upload);
+     - **market-ai-orc `7cc8b821`** SUCCESS 05:10 UTC: rebuilt by its watch pattern for a test file and
+       `requirements-dev.txt` only (no app change); model `deepseek/deepseek-v4.1-flash` and the provider policy as
+       before; M340 clean at 05:08 (job `f7865b7b`).
+- **Checks:** from outside, `/ready` 200, the shell 200, 62 of 62 gated routes 401 without a session, the Terminal relay 401 without a session (no visitors on the beta); terminal-api, edge-bff and the workers passed their Railway health checks (`/ready`).
+- **Seen:** one stale cached plan on the running 3b edge-bff right after the migrations (ERRORS M511, OPEN: a proposal).
+
 ## 2026-11-19 — EXEC-MU-ACCOUNTS: empty live website service and its custom domain
 
 User 2026-11-19: "Tolong tambahkan app.edgefinance.id sebagai custom domain di layanan Railway yang menjalankan website
