@@ -16330,9 +16330,16 @@ Order of the services (CONTRACT 17, rollback floors):
           `f8240f83`, 4 files, READBACK OK). Found on the way (ERRORS M529): `scripts/provision_edge_bff_login.py` did
           not know `edge_bff.example_files`, and the backend runs of the example commits had each been cancelled by
           the next push; fixed, and one backend run is to finish before more pushes stack up.
-        - Next: the Screener at 30 October (the screener-worker itself on its own input files cut at that date: read
-          from terminal-api, served by its test's fake terminal; the probe `screener_probe_job.py`: price 1,477,143
-          rows to 20 November, 54 of 60 broker days on or before 30 October), then the checker and the promotion.
+        - The Screener at 30 October (`1263e094`): the screener-worker itself on its own input files cut at that date
+          (read from terminal-api, served by its tests' fake terminal; the probe `screener_probe_job.py`: price
+          1,477,143 rows to 20 November, 54 of 60 broker days on or before 30 October). Dry runs on dev `be862d2a` and
+          `d03b3643`: DRY_RUN_OK (951 tickers, 1,463,605 rows, 54 broker days; 5 price-affecting actions after the
+          date: 2 rights issues, 2 bonus shares, 1 split). **Open, asked 2026-11-21:** on 30 October the preset brk52
+          matches no stock (0 matches, 42 near misses), so its example would show an empty table; the presets' own
+          counts that day: Golden Cross 23, MACD Bullish Divergence 33, Oversold in Uptrend 18, Supertrend Flip 14,
+          Minervini 14, Big Accumulation 12, Silent Accumulation 16, Near Bandar Average 23; the fundamental and
+          combined presets need data not published. Nothing is written for the Screener until the user chooses.
+        - Next: the Screener's write (after the user's choice), then the checker and the promotion.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
