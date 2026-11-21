@@ -138,6 +138,15 @@ def screener_extra(spec, as_of):
     return {'example': json.load(open('screener_out.json')), 'releases': releases}
 
 
+def shape(body):
+    """A stored file's top-level keys with the length of each list or object one level down (counts only, no value)."""
+    doc = json.loads(gzip.decompress(body))
+    if not isinstance(doc, dict):
+        return type(doc).__name__
+    size = lambda v: len(v) if isinstance(v, (list, dict)) else type(v).__name__
+    return {k: ({kk: size(vv) for kk, vv in v.items()} if isinstance(v, dict) and len(v) <= 12 else size(v)) for k, v in doc.items()}
+
+
 def main():
     as_of = datetime.date.fromisoformat(p['as_of']).isoformat()
     tabs, write = list(p['tabs']), p.get('write') is True
@@ -160,8 +169,8 @@ def main():
                 extra = extras.get(tab, {})
                 built = examples.build(conn, tab, as_of, names, lists,
                                        stream=lambda sql, params: list(publisher.stream_rows(conn, sql, params)), **extra)
-                for _, name, day, n, size, sha, _ in built:
-                    out(step='built', tab=tab, name=name, as_of=day, rows=n, bytes=size, sha256=sha[:16])
+                for _, name, day, n, size, sha, body in built:
+                    out(step='built', tab=tab, name=name, as_of=day, rows=n, bytes=size, sha256=sha[:16], shape=shape(body))
                 for note in examples.NOTES:                   # what a builder took as given (no data value)
                     out(step='note', tab=tab, note=note)
                 examples.NOTES.clear()

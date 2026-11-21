@@ -53,6 +53,27 @@
   after the date (2 rights issues, 2 bonus shares, 1 split): those stocks' earlier prices are as the publication holds
   them. Not a large update: the price and broker rows came from terminal-api's files, not from Postgres (two small reads
   and four rows written).
+- **After the example-mode checker (ERRORS M527, its checker block), the same day:**
+  - Read-only probes (`lq45_probe_job.py`): job `f67b0fb3`: the LQ45 history holds 45 rows, all FIRST_CAPTURE from the
+    2026-11-09 round (point in time from 2026-11-10), none changed since; the stored `watchlist-lists` and
+    `watchlist-stocks` hold ELSA and SMGR and lack CUAN and SCMA (the exchange's review of 2 November, announced 26
+    October). Job `9a7a6b70`: the Stockbit rounds since 2026-11-08 are all of 2026-11-09 (the last one FAILED); only
+    two stock-list rounds exist (`Stock_List_Load_Log` 1 SUCCESS, 2 NO_CHANGE). The Watchlist's stored rows stay as
+    they are until the user decides what its list is (EXEC.md); the capture now stops for a date no recorded row covers.
+  - The stored rows listed before the captures (`example_rows_job.py`, job `9142739c`: 13 rows; names, sizes and
+    sha256 prefixes only).
+  - The Radar captured again with the reference cut (`reference_cut`: the names of the board's stocks, no stock list):
+    dry run `7792c530` DRY_RUN_OK; the write `b31225a1` (READBACK OK, VERDICT WRITTEN): `radar-meta` 99 rows 6,782
+    bytes `80e1ff1587a3d1c1…` (323 names, 0 lists); `radar-days` `352e4ac3b8aec47c…` and `radar-board-2026-10-30`
+    `471b1b0ee4b66c2b…` the same bytes as before.
+  - The Backtest captured again (the catalog's lists as the request names them, its Flow indicators released; the
+    result without the publication's run stamp): dry runs `bf169ac5` and `062e0def` DRY_RUN_OK (the catalog's shape: 1
+    ticker, 0 groupings, 1 broker, 44 Flow indicators); the write `e9001210` ran the request once more on the worker
+    (`bt_34d55186c1a9139463d3f55dfc812899`, FINISHED in 1,251 ms) and read the rows back (READBACK OK, VERDICT WRITTEN):
+    `backtest-catalog` 1 ticker 1,251 bytes `cb9bf7dffe6fe9c6…`; `backtest-result` 240 days 23,016 bytes
+    `3e6caa3f195c688c…` (no date after 30 October in any file now); `backtest-request` `04c78d8609a54ad0…` and
+    `backtest-bars-mapi` `fb8869f33671a0cf…` the same bytes as before. M340 before each write: 0 EDGE jobs, 0 orc
+    turns. Not large updates (a few rows each; the reads are the publication's own).
 
 ## 2026-11-20 — The A2 fix: a reset code bound to its browser, a registration's client (edge_bff, migrations 20261120_001 and _002)
 
