@@ -16202,6 +16202,16 @@ Order of the services (CONTRACT 17, rollback floors):
       - registration closed, the origin check, the visitor's BBCA and TLKM;
       - the legal links null, the Terminal footer with only the TradingView credit;
       - no `EDGE_ADMIN_*` on edge-bff-live (RAILWAY_CHANGELOG.md).
+    - **The user's answers (2026-11-21)** to the three open questions: "a2 pakai opsj 2 kalau bisa sama 3f juga
+      sekalian naiknya", "mode contoh pakai opsi A", "3f ya sekarang".
+      - A2 does not go live alone. It goes live in one promotion together with 3e and 3f, when both are done and the
+        user gives the go for that promotion (LIVE_PROMOTION.md). `f8c872e0` is no longer kept as the "A2 alone"
+        target, so `main` may move on (the beta first, as every phase).
+      - The example mode is option A: examples for every tab, one fixed past date (D4: a cut of real data, served only
+        to a signed-in principal holding `<tab>.example`, never in a public bundle). The user named no date: the
+        proposed 30 October 2026 is checked against the price, broker and Feature data first, and the user confirms the
+        date before the cut is made. It gets its own ultracode checker at xhigh.
+      - 3f (lab code out of the public bundles) starts now, before the example mode.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
