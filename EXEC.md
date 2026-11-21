@@ -16261,6 +16261,12 @@ Order of the services (CONTRACT 17, rollback floors):
         session on a lab build, a Docker build here, the beta deploy with the live smoke.
       - Next: the example mode (option A, the date to be confirmed). `main` moves only with the user's go: the Screener
         worker deploys for both sites.
+      - **The user's decision (2026-11-21)** on moving `main` to `2c5743bb`: "Memindahkan `main` ke `2c5743bb` --> tahan
+        sampai promosi A2 + 3e + 3f. Masukan exec". `main` stays at `d194981f` (the beta at it) until the user's go for
+        the one promotion of A2, 3e and 3f. So the Screener worker's M520, M521 and M524 and the image's Backtest page
+        (M525) reach neither site before then, and the beta runs 3f only from that point. Before the promotion `main`
+        moves first, the beta runs the commit and its CI is green, then `live` follows (LIVE_PROMOTION.md, AGENTS.md
+        "The live site"); the example mode is built on the session branch in the meantime.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);
