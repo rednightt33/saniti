@@ -9,7 +9,9 @@
      page's own handlers run; a click or such a key asks the shell for its box ({source, type: 'locked', kind:
      'example', id, name}: sign in for a visitor, the paywall for an account), at most once every LOCK_MS;
    - hover is stopped the same way (no tooltip of the page's own opens), an SVG takes no pointer (its <title> never
-     shows) and every title attribute is removed as the page renders;
+     shows), and every title attribute (and SVG <title>) is removed whenever the pointer enters an element: a native
+     tooltip needs the pointer on its element and shows only after a delay, so none ever opens. No observer and no
+     timer watch the page (the pages' bundle rules: the Screener's forbids both, EXEC-SCREENER-V21);
    - scrolling keeps working: the wheel and touch are stopped only for the page's handlers (a chart's zoom), never for
      the browser, and the keys that scroll are left alone outside a control.
    The Market Overview is the exception the user set (lockOnly below): it stays clickable, and only its time controls ask
@@ -102,6 +104,12 @@ export function viewOnly(opts: { source: string; name: string; root?: Document }
     if (e.key === 'Enter' || e.key === ' ' || inField) ask();
   };
   const opt = { capture: true, passive: false } as AddEventListenerOptions;
+  // before the hover listeners below: they stop the event for every later listener of the window (module comment)
+  const untitle = () => doc.querySelectorAll('[title], svg title').forEach(n => {
+    if (n.tagName.toLowerCase() === 'title') n.remove(); else n.removeAttribute('title');
+  });
+  const SWEEPS = ['pointerover', 'mouseover'];
+  SWEEPS.forEach(t => win.addEventListener(t, untitle, true));
   STOPPED.forEach(t => win.addEventListener(t, stop, opt));
   HOVER.forEach(t => win.addEventListener(t, quiet, true));
   SCROLLING.forEach(t => win.addEventListener(t, quiet, { capture: true, passive: true }));
@@ -114,12 +122,7 @@ export function viewOnly(opts: { source: string; name: string; root?: Document }
   style.dataset.edgeExample = '';
   style.textContent = 'html.edge-example svg, html.edge-example svg * { pointer-events: none !important; }';
   doc.head.appendChild(style);
-  const untitle = () => doc.querySelectorAll('[title], svg title').forEach(n => {
-    if (n.tagName.toLowerCase() === 'title') n.remove(); else n.removeAttribute('title');
-  });
   untitle();
-  const watch = new MutationObserver(untitle);
-  watch.observe(doc.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['title'] });
 
   return {
     stop() {
@@ -129,7 +132,7 @@ export function viewOnly(opts: { source: string; name: string; root?: Document }
       win.removeEventListener('keydown', key as EventListener, opt);
       win.removeEventListener('keyup', quiet, true);
       win.removeEventListener('keypress', quiet, true);
-      watch.disconnect();
+      SWEEPS.forEach(t => win.removeEventListener(t, untitle, true));
       style.remove();
       doc.documentElement.classList.remove('edge-example');
     },

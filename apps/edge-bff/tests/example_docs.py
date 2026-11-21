@@ -138,3 +138,26 @@ def backtest_example():
     if docs['backtest-catalog'] != made['catalog']:
         raise AssertionError('the publisher cuts the catalog unlike example-files.ts')
     return docs
+
+
+SCREENER_AS_OF = '2026-10-27'                                   # the made-up market's last day (example-files.ts AS_OF)
+
+
+@functools.cache
+def screener_made_up():
+    """The Screener's made-up example (apps/screener-worker/tests/example-files.ts): the worker itself on that suite's
+    made-up market with two breakouts, the preset brk52, the released items of the release file."""
+    out = subprocess.run(['node', '--experimental-strip-types', '--no-warnings=ExperimentalWarning', '--import',
+                          './apps/backtest-worker/loader/register.mjs', 'apps/screener-worker/tests/example-files.ts'],
+                         cwd=REPO, capture_output=True, text=True, timeout=300)
+    if out.returncode:
+        raise RuntimeError(f'example-files.ts failed: {out.stderr[-2000:]}')
+    return json.loads(out.stdout)
+
+
+def screener_example():
+    """The four files of the Screener's example, made by the publisher's own builder (examples.py screener_files, its
+    stored() checks) from the made-up example and the release file: what the capture job writes from the real one."""
+    releases = json.loads((ROOT / 'catalog' / 'releases.json').read_text())
+    rows = examples.build(None, 'screener', SCREENER_AS_OF, {}, [], example=screener_made_up(), releases=releases)
+    return {r[1]: json.loads(gzip.decompress(r[6])) for r in rows}

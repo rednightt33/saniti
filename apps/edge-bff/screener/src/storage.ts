@@ -10,6 +10,17 @@ export const store = {
   del(k: string) { try { localStorage.removeItem(k) } catch { /* storage off */ } },
 };
 
+/** 3e, the example mode (ERRORS M527): the page keeps its conveniences in memory for this load only, seeded with the
+    example's own (its screen as the last screen): nothing of the example goes into the browser's storage, and nothing a
+    signed-in visitor kept there before (their last screen, their panels) shows in the example. The shell's theme is
+    still read (readTheme). */
+export function keepInMemory(seed: Record<string, unknown> = {}) {
+  const held = new Map<string, string>(Object.entries(seed).map(([k, v]) => [k, JSON.stringify(v)]));
+  store.get = <T>(k: string, d: T): T => { const v = held.get(k); return v === undefined ? d : (JSON.parse(v) ?? d) };
+  store.set = (k: string, v: unknown) => { held.set(k, JSON.stringify(v)) };
+  store.del = (k: string) => { held.delete(k) };
+}
+
 /** EDGE's one theme (report 9.2 Theme): the shell's key, default light (MONITOR-REVAMP, user 2026-10-29), as the shell;
  * the prototype's own key is dropped. */
 export const THEME_KEY = 'edge-auth-monitor-theme';

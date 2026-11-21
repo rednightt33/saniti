@@ -269,3 +269,83 @@ def test_a_catalog_part_is_found_in_the_whole_as_it_is():
     assert [examples.outside(p, whole) for p in ({'n': 2}, {'m': 1}, {'l': [{'t': 'X'}]}, {'f': {'b': 'YU'}}, {'on': 1},
                                                  {'n': '1'}, {'l': {'t': 'MAPI'}})] == \
         ['$.n', '$.m', '$.l[0]', '$.f.b', '$.on', '$.n', '$.l']
+
+
+# ---- the Screener: the worker's answer on its input cut at the date, its catalog as the live site shows it -------------
+SC_AS_OF = '2026-10-30'
+SC_RELEASES = {'schema_version': 1, 'items': [
+    {'kind': 'indicator', 'id': 'I01', 'stage': 'released'}, {'kind': 'indicator', 'id': 'I99', 'stage': 'lab'},
+    {'kind': 'candle_pattern', 'id': 'breakout', 'stage': 'released'}, {'kind': 'candle_pattern', 'id': 'volspike', 'stage': 'released'},
+    {'kind': 'flow_indicator', 'id': 'FL01', 'stage': 'released'}, {'kind': 'flow_indicator', 'id': 'FL18', 'stage': 'released'},
+    {'kind': 'screener_metric', 'id': 'rs', 'stage': 'released'},
+    {'kind': 'screener_preset', 'id': 'brk52', 'stage': 'released'}, {'kind': 'screener_preset', 'id': 'labby', 'stage': 'lab'},
+    {'kind': 'screener_preset', 'id': 'pit', 'stage': 'released'}, {'kind': 'screener_preset', 'id': 'old', 'stage': 'released'}]}
+SC_DEF = {'universe': {'security_types': ['stock']}, 'conditions': [
+    {'id': 'a', 'enabled': True, 'test': {'kind': 'event', 'signal': {'pattern': {'kind': 'pattern', 'type': 'breakout', 'params': {'length': 252}}}, 'within': 3}},
+    {'id': 'b', 'enabled': True, 'test': {'kind': 'state', 'pattern': {'kind': 'pattern', 'type': 'volspike', 'params': {'length': 20, 'threshold': 1.5}}}}],
+    'logic': 'all'}
+
+
+def sc_catalog():
+    data = {'evaluation_date': SC_AS_OF, 'published_at': SC_AS_OF, 'price_through': SC_AS_OF}
+    return {'schema_version': 1, 'data': data,
+            'indicators': [{'id': 'I01', 'name': 'SMA'}, {'id': 'I99', 'name': 'lab one'}],
+            'metrics': [{'id': 'FL01', 'kind': 'flow', 'access': 'all'}, {'id': 'FL18', 'kind': 'flow', 'access': 'admin'}, {'id': 'rs'}],
+            'fundamentals': [],
+            'presets': [{'id': 'brk52', 'name': '52W Breakout + Volume', 'definition': SC_DEF, 'match_count': 3,
+                         'items': [{'kind': 'candle_pattern', 'id': 'breakout'}, {'kind': 'candle_pattern', 'id': 'volspike'}]},
+                        {'id': 'labby', 'name': 'lab', 'definition': SC_DEF, 'items': []},
+                        {'id': 'pit', 'name': 'reads the point-in-time version', 'definition': {'conditions': [{'test': {'metric': {'kind': 'flow', 'metric': 'FL18'}}}]},
+                         'items': [{'kind': 'flow_indicator', 'id': 'FL18'}]},
+                        {'id': 'old', 'name': 'no items', 'definition': SC_DEF, 'match_count': 9, 'near_count': 2}]}
+
+
+def sc_example(**over):
+    run = {'schema_version': 1, 'mode': 'screen', 'data': {'evaluation_date': SC_AS_OF, 'published_at': SC_AS_OF},
+           'rows': [{'ticker': 'AAAA', 'eval_date': SC_AS_OF}, {'ticker': 'STAL', 'eval_date': '2026-10-28'}], 'match_count': 1}
+    ex = {'catalog': sc_catalog(), 'universe': {'data': {'evaluation_date': SC_AS_OF}, 'rows': [['AAAA'], ['STAL']]},
+          'screen': {'preset': 'brk52', 'name': '52W Breakout + Volume', 'definition': SC_DEF}, 'run': run}
+    ex.update(over)
+    return ex
+
+
+def sc_build(example=None, releases=SC_RELEASES):
+    rows = examples.build(None, 'screener', SC_AS_OF, NAMES, LISTS, example=example or sc_example(), releases=releases)
+    return {r[1]: json.loads(gzip.decompress(r[6])) for r in rows}
+
+
+def test_the_screener_example_is_the_workers_answer_and_its_catalog_as_the_live_site_shows_it():
+    files = sc_build()
+    assert set(files) == {'screener-catalog', 'screener-universe', 'screener-screen', 'screener-run'}
+    cat = files['screener-catalog']
+    assert [e['id'] for e in cat['indicators']] == ['I01']                    # a lab indicator left out
+    assert [e['id'] for e in cat['metrics']] == ['FL01', 'rs']                 # the point-in-time version left out
+    assert [p['id'] for p in cat['presets']] == ['brk52', 'old']               # a lab preset, one reading a left-out item
+    assert cat['presets'][1]['match_count'] is None and cat['presets'][0]['match_count'] == 3   # no items: no counts
+    assert files['screener-screen'] == {'preset': 'brk52', 'name': '52W Breakout + Volume', 'definition': SC_DEF}
+    assert files['screener-run'] == sc_example()['run'] and files['screener-universe'] == sc_example()['universe']
+
+
+@pytest.mark.parametrize('change, refused', [
+    (dict(run={**sc_example()['run'], 'data': {'evaluation_date': '2026-10-29'}}), "run is evaluated on 2026-10-29"),
+    (dict(universe={'data': {'evaluation_date': '2026-11-20'}, 'rows': []}), 'universe is evaluated on 2026-11-20'),
+    (dict(run={**sc_example()['run'], 'rows': [{'ticker': 'LATE', 'eval_date': '2026-11-02'}]}), r"rows evaluated after 2026-10-30: \['LATE'\]"),
+    (dict(run={**sc_example()['run'], 'mode': 'universe_only'}), 'is not a screen: universe_only'),
+    (dict(screen={'preset': 'brk52', 'name': 'x', 'definition': {**SC_DEF, 'logic': 'any'}}), 'is not the preset brk52'),
+    (dict(screen={'preset': 'old', 'name': 'x', 'definition': SC_DEF}), 'is not the preset brk52'),
+])
+def test_the_screener_capture_stops_on_another_date_preset_or_answer(change, refused):
+    with pytest.raises(examples.ExampleError, match=refused):
+        sc_build(sc_example(**change))
+
+
+def test_the_screener_capture_stops_when_the_preset_is_not_shown_or_a_file_names_a_later_date():
+    lab = {**SC_RELEASES, 'items': [i if i['id'] != 'brk52' else {**i, 'stage': 'lab'} for i in SC_RELEASES['items']]}
+    with pytest.raises(examples.ExampleError, match='has no preset brk52'):
+        sc_build(releases=lab)
+    late = sc_example()
+    late['catalog']['stock_lists'] = {'availability': 'AVAILABLE', 'as_of': '2026-11-10', 'lists': []}
+    with pytest.raises(examples.ExampleError, match=r'screener-catalog names dates after 2026-10-30'):
+        sc_build(late)
+    with pytest.raises(examples.ExampleError, match="needs the worker's answer"):
+        examples.build(None, 'screener', SC_AS_OF, NAMES, LISTS)

@@ -10,6 +10,12 @@ params.json: {"as_of": "2026-10-30", "tabs": ["radar"], "write": false}
   it (backtest_request.ts)}; capture_backtest.json holds the example's. The worker's key goes as a Railway reference for
   the run only (RUN_JOB_EXTRA_VARS='BACKTEST_WORKER_KEY=${{backtest-worker.BACKTEST_WORKER_KEY}}') and
   apps/edge-bff/catalog/releases.json goes along as an extra (the items a run may read: the released ones).
+  with the tab "screener", also "screener": {} (optional "releases"): the screener-worker itself on its own input files
+  cut at as_of (screener_capture.ts) runs first, on the tree screener_tree.sh stages (one extra named tree), in the node
+  image (RUN_JOB_IMAGE=node), with releases.json as an extra; terminal-api's origin, the screener-worker's proxy key and
+  every limit of apps/screener-worker/src/config.ts go as Railway references for the run only, for example
+  RUN_JOB_EXTRA_VARS='TERMINAL_URL=${{screener-worker.TERMINAL_URL}} TERMINAL_PROXY_KEY=${{screener-worker.TERMINAL_PROXY_KEY}}
+  SCREENER_THREADS=${{screener-worker.SCREENER_THREADS}} ...' (screener_vars.py prints the whole list from config.ts).
 
 The reads are the publication's own statements (radar.build, its as-of variants), in a READ ONLY transaction; the write
 is a second transaction. Prints OUT lines with names, row counts, byte sizes and the first 16 hex of each sha256, never a
@@ -25,6 +31,7 @@ import gzip
 import json
 import os
 import secrets
+import subprocess
 import sys
 import time
 import urllib.request
@@ -103,13 +110,43 @@ def backtest_extra(conn, spec, as_of):
     return {'request': spec['request'], 'run': ran, 'catalog': catalog, 'built_on': spec['built_on']}
 
 
+# ---- the Screener: the screener-worker itself on its own input files cut at the date (screener_capture.ts) -------------
+# Its node part runs on the staged tree (screener_tree.sh, one extra named tree; RUN_JOB_IMAGE=node), with terminal-api's
+# origin and the screener-worker's proxy key and limits as Railway references for the run only, never values.
+SCREENER_NODE = ('node', '--experimental-strip-types', '--no-warnings=ExperimentalWarning', '--import',
+                 './tree/apps/backtest-worker/loader/register.mjs', './tree/verification/edge_multiuser/example_mode/screener_capture.ts')
+
+
+def screener_extra(spec, as_of):
+    """The Screener builder's example and release file (params.json screener: {releases?}): the worker's answer on its
+    input cut at as_of, for the context of the released items and no right, made before the build's READ ONLY
+    transaction (no transaction waits on it); its OUT lines relayed."""
+    releases = json.load(open(spec.get('releases', 'releases.json')))
+    with open('screener_spec.json', 'w') as f:
+        json.dump({'as_of': as_of, 'preset': examples.SCREENER_PRESET,
+                   'context': {'allow': examples.released_allow(releases), 'rights': []}}, f)
+    proc = subprocess.run([*SCREENER_NODE, 'screener_spec.json', 'screener_out.json'], capture_output=True, text=True,
+                          timeout=3600)
+    for line in proc.stdout.splitlines():
+        if line.startswith('OUT '):
+            print(line, flush=True)
+    if proc.returncode:
+        # the error's own line, without anything that could carry an address (a presigned URL) or a key
+        last = [x for x in proc.stderr.splitlines() if 'Error' in x and 'http' not in x and 'key' not in x.lower()]
+        raise examples.ExampleError(f"the Screener's run failed: {(last[-1] if last else 'exit ' + str(proc.returncode))[:300]}")
+    return {'example': json.load(open('screener_out.json')), 'releases': releases}
+
+
 def main():
     as_of = datetime.date.fromisoformat(p['as_of']).isoformat()
     tabs, write = list(p['tabs']), p.get('write') is True
     if not tabs or len(set(tabs)) != len(tabs):
         raise SystemExit('params.json: tabs must name each tab once')
+    # the Screener's run reads terminal-api only: it is made before any database connection is open (it may take minutes)
+    extras = {'screener': screener_extra(p.get('screener') or {}, as_of)} if 'screener' in tabs else {}
     with psycopg.connect(os.environ['DATABASE_URL'], autocommit=False) as conn:
-        extras = {'backtest': backtest_extra(conn, p['backtest'], as_of)} if 'backtest' in tabs else {}
+        if 'backtest' in tabs:
+            extras['backtest'] = backtest_extra(conn, p['backtest'], as_of)
         with conn.transaction():
             conn.execute('SET TRANSACTION READ ONLY')
             conn.execute("SET LOCAL statement_timeout = '5min'")

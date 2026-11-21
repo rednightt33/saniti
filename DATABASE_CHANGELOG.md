@@ -31,6 +31,16 @@
   members, the four default indicators, no upcoming corporate action), `watchlist-lists` 394 bytes
   `a6827ccdf8f9389d…`. The members: the earliest recorded (2026-11-10), unchanged since; none is recorded for 30
   October (ERRORS M527). Not a large update.
+- **The Backtest's example of 30 October 2026** (the same job with `capture_backtest.json`; `examples.py`
+  backtest_files): the page's default setup (MAPI, single stock) over the year to that date, its request built by the
+  page's own code on the part of the worker's catalog `backtest_catalog_job.py` printed (job `4afbf842`, CATALOG_PART;
+  the capture checks the worker still holds it as it is). The dry run (its worker run `bt_b744a609…`, 3,581 ms)
+  DRY_RUN_OK; the write `f8240f83` ran the request once on the real worker (job `bt_a737d1e66b3e2071e64d761b0232e8f1`, FINISHED in
+  1,095 ms), wrote 4 rows and read them back (READBACK OK, VERDICT WRITTEN): `backtest-catalog` 951 rows 19,429 bytes
+  `4a2397ab722601c3…`; `backtest-request` 5 conditions 696 bytes `04c78d8609a54ad0…`; `backtest-result` 240 days
+  23,024 bytes `f41bda3b0edbfe49…`; `backtest-bars-mapi` 240 rows 2,849 bytes `fb8869f33671a0cf…`. No file names a date
+  after 30 October 2026 but the result's own run stamp (`meta.data_through`, the publication the worker read). Not a
+  large update (one worker run, four rows).
 
 ## 2026-11-20 — The A2 fix: a reset code bound to its browser, a registration's client (edge_bff, migrations 20261120_001 and _002)
 

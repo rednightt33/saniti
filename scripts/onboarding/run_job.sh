@@ -14,6 +14,8 @@
 # A job that writes a lot (AGENTS.md "Postgres memory after large updates") puts "large_write": true in its params.json:
 # the script then restarts Postgres afterwards through scripts/restart_postgres.py --apply (all its guards apply); every
 # other job ends with a POSTGRES_MEMORY_CHECK line (EXEC-PG-MEMORY).
+# RUN_JOB_IMAGE=node runs the job on Dockerfile.node (node 22 beside python: a job that runs a service's TypeScript, 3e's
+# Screener example).
 # Optional environment (EXEC-PRICE-GAP-0917): RUN_JOB_POLL_ROUNDS (20 s each, default 90) and RUN_JOB_LOG_LINES
 # (default and most 5000: `railway logs` refuses more with "Error in limit - Invalid input") for long jobs; RUN_JOB_EXTRA_VARS, space-separated NAME=reference pairs (Railway references such as
 # ${{telegram-monitor.TELEGRAM_NOTIFY_SECRET}}, never values) set like DATABASE_URL for the run and removed afterwards.
@@ -25,6 +27,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 STAGE=$(mktemp -d)
 cp "$JOB" "$STAGE/job.py"; cp "$PARAMS" "$STAGE/params.json"
 DOCKERFILE="$HERE/Dockerfile"
+[ "${RUN_JOB_IMAGE:-}" = node ] && DOCKERFILE="$HERE/Dockerfile.node"
 for extra in "$@"; do
   cp -r "$extra" "$STAGE/"
   # a service's requirements.txt among the extras (orc for l2_tools, the Governor for governor_check) is installed

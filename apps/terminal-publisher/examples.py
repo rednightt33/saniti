@@ -222,7 +222,109 @@ def backtest_files(conn, names, lists, as_of, stream=None, request=None, run=Non
             (f'backtest-bars-{t.lower()}', bars, len(rows), as_of)]
 
 
-BUILDERS = {'radar': radar_files, 'watchlist': watchlist_files, 'backtest': backtest_files}
+# ---- the Screener: the real worker's answer on its own input files cut at the date ---------------------------------------
+# The Screener evaluates every stock at its newest bar and has no evaluation date of its own: its example is the
+# screener-worker itself run on its input files as they stood at as_of (screener_capture.ts; apps/screener-worker/tests/
+# example-capture.ts: every later price, action and broker day left out, no stock lists, as_of as the publication's
+# time). The user: "screener juga oke" (the preset brk52 "52W Breakout + Volume" with its results).
+SCREENER_PRESET = 'brk52'
+# the catalog's lists of items and the release kinds of their ids (apps/edge-bff/app/screener.py ITEM_LISTS, METRIC_KINDS,
+# REFERENCE_KEYS; tests/test_examples.py of edge-bff holds this copy to catalog_for)
+SCREENER_METRIC_KINDS = ('flow_indicator', 'candle_pattern', 'screener_metric')
+SCREENER_ITEM_LISTS = (('indicators', ('indicator',), lambda e: 'indicator'),
+                       ('metrics', SCREENER_METRIC_KINDS, lambda e: 'flow_indicator' if e.get('kind') == 'flow' else 'screener_metric'),
+                       ('fundamentals', SCREENER_METRIC_KINDS, lambda e: 'flow_indicator' if e.get('kind') == 'flow' else 'screener_metric'))
+SCREENER_REFERENCE_KEYS = ('metric', 'indicator', 'type', 'attr')
+# the item kinds a run may read: the released ids of each (the context the capture sends, as the Backtest's)
+RUN_ALLOW_KINDS = ('indicator', 'flow_indicator', 'candle_pattern', 'screener_metric')
+
+
+def released_allow(releases):
+    """{kind: [released ids]} of the release file (apps/edge-bff/catalog/releases.json) for every kind a run reads."""
+    return {k: sorted(i['id'] for i in releases['items'] if i['kind'] == k and i['stage'] == 'released') for k in RUN_ALLOW_KINDS}
+
+
+def _reads_any(x, ids):
+    if isinstance(x, list):
+        return any(_reads_any(v, ids) for v in x)
+    if isinstance(x, dict):
+        if isinstance(x.get('kind'), str) and any(isinstance(x.get(k), str) and x[k] in ids for k in SCREENER_REFERENCE_KEYS):
+            return True
+        return any(_reads_any(v, ids) for v in x.values())
+    return False
+
+
+def narrowest_catalog(doc, releases):
+    """The worker's catalog as the live site shows it to a principal holding screener.view with the released items and no
+    right (edge-bff catalog_for(doc, (), released_allow, None)): an entry marked access 'admin' (a point-in-time Flow
+    version) or not released is left out; a preset is kept when it is released, its items are all released (one without
+    the worker's items keeps no counts) and it reads no entry left out."""
+    stage = {(i['kind'], i['id']): i['stage'] for i in releases['items']}
+    out, gone = dict(doc), set()
+    for name, kinds, fallback in SCREENER_ITEM_LISTS:
+        if not isinstance(doc.get(name), list):
+            continue
+        kept = []
+        for e in doc[name]:
+            i = e.get('id') if isinstance(e, dict) else None
+            if isinstance(i, str):
+                kind = next((k for k in kinds if (k, i) in stage), fallback(e))
+                if e.get('access') == 'admin' or stage.get((kind, i)) != 'released':
+                    gone.add(i)
+                    continue
+            kept.append(e)
+        out[name] = kept
+    if isinstance(doc.get('presets'), list):
+        allow = released_allow(releases)
+        held = lambda it: isinstance(it, dict) and isinstance(it.get('id'), str) and it['id'] in allow.get(it.get('kind'), ())
+        presets = []
+        for x in doc['presets']:
+            if not (isinstance(x, dict) and isinstance(x.get('id'), str)):
+                continue
+            items = x.get('items')
+            if isinstance(items, list):
+                if not all(held(it) for it in items):
+                    continue
+            else:
+                x = {**x, 'match_count': None, 'near_count': None}
+            if stage.get(('screener_preset', x['id'])) != 'released':
+                continue
+            if gone and (_reads_any(x.get('definition'), gone) or any(isinstance(it, dict) and it.get('id') in gone for it in items or [])):
+                continue
+            presets.append(x)
+        out['presets'] = presets
+    return out
+
+
+def screener_files(conn, names, lists, as_of, stream=None, example=None, releases=None):
+    """The Screener's example -> [(name, doc, rows, day)]: screener-catalog (narrowest_catalog), screener-universe,
+    screener-screen (the preset the page opens: its id, name and definition) and screener-run (the worker's answer to
+    it). example: screener_capture.ts's {catalog, universe, screen, run}; releases: the release file."""
+    if example is None or releases is None:
+        raise ExampleError("the Screener example needs the worker's answer (screener_capture.ts) and the release file")
+    catalog, universe, run, screen = narrowest_catalog(example['catalog'], releases), example['universe'], example['run'], example['screen']
+    for what, doc in (('catalog', catalog), ('universe', universe), ('run', run)):
+        day = ((doc or {}).get('data') or {}).get('evaluation_date')
+        if day != as_of:
+            raise ExampleError(f"the worker's {what} is evaluated on {day}, not {as_of}")
+    preset = next((x for x in catalog.get('presets') or [] if x.get('id') == SCREENER_PRESET), None)
+    if preset is None:
+        raise ExampleError(f'the catalog shown has no preset {SCREENER_PRESET} (not released, or it reads an item left out)')
+    if screen.get('preset') != SCREENER_PRESET or screen.get('definition') != preset.get('definition'):
+        raise ExampleError(f"the example's screen is not the preset {SCREENER_PRESET} of the catalog shown")
+    if run.get('mode') != 'screen' or not isinstance(run.get('rows'), list):
+        raise ExampleError(f"the worker's answer is not a screen: {run.get('mode')}")
+    late = sorted({r.get('ticker') for r in run['rows'] if str(r.get('eval_date') or '') > as_of})
+    if late:
+        raise ExampleError(f'rows evaluated after {as_of}: {late[:3]}')
+    shown = {'preset': SCREENER_PRESET, 'name': preset.get('name'), 'definition': preset.get('definition')}
+    return [('screener-catalog', catalog, len(catalog.get('presets') or []), as_of),
+            ('screener-universe', universe, len(universe.get('rows') or []), as_of),
+            ('screener-screen', shown, len(shown['definition'].get('conditions') or []), as_of),
+            ('screener-run', run, len(run['rows']), as_of)]
+
+
+BUILDERS = {'radar': radar_files, 'watchlist': watchlist_files, 'backtest': backtest_files, 'screener': screener_files}
 NOTES: list[str] = []                       # what a builder took as given, for the capture job's log (no data value)
 
 

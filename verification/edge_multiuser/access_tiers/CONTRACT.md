@@ -1107,7 +1107,7 @@ today.
 - **Built 2026-11-20 on the branch (EXEC option A, item 3; the user's go of 2026-11-20), then checked by ultracode and
   fixed (ERRORS M518).**
   - **The example mode** (built from 2026-11-21 on the branch, the user's go; ERRORS M527; the Radar, the Overview,
-    the Watchlist and the Backtest built, the Screener to follow): see "The rail and the frames" below. The Monitor's example
+    the Watchlist, the Backtest and the Screener): see "The rail and the frames" below. The Monitor's example
     is not built: the live site offers no Monitor and the beta is the admin's alone, so nobody could see it.
   - **The Broker panel:** removed rather than prompted in place. The Flow Timeline's head and the drawer button carry
     its lock.
@@ -1163,6 +1163,17 @@ today.
     anything else with a refusal, and asks for nothing else (no catalog, preview, job, price or Terminal route).
     `backtest/tests/example.test.ts` fails when the page's default setup no longer builds the stored request
     (`verification/edge_multiuser/example_mode/capture_backtest.json`): the example is then captured again;
+  - the Screener's example is the screener-worker itself run on its own input files as they stood at the example's date
+    (the Screener evaluates every stock at its newest bar and has no evaluation date of its own;
+    `apps/screener-worker/tests/example-capture.ts`): terminal-api's publication for the worker with every later price,
+    action and broker day left out, no stock lists (their members are recorded only since 10 November 2026; the Index
+    and Group pickers, behind a click, say no data), the date as the publication's time. Stored: the worker's catalog
+    narrowed to what the live site shows a principal holding the released items and no right (`examples.py`
+    narrowest_catalog, held equal to edge-bff's catalog_for by a test), its universe, the screen (the preset brk52) and
+    its run. The page opens on that screen with its storage in memory, seeded with it (nothing of the example goes into
+    the browser's storage, nothing a visitor kept there shows) and no file cache; its run is answered with the stored
+    run only when the page's definition is the stored one in the page's own form (its cards keep no parameter at its
+    default); nothing else is asked (no preview, count, saved item, watchlist or write);
   - the page in example mode reads only those routes (its `example` data path) and stays a view of one day
     (`shared/example-view.ts`): a click, a press, a drag, a form input and a key acting on a control are stopped before
     the page's handlers and ask the shell for its box (`{source: <tab>, type: 'locked', kind: 'example'}`, accepted

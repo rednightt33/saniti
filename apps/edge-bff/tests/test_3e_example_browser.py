@@ -23,9 +23,10 @@ from test_examples import put  # noqa: E402
 from test_guest_browser import CONTACT  # noqa: E402
 from test_principal import db, make_user  # noqa: E402
 
-from example_docs import (RADAR_AS_OF as AS_OF, BACKTEST_AS_OF, OVERVIEW_DAYS, WATCHLIST_AS_OF,  # noqa: E402
-                          backtest_example, overview_files, radar_example, watchlist_example)
-from test_examples import gz  # noqa: E402
+from example_docs import (RADAR_AS_OF as AS_OF, BACKTEST_AS_OF, OVERVIEW_DAYS, SCREENER_AS_OF,  # noqa: E402
+                          WATCHLIST_AS_OF, backtest_example, overview_files, radar_example, screener_example,
+                          watchlist_example)
+from test_examples import gz, examples_module  # noqa: E402
 
 
 @pytest.fixture
@@ -69,6 +70,17 @@ def open_example(page, path='/radar'):
     return frame
 
 
+def no_title_after_hover(page, frame):
+    """3e: a native tooltip needs the pointer on its element and shows only after a delay; once the pointer is on the page,
+    no title attribute and no SVG <title> is left in it (shared/example-view.ts sweeps them on every pointer entry, with
+    no observer or timer: the Screener's bundle forbids both)."""
+    box = page.locator('main.example-page iframe.terminal-frame').bounding_box()
+    page.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+    page.mouse.move(box['x'] + box['width'] / 3, box['y'] + box['height'] / 3)
+    page.wait_for_timeout(100)
+    assert frame.locator('[title], svg title').count() == 0
+
+
 def asked(requests):
     return sorted({r.split('?')[0] for r in requests if '/api/v1/' in r})
 
@@ -88,7 +100,7 @@ def test_a_visitor_sees_the_radar_example_as_a_view_of_its_day(site, chromium):
     files = {u.rsplit('/', 1)[1] for u in urls if '/api/v1/examples/radar/file/' in u}
     assert files == set(radar_example()), urls
     # no tooltip to show: no title attribute and no SVG <title> in the page
-    assert frame.locator('[title], svg title').count() == 0
+    no_title_after_hover(page, frame)
     # it scrolls: the wheel over the board's list moves the element that scrolls it (the page's own scroller)
     frame.locator('text=T000').first.hover()
     scrolled = """() => [...document.querySelectorAll('*')].filter(e => e.scrollHeight > e.clientHeight + 2
@@ -258,17 +270,30 @@ def test_a_visitor_sees_the_watchlist_example_and_a_click_asks_to_sign_in(site, 
     box = page.locator('.locked-dialog')
     box.wait_for(timeout=10000)
     assert 'Sign in to open Watchlist' in box.inner_text() and 'This is an example of Watchlist' in box.inner_text()
-    assert frame.locator('[title], svg title').count() == 0
+    no_title_after_hover(page, frame)
 
 
-def test_a_visitor_sees_the_backtests_stored_run_and_a_click_asks_to_sign_in(site, chromium, store):
+@pytest.mark.parametrize('slow', [False, True], ids=['quick', 'slow'])
+def test_a_visitor_sees_the_backtests_stored_run_and_a_click_asks_to_sign_in(site, chromium, store, monkeypatch, slow):
     """The Backtest's example: the page opens on the stored run of its own default setup (its request equals the stored
     one, the cards' ids aside, so the stored result is shown: the header's figures and the results view), reads only the
-    example's files (no catalog, bars, job or Terminal route), shows no toast, no title, and a click asks to sign in."""
+    example's files (no catalog, bars, job or Terminal route), shows no toast, no title, and a click asks to sign in.
+    slow: every example answer comes half a second late, as on a visitor's network: the page draws on its provisional
+    catalog first (its quick wait is 60 ms, backtest/src/app.ts QUICK_MS), and its run still waits for the example's
+    catalog, so the request is the stored one and the same run shows."""
     if not (ROOT / 'backtest' / 'dist' / 'index.html').is_file():
         pytest.skip('the Backtest page is not built (cd apps/edge-bff/backtest && npm run build)')
     files = backtest_example()
     put(store, 'backtest', files, as_of=BACKTEST_AS_OF)
+    if slow:
+        import asyncio
+        quick = examples_module.Stored.current
+
+        async def late(self, p):
+            if self.tab == 'backtest':
+                await asyncio.sleep(0.5)
+            return await quick(self, p)
+        monkeypatch.setattr(examples_module.Stored, 'current', late)
     page = browser_context(chromium).new_page()
     page.set_viewport_size({'width': 1152, 'height': 640})
     requests, errors = [], []
@@ -293,7 +318,7 @@ def test_a_visitor_sees_the_backtests_stored_run_and_a_click_asks_to_sign_in(sit
     assert [u for u in urls if not u.startswith(('/api/v1/examples/backtest/', '/api/v1/auth/'))] == [], urls
     assert {u.rsplit('/', 1)[1] for u in urls if '/file/' in u} == set(files), urls
     assert frame.locator('#toast').text_content() == '' and errors == [], (frame.locator('#toast').text_content(), errors)
-    assert frame.locator('[title], svg title').count() == 0
+    no_title_after_hover(page, frame)
     # a click on the page asks to sign in, and the page's own handler did not run (no second run, the results stay)
     frame.locator('.js-run').first.click()
     box = page.locator('.locked-dialog')
@@ -301,3 +326,48 @@ def test_a_visitor_sees_the_backtests_stored_run_and_a_click_asks_to_sign_in(sit
     assert 'Sign in to open Backtest' in box.inner_text() and 'This is an example of Backtest' in box.inner_text()
     assert frame.locator('#main.vres').count() == 1 and frame.locator('#toast').text_content() == ''
     assert sum('/file/backtest-request' in u for u in requests) == 1
+
+
+def test_a_visitor_sees_the_screeners_stored_screen_and_its_results_and_the_browser_keeps_nothing(site, chromium, store):
+    """The Screener's example: the page opens on the stored screen (the preset brk52, its two cards) with the stored run's
+    results, reads only the example's files (no catalog, universe, run or watchlist route of the live page), keeps
+    nothing in the browser's storage and shows nothing a visitor kept there (a last screen of their own), shows no
+    toast and no title, and a click asks to sign in."""
+    if not (ROOT / 'screener' / 'dist' / 'index.html').is_file():
+        pytest.skip('the Screener page is not built (cd apps/edge-bff/screener && npm run build)')
+    files = screener_example()
+    put(store, 'screener', files, as_of=SCREENER_AS_OF)
+    context = browser_context(chromium)
+    page = context.new_page()
+    page.set_viewport_size({'width': 1440, 'height': 900})
+    requests, errors = [], []
+    page.on('request', lambda r: requests.append(r.url))
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    # a visitor's own last screen and panels from an earlier session on this browser: not shown, not changed
+    mine = '{"name":"Visitor own screen","definition":{"universe":{"security_types":["stock"]},"conditions":[],"logic":"all"}}'
+    page.goto(site.origin + '/favicon.svg')
+    page.evaluate("""m => { localStorage.setItem('scr.last', m); localStorage.setItem('scr.panel', '{"preview":true}') }""", mine)
+    page.goto(site.origin + '/screener')
+    frame_el = page.locator('main.example-page[data-example-tab="screener"] iframe.terminal-frame')
+    frame_el.wait_for(timeout=20000)
+    assert frame_el.get_attribute('src').endswith('/screener-app/?example=1')
+    frame = page.frame_locator('main.example-page iframe.terminal-frame')
+    tickers = [r['ticker'] for r in files['screener-run']['rows']]
+    assert tickers, 'the made-up run has matches to show'
+    frame.locator(f'text={tickers[0]}').first.wait_for(timeout=30000)
+    body = frame.locator('body').inner_text()
+    assert all(t in body for t in tickers), body[:600]
+    assert frame.locator('#titleIn').input_value() == files['screener-screen']['name'] and 'Visitor own screen' not in body
+    assert 'Screener with the data of Tue 27 Oct 2026' in page.locator('.example-bar').inner_text()
+    urls = sorted({u.split('?')[0].replace(site.origin, '') for u in requests if '/api/' in u})
+    assert [u for u in urls if not u.startswith(('/api/v1/examples/screener/', '/api/v1/auth/'))] == [], urls
+    assert {u.rsplit('/', 1)[1] for u in urls if '/file/' in u} == set(files), urls
+    assert frame.locator('#toast').text_content() == '' and errors == [], (frame.locator('#toast').text_content(), errors)
+    assert frame.locator('[title]').count() > 0                 # the page draws titles (its cells) ...
+    no_title_after_hover(page, frame)                           # ... and none is left once the pointer is on it
+    kept = page.evaluate("() => [localStorage.getItem('scr.last'), localStorage.getItem('scr.panel'), localStorage.getItem('scr.boot')]")
+    assert kept == [mine, '{"preview":true}', None], kept
+    frame.locator('button:visible:not([disabled]):not([aria-disabled="true"])').first.click()
+    box = page.locator('.locked-dialog')
+    box.wait_for(timeout=10000)
+    assert 'Sign in to open Screener' in box.inner_text() and 'This is an example of Screener' in box.inner_text()

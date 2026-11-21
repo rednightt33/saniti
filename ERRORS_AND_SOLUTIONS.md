@@ -8889,14 +8889,16 @@ in its staleness check.
 - **Root cause (verified in the code and CI):** `20261121_001` grants SELECT on `edge_bff.example_files` to
   `edge_bff_runtime`; the script holds the login to a known set of reachable tables (each later migration's group,
   all or none) and the new table was in none, so it refused, as it should for an unknown grant. On GitHub every
-  Backend tests run of the example commits (`32fb9a37` to `47272d35`, runs 301-305) was cancelled by the next push
-  before it finished, so the red never showed; the last finished run on the branch is `7650187` (success). The same
+  Backend tests run since `953d6249` (runs 300-305, through `580d1aaa`) was cancelled by the next push before it
+  finished, so the red never showed (run 306 on `0f0ec43d` was still running); the last finished run on the branch is
+  `7650187` (success). The same
   refusal would meet a rotation of the login on dev, where `20261121_001` is applied.
 - **Solution:** the script knows the table (`EXAMPLE_GRANTS = {'example_files': {'SELECT'}}`, all-or-none, exact grants
   with TRUNCATE, REFERENCES and TRIGGER refused); `tests/test_examples.py`
   `test_the_provisioned_login_only_reads_the_example_table`: the login reads the stored examples and cannot delete,
   update or truncate them, and an INSERT grant makes the script refuse ("Unexpected EDGE grants"); red with INSERT
-  added to the expected grants. The ten provisioning tests pass.
+  added to the expected grants. The ten provisioning tests pass; the whole edge-bff suite passed locally (1072), and
+  Backend tests run 307 on `284fe7a0` finished green (the first finished run since the example store).
 - **Lesson:** a migration that grants a table to `edge_bff_runtime` changes `scripts/provision_edge_bff_login.py` in the
   same commit (its exact grants and its group). A cancelled CI run is not a green one: before stacking pushes, let one
   Backend tests run finish, or run the backend suite locally in full.
@@ -8980,6 +8982,18 @@ in its staleness check.
     example's routes in that mode (no account list, no logo list), keeps no view choice in the browser, and stays still
     (`shared/example-view.ts`). Browser test: the 45-row list's made-up twin shows, only the example's files are read,
     a click asks to sign in.
+  - The Backtest (30 October 2026, the user: "backtest juga oke"): the page's default setup (MAPI, single stock) over
+    the year to that date, run once on the real worker. `examples.py` backtest_files stores the worker's catalog cut to
+    that year (the Flow indicators every plan may read), the page's own request (built by its code on a part of that
+    catalog: `backtest/tests/example-part.ts`; the capture stops unless the worker's catalog holds the part as it is,
+    `outside`), the worker's result and the ticker's bars of the year; it stops on another mode, ticker or end, a
+    share-basis change in the period, a run without the ticker's tracks or days to the date, a missing price. Written on
+    dev by job `f8240f83` (4 files, READBACK OK). The page opens with the run done (autorun, its results view); its
+    example data path answers its submit with the stored run only when its request is the stored one (the cards' ids
+    aside, mapped onto the run). `backtest/tests/example.test.ts` fails when the page's default setup no longer builds
+    the stored request (`capture_backtest.json`): capture the example again (backtest_catalog_job.py,
+    backtest_request.ts, capture_job.py). Browser test: the stored run shows, also when every example answer is half a
+    second late, only the example's files are read, no toast, no title, a click asks to sign in.
 - **Lesson for new data:** an example of a page is the files of its opening view, built by the publisher's own builder
   cut at one date and checked for later dates before it is stored; the server is the guarantee (it serves only those
   files, only to `<tab>.example`), the page only displays.

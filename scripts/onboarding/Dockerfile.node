@@ -1,0 +1,13 @@
+# A job that runs a service's TypeScript beside Python (3e, the Screener's example: the screener-worker on its own input
+# files cut at a date, verification/edge_multiuser/example_mode/capture_job.py): the python and psycopg of Dockerfile,
+# with node 22 (the screener-worker's image is node:22-slim) copied from the official image. run_job.sh picks it with
+# RUN_JOB_IMAGE=node.
+FROM node:22-bookworm-slim AS node
+FROM python:3.12-slim
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 && rm -rf /var/lib/apt/lists/* \
+  && pip install --no-cache-dir "psycopg[binary]==3.2.10" && node --version
+WORKDIR /job
+COPY . /job
+# ERRORS M322: the wrapper prints JOB_EXIT <exit code> after job.py ends; the node version is the first line
+CMD ["sh", "-c", "echo \"NODE $(node --version)\"; python -u job.py; code=$?; echo \"JOB_EXIT $code\"; exit $code"]

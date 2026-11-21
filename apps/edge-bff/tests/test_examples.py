@@ -384,3 +384,28 @@ def test_the_overview_example_is_the_free_plans_and_follows_a_new_publication(gu
     with TestClient(create_app(guests, store, FakeOrc())) as c:
         index, files = overview_example(c, VISITOR)
         assert index['as_of'] == '2026-11-23' and 'overview-day-2026-11-23' in index['files']
+
+
+# ---- the Screener: the stored catalog is the live site's for the released items (3e; ERRORS M527) -------------------
+def test_the_screener_examples_catalog_is_what_catalog_for_gives_the_released_items(settings, store):
+    """terminal-publisher examples.py narrowest_catalog (its copy of the catalog's item lists and the preset rules) gives
+    the catalog edge-bff's own catalog_for gives a principal holding the released items and no right (p None: no lab
+    item), on the made-up worker catalog; and catalog_for changes nothing more on what the example stores. Red when
+    either side's rules move without the other."""
+    import json as _json
+    from app import screener as sc
+    import example_docs
+    releases = _json.loads((Path(__file__).resolve().parents[1] / 'catalog' / 'releases.json').read_text())
+    raw = example_docs.screener_made_up()['catalog']
+    allow = example_docs.examples.released_allow(releases)
+    screeners = sc.Screeners(settings, store, worker=object())
+
+    def as_edge_bff_shows(doc):
+        b = _json.dumps(doc, separators=(',', ':')).encode()
+        d = sc.Doc(key='catalog', raw=b, gz=gzip.compress(b), etag='"' + hashlib.sha256(b).hexdigest() + '"', price_data='p')
+        return _json.loads(screeners.catalog_for(d, (), allow, None).raw)
+    narrowed = example_docs.examples.narrowest_catalog(raw, releases)
+    assert as_edge_bff_shows(raw) == narrowed
+    assert as_edge_bff_shows(narrowed) == narrowed
+    assert len(narrowed['presets']) < len(raw['presets']) or any(e.get('access') == 'admin' for e in raw.get('metrics', []))
+    assert 'brk52' in {p['id'] for p in narrowed['presets']}

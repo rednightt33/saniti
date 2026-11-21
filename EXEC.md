@@ -16322,8 +16322,17 @@ Order of the services (CONTRACT 17, rollback floors):
           box from any page frame, the Radar's example data path and the view-only layer (`shared/example-view.ts`),
           browser tests red on each mutation. `20261121_002` (the guest's flags) waits for the promotion
           (LIVE_PROMOTION.md, its row).
-        - Next: the Overview (its latest date, the time controls locked, the files trimmed by the server), the
-          Watchlist, the Screener and the Backtest at 30 October; then the checker and the promotion.
+        - The Overview: its latest market date through the page relay, trimmed by edge-bff to the opening view, the
+          time controls locked (`47272d35`, `580d1aaa`).
+        - The Watchlist at 30 October: one LQ45 list with the default indicators (`0f0ec43d`; written on dev by
+          `b77b0506`).
+        - The Backtest at 30 October: the stored run of the page's default setup (`284fe7a0`; written on dev by
+          `f8240f83`, 4 files, READBACK OK). Found on the way (ERRORS M529): `scripts/provision_edge_bff_login.py` did
+          not know `edge_bff.example_files`, and the backend runs of the example commits had each been cancelled by
+          the next push; fixed, and one backend run is to finish before more pushes stack up.
+        - Next: the Screener at 30 October (the screener-worker itself on its own input files cut at that date: read
+          from terminal-api, served by its test's fake terminal; the probe `screener_probe_job.py`: price 1,477,143
+          rows to 20 November, 54 of 60 broker days on or before 30 October), then the checker and the promotion.
 - **After the live site opens, before registration:** the A2 fix (ERRORS M513: counters keyed by the address or the
   code alone let a stranger lock a known address; accepted for the pre-launch mode, "3. ok"); 3e, 3f, Phase 4, the
   payment skeleton (beta first, then live);

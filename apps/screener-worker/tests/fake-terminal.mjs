@@ -6,7 +6,8 @@
    startFakeTerminal({ key, publication, ttl, processes }) -> { url, requests, fault(match, statuses), publish(p),
    state(n), close() }:
      publication  { finished_at, price_through?, broker_through?, prices: {TICKER: rows[]}, ref: [[ticker, name, type,
-                  sector, industry], ...], actions?: rows[], files?: {name: {body?, sha256?, bytes?}} }: the price and
+                  sector, industry], ...] (refColumns?: the rows' columns when they are others), actions?: rows[],
+                  files?: {name: {body?, sha256?, bytes?}} }: the price and
                   actions xsection files (publisher.py xsection_price_doc / xsection_actions_doc), the per-ticker yearly
                   files /manifest names (their rows and last dates), the reference file. files overrides what the index
                   claims for a file (a corrupt sha256, a size) or its bytes (a truncated body)
@@ -177,7 +178,7 @@ export async function startFakeTerminal({ key, publication, ttl = 120, delayMs =
       manifests[t] = { ticker: t, window: null, generated_at: p.finished_at, datasets: { price: { data_through: rows[rows.length - 1][0], years: p.manifests?.[t] ?? years } } };
     }
     const refKey = `ref/tickers.${pubs.length}.json.gz`;
-    objects.set(refKey, { body: encode(tickersRef(p.ref)).body });
+    objects.set(refKey, { body: encode(tickersRef(p.ref, p.refColumns)).body });    // refColumns: the file's own columns (3e example capture)
     let brokersRef = null;
     if (p.brokers) {
       const cols = ['code', 'name', 'type', 'classification'], e = encode({ schema_version: 1, columns: cols, ...Object.fromEntries(cols.map((c, i) => [c, p.brokers.map(r => r[i])])) });
